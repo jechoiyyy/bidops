@@ -1,0 +1,322 @@
+schema_version: bidops.feedback.v2
+reviews:
+  - notice_id: "bid:R26BK01689645:000"
+    disposition: null  # 심층 검토 진행 | 관찰 | 제외
+    system_judgment_review: null  # 동의 | 등급 수정 | 근거 부족
+    corrected_grade: null
+    corrected_readiness: null
+    weakest_perspective: null  # 근거가 가장 부족했던 관점 이름
+    reason: ""
+    verification_answers: []
+  - notice_id: "bid:R26BK01684997:000"
+    disposition: null  # 심층 검토 진행 | 관찰 | 제외
+    system_judgment_review: null  # 동의 | 등급 수정 | 근거 부족
+    corrected_grade: null
+    corrected_readiness: null
+    weakest_perspective: null  # 근거가 가장 부족했던 관점 이름
+    reason: ""
+    verification_answers: []
+  - notice_id: "bid:R26BK01692158:000"
+    disposition: null  # 심층 검토 진행 | 관찰 | 제외
+    system_judgment_review: null  # 동의 | 등급 수정 | 근거 부족
+    corrected_grade: null
+    corrected_readiness: null
+    weakest_perspective: null  # 근거가 가장 부족했던 관점 이름
+    reason: ""
+    verification_answers: []
+  - notice_id: "bid:R26BK01687915:000"
+    disposition: null  # 심층 검토 진행 | 관찰 | 제외
+    system_judgment_review: null  # 동의 | 등급 수정 | 근거 부족
+    corrected_grade: null
+    corrected_readiness: null
+    weakest_perspective: null  # 근거가 가장 부족했던 관점 이름
+    reason: ""
+    verification_answers: []
+  - notice_id: "bid:R26BK01685458:000"
+    disposition: null  # 심층 검토 진행 | 관찰 | 제외
+    system_judgment_review: null  # 동의 | 등급 수정 | 근거 부족
+    corrected_grade: null
+    corrected_readiness: null
+    weakest_perspective: null  # 근거가 가장 부족했던 관점 이름
+    reason: ""
+    verification_answers: []
+  - notice_id: "bid:R26BK01689654:000"
+    disposition: null  # 심층 검토 진행 | 관찰 | 제외
+    system_judgment_review: null  # 동의 | 등급 수정 | 근거 부족
+    corrected_grade: null
+    corrected_readiness: null
+    weakest_perspective: null  # 근거가 가장 부족했던 관점 이름
+    reason: ""
+    verification_answers: []
+  - notice_id: "bid:R26BK01636337:002"
+    disposition: null  # 심층 검토 진행 | 관찰 | 제외
+    system_judgment_review: null  # 동의 | 등급 수정 | 근거 부족
+    corrected_grade: null
+    corrected_readiness: null
+    weakest_perspective: null  # 근거가 가장 부족했던 관점 이름
+    reason: ""
+    verification_answers: []
+  - notice_id: "bid:R26BK01688017:000"
+    disposition: null  # 심층 검토 진행 | 관찰 | 제외
+    system_judgment_review: null  # 동의 | 등급 수정 | 근거 부족
+    corrected_grade: null
+    corrected_readiness: null
+    weakest_perspective: null  # 근거가 가장 부족했던 관점 이름
+    reason: ""
+    verification_answers: []
+  - notice_id: "bid:R26BK01686837:000"
+    disposition: null  # 심층 검토 진행 | 관찰 | 제외
+    system_judgment_review: null  # 동의 | 등급 수정 | 근거 부족
+    corrected_grade: null
+    corrected_readiness: null
+    weakest_perspective: null  # 근거가 가장 부족했던 관점 이름
+    reason: ""
+    verification_answers: []
+  - notice_id: "bid:R26BK01693636:000"
+    disposition: null  # 심층 검토 진행 | 관찰 | 제외
+    system_judgment_review: null  # 동의 | 등급 수정 | 근거 부족
+    corrected_grade: null
+    corrected_readiness: null
+    weakest_perspective: null  # 근거가 가장 부족했던 관점 이름
+    reason: ""
+    verification_answers: []
+  - notice_id: "bid:R26BK01687915:001"
+    disposition: null  # 심층 검토 진행 | 관찰 | 제외
+    system_judgment_review: null  # 동의 | 등급 수정 | 근거 부족
+    corrected_grade: null
+    corrected_readiness: null
+    weakest_perspective: null  # 근거가 가장 부족했던 관점 이름
+    reason: ""
+    verification_answers: []
+  - notice_id: "bid:R26BK01684083:001"
+    disposition: null  # 심층 검토 진행 | 관찰 | 제외
+    system_judgment_review: null  # 동의 | 등급 수정 | 근거 부족
+    corrected_grade: null
+    corrected_readiness: null
+    weakest_perspective: null  # 근거가 가장 부족했던 관점 이름
+    reason: ""
+    verification_answers: []
+  - notice_id: "bid:R26BK01685418:000"
+    disposition: null  # 심층 검토 진행 | 관찰 | 제외
+    system_judgment_review: null  # 동의 | 등급 수정 | 근거 부족
+    corrected_grade: null
+    corrected_readiness: null
+    weakest_perspective: null  # 근거가 가장 부족했던 관점 이름
+    reason: ""
+    verification_answers: []
+  - notice_id: "bid:R26BK01691053:000"
+    disposition: null  # 심층 검토 진행 | 관찰 | 제외
+    system_judgment_review: null  # 동의 | 등급 수정 | 근거 부족
+    corrected_grade: null
+    corrected_readiness: null
+    weakest_perspective: null  # 근거가 가장 부족했던 관점 이름
+    reason: ""
+    verification_answers: []
+  - notice_id: "bid:R26BK01688651:000"
+    disposition: null  # 심층 검토 진행 | 관찰 | 제외
+    system_judgment_review: null  # 동의 | 등급 수정 | 근거 부족
+    corrected_grade: null
+    corrected_readiness: null
+    weakest_perspective: null  # 근거가 가장 부족했던 관점 이름
+    reason: ""
+    verification_answers: []
+  - notice_id: "bid:R26BK01689169:000"
+    disposition: null  # 심층 검토 진행 | 관찰 | 제외
+    system_judgment_review: null  # 동의 | 등급 수정 | 근거 부족
+    corrected_grade: null
+    corrected_readiness: null
+    weakest_perspective: null  # 근거가 가장 부족했던 관점 이름
+    reason: ""
+    verification_answers: []
+  - notice_id: "bid:R26BK01677594:001"
+    disposition: null  # 심층 검토 진행 | 관찰 | 제외
+    system_judgment_review: null  # 동의 | 등급 수정 | 근거 부족
+    corrected_grade: null
+    corrected_readiness: null
+    weakest_perspective: null  # 근거가 가장 부족했던 관점 이름
+    reason: ""
+    verification_answers: []
+  - notice_id: "bid:R26BK01689157:000"
+    disposition: null  # 심층 검토 진행 | 관찰 | 제외
+    system_judgment_review: null  # 동의 | 등급 수정 | 근거 부족
+    corrected_grade: null
+    corrected_readiness: null
+    weakest_perspective: null  # 근거가 가장 부족했던 관점 이름
+    reason: ""
+    verification_answers: []
+  - notice_id: "bid:R26BK01689304:000"
+    disposition: null  # 심층 검토 진행 | 관찰 | 제외
+    system_judgment_review: null  # 동의 | 등급 수정 | 근거 부족
+    corrected_grade: null
+    corrected_readiness: null
+    weakest_perspective: null  # 근거가 가장 부족했던 관점 이름
+    reason: ""
+    verification_answers: []
+  - notice_id: "bid:R26BK01688235:000"
+    disposition: null  # 심층 검토 진행 | 관찰 | 제외
+    system_judgment_review: null  # 동의 | 등급 수정 | 근거 부족
+    corrected_grade: null
+    corrected_readiness: null
+    weakest_perspective: null  # 근거가 가장 부족했던 관점 이름
+    reason: ""
+    verification_answers: []
+  - notice_id: "bid:R26BK01688026:000"
+    disposition: null  # 심층 검토 진행 | 관찰 | 제외
+    system_judgment_review: null  # 동의 | 등급 수정 | 근거 부족
+    corrected_grade: null
+    corrected_readiness: null
+    weakest_perspective: null  # 근거가 가장 부족했던 관점 이름
+    reason: ""
+    verification_answers: []
+  - notice_id: "bid:R26BK01685562:001"
+    disposition: null  # 심층 검토 진행 | 관찰 | 제외
+    system_judgment_review: null  # 동의 | 등급 수정 | 근거 부족
+    corrected_grade: null
+    corrected_readiness: null
+    weakest_perspective: null  # 근거가 가장 부족했던 관점 이름
+    reason: ""
+    verification_answers: []
+  - notice_id: "bid:R26BK01691873:000"
+    disposition: null  # 심층 검토 진행 | 관찰 | 제외
+    system_judgment_review: null  # 동의 | 등급 수정 | 근거 부족
+    corrected_grade: null
+    corrected_readiness: null
+    weakest_perspective: null  # 근거가 가장 부족했던 관점 이름
+    reason: ""
+    verification_answers: []
+  - notice_id: "bid:R26BK01688862:000"
+    disposition: null  # 심층 검토 진행 | 관찰 | 제외
+    system_judgment_review: null  # 동의 | 등급 수정 | 근거 부족
+    corrected_grade: null
+    corrected_readiness: null
+    weakest_perspective: null  # 근거가 가장 부족했던 관점 이름
+    reason: ""
+    verification_answers: []
+  - notice_id: "bid:R26BK01691469:000"
+    disposition: null  # 심층 검토 진행 | 관찰 | 제외
+    system_judgment_review: null  # 동의 | 등급 수정 | 근거 부족
+    corrected_grade: null
+    corrected_readiness: null
+    weakest_perspective: null  # 근거가 가장 부족했던 관점 이름
+    reason: ""
+    verification_answers: []
+  - notice_id: "bid:R26BK01687189:000"
+    disposition: null  # 심층 검토 진행 | 관찰 | 제외
+    system_judgment_review: null  # 동의 | 등급 수정 | 근거 부족
+    corrected_grade: null
+    corrected_readiness: null
+    weakest_perspective: null  # 근거가 가장 부족했던 관점 이름
+    reason: ""
+    verification_answers: []
+  - notice_id: "bid:R26BK01687558:000"
+    disposition: null  # 심층 검토 진행 | 관찰 | 제외
+    system_judgment_review: null  # 동의 | 등급 수정 | 근거 부족
+    corrected_grade: null
+    corrected_readiness: null
+    weakest_perspective: null  # 근거가 가장 부족했던 관점 이름
+    reason: ""
+    verification_answers: []
+  - notice_id: "bid:R26BK01675471:000"
+    disposition: null  # 심층 검토 진행 | 관찰 | 제외
+    system_judgment_review: null  # 동의 | 등급 수정 | 근거 부족
+    corrected_grade: null
+    corrected_readiness: null
+    weakest_perspective: null  # 근거가 가장 부족했던 관점 이름
+    reason: ""
+    verification_answers: []
+  - notice_id: "bid:R26BK01689347:000"
+    disposition: null  # 심층 검토 진행 | 관찰 | 제외
+    system_judgment_review: null  # 동의 | 등급 수정 | 근거 부족
+    corrected_grade: null
+    corrected_readiness: null
+    weakest_perspective: null  # 근거가 가장 부족했던 관점 이름
+    reason: ""
+    verification_answers: []
+  - notice_id: "bid:R26BK01690558:000"
+    disposition: null  # 심층 검토 진행 | 관찰 | 제외
+    system_judgment_review: null  # 동의 | 등급 수정 | 근거 부족
+    corrected_grade: null
+    corrected_readiness: null
+    weakest_perspective: null  # 근거가 가장 부족했던 관점 이름
+    reason: ""
+    verification_answers: []
+  - notice_id: "bid:R26BK01691908:000"
+    disposition: null  # 심층 검토 진행 | 관찰 | 제외
+    system_judgment_review: null  # 동의 | 등급 수정 | 근거 부족
+    corrected_grade: null
+    corrected_readiness: null
+    weakest_perspective: null  # 근거가 가장 부족했던 관점 이름
+    reason: ""
+    verification_answers: []
+  - notice_id: "bid:R26BK01688735:000"
+    disposition: null  # 심층 검토 진행 | 관찰 | 제외
+    system_judgment_review: null  # 동의 | 등급 수정 | 근거 부족
+    corrected_grade: null
+    corrected_readiness: null
+    weakest_perspective: null  # 근거가 가장 부족했던 관점 이름
+    reason: ""
+    verification_answers: []
+  - notice_id: "bid:R26BK01691588:000"
+    disposition: null  # 심층 검토 진행 | 관찰 | 제외
+    system_judgment_review: null  # 동의 | 등급 수정 | 근거 부족
+    corrected_grade: null
+    corrected_readiness: null
+    weakest_perspective: null  # 근거가 가장 부족했던 관점 이름
+    reason: ""
+    verification_answers: []
+  - notice_id: "bid:R26BK01686686:000"
+    disposition: null  # 심층 검토 진행 | 관찰 | 제외
+    system_judgment_review: null  # 동의 | 등급 수정 | 근거 부족
+    corrected_grade: null
+    corrected_readiness: null
+    weakest_perspective: null  # 근거가 가장 부족했던 관점 이름
+    reason: ""
+    verification_answers: []
+  - notice_id: "bid:R26BK01684909:000"
+    disposition: null  # 심층 검토 진행 | 관찰 | 제외
+    system_judgment_review: null  # 동의 | 등급 수정 | 근거 부족
+    corrected_grade: null
+    corrected_readiness: null
+    weakest_perspective: null  # 근거가 가장 부족했던 관점 이름
+    reason: ""
+    verification_answers: []
+  - notice_id: "bid:R26BK01685864:000"
+    disposition: null  # 심층 검토 진행 | 관찰 | 제외
+    system_judgment_review: null  # 동의 | 등급 수정 | 근거 부족
+    corrected_grade: null
+    corrected_readiness: null
+    weakest_perspective: null  # 근거가 가장 부족했던 관점 이름
+    reason: ""
+    verification_answers: []
+  - notice_id: "bid:R26BK01689122:000"
+    disposition: null  # 심층 검토 진행 | 관찰 | 제외
+    system_judgment_review: null  # 동의 | 등급 수정 | 근거 부족
+    corrected_grade: null
+    corrected_readiness: null
+    weakest_perspective: null  # 근거가 가장 부족했던 관점 이름
+    reason: ""
+    verification_answers: []
+  - notice_id: "bid:R26BK01690997:000"
+    disposition: null  # 심층 검토 진행 | 관찰 | 제외
+    system_judgment_review: null  # 동의 | 등급 수정 | 근거 부족
+    corrected_grade: null
+    corrected_readiness: null
+    weakest_perspective: null  # 근거가 가장 부족했던 관점 이름
+    reason: ""
+    verification_answers: []
+  - notice_id: "bid:R26BK01687175:000"
+    disposition: null  # 심층 검토 진행 | 관찰 | 제외
+    system_judgment_review: null  # 동의 | 등급 수정 | 근거 부족
+    corrected_grade: null
+    corrected_readiness: null
+    weakest_perspective: null  # 근거가 가장 부족했던 관점 이름
+    reason: ""
+    verification_answers: []
+  - notice_id: "bid:R26BK01692602:000"
+    disposition: null  # 심층 검토 진행 | 관찰 | 제외
+    system_judgment_review: null  # 동의 | 등급 수정 | 근거 부족
+    corrected_grade: null
+    corrected_readiness: null
+    weakest_perspective: null  # 근거가 가장 부족했던 관점 이름
+    reason: ""
+    verification_answers: []
