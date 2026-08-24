@@ -29,6 +29,10 @@ function priorityStatus(metric: ValidationMetric | undefined): string | undefine
   return undefined;
 }
 
+function countText(value: number | null): string {
+  return value === null ? "값 없음" : formatNumber(value);
+}
+
 function percentageText(value: number | null): string {
   if (value === null || Number.isNaN(value)) return "비율 계산 불가";
   return `${value.toFixed(1)}%`;
@@ -76,7 +80,15 @@ export function DashboardPage() {
   const discriminativePower = validation.metrics.find((metric) => metric.key === "discriminative_power");
   const analysisSampleCount = sampleCountFromDistribution(stats.grade_distribution);
   const auditSampleCount = Math.max(stats.sample_count - analysisSampleCount, 0);
-  const candidateRatio = stats.collected_count > 0 ? (stats.candidate_count / stats.collected_count) * 100 : null;
+  // 수집 통계는 collected-notices.json 이 있어야 나온다. 없으면 비율도 계산하지 않는다.
+  const candidateRatio =
+    stats.collected_count !== null && stats.candidate_count !== null && stats.collected_count > 0
+      ? (stats.candidate_count / stats.collected_count) * 100
+      : null;
+  const auditPoolCount =
+    stats.collected_count !== null && stats.candidate_count !== null
+      ? Math.max(stats.collected_count - stats.candidate_count, 0)
+      : null;
   const priorityDescription = discriminativePower
     ? `분석 표본 ${formatNumber(discriminativePower.basis.denominator)}건의 ${percentageText(discriminativePower.percentage)}`
     : `분석 표본 ${formatNumber(analysisSampleCount)}건 기준`;
@@ -86,13 +98,13 @@ export function DashboardPage() {
       <section className="dashboard-kpi-grid" aria-label="회차 주요 지표">
         <KpiCard
           label="수집 건수"
-          value={<><span>{formatNumber(stats.collected_count)}</span><span className="dashboard-kpi-unit">건</span></>}
-          description="수집 산출물 기준 · 용역 본공고"
+          value={<><span>{countText(stats.collected_count)}</span>{stats.collected_count !== null ? <span className="dashboard-kpi-unit">건</span> : null}</>}
+          description={stats.collected_count === null ? "collected-notices.json이 없어 수집 건수를 알 수 없습니다." : "수집 산출물 기준 · 용역 본공고"}
         />
         <KpiCard
           label="후보 풀"
-          value={<><span>{formatNumber(stats.candidate_count)}</span><span className="dashboard-kpi-unit">건</span></>}
-          description={<><span>전체 수집의 </span><span className="mono tabular-nums">{percentageText(candidateRatio)}</span><span> · 감사 풀 </span><span className="mono tabular-nums">{formatNumber(Math.max(stats.collected_count - stats.candidate_count, 0))}</span><span>건</span></>}
+          value={<><span>{countText(stats.candidate_count)}</span>{stats.candidate_count !== null ? <span className="dashboard-kpi-unit">건</span> : null}</>}
+          description={<><span>전체 수집의 </span><span className="mono tabular-nums">{percentageText(candidateRatio)}</span><span> · 감사 풀 </span><span className="mono tabular-nums">{countText(auditPoolCount)}</span>{auditPoolCount !== null ? <span>건</span> : null}</>}
         />
         <KpiCard
           accent

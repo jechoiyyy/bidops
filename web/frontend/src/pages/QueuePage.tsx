@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { Badge, type BadgeVariant } from "../components/common/Badge";
+import { Badge } from "../components/common/Badge";
 import { EmptyState } from "../components/common/EmptyState";
 import { AttachmentPanel } from "../components/notice/AttachmentPanel";
 import { CounterargumentList } from "../components/notice/CounterargumentList";
@@ -16,6 +16,7 @@ import { QueueList } from "../components/queue/QueueList";
 import { api } from "../lib/api";
 import { formatDeadline, formatPrice, present } from "../lib/format";
 import type { NoticeDetailResponse, ReviewResponse, ReviewUpsertRequest } from "../lib/types";
+import { gradeVariant } from "../lib/grade";
 
 const emptyDraft: ReviewDraft = {
   disposition: "",
@@ -55,13 +56,6 @@ function filterFromParams(params: URLSearchParams): QueueFilterValues {
   };
 }
 
-function gradeVariant(grade: string | null): BadgeVariant {
-  if (grade === "우선 검토") return "grade-1";
-  if (grade === "검토 권장") return "grade-2";
-  if (grade === "관찰 대상") return "grade-3";
-  if (grade === "제외") return "grade-4";
-  return "neutral";
-}
 
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;

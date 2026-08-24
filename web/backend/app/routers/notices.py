@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session, selectinload
 
+from ..constants import GRADE_ORDER
 from ..db import get_db
 from ..models import Attachment, Judgment, Notice, Perspective, Review, Run
 from ..services.attachments import attachment_download_url
@@ -34,7 +35,6 @@ from .common import decimal_float, get_run, notice_list_item
 
 
 router = APIRouter(prefix="/api/notices", tags=["notices"])
-GRADE_ORDER = ["우선 검토", "검토 권장", "관찰 대상", "제외"]
 
 
 def _list_options():

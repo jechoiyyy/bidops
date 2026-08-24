@@ -177,7 +177,11 @@ def _information_sufficiency(session: Session, run_id: str) -> ValidationMetric:
         select(Judgment)
         .join(Notice, Judgment.notice_pk == Notice.id)
         .where(Notice.run_id == run_id)
-        .options(selectinload(Judgment.notice), selectinload(Judgment.verification_items))
+        .options(
+            # notice.attachments 까지 함께 읽지 않으면 판정 수만큼 조회가 늘어난다.
+            selectinload(Judgment.notice).selectinload(Notice.attachments),
+            selectinload(Judgment.verification_items),
+        )
     ).all()
     items = [item for judgment in judgments for item in judgment.verification_items]
     if not items:

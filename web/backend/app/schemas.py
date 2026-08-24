@@ -347,7 +347,8 @@ class RunDetailResponse(RunSummary):
 class FunnelItem(APIModel):
     key: str
     label: str
-    count: int
+    # 산출물이 값을 주지 않은 단계는 0이 아니라 null 로 남긴다.
+    count: int | None = None
 
 
 class DistributionItem(APIModel):
@@ -373,8 +374,8 @@ class RunStatsResponse(APIModel):
     # 마감 임박 목록은 이 시각을 기준으로 7일 구간을 잡는다. 화면이 남은 일수를
     # 같은 기준으로 계산하도록 응답에 함께 담는다.
     generated_at: datetime
-    collected_count: int
-    candidate_count: int
+    collected_count: int | None = None
+    candidate_count: int | None = None
     sample_count: int
     priority_review_count: int
     audit_missed_count: int

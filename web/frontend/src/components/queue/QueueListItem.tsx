@@ -1,6 +1,7 @@
 import { Badge, type BadgeVariant } from "../common/Badge";
 import type { NoticeListItem } from "../../lib/types";
 import { formatDeadline, formatNumber, formatPrice } from "../../lib/format";
+import { gradeVariant } from "../../lib/grade";
 
 interface QueueListItemProps {
   notice: NoticeListItem;
@@ -9,13 +10,6 @@ interface QueueListItemProps {
   onClick: () => void;
 }
 
-function gradeVariant(grade: string | null): BadgeVariant {
-  if (grade === "우선 검토") return "grade-1";
-  if (grade === "검토 권장") return "grade-2";
-  if (grade === "관찰 대상") return "grade-3";
-  if (grade === "제외") return "grade-4";
-  return "neutral";
-}
 
 function deadlineVariant(value: string | null): BadgeVariant {
   if (!value) return "neutral";

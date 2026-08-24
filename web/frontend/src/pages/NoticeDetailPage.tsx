@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { Badge, type BadgeVariant } from "../components/common/Badge";
+import { Badge } from "../components/common/Badge";
 import { EmptyState } from "../components/common/EmptyState";
 import { AttachmentPanel } from "../components/notice/AttachmentPanel";
 import { CounterargumentList } from "../components/notice/CounterargumentList";
@@ -17,18 +17,12 @@ import { VerificationItemTable } from "../components/notice/VerificationItemTabl
 import { api } from "../lib/api";
 import { formatDate, formatDateTime, formatPrice, present } from "../lib/format";
 import type { NoticeListItem } from "../lib/types";
+import { gradeVariant } from "../lib/grade";
 
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
 }
 
-function gradeVariant(grade: string | null): BadgeVariant {
-  if (grade === "우선 검토") return "grade-1";
-  if (grade === "검토 권장") return "grade-2";
-  if (grade === "관찰 대상") return "grade-3";
-  if (grade === "제외") return "grade-4";
-  return "neutral";
-}
 
 function NoticePickerItem({ notice, selected, onSelect }: { notice: NoticeListItem; selected: boolean; onSelect: () => void }) {
   return (

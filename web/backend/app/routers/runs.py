@@ -13,6 +13,7 @@ from sqlalchemy import case, select
 from sqlalchemy.orm import Session, selectinload
 
 from ..config import get_settings
+from ..constants import GRADE_ORDER, READINESS_ORDER
 from ..db import get_db
 from ..ingest.loader import discover_run_dirs, ingest_run
 from ..models import IngestWarning, Judgment, Notice, Run
@@ -55,8 +56,6 @@ from .common import (
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
 
-GRADE_ORDER = ["우선 검토", "검토 권장", "관찰 대상", "제외"]
-READINESS_ORDER = ["확인 완료", "부분 확인 필요", "참여 불가 확인", "해당 없음"]
 FOCUS_ORDER = ["AI/데이터", "블록체인·DID", "공공 SI·통합관리", "해당 없음"]
 pipeline_service = PipelineService()
 
@@ -330,6 +329,17 @@ def list_run_warnings(
     )
 
 
+def _optional_count(value: Any) -> int | None:
+    """Return a count only when the artifact actually provided one."""
+
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 @router.get("/{run_id}/stats", response_model=RunStatsResponse)
 def run_stats(run_id: str, session: Session = Depends(get_db)) -> RunStatsResponse:
     run = get_run(session, run_id)
@@ -345,8 +355,11 @@ def run_stats(run_id: str, session: Session = Depends(get_db)) -> RunStatsRespon
     analysis_judgments = [notice.judgment for notice in analysis if notice.judgment is not None]
     counts = run.counts_json if isinstance(run.counts_json, dict) else {}
     collection = counts.get("collection") if isinstance(counts.get("collection"), dict) else {}
-    collected = int(collection.get("total") or 0)
-    candidate = int(collection.get("candidate_pool") or 0)
+    # collected-notices.json 은 .gitignore 대상이라 없을 수 있다. 파일이 없어
+    # 수집 통계를 모르는 상태와 실제로 0건인 상태는 다르게 읽혀야 하므로,
+    # 모르는 경우에는 0으로 채우지 않고 None 으로 남긴다.
+    collected = _optional_count(collection.get("total"))
+    candidate = _optional_count(collection.get("candidate_pool"))
     priority = sum(judgment.grade == "우선 검토" for judgment in analysis_judgments)
     audit_missed = sum(
         notice.sample_role == "audit" and notice.judgment is not None and notice.judgment.grade != "제외"

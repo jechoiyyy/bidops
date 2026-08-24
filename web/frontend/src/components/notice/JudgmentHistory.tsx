@@ -1,22 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
-import { Badge, type BadgeVariant } from "../common/Badge";
+import { Badge } from "../common/Badge";
 import { EmptyState } from "../common/EmptyState";
 import { Panel } from "../common/Panel";
 import { api } from "../../lib/api";
 import { formatDateTime, formatRunRange, present } from "../../lib/format";
 import type { HistoryItemResponse } from "../../lib/types";
+import { gradeVariant } from "../../lib/grade";
 
 interface JudgmentHistoryProps {
   noticePk: number;
 }
 
-function gradeVariant(grade: string | null): BadgeVariant {
-  if (grade === "우선 검토") return "grade-1";
-  if (grade === "검토 권장") return "grade-2";
-  if (grade === "관찰 대상") return "grade-3";
-  if (grade === "제외") return "grade-4";
-  return "neutral";
-}
 
 function changeLabel(item: HistoryItemResponse, previous: HistoryItemResponse | undefined): string {
   if (item.review_reason?.trim()) return item.review_reason;

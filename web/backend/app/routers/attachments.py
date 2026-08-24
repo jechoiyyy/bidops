@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from ..constants import GRADE_ORDER, GRADE_RANK
 from ..db import get_db
 from ..models import AgencyPortal, Attachment, Notice
 from ..schemas import (
@@ -37,7 +38,6 @@ PROCEDURE_STEPS = [
     "해당 시스템에서 공고번호 또는 공고명으로 입찰공고를 검색합니다.",
     "상세 공고의 첨부파일을 내려받아 애플리케이션에 등록합니다.",
 ]
-GRADE_ORDER = {"우선 검토": 0, "검토 권장": 1, "관찰 대상": 2, "제외": 3}
 
 
 def _portal_response(portal: AgencyPortal | None) -> AgencyPortalResponse | None:
@@ -225,7 +225,7 @@ def attachment_queue(
     notices.sort(
         key=lambda notice: (
             notice.agency or "",
-            GRADE_ORDER.get(notice.judgment.grade if notice.judgment else "", len(GRADE_ORDER)),
+            GRADE_RANK.get(notice.judgment.grade if notice.judgment else "", len(GRADE_ORDER)),
             notice.deadline_at is None,
             notice.deadline_at,
             notice.id,

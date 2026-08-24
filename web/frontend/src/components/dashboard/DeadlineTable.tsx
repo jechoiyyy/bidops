@@ -1,8 +1,9 @@
-import { Badge, type BadgeVariant } from "../common/Badge";
+import { Badge } from "../common/Badge";
 import { EmptyState } from "../common/EmptyState";
 import { Panel } from "../common/Panel";
 import type { DeadlineNotice } from "../../lib/types";
 import { formatNumber } from "../../lib/format";
+import { gradeVariant } from "../../lib/grade";
 
 interface DeadlineTableProps {
   notices: DeadlineNotice[];
@@ -10,13 +11,6 @@ interface DeadlineTableProps {
   timezone: string;
 }
 
-function gradeVariant(grade: string | null): BadgeVariant {
-  if (grade === "우선 검토") return "grade-1";
-  if (grade === "검토 권장") return "grade-2";
-  if (grade === "관찰 대상") return "grade-3";
-  if (grade === "제외") return "grade-4";
-  return "neutral";
-}
 
 function daysUntil(deadline: string | null, referenceAt: string | null): string {
   if (!deadline) return "마감일 미확인";

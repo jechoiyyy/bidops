@@ -4326,3 +4326,19 @@ a {
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+.dashboard-funnel-bar.is-unknown {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--color-hair-soft),
+    var(--color-hair-soft) 5px,
+    var(--color-hair) 5px,
+    var(--color-hair) 10px
+  );
+}
+
+.dashboard-funnel-unknown {
+  color: var(--color-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}

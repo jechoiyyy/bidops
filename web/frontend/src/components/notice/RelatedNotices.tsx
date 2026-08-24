@@ -1,11 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Badge, type BadgeVariant } from "../common/Badge";
+import { Badge } from "../common/Badge";
 import { EmptyState } from "../common/EmptyState";
 import { Panel } from "../common/Panel";
 import { api } from "../../lib/api";
 import { formatDate, present } from "../../lib/format";
 import type { RelatedNoticeRelation } from "../../lib/types";
+import { gradeVariant } from "../../lib/grade";
 
 interface RelatedNoticesProps {
   noticePk: number;
@@ -17,13 +18,6 @@ function relationLabel(relation: RelatedNoticeRelation): string {
   return "같은 사전규격에서 파생";
 }
 
-function gradeVariant(grade: string | null): BadgeVariant {
-  if (grade === "우선 검토") return "grade-1";
-  if (grade === "검토 권장") return "grade-2";
-  if (grade === "관찰 대상") return "grade-3";
-  if (grade === "제외") return "grade-4";
-  return "neutral";
-}
 
 export function RelatedNotices({ noticePk }: RelatedNoticesProps) {
   const navigate = useNavigate();

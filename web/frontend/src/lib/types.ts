@@ -348,7 +348,7 @@ export interface PipelineLogResponse {
 export interface FunnelItem {
   key: string;
   label: string;
-  count: number;
+  count: number | null;
 }
 
 export interface DistributionItem {
@@ -372,8 +372,8 @@ export interface RunStatsResponse {
   run_id: string;
   timezone: string;
   generated_at: string;
-  collected_count: number;
-  candidate_count: number;
+  collected_count: number | null;
+  candidate_count: number | null;
   sample_count: number;
   priority_review_count: number;
   audit_missed_count: number;

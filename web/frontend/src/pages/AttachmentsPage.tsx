@@ -1,12 +1,13 @@
 import { FormEvent, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
-import { Badge, type BadgeVariant } from "../components/common/Badge";
+import { Badge } from "../components/common/Badge";
 import { EmptyState } from "../components/common/EmptyState";
 import { Panel } from "../components/common/Panel";
 import { api } from "../lib/api";
 import { formatDeadline, present } from "../lib/format";
 import type { AgencyPortal, AttachmentQueueItem } from "../lib/types";
+import { gradeVariant } from "../lib/grade";
 
 interface PortalDraft {
   id: number | null;
@@ -26,13 +27,6 @@ const emptyDraft: PortalDraft = {
   note: "",
 };
 
-function gradeVariant(grade: string | null): BadgeVariant {
-  if (grade === "우선 검토") return "grade-1";
-  if (grade === "검토 권장") return "grade-2";
-  if (grade === "관찰 대상") return "grade-3";
-  if (grade === "제외") return "grade-4";
-  return "neutral";
-}
 
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
