@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Badge } from "../components/common/Badge";
 import { EmptyState } from "../components/common/EmptyState";
+import { Toast } from "../components/common/Toast";
 import { AttachmentPanel } from "../components/notice/AttachmentPanel";
 import { CounterargumentList } from "../components/notice/CounterargumentList";
 import { JudgmentBanner } from "../components/notice/JudgmentBanner";
@@ -16,7 +17,7 @@ import { QueueList } from "../components/queue/QueueList";
 import { api } from "../lib/api";
 import { formatPrice, present } from "../lib/format";
 import { describeDeadline } from "../lib/deadline";
-import type { NoticeDetailResponse, ReviewResponse, ReviewUpsertRequest } from "../lib/types";
+import type { NoticeDetailResponse, ReviewAnswerInput, ReviewResponse, ReviewUpsertRequest } from "../lib/types";
 import { gradeVariant } from "../lib/grade";
 
 const emptyDraft: ReviewDraft = {
@@ -41,6 +42,53 @@ function draftFromNotice(notice: NoticeDetailResponse | undefined, runId: string
     reason: review.reason ?? "",
     verification_answers: review.answers.map((answer) => ({ item: answer.item, answer: answer.answer })),
   };
+}
+
+// 확인 항목 답변은 순서가 보장되지 않으므로 항목 이름을 기준으로 맞춰 본다.
+function answersEqual(left: ReviewAnswerInput[], right: ReviewAnswerInput[]): boolean {
+  if (left.length !== right.length) return false;
+  const rightByItem = new Map(right.map((entry) => [entry.item, entry.answer] as const));
+  return left.every((entry) => rightByItem.has(entry.item) && rightByItem.get(entry.item) === entry.answer);
+}
+
+function draftsEqual(left: ReviewDraft, right: ReviewDraft): boolean {
+  return left.disposition === right.disposition
+    && left.system_judgment_review === right.system_judgment_review
+    && left.corrected_grade === right.corrected_grade
+    && left.corrected_readiness === right.corrected_readiness
+    && left.weakest_perspective === right.weakest_perspective
+    && left.reason === right.reason
+    && answersEqual(left.verification_answers, right.verification_answers);
+}
+
+// 회차와 공고마다 초안을 따로 보관한다. 회차를 바꿨다가 돌아와도 입력값이 남아 있어야 한다.
+function draftStorageKey(runId: string, noticePk: number): string {
+  return `bidops.queue-draft:${runId}:${noticePk}`;
+}
+
+function readStoredDraft(runId: string, noticePk: number): ReviewDraft | null {
+  try {
+    const raw = window.localStorage.getItem(draftStorageKey(runId, noticePk));
+    return raw ? (JSON.parse(raw) as ReviewDraft) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredDraft(runId: string, noticePk: number, draft: ReviewDraft): void {
+  try {
+    window.localStorage.setItem(draftStorageKey(runId, noticePk), JSON.stringify(draft));
+  } catch {
+    // 저장 공간이 없거나 접근이 막힌 환경에서는 임시 저장만 포기한다.
+  }
+}
+
+function clearStoredDraft(runId: string, noticePk: number): void {
+  try {
+    window.localStorage.removeItem(draftStorageKey(runId, noticePk));
+  } catch {
+    // 위와 같다.
+  }
 }
 
 function filterFromParams(params: URLSearchParams): QueueFilterValues {
@@ -107,6 +155,10 @@ export function QueuePage() {
   const [draft, setDraft] = useState<ReviewDraft>(emptyDraft);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; actionLabel?: string; onAction?: () => void } | null>(null);
+  // draft가 어느 공고의 것인지 함께 들고 있어야 한다. 공고를 바꾸는 렌더에서는 draft가
+  // 아직 이전 공고의 값이므로, 이 키가 맞을 때만 비교하고 임시 저장한다.
+  const [draftOwner, setDraftOwner] = useState<string | null>(null);
   const splitLayout = useSplitLayout();
 
   const noticesQuery = useQuery({
@@ -149,6 +201,10 @@ export function QueuePage() {
     [notices],
   );
   const detail = detailQuery.data?.id === selectedId ? detailQuery.data : undefined;
+  const serverDraft = useMemo(() => draftFromNotice(detail, runId ?? ""), [detail, runId]);
+  const draftKey = detail && runId ? draftStorageKey(runId, detail.id) : null;
+  const draftMatchesDetail = draftOwner === draftKey;
+  const isDirty = Boolean(detail) && draftMatchesDetail && !draftsEqual(draft, serverDraft);
   const detailDeadline = detail ? describeDeadline(detail.deadline_at) : null;
   const selectedIndex = notices.findIndex((notice) => notice.id === selectedId);
 
@@ -164,9 +220,43 @@ export function QueuePage() {
   }, [navigate, notices, noticesQuery.isLoading, runId, searchParams, selectedId, selectedIndex, splitLayout]);
 
   useEffect(() => {
-    setDraft(detail ? draftFromNotice(detail, runId ?? "") : { ...emptyDraft, verification_answers: [] });
+    if (!detail || !runId) {
+      setDraft({ ...emptyDraft, verification_answers: [] });
+      setDraftOwner(null);
+      setSaveError(null);
+      return;
+    }
+    const stored = readStoredDraft(runId, detail.id);
+    setDraft(stored ?? draftFromNotice(detail, runId));
+    setDraftOwner(draftStorageKey(runId, detail.id));
     setSaveError(null);
   }, [detail, runId]);
+
+  useEffect(() => {
+    if (!detail || !runId || !draftMatchesDetail) return;
+    if (draftsEqual(draft, serverDraft)) {
+      clearStoredDraft(runId, detail.id);
+      return;
+    }
+    writeStoredDraft(runId, detail.id, draft);
+  }, [draft, draftMatchesDetail, detail, runId, serverDraft]);
+
+  // 임시 저장은 같은 브라우저에서만 살아남으므로, 창을 닫을 때는 브라우저의 확인 절차를 쓴다.
+  useEffect(() => {
+    if (!isDirty) return;
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [isDirty]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 6000);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   const setFilter = <K extends keyof QueueFilterValues>(key: K, value: QueueFilterValues[K]) => {
     const next = new URLSearchParams(searchParams);
@@ -222,6 +312,13 @@ export function QueuePage() {
     setDraft((current) => ({ ...current, [key]: value }));
   };
 
+  const discardDraft = () => {
+    if (!detail || !runId) return;
+    clearStoredDraft(runId, detail.id);
+    setDraft(draftFromNotice(detail, runId));
+    setSaveError(null);
+  };
+
   const updateAnswer = (item: string, answer: string) => {
     setDraft((current) => {
       const index = current.verification_answers.findIndex((entry) => entry.item === item);
@@ -250,6 +347,7 @@ export function QueuePage() {
     };
     try {
       const saved = await api.saveReview(selectedId, payload);
+      clearStoredDraft(runId, selectedId);
       queryClient.setQueryData<ReviewResponse[]>(["reviews", runId], (current = []) => {
         const next = current.filter((review) => review.notice_pk !== saved.notice_pk);
         return [...next, saved].sort((left, right) => left.notice_pk - right.notice_pk);
@@ -261,8 +359,15 @@ export function QueuePage() {
       const currentIndex = notices.findIndex((notice) => notice.id === selectedId);
       const nextNotice = currentIndex >= 0 ? notices[currentIndex + 1] : undefined;
       if (nextNotice) {
+        const savedId = selectedId;
+        setToast({
+          message: "저장됨 · 다음 공고로 이동했습니다",
+          actionLabel: "되돌리기",
+          onAction: () => navigate({ pathname: `/queue/${savedId}`, search: searchParams.toString() }),
+        });
         navigate({ pathname: `/queue/${nextNotice.id}`, search: searchParams.toString() });
       } else {
+        setToast({ message: "저장됨 · 마지막 공고입니다" });
         setDraft(draftFromNotice(detail, runId));
       }
     } catch (error) {
@@ -366,14 +471,24 @@ export function QueuePage() {
                 draft={draft}
                 perspectives={detail.judgment?.perspectives ?? []}
                 saving={saving}
+                dirty={isDirty}
                 error={saveError}
                 onChange={updateDraft}
+                onDiscard={discardDraft}
                 onSave={() => void saveReview()}
               />
             </>
           )}
         </section>
       </div>
+      {toast ? (
+        <Toast
+          message={toast.message}
+          actionLabel={toast.actionLabel}
+          onAction={toast.onAction ? () => { toast.onAction?.(); setToast(null); } : undefined}
+          onDismiss={() => setToast(null)}
+        />
+      ) : null}
     </div>
   );
 }
