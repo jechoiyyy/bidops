@@ -15,14 +15,16 @@ interface ReviewBarProps {
   draft: ReviewDraft;
   perspectives: PerspectiveResponse[];
   saving: boolean;
+  dirty: boolean;
   error: string | null;
   onChange: <K extends keyof ReviewDraft>(key: K, value: ReviewDraft[K]) => void;
+  onDiscard: () => void;
   onSave: () => void;
 }
 
 const judgmentOptions = ["동의", "등급 수정", "근거 부족"];
 
-export function ReviewBar({ draft, perspectives, saving, error, onChange, onSave }: ReviewBarProps) {
+export function ReviewBar({ draft, perspectives, saving, dirty, error, onChange, onDiscard, onSave }: ReviewBarProps) {
   const [showMore, setShowMore] = useState(false);
   // 접힌 영역에 값이 들어 있으면 개수를 표시해서, 입력한 값이 사라진 것으로 오인하지 않게 한다.
   const secondaryFilled = [draft.corrected_grade, draft.corrected_readiness, draft.weakest_perspective]
@@ -33,6 +35,12 @@ export function ReviewBar({ draft, perspectives, saving, error, onChange, onSave
       <div className="review-bar-title">
         <strong>담당자 리뷰</strong>
         <span>DB 정본</span>
+        {dirty ? (
+          <span className="review-dirty" role="status">
+            저장되지 않은 변경사항
+            <button type="button" onClick={onDiscard}>되돌리기</button>
+          </span>
+        ) : null}
       </div>
       <div className="review-segmented" role="group" aria-label="시스템 판정 검토">
         {judgmentOptions.map((option) => (
