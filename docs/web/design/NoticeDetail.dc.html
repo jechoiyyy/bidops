@@ -1,0 +1,531 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    :root {
+      --ink: #0f3e17; --ink-deep: #0c2f10;
+      --sage: #b1dbb8; --keylime: #e1f4df; --mint: #cfe7d3; --slate: #b6ced5;
+      --paper: #fffefc; --canvas: #f5f4ef; --charcoal: #222222;
+      --hair: #e4e2dc; --hair-soft: #efeeeb; --muted: #6f6c64; --alert: #9a4a2f;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--canvas); color: var(--charcoal);
+      font-family: 'IBM Plex Sans KR', system-ui, sans-serif; font-size: 13px; line-height: 1.5;
+      -webkit-font-smoothing: antialiased; }
+    a { color: var(--ink); text-decoration: none; } a:hover { color: var(--ink-deep); }
+    .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+
+    .nav { background: var(--ink); color: #cfe0d2; width: 216px; flex: 0 0 216px; display: flex; flex-direction: column; }
+    .nav-brand { padding: 18px 18px 20px; border-bottom: 1px solid rgba(255,254,252,.10); }
+    .nav-brand b { display: block; color: var(--paper); font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
+    .nav-brand span { display: block; color: rgba(207,224,210,.62); font-size: 11px; margin-top: 3px; }
+    .nav-group { padding: 14px 10px 0; }
+    .nav-label { color: rgba(207,224,210,.45); font-size: 10px; font-weight: 500;
+      letter-spacing: .10em; text-transform: uppercase; padding: 0 8px 6px; }
+    .nav-item { display: flex; align-items: center; gap: 9px; padding: 7px 8px; border-radius: 4px; color: #cfe0d2; font-size: 13px; }
+    .nav-item.on { background: rgba(255,254,252,.11); color: var(--paper); font-weight: 500; }
+    .nav-item .ct { margin-left: auto; font-size: 11px; color: rgba(207,224,210,.55); }
+    .nav-foot { margin-top: auto; padding: 12px 18px; border-top: 1px solid rgba(255,254,252,.10);
+      font-size: 11px; color: rgba(207,224,210,.62); }
+
+    .top { height: 50px; flex: 0 0 50px; background: var(--paper); border-bottom: 1px solid var(--hair);
+      display: flex; align-items: center; gap: 10px; padding: 0 18px; }
+    .crumb { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 7px; }
+    .btn { height: 30px; padding: 0 13px; border-radius: 4px; background: var(--ink); color: var(--paper);
+      font-size: 12px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; }
+    .btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--hair); }
+
+    .panel { background: var(--paper); border: 1px solid var(--hair); border-radius: 5px; }
+    .panel-h { display: flex; align-items: center; justify-content: space-between;
+      padding: 9px 14px; border-bottom: 1px solid var(--hair-soft); }
+    .panel-h b { font-size: 12px; font-weight: 600; }
+    .panel-b { padding: 13px 14px; }
+
+    .b { display: inline-flex; align-items: center; height: 19px; padding: 0 7px; border-radius: 3px;
+      font-size: 11px; font-weight: 500; white-space: nowrap; }
+    .b-g1 { background: var(--ink); color: var(--paper); }
+    .b-g2 { background: var(--sage); color: var(--ink-deep); }
+    .b-g3 { background: var(--keylime); color: var(--ink-deep); }
+    .b-g4 { background: transparent; color: #837f76; border: 1px solid var(--hair); }
+    .b-rd { background: transparent; color: #4d6b76; border: 1px solid var(--slate); }
+    .b-alert { background: transparent; color: var(--alert); border: 1px solid #d8b6a6; }
+    .b-focus { background: var(--mint); color: var(--ink-deep); }
+
+    .st { display: inline-block; padding: 0 5px; border-radius: 2px; font-size: 10px;
+      font-weight: 500; border: 1px solid var(--hair); color: #6f6c64; }
+    .st.c { border-color: var(--sage); color: var(--ink); }
+    .st.u { border-color: #d8b6a6; color: var(--alert); }
+
+    dl.facts { margin: 0; display: grid; grid-template-columns: 90px 1fr; row-gap: 7px; column-gap: 10px; font-size: 12px; }
+    dl.facts dt { color: var(--muted); }
+    dl.facts dd { margin: 0; }
+
+    table.d { width: 100%; border-collapse: collapse; font-size: 12px; }
+    table.d th { text-align: left; font-weight: 500; color: var(--muted); font-size: 11px;
+      padding: 0 10px 7px 0; border-bottom: 1px solid var(--hair-soft); }
+    table.d td { padding: 9px 10px 9px 0; border-bottom: 1px solid var(--hair-soft); vertical-align: top; }
+    table.d tr:last-child td { border-bottom: 0; }
+
+    .persp { border: 1px solid var(--hair); border-radius: 5px; padding: 12px 13px; background: var(--paper); }
+    .persp .nm { font-size: 12px; font-weight: 600; }
+    .ev-row { display: flex; gap: 7px; align-items: flex-start; font-size: 11px; color: var(--muted); margin-top: 5px; }
+
+    .file { display: flex; align-items: center; gap: 9px; padding: 8px 0; border-bottom: 1px solid var(--hair-soft); }
+    .file:last-child { border-bottom: 0; }
+    .file .nm { flex: 1; font-size: 12px; }
+    .ext { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 18px;
+      border-radius: 2px; font-size: 9px; font-weight: 600; background: var(--hair-soft); color: #6f6c64; }
+    .ext.pdf { background: var(--mint); color: var(--ink-deep); }
+    .ext.hwp { background: var(--slate); color: #2c4650; }
+    .step { display: flex; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--hair-soft); }
+    .step:last-child { border-bottom: 0; }
+    .step-n { flex: 0 0 18px; width: 18px; height: 18px; border-radius: 50%; background: var(--keylime);
+      color: var(--ink); font-size: 10px; font-weight: 600; display: flex; align-items: center; justify-content: center; }
+    .drop { border: 1px dashed var(--slate); border-radius: 5px; padding: 18px 14px; text-align: center;
+      background: #fbfcfc; }
+
+    .tl { display: flex; align-items: center; }
+    .tl-node { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 96px; }
+    .tl-dot { width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--hair); background: var(--paper); }
+    .tl-dot.done { background: var(--ink); border-color: var(--ink); }
+    .tl-dot.now { background: var(--paper); border-color: var(--ink); box-shadow: 0 0 0 3px var(--keylime); }
+    .tl-line { flex: 1; height: 2px; background: var(--hair); }
+    .tl-line.done { background: var(--ink); }
+    .tl-lab { font-size: 11px; text-align: center; line-height: 1.35; }
+    .tl-lab i { display: block; font-style: normal; color: var(--muted); font-size: 10px; }
+  </style>
+</helmet>
+
+<div style="display: flex; height: 1560px; overflow: hidden;">
+
+  <nav class="nav">
+    <div class="nav-brand"><b>BidOps</b><span>사업기회 모니터링</span></div>
+    <div class="nav-group">
+      <div class="nav-label">모니터링</div>
+      <div style="display: flex; flex-direction: column; gap: 1px;">
+        <div class="nav-item">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
+          대시보드</div>
+        <div class="nav-item">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 6h16M4 12h16M4 18h9"/></svg>
+          검토 대기열 <span class="ct mono">24</span></div>
+        <div class="nav-item">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>
+          마감 추적 <span class="ct mono">6</span></div>
+      </div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-label">판정</div>
+      <div style="display: flex; flex-direction: column; gap: 1px;">
+        <div class="nav-item on">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/></svg>
+          공고 판정 이력</div>
+        <div class="nav-item">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 12a9 9 0 1 1-4-7.5"/><path d="M9 12l2.5 2.5L20 6"/></svg>
+          담당자 리뷰 기록</div>
+      </div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-label">기준</div>
+      <div style="display: flex; flex-direction: column; gap: 1px;">
+        <div class="nav-item">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 21V6l7-3 7 3v15"/><path d="M9 21v-6h4v6M4 21h16"/></svg>
+          회사 프로필 <span class="ct mono">20</span></div>
+        <div class="nav-item">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 19V5M4 19h16"/><path d="M8 15l4-6 3 3 4-7"/></svg>
+          검증 지표</div>
+      </div>
+    </div>
+    <div class="nav-group" style="padding-bottom: 14px;">
+      <div class="nav-label">운영</div>
+      <div style="display: flex; flex-direction: column; gap: 1px;">
+        <div class="nav-item">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3v6M12 15v6M5 12H3M21 12h-2"/><circle cx="12" cy="12" r="3"/><path d="M6.5 6.5l1.5 1.5M17.5 17.5L16 16"/></svg>
+          수집 실행</div>
+        <div class="nav-item">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 11l-8.5 8.5a5 5 0 0 1-7-7L14 4a3.5 3.5 0 0 1 5 5l-8.7 8.7a2 2 0 0 1-2.9-2.8L15.5 6"/></svg>
+          첨부 확보 <span class="ct mono">27</span></div>
+        <div class="nav-item">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 7h18M3 12h18M3 17h18"/></svg>
+          산출물 감사 로그</div>
+      </div>
+    </div>
+    <div class="nav-foot">기획부 · 사업기획<br><span style="color: rgba(207,224,210,.45);">최종 동기화 08-24 17:52</span></div>
+  </nav>
+
+  <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+
+    <header class="top">
+      <div class="crumb">
+        <span>공고 판정 이력</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+        <span class="mono">bid:R26BK01687915:001</span>
+      </div>
+      <div style="margin-left: auto; display: flex; gap: 6px;">
+        <a class="btn ghost">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 3h7v7M21 3l-9 9M18 14v6H4V6h6"/></svg>
+          나라장터 원문</a>
+        <a class="btn ghost">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/></svg>
+          첨부 2건</a>
+        <a class="btn ghost">판정 재실행</a>
+        <a class="btn">심층 검토 지정</a>
+      </div>
+    </header>
+
+    <div style="flex: 1; overflow: auto; padding: 16px 20px 20px; display: flex; flex-direction: column; gap: 14px;">
+
+      <!-- 헤더 -->
+      <div>
+        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 7px;">
+          <span class="b b-g1">우선 검토</span>
+          <span class="b b-rd">부분 확인 필요</span>
+          <span class="b b-focus">공공 SI·통합관리</span>
+          <span class="b b-g4">분석 표본</span>
+          <span style="font-size: 11px; color: var(--muted);">동일 사업 3개 차수 · 재공고 이력 있음</span>
+        </div>
+        <h1 style="margin: 0; font-size: 21px; font-weight: 500; letter-spacing: -.02em; line-height: 1.3;">
+          평생교육관리시스템 플랫폼 구축 용역</h1>
+        <div style="margin-top: 6px; font-size: 12px; color: var(--muted); display: flex; gap: 10px;">
+          <span class="mono">R26BK01687915-001</span><span style="color: var(--hair);">|</span>
+          <span>백석문화대학교 산학협력단</span><span style="color: var(--hair);">|</span>
+          <span class="mono">80,400,000원</span><span style="color: var(--hair);">|</span>
+          <span>협상에 의한 계약</span><span style="color: var(--hair);">|</span>
+          <span class="mono">공고 2026-08-19</span>
+        </div>
+      </div>
+
+      <!-- 생애주기 -->
+      <div class="panel">
+        <div class="panel-h"><b>공고 생애주기</b>
+          <span style="font-size: 11px; color: var(--muted);">사전규격 미수집 · API 활용 권한 대기</span></div>
+        <div class="panel-b" style="padding: 16px 22px 14px;">
+          <div class="tl">
+            <div class="tl-node">
+              <div class="tl-dot" style="border-style: dashed;"></div>
+              <div class="tl-lab" style="color: var(--muted);">사전규격<i>미수집</i></div>
+            </div>
+            <div class="tl-line"></div>
+            <div class="tl-node">
+              <div class="tl-dot done"></div>
+              <div class="tl-lab">본공고 게시<i class="mono">08-19 000차</i></div>
+            </div>
+            <div class="tl-line done"></div>
+            <div class="tl-node">
+              <div class="tl-dot done"></div>
+              <div class="tl-lab">정정 공고<i class="mono">08-20 001차</i></div>
+            </div>
+            <div class="tl-line done"></div>
+            <div class="tl-node">
+              <div class="tl-dot now"></div>
+              <div class="tl-lab" style="font-weight: 500;">판정 완료<i class="mono">08-24 17:52</i></div>
+            </div>
+            <div class="tl-line"></div>
+            <div class="tl-node">
+              <div class="tl-dot"></div>
+              <div class="tl-lab" style="color: var(--muted);">담당자 승인<i>대기</i></div>
+            </div>
+            <div class="tl-line"></div>
+            <div class="tl-node">
+              <div class="tl-dot"></div>
+              <div class="tl-lab" style="color: var(--muted);">마감<i>일자 미기재</i></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 요약 3열 -->
+      <div style="display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr); gap: 14px;">
+        <div class="panel">
+          <div class="panel-h"><b>종합 권고</b><span class="mono" style="font-size: 11px; color: var(--muted);">확인 3 · 차단 2</span></div>
+          <div class="panel-b">
+            <div style="font-size: 13px; line-height: 1.6;">평생교육 관리 플랫폼 구축은 회사의 공공 SI·교육 플랫폼 역량과 직접 맞으며, 유사 수행실적도 탐색 근거로 확인된다.</div>
+            <div style="margin-top: 11px; padding-top: 11px; border-top: 1px solid var(--hair-soft);">
+              <div style="font-size: 11px; color: var(--muted); margin-bottom: 4px;">다음 행동</div>
+              <div style="font-size: 12px;">디지털배지 플랫폼 실적의 계약상 인정 범위를 확인하고, 3개 차수 가운데 유효 공고를 특정한다.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-h"><b>공고 정보</b><span style="font-size: 11px; color: var(--muted);">나라장터 API</span></div>
+          <div class="panel-b">
+            <dl class="facts">
+              <dt>입찰공고번호</dt><dd class="mono">R26BK01687915-001</dd>
+              <dt>공고명</dt><dd>평생교육관리시스템 플랫폼 구축 용역</dd>
+              <dt>조달 분류</dt><dd>용역 · 정보시스템 개발</dd>
+              <dt>추정가격</dt><dd class="mono">80,400,000원</dd>
+              <dt>공고일</dt><dd class="mono">2026-08-19 14:22</dd>
+              <dt>마감일</dt><dd style="color: var(--muted);">API 미제공</dd>
+              <dt>지역제한</dt><dd>없음</dd>
+              <dt>원문 보관</dt><dd class="mono" style="font-size: 11px;">raw/bid-page-002.json</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-h"><b>자격·제약 플래그</b><span style="font-size: 11px; color: var(--muted);">API 직접 제공값</span></div>
+          <div class="panel-b">
+            <dl class="facts">
+              <dt>참가제한</dt><dd>없음</dd>
+              <dt>업종제한</dt><dd>없음</dd>
+              <dt>정보사업</dt><dd style="color: var(--muted);">값 없음</dd>
+              <dt>공동수급</dt><dd>허용</dd>
+              <dt>실적제한</dt><dd style="color: var(--muted);">값 없음</dd>
+              <dt>PQ·기술평가</dt><dd style="color: var(--muted);">값 없음</dd>
+            </dl>
+          </div>
+        </div>
+      </div>
+
+      <!-- 첨부 문서 -->
+      <div class="panel" style="border-color: #d8b6a6;">
+        <div class="panel-h" style="background: #fdf9f6;">
+          <b>첨부 문서</b>
+          <span class="b b-alert">나라장터 API 미제공 · 발주기관에서 직접 확보 필요</span>
+        </div>
+        <div class="panel-b">
+          <div style="display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 20px;">
+
+            <div>
+              <div style="font-size: 11px; color: var(--muted); margin-bottom: 4px;">확보 절차</div>
+              <div class="step">
+                <span class="step-n">1</span>
+                <div style="flex: 1;">
+                  <div style="font-size: 12px; font-weight: 500;">발주기관의 자체 조달시스템 확인</div>
+                  <div style="font-size: 11px; color: var(--muted); margin-top: 3px;">
+                    백석문화대학교 산학협력단 · <span style="color: var(--alert);">등록된 연계 시스템 없음</span></div>
+                </div>
+                <a class="btn ghost" style="height: 26px; font-size: 11px;">기관 등록</a>
+              </div>
+              <div class="step">
+                <span class="step-n">2</span>
+                <div style="flex: 1;">
+                  <div style="font-size: 12px; font-weight: 500;">해당 시스템에서 입찰공고 검색</div>
+                  <div style="font-size: 11px; color: var(--muted); margin-top: 3px;">
+                    검색어 <span class="mono">R26BK01687915</span> 또는 공고명으로 조회한다</div>
+                </div>
+                <a class="btn ghost" style="height: 26px; font-size: 11px;">검색어 복사</a>
+              </div>
+              <div class="step">
+                <span class="step-n">3</span>
+                <div style="flex: 1;">
+                  <div style="font-size: 12px; font-weight: 500;">상세 공고의 첨부파일을 내려받아 등록</div>
+                  <div style="font-size: 11px; color: var(--muted); margin-top: 3px;">
+                    제안요청서·과업내용서가 확보되어야 심층 검토를 시작할 수 있다</div>
+                </div>
+              </div>
+
+              <div style="margin-top: 12px; padding: 10px 12px; background: var(--keylime); border-radius: 4px;">
+                <div style="font-size: 11px; color: var(--ink-deep); font-weight: 500; margin-bottom: 5px;">
+                  MVP 자동 연계 대상 기관</div>
+                <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+                  <span class="b" style="background: var(--paper); color: var(--ink);">한국수자원공사</span>
+                  <span class="b" style="background: var(--paper); color: var(--ink);">한국도로공사</span>
+                  <span class="b" style="background: var(--paper); color: var(--ink);">한국토지주택공사</span>
+                </div>
+                <div style="font-size: 11px; color: var(--ink-deep); margin-top: 6px; opacity: .8;">
+                  이 세 기관의 공고는 검색 URL이 자동 생성된다. 그 밖의 기관은 담당자가 시스템 주소를 등록하면 같은 절차를 사용한다.</div>
+              </div>
+            </div>
+
+            <div style="display: flex; flex-direction: column;">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+                <span style="font-size: 11px; color: var(--muted);">확보 문서</span>
+                <span class="mono" style="font-size: 11px; color: var(--alert);">0건</span>
+              </div>
+              <div class="file" style="opacity: .55;">
+                <span class="ext hwp">HWP</span>
+                <span class="nm">제안요청서</span>
+                <span class="st u">미확보</span>
+              </div>
+              <div class="file" style="opacity: .55;">
+                <span class="ext hwp">HWP</span>
+                <span class="nm">과업내용서</span>
+                <span class="st u">미확보</span>
+              </div>
+              <div class="file" style="opacity: .55;">
+                <span class="ext pdf">PDF</span>
+                <span class="nm">입찰공고서</span>
+                <span class="st u">미확보</span>
+              </div>
+
+              <div class="drop" style="margin-top: 12px;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4d6b76" stroke-width="1.6" style="margin-bottom: 6px;"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+                <div style="font-size: 12px;">확보한 문서를 여기에 놓거나 선택한다</div>
+                <div style="font-size: 11px; color: var(--muted); margin-top: 3px;">HWP · HWPX · PDF · 파일당 50MB</div>
+              </div>
+
+              <div style="margin-top: 10px; font-size: 11px; color: var(--muted); line-height: 1.6;">
+                등록한 문서는 이 공고의 원문 보관소에 함께 저장되어, 이후 판정의 근거를 되짚을 때 사용된다.
+                본문 추출은 등록 직후 자동으로 시도한다.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 관점별 판단 -->
+      <div class="panel">
+        <div class="panel-h"><b>관점별 판단</b>
+          <span style="font-size: 11px; color: var(--muted);">5개 관점 · 적합 2 · 부분 적합 2 · 확인 불가 1</span></div>
+        <div class="panel-b" style="display: flex; flex-direction: column; gap: 9px;">
+
+          <div class="persp">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="nm" style="width: 118px;">기술 적합성</span>
+              <span class="b b-g2">적합</span>
+              <span style="flex: 1; font-size: 12px;">학습·수강 관리 플랫폼 구축은 보유한 웹·포털 SI 스택과 교육 도메인 개발 경험으로 직접 대응된다.</span>
+            </div>
+            <div class="ev-row" style="padding-left: 126px;">
+              <span class="st c">confirmed</span><span>공고명 · 프로필 2.1 SI/통합관리/웹·포털, 2.2 수행 가능 역할</span></div>
+          </div>
+
+          <div class="persp">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="nm" style="width: 118px;">실적 정합성</span>
+              <span class="b b-g3">부분 적합</span>
+              <span style="flex: 1; font-size: 12px;">디지털배지 플랫폼 실적이 평생교육 도메인과 겹치지만, 학사·수강 관리 기능의 수행 범위는 다르다.</span>
+            </div>
+            <div class="ev-row" style="padding-left: 126px;">
+              <span class="st c">confirmed</span><span>수행실적 유사 신호 0.71 · 회사소개서 p.43</span>
+              <span class="st u">unknown</span><span>법적 실적 인정 여부</span></div>
+          </div>
+
+          <div class="persp">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="nm" style="width: 118px;">공공 SI 적합성</span>
+              <span class="b b-g2">적합</span>
+              <span style="flex: 1; font-size: 12px;">신규 플랫폼 구축에 해당하며 운영·유지관리가 아닌 개발 사업이다.</span>
+            </div>
+            <div class="ev-row" style="padding-left: 126px;">
+              <span class="st c">confirmed</span><span>조달분류 정보시스템 개발 · 공고명 "구축 용역"</span></div>
+          </div>
+
+          <div class="persp" style="border-color: #d8b6a6;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="nm" style="width: 118px;">사업성·자격 제약</span>
+              <span class="b b-g4">확인 불가</span>
+              <span style="flex: 1; font-size: 12px;">8,040만원 규모의 단독 수행 적합성과 소프트웨어사업자 신고 요건 충족 여부를 판단할 근거가 없다.</span>
+            </div>
+            <div class="ev-row" style="padding-left: 126px;">
+              <span class="st u">unknown</span><span>프로필 4.5 선호 예산 · 5.2 조달 자격 추가 확인 필요</span></div>
+          </div>
+
+          <div class="persp">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="nm" style="width: 118px;">전략 부합</span>
+              <span class="b b-g3">부분 적합</span>
+              <span style="flex: 1; font-size: 12px;">공공 SI 축에 부합하나 발주처가 대학 산학협력단이므로 주력 고객군과는 거리가 있다.</span>
+            </div>
+            <div class="ev-row" style="padding-left: 126px;">
+              <span class="st">inferred</span><span>프로필 4.4 선호 기관 · 3.2 반복 수행 기관 목록에 없음</span></div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- 실적 + 반론 -->
+      <div style="display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 14px;">
+        <div class="panel">
+          <div class="panel-h"><b>연결 수행실적</b><span style="font-size: 11px; color: var(--muted);">탐색 신호 1건 · 검증 완료</span></div>
+          <div class="panel-b" style="padding-top: 10px;">
+            <table class="d">
+              <tr><th style="width: 46%;">사업명</th><th style="width: 54px;">유사도</th><th>대응과 한계</th></tr>
+              <tr>
+                <td>블록체인 기반 고등평생교육 디지털배지 플랫폼 구축
+                  <div style="font-size: 11px; color: var(--muted); margin-top: 3px;">회사소개서 p.43 · <span class="st u">법적 인정 unknown</span></div></td>
+                <td class="mono">0.71</td>
+                <td>평생교육 도메인과 이수 이력 관리 구조가 대응한다.
+                  <div style="font-size: 11px; color: var(--alert); margin-top: 4px;">한계 · 배지 발급이 아닌 학사·수강 관리가 핵심이면 기능 범위가 다르다</div></td>
+              </tr>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-h"><b>반론 검토</b><span style="font-size: 11px; color: var(--muted);">3건</span></div>
+          <div class="panel-b">
+            <ul style="margin: 0; padding-left: 15px; font-size: 12px;">
+              <li style="margin-bottom: 6px;">유사도 0.71은 사업명 문자열 기준이며 과업 범위의 동일성을 증명하지 않는다.</li>
+              <li style="margin-bottom: 6px;">같은 사업이 3개 차수로 게시되어 앞선 차수가 유찰·취소되었을 가능성이 있다.</li>
+              <li>대학 산학협력단 발주는 공공기관 실적으로 인정되지 않을 수 있다.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- 확인 항목 -->
+      <div class="panel">
+        <div class="panel-h"><b>확인 항목</b><span class="b b-alert">차단 2건 미확인</span></div>
+        <div class="panel-b" style="padding-top: 10px;">
+          <table class="d">
+            <tr><th style="width: 46px;">차단</th><th style="width: 30%;">항목</th><th>확인이 필요한 이유</th><th style="width: 90px;">상태</th></tr>
+            <tr>
+              <td><span class="b b-alert">차단</span></td>
+              <td>입찰참가자격 및 실적 인정 범위</td>
+              <td>프로필의 조달 자격과 법적 실적 인정 상태가 unknown이다.</td>
+              <td><span class="st u">미확인</span></td>
+            </tr>
+            <tr>
+              <td><span class="b b-alert">차단</span></td>
+              <td>유효 공고 차수 특정</td>
+              <td>동일 사업이 000·001·002 세 차수로 수집되어 참여 대상 공고를 확정해야 한다.</td>
+              <td><span class="st u">미확인</span></td>
+            </tr>
+            <tr>
+              <td></td>
+              <td>제안요청서 기능 범위</td>
+              <td>학사·수강 관리와 배지 발급 가운데 어느 쪽이 핵심 과업인지 확인해야 한다.</td>
+              <td><span class="st">미확인</span></td>
+            </tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- 검색 신호 + 판정 이력 -->
+      <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px;">
+        <div class="panel">
+          <div class="panel-h"><b>1차 검색 신호</b><span style="font-size: 11px; color: var(--muted);">후보 편입 근거</span></div>
+          <div class="panel-b" style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center;">
+            <span class="b b-focus">플랫폼 구축 · 제목</span>
+            <span class="b b-focus">관리시스템 · 제목</span>
+            <span class="b b-g2">수행실적 유사 0.71</span>
+            <span class="b b-g4">정보시스템 · 조달분류</span>
+            <div style="width: 100%; font-size: 11px; color: var(--muted); margin-top: 4px;">
+              수행실적 유사 신호만으로 회수된 3건 가운데 하나이다. 키워드 신호가 없었다면 후보에 들지 못했다.</div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-h"><b>판정 이력</b><span style="font-size: 11px; color: var(--muted);">2개 버전</span></div>
+          <div class="panel-b" style="padding-top: 10px;">
+            <table class="d">
+              <tr><th style="width: 86px;">시각</th><th style="width: 78px;">등급</th><th>변경 사유</th></tr>
+              <tr>
+                <td class="mono">08-24 17:52</td>
+                <td><span class="b b-g1">우선 검토</span></td>
+                <td>수행실적 레퍼런스 130건 추가 후 재분류하여 신규 회수</td>
+              </tr>
+              <tr>
+                <td class="mono">08-24 11:48</td>
+                <td><span class="b b-g4">미수집</span></td>
+                <td>초기 검색 규칙에서 후보에 포함되지 않음</td>
+              </tr>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

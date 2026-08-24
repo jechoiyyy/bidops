@@ -1,0 +1,365 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    :root {
+      --ink: #0f3e17; --ink-deep: #0c2f10;
+      --sage: #b1dbb8; --keylime: #e1f4df; --mint: #cfe7d3; --slate: #b6ced5;
+      --paper: #fffefc; --canvas: #f5f4ef; --charcoal: #222222;
+      --hair: #e4e2dc; --hair-soft: #efeeeb; --muted: #6f6c64; --alert: #9a4a2f;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--canvas); color: var(--charcoal);
+      font-family: 'IBM Plex Sans KR', system-ui, sans-serif; font-size: 13px; line-height: 1.5;
+      -webkit-font-smoothing: antialiased; }
+    a { color: var(--ink); text-decoration: none; } a:hover { color: var(--ink-deep); }
+    .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+
+    .nav { background: var(--ink); color: #cfe0d2; width: 216px; flex: 0 0 216px; display: flex; flex-direction: column; }
+    .nav-brand { padding: 18px 18px 20px; border-bottom: 1px solid rgba(255,254,252,.10); }
+    .nav-brand b { display: block; color: var(--paper); font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
+    .nav-brand span { display: block; color: rgba(207,224,210,.62); font-size: 11px; margin-top: 3px; }
+    .nav-group { padding: 14px 10px 0; }
+    .nav-label { color: rgba(207,224,210,.45); font-size: 10px; font-weight: 500;
+      letter-spacing: .10em; text-transform: uppercase; padding: 0 8px 6px; }
+    .nav-item { display: flex; align-items: center; gap: 9px; padding: 7px 8px; border-radius: 4px; color: #cfe0d2; font-size: 13px; }
+    .nav-item.on { background: rgba(255,254,252,.11); color: var(--paper); font-weight: 500; }
+    .nav-item .ct { margin-left: auto; font-size: 11px; color: rgba(207,224,210,.55); }
+    .nav-foot { margin-top: auto; padding: 12px 18px; border-top: 1px solid rgba(255,254,252,.10);
+      font-size: 11px; color: rgba(207,224,210,.62); }
+
+    .top { height: 50px; flex: 0 0 50px; background: var(--paper); border-bottom: 1px solid var(--hair);
+      display: flex; align-items: center; gap: 14px; padding: 0 18px; }
+    .top h1 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
+    .select { display: flex; align-items: center; gap: 7px; height: 28px; padding: 0 9px;
+      border: 1px solid var(--hair); border-radius: 4px; background: var(--paper); font-size: 12px; }
+    .search { width: 210px; height: 28px; border: 1px solid var(--hair); border-radius: 4px;
+      display: flex; align-items: center; gap: 7px; padding: 0 9px; color: var(--muted); font-size: 12px; }
+
+    .panel { background: var(--paper); border: 1px solid var(--hair); border-radius: 5px; }
+    .panel-h { display: flex; align-items: center; justify-content: space-between;
+      padding: 9px 14px; border-bottom: 1px solid var(--hair-soft); }
+    .panel-h b { font-size: 12px; font-weight: 600; }
+    .panel-b { padding: 13px 14px; }
+
+    .b { display: inline-flex; align-items: center; height: 19px; padding: 0 7px; border-radius: 3px;
+      font-size: 11px; font-weight: 500; white-space: nowrap; }
+    .b-g1 { background: var(--ink); color: var(--paper); }
+    .b-g2 { background: var(--sage); color: var(--ink-deep); }
+    .b-g3 { background: var(--keylime); color: var(--ink-deep); }
+    .b-g4 { background: transparent; color: #837f76; border: 1px solid var(--hair); }
+    .b-rd { background: transparent; color: #4d6b76; border: 1px solid var(--slate); }
+    .b-alert { background: transparent; color: var(--alert); border: 1px solid #d8b6a6; }
+
+    .kpi { background: var(--paper); border: 1px solid var(--hair); border-radius: 5px; padding: 13px 15px 14px; }
+    .kpi .lab { font-size: 11px; color: var(--muted); letter-spacing: .01em; }
+    .kpi .num { font-size: 27px; font-weight: 500; letter-spacing: -.02em; line-height: 1.15; margin-top: 5px; }
+    .kpi .sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+    table.d { width: 100%; border-collapse: collapse; font-size: 12px; }
+    table.d th { text-align: left; font-weight: 500; color: var(--muted); font-size: 11px;
+      padding: 0 10px 7px 0; border-bottom: 1px solid var(--hair-soft); white-space: nowrap; }
+    table.d td { padding: 8px 10px 8px 0; border-bottom: 1px solid var(--hair-soft); }
+    table.d tr:last-child td { border-bottom: 0; }
+    table.d .clip { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+
+    .funnel-step { display: flex; align-items: center; gap: 10px; }
+    .funnel-bar { height: 26px; border-radius: 3px; display: flex; align-items: center; padding: 0 9px;
+      font-size: 11px; font-weight: 500; }
+    .gauge { height: 6px; background: var(--hair-soft); border-radius: 3px; overflow: hidden; }
+    .gauge i { display: block; height: 100%; background: var(--ink); }
+  </style>
+</helmet>
+
+<div style="display: flex; height: 980px; overflow: hidden;">
+
+  <nav class="nav">
+    <div class="nav-brand"><b>BidOps</b><span>사업기회 모니터링</span></div>
+    <div class="nav-group">
+      <div class="nav-label">모니터링</div>
+      <div style="display: flex; flex-direction: column; gap: 1px;">
+        <div class="nav-item on">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
+          대시보드</div>
+        <div class="nav-item">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 6h16M4 12h16M4 18h9"/></svg>
+          검토 대기열 <span class="ct mono">24</span></div>
+        <div class="nav-item">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>
+          마감 추적 <span class="ct mono">6</span></div>
+      </div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-label">판정</div>
+      <div style="display: flex; flex-direction: column; gap: 1px;">
+        <div class="nav-item">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/></svg>
+          공고 판정 이력</div>
+        <div class="nav-item">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 12a9 9 0 1 1-4-7.5"/><path d="M9 12l2.5 2.5L20 6"/></svg>
+          담당자 리뷰 기록</div>
+      </div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-label">기준</div>
+      <div style="display: flex; flex-direction: column; gap: 1px;">
+        <div class="nav-item">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 21V6l7-3 7 3v15"/><path d="M9 21v-6h4v6M4 21h16"/></svg>
+          회사 프로필 <span class="ct mono">20</span></div>
+        <div class="nav-item">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 19V5M4 19h16"/><path d="M8 15l4-6 3 3 4-7"/></svg>
+          검증 지표</div>
+      </div>
+    </div>
+    <div class="nav-group" style="padding-bottom: 14px;">
+      <div class="nav-label">운영</div>
+      <div style="display: flex; flex-direction: column; gap: 1px;">
+        <div class="nav-item">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3v6M12 15v6M5 12H3M21 12h-2"/><circle cx="12" cy="12" r="3"/><path d="M6.5 6.5l1.5 1.5M17.5 17.5L16 16"/></svg>
+          수집 실행</div>
+        <div class="nav-item">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 11l-8.5 8.5a5 5 0 0 1-7-7L14 4a3.5 3.5 0 0 1 5 5l-8.7 8.7a2 2 0 0 1-2.9-2.8L15.5 6"/></svg>
+          첨부 확보 <span class="ct mono">27</span></div>
+        <div class="nav-item">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 7h18M3 12h18M3 17h18"/></svg>
+          산출물 감사 로그</div>
+      </div>
+    </div>
+    <div class="nav-foot">기획부 · 사업기획<br><span style="color: rgba(207,224,210,.45);">최종 동기화 08-24 17:52</span></div>
+  </nav>
+
+  <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+
+    <header class="top">
+      <h1>대시보드</h1>
+      <div class="select">
+        <span style="color: var(--muted);">실행 회차</span>
+        <b class="mono" style="font-weight: 500;">2026-08-17 ~ 08-23</b>
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+      <span class="b b-rd">기준선 · 제목·API 메타데이터</span>
+      <div style="margin-left: auto; display: flex; align-items: center; gap: 10px;">
+        <div class="search">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+          공고명·기관 검색</div>
+        <div style="width: 26px; height: 26px; border-radius: 4px; background: var(--mint); color: var(--ink-deep); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600;">JC</div>
+      </div>
+    </header>
+
+    <div style="flex: 1; overflow: hidden; padding: 16px 18px; display: flex; flex-direction: column; gap: 14px;">
+
+      <!-- KPI -->
+      <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px;">
+        <div class="kpi">
+          <div class="lab">수집 공고</div>
+          <div class="num mono">2,546</div>
+          <div class="sub">용역 본공고 · 사전규격 미수집</div>
+        </div>
+        <div class="kpi">
+          <div class="lab">후보 풀</div>
+          <div class="num mono">327</div>
+          <div class="sub">전체의 12.8% · 감사 풀 2,219</div>
+        </div>
+        <div class="kpi" style="border-color: var(--sage); background: var(--keylime);">
+          <div class="lab" style="color: var(--ink-deep);">우선 검토</div>
+          <div class="num mono" style="color: var(--ink);">12</div>
+          <div class="sub" style="color: var(--ink-deep);">분석 표본 30건의 40%
+            <span class="b b-alert" style="margin-left: 4px;">임계 초과</span></div>
+        </div>
+        <div class="kpi">
+          <div class="lab">1차 필터 누락</div>
+          <div class="num mono">0 <span style="font-size: 15px; color: var(--muted);">/ 10</span></div>
+          <div class="sub">감사 표본에서 비제외 판정 건수</div>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 14px;">
+
+        <!-- 파이프라인 퍼널 -->
+        <div class="panel">
+          <div class="panel-h"><b>판정 파이프라인</b>
+            <span style="font-size: 11px; color: var(--muted);">수집 → 후보 → 표본 → 판정 → 검토 대기</span></div>
+          <div class="panel-b" style="display: flex; flex-direction: column; gap: 9px;">
+            <div class="funnel-step">
+              <span style="width: 74px; font-size: 11px; color: var(--muted);">수집</span>
+              <div class="funnel-bar" style="width: 100%; background: var(--slate); color: var(--ink-deep);">
+                <span class="mono">2,546</span></div>
+            </div>
+            <div class="funnel-step">
+              <span style="width: 74px; font-size: 11px; color: var(--muted);">후보 풀</span>
+              <div class="funnel-bar" style="width: 42%; background: var(--mint); color: var(--ink-deep);">
+                <span class="mono">327</span><span style="margin-left: 7px; font-weight: 400;">키워드 322 · 실적 유사 5</span></div>
+            </div>
+            <div class="funnel-step">
+              <span style="width: 74px; font-size: 11px; color: var(--muted);">검증 표본</span>
+              <div class="funnel-bar" style="width: 24%; background: var(--sage); color: var(--ink-deep);">
+                <span class="mono">40</span><span style="margin-left: 7px; font-weight: 400;">분석 30 · 감사 10</span></div>
+            </div>
+            <div class="funnel-step">
+              <span style="width: 74px; font-size: 11px; color: var(--muted);">검토 대기</span>
+              <div class="funnel-bar" style="width: 16%; background: var(--ink); color: var(--paper);">
+                <span class="mono">24</span></div>
+            </div>
+
+            <div style="margin-top: 6px; padding-top: 12px; border-top: 1px solid var(--hair-soft);">
+              <div style="font-size: 11px; color: var(--muted); margin-bottom: 8px;">분석 표본 30건의 등급 분포</div>
+              <div style="display: flex; height: 24px; border-radius: 3px; overflow: hidden; font-size: 11px; font-weight: 500;">
+                <div style="width: 40%; background: var(--ink); color: var(--paper); display: flex; align-items: center; justify-content: center;">우선 12</div>
+                <div style="width: 36.7%; background: var(--sage); color: var(--ink-deep); display: flex; align-items: center; justify-content: center;">권장 11</div>
+                <div style="width: 3.3%; background: var(--keylime);"></div>
+                <div style="width: 20%; background: var(--hair-soft); color: var(--muted); display: flex; align-items: center; justify-content: center;">제외 6</div>
+              </div>
+              <div style="display: flex; gap: 14px; margin-top: 8px; font-size: 11px; color: var(--muted);">
+                <span>축 분포 · 공공 SI <b class="mono" style="color: var(--charcoal);">232</b></span>
+                <span>AI/데이터 <b class="mono" style="color: var(--charcoal);">132</b></span>
+                <span>블록체인·DID <b class="mono" style="color: var(--charcoal);">2</b></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 검증 통과 기준 -->
+        <div class="panel">
+          <div class="panel-h"><b>검증 통과 기준</b><span style="font-size: 11px; color: var(--muted);">5개 항목 중 2개 미달</span></div>
+          <div class="panel-b" style="display: flex; flex-direction: column; gap: 11px;">
+
+            <div>
+              <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px;">
+                <span>변별력 <span style="color: var(--muted); font-size: 11px;">우선 검토 비율</span></span>
+                <span class="mono" style="color: var(--alert);">40% <span style="color: var(--muted);">/ 10~25%</span></span>
+              </div>
+              <div class="gauge"><i style="width: 100%; background: var(--alert);"></i></div>
+            </div>
+
+            <div>
+              <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px;">
+                <span>관점 분할 <span style="color: var(--muted); font-size: 11px;">관점 간 판정 분기</span></span>
+                <span class="mono" style="color: var(--alert);">— <span style="color: var(--muted);">/ 40% 이상</span></span>
+              </div>
+              <div class="gauge"><i style="width: 0;"></i></div>
+              <div style="font-size: 11px; color: var(--alert); margin-top: 4px;">현재 판정에 단일 관점만 기록되어 측정 불가</div>
+            </div>
+
+            <div>
+              <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px;">
+                <span>근거 타당성 <span style="color: var(--muted); font-size: 11px;">담당자 동의율</span></span>
+                <span class="mono" style="color: var(--muted);">0 / 24 리뷰</span>
+              </div>
+              <div class="gauge"><i style="width: 0;"></i></div>
+            </div>
+
+            <div>
+              <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px;">
+                <span>재현성 <span style="color: var(--muted); font-size: 11px;">등급 일치율</span></span>
+                <span class="mono" style="color: var(--muted);">미측정 <span>/ 80% 이상</span></span>
+              </div>
+              <div class="gauge"><i style="width: 0;"></i></div>
+            </div>
+
+            <div>
+              <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px;">
+                <span>정보 충분성 <span style="color: var(--muted); font-size: 11px;">첨부 필요 비율</span></span>
+                <span class="mono">100% <span style="color: var(--muted);">24 / 24건</span></span>
+              </div>
+              <div class="gauge"><i style="width: 100%;"></i></div>
+              <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">제목·메타데이터만으로 준비 상태를 확정한 사례 없음</div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 14px; flex: 1; min-height: 0;">
+
+        <!-- 마감 임박 -->
+        <div class="panel" style="display: flex; flex-direction: column; overflow: hidden;">
+          <div class="panel-h"><b>마감 임박</b><span style="font-size: 11px; color: var(--muted);">7일 이내 · 6건</span></div>
+          <div class="panel-b" style="padding-top: 10px; overflow: auto;">
+            <table class="d">
+              <tr><th style="width: 52px;">마감</th><th style="width: 74px;">등급</th><th>공고</th><th style="width: 74px;">추정가격</th><th style="width: 92px;">확인 항목</th></tr>
+              <tr>
+                <td class="mono" style="color: var(--alert);">D-0</td>
+                <td><span class="b b-g2">검토 권장</span></td>
+                <td><span class="clip">천안시 내부 클라우드 가상화 인프라 구축</span></td>
+                <td class="mono">4.1억</td>
+                <td><span class="b b-alert">차단 1</span></td>
+              </tr>
+              <tr>
+                <td class="mono" style="color: var(--alert);">D-1</td>
+                <td><span class="b b-g2">검토 권장</span></td>
+                <td><span class="clip">소상공인 상세페이지 제작지원 생성형 AI 콘텐츠 제작 서비스</span></td>
+                <td class="mono">20만</td>
+                <td><span class="b b-alert">차단 1</span></td>
+              </tr>
+              <tr>
+                <td class="mono">D-7</td>
+                <td><span class="b b-g1">우선 검토</span></td>
+                <td><span class="clip">AI 공간컴퓨팅 기반 낙동강하구 차세대 생태체험 서비스 통합관리 대시보드</span></td>
+                <td class="mono">7,700만</td>
+                <td><span class="b b-alert">차단 1</span></td>
+              </tr>
+              <tr>
+                <td class="mono">D-7</td>
+                <td><span class="b b-g2">검토 권장</span></td>
+                <td><span class="clip">생성형 AI 상세페이지 제작 구독권 공급 및 운영지원 용역</span></td>
+                <td class="mono">5,874만</td>
+                <td><span class="b b-alert">차단 1</span></td>
+              </tr>
+              <tr>
+                <td class="mono">D-8</td>
+                <td><span class="b b-g3">관찰 대상</span></td>
+                <td><span class="clip">2026년 주요정보통신기반시설 취약점 분석 및 평가 용역</span></td>
+                <td class="mono">7,900만</td>
+                <td><span class="b b-alert">차단 1</span></td>
+              </tr>
+              <tr>
+                <td class="mono">D-9</td>
+                <td><span class="b b-g2">검토 권장</span></td>
+                <td><span class="clip">평택시 하수도 배수설비 조사 및 연결관로 DB구축 용역(2단계)</span></td>
+                <td class="mono">2.0억</td>
+                <td><span class="b b-alert">차단 2</span></td>
+              </tr>
+            </table>
+          </div>
+        </div>
+
+        <!-- 확인 요청 -->
+        <div class="panel" style="display: flex; flex-direction: column; overflow: hidden;">
+          <div class="panel-h"><b>담당자 확인 요청</b><span class="b b-alert">차단 항목 26건</span></div>
+          <div class="panel-b" style="padding-top: 10px; overflow: auto;">
+            <table class="d">
+              <tr><th>확인 항목</th><th style="width: 42px; text-align: right;">건수</th></tr>
+              <tr><td>입찰참가자격 및 실적 인정 범위
+                <div style="font-size: 11px; color: var(--muted); margin-top: 2px;">프로필 5.2 조달 자격 · unknown</div></td>
+                <td class="mono" style="text-align: right;">21</td></tr>
+              <tr><td>공고·제안요청서 세부 과업
+                <div style="font-size: 11px; color: var(--muted); margin-top: 2px;">첨부 문서 확보 필요</div></td>
+                <td class="mono" style="text-align: right;">24</td></tr>
+              <tr><td>단독 수행 가능 예산 범위
+                <div style="font-size: 11px; color: var(--muted); margin-top: 2px;">프로필 4.5 선호 예산 · unknown</div></td>
+                <td class="mono" style="text-align: right;">5</td></tr>
+              <tr><td>상주 인력 및 지역 수행 조건
+                <div style="font-size: 11px; color: var(--muted); margin-top: 2px;">프로필 4.8 지역 전략 · unknown</div></td>
+                <td class="mono" style="text-align: right;">3</td></tr>
+              <tr><td>직접생산확인증명 보유 여부
+                <div style="font-size: 11px; color: var(--muted); margin-top: 2px;">프로필 2.5 인증 현황 · unknown</div></td>
+                <td class="mono" style="text-align: right;">2</td></tr>
+            </table>
+            <a class="b b-g3" style="margin-top: 11px; height: 26px; padding: 0 10px;">회사 프로필에서 확정하기 →</a>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

@@ -1,0 +1,330 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    :root {
+      --ink: #0f3e17; --ink-deep: #0c2f10;
+      --sage: #b1dbb8; --keylime: #e1f4df; --mint: #cfe7d3; --slate: #b6ced5;
+      --paper: #fffefc; --canvas: #f5f4ef; --charcoal: #222222;
+      --hair: #e4e2dc; --hair-soft: #efeeeb; --muted: #6f6c64; --alert: #9a4a2f;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--canvas); color: var(--charcoal);
+      font-family: 'IBM Plex Sans KR', system-ui, sans-serif; font-size: 13px; line-height: 1.5;
+      -webkit-font-smoothing: antialiased; }
+    a { color: var(--ink); text-decoration: none; } a:hover { color: var(--ink-deep); }
+    .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+
+    .nav { background: var(--ink); color: #cfe0d2; width: 216px; flex: 0 0 216px; display: flex; flex-direction: column; }
+    .nav-brand { padding: 18px 18px 20px; border-bottom: 1px solid rgba(255,254,252,.10); }
+    .nav-brand b { display: block; color: var(--paper); font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
+    .nav-brand span { display: block; color: rgba(207,224,210,.62); font-size: 11px; margin-top: 3px; }
+    .nav-group { padding: 14px 10px 0; }
+    .nav-label { color: rgba(207,224,210,.45); font-size: 10px; font-weight: 500;
+      letter-spacing: .10em; text-transform: uppercase; padding: 0 8px 6px; }
+    .nav-item { display: flex; align-items: center; gap: 9px; padding: 7px 8px; border-radius: 4px; color: #cfe0d2; font-size: 13px; }
+    .nav-item.on { background: rgba(255,254,252,.11); color: var(--paper); font-weight: 500; }
+    .nav-item .ct { margin-left: auto; font-size: 11px; color: rgba(207,224,210,.55); }
+    .nav-foot { margin-top: auto; padding: 12px 18px; border-top: 1px solid rgba(255,254,252,.10);
+      font-size: 11px; color: rgba(207,224,210,.62); }
+
+    .top { height: 50px; flex: 0 0 50px; background: var(--paper); border-bottom: 1px solid var(--hair);
+      display: flex; align-items: center; gap: 12px; padding: 0 18px; }
+    .top h1 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
+    .btn { height: 30px; padding: 0 13px; border-radius: 4px; background: var(--ink); color: var(--paper);
+      font-size: 12px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; }
+    .btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--hair); }
+    .select { display: flex; align-items: center; gap: 7px; height: 28px; padding: 0 9px;
+      border: 1px solid var(--hair); border-radius: 4px; background: var(--paper); font-size: 12px; }
+
+    .panel { background: var(--paper); border: 1px solid var(--hair); border-radius: 5px; }
+    .panel-h { display: flex; align-items: center; justify-content: space-between;
+      padding: 9px 14px; border-bottom: 1px solid var(--hair-soft); }
+    .panel-h b { font-size: 12px; font-weight: 600; }
+    .panel-b { padding: 13px 14px; }
+
+    .b { display: inline-flex; align-items: center; height: 19px; padding: 0 7px; border-radius: 3px;
+      font-size: 11px; font-weight: 500; white-space: nowrap; }
+    .b-ok { background: var(--sage); color: var(--ink-deep); }
+    .b-run { background: var(--ink); color: var(--paper); }
+    .b-idle { background: transparent; color: #837f76; border: 1px solid var(--hair); }
+    .b-warn { background: transparent; color: var(--alert); border: 1px solid #d8b6a6; }
+    .b-slate { background: transparent; color: #4d6b76; border: 1px solid var(--slate); }
+
+    table.d { width: 100%; border-collapse: collapse; font-size: 12px; }
+    table.d th { text-align: left; font-weight: 500; color: var(--muted); font-size: 11px;
+      padding: 0 10px 7px 0; border-bottom: 1px solid var(--hair-soft); white-space: nowrap; }
+    table.d td { padding: 8px 10px 8px 0; border-bottom: 1px solid var(--hair-soft); vertical-align: top; }
+    table.d tr:last-child td { border-bottom: 0; }
+
+    .runrow { padding: 11px 14px; border-bottom: 1px solid var(--hair-soft); }
+    .runrow.on { background: var(--keylime); box-shadow: inset 2px 0 0 var(--ink); }
+
+    .stage { border: 1px solid var(--hair); border-radius: 5px; padding: 11px 12px; background: var(--paper); }
+    .stage.done { border-color: var(--sage); background: #fbfdfa; }
+    .stage-t { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; }
+    .stage-n { width: 17px; height: 17px; border-radius: 50%; background: var(--ink); color: var(--paper);
+      font-size: 10px; display: flex; align-items: center; justify-content: center; font-weight: 500; }
+    .stage-n.idle { background: var(--hair); color: var(--muted); }
+    .stage-m { font-size: 11px; color: var(--muted); margin-top: 7px; line-height: 1.5; }
+
+    .log { font-family: 'IBM Plex Mono', monospace; font-size: 11px; line-height: 1.8;
+      background: #fbfaf7; border: 1px solid var(--hair-soft); border-radius: 4px; padding: 10px 12px; }
+    .log .t { color: var(--muted); }
+    .log .w { color: var(--alert); }
+  </style>
+</helmet>
+
+<div style="display: flex; height: 900px; overflow: hidden;">
+
+  <nav class="nav">
+    <div class="nav-brand"><b>BidOps</b><span>사업기회 모니터링</span></div>
+    <div class="nav-group">
+      <div class="nav-label">모니터링</div>
+      <div style="display: flex; flex-direction: column; gap: 1px;">
+        <div class="nav-item">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
+          대시보드</div>
+        <div class="nav-item">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 6h16M4 12h16M4 18h9"/></svg>
+          검토 대기열 <span class="ct mono">24</span></div>
+        <div class="nav-item">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>
+          마감 추적 <span class="ct mono">6</span></div>
+      </div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-label">판정</div>
+      <div style="display: flex; flex-direction: column; gap: 1px;">
+        <div class="nav-item">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/></svg>
+          공고 판정 이력</div>
+        <div class="nav-item">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 12a9 9 0 1 1-4-7.5"/><path d="M9 12l2.5 2.5L20 6"/></svg>
+          담당자 리뷰 기록</div>
+      </div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-label">기준</div>
+      <div style="display: flex; flex-direction: column; gap: 1px;">
+        <div class="nav-item">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 21V6l7-3 7 3v15"/><path d="M9 21v-6h4v6M4 21h16"/></svg>
+          회사 프로필 <span class="ct mono">20</span></div>
+        <div class="nav-item">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 19V5M4 19h16"/><path d="M8 15l4-6 3 3 4-7"/></svg>
+          검증 지표</div>
+      </div>
+    </div>
+    <div class="nav-group" style="padding-bottom: 14px;">
+      <div class="nav-label">운영</div>
+      <div style="display: flex; flex-direction: column; gap: 1px;">
+        <div class="nav-item on">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3v6M12 15v6M5 12H3M21 12h-2"/><circle cx="12" cy="12" r="3"/><path d="M6.5 6.5l1.5 1.5M17.5 17.5L16 16"/></svg>
+          수집 실행</div>
+        <div class="nav-item">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 11l-8.5 8.5a5 5 0 0 1-7-7L14 4a3.5 3.5 0 0 1 5 5l-8.7 8.7a2 2 0 0 1-2.9-2.8L15.5 6"/></svg>
+          첨부 확보 <span class="ct mono">27</span></div>
+        <div class="nav-item">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 7h18M3 12h18M3 17h18"/></svg>
+          산출물 감사 로그</div>
+      </div>
+    </div>
+    <div class="nav-foot">기획부 · 사업기획<br><span style="color: rgba(207,224,210,.45);">최종 동기화 08-24 17:52</span></div>
+  </nav>
+
+  <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+
+    <header class="top">
+      <h1>수집 실행</h1>
+      <span class="b b-slate">API 키 등록됨 · 사전규격 권한 미승인</span>
+      <div style="margin-left: auto; display: flex; gap: 6px;">
+        <a class="btn ghost">원문 재분류 실행
+          <span class="mono" style="font-size: 11px; color: var(--muted);">--from-raw</span></a>
+        <a class="btn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 5v14M5 12h14"/></svg>
+          새 회차 수집</a>
+      </div>
+    </header>
+
+    <div style="flex: 1; display: flex; overflow: hidden;">
+
+      <!-- 회차 목록 -->
+      <section style="width: 296px; flex: 0 0 296px; background: var(--paper); border-right: 1px solid var(--hair); display: flex; flex-direction: column;">
+        <div style="padding: 9px 14px; border-bottom: 1px solid var(--hair-soft); color: var(--muted); font-size: 11px; display: flex; justify-content: space-between;">
+          <span>실행 회차</span><span class="mono">3건</span></div>
+
+        <div class="runrow on">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <b class="mono" style="font-size: 12px; font-weight: 500;">20260817-20260823</b>
+            <span class="b b-ok">완료</span>
+          </div>
+          <div style="font-size: 11px; color: var(--muted); margin-top: 5px;">
+            재분류 08-24 17:52 · <span class="mono">2,546</span>건 수집</div>
+          <div style="display: flex; gap: 4px; margin-top: 7px;">
+            <span class="b b-idle">후보 327</span><span class="b b-idle">표본 40</span><span class="b b-warn">경고 1</span>
+          </div>
+        </div>
+
+        <div class="runrow">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <b class="mono" style="font-size: 12px; font-weight: 500;">20260817-20260823</b>
+            <span class="b b-idle">대체됨</span>
+          </div>
+          <div style="font-size: 11px; color: var(--muted); margin-top: 5px;">
+            최초 수집 08-24 11:48 · <span class="mono">2,546</span>건</div>
+          <div style="display: flex; gap: 4px; margin-top: 7px;">
+            <span class="b b-idle">후보 328</span><span class="b b-idle">표본 40</span>
+          </div>
+        </div>
+
+        <div class="runrow">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <b class="mono" style="font-size: 12px; font-weight: 500;">20260810-20260816</b>
+            <span class="b b-idle">미실행</span>
+          </div>
+          <div style="font-size: 11px; color: var(--muted); margin-top: 5px;">이전 주 · 수집 이력 없음</div>
+        </div>
+      </section>
+
+      <!-- 회차 상세 -->
+      <section style="flex: 1; overflow: auto; padding: 16px 18px; display: flex; flex-direction: column; gap: 14px;">
+
+        <!-- 파이프라인 단계 -->
+        <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px;">
+          <div class="stage done">
+            <div class="stage-t"><span class="stage-n">1</span>수집·정규화<span class="b b-ok" style="margin-left: auto;">완료</span></div>
+            <div class="stage-m">
+              <span class="mono">2,546</span>건 · 원문 6페이지 보존<br>
+              후보 <span class="mono">327</span> / 감사 <span class="mono">2,219</span><br>
+              <span class="mono" style="color: var(--muted);">collect_notices.py</span>
+            </div>
+          </div>
+          <div class="stage done">
+            <div class="stage-t"><span class="stage-n">2</span>표본 선정<span class="b b-ok" style="margin-left: auto;">완료</span></div>
+            <div class="stage-m">
+              분석 <span class="mono">30</span> · 감사 <span class="mono">10</span><br>
+              층 4종 순환 배정<br>
+              <span class="mono" style="color: var(--muted);">select_validation_sample.py</span>
+            </div>
+          </div>
+          <div class="stage done">
+            <div class="stage-t"><span class="stage-n">3</span>에이전트 판정<span class="b b-ok" style="margin-left: auto;">완료</span></div>
+            <div class="stage-m">
+              <span class="mono">40</span>건 판정 · 관점 <span class="mono">1</span>/5 기록<br>
+              <span style="color: var(--alert);">계약은 5개 관점을 요구한다</span><br>
+              <span class="mono" style="color: var(--muted);">build_screening_results.py</span>
+            </div>
+          </div>
+          <div class="stage done">
+            <div class="stage-t"><span class="stage-n">4</span>보고 생성<span class="b b-ok" style="margin-left: auto;">완료</span></div>
+            <div class="stage-m">
+              주간 보고 1 · 상세 <span class="mono">40</span><br>
+              리뷰 양식 <span class="mono">40</span>건 대기<br>
+              <span class="mono" style="color: var(--muted);">render_report.py</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 산출물 + 경고 -->
+        <div style="display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 14px;">
+
+          <div class="panel">
+            <div class="panel-h"><b>산출물과 스키마 검증</b>
+              <span class="b b-warn">계약 불일치 1건</span></div>
+            <div class="panel-b" style="padding-top: 10px;">
+              <table class="d">
+                <tr><th style="width: 40%;">파일</th><th style="width: 168px;">스키마</th><th>검증</th></tr>
+                <tr>
+                  <td class="mono" style="font-size: 11px;">collected-notices.json</td>
+                  <td class="mono" style="font-size: 11px;">bidops.collected.v2</td>
+                  <td><span class="b b-ok">통과</span></td>
+                </tr>
+                <tr>
+                  <td class="mono" style="font-size: 11px;">validation-set.json</td>
+                  <td class="mono" style="font-size: 11px;">bidops.validation-set.v2</td>
+                  <td><span class="b b-ok">통과</span></td>
+                </tr>
+                <tr>
+                  <td class="mono" style="font-size: 11px;">screening-decisions.json</td>
+                  <td class="mono" style="font-size: 11px; color: var(--alert);">bidops.decisions.v1</td>
+                  <td><span class="b b-warn">v2 필요</span>
+                    <div style="font-size: 11px; color: var(--alert); margin-top: 4px;">관점 5개·반론·확인 항목 필수 필드 누락</div></td>
+                </tr>
+                <tr>
+                  <td class="mono" style="font-size: 11px;">screening-results.json</td>
+                  <td class="mono" style="font-size: 11px;">bidops.screening.v2</td>
+                  <td><span class="b b-ok">통과</span></td>
+                </tr>
+                <tr>
+                  <td class="mono" style="font-size: 11px;">review-feedback.yaml</td>
+                  <td class="mono" style="font-size: 11px; color: var(--alert);">bidops.feedback.v1</td>
+                  <td><span class="b b-idle">리뷰 0 / 40</span></td>
+                </tr>
+              </table>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-h"><b>수집 범위</b><span style="font-size: 11px; color: var(--muted);">이 회차의 설정</span></div>
+            <div class="panel-b" style="display: flex; flex-direction: column; gap: 9px;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="width: 82px; font-size: 11px; color: var(--muted);">기간</span>
+                <div class="select" style="flex: 1;"><span class="mono">2026-08-17 ~ 2026-08-23</span>
+                  <span style="margin-left: auto; color: var(--muted); font-size: 11px;">Asia/Seoul</span></div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="width: 82px; font-size: 11px; color: var(--muted);">업무 구분</span>
+                <div class="select" style="flex: 1;">용역 본공고
+                  <span style="margin-left: auto; color: var(--muted); font-size: 11px;">물품·공사 제외</span></div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="width: 82px; font-size: 11px; color: var(--muted);">사전규격</span>
+                <div class="select" style="flex: 1; border-color: #d8b6a6;">
+                  <span style="color: var(--alert);">수집 실패 · 활용신청 미승인</span></div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="width: 82px; font-size: 11px; color: var(--muted);">역량 축</span>
+                <div style="flex: 1; display: flex; gap: 4px; flex-wrap: wrap;">
+                  <span class="b b-ok">AI/데이터</span><span class="b b-ok">블록체인·DID</span><span class="b b-ok">공공 SI·통합관리</span>
+                </div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="width: 82px; font-size: 11px; color: var(--muted);">실적 레퍼런스</span>
+                <div class="select" style="flex: 1;">회사소개서 41–46p
+                  <span class="mono" style="margin-left: auto; font-size: 11px;">130건</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 실행 로그 -->
+        <div class="panel">
+          <div class="panel-h"><b>실행 로그</b><span style="font-size: 11px; color: var(--muted);">최근 재분류 · 08-24 17:44 ~ 17:52</span></div>
+          <div class="panel-b">
+            <div class="log">
+              <div><span class="t">17:44:02</span>  collect --from-raw 시작 · 원문 6페이지 로드</div>
+              <div><span class="t">17:44:19</span>  정규화 완료 2,546건 · 미확인 필드 보유 <span class="mono">312</span>건</div>
+              <div class="w"><span class="t">17:44:19</span>  WARN 사전규격 API SERVICE_KEY_IS_NOT_REGISTERED_ERROR · 해당 구간 제외</div>
+              <div><span class="t">17:45:33</span>  후보 회수 327건 · 신규 42 · 해제 43</div>
+              <div><span class="t">17:45:33</span>  수행실적 유사 단독 회수 3건 (평생교육관리시스템 3개 차수)</div>
+              <div><span class="t">17:46:10</span>  표본 선정 완료 · 분석 30 (교체 5) · 감사 10</div>
+              <div><span class="t">17:51:07</span>  판정 병합 40건 · 반론 중복률 <span class="mono">12%</span> · 임계 40% 이내</div>
+              <div><span class="t">17:52:44</span>  보고 생성 완료 · weekly-monitoring.html · details 40개</div>
+            </div>
+          </div>
+        </div>
+
+      </section>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
