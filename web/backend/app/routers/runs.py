@@ -24,6 +24,10 @@ from ..schemas import (
     FunnelItem,
     IngestRequest,
     IngestResponse,
+    PipelineExecutionResponse,
+    PipelineLogResponse,
+    PipelineLogLineResponse,
+    PipelineRunRequest,
     RunDetailResponse,
     RunListResponse,
     RunStatsResponse,
@@ -31,6 +35,13 @@ from ..schemas import (
     VerificationRequest,
     WarningListResponse,
     WarningResponse,
+)
+from ..services.pipeline import (
+    PipelineBusyError,
+    PipelineInputError,
+    PipelineService,
+    execution_response,
+    log_response,
 )
 from .common import (
     get_run,
@@ -47,6 +58,7 @@ router = APIRouter(prefix="/api/runs", tags=["runs"])
 GRADE_ORDER = ["우선 검토", "검토 권장", "관찰 대상", "제외"]
 READINESS_ORDER = ["확인 완료", "부분 확인 필요", "참여 불가 확인", "해당 없음"]
 FOCUS_ORDER = ["AI/데이터", "블록체인·DID", "공공 SI·통합관리", "해당 없음"]
+pipeline_service = PipelineService()
 
 
 def _run_warnings(session: Session, run_id: str) -> list[IngestWarning]:
@@ -66,7 +78,9 @@ def _warning_response(row: IngestWarning) -> WarningResponse:
     )
 
 
-def _artifact_rows(run: Run) -> list[ArtifactValidationResponse]:
+def _artifact_rows(
+    run: Run, run_warnings: list[IngestWarning] | None = None
+) -> list[ArtifactValidationResponse]:
     directory = run_directory(run)
     expected = {
         "validation-set.json": "bidops.validation-set.v2",
@@ -89,13 +103,21 @@ def _artifact_rows(run: Run) -> list[ArtifactValidationResponse]:
             continue
         raw = load_json_file(path)
         actual = raw.get("schema_version") if raw else None
-        warnings: list[str] = []
+        artifact_warnings: list[str] = []
         valid = actual == expected_version
         if name == "screening-decisions.json" and actual == "bidops.decisions.v1":
             valid = True
-            warnings.append("계약 v1을 호환 적재했습니다. 현재 기준은 v2입니다.")
+            artifact_warnings.append("계약 v1을 호환 적재했습니다. 현재 기준은 v2입니다.")
         elif actual != expected_version:
-            warnings.append(f"예상 스키마 {expected_version}, 실제 스키마 {actual or '없음'}")
+            artifact_warnings.append(f"예상 스키마 {expected_version}, 실제 스키마 {actual or '없음'}")
+        if name == "screening-results.json":
+            missing_verification_count = sum(
+                warning.code == "verification_items_missing" for warning in (run_warnings or [])
+            )
+            if missing_verification_count:
+                artifact_warnings.append(
+                    f"확인 항목(verification_items)이 {missing_verification_count}건에서 누락되었습니다."
+                )
         rows.append(
             ArtifactValidationResponse(
                 name=name,
@@ -103,22 +125,33 @@ def _artifact_rows(run: Run) -> list[ArtifactValidationResponse]:
                 schema_version=actual,
                 expected_schema_version=expected_version,
                 valid=valid,
-                warnings=warnings,
+                warnings=artifact_warnings,
             )
         )
     return rows
 
 
 def _scope(run: Run) -> CollectionScopeResponse:
+    collection = load_json_file(run_directory(run) / "collected-notices.json") or {}
     raw = load_json_file(run_directory(run) / "validation-set.json") or {}
     selection = raw.get("selection") if isinstance(raw.get("selection"), dict) else {}
     axes = selection.get("analysis_axis_counts")
+    pre_spec_count = sum(
+        item.get("source_type") == "pre_spec"
+        for item in (collection.get("notices") if isinstance(collection.get("notices"), list) else [])
+        if isinstance(item, dict)
+    )
     return CollectionScopeResponse(
         window_from=run.window_from,
         window_to=run.window_to,
         timezone=run.timezone,
         business_area="용역 본공고",
-        pre_spec_available=False,
+        pre_spec_available=bool(pre_spec_count),
+        pre_spec_reason=(
+            None
+            if pre_spec_count
+            else "사전규격 API 활용신청이 승인되지 않아 이 회차에서는 수집되지 않았습니다."
+        ),
         focus_axes=list(axes.keys()) if isinstance(axes, dict) else [],
         performance_reference_count=(
             int(selection["analysis_performance_match_count"])
@@ -131,32 +164,65 @@ def _scope(run: Run) -> CollectionScopeResponse:
 def _pipeline(run: Run, artifacts: list[ArtifactValidationResponse]) -> list[PipelineStageResponse]:
     present = {row.name: row.present for row in artifacts}
     report_dir = get_settings().bidops_root / "reports" / run_directory(run).name
-    return [
-        PipelineStageResponse(
-            name="collect_normalize",
-            status="complete" if present.get("collected-notices.json") else "not_available",
-            artifact="collected-notices.json",
+    definitions = [
+        (
+            "collect_normalize",
+            "complete" if present.get("collected-notices.json") else "not_available",
+            "collected-notices.json",
+            "collect_notices.py",
+            True,
+            None,
         ),
-        PipelineStageResponse(
-            name="sample",
-            status="complete" if present.get("validation-set.json") else "not_available",
-            artifact="validation-set.json",
+        (
+            "sample",
+            "complete" if present.get("validation-set.json") else "not_available",
+            "validation-set.json",
+            "select_validation_sample.py",
+            True,
+            None,
         ),
-        PipelineStageResponse(
-            name="judgment",
-            status=(
+        (
+            "judgment",
+            (
                 "complete"
                 if present.get("screening-results.json") or present.get("screening-decisions.json")
                 else "not_available"
             ),
-            artifact="screening-results.json",
+            "screening-results.json",
+            "에이전트 작성 · 애플리케이션 실행 없음",
+            False,
+            "판정은 에이전트가 screening-decisions.json을 직접 작성해야 하므로 여기서 실행하지 않습니다.",
         ),
-        PipelineStageResponse(
-            name="report",
-            status="complete" if any(report_dir.glob("*.html")) else "not_available",
-            artifact="weekly-monitoring.html",
+        (
+            "report",
+            "complete" if any(report_dir.glob("*.html")) else "not_available",
+            "weekly-monitoring.html",
+            "render_report.py",
+            True,
+            None,
         ),
     ]
+    rows: list[PipelineStageResponse] = []
+    for name, status, artifact, script, execution_allowed, message in definitions:
+        stage_key = {"collect_normalize": "collect"}.get(name, name)
+        execution = pipeline_service.latest_for(run.id, stage_key) if execution_allowed else None
+        if execution and execution.status in {"pending", "running", "failed"}:
+            status = execution.status
+        rows.append(
+            PipelineStageResponse(
+                name=name,
+                status=status,
+                artifact=artifact,
+                script=script,
+                execution_id=execution.execution_id if execution else None,
+                started_at=execution.started_at if execution else None,
+                finished_at=execution.finished_at if execution else None,
+                exit_code=execution.exit_code if execution else None,
+                execution_allowed=execution_allowed,
+                message=message,
+            )
+        )
+    return rows
 
 
 @router.get("", response_model=RunListResponse)
@@ -191,6 +257,53 @@ def ingest_selected_run(
         reviews=result.reviews,
         warnings=response_warnings,
         warning_counts=warning_counts(warning_rows),
+    )
+
+
+@router.post(
+    "/{run_id}/pipeline/{stage}",
+    response_model=PipelineExecutionResponse,
+    status_code=202,
+)
+def start_pipeline_stage(
+    run_id: str,
+    stage: str,
+    payload: PipelineRunRequest | None = Body(default=None),
+    from_raw: bool = Query(default=False),
+    session: Session = Depends(get_db),
+) -> PipelineExecutionResponse:
+    run = get_run(session, run_id)
+    requested_from_raw = from_raw or bool(payload and payload.from_raw)
+    try:
+        execution = pipeline_service.start(run, stage, from_raw=requested_from_raw)
+    except PipelineBusyError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=f"같은 회차에서 이미 실행 중입니다: {exc.execution_id}",
+        ) from exc
+    except PipelineInputError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return PipelineExecutionResponse.model_validate(execution_response(execution))
+
+
+@router.get("/{run_id}/pipeline/logs", response_model=PipelineLogResponse)
+def pipeline_logs(
+    run_id: str,
+    execution_id: str | None = Query(default=None),
+    session: Session = Depends(get_db),
+) -> PipelineLogResponse:
+    run = get_run(session, run_id)
+    executions = pipeline_service.logs_for(run.id, execution_id=execution_id)
+    items = [
+        PipelineLogLineResponse.model_validate(item)
+        for execution in executions
+        for item in log_response(execution)
+    ]
+    return PipelineLogResponse(
+        run_id=run.id,
+        executions=[PipelineExecutionResponse.model_validate(execution_response(item)) for item in executions],
+        items=items,
+        total=len(items),
     )
 
 
@@ -323,7 +436,7 @@ def run_stats(run_id: str, session: Session = Depends(get_db)) -> RunStatsRespon
 def run_detail(run_id: str, session: Session = Depends(get_db)) -> RunDetailResponse:
     run = get_run(session, run_id)
     warnings = _run_warnings(session, run.id)
-    artifacts = _artifact_rows(run)
+    artifacts = _artifact_rows(run, warnings)
     return RunDetailResponse(
         **run_summary(run).model_dump(),
         collection_scope=_scope(run),

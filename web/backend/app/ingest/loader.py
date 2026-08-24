@@ -1061,6 +1061,11 @@ def ingest_run(
                 "validation-set.json이 없어 회차 적재를 중단했습니다.",
                 {"file": str(validation_path)},
             )
+            # A collect-only execution is still a useful, visible snapshot.
+            # Keep its collection totals even though the 40-notice screen
+            # snapshot cannot be loaded until the sample stage runs.
+            if collection_raw is not None:
+                _load_collection_stats(session, run_id, collection_raw, str(collection_path), run)
             _update_counts(session, run)
             session.commit()
             warnings = _warning_dicts(session, run_id)

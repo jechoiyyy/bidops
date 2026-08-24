@@ -36,7 +36,10 @@ export function AppShell() {
   });
   const runs = runsQuery.data?.items ?? [];
   const queryRunId = searchParams.get("run");
-  const selectedSummary = runs.find((run) => run.run_id === queryRunId) ?? runs[0] ?? null;
+  // 수집·표본까지만 끝난 회차는 판정이 없어 대부분의 화면이 비어 보인다.
+  // 명시적으로 고른 회차가 없으면 판정을 갖춘 최신 회차를 기본으로 삼는다.
+  const defaultSummary = runs.find((run) => run.counts.judgments > 0) ?? runs[0] ?? null;
+  const selectedSummary = runs.find((run) => run.run_id === queryRunId) ?? defaultSummary;
   const selectedRunId = selectedSummary?.run_id ?? null;
   const detailQuery = useQuery({
     queryKey: ["run", selectedRunId],

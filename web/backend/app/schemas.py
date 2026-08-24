@@ -317,6 +317,13 @@ class PipelineStageResponse(APIModel):
     name: str
     status: str
     artifact: str | None = None
+    script: str | None = None
+    execution_id: str | None = None
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    exit_code: int | None = None
+    execution_allowed: bool = True
+    message: str | None = None
 
 
 class CollectionScopeResponse(APIModel):
@@ -325,6 +332,7 @@ class CollectionScopeResponse(APIModel):
     timezone: str
     business_area: str | None = None
     pre_spec_available: bool | None = None
+    pre_spec_reason: str | None = None
     focus_axes: list[str] = Field(default_factory=list)
     performance_reference_count: int | None = None
 
@@ -389,6 +397,37 @@ class IngestResponse(APIModel):
     reviews: int
     warnings: list[WarningResponse] = Field(default_factory=list)
     warning_counts: dict[str, int] = Field(default_factory=dict)
+
+
+class PipelineRunRequest(APIModel):
+    from_raw: bool = False
+
+
+class PipelineLogLineResponse(APIModel):
+    timestamp: datetime
+    stream: str
+    level: str
+    message: str
+
+
+class PipelineExecutionResponse(APIModel):
+    execution_id: str
+    source_run_id: str
+    result_run_id: str | None = None
+    stage: str
+    status: str
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    exit_code: int | None = None
+    error: str | None = None
+    log_count: int = 0
+
+
+class PipelineLogResponse(APIModel):
+    run_id: str
+    executions: list[PipelineExecutionResponse] = Field(default_factory=list)
+    items: list[PipelineLogLineResponse] = Field(default_factory=list)
+    total: int = 0
 
 
 class MetricBasis(APIModel):

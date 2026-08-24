@@ -5,6 +5,8 @@ import type {
   NoticeDetailResponse,
   NoticeHistoryResponse,
   NoticeListResponse,
+  PipelineExecutionResponse,
+  PipelineLogResponse,
   RelatedNoticeListResponse,
   ReviewResponse,
   ReviewUpsertRequest,
@@ -82,6 +84,16 @@ export const api = {
 
   getRunWarnings: (runId: string) =>
     request<WarningListResponse>(`/runs/${encodeURIComponent(runId)}/warnings`),
+
+  runPipeline: (runId: string, stage: "collect" | "sample" | "report", fromRaw = false) =>
+    request<PipelineExecutionResponse>(`/runs/${encodeURIComponent(runId)}/pipeline/${stage}${query({ from_raw: fromRaw ? "true" : undefined })}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ from_raw: fromRaw }),
+    }),
+
+  getPipelineLogs: (runId: string, executionId?: string) =>
+    request<PipelineLogResponse>(`/runs/${encodeURIComponent(runId)}/pipeline/logs${query({ execution_id: executionId })}`),
 
   getValidationMetrics: (runId: string) =>
     request<ValidationMetricsResponse>(`/metrics/validation${query({ run_id: runId })}`),

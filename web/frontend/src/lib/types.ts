@@ -291,6 +291,13 @@ export interface PipelineStageResponse {
   name: string;
   status: string;
   artifact: string | null;
+  script: string | null;
+  execution_id: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  exit_code: number | null;
+  execution_allowed: boolean;
+  message: string | null;
 }
 
 export interface CollectionScopeResponse {
@@ -299,6 +306,7 @@ export interface CollectionScopeResponse {
   timezone: string;
   business_area: string | null;
   pre_spec_available: boolean | null;
+  pre_spec_reason: string | null;
   focus_axes: string[];
   performance_reference_count: number | null;
 }
@@ -308,6 +316,33 @@ export interface RunDetailResponse extends RunSummary {
   pipeline: PipelineStageResponse[];
   artifacts: ArtifactValidationResponse[];
   warning_counts: Record<string, number>;
+}
+
+export interface PipelineExecutionResponse {
+  execution_id: string;
+  source_run_id: string;
+  result_run_id: string | null;
+  stage: string;
+  status: string;
+  started_at: string | null;
+  finished_at: string | null;
+  exit_code: number | null;
+  error: string | null;
+  log_count: number;
+}
+
+export interface PipelineLogLineResponse {
+  timestamp: string;
+  stream: string;
+  level: string;
+  message: string;
+}
+
+export interface PipelineLogResponse {
+  run_id: string;
+  executions: PipelineExecutionResponse[];
+  items: PipelineLogLineResponse[];
+  total: number;
 }
 
 export interface FunnelItem {
