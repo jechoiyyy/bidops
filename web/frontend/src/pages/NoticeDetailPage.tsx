@@ -6,7 +6,7 @@ import { EmptyState } from "../components/common/EmptyState";
 import { AttachmentPanel } from "../components/notice/AttachmentPanel";
 import { CounterargumentList } from "../components/notice/CounterargumentList";
 import { JudgmentHistory } from "../components/notice/JudgmentHistory";
-import { JudgmentSummary } from "../components/notice/JudgmentSummary";
+import { JudgmentBanner } from "../components/notice/JudgmentBanner";
 import { LifecycleTimeline } from "../components/notice/LifecycleTimeline";
 import { NoticeFacts } from "../components/notice/NoticeFacts";
 import { PerspectiveTable } from "../components/notice/PerspectiveTable";
@@ -150,8 +150,8 @@ export function NoticeDetailPage() {
                 <span className="mono tabular-nums judgment-published">{detail.published_at ? `공고 ${formatDate(detail.published_at)}` : "공고일 미확인"}</span>
               </div>
               <LifecycleTimeline notice={detail} />
+              <JudgmentBanner judgment={detail.judgment} />
               <div className="judgment-summary-grid">
-                <JudgmentSummary judgment={detail.judgment} />
                 <NoticeFacts notice={detail} />
                 <QualificationFlags notice={detail} />
               </div>

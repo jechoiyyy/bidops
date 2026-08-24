@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { Badge } from "../common/Badge";
 import { EmptyState } from "../common/EmptyState";
 import { Panel } from "../common/Panel";
@@ -9,6 +10,15 @@ interface DeadlineTableProps {
   notices: DeadlineNotice[];
   referenceAt: string | null;
   timezone: string;
+  runId: string | null;
+}
+
+// 3일 이내는 오늘 손을 대야 하는 구간이라 행 전체를 표시해 둔다.
+function isCritical(deadline: string | null, referenceAt: string | null): boolean {
+  const deadlineMs = new Date(deadline ?? "").getTime();
+  const referenceMs = referenceAt ? new Date(referenceAt).getTime() : Number.NaN;
+  if (Number.isNaN(deadlineMs) || Number.isNaN(referenceMs)) return false;
+  return Math.ceil((deadlineMs - referenceMs) / (24 * 60 * 60 * 1000)) <= 3;
 }
 
 
@@ -43,12 +53,13 @@ function formatPrice(value: number | null): string {
   return `${number.format(value)}원`;
 }
 
-export function DeadlineTable({ notices, referenceAt, timezone }: DeadlineTableProps) {
+export function DeadlineTable({ notices, referenceAt, timezone, runId }: DeadlineTableProps) {
+  const search = runId ? `?run=${encodeURIComponent(runId)}` : "";
   return (
     <Panel
       className="dashboard-deadline-panel"
       title="마감 임박"
-      action={<span className="panel-note">7일 이내 · <span className="mono tabular-nums">{formatNumber(notices.length)}</span>건</span>}
+      action={<span className="panel-note">7일 이내 · <span className="mono tabular-nums">{formatNumber(notices.length)}</span>건 · 행을 누르면 판정 상세로 이동합니다</span>}
     >
       {notices.length === 0 ? (
         <EmptyState compact title="7일 이내 마감 공고가 없습니다." description="마감일이 없는 공고는 이 목록에 포함하지 않습니다." />
@@ -67,16 +78,19 @@ export function DeadlineTable({ notices, referenceAt, timezone }: DeadlineTableP
             <tbody>
               {notices.map((notice) => {
                 const blockingCount = notice.blocking_verification_items.length;
+                const critical = isCritical(notice.deadline_at, referenceAt);
                 return (
-                  <tr key={notice.id}>
+                  <tr className={`dashboard-deadline-row ${critical ? "is-critical" : ""}`.trim()} key={notice.id}>
                     <td className="dashboard-deadline-cell">
-                      <span className="dashboard-deadline-day mono tabular-nums">{daysUntil(notice.deadline_at, referenceAt)}</span>
+                      <span className={`dashboard-deadline-day mono tabular-nums ${critical ? "is-critical" : ""}`.trim()}>{daysUntil(notice.deadline_at, referenceAt)}</span>
                       <span className="dashboard-deadline-date mono tabular-nums">{formatDeadline(notice.deadline_at, timezone)}</span>
                     </td>
                     <td><Badge label={notice.grade ?? "등급 미확인"} variant={gradeVariant(notice.grade)} /></td>
                     <td className="dashboard-notice-cell">
-                      <span className="dashboard-notice-title">{notice.title?.trim() || "공고명 없음"}</span>
-                      <span className="dashboard-notice-agency">{notice.agency?.trim() || "발주기관 미확인"}</span>
+                      <Link className="dashboard-notice-link" to={`/judgments/${notice.id}${search}`}>
+                        <span className="dashboard-notice-title">{notice.title?.trim() || "공고명 없음"}</span>
+                        <span className="dashboard-notice-agency">{notice.agency?.trim() || "발주기관 미확인"}</span>
+                      </Link>
                     </td>
                     <td className="mono tabular-nums dashboard-price-cell">{formatPrice(notice.estimated_price)}</td>
                     <td>

@@ -1,3 +1,4 @@
+import { Badge } from "../common/Badge";
 import { Panel } from "../common/Panel";
 import type { ValidationMetric } from "../../lib/types";
 import { formatNumber } from "../../lib/format";
@@ -14,10 +15,18 @@ const metricOrder = [
   "information_sufficiency",
 ];
 
+/**
+ * 지정한 순서를 지키되 미달 항목만 맨 위로 끌어올린다.
+ * 다섯 줄을 모두 훑지 않아도 무엇이 임계값을 넘지 못했는지 먼저 보이게 하기 위함이다.
+ */
 function orderedMetrics(metrics: ValidationMetric[]): ValidationMetric[] {
   const known = metricOrder.flatMap((key) => metrics.filter((metric) => metric.key === key));
   const rest = metrics.filter((metric) => !metricOrder.includes(metric.key));
-  return [...known, ...rest];
+  const ordered = [...known, ...rest];
+  return [
+    ...ordered.filter((metric) => metric.status === "fail"),
+    ...ordered.filter((metric) => metric.status !== "fail"),
+  ];
 }
 
 function formatPercent(value: number): string {
@@ -69,7 +78,9 @@ export function ValidationGauges({ metrics }: ValidationGaugesProps) {
     <Panel
       className="dashboard-validation-panel"
       title="검증 통과 기준"
-      action={<span className="panel-note">5개 항목 중 {formatNumber(failed)}개 미달</span>}
+      action={failed > 0
+        ? <Badge label={`${formatNumber(rows.length)}개 중 ${formatNumber(failed)}개 미달`} variant="alert" />
+        : <span className="panel-note">{formatNumber(rows.length)}개 항목 모두 통과</span>}
     >
       <div className="dashboard-validation-list">
         {rows.length === 0 ? (
@@ -78,7 +89,10 @@ export function ValidationGauges({ metrics }: ValidationGaugesProps) {
           rows.map((metric) => {
             const unavailable = metric.status === "not_measurable" || metric.percentage === null;
             return (
-              <div className={`dashboard-validation-row ${unavailable ? "is-unavailable" : ""}`} key={metric.key}>
+              <div
+                className={`dashboard-validation-row ${unavailable ? "is-unavailable" : ""} ${metric.status === "fail" ? "is-fail" : ""}`.replace(/\s+/g, " ").trim()}
+                key={metric.key}
+              >
                 <div className="dashboard-validation-heading">
                   <div className="dashboard-validation-label">
                     <strong>{metric.label || "지표 미확인"}</strong>

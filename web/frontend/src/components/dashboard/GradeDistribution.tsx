@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { Panel } from "../common/Panel";
 import type { DistributionItem } from "../../lib/types";
 import { formatNumber } from "../../lib/format";
@@ -5,6 +6,15 @@ import { formatNumber } from "../../lib/format";
 interface GradeDistributionProps {
   distribution: DistributionItem[];
   embedded?: boolean;
+  /** 지정하면 막대와 범례가 해당 등급만 걸린 검토 대기열로 이어진다. */
+  runId?: string | null;
+}
+
+function queueLink(runId: string | null | undefined, grade: string): string {
+  const params = new URLSearchParams();
+  if (runId) params.set("run", runId);
+  params.set("grade", grade);
+  return `/queue?${params.toString()}`;
 }
 
 const gradeClass: Record<string, string> = {
@@ -14,7 +24,7 @@ const gradeClass: Record<string, string> = {
   제외: "excluded",
 };
 
-function DistributionContent({ distribution }: Pick<GradeDistributionProps, "distribution">) {
+function DistributionContent({ distribution, runId }: Pick<GradeDistributionProps, "distribution" | "runId">) {
   const total = distribution.reduce((sum, item) => sum + item.count, 0);
 
   if (distribution.length === 0 || total === 0) {
@@ -23,17 +33,25 @@ function DistributionContent({ distribution }: Pick<GradeDistributionProps, "dis
 
   return (
     <>
-      <div className="dashboard-grade-bar" role="img" aria-label={`분석 표본 ${formatNumber(total)}건의 등급 분포`}>
+      <div className="dashboard-grade-bar" aria-label={`분석 표본 ${formatNumber(total)}건의 등급 분포`}>
         {distribution.map((item) => {
           const width = (item.count / total) * 100;
           const tone = gradeClass[item.key] ?? "other";
-          return (
-            <div
-              className={`dashboard-grade-segment dashboard-grade-segment-${tone}`}
+          const label = `${item.label || "등급 미확인"} ${formatNumber(item.count)}건`;
+          const className = `dashboard-grade-segment dashboard-grade-segment-${tone}`;
+          return gradeClass[item.key] ? (
+            <Link
+              aria-label={`${label} 검토 대기열로 이동`}
+              className={className}
               key={item.key}
               style={{ width: `${width}%` }}
-              title={`${item.label || "등급 미확인"} ${formatNumber(item.count)}건`}
-            />
+              title={label}
+              to={queueLink(runId, item.key)}
+            >
+              <span className="dashboard-grade-segment-count mono tabular-nums">{formatNumber(item.count)}</span>
+            </Link>
+          ) : (
+            <div className={className} key={item.key} style={{ width: `${width}%` }} title={label} />
           );
         })}
       </div>
@@ -51,19 +69,22 @@ function DistributionContent({ distribution }: Pick<GradeDistributionProps, "dis
   );
 }
 
-export function GradeDistribution({ distribution, embedded = false }: GradeDistributionProps) {
+export function GradeDistribution({ distribution, embedded = false, runId }: GradeDistributionProps) {
   if (embedded) {
     return (
       <section className="dashboard-grade-embedded" aria-labelledby="grade-distribution-title">
-        <div className="dashboard-subsection-title" id="grade-distribution-title">분석 표본 등급 분포</div>
-        <DistributionContent distribution={distribution} />
+        <div className="dashboard-subsection-title" id="grade-distribution-title">
+          <span>분석 표본 등급 분포</span>
+          <span className="dashboard-subsection-note">막대를 누르면 해당 등급으로 대기열이 열립니다</span>
+        </div>
+        <DistributionContent distribution={distribution} runId={runId} />
       </section>
     );
   }
 
   return (
     <Panel title="등급 분포">
-      <DistributionContent distribution={distribution} />
+      <DistributionContent distribution={distribution} runId={runId} />
     </Panel>
   );
 }

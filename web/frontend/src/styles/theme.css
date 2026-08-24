@@ -95,8 +95,40 @@ a {
 }
 
 .sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 18px 18px 20px;
   border-bottom: 1px solid rgb(255 254 252 / 10%);
+  transition: background-color 120ms ease;
+}
+
+.sidebar-brand-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.sidebar-brand-home {
+  flex: 0 0 15px;
+  width: 15px;
+  height: 15px;
+  color: rgb(177 219 184 / 0%);
+  transition: color 120ms ease;
+}
+
+.sidebar-brand:hover,
+.sidebar-brand:focus-visible {
+  background: rgb(255 254 252 / 6%);
+  outline: 0;
+}
+
+.sidebar-brand:hover .sidebar-brand-home,
+.sidebar-brand:focus-visible .sidebar-brand-home {
+  color: var(--color-sage);
+}
+
+.sidebar-brand.is-current .sidebar-brand-home {
+  color: rgb(177 219 184 / 45%);
 }
 
 .sidebar-brand strong {
@@ -1738,6 +1770,65 @@ a {
   color: var(--color-muted);
 }
 
+/* 목록을 좁히고 있는 조건은 테두리와 배경으로 구분해, 무엇이 걸려 있는지 한눈에 보이게 한다. */
+.queue-filter-select.is-active,
+.queue-search.is-active {
+  border-color: var(--color-ink);
+  color: var(--color-ink-deep);
+  background: var(--color-keylime);
+}
+
+.queue-filter-select.is-active span {
+  color: rgb(12 47 16 / 66%);
+}
+
+.queue-filter-select.is-active select {
+  color: var(--color-ink-deep);
+  font-weight: 500;
+}
+
+.queue-filter-reset {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 5px;
+  height: 29px;
+  padding: 0 9px;
+  border: 1px solid var(--color-hair);
+  border-radius: var(--radius-md);
+  color: var(--color-muted);
+  background: var(--color-paper);
+  cursor: pointer;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.queue-filter-reset:hover {
+  border-color: var(--color-alert-edge);
+  color: var(--color-alert);
+}
+
+.queue-filter-reset svg {
+  width: 12px;
+  height: 12px;
+}
+
+.queue-filter-spacer {
+  flex: 1 0 8px;
+}
+
+.queue-filter-sort .queue-filter-sort-mark {
+  position: static;
+  width: 13px;
+  height: 13px;
+  pointer-events: auto;
+}
+
+.queue-filter-sort select {
+  color: var(--color-charcoal);
+  font-weight: 500;
+}
+
 .queue-filter-select select {
   max-width: 126px;
   padding: 0;
@@ -1758,22 +1849,7 @@ a {
   pointer-events: none;
 }
 
-.queue-filter-summary {
-  display: flex;
-  flex: 1 0 auto;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 9px;
-  margin-left: 3px;
-  color: var(--color-muted);
-  font-size: 11px;
-  white-space: nowrap;
-}
 
-.queue-filter-summary strong {
-  color: var(--color-charcoal);
-  font-weight: 500;
-}
 
 .queue-workspace {
   display: flex;
@@ -1793,14 +1869,32 @@ a {
 }
 
 .queue-list-header {
-  display: flex;
-  flex: 0 0 36px;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 16px;
-  border-bottom: 1px solid var(--color-hair-soft);
+  flex: 0 0 auto;
+  padding: 8px 16px 9px;
+  border-bottom: 1px solid var(--color-hair);
   color: var(--color-muted);
   font-size: 11px;
+}
+
+.queue-list-header-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.queue-list-progress {
+  margin-top: 7px;
+  height: 3px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--color-hair-soft);
+}
+
+.queue-list-progress span {
+  display: block;
+  height: 100%;
+  background: var(--color-ink);
+  transition: width 160ms ease;
 }
 
 .queue-list-header strong {
@@ -1818,6 +1912,68 @@ a {
   overflow-y: auto;
 }
 
+/* 등급 머리글: 등급순으로 볼 때 목록을 등급 덩어리로 끊어 준다. */
+.queue-group-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 26px;
+  padding: 0 16px;
+  border-top: 1px solid var(--color-hair);
+  border-bottom: 1px solid var(--color-hair);
+  background: var(--color-canvas);
+  color: var(--color-ink-deep);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+.queue-group-header:first-child {
+  border-top: 0;
+}
+
+.queue-group-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--rail-color, var(--color-hair));
+}
+
+.queue-group-header.rail-grade-3 .queue-group-swatch,
+.queue-group-header.rail-grade-4 .queue-group-swatch,
+.queue-group-header.rail-grade-none .queue-group-swatch {
+  border: 1px solid var(--color-sage);
+}
+
+.queue-group-count {
+  color: var(--color-muted);
+  font-weight: 400;
+}
+
+/* 등급별 레일 색. 행과 머리글이 같은 변수를 쓰도록 한곳에 둔다. */
+.rail-grade-1 {
+  --rail-color: var(--color-ink);
+}
+
+.rail-grade-2 {
+  --rail-color: var(--color-sage);
+}
+
+.rail-grade-3 {
+  --rail-color: var(--color-keylime);
+}
+
+.rail-grade-4 {
+  --rail-color: var(--color-hair);
+}
+
+.rail-grade-none {
+  --rail-color: var(--color-hair-soft);
+}
+
 .queue-list-item {
   display: block;
   width: 100%;
@@ -1826,6 +1982,7 @@ a {
   border-bottom: 1px solid var(--color-hair-soft);
   color: var(--color-charcoal);
   background: var(--color-paper);
+  box-shadow: inset 3px 0 0 var(--rail-color, transparent);
   cursor: pointer;
   text-align: left;
 }
@@ -1836,17 +1993,92 @@ a {
 
 .queue-list-item.is-selected {
   background: var(--color-keylime);
-  box-shadow: inset 2px 0 0 var(--color-ink);
+}
+
+.queue-list-item.is-reviewed {
+  background: rgb(255 254 252 / 60%);
+}
+
+.queue-list-item.is-reviewed:hover,
+.queue-list-item.is-reviewed.is-selected {
+  background: var(--color-keylime);
+}
+
+.queue-list-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.queue-list-check {
+  flex: 0 0 13px;
+  width: 13px;
+  height: 13px;
+  margin-top: 3px;
+  color: var(--color-ink);
 }
 
 .queue-list-title {
   display: -webkit-box;
+  flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   font-size: 13px;
   font-weight: 500;
   line-height: 1.42;
+}
+
+.queue-list-item.is-reviewed .queue-list-title {
+  color: var(--color-muted);
+  font-weight: 400;
+}
+
+/* 마감은 행마다 같은 자리에 두어야 위아래로 비교된다. */
+.queue-list-deadline,
+.queue-detail-deadline {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 7px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.queue-list-deadline.is-critical,
+.queue-detail-deadline.is-critical {
+  color: var(--color-paper);
+  background: var(--color-alert);
+}
+
+.queue-list-deadline.is-soon,
+.queue-detail-deadline.is-soon {
+  color: var(--color-alert);
+  border-color: var(--color-alert-edge);
+}
+
+.queue-list-deadline.is-passed,
+.queue-detail-deadline.is-passed {
+  color: var(--color-muted);
+  border-color: var(--color-hair);
+  background: var(--color-hair-soft);
+}
+
+.queue-list-deadline.is-later,
+.queue-list-deadline.is-none,
+.queue-detail-deadline.is-later {
+  padding: 0 2px;
+  color: var(--color-muted);
+  font-weight: 400;
+}
+
+.queue-list-disposition {
+  color: var(--color-ink);
 }
 
 .queue-list-badges {
@@ -1866,6 +2098,11 @@ a {
   color: var(--color-muted);
   font-size: 11px;
   white-space: nowrap;
+}
+
+.queue-list-item.is-reviewed .queue-list-meta {
+  padding-left: 21px;
+  color: var(--color-muted-soft);
 }
 
 .queue-list-meta > span:not(.queue-list-dot) {
@@ -1974,10 +2211,10 @@ a {
   flex: 0 0 auto;
 }
 
-.notice-top-grid,
+.notice-facts-grid,
 .notice-review-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 1.12fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 14px;
   align-items: stretch;
 }
@@ -1986,40 +2223,15 @@ a {
   grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
 }
 
-.notice-top-grid > .panel,
+.notice-facts-grid > .panel,
 .notice-review-grid > .panel {
   min-width: 0;
 }
 
-.notice-summary-badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-}
 
-.notice-summary-text {
-  margin: 11px 0 0;
-  line-height: 1.6;
-}
 
-.notice-summary-next {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  margin-top: 11px;
-  padding-top: 10px;
-  border-top: 1px solid var(--color-hair-soft);
-}
 
-.notice-summary-next span {
-  color: var(--color-muted);
-  font-size: 11px;
-}
 
-.notice-summary-next strong {
-  font-size: 12px;
-  font-weight: 400;
-}
 
 .notice-facts {
   display: grid;
@@ -2697,7 +2909,7 @@ a {
 .judgment-summary-grid,
 .judgment-history-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 1.05fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 14px;
   align-items: stretch;
 }
@@ -3627,11 +3839,6 @@ a {
     padding-bottom: 9px;
   }
 
-  .queue-filter-summary {
-    flex-basis: 100%;
-    justify-content: flex-start;
-    margin-left: 0;
-  }
 
   .queue-workspace {
     min-height: 0;
@@ -4341,4 +4548,369 @@ a {
   color: var(--color-muted);
   font-size: 11px;
   white-space: nowrap;
+}
+
+
+/* ---- 판정 요약 밴드 ----
+   담당자가 먼저 봐야 하는 등급·종합 권고·다음 행동·확인 항목 수를 상세 화면 맨 위에 모은다. */
+.judgment-banner {
+  display: flex;
+  align-items: stretch;
+  overflow: hidden;
+  border: 1px solid var(--color-sage);
+  border-radius: var(--radius-lg);
+  background: var(--color-paper);
+}
+
+.judgment-banner-grade {
+  display: flex;
+  flex: 0 0 176px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding: 14px 16px;
+  border-right: 1px solid var(--color-sage);
+  background: var(--color-keylime);
+}
+
+.judgment-banner.rail-grade-4 .judgment-banner-grade,
+.judgment-banner.rail-grade-none .judgment-banner-grade {
+  border-right-color: var(--color-hair);
+  background: var(--color-hair-soft);
+}
+
+.judgment-banner.rail-grade-4,
+.judgment-banner.rail-grade-none {
+  border-color: var(--color-hair);
+}
+
+.judgment-banner-eyebrow {
+  color: rgb(12 47 16 / 66%);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.judgment-banner-grade strong {
+  color: var(--color-ink);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+
+.judgment-banner.rail-grade-4 .judgment-banner-eyebrow,
+.judgment-banner.rail-grade-none .judgment-banner-eyebrow {
+  color: var(--color-muted);
+}
+
+.judgment-banner.rail-grade-4 .judgment-banner-grade strong,
+.judgment-banner.rail-grade-none .judgment-banner-grade strong {
+  color: var(--color-muted-soft);
+}
+
+.judgment-banner-perspective {
+  color: var(--color-ink-deep);
+  font-size: 11px;
+}
+
+.judgment-banner-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 13px 16px;
+}
+
+.judgment-banner-summary {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+
+.judgment-banner-next {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 11px;
+  padding-top: 11px;
+  border-top: 1px solid var(--color-hair-soft);
+}
+
+.judgment-banner-next svg {
+  flex: 0 0 15px;
+  width: 15px;
+  height: 15px;
+  color: var(--color-ink);
+}
+
+.judgment-banner-next > span {
+  flex: 0 0 auto;
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+.judgment-banner-next strong {
+  min-width: 0;
+  color: var(--color-ink-deep);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.judgment-banner-counts {
+  display: flex;
+  flex: 0 0 152px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  margin: 0;
+  padding: 13px 16px;
+  border-left: 1px solid var(--color-hair-soft);
+}
+
+.judgment-banner-counts > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.judgment-banner-counts dt {
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+.judgment-banner-counts dd {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.judgment-banner-counts > div.is-blocking dt,
+.judgment-banner-counts > div.is-blocking dd {
+  color: var(--color-alert);
+}
+
+.judgment-banner-counts > div.is-blocking dd {
+  font-weight: 600;
+}
+
+/* ---- 리뷰 바 단축키 안내 ---- */
+.review-shortcut-hint {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 5px;
+  margin-left: 2px;
+  color: var(--color-muted);
+  font-size: 10px;
+}
+
+.review-shortcut-hint kbd {
+  display: inline-flex;
+  align-items: center;
+  min-height: 17px;
+  padding: 0 4px;
+  border: 1px solid var(--color-hair);
+  border-radius: var(--radius-sm);
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+/* ---- 대시보드: 지금 처리할 일 ---- */
+.dashboard-action-strip {
+  display: flex;
+  align-items: stretch;
+  overflow: hidden;
+  border: 1px solid var(--color-sage);
+  border-radius: var(--radius-lg);
+  background: var(--color-paper);
+}
+
+.dashboard-action-title {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  color: var(--color-paper);
+  background: var(--color-ink);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.dashboard-action-title svg {
+  width: 15px;
+  height: 15px;
+}
+
+.dashboard-action-items {
+  display: grid;
+  flex: 1 1 auto;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+}
+
+.dashboard-action-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+  padding: 11px 16px;
+  border-right: 1px solid var(--color-hair-soft);
+  transition: background-color 120ms ease;
+}
+
+.dashboard-action-item:last-child {
+  border-right: 0;
+}
+
+.dashboard-action-item:hover {
+  background: var(--color-keylime);
+}
+
+.dashboard-action-item > strong {
+  flex: 0 0 auto;
+  color: var(--color-ink);
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.dashboard-action-item.is-alert > strong {
+  color: var(--color-alert);
+}
+
+.dashboard-action-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.dashboard-action-item-title {
+  display: block;
+  overflow: hidden;
+  color: var(--color-charcoal);
+  font-size: 12px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-action-item-description {
+  display: block;
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+.dashboard-action-item > svg {
+  flex: 0 0 14px;
+  width: 14px;
+  height: 14px;
+  color: var(--color-ink);
+}
+
+.dashboard-action-item.is-alert > svg {
+  color: var(--color-alert);
+}
+
+/* ---- 대시보드: 목록으로 이어지는 카드와 막대 ---- */
+.dashboard-kpi.is-linked {
+  position: relative;
+  display: block;
+  transition: border-color 120ms ease;
+}
+
+.dashboard-kpi.is-linked:hover {
+  border-color: var(--color-ink);
+}
+
+.dashboard-kpi-arrow {
+  position: absolute;
+  top: 13px;
+  right: 13px;
+  width: 14px;
+  height: 14px;
+  color: var(--color-ink);
+}
+
+.dashboard-subsection-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+.dashboard-subsection-note {
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+a.dashboard-grade-segment {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.dashboard-grade-segment-count {
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+a.dashboard-grade-segment:hover .dashboard-grade-segment-count {
+  opacity: 1;
+}
+
+a.dashboard-grade-segment-priority {
+  color: var(--color-paper);
+}
+
+a.dashboard-grade-segment-recommended,
+a.dashboard-grade-segment-observe {
+  color: var(--color-ink-deep);
+}
+
+a.dashboard-grade-segment-excluded {
+  color: var(--color-muted-soft);
+}
+
+/* ---- 대시보드: 마감 임박 표 ---- */
+.dashboard-deadline-row {
+  transition: background-color 120ms ease;
+}
+
+.dashboard-deadline-row:hover {
+  background: var(--color-keylime);
+}
+
+.dashboard-deadline-row.is-critical td:first-child {
+  box-shadow: inset 3px 0 0 var(--color-alert);
+}
+
+.dashboard-deadline-day.is-critical {
+  color: var(--color-alert);
+  font-weight: 500;
+}
+
+.dashboard-notice-link {
+  display: block;
+  min-width: 0;
+}
+
+.dashboard-notice-link:hover .dashboard-notice-title {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ---- 대시보드: 미달 지표 강조 ---- */
+.dashboard-validation-row.is-fail {
+  padding: 9px 10px;
+  border: 1px solid var(--color-alert-edge);
+  border-radius: var(--radius-md);
 }

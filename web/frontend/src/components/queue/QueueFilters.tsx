@@ -14,23 +14,36 @@ interface QueueFiltersProps {
   value: QueueFilterValues;
   focusOptions: string[];
   onChange: <K extends keyof QueueFilterValues>(key: K, value: QueueFilterValues[K]) => void;
-  total: number;
-  reviewedCount: number;
+  onReset: () => void;
+}
+
+// 목록을 좁히는 조건만 해제 대상으로 센다. 정렬은 목록의 크기를 바꾸지 않으므로 제외한다.
+function narrowingFilterCount(value: QueueFilterValues): number {
+  let count = 0;
+  if (value.grade) count += 1;
+  if (value.readiness) count += 1;
+  if (value.focus) count += 1;
+  if (value.sampleRole !== "analysis") count += 1;
+  if (value.attachment !== "any") count += 1;
+  if (value.q.trim()) count += 1;
+  return count;
 }
 
 function FilterSelect({
   label,
   value,
   options,
+  active,
   onChange,
 }: {
   label: string;
   value: string;
   options: { value: string; label: string }[];
+  active: boolean;
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="queue-filter-select">
+    <label className={`queue-filter-select ${active ? "is-active" : ""}`.trim()}>
       <span>{label}</span>
       <select aria-label={label} value={value} onChange={(event) => onChange(event.target.value)}>
         {options.map((option) => (
@@ -46,11 +59,12 @@ function FilterSelect({
   );
 }
 
-export function QueueFilters({ value, focusOptions, onChange, total, reviewedCount }: QueueFiltersProps) {
+export function QueueFilters({ value, focusOptions, onChange, onReset }: QueueFiltersProps) {
   const onSearchChange = (event: ChangeEvent<HTMLInputElement>) => onChange("q", event.target.value);
+  const activeCount = narrowingFilterCount(value);
   return (
     <div className="queue-filters" aria-label="검토 대기열 필터">
-      <label className="queue-search">
+      <label className={`queue-search ${value.q.trim() ? "is-active" : ""}`.trim()}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
           <circle cx="11" cy="11" r="7" />
           <path d="m20 20-4-4" />
@@ -67,6 +81,7 @@ export function QueueFilters({ value, focusOptions, onChange, total, reviewedCou
       <FilterSelect
         label="등급"
         value={value.grade}
+        active={Boolean(value.grade)}
         onChange={(next) => onChange("grade", next)}
         options={[
           { value: "", label: "검토 대상 전체" },
@@ -79,6 +94,7 @@ export function QueueFilters({ value, focusOptions, onChange, total, reviewedCou
       <FilterSelect
         label="준비 상태"
         value={value.readiness}
+        active={Boolean(value.readiness)}
         onChange={(next) => onChange("readiness", next)}
         options={[
           { value: "", label: "전체" },
@@ -90,6 +106,7 @@ export function QueueFilters({ value, focusOptions, onChange, total, reviewedCou
       <FilterSelect
         label="역량 축"
         value={value.focus}
+        active={Boolean(value.focus)}
         onChange={(next) => onChange("focus", next)}
         options={[
           { value: "", label: "전체" },
@@ -99,6 +116,7 @@ export function QueueFilters({ value, focusOptions, onChange, total, reviewedCou
       <FilterSelect
         label="표본"
         value={value.sampleRole}
+        active={value.sampleRole !== "analysis"}
         onChange={(next) => onChange("sampleRole", next)}
         options={[
           { value: "analysis", label: "분석 표본" },
@@ -109,6 +127,7 @@ export function QueueFilters({ value, focusOptions, onChange, total, reviewedCou
       <FilterSelect
         label="첨부"
         value={value.attachment}
+        active={value.attachment !== "any"}
         onChange={(next) => onChange("attachment", next as QueueFilterValues["attachment"])}
         options={[
           { value: "any", label: "첨부 전체" },
@@ -117,19 +136,31 @@ export function QueueFilters({ value, focusOptions, onChange, total, reviewedCou
         ]}
       />
 
-      <div className="queue-filter-summary">
-        <span>미리뷰 <strong className="mono tabular-nums">{Math.max(total - reviewedCount, 0)}</strong>건</span>
-        <FilterSelect
-          label="정렬"
-          value={value.sort}
-          onChange={(next) => onChange("sort", next as QueueFilterValues["sort"])}
-          options={[
-            { value: "deadline", label: "마감 임박순" },
-            { value: "grade", label: "등급순" },
-            { value: "published", label: "공고일순" },
-          ]}
-        />
-      </div>
+      {activeCount > 0 ? (
+        <button className="queue-filter-reset" type="button" onClick={onReset}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
+          <span>필터 {activeCount}개 해제</span>
+        </button>
+      ) : null}
+
+      <div className="queue-filter-spacer" />
+
+      <label className="queue-filter-select queue-filter-sort">
+        <svg className="queue-filter-sort-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+          <path d="M4 6h13M4 12h9M4 18h5" />
+        </svg>
+        <span>정렬</span>
+        <select aria-label="정렬" value={value.sort} onChange={(event) => onChange("sort", event.target.value as QueueFilterValues["sort"])}>
+          <option value="grade">등급순</option>
+          <option value="deadline">마감 임박순</option>
+          <option value="published">공고일순</option>
+        </select>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </label>
     </div>
   );
 }
