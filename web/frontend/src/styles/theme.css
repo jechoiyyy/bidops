@@ -4119,7 +4119,7 @@ a {
     flex-direction: column;
   }
 
-  .notice-top-grid,
+  .notice-facts-grid,
   .notice-review-grid {
     grid-template-columns: minmax(0, 1fr);
   }
