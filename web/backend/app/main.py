@@ -10,6 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from .db import init_db
 from .routers.metrics import router as metrics_router
 from .routers.notices import router as notices_router
+from .routers.reviews import notice_router as notice_reviews_router
+from .routers.reviews import router as reviews_router
 from .routers.runs import router as runs_router
 
 
@@ -42,4 +44,6 @@ def health() -> dict[str, str]:
 
 app.include_router(runs_router)
 app.include_router(notices_router)
+app.include_router(notice_reviews_router)
+app.include_router(reviews_router)
 app.include_router(metrics_router)

@@ -82,6 +82,23 @@ class ReviewAnswerResponse(APIModel):
     answer: str | None = None
 
 
+class ReviewAnswerInput(APIModel):
+    item: str | None = None
+    answer: str | None = None
+
+
+class ReviewUpsertRequest(APIModel):
+    run_id: str
+    disposition: str | None = None
+    system_judgment_review: str | None = None
+    corrected_grade: str | None = None
+    corrected_readiness: str | None = None
+    weakest_perspective: str | None = None
+    reason: str | None = None
+    reviewer: str | None = None
+    verification_answers: list[ReviewAnswerInput] = Field(default_factory=list)
+
+
 class ReviewResponse(APIModel):
     id: int
     run_id: str

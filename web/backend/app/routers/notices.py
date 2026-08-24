@@ -83,7 +83,7 @@ def list_notices(
 ) -> NoticeListResponse:
     run = get_run(session, run_id)
     conditions: list[Any] = [Notice.run_id == run.id]
-    if sample_role:
+    if sample_role and sample_role != "all":
         conditions.append(Notice.sample_role == sample_role)
     if grade:
         conditions.append(Judgment.grade == grade)

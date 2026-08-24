@@ -8,7 +8,10 @@ export type BadgeVariant =
   | "readiness"
   | "focus"
   | "alert"
-  | "neutral";
+  | "neutral"
+  | "evidence-confirmed"
+  | "evidence-inferred"
+  | "evidence-unknown";
 
 const defaultLabels: Record<BadgeVariant, string> = {
   "grade-1": "우선 검토",
@@ -19,6 +22,9 @@ const defaultLabels: Record<BadgeVariant, string> = {
   focus: "역량 축 미확인",
   alert: "확인 필요",
   neutral: "상태 미확인",
+  "evidence-confirmed": "confirmed",
+  "evidence-inferred": "inferred",
+  "evidence-unknown": "unknown",
 };
 
 export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {

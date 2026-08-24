@@ -70,6 +70,23 @@ export interface ReviewAnswerResponse {
   answer: string | null;
 }
 
+export interface ReviewAnswerInput {
+  item: string | null;
+  answer: string | null;
+}
+
+export interface ReviewUpsertRequest {
+  run_id: string;
+  disposition: string | null;
+  system_judgment_review: string | null;
+  corrected_grade: string | null;
+  corrected_readiness: string | null;
+  weakest_perspective: string | null;
+  reason: string | null;
+  reviewer?: string | null;
+  verification_answers: ReviewAnswerInput[];
+}
+
 export interface ReviewResponse {
   id: number;
   run_id: string;

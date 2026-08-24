@@ -2,6 +2,8 @@ import type {
   NoticeDetailResponse,
   NoticeHistoryResponse,
   NoticeListResponse,
+  ReviewResponse,
+  ReviewUpsertRequest,
   RunDetailResponse,
   RunListResponse,
   RunStatsResponse,
@@ -97,4 +99,14 @@ export const api = {
 
   getNoticeHistory: (noticePk: number) =>
     request<NoticeHistoryResponse>(`/notices/${noticePk}/history`),
+
+  getReviews: (runId: string) =>
+    request<ReviewResponse[]>(`/reviews${query({ run_id: runId })}`),
+
+  saveReview: (noticePk: number, payload: ReviewUpsertRequest) =>
+    request<ReviewResponse>(`/notices/${noticePk}/review`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
 };
