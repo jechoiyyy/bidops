@@ -1,0 +1,11 @@
+.git
+.env
+data
+reports
+docs/reference/*.pdf
+web/backend/.venv
+web/data
+web/frontend/node_modules
+web/frontend/dist
+**/__pycache__
+**/*.pyc
