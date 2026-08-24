@@ -103,11 +103,12 @@ export function RunsPage() {
     }
   };
 
-  if (runsQuery.isLoading && runs.length === 0) return <div className="runs-loading">실행 회차를 불러오는 중입니다.</div>;
-  if (runsQuery.error) return <EmptyState title="실행 회차를 불러오지 못했습니다." description={errorMessage(runsQuery.error)} />;
+  if (runsQuery.isLoading && runs.length === 0) return <div className="runs-loading" role="status" aria-live="polite">실행 회차를 불러오는 중입니다.</div>;
+  if (runsQuery.error) return <EmptyState title="실행 회차를 불러오지 못했습니다." description={errorMessage(runsQuery.error)} action={{ label: "다시 시도", onClick: () => void runsQuery.refetch() }} />;
   if (!selectedRunId) return <EmptyState title="실행 회차가 없습니다." description="수집할 회차가 적재되면 이곳에서 파이프라인을 실행할 수 있습니다." />;
-  if (detailQuery.isLoading || !detailQuery.data) return <div className="runs-loading">선택한 회차의 상세 정보를 불러오는 중입니다.</div>;
-  if (detailQuery.error) return <EmptyState title="회차 상세를 불러오지 못했습니다." description={errorMessage(detailQuery.error)} />;
+  // 오류일 때도 data가 없으므로, 오류 검사를 로딩 검사보다 먼저 해야 안내가 표시된다.
+  if (detailQuery.error) return <EmptyState title="회차 상세를 불러오지 못했습니다." description={errorMessage(detailQuery.error)} action={{ label: "다시 시도", onClick: () => void detailQuery.refetch() }} />;
+  if (detailQuery.isLoading || !detailQuery.data) return <div className="runs-loading" role="status" aria-live="polite">선택한 회차의 상세 정보를 불러오는 중입니다.</div>;
 
   const detail = detailQuery.data;
   const selectedSummary = runs.find((run) => run.run_id === selectedRunId) ?? detail;

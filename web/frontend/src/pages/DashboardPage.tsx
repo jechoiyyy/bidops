@@ -112,7 +112,7 @@ export function DashboardPage() {
   }
 
   if (statsQuery.isLoading || validationQuery.isLoading) {
-    return <div className="dashboard-loading">선택한 회차의 대시보드 데이터를 불러오는 중입니다.</div>;
+    return <div className="dashboard-loading" role="status" aria-live="polite">선택한 회차의 대시보드 데이터를 불러오는 중입니다.</div>;
   }
 
   if (statsQuery.error || validationQuery.error) {
@@ -120,6 +120,7 @@ export function DashboardPage() {
       <EmptyState
         title="대시보드 데이터를 불러오지 못했습니다."
         description={errorMessage(statsQuery.error ?? validationQuery.error)}
+        action={{ label: "다시 시도", onClick: () => { void statsQuery.refetch(); void validationQuery.refetch(); } }}
       />
     );
   }

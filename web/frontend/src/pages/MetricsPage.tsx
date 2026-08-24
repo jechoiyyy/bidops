@@ -103,10 +103,10 @@ export function MetricsPage() {
     staleTime: 10_000,
   });
 
-  if (runsQuery.isLoading || metricsQuery.isLoading) return <div className="metrics-loading">검증 지표를 계산하는 중입니다.</div>;
+  if (runsQuery.isLoading || metricsQuery.isLoading) return <div className="metrics-loading" role="status" aria-live="polite">검증 지표를 계산하는 중입니다.</div>;
   if (runsQuery.error || metricsQuery.error) {
     const error = runsQuery.error ?? metricsQuery.error;
-    return <EmptyState title="검증 지표를 불러오지 못했습니다." description={error instanceof Error ? error.message : "지표 API 응답을 확인할 수 없습니다."} />;
+    return <EmptyState title="검증 지표를 불러오지 못했습니다." description={error instanceof Error ? error.message : "지표 API 응답을 확인할 수 없습니다."} action={{ label: "다시 시도", onClick: () => { void runsQuery.refetch(); void metricsQuery.refetch(); } }} />;
   }
   if (!selectedRunId || !metricsQuery.data) return <EmptyState title="계산할 회차가 없습니다." description="판정이 적재된 회차가 있으면 검증 지표를 계산할 수 있습니다." />;
 

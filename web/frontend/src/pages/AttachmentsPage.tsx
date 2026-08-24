@@ -191,8 +191,8 @@ export function AttachmentsPage() {
   };
 
   if (!runId) return <EmptyState title="선택된 회차가 없습니다." description="상단의 실행 회차 선택기에서 회차를 선택하십시오." />;
-  if (queueQuery.isLoading) return <div className="attachments-loading">첨부 미확보 공고를 불러오는 중입니다.</div>;
-  if (queueQuery.error) return <EmptyState title="첨부 확보 큐를 불러오지 못했습니다." description={errorMessage(queueQuery.error, "첨부 확보 큐를 확인할 수 없습니다.")} />;
+  if (queueQuery.isLoading) return <div className="attachments-loading" role="status" aria-live="polite">첨부 미확보 공고를 불러오는 중입니다.</div>;
+  if (queueQuery.error) return <EmptyState title="첨부 확보 큐를 불러오지 못했습니다." description={errorMessage(queueQuery.error, "첨부 확보 큐를 확인할 수 없습니다.")} action={{ label: "다시 시도", onClick: () => void queueQuery.refetch() }} />;
 
   return (
     <div className="attachments-page">
@@ -218,7 +218,7 @@ export function AttachmentsPage() {
 
         <aside className="attachments-side-column">
           <Panel title="기관 조달시스템" action={<span className="panel-meta">{portalsQuery.data?.length ?? 0}개 등록</span>}>
-            {portalsQuery.isLoading ? <div className="inline-loading">기관 목록을 불러오는 중입니다.</div> : null}
+            {portalsQuery.isLoading ? <div className="inline-loading" role="status" aria-live="polite">기관 목록을 불러오는 중입니다.</div> : null}
             {portalsQuery.error ? <p className="attachment-upload-error">{errorMessage(portalsQuery.error, "기관 목록을 확인할 수 없습니다.")}</p> : null}
             <div className="portal-list">{(portalsQuery.data ?? []).map((portal) => <PortalRow key={portal.id} portal={portal} onEdit={editPortal} />)}</div>
             {!portalsQuery.isLoading && !portalsQuery.error && (portalsQuery.data ?? []).length === 0 ? <p className="attachment-empty">등록된 조달시스템이 없습니다.</p> : null}
