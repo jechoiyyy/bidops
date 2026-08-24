@@ -277,7 +277,7 @@ export function QueuePage() {
                 <div className="notice-top-grid">
                   <JudgmentSummary judgment={detail.judgment} />
                   <NoticeFacts notice={detail} />
-                  <AttachmentPanel attachments={detail.attachments} />
+                  <AttachmentPanel noticePk={detail.id} attachments={detail.attachments} />
                 </div>
                 <PerspectiveTable perspectives={detail.judgment?.perspectives ?? []} />
                 <div className="notice-review-grid">

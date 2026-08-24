@@ -37,6 +37,44 @@ class AttachmentResponse(APIModel):
     created_at: datetime | None = None
 
 
+class AgencyPortalResponse(APIModel):
+    id: int
+    agency_pattern: str
+    system_name: str
+    search_url_template: str
+    enabled: bool
+    note: str | None = None
+
+
+class AgencyPortalCreateRequest(APIModel):
+    agency_pattern: str
+    system_name: str
+    search_url_template: str
+    enabled: bool = True
+    note: str | None = None
+
+
+class AgencyPortalUpdateRequest(APIModel):
+    agency_pattern: str | None = None
+    system_name: str | None = None
+    search_url_template: str | None = None
+    enabled: bool | None = None
+    note: str | None = None
+
+
+class AttachmentProcedureResponse(APIModel):
+    notice_pk: int
+    agency: str | None = None
+    bid_no: str | None = None
+    title: str | None = None
+    status: str
+    matched_portal: AgencyPortalResponse | None = None
+    search_url: str | None = None
+    portal_message: str
+    steps: list[str] = Field(default_factory=list)
+    attachments: list[AttachmentResponse] = Field(default_factory=list)
+
+
 class EvidenceResponse(APIModel):
     id: int
     source: str | None = None
@@ -147,6 +185,19 @@ class NoticeListItem(APIModel):
     focus: str | None = None
     attachment_count: int = 0
     attachment_status: Literal["none", "g2b", "manual"] = "none"
+
+
+class AttachmentQueueItem(NoticeListItem):
+    bid_no: str | None = None
+    matched_portal: AgencyPortalResponse | None = None
+    search_url: str | None = None
+    portal_message: str
+
+
+class AttachmentQueueResponse(APIModel):
+    run_id: str
+    total: int
+    items: list[AttachmentQueueItem] = Field(default_factory=list)
 
 
 class NoticeDetailResponse(NoticeListItem):

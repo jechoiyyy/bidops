@@ -165,7 +165,7 @@ export function NoticeDetailPage() {
                 <JudgmentHistory noticePk={detail.id} />
                 <RelatedNotices noticePk={detail.id} />
               </div>
-              <AttachmentPanel attachments={detail.attachments} />
+              <AttachmentPanel noticePk={detail.id} attachments={detail.attachments} />
               <PerspectiveTable perspectives={detail.judgment?.perspectives ?? []} />
               <div className="notice-review-grid">
                 <CounterargumentList items={detail.judgment?.counterarguments ?? []} />

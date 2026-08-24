@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..db import get_db
 from ..models import Attachment, Judgment, Notice, Perspective, Review, Run
+from ..services.attachments import attachment_download_url
 from ..schemas import (
     AttachmentResponse,
     CounterargumentResponse,
@@ -261,7 +262,7 @@ def _detail_response(notice: Notice) -> NoticeDetailResponse:
             AttachmentResponse(
                 id=attachment.id,
                 name=attachment.name,
-                url=attachment.url,
+                url=attachment_download_url(attachment),
                 origin=attachment.origin,
                 file_ext=attachment.file_ext,
                 size_bytes=attachment.size_bytes,

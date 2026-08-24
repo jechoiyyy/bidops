@@ -25,6 +25,41 @@ export interface AttachmentResponse {
   created_at: string | null;
 }
 
+export interface AgencyPortal {
+  id: number;
+  agency_pattern: string;
+  system_name: string;
+  search_url_template: string;
+  enabled: boolean;
+  note: string | null;
+}
+
+export interface AttachmentProcedureResponse {
+  notice_pk: number;
+  agency: string | null;
+  bid_no: string | null;
+  title: string | null;
+  status: "provided" | "missing" | "completed" | string;
+  matched_portal: AgencyPortal | null;
+  search_url: string | null;
+  portal_message: string;
+  steps: string[];
+  attachments: AttachmentResponse[];
+}
+
+export interface AttachmentQueueItem extends NoticeListItem {
+  bid_no: string | null;
+  matched_portal: AgencyPortal | null;
+  search_url: string | null;
+  portal_message: string;
+}
+
+export interface AttachmentQueueResponse {
+  run_id: string;
+  total: number;
+  items: AttachmentQueueItem[];
+}
+
 export interface EvidenceResponse {
   id: number;
   source: string | null;

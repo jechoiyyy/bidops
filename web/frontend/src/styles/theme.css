@@ -15,6 +15,7 @@
   --color-hair-soft: #efeeeb;
   --color-muted: #6f6c64;
   --color-alert: #9a4a2f;
+  --color-error: #9a4a2f;
 
   /* 아트보드에서 파생된 보조 색. 팔레트 색의 명도만 조정한 값이다. */
   --color-nav-text: #cfe0d2;   /* 사이드바 본문 */
@@ -2552,5 +2553,575 @@ a {
 
   .dashboard-table {
     min-width: 640px;
+  }
+}
+
+/* ---- 첨부 확보 ---- */
+.notice-attachments-panel {
+  min-width: 0;
+}
+
+.attachment-status-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+  margin-bottom: 13px;
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+.attachment-agency {
+  color: var(--color-charcoal);
+  font-weight: 500;
+}
+
+.attachment-workflow-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(300px, 0.9fr);
+  gap: 20px;
+}
+
+.attachment-procedure,
+.attachment-upload-column {
+  min-width: 0;
+}
+
+.attachment-section-label {
+  margin-bottom: 7px;
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+.attachment-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--color-hair-soft);
+}
+
+.attachment-step:last-of-type {
+  border-bottom: 0;
+}
+
+.attachment-step-number {
+  display: inline-flex;
+  flex: 0 0 21px;
+  align-items: center;
+  justify-content: center;
+  width: 21px;
+  height: 21px;
+  border: 1px solid var(--color-slate);
+  border-radius: 50%;
+  color: var(--color-slate-ink);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.attachment-step strong {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.attachment-step p {
+  margin: 3px 0 0;
+  color: var(--color-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.attachment-step a,
+.attachment-portal-link,
+.attachment-queue-portal a {
+  color: var(--color-ink-deep);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.attachment-no-portal {
+  color: var(--color-muted);
+  font-weight: 500;
+}
+
+.attachment-portal-message {
+  margin: 10px 0 0;
+  padding-top: 9px;
+  border-top: 1px solid var(--color-hair-soft);
+  color: var(--color-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.attachment-meta {
+  display: block;
+  margin-top: 2px;
+  color: var(--color-muted);
+  font-size: 10px;
+}
+
+.attachment-row .badge {
+  flex: 0 0 auto;
+}
+
+.attachment-delete,
+.attachment-link {
+  flex: 0 0 auto;
+}
+
+.attachment-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--color-muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.attachment-delete:hover {
+  color: var(--color-ink-deep);
+  border-color: var(--color-hair);
+  background: var(--color-keylime);
+}
+
+.attachment-delete:disabled {
+  cursor: wait;
+  opacity: 0.5;
+}
+
+.attachment-delete svg {
+  width: 13px;
+  height: 13px;
+}
+
+.attachment-dropzone {
+  display: flex;
+  min-height: 116px;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 12px;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px dashed var(--color-slate);
+  border-radius: var(--radius-md);
+  color: var(--color-slate-ink);
+  background: var(--color-paper);
+  cursor: pointer;
+  text-align: center;
+}
+
+.attachment-dropzone:hover,
+.attachment-dropzone.is-dragging {
+  border-color: var(--color-ink);
+  background: var(--color-keylime);
+}
+
+.attachment-dropzone:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 2px var(--color-keylime);
+}
+
+.attachment-dropzone svg {
+  width: 20px;
+  height: 20px;
+  margin-bottom: 3px;
+}
+
+.attachment-dropzone strong {
+  color: var(--color-charcoal);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.attachment-dropzone span {
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+.attachment-upload-status,
+.attachment-upload-error,
+.attachment-empty {
+  margin: 8px 0 0;
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+.attachment-upload-error {
+  color: var(--color-error);
+}
+
+.attachments-page {
+  display: flex;
+  min-height: calc(100vh - 82px);
+  flex-direction: column;
+  gap: 14px;
+}
+
+.attachments-page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 4px 2px 1px;
+}
+
+.attachments-eyebrow {
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+.attachments-page-header h2 {
+  margin: 4px 0 0;
+  color: var(--color-charcoal);
+  font-size: 21px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.attachments-page-header p {
+  margin: 5px 0 0;
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+.attachments-count {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+.attachments-count strong {
+  color: var(--color-ink);
+  font-size: 25px;
+  font-weight: 500;
+}
+
+.attachments-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 370px);
+  gap: 14px;
+  align-items: start;
+}
+
+.attachments-queue,
+.attachments-side-column {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.attachment-agency-group {
+  overflow: hidden;
+  border: 1px solid var(--color-hair);
+  border-radius: var(--radius-lg);
+  background: var(--color-paper);
+}
+
+.attachment-agency-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--color-hair);
+  background: var(--color-keylime);
+}
+
+.attachment-agency-heading h3 {
+  margin: 0;
+  color: var(--color-ink-deep);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.attachment-agency-heading span {
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+.attachment-queue-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.attachment-queue-item {
+  padding: 13px 14px 14px;
+  border-bottom: 1px solid var(--color-hair-soft);
+}
+
+.attachment-queue-item:last-child {
+  border-bottom: 0;
+}
+
+.attachment-queue-item-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.attachment-queue-item-title {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.attachment-queue-item-title a {
+  overflow: hidden;
+  color: var(--color-charcoal);
+  font-size: 13px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-queue-item-title a:hover {
+  color: var(--color-ink-deep);
+}
+
+.attachment-queue-item-title span {
+  color: var(--color-muted);
+  font-size: 10px;
+}
+
+.attachment-queue-badges {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.attachment-queue-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 7px;
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+.attachment-deadline.is-alert {
+  color: var(--color-alert);
+  font-weight: 500;
+}
+
+.attachment-queue-portal {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-hair-soft);
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+.attachment-queue-portal a {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--color-ink-deep);
+}
+
+.attachment-queue-portal svg {
+  width: 12px;
+  height: 12px;
+}
+
+.attachments-loading {
+  display: flex;
+  min-height: 240px;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.portal-list {
+  display: flex;
+  margin: -5px 0 14px;
+  flex-direction: column;
+}
+
+.portal-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--color-hair-soft);
+}
+
+.portal-row-main {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.portal-row-main strong {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.portal-row-main span,
+.portal-row-main code {
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.portal-row-main code {
+  font-family: var(--font-mono);
+}
+
+.portal-form {
+  display: flex;
+  gap: 8px;
+  padding-top: 13px;
+  flex-direction: column;
+  border-top: 1px solid var(--color-hair);
+}
+
+.portal-form label {
+  display: flex;
+  gap: 4px;
+  flex-direction: column;
+  color: var(--color-muted);
+  font-size: 10px;
+}
+
+.portal-form input:not([type="checkbox"]),
+.portal-form textarea {
+  width: 100%;
+  padding: 6px 7px;
+  border: 1px solid var(--color-hair);
+  border-radius: var(--radius-sm);
+  outline: 0;
+  color: var(--color-charcoal);
+  background: var(--color-paper);
+  font-size: 11px;
+}
+
+.portal-form textarea {
+  resize: vertical;
+}
+
+.portal-form input:not([type="checkbox"]):focus,
+.portal-form textarea:focus {
+  border-color: var(--color-slate);
+  box-shadow: 0 0 0 2px var(--color-keylime);
+}
+
+.portal-form-help {
+  margin: -2px 0 0;
+  color: var(--color-muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.portal-enabled-control {
+  align-items: center;
+  flex-direction: row !important;
+}
+
+.portal-enabled-control input {
+  accent-color: var(--color-ink);
+}
+
+.portal-form-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.attachment-primary-button,
+.attachment-secondary-button {
+  min-height: 28px;
+  padding: 0 9px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.attachment-primary-button {
+  border: 1px solid var(--color-ink);
+  color: var(--color-paper);
+  background: var(--color-ink);
+}
+
+.attachment-primary-button:hover {
+  background: var(--color-ink-deep);
+}
+
+.attachment-primary-button:disabled,
+.attachment-secondary-button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.attachment-secondary-button {
+  border: 1px solid var(--color-hair);
+  color: var(--color-charcoal);
+  background: var(--color-paper);
+}
+
+.attachment-secondary-button:hover {
+  border-color: var(--color-sage);
+  background: var(--color-keylime);
+}
+
+.attachment-policy-list {
+  margin: -3px 0;
+  padding-left: 17px;
+  color: var(--color-muted);
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+@media (max-width: 900px) {
+  .attachments-layout,
+  .attachment-workflow-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .attachments-side-column {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+@media (max-width: 620px) {
+  .attachments-page-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .attachments-layout,
+  .attachments-side-column {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .attachment-queue-item-head {
+    flex-direction: column;
+  }
+
+  .attachment-queue-badges {
+    order: -1;
   }
 }

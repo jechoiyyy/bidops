@@ -3,6 +3,7 @@ import { AppShell } from "./components/shell/AppShell";
 import { DashboardPage } from "./pages/DashboardPage";
 import { QueuePage } from "./pages/QueuePage";
 import { NoticeDetailPage } from "./pages/NoticeDetailPage";
+import { AttachmentsPage } from "./pages/AttachmentsPage";
 
 interface PlaceholderPageProps {
   title: string;
@@ -31,7 +32,7 @@ export const routes: RouteObject[] = [
       { path: "profile", element: <PlaceholderPage title="회사 프로필" /> },
       { path: "metrics", element: <PlaceholderPage title="검증 지표" /> },
       { path: "runs", element: <PlaceholderPage title="수집 실행" /> },
-      { path: "attachments", element: <PlaceholderPage title="첨부 확보" /> },
+      { path: "attachments", element: <AttachmentsPage /> },
       { path: "audit", element: <PlaceholderPage title="산출물 감사 로그" /> },
     ],
   },

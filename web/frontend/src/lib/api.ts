@@ -1,4 +1,7 @@
 import type {
+  AgencyPortal,
+  AttachmentProcedureResponse,
+  AttachmentQueueResponse,
   NoticeDetailResponse,
   NoticeHistoryResponse,
   NoticeListResponse,
@@ -97,6 +100,40 @@ export const api = {
   }) => request<NoticeListResponse>(`/notices${query(params)}`),
 
   getNotice: (noticePk: number) => request<NoticeDetailResponse>(`/notices/${noticePk}`),
+
+  getNoticeAttachments: (noticePk: number) =>
+    request<AttachmentProcedureResponse>(`/notices/${noticePk}/attachments`),
+
+  uploadNoticeAttachments: (noticePk: number, file: File) => {
+    const form = new FormData();
+    form.append("files", file);
+    return request<AttachmentProcedureResponse>(`/notices/${noticePk}/attachments`, {
+      method: "POST",
+      body: form,
+    });
+  },
+
+  deleteAttachment: (attachmentId: number) =>
+    request<void>(`/attachments/${attachmentId}`, { method: "DELETE" }),
+
+  getAttachmentQueue: (runId: string) =>
+    request<AttachmentQueueResponse>(`/attachments/queue${query({ run_id: runId })}`),
+
+  getPortals: () => request<AgencyPortal[]>("/portals"),
+
+  createPortal: (payload: Omit<AgencyPortal, "id">) =>
+    request<AgencyPortal>("/portals", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+
+  updatePortal: (portalId: number, payload: Partial<Omit<AgencyPortal, "id">>) =>
+    request<AgencyPortal>(`/portals/${portalId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
 
   getNoticeHistory: (noticePk: number) =>
     request<NoticeHistoryResponse>(`/notices/${noticePk}/history`),
