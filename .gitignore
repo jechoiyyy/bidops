@@ -1,0 +1,25 @@
+.env
+__pycache__/
+*.pyc
+
+# 원문 API 페이지는 용량이 크므로 저장소에 두지 않는다. 재수집으로 복구한다.
+data/runs/*/raw/
+
+# 수집 결과는 원문에서 --from-raw로 언제든 재생성할 수 있다.
+data/runs/*/collected-notices.json
+
+# HTML 보고서는 판정 결과에서 재생성할 수 있다.
+reports/*/weekly-monitoring.html
+reports/*/details/
+
+# 웹 계층에서 재생성할 수 있는 데이터와 빌드 산출물
+web/data/
+web/backend/.venv/
+web/frontend/node_modules/
+web/frontend/dist/
+
+# 아래 파일은 추적한다.
+#   data/runs/*/validation-set.json      표본 구성
+#   data/runs/*/screening-decisions.json 에이전트가 작성한 판정
+#   data/runs/*/screening-results.json   2국면 모델 비교의 기준선
+#   reports/*/review-feedback.yaml       담당자 리뷰 기록
