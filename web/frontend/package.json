@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:visual": "playwright test",
+    "test:visual:update": "playwright test --update-snapshots"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.81.5",
@@ -15,6 +17,7 @@
     "react-router-dom": "^7.6.2"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/vite": "^4.1.11",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.1",
