@@ -264,7 +264,9 @@ def run_stats(run_id: str, session: Session = Depends(get_db)) -> RunStatsRespon
             )
             record["count"] += 1
             record["notice_pks"].append(notice.id)
-            match = re.search(r"회사 프로필\s+([^ ]+)", item.why or "")
+            # 근거 문장은 "회사 프로필 5.2의 조달 자격 항목이" 처럼 절 번호 뒤에
+            # 조사가 붙어 나오므로, 절 번호만 잘라낸다.
+            match = re.search(r"회사 프로필\s+(\d+(?:\.\d+)*)", item.why or "")
             if match and match.group(1) not in record["profile_sections"]:
                 record["profile_sections"].append(match.group(1))
 
@@ -288,6 +290,7 @@ def run_stats(run_id: str, session: Session = Depends(get_db)) -> RunStatsRespon
     return RunStatsResponse(
         run_id=run.id,
         timezone=run.timezone,
+        generated_at=run.generated_at,
         collected_count=collected,
         candidate_count=candidate,
         sample_count=len(notices),

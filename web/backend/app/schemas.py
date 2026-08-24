@@ -279,6 +279,9 @@ class DeadlineNotice(NoticeListItem):
 class RunStatsResponse(APIModel):
     run_id: str
     timezone: str
+    # 마감 임박 목록은 이 시각을 기준으로 7일 구간을 잡는다. 화면이 남은 일수를
+    # 같은 기준으로 계산하도록 응답에 함께 담는다.
+    generated_at: datetime
     collected_count: int
     candidate_count: int
     sample_count: int

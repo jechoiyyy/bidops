@@ -267,6 +267,7 @@ export interface DeadlineNotice extends NoticeListItem {
 export interface RunStatsResponse {
   run_id: string;
   timezone: string;
+  generated_at: string;
   collected_count: number;
   candidate_count: number;
   sample_count: number;
