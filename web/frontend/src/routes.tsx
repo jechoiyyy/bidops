@@ -2,6 +2,7 @@ import type { RouteObject } from "react-router-dom";
 import { AppShell } from "./components/shell/AppShell";
 import { DashboardPage } from "./pages/DashboardPage";
 import { QueuePage } from "./pages/QueuePage";
+import { NoticeDetailPage } from "./pages/NoticeDetailPage";
 
 interface PlaceholderPageProps {
   title: string;
@@ -24,7 +25,8 @@ export const routes: RouteObject[] = [
       { path: "queue", element: <QueuePage /> },
       { path: "queue/:noticePk", element: <QueuePage /> },
       { path: "deadlines", element: <PlaceholderPage title="마감 추적" /> },
-      { path: "judgments", element: <PlaceholderPage title="공고 판정 이력" /> },
+      { path: "judgments", element: <NoticeDetailPage /> },
+      { path: "judgments/:noticePk", element: <NoticeDetailPage /> },
       { path: "reviews", element: <PlaceholderPage title="담당자 리뷰 기록" /> },
       { path: "profile", element: <PlaceholderPage title="회사 프로필" /> },
       { path: "metrics", element: <PlaceholderPage title="검증 지표" /> },

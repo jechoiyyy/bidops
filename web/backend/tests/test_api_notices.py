@@ -94,6 +94,88 @@ def api_client():
             app.dependency_overrides.pop(get_db, None)
 
 
+@pytest.fixture
+def related_api_client():
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    init_db(engine)
+    with Session(engine) as session:
+        run = Run(
+            id="related-run",
+            window_from=date(2026, 8, 17),
+            window_to=date(2026, 8, 23),
+            generated_at=datetime(2026, 8, 24, 0, tzinfo=timezone.utc),
+        )
+        notices = [
+            Notice(
+                run=run,
+                notice_key="bid:REL:000",
+                bid_no="REL",
+                bid_ord="000",
+                title="관련 공고",
+                published_at=datetime(2026, 8, 19, 1, tzinfo=timezone.utc),
+                lifecycle_json={"unified_notice_no": "UNIFIED", "pre_spec_no": "PRE"},
+                sample_role="analysis",
+            ),
+            Notice(
+                run=run,
+                notice_key="bid:REL:001",
+                bid_no="REL",
+                bid_ord="001",
+                title="관련 공고 정정",
+                published_at=datetime(2026, 8, 19, 2, tzinfo=timezone.utc),
+                lifecycle_json={"unified_notice_no": "UNIFIED", "pre_spec_no": "PRE", "change_reason": "정정"},
+                sample_role="analysis",
+            ),
+            Notice(
+                run=run,
+                notice_key="bid:OTHER:000",
+                bid_no="OTHER",
+                bid_ord="000",
+                title="같은 사업 공고",
+                published_at=datetime(2026, 8, 19, 3, tzinfo=timezone.utc),
+                lifecycle_json={"unified_notice_no": "UNIFIED", "pre_spec_no": "OTHER-PRE"},
+                sample_role="analysis",
+            ),
+            Notice(
+                run=run,
+                notice_key="bid:PRE:000",
+                bid_no="PRE",
+                bid_ord="000",
+                title="사전규격 파생 공고",
+                published_at=datetime(2026, 8, 19, 4, tzinfo=timezone.utc),
+                lifecycle_json={"unified_notice_no": "OTHER-UNIFIED", "pre_spec_no": "PRE"},
+                sample_role="analysis",
+            ),
+            Notice(
+                run=run,
+                notice_key="bid:BLANK:000",
+                bid_no="BLANK",
+                bid_ord="000",
+                title="기준값 없는 공고",
+                lifecycle_json={},
+                sample_role="analysis",
+            ),
+        ]
+        for notice in notices:
+            notice.judgment = Judgment(grade="관찰 대상", readiness="확인 완료")
+        session.add(run)
+        session.commit()
+
+        def override_db():
+            yield session
+
+        app.dependency_overrides[get_db] = override_db
+        try:
+            with TestClient(app) as client:
+                yield client
+        finally:
+            app.dependency_overrides.pop(get_db, None)
+
+
 def test_notice_list_default_filters_and_paginates(api_client):
     response = api_client.get("/api/notices", params={"run_id": "test-run"})
 
@@ -118,3 +200,29 @@ def test_notice_detail_includes_judgment_evidence_and_attachments(api_client):
 def test_notice_history_and_missing_notice(api_client):
     assert api_client.get("/api/notices/1/history").json()["items"][0]["grade"] == "우선 검토"
     assert api_client.get("/api/notices/999").status_code == 404
+
+
+def test_related_notices_uses_priority_and_same_run(related_api_client):
+    listing = related_api_client.get("/api/notices", params={"run_id": "related-run", "grade": "all", "sample_role": "all"}).json()
+    current_id = next(item["id"] for item in listing["items"] if item["notice_key"] == "bid:REL:000")
+
+    response = related_api_client.get(f"/api/notices/{current_id}/related")
+
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert [(item["notice_key"], item["relation"]) for item in items] == [
+        ("bid:REL:001", "ordinal"),
+        ("bid:OTHER:000", "unified"),
+        ("bid:PRE:000", "pre_spec"),
+    ]
+    assert items[0]["change_reason"] == "정정"
+
+
+def test_related_notices_does_not_invent_empty_keys(related_api_client):
+    listing = related_api_client.get("/api/notices", params={"run_id": "related-run", "grade": "all", "sample_role": "all"}).json()
+    blank_id = next(item["id"] for item in listing["items"] if item["notice_key"] == "bid:BLANK:000")
+
+    response = related_api_client.get(f"/api/notices/{blank_id}/related")
+
+    assert response.status_code == 200
+    assert response.json()["items"] == []

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Badge, type BadgeVariant } from "../components/common/Badge";
 import { EmptyState } from "../components/common/EmptyState";
 import { AttachmentPanel } from "../components/notice/AttachmentPanel";
@@ -260,12 +260,18 @@ export function QueuePage() {
                     <span className="mono tabular-nums">{formatPrice(detail.estimated_price)}</span>
                   </div>
                 </div>
-                {detail.url ? (
-                  <a className="notice-source-link" href={detail.url} target="_blank" rel="noreferrer">
-                    나라장터 원문
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M14 5h5v5M19 5l-8 8" /><path d="M18 13v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" /></svg>
-                  </a>
-                ) : null}
+                <div className="queue-detail-actions">
+                  <Link className="notice-source-link" to={{ pathname: `/judgments/${detail.id}`, search: searchParams.toString() }}>
+                    판정 상세
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" /></svg>
+                  </Link>
+                  {detail.url ? (
+                    <a className="notice-source-link" href={detail.url} target="_blank" rel="noreferrer">
+                      나라장터 원문
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M14 5h5v5M19 5l-8 8" /><path d="M18 13v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" /></svg>
+                    </a>
+                  ) : null}
+                </div>
               </header>
               <div className="queue-detail-scroll">
                 <div className="notice-top-grid">

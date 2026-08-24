@@ -197,6 +197,21 @@ class NoticeHistoryResponse(APIModel):
     items: list[HistoryItemResponse]
 
 
+class RelatedNoticeResponse(APIModel):
+    relation: Literal["ordinal", "unified", "pre_spec"]
+    notice_pk: int
+    notice_key: str
+    title: str | None = None
+    grade: str | None = None
+    published_at: datetime | None = None
+    change_reason: str | None = None
+
+
+class RelatedNoticeListResponse(APIModel):
+    notice_pk: int
+    items: list[RelatedNoticeResponse] = Field(default_factory=list)
+
+
 class WarningResponse(APIModel):
     id: int
     run_id: str

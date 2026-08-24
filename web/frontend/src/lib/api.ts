@@ -2,6 +2,7 @@ import type {
   NoticeDetailResponse,
   NoticeHistoryResponse,
   NoticeListResponse,
+  RelatedNoticeListResponse,
   ReviewResponse,
   ReviewUpsertRequest,
   RunDetailResponse,
@@ -99,6 +100,9 @@ export const api = {
 
   getNoticeHistory: (noticePk: number) =>
     request<NoticeHistoryResponse>(`/notices/${noticePk}/history`),
+
+  getRelatedNotices: (noticePk: number) =>
+    request<RelatedNoticeListResponse>(`/notices/${noticePk}/related`),
 
   getReviews: (runId: string) =>
     request<ReviewResponse[]>(`/reviews${query({ run_id: runId })}`),

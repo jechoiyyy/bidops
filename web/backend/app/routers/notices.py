@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session, selectinload
 
@@ -20,6 +21,8 @@ from ..schemas import (
     NoticeDetailResponse,
     NoticeHistoryResponse,
     NoticeListResponse,
+    RelatedNoticeListResponse,
+    RelatedNoticeResponse,
     PageFilters,
     PerspectiveResponse,
     ReviewAnswerResponse,
@@ -85,9 +88,9 @@ def list_notices(
     conditions: list[Any] = [Notice.run_id == run.id]
     if sample_role and sample_role != "all":
         conditions.append(Notice.sample_role == sample_role)
-    if grade:
+    if grade and grade != "all":
         conditions.append(Judgment.grade == grade)
-    else:
+    elif grade != "all":
         conditions.append(Judgment.grade != "제외")
     if readiness:
         conditions.append(Judgment.readiness == readiness)
@@ -287,18 +290,94 @@ DETAIL_OPTIONS = (
 def notice_detail(notice_pk: int, session: Session = Depends(get_db)) -> NoticeDetailResponse:
     notice = session.scalar(select(Notice).where(Notice.id == notice_pk).options(*DETAIL_OPTIONS))
     if notice is None:
-        from fastapi import HTTPException
-
         raise HTTPException(status_code=404, detail=f"공고를 찾을 수 없습니다: {notice_pk}")
     return _detail_response(notice)
+
+
+def _lifecycle_value(notice: Notice, key: str) -> Any:
+    lifecycle = notice.lifecycle_json
+    if not isinstance(lifecycle, dict):
+        return None
+    value = lifecycle.get(key)
+    if isinstance(value, str):
+        return value.strip() or None
+    return value
+
+
+def _related_relation(current: Notice, candidate: Notice) -> Literal["ordinal", "unified", "pre_spec"] | None:
+    if (
+        current.bid_no
+        and current.bid_ord
+        and candidate.bid_no
+        and candidate.bid_ord
+        and current.bid_no == candidate.bid_no
+        and current.bid_ord != candidate.bid_ord
+    ):
+        return "ordinal"
+
+    current_unified = _lifecycle_value(current, "unified_notice_no")
+    candidate_unified = _lifecycle_value(candidate, "unified_notice_no")
+    if current_unified is not None and candidate_unified is not None and current_unified == candidate_unified:
+        return "unified"
+
+    current_pre_spec = _lifecycle_value(current, "pre_spec_no")
+    candidate_pre_spec = _lifecycle_value(candidate, "pre_spec_no")
+    if current_pre_spec is not None and candidate_pre_spec is not None and current_pre_spec == candidate_pre_spec:
+        return "pre_spec"
+    return None
+
+
+@router.get("/{notice_pk}/related", response_model=RelatedNoticeListResponse)
+def related_notices(notice_pk: int, session: Session = Depends(get_db)) -> RelatedNoticeListResponse:
+    current = session.scalar(select(Notice).where(Notice.id == notice_pk))
+    if current is None:
+        raise HTTPException(status_code=404, detail=f"공고를 찾을 수 없습니다: {notice_pk}")
+
+    candidates = session.scalars(
+        select(Notice)
+        .where(Notice.run_id == current.run_id, Notice.id != current.id)
+        .options(selectinload(Notice.judgment))
+        .order_by(Notice.published_at.asc().nulls_last(), Notice.id.asc())
+    ).all()
+    relation_order = {"ordinal": 0, "unified": 1, "pre_spec": 2}
+    related: list[tuple[int, Notice, Literal["ordinal", "unified", "pre_spec"]]] = []
+    for candidate in candidates:
+        relation = _related_relation(current, candidate)
+        if relation is not None:
+            related.append((relation_order[relation], candidate, relation))
+    # 공고일이 없는 후보는 뒤로 보내고, 그 안에서는 식별자 순서로 고정한다.
+    # 정렬 키에 None 이 섞이면 비교 자체가 실패하므로 최소 시각으로 치환한다.
+    epoch = datetime(1, 1, 1, tzinfo=timezone.utc)
+    related.sort(
+        key=lambda item: (
+            item[0],
+            item[1].published_at is None,
+            item[1].published_at or epoch,
+            item[1].id,
+        )
+    )
+
+    return RelatedNoticeListResponse(
+        notice_pk=current.id,
+        items=[
+            RelatedNoticeResponse(
+                relation=relation,
+                notice_pk=candidate.id,
+                notice_key=candidate.notice_key,
+                title=candidate.title,
+                grade=candidate.judgment.grade if candidate.judgment else None,
+                published_at=candidate.published_at,
+                change_reason=_lifecycle_value(candidate, "change_reason"),
+            )
+            for _, candidate, relation in related
+        ],
+    )
 
 
 @router.get("/{notice_pk}/history", response_model=NoticeHistoryResponse)
 def notice_history(notice_pk: int, session: Session = Depends(get_db)) -> NoticeHistoryResponse:
     current = session.scalar(select(Notice).where(Notice.id == notice_pk))
     if current is None:
-        from fastapi import HTTPException
-
         raise HTTPException(status_code=404, detail=f"공고를 찾을 수 없습니다: {notice_pk}")
     rows = session.scalars(
         select(Notice)

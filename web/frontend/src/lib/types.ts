@@ -185,6 +185,23 @@ export interface NoticeHistoryResponse {
   items: HistoryItemResponse[];
 }
 
+export type RelatedNoticeRelation = "ordinal" | "unified" | "pre_spec";
+
+export interface RelatedNoticeResponse {
+  relation: RelatedNoticeRelation;
+  notice_pk: number;
+  notice_key: string;
+  title: string | null;
+  grade: string | null;
+  published_at: string | null;
+  change_reason: string | null;
+}
+
+export interface RelatedNoticeListResponse {
+  notice_pk: number;
+  items: RelatedNoticeResponse[];
+}
+
 export interface WarningResponse {
   id: number;
   run_id: string;
