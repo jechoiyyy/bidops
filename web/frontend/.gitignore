@@ -1,0 +1,5 @@
+# Playwright 실행 산출물. 스냅샷 기준 이미지는 tests/ 아래에 따로 추적한다.
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
