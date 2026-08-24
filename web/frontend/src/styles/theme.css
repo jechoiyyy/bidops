@@ -14,14 +14,23 @@
   --color-hair: #e4e2dc;
   --color-hair-soft: #efeeeb;
   --color-muted: #6f6c64;
-  --color-alert: #9a4a2f;
-  --color-error: #9a4a2f;
+  --color-alert: #7a3e00;
+  --color-error: #8f2f1d;
+  --color-error-edge: #e8b6a8;
+
+  /* 역할별 상태 색. 경고(alert)와 위험(error)에 더해 성공·정보를 구분한다. */
+  --color-alert-bg: #fff4e5;
+  --color-error-bg: #fff1ed;
+  --color-success: #276238;
+  --color-success-bg: #eaf6eb;
+  --color-info: #24576a;
+  --color-info-bg: #eef7fa;
+  --color-focus: #1d4ed8;
 
   /* 아트보드에서 파생된 보조 색. 팔레트 색의 명도만 조정한 값이다. */
   --color-nav-text: #cfe0d2;   /* 사이드바 본문 */
-  --color-muted-soft: #837f76; /* 제외 등급 배지 문자 */
-  --color-alert-edge: #d8b6a6; /* 경고 배지 테두리 */
-  --color-slate-ink: #4d6b76;  /* 준비 상태 배지 문자 */
+  --color-muted-soft: #767268; /* 제외 등급 배지 문자 */
+  --color-alert-edge: #e3c49c; /* 경고 배지 테두리 */
 
   --font-sans: "IBM Plex Sans KR", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
@@ -78,6 +87,19 @@ a {
   text-decoration: none;
 }
 
+/* ---- 키보드 포커스 ----
+   마우스 클릭에는 나타나지 않고 키보드 이동에만 나타난다.
+   :where()로 특정도를 0으로 두어 개별 컴포넌트 규칙이 그대로 우선한다. */
+:where(a, button, select, input, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* 사이드바는 진한 초록 배경이라 파란 포커스선이 묻힌다. */
+.sidebar :where(a, button):focus-visible {
+  outline-color: var(--color-sage);
+}
+
 .mono,
 .tabular-nums {
   font-family: var(--font-mono);
@@ -126,7 +148,6 @@ a {
 .sidebar-brand:hover,
 .sidebar-brand:focus-visible {
   background: rgb(255 254 252 / 6%);
-  outline: 0;
 }
 
 .sidebar-brand:hover .sidebar-brand-home,
@@ -149,7 +170,7 @@ a {
 .sidebar-brand span {
   display: block;
   margin-top: 3px;
-  color: rgb(207 224 210 / 62%);
+  color: rgb(207 224 210 / 65%);
   font-size: 11px;
 }
 
@@ -163,7 +184,7 @@ a {
 
 .sidebar-group-label {
   padding: 0 8px 6px;
-  color: rgb(207 224 210 / 45%);
+  color: rgb(207 224 210 / 65%);
   font-size: 10px;
   font-weight: 500;
   letter-spacing: 0.1em;
@@ -211,12 +232,12 @@ a {
   gap: 2px;
   padding: 12px 18px;
   border-top: 1px solid rgb(255 254 252 / 10%);
-  color: rgb(207 224 210 / 62%);
+  color: rgb(207 224 210 / 65%);
   font-size: 11px;
 }
 
 .sidebar-footer span:last-child {
-  color: rgb(207 224 210 / 45%);
+  color: rgb(207 224 210 / 65%);
 }
 
 .app-content {
@@ -413,7 +434,7 @@ a {
 }
 
 .badge-readiness {
-  color: var(--color-slate-ink);
+  color: var(--color-info);
   border-color: var(--color-slate);
   background: transparent;
 }
@@ -442,7 +463,7 @@ a {
 }
 
 .badge-evidence-inferred {
-  color: var(--color-slate-ink);
+  color: var(--color-info);
   border-color: var(--color-slate);
   background: transparent;
 }
@@ -776,8 +797,9 @@ a {
 
 .runs-status-complete,
 .runs-status-success {
-  color: var(--color-ink-deep);
-  background: var(--color-sage);
+  border-color: var(--color-success);
+  color: var(--color-success);
+  background: var(--color-success-bg);
 }
 
 .runs-status-running,
@@ -788,9 +810,9 @@ a {
 
 .runs-status-failed,
 .runs-status-error {
-  border-color: var(--color-alert-edge);
-  color: var(--color-alert);
-  background: var(--color-paper);
+  border-color: var(--color-error-edge);
+  color: var(--color-error);
+  background: var(--color-error-bg);
 }
 
 .runs-status-idle,
@@ -1996,7 +2018,7 @@ a {
 }
 
 .queue-list-hint {
-  color: var(--color-slate-ink);
+  color: var(--color-info);
 }
 
 .queue-list-scroll {
@@ -2153,13 +2175,14 @@ a {
 .queue-detail-deadline.is-soon {
   color: var(--color-alert);
   border-color: var(--color-alert-edge);
+  background: var(--color-alert-bg);
 }
 
 .queue-list-deadline.is-passed,
 .queue-detail-deadline.is-passed {
-  color: var(--color-muted);
-  border-color: var(--color-hair);
-  background: var(--color-hair-soft);
+  color: var(--color-error);
+  border-color: var(--color-error-edge);
+  background: var(--color-error-bg);
 }
 
 .queue-list-deadline.is-later,
@@ -2401,8 +2424,8 @@ a {
   height: 17px;
   overflow: hidden;
   border-radius: 2px;
-  color: var(--color-slate-ink);
-  background: var(--color-slate);
+  color: var(--color-info);
+  background: var(--color-info-bg);
   font-size: 9px;
   font-weight: 600;
 }
@@ -3764,7 +3787,7 @@ a {
 
 .metrics-status-measured {
   border-color: var(--color-slate);
-  color: var(--color-slate-ink);
+  color: var(--color-info);
 }
 
 .metrics-value-row {
@@ -4177,7 +4200,7 @@ a {
   height: 21px;
   border: 1px solid var(--color-slate);
   border-radius: 50%;
-  color: var(--color-slate-ink);
+  color: var(--color-info);
   font-family: var(--font-mono);
   font-size: 10px;
 }
@@ -4274,7 +4297,7 @@ a {
   gap: 4px;
   border: 1px dashed var(--color-slate);
   border-radius: var(--radius-md);
-  color: var(--color-slate-ink);
+  color: var(--color-info);
   background: var(--color-paper);
   cursor: pointer;
   text-align: center;
@@ -4866,7 +4889,7 @@ a {
 
 .judgment-banner-counts > div.is-blocking dt,
 .judgment-banner-counts > div.is-blocking dd {
-  color: var(--color-alert);
+  color: var(--color-error);
 }
 
 .judgment-banner-counts > div.is-blocking dd {
