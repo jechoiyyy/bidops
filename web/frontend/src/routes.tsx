@@ -5,6 +5,8 @@ import { QueuePage } from "./pages/QueuePage";
 import { NoticeDetailPage } from "./pages/NoticeDetailPage";
 import { RunsPage } from "./pages/RunsPage";
 import { AttachmentsPage } from "./pages/AttachmentsPage";
+import { MetricsPage } from "./pages/MetricsPage";
+import { ProfilePage } from "./pages/ProfilePage";
 
 interface PlaceholderPageProps {
   title: string;
@@ -30,8 +32,8 @@ export const routes: RouteObject[] = [
       { path: "judgments", element: <NoticeDetailPage /> },
       { path: "judgments/:noticePk", element: <NoticeDetailPage /> },
       { path: "reviews", element: <PlaceholderPage title="담당자 리뷰 기록" /> },
-      { path: "profile", element: <PlaceholderPage title="회사 프로필" /> },
-      { path: "metrics", element: <PlaceholderPage title="검증 지표" /> },
+      { path: "profile", element: <ProfilePage /> },
+      { path: "metrics", element: <MetricsPage /> },
       { path: "runs", element: <RunsPage /> },
       { path: "attachments", element: <AttachmentsPage /> },
       { path: "audit", element: <PlaceholderPage title="산출물 감사 로그" /> },

@@ -420,3 +420,63 @@ export interface ValidationMetricsResponse {
   run_id: string;
   metrics: ValidationMetric[];
 }
+
+export type ProfileStatus = "confirmed" | "inferred" | "unknown";
+export type ProfileSectionState = ProfileStatus | "mixed" | "unrecorded";
+
+export interface ProfileRawBlock {
+  line_start: number;
+  raw: string;
+  error: string;
+}
+
+export interface ProfileItem {
+  key: string;
+  label: string;
+  section_id: string;
+  section_number: string | null;
+  status: ProfileStatus;
+  value: JsonValue;
+  source_line: number | null;
+}
+
+export interface ProfileSection {
+  id: string;
+  number: string | null;
+  title: string;
+  heading: string;
+  level: number;
+  state: ProfileSectionState;
+  status_counts: Record<string, number>;
+  items: ProfileItem[];
+  raw_blocks: ProfileRawBlock[];
+  raw: string | null;
+  children: ProfileSection[];
+}
+
+export interface ProfileSectionsResponse {
+  source: string;
+  sections: ProfileSection[];
+  status_counts: Record<string, number>;
+  parse_errors: string[];
+}
+
+export interface ProfileUnknown {
+  key: string;
+  label: string;
+  section_id: string;
+  section_number: string | null;
+  section_title: string;
+  status: "unknown";
+  value: JsonValue;
+  reference_count: number | null;
+  reference_status: "counted" | "unavailable";
+}
+
+export interface ProfileUnknownsResponse {
+  source: string;
+  items: ProfileUnknown[];
+  total: number;
+  reference_fields: string[];
+  parse_errors: string[];
+}

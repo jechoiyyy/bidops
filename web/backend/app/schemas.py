@@ -451,3 +451,64 @@ class ValidationMetric(APIModel):
 class ValidationMetricsResponse(APIModel):
     run_id: str
     metrics: list[ValidationMetric]
+
+
+ProfileStatus = Literal["confirmed", "inferred", "unknown"]
+ProfileSectionState = Literal["confirmed", "inferred", "unknown", "mixed", "unrecorded"]
+
+
+class ProfileRawBlockResponse(APIModel):
+    line_start: int
+    raw: str
+    error: str
+
+
+class ProfileItemResponse(APIModel):
+    key: str
+    label: str
+    section_id: str
+    section_number: str | None = None
+    status: ProfileStatus
+    value: Any = None
+    source_line: int | None = None
+
+
+class ProfileSectionResponse(APIModel):
+    id: str
+    number: str | None = None
+    title: str
+    heading: str
+    level: int
+    state: ProfileSectionState
+    status_counts: dict[str, int] = Field(default_factory=dict)
+    items: list[ProfileItemResponse] = Field(default_factory=list)
+    raw_blocks: list[ProfileRawBlockResponse] = Field(default_factory=list)
+    raw: str | None = None
+    children: list["ProfileSectionResponse"] = Field(default_factory=list)
+
+
+class ProfileSectionsResponse(APIModel):
+    source: str
+    sections: list[ProfileSectionResponse] = Field(default_factory=list)
+    status_counts: dict[str, int] = Field(default_factory=dict)
+    parse_errors: list[str] = Field(default_factory=list)
+
+
+class ProfileUnknownResponse(APIModel):
+    key: str
+    label: str
+    section_id: str
+    section_number: str | None = None
+    section_title: str
+    status: Literal["unknown"] = "unknown"
+    value: Any = None
+    reference_count: int | None = None
+    reference_status: Literal["counted", "unavailable"]
+
+
+class ProfileUnknownsResponse(APIModel):
+    source: str
+    items: list[ProfileUnknownResponse] = Field(default_factory=list)
+    total: int
+    reference_fields: list[str] = Field(default_factory=list)
+    parse_errors: list[str] = Field(default_factory=list)

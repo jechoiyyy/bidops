@@ -5,6 +5,8 @@ import type {
   NoticeDetailResponse,
   NoticeHistoryResponse,
   NoticeListResponse,
+  ProfileSectionsResponse,
+  ProfileUnknownsResponse,
   PipelineExecutionResponse,
   PipelineLogResponse,
   RelatedNoticeListResponse,
@@ -97,6 +99,10 @@ export const api = {
 
   getValidationMetrics: (runId: string) =>
     request<ValidationMetricsResponse>(`/metrics/validation${query({ run_id: runId })}`),
+
+  getProfileSections: () => request<ProfileSectionsResponse>("/profile/sections"),
+
+  getProfileUnknowns: () => request<ProfileUnknownsResponse>("/profile/unknowns"),
 
   getNotices: (params: {
     run_id: string;
