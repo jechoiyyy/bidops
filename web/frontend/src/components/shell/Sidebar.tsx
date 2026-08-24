@@ -6,6 +6,9 @@ interface NavItem {
   label: string;
   path: string;
   icon: IconName;
+  // 누르면 다른 화면으로 이어지는 항목이다. 목적지 메뉴가 대신 활성 표시된다.
+  linksTo?: string;
+  pending?: boolean;
 }
 
 interface NavGroup {
@@ -19,14 +22,14 @@ const groups: NavGroup[] = [
     items: [
       { label: "대시보드", path: "/", icon: "dashboard" },
       { label: "검토 대기열", path: "/queue", icon: "queue" },
-      { label: "마감 추적", path: "/deadlines", icon: "deadline" },
+      { label: "마감 추적", path: "/deadlines", icon: "deadline", linksTo: "/queue" },
     ],
   },
   {
     label: "판정",
     items: [
       { label: "공고 판정 이력", path: "/judgments", icon: "judgment" },
-      { label: "담당자 리뷰 기록", path: "/reviews", icon: "review" },
+      { label: "담당자 리뷰 기록", path: "/reviews", icon: "review", pending: true },
     ],
   },
   {
@@ -41,7 +44,7 @@ const groups: NavGroup[] = [
     items: [
       { label: "수집 실행", path: "/runs", icon: "runs" },
       { label: "첨부 확보", path: "/attachments", icon: "attachments" },
-      { label: "산출물 감사 로그", path: "/audit", icon: "audit" },
+      { label: "산출물 감사 로그", path: "/audit", icon: "audit", linksTo: "/runs" },
     ],
   },
 ];
@@ -114,7 +117,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
               <div className="sidebar-items">
                 {group.items.map((item) => (
                   <NavLinkItem
-                    active={isCurrentPath(pathname, item.path)}
+                    active={item.linksTo ? false : isCurrentPath(pathname, item.path)}
                     item={item}
                     key={item.path}
                     onNavigate={onClose}
@@ -144,6 +147,7 @@ function NavLinkItem({ item, active, onNavigate, runSearch }: { item: NavItem; a
     >
       <NavIcon name={item.icon} />
       <span>{item.label}</span>
+      {item.pending ? <span className="sidebar-item-pending">준비 중</span> : null}
     </Link>
   );
 }

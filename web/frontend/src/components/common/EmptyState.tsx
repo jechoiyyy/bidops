@@ -1,10 +1,26 @@
+import { Link } from "react-router-dom";
+
+export interface EmptyStateAction {
+  label: string;
+  to?: string;
+  onClick?: () => void;
+}
+
 interface EmptyStateProps {
   title: string;
   description?: string;
   compact?: boolean;
+  action?: EmptyStateAction;
+  secondaryAction?: EmptyStateAction;
 }
 
-export function EmptyState({ title, description, compact = false }: EmptyStateProps) {
+function ActionControl({ action, variant }: { action: EmptyStateAction; variant: "primary" | "secondary" }) {
+  const className = `empty-state-action empty-state-action-${variant}`;
+  if (action.to) return <Link className={className} to={action.to}>{action.label}</Link>;
+  return <button className={className} type="button" onClick={action.onClick}>{action.label}</button>;
+}
+
+export function EmptyState({ title, description, compact = false, action, secondaryAction }: EmptyStateProps) {
   return (
     <div className={`empty-state ${compact ? "empty-state-compact" : ""}`.trim()}>
       <div className="empty-state-mark" aria-hidden="true">
@@ -15,6 +31,12 @@ export function EmptyState({ title, description, compact = false }: EmptyStatePr
       </div>
       <strong>{title}</strong>
       {description ? <p>{description}</p> : null}
+      {action || secondaryAction ? (
+        <div className="empty-state-actions">
+          {action ? <ActionControl action={action} variant="primary" /> : null}
+          {secondaryAction ? <ActionControl action={secondaryAction} variant="secondary" /> : null}
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -381,7 +381,7 @@ export function QueuePage() {
     return <EmptyState title="선택된 회차가 없습니다." description="상단의 실행 회차 선택기에서 회차를 선택하십시오." />;
   }
   if (noticesQuery.error) {
-    return <EmptyState title="검토 대기열을 불러오지 못했습니다." description={errorMessage(noticesQuery.error, "공고 목록을 확인할 수 없습니다.")} />;
+    return <EmptyState title="검토 대기열을 불러오지 못했습니다." description={errorMessage(noticesQuery.error, "공고 목록을 확인할 수 없습니다.")} action={{ label: "다시 시도", onClick: () => void noticesQuery.refetch() }} />;
   }
 
   return (
@@ -405,9 +405,9 @@ export function QueuePage() {
           {!selectedId ? (
             <EmptyState title="검토할 공고를 선택하십시오." description="왼쪽 목록에서 공고를 선택하면 판정 근거와 리뷰 입력이 표시됩니다." />
           ) : detailQuery.isLoading || !detail ? (
-            <div className="queue-detail-loading">공고 상세와 판정 근거를 불러오는 중입니다.</div>
+            <div className="queue-detail-loading" role="status" aria-live="polite">공고 상세와 판정 근거를 불러오는 중입니다.</div>
           ) : detailQuery.error ? (
-            <EmptyState title="공고 상세를 불러오지 못했습니다." description={errorMessage(detailQuery.error, "상세 정보를 확인할 수 없습니다.")} />
+            <EmptyState title="공고 상세를 불러오지 못했습니다." description={errorMessage(detailQuery.error, "상세 정보를 확인할 수 없습니다.")} action={{ label: "다시 시도", onClick: () => void detailQuery.refetch() }} />
           ) : (
             <>
               <header className="queue-detail-header">

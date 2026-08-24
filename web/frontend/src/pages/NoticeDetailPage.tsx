@@ -82,7 +82,7 @@ export function NoticeDetailPage() {
     return <EmptyState title="선택된 회차가 없습니다." description="상단의 실행 회차 선택기에서 회차를 선택하십시오." />;
   }
   if (noticesQuery.error) {
-    return <EmptyState title="회차 공고 목록을 불러오지 못했습니다." description={errorMessage(noticesQuery.error, "공고 목록을 확인할 수 없습니다.")} />;
+    return <EmptyState title="회차 공고 목록을 불러오지 못했습니다." description={errorMessage(noticesQuery.error, "공고 목록을 확인할 수 없습니다.")} action={{ label: "다시 시도", onClick: () => void noticesQuery.refetch() }} />;
   }
 
   return (
@@ -125,7 +125,7 @@ export function NoticeDetailPage() {
             <span>{selectedNotice ? "선택됨" : "선택 필요"}</span>
           </div>
           <div className="judgment-list-scroll">
-            {noticesQuery.isLoading ? <div className="inline-loading">공고 목록을 불러오는 중입니다.</div> : null}
+            {noticesQuery.isLoading ? <div className="inline-loading" role="status" aria-live="polite">공고 목록을 불러오는 중입니다.</div> : null}
             {!noticesQuery.isLoading && notices.length === 0 ? <EmptyState compact title="회차 공고가 없습니다." /> : null}
             {notices.map((notice) => (
               <NoticePickerItem key={notice.id} notice={notice} selected={notice.id === selectedId} onSelect={() => selectNotice(notice.id)} />
@@ -136,9 +136,9 @@ export function NoticeDetailPage() {
           {!selectedId ? (
             <EmptyState title="공고를 선택하십시오." description="왼쪽 회차 목록에서 공고를 선택하면 생애주기와 판정 이력이 표시됩니다." />
           ) : detailQuery.isLoading ? (
-            <div className="queue-detail-loading">공고 상세와 판정 이력을 불러오는 중입니다.</div>
+            <div className="queue-detail-loading" role="status" aria-live="polite">공고 상세와 판정 이력을 불러오는 중입니다.</div>
           ) : detailQuery.error ? (
-            <EmptyState title="공고 상세를 불러오지 못했습니다." description={errorMessage(detailQuery.error, "상세 정보를 확인할 수 없습니다.")} />
+            <EmptyState title="공고 상세를 불러오지 못했습니다." description={errorMessage(detailQuery.error, "상세 정보를 확인할 수 없습니다.")} action={{ label: "다시 시도", onClick: () => void detailQuery.refetch() }} />
           ) : !detail ? (
             <EmptyState title="공고 상세가 없습니다." description="선택한 공고의 상세 데이터를 확인할 수 없습니다." />
           ) : (

@@ -118,10 +118,10 @@ export function ProfilePage() {
     [filter, unknowns],
   );
 
-  if (sectionsQuery.isLoading || unknownsQuery.isLoading) return <div className="profile-loading">회사 프로필을 읽는 중입니다.</div>;
+  if (sectionsQuery.isLoading || unknownsQuery.isLoading) return <div className="profile-loading" role="status" aria-live="polite">회사 프로필을 읽는 중입니다.</div>;
   if (sectionsQuery.error || unknownsQuery.error) {
     const error = sectionsQuery.error ?? unknownsQuery.error;
-    return <EmptyState title="회사 프로필을 불러오지 못했습니다." description={error instanceof Error ? error.message : "프로필 API 응답을 확인할 수 없습니다."} />;
+    return <EmptyState title="회사 프로필을 불러오지 못했습니다." description={error instanceof Error ? error.message : "프로필 API 응답을 확인할 수 없습니다."} action={{ label: "다시 시도", onClick: () => { void sectionsQuery.refetch(); void unknownsQuery.refetch(); } }} />;
   }
 
   const summary = sectionsQuery.data?.status_counts ?? {};
