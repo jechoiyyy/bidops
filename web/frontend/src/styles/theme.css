@@ -4016,6 +4016,9 @@ a {
     gap: 5px;
     padding-right: 12px;
     padding-left: 12px;
+    /* 세로 배치에서는 flex-basis가 높이를 뜻하므로, 54px 고정을 풀어야
+       두 줄로 접힌 필터가 잘리지 않는다. */
+    flex: 0 0 auto;
     flex-wrap: wrap;
     height: auto;
     padding-top: 9px;
