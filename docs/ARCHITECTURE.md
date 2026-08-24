@@ -281,6 +281,11 @@ erDiagram
   --color-muted: #6f6c64;
   --color-alert: #9a4a2f;      /* 마감 임박, 차단 항목 전용 */
 
+  --color-nav-text: #cfe0d2;   /* 사이드바 본문 */
+  --color-muted-soft: #837f76; /* 제외 등급 배지 문자 */
+  --color-alert-edge: #d8b6a6; /* 경고 배지 테두리 */
+  --color-slate-ink: #4d6b76;  /* 준비 상태 배지 문자 */
+
   --font-sans: 'IBM Plex Sans KR', system-ui, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
 
@@ -290,7 +295,7 @@ erDiagram
 }
 ```
 
-`--color-alert`는 팔레트에 없는 유일한 추가 색이다. 마감 임박과 차단 확인 항목에만 사용하며, 다른 용도로 확장하지 않는다.
+`--color-alert`는 팔레트에 없는 유일한 추가 색이다. 마감 임박과 차단 확인 항목에만 사용하며, 다른 용도로 확장하지 않는다. 이름 뒤쪽의 네 값은 팔레트 색의 명도만 조정한 파생 색이며 아트보드에서 이미 사용한 값이다. 화면 코드는 색상 리터럴을 직접 쓰지 않고 반드시 이 토큰을 참조한다.
 
 밀도 규칙은 다음과 같다. 본문 13px, 보조 12px, 라벨 11px, 지표 숫자 27px. 패널 패딩 13px, 테이블 행 8~9px, 사이드바 216px, 상단바 50px, 필터 바 44px. 수치·식별자·시각은 모두 mono 서체와 `tabular-nums`를 적용한다.
 
