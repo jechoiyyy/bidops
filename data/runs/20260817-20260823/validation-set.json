@@ -1,0 +1,3345 @@
+{
+  "schema_version": "bidops.validation-set.v2",
+  "source_window": {
+    "from": "2026-08-17",
+    "to": "2026-08-23",
+    "timezone": "Asia/Seoul"
+  },
+  "selection": {
+    "analysis_target": 30,
+    "audit_target": 10,
+    "analysis_selected": 30,
+    "audit_selected": 10,
+    "analysis_axis_counts": {
+      "AI/데이터": 14,
+      "블록체인·DID": 2,
+      "공공 SI·통합관리": 15
+    },
+    "analysis_title_signal_count": 23,
+    "analysis_classification_only_count": 4,
+    "analysis_performance_match_count": 5,
+    "analysis_performance_only_count": 3,
+    "audit_stratum_counts": {
+      "분류 근접": 4,
+      "실적 유사 근접": 3,
+      "무작위": 3
+    }
+  },
+  "warnings": [],
+  "notices": [
+    {
+      "notice_id": "bid:R26BK01689645:000",
+      "source_type": "bid_notice",
+      "title": "AI 공간컴퓨팅 기반 낙동강하구 차세대 생태체험 서비스 통합관리 대시보드 및 백엔드 시스템 구축 용역",
+      "agency": "비쥬얼다트 주식회사",
+      "published_at": "2026-08-20T09:10:54+09:00",
+      "deadline_at": "2026-08-31T18:00:00+09:00",
+      "budget": "77000000",
+      "estimated_price": "70000000",
+      "method": "제한경쟁",
+      "url": "https://www.g2b.go.kr/link/PNPE027_01/single/?bidPbancNo=R26BK01689645&bidPbancOrd=000",
+      "procurement_class": {
+        "large": "ICT 서비스",
+        "middle": "SW 및 시스템 개발",
+        "detail": "정보시스템개발서비스",
+        "code": "81111599"
+      },
+      "region_limit": {
+        "basis": null,
+        "joint_contract_regions": [],
+        "joint_contract_rate": null,
+        "regional_joint_contract_limit": "N"
+      },
+      "lifecycle": {
+        "pre_spec_no": "R26BD00264406",
+        "re_notice": "N",
+        "changed_at": null,
+        "change_reason": null,
+        "unified_notice_no": "R26BM00928702",
+        "previous_failed_notice_no": null
+      },
+      "attachments": [
+        {
+          "name": "[긴급]통합관리자 대시보드구축용역_입찰공고_260820.pdf",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01689645&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        },
+        {
+          "name": "표준공고서",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01689645&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        }
+      ],
+      "qualification_flags": {
+        "participation_limited": "N",
+        "industry_limited": "N",
+        "information_business": null,
+        "general_service": "N",
+        "service_division": "일반용역",
+        "joint_contract_method": "(없음)공동수급불허",
+        "performance_restricted_competition": "N",
+        "pq_evaluation": null,
+        "technical_evaluation": null,
+        "technical_evaluation_rate": "90",
+        "successful_bid_method": "협상에의한계약-협상에 의한 낙찰자 결정(SW사업)"
+      },
+      "focus_matches": [
+        {
+          "axis": "AI/데이터",
+          "label": "AI",
+          "matched_field": "bidNtceNm",
+          "matched_text": "ai",
+          "field_kind": "title"
+        },
+        {
+          "axis": "공공 SI·통합관리",
+          "label": "시스템 구축",
+          "matched_field": "bidNtceNm",
+          "matched_text": "시스템 구축",
+          "field_kind": "title"
+        },
+        {
+          "axis": "공공 SI·통합관리",
+          "label": "통합관리",
+          "matched_field": "bidNtceNm",
+          "matched_text": "통합관리",
+          "field_kind": "title"
+        },
+        {
+          "axis": "공공 SI·통합관리",
+          "label": "정보시스템",
+          "matched_field": "pubPrcrmntClsfcNm",
+          "matched_text": "정보시스템",
+          "field_kind": "classification"
+        }
+      ],
+      "performance_matches": [],
+      "performance_top_score": 0.0,
+      "candidate_sources": [
+        "focus_title",
+        "focus_classification"
+      ],
+      "collection_bucket": "candidate_pool",
+      "unknown_fields": [],
+      "raw_source": "data/runs/20260817-20260823/raw/bid-page-003.json",
+      "sample_stratum": "AI/데이터",
+      "sample_role": "analysis"
+    },
+    {
+      "notice_id": "bid:R26BK01684997:000",
+      "source_type": "bid_notice",
+      "title": "블록체인 기술 서비스 해외진출 전략 수립",
+      "agency": "한국인터넷진흥원",
+      "published_at": "2026-08-18T10:42:37+09:00",
+      "deadline_at": null,
+      "budget": "50000000",
+      "estimated_price": "45454545",
+      "method": "제한경쟁",
+      "url": "https://www.g2b.go.kr/link/PNPE027_01/single/?bidPbancNo=R26BK01684997&bidPbancOrd=000",
+      "procurement_class": {
+        "large": "연구조사서비스",
+        "middle": "학술연구서비스",
+        "detail": "정보통신연구조사서비스",
+        "code": "80909012"
+      },
+      "region_limit": {
+        "basis": null,
+        "joint_contract_regions": [],
+        "joint_contract_rate": null,
+        "regional_joint_contract_limit": "N"
+      },
+      "lifecycle": {
+        "pre_spec_no": "R26BD00262076",
+        "re_notice": "N",
+        "changed_at": null,
+        "change_reason": null,
+        "unified_notice_no": "R26BM00924830",
+        "previous_failed_notice_no": null
+      },
+      "attachments": [
+        {
+          "name": "입찰공고(2026-218) 블록체인 기술 서비스 해외진출 전략 수립.hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01684997&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        },
+        {
+          "name": "입찰공고(2026-218) 블록체인 기술 서비스 해외진출 전략 수립.pdf",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01684997&bidPbancOrd=000&fileType=&fileSeq=2&prcmBsneSeCd=03"
+        },
+        {
+          "name": "[제안요청서] 블록체인 기술 서비스 해외진출 전략 수립.hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01684997&bidPbancOrd=000&fileType=&fileSeq=3&prcmBsneSeCd=03"
+        },
+        {
+          "name": "표준공고서",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01684997&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        }
+      ],
+      "qualification_flags": {
+        "participation_limited": "N",
+        "industry_limited": "N",
+        "information_business": null,
+        "general_service": "N",
+        "service_division": "일반용역",
+        "joint_contract_method": "(수기)공동이행",
+        "performance_restricted_competition": "N",
+        "pq_evaluation": null,
+        "technical_evaluation": null,
+        "technical_evaluation_rate": "90",
+        "successful_bid_method": "협상에의한계약-협상에 의한 낙찰자 결정"
+      },
+      "focus_matches": [
+        {
+          "axis": "블록체인·DID",
+          "label": "블록체인",
+          "matched_field": "bidNtceNm",
+          "matched_text": "블록체인",
+          "field_kind": "title"
+        }
+      ],
+      "performance_matches": [
+        {
+          "project_name": "블록체인 실증서비스 개발지원사업",
+          "source_page": 42,
+          "similarity": 0.667,
+          "common_fragment": "블록체인",
+          "legal_qualification_status": "unknown"
+        }
+      ],
+      "performance_top_score": 0.667,
+      "candidate_sources": [
+        "focus_title",
+        "performance_similarity"
+      ],
+      "collection_bucket": "candidate_pool",
+      "unknown_fields": [
+        "deadline_at"
+      ],
+      "raw_source": "data/runs/20260817-20260823/raw/bid-page-001.json",
+      "sample_stratum": "블록체인·DID",
+      "sample_role": "analysis"
+    },
+    {
+      "notice_id": "bid:R26BK01692158:000",
+      "source_type": "bid_notice",
+      "title": "천안시 내부 클라우드 가상화 인프라 구축",
+      "agency": "충청남도 천안시",
+      "published_at": "2026-08-21T11:07:20+09:00",
+      "deadline_at": "2026-08-24T11:00:00+09:00",
+      "budget": "410541840",
+      "estimated_price": "369818182",
+      "method": "수의계약",
+      "url": "https://www.g2b.go.kr/link/PNPE027_01/single/?bidPbancNo=R26BK01692158&bidPbancOrd=000",
+      "procurement_class": {
+        "large": "ICT 서비스",
+        "middle": "시스템 운영환경 구축",
+        "detail": "정보인프라구축서비스",
+        "code": "81111799"
+      },
+      "region_limit": {
+        "basis": null,
+        "joint_contract_regions": [],
+        "joint_contract_rate": null,
+        "regional_joint_contract_limit": "N"
+      },
+      "lifecycle": {
+        "pre_spec_no": "R26BD00232069",
+        "re_notice": "Y",
+        "changed_at": null,
+        "change_reason": null,
+        "unified_notice_no": "R26BM00930989",
+        "previous_failed_notice_no": "R26BK01636523"
+      },
+      "attachments": [],
+      "qualification_flags": {
+        "participation_limited": "N",
+        "industry_limited": "Y",
+        "information_business": "Y",
+        "general_service": "Y",
+        "service_division": "일반용역",
+        "joint_contract_method": "(전자)공동이행",
+        "performance_restricted_competition": "N",
+        "pq_evaluation": null,
+        "technical_evaluation": null,
+        "technical_evaluation_rate": null,
+        "successful_bid_method": "수의시담-일반경쟁->수의"
+      },
+      "focus_matches": [
+        {
+          "axis": "공공 SI·통합관리",
+          "label": "클라우드",
+          "matched_field": "bidNtceNm",
+          "matched_text": "클라우드",
+          "field_kind": "title"
+        },
+        {
+          "axis": "공공 SI·통합관리",
+          "label": "가상화",
+          "matched_field": "bidNtceNm",
+          "matched_text": "가상화",
+          "field_kind": "title"
+        }
+      ],
+      "performance_matches": [],
+      "performance_top_score": 0.0,
+      "candidate_sources": [
+        "focus_title"
+      ],
+      "collection_bucket": "candidate_pool",
+      "unknown_fields": [],
+      "raw_source": "data/runs/20260817-20260823/raw/bid-page-004.json",
+      "sample_stratum": "공공 SI·통합관리",
+      "sample_role": "analysis"
+    },
+    {
+      "notice_id": "bid:R26BK01687915:000",
+      "source_type": "bid_notice",
+      "title": "평생교육관리시스템 플랫폼 구축 용역",
+      "agency": "백석문화대학교 산학협력단",
+      "published_at": "2026-08-19T11:51:15+09:00",
+      "deadline_at": null,
+      "budget": "80400000",
+      "estimated_price": "73090909",
+      "method": "일반경쟁",
+      "url": "https://www.g2b.go.kr/link/PNPE027_01/single/?bidPbancNo=R26BK01687915&bidPbancOrd=000",
+      "procurement_class": {
+        "large": "ICT 서비스",
+        "middle": "시스템 운영환경 구축",
+        "detail": "정보인프라구축서비스",
+        "code": "81111799"
+      },
+      "region_limit": {
+        "basis": null,
+        "joint_contract_regions": [],
+        "joint_contract_rate": null,
+        "regional_joint_contract_limit": "N"
+      },
+      "lifecycle": {
+        "pre_spec_no": "R26BD00265103",
+        "re_notice": "N",
+        "changed_at": null,
+        "change_reason": null,
+        "unified_notice_no": "R26BM00927242",
+        "previous_failed_notice_no": null
+      },
+      "attachments": [
+        {
+          "name": "입찰공고.hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01687915&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        },
+        {
+          "name": "입찰공고.pdf",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01687915&bidPbancOrd=000&fileType=&fileSeq=2&prcmBsneSeCd=03"
+        },
+        {
+          "name": "제안요청서.hwpx",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01687915&bidPbancOrd=000&fileType=&fileSeq=3&prcmBsneSeCd=03"
+        },
+        {
+          "name": "표준공고서",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01687915&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        }
+      ],
+      "qualification_flags": {
+        "participation_limited": "N",
+        "industry_limited": "N",
+        "information_business": null,
+        "general_service": "N",
+        "service_division": "일반용역",
+        "joint_contract_method": "(없음)공동수급불허",
+        "performance_restricted_competition": "N",
+        "pq_evaluation": null,
+        "technical_evaluation": null,
+        "technical_evaluation_rate": "80",
+        "successful_bid_method": "협상에의한계약-협상에 의한 낙찰자 결정"
+      },
+      "focus_matches": [],
+      "performance_matches": [
+        {
+          "project_name": "블록체인 공공 확산사업 (블록체인 기반 고등평생교육 디지털배지 플랫폼 구축)",
+          "source_page": 42,
+          "similarity": 0.667,
+          "common_fragment": "평생교육",
+          "legal_qualification_status": "unknown"
+        }
+      ],
+      "performance_top_score": 0.667,
+      "candidate_sources": [
+        "performance_similarity"
+      ],
+      "collection_bucket": "candidate_pool",
+      "unknown_fields": [
+        "deadline_at"
+      ],
+      "raw_source": "data/runs/20260817-20260823/raw/bid-page-002.json",
+      "sample_stratum": "수행실적 유사",
+      "sample_role": "analysis"
+    },
+    {
+      "notice_id": "bid:R26BK01685458:000",
+      "source_type": "bid_notice",
+      "title": "생성형 AI 상세페이지 제작 구독권 공급 및 운영지원 용역",
+      "agency": "(주)한큐컴퍼니",
+      "published_at": "2026-08-18T14:31:20+09:00",
+      "deadline_at": "2026-08-31T10:00:00+09:00",
+      "budget": "58740000",
+      "estimated_price": "53400000",
+      "method": "일반경쟁",
+      "url": "https://www.g2b.go.kr/link/PNPE027_01/single/?bidPbancNo=R26BK01685458&bidPbancOrd=000",
+      "procurement_class": {
+        "large": "매체제작, 디자인, 홍보/마케팅 서비스",
+        "middle": "홍보 및 마케팅",
+        "detail": "홍보및마케팅서비스",
+        "code": "80171699"
+      },
+      "region_limit": {
+        "basis": null,
+        "joint_contract_regions": [],
+        "joint_contract_rate": null,
+        "regional_joint_contract_limit": "N"
+      },
+      "lifecycle": {
+        "pre_spec_no": "R26BD00262873",
+        "re_notice": "N",
+        "changed_at": null,
+        "change_reason": null,
+        "unified_notice_no": "R26BM00925444",
+        "previous_failed_notice_no": null
+      },
+      "attachments": [
+        {
+          "name": "입찰공고문(상세페이지)_한큐컴퍼니.hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01685458&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        },
+        {
+          "name": "제안요청서(상세페이지)_한큐컴퍼니.hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01685458&bidPbancOrd=000&fileType=&fileSeq=2&prcmBsneSeCd=03"
+        },
+        {
+          "name": "입찰공고문(상세페이지)_한큐컴퍼니.pdf",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01685458&bidPbancOrd=000&fileType=&fileSeq=3&prcmBsneSeCd=03"
+        },
+        {
+          "name": "표준공고서",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01685458&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        }
+      ],
+      "qualification_flags": {
+        "participation_limited": "N",
+        "industry_limited": "Y",
+        "information_business": null,
+        "general_service": "N",
+        "service_division": "일반용역",
+        "joint_contract_method": "(없음)공동수급불허",
+        "performance_restricted_competition": "N",
+        "pq_evaluation": null,
+        "technical_evaluation": null,
+        "technical_evaluation_rate": "80",
+        "successful_bid_method": "협상에의한계약-협상에 의한 낙찰자 결정(SW사업)"
+      },
+      "focus_matches": [
+        {
+          "axis": "AI/데이터",
+          "label": "AI",
+          "matched_field": "bidNtceNm",
+          "matched_text": "ai",
+          "field_kind": "title"
+        },
+        {
+          "axis": "AI/데이터",
+          "label": "생성형 AI",
+          "matched_field": "bidNtceNm",
+          "matched_text": "생성형",
+          "field_kind": "title"
+        }
+      ],
+      "performance_matches": [],
+      "performance_top_score": 0.0,
+      "candidate_sources": [
+        "focus_title"
+      ],
+      "collection_bucket": "candidate_pool",
+      "unknown_fields": [],
+      "raw_source": "data/runs/20260817-20260823/raw/bid-page-001.json",
+      "sample_stratum": "AI/데이터",
+      "sample_role": "analysis"
+    },
+    {
+      "notice_id": "bid:R26BK01689654:000",
+      "source_type": "bid_notice",
+      "title": "블록체인 위협정보 수집공유체계 구축 용역 추진",
+      "agency": "한국인터넷진흥원",
+      "published_at": "2026-08-20T14:37:57+09:00",
+      "deadline_at": "2026-09-15T10:00:00+09:00",
+      "budget": "453730000",
+      "estimated_price": "409090909",
+      "method": "제한경쟁",
+      "url": "https://www.g2b.go.kr/link/PNPE027_01/single/?bidPbancNo=R26BK01689654&bidPbancOrd=000",
+      "procurement_class": {
+        "large": "ICT 서비스",
+        "middle": "SW 및 시스템 개발",
+        "detail": "정보시스템개발서비스",
+        "code": "81111599"
+      },
+      "region_limit": {
+        "basis": null,
+        "joint_contract_regions": [],
+        "joint_contract_rate": null,
+        "regional_joint_contract_limit": "N"
+      },
+      "lifecycle": {
+        "pre_spec_no": "R26BD00260649",
+        "re_notice": "N",
+        "changed_at": null,
+        "change_reason": null,
+        "unified_notice_no": "R26BM00929529",
+        "previous_failed_notice_no": null
+      },
+      "attachments": [
+        {
+          "name": "붙임2.[제안요청서] 블록체인 위협정보 수집공유체계구축 용역_구매업무협의안반영.hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01689654&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        },
+        {
+          "name": "공고서_국가_수평_공동_차등2_하불.hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01689654&bidPbancOrd=000&fileType=&fileSeq=2&prcmBsneSeCd=03"
+        },
+        {
+          "name": "공고서_국가_수평_공동_차등2_하불.pdf",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01689654&bidPbancOrd=000&fileType=&fileSeq=3&prcmBsneSeCd=03"
+        },
+        {
+          "name": "표준공고서",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01689654&bidPbancOrd=000&fileType=&fileSeq=2&prcmBsneSeCd=03"
+        }
+      ],
+      "qualification_flags": {
+        "participation_limited": "N",
+        "industry_limited": "Y",
+        "information_business": "Y",
+        "general_service": "Y",
+        "service_division": "일반용역",
+        "joint_contract_method": "(전자)공동이행",
+        "performance_restricted_competition": "N",
+        "pq_evaluation": null,
+        "technical_evaluation": null,
+        "technical_evaluation_rate": "90",
+        "successful_bid_method": "협상에의한계약-협상에 의한 낙찰자 결정(SW사업)"
+      },
+      "focus_matches": [
+        {
+          "axis": "블록체인·DID",
+          "label": "블록체인",
+          "matched_field": "bidNtceNm",
+          "matched_text": "블록체인",
+          "field_kind": "title"
+        },
+        {
+          "axis": "공공 SI·통합관리",
+          "label": "정보시스템",
+          "matched_field": "pubPrcrmntClsfcNm",
+          "matched_text": "정보시스템",
+          "field_kind": "classification"
+        },
+        {
+          "axis": "공공 SI·통합관리",
+          "label": "정보시스템",
+          "matched_field": "purchsObjPrdctList",
+          "matched_text": "정보시스템",
+          "field_kind": "other"
+        }
+      ],
+      "performance_matches": [
+        {
+          "project_name": "블록체인 실증서비스 개발지원사업",
+          "source_page": 42,
+          "similarity": 0.667,
+          "common_fragment": "블록체인",
+          "legal_qualification_status": "unknown"
+        }
+      ],
+      "performance_top_score": 0.667,
+      "candidate_sources": [
+        "focus_title",
+        "focus_classification",
+        "performance_similarity"
+      ],
+      "collection_bucket": "candidate_pool",
+      "unknown_fields": [],
+      "raw_source": "data/runs/20260817-20260823/raw/bid-page-003.json",
+      "sample_stratum": "블록체인·DID",
+      "sample_role": "analysis"
+    },
+    {
+      "notice_id": "bid:R26BK01636337:002",
+      "source_type": "bid_notice",
+      "title": "2026년 유가보조금관리시스템 고도화 감리 용역",
+      "agency": "국토교통부",
+      "published_at": "2026-08-19T17:10:21+09:00",
+      "deadline_at": "2026-08-04T10:00:00+09:00",
+      "budget": "75000000",
+      "estimated_price": "68181818",
+      "method": "제한경쟁",
+      "url": "https://www.g2b.go.kr/link/PNPE027_01/single/?bidPbancNo=R26BK01636337&bidPbancOrd=002",
+      "procurement_class": {
+        "large": "ICT 서비스",
+        "middle": "ICT사업 컨설팅",
+        "detail": "정보시스템감리서비스",
+        "code": "80101699"
+      },
+      "region_limit": {
+        "basis": null,
+        "joint_contract_regions": [],
+        "joint_contract_rate": null,
+        "regional_joint_contract_limit": "N"
+      },
+      "lifecycle": {
+        "pre_spec_no": "R26BD00250390",
+        "re_notice": "N",
+        "changed_at": null,
+        "change_reason": "[취소공고] 2026년 유가보조금관리시스템 고도화 감리 용역",
+        "unified_notice_no": "R26BM00885351",
+        "previous_failed_notice_no": null
+      },
+      "attachments": [
+        {
+          "name": "용역입찰취소공고문(2026년 유가보조금관리시스템 고도화 감리 용역).pdf",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01636337&bidPbancOrd=002&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        },
+        {
+          "name": "용역입찰취소공고문(2026년 유가보조금관리시스템 고도화 감리 용역).hwpx",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01636337&bidPbancOrd=002&fileType=&fileSeq=2&prcmBsneSeCd=03"
+        },
+        {
+          "name": "표준공고서",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01636337&bidPbancOrd=002&fileType=&fileSeq=2&prcmBsneSeCd=03"
+        }
+      ],
+      "qualification_flags": {
+        "participation_limited": "N",
+        "industry_limited": "Y",
+        "information_business": null,
+        "general_service": "N",
+        "service_division": "일반용역",
+        "joint_contract_method": "(전자)공동이행",
+        "performance_restricted_competition": "N",
+        "pq_evaluation": null,
+        "technical_evaluation": null,
+        "technical_evaluation_rate": "80",
+        "successful_bid_method": "협상에의한계약-협상에 의한 낙찰자 결정(SW사업)"
+      },
+      "focus_matches": [
+        {
+          "axis": "공공 SI·통합관리",
+          "label": "시스템 고도화",
+          "matched_field": "bidNtceNm",
+          "matched_text": "시스템 고도화",
+          "field_kind": "title"
+        },
+        {
+          "axis": "공공 SI·통합관리",
+          "label": "정보시스템",
+          "matched_field": "pubPrcrmntClsfcNm",
+          "matched_text": "정보시스템",
+          "field_kind": "classification"
+        }
+      ],
+      "performance_matches": [],
+      "performance_top_score": 0.0,
+      "candidate_sources": [
+        "focus_title",
+        "focus_classification"
+      ],
+      "collection_bucket": "candidate_pool",
+      "unknown_fields": [],
+      "raw_source": "data/runs/20260817-20260823/raw/bid-page-002.json",
+      "sample_stratum": "공공 SI·통합관리",
+      "sample_role": "analysis"
+    },
+    {
+      "notice_id": "bid:R26BK01688017:000",
+      "source_type": "bid_notice",
+      "title": "평생교육관리시스템 플랫폼 구축 용역",
+      "agency": "백석문화대학교 산학협력단",
+      "published_at": "2026-08-19T12:26:59+09:00",
+      "deadline_at": null,
+      "budget": "80400000",
+      "estimated_price": "73090909",
+      "method": "일반경쟁",
+      "url": "https://www.g2b.go.kr/link/PNPE027_01/single/?bidPbancNo=R26BK01688017&bidPbancOrd=000",
+      "procurement_class": {
+        "large": "ICT 서비스",
+        "middle": "시스템 운영환경 구축",
+        "detail": "정보인프라구축서비스",
+        "code": "81111799"
+      },
+      "region_limit": {
+        "basis": null,
+        "joint_contract_regions": [],
+        "joint_contract_rate": null,
+        "regional_joint_contract_limit": "N"
+      },
+      "lifecycle": {
+        "pre_spec_no": "R26BD00265103",
+        "re_notice": "N",
+        "changed_at": null,
+        "change_reason": null,
+        "unified_notice_no": "R26BM00927264",
+        "previous_failed_notice_no": null
+      },
+      "attachments": [
+        {
+          "name": "입찰공고.hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01688017&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        },
+        {
+          "name": "입찰공고.pdf",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01688017&bidPbancOrd=000&fileType=&fileSeq=2&prcmBsneSeCd=03"
+        },
+        {
+          "name": "제안요청서 등.zip",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01688017&bidPbancOrd=000&fileType=&fileSeq=3&prcmBsneSeCd=03"
+        },
+        {
+          "name": "표준공고서",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01688017&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        }
+      ],
+      "qualification_flags": {
+        "participation_limited": "N",
+        "industry_limited": "N",
+        "information_business": null,
+        "general_service": "N",
+        "service_division": "일반용역",
+        "joint_contract_method": "(없음)공동수급불허",
+        "performance_restricted_competition": "N",
+        "pq_evaluation": null,
+        "technical_evaluation": null,
+        "technical_evaluation_rate": "80",
+        "successful_bid_method": "협상에의한계약-협상에 의한 낙찰자 결정"
+      },
+      "focus_matches": [],
+      "performance_matches": [
+        {
+          "project_name": "블록체인 공공 확산사업 (블록체인 기반 고등평생교육 디지털배지 플랫폼 구축)",
+          "source_page": 42,
+          "similarity": 0.667,
+          "common_fragment": "평생교육",
+          "legal_qualification_status": "unknown"
+        }
+      ],
+      "performance_top_score": 0.667,
+      "candidate_sources": [
+        "performance_similarity"
+      ],
+      "collection_bucket": "candidate_pool",
+      "unknown_fields": [
+        "deadline_at"
+      ],
+      "raw_source": "data/runs/20260817-20260823/raw/bid-page-002.json",
+      "sample_stratum": "수행실적 유사",
+      "sample_role": "analysis"
+    },
+    {
+      "notice_id": "bid:R26BK01686837:000",
+      "source_type": "bid_notice",
+      "title": "평택시 하수도 배수설비 조사 및 연결관로 DB구축 용역(2단계)(협상에 의한 계약)",
+      "agency": "경기도 평택시 상하수도사업소",
+      "published_at": "2026-08-19T10:02:04+09:00",
+      "deadline_at": "2026-09-02T17:00:00+09:00",
+      "budget": "200000000",
+      "estimated_price": "181818182",
+      "method": "제한경쟁",
+      "url": "https://www.g2b.go.kr/link/PNPE027_01/single/?bidPbancNo=R26BK01686837&bidPbancOrd=000",
+      "procurement_class": {
+        "large": "기술용역",
+        "middle": "기타",
+        "detail": "기타기술용역",
+        "code": "81108989"
+      },
+      "region_limit": {
+        "basis": null,
+        "joint_contract_regions": [],
+        "joint_contract_rate": null,
+        "regional_joint_contract_limit": "Y"
+      },
+      "lifecycle": {
+        "pre_spec_no": "R26BD00263600",
+        "re_notice": "N",
+        "changed_at": null,
+        "change_reason": null,
+        "unified_notice_no": "R26BM00926877",
+        "previous_failed_notice_no": null
+      },
+      "attachments": [
+        {
+          "name": "260819 (공고문) 평택시 하수도 배수설비 조사 및 연결관로 DB구축 용역(2단계).hwpx",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01686837&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=05"
+        },
+        {
+          "name": "260819 (공고문) 평택시 하수도 배수설비 조사 및 연결관로 DB구축 용역(2단계).pdf",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01686837&bidPbancOrd=000&fileType=&fileSeq=2&prcmBsneSeCd=05"
+        },
+        {
+          "name": "260819 (과업지시서) 평택시 하수도 배수설비 조사 및 연결관로 DB구축 용역(2단계).hwpx",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01686837&bidPbancOrd=000&fileType=&fileSeq=3&prcmBsneSeCd=05"
+        },
+        {
+          "name": "260819 (제안요청서) 평택시 하수도 배수설비 조사 및 연결관로 DB구축 용역(2단계).hwpx",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01686837&bidPbancOrd=000&fileType=&fileSeq=4&prcmBsneSeCd=05"
+        },
+        {
+          "name": "260819 (설계내역서) 평택시 하수도 배수설비 조사 및 연결관로 DB구축 용역(2단계).xlsx",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01686837&bidPbancOrd=000&fileType=&fileSeq=5&prcmBsneSeCd=05"
+        },
+        {
+          "name": "260819 (긴급입찰사유서) 평택시 하수도 배수설비 조사 및 연결관로 DB구축 용역(2단계).hwpx",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01686837&bidPbancOrd=000&fileType=&fileSeq=6&prcmBsneSeCd=05"
+        },
+        {
+          "name": "표준공고서",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01686837&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=05"
+        }
+      ],
+      "qualification_flags": {
+        "participation_limited": "N",
+        "industry_limited": "N",
+        "information_business": null,
+        "general_service": "N",
+        "service_division": "기술용역",
+        "joint_contract_method": "(전자)공동이행",
+        "performance_restricted_competition": "N",
+        "pq_evaluation": null,
+        "technical_evaluation": null,
+        "technical_evaluation_rate": "90",
+        "successful_bid_method": "협상에의한계약-협상에 의한 낙찰자 결정(엔지니어링)"
+      },
+      "focus_matches": [
+        {
+          "axis": "AI/데이터",
+          "label": "데이터 구축",
+          "matched_field": "bidNtceNm",
+          "matched_text": "db 구축",
+          "field_kind": "title"
+        }
+      ],
+      "performance_matches": [],
+      "performance_top_score": 0.0,
+      "candidate_sources": [
+        "focus_title"
+      ],
+      "collection_bucket": "candidate_pool",
+      "unknown_fields": [],
+      "raw_source": "data/runs/20260817-20260823/raw/bid-page-005.json",
+      "sample_stratum": "AI/데이터",
+      "sample_role": "analysis"
+    },
+    {
+      "notice_id": "bid:R26BK01693636:000",
+      "source_type": "bid_notice",
+      "title": "2026년 주요정보통신기반시설 취약점 분석 및 평가 용역(경쟁조건 완화)",
+      "agency": "대한적십자사 혈액관리본부",
+      "published_at": "2026-08-21T22:10:54+09:00",
+      "deadline_at": "2026-09-01T11:00:00+09:00",
+      "budget": "79000000",
+      "estimated_price": "71818182",
+      "method": "제한경쟁",
+      "url": "https://www.g2b.go.kr/link/PNPE027_01/single/?bidPbancNo=R26BK01693636&bidPbancOrd=000",
+      "procurement_class": {
+        "large": "ICT 서비스",
+        "middle": "ICT사업 컨설팅",
+        "detail": "정보화전략계획서비스",
+        "code": "80101507"
+      },
+      "region_limit": {
+        "basis": null,
+        "joint_contract_regions": [],
+        "joint_contract_rate": null,
+        "regional_joint_contract_limit": "N"
+      },
+      "lifecycle": {
+        "pre_spec_no": "R26BD00253351",
+        "re_notice": "N",
+        "changed_at": null,
+        "change_reason": null,
+        "unified_notice_no": "R26BM00932223",
+        "previous_failed_notice_no": null
+      },
+      "attachments": [
+        {
+          "name": "붙임 1. 입찰공고문(2026년 주요정보통신기반시설 취약점 분석 및 평가)(경쟁조건완화).hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01693636&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        },
+        {
+          "name": "붙임 1. 입찰공고문(2026년 주요정보통신기반시설 취약점 분석 및 평가)(경쟁조건완화).pdf",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01693636&bidPbancOrd=000&fileType=&fileSeq=2&prcmBsneSeCd=03"
+        },
+        {
+          "name": "붙임 2. 제안요청서(2026년 기반시설 취약점 분석 및 평가).hwpx",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01693636&bidPbancOrd=000&fileType=&fileSeq=3&prcmBsneSeCd=03"
+        },
+        {
+          "name": "붙임 3. 용역계약일반조건(재정경제부계약예규)(제149호)(20260430).hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01693636&bidPbancOrd=000&fileType=&fileSeq=4&prcmBsneSeCd=03"
+        },
+        {
+          "name": "붙임 4. 특수조건 및 청렴계약 이행서약서.hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01693636&bidPbancOrd=000&fileType=&fileSeq=5&prcmBsneSeCd=03"
+        },
+        {
+          "name": "붙임 5. 입찰 및 청렴계약 특별유의서.hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01693636&bidPbancOrd=000&fileType=&fileSeq=6&prcmBsneSeCd=03"
+        },
+        {
+          "name": "붙임 6. 인권보호이행서약서.hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01693636&bidPbancOrd=000&fileType=&fileSeq=7&prcmBsneSeCd=03"
+        },
+        {
+          "name": "붙임 7. 개인정보처리 위탁계약서.hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01693636&bidPbancOrd=000&fileType=&fileSeq=8&prcmBsneSeCd=03"
+        },
+        {
+          "name": "표준공고서",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01693636&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        }
+      ],
+      "qualification_flags": {
+        "participation_limited": "N",
+        "industry_limited": "Y",
+        "information_business": null,
+        "general_service": "N",
+        "service_division": "일반용역",
+        "joint_contract_method": "(없음)공동수급불허",
+        "performance_restricted_competition": "N",
+        "pq_evaluation": null,
+        "technical_evaluation": null,
+        "technical_evaluation_rate": "90",
+        "successful_bid_method": "협상에의한계약-협상에 의한 낙찰자 결정(SW사업)"
+      },
+      "focus_matches": [
+        {
+          "axis": "공공 SI·통합관리",
+          "label": "취약점 분석",
+          "matched_field": "bidNtceNm",
+          "matched_text": "정보통신기반시설",
+          "field_kind": "title"
+        },
+        {
+          "axis": "공공 SI·통합관리",
+          "label": "ISP/BPR",
+          "matched_field": "pubPrcrmntClsfcNm",
+          "matched_text": "정보화전략",
+          "field_kind": "classification"
+        }
+      ],
+      "performance_matches": [],
+      "performance_top_score": 0.0,
+      "candidate_sources": [
+        "focus_title",
+        "focus_classification"
+      ],
+      "collection_bucket": "candidate_pool",
+      "unknown_fields": [],
+      "raw_source": "data/runs/20260817-20260823/raw/bid-page-004.json",
+      "sample_stratum": "공공 SI·통합관리",
+      "sample_role": "analysis"
+    },
+    {
+      "notice_id": "bid:R26BK01687915:001",
+      "source_type": "bid_notice",
+      "title": "평생교육관리시스템 플랫폼 구축 용역",
+      "agency": "백석문화대학교 산학협력단",
+      "published_at": "2026-08-19T12:01:48+09:00",
+      "deadline_at": null,
+      "budget": "80400000",
+      "estimated_price": "73090909",
+      "method": "일반경쟁",
+      "url": "https://www.g2b.go.kr/link/PNPE027_01/single/?bidPbancNo=R26BK01687915&bidPbancOrd=001",
+      "procurement_class": {
+        "large": "ICT 서비스",
+        "middle": "시스템 운영환경 구축",
+        "detail": "정보인프라구축서비스",
+        "code": "81111799"
+      },
+      "region_limit": {
+        "basis": null,
+        "joint_contract_regions": [],
+        "joint_contract_rate": null,
+        "regional_joint_contract_limit": "N"
+      },
+      "lifecycle": {
+        "pre_spec_no": "R26BD00265103",
+        "re_notice": "N",
+        "changed_at": null,
+        "change_reason": "[취소공고] 평생교육관리시스템 플랫폼 구축 용역",
+        "unified_notice_no": "R26BM00927242",
+        "previous_failed_notice_no": null
+      },
+      "attachments": [],
+      "qualification_flags": {
+        "participation_limited": "N",
+        "industry_limited": "N",
+        "information_business": null,
+        "general_service": "N",
+        "service_division": "일반용역",
+        "joint_contract_method": "(없음)공동수급불허",
+        "performance_restricted_competition": "N",
+        "pq_evaluation": null,
+        "technical_evaluation": null,
+        "technical_evaluation_rate": "80",
+        "successful_bid_method": "협상에의한계약-협상에 의한 낙찰자 결정"
+      },
+      "focus_matches": [],
+      "performance_matches": [
+        {
+          "project_name": "블록체인 공공 확산사업 (블록체인 기반 고등평생교육 디지털배지 플랫폼 구축)",
+          "source_page": 42,
+          "similarity": 0.667,
+          "common_fragment": "평생교육",
+          "legal_qualification_status": "unknown"
+        }
+      ],
+      "performance_top_score": 0.667,
+      "candidate_sources": [
+        "performance_similarity"
+      ],
+      "collection_bucket": "candidate_pool",
+      "unknown_fields": [
+        "deadline_at"
+      ],
+      "raw_source": "data/runs/20260817-20260823/raw/bid-page-002.json",
+      "sample_stratum": "수행실적 유사",
+      "sample_role": "analysis"
+    },
+    {
+      "notice_id": "bid:R26BK01684083:001",
+      "source_type": "bid_notice",
+      "title": "소상공인 상세페이지 제작지원을 위한 생성형 AI 콘텐츠 제작 서비스 공급 및 운영 용역",
+      "agency": "주식회사 홀릭디자인",
+      "published_at": "2026-08-21T14:40:25+09:00",
+      "deadline_at": "2026-08-25T10:00:00+09:00",
+      "budget": "195800",
+      "estimated_price": "178000",
+      "method": "제한경쟁",
+      "url": "https://www.g2b.go.kr/link/PNPE027_01/single/?bidPbancNo=R26BK01684083&bidPbancOrd=001",
+      "procurement_class": {
+        "large": "매체제작, 디자인, 홍보/마케팅 서비스",
+        "middle": "매체제작",
+        "detail": "동영상제작서비스",
+        "code": "82131603"
+      },
+      "region_limit": {
+        "basis": null,
+        "joint_contract_regions": [],
+        "joint_contract_rate": null,
+        "regional_joint_contract_limit": "N"
+      },
+      "lifecycle": {
+        "pre_spec_no": "R26BD00256682",
+        "re_notice": "Y",
+        "changed_at": null,
+        "change_reason": "[변경공고] 소상공인 상세페이지 제작지원을 위한 생성형 AI 콘텐츠 제작 서비스 공급 및 운영 용역",
+        "unified_notice_no": "R26BM00924281",
+        "previous_failed_notice_no": "R26BK01657206"
+      },
+      "attachments": [
+        {
+          "name": "입찰공고서_재공고.pdf",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01684083&bidPbancOrd=001&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        },
+        {
+          "name": "제안요청서.hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01684083&bidPbancOrd=001&fileType=&fileSeq=2&prcmBsneSeCd=03"
+        },
+        {
+          "name": "표준공고서",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01684083&bidPbancOrd=001&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        }
+      ],
+      "qualification_flags": {
+        "participation_limited": "N",
+        "industry_limited": "Y",
+        "information_business": null,
+        "general_service": "N",
+        "service_division": "일반용역",
+        "joint_contract_method": "(없음)공동수급불허",
+        "performance_restricted_competition": "N",
+        "pq_evaluation": null,
+        "technical_evaluation": null,
+        "technical_evaluation_rate": "80",
+        "successful_bid_method": "협상에의한계약-협상에 의한 낙찰자 결정"
+      },
+      "focus_matches": [
+        {
+          "axis": "AI/데이터",
+          "label": "AI",
+          "matched_field": "bidNtceNm",
+          "matched_text": "ai",
+          "field_kind": "title"
+        },
+        {
+          "axis": "AI/데이터",
+          "label": "생성형 AI",
+          "matched_field": "bidNtceNm",
+          "matched_text": "생성형",
+          "field_kind": "title"
+        }
+      ],
+      "performance_matches": [],
+      "performance_top_score": 0.211,
+      "candidate_sources": [
+        "focus_title"
+      ],
+      "collection_bucket": "candidate_pool",
+      "unknown_fields": [],
+      "raw_source": "data/runs/20260817-20260823/raw/bid-page-004.json",
+      "sample_stratum": "AI/데이터",
+      "sample_role": "analysis"
+    },
+    {
+      "notice_id": "bid:R26BK01685418:000",
+      "source_type": "bid_notice",
+      "title": "의료정보시스템 전산운영 및 유지관리 용역 전자수의시담",
+      "agency": "서울특별시 서남병원",
+      "published_at": "2026-08-18T20:24:10+09:00",
+      "deadline_at": "2026-08-21T10:00:00+09:00",
+      "budget": "2152000000",
+      "estimated_price": "1956363636",
+      "method": "수의계약",
+      "url": "https://www.g2b.go.kr/link/PNPE027_01/single/?bidPbancNo=R26BK01685418&bidPbancOrd=000",
+      "procurement_class": {
+        "large": "ICT 서비스",
+        "middle": "시스템 운영환경 구축",
+        "detail": "컴퓨터네트워크또는인터넷보안서비스",
+        "code": "81111801"
+      },
+      "region_limit": {
+        "basis": null,
+        "joint_contract_regions": [],
+        "joint_contract_rate": null,
+        "regional_joint_contract_limit": "N"
+      },
+      "lifecycle": {
+        "pre_spec_no": "R26BD00230534",
+        "re_notice": "N",
+        "changed_at": null,
+        "change_reason": null,
+        "unified_notice_no": "R26BM00926502",
+        "previous_failed_notice_no": null
+      },
+      "attachments": [
+        {
+          "name": "1.제안요청서 외(전자시담).Zip",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01685418&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        },
+        {
+          "name": "표준공고서",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01685418&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        }
+      ],
+      "qualification_flags": {
+        "participation_limited": "N",
+        "industry_limited": "Y",
+        "information_business": null,
+        "general_service": "N",
+        "service_division": "일반용역",
+        "joint_contract_method": "(수기)공동이행",
+        "performance_restricted_competition": "N",
+        "pq_evaluation": null,
+        "technical_evaluation": null,
+        "technical_evaluation_rate": null,
+        "successful_bid_method": "수의시담-수의시담"
+      },
+      "focus_matches": [
+        {
+          "axis": "공공 SI·통합관리",
+          "label": "정보시스템",
+          "matched_field": "bidNtceNm",
+          "matched_text": "정보시스템",
+          "field_kind": "title"
+        },
+        {
+          "axis": "공공 SI·통합관리",
+          "label": "유지관리",
+          "matched_field": "bidNtceNm",
+          "matched_text": "유지관리",
+          "field_kind": "title"
+        },
+        {
+          "axis": "공공 SI·통합관리",
+          "label": "운영 및 유지",
+          "matched_field": "bidNtceNm",
+          "matched_text": "운영 및 유지",
+          "field_kind": "title"
+        }
+      ],
+      "performance_matches": [],
+      "performance_top_score": 0.0,
+      "candidate_sources": [
+        "focus_title"
+      ],
+      "collection_bucket": "candidate_pool",
+      "unknown_fields": [],
+      "raw_source": "data/runs/20260817-20260823/raw/bid-page-002.json",
+      "sample_stratum": "공공 SI·통합관리",
+      "sample_role": "analysis"
+    },
+    {
+      "notice_id": "bid:R26BK01691053:000",
+      "source_type": "bid_notice",
+      "title": "[산단] 2026년 AI 캡스톤디자인 경진대회 용역",
+      "agency": "영남대학교 산학협력단",
+      "published_at": "2026-08-20T15:55:42+09:00",
+      "deadline_at": null,
+      "budget": "35000000",
+      "estimated_price": "31818182",
+      "method": "제한경쟁",
+      "url": "https://www.g2b.go.kr/link/PNPE027_01/single/?bidPbancNo=R26BK01691053&bidPbancOrd=000",
+      "procurement_class": {
+        "large": "행사관리 및 기타 사업 지원서비스",
+        "middle": "행사 기획 및 대행",
+        "detail": "기타행사기획및대행서비스",
+        "code": "80141990"
+      },
+      "region_limit": {
+        "basis": null,
+        "joint_contract_regions": [],
+        "joint_contract_rate": null,
+        "regional_joint_contract_limit": "N"
+      },
+      "lifecycle": {
+        "pre_spec_no": "R26BD00263253",
+        "re_notice": "N",
+        "changed_at": null,
+        "change_reason": null,
+        "unified_notice_no": "R26BM00929810",
+        "previous_failed_notice_no": null
+      },
+      "attachments": [
+        {
+          "name": "01. (게시용) 입찰공고 및 입찰유의서.hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01691053&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        },
+        {
+          "name": "01. (게시용) 입찰공고 및 입찰유의서.pdf",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01691053&bidPbancOrd=000&fileType=&fileSeq=2&prcmBsneSeCd=03"
+        },
+        {
+          "name": "02. (게시용) 제안요청서_[산단]2026 캡스톤디자인 경진대회 용역.pdf",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01691053&bidPbancOrd=000&fileType=&fileSeq=3&prcmBsneSeCd=03"
+        },
+        {
+          "name": "03. (게시용) 개인정보 수집 및 활용동의서.hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01691053&bidPbancOrd=000&fileType=&fileSeq=4&prcmBsneSeCd=03"
+        },
+        {
+          "name": "04. (게시용) 용역계약 일반조건(인지세 납부 포함 개정).hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01691053&bidPbancOrd=000&fileType=&fileSeq=5&prcmBsneSeCd=03"
+        },
+        {
+          "name": "05. (게시용) 청렴계약이행 서약서.hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01691053&bidPbancOrd=000&fileType=&fileSeq=6&prcmBsneSeCd=03"
+        },
+        {
+          "name": "06. (게시용) 표준 개인정보처리위탁 계약서 (2017년 개정).hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01691053&bidPbancOrd=000&fileType=&fileSeq=7&prcmBsneSeCd=03"
+        },
+        {
+          "name": "07. (게시용)-입찰참가자 유의사항.hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01691053&bidPbancOrd=000&fileType=&fileSeq=8&prcmBsneSeCd=03"
+        },
+        {
+          "name": "표준공고서",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01691053&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        }
+      ],
+      "qualification_flags": {
+        "participation_limited": "N",
+        "industry_limited": "Y",
+        "information_business": null,
+        "general_service": "N",
+        "service_division": "일반용역",
+        "joint_contract_method": "(없음)공동수급불허",
+        "performance_restricted_competition": "N",
+        "pq_evaluation": null,
+        "technical_evaluation": null,
+        "technical_evaluation_rate": "80",
+        "successful_bid_method": "협상에의한계약-협상에 의한 낙찰자 결정"
+      },
+      "focus_matches": [
+        {
+          "axis": "AI/데이터",
+          "label": "AI",
+          "matched_field": "bidNtceNm",
+          "matched_text": "ai",
+          "field_kind": "title"
+        }
+      ],
+      "performance_matches": [],
+      "performance_top_score": 0.0,
+      "candidate_sources": [
+        "focus_title"
+      ],
+      "collection_bucket": "candidate_pool",
+      "unknown_fields": [
+        "deadline_at"
+      ],
+      "raw_source": "data/runs/20260817-20260823/raw/bid-page-003.json",
+      "sample_stratum": "AI/데이터",
+      "sample_role": "analysis"
+    },
+    {
+      "notice_id": "bid:R26BK01688651:000",
+      "source_type": "bid_notice",
+      "title": "[재공고]「모두의 햇빛 플랫폼」 (AI기반 참여형 운영 플랫폼) 구축 용역",
+      "agency": "사단법인 커뮤니티와경제",
+      "published_at": "2026-08-19T19:10:07+09:00",
+      "deadline_at": "2026-08-31T17:00:00+09:00",
+      "budget": "100000000",
+      "estimated_price": "90909091",
+      "method": "제한경쟁",
+      "url": "https://www.g2b.go.kr/link/PNPE027_01/single/?bidPbancNo=R26BK01688651&bidPbancOrd=000",
+      "procurement_class": {
+        "large": "ICT 서비스",
+        "middle": "SW 및 시스템 개발",
+        "detail": "정보시스템개발서비스",
+        "code": "81111599"
+      },
+      "region_limit": {
+        "basis": null,
+        "joint_contract_regions": [],
+        "joint_contract_rate": null,
+        "regional_joint_contract_limit": "N"
+      },
+      "lifecycle": {
+        "pre_spec_no": "R26BD00258196",
+        "re_notice": "Y",
+        "changed_at": null,
+        "change_reason": null,
+        "unified_notice_no": "R26BM00928489",
+        "previous_failed_notice_no": "R26BK01666381"
+      },
+      "attachments": [
+        {
+          "name": "[재공고문] 모두의 햇빛플랫폼 공고문(최종).hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01688651&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        },
+        {
+          "name": "[재공고문] 모두의 햇빛플랫폼 공고문.pdf",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01688651&bidPbancOrd=000&fileType=&fileSeq=2&prcmBsneSeCd=03"
+        },
+        {
+          "name": "[제안요청서] AI기반 시민햇빛발전 통합 플랫폼 구축(최종).hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01688651&bidPbancOrd=000&fileType=&fileSeq=3&prcmBsneSeCd=03"
+        },
+        {
+          "name": "표준공고서",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01688651&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        }
+      ],
+      "qualification_flags": {
+        "participation_limited": "N",
+        "industry_limited": "Y",
+        "information_business": null,
+        "general_service": "N",
+        "service_division": "일반용역",
+        "joint_contract_method": "(없음)공동수급불허",
+        "performance_restricted_competition": "N",
+        "pq_evaluation": null,
+        "technical_evaluation": null,
+        "technical_evaluation_rate": "90",
+        "successful_bid_method": "협상에의한계약-협상에 의한 낙찰자 결정(SW사업)"
+      },
+      "focus_matches": [
+        {
+          "axis": "AI/데이터",
+          "label": "AI",
+          "matched_field": "bidNtceNm",
+          "matched_text": "ai",
+          "field_kind": "title"
+        },
+        {
+          "axis": "공공 SI·통합관리",
+          "label": "정보시스템",
+          "matched_field": "pubPrcrmntClsfcNm",
+          "matched_text": "정보시스템",
+          "field_kind": "classification"
+        }
+      ],
+      "performance_matches": [],
+      "performance_top_score": 0.0,
+      "candidate_sources": [
+        "focus_title",
+        "focus_classification"
+      ],
+      "collection_bucket": "candidate_pool",
+      "unknown_fields": [],
+      "raw_source": "data/runs/20260817-20260823/raw/bid-page-003.json",
+      "sample_stratum": "공공 SI·통합관리",
+      "sample_role": "analysis"
+    },
+    {
+      "notice_id": "bid:R26BK01689169:000",
+      "source_type": "bid_notice",
+      "title": "소상공인 상세페이지 제작 지원을 위한 생성형 AI 활용지원 서비스 운영 용역",
+      "agency": "주식회사 포레스트그룹코리아",
+      "published_at": "2026-08-19T20:47:55+09:00",
+      "deadline_at": "2026-08-31T12:00:00+09:00",
+      "budget": "58355000",
+      "estimated_price": "53050000",
+      "method": "일반경쟁",
+      "url": "https://www.g2b.go.kr/link/PNPE027_01/single/?bidPbancNo=R26BK01689169&bidPbancOrd=000",
+      "procurement_class": {
+        "large": "ICT 서비스",
+        "middle": "SW 및 시스템 개발",
+        "detail": "패키지소프트웨어개발및도입서비스",
+        "code": "81111598"
+      },
+      "region_limit": {
+        "basis": null,
+        "joint_contract_regions": [],
+        "joint_contract_rate": null,
+        "regional_joint_contract_limit": "N"
+      },
+      "lifecycle": {
+        "pre_spec_no": "R26BD00259037",
+        "re_notice": "Y",
+        "changed_at": null,
+        "change_reason": null,
+        "unified_notice_no": "R26BM00928552",
+        "previous_failed_notice_no": "R26BK01662529"
+      },
+      "attachments": [
+        {
+          "name": "입찰재공고문(상세페이지, 포레스트).hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01689169&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        },
+        {
+          "name": "입찰재공고문(상세페이지, 포레스트).pdf",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01689169&bidPbancOrd=000&fileType=&fileSeq=2&prcmBsneSeCd=03"
+        },
+        {
+          "name": "제안요청서(상세페이지, 포레스트).hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01689169&bidPbancOrd=000&fileType=&fileSeq=3&prcmBsneSeCd=03"
+        },
+        {
+          "name": "표준공고서",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01689169&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        }
+      ],
+      "qualification_flags": {
+        "participation_limited": "N",
+        "industry_limited": "Y",
+        "information_business": null,
+        "general_service": "N",
+        "service_division": "일반용역",
+        "joint_contract_method": "(없음)공동수급불허",
+        "performance_restricted_competition": "N",
+        "pq_evaluation": null,
+        "technical_evaluation": null,
+        "technical_evaluation_rate": "80",
+        "successful_bid_method": "협상에의한계약-협상에 의한 낙찰자 결정(SW사업)"
+      },
+      "focus_matches": [
+        {
+          "axis": "AI/데이터",
+          "label": "AI",
+          "matched_field": "bidNtceNm",
+          "matched_text": "ai",
+          "field_kind": "title"
+        },
+        {
+          "axis": "AI/데이터",
+          "label": "생성형 AI",
+          "matched_field": "bidNtceNm",
+          "matched_text": "생성형",
+          "field_kind": "title"
+        }
+      ],
+      "performance_matches": [],
+      "performance_top_score": 0.0,
+      "candidate_sources": [
+        "focus_title"
+      ],
+      "collection_bucket": "candidate_pool",
+      "unknown_fields": [],
+      "raw_source": "data/runs/20260817-20260823/raw/bid-page-003.json",
+      "sample_stratum": "AI/데이터",
+      "sample_role": "analysis"
+    },
+    {
+      "notice_id": "bid:R26BK01677594:001",
+      "source_type": "bid_notice",
+      "title": "경주국제회의복합지구 실감 콘텐츠 개발 및 제작 용역(재공고)",
+      "agency": "(재)경주화백컨벤션뷰로",
+      "published_at": "2026-08-20T18:10:13+09:00",
+      "deadline_at": "2026-08-24T10:00:00+09:00",
+      "budget": "60000000",
+      "estimated_price": "54545455",
+      "method": "제한경쟁",
+      "url": "https://www.g2b.go.kr/link/PNPE027_01/single/?bidPbancNo=R26BK01677594&bidPbancOrd=001",
+      "procurement_class": {
+        "large": "ICT 서비스",
+        "middle": "SW 및 시스템 개발",
+        "detail": "정보시스템개발서비스",
+        "code": "81111599"
+      },
+      "region_limit": {
+        "basis": null,
+        "joint_contract_regions": [],
+        "joint_contract_rate": null,
+        "regional_joint_contract_limit": "N"
+      },
+      "lifecycle": {
+        "pre_spec_no": "R26BD00255321",
+        "re_notice": "Y",
+        "changed_at": null,
+        "change_reason": "[취소공고] 경주국제회의복합지구 실감 콘텐츠 개발 및 제작 용역(재공고)",
+        "unified_notice_no": "R26BM00918545",
+        "previous_failed_notice_no": "R26BK01655133"
+      },
+      "attachments": [],
+      "qualification_flags": {
+        "participation_limited": "N",
+        "industry_limited": "Y",
+        "information_business": null,
+        "general_service": "N",
+        "service_division": "일반용역",
+        "joint_contract_method": "(없음)공동수급불허",
+        "performance_restricted_competition": "N",
+        "pq_evaluation": null,
+        "technical_evaluation": null,
+        "technical_evaluation_rate": "90",
+        "successful_bid_method": "협상에의한계약-협상에 의한 낙찰자 결정"
+      },
+      "focus_matches": [
+        {
+          "axis": "공공 SI·통합관리",
+          "label": "정보시스템",
+          "matched_field": "pubPrcrmntClsfcNm",
+          "matched_text": "정보시스템",
+          "field_kind": "classification"
+        }
+      ],
+      "performance_matches": [],
+      "performance_top_score": 0.0,
+      "candidate_sources": [
+        "focus_classification"
+      ],
+      "collection_bucket": "candidate_pool",
+      "unknown_fields": [],
+      "raw_source": "data/runs/20260817-20260823/raw/bid-page-003.json",
+      "sample_stratum": "공공 SI·통합관리",
+      "sample_role": "analysis"
+    },
+    {
+      "notice_id": "bid:R26BK01689157:000",
+      "source_type": "bid_notice",
+      "title": "파주시 무장애 관광시설 기초조사 및 관광정보 통합DB 구축 용역(긴급)",
+      "agency": "경기도 파주시",
+      "published_at": "2026-08-19T18:29:17+09:00",
+      "deadline_at": "2026-08-31T10:00:00+09:00",
+      "budget": "110000000",
+      "estimated_price": "100000000",
+      "method": "제한경쟁",
+      "url": "https://www.g2b.go.kr/link/PNPE027_01/single/?bidPbancNo=R26BK01689157&bidPbancOrd=000",
+      "procurement_class": {
+        "large": "연구조사서비스",
+        "middle": "학술연구서비스",
+        "detail": "관광레저연구조사서비스",
+        "code": "80909026"
+      },
+      "region_limit": {
+        "basis": null,
+        "joint_contract_regions": [],
+        "joint_contract_rate": null,
+        "regional_joint_contract_limit": "N"
+      },
+      "lifecycle": {
+        "pre_spec_no": "R26BD00264247",
+        "re_notice": "N",
+        "changed_at": null,
+        "change_reason": null,
+        "unified_notice_no": "R26BM00928445",
+        "previous_failed_notice_no": null
+      },
+      "attachments": [
+        {
+          "name": "공고문(안)[파주시 무장애 관광시설 기초조사 및 관광정보 통합DB 구축 용역].hwpx",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01689157&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        },
+        {
+          "name": "공고문(안)[파주시 무장애 관광시설 기초조사 및 관광정보 통합DB 구축 용역].pdf",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01689157&bidPbancOrd=000&fileType=&fileSeq=2&prcmBsneSeCd=03"
+        },
+        {
+          "name": "2026년 과업지시서 및 제안요청서[파주시 무장애 관광시설 기초조사 및 관광정보 통합DB 구축 용역].hwpx",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01689157&bidPbancOrd=000&fileType=&fileSeq=3&prcmBsneSeCd=03"
+        },
+        {
+          "name": "공내역서[파주시 무장애 관광시설 기초조사 및 관광정보 통합DB 구축 용역].xlsx",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01689157&bidPbancOrd=000&fileType=&fileSeq=4&prcmBsneSeCd=03"
+        },
+        {
+          "name": "표준공고서",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01689157&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        }
+      ],
+      "qualification_flags": {
+        "participation_limited": "N",
+        "industry_limited": "Y",
+        "information_business": null,
+        "general_service": "N",
+        "service_division": "일반용역",
+        "joint_contract_method": "(없음)공동수급불허",
+        "performance_restricted_competition": "N",
+        "pq_evaluation": null,
+        "technical_evaluation": null,
+        "technical_evaluation_rate": "90",
+        "successful_bid_method": "협상에의한계약-협상에 의한 낙찰자 결정"
+      },
+      "focus_matches": [
+        {
+          "axis": "AI/데이터",
+          "label": "데이터 구축",
+          "matched_field": "bidNtceNm",
+          "matched_text": "db 구축",
+          "field_kind": "title"
+        }
+      ],
+      "performance_matches": [],
+      "performance_top_score": 0.0,
+      "candidate_sources": [
+        "focus_title"
+      ],
+      "collection_bucket": "candidate_pool",
+      "unknown_fields": [],
+      "raw_source": "data/runs/20260817-20260823/raw/bid-page-003.json",
+      "sample_stratum": "AI/데이터",
+      "sample_role": "analysis"
+    },
+    {
+      "notice_id": "bid:R26BK01689304:000",
+      "source_type": "bid_notice",
+      "title": "지하도상가 운영관리시스템 구축 용역",
+      "agency": "인천시설공단",
+      "published_at": "2026-08-19T17:45:20+09:00",
+      "deadline_at": null,
+      "budget": "288189000",
+      "estimated_price": "261990000",
+      "method": "제한경쟁",
+      "url": "https://www.g2b.go.kr/link/PNPE027_01/single/?bidPbancNo=R26BK01689304&bidPbancOrd=000",
+      "procurement_class": {
+        "large": "ICT 서비스",
+        "middle": "SW 및 시스템 개발",
+        "detail": "패키지소프트웨어개발및도입서비스",
+        "code": "81111598"
+      },
+      "region_limit": {
+        "basis": null,
+        "joint_contract_regions": [],
+        "joint_contract_rate": null,
+        "regional_joint_contract_limit": "N"
+      },
+      "lifecycle": {
+        "pre_spec_no": "R26BD00262326",
+        "re_notice": "Y",
+        "changed_at": null,
+        "change_reason": null,
+        "unified_notice_no": "R26BM00928346",
+        "previous_failed_notice_no": "R26BK01687045"
+      },
+      "attachments": [
+        {
+          "name": "1. (협상계약) 입찰공고문(지하도상가 운영관리시스템 구축 용역) - 변환.pdf",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01689304&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        },
+        {
+          "name": "1. (협상계약) 입찰공고문(지하도상가 운영관리시스템 구축 용역).hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01689304&bidPbancOrd=000&fileType=&fileSeq=2&prcmBsneSeCd=03"
+        },
+        {
+          "name": "2. 제안요청서(사전규격 의견 반영).hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01689304&bidPbancOrd=000&fileType=&fileSeq=3&prcmBsneSeCd=03"
+        },
+        {
+          "name": "3. 적격 계약상대자 선정 평가표.hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01689304&bidPbancOrd=000&fileType=&fileSeq=4&prcmBsneSeCd=03"
+        },
+        {
+          "name": "4. [개정전문] 지방자치단체 입찰시 낙찰자 결정기준.pdf",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01689304&bidPbancOrd=000&fileType=&fileSeq=5&prcmBsneSeCd=03"
+        },
+        {
+          "name": "표준공고서",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01689304&bidPbancOrd=000&fileType=&fileSeq=2&prcmBsneSeCd=03"
+        }
+      ],
+      "qualification_flags": {
+        "participation_limited": "N",
+        "industry_limited": "Y",
+        "information_business": null,
+        "general_service": "N",
+        "service_division": "일반용역",
+        "joint_contract_method": "(전자)공동이행",
+        "performance_restricted_competition": "N",
+        "pq_evaluation": null,
+        "technical_evaluation": null,
+        "technical_evaluation_rate": "90",
+        "successful_bid_method": "협상에의한계약-협상에 의한 낙찰자 결정(SW사업)"
+      },
+      "focus_matches": [
+        {
+          "axis": "공공 SI·통합관리",
+          "label": "시스템 구축",
+          "matched_field": "bidNtceNm",
+          "matched_text": "시스템 구축",
+          "field_kind": "title"
+        }
+      ],
+      "performance_matches": [],
+      "performance_top_score": 0.0,
+      "candidate_sources": [
+        "focus_title"
+      ],
+      "collection_bucket": "candidate_pool",
+      "unknown_fields": [
+        "deadline_at"
+      ],
+      "raw_source": "data/runs/20260817-20260823/raw/bid-page-002.json",
+      "sample_stratum": "공공 SI·통합관리",
+      "sample_role": "analysis"
+    },
+    {
+      "notice_id": "bid:R26BK01688235:000",
+      "source_type": "bid_notice",
+      "title": "[연구,173] 감염병 인체위험도 평가를 위한 AI 분석 플랫폼 설계 기본계획 연구",
+      "agency": "질병관리청",
+      "published_at": "2026-08-19T14:32:18+09:00",
+      "deadline_at": "2026-08-21T11:00:00+09:00",
+      "budget": "111146000",
+      "estimated_price": "100000000",
+      "method": "수의계약",
+      "url": "https://www.g2b.go.kr/link/PNPE027_01/single/?bidPbancNo=R26BK01688235&bidPbancOrd=000",
+      "procurement_class": {
+        "large": "연구조사서비스",
+        "middle": "학술연구서비스",
+        "detail": "보건복지연구조사서비스",
+        "code": "80909008"
+      },
+      "region_limit": {
+        "basis": null,
+        "joint_contract_regions": [],
+        "joint_contract_rate": null,
+        "regional_joint_contract_limit": "N"
+      },
+      "lifecycle": {
+        "pre_spec_no": "R26BD00246972",
+        "re_notice": "Y",
+        "changed_at": null,
+        "change_reason": null,
+        "unified_notice_no": "R26BM00927603",
+        "previous_failed_notice_no": "R26BK01641526"
+      },
+      "attachments": [
+        {
+          "name": "4. (제안요청서)감염병 인체위험도 평가 기본계획 연구_변경.hwpx",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01688235&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        }
+      ],
+      "qualification_flags": {
+        "participation_limited": "N",
+        "industry_limited": "Y",
+        "information_business": "N",
+        "general_service": "Y",
+        "service_division": "일반용역",
+        "joint_contract_method": "(전자)공동이행",
+        "performance_restricted_competition": "N",
+        "pq_evaluation": null,
+        "technical_evaluation": null,
+        "technical_evaluation_rate": null,
+        "successful_bid_method": "수의시담-일반경쟁->수의"
+      },
+      "focus_matches": [
+        {
+          "axis": "AI/데이터",
+          "label": "AI",
+          "matched_field": "bidNtceNm",
+          "matched_text": "ai",
+          "field_kind": "title"
+        }
+      ],
+      "performance_matches": [],
+      "performance_top_score": 0.222,
+      "candidate_sources": [
+        "focus_title"
+      ],
+      "collection_bucket": "candidate_pool",
+      "unknown_fields": [],
+      "raw_source": "data/runs/20260817-20260823/raw/bid-page-002.json",
+      "sample_stratum": "AI/데이터",
+      "sample_role": "analysis"
+    },
+    {
+      "notice_id": "bid:R26BK01688026:000",
+      "source_type": "bid_notice",
+      "title": "2026년 산업계에너지관리시스템보급지원사업 시스템",
+      "agency": "주식회사 마린텍",
+      "published_at": "2026-08-21T13:38:38+09:00",
+      "deadline_at": "2026-09-01T10:00:00+09:00",
+      "budget": "45717100",
+      "estimated_price": "41561000",
+      "method": "일반경쟁",
+      "url": "https://www.g2b.go.kr/link/PNPE027_01/single/?bidPbancNo=R26BK01688026&bidPbancOrd=000",
+      "procurement_class": {
+        "large": "ICT 서비스",
+        "middle": "SW 및 시스템 개발",
+        "detail": "정보시스템개발서비스",
+        "code": "81111599"
+      },
+      "region_limit": {
+        "basis": null,
+        "joint_contract_regions": [],
+        "joint_contract_rate": null,
+        "regional_joint_contract_limit": "N"
+      },
+      "lifecycle": {
+        "pre_spec_no": "R26BD00263338",
+        "re_notice": "N",
+        "changed_at": null,
+        "change_reason": null,
+        "unified_notice_no": "R26BM00931256",
+        "previous_failed_notice_no": null
+      },
+      "attachments": [
+        {
+          "name": "주식회사마린텍_2026_모니터링시스템_입찰공고서.pdf",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01688026&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        },
+        {
+          "name": "주식회사마린텍_2026_모니터링시스템_입찰공고서.hwpx",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01688026&bidPbancOrd=000&fileType=&fileSeq=2&prcmBsneSeCd=03"
+        },
+        {
+          "name": "마린텍_모니터링시스템_규격서 .pdf",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01688026&bidPbancOrd=000&fileType=&fileSeq=3&prcmBsneSeCd=03"
+        },
+        {
+          "name": "표준공고서",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01688026&bidPbancOrd=000&fileType=&fileSeq=2&prcmBsneSeCd=03"
+        }
+      ],
+      "qualification_flags": {
+        "participation_limited": "N",
+        "industry_limited": "N",
+        "information_business": null,
+        "general_service": "N",
+        "service_division": "일반용역",
+        "joint_contract_method": "(없음)공동수급불허",
+        "performance_restricted_competition": "N",
+        "pq_evaluation": null,
+        "technical_evaluation": null,
+        "technical_evaluation_rate": "90",
+        "successful_bid_method": "협상에의한계약-협상에 의한 낙찰자 결정"
+      },
+      "focus_matches": [
+        {
+          "axis": "공공 SI·통합관리",
+          "label": "정보시스템",
+          "matched_field": "pubPrcrmntClsfcNm",
+          "matched_text": "정보시스템",
+          "field_kind": "classification"
+        }
+      ],
+      "performance_matches": [],
+      "performance_top_score": 0.0,
+      "candidate_sources": [
+        "focus_classification"
+      ],
+      "collection_bucket": "candidate_pool",
+      "unknown_fields": [],
+      "raw_source": "data/runs/20260817-20260823/raw/bid-page-004.json",
+      "sample_stratum": "공공 SI·통합관리",
+      "sample_role": "analysis"
+    },
+    {
+      "notice_id": "bid:R26BK01685562:001",
+      "source_type": "bid_notice",
+      "title": "데이터허브 시범솔루션 발굴사업(경남AI관광서비스 플랫폼 구축)",
+      "agency": "경상남도",
+      "published_at": "2026-08-18T16:50:37+09:00",
+      "deadline_at": null,
+      "budget": "1898974000",
+      "estimated_price": "1726340000",
+      "method": "제한경쟁",
+      "url": "https://www.g2b.go.kr/link/PNPE027_01/single/?bidPbancNo=R26BK01685562&bidPbancOrd=001",
+      "procurement_class": {
+        "large": "ICT 서비스",
+        "middle": "SW 및 시스템 개발",
+        "detail": "패키지소프트웨어개발및도입서비스",
+        "code": "81111598"
+      },
+      "region_limit": {
+        "basis": null,
+        "joint_contract_regions": [],
+        "joint_contract_rate": null,
+        "regional_joint_contract_limit": "N"
+      },
+      "lifecycle": {
+        "pre_spec_no": "R26BD00264177",
+        "re_notice": "N",
+        "changed_at": null,
+        "change_reason": "[변경공고] 데이터허브 시범솔루션 발굴사업(경남AI관광서비스 플랫폼 구축)",
+        "unified_notice_no": "R26BM00925335",
+        "previous_failed_notice_no": null
+      },
+      "attachments": [
+        {
+          "name": "변경공고문.hwpx",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01685562&bidPbancOrd=001&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        },
+        {
+          "name": "변경공고문.pdf",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01685562&bidPbancOrd=001&fileType=&fileSeq=2&prcmBsneSeCd=03"
+        },
+        {
+          "name": "★제안요청서(최종)_수정.hwpx",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01685562&bidPbancOrd=001&fileType=&fileSeq=3&prcmBsneSeCd=03"
+        },
+        {
+          "name": "표준공고서",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01685562&bidPbancOrd=001&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        }
+      ],
+      "qualification_flags": {
+        "participation_limited": "N",
+        "industry_limited": "Y",
+        "information_business": null,
+        "general_service": "N",
+        "service_division": "일반용역",
+        "joint_contract_method": "(수기)공동이행",
+        "performance_restricted_competition": "N",
+        "pq_evaluation": null,
+        "technical_evaluation": null,
+        "technical_evaluation_rate": "90",
+        "successful_bid_method": "협상에의한계약-협상에 의한 낙찰자 결정(SW사업)"
+      },
+      "focus_matches": [
+        {
+          "axis": "AI/데이터",
+          "label": "AI",
+          "matched_field": "bidNtceNm",
+          "matched_text": "ai",
+          "field_kind": "title"
+        },
+        {
+          "axis": "AI/데이터",
+          "label": "데이터 플랫폼",
+          "matched_field": "bidNtceNm",
+          "matched_text": "데이터허브",
+          "field_kind": "title"
+        }
+      ],
+      "performance_matches": [],
+      "performance_top_score": 0.0,
+      "candidate_sources": [
+        "focus_title"
+      ],
+      "collection_bucket": "candidate_pool",
+      "unknown_fields": [
+        "deadline_at"
+      ],
+      "raw_source": "data/runs/20260817-20260823/raw/bid-page-001.json",
+      "sample_stratum": "AI/데이터",
+      "sample_role": "analysis"
+    },
+    {
+      "notice_id": "bid:R26BK01691873:000",
+      "source_type": "bid_notice",
+      "title": "대한지방행정공제회 New한아름목돈 정보시스템 구축 용역 사업의 감리 및 개인정보영향평가",
+      "agency": "대한지방행정공제회",
+      "published_at": "2026-08-21T09:38:34+09:00",
+      "deadline_at": "2026-09-01T14:00:00+09:00",
+      "budget": "334400000",
+      "estimated_price": "304000000",
+      "method": "제한경쟁",
+      "url": "https://www.g2b.go.kr/link/PNPE027_01/single/?bidPbancNo=R26BK01691873&bidPbancOrd=000",
+      "procurement_class": {
+        "large": "행사관리 및 기타 사업 지원서비스",
+        "middle": "기타",
+        "detail": "기타사업지원서비스",
+        "code": "80161590"
+      },
+      "region_limit": {
+        "basis": null,
+        "joint_contract_regions": [],
+        "joint_contract_rate": null,
+        "regional_joint_contract_limit": "N"
+      },
+      "lifecycle": {
+        "pre_spec_no": "R26BD00253353",
+        "re_notice": "N",
+        "changed_at": null,
+        "change_reason": null,
+        "unified_notice_no": "R26BM00930713",
+        "previous_failed_notice_no": null
+      },
+      "attachments": [
+        {
+          "name": "1. 전자입찰공고.pdf",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01691873&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        },
+        {
+          "name": "2. 제안요청서.pdf",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01691873&bidPbancOrd=000&fileType=&fileSeq=2&prcmBsneSeCd=03"
+        },
+        {
+          "name": "표준공고서",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01691873&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        }
+      ],
+      "qualification_flags": {
+        "participation_limited": "N",
+        "industry_limited": "Y",
+        "information_business": null,
+        "general_service": "N",
+        "service_division": "일반용역",
+        "joint_contract_method": "(전자)분담이행",
+        "performance_restricted_competition": "N",
+        "pq_evaluation": null,
+        "technical_evaluation": null,
+        "technical_evaluation_rate": "90",
+        "successful_bid_method": "협상에의한계약-협상에 의한 낙찰자 결정(SW사업)"
+      },
+      "focus_matches": [
+        {
+          "axis": "공공 SI·통합관리",
+          "label": "정보시스템",
+          "matched_field": "bidNtceNm",
+          "matched_text": "정보시스템",
+          "field_kind": "title"
+        },
+        {
+          "axis": "공공 SI·통합관리",
+          "label": "시스템 구축",
+          "matched_field": "bidNtceNm",
+          "matched_text": "시스템 구축",
+          "field_kind": "title"
+        }
+      ],
+      "performance_matches": [],
+      "performance_top_score": 0.333,
+      "candidate_sources": [
+        "focus_title"
+      ],
+      "collection_bucket": "candidate_pool",
+      "unknown_fields": [],
+      "raw_source": "data/runs/20260817-20260823/raw/bid-page-003.json",
+      "sample_stratum": "공공 SI·통합관리",
+      "sample_role": "analysis"
+    },
+    {
+      "notice_id": "bid:R26BK01688862:000",
+      "source_type": "bid_notice",
+      "title": "2026학년도 2학기 AI기반 취업성공 로드맵",
+      "agency": "서정대학",
+      "published_at": "2026-08-19T15:55:19+09:00",
+      "deadline_at": null,
+      "budget": "27760000",
+      "estimated_price": "25236364",
+      "method": "일반경쟁",
+      "url": "https://www.g2b.go.kr/link/PNPE027_01/single/?bidPbancNo=R26BK01688862&bidPbancOrd=000",
+      "procurement_class": {
+        "large": "교육 및 전문직종/기술서비스",
+        "middle": "교육서비스",
+        "detail": "취업지원교육서비스",
+        "code": "86101899"
+      },
+      "region_limit": {
+        "basis": null,
+        "joint_contract_regions": [],
+        "joint_contract_rate": null,
+        "regional_joint_contract_limit": "N"
+      },
+      "lifecycle": {
+        "pre_spec_no": "R26BD00263795",
+        "re_notice": "N",
+        "changed_at": null,
+        "change_reason": null,
+        "unified_notice_no": "R26BM00927892",
+        "previous_failed_notice_no": null
+      },
+      "attachments": [
+        {
+          "name": "입찰공고문_2026학년도 취업성공 로드맵.hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01688862&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        },
+        {
+          "name": "입찰공고문_2026학년도 취업성공 로드맵.pdf",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01688862&bidPbancOrd=000&fileType=&fileSeq=2&prcmBsneSeCd=03"
+        },
+        {
+          "name": "과업지시서_2026학년도 2학기 AI기반 취업성공 로드맵.pdf",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01688862&bidPbancOrd=000&fileType=&fileSeq=3&prcmBsneSeCd=03"
+        },
+        {
+          "name": "표준공고서",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01688862&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        }
+      ],
+      "qualification_flags": {
+        "participation_limited": "N",
+        "industry_limited": "N",
+        "information_business": null,
+        "general_service": "N",
+        "service_division": "일반용역",
+        "joint_contract_method": "(없음)공동수급불허",
+        "performance_restricted_competition": "N",
+        "pq_evaluation": null,
+        "technical_evaluation": null,
+        "technical_evaluation_rate": "90",
+        "successful_bid_method": "협상에의한계약-협상에 의한 낙찰자 결정"
+      },
+      "focus_matches": [
+        {
+          "axis": "AI/데이터",
+          "label": "AI",
+          "matched_field": "bidNtceNm",
+          "matched_text": "ai",
+          "field_kind": "title"
+        }
+      ],
+      "performance_matches": [],
+      "performance_top_score": 0.0,
+      "candidate_sources": [
+        "focus_title"
+      ],
+      "collection_bucket": "candidate_pool",
+      "unknown_fields": [
+        "deadline_at"
+      ],
+      "raw_source": "data/runs/20260817-20260823/raw/bid-page-002.json",
+      "sample_stratum": "AI/데이터",
+      "sample_role": "analysis"
+    },
+    {
+      "notice_id": "bid:R26BK01691469:000",
+      "source_type": "bid_notice",
+      "title": "학교생활기록부 분석 시스템 경북진학온(ON) 고도화 사업",
+      "agency": "경상북도교육청",
+      "published_at": "2026-08-21T17:59:18+09:00",
+      "deadline_at": "2026-09-11T10:00:00+09:00",
+      "budget": "171602000",
+      "estimated_price": "154545455",
+      "method": "제한경쟁",
+      "url": "https://www.g2b.go.kr/link/PNPE027_01/single/?bidPbancNo=R26BK01691469&bidPbancOrd=000",
+      "procurement_class": {
+        "large": "ICT 서비스",
+        "middle": "SW 및 시스템 개발",
+        "detail": "정보시스템개발서비스",
+        "code": "81111599"
+      },
+      "region_limit": {
+        "basis": null,
+        "joint_contract_regions": [],
+        "joint_contract_rate": null,
+        "regional_joint_contract_limit": "N"
+      },
+      "lifecycle": {
+        "pre_spec_no": "R26BD00260578",
+        "re_notice": "N",
+        "changed_at": null,
+        "change_reason": null,
+        "unified_notice_no": "R26BM00932141",
+        "previous_failed_notice_no": null
+      },
+      "attachments": [
+        {
+          "name": "공고서(지방SW, 중기간, 고시금액미만, 온라인평가(서면).hwpx",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01691469&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        },
+        {
+          "name": "공고서(지방SW, 중기간, 고시금액미만, 온라인평가(서면).pdf",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01691469&bidPbancOrd=000&fileType=&fileSeq=2&prcmBsneSeCd=03"
+        },
+        {
+          "name": "표준공고서",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01691469&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        }
+      ],
+      "qualification_flags": {
+        "participation_limited": "N",
+        "industry_limited": "Y",
+        "information_business": "Y",
+        "general_service": "Y",
+        "service_division": "일반용역",
+        "joint_contract_method": "(없음)공동수급불허",
+        "performance_restricted_competition": "N",
+        "pq_evaluation": null,
+        "technical_evaluation": null,
+        "technical_evaluation_rate": "90",
+        "successful_bid_method": "협상에의한계약-협상에 의한 낙찰자 결정(SW사업)"
+      },
+      "focus_matches": [
+        {
+          "axis": "공공 SI·통합관리",
+          "label": "정보시스템",
+          "matched_field": "pubPrcrmntClsfcNm",
+          "matched_text": "정보시스템",
+          "field_kind": "classification"
+        },
+        {
+          "axis": "공공 SI·통합관리",
+          "label": "정보시스템",
+          "matched_field": "purchsObjPrdctList",
+          "matched_text": "정보시스템",
+          "field_kind": "other"
+        }
+      ],
+      "performance_matches": [],
+      "performance_top_score": 0.0,
+      "candidate_sources": [
+        "focus_classification"
+      ],
+      "collection_bucket": "candidate_pool",
+      "unknown_fields": [],
+      "raw_source": "data/runs/20260817-20260823/raw/bid-page-004.json",
+      "sample_stratum": "공공 SI·통합관리",
+      "sample_role": "analysis"
+    },
+    {
+      "notice_id": "bid:R26BK01687189:000",
+      "source_type": "bid_notice",
+      "title": "2026년 초기창업패키지(딥테크 특화형) ABR(AI·Bigdata·Robotics) 글로벌 스케일업 브릿지 위탁운영",
+      "agency": "재단법인 대전창조경제혁신센터",
+      "published_at": "2026-08-19T07:40:20+09:00",
+      "deadline_at": "2026-09-01T16:00:00+09:00",
+      "budget": "77000000",
+      "estimated_price": "70000000",
+      "method": "제한경쟁",
+      "url": "https://www.g2b.go.kr/link/PNPE027_01/single/?bidPbancNo=R26BK01687189&bidPbancOrd=000",
+      "procurement_class": {
+        "large": "행사관리 및 기타 사업 지원서비스",
+        "middle": "기타",
+        "detail": "기타사업지원서비스",
+        "code": "80161590"
+      },
+      "region_limit": {
+        "basis": null,
+        "joint_contract_regions": [],
+        "joint_contract_rate": null,
+        "regional_joint_contract_limit": "N"
+      },
+      "lifecycle": {
+        "pre_spec_no": "R26BD00256592",
+        "re_notice": "Y",
+        "changed_at": null,
+        "change_reason": null,
+        "unified_notice_no": "R26BM00926597",
+        "previous_failed_notice_no": "R26BK01658018"
+      },
+      "attachments": [
+        {
+          "name": "1. 재공고문.hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01687189&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        },
+        {
+          "name": "1. 재공고문.pdf",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01687189&bidPbancOrd=000&fileType=&fileSeq=2&prcmBsneSeCd=03"
+        },
+        {
+          "name": "2. 제안요청서.hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01687189&bidPbancOrd=000&fileType=&fileSeq=3&prcmBsneSeCd=03"
+        },
+        {
+          "name": "표준공고서",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01687189&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        }
+      ],
+      "qualification_flags": {
+        "participation_limited": "N",
+        "industry_limited": "Y",
+        "information_business": null,
+        "general_service": "N",
+        "service_division": "일반용역",
+        "joint_contract_method": "(없음)공동수급불허",
+        "performance_restricted_competition": "N",
+        "pq_evaluation": null,
+        "technical_evaluation": null,
+        "technical_evaluation_rate": "90",
+        "successful_bid_method": "협상에의한계약-협상에 의한 낙찰자 결정"
+      },
+      "focus_matches": [
+        {
+          "axis": "AI/데이터",
+          "label": "AI",
+          "matched_field": "bidNtceNm",
+          "matched_text": "ai",
+          "field_kind": "title"
+        }
+      ],
+      "performance_matches": [],
+      "performance_top_score": 0.0,
+      "candidate_sources": [
+        "focus_title"
+      ],
+      "collection_bucket": "candidate_pool",
+      "unknown_fields": [],
+      "raw_source": "data/runs/20260817-20260823/raw/bid-page-002.json",
+      "sample_stratum": "AI/데이터",
+      "sample_role": "analysis"
+    },
+    {
+      "notice_id": "bid:R26BK01687558:000",
+      "source_type": "bid_notice",
+      "title": "공영주차장 배리어프리(BF) 사전정산기 시스템 연계 용역(협상)",
+      "agency": "경기도 수원시",
+      "published_at": "2026-08-19T10:16:45+09:00",
+      "deadline_at": "2026-09-01T16:00:00+09:00",
+      "budget": "64460000",
+      "estimated_price": "58600000",
+      "method": "제한경쟁",
+      "url": "https://www.g2b.go.kr/link/PNPE027_01/single/?bidPbancNo=R26BK01687558&bidPbancOrd=000",
+      "procurement_class": {
+        "large": "ICT 서비스",
+        "middle": "SW 및 시스템 개발",
+        "detail": "정보시스템개발서비스",
+        "code": "81111599"
+      },
+      "region_limit": {
+        "basis": null,
+        "joint_contract_regions": [],
+        "joint_contract_rate": null,
+        "regional_joint_contract_limit": "N"
+      },
+      "lifecycle": {
+        "pre_spec_no": "R26BD00254990",
+        "re_notice": "Y",
+        "changed_at": null,
+        "change_reason": null,
+        "unified_notice_no": "R26BM00926929",
+        "previous_failed_notice_no": "R26BK01659982"
+      },
+      "attachments": [
+        {
+          "name": "(0819재공고문)수원시 공영주차장 배리어프리(BF) 사전정산기 시스템연계 용역(협상)(평가대행).hwpx",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01687558&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        },
+        {
+          "name": "(0819재공고문)수원시 공영주차장 배리어프리(BF) 사전정산기 시스템연계 용역(협상)(평가대행).pdf",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01687558&bidPbancOrd=000&fileType=&fileSeq=2&prcmBsneSeCd=03"
+        },
+        {
+          "name": "(제안요청서)수원시 공영주차장 배리어프리(BF) 사전정산기 시스템연계 용역_최종.hwpx",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01687558&bidPbancOrd=000&fileType=&fileSeq=3&prcmBsneSeCd=03"
+        },
+        {
+          "name": "표준공고서",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01687558&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        }
+      ],
+      "qualification_flags": {
+        "participation_limited": "N",
+        "industry_limited": "Y",
+        "information_business": null,
+        "general_service": "N",
+        "service_division": "일반용역",
+        "joint_contract_method": "(전자)공동이행",
+        "performance_restricted_competition": "N",
+        "pq_evaluation": null,
+        "technical_evaluation": null,
+        "technical_evaluation_rate": "90",
+        "successful_bid_method": "협상에의한계약-협상에 의한 낙찰자 결정(SW사업)"
+      },
+      "focus_matches": [
+        {
+          "axis": "공공 SI·통합관리",
+          "label": "정보시스템",
+          "matched_field": "pubPrcrmntClsfcNm",
+          "matched_text": "정보시스템",
+          "field_kind": "classification"
+        }
+      ],
+      "performance_matches": [],
+      "performance_top_score": 0.0,
+      "candidate_sources": [
+        "focus_classification"
+      ],
+      "collection_bucket": "candidate_pool",
+      "unknown_fields": [],
+      "raw_source": "data/runs/20260817-20260823/raw/bid-page-002.json",
+      "sample_stratum": "공공 SI·통합관리",
+      "sample_role": "analysis"
+    },
+    {
+      "notice_id": "bid:R26BK01675471:000",
+      "source_type": "bid_notice",
+      "title": "제조산업 특화 초거대 제조AI 서비스 개발 및 실증을 위한 5G 특화망 구축공사",
+      "agency": "주식회사 라임씨에스아이",
+      "published_at": "2026-08-20T13:25:00+09:00",
+      "deadline_at": "2026-08-31T10:00:00+09:00",
+      "budget": "88000000",
+      "estimated_price": "80000000",
+      "method": "제한경쟁",
+      "url": "https://www.g2b.go.kr/link/PNPE027_01/single/?bidPbancNo=R26BK01675471&bidPbancOrd=000",
+      "procurement_class": {
+        "large": "정보통신방송서비스",
+        "middle": "통신서비스",
+        "detail": "무선통신서비스",
+        "code": "83999999"
+      },
+      "region_limit": {
+        "basis": null,
+        "joint_contract_regions": [],
+        "joint_contract_rate": null,
+        "regional_joint_contract_limit": "N"
+      },
+      "lifecycle": {
+        "pre_spec_no": "R26BD00255326",
+        "re_notice": "Y",
+        "changed_at": null,
+        "change_reason": null,
+        "unified_notice_no": "R26BM00929246",
+        "previous_failed_notice_no": "R26BK01645564"
+      },
+      "attachments": [
+        {
+          "name": "[입찰공고문] 5G 특화망 구축 공사 사업자 선정_초거대제조AI.pdf",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01675471&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        },
+        {
+          "name": "[제안요청서] 5G 특화망 구축 공사 사업자 선정_초거대제조AI.pdf",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01675471&bidPbancOrd=000&fileType=&fileSeq=2&prcmBsneSeCd=03"
+        },
+        {
+          "name": "표준공고서",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01675471&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        }
+      ],
+      "qualification_flags": {
+        "participation_limited": "N",
+        "industry_limited": "Y",
+        "information_business": null,
+        "general_service": "N",
+        "service_division": "일반용역",
+        "joint_contract_method": "(없음)공동수급불허",
+        "performance_restricted_competition": "N",
+        "pq_evaluation": null,
+        "technical_evaluation": null,
+        "technical_evaluation_rate": "90",
+        "successful_bid_method": "협상에의한계약-협상에 의한 낙찰자 결정"
+      },
+      "focus_matches": [
+        {
+          "axis": "AI/데이터",
+          "label": "AI",
+          "matched_field": "bidNtceNm",
+          "matched_text": "ai",
+          "field_kind": "title"
+        }
+      ],
+      "performance_matches": [],
+      "performance_top_score": 0.0,
+      "candidate_sources": [
+        "focus_title"
+      ],
+      "collection_bucket": "candidate_pool",
+      "unknown_fields": [],
+      "raw_source": "data/runs/20260817-20260823/raw/bid-page-003.json",
+      "sample_stratum": "AI/데이터",
+      "sample_role": "analysis"
+    },
+    {
+      "notice_id": "bid:R26BK01689347:000",
+      "source_type": "bid_notice",
+      "title": "경기인 데이터 연계 시스템 구축",
+      "agency": "대한체육회",
+      "published_at": "2026-08-19T18:10:20+09:00",
+      "deadline_at": "2026-08-31T10:00:00+09:00",
+      "budget": "182050000",
+      "estimated_price": "165500000",
+      "method": "제한경쟁",
+      "url": "https://www.g2b.go.kr/link/PNPE027_01/single/?bidPbancNo=R26BK01689347&bidPbancOrd=000",
+      "procurement_class": {
+        "large": "ICT 서비스",
+        "middle": "SW 및 시스템 개발",
+        "detail": "정보시스템개발서비스",
+        "code": "81111599"
+      },
+      "region_limit": {
+        "basis": null,
+        "joint_contract_regions": [],
+        "joint_contract_rate": null,
+        "regional_joint_contract_limit": "N"
+      },
+      "lifecycle": {
+        "pre_spec_no": "R26BD00263564",
+        "re_notice": "N",
+        "changed_at": null,
+        "change_reason": null,
+        "unified_notice_no": "R26BM00928408",
+        "previous_failed_notice_no": null
+      },
+      "attachments": [
+        {
+          "name": "(공고문)_경기인 데이터 연계 시스템 구축20260819v1.hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01689347&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        },
+        {
+          "name": "(공고문)_경기인 데이터 연계 시스템 구축20260819v1.pdf",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01689347&bidPbancOrd=000&fileType=&fileSeq=2&prcmBsneSeCd=03"
+        },
+        {
+          "name": "제안요청서(경기인 데이터 연계 시스템 구축)_v4.5.hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01689347&bidPbancOrd=000&fileType=&fileSeq=3&prcmBsneSeCd=03"
+        },
+        {
+          "name": "표준공고서",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01689347&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        }
+      ],
+      "qualification_flags": {
+        "participation_limited": "N",
+        "industry_limited": "Y",
+        "information_business": null,
+        "general_service": "N",
+        "service_division": "일반용역",
+        "joint_contract_method": "(전자)공동이행",
+        "performance_restricted_competition": "N",
+        "pq_evaluation": null,
+        "technical_evaluation": null,
+        "technical_evaluation_rate": "90",
+        "successful_bid_method": "협상에의한계약-협상에 의한 낙찰자 결정(SW사업)"
+      },
+      "focus_matches": [
+        {
+          "axis": "공공 SI·통합관리",
+          "label": "시스템 구축",
+          "matched_field": "bidNtceNm",
+          "matched_text": "시스템 구축",
+          "field_kind": "title"
+        },
+        {
+          "axis": "공공 SI·통합관리",
+          "label": "정보시스템",
+          "matched_field": "pubPrcrmntClsfcNm",
+          "matched_text": "정보시스템",
+          "field_kind": "classification"
+        }
+      ],
+      "performance_matches": [],
+      "performance_top_score": 0.0,
+      "candidate_sources": [
+        "focus_title",
+        "focus_classification"
+      ],
+      "collection_bucket": "candidate_pool",
+      "unknown_fields": [],
+      "raw_source": "data/runs/20260817-20260823/raw/bid-page-002.json",
+      "sample_stratum": "공공 SI·통합관리",
+      "sample_role": "analysis"
+    },
+    {
+      "notice_id": "bid:R26BK01690558:000",
+      "source_type": "bid_notice",
+      "title": "대화형 AI 챗봇 솔루션 임차",
+      "agency": "국립군산대학교",
+      "published_at": "2026-08-20T13:54:04+09:00",
+      "deadline_at": "2026-08-21T16:00:00+09:00",
+      "budget": "13200000",
+      "estimated_price": "12000000",
+      "method": "수의계약",
+      "url": "https://www.g2b.go.kr/link/PNPE027_01/single/?bidPbancNo=R26BK01690558&bidPbancOrd=000",
+      "procurement_class": {
+        "large": "ICT 서비스",
+        "middle": "운영 및 유지관리",
+        "detail": "운영위탁서비스",
+        "code": "81111811"
+      },
+      "region_limit": {
+        "basis": null,
+        "joint_contract_regions": [],
+        "joint_contract_rate": null,
+        "regional_joint_contract_limit": "N"
+      },
+      "lifecycle": {
+        "pre_spec_no": null,
+        "re_notice": "N",
+        "changed_at": null,
+        "change_reason": null,
+        "unified_notice_no": "R26BM00929362",
+        "previous_failed_notice_no": null
+      },
+      "attachments": [
+        {
+          "name": "대화형 AI 챗봇 솔루션 규격서.hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01690558&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        }
+      ],
+      "qualification_flags": {
+        "participation_limited": "N",
+        "industry_limited": "N",
+        "information_business": null,
+        "general_service": "N",
+        "service_division": "일반용역",
+        "joint_contract_method": "(없음)공동수급불허",
+        "performance_restricted_competition": "N",
+        "pq_evaluation": null,
+        "technical_evaluation": null,
+        "technical_evaluation_rate": null,
+        "successful_bid_method": "수의시담-수의시담"
+      },
+      "focus_matches": [
+        {
+          "axis": "AI/데이터",
+          "label": "AI",
+          "matched_field": "bidNtceNm",
+          "matched_text": "ai",
+          "field_kind": "title"
+        },
+        {
+          "axis": "공공 SI·통합관리",
+          "label": "유지관리",
+          "matched_field": "pubPrcrmntMidClsfcNm",
+          "matched_text": "유지관리",
+          "field_kind": "classification"
+        },
+        {
+          "axis": "공공 SI·통합관리",
+          "label": "운영 및 유지",
+          "matched_field": "pubPrcrmntMidClsfcNm",
+          "matched_text": "운영 및 유지",
+          "field_kind": "classification"
+        }
+      ],
+      "performance_matches": [],
+      "performance_top_score": 0.0,
+      "candidate_sources": [
+        "focus_title",
+        "focus_classification"
+      ],
+      "collection_bucket": "candidate_pool",
+      "unknown_fields": [],
+      "raw_source": "data/runs/20260817-20260823/raw/bid-page-003.json",
+      "sample_stratum": "AI/데이터",
+      "sample_role": "analysis"
+    },
+    {
+      "notice_id": "bid:R26BK01691908:000",
+      "source_type": "bid_notice",
+      "title": "한국형 그린버튼 플랫폼 서버 인프라 고도화 구축",
+      "agency": "한국에너지공단",
+      "published_at": "2026-08-21T10:46:30+09:00",
+      "deadline_at": "2026-09-02T10:00:00+09:00",
+      "budget": "547436800",
+      "estimated_price": "493636364",
+      "method": "제한경쟁",
+      "url": "https://www.g2b.go.kr/link/PNPE027_01/single/?bidPbancNo=R26BK01691908&bidPbancOrd=000",
+      "procurement_class": {
+        "large": "ICT 서비스",
+        "middle": "시스템 운영환경 구축",
+        "detail": "정보인프라구축서비스",
+        "code": "81111799"
+      },
+      "region_limit": {
+        "basis": null,
+        "joint_contract_regions": [],
+        "joint_contract_rate": null,
+        "regional_joint_contract_limit": "N"
+      },
+      "lifecycle": {
+        "pre_spec_no": "R26BD00250810",
+        "re_notice": "Y",
+        "changed_at": null,
+        "change_reason": null,
+        "unified_notice_no": "R26BM00930928",
+        "previous_failed_notice_no": "R26BK01638973"
+      },
+      "attachments": [
+        {
+          "name": "재공고서_인프라(국가,제한,협상,공동,수요기관평가,블라인드).hwpx",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01691908&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        },
+        {
+          "name": "재공고서_인프라(국가,제한,협상,공동,수요기관평가,블라인드).pdf",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01691908&bidPbancOrd=000&fileType=&fileSeq=2&prcmBsneSeCd=03"
+        },
+        {
+          "name": "표준공고서",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01691908&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        }
+      ],
+      "qualification_flags": {
+        "participation_limited": "N",
+        "industry_limited": "Y",
+        "information_business": "Y",
+        "general_service": "Y",
+        "service_division": "일반용역",
+        "joint_contract_method": "(전자)공동이행",
+        "performance_restricted_competition": "N",
+        "pq_evaluation": null,
+        "technical_evaluation": null,
+        "technical_evaluation_rate": "90",
+        "successful_bid_method": "협상에의한계약-협상에 의한 낙찰자 결정(SW사업)"
+      },
+      "focus_matches": [],
+      "performance_matches": [],
+      "performance_top_score": 0.0,
+      "candidate_sources": [],
+      "collection_bucket": "audit_pool",
+      "unknown_fields": [],
+      "raw_source": "data/runs/20260817-20260823/raw/bid-page-004.json",
+      "sample_stratum": "분류 근접",
+      "sample_role": "audit"
+    },
+    {
+      "notice_id": "bid:R26BK01688735:000",
+      "source_type": "bid_notice",
+      "title": "지하구조물 대상 3차원 로우 데이터 수집 및 시각화 어플리케이션 구축",
+      "agency": "한국건설기술연구원",
+      "published_at": "2026-08-19T15:38:58+09:00",
+      "deadline_at": "2026-09-01T11:00:00+09:00",
+      "budget": "120000000",
+      "estimated_price": "109090909",
+      "method": "제한경쟁",
+      "url": "https://www.g2b.go.kr/link/PNPE027_01/single/?bidPbancNo=R26BK01688735&bidPbancOrd=000",
+      "procurement_class": {
+        "large": "연구조사서비스",
+        "middle": "학술연구서비스",
+        "detail": "기타연구조사서비스",
+        "code": "80909032"
+      },
+      "region_limit": {
+        "basis": null,
+        "joint_contract_regions": [],
+        "joint_contract_rate": null,
+        "regional_joint_contract_limit": "N"
+      },
+      "lifecycle": {
+        "pre_spec_no": "R26BD00258226",
+        "re_notice": "Y",
+        "changed_at": null,
+        "change_reason": null,
+        "unified_notice_no": "R26BM00927831",
+        "previous_failed_notice_no": "R26BK01664528"
+      },
+      "attachments": [
+        {
+          "name": "1.입찰공고문.pdf",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01688735&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        },
+        {
+          "name": "2.과업지시서(수정).hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01688735&bidPbancOrd=000&fileType=&fileSeq=2&prcmBsneSeCd=03"
+        },
+        {
+          "name": "3.제안요청서(수정).hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01688735&bidPbancOrd=000&fileType=&fileSeq=3&prcmBsneSeCd=03"
+        },
+        {
+          "name": "4.입찰참가신청양식.hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01688735&bidPbancOrd=000&fileType=&fileSeq=4&prcmBsneSeCd=03"
+        },
+        {
+          "name": "표준공고서",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01688735&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        }
+      ],
+      "qualification_flags": {
+        "participation_limited": "N",
+        "industry_limited": "N",
+        "information_business": null,
+        "general_service": "N",
+        "service_division": "일반용역",
+        "joint_contract_method": "(없음)공동수급불허",
+        "performance_restricted_competition": "N",
+        "pq_evaluation": null,
+        "technical_evaluation": null,
+        "technical_evaluation_rate": "90",
+        "successful_bid_method": "협상에의한계약-협상에 의한 낙찰자 결정(SW사업)"
+      },
+      "focus_matches": [],
+      "performance_matches": [],
+      "performance_top_score": 0.4,
+      "candidate_sources": [],
+      "collection_bucket": "audit_pool",
+      "unknown_fields": [],
+      "raw_source": "data/runs/20260817-20260823/raw/bid-page-002.json",
+      "sample_stratum": "실적 유사 근접",
+      "sample_role": "audit"
+    },
+    {
+      "notice_id": "bid:R26BK01691588:000",
+      "source_type": "bid_notice",
+      "title": "2026 충청북도 앵커 취·창업 페스타 대행 용역",
+      "agency": "충북지역대학혁신지원센터",
+      "published_at": "2026-08-20T20:08:52+09:00",
+      "deadline_at": "2026-09-10T15:00:00+09:00",
+      "budget": "300000000",
+      "estimated_price": "272727273",
+      "method": "제한경쟁",
+      "url": "https://www.g2b.go.kr/link/PNPE027_01/single/?bidPbancNo=R26BK01691588&bidPbancOrd=000",
+      "procurement_class": {
+        "large": "행사관리 및 기타 사업 지원서비스",
+        "middle": "행사 기획 및 대행",
+        "detail": "기타행사기획및대행서비스",
+        "code": "80141990"
+      },
+      "region_limit": {
+        "basis": null,
+        "joint_contract_regions": [],
+        "joint_contract_rate": null,
+        "regional_joint_contract_limit": "N"
+      },
+      "lifecycle": {
+        "pre_spec_no": "R26BD00264347",
+        "re_notice": "N",
+        "changed_at": null,
+        "change_reason": null,
+        "unified_notice_no": "R26BM00930490",
+        "previous_failed_notice_no": null
+      },
+      "attachments": [
+        {
+          "name": "2026 충청북도 앵커 취·창업 페스타 대행 용역(공고문).hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01691588&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        },
+        {
+          "name": "2026 충청북도 앵커 취·창업 페스타 대행 용역(공고문).pdf",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01691588&bidPbancOrd=000&fileType=&fileSeq=2&prcmBsneSeCd=03"
+        },
+        {
+          "name": "2026 충청북도 앵커 취·창업 페스타 대행 용역(과업지시서).hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01691588&bidPbancOrd=000&fileType=&fileSeq=3&prcmBsneSeCd=03"
+        },
+        {
+          "name": "2026 충청북도 앵커 취·창업 페스타 대행 용역(제안요청서).hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01691588&bidPbancOrd=000&fileType=&fileSeq=4&prcmBsneSeCd=03"
+        },
+        {
+          "name": "표준공고서",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01691588&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        }
+      ],
+      "qualification_flags": {
+        "participation_limited": "N",
+        "industry_limited": "Y",
+        "information_business": null,
+        "general_service": "N",
+        "service_division": "일반용역",
+        "joint_contract_method": "(없음)공동수급불허",
+        "performance_restricted_competition": "N",
+        "pq_evaluation": null,
+        "technical_evaluation": null,
+        "technical_evaluation_rate": "80",
+        "successful_bid_method": "협상에의한계약-협상에 의한 낙찰자 결정"
+      },
+      "focus_matches": [],
+      "performance_matches": [],
+      "performance_top_score": 0.0,
+      "candidate_sources": [],
+      "collection_bucket": "audit_pool",
+      "unknown_fields": [],
+      "raw_source": "data/runs/20260817-20260823/raw/bid-page-003.json",
+      "sample_stratum": "무작위",
+      "sample_role": "audit"
+    },
+    {
+      "notice_id": "bid:R26BK01686686:000",
+      "source_type": "bid_notice",
+      "title": "파킨슨병 환자 원격 운동 모니터링 시스템 개발 용역",
+      "agency": "동아대학교",
+      "published_at": "2026-08-18T17:09:42+09:00",
+      "deadline_at": null,
+      "budget": "50000000",
+      "estimated_price": "45454545",
+      "method": "제한경쟁",
+      "url": "https://www.g2b.go.kr/link/PNPE027_01/single/?bidPbancNo=R26BK01686686&bidPbancOrd=000",
+      "procurement_class": {
+        "large": "ICT 서비스",
+        "middle": "SW 및 시스템 개발",
+        "detail": "패키지소프트웨어개발및도입서비스",
+        "code": "81111598"
+      },
+      "region_limit": {
+        "basis": null,
+        "joint_contract_regions": [],
+        "joint_contract_rate": null,
+        "regional_joint_contract_limit": "N"
+      },
+      "lifecycle": {
+        "pre_spec_no": "R26BD00263269",
+        "re_notice": "N",
+        "changed_at": null,
+        "change_reason": null,
+        "unified_notice_no": "R26BM00926113",
+        "previous_failed_notice_no": null
+      },
+      "attachments": [
+        {
+          "name": "1. 입찰공고문.hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01686686&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        },
+        {
+          "name": "1. 입찰공고문.pdf",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01686686&bidPbancOrd=000&fileType=&fileSeq=2&prcmBsneSeCd=03"
+        },
+        {
+          "name": "2. 과업지시서 및 제안요청서.pdf",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01686686&bidPbancOrd=000&fileType=&fileSeq=3&prcmBsneSeCd=03"
+        },
+        {
+          "name": "3. 입찰참가신청서.hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01686686&bidPbancOrd=000&fileType=&fileSeq=4&prcmBsneSeCd=03"
+        },
+        {
+          "name": "4. 용역계약일반조건.hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01686686&bidPbancOrd=000&fileType=&fileSeq=5&prcmBsneSeCd=03"
+        },
+        {
+          "name": "5. 입찰유의서(2026).hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01686686&bidPbancOrd=000&fileType=&fileSeq=6&prcmBsneSeCd=03"
+        },
+        {
+          "name": "6. 신규 전자구매시스템 협력업체 매뉴얼.pdf",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01686686&bidPbancOrd=000&fileType=&fileSeq=7&prcmBsneSeCd=03"
+        },
+        {
+          "name": "표준공고서",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01686686&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        }
+      ],
+      "qualification_flags": {
+        "participation_limited": "N",
+        "industry_limited": "N",
+        "information_business": null,
+        "general_service": "N",
+        "service_division": "일반용역",
+        "joint_contract_method": "(없음)공동수급불허",
+        "performance_restricted_competition": "N",
+        "pq_evaluation": null,
+        "technical_evaluation": null,
+        "technical_evaluation_rate": "90",
+        "successful_bid_method": "협상에의한계약-협상에 의한 낙찰자 결정"
+      },
+      "focus_matches": [],
+      "performance_matches": [],
+      "performance_top_score": 0.286,
+      "candidate_sources": [],
+      "collection_bucket": "audit_pool",
+      "unknown_fields": [
+        "deadline_at"
+      ],
+      "raw_source": "data/runs/20260817-20260823/raw/bid-page-001.json",
+      "sample_stratum": "분류 근접",
+      "sample_role": "audit"
+    },
+    {
+      "notice_id": "bid:R26BK01684909:000",
+      "source_type": "bid_notice",
+      "title": "(재)포항테크노파크 제6벤처동 건립공사 건설사업관리용역(건축·통신·소방)",
+      "agency": "재단법인 포항테크노파크",
+      "published_at": "2026-08-18T15:58:30+09:00",
+      "deadline_at": "2026-09-16T10:00:00+09:00",
+      "budget": "1221833000",
+      "estimated_price": "1110757273",
+      "method": "일반경쟁",
+      "url": "https://www.g2b.go.kr/link/PNPE027_01/single/?bidPbancNo=R26BK01684909&bidPbancOrd=000",
+      "procurement_class": {
+        "large": "기술용역",
+        "middle": "CM",
+        "detail": "건축CM용역",
+        "code": "81101513"
+      },
+      "region_limit": {
+        "basis": null,
+        "joint_contract_regions": [],
+        "joint_contract_rate": null,
+        "regional_joint_contract_limit": "N"
+      },
+      "lifecycle": {
+        "pre_spec_no": "R26BD00251638",
+        "re_notice": "N",
+        "changed_at": null,
+        "change_reason": null,
+        "unified_notice_no": "R26BM00925796",
+        "previous_failed_notice_no": null
+      },
+      "attachments": [
+        {
+          "name": "기술용역 입찰설명서(R26DC00235943).hwpx",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01684909&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=05"
+        },
+        {
+          "name": "기술용역 입찰설명서(R26DC00235943).pdf",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01684909&bidPbancOrd=000&fileType=&fileSeq=2&prcmBsneSeCd=05"
+        },
+        {
+          "name": "(붙임3) 과업지시서.hwpx",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01684909&bidPbancOrd=000&fileType=&fileSeq=3&prcmBsneSeCd=05"
+        },
+        {
+          "name": "배치계획표(입찰공고).pdf",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01684909&bidPbancOrd=000&fileType=&fileSeq=4&prcmBsneSeCd=05"
+        },
+        {
+          "name": "2. 건설사업관리용역업자_사업수행능력평가서작성요령(2026. 1. 1.).xlsx",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01684909&bidPbancOrd=000&fileType=&fileSeq=5&prcmBsneSeCd=05"
+        },
+        {
+          "name": "★차세대_사용자매뉴얼_기술용역PQ심사_업체_v2.0.hwpx",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01684909&bidPbancOrd=000&fileType=&fileSeq=6&prcmBsneSeCd=05"
+        },
+        {
+          "name": "기술용역 업체정보등록 화면가이드('26년).pptx",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01684909&bidPbancOrd=000&fileType=&fileSeq=7&prcmBsneSeCd=05"
+        },
+        {
+          "name": "표준공고서",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01684909&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=05"
+        }
+      ],
+      "qualification_flags": {
+        "participation_limited": "N",
+        "industry_limited": "Y",
+        "information_business": null,
+        "general_service": "N",
+        "service_division": "기술용역",
+        "joint_contract_method": "(전자)혼합방식",
+        "performance_restricted_competition": "N",
+        "pq_evaluation": "Y",
+        "technical_evaluation": "N",
+        "technical_evaluation_rate": null,
+        "successful_bid_method": "적격심사제-추정가격이 10억원 이상인 P.Q대상 기술용역의 평가기준"
+      },
+      "focus_matches": [],
+      "performance_matches": [],
+      "performance_top_score": 0.417,
+      "candidate_sources": [],
+      "collection_bucket": "audit_pool",
+      "unknown_fields": [],
+      "raw_source": "data/runs/20260817-20260823/raw/bid-page-004.json",
+      "sample_stratum": "실적 유사 근접",
+      "sample_role": "audit"
+    },
+    {
+      "notice_id": "bid:R26BK01685864:000",
+      "source_type": "bid_notice",
+      "title": "2026년도 한국환경공단 직원 단체보험",
+      "agency": "한국환경공단",
+      "published_at": "2026-08-18T14:25:18+09:00",
+      "deadline_at": "2026-08-18T15:30:00+09:00",
+      "budget": "1075200000",
+      "estimated_price": "1075200000",
+      "method": "수의계약",
+      "url": "https://www.g2b.go.kr/link/PNPE027_01/single/?bidPbancNo=R26BK01685864&bidPbancOrd=000",
+      "procurement_class": {
+        "large": "여행*숙박*음식*운송 및 보험서비스",
+        "middle": "보험서비스",
+        "detail": "손해보험",
+        "code": "84131598"
+      },
+      "region_limit": {
+        "basis": null,
+        "joint_contract_regions": [],
+        "joint_contract_rate": null,
+        "regional_joint_contract_limit": "N"
+      },
+      "lifecycle": {
+        "pre_spec_no": null,
+        "re_notice": "N",
+        "changed_at": null,
+        "change_reason": null,
+        "unified_notice_no": "R26BM00925423",
+        "previous_failed_notice_no": null
+      },
+      "attachments": [],
+      "qualification_flags": {
+        "participation_limited": "N",
+        "industry_limited": "Y",
+        "information_business": null,
+        "general_service": "N",
+        "service_division": "일반용역",
+        "joint_contract_method": "(전자)혼합방식",
+        "performance_restricted_competition": "N",
+        "pq_evaluation": null,
+        "technical_evaluation": null,
+        "technical_evaluation_rate": null,
+        "successful_bid_method": "수의시담-수의시담"
+      },
+      "focus_matches": [],
+      "performance_matches": [],
+      "performance_top_score": 0.0,
+      "candidate_sources": [],
+      "collection_bucket": "audit_pool",
+      "unknown_fields": [],
+      "raw_source": "data/runs/20260817-20260823/raw/bid-page-001.json",
+      "sample_stratum": "무작위",
+      "sample_role": "audit"
+    },
+    {
+      "notice_id": "bid:R26BK01689122:000",
+      "source_type": "bid_notice",
+      "title": "DB 내 고유식별정보 암호화 검사",
+      "agency": "국민건강보험공단",
+      "published_at": "2026-08-19T17:35:18+09:00",
+      "deadline_at": "2026-09-03T11:00:00+09:00",
+      "budget": "73150000",
+      "estimated_price": "66500000",
+      "method": "제한경쟁",
+      "url": "https://www.g2b.go.kr/link/PNPE027_01/single/?bidPbancNo=R26BK01689122&bidPbancOrd=000",
+      "procurement_class": {
+        "large": "ICT 서비스",
+        "middle": "시스템 운영환경 구축",
+        "detail": "컴퓨터네트워크또는인터넷보안서비스",
+        "code": "81111801"
+      },
+      "region_limit": {
+        "basis": null,
+        "joint_contract_regions": [],
+        "joint_contract_rate": null,
+        "regional_joint_contract_limit": "N"
+      },
+      "lifecycle": {
+        "pre_spec_no": "R26BD00262352",
+        "re_notice": "N",
+        "changed_at": null,
+        "change_reason": null,
+        "unified_notice_no": "R26BM00928303",
+        "previous_failed_notice_no": null
+      },
+      "attachments": [
+        {
+          "name": "1.공고서.pdf",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01689122&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        },
+        {
+          "name": "1.공고서.hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01689122&bidPbancOrd=000&fileType=&fileSeq=2&prcmBsneSeCd=03"
+        },
+        {
+          "name": "3.긴급입찰 사유서(2026년 DB 내 고유식별정보 암호화 검사)F.hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01689122&bidPbancOrd=000&fileType=&fileSeq=3&prcmBsneSeCd=03"
+        },
+        {
+          "name": "표준공고서",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01689122&bidPbancOrd=000&fileType=&fileSeq=2&prcmBsneSeCd=03"
+        }
+      ],
+      "qualification_flags": {
+        "participation_limited": "N",
+        "industry_limited": "Y",
+        "information_business": null,
+        "general_service": "N",
+        "service_division": "일반용역",
+        "joint_contract_method": "(전자)공동이행",
+        "performance_restricted_competition": "N",
+        "pq_evaluation": null,
+        "technical_evaluation": null,
+        "technical_evaluation_rate": "90",
+        "successful_bid_method": "협상에의한계약-협상에 의한 낙찰자 결정(SW사업)"
+      },
+      "focus_matches": [],
+      "performance_matches": [],
+      "performance_top_score": 0.0,
+      "candidate_sources": [],
+      "collection_bucket": "audit_pool",
+      "unknown_fields": [],
+      "raw_source": "data/runs/20260817-20260823/raw/bid-page-002.json",
+      "sample_stratum": "분류 근접",
+      "sample_role": "audit"
+    },
+    {
+      "notice_id": "bid:R26BK01690997:000",
+      "source_type": "bid_notice",
+      "title": "우주상황인식정보 데이터 관리 체계 및 정보 공유 방안 설계 연구용역",
+      "agency": "한국천문연구원",
+      "published_at": "2026-08-20T16:01:54+09:00",
+      "deadline_at": "2026-09-01T10:00:00+09:00",
+      "budget": "102500000",
+      "estimated_price": "93181818",
+      "method": "제한경쟁",
+      "url": "https://www.g2b.go.kr/link/PNPE027_01/single/?bidPbancNo=R26BK01690997&bidPbancOrd=000",
+      "procurement_class": {
+        "large": "연구조사서비스",
+        "middle": "학술연구서비스",
+        "detail": "과학기술연구조사서비스",
+        "code": "80909011"
+      },
+      "region_limit": {
+        "basis": null,
+        "joint_contract_regions": [],
+        "joint_contract_rate": null,
+        "regional_joint_contract_limit": "N"
+      },
+      "lifecycle": {
+        "pre_spec_no": "R26BD00264405",
+        "re_notice": "N",
+        "changed_at": null,
+        "change_reason": null,
+        "unified_notice_no": "R26BM00929829",
+        "previous_failed_notice_no": null
+      },
+      "attachments": [
+        {
+          "name": "1. 입찰공고서(한국천문연구원 제2026-0053호).pdf",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01690997&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        },
+        {
+          "name": "2. 제안요청서(한국천문연구원 제2026-0053호).pdf",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01690997&bidPbancOrd=000&fileType=&fileSeq=2&prcmBsneSeCd=03"
+        },
+        {
+          "name": "표준공고서",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01690997&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        }
+      ],
+      "qualification_flags": {
+        "participation_limited": "N",
+        "industry_limited": "Y",
+        "information_business": null,
+        "general_service": "N",
+        "service_division": "일반용역",
+        "joint_contract_method": "(없음)공동수급불허",
+        "performance_restricted_competition": "N",
+        "pq_evaluation": null,
+        "technical_evaluation": null,
+        "technical_evaluation_rate": "90",
+        "successful_bid_method": "협상에의한계약-협상에 의한 낙찰자 결정"
+      },
+      "focus_matches": [],
+      "performance_matches": [],
+      "performance_top_score": 0.4,
+      "candidate_sources": [],
+      "collection_bucket": "audit_pool",
+      "unknown_fields": [],
+      "raw_source": "data/runs/20260817-20260823/raw/bid-page-003.json",
+      "sample_stratum": "실적 유사 근접",
+      "sample_role": "audit"
+    },
+    {
+      "notice_id": "bid:R26BK01687175:000",
+      "source_type": "bid_notice",
+      "title": "스페인 밀레니엄 합창단 초청 내한공연 행사용역",
+      "agency": "전남광주통합특별시 남구",
+      "published_at": "2026-08-19T11:34:24+09:00",
+      "deadline_at": "2026-08-19T15:00:00+09:00",
+      "budget": "31900000",
+      "estimated_price": "29000000",
+      "method": "수의계약",
+      "url": "https://www.g2b.go.kr/link/PNPE027_01/single/?bidPbancNo=R26BK01687175&bidPbancOrd=000",
+      "procurement_class": {
+        "large": "행사관리 및 기타 사업 지원서비스",
+        "middle": "행사 기획 및 대행",
+        "detail": "공연기획및대행서비스",
+        "code": "90131590"
+      },
+      "region_limit": {
+        "basis": null,
+        "joint_contract_regions": [],
+        "joint_contract_rate": null,
+        "regional_joint_contract_limit": "N"
+      },
+      "lifecycle": {
+        "pre_spec_no": null,
+        "re_notice": "N",
+        "changed_at": null,
+        "change_reason": null,
+        "unified_notice_no": "R26BM00927201",
+        "previous_failed_notice_no": null
+      },
+      "attachments": [],
+      "qualification_flags": {
+        "participation_limited": "N",
+        "industry_limited": "N",
+        "information_business": null,
+        "general_service": "N",
+        "service_division": "일반용역",
+        "joint_contract_method": "(없음)공동수급불허",
+        "performance_restricted_competition": "N",
+        "pq_evaluation": null,
+        "technical_evaluation": null,
+        "technical_evaluation_rate": null,
+        "successful_bid_method": "수의시담-수의시담"
+      },
+      "focus_matches": [],
+      "performance_matches": [],
+      "performance_top_score": 0.0,
+      "candidate_sources": [],
+      "collection_bucket": "audit_pool",
+      "unknown_fields": [],
+      "raw_source": "data/runs/20260817-20260823/raw/bid-page-002.json",
+      "sample_stratum": "무작위",
+      "sample_role": "audit"
+    },
+    {
+      "notice_id": "bid:R26BK01692602:000",
+      "source_type": "bid_notice",
+      "title": "수원여자대학교 2026학년도 디지털 기반 교육환경 강화를 위한 통합인증  및 보안체계 강화 사업",
+      "agency": "수원여자대학교 산학협력단",
+      "published_at": "2026-08-21T13:30:27+09:00",
+      "deadline_at": "2026-09-02T14:00:00+09:00",
+      "budget": "172000000",
+      "estimated_price": "156363636",
+      "method": "제한경쟁",
+      "url": "https://www.g2b.go.kr/link/PNPE027_01/single/?bidPbancNo=R26BK01692602&bidPbancOrd=000",
+      "procurement_class": {
+        "large": "ICT 서비스",
+        "middle": "SW 및 시스템 개발",
+        "detail": "패키지소프트웨어개발및도입서비스",
+        "code": "81111598"
+      },
+      "region_limit": {
+        "basis": null,
+        "joint_contract_regions": [],
+        "joint_contract_rate": null,
+        "regional_joint_contract_limit": "N"
+      },
+      "lifecycle": {
+        "pre_spec_no": "R26BD00263232",
+        "re_notice": "N",
+        "changed_at": null,
+        "change_reason": null,
+        "unified_notice_no": "R26BM00931223",
+        "previous_failed_notice_no": null
+      },
+      "attachments": [
+        {
+          "name": "1. 입찰공고문(용역_수원여자대학교 2026학년도 디지털 기반 교육환경 강화를 위한 통합인증 및 보안체계 강화 사업).hwpx",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01692602&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        },
+        {
+          "name": "1. 입찰공고문(용역_수원여자대학교 2026학년도 디지털 기반 교육환경 강화를 위한 통합인증 및 보안체계 강화 사업).pdf",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01692602&bidPbancOrd=000&fileType=&fileSeq=2&prcmBsneSeCd=03"
+        },
+        {
+          "name": "2. (제안요청서) 디지털_학습환경_통합인증_및_보안체계_강화_사업v2.hwp",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01692602&bidPbancOrd=000&fileType=&fileSeq=3&prcmBsneSeCd=03"
+        },
+        {
+          "name": "표준공고서",
+          "url": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=R26BK01692602&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=03"
+        }
+      ],
+      "qualification_flags": {
+        "participation_limited": "N",
+        "industry_limited": "Y",
+        "information_business": null,
+        "general_service": "N",
+        "service_division": "일반용역",
+        "joint_contract_method": "(없음)공동수급불허",
+        "performance_restricted_competition": "N",
+        "pq_evaluation": null,
+        "technical_evaluation": null,
+        "technical_evaluation_rate": "90",
+        "successful_bid_method": "협상에의한계약-협상에 의한 낙찰자 결정"
+      },
+      "focus_matches": [],
+      "performance_matches": [],
+      "performance_top_score": 0.0,
+      "candidate_sources": [],
+      "collection_bucket": "audit_pool",
+      "unknown_fields": [],
+      "raw_source": "data/runs/20260817-20260823/raw/bid-page-004.json",
+      "sample_stratum": "분류 근접",
+      "sample_role": "audit"
+    }
+  ]
+}
