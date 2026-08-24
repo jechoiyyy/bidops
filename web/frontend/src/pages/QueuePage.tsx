@@ -79,6 +79,22 @@ function isTypingTarget(target: EventTarget | null): boolean {
   return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable;
 }
 
+// 900px 이하에서는 목록과 상세를 한 화면에 같이 두지 않는다.
+// 이 값은 theme.css의 태블릿 전환점과 짝을 이루므로 함께 바꿔야 한다.
+const SPLIT_QUERY = "(max-width: 900px)";
+
+function useSplitLayout(): boolean {
+  const [split, setSplit] = useState(() => window.matchMedia(SPLIT_QUERY).matches);
+  useEffect(() => {
+    const query = window.matchMedia(SPLIT_QUERY);
+    const onChange = (event: MediaQueryListEvent) => setSplit(event.matches);
+    query.addEventListener("change", onChange);
+    setSplit(query.matches);
+    return () => query.removeEventListener("change", onChange);
+  }, []);
+  return split;
+}
+
 export function QueuePage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -91,6 +107,7 @@ export function QueuePage() {
   const [draft, setDraft] = useState<ReviewDraft>(emptyDraft);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const splitLayout = useSplitLayout();
 
   const noticesQuery = useQuery({
     queryKey: ["queue-notices", runId, filters],
@@ -132,6 +149,8 @@ export function QueuePage() {
     [notices],
   );
   const detail = detailQuery.data?.id === selectedId ? detailQuery.data : undefined;
+  const detailDeadline = detail ? describeDeadline(detail.deadline_at) : null;
+  const selectedIndex = notices.findIndex((notice) => notice.id === selectedId);
 
   useEffect(() => {
     if (!runId || noticesQuery.isLoading) return;
@@ -139,10 +158,10 @@ export function QueuePage() {
       if (selectedId !== null) navigate({ pathname: "/queue", search: searchParams.toString() }, { replace: true });
       return;
     }
-    if (selectedId === null || !notices.some((notice) => notice.id === selectedId)) {
+    if ((selectedId !== null && selectedIndex === -1) || (selectedId === null && !splitLayout)) {
       navigate({ pathname: `/queue/${notices[0].id}`, search: searchParams.toString() }, { replace: true });
     }
-  }, [navigate, notices, noticesQuery.isLoading, runId, searchParams, selectedId]);
+  }, [navigate, notices, noticesQuery.isLoading, runId, searchParams, selectedId, selectedIndex, splitLayout]);
 
   useEffect(() => {
     setDraft(detail ? draftFromNotice(detail, runId ?? "") : { ...emptyDraft, verification_answers: [] });
@@ -177,12 +196,11 @@ export function QueuePage() {
   const moveSelection = useCallback(
     (step: number) => {
       if (notices.length === 0) return;
-      const currentIndex = notices.findIndex((notice) => notice.id === selectedId);
-      const nextIndex = currentIndex === -1 ? 0 : Math.min(Math.max(currentIndex + step, 0), notices.length - 1);
-      if (nextIndex === currentIndex) return;
+      const nextIndex = selectedIndex === -1 ? 0 : Math.min(Math.max(selectedIndex + step, 0), notices.length - 1);
+      if (nextIndex === selectedIndex) return;
       selectNotice(notices[nextIndex].id);
     },
-    [notices, selectNotice, selectedId],
+    [notices, selectNotice, selectedIndex],
   );
 
   useEffect(() => {
@@ -261,8 +279,6 @@ export function QueuePage() {
     return <EmptyState title="검토 대기열을 불러오지 못했습니다." description={errorMessage(noticesQuery.error, "공고 목록을 확인할 수 없습니다.")} />;
   }
 
-  const detailDeadline = detail ? describeDeadline(detail.deadline_at) : null;
-
   return (
     <div className="queue-page">
       <QueueFilters
@@ -271,7 +287,7 @@ export function QueuePage() {
         onChange={setFilter}
         onReset={resetFilters}
       />
-      <div className="queue-workspace">
+      <div className={`queue-workspace ${selectedId !== null ? "shows-detail" : "shows-list"}`}>
         <QueueList
           notices={notices}
           reviews={reviewsById}
@@ -290,6 +306,15 @@ export function QueuePage() {
           ) : (
             <>
               <header className="queue-detail-header">
+                <div className="queue-detail-back">
+                  <Link to={{ pathname: "/queue", search: searchParams.toString() }}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M19 12H6M11 6l-6 6 6 6" /></svg>
+                    목록으로
+                  </Link>
+                  {selectedIndex >= 0 ? (
+                    <span className="mono tabular-nums">{selectedIndex + 1} / {notices.length}</span>
+                  ) : null}
+                </div>
                 <div className="queue-detail-heading">
                   <div className="queue-detail-badges">
                     <Badge label={detail.judgment?.grade} variant={gradeVariant(detail.judgment?.grade ?? null)} />

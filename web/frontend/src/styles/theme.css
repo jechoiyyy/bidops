@@ -1049,6 +1049,11 @@ a {
   .runs-log-line time {
     flex-basis: auto;
   }
+
+  .runs-scope-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
 }
 
 .facts {
@@ -2134,6 +2139,35 @@ a {
   border-bottom: 1px solid var(--color-hair);
 }
 
+/* 900px 이하 분리 화면에서만 쓰는 되돌아가기 줄. 데스크톱에서는 목록이 항상 보이므로 숨긴다. */
+.queue-detail-back {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  margin-bottom: 9px;
+}
+
+.queue-detail-back a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  color: var(--color-ink-deep);
+  font-size: 12px;
+}
+
+.queue-detail-back a svg {
+  width: 14px;
+  height: 14px;
+}
+
+.queue-detail-back > span {
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
 .queue-detail-heading {
   min-width: 0;
 }
@@ -2482,6 +2516,15 @@ a {
   flex-direction: column;
   gap: 1px;
   margin-right: 3px;
+}
+
+/* 데스크톱에서는 세 필드가 리뷰 바의 직접 자식처럼 한 줄에 놓여야 하므로 감싼 요소를 지운다. */
+.review-secondary {
+  display: contents;
+}
+
+.review-more-toggle {
+  display: none;
 }
 
 .review-bar-title strong {
@@ -3124,13 +3167,6 @@ a {
     padding-left: 14px;
   }
 
-  .judgment-notice-list {
-    flex-basis: 290px;
-    width: 290px;
-  }
-}
-
-@media (max-width: 900px) {
   .judgment-page {
     height: auto;
     min-height: calc(100vh - 82px);
@@ -3801,18 +3837,8 @@ a {
 }
 
 @media (max-width: 1180px) {
-  .queue-filters {
-    gap: 5px;
-    padding: 0 12px;
-  }
-
   .queue-search {
     flex-basis: 170px;
-  }
-
-  .queue-list-pane {
-    flex-basis: 330px;
-    width: 330px;
   }
 
   .queue-detail-header,
@@ -3821,9 +3847,7 @@ a {
     padding-right: 14px;
     padding-left: 14px;
   }
-}
 
-@media (max-width: 900px) {
   .queue-page {
     height: auto;
     min-height: calc(100vh - 82px);
@@ -3831,6 +3855,9 @@ a {
   }
 
   .queue-filters {
+    gap: 5px;
+    padding-right: 12px;
+    padding-left: 12px;
     flex-wrap: wrap;
     height: auto;
     padding-top: 9px;
@@ -3853,6 +3880,70 @@ a {
 
   .queue-detail-pane {
     min-height: 760px;
+  }
+}
+
+@media (max-width: 900px) {
+  .queue-workspace.shows-detail .queue-list-pane,
+  .queue-workspace.shows-list .queue-detail-pane {
+    display: none;
+  }
+
+  .queue-workspace.shows-list .queue-list-pane {
+    flex: 1 1 auto;
+    border-bottom: 0;
+  }
+
+  .queue-detail-back {
+    display: flex;
+  }
+
+  .queue-detail-pane {
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .queue-detail-scroll {
+    flex: 0 0 auto;
+    overflow-y: visible;
+  }
+
+  .review-bar {
+    position: sticky;
+    bottom: 0;
+    border-top: 1px solid var(--color-hair);
+    box-shadow: 0 -1px 0 rgb(0 0 0 / 4%);
+  }
+
+  .review-secondary {
+    display: none;
+  }
+
+  .review-secondary.is-open {
+    display: flex;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    gap: 7px;
+  }
+
+  .review-more-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 32px;
+    padding: 0 10px;
+    border: 1px solid var(--color-hair);
+    border-radius: var(--radius-md);
+    color: var(--color-ink-deep);
+    background: var(--color-paper);
+    font-size: 11px;
+  }
+
+  .review-more-toggle > span {
+    padding: 0 5px;
+    border-radius: var(--radius-sm);
+    color: var(--color-ink);
+    background: var(--color-keylime);
   }
 }
 
@@ -4692,6 +4783,38 @@ a {
   font-weight: 600;
 }
 
+@media (max-width: 900px) {
+  .judgment-banner {
+    flex-direction: column;
+  }
+
+  .judgment-banner-grade {
+    flex: 0 0 auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--color-sage);
+  }
+
+  .judgment-banner.rail-grade-4 .judgment-banner-grade,
+  .judgment-banner.rail-grade-none .judgment-banner-grade {
+    border-right-color: initial;
+    border-bottom-color: var(--color-hair);
+  }
+
+  .judgment-banner-counts {
+    flex: 0 0 auto;
+    flex-direction: row;
+    gap: 16px;
+    border-top: 1px solid var(--color-hair-soft);
+    border-left: 0;
+  }
+
+  .judgment-banner-counts > div {
+    flex: 1 1 0;
+    gap: 6px;
+    justify-content: flex-start;
+  }
+}
+
 /* ---- 리뷰 바 단축키 안내 ---- */
 .review-shortcut-hint {
   display: inline-flex;
@@ -4810,6 +4933,26 @@ a {
 
 .dashboard-action-item.is-alert > svg {
   color: var(--color-alert);
+}
+
+@media (max-width: 900px) {
+  .dashboard-action-strip {
+    flex-direction: column;
+  }
+
+  .dashboard-action-items {
+    grid-auto-flow: row;
+    grid-auto-columns: auto;
+  }
+
+  .dashboard-action-item {
+    border-right: 0;
+    border-bottom: 1px solid var(--color-hair-soft);
+  }
+
+  .dashboard-action-item:last-child {
+    border-bottom: 0;
+  }
 }
 
 /* ---- 대시보드: 목록으로 이어지는 카드와 막대 ---- */
