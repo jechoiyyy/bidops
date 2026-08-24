@@ -10,8 +10,30 @@
 
 | 방법 | 어떤 경우에 |
 |---|---|
-| **Docker Compose** | 화면을 띄워서 보기만 하면 될 때. 파이썬·Node 설치가 필요 없습니다 |
+| **Docker Compose**(권장) | 화면을 띄워서 확인할 때. 파이썬·Node 설치가 필요 없습니다 |
 | **직접 실행** | 코드를 고치면서 확인할 때 |
+
+저장소를 새로 클론했다면 Docker 쪽이 확실합니다. 직접 실행은 시스템에 `python3-venv` 와 Node가 갖추어져 있어야 합니다.
+
+## 새로 클론한 뒤 처음 실행하기
+
+```bash
+git clone <저장소 주소>
+cd <저장소>/bidops-agent
+
+docker compose run --rm web python -m app.ingest.cli --all   # 산출물 적재
+docker compose up -d                                          # 서버 기동
+```
+
+`http://localhost:8787` 을 엽니다. 공고 40건과 판정 40건이 화면에 나타나면 정상입니다.
+
+테스트는 컨테이너 안에서 실행합니다. 이미지를 만들 때 프론트엔드 빌드가 함께 수행되므로, `docker compose build` 가 성공했다면 화면 코드의 타입 검사도 통과한 것입니다.
+
+```bash
+docker compose run --rm web pytest -q
+```
+
+**클론 직후에는 대시보드의 수집 건수와 후보 풀이 `값 없음` 으로 나옵니다.** 원문 API 페이지(`data/runs/*/raw/`, 14MB)와 `collected-notices.json`(7.5MB)이 용량 때문에 저장소에서 제외되어 있기 때문입니다. 표본 40건과 판정, 검증 지표, 첨부 확보, 프로필은 모두 정상적으로 나옵니다. 수집 통계까지 채우려면 API 키를 넣고 수집을 다시 실행해야 합니다.
 
 ## 사전 준비
 
@@ -158,11 +180,20 @@ cd web/backend
 
 ## 테스트
 
+직접 실행 환경에서는 다음 한 줄로 백엔드 pytest와 프론트엔드 타입 검사·빌드를 함께 돌립니다.
+
 ```bash
 ./web/run-web-tests.sh
 ```
 
-백엔드 pytest와 프론트엔드 타입 검사·빌드를 함께 실행합니다. 저장소 루트의 `run-tests.sh` 는 기존 파이프라인 테스트 진입점이며 이 스크립트가 건드리지 않습니다.
+Docker만 쓰는 환경에서는 다음 두 가지로 나누어 확인합니다.
+
+```bash
+docker compose build                    # 프론트엔드 타입 검사·빌드 포함
+docker compose run --rm web pytest -q   # 백엔드 테스트
+```
+
+저장소 루트의 `run-tests.sh` 는 기존 파이프라인 테스트 진입점이며 웹 테스트 스크립트가 건드리지 않습니다.
 
 ## 문제가 생기면
 
@@ -172,7 +203,8 @@ cd web/backend
 | `빌드된 프론트엔드가 없습니다` 라는 503 응답이 온다 | `web/frontend` 에서 `npm run build` 를 실행하십시오. 빌드 산출물이 없어도 백엔드 기동 자체는 실패하지 않습니다 |
 | Docker 실행에서 화면이 비어 있다 | 적재를 하지 않았습니다. `docker compose run --rm web python -m app.ingest.cli --all` |
 | Docker가 만든 파일을 지울 수 없다 | 컨테이너 사용자 번호가 호스트와 다릅니다. `id -u` 와 `id -g` 를 확인해 `.env` 에 `BIDOPS_UID`·`BIDOPS_GID` 를 지정하고 다시 띄우십시오 |
+| 직접 실행에서 `ensurepip is not available` 이 나온다 | 시스템에 `python3-venv` 가 없습니다. `sudo apt install python3.12-venv` 로 설치하거나 Docker 실행을 쓰십시오 |
 | 8787 포트가 이미 쓰이고 있다 | `--port` 로 다른 번호를 지정하십시오. 개발 실행에서는 `web/frontend/vite.config.ts` 의 프록시 대상도 함께 바꿔야 합니다 |
-| 대시보드 수집 건수가 값 없음으로 나온다 | 해당 회차에 `collected-notices.json` 이 없습니다. 이 파일은 `.gitignore` 대상이라 없을 수 있으며, `--from-raw` 재분류로 다시 만들 수 있습니다 |
+| 대시보드 수집 건수가 값 없음으로 나온다 | 해당 회차에 `collected-notices.json` 이 없습니다. 이 파일과 원문 페이지는 용량 때문에 저장소에서 제외되므로, 새로 클론한 환경에서는 정상입니다. 값을 채우려면 API 키를 넣고 수집을 다시 실행하십시오 |
 | 첨부 업로드가 거부된다 | HWP·HWPX·PDF 만 허용하며 상한은 50MB 입니다. 거부 사유는 화면에 그대로 표시됩니다 |
 | 나라장터 첨부가 삭제되지 않는다 | 의도된 동작입니다. 직접 등록한 파일(`manual`)만 삭제할 수 있습니다 |
