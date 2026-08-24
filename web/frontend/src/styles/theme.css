@@ -31,6 +31,13 @@
   --radius-lg: 5px;
 }
 
+/* ---- 반응형 전환점 ----
+   CSS 미디어 쿼리는 사용자 정의 속성을 조건에 사용할 수 없으므로 값을 직접 적는다.
+   아래 세 값 외의 전환점을 새로 만들지 않는다.
+     max-width: 1180px  좁은 데스크톱. 3단 배치를 2단으로 줄인다.
+     max-width:  900px  태블릿. 가로 배치를 세로 스택으로 바꾼다.
+     max-width:  640px  모바일. 남은 다열 배치를 한 열로 정리한다. */
+
 :root {
   color: var(--color-charcoal);
   background: var(--color-canvas);
@@ -988,7 +995,7 @@ a {
   font-size: 11px;
 }
 
-@media (max-width: 1160px) {
+@media (max-width: 1180px) {
   .runs-stages {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -998,7 +1005,7 @@ a {
   }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   .runs-page {
     min-width: 0;
   }
@@ -1099,16 +1106,7 @@ a {
   border-bottom: 0;
 }
 
-.master-detail-list {
-  width: 372px;
-  flex: 0 0 372px;
-}
-
-@media (max-width: 1279px) {
-  .master-detail-list {
-    display: none;
-  }
-
+@media (max-width: 1180px) {
   .topbar {
     gap: 10px;
   }
@@ -1118,7 +1116,7 @@ a {
   }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 900px) {
   .sidebar {
     flex-basis: 56px;
     width: 56px;
@@ -3119,7 +3117,7 @@ a {
   color: var(--color-muted);
 }
 
-@media (max-width: 1260px) {
+@media (max-width: 1180px) {
   .judgment-page-header,
   .judgment-detail-scroll {
     padding-right: 14px;
@@ -3132,7 +3130,7 @@ a {
   }
 }
 
-@media (max-width: 980px) {
+@media (max-width: 900px) {
   .judgment-page {
     height: auto;
     min-height: calc(100vh - 82px);
@@ -3161,7 +3159,7 @@ a {
   }
 }
 
-@media (max-width: 620px) {
+@media (max-width: 640px) {
   .judgment-page {
     width: calc(100% + 24px);
     margin-right: -12px;
@@ -3760,14 +3758,14 @@ a {
   font-weight: 500;
 }
 
-@media (max-width: 1080px) {
+@media (max-width: 1180px) {
   .profile-layout,
   .metrics-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 }
 
-@media (max-width: 700px) {
+@media (max-width: 900px) {
   .profile-page-header,
   .metrics-page-header {
     flex-direction: column;
@@ -3802,7 +3800,7 @@ a {
   border: 0;
 }
 
-@media (max-width: 1260px) {
+@media (max-width: 1180px) {
   .queue-filters {
     gap: 5px;
     padding: 0 12px;
@@ -3825,7 +3823,7 @@ a {
   }
 }
 
-@media (max-width: 980px) {
+@media (max-width: 900px) {
   .queue-page {
     height: auto;
     min-height: calc(100vh - 82px);
@@ -3858,7 +3856,7 @@ a {
   }
 }
 
-@media (max-width: 620px) {
+@media (max-width: 640px) {
   .queue-page {
     width: calc(100% + 24px);
     margin-right: -12px;
@@ -3900,20 +3898,20 @@ a {
   }
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1180px) {
   .dashboard-primary-grid,
   .dashboard-secondary-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 }
 
-@media (max-width: 840px) {
+@media (max-width: 900px) {
   .dashboard-kpi-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-@media (max-width: 560px) {
+@media (max-width: 640px) {
   .dashboard-kpi-grid {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -4488,7 +4486,7 @@ a {
   }
 }
 
-@media (max-width: 620px) {
+@media (max-width: 640px) {
   .attachments-page-header {
     align-items: flex-start;
     flex-direction: column;
