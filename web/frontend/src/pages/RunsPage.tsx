@@ -7,19 +7,13 @@ import { CollectionScope } from "../components/runs/CollectionScope";
 import { ExecutionLog } from "../components/runs/ExecutionLog";
 import { PipelineStages } from "../components/runs/PipelineStages";
 import { api } from "../lib/api";
-import { formatDateTime, formatNumber, formatRunRange, present } from "../lib/format";
+import { formatDateTime, formatNumber, formatRunRange, present, runStatusLabel } from "../lib/format";
 import type { RunSummary } from "../lib/types";
 
 type RunnableStage = "collect" | "sample" | "report";
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "수집 실행을 시작하지 못했습니다.";
-}
-
-function statusLabel(status: string): string {
-  if (status === "superseded") return "대체됨";
-  if (status === "active") return "완료";
-  return present(status, "상태 미확인");
 }
 
 function countFromCollection(run: RunSummary, key: string): number | null {
@@ -32,7 +26,7 @@ function RunListItem({ run, selected, onSelect }: { run: RunSummary; selected: b
   const candidate = countFromCollection(run, "candidate_pool");
   return (
     <button className={`runs-list-item ${selected ? "is-selected" : ""}`.trim()} type="button" onClick={onSelect}>
-      <span className="runs-list-item-heading"><strong className="mono">{formatRunRange(run.run_id, run.window_from, run.window_to)}</strong><span className={`runs-status runs-status-${run.status}`}>{statusLabel(run.status)}</span></span>
+      <span className="runs-list-item-heading"><strong className="mono">{formatRunRange(run.run_id, run.window_from, run.window_to)}</strong><span className={`runs-status runs-status-${run.status}`}>{runStatusLabel(run.status)}</span></span>
       <span className="runs-list-item-meta">{formatDateTime(run.generated_at)} · <span className="mono">{formatNumber(collected)}</span>건 수집</span>
       <span className="runs-list-item-counts"><span>후보 {formatNumber(candidate)}</span><span>표본 {formatNumber(run.counts.notices)}</span></span>
     </button>
@@ -138,7 +132,7 @@ export function RunsPage() {
           {runs.map((run) => <RunListItem key={run.run_id} run={run} selected={run.run_id === selectedRunId} onSelect={() => selectRun(run.run_id)} />)}
         </aside>
         <section className="runs-detail">
-          <div className="runs-detail-heading"><div><span className="runs-eyebrow">선택한 회차</span><h3 className="mono">{formatRunRange(detail.run_id, detail.window_from, detail.window_to)}</h3><p>{formatDateTime(detail.generated_at)} · {present(detail.screening_basis, "판정 기준 미기록")}</p></div><span className={`runs-status runs-status-${detail.status}`}>{statusLabel(detail.status)}</span></div>
+          <div className="runs-detail-heading"><div><span className="runs-eyebrow">선택한 회차</span><h3 className="mono">{formatRunRange(detail.run_id, detail.window_from, detail.window_to)}</h3><p>{formatDateTime(detail.generated_at)} · {present(detail.screening_basis, "판정 기준 미기록")}</p></div><span className={`runs-status runs-status-${detail.status}`}>{runStatusLabel(detail.status)}</span></div>
           <PipelineStages stages={detail.pipeline} counts={selectedSummary.counts} onRun={(stage) => void startStage(stage)} busy={Boolean(logsQuery.data?.executions.some((item) => item.status === "pending" || item.status === "running"))} />
           <div className="runs-two-column"><ArtifactValidation artifacts={detail.artifacts} warningCounts={detail.warning_counts} /><CollectionScope scope={detail.collection_scope} runId={detail.run_id} /></div>
           <ExecutionLog data={logsQuery.data} loading={logsQuery.isLoading} error={logsQuery.error} />

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Outlet, useLocation, useSearchParams } from "react-router-dom";
 import { EmptyState } from "../common/EmptyState";
@@ -19,6 +19,18 @@ const pageTitles: Record<string, string> = {
   "/audit": "산출물 감사 로그",
 };
 
+// 화면마다 무엇을 고칠 수 있는지가 다르다. 전역 "읽기 전용"은 실제 동작과 맞지 않았다.
+const editScopes: Record<string, string> = {
+  "/queue": "리뷰 저장 가능",
+  "/judgments": "판정 원문 읽기 전용",
+  "/profile": "원본 문서에서 관리",
+};
+
+function editScopeForPath(pathname: string): string | null {
+  const match = Object.keys(editScopes).find((path) => pathname === path || pathname.startsWith(`${path}/`));
+  return match ? editScopes[match] : null;
+}
+
 function titleForPath(pathname: string): string {
   if (pageTitles[pathname]) return pageTitles[pathname];
   const match = Object.keys(pageTitles).find((path) => path !== "/" && pathname.startsWith(`${path}/`));
@@ -27,6 +39,7 @@ function titleForPath(pathname: string): string {
 
 export function AppShell() {
   const location = useLocation();
+  const [navOpen, setNavOpen] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const runsQuery = useQuery({
@@ -47,6 +60,20 @@ export function AppShell() {
     enabled: Boolean(selectedRunId),
     staleTime: 30_000,
   });
+
+  useEffect(() => {
+    setNavOpen(false);
+  }, [location.pathname]);
+
+  // 서랍은 화면을 덮으므로 키보드만 쓰는 담당자도 Esc로 닫을 수 있어야 한다.
+  useEffect(() => {
+    if (!navOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setNavOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [navOpen]);
 
   useEffect(() => {
     if (runs.length === 0 || !selectedRunId || queryRunId === selectedRunId) return;
@@ -71,10 +98,12 @@ export function AppShell() {
 
   return (
     <div className="app-shell">
-      <Sidebar />
+      <Sidebar open={navOpen} onClose={() => setNavOpen(false)} />
       <div className="app-content">
         <TopBar
+          editScope={editScopeForPath(location.pathname)}
           isLoading={runsQuery.isLoading || detailQuery.isLoading}
+          onOpenNav={() => setNavOpen(true)}
           onRunChange={onRunChange}
           runs={runs}
           selectedRun={selectedRun}

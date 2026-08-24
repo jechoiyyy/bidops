@@ -76,7 +76,7 @@ function isCurrentPath(pathname: string, path: string): boolean {
   return path === "/" ? pathname === "/" : pathname === path || pathname.startsWith(`${path}/`);
 }
 
-export function Sidebar() {
+export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { pathname } = useLocation();
   const [searchParams] = useSearchParams();
   // 회차 선택은 주소의 run 파라미터에만 남아 있다. 화면을 옮길 때 이 값을 잃으면
@@ -84,53 +84,63 @@ export function Sidebar() {
   const runSearch = searchParams.get("run") ? `?run=${encodeURIComponent(searchParams.get("run") as string)}` : "";
   const atHome = pathname === "/";
   return (
-    <aside className="sidebar">
-      <Link
-        aria-current={atHome ? "page" : undefined}
-        aria-label="대시보드로 이동"
-        className={`sidebar-brand ${atHome ? "is-current" : ""}`.trim()}
-        to={{ pathname: "/", search: runSearch }}
-      >
-        <span className="sidebar-brand-text">
-          <strong>BidOps</strong>
-          <span>사업기회 모니터링</span>
-        </span>
-        <svg className="sidebar-brand-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
-          <path d="M4 11.5 12 4l8 7.5" />
-          <path d="M6 10v10h12V10" />
-        </svg>
-      </Link>
-      <nav aria-label="주 메뉴" className="sidebar-nav">
-        {groups.map((group) => (
-          <div className="sidebar-group" key={group.label}>
-            <div className="sidebar-group-label">{group.label}</div>
-            <div className="sidebar-items">
-              {group.items.map((item) => (
-                <NavLinkItem
-                  active={isCurrentPath(pathname, item.path)}
-                  item={item}
-                  key={item.path}
-                  runSearch={runSearch}
-                />
-              ))}
+    <>
+      <div
+        className={`sidebar-backdrop ${open ? "is-open" : ""}`.trim()}
+        aria-hidden="true"
+        onClick={onClose}
+      />
+      <aside className={`sidebar ${open ? "is-open" : ""}`.trim()}>
+        <Link
+          aria-current={atHome ? "page" : undefined}
+          aria-label="대시보드로 이동"
+          className={`sidebar-brand ${atHome ? "is-current" : ""}`.trim()}
+          to={{ pathname: "/", search: runSearch }}
+          onClick={onClose}
+        >
+          <span className="sidebar-brand-text">
+            <strong>BidOps</strong>
+            <span>사업기회 모니터링</span>
+          </span>
+          <svg className="sidebar-brand-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+            <path d="M4 11.5 12 4l8 7.5" />
+            <path d="M6 10v10h12V10" />
+          </svg>
+        </Link>
+        <nav aria-label="주 메뉴" className="sidebar-nav">
+          {groups.map((group) => (
+            <div className="sidebar-group" key={group.label}>
+              <div className="sidebar-group-label">{group.label}</div>
+              <div className="sidebar-items">
+                {group.items.map((item) => (
+                  <NavLinkItem
+                    active={isCurrentPath(pathname, item.path)}
+                    item={item}
+                    key={item.path}
+                    onNavigate={onClose}
+                    runSearch={runSearch}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
-      </nav>
-      <div className="sidebar-footer">
-        <span>기획부 · 사업기획</span>
-        <span>관리자 화면</span>
-      </div>
-    </aside>
+          ))}
+        </nav>
+        <div className="sidebar-footer">
+          <span>기획부 · 사업기획</span>
+          <span>관리자 화면</span>
+        </div>
+      </aside>
+    </>
   );
 }
 
-function NavLinkItem({ item, active, runSearch }: { item: NavItem; active: boolean; runSearch: string }) {
+function NavLinkItem({ item, active, onNavigate, runSearch }: { item: NavItem; active: boolean; onNavigate: () => void; runSearch: string }) {
   return (
     <Link
       aria-current={active ? "page" : undefined}
       className={`sidebar-item ${active ? "is-active" : ""}`.trim()}
       to={{ pathname: item.path, search: runSearch }}
+      onClick={onNavigate}
     >
       <NavIcon name={item.icon} />
       <span>{item.label}</span>

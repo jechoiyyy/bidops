@@ -1,5 +1,5 @@
 import type { RunSummary } from "../../lib/types";
-import { formatRunRange } from "../../lib/format";
+import { formatRunRangeCompact, runStatusLabel } from "../../lib/format";
 
 interface RunSelectorProps {
   runs: RunSummary[];
@@ -21,7 +21,7 @@ export function RunSelector({ runs, selectedRunId, onChange, disabled = false }:
         {runs.length === 0 ? <option value="">회차 없음</option> : null}
         {runs.map((run) => (
           <option key={run.run_id} value={run.run_id}>
-            {formatRunRange(run.run_id, run.window_from, run.window_to)}
+            {`${formatRunRangeCompact(run.run_id, run.window_from, run.window_to)} · ${runStatusLabel(run.status)}`}
           </option>
         ))}
       </select>

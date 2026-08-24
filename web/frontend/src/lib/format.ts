@@ -62,3 +62,21 @@ export function formatTime(value: string | null | undefined): string {
     timeStyle: "short",
   }).format(date);
 }
+
+// 상단 바의 회차 선택기는 폭이 좁으므로 연도를 한 번만 적는 축약형을 쓴다.
+export function formatRunRangeCompact(
+  runId: string,
+  windowFrom: string | null,
+  windowTo: string | null,
+): string {
+  if (!windowFrom || !windowTo) return present(runId, "회차 미확인");
+  const from = windowFrom.slice(0, 10).replace(/-/g, ".");
+  const to = windowTo.slice(5, 10).replace(/-/g, ".");
+  return `${from}–${to}`;
+}
+
+export function runStatusLabel(status: string): string {
+  if (status === "superseded") return "대체됨";
+  if (status === "active") return "완료";
+  return present(status, "상태 미확인");
+}
