@@ -1,4 +1,4 @@
-import { NavLink, useLocation } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 
 type IconName = "dashboard" | "queue" | "deadline" | "judgment" | "review" | "profile" | "metrics" | "runs" | "attachments" | "audit";
 
@@ -78,27 +78,40 @@ function isCurrentPath(pathname: string, path: string): boolean {
 
 export function Sidebar() {
   const { pathname } = useLocation();
+  const [searchParams] = useSearchParams();
+  // 회차 선택은 주소의 run 파라미터에만 남아 있다. 화면을 옮길 때 이 값을 잃으면
+  // 담당자가 고른 회차가 최신 회차로 되돌아가므로, 모든 이동에 그대로 넘긴다.
+  const runSearch = searchParams.get("run") ? `?run=${encodeURIComponent(searchParams.get("run") as string)}` : "";
+  const atHome = pathname === "/";
   return (
     <aside className="sidebar">
-      <div className="sidebar-brand">
-        <strong>BidOps</strong>
-        <span>사업기회 모니터링</span>
-      </div>
+      <Link
+        aria-current={atHome ? "page" : undefined}
+        aria-label="대시보드로 이동"
+        className={`sidebar-brand ${atHome ? "is-current" : ""}`.trim()}
+        to={{ pathname: "/", search: runSearch }}
+      >
+        <span className="sidebar-brand-text">
+          <strong>BidOps</strong>
+          <span>사업기회 모니터링</span>
+        </span>
+        <svg className="sidebar-brand-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+          <path d="M4 11.5 12 4l8 7.5" />
+          <path d="M6 10v10h12V10" />
+        </svg>
+      </Link>
       <nav aria-label="주 메뉴" className="sidebar-nav">
         {groups.map((group) => (
           <div className="sidebar-group" key={group.label}>
             <div className="sidebar-group-label">{group.label}</div>
             <div className="sidebar-items">
               {group.items.map((item) => (
-                <NavLink
-                  className={`sidebar-item ${isCurrentPath(pathname, item.path) ? "is-active" : ""}`.trim()}
-                  end={item.path === "/"}
+                <NavLinkItem
+                  active={isCurrentPath(pathname, item.path)}
+                  item={item}
                   key={item.path}
-                  to={item.path}
-                >
-                  <NavIcon name={item.icon} />
-                  <span>{item.label}</span>
-                </NavLink>
+                  runSearch={runSearch}
+                />
               ))}
             </div>
           </div>
@@ -109,5 +122,18 @@ export function Sidebar() {
         <span>관리자 화면</span>
       </div>
     </aside>
+  );
+}
+
+function NavLinkItem({ item, active, runSearch }: { item: NavItem; active: boolean; runSearch: string }) {
+  return (
+    <Link
+      aria-current={active ? "page" : undefined}
+      className={`sidebar-item ${active ? "is-active" : ""}`.trim()}
+      to={{ pathname: item.path, search: runSearch }}
+    >
+      <NavIcon name={item.icon} />
+      <span>{item.label}</span>
+    </Link>
   );
 }

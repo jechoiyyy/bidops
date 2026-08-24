@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { EmptyState } from "../components/common/EmptyState";
+import { ActionStrip, type ActionItem } from "../components/dashboard/ActionStrip";
 import { GradeDistribution } from "../components/dashboard/GradeDistribution";
 import { KpiCard } from "../components/dashboard/KpiCard";
 import { PipelineFunnel } from "../components/dashboard/PipelineFunnel";
@@ -9,7 +10,7 @@ import { DeadlineTable } from "../components/dashboard/DeadlineTable";
 import { VerificationRequests } from "../components/dashboard/VerificationRequests";
 import { api } from "../lib/api";
 import { formatNumber } from "../lib/format";
-import type { ValidationMetric } from "../lib/types";
+import type { DeadlineNotice, RunStatsResponse, ValidationMetric } from "../lib/types";
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "대시보드 데이터를 확인할 수 없습니다.";
@@ -27,6 +28,58 @@ function priorityStatus(metric: ValidationMetric | undefined): string | undefine
   if (metric.value !== null && metric.value > range.max) return "임계 초과";
   if (metric.value !== null && metric.value < range.min) return "임계 미달";
   return undefined;
+}
+
+const CRITICAL_DAYS = 3;
+
+function criticalDeadlineCount(notices: DeadlineNotice[], referenceAt: string | null): number {
+  const referenceMs = referenceAt ? new Date(referenceAt).getTime() : Date.now();
+  return notices.filter((notice) => {
+    const deadlineMs = new Date(notice.deadline_at ?? "").getTime();
+    if (Number.isNaN(deadlineMs)) return false;
+    return Math.ceil((deadlineMs - referenceMs) / 86_400_000) <= CRITICAL_DAYS;
+  }).length;
+}
+
+/**
+ * 회차 통계만으로 계산할 수 있는 세 가지 할 일을 뽑는다.
+ * 건수가 0이면 할 일이 아니므로 항목 자체를 내보내지 않는다.
+ */
+function actionItems(stats: RunStatsResponse, runId: string): ActionItem[] {
+  const search = `run=${encodeURIComponent(runId)}`;
+  const criticalCount = criticalDeadlineCount(stats.imminent_deadlines, stats.generated_at);
+  const blockingCount = stats.verification_requests.reduce((sum, request) => sum + request.count, 0);
+  const items: ActionItem[] = [];
+
+  if (stats.priority_review_count > 0) {
+    items.push({
+      key: "priority",
+      count: stats.priority_review_count,
+      title: "우선 검토로 판정된 공고가 있다",
+      description: "대기열을 등급순으로 열기",
+      to: `/queue?${search}&grade=${encodeURIComponent("우선 검토")}`,
+    });
+  }
+  if (criticalCount > 0) {
+    items.push({
+      key: "deadline",
+      count: criticalCount,
+      title: `마감이 ${CRITICAL_DAYS}일 이내다`,
+      description: "대기열을 마감 임박순으로 열기",
+      to: `/queue?${search}&sort=deadline`,
+      tone: "alert",
+    });
+  }
+  if (blockingCount > 0) {
+    items.push({
+      key: "verification",
+      count: blockingCount,
+      title: "담당자가 확정해야 할 차단 항목이 있다",
+      description: "회사 프로필에서 기준 확정하기",
+      to: `/profile?${search}`,
+    });
+  }
+  return items;
 }
 
 function countText(value: number | null): string {
@@ -95,6 +148,8 @@ export function DashboardPage() {
 
   return (
     <div className="dashboard-page">
+      <ActionStrip items={actionItems(stats, runId)} />
+
       <section className="dashboard-kpi-grid" aria-label="회차 주요 지표">
         <KpiCard
           label="수집 건수"
@@ -108,6 +163,7 @@ export function DashboardPage() {
         />
         <KpiCard
           accent
+          to={`/queue?run=${encodeURIComponent(runId)}&grade=${encodeURIComponent("우선 검토")}`}
           label="우선 검토"
           value={<><span>{formatNumber(stats.priority_review_count)}</span><span className="dashboard-kpi-unit">건</span></>}
           description={priorityDescription}
@@ -122,13 +178,13 @@ export function DashboardPage() {
 
       <div className="dashboard-primary-grid">
         <PipelineFunnel funnel={stats.funnel}>
-          <GradeDistribution distribution={stats.grade_distribution} embedded />
+          <GradeDistribution distribution={stats.grade_distribution} embedded runId={runId} />
         </PipelineFunnel>
         <ValidationGauges metrics={validation.metrics} />
       </div>
 
       <div className="dashboard-secondary-grid">
-        <DeadlineTable notices={stats.imminent_deadlines} referenceAt={stats.generated_at} timezone={stats.timezone} />
+        <DeadlineTable notices={stats.imminent_deadlines} referenceAt={stats.generated_at} runId={runId} timezone={stats.timezone} />
         <VerificationRequests requests={stats.verification_requests} />
       </div>
     </div>

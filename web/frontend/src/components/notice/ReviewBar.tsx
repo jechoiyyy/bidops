@@ -93,6 +93,11 @@ export function ReviewBar({ draft, perspectives, saving, error, onChange, onSave
           <path d="M5 12h13M13 6l6 6-6 6" />
         </svg>
       </button>
+      <span className="review-shortcut-hint">
+        <kbd>J</kbd>
+        <kbd>K</kbd>
+        <span>목록 이동</span>
+      </span>
       {error ? <p className="review-error" role="alert">{error}</p> : null}
     </div>
   );

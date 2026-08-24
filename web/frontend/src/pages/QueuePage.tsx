@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Badge } from "../components/common/Badge";
 import { EmptyState } from "../components/common/EmptyState";
 import { AttachmentPanel } from "../components/notice/AttachmentPanel";
 import { CounterargumentList } from "../components/notice/CounterargumentList";
-import { JudgmentSummary } from "../components/notice/JudgmentSummary";
+import { JudgmentBanner } from "../components/notice/JudgmentBanner";
 import { NoticeFacts } from "../components/notice/NoticeFacts";
 import { PerspectiveTable } from "../components/notice/PerspectiveTable";
 import { RetrievalSignals } from "../components/notice/RetrievalSignals";
@@ -14,7 +14,8 @@ import { VerificationItemTable } from "../components/notice/VerificationItemTabl
 import { QueueFilters, type QueueFilterValues } from "../components/queue/QueueFilters";
 import { QueueList } from "../components/queue/QueueList";
 import { api } from "../lib/api";
-import { formatDeadline, formatPrice, present } from "../lib/format";
+import { formatPrice, present } from "../lib/format";
+import { describeDeadline } from "../lib/deadline";
 import type { NoticeDetailResponse, ReviewResponse, ReviewUpsertRequest } from "../lib/types";
 import { gradeVariant } from "../lib/grade";
 
@@ -52,20 +53,30 @@ function filterFromParams(params: URLSearchParams): QueueFilterValues {
     sampleRole: params.get("sample_role") ?? "analysis",
     attachment: attachment === "none" || attachment === "manual" ? attachment : "any",
     q: params.get("q") ?? "",
-    sort: sort === "grade" || sort === "published" ? sort : "deadline",
+    // 담당자는 등급이 높은 공고부터 처리하므로 등급순이 기본이다.
+    sort: sort === "deadline" || sort === "published" ? sort : "grade",
   };
 }
 
+const filterQueryKeys: Record<keyof QueueFilterValues, string> = {
+  grade: "grade",
+  readiness: "readiness",
+  focus: "focus",
+  sampleRole: "sample_role",
+  attachment: "attachment",
+  q: "q",
+  sort: "sort",
+};
 
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
 }
 
-function isSoon(value: string | null): boolean {
-  if (!value) return false;
-  const date = new Date(value);
-  const remaining = date.getTime() - Date.now();
-  return !Number.isNaN(date.getTime()) && remaining >= 0 && remaining <= 7 * 86_400_000;
+// 목록 위를 오르내리는 단축키는 입력 중에는 동작하면 안 된다.
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable;
 }
 
 export function QueuePage() {
@@ -112,7 +123,10 @@ export function QueuePage() {
   });
 
   const notices = noticesQuery.data?.items ?? [];
-  const reviewedIds = useMemo(() => new Set((reviewsQuery.data ?? []).map((review) => review.notice_pk)), [reviewsQuery.data]);
+  const reviewsById = useMemo(
+    () => new Map((reviewsQuery.data ?? []).map((review) => [review.notice_pk, review] as const)),
+    [reviewsQuery.data],
+  );
   const focusOptions = useMemo(
     () => Array.from(new Set(notices.map((notice) => notice.focus).filter((focus): focus is string => Boolean(focus)))).sort((a, b) => a.localeCompare(b, "ko")),
     [notices],
@@ -137,25 +151,54 @@ export function QueuePage() {
 
   const setFilter = <K extends keyof QueueFilterValues>(key: K, value: QueueFilterValues[K]) => {
     const next = new URLSearchParams(searchParams);
-    const queryKey: Record<keyof QueueFilterValues, string> = {
-      grade: "grade",
-      readiness: "readiness",
-      focus: "focus",
-      sampleRole: "sample_role",
-      attachment: "attachment",
-      q: "q",
-      sort: "sort",
-    };
     const serialized = String(value);
-    if (!serialized || (key === "sampleRole" && serialized === "analysis") || (key === "attachment" && serialized === "any") || (key === "sort" && serialized === "deadline")) {
-      next.delete(queryKey[key]);
+    if (!serialized || (key === "sampleRole" && serialized === "analysis") || (key === "attachment" && serialized === "any") || (key === "sort" && serialized === "grade")) {
+      next.delete(filterQueryKeys[key]);
     } else {
-      next.set(queryKey[key], serialized);
+      next.set(filterQueryKeys[key], serialized);
     }
     setSearchParams(next, { replace: true });
   };
 
-  const selectNotice = (id: number) => navigate({ pathname: `/queue/${id}`, search: searchParams.toString() });
+  // 회차와 정렬은 화면의 기준이므로 남기고, 목록을 좁히던 조건만 지운다.
+  const resetFilters = () => {
+    const next = new URLSearchParams(searchParams);
+    for (const key of ["grade", "readiness", "focus", "sample_role", "attachment", "q"]) {
+      next.delete(key);
+    }
+    setSearchParams(next, { replace: true });
+  };
+
+  const selectNotice = useCallback(
+    (id: number) => navigate({ pathname: `/queue/${id}`, search: searchParams.toString() }),
+    [navigate, searchParams],
+  );
+
+  const moveSelection = useCallback(
+    (step: number) => {
+      if (notices.length === 0) return;
+      const currentIndex = notices.findIndex((notice) => notice.id === selectedId);
+      const nextIndex = currentIndex === -1 ? 0 : Math.min(Math.max(currentIndex + step, 0), notices.length - 1);
+      if (nextIndex === currentIndex) return;
+      selectNotice(notices[nextIndex].id);
+    },
+    [notices, selectNotice, selectedId],
+  );
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey || isTypingTarget(event.target)) return;
+      if (event.key === "j" || event.key === "ArrowDown") {
+        event.preventDefault();
+        moveSelection(1);
+      } else if (event.key === "k" || event.key === "ArrowUp") {
+        event.preventDefault();
+        moveSelection(-1);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [moveSelection]);
 
   const updateDraft = <K extends keyof ReviewDraft>(key: K, value: ReviewDraft[K]) => {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -218,17 +261,25 @@ export function QueuePage() {
     return <EmptyState title="검토 대기열을 불러오지 못했습니다." description={errorMessage(noticesQuery.error, "공고 목록을 확인할 수 없습니다.")} />;
   }
 
+  const detailDeadline = detail ? describeDeadline(detail.deadline_at) : null;
+
   return (
     <div className="queue-page">
       <QueueFilters
         value={filters}
         focusOptions={focusOptions}
         onChange={setFilter}
-        total={noticesQuery.data?.total ?? 0}
-        reviewedCount={reviewsQuery.data?.length ?? 0}
+        onReset={resetFilters}
       />
       <div className="queue-workspace">
-        <QueueList notices={notices} selectedId={selectedId} reviewedIds={reviewedIds} total={noticesQuery.data?.total ?? 0} onSelect={selectNotice} />
+        <QueueList
+          notices={notices}
+          reviews={reviewsById}
+          selectedId={selectedId}
+          sort={filters.sort}
+          total={noticesQuery.data?.total ?? 0}
+          onSelect={selectNotice}
+        />
         <section className="queue-detail-pane" aria-label="공고 상세">
           {!selectedId ? (
             <EmptyState title="검토할 공고를 선택하십시오." description="왼쪽 목록에서 공고를 선택하면 판정 근거와 리뷰 입력이 표시됩니다." />
@@ -244,7 +295,9 @@ export function QueuePage() {
                     <Badge label={detail.judgment?.grade} variant={gradeVariant(detail.judgment?.grade ?? null)} />
                     <Badge label={detail.judgment?.readiness} variant="readiness" />
                     <Badge label={detail.judgment?.primary_focus} variant="focus" />
-                    {detail.deadline_at ? <Badge label={formatDeadline(detail.deadline_at)} variant={isSoon(detail.deadline_at) ? "alert" : "neutral"} /> : null}
+                    {detailDeadline && detailDeadline.urgency !== "none" ? (
+                      <span className={`queue-detail-deadline is-${detailDeadline.urgency} mono tabular-nums`}>{detailDeadline.label}</span>
+                    ) : null}
                     <span className="mono tabular-nums notice-key">{present(detail.notice_key, "식별자 미확인")}</span>
                   </div>
                   <h2>{present(detail.title, "공고명 미확인")}</h2>
@@ -268,8 +321,8 @@ export function QueuePage() {
                 </div>
               </header>
               <div className="queue-detail-scroll">
-                <div className="notice-top-grid">
-                  <JudgmentSummary judgment={detail.judgment} />
+                <JudgmentBanner judgment={detail.judgment} />
+                <div className="notice-facts-grid">
                   <NoticeFacts notice={detail} />
                   <AttachmentPanel noticePk={detail.id} attachments={detail.attachments} />
                 </div>
