@@ -1,5 +1,5 @@
 import type { RunSummary } from "../../lib/types";
-import { Badge } from "../common/Badge";
+import { BasisPopover } from "./BasisPopover";
 import { RunSelector } from "./RunSelector";
 
 interface TopBarProps {
@@ -8,6 +8,8 @@ interface TopBarProps {
   selectedRunId: string | null;
   selectedRun: RunSummary | null;
   onRunChange: (runId: string) => void;
+  editScope: string | null;
+  onOpenNav: () => void;
   isLoading?: boolean;
 }
 
@@ -17,11 +19,17 @@ export function TopBar({
   selectedRunId,
   selectedRun,
   onRunChange,
+  editScope,
+  onOpenNav,
   isLoading = false,
 }: TopBarProps) {
-  const basis = selectedRun?.screening_basis?.trim() || "미확인";
   return (
     <header className="topbar">
+      <button className="topbar-menu" type="button" aria-label="주 메뉴 열기" onClick={onOpenNav}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+          <path d="M4 7h16M4 12h16M4 17h16" />
+        </svg>
+      </button>
       <h1>{title}</h1>
       <RunSelector
         disabled={isLoading}
@@ -29,9 +37,9 @@ export function TopBar({
         runs={runs}
         selectedRunId={selectedRunId}
       />
-      <Badge label={`기준선 · ${basis}`} variant="readiness" />
       <div className="topbar-spacer" />
-      <span className="topbar-status">읽기 전용</span>
+      {editScope ? <span className="topbar-status">{editScope}</span> : null}
+      <BasisPopover run={selectedRun} />
     </header>
   );
 }
