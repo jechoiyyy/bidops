@@ -24,10 +24,11 @@ test.beforeEach(async ({ page }) => {
  * document.fonts.ready는 그 시점까지 요청된 구간만 보장하므로, select 같은
  * 네이티브 컨트롤의 글자가 뒤늦게 바뀌어 스냅샷이 흔들린다.
  * 화면에 실제로 놓인 글자를 넘겨 필요한 구간을 모두 받아 온 뒤에 촬영한다.
+ * innerText는 select의 option 글자를 담지 않으므로 textContent를 써야 한다.
  */
 async function settleFonts(page: Page): Promise<void> {
   await page.evaluate(async () => {
-    const text = document.body.innerText;
+    const text = document.documentElement.textContent ?? "";
     for (const weight of ["300", "400", "500", "600"]) {
       await document.fonts.load(`${weight} 13px "IBM Plex Sans KR"`, text);
     }
