@@ -96,19 +96,16 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
       <aside className={`sidebar ${open ? "is-open" : ""}`.trim()}>
         <Link
           aria-current={atHome ? "page" : undefined}
-          aria-label="대시보드로 이동"
+          aria-label="RootLab BidOps 대시보드로 이동"
           className={`sidebar-brand ${atHome ? "is-current" : ""}`.trim()}
           to={{ pathname: "/", search: runSearch }}
           onClick={onClose}
         >
+          <img alt="" className="sidebar-brand-logo" src="/rootlab-icon-light.svg" />
           <span className="sidebar-brand-text">
             <strong>BidOps</strong>
-            <span>사업기회 모니터링</span>
+            <span>ROOTLAB · 사업기회 모니터링</span>
           </span>
-          <svg className="sidebar-brand-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
-            <path d="M4 11.5 12 4l8 7.5" />
-            <path d="M6 10v10h12V10" />
-          </svg>
         </Link>
         <nav aria-label="주 메뉴" className="sidebar-nav">
           {groups.map((group) => (
