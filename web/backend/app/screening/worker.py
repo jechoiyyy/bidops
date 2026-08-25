@@ -9,6 +9,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from threading import Event
 from typing import Any, Callable, Mapping
@@ -19,7 +20,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from ..config import Settings, get_settings
 from ..ingest.loader import ingest_run, parse_run_id
-from ..models import CompanyProfileSnapshot, Notice, Run, ScreeningAttempt, ScreeningExecution, ScreeningPolicy
+from ..models import CompanyProfileSnapshot, Judgment, Notice, Run, ScreeningAttempt, ScreeningExecution, ScreeningPolicy
 from .artifacts import ArtifactError, ArtifactStore, aware_iso, canonical_bytes, sha256_bytes
 from .contracts import (
     MODEL_NAME,
@@ -41,6 +42,46 @@ from .queue import INTERRUPTED, RUNNING, ScreeningQueueError
 
 class WorkerError(RuntimeError):
     """A safe worker failure category."""
+
+
+_INPUT_KEYS = {
+    "schema_version", "execution_id", "run_id", "generated_at", "source_window",
+    "policy_version", "prompt_version", "company_profile_version", "company_profile_digest",
+    "candidate_count", "notices",
+}
+_DECISIONS_KEYS = {
+    "schema_version", "execution_id", "run_id", "generated_at", "screening_basis",
+    "model_name", "model_digest", "prompt_version", "policy_version",
+    "company_profile_version", "company_profile_digest", "judgments",
+}
+_JUDGMENT_KEYS = {
+    "notice_id", "judgment_mode", "model_name", "model_digest", "prompt_version",
+    "policy_version", "company_profile_version", "company_profile_digest",
+    "judged_in_run", "recorded_in_run", "carried_over", "rejudge_reason", "grade",
+    "readiness", "primary_focus", "exclusion_category", "summary", "next_action",
+    "perspectives", "matched_performances", "counterarguments",
+    "counterargument_resolutions", "verification_items", "two_axis_mixing_flag",
+    "two_axis_mixing_label",
+}
+_RESULT_KEYS = {
+    "schema_version", "execution_id", "generated_at", "screening_basis", "source_window",
+    "model_name", "model_digest", "prompt_version", "policy_version",
+    "company_profile_version", "company_profile_digest", "candidate_count", "result_count",
+    "failure_count", "partial_artifact", "failure_artifact", "results",
+}
+_RESULT_ITEM_KEYS = {"notice", "judgment"}
+_SAFE_FAILURE_STAGES = set(PERSPECTIVE_NAMES) | {"반론 검토", "종합 판정", "병합·검증"}
+
+
+def _notice_input_keys() -> tuple[str, ...]:
+    return (
+        "notice_id", "source_type", "title", "agency", "method", "url",
+        "collection_bucket", "published_at", "deadline_at", "budget",
+        "estimated_price", "procurement_class", "region_limit", "lifecycle",
+        "qualification_flags", "attachments", "focus_matches", "performance_matches",
+        "performance_top_score", "candidate_sources", "unknown_fields", "sample_stratum",
+        "sample_role", "raw_source", "judgment_mode", "carry_over_from", "rejudge_reason",
+    )
 
 
 def _aware(clock: Callable[[], datetime]) -> datetime:
@@ -205,9 +246,10 @@ class ScreeningWorker:
                 raise WorkerError("input_error")
             if source_run.status not in {"active", "complete", "성공", "부분 성공"}:
                 raise WorkerError("input_error")
-            for notice in input_value["notices"]:
+            if row.scope == "single_notice":
+                notice = input_value["notices"][0]
                 db_notice = session.scalar(select(Notice).where(Notice.run_id == row.source_run_id, Notice.notice_key == notice.get("notice_id")))
-                if db_notice is None or (row.scope == "single_notice" and db_notice.id != row.notice_pk):
+                if db_notice is None or db_notice.id != row.notice_pk:
                     raise WorkerError("input_mismatch")
             policy_body = {
                 "schema_version": policy.schema_version, "policy_version": policy.policy_version,
@@ -235,7 +277,7 @@ class ScreeningWorker:
                 raise
             except Exception:
                 raise WorkerError("execution_failure") from None
-        identity = self.ollama.inspect_model()
+        identity = self.ollama.inspect_model(refresh=True)
         if identity.model_name != row.model_name or identity.digest != row.model_digest:
             raise WorkerError("model_mismatch")
         notices = input_value["notices"]
@@ -294,7 +336,7 @@ class ScreeningWorker:
             self._publish(row, input_value, store, result_path)
         if completed == 0:
             status = "실패"
-        elif failures and row.scope == "full_run":
+        elif failures and row.scope in {"full_run", "quality_sample"}:
             status = "부분 성공"
         else:
             status = "실패" if failures else "성공"
@@ -397,11 +439,10 @@ class ScreeningWorker:
             session.commit()
 
     def _telemetry(self, row: ScreeningExecution, metadata: Any) -> dict[str, Any]:
-        stage = {"counterargument": "반론 검토", "synthesis": "종합 판정"}.get(metadata.stage, metadata.stage)
         return {
             "schema_version": "bidops.screening-telemetry.v1", "execution_id": row.execution_id,
             "trace_id": metadata.trace_id, "span_id": metadata.span_id, "notice_id": metadata.notice_id,
-            "stage": stage, "attempt_no": metadata.attempt_no, "status": metadata.status,
+            "stage": metadata.stage, "attempt_no": metadata.attempt_no, "status": metadata.status,
             "failure_type": metadata.failure_type, "done_reason": metadata.done_reason,
             "model_name": row.model_name, "model_digest": row.model_digest,
             "prompt_eval_count": metadata.prompt_eval_count, "eval_count": metadata.eval_count,
@@ -480,81 +521,260 @@ class ScreeningWorker:
 
     def _carry(self, row: ScreeningExecution, input_value: Mapping[str, Any], notice: Mapping[str, Any]) -> dict[str, Any] | None:
         source_dir = _safe_run_dir(self.settings, row.source_run_id)
+        input_path = source_dir / "screening-input.json"
         decisions_path = source_dir / "screening-decisions.json"
-        if not decisions_path.is_file():
+        failures_path = source_dir / "screening-failures.json"
+        if not input_path.is_file() or not decisions_path.is_file():
             return None
         try:
+            prior_input_raw = input_path.read_bytes()
+            prior_input = _read_json(input_path)
+            prior_decisions_raw = decisions_path.read_bytes()
             old = _read_json(decisions_path)
-        except WorkerError:
-            return None
-        if not isinstance(old, Mapping):
-            return None
-        top_keys = {
-            "schema_version", "execution_id", "run_id", "generated_at", "screening_basis",
-            "model_name", "model_digest", "prompt_version", "policy_version",
-            "company_profile_version", "company_profile_digest", "judgments",
-        }
-        if set(old) != top_keys or old.get("run_id") != row.source_run_id or not isinstance(old.get("judgments"), list):
-            return None
-        for key, expected in (
-            ("model_name", row.model_name), ("model_digest", row.model_digest),
-            ("prompt_version", row.prompt_version), ("policy_version", row.policy_version),
-            ("company_profile_version", row.company_profile_version),
-            ("company_profile_digest", row.company_profile_digest),
-        ):
-            if old.get(key) != expected:
+            if canonical_bytes(prior_input) != prior_input_raw or canonical_bytes(old) != prior_decisions_raw:
                 return None
-        values = [item for item in old.get("judgments", []) if isinstance(item, dict) and item.get("notice_id") == notice["notice_id"]]
-        if len(values) != 1 or old.get("schema_version") != "bidops.decisions.v3":
+            prior_failures = None
+            if failures_path.exists():
+                prior_failures_raw = failures_path.read_bytes()
+                prior_failures = _read_json(failures_path)
+                if canonical_bytes(prior_failures) != prior_failures_raw:
+                    return None
+        except (WorkerError, OSError, ArtifactError):
             return None
-        judgment = dict(values[0])
-        required = {
-            "notice_id", "judgment_mode", "model_name", "model_digest", "prompt_version", "policy_version",
-            "company_profile_version", "company_profile_digest", "judged_in_run", "recorded_in_run",
-            "carried_over", "rejudge_reason", "grade", "readiness", "primary_focus", "exclusion_category",
-            "summary", "next_action", "perspectives", "matched_performances", "counterarguments",
-            "counterargument_resolutions", "verification_items", "two_axis_mixing_flag", "two_axis_mixing_label",
-        }
-        if set(judgment) != required:
+        if not isinstance(prior_input, Mapping) or not isinstance(old, Mapping):
             return None
-        if judgment.get("judgment_mode") not in {"신규", "재판정"} or judgment.get("carried_over") is not False:
+        if set(prior_input) != _INPUT_KEYS or prior_input.get("schema_version") != "bidops.screening-input.v1":
             return None
-        if judgment.get("recorded_in_run") != judgment.get("judged_in_run"):
+        if set(old) != _DECISIONS_KEYS or old.get("schema_version") != "bidops.decisions.v3":
             return None
+        if prior_input.get("execution_id") != old.get("execution_id") or prior_input.get("run_id") != old.get("run_id"):
+            return None
+        if prior_input.get("generated_at") != old.get("generated_at"):
+            return None
+        if not isinstance(prior_input.get("notices"), list) or prior_input.get("candidate_count") != len(prior_input["notices"]):
+            return None
+        if not isinstance(old.get("judgments"), list):
+            return None
+        prior_by_id: dict[str, Mapping[str, Any]] = {}
+        for item in prior_input["notices"]:
+            if not isinstance(item, Mapping) or set(item) != set(_notice_input_keys()):
+                return None
+            try:
+                _notice_common({key: item[key] for key in _notice_input_keys() if key not in {"judgment_mode", "carry_over_from", "rejudge_reason"}})
+            except ScreeningCreationError:
+                return None
+            notice_id = item.get("notice_id")
+            if not isinstance(notice_id, str) or notice_id in prior_by_id:
+                return None
+            prior_by_id[notice_id] = item
+        prior_judgments: dict[str, Mapping[str, Any]] = {}
+        for item in old["judgments"]:
+            if not isinstance(item, Mapping) or set(item) != _JUDGMENT_KEYS:
+                return None
+            notice_id = item.get("notice_id")
+            if not isinstance(notice_id, str) or notice_id in prior_judgments or notice_id not in prior_by_id:
+                return None
+            prior_judgments[notice_id] = item
+        failure_ids: set[str] = set()
+        if prior_failures is not None:
+            failure_keys = {"schema_version", "execution_id", "run_id", "generated_at", "failure_count", "failures"}
+            item_keys = {"notice_id", "failed_stage", "failure_type", "last_attempt_at", "retry_count", "status", "failure_context", "trace_id", "span_id", "error_summary"}
+            if not isinstance(prior_failures, Mapping) or set(prior_failures) != failure_keys or prior_failures.get("schema_version") != "bidops.screening-failures.v1" or prior_failures.get("execution_id") != prior_input.get("execution_id") or prior_failures.get("run_id") != prior_input.get("run_id") or prior_failures.get("generated_at") != prior_input.get("generated_at"):
+                return None
+            values = prior_failures.get("failures")
+            if not isinstance(values, list) or prior_failures.get("failure_count") != len(values):
+                return None
+            for failure in values:
+                if not isinstance(failure, Mapping) or set(failure) != item_keys or failure.get("notice_id") not in prior_by_id or failure.get("notice_id") in failure_ids:
+                    return None
+                failure_ids.add(failure["notice_id"])
+        if set(prior_judgments) & failure_ids or set(prior_judgments) | failure_ids != set(prior_by_id):
+            return None
+        for key in ("policy_version", "prompt_version", "company_profile_version", "company_profile_digest"):
+            if prior_input.get(key) != old.get(key):
+                return None
+        prior_run_id = old.get("run_id")
+        if not isinstance(prior_run_id, str) or not prior_run_id:
+            return None
+        # A published replacement keeps the frozen source run_id in its
+        # copied input.  Follow-up provenance is accepted only when the
+        # explicit replacement marker points back to that frozen source.
+        if prior_run_id != row.source_run_id:
+            provenance_path = source_dir / "screening-replacement-provenance.json"
+            try:
+                provenance = _read_json(provenance_path)
+                if set(provenance) != {"schema_version", "source_run_id", "execution_id", "recorded_at"}:
+                    return None
+                if provenance.get("schema_version") != "bidops.screening-replacement.v1" or provenance.get("source_run_id") != prior_run_id or provenance.get("execution_id") != prior_input.get("execution_id"):
+                    return None
+            except WorkerError:
+                return None
+        current_id = notice.get("notice_id")
+        prior_notice = prior_by_id.get(current_id)
+        judgment = prior_judgments.get(current_id)
+        if prior_notice is None or judgment is None:
+            return None
+        if prior_notice.get("lifecycle") != notice.get("lifecycle"):
+            return None
+        if judgment.get("judged_in_run") != notice.get("carry_over_from"):
+            return None
+        if not isinstance(judgment.get("judged_in_run"), str) or not judgment["judged_in_run"]:
+            return None
+        if judgment.get("judgment_mode") not in {"신규", "재판정", "승계"}:
+            return None
+        if judgment.get("judgment_mode") == "승계":
+            if judgment.get("carried_over") is not True:
+                return None
+        elif judgment.get("carried_over") is not False or judgment.get("recorded_in_run") != judgment.get("judged_in_run"):
+            return None
+        if judgment.get("judgment_mode") == "신규" and judgment.get("rejudge_reason") is not None:
+            return None
+        if judgment.get("judgment_mode") == "재판정" and judgment.get("rejudge_reason") not in {"정정", "재공고", "본공고 전환", "담당자 요청"}:
+            return None
+        if judgment.get("judgment_mode") == "승계" and judgment.get("rejudge_reason") is not None:
+            return None
+        # New/rejudged source judgments must retain the source decisions
+        # identity; a carried chain may retain its original model binding.
+        if judgment.get("judgment_mode") in {"신규", "재판정"}:
+            for key in ("model_name", "model_digest", "prompt_version", "policy_version", "company_profile_version", "company_profile_digest"):
+                if judgment.get(key) != old.get(key):
+                    return None
         try:
             base = {key: judgment[key] for key in ("notice_id", "grade", "readiness", "primary_focus", "exclusion_category", "summary", "perspectives", "matched_performances", "counterarguments", "counterargument_resolutions", "verification_items", "next_action")}
-            validate_judgment(base, notice=notice)
+            validate_judgment(base, notice=prior_notice)
             axes = add_two_axis_metadata(base)
             if judgment.get("two_axis_mixing_flag") != axes["two_axis_mixing_flag"] or judgment.get("two_axis_mixing_label") != axes["two_axis_mixing_label"]:
                 return None
         except Exception:
             return None
+        judgment = dict(judgment)
         judgment["judgment_mode"] = "승계"
         judgment["recorded_in_run"] = row.source_run_id
         judgment["carried_over"] = True
-        judgment["rejudge_reason"] = None
         return judgment
+
+    def _validate_v3_result(self, row: ScreeningExecution, input_value: Mapping[str, Any], value: Any, failures: Any | None) -> None:
+        if not isinstance(value, Mapping) or set(value) != _RESULT_KEYS or value.get("schema_version") != "bidops.screening.v3":
+            raise WorkerError("execution_failure")
+        for key in ("execution_id", "generated_at", "source_window", "prompt_version", "policy_version", "company_profile_version", "company_profile_digest"):
+            if value.get(key) != input_value.get(key):
+                raise WorkerError("execution_failure")
+        for key in ("model_name", "model_digest"):
+            if value.get(key) != getattr(row, key):
+                raise WorkerError("execution_failure")
+        if not isinstance(value.get("screening_basis"), str) or not value["screening_basis"].strip():
+            raise WorkerError("execution_failure")
+        notices = input_value.get("notices")
+        if not isinstance(notices, list) or value.get("candidate_count") != len(notices):
+            raise WorkerError("execution_failure")
+        input_ids = {item.get("notice_id") for item in notices if isinstance(item, Mapping)}
+        if len(input_ids) != len(notices):
+            raise WorkerError("execution_failure")
+        results = value.get("results")
+        if not isinstance(results, list) or value.get("result_count") != len(results):
+            raise WorkerError("execution_failure")
+        result_ids: set[str] = set()
+        for result in results:
+            if not isinstance(result, Mapping) or set(result) != _RESULT_ITEM_KEYS:
+                raise WorkerError("execution_failure")
+            notice_value = result.get("notice")
+            judgment = result.get("judgment")
+            common_keys = set(_notice_input_keys()) - {"judgment_mode", "carry_over_from", "rejudge_reason"}
+            if not isinstance(notice_value, Mapping) or set(notice_value) != common_keys:
+                raise WorkerError("execution_failure")
+            try:
+                common = _notice_common(notice_value)
+            except ScreeningCreationError:
+                raise WorkerError("execution_failure") from None
+            notice_id = common.get("notice_id")
+            if notice_id not in input_ids or notice_id in result_ids or not isinstance(judgment, Mapping) or set(judgment) != (_JUDGMENT_KEYS - {"notice_id"}):
+                raise WorkerError("execution_failure")
+            result_ids.add(notice_id)
+            source_notice = next((candidate for candidate in notices if candidate.get("notice_id") == notice_id), None)
+            if source_notice is None:
+                raise WorkerError("execution_failure")
+            expected_common = {key: source_notice[key] for key in common_keys}
+            if dict(common) != expected_common:
+                raise WorkerError("execution_failure")
+            try:
+                judgment = {"notice_id": notice_id, **judgment}
+                base = {key: judgment[key] for key in ("notice_id", "grade", "readiness", "primary_focus", "exclusion_category", "summary", "perspectives", "matched_performances", "counterarguments", "counterargument_resolutions", "verification_items", "next_action")}
+                validate_judgment(base, notice=source_notice)
+            except Exception:
+                raise WorkerError("execution_failure") from None
+            mode = source_notice.get("judgment_mode")
+            if judgment.get("judgment_mode") != mode or judgment.get("carried_over") is not (mode == "승계"):
+                raise WorkerError("execution_failure")
+            expected_judged = source_notice.get("carry_over_from") if mode == "승계" else row.source_run_id
+            if judgment.get("judged_in_run") != expected_judged or judgment.get("recorded_in_run") != row.source_run_id:
+                raise WorkerError("execution_failure")
+            if mode != "승계":
+                for key in ("model_name", "model_digest", "prompt_version", "policy_version", "company_profile_version", "company_profile_digest"):
+                    if judgment.get(key) != getattr(row, key):
+                        raise WorkerError("execution_failure")
+            axes = add_two_axis_metadata(base)
+            if judgment.get("two_axis_mixing_flag") != axes["two_axis_mixing_flag"] or judgment.get("two_axis_mixing_label") != axes["two_axis_mixing_label"]:
+                raise WorkerError("execution_failure")
+        failure_values: list[Any] = []
+        if failures is not None:
+            failure_keys = {"schema_version", "execution_id", "run_id", "generated_at", "failure_count", "failures"}
+            item_keys = {"notice_id", "failed_stage", "failure_type", "last_attempt_at", "retry_count", "status", "failure_context", "trace_id", "span_id", "error_summary"}
+            if not isinstance(failures, Mapping) or set(failures) != failure_keys or failures.get("schema_version") != "bidops.screening-failures.v1" or failures.get("execution_id") != row.execution_id or failures.get("run_id") != row.source_run_id or failures.get("generated_at") != input_value.get("generated_at"):
+                raise WorkerError("execution_failure")
+            failure_values = failures.get("failures")
+            if not isinstance(failure_values, list) or failures.get("failure_count") != len(failure_values):
+                raise WorkerError("execution_failure")
+            seen: set[str] = set()
+            for failure in failure_values:
+                if not isinstance(failure, Mapping) or set(failure) != item_keys:
+                    raise WorkerError("execution_failure")
+                notice_id = failure.get("notice_id")
+                if notice_id not in input_ids or notice_id in result_ids or notice_id in seen or failure.get("failed_stage") not in _SAFE_FAILURE_STAGES or failure.get("failure_type") not in {"timeout", "truncated_output", "schema_violation", "evidence_missing", "counterargument_repetition"} or failure.get("status") != "사람 검토 대기" or not isinstance(failure.get("retry_count"), int) or isinstance(failure.get("retry_count"), bool) or failure.get("retry_count") < 0 or not isinstance(failure.get("last_attempt_at"), str) or not isinstance(failure.get("error_summary"), str) or not failure.get("error_summary").strip():
+                    raise WorkerError("execution_failure")
+                seen.add(notice_id)
+        failure_ids = {failure.get("notice_id") for failure in failure_values if isinstance(failure, Mapping)}
+        if result_ids & failure_ids or result_ids | failure_ids != input_ids:
+            raise WorkerError("execution_failure")
+        if value.get("failure_count") != len(failure_values) or value.get("partial_artifact") is not (bool(failure_values)) or value.get("failure_artifact") != ("screening-failures.json" if failure_values else None):
+            raise WorkerError("execution_failure")
 
     def _merge(self, row: ScreeningExecution, input_value: Mapping[str, Any], store: ArtifactStore, has_failures: bool) -> str:
         root = Path(self.settings.bidops_root)
         input_path = root / row.input_artifact_path
         decisions_path = root / row.artifact_dir / "screening-decisions.json"
         failures_path = root / row.artifact_dir / "screening-failures.json"
-        output_path = root / row.artifact_dir / "screening-results.json"
         script = root / "skills" / "bidops-screen" / "scripts" / "build_screening_results.py"
-        argv = [sys.executable, str(script), str(input_path), str(decisions_path), "--output", str(output_path)]
-        if has_failures:
-            argv[3:3] = ["--failures", str(failures_path)]
+        output_path: Path | None = None
         try:
+            fd, temporary = tempfile.mkstemp(prefix=".screening-results-", suffix=".tmp", dir=str(store.execution_dir(row.execution_id)))
+            os.close(fd)
+            output_path = Path(temporary)
+            output_path.unlink()
+            argv = [sys.executable, str(script), str(input_path), str(decisions_path), "--output", str(output_path)]
+            if has_failures:
+                argv[3:3] = ["--failures", str(failures_path)]
             completed = self._popen(argv, cwd=str(root), shell=False, capture_output=True, text=True, check=False)
-        except (OSError, subprocess.SubprocessError):
+            if completed.returncode != 0 or output_path.is_symlink() or not output_path.is_file():
+                raise WorkerError("execution_failure")
+            raw = output_path.read_bytes()
+            value = json.loads(raw.decode("utf-8"))
+            if canonical_bytes(value) != raw:
+                raise WorkerError("execution_failure")
+            failure_value = _read_json(failures_path) if has_failures else None
+            self._validate_v3_result(row, input_value, value, failure_value)
+            final_path, _ = store.write_bytes(row.execution_id, "screening-results.json", raw)
+            return str(root / final_path)
+        except WorkerError:
+            raise
+        except (OSError, UnicodeError, json.JSONDecodeError, subprocess.SubprocessError, ArtifactError):
             raise WorkerError("execution_failure") from None
-        if completed.returncode != 0 or not output_path.is_file():
-            raise WorkerError("execution_failure")
-        value = _read_json(output_path)
-        if not isinstance(value, dict) or value.get("schema_version") != "bidops.screening.v3":
-            raise WorkerError("execution_failure")
-        return str(output_path)
+        finally:
+            if output_path is not None:
+                try:
+                    if output_path.is_file() or output_path.is_symlink():
+                        output_path.unlink()
+                except OSError:
+                    pass
 
     def _publish(self, row: ScreeningExecution, input_value: Mapping[str, Any], store: ArtifactStore, result_path: str) -> None:
         source = _safe_run_dir(self.settings, row.source_run_id)
@@ -569,29 +789,42 @@ class ScreeningWorker:
                 break
         if target is None:
             raise WorkerError("execution_failure")
+        staging: Path | None = None
         derived_id: str | None = None
         try:
-            shutil.copytree(source, target, symlinks=False)
+            staging = Path(tempfile.mkdtemp(prefix=f".{source.name}--screen-", dir=str(runs)))
+            if staging.is_symlink():
+                raise WorkerError("execution_failure")
+            shutil.copytree(source, staging, symlinks=False, dirs_exist_ok=True)
+            self._assert_no_symlinks(source)
+            root = Path(self.settings.bidops_root)
             # The current immutable execution input is authoritative; a source
             # run may contain an older screening-input from another execution.
-            shutil.copy2(Path(self.settings.bidops_root) / row.input_artifact_path, target / "screening-input.json")
-            shutil.copy2(result_path, target / "screening-results.json")
+            self._copy_atomic(root / row.input_artifact_path, staging / "screening-input.json")
+            self._copy_atomic(Path(result_path), staging / "screening-results.json")
             execution_dir = Path(self.settings.bidops_root) / row.artifact_dir
             for name in ("screening-decisions.json", "screening-failures.json", "screening-telemetry.jsonl"):
                 source_file = execution_dir / name
                 if source_file.is_file():
-                    shutil.copy2(source_file, target / name)
+                    self._copy_atomic(source_file, staging / name)
             provenance = {
                 "schema_version": "bidops.screening-replacement.v1",
                 "source_run_id": row.source_run_id,
                 "execution_id": row.execution_id,
                 "recorded_at": aware_iso(_aware(self.clock)),
             }
-            (target / "screening-replacement-provenance.json").write_bytes(canonical_bytes(provenance))
-            with (target / "screening-replacement-provenance.json").open("rb") as handle:
-                provenance_bytes = handle.read()
-            if sha256_bytes(provenance_bytes) != sha256_bytes(canonical_bytes(provenance)):
+            self._write_atomic(staging / "screening-replacement-provenance.json", canonical_bytes(provenance))
+            self._assert_no_symlinks(staging)
+            staged_input = _read_json(staging / "screening-input.json")
+            staged_results = _read_json(staging / "screening-results.json")
+            staged_failures = _read_json(staging / "screening-failures.json") if (staging / "screening-failures.json").is_file() else None
+            self._validate_v3_result(row, staged_input, staged_results, staged_failures)
+            self._fsync_tree(staging)
+            if target.exists() or target.is_symlink():
                 raise WorkerError("execution_failure")
+            os.replace(staging, target)
+            staging = None
+            self._fsync_directory(runs)
             with self._session() as session:
                 # The loader is the sole owner of deterministic Run.id and
                 # Notice/Judgment/count ingestion. It commits its own valid
@@ -601,7 +834,15 @@ class ScreeningWorker:
                 run = session.scalar(select(Run).where(Run.id == derived_id))
                 if run is None or loaded.run_id != derived_id:
                     raise WorkerError("execution_failure")
-                if run.counts_json is None or not isinstance(run.counts_json, dict):
+                input_ids = {item.get("notice_id") for item in staged_input.get("notices", []) if isinstance(item, Mapping)}
+                result_count = int(staged_results.get("result_count", -1))
+                failed_ids = {item.get("notice_id") for item in staged_failures.get("failures", []) if isinstance(item, Mapping)} if isinstance(staged_failures, Mapping) else set()
+                actual_notices = session.scalars(select(Notice).where(Notice.run_id == derived_id)).all()
+                actual_notice_ids = {item.notice_key for item in actual_notices}
+                actual_judgments = session.scalars(select(Judgment).join(Notice, Judgment.notice_pk == Notice.id).where(Notice.run_id == derived_id)).all()
+                if actual_notice_ids != input_ids or len(actual_judgments) != result_count or any(item.notice_key in failed_ids and item.judgment is not None for item in actual_notices):
+                    raise WorkerError("execution_failure")
+                if run.counts_json is None or not isinstance(run.counts_json, dict) or run.counts_json.get("notices") != len(input_ids) or run.counts_json.get("judgments") != result_count:
                     raise WorkerError("execution_failure")
                 run.counts_json = {**run.counts_json, "replacement_of": row.source_run_id}
                 session.commit()
@@ -610,12 +851,76 @@ class ScreeningWorker:
                 if bound.rowcount != 1:
                     raise WorkerError("execution_failure")
                 session.commit()
-        except WorkerError:
-            self._cleanup_publication(target, derived_id)
-            raise
+        except WorkerError as exc:
+            self._cleanup_publication(target, staging, derived_id)
+            raise exc
         except Exception:
-            self._cleanup_publication(target, derived_id)
+            self._cleanup_publication(target, staging, derived_id)
             raise WorkerError("execution_failure") from None
+
+    @staticmethod
+    def _fsync_directory(directory: Path) -> None:
+        try:
+            fd = os.open(directory, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+            try:
+                os.fsync(fd)
+            finally:
+                os.close(fd)
+        except OSError:
+            raise WorkerError("execution_failure") from None
+
+    @classmethod
+    def _fsync_tree(cls, root: Path) -> None:
+        try:
+            for entry in os.scandir(root):
+                path = Path(entry.path)
+                if entry.is_symlink():
+                    raise WorkerError("execution_failure")
+                if entry.is_dir(follow_symlinks=False):
+                    cls._fsync_tree(path)
+                else:
+                    with path.open("rb") as handle:
+                        os.fsync(handle.fileno())
+            cls._fsync_directory(root)
+        except WorkerError:
+            raise
+        except OSError:
+            raise WorkerError("execution_failure") from None
+
+    @classmethod
+    def _write_atomic(cls, destination: Path, raw: bytes) -> None:
+        if destination.is_symlink() or not destination.parent.is_dir():
+            raise WorkerError("execution_failure")
+        temporary: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(mode="wb", dir=destination.parent, prefix=".screening-", suffix=".tmp", delete=False) as handle:
+                temporary = Path(handle.name)
+                handle.write(raw)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary, destination)
+            temporary = None
+            cls._fsync_directory(destination.parent)
+        except WorkerError:
+            raise
+        except OSError:
+            raise WorkerError("execution_failure") from None
+        finally:
+            if temporary is not None:
+                try:
+                    temporary.unlink(missing_ok=True)
+                except OSError:
+                    pass
+
+    @classmethod
+    def _copy_atomic(cls, source: Path, destination: Path) -> None:
+        if source.is_symlink() or not source.is_file():
+            raise WorkerError("execution_failure")
+        try:
+            raw = source.read_bytes()
+        except OSError:
+            raise WorkerError("execution_failure") from None
+        cls._write_atomic(destination, raw)
 
     @staticmethod
     def _assert_no_symlinks(root: Path) -> None:
@@ -631,18 +936,25 @@ class ScreeningWorker:
         except OSError:
             raise WorkerError("execution_failure") from None
 
-    def _cleanup_publication(self, target: Path, derived_id: str | None) -> None:
-        if derived_id:
-            try:
-                with self._session() as session:
-                    session.execute(delete(Run).where(Run.id == derived_id))
-                    session.commit()
-            except Exception:
-                pass
+    def _cleanup_publication(self, target: Path | None, staging: Path | None, derived_id: str | None) -> None:
         try:
-            shutil.rmtree(target)
-        except OSError:
-            pass
+            with self._session() as session:
+                if derived_id:
+                    session.execute(update(ScreeningExecution).where(ScreeningExecution.published_run_id == derived_id).values(published_run_id=None))
+                    session.execute(delete(Run).where(Run.id == derived_id))
+                session.commit()
+        except Exception:
+            raise WorkerError("execution_failure") from None
+        for path in (staging, target):
+            if path is None:
+                continue
+            if path.is_symlink():
+                raise WorkerError("execution_failure")
+            if path.exists():
+                try:
+                    shutil.rmtree(path)
+                except OSError:
+                    raise WorkerError("execution_failure") from None
 
 
 Worker = ScreeningWorker

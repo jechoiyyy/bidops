@@ -4,6 +4,7 @@ from datetime import date, datetime, timezone
 import json
 from pathlib import Path
 import shutil
+from types import SimpleNamespace
 
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
@@ -123,6 +124,7 @@ def test_single_success_writes_exact_seven_attempts_and_telemetry(tmp_path: Path
     expected = {"schema_version", "execution_id", "trace_id", "span_id", "notice_id", "stage", "attempt_no", "status", "failure_type", "done_reason", "model_name", "model_digest", "prompt_eval_count", "eval_count", "prompt_eval_duration_ns", "eval_duration_ns", "load_duration_ns", "total_duration_ns", "started_at", "finished_at"}
     assert len(telemetry) == 7
     assert all(set(json.loads(line)) == expected for line in telemetry)
+    assert [json.loads(line)["stage"] for line in telemetry] == [*NAMES, "counterargument", "synthesis"]
     assert not (root / created.artifact_dir / "screening-results.json").exists()
 
 
@@ -137,6 +139,26 @@ def test_input_tamper_fails_before_any_generate_call(tmp_path: Path):
     final = ScreeningWorker(settings, session_factory=factory, ollama=client, clock=lambda: NOW).run_once()
     assert final is not None and final.status == "실패"
     assert transport.generate_requests == []
+
+
+def test_collected_performance_source_page_integer_is_preserved(tmp_path: Path):
+    root, settings, _engine, factory, body = _fixture(tmp_path)
+    item = _notice()
+    item["performance_matches"] = [{
+        "project_name": "공공 데이터 사업", "source_page": 42, "similarity": 0.91,
+        "common_fragment": "데이터 구축", "legal_qualification_status": "확인 필요",
+    }]
+    for filename in ("collected-notices.json", "validation-set.json"):
+        path = root / "data/runs/run-1" / filename
+        value = json.loads(path.read_text(encoding="utf-8"))
+        value["notices"][0] = item
+        path.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
+    client = OllamaClient(settings=settings, transport=FakeOllamaTransport())
+    created = ScreeningOrchestrator(settings, session_factory=factory, ollama=client, clock=lambda: NOW).create_execution(
+        run_id="run-1", notice_id="notice-1", policy_version=body["policy_version"], requested_by="tester", scope="single_notice"
+    )
+    frozen = json.loads((root / created.input_artifact_path).read_text(encoding="utf-8"))
+    assert frozen["notices"][0]["performance_matches"][0]["source_page"] == 42
 
 
 def test_retry_attempt_is_persisted_before_success_and_has_no_failed_response(tmp_path: Path):
@@ -202,6 +224,92 @@ def test_full_run_merges_ingests_and_publishes_immutable_derived_directory(tmp_p
         assert run is not None and run.counts_json["notices"] == 1 and run.counts_json["judgments"] == 1
 
 
+def test_full_run_uses_collected_candidates_outside_validation_and_ingests_all(tmp_path: Path):
+    root, settings, _engine, factory, body = _fixture(tmp_path)
+    second = _notice("notice-2")
+    collected_path = root / "data/runs/run-1/collected-notices.json"
+    collected = json.loads(collected_path.read_text(encoding="utf-8"))
+    collected["counts"] = {"total": 2, "candidate_pool": 2, "audit_pool": 0}
+    collected["notices"].append(second)
+    collected_path.write_text(json.dumps(collected, ensure_ascii=False), encoding="utf-8")
+    transport = FakeOllamaTransport([*_script("notice-1"), *_script("notice-2")])
+    client = OllamaClient(settings=settings, transport=transport)
+    created = ScreeningOrchestrator(settings, session_factory=factory, ollama=client, clock=lambda: NOW).create_execution(
+        run_id="run-1", policy_version=body["policy_version"], requested_by="tester", scope="full_run"
+    )
+    frozen = json.loads((root / created.input_artifact_path).read_text(encoding="utf-8"))
+    assert frozen["candidate_count"] == 2 and [item["notice_id"] for item in frozen["notices"]] == ["notice-1", "notice-2"]
+    final = ScreeningWorker(settings, session_factory=factory, ollama=client, clock=lambda: NOW).run_once()
+    assert final is not None and final.status == "성공" and final.published_run_id
+    with factory() as session:
+        run = session.get(Run, final.published_run_id)
+        assert run is not None and run.counts_json["notices"] == 2 and run.counts_json["judgments"] == 2
+        assert {notice.notice_key for notice in run.notices} == {"notice-1", "notice-2"}
+
+
+def test_malformed_merge_output_never_publishes_or_changes_source(tmp_path: Path):
+    root, settings, _engine, factory, body = _fixture(tmp_path)
+    source_before = (root / "data/runs/run-1/collected-notices.json").read_bytes()
+
+    def fake_merge(argv: list[str], **_kwargs: object) -> SimpleNamespace:
+        output = Path(argv[argv.index("--output") + 1])
+        output.write_bytes(b"{}")
+        return SimpleNamespace(returncode=0)
+
+    client = OllamaClient(settings=settings, transport=FakeOllamaTransport(_script()))
+    created = ScreeningOrchestrator(settings, session_factory=factory, ollama=client, clock=lambda: NOW).create_execution(
+        run_id="run-1", policy_version=body["policy_version"], requested_by="tester", scope="full_run"
+    )
+    final = ScreeningWorker(settings, session_factory=factory, ollama=client, clock=lambda: NOW, popen=fake_merge).run_once()
+    assert final is not None and final.status == "실패" and final.published_run_id is None
+    assert (root / "data/runs/run-1/collected-notices.json").read_bytes() == source_before
+    assert not any(path.name.startswith("run-1--screen-") for path in (root / "data/runs").iterdir())
+    assert not (root / created.artifact_dir / "screening-results.json").exists()
+
+
+def test_valid_prior_judgment_is_carried_without_model_calls(tmp_path: Path):
+    root, settings, _engine, factory, body = _fixture(tmp_path)
+    first_client = OllamaClient(settings=settings, transport=FakeOllamaTransport(_script()))
+    first = ScreeningOrchestrator(settings, session_factory=factory, ollama=first_client, clock=lambda: NOW).create_execution(
+        run_id="run-1", policy_version=body["policy_version"], requested_by="tester", scope="full_run"
+    )
+    first_final = ScreeningWorker(settings, session_factory=factory, ollama=first_client, clock=lambda: NOW).run_once()
+    assert first_final is not None and first_final.status == "성공"
+    source = root / "data/runs/run-3"
+    source.mkdir(parents=True)
+    shutil.copy2(root / "data/runs/run-1/collected-notices.json", source / "collected-notices.json")
+    shutil.copy2(root / "data/runs/run-1/validation-set.json", source / "validation-set.json")
+    execution_dir = root / first.artifact_dir
+    prior_input = json.loads((execution_dir / "screening-input.json").read_text(encoding="utf-8"))
+    prior_input["run_id"] = "run-3"
+    prior_input["notices"][0]["judgment_mode"] = "승계"
+    prior_input["notices"][0]["carry_over_from"] = "run-1"
+    prior_decisions = json.loads((execution_dir / "screening-decisions.json").read_text(encoding="utf-8"))
+    prior_decisions["run_id"] = "run-3"
+    prior_decisions["judgments"][0]["judgment_mode"] = "승계"
+    prior_decisions["judgments"][0]["carried_over"] = True
+    prior_decisions["judgments"][0]["judged_in_run"] = "run-1"
+    prior_decisions["judgments"][0]["recorded_in_run"] = "run-3"
+    canonical = lambda value: json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    (source / "screening-input.json").write_bytes(canonical(prior_input))
+    (source / "screening-decisions.json").write_bytes(canonical(prior_decisions))
+    with factory() as session:
+        session.add(Run(id="run-3", window_from=date(2026, 8, 25), window_to=date(2026, 8, 25), timezone="Asia/Seoul", generated_at=NOW, status="active"))
+        session.add(Notice(run_id="run-3", notice_key="notice-1"))
+        session.commit()
+    second_transport = FakeOllamaTransport()
+    second_client = OllamaClient(settings=settings, transport=second_transport)
+    second = ScreeningOrchestrator(settings, session_factory=factory, ollama=second_client, clock=lambda: NOW).create_execution(
+        run_id="run-3", policy_version=body["policy_version"], requested_by="tester", scope="full_run"
+    )
+    frozen = json.loads((root / second.input_artifact_path).read_text(encoding="utf-8"))
+    assert frozen["notices"][0]["judgment_mode"] == "승계"
+    assert frozen["notices"][0]["carry_over_from"] == "run-1"
+    final = ScreeningWorker(settings, session_factory=factory, ollama=second_client, clock=lambda: NOW).run_once()
+    assert final is not None and final.status == "성공"
+    assert second_transport.generate_requests == []
+
+
 def test_full_run_continues_after_one_notice_failure_and_publishes_partial(tmp_path: Path):
     root, settings, _engine, factory, body = _fixture(tmp_path)
     second = _notice("notice-2")
@@ -225,3 +333,25 @@ def test_full_run_continues_after_one_notice_failure_and_publishes_partial(tmp_p
     failures = json.loads((root / created.artifact_dir / "screening-failures.json").read_text(encoding="utf-8"))
     assert failures["failure_count"] == 1 and failures["failures"][0]["notice_id"] == "notice-1"
     assert len(transport.generate_requests) == 9
+
+
+def test_quality_sample_mixed_results_is_partial_without_publication(tmp_path: Path):
+    root, settings, _engine, factory, body = _fixture(tmp_path)
+    second = _notice("notice-2")
+    for filename in ("collected-notices.json", "validation-set.json"):
+        path = root / "data/runs/run-1" / filename
+        value = json.loads(path.read_text(encoding="utf-8"))
+        value["counts"] = {"total": 2, "candidate_pool": 2, "audit_pool": 0}
+        value["notices"].append(second)
+        if filename == "validation-set.json":
+            value["selection"]["sample_size"] = 2
+        path.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
+    bad = {"model": "qwen3.8:27b", "done": True, "done_reason": "stop", "response": "{invalid"}
+    transport = FakeOllamaTransport([bad, bad, *_script("notice-2")])
+    client = OllamaClient(settings=settings, transport=transport)
+    created = ScreeningOrchestrator(settings, session_factory=factory, ollama=client, clock=lambda: NOW).create_execution(
+        run_id="run-1", policy_version=body["policy_version"], requested_by="tester", scope="quality_sample"
+    )
+    final = ScreeningWorker(settings, session_factory=factory, ollama=client, clock=lambda: NOW).run_once()
+    assert final is not None and final.status == "부분 성공" and final.published_run_id is None
+    assert not (root / created.artifact_dir / "screening-results.json").exists()
