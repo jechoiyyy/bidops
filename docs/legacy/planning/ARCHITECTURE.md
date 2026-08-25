@@ -1,6 +1,6 @@
-# BidOps Admin 시스템 구조
+# BidOps Admin 시스템 구조 (보관본)
 
-> `docs/PRD.md`가 정의한 요구사항을 구현하기 위한 기술 구조. 결정의 근거는 `docs/ADR.md`에 기록한다.
+> `docs/legacy/planning/PRD.md`가 정의한 요구사항을 구현하기 위한 기술 구조. 결정의 근거는 `docs/legacy/planning/ADR.md`에 기록한다.
 
 ---
 

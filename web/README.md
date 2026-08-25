@@ -4,7 +4,8 @@
 
 - 백엔드: FastAPI · SQLAlchemy 2.x · Pydantic v2 · SQLite(WAL)
 - 프론트엔드: Vite 6 · React 19 · TypeScript · Tailwind v4 · TanStack Query v5 · React Router v7
-- 설계 근거: `docs/PRD.md`, `docs/ARCHITECTURE.md`, `docs/ADR.md`, `docs/PLAN.md`
+- 현재 운영 기준: `docs/architecture.md`, `docs/business-rules.md`, `docs/security.md`, `docs/standards.md`
+- 이전 설계 보관본: `docs/legacy/planning/`
 
 ## 두 가지 실행 방법
 
