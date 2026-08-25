@@ -8,6 +8,7 @@ import shutil
 import subprocess
 from types import SimpleNamespace
 
+import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -18,7 +19,7 @@ from app.screening.execution_store import ScreeningExecutionStore
 from app.screening.ollama import OllamaClient
 from app.screening.orchestrator import ScreeningOrchestrator
 from app.screening.policy import load_policy_file, policy_content_digest
-from app.screening.worker import ScreeningWorker
+from app.screening.worker import ScreeningWorker, WorkerError
 from tests.fakes import FakeOllamaTransport
 
 
@@ -303,6 +304,21 @@ def test_publication_runs_swap_cannot_redirect_current_artifacts_to_external_tre
     assert not (external / "screening-input.json").exists()
     derived = next(path for path in real_runs.iterdir() if path.name.startswith("run-1--screen-"))
     assert (derived / "screening-input.json").is_file() and (derived / "screening-results.json").is_file()
+
+
+def test_publish_invalid_clock_opens_no_descriptor_chain(tmp_path: Path):
+    _root, settings, _engine, factory, _body = _fixture(tmp_path)
+    worker = ScreeningWorker(
+        settings,
+        session_factory=factory,
+        ollama=OllamaClient(settings=settings, transport=FakeOllamaTransport()),
+        clock=lambda: datetime(2026, 8, 26, 1, 0),
+    )
+    before = set(os.listdir("/proc/self/fd"))
+    with pytest.raises(WorkerError):
+        worker._publish(SimpleNamespace(source_run_id="run-1"), {}, None, "")
+    after = set(os.listdir("/proc/self/fd"))
+    assert after == before
 
 
 def test_full_run_uses_collected_candidates_outside_validation_and_ingests_all(tmp_path: Path):

@@ -999,8 +999,10 @@ class ScreeningWorker:
     def _publish(self, row: ScreeningExecution, input_value: Mapping[str, Any], store: ArtifactStore, result_path: str) -> tuple[str, Path, PublicationHandle]:
         source = _safe_run_dir(self.settings, row.source_run_id)
         runs = source.parent
-        root_fd, data_fd, runs_fd, source_fd = _open_run_fds(self.settings, row.source_run_id)
+        # Validate the injected clock before opening any publication
+        # descriptors.  An invalid/naive clock must not strand the fd chain.
         stamp = _aware(self.clock).astimezone(timezone.utc).strftime("%Y%m%d%H%M%S")
+        root_fd, data_fd, runs_fd, source_fd = _open_run_fds(self.settings, row.source_run_id)
         target: Path | None = None
         target_name: str | None = None
         for _ in range(20):
