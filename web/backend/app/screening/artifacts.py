@@ -8,6 +8,8 @@ components, including components created after the first check.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import ctypes
+import errno
 import hashlib
 import json
 import os
@@ -22,6 +24,48 @@ from uuid import uuid4
 EXECUTION_RE = re.compile(r"^scr-[0-9a-f]{32}$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 ARTIFACT_ROOT = Path("data") / "screening-executions"
+_RENAME_NOREPLACE = 1
+_RENAME_EXCHANGE = 2
+try:
+    _LIBC = ctypes.CDLL(None, use_errno=True)
+    _RENAMEAT2 = _LIBC.renameat2
+    _RENAMEAT2.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
+    _RENAMEAT2.restype = ctypes.c_int
+except (AttributeError, OSError):
+    _RENAMEAT2 = None
+
+
+def _rename_at(source: str, destination: str, *, src_dir_fd: int, dst_dir_fd: int, flags: int) -> None:
+    """Call Linux renameat2 with exact directory descriptors."""
+
+    if _RENAMEAT2 is None:
+        raise ArtifactError("atomic no-replace rename is unsupported")
+    ctypes.set_errno(0)
+    result = _RENAMEAT2(
+        src_dir_fd,
+        os.fsencode(source),
+        dst_dir_fd,
+        os.fsencode(destination),
+        flags,
+    )
+    if result == 0:
+        return
+    error = ctypes.get_errno()
+    if error == errno.EEXIST and flags == _RENAME_NOREPLACE:
+        raise FileExistsError(error, os.strerror(error), destination)
+    raise OSError(error, os.strerror(error), source)
+
+
+def _rename_noreplace(source: str, destination: str, *, src_dir_fd: int, dst_dir_fd: int) -> None:
+    """Move a name without ever replacing an existing destination."""
+
+    _rename_at(source, destination, src_dir_fd=src_dir_fd, dst_dir_fd=dst_dir_fd, flags=_RENAME_NOREPLACE)
+
+
+def _rename_exchange(source: str, destination: str, *, src_dir_fd: int, dst_dir_fd: int) -> None:
+    """Atomically exchange two existing names without pathname fallback."""
+
+    _rename_at(source, destination, src_dir_fd=src_dir_fd, dst_dir_fd=dst_dir_fd, flags=_RENAME_EXCHANGE)
 
 
 class ArtifactError(RuntimeError):
@@ -333,17 +377,14 @@ class ArtifactStore:
             # The open must identify the inode created by this call, not a
             # pre-existing sibling that was swapped into the name between
             # mkdir and open.  A fresh workspace is empty before any writes.
-            if opened_identity != created_identity or opened_identity in preexisting or not workspace.is_empty():
+            if opened_identity != created_identity or opened_identity in preexisting:
                 if opened_identity != created_identity and created_identity is not None:
-                    try:
-                        self._remove_fresh_directory(workspace.base_fd, created_identity)
-                    except ArtifactError:
-                        # The candidate is preserved when it cannot be
-                        # uniquely proven to be the just-created empty inode.
-                        pass
+                    self._remove_fresh_directory(workspace.base_fd, created_identity)
                 workspace.close()
                 workspace = None
                 raise ArtifactError("execution workspace was replaced during creation")
+            if not workspace.is_empty():
+                raise ArtifactError("execution workspace was not fresh")
             os.fchmod(workspace.directory_fd, 0o700)
             os.fsync(workspace.base_fd)
             return workspace
@@ -359,11 +400,10 @@ class ArtifactStore:
                         workspace.close()
                 else:
                     workspace.close()
-            elif created_identity is not None and base_fd is not None and created_identity not in preexisting:
-                try:
-                    self._remove_fresh_directory(base_fd, created_identity)
-                except ArtifactError:
-                    pass
+            elif base_fd is not None:
+                recovery_identity = created_identity or self._find_unique_new_directory(base_fd, preexisting)
+                if recovery_identity is not None and recovery_identity not in preexisting:
+                    self._remove_fresh_directory(base_fd, recovery_identity)
             raise ArtifactError("execution workspace creation failed") from None
         finally:
             for fd in (directory_fd, base_fd, data_fd, root_fd):
@@ -534,38 +574,49 @@ class ArtifactStore:
         matches = cls._find_identities(directory_fd, identity)
         return matches[0] if matches else None
 
-    @classmethod
-    def _remove_fresh_directory(cls, base_fd: int, identity: tuple[int, int]) -> None:
-        """Remove one provably fresh empty directory after an open/name swap."""
-
-        matches = cls._find_identities(base_fd, identity)
-        if len(matches) != 1:
-            return
-        name = matches[0]
-        flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
-        candidate_fd: int | None = None
+    @staticmethod
+    def _find_unique_new_directory(base_fd: int, preexisting: set[tuple[int, int]]) -> tuple[int, int] | None:
         try:
-            candidate_fd = os.open(name, flags, dir_fd=base_fd)
-            candidate_stat = os.fstat(candidate_fd)
-            if (candidate_stat.st_dev, candidate_stat.st_ino) != identity:
-                return
-            with os.scandir(f"/proc/self/fd/{candidate_fd}") as entries:
-                if next(entries, None) is not None:
-                    return
-            current = os.stat(name, dir_fd=base_fd, follow_symlinks=False)
-            if (current.st_dev, current.st_ino) != identity:
-                return
-            os.rmdir(name, dir_fd=base_fd)
+            entries = os.scandir(f"/proc/self/fd/{base_fd}")
         except OSError:
-            raise ArtifactError("fresh execution workspace cleanup failed") from None
-        finally:
-            if candidate_fd is not None:
-                os.close(candidate_fd)
+            raise ArtifactError("fresh execution workspace scan failed") from None
+        candidates: list[tuple[tuple[int, int], bool]] = []
+        flags = getattr(os, "O_PATH", os.O_RDONLY) | getattr(os, "O_NOFOLLOW", 0)
+        with entries:
+            for entry in entries:
+                candidate_fd: int | None = None
+                try:
+                    candidate_fd = os.open(entry.name, flags, dir_fd=base_fd)
+                    value = os.fstat(candidate_fd)
+                except OSError:
+                    continue
+                finally:
+                    if candidate_fd is not None:
+                        os.close(candidate_fd)
+                identity = (value.st_dev, value.st_ino)
+                if identity not in preexisting:
+                    candidates.append((identity, stat_module.S_ISDIR(value.st_mode)))
+        return candidates[0][0] if len(candidates) == 1 and candidates[0][1] else None
+
+    @classmethod
+    def _move_to_quarantine(cls, directory_fd: int, source: str) -> str:
+        for _ in range(8):
+            destination = f".rollback-{uuid4().hex}.tmp"
+            try:
+                _rename_noreplace(source, destination, src_dir_fd=directory_fd, dst_dir_fd=directory_fd)
+                return destination
+            except FileExistsError:
+                continue
+            except ArtifactError:
+                raise
+            except OSError:
+                raise ArtifactError("artifact quarantine move failed") from None
+        raise ArtifactError("artifact quarantine name collision")
 
     @staticmethod
-    def _reserve_quarantine_name(directory_fd: int) -> str:
+    def _create_quarantine_file(directory_fd: int) -> tuple[str, tuple[int, int]]:
         for _ in range(8):
-            name = f".rollback-{uuid4().hex}.tmp"
+            name = f".rollback-sink-{uuid4().hex}.tmp"
             try:
                 fd = os.open(
                     name,
@@ -576,40 +627,142 @@ class ArtifactStore:
             except FileExistsError:
                 continue
             except OSError:
-                raise ArtifactError("artifact quarantine reservation failed") from None
+                raise ArtifactError("artifact quarantine sink creation failed") from None
             try:
+                value = os.fstat(fd)
+                return name, (value.st_dev, value.st_ino)
+            finally:
                 os.close(fd)
-                os.unlink(name, dir_fd=directory_fd)
-            except OSError:
-                raise ArtifactError("artifact quarantine reservation failed") from None
-            return name
-        raise ArtifactError("artifact quarantine name collision")
+        raise ArtifactError("artifact quarantine sink name collision")
 
     @staticmethod
-    def _restore_quarantine_file(directory_fd: int, quarantine: str, original: str) -> None:
-        """Restore a mismatched regular replacement without clobbering a name."""
+    def _create_quarantine_directory(directory_fd: int) -> tuple[str, tuple[int, int]]:
+        for _ in range(8):
+            name = f".rollback-sink-{uuid4().hex}.tmp"
+            try:
+                os.mkdir(name, mode=0o700, dir_fd=directory_fd)
+            except FileExistsError:
+                continue
+            except OSError:
+                raise ArtifactError("execution workspace quarantine sink creation failed") from None
+            fd: int | None = None
+            try:
+                fd = os.open(
+                    name,
+                    os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
+                    dir_fd=directory_fd,
+                )
+                value = os.fstat(fd)
+                return name, (value.st_dev, value.st_ino)
+            except OSError:
+                raise ArtifactError("execution workspace quarantine sink identification failed") from None
+            finally:
+                if fd is not None:
+                    os.close(fd)
+        raise ArtifactError("execution workspace quarantine sink name collision")
 
+    @staticmethod
+    def _remove_exact_file(directory_fd: int, name: str, identity: tuple[int, int]) -> None:
         fd: int | None = None
         try:
-            fd = os.open(quarantine, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0), dir_fd=directory_fd)
+            fd = os.open(name, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0), dir_fd=directory_fd)
             value = os.fstat(fd)
-            if not stat_module.S_ISREG(value.st_mode):
-                return
-            try:
-                os.link(quarantine, original, src_dir_fd=directory_fd, dst_dir_fd=directory_fd, follow_symlinks=False)
-            except FileExistsError:
-                return
-            except OSError:
-                return
-            try:
-                os.unlink(quarantine, dir_fd=directory_fd)
-            except OSError:
-                pass
+            named = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+            if (value.st_dev, value.st_ino) != identity or (named.st_dev, named.st_ino) != identity:
+                raise ArtifactError("artifact quarantine sink identity changed")
+            os.unlink(name, dir_fd=directory_fd)
+        except ArtifactError:
+            raise
         except OSError:
-            return
+            raise ArtifactError("artifact quarantine sink cleanup failed") from None
         finally:
             if fd is not None:
                 os.close(fd)
+
+    @staticmethod
+    def _remove_exact_directory(directory_fd: int, name: str, identity: tuple[int, int]) -> None:
+        fd: int | None = None
+        try:
+            fd = os.open(name, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0), dir_fd=directory_fd)
+            value = os.fstat(fd)
+            if (value.st_dev, value.st_ino) != identity:
+                raise ArtifactError("execution workspace quarantine sink identity changed")
+            with os.scandir(f"/proc/self/fd/{fd}") as entries:
+                if next(entries, None) is not None:
+                    raise ArtifactError("execution workspace quarantine sink is not empty")
+            named = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+            if (named.st_dev, named.st_ino) != identity:
+                raise ArtifactError("execution workspace quarantine sink identity changed")
+            os.rmdir(name, dir_fd=directory_fd)
+        except ArtifactError:
+            raise
+        except OSError:
+            raise ArtifactError("execution workspace quarantine sink cleanup failed") from None
+        finally:
+            if fd is not None:
+                os.close(fd)
+
+    @classmethod
+    def _remove_fresh_directory(cls, base_fd: int, identity: tuple[int, int]) -> None:
+        """Remove one provably fresh empty directory after an open/name swap."""
+
+        matches = cls._find_identities(base_fd, identity)
+        if len(matches) != 1:
+            return
+        name = matches[0]
+        quarantine = cls._move_to_quarantine(base_fd, name)
+        moved = True
+        flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+        candidate_fd: int | None = None
+        try:
+            candidate_fd = os.open(quarantine, flags, dir_fd=base_fd)
+            candidate_stat = os.fstat(candidate_fd)
+            if (candidate_stat.st_dev, candidate_stat.st_ino) != identity:
+                cls._restore_quarantine_directory(base_fd, quarantine, name)
+                moved = False
+                return
+            with os.scandir(f"/proc/self/fd/{candidate_fd}") as entries:
+                if next(entries, None) is not None:
+                    cls._restore_quarantine_directory(base_fd, quarantine, name)
+                    moved = False
+                    return
+            current = os.stat(quarantine, dir_fd=base_fd, follow_symlinks=False)
+            if (current.st_dev, current.st_ino) != identity:
+                cls._restore_quarantine_directory(base_fd, quarantine, name)
+                moved = False
+                return
+            os.rmdir(quarantine, dir_fd=base_fd)
+            moved = False
+        except OSError:
+            raise ArtifactError("fresh execution workspace cleanup failed") from None
+        finally:
+            if candidate_fd is not None:
+                os.close(candidate_fd)
+
+        if moved:
+            raise ArtifactError("fresh execution workspace quarantine was not removed")
+
+    @staticmethod
+    def _restore_quarantine_directory(directory_fd: int, quarantine: str, original: str) -> None:
+        try:
+            _rename_noreplace(quarantine, original, src_dir_fd=directory_fd, dst_dir_fd=directory_fd)
+        except FileExistsError:
+            raise ArtifactError("execution workspace replacement occupied original name") from None
+        except ArtifactError:
+            raise
+        except OSError:
+            raise ArtifactError("execution workspace quarantine restore failed") from None
+
+    @staticmethod
+    def _restore_quarantine_name(directory_fd: int, quarantine: str, original: str) -> None:
+        try:
+            _rename_noreplace(quarantine, original, src_dir_fd=directory_fd, dst_dir_fd=directory_fd)
+        except FileExistsError:
+            raise ArtifactError("artifact quarantine replacement occupied original name") from None
+        except ArtifactError:
+            raise
+        except OSError:
+            raise ArtifactError("artifact quarantine replacement restore failed") from None
 
     @classmethod
     def _quarantine_remove_child(cls, directory_fd: int, identity: tuple[int, int]) -> bool:
@@ -623,46 +776,94 @@ class ArtifactStore:
             return False
         if (current.st_dev, current.st_ino) != identity or not stat_module.S_ISREG(current.st_mode):
             return False
-        quarantine = cls._reserve_quarantine_name(directory_fd)
-        renamed = False
+        quarantine = cls._move_to_quarantine(directory_fd, original)
+        sink, sink_identity = cls._create_quarantine_file(directory_fd)
+        exchanged = False
         try:
-            os.rename(original, quarantine, src_dir_fd=directory_fd, dst_dir_fd=directory_fd)
-            renamed = True
-            fd: int | None = None
+            _rename_exchange(quarantine, sink, src_dir_fd=directory_fd, dst_dir_fd=directory_fd)
+            exchanged = True
+            moved_fd: int | None = None
             try:
-                fd = os.open(quarantine, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0), dir_fd=directory_fd)
-                value = os.fstat(fd)
-                named = os.stat(quarantine, dir_fd=directory_fd, follow_symlinks=False)
+                moved_fd = os.open(sink, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0), dir_fd=directory_fd)
+                moved = os.fstat(moved_fd)
+                named = os.stat(sink, dir_fd=directory_fd, follow_symlinks=False)
                 if (
-                    (value.st_dev, value.st_ino) != identity
+                    (moved.st_dev, moved.st_ino) != identity
                     or (named.st_dev, named.st_ino) != identity
-                    or not stat_module.S_ISREG(value.st_mode)
+                    or not stat_module.S_ISREG(moved.st_mode)
                 ):
-                    cls._restore_quarantine_file(directory_fd, quarantine, original)
-                    return False
+                    _rename_exchange(sink, quarantine, src_dir_fd=directory_fd, dst_dir_fd=directory_fd)
+                    exchanged = False
+                    cls._restore_quarantine_name(directory_fd, quarantine, original)
+                    cls._remove_exact_file(directory_fd, sink, sink_identity)
+                    raise ArtifactError("artifact quarantine inode mismatch")
             except OSError:
-                cls._restore_quarantine_file(directory_fd, quarantine, original)
-                return False
+                if exchanged:
+                    _rename_exchange(sink, quarantine, src_dir_fd=directory_fd, dst_dir_fd=directory_fd)
+                    exchanged = False
+                    cls._restore_quarantine_name(directory_fd, quarantine, original)
+                raise ArtifactError("artifact quarantine verification failed") from None
             finally:
-                if fd is not None:
-                    os.close(fd)
-            final_named = os.stat(quarantine, dir_fd=directory_fd, follow_symlinks=False)
-            if (final_named.st_dev, final_named.st_ino) != identity:
-                cls._restore_quarantine_file(directory_fd, quarantine, original)
-                return False
+                if moved_fd is not None:
+                    os.close(moved_fd)
+            cls._remove_exact_file(directory_fd, sink, identity)
             try:
-                os.unlink(quarantine, dir_fd=directory_fd)
-            except OSError:
-                return False
+                cls._remove_exact_file(directory_fd, quarantine, sink_identity)
+            except ArtifactError:
+                cls._restore_quarantine_name(directory_fd, quarantine, original)
+                raise
             return True
+        except ArtifactError:
+            raise
         except OSError:
+            raise ArtifactError("artifact quarantine exchange failed") from None
+
+    @classmethod
+    def _quarantine_remove_workspace(cls, base_fd: int, identity: tuple[int, int]) -> bool:
+        matches = cls._find_identities(base_fd, identity)
+        if len(matches) != 1:
             return False
+        original = matches[0]
+        quarantine = cls._move_to_quarantine(base_fd, original)
+        sink, sink_identity = cls._create_quarantine_directory(base_fd)
+        exchanged = False
+        candidate_fd: int | None = None
+        try:
+            _rename_exchange(quarantine, sink, src_dir_fd=base_fd, dst_dir_fd=base_fd)
+            exchanged = True
+            flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+            candidate_fd = os.open(sink, flags, dir_fd=base_fd)
+            value = os.fstat(candidate_fd)
+            named = os.stat(sink, dir_fd=base_fd, follow_symlinks=False)
+            with os.scandir(f"/proc/self/fd/{candidate_fd}") as entries:
+                nonempty = next(entries, None) is not None
+            if (
+                (value.st_dev, value.st_ino) != identity
+                or (named.st_dev, named.st_ino) != identity
+                or nonempty
+            ):
+                _rename_exchange(sink, quarantine, src_dir_fd=base_fd, dst_dir_fd=base_fd)
+                exchanged = False
+                cls._restore_quarantine_directory(base_fd, quarantine, original)
+                cls._remove_exact_directory(base_fd, sink, sink_identity)
+                raise ArtifactError("execution workspace quarantine inode mismatch")
+            cls._remove_exact_directory(base_fd, sink, identity)
+            try:
+                cls._remove_exact_directory(base_fd, quarantine, sink_identity)
+            except ArtifactError:
+                cls._restore_quarantine_directory(base_fd, quarantine, original)
+                raise
+            return True
+        except ArtifactError:
+            raise
+        except OSError:
+            if exchanged:
+                _rename_exchange(sink, quarantine, src_dir_fd=base_fd, dst_dir_fd=base_fd)
+                cls._restore_quarantine_directory(base_fd, quarantine, original)
+            raise ArtifactError("execution workspace quarantine cleanup failed") from None
         finally:
-            if not renamed:
-                try:
-                    os.unlink(quarantine, dir_fd=directory_fd)
-                except OSError:
-                    pass
+            if candidate_fd is not None:
+                os.close(candidate_fd)
 
     def remove_execution(self, workspace: ExecutionWorkspace) -> None:
         """Remove only the inode owned by a live workspace.
@@ -687,17 +888,8 @@ class ArtifactStore:
                 self._quarantine_remove_child(workspace.directory_fd, child_identity)
             with os.scandir(f"/proc/self/fd/{workspace.directory_fd}") as entries:
                 if next(entries, None) is not None:
-                    return
-            owned_name = self._find_identity(workspace.base_fd, (workspace.device, workspace.inode))
-            if owned_name is None:
-                return
-            try:
-                current = os.stat(owned_name, dir_fd=workspace.base_fd, follow_symlinks=False)
-            except OSError:
-                return
-            if (current.st_dev, current.st_ino) != (workspace.device, workspace.inode):
-                return
-            os.rmdir(owned_name, dir_fd=workspace.base_fd)
+                    raise ArtifactError("unknown execution artifacts were preserved")
+            self._quarantine_remove_workspace(workspace.base_fd, (workspace.device, workspace.inode))
         except ArtifactError:
             raise
         except OSError:
