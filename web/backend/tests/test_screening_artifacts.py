@@ -5,7 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from app.screening.artifacts import ArtifactError, ArtifactStore
+from app.screening import artifacts as artifact_module
+from app.screening.artifacts import ArtifactError, ArtifactStore, ExecutionWorkspace
 from app.config import Settings
 from app.screening.worker import ScreeningWorker, WorkerError, _open_run_fds
 
@@ -38,7 +39,8 @@ def test_remove_execution_preserves_unknown_children_and_unlinks_owned_files(tmp
     nested = target / "nested"
     nested.mkdir()
     (nested / "safe.txt").write_text("remove", encoding="utf-8")
-    store.remove_execution(workspace)
+    with pytest.raises(ArtifactError):
+        store.remove_execution(workspace)
     workspace.close()
     assert target.exists()
     assert not (target / "owned.json").exists()
@@ -74,6 +76,33 @@ def test_remove_execution_does_not_delete_replacement_after_name_swap(tmp_path: 
     assert (target / "must-survive.txt").read_text(encoding="utf-8") == "keep"
     assert target.is_dir()
     assert not owned_away.exists()
+    workspace.close()
+
+
+def test_remove_execution_root_quarantine_preserves_pre_rmdir_replacement(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    store = ArtifactStore(tmp_path)
+    workspace = store.create_execution_workspace(EXECUTION_ID)
+    base = tmp_path / "data/screening-executions"
+    target = base / EXECUTION_ID
+    owned_away = base / (EXECUTION_ID + "-owned-away")
+    target.rename(owned_away)
+    real_move = artifact_module._rename_noreplace
+    swapped = False
+
+    def swap_before_root_delete(source, destination, *args, **kwargs):
+        nonlocal swapped
+        result = real_move(source, destination, *args, **kwargs)
+        if source == owned_away.name and kwargs.get("src_dir_fd") == workspace.base_fd and not swapped:
+            swapped = True
+            owned_away.mkdir()
+            (owned_away / "must-survive.txt").write_text("keep", encoding="utf-8")
+        return result
+
+    monkeypatch.setattr(artifact_module, "_rename_noreplace", swap_before_root_delete)
+    store.remove_execution(workspace)
+    assert swapped
+    assert not target.exists()
+    assert (owned_away / "must-survive.txt").read_text(encoding="utf-8") == "keep"
     workspace.close()
 
 
@@ -113,6 +142,39 @@ def test_workspace_fsync_failure_removes_fresh_directory(tmp_path: Path, monkeyp
     assert not (tmp_path / "data/screening-executions" / EXECUTION_ID).exists()
 
 
+def test_workspace_created_stat_failure_recovers_unique_fresh_inode(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    store = ArtifactStore(tmp_path)
+    real_stat = os.stat
+    failed = False
+
+    def fail_created_stat(path, *args, **kwargs):
+        nonlocal failed
+        if path == EXECUTION_ID and kwargs.get("dir_fd") is not None and not failed:
+            failed = True
+            raise OSError("injected created-stat failure")
+        return real_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(os, "stat", fail_created_stat)
+    with pytest.raises(ArtifactError):
+        store.create_execution_workspace(EXECUTION_ID)
+    assert failed
+    assert not (tmp_path / "data/screening-executions" / EXECUTION_ID).exists()
+
+
+def test_workspace_is_empty_failure_with_unknown_child_fails_closed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    store = ArtifactStore(tmp_path)
+    target = tmp_path / "data/screening-executions" / EXECUTION_ID
+
+    def fail_empty(workspace: ExecutionWorkspace):
+        (target / "unknown.json").write_text("preserve", encoding="utf-8")
+        raise ArtifactError("injected empty-scan failure")
+
+    monkeypatch.setattr(ExecutionWorkspace, "is_empty", fail_empty)
+    with pytest.raises(ArtifactError):
+        store.create_execution_workspace(EXECUTION_ID)
+    assert (target / "unknown.json").read_text(encoding="utf-8") == "preserve"
+
+
 def test_workspace_lifecycle_closes_all_descriptors(tmp_path: Path):
     store = ArtifactStore(tmp_path)
     before = {entry.name for entry in Path("/proc/self/fd").iterdir()}
@@ -135,7 +197,8 @@ def test_registered_child_swap_preserves_replacement(tmp_path: Path):
     (target / "owned.json").rename(owned_away)
     replacement = target / "owned.json"
     replacement.write_text("unrelated", encoding="utf-8")
-    store.remove_execution(workspace)
+    with pytest.raises(ArtifactError):
+        store.remove_execution(workspace)
     assert replacement.read_text(encoding="utf-8") == "unrelated"
     assert not owned_away.exists()
     workspace.close()
@@ -147,23 +210,48 @@ def test_registered_child_quarantine_boundary_preserves_replacement(tmp_path: Pa
     workspace.write_json("owned.json", {"owned": True})
     target = tmp_path / "data/screening-executions" / EXECUTION_ID
     owned_away = target / "owned-away.json"
-    real_rename = os.rename
+    real_rename = artifact_module._rename_noreplace
+    real_os_rename = os.rename
     swapped = False
 
     def swap_at_quarantine_boundary(source, destination, *args, **kwargs):
         nonlocal swapped
         if source == "owned.json" and kwargs.get("src_dir_fd") == workspace.directory_fd and not swapped:
             swapped = True
-            real_rename(target / "owned.json", owned_away)
+            real_os_rename(target / "owned.json", owned_away)
             (target / "owned.json").write_text("replacement", encoding="utf-8")
         return real_rename(source, destination, *args, **kwargs)
 
-    monkeypatch.setattr(os, "rename", swap_at_quarantine_boundary)
-    store.remove_execution(workspace)
+    monkeypatch.setattr(artifact_module, "_rename_noreplace", swap_at_quarantine_boundary)
+    with pytest.raises(ArtifactError):
+        store.remove_execution(workspace)
     assert swapped
     assert owned_away.read_text(encoding="utf-8") != "replacement"
     assert (target / "owned.json").read_text(encoding="utf-8") == "replacement"
     assert target.is_dir()
+    workspace.close()
+
+
+def test_registered_child_final_unlink_boundary_never_targets_old_name(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    store = ArtifactStore(tmp_path)
+    workspace = store.create_execution_workspace(EXECUTION_ID)
+    workspace.write_json("owned.json", {"owned": True})
+    target = tmp_path / "data/screening-executions" / EXECUTION_ID
+    real_unlink = os.unlink
+    swapped = False
+
+    def swap_old_name_before_final_unlink(path, *args, **kwargs):
+        nonlocal swapped
+        if isinstance(path, str) and path.startswith(".rollback-sink-") and kwargs.get("dir_fd") == workspace.directory_fd and not swapped:
+            swapped = True
+            (target / "owned.json").write_text("replacement", encoding="utf-8")
+        return real_unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(os, "unlink", swap_old_name_before_final_unlink)
+    with pytest.raises(ArtifactError):
+        store.remove_execution(workspace)
+    assert swapped
+    assert (target / "owned.json").read_text(encoding="utf-8") == "replacement"
     workspace.close()
 
 
