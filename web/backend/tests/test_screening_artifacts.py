@@ -61,6 +61,33 @@ def test_remove_execution_refuses_symlinked_target_path(tmp_path: Path):
     assert (outside / "sentinel.txt").read_text(encoding="utf-8") == "keep"
 
 
+def test_renameat2_capability_guard_precedes_execution_creation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    store = ArtifactStore(tmp_path)
+    monkeypatch.setattr(artifact_module, "_RENAMEAT2", None)
+    with pytest.raises(ArtifactError, match="renameat2"):
+        store.create_execution_workspace(EXECUTION_ID)
+    assert not (tmp_path / "data/screening-executions" / EXECUTION_ID).exists()
+
+
+def test_workspace_tree_is_application_owned_0700(tmp_path: Path):
+    store = ArtifactStore(tmp_path)
+    workspace = store.create_execution_workspace(EXECUTION_ID)
+    base = tmp_path / "data/screening-executions"
+    assert (base.stat().st_mode & 0o777) == 0o700
+    assert (base / EXECUTION_ID).stat().st_mode & 0o777 == 0o700
+    store.remove_execution(workspace)
+
+
+def test_renameat2_capability_guard_precedes_workspace_deletion(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    store = ArtifactStore(tmp_path)
+    workspace = store.create_execution_workspace(EXECUTION_ID)
+    monkeypatch.setattr(artifact_module, "_RENAMEAT2", None)
+    with pytest.raises(ArtifactError, match="renameat2"):
+        store.remove_execution(workspace)
+    assert (tmp_path / "data/screening-executions" / EXECUTION_ID).is_dir()
+    workspace.close()
+
+
 def test_remove_execution_does_not_delete_replacement_after_name_swap(tmp_path: Path):
     store = ArtifactStore(tmp_path)
     workspace = store.create_execution_workspace(EXECUTION_ID)
@@ -252,6 +279,37 @@ def test_registered_child_final_unlink_boundary_never_targets_old_name(tmp_path:
         store.remove_execution(workspace)
     assert swapped
     assert (target / "owned.json").read_text(encoding="utf-8") == "replacement"
+    workspace.close()
+
+
+def test_quarantine_sink_failure_restores_owned_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    store = ArtifactStore(tmp_path)
+    workspace = store.create_execution_workspace(EXECUTION_ID)
+    workspace.write_json("owned.json", {"owned": True})
+    target = tmp_path / "data/screening-executions" / EXECUTION_ID
+
+    def fail_sink(_directory_fd):
+        raise ArtifactError("injected sink failure")
+
+    monkeypatch.setattr(ArtifactStore, "_create_quarantine_file", staticmethod(fail_sink))
+    with pytest.raises(ArtifactError):
+        store.remove_execution(workspace)
+    assert (target / "owned.json").is_file()
+    workspace.close()
+
+
+def test_quarantine_exchange_failure_restores_owned_workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    store = ArtifactStore(tmp_path)
+    workspace = store.create_execution_workspace(EXECUTION_ID)
+    target = tmp_path / "data/screening-executions" / EXECUTION_ID
+
+    def fail_exchange(*_args, **_kwargs):
+        raise ArtifactError("injected exchange failure")
+
+    monkeypatch.setattr(artifact_module, "_rename_exchange", fail_exchange)
+    with pytest.raises(ArtifactError):
+        store.remove_execution(workspace)
+    assert target.is_dir()
     workspace.close()
 
 
