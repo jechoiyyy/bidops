@@ -207,6 +207,37 @@ def _read_optional_json(path: Path) -> dict[str, Any] | None:
     return value if isinstance(value, dict) else None
 
 
+def _read_screening_input(path: Path) -> tuple[bool, dict[str, Any] | None, str | None]:
+    """Read the immutable v3 input without conflating absent and invalid.
+
+    A present screening input is authoritative.  Falling back to a
+    validation-set projection after malformed or non-canonical bytes would
+    silently publish a different candidate set, so callers receive a distinct
+    ``present`` bit and safe invalid reason.
+    """
+    if path.is_symlink():
+        return True, None, "file is a symlink"
+    if not path.exists():
+        return False, None, None
+    try:
+        raw = path.read_bytes()
+    except (OSError, UnicodeError):
+        return True, None, "file is unreadable"
+    try:
+        value = json.loads(raw.decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError):
+        return True, None, "JSON is invalid"
+    if not isinstance(value, dict):
+        return True, None, "top-level value is not an object"
+    try:
+        canonical = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+    except (TypeError, ValueError, UnicodeError):
+        return True, None, "JSON is not canonical"
+    if canonical != raw:
+        return True, None, "JSON is not canonical"
+    return True, value, None
+
+
 def _first_generated_at(
     raws: list[dict[str, Any] | None], fallback_path: Path, timezone_name: str
 ) -> datetime:
@@ -948,6 +979,11 @@ def _load_screening_input_notices(
     historical v1/v2 ingest paths remain validation-set authoritative.
     """
     if raw.get("schema_version") != "bidops.screening-input.v1":
+        _record_warning(
+            session, run_id, "error", "screening_input_invalid",
+            "screening-input.json schema_version이 지원되지 않습니다.",
+            {"file": source_file, "reason": "unsupported schema version"},
+        )
         return {}
     invalid_reason = _screening_input_error(raw)
     if invalid_reason is not None:
@@ -1226,7 +1262,7 @@ def ingest_run(
     collection_path = directory / "collected-notices.json"
 
     validation_raw = _read_optional_json(validation_path)
-    screening_input_raw = _read_optional_json(screening_input_path)
+    screening_input_present, screening_input_raw, screening_input_invalid = _read_screening_input(screening_input_path)
     screening_raw = _read_optional_json(screening_path)
     decisions_raw = _read_optional_json(decisions_path)
     collection_raw = _read_optional_json(collection_path)
@@ -1255,7 +1291,19 @@ def ingest_run(
             generated_at,
             screening_basis,
         )
-        if validation_raw is None and screening_input_raw is None:
+        if screening_input_present and screening_input_invalid is not None:
+            _record_warning(
+                session,
+                run_id,
+                "error",
+                "screening_input_invalid",
+                "screening-input.json을 읽거나 canonical 계약으로 검증하지 못했습니다.",
+                {"file": str(screening_input_path), "reason": screening_input_invalid},
+            )
+            # A present-but-invalid v3 input is a hard projection boundary;
+            # do not let validation-set data repopulate its candidate rows.
+            notices: dict[str, Notice] = {}
+        elif validation_raw is None and not screening_input_present:
             _record_warning(
                 session,
                 run_id,
@@ -1279,7 +1327,11 @@ def ingest_run(
         # but is not allowed to add sample-only Notice rows to the published
         # replacement.  Historical runs without screening-input retain the
         # validation-set projection.
-        if screening_input_raw is not None:
+        if screening_input_present and screening_input_invalid is not None:
+            # Already recorded above.  Keep the projection empty and avoid
+            # parsing validation-set notices as a fallback.
+            notices = {}
+        elif screening_input_raw is not None:
             notices = _load_screening_input_notices(
                 session, run_id, screening_input_raw, timezone_name, str(screening_input_path)
             )

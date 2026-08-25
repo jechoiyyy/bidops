@@ -364,11 +364,21 @@ class ScreeningWorker:
                 # A finish call may have committed before its connection
                 # failed.  Only retain the derived directory when a fresh read
                 # proves that the terminal FK binding is durable.
-                fresh = self._get_execution(row.execution_id)
-                if fresh is None or fresh.status not in {"성공", "부분 성공"} or fresh.published_run_id != published[0]:
-                    self._cleanup_publication(published[1], None, published[0])
-                    raise WorkerError("execution_failure") from None
-                return
+                for attempt in range(3):
+                    try:
+                        fresh = self._get_execution(row.execution_id)
+                    except Exception:
+                        fresh = None
+                    if fresh is not None and fresh.status in {"성공", "부분 성공"} and fresh.published_run_id == published[0]:
+                        return
+                    if attempt < 2:
+                        self.sleep(0.01)
+                # The binding was not proven durable.  Remove both sides of
+                # the publication using bounded reconciliation; a cleanup
+                # error remains visible to the caller rather than being
+                # mistaken for a successful publication.
+                self._cleanup_publication(published[1], None, published[0])
+                raise WorkerError("execution_failure") from None
         else:
             self.store.finish(row.execution_id, status=status, completed_count=completed, failure_count=len(failures), candidate_count=len(notices), now=_aware(self.clock), error_summary="execution_failure" if failures else None)
 
@@ -581,9 +591,38 @@ class ScreeningWorker:
             return None
         if prior_input.get("generated_at") != old.get("generated_at"):
             return None
-        if not isinstance(prior_input.get("notices"), list) or prior_input.get("candidate_count") != len(prior_input["notices"]):
+        if not _aware_text(prior_input.get("generated_at")) or not _aware_text(old.get("generated_at")):
+            return None
+        window = prior_input.get("source_window")
+        if not isinstance(window, Mapping) or set(window) != {"from", "to", "timezone"} or window.get("timezone") != "Asia/Seoul":
+            return None
+        try:
+            if not isinstance(window.get("from"), str) or not isinstance(window.get("to"), str) or date.fromisoformat(window["from"]) > date.fromisoformat(window["to"]):
+                return None
+        except ValueError:
+            return None
+        if any(
+            not isinstance(prior_input.get(key), str) or not prior_input[key].strip()
+            for key in ("policy_version", "prompt_version", "company_profile_version")
+        ):
+            return None
+        profile_digest = prior_input.get("company_profile_digest")
+        if not isinstance(profile_digest, str) or len(profile_digest) != 64 or any(character not in "0123456789abcdef" for character in profile_digest) or prior_input.get("company_profile_version") != f"company-profile.sha256:{profile_digest}":
+            return None
+        if not isinstance(prior_input.get("notices"), list) or type(prior_input.get("candidate_count")) is not int or prior_input["candidate_count"] < 0 or prior_input.get("candidate_count") != len(prior_input["notices"]):
             return None
         if not isinstance(old.get("judgments"), list):
+            return None
+        if any(
+            not isinstance(old.get(key), str) or not old[key].strip()
+            for key in ("screening_basis", "model_name", "model_digest", "prompt_version", "policy_version", "company_profile_version", "company_profile_digest")
+        ):
+            return None
+        if len(old["model_digest"]) != 64 or any(character not in "0123456789abcdef" for character in old["model_digest"]):
+            return None
+        if len(old["company_profile_digest"]) != 64 or any(character not in "0123456789abcdef" for character in old["company_profile_digest"]) or old["company_profile_version"] != f"company-profile.sha256:{old['company_profile_digest']}":
+            return None
+        if old.get("prompt_version") != prior_input.get("prompt_version") or old.get("policy_version") != prior_input.get("policy_version") or old.get("company_profile_version") != prior_input.get("company_profile_version") or old.get("company_profile_digest") != prior_input.get("company_profile_digest"):
             return None
         prior_by_id: dict[str, Mapping[str, Any]] = {}
         for item in prior_input["notices"]:
@@ -612,7 +651,7 @@ class ScreeningWorker:
             if not isinstance(prior_failures, Mapping) or set(prior_failures) != failure_keys or prior_failures.get("schema_version") != "bidops.screening-failures.v1" or prior_failures.get("execution_id") != prior_input.get("execution_id") or prior_failures.get("run_id") != prior_input.get("run_id") or prior_failures.get("generated_at") != prior_input.get("generated_at"):
                 return None
             values = prior_failures.get("failures")
-            if not isinstance(values, list) or prior_failures.get("failure_count") != len(values):
+            if not isinstance(values, list) or type(prior_failures.get("failure_count")) is not int or prior_failures["failure_count"] < 0 or prior_failures.get("failure_count") != len(values):
                 return None
             for failure in values:
                 if not isinstance(failure, Mapping) or set(failure) != item_keys or failure.get("notice_id") not in prior_by_id or failure.get("notice_id") in failure_ids or failure.get("failed_stage") not in _SAFE_FAILURE_STAGES or failure.get("failure_type") not in {"timeout", "truncated_output", "schema_violation", "evidence_missing", "counterargument_repetition"} or failure.get("status") != "사람 검토 대기" or not isinstance(failure.get("retry_count"), int) or isinstance(failure.get("retry_count"), bool) or failure.get("retry_count") < 0 or not _aware_text(failure.get("last_attempt_at")) or failure.get("error_summary") not in {"timeout", "truncated_output", "schema_violation", "evidence_missing", "counterargument_repetition", "execution_failure"}:
@@ -639,6 +678,8 @@ class ScreeningWorker:
                 if prior_judgment.get("judged_in_run") != prior_notice.get("carry_over_from") or prior_judgment.get("recorded_in_run") != old.get("run_id") or prior_judgment.get("carried_over") is not True or prior_judgment.get("rejudge_reason") is not None:
                     return None
             else:
+                return None
+            if prior_judgment.get("rejudge_reason") != prior_notice.get("rejudge_reason"):
                 return None
             try:
                 base = {key: prior_judgment[key] for key in ("notice_id", "grade", "readiness", "primary_focus", "exclusion_category", "summary", "perspectives", "matched_performances", "counterarguments", "counterargument_resolutions", "verification_items", "next_action")}
@@ -767,6 +808,12 @@ class ScreeningWorker:
             mode = source_notice.get("judgment_mode")
             if judgment.get("judgment_mode") != mode or judgment.get("carried_over") is not (mode == "승계"):
                 raise WorkerError("execution_failure")
+            if judgment.get("rejudge_reason") != source_notice.get("rejudge_reason"):
+                raise WorkerError("execution_failure")
+            if mode in {"신규", "승계"} and judgment.get("rejudge_reason") is not None:
+                raise WorkerError("execution_failure")
+            if mode == "재판정" and judgment.get("rejudge_reason") not in {"정정", "재공고", "본공고 전환", "담당자 요청"}:
+                raise WorkerError("execution_failure")
             if not isinstance(judgment.get("model_name"), str) or not judgment["model_name"].strip() or not isinstance(judgment.get("prompt_version"), str) or not judgment["prompt_version"].strip() or not isinstance(judgment.get("policy_version"), str) or not judgment["policy_version"].strip() or not isinstance(judgment.get("company_profile_version"), str) or not judgment["company_profile_version"].strip() or not isinstance(judgment.get("model_digest"), str) or len(judgment["model_digest"]) != 64 or any(character not in "0123456789abcdef" for character in judgment["model_digest"]) or not isinstance(judgment.get("company_profile_digest"), str) or len(judgment["company_profile_digest"]) != 64 or any(character not in "0123456789abcdef" for character in judgment["company_profile_digest"]) or judgment.get("company_profile_version") != f"company-profile.sha256:{judgment.get('company_profile_digest')}":
                 raise WorkerError("execution_failure")
             expected_judged = source_notice.get("carry_over_from") if mode == "승계" else row.source_run_id
@@ -786,7 +833,7 @@ class ScreeningWorker:
             if not isinstance(failures, Mapping) or set(failures) != failure_keys or failures.get("schema_version") != "bidops.screening-failures.v1" or failures.get("execution_id") != row.execution_id or failures.get("run_id") != row.source_run_id or failures.get("generated_at") != input_value.get("generated_at"):
                 raise WorkerError("execution_failure")
             failure_values = failures.get("failures")
-            if not isinstance(failure_values, list) or failures.get("failure_count") != len(failure_values):
+            if not isinstance(failure_values, list) or type(failures.get("failure_count")) is not int or failures["failure_count"] < 0 or failures.get("failure_count") != len(failure_values):
                 raise WorkerError("execution_failure")
             seen: set[str] = set()
             for failure in failure_values:
@@ -798,6 +845,14 @@ class ScreeningWorker:
                 if failure.get("failure_context") not in {None, "carried_over_validation"}:
                     raise WorkerError("execution_failure")
                 if failure.get("failure_context") == "carried_over_validation" and (failure.get("failed_stage") != "병합·검증" or failure.get("trace_id") is not None or failure.get("span_id") is not None):
+                    raise WorkerError("execution_failure")
+                source_notice = next((candidate for candidate in notices if candidate.get("notice_id") == notice_id), None)
+                if source_notice is None:
+                    raise WorkerError("execution_failure")
+                if source_notice.get("judgment_mode") == "승계":
+                    if failure.get("failure_context") != "carried_over_validation":
+                        raise WorkerError("execution_failure")
+                elif failure.get("failure_context") is not None:
                     raise WorkerError("execution_failure")
                 if failure.get("failed_stage") in set(PERSPECTIVE_NAMES) | {"반론 검토", "종합 판정"} and (not isinstance(failure.get("trace_id"), str) or not failure["trace_id"].strip() or not isinstance(failure.get("span_id"), str) or not failure["span_id"].strip()):
                     raise WorkerError("execution_failure")
@@ -872,6 +927,17 @@ class ScreeningWorker:
             if staging is None:
                 raise WorkerError("execution_failure")
             self._copy_tree_nofollow(source, staging)
+            # The source run is copied as provenance, but these names are
+            # owned by the current screening execution.  Remove every stale
+            # copy before installing the immutable current artifacts.  In
+            # particular, a previous partial execution must not leak its
+            # failure/telemetry files into a later successful replacement.
+            for name in (
+                "screening-input.json", "screening-decisions.json", "screening-results.json",
+                "screening-failures.json", "screening-telemetry.jsonl",
+                "screening-replacement-provenance.json", "responses",
+            ):
+                self._remove_owned_artifact(staging / name)
             root = Path(self.settings.bidops_root)
             # The current immutable execution input is authoritative; a source
             # run may contain an older screening-input from another execution.
@@ -987,19 +1053,15 @@ class ScreeningWorker:
 
     @classmethod
     def _copy_atomic(cls, source: Path, destination: Path) -> None:
+        parent_fd: int | None = None
         source_fd: int | None = None
         try:
-            source_fd = os.open(source, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+            parent_fd = os.open(source.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0))
+            source_fd = os.open(source.name, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0), dir_fd=parent_fd)
             source_stat = os.fstat(source_fd)
             if not stat.S_ISREG(source_stat.st_mode):
                 raise WorkerError("execution_failure")
-            chunks: list[bytes] = []
-            while True:
-                chunk = os.read(source_fd, 1024 * 1024)
-                if not chunk:
-                    break
-                chunks.append(chunk)
-            raw = b"".join(chunks)
+            raw = cls._read_regular_fd(source_fd)
         except WorkerError:
             raise
         except OSError:
@@ -1007,11 +1069,14 @@ class ScreeningWorker:
         finally:
             if source_fd is not None:
                 os.close(source_fd)
+            if parent_fd is not None:
+                os.close(parent_fd)
         cls._write_atomic(destination, raw)
 
     @classmethod
     def _copy_tree_nofollow(cls, source: Path, destination: Path) -> None:
         source_fd: int | None = None
+        destination_fd: int | None = None
         try:
             source_fd = os.open(source, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0))
             if not stat.S_ISDIR(os.fstat(source_fd).st_mode):
@@ -1022,26 +1087,130 @@ class ScreeningWorker:
             else:
                 destination.mkdir(mode=0o700, exist_ok=False)
             os.chmod(destination, 0o700)
-            with os.scandir(source_fd) as entries:
-                for entry in entries:
-                    child_source = source / entry.name
-                    child_destination = destination / entry.name
-                    if entry.is_symlink():
-                        raise WorkerError("execution_failure")
-                    if entry.is_dir(follow_symlinks=False):
-                        cls._copy_tree_nofollow(child_source, child_destination)
-                    elif entry.is_file(follow_symlinks=False):
-                        cls._copy_atomic(child_source, child_destination)
-                    else:
-                        raise WorkerError("execution_failure")
-            cls._fsync_directory(destination)
+            destination_fd = os.open(destination, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0))
+            if not stat.S_ISDIR(os.fstat(destination_fd).st_mode):
+                raise WorkerError("execution_failure")
+            cls._copy_tree_fd(source_fd, destination_fd)
+            os.fsync(destination_fd)
         except WorkerError:
             raise
         except OSError:
             raise WorkerError("execution_failure") from None
         finally:
+            if destination_fd is not None:
+                os.close(destination_fd)
             if source_fd is not None:
                 os.close(source_fd)
+
+    @classmethod
+    def _copy_tree_fd(cls, source_fd: int, destination_fd: int) -> None:
+        """Copy one already-open directory using openat-style operations.
+
+        No child operation reconstructs a path from the source root.  A
+        rename/symlink swap therefore either causes an O_NOFOLLOW failure or
+        copies the inode that was opened for this directory entry.
+        """
+        with os.scandir(source_fd) as entries:
+            for entry in entries:
+                name = entry.name
+                try:
+                    info = os.stat(name, dir_fd=source_fd, follow_symlinks=False)
+                except OSError:
+                    raise WorkerError("execution_failure") from None
+                if stat.S_ISLNK(info.st_mode):
+                    raise WorkerError("execution_failure")
+                if stat.S_ISDIR(info.st_mode):
+                    child_source: int | None = None
+                    child_destination: int | None = None
+                    try:
+                        child_source = os.open(
+                            name,
+                            os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
+                            dir_fd=source_fd,
+                        )
+                        if not stat.S_ISDIR(os.fstat(child_source).st_mode):
+                            raise WorkerError("execution_failure")
+                        os.mkdir(name, 0o700, dir_fd=destination_fd)
+                        child_destination = os.open(
+                            name,
+                            os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
+                            dir_fd=destination_fd,
+                        )
+                        cls._copy_tree_fd(child_source, child_destination)
+                        os.fsync(child_destination)
+                    except FileExistsError:
+                        raise WorkerError("execution_failure") from None
+                    finally:
+                        if child_destination is not None:
+                            os.close(child_destination)
+                        if child_source is not None:
+                            os.close(child_source)
+                elif stat.S_ISREG(info.st_mode):
+                    source_child: int | None = None
+                    destination_child: int | None = None
+                    try:
+                        source_child = os.open(name, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0), dir_fd=source_fd)
+                        if not stat.S_ISREG(os.fstat(source_child).st_mode):
+                            raise WorkerError("execution_failure")
+                        destination_child = os.open(
+                            name,
+                            os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+                            0o600,
+                            dir_fd=destination_fd,
+                        )
+                        cls._stream_fd(source_child, destination_child)
+                        os.fchmod(destination_child, 0o600)
+                        os.fsync(destination_child)
+                    except FileExistsError:
+                        raise WorkerError("execution_failure") from None
+                    finally:
+                        if destination_child is not None:
+                            os.close(destination_child)
+                        if source_child is not None:
+                            os.close(source_child)
+                else:
+                    raise WorkerError("execution_failure")
+
+    @staticmethod
+    def _read_regular_fd(source_fd: int) -> bytes:
+        chunks: list[bytes] = []
+        while True:
+            chunk = os.read(source_fd, 1024 * 1024)
+            if not chunk:
+                return b"".join(chunks)
+            chunks.append(chunk)
+
+    @staticmethod
+    def _stream_fd(source_fd: int, destination_fd: int) -> None:
+        while True:
+            chunk = os.read(source_fd, 1024 * 1024)
+            if not chunk:
+                return
+            offset = 0
+            while offset < len(chunk):
+                offset += os.write(destination_fd, chunk[offset:])
+
+    @staticmethod
+    def _remove_owned_artifact(path: Path) -> None:
+        if path.is_symlink():
+            raise WorkerError("execution_failure")
+        if not path.exists():
+            return
+        try:
+            if path.is_dir():
+                # Responses are an execution-owned directory.  Never follow
+                # a symlinked child while removing it.
+                for entry in os.scandir(path):
+                    ScreeningWorker._remove_owned_artifact(Path(entry.path))
+                path.rmdir()
+            elif path.is_file():
+                path.unlink()
+            else:
+                raise WorkerError("execution_failure")
+        except WorkerError:
+            raise
+        except OSError:
+            raise WorkerError("execution_failure") from None
 
     @staticmethod
     def _assert_no_symlinks(root: Path) -> None:
@@ -1058,24 +1227,44 @@ class ScreeningWorker:
             raise WorkerError("execution_failure") from None
 
     def _cleanup_publication(self, target: Path | None, staging: Path | None, derived_id: str | None) -> None:
-        try:
-            with self._session() as session:
-                if derived_id:
-                    session.execute(update(ScreeningExecution).where(ScreeningExecution.published_run_id == derived_id).values(published_run_id=None))
-                    session.execute(delete(Run).where(Run.id == derived_id))
-                session.commit()
-        except Exception:
+        db_clean = False
+        for attempt in range(3):
+            try:
+                with self._session() as session:
+                    if derived_id:
+                        session.execute(update(ScreeningExecution).where(ScreeningExecution.published_run_id == derived_id).values(published_run_id=None))
+                        session.execute(delete(Run).where(Run.id == derived_id))
+                    session.commit()
+                db_clean = True
+                break
+            except Exception:
+                if attempt < 2:
+                    self.sleep(0.01)
+        if not db_clean:
             raise WorkerError("execution_failure") from None
         for path in (staging, target):
             if path is None:
                 continue
-            if path.is_symlink():
-                raise WorkerError("execution_failure")
-            if path.exists():
+            removed = False
+            for attempt in range(3):
                 try:
-                    shutil.rmtree(path)
+                    if path.is_symlink():
+                        raise WorkerError("execution_failure")
+                    if path.exists():
+                        shutil.rmtree(path)
+                    removed = not path.exists() and not path.is_symlink()
+                    if removed:
+                        break
+                except WorkerError:
+                    if attempt == 2:
+                        raise
                 except OSError:
-                    raise WorkerError("execution_failure") from None
+                    if attempt == 2:
+                        raise WorkerError("execution_failure") from None
+                if attempt < 2:
+                    self.sleep(0.01)
+            if not removed:
+                raise WorkerError("execution_failure")
 
 
 Worker = ScreeningWorker
