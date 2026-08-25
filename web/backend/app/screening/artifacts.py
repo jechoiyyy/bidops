@@ -7,12 +7,14 @@ components, including components created after the first check.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
 import json
 import os
 from pathlib import Path
 import re
+import stat as stat_module
 import tempfile
 from typing import Any, Mapping
 
@@ -24,6 +26,20 @@ ARTIFACT_ROOT = Path("data") / "screening-executions"
 
 class ArtifactError(RuntimeError):
     """An artifact cannot be safely created or verified."""
+
+
+@dataclass(frozen=True)
+class ExecutionOwnership:
+    """Identity captured at the instant a fresh execution directory is made.
+
+    The name is deliberately not an ownership proof: a failed transaction can
+    have its name replaced while cleanup is in progress.  Device/inode are
+    the minimum opaque identity needed to fail closed in that case.
+    """
+
+    execution_id: str
+    device: int
+    inode: int
 
 
 def aware_iso(value: datetime | None = None) -> str:
@@ -105,6 +121,18 @@ class ArtifactStore:
         if not target.is_dir():
             raise ArtifactError("execution artifact directory is not a directory")
         return target
+
+    def capture_execution_ownership(self, execution_id: str) -> ExecutionOwnership:
+        """Capture the identity of an existing execution directory."""
+
+        target = self.execution_dir(execution_id, create=False)
+        try:
+            stat = os.stat(target, follow_symlinks=False)
+        except OSError:
+            raise ArtifactError("execution artifact ownership could not be captured") from None
+        if not stat_module.S_ISDIR(stat.st_mode):
+            raise ArtifactError("execution artifact ownership is not a directory")
+        return ExecutionOwnership(execution_id, stat.st_dev, stat.st_ino)
 
     def _path(self, execution_id: str, relative: str) -> Path:
         if not isinstance(relative, str) or not relative or relative.startswith("/") or "\\" in relative:
@@ -248,7 +276,7 @@ class ArtifactStore:
         except (UnicodeError, json.JSONDecodeError):
             raise ArtifactError("artifact JSON is invalid") from None
 
-    def remove_execution(self, execution_id: str) -> None:
+    def remove_execution(self, execution_id: str, ownership: ExecutionOwnership | None = None) -> None:
         """Remove one freshly-created execution directory without TOCTOU.
 
         The directory name is opened relative to the artifact root with
@@ -257,6 +285,8 @@ class ArtifactStore:
         outside the known execution directory.
         """
         validate_execution_id(execution_id)
+        if not isinstance(ownership, ExecutionOwnership) or ownership.execution_id != execution_id:
+            raise ArtifactError("execution artifact ownership is required")
         base = self.base
         directory_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
         root_fd: int | None = None
@@ -281,6 +311,29 @@ class ArtifactStore:
                 dir_fd=base_fd,
             )
         except OSError:
+            for fd in (base_fd, data_fd, root_fd):
+                if fd is not None:
+                    os.close(fd)
+            raise ArtifactError("execution artifact cleanup failed") from None
+
+        try:
+            opened_stat = os.fstat(target_fd)
+            if (opened_stat.st_dev, opened_stat.st_ino) != (ownership.device, ownership.inode):
+                raise ArtifactError("execution artifact ownership mismatch")
+            # Verify the name before removing any descendant.  If the fresh
+            # directory was renamed away and a replacement took its name,
+            # cleanup must leave both objects untouched.
+            named_stat = os.stat(execution_id, dir_fd=base_fd, follow_symlinks=False)
+            if (named_stat.st_dev, named_stat.st_ino) != (ownership.device, ownership.inode):
+                raise ArtifactError("execution artifact path changed before cleanup")
+        except ArtifactError:
+            os.close(target_fd)
+            for fd in (base_fd, data_fd, root_fd):
+                if fd is not None:
+                    os.close(fd)
+            raise
+        except OSError:
+            os.close(target_fd)
             for fd in (base_fd, data_fd, root_fd):
                 if fd is not None:
                     os.close(fd)
@@ -315,7 +368,7 @@ class ArtifactStore:
             remove_fd(target_fd)
             current_stat = os.stat(execution_id, dir_fd=base_fd, follow_symlinks=False)
             target_stat = os.fstat(target_fd)
-            if (current_stat.st_dev, current_stat.st_ino) != (target_stat.st_dev, target_stat.st_ino):
+            if (current_stat.st_dev, current_stat.st_ino) != (ownership.device, ownership.inode) or (target_stat.st_dev, target_stat.st_ino) != (ownership.device, ownership.inode):
                 raise ArtifactError("execution artifact path changed during cleanup")
             os.rmdir(execution_id, dir_fd=base_fd)
         except OSError:
@@ -335,4 +388,4 @@ def write_atomic_json(project_root: Path, execution_id: str, relative: str, valu
     return ArtifactStore(project_root).write_json(execution_id, relative, value)
 
 
-__all__ = ["ARTIFACT_ROOT", "ArtifactError", "ArtifactStore", "artifact_directory", "aware_iso", "canonical_bytes", "sha256_bytes", "validate_execution_id", "write_atomic_json"]
+__all__ = ["ARTIFACT_ROOT", "ArtifactError", "ArtifactStore", "ExecutionOwnership", "artifact_directory", "aware_iso", "canonical_bytes", "sha256_bytes", "validate_execution_id", "write_atomic_json"]

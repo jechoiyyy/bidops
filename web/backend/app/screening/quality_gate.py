@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, Iterator, Mapping, Sequence
 from uuid import uuid4
 
-from sqlalchemy import Engine, func, select
+from sqlalchemy import Engine, func, select, update
 from sqlalchemy.orm import Session, sessionmaker
 
 from ..config import Settings, get_settings
@@ -28,7 +28,7 @@ from ..models import (
     ScreeningExecution,
     ScreeningPolicy,
 )
-from .artifacts import ArtifactError, ArtifactStore, sha256_bytes
+from .artifacts import ArtifactError, ArtifactStore, ExecutionOwnership, sha256_bytes
 from .execution_store import ScreeningExecutionStore
 from .orchestrator import ScreeningOrchestrator
 from .profile_snapshot import BASELINE_COMMIT
@@ -46,6 +46,7 @@ from .quality_metrics import (
 FIXED_RUN_ID = "20260817-20260823"
 FIXED_SAMPLE_RELATIVE = "data/runs/20260817-20260823/validation-set.json"
 FIXED_BASELINE_RELATIVE = "data/runs/20260817-20260823/screening-decisions.json"
+FIXED_SOURCE_WINDOW = {"from": "2026-08-17", "to": "2026-08-23", "timezone": "Asia/Seoul"}
 PURPOSES = frozenset({"model_comparison", "operational_approval"})
 EXECUTION_TERMINAL = frozenset({"성공", "부분 성공", "실패", "중단됨"})
 EXECUTION_COMPLETED = frozenset({"성공", "부분 성공"})
@@ -131,6 +132,8 @@ def validate_fixed_inputs(project_root: Path | str) -> tuple[dict[str, Any], dic
     notices = sample.get("notices")
     if not isinstance(notices, list) or len(notices) != 40:
         raise QualityGateValidationError("validation sample must contain exactly 40 notices")
+    if sample.get("source_window") != FIXED_SOURCE_WINDOW:
+        raise QualityGateValidationError("validation sample source window is invalid")
     ids: list[str] = []
     for item in notices:
         if not isinstance(item, Mapping) or not isinstance(item.get("notice_id"), str) or not item["notice_id"].strip():
@@ -182,7 +185,10 @@ _INPUT_KEYS = frozenset({
 })
 
 
-def _input_binding_valid(value: Mapping[str, Any], execution: ScreeningExecution, sample: Mapping[str, Any], sample_ids: Sequence[str]) -> bool:
+def _input_binding_valid(
+    value: Mapping[str, Any], execution: ScreeningExecution, sample: Mapping[str, Any], sample_ids: Sequence[str],
+    *, expected_source_window: Mapping[str, Any] | None = None,
+) -> bool:
     if set(value) != _INPUT_KEYS or value.get("schema_version") != "bidops.screening-input.v1":
         return False
     if value.get("execution_id") != execution.execution_id or value.get("run_id") != execution.source_run_id:
@@ -207,6 +213,8 @@ def _input_binding_valid(value: Mapping[str, Any], execution: ScreeningExecution
     window = value.get("source_window")
     if not isinstance(window, Mapping) or set(window) != {"from", "to", "timezone"} or window.get("timezone") != "Asia/Seoul":
         return False
+    if expected_source_window is not None and dict(window) != dict(expected_source_window):
+        return False
     try:
         if not isinstance(window.get("from"), str) or not isinstance(window.get("to"), str) or date.fromisoformat(window["from"]) > date.fromisoformat(window["to"]):
             return False
@@ -228,6 +236,8 @@ def _input_binding_valid(value: Mapping[str, Any], execution: ScreeningExecution
             return False
         if mode == "승계" and (not isinstance(item.get("carry_over_from"), str) or not item["carry_over_from"].strip() or item.get("rejudge_reason") is not None):
             return False
+        if execution.scope == "quality_sample" and (mode != "신규" or item.get("carry_over_from") is not None or item.get("rejudge_reason") is not None):
+            return False
     return True
 
 
@@ -238,13 +248,17 @@ def _decisions_binding_issues(
     sample_ids: Sequence[str],
     *,
     pass_name: str,
+    expected_source_window: Mapping[str, Any] | None = None,
 ) -> list[dict[str, str]]:
     """Validate the complete decisions.v3 artifact and all provenance links."""
 
     def issue(notice_id: str, reason: str) -> dict[str, str]:
         return {"notice_id": notice_id, "pass": pass_name, "reason": reason}
 
-    if not _input_binding_valid(input_value, execution, {"notices": input_value.get("notices")}, sample_ids):
+    if not _input_binding_valid(
+        input_value, execution, {"notices": input_value.get("notices"), "source_window": input_value.get("source_window")},
+        sample_ids, expected_source_window=expected_source_window,
+    ):
         return [issue(notice_id, "screening_input_binding_invalid") for notice_id in sample_ids]
     expected_top = {
         "execution_id": execution.execution_id,
@@ -419,13 +433,18 @@ class QualityGateService:
         finally:
             session.close()
 
-    def _cleanup_prepared_artifacts(self, execution_ids: Sequence[str]) -> None:
-        """Remove only known execution directories prepared in this call."""
+    def _cleanup_prepared_artifacts(self, prepared: Sequence[tuple[str, ExecutionOwnership]]) -> None:
+        """Remove only directories whose fresh inode ownership is retained."""
 
         store = ArtifactStore(Path(self.settings.bidops_root))
-        for execution_id in dict.fromkeys(execution_ids):
+        seen: set[tuple[str, int, int]] = set()
+        for execution_id, ownership in prepared:
+            key = (execution_id, ownership.device, ownership.inode)
+            if key in seen:
+                continue
+            seen.add(key)
             try:
-                store.remove_execution(execution_id)
+                store.remove_execution(execution_id, ownership)
             except (ArtifactError, OSError):
                 # A failed preflight may not have created its directory.  No
                 # database row was published, and an absent path is already
@@ -464,7 +483,7 @@ class QualityGateService:
                 raise QualityGateValidationError("policy is not selectable")
 
         root = Path(self.settings.bidops_root)
-        prepared_ids: list[str] = []
+        prepared_artifacts: list[tuple[str, ExecutionOwnership]] = []
         try:
             if self.transaction_preparer is None:
                 raise QualityGateConflict("quality gate requires a transaction-aware execution preparer")
@@ -480,19 +499,23 @@ class QualityGateService:
                     session, run_id=run_id, policy_version=policy_version, profile_source=profile_source,
                     requested_by=actor, scope="quality_sample", trigger="quality_gate",
                 )
-                prepared_ids.append(prepared_a.created.execution_id)
+                if not isinstance(getattr(prepared_a, "ownership", None), ExecutionOwnership):
+                    raise QualityGateConflict("quality pass ownership was not retained")
+                prepared_artifacts.append((prepared_a.created.execution_id, prepared_a.ownership))
                 prepared_b = self.transaction_preparer(
                     session, run_id=run_id, policy_version=policy_version, profile_source=profile_source,
                     requested_by=actor, scope="quality_sample", trigger="quality_gate",
                 )
-                prepared_ids.append(prepared_b.created.execution_id)
+                if not isinstance(getattr(prepared_b, "ownership", None), ExecutionOwnership):
+                    raise QualityGateConflict("quality pass ownership was not retained")
+                prepared_artifacts.append((prepared_b.created.execution_id, prepared_b.ownership))
                 first, second = prepared_a.created, prepared_b.created
                 if first.execution_id == second.execution_id:
                     raise QualityGateConflict("quality passes must be independent")
                 execution_a, execution_b = prepared_a.row, prepared_b.row
                 input_a = _load_execution_artifact(root, first.execution_id, "screening-input.json", expected_digest=execution_a.input_artifact_digest)
                 input_b = _load_execution_artifact(root, second.execution_id, "screening-input.json", expected_digest=execution_b.input_artifact_digest)
-                if not _input_binding_valid(input_a, execution_a, sample, sample_ids) or not _input_binding_valid(input_b, execution_b, sample, sample_ids):
+                if not _input_binding_valid(input_a, execution_a, sample, sample_ids, expected_source_window=sample.get("source_window")) or not _input_binding_valid(input_b, execution_b, sample, sample_ids, expected_source_window=sample.get("source_window")):
                     raise QualityGateConflict("quality pass input binding is invalid")
                 if _canonical_pass_input(input_a) != _canonical_pass_input(input_b):
                     raise QualityGateConflict("quality pass frozen input combination differs")
@@ -552,7 +575,7 @@ class QualityGateService:
                 session.flush()
                 return gate
         except Exception:
-            self._cleanup_prepared_artifacts(prepared_ids)
+            self._cleanup_prepared_artifacts(prepared_artifacts)
             raise
 
     create = create_gate
@@ -566,6 +589,22 @@ class QualityGateService:
         if a is None or b is None:
             raise QualityGateConflict("quality pass execution is missing")
         return gate, a, b
+
+    @staticmethod
+    def _lock_gate(session: Session, gate_id: str) -> QualityGate:
+        if session.get_bind().dialect.name == "sqlite":
+            # SQLite ignores FOR UPDATE.  A no-op write takes the RESERVED
+            # lock while retaining the caller's transaction, preventing a
+            # review writer from committing between validation and activation.
+            session.execute(
+                update(QualityGate)
+                .where(QualityGate.gate_id == gate_id)
+                .values(result_status=QualityGate.result_status)
+            )
+        gate = session.scalar(select(QualityGate).where(QualityGate.gate_id == gate_id).with_for_update())
+        if gate is None:
+            raise QualityGateValidationError("quality gate was not found")
+        return gate
 
     def _reviews(self, session: Session, gate_id: str) -> list[dict[str, Any]]:
         return [
@@ -626,6 +665,9 @@ class QualityGateService:
         """Reconcile pass statuses and append the newest immutable evaluation."""
 
         with self._session(immediate=True) as session:
+            # PostgreSQL needs the row lock before any artifact/review read;
+            # SQLite's BEGIN IMMEDIATE provides the same serialization.
+            self._lock_gate(session, gate_id)
             gate, a, b = self._gate_and_rows(session, gate_id)
             aggregate = _status_for_executions(a.status, b.status)
             completed_at = (
@@ -699,7 +741,7 @@ class QualityGateService:
         structure: list[str] = []
         input_binding = {}
         for pass_name, execution, input_value in (("A", execution_a, input_a), ("B", execution_b, input_b)):
-            input_binding[pass_name] = _input_binding_valid(input_value, execution, sample, ids)
+            input_binding[pass_name] = _input_binding_valid(input_value, execution, sample, ids, expected_source_window=sample.get("source_window"))
             if not input_binding[pass_name]:
                 structure.append(f"{pass_name}_input_binding_invalid")
             if not _input_matches_fixed_sample(input_value, sample, ids):
@@ -710,8 +752,8 @@ class QualityGateService:
         fixed_digest_mismatch = sha256_bytes(sample_raw) != gate.sample_artifact_digest or sha256_bytes(baseline_raw) != gate.baseline_decisions_digest
         if fixed_digest_mismatch:
             structure.append("input_digest_mismatch")
-        binding_issues = _decisions_binding_issues(decisions_a, execution_a, input_a, ids, pass_name="A")
-        binding_issues.extend(_decisions_binding_issues(decisions_b, execution_b, input_b, ids, pass_name="B"))
+        binding_issues = _decisions_binding_issues(decisions_a, execution_a, input_a, ids, pass_name="A", expected_source_window=sample.get("source_window"))
+        binding_issues.extend(_decisions_binding_issues(decisions_b, execution_b, input_b, ids, pass_name="B", expected_source_window=sample.get("source_window")))
         invalid_by_pass = {
             pass_name: {row["notice_id"] for row in binding_issues if row.get("pass") == pass_name and row.get("notice_id")}
             for pass_name in ("A", "B")
@@ -786,13 +828,14 @@ class QualityGateService:
             raise QualityGateValidationError("note must be null or nonblank")
         root = Path(self.settings.bidops_root)
         with self._session(immediate=True) as session:
+            self._lock_gate(session, gate_id)
             gate, a, b = self._gate_and_rows(session, gate_id)
             if a.status not in EXECUTION_COMPLETED:
                 raise QualityGateConflict("pass A is not a completed execution")
             input_a = _load_execution_artifact(root, a.execution_id, "screening-input.json", expected_digest=a.input_artifact_digest)
             decisions_a = _load_execution_artifact(root, a.execution_id, "screening-decisions.json")
             _sample_raw, _baseline_raw, _sample, _baseline, ids = self._fixed_for_metrics(root, gate)
-            binding_issues = _decisions_binding_issues(decisions_a, a, input_a, ids, pass_name="A")
+            binding_issues = _decisions_binding_issues(decisions_a, a, input_a, ids, pass_name="A", expected_source_window=_sample.get("source_window"))
             valid_judgments, _ = _judgment_map(
                 decisions_a,
                 pass_name="A",
@@ -881,31 +924,66 @@ class QualityGateService:
         company_profile_version: str | None = None,
         company_profile_digest: str | None = None,
     ) -> bool:
-        """Return whether an immutable evaluation is an activation authority."""
+        """Check a point-in-time activation authority with a coherent lock."""
 
-        with self._session() as session:
-            evaluation = session.scalar(select(QualityGateEvaluation).where(QualityGateEvaluation.evaluation_id == evaluation_id))
-            if evaluation is None:
-                raise QualityGateActivationError("quality evaluation was not found")
-            gate = session.scalar(select(QualityGate).where(QualityGate.gate_id == evaluation.gate_id))
-            if gate is None or gate.purpose != "operational_approval":
-                raise QualityGateActivationError("only operational approval can activate")
-            latest = self._latest(session, gate.gate_id)
-            if latest.evaluation_id != evaluation_id or evaluation.result_status != "통과" or gate.execution_status != "완료":
-                raise QualityGateActivationError("evaluation is not the latest passing result")
-            if policy_version is not None and gate.policy_version != policy_version:
-                raise QualityGateActivationError("policy identity does not match quality gate")
-            if prompt_version is not None and gate.prompt_version != prompt_version:
-                raise QualityGateActivationError("prompt identity does not match quality gate")
-            if model_name is not None and gate.model_name != model_name:
-                raise QualityGateActivationError("model identity does not match quality gate")
-            if model_digest is not None and gate.model_digest != model_digest:
-                raise QualityGateActivationError("model digest does not match quality gate")
-            if company_profile_version is not None and gate.company_profile_version != company_profile_version:
-                raise QualityGateActivationError("profile identity does not match quality gate")
-            if company_profile_digest is not None and gate.company_profile_digest != company_profile_digest:
-                raise QualityGateActivationError("profile digest does not match quality gate")
-            return True
+        with self._session(immediate=True) as session:
+            return self.validate_activation_in_session(
+                session, evaluation_id, policy_version=policy_version,
+                prompt_version=prompt_version, model_name=model_name,
+                model_digest=model_digest, company_profile_version=company_profile_version,
+                company_profile_digest=company_profile_digest,
+            )
+
+    @staticmethod
+    def validate_activation_in_session(
+        session: Session,
+        evaluation_id: str,
+        *,
+        policy_version: str | None = None,
+        prompt_version: str | None = None,
+        model_name: str | None = None,
+        model_digest: str | None = None,
+        company_profile_version: str | None = None,
+        company_profile_digest: str | None = None,
+    ) -> bool:
+        """Validate activation while holding the gate row lock.
+
+        Policy activation calls this inside its own transaction.  Review
+        updates take the same lock before calculation, so no newer revision
+        can commit between this check and the policy flush/commit.
+        """
+
+        evaluation = session.scalar(select(QualityGateEvaluation).where(QualityGateEvaluation.evaluation_id == evaluation_id))
+        if evaluation is None:
+            raise QualityGateActivationError("quality evaluation was not found")
+        gate = session.scalar(select(QualityGate).where(QualityGate.gate_id == evaluation.gate_id).with_for_update())
+        if gate is None or gate.purpose != "operational_approval":
+            raise QualityGateActivationError("only operational approval can activate")
+        latest = session.scalar(
+            select(QualityGateEvaluation)
+            .where(QualityGateEvaluation.gate_id == gate.gate_id)
+            .order_by(QualityGateEvaluation.revision.desc())
+            .limit(1)
+        )
+        if (
+            latest is None or latest.evaluation_id != evaluation_id
+            or latest.result_status != "통과" or gate.result_status != "통과"
+            or gate.execution_status != "완료"
+        ):
+            raise QualityGateActivationError("evaluation is not the latest passing result")
+        if policy_version is not None and gate.policy_version != policy_version:
+            raise QualityGateActivationError("policy identity does not match quality gate")
+        if prompt_version is not None and gate.prompt_version != prompt_version:
+            raise QualityGateActivationError("prompt identity does not match quality gate")
+        if model_name is not None and gate.model_name != model_name:
+            raise QualityGateActivationError("model identity does not match quality gate")
+        if model_digest is not None and gate.model_digest != model_digest:
+            raise QualityGateActivationError("model digest does not match quality gate")
+        if company_profile_version is not None and gate.company_profile_version != company_profile_version:
+            raise QualityGateActivationError("profile identity does not match quality gate")
+        if company_profile_digest is not None and gate.company_profile_digest != company_profile_digest:
+            raise QualityGateActivationError("profile digest does not match quality gate")
+        return True
 
     validate_activation = can_activate
     validate_latest_evaluation = can_activate
@@ -922,6 +1000,7 @@ __all__ = [
     "FIXED_BASELINE_RELATIVE",
     "FIXED_RUN_ID",
     "FIXED_SAMPLE_RELATIVE",
+    "FIXED_SOURCE_WINDOW",
     "QualityGateActivationError",
     "QualityGateConflict",
     "QualityGateError",

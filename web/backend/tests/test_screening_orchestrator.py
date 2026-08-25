@@ -131,6 +131,26 @@ def test_single_success_writes_exact_seven_attempts_and_telemetry(tmp_path: Path
     assert not (root / created.artifact_dir / "screening-results.json").exists()
 
 
+def test_prepare_single_notice_binds_notice_identity_in_caller_transaction(tmp_path: Path):
+    root, settings, engine, factory, body = _fixture(tmp_path)
+    client = OllamaClient(settings=settings, transport=FakeOllamaTransport(_script()))
+    creator = ScreeningOrchestrator(settings, session_factory=factory, ollama=client, clock=lambda: NOW)
+    with factory() as session:
+        prepared = creator.prepare_execution(
+            session,
+            run_id="run-1",
+            notice_id="notice-1",
+            policy_version=body["policy_version"],
+            requested_by="tester",
+            scope="single_notice",
+        )
+        session.commit()
+    with Session(engine) as session:
+        row = session.scalar(select(ScreeningExecution).where(ScreeningExecution.execution_id == prepared.row.execution_id))
+        assert row is not None
+        assert row.notice_pk is not None and row.notice_id == "notice-1"
+
+
 def test_input_tamper_fails_before_any_generate_call(tmp_path: Path):
     root, settings, _engine, factory, body = _fixture(tmp_path)
     transport = FakeOllamaTransport(_script())
