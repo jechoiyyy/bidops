@@ -22,6 +22,7 @@ bidops-agent/
 │   └── tracking/
 │       ├── status.md                 ← 구현·검증 현황과 다음 순서
 │       ├── findings.md               ← 당장 해결하지 못한 문제
+│       ├── runtime-design-validation.html ← 판정 런타임 설계 검증 결과
 │       └── decisions/
 │           ├── index.md              ← 기술·운영 결정 목록
 │           └── NNNN-<slug>.md         ← 개별 결정과 대안·결과
