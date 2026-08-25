@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .errors import DocumentProcessingError
-from .safety import ProcessorOptions
+from .safety import OutputBudget, ProcessorOptions
 
 
 @dataclass(frozen=True)
@@ -70,20 +70,25 @@ def _pdf_literal(raw: bytes) -> str:
     return bytes(result).decode("utf-8", "replace")
 
 
-def _text_from_stream(stream: bytes) -> str:
+def _text_from_stream(stream: bytes, budget: OutputBudget) -> str:
     chunks: list[str] = []
+
+    def append(value: str) -> None:
+        budget.consume_text(value)
+        chunks.append(value)
+
     # Both literal and hexadecimal strings are accepted as operands to Tj/TJ.
     pattern = re.compile(rb"(\((?:\\.|[^()])*\)|<[0-9a-fA-F\s]+>)\s*(?:Tj|')")
     for match in pattern.finditer(stream):
-        chunks.append(_pdf_literal(match.group(1)))
+        append(_pdf_literal(match.group(1)))
     for match in re.finditer(rb"\[(.*?)\]\s*TJ", stream, re.S):
         for token in re.findall(rb"\((?:\\.|[^()])*\)|<[0-9a-fA-F\s]+>", match.group(1)):
-            chunks.append(_pdf_literal(token))
-        chunks.append(" ")
+            append(_pdf_literal(token))
+        append(" ")
     return "".join(chunks).strip()
 
 
-def _stream_body(obj: bytes) -> bytes:
+def _stream_body(obj: bytes, budget: OutputBudget) -> bytes:
     marker = re.search(rb"stream\r?\n", obj)
     if not marker:
         return b""
@@ -93,18 +98,39 @@ def _stream_body(obj: bytes) -> bytes:
     body = obj[marker.end():end]
     if b"/FlateDecode" in obj[:marker.start()]:
         try:
-            body = zlib.decompress(body)
+            decompressor = zlib.decompressobj()
+            decoded: list[bytes] = []
+            for offset in range(0, len(body), 64 * 1024):
+                chunk = decompressor.decompress(body[offset:offset + 64 * 1024], budget.remaining + 1)
+                if len(chunk) > budget.remaining:
+                    raise DocumentProcessingError("output_size_limit", "문서 처리 결과 크기 제한을 초과했습니다")
+                budget.consume(len(chunk))
+                decoded.append(chunk)
+                if decompressor.unconsumed_tail:
+                    raise DocumentProcessingError("output_size_limit", "문서 처리 결과 크기 제한을 초과했습니다")
+            tail = decompressor.flush(budget.remaining + 1)
+            if len(tail) > budget.remaining:
+                raise DocumentProcessingError("output_size_limit", "문서 처리 결과 크기 제한을 초과했습니다")
+            budget.consume(len(tail))
+            decoded.append(tail)
+            if not decompressor.eof:
+                raise DocumentProcessingError("malformed_pdf", "PDF 압축 stream이 손상되었습니다")
+            body = b"".join(decoded)
         except zlib.error as exc:
             raise DocumentProcessingError("malformed_pdf", "PDF 압축 stream을 읽을 수 없습니다") from exc
+    else:
+        budget.consume(len(body))
     return body
 
 
 def extract_pdf(data: bytes, options: ProcessorOptions) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str], list[PdfPage]]:
     if b"/Encrypt" in data:
         raise DocumentProcessingError("encrypted_pdf", "암호화된 PDF는 처리할 수 없습니다")
-    if data.count(b" obj") > options.max_archive_files * 8:
+    if data.count(b" obj") > options.max_pdf_objects:
         raise DocumentProcessingError("pdf_object_limit", "PDF object 수 제한을 초과했습니다")
     objects = {(int(match.group(1)), int(match.group(2))): match.group(3) for match in _OBJECT.finditer(data)}
+    if len(objects) > options.max_pdf_objects:
+        raise DocumentProcessingError("pdf_object_limit", "PDF object 수 제한을 초과했습니다")
     if not objects:
         raise DocumentProcessingError("malformed_pdf", "PDF object를 찾을 수 없습니다")
     pages: list[dict[str, Any]] = []
@@ -113,6 +139,10 @@ def extract_pdf(data: bytes, options: ProcessorOptions) -> tuple[list[dict[str, 
     page_objects = [obj for obj in objects.values() if _PAGE.search(obj)]
     if not page_objects:
         page_objects = [obj for obj in objects.values() if b"stream" in obj]
+    if len(page_objects) > options.max_pdf_pages:
+        raise DocumentProcessingError("pdf_page_limit", "PDF page 수 제한을 초과했습니다")
+    decoded_budget = OutputBudget(options.max_output_bytes)
+    text_budget = OutputBudget(options.max_output_bytes)
     for page_number, page_obj in enumerate(page_objects, 1):
         media = _MEDIA.search(page_obj)
         if media:
@@ -122,17 +152,18 @@ def extract_pdf(data: bytes, options: ProcessorOptions) -> tuple[list[dict[str, 
             width, height = 595.0, 842.0
         if width <= 0 or height <= 0 or width > 100_000 or height > 100_000 or width * height > 100_000_000:
             raise DocumentProcessingError("pdf_page_limit", "PDF page 해상도 제한을 초과했습니다")
-        content = b""
+        content_parts: list[bytes] = []
         reference = _REF.search(page_obj)
         references = _REFS.search(page_obj)
         if reference:
-            content = _stream_body(objects.get((int(reference.group(1)), int(reference.group(2))), b""))
+            content_parts.append(_stream_body(objects.get((int(reference.group(1)), int(reference.group(2))), b""), decoded_budget))
         elif references:
             for number, generation in re.findall(rb"(\d+)\s+(\d+)\s+R", references.group(1)):
-                content += _stream_body(objects.get((int(number), int(generation)), b""))
+                content_parts.append(_stream_body(objects.get((int(number), int(generation)), b""), decoded_budget))
         elif b"stream" in page_obj:
-            content = _stream_body(page_obj)
-        text = _text_from_stream(content)
+            content_parts.append(_stream_body(page_obj, decoded_budget))
+        content = b"".join(content_parts)
+        text = _text_from_stream(content, text_budget)
         pages.append({"number": page_number, "width": width, "height": height, "image_content_object_id": None})
         if text:
             blocks.append({

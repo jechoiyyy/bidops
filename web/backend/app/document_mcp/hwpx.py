@@ -10,7 +10,7 @@ from xml.etree import ElementTree as ET
 
 from .contracts import UPSTREAM_COMMIT
 from .errors import DocumentProcessingError
-from .safety import ProcessorOptions, validate_zip
+from .safety import OutputBudget, ProcessorOptions, validate_zip
 
 
 def _local(tag: str) -> str:
@@ -57,12 +57,33 @@ def _page_size(root: ET.Element) -> tuple[float, float]:
     return 595.0, 842.0
 
 
-def _parse_xml(raw: bytes) -> ET.Element:
-    if b"<!DOCTYPE" in raw or b"<!ENTITY" in raw:
+def _parse_xml(raw: bytes, options: ProcessorOptions) -> ET.Element:
+    if re.search(rb"<!\s*(?:DOCTYPE|ENTITY)\b", raw, re.IGNORECASE):
         raise DocumentProcessingError("unsafe_xml", "문서 XML 선언이 허용되지 않습니다")
+    parser = ET.XMLPullParser(events=("start", "end"))
+    depth = 0
+    root: ET.Element | None = None
     try:
-        return ET.fromstring(raw)
-    except (ET.ParseError, ValueError) as exc:
+        for offset in range(0, len(raw), 64 * 1024):
+            parser.feed(raw[offset:offset + 64 * 1024])
+            for event, element in parser.read_events():
+                if event == "start":
+                    if root is None:
+                        root = element
+                    depth += 1
+                    if depth > options.max_xml_depth:
+                        raise DocumentProcessingError("xml_depth_limit", "문서 XML 중첩 깊이 제한을 초과했습니다")
+                else:
+                    depth -= 1
+        parser.close()
+        if depth != 0:
+            raise DocumentProcessingError("malformed_hwpx", "HWPX XML을 읽을 수 없습니다")
+        if root is None:
+            raise DocumentProcessingError("malformed_hwpx", "HWPX XML을 읽을 수 없습니다")
+        return root
+    except DocumentProcessingError:
+        raise
+    except (ET.ParseError, ValueError, RecursionError) as exc:
         raise DocumentProcessingError("malformed_hwpx", "HWPX XML을 읽을 수 없습니다") from exc
 
 
@@ -79,15 +100,25 @@ def extract_hwpx(data: bytes, options: ProcessorOptions) -> tuple[list[dict[str,
             section_names = sorted(name for name in names if name.lower().endswith(".xml") and "content" in name.lower())
         if not section_names:
             raise DocumentProcessingError("malformed_hwpx", "HWPX section을 찾을 수 없습니다")
+        if len(section_names) > options.max_pages:
+            raise DocumentProcessingError("page_limit", "문서 page 수 제한을 초과했습니다")
         pages: list[dict[str, Any]] = []
         blocks: list[dict[str, Any]] = []
         warnings: list[str] = []
+        text_budget = OutputBudget(options.max_output_bytes)
+
+        def append_block(block: dict[str, Any]) -> None:
+            if len(blocks) >= options.max_blocks:
+                raise DocumentProcessingError("block_limit", "문서 구조 block 수 제한을 초과했습니다")
+            text_budget.consume_text(block["text"])
+            blocks.append(block)
+
         for page_number, name in enumerate(section_names, 1):
             try:
                 raw = archive.read(name)
             except (OSError, RuntimeError, zipfile.BadZipFile) as exc:
                 raise DocumentProcessingError("malformed_archive", "압축 문서를 읽을 수 없습니다") from exc
-            root = _parse_xml(raw)
+            root = _parse_xml(raw, options)
             width, height = _page_size(root)
             pages.append({"number": page_number, "width": width, "height": height, "image_content_object_id": None})
             parents: dict[int, ET.Element] = {}
@@ -102,7 +133,7 @@ def extract_hwpx(data: bytes, options: ProcessorOptions) -> tuple[list[dict[str,
                     table_index += 1
                     table_key = f"table-{page_number}-{table_index}"
                     table_key_block = f"{table_key}-block"
-                    blocks.append({
+                    append_block({
                         "block_key": table_key_block,
                         "parent_block_key": None,
                         "type": "table",
@@ -119,7 +150,7 @@ def extract_hwpx(data: bytes, options: ProcessorOptions) -> tuple[list[dict[str,
                             cells = [node for node in row.iter() if _local(node.tag) == "tc"]
                         for column_index, cell in enumerate(cells):
                             text = _element_text(cell)
-                            blocks.append({
+                            append_block({
                                 "block_key": f"{table_key}-r{row_index}-c{column_index}",
                                 "parent_block_key": table_key_block,
                                 "type": "table_cell",
@@ -132,7 +163,7 @@ def extract_hwpx(data: bytes, options: ProcessorOptions) -> tuple[list[dict[str,
                 elif local == "p" and not _has_ancestor(element, parents, {"tc", "tbl"}):
                     paragraph_index += 1
                     text = _element_text(element)
-                    blocks.append({
+                    append_block({
                         "block_key": f"paragraph-{page_number}-{paragraph_index}",
                         "parent_block_key": None,
                         "type": "paragraph",

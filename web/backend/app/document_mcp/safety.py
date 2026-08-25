@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import math
 import os
 import struct
 import zipfile
@@ -10,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import PurePosixPath
 from typing import Any
 
+from .contracts import DEFAULT_MAX_BLOCKS, DEFAULT_MAX_PAGES
 from .errors import DocumentLimitError, DocumentProcessingError
 
 HWP_MAGIC = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
@@ -32,28 +34,41 @@ class ProcessorOptions:
     max_archive_files: int = 512
     max_archive_depth: int = 2
     max_archive_uncompressed_bytes: int = 100 * 1024 * 1024
+    max_xml_depth: int = 256
+    max_pages: int = DEFAULT_MAX_PAGES
+    max_pdf_pages: int = 512
+    max_pdf_objects: int = 4096
+    max_blocks: int = DEFAULT_MAX_BLOCKS
     render_pages: bool = False
     ocr: bool = True
 
     @classmethod
     def from_mapping(cls, value: Any | None) -> "ProcessorOptions":
         if value is None:
-            return cls()
-        if isinstance(value, cls):
-            return value
-        if not isinstance(value, dict):
+            result = cls()
+        elif isinstance(value, cls):
+            result = value
+        elif isinstance(value, dict):
+            allowed = {
+                "timeout_seconds", "max_output_bytes", "max_archive_files",
+                "max_archive_depth", "max_archive_uncompressed_bytes", "max_xml_depth",
+                "max_pages", "max_pdf_pages", "max_pdf_objects", "max_blocks", "render_pages", "ocr",
+            }
+            if set(value) - allowed:
+                raise DocumentProcessingError("invalid_options", "허용되지 않는 문서 처리 option입니다")
+            try:
+                result = cls(**value)
+            except (TypeError, ValueError) as exc:
+                raise DocumentProcessingError("invalid_options", "문서 처리 options 형식이 올바르지 않습니다") from exc
+        else:
             raise DocumentProcessingError("invalid_options", "문서 처리 options 형식이 올바르지 않습니다")
-        allowed = {
-            "timeout_seconds", "max_output_bytes", "max_archive_files",
-            "max_archive_depth", "max_archive_uncompressed_bytes", "render_pages", "ocr",
-        }
-        if set(value) - allowed:
-            raise DocumentProcessingError("invalid_options", "허용되지 않는 문서 처리 option입니다")
-        try:
-            result = cls(**value)
-        except (TypeError, ValueError) as exc:
-            raise DocumentProcessingError("invalid_options", "문서 처리 options 형식이 올바르지 않습니다") from exc
-        if isinstance(result.timeout_seconds, bool) or not isinstance(result.timeout_seconds, (int, float)) or not 0.1 <= result.timeout_seconds <= 300:
+
+        if (
+            isinstance(result.timeout_seconds, bool)
+            or not isinstance(result.timeout_seconds, (int, float))
+            or not math.isfinite(result.timeout_seconds)
+            or not 0.1 <= result.timeout_seconds <= 300
+        ):
             raise DocumentProcessingError("invalid_options", "처리 timeout 범위를 벗어났습니다")
         if isinstance(result.max_output_bytes, bool) or not isinstance(result.max_output_bytes, int) or not 1 <= result.max_output_bytes <= 100 * 1024 * 1024:
             raise DocumentProcessingError("invalid_options", "처리 output 크기 제한이 올바르지 않습니다")
@@ -61,6 +76,24 @@ class ProcessorOptions:
             raise DocumentProcessingError("invalid_options", "압축 파일 제한이 올바르지 않습니다")
         if isinstance(result.max_archive_uncompressed_bytes, bool) or not isinstance(result.max_archive_uncompressed_bytes, int) or not 1 <= result.max_archive_uncompressed_bytes <= 500 * 1024 * 1024:
             raise DocumentProcessingError("invalid_options", "압축 해제 크기 제한이 올바르지 않습니다")
+        if (
+            isinstance(result.max_xml_depth, bool)
+            or not isinstance(result.max_xml_depth, int)
+            or not 8 <= result.max_xml_depth <= 1024
+            or isinstance(result.max_pages, bool)
+            or not isinstance(result.max_pages, int)
+            or not 1 <= result.max_pages <= 4096
+            or isinstance(result.max_pdf_pages, bool)
+            or not isinstance(result.max_pdf_pages, int)
+            or not 1 <= result.max_pdf_pages <= 4096
+            or isinstance(result.max_pdf_objects, bool)
+            or not isinstance(result.max_pdf_objects, int)
+            or not 1 <= result.max_pdf_objects <= 100_000
+            or isinstance(result.max_blocks, bool)
+            or not isinstance(result.max_blocks, int)
+            or not 1 <= result.max_blocks <= 1_000_000
+        ):
+            raise DocumentProcessingError("invalid_options", "문서 구조 제한이 올바르지 않습니다")
         if not isinstance(result.render_pages, bool) or not isinstance(result.ocr, bool):
             raise DocumentProcessingError("invalid_options", "문서 처리 option 형식이 올바르지 않습니다")
         return result
@@ -216,6 +249,30 @@ def enforce_input_limit(data: bytes) -> bytes:
     if not blob:
         raise DocumentProcessingError("invalid_input", "빈 문서는 처리할 수 없습니다")
     return blob
+
+
+class OutputBudget:
+    """A monotonic byte budget for decoded and generated processor output."""
+
+    def __init__(self, limit: int) -> None:
+        self.limit = limit
+        self.used = 0
+
+    @property
+    def remaining(self) -> int:
+        return self.limit - self.used
+
+    def consume(self, size: int) -> None:
+        if size < 0 or size > self.remaining:
+            raise DocumentLimitError("output_size_limit", "문서 처리 결과 크기 제한을 초과했습니다")
+        self.used += size
+
+    def consume_text(self, value: str) -> None:
+        try:
+            size = len(value.encode("utf-8"))
+        except UnicodeError as exc:
+            raise DocumentProcessingError("output_size_limit", "문서 처리 결과 형식이 올바르지 않습니다") from exc
+        self.consume(size)
 
 
 def image_dimensions(data: bytes, media_type: str) -> tuple[int, int]:

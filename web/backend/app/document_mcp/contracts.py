@@ -7,8 +7,9 @@ schema dependency so the processor remains usable in the quarantine worker.
 
 from __future__ import annotations
 
-import re
+import json
 import math
+import re
 from datetime import datetime
 from typing import Any, Mapping
 
@@ -16,6 +17,8 @@ from .errors import DocumentProcessingError
 
 SCHEMA = "bidops.document-structure.v1"
 UPSTREAM_COMMIT = "96a2633f23a08f707679d7e212ebdc59948260e6"
+DEFAULT_MAX_PAGES = 512
+DEFAULT_MAX_BLOCKS = 100_000
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _UUID = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
@@ -23,22 +26,30 @@ _UUID = re.compile(
 _FORBIDDEN_KEY = re.compile(r"(?:path|url|uri|credential|secret|token|password|shell)", re.I)
 
 
-def _safe_attributes(value: Any) -> None:
+def _safe_attributes(value: Any, *, depth: int = 0) -> None:
+    if depth > 64:
+        raise DocumentProcessingError("invalid_attribute", "구조 속성의 중첩 깊이가 제한을 초과했습니다")
     if isinstance(value, Mapping):
         for key, child in value.items():
             if not isinstance(key, str) or _FORBIDDEN_KEY.search(key):
                 raise DocumentProcessingError("unsafe_attribute", "구조 속성에 허용되지 않는 필드가 있습니다")
-            _safe_attributes(child)
+            _safe_attributes(child, depth=depth + 1)
     elif isinstance(value, (list, tuple)):
         for child in value:
-            _safe_attributes(child)
+            _safe_attributes(child, depth=depth + 1)
     elif isinstance(value, float) and not math.isfinite(value):
         raise DocumentProcessingError("invalid_attribute", "구조 속성의 값 형식이 올바르지 않습니다")
     elif value is not None and not isinstance(value, (str, int, float, bool)):
         raise DocumentProcessingError("invalid_attribute", "구조 속성의 값 형식이 올바르지 않습니다")
 
 
-def validate_structure(payload: Mapping[str, Any]) -> dict[str, Any]:
+def validate_structure(
+    payload: Mapping[str, Any],
+    *,
+    max_output_bytes: int | None = None,
+    max_pages: int = DEFAULT_MAX_PAGES,
+    max_blocks: int = DEFAULT_MAX_BLOCKS,
+) -> dict[str, Any]:
     """Validate and return a JSON-compatible copy of a structure payload.
 
     Additional fields are rejected at every contract-owned level.  Extractor
@@ -69,12 +80,15 @@ def validate_structure(payload: Mapping[str, Any]) -> dict[str, Any]:
         raise DocumentProcessingError("invalid_structure", "추출기 정보가 올바르지 않습니다")
     if not all(isinstance(extractor.get(k), str) and extractor.get(k) for k in ("name", "version")):
         raise DocumentProcessingError("invalid_structure", "추출기 정보가 올바르지 않습니다")
-    if extractor.get("upstream_commit") is not None and not isinstance(extractor["upstream_commit"], str):
+    upstream_commit = extractor.get("upstream_commit")
+    if upstream_commit is not None and upstream_commit != UPSTREAM_COMMIT:
         raise DocumentProcessingError("invalid_structure", "추출기 provenance가 올바르지 않습니다")
 
     pages = payload.get("pages")
     if not isinstance(pages, list):
         raise DocumentProcessingError("invalid_structure", "페이지 목록이 올바르지 않습니다")
+    if len(pages) > max_pages:
+        raise DocumentProcessingError("page_limit", "문서 page 수 제한을 초과했습니다")
     page_numbers: set[int] = set()
     for page in pages:
         if not isinstance(page, Mapping) or set(page) != {"number", "width", "height", "image_content_object_id"}:
@@ -94,6 +108,8 @@ def validate_structure(payload: Mapping[str, Any]) -> dict[str, Any]:
     blocks = payload.get("blocks")
     if not isinstance(blocks, list):
         raise DocumentProcessingError("invalid_structure", "블록 목록이 올바르지 않습니다")
+    if len(blocks) > max_blocks:
+        raise DocumentProcessingError("block_limit", "문서 구조 block 수 제한을 초과했습니다")
     keys: set[str] = set()
     parents: dict[str, str | None] = {}
     for block in blocks:
@@ -108,7 +124,11 @@ def validate_structure(payload: Mapping[str, Any]) -> dict[str, Any]:
             raise DocumentProcessingError("invalid_structure", "블록 부모 식별자가 올바르지 않습니다")
         if not isinstance(block.get("type"), str) or not block["type"]:
             raise DocumentProcessingError("invalid_structure", "블록 유형이 올바르지 않습니다")
-        if block.get("page") not in page_numbers:
+        if (
+            not isinstance(block.get("page"), int)
+            or isinstance(block.get("page"), bool)
+            or block.get("page") not in page_numbers
+        ):
             raise DocumentProcessingError("invalid_structure", "블록 페이지가 해소되지 않습니다")
         bbox = block.get("bbox")
         if bbox is not None:
@@ -126,16 +146,27 @@ def validate_structure(payload: Mapping[str, Any]) -> dict[str, Any]:
         _safe_attributes(block["attributes"])
         keys.add(key)
         parents[key] = parent
-    for key, parent in parents.items():
+    for parent in parents.values():
         if parent is not None and parent not in keys:
             raise DocumentProcessingError("invalid_structure", "블록 부모가 해소되지 않습니다")
-        seen: set[str] = set()
-        cursor = key
-        while cursor is not None:
-            if cursor in seen:
-                raise DocumentProcessingError("invalid_structure", "블록 부모 관계에 cycle이 있습니다")
-            seen.add(cursor)
-            cursor = parents.get(cursor)
+
+    # Each node is marked once as active and once as complete.  Completing the
+    # path before starting the next root makes parent-chain validation O(n),
+    # rather than walking every ancestor from every block (O(n^2) for a chain).
+    state: dict[str, int] = {}
+    for key in parents:
+        if state.get(key) == 2:
+            continue
+        path: list[str] = []
+        cursor: str | None = key
+        while cursor is not None and state.get(cursor, 0) == 0:
+            state[cursor] = 1
+            path.append(cursor)
+            cursor = parents[cursor]
+        if cursor is not None and state.get(cursor) == 1:
+            raise DocumentProcessingError("invalid_structure", "블록 부모 관계에 cycle이 있습니다")
+        for visited in path:
+            state[visited] = 2
 
     if not isinstance(payload.get("warnings"), list) or not all(isinstance(v, str) for v in payload["warnings"]):
         raise DocumentProcessingError("invalid_structure", "문서 warning 형식이 올바르지 않습니다")
@@ -143,7 +174,16 @@ def validate_structure(payload: Mapping[str, Any]) -> dict[str, Any]:
     if not isinstance(created_at, str):
         raise DocumentProcessingError("invalid_structure", "생성 시각이 올바르지 않습니다")
     try:
-        datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+        parsed_created_at = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+        if parsed_created_at.tzinfo is None or parsed_created_at.utcoffset() is None:
+            raise DocumentProcessingError("invalid_structure", "생성 시각이 올바르지 않습니다")
     except ValueError as exc:
         raise DocumentProcessingError("invalid_structure", "생성 시각이 올바르지 않습니다") from exc
+    if max_output_bytes is not None:
+        try:
+            serialized_size = len(json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
+        except (TypeError, ValueError, RecursionError) as exc:
+            raise DocumentProcessingError("invalid_structure", "문서 구조가 JSON으로 직렬화되지 않습니다") from exc
+        if serialized_size > max_output_bytes:
+            raise DocumentProcessingError("output_size_limit", "문서 처리 결과 크기 제한을 초과했습니다")
     return dict(payload)

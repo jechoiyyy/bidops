@@ -9,7 +9,7 @@
 
 `scripts/html2hwpx.py` adapts the public K-Teacher student-worksheet color tokens and semantic component language for native HWPX tables and paragraphs. The HTML parser, intermediate design-plan XML, OWPML renderer, and validation integration are independently implemented for this repository; upstream renderer code and skill prose are not copied.
 
-The upstream MIT license permits use, modification, and redistribution provided that its copyright and permission notice are retained in copies or substantial portions. The retained license text is in [`licenses/k-teacher-skills-LICENSE.txt`](licenses/k-teacher-skills-LICENSE.txt); the upstream copy is also available as [`LICENSE`](https://github.com/pblsketch/k-teacher-skills/blob/main/LICENSE).
+The upstream MIT license permits use, modification, and redistribution provided that its copyright and permission notice are retained in copies or substantial portions. The retained license text is in [`k-teacher-skills-LICENSE.txt`](k-teacher-skills-LICENSE.txt); the upstream copy is also available as [`LICENSE`](https://github.com/pblsketch/k-teacher-skills/blob/main/LICENSE).
 
 ## chrisryugj/kordoc
 
@@ -25,4 +25,4 @@ The upstream MIT license permits use, modification, and redistribution provided 
 
 The upstream MIT license permits use, modification, and redistribution provided that
 its copyright and permission notice are retained in copies or substantial portions.
-The retained license text is in [`licenses/kordoc-LICENSE.txt`](licenses/kordoc-LICENSE.txt).
+The retained license text is in [`kordoc-LICENSE.txt`](kordoc-LICENSE.txt).
