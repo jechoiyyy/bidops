@@ -1,0 +1,119 @@
+{
+  "schema_version": "bidops.screening-policy.v1",
+  "policy_version": "screening-policy.v1.20260825",
+  "prompt_version": "screening-prompt.v1",
+  "perspective_prompts": {
+    "기술 적합성": {
+      "template": "너는 BidOps 1차 판정의 기술 적합성 검토자다.\n질문: 공고가 요구하는 기술과 수행 역할을 회사가 보유하고 있는가?\n입력으로 제공된 notice_json과 company_profile_sections_json만 사용한다. 확인되지 않은 사실을 만들지 말고 unknown을 유지한다. 회사 근거는 절 번호와 confirmed|inferred|unknown 상태를 source에 적는다. 다른 관점의 결론이나 최종 grade/readiness를 판단하지 않는다.\n출력은 perspective.v1 JSON object 하나뿐이다: {\"name\":\"기술 적합성\",\"assessment\":\"적합|부분 적합|부적합|확인 불가\",\"reason\":\"10자 이상의 판단 근거\",\"evidence\":[{\"source\":\"입력 필드 또는 프로필 절\",\"status\":\"confirmed|inferred|unknown\",\"fact\":\"입력에서 확인한 사실\"}]}.\nnotice_json={notice_json}\ncompany_profile_sections_json={company_profile_sections_json}",
+      "input_fields": [
+        "title",
+        "procurement_class",
+        "focus_matches",
+        "unknown_fields"
+      ],
+      "profile_sections": [
+        "2.1",
+        "2.2"
+      ],
+      "output_schema": "perspective.v1"
+    },
+    "실적 정합성": {
+      "template": "너는 BidOps 1차 판정의 실적 정합성 검토자다.\n질문: 확인된 회사 수행실적이 이 과업과 실제로 대응하는가?\n입력으로 제공된 notice_json과 company_profile_sections_json만 사용한다. 확인되지 않은 사실을 만들지 말고 unknown을 유지한다. 회사 근거는 절 번호와 confirmed|inferred|unknown 상태를 source에 적는다. 다른 관점의 결론이나 최종 grade/readiness를 판단하지 않는다.\n출력은 perspective.v1 JSON object 하나뿐이다: {\"name\":\"실적 정합성\",\"assessment\":\"적합|부분 적합|부적합|확인 불가\",\"reason\":\"10자 이상의 판단 근거\",\"evidence\":[{\"source\":\"입력 필드 또는 프로필 절\",\"status\":\"confirmed|inferred|unknown\",\"fact\":\"입력에서 확인한 사실\"}]}.\nnotice_json={notice_json}\ncompany_profile_sections_json={company_profile_sections_json}",
+      "input_fields": [
+        "title",
+        "agency",
+        "performance_matches",
+        "performance_top_score"
+      ],
+      "profile_sections": [
+        "2.4"
+      ],
+      "output_schema": "perspective.v1"
+    },
+    "공공 SI 적합성": {
+      "template": "너는 BidOps 1차 판정의 공공 SI 적합성 검토자다.\n질문: 이 과업은 구축·고도화·운영·통합·ISP/BPR 중 무엇이며 회사의 공공 SI 경험과 맞는가?\n입력으로 제공된 notice_json과 company_profile_sections_json만 사용한다. 확인되지 않은 사실을 만들지 말고 unknown을 유지한다. 회사 근거는 절 번호와 confirmed|inferred|unknown 상태를 source에 적는다. 다른 관점의 결론이나 최종 grade/readiness를 판단하지 않는다.\n출력은 perspective.v1 JSON object 하나뿐이다: {\"name\":\"공공 SI 적합성\",\"assessment\":\"적합|부분 적합|부적합|확인 불가\",\"reason\":\"10자 이상의 판단 근거\",\"evidence\":[{\"source\":\"입력 필드 또는 프로필 절\",\"status\":\"confirmed|inferred|unknown\",\"fact\":\"입력에서 확인한 사실\"}]}.\nnotice_json={notice_json}\ncompany_profile_sections_json={company_profile_sections_json}",
+      "input_fields": [
+        "title",
+        "agency",
+        "method",
+        "procurement_class",
+        "lifecycle"
+      ],
+      "profile_sections": [
+        "2.3",
+        "2.4"
+      ],
+      "output_schema": "perspective.v1"
+    },
+    "사업성·자격 제약": {
+      "template": "너는 BidOps 1차 판정의 사업성·자격 제약 검토자다.\n질문: 예산·지역·업종·실적·참여 형태 중 확인된 참여 제약은 무엇이고 무엇이 아직 확인 불가인가?\n입력으로 제공된 notice_json과 company_profile_sections_json만 사용한다. 확인되지 않은 사실을 만들지 말고 unknown을 유지한다. 회사 근거는 절 번호와 confirmed|inferred|unknown 상태를 source에 적는다. 다른 관점의 결론이나 최종 grade/readiness를 판단하지 않는다.\n출력은 perspective.v1 JSON object 하나뿐이다: {\"name\":\"사업성·자격 제약\",\"assessment\":\"적합|부분 적합|부적합|확인 불가\",\"reason\":\"10자 이상의 판단 근거\",\"evidence\":[{\"source\":\"입력 필드 또는 프로필 절\",\"status\":\"confirmed|inferred|unknown\",\"fact\":\"입력에서 확인한 사실\"}]}.\nnotice_json={notice_json}\ncompany_profile_sections_json={company_profile_sections_json}",
+      "input_fields": [
+        "budget",
+        "estimated_price",
+        "method",
+        "region_limit",
+        "qualification_flags",
+        "lifecycle"
+      ],
+      "profile_sections": [
+        "5.2"
+      ],
+      "output_schema": "perspective.v1"
+    },
+    "전략 부합": {
+      "template": "너는 BidOps 1차 판정의 전략 부합 검토자다.\n질문: 이 과업은 회사의 우선 사업축과 신규 진출 방향에 부합하는가?\n입력으로 제공된 notice_json과 company_profile_sections_json만 사용한다. 확인되지 않은 사실을 만들지 말고 unknown을 유지한다. 회사 근거는 절 번호와 confirmed|inferred|unknown 상태를 source에 적는다. 다른 관점의 결론이나 최종 grade/readiness를 판단하지 않는다.\n출력은 perspective.v1 JSON object 하나뿐이다: {\"name\":\"전략 부합\",\"assessment\":\"적합|부분 적합|부적합|확인 불가\",\"reason\":\"10자 이상의 판단 근거\",\"evidence\":[{\"source\":\"입력 필드 또는 프로필 절\",\"status\":\"confirmed|inferred|unknown\",\"fact\":\"입력에서 확인한 사실\"}]}.\nnotice_json={notice_json}\ncompany_profile_sections_json={company_profile_sections_json}",
+      "input_fields": [
+        "title",
+        "agency",
+        "procurement_class",
+        "focus_matches",
+        "candidate_sources"
+      ],
+      "profile_sections": [
+        "4.1"
+      ],
+      "output_schema": "perspective.v1"
+    }
+  },
+  "counterargument_prompt": {
+    "template": "너는 BidOps 판정의 반론 검토자다. notice_json과 다섯 perspectives_json만 사용한다. 각 반론은 이 공고와 이 다섯 판단에 구체적으로 연결되어야 하며 모든 공고에 붙일 수 있는 상투구를 쓰지 않는다. 확인되지 않은 사실을 만들지 않는다.\n출력은 counterargument.v1 JSON object 하나뿐이다: {\"counterarguments\":[\"공고별 구체적 반론\"]}. counterarguments는 공백 아닌 문자열 1개 이상이다.\nnotice_json={notice_json}\nperspectives_json={perspectives_json}",
+    "input_fields": [
+      "perspectives",
+      "notice"
+    ],
+    "output_schema": "counterargument.v1"
+  },
+  "synthesis_prompt": {
+    "template": "너는 BidOps 종합 판정자다. notice_json, 다섯 perspectives_json, counterarguments_json만 사용한다. grade와 readiness를 서로 다른 축으로 판단한다. 자격 또는 회사 정보가 확인 불가라는 이유만으로 grade를 낮추지 않는다. 반론마다 수용|기각|추가 확인을 정하고 summary, verification_items, next_action 중 어디에 반영했는지 설명한다. 확인되지 않은 사실을 만들거나 입력 판단을 자동 보정하지 않는다.\n출력은 judgment.v3 JSON object 하나뿐이며 notice_id, grade, readiness, primary_focus, exclusion_category, summary, perspectives, matched_performances, counterarguments, counterargument_resolutions, verification_items(item,why,blocking,status,requires_attachment), next_action을 모두 포함한다. 허용 enum과 교차 조건은 bidops.decisions.v3 계약을 따른다.\nnotice_json={notice_json}\nperspectives_json={perspectives_json}\ncounterarguments_json={counterarguments_json}",
+    "input_fields": [
+      "notice",
+      "perspectives",
+      "counterarguments"
+    ],
+    "output_schema": "judgment.v3"
+  },
+  "candidate_selection": {
+    "rules_version": "collect-candidate.v2",
+    "mode": "candidate_pool_all",
+    "include_collection_buckets": [
+      "candidate_pool"
+    ],
+    "rejudge_on": [
+      "정정",
+      "재공고",
+      "본공고 전환",
+      "담당자 요청"
+    ],
+    "carry_over_if_unchanged": true
+  },
+  "thresholds": {
+    "grade_reproducibility_min_pct": 80,
+    "priority_review_rate_min_pct": 10,
+    "priority_review_rate_max_pct": 25,
+    "evidence_agreement_min_pct": 70,
+    "evidence_insufficient_max_pct": 10,
+    "perspective_split_min_pct": 40,
+    "min_valid_reviews": 10,
+    "min_discrimination_sample": 10
+  }
+}
