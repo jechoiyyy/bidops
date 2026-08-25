@@ -108,6 +108,15 @@ def profile() -> dict:
     }
 
 
+def complete_profile() -> dict:
+    return {
+        "profile_version_id": U,
+        "facts": [{"fact_key": "company.region", "status": "confirmed", "quote": "서울"}],
+        "evidence": [{"profile_evidence_id": U5, "profile_version_id": U, "fact_key": "company.region", "source_sha256": HASH, "quote": "서울"}],
+        "source_text": "회사는 서울에 있다.",
+    }
+
+
 def profile_evidence() -> dict:
     return {
         "evidence_id": U5, "source_kind": "profile", "document_version_id": None, "structure_id": None,
@@ -220,6 +229,21 @@ def test_profile_evidence_fails_closed_and_matches_pinned_fact_hash_and_quote() 
         validate_deep_review_stage(stage(claim=claim(evidence_ids=[U5]), evidence=invalid), profile=profile())
 
 
+def test_profile_fact_keys_and_evidence_are_exact_and_unique() -> None:
+    invalid = complete_profile()
+    invalid["facts"].append({"fact_key": "company.region", "status": "unknown", "quote": "서울"})
+    with pytest.raises(DeepReviewValidationError, match="profile_fact_key_duplicate"):
+        validate_deep_review_stage(stage(), profile=invalid)
+    invalid = complete_profile()
+    invalid["evidence"].append({**invalid["evidence"][0], "profile_evidence_id": U4})
+    with pytest.raises(DeepReviewValidationError, match="profile_evidence_duplicate"):
+        validate_deep_review_stage(stage(), profile=invalid)
+    invalid = complete_profile()
+    invalid["evidence"][0]["quote"] = "tampered"
+    with pytest.raises(DeepReviewValidationError, match="profile_fact_quote_mismatch"):
+        validate_deep_review_stage(stage(), profile=invalid)
+
+
 def test_calculation_requires_each_left_input_in_a_cited_quote_and_bounds_ast() -> None:
     invalid = claim(kind="calculation", body="102", evidence_ids=[U5], formula="100 + 2")
     with pytest.raises(DeepReviewValidationError, match="calculation_input_evidence_missing"):
@@ -321,6 +345,27 @@ def test_chunk_merge_is_sorted_idempotent_and_detects_conflict_and_missing() -> 
         merge_stage_chunks([first, conflict], bundle=bundle(), structures=structures())
     with pytest.raises(DeepReviewValidationError, match="chunk_missing_claim"):
         merge_stage_chunks([stage(evidence=e)], expected_claim_ids=[U4], bundle=bundle(), structures=structures())
+
+
+def test_chunk_merge_uses_approved_order_and_allows_prior_reference_but_not_redefinition() -> None:
+    first_claim = claim(kind="opinion", body="first", reason="reason")
+    first_claim["claim_id"] = U4
+    second_claim = claim(kind="opinion", body="second", reason="reason")
+    second_claim["claim_id"] = U5
+    chunk_a = stage(claim=first_claim)
+    chunk_b = stage(claim=second_claim)
+    merged = merge_stage_chunks([chunk_a, chunk_b], chunk_order_key=lambda chunk: [2, 0] if chunk["claims"][0]["body"] == "first" else [1, 0], bundle=bundle(), structures=structures())
+    assert [item["claim_id"] for item in merged["claims"]] == [U5, U4]
+
+    prior = claim(kind="opinion", body="prior", reason="reason")
+    prior["claim_id"] = U4
+    inferred = claim(kind="inference", body="derived", evidence_ids=[U5], premises=[U4], reason="because")
+    inferred["claim_id"] = U3
+    current = stage(claim=inferred)
+    assert merge_stage_chunks([current], known_claim_ids=[U4], known_evidence_ids=[U5], bundle=bundle(), structures=structures())
+    redefined = stage(claim=prior)
+    with pytest.raises(DeepReviewValidationError, match="prior_claim_redefinition"):
+        merge_stage_chunks([redefined], known_claim_ids=[U4], bundle=bundle(), structures=structures())
 
 
 def test_pilot_55_52_and_yangsan_evaluation_duty_regressions() -> None:
