@@ -104,6 +104,77 @@ def test_renameat2_exchange_probe_failure_cleans_probe_entries_before_workspace_
     assert not (base / EXECUTION_ID).exists()
 
 
+def test_renameat2_probe_file_fstat_failure_recovers_probe_inode_without_fd_leak(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    store = ArtifactStore(tmp_path)
+    base = tmp_path / "data/screening-executions"
+    before = {entry.name for entry in Path("/proc/self/fd").iterdir()}
+    real_fstat = os.fstat
+    failed = False
+
+    def fail_file_fstat(fd):
+        nonlocal failed
+        target = os.readlink(f"/proc/self/fd/{fd}")
+        if ".renameat2-probe-" in target and "-file-a" in target and not failed:
+            failed = True
+            raise OSError("injected probe file fstat failure")
+        return real_fstat(fd)
+
+    monkeypatch.setattr(os, "fstat", fail_file_fstat)
+    with pytest.raises(ArtifactError):
+        store.create_execution_workspace(EXECUTION_ID)
+    after = {entry.name for entry in Path("/proc/self/fd").iterdir()}
+    assert failed
+    assert after == before
+    assert base.is_dir() and not list(base.iterdir())
+
+
+def test_renameat2_probe_directory_open_failure_recovers_probe_inode_without_fd_leak(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    store = ArtifactStore(tmp_path)
+    base = tmp_path / "data/screening-executions"
+    before = {entry.name for entry in Path("/proc/self/fd").iterdir()}
+    real_open = os.open
+    failed = False
+
+    def fail_directory_open(path, flags, *args, **kwargs):
+        nonlocal failed
+        if isinstance(path, str) and "-dir-a" in path and flags & getattr(os, "O_DIRECTORY", 0) and not failed:
+            failed = True
+            raise OSError("injected probe directory open failure")
+        return real_open(path, flags, *args, **kwargs)
+
+    monkeypatch.setattr(os, "open", fail_directory_open)
+    with pytest.raises(ArtifactError):
+        store.create_execution_workspace(EXECUTION_ID)
+    after = {entry.name for entry in Path("/proc/self/fd").iterdir()}
+    assert failed
+    assert after == before
+    assert base.is_dir() and not list(base.iterdir())
+
+
+def test_renameat2_probe_directory_fstat_failure_recovers_probe_inode_without_fd_leak(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    store = ArtifactStore(tmp_path)
+    base = tmp_path / "data/screening-executions"
+    before = {entry.name for entry in Path("/proc/self/fd").iterdir()}
+    real_fstat = os.fstat
+    failed = False
+
+    def fail_directory_fstat(fd):
+        nonlocal failed
+        target = os.readlink(f"/proc/self/fd/{fd}")
+        if ".renameat2-probe-" in target and "-dir-a" in target and not failed:
+            failed = True
+            raise OSError("injected probe directory fstat failure")
+        return real_fstat(fd)
+
+    monkeypatch.setattr(os, "fstat", fail_directory_fstat)
+    with pytest.raises(ArtifactError):
+        store.create_execution_workspace(EXECUTION_ID)
+    after = {entry.name for entry in Path("/proc/self/fd").iterdir()}
+    assert failed
+    assert after == before
+    assert base.is_dir() and not list(base.iterdir())
+
+
 def test_quarantine_exchange_failure_removes_own_sink_and_restores_child(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     store = ArtifactStore(tmp_path)
     monkeypatch.setattr(artifact_module, "_probe_renameat2", lambda _fd: None)
