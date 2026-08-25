@@ -28,7 +28,7 @@ def seed_base(connection: sqlite3.Connection) -> None:
     now = "2026-01-01T00:00:00+00:00"
     connection.execute("insert into run(id, timezone, generated_at, status) values ('r1', 'Asia/Seoul', ?, 'active')", (now,))
     connection.execute("insert into notice(run_id, notice_key) values ('r1', 'notice-1')")
-    connection.execute("insert into company_profile_snapshot(digest, version, source_kind, source_ref, artifact_path, created_at) values (?, ?, 'working_tree', 'HEAD', 'profile.md', ?)", (DIGEST, PROFILE_VERSION, now))
+    connection.execute("insert into company_profile_snapshot(digest, version, source_kind, source_ref, artifact_path, created_at) values (?, ?, 'working_tree', 'docs/reference/company-profile.md', ?, ?)", (DIGEST, PROFILE_VERSION, f"web/data/profile-snapshots/{DIGEST}.md", now))
     body = "{}"
     connection.execute("insert into screening_policy(policy_version, prompt_version, content_digest, status, perspective_prompts_json, counterargument_prompt_json, synthesis_prompt_json, candidate_selection_json, thresholds_json, created_at, created_by) values ('p1', 'prompt-1', ?, 'draft', ?, ?, ?, ?, ?, ?, 'tester')", (DIGEST, body, body, body, body, body, now))
     connection.commit()
@@ -57,6 +57,24 @@ def test_exact_columns_nullability_and_ids(tmp_path: Path) -> None:
             connection.execute("insert into screening_execution(execution_id, trigger, source_run_id, scope, status, requested_by, policy_version, prompt_version, model_name, model_digest, company_profile_version, company_profile_digest, input_artifact_path, input_artifact_digest, artifact_dir, queued_at) values ('scr-' || printf('%032d', 3), 'manual_run', 'r1', 'full_run', 'bogus', 'tester', 'p1', 'prompt-1', 'm', ?, ?, ?, 'runs/c.json', ?, 'runs/c', ?)", (MODEL_DIGEST, PROFILE_VERSION, DIGEST, DIGEST, "2026-01-01T00:00:00+00:00"))
 
 
+def test_runtime_fk_delete_actions_are_explicit(tmp_path: Path) -> None:
+    database = tmp_path / "runtime.db"
+    upgrade(database)
+    with sqlite3.connect(database) as connection:
+        connection.execute("pragma foreign_keys=on")
+        seed_base(connection)
+        add_execution(connection, "scr-" + "1" * 32, "a")
+        connection.execute(
+            "insert into screening_attempt(execution_id, notice_id, stage, attempt_no, status, trace_id, span_id, started_at, finished_at, response_artifact_path) "
+            "values (?, 'notice-1', '기술 적합성', 1, 'success', 'trace', 'span', ?, ?, 'responses/a.json')",
+            ("scr-" + "1" * 32, "2026-01-01T00:00:00+00:00", "2026-01-01T00:00:01+00:00"),
+        )
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute("delete from run where id='r1'")
+        connection.execute("delete from screening_execution where execution_id=?", ("scr-" + "1" * 32,))
+        assert connection.execute("select count(*) from screening_attempt").fetchone()[0] == 0
+
+
 def test_gate_evaluation_append_and_input_immutability(tmp_path: Path) -> None:
     database = tmp_path / "runtime.db"
     upgrade(database)
@@ -78,11 +96,29 @@ def test_gate_evaluation_append_and_input_immutability(tmp_path: Path) -> None:
             connection.execute("update quality_gate_evaluation set result_status='미달'")
         with pytest.raises(sqlite3.IntegrityError):
             connection.execute("delete from quality_gate_evaluation")
+        connection.execute(
+            "update screening_policy set status='active', active_slot=1, activated_at=?, activated_by='tester', quality_gate_result_id=? where policy_version='p1'",
+            ("2026-01-01T00:00:00+00:00", "gateeval-" + "2" * 32),
+        )
         with pytest.raises(sqlite3.IntegrityError):
             connection.execute("update always_on_state set enabled=1, quality_gate_result_id=?, policy_version='p1', model_name='qwen3.8:27b', model_digest=?, prompt_version='prompt-1', company_profile_version=?, company_profile_digest=?, updated_at=?, updated_by='tester' where singleton_id=1", (gateeval, MODEL_DIGEST, PROFILE_VERSION, DIGEST, "2026-01-01T00:00:00+00:00"))
         connection.execute("update always_on_state set enabled=1, quality_gate_result_id=?, policy_version='p1', model_name='qwen3.8:27b', model_digest=?, prompt_version='prompt-1', company_profile_version=?, company_profile_digest=?, updated_at=?, updated_by='tester' where singleton_id=1", ("gateeval-" + "2" * 32, MODEL_DIGEST, PROFILE_VERSION, DIGEST, "2026-01-01T00:00:00+00:00"))
         with pytest.raises(sqlite3.IntegrityError):
             connection.execute("update always_on_state set model_digest=? where singleton_id=1", ("c" * 64,))
+        connection.execute(
+            "update screening_policy set status='activation_candidate', active_slot=NULL, activated_at=NULL, activated_by=NULL, quality_gate_result_id=NULL where policy_version='p1'"
+        )
+        assert connection.execute("select enabled from always_on_state where singleton_id=1").fetchone()[0] == 0
+        connection.execute(
+            "update screening_policy set status='active', active_slot=1, activated_at=?, activated_by='tester', quality_gate_result_id=? where policy_version='p1'",
+            ("2026-01-01T00:00:00+00:00", "gateeval-" + "2" * 32),
+        )
+        connection.execute("update always_on_state set enabled=1, quality_gate_result_id=?, policy_version='p1', model_name='qwen3.8:27b', model_digest=?, prompt_version='prompt-1', company_profile_version=?, company_profile_digest=?, updated_at=?, updated_by='tester' where singleton_id=1", ("gateeval-" + "2" * 32, MODEL_DIGEST, PROFILE_VERSION, DIGEST, "2026-01-01T00:00:00+00:00"))
+        connection.execute(
+            "insert into quality_gate_evaluation(evaluation_id, gate_id, revision, result_status, metrics_json, reasons_json, valid_review_count, distinct_notice_review_count, created_at) values (?, ?, 3, '미달', '{}', '[]', 0, 0, ?)",
+            ("gateeval-" + "3" * 32, "gate-" + "1" * 32, "2026-01-01T00:00:00+00:00"),
+        )
+        assert connection.execute("select enabled from always_on_state where singleton_id=1").fetchone()[0] == 0
 
 
 def test_policy_body_and_single_notice_identity_are_protected(tmp_path: Path) -> None:
@@ -99,6 +135,119 @@ def test_policy_body_and_single_notice_identity_are_protected(tmp_path: Path) ->
                 "values (?, 'cli_single', 'r1', 'single_notice', ?, 'wrong-notice', '대기', 'tester', 'p1', 'prompt-1', 'qwen3.8:27b', ?, ?, ?, 'runs/single.json', ?, 'runs/single', ?)",
                 ("scr-" + "3" * 32, notice_pk, MODEL_DIGEST, PROFILE_VERSION, DIGEST, DIGEST, "2026-01-01T00:00:00+00:00"),
             )
+
+
+def test_single_notice_source_run_and_nonblank_identifiers_are_protected(tmp_path: Path) -> None:
+    database = tmp_path / "runtime.db"
+    upgrade(database)
+    with sqlite3.connect(database) as connection:
+        seed_base(connection)
+        connection.execute("insert into run(id, timezone, generated_at, status) values ('r2', 'Asia/Seoul', '2026-01-01T00:00:00+00:00', 'active')")
+        notice_pk = connection.execute("select id from notice where notice_key='notice-1'").fetchone()[0]
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute(
+                "insert into screening_execution(execution_id, trigger, source_run_id, scope, notice_pk, notice_id, status, requested_by, policy_version, prompt_version, model_name, model_digest, company_profile_version, company_profile_digest, input_artifact_path, input_artifact_digest, artifact_dir, queued_at) "
+                "values (?, 'cli_single', 'r2', 'single_notice', ?, 'notice-1', '대기', 'tester', 'p1', 'prompt-1', 'qwen3.8:27b', ?, ?, ?, 'runs/mismatch.json', ?, 'runs/mismatch', ?)",
+                ("scr-" + "4" * 32, notice_pk, MODEL_DIGEST, PROFILE_VERSION, DIGEST, DIGEST, "2026-01-01T00:00:00+00:00"),
+            )
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute(
+                "insert into screening_execution(execution_id, trigger, source_run_id, scope, status, requested_by, policy_version, prompt_version, model_name, model_digest, company_profile_version, company_profile_digest, input_artifact_path, input_artifact_digest, artifact_dir, queued_at) "
+                "values (?, 'manual_run', 'r1', 'full_run', '대기', 'tester', 'p1', 'prompt-1', ' ', ?, ?, ?, 'runs/nonblank.json', ?, 'runs/nonblank', ?)",
+                ("scr-" + "5" * 32, MODEL_DIGEST, PROFILE_VERSION, DIGEST, DIGEST, "2026-01-01T00:00:00+00:00"),
+            )
+
+
+def test_audit_details_must_be_an_object(tmp_path: Path) -> None:
+    database = tmp_path / "runtime.db"
+    upgrade(database)
+    with sqlite3.connect(database) as connection:
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute(
+                "insert into audit_event(event_id, event_type, actor, target_type, target_id, occurred_at, details_json) "
+                "values (?, 'test', 'tester', 'run', 'r1', ?, ?)",
+                ("audit-" + "1" * 32, "2026-01-01T00:00:00+00:00", "[]"),
+            )
+
+
+def test_profile_snapshot_ref_and_path_contract(tmp_path: Path) -> None:
+    database = tmp_path / "runtime.db"
+    upgrade(database)
+    with sqlite3.connect(database) as connection:
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute(
+                "insert into company_profile_snapshot(digest, version, source_kind, source_ref, artifact_path, created_at) "
+                "values (?, ?, 'git_blob', 'HEAD', ?, ?)",
+                ("c" * 64, "company-profile.sha256:" + "c" * 64, "web/data/profile-snapshots/" + "c" * 64 + ".md", "2026-01-01T00:00:00+00:00"),
+            )
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute(
+                "insert into company_profile_snapshot(digest, version, source_kind, source_ref, artifact_path, created_at) "
+                "values (?, ?, 'working_tree', 'docs/reference/company-profile.md', 'profile.md', ?)",
+                ("d" * 64, "company-profile.sha256:" + "d" * 64, "2026-01-01T00:00:00+00:00"),
+            )
+
+
+def test_active_policy_requires_latest_passing_operational_gate(tmp_path: Path) -> None:
+    database = tmp_path / "runtime.db"
+    upgrade(database)
+    with sqlite3.connect(database) as connection:
+        seed_base(connection)
+        add_execution(connection, "scr-" + "1" * 32, "a")
+        add_execution(connection, "scr-" + "2" * 32, "b")
+        connection.execute(
+            "insert into quality_gate(gate_id, purpose, execution_status, result_status, baseline_run_id, sample_artifact_path, sample_artifact_digest, baseline_decisions_path, baseline_decisions_digest, policy_version, prompt_version, model_name, model_digest, company_profile_version, company_profile_digest, pass_a_execution_id, pass_b_execution_id, created_at, completed_at, metrics_json, reasons_json, created_by) "
+            "values (?, 'operational_approval', '완료', '통과', 'r1', 'sample.json', ?, 'decisions.json', ?, 'p1', 'prompt-1', 'qwen3.8:27b', ?, ?, ?, ?, ?, ?, ?, ?, ?, 'tester')",
+            ("gate-" + "1" * 32, DIGEST, DIGEST, MODEL_DIGEST, PROFILE_VERSION, DIGEST, "scr-" + "1" * 32, "scr-" + "2" * 32, "2026-01-01T00:00:00+00:00", "2026-01-01T00:00:00+00:00", "{}", "[]"),
+        )
+        connection.execute(
+            "insert into quality_gate_evaluation(evaluation_id, gate_id, revision, result_status, metrics_json, reasons_json, valid_review_count, distinct_notice_review_count, created_at) "
+            "values (?, ?, 1, '통과', '{}', '[]', 0, 0, ?)",
+            ("gateeval-" + "1" * 32, "gate-" + "1" * 32, "2026-01-01T00:00:00+00:00"),
+        )
+        connection.execute(
+            "insert into quality_gate_evaluation(evaluation_id, gate_id, revision, result_status, metrics_json, reasons_json, valid_review_count, distinct_notice_review_count, created_at) "
+            "values (?, ?, 2, '미달', '{}', '[]', 0, 0, ?)",
+            ("gateeval-" + "2" * 32, "gate-" + "1" * 32, "2026-01-01T00:00:00+00:00"),
+        )
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute(
+                "update screening_policy set status='active', active_slot=1, activated_at=?, activated_by='tester', quality_gate_result_id=? where policy_version='p1'",
+                ("2026-01-01T00:00:00+00:00", "gateeval-" + "1" * 32),
+            )
+
+
+def test_schedule_duplicate_and_recovery_relationships_are_restricted(tmp_path: Path) -> None:
+    database = tmp_path / "runtime.db"
+    upgrade(database)
+    with sqlite3.connect(database) as connection:
+        connection.execute(
+            "insert into schedule_reservation(run_key, job_kind, window_from, window_to, timezone, created_at) values ('rk-daily', 'daily', '2026-01-01', '2026-01-01', 'Asia/Seoul', ?)",
+            ("2026-01-01T00:00:00+00:00",),
+        )
+        connection.execute(
+            "insert into schedule_reservation(run_key, job_kind, window_from, window_to, timezone, created_at) values ('rk-weekly', 'weekly', '2026-01-01', '2026-01-07', 'Asia/Seoul', ?)",
+            ("2026-01-01T00:00:00+00:00",),
+        )
+        connection.execute(
+            "insert into schedule_execution(execution_id, run_key, job_kind, trigger, status, requested_by) values ('sched-' || printf('%032d', 1), 'rk-daily', 'daily', 'schedule', '성공', 'tester')"
+        )
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute(
+                "insert into schedule_execution(execution_id, run_key, job_kind, trigger, status, duplicate_of_execution_id, requested_by) values ('sched-' || printf('%032d', 2), 'rk-weekly', 'weekly', 'schedule', '예약', 'sched-' || printf('%032d', 1), 'tester')"
+            )
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute(
+                "insert into schedule_execution(execution_id, run_key, job_kind, trigger, status, recovery_of_execution_id, requested_by, failure_reason) values ('sched-' || printf('%032d', 3), 'rk-daily', 'daily', 'schedule', '실패', 'sched-' || printf('%032d', 1), 'tester', 'recovery')"
+            )
+        connection.execute(
+            "insert into schedule_execution(execution_id, run_key, job_kind, trigger, status, requested_by, failure_reason) values ('sched-' || printf('%032d', 4), 'rk-daily', 'daily', 'schedule', '실패', 'tester', 'failed')"
+        )
+        connection.execute(
+            "insert into schedule_execution(execution_id, run_key, job_kind, trigger, status, recovery_of_execution_id, requested_by, failure_reason) values ('sched-' || printf('%032d', 5), 'rk-daily', 'daily', 'schedule', '실패', 'sched-' || printf('%032d', 4), 'tester', 'recovery')"
+        )
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute("update schedule_execution set status='성공' where execution_id='sched-' || printf('%032d', 4)")
 
 
 def test_exact_environment_names_and_validation(monkeypatch: pytest.MonkeyPatch) -> None:

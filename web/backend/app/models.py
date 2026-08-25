@@ -402,12 +402,10 @@ class ScreeningExecution(Base):
             name="ck_screening_execution_terminal",
         ),
         CheckConstraint("stop_reason IS NULL OR stop_reason IN ('user_requested', 'process_interrupted')", name="ck_screening_execution_stop_reason"),
-        CheckConstraint("queued_at IS NOT NULL", name="ck_screening_execution_queued_at"),
-        CheckConstraint("candidate_count >= 0", name="ck_screening_execution_candidate_count"),
-        CheckConstraint("completed_count >= 0", name="ck_screening_execution_completed_count"),
-        CheckConstraint("failure_count >= 0", name="ck_screening_execution_failure_count"),
+        CheckConstraint("candidate_count >= 0 AND completed_count >= 0 AND failure_count >= 0", name="ck_screening_execution_counts"),
         CheckConstraint("length(trim(requested_by)) > 0", name="ck_screening_execution_requested_by"),
         CheckConstraint("stop_requested_by IS NULL OR length(trim(stop_requested_by)) > 0", name="ck_screening_execution_stop_requested_by"),
+        CheckConstraint("length(trim(source_run_id)) > 0 AND length(trim(policy_version)) > 0 AND length(trim(prompt_version)) > 0 AND length(trim(model_name)) > 0 AND length(trim(company_profile_version)) > 0 AND (notice_id IS NULL OR length(trim(notice_id)) > 0) AND (current_notice_id IS NULL OR length(trim(current_notice_id)) > 0) AND (current_stage IS NULL OR length(trim(current_stage)) > 0) AND (stop_requested_by IS NULL OR length(trim(stop_requested_by)) > 0) AND (error_summary IS NULL OR length(trim(error_summary)) > 0)", name="ck_screening_execution_strings"),
         CheckConstraint("length(input_artifact_digest) = 64 AND input_artifact_digest NOT GLOB '*[^0-9a-f]*'", name="ck_screening_execution_input_artifact_digest"),
         CheckConstraint("length(trim(input_artifact_path)) > 0", name="ck_screening_execution_input_artifact_nonempty"),
         CheckConstraint("length(trim(artifact_dir)) > 0", name="ck_screening_execution_artifact_dir_nonempty"),
@@ -475,6 +473,7 @@ class ScreeningAttempt(Base):
         CheckConstraint("load_duration_ns IS NULL OR load_duration_ns >= 0", name="ck_screening_attempt_load_duration_ns"),
         CheckConstraint("total_duration_ns IS NULL OR total_duration_ns >= 0", name="ck_screening_attempt_total_duration_ns"),
         CheckConstraint("finished_at >= started_at", name="ck_screening_attempt_finished_after_started"),
+        CheckConstraint("length(trim(execution_id)) > 0 AND length(trim(notice_id)) > 0 AND length(trim(stage)) > 0 AND length(trim(status)) > 0 AND (failure_type IS NULL OR length(trim(failure_type)) > 0) AND length(trim(trace_id)) > 0 AND length(trim(span_id)) > 0 AND (done_reason IS NULL OR length(trim(done_reason)) > 0) AND (response_artifact_path IS NULL OR length(trim(response_artifact_path)) > 0) AND (error_summary IS NULL OR length(trim(error_summary)) > 0)", name="ck_screening_attempt_strings"),
         CheckConstraint("response_artifact_path IS NULL OR (response_artifact_path NOT LIKE '/%' AND response_artifact_path NOT LIKE '%\\%' AND response_artifact_path <> '..' AND response_artifact_path NOT LIKE '../%' AND response_artifact_path NOT LIKE '%/../%' AND response_artifact_path NOT LIKE '%/..')", name="ck_screening_attempt_response_artifact_path"),
         CheckConstraint("((status = 'success' AND response_artifact_path IS NOT NULL AND failure_type IS NULL) OR (status = 'failure' AND failure_type IS NOT NULL))", name="ck_screening_attempt_success_artifact"),
         UniqueConstraint("execution_id", "notice_id", "stage", "attempt_no", name="uq_screening_attempt_number"),
@@ -508,10 +507,9 @@ class CompanyProfileSnapshot(Base):
     __table_args__ = (
         CheckConstraint("length(digest) = 64 AND digest NOT GLOB '*[^0-9a-f]*'", name="ck_profile_digest"),
         CheckConstraint("source_kind IN ('working_tree', 'git_blob')", name="ck_profile_source_kind"),
-        CheckConstraint("length(trim(source_ref)) > 0", name="ck_profile_source_ref"),
-        CheckConstraint("length(trim(artifact_path)) > 0", name="ck_profile_artifact_path_nonempty"),
+        CheckConstraint("(source_kind = 'working_tree' AND length(trim(source_ref)) > 0 AND source_ref NOT LIKE '/%' AND source_ref NOT LIKE '%' || char(92) || '%' AND source_ref <> '..' AND source_ref NOT LIKE '../%' AND source_ref NOT LIKE '%/../%' AND source_ref NOT LIKE '%/..') OR (source_kind = 'git_blob' AND length(source_ref) = 40 AND source_ref NOT GLOB '*[^0-9a-f]*')", name="ck_profile_source_ref"),
+        CheckConstraint("artifact_path = 'web/data/profile-snapshots/' || digest || '.md'", name="ck_profile_artifact_path_exact"),
         CheckConstraint("version = 'company-profile.sha256:' || digest", name="ck_profile_version_digest"),
-        CheckConstraint("length(trim(artifact_path)) > 0 AND artifact_path NOT LIKE '/%' AND artifact_path NOT LIKE '%\\%' AND artifact_path <> '..' AND artifact_path NOT LIKE '../%' AND artifact_path NOT LIKE '%/../%' AND artifact_path NOT LIKE '%/..'", name="ck_profile_artifact_path"),
     )
 
     digest: Mapped[str] = mapped_column(String(64), primary_key=True)
@@ -531,6 +529,7 @@ class QualityGate(Base):
         CheckConstraint("result_status IN ('통과', '미달', '미측정', '보류')", name="ck_quality_gate_result_status"),
         CheckConstraint("pass_a_execution_id <> pass_b_execution_id", name="ck_quality_gate_distinct_executions"),
         CheckConstraint("length(trim(created_by)) > 0", name="ck_quality_gate_created_by"),
+        CheckConstraint("length(trim(baseline_run_id)) > 0 AND length(trim(sample_artifact_path)) > 0 AND length(trim(baseline_decisions_path)) > 0 AND length(trim(policy_version)) > 0 AND length(trim(prompt_version)) > 0 AND length(trim(model_name)) > 0 AND length(trim(company_profile_version)) > 0 AND length(trim(pass_a_execution_id)) > 0 AND length(trim(pass_b_execution_id)) > 0", name="ck_quality_gate_strings"),
         CheckConstraint("length(sample_artifact_digest) = 64 AND sample_artifact_digest NOT GLOB '*[^0-9a-f]*'", name="ck_quality_gate_sample_digest"),
         CheckConstraint("length(baseline_decisions_digest) = 64 AND baseline_decisions_digest NOT GLOB '*[^0-9a-f]*'", name="ck_quality_gate_baseline_decision_digest"),
         CheckConstraint("length(model_digest) = 64 AND model_digest NOT GLOB '*[^0-9a-f]*'", name="ck_quality_gate_model_digest"),
@@ -570,8 +569,8 @@ class QualityGateEvaluation(Base):
         CheckConstraint("length(evaluation_id) = 41 AND substr(evaluation_id, 1, 9) = 'gateeval-' AND substr(evaluation_id, 10) NOT GLOB '*[^0-9a-f]*'", name="ck_quality_gate_evaluation_id"),
         CheckConstraint("revision >= 1", name="ck_quality_gate_evaluation_revision"),
         CheckConstraint("result_status IN ('통과', '미달', '미측정', '보류')", name="ck_quality_gate_evaluation_result_status"),
-        CheckConstraint("valid_review_count >= 0", name="ck_quality_gate_evaluation_valid_review_count"),
-        CheckConstraint("distinct_notice_review_count >= 0", name="ck_quality_gate_evaluation_distinct_notice_review_count"),
+        CheckConstraint("length(trim(gate_id)) > 0", name="ck_quality_gate_evaluation_strings"),
+        CheckConstraint("valid_review_count >= 0 AND distinct_notice_review_count >= 0", name="ck_quality_gate_evaluation_counts"),
         CheckConstraint("json_valid(metrics_json) AND json_type(metrics_json) = 'object'", name="ck_quality_gate_evaluation_metrics_json"),
         CheckConstraint("json_valid(reasons_json) AND json_type(reasons_json) = 'array'", name="ck_quality_gate_evaluation_reasons_json"),
         UniqueConstraint("gate_id", "revision", name="uq_quality_gate_evaluation_revision"),
@@ -593,10 +592,10 @@ class ScreeningPolicy(Base):
     __table_args__ = (
         CheckConstraint("schema_version = 'bidops.screening-policy.v1'", name="ck_screening_policy_schema_version"),
         CheckConstraint("status IN ('draft', 'activation_candidate', 'active')", name="ck_screening_policy_status"),
-        CheckConstraint("length(trim(prompt_version)) > 0", name="ck_screening_policy_prompt_version"),
+        CheckConstraint("length(trim(prompt_version)) > 0 AND length(trim(created_by)) > 0", name="ck_screening_policy_actor_fields"),
+        CheckConstraint("length(trim(policy_version)) > 0 AND length(trim(schema_version)) > 0 AND length(trim(status)) > 0", name="ck_screening_policy_strings"),
         CheckConstraint("length(content_digest) = 64 AND content_digest NOT GLOB '*[^0-9a-f]*'", name="ck_screening_policy_content_digest"),
         CheckConstraint("((status = 'active' AND active_slot = 1 AND activated_at IS NOT NULL AND activated_by IS NOT NULL AND quality_gate_result_id IS NOT NULL) OR (status <> 'active' AND active_slot IS NULL))", name="ck_screening_policy_active"),
-        CheckConstraint("created_by IS NULL OR length(trim(created_by)) > 0", name="ck_screening_policy_created_by"),
         CheckConstraint("activated_by IS NULL OR length(trim(activated_by)) > 0", name="ck_screening_policy_activated_by"),
         CheckConstraint("json_valid(perspective_prompts_json) AND json_type(perspective_prompts_json) = 'object'", name="ck_screening_policy_perspective_json"),
         CheckConstraint("json_valid(counterargument_prompt_json) AND json_type(counterargument_prompt_json) = 'object'", name="ck_screening_policy_counterargument_json"),
@@ -629,6 +628,7 @@ class QualityGateReview(Base):
     __table_args__ = (
         CheckConstraint("evidence_judgment IN ('동의', '근거 부족', '판단 보류')", name="ck_quality_gate_review_judgment"),
         CheckConstraint("length(trim(reviewer)) > 0", name="ck_quality_gate_review_reviewer"),
+        CheckConstraint("length(trim(gate_id)) > 0 AND length(trim(execution_id)) > 0 AND length(trim(notice_id)) > 0 AND length(trim(reviewer)) > 0 AND length(trim(evidence_judgment)) > 0 AND (note IS NULL OR length(trim(note)) > 0)", name="ck_quality_gate_review_strings"),
         CheckConstraint("length(decision_digest) = 64 AND decision_digest NOT GLOB '*[^0-9a-f]*'", name="ck_quality_gate_review_decision_digest"),
         UniqueConstraint("gate_id", "notice_id", "reviewer", name="uq_quality_gate_review_notice_reviewer"),
     )
@@ -670,6 +670,7 @@ class ScheduleReservation(Base):
         CheckConstraint("job_kind IN ('daily', 'weekly')", name="ck_schedule_reservation_job_kind"),
         CheckConstraint("window_from <= window_to", name="ck_schedule_reservation_window"),
         CheckConstraint("timezone = 'Asia/Seoul'", name="ck_schedule_reservation_timezone"),
+        CheckConstraint("length(trim(run_key)) > 0 AND length(trim(job_kind)) > 0 AND length(trim(timezone)) > 0", name="ck_schedule_reservation_strings"),
     )
 
     run_key: Mapped[str] = mapped_column(String(32), primary_key=True)
@@ -689,6 +690,8 @@ class ScheduleExecution(Base):
         CheckConstraint("status IN ('예약', '실행 중', '성공', '부분 성공', '실패', '건너뜀')", name="ck_schedule_execution_status"),
         CheckConstraint("NOT (duplicate_of_execution_id IS NOT NULL AND recovery_of_execution_id IS NOT NULL)", name="ck_schedule_execution_recovery_one"),
         CheckConstraint("length(trim(requested_by)) > 0", name="ck_schedule_execution_requested_by"),
+        CheckConstraint("length(trim(run_key)) > 0 AND length(trim(job_kind)) > 0 AND length(trim(trigger)) > 0 AND length(trim(status)) > 0 AND (duplicate_of_execution_id IS NULL OR length(trim(duplicate_of_execution_id)) > 0) AND (recovery_of_execution_id IS NULL OR length(trim(recovery_of_execution_id)) > 0) AND (skip_reason IS NULL OR length(trim(skip_reason)) > 0) AND (failure_reason IS NULL OR length(trim(failure_reason)) > 0) AND (policy_version IS NULL OR length(trim(policy_version)) > 0) AND (prompt_version IS NULL OR length(trim(prompt_version)) > 0) AND (model_name IS NULL OR length(trim(model_name)) > 0) AND (company_profile_version IS NULL OR length(trim(company_profile_version)) > 0)", name="ck_schedule_execution_strings"),
+        CheckConstraint("(run_id IS NULL OR length(trim(run_id)) > 0) AND (screening_execution_id IS NULL OR length(trim(screening_execution_id)) > 0) AND (model_digest IS NULL OR (length(model_digest) = 64 AND model_digest NOT GLOB '*[^0-9a-f]*')) AND (company_profile_digest IS NULL OR (length(company_profile_digest) = 64 AND company_profile_digest NOT GLOB '*[^0-9a-f]*'))", name="ck_schedule_execution_digests"),
         CheckConstraint("((status = '건너뜀' AND skip_reason IS NOT NULL) OR (status <> '건너뜀' AND skip_reason IS NULL))", name="ck_schedule_execution_skip_reason"),
         CheckConstraint("candidate_count IS NULL OR candidate_count >= 0", name="ck_schedule_execution_candidate_count"),
         CheckConstraint("result_count IS NULL OR result_count >= 0", name="ck_schedule_execution_result_count"),
@@ -718,9 +721,9 @@ class ScheduleExecution(Base):
     failure_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     partial_artifact: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     policy_version: Mapped[str | None] = mapped_column(ForeignKey("screening_policy.policy_version", ondelete="RESTRICT"), nullable=True)
-    prompt_version: Mapped[str | None] = mapped_column(String(255), nullable=True)
     model_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     model_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    prompt_version: Mapped[str | None] = mapped_column(String(255), nullable=True)
     company_profile_version: Mapped[str | None] = mapped_column(ForeignKey("company_profile_snapshot.version", ondelete="RESTRICT"), nullable=True)
     company_profile_digest: Mapped[str | None] = mapped_column(ForeignKey("company_profile_snapshot.digest", ondelete="RESTRICT"), nullable=True)
 
@@ -730,6 +733,8 @@ class AlwaysOnState(Base):
     __table_args__ = (
         CheckConstraint("singleton_id = 1", name="ck_always_on_singleton"),
         CheckConstraint("updated_by IS NULL OR length(trim(updated_by)) > 0", name="ck_always_on_updated_by"),
+        CheckConstraint("(quality_gate_result_id IS NULL OR length(trim(quality_gate_result_id)) > 0) AND (policy_version IS NULL OR length(trim(policy_version)) > 0) AND (model_name IS NULL OR length(trim(model_name)) > 0) AND (prompt_version IS NULL OR length(trim(prompt_version)) > 0) AND (company_profile_version IS NULL OR length(trim(company_profile_version)) > 0)", name="ck_always_on_strings"),
+        CheckConstraint("(model_digest IS NULL OR (length(model_digest) = 64 AND model_digest NOT GLOB '*[^0-9a-f]*')) AND (company_profile_digest IS NULL OR (length(company_profile_digest) = 64 AND company_profile_digest NOT GLOB '*[^0-9a-f]*'))", name="ck_always_on_digests"),
         CheckConstraint("((enabled = 0) OR (quality_gate_result_id IS NOT NULL AND policy_version IS NOT NULL AND model_name IS NOT NULL AND model_digest IS NOT NULL AND prompt_version IS NOT NULL AND company_profile_version IS NOT NULL AND company_profile_digest IS NOT NULL))", name="ck_always_on_enabled_metadata"),
     )
 
@@ -750,11 +755,8 @@ class AuditEvent(Base):
     __tablename__ = "audit_event"
     __table_args__ = (
         CheckConstraint("length(event_id) = 38 AND substr(event_id, 1, 6) = 'audit-' AND substr(event_id, 7) NOT GLOB '*[^0-9a-f]*'", name="ck_audit_event_id"),
-        CheckConstraint("length(trim(event_type)) > 0", name="ck_audit_event_type"),
-        CheckConstraint("length(trim(actor)) > 0", name="ck_audit_event_actor"),
-        CheckConstraint("length(trim(target_type)) > 0", name="ck_audit_event_target_type"),
-        CheckConstraint("length(trim(target_id)) > 0", name="ck_audit_event_target_id"),
-        CheckConstraint("json_valid(details_json)", name="ck_audit_event_details_json"),
+        CheckConstraint("length(trim(event_type)) > 0 AND length(trim(actor)) > 0 AND length(trim(target_type)) > 0 AND length(trim(target_id)) > 0", name="ck_audit_event_strings"),
+        CheckConstraint("json_valid(details_json) AND json_type(details_json) = 'object'", name="ck_audit_event_details_json"),
     )
 
     event_id: Mapped[str] = mapped_column(String(38), primary_key=True)

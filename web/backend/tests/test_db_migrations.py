@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import json
 import sqlite3
 import subprocess
 import sys
@@ -36,6 +37,8 @@ def test_empty_database_upgrade_creates_runtime_tables(tmp_path: Path) -> None:
         assert "alembic_version" in tables
         assert "screening_execution" in tables
         assert connection.execute("select version_num from alembic_version").fetchone()[0] == "0002_screening_runtime"
+    check = run_alembic(database, "check")
+    assert check.returncode == 0, check.stderr + check.stdout
 
 
 def test_startup_does_not_upgrade_a_behind_database(tmp_path: Path) -> None:
@@ -89,6 +92,8 @@ def test_manifest_and_confirmation_are_required_before_migration(tmp_path: Path)
     )
     assert backup_result.returncode == 0, backup_result.stderr
     manifest = Path(str(backup) + ".manifest.json")
+    manifest_data = json.loads(manifest.read_text(encoding="utf-8"))
+    assert manifest_data["source_snapshot_fingerprint"]
     before = database.read_bytes()
     no_confirm = subprocess.run(
         [sys.executable, "-m", "app.db_admin", "migrate", "--backup-manifest", str(manifest)],
@@ -99,6 +104,31 @@ def test_manifest_and_confirmation_are_required_before_migration(tmp_path: Path)
     )
     assert no_confirm.returncode != 0
     assert database.read_bytes() == before
+
+
+def test_migrate_rejects_source_changed_after_snapshot(tmp_path: Path) -> None:
+    database = tmp_path / "database.db"
+    backup = tmp_path / "backup.db"
+    assert run_alembic(database, "upgrade", "head").returncode == 0
+    env = os.environ.copy()
+    env["BIDOPS_DATABASE_URL"] = f"sqlite:///{database}"
+    with sqlite3.connect(database) as connection:
+        connection.execute("pragma journal_mode=wal")
+        connection.execute(
+            "insert into audit_event(event_id, event_type, actor, target_type, target_id, occurred_at, details_json) values ('audit-' || printf('%032d', 1), 'test', 'tester', 'run', 'r1', ?, '{}')",
+            ("2026-01-01T00:00:00+00:00",),
+        )
+        connection.commit()
+    assert subprocess.run([sys.executable, "-m", "app.db_admin", "backup", "--output", str(backup)], cwd=BACKEND, env=env, text=True, capture_output=True).returncode == 0
+    with sqlite3.connect(database) as connection:
+        connection.execute(
+            "update audit_event set details_json=? where event_id='audit-' || printf('%032d', 1)",
+            ('{"changed": true}',),
+        )
+        connection.commit()
+    result = subprocess.run([sys.executable, "-m", "app.db_admin", "migrate", "--backup-manifest", str(backup) + ".manifest.json", "--confirm-service-stopped"], cwd=BACKEND, env=env, text=True, capture_output=True)
+    assert result.returncode != 0
+    assert "source DB changed since backup" in result.stderr
 
 
 def test_partial_unversioned_baseline_is_rejected(tmp_path: Path) -> None:
