@@ -469,6 +469,7 @@ class OllamaClient:
         trace_id: str | None = None,
         validator: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
         correction_prompt: str | None = None,
+        attempt_callback: Callable[[CallMetadata], None] | None = None,
     ) -> CallResult:
         """Generate one validated object, with the exact bounded retry policy."""
 
@@ -501,10 +502,16 @@ class OllamaClient:
                 if validator is not None:
                     value = validator(value)
                 attempts.append(metadata)
+                if attempt_callback is not None:
+                    attempt_callback(metadata)
                 return CallResult(value=value, metadata=metadata, attempts=tuple(attempts))
             except OllamaCallError as exc:
                 metadata = exc.metadata
-                attempts.extend(exc.attempts if exc.attempts != (metadata,) else (metadata,))
+                new_attempts = exc.attempts if exc.attempts else (metadata,)
+                attempts.extend(new_attempts)
+                if attempt_callback is not None:
+                    for item in new_attempts:
+                        attempt_callback(item)
                 failure = metadata.failure_type
                 if failure not in _RETRYABLE or attempt >= 2:
                     raise OllamaCallError(metadata, attempts=tuple(attempts)) from None
@@ -519,6 +526,8 @@ class OllamaClient:
                     error_summary=exc.reason,
                 )
                 attempts.append(metadata)
+                if attempt_callback is not None:
+                    attempt_callback(metadata)
                 failure = exc.failure_type
                 if exc.failure_type not in _RETRYABLE or attempt >= 2:
                     raise OllamaCallError(metadata, attempts=tuple(attempts)) from None

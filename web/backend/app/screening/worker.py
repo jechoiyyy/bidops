@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 import json
 import os
 from pathlib import Path
@@ -14,10 +14,11 @@ from threading import Event
 from typing import Any, Callable, Mapping
 from uuid import uuid4
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session, sessionmaker
 
 from ..config import Settings, get_settings
+from ..ingest.loader import ingest_run, parse_run_id
 from ..models import CompanyProfileSnapshot, Notice, Run, ScreeningAttempt, ScreeningExecution, ScreeningPolicy
 from .artifacts import ArtifactError, ArtifactStore, aware_iso, canonical_bytes, sha256_bytes
 from .contracts import (
@@ -31,6 +32,7 @@ from .contracts import (
 )
 from .execution_store import ScreeningExecutionStore
 from .ollama import OllamaCallError, OllamaClient
+from .orchestrator import ScreeningCreationError, _notice_common
 from .policy import canonical_policy_bytes
 from .profile_snapshot import read_profile_snapshot
 from .prompts import assemble_counterargument_prompt, assemble_perspective_prompt, assemble_synthesis_prompt, schema_for_stage
@@ -61,8 +63,13 @@ def _safe_run_dir(settings: Settings, run_id: str) -> Path:
     configured_root = Path(settings.bidops_root)
     if configured_root.is_symlink():
         raise WorkerError("input_error")
-    base = configured_root.resolve() / "data" / "runs"
-    name = run_id.split("--", 1)[0]
+    root = configured_root.resolve()
+    data = root / "data"
+    base = data / "runs"
+    if data.is_symlink() or base.is_symlink():
+        raise WorkerError("input_error")
+    parsed = parse_run_id(run_id)
+    name = parsed[0] if parsed else run_id.split("--", 1)[0]
     candidate = base / name
     try:
         candidate.resolve().relative_to(base.resolve())
@@ -131,15 +138,12 @@ class ScreeningWorker:
         try:
             self._process(row)
         except WorkerError as exc:
-            try:
-                self.store.finish_failure(row.execution_id, error_summary=str(exc), now=_aware(self.clock))
-            except Exception:
-                pass
+            # A terminal transition is part of the durable contract.  If it
+            # cannot be written, surface that storage failure to the caller
+            # instead of silently leaving an active slot behind.
+            self.store.finish_failure(row.execution_id, error_summary=str(exc), now=_aware(self.clock))
         except Exception:
-            try:
-                self.store.finish_failure(row.execution_id, error_summary="execution_failure", now=_aware(self.clock))
-            except Exception:
-                pass
+            self.store.finish_failure(row.execution_id, error_summary="execution_failure", now=_aware(self.clock))
         return self._get_execution(row.execution_id)
 
     def run_forever(self, stop_event: Event | None = None, *, poll_seconds: float | None = None) -> None:
@@ -199,6 +203,8 @@ class ScreeningWorker:
             source_run = session.scalar(select(Run).where(Run.id == row.source_run_id))
             if policy is None or profile is None or source_run is None:
                 raise WorkerError("input_error")
+            if source_run.status not in {"active", "complete", "성공", "부분 성공"}:
+                raise WorkerError("input_error")
             for notice in input_value["notices"]:
                 db_notice = session.scalar(select(Notice).where(Notice.run_id == row.source_run_id, Notice.notice_key == notice.get("notice_id")))
                 if db_notice is None or (row.scope == "single_notice" and db_notice.id != row.notice_pk):
@@ -210,11 +216,25 @@ class ScreeningWorker:
                 "candidate_selection": policy.candidate_selection_json, "thresholds": policy.thresholds_json,
             }
             try:
+                if policy.schema_version != "bidops.screening-policy.v1" or policy.policy_version != row.policy_version or policy.prompt_version != row.prompt_version or policy.content_digest != sha256_bytes(canonical_policy_bytes(policy_body)):
+                    raise WorkerError("policy_mismatch")
+                allowed_policy_statuses = {
+                    "schedule": {"active"},
+                    "cli_single": {"activation_candidate", "active"},
+                    "manual_run": {"activation_candidate", "active"},
+                    "quality_gate": {"activation_candidate", "active"},
+                }
+                if policy.status not in allowed_policy_statuses.get(row.trigger, set()):
+                    raise WorkerError("input_error")
+                if profile.version != row.company_profile_version or profile.digest != row.company_profile_digest or profile.version != f"company-profile.sha256:{profile.digest}":
+                    raise WorkerError("profile_mismatch")
                 if sha256_bytes(canonical_policy_bytes(policy_body)) != policy.content_digest:
                     raise WorkerError("policy_mismatch")
                 profile_raw = read_profile_snapshot(session, version=row.company_profile_version, project_root=Path(self.settings.bidops_root))
+            except WorkerError:
+                raise
             except Exception:
-                raise WorkerError("policy_mismatch") from None
+                raise WorkerError("execution_failure") from None
         identity = self.ollama.inspect_model()
         if identity.model_name != row.model_name or identity.digest != row.model_digest:
             raise WorkerError("model_mismatch")
@@ -245,6 +265,14 @@ class ScreeningWorker:
                         self.store.update_progress(row.execution_id, completed_count=completed)
                     continue
                 result, failed = self._run_notice(row, input_value, notice, policy_body, _profile_sections(profile_raw), store)
+                if result is None and failed is None:
+                    # A stop may be observed after a blocking call returned and
+                    # its attempts were persisted. Never assert or classify
+                    # that boundary as a notice failure.
+                    if self.store.should_stop(row.execution_id):
+                        self.store.finish_interrupted(row.execution_id, now=_aware(self.clock))
+                        return
+                    raise WorkerError("execution_failure")
                 if failed is not None:
                     failures.append(failed)
                     self._persist_failures(store, row, input_value, failures)
@@ -264,15 +292,23 @@ class ScreeningWorker:
                 return
             result_path = self._merge(row, input_value, store, bool(failures))
             self._publish(row, input_value, store, result_path)
-        status = "부분 성공" if failures and completed else ("실패" if failures else "성공")
-        if row.scope != "full_run" and failures:
+        if completed == 0:
             status = "실패"
+        elif failures and row.scope == "full_run":
+            status = "부분 성공"
+        else:
+            status = "실패" if failures else "성공"
         self.store.finish(row.execution_id, status=status, completed_count=completed, failure_count=len(failures), candidate_count=len(notices), now=_aware(self.clock), error_summary="execution_failure" if failures else None)
 
     def _verify_binding(self, row: ScreeningExecution, value: Any, raw: bytes) -> None:
         expected_keys = {"schema_version", "execution_id", "run_id", "generated_at", "source_window", "policy_version", "prompt_version", "company_profile_version", "company_profile_digest", "candidate_count", "notices"}
         if not isinstance(value, dict) or set(value) != expected_keys or value.get("schema_version") != "bidops.screening-input.v1":
             raise WorkerError("input_error")
+        try:
+            if canonical_bytes(value) != raw:
+                raise WorkerError("input_mismatch")
+        except ArtifactError:
+            raise WorkerError("input_error") from None
         if value.get("execution_id") != row.execution_id or value.get("run_id") != row.source_run_id:
             raise WorkerError("input_mismatch")
         expected = {"single_notice": 1, "full_run": None, "quality_sample": None}[row.scope]
@@ -286,8 +322,50 @@ class ScreeningWorker:
         window = value.get("source_window")
         if not isinstance(window, dict) or set(window) != {"from", "to", "timezone"} or window.get("timezone") != "Asia/Seoul":
             raise WorkerError("input_error")
-        if any(not isinstance(n, dict) or n.get("notice_id") in (None, "") or n.get("judgment_mode") not in {"신규", "재판정", "승계"} for n in notices):
+        try:
+            if not isinstance(value.get("generated_at"), str):
+                raise WorkerError("input_error")
+            generated = datetime.fromisoformat(value["generated_at"].replace("Z", "+00:00"))
+            if generated.tzinfo is None or generated.utcoffset() is None:
+                raise WorkerError("input_error")
+            window_from = date.fromisoformat(window["from"])
+            window_to = date.fromisoformat(window["to"])
+            if window_from > window_to:
+                raise WorkerError("input_error")
+        except (TypeError, ValueError):
+            raise WorkerError("input_error") from None
+        notice_keys = {
+            "notice_id", "source_type", "title", "agency", "method", "url", "collection_bucket",
+            "published_at", "deadline_at", "budget", "estimated_price", "procurement_class",
+            "region_limit", "lifecycle", "qualification_flags", "attachments", "focus_matches",
+            "performance_matches", "performance_top_score", "candidate_sources", "unknown_fields",
+            "sample_stratum", "sample_role", "raw_source", "judgment_mode", "carry_over_from",
+            "rejudge_reason",
+        }
+        if any(
+            not isinstance(n, dict)
+            or set(n) != notice_keys
+            or n.get("notice_id") in (None, "")
+            or n.get("judgment_mode") not in {"신규", "재판정", "승계"}
+            for n in notices
+        ):
             raise WorkerError("input_error")
+        seen: set[str] = set()
+        for notice in notices:
+            if notice["notice_id"] in seen:
+                raise WorkerError("input_error")
+            seen.add(notice["notice_id"])
+            try:
+                _notice_common({key: notice[key] for key in notice_keys if key not in {"judgment_mode", "carry_over_from", "rejudge_reason"}})
+            except ScreeningCreationError:
+                raise WorkerError("input_error") from None
+            mode = notice["judgment_mode"]
+            if mode == "신규" and (notice["carry_over_from"] is not None or notice["rejudge_reason"] is not None):
+                raise WorkerError("input_error")
+            if mode == "재판정" and (notice["carry_over_from"] is not None or notice["rejudge_reason"] not in {"정정", "재공고", "본공고 전환", "담당자 요청"}):
+                raise WorkerError("input_error")
+            if mode == "승계" and (not isinstance(notice["carry_over_from"], str) or not notice["carry_over_from"].strip() or notice["carry_over_from"] == row.source_run_id or notice["rejudge_reason"] is not None):
+                raise WorkerError("input_error")
 
     def _decisions(self, row: ScreeningExecution, input_value: Mapping[str, Any], judgments: list[dict[str, Any]]) -> dict[str, Any]:
         return {
@@ -319,15 +397,19 @@ class ScreeningWorker:
             session.commit()
 
     def _telemetry(self, row: ScreeningExecution, metadata: Any) -> dict[str, Any]:
+        stage = {"counterargument": "반론 검토", "synthesis": "종합 판정"}.get(metadata.stage, metadata.stage)
         return {
-            "schema_version": "bidops.screening-telemetry.v1", "trace_id": metadata.trace_id, "span_id": metadata.span_id,
-            "parent_span_id": None, "run_id": row.source_run_id, "notice_id": metadata.notice_id,
-            "stage": metadata.stage, "attempt_no": metadata.attempt_no, "status": metadata.status,
-            "done_reason": metadata.done_reason, "prompt_eval_count": metadata.prompt_eval_count, "eval_count": metadata.eval_count,
-            "prompt_eval_duration_ns": metadata.prompt_eval_duration_ns, "eval_duration_ns": metadata.eval_duration_ns,
-            "load_duration_ns": metadata.load_duration_ns, "total_duration_ns": metadata.total_duration_ns,
-            "model_name": row.model_name, "model_version": row.model_digest, "prompt_version": row.prompt_version,
-            "policy_version": row.policy_version, "recorded_at": aware_iso(_aware(self.clock)),
+            "schema_version": "bidops.screening-telemetry.v1", "execution_id": row.execution_id,
+            "trace_id": metadata.trace_id, "span_id": metadata.span_id, "notice_id": metadata.notice_id,
+            "stage": stage, "attempt_no": metadata.attempt_no, "status": metadata.status,
+            "failure_type": metadata.failure_type, "done_reason": metadata.done_reason,
+            "model_name": row.model_name, "model_digest": row.model_digest,
+            "prompt_eval_count": metadata.prompt_eval_count, "eval_count": metadata.eval_count,
+            "prompt_eval_duration_ns": metadata.prompt_eval_duration_ns,
+            "eval_duration_ns": metadata.eval_duration_ns, "load_duration_ns": metadata.load_duration_ns,
+            "total_duration_ns": metadata.total_duration_ns,
+            "started_at": aware_iso(metadata.started_at),
+            "finished_at": aware_iso(metadata.finished_at or metadata.started_at),
         }
 
     def _record_attempt(self, row: ScreeningExecution, metadata: Any, store: ArtifactStore, value: Any | None = None) -> None:
@@ -341,15 +423,23 @@ class ScreeningWorker:
     def _run_notice(self, row: ScreeningExecution, input_value: Mapping[str, Any], notice: dict[str, Any], policy: Mapping[str, Any], profile: Mapping[str, Any], store: ArtifactStore) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
         trace = new_trace_id()
         perspectives: list[dict[str, Any]] = []
+
+        def record_failure_attempt(metadata: Any) -> None:
+            # T4 invokes this callback as soon as each HTTP/validation attempt
+            # finishes.  Success is recorded below once its parsed canonical
+            # value is available for the restricted response artifact; failed
+            # retries must not wait for the whole stage or notice.
+            if metadata.status == "failure":
+                self._record_attempt(row, metadata, store)
+
         try:
             for name in PERSPECTIVE_NAMES:
                 if self.store.should_stop(row.execution_id):
                     return None, None
                 self.store.update_progress(row.execution_id, current_notice_id=notice["notice_id"], current_stage=name)
                 prompt = assemble_perspective_prompt(policy, name, notice, profile)
-                result = self.ollama.generate(prompt.user_message, schema_for_stage(name), execution_id=row.execution_id, notice_id=notice["notice_id"], stage=name, trace_id=trace, validator=lambda value, expected=name: validate_perspective(value, expected_name=expected))
-                for metadata in result.attempts:
-                    self._record_attempt(row, metadata, store, result.value if metadata.status == "success" else None)
+                result = self.ollama.generate(prompt.user_message, schema_for_stage(name), execution_id=row.execution_id, notice_id=notice["notice_id"], stage=name, trace_id=trace, validator=lambda value, expected=name: validate_perspective(value, expected_name=expected), attempt_callback=record_failure_attempt)
+                self._record_attempt(row, result.metadata, store, result.value)
                 perspectives.append(result.value)
                 if self.store.should_stop(row.execution_id):
                     return None, None
@@ -357,16 +447,14 @@ class ScreeningWorker:
                 return None, None
             self.store.update_progress(row.execution_id, current_stage="counterargument")
             counter_prompt = assemble_counterargument_prompt(policy, notice, perspectives)
-            counter = self.ollama.generate(counter_prompt.user_message, schema_for_stage("counterargument.v1"), execution_id=row.execution_id, notice_id=notice["notice_id"], stage="counterargument", trace_id=trace, validator=validate_counterargument)
-            for metadata in counter.attempts:
-                self._record_attempt(row, metadata, store, counter.value if metadata.status == "success" else None)
+            counter = self.ollama.generate(counter_prompt.user_message, schema_for_stage("counterargument.v1"), execution_id=row.execution_id, notice_id=notice["notice_id"], stage="counterargument", trace_id=trace, validator=validate_counterargument, attempt_callback=record_failure_attempt)
+            self._record_attempt(row, counter.metadata, store, counter.value)
             if self.store.should_stop(row.execution_id):
                 return None, None
             self.store.update_progress(row.execution_id, current_stage="synthesis")
             synthesis_prompt = assemble_synthesis_prompt(policy, notice, perspectives, counter.value)
-            synthesis = self.ollama.generate(synthesis_prompt.user_message, schema_for_stage("judgment.v3"), execution_id=row.execution_id, notice_id=notice["notice_id"], stage="synthesis", trace_id=trace, validator=lambda value: validate_judgment(value, notice=notice))
-            for metadata in synthesis.attempts:
-                self._record_attempt(row, metadata, store, synthesis.value if metadata.status == "success" else None)
+            synthesis = self.ollama.generate(synthesis_prompt.user_message, schema_for_stage("judgment.v3"), execution_id=row.execution_id, notice_id=notice["notice_id"], stage="synthesis", trace_id=trace, validator=lambda value: validate_judgment(value, notice=notice), attempt_callback=record_failure_attempt)
+            self._record_attempt(row, synthesis.metadata, store, synthesis.value)
             judgment = add_two_axis_metadata(synthesis.value)
             judgment.update({
                 "judgment_mode": notice["judgment_mode"], "model_name": row.model_name, "model_digest": row.model_digest,
@@ -377,12 +465,12 @@ class ScreeningWorker:
             })
             return judgment, None
         except OllamaCallError as exc:
-            for metadata in exc.attempts:
-                self._record_attempt(row, metadata, store)
             metadata = exc.metadata
             return None, self._failure(notice, metadata.stage, _stage_failure(exc), max(0, len(exc.attempts) - 1), metadata, trace, None)
-        except Exception as exc:
-            return None, self._failure(notice, "종합 판정", _stage_failure(exc), 0, None, trace, None)
+        except WorkerError:
+            raise
+        except Exception:
+            raise WorkerError("execution_failure") from None
 
     def _failure(self, notice: Mapping[str, Any], stage: str, failure_type: str, retry_count: int, metadata: Any | None, trace: str | None, context: str | None) -> dict[str, Any]:
         stage_value = {"counterargument": "반론 검토", "synthesis": "종합 판정"}.get(stage, stage)
@@ -395,16 +483,42 @@ class ScreeningWorker:
         decisions_path = source_dir / "screening-decisions.json"
         if not decisions_path.is_file():
             return None
-        old = _read_json(decisions_path)
+        try:
+            old = _read_json(decisions_path)
+        except WorkerError:
+            return None
+        if not isinstance(old, Mapping):
+            return None
+        top_keys = {
+            "schema_version", "execution_id", "run_id", "generated_at", "screening_basis",
+            "model_name", "model_digest", "prompt_version", "policy_version",
+            "company_profile_version", "company_profile_digest", "judgments",
+        }
+        if set(old) != top_keys or old.get("run_id") != row.source_run_id or not isinstance(old.get("judgments"), list):
+            return None
         values = [item for item in old.get("judgments", []) if isinstance(item, dict) and item.get("notice_id") == notice["notice_id"]]
-        if len(values) != 1:
+        if len(values) != 1 or old.get("schema_version") != "bidops.decisions.v3":
             return None
         judgment = dict(values[0])
-        required = {"notice_id", "grade", "readiness", "perspectives", "counterarguments", "verification_items", "judged_in_run", "model_name", "model_digest", "prompt_version", "policy_version"}
-        if not required.issubset(judgment):
+        required = {
+            "notice_id", "judgment_mode", "model_name", "model_digest", "prompt_version", "policy_version",
+            "company_profile_version", "company_profile_digest", "judged_in_run", "recorded_in_run",
+            "carried_over", "rejudge_reason", "grade", "readiness", "primary_focus", "exclusion_category",
+            "summary", "next_action", "perspectives", "matched_performances", "counterarguments",
+            "counterargument_resolutions", "verification_items", "two_axis_mixing_flag", "two_axis_mixing_label",
+        }
+        if set(judgment) != required:
+            return None
+        if judgment.get("judgment_mode") not in {"신규", "재판정"} or judgment.get("carried_over") is not False:
+            return None
+        if judgment.get("recorded_in_run") != judgment.get("judged_in_run"):
             return None
         try:
-            validate_judgment({key: judgment[key] for key in ("notice_id", "grade", "readiness", "primary_focus", "exclusion_category", "summary", "perspectives", "matched_performances", "counterarguments", "counterargument_resolutions", "verification_items", "next_action")}, notice=notice)
+            base = {key: judgment[key] for key in ("notice_id", "grade", "readiness", "primary_focus", "exclusion_category", "summary", "perspectives", "matched_performances", "counterarguments", "counterargument_resolutions", "verification_items", "next_action")}
+            validate_judgment(base, notice=notice)
+            axes = add_two_axis_metadata(base)
+            if judgment.get("two_axis_mixing_flag") != axes["two_axis_mixing_flag"] or judgment.get("two_axis_mixing_label") != axes["two_axis_mixing_label"]:
+                return None
         except Exception:
             return None
         judgment["judgment_mode"] = "승계"
@@ -437,6 +551,7 @@ class ScreeningWorker:
     def _publish(self, row: ScreeningExecution, input_value: Mapping[str, Any], store: ArtifactStore, result_path: str) -> None:
         source = _safe_run_dir(self.settings, row.source_run_id)
         runs = source.parent
+        self._assert_no_symlinks(source)
         stamp = _aware(self.clock).astimezone(timezone.utc).strftime("%Y%m%d%H%M%S")
         target: Path | None = None
         for _ in range(20):
@@ -446,8 +561,12 @@ class ScreeningWorker:
                 break
         if target is None:
             raise WorkerError("execution_failure")
+        derived_id: str | None = None
         try:
             shutil.copytree(source, target, symlinks=False)
+            # The current immutable execution input is authoritative; a source
+            # run may contain an older screening-input from another execution.
+            shutil.copy2(Path(self.settings.bidops_root) / row.input_artifact_path, target / "screening-input.json")
             shutil.copy2(result_path, target / "screening-results.json")
             execution_dir = Path(self.settings.bidops_root) / row.artifact_dir
             for name in ("screening-decisions.json", "screening-failures.json", "screening-telemetry.jsonl"):
@@ -461,23 +580,61 @@ class ScreeningWorker:
                 "recorded_at": aware_iso(_aware(self.clock)),
             }
             (target / "screening-replacement-provenance.json").write_bytes(canonical_bytes(provenance))
-            derived_id = f"{target.name}--{stamp}Z"
+            with (target / "screening-replacement-provenance.json").open("rb") as handle:
+                provenance_bytes = handle.read()
+            if sha256_bytes(provenance_bytes) != sha256_bytes(canonical_bytes(provenance)):
+                raise WorkerError("execution_failure")
             with self._session() as session:
+                # The loader is the sole owner of deterministic Run.id and
+                # Notice/Judgment/count ingestion. It commits its own valid
+                # transaction before we bind the execution FK.
+                loaded = ingest_run(target, session)
+                derived_id = loaded.run_id
                 run = session.scalar(select(Run).where(Run.id == derived_id))
-                if run is None:
-                    source_run = session.scalar(select(Run).where(Run.id == row.source_run_id))
-                    if source_run is None:
-                        raise WorkerError("execution_failure")
-                    run = Run(id=derived_id, window_from=source_run.window_from, window_to=source_run.window_to, timezone=source_run.timezone, generated_at=_aware(self.clock), screening_basis="screening", status="active", counts_json={"replacement_of": row.source_run_id})
-                    session.add(run)
-                    session.flush()
-                session.execute(update(ScreeningExecution).where(ScreeningExecution.execution_id == row.execution_id).values(published_run_id=run.id))
+                if run is None or loaded.run_id != derived_id:
+                    raise WorkerError("execution_failure")
+                if run.counts_json is None or not isinstance(run.counts_json, dict):
+                    raise WorkerError("execution_failure")
+                run.counts_json = {**run.counts_json, "replacement_of": row.source_run_id}
+                session.commit()
+            with self._session() as session:
+                bound = session.execute(update(ScreeningExecution).where(ScreeningExecution.execution_id == row.execution_id, ScreeningExecution.published_run_id.is_(None)).values(published_run_id=derived_id))
+                if bound.rowcount != 1:
+                    raise WorkerError("execution_failure")
                 session.commit()
         except WorkerError:
+            self._cleanup_publication(target, derived_id)
             raise
         except Exception:
-            shutil.rmtree(target, ignore_errors=True)
+            self._cleanup_publication(target, derived_id)
             raise WorkerError("execution_failure") from None
+
+    @staticmethod
+    def _assert_no_symlinks(root: Path) -> None:
+        if root.is_symlink():
+            raise WorkerError("execution_failure")
+        try:
+            for entry in os.scandir(root):
+                path = Path(entry.path)
+                if entry.is_symlink():
+                    raise WorkerError("execution_failure")
+                if entry.is_dir(follow_symlinks=False):
+                    ScreeningWorker._assert_no_symlinks(path)
+        except OSError:
+            raise WorkerError("execution_failure") from None
+
+    def _cleanup_publication(self, target: Path, derived_id: str | None) -> None:
+        if derived_id:
+            try:
+                with self._session() as session:
+                    session.execute(delete(Run).where(Run.id == derived_id))
+                    session.commit()
+            except Exception:
+                pass
+        try:
+            shutil.rmtree(target)
+        except OSError:
+            pass
 
 
 Worker = ScreeningWorker

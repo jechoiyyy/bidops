@@ -38,7 +38,12 @@ def main(
     service: ScreeningOrchestrator | None = None,
     worker: ScreeningWorker | None = None,
 ) -> int:
-    args = build_parser().parse_args(list(argv) if argv is not None else None)
+    try:
+        args = build_parser().parse_args(list(argv) if argv is not None else None)
+    except SystemExit:
+        # CLI callers receive the documented input-error exit code rather than
+        # an argparse-specific process status.
+        return 1
     if args.command != "run-one":
         return 1
     if not PROFILE_RE.fullmatch(args.profile_source):
@@ -63,9 +68,13 @@ def main(
             "execution_id": created.execution_id,
             "status": created.status,
             "model": created.model_name,
+            "model_digest": created.model_digest,
             "profile": created.profile_version,
+            "profile_digest": created.profile_digest,
             "artifact_dir": created.artifact_dir,
             "input_artifact_path": created.input_artifact_path,
+            "result_artifact_path": f"{created.artifact_dir}/screening-results.json",
+            "failure_artifact_path": f"{created.artifact_dir}/screening-failures.json",
         })
         return 0
     try:
@@ -74,7 +83,15 @@ def main(
     except Exception:
         _print({"execution_id": created.execution_id, "status": "실패", "error_code": "execution_failure"})
         return 1
-    _print({"execution_id": final.execution_id, "status": final.status, "artifact_dir": final.artifact_dir})
+    _print({
+        "execution_id": final.execution_id, "status": final.status,
+        "model": final.model_name, "model_digest": final.model_digest,
+        "profile": getattr(final, "company_profile_version", getattr(final, "profile_version", "")),
+        "profile_digest": getattr(final, "company_profile_digest", getattr(final, "profile_digest", "")),
+        "artifact_dir": final.artifact_dir,
+        "result_artifact_path": f"{final.artifact_dir}/screening-results.json",
+        "failure_artifact_path": f"{final.artifact_dir}/screening-failures.json",
+    })
     if final.status == "성공":
         return 0
     if final.status == "부분 성공":
