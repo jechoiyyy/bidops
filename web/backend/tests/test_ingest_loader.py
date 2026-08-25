@@ -173,6 +173,24 @@ def test_loader_records_contract_gaps_and_keeps_available_rows(tmp_path, db_sess
     assert "verification_items_missing" in codes
 
 
+@pytest.mark.parametrize(
+    "raw",
+    [
+        b"[]",
+        b"{malformed",
+        b"{\n  \"schema_version\": \"bidops.screening-input.v1\"\n}",
+    ],
+)
+def test_present_invalid_screening_input_never_falls_back_to_validation(tmp_path, db_session, raw: bytes):
+    validation, _screening, _decisions = base_artifacts()
+    run_dir = write_run(tmp_path, validation=validation)
+    (run_dir / "screening-input.json").write_bytes(raw)
+    result = ingest_run(run_dir, db_session, reports_root=tmp_path / "reports")
+    assert result.notices == 0 and result.judgments == 0
+    assert any(item["code"] == "screening_input_invalid" for item in result.warnings)
+    assert db_session.scalar(select(func.count(Notice.id))) == 0
+
+
 def test_loader_v3_input_is_fail_closed_for_duplicate_and_invalid_identity(tmp_path, db_session):
     run_dir = tmp_path / "runs" / "screen-run"
     run_dir.mkdir(parents=True)
