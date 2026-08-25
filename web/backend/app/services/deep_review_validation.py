@@ -424,6 +424,59 @@ def _context_profile(profile: Mapping[str, Any] | None, profile_version_id: str 
     return resolved_id, by_id
 
 
+def _profile_fact_completeness(profile: Mapping[str, Any]) -> list[ValidationIssue]:
+    """Require one exact evidence row for every non-unknown profile fact."""
+
+    facts = profile.get("facts")
+    if not isinstance(facts, list):
+        return []
+    evidence = profile.get("evidence") or profile.get("profile_evidence") or []
+    if isinstance(evidence, Mapping):
+        evidence = list(evidence.values())
+    issues: list[ValidationIssue] = []
+    keys = [fact.get("fact_key") for fact in facts if isinstance(fact, Mapping)]
+    if len(keys) != len(facts) or any(not isinstance(key, str) or not key.strip() for key in keys):
+        issues.append(_issue("profile_fact_key_invalid", "profile facts must have non-empty stable keys", "$.profile.facts"))
+    if len(set(keys)) != len(keys):
+        issues.append(_issue("profile_fact_key_duplicate", "profile fact keys must be unique", "$.profile.facts"))
+    by_fact: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
+    for item in evidence:
+        if isinstance(item, Mapping) and isinstance(item.get("fact_key"), str):
+            by_fact[item["fact_key"]].append(item)
+    fact_keys = {key for key in keys if isinstance(key, str)}
+    for key, rows in by_fact.items():
+        if key not in fact_keys:
+            issues.append(_issue("profile_evidence_extra", "profile evidence must match a declared fact key", "$.profile.evidence"))
+        if len(rows) != 1:
+            issues.append(_issue("profile_evidence_duplicate", "profile evidence must contain at most one row per fact key", "$.profile.evidence"))
+    source_text = profile.get("source_text") or profile.get("source")
+    for index, fact in enumerate(facts):
+        if not isinstance(fact, Mapping):
+            continue
+        if fact.get("status") not in {"confirmed", "inferred", "unknown"}:
+            issues.append(_issue("profile_fact_status_invalid", "profile fact status is not allowed", f"$.profile.facts[{index}].status"))
+        if not _text(fact.get("quote")):
+            issues.append(_issue("profile_fact_quote_missing", "profile facts must retain a non-empty source quote", f"$.profile.facts[{index}].quote"))
+        elif isinstance(source_text, str) and fact["quote"] not in source_text:
+            issues.append(_issue("profile_fact_quote_not_source", "profile fact quote must be a source substring", f"$.profile.facts[{index}].quote"))
+        if fact.get("status") == "unknown":
+            if isinstance(fact.get("fact_key"), str) and by_fact.get(fact["fact_key"]):
+                issues.append(_issue("profile_unknown_has_evidence", "unknown profile facts must not have evidence", f"$.profile.facts[{index}]"))
+            continue
+        fact_key = fact.get("fact_key")
+        rows = by_fact.get(fact_key, []) if isinstance(fact_key, str) else []
+        if len(rows) != 1:
+            issues.append(_issue("profile_fact_evidence_incomplete", "every non-unknown profile fact requires exactly one matching evidence", f"$.profile.facts[{index}]"))
+            continue
+        row = rows[0]
+        quote = row.get("quote")
+        if not _text(quote) or quote != fact.get("quote"):
+            issues.append(_issue("profile_fact_quote_mismatch", "profile evidence quote must exactly match the fact source quote", f"$.profile.facts[{index}]"))
+        if isinstance(source_text, str) and quote not in source_text:
+            issues.append(_issue("profile_fact_quote_not_source", "profile evidence quote must be a source substring", f"$.profile.facts[{index}]"))
+    return issues
+
+
 def _validate_evidence(
     evidence: Mapping[str, Any],
     index: int,
@@ -854,6 +907,8 @@ def validate_deep_review_stage(
         raise DeepReviewValidationError(issues)
     if expected_deep_review_id and payload["deep_review_id"] != expected_deep_review_id:
         issues.append(_issue("review_scope", "stage deep_review_id does not match the current review", "$.deep_review_id"))
+    if isinstance(profile, Mapping):
+        issues.extend(_profile_fact_completeness(profile))
     evidence = payload["evidence"]
     evidence_ids = [item["evidence_id"] for item in evidence]
     if duplicates := _duplicates(evidence_ids):
@@ -1094,7 +1149,13 @@ def merge_stage_chunks(
     expected_evidence_ids: Iterable[str] = (),
     bundle: Mapping[str, Any] | None = None,
     profile: Mapping[str, Any] | None = None,
+    profile_version_id: str | None = None,
+    expected_deep_review_id: str | None = None,
+    known_claim_ids: Iterable[str] = (),
+    known_evidence_ids: Iterable[str] = (),
     structures: Mapping[str, Mapping[str, Any]] | None = None,
+    chunk_order_key: Any = None,
+    order_key: Any = None,
 ) -> dict[str, Any]:
     """Merge bounded stage outputs deterministically and reject conflicts.
 
@@ -1105,17 +1166,49 @@ def merge_stage_chunks(
 
     if not chunks:
         raise DeepReviewValidationError("at least one stage chunk is required")
-    first = chunks[0]
-    all_claim_ids = {item.get("claim_id") for chunk in chunks for item in chunk.get("claims", []) if isinstance(item, Mapping)}
-    all_evidence_ids = {item.get("evidence_id") for chunk in chunks for item in chunk.get("evidence", []) if isinstance(item, Mapping)}
-    for index, chunk in enumerate(chunks):
+    def approved_order(chunk: Mapping[str, Any], index: int) -> Any:
+        selected_order_key = chunk_order_key if chunk_order_key is not None else order_key
+        if callable(selected_order_key):
+            return selected_order_key(chunk)
+        if isinstance(selected_order_key, Mapping):
+            value = selected_order_key.get(id(chunk))
+            if value is not None:
+                return value
+        if isinstance(selected_order_key, Sequence) and not isinstance(selected_order_key, (str, bytes, bytearray)) and index < len(selected_order_key):
+            return selected_order_key[index]
+        explicit = chunk.get("chunk_order") or chunk.get("chunk_order_key") or chunk.get("order_key") or chunk.get("merge_key")
+        if isinstance(explicit, (list, tuple)):
+            return tuple(explicit)
+        requirements = chunk.get("requirements")
+        first_requirement = requirements[0] if isinstance(requirements, list) and requirements and isinstance(requirements[0], Mapping) else {}
+        return (
+            chunk.get("stage_sequence", 0), first_requirement.get("document_ordinal", 0),
+            first_requirement.get("page", 0), first_requirement.get("block_order", 0),
+            first_requirement.get("requirement_id", ""), chunk.get("slice_index", index),
+        )
+
+    ordered_chunks = [
+        chunk
+        for _order, _index, chunk in sorted(
+            ((approved_order(chunk, index), index, chunk) for index, chunk in enumerate(chunks)),
+            key=lambda item: (item[0], item[1]),
+        )
+    ]
+    first = ordered_chunks[0]
+    prior_claim_ids = {str(value) for value in known_claim_ids}
+    prior_evidence_ids = {str(value) for value in known_evidence_ids}
+    review_id = expected_deep_review_id or first.get("deep_review_id")
+    all_claim_ids = {item.get("claim_id") for chunk in ordered_chunks for item in chunk.get("claims", []) if isinstance(item, Mapping)}
+    all_evidence_ids = {item.get("evidence_id") for chunk in ordered_chunks for item in chunk.get("evidence", []) if isinstance(item, Mapping)}
+    for index, chunk in enumerate(ordered_chunks):
         validate_deep_review_stage(
             chunk,
             bundle=bundle,
             profile=profile,
-            expected_deep_review_id=first.get("deep_review_id"),
-            known_claim_ids={value for value in all_claim_ids if isinstance(value, str)},
-            known_evidence_ids={value for value in all_evidence_ids if isinstance(value, str)},
+            profile_version_id=profile_version_id,
+            expected_deep_review_id=review_id,
+            known_claim_ids=prior_claim_ids | {value for value in all_claim_ids if isinstance(value, str)},
+            known_evidence_ids=prior_evidence_ids | {value for value in all_evidence_ids if isinstance(value, str)},
             structures=structures,
         )
         if chunk.get("attempt_id") != first.get("attempt_id") or chunk.get("stage") != first.get("stage"):
@@ -1124,15 +1217,19 @@ def merge_stage_chunks(
     evidence: dict[str, Mapping[str, Any]] = {}
     unknowns: set[str] = set()
     warnings: set[str] = set()
-    for chunk_index, chunk in enumerate(chunks):
-        for item in chunk["claims"]:
+    for chunk_index, chunk in enumerate(ordered_chunks):
+        for item in sorted(chunk["claims"], key=lambda value: value["claim_id"]):
             key = item["claim_id"]
+            if key in prior_claim_ids:
+                raise DeepReviewValidationError(_issue("prior_claim_redefinition", f"current stage cannot redefine prior claim ID: {key}", f"$[{chunk_index}].claims", claims=[key]))
             if key in claims:
                 code = "chunk_conflict" if _canonical(claims[key]) != _canonical(item) else "chunk_duplicate"
                 raise DeepReviewValidationError(_issue(code, f"claim ID appears in multiple chunks: {key}", f"$[{chunk_index}].claims", claims=[key]))
             claims[key] = item
-        for item in chunk["evidence"]:
+        for item in sorted(chunk["evidence"], key=lambda value: value["evidence_id"]):
             key = item["evidence_id"]
+            if key in prior_evidence_ids:
+                raise DeepReviewValidationError(_issue("prior_evidence_redefinition", f"current stage cannot redefine prior evidence ID: {key}", f"$[{chunk_index}].evidence", evidence=[key]))
             if key in evidence:
                 code = "chunk_conflict" if _canonical(evidence[key]) != _canonical(item) else "chunk_duplicate"
                 raise DeepReviewValidationError(_issue(code, f"evidence ID appears in multiple chunks: {key}", f"$[{chunk_index}].evidence", evidence=[key]))
@@ -1149,8 +1246,20 @@ def merge_stage_chunks(
         issues.append(_issue("chunk_missing_evidence", f"required evidence was not produced: {missing_evidence}", "$.evidence", evidence=missing_evidence))
     if issues:
         raise DeepReviewValidationError(issues)
-    merged = {"schema": "bidops.deep-review-stage.v1", "deep_review_id": first["deep_review_id"], "attempt_id": first["attempt_id"], "stage": first["stage"], "claims": [claims[key] for key in sorted(claims)], "evidence": [evidence[key] for key in sorted(evidence)], "unknowns": sorted(unknowns), "warnings": sorted(warnings)}
-    return validate_deep_review_stage(merged, bundle=bundle, profile=profile, structures=structures)
+    # Dict insertion order is the approved chunk order, and each chunk's
+    # source order is retained.  This makes output stable under shuffled
+    # invocation completion while keeping the merge key observable.
+    merged = {"schema": "bidops.deep-review-stage.v1", "deep_review_id": first["deep_review_id"], "attempt_id": first["attempt_id"], "stage": first["stage"], "claims": list(claims.values()), "evidence": list(evidence.values()), "unknowns": sorted(unknowns), "warnings": sorted(warnings)}
+    return validate_deep_review_stage(
+        merged,
+        bundle=bundle,
+        profile=profile,
+        profile_version_id=profile_version_id,
+        expected_deep_review_id=review_id,
+        known_claim_ids=prior_claim_ids,
+        known_evidence_ids=prior_evidence_ids,
+        structures=structures,
+    )
 
 
 deterministic_chunk_merge = merge_stage_chunks
