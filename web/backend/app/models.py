@@ -371,10 +371,6 @@ class IngestWarning(Base):
 # the domain vocabulary.  A Python enum alone would not protect a SQLite
 # database written by an operational tool or a future worker.
 
-_EXECUTION_ACTIVE_STATUSES = "('실행 중', '중지 요청')"
-_EXECUTION_TERMINAL_STATUSES = "('성공', '부분 성공', '실패', '중단됨')"
-
-
 class ScreeningExecution(Base):
     __tablename__ = "screening_execution"
     __table_args__ = (
@@ -395,53 +391,54 @@ class ScreeningExecution(Base):
             "status IN ('대기', '실행 중', '중지 요청', '성공', '부분 성공', '실패', '중단됨')",
             name="ck_screening_execution_status",
         ),
-        CheckConstraint(
-            "((scope = 'single_notice' AND notice_pk IS NOT NULL AND notice_id IS NOT NULL) "
-            "OR (scope <> 'single_notice' AND notice_pk IS NULL AND notice_id IS NULL))",
-            name="ck_screening_execution_single_notice",
-        ),
+        CheckConstraint("((scope = 'single_notice' AND notice_pk IS NOT NULL AND notice_id IS NOT NULL) OR (scope <> 'single_notice' AND notice_pk IS NULL AND notice_id IS NULL))", name="ck_screening_execution_single_notice"),
         CheckConstraint(
             "((status IN ('실행 중', '중지 요청') AND active_slot = 1) "
             "OR (status NOT IN ('실행 중', '중지 요청') AND active_slot IS NULL))",
             name="ck_screening_execution_active_slot",
         ),
         CheckConstraint(
-            "((status IN ('성공', '부분 성공', '실패', '중단됨') AND finished_at IS NOT NULL) "
-            "OR (status NOT IN ('성공', '부분 성공', '실패', '중단됨') AND finished_at IS NULL))",
+            "((status IN ('성공', '부분 성공', '실패', '중단됨') AND finished_at IS NOT NULL) OR (status NOT IN ('성공', '부분 성공', '실패', '중단됨') AND finished_at IS NULL))",
             name="ck_screening_execution_terminal",
         ),
         CheckConstraint("stop_reason IS NULL OR stop_reason IN ('user_requested', 'process_interrupted')", name="ck_screening_execution_stop_reason"),
         CheckConstraint("queued_at IS NOT NULL", name="ck_screening_execution_queued_at"),
-        CheckConstraint("notice_count IS NULL OR notice_count >= 0", name="ck_screening_execution_notice_count"),
-        CheckConstraint("success_count IS NULL OR success_count >= 0", name="ck_screening_execution_success_count"),
-        CheckConstraint("failure_count IS NULL OR failure_count >= 0", name="ck_screening_execution_failure_count"),
-        CheckConstraint("review_count IS NULL OR review_count >= 0", name="ck_screening_execution_review_count"),
-        CheckConstraint("requested_by IS NULL OR length(trim(requested_by)) > 0", name="ck_screening_execution_requested_by"),
+        CheckConstraint("candidate_count >= 0", name="ck_screening_execution_candidate_count"),
+        CheckConstraint("completed_count >= 0", name="ck_screening_execution_completed_count"),
+        CheckConstraint("failure_count >= 0", name="ck_screening_execution_failure_count"),
+        CheckConstraint("length(trim(requested_by)) > 0", name="ck_screening_execution_requested_by"),
         CheckConstraint("stop_requested_by IS NULL OR length(trim(stop_requested_by)) > 0", name="ck_screening_execution_stop_requested_by"),
-        CheckConstraint("input_metadata IS NULL OR json_valid(input_metadata)", name="ck_screening_execution_input_metadata_json"),
-        CheckConstraint("input_artifact_path IS NULL OR (length(trim(input_artifact_path)) > 0 AND input_artifact_path NOT LIKE '/%' AND input_artifact_path NOT LIKE '%\\%' AND input_artifact_path NOT LIKE '%..%')", name="ck_screening_execution_input_artifact_path"),
-        CheckConstraint("artifact_dir IS NULL OR (length(trim(artifact_dir)) > 0 AND artifact_dir NOT LIKE '/%' AND artifact_dir NOT LIKE '%\\%' AND artifact_dir NOT LIKE '%..%')", name="ck_screening_execution_artifact_dir"),
+        CheckConstraint("length(input_artifact_digest) = 64 AND input_artifact_digest NOT GLOB '*[^0-9a-f]*'", name="ck_screening_execution_input_artifact_digest"),
+        CheckConstraint("length(trim(input_artifact_path)) > 0", name="ck_screening_execution_input_artifact_nonempty"),
+        CheckConstraint("length(trim(artifact_dir)) > 0", name="ck_screening_execution_artifact_dir_nonempty"),
+        CheckConstraint("length(model_digest) = 64 AND model_digest NOT GLOB '*[^0-9a-f]*'", name="ck_screening_execution_model_digest"),
+        CheckConstraint("length(company_profile_digest) = 64 AND company_profile_digest NOT GLOB '*[^0-9a-f]*'", name="ck_screening_execution_profile_digest"),
+        CheckConstraint("length(trim(input_artifact_path)) > 0 AND input_artifact_path NOT LIKE '/%' AND input_artifact_path NOT LIKE '%\\%' AND input_artifact_path <> '..' AND input_artifact_path NOT LIKE '../%' AND input_artifact_path NOT LIKE '%/../%' AND input_artifact_path NOT LIKE '%/..'", name="ck_screening_execution_input_artifact_path"),
+        CheckConstraint("length(trim(artifact_dir)) > 0 AND artifact_dir NOT LIKE '/%' AND artifact_dir NOT LIKE '%\\%' AND artifact_dir <> '..' AND artifact_dir NOT LIKE '../%' AND artifact_dir NOT LIKE '%/../%' AND artifact_dir NOT LIKE '%/..'", name="ck_screening_execution_artifact_dir"),
         Index("uq_screening_execution_active_slot", "active_slot", unique=True, sqlite_where=text("active_slot IS NOT NULL")),
     )
 
     queue_no: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     execution_id: Mapped[str] = mapped_column(String(36), unique=True, nullable=False)
     trigger: Mapped[str] = mapped_column(String(32), nullable=False)
-    source_run_id: Mapped[str | None] = mapped_column(ForeignKey("run.id"), nullable=True)
+    source_run_id: Mapped[str] = mapped_column(ForeignKey("run.id", ondelete="RESTRICT"), nullable=False)
     scope: Mapped[str] = mapped_column(String(32), nullable=False)
-    notice_pk: Mapped[int | None] = mapped_column(ForeignKey("notice.id"), nullable=True)
+    notice_pk: Mapped[int | None] = mapped_column(
+        ForeignKey("notice.id", ondelete="RESTRICT"), nullable=True
+    )
     notice_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="대기")
     active_slot: Mapped[int | None] = mapped_column(Integer, nullable=True)
     requested_by: Mapped[str] = mapped_column(String(255), nullable=False)
-    policy_version: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    prompt_version: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    model_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    model_version: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    profile_digest: Mapped[str | None] = mapped_column(ForeignKey("company_profile_snapshot.digest"), nullable=True)
-    input_metadata: Mapped[Any] = mapped_column(JSON, nullable=True)
-    input_artifact_path: Mapped[str | None] = mapped_column(Text, unique=True, nullable=True)
-    artifact_dir: Mapped[str | None] = mapped_column(Text, unique=True, nullable=True)
+    policy_version: Mapped[str] = mapped_column(ForeignKey("screening_policy.policy_version", ondelete="RESTRICT"), nullable=False)
+    prompt_version: Mapped[str] = mapped_column(String(255), nullable=False)
+    model_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    model_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    company_profile_version: Mapped[str] = mapped_column(ForeignKey("company_profile_snapshot.version", ondelete="RESTRICT"), nullable=False)
+    company_profile_digest: Mapped[str] = mapped_column(ForeignKey("company_profile_snapshot.digest", ondelete="RESTRICT"), nullable=False)
+    input_artifact_path: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
+    input_artifact_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    artifact_dir: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
     current_notice_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     current_stage: Mapped[str | None] = mapped_column(String(64), nullable=True)
     stop_requested_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
@@ -451,11 +448,10 @@ class ScreeningExecution(Base):
     started_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
     heartbeat_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
-    notice_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    success_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    failure_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    review_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    published_run_id: Mapped[str | None] = mapped_column(ForeignKey("run.id"), unique=True, nullable=True)
+    candidate_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    completed_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    failure_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    published_run_id: Mapped[str | None] = mapped_column(ForeignKey("run.id", ondelete="RESTRICT"), unique=True, nullable=True)
     error_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
@@ -474,15 +470,18 @@ class ScreeningAttempt(Base):
         ),
         CheckConstraint("prompt_eval_count IS NULL OR prompt_eval_count >= 0", name="ck_screening_attempt_prompt_eval_count"),
         CheckConstraint("eval_count IS NULL OR eval_count >= 0", name="ck_screening_attempt_eval_count"),
-        CheckConstraint("prompt_eval_duration IS NULL OR prompt_eval_duration >= 0", name="ck_screening_attempt_prompt_eval_duration"),
-        CheckConstraint("eval_duration IS NULL OR eval_duration >= 0", name="ck_screening_attempt_eval_duration"),
-        CheckConstraint("load_duration IS NULL OR load_duration >= 0", name="ck_screening_attempt_load_duration"),
+        CheckConstraint("prompt_eval_duration_ns IS NULL OR prompt_eval_duration_ns >= 0", name="ck_screening_attempt_prompt_eval_duration_ns"),
+        CheckConstraint("eval_duration_ns IS NULL OR eval_duration_ns >= 0", name="ck_screening_attempt_eval_duration_ns"),
+        CheckConstraint("load_duration_ns IS NULL OR load_duration_ns >= 0", name="ck_screening_attempt_load_duration_ns"),
+        CheckConstraint("total_duration_ns IS NULL OR total_duration_ns >= 0", name="ck_screening_attempt_total_duration_ns"),
+        CheckConstraint("finished_at >= started_at", name="ck_screening_attempt_finished_after_started"),
+        CheckConstraint("response_artifact_path IS NULL OR (response_artifact_path NOT LIKE '/%' AND response_artifact_path NOT LIKE '%\\%' AND response_artifact_path <> '..' AND response_artifact_path NOT LIKE '../%' AND response_artifact_path NOT LIKE '%/../%' AND response_artifact_path NOT LIKE '%/..')", name="ck_screening_attempt_response_artifact_path"),
         CheckConstraint("((status = 'success' AND response_artifact_path IS NOT NULL AND failure_type IS NULL) OR (status = 'failure' AND failure_type IS NOT NULL))", name="ck_screening_attempt_success_artifact"),
         UniqueConstraint("execution_id", "notice_id", "stage", "attempt_no", name="uq_screening_attempt_number"),
         UniqueConstraint("span_id", name="uq_screening_attempt_span"),
     )
 
-    attempt_id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    attempt_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     execution_id: Mapped[str] = mapped_column(ForeignKey("screening_execution.execution_id", ondelete="CASCADE"), nullable=False)
     notice_id: Mapped[str] = mapped_column(String(255), nullable=False)
     stage: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -494,14 +493,14 @@ class ScreeningAttempt(Base):
     done_reason: Mapped[str | None] = mapped_column(String(64), nullable=True)
     prompt_eval_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     eval_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    prompt_eval_duration: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    eval_duration: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    load_duration: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    queued_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
-    started_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
-    finished_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
+    prompt_eval_duration_ns: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    eval_duration_ns: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    load_duration_ns: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    total_duration_ns: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    started_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False)
+    finished_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False)
     response_artifact_path: Mapped[str | None] = mapped_column(Text, nullable=True)
-    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class CompanyProfileSnapshot(Base):
@@ -510,7 +509,9 @@ class CompanyProfileSnapshot(Base):
         CheckConstraint("length(digest) = 64 AND digest NOT GLOB '*[^0-9a-f]*'", name="ck_profile_digest"),
         CheckConstraint("source_kind IN ('working_tree', 'git_blob')", name="ck_profile_source_kind"),
         CheckConstraint("length(trim(source_ref)) > 0", name="ck_profile_source_ref"),
+        CheckConstraint("length(trim(artifact_path)) > 0", name="ck_profile_artifact_path_nonempty"),
         CheckConstraint("version = 'company-profile.sha256:' || digest", name="ck_profile_version_digest"),
+        CheckConstraint("length(trim(artifact_path)) > 0 AND artifact_path NOT LIKE '/%' AND artifact_path NOT LIKE '%\\%' AND artifact_path <> '..' AND artifact_path NOT LIKE '../%' AND artifact_path NOT LIKE '%/../%' AND artifact_path NOT LIKE '%/..'", name="ck_profile_artifact_path"),
     )
 
     digest: Mapped[str] = mapped_column(String(64), primary_key=True)
@@ -526,60 +527,64 @@ class QualityGate(Base):
     __table_args__ = (
         CheckConstraint("length(gate_id) = 37 AND substr(gate_id, 1, 5) = 'gate-' AND substr(gate_id, 6) NOT GLOB '*[^0-9a-f]*'", name="ck_quality_gate_id"),
         CheckConstraint("purpose IN ('model_comparison', 'operational_approval')", name="ck_quality_gate_purpose"),
-        CheckConstraint("execution_status IN ('대기', '실행 중', '성공', '부분 성공', '실패')", name="ck_quality_gate_execution_status"),
-        CheckConstraint("result_status IN ('계산 중', '통과', '미달', '미측정', '계산 불가')", name="ck_quality_gate_result_status"),
-        CheckConstraint("execution_a_id <> execution_b_id", name="ck_quality_gate_distinct_executions"),
-        CheckConstraint("created_by IS NULL OR length(trim(created_by)) > 0", name="ck_quality_gate_created_by"),
-        CheckConstraint("(sample_digest IS NULL OR (length(sample_digest) = 64 AND sample_digest NOT GLOB '*[^0-9a-f]*'))", name="ck_quality_gate_sample_digest"),
-        CheckConstraint("(baseline_decision_digest IS NULL OR (length(baseline_decision_digest) = 64 AND baseline_decision_digest NOT GLOB '*[^0-9a-f]*'))", name="ck_quality_gate_baseline_decision_digest"),
-        CheckConstraint("latest_metrics IS NULL OR json_valid(latest_metrics)", name="ck_quality_gate_latest_metrics_json"),
-        CheckConstraint("latest_reasons IS NULL OR json_valid(latest_reasons)", name="ck_quality_gate_latest_reasons_json"),
+        CheckConstraint("execution_status IN ('대기', '실행 중', '완료', '실패', '중단됨')", name="ck_quality_gate_execution_status"),
+        CheckConstraint("result_status IN ('통과', '미달', '미측정', '보류')", name="ck_quality_gate_result_status"),
+        CheckConstraint("pass_a_execution_id <> pass_b_execution_id", name="ck_quality_gate_distinct_executions"),
+        CheckConstraint("length(trim(created_by)) > 0", name="ck_quality_gate_created_by"),
+        CheckConstraint("length(sample_artifact_digest) = 64 AND sample_artifact_digest NOT GLOB '*[^0-9a-f]*'", name="ck_quality_gate_sample_digest"),
+        CheckConstraint("length(baseline_decisions_digest) = 64 AND baseline_decisions_digest NOT GLOB '*[^0-9a-f]*'", name="ck_quality_gate_baseline_decision_digest"),
+        CheckConstraint("length(model_digest) = 64 AND model_digest NOT GLOB '*[^0-9a-f]*'", name="ck_quality_gate_model_digest"),
+        CheckConstraint("length(company_profile_digest) = 64 AND company_profile_digest NOT GLOB '*[^0-9a-f]*'", name="ck_quality_gate_profile_digest"),
+        CheckConstraint("json_valid(metrics_json) AND json_type(metrics_json) = 'object'", name="ck_quality_gate_metrics_json"),
+        CheckConstraint("json_valid(reasons_json) AND json_type(reasons_json) = 'array'", name="ck_quality_gate_reasons_json"),
+        CheckConstraint("((execution_status IN ('완료', '실패', '중단됨') AND completed_at IS NOT NULL) OR (execution_status NOT IN ('완료', '실패', '중단됨') AND completed_at IS NULL))", name="ck_quality_gate_completed"),
     )
 
     gate_id: Mapped[str] = mapped_column(String(37), primary_key=True)
     purpose: Mapped[str] = mapped_column(String(32), nullable=False)
     execution_status: Mapped[str] = mapped_column(String(16), nullable=False)
     result_status: Mapped[str] = mapped_column(String(16), nullable=False)
-    baseline_run_id: Mapped[str | None] = mapped_column(ForeignKey("run.id"), nullable=True)
-    sample_artifact_path: Mapped[str | None] = mapped_column(Text, nullable=True)
-    sample_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    baseline_decision_path: Mapped[str | None] = mapped_column(Text, nullable=True)
-    baseline_decision_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    policy_version: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    prompt_version: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    model_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    model_version: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    profile_digest: Mapped[str | None] = mapped_column(ForeignKey("company_profile_snapshot.digest"), nullable=True)
-    execution_a_id: Mapped[str] = mapped_column(ForeignKey("screening_execution.execution_id"), unique=True, nullable=False)
-    execution_b_id: Mapped[str] = mapped_column(ForeignKey("screening_execution.execution_id"), unique=True, nullable=False)
+    baseline_run_id: Mapped[str] = mapped_column(ForeignKey("run.id", ondelete="RESTRICT"), nullable=False)
+    sample_artifact_path: Mapped[str] = mapped_column(Text, nullable=False)
+    sample_artifact_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    baseline_decisions_path: Mapped[str] = mapped_column(Text, nullable=False)
+    baseline_decisions_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    policy_version: Mapped[str] = mapped_column(ForeignKey("screening_policy.policy_version", ondelete="RESTRICT"), nullable=False)
+    prompt_version: Mapped[str] = mapped_column(String(255), nullable=False)
+    model_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    model_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    company_profile_version: Mapped[str] = mapped_column(ForeignKey("company_profile_snapshot.version", ondelete="RESTRICT"), nullable=False)
+    company_profile_digest: Mapped[str] = mapped_column(ForeignKey("company_profile_snapshot.digest", ondelete="RESTRICT"), nullable=False)
+    pass_a_execution_id: Mapped[str] = mapped_column(ForeignKey("screening_execution.execution_id", ondelete="RESTRICT"), unique=True, nullable=False)
+    pass_b_execution_id: Mapped[str] = mapped_column(ForeignKey("screening_execution.execution_id", ondelete="RESTRICT"), unique=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False, default=utc_now)
     completed_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
-    latest_metrics: Mapped[Any] = mapped_column(JSON, nullable=True)
-    latest_reasons: Mapped[Any] = mapped_column(JSON, nullable=True)
-    created_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    metrics_json: Mapped[Any] = mapped_column(JSON, nullable=False)
+    reasons_json: Mapped[Any] = mapped_column(JSON, nullable=False)
+    created_by: Mapped[str] = mapped_column(String(255), nullable=False)
 
 
 class QualityGateEvaluation(Base):
     __tablename__ = "quality_gate_evaluation"
     __table_args__ = (
-        CheckConstraint("length(gateeval_id) = 40 AND substr(gateeval_id, 1, 8) = 'gateeval-' AND substr(gateeval_id, 9) NOT GLOB '*[^0-9a-f]*'", name="ck_quality_gate_evaluation_id"),
+        CheckConstraint("length(evaluation_id) = 41 AND substr(evaluation_id, 1, 9) = 'gateeval-' AND substr(evaluation_id, 10) NOT GLOB '*[^0-9a-f]*'", name="ck_quality_gate_evaluation_id"),
         CheckConstraint("revision >= 1", name="ck_quality_gate_evaluation_revision"),
-        CheckConstraint("result_status IN ('계산 중', '통과', '미달', '미측정', '계산 불가')", name="ck_quality_gate_evaluation_result_status"),
-        CheckConstraint("review_count IS NULL OR review_count >= 0", name="ck_quality_gate_evaluation_review_count"),
-        CheckConstraint("agreement_count IS NULL OR agreement_count >= 0", name="ck_quality_gate_evaluation_agreement_count"),
-        CheckConstraint("metrics IS NULL OR json_valid(metrics)", name="ck_quality_gate_evaluation_metrics_json"),
-        CheckConstraint("reasons IS NULL OR json_valid(reasons)", name="ck_quality_gate_evaluation_reasons_json"),
+        CheckConstraint("result_status IN ('통과', '미달', '미측정', '보류')", name="ck_quality_gate_evaluation_result_status"),
+        CheckConstraint("valid_review_count >= 0", name="ck_quality_gate_evaluation_valid_review_count"),
+        CheckConstraint("distinct_notice_review_count >= 0", name="ck_quality_gate_evaluation_distinct_notice_review_count"),
+        CheckConstraint("json_valid(metrics_json) AND json_type(metrics_json) = 'object'", name="ck_quality_gate_evaluation_metrics_json"),
+        CheckConstraint("json_valid(reasons_json) AND json_type(reasons_json) = 'array'", name="ck_quality_gate_evaluation_reasons_json"),
         UniqueConstraint("gate_id", "revision", name="uq_quality_gate_evaluation_revision"),
     )
 
-    gateeval_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    evaluation_id: Mapped[str] = mapped_column(String(41), primary_key=True)
     gate_id: Mapped[str] = mapped_column(ForeignKey("quality_gate.gate_id", ondelete="CASCADE"), nullable=False)
     revision: Mapped[int] = mapped_column(Integer, nullable=False)
     result_status: Mapped[str] = mapped_column(String(16), nullable=False)
-    metrics: Mapped[Any] = mapped_column(JSON, nullable=True)
-    reasons: Mapped[Any] = mapped_column(JSON, nullable=True)
-    review_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    agreement_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    metrics_json: Mapped[Any] = mapped_column(JSON, nullable=False)
+    reasons_json: Mapped[Any] = mapped_column(JSON, nullable=False)
+    valid_review_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    distinct_notice_review_count: Mapped[int] = mapped_column(Integer, nullable=False)
     created_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False, default=utc_now)
 
 
@@ -593,11 +598,11 @@ class ScreeningPolicy(Base):
         CheckConstraint("((status = 'active' AND active_slot = 1 AND activated_at IS NOT NULL AND activated_by IS NOT NULL AND quality_gate_result_id IS NOT NULL) OR (status <> 'active' AND active_slot IS NULL))", name="ck_screening_policy_active"),
         CheckConstraint("created_by IS NULL OR length(trim(created_by)) > 0", name="ck_screening_policy_created_by"),
         CheckConstraint("activated_by IS NULL OR length(trim(activated_by)) > 0", name="ck_screening_policy_activated_by"),
-        CheckConstraint("json_valid(technical_fit_body) AND json_valid(performance_fit_body) AND json_valid(public_si_fit_body) AND json_valid(business_qualification_body) AND json_valid(strategic_fit_body)", name="ck_screening_policy_body_json"),
-        CheckConstraint("counterargument_body IS NULL OR json_valid(counterargument_body)", name="ck_screening_policy_counterargument_json"),
-        CheckConstraint("synthesis_body IS NULL OR json_valid(synthesis_body)", name="ck_screening_policy_synthesis_json"),
-        CheckConstraint("candidate_selection_body IS NULL OR json_valid(candidate_selection_body)", name="ck_screening_policy_candidate_selection_json"),
-        CheckConstraint("thresholds_body IS NULL OR json_valid(thresholds_body)", name="ck_screening_policy_thresholds_json"),
+        CheckConstraint("json_valid(perspective_prompts_json) AND json_type(perspective_prompts_json) = 'object'", name="ck_screening_policy_perspective_json"),
+        CheckConstraint("json_valid(counterargument_prompt_json) AND json_type(counterargument_prompt_json) = 'object'", name="ck_screening_policy_counterargument_json"),
+        CheckConstraint("json_valid(synthesis_prompt_json) AND json_type(synthesis_prompt_json) = 'object'", name="ck_screening_policy_synthesis_json"),
+        CheckConstraint("json_valid(candidate_selection_json) AND json_type(candidate_selection_json) = 'object'", name="ck_screening_policy_candidate_selection_json"),
+        CheckConstraint("json_valid(thresholds_json) AND json_type(thresholds_json) = 'object'", name="ck_screening_policy_thresholds_json"),
         Index("uq_screening_policy_active_slot", "active_slot", unique=True, sqlite_where=text("active_slot IS NOT NULL")),
     )
 
@@ -607,38 +612,34 @@ class ScreeningPolicy(Base):
     content_digest: Mapped[str] = mapped_column(String(64), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="draft")
     active_slot: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    technical_fit_body: Mapped[Any] = mapped_column(JSON, nullable=False)
-    performance_fit_body: Mapped[Any] = mapped_column(JSON, nullable=False)
-    public_si_fit_body: Mapped[Any] = mapped_column(JSON, nullable=False)
-    business_qualification_body: Mapped[Any] = mapped_column(JSON, nullable=False)
-    strategic_fit_body: Mapped[Any] = mapped_column(JSON, nullable=False)
-    counterargument_body: Mapped[Any] = mapped_column(JSON, nullable=True)
-    synthesis_body: Mapped[Any] = mapped_column(JSON, nullable=True)
-    candidate_selection_body: Mapped[Any] = mapped_column(JSON, nullable=True)
-    thresholds_body: Mapped[Any] = mapped_column(JSON, nullable=True)
+    perspective_prompts_json: Mapped[Any] = mapped_column(JSON, nullable=False)
+    counterargument_prompt_json: Mapped[Any] = mapped_column(JSON, nullable=False)
+    synthesis_prompt_json: Mapped[Any] = mapped_column(JSON, nullable=False)
+    candidate_selection_json: Mapped[Any] = mapped_column(JSON, nullable=False)
+    thresholds_json: Mapped[Any] = mapped_column(JSON, nullable=False)
     created_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False, default=utc_now)
     created_by: Mapped[str] = mapped_column(String(255), nullable=False)
     activated_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
     activated_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    quality_gate_result_id: Mapped[str | None] = mapped_column(ForeignKey("quality_gate_evaluation.gateeval_id"), nullable=True)
+    quality_gate_result_id: Mapped[str | None] = mapped_column(ForeignKey("quality_gate_evaluation.evaluation_id", ondelete="RESTRICT"), nullable=True)
 
 
 class QualityGateReview(Base):
     __tablename__ = "quality_gate_review"
     __table_args__ = (
-        CheckConstraint("judgment IN ('동의', '근거 부족', '판단 보류')", name="ck_quality_gate_review_judgment"),
+        CheckConstraint("evidence_judgment IN ('동의', '근거 부족', '판단 보류')", name="ck_quality_gate_review_judgment"),
         CheckConstraint("length(trim(reviewer)) > 0", name="ck_quality_gate_review_reviewer"),
         CheckConstraint("length(decision_digest) = 64 AND decision_digest NOT GLOB '*[^0-9a-f]*'", name="ck_quality_gate_review_decision_digest"),
         UniqueConstraint("gate_id", "notice_id", "reviewer", name="uq_quality_gate_review_notice_reviewer"),
     )
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    review_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     gate_id: Mapped[str] = mapped_column(ForeignKey("quality_gate.gate_id", ondelete="CASCADE"), nullable=False)
-    pass_a_execution_id: Mapped[str] = mapped_column(ForeignKey("screening_execution.execution_id"), nullable=False)
+    execution_id: Mapped[str] = mapped_column(ForeignKey("screening_execution.execution_id", ondelete="RESTRICT"), nullable=False)
     notice_id: Mapped[str] = mapped_column(String(255), nullable=False)
     decision_digest: Mapped[str] = mapped_column(String(64), nullable=False)
     reviewer: Mapped[str] = mapped_column(String(255), nullable=False)
-    judgment: Mapped[str] = mapped_column(String(16), nullable=False)
+    evidence_judgment: Mapped[str] = mapped_column(String(16), nullable=False)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False, default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False, default=utc_now, onupdate=utc_now)
@@ -669,7 +670,6 @@ class ScheduleReservation(Base):
         CheckConstraint("job_kind IN ('daily', 'weekly')", name="ck_schedule_reservation_job_kind"),
         CheckConstraint("window_from <= window_to", name="ck_schedule_reservation_window"),
         CheckConstraint("timezone = 'Asia/Seoul'", name="ck_schedule_reservation_timezone"),
-        CheckConstraint("created_by IS NULL OR length(trim(created_by)) > 0", name="ck_schedule_reservation_created_by"),
     )
 
     run_key: Mapped[str] = mapped_column(String(32), primary_key=True)
@@ -678,7 +678,6 @@ class ScheduleReservation(Base):
     window_to: Mapped[date] = mapped_column(Date, nullable=False)
     timezone: Mapped[str] = mapped_column(String(32), nullable=False, default="Asia/Seoul")
     created_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False, default=utc_now)
-    created_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
 
 class ScheduleExecution(Base):
@@ -688,36 +687,42 @@ class ScheduleExecution(Base):
         CheckConstraint("job_kind IN ('daily', 'weekly')", name="ck_schedule_execution_job_kind"),
         CheckConstraint("trigger IN ('schedule', 'manual')", name="ck_schedule_execution_trigger"),
         CheckConstraint("status IN ('예약', '실행 중', '성공', '부분 성공', '실패', '건너뜀')", name="ck_schedule_execution_status"),
-        CheckConstraint("NOT (duplicate_of_execution_id IS NOT NULL AND recovered_from_execution_id IS NOT NULL)", name="ck_schedule_execution_recovery_one"),
-        CheckConstraint("actor IS NULL OR length(trim(actor)) > 0", name="ck_schedule_execution_actor"),
+        CheckConstraint("NOT (duplicate_of_execution_id IS NOT NULL AND recovery_of_execution_id IS NOT NULL)", name="ck_schedule_execution_recovery_one"),
+        CheckConstraint("length(trim(requested_by)) > 0", name="ck_schedule_execution_requested_by"),
+        CheckConstraint("((status = '건너뜀' AND skip_reason IS NOT NULL) OR (status <> '건너뜀' AND skip_reason IS NULL))", name="ck_schedule_execution_skip_reason"),
         CheckConstraint("candidate_count IS NULL OR candidate_count >= 0", name="ck_schedule_execution_candidate_count"),
         CheckConstraint("result_count IS NULL OR result_count >= 0", name="ck_schedule_execution_result_count"),
         CheckConstraint("failure_count IS NULL OR failure_count >= 0", name="ck_schedule_execution_failure_count"),
     )
 
     execution_id: Mapped[str] = mapped_column(String(38), primary_key=True)
-    run_key: Mapped[str] = mapped_column(ForeignKey("schedule_reservation.run_key"), nullable=False)
+    run_key: Mapped[str] = mapped_column(
+        ForeignKey("schedule_reservation.run_key", ondelete="RESTRICT"), nullable=False
+    )
     job_kind: Mapped[str] = mapped_column(String(16), nullable=False)
     trigger: Mapped[str] = mapped_column(String(16), nullable=False)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="예약")
-    duplicate_of_execution_id: Mapped[str | None] = mapped_column(ForeignKey("schedule_execution.execution_id"), nullable=True)
-    recovered_from_execution_id: Mapped[str | None] = mapped_column(ForeignKey("schedule_execution.execution_id"), nullable=True)
-    run_id: Mapped[str | None] = mapped_column(ForeignKey("run.id"), nullable=True)
-    screening_execution_id: Mapped[str | None] = mapped_column(ForeignKey("screening_execution.execution_id"), nullable=True)
-    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
-    actor: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    queued_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False, default=utc_now)
+    duplicate_of_execution_id: Mapped[str | None] = mapped_column(
+        ForeignKey("schedule_execution.execution_id", ondelete="RESTRICT"), nullable=True
+    )
+    recovery_of_execution_id: Mapped[str | None] = mapped_column(ForeignKey("schedule_execution.execution_id", ondelete="RESTRICT"), nullable=True)
+    run_id: Mapped[str | None] = mapped_column(ForeignKey("run.id", ondelete="RESTRICT"), nullable=True)
+    screening_execution_id: Mapped[str | None] = mapped_column(ForeignKey("screening_execution.execution_id", ondelete="RESTRICT"), nullable=True)
+    skip_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    failure_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    requested_by: Mapped[str] = mapped_column(String(255), nullable=False)
     started_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
     candidate_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     result_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     failure_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     partial_artifact: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
-    policy_version: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    policy_version: Mapped[str | None] = mapped_column(ForeignKey("screening_policy.policy_version", ondelete="RESTRICT"), nullable=True)
     prompt_version: Mapped[str | None] = mapped_column(String(255), nullable=True)
     model_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    model_version: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    profile_digest: Mapped[str | None] = mapped_column(ForeignKey("company_profile_snapshot.digest"), nullable=True)
+    model_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    company_profile_version: Mapped[str | None] = mapped_column(ForeignKey("company_profile_snapshot.version", ondelete="RESTRICT"), nullable=True)
+    company_profile_digest: Mapped[str | None] = mapped_column(ForeignKey("company_profile_snapshot.digest", ondelete="RESTRICT"), nullable=True)
 
 
 class AlwaysOnState(Base):
@@ -725,16 +730,18 @@ class AlwaysOnState(Base):
     __table_args__ = (
         CheckConstraint("singleton_id = 1", name="ck_always_on_singleton"),
         CheckConstraint("updated_by IS NULL OR length(trim(updated_by)) > 0", name="ck_always_on_updated_by"),
-        CheckConstraint("((enabled = 0) OR (quality_gate_result_id IS NOT NULL AND policy_version IS NOT NULL AND model_name IS NOT NULL AND prompt_version IS NOT NULL AND profile_digest IS NOT NULL))", name="ck_always_on_enabled_metadata"),
+        CheckConstraint("((enabled = 0) OR (quality_gate_result_id IS NOT NULL AND policy_version IS NOT NULL AND model_name IS NOT NULL AND model_digest IS NOT NULL AND prompt_version IS NOT NULL AND company_profile_version IS NOT NULL AND company_profile_digest IS NOT NULL))", name="ck_always_on_enabled_metadata"),
     )
 
     singleton_id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    quality_gate_result_id: Mapped[str | None] = mapped_column(ForeignKey("quality_gate_evaluation.gateeval_id"), nullable=True)
-    policy_version: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    quality_gate_result_id: Mapped[str | None] = mapped_column(ForeignKey("quality_gate_evaluation.evaluation_id", ondelete="RESTRICT"), nullable=True)
+    policy_version: Mapped[str | None] = mapped_column(ForeignKey("screening_policy.policy_version", ondelete="RESTRICT"), nullable=True)
     model_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    model_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
     prompt_version: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    profile_digest: Mapped[str | None] = mapped_column(ForeignKey("company_profile_snapshot.digest"), nullable=True)
+    company_profile_version: Mapped[str | None] = mapped_column(ForeignKey("company_profile_snapshot.version", ondelete="RESTRICT"), nullable=True)
+    company_profile_digest: Mapped[str | None] = mapped_column(ForeignKey("company_profile_snapshot.digest", ondelete="RESTRICT"), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False, default=utc_now)
     updated_by: Mapped[str] = mapped_column(String(255), nullable=False, default="system:migration")
 
@@ -747,7 +754,7 @@ class AuditEvent(Base):
         CheckConstraint("length(trim(actor)) > 0", name="ck_audit_event_actor"),
         CheckConstraint("length(trim(target_type)) > 0", name="ck_audit_event_target_type"),
         CheckConstraint("length(trim(target_id)) > 0", name="ck_audit_event_target_id"),
-        CheckConstraint("json_valid(details)", name="ck_audit_event_details_json"),
+        CheckConstraint("json_valid(details_json)", name="ck_audit_event_details_json"),
     )
 
     event_id: Mapped[str] = mapped_column(String(38), primary_key=True)
@@ -756,4 +763,4 @@ class AuditEvent(Base):
     target_type: Mapped[str] = mapped_column(String(128), nullable=False)
     target_id: Mapped[str] = mapped_column(String(255), nullable=False)
     occurred_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False, default=utc_now)
-    details: Mapped[Any] = mapped_column(JSON, nullable=False)
+    details_json: Mapped[Any] = mapped_column(JSON, nullable=False)

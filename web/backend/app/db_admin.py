@@ -92,7 +92,15 @@ def _schema_signature(path: Path) -> dict[str, Any]:
 
     with sqlite3.connect(path) as connection:
         names = sorted(name for name in _tables(connection) if name != "alembic_version")
-        result: dict[str, Any] = {"tables": names, "schemas": {}}
+        objects = [
+            (row[0], row[1], row[2], " ".join((row[4] or "").lower().split()))
+            for row in connection.execute(
+                "SELECT type, name, tbl_name, rootpage, sql FROM sqlite_master "
+                "WHERE name NOT LIKE 'sqlite_%' AND name <> 'alembic_version' "
+                "ORDER BY type, name"
+            )
+        ]
+        result: dict[str, Any] = {"tables": names, "objects": objects, "schemas": {}}
         for name in names:
             columns = [
                 tuple(row)
@@ -301,8 +309,11 @@ def verify() -> None:
     if not path.is_file():
         raise DBAdminError(f"database does not exist: {path}")
     revision = _revision(path)
-    foreign_keys, quick = _integrity(path)
-    counts = _counts(path)
+    try:
+        foreign_keys, quick = _integrity(path)
+        counts = _counts(path)
+    except sqlite3.Error as exc:
+        raise DBAdminError(f"database structure cannot be verified: {path}") from exc
     print(f"revision: {revision or 'none'} (expected {ALEMBIC_HEAD})")
     print(f"foreign_key_check: {'ok' if not foreign_keys else foreign_keys}")
     print(f"quick_check: {quick}")

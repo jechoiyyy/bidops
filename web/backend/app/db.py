@@ -91,12 +91,36 @@ def ensure_database_current(bind: Engine | None = None) -> None:
     """
 
     target = bind or engine
+    if target.url.get_backend_name() == "sqlite":
+        database_name = target.url.database
+        if bind is None and database_name in (None, ":memory:"):
+            raise RuntimeError(
+                "Database migration required: a file-backed SQLite database is required; "
+                f"run `{MIGRATION_COMMAND}` for a new database."
+            )
+        if database_name not in (None, ":memory:"):
+            database_path = Path(database_name)
+            if not database_path.is_absolute():
+                database_path = Path.cwd() / database_path
+        else:
+            database_path = None
+        if database_path is not None and not database_path.exists():
+            raise RuntimeError(
+                "Database migration required: database file does not exist; "
+                f"run `{MIGRATION_COMMAND}` to create a new database."
+            )
     inspector = inspect(target)
     tables = set(inspector.get_table_names())
     if "alembic_version" not in tables:
+        if not tables:
+            raise RuntimeError(
+                "Database migration required: database is empty; "
+                "run alembic upgrade head to create the schema."
+            )
         raise RuntimeError(
-            "Database migration required: database is empty or unversioned; "
-            f"run `{MIGRATION_COMMAND}` before starting the service."
+            "Database migration required: existing database is unversioned; "
+            "create a backup and run `python -m app.db_admin migrate --backup-manifest "
+            "<backup.db.manifest.json> --confirm-service-stopped`."
         )
     revision = current_revision(target)
     if revision != ALEMBIC_HEAD:

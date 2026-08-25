@@ -59,37 +59,38 @@ class Settings(BaseSettings):
     )
     model_name: str = Field(
         default="qwen3.8:27b",
-        validation_alias=AliasChoices("BIDOPS_OLLAMA_MODEL", "BIDOPS_MODEL_NAME"),
+        validation_alias="BIDOPS_OLLAMA_MODEL",
     )
     model_base_url: str = Field(
         default="http://192.168.0.139:11434",
-        validation_alias=AliasChoices("BIDOPS_OLLAMA_ENDPOINT", "BIDOPS_MODEL_BASE_URL"),
+        validation_alias="BIDOPS_OLLAMA_BASE_URL",
     )
     model_timeout: int = Field(
         default=180,
-        validation_alias=AliasChoices("BIDOPS_OLLAMA_TIMEOUT_SECONDS", "BIDOPS_MODEL_TIMEOUT"),
+        validation_alias="BIDOPS_OLLAMA_TIMEOUT_SECONDS",
     )
     model_keep_alive: str = Field(
         default="30m",
-        validation_alias=AliasChoices("BIDOPS_OLLAMA_KEEP_ALIVE", "BIDOPS_MODEL_KEEP_ALIVE"),
+        validation_alias="BIDOPS_OLLAMA_KEEP_ALIVE",
     )
     model_context: int = Field(
         default=16384,
-        validation_alias=AliasChoices("BIDOPS_OLLAMA_CONTEXT_SIZE", "BIDOPS_MODEL_CONTEXT"),
+        validation_alias="BIDOPS_OLLAMA_CONTEXT_SIZE",
     )
     model_max_output: int = Field(
         default=2048,
-        validation_alias=AliasChoices(
-            "BIDOPS_OLLAMA_MAX_OUTPUT_TOKENS", "BIDOPS_MODEL_MAX_OUTPUT"
-        ),
+        validation_alias="BIDOPS_OLLAMA_MAX_OUTPUT_TOKENS",
     )
-    ollama_think: bool = Field(default=False, validation_alias="BIDOPS_OLLAMA_THINK")
     screen_concurrency: int = Field(
         default=1,
-        validation_alias=AliasChoices("BIDOPS_SCREEN_MAX_CONCURRENCY", "BIDOPS_SCREEN_CONCURRENCY"),
+        validation_alias="BIDOPS_SCREEN_MAX_CONCURRENCY",
     )
-    heartbeat_seconds: int = Field(default=5, validation_alias="BIDOPS_HEARTBEAT_SECONDS")
-    stale_seconds: int = Field(default=60, validation_alias="BIDOPS_STALE_SECONDS")
+    heartbeat_seconds: int = Field(
+        default=5, validation_alias="BIDOPS_SCREEN_HEARTBEAT_SECONDS"
+    )
+    stale_seconds: int = Field(
+        default=60, validation_alias="BIDOPS_SCREEN_STALE_AFTER_SECONDS"
+    )
     scheduler_enabled: bool = Field(
         default=False, validation_alias="BIDOPS_SCHEDULER_ENABLED"
     )
@@ -99,11 +100,8 @@ class Settings(BaseSettings):
     schedule_weekly_time: str = Field(
         default="06:00", validation_alias="BIDOPS_SCHEDULE_WEEKLY_TIME"
     )
-    schedule_prespec: bool = Field(
-        default=False,
-        validation_alias=AliasChoices("BIDOPS_PRESPEC_ENABLED", "BIDOPS_SCHEDULE_PRESPEC"),
-    )
-    live_test: bool = Field(default=False, validation_alias="BIDOPS_LIVE_TEST")
+    schedule_prespec: bool = Field(default=False, validation_alias="BIDOPS_PRESPEC_ENABLED")
+    live_test: bool = Field(default=False, validation_alias="BIDOPS_LIVE_OLLAMA_TEST")
 
     @model_validator(mode="after")
     def derive_paths(self) -> "Settings":
@@ -114,17 +112,19 @@ class Settings(BaseSettings):
         if self.attachments_dir is None:
             self.attachments_dir = self.data_dir / "attachments"
         if self.heartbeat_seconds >= self.stale_seconds:
-            raise ValueError("BIDOPS_HEARTBEAT_SECONDS must be less than BIDOPS_STALE_SECONDS")
+            raise ValueError(
+                "BIDOPS_SCREEN_HEARTBEAT_SECONDS must be less than "
+                "BIDOPS_SCREEN_STALE_AFTER_SECONDS"
+            )
         if self.stale_seconds < self.heartbeat_seconds * 3:
             raise ValueError(
-                "BIDOPS_STALE_SECONDS must be at least three times BIDOPS_HEARTBEAT_SECONDS"
+                "BIDOPS_SCREEN_STALE_AFTER_SECONDS must be at least three times "
+                "BIDOPS_SCREEN_HEARTBEAT_SECONDS"
             )
         if self.screen_concurrency != 1:
             raise ValueError("only BIDOPS_SCREEN_MAX_CONCURRENCY=1 is supported")
         if self.model_timeout <= 0 or self.model_context <= 0 or self.model_max_output <= 0:
             raise ValueError("model timeout, context, and max output must be positive")
-        if self.ollama_think:
-            raise ValueError("BIDOPS_OLLAMA_THINK=true is not supported; internal reasoning is disabled")
         for name in ("schedule_daily_time", "schedule_weekly_time"):
             value = getattr(self, name)
             if len(value) != 5 or value[2] != ":":
@@ -148,6 +148,10 @@ class Settings(BaseSettings):
         return self.model_base_url
 
     @property
+    def ollama_base_url(self) -> str:
+        return self.model_base_url
+
+    @property
     def ollama_model(self) -> str:
         return self.model_name
 
@@ -166,6 +170,18 @@ class Settings(BaseSettings):
     @property
     def ollama_max_output_tokens(self) -> int:
         return self.model_max_output
+
+    @property
+    def screen_heartbeat_seconds(self) -> int:
+        return self.heartbeat_seconds
+
+    @property
+    def screen_stale_after_seconds(self) -> int:
+        return self.stale_seconds
+
+    @property
+    def live_ollama_test(self) -> bool:
+        return self.live_test
 
     @property
     def database_path(self) -> Path:
