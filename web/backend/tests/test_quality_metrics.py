@@ -54,6 +54,17 @@ def judgment(notice_id: str, *, grade: str = "검토 권장", assessments: tuple
 
 def artifact(count: int, *, priority: int = 0, offset: int = 0):
     return {
+        "schema_version": "bidops.decisions.v3",
+        "execution_id": "scr-" + "1" * 32,
+        "run_id": "run-1",
+        "generated_at": "2026-01-01T00:00:00+00:00",
+        "screening_basis": "회차에 고정된 정규화 공고와 회사 프로필·정책 버전",
+        "model_name": "qwen3.8:27b",
+        "model_digest": "a" * 64,
+        "prompt_version": "prompt-v1",
+        "policy_version": "policy-v1",
+        "company_profile_version": "company-profile.sha256:" + "b" * 64,
+        "company_profile_digest": "b" * 64,
         "judgments": [
             judgment(f"n-{index + offset}", grade="우선 검토" if index < priority else "검토 권장")
             for index in range(count)
@@ -151,6 +162,26 @@ def test_input_performance_match_requires_matching_performance_evidence():
     )
     assert metrics["paired_valid_count"] == 0
     assert any(row["notice_id"] == "n-0" and row["pass"] == "A" for row in metrics["excluded_notices"])
+
+
+def test_invalid_decisions_top_level_excludes_every_fixed_notice():
+    left = artifact(2)
+    right = artifact(2)
+    left.pop("screening_basis")
+    ids = ["n-0", "n-1"]
+    metrics = calculate_metrics(left, right, sample_ids=ids, expected_sample_count=2)
+    assert metrics["paired_valid_count"] == 0
+    assert {row["notice_id"] for row in metrics["excluded_notices"] if row["pass"] == "A"} >= set(ids)
+
+
+def test_duplicate_in_sample_identity_is_not_counted_from_first_object():
+    left = artifact(2)
+    right = artifact(2)
+    left["judgments"].append(dict(left["judgments"][0]))
+    right["judgments"].append(dict(right["judgments"][0]))
+    metrics = calculate_metrics(left, right, sample_ids=["n-0", "n-1"], expected_sample_count=2)
+    assert metrics["paired_valid_count"] == 1
+    assert any(row["notice_id"] == "n-0" and row["reason"] == "duplicate_notice_id" for row in metrics["excluded_notices"])
 
 
 def test_pass_metrics_ignore_out_of_sample_and_zero_denominators_are_explicit():

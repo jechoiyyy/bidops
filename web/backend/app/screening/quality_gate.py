@@ -8,7 +8,7 @@ therefore subject to the same FIFO worker as every other Qwen call.
 from __future__ import annotations
 
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 import json
 from pathlib import Path
 from typing import Any, Iterator, Mapping, Sequence
@@ -30,10 +30,12 @@ from ..models import (
 )
 from .artifacts import ArtifactError, ArtifactStore, sha256_bytes
 from .execution_store import ScreeningExecutionStore
-from .orchestrator import CreatedExecution, ScreeningCreationError, ScreeningOrchestrator
+from .orchestrator import ScreeningOrchestrator
 from .profile_snapshot import BASELINE_COMMIT
 from .quality_metrics import (
     QualityMetricError,
+    SCREENING_BASIS,
+    _judgment_map,
     calculate_metrics,
     frozen_input_digest,
     judgment_digest,
@@ -64,48 +66,6 @@ class QualityGateConflict(QualityGateError):
 
 class QualityGateActivationError(QualityGateConflict):
     """A quality result cannot be used for operational activation."""
-
-
-class _StagedQualityQueue:
-    """Capture orchestrator queue rows until the gate transaction is ready.
-
-    ``ScreeningOrchestrator`` owns all expensive preflight work and artifact
-    construction, but its normal queue commits one row per call.  Quality
-    gates need a different visibility boundary: both rows and the gate must
-    become visible together.  This narrow adapter preserves the orchestrator
-    contract while keeping its generated IDs/artifact bindings for one final
-    transaction.
-    """
-
-    def __init__(self) -> None:
-        self.rows: list[ScreeningExecution] = []
-
-    def enqueue(self, **kwargs: Any) -> ScreeningExecution:
-        row = ScreeningExecution(
-            execution_id=kwargs["execution_id"],
-            trigger=kwargs["trigger"],
-            source_run_id=kwargs["source_run_id"],
-            scope=kwargs["scope"],
-            notice_pk=kwargs.get("notice_pk"),
-            notice_id=kwargs.get("notice_id"),
-            status="대기",
-            requested_by=kwargs["requested_by"],
-            policy_version=kwargs["policy_version"],
-            prompt_version=kwargs["prompt_version"],
-            model_name=kwargs["model_name"],
-            model_digest=kwargs["model_digest"],
-            company_profile_version=kwargs["company_profile_version"],
-            company_profile_digest=kwargs["company_profile_digest"],
-            input_artifact_path=kwargs["input_artifact_path"],
-            input_artifact_digest=kwargs["input_artifact_digest"],
-            artifact_dir=kwargs["artifact_dir"],
-            queued_at=kwargs.get("queued_at") or datetime.now(timezone.utc),
-            candidate_count=kwargs.get("candidate_count", 0),
-            completed_count=0,
-            failure_count=0,
-        )
-        self.rows.append(row)
-        return row
 
 
 def _factory(value: Any | None) -> sessionmaker[Session]:
@@ -215,11 +175,147 @@ def _input_matches_fixed_sample(value: Mapping[str, Any], sample: Mapping[str, A
     return True
 
 
-def _load_execution_artifact(root: Path, execution_id: str, filename: str) -> dict[str, Any]:
+_INPUT_KEYS = frozenset({
+    "schema_version", "execution_id", "run_id", "generated_at", "source_window",
+    "policy_version", "prompt_version", "company_profile_version", "company_profile_digest",
+    "candidate_count", "notices",
+})
+
+
+def _input_binding_valid(value: Mapping[str, Any], execution: ScreeningExecution, sample: Mapping[str, Any], sample_ids: Sequence[str]) -> bool:
+    if set(value) != _INPUT_KEYS or value.get("schema_version") != "bidops.screening-input.v1":
+        return False
+    if value.get("execution_id") != execution.execution_id or value.get("run_id") != execution.source_run_id:
+        return False
+    if value.get("policy_version") != execution.policy_version or value.get("prompt_version") != execution.prompt_version:
+        return False
+    if value.get("company_profile_version") != execution.company_profile_version or value.get("company_profile_digest") != execution.company_profile_digest:
+        return False
+    profile_digest = value.get("company_profile_digest")
+    if not isinstance(profile_digest, str) or len(profile_digest) != 64 or any(char not in "0123456789abcdef" for char in profile_digest):
+        return False
+    if value.get("company_profile_version") != f"company-profile.sha256:{profile_digest}":
+        return False
+    if execution.candidate_count != len(sample_ids) or execution.input_artifact_path != f"data/screening-executions/{execution.execution_id}/screening-input.json" or execution.artifact_dir != f"data/screening-executions/{execution.execution_id}":
+        return False
     try:
-        value = ArtifactStore(root).read_json(execution_id, filename)
+        generated = datetime.fromisoformat(str(value.get("generated_at")).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return False
+    if generated.tzinfo is None or generated.utcoffset() is None:
+        return False
+    window = value.get("source_window")
+    if not isinstance(window, Mapping) or set(window) != {"from", "to", "timezone"} or window.get("timezone") != "Asia/Seoul":
+        return False
+    try:
+        if not isinstance(window.get("from"), str) or not isinstance(window.get("to"), str) or date.fromisoformat(window["from"]) > date.fromisoformat(window["to"]):
+            return False
+    except ValueError:
+        return False
+    notices = value.get("notices")
+    if not isinstance(notices, list) or value.get("candidate_count") != len(notices) or len(notices) != len(sample_ids) or not _input_matches_fixed_sample(value, sample, sample_ids):
+        return False
+    fixed_by_id = {item["notice_id"]: item for item in sample.get("notices", []) if isinstance(item, Mapping) and isinstance(item.get("notice_id"), str)}
+    for item in notices:
+        if not isinstance(item, Mapping) or set(item) != set(fixed_by_id.get(item.get("notice_id"), {})) | {"judgment_mode", "carry_over_from", "rejudge_reason"}:
+            return False
+        mode = item.get("judgment_mode")
+        if mode not in {"신규", "재판정", "승계"}:
+            return False
+        if mode == "신규" and (item.get("carry_over_from") is not None or item.get("rejudge_reason") is not None):
+            return False
+        if mode == "재판정" and (item.get("carry_over_from") is not None or item.get("rejudge_reason") not in {"정정", "재공고", "본공고 전환", "담당자 요청"}):
+            return False
+        if mode == "승계" and (not isinstance(item.get("carry_over_from"), str) or not item["carry_over_from"].strip() or item.get("rejudge_reason") is not None):
+            return False
+    return True
+
+
+def _decisions_binding_issues(
+    value: Mapping[str, Any],
+    execution: ScreeningExecution,
+    input_value: Mapping[str, Any],
+    sample_ids: Sequence[str],
+    *,
+    pass_name: str,
+) -> list[dict[str, str]]:
+    """Validate the complete decisions.v3 artifact and all provenance links."""
+
+    def issue(notice_id: str, reason: str) -> dict[str, str]:
+        return {"notice_id": notice_id, "pass": pass_name, "reason": reason}
+
+    if not _input_binding_valid(input_value, execution, {"notices": input_value.get("notices")}, sample_ids):
+        return [issue(notice_id, "screening_input_binding_invalid") for notice_id in sample_ids]
+    expected_top = {
+        "execution_id": execution.execution_id,
+        "run_id": execution.source_run_id,
+        "generated_at": input_value.get("generated_at"),
+        "model_name": execution.model_name,
+        "model_digest": execution.model_digest,
+        "prompt_version": execution.prompt_version,
+        "policy_version": execution.policy_version,
+        "company_profile_version": execution.company_profile_version,
+        "company_profile_digest": execution.company_profile_digest,
+    }
+    top_reasons: list[str] = []
+    if set(value) != {"schema_version", "execution_id", "run_id", "generated_at", "screening_basis", "model_name", "model_digest", "prompt_version", "policy_version", "company_profile_version", "company_profile_digest", "judgments"}:
+        top_reasons.append("decisions_top_level_invalid")
+    if value.get("schema_version") != "bidops.decisions.v3":
+        top_reasons.append("decisions_schema_invalid")
+    for key, expected in expected_top.items():
+        if value.get(key) != expected:
+            top_reasons.append(f"decisions_{key}_binding_mismatch")
+    if value.get("screening_basis") != SCREENING_BASIS:
+        top_reasons.append("decisions_screening_basis_invalid")
+    if top_reasons:
+        reason = ":".join(dict.fromkeys(top_reasons))
+        return [issue(notice_id, reason) for notice_id in sample_ids]
+    notices = {
+        item["notice_id"]: item
+        for item in input_value.get("notices", [])
+        if isinstance(item, Mapping) and isinstance(item.get("notice_id"), str)
+    }
+    _valid, issues = _judgment_map(value, pass_name=pass_name, notices=notices)
+    result = list(issues)
+    judgments = value.get("judgments")
+    if not isinstance(judgments, list):
+        return result + [issue(notice_id, "judgments_missing") for notice_id in sample_ids]
+    by_id = {item.get("notice_id"): item for item in judgments if isinstance(item, Mapping) and isinstance(item.get("notice_id"), str)}
+    for notice_id, judgment in by_id.items():
+        notice = notices.get(notice_id)
+        if notice is None:
+            continue
+        mode = notice.get("judgment_mode")
+        expected_carry = mode == "승계"
+        expected_judged = notice.get("carry_over_from") if expected_carry else execution.source_run_id
+        if (
+            judgment.get("judgment_mode") != mode
+            or judgment.get("carried_over") is not expected_carry
+            or judgment.get("rejudge_reason") != notice.get("rejudge_reason")
+            or judgment.get("judged_in_run") != expected_judged
+            or judgment.get("recorded_in_run") != execution.source_run_id
+        ):
+            result.append(issue(notice_id, "judgment_input_provenance_mismatch"))
+        if mode != "승계" and any(judgment.get(key) != getattr(execution, key) for key in ("model_name", "model_digest", "prompt_version", "policy_version", "company_profile_version", "company_profile_digest")):
+            result.append(issue(notice_id, "judgment_execution_metadata_mismatch"))
+    known = {row["notice_id"] for row in result if row["notice_id"]}
+    for notice_id in sample_ids:
+        if notice_id not in by_id and notice_id not in known:
+            result.append(issue(notice_id, "missing_judgment"))
+    for notice_id in by_id:
+        if notice_id not in set(sample_ids):
+            result.append(issue(notice_id, "out_of_sample"))
+    return result
+
+
+def _load_execution_artifact(root: Path, execution_id: str, filename: str, *, expected_digest: str | None = None) -> dict[str, Any]:
+    try:
+        raw = ArtifactStore(root).read_bytes(execution_id, filename, expected_digest=expected_digest)
+        value = json.loads(raw)
     except ArtifactError as exc:
         raise QualityGateValidationError("quality execution artifact is unavailable") from exc
+    except (UnicodeError, json.JSONDecodeError) as exc:
+        raise QualityGateValidationError("quality execution artifact is invalid") from exc
     if not isinstance(value, dict):
         raise QualityGateValidationError("quality execution artifact is invalid")
     return value
@@ -293,6 +389,7 @@ class QualityGateService:
         session_factory: Any | None = None,
         orchestrator: ScreeningOrchestrator | Any | None = None,
         queue: ScreeningExecutionStore | Any | None = None,
+        transaction_preparer: Any | None = None,
         clock: Any | None = None,
         busy_retries: int = 5,
     ) -> None:
@@ -300,6 +397,7 @@ class QualityGateService:
         self.session_factory = _factory(session_factory)
         self.orchestrator = orchestrator or ScreeningOrchestrator(settings=self.settings, session_factory=self.session_factory)
         self.queue = queue or ScreeningExecutionStore(session_factory=self.session_factory, settings=self.settings)
+        self.transaction_preparer = transaction_preparer or getattr(self.orchestrator, "prepare_execution", None)
         self.clock = clock or _now
         self.busy_retries = max(0, busy_retries)
 
@@ -321,50 +419,8 @@ class QualityGateService:
         finally:
             session.close()
 
-    def _create_pass(self, *, run_id: str, policy_version: str, profile_source: str, actor: str) -> CreatedExecution:
-        try:
-            return self.orchestrator.create_execution(
-                run_id=run_id,
-                policy_version=policy_version,
-                profile_source=profile_source,
-                requested_by=actor,
-                scope="quality_sample",
-                trigger="quality_gate",
-            )
-        except (ScreeningCreationError, QualityGateError):
-            raise
-        except Exception as exc:
-            raise QualityGateError("quality pass could not be queued") from exc
-
-    def _create_staged_passes(
-        self,
-        *,
-        run_id: str,
-        policy_version: str,
-        profile_source: str,
-        actor: str,
-    ) -> tuple[CreatedExecution, CreatedExecution, list[ScreeningExecution], list[str]]:
-        """Run both orchestrator preflights without publishing queue rows."""
-
-        staged = _StagedQualityQueue()
-        original_queue = getattr(self.orchestrator, "queue", None)
-        if original_queue is None:
-            raise QualityGateConflict("quality orchestrator has no queue boundary")
-        self.orchestrator.queue = staged
-        created_ids: list[str] = []
-        try:
-            first = self._create_pass(run_id=run_id, policy_version=policy_version, profile_source=profile_source, actor=actor)
-            created_ids.append(first.execution_id)
-            second = self._create_pass(run_id=run_id, policy_version=policy_version, profile_source=profile_source, actor=actor)
-            created_ids.append(second.execution_id)
-            if len(staged.rows) != 2 or first.execution_id == second.execution_id:
-                raise QualityGateConflict("quality passes must be independent")
-            return first, second, list(staged.rows), created_ids
-        finally:
-            self.orchestrator.queue = original_queue
-
-    def _cleanup_staged_artifacts(self, execution_ids: Sequence[str]) -> None:
-        """Remove only known, never-queued execution staging directories."""
+    def _cleanup_prepared_artifacts(self, execution_ids: Sequence[str]) -> None:
+        """Remove only known execution directories prepared in this call."""
 
         store = ArtifactStore(Path(self.settings.bidops_root))
         for execution_id in dict.fromkeys(execution_ids):
@@ -375,25 +431,6 @@ class QualityGateService:
                 # database row was published, and an absent path is already
                 # the desired state.
                 continue
-
-    def _cleanup_unbound_passes(self, execution_ids: Sequence[str]) -> None:
-        """Rollback compatibility-adapter rows before removing their files."""
-
-        ids = list(dict.fromkeys(execution_ids))
-        if not ids:
-            return
-        try:
-            with self._session(immediate=True) as session:
-                rows = session.scalars(select(ScreeningExecution).where(ScreeningExecution.execution_id.in_(ids))).all()
-                for row in rows:
-                    # A gate never owns a partially-running compatibility row;
-                    # leave a worker-owned row for its normal lifecycle rather
-                    # than deleting active runtime history.
-                    if row.status != "대기":
-                        continue
-                    session.delete(row)
-        finally:
-            self._cleanup_staged_artifacts(ids)
 
     def create_gate(
         self,
@@ -426,56 +463,43 @@ class QualityGateService:
             if policy.status not in {"activation_candidate", "active"}:
                 raise QualityGateValidationError("policy is not selectable")
 
-        # The orchestrator performs model inspection, profile snapshot, and
-        # artifact creation.  Its normal queue commits one row immediately;
-        # the production implementation is intercepted until both passes are
-        # ready, so no worker can claim A while B is being built.
         root = Path(self.settings.bidops_root)
-        staged_rows: list[ScreeningExecution] = []
-        created_ids: list[str] = []
+        prepared_ids: list[str] = []
         try:
-            if isinstance(self.orchestrator, ScreeningOrchestrator):
-                first, second, staged_rows, created_ids = self._create_staged_passes(
-                    run_id=run_id, policy_version=policy_version, profile_source=profile_source, actor=actor
-                )
-            else:
-                # Keep compatibility with injected test/delivery adapters;
-                # their queue can be an externally managed transaction-aware
-                # implementation.  Any rows they publish are still cleaned
-                # by the adapter on a failed logical operation.
-                first = self._create_pass(run_id=run_id, policy_version=policy_version, profile_source=profile_source, actor=actor)
-                created_ids.append(first.execution_id)
-                second = self._create_pass(run_id=run_id, policy_version=policy_version, profile_source=profile_source, actor=actor)
-                created_ids.append(second.execution_id)
-                if first.execution_id == second.execution_id:
-                    raise QualityGateConflict("quality passes must be independent")
-
-            input_a = _load_execution_artifact(root, first.execution_id, "screening-input.json")
-            input_b = _load_execution_artifact(root, second.execution_id, "screening-input.json")
-            if _canonical_pass_input(input_a) != _canonical_pass_input(input_b):
-                raise QualityGateConflict("quality pass frozen input combination differs")
-            if input_a.get("candidate_count") != 40 or input_b.get("candidate_count") != 40:
-                raise QualityGateValidationError("quality pass must contain exactly 40 notices")
-            if not _input_matches_fixed_sample(input_a, sample, sample_ids) or not _input_matches_fixed_sample(input_b, sample, sample_ids):
-                raise QualityGateConflict("quality pass notices do not match the fixed sample")
-            # The fixed raw bytes, rather than a parsed/reformatted value, are
-            # the authoritative input identity stored on the gate.
+            if self.transaction_preparer is None:
+                raise QualityGateConflict("quality gate requires a transaction-aware execution preparer")
             sample_digest = sha256_bytes(sample_raw)
             baseline_digest = sha256_bytes(baseline_raw)
             now = _now(self.clock())
             gate_id = "gate-" + uuid4().hex
             with self._session(immediate=True) as session:
-                # Recheck all immutable identities in the same transaction as
-                # the gate row, so a concurrent policy/profile change cannot
-                # bind a different combination.
                 policy = session.scalar(select(ScreeningPolicy).where(ScreeningPolicy.policy_version == policy_version))
-                if staged_rows:
-                    session.add_all(staged_rows)
-                    session.flush()
-                execution_a = session.scalar(select(ScreeningExecution).where(ScreeningExecution.execution_id == first.execution_id))
-                execution_b = session.scalar(select(ScreeningExecution).where(ScreeningExecution.execution_id == second.execution_id))
-                if policy is None or execution_a is None or execution_b is None:
-                    raise QualityGateConflict("quality pass rows disappeared")
+                if policy is None or policy.status not in {"activation_candidate", "active"}:
+                    raise QualityGateValidationError("quality gate policy is not selectable")
+                prepared_a = self.transaction_preparer(
+                    session, run_id=run_id, policy_version=policy_version, profile_source=profile_source,
+                    requested_by=actor, scope="quality_sample", trigger="quality_gate",
+                )
+                prepared_ids.append(prepared_a.created.execution_id)
+                prepared_b = self.transaction_preparer(
+                    session, run_id=run_id, policy_version=policy_version, profile_source=profile_source,
+                    requested_by=actor, scope="quality_sample", trigger="quality_gate",
+                )
+                prepared_ids.append(prepared_b.created.execution_id)
+                first, second = prepared_a.created, prepared_b.created
+                if first.execution_id == second.execution_id:
+                    raise QualityGateConflict("quality passes must be independent")
+                execution_a, execution_b = prepared_a.row, prepared_b.row
+                input_a = _load_execution_artifact(root, first.execution_id, "screening-input.json", expected_digest=execution_a.input_artifact_digest)
+                input_b = _load_execution_artifact(root, second.execution_id, "screening-input.json", expected_digest=execution_b.input_artifact_digest)
+                if not _input_binding_valid(input_a, execution_a, sample, sample_ids) or not _input_binding_valid(input_b, execution_b, sample, sample_ids):
+                    raise QualityGateConflict("quality pass input binding is invalid")
+                if _canonical_pass_input(input_a) != _canonical_pass_input(input_b):
+                    raise QualityGateConflict("quality pass frozen input combination differs")
+                if input_a.get("candidate_count") != 40 or input_b.get("candidate_count") != 40:
+                    raise QualityGateValidationError("quality pass must contain exactly 40 notices")
+                if not _input_matches_fixed_sample(input_a, sample, sample_ids) or not _input_matches_fixed_sample(input_b, sample, sample_ids):
+                    raise QualityGateConflict("quality pass notices do not match the fixed sample")
                 if execution_a.scope != "quality_sample" or execution_b.scope != "quality_sample":
                     raise QualityGateConflict("quality pass scope is invalid")
                 profile = session.scalar(select(CompanyProfileSnapshot).where(CompanyProfileSnapshot.version == execution_a.company_profile_version))
@@ -494,68 +518,41 @@ class QualityGateService:
                 ):
                     raise QualityGateConflict("quality pass policy identity differs")
                 gate = QualityGate(
-                    gate_id=gate_id,
-                    purpose=purpose,
-                    execution_status="대기",
-                    result_status="미측정",
-                    baseline_run_id=run_id,
-                    sample_artifact_path=_safe_relative(FIXED_SAMPLE_RELATIVE),
-                    sample_artifact_digest=sample_digest,
-                    baseline_decisions_path=_safe_relative(FIXED_BASELINE_RELATIVE),
-                    baseline_decisions_digest=baseline_digest,
-                    policy_version=policy_version,
-                    prompt_version=execution_a.prompt_version,
-                    model_name=execution_a.model_name,
-                    model_digest=execution_a.model_digest,
-                    company_profile_version=execution_a.company_profile_version,
+                    gate_id=gate_id, purpose=purpose, execution_status="대기", result_status="미측정",
+                    baseline_run_id=run_id, sample_artifact_path=_safe_relative(FIXED_SAMPLE_RELATIVE),
+                    sample_artifact_digest=sample_digest, baseline_decisions_path=_safe_relative(FIXED_BASELINE_RELATIVE),
+                    baseline_decisions_digest=baseline_digest, policy_version=policy_version,
+                    prompt_version=execution_a.prompt_version, model_name=execution_a.model_name,
+                    model_digest=execution_a.model_digest, company_profile_version=execution_a.company_profile_version,
                     company_profile_digest=execution_a.company_profile_digest,
-                    pass_a_execution_id=first.execution_id,
-                    pass_b_execution_id=second.execution_id,
-                    created_by=actor,
-                    created_at=now,
-                    completed_at=None,
-                    metrics_json=_initial_metrics(sample_ids),
+                    pass_a_execution_id=first.execution_id, pass_b_execution_id=second.execution_id,
+                    created_by=actor, created_at=now, completed_at=None, metrics_json=_initial_metrics(sample_ids),
                     reasons_json=["execution_pending"],
                 )
                 session.add(gate)
                 session.flush()
                 session.add(QualityGateEvaluation(
-                    evaluation_id=_evaluation_id(), gate_id=gate_id, revision=1,
-                    result_status="미측정", metrics_json=gate.metrics_json,
-                    reasons_json=["execution_pending"], valid_review_count=0,
+                    evaluation_id=_evaluation_id(), gate_id=gate_id, revision=1, result_status="미측정",
+                    metrics_json=gate.metrics_json, reasons_json=["execution_pending"], valid_review_count=0,
                     distinct_notice_review_count=0, created_at=now,
                 ))
                 session.add(AuditEvent(
-                    event_id="audit-" + uuid4().hex,
-                    event_type="quality_gate.created",
-                    actor=actor,
-                    target_type="quality_gate",
-                    target_id=gate_id,
-                    occurred_at=now,
+                    event_id="audit-" + uuid4().hex, event_type="quality_gate.created", actor=actor,
+                    target_type="quality_gate", target_id=gate_id, occurred_at=now,
                     details_json={
-                        "purpose": purpose,
-                        "policy_version": policy_version,
-                        "prompt_version": execution_a.prompt_version,
-                        "model_name": execution_a.model_name,
+                        "purpose": purpose, "policy_version": policy_version,
+                        "prompt_version": execution_a.prompt_version, "model_name": execution_a.model_name,
                         "model_digest": execution_a.model_digest,
                         "company_profile_version": execution_a.company_profile_version,
                         "company_profile_digest": execution_a.company_profile_digest,
-                        "sample_artifact_digest": sample_digest,
-                        "baseline_decisions_digest": baseline_digest,
-                        "pass_a_execution_id": first.execution_id,
-                        "pass_b_execution_id": second.execution_id,
+                        "sample_artifact_digest": sample_digest, "baseline_decisions_digest": baseline_digest,
+                        "pass_a_execution_id": first.execution_id, "pass_b_execution_id": second.execution_id,
                     },
                 ))
                 session.flush()
                 return gate
         except Exception:
-            # Staged IDs are never queue-visible.  Cleanup is narrowly scoped
-            # to those generated execution directories and therefore cannot
-            # delete an unrelated caller artifact.
-            if staged_rows or isinstance(self.orchestrator, ScreeningOrchestrator):
-                self._cleanup_staged_artifacts(created_ids)
-            else:
-                self._cleanup_unbound_passes(created_ids)
+            self._cleanup_prepared_artifacts(prepared_ids)
             raise
 
     create = create_gate
@@ -628,7 +625,6 @@ class QualityGateService:
     def refresh(self, gate_id: str) -> QualityGateEvaluation:
         """Reconcile pass statuses and append the newest immutable evaluation."""
 
-        root = Path(self.settings.bidops_root)
         with self._session(immediate=True) as session:
             gate, a, b = self._gate_and_rows(session, gate_id)
             aggregate = _status_for_executions(a.status, b.status)
@@ -642,74 +638,19 @@ class QualityGateService:
             reviews = self._reviews(session, gate.gate_id)
             if aggregate == "완료":
                 try:
-                    input_a = _load_execution_artifact(root, a.execution_id, "screening-input.json")
-                    input_b = _load_execution_artifact(root, b.execution_id, "screening-input.json")
-                    decisions_a = _load_execution_artifact(root, a.execution_id, "screening-decisions.json")
-                    decisions_b = _load_execution_artifact(root, b.execution_id, "screening-decisions.json")
-                    sample_raw, baseline_raw, sample, baseline, ids = self._fixed_for_metrics(root, gate)
-                    structure: list[str] = []
-                    if input_a.get("execution_id") != a.execution_id or input_b.get("execution_id") != b.execution_id:
-                        structure.append("execution_identity_mismatch")
-                    if input_a.get("run_id") != gate.baseline_run_id or input_b.get("run_id") != gate.baseline_run_id:
-                        structure.append("run_identity_mismatch")
-                    if not _input_matches_fixed_sample(input_a, sample, ids) or not _input_matches_fixed_sample(input_b, sample, ids):
-                        structure.append("fixed_input_notice_mismatch")
-                    if any(
-                        value.get("policy_version") != gate.policy_version
-                        or value.get("prompt_version") != gate.prompt_version
-                        or value.get("company_profile_version") != gate.company_profile_version
-                        or value.get("company_profile_digest") != gate.company_profile_digest
-                        for value in (input_a, input_b)
-                    ):
-                        structure.append("metadata_identity_mismatch")
-                    for value, execution in ((decisions_a, a), (decisions_b, b)):
-                        if (
-                            value.get("execution_id") != execution.execution_id
-                            or value.get("run_id") != gate.baseline_run_id
-                            or value.get("model_name") != gate.model_name
-                            or value.get("model_digest") != gate.model_digest
-                            or value.get("prompt_version") != gate.prompt_version
-                            or value.get("policy_version") != gate.policy_version
-                            or value.get("company_profile_version") != gate.company_profile_version
-                            or value.get("company_profile_digest") != gate.company_profile_digest
-                        ):
-                            structure.append("decision_metadata_mismatch")
-                    if _canonical_pass_input(input_a) != _canonical_pass_input(input_b):
-                        structure.append("ab_input_digest_mismatch")
-                    if sha256_bytes(sample_raw) != gate.sample_artifact_digest or sha256_bytes(baseline_raw) != gate.baseline_decisions_digest:
-                        structure.append("input_digest_mismatch")
-                    metrics = calculate_metrics(decisions_a, decisions_b, baseline=baseline, reviews=reviews, sample_ids=ids, expected_sample_count=40, input_a=input_a, input_b=input_b)
-                    if "fixed_input_notice_mismatch" in structure:
-                        for pass_name, value in (("A", input_a), ("B", input_b)):
-                            if not _input_matches_fixed_sample(value, sample, ids):
-                                metrics["excluded_notices"].extend(
-                                    {"notice_id": notice_id, "pass": pass_name, "reason": "fixed_input_notice_mismatch"}
-                                    for notice_id in ids
-                                )
-                    if "ab_input_digest_mismatch" in structure:
-                        metrics["excluded_notices"].extend(
-                            {"notice_id": notice_id, "pass": pass_name, "reason": "input_digest_mismatch"}
-                            for pass_name in ("A", "B") for notice_id in ids
-                        )
-                    if "metadata_identity_mismatch" in structure:
-                        metrics["excluded_notices"].extend(
-                            {"notice_id": notice_id, "pass": pass_name, "reason": "metadata_identity_mismatch"}
-                            for pass_name in ("A", "B") for notice_id in ids
-                        )
-                    if "decision_metadata_mismatch" in structure:
-                        metrics["excluded_notices"].extend(
-                            {"notice_id": notice_id, "pass": pass_name, "reason": "decision_metadata_mismatch"}
-                            for pass_name in ("A", "B") for notice_id in ids
-                        )
-                    valid_count = int((metrics.get("evidence_validity") or {}).get("valid_review_count", 0))
-                    distinct_count = int((metrics.get("evidence_validity") or {}).get("distinct_notice_review_count", 0))
-                    structure.extend(_metric_structure_reasons(metrics))
+                    metrics, valid_count, distinct_count, structure = self._calculate_gate_metrics(
+                        gate=gate, execution_a=a, execution_b=b, reviews=reviews,
+                    )
                     result, reasons = _result_for_metrics(execution_status=aggregate, metrics=metrics, valid_review_count=valid_count, distinct_notice_review_count=distinct_count, structure_reasons=structure)
                 except (QualityGateError, ArtifactError, QualityMetricError, KeyError, TypeError, ValueError):
                     metrics = gate.metrics_json if isinstance(gate.metrics_json, dict) else {}
-                    valid_count = 0
-                    distinct_count = 0
-                    result, reasons = "보류", ["calculation_impossible"]
+                    valid_count = sum(row.get("evidence_judgment") in {"동의", "근거 부족"} for row in reviews)
+                    distinct_count = len({row.get("notice_id") for row in reviews if row.get("evidence_judgment") in {"동의", "근거 부족"}})
+                    result, reasons = _result_for_metrics(
+                        execution_status=aggregate, metrics=metrics,
+                        valid_review_count=valid_count, distinct_notice_review_count=distinct_count,
+                        structure_reasons=["calculation_impossible"],
+                    )
             else:
                 metrics = dict(gate.metrics_json) if isinstance(gate.metrics_json, dict) else {}
                 excluded = list(metrics.get("excluded_notices", []))
@@ -734,6 +675,96 @@ class QualityGateService:
         _sample, _baseline, _sample_raw, _baseline_raw, ids = validate_fixed_inputs(root)
         return sample_raw, baseline_raw, sample, baseline, ids
 
+    def _calculate_gate_metrics(
+        self,
+        *,
+        gate: QualityGate,
+        execution_a: ScreeningExecution,
+        execution_b: ScreeningExecution,
+        reviews: Sequence[Mapping[str, Any]],
+    ) -> tuple[dict[str, Any], int, int, list[str]]:
+        """Load and validate one authoritative A/B calculation input set.
+
+        Refresh and review PUT deliberately call this same routine.  Every
+        execution, input, decision, fixed-file, and review binding is checked
+        before a metric is allowed to contribute to a denominator.
+        """
+
+        root = Path(self.settings.bidops_root)
+        input_a = _load_execution_artifact(root, execution_a.execution_id, "screening-input.json", expected_digest=execution_a.input_artifact_digest)
+        input_b = _load_execution_artifact(root, execution_b.execution_id, "screening-input.json", expected_digest=execution_b.input_artifact_digest)
+        decisions_a = _load_execution_artifact(root, execution_a.execution_id, "screening-decisions.json")
+        decisions_b = _load_execution_artifact(root, execution_b.execution_id, "screening-decisions.json")
+        sample_raw, baseline_raw, sample, baseline, ids = self._fixed_for_metrics(root, gate)
+        structure: list[str] = []
+        input_binding = {}
+        for pass_name, execution, input_value in (("A", execution_a, input_a), ("B", execution_b, input_b)):
+            input_binding[pass_name] = _input_binding_valid(input_value, execution, sample, ids)
+            if not input_binding[pass_name]:
+                structure.append(f"{pass_name}_input_binding_invalid")
+            if not _input_matches_fixed_sample(input_value, sample, ids):
+                structure.append(f"{pass_name}_fixed_input_notice_mismatch")
+        frozen_mismatch = _canonical_pass_input(input_a) != _canonical_pass_input(input_b)
+        if frozen_mismatch:
+            structure.append("ab_input_digest_mismatch")
+        fixed_digest_mismatch = sha256_bytes(sample_raw) != gate.sample_artifact_digest or sha256_bytes(baseline_raw) != gate.baseline_decisions_digest
+        if fixed_digest_mismatch:
+            structure.append("input_digest_mismatch")
+        binding_issues = _decisions_binding_issues(decisions_a, execution_a, input_a, ids, pass_name="A")
+        binding_issues.extend(_decisions_binding_issues(decisions_b, execution_b, input_b, ids, pass_name="B"))
+        invalid_by_pass = {
+            pass_name: {row["notice_id"] for row in binding_issues if row.get("pass") == pass_name and row.get("notice_id")}
+            for pass_name in ("A", "B")
+        }
+        if not input_binding["A"]:
+            invalid_by_pass["A"].update(ids)
+        if not input_binding["B"]:
+            invalid_by_pass["B"].update(ids)
+        if frozen_mismatch or fixed_digest_mismatch:
+            invalid_by_pass["A"].update(ids)
+            invalid_by_pass["B"].update(ids)
+
+        def valid_decisions(value: Mapping[str, Any], pass_name: str) -> Mapping[str, Any]:
+            invalid = invalid_by_pass[pass_name]
+            if not invalid or not isinstance(value.get("judgments"), list):
+                return value
+            filtered = dict(value)
+            filtered["judgments"] = [
+                item for item in value["judgments"]
+                if not isinstance(item, Mapping) or item.get("notice_id") not in invalid
+            ]
+            return filtered
+
+        metrics = calculate_metrics(
+            valid_decisions(decisions_a, "A"), valid_decisions(decisions_b, "B"), baseline=baseline, reviews=reviews,
+            sample_ids=ids, expected_sample_count=40, input_a=input_a, input_b=input_b,
+        )
+        if not input_binding["A"]:
+            metrics["excluded_notices"].extend({"notice_id": notice_id, "pass": "A", "reason": "screening_input_binding_invalid"} for notice_id in ids)
+        if not input_binding["B"]:
+            metrics["excluded_notices"].extend({"notice_id": notice_id, "pass": "B", "reason": "screening_input_binding_invalid"} for notice_id in ids)
+        if frozen_mismatch:
+            metrics["excluded_notices"].extend(
+                {"notice_id": notice_id, "pass": pass_name, "reason": "input_digest_mismatch"}
+                for pass_name in ("A", "B") for notice_id in ids
+            )
+        if fixed_digest_mismatch:
+            metrics["excluded_notices"].extend(
+                {"notice_id": notice_id, "pass": pass_name, "reason": "fixed_artifact_digest_mismatch"}
+                for pass_name in ("A", "B") for notice_id in ids
+            )
+        metrics["excluded_notices"].extend(binding_issues)
+        if binding_issues:
+            structure.append("decisions_binding_invalid")
+        if any(reason.endswith("fixed_input_notice_mismatch") for reason in structure):
+            for pass_name, input_value in (("A", input_a), ("B", input_b)):
+                if not _input_matches_fixed_sample(input_value, sample, ids):
+                    metrics["excluded_notices"].extend({"notice_id": notice_id, "pass": pass_name, "reason": "fixed_input_notice_mismatch"} for notice_id in ids)
+        valid = int((metrics.get("evidence_validity") or {}).get("valid_review_count", 0))
+        distinct = int((metrics.get("evidence_validity") or {}).get("distinct_notice_review_count", 0))
+        structure.extend(_metric_structure_reasons(metrics))
+        return metrics, valid, distinct, list(dict.fromkeys(structure))
+
     def upsert_review(
         self,
         gate_id: str,
@@ -755,13 +786,19 @@ class QualityGateService:
             raise QualityGateValidationError("note must be null or nonblank")
         root = Path(self.settings.bidops_root)
         with self._session(immediate=True) as session:
-            gate, a, _b = self._gate_and_rows(session, gate_id)
+            gate, a, b = self._gate_and_rows(session, gate_id)
             if a.status not in EXECUTION_COMPLETED:
                 raise QualityGateConflict("pass A is not a completed execution")
-            decisions = _load_execution_artifact(root, a.execution_id, "screening-decisions.json")
-            judgments, _ = self._judgments_by_id(decisions)
-            judgment = judgments.get(notice_id)
-            if judgment is None:
+            input_a = _load_execution_artifact(root, a.execution_id, "screening-input.json", expected_digest=a.input_artifact_digest)
+            decisions_a = _load_execution_artifact(root, a.execution_id, "screening-decisions.json")
+            _sample_raw, _baseline_raw, _sample, _baseline, ids = self._fixed_for_metrics(root, gate)
+            binding_issues = _decisions_binding_issues(decisions_a, a, input_a, ids, pass_name="A")
+            valid_judgments, _ = _judgment_map(
+                decisions_a,
+                pass_name="A",
+                notices={item["notice_id"]: item for item in input_a.get("notices", []) if isinstance(item, Mapping) and isinstance(item.get("notice_id"), str)},
+            )
+            if notice_id not in ids or notice_id not in valid_judgments or any(row.get("notice_id") == notice_id for row in binding_issues):
                 raise QualityGateValidationError("notice is not a pass A judgment")
             # A mismatch is retained as a review row but excluded from the
             # denominator, making the audit trail explicit and reversible.
@@ -794,19 +831,23 @@ class QualityGateService:
             session.flush()
             # A review update creates a revision even when its value is the
             # same; the review PUT itself is an immutable evaluation event.
-            aggregate = _status_for_executions(a.status, _b.status)
+            aggregate = _status_for_executions(a.status, b.status)
             reviews = self._reviews(session, gate_id)
             if aggregate == "완료":
                 try:
-                    decisions_b = _load_execution_artifact(root, _b.execution_id, "screening-decisions.json")
-                    _sample, baseline, _sample_raw, _baseline_raw, ids = validate_fixed_inputs(root)
-                    decisions_a = decisions
-                    metrics = calculate_metrics(decisions_a, decisions_b, baseline=baseline, reviews=reviews, sample_ids=ids, expected_sample_count=40)
-                    valid = int((metrics.get("evidence_validity") or {}).get("valid_review_count", 0))
-                    distinct = int((metrics.get("evidence_validity") or {}).get("distinct_notice_review_count", 0))
-                    result, reasons = _result_for_metrics(execution_status=aggregate, metrics=metrics, valid_review_count=valid, distinct_notice_review_count=distinct, structure_reasons=_metric_structure_reasons(metrics))
+                    metrics, valid, distinct, structure = self._calculate_gate_metrics(
+                        gate=gate, execution_a=a, execution_b=b, reviews=reviews,
+                    )
+                    result, reasons = _result_for_metrics(execution_status=aggregate, metrics=metrics, valid_review_count=valid, distinct_notice_review_count=distinct, structure_reasons=structure)
                 except Exception:
-                    metrics, valid, distinct, result, reasons = gate.metrics_json, 0, 0, "보류", ["calculation_impossible"]
+                    metrics = gate.metrics_json if isinstance(gate.metrics_json, dict) else {}
+                    valid = sum(row.get("evidence_judgment") in {"동의", "근거 부족"} for row in reviews)
+                    distinct = len({row.get("notice_id") for row in reviews if row.get("evidence_judgment") in {"동의", "근거 부족"}})
+                    result, reasons = _result_for_metrics(
+                        execution_status=aggregate, metrics=metrics,
+                        valid_review_count=valid, distinct_notice_review_count=distinct,
+                        structure_reasons=["calculation_impossible"],
+                    )
             else:
                 metrics, valid, distinct, result, reasons = gate.metrics_json, 0, 0, "미측정", ["execution_not_terminal"]
             self._append_evaluation(session, gate, result_status=result, metrics=metrics, reasons=reasons + ["review_updated"], valid_reviews=valid, distinct_reviews=distinct, force=True)
