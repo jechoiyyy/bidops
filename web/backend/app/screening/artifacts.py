@@ -86,10 +86,31 @@ def _probe_renameat2(directory_fd: int) -> None:
     )
     expected: dict[str, tuple[int, int] | None] = {}
 
+    def recover_created_identity(name: str, is_directory: bool) -> tuple[int, int] | None:
+        """Record a just-created probe inode when its fd identity is unavailable."""
+
+        try:
+            value = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+        except OSError:
+            return None
+        if is_directory and not stat_module.S_ISDIR(value.st_mode):
+            return None
+        if not is_directory and not stat_module.S_ISREG(value.st_mode):
+            return None
+        identity = (value.st_dev, value.st_ino)
+        # ``create`` owns the name because mkdir/O_EXCL succeeded immediately
+        # before this recovery.  Keep that proof in the same cleanup ledger;
+        # no pathname is removed without this identity check.
+        expected[name] = identity
+        return identity
+
     def create(name: str, is_directory: bool) -> tuple[int, int]:
+        fd: int | None = None
+        created = False
         try:
             if is_directory:
                 os.mkdir(name, mode=0o700, dir_fd=directory_fd)
+                created = True
                 fd = os.open(
                     name,
                     os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
@@ -102,13 +123,16 @@ def _probe_renameat2(directory_fd: int) -> None:
                     0o600,
                     dir_fd=directory_fd,
                 )
-            try:
-                value = os.fstat(fd)
-                return value.st_dev, value.st_ino
-            finally:
-                os.close(fd)
+                created = True
+            value = os.fstat(fd)
+            return value.st_dev, value.st_ino
         except OSError as exc:
+            if created and recover_created_identity(name, is_directory) is not None:
+                raise ArtifactError("atomic renameat2 probe identity capture failed") from None
             raise ArtifactError("atomic renameat2 capability probe setup failed") from exc
+        finally:
+            if fd is not None:
+                os.close(fd)
 
     def verify(name: str, identity: tuple[int, int], is_directory: bool) -> None:
         fd: int | None = None
