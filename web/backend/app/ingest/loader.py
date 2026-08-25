@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 from collections import Counter
 from dataclasses import dataclass, field
@@ -45,6 +46,19 @@ from .contracts import (
 
 
 RUN_ID_RE = re.compile(r"^(?P<directory>.+)--(?P<generated>\d{8}T\d{6}(?:\.\d{1,6})?Z)$")
+EXECUTION_ID_RE = re.compile(r"^scr-[0-9a-f]{32}$")
+SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+DECIMAL_RE = re.compile(r"^[+-]?\d+(?:\.\d+)?$")
+
+
+def _is_aware_iso(value: Any) -> bool:
+    if not isinstance(value, str):
+        return False
+    try:
+        parsed = datetime.fromisoformat(value[:-1] + "+00:00" if value.endswith("Z") else value)
+    except ValueError:
+        return False
+    return parsed.tzinfo is not None and parsed.utcoffset() is not None
 DEFAULT_TIMEZONE = "Asia/Seoul"
 
 
@@ -788,6 +802,137 @@ _SCREENING_INPUT_KEYS = {
 }
 
 
+def _screening_input_error(raw: Any) -> str | None:
+    """Return a safe reason when a v3 input is not a closed artifact contract."""
+    if not isinstance(raw, dict) or set(raw) != _SCREENING_INPUT_KEYS:
+        return "top-level fields are not exact"
+    if raw.get("schema_version") != "bidops.screening-input.v1":
+        return "schema version is invalid"
+    if not isinstance(raw.get("execution_id"), str) or EXECUTION_ID_RE.fullmatch(raw["execution_id"]) is None:
+        return "execution id is invalid"
+    for key in ("run_id", "policy_version", "prompt_version", "company_profile_version"):
+        if not isinstance(raw.get(key), str) or not raw[key].strip():
+            return "identity field is invalid"
+    if "/" in raw["run_id"] or "\\" in raw["run_id"] or Path(raw["run_id"]).name != raw["run_id"]:
+        return "run identity is unsafe"
+    digest = raw.get("company_profile_digest")
+    if not isinstance(digest, str) or SHA256_RE.fullmatch(digest) is None or raw.get("company_profile_version") != f"company-profile.sha256:{digest}":
+        return "profile identity is invalid"
+    generated = raw.get("generated_at")
+    if not isinstance(generated, str):
+        return "generated_at is invalid"
+    try:
+        parsed_generated = datetime.fromisoformat(generated[:-1] + "+00:00" if generated.endswith("Z") else generated)
+    except ValueError:
+        return "generated_at is invalid"
+    if parsed_generated.tzinfo is None or parsed_generated.utcoffset() is None:
+        return "generated_at is not timezone-aware"
+    window = raw.get("source_window")
+    if not isinstance(window, dict) or set(window) != {"from", "to", "timezone"} or window.get("timezone") != DEFAULT_TIMEZONE:
+        return "source window is invalid"
+    try:
+        window_from = date.fromisoformat(window["from"])
+        window_to = date.fromisoformat(window["to"])
+    except (TypeError, ValueError):
+        return "source window dates are invalid"
+    if window_from > window_to:
+        return "source window is reversed"
+    notices = raw.get("notices")
+    if not isinstance(notices, list) or type(raw.get("candidate_count")) is not int or raw["candidate_count"] < 0 or raw["candidate_count"] != len(notices):
+        return "candidate count is invalid"
+    expected_keys = set(_SCREENING_COMMON_NOTICE_KEYS) | {"judgment_mode", "carry_over_from", "rejudge_reason"}
+    seen: set[str] = set()
+    for notice in notices:
+        if not isinstance(notice, dict) or set(notice) != expected_keys:
+            return "notice fields are not exact"
+        notice_id = notice.get("notice_id")
+        if not isinstance(notice_id, str) or not notice_id.strip() or notice_id in seen:
+            return "notice identity is duplicated or invalid"
+        seen.add(notice_id)
+        common = {key: notice[key] for key in _SCREENING_COMMON_NOTICE_KEYS}
+        if (not isinstance(common["source_type"], str) or common["source_type"] not in {"bid_notice", "pre_spec"} or
+                not isinstance(common["collection_bucket"], str) or common["collection_bucket"] not in {"candidate_pool", "audit_pool"}):
+            return "notice enum is invalid"
+        for key in ("title", "agency", "method", "url"):
+            if common[key] is not None and (not isinstance(common[key], str) or not common[key].strip()):
+                return "notice string is invalid"
+        for key in ("published_at", "deadline_at"):
+            if common[key] is not None:
+                if not isinstance(common[key], str):
+                    return "notice timestamp is invalid"
+                try:
+                    parsed = datetime.fromisoformat(common[key][:-1] + "+00:00" if common[key].endswith("Z") else common[key])
+                except ValueError:
+                    return "notice timestamp is invalid"
+                if parsed.tzinfo is None or parsed.utcoffset() is None:
+                    return "notice timestamp is not timezone-aware"
+        for key in ("budget", "estimated_price"):
+            if common[key] is not None and (not isinstance(common[key], str) or DECIMAL_RE.fullmatch(common[key]) is None):
+                return "notice decimal is invalid"
+        if not isinstance(common["candidate_sources"], list) or any(not isinstance(item, str) or not item.strip() for item in common["candidate_sources"]):
+            return "candidate_sources is invalid"
+        if not isinstance(common["unknown_fields"], list) or any(not isinstance(item, str) or not item.strip() for item in common["unknown_fields"]):
+            return "unknown_fields is invalid"
+        if common["performance_top_score"] is not None and (not isinstance(common["performance_top_score"], (int, float)) or isinstance(common["performance_top_score"], bool) or not math.isfinite(float(common["performance_top_score"]))):
+            return "performance score is invalid"
+        raw_source = common["raw_source"]
+        if not isinstance(raw_source, str) or not raw_source or raw_source.startswith("/") or "\\" in raw_source or any(part in {"", ".", ".."} or ":" in part for part in raw_source.split("/")):
+            return "raw_source is unsafe"
+        nested = {
+            "procurement_class": {"large", "middle", "detail", "code"},
+            "region_limit": {"basis", "joint_contract_regions", "joint_contract_rate", "regional_joint_contract_limit"},
+            "lifecycle": {"pre_spec_no", "re_notice", "changed_at", "change_reason", "unified_notice_no", "previous_failed_notice_no"},
+        }
+        for key, keys in nested.items():
+            if not isinstance(common[key], dict) or set(common[key]) != keys:
+                return "notice nested fields are not exact"
+            if any(value is not None and (not isinstance(value, str) or not value.strip()) for value in common[key].values() if key != "region_limit" or value != common[key].get("joint_contract_regions")):
+                return "notice nested string is invalid"
+        qualification = common["qualification_flags"]
+        qualification_keys = {"participation_limited", "industry_limited", "information_business", "general_service", "service_division", "joint_contract_method", "performance_restricted_competition", "pq_evaluation", "technical_evaluation", "technical_evaluation_rate", "successful_bid_method"}
+        if not isinstance(qualification, dict) or (qualification and set(qualification) != qualification_keys):
+            return "qualification flags are invalid"
+        if any(value is not None and (not isinstance(value, str) or not value.strip()) for value in qualification.values()):
+            return "qualification flags are invalid"
+        lifecycle_changed = common["lifecycle"].get("changed_at")
+        if lifecycle_changed is not None and not _is_aware_iso(lifecycle_changed):
+            return "lifecycle timestamp is invalid"
+        if common["sample_role"] is not None and common["sample_role"] not in {"analysis", "audit"}:
+            return "sample role is invalid"
+        if common["sample_stratum"] is not None and common["sample_stratum"] not in {"AI/데이터", "블록체인·DID", "공공 SI·통합관리", "수행실적 유사", "분류 근접", "실적 유사 근접", "무작위"}:
+            return "sample stratum is invalid"
+        if not isinstance(common["region_limit"]["joint_contract_regions"], list) or any(not isinstance(item, str) or not item.strip() for item in common["region_limit"]["joint_contract_regions"]):
+            return "region list is invalid"
+        if not isinstance(common["attachments"], list) or any(not isinstance(item, dict) or set(item) != {"name", "url"} or any(not isinstance(item[key], str) or not item[key].strip() for key in ("name", "url")) for item in common["attachments"]):
+            return "attachments are invalid"
+        focus_keys = {"axis", "label", "matched_field", "matched_text", "field_kind"}
+        if not isinstance(common["focus_matches"], list) or any(not isinstance(item, dict) or set(item) != focus_keys or item.get("field_kind") not in {"title", "classification", "other"} or any(not isinstance(item[key], str) or not item[key].strip() for key in ("axis", "label", "matched_field", "matched_text")) for item in common["focus_matches"]):
+            return "focus matches are invalid"
+        performance_keys = {"project_name", "source_page", "similarity", "common_fragment", "legal_qualification_status"}
+        for item in common["performance_matches"] if isinstance(common["performance_matches"], list) else ():
+            if not isinstance(item, dict) or set(item) != performance_keys:
+                return "performance matches are invalid"
+            page = item.get("source_page")
+            if not isinstance(item.get("project_name"), str) or not item["project_name"].strip() or (not isinstance(page, int) and not (isinstance(page, str) and page.strip())) or isinstance(page, bool) or (isinstance(page, int) and page < 0) or not isinstance(item.get("similarity"), (int, float)) or isinstance(item.get("similarity"), bool) or not math.isfinite(float(item["similarity"])) or not isinstance(item.get("legal_qualification_status"), str) or not item["legal_qualification_status"].strip() or (item.get("common_fragment") is not None and (not isinstance(item["common_fragment"], str) or not item["common_fragment"].strip())):
+                return "performance matches are invalid"
+        if not isinstance(common["performance_matches"], list):
+            return "performance matches are invalid"
+        mode = notice["judgment_mode"]
+        if mode not in {"신규", "재판정", "승계"}:
+            return "judgment mode is invalid"
+        if mode == "신규" and (notice["carry_over_from"] is not None or notice["rejudge_reason"] is not None):
+            return "new judgment cross-fields are invalid"
+        if mode == "재판정" and (notice["carry_over_from"] is not None or notice["rejudge_reason"] not in {"정정", "재공고", "본공고 전환", "담당자 요청"}):
+            return "rejudgment cross-fields are invalid"
+        if mode == "승계" and (not isinstance(notice["carry_over_from"], str) or not notice["carry_over_from"].strip() or notice["rejudge_reason"] is not None):
+            return "carry-over cross-fields are invalid"
+        try:
+            NoticeContract.model_validate(common)
+        except ValidationError:
+            return "notice contract is invalid"
+    return None
+
+
 def _load_screening_input_notices(
     session: Session,
     run_id: str,
@@ -804,37 +949,24 @@ def _load_screening_input_notices(
     """
     if raw.get("schema_version") != "bidops.screening-input.v1":
         return {}
-    if set(raw) != _SCREENING_INPUT_KEYS:
+    invalid_reason = _screening_input_error(raw)
+    if invalid_reason is not None:
         _record_warning(
             session, run_id, "error", "screening_input_invalid",
-            "screening-input.json 최상위 필드가 정확하지 않습니다.", {"file": source_file},
+            "screening-input.json 계약을 해석하지 못했습니다.", {"file": source_file, "reason": invalid_reason},
         )
         return {}
+    if not isinstance(raw, dict):
+        return {}
     notices_raw = raw.get("notices")
-    if not isinstance(notices_raw, list) or raw.get("candidate_count") != len(notices_raw):
-        _record_warning(
-            session, run_id, "error", "screening_input_invalid",
-            "screening-input.json에 notices 목록이 없습니다.", {"file": source_file},
-        )
+    if not isinstance(notices_raw, list):
         return {}
     notices: dict[str, Notice] = {}
     input_keys = set(_SCREENING_COMMON_NOTICE_KEYS) | {"judgment_mode", "carry_over_from", "rejudge_reason"}
     for index, raw_notice in enumerate(notices_raw):
         if not isinstance(raw_notice, dict) or set(raw_notice) != input_keys:
-            _record_warning(
-                session, run_id, "error", "screening_input_notice_invalid",
-                "screening-input.json 공고 항목이 불완전합니다.", {"file": source_file, "index": index},
-            )
-            continue
-        try:
-            notice_model = NoticeContract.model_validate({key: raw_notice[key] for key in _SCREENING_COMMON_NOTICE_KEYS})
-        except ValidationError as exc:
-            _record_warning(
-                session, run_id, "error", "screening_input_notice_invalid",
-                "screening-input.json 공고 항목 계약을 해석하지 못했습니다.",
-                {"file": source_file, "index": index, "error": str(exc)},
-            )
-            continue
+            return {}
+        notice_model = NoticeContract.model_validate({key: raw_notice[key] for key in _SCREENING_COMMON_NOTICE_KEYS})
         item = _upsert_notice(session, run_id, notice_model, {key: raw_notice[key] for key in _SCREENING_COMMON_NOTICE_KEYS}, timezone_name)
         if item is not None:
             notices[item.notice_key] = item

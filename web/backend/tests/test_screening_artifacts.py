@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from app.screening.artifacts import ArtifactError, ArtifactStore
+from app.screening.worker import ScreeningWorker, WorkerError
 
 
 EXECUTION_ID = "scr-" + "a" * 32
@@ -36,3 +37,15 @@ def test_append_jsonl_is_exact_and_atomic_write_failure_is_safe(tmp_path: Path, 
     with pytest.raises(ArtifactError):
         store.write_bytes(EXECUTION_ID, "atomic.json", b"content")
     assert not (tmp_path / "data/screening-executions" / EXECUTION_ID / "atomic.json").exists()
+
+
+def test_publication_copy_never_dereferences_source_symlink(tmp_path: Path):
+    source = tmp_path / "source"
+    destination = tmp_path / "destination"
+    outside = tmp_path / "outside.txt"
+    source.mkdir()
+    outside.write_text("do not copy", encoding="utf-8")
+    (source / "leak.txt").symlink_to(outside)
+    with pytest.raises(WorkerError):
+        ScreeningWorker._copy_tree_nofollow(source, destination)
+    assert not destination.exists() or not (destination / "leak.txt").exists()

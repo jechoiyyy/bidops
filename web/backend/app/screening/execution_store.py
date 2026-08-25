@@ -10,7 +10,7 @@ from typing import Any
 from sqlalchemy import case, select, update
 from sqlalchemy.orm import Session
 
-from ..models import ScreeningExecution
+from ..models import Run, ScreeningExecution
 from .queue import (
     ACTIVE,
     INTERRUPTED,
@@ -179,6 +179,7 @@ class ScreeningExecutionStore(ScreeningQueue):
                     "finished_at": point,
                     "current_notice_id": None,
                     "current_stage": None,
+                    "published_run_id": None,
                 }
                 after = INTERRUPTED
             elif before == RUNNING:
@@ -188,6 +189,7 @@ class ScreeningExecutionStore(ScreeningQueue):
                     "stop_requested_at": point,
                     "stop_requested_by": actor,
                     "stop_reason": "user_requested",
+                    "published_run_id": None,
                 }
                 after = STOP_REQUESTED
             else:
@@ -232,6 +234,7 @@ class ScreeningExecutionStore(ScreeningQueue):
                     current_notice_id=None,
                     current_stage=None,
                     finished_at=point,
+                    published_run_id=None,
                 )
             )
             if changed.rowcount != 1:
@@ -318,6 +321,7 @@ class ScreeningExecutionStore(ScreeningQueue):
         failure_count: int | None = None,
         candidate_count: int | None = None,
         error_summary: str | None = None,
+        published_run_id: str | None = None,
         now: datetime | None = None,
     ) -> ScreeningExecution:
         """Transition a running execution to one legal terminal status."""
@@ -325,6 +329,9 @@ class ScreeningExecutionStore(ScreeningQueue):
         execution_id = self._execution_id(execution_id)
         if status not in _ALLOWED_TERMINAL:
             raise QueueValidationError("terminal status is invalid")
+        if published_run_id is not None:
+            if status not in {"성공", "부분 성공"} or not isinstance(published_run_id, str) or not published_run_id.strip():
+                raise QueueValidationError("published_run_id is only valid for successful publication")
         for label, value in {
             "candidate_count": candidate_count,
             "completed_count": completed_count,
@@ -346,6 +353,10 @@ class ScreeningExecutionStore(ScreeningQueue):
                 raise QueueValidationError("terminal counts must be monotonic")
             if completed + failures > candidate:
                 raise QueueValidationError("completed and failure counts exceed candidates")
+            if published_run_id is not None:
+                published = session.scalar(select(Run).where(Run.id == published_run_id))
+                if published is None:
+                    raise QueueValidationError("published run does not exist")
             values: dict[str, Any] = {
                 "status": status,
                 "active_slot": None,
@@ -355,6 +366,7 @@ class ScreeningExecutionStore(ScreeningQueue):
                 "candidate_count": candidate,
                 "completed_count": completed,
                 "failure_count": failures,
+                "published_run_id": published_run_id,
             }
             if summary is not None:
                 values["error_summary"] = summary
