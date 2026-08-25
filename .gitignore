@@ -15,8 +15,8 @@ reports/*/details/
 
 # 웹 계층에서 재생성할 수 있는 데이터와 빌드 산출물
 web/data/
-web/backend/.venv/
-web/frontend/node_modules/
+web/backend/.venv
+web/frontend/node_modules
 web/frontend/dist/
 
 # 아래 파일은 추적한다.
