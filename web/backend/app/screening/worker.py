@@ -496,6 +496,14 @@ class ScreeningWorker:
         }
         if set(old) != top_keys or old.get("run_id") != row.source_run_id or not isinstance(old.get("judgments"), list):
             return None
+        for key, expected in (
+            ("model_name", row.model_name), ("model_digest", row.model_digest),
+            ("prompt_version", row.prompt_version), ("policy_version", row.policy_version),
+            ("company_profile_version", row.company_profile_version),
+            ("company_profile_digest", row.company_profile_digest),
+        ):
+            if old.get(key) != expected:
+                return None
         values = [item for item in old.get("judgments", []) if isinstance(item, dict) and item.get("notice_id") == notice["notice_id"]]
         if len(values) != 1 or old.get("schema_version") != "bidops.decisions.v3":
             return None
