@@ -3,21 +3,30 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import sqlite3
+import sys
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from pathlib import Path
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import Column, Integer, MetaData, create_engine, inspect, select, Table
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.pool import StaticPool
 
 from app.db import Base, schema_bound
 from app.migrations import import_sqlite
-from app.migrations.import_sqlite import ImportContractError, run_import
+from app.migrations.import_sqlite import (
+    ImportContractError,
+    _drop_staging_objects,
+    _manifest_sha256,
+    _promote_staged,
+    _stage_snapshot,
+    run_import,
+)
 
 
 TABLE_DDL = {
@@ -75,6 +84,15 @@ def _build_snapshot(root: Path, *, unknown_column: bool = False) -> tuple[Path, 
     return backup, manifest
 
 
+def _load_source_tables(backup: Path) -> dict[str, list[dict[str, object]]]:
+    with sqlite3.connect(f"file:{backup}?mode=ro", uri=True) as connection:
+        connection.row_factory = sqlite3.Row
+        return {
+            source_table: [dict(row) for row in connection.execute(f'SELECT * FROM "{source_table}"').fetchall()]
+            for source_table in import_sqlite.LEGACY_COLUMNS
+        }
+
+
 @pytest.fixture
 def target_engine():
     return create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
@@ -90,6 +108,123 @@ def test_dry_run_reconciles_all_legacy_rows_and_files(tmp_path: Path, target_eng
     assert any(item["target_table"] == "screening_evidence" for item in report["tables"])
     assert report["errors"] == []
     assert str(tmp_path) not in json.dumps(report, ensure_ascii=False)
+
+
+def test_dry_run_never_writes_explicit_bind(tmp_path: Path, target_engine):
+    backup, manifest = _build_snapshot(tmp_path)
+    sentinel_metadata = MetaData()
+    sentinel = Table("dry_run_sentinel", sentinel_metadata, Column("id", Integer, primary_key=True))
+    sentinel_metadata.create_all(target_engine)
+    with target_engine.begin() as connection:
+        connection.execute(sentinel.insert(), {"id": 7})
+
+    report = run_import(sqlite_backup=backup, file_manifest=manifest, mode="dry_run", destination=target_engine)
+
+    assert report["success"] is True
+    with target_engine.connect() as connection:
+        assert connection.execute(select(sentinel.c.id)).scalars().all() == [7]
+    assert inspect(target_engine).get_table_names() == ["dry_run_sentinel"]
+
+
+def test_dry_run_without_destination_does_not_resolve_application_engine(tmp_path: Path, monkeypatch):
+    backup, manifest = _build_snapshot(tmp_path)
+
+    def fail_if_destination_resolved(*args, **kwargs):
+        pytest.fail("dry-run must not resolve or schema-bind the application engine")
+
+    monkeypatch.setattr(import_sqlite, "schema_bound", fail_if_destination_resolved)
+    report = run_import(sqlite_backup=backup, file_manifest=manifest, mode="dry_run")
+
+    assert report["success"] is True
+
+
+def test_staging_retry_is_idempotent_and_conflicting_rows_fail(tmp_path: Path, target_engine):
+    backup, manifest_path = _build_snapshot(tmp_path)
+    source_tables = _load_source_tables(backup)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    source_sha256 = hashlib.sha256(backup.read_bytes()).hexdigest()
+    manifest_sha256 = _manifest_sha256(manifest)
+
+    context = _stage_snapshot(
+        target_engine,
+        source_tables,
+        source_sha256=source_sha256,
+        manifest_sha256=manifest_sha256,
+        schema=None,
+    )
+    retry = _stage_snapshot(
+        target_engine,
+        source_tables,
+        source_sha256=source_sha256,
+        manifest_sha256=manifest_sha256,
+        schema=None,
+    )
+    with target_engine.connect() as connection:
+        assert connection.execute(select(context.import_batch.c.batch_hash)).all() == [(context.batch_hash,)]
+        assert connection.execute(select(context.raw_row.c.batch_hash)).fetchall()
+        assert retry.batch_hash == context.batch_hash
+
+    conflicting_manifest = dict(manifest)
+    conflicting_manifest["created_at"] = "2026-08-04T00:00:00Z"
+    with pytest.raises(ImportContractError, match="different manifest"):
+        _stage_snapshot(
+            target_engine,
+            source_tables,
+            source_sha256=source_sha256,
+            manifest_sha256=_manifest_sha256(conflicting_manifest),
+            schema=None,
+        )
+
+    conflicting = {source_table: [dict(row) for row in rows] for source_table, rows in source_tables.items()}
+    conflicting["notice"][0]["title"] = "conflicting retry"
+    with pytest.raises(ImportContractError, match="staged raw row differs"):
+        _stage_snapshot(
+            target_engine,
+            conflicting,
+            source_sha256=source_sha256,
+            manifest_sha256=manifest_sha256,
+            schema=None,
+        )
+
+    with target_engine.begin() as connection:
+        _drop_staging_objects(connection, context)
+    assert inspect(target_engine).get_table_names() == []
+
+
+def test_failed_promotion_retains_stage_and_success_cleans_it(tmp_path: Path, target_engine, monkeypatch):
+    backup, manifest_path = _build_snapshot(tmp_path)
+    source_tables = _load_source_tables(backup)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    source_sha256 = hashlib.sha256(backup.read_bytes()).hexdigest()
+    context = _stage_snapshot(
+        target_engine,
+        source_tables,
+        source_sha256=source_sha256,
+        manifest_sha256=_manifest_sha256(manifest),
+        schema=None,
+    )
+    Base.metadata.create_all(target_engine)
+    translated_tables = {
+        source_table: Base.metadata.tables[target_table]
+        for source_table, target_table in import_sqlite.TARGET_TABLES.items()
+    }
+    report = import_sqlite._empty_report("apply", source_sha256, "2026-08-25T00:00:00+00:00")
+
+    def fail_promotion(*args, **kwargs):
+        raise ImportContractError("forced_promotion_failure", "forced promotion failure", table="run")
+
+    monkeypatch.setattr(import_sqlite, "_table_reconciliation", fail_promotion)
+    with pytest.raises(ImportContractError, match="forced promotion failure"):
+        _promote_staged(target_engine, context, translated_tables, report)
+    assert set(inspect(target_engine).get_table_names()) >= {"import_batch", "raw_row"}
+
+    monkeypatch.undo()
+    retry_report = import_sqlite._empty_report("apply", source_sha256, "2026-08-25T00:00:00+00:00")
+    _promote_staged(target_engine, context, translated_tables, retry_report)
+    assert "import_batch" not in inspect(target_engine).get_table_names()
+    assert "raw_row" not in inspect(target_engine).get_table_names()
+    with target_engine.connect() as connection:
+        assert connection.execute(select(Base.metadata.tables["notice"].c.id)).scalars().all() == [1]
 
 
 def test_unregistered_legacy_column_stops_import(tmp_path: Path, target_engine):
@@ -191,7 +326,30 @@ def test_postgresql_schema_translation_is_applied_only_to_postgresql_binds():
     assert schema_bound(sqlite_bind) is sqlite_bind
 
 
-def test_reconciliation_failure_rolls_back_staging_write(tmp_path: Path, target_engine, monkeypatch):
+def test_alembic_downgrade_fails_closed_without_disposable_opt_in(monkeypatch):
+    bind_called = False
+
+    def get_bind():
+        nonlocal bind_called
+        bind_called = True
+        return object()
+
+    fake_alembic = type(sys)("alembic")
+    fake_alembic.op = SimpleNamespace(get_bind=get_bind)
+    monkeypatch.setitem(sys.modules, "alembic", fake_alembic)
+    migration_path = Path(__file__).parents[1] / "alembic" / "versions" / "0001_lean_v1_postgresql.py"
+    module_spec = importlib.util.spec_from_file_location("t1_alembic_revision", migration_path)
+    assert module_spec is not None and module_spec.loader is not None
+    migration = importlib.util.module_from_spec(module_spec)
+    module_spec.loader.exec_module(migration)
+    monkeypatch.delenv(migration.DISPOSABLE_DOWNGRADE_ENV, raising=False)
+
+    with pytest.raises(RuntimeError, match="downgrade is disabled"):
+        migration.downgrade()
+    assert bind_called is False
+
+
+def test_dry_run_reconciliation_failure_writes_nothing(tmp_path: Path, target_engine, monkeypatch):
     backup, manifest = _build_snapshot(tmp_path)
 
     def fail_after_staging(*args, **kwargs):
