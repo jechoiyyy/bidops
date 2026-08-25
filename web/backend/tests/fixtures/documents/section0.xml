@@ -1,0 +1,4 @@
+<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section" xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph">
+  <hp:p><hp:run><hp:t>Fixture paragraph</hp:t></hp:run></hp:p>
+  <hp:tbl><hp:tr><hp:tc><hp:p><hp:run><hp:t>Fixture cell</hp:t></hp:run></hp:p></hp:tc></hp:tr></hp:tbl>
+</hs:sec>
