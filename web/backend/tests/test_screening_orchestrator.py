@@ -438,7 +438,7 @@ def test_publication_finish_uncertain_commit_is_resolved_by_fresh_read(tmp_path:
     assert any(path.name.startswith("run-1--screen-") for path in (root / "data/runs").iterdir())
 
 
-def test_publication_finish_before_commit_rolls_back_derived_run(tmp_path: Path):
+def test_publication_finish_before_commit_rolls_back_derived_run_after_runs_path_swap(tmp_path: Path):
     root, settings, _engine, factory, body = _fixture(tmp_path)
     client = OllamaClient(settings=settings, transport=FakeOllamaTransport(_script()))
     store = ScreeningExecutionStore(session_factory=factory, settings=settings)
@@ -447,17 +447,24 @@ def test_publication_finish_before_commit_rolls_back_derived_run(tmp_path: Path)
     )
     original_finish = store.finish
     injected = {"done": False}
+    runs = root / "data/runs"
+    external = root / "external-runs"
+    external.mkdir()
+    real_runs = root / "data/runs-real"
 
     def before_commit(*args: object, **kwargs: object):
         if kwargs.get("published_run_id") is not None and not injected["done"]:
             injected["done"] = True
+            runs.rename(real_runs)
+            runs.symlink_to(external, target_is_directory=True)
             raise RuntimeError("injected transaction failure")
         return original_finish(*args, **kwargs)
 
     store.finish = before_commit  # type: ignore[method-assign]
     final = ScreeningWorker(settings, session_factory=factory, ollama=client, store=store, clock=lambda: NOW).run_once()
     assert final is not None and final.status == "실패" and final.published_run_id is None
-    assert not any(path.name.startswith("run-1--screen-") for path in (root / "data/runs").iterdir())
+    assert not any(path.name.startswith("run-1--screen-") for path in real_runs.iterdir())
+    assert not any(path.name.startswith("run-1--screen-") for path in external.iterdir())
 
 
 def test_valid_prior_judgment_is_carried_without_model_calls(tmp_path: Path):

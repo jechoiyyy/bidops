@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
+from dataclasses import dataclass
 import json
 import os
 from pathlib import Path
@@ -43,6 +44,20 @@ from .queue import INTERRUPTED, RUNNING, ScreeningQueueError
 
 class WorkerError(RuntimeError):
     """A safe worker failure category."""
+
+
+@dataclass
+class PublicationHandle:
+    """Descriptor-backed identity retained through terminal reconciliation."""
+
+    runs_fd: int
+    target_name: str
+    closed: bool = False
+
+    def close(self) -> None:
+        if not self.closed:
+            self.closed = True
+            os.close(self.runs_fd)
 
 
 _INPUT_KEYS = {
@@ -408,7 +423,7 @@ class ScreeningWorker:
                 if self.store.should_stop(row.execution_id):
                     self.store.finish_interrupted(row.execution_id, now=_aware(self.clock))
                     return
-        published: tuple[str, Path] | None = None
+        published: tuple[str, Path, PublicationHandle] | None = None
         if row.scope == "full_run":
             if not decisions:
                 self.store.finish_failure(row.execution_id, completed_count=completed, failure_count=len(failures), candidate_count=len(notices), error_summary="execution_failure", now=_aware(self.clock))
@@ -429,6 +444,7 @@ class ScreeningWorker:
                     published_run_id=published[0], now=_aware(self.clock),
                     error_summary="execution_failure" if failures else None,
                 )
+                published[2].close()
             except Exception:
                 # A finish call may have committed before its connection
                 # failed.  Only retain the derived directory when a fresh read
@@ -439,6 +455,7 @@ class ScreeningWorker:
                     except Exception:
                         fresh = None
                     if fresh is not None and fresh.status in {"성공", "부분 성공"} and fresh.published_run_id == published[0]:
+                        published[2].close()
                         return
                     if attempt < 2:
                         self.sleep(0.01)
@@ -446,7 +463,13 @@ class ScreeningWorker:
                 # the publication using bounded reconciliation; a cleanup
                 # error remains visible to the caller rather than being
                 # mistaken for a successful publication.
-                self._cleanup_publication(published[1], None, published[0])
+                try:
+                    self._cleanup_publication(
+                        published[1], None, published[0],
+                        runs_fd=published[2].runs_fd, target_name=published[2].target_name,
+                    )
+                finally:
+                    published[2].close()
                 raise WorkerError("execution_failure") from None
         else:
             self.store.finish(row.execution_id, status=status, completed_count=completed, failure_count=len(failures), candidate_count=len(notices), now=_aware(self.clock), error_summary="execution_failure" if failures else None)
@@ -973,7 +996,7 @@ class ScreeningWorker:
                 except OSError:
                     pass
 
-    def _publish(self, row: ScreeningExecution, input_value: Mapping[str, Any], store: ArtifactStore, result_path: str) -> tuple[str, Path]:
+    def _publish(self, row: ScreeningExecution, input_value: Mapping[str, Any], store: ArtifactStore, result_path: str) -> tuple[str, Path, PublicationHandle]:
         source = _safe_run_dir(self.settings, row.source_run_id)
         runs = source.parent
         root_fd, data_fd, runs_fd, source_fd = _open_run_fds(self.settings, row.source_run_id)
@@ -998,6 +1021,7 @@ class ScreeningWorker:
         staging_name: str | None = None
         staging_fd: int | None = None
         derived_id: str | None = None
+        transferred_runs_fd = False
         try:
             for _ in range(20):
                 candidate_staging_name = f".{source.name}--screen-{uuid4().hex}"
@@ -1116,7 +1140,11 @@ class ScreeningWorker:
                 session.commit()
             if derived_id is None:
                 raise WorkerError("execution_failure")
-            return derived_id, target
+            if target_name is None:
+                raise WorkerError("execution_failure")
+            handle = PublicationHandle(runs_fd, target_name)
+            transferred_runs_fd = True
+            return derived_id, target, handle
         except WorkerError as exc:
             self._cleanup_publication(target, staging, derived_id, runs_fd=runs_fd, staging_name=staging_name, target_name=target_name)
             raise exc
@@ -1126,8 +1154,10 @@ class ScreeningWorker:
         finally:
             if staging_fd is not None:
                 os.close(staging_fd)
-            for fd in (source_fd, runs_fd, data_fd, root_fd):
+            for fd in (source_fd, data_fd, root_fd):
                 os.close(fd)
+            if not transferred_runs_fd:
+                os.close(runs_fd)
 
     @staticmethod
     def _fsync_directory(directory: Path) -> None:
