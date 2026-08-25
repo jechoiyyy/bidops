@@ -1,0 +1,421 @@
+"""Deterministic quality-gate calculations.
+
+The quality gate deliberately lives outside the model/runtime worker.  This
+module accepts already materialised v3 judgments and returns JSON-safe values;
+it never repairs a judgment, invents a denominator, or rounds a value before
+comparing it with a threshold.
+"""
+
+from __future__ import annotations
+
+from collections import Counter
+from decimal import Decimal, ROUND_HALF_UP
+import hashlib
+import json
+from typing import Any, Mapping, Sequence
+
+from .artifacts import canonical_bytes
+from .contracts import PERSPECTIVE_NAMES
+
+
+VALID_GRADES = frozenset({"우선 검토", "검토 권장", "관찰 대상", "제외"})
+VALID_ASSESSMENTS = frozenset({"적합", "부분 적합", "부적합", "확인 불가"})
+MIXING_GRADES = frozenset({"관찰 대상", "제외"})
+VALID_REVIEW_VALUES = frozenset({"동의", "근거 부족", "판단 보류"})
+
+
+class QualityMetricError(ValueError):
+    """An input cannot be evaluated without making up data."""
+
+
+def judgment_digest(judgment: Mapping[str, Any]) -> str:
+    """Return the canonical digest bound to a pass-A review.
+
+    The caller must pass the complete judgment object, including ``notice_id``.
+    This is intentionally the same canonical JSON rule used by artifacts.
+    """
+
+    if not isinstance(judgment, Mapping):
+        raise QualityMetricError("judgment must be an object")
+    return hashlib.sha256(canonical_bytes(dict(judgment))).hexdigest()
+
+
+def frozen_input_digest(input_value: Mapping[str, Any]) -> str:
+    """Digest the frozen combination while ignoring execution identity.
+
+    ``screening-input.v1`` binds its own execution ID and creation timestamp,
+    so two independent queue rows cannot have byte-identical input files. For
+    A/B equivalence we compare the frozen combination (all input fields except
+    those per-execution identities) and expose this helper for callers/tests
+    that need that exact semantic identity.
+    """
+
+    if not isinstance(input_value, Mapping):
+        raise QualityMetricError("input must be an object")
+    value = dict(input_value)
+    value.pop("execution_id", None)
+    value.pop("generated_at", None)
+    return hashlib.sha256(canonical_bytes(value)).hexdigest()
+
+
+def _percent(numerator: int, denominator: int) -> float | None:
+    if denominator <= 0:
+        return None
+    exact = (Decimal(numerator) / Decimal(denominator)) * Decimal(100)
+    return float(exact.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+
+
+def _exact_percent(numerator: int, denominator: int) -> Decimal | None:
+    if denominator <= 0:
+        return None
+    return ((Decimal(numerator) / Decimal(denominator)) * Decimal(100))
+
+
+def ratio(
+    numerator: int,
+    denominator: int,
+    *,
+    status: str = "측정 완료",
+) -> dict[str, Any]:
+    """Build the shared metric object with an unrounded threshold value."""
+
+    if type(numerator) is not int or type(denominator) is not int:
+        raise QualityMetricError("metric counts must be integers")
+    if numerator < 0 or denominator < 0 or numerator > denominator:
+        raise QualityMetricError("metric counts are invalid")
+    return {
+        "numerator": numerator,
+        "denominator": denominator,
+        "percent": _percent(numerator, denominator),
+        "status": status,
+    }
+
+
+def _judgment_map(pass_value: Any) -> tuple[dict[str, Mapping[str, Any]], list[str]]:
+    """Validate enough of a decisions artifact for denominator accounting."""
+
+    if not isinstance(pass_value, Mapping):
+        return {}, ["decisions_not_object"]
+    judgments = pass_value.get("judgments")
+    if not isinstance(judgments, list):
+        return {}, ["judgments_missing"]
+    result: dict[str, Mapping[str, Any]] = {}
+    reasons: list[str] = []
+    for item in judgments:
+        if not isinstance(item, Mapping) or not isinstance(item.get("notice_id"), str) or not item["notice_id"].strip():
+            reasons.append("judgment_identity_invalid")
+            continue
+        notice_id = item["notice_id"]
+        if notice_id in result:
+            reasons.append("duplicate_notice_id")
+            continue
+        if item.get("grade") not in VALID_GRADES:
+            reasons.append("grade_invalid")
+            continue
+        perspectives = item.get("perspectives")
+        if not isinstance(perspectives, list) or len(perspectives) != 5:
+            reasons.append("perspectives_invalid")
+            continue
+        by_name: dict[str, Mapping[str, Any]] = {}
+        valid = True
+        for perspective in perspectives:
+            if not isinstance(perspective, Mapping) or perspective.get("name") not in PERSPECTIVE_NAMES:
+                valid = False
+                break
+            name = str(perspective["name"])
+            if name in by_name or perspective.get("assessment") not in VALID_ASSESSMENTS:
+                valid = False
+                break
+            by_name[name] = perspective
+        if not valid or set(by_name) != set(PERSPECTIVE_NAMES):
+            reasons.append("perspectives_invalid")
+            continue
+        result[notice_id] = item
+    return result, reasons
+
+
+def _metric_status_for_count(denominator: int, *, minimum: int | None = None) -> str:
+    if denominator == 0:
+        return "계산 불가"
+    if minimum is not None and denominator < minimum:
+        return "계산 불가(소표본)"
+    return "측정 완료"
+
+
+def _with_threshold(
+    metric: dict[str, Any],
+    *,
+    minimum: Decimal | None = None,
+    maximum: Decimal | None = None,
+    min_count: int | None = None,
+) -> dict[str, Any]:
+    denominator = metric["denominator"]
+    exact = _exact_percent(metric["numerator"], denominator)
+    if denominator == 0 or (min_count is not None and denominator < min_count) or exact is None:
+        metric["status"] = "계산 불가" if denominator == 0 else "계산 불가(소표본)"
+    elif (minimum is not None and exact < minimum) or (maximum is not None and exact > maximum):
+        metric["status"] = "미달"
+    else:
+        metric["status"] = "통과"
+    return metric
+
+
+def _review_rows(
+    reviews: Sequence[Mapping[str, Any]] | None,
+    pass_a: Mapping[str, Mapping[str, Any]],
+) -> tuple[list[Mapping[str, Any]], list[dict[str, str]], int]:
+    valid: list[Mapping[str, Any]] = []
+    excluded: list[dict[str, str]] = []
+    holds = 0
+    for review in reviews or ():
+        if not isinstance(review, Mapping):
+            excluded.append({"notice_id": "", "pass": "review", "reason": "review_invalid"})
+            continue
+        notice_id = review.get("notice_id")
+        value = review.get("evidence_judgment")
+        if not isinstance(notice_id, str) or notice_id not in pass_a:
+            excluded.append({"notice_id": str(notice_id or ""), "pass": "review", "reason": "notice_not_in_pass_a"})
+            continue
+        if value not in VALID_REVIEW_VALUES:
+            excluded.append({"notice_id": notice_id, "pass": "review", "reason": "review_value_invalid"})
+            continue
+        expected = judgment_digest(pass_a[notice_id])
+        if review.get("decision_digest") != expected:
+            excluded.append({"notice_id": notice_id, "pass": "review", "reason": "decision_digest_mismatch"})
+            continue
+        if value == "판단 보류":
+            holds += 1
+            continue
+        valid.append(review)
+    return valid, excluded, holds
+
+
+def _pass_metrics(
+    values: Mapping[str, Mapping[str, Any]],
+    *,
+    sample_ids: Sequence[str],
+) -> dict[str, Any]:
+    denominator = len(sample_ids)
+    valid_ids = [notice_id for notice_id in sample_ids if notice_id in values]
+    valid_count = len(valid_ids)
+    priority = sum(values[notice_id].get("grade") == "우선 검토" for notice_id in valid_ids)
+    discrimination = ratio(priority, valid_count, status=_metric_status_for_count(valid_count, minimum=10))
+    return {"valid_count": valid_count, "discrimination": discrimination}
+
+
+def calculate_metrics(
+    pass_a: Mapping[str, Any],
+    pass_b: Mapping[str, Any],
+    *,
+    baseline: Mapping[str, Any] | None = None,
+    reviews: Sequence[Mapping[str, Any]] | None = None,
+    sample_ids: Sequence[str] | None = None,
+    expected_sample_count: int = 40,
+    input_a: Mapping[str, Any] | None = None,
+    input_b: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Calculate every authoritative metric in spec 5.11.
+
+    ``sample_ids`` is normally the ordered validation-set identity.  Passing
+    fewer or duplicate IDs is treated as an input-structure error and is
+    represented in ``excluded_notices`` rather than silently changing the
+    fixed denominator.
+    """
+
+    ids = list(sample_ids or [])
+    excluded: list[dict[str, str]] = []
+    if len(ids) != expected_sample_count or len(set(ids)) != len(ids):
+        excluded.append({"notice_id": "", "pass": "A", "reason": "sample_correspondence_invalid"})
+        # Keep the contract denominator fixed; result status will be 보류 in
+        # the service once it sees this reason.
+        ids = ids[:expected_sample_count]
+
+    a, a_reasons = _judgment_map(pass_a)
+    b, b_reasons = _judgment_map(pass_b)
+    for reason in a_reasons:
+        excluded.append({"notice_id": "", "pass": "A", "reason": reason})
+    for reason in b_reasons:
+        excluded.append({"notice_id": "", "pass": "B", "reason": reason})
+    if baseline is not None:
+        baseline_map, baseline_reasons = _judgment_map(baseline)
+        for reason in baseline_reasons:
+            excluded.append({"notice_id": "", "pass": "review", "reason": f"baseline_{reason}"})
+    else:
+        baseline_map = {}
+
+    grade_matches = sum(
+        notice_id in a and notice_id in b and a[notice_id].get("grade") == b[notice_id].get("grade")
+        for notice_id in ids
+    )
+    grade = _with_threshold(ratio(grade_matches, expected_sample_count), minimum=Decimal(80))
+
+    perspective: dict[str, dict[str, Any]] = {}
+    mismatch_counts: Counter[str] = Counter()
+    total_mismatch = 0
+    for name in PERSPECTIVE_NAMES:
+        matches = 0
+        mismatches = 0
+        for notice_id in ids:
+            left = a.get(notice_id, {}).get("perspectives", []) if notice_id in a else []
+            right = b.get(notice_id, {}).get("perspectives", []) if notice_id in b else []
+            left_map = {p.get("name"): p for p in left if isinstance(p, Mapping)}
+            right_map = {p.get("name"): p for p in right if isinstance(p, Mapping)}
+            if left_map.get(name, {}).get("assessment") == right_map.get(name, {}).get("assessment") and name in left_map and name in right_map:
+                matches += 1
+            else:
+                mismatches += 1
+        perspective[name] = ratio(matches, expected_sample_count)
+        perspective[name]["mismatch_count"] = mismatches
+        mismatch_counts[name] = mismatches
+        total_mismatch += mismatches
+    concentration = ratio(max(mismatch_counts.values(), default=0), total_mismatch)
+    if total_mismatch == 0:
+        concentration["percent"] = 0.0
+        concentration["status"] = "통과"
+    else:
+        concentration["status"] = "통과" if _exact_percent(concentration["numerator"], concentration["denominator"]) <= Decimal(50) else "미달"
+
+    a_metrics = _pass_metrics(a, sample_ids=ids)
+    b_metrics = _pass_metrics(b, sample_ids=ids)
+    a_disc = _with_threshold(a_metrics["discrimination"], minimum=Decimal(10), maximum=Decimal(25), min_count=10)
+    b_disc = _with_threshold(b_metrics["discrimination"], minimum=Decimal(10), maximum=Decimal(25), min_count=10)
+
+    valid_reviews, review_excluded, hold_count = _review_rows(reviews, a)
+    excluded.extend(review_excluded)
+    reviewers_by_notice = {str(row.get("notice_id")) for row in valid_reviews}
+    agreement_count = sum(row.get("evidence_judgment") == "동의" for row in valid_reviews)
+    insufficient_count = sum(row.get("evidence_judgment") == "근거 부족" for row in valid_reviews)
+    evidence = {
+        "numerator": agreement_count,
+        "denominator": len(valid_reviews),
+        "percent": _percent(agreement_count, len(valid_reviews)),
+        "agreement": _with_threshold(ratio(agreement_count, len(valid_reviews)), minimum=Decimal(70), min_count=10),
+        "insufficient": _with_threshold(ratio(insufficient_count, len(valid_reviews)), maximum=Decimal(10), min_count=10),
+        "valid_review_count": len(valid_reviews),
+        "distinct_notice_review_count": len(reviewers_by_notice),
+        "judgment_hold_count": hold_count,
+        "status": "통과" if len(valid_reviews) >= 10 and len(reviewers_by_notice) >= 10 and agreement_count * 100 >= len(valid_reviews) * 70 and insufficient_count * 100 <= len(valid_reviews) * 10 else ("계산 불가" if len(valid_reviews) < 10 or len(reviewers_by_notice) < 10 else "미달"),
+    }
+    if evidence["status"] == "계산 불가" and (len(valid_reviews) < 10 or len(reviewers_by_notice) < 10):
+        evidence["status"] = "계산 불가(리뷰 부족)"
+
+    def split_metric(values: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
+        split = 0
+        for notice_id in ids:
+            judgment = values.get(notice_id)
+            if judgment is None:
+                continue
+            assessments = [p.get("assessment") for p in judgment.get("perspectives", []) if isinstance(p, Mapping)]
+            if len(assessments) == 5 and len(set(assessments)) >= 2:
+                split += 1
+        return _with_threshold(ratio(split, len(values)), minimum=Decimal(40), min_count=1)
+
+    def info_metric(values: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
+        items = [item for judgment in values.values() for item in judgment.get("verification_items", []) if isinstance(item, Mapping)]
+        if not items:
+            return {"numerator": 0, "denominator": 0, "percent": None, "status": "해당 없음"}
+        return ratio(sum(item.get("requires_attachment") is True for item in items), len(items))
+
+    def mixing_metric(values: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
+        eligible = 0
+        mixed = 0
+        for judgment in values.values():
+            perspective_values = {p.get("name"): p for p in judgment.get("perspectives", []) if isinstance(p, Mapping)}
+            qualification = perspective_values.get("사업성·자격 제약", {})
+            if qualification.get("assessment") in VALID_ASSESSMENTS and judgment.get("grade") in VALID_GRADES:
+                eligible += 1
+                mixed += qualification.get("assessment") == "확인 불가" and judgment.get("grade") in MIXING_GRADES
+        return ratio(mixed, eligible)
+
+    def reflection_metric(values: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
+        total = 0
+        reflected = 0
+        for judgment in values.values():
+            counters = judgment.get("counterarguments", [])
+            resolutions = judgment.get("counterargument_resolutions", [])
+            if not isinstance(counters, list):
+                continue
+            for index, text in enumerate(counters):
+                total += 1
+                resolution = resolutions[index] if isinstance(resolutions, list) and index < len(resolutions) else None
+                if isinstance(resolution, Mapping) and resolution.get("status") in {"수용", "기각", "추가 확인"} and isinstance(resolution.get("reflection"), str) and resolution["reflection"].strip():
+                    reflected += 1
+        return ratio(reflected, total)
+
+    if baseline_map:
+        aligned = [notice_id for notice_id in ids if notice_id in a and notice_id in baseline_map]
+        claude_grade = ratio(sum(a[i].get("grade") == baseline_map[i].get("grade") for i in aligned), len(aligned))
+        claude_perspective = {}
+        for name in PERSPECTIVE_NAMES:
+            matches = 0
+            for notice_id in aligned:
+                am = {p.get("name"): p for p in a[notice_id].get("perspectives", []) if isinstance(p, Mapping)}
+                bm = {p.get("name"): p for p in baseline_map[notice_id].get("perspectives", []) if isinstance(p, Mapping)}
+                matches += am.get(name, {}).get("assessment") == bm.get(name, {}).get("assessment")
+            claude_perspective[name] = ratio(matches, len(aligned))
+    else:
+        claude_grade = ratio(0, 0, status="계산 불가")
+        claude_perspective = {name: ratio(0, 0, status="계산 불가") for name in PERSPECTIVE_NAMES}
+
+    return {
+        "sample_count": expected_sample_count,
+        "paired_valid_count": sum(notice_id in a and notice_id in b for notice_id in ids),
+        "excluded_notices": excluded,
+        "grade_reproducibility": grade,
+        "perspective_reproducibility": perspective,
+        "perspective_mismatch_concentration": concentration,
+        "discrimination": {"pass_a": a_disc, "pass_b": b_disc},
+        "evidence_validity": evidence,
+        "information_sufficiency": {"pass_a": info_metric(a), "pass_b": info_metric(b)},
+        "perspective_split": {"pass_a": split_metric(a), "pass_b": split_metric(b)},
+        "two_axis_mixing": {"pass_a": mixing_metric(a), "pass_b": mixing_metric(b)},
+        "counterargument_reflection": {"pass_a": reflection_metric(a), "pass_b": reflection_metric(b)},
+        "claude_alignment": {
+            "numerator": claude_grade["numerator"],
+            "denominator": claude_grade["denominator"],
+            "percent": claude_grade["percent"],
+            "status": "측정 완료" if claude_grade["denominator"] else "계산 불가",
+            "grade": claude_grade,
+            "perspectives": claude_perspective,
+        },
+    }
+
+
+def required_metrics_pass(metrics: Mapping[str, Any]) -> tuple[bool, list[str]]:
+    """Apply the exact required-metric precedence after calculation."""
+
+    reasons: list[str] = []
+    required = [metrics.get("grade_reproducibility"), metrics.get("perspective_mismatch_concentration")]
+    required.extend((metrics.get("discrimination") or {}).get(key) for key in ("pass_a", "pass_b"))
+    required.extend((metrics.get("perspective_split") or {}).get(key) for key in ("pass_a", "pass_b"))
+    evidence = metrics.get("evidence_validity") or {}
+    required.extend((evidence.get(key) for key in ("agreement", "insufficient")))
+    for metric in required:
+        if not isinstance(metric, Mapping):
+            reasons.append("required_metric_missing")
+            continue
+        status = metric.get("status")
+        if status in {"계산 불가", "계산 불가(소표본)", "계산 불가(리뷰 부족)"}:
+            reasons.append("required_metric_unmeasurable")
+        elif status == "미달":
+            reasons.append("required_metric_below_threshold")
+    return not reasons, reasons
+
+
+# Naming aliases used by callers that treat the module as a calculator.
+compute_metrics = calculate_metrics
+calculate_quality_metrics = calculate_metrics
+evaluate_required_metrics = required_metrics_pass
+
+
+__all__ = [
+    "QualityMetricError",
+    "calculate_metrics",
+    "calculate_quality_metrics",
+    "compute_metrics",
+    "evaluate_required_metrics",
+    "frozen_input_digest",
+    "judgment_digest",
+    "ratio",
+    "required_metrics_pass",
+]

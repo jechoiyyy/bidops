@@ -1,0 +1,106 @@
+from __future__ import annotations
+
+from app.screening.quality_metrics import (
+    calculate_metrics,
+    judgment_digest,
+    ratio,
+    required_metrics_pass,
+)
+
+
+NAMES = ("기술 적합성", "실적 정합성", "공공 SI 적합성", "사업성·자격 제약", "전략 부합")
+
+
+def judgment(notice_id: str, *, grade: str = "검토 권장", assessments: tuple[str, ...] | None = None):
+    assessments = assessments or ("적합",) * 5
+    return {
+        "notice_id": notice_id,
+        "grade": grade,
+        "readiness": "확인 완료",
+        "perspectives": [
+            {
+                "name": name,
+                "assessment": assessments[index],
+                "reason": "검증 가능한 관점 판단 근거입니다",
+                "evidence": [{"source": "title", "status": "confirmed", "fact": "공고 사실"}],
+            }
+            for index, name in enumerate(NAMES)
+        ],
+        "verification_items": [],
+        "counterarguments": ["공고별 반론"],
+        "counterargument_resolutions": [
+            {"counterargument": "공고별 반론", "status": "추가 확인", "reflection": "확인 항목에 반영"}
+        ],
+    }
+
+
+def artifact(count: int, *, priority: int = 0, offset: int = 0):
+    return {
+        "judgments": [
+            judgment(f"n-{index + offset}", grade="우선 검토" if index < priority else "검토 권장")
+            for index in range(count)
+        ]
+    }
+
+
+def test_decimal_boundary_is_compared_before_rounding():
+    assert ratio(32, 40)["percent"] == 80.0
+    assert ratio(31, 40)["percent"] == 77.5
+
+    left = artifact(40)
+    right = artifact(40)
+    # 32/40 exactly meets the reproducibility threshold.
+    right["judgments"][32]["grade"] = "우선 검토"
+    right["judgments"][33]["grade"] = "우선 검토"
+    right["judgments"][34]["grade"] = "우선 검토"
+    right["judgments"][35]["grade"] = "우선 검토"
+    right["judgments"][36]["grade"] = "우선 검토"
+    right["judgments"][37]["grade"] = "우선 검토"
+    right["judgments"][38]["grade"] = "우선 검토"
+    right["judgments"][39]["grade"] = "우선 검토"
+    metrics = calculate_metrics(left, right, sample_ids=[f"n-{index}" for index in range(40)])
+    assert metrics["grade_reproducibility"]["numerator"] == 32
+    assert metrics["grade_reproducibility"]["status"] == "통과"
+
+    right["judgments"][31]["grade"] = "우선 검토"
+    metrics = calculate_metrics(left, right, sample_ids=[f"n-{index}" for index in range(40)])
+    assert metrics["grade_reproducibility"]["numerator"] == 31
+    assert metrics["grade_reproducibility"]["status"] == "미달"
+
+
+def test_small_discrimination_sample_is_not_zero_percent():
+    values = artifact(9, priority=1)
+    metrics = calculate_metrics(values, values, sample_ids=[f"n-{index}" for index in range(9)], expected_sample_count=9)
+    assert metrics["discrimination"]["pass_a"]["numerator"] == 1
+    assert metrics["discrimination"]["pass_a"]["denominator"] == 9
+    assert metrics["discrimination"]["pass_a"]["percent"] == 11.11
+    assert metrics["discrimination"]["pass_a"]["status"] == "계산 불가(소표본)"
+
+
+def test_review_digest_mismatch_and_hold_are_excluded():
+    left = artifact(40)
+    reviews = [
+        {"notice_id": f"n-{index}", "decision_digest": judgment_digest(left["judgments"][index]), "evidence_judgment": "동의"}
+        for index in range(9)
+    ]
+    reviews.append({"notice_id": "n-9", "decision_digest": "f" * 64, "evidence_judgment": "동의"})
+    reviews.append({"notice_id": "n-10", "decision_digest": judgment_digest(left["judgments"][10]), "evidence_judgment": "판단 보류"})
+    metrics = calculate_metrics(left, left, reviews=reviews, sample_ids=[f"n-{index}" for index in range(40)])
+    evidence = metrics["evidence_validity"]
+    assert evidence["valid_review_count"] == 9
+    assert evidence["distinct_notice_review_count"] == 9
+    assert evidence["judgment_hold_count"] == 1
+    assert evidence["status"] == "계산 불가(리뷰 부족)"
+    assert any(item["reason"] == "decision_digest_mismatch" for item in metrics["excluded_notices"])
+
+
+def test_metric_shape_and_precedence_include_all_required_keys():
+    values = artifact(40)
+    metrics = calculate_metrics(values, values, sample_ids=[f"n-{index}" for index in range(40)])
+    assert set(metrics) == {
+        "sample_count", "paired_valid_count", "excluded_notices", "grade_reproducibility",
+        "perspective_reproducibility", "perspective_mismatch_concentration", "discrimination",
+        "evidence_validity", "information_sufficiency", "perspective_split", "two_axis_mixing",
+        "counterargument_reflection", "claude_alignment",
+    }
+    assert required_metrics_pass(metrics)[0] is False
