@@ -352,6 +352,39 @@ def test_nonzero_merge_does_not_publish(tmp_path: Path):
     assert final is not None and final.status == "실패" and final.published_run_id is None
 
 
+def test_merge_stage_failure_trace_is_rejected_and_never_published(tmp_path: Path):
+    root, settings, _engine, factory, body = _fixture(tmp_path)
+    second = _notice("notice-2")
+    for filename in ("collected-notices.json", "validation-set.json"):
+        path = root / "data/runs/run-1" / filename
+        value = json.loads(path.read_text(encoding="utf-8"))
+        value["counts"] = {"total": 2, "candidate_pool": 2, "audit_pool": 0}
+        value["notices"].append(second)
+        if filename == "validation-set.json":
+            value["selection"]["sample_size"] = 2
+        path.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
+    with factory() as session:
+        session.add(Notice(run_id="run-1", notice_key="notice-2"))
+        session.commit()
+    bad = {"model": "qwen3.8:27b", "done": True, "done_reason": "stop", "response": "{invalid"}
+    client = OllamaClient(settings=settings, transport=FakeOllamaTransport([bad, bad, *_script("notice-2")]))
+    ScreeningOrchestrator(settings, session_factory=factory, ollama=client, clock=lambda: NOW).create_execution(
+        run_id="run-1", policy_version=body["policy_version"], requested_by="tester", scope="full_run"
+    )
+
+    def tampering_merge(argv: list[str], **kwargs: object) -> SimpleNamespace:
+        completed = subprocess.run(argv, **kwargs)
+        failure_path = Path(argv[argv.index("--failures") + 1])
+        artifact = json.loads(failure_path.read_text(encoding="utf-8"))
+        artifact["failures"][0].update({"failed_stage": "병합·검증", "failure_context": None, "trace_id": "forged", "span_id": "forged"})
+        failure_path.write_bytes(json.dumps(artifact, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8"))
+        return SimpleNamespace(returncode=completed.returncode)
+
+    final = ScreeningWorker(settings, session_factory=factory, ollama=client, clock=lambda: NOW, popen=tampering_merge).run_once()
+    assert final is not None and final.status == "실패" and final.published_run_id is None
+    assert not any(path.name.startswith("run-1--screen-") for path in (root / "data/runs").iterdir())
+
+
 def test_publication_finish_uncertain_commit_is_resolved_by_fresh_read(tmp_path: Path):
     root, settings, _engine, factory, body = _fixture(tmp_path)
     client = OllamaClient(settings=settings, transport=FakeOllamaTransport(_script()))
@@ -500,7 +533,7 @@ def test_invalid_carry_is_recorded_as_validation_failure_without_model_calls(tmp
     prior_input["run_id"] = "run-3"
     prior_input["notices"][0].update({"judgment_mode": "승계", "carry_over_from": "run-1"})
     prior_decisions["run_id"] = "run-3"
-    prior_decisions["judgments"][0].update({"judgment_mode": "승계", "carried_over": True, "judged_in_run": "wrong-run", "recorded_in_run": "run-3"})
+    prior_decisions["judgments"][0].update({"judgment_mode": "승계", "carried_over": True, "judged_in_run": "wrong-run", "recorded_in_run": "run-3", "model_name": "attacker-model"})
     canonical = lambda value: json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
     (source / "screening-input.json").write_bytes(canonical(prior_input))
     (source / "screening-decisions.json").write_bytes(canonical(prior_decisions))

@@ -132,6 +132,47 @@ def _safe_run_dir(settings: Settings, run_id: str) -> Path:
     return candidate
 
 
+def _open_run_fds(settings: Settings, run_id: str) -> tuple[int, int, int, int]:
+    """Open project/data/runs/source as one no-follow descriptor chain.
+
+    The path checks in :func:`_safe_run_dir` are useful for validating the
+    persisted run id, but are deliberately not used as authority for the
+    subsequent copy.  Every component is reopened relative to the descriptor
+    held for its parent, so a ``data``/``runs``/source rename or symlink swap
+    cannot redirect a publication to another tree.
+    """
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    root_fd: int | None = None
+    data_fd: int | None = None
+    runs_fd: int | None = None
+    source_fd: int | None = None
+    opened = False
+    try:
+        root_fd = os.open(Path(settings.bidops_root), flags)
+        data_fd = os.open("data", flags, dir_fd=root_fd)
+        runs_fd = os.open("runs", flags, dir_fd=data_fd)
+        parsed = parse_run_id(run_id)
+        name = parsed[0] if parsed else run_id.split("--", 1)[0]
+        source_fd = os.open(name, flags, dir_fd=runs_fd)
+        if not all(stat.S_ISDIR(os.fstat(fd).st_mode) for fd in (root_fd, data_fd, runs_fd, source_fd)):
+            raise WorkerError("input_error")
+        opened = True
+        return root_fd, data_fd, runs_fd, source_fd
+    except WorkerError:
+        raise
+    except OSError:
+        raise WorkerError("input_error") from None
+    except Exception:
+        raise WorkerError("input_error") from None
+    finally:
+        # Successful callers own the descriptors.  On every failed open,
+        # close only the descriptors that were obtained.
+        if not opened:
+            for fd in (source_fd, runs_fd, data_fd, root_fd):
+                if fd is not None:
+                    os.close(fd)
+
+
 def _profile_sections(raw: bytes) -> dict[str, str]:
     text = raw.decode("utf-8")
     lines = text.splitlines(keepends=True)
@@ -289,7 +330,7 @@ class ScreeningWorker:
             except Exception:
                 raise WorkerError("execution_failure") from None
         identity = self.ollama.inspect_model(refresh=True)
-        if identity.model_name != row.model_name or identity.digest != row.model_digest:
+        if identity.model_name != MODEL_NAME or row.model_name != MODEL_NAME or identity.digest != row.model_digest:
             raise WorkerError("model_mismatch")
         notices = input_value["notices"]
         completed = 0
@@ -618,7 +659,7 @@ class ScreeningWorker:
             for key in ("screening_basis", "model_name", "model_digest", "prompt_version", "policy_version", "company_profile_version", "company_profile_digest")
         ):
             return None
-        if len(old["model_digest"]) != 64 or any(character not in "0123456789abcdef" for character in old["model_digest"]):
+        if old["model_name"] != MODEL_NAME or len(old["model_digest"]) != 64 or any(character not in "0123456789abcdef" for character in old["model_digest"]):
             return None
         if len(old["company_profile_digest"]) != 64 or any(character not in "0123456789abcdef" for character in old["company_profile_digest"]) or old["company_profile_version"] != f"company-profile.sha256:{old['company_profile_digest']}":
             return None
@@ -656,7 +697,7 @@ class ScreeningWorker:
             for failure in values:
                 if not isinstance(failure, Mapping) or set(failure) != item_keys or failure.get("notice_id") not in prior_by_id or failure.get("notice_id") in failure_ids or failure.get("failed_stage") not in _SAFE_FAILURE_STAGES or failure.get("failure_type") not in {"timeout", "truncated_output", "schema_violation", "evidence_missing", "counterargument_repetition"} or failure.get("status") != "사람 검토 대기" or not isinstance(failure.get("retry_count"), int) or isinstance(failure.get("retry_count"), bool) or failure.get("retry_count") < 0 or not _aware_text(failure.get("last_attempt_at")) or failure.get("error_summary") not in {"timeout", "truncated_output", "schema_violation", "evidence_missing", "counterargument_repetition", "execution_failure"}:
                     return None
-                if failure.get("failure_context") not in {None, "carried_over_validation"} or (failure.get("failure_context") == "carried_over_validation" and (failure.get("failed_stage") != "병합·검증" or failure.get("trace_id") is not None or failure.get("span_id") is not None)):
+                if failure.get("failure_context") not in {None, "carried_over_validation"} or (failure.get("failed_stage") == "병합·검증" and (failure.get("trace_id") is not None or failure.get("span_id") is not None)) or (failure.get("failure_context") == "carried_over_validation" and (prior_by_id[failure["notice_id"]].get("judgment_mode") != "승계" or failure.get("failed_stage") != "병합·검증")):
                     return None
                 if failure.get("failed_stage") in set(PERSPECTIVE_NAMES) | {"반론 검토", "종합 판정"} and (not isinstance(failure.get("trace_id"), str) or not failure["trace_id"].strip() or not isinstance(failure.get("span_id"), str) or not failure["span_id"].strip()):
                     return None
@@ -669,7 +710,7 @@ class ScreeningWorker:
         for notice_id, prior_judgment in prior_judgments.items():
             prior_notice = prior_by_id[notice_id]
             mode = prior_notice.get("judgment_mode")
-            if prior_judgment.get("judgment_mode") != mode or not isinstance(prior_judgment.get("model_name"), str) or not prior_judgment["model_name"].strip() or not isinstance(prior_judgment.get("prompt_version"), str) or not prior_judgment["prompt_version"].strip() or not isinstance(prior_judgment.get("policy_version"), str) or not prior_judgment["policy_version"].strip() or not isinstance(prior_judgment.get("company_profile_version"), str) or not prior_judgment["company_profile_version"].strip() or not isinstance(prior_judgment.get("model_digest"), str) or len(prior_judgment["model_digest"]) != 64 or any(character not in "0123456789abcdef" for character in prior_judgment["model_digest"]) or not isinstance(prior_judgment.get("company_profile_digest"), str) or len(prior_judgment["company_profile_digest"]) != 64 or any(character not in "0123456789abcdef" for character in prior_judgment["company_profile_digest"]) or prior_judgment.get("company_profile_version") != f"company-profile.sha256:{prior_judgment.get('company_profile_digest')}":
+            if prior_judgment.get("judgment_mode") != mode or prior_judgment.get("model_name") != MODEL_NAME or not isinstance(prior_judgment.get("prompt_version"), str) or not prior_judgment["prompt_version"].strip() or not isinstance(prior_judgment.get("policy_version"), str) or not prior_judgment["policy_version"].strip() or not isinstance(prior_judgment.get("company_profile_version"), str) or not prior_judgment["company_profile_version"].strip() or not isinstance(prior_judgment.get("model_digest"), str) or len(prior_judgment["model_digest"]) != 64 or any(character not in "0123456789abcdef" for character in prior_judgment["model_digest"]) or not isinstance(prior_judgment.get("company_profile_digest"), str) or len(prior_judgment["company_profile_digest"]) != 64 or any(character not in "0123456789abcdef" for character in prior_judgment["company_profile_digest"]) or prior_judgment.get("company_profile_version") != f"company-profile.sha256:{prior_judgment.get('company_profile_digest')}":
                 return None
             if mode in {"신규", "재판정"}:
                 if any(prior_judgment.get(key) != old.get(key) for key in ("model_name", "model_digest", "prompt_version", "policy_version", "company_profile_version", "company_profile_digest")) or prior_judgment.get("judged_in_run") != old.get("run_id") or prior_judgment.get("recorded_in_run") != old.get("run_id") or prior_judgment.get("carried_over") is not False or prior_judgment.get("rejudge_reason") != prior_notice.get("rejudge_reason") or (mode == "신규" and prior_judgment.get("rejudge_reason") is not None):
@@ -758,6 +799,8 @@ class ScreeningWorker:
         for key in ("model_name", "model_digest"):
             if value.get(key) != getattr(row, key):
                 raise WorkerError("execution_failure")
+        if value.get("model_name") != MODEL_NAME:
+            raise WorkerError("execution_failure")
         if not isinstance(value.get("screening_basis"), str) or not value["screening_basis"].strip():
             raise WorkerError("execution_failure")
         notices = input_value.get("notices")
@@ -814,7 +857,7 @@ class ScreeningWorker:
                 raise WorkerError("execution_failure")
             if mode == "재판정" and judgment.get("rejudge_reason") not in {"정정", "재공고", "본공고 전환", "담당자 요청"}:
                 raise WorkerError("execution_failure")
-            if not isinstance(judgment.get("model_name"), str) or not judgment["model_name"].strip() or not isinstance(judgment.get("prompt_version"), str) or not judgment["prompt_version"].strip() or not isinstance(judgment.get("policy_version"), str) or not judgment["policy_version"].strip() or not isinstance(judgment.get("company_profile_version"), str) or not judgment["company_profile_version"].strip() or not isinstance(judgment.get("model_digest"), str) or len(judgment["model_digest"]) != 64 or any(character not in "0123456789abcdef" for character in judgment["model_digest"]) or not isinstance(judgment.get("company_profile_digest"), str) or len(judgment["company_profile_digest"]) != 64 or any(character not in "0123456789abcdef" for character in judgment["company_profile_digest"]) or judgment.get("company_profile_version") != f"company-profile.sha256:{judgment.get('company_profile_digest')}":
+            if judgment.get("model_name") != MODEL_NAME or not isinstance(judgment.get("prompt_version"), str) or not judgment["prompt_version"].strip() or not isinstance(judgment.get("policy_version"), str) or not judgment["policy_version"].strip() or not isinstance(judgment.get("company_profile_version"), str) or not judgment["company_profile_version"].strip() or not isinstance(judgment.get("model_digest"), str) or len(judgment["model_digest"]) != 64 or any(character not in "0123456789abcdef" for character in judgment["model_digest"]) or not isinstance(judgment.get("company_profile_digest"), str) or len(judgment["company_profile_digest"]) != 64 or any(character not in "0123456789abcdef" for character in judgment["company_profile_digest"]) or judgment.get("company_profile_version") != f"company-profile.sha256:{judgment.get('company_profile_digest')}":
                 raise WorkerError("execution_failure")
             expected_judged = source_notice.get("carry_over_from") if mode == "승계" else row.source_run_id
             if judgment.get("judged_in_run") != expected_judged or judgment.get("recorded_in_run") != row.source_run_id:
@@ -844,15 +887,17 @@ class ScreeningWorker:
                     raise WorkerError("execution_failure")
                 if failure.get("failure_context") not in {None, "carried_over_validation"}:
                     raise WorkerError("execution_failure")
-                if failure.get("failure_context") == "carried_over_validation" and (failure.get("failed_stage") != "병합·검증" or failure.get("trace_id") is not None or failure.get("span_id") is not None):
+                if failure.get("failed_stage") == "병합·검증" and (failure.get("trace_id") is not None or failure.get("span_id") is not None):
                     raise WorkerError("execution_failure")
                 source_notice = next((candidate for candidate in notices if candidate.get("notice_id") == notice_id), None)
                 if source_notice is None:
                     raise WorkerError("execution_failure")
                 if source_notice.get("judgment_mode") == "승계":
-                    if failure.get("failure_context") != "carried_over_validation":
+                    if failure.get("failure_context") != "carried_over_validation" or failure.get("failed_stage") != "병합·검증":
                         raise WorkerError("execution_failure")
                 elif failure.get("failure_context") is not None:
+                    raise WorkerError("execution_failure")
+                if failure.get("failure_context") == "carried_over_validation" and source_notice.get("judgment_mode") != "승계":
                     raise WorkerError("execution_failure")
                 if failure.get("failed_stage") in set(PERSPECTIVE_NAMES) | {"반론 검토", "종합 판정"} and (not isinstance(failure.get("trace_id"), str) or not failure["trace_id"].strip() or not isinstance(failure.get("span_id"), str) or not failure["span_id"].strip()):
                     raise WorkerError("execution_failure")
@@ -903,30 +948,49 @@ class ScreeningWorker:
     def _publish(self, row: ScreeningExecution, input_value: Mapping[str, Any], store: ArtifactStore, result_path: str) -> tuple[str, Path]:
         source = _safe_run_dir(self.settings, row.source_run_id)
         runs = source.parent
-        self._assert_no_symlinks(source)
+        root_fd, data_fd, runs_fd, source_fd = _open_run_fds(self.settings, row.source_run_id)
         stamp = _aware(self.clock).astimezone(timezone.utc).strftime("%Y%m%d%H%M%S")
         target: Path | None = None
+        target_name: str | None = None
         for _ in range(20):
-            candidate = runs / f"{source.name}--screen-{stamp}-{uuid4().hex[:8]}"
-            if not candidate.exists() and not candidate.is_symlink():
-                target = candidate
+            candidate_name = f"{source.name}--screen-{stamp}-{uuid4().hex[:8]}"
+            try:
+                os.stat(candidate_name, dir_fd=runs_fd, follow_symlinks=False)
+            except FileNotFoundError:
+                target_name = candidate_name
+                target = runs / candidate_name
                 break
+            except OSError:
+                continue
         if target is None:
+            for fd in (source_fd, runs_fd, data_fd, root_fd):
+                os.close(fd)
             raise WorkerError("execution_failure")
         staging: Path | None = None
+        staging_name: str | None = None
         derived_id: str | None = None
         try:
             for _ in range(20):
-                candidate_staging = runs / f".{source.name}--screen-{uuid4().hex}"
+                candidate_staging_name = f".{source.name}--screen-{uuid4().hex}"
                 try:
-                    os.mkdir(candidate_staging, 0o700)
+                    os.mkdir(candidate_staging_name, 0o700, dir_fd=runs_fd)
                 except FileExistsError:
                     continue
-                staging = candidate_staging
+                staging_name = candidate_staging_name
+                staging = runs / candidate_staging_name
                 break
             if staging is None:
                 raise WorkerError("execution_failure")
-            self._copy_tree_nofollow(source, staging)
+            staging_fd = os.open(
+                staging_name,
+                os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
+                dir_fd=runs_fd,
+            )
+            try:
+                self._copy_tree_fd(source_fd, staging_fd)
+                os.fsync(staging_fd)
+            finally:
+                os.close(staging_fd)
             # The source run is copied as provenance, but these names are
             # owned by the current screening execution.  Remove every stale
             # copy before installing the immutable current artifacts.  In
@@ -961,11 +1025,14 @@ class ScreeningWorker:
             staged_failures = _read_json(staging / "screening-failures.json") if (staging / "screening-failures.json").is_file() else None
             self._validate_v3_result(row, staged_input, staged_results, staged_failures)
             self._fsync_tree(staging)
-            if target.exists() or target.is_symlink():
+            try:
+                os.stat(target_name, dir_fd=runs_fd, follow_symlinks=False)
                 raise WorkerError("execution_failure")
-            os.replace(staging, target)
+            except FileNotFoundError:
+                pass
+            os.replace(staging_name, target_name, src_dir_fd=runs_fd, dst_dir_fd=runs_fd)
             staging = None
-            self._fsync_directory(runs)
+            os.fsync(runs_fd)
             with self._session() as session:
                 # The loader is the sole owner of deterministic Run.id and
                 # Notice/Judgment/count ingestion. It commits its own valid
@@ -996,6 +1063,9 @@ class ScreeningWorker:
         except Exception:
             self._cleanup_publication(target, staging, derived_id)
             raise WorkerError("execution_failure") from None
+        finally:
+            for fd in (source_fd, runs_fd, data_fd, root_fd):
+                os.close(fd)
 
     @staticmethod
     def _fsync_directory(directory: Path) -> None:
