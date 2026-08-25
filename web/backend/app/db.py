@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from sqlalchemy import Engine, create_engine, event
+from sqlalchemy import inspect
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from .config import get_settings
@@ -58,6 +59,9 @@ SessionLocal = sessionmaker(
 # unsurprising for code that expects a session factory named ``Session``.
 SessionFactory = SessionLocal
 
+ALEMBIC_HEAD = "0002_screening_runtime"
+MIGRATION_COMMAND = "cd web/backend && alembic upgrade head"
+
 
 def get_db() -> Generator[Session, None, None]:
     """Yield a database session and always close it."""
@@ -69,16 +73,70 @@ def get_db() -> Generator[Session, None, None]:
         db.close()
 
 
-def init_db(bind: Engine | None = None) -> None:
-    """Create all declared tables.
+def current_revision(bind: Engine | None = None) -> str | None:
+    """Return the single Alembic revision recorded in a database."""
 
-    ``bind`` is optional to make isolated in-memory test databases possible;
-    normal application code uses the configured file-backed engine.
-    """
-
-    # Importing here avoids a Base/models import cycle while ensuring all
-    # declarative classes are registered before create_all runs.
-    from . import models  # noqa: F401
+    from alembic.migration import MigrationContext
 
     target = bind or engine
-    Base.metadata.create_all(bind=target)
+    with target.connect() as connection:
+        return MigrationContext.configure(connection).get_current_revision()
+
+
+def ensure_database_current(bind: Engine | None = None) -> None:
+    """Refuse to use an empty, unversioned, unknown, or stale database.
+
+    The application process is intentionally not an administrator.  It never
+    runs Alembic and never calls ``create_all`` for the configured database.
+    """
+
+    target = bind or engine
+    inspector = inspect(target)
+    tables = set(inspector.get_table_names())
+    if "alembic_version" not in tables:
+        raise RuntimeError(
+            "Database migration required: database is empty or unversioned; "
+            f"run `{MIGRATION_COMMAND}` before starting the service."
+        )
+    revision = current_revision(target)
+    if revision != ALEMBIC_HEAD:
+        value = revision or "none"
+        raise RuntimeError(
+            f"Database migration required: current revision is {value}, expected {ALEMBIC_HEAD}; "
+            f"run `{MIGRATION_COMMAND}` before starting the service."
+        )
+
+
+def init_db(bind: Engine | None = None) -> None:
+    """Initialize an isolated legacy test engine or validate the app DB.
+
+    Existing unit tests pass an explicit in-memory engine.  That narrow path
+    remains a fixture convenience and only creates the pre-Alembic tables.
+    The no-argument application path performs a read-only revision check.
+    """
+
+    from . import models  # noqa: F401
+
+    if bind is None:
+        ensure_database_current()
+        return
+
+    legacy_tables = [
+        Base.metadata.tables[name]
+        for name in (
+            "run",
+            "notice",
+            "judgment",
+            "perspective",
+            "evidence",
+            "counterargument",
+            "verification_item",
+            "matched_performance",
+            "attachment",
+            "agency_portal",
+            "review",
+            "verification_answer",
+            "ingest_warning",
+        )
+    ]
+    Base.metadata.create_all(bind=bind, tables=legacy_tables)
