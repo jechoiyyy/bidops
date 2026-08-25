@@ -371,7 +371,9 @@ def _result_for_metrics(
     return ("통과", []) if passed else ("미달", reasons)
 
 
-def _metric_structure_reasons(metrics: Mapping[str, Any]) -> list[str]:
+def _metric_structure_reasons(
+    metrics: Mapping[str, Any], *, partial_passes: frozenset[str] = frozenset()
+) -> list[str]:
     """Convert explicit pass-sample exclusions into a deterministic hold.
 
     A review mismatch is a usable, auditable exclusion.  An A/B identity or
@@ -385,6 +387,14 @@ def _metric_structure_reasons(metrics: Mapping[str, Any]) -> list[str]:
             continue
         notice_id = str(row.get("notice_id") or "")
         reason = str(row.get("reason") or "invalid_exclusion")
+        # A partial-success execution is allowed to have a missing/failed
+        # notice.  Those notices remain in the fixed 40-item denominator and
+        # are reported as a mismatch by the metric itself; they do not make a
+        # completed gate structurally impossible.  A fully successful pass,
+        # by contrast, promised one judgment for every fixed notice, so its
+        # missing entry remains a hold-worthy contract failure.
+        if row["pass"] in partial_passes and reason == "missing_judgment":
+            continue
         reasons.append(f"{row['pass']}_structure:{notice_id}:{reason}")
     return list(dict.fromkeys(reasons))
 
@@ -766,6 +776,11 @@ class QualityGateService:
             structure.append("input_digest_mismatch")
         binding_issues = _decisions_binding_issues(decisions_a, execution_a, input_a, ids, pass_name="A", expected_source_window=sample.get("source_window"))
         binding_issues.extend(_decisions_binding_issues(decisions_b, execution_b, input_b, ids, pass_name="B", expected_source_window=sample.get("source_window")))
+        partial_passes = frozenset(
+            pass_name
+            for pass_name, execution in (("A", execution_a), ("B", execution_b))
+            if execution.status == "부분 성공"
+        )
         invalid_by_pass = {
             pass_name: {row["notice_id"] for row in binding_issues if row.get("pass") == pass_name and row.get("notice_id")}
             for pass_name in ("A", "B")
@@ -808,7 +823,12 @@ class QualityGateService:
                 for pass_name in ("A", "B") for notice_id in ids
             )
         metrics["excluded_notices"].extend(binding_issues)
-        if binding_issues:
+        structural_binding_issues = [
+            row
+            for row in binding_issues
+            if not (row.get("pass") in partial_passes and row.get("reason") == "missing_judgment")
+        ]
+        if structural_binding_issues:
             structure.append("decisions_binding_invalid")
         if any(reason.endswith("fixed_input_notice_mismatch") for reason in structure):
             for pass_name, input_value in (("A", input_a), ("B", input_b)):
@@ -816,7 +836,7 @@ class QualityGateService:
                     metrics["excluded_notices"].extend({"notice_id": notice_id, "pass": pass_name, "reason": "fixed_input_notice_mismatch"} for notice_id in ids)
         valid = int((metrics.get("evidence_validity") or {}).get("valid_review_count", 0))
         distinct = int((metrics.get("evidence_validity") or {}).get("distinct_notice_review_count", 0))
-        structure.extend(_metric_structure_reasons(metrics))
+        structure.extend(_metric_structure_reasons(metrics, partial_passes=partial_passes))
         return metrics, valid, distinct, list(dict.fromkeys(structure))
 
     def upsert_review(

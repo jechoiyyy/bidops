@@ -26,6 +26,7 @@ from app.screening.quality_gate import (
     QualityGateValidationError,
     validate_fixed_inputs,
     QualityGateService,
+    _metric_structure_reasons,
 )
 
 
@@ -315,3 +316,49 @@ def test_refresh_review_upsert_audit_and_immutable_history(tmp_path: Path):
         )
         review = session.scalar(select(QualityGateReview).where(QualityGateReview.gate_id == gate_id, QualityGateReview.notice_id == "n-0"))
         assert review is not None and review.execution_id == "scr-" + "1" * 32
+
+
+def test_partial_success_missing_notice_is_fixed_denominator_mismatch_not_structure_hold():
+    metrics = {
+        "excluded_notices": [
+            {"notice_id": "n-0", "pass": "A", "reason": "missing_judgment"},
+            {"notice_id": "n-1", "pass": "A", "reason": "invalid_judgment:counterarguments_missing"},
+            {"notice_id": "n-2", "pass": "B", "reason": "missing_judgment"},
+        ]
+    }
+    reasons = _metric_structure_reasons(metrics, partial_passes=frozenset({"A"}))
+    assert "A_structure:n-0:missing_judgment" not in reasons
+    assert "A_structure:n-1:invalid_judgment:counterarguments_missing" in reasons
+    assert "B_structure:n-2:missing_judgment" in reasons
+
+
+def test_partial_success_service_evaluation_does_not_hold_for_legal_missing_notice(tmp_path: Path):
+    settings, engine, factory, gate_id, judgments_a = _completed_gate_fixture(tmp_path)
+    store = ArtifactStore(tmp_path)
+    with factory() as session:
+        gate = session.get(QualityGate, gate_id)
+        assert gate is not None
+        pass_a_id = gate.pass_a_execution_id
+    decisions = store.read_json(pass_a_id, "screening-decisions.json")
+    decisions["judgments"] = decisions["judgments"][:-1]
+    store.replace_json(pass_a_id, "screening-decisions.json", decisions)
+    with factory() as session:
+        execution = session.scalar(select(ScreeningExecution).where(ScreeningExecution.execution_id == pass_a_id))
+        assert execution is not None
+        execution.status = "부분 성공"
+        for index in range(10):
+            session.add(QualityGateReview(
+                gate_id=gate_id,
+                execution_id=execution.execution_id,
+                notice_id=f"n-{index}",
+                decision_digest=judgment_digest(judgments_a[index]),
+                reviewer="reviewer",
+                evidence_judgment="동의",
+                note="partial-success review",
+                created_at=NOW,
+                updated_at=NOW,
+            ))
+        session.commit()
+    evaluation = QualityGateService(settings, session_factory=factory, orchestrator=SimpleNamespace()).refresh(gate_id)
+    assert evaluation.result_status != "보류"
+    assert not any("missing_judgment" in reason for reason in evaluation.reasons_json)
