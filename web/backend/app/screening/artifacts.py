@@ -14,7 +14,6 @@ import os
 from pathlib import Path
 import re
 import tempfile
-import shutil
 from typing import Any, Mapping
 
 
@@ -250,13 +249,82 @@ class ArtifactStore:
             raise ArtifactError("artifact JSON is invalid") from None
 
     def remove_execution(self, execution_id: str) -> None:
-        """Remove only a freshly-created, unqueued execution directory."""
-        target = self.execution_dir(execution_id, create=False)
-        _reject_symlinks(self.project_root, target)
+        """Remove one freshly-created execution directory without TOCTOU.
+
+        The directory name is opened relative to the artifact root with
+        ``O_NOFOLLOW``.  All descendants are then removed through directory
+        descriptors, so a pathname or symlink swap cannot redirect cleanup
+        outside the known execution directory.
+        """
+        validate_execution_id(execution_id)
+        base = self.base
+        directory_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+        root_fd: int | None = None
+        data_fd: int | None = None
+        base_fd: int | None = None
         try:
-            shutil.rmtree(target)
+            # Open every path component relative to a descriptor.  Checking a
+            # pathname first and then opening it leaves a symlink-swap window
+            # in the intermediate ``data`` directory.
+            root_fd = os.open(self.project_root, directory_flags)
+            data_fd = os.open("data", directory_flags, dir_fd=root_fd)
+            base_fd = os.open("screening-executions", directory_flags, dir_fd=data_fd)
+        except OSError:
+            for fd in (base_fd, data_fd, root_fd):
+                if fd is not None:
+                    os.close(fd)
+            raise ArtifactError("execution artifact cleanup failed") from None
+        try:
+            target_fd = os.open(
+                execution_id,
+                os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
+                dir_fd=base_fd,
+            )
+        except OSError:
+            for fd in (base_fd, data_fd, root_fd):
+                if fd is not None:
+                    os.close(fd)
+            raise ArtifactError("execution artifact cleanup failed") from None
+
+        def remove_fd(directory_fd: int) -> None:
+            try:
+                entries = list(os.scandir(f"/proc/self/fd/{directory_fd}"))
+            except OSError:
+                raise ArtifactError("execution artifact cleanup failed") from None
+            for entry in entries:
+                name = entry.name
+                try:
+                    stat = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+                    if stat.st_mode & 0o170000 == 0o040000:
+                        child_fd = os.open(
+                            name,
+                            os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
+                            dir_fd=directory_fd,
+                        )
+                        try:
+                            remove_fd(child_fd)
+                        finally:
+                            os.close(child_fd)
+                        os.rmdir(name, dir_fd=directory_fd)
+                    else:
+                        os.unlink(name, dir_fd=directory_fd)
+                except OSError:
+                    raise ArtifactError("execution artifact cleanup failed") from None
+
+        try:
+            remove_fd(target_fd)
+            current_stat = os.stat(execution_id, dir_fd=base_fd, follow_symlinks=False)
+            target_stat = os.fstat(target_fd)
+            if (current_stat.st_dev, current_stat.st_ino) != (target_stat.st_dev, target_stat.st_ino):
+                raise ArtifactError("execution artifact path changed during cleanup")
+            os.rmdir(execution_id, dir_fd=base_fd)
         except OSError:
             raise ArtifactError("execution artifact cleanup failed") from None
+        finally:
+            os.close(target_fd)
+            for fd in (base_fd, data_fd, root_fd):
+                if fd is not None:
+                    os.close(fd)
 
 
 def artifact_directory(project_root: Path, execution_id: str, *, create: bool = False) -> Path:

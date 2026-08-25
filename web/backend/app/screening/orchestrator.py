@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from ..config import Settings, get_settings
 from ..ingest.loader import parse_run_id
-from ..models import CompanyProfileSnapshot, Notice, Run, ScreeningPolicy
+from ..models import CompanyProfileSnapshot, Notice, Run, ScreeningExecution, ScreeningPolicy
 from .artifacts import ArtifactError, ArtifactStore, aware_iso, sha256_bytes
 from .contracts import MODEL_NAME
 from .ollama import ModelInspectionError, OllamaClient
@@ -62,6 +62,14 @@ class CreatedExecution:
     artifact_dir: str
     input_artifact_path: str
     input_artifact_digest: str
+
+
+@dataclass(frozen=True)
+class PreparedExecution:
+    """An execution prepared in, but not committed from, a caller session."""
+
+    created: CreatedExecution
+    row: ScreeningExecution
 
 
 def _now(clock: Callable[[], datetime]) -> datetime:
@@ -473,6 +481,118 @@ class ScreeningOrchestrator:
             raise ScreeningCreationError("queue_failure") from None
         return CreatedExecution(row.execution_id, row.status, row.model_name, row.model_digest, row.company_profile_version, row.company_profile_digest, row.artifact_dir, row.input_artifact_path, row.input_artifact_digest)
 
+    def prepare_execution(
+        self,
+        session: Session,
+        *,
+        run_id: str,
+        policy_version: str,
+        profile_source: str = "current",
+        requested_by: str,
+        scope: str = "full_run",
+        notice_id: str | None = None,
+        trigger: str | None = None,
+    ) -> PreparedExecution:
+        """Prepare one execution in a caller-owned transaction.
+
+        Unlike ``create_execution``, this method never opens a queue session
+        or commits.  It is the transaction boundary used by quality gates to
+        prepare both ordinary FIFO rows before publishing either one.
+        """
+
+        if not isinstance(session, Session):
+            raise TypeError("session must be a SQLAlchemy Session")
+        if scope not in {"single_notice", "full_run", "quality_sample"}:
+            raise ScreeningCreationError("input_error")
+        trigger = trigger or {"single_notice": "cli_single", "full_run": "manual_run", "quality_sample": "quality_gate"}[scope]
+        if TRIGGER_SCOPES.get(trigger) != scope:
+            raise ScreeningCreationError("input_error")
+        execution_id = "scr-" + uuid4().hex
+        source_dir = _safe_run_directory(self.settings, run_id)
+        source, _collection = _source_notices(source_dir)
+        notices = source["notices"]
+        old_notices, old_judgments = _prior_maps(source_dir)
+        run = session.scalar(select(Run).where(Run.id == run_id))
+        if run is None or run.status not in {"active", "complete", "성공", "부분 성공"}:
+            raise ScreeningCreationError("input_error")
+        policy = session.scalar(select(ScreeningPolicy).where(ScreeningPolicy.policy_version == policy_version))
+        if policy is None:
+            raise ScreeningCreationError("policy_mismatch")
+        body = _policy_body(policy)
+        if policy.status not in ({"activation_candidate", "active"} if trigger != "schedule" else {"active"}):
+            raise ScreeningCreationError("input_error")
+        if scope == "full_run":
+            buckets = body.get("candidate_selection", {}).get("include_collection_buckets", ["candidate_pool"])
+            if not isinstance(buckets, list) or any(not isinstance(bucket, str) for bucket in buckets):
+                raise ScreeningCreationError("policy_mismatch")
+            selected = [item for item in notices if item.get("collection_bucket") in buckets]
+        elif scope == "quality_sample":
+            order = _validation_notices(source_dir)
+            by_id = {item["notice_id"]: item for item in notices}
+            if any(value not in by_id for value in order):
+                raise ScreeningCreationError("input_error")
+            selected = [by_id[value] for value in order]
+        else:
+            selected = [item for item in notices if item["notice_id"] == notice_id]
+            if len(selected) != 1:
+                raise ScreeningCreationError("input_error")
+            db_notice = session.scalar(select(Notice).where(Notice.run_id == run_id, Notice.notice_key == notice_id))
+            if db_notice is None:
+                raise ScreeningCreationError("input_error")
+        try:
+            snapshot = create_profile_snapshot(session, profile_source=profile_source, project_root=Path(self.settings.bidops_root))
+            profile_digest = snapshot.digest
+            profile_version = snapshot.version
+            model_identity = self.ollama.inspect_model()
+        except (ProfileSnapshotError, ModelInspectionError, OSError):
+            raise ScreeningCreationError("precondition_failed") from None
+        if model_identity.model_name != MODEL_NAME:
+            raise ScreeningCreationError("model_inspection")
+        generated_at = aware_iso(_now(self.clock))
+        frozen: list[dict[str, Any]] = []
+        for item in selected:
+            mode, carry, reason = _mode_for(item, scope, old_notices.get(item["notice_id"]), old_judgments.get(item["notice_id"]))
+            frozen.append({**item, "judgment_mode": mode, "carry_over_from": carry if mode == "승계" else None, "rejudge_reason": reason if mode == "재판정" else None})
+        input_value = {
+            "schema_version": "bidops.screening-input.v1", "execution_id": execution_id, "run_id": run_id,
+            "generated_at": generated_at, "source_window": source["source_window"],
+            "policy_version": policy.policy_version, "prompt_version": policy.prompt_version,
+            "company_profile_version": profile_version, "company_profile_digest": profile_digest,
+            "candidate_count": len(frozen), "notices": frozen,
+        }
+        store = ArtifactStore(Path(self.settings.bidops_root))
+        try:
+            store.execution_dir(execution_id, create=True)
+            input_path, input_digest = store.write_json(execution_id, "screening-input.json", input_value)
+            row = self.queue.enqueue_in_session(
+                session,
+                execution_id=execution_id,
+                trigger=trigger,
+                source_run_id=run_id,
+                scope=scope,
+                requested_by=requested_by,
+                policy_version=policy_version,
+                prompt_version=input_value["prompt_version"],
+                model_name=model_identity.model_name,
+                model_digest=model_identity.digest,
+                company_profile_version=profile_version,
+                company_profile_digest=profile_digest,
+                input_artifact_path=input_path,
+                input_artifact_digest=input_digest,
+                artifact_dir=f"data/screening-executions/{execution_id}",
+                candidate_count=len(frozen),
+            )
+        except Exception as exc:
+            try:
+                store.remove_execution(execution_id)
+            except ArtifactError:
+                pass
+            if isinstance(exc, (ArtifactError, QueueValidationError)):
+                raise ScreeningCreationError("artifact_write" if isinstance(exc, ArtifactError) else "input_error") from None
+            raise ScreeningCreationError("queue_failure") from None
+        created = CreatedExecution(row.execution_id, row.status, row.model_name, row.model_digest, row.company_profile_version, row.company_profile_digest, row.artifact_dir, row.input_artifact_path, row.input_artifact_digest)
+        return PreparedExecution(created=created, row=row)
+
     create = create_execution
     enqueue = create_execution
 
@@ -499,4 +619,4 @@ ScreeningExecutionService = ScreeningOrchestrator
 create_execution = ScreeningOrchestrator.create_execution
 
 
-__all__ = ["CreatedExecution", "ExecutionOrchestrator", "ScreeningCreationError", "ScreeningExecutionOrchestrator", "ScreeningExecutionService", "ScreeningOrchestrator", "create_execution"]
+__all__ = ["CreatedExecution", "ExecutionOrchestrator", "PreparedExecution", "ScreeningCreationError", "ScreeningExecutionOrchestrator", "ScreeningExecutionService", "ScreeningOrchestrator", "create_execution"]

@@ -10,8 +10,10 @@ from __future__ import annotations
 
 from collections import Counter
 from decimal import Decimal, ROUND_HALF_UP
+from datetime import datetime
 import hashlib
 import json
+import re
 from typing import Any, Mapping, Sequence
 
 from .artifacts import canonical_bytes
@@ -31,6 +33,13 @@ _JUDGMENT_METADATA_KEYS = frozenset({
     "company_profile_version", "company_profile_digest", "judged_in_run", "recorded_in_run",
     "carried_over", "rejudge_reason", "two_axis_mixing_flag", "two_axis_mixing_label",
 })
+_DECISIONS_KEYS = frozenset({
+    "schema_version", "execution_id", "run_id", "generated_at", "screening_basis",
+    "model_name", "model_digest", "prompt_version", "policy_version",
+    "company_profile_version", "company_profile_digest", "judgments",
+})
+_EXECUTION_ID_RE = re.compile(r"^scr-[0-9a-f]{32}$")
+SCREENING_BASIS = "회차에 고정된 정규화 공고와 회사 프로필·정책 버전"
 
 
 class QualityMetricError(ValueError):
@@ -124,6 +133,29 @@ def _judgment_map(
 
     if not isinstance(pass_value, Mapping):
         return {}, [issue("", "decisions_not_object")]
+    if strict:
+        if set(pass_value) != _DECISIONS_KEYS:
+            return {}, [issue("", "decisions_top_level_invalid")]
+        if pass_value.get("schema_version") != "bidops.decisions.v3":
+            return {}, [issue("", "decisions_schema_invalid")]
+        for key in ("execution_id", "run_id", "generated_at", "screening_basis", "model_name", "prompt_version", "policy_version", "company_profile_version", "company_profile_digest"):
+            if not isinstance(pass_value.get(key), str) or not pass_value[key].strip():
+                return {}, [issue("", f"decisions_{key}_invalid")]
+        if pass_value["screening_basis"] != SCREENING_BASIS:
+            return {}, [issue("", "decisions_screening_basis_invalid")]
+        for key in ("model_digest", "company_profile_digest"):
+            if not isinstance(pass_value.get(key), str) or len(pass_value[key]) != 64 or any(char not in "0123456789abcdef" for char in pass_value[key]):
+                return {}, [issue("", f"decisions_{key}_invalid")]
+        if pass_value["company_profile_version"] != f"company-profile.sha256:{pass_value['company_profile_digest']}":
+            return {}, [issue("", "decisions_profile_identity_invalid")]
+        if not _EXECUTION_ID_RE.fullmatch(pass_value["execution_id"]):
+            return {}, [issue("", "decisions_execution_id_invalid")]
+        try:
+            generated = datetime.fromisoformat(pass_value["generated_at"].replace("Z", "+00:00"))
+        except (TypeError, ValueError):
+            return {}, [issue("", "decisions_generated_at_invalid")]
+        if generated.tzinfo is None or generated.utcoffset() is None:
+            return {}, [issue("", "decisions_generated_at_invalid")]
     judgments = pass_value.get("judgments")
     if not isinstance(judgments, list):
         return {}, [issue("", "judgments_missing")]
@@ -139,6 +171,9 @@ def _judgment_map(
             reasons.append(issue("", "invalid_notice_id"))
             continue
         if notice_id in seen_notice_ids:
+            # A duplicate identity makes the whole notice ambiguous.  Do not
+            # retain the first object and accidentally count it as valid.
+            result.pop(notice_id, None)
             reasons.append(issue(notice_id, "duplicate_notice_id"))
             continue
         seen_notice_ids.add(notice_id)

@@ -25,6 +25,36 @@ def test_artifacts_reject_traversal_and_symlink_components(tmp_path: Path):
         store.write_json(EXECUTION_ID, "responses/leak.json", {"secret": "no"})
 
 
+def test_remove_execution_unlinks_symlinks_without_following_them(tmp_path: Path):
+    store = ArtifactStore(tmp_path)
+    store.execution_dir(EXECUTION_ID, create=True)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    sentinel = outside / "sentinel.txt"
+    sentinel.write_text("keep", encoding="utf-8")
+    target = tmp_path / "data/screening-executions" / EXECUTION_ID
+    (target / "leak.txt").symlink_to(sentinel)
+    nested = target / "nested"
+    nested.mkdir()
+    (nested / "safe.txt").write_text("remove", encoding="utf-8")
+    store.remove_execution(EXECUTION_ID)
+    assert not target.exists()
+    assert sentinel.read_text(encoding="utf-8") == "keep"
+
+
+def test_remove_execution_refuses_symlinked_target_path(tmp_path: Path):
+    store = ArtifactStore(tmp_path)
+    base = tmp_path / "data/screening-executions"
+    base.mkdir(parents=True)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "sentinel.txt").write_text("keep", encoding="utf-8")
+    (base / EXECUTION_ID).symlink_to(outside, target_is_directory=True)
+    with pytest.raises(ArtifactError):
+        store.remove_execution(EXECUTION_ID)
+    assert (outside / "sentinel.txt").read_text(encoding="utf-8") == "keep"
+
+
 def test_append_jsonl_is_exact_and_atomic_write_failure_is_safe(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     store = ArtifactStore(tmp_path)
     store.execution_dir(EXECUTION_ID, create=True)
