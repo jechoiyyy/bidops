@@ -60,7 +60,9 @@ def _snapshot_fingerprint(path: Path) -> str:
     """Hash the logical SQLite snapshot, independent of page layout/WAL files."""
 
     digest = hashlib.sha256()
-    with sqlite3.connect(path) as connection:
+    # URI mode=ro is important here: sqlite3.connect(path) would create a
+    # missing source while we are only trying to verify a snapshot.
+    with sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True) as connection:
         for statement in connection.iterdump():
             if statement not in {"BEGIN TRANSACTION;", "COMMIT;"}:
                 digest.update(statement.encode("utf-8"))
@@ -268,6 +270,8 @@ def migrate(manifest_path: Path, confirm_service_stopped: bool) -> None:
         raise DBAdminError("backup manifest source DB path does not match configured DB; no changes were made")
     if not backup_path.is_file():
         raise DBAdminError(f"backup path is missing: {backup_path}")
+    if not source.is_file():
+        raise DBAdminError(f"source DB does not exist; backup remains at {backup_path}")
     if _sha256(backup_path) != manifest["backup_sha256"]:
         raise DBAdminError(f"backup digest mismatch; backup remains at {backup_path}")
     try:

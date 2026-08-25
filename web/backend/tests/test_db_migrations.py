@@ -131,6 +131,33 @@ def test_migrate_rejects_source_changed_after_snapshot(tmp_path: Path) -> None:
     assert "source DB changed since backup" in result.stderr
 
 
+def test_migrate_missing_source_does_not_recreate_deleted_database(tmp_path: Path) -> None:
+    database = tmp_path / "database.db"
+    backup = tmp_path / "backup.db"
+    assert run_alembic(database, "upgrade", "head").returncode == 0
+    env = os.environ.copy()
+    env["BIDOPS_DATABASE_URL"] = f"sqlite:///{database}"
+    backup_result = subprocess.run(
+        [sys.executable, "-m", "app.db_admin", "backup", "--output", str(backup)],
+        cwd=BACKEND,
+        env=env,
+        text=True,
+        capture_output=True,
+    )
+    assert backup_result.returncode == 0, backup_result.stderr
+    database.unlink()
+    result = subprocess.run(
+        [sys.executable, "-m", "app.db_admin", "migrate", "--backup-manifest", str(backup) + ".manifest.json", "--confirm-service-stopped"],
+        cwd=BACKEND,
+        env=env,
+        text=True,
+        capture_output=True,
+    )
+    assert result.returncode != 0
+    assert not database.exists()
+    assert "source DB does not exist" in result.stderr
+
+
 def test_partial_unversioned_baseline_is_rejected(tmp_path: Path) -> None:
     database = tmp_path / "database.db"
     backup = tmp_path / "backup.db"
