@@ -25,9 +25,10 @@ def test_artifacts_reject_traversal_and_symlink_components(tmp_path: Path):
         store.write_json(EXECUTION_ID, "responses/leak.json", {"secret": "no"})
 
 
-def test_remove_execution_unlinks_symlinks_without_following_them(tmp_path: Path):
+def test_remove_execution_preserves_unknown_children_and_unlinks_owned_files(tmp_path: Path):
     store = ArtifactStore(tmp_path)
     workspace = store.create_execution_workspace(EXECUTION_ID)
+    workspace.write_json("owned.json", {"owned": True})
     outside = tmp_path / "outside"
     outside.mkdir()
     sentinel = outside / "sentinel.txt"
@@ -39,7 +40,9 @@ def test_remove_execution_unlinks_symlinks_without_following_them(tmp_path: Path
     (nested / "safe.txt").write_text("remove", encoding="utf-8")
     store.remove_execution(workspace)
     workspace.close()
-    assert not target.exists()
+    assert target.exists()
+    assert not (target / "owned.json").exists()
+    assert (target / "nested" / "safe.txt").exists()
     assert sentinel.read_text(encoding="utf-8") == "keep"
 
 
@@ -70,6 +73,70 @@ def test_remove_execution_does_not_delete_replacement_after_name_swap(tmp_path: 
     store.remove_execution(workspace)
     assert (target / "must-survive.txt").read_text(encoding="utf-8") == "keep"
     assert target.is_dir()
+    assert not owned_away.exists()
+    workspace.close()
+
+
+def test_create_workspace_rejects_preexisting_sibling_swap(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    store = ArtifactStore(tmp_path)
+    base = tmp_path / "data/screening-executions"
+    base.mkdir(parents=True)
+    sibling = base / "preexisting-sibling"
+    sibling.mkdir()
+    sentinel = sibling / "must-survive.txt"
+    sentinel.write_text("keep", encoding="utf-8")
+    real_open = os.open
+    moved = base / (EXECUTION_ID + "-moved")
+
+    def swap_between_mkdir_and_open(path, flags, *args, **kwargs):
+        if path == EXECUTION_ID and kwargs.get("dir_fd") is not None:
+            (base / EXECUTION_ID).rename(moved)
+            sibling.rename(base / EXECUTION_ID)
+        return real_open(path, flags, *args, **kwargs)
+
+    monkeypatch.setattr(os, "open", swap_between_mkdir_and_open)
+    with pytest.raises(ArtifactError):
+        store.create_execution_workspace(EXECUTION_ID)
+    assert (base / EXECUTION_ID / "must-survive.txt").read_text(encoding="utf-8") == "keep"
+    assert moved.is_dir()
+
+
+def test_workspace_fsync_failure_removes_fresh_directory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    store = ArtifactStore(tmp_path)
+
+    def fail_fsync(_fd):
+        raise OSError("injected fsync failure")
+
+    monkeypatch.setattr(os, "fsync", fail_fsync)
+    with pytest.raises(ArtifactError):
+        store.create_execution_workspace(EXECUTION_ID)
+    assert not (tmp_path / "data/screening-executions" / EXECUTION_ID).exists()
+
+
+def test_workspace_lifecycle_closes_all_descriptors(tmp_path: Path):
+    store = ArtifactStore(tmp_path)
+    before = {entry.name for entry in Path("/proc/self/fd").iterdir()}
+    for index in range(8):
+        execution_id = "scr-" + f"{index:032x}"
+        workspace = store.create_execution_workspace(execution_id)
+        workspace.write_json("screening-input.json", {"index": index})
+        workspace.close()
+        workspace.close()
+    after = {entry.name for entry in Path("/proc/self/fd").iterdir()}
+    assert after == before
+
+
+def test_registered_child_swap_preserves_replacement(tmp_path: Path):
+    store = ArtifactStore(tmp_path)
+    workspace = store.create_execution_workspace(EXECUTION_ID)
+    workspace.write_json("owned.json", {"owned": True})
+    target = tmp_path / "data/screening-executions" / EXECUTION_ID
+    owned_away = target / "owned-away.json"
+    (target / "owned.json").rename(owned_away)
+    replacement = target / "owned.json"
+    replacement.write_text("unrelated", encoding="utf-8")
+    store.remove_execution(workspace)
+    assert replacement.read_text(encoding="utf-8") == "unrelated"
     assert not owned_away.exists()
     workspace.close()
 

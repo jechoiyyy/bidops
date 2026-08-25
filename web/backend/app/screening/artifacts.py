@@ -36,7 +36,7 @@ class ExecutionWorkspace:
     replacement at the original name cannot redirect them.
     """
 
-    __slots__ = ("execution_id", "directory_fd", "base_fd", "device", "inode", "base_device", "base_inode", "_closed")
+    __slots__ = ("execution_id", "directory_fd", "base_fd", "device", "inode", "base_device", "base_inode", "_children", "_closed")
 
     def __init__(self, execution_id: str, directory_fd: int, base_fd: int) -> None:
         self.execution_id = execution_id
@@ -48,6 +48,7 @@ class ExecutionWorkspace:
         self.inode = directory_stat.st_ino
         self.base_device = base_stat.st_dev
         self.base_inode = base_stat.st_ino
+        self._children: set[tuple[str, tuple[int, int]]] = set()
         self._closed = False
 
     @property
@@ -85,6 +86,14 @@ class ExecutionWorkspace:
         if not self.named_entry():
             raise ArtifactError("execution workspace name changed")
 
+    def is_empty(self) -> bool:
+        self._ensure_open()
+        try:
+            with os.scandir(f"/proc/self/fd/{self.directory_fd}") as entries:
+                return next(entries, None) is None
+        except OSError:
+            raise ArtifactError("execution workspace could not be scanned") from None
+
     def write_bytes(self, relative: str, raw: bytes) -> tuple[str, str]:
         """Write a direct child through this workspace's directory FD."""
 
@@ -102,6 +111,10 @@ class ExecutionWorkspace:
             raise ArtifactError("workspace artifact could not be opened") from None
         if existing_fd is not None:
             try:
+                existing_stat = os.fstat(existing_fd)
+                existing_identity = (existing_stat.st_dev, existing_stat.st_ino)
+                if (relative, existing_identity) not in self._children:
+                    raise ArtifactError("workspace artifact path is not owned")
                 existing = b""
                 while True:
                     chunk = os.read(existing_fd, 1024 * 1024)
@@ -126,9 +139,20 @@ class ExecutionWorkspace:
                 offset += os.write(temporary_fd, raw[offset:])
             os.fsync(temporary_fd)
             os.fchmod(temporary_fd, 0o600)
+            temporary_stat = os.fstat(temporary_fd)
+            temporary_identity = (temporary_stat.st_dev, temporary_stat.st_ino)
             os.close(temporary_fd)
             temporary_fd = None
             os.replace(temporary, relative, src_dir_fd=self.directory_fd, dst_dir_fd=self.directory_fd)
+            final_fd = os.open(relative, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0), dir_fd=self.directory_fd)
+            try:
+                final_stat = os.fstat(final_fd)
+                final_identity = (final_stat.st_dev, final_stat.st_ino)
+                if final_identity != temporary_identity or not stat_module.S_ISREG(final_stat.st_mode):
+                    raise ArtifactError("workspace artifact identity changed")
+                self._children.add((relative, final_identity))
+            finally:
+                os.close(final_fd)
             os.fsync(self.directory_fd)
         except ArtifactError:
             raise
@@ -268,6 +292,9 @@ class ArtifactStore:
         data_fd: int | None = None
         base_fd: int | None = None
         directory_fd: int | None = None
+        workspace: ExecutionWorkspace | None = None
+        preexisting: set[tuple[int, int]] = set()
+        opened_identity: tuple[int, int] | None = None
         try:
             root_fd = os.open(self.project_root, flags)
             try:
@@ -282,15 +309,41 @@ class ArtifactStore:
                 os.mkdir("screening-executions", mode=0o700, dir_fd=data_fd)
                 base_fd = os.open("screening-executions", flags, dir_fd=data_fd)
             os.fchmod(base_fd, 0o700)
+            with os.scandir(f"/proc/self/fd/{base_fd}") as entries:
+                for entry in entries:
+                    try:
+                        value = os.stat(entry.name, dir_fd=base_fd, follow_symlinks=False)
+                    except OSError:
+                        continue
+                    preexisting.add((value.st_dev, value.st_ino))
             os.mkdir(execution_id, mode=0o700, dir_fd=base_fd)
             directory_fd = os.open(execution_id, flags, dir_fd=base_fd)
-            os.fchmod(directory_fd, 0o700)
-            os.fsync(base_fd)
             workspace = ExecutionWorkspace(execution_id, directory_fd, base_fd)
+            opened_identity = (workspace.device, workspace.inode)
             directory_fd = None
             base_fd = None
+            # The open must identify the inode created by this call, not a
+            # pre-existing sibling that was swapped into the name between
+            # mkdir and open.  A fresh workspace is empty before any writes.
+            if opened_identity in preexisting or not workspace.is_empty():
+                workspace.close()
+                workspace = None
+                raise ArtifactError("execution workspace was replaced during creation")
+            os.fchmod(workspace.directory_fd, 0o700)
+            os.fsync(workspace.base_fd)
             return workspace
         except (ArtifactError, OSError):
+            if workspace is not None:
+                # Once the exact new inode is known and is still empty, this
+                # removes only that inode.  A pre-existing/suspicious inode is
+                # closed and preserved above.
+                if opened_identity is not None and opened_identity not in preexisting:
+                    try:
+                        self.remove_execution(workspace)
+                    except ArtifactError:
+                        workspace.close()
+                else:
+                    workspace.close()
             raise ArtifactError("execution workspace creation failed") from None
         finally:
             for fd in (directory_fd, base_fd, data_fd, root_fd):
@@ -440,44 +493,19 @@ class ArtifactStore:
             raise ArtifactError("artifact JSON is invalid") from None
 
     @staticmethod
-    def _remove_tree_fd(directory_fd: int) -> None:
+    def _find_identity(directory_fd: int, identity: tuple[int, int]) -> str | None:
         try:
-            entries = list(os.scandir(f"/proc/self/fd/{directory_fd}"))
+            entries = os.scandir(f"/proc/self/fd/{directory_fd}")
         except OSError:
             raise ArtifactError("execution artifact cleanup failed") from None
-        for entry in entries:
-            name = entry.name
-            try:
-                value = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
-                if stat_module.S_ISDIR(value.st_mode):
-                    child_fd = os.open(
-                        name,
-                        os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
-                        dir_fd=directory_fd,
-                    )
-                    try:
-                        ArtifactStore._remove_tree_fd(child_fd)
-                    finally:
-                        os.close(child_fd)
-                    os.rmdir(name, dir_fd=directory_fd)
-                else:
-                    os.unlink(name, dir_fd=directory_fd)
-            except OSError:
-                raise ArtifactError("execution artifact cleanup failed") from None
-
-    @staticmethod
-    def _owned_name(workspace: ExecutionWorkspace) -> str | None:
-        try:
-            entries = list(os.scandir(f"/proc/self/fd/{workspace.base_fd}"))
-        except OSError:
-            raise ArtifactError("execution artifact cleanup failed") from None
-        for entry in entries:
-            try:
-                value = os.stat(entry.name, dir_fd=workspace.base_fd, follow_symlinks=False)
-            except OSError:
-                continue
-            if (value.st_dev, value.st_ino) == (workspace.device, workspace.inode):
-                return entry.name
+        with entries:
+            for entry in entries:
+                try:
+                    value = os.stat(entry.name, dir_fd=directory_fd, follow_symlinks=False)
+                except OSError:
+                    continue
+                if (value.st_dev, value.st_ino) == identity:
+                    return entry.name
         return None
 
     def remove_execution(self, workspace: ExecutionWorkspace) -> None:
@@ -496,8 +524,24 @@ class ArtifactStore:
                 raise ArtifactError("execution artifact parent identity changed")
             if (directory_stat.st_dev, directory_stat.st_ino) != (workspace.device, workspace.inode):
                 raise ArtifactError("execution artifact ownership mismatch")
-            owned_name = self._owned_name(workspace)
-            ArtifactStore._remove_tree_fd(workspace.directory_fd)
+            # Only direct children created through this workspace may be
+            # removed.  Unknown files/directories are preserved and therefore
+            # prevent the workspace directory from being removed below.
+            for _child_name, child_identity in tuple(workspace._children):
+                owned_child = self._find_identity(workspace.directory_fd, child_identity)
+                if owned_child is None:
+                    continue
+                try:
+                    current_child = os.stat(owned_child, dir_fd=workspace.directory_fd, follow_symlinks=False)
+                except OSError:
+                    continue
+                if (current_child.st_dev, current_child.st_ino) != child_identity:
+                    continue
+                os.unlink(owned_child, dir_fd=workspace.directory_fd)
+            with os.scandir(f"/proc/self/fd/{workspace.directory_fd}") as entries:
+                if next(entries, None) is not None:
+                    return
+            owned_name = self._find_identity(workspace.base_fd, (workspace.device, workspace.inode))
             if owned_name is None:
                 return
             try:
