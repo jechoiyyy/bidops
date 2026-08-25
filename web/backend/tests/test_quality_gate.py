@@ -40,7 +40,7 @@ def _fixed_fixture(root: Path, *, sample_count: int = 40, baseline_ids: list[str
     sample_path.parent.mkdir(parents=True, exist_ok=True)
     ids = [f"n-{index}" for index in range(sample_count)]
     baseline_ids = baseline_ids or ids
-    sample_path.write_text(json.dumps({"schema_version": "bidops.validation-set.v2", "notices": [{"notice_id": value} for value in ids]}), encoding="utf-8")
+    sample_path.write_text(json.dumps({"schema_version": "bidops.validation-set.v2", "source_window": {"from": "2026-08-17", "to": "2026-08-23", "timezone": "Asia/Seoul"}, "notices": [{"notice_id": value} for value in ids]}), encoding="utf-8")
     baseline_path.write_text(json.dumps({"schema_version": "bidops.decisions.v2", "judgments": [{"notice_id": value} for value in baseline_ids]}), encoding="utf-8")
 
 
@@ -104,9 +104,10 @@ class _FailingPassOrchestrator:
         execution_id = "scr-" + "1" * 32
         store = ArtifactStore(self.settings.bidops_root)
         store.execution_dir(execution_id, create=True)
+        ownership = store.capture_execution_ownership(execution_id)
         input_value = {
             "schema_version": "bidops.screening-input.v1", "execution_id": execution_id,
-            "run_id": FIXED_RUN_ID, "generated_at": NOW.isoformat(), "source_window": {},
+            "run_id": FIXED_RUN_ID, "generated_at": NOW.isoformat(), "source_window": {"from": "2026-08-17", "to": "2026-08-23", "timezone": "Asia/Seoul"},
             "policy_version": "policy-1", "prompt_version": "prompt-1",
             "company_profile_version": PROFILE_VERSION, "company_profile_digest": DIGEST,
             "candidate_count": 40, "notices": [{"notice_id": f"n-{i}"} for i in range(40)],
@@ -127,6 +128,7 @@ class _FailingPassOrchestrator:
             created=CreatedExecution(execution_id, "대기", "qwen3.8:27b", DIGEST, PROFILE_VERSION, DIGEST,
                                      f"data/screening-executions/{execution_id}", path, digest),
             row=row,
+            ownership=ownership,
         )
 
 
@@ -172,7 +174,7 @@ def test_production_transaction_preparer_publishes_two_fifo_rows_atomically(tmp_
 
     notices = [_notice(f"n-{index}") for index in range(40)]
     (root / FIXED_SAMPLE_RELATIVE).write_text(
-        json.dumps({"schema_version": "bidops.validation-set.v2", "notices": notices}, ensure_ascii=False), encoding="utf-8"
+        json.dumps({"schema_version": "bidops.validation-set.v2", "source_window": {"from": "2026-08-17", "to": "2026-08-23", "timezone": "Asia/Seoul"}, "notices": notices}, ensure_ascii=False), encoding="utf-8"
     )
     run_dir = root / "data/runs" / FIXED_RUN_ID
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -217,6 +219,8 @@ def test_production_transaction_preparer_publishes_two_fifo_rows_atomically(tmp_
     b = ArtifactStore(root).read_json(gate.pass_b_execution_id, "screening-input.json")
     assert a["execution_id"] != b["execution_id"]
     assert a["notices"] == b["notices"]
+    assert a["source_window"] == {"from": "2026-08-17", "to": "2026-08-23", "timezone": "Asia/Seoul"}
+    assert all(item["judgment_mode"] == "신규" and item["carry_over_from"] is None and item["rejudge_reason"] is None for item in a["notices"])
 
 
 def _completed_gate_fixture(root: Path):

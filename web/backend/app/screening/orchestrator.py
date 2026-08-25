@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from ..config import Settings, get_settings
 from ..ingest.loader import parse_run_id
 from ..models import CompanyProfileSnapshot, Notice, Run, ScreeningExecution, ScreeningPolicy
-from .artifacts import ArtifactError, ArtifactStore, aware_iso, sha256_bytes
+from .artifacts import ArtifactError, ArtifactStore, ExecutionOwnership, aware_iso, sha256_bytes
 from .contracts import MODEL_NAME
 from .ollama import ModelInspectionError, OllamaClient
 from .policy import canonical_policy_bytes, policy_content_digest
@@ -70,6 +70,7 @@ class PreparedExecution:
 
     created: CreatedExecution
     row: ScreeningExecution
+    ownership: ExecutionOwnership
 
 
 def _now(clock: Callable[[], datetime]) -> datetime:
@@ -383,6 +384,7 @@ class ScreeningOrchestrator:
         if TRIGGER_SCOPES.get(trigger) != scope:
             raise ScreeningCreationError("input_error")
         execution_id = "scr-" + uuid4().hex
+        ownership: ExecutionOwnership | None = None
         source_dir = _safe_run_directory(self.settings, run_id)
         source, _collection = _source_notices(source_dir)
         notices = source["notices"]
@@ -433,7 +435,7 @@ class ScreeningOrchestrator:
             generated_at = aware_iso(_now(self.clock))
             frozen: list[dict[str, Any]] = []
             for item in selected:
-                mode, carry, reason = _mode_for(item, scope, old_notices.get(item["notice_id"]), old_judgments.get(item["notice_id"]))
+                mode, carry, reason = ("신규", None, None) if scope == "quality_sample" else _mode_for(item, scope, old_notices.get(item["notice_id"]), old_judgments.get(item["notice_id"]))
                 frozen.append({**item, "judgment_mode": mode, "carry_over_from": carry if mode == "승계" else None, "rejudge_reason": reason if mode == "재판정" else None})
             input_value = {
                 "schema_version": "bidops.screening-input.v1", "execution_id": execution_id, "run_id": run_id,
@@ -445,8 +447,14 @@ class ScreeningOrchestrator:
             try:
                 store = ArtifactStore(Path(self.settings.bidops_root))
                 store.execution_dir(execution_id, create=True)
+                ownership = store.capture_execution_ownership(execution_id)
                 input_path, input_digest = store.write_json(execution_id, "screening-input.json", input_value)
             except ArtifactError:
+                if ownership is not None:
+                    try:
+                        store.remove_execution(execution_id, ownership)
+                    except ArtifactError:
+                        pass
                 raise ScreeningCreationError("artifact_write") from None
             # The profile snapshot is part of the immutable preflight binding;
             # commit it before Queue opens its own fresh session.
@@ -470,7 +478,8 @@ class ScreeningOrchestrator:
             )
         except Exception as exc:
             try:
-                ArtifactStore(Path(self.settings.bidops_root)).remove_execution(execution_id)
+                if ownership is not None:
+                    ArtifactStore(Path(self.settings.bidops_root)).remove_execution(execution_id, ownership)
             except ArtifactError:
                 # The queue row was not created, but leaving an explicitly
                 # nonpublished orphan is safer than deleting an unexpected
@@ -508,6 +517,7 @@ class ScreeningOrchestrator:
         if TRIGGER_SCOPES.get(trigger) != scope:
             raise ScreeningCreationError("input_error")
         execution_id = "scr-" + uuid4().hex
+        ownership: ExecutionOwnership | None = None
         source_dir = _safe_run_directory(self.settings, run_id)
         source, _collection = _source_notices(source_dir)
         notices = source["notices"]
@@ -551,7 +561,7 @@ class ScreeningOrchestrator:
         generated_at = aware_iso(_now(self.clock))
         frozen: list[dict[str, Any]] = []
         for item in selected:
-            mode, carry, reason = _mode_for(item, scope, old_notices.get(item["notice_id"]), old_judgments.get(item["notice_id"]))
+            mode, carry, reason = ("신규", None, None) if scope == "quality_sample" else _mode_for(item, scope, old_notices.get(item["notice_id"]), old_judgments.get(item["notice_id"]))
             frozen.append({**item, "judgment_mode": mode, "carry_over_from": carry if mode == "승계" else None, "rejudge_reason": reason if mode == "재판정" else None})
         input_value = {
             "schema_version": "bidops.screening-input.v1", "execution_id": execution_id, "run_id": run_id,
@@ -563,7 +573,10 @@ class ScreeningOrchestrator:
         store = ArtifactStore(Path(self.settings.bidops_root))
         try:
             store.execution_dir(execution_id, create=True)
+            ownership = store.capture_execution_ownership(execution_id)
             input_path, input_digest = store.write_json(execution_id, "screening-input.json", input_value)
+            queue_notice = selected[0]["notice_id"] if scope == "single_notice" else None
+            queue_notice_pk = db_notice.id if scope == "single_notice" else None
             row = self.queue.enqueue_in_session(
                 session,
                 execution_id=execution_id,
@@ -581,17 +594,21 @@ class ScreeningOrchestrator:
                 input_artifact_digest=input_digest,
                 artifact_dir=f"data/screening-executions/{execution_id}",
                 candidate_count=len(frozen),
+                **({"notice_pk": queue_notice_pk, "notice_id": queue_notice} if scope == "single_notice" else {}),
             )
         except Exception as exc:
             try:
-                store.remove_execution(execution_id)
+                if ownership is not None:
+                    store.remove_execution(execution_id, ownership)
             except ArtifactError:
                 pass
             if isinstance(exc, (ArtifactError, QueueValidationError)):
                 raise ScreeningCreationError("artifact_write" if isinstance(exc, ArtifactError) else "input_error") from None
             raise ScreeningCreationError("queue_failure") from None
         created = CreatedExecution(row.execution_id, row.status, row.model_name, row.model_digest, row.company_profile_version, row.company_profile_digest, row.artifact_dir, row.input_artifact_path, row.input_artifact_digest)
-        return PreparedExecution(created=created, row=row)
+        if ownership is None:
+            raise ScreeningCreationError("artifact_write")
+        return PreparedExecution(created=created, row=row, ownership=ownership)
 
     create = create_execution
     enqueue = create_execution
