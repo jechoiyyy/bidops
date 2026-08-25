@@ -56,6 +56,18 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _snapshot_fingerprint(path: Path) -> str:
+    """Hash the logical SQLite snapshot, independent of page layout/WAL files."""
+
+    digest = hashlib.sha256()
+    with sqlite3.connect(path) as connection:
+        for statement in connection.iterdump():
+            if statement not in {"BEGIN TRANSACTION;", "COMMIT;"}:
+                digest.update(statement.encode("utf-8"))
+                digest.update(b"\n")
+    return digest.hexdigest()
+
+
 def _sqlite_backup(source: Path, destination: Path) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(source) as source_connection, sqlite3.connect(destination) as destination_connection:
@@ -192,6 +204,7 @@ def backup(output: Path) -> Path:
         "backup_db_path": str(output),
         "source_sha256": _sha256(source),
         "backup_sha256": _sha256(output),
+        "source_snapshot_fingerprint": _snapshot_fingerprint(output),
         "created_at": created_at,
     }
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -207,7 +220,14 @@ def _read_manifest(path: Path) -> dict[str, Any]:
         raise DBAdminError(f"invalid backup manifest: {path}") from exc
     if not isinstance(value, dict):
         raise DBAdminError("backup manifest must be a JSON object")
-    required = {"source_db_path", "backup_db_path", "source_sha256", "backup_sha256", "created_at"}
+    required = {
+        "source_db_path",
+        "backup_db_path",
+        "source_sha256",
+        "backup_sha256",
+        "source_snapshot_fingerprint",
+        "created_at",
+    }
     if not required.issubset(value):
         raise DBAdminError("backup manifest is missing original path, digest, or creation time")
     try:
@@ -250,7 +270,14 @@ def migrate(manifest_path: Path, confirm_service_stopped: bool) -> None:
         raise DBAdminError(f"backup path is missing: {backup_path}")
     if _sha256(backup_path) != manifest["backup_sha256"]:
         raise DBAdminError(f"backup digest mismatch; backup remains at {backup_path}")
-    if not source.is_file() or _sha256(source) != manifest["source_sha256"]:
+    try:
+        backup_fingerprint = _snapshot_fingerprint(backup_path)
+        source_fingerprint = _snapshot_fingerprint(source)
+    except (OSError, sqlite3.Error) as exc:
+        raise DBAdminError(f"database snapshot fingerprint cannot be verified; backup remains at {backup_path}") from exc
+    if backup_fingerprint != manifest["source_snapshot_fingerprint"]:
+        raise DBAdminError(f"backup snapshot fingerprint mismatch; backup remains at {backup_path}")
+    if source_fingerprint != manifest["source_snapshot_fingerprint"]:
         raise DBAdminError(f"source DB changed since backup; backup remains at {backup_path}")
     if source == backup_path:
         raise DBAdminError("manifest source and backup paths must differ")
