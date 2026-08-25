@@ -307,30 +307,34 @@ def test_schedule_duplicate_and_recovery_relationships_are_restricted(tmp_path: 
             "insert into schedule_reservation(run_key, job_kind, window_from, window_to, timezone, created_at) values ('rk-weekly', 'weekly', '2026-01-01', '2026-01-07', 'Asia/Seoul', ?)",
             ("2026-01-01T00:00:00+00:00",),
         )
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute(
+                "insert into schedule_execution(execution_id, run_key, job_kind, trigger, status, requested_by) values ('sched-' || printf('%032d', 9), 'rk-daily', 'daily', 'schedule', '성공', 'tester')"
+            )
         connection.execute(
-            "insert into schedule_execution(execution_id, run_key, job_kind, trigger, status, requested_by) values ('sched-' || printf('%032d', 1), 'rk-daily', 'daily', 'schedule', '성공', 'tester')"
+            "insert into schedule_execution(execution_id, run_key, job_kind, trigger, status, requested_by) values ('sched-' || printf('%032d', 1), 'rk-daily', 'daily', 'schedule', '성공', 'system:scheduler')"
         )
         with pytest.raises(sqlite3.IntegrityError):
             connection.execute(
-                "insert into schedule_execution(execution_id, run_key, job_kind, trigger, status, duplicate_of_execution_id, requested_by, skip_reason) values ('sched-' || printf('%032d', 2), 'rk-weekly', 'weekly', 'schedule', '건너뜀', 'sched-' || printf('%032d', 1), 'tester', 'duplicate')"
+                "insert into schedule_execution(execution_id, run_key, job_kind, trigger, status, duplicate_of_execution_id, requested_by, skip_reason) values ('sched-' || printf('%032d', 2), 'rk-weekly', 'weekly', 'schedule', '건너뜀', 'sched-' || printf('%032d', 1), 'system:scheduler', 'duplicate')"
             )
         with pytest.raises(sqlite3.IntegrityError):
             connection.execute(
-                "insert into schedule_execution(execution_id, run_key, job_kind, trigger, status, recovery_of_execution_id, requested_by, failure_reason) values ('sched-' || printf('%032d', 3), 'rk-daily', 'daily', 'schedule', '실패', 'sched-' || printf('%032d', 1), 'tester', 'recovery')"
+                "insert into schedule_execution(execution_id, run_key, job_kind, trigger, status, recovery_of_execution_id, requested_by, failure_reason) values ('sched-' || printf('%032d', 3), 'rk-daily', 'daily', 'schedule', '실패', 'sched-' || printf('%032d', 1), 'system:scheduler', 'recovery')"
             )
         connection.execute(
-            "insert into schedule_execution(execution_id, run_key, job_kind, trigger, status, requested_by, failure_reason) values ('sched-' || printf('%032d', 4), 'rk-daily', 'daily', 'schedule', '실패', 'tester', 'failed')"
+            "insert into schedule_execution(execution_id, run_key, job_kind, trigger, status, requested_by, failure_reason) values ('sched-' || printf('%032d', 4), 'rk-daily', 'daily', 'schedule', '실패', 'system:scheduler', 'failed')"
         )
         connection.execute(
             "insert into schedule_execution(execution_id, run_key, job_kind, trigger, status, recovery_of_execution_id, requested_by, failure_reason) values ('sched-' || printf('%032d', 5), 'rk-daily', 'daily', 'manual', '실패', 'sched-' || printf('%032d', 4), 'tester', 'recovery')"
         )
         with pytest.raises(sqlite3.IntegrityError):
             connection.execute(
-                "insert into schedule_execution(execution_id, run_key, job_kind, trigger, status, recovery_of_execution_id, requested_by, failure_reason) values ('sched-' || printf('%032d', 6), 'rk-daily', 'daily', 'schedule', '실패', 'sched-' || printf('%032d', 4), 'tester', 'recovery')"
+                "insert into schedule_execution(execution_id, run_key, job_kind, trigger, status, recovery_of_execution_id, requested_by, failure_reason) values ('sched-' || printf('%032d', 6), 'rk-daily', 'daily', 'schedule', '실패', 'sched-' || printf('%032d', 4), 'system:scheduler', 'recovery')"
             )
         with pytest.raises(sqlite3.IntegrityError):
             connection.execute(
-                "insert into schedule_execution(execution_id, run_key, job_kind, trigger, status, duplicate_of_execution_id, requested_by, skip_reason) values ('sched-' || printf('%032d', 7), 'rk-daily', 'daily', 'schedule', '성공', 'sched-' || printf('%032d', 4), 'tester', 'duplicate')"
+                "insert into schedule_execution(execution_id, run_key, job_kind, trigger, status, duplicate_of_execution_id, requested_by, skip_reason) values ('sched-' || printf('%032d', 7), 'rk-daily', 'daily', 'schedule', '성공', 'sched-' || printf('%032d', 4), 'system:scheduler', 'duplicate')"
             )
         with pytest.raises(sqlite3.IntegrityError):
             connection.execute("update schedule_execution set status='성공' where execution_id='sched-' || printf('%032d', 4)")
