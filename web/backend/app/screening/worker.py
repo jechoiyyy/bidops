@@ -173,6 +173,34 @@ def _open_run_fds(settings: Settings, run_id: str) -> tuple[int, int, int, int]:
                     os.close(fd)
 
 
+def _open_execution_fd(settings: Settings, execution_id: str) -> tuple[int, int, int, int]:
+    """Open the immutable execution artifact directory by descriptor chain."""
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    root_fd: int | None = None
+    data_fd: int | None = None
+    base_fd: int | None = None
+    execution_fd: int | None = None
+    opened = False
+    try:
+        root_fd = os.open(Path(settings.bidops_root), flags)
+        data_fd = os.open("data", flags, dir_fd=root_fd)
+        base_fd = os.open("screening-executions", flags, dir_fd=data_fd)
+        execution_fd = os.open(execution_id, flags, dir_fd=base_fd)
+        if not all(stat.S_ISDIR(os.fstat(fd).st_mode) for fd in (root_fd, data_fd, base_fd, execution_fd)):
+            raise WorkerError("execution_failure")
+        opened = True
+        return root_fd, data_fd, base_fd, execution_fd
+    except WorkerError:
+        raise
+    except OSError:
+        raise WorkerError("execution_failure") from None
+    finally:
+        if not opened:
+            for fd in (execution_fd, base_fd, data_fd, root_fd):
+                if fd is not None:
+                    os.close(fd)
+
+
 def _profile_sections(raw: bytes) -> dict[str, str]:
     text = raw.decode("utf-8")
     lines = text.splitlines(keepends=True)
@@ -968,6 +996,7 @@ class ScreeningWorker:
             raise WorkerError("execution_failure")
         staging: Path | None = None
         staging_name: str | None = None
+        staging_fd: int | None = None
         derived_id: str | None = None
         try:
             for _ in range(20):
@@ -986,11 +1015,8 @@ class ScreeningWorker:
                 os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
                 dir_fd=runs_fd,
             )
-            try:
-                self._copy_tree_fd(source_fd, staging_fd)
-                os.fsync(staging_fd)
-            finally:
-                os.close(staging_fd)
+            self._copy_tree_fd(source_fd, staging_fd)
+            os.fsync(staging_fd)
             # The source run is copied as provenance, but these names are
             # owned by the current screening execution.  Remove every stale
             # copy before installing the immutable current artifacts.  In
@@ -1001,30 +1027,64 @@ class ScreeningWorker:
                 "screening-failures.json", "screening-telemetry.jsonl",
                 "screening-replacement-provenance.json", "responses",
             ):
-                self._remove_owned_artifact(staging / name)
-            root = Path(self.settings.bidops_root)
+                self._remove_owned_at(staging_fd, name)
+            result_name = Path(result_path).name
+            if result_name != "screening-results.json":
+                raise WorkerError("execution_failure")
+            execution_fds = _open_execution_fd(self.settings, row.execution_id)
+            execution_fd = execution_fds[3]
+            try:
+                self._copy_atomic_at(execution_fd, "screening-input.json", staging_fd, "screening-input.json")
+                self._copy_atomic_at(execution_fd, result_name, staging_fd, "screening-results.json")
+                for name in ("screening-decisions.json", "screening-failures.json", "screening-telemetry.jsonl"):
+                    try:
+                        info = os.stat(name, dir_fd=execution_fd, follow_symlinks=False)
+                    except FileNotFoundError:
+                        continue
+                    except OSError:
+                        raise WorkerError("execution_failure") from None
+                    if stat.S_ISLNK(info.st_mode) or not stat.S_ISREG(info.st_mode):
+                        raise WorkerError("execution_failure")
+                    self._copy_atomic_at(execution_fd, name, staging_fd, name)
+            finally:
+                for fd in reversed(execution_fds):
+                    os.close(fd)
             # The current immutable execution input is authoritative; a source
             # run may contain an older screening-input from another execution.
-            self._copy_atomic(root / row.input_artifact_path, staging / "screening-input.json")
-            self._copy_atomic(Path(result_path), staging / "screening-results.json")
-            execution_dir = Path(self.settings.bidops_root) / row.artifact_dir
-            for name in ("screening-decisions.json", "screening-failures.json", "screening-telemetry.jsonl"):
-                source_file = execution_dir / name
-                if source_file.is_file():
-                    self._copy_atomic(source_file, staging / name)
             provenance = {
                 "schema_version": "bidops.screening-replacement.v1",
                 "source_run_id": row.source_run_id,
                 "execution_id": row.execution_id,
                 "recorded_at": aware_iso(_aware(self.clock)),
             }
-            self._write_atomic(staging / "screening-replacement-provenance.json", canonical_bytes(provenance))
-            self._assert_no_symlinks(staging)
-            staged_input = _read_json(staging / "screening-input.json")
-            staged_results = _read_json(staging / "screening-results.json")
-            staged_failures = _read_json(staging / "screening-failures.json") if (staging / "screening-failures.json").is_file() else None
+            self._write_atomic_at(staging_fd, "screening-replacement-provenance.json", canonical_bytes(provenance))
+            self._fsync_tree_fd(staging_fd)
+            staged_input = json.loads(self._read_regular_at(staging_fd, "screening-input.json").decode("utf-8"))
+            staged_results = json.loads(self._read_regular_at(staging_fd, "screening-results.json").decode("utf-8"))
+            try:
+                failure_info = os.stat("screening-failures.json", dir_fd=staging_fd, follow_symlinks=False)
+            except FileNotFoundError:
+                staged_failures = None
+            except OSError:
+                raise WorkerError("execution_failure") from None
+            else:
+                if stat.S_ISLNK(failure_info.st_mode) or not stat.S_ISREG(failure_info.st_mode):
+                    raise WorkerError("execution_failure")
+                staged_failures = json.loads(self._read_regular_at(staging_fd, "screening-failures.json").decode("utf-8"))
+            for name in ("screening-decisions.json", "screening-replacement-provenance.json"):
+                self._read_regular_at(staging_fd, name)
+            try:
+                telemetry_info = os.stat("screening-telemetry.jsonl", dir_fd=staging_fd, follow_symlinks=False)
+            except FileNotFoundError:
+                telemetry_info = None
+            except OSError:
+                raise WorkerError("execution_failure") from None
+            if telemetry_info is not None:
+                if stat.S_ISLNK(telemetry_info.st_mode) or not stat.S_ISREG(telemetry_info.st_mode):
+                    raise WorkerError("execution_failure")
+                self._read_regular_at(staging_fd, "screening-telemetry.jsonl")
             self._validate_v3_result(row, staged_input, staged_results, staged_failures)
-            self._fsync_tree(staging)
+            self._fsync_tree_fd(staging_fd)
             try:
                 os.stat(target_name, dir_fd=runs_fd, follow_symlinks=False)
                 raise WorkerError("execution_failure")
@@ -1037,7 +1097,7 @@ class ScreeningWorker:
                 # The loader is the sole owner of deterministic Run.id and
                 # Notice/Judgment/count ingestion. It commits its own valid
                 # transaction before we bind the execution FK.
-                loaded = ingest_run(target, session)
+                loaded = ingest_run(Path(f"/proc/self/fd/{staging_fd}"), session)
                 derived_id = loaded.run_id
                 run = session.scalar(select(Run).where(Run.id == derived_id))
                 if run is None or loaded.run_id != derived_id:
@@ -1058,12 +1118,14 @@ class ScreeningWorker:
                 raise WorkerError("execution_failure")
             return derived_id, target
         except WorkerError as exc:
-            self._cleanup_publication(target, staging, derived_id)
+            self._cleanup_publication(target, staging, derived_id, runs_fd=runs_fd, staging_name=staging_name, target_name=target_name)
             raise exc
         except Exception:
-            self._cleanup_publication(target, staging, derived_id)
+            self._cleanup_publication(target, staging, derived_id, runs_fd=runs_fd, staging_name=staging_name, target_name=target_name)
             raise WorkerError("execution_failure") from None
         finally:
+            if staging_fd is not None:
+                os.close(staging_fd)
             for fd in (source_fd, runs_fd, data_fd, root_fd):
                 os.close(fd)
 
@@ -1142,6 +1204,122 @@ class ScreeningWorker:
             if parent_fd is not None:
                 os.close(parent_fd)
         cls._write_atomic(destination, raw)
+
+    @classmethod
+    def _read_regular_at(cls, directory_fd: int, name: str) -> bytes:
+        source_fd: int | None = None
+        try:
+            source_fd = os.open(name, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0), dir_fd=directory_fd)
+            if not stat.S_ISREG(os.fstat(source_fd).st_mode):
+                raise WorkerError("execution_failure")
+            return cls._read_regular_fd(source_fd)
+        except WorkerError:
+            raise
+        except OSError:
+            raise WorkerError("execution_failure") from None
+        finally:
+            if source_fd is not None:
+                os.close(source_fd)
+
+    @classmethod
+    def _write_atomic_at(cls, directory_fd: int, name: str, raw: bytes) -> None:
+        temporary_name = f".screening-{uuid4().hex}.tmp"
+        temporary_fd: int | None = None
+        try:
+            temporary_fd = os.open(
+                temporary_name,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+                0o600,
+                dir_fd=directory_fd,
+            )
+            offset = 0
+            while offset < len(raw):
+                offset += os.write(temporary_fd, raw[offset:])
+            os.fsync(temporary_fd)
+            os.fchmod(temporary_fd, 0o600)
+            os.close(temporary_fd)
+            temporary_fd = None
+            os.replace(temporary_name, name, src_dir_fd=directory_fd, dst_dir_fd=directory_fd)
+            os.fsync(directory_fd)
+        except OSError:
+            raise WorkerError("execution_failure") from None
+        finally:
+            if temporary_fd is not None:
+                os.close(temporary_fd)
+            try:
+                os.unlink(temporary_name, dir_fd=directory_fd)
+            except FileNotFoundError:
+                pass
+            except OSError:
+                # A rename may have installed the file already.  The caller
+                # will surface any real write error; never follow a path here.
+                pass
+
+    @classmethod
+    def _copy_atomic_at(cls, source_fd: int, source_name: str, destination_fd: int, destination_name: str) -> None:
+        raw = cls._read_regular_at(source_fd, source_name)
+        cls._write_atomic_at(destination_fd, destination_name, raw)
+
+    @classmethod
+    def _remove_owned_at(cls, directory_fd: int, name: str) -> None:
+        try:
+            info = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+        except FileNotFoundError:
+            return
+        except OSError:
+            raise WorkerError("execution_failure") from None
+        if stat.S_ISLNK(info.st_mode):
+            raise WorkerError("execution_failure")
+        if stat.S_ISDIR(info.st_mode):
+            child_fd: int | None = None
+            try:
+                child_fd = os.open(name, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0), dir_fd=directory_fd)
+                with os.scandir(child_fd) as entries:
+                    for entry in entries:
+                        cls._remove_owned_at(child_fd, entry.name)
+                os.rmdir(name, dir_fd=directory_fd)
+            except WorkerError:
+                raise
+            except OSError:
+                raise WorkerError("execution_failure") from None
+            finally:
+                if child_fd is not None:
+                    os.close(child_fd)
+        elif stat.S_ISREG(info.st_mode):
+            try:
+                os.unlink(name, dir_fd=directory_fd)
+            except OSError:
+                raise WorkerError("execution_failure") from None
+        else:
+            raise WorkerError("execution_failure")
+
+    @classmethod
+    def _fsync_tree_fd(cls, directory_fd: int) -> None:
+        try:
+            with os.scandir(directory_fd) as entries:
+                for entry in entries:
+                    info = os.stat(entry.name, dir_fd=directory_fd, follow_symlinks=False)
+                    if stat.S_ISLNK(info.st_mode):
+                        raise WorkerError("execution_failure")
+                    if stat.S_ISDIR(info.st_mode):
+                        child_fd = os.open(entry.name, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0), dir_fd=directory_fd)
+                        try:
+                            cls._fsync_tree_fd(child_fd)
+                        finally:
+                            os.close(child_fd)
+                    elif stat.S_ISREG(info.st_mode):
+                        child_fd = os.open(entry.name, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0), dir_fd=directory_fd)
+                        try:
+                            os.fsync(child_fd)
+                        finally:
+                            os.close(child_fd)
+                    else:
+                        raise WorkerError("execution_failure")
+            os.fsync(directory_fd)
+        except WorkerError:
+            raise
+        except OSError:
+            raise WorkerError("execution_failure") from None
 
     @classmethod
     def _copy_tree_nofollow(cls, source: Path, destination: Path) -> None:
@@ -1296,7 +1474,16 @@ class ScreeningWorker:
         except OSError:
             raise WorkerError("execution_failure") from None
 
-    def _cleanup_publication(self, target: Path | None, staging: Path | None, derived_id: str | None) -> None:
+    def _cleanup_publication(
+        self,
+        target: Path | None,
+        staging: Path | None,
+        derived_id: str | None,
+        *,
+        runs_fd: int | None = None,
+        staging_name: str | None = None,
+        target_name: str | None = None,
+    ) -> None:
         db_clean = False
         for attempt in range(3):
             try:
@@ -1312,6 +1499,23 @@ class ScreeningWorker:
                     self.sleep(0.01)
         if not db_clean:
             raise WorkerError("execution_failure") from None
+        if runs_fd is not None:
+            names = tuple(name for name in (staging_name, target_name) if name is not None)
+            removed = False
+            for attempt in range(3):
+                try:
+                    for name in names:
+                        self._remove_owned_at(runs_fd, name)
+                    removed = True
+                    break
+                except WorkerError:
+                    if attempt == 2:
+                        raise
+                if attempt < 2:
+                    self.sleep(0.01)
+            if not removed:
+                raise WorkerError("execution_failure")
+            return
         for path in (staging, target):
             if path is None:
                 continue
