@@ -314,6 +314,7 @@ class ScreeningQueue:
     def enqueue(
         self,
         *,
+        execution_id: str | None = None,
         trigger: str,
         source_run_id: str,
         scope: str,
@@ -369,6 +370,9 @@ class ScreeningQueue:
         elif notice_pk is not None or notice_id is not None:
             raise QueueValidationError("full_run and quality_sample cannot include a notice")
         queued_at = normalize_utc(queued_at, default=self.now)
+        if execution_id is not None:
+            if not isinstance(execution_id, str) or _EXECUTION_ID.fullmatch(execution_id) is None:
+                raise QueueValidationError("execution_id is invalid")
 
         def command(session: Session) -> ScreeningExecution:
             if session.scalar(select(Run.id).where(Run.id == source_run_id)) is None:
@@ -394,7 +398,7 @@ class ScreeningQueue:
                 if notice is None or notice.run_id != source_run_id or notice.notice_key != notice_id:
                     raise QueueValidationError("single notice identity does not match source run")
             execution = ScreeningExecution(
-                execution_id="scr-" + uuid4().hex,
+                execution_id=execution_id or ("scr-" + uuid4().hex),
                 trigger=trigger,
                 source_run_id=source_run_id,
                 scope=scope,
