@@ -194,6 +194,19 @@ def test_inspection_get_has_no_request_body_and_identity_is_cached() -> None:
     assert len([request for request in transport.requests if request["path"] == "/api/tags"]) == 1
 
 
+def test_inspection_refresh_rechecks_tags_and_rejects_cached_digest() -> None:
+    responses = iter((
+        {"models": [{"name": "qwen3.8:27b", "model": "qwen3.8:27b", "digest": "a" * 64}]},
+        {"models": [{"name": "qwen3.8:27b", "model": "qwen3.8:27b", "digest": "b" * 64}]},
+    ))
+    transport = FakeOllamaTransport(inspect_response=lambda _request: next(responses))
+    client = OllamaClient(transport=transport)
+    assert client.inspect_model().digest == "a" * 64
+    assert client.inspect_model().digest == "a" * 64
+    assert client.inspect_model(refresh=True).digest == "b" * 64
+    assert len([request for request in transport.requests if request["path"] == "/api/tags"]) == 2
+
+
 def test_generate_inspection_failure_is_not_reclassified_and_has_no_cause_sentinel() -> None:
     sentinel = "INSPECTION_SECRET_SENTINEL"
     with pytest.raises(ModelInspectionError) as caught:

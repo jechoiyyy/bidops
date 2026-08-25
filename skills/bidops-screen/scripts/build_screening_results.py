@@ -562,7 +562,11 @@ def _validate_nested_notice(notice: dict[str, Any], prefix: str) -> list[str]:
             item_prefix,
         ))
         if isinstance(item, dict):
-            if not _nonempty(item.get("project_name")) or not _nonempty(item.get("source_page")):
+            source_page = item.get("source_page")
+            source_page_valid = (
+                isinstance(source_page, int) and not isinstance(source_page, bool) and source_page >= 0
+            ) or (isinstance(source_page, str) and bool(source_page.strip()))
+            if not _nonempty(item.get("project_name")) or not source_page_valid:
                 errors.append(f"{item_prefix}의 프로젝트명/출처가 비어 있습니다.")
             if not _finite_number(item.get("similarity")):
                 errors.append(f"{item_prefix}.similarity가 숫자가 아닙니다.")

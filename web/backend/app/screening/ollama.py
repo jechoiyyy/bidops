@@ -203,10 +203,10 @@ class OllamaClient:
         self.transport: Transport = transport or OllamaTransport(self.settings.model_base_url)
         self.identity: ModelIdentity | None = None
 
-    def inspect_model(self) -> ModelIdentity:
+    def inspect_model(self, *, refresh: bool = False) -> ModelIdentity:
         """Resolve the exact model from Ollama's real ``/api/tags`` shape."""
 
-        if self.identity is not None:
+        if self.identity is not None and not refresh:
             return self.identity
         failure_summary: str | None = None
         try:

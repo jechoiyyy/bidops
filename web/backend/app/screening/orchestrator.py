@@ -224,7 +224,10 @@ def _validate_collected_notice(item: Mapping[str, Any]) -> None:
             raise ScreeningCreationError("input_error")
     for child in item["performance_matches"]:
         keys = ("project_name", "source_page", "similarity", "common_fragment", "legal_qualification_status")
-        if not _exact_object(child, keys) or any(not isinstance(child[key], str) or not child[key].strip() for key in ("project_name", "source_page", "legal_qualification_status")):
+        if not _exact_object(child, keys) or any(not isinstance(child[key], str) or not child[key].strip() for key in ("project_name", "legal_qualification_status")):
+            raise ScreeningCreationError("input_error")
+        source_page = child["source_page"]
+        if isinstance(source_page, bool) or not isinstance(source_page, (str, int)) or (isinstance(source_page, str) and not source_page.strip()) or (isinstance(source_page, int) and source_page < 0):
             raise ScreeningCreationError("input_error")
         if isinstance(child["similarity"], bool) or not isinstance(child["similarity"], (int, float)) or not math.isfinite(float(child["similarity"])):
             raise ScreeningCreationError("input_error")
@@ -403,10 +406,11 @@ class ScreeningOrchestrator:
                 selected = [item for item in notices if item["notice_id"] == notice_id]
                 if len(selected) != 1:
                     raise ScreeningCreationError("input_error")
-            # Resolve DB notice identity before snapshot/model preflight so an
-            # invalid requested notice cannot trigger even an inspection call.
-            for item in selected:
-                db_notice = session.scalar(select(Notice).where(Notice.run_id == run_id, Notice.notice_key == item["notice_id"]))
+            # A single-notice execution binds one DB Notice row. Full and
+            # quality executions are artifact-authoritative and may contain
+            # collected candidates outside the validation-set DB projection.
+            if scope == "single_notice":
+                db_notice = session.scalar(select(Notice).where(Notice.run_id == run_id, Notice.notice_key == notice_id))
                 if db_notice is None:
                     raise ScreeningCreationError("input_error")
             try:

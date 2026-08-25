@@ -773,6 +773,75 @@ def _load_validation_notices(
     return notices
 
 
+_SCREENING_COMMON_NOTICE_KEYS = (
+    "notice_id", "source_type", "title", "agency", "method", "url",
+    "collection_bucket", "published_at", "deadline_at", "budget",
+    "estimated_price", "procurement_class", "region_limit", "lifecycle",
+    "qualification_flags", "attachments", "focus_matches", "performance_matches",
+    "performance_top_score", "candidate_sources", "unknown_fields", "sample_stratum",
+    "sample_role", "raw_source",
+)
+_SCREENING_INPUT_KEYS = {
+    "schema_version", "execution_id", "run_id", "generated_at", "source_window",
+    "policy_version", "prompt_version", "company_profile_version", "company_profile_digest",
+    "candidate_count", "notices",
+}
+
+
+def _load_screening_input_notices(
+    session: Session,
+    run_id: str,
+    raw: dict[str, Any],
+    timezone_name: str,
+    source_file: str,
+) -> dict[str, Notice]:
+    """Load v3 input notices into the DB projection without changing input bytes.
+
+    A validation set is intentionally a sample, while a screening input is
+    the immutable identity authority for a full/quality execution.  This
+    helper is used only when the v1 screening input exists;
+    historical v1/v2 ingest paths remain validation-set authoritative.
+    """
+    if raw.get("schema_version") != "bidops.screening-input.v1":
+        return {}
+    if set(raw) != _SCREENING_INPUT_KEYS:
+        _record_warning(
+            session, run_id, "error", "screening_input_invalid",
+            "screening-input.json 최상위 필드가 정확하지 않습니다.", {"file": source_file},
+        )
+        return {}
+    notices_raw = raw.get("notices")
+    if not isinstance(notices_raw, list) or raw.get("candidate_count") != len(notices_raw):
+        _record_warning(
+            session, run_id, "error", "screening_input_invalid",
+            "screening-input.json에 notices 목록이 없습니다.", {"file": source_file},
+        )
+        return {}
+    notices: dict[str, Notice] = {}
+    input_keys = set(_SCREENING_COMMON_NOTICE_KEYS) | {"judgment_mode", "carry_over_from", "rejudge_reason"}
+    for index, raw_notice in enumerate(notices_raw):
+        if not isinstance(raw_notice, dict) or set(raw_notice) != input_keys:
+            _record_warning(
+                session, run_id, "error", "screening_input_notice_invalid",
+                "screening-input.json 공고 항목이 불완전합니다.", {"file": source_file, "index": index},
+            )
+            continue
+        try:
+            notice_model = NoticeContract.model_validate({key: raw_notice[key] for key in _SCREENING_COMMON_NOTICE_KEYS})
+        except ValidationError as exc:
+            _record_warning(
+                session, run_id, "error", "screening_input_notice_invalid",
+                "screening-input.json 공고 항목 계약을 해석하지 못했습니다.",
+                {"file": source_file, "index": index, "error": str(exc)},
+            )
+            continue
+        item = _upsert_notice(session, run_id, notice_model, {key: raw_notice[key] for key in _SCREENING_COMMON_NOTICE_KEYS}, timezone_name)
+        if item is not None:
+            notices[item.notice_key] = item
+    session.flush()
+    return notices
+
+
 def _remove_judgments_without_screening(session: Session, notices: dict[str, Notice]) -> None:
     for notice in notices.values():
         if notice.judgment is not None:
@@ -1019,15 +1088,17 @@ def ingest_run(
     directory = Path(run_directory).resolve()
     reports_path = Path(reports_root) if reports_root is not None else None
     validation_path = directory / "validation-set.json"
+    screening_input_path = directory / "screening-input.json"
     screening_path = directory / "screening-results.json"
     decisions_path = directory / "screening-decisions.json"
     collection_path = directory / "collected-notices.json"
 
     validation_raw = _read_optional_json(validation_path)
+    screening_input_raw = _read_optional_json(screening_input_path)
     screening_raw = _read_optional_json(screening_path)
     decisions_raw = _read_optional_json(decisions_path)
     collection_raw = _read_optional_json(collection_path)
-    metadata_raws = [screening_raw, decisions_raw, validation_raw, collection_raw]
+    metadata_raws = [screening_raw, decisions_raw, screening_input_raw, validation_raw, collection_raw]
     window_from, window_to, timezone_name = _source_window(metadata_raws)
     generated_at = _first_generated_at(
         metadata_raws,
@@ -1052,7 +1123,7 @@ def ingest_run(
             generated_at,
             screening_basis,
         )
-        if validation_raw is None:
+        if validation_raw is None and screening_input_raw is None:
             _record_warning(
                 session,
                 run_id,
@@ -1071,10 +1142,20 @@ def ingest_run(
             warnings = _warning_dicts(session, run_id)
             return IngestResult(run_id=run_id, warnings=warnings)
 
-        notices = _load_validation_notices(
-            session, run_id, validation_raw, timezone_name, str(validation_path)
-        )
-        if not notices and not isinstance(validation_raw.get("notices"), list):
+        # A frozen screening input is the identity authority for a v3
+        # execution.  The validation set remains an immutable source artifact
+        # but is not allowed to add sample-only Notice rows to the published
+        # replacement.  Historical runs without screening-input retain the
+        # validation-set projection.
+        if screening_input_raw is not None:
+            notices = _load_screening_input_notices(
+                session, run_id, screening_input_raw, timezone_name, str(screening_input_path)
+            )
+        elif validation_raw is not None:
+            notices = _load_validation_notices(
+                session, run_id, validation_raw, timezone_name, str(validation_path)
+            )
+        if not notices and validation_raw is not None and not isinstance(validation_raw.get("notices"), list) and not isinstance(screening_input_raw, dict):
             # The detailed warning was recorded above; this branch only keeps
             # the stop behavior explicit for callers reading the code.
             _update_counts(session, run)
