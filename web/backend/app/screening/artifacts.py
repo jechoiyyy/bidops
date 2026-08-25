@@ -141,8 +141,10 @@ class ExecutionWorkspace:
             os.fchmod(temporary_fd, 0o600)
             temporary_stat = os.fstat(temporary_fd)
             temporary_identity = (temporary_stat.st_dev, temporary_stat.st_ino)
-            os.close(temporary_fd)
-            temporary_fd = None
+            # Keep the inode discoverable even if the final verification open
+            # fails after replace.  The name is only a hint; rollback matches
+            # this exact inode before moving it to quarantine.
+            self._children.add((relative, temporary_identity))
             os.replace(temporary, relative, src_dir_fd=self.directory_fd, dst_dir_fd=self.directory_fd)
             final_fd = os.open(relative, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0), dir_fd=self.directory_fd)
             try:
@@ -294,6 +296,7 @@ class ArtifactStore:
         directory_fd: int | None = None
         workspace: ExecutionWorkspace | None = None
         preexisting: set[tuple[int, int]] = set()
+        created_identity: tuple[int, int] | None = None
         opened_identity: tuple[int, int] | None = None
         try:
             root_fd = os.open(self.project_root, flags)
@@ -317,6 +320,11 @@ class ArtifactStore:
                         continue
                     preexisting.add((value.st_dev, value.st_ino))
             os.mkdir(execution_id, mode=0o700, dir_fd=base_fd)
+            try:
+                created_stat = os.stat(execution_id, dir_fd=base_fd, follow_symlinks=False)
+            except OSError:
+                raise ArtifactError("created execution workspace could not be identified") from None
+            created_identity = (created_stat.st_dev, created_stat.st_ino)
             directory_fd = os.open(execution_id, flags, dir_fd=base_fd)
             workspace = ExecutionWorkspace(execution_id, directory_fd, base_fd)
             opened_identity = (workspace.device, workspace.inode)
@@ -325,7 +333,14 @@ class ArtifactStore:
             # The open must identify the inode created by this call, not a
             # pre-existing sibling that was swapped into the name between
             # mkdir and open.  A fresh workspace is empty before any writes.
-            if opened_identity in preexisting or not workspace.is_empty():
+            if opened_identity != created_identity or opened_identity in preexisting or not workspace.is_empty():
+                if opened_identity != created_identity and created_identity is not None:
+                    try:
+                        self._remove_fresh_directory(workspace.base_fd, created_identity)
+                    except ArtifactError:
+                        # The candidate is preserved when it cannot be
+                        # uniquely proven to be the just-created empty inode.
+                        pass
                 workspace.close()
                 workspace = None
                 raise ArtifactError("execution workspace was replaced during creation")
@@ -344,6 +359,11 @@ class ArtifactStore:
                         workspace.close()
                 else:
                     workspace.close()
+            elif created_identity is not None and base_fd is not None and created_identity not in preexisting:
+                try:
+                    self._remove_fresh_directory(base_fd, created_identity)
+                except ArtifactError:
+                    pass
             raise ArtifactError("execution workspace creation failed") from None
         finally:
             for fd in (directory_fd, base_fd, data_fd, root_fd):
@@ -493,11 +513,12 @@ class ArtifactStore:
             raise ArtifactError("artifact JSON is invalid") from None
 
     @staticmethod
-    def _find_identity(directory_fd: int, identity: tuple[int, int]) -> str | None:
+    def _find_identities(directory_fd: int, identity: tuple[int, int]) -> list[str]:
         try:
             entries = os.scandir(f"/proc/self/fd/{directory_fd}")
         except OSError:
             raise ArtifactError("execution artifact cleanup failed") from None
+        matches: list[str] = []
         with entries:
             for entry in entries:
                 try:
@@ -505,8 +526,143 @@ class ArtifactStore:
                 except OSError:
                     continue
                 if (value.st_dev, value.st_ino) == identity:
-                    return entry.name
-        return None
+                    matches.append(entry.name)
+        return matches
+
+    @classmethod
+    def _find_identity(cls, directory_fd: int, identity: tuple[int, int]) -> str | None:
+        matches = cls._find_identities(directory_fd, identity)
+        return matches[0] if matches else None
+
+    @classmethod
+    def _remove_fresh_directory(cls, base_fd: int, identity: tuple[int, int]) -> None:
+        """Remove one provably fresh empty directory after an open/name swap."""
+
+        matches = cls._find_identities(base_fd, identity)
+        if len(matches) != 1:
+            return
+        name = matches[0]
+        flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+        candidate_fd: int | None = None
+        try:
+            candidate_fd = os.open(name, flags, dir_fd=base_fd)
+            candidate_stat = os.fstat(candidate_fd)
+            if (candidate_stat.st_dev, candidate_stat.st_ino) != identity:
+                return
+            with os.scandir(f"/proc/self/fd/{candidate_fd}") as entries:
+                if next(entries, None) is not None:
+                    return
+            current = os.stat(name, dir_fd=base_fd, follow_symlinks=False)
+            if (current.st_dev, current.st_ino) != identity:
+                return
+            os.rmdir(name, dir_fd=base_fd)
+        except OSError:
+            raise ArtifactError("fresh execution workspace cleanup failed") from None
+        finally:
+            if candidate_fd is not None:
+                os.close(candidate_fd)
+
+    @staticmethod
+    def _reserve_quarantine_name(directory_fd: int) -> str:
+        for _ in range(8):
+            name = f".rollback-{uuid4().hex}.tmp"
+            try:
+                fd = os.open(
+                    name,
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+                    0o600,
+                    dir_fd=directory_fd,
+                )
+            except FileExistsError:
+                continue
+            except OSError:
+                raise ArtifactError("artifact quarantine reservation failed") from None
+            try:
+                os.close(fd)
+                os.unlink(name, dir_fd=directory_fd)
+            except OSError:
+                raise ArtifactError("artifact quarantine reservation failed") from None
+            return name
+        raise ArtifactError("artifact quarantine name collision")
+
+    @staticmethod
+    def _restore_quarantine_file(directory_fd: int, quarantine: str, original: str) -> None:
+        """Restore a mismatched regular replacement without clobbering a name."""
+
+        fd: int | None = None
+        try:
+            fd = os.open(quarantine, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0), dir_fd=directory_fd)
+            value = os.fstat(fd)
+            if not stat_module.S_ISREG(value.st_mode):
+                return
+            try:
+                os.link(quarantine, original, src_dir_fd=directory_fd, dst_dir_fd=directory_fd, follow_symlinks=False)
+            except FileExistsError:
+                return
+            except OSError:
+                return
+            try:
+                os.unlink(quarantine, dir_fd=directory_fd)
+            except OSError:
+                pass
+        except OSError:
+            return
+        finally:
+            if fd is not None:
+                os.close(fd)
+
+    @classmethod
+    def _quarantine_remove_child(cls, directory_fd: int, identity: tuple[int, int]) -> bool:
+        matches = cls._find_identities(directory_fd, identity)
+        if len(matches) != 1:
+            return False
+        original = matches[0]
+        try:
+            current = os.stat(original, dir_fd=directory_fd, follow_symlinks=False)
+        except OSError:
+            return False
+        if (current.st_dev, current.st_ino) != identity or not stat_module.S_ISREG(current.st_mode):
+            return False
+        quarantine = cls._reserve_quarantine_name(directory_fd)
+        renamed = False
+        try:
+            os.rename(original, quarantine, src_dir_fd=directory_fd, dst_dir_fd=directory_fd)
+            renamed = True
+            fd: int | None = None
+            try:
+                fd = os.open(quarantine, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0), dir_fd=directory_fd)
+                value = os.fstat(fd)
+                named = os.stat(quarantine, dir_fd=directory_fd, follow_symlinks=False)
+                if (
+                    (value.st_dev, value.st_ino) != identity
+                    or (named.st_dev, named.st_ino) != identity
+                    or not stat_module.S_ISREG(value.st_mode)
+                ):
+                    cls._restore_quarantine_file(directory_fd, quarantine, original)
+                    return False
+            except OSError:
+                cls._restore_quarantine_file(directory_fd, quarantine, original)
+                return False
+            finally:
+                if fd is not None:
+                    os.close(fd)
+            final_named = os.stat(quarantine, dir_fd=directory_fd, follow_symlinks=False)
+            if (final_named.st_dev, final_named.st_ino) != identity:
+                cls._restore_quarantine_file(directory_fd, quarantine, original)
+                return False
+            try:
+                os.unlink(quarantine, dir_fd=directory_fd)
+            except OSError:
+                return False
+            return True
+        except OSError:
+            return False
+        finally:
+            if not renamed:
+                try:
+                    os.unlink(quarantine, dir_fd=directory_fd)
+                except OSError:
+                    pass
 
     def remove_execution(self, workspace: ExecutionWorkspace) -> None:
         """Remove only the inode owned by a live workspace.
@@ -528,16 +684,7 @@ class ArtifactStore:
             # removed.  Unknown files/directories are preserved and therefore
             # prevent the workspace directory from being removed below.
             for _child_name, child_identity in tuple(workspace._children):
-                owned_child = self._find_identity(workspace.directory_fd, child_identity)
-                if owned_child is None:
-                    continue
-                try:
-                    current_child = os.stat(owned_child, dir_fd=workspace.directory_fd, follow_symlinks=False)
-                except OSError:
-                    continue
-                if (current_child.st_dev, current_child.st_ino) != child_identity:
-                    continue
-                os.unlink(owned_child, dir_fd=workspace.directory_fd)
+                self._quarantine_remove_child(workspace.directory_fd, child_identity)
             with os.scandir(f"/proc/self/fd/{workspace.directory_fd}") as entries:
                 if next(entries, None) is not None:
                     return

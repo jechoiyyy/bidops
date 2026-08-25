@@ -98,7 +98,7 @@ def test_create_workspace_rejects_preexisting_sibling_swap(tmp_path: Path, monke
     with pytest.raises(ArtifactError):
         store.create_execution_workspace(EXECUTION_ID)
     assert (base / EXECUTION_ID / "must-survive.txt").read_text(encoding="utf-8") == "keep"
-    assert moved.is_dir()
+    assert not moved.exists()
 
 
 def test_workspace_fsync_failure_removes_fresh_directory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -138,6 +138,54 @@ def test_registered_child_swap_preserves_replacement(tmp_path: Path):
     store.remove_execution(workspace)
     assert replacement.read_text(encoding="utf-8") == "unrelated"
     assert not owned_away.exists()
+    workspace.close()
+
+
+def test_registered_child_quarantine_boundary_preserves_replacement(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    store = ArtifactStore(tmp_path)
+    workspace = store.create_execution_workspace(EXECUTION_ID)
+    workspace.write_json("owned.json", {"owned": True})
+    target = tmp_path / "data/screening-executions" / EXECUTION_ID
+    owned_away = target / "owned-away.json"
+    real_rename = os.rename
+    swapped = False
+
+    def swap_at_quarantine_boundary(source, destination, *args, **kwargs):
+        nonlocal swapped
+        if source == "owned.json" and kwargs.get("src_dir_fd") == workspace.directory_fd and not swapped:
+            swapped = True
+            real_rename(target / "owned.json", owned_away)
+            (target / "owned.json").write_text("replacement", encoding="utf-8")
+        return real_rename(source, destination, *args, **kwargs)
+
+    monkeypatch.setattr(os, "rename", swap_at_quarantine_boundary)
+    store.remove_execution(workspace)
+    assert swapped
+    assert owned_away.read_text(encoding="utf-8") != "replacement"
+    assert (target / "owned.json").read_text(encoding="utf-8") == "replacement"
+    assert target.is_dir()
+    workspace.close()
+
+
+def test_final_identity_open_failure_tracks_pending_inode(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    store = ArtifactStore(tmp_path)
+    workspace = store.create_execution_workspace(EXECUTION_ID)
+    real_open = os.open
+    opens = 0
+
+    def fail_final_open(path, flags, *args, **kwargs):
+        nonlocal opens
+        if path == "screening-input.json" and kwargs.get("dir_fd") == workspace.directory_fd and flags & getattr(os, "O_ACCMODE", 3) == os.O_RDONLY:
+            opens += 1
+            if opens == 2:
+                raise OSError("injected final identity-open failure")
+        return real_open(path, flags, *args, **kwargs)
+
+    monkeypatch.setattr(os, "open", fail_final_open)
+    with pytest.raises(ArtifactError):
+        workspace.write_json("screening-input.json", {"pending": True})
+    store.remove_execution(workspace)
+    assert not (tmp_path / "data/screening-executions" / EXECUTION_ID).exists()
     workspace.close()
 
 
