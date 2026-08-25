@@ -71,19 +71,131 @@ def _rename_exchange(source: str, destination: str, *, src_dir_fd: int, dst_dir_
 def _probe_renameat2(directory_fd: int) -> None:
     """Require the atomic rename primitives before creating/cleaning artifacts."""
 
+    if _RENAMEAT2 is None:
+        raise ArtifactError("atomic renameat2 is unavailable")
+
+    # A same-name call only checks that the symbol exists.  It does not prove
+    # that either flag works on the mounted filesystem.  Exercise both flags
+    # against private file and directory pairs, and return each pair to its
+    # original state before removing it.  The artifact parent is 0700 and is
+    # owned by this process, so these probe names are not an input surface.
+    prefix = f".renameat2-probe-{uuid4().hex}"
+    pairs = (
+        (f"{prefix}-file-a", f"{prefix}-file-b", False),
+        (f"{prefix}-dir-a", f"{prefix}-dir-b", True),
+    )
+    expected: dict[str, tuple[int, int] | None] = {}
+
+    def create(name: str, is_directory: bool) -> tuple[int, int]:
+        try:
+            if is_directory:
+                os.mkdir(name, mode=0o700, dir_fd=directory_fd)
+                fd = os.open(
+                    name,
+                    os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
+                    dir_fd=directory_fd,
+                )
+            else:
+                fd = os.open(
+                    name,
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+                    0o600,
+                    dir_fd=directory_fd,
+                )
+            try:
+                value = os.fstat(fd)
+                return value.st_dev, value.st_ino
+            finally:
+                os.close(fd)
+        except OSError as exc:
+            raise ArtifactError("atomic renameat2 capability probe setup failed") from exc
+
+    def verify(name: str, identity: tuple[int, int], is_directory: bool) -> None:
+        fd: int | None = None
+        try:
+            fd = os.open(
+                name,
+                os.O_RDONLY
+                | (getattr(os, "O_DIRECTORY", 0) if is_directory else 0)
+                | getattr(os, "O_NOFOLLOW", 0),
+                dir_fd=directory_fd,
+            )
+            value = os.fstat(fd)
+            named = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+            if (value.st_dev, value.st_ino) != identity or (named.st_dev, named.st_ino) != identity:
+                raise ArtifactError("atomic renameat2 probe identity changed")
+            if is_directory:
+                with os.scandir(f"/proc/self/fd/{fd}") as entries:
+                    if next(entries, None) is not None:
+                        raise ArtifactError("atomic renameat2 probe directory is not empty")
+        except ArtifactError:
+            raise
+        except OSError as exc:
+            raise ArtifactError("atomic renameat2 probe verification failed") from exc
+        finally:
+            if fd is not None:
+                os.close(fd)
+
+    def remove(name: str, identity: tuple[int, int], is_directory: bool) -> None:
+        verify(name, identity, is_directory)
+        try:
+            if is_directory:
+                os.rmdir(name, dir_fd=directory_fd)
+            else:
+                os.unlink(name, dir_fd=directory_fd)
+        except OSError as exc:
+            raise ArtifactError("atomic renameat2 probe cleanup failed") from exc
+
+    pending: BaseException | None = None
     try:
-        # Same-name NOREPLACE is a no-op capability probe: Linux returns
-        # EBUSY/EEXIST without changing the directory entry.  Unsupported
-        # kernels return ENOSYS, EINVAL, or EOPNOTSUPP.
-        _rename_at(".", ".", src_dir_fd=directory_fd, dst_dir_fd=directory_fd, flags=_RENAME_NOREPLACE)
-    except FileExistsError:
-        return
-    except OSError as exc:
-        if exc.errno in {errno.EBUSY, errno.EEXIST}:
-            return
-        if exc.errno in {errno.ENOSYS, errno.EINVAL, errno.EOPNOTSUPP}:
-            raise ArtifactError("atomic renameat2 is unavailable") from None
-        raise ArtifactError("atomic renameat2 capability probe failed") from None
+        for first, second, is_directory in pairs:
+            first_identity = create(first, is_directory)
+            expected[first] = first_identity
+            try:
+                _rename_noreplace(first, second, src_dir_fd=directory_fd, dst_dir_fd=directory_fd)
+            except OSError as exc:
+                if exc.errno in {errno.ENOSYS, errno.EINVAL, errno.EOPNOTSUPP}:
+                    raise ArtifactError("atomic renameat2 is unavailable") from None
+                raise ArtifactError("atomic renameat2 NOREPLACE probe failed") from exc
+            expected[second] = expected.pop(first)
+            expected[first] = create(first, is_directory)
+            try:
+                _rename_exchange(second, first, src_dir_fd=directory_fd, dst_dir_fd=directory_fd)
+            except OSError as exc:
+                if exc.errno in {errno.ENOSYS, errno.EINVAL, errno.EOPNOTSUPP}:
+                    raise ArtifactError("atomic renameat2 is unavailable") from None
+                raise ArtifactError("atomic renameat2 EXCHANGE probe failed") from exc
+            expected[first], expected[second] = expected[second], expected[first]
+            verify(first, expected[first], is_directory)  # type: ignore[arg-type]
+            verify(second, expected[second], is_directory)  # type: ignore[arg-type]
+            try:
+                _rename_exchange(second, first, src_dir_fd=directory_fd, dst_dir_fd=directory_fd)
+            except OSError as exc:
+                if exc.errno in {errno.ENOSYS, errno.EINVAL, errno.EOPNOTSUPP}:
+                    raise ArtifactError("atomic renameat2 is unavailable") from None
+                raise ArtifactError("atomic renameat2 EXCHANGE round-trip failed") from exc
+            expected[first], expected[second] = expected[second], expected[first]
+            verify(first, expected[first], is_directory)  # type: ignore[arg-type]
+            verify(second, expected[second], is_directory)  # type: ignore[arg-type]
+            remove(first, expected.pop(first), is_directory)  # type: ignore[arg-type]
+            remove(second, expected.pop(second), is_directory)  # type: ignore[arg-type]
+    except (ArtifactError, OSError) as exc:
+        pending = exc if isinstance(exc, ArtifactError) else ArtifactError("atomic renameat2 capability probe failed")
+    finally:
+        cleanup_error: ArtifactError | None = None
+        for name, identity in tuple(expected.items()):
+            if identity is None:
+                continue
+            is_directory = name.endswith("-dir-a") or name.endswith("-dir-b")
+            try:
+                remove(name, identity, is_directory)
+                expected.pop(name, None)
+            except ArtifactError as exc:
+                cleanup_error = exc
+        if cleanup_error is not None:
+            pending = cleanup_error
+    if pending is not None:
+        raise pending
 
 
 class ArtifactError(RuntimeError):
@@ -656,10 +768,10 @@ class ArtifactStore:
                 value = os.fstat(fd)
                 return name, (value.st_dev, value.st_ino)
             except OSError:
-                try:
-                    os.unlink(name, dir_fd=directory_fd)
-                except OSError:
-                    raise ArtifactError("artifact quarantine sink cleanup failed") from None
+                # The inode was never captured, so unlinking this name would
+                # be an unsafe pathname deletion.  Preserve the unknown entry
+                # and fail closed; callers cannot confuse it with a sink they
+                # own.
                 raise ArtifactError("artifact quarantine sink identification failed") from None
             finally:
                 os.close(fd)
@@ -685,10 +797,8 @@ class ArtifactStore:
                 value = os.fstat(fd)
                 return name, (value.st_dev, value.st_ino)
             except OSError:
-                try:
-                    os.rmdir(name, dir_fd=directory_fd)
-                except OSError:
-                    raise ArtifactError("execution workspace quarantine sink cleanup failed") from None
+                # Without a successful fstat there is no ownership proof for
+                # this directory name.  Do not rmdir an unknown replacement.
                 raise ArtifactError("execution workspace quarantine sink identification failed") from None
             finally:
                 if fd is not None:
@@ -829,6 +939,62 @@ class ArtifactStore:
         ArtifactStore._restore_quarantine_directory(directory_fd, quarantine, original)
 
     @classmethod
+    def _restore_then_remove_sink_file(cls, directory_fd: int, quarantine: str, original: str, sink: str, sink_identity: tuple[int, int]) -> None:
+        """Restore the owned entry and remove only our still-identified sink."""
+
+        failure: ArtifactError | None = None
+        try:
+            cls._restore_quarantine_name(directory_fd, quarantine, original)
+        except ArtifactError as exc:
+            failure = exc
+        try:
+            cls._remove_exact_file(directory_fd, sink, sink_identity)
+        except ArtifactError as exc:
+            failure = failure or exc
+        if failure is not None:
+            raise failure
+
+    @classmethod
+    def _reverse_restore_remove_file(cls, directory_fd: int, quarantine: str, original: str, sink: str, sink_identity: tuple[int, int]) -> None:
+        """Reverse a successful exchange, then restore and clean its sink.
+
+        If the reverse exchange itself fails, the sink contains the owned
+        data, so it is deliberately left untouched and the error is raised.
+        """
+
+        try:
+            _rename_exchange(sink, quarantine, src_dir_fd=directory_fd, dst_dir_fd=directory_fd)
+        except (ArtifactError, OSError) as exc:
+            if isinstance(exc, ArtifactError):
+                raise
+            raise ArtifactError("artifact quarantine reverse exchange failed") from None
+        cls._restore_then_remove_sink_file(directory_fd, quarantine, original, sink, sink_identity)
+
+    @classmethod
+    def _restore_then_remove_sink_directory(cls, directory_fd: int, quarantine: str, original: str, sink: str, sink_identity: tuple[int, int]) -> None:
+        failure: ArtifactError | None = None
+        try:
+            cls._restore_quarantine_directory(directory_fd, quarantine, original)
+        except ArtifactError as exc:
+            failure = exc
+        try:
+            cls._remove_exact_directory(directory_fd, sink, sink_identity)
+        except ArtifactError as exc:
+            failure = failure or exc
+        if failure is not None:
+            raise failure
+
+    @classmethod
+    def _reverse_restore_remove_directory(cls, directory_fd: int, quarantine: str, original: str, sink: str, sink_identity: tuple[int, int]) -> None:
+        try:
+            _rename_exchange(sink, quarantine, src_dir_fd=directory_fd, dst_dir_fd=directory_fd)
+        except (ArtifactError, OSError) as exc:
+            if isinstance(exc, ArtifactError):
+                raise
+            raise ArtifactError("execution workspace quarantine reverse exchange failed") from None
+        cls._restore_then_remove_sink_directory(directory_fd, quarantine, original, sink, sink_identity)
+
+    @classmethod
     def _quarantine_remove_child(cls, directory_fd: int, identity: tuple[int, int]) -> bool:
         matches = cls._find_identities(directory_fd, identity)
         if len(matches) != 1:
@@ -851,7 +1017,7 @@ class ArtifactStore:
             try:
                 _rename_exchange(quarantine, sink, src_dir_fd=directory_fd, dst_dir_fd=directory_fd)
             except (ArtifactError, OSError) as exc:
-                cls._restore_quarantine_name(directory_fd, quarantine, original)
+                cls._restore_then_remove_sink_file(directory_fd, quarantine, original, sink, sink_identity)
                 if isinstance(exc, ArtifactError):
                     raise
                 raise ArtifactError("artifact quarantine exchange failed") from None
@@ -866,16 +1032,13 @@ class ArtifactStore:
                     or (named.st_dev, named.st_ino) != identity
                     or not stat_module.S_ISREG(moved.st_mode)
                 ):
-                    _rename_exchange(sink, quarantine, src_dir_fd=directory_fd, dst_dir_fd=directory_fd)
                     exchanged = False
-                    cls._restore_quarantine_name(directory_fd, quarantine, original)
-                    cls._remove_exact_file(directory_fd, sink, sink_identity)
+                    cls._reverse_restore_remove_file(directory_fd, quarantine, original, sink, sink_identity)
                     raise ArtifactError("artifact quarantine inode mismatch")
             except OSError:
                 if exchanged:
-                    _rename_exchange(sink, quarantine, src_dir_fd=directory_fd, dst_dir_fd=directory_fd)
                     exchanged = False
-                    cls._restore_quarantine_name(directory_fd, quarantine, original)
+                    cls._reverse_restore_remove_file(directory_fd, quarantine, original, sink, sink_identity)
                 raise ArtifactError("artifact quarantine verification failed") from None
             finally:
                 if moved_fd is not None:
@@ -883,10 +1046,8 @@ class ArtifactStore:
             try:
                 cls._remove_exact_file(directory_fd, sink, identity)
             except ArtifactError:
-                _rename_exchange(sink, quarantine, src_dir_fd=directory_fd, dst_dir_fd=directory_fd)
                 exchanged = False
-                cls._restore_quarantine_name(directory_fd, quarantine, original)
-                cls._remove_exact_file(directory_fd, sink, sink_identity)
+                cls._reverse_restore_remove_file(directory_fd, quarantine, original, sink, sink_identity)
                 raise
             try:
                 cls._remove_exact_file(directory_fd, quarantine, sink_identity)
@@ -917,7 +1078,7 @@ class ArtifactStore:
             try:
                 _rename_exchange(quarantine, sink, src_dir_fd=base_fd, dst_dir_fd=base_fd)
             except (ArtifactError, OSError) as exc:
-                cls._restore_quarantine_directory(base_fd, quarantine, original)
+                cls._restore_then_remove_sink_directory(base_fd, quarantine, original, sink, sink_identity)
                 if isinstance(exc, ArtifactError):
                     raise
                 raise ArtifactError("execution workspace quarantine exchange failed") from None
@@ -933,18 +1094,14 @@ class ArtifactStore:
                 or (named.st_dev, named.st_ino) != identity
                 or nonempty
             ):
-                _rename_exchange(sink, quarantine, src_dir_fd=base_fd, dst_dir_fd=base_fd)
                 exchanged = False
-                cls._restore_quarantine_directory(base_fd, quarantine, original)
-                cls._remove_exact_directory(base_fd, sink, sink_identity)
+                cls._reverse_restore_remove_directory(base_fd, quarantine, original, sink, sink_identity)
                 raise ArtifactError("execution workspace quarantine inode mismatch")
             try:
                 cls._remove_exact_directory(base_fd, sink, identity)
             except ArtifactError:
-                _rename_exchange(sink, quarantine, src_dir_fd=base_fd, dst_dir_fd=base_fd)
                 exchanged = False
-                cls._restore_quarantine_directory(base_fd, quarantine, original)
-                cls._remove_exact_directory(base_fd, sink, sink_identity)
+                cls._reverse_restore_remove_directory(base_fd, quarantine, original, sink, sink_identity)
                 raise
             try:
                 cls._remove_exact_directory(base_fd, quarantine, sink_identity)
@@ -956,8 +1113,7 @@ class ArtifactStore:
             raise
         except OSError:
             if exchanged:
-                _rename_exchange(sink, quarantine, src_dir_fd=base_fd, dst_dir_fd=base_fd)
-                cls._restore_quarantine_directory(base_fd, quarantine, original)
+                cls._reverse_restore_remove_directory(base_fd, quarantine, original, sink, sink_identity)
             raise ArtifactError("execution workspace quarantine cleanup failed") from None
         finally:
             if candidate_fd is not None:

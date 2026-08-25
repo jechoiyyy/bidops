@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import errno
 from pathlib import Path
 
 import pytest
@@ -67,6 +68,89 @@ def test_renameat2_capability_guard_precedes_execution_creation(tmp_path: Path, 
     with pytest.raises(ArtifactError, match="renameat2"):
         store.create_execution_workspace(EXECUTION_ID)
     assert not (tmp_path / "data/screening-executions" / EXECUTION_ID).exists()
+
+
+def test_renameat2_probe_exercises_exchange_for_files_and_directories(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    store = ArtifactStore(tmp_path)
+    real_exchange = artifact_module._rename_exchange
+    calls: list[tuple[str, str]] = []
+
+    def record_exchange(source, destination, *args, **kwargs):
+        calls.append((source, destination))
+        return real_exchange(source, destination, *args, **kwargs)
+
+    monkeypatch.setattr(artifact_module, "_rename_exchange", record_exchange)
+    workspace = store.create_execution_workspace(EXECUTION_ID)
+    assert len(calls) == 4  # two pairs, each exchanged and round-tripped
+    base = tmp_path / "data/screening-executions"
+    assert not any(path.name.startswith(".renameat2-probe-") for path in base.iterdir())
+    store.remove_execution(workspace)
+    assert len(calls) == 9  # probe round-trip plus the root cleanup exchange
+    assert not list(base.iterdir())
+
+
+def test_renameat2_exchange_probe_failure_cleans_probe_entries_before_workspace_mkdir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    store = ArtifactStore(tmp_path)
+
+    def unsupported(*_args, **_kwargs):
+        raise OSError(errno.EOPNOTSUPP, "exchange unavailable")
+
+    monkeypatch.setattr(artifact_module, "_rename_exchange", unsupported)
+    with pytest.raises(ArtifactError, match="renameat2"):
+        store.create_execution_workspace(EXECUTION_ID)
+    base = tmp_path / "data/screening-executions"
+    assert base.is_dir()
+    assert not list(base.iterdir())
+    assert not (base / EXECUTION_ID).exists()
+
+
+def test_quarantine_exchange_failure_removes_own_sink_and_restores_child(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    store = ArtifactStore(tmp_path)
+    monkeypatch.setattr(artifact_module, "_probe_renameat2", lambda _fd: None)
+    workspace = store.create_execution_workspace(EXECUTION_ID)
+    workspace.write_json("owned.json", {"owned": True})
+    target = tmp_path / "data/screening-executions" / EXECUTION_ID
+
+    def fail_exchange(*_args, **_kwargs):
+        raise ArtifactError("injected exchange failure")
+
+    monkeypatch.setattr(artifact_module, "_rename_exchange", fail_exchange)
+    with pytest.raises(ArtifactError):
+        store.remove_execution(workspace)
+    assert (target / "owned.json").is_file()
+    assert not any(path.name.startswith(".rollback-") for path in target.iterdir())
+    workspace.close()
+
+
+def test_quarantine_verification_open_failure_removes_own_sink_and_restores_child(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    store = ArtifactStore(tmp_path)
+    monkeypatch.setattr(artifact_module, "_probe_renameat2", lambda _fd: None)
+    workspace = store.create_execution_workspace(EXECUTION_ID)
+    workspace.write_json("owned.json", {"owned": True})
+    target = tmp_path / "data/screening-executions" / EXECUTION_ID
+    real_open = os.open
+    failed = False
+
+    def fail_sink_verification(path, flags, *args, **kwargs):
+        nonlocal failed
+        if (
+            isinstance(path, str)
+            and path.startswith(".rollback-sink-")
+            and kwargs.get("dir_fd") == workspace.directory_fd
+            and flags & getattr(os, "O_ACCMODE", 3) == os.O_RDONLY
+            and not failed
+        ):
+            failed = True
+            raise OSError("injected sink verification-open failure")
+        return real_open(path, flags, *args, **kwargs)
+
+    monkeypatch.setattr(os, "open", fail_sink_verification)
+    with pytest.raises(ArtifactError):
+        store.remove_execution(workspace)
+    assert failed
+    assert (target / "owned.json").is_file()
+    assert not any(path.name.startswith(".rollback-") for path in target.iterdir())
+    workspace.close()
 
 
 def test_workspace_tree_is_application_owned_0700(tmp_path: Path):
