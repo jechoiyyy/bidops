@@ -137,13 +137,14 @@
       "verification_items": [],
       "next_action": "담당자가 확인할 다음 조치",
       "carried_over": false,
-      "judged_in_run": true
+      "judged_in_run": "20260825-20260825",
+      "recorded_in_run": "20260825-20260825"
     }
   ]
 }
 ```
 
-이 예시는 필드의 의미와 승계 표시를 설명하기 위한 구조이며, 실제 필수 필드와 허용 값은 `bidops.decisions.v3` 계약을 따른다. `judged_in_run`과 `carried_over`는 서로 반대가 되도록 기록한다. 승계 판정의 처리 방식은 7절에 따른다.
+이 예시는 필드의 의미와 승계 표시를 설명하기 위한 구조이며, 실제 필수 필드와 허용 값은 `bidops.decisions.v3` 계약을 따른다. `judged_in_run`은 불리언이 아니라 최초 판정 회차의 식별자 문자열이다. 신규·재판정에서는 `judged_in_run`과 `recorded_in_run`이 같고 `carried_over`가 `false`이며, 승계에서는 두 값이 다르고 `carried_over`가 `true`다. 승계 판정의 처리 방식은 7절에 따른다.
 
 ### 4.2 등급·준비 상태·근거 규칙
 
@@ -206,8 +207,9 @@ python3 skills/bidops-screen/scripts/build_screening_results.py \
 
 | 표시 | 의미 |
 |---|---|
-| `carried_over: true` | 현재 회차에서 이전 판정을 승계했으며 모델을 호출하지 않음 |
-| `judged_in_run: false` | 현재 회차에서 새 모델 판정을 만들지 않음 |
+| `carried_over` | 현재 회차에서 이전 판정을 승계하고 모델을 호출하지 않았으면 `true` |
+| `judged_in_run` | 이 판정이 **처음 만들어진 회차** 식별자. 승계해도 바꾸지 않는다 |
+| `recorded_in_run` | 이 판정 항목을 현재 판정 파일에 기록한 회차 식별자 |
 
 승계한 항목에는 이전 판정이 만들어진 회차, 모델 이름·모델 버전·프롬프트 버전·정책 버전을 보존한다. 현재 회차 식별자는 해당 항목이 어느 판정 파일에 들어갔는지 추적하기 위해 기록한다. 이때 현재 회차에서 모델을 호출했다고 기록하지 않는다.
 
