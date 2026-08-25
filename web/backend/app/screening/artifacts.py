@@ -7,7 +7,6 @@ components, including components created after the first check.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -17,6 +16,7 @@ import re
 import stat as stat_module
 import tempfile
 from typing import Any, Mapping
+from uuid import uuid4
 
 
 EXECUTION_RE = re.compile(r"^scr-[0-9a-f]{32}$")
@@ -28,18 +28,155 @@ class ArtifactError(RuntimeError):
     """An artifact cannot be safely created or verified."""
 
 
-@dataclass(frozen=True)
-class ExecutionOwnership:
-    """Identity captured at the instant a fresh execution directory is made.
+class ExecutionWorkspace:
+    """A freshly-created execution directory held by trusted descriptors.
 
-    The name is deliberately not an ownership proof: a failed transaction can
-    have its name replaced while cleanup is in progress.  Device/inode are
-    the minimum opaque identity needed to fail closed in that case.
+    The directory name is only a lookup hint.  All initial writes and rollback
+    operations use the held directory/base descriptors, so a rename or a
+    replacement at the original name cannot redirect them.
     """
 
-    execution_id: str
-    device: int
-    inode: int
+    __slots__ = ("execution_id", "directory_fd", "base_fd", "device", "inode", "base_device", "base_inode", "_closed")
+
+    def __init__(self, execution_id: str, directory_fd: int, base_fd: int) -> None:
+        self.execution_id = execution_id
+        self.directory_fd = directory_fd
+        self.base_fd = base_fd
+        directory_stat = os.fstat(directory_fd)
+        base_stat = os.fstat(base_fd)
+        self.device = directory_stat.st_dev
+        self.inode = directory_stat.st_ino
+        self.base_device = base_stat.st_dev
+        self.base_inode = base_stat.st_ino
+        self._closed = False
+
+    @property
+    def closed(self) -> bool:
+        return self._closed
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        for fd in (self.directory_fd, self.base_fd):
+            try:
+                os.close(fd)
+            except OSError:
+                # Closing is idempotent and must not turn a durable enqueue
+                # into a false failure.  The descriptor has already ceased to
+                # be usable, so there is nothing safe to retry here.
+                pass
+
+    def _ensure_open(self) -> None:
+        if self._closed:
+            raise ArtifactError("execution workspace is closed")
+
+    def named_entry(self) -> bool:
+        """Whether the original execution name still identifies this inode."""
+
+        self._ensure_open()
+        try:
+            value = os.stat(self.execution_id, dir_fd=self.base_fd, follow_symlinks=False)
+        except OSError:
+            return False
+        return (value.st_dev, value.st_ino) == (self.device, self.inode)
+
+    def require_named(self) -> None:
+        if not self.named_entry():
+            raise ArtifactError("execution workspace name changed")
+
+    def write_bytes(self, relative: str, raw: bytes) -> tuple[str, str]:
+        """Write a direct child through this workspace's directory FD."""
+
+        self._ensure_open()
+        if not isinstance(relative, str) or not relative or "/" in relative or "\\" in relative or relative in {".", ".."} or ":" in relative:
+            raise ArtifactError("workspace artifact filename is invalid")
+        if not isinstance(raw, bytes):
+            raise ArtifactError("artifact content must be bytes")
+        digest = sha256_bytes(raw)
+        try:
+            existing_fd = os.open(relative, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0), dir_fd=self.directory_fd)
+        except FileNotFoundError:
+            existing_fd = None
+        except OSError:
+            raise ArtifactError("workspace artifact could not be opened") from None
+        if existing_fd is not None:
+            try:
+                existing = b""
+                while True:
+                    chunk = os.read(existing_fd, 1024 * 1024)
+                    if not chunk:
+                        break
+                    existing += chunk
+                if existing != raw:
+                    raise ArtifactError("immutable artifact already contains different bytes")
+                return f"{ARTIFACT_ROOT.as_posix()}/{self.execution_id}/{relative}", digest
+            except OSError:
+                raise ArtifactError("workspace artifact could not be read") from None
+            finally:
+                os.close(existing_fd)
+
+        temporary = f".artifact-{uuid4().hex}.tmp"
+        temporary_fd: int | None = None
+        try:
+            flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+            temporary_fd = os.open(temporary, flags, 0o600, dir_fd=self.directory_fd)
+            offset = 0
+            while offset < len(raw):
+                offset += os.write(temporary_fd, raw[offset:])
+            os.fsync(temporary_fd)
+            os.fchmod(temporary_fd, 0o600)
+            os.close(temporary_fd)
+            temporary_fd = None
+            os.replace(temporary, relative, src_dir_fd=self.directory_fd, dst_dir_fd=self.directory_fd)
+            os.fsync(self.directory_fd)
+        except ArtifactError:
+            raise
+        except OSError:
+            raise ArtifactError("workspace artifact atomic write failed") from None
+        finally:
+            if temporary_fd is not None:
+                os.close(temporary_fd)
+            try:
+                os.unlink(temporary, dir_fd=self.directory_fd)
+            except FileNotFoundError:
+                pass
+            except OSError:
+                pass
+        return f"{ARTIFACT_ROOT.as_posix()}/{self.execution_id}/{relative}", digest
+
+    def write_json(self, relative: str, value: Any) -> tuple[str, str]:
+        return self.write_bytes(relative, canonical_bytes(value))
+
+    def read_bytes(self, relative: str, *, expected_digest: str | None = None) -> bytes:
+        self._ensure_open()
+        if not isinstance(relative, str) or not relative or "/" in relative or "\\" in relative:
+            raise ArtifactError("workspace artifact filename is invalid")
+        fd: int | None = None
+        try:
+            fd = os.open(relative, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0), dir_fd=self.directory_fd)
+            chunks: list[bytes] = []
+            while True:
+                chunk = os.read(fd, 1024 * 1024)
+                if not chunk:
+                    break
+                chunks.append(chunk)
+            raw = b"".join(chunks)
+        except OSError:
+            raise ArtifactError("workspace artifact could not be read") from None
+        finally:
+            if fd is not None:
+                os.close(fd)
+        if expected_digest is not None and (not SHA256_RE.fullmatch(expected_digest) or sha256_bytes(raw) != expected_digest):
+            raise ArtifactError("artifact digest verification failed")
+        return raw
+
+    def read_json(self, relative: str, *, expected_digest: str | None = None) -> Any:
+        try:
+            value = json.loads(self.read_bytes(relative, expected_digest=expected_digest))
+        except (UnicodeError, json.JSONDecodeError):
+            raise ArtifactError("workspace artifact JSON is invalid") from None
+        return value
 
 
 def aware_iso(value: datetime | None = None) -> str:
@@ -122,17 +259,43 @@ class ArtifactStore:
             raise ArtifactError("execution artifact directory is not a directory")
         return target
 
-    def capture_execution_ownership(self, execution_id: str) -> ExecutionOwnership:
-        """Capture the identity of an existing execution directory."""
+    def create_execution_workspace(self, execution_id: str) -> ExecutionWorkspace:
+        """Create and immediately hold a descriptor for a fresh execution."""
 
-        target = self.execution_dir(execution_id, create=False)
+        execution_id = validate_execution_id(execution_id)
+        flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+        root_fd: int | None = None
+        data_fd: int | None = None
+        base_fd: int | None = None
+        directory_fd: int | None = None
         try:
-            stat = os.stat(target, follow_symlinks=False)
-        except OSError:
-            raise ArtifactError("execution artifact ownership could not be captured") from None
-        if not stat_module.S_ISDIR(stat.st_mode):
-            raise ArtifactError("execution artifact ownership is not a directory")
-        return ExecutionOwnership(execution_id, stat.st_dev, stat.st_ino)
+            root_fd = os.open(self.project_root, flags)
+            try:
+                data_fd = os.open("data", flags, dir_fd=root_fd)
+            except FileNotFoundError:
+                os.mkdir("data", mode=0o700, dir_fd=root_fd)
+                data_fd = os.open("data", flags, dir_fd=root_fd)
+            os.fchmod(data_fd, 0o700)
+            try:
+                base_fd = os.open("screening-executions", flags, dir_fd=data_fd)
+            except FileNotFoundError:
+                os.mkdir("screening-executions", mode=0o700, dir_fd=data_fd)
+                base_fd = os.open("screening-executions", flags, dir_fd=data_fd)
+            os.fchmod(base_fd, 0o700)
+            os.mkdir(execution_id, mode=0o700, dir_fd=base_fd)
+            directory_fd = os.open(execution_id, flags, dir_fd=base_fd)
+            os.fchmod(directory_fd, 0o700)
+            os.fsync(base_fd)
+            workspace = ExecutionWorkspace(execution_id, directory_fd, base_fd)
+            directory_fd = None
+            base_fd = None
+            return workspace
+        except (ArtifactError, OSError):
+            raise ArtifactError("execution workspace creation failed") from None
+        finally:
+            for fd in (directory_fd, base_fd, data_fd, root_fd):
+                if fd is not None:
+                    os.close(fd)
 
     def _path(self, execution_id: str, relative: str) -> Path:
         if not isinstance(relative, str) or not relative or relative.startswith("/") or "\\" in relative:
@@ -276,108 +439,80 @@ class ArtifactStore:
         except (UnicodeError, json.JSONDecodeError):
             raise ArtifactError("artifact JSON is invalid") from None
 
-    def remove_execution(self, execution_id: str, ownership: ExecutionOwnership | None = None) -> None:
-        """Remove one freshly-created execution directory without TOCTOU.
-
-        The directory name is opened relative to the artifact root with
-        ``O_NOFOLLOW``.  All descendants are then removed through directory
-        descriptors, so a pathname or symlink swap cannot redirect cleanup
-        outside the known execution directory.
-        """
-        validate_execution_id(execution_id)
-        if not isinstance(ownership, ExecutionOwnership) or ownership.execution_id != execution_id:
-            raise ArtifactError("execution artifact ownership is required")
-        base = self.base
-        directory_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
-        root_fd: int | None = None
-        data_fd: int | None = None
-        base_fd: int | None = None
+    @staticmethod
+    def _remove_tree_fd(directory_fd: int) -> None:
         try:
-            # Open every path component relative to a descriptor.  Checking a
-            # pathname first and then opening it leaves a symlink-swap window
-            # in the intermediate ``data`` directory.
-            root_fd = os.open(self.project_root, directory_flags)
-            data_fd = os.open("data", directory_flags, dir_fd=root_fd)
-            base_fd = os.open("screening-executions", directory_flags, dir_fd=data_fd)
+            entries = list(os.scandir(f"/proc/self/fd/{directory_fd}"))
         except OSError:
-            for fd in (base_fd, data_fd, root_fd):
-                if fd is not None:
-                    os.close(fd)
             raise ArtifactError("execution artifact cleanup failed") from None
-        try:
-            target_fd = os.open(
-                execution_id,
-                os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
-                dir_fd=base_fd,
-            )
-        except OSError:
-            for fd in (base_fd, data_fd, root_fd):
-                if fd is not None:
-                    os.close(fd)
-            raise ArtifactError("execution artifact cleanup failed") from None
-
-        try:
-            opened_stat = os.fstat(target_fd)
-            if (opened_stat.st_dev, opened_stat.st_ino) != (ownership.device, ownership.inode):
-                raise ArtifactError("execution artifact ownership mismatch")
-            # Verify the name before removing any descendant.  If the fresh
-            # directory was renamed away and a replacement took its name,
-            # cleanup must leave both objects untouched.
-            named_stat = os.stat(execution_id, dir_fd=base_fd, follow_symlinks=False)
-            if (named_stat.st_dev, named_stat.st_ino) != (ownership.device, ownership.inode):
-                raise ArtifactError("execution artifact path changed before cleanup")
-        except ArtifactError:
-            os.close(target_fd)
-            for fd in (base_fd, data_fd, root_fd):
-                if fd is not None:
-                    os.close(fd)
-            raise
-        except OSError:
-            os.close(target_fd)
-            for fd in (base_fd, data_fd, root_fd):
-                if fd is not None:
-                    os.close(fd)
-            raise ArtifactError("execution artifact cleanup failed") from None
-
-        def remove_fd(directory_fd: int) -> None:
+        for entry in entries:
+            name = entry.name
             try:
-                entries = list(os.scandir(f"/proc/self/fd/{directory_fd}"))
+                value = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+                if stat_module.S_ISDIR(value.st_mode):
+                    child_fd = os.open(
+                        name,
+                        os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
+                        dir_fd=directory_fd,
+                    )
+                    try:
+                        ArtifactStore._remove_tree_fd(child_fd)
+                    finally:
+                        os.close(child_fd)
+                    os.rmdir(name, dir_fd=directory_fd)
+                else:
+                    os.unlink(name, dir_fd=directory_fd)
             except OSError:
                 raise ArtifactError("execution artifact cleanup failed") from None
-            for entry in entries:
-                name = entry.name
-                try:
-                    stat = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
-                    if stat.st_mode & 0o170000 == 0o040000:
-                        child_fd = os.open(
-                            name,
-                            os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
-                            dir_fd=directory_fd,
-                        )
-                        try:
-                            remove_fd(child_fd)
-                        finally:
-                            os.close(child_fd)
-                        os.rmdir(name, dir_fd=directory_fd)
-                    else:
-                        os.unlink(name, dir_fd=directory_fd)
-                except OSError:
-                    raise ArtifactError("execution artifact cleanup failed") from None
 
+    @staticmethod
+    def _owned_name(workspace: ExecutionWorkspace) -> str | None:
         try:
-            remove_fd(target_fd)
-            current_stat = os.stat(execution_id, dir_fd=base_fd, follow_symlinks=False)
-            target_stat = os.fstat(target_fd)
-            if (current_stat.st_dev, current_stat.st_ino) != (ownership.device, ownership.inode) or (target_stat.st_dev, target_stat.st_ino) != (ownership.device, ownership.inode):
-                raise ArtifactError("execution artifact path changed during cleanup")
-            os.rmdir(execution_id, dir_fd=base_fd)
+            entries = list(os.scandir(f"/proc/self/fd/{workspace.base_fd}"))
+        except OSError:
+            raise ArtifactError("execution artifact cleanup failed") from None
+        for entry in entries:
+            try:
+                value = os.stat(entry.name, dir_fd=workspace.base_fd, follow_symlinks=False)
+            except OSError:
+                continue
+            if (value.st_dev, value.st_ino) == (workspace.device, workspace.inode):
+                return entry.name
+        return None
+
+    def remove_execution(self, workspace: ExecutionWorkspace) -> None:
+        """Remove only the inode owned by a live workspace.
+
+        If the original name was replaced, the trusted parent descriptor is
+        scanned for the owned inode and only that exact entry is removed.
+        """
+
+        if not isinstance(workspace, ExecutionWorkspace) or workspace.closed:
+            raise ArtifactError("live execution workspace is required")
+        try:
+            base_stat = os.fstat(workspace.base_fd)
+            directory_stat = os.fstat(workspace.directory_fd)
+            if (base_stat.st_dev, base_stat.st_ino) != (workspace.base_device, workspace.base_inode):
+                raise ArtifactError("execution artifact parent identity changed")
+            if (directory_stat.st_dev, directory_stat.st_ino) != (workspace.device, workspace.inode):
+                raise ArtifactError("execution artifact ownership mismatch")
+            owned_name = self._owned_name(workspace)
+            ArtifactStore._remove_tree_fd(workspace.directory_fd)
+            if owned_name is None:
+                return
+            try:
+                current = os.stat(owned_name, dir_fd=workspace.base_fd, follow_symlinks=False)
+            except OSError:
+                return
+            if (current.st_dev, current.st_ino) != (workspace.device, workspace.inode):
+                return
+            os.rmdir(owned_name, dir_fd=workspace.base_fd)
+        except ArtifactError:
+            raise
         except OSError:
             raise ArtifactError("execution artifact cleanup failed") from None
         finally:
-            os.close(target_fd)
-            for fd in (base_fd, data_fd, root_fd):
-                if fd is not None:
-                    os.close(fd)
+            workspace.close()
 
 
 def artifact_directory(project_root: Path, execution_id: str, *, create: bool = False) -> Path:
@@ -388,4 +523,4 @@ def write_atomic_json(project_root: Path, execution_id: str, relative: str, valu
     return ArtifactStore(project_root).write_json(execution_id, relative, value)
 
 
-__all__ = ["ARTIFACT_ROOT", "ArtifactError", "ArtifactStore", "ExecutionOwnership", "artifact_directory", "aware_iso", "canonical_bytes", "sha256_bytes", "validate_execution_id", "write_atomic_json"]
+__all__ = ["ARTIFACT_ROOT", "ArtifactError", "ArtifactStore", "ExecutionWorkspace", "artifact_directory", "aware_iso", "canonical_bytes", "sha256_bytes", "validate_execution_id", "write_atomic_json"]

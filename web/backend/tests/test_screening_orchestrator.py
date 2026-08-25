@@ -145,6 +145,7 @@ def test_prepare_single_notice_binds_notice_identity_in_caller_transaction(tmp_p
             scope="single_notice",
         )
         session.commit()
+        prepared.workspace.close()
     with Session(engine) as session:
         row = session.scalar(select(ScreeningExecution).where(ScreeningExecution.execution_id == prepared.row.execution_id))
         assert row is not None

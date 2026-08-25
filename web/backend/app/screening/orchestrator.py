@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from ..config import Settings, get_settings
 from ..ingest.loader import parse_run_id
 from ..models import CompanyProfileSnapshot, Notice, Run, ScreeningExecution, ScreeningPolicy
-from .artifacts import ArtifactError, ArtifactStore, ExecutionOwnership, aware_iso, sha256_bytes
+from .artifacts import ArtifactError, ArtifactStore, ExecutionWorkspace, aware_iso, sha256_bytes
 from .contracts import MODEL_NAME
 from .ollama import ModelInspectionError, OllamaClient
 from .policy import canonical_policy_bytes, policy_content_digest
@@ -70,7 +70,7 @@ class PreparedExecution:
 
     created: CreatedExecution
     row: ScreeningExecution
-    ownership: ExecutionOwnership
+    workspace: ExecutionWorkspace
 
 
 def _now(clock: Callable[[], datetime]) -> datetime:
@@ -384,7 +384,7 @@ class ScreeningOrchestrator:
         if TRIGGER_SCOPES.get(trigger) != scope:
             raise ScreeningCreationError("input_error")
         execution_id = "scr-" + uuid4().hex
-        ownership: ExecutionOwnership | None = None
+        workspace: ExecutionWorkspace | None = None
         source_dir = _safe_run_directory(self.settings, run_id)
         source, _collection = _source_notices(source_dir)
         notices = source["notices"]
@@ -446,19 +446,30 @@ class ScreeningOrchestrator:
             }
             try:
                 store = ArtifactStore(Path(self.settings.bidops_root))
-                store.execution_dir(execution_id, create=True)
-                ownership = store.capture_execution_ownership(execution_id)
-                input_path, input_digest = store.write_json(execution_id, "screening-input.json", input_value)
+                workspace = store.create_execution_workspace(execution_id)
+                input_path, input_digest = workspace.write_json("screening-input.json", input_value)
             except ArtifactError:
-                if ownership is not None:
+                if workspace is not None:
                     try:
-                        store.remove_execution(execution_id, ownership)
+                        store.remove_execution(workspace)
                     except ArtifactError:
                         pass
+                    finally:
+                        workspace.close()
                 raise ScreeningCreationError("artifact_write") from None
             # The profile snapshot is part of the immutable preflight binding;
             # commit it before Queue opens its own fresh session.
-            session.commit()
+            try:
+                session.commit()
+            except Exception:
+                if workspace is not None:
+                    try:
+                        store.remove_execution(workspace)
+                    except ArtifactError:
+                        pass
+                    finally:
+                        workspace.close()
+                raise
         policy_identity = policy_version
         prompt_identity = input_value["prompt_version"]
         model_name = model_identity.model_name
@@ -467,6 +478,9 @@ class ScreeningOrchestrator:
         try:
             if scope == "single_notice":
                 notice_pk = self._notice_pk(run_id, notice_id)
+            if workspace is None:
+                raise ScreeningCreationError("artifact_write")
+            workspace.require_named()
             row = self.queue.enqueue(
                 execution_id=execution_id, trigger=trigger, source_run_id=run_id, scope=scope,
                 requested_by=requested_by, policy_version=policy_identity, prompt_version=prompt_identity,
@@ -478,8 +492,8 @@ class ScreeningOrchestrator:
             )
         except Exception as exc:
             try:
-                if ownership is not None:
-                    ArtifactStore(Path(self.settings.bidops_root)).remove_execution(execution_id, ownership)
+                if workspace is not None:
+                    ArtifactStore(Path(self.settings.bidops_root)).remove_execution(workspace)
             except ArtifactError:
                 # The queue row was not created, but leaving an explicitly
                 # nonpublished orphan is safer than deleting an unexpected
@@ -488,6 +502,9 @@ class ScreeningOrchestrator:
             if isinstance(exc, QueueValidationError):
                 raise ScreeningCreationError("input_error") from None
             raise ScreeningCreationError("queue_failure") from None
+        finally:
+            if workspace is not None:
+                workspace.close()
         return CreatedExecution(row.execution_id, row.status, row.model_name, row.model_digest, row.company_profile_version, row.company_profile_digest, row.artifact_dir, row.input_artifact_path, row.input_artifact_digest)
 
     def prepare_execution(
@@ -517,7 +534,7 @@ class ScreeningOrchestrator:
         if TRIGGER_SCOPES.get(trigger) != scope:
             raise ScreeningCreationError("input_error")
         execution_id = "scr-" + uuid4().hex
-        ownership: ExecutionOwnership | None = None
+        workspace: ExecutionWorkspace | None = None
         source_dir = _safe_run_directory(self.settings, run_id)
         source, _collection = _source_notices(source_dir)
         notices = source["notices"]
@@ -572,9 +589,9 @@ class ScreeningOrchestrator:
         }
         store = ArtifactStore(Path(self.settings.bidops_root))
         try:
-            store.execution_dir(execution_id, create=True)
-            ownership = store.capture_execution_ownership(execution_id)
-            input_path, input_digest = store.write_json(execution_id, "screening-input.json", input_value)
+            workspace = store.create_execution_workspace(execution_id)
+            input_path, input_digest = workspace.write_json("screening-input.json", input_value)
+            workspace.require_named()
             queue_notice = selected[0]["notice_id"] if scope == "single_notice" else None
             queue_notice_pk = db_notice.id if scope == "single_notice" else None
             row = self.queue.enqueue_in_session(
@@ -598,17 +615,20 @@ class ScreeningOrchestrator:
             )
         except Exception as exc:
             try:
-                if ownership is not None:
-                    store.remove_execution(execution_id, ownership)
+                if workspace is not None:
+                    store.remove_execution(workspace)
             except ArtifactError:
                 pass
+            finally:
+                if workspace is not None:
+                    workspace.close()
             if isinstance(exc, (ArtifactError, QueueValidationError)):
                 raise ScreeningCreationError("artifact_write" if isinstance(exc, ArtifactError) else "input_error") from None
             raise ScreeningCreationError("queue_failure") from None
         created = CreatedExecution(row.execution_id, row.status, row.model_name, row.model_digest, row.company_profile_version, row.company_profile_digest, row.artifact_dir, row.input_artifact_path, row.input_artifact_digest)
-        if ownership is None:
+        if workspace is None:
             raise ScreeningCreationError("artifact_write")
-        return PreparedExecution(created=created, row=row, ownership=ownership)
+        return PreparedExecution(created=created, row=row, workspace=workspace)
 
     create = create_execution
     enqueue = create_execution

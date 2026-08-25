@@ -28,7 +28,7 @@ from ..models import (
     ScreeningExecution,
     ScreeningPolicy,
 )
-from .artifacts import ArtifactError, ArtifactStore, ExecutionOwnership, sha256_bytes
+from .artifacts import ArtifactError, ArtifactStore, ExecutionWorkspace, sha256_bytes
 from .execution_store import ScreeningExecutionStore
 from .orchestrator import ScreeningOrchestrator
 from .profile_snapshot import BASELINE_COMMIT
@@ -433,18 +433,18 @@ class QualityGateService:
         finally:
             session.close()
 
-    def _cleanup_prepared_artifacts(self, prepared: Sequence[tuple[str, ExecutionOwnership]]) -> None:
-        """Remove only directories whose fresh inode ownership is retained."""
+    def _cleanup_prepared_artifacts(self, prepared: Sequence[tuple[str, ExecutionWorkspace]]) -> None:
+        """Remove only directories whose fresh workspace is still held."""
 
         store = ArtifactStore(Path(self.settings.bidops_root))
         seen: set[tuple[str, int, int]] = set()
-        for execution_id, ownership in prepared:
-            key = (execution_id, ownership.device, ownership.inode)
+        for execution_id, workspace in prepared:
+            key = (execution_id, workspace.device, workspace.inode)
             if key in seen:
                 continue
             seen.add(key)
             try:
-                store.remove_execution(execution_id, ownership)
+                store.remove_execution(workspace)
             except (ArtifactError, OSError):
                 # A failed preflight may not have created its directory.  No
                 # database row was published, and an absent path is already
@@ -483,7 +483,7 @@ class QualityGateService:
                 raise QualityGateValidationError("policy is not selectable")
 
         root = Path(self.settings.bidops_root)
-        prepared_artifacts: list[tuple[str, ExecutionOwnership]] = []
+        prepared_artifacts: list[tuple[str, ExecutionWorkspace]] = []
         try:
             if self.transaction_preparer is None:
                 raise QualityGateConflict("quality gate requires a transaction-aware execution preparer")
@@ -499,22 +499,24 @@ class QualityGateService:
                     session, run_id=run_id, policy_version=policy_version, profile_source=profile_source,
                     requested_by=actor, scope="quality_sample", trigger="quality_gate",
                 )
-                if not isinstance(getattr(prepared_a, "ownership", None), ExecutionOwnership):
+                if not isinstance(getattr(prepared_a, "workspace", None), ExecutionWorkspace):
                     raise QualityGateConflict("quality pass ownership was not retained")
-                prepared_artifacts.append((prepared_a.created.execution_id, prepared_a.ownership))
+                prepared_artifacts.append((prepared_a.created.execution_id, prepared_a.workspace))
                 prepared_b = self.transaction_preparer(
                     session, run_id=run_id, policy_version=policy_version, profile_source=profile_source,
                     requested_by=actor, scope="quality_sample", trigger="quality_gate",
                 )
-                if not isinstance(getattr(prepared_b, "ownership", None), ExecutionOwnership):
+                if not isinstance(getattr(prepared_b, "workspace", None), ExecutionWorkspace):
                     raise QualityGateConflict("quality pass ownership was not retained")
-                prepared_artifacts.append((prepared_b.created.execution_id, prepared_b.ownership))
+                prepared_artifacts.append((prepared_b.created.execution_id, prepared_b.workspace))
                 first, second = prepared_a.created, prepared_b.created
                 if first.execution_id == second.execution_id:
                     raise QualityGateConflict("quality passes must be independent")
                 execution_a, execution_b = prepared_a.row, prepared_b.row
-                input_a = _load_execution_artifact(root, first.execution_id, "screening-input.json", expected_digest=execution_a.input_artifact_digest)
-                input_b = _load_execution_artifact(root, second.execution_id, "screening-input.json", expected_digest=execution_b.input_artifact_digest)
+                prepared_a.workspace.require_named()
+                prepared_b.workspace.require_named()
+                input_a = prepared_a.workspace.read_json("screening-input.json", expected_digest=execution_a.input_artifact_digest)
+                input_b = prepared_b.workspace.read_json("screening-input.json", expected_digest=execution_b.input_artifact_digest)
                 if not _input_binding_valid(input_a, execution_a, sample, sample_ids, expected_source_window=sample.get("source_window")) or not _input_binding_valid(input_b, execution_b, sample, sample_ids, expected_source_window=sample.get("source_window")):
                     raise QualityGateConflict("quality pass input binding is invalid")
                 if _canonical_pass_input(input_a) != _canonical_pass_input(input_b):
@@ -523,6 +525,11 @@ class QualityGateService:
                     raise QualityGateValidationError("quality pass must contain exactly 40 notices")
                 if not _input_matches_fixed_sample(input_a, sample, sample_ids) or not _input_matches_fixed_sample(input_b, sample, sample_ids):
                     raise QualityGateConflict("quality pass notices do not match the fixed sample")
+                # The artifact row paths are only useful if the original
+                # names still identify the same inodes immediately before the
+                # gate projection is created.
+                prepared_a.workspace.require_named()
+                prepared_b.workspace.require_named()
                 if execution_a.scope != "quality_sample" or execution_b.scope != "quality_sample":
                     raise QualityGateConflict("quality pass scope is invalid")
                 profile = session.scalar(select(CompanyProfileSnapshot).where(CompanyProfileSnapshot.version == execution_a.company_profile_version))
@@ -573,10 +580,15 @@ class QualityGateService:
                     },
                 ))
                 session.flush()
+                prepared_a.workspace.require_named()
+                prepared_b.workspace.require_named()
                 return gate
         except Exception:
             self._cleanup_prepared_artifacts(prepared_artifacts)
             raise
+        finally:
+            for _execution_id, workspace in prepared_artifacts:
+                workspace.close()
 
     create = create_gate
 
@@ -956,7 +968,13 @@ class QualityGateService:
         evaluation = session.scalar(select(QualityGateEvaluation).where(QualityGateEvaluation.evaluation_id == evaluation_id))
         if evaluation is None:
             raise QualityGateActivationError("quality evaluation was not found")
-        gate = session.scalar(select(QualityGate).where(QualityGate.gate_id == evaluation.gate_id).with_for_update())
+        # Resolve the immutable evaluation ID first, then acquire the same
+        # gate lock used by refresh/review.  On SQLite _lock_gate performs a
+        # no-op UPDATE to obtain RESERVED before any authoritative re-read.
+        gate = QualityGateService._lock_gate(session, evaluation.gate_id)
+        evaluation = session.scalar(select(QualityGateEvaluation).where(QualityGateEvaluation.evaluation_id == evaluation_id))
+        if evaluation is None:
+            raise QualityGateActivationError("quality evaluation was not found")
         if gate is None or gate.purpose != "operational_approval":
             raise QualityGateActivationError("only operational approval can activate")
         latest = session.scalar(
