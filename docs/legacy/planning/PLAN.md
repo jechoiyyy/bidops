@@ -1,6 +1,6 @@
-# BidOps Admin 구현 계획
+# BidOps Admin 구현 계획 (보관본)
 
-> `docs/PRD.md`의 요구사항을 `docs/ARCHITECTURE.md`의 구조로 구현하기 위한 단계별 계획. 각 단계는 독립적으로 완결되며, 완료 후 diff 리뷰와 커밋을 거쳐 다음 단계로 넘어간다.
+> `docs/legacy/planning/PRD.md`의 요구사항을 `docs/legacy/planning/ARCHITECTURE.md`의 구조로 구현하기 위한 단계별 계획. 각 단계는 독립적으로 완결되며, 완료 후 diff 리뷰와 커밋을 거쳐 다음 단계로 넘어간다.
 
 ## 진행 방식
 
@@ -39,7 +39,7 @@ FastAPI 애플리케이션의 골격과 데이터베이스 스키마를 만든�
 - `web/backend/pyproject.toml`, `requirements.txt` — fastapi, uvicorn, sqlalchemy, pydantic, pydantic-settings, python-multipart, pyyaml, pytest, httpx
 - `web/backend/app/config.py` — 프로젝트 루트, 데이터 디렉토리, 첨부 보관 경로, 리뷰어 이름을 환경변수로 설정한다. 기본 루트는 `web/backend/`에서 두 단계 상위(`bidops-agent/`)로 계산한다
 - `web/backend/app/db.py` — 엔진(WAL 활성화), 세션 팩토리, `init_db()`
-- `web/backend/app/models.py` — `docs/ARCHITECTURE.md` 4장의 13개 테이블과 인덱스
+- `web/backend/app/models.py` — `docs/legacy/planning/ARCHITECTURE.md` 4장의 13개 테이블과 인덱스
 - `web/backend/app/main.py` — 앱 생성, CORS(개발용 5173 허용), `/api/health`
 - `web/backend/tests/test_models.py` — 인메모리 SQLite에서 테이블 생성과 기본 관계 동작 확인
 - `web/backend/tests/test_health.py` — 헬스 엔드포인트 응답 확인

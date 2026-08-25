@@ -9,7 +9,7 @@ Read these sources before judging:
 
 - [workflow contract](../references/workflow-contract.md) — the `bidops.decisions.v2` section defines every field you must write
 - `../../docs/reference/company-profile.md`
-- `../../docs/skill-workflow-validation.md`
+- `../../docs/legacy/validation/skill-workflow-validation.md`
 
 Use `validation-set.json` as input and write `screening-decisions.json`. That file is the only artifact in this workflow authored by an agent, and nothing downstream fills in what it omits. A judgment missing a perspective, a piece of evidence, a counterargument, or a verification item is rejected, and no report is produced.
 

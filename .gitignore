@@ -1,4 +1,5 @@
 .env
+.dryforge/
 __pycache__/
 *.pyc
 

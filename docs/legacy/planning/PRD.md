@@ -1,4 +1,4 @@
-# BidOps Admin 제품 요구사항 정의서
+# BidOps Admin 제품 요구사항 정의서 (보관본)
 
 > 1국면 skill 워크플로가 산출한 판정 결과를 기획부 담당자가 실제 업무에서 사용할 수 있도록 만드는 웹 관리자 애플리케이션
 
@@ -6,8 +6,8 @@
 |---|---|
 | 문서 버전 | v0.1 |
 | 작성일 | 2026-08-24 |
-| 상위 문서 | `docs/project-overview.md` (BidOps Agent 프로젝트 개요 v0.1) |
-| 관련 문서 | `docs/ARCHITECTURE.md`, `docs/ADR.md`, `docs/PLAN.md` |
+| 상위 문서 | `docs/legacy/planning/project-overview.md` (BidOps Agent 프로젝트 개요 v0.1) |
+| 관련 문서 | `docs/legacy/planning/ARCHITECTURE.md`, `docs/legacy/planning/ADR.md`, `docs/legacy/planning/PLAN.md` |
 | 레이아웃 기준 | `docs/web/design/*.dc.html` (아트보드 4종) |
 | 대상 사용자 | 주식회사 루트랩 기획부 사업기획 담당자 |
 
@@ -15,7 +15,7 @@
 
 ## 1. 배경과 목적
 
-`docs/project-overview.md`의 9.2절이 정의한 1국면은 세 개의 skill(`bidops-collect`, `bidops-screen`, `bidops-report`)로 워크플로를 검증하는 단계이며, 2026-08-17~23 구간의 실행으로 판정 데이터가 축적되었다. 그러나 현재 산출물은 정적 HTML과 JSON 파일이므로 다음 세 가지가 성립하지 않는다.
+`docs/legacy/planning/project-overview.md`의 9.2절이 정의한 1국면은 세 개의 skill(`bidops-collect`, `bidops-screen`, `bidops-report`)로 워크플로를 검증하는 단계이며, 2026-08-17~23 구간의 실행으로 판정 데이터가 축적되었다. 그러나 현재 산출물은 정적 HTML과 JSON 파일이므로 다음 세 가지가 성립하지 않는다.
 
 | 성립하지 않는 것 | 현재 상황 |
 |---|---|
@@ -60,7 +60,7 @@
 | 리뷰 기록 | 담당자의 판정 평가와 수정 사항을 저장하고, 회차 간 이력을 유지한다 |
 | 첨부 관리 | 나라장터가 제공한 첨부를 표시하고, 미제공 공고에 대해 확보 절차와 수동 등록을 지원한다 |
 | 파이프라인 실행 | 기존 skill 스크립트를 애플리케이션에서 실행하고 진행 상태와 로그를 표시한다 |
-| 검증 지표 | `docs/skill-workflow-validation.md`의 통과 기준 다섯 항목을 상시 계산하여 노출한다 |
+| 검증 지표 | `docs/legacy/validation/skill-workflow-validation.md`의 통과 기준 다섯 항목을 상시 계산하여 노출한다 |
 
 ### 3.2 이번 범위에서 제외하는 것
 
@@ -196,7 +196,7 @@ MVP에서 자동 연계를 구성하는 기관은 **한국수자원공사, 한�
 | 첨부 확보 | 첨부 미제공 공고 가운데 우선 검토·검토 권장 등급의 확보율 100% |
 | 근거 역추적 | 화면의 모든 판정 근거에서 원문 필드 또는 프로필 절로 이동 가능 |
 
-리뷰가 축적되면 `docs/skill-workflow-validation.md`의 근거 타당성 지표를 처음으로 측정할 수 있게 된다. 현재 이 지표는 리뷰가 0건이어서 측정되지 않는다.
+리뷰가 축적되면 `docs/legacy/validation/skill-workflow-validation.md`의 근거 타당성 지표를 처음으로 측정할 수 있게 된다. 현재 이 지표는 리뷰가 0건이어서 측정되지 않는다.
 
 ---
 
