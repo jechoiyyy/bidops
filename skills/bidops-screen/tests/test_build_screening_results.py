@@ -236,5 +236,467 @@ class MergeTests(unittest.TestCase):
             BUILD.merge(copy.deepcopy(self.VALIDATION), decisions)
 
 
+def v3_notice(notice_id: str, *, mode: str = "신규") -> dict:
+    return {
+        "notice_id": notice_id,
+        "source_type": "bid_notice",
+        "title": "AI 데이터 플랫폼 구축",
+        "agency": "테스트기관",
+        "method": "일반경쟁",
+        "url": "https://example.test/notice",
+        "collection_bucket": "candidate_pool",
+        "published_at": "2026-08-25T09:00:00+09:00",
+        "deadline_at": None,
+        "budget": "100000000",
+        "estimated_price": None,
+        "procurement_class": {"large": "ICT", "middle": None, "detail": None, "code": None},
+        "region_limit": {
+            "basis": None,
+            "joint_contract_regions": [],
+            "joint_contract_rate": None,
+            "regional_joint_contract_limit": None,
+        },
+        "lifecycle": {
+            "pre_spec_no": None,
+            "re_notice": None,
+            "changed_at": None,
+            "change_reason": None,
+            "unified_notice_no": None,
+            "previous_failed_notice_no": None,
+        },
+        "qualification_flags": {},
+        "attachments": [],
+        "focus_matches": [],
+        "performance_matches": [],
+        "performance_top_score": 0.0,
+        "candidate_sources": ["focus_title"],
+        "unknown_fields": [],
+        "sample_stratum": "AI/데이터",
+        "sample_role": "analysis",
+        "raw_source": "raw/bid-page-001.json",
+        "judgment_mode": mode,
+        "carry_over_from": None,
+        "rejudge_reason": None,
+    }
+
+
+def v3_judgment(notice_id: str, *, mode: str = "신규", run_id: str = "run-20260825", carried: bool = False) -> dict:
+    value = {
+        "notice_id": notice_id,
+        "judgment_mode": mode,
+        "model_name": "qwen-test",
+        "model_digest": "b" * 64,
+        "prompt_version": "prompt.v3",
+        "policy_version": "policy.v3",
+        "company_profile_version": "company-profile.sha256:" + "c" * 64,
+        "company_profile_digest": "c" * 64,
+        "judged_in_run": run_id,
+        "recorded_in_run": run_id,
+        "carried_over": carried,
+        "rejudge_reason": "정정" if mode == "재판정" else None,
+        "grade": "우선 검토",
+        "readiness": "부분 확인 필요",
+        "primary_focus": "AI/데이터",
+        "exclusion_category": None,
+        "summary": "핵심 기술과 공고 범위가 연결된다.",
+        "next_action": "첨부 제안요청서에서 자격을 확인한다.",
+        "perspectives": perspectives(),
+        "matched_performances": [],
+        "counterarguments": ["데이터 규모가 기존 실적보다 클 가능성이 있다."],
+        "counterargument_resolutions": [{
+            "counterargument": "데이터 규모가 기존 실적보다 클 가능성이 있다.",
+            "status": "추가 확인",
+            "reflection": "첨부 원문에서 규모와 투입 인력을 확인한다.",
+        }],
+        "verification_items": [{
+            "item": "입찰참가자격",
+            "why": "회사 프로필의 자격 상태가 아직 unknown이다.",
+            "blocking": True,
+            "status": "미확인",
+            "requires_attachment": True,
+        }],
+        "two_axis_mixing_flag": False,
+        "two_axis_mixing_label": None,
+    }
+    return value
+
+
+def v3_input(*, modes: tuple[str, ...] = ("신규",)) -> dict:
+    notices = [v3_notice(f"bid:v3:{index}", mode=mode) for index, mode in enumerate(modes)]
+    return {
+        "schema_version": "bidops.screening-input.v1",
+        "execution_id": "scr-" + "a" * 32,
+        "run_id": "run-20260825",
+        "generated_at": "2026-08-25T10:00:00+09:00",
+        "source_window": {"from": "2026-08-24", "to": "2026-08-24", "timezone": "Asia/Seoul"},
+        "policy_version": "policy.v3",
+        "prompt_version": "prompt.v3",
+        "company_profile_version": "company-profile.sha256:" + "c" * 64,
+        "company_profile_digest": "c" * 64,
+        "candidate_count": len(notices),
+        "notices": notices,
+    }
+
+
+def v3_decisions(input_value: dict, judgments: list[dict]) -> dict:
+    return {
+        "schema_version": "bidops.decisions.v3",
+        "execution_id": input_value["execution_id"],
+        "run_id": input_value["run_id"],
+        "generated_at": "2026-08-25T10:01:00+09:00",
+        "screening_basis": "정규화 공고와 회사 프로필",
+        "model_name": "qwen-test",
+        "model_digest": "b" * 64,
+        "prompt_version": input_value["prompt_version"],
+        "policy_version": input_value["policy_version"],
+        "company_profile_version": input_value["company_profile_version"],
+        "company_profile_digest": input_value["company_profile_digest"],
+        "judgments": judgments,
+    }
+
+
+def v3_failure(input_value: dict, notice_id: str) -> dict:
+    return {
+        "schema_version": "bidops.screening-failures.v1",
+        "execution_id": input_value["execution_id"],
+        "run_id": input_value["run_id"],
+        "generated_at": "2026-08-25T10:02:00+09:00",
+        "failure_count": 1,
+        "failures": [{
+            "notice_id": notice_id,
+            "failed_stage": "종합 판정",
+            "failure_type": "timeout",
+            "last_attempt_at": "2026-08-25T10:01:59+09:00",
+            "retry_count": 1,
+            "status": "사람 검토 대기",
+            "failure_context": None,
+            "trace_id": "trace-default",
+            "span_id": "span-default",
+            "error_summary": "모델 호출 시간이 초과되었다.",
+        }],
+    }
+
+
+class V3ContractTests(unittest.TestCase):
+    def test_complete_v3_merge_has_exact_top_shape(self) -> None:
+        input_value = v3_input()
+        output = BUILD.merge(input_value, v3_decisions(input_value, [v3_judgment("bid:v3:0")]))
+        self.assertEqual("bidops.screening.v3", output["schema_version"])
+        self.assertEqual(1, output["candidate_count"])
+        self.assertEqual(1, output["result_count"])
+        self.assertEqual(0, output["failure_count"])
+        self.assertFalse(output["partial_artifact"])
+        self.assertIsNone(output["failure_artifact"])
+        self.assertEqual(
+            set(output),
+            {"schema_version", "execution_id", "generated_at", "screening_basis", "source_window", "model_name", "model_digest", "prompt_version", "policy_version", "company_profile_version", "company_profile_digest", "candidate_count", "result_count", "failure_count", "partial_artifact", "failure_artifact", "results"},
+        )
+
+    def test_partial_v3_requires_failure_artifact_and_excludes_failed_notice(self) -> None:
+        input_value = v3_input(modes=("신규", "신규"))
+        decisions = v3_decisions(input_value, [v3_judgment("bid:v3:0")])
+        with self.assertRaises(SystemExit):
+            BUILD.merge(input_value, decisions)
+        output = BUILD.merge(input_value, decisions, v3_failure(input_value, "bid:v3:1"))
+        self.assertEqual(1, output["result_count"])
+        self.assertEqual(1, output["failure_count"])
+        self.assertTrue(output["partial_artifact"])
+        self.assertEqual("screening-failures.json", output["failure_artifact"])
+        self.assertEqual(["bid:v3:0"], [item["notice"]["notice_id"] for item in output["results"]])
+
+    def test_v3_rejects_digest_mismatch_and_extra_keys(self) -> None:
+        input_value = v3_input()
+        decisions = v3_decisions(input_value, [v3_judgment("bid:v3:0")])
+        decisions["company_profile_digest"] = "d" * 64
+        with self.assertRaises(SystemExit):
+            BUILD.merge(input_value, decisions)
+        decisions = v3_decisions(input_value, [v3_judgment("bid:v3:0")])
+        decisions["judgments"][0]["unexpected"] = True
+        with self.assertRaises(SystemExit):
+            BUILD.merge(input_value, decisions)
+
+    def test_rejudge_metadata_must_match_input(self) -> None:
+        input_value = v3_input(modes=("재판정",))
+        decision = v3_judgment("bid:v3:0", mode="신규")
+        with self.assertRaises(SystemExit):
+            BUILD.merge(input_value, v3_decisions(input_value, [decision]))
+
+    def test_carried_judged_run_must_match_carry_over_from(self) -> None:
+        input_value = v3_input(modes=("승계",))
+        input_value["notices"][0]["carry_over_from"] = "run-source"
+        decision = v3_judgment("bid:v3:0", mode="승계", carried=True, run_id="run-source")
+        decision["judged_in_run"] = "different-source"
+        with self.assertRaises(SystemExit):
+            BUILD.merge(input_value, v3_decisions(input_value, [decision]))
+
+    def test_failure_notice_id_is_unique_even_across_stages(self) -> None:
+        input_value = v3_input(modes=("신규", "신규"))
+        decisions = v3_decisions(input_value, [v3_judgment("bid:v3:0")])
+        failures = v3_failure(input_value, "bid:v3:1")
+        duplicate = copy.deepcopy(failures["failures"][0])
+        duplicate["failed_stage"] = "반론 검토"
+        duplicate["trace_id"] = "trace-1"
+        duplicate["span_id"] = "span-1"
+        failures["failures"].append(duplicate)
+        failures["failure_count"] = 2
+        with self.assertRaises(SystemExit):
+            BUILD.merge(input_value, decisions, failures)
+
+    def test_carried_over_failure_context_is_cross_checked_with_input(self) -> None:
+        input_value = v3_input(modes=("신규",))
+        failures = v3_failure(input_value, "bid:v3:0")
+        failure = failures["failures"][0]
+        failure["failed_stage"] = "병합·검증"
+        failure["failure_type"] = "schema_violation"
+        failure["failure_context"] = "carried_over_validation"
+        with self.assertRaises(SystemExit):
+            BUILD.merge(input_value, v3_decisions(input_value, []), failures)
+
+    def test_valid_carried_over_failure_is_allowed_without_model_trace(self) -> None:
+        input_value = v3_input(modes=("승계",))
+        input_value["notices"][0]["carry_over_from"] = "run-source"
+        failures = v3_failure(input_value, "bid:v3:0")
+        failure = failures["failures"][0]
+        failure["failed_stage"] = "병합·검증"
+        failure["failure_type"] = "schema_violation"
+        failure["failure_context"] = "carried_over_validation"
+        failure["trace_id"] = None
+        failure["span_id"] = None
+        output = BUILD.merge(input_value, v3_decisions(input_value, []), failures)
+        self.assertEqual((1, 0, 1), (output["candidate_count"], output["result_count"], output["failure_count"]))
+
+    def test_carried_notice_failure_must_be_carried_over_validation(self) -> None:
+        input_value = v3_input(modes=("승계",))
+        input_value["notices"][0]["carry_over_from"] = "run-source"
+        for stage, failure_type, context, trace_id, span_id in (
+            ("병합·검증", "schema_violation", None, None, None),
+            ("종합 판정", "timeout", None, "trace-model", "span-model"),
+        ):
+            failures = v3_failure(input_value, "bid:v3:0")
+            failure = failures["failures"][0]
+            failure.update({
+                "failed_stage": stage,
+                "failure_type": failure_type,
+                "failure_context": context,
+                "trace_id": trace_id,
+                "span_id": span_id,
+            })
+            with self.subTest(stage=stage, context=context), self.assertRaises(SystemExit):
+                BUILD.merge(input_value, v3_decisions(input_value, []), failures)
+
+    def test_model_failure_requires_trace_and_span(self) -> None:
+        input_value = v3_input(modes=("신규",))
+        failures = v3_failure(input_value, "bid:v3:0")
+        failures["failures"][0]["trace_id"] = None
+        failures["failures"][0]["span_id"] = None
+        with self.assertRaises(SystemExit):
+            BUILD.merge(input_value, v3_decisions(input_value, []), failures)
+
+    def test_windows_control_and_colon_prefixed_paths_are_rejected(self) -> None:
+        for path in ("C:/raw.json", "C:raw.json", "\x1fraw.json"):
+            input_value = v3_input()
+            input_value["notices"][0]["raw_source"] = path
+            with self.subTest(path=path), self.assertRaises(SystemExit):
+                BUILD.merge(input_value, v3_decisions(input_value, [v3_judgment("bid:v3:0")]))
+
+    def test_collected_nested_object_keys_are_required(self) -> None:
+        for object_name, key in (
+            ("procurement_class", "large"),
+            ("region_limit", "basis"),
+            ("lifecycle", "pre_spec_no"),
+            ("qualification_flags", "participation_limited"),
+        ):
+            input_value = v3_input()
+            if object_name == "qualification_flags":
+                input_value["notices"][0][object_name] = {
+                    name: None for name in (
+                        "participation_limited", "industry_limited", "information_business",
+                        "general_service", "service_division", "joint_contract_method",
+                        "performance_restricted_competition", "pq_evaluation",
+                        "technical_evaluation", "technical_evaluation_rate",
+                        "successful_bid_method",
+                    )
+                }
+            input_value["notices"][0][object_name].pop(key)
+            with self.subTest(object_name=object_name, key=key), self.assertRaises(SystemExit):
+                BUILD.merge(input_value, v3_decisions(input_value, [v3_judgment("bid:v3:0")]))
+
+    def test_malformed_attachments_is_rejected_as_contract_error(self) -> None:
+        input_value = v3_input()
+        input_value["notices"][0]["attachments"] = None
+        with self.assertRaises(SystemExit):
+            BUILD.merge(input_value, v3_decisions(input_value, [v3_judgment("bid:v3:0")]))
+
+    def test_malformed_focus_matches_is_rejected_as_contract_error(self) -> None:
+        input_value = v3_input()
+        input_value["notices"][0]["focus_matches"] = None
+        with self.assertRaises(SystemExit):
+            BUILD.merge(input_value, v3_decisions(input_value, [v3_judgment("bid:v3:0")]))
+
+    def test_malformed_performance_matches_is_rejected_as_contract_error(self) -> None:
+        input_value = v3_input()
+        input_value["notices"][0]["performance_matches"] = None
+        with self.assertRaises(SystemExit):
+            BUILD.merge(input_value, v3_decisions(input_value, [v3_judgment("bid:v3:0")]))
+
+    def test_failure_array_non_object_is_rejected_without_internal_error(self) -> None:
+        input_value = v3_input()
+        failures = v3_failure(input_value, "bid:v3:0")
+        failures["failures"] = [None]
+        with self.assertRaises(SystemExit):
+            BUILD.merge(input_value, v3_decisions(input_value, []), failures)
+
+    def test_failure_notice_id_unhashable_is_rejected_without_internal_error(self) -> None:
+        for notice_id in ([], {}):
+            input_value = v3_input()
+            failures = v3_failure(input_value, "bid:v3:0")
+            failures["failures"][0]["notice_id"] = notice_id
+            with self.subTest(notice_id=notice_id), self.assertRaises(SystemExit):
+                BUILD.merge(input_value, v3_decisions(input_value, []), failures)
+
+    def test_unhashable_ids_and_enums_are_rejected_without_internal_error(self) -> None:
+        cases = ("notice_id", "judgment_mode", "perspective_name", "failure_stage", "failure_type")
+        for case in cases:
+            input_value = v3_input()
+            decisions = v3_decisions(input_value, [v3_judgment("bid:v3:0")])
+            failures = None
+            if case == "notice_id":
+                input_value["notices"][0]["notice_id"] = []
+            elif case == "judgment_mode":
+                input_value["notices"][0]["judgment_mode"] = []
+            elif case == "perspective_name":
+                decisions["judgments"][0]["perspectives"][0]["name"] = []
+            else:
+                input_value = v3_input(modes=("신규", "신규"))
+                decisions = v3_decisions(input_value, [v3_judgment("bid:v3:0")])
+                failures = v3_failure(input_value, "bid:v3:1")
+                failures["failures"][0]["failed_stage" if case == "failure_stage" else "failure_type"] = []
+            with self.subTest(case=case), self.assertRaises(SystemExit):
+                BUILD.merge(input_value, decisions, failures)
+
+    def test_invalid_counterarguments_do_not_reach_boilerplate_iteration(self) -> None:
+        input_value = v3_input(modes=("신규", "신규", "신규"))
+        judgments = [v3_judgment(f"bid:v3:{index}") for index in range(3)]
+        judgments[0]["counterarguments"] = 1
+        with self.assertRaises(SystemExit):
+            BUILD.merge(input_value, v3_decisions(input_value, judgments))
+
+    def test_two_axis_perspective_scan_requires_a_list(self) -> None:
+        for value in (1, True):
+            input_value = v3_input()
+            decision = v3_judgment("bid:v3:0")
+            decision["perspectives"] = value
+            with self.subTest(value=value), self.assertRaises(SystemExit):
+                BUILD.merge(input_value, v3_decisions(input_value, [decision]))
+
+    def test_collected_nested_types_are_rejected_without_internal_error(self) -> None:
+        cases = (
+            ("procurement_class", None, []),
+            ("region_limit", None, []),
+            ("lifecycle", None, []),
+            ("qualification_flags", None, []),
+            ("procurement_class", "large", []),
+            ("procurement_class", "large", {}),
+            ("region_limit", "basis", []),
+            ("region_limit", "basis", {}),
+            ("region_limit", "joint_contract_regions", [[]]),
+            ("lifecycle", "pre_spec_no", []),
+            ("lifecycle", "pre_spec_no", {}),
+            ("lifecycle", "changed_at", []),
+            ("lifecycle", "changed_at", {}),
+            ("qualification_flags", "participation_limited", []),
+        )
+        for object_name, key, bad_value in cases:
+            input_value = v3_input()
+            if key is None:
+                input_value["notices"][0][object_name] = bad_value
+            else:
+                if object_name == "qualification_flags":
+                    input_value["notices"][0][object_name] = {
+                        name: None
+                        for name in (
+                            "participation_limited", "industry_limited", "information_business",
+                            "general_service", "service_division", "joint_contract_method",
+                            "performance_restricted_competition", "pq_evaluation",
+                            "technical_evaluation", "technical_evaluation_rate", "successful_bid_method",
+                        )
+                    }
+                input_value["notices"][0][object_name][key] = bad_value
+            with self.subTest(object_name=object_name, key=key), self.assertRaises(SystemExit):
+                BUILD.merge(input_value, v3_decisions(input_value, [v3_judgment("bid:v3:0")]))
+
+    def test_non_object_input_and_decisions_are_contract_errors(self) -> None:
+        input_value = v3_input()
+        decisions = v3_decisions(input_value, [v3_judgment("bid:v3:0")])
+        for invalid_input, invalid_decisions in (
+            (None, decisions),
+            ([], decisions),
+            (input_value, None),
+            (input_value, []),
+        ):
+            with self.subTest(input=type(invalid_input).__name__, decisions=type(invalid_decisions).__name__), self.assertRaises(SystemExit):
+                BUILD.merge(invalid_input, invalid_decisions)
+
+    def test_budget_must_be_a_decimal_string_or_null(self) -> None:
+        for budget in (100, 1.5, "", "not-a-number", "NaN", "Infinity"):
+            input_value = v3_input()
+            input_value["notices"][0]["budget"] = budget
+            with self.subTest(budget=budget), self.assertRaises(SystemExit):
+                BUILD.merge(input_value, v3_decisions(input_value, [v3_judgment("bid:v3:0")]))
+
+    def test_window_requires_dates_in_order(self) -> None:
+        for source_window in (
+            {"from": "2026-08-24T00:00:00+09:00", "to": "2026-08-24", "timezone": "Asia/Seoul"},
+            {"from": "2026-08-25", "to": "2026-08-24", "timezone": "Asia/Seoul"},
+        ):
+            input_value = v3_input()
+            input_value["source_window"] = source_window
+            with self.subTest(source_window=source_window), self.assertRaises(SystemExit):
+                BUILD.merge(input_value, v3_decisions(input_value, [v3_judgment("bid:v3:0")]))
+
+    def test_company_profile_version_is_digest_bound(self) -> None:
+        input_value = v3_input()
+        input_value["company_profile_version"] = "profile.v3"
+        with self.assertRaises(SystemExit):
+            BUILD.merge(input_value, v3_decisions(input_value, [v3_judgment("bid:v3:0")]))
+        input_value = v3_input()
+        decision = v3_judgment("bid:v3:0")
+        decision["company_profile_version"] = "profile.v3"
+        with self.assertRaises(SystemExit):
+            BUILD.merge(input_value, v3_decisions(input_value, [decision]))
+
+    def test_v3_merge_is_byte_deterministic_for_fixed_inputs(self) -> None:
+        input_value = v3_input()
+        decisions = v3_decisions(input_value, [v3_judgment("bid:v3:0")])
+        first = BUILD.merge(input_value, decisions)
+        second = BUILD.merge(input_value, decisions)
+        self.assertEqual(BUILD.canonical_json_bytes(first), BUILD.canonical_json_bytes(second))
+
+    def test_v3_rejects_top_notice_judgment_and_failure_extra_keys(self) -> None:
+        input_value = v3_input()
+        input_value["unexpected"] = True
+        with self.assertRaises(SystemExit):
+            BUILD.merge(input_value, v3_decisions(input_value, [v3_judgment("bid:v3:0")]))
+        input_value = v3_input()
+        decisions = v3_decisions(input_value, [v3_judgment("bid:v3:0")])
+        decisions["unexpected"] = True
+        with self.assertRaises(SystemExit):
+            BUILD.merge(input_value, decisions)
+        input_value = v3_input()
+        input_value["notices"][0]["unexpected"] = True
+        with self.assertRaises(SystemExit):
+            BUILD.merge(input_value, v3_decisions(input_value, [v3_judgment("bid:v3:0")]))
+        input_value = v3_input(modes=("신규", "신규"))
+        failures = v3_failure(input_value, "bid:v3:1")
+        failures["unexpected"] = True
+        with self.assertRaises(SystemExit):
+            BUILD.merge(input_value, v3_decisions(input_value, [v3_judgment("bid:v3:0")]), failures)
+        input_value = v3_input()
+        decision = v3_judgment("bid:v3:0")
+        decision["unexpected"] = True
+        with self.assertRaises(SystemExit):
+            BUILD.merge(input_value, v3_decisions(input_value, [decision]))
+
+
 if __name__ == "__main__":
     unittest.main()
