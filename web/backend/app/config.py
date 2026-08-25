@@ -57,6 +57,53 @@ class Settings(BaseSettings):
         default=None,
         validation_alias="BIDOPS_G2B_API_KEY",
     )
+    model_name: str = Field(
+        default="qwen3.8:27b",
+        validation_alias=AliasChoices("BIDOPS_OLLAMA_MODEL", "BIDOPS_MODEL_NAME"),
+    )
+    model_base_url: str = Field(
+        default="http://192.168.0.139:11434",
+        validation_alias=AliasChoices("BIDOPS_OLLAMA_ENDPOINT", "BIDOPS_MODEL_BASE_URL"),
+    )
+    model_timeout: int = Field(
+        default=180,
+        validation_alias=AliasChoices("BIDOPS_OLLAMA_TIMEOUT_SECONDS", "BIDOPS_MODEL_TIMEOUT"),
+    )
+    model_keep_alive: str = Field(
+        default="30m",
+        validation_alias=AliasChoices("BIDOPS_OLLAMA_KEEP_ALIVE", "BIDOPS_MODEL_KEEP_ALIVE"),
+    )
+    model_context: int = Field(
+        default=16384,
+        validation_alias=AliasChoices("BIDOPS_OLLAMA_CONTEXT_SIZE", "BIDOPS_MODEL_CONTEXT"),
+    )
+    model_max_output: int = Field(
+        default=2048,
+        validation_alias=AliasChoices(
+            "BIDOPS_OLLAMA_MAX_OUTPUT_TOKENS", "BIDOPS_MODEL_MAX_OUTPUT"
+        ),
+    )
+    ollama_think: bool = Field(default=False, validation_alias="BIDOPS_OLLAMA_THINK")
+    screen_concurrency: int = Field(
+        default=1,
+        validation_alias=AliasChoices("BIDOPS_SCREEN_MAX_CONCURRENCY", "BIDOPS_SCREEN_CONCURRENCY"),
+    )
+    heartbeat_seconds: int = Field(default=5, validation_alias="BIDOPS_HEARTBEAT_SECONDS")
+    stale_seconds: int = Field(default=60, validation_alias="BIDOPS_STALE_SECONDS")
+    scheduler_enabled: bool = Field(
+        default=False, validation_alias="BIDOPS_SCHEDULER_ENABLED"
+    )
+    schedule_daily_time: str = Field(
+        default="02:00", validation_alias="BIDOPS_SCHEDULE_DAILY_TIME"
+    )
+    schedule_weekly_time: str = Field(
+        default="06:00", validation_alias="BIDOPS_SCHEDULE_WEEKLY_TIME"
+    )
+    schedule_prespec: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("BIDOPS_PRESPEC_ENABLED", "BIDOPS_SCHEDULE_PRESPEC"),
+    )
+    live_test: bool = Field(default=False, validation_alias="BIDOPS_LIVE_TEST")
 
     @model_validator(mode="after")
     def derive_paths(self) -> "Settings":
@@ -66,6 +113,28 @@ class Settings(BaseSettings):
             self.data_dir = self.bidops_root / "web" / "data"
         if self.attachments_dir is None:
             self.attachments_dir = self.data_dir / "attachments"
+        if self.heartbeat_seconds >= self.stale_seconds:
+            raise ValueError("BIDOPS_HEARTBEAT_SECONDS must be less than BIDOPS_STALE_SECONDS")
+        if self.stale_seconds < self.heartbeat_seconds * 3:
+            raise ValueError(
+                "BIDOPS_STALE_SECONDS must be at least three times BIDOPS_HEARTBEAT_SECONDS"
+            )
+        if self.screen_concurrency != 1:
+            raise ValueError("only BIDOPS_SCREEN_MAX_CONCURRENCY=1 is supported")
+        if self.model_timeout <= 0 or self.model_context <= 0 or self.model_max_output <= 0:
+            raise ValueError("model timeout, context, and max output must be positive")
+        if self.ollama_think:
+            raise ValueError("BIDOPS_OLLAMA_THINK=true is not supported; internal reasoning is disabled")
+        for name in ("schedule_daily_time", "schedule_weekly_time"):
+            value = getattr(self, name)
+            if len(value) != 5 or value[2] != ":":
+                raise ValueError(f"{name} must use HH:MM")
+            try:
+                hour, minute = (int(part) for part in value.split(":"))
+            except ValueError as exc:
+                raise ValueError(f"{name} must use HH:MM") from exc
+            if not (0 <= hour <= 23 and 0 <= minute <= 59):
+                raise ValueError(f"{name} must use HH:MM")
         return self
 
     @property
@@ -73,6 +142,30 @@ class Settings(BaseSettings):
         """Compatibility alias for callers that use the descriptive name."""
 
         return self.bidops_root
+
+    @property
+    def ollama_endpoint(self) -> str:
+        return self.model_base_url
+
+    @property
+    def ollama_model(self) -> str:
+        return self.model_name
+
+    @property
+    def ollama_timeout_seconds(self) -> int:
+        return self.model_timeout
+
+    @property
+    def ollama_keep_alive(self) -> str:
+        return self.model_keep_alive
+
+    @property
+    def ollama_context_size(self) -> int:
+        return self.model_context
+
+    @property
+    def ollama_max_output_tokens(self) -> int:
+        return self.model_max_output
 
     @property
     def database_path(self) -> Path:
