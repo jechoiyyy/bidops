@@ -9,6 +9,8 @@ against PostgreSQL 17.
 
 from __future__ import annotations
 
+import os
+
 from alembic import op
 from sqlalchemy import text
 
@@ -20,6 +22,7 @@ revision = "0001_lean_v1_postgresql"
 down_revision = None
 branch_labels = None
 depends_on = None
+DISPOSABLE_DOWNGRADE_ENV = "BIDOPS_ALLOW_DISPOSABLE_ALEMBIC_DOWNGRADE"
 
 
 def _schema_bound_metadata() -> None:
@@ -39,7 +42,12 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # T1 is a forward cutover.  A downgrade is provided only for disposable
-    # development databases and intentionally never runs against live data.
+    # T1 is a forward cutover. A downgrade is only available to an explicitly
+    # opted-in disposable validation database; the purpose-named opt-in fails
+    # closed by default and does not expose connection details.
+    if os.environ.get(DISPOSABLE_DOWNGRADE_ENV) != "1":
+        raise RuntimeError(
+            f"Alembic downgrade is disabled; set {DISPOSABLE_DOWNGRADE_ENV}=1 only for disposable validation"
+        )
     _schema_bound_metadata()
     Base.metadata.drop_all(bind=op.get_bind(), checkfirst=False)

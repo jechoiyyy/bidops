@@ -8,21 +8,37 @@ file manifest, and receives the deterministic report contract from spec §14.3.
 from __future__ import annotations
 
 import argparse
+import base64
 import hashlib
 import json
 import re
 import sqlite3
 import sys
 from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from sqlalchemy import Date, Integer, JSON, MetaData, String, Table, func, select, text
+from sqlalchemy import (
+    Column,
+    Date,
+    Integer,
+    JSON,
+    MetaData,
+    ForeignKeyConstraint,
+    PrimaryKeyConstraint,
+    String,
+    Table,
+    UniqueConstraint,
+    func,
+    select,
+    text,
+)
 from sqlalchemy.engine import Engine
 
-from ..db import Base, engine as application_engine, schema_bound, settings
+from ..db import Base, schema_bound, settings
 from .. import models  # noqa: F401 - register legacy and new target tables
 
 
@@ -75,6 +91,19 @@ JSON_COLUMNS = {
     "candidate_sources_json", "unknown_fields_json", "raw_source", "context_json",
 }
 
+STAGING_SCHEMA = "migration_staging"
+
+
+@dataclass(frozen=True)
+class StagingContext:
+    """Committed staging objects for one immutable SQLite snapshot."""
+
+    metadata: MetaData
+    import_batch: Table
+    raw_row: Table
+    batch_hash: str
+    schema: str | None
+
 
 class ImportContractError(ValueError):
     """Raised for a source/manifest contract violation before writes begin."""
@@ -110,6 +139,45 @@ def _empty_report(mode: str, source_sha256: str, started_at: str) -> dict[str, A
         "sequences": [],
         "errors": [],
     }
+
+
+def _canonical_json_default(value: Any) -> Any:
+    """Serialize snapshot values without introducing process-local ordering."""
+
+    if isinstance(value, (bytes, bytearray, memoryview)):
+        return {"__bytes__": base64.b64encode(bytes(value)).decode("ascii")}
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    if isinstance(value, Decimal):
+        return format(value, "f")
+    raise TypeError(f"value of type {type(value).__name__} is not JSON serializable")
+
+
+def _canonical_json_bytes(value: Any) -> bytes:
+    return json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        default=_canonical_json_default,
+    ).encode("utf-8")
+
+
+def _manifest_sha256(manifest: Mapping[str, Any]) -> str:
+    return hashlib.sha256(_canonical_json_bytes(manifest)).hexdigest()
+
+
+def _row_hash(source_table: str, row: Mapping[str, Any]) -> str:
+    source_pk = str(row["id"])
+    return hashlib.sha256(
+        _canonical_json_bytes({"source_table": source_table, "source_pk": source_pk, "row": row})
+    ).hexdigest()
+
+
+def _batch_hash(source_sha256: str, manifest_sha256: str) -> str:
+    return hashlib.sha256(
+        _canonical_json_bytes({"source_sha256": source_sha256, "manifest_sha256": manifest_sha256})
+    ).hexdigest()
 
 
 def _read_manifest(path: Path, source_sha256: str) -> dict[str, Any]:
@@ -385,10 +453,233 @@ def _sequence_reconciliation(connection, target_table: Table, source_rows: list[
         return
     max_pk = max((int(row["id"]) for row in source_rows), default=0)
     next_value = max_pk + 1
-    if connection.dialect.name == "postgresql" and apply:
+    if connection is not None and connection.dialect.name == "postgresql" and apply:
         qualified = f"bidops.{target_table.name}"
         connection.execute(text("SELECT setval(pg_get_serial_sequence(:table_name, :pk_name), :value, false)"), {"table_name": qualified, "pk_name": pk[0].name, "value": next_value})
     report["sequences"].append({"table": target_table.name, "pk_column": pk[0].name, "max_pk": max_pk, "next_value": next_value})
+
+
+def _staging_tables(*, schema: str | None = STAGING_SCHEMA) -> tuple[MetaData, Table, Table]:
+    metadata = MetaData()
+    import_batch = Table(
+        "import_batch",
+        metadata,
+        Column("batch_hash", String(64), nullable=False),
+        Column("source_sha256", String(64), nullable=False),
+        Column("manifest_sha256", String(64), nullable=False),
+        Column("source_row_count", Integer, nullable=False),
+        PrimaryKeyConstraint("batch_hash", name="pk_migration_staging_import_batch"),
+        UniqueConstraint("source_sha256", name="uq_migration_staging_source_sha256"),
+        UniqueConstraint("source_sha256", "manifest_sha256", name="uq_migration_staging_input"),
+        schema=schema,
+    )
+    raw_row = Table(
+        "raw_row",
+        metadata,
+        Column("batch_hash", String(64), nullable=False),
+        Column("source_table", String(64), nullable=False),
+        Column("source_pk", String(255), nullable=False),
+        Column("row_hash", String(64), nullable=False),
+        Column("source_row", JSON, nullable=False),
+        ForeignKeyConstraint(
+            ["batch_hash"],
+            [f"{schema}.import_batch.batch_hash" if schema else "import_batch.batch_hash"],
+            name="fk_migration_staging_raw_row_batch",
+        ),
+        PrimaryKeyConstraint("batch_hash", "source_table", "source_pk", name="pk_migration_staging_raw_row"),
+        UniqueConstraint("batch_hash", "source_table", "source_pk", "row_hash", name="uq_migration_staging_raw_row_hash"),
+        schema=schema,
+    )
+    return metadata, import_batch, raw_row
+
+
+def _create_staging_objects(connection, metadata: MetaData, *, schema: str | None) -> None:
+    if schema is not None:
+        connection.execute(text(f"CREATE SCHEMA IF NOT EXISTS {schema}"))
+    metadata.create_all(connection, checkfirst=True)
+
+
+def _drop_staging_objects(connection, context: StagingContext) -> None:
+    if context.schema is not None:
+        # The importer owns this dedicated schema. CASCADE is intentional so a
+        # successful cutover leaves no staging object behind.
+        connection.execute(text(f"DROP SCHEMA IF EXISTS {context.schema} CASCADE"))
+    else:
+        context.metadata.drop_all(connection, checkfirst=True)
+
+
+def _expected_staging_rows(source_tables: Mapping[str, list[dict[str, Any]]]) -> dict[tuple[str, str], tuple[str, dict[str, Any]]]:
+    expected: dict[tuple[str, str], tuple[str, dict[str, Any]]] = {}
+    for source_table in LEGACY_COLUMNS:
+        for row in source_tables[source_table]:
+            source_pk = str(row["id"])
+            key = (source_table, source_pk)
+            if key in expected:
+                raise ImportContractError("duplicate_source_pk", "source snapshot contains duplicate legacy primary key", table=source_table)
+            expected[key] = (_row_hash(source_table, row), row)
+    return expected
+
+
+def _stage_snapshot(
+    destination: Engine,
+    source_tables: Mapping[str, list[dict[str, Any]]],
+    *,
+    source_sha256: str,
+    manifest_sha256: str,
+    schema: str | None = STAGING_SCHEMA,
+) -> StagingContext:
+    """Commit a deterministic source batch before attempting target promotion."""
+
+    metadata, import_batch, raw_row = _staging_tables(schema=schema)
+    batch_hash = _batch_hash(source_sha256, manifest_sha256)
+    expected = _expected_staging_rows(source_tables)
+    context = StagingContext(metadata, import_batch, raw_row, batch_hash, schema)
+    with destination.begin() as connection:
+        _create_staging_objects(connection, metadata, schema=schema)
+        existing_by_hash = connection.execute(
+            select(import_batch).where(import_batch.c.batch_hash == batch_hash)
+        ).mappings().first()
+        existing_by_source = connection.execute(
+            select(import_batch).where(import_batch.c.source_sha256 == source_sha256)
+        ).mappings().first()
+        existing_any = connection.execute(select(import_batch).limit(1)).mappings().first()
+        if existing_any is not None and existing_any["source_sha256"] != source_sha256:
+            raise ImportContractError(
+                "staging_batch_conflict",
+                "another SQLite snapshot is already staged for migration",
+            )
+        if existing_by_source is not None and (
+            existing_by_source["batch_hash"] != batch_hash
+            or existing_by_source["manifest_sha256"] != manifest_sha256
+        ):
+            raise ImportContractError(
+                "staging_batch_conflict",
+                "a different manifest is already staged for this SQLite snapshot",
+            )
+        if existing_by_hash is None:
+            connection.execute(
+                import_batch.insert(),
+                {
+                    "batch_hash": batch_hash,
+                    "source_sha256": source_sha256,
+                    "manifest_sha256": manifest_sha256,
+                    "source_row_count": len(expected),
+                },
+            )
+        elif (
+            existing_by_hash["source_sha256"] != source_sha256
+            or existing_by_hash["manifest_sha256"] != manifest_sha256
+            or int(existing_by_hash["source_row_count"]) != len(expected)
+        ):
+            raise ImportContractError("staging_batch_conflict", "staged import batch metadata differs from this snapshot")
+
+        existing_rows = connection.execute(
+            select(raw_row.c.source_table, raw_row.c.source_pk, raw_row.c.row_hash)
+            .where(raw_row.c.batch_hash == batch_hash)
+        ).mappings().all()
+        staged = {(row["source_table"], row["source_pk"]): row["row_hash"] for row in existing_rows}
+        expected_hashes = {key: value[0] for key, value in expected.items()}
+        if staged and staged != expected_hashes:
+            raise ImportContractError("staging_row_conflict", "staged raw row differs from this snapshot")
+        if not staged:
+            connection.execute(
+                raw_row.insert(),
+                [
+                    {
+                        "batch_hash": batch_hash,
+                        "source_table": source_table,
+                        "source_pk": source_pk,
+                        "row_hash": row_hash,
+                        "source_row": row,
+                    }
+                    for (source_table, source_pk), (row_hash, row) in expected.items()
+                ],
+            )
+    return context
+
+
+def _load_staged_rows(connection, context: StagingContext) -> dict[str, list[dict[str, Any]]]:
+    rows_by_table: dict[str, list[dict[str, Any]]] = {source_table: [] for source_table in LEGACY_COLUMNS}
+    expected_count = connection.execute(
+        select(context.import_batch.c.source_row_count).where(context.import_batch.c.batch_hash == context.batch_hash)
+    ).scalar_one_or_none()
+    if expected_count is None:
+        raise ImportContractError("staging_batch_missing", "staged import batch metadata is missing")
+    staged_rows = connection.execute(
+        select(context.raw_row.c.source_table, context.raw_row.c.source_pk, context.raw_row.c.row_hash, context.raw_row.c.source_row)
+        .where(context.raw_row.c.batch_hash == context.batch_hash)
+    ).mappings().all()
+    if len(staged_rows) != int(expected_count):
+        raise ImportContractError("staging_row_conflict", "staged raw row count does not match its batch")
+    seen: set[tuple[str, str]] = set()
+    for staged in staged_rows:
+        source_table = staged["source_table"]
+        source_pk = staged["source_pk"]
+        if source_table not in LEGACY_COLUMNS or (source_table, source_pk) in seen:
+            raise ImportContractError("staging_row_conflict", "staged raw row key is not unique", table=source_table)
+        row = dict(staged["source_row"])
+        if str(row.get("id")) != source_pk or _row_hash(source_table, row) != staged["row_hash"]:
+            raise ImportContractError("staging_row_conflict", "staged raw row hash does not match its payload", table=source_table)
+        seen.add((source_table, source_pk))
+        rows_by_table[source_table].append(row)
+    return rows_by_table
+
+
+def _target_rows_match(
+    connection,
+    translated_tables: Mapping[str, Table],
+    source_tables: Mapping[str, list[dict[str, Any]]],
+    report: dict[str, Any],
+) -> bool:
+    probe: dict[str, Any] = {"tables": []}
+    for source_table in LEGACY_COLUMNS:
+        _table_reconciliation(connection, source_table, translated_tables[source_table], source_tables[source_table], probe)
+    matches = all(item["pk_match"] and item["column_match"] and item["reviewer_match"] for item in probe["tables"])
+    if matches:
+        report["tables"].extend(probe["tables"])
+    return matches
+
+
+def _promote_staged(
+    destination: Engine,
+    context: StagingContext,
+    translated_tables: Mapping[str, Table],
+    report: dict[str, Any],
+) -> None:
+    """Promote one committed batch, retaining staging if this transaction fails."""
+
+    with destination.begin() as connection:
+        source_tables = _load_staged_rows(connection, context)
+        nonempty_target: str | None = None
+        for target in translated_tables.values():
+            if int(connection.execute(select(func.count()).select_from(target)).scalar_one()):
+                nonempty_target = target.name
+                break
+        if nonempty_target is not None:
+            if _target_rows_match(connection, translated_tables, source_tables, report):
+                for source_table in LEGACY_COLUMNS:
+                    _sequence_reconciliation(connection, translated_tables[source_table], source_tables[source_table], report, apply=False)
+                _drop_staging_objects(connection, context)
+                return
+            raise ImportContractError("target_not_empty", "target table is not empty", table=nonempty_target)
+
+        for source_table in LEGACY_COLUMNS:
+            target = translated_tables[source_table]
+            source_rows = source_tables[source_table]
+            converted_rows = [_target_row(source_table, row, target) for row in source_rows]
+            for converted in converted_rows:
+                _validate_target_row_types(converted, target, connection.dialect)
+            if converted_rows:
+                connection.execute(target.insert(), converted_rows)
+            _table_reconciliation(connection, source_table, target, source_rows, report)
+            table_report = report["tables"][-1]
+            if not all(table_report[key] for key in ("pk_match", "column_match", "reviewer_match")):
+                raise ImportContractError("reconciliation_mismatch", "legacy table reconciliation failed", table=source_table)
+        # PostgreSQL sequences are non-transactional, so adjust them only after
+        # every table has reconciled; a promotion failure retains staging.
+        for source_table in LEGACY_COLUMNS:
+            _sequence_reconciliation(connection, translated_tables[source_table], source_tables[source_table], report, apply=True)
+        _drop_staging_objects(connection, context)
 
 
 def run_import(*, sqlite_backup: Path, file_manifest: Path, mode: str, destination: Engine | None = None) -> dict[str, Any]:
@@ -413,57 +704,42 @@ def run_import(*, sqlite_backup: Path, file_manifest: Path, mode: str, destinati
         if report["errors"]:
             raise ImportContractError("preflight_reconciliation_failed", "source/file preflight reconciliation failed")
 
-        destination = destination or application_engine
-        if mode == "apply" and destination.dialect.name != "postgresql":
-            raise ImportContractError("postgresql_destination_required", "apply mode requires a PostgreSQL destination")
-        destination = schema_bound(destination)
         translated_tables = {source_table: _target_table(target_name) for source_table, target_name in TARGET_TABLES.items()}
-        converted_rows_by_table: dict[str, list[dict[str, Any]]] = {}
-        for source_table, rows in source_tables.items():
-            target = translated_tables[source_table]
-            converted_rows = [_target_row(source_table, row, target) for row in rows]
-            for converted in converted_rows:
-                _validate_target_row_types(converted, target, destination.dialect)
-            converted_rows_by_table[source_table] = converted_rows
-        with destination.begin() as connection:
-            if mode == "apply":
-                for target in translated_tables.values():
-                    existing = int(connection.execute(select(func.count()).select_from(target)).scalar_one())
-                    if existing:
-                        raise ImportContractError("target_not_empty", f"target table {target.name} is not empty", table=target.name)
-            staging = Table(
-                "import_row",
-                MetaData(),
-                __import__("sqlalchemy").Column("source_table", String(64), nullable=False),
-                __import__("sqlalchemy").Column("source_pk", String(255), nullable=False),
-                __import__("sqlalchemy").Column("source_row", JSON, nullable=False),
-                schema="migration_staging" if connection.dialect.name == "postgresql" else None,
+        manifest_sha256 = _manifest_sha256(manifest)
+        validation_dialect = destination.dialect if destination is not None else None
+        if mode == "dry_run":
+            # Dry-run is deliberately destination-free. An explicitly supplied
+            # isolated bind may validate its dialect, but no connection or
+            # transaction is opened and no staging object is written.
+            if validation_dialect is None:
+                from sqlalchemy.dialects.postgresql import dialect as postgresql_dialect
+
+                validation_dialect = postgresql_dialect()
+            for source_table in LEGACY_COLUMNS:
+                target = translated_tables[source_table]
+                converted_rows = [_target_row(source_table, row, target) for row in source_tables[source_table]]
+                for converted in converted_rows:
+                    _validate_target_row_types(converted, target, validation_dialect)
+                _table_reconciliation(None, source_table, target, source_tables[source_table], report, dry_run=True)
+                table_report = report["tables"][-1]
+                if not all(table_report[key] for key in ("pk_match", "column_match", "reviewer_match")):
+                    raise ImportContractError("reconciliation_mismatch", "legacy table reconciliation failed", table=source_table)
+                _sequence_reconciliation(None, target, source_tables[source_table], report, apply=False)
+        else:
+            if destination is None:
+                from ..db import engine as application_engine
+
+                destination = application_engine
+            if destination.dialect.name != "postgresql":
+                raise ImportContractError("postgresql_destination_required", "apply mode requires a PostgreSQL destination")
+            destination = schema_bound(destination)
+            context = _stage_snapshot(
+                destination,
+                source_tables,
+                source_sha256=source_sha256,
+                manifest_sha256=manifest_sha256,
             )
-            if connection.dialect.name == "postgresql":
-                connection.execute(text("CREATE SCHEMA IF NOT EXISTS migration_staging"))
-            staging.create(connection, checkfirst=True)
-            try:
-                for source_table, rows in source_tables.items():
-                    target = translated_tables[source_table]
-                    converted_rows = converted_rows_by_table[source_table]
-                    if converted_rows:
-                        connection.execute(staging.insert(), [{"source_table": source_table, "source_pk": str(row["id"]), "source_row": row} for row in rows])
-                        if mode == "apply":
-                            connection.execute(target.insert(), converted_rows)
-                    _table_reconciliation(connection, source_table, target, rows, report, dry_run=mode == "dry_run")
-                    table_report = report["tables"][-1]
-                    if not all(table_report[key] for key in ("pk_match", "column_match", "reviewer_match")):
-                        raise ImportContractError("reconciliation_mismatch", "legacy table reconciliation failed", table=source_table)
-                # PostgreSQL sequences are non-transactional. Advance them
-                # only after every table has reconciled, so a later mismatch
-                # cannot leave a committed-looking sequence behind a rolled
-                # back batch.
-                for source_table, rows in source_tables.items():
-                    _sequence_reconciliation(connection, translated_tables[source_table], rows, report, apply=mode == "apply")
-            finally:
-                staging.drop(connection, checkfirst=True)
-                if connection.dialect.name == "postgresql":
-                    connection.execute(text("DROP SCHEMA IF EXISTS migration_staging"))
+            _promote_staged(destination, context, translated_tables, report)
     except ImportContractError as exc:
         if report is None:
             source_hash = ""
