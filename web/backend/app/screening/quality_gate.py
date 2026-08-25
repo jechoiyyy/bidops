@@ -66,6 +66,48 @@ class QualityGateActivationError(QualityGateConflict):
     """A quality result cannot be used for operational activation."""
 
 
+class _StagedQualityQueue:
+    """Capture orchestrator queue rows until the gate transaction is ready.
+
+    ``ScreeningOrchestrator`` owns all expensive preflight work and artifact
+    construction, but its normal queue commits one row per call.  Quality
+    gates need a different visibility boundary: both rows and the gate must
+    become visible together.  This narrow adapter preserves the orchestrator
+    contract while keeping its generated IDs/artifact bindings for one final
+    transaction.
+    """
+
+    def __init__(self) -> None:
+        self.rows: list[ScreeningExecution] = []
+
+    def enqueue(self, **kwargs: Any) -> ScreeningExecution:
+        row = ScreeningExecution(
+            execution_id=kwargs["execution_id"],
+            trigger=kwargs["trigger"],
+            source_run_id=kwargs["source_run_id"],
+            scope=kwargs["scope"],
+            notice_pk=kwargs.get("notice_pk"),
+            notice_id=kwargs.get("notice_id"),
+            status="대기",
+            requested_by=kwargs["requested_by"],
+            policy_version=kwargs["policy_version"],
+            prompt_version=kwargs["prompt_version"],
+            model_name=kwargs["model_name"],
+            model_digest=kwargs["model_digest"],
+            company_profile_version=kwargs["company_profile_version"],
+            company_profile_digest=kwargs["company_profile_digest"],
+            input_artifact_path=kwargs["input_artifact_path"],
+            input_artifact_digest=kwargs["input_artifact_digest"],
+            artifact_dir=kwargs["artifact_dir"],
+            queued_at=kwargs.get("queued_at") or datetime.now(timezone.utc),
+            candidate_count=kwargs.get("candidate_count", 0),
+            completed_count=0,
+            failure_count=0,
+        )
+        self.rows.append(row)
+        return row
+
+
 def _factory(value: Any | None) -> sessionmaker[Session]:
     if value is None:
         from ..db import SessionLocal
@@ -158,6 +200,21 @@ def _canonical_pass_input(value: Mapping[str, Any]) -> str:
         raise QualityGateValidationError("quality pass input is invalid") from None
 
 
+def _input_matches_fixed_sample(value: Mapping[str, Any], sample: Mapping[str, Any], sample_ids: Sequence[str]) -> bool:
+    notices = value.get("notices")
+    expected = sample.get("notices")
+    if not isinstance(notices, list) or not isinstance(expected, list) or len(notices) != len(expected) or len(notices) != len(sample_ids):
+        return False
+    if [item.get("notice_id") if isinstance(item, Mapping) else None for item in notices] != list(sample_ids):
+        return False
+    for actual, fixed in zip(notices, expected):
+        if not isinstance(actual, Mapping) or not isinstance(fixed, Mapping):
+            return False
+        if any(actual.get(key) != fixed_value for key, fixed_value in fixed.items()):
+            return False
+    return True
+
+
 def _load_execution_artifact(root: Path, execution_id: str, filename: str) -> dict[str, Any]:
     try:
         value = ArtifactStore(root).read_json(execution_id, filename)
@@ -204,6 +261,24 @@ def _result_for_metrics(
     return ("통과", []) if passed else ("미달", reasons)
 
 
+def _metric_structure_reasons(metrics: Mapping[str, Any]) -> list[str]:
+    """Convert explicit pass-sample exclusions into a deterministic hold.
+
+    A review mismatch is a usable, auditable exclusion.  An A/B identity or
+    contract failure is different: it means the fixed sample was not actually
+    evaluated as promised, so a completed gate must remain 보류.
+    """
+
+    reasons: list[str] = []
+    for row in metrics.get("excluded_notices", ()) if isinstance(metrics, Mapping) else ():
+        if not isinstance(row, Mapping) or row.get("pass") not in {"A", "B"}:
+            continue
+        notice_id = str(row.get("notice_id") or "")
+        reason = str(row.get("reason") or "invalid_exclusion")
+        reasons.append(f"{row['pass']}_structure:{notice_id}:{reason}")
+    return list(dict.fromkeys(reasons))
+
+
 def _evaluation_id() -> str:
     return "gateeval-" + uuid4().hex
 
@@ -233,6 +308,7 @@ class QualityGateService:
         session = self.session_factory()
         if not isinstance(session, Session):
             raise TypeError("session factory did not return Session")
+        session.expire_on_commit = False
         try:
             if immediate and session.get_bind().dialect.name == "sqlite":
                 session.connection().exec_driver_sql("PRAGMA busy_timeout = 5000")
@@ -259,6 +335,65 @@ class QualityGateService:
             raise
         except Exception as exc:
             raise QualityGateError("quality pass could not be queued") from exc
+
+    def _create_staged_passes(
+        self,
+        *,
+        run_id: str,
+        policy_version: str,
+        profile_source: str,
+        actor: str,
+    ) -> tuple[CreatedExecution, CreatedExecution, list[ScreeningExecution], list[str]]:
+        """Run both orchestrator preflights without publishing queue rows."""
+
+        staged = _StagedQualityQueue()
+        original_queue = getattr(self.orchestrator, "queue", None)
+        if original_queue is None:
+            raise QualityGateConflict("quality orchestrator has no queue boundary")
+        self.orchestrator.queue = staged
+        created_ids: list[str] = []
+        try:
+            first = self._create_pass(run_id=run_id, policy_version=policy_version, profile_source=profile_source, actor=actor)
+            created_ids.append(first.execution_id)
+            second = self._create_pass(run_id=run_id, policy_version=policy_version, profile_source=profile_source, actor=actor)
+            created_ids.append(second.execution_id)
+            if len(staged.rows) != 2 or first.execution_id == second.execution_id:
+                raise QualityGateConflict("quality passes must be independent")
+            return first, second, list(staged.rows), created_ids
+        finally:
+            self.orchestrator.queue = original_queue
+
+    def _cleanup_staged_artifacts(self, execution_ids: Sequence[str]) -> None:
+        """Remove only known, never-queued execution staging directories."""
+
+        store = ArtifactStore(Path(self.settings.bidops_root))
+        for execution_id in dict.fromkeys(execution_ids):
+            try:
+                store.remove_execution(execution_id)
+            except (ArtifactError, OSError):
+                # A failed preflight may not have created its directory.  No
+                # database row was published, and an absent path is already
+                # the desired state.
+                continue
+
+    def _cleanup_unbound_passes(self, execution_ids: Sequence[str]) -> None:
+        """Rollback compatibility-adapter rows before removing their files."""
+
+        ids = list(dict.fromkeys(execution_ids))
+        if not ids:
+            return
+        try:
+            with self._session(immediate=True) as session:
+                rows = session.scalars(select(ScreeningExecution).where(ScreeningExecution.execution_id.in_(ids))).all()
+                for row in rows:
+                    # A gate never owns a partially-running compatibility row;
+                    # leave a worker-owned row for its normal lifecycle rather
+                    # than deleting active runtime history.
+                    if row.status != "대기":
+                        continue
+                    session.delete(row)
+        finally:
+            self._cleanup_staged_artifacts(ids)
 
     def create_gate(
         self,
@@ -291,111 +426,137 @@ class QualityGateService:
             if policy.status not in {"activation_candidate", "active"}:
                 raise QualityGateValidationError("policy is not selectable")
 
-        # The orchestrator performs the model inspection and profile snapshot
-        # in its pre-enqueue transaction.  A and B are ordinary FIFO rows.
-        first = self._create_pass(run_id=run_id, policy_version=policy_version, profile_source=profile_source, actor=actor)
-        second = self._create_pass(run_id=run_id, policy_version=policy_version, profile_source=profile_source, actor=actor)
-        if first.execution_id == second.execution_id:
-            raise QualityGateConflict("quality passes must be independent")
-
+        # The orchestrator performs model inspection, profile snapshot, and
+        # artifact creation.  Its normal queue commits one row immediately;
+        # the production implementation is intercepted until both passes are
+        # ready, so no worker can claim A while B is being built.
         root = Path(self.settings.bidops_root)
-        input_a = _load_execution_artifact(root, first.execution_id, "screening-input.json")
-        input_b = _load_execution_artifact(root, second.execution_id, "screening-input.json")
-        if _canonical_pass_input(input_a) != _canonical_pass_input(input_b):
-            raise QualityGateConflict("quality pass frozen input combination differs")
-        if input_a.get("candidate_count") != 40 or input_b.get("candidate_count") != 40:
-            raise QualityGateValidationError("quality pass must contain exactly 40 notices")
-        # The fixed raw bytes, rather than a parsed/reformatted value, are the
-        # authoritative input identity stored on the gate.
-        sample_digest = sha256_bytes(sample_raw)
-        baseline_digest = sha256_bytes(baseline_raw)
-        now = _now(self.clock())
-        gate_id = "gate-" + uuid4().hex
-        with self._session(immediate=True) as session:
-            # Recheck all immutable identities in the same transaction as the
-            # gate row, so a concurrent policy/profile change cannot bind a
-            # different combination.
-            policy = session.scalar(select(ScreeningPolicy).where(ScreeningPolicy.policy_version == policy_version))
-            execution_a = session.scalar(select(ScreeningExecution).where(ScreeningExecution.execution_id == first.execution_id))
-            execution_b = session.scalar(select(ScreeningExecution).where(ScreeningExecution.execution_id == second.execution_id))
-            if policy is None or execution_a is None or execution_b is None:
-                raise QualityGateConflict("quality pass rows disappeared")
-            if execution_a.scope != "quality_sample" or execution_b.scope != "quality_sample":
-                raise QualityGateConflict("quality pass scope is invalid")
-            if execution_a.input_artifact_digest == execution_b.input_artifact_digest:
-                # This is desirable but not required because execution_id is a
-                # binding member of v1.  Semantic identity was checked above.
-                pass
-            profile = session.scalar(select(CompanyProfileSnapshot).where(CompanyProfileSnapshot.version == execution_a.company_profile_version))
-            if profile is None or profile.digest != execution_a.company_profile_digest:
-                raise QualityGateConflict("quality pass profile identity is invalid")
-            if (
-                execution_a.policy_version != policy_version
-                or execution_b.policy_version != policy_version
-                or execution_a.prompt_version != execution_b.prompt_version
-                or execution_a.model_name != execution_b.model_name
-                or execution_a.model_digest != execution_b.model_digest
-                or execution_a.company_profile_version != execution_b.company_profile_version
-                or execution_a.company_profile_digest != execution_b.company_profile_digest
-                or execution_a.candidate_count != 40
-                or execution_b.candidate_count != 40
-            ):
-                raise QualityGateConflict("quality pass policy identity differs")
-            gate = QualityGate(
-                gate_id=gate_id,
-                purpose=purpose,
-                execution_status="대기",
-                result_status="미측정",
-                baseline_run_id=run_id,
-                sample_artifact_path=_safe_relative(FIXED_SAMPLE_RELATIVE),
-                sample_artifact_digest=sample_digest,
-                baseline_decisions_path=_safe_relative(FIXED_BASELINE_RELATIVE),
-                baseline_decisions_digest=baseline_digest,
-                policy_version=policy_version,
-                prompt_version=execution_a.prompt_version,
-                model_name=execution_a.model_name,
-                model_digest=execution_a.model_digest,
-                company_profile_version=execution_a.company_profile_version,
-                company_profile_digest=execution_a.company_profile_digest,
-                pass_a_execution_id=first.execution_id,
-                pass_b_execution_id=second.execution_id,
-                created_by=actor,
-                created_at=now,
-                completed_at=None,
-                metrics_json=_initial_metrics(sample_ids),
-                reasons_json=["execution_pending"],
-            )
-            session.add(gate)
-            session.flush()
-            session.add(QualityGateEvaluation(
-                evaluation_id=_evaluation_id(), gate_id=gate_id, revision=1,
-                result_status="미측정", metrics_json=gate.metrics_json,
-                reasons_json=["execution_pending"], valid_review_count=0,
-                distinct_notice_review_count=0, created_at=now,
-            ))
-            session.add(AuditEvent(
-                event_id="audit-" + uuid4().hex,
-                event_type="quality_gate.created",
-                actor=actor,
-                target_type="quality_gate",
-                target_id=gate_id,
-                occurred_at=now,
-                details_json={
-                    "purpose": purpose,
-                    "policy_version": policy_version,
-                    "prompt_version": execution_a.prompt_version,
-                    "model_name": execution_a.model_name,
-                    "model_digest": execution_a.model_digest,
-                    "company_profile_version": execution_a.company_profile_version,
-                    "company_profile_digest": execution_a.company_profile_digest,
-                    "sample_artifact_digest": sample_digest,
-                    "baseline_decisions_digest": baseline_digest,
-                    "pass_a_execution_id": first.execution_id,
-                    "pass_b_execution_id": second.execution_id,
-                },
-            ))
-            session.flush()
-            return gate
+        staged_rows: list[ScreeningExecution] = []
+        created_ids: list[str] = []
+        try:
+            if isinstance(self.orchestrator, ScreeningOrchestrator):
+                first, second, staged_rows, created_ids = self._create_staged_passes(
+                    run_id=run_id, policy_version=policy_version, profile_source=profile_source, actor=actor
+                )
+            else:
+                # Keep compatibility with injected test/delivery adapters;
+                # their queue can be an externally managed transaction-aware
+                # implementation.  Any rows they publish are still cleaned
+                # by the adapter on a failed logical operation.
+                first = self._create_pass(run_id=run_id, policy_version=policy_version, profile_source=profile_source, actor=actor)
+                created_ids.append(first.execution_id)
+                second = self._create_pass(run_id=run_id, policy_version=policy_version, profile_source=profile_source, actor=actor)
+                created_ids.append(second.execution_id)
+                if first.execution_id == second.execution_id:
+                    raise QualityGateConflict("quality passes must be independent")
+
+            input_a = _load_execution_artifact(root, first.execution_id, "screening-input.json")
+            input_b = _load_execution_artifact(root, second.execution_id, "screening-input.json")
+            if _canonical_pass_input(input_a) != _canonical_pass_input(input_b):
+                raise QualityGateConflict("quality pass frozen input combination differs")
+            if input_a.get("candidate_count") != 40 or input_b.get("candidate_count") != 40:
+                raise QualityGateValidationError("quality pass must contain exactly 40 notices")
+            if not _input_matches_fixed_sample(input_a, sample, sample_ids) or not _input_matches_fixed_sample(input_b, sample, sample_ids):
+                raise QualityGateConflict("quality pass notices do not match the fixed sample")
+            # The fixed raw bytes, rather than a parsed/reformatted value, are
+            # the authoritative input identity stored on the gate.
+            sample_digest = sha256_bytes(sample_raw)
+            baseline_digest = sha256_bytes(baseline_raw)
+            now = _now(self.clock())
+            gate_id = "gate-" + uuid4().hex
+            with self._session(immediate=True) as session:
+                # Recheck all immutable identities in the same transaction as
+                # the gate row, so a concurrent policy/profile change cannot
+                # bind a different combination.
+                policy = session.scalar(select(ScreeningPolicy).where(ScreeningPolicy.policy_version == policy_version))
+                if staged_rows:
+                    session.add_all(staged_rows)
+                    session.flush()
+                execution_a = session.scalar(select(ScreeningExecution).where(ScreeningExecution.execution_id == first.execution_id))
+                execution_b = session.scalar(select(ScreeningExecution).where(ScreeningExecution.execution_id == second.execution_id))
+                if policy is None or execution_a is None or execution_b is None:
+                    raise QualityGateConflict("quality pass rows disappeared")
+                if execution_a.scope != "quality_sample" or execution_b.scope != "quality_sample":
+                    raise QualityGateConflict("quality pass scope is invalid")
+                profile = session.scalar(select(CompanyProfileSnapshot).where(CompanyProfileSnapshot.version == execution_a.company_profile_version))
+                if profile is None or profile.digest != execution_a.company_profile_digest:
+                    raise QualityGateConflict("quality pass profile identity is invalid")
+                if (
+                    execution_a.policy_version != policy_version
+                    or execution_b.policy_version != policy_version
+                    or execution_a.prompt_version != execution_b.prompt_version
+                    or execution_a.model_name != execution_b.model_name
+                    or execution_a.model_digest != execution_b.model_digest
+                    or execution_a.company_profile_version != execution_b.company_profile_version
+                    or execution_a.company_profile_digest != execution_b.company_profile_digest
+                    or execution_a.candidate_count != 40
+                    or execution_b.candidate_count != 40
+                ):
+                    raise QualityGateConflict("quality pass policy identity differs")
+                gate = QualityGate(
+                    gate_id=gate_id,
+                    purpose=purpose,
+                    execution_status="대기",
+                    result_status="미측정",
+                    baseline_run_id=run_id,
+                    sample_artifact_path=_safe_relative(FIXED_SAMPLE_RELATIVE),
+                    sample_artifact_digest=sample_digest,
+                    baseline_decisions_path=_safe_relative(FIXED_BASELINE_RELATIVE),
+                    baseline_decisions_digest=baseline_digest,
+                    policy_version=policy_version,
+                    prompt_version=execution_a.prompt_version,
+                    model_name=execution_a.model_name,
+                    model_digest=execution_a.model_digest,
+                    company_profile_version=execution_a.company_profile_version,
+                    company_profile_digest=execution_a.company_profile_digest,
+                    pass_a_execution_id=first.execution_id,
+                    pass_b_execution_id=second.execution_id,
+                    created_by=actor,
+                    created_at=now,
+                    completed_at=None,
+                    metrics_json=_initial_metrics(sample_ids),
+                    reasons_json=["execution_pending"],
+                )
+                session.add(gate)
+                session.flush()
+                session.add(QualityGateEvaluation(
+                    evaluation_id=_evaluation_id(), gate_id=gate_id, revision=1,
+                    result_status="미측정", metrics_json=gate.metrics_json,
+                    reasons_json=["execution_pending"], valid_review_count=0,
+                    distinct_notice_review_count=0, created_at=now,
+                ))
+                session.add(AuditEvent(
+                    event_id="audit-" + uuid4().hex,
+                    event_type="quality_gate.created",
+                    actor=actor,
+                    target_type="quality_gate",
+                    target_id=gate_id,
+                    occurred_at=now,
+                    details_json={
+                        "purpose": purpose,
+                        "policy_version": policy_version,
+                        "prompt_version": execution_a.prompt_version,
+                        "model_name": execution_a.model_name,
+                        "model_digest": execution_a.model_digest,
+                        "company_profile_version": execution_a.company_profile_version,
+                        "company_profile_digest": execution_a.company_profile_digest,
+                        "sample_artifact_digest": sample_digest,
+                        "baseline_decisions_digest": baseline_digest,
+                        "pass_a_execution_id": first.execution_id,
+                        "pass_b_execution_id": second.execution_id,
+                    },
+                ))
+                session.flush()
+                return gate
+        except Exception:
+            # Staged IDs are never queue-visible.  Cleanup is narrowly scoped
+            # to those generated execution directories and therefore cannot
+            # delete an unrelated caller artifact.
+            if staged_rows or isinstance(self.orchestrator, ScreeningOrchestrator):
+                self._cleanup_staged_artifacts(created_ids)
+            else:
+                self._cleanup_unbound_passes(created_ids)
+            raise
 
     create = create_gate
 
@@ -442,6 +603,9 @@ class QualityGateService:
     ) -> QualityGateEvaluation:
         if result_status not in RESULT_STATUSES:
             raise QualityGateValidationError("evaluation result status is invalid")
+        # Serialize revision allocation with the gate row on databases that
+        # support row locks.  SQLite callers already hold BEGIN IMMEDIATE.
+        session.scalar(select(QualityGate.gate_id).where(QualityGate.gate_id == gate.gate_id).with_for_update())
         latest = self._latest(session, gate.gate_id)
         reasons_list = list(dict.fromkeys(str(reason) for reason in reasons))
         same = latest.result_status == result_status and latest.metrics_json == dict(metrics) and latest.reasons_json == reasons_list and latest.valid_review_count == valid_reviews and latest.distinct_notice_review_count == distinct_reviews
@@ -488,6 +652,8 @@ class QualityGateService:
                         structure.append("execution_identity_mismatch")
                     if input_a.get("run_id") != gate.baseline_run_id or input_b.get("run_id") != gate.baseline_run_id:
                         structure.append("run_identity_mismatch")
+                    if not _input_matches_fixed_sample(input_a, sample, ids) or not _input_matches_fixed_sample(input_b, sample, ids):
+                        structure.append("fixed_input_notice_mismatch")
                     if any(
                         value.get("policy_version") != gate.policy_version
                         or value.get("prompt_version") != gate.prompt_version
@@ -513,8 +679,31 @@ class QualityGateService:
                     if sha256_bytes(sample_raw) != gate.sample_artifact_digest or sha256_bytes(baseline_raw) != gate.baseline_decisions_digest:
                         structure.append("input_digest_mismatch")
                     metrics = calculate_metrics(decisions_a, decisions_b, baseline=baseline, reviews=reviews, sample_ids=ids, expected_sample_count=40, input_a=input_a, input_b=input_b)
+                    if "fixed_input_notice_mismatch" in structure:
+                        for pass_name, value in (("A", input_a), ("B", input_b)):
+                            if not _input_matches_fixed_sample(value, sample, ids):
+                                metrics["excluded_notices"].extend(
+                                    {"notice_id": notice_id, "pass": pass_name, "reason": "fixed_input_notice_mismatch"}
+                                    for notice_id in ids
+                                )
+                    if "ab_input_digest_mismatch" in structure:
+                        metrics["excluded_notices"].extend(
+                            {"notice_id": notice_id, "pass": pass_name, "reason": "input_digest_mismatch"}
+                            for pass_name in ("A", "B") for notice_id in ids
+                        )
+                    if "metadata_identity_mismatch" in structure:
+                        metrics["excluded_notices"].extend(
+                            {"notice_id": notice_id, "pass": pass_name, "reason": "metadata_identity_mismatch"}
+                            for pass_name in ("A", "B") for notice_id in ids
+                        )
+                    if "decision_metadata_mismatch" in structure:
+                        metrics["excluded_notices"].extend(
+                            {"notice_id": notice_id, "pass": pass_name, "reason": "decision_metadata_mismatch"}
+                            for pass_name in ("A", "B") for notice_id in ids
+                        )
                     valid_count = int((metrics.get("evidence_validity") or {}).get("valid_review_count", 0))
                     distinct_count = int((metrics.get("evidence_validity") or {}).get("distinct_notice_review_count", 0))
+                    structure.extend(_metric_structure_reasons(metrics))
                     result, reasons = _result_for_metrics(execution_status=aggregate, metrics=metrics, valid_review_count=valid_count, distinct_notice_review_count=distinct_count, structure_reasons=structure)
                 except (QualityGateError, ArtifactError, QualityMetricError, KeyError, TypeError, ValueError):
                     metrics = gate.metrics_json if isinstance(gate.metrics_json, dict) else {}
@@ -581,6 +770,7 @@ class QualityGateService:
                 "execution_id": previous.execution_id,
                 "decision_digest": previous.decision_digest,
                 "evidence_judgment": previous.evidence_judgment,
+                "note": previous.note,
             }
             if previous is None:
                 previous = QualityGateReview(gate_id=gate_id, execution_id=a.execution_id, notice_id=notice_id, decision_digest=decision_digest, reviewer=actor, evidence_judgment=evidence_judgment, note=note, created_at=_now(self.clock()), updated_at=_now(self.clock()))
@@ -599,7 +789,7 @@ class QualityGateService:
                 target_type="quality_gate_review",
                 target_id=f"{gate_id}:{notice_id}:{actor}",
                 occurred_at=_now(self.clock()),
-                details_json={"before": before, "after": {"execution_id": a.execution_id, "decision_digest": decision_digest, "evidence_judgment": evidence_judgment}},
+                details_json={"before": before, "after": {"execution_id": a.execution_id, "decision_digest": decision_digest, "evidence_judgment": evidence_judgment, "note": note}},
             ))
             session.flush()
             # A review update creates a revision even when its value is the
@@ -614,7 +804,7 @@ class QualityGateService:
                     metrics = calculate_metrics(decisions_a, decisions_b, baseline=baseline, reviews=reviews, sample_ids=ids, expected_sample_count=40)
                     valid = int((metrics.get("evidence_validity") or {}).get("valid_review_count", 0))
                     distinct = int((metrics.get("evidence_validity") or {}).get("distinct_notice_review_count", 0))
-                    result, reasons = _result_for_metrics(execution_status=aggregate, metrics=metrics, valid_review_count=valid, distinct_notice_review_count=distinct)
+                    result, reasons = _result_for_metrics(execution_status=aggregate, metrics=metrics, valid_review_count=valid, distinct_notice_review_count=distinct, structure_reasons=_metric_structure_reasons(metrics))
                 except Exception:
                     metrics, valid, distinct, result, reasons = gate.metrics_json, 0, 0, "보류", ["calculation_impossible"]
             else:

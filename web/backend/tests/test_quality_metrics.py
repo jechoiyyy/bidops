@@ -15,8 +15,24 @@ def judgment(notice_id: str, *, grade: str = "검토 권장", assessments: tuple
     assessments = assessments or ("적합",) * 5
     return {
         "notice_id": notice_id,
+        "judgment_mode": "신규",
+        "model_name": "qwen3.8:27b",
+        "model_digest": "a" * 64,
+        "prompt_version": "prompt-v1",
+        "policy_version": "policy-v1",
+        "company_profile_version": "company-profile.sha256:" + "b" * 64,
+        "company_profile_digest": "b" * 64,
+        "judged_in_run": "run-1",
+        "recorded_in_run": "run-1",
+        "carried_over": False,
+        "rejudge_reason": None,
         "grade": grade,
         "readiness": "확인 완료",
+        "primary_focus": "AI/데이터",
+        "exclusion_category": None,
+        "summary": "공고의 핵심 요구를 확인했습니다",
+        "next_action": "제안 참여 조건을 추가 확인합니다",
+        "matched_performances": [],
         "perspectives": [
             {
                 "name": name,
@@ -31,6 +47,8 @@ def judgment(notice_id: str, *, grade: str = "검토 권장", assessments: tuple
         "counterargument_resolutions": [
             {"counterargument": "공고별 반론", "status": "추가 확인", "reflection": "확인 항목에 반영"}
         ],
+        "two_axis_mixing_flag": False,
+        "two_axis_mixing_label": None,
     }
 
 
@@ -104,3 +122,62 @@ def test_metric_shape_and_precedence_include_all_required_keys():
         "counterargument_reflection", "claude_alignment",
     }
     assert required_metrics_pass(metrics)[0] is False
+
+
+def test_partial_v3_judgment_is_excluded_with_identity_and_fixed_sample_remains_40():
+    left = artifact(1)
+    right = artifact(1)
+    left["judgments"][0].pop("counterargument_resolutions")
+    metrics = calculate_metrics(left, right, sample_ids=["n-0"], expected_sample_count=1)
+    assert metrics["sample_count"] == 1
+    assert metrics["paired_valid_count"] == 0
+    assert any(
+        row["notice_id"] == "n-0" and row["pass"] == "A" and row["reason"].startswith("invalid_judgment:")
+        for row in metrics["excluded_notices"]
+    )
+
+
+def test_input_performance_match_requires_matching_performance_evidence():
+    left = artifact(1)
+    right = artifact(1)
+    notice = {"notice_id": "n-0", "performance_matches": [{"project_name": "기존 사업"}]}
+    metrics = calculate_metrics(
+        left,
+        right,
+        sample_ids=["n-0"],
+        expected_sample_count=1,
+        input_a={"notices": [notice]},
+        input_b={"notices": [notice]},
+    )
+    assert metrics["paired_valid_count"] == 0
+    assert any(row["notice_id"] == "n-0" and row["pass"] == "A" for row in metrics["excluded_notices"])
+
+
+def test_pass_metrics_ignore_out_of_sample_and_zero_denominators_are_explicit():
+    left = artifact(1)
+    right = artifact(1)
+    extra = judgment("outside")
+    left["judgments"].append(extra)
+    right["judgments"].append(extra)
+    left["judgments"][0]["verification_items"] = []
+    right["judgments"][0]["verification_items"] = []
+    metrics = calculate_metrics(left, right, sample_ids=["n-0"], expected_sample_count=1)
+    assert metrics["perspective_split"]["pass_a"]["denominator"] == 1
+    assert metrics["information_sufficiency"]["pass_a"]["status"] == "해당 없음"
+    assert metrics["two_axis_mixing"]["pass_a"]["status"] == "측정 완료"
+    assert metrics["counterargument_reflection"]["pass_a"]["denominator"] == 1
+    assert any(row["notice_id"] == "outside" and row["reason"] == "out_of_sample" for row in metrics["excluded_notices"])
+
+
+def test_reflection_requires_same_index_counterargument_and_zero_is_unmeasurable():
+    values = artifact(1)
+    values["judgments"][0]["counterargument_resolutions"][0]["counterargument"] = "다른 반론"
+    metrics = calculate_metrics(values, values, sample_ids=["n-0"], expected_sample_count=1)
+    assert metrics["counterargument_reflection"]["pass_a"]["numerator"] == 0
+    assert metrics["counterargument_reflection"]["pass_a"]["denominator"] == 0
+    assert metrics["counterargument_reflection"]["pass_a"]["status"] == "계산 불가"
+
+    values["judgments"][0]["counterarguments"] = []
+    values["judgments"][0]["counterargument_resolutions"] = []
+    metrics = calculate_metrics(values, values, sample_ids=["n-0"], expected_sample_count=1)
+    assert metrics["counterargument_reflection"]["pass_a"]["status"] == "계산 불가"

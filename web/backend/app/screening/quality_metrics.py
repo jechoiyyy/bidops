@@ -15,13 +15,22 @@ import json
 from typing import Any, Mapping, Sequence
 
 from .artifacts import canonical_bytes
-from .contracts import PERSPECTIVE_NAMES
+from .contracts import ContractViolation, PERSPECTIVE_NAMES, two_axis_mixing, validate_judgment
 
 
 VALID_GRADES = frozenset({"우선 검토", "검토 권장", "관찰 대상", "제외"})
 VALID_ASSESSMENTS = frozenset({"적합", "부분 적합", "부적합", "확인 불가"})
 MIXING_GRADES = frozenset({"관찰 대상", "제외"})
 VALID_REVIEW_VALUES = frozenset({"동의", "근거 부족", "판단 보류"})
+_JUDGMENT_CORE_KEYS = frozenset({
+    "notice_id", "grade", "readiness", "primary_focus", "exclusion_category", "summary", "next_action",
+    "perspectives", "matched_performances", "counterarguments", "counterargument_resolutions", "verification_items",
+})
+_JUDGMENT_METADATA_KEYS = frozenset({
+    "judgment_mode", "model_name", "model_digest", "prompt_version", "policy_version",
+    "company_profile_version", "company_profile_digest", "judged_in_run", "recorded_in_run",
+    "carried_over", "rejudge_reason", "two_axis_mixing_flag", "two_axis_mixing_label",
+})
 
 
 class QualityMetricError(ValueError):
@@ -91,45 +100,106 @@ def ratio(
     }
 
 
-def _judgment_map(pass_value: Any) -> tuple[dict[str, Mapping[str, Any]], list[str]]:
-    """Validate enough of a decisions artifact for denominator accounting."""
+def _judgment_map(
+    pass_value: Any,
+    *,
+    pass_name: str,
+    strict: bool = True,
+    notices: Mapping[str, Mapping[str, Any]] | None = None,
+) -> tuple[dict[str, Mapping[str, Any]], list[dict[str, str]]]:
+    """Return only complete, in-sample-eligible judgment objects.
+
+    Pass A/B outputs are model-bound decisions.v3 objects.  A handful of
+    fields (grade and five assessments) is not sufficient for any quality
+    denominator: accepting it would make a malformed worker response look
+    like a valid sample.  The shared deterministic validator is intentionally
+    used here so this boundary stays identical to the worker boundary.
+
+    The Claude artifact is an older comparison baseline, so it uses the
+    legacy shape check and never becomes an input to a Qwen denominator.
+    """
+
+    def issue(notice_id: Any, reason: str) -> dict[str, str]:
+        return {"notice_id": str(notice_id) if isinstance(notice_id, str) else "", "pass": pass_name, "reason": reason}
 
     if not isinstance(pass_value, Mapping):
-        return {}, ["decisions_not_object"]
+        return {}, [issue("", "decisions_not_object")]
     judgments = pass_value.get("judgments")
     if not isinstance(judgments, list):
-        return {}, ["judgments_missing"]
+        return {}, [issue("", "judgments_missing")]
     result: dict[str, Mapping[str, Any]] = {}
-    reasons: list[str] = []
+    reasons: list[dict[str, str]] = []
+    seen_notice_ids: set[str] = set()
     for item in judgments:
-        if not isinstance(item, Mapping) or not isinstance(item.get("notice_id"), str) or not item["notice_id"].strip():
-            reasons.append("judgment_identity_invalid")
+        if not isinstance(item, Mapping):
+            reasons.append(issue("", "invalid_judgment_structure"))
             continue
-        notice_id = item["notice_id"]
-        if notice_id in result:
-            reasons.append("duplicate_notice_id")
+        notice_id = item.get("notice_id")
+        if not isinstance(notice_id, str) or not notice_id.strip():
+            reasons.append(issue("", "invalid_notice_id"))
             continue
-        if item.get("grade") not in VALID_GRADES:
-            reasons.append("grade_invalid")
+        if notice_id in seen_notice_ids:
+            reasons.append(issue(notice_id, "duplicate_notice_id"))
             continue
-        perspectives = item.get("perspectives")
-        if not isinstance(perspectives, list) or len(perspectives) != 5:
-            reasons.append("perspectives_invalid")
-            continue
-        by_name: dict[str, Mapping[str, Any]] = {}
-        valid = True
-        for perspective in perspectives:
-            if not isinstance(perspective, Mapping) or perspective.get("name") not in PERSPECTIVE_NAMES:
-                valid = False
-                break
-            name = str(perspective["name"])
-            if name in by_name or perspective.get("assessment") not in VALID_ASSESSMENTS:
-                valid = False
-                break
-            by_name[name] = perspective
-        if not valid or set(by_name) != set(PERSPECTIVE_NAMES):
-            reasons.append("perspectives_invalid")
-            continue
+        seen_notice_ids.add(notice_id)
+        if strict:
+            try:
+                # The worker stores the validated v3 core together with its
+                # immutable provenance and deterministic two-axis fields.
+                # Validate both portions; never accept a partial synthesis.
+                if set(item) != _JUDGMENT_CORE_KEYS | _JUDGMENT_METADATA_KEYS:
+                    raise ContractViolation("judgment.v3 exact object keys contract failed")
+                core = {key: item[key] for key in _JUDGMENT_CORE_KEYS}
+                validate_judgment(core, notice=(notices or {}).get(notice_id, {"notice_id": notice_id}))
+                for key in ("model_name", "prompt_version", "policy_version", "company_profile_version", "judged_in_run", "recorded_in_run"):
+                    if not isinstance(item[key], str) or not item[key].strip():
+                        raise ContractViolation(f"{key} must be a nonblank string")
+                for key in ("model_digest", "company_profile_digest"):
+                    if not isinstance(item[key], str) or len(item[key]) != 64 or any(char not in "0123456789abcdef" for char in item[key]):
+                        raise ContractViolation(f"{key} must be a digest")
+                if item["company_profile_version"] != f"company-profile.sha256:{item['company_profile_digest']}":
+                    raise ContractViolation("company profile identity does not match digest")
+                if item["model_name"] != "qwen3.8:27b":
+                    raise ContractViolation("model identity is invalid")
+                if item["judgment_mode"] not in {"신규", "재판정", "승계"} or type(item["carried_over"]) is not bool:
+                    raise ContractViolation("judgment provenance is invalid")
+                if item["rejudge_reason"] is not None and (not isinstance(item["rejudge_reason"], str) or not item["rejudge_reason"].strip()):
+                    raise ContractViolation("rejudge reason is invalid")
+                if item["judgment_mode"] == "신규" and (item["carried_over"] or item["rejudge_reason"] is not None):
+                    raise ContractViolation("new judgment provenance is invalid")
+                if item["judgment_mode"] == "재판정" and (item["carried_over"] or item["rejudge_reason"] not in {"정정", "재공고", "본공고 전환", "담당자 요청"}):
+                    raise ContractViolation("rejudged judgment provenance is invalid")
+                if item["judgment_mode"] == "승계" and (not item["carried_over"] or item["rejudge_reason"] is not None):
+                    raise ContractViolation("carried judgment provenance is invalid")
+                expected_mix = two_axis_mixing(item["perspectives"], item["grade"])
+                if item["two_axis_mixing_flag"] is not expected_mix.flag or item["two_axis_mixing_label"] != expected_mix.label:
+                    raise ContractViolation("two-axis mixing metadata is invalid")
+            except ContractViolation as exc:
+                reason = str(exc).split(":", 1)[0].strip().lower().replace(" ", "_")
+                reasons.append(issue(notice_id, f"invalid_judgment:{reason}"))
+                continue
+        else:
+            if item.get("grade") not in VALID_GRADES:
+                reasons.append(issue(notice_id, "grade_invalid"))
+                continue
+            perspectives = item.get("perspectives")
+            if not isinstance(perspectives, list) or len(perspectives) != 5:
+                reasons.append(issue(notice_id, "perspectives_invalid"))
+                continue
+            by_name: dict[str, Mapping[str, Any]] = {}
+            valid = True
+            for perspective in perspectives:
+                if not isinstance(perspective, Mapping) or perspective.get("name") not in PERSPECTIVE_NAMES:
+                    valid = False
+                    break
+                name = str(perspective["name"])
+                if name in by_name or perspective.get("assessment") not in VALID_ASSESSMENTS:
+                    valid = False
+                    break
+                by_name[name] = perspective
+            if not valid or set(by_name) != set(PERSPECTIVE_NAMES):
+                reasons.append(issue(notice_id, "perspectives_invalid"))
+                continue
         result[notice_id] = item
     return result, reasons
 
@@ -167,6 +237,7 @@ def _review_rows(
     valid: list[Mapping[str, Any]] = []
     excluded: list[dict[str, str]] = []
     holds = 0
+    seen_pairs: set[tuple[str, str]] = set()
     for review in reviews or ():
         if not isinstance(review, Mapping):
             excluded.append({"notice_id": "", "pass": "review", "reason": "review_invalid"})
@@ -176,6 +247,11 @@ def _review_rows(
         if not isinstance(notice_id, str) or notice_id not in pass_a:
             excluded.append({"notice_id": str(notice_id or ""), "pass": "review", "reason": "notice_not_in_pass_a"})
             continue
+        pair = (notice_id, str(review.get("reviewer") or ""))
+        if pair in seen_pairs:
+            excluded.append({"notice_id": notice_id, "pass": "review", "reason": "duplicate_review"})
+            continue
+        seen_pairs.add(pair)
         if value not in VALID_REVIEW_VALUES:
             excluded.append({"notice_id": notice_id, "pass": "review", "reason": "review_value_invalid"})
             continue
@@ -222,24 +298,60 @@ def calculate_metrics(
     fixed denominator.
     """
 
-    ids = list(sample_ids or [])
+    raw_ids = list(sample_ids or [])
     excluded: list[dict[str, str]] = []
-    if len(ids) != expected_sample_count or len(set(ids)) != len(ids):
+    ids: list[str] = []
+    seen_ids: set[str] = set()
+    for value in raw_ids:
+        if not isinstance(value, str) or not value.strip():
+            excluded.append({"notice_id": "", "pass": "A", "reason": "invalid_sample_notice_id"})
+            excluded.append({"notice_id": "", "pass": "B", "reason": "invalid_sample_notice_id"})
+            continue
+        if value in seen_ids:
+            excluded.append({"notice_id": value, "pass": "A", "reason": "duplicate_sample_notice_id"})
+            excluded.append({"notice_id": value, "pass": "B", "reason": "duplicate_sample_notice_id"})
+            continue
+        seen_ids.add(value)
+        ids.append(value)
+    if len(raw_ids) != expected_sample_count or len(ids) != expected_sample_count:
+        # Keep the fixed denominator.  The service turns this explicit
+        # identity failure into 보류 once execution/review prerequisites are
+        # otherwise complete.
         excluded.append({"notice_id": "", "pass": "A", "reason": "sample_correspondence_invalid"})
-        # Keep the contract denominator fixed; result status will be 보류 in
-        # the service once it sees this reason.
-        ids = ids[:expected_sample_count]
+        excluded.append({"notice_id": "", "pass": "B", "reason": "sample_correspondence_invalid"})
 
-    a, a_reasons = _judgment_map(pass_a)
-    b, b_reasons = _judgment_map(pass_b)
-    for reason in a_reasons:
-        excluded.append({"notice_id": "", "pass": "A", "reason": reason})
-    for reason in b_reasons:
-        excluded.append({"notice_id": "", "pass": "B", "reason": reason})
+    def input_notices(value: Mapping[str, Any] | None) -> dict[str, Mapping[str, Any]]:
+        if not isinstance(value, Mapping) or not isinstance(value.get("notices"), list):
+            return {}
+        return {
+            item["notice_id"]: item
+            for item in value["notices"]
+            if isinstance(item, Mapping) and isinstance(item.get("notice_id"), str) and item["notice_id"].strip()
+        }
+
+    a, a_reasons = _judgment_map(pass_a, pass_name="A", notices=input_notices(input_a))
+    b, b_reasons = _judgment_map(pass_b, pass_name="B", notices=input_notices(input_b))
+    excluded.extend(a_reasons)
+    excluded.extend(b_reasons)
+    for values, pass_name in ((a, "A"), (b, "B")):
+        for notice_id in values:
+            if notice_id not in seen_ids:
+                excluded.append({"notice_id": notice_id, "pass": pass_name, "reason": "out_of_sample"})
+        valid_or_failed = {row["notice_id"] for row in excluded if row["pass"] == pass_name and row["notice_id"]}
+        for notice_id in ids:
+            if notice_id not in values and notice_id not in valid_or_failed:
+                excluded.append({"notice_id": notice_id, "pass": pass_name, "reason": "missing_judgment"})
     if baseline is not None:
-        baseline_map, baseline_reasons = _judgment_map(baseline)
+        baseline_map, baseline_reasons = _judgment_map(baseline, pass_name="review", strict=False)
         for reason in baseline_reasons:
-            excluded.append({"notice_id": "", "pass": "review", "reason": f"baseline_{reason}"})
+            excluded.append({**reason, "reason": f"baseline_{reason['reason']}"})
+        for notice_id in baseline_map:
+            if notice_id not in seen_ids:
+                excluded.append({"notice_id": notice_id, "pass": "review", "reason": "baseline_out_of_sample"})
+        baseline_failed = {row["notice_id"] for row in excluded if row["pass"] == "review" and row["notice_id"]}
+        for notice_id in ids:
+            if notice_id not in baseline_map and notice_id not in baseline_failed:
+                excluded.append({"notice_id": notice_id, "pass": "review", "reason": "baseline_missing_judgment"})
     else:
         baseline_map = {}
 
@@ -301,17 +413,24 @@ def calculate_metrics(
 
     def split_metric(values: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
         split = 0
+        valid_count = 0
         for notice_id in ids:
             judgment = values.get(notice_id)
             if judgment is None:
                 continue
+            valid_count += 1
             assessments = [p.get("assessment") for p in judgment.get("perspectives", []) if isinstance(p, Mapping)]
             if len(assessments) == 5 and len(set(assessments)) >= 2:
                 split += 1
-        return _with_threshold(ratio(split, len(values)), minimum=Decimal(40), min_count=1)
+        return _with_threshold(ratio(split, valid_count), minimum=Decimal(40), min_count=1)
 
     def info_metric(values: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
-        items = [item for judgment in values.values() for item in judgment.get("verification_items", []) if isinstance(item, Mapping)]
+        items = [
+            item
+            for notice_id in ids
+            for item in values.get(notice_id, {}).get("verification_items", [])
+            if isinstance(item, Mapping)
+        ]
         if not items:
             return {"numerator": 0, "denominator": 0, "percent": None, "status": "해당 없음"}
         return ratio(sum(item.get("requires_attachment") is True for item in items), len(items))
@@ -319,18 +438,24 @@ def calculate_metrics(
     def mixing_metric(values: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
         eligible = 0
         mixed = 0
-        for judgment in values.values():
+        for notice_id in ids:
+            judgment = values.get(notice_id)
+            if judgment is None:
+                continue
             perspective_values = {p.get("name"): p for p in judgment.get("perspectives", []) if isinstance(p, Mapping)}
             qualification = perspective_values.get("사업성·자격 제약", {})
             if qualification.get("assessment") in VALID_ASSESSMENTS and judgment.get("grade") in VALID_GRADES:
                 eligible += 1
                 mixed += qualification.get("assessment") == "확인 불가" and judgment.get("grade") in MIXING_GRADES
-        return ratio(mixed, eligible)
+        return ratio(mixed, eligible, status="계산 불가" if eligible == 0 else "측정 완료")
 
     def reflection_metric(values: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
         total = 0
         reflected = 0
-        for judgment in values.values():
+        for notice_id in ids:
+            judgment = values.get(notice_id)
+            if judgment is None:
+                continue
             counters = judgment.get("counterarguments", [])
             resolutions = judgment.get("counterargument_resolutions", [])
             if not isinstance(counters, list):
@@ -338,9 +463,17 @@ def calculate_metrics(
             for index, text in enumerate(counters):
                 total += 1
                 resolution = resolutions[index] if isinstance(resolutions, list) and index < len(resolutions) else None
-                if isinstance(resolution, Mapping) and resolution.get("status") in {"수용", "기각", "추가 확인"} and isinstance(resolution.get("reflection"), str) and resolution["reflection"].strip():
+                if (
+                    isinstance(text, str)
+                    and text.strip()
+                    and isinstance(resolution, Mapping)
+                    and resolution.get("counterargument") == text
+                    and resolution.get("status") in {"수용", "기각", "추가 확인"}
+                    and isinstance(resolution.get("reflection"), str)
+                    and resolution["reflection"].strip()
+                ):
                     reflected += 1
-        return ratio(reflected, total)
+        return ratio(reflected, total, status="계산 불가" if total == 0 else "측정 완료")
 
     if baseline_map:
         aligned = [notice_id for notice_id in ids if notice_id in a and notice_id in baseline_map]
