@@ -103,8 +103,7 @@ class _FailingPassOrchestrator:
             raise ScreeningCreationError("queue_failure")
         execution_id = "scr-" + "1" * 32
         store = ArtifactStore(self.settings.bidops_root)
-        store.execution_dir(execution_id, create=True)
-        ownership = store.capture_execution_ownership(execution_id)
+        workspace = store.create_execution_workspace(execution_id)
         input_value = {
             "schema_version": "bidops.screening-input.v1", "execution_id": execution_id,
             "run_id": FIXED_RUN_ID, "generated_at": NOW.isoformat(), "source_window": {"from": "2026-08-17", "to": "2026-08-23", "timezone": "Asia/Seoul"},
@@ -112,7 +111,7 @@ class _FailingPassOrchestrator:
             "company_profile_version": PROFILE_VERSION, "company_profile_digest": DIGEST,
             "candidate_count": 40, "notices": [{"notice_id": f"n-{i}"} for i in range(40)],
         }
-        path, digest = store.write_json(execution_id, "screening-input.json", input_value)
+        path, digest = workspace.write_json("screening-input.json", input_value)
         row = ScreeningExecution(
                 execution_id=execution_id, trigger="quality_gate", source_run_id=FIXED_RUN_ID,
                 scope="quality_sample", status="대기", requested_by="tester", policy_version="policy-1",
@@ -128,7 +127,7 @@ class _FailingPassOrchestrator:
             created=CreatedExecution(execution_id, "대기", "qwen3.8:27b", DIGEST, PROFILE_VERSION, DIGEST,
                                      f"data/screening-executions/{execution_id}", path, digest),
             row=row,
-            ownership=ownership,
+            workspace=workspace,
         )
 
 
@@ -241,8 +240,8 @@ def _completed_gate_fixture(root: Path):
             "candidate_count": 40,
             "notices": [{"notice_id": f"n-{i}", "judgment_mode": "신규", "carry_over_from": None, "rejudge_reason": None} for i in range(40)],
         }
-        store.execution_dir(execution_id, create=True)
-        input_path, input_digest = store.write_json(execution_id, "screening-input.json", input_value)
+        workspace = store.create_execution_workspace(execution_id)
+        input_path, input_digest = workspace.write_json("screening-input.json", input_value)
         decisions: list[dict[str, object]] = []
         for i in range(40):
             value = dict(judgment(f"n-{i}"))
@@ -256,7 +255,8 @@ def _completed_gate_fixture(root: Path):
             "model_name": MODEL_NAME, "model_digest": DIGEST, "prompt_version": "prompt-1", "policy_version": "policy-1",
             "company_profile_version": PROFILE_VERSION, "company_profile_digest": DIGEST, "judgments": decisions,
         }
-        decision_path, _decision_digest = store.write_json(execution_id, "screening-decisions.json", decisions_value)
+        _decision_path, _decision_digest = store.write_json(execution_id, "screening-decisions.json", decisions_value)
+        workspace.close()
         execution_rows.append(ScreeningExecution(
             execution_id=execution_id, trigger="quality_gate", source_run_id=FIXED_RUN_ID, scope="quality_sample", status="성공",
             requested_by="tester", policy_version="policy-1", prompt_version="prompt-1", model_name=MODEL_NAME,

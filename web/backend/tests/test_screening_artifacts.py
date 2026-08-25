@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from app.screening.artifacts import ArtifactError, ArtifactStore, ExecutionOwnership
+from app.screening.artifacts import ArtifactError, ArtifactStore
 from app.config import Settings
 from app.screening.worker import ScreeningWorker, WorkerError, _open_run_fds
 
@@ -27,7 +27,7 @@ def test_artifacts_reject_traversal_and_symlink_components(tmp_path: Path):
 
 def test_remove_execution_unlinks_symlinks_without_following_them(tmp_path: Path):
     store = ArtifactStore(tmp_path)
-    store.execution_dir(EXECUTION_ID, create=True)
+    workspace = store.create_execution_workspace(EXECUTION_ID)
     outside = tmp_path / "outside"
     outside.mkdir()
     sentinel = outside / "sentinel.txt"
@@ -37,8 +37,8 @@ def test_remove_execution_unlinks_symlinks_without_following_them(tmp_path: Path
     nested = target / "nested"
     nested.mkdir()
     (nested / "safe.txt").write_text("remove", encoding="utf-8")
-    ownership = store.capture_execution_ownership(EXECUTION_ID)
-    store.remove_execution(EXECUTION_ID, ownership)
+    store.remove_execution(workspace)
+    workspace.close()
     assert not target.exists()
     assert sentinel.read_text(encoding="utf-8") == "keep"
 
@@ -52,15 +52,14 @@ def test_remove_execution_refuses_symlinked_target_path(tmp_path: Path):
     (outside / "sentinel.txt").write_text("keep", encoding="utf-8")
     (base / EXECUTION_ID).symlink_to(outside, target_is_directory=True)
     with pytest.raises(ArtifactError):
-        store.remove_execution(EXECUTION_ID, ExecutionOwnership(EXECUTION_ID, 0, 0))
+        store.create_execution_workspace(EXECUTION_ID)
     assert (outside / "sentinel.txt").read_text(encoding="utf-8") == "keep"
 
 
 def test_remove_execution_does_not_delete_replacement_after_name_swap(tmp_path: Path):
     store = ArtifactStore(tmp_path)
-    store.execution_dir(EXECUTION_ID, create=True)
+    workspace = store.create_execution_workspace(EXECUTION_ID)
     target = tmp_path / "data/screening-executions" / EXECUTION_ID
-    ownership = store.capture_execution_ownership(EXECUTION_ID)
     owned_away = target.with_name(EXECUTION_ID + "-owned-away")
     target.rename(owned_away)
     replacement = target.with_name(EXECUTION_ID + "-replacement")
@@ -68,11 +67,30 @@ def test_remove_execution_does_not_delete_replacement_after_name_swap(tmp_path: 
     sentinel = replacement / "must-survive.txt"
     sentinel.write_text("keep", encoding="utf-8")
     replacement.rename(target)
-    with pytest.raises(ArtifactError):
-        store.remove_execution(EXECUTION_ID, ownership)
+    store.remove_execution(workspace)
     assert (target / "must-survive.txt").read_text(encoding="utf-8") == "keep"
     assert target.is_dir()
-    assert owned_away.is_dir()
+    assert not owned_away.exists()
+    workspace.close()
+
+
+def test_workspace_write_after_name_swap_targets_owned_inode(tmp_path: Path):
+    store = ArtifactStore(tmp_path)
+    workspace = store.create_execution_workspace(EXECUTION_ID)
+    target = tmp_path / "data/screening-executions" / EXECUTION_ID
+    owned_away = target.with_name(EXECUTION_ID + "-owned-away")
+    target.rename(owned_away)
+    replacement = target.with_name(EXECUTION_ID + "-replacement")
+    replacement.mkdir()
+    replacement.rename(target)
+
+    workspace.write_json("screening-input.json", {"owned": True})
+    assert (owned_away / "screening-input.json").is_file()
+    assert not (target / "screening-input.json").exists()
+    store.remove_execution(workspace)
+    workspace.close()
+    assert target.is_dir()
+    assert not owned_away.exists()
 
 
 def test_append_jsonl_is_exact_and_atomic_write_failure_is_safe(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
