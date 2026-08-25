@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timezone
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -273,6 +274,35 @@ def test_full_run_merges_ingests_and_publishes_immutable_derived_directory(tmp_p
     with factory() as session:
         run = session.get(Run, final.published_run_id)
         assert run is not None and run.counts_json["notices"] == 1 and run.counts_json["judgments"] == 1
+
+
+def test_publication_runs_swap_cannot_redirect_current_artifacts_to_external_tree(tmp_path: Path, monkeypatch):
+    root, settings, _engine, factory, body = _fixture(tmp_path)
+    client = OllamaClient(settings=settings, transport=FakeOllamaTransport(_script()))
+    ScreeningOrchestrator(settings, session_factory=factory, ollama=client, clock=lambda: NOW).create_execution(
+        run_id="run-1", policy_version=body["policy_version"], requested_by="tester", scope="full_run"
+    )
+    runs = root / "data/runs"
+    external = root / "external-runs"
+    external.mkdir()
+    real_runs = root / "data/runs-real"
+    original_mkdir = os.mkdir
+    swapped = {"done": False}
+
+    def race_mkdir(path, mode=0o777, *, dir_fd=None):
+        result = original_mkdir(path, mode, dir_fd=dir_fd)
+        if not swapped["done"] and dir_fd is not None and isinstance(path, str) and path.startswith(".run-1--screen-"):
+            runs.rename(real_runs)
+            runs.symlink_to(external, target_is_directory=True)
+            swapped["done"] = True
+        return result
+
+    monkeypatch.setattr(os, "mkdir", race_mkdir)
+    final = ScreeningWorker(settings, session_factory=factory, ollama=client, clock=lambda: NOW).run_once()
+    assert final is not None and final.status == "성공" and swapped["done"]
+    assert not (external / "screening-input.json").exists()
+    derived = next(path for path in real_runs.iterdir() if path.name.startswith("run-1--screen-"))
+    assert (derived / "screening-input.json").is_file() and (derived / "screening-results.json").is_file()
 
 
 def test_full_run_uses_collected_candidates_outside_validation_and_ingests_all(tmp_path: Path):
