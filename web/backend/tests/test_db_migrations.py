@@ -133,6 +133,44 @@ def test_partial_unversioned_baseline_is_rejected(tmp_path: Path) -> None:
         assert connection.execute("select name from sqlite_master where type='table' and name='screening_execution'").fetchone() is None
 
 
+def test_unversioned_baseline_with_extra_sqlite_objects_is_rejected(tmp_path: Path) -> None:
+    database = tmp_path / "database.db"
+    backup = tmp_path / "backup.db"
+    assert run_alembic(database, "upgrade", "0001_existing_schema").returncode == 0
+    with sqlite3.connect(database) as connection:
+        connection.execute("delete from alembic_version")
+        connection.execute("create trigger legacy_extra_trigger after insert on run begin select 1; end")
+        connection.execute("create view legacy_extra_view as select id from run")
+        connection.commit()
+    env = os.environ.copy()
+    env["BIDOPS_DATABASE_URL"] = f"sqlite:///{database}"
+    assert subprocess.run([sys.executable, "-m", "app.db_admin", "backup", "--output", str(backup)], cwd=BACKEND, env=env, text=True, capture_output=True).returncode == 0
+    result = subprocess.run([sys.executable, "-m", "app.db_admin", "migrate", "--backup-manifest", str(backup) + ".manifest.json", "--confirm-service-stopped"], cwd=BACKEND, env=env, text=True, capture_output=True)
+    assert result.returncode != 0
+    assert "backup remains" in result.stderr
+
+
+def test_startup_check_does_not_create_missing_database(tmp_path: Path) -> None:
+    database = tmp_path / "not-created.db"
+    env = os.environ.copy()
+    env["BIDOPS_DATABASE_URL"] = f"sqlite:///{database}"
+    probe = subprocess.run([sys.executable, "-c", "from app.db import init_db; init_db()"], cwd=BACKEND, env=env, text=True, capture_output=True)
+    assert probe.returncode != 0
+    assert not database.exists()
+    assert "alembic upgrade head" in probe.stderr
+
+
+def test_startup_empty_database_allows_explicit_upgrade_guidance(tmp_path: Path) -> None:
+    database = tmp_path / "empty-existing.db"
+    database.touch()
+    env = os.environ.copy()
+    env["BIDOPS_DATABASE_URL"] = f"sqlite:///{database}"
+    probe = subprocess.run([sys.executable, "-c", "from app.db import init_db; init_db()"], cwd=BACKEND, env=env, text=True, capture_output=True)
+    assert probe.returncode != 0
+    assert "alembic upgrade head" in probe.stderr
+    assert database.exists()
+
+
 def test_unversioned_exact_baseline_migrates_a_backup_copy_and_preserves_core_rows(tmp_path: Path) -> None:
     database = tmp_path / "database.db"
     backup = tmp_path / "backup.db"
@@ -154,3 +192,5 @@ def test_unversioned_exact_baseline_migrates_a_backup_copy_and_preserves_core_ro
     with sqlite3.connect(database) as connection:
         assert connection.execute("select version_num from alembic_version").fetchone()[0] == "0002_screening_runtime"
         assert [connection.execute(f"select count(*) from {table}").fetchone()[0] for table in ("run", "notice", "judgment", "review", "attachment")] == [1, 1, 1, 1, 1]
+        assert connection.execute("pragma foreign_key_check").fetchall() == []
+        assert connection.execute("pragma quick_check").fetchone()[0] == "ok"
