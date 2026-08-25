@@ -20,6 +20,7 @@ from app.models import (
     Run,
     VerificationItem,
 )
+from tests.test_screening_orchestrator import _notice as screening_notice
 
 
 def make_engine():
@@ -170,6 +171,30 @@ def test_loader_records_contract_gaps_and_keeps_available_rows(tmp_path, db_sess
     assert "perspectives_below_contract" in codes
     assert "counterarguments_missing" in codes
     assert "verification_items_missing" in codes
+
+
+def test_loader_v3_input_is_fail_closed_for_duplicate_and_invalid_identity(tmp_path, db_session):
+    run_dir = tmp_path / "runs" / "screen-run"
+    run_dir.mkdir(parents=True)
+    first = screening_notice("candidate-1")
+    first.update({"judgment_mode": "신규", "carry_over_from": None, "rejudge_reason": None})
+    value = {
+        "schema_version": "bidops.screening-input.v1",
+        "execution_id": "scr-" + "a" * 32,
+        "run_id": "source-run",
+        "generated_at": "2026-08-26T01:00:00+00:00",
+        "source_window": {"from": "2026-08-25", "to": "2026-08-26", "timezone": "Asia/Seoul"},
+        "policy_version": "policy-v1", "prompt_version": "prompt-v1",
+        "company_profile_version": "company-profile.sha256:" + "b" * 64,
+        "company_profile_digest": "b" * 64,
+        "candidate_count": 2,
+        "notices": [first, {**first}],
+    }
+    (run_dir / "screening-input.json").write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
+    result = ingest_run(run_dir, db_session, reports_root=tmp_path / "reports")
+    assert result.notices == 0
+    assert db_session.scalar(select(func.count()).select_from(Notice)) == 0
+    assert any(item["code"] == "screening_input_invalid" for item in result.warnings)
 
 
 def test_v1_schema_gap_is_a_warning_and_legacy_judgment_is_loaded(tmp_path, db_session):
