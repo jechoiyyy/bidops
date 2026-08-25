@@ -6,7 +6,8 @@ from pathlib import Path
 import pytest
 
 from app.screening.artifacts import ArtifactError, ArtifactStore
-from app.screening.worker import ScreeningWorker, WorkerError
+from app.config import Settings
+from app.screening.worker import ScreeningWorker, WorkerError, _open_run_fds
 
 
 EXECUTION_ID = "scr-" + "a" * 32
@@ -49,3 +50,18 @@ def test_publication_copy_never_dereferences_source_symlink(tmp_path: Path):
     with pytest.raises(WorkerError):
         ScreeningWorker._copy_tree_nofollow(source, destination)
     assert not destination.exists() or not (destination / "leak.txt").exists()
+
+
+def test_publication_source_chain_rejects_intermediate_symlink(tmp_path: Path):
+    runs = tmp_path / "data/runs"
+    source = runs / "run-1"
+    source.mkdir(parents=True)
+    settings = Settings(bidops_root=tmp_path, data_dir=tmp_path / "data", database_url=f"sqlite:///{tmp_path / 'db.sqlite'}")
+    opened = _open_run_fds(settings, "run-1")
+    for fd in reversed(opened):
+        os.close(fd)
+    real_runs = runs.with_name("runs-real")
+    runs.rename(real_runs)
+    runs.symlink_to(real_runs, target_is_directory=True)
+    with pytest.raises(WorkerError):
+        _open_run_fds(settings, "run-1")
