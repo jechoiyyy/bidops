@@ -16,6 +16,9 @@ bidops-agent/
 │   ├── engineering-notes.md          ← 재발하기 쉬운 함정과 대응법
 │   ├── operations.md                 ← 설치·실행·검증·백업 절차
 │   ├── contracts.md                  ← 웹 API와 파이프라인 산출물 계약
+│   ├── agent-runtime.md              ← 판정 에이전트 실행 경계와 모델 호출 설계
+│   ├── scheduling.md                 ← 정기 실행·회차 경계·실패 처리 설계
+│   ├── model-quality-gate.md         ← 모델 품질 측정과 활성화 게이트
 │   └── tracking/
 │       ├── status.md                 ← 구현·검증 현황과 다음 순서
 │       ├── findings.md               ← 당장 해결하지 못한 문제
@@ -47,6 +50,7 @@ bidops-agent/
 - 데이터베이스나 적재기를 바꾸기 전에는 불변 회차, 부분 산출물 경고, DB 정본 리뷰의 세 메커니즘을 먼저 확인한다.
 - 첨부 업로드·변환·다운로드·외부 모델 전송을 바꾸기 전에는 `docs/security.md`의 경로 격리, 감사 대상, 건별 외부 전송 승인을 확인한다.
 - 파이프라인 JSON/YAML 또는 REST 응답을 바꾸기 전에는 `docs/contracts.md`의 소비자 계약과 버전 규칙을 확인한다.
+- 스케줄·판정 에이전트·정책 버전을 바꾸기 전에는 `docs/scheduling.md`, `docs/agent-runtime.md`, `docs/model-quality-gate.md`에서 회차 경계·호출 경계·품질 게이트를 확인하고, `docs/business-rules.md`와 `docs/contracts.md`의 상태·버전 계약을 함께 확인한다.
 - Qwen 프롬프트나 검증기를 바꾸기 전에는 `docs/engineering-notes.md`의 대형 단일 프롬프트 실패 사례와 55개 요구사항 계수 사례를 확인한다.
 
 ## 문제 보고 경로
