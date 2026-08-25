@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 import json
+import math
 from pathlib import Path
 import re
 from typing import Any, Callable, Mapping
@@ -57,6 +58,7 @@ class CreatedExecution:
     model_name: str
     model_digest: str
     profile_version: str
+    profile_digest: str
     artifact_dir: str
     input_artifact_path: str
     input_artifact_digest: str
@@ -136,21 +138,108 @@ def _notice_common(value: Any) -> dict[str, Any]:
     raw_source = result["raw_source"]
     if not isinstance(raw_source, str) or not raw_source or raw_source.startswith("/") or "\\" in raw_source:
         raise ScreeningCreationError("input_error")
-    raw_parts = Path(raw_source).parts
+    raw_parts = raw_source.split("/")
     if any(part in {"", ".", ".."} or ":" in part for part in raw_parts):
         raise ScreeningCreationError("input_error")
-    nested = {
-        "procurement_class": {"large", "middle", "detail", "code"},
-        "region_limit": {"basis", "joint_contract_rate", "joint_contract_regions", "regional_joint_contract_limit"},
-        "lifecycle": {"pre_spec_no", "re_notice", "changed_at", "change_reason", "unified_notice_no", "previous_failed_notice_no"},
-    }
-    for key, required in nested.items():
-        if not isinstance(result[key], Mapping) or not required.issubset(result[key]):
-            raise ScreeningCreationError("input_error")
-    for key in ("attachments", "focus_matches", "performance_matches", "candidate_sources", "unknown_fields"):
-        if not isinstance(result[key], list):
-            raise ScreeningCreationError("input_error")
+    _validate_collected_notice(result)
     return result
+
+
+_PROCUREMENT_KEYS = ("large", "middle", "detail", "code")
+_REGION_KEYS = ("basis", "joint_contract_regions", "joint_contract_rate", "regional_joint_contract_limit")
+_LIFECYCLE_KEYS = ("pre_spec_no", "re_notice", "changed_at", "change_reason", "unified_notice_no", "previous_failed_notice_no")
+_QUALIFICATION_KEYS = ("participation_limited", "industry_limited", "information_business", "general_service", "service_division", "joint_contract_method", "performance_restricted_competition", "pq_evaluation", "technical_evaluation", "technical_evaluation_rate", "successful_bid_method")
+_SAMPLE_ROLES = {"analysis", "audit"}
+_SAMPLE_STRATA = {"AI/데이터", "블록체인·DID", "공공 SI·통합관리", "수행실적 유사", "분류 근접", "실적 유사 근접", "무작위"}
+
+
+def _nullable_string(value: Any) -> bool:
+    return value is None or (isinstance(value, str) and bool(value.strip()))
+
+
+def _aware_datetime(value: Any) -> bool:
+    if value is None:
+        return True
+    if not isinstance(value, str):
+        return False
+    try:
+        parsed = datetime.fromisoformat(value[:-1] + "+00:00" if value.endswith("Z") else value)
+    except ValueError:
+        return False
+    return parsed.tzinfo is not None and parsed.utcoffset() is not None
+
+
+def _decimal_string(value: Any) -> bool:
+    return value is None or (isinstance(value, str) and bool(re.fullmatch(r"[+-]?\d+(?:\.\d+)?", value)))
+
+
+def _exact_object(value: Any, keys: tuple[str, ...]) -> bool:
+    return isinstance(value, Mapping) and set(value) == set(keys)
+
+
+def _validate_collected_notice(item: Mapping[str, Any]) -> None:
+    if item.get("source_type") not in {"bid_notice", "pre_spec"}:
+        raise ScreeningCreationError("input_error")
+    if not isinstance(item.get("collection_bucket"), str) or item["collection_bucket"] not in {"candidate_pool", "audit_pool"}:
+        raise ScreeningCreationError("input_error")
+    for key in ("title", "agency", "method", "url"):
+        if not _nullable_string(item.get(key)):
+            raise ScreeningCreationError("input_error")
+    for key in ("published_at", "deadline_at"):
+        if not _aware_datetime(item.get(key)):
+            raise ScreeningCreationError("input_error")
+    for key in ("budget", "estimated_price"):
+        if not _decimal_string(item.get(key)):
+            raise ScreeningCreationError("input_error")
+    for key, keys in (("procurement_class", _PROCUREMENT_KEYS), ("region_limit", _REGION_KEYS), ("lifecycle", _LIFECYCLE_KEYS)):
+        if not _exact_object(item.get(key), keys):
+            raise ScreeningCreationError("input_error")
+    procurement = item["procurement_class"]
+    if any(not _nullable_string(procurement[key]) for key in _PROCUREMENT_KEYS):
+        raise ScreeningCreationError("input_error")
+    region = item["region_limit"]
+    if any(not _nullable_string(region[key]) for key in ("basis", "joint_contract_rate", "regional_joint_contract_limit")):
+        raise ScreeningCreationError("input_error")
+    if not isinstance(region["joint_contract_regions"], list) or any(not isinstance(v, str) or not v.strip() for v in region["joint_contract_regions"]):
+        raise ScreeningCreationError("input_error")
+    lifecycle = item["lifecycle"]
+    if not _aware_datetime(lifecycle["changed_at"]):
+        raise ScreeningCreationError("input_error")
+    if any(not _nullable_string(lifecycle[key]) for key in ("pre_spec_no", "re_notice", "change_reason", "unified_notice_no", "previous_failed_notice_no")):
+        raise ScreeningCreationError("input_error")
+    qualification = item["qualification_flags"]
+    if not isinstance(qualification, Mapping) or (qualification and set(qualification) != set(_QUALIFICATION_KEYS)):
+        raise ScreeningCreationError("input_error")
+    if qualification and any(not _nullable_string(qualification[key]) for key in _QUALIFICATION_KEYS):
+        raise ScreeningCreationError("input_error")
+    for key in ("attachments", "focus_matches", "performance_matches"):
+        if not isinstance(item[key], list):
+            raise ScreeningCreationError("input_error")
+    for child in item["attachments"]:
+        if not _exact_object(child, ("name", "url")) or any(not isinstance(child[key], str) or not child[key].strip() for key in ("name", "url")):
+            raise ScreeningCreationError("input_error")
+    for child in item["focus_matches"]:
+        keys = ("axis", "label", "matched_field", "matched_text", "field_kind")
+        if not _exact_object(child, keys) or child.get("field_kind") not in {"title", "classification", "other"} or any(not isinstance(child[key], str) or not child[key].strip() for key in ("axis", "label", "matched_field", "matched_text")):
+            raise ScreeningCreationError("input_error")
+    for child in item["performance_matches"]:
+        keys = ("project_name", "source_page", "similarity", "common_fragment", "legal_qualification_status")
+        if not _exact_object(child, keys) or any(not isinstance(child[key], str) or not child[key].strip() for key in ("project_name", "source_page", "legal_qualification_status")):
+            raise ScreeningCreationError("input_error")
+        if isinstance(child["similarity"], bool) or not isinstance(child["similarity"], (int, float)) or not math.isfinite(float(child["similarity"])):
+            raise ScreeningCreationError("input_error")
+        if child["common_fragment"] is not None and (not isinstance(child["common_fragment"], str) or not child["common_fragment"].strip()):
+            raise ScreeningCreationError("input_error")
+    for key in ("candidate_sources", "unknown_fields"):
+        if not isinstance(item[key], list) or any(not isinstance(value, str) or not value.strip() for value in item[key]):
+            raise ScreeningCreationError("input_error")
+    if item["sample_stratum"] is not None and (not isinstance(item["sample_stratum"], str) or item["sample_stratum"] not in _SAMPLE_STRATA):
+        raise ScreeningCreationError("input_error")
+    if item["sample_role"] is not None and (not isinstance(item["sample_role"], str) or item["sample_role"] not in _SAMPLE_ROLES):
+        raise ScreeningCreationError("input_error")
+    score = item["performance_top_score"]
+    if score is not None and (isinstance(score, bool) or not isinstance(score, (int, float)) or not math.isfinite(float(score))):
+        raise ScreeningCreationError("input_error")
 
 
 def _source_notices(directory: Path) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -158,9 +247,16 @@ def _source_notices(directory: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     if collection.get("schema_version") != "bidops.collected.v2" or not isinstance(collection.get("notices"), list):
         raise ScreeningCreationError("input_error")
     window = collection.get("source_window")
-    if not isinstance(window, dict) or window.get("timezone") != "Asia/Seoul":
+    if not isinstance(window, dict) or set(window) != {"from", "to", "timezone"} or window.get("timezone") != "Asia/Seoul":
         raise ScreeningCreationError("input_error")
     if not isinstance(window.get("from"), str) or not isinstance(window.get("to"), str):
+        raise ScreeningCreationError("input_error")
+    try:
+        window_from = date.fromisoformat(window["from"])
+        window_to = date.fromisoformat(window["to"])
+    except ValueError:
+        raise ScreeningCreationError("input_error") from None
+    if window_from > window_to:
         raise ScreeningCreationError("input_error")
     notices: list[dict[str, Any]] = []
     ids: set[str] = set()
@@ -179,9 +275,10 @@ def _validation_notices(directory: Path) -> list[str]:
         raise ScreeningCreationError("input_error")
     result: list[str] = []
     for item in value["notices"]:
-        if not isinstance(item, Mapping) or not isinstance(item.get("notice_id"), str):
+        if not isinstance(item, Mapping):
             raise ScreeningCreationError("input_error")
-        result.append(item["notice_id"])
+        normalized = _notice_common(item)
+        result.append(normalized["notice_id"])
     if len(set(result)) != len(result):
         raise ScreeningCreationError("input_error")
     return result
@@ -215,12 +312,26 @@ def _mode_for(item: Mapping[str, Any], scope: str, old_notice: Mapping[str, Any]
     old_lifecycle = old_notice.get("lifecycle")
     current_lifecycle = item.get("lifecycle")
     if old_lifecycle == current_lifecycle:
-        return "승계", str(old_judgment.get("recorded_in_run") or old_judgment.get("judged_in_run") or ""), None
+        # The source judgment's first-judged run is the provenance identity
+        # carried into the new input.  It must never be replaced by the
+        # current run merely because a prior artifact was recorded there.
+        return "승계", str(old_judgment.get("judged_in_run") or ""), None
     if isinstance(old_lifecycle, Mapping) and isinstance(current_lifecycle, Mapping):
-        for key, reason in (("correction", "정정"), ("정정", "정정"), ("republish", "재공고"), ("재공고", "재공고"), ("award_transition", "본공고 전환"), ("본공고 전환", "본공고 전환")):
-            if old_lifecycle.get(key) != current_lifecycle.get(key):
-                return "재판정", None, reason
-    return "재판정", None, "담당자 요청"
+        change_reason = current_lifecycle.get("change_reason")
+        if change_reason in REJUDGE_REASONS - {"담당자 요청"} and change_reason != old_lifecycle.get("change_reason"):
+            return "재판정", None, str(change_reason)
+        if current_lifecycle.get("re_notice") != old_lifecycle.get("re_notice") and current_lifecycle.get("re_notice") not in (None, "", "N", "아니오", False):
+            return "재판정", None, "재공고"
+        old_pre = old_lifecycle.get("pre_spec_no")
+        current_pre = current_lifecycle.get("pre_spec_no")
+        old_unified = old_lifecycle.get("unified_notice_no")
+        current_unified = current_lifecycle.get("unified_notice_no")
+        if current_unified and current_unified != old_unified and (old_pre or current_pre):
+            return "재판정", None, "본공고 전환"
+        # A changed_at-only or otherwise ambiguous difference is not evidence
+        # for a 담당자 요청; keep it 신규 until an explicit request exists.
+        return "신규", None, None
+    return "신규", None, None
 
 
 class ScreeningOrchestrator:
@@ -264,22 +375,6 @@ class ScreeningOrchestrator:
         source_dir = _safe_run_directory(self.settings, run_id)
         source, _collection = _source_notices(source_dir)
         notices = source["notices"]
-        if scope == "full_run":
-            buckets = body.get("candidate_selection", {}).get("include_collection_buckets", ["candidate_pool"])
-            if not isinstance(buckets, list) or any(not isinstance(bucket, str) for bucket in buckets):
-                raise ScreeningCreationError("policy_mismatch")
-            selected = [item for item in notices if item.get("collection_bucket") in buckets]
-        elif scope == "quality_sample":
-            order = _validation_notices(source_dir)
-            by_id = {item["notice_id"]: item for item in notices}
-            if any(value not in by_id for value in order):
-                raise ScreeningCreationError("input_error")
-            selected = [by_id[value] for value in order]
-        else:
-            selected = [item for item in notices if item["notice_id"] == notice_id]
-            if len(selected) != 1:
-                raise ScreeningCreationError("input_error")
-
         old_notices, old_judgments = _prior_maps(source_dir)
         with self._session() as session:
             run = session.scalar(select(Run).where(Run.id == run_id))
@@ -291,6 +386,29 @@ class ScreeningOrchestrator:
             body = _policy_body(policy)
             if policy.status not in ({"activation_candidate", "active"} if trigger != "schedule" else {"active"}):
                 raise ScreeningCreationError("input_error")
+            # Candidate selection is policy-controlled.  Read and validate the
+            # immutable policy body before consulting any source candidates.
+            if scope == "full_run":
+                buckets = body.get("candidate_selection", {}).get("include_collection_buckets", ["candidate_pool"])
+                if not isinstance(buckets, list) or any(not isinstance(bucket, str) for bucket in buckets):
+                    raise ScreeningCreationError("policy_mismatch")
+                selected = [item for item in notices if item.get("collection_bucket") in buckets]
+            elif scope == "quality_sample":
+                order = _validation_notices(source_dir)
+                by_id = {item["notice_id"]: item for item in notices}
+                if any(value not in by_id for value in order):
+                    raise ScreeningCreationError("input_error")
+                selected = [by_id[value] for value in order]
+            else:
+                selected = [item for item in notices if item["notice_id"] == notice_id]
+                if len(selected) != 1:
+                    raise ScreeningCreationError("input_error")
+            # Resolve DB notice identity before snapshot/model preflight so an
+            # invalid requested notice cannot trigger even an inspection call.
+            for item in selected:
+                db_notice = session.scalar(select(Notice).where(Notice.run_id == run_id, Notice.notice_key == item["notice_id"]))
+                if db_notice is None:
+                    raise ScreeningCreationError("input_error")
             try:
                 snapshot = create_profile_snapshot(session, profile_source=profile_source, project_root=Path(self.settings.bidops_root))
                 profile_digest = snapshot.digest
@@ -300,12 +418,6 @@ class ScreeningOrchestrator:
                 raise ScreeningCreationError("precondition_failed") from None
             if model_identity.model_name != MODEL_NAME:
                 raise ScreeningCreationError("model_inspection")
-            # Ensure every selected normalized notice corresponds to this DB run
-            # and preserve its source values byte-for-byte in the input.
-            for item in selected:
-                row = session.scalar(select(Notice).where(Notice.run_id == run_id, Notice.notice_key == item["notice_id"]))
-                if row is None:
-                    raise ScreeningCreationError("input_error")
             generated_at = aware_iso(_now(self.clock))
             frozen: list[dict[str, Any]] = []
             for item in selected:
@@ -331,7 +443,10 @@ class ScreeningOrchestrator:
         prompt_identity = input_value["prompt_version"]
         model_name = model_identity.model_name
         model_digest = model_identity.digest
+        notice_pk: int | None = None
         try:
+            if scope == "single_notice":
+                notice_pk = self._notice_pk(run_id, notice_id)
             row = self.queue.enqueue(
                 execution_id=execution_id, trigger=trigger, source_run_id=run_id, scope=scope,
                 requested_by=requested_by, policy_version=policy_identity, prompt_version=prompt_identity,
@@ -339,13 +454,20 @@ class ScreeningOrchestrator:
                 company_profile_version=profile_version, company_profile_digest=profile_digest,
                 input_artifact_path=input_path, input_artifact_digest=input_digest,
                 artifact_dir=f"data/screening-executions/{execution_id}", candidate_count=len(frozen),
-                **({"notice_pk": self._notice_pk(run_id, notice_id), "notice_id": notice_id} if scope == "single_notice" else {}),
+                **({"notice_pk": notice_pk, "notice_id": notice_id} if scope == "single_notice" else {}),
             )
         except Exception as exc:
+            try:
+                ArtifactStore(Path(self.settings.bidops_root)).remove_execution(execution_id)
+            except ArtifactError:
+                # The queue row was not created, but leaving an explicitly
+                # nonpublished orphan is safer than deleting an unexpected
+                # path. The fresh execution ID remains unreferenced.
+                pass
             if isinstance(exc, QueueValidationError):
                 raise ScreeningCreationError("input_error") from None
             raise ScreeningCreationError("queue_failure") from None
-        return CreatedExecution(row.execution_id, row.status, row.model_name, row.model_digest, row.company_profile_version, row.artifact_dir, row.input_artifact_path, row.input_artifact_digest)
+        return CreatedExecution(row.execution_id, row.status, row.model_name, row.model_digest, row.company_profile_version, row.company_profile_digest, row.artifact_dir, row.input_artifact_path, row.input_artifact_digest)
 
     create = create_execution
     enqueue = create_execution

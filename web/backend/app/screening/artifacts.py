@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 import re
 import tempfile
+import shutil
 from typing import Any, Mapping
 
 
@@ -109,7 +110,7 @@ class ArtifactStore:
     def _path(self, execution_id: str, relative: str) -> Path:
         if not isinstance(relative, str) or not relative or relative.startswith("/") or "\\" in relative:
             raise ArtifactError("artifact filename is not relative")
-        parts = Path(relative).parts
+        parts = relative.split("/")
         if any(part in {"", ".", ".."} or ":" in part for part in parts):
             raise ArtifactError("artifact filename contains traversal")
         directory = self.execution_dir(execution_id, create=False)
@@ -128,9 +129,11 @@ class ArtifactStore:
         try:
             fd = os.open(directory, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
         except OSError:
-            return
+            raise ArtifactError("artifact directory sync failed") from None
         try:
             os.fsync(fd)
+        except OSError:
+            raise ArtifactError("artifact directory sync failed") from None
         finally:
             os.close(fd)
 
@@ -183,6 +186,7 @@ class ArtifactStore:
             return self.write_json(execution_id, relative, value)
         path = self._path(execution_id, relative)
         path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        _reject_symlinks(self.project_root, path.parent)
         raw = canonical_bytes(value)
         temporary: str | None = None
         try:
@@ -193,7 +197,10 @@ class ArtifactStore:
                 os.fsync(handle.fileno())
             os.replace(temporary, path)
             temporary = None
+            if path.is_symlink():
+                raise ArtifactError("artifact replacement created a symlink")
             os.chmod(path, 0o600)
+            _reject_symlinks(self.project_root, path.parent)
             self._fsync_directory(path.parent)
         except OSError:
             raise ArtifactError("artifact atomic replacement failed") from None
@@ -209,15 +216,21 @@ class ArtifactStore:
         path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         _reject_symlinks(self.project_root, path.parent)
         raw = canonical_bytes(dict(value)) + b"\n"
+        fd: int | None = None
         try:
-            with path.open("ab") as handle:
-                handle.write(raw)
-                handle.flush()
-                os.fsync(handle.fileno())
-            os.chmod(path, 0o600)
+            flags = os.O_WRONLY | os.O_APPEND | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0)
+            fd = os.open(path, flags, 0o600)
+            offset = 0
+            while offset < len(raw):
+                offset += os.write(fd, raw[offset:])
+            os.fsync(fd)
+            os.fchmod(fd, 0o600)
             self._fsync_directory(path.parent)
         except OSError:
             raise ArtifactError("artifact append failed") from None
+        finally:
+            if fd is not None:
+                os.close(fd)
         return f"{ARTIFACT_ROOT.as_posix()}/{execution_id}/{relative}", sha256_bytes(path.read_bytes())
 
     def read_bytes(self, execution_id: str, relative: str, *, expected_digest: str | None = None) -> bytes:
@@ -235,6 +248,15 @@ class ArtifactStore:
             return json.loads(self.read_bytes(execution_id, relative))
         except (UnicodeError, json.JSONDecodeError):
             raise ArtifactError("artifact JSON is invalid") from None
+
+    def remove_execution(self, execution_id: str) -> None:
+        """Remove only a freshly-created, unqueued execution directory."""
+        target = self.execution_dir(execution_id, create=False)
+        _reject_symlinks(self.project_root, target)
+        try:
+            shutil.rmtree(target)
+        except OSError:
+            raise ArtifactError("execution artifact cleanup failed") from None
 
 
 def artifact_directory(project_root: Path, execution_id: str, *, create: bool = False) -> Path:
