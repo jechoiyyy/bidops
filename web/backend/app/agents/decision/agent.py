@@ -23,6 +23,7 @@ from ...models import (
     DeepReview,
     EvidenceRef,
     FinalOpinion,
+    IdempotencyRecord,
     ReportRevision,
     ReportRevisionEvidence,
     ValidationCheck,
@@ -191,6 +192,25 @@ class DecisionAgent:
         refs = list(run.input_refs[:expected])
         return refs
 
+    @staticmethod
+    def _has_replay(
+        session: Session,
+        *,
+        operation: str,
+        review_id: UUID,
+        actor: str,
+        request_id: UUID,
+    ) -> bool:
+        return session.scalar(
+            select(IdempotencyRecord.id).where(
+                IdempotencyRecord.operation == operation,
+                IdempotencyRecord.aggregate_type == "deep_review",
+                IdempotencyRecord.aggregate_id == str(review_id),
+                IdempotencyRecord.claimed_name == actor,
+                IdempotencyRecord.request_id == request_id,
+            )
+        ) is not None
+
     def create_full_revision(
         self,
         session: Session,
@@ -198,6 +218,29 @@ class DecisionAgent:
     ) -> AgentActionResult[ReportView]:
         typed = self._command(command, CreateFullRevisionCommand)
         review_id = self._review_id(typed)
+        actor = self._actor(typed)
+        if self._has_replay(
+            session,
+            operation="deep_review_report_revision",
+            review_id=review_id,
+            actor=actor,
+            request_id=typed.request_id,  # type: ignore[arg-type]
+        ):
+            payload = typed.payload
+            result = self.service.create_revision(
+                session,
+                review_id,
+                actor,
+                ReportRevisionRequest(
+                    request_id=typed.request_id,  # type: ignore[arg-type]
+                    base_revision_id=payload.base_revision_id,
+                    report=payload.report,
+                    reason=payload.reason,
+                    factual_change_evidence_ids=payload.factual_change_evidence_ids,
+                ),
+            )
+            domain = result if isinstance(result, ReportView) else ReportView.model_validate(result)
+            return AgentActionResult[ReportView](run=self._project(session, review_id), result=domain)
         run = self._project(session, review_id)
         self._ensure_command_scope(typed, run, AgentAction.create_full_revision)
         current_ref = self._current_refs(run, 2)[0]
@@ -211,7 +254,7 @@ class DecisionAgent:
             reason=payload.reason,
             factual_change_evidence_ids=payload.factual_change_evidence_ids,
         )
-        result = self.service.create_revision(session, review_id, self._actor(typed), request)
+        result = self.service.create_revision(session, review_id, actor, request)
         domain = result if isinstance(result, ReportView) else ReportView.model_validate(result)
         return AgentActionResult[ReportView](run=self._project(session, review_id), result=domain)
 
@@ -222,6 +265,30 @@ class DecisionAgent:
     ) -> AgentActionResult[FinalOpinionView]:
         typed = self._command(command, RecordFinalOpinionCommand)
         review_id = self._review_id(typed)
+        actor = self._actor(typed)
+        if self._has_replay(
+            session,
+            operation="deep_review_final_opinion",
+            review_id=review_id,
+            actor=actor,
+            request_id=typed.request_id,  # type: ignore[arg-type]
+        ):
+            payload = typed.payload
+            result = self.service.create_final_opinion(
+                session,
+                review_id,
+                actor,
+                FinalOpinionRequest(
+                    request_id=typed.request_id,  # type: ignore[arg-type]
+                    report_revision_id=payload.report_revision_id,
+                    validation_run_id=payload.validation_run_id,
+                    value=payload.value,
+                    reason=payload.reason,
+                    acknowledged_validation_failure=payload.acknowledged_validation_failure,
+                ),
+            )
+            domain = result if isinstance(result, FinalOpinionView) else FinalOpinionView.model_validate(result)
+            return AgentActionResult[FinalOpinionView](run=self._project(session, review_id), result=domain)
         run = self._project(session, review_id)
         self._ensure_command_scope(typed, run, AgentAction.record_final_opinion)
         current_refs = self._current_refs(run, 2)
@@ -236,7 +303,7 @@ class DecisionAgent:
             reason=payload.reason,
             acknowledged_validation_failure=payload.acknowledged_validation_failure,
         )
-        result = self.service.create_final_opinion(session, review_id, self._actor(typed), request)
+        result = self.service.create_final_opinion(session, review_id, actor, request)
         domain = result if isinstance(result, FinalOpinionView) else FinalOpinionView.model_validate(result)
         return AgentActionResult[FinalOpinionView](run=self._project(session, review_id), result=domain)
 
