@@ -181,25 +181,73 @@ class _QualitySampleBinding:
         return source
 
 
+@dataclass(frozen=True, slots=True, init=False, eq=False, weakref_slot=True)
+class _BindingLease:
+    """Opaque, one-shot authorization for a single binding reservation.
+
+    The issuer is the only code that can construct a lease.  The fields are
+    intentionally immutable, but the issuer still authenticates every field
+    because object.__setattr__ and copied instances must not become valid
+    transaction authorizations.
+    """
+
+    binding_identity: int
+    generation: int
+    previous_tag: bytes
+    session_identity: int | None
+    transaction_identity: int | None
+    nonce: bytes
+    tag: bytes
+
+    def __init__(self, **_kwargs: Any) -> None:
+        raise TypeError("binding lease is internal")
+
+
 class _BindingIssuer(NamedTuple):
     """Immutable view over closure-owned binding state."""
 
     lookup_fn: Callable[[Any], tuple[Any, str] | None]
-    reserve_fn: Callable[[Any], Any | None]
-    finalize_fn: Callable[[Any], Any | None]
-    release_fn: Callable[[Any], Any | None]
+    reserve_fn: Callable[[Any, int | None, int | None], _BindingLease | None]
+    finalize_fn: Callable[[Any, _BindingLease, int | None, int | None, object], Any | None]
+    release_fn: Callable[[Any, _BindingLease, int | None, int | None, object], Any | None]
 
     def entry(self, value: Any) -> tuple[Any, str] | None:
         return self.lookup_fn(value)
 
-    def reserve(self, value: Any) -> Any | None:
-        return self.reserve_fn(value)
+    def reserve(
+        self,
+        value: Any,
+        *,
+        session_identity: int | None = None,
+        transaction_identity: int | None = None,
+    ) -> _BindingLease | None:
+        return self.reserve_fn(value, session_identity, transaction_identity)
 
-    def finalize(self, value: Any) -> Any | None:
-        return self.finalize_fn(value)
+    def finalize(
+        self,
+        value: Any,
+        lease: _BindingLease,
+        *,
+        session_identity: int | None,
+        transaction_identity: int | None,
+        authorization: object,
+    ) -> Any | None:
+        return self.finalize_fn(
+            value, lease, session_identity, transaction_identity, authorization
+        )
 
-    def release(self, value: Any) -> Any | None:
-        return self.release_fn(value)
+    def release(
+        self,
+        value: Any,
+        lease: _BindingLease,
+        *,
+        session_identity: int | None,
+        transaction_identity: int | None,
+        authorization: object,
+    ) -> Any | None:
+        return self.release_fn(
+            value, lease, session_identity, transaction_identity, authorization
+        )
 
 
 class _IssuerRecord(NamedTuple):
@@ -208,6 +256,8 @@ class _IssuerRecord(NamedTuple):
     state: str
     generation: int
     tag: bytes
+    lease_reference: weakref.ReferenceType[_BindingLease] | None
+    lease_digest: bytes | None
 
 
 class _TagVerifier(NamedTuple):
@@ -251,10 +301,44 @@ def _tag_payload(*values: Any) -> bytes:
 
 
 def _make_binding_issuer(
-    payload_fn: Callable[[Any, Any, str, int], bytes], verifier: _TagVerifier
-) -> tuple[_BindingIssuer, Callable[[Any, Any], None]]:
+    payload_fn: Callable[[Any, Any, str, int, bytes | None], bytes], verifier: _TagVerifier
+) -> tuple[_BindingIssuer, Callable[[Any, Any], None], object, object]:
     lock = RLock()
     entries: dict[int, _IssuerRecord] = {}
+    finalize_authorization = object()
+    release_authorization = object()
+
+    def lease_payload(
+        value: Any,
+        generation: int,
+        previous_tag: bytes,
+        session_identity: int | None,
+        transaction_identity: int | None,
+        nonce: bytes,
+    ) -> bytes:
+        return _tag_payload(
+            "binding-lease-v1",
+            id(value),
+            generation,
+            previous_tag,
+            session_identity,
+            transaction_identity,
+            nonce,
+        )
+
+    def lease_digest(lease: _BindingLease) -> bytes:
+        return hashlib.sha256(
+            _tag_payload(
+                "binding-lease-digest-v1",
+                lease.binding_identity,
+                lease.generation,
+                lease.previous_tag,
+                lease.session_identity,
+                lease.transaction_identity,
+                lease.nonce,
+                lease.tag,
+            )
+        ).digest()
 
     def valid(value: Any, record: Any) -> bool:
         try:
@@ -262,11 +346,17 @@ def _make_binding_issuer(
                 isinstance(record, _IssuerRecord)
                 and record.reference() is value
                 and verifier.verify(
-                    payload_fn(value, record.facts, record.state, record.generation),
+                    payload_fn(
+                        value,
+                        record.facts,
+                        record.state,
+                        record.generation,
+                        record.lease_digest,
+                    ),
                     record.tag,
                 )
             )
-        except (AttributeError, TypeError, ValueError, OverflowError):
+        except (AttributeError, TypeError, ValueError, OverflowError, KeyError):
             return False
 
     def entry(value: Any) -> tuple[Any, str] | None:
@@ -294,10 +384,12 @@ def _make_binding_issuer(
             if registered is not None and registered.reference() is not None:
                 raise RuntimeError("issuer identity is already registered")
             generation = 0
-            tag = verifier.sign(payload_fn(value, facts, state, generation))
-            entries[key] = _IssuerRecord(reference, facts, state, generation, tag)
+            tag = verifier.sign(payload_fn(value, facts, state, generation, None))
+            entries[key] = _IssuerRecord(reference, facts, state, generation, tag, None, None)
 
-    def move(value: Any, expected: str, replacement: str) -> Any | None:
+    def reserve(
+        value: Any, session_identity: int | None, transaction_identity: int | None
+    ) -> _BindingLease | None:
         key = id(value)
         with lock:
             registered = entries.get(key)
@@ -305,25 +397,137 @@ def _make_binding_issuer(
                 if registered is not None:
                     entries.pop(key, None)
                 return None
-            if registered.state != expected:
+            if registered.state != "issued":
                 return None
             generation = registered.generation + 1
-            tag = verifier.sign(payload_fn(value, registered.facts, replacement, generation))
+            nonce = secrets.token_bytes(32)
+            lease_tag = verifier.sign(
+                lease_payload(
+                    value,
+                    generation,
+                    registered.tag,
+                    session_identity,
+                    transaction_identity,
+                    nonce,
+                )
+            )
+            lease = object.__new__(_BindingLease)
+            object.__setattr__(lease, "binding_identity", id(value))
+            object.__setattr__(lease, "generation", generation)
+            object.__setattr__(lease, "previous_tag", bytes(registered.tag))
+            object.__setattr__(lease, "session_identity", session_identity)
+            object.__setattr__(lease, "transaction_identity", transaction_identity)
+            object.__setattr__(lease, "nonce", bytes(nonce))
+            object.__setattr__(lease, "tag", bytes(lease_tag))
+            digest = lease_digest(lease)
+            tag = verifier.sign(
+                payload_fn(value, registered.facts, "reserved", generation, digest)
+            )
             entries[key] = _IssuerRecord(
-                registered.reference, registered.facts, replacement, generation, tag
+                registered.reference,
+                registered.facts,
+                "reserved",
+                generation,
+                tag,
+                weakref.ref(lease),
+                digest,
+            )
+            return lease
+
+    def move(
+        value: Any,
+        lease: _BindingLease,
+        expected: str,
+        replacement: str,
+        session_identity: int | None,
+        transaction_identity: int | None,
+        authorization: object,
+        expected_authorization: object,
+    ) -> Any | None:
+        key = id(value)
+        with lock:
+            registered = entries.get(key)
+            if registered is None or not valid(value, registered):
+                if registered is not None:
+                    entries.pop(key, None)
+                return None
+            if registered.state != expected or authorization is not expected_authorization:
+                return None
+            try:
+                if (
+                    type(lease) is not _BindingLease
+                    or registered.lease_reference is None
+                    or registered.lease_reference() is not lease
+                    or not isinstance(registered.lease_digest, bytes)
+                    or not hmac.compare_digest(registered.lease_digest, lease_digest(lease))
+                    or lease.binding_identity != id(value)
+                    or lease.generation != registered.generation
+                    or lease.session_identity != session_identity
+                    or lease.transaction_identity != transaction_identity
+                    or not verifier.verify(
+                        lease_payload(
+                            value,
+                            lease.generation,
+                            lease.previous_tag,
+                            lease.session_identity,
+                            lease.transaction_identity,
+                            lease.nonce,
+                        ),
+                        lease.tag,
+                    )
+                ):
+                    return None
+            except (AttributeError, TypeError, ValueError, OverflowError, KeyError):
+                return None
+            generation = registered.generation + 1
+            tag = verifier.sign(payload_fn(value, registered.facts, replacement, generation, None))
+            entries[key] = _IssuerRecord(
+                registered.reference, registered.facts, replacement, generation, tag, None, None
             )
             return registered.facts
 
-    def reserve(value: Any) -> Any | None:
-        return move(value, "issued", "reserved")
+    def finalize(
+        value: Any,
+        lease: _BindingLease,
+        session_identity: int | None,
+        transaction_identity: int | None,
+        authorization: object,
+    ) -> Any | None:
+        return move(
+            value,
+            lease,
+            "reserved",
+            "used",
+            session_identity,
+            transaction_identity,
+            authorization,
+            finalize_authorization,
+        )
 
-    def finalize(value: Any) -> Any | None:
-        return move(value, "reserved", "used")
+    def release(
+        value: Any,
+        lease: _BindingLease,
+        session_identity: int | None,
+        transaction_identity: int | None,
+        authorization: object,
+    ) -> Any | None:
+        return move(
+            value,
+            lease,
+            "reserved",
+            "issued",
+            session_identity,
+            transaction_identity,
+            authorization,
+            release_authorization,
+        )
 
-    def release(value: Any) -> Any | None:
-        return move(value, "reserved", "issued")
-
-    return _BindingIssuer(entry, reserve, finalize, release), register
+    return (
+        _BindingIssuer(entry, reserve, finalize, release),
+        register,
+        finalize_authorization,
+        release_authorization,
+    )
 
 
 class _BindingFacts(NamedTuple):
@@ -344,7 +548,11 @@ class _BindingFacts(NamedTuple):
 
 
 def _binding_tag_payload(
-    binding: _QualitySampleBinding, facts: _BindingFacts, state: str, generation: int
+    binding: _QualitySampleBinding,
+    facts: _BindingFacts,
+    state: str,
+    generation: int,
+    lease_digest: bytes | None,
 ) -> bytes:
     return _tag_payload(
         "binding-v1",
@@ -362,11 +570,17 @@ def _binding_tag_payload(
         facts.results_digest,
         state,
         generation,
+        lease_digest,
     )
 
 
 _BINDING_VERIFIER = _make_tag_verifier()
-_BINDING_ISSUER, _binding_register = _make_binding_issuer(
+(
+    _BINDING_ISSUER,
+    _binding_register,
+    _binding_finalize_authorization,
+    _binding_release_authorization,
+) = _make_binding_issuer(
     _binding_tag_payload, _BINDING_VERIFIER
 )
 
@@ -404,49 +618,88 @@ def _register_quality_binding(
     register(binding, facts)
 
 
-del _binding_register
-del _BINDING_VERIFIER
-
-
-_QUALITY_BINDING_SESSION_KEY = "_screening_quality_binding_reservations"
-
-
 class _PendingQualityBinding(NamedTuple):
     binding: _QualitySampleBinding
+    lease: _BindingLease
     transaction: Any
+    outer_transaction: Any
 
 
-def _track_quality_binding(session: Session, binding: _QualitySampleBinding) -> None:
-    pending = session.info.get(_QUALITY_BINDING_SESSION_KEY)
-    if pending is None:
-        pending = {}
-        session.info[_QUALITY_BINDING_SESSION_KEY] = pending
-    if not isinstance(pending, dict):
-        raise ScreeningCreationError("input_error")
-    transaction = session.get_nested_transaction() or session.get_transaction()
-    if transaction is None:
-        raise ScreeningCreationError("input_error")
-    pending[id(binding)] = _PendingQualityBinding(binding, transaction)
+def _make_quality_binding_lifecycle() -> tuple[
+    Callable[[Session, _QualitySampleBinding, _BindingLease], None],
+    Callable[[Session, _QualitySampleBinding], _PendingQualityBinding | None],
+    Callable[[Session], tuple[_PendingQualityBinding, ...]],
+    Callable[[Session, Any], tuple[_PendingQualityBinding, ...]],
+    Callable[[Session], bool],
+]:
+    """Keep active receipts in a listener-owned, non-session surface."""
+
+    lock = RLock()
+    pending_by_session: weakref.WeakKeyDictionary[
+        Session, dict[int, _PendingQualityBinding]
+    ] = weakref.WeakKeyDictionary()
+
+    def track(session: Session, binding: _QualitySampleBinding, lease: _BindingLease) -> None:
+        nested = session.get_nested_transaction()
+        outer = session.get_transaction()
+        transaction = nested or outer
+        if transaction is None or outer is None:
+            raise ScreeningCreationError("input_error")
+        with lock:
+            pending = pending_by_session.setdefault(session, {})
+            if id(binding) in pending:
+                raise ScreeningCreationError("input_error")
+            pending[id(binding)] = _PendingQualityBinding(binding, lease, transaction, outer)
+
+    def untrack(
+        session: Session, binding: _QualitySampleBinding
+    ) -> _PendingQualityBinding | None:
+        with lock:
+            pending = pending_by_session.get(session)
+            if pending is None:
+                return None
+            item = pending.pop(id(binding), None)
+            if not pending:
+                pending_by_session.pop(session, None)
+            return item
+
+    def pop_all(session: Session) -> tuple[_PendingQualityBinding, ...]:
+        with lock:
+            pending = pending_by_session.pop(session, None)
+            if pending is None:
+                return ()
+            return tuple(pending.values())
+
+    def pop_nested(session: Session, nested: Any) -> tuple[_PendingQualityBinding, ...]:
+        with lock:
+            pending = pending_by_session.get(session)
+            if pending is None:
+                return ()
+            affected = tuple(
+                item
+                for item in pending.values()
+                if item.transaction is nested
+            )
+            for item in affected:
+                pending.pop(id(item.binding), None)
+            if not pending:
+                pending_by_session.pop(session, None)
+            return affected
+
+    def has_pending(session: Session) -> bool:
+        with lock:
+            return bool(pending_by_session.get(session))
+
+    return track, untrack, pop_all, pop_nested, has_pending
 
 
-def _untrack_quality_binding(session: Session, binding: _QualitySampleBinding) -> None:
-    pending = session.info.get(_QUALITY_BINDING_SESSION_KEY)
-    if isinstance(pending, dict):
-        pending.pop(id(binding), None)
-        if not pending:
-            session.info.pop(_QUALITY_BINDING_SESSION_KEY, None)
-
-
-def _pop_quality_bindings(session: Session) -> tuple[_QualitySampleBinding, ...]:
-    pending = session.info.pop(_QUALITY_BINDING_SESSION_KEY, None)
-    if not isinstance(pending, dict):
-        return ()
-    return tuple(
-        item.binding
-        for item in pending.values()
-        if isinstance(item, _PendingQualityBinding)
-        and type(item.binding) is _QualitySampleBinding
-    )
+(
+    _track_quality_binding,
+    _untrack_quality_binding,
+    _pop_quality_bindings,
+    _pop_nested_quality_bindings,
+    _has_pending_quality_bindings,
+) = _make_quality_binding_lifecycle()
 
 
 def _finalize_quality_bindings(session: Session, *, committed: bool) -> None:
@@ -457,37 +710,42 @@ def _finalize_quality_bindings(session: Session, *, committed: bool) -> None:
     # changes only reservations made in that savepoint; the outer event
     # changes the remaining reservations, making session reuse leak-free.
     nested = session.get_nested_transaction()
-    pending = session.info.get(_QUALITY_BINDING_SESSION_KEY)
-    if not isinstance(pending, dict):
-        return
     if nested is not None:
         if committed:
             return
         # A savepoint rollback removes only reservations made in that
         # savepoint.  Reservations made by the outer transaction remain
         # pending for its eventual commit/rollback.
-        affected = [
-            item.binding
-            for item in pending.values()
-            if isinstance(item, _PendingQualityBinding) and item.transaction is nested
-        ]
-        for binding in affected:
-            pending.pop(id(binding), None)
-            _release_quality_binding(binding)
-        if not pending:
-            session.info.pop(_QUALITY_BINDING_SESSION_KEY, None)
+        affected = _pop_nested_quality_bindings(session, nested)
+        for item in affected:
+            _release_quality_binding(
+                item.binding,
+                item.lease,
+                session=session,
+                transaction=item.outer_transaction,
+            )
         return
-    for binding in _pop_quality_bindings(session):
+    for item in _pop_quality_bindings(session):
         if committed:
             try:
-                _commit_quality_binding(binding)
+                _commit_quality_binding(
+                    item.binding,
+                    item.lease,
+                    session=session,
+                    transaction=item.outer_transaction,
+                )
             except ScreeningCreationError:
                 # A tag failure revokes the entry and the durable row remains
                 # auditable; never turn an already-committed SQL transaction
                 # into a misleading caller failure.
                 continue
         else:
-            _release_quality_binding(binding)
+            _release_quality_binding(
+                item.binding,
+                item.lease,
+                session=session,
+                transaction=item.outer_transaction,
+            )
 
 
 @event.listens_for(Session, "after_commit")
@@ -506,7 +764,7 @@ def _quality_binding_after_transaction_end(session: Session, transaction: Any) -
     # emitting after_rollback.  If commit/rollback already finalized the
     # pending list this is a no-op; otherwise the abandoned transaction has
     # no durable execution and every reservation must be released.
-    if transaction.parent is None and session.info.get(_QUALITY_BINDING_SESSION_KEY):
+    if transaction.parent is None and _has_pending_quality_bindings(session):
         _finalize_quality_bindings(session, committed=False)
 
 
@@ -577,40 +835,80 @@ def _reserve_quality_binding(
     *,
     session: Session | None = None,
     issuer: _BindingIssuer = _BINDING_ISSUER,
-) -> tuple[_BindingFacts, object]:
+    _release_authorization: object = _binding_release_authorization,
+) -> tuple[_BindingFacts, object, _BindingLease]:
     """Atomically move one validated issuer binding from issued to reserved."""
 
     facts, source = _validate_quality_binding(binding, run_id, project_root)
-    if issuer.reserve(binding) is None:
+    outer_transaction = session.get_transaction() if session is not None else None
+    if session is not None and outer_transaction is None:
+        raise ScreeningCreationError("input_error")
+    lease = issuer.reserve(
+        binding,
+        session_identity=id(session) if session is not None else None,
+        transaction_identity=id(outer_transaction) if outer_transaction is not None else None,
+    )
+    if lease is None:
         raise ScreeningCreationError("input_error")
     if session is not None:
         try:
-            _track_quality_binding(session, binding)
+            _track_quality_binding(session, binding, lease)
         except Exception:
-            issuer.release(binding)
+            issuer.release(
+                binding,
+                lease,
+                session_identity=id(session),
+                transaction_identity=id(outer_transaction),
+                authorization=_release_authorization,
+            )
             raise
-    return facts, source
+    return facts, source, lease
 
 
 def _release_quality_binding(
     binding: _QualitySampleBinding,
+    lease: _BindingLease,
     *,
     session: Session | None = None,
+    transaction: Any = None,
     issuer: _BindingIssuer = _BINDING_ISSUER,
-) -> None:
+    _release_authorization: object = _binding_release_authorization,
+) -> bool:
     """Return a reservation to issued when no persistent row was published."""
 
-    issuer.release(binding)
-    if session is not None:
+    released = issuer.release(
+        binding,
+        lease,
+        session_identity=id(session) if session is not None else None,
+        transaction_identity=id(transaction) if transaction is not None else None,
+        authorization=_release_authorization,
+    )
+    if released is not None and session is not None:
         _untrack_quality_binding(session, binding)
+    return released is not None
 
 
 def _commit_quality_binding(
-    binding: _QualitySampleBinding, issuer: _BindingIssuer = _BINDING_ISSUER
+    binding: _QualitySampleBinding,
+    lease: _BindingLease,
+    *,
+    session: Session | None = None,
+    transaction: Any = None,
+    issuer: _BindingIssuer = _BINDING_ISSUER,
+    _finalize_authorization: object = _binding_finalize_authorization,
 ) -> None:
     """Finalize a reservation after the execution row is published."""
 
-    if issuer.finalize(binding) is None:
+    if (
+        issuer.finalize(
+            binding,
+            lease,
+            session_identity=id(session) if session is not None else None,
+            transaction_identity=id(transaction) if transaction is not None else None,
+            authorization=_finalize_authorization,
+        )
+        is None
+    ):
         raise ScreeningCreationError("input_error")
 
 
@@ -619,13 +917,19 @@ def _consume_quality_binding(
 ) -> tuple[_BindingFacts, object]:
     """Compatibility helper that reserves and immediately consumes a binding."""
 
-    facts, source = _reserve_quality_binding(binding, run_id, project_root)
+    facts, source, lease = _reserve_quality_binding(binding, run_id, project_root)
     try:
-        _commit_quality_binding(binding)
+        _commit_quality_binding(binding, lease)
     except Exception:
-        _release_quality_binding(binding)
+        _release_quality_binding(binding, lease)
         raise
     return facts, source
+
+
+del _binding_register
+del _BINDING_VERIFIER
+del _binding_finalize_authorization
+del _binding_release_authorization
 
 
 def _make_quality_sample_binding(
@@ -1254,6 +1558,8 @@ class ScreeningOrchestrator:
         execution_id = "scr-" + uuid4().hex
         workspace: ExecutionWorkspace | None = None
         binding_reserved = False
+        binding_lease: _BindingLease | None = None
+        binding_outer_transaction: Any = None
         source_dir = None if scope == "quality_sample" else _safe_run_directory(self.settings, run_id)
         if scope == "quality_sample":
             source, notices = _trusted_quality_source(_quality_binding, run_id, self.settings.bidops_root)
@@ -1314,7 +1620,8 @@ class ScreeningOrchestrator:
         }
         store = ArtifactStore(Path(self.settings.bidops_root))
         if scope == "quality_sample":
-            _reserve_quality_binding(
+            binding_outer_transaction = session.get_transaction()
+            _facts, _source, binding_lease = _reserve_quality_binding(
                 _quality_binding,
                 run_id,
                 self.settings.bidops_root,
@@ -1348,8 +1655,13 @@ class ScreeningOrchestrator:
                 **({"notice_pk": queue_notice_pk, "notice_id": queue_notice} if scope == "single_notice" else {}),
             )
         except Exception as exc:
-            if binding_reserved:
-                _release_quality_binding(_quality_binding, session=session)
+            if binding_reserved and binding_lease is not None:
+                _release_quality_binding(
+                    _quality_binding,
+                    binding_lease,
+                    session=session,
+                    transaction=binding_outer_transaction,
+                )
             try:
                 if workspace is not None:
                     store.remove_execution(workspace)
