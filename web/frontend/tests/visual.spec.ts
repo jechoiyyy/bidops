@@ -198,7 +198,7 @@ test("프로필의 불완전한 응답은 상태와 미확인을 0으로 확정�
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ source: "profile.md", sections: [], parse_errors: ["프로필 원문 일부를 읽지 못했습니다."] }),
+      body: JSON.stringify({ source: "profile.md", sections: [], status_counts: {}, parse_errors: ["프로필 원문 일부를 읽지 못했습니다."] }),
     });
   });
   await page.route("**/api/profile/unknowns", async (route) => {
@@ -211,8 +211,7 @@ test("프로필의 불완전한 응답은 상태와 미확인을 0으로 확정�
 
   await page.goto("/profile");
   await expect(page.getByRole("alert")).toContainText("프로필 응답 확인 필요");
-  await expect(page.locator(".profile-summary")).toContainText("미확인");
-  await expect(page.locator(".profile-summary")).not.toContainText("0");
+  await expect(page.locator(".profile-summary strong")).toHaveText(["미확인", "미확인", "미확인"]);
   await expect(page.locator(".profile-unknown-panel")).toContainText("미확인 항목을 표시할 수 없습니다.");
   await expect(page.locator(".profile-unknown-panel")).not.toContainText("0건");
   await expect(page.getByText("미확인 항목이 없습니다. · 0건", { exact: true })).toHaveCount(0);
