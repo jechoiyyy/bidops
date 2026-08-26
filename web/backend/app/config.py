@@ -89,6 +89,10 @@ class Settings(BaseSettings):
         default=2048,
         validation_alias="BIDOPS_OLLAMA_MAX_OUTPUT_TOKENS",
     )
+    model_synthesis_output: int = Field(
+        default=4096,
+        validation_alias="BIDOPS_OLLAMA_SYNTHESIS_MAX_OUTPUT_TOKENS",
+    )
     screen_concurrency: int = Field(
         default=1,
         validation_alias="BIDOPS_SCREEN_MAX_CONCURRENCY",
@@ -186,8 +190,12 @@ class Settings(BaseSettings):
             )
         if self.screen_concurrency != 1:
             raise ValueError("only BIDOPS_SCREEN_MAX_CONCURRENCY=1 is supported")
-        if self.model_timeout <= 0 or self.model_context <= 0 or self.model_max_output <= 0:
-            raise ValueError("model timeout, context, and max output must be positive")
+        if self.model_timeout <= 0 or self.model_context <= 0 or self.model_max_output <= 0 or self.model_synthesis_output <= 0:
+            raise ValueError("model timeout, context, and output budgets must be positive")
+        if self.model_context > 131072 or self.model_max_output > 32768 or self.model_synthesis_output > 32768:
+            raise ValueError("model context/output budgets exceed the supported generation bounds")
+        if self.model_max_output > self.model_context or self.model_synthesis_output > self.model_context:
+            raise ValueError("model output budgets must not exceed context size")
         for name in ("schedule_daily_time", "schedule_weekly_time"):
             value = getattr(self, name)
             if len(value) != 5 or value[2] != ":":

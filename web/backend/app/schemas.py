@@ -693,6 +693,7 @@ class ScreeningExecutionResponse(RuntimeContractModel):
     model_digest: Digest
     company_profile_version: CompanyProfileVersion
     company_profile_digest: Digest
+    generation_config_digest: Digest | None = None
     input_artifact_digest: Digest
     queued_at: AwareDateTime
     started_at: AwareDateTime | None = None
@@ -748,6 +749,9 @@ class ScreeningAttemptResponse(RuntimeContractModel):
     eval_duration_ns: int | None = Field(default=None, ge=0)
     load_duration_ns: int | None = Field(default=None, ge=0)
     total_duration_ns: int | None = Field(default=None, ge=0)
+    generation_config_digest: Digest | None = None
+    num_ctx: int | None = Field(default=None, ge=1)
+    num_predict: int | None = Field(default=None, ge=1)
     started_at: AwareDateTime
     finished_at: AwareDateTime
     error_summary: NonEmpty | None = None
@@ -866,6 +870,7 @@ class QualityGateEvaluationResponse(RuntimeContractModel):
     reasons: list[NonEmpty] = Field(default_factory=list)
     valid_review_count: int = Field(ge=0)
     distinct_notice_review_count: int = Field(ge=0)
+    generation_config_digest: Digest | None = None
     created_at: AwareDateTime
 
 
@@ -902,6 +907,7 @@ class QualityGateResponse(RuntimeContractModel):
     model_digest: Digest
     company_profile_version: CompanyProfileVersion
     company_profile_digest: Digest
+    generation_config_digest: Digest | None = None
     pass_a_execution_id: ScreeningExecutionId
     pass_b_execution_id: ScreeningExecutionId
     created_by: Actor
@@ -1096,6 +1102,7 @@ class ScheduleExecutionSummary(RuntimeContractModel):
     prompt_version: NonEmpty | None = None
     company_profile_version: CompanyProfileVersion | None = None
     company_profile_digest: Digest | None = None
+    generation_config_digest: Digest | None = None
 
     @model_validator(mode="after")
     def validate_schedule_summary(self) -> "ScheduleExecutionSummary":
@@ -1174,6 +1181,7 @@ class AlwaysOnSwitchResponse(RuntimeContractModel):
     prompt_version: NonEmpty | None = None
     company_profile_version: CompanyProfileVersion | None = None
     company_profile_digest: Digest | None = None
+    generation_config_digest: Digest | None = None
     updated_at: AwareDateTime
     updated_by: Actor
     rejection_reason: NonEmpty | None = None

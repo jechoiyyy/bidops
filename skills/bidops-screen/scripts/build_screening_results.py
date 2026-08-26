@@ -50,13 +50,13 @@ SCREENING_INPUT_KEYS = (
     "schema_version", "execution_id", "run_id", "generated_at",
     "source_window", "policy_version", "prompt_version",
     "company_profile_version", "company_profile_digest", "candidate_count",
-    "notices",
+    "notices", "generation_config", "generation_config_digest",
 )
 DECISIONS_V3_KEYS = (
     "schema_version", "execution_id", "run_id", "generated_at",
     "screening_basis", "model_name", "model_digest", "prompt_version",
     "policy_version", "company_profile_version", "company_profile_digest",
-    "judgments",
+    "judgments", "generation_config", "generation_config_digest",
 )
 JUDGMENT_V3_KEYS = (
     "notice_id", "judgment_mode", "model_name", "model_digest",
@@ -382,6 +382,36 @@ def _digest(value: Any, prefix: str) -> list[str]:
     return []
 
 
+def _generation_config_errors(value: Any, digest: Any, prefix: str) -> list[str]:
+    """Validate the frozen generation contract without importing the app."""
+
+    errors: list[str] = []
+    expected_keys = {"schema_version", "num_ctx", "num_predict", "think", "stream"}
+    if not isinstance(value, dict):
+        return [f"{prefix} 객체가 아닙니다."]
+    errors.extend(_keys_error(value, expected_keys, prefix))
+    if value.get("schema_version") != "bidops.generation-config.v1":
+        errors.append(f"{prefix}.schema_version이 잘못되었습니다.")
+    context = value.get("num_ctx")
+    if type(context) is not int or not 1 <= context <= 131072:
+        errors.append(f"{prefix}.num_ctx가 허용 범위를 벗어났습니다.")
+    budgets = value.get("num_predict")
+    if not isinstance(budgets, dict) or set(budgets) != {"perspective", "counterargument", "synthesis"}:
+        errors.append(f"{prefix}.num_predict stage map이 잘못되었습니다.")
+    else:
+        for stage, budget in budgets.items():
+            if type(budget) is not int or not 1 <= budget <= 32768 or (type(context) is int and budget > context):
+                errors.append(f"{prefix}.num_predict.{stage}가 허용 범위를 벗어났습니다.")
+    if value.get("think") is not False or value.get("stream") is not False:
+        errors.append(f"{prefix}.think/stream은 false여야 합니다.")
+    errors.extend(_digest(digest, f"{prefix}_digest"))
+    if not errors:
+        expected_digest = sha256_digest(canonical_json_bytes(value))
+        if digest != expected_digest:
+            errors.append(f"{prefix}와 digest가 일치하지 않습니다.")
+    return errors
+
+
 def _company_profile_version(value: Any, digest: Any, prefix: str) -> list[str]:
     expected = f"company-profile.sha256:{digest}" if isinstance(digest, str) else None
     if not isinstance(value, str) or expected is None or value != expected:
@@ -638,6 +668,10 @@ def validate_screening_input(value: Any) -> list[str]:
     errors.extend(_company_profile_version(
         value.get("company_profile_version"), value.get("company_profile_digest"),
         "screening-input.company_profile_version",
+    ))
+    errors.extend(_generation_config_errors(
+        value.get("generation_config"), value.get("generation_config_digest"),
+        "screening-input.generation_config",
     ))
     notices = value.get("notices")
     if not isinstance(notices, list):
@@ -1021,6 +1055,12 @@ def merge(
         decisions.get("company_profile_version"), decisions.get("company_profile_digest"),
         "decisions.company_profile_version",
     ))
+    errors.extend(_generation_config_errors(
+        decisions.get("generation_config"), decisions.get("generation_config_digest"),
+        "decisions.generation_config",
+    ))
+    if decisions.get("generation_config") != validation.get("generation_config") or decisions.get("generation_config_digest") != validation.get("generation_config_digest"):
+        errors.append("decisions generation config가 screening-input과 다릅니다.")
     judgments = decisions.get("judgments")
     if not isinstance(judgments, list):
         errors.append("decisions.judgments가 배열이 아닙니다.")
@@ -1110,6 +1150,8 @@ def merge(
         "policy_version": decisions["policy_version"],
         "company_profile_version": decisions["company_profile_version"],
         "company_profile_digest": decisions["company_profile_digest"],
+        "generation_config": decisions["generation_config"],
+        "generation_config_digest": decisions["generation_config_digest"],
         "candidate_count": len(validation["notices"]),
         "result_count": len(results),
         "failure_count": failure_count,

@@ -41,3 +41,7 @@ visual의 10 skip은 draft spec의 mobile/tablet 너비 조건에 따른 의도�
 ## 관련 문서
 
 [아키텍처](../architecture.md) · [에이전트 런타임](../agent-runtime.md) · [스케줄링](../scheduling.md) · [모델 품질 게이트](../model-quality-gate.md) · [외부 인터페이스 계약](../contracts.md) · [운영 절차](../operations.md) · [구현·검증 표준](../standards.md)
+
+## T15 generation-budget binding implementation
+
+stage-aware immutable generation config, migration `0005_generation_config_binding`, A/B/activation/scheduler binding, and fake-only tests are implemented in the T15 worktree. The implementation has not been live revalidated; the Phase 1 synthesis-truncation failure evidence above remains unchanged and no success claim is made.

@@ -19,6 +19,7 @@ from ..ingest.loader import parse_run_id
 from ..models import CompanyProfileSnapshot, Notice, Run, ScreeningExecution, ScreeningPolicy
 from .artifacts import ArtifactError, ArtifactStore, ExecutionWorkspace, aware_iso, canonical_bytes, sha256_bytes
 from .contracts import MODEL_NAME
+from .generation_config import GenerationConfig, generation_config_from_settings
 from .ollama import ModelInspectionError, OllamaClient
 from .policy import canonical_policy_bytes, policy_content_digest
 from .profile_snapshot import (
@@ -63,6 +64,7 @@ class CreatedExecution:
     artifact_dir: str
     input_artifact_path: str
     input_artifact_digest: str
+    generation_config_digest: str | None = None
 
 
 @dataclass(frozen=True)
@@ -478,6 +480,9 @@ class ScreeningOrchestrator:
             if model_identity.model_name != MODEL_NAME:
                 raise ScreeningCreationError("model_inspection")
             generated_at = aware_iso(_now(self.clock))
+            # Read generation settings exactly once.  The resulting canonical
+            # object is persisted before enqueue; workers never re-read env.
+            generation_config = generation_config_from_settings(self.settings)
             frozen: list[dict[str, Any]] = []
             for item in selected:
                 mode, carry, reason = ("신규", None, None) if scope == "quality_sample" else _mode_for(item, scope, old_notices.get(item["notice_id"]), old_judgments.get(item["notice_id"]))
@@ -488,6 +493,8 @@ class ScreeningOrchestrator:
                 "policy_version": policy.policy_version, "prompt_version": policy.prompt_version,
                 "company_profile_version": profile_version, "company_profile_digest": profile_digest,
                 "candidate_count": len(frozen), "notices": frozen,
+                "generation_config": generation_config.canonical_value(),
+                "generation_config_digest": generation_config.digest(),
             }
             try:
                 store = ArtifactStore(Path(self.settings.bidops_root))
@@ -531,6 +538,7 @@ class ScreeningOrchestrator:
                 requested_by=requested_by, policy_version=policy_identity, prompt_version=prompt_identity,
                 model_name=model_name, model_digest=model_digest,
                 company_profile_version=profile_version, company_profile_digest=profile_digest,
+                generation_config=generation_config.canonical_value(), generation_config_digest=generation_config.digest(),
                 input_artifact_path=input_path, input_artifact_digest=input_digest,
                 artifact_dir=f"data/screening-executions/{execution_id}", candidate_count=len(frozen),
                 **({"notice_pk": notice_pk, "notice_id": notice_id} if scope == "single_notice" else {}),
@@ -550,7 +558,7 @@ class ScreeningOrchestrator:
         finally:
             if workspace is not None:
                 workspace.close()
-        return CreatedExecution(row.execution_id, row.status, row.model_name, row.model_digest, row.company_profile_version, row.company_profile_digest, row.artifact_dir, row.input_artifact_path, row.input_artifact_digest)
+        return CreatedExecution(row.execution_id, row.status, row.model_name, row.model_digest, row.company_profile_version, row.company_profile_digest, row.artifact_dir, row.input_artifact_path, row.input_artifact_digest, row.generation_config_digest)
 
     def prepare_execution(
         self,
@@ -620,6 +628,7 @@ class ScreeningOrchestrator:
         if model_identity.model_name != MODEL_NAME:
             raise ScreeningCreationError("model_inspection")
         generated_at = aware_iso(_now(self.clock))
+        generation_config = generation_config_from_settings(self.settings)
         frozen: list[dict[str, Any]] = []
         for item in selected:
             mode, carry, reason = ("신규", None, None) if scope == "quality_sample" else _mode_for(item, scope, old_notices.get(item["notice_id"]), old_judgments.get(item["notice_id"]))
@@ -630,6 +639,8 @@ class ScreeningOrchestrator:
             "policy_version": policy.policy_version, "prompt_version": policy.prompt_version,
             "company_profile_version": profile_version, "company_profile_digest": profile_digest,
             "candidate_count": len(frozen), "notices": frozen,
+            "generation_config": generation_config.canonical_value(),
+            "generation_config_digest": generation_config.digest(),
         }
         store = ArtifactStore(Path(self.settings.bidops_root))
         try:
@@ -651,6 +662,7 @@ class ScreeningOrchestrator:
                 model_digest=model_identity.digest,
                 company_profile_version=profile_version,
                 company_profile_digest=profile_digest,
+                generation_config=generation_config.canonical_value(), generation_config_digest=generation_config.digest(),
                 input_artifact_path=input_path,
                 input_artifact_digest=input_digest,
                 artifact_dir=f"data/screening-executions/{execution_id}",
@@ -669,7 +681,7 @@ class ScreeningOrchestrator:
             if isinstance(exc, (ArtifactError, QueueValidationError)):
                 raise ScreeningCreationError("artifact_write" if isinstance(exc, ArtifactError) else "input_error") from None
             raise ScreeningCreationError("queue_failure") from None
-        created = CreatedExecution(row.execution_id, row.status, row.model_name, row.model_digest, row.company_profile_version, row.company_profile_digest, row.artifact_dir, row.input_artifact_path, row.input_artifact_digest)
+        created = CreatedExecution(row.execution_id, row.status, row.model_name, row.model_digest, row.company_profile_version, row.company_profile_digest, row.artifact_dir, row.input_artifact_path, row.input_artifact_digest, row.generation_config_digest)
         if workspace is None:
             raise ScreeningCreationError("artifact_write")
         return PreparedExecution(created=created, row=row, workspace=workspace)

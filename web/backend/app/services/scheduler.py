@@ -30,9 +30,11 @@ from ..models import (
     ScheduleReservation,
     ScheduleSetting,
     ScreeningPolicy,
+    ScreeningExecution,
     utc_now,
 )
 from ..screening.ollama import OllamaClient
+from ..screening.generation_config import GenerationConfigError, generation_config_from_settings, legacy_generation_config
 from ..screening.profile_snapshot import read_working_tree_source
 
 
@@ -69,6 +71,7 @@ class EnableResult:
     prompt_version: str | None = None
     company_profile_version: str | None = None
     company_profile_digest: str | None = None
+    generation_config_digest: str | None = None
     rejection_reason: str | None = None
 
 
@@ -516,6 +519,14 @@ class SchedulerService:
                     company_profile_digest=state.company_profile_digest,
                     rejection_reason=reason or "gate_mismatch",
                 )
+            # Approval rows created before generation-config binding do not
+            # expose a digest.  They are deterministically legacy-bound by
+            # migration 0005; keep that read compatibility at this final
+            # projection boundary while new approvals remain strict in
+            # ``_approval`` above.
+            if "generation_config_digest" not in metadata:
+                metadata = dict(metadata)
+                metadata["generation_config_digest"] = legacy_generation_config().digest()
             for key, value in metadata.items():
                 setattr(state, key, value)
             state.enabled = True
@@ -588,6 +599,23 @@ class SchedulerService:
             return None, "operational_approval_not_latest"
         if (gate.policy_version != policy.policy_version or gate.prompt_version != policy.prompt_version or gate.company_profile_version != profile[0] or gate.company_profile_digest != profile[1] or policy.quality_gate_result_id != evaluation.evaluation_id):
             return None, "approval_metadata_mismatch"
+        passes = [session.get(ScreeningExecution, execution_id) for execution_id in (gate.pass_a_execution_id, gate.pass_b_execution_id)]
+        if any(row is None or row.generation_config_digest != gate.generation_config_digest or row.generation_config_json != gate.generation_config_json for row in passes):
+            return None, "generation_config_mismatch"
+        if evaluation.generation_config_digest != gate.generation_config_digest:
+            return None, "generation_config_mismatch"
+        # A scheduler enable is an approval for subsequent executions.  Bind
+        # the current process settings to that approval now; a changed env
+        # budget must fail closed before any reservation can invoke a worker.
+        try:
+            current_generation = generation_config_from_settings(self.settings)
+        except (GenerationConfigError, TypeError, ValueError):
+            return None, "generation_config_mismatch"
+        # A migrated pre-0005 approval is retained for audit/backward
+        # compatibility; its subsequent scheduled execution is still checked
+        # against current settings by ScheduledPipeline before model work.
+        if current_generation.digest() != gate.generation_config_digest and gate.generation_config_digest != legacy_generation_config().digest():
+            return None, "generation_config_mismatch"
         inspector = self.ollama or OllamaClient(settings=self.settings)
         try:
             identity = inspector.inspect_model(refresh=True)
@@ -608,6 +636,7 @@ class SchedulerService:
             "prompt_version": policy.prompt_version,
             "company_profile_version": profile[0],
             "company_profile_digest": profile[1],
+            "generation_config_digest": gate.generation_config_digest,
         }, None
 
     # Catch-up and callbacks -----------------------------------------
@@ -710,7 +739,7 @@ class SchedulerService:
 
     @staticmethod
     def _result(state: AlwaysOnState) -> EnableResult:
-        return EnableResult(state.enabled, state.quality_gate_result_id, state.policy_version, state.model_name, state.model_digest, state.prompt_version, state.company_profile_version, state.company_profile_digest)
+        return EnableResult(state.enabled, state.quality_gate_result_id, state.policy_version, state.model_name, state.model_digest, state.prompt_version, state.company_profile_version, state.company_profile_digest, state.generation_config_digest)
 
     def _reject_environment(self, *, actor: str = "system:scheduler") -> None:
         self._run(lambda s: self._audit(s, "schedule.always_on_enable_rejected", "1", {"reason": "environment_disabled"}, actor=actor))

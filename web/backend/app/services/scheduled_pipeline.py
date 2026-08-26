@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from ..config import Settings, get_settings
 from ..models import AlwaysOnState, CompanyProfileSnapshot, Run, ScheduleExecution, ScheduleReservation, ScreeningPolicy, utc_now
+from ..screening.generation_config import GenerationConfigError, generation_config_from_settings
 from ..screening.orchestrator import ScreeningOrchestrator
 from .scheduler import SchedulerService, previous_week_window
 
@@ -260,6 +261,7 @@ class ScheduledPipeline:
                     row.model_name = state.model_name
                     row.model_digest = state.model_digest
                     row.prompt_version = state.prompt_version
+                    row.generation_config_digest = state.generation_config_digest
                     if state.company_profile_version and session.scalar(select(CompanyProfileSnapshot.version).where(CompanyProfileSnapshot.version == state.company_profile_version)):
                         row.company_profile_version = state.company_profile_version
                     row.company_profile_digest = state.company_profile_digest
@@ -356,6 +358,18 @@ class ScheduledPipeline:
             return result
         if not execution.policy_version:
             return StageResult(status="failed", failure_reason="policy_unavailable")
+        # The approval binds the settings used to create its two passes.  A
+        # process-env change after enablement must stop before enqueue/model
+        # work rather than silently creating a differently budgeted run.
+        try:
+            current_generation_digest = generation_config_from_settings(self.settings).digest()
+        except (GenerationConfigError, TypeError, ValueError):
+            return StageResult(status="failed", failure_reason="generation_config_mismatch")
+        # Legacy/manual reservations may predate 0005 and have no binding;
+        # they remain worker-incomplete rather than being treated as an
+        # approved scheduled run. Any populated digest is fail-closed.
+        if execution.generation_config_digest and execution.generation_config_digest != current_generation_digest:
+            return StageResult(status="failed", failure_reason="generation_config_mismatch")
         try:
             created = orchestrator.create_execution(
                 run_id=run_id,
@@ -373,6 +387,9 @@ class ScheduledPipeline:
         screening_id = getattr(created, "execution_id", None) or (created.get("execution_id") if isinstance(created, Mapping) else None)
         if not screening_id:
             return StageResult(status="failed", failure_reason="judgment_failed")
+        created_generation_digest = getattr(created, "generation_config_digest", None) or (created.get("generation_config_digest") if isinstance(created, Mapping) else None)
+        if created_generation_digest != execution.generation_config_digest:
+            return StageResult(status="failed", screening_execution_id=screening_id, failure_reason="generation_config_mismatch")
         if self.worker is not None and callable(getattr(self.worker, "run_until", None)):
             try:
                 final = self.worker.run_until(screening_id)

@@ -31,6 +31,7 @@ KNOWN_MIGRATION_REVISIONS = frozenset(
         BASELINE_REVISION,
         "0002_screening_runtime",
         "0003_schedule_skipped_recovery",
+        "0004_migration_audit",
         ALEMBIC_HEAD,
     }
 )

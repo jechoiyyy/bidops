@@ -14,6 +14,8 @@ fresh migration은 schedule settings와 disabled always-on singleton 및 determi
 
 상시 실행의 유효 조건은 `BIDOPS_SCHEDULER_ENABLED=true`, DB `always_on_state.enabled=true`, active policy, 최신 passing `operational_approval`, 그리고 그 평가의 current profile·정확한 model/prompt/policy binding이다. 환경 cap 또는 binding 불일치가 있으면 DB switch를 false로 내리고 audit한다. DB switch가 false면 scheduler job이 등록되어도 callback은 no-op이며 reservation·model call을 만들지 않는다. always-on PUT을 환경 false에서 true로 요청하면 409다.
 
+추가로 operational approval의 generation config digest와 A/B execution/evaluation digest가 모두 일치해야 한다. enable 시 현재 process settings의 canonical digest를 approval digest와 비교하고, enable 이후 env가 바뀌면 scheduled judgment가 reservation digest와 현재 settings를 비교해 `generation_config_mismatch`로 fail-closed한다. mismatch 상태에서는 model call, activation 또는 예약 실행을 허용하지 않는다. 이 binding 구현은 아직 live 재검증 전이다.
+
 ## 예약 키와 기간
 
 `schedule_reservation`은 `run_key`를 primary key로 사용하고 window from/to, job kind, timezone을 보존한다. 예약이 callback보다 먼저 생성되므로 process crash 뒤 callback이 재실행되어도 중복 작업을 만들지 않는다.

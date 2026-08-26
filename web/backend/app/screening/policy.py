@@ -21,6 +21,7 @@ from ..models import (
     AuditEvent,
     QualityGate,
     QualityGateEvaluation,
+    ScreeningExecution,
     ScreeningPolicy,
     utc_now,
 )
@@ -556,6 +557,28 @@ class PolicyRepository:
             or gate.prompt_version != prompt_version
         ):
             raise PolicyActivationError("quality gate does not approve this policy")
+        # Keep a repository-level guard in addition to the service check so
+        # every activation path enforces the same frozen generation binding.
+        try:
+            from .generation_config import GenerationConfigError, config_from_value, validate_digest
+
+            gate_config = config_from_value(gate.generation_config_json)
+            validate_digest(gate_config, gate.generation_config_digest)
+        except (GenerationConfigError, AttributeError):
+            raise PolicyActivationError("quality gate generation config is invalid") from None
+        if evaluation.generation_config_digest != gate.generation_config_digest:
+            raise PolicyActivationError("quality gate evaluation generation config mismatch")
+        passes = [
+            self.session.get(ScreeningExecution, gate.pass_a_execution_id),
+            self.session.get(ScreeningExecution, gate.pass_b_execution_id),
+        ]
+        if any(
+            execution is None
+            or execution.generation_config_digest != gate.generation_config_digest
+            or execution.generation_config_json != gate_config.canonical_value()
+            for execution in passes
+        ):
+            raise PolicyActivationError("quality pass generation config mismatch")
         return evaluation, gate
 
 

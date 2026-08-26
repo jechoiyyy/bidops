@@ -59,7 +59,7 @@ SessionLocal = sessionmaker(
 # unsurprising for code that expects a session factory named ``Session``.
 SessionFactory = SessionLocal
 
-ALEMBIC_HEAD = "0004_migration_audit"
+ALEMBIC_HEAD = "0005_generation_config_binding"
 MIGRATION_COMMAND = "cd web/backend && alembic upgrade head"
 
 

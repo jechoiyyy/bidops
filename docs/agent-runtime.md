@@ -15,6 +15,12 @@
 
 워커는 queue claim 후 input bytes, path hardening, DB binding, Ollama `/api/tags`의 정확한 `qwen3.8:27b`와 64-hex digest를 다시 확인한다. mismatch, missing input, invalid profile/policy는 모델 호출 전에 실패한다.
 
+### Frozen generation configuration
+
+실행 생성 시 `app.screening.generation_config`가 유일한 source of truth로 stage-aware 설정을 freeze한다. 기본 canonical JSON은 `num_ctx=16384`, `num_predict.perspective=2048`, `num_predict.counterargument=2048`, `num_predict.synthesis=4096`, `think=false`, `stream=false`이며 SHA-256은 compact UTF-8 JSON(`sort_keys=true`, `separators=(',', ':')`, `ensure_ascii=false`)의 바이트를 해시한다. 이 값과 digest는 `screening_execution`과 `screening-input.v1`에 함께 저장되고 worker/retry가 그대로 사용한다. process env를 enqueue 이후 다시 읽지 않으며 row/input 불일치는 모델 호출 전에 실패한다.
+
+각 telemetry line에는 non-secret `generation_config_digest`, 실제 `num_ctx`, `num_predict`가 포함된다. quality gate A/B execution, evaluation, operational activation, always-on/scheduled execution도 동일 digest와 canonical object를 요구한다. 이 기능의 live 재검증은 아직 pending이며 Phase 1 실패 evidence를 성공으로 해석하지 않는다.
+
 ### 정책이 허용한 입력 매핑
 
 모델 경계에는 정규화 입력에서 정책이 허용한 필드만 canonical JSON으로 투영한다. `raw_source`와 호출자가 덧붙인 키는 모든 prompt에서 제외한다. `focus_matches`·`performance_matches`·`performance_top_score`는 탐색 신호이지 과업 범위나 법적 실적 자격의 확정값이 아니며, API가 확인하지 못한 값은 `unknown_fields`와 evidence status `unknown`으로 보존한다. profile 전문도 보내지 않고, 정책이 지정한 절만 `company_profile_sections_json`으로 보낸다.
@@ -110,9 +116,9 @@ execution artifact directory에는 다음 파일만 알려진 계약으로 취�
 
 실행 디렉터리에서 known artifact는 `screening-input.json`, `screening-decisions.json`, `screening-failures.json`(실패 시), `screening-telemetry.jsonl`, 그리고 검증 전 임시로 작성되는 `screening-results.json`이다. 성공 attempt의 제한 JSON만 `responses/<sha256(notice_id)[:16]>/<stage>-<attempt>.json`에 보관하고 실패 response body는 보관하지 않는다. 파일과 디렉터리는 UTF-8, immutable-after-publish, symlink/path escape 검사 대상이다. API artifact endpoint는 `decisions|failures|telemetry|screening_result` known kind만 허용하고 내부 path를 소비자에게 위임하지 않는다.
 
-`screening-results.json`의 v3 top-level exact keys는 `schema_version`, `execution_id`, `generated_at`, `screening_basis`, `source_window`, `model_name`, `model_digest`, `prompt_version`, `policy_version`, `company_profile_version`, `company_profile_digest`, `candidate_count`, `result_count`, `failure_count`, `partial_artifact`, `failure_artifact`, `results`다. input/decision/failure binding과 model identity가 모두 맞을 때만 publish한다. 일부 공고가 실패하면 성공 result subset과 failure artifact를 함께 보존하고 `partial_artifact=true`; 전역 merge/validation 실패는 성공 결과로 publish하지 않는다.
+`screening-results.json`의 v3 top-level exact keys는 `schema_version`, `execution_id`, `generated_at`, `screening_basis`, `source_window`, `model_name`, `model_digest`, `prompt_version`, `policy_version`, `company_profile_version`, `company_profile_digest`, `generation_config`, `generation_config_digest`, `candidate_count`, `result_count`, `failure_count`, `partial_artifact`, `failure_artifact`, `results`다. input/decision/failure binding과 model identity가 모두 맞을 때만 publish한다. 일부 공고가 실패하면 성공 result subset과 failure artifact를 함께 보존하고 `partial_artifact=true`; 전역 merge/validation 실패는 성공 결과로 publish하지 않는다.
 
-`screening-telemetry.jsonl`의 각 line은 `schema_version`, `execution_id`, `trace_id`, `span_id`, `notice_id`, `stage`, `attempt_no`, `status`, `failure_type`, `done_reason`, `model_name`, `model_digest`, `prompt_eval_count`, `eval_count`, `prompt_eval_duration_ns`, `eval_duration_ns`, `load_duration_ns`, `total_duration_ns`, `started_at`, `finished_at`만 가진다. Ollama가 주지 않은 token/duration은 0으로 만들지 않고 null로 남긴다. telemetry에는 model/prompt/policy/profile 원문이나 API key를 넣지 않으며 execution/DB binding은 별도로 보존한다.
+`screening-telemetry.jsonl`의 각 line은 위 필드와 `generation_config_digest`, `num_ctx`, `num_predict`를 가진다. Ollama가 주지 않은 token/duration은 0으로 만들지 않고 null로 남긴다. telemetry에는 model/prompt/policy/profile 원문이나 API key를 넣지 않으며 execution/DB binding은 별도로 보존한다.
 
 full run의 성공·부분 성공 처리에서는 원 `data/runs/<source>`를 읽기만 하고 새 이름에 source provenance, current screening artifacts, `screening-replacement-provenance.json`을 복사한다. 원 회차의 reviews/files/judgments는 변경하지 않는다. single notice와 quality sample은 execution artifact와 DB gate evidence로만 남는다.
 
