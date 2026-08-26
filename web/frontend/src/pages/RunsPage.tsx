@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { EmptyState } from "../components/common/EmptyState";
@@ -6,9 +6,18 @@ import { ArtifactValidation } from "../components/runs/ArtifactValidation";
 import { CollectionScope } from "../components/runs/CollectionScope";
 import { ExecutionLog } from "../components/runs/ExecutionLog";
 import { PipelineStages } from "../components/runs/PipelineStages";
+import { ScreeningRunPanel } from "../components/runs/ScreeningRunPanel";
 import { api } from "../lib/api";
 import { formatDateTime, formatNumber, formatRunRange, present, runStatusLabel } from "../lib/format";
-import type { RunSummary } from "../lib/types";
+import type {
+  CompanyProfileSnapshotResponse,
+  PolicyVersionResponse,
+  ProfileSource,
+  ScreeningExecutionDetailResponse,
+  ScreeningExecutionResponse,
+  ScreeningStatus,
+  RunSummary,
+} from "../lib/types";
 
 type RunnableStage = "collect" | "sample" | "report";
 
@@ -19,6 +28,86 @@ function errorMessage(error: unknown): string {
 function countFromCollection(run: RunSummary, key: string): number | null {
   const value = run.counts.collection[key];
   return typeof value === "number" ? value : null;
+}
+
+function isScreeningTerminal(status: ScreeningStatus | undefined): boolean {
+  return status === "성공" || status === "부분 성공" || status === "실패" || status === "중단됨";
+}
+
+function profileSourceFor(snapshot: CompanyProfileSnapshotResponse): ProfileSource {
+  return snapshot.source_kind === "working_tree" ? "current" : `git:${snapshot.source_ref}`;
+}
+
+function screeningActionMessage(error: unknown): string {
+  if (error instanceof Error && error.message) return "판정 실행 요청을 처리하지 못했습니다. 입력과 서버 상태를 확인한 뒤 다시 시도해 주세요.";
+  return "판정 실행 요청을 처리하지 못했습니다. 다시 시도해 주세요.";
+}
+
+/**
+ * Poll a single screening execution with a one-shot timer.  The API wrapper
+ * owns transport details; the abort signal prevents a late response from
+ * updating an unmounted or replaced run panel.
+ */
+function useScreeningExecutionPoll(executionId: string | null) {
+  const [data, setData] = useState<ScreeningExecutionDetailResponse | null>(null);
+  const [error, setError] = useState<unknown>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!executionId) {
+      setData(null);
+      setError(null);
+      setLoading(false);
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    let timer: number | null = null;
+    let inFlight = false;
+    let shouldContinue = true;
+    setData(null);
+    setError(null);
+
+    const schedule = (delay: number) => {
+      if (controller.signal.aborted || timer !== null || !shouldContinue) return;
+      timer = window.setTimeout(() => {
+        timer = null;
+        void poll();
+      }, delay);
+    };
+
+    const poll = async () => {
+      if (controller.signal.aborted || inFlight) return;
+      inFlight = true;
+      setLoading(true);
+      try {
+        const next = await api.getScreeningExecution(executionId);
+        if (controller.signal.aborted) return;
+        setData(next);
+        setError(null);
+        shouldContinue = !isScreeningTerminal(next.status);
+        if (shouldContinue) schedule(1500);
+      } catch (nextError) {
+        if (controller.signal.aborted) return;
+        setError(nextError);
+        // Keep a failed detail fetch transient and retry while the execution
+        // is still selected; no server error detail is promoted to a status.
+        schedule(3000);
+      } finally {
+        inFlight = false;
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    };
+
+    void poll();
+    return () => {
+      shouldContinue = false;
+      controller.abort();
+      if (timer !== null) window.clearTimeout(timer);
+    };
+  }, [executionId]);
+
+  return { data, error, loading };
 }
 
 function RunListItem({ run, selected, onSelect }: { run: RunSummary; selected: boolean; onSelect: () => void }) {
@@ -57,8 +146,62 @@ export function RunsPage() {
       return data.executions.some((execution) => execution.status === "pending" || execution.status === "running") ? 1000 : false;
     },
   });
+  const activationCandidatePoliciesQuery = useQuery({
+    queryKey: ["screening-policies", "activation_candidate"],
+    queryFn: () => api.getPolicies({ status: "activation_candidate" }),
+    staleTime: 30_000,
+  });
+  const activePoliciesQuery = useQuery({
+    queryKey: ["screening-policies", "active"],
+    queryFn: () => api.getPolicies({ status: "active" }),
+    staleTime: 30_000,
+  });
+  const profileSnapshotsQuery = useQuery({
+    queryKey: ["profile-snapshots"],
+    queryFn: api.getProfileSnapshots,
+    staleTime: 30_000,
+  });
+  const screeningExecutionsQuery = useQuery({
+    queryKey: ["screening-executions", selectedRunId],
+    queryFn: () => api.listScreeningExecutions({ run_id: selectedRunId as string, limit: 25, offset: 0 }),
+    enabled: Boolean(selectedRunId),
+    staleTime: 0,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (!data) return 1500;
+      return data.items.some((execution) => !isScreeningTerminal(execution.status)) ? 1500 : false;
+    },
+  });
   const [actionError, setActionError] = useState<string | null>(null);
   const [activeExecutionId, setActiveExecutionId] = useState<string | null>(null);
+  const [screeningActor, setScreeningActor] = useState("");
+  const [selectedPolicyVersion, setSelectedPolicyVersion] = useState("");
+  const [selectedProfileVersion, setSelectedProfileVersion] = useState("");
+  const [screeningExecutionId, setScreeningExecutionId] = useState<string | null>(null);
+  const [screeningActionError, setScreeningActionError] = useState<string | null>(null);
+  const [screeningStartBusy, setScreeningStartBusy] = useState(false);
+  const [screeningStopBusy, setScreeningStopBusy] = useState(false);
+
+  const policies = useMemo(() => {
+    const byVersion = new Map<string, PolicyVersionResponse>();
+    [...(activationCandidatePoliciesQuery.data?.items ?? []), ...(activePoliciesQuery.data?.items ?? [])].forEach((policy) => {
+      if (!byVersion.has(policy.policy_version)) byVersion.set(policy.policy_version, policy);
+    });
+    return [...byVersion.values()];
+  }, [activationCandidatePoliciesQuery.data, activePoliciesQuery.data]);
+  const profileSnapshots = useMemo(() => {
+    const byVersion = new Map<string, CompanyProfileSnapshotResponse>();
+    (profileSnapshotsQuery.data?.items ?? []).forEach((snapshot) => {
+      if (!byVersion.has(snapshot.version)) byVersion.set(snapshot.version, snapshot);
+    });
+    return [...byVersion.values()];
+  }, [profileSnapshotsQuery.data]);
+  const screeningExecutions = useMemo(() => screeningExecutionsQuery.data?.items ?? [], [screeningExecutionsQuery.data]);
+  const selectedScreeningSummary = screeningExecutions.find((item) => item.execution_id === screeningExecutionId)
+    ?? screeningExecutions[0]
+    ?? null;
+  const screeningDetailPoll = useScreeningExecutionPoll(screeningExecutionId);
+  const selectedProfile = profileSnapshots.find((snapshot) => snapshot.version === selectedProfileVersion) ?? null;
 
   useEffect(() => {
     if (!selectedRunId || selectedRunId === queryRunId) return;
@@ -68,6 +211,43 @@ export function RunsPage() {
       return next;
     }, { replace: true });
   }, [queryRunId, selectedRunId, setSearchParams]);
+
+  useEffect(() => {
+    if (!selectedPolicyVersion || !policies.some((policy) => policy.policy_version === selectedPolicyVersion)) {
+      setSelectedPolicyVersion(policies[0]?.policy_version ?? "");
+    }
+  }, [policies, selectedPolicyVersion]);
+
+  useEffect(() => {
+    if (!selectedProfileVersion || !profileSnapshots.some((snapshot) => snapshot.version === selectedProfileVersion)) {
+      const current = profileSnapshots.find((snapshot) => snapshot.source_kind === "working_tree");
+      setSelectedProfileVersion(current?.version ?? profileSnapshots[0]?.version ?? "");
+    }
+  }, [profileSnapshots, selectedProfileVersion]);
+
+  useEffect(() => {
+    // Keep the active execution selected while it is running. Once it is
+    // terminal, show the newest run returned by the list endpoint.
+    if (screeningExecutionId && screeningExecutions.some((item) => item.execution_id === screeningExecutionId)) return;
+    const active = screeningExecutions.find((item) => !isScreeningTerminal(item.status));
+    setScreeningExecutionId(active?.execution_id ?? screeningExecutions[0]?.execution_id ?? null);
+  }, [screeningExecutionId, screeningExecutions]);
+
+  useEffect(() => {
+    if (!screeningDetailPoll.data || !screeningExecutionId) return;
+    if (isScreeningTerminal(screeningDetailPoll.data.status)) {
+      void queryClient.invalidateQueries({ queryKey: ["runs"] });
+      void queryClient.invalidateQueries({ queryKey: ["run", selectedRunId] });
+      void queryClient.invalidateQueries({ queryKey: ["screening-executions", selectedRunId] });
+    }
+  }, [queryClient, screeningDetailPoll.data, screeningExecutionId, selectedRunId]);
+
+  useEffect(() => {
+    // A run switch should not carry a previous run's execution or transient
+    // error into the newly selected original run.
+    setScreeningExecutionId(null);
+    setScreeningActionError(null);
+  }, [selectedRunId]);
 
   useEffect(() => {
     const execution = logsQuery.data?.executions.find((item) => item.execution_id === activeExecutionId);
@@ -103,6 +283,51 @@ export function RunsPage() {
     }
   };
 
+  const startScreening = async () => {
+    if (!selectedRunId || !screeningActor.trim() || !selectedPolicyVersion || !selectedProfile) {
+      setScreeningActionError("담당자 이름, 판정 정책, 프로필 snapshot을 모두 선택해야 합니다.");
+      return;
+    }
+    setScreeningActionError(null);
+    setScreeningStartBusy(true);
+    try {
+      const execution = await api.enqueueJudgment(selectedRunId, {
+        policy_version: selectedPolicyVersion,
+        profile_source: profileSourceFor(selectedProfile),
+        requested_by: screeningActor.trim(),
+      });
+      setScreeningExecutionId(execution.execution_id);
+      await queryClient.invalidateQueries({ queryKey: ["screening-executions", selectedRunId] });
+    } catch (error) {
+      setScreeningActionError(screeningActionMessage(error));
+    } finally {
+      setScreeningStartBusy(false);
+    }
+  };
+
+  const stopScreening = async () => {
+    if (!screeningExecutionId || !screeningActor.trim() || !selectedScreeningSummary || isScreeningTerminal(selectedScreeningSummary.status)) return;
+    setScreeningActionError(null);
+    setScreeningStopBusy(true);
+    try {
+      const stopped = await api.stopScreeningExecution(screeningExecutionId, { requested_by: screeningActor.trim() });
+      setScreeningExecutionId(stopped.execution_id);
+      await queryClient.invalidateQueries({ queryKey: ["screening-executions", selectedRunId] });
+    } catch (error) {
+      setScreeningActionError(screeningActionMessage(error));
+    } finally {
+      setScreeningStopBusy(false);
+    }
+  };
+
+  const selectPublishedRun = (runId: string) => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.set("run", runId);
+      return next;
+    }, { replace: false });
+  };
+
   if (runsQuery.isLoading && runs.length === 0) return <div className="runs-loading" role="status" aria-live="polite">실행 회차를 불러오는 중입니다.</div>;
   if (runsQuery.error) return <EmptyState title="실행 회차를 불러오지 못했습니다." description={errorMessage(runsQuery.error)} action={{ label: "다시 시도", onClick: () => void runsQuery.refetch() }} />;
   if (!selectedRunId) return <EmptyState title="실행 회차가 없습니다." description="수집할 회차가 적재되면 이곳에서 파이프라인을 실행할 수 있습니다." />;
@@ -134,6 +359,40 @@ export function RunsPage() {
         </aside>
         <section className="runs-detail">
           <div className="runs-detail-heading"><div><span className="runs-eyebrow">선택한 회차</span><h3 className="mono">{formatRunRange(detail.run_id, detail.window_from, detail.window_to)}</h3><p>{formatDateTime(detail.generated_at)} · {present(detail.screening_basis, "판정 기준 미기록")}</p></div><span className={`runs-status runs-status-${detail.status}`}>{runStatusLabel(detail.status)}</span></div>
+          <ScreeningRunPanel
+            runId={detail.run_id}
+            actor={screeningActor}
+            onActorChange={setScreeningActor}
+            policies={policies}
+            policiesLoading={activationCandidatePoliciesQuery.isLoading || activePoliciesQuery.isLoading}
+            policiesError={activationCandidatePoliciesQuery.error ?? activePoliciesQuery.error}
+            selectedPolicyVersion={selectedPolicyVersion}
+            onPolicyChange={setSelectedPolicyVersion}
+            profileSnapshots={profileSnapshots}
+            profilesLoading={profileSnapshotsQuery.isLoading}
+            profilesError={profileSnapshotsQuery.error}
+            selectedProfileVersion={selectedProfileVersion}
+            onProfileChange={setSelectedProfileVersion}
+            selectedProfileSource={selectedProfile ? profileSourceFor(selectedProfile) : null}
+            execution={screeningDetailPoll.data}
+            executionSummary={selectedScreeningSummary}
+            executionLoading={screeningDetailPoll.loading}
+            executionError={screeningDetailPoll.error}
+            listLoading={screeningExecutionsQuery.isLoading}
+            listError={screeningExecutionsQuery.error}
+            onRetryConfiguration={() => {
+              void activationCandidatePoliciesQuery.refetch();
+              void activePoliciesQuery.refetch();
+              void profileSnapshotsQuery.refetch();
+              void screeningExecutionsQuery.refetch();
+            }}
+            onStart={() => void startScreening()}
+            startBusy={screeningStartBusy}
+            actionError={screeningActionError}
+            onStop={() => void stopScreening()}
+            stopBusy={screeningStopBusy}
+            onOpenPublishedRun={selectPublishedRun}
+          />
           <PipelineStages stages={detail.pipeline} counts={selectedSummary.counts} onRun={(stage) => void startStage(stage)} busy={Boolean(logsQuery.data?.executions.some((item) => item.status === "pending" || item.status === "running"))} />
           <div className="runs-two-column"><ArtifactValidation artifacts={detail.artifacts} warningCounts={detail.warning_counts} /><CollectionScope scope={detail.collection_scope} runId={detail.run_id} /></div>
           <ExecutionLog data={logsQuery.data} loading={logsQuery.isLoading} error={logsQuery.error} />
