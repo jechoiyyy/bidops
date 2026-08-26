@@ -38,9 +38,40 @@ def test_empty_database_upgrade_creates_runtime_tables(tmp_path: Path) -> None:
         }
         assert "alembic_version" in tables
         assert "screening_execution" in tables
-        assert connection.execute("select version_num from alembic_version").fetchone()[0] == "0003_schedule_skipped_recovery"
+        assert connection.execute("select version_num from alembic_version").fetchone()[0] == "0004_migration_audit"
+        migration_event = connection.execute(
+            "select event_id, actor, target_id, details_json from audit_event "
+            "where event_type = 'db.migration'"
+        ).fetchone()
+        assert migration_event[0] == "audit-e7854deca36d619ac1921856bb9bdbcd"
+        assert migration_event[1:] == (
+            "system:migration",
+            "0004_migration_audit",
+            '{"migration_revision":"0004_migration_audit","action":"upgrade"}',
+        )
     check = run_alembic(database, "check")
     assert check.returncode == 0, check.stderr + check.stdout
+
+
+def test_migration_audit_is_idempotent_from_0003_and_safe_to_downgrade(tmp_path: Path) -> None:
+    database = tmp_path / "migration-audit.db"
+    assert run_alembic(database, "upgrade", "0003_schedule_skipped_recovery").returncode == 0
+    assert run_alembic(database, "upgrade", "head").returncode == 0
+    assert run_alembic(database, "upgrade", "head").returncode == 0
+    with sqlite3.connect(database) as connection:
+        assert connection.execute("select version_num from alembic_version").fetchone()[0] == "0004_migration_audit"
+        assert connection.execute(
+            "select count(*) from audit_event where event_id = 'audit-e7854deca36d619ac1921856bb9bdbcd'"
+        ).fetchone()[0] == 1
+        assert connection.execute("pragma quick_check").fetchone()[0] == "ok"
+
+    assert run_alembic(database, "downgrade", "0003_schedule_skipped_recovery").returncode == 0
+    with sqlite3.connect(database) as connection:
+        assert connection.execute("select count(*) from audit_event where event_id = 'audit-e7854deca36d619ac1921856bb9bdbcd'").fetchone()[0] == 0
+    assert run_alembic(database, "upgrade", "head").returncode == 0
+    with sqlite3.connect(database) as connection:
+        assert connection.execute("select version_num from alembic_version").fetchone()[0] == "0004_migration_audit"
+        assert connection.execute("select count(*) from audit_event where event_id = 'audit-e7854deca36d619ac1921856bb9bdbcd'").fetchone()[0] == 1
 
 
 def test_skipped_recovery_trigger_upgrades_from_0002_and_downgrades(tmp_path: Path) -> None:
@@ -90,7 +121,7 @@ def test_skipped_recovery_trigger_upgrades_from_0002_and_downgrades(tmp_path: Pa
         run_key, target_id = add_skipped_execution(connection, 3)
         add_recovery(connection, run_key, target_id, 4)
         connection.commit()
-        assert connection.execute("select version_num from alembic_version").fetchone()[0] == "0003_schedule_skipped_recovery"
+        assert connection.execute("select version_num from alembic_version").fetchone()[0] == "0004_migration_audit"
         projection_sql = {
             row[0]: row[1]
             for row in connection.execute(
@@ -326,7 +357,7 @@ def test_unversioned_exact_baseline_migrates_a_backup_copy_and_preserves_core_ro
     result = subprocess.run([sys.executable, "-m", "app.db_admin", "migrate", "--backup-manifest", str(backup) + ".manifest.json", "--confirm-service-stopped"], cwd=BACKEND, env=env, text=True, capture_output=True)
     assert result.returncode == 0, result.stderr
     with sqlite3.connect(database) as connection:
-        assert connection.execute("select version_num from alembic_version").fetchone()[0] == "0003_schedule_skipped_recovery"
+        assert connection.execute("select version_num from alembic_version").fetchone()[0] == "0004_migration_audit"
         assert [connection.execute(f"select count(*) from {table}").fetchone()[0] for table in ("run", "notice", "judgment", "review", "attachment")] == [1, 1, 1, 1, 1]
         assert connection.execute("pragma foreign_key_check").fetchall() == []
         assert connection.execute("pragma quick_check").fetchone()[0] == "ok"
