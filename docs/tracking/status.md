@@ -1,8 +1,8 @@
 # 구현·검증 현황
 
 기준일: 2026-08-27
-T8 기준 HEAD: `4f98a5c9ed986b534403df4c8feebaf3ebdbfab0` (`bidops-deep-review`)
-T8: 코드 변경 없이 지정 문서 7개를 현재 구현·검증 결과에 맞게 갱신한다. commit/push/merge/release는 하지 않는다.
+최종 리뷰 코드 기준: `bcd18ad` (`bidops-deep-review`)
+T1~T8 구현과 검증을 완료했고, 최종 독립 리뷰에서 확인된 회귀를 수정했다. push/merge/release는 하지 않았다.
 
 ## 코드 상태
 
@@ -49,6 +49,9 @@ shadowing 5건과 Starlette/httpx deprecation 1건이며 이번 실행을 실패
 - 별도 `npm run build`: Vite 6.4.3, 135 modules transformed, 성공
 - 깨끗한 PostgreSQL 17: Alembic head `0002_screening_basis_text`, 같은 legacy 회차를 두 번 적재해
   40 notices/40 judgments와 동일 run ID, `screening_basis` 102자 무절단 보존 확인
+- Luna Max 독립 리뷰에서 `UTF-8''`로 시작하는 printable ASCII actor 이름의 identity 회귀를
+  확인해 수정했다. Unicode round-trip, ASCII prefix 보존, malformed/control encoding 거부를 포함한
+  관련 회귀 `80 passed, 1 skipped`를 재검증했다.
 
 ## 2026-08-27 T7 실제 격리 E2E
 
