@@ -94,6 +94,17 @@ def test_bc_cli_dry_run_validates_without_mutating_the_api(tmp_path: Path, capsy
     }
 
 
+def test_t7_cli_dry_run_selects_the_agent_acceptance_plan(tmp_path: Path, capsys) -> None:
+    manifest = _bc_manifest(tmp_path)
+
+    assert run_bc_main([str(manifest), "--t7", "--dry-run"]) == 0
+    output = json.loads(capsys.readouterr().out)
+    assert output["schema"] == "bidops.t7-e2e-plan.v1"
+    assert output["workflow"] == "t7-mock-reference"
+    assert output["api_base"] == "http://127.0.0.1:28787"
+    assert output["document_count"] == 1
+
+
 def test_bc_cli_refuses_a_target_that_was_not_exactly_confirmed(tmp_path: Path, capsys) -> None:
     manifest = _bc_manifest(tmp_path)
 

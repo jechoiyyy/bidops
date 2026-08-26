@@ -5,12 +5,14 @@ services:
   web:
     environment:
       BIDOPS_ANALYSIS_PROVIDER: mock
+      BIDOPS_VLLM_MODEL: bidops-deterministic-mock-v1
       BIDOPS_OPENAI_ENABLED: "false"
       BIDOPS_CODEX_EXEC_ENABLED: "false"
       BIDOPS_REFERENCE_WORKFLOW_MODE: "true"
   analysis-worker:
     environment:
       BIDOPS_ANALYSIS_PROVIDER: mock
+      BIDOPS_VLLM_MODEL: bidops-deterministic-mock-v1
       BIDOPS_OPENAI_ENABLED: "false"
       BIDOPS_CODEX_EXEC_ENABLED: "false"
       BIDOPS_REFERENCE_WORKFLOW_MODE: "true"
