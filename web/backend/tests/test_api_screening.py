@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import date, datetime, timezone
+import errno
 import os
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
@@ -203,3 +206,149 @@ def test_screening_artifact_rejects_hardlinks_and_survives_symlink_swap(
     # the newly installed symlink into a host file.
     assert response.status_code == 404
     assert b"root:" not in response.content
+
+
+def test_artifact_response_closes_fd_on_normal_and_send_failure(
+    tmp_path: Path, monkeypatch
+) -> None:
+    import app.routers.screening as screening
+    from app.config import Settings
+
+    monkeypatch.setattr(screening, "get_settings", lambda: Settings(bidops_root=tmp_path))
+    execution_id = "scr-" + "2" * 32
+    directory = tmp_path / "data" / "screening-executions" / execution_id
+    directory.mkdir(parents=True)
+    (directory / "screening-decisions.json").write_bytes(b'{"safe":true}')
+    row = ScreeningExecution(
+        execution_id=execution_id,
+        artifact_dir=f"data/screening-executions/{execution_id}",
+    )
+
+    async def call_response(response, *, send_failure: bool = False):  # type: ignore[no-untyped-def]
+        messages = []
+
+        async def receive():
+            return {"type": "http.request"}
+
+        async def send(message):  # type: ignore[no-untyped-def]
+            messages.append(message)
+            if send_failure and message["type"] == "http.response.body" and message["body"]:
+                raise OSError("client disconnected")
+
+        error = None
+        try:
+            await response(
+                {"type": "http", "asgi": {"spec_version": "2.4"}},
+                receive,
+                send,
+            )
+        except BaseException as exc:  # client disconnect is Starlette-specific
+            error = exc
+        return messages, error
+
+    opened = screening._open_artifact_fd(row, "screening-decisions.json")
+    assert opened is not None
+    descriptor, size = opened
+    owner = screening._ArtifactFdOwner(descriptor)
+    response = screening._ArtifactFdResponse(owner, size, "application/json")
+    messages, error = asyncio.run(call_response(response))
+    assert error is None
+    assert messages[-1]["more_body"] is False
+    assert owner.descriptor is None
+    with pytest.raises(OSError) as normal_closed:
+        os.fstat(descriptor)
+    assert normal_closed.value.errno == errno.EBADF
+
+    # A send-side disconnect must clean up on every request, with no second
+    # close against a descriptor number that could have been reused.
+    for _ in range(3):
+        opened = screening._open_artifact_fd(row, "screening-decisions.json")
+        assert opened is not None
+        descriptor, size = opened
+        owner = screening._ArtifactFdOwner(descriptor)
+        response = screening._ArtifactFdResponse(owner, size, "application/json")
+        _messages, error = asyncio.run(call_response(response, send_failure=True))
+        assert error is not None
+        assert owner.descriptor is None
+        with pytest.raises(OSError) as failed_closed:
+            os.fstat(descriptor)
+        assert failed_closed.value.errno == errno.EBADF
+
+
+def test_artifact_response_closes_fd_on_disconnect_read_error_and_cancel(
+    tmp_path: Path, monkeypatch
+) -> None:
+    import app.routers.screening as screening
+    from app.config import Settings
+
+    monkeypatch.setattr(screening, "get_settings", lambda: Settings(bidops_root=tmp_path))
+    execution_id = "scr-" + "3" * 32
+    directory = tmp_path / "data" / "screening-executions" / execution_id
+    directory.mkdir(parents=True)
+    (directory / "screening-decisions.json").write_bytes(b'{"safe":true}')
+    row = ScreeningExecution(
+        execution_id=execution_id,
+        artifact_dir=f"data/screening-executions/{execution_id}",
+    )
+
+    async def call_response(response, *, mode: str):  # type: ignore[no-untyped-def]
+        async def receive():
+            if mode == "disconnect":
+                return {"type": "http.disconnect"}
+            return {"type": "http.request"}
+
+        async def send(message):  # type: ignore[no-untyped-def]
+            if mode == "cancel" and message["type"] == "http.response.body" and message["body"]:
+                asyncio.current_task().cancel()
+                await asyncio.sleep(0)
+
+        error = None
+        try:
+            await response(
+                {"type": "http", "asgi": {"spec_version": "2.3" if mode == "disconnect" else "2.4"}},
+                receive,
+                send,
+            )
+        except BaseException as exc:
+            error = exc
+        return error
+
+    def build_response():  # type: ignore[no-untyped-def]
+        opened = screening._open_artifact_fd(row, "screening-decisions.json")
+        assert opened is not None
+        descriptor, size = opened
+        owner = screening._ArtifactFdOwner(descriptor)
+        return descriptor, owner, screening._ArtifactFdResponse(owner, size, "application/json")
+
+    for _ in range(3):
+        descriptor, owner, response = build_response()
+        asyncio.run(call_response(response, mode="disconnect"))
+        assert owner.descriptor is None
+        with pytest.raises(OSError) as disconnected_closed:
+            os.fstat(descriptor)
+        assert disconnected_closed.value.errno == errno.EBADF
+
+    descriptor, owner, response = build_response()
+    original_read = screening.os.read
+
+    def fail_read(current_descriptor, count):  # type: ignore[no-untyped-def]
+        if current_descriptor == descriptor:
+            raise OSError("artifact read failed")
+        return original_read(current_descriptor, count)
+
+    monkeypatch.setattr(screening.os, "read", fail_read)
+    asyncio.run(call_response(response, mode="read_error"))
+    assert owner.descriptor is None
+    with pytest.raises(OSError) as read_closed:
+        os.fstat(descriptor)
+    assert read_closed.value.errno == errno.EBADF
+
+    # Restore os.read before opening the cancellation case so the cleanup
+    # assertion exercises the normal read path.
+    monkeypatch.setattr(screening.os, "read", original_read)
+    descriptor, owner, response = build_response()
+    asyncio.run(call_response(response, mode="cancel"))
+    assert owner.descriptor is None
+    with pytest.raises(OSError) as cancelled_closed:
+        os.fstat(descriptor)
+    assert cancelled_closed.value.errno == errno.EBADF
