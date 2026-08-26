@@ -73,7 +73,7 @@ def _normal(value: Any) -> StageResult:
     if value is None:
         return StageResult()
     if isinstance(value, bool):
-        return StageResult(status="success" if value else "failed", failure_reason=None if value else "stage_failed")
+        return StageResult(status="success" if value else "failed", failure_reason=None if value else "stage_failed", value=value)
     if isinstance(value, Mapping):
         status = str(value.get("status", "success"))
         if status in {"성공", "success", "complete", "completed"}:
@@ -89,7 +89,7 @@ def _normal(value: Any) -> StageResult:
             run_id=value.get("run_id") or value.get("result_run_id"),
             screening_execution_id=value.get("screening_execution_id") or value.get("execution_id"),
             candidate_count=value.get("candidate_count"),
-            result_count=value.get("result_count") or value.get("completed_count"),
+            result_count=_first_not_none(value.get("result_count"), value.get("completed_count")),
             failure_count=value.get("failure_count"),
             failure_reason=value.get("failure_reason") or value.get("error") or value.get("error_code"),
             partial_artifact=bool(value.get("partial_artifact", status == "partial")),
@@ -101,12 +101,60 @@ def _normal(value: Any) -> StageResult:
         "run_id": getattr(value, "run_id", None) or getattr(value, "result_run_id", None),
         "screening_execution_id": getattr(value, "screening_execution_id", None),
         "candidate_count": getattr(value, "candidate_count", None),
-        "result_count": getattr(value, "result_count", None) or getattr(value, "completed_count", None),
+        "result_count": _first_not_none(getattr(value, "result_count", None), getattr(value, "completed_count", None)),
         "failure_count": getattr(value, "failure_count", None),
         "failure_reason": getattr(value, "failure_reason", None) or getattr(value, "error", None),
         "partial_artifact": getattr(value, "partial_artifact", False),
     })
     return StageResult(**{**mapped.__dict__, "value": value})
+
+
+def _first_not_none(*values: Any) -> Any:
+    """Coalesce counts without treating an explicit zero as missing."""
+
+    for value in values:
+        if value is not None:
+            return value
+    return None
+
+
+def _is_interrupted(result: StageResult) -> bool:
+    return result.status == "interrupted" or result.failure_reason in {
+        "interrupted",
+        "process_interrupted",
+        "user_requested",
+    }
+
+
+def _has_partial_progress(result: StageResult) -> bool:
+    """Whether a failed stage left an artifact or any counted work."""
+
+    return bool(
+        result.partial_artifact
+        or any(
+            value is not None and value > 0
+            for value in (
+                result.candidate_count,
+                result.result_count,
+                result.failure_count,
+            )
+        )
+    )
+
+
+def _precondition_failed(exc: BaseException) -> bool:
+    """Recognize a model precondition through one safe wrapper layer."""
+
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if isinstance(current, ScreeningCreationError) and getattr(current, "code", None) == "precondition_failed":
+            return True
+        if getattr(current, "code", None) == "precondition_failed":
+            return True
+        current = current.__cause__ or current.__context__
+    return False
 
 
 class ScheduledPipeline:
@@ -238,6 +286,9 @@ class ScheduledPipeline:
         try:
             return _normal(callback(**kwargs))
         except Exception as exc:
+            reason = getattr(exc, "failure_reason", None) or getattr(exc, "code", None)
+            if isinstance(exc, InterruptedError) or reason in {"interrupted", "process_interrupted", "user_requested"} or "interrupt" in type(exc).__name__.lower():
+                return StageResult(status="interrupted", failure_reason="interrupted", value=exc)
             return StageResult(status="failed", failure_reason=f"{stage}_failed", value=exc)
 
     def _model_identity(self, execution: ScheduleExecution) -> tuple[str, str] | None:
@@ -247,7 +298,7 @@ class ScheduledPipeline:
         if inspector is None:
             return None
         try:
-            identity = inspector.inspect_model()
+            identity = inspector.inspect_model(refresh=True)
         except Exception:
             return None
         model_name = getattr(identity, "model_name", None)
@@ -260,7 +311,7 @@ class ScheduledPipeline:
         expected_digest = execution.model_digest
         if not expected_name or not expected_digest:
             return None
-        if model_name != expected_name or digest != expected_digest:
+        if model_name != expected_name or model_name != self.settings.model_name or digest != expected_digest:
             return None
         return model_name, digest
 
@@ -272,6 +323,8 @@ class ScheduledPipeline:
         orchestrator = self.orchestrator
         if orchestrator is None:
             result = self._stage("judgment", execution=execution, run_id=run_id)
+            if result.status == "success" and result.value is None:
+                return StageResult(status="failed", failure_reason="judgment_incomplete")
             return result
         if not execution.policy_version:
             return StageResult(status="failed", failure_reason="policy_unavailable")
@@ -287,7 +340,9 @@ class ScheduledPipeline:
         except Exception as exc:
             # Model inspection/preflight failure is deliberately represented by
             # a stable safe category, not a model response or endpoint body.
-            return StageResult(status="failed", failure_reason="ollama_unavailable" if "model" in type(exc).__name__.lower() else "judgment_failed", value=exc)
+            precondition = _precondition_failed(exc)
+            model_failure = "model" in type(exc).__name__.lower()
+            return StageResult(status="failed", failure_reason="ollama_unavailable" if precondition or model_failure else "judgment_failed", value=exc)
         screening_id = getattr(created, "execution_id", None) or (created.get("execution_id") if isinstance(created, Mapping) else None)
         if not screening_id:
             return StageResult(status="failed", failure_reason="judgment_failed")
@@ -296,11 +351,15 @@ class ScheduledPipeline:
                 final = self.worker.run_until(screening_id)
             except Exception:
                 return StageResult(status="failed", screening_execution_id=screening_id, failure_reason="judgment_failed")
+            if final is None:
+                return StageResult(status="failed", screening_execution_id=screening_id, failure_reason="judgment_incomplete")
             result = _normal(final)
             if result.status == "interrupted" or result.failure_reason in {"judgment_interrupted", "process_interrupted", "user_requested"}:
-                return StageResult(status="interrupted", screening_execution_id=screening_id, failure_reason="judgment_interrupted", candidate_count=result.candidate_count, result_count=result.result_count, failure_count=result.failure_count)
+                return StageResult(status="interrupted", screening_execution_id=screening_id, failure_reason="judgment_interrupted", candidate_count=result.candidate_count, result_count=result.result_count, failure_count=result.failure_count, partial_artifact=result.partial_artifact)
             return StageResult(status=result.status, screening_execution_id=screening_id, candidate_count=result.candidate_count, result_count=result.result_count, failure_count=result.failure_count, failure_reason=result.failure_reason, partial_artifact=result.partial_artifact)
-        return StageResult(status="success", screening_execution_id=screening_id)
+        # Enqueueing a FIFO row is not completion.  Without a worker (or an
+        # explicit completion handoff) it is unsafe to merge/load as success.
+        return StageResult(status="failed", screening_execution_id=screening_id, failure_reason="judgment_incomplete")
 
     def run_daily(self, execution_id: str) -> ScheduledRunResult:
         started = self._start(execution_id)
@@ -312,26 +371,35 @@ class ScheduledPipeline:
         common = {"execution": started, "reservation": reservation, "run_key": started.run_key, "window_from": reservation.window_from, "window_to": reservation.window_to}
         collect = self._stage("collect", **common)
         run_id = collect.run_id or started.run_key
+        if _is_interrupted(collect):
+            return self._finish(execution_id, status="실패", failure_reason="collect_interrupted", run_id=run_id, partial_artifact=collect.partial_artifact)
         if collect.status == "failed":
             return self._finish(execution_id, status="실패", failure_reason="collect_failed", run_id=run_id, partial_artifact=collect.partial_artifact)
         sample = self._stage("sample", **{**common, "run_id": run_id, "collect": collect})
+        if _is_interrupted(sample):
+            return self._finish(execution_id, status="실패", failure_reason="sample_interrupted", run_id=run_id, partial_artifact=sample.partial_artifact or collect.partial_artifact)
         if sample.status == "failed":
             return self._finish(execution_id, status="실패", failure_reason="sample_failed", run_id=run_id, partial_artifact=sample.partial_artifact or collect.partial_artifact)
         judgment = self._judgment(started, run_id=run_id)
         screening_id = judgment.screening_execution_id
         if judgment.status == "interrupted":
-            return self._finish(execution_id, status="실패", failure_reason="judgment_interrupted", run_id=run_id, screening_execution_id=screening_id, candidate_count=judgment.candidate_count, result_count=judgment.result_count, failure_count=judgment.failure_count)
+            return self._finish(execution_id, status="실패", failure_reason="judgment_interrupted", run_id=run_id, screening_execution_id=screening_id, candidate_count=judgment.candidate_count, result_count=judgment.result_count, failure_count=judgment.failure_count, partial_artifact=judgment.partial_artifact)
         if judgment.status == "failed":
-            return self._finish(execution_id, status="실패", failure_reason=judgment.failure_reason or "judgment_failed", run_id=run_id, screening_execution_id=screening_id, candidate_count=judgment.candidate_count, result_count=judgment.result_count, failure_count=judgment.failure_count)
+            return self._finish(execution_id, status="실패", failure_reason=judgment.failure_reason or "judgment_failed", run_id=run_id, screening_execution_id=screening_id, candidate_count=judgment.candidate_count, result_count=judgment.result_count, failure_count=judgment.failure_count, partial_artifact=judgment.partial_artifact)
         merge = self._stage("merge_load", **{**common, "run_id": run_id, "judgment": judgment, "screening_execution_id": screening_id})
+        if _is_interrupted(merge):
+            partial = _has_partial_progress(merge) or _has_partial_progress(judgment)
+            return self._finish(execution_id, status="부분 성공" if partial else "실패", failure_reason="merge_load_interrupted", run_id=run_id, screening_execution_id=screening_id, candidate_count=_first_not_none(judgment.candidate_count, merge.candidate_count), result_count=_first_not_none(judgment.result_count, merge.result_count), failure_count=_first_not_none(judgment.failure_count, merge.failure_count), partial_artifact=partial)
         if merge.status == "failed":
-            partial = bool(merge.partial_artifact or (merge.result_count or 0) > 0)
-            return self._finish(execution_id, status="부분 성공" if partial else "실패", failure_reason="merge_load_failed", run_id=run_id, screening_execution_id=screening_id, candidate_count=merge.candidate_count or judgment.candidate_count, result_count=merge.result_count or judgment.result_count, failure_count=merge.failure_count, partial_artifact=partial)
+            partial = _has_partial_progress(merge) or _has_partial_progress(judgment)
+            return self._finish(execution_id, status="부분 성공" if partial else "실패", failure_reason="merge_load_failed", run_id=run_id, screening_execution_id=screening_id, candidate_count=_first_not_none(judgment.candidate_count, merge.candidate_count), result_count=_first_not_none(judgment.result_count, merge.result_count), failure_count=_first_not_none(judgment.failure_count, merge.failure_count), partial_artifact=partial)
         report = self._stage("report", **{**common, "run_id": run_id, "judgment": judgment, "merge": merge, "mode": "daily"})
+        if _is_interrupted(report):
+            return self._finish(execution_id, status="부분 성공", failure_reason="report_interrupted", run_id=run_id, screening_execution_id=screening_id, candidate_count=_first_not_none(judgment.candidate_count, merge.candidate_count), result_count=_first_not_none(judgment.result_count, merge.result_count), failure_count=_first_not_none(judgment.failure_count, merge.failure_count), partial_artifact=True)
         if report.status == "failed":
-            return self._finish(execution_id, status="부분 성공", failure_reason="report_failed", run_id=run_id, screening_execution_id=screening_id, candidate_count=merge.candidate_count or judgment.candidate_count, result_count=merge.result_count or judgment.result_count, failure_count=merge.failure_count or judgment.failure_count, partial_artifact=True)
+            return self._finish(execution_id, status="부분 성공", failure_reason="report_failed", run_id=run_id, screening_execution_id=screening_id, candidate_count=_first_not_none(judgment.candidate_count, merge.candidate_count), result_count=_first_not_none(judgment.result_count, merge.result_count), failure_count=_first_not_none(judgment.failure_count, merge.failure_count), partial_artifact=True)
         partial = bool(collect.partial_artifact or sample.partial_artifact or judgment.partial_artifact or merge.partial_artifact or report.partial_artifact or collect.status == "partial" or sample.status == "partial" or judgment.status == "partial" or merge.status == "partial" or report.status == "partial")
-        return self._finish(execution_id, status="부분 성공" if partial else "성공", run_id=run_id, screening_execution_id=screening_id, candidate_count=merge.candidate_count or judgment.candidate_count or sample.candidate_count or collect.candidate_count, result_count=merge.result_count or judgment.result_count, failure_count=merge.failure_count or judgment.failure_count, partial_artifact=partial)
+        return self._finish(execution_id, status="부분 성공" if partial else "성공", run_id=run_id, screening_execution_id=screening_id, candidate_count=_first_not_none(judgment.candidate_count, merge.candidate_count, sample.candidate_count, collect.candidate_count), result_count=_first_not_none(judgment.result_count, merge.result_count), failure_count=_first_not_none(judgment.failure_count, merge.failure_count), partial_artifact=partial)
 
     execute_daily = run_daily
 
@@ -342,12 +410,89 @@ class ScheduledPipeline:
         reservation = self._run(lambda s: s.get(ScheduleReservation, started.run_key))
         if reservation is None:
             return self._finish(execution_id, status="실패", failure_reason="reservation_missing")
-        completed_daily = self._run(lambda s: list(s.scalars(select(ScheduleExecution).join(ScheduleReservation, ScheduleExecution.run_key == ScheduleReservation.run_key).where(ScheduleReservation.job_kind == "daily", ScheduleReservation.window_from >= reservation.window_from, ScheduleReservation.window_to <= reservation.window_to, ScheduleExecution.status.in_(["성공", "부분 성공"])).order_by(ScheduleReservation.window_from.asc()))))
+        completed_daily = self._latest_completed_daily(reservation)
         report = self._stage("weekly_report", execution=started, reservation=reservation, daily_executions=completed_daily, mode="weekly")
+        if _is_interrupted(report):
+            partial = bool(completed_daily or report.partial_artifact)
+            return self._finish(
+                execution_id,
+                status="부분 성공" if partial else "실패",
+                failure_reason="weekly_report_interrupted",
+                result_count=report.result_count,
+                failure_count=report.failure_count,
+                partial_artifact=partial,
+            )
         if report.status == "failed":
-            return self._finish(execution_id, status="부분 성공" if completed_daily else "실패", failure_reason="weekly_report_failed", partial_artifact=bool(completed_daily and report.partial_artifact))
+            partial = bool(completed_daily or report.partial_artifact)
+            return self._finish(
+                execution_id,
+                status="부분 성공" if partial else "실패",
+                failure_reason="weekly_report_failed",
+                result_count=report.result_count,
+                failure_count=report.failure_count,
+                partial_artifact=partial,
+            )
         partial = bool(report.partial_artifact or report.status == "partial" or len(completed_daily) < 7)
         return self._finish(execution_id, status="부분 성공" if partial else "성공", result_count=report.result_count, failure_count=report.failure_count, partial_artifact=partial)
+
+    def _latest_completed_daily(self, weekly: ScheduleReservation) -> list[ScheduleExecution]:
+        """Select one valid completed daily execution per calendar date.
+
+        A recovery is a new execution for the same reservation.  Grouping by
+        ``window_from`` prevents the original partial result and its recovery
+        from being counted twice.  Failed/skip attempts are not valid weekly
+        inputs and therefore do not hide an earlier valid result for that
+        date.
+        """
+
+        def fn(session: Session) -> list[ScheduleExecution]:
+            rows = list(
+                session.scalars(
+                    select(ScheduleExecution)
+                    .join(ScheduleReservation, ScheduleExecution.run_key == ScheduleReservation.run_key)
+                    .where(
+                        ScheduleReservation.job_kind == "daily",
+                        ScheduleReservation.window_from >= weekly.window_from,
+                        ScheduleReservation.window_to <= weekly.window_to,
+                    )
+                )
+            )
+            by_run_key = {row.execution_id: row for row in rows}
+            by_day: dict[date, list[ScheduleExecution]] = {}
+            for row in rows:
+                reservation = session.get(ScheduleReservation, row.run_key)
+                if reservation is None:
+                    continue
+                by_day.setdefault(reservation.window_from, []).append(row)
+
+            def depth(row: ScheduleExecution) -> int:
+                value = 0
+                seen: set[str] = set()
+                current = row
+                while current.recovery_of_execution_id and current.recovery_of_execution_id not in seen:
+                    seen.add(current.recovery_of_execution_id)
+                    value += 1
+                    parent = by_run_key.get(current.recovery_of_execution_id)
+                    if parent is None:
+                        break
+                    current = parent
+                return value
+
+            selected: dict[date, ScheduleExecution] = {}
+            for day, candidates in by_day.items():
+                valid = [row for row in candidates if row.status in {"성공", "부분 성공"}]
+                if valid:
+                    selected[day] = max(
+                        valid,
+                        key=lambda row: (
+                            depth(row),
+                            row.finished_at or datetime.min.replace(tzinfo=timezone.utc),
+                            row.execution_id,
+                        ),
+                    )
+            return [selected[day] for day in sorted(selected)]
+
+        return self._run(fn)
 
     execute_weekly = run_weekly
 

@@ -116,6 +116,29 @@ def weekly_run_key(start: date, end: date) -> str:
     return f"weekly:{start:%Y%m%d}-{end:%Y%m%d}"
 
 
+def _validate_reservation_identity(
+    *, run_key: str, job_kind: str, window_from: date, window_to: date
+) -> None:
+    """Reject malformed or semantically mismatched public reservations."""
+
+    if not isinstance(run_key, str) or not run_key.strip():
+        raise ValueError("run_key is required")
+    if type(window_from) is not date or type(window_to) is not date:
+        raise ValueError("reservation window must contain dates")
+    if window_from > window_to:
+        raise ValueError("window_from must not be after window_to")
+    if job_kind == "daily":
+        if run_key != daily_run_key(window_from) or window_from != window_to:
+            raise ValueError("daily run_key/window mismatch")
+    elif job_kind == "weekly":
+        if window_from.weekday() != 0 or window_to != window_from + timedelta(days=6):
+            raise ValueError("weekly window must be Monday through Sunday")
+        if run_key != weekly_run_key(window_from, window_to):
+            raise ValueError("weekly run_key/window mismatch")
+    else:
+        raise ValueError("invalid job_kind")
+
+
 def previous_daily_target(now: datetime) -> date:
     return _local(now).date() - timedelta(days=1)
 
@@ -312,11 +335,17 @@ class SchedulerService:
         requested_by: str = "system:scheduler",
         recovery_of: str | None = None,
     ) -> ScheduleExecution | None:
-        if job_kind not in {"daily", "weekly"} or trigger not in {"schedule", "manual"}:
+        _validate_reservation_identity(
+            run_key=run_key,
+            job_kind=job_kind,
+            window_from=window_from,
+            window_to=window_to,
+        )
+        if trigger not in {"schedule", "manual"}:
             raise ValueError("invalid schedule request")
         if trigger == "schedule" and (not self.settings.scheduler_enabled or requested_by != "system:scheduler"):
             return None if not self.settings.scheduler_enabled else (_ for _ in ()).throw(ValueError("invalid scheduler actor"))
-        if not isinstance(requested_by, str) or not requested_by.strip() or window_from > window_to:
+        if not isinstance(requested_by, str) or not requested_by.strip():
             raise ValueError("invalid reservation")
 
         def fn(session: Session) -> ScheduleExecution:
@@ -341,7 +370,7 @@ class SchedulerService:
                 session.add(row)
                 session.flush()
                 return row
-            existing = session.scalar(select(ScheduleExecution).where(ScheduleExecution.run_key == run_key).order_by(ScheduleExecution.execution_id.asc()).limit(1))
+            existing = session.scalar(select(ScheduleExecution).where(ScheduleExecution.run_key == run_key, ScheduleExecution.duplicate_of_execution_id.is_(None)).order_by(ScheduleExecution.execution_id.asc()).limit(1))
             if existing is None:
                 raise ScheduleConflictError("reservation has no execution")
             row = ScheduleExecution(execution_id="sched-" + uuid4().hex, run_key=run_key, job_kind=job_kind, trigger=trigger, status="건너뜀", duplicate_of_execution_id=existing.execution_id, skip_reason="duplicate_reservation", requested_by=requested_by.strip())
@@ -358,7 +387,7 @@ class SchedulerService:
             # The PK winner is now visible to a fresh transaction.  Record the
             # loser as a skipped execution and do not update the winner.
             def loser(session: Session) -> ScheduleExecution:
-                existing = session.scalar(select(ScheduleExecution).where(ScheduleExecution.run_key == run_key).order_by(ScheduleExecution.execution_id.asc()).limit(1))
+                existing = session.scalar(select(ScheduleExecution).where(ScheduleExecution.run_key == run_key, ScheduleExecution.duplicate_of_execution_id.is_(None)).order_by(ScheduleExecution.execution_id.asc()).limit(1))
                 if existing is None:
                     raise ScheduleConflictError("reservation race unresolved")
                 row = ScheduleExecution(execution_id="sched-" + uuid4().hex, run_key=run_key, job_kind=job_kind, trigger=trigger, status="건너뜀", duplicate_of_execution_id=existing.execution_id, skip_reason="duplicate_reservation", requested_by=requested_by.strip())
@@ -433,7 +462,10 @@ class SchedulerService:
             self._reject_environment()
             raise EnvironmentDisabledError("environment_disabled")
 
+        was_enabled = False
+
         def fn(session: Session) -> EnableResult:
+            nonlocal was_enabled
             state = self._ensure_switch(session)
             if not enabled:
                 state.enabled = False
@@ -441,13 +473,27 @@ class SchedulerService:
                 state.updated_by = confirmed_by.strip()
                 self._audit(session, "schedule.always_on_disabled", "1", {"reason": "operator_disabled"})
                 return self._result(state)
+            was_enabled = bool(state.enabled)
             metadata, reason = self._approval(session)
             if metadata is None:
                 state.enabled = False
                 state.updated_at = self._now()
                 state.updated_by = "system:quality-gate"
                 self._audit(session, "schedule.always_on_enable_rejected", "1", {"reason": reason or "gate_mismatch"})
-                raise ScheduleGateError(reason or "gate_mismatch")
+                # Return a committed rejection projection.  Raising inside
+                # this transaction would roll back the required disable and
+                # its audit event.
+                return EnableResult(
+                    enabled=False,
+                    quality_gate_result_id=state.quality_gate_result_id,
+                    policy_version=state.policy_version,
+                    model_name=state.model_name,
+                    model_digest=state.model_digest,
+                    prompt_version=state.prompt_version,
+                    company_profile_version=state.company_profile_version,
+                    company_profile_digest=state.company_profile_digest,
+                    rejection_reason=reason or "gate_mismatch",
+                )
             for key, value in metadata.items():
                 setattr(state, key, value)
             state.enabled = True
@@ -457,8 +503,10 @@ class SchedulerService:
             return self._result(state)
 
         result = self._run(fn)
+        if enabled and result.rejection_reason:
+            raise ScheduleGateError(result.rejection_reason)
         self.reschedule()
-        if enabled:
+        if enabled and not was_enabled:
             self.catch_up(first_enable=True)
         return result
 
@@ -520,10 +568,15 @@ class SchedulerService:
             return None, "approval_metadata_mismatch"
         inspector = self.ollama or OllamaClient(settings=self.settings)
         try:
-            identity = inspector.inspect_model()
+            identity = inspector.inspect_model(refresh=True)
         except Exception:
             return None, "ollama_unavailable"
-        if identity.model_name != self.settings.model_name or identity.model_name != gate.model_name or identity.digest != gate.model_digest:
+        model_name = getattr(identity, "model_name", None)
+        model_digest = getattr(identity, "digest", None)
+        if isinstance(identity, dict):
+            model_name = identity.get("model_name") or identity.get("name")
+            model_digest = identity.get("digest") or identity.get("model_digest")
+        if model_name != self.settings.model_name or model_name != gate.model_name or model_digest != gate.model_digest:
             return None, "model_identity_mismatch"
         return {
             "quality_gate_result_id": evaluation.evaluation_id,
@@ -571,7 +624,7 @@ class SchedulerService:
                 if row is not None and row.status == "예약":
                     rows.append(row)
         else:
-            existing = self._run(lambda s: list(s.scalars(select(ScheduleReservation).where(ScheduleReservation.job_kind == "daily").order_by(ScheduleReservation.window_to.asc()))))
+            existing = self._run(lambda s: list(s.scalars(select(ScheduleReservation).where(ScheduleReservation.job_kind == "daily", ScheduleReservation.window_to <= yesterday).order_by(ScheduleReservation.window_to.asc()))))
             if existing:
                 day = max(x.window_to for x in existing) + timedelta(days=1)
                 while day <= yesterday:
@@ -592,6 +645,14 @@ class SchedulerService:
                 row = self.reserve_weekly(start, end)
                 if row is not None and row.status == "예약":
                     rows.append(row)
+        # Reservations are created before callbacks are invoked.  This makes
+        # a callback crash unable to create a second reservation on restart,
+        # while preserving an oldest-first execution order.
+        rows.sort(key=lambda row: (0 if row.job_kind == "daily" else 1, row.run_key))
+        for row in rows:
+            callback = self.on_daily if row.job_kind == "daily" else self.on_weekly
+            if callback is not None:
+                callback(row.execution_id)
         return rows
 
     def _switch_enabled(self) -> bool:
