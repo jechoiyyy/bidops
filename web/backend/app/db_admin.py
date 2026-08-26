@@ -26,6 +26,9 @@ from .db import ALEMBIC_HEAD, MIGRATION_COMMAND
 
 BACKEND = Path(__file__).resolve().parents[1]
 BASELINE_REVISION = "0001_existing_schema"
+KNOWN_MIGRATION_REVISIONS = frozenset(
+    {BASELINE_REVISION, "0002_screening_runtime", ALEMBIC_HEAD}
+)
 CORE_TABLES = ("run", "notice", "judgment", "review", "attachment")
 
 
@@ -183,7 +186,7 @@ def _counts(path: Path) -> dict[str, int]:
 
 def _validate_version(path: Path) -> str | None:
     revision = _revision(path)
-    if revision not in {None, BASELINE_REVISION, ALEMBIC_HEAD}:
+    if revision not in {None, *KNOWN_MIGRATION_REVISIONS}:
         raise DBAdminError(f"unknown database revision {revision!r}; no changes were made")
     return revision
 

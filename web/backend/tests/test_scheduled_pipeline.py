@@ -1,5 +1,6 @@
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+from threading import Barrier, Event, Lock, Thread
 
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
@@ -265,3 +266,127 @@ def test_weekly_report_interruption_never_flows_to_success(tmp_path: Path):
     result = pipeline.run_weekly("sched-" + "9" * 32)
     assert result.status == "부분 성공"
     assert result.failure_reason == "weekly_report_interrupted"
+
+
+def test_concurrent_daily_claim_runs_stages_once_on_file_sqlite(tmp_path: Path):
+    db = tmp_path / "concurrent.db"
+    engine = create_engine(f"sqlite:///{db}", future=True, connect_args={"timeout": 5})
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(bind=engine, expire_on_commit=False)
+    with Session(engine) as session:
+        session.add(Run(id="20260825-20260825", window_from=date(2026, 8, 25), window_to=date(2026, 8, 25), timezone="Asia/Seoul", status="active"))
+        session.commit()
+    settings = Settings(bidops_root=tmp_path, database_url=f"sqlite:///{db}", scheduler_enabled=False)
+    scheduler = SchedulerService(settings, session_factory=factory)
+    execution = scheduler.reserve_daily(date(2026, 8, 25), trigger="manual", requested_by="tester")
+    with Session(engine) as session:
+        row = session.get(ScheduleExecution, execution.execution_id)
+        row.model_name, row.model_digest = "qwen3.8:27b", "a" * 64
+        session.commit()
+
+    class BlockingStages(FakeStages):
+        def __init__(self):
+            self.calls = 0
+            self.lock = Lock()
+            self.claimed = Event()
+            self.release = Event()
+
+        def collect(self, **kwargs):
+            with self.lock:
+                self.calls += 1
+            self.claimed.set()
+            assert self.release.wait(5)
+            return super().collect(**kwargs)
+
+    stages = BlockingStages()
+    first = ScheduledPipeline(settings, session_factory=factory, pipeline=stages, ollama=FakeOllama())
+    second = ScheduledPipeline(settings, session_factory=factory, pipeline=stages, ollama=FakeOllama())
+    barrier = Barrier(2)
+    results = []
+
+    def invoke(pipeline):
+        barrier.wait()
+        results.append(pipeline.run_daily(execution.execution_id))
+
+    threads = [Thread(target=invoke, args=(pipeline,)) for pipeline in (first, second)]
+    for thread in threads:
+        thread.start()
+    assert stages.claimed.wait(5)
+    stages.release.set()
+    for thread in threads:
+        thread.join(10)
+    assert all(not thread.is_alive() for thread in threads)
+    assert stages.calls == 1
+    assert len(results) == 2
+    with Session(engine) as session:
+        assert session.get(ScheduleExecution, execution.execution_id).status == "성공"
+
+
+def test_failed_judgment_with_partial_artifact_finishes_partial_success(tmp_path: Path):
+    db = tmp_path / "judgment-partial-failed.db"
+    engine = create_engine(f"sqlite:///{db}", future=True)
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(bind=engine, expire_on_commit=False)
+    with Session(engine) as session:
+        session.add(Run(id="20260825-20260825", window_from=date(2026, 8, 25), window_to=date(2026, 8, 25), timezone="Asia/Seoul", status="active"))
+        session.commit()
+    settings = Settings(bidops_root=tmp_path, database_url=f"sqlite:///{db}", scheduler_enabled=False)
+    scheduler = SchedulerService(settings, session_factory=factory)
+    execution = scheduler.reserve_daily(date(2026, 8, 25), trigger="manual", requested_by="tester")
+    with Session(engine) as session:
+        row = session.get(ScheduleExecution, execution.execution_id)
+        row.model_name, row.model_digest = "qwen3.8:27b", "a" * 64
+        session.commit()
+    stages = ModeStages(judgment={"status": "실패", "failure_reason": "judgment_failed", "candidate_count": 3, "result_count": 1, "failure_count": 2, "partial_artifact": True})
+    result = ScheduledPipeline(settings, session_factory=factory, pipeline=stages, ollama=FakeOllama()).run_daily(execution.execution_id)
+    assert result.status == "부분 성공"
+    assert result.failure_reason == "judgment_failed"
+    assert (result.candidate_count, result.result_count, result.failure_count, result.partial_artifact) == (3, 1, 2, True)
+
+
+def test_zero_candidate_success_is_terminal_zero_result_failure(tmp_path: Path):
+    db = tmp_path / "zero-candidate.db"
+    engine = create_engine(f"sqlite:///{db}", future=True)
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(bind=engine, expire_on_commit=False)
+    with Session(engine) as session:
+        session.add(Run(id="20260825-20260825", window_from=date(2026, 8, 25), window_to=date(2026, 8, 25), timezone="Asia/Seoul", status="active"))
+        session.commit()
+    settings = Settings(bidops_root=tmp_path, database_url=f"sqlite:///{db}", scheduler_enabled=False)
+    scheduler = SchedulerService(settings, session_factory=factory)
+    execution = scheduler.reserve_daily(date(2026, 8, 25), trigger="manual", requested_by="tester")
+    with Session(engine) as session:
+        row = session.get(ScheduleExecution, execution.execution_id)
+        row.model_name, row.model_digest = "qwen3.8:27b", "a" * 64
+        session.commit()
+    stages = ModeStages(judgment={"status": "성공", "candidate_count": 0, "result_count": 0, "failure_count": 0})
+    result = ScheduledPipeline(settings, session_factory=factory, pipeline=stages, ollama=FakeOllama()).run_daily(execution.execution_id)
+    assert result.status == "실패"
+    assert result.failure_reason == "judgment_zero_result"
+    assert (result.candidate_count, result.result_count, result.failure_count) == (0, 0, 0)
+
+
+def test_model_inspection_creation_error_is_ollama_unavailable(tmp_path: Path):
+    db = tmp_path / "model-inspection-error.db"
+    engine = create_engine(f"sqlite:///{db}", future=True)
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(bind=engine, expire_on_commit=False)
+    with Session(engine) as session:
+        session.add(Run(id="20260825-20260825", window_from=date(2026, 8, 25), window_to=date(2026, 8, 25), timezone="Asia/Seoul", status="active"))
+        session.commit()
+    settings = Settings(bidops_root=tmp_path, database_url=f"sqlite:///{db}", scheduler_enabled=False)
+    scheduler = SchedulerService(settings, session_factory=factory)
+    execution = scheduler.reserve_daily(date(2026, 8, 25), trigger="manual", requested_by="tester")
+    with Session(engine) as session:
+        row = session.get(ScheduleExecution, execution.execution_id)
+        row.model_name, row.model_digest, row.policy_version = "qwen3.8:27b", "a" * 64, "policy-v1"
+        session.commit()
+
+    class ModelInspectionOrchestrator:
+        def create_execution(self, **kwargs):
+            raise ScreeningCreationError("model_inspection")
+
+    result = ScheduledPipeline(settings, session_factory=factory, pipeline=ModeStages(), orchestrator=ModelInspectionOrchestrator(), ollama=FakeOllama()).run_daily(execution.execution_id)
+    assert result.failure_reason == "ollama_unavailable"
+    with Session(engine) as session:
+        assert session.scalar(select(ScreeningExecution)) is None

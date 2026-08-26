@@ -7,6 +7,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 
 BACKEND = Path(__file__).resolve().parents[1]
 
@@ -36,9 +38,61 @@ def test_empty_database_upgrade_creates_runtime_tables(tmp_path: Path) -> None:
         }
         assert "alembic_version" in tables
         assert "screening_execution" in tables
-        assert connection.execute("select version_num from alembic_version").fetchone()[0] == "0002_screening_runtime"
+        assert connection.execute("select version_num from alembic_version").fetchone()[0] == "0003_schedule_skipped_recovery"
     check = run_alembic(database, "check")
     assert check.returncode == 0, check.stderr + check.stdout
+
+
+def test_skipped_recovery_trigger_upgrades_from_0002_and_downgrades(tmp_path: Path) -> None:
+    database = tmp_path / "schedule-recovery.db"
+
+    def add_skipped_execution(connection: sqlite3.Connection, number: int) -> tuple[str, str]:
+        day = f"202608{number:02d}"
+        run_key = f"{day}-{day}"
+        target_id = "sched-" + f"{number:032x}"
+        connection.execute(
+            "insert into schedule_reservation(run_key, job_kind, window_from, window_to, timezone, created_at) "
+            "values (?, 'daily', ?, ?, 'Asia/Seoul', ?)",
+            (run_key, f"2026-08-{number:02d}", f"2026-08-{number:02d}", "2026-08-26T00:00:00+00:00"),
+        )
+        connection.execute(
+            "insert into schedule_execution(execution_id, run_key, job_kind, trigger, status, skip_reason, requested_by) "
+            "values (?, ?, 'daily', 'schedule', '건너뜀', 'duplicate reservation', 'system:scheduler')",
+            (target_id, run_key),
+        )
+        return run_key, target_id
+
+    def add_recovery(connection: sqlite3.Connection, run_key: str, target_id: str, number: int) -> None:
+        connection.execute(
+            "insert into schedule_execution(execution_id, run_key, job_kind, trigger, status, recovery_of_execution_id, requested_by) "
+            "values (?, ?, 'daily', 'manual', '예약', ?, 'operator:test')",
+            ("sched-" + f"{number:032x}", run_key, target_id),
+        )
+
+    assert run_alembic(database, "upgrade", "0002_screening_runtime").returncode == 0
+    with sqlite3.connect(database) as connection:
+        run_key, target_id = add_skipped_execution(connection, 1)
+        with pytest.raises(sqlite3.IntegrityError):
+            add_recovery(connection, run_key, target_id, 2)
+        connection.commit()
+
+    # An already deployed 0002 database receives the new trigger semantics.
+    upgraded = run_alembic(database, "upgrade", "head")
+    assert upgraded.returncode == 0, upgraded.stderr
+    with sqlite3.connect(database) as connection:
+        run_key, target_id = add_skipped_execution(connection, 3)
+        add_recovery(connection, run_key, target_id, 4)
+        connection.commit()
+        assert connection.execute("select version_num from alembic_version").fetchone()[0] == "0003_schedule_skipped_recovery"
+
+    downgraded = run_alembic(database, "downgrade", "0002_screening_runtime")
+    assert downgraded.returncode == 0, downgraded.stderr
+    with sqlite3.connect(database) as connection:
+        run_key, target_id = add_skipped_execution(connection, 5)
+        with pytest.raises(sqlite3.IntegrityError):
+            add_recovery(connection, run_key, target_id, 6)
+        connection.rollback()
+        assert connection.execute("select version_num from alembic_version").fetchone()[0] == "0002_screening_runtime"
 
 
 def test_startup_does_not_upgrade_a_behind_database(tmp_path: Path) -> None:
@@ -247,7 +301,7 @@ def test_unversioned_exact_baseline_migrates_a_backup_copy_and_preserves_core_ro
     result = subprocess.run([sys.executable, "-m", "app.db_admin", "migrate", "--backup-manifest", str(backup) + ".manifest.json", "--confirm-service-stopped"], cwd=BACKEND, env=env, text=True, capture_output=True)
     assert result.returncode == 0, result.stderr
     with sqlite3.connect(database) as connection:
-        assert connection.execute("select version_num from alembic_version").fetchone()[0] == "0002_screening_runtime"
+        assert connection.execute("select version_num from alembic_version").fetchone()[0] == "0003_schedule_skipped_recovery"
         assert [connection.execute(f"select count(*) from {table}").fetchone()[0] for table in ("run", "notice", "judgment", "review", "attachment")] == [1, 1, 1, 1, 1]
         assert connection.execute("pragma foreign_key_check").fetchall() == []
         assert connection.execute("pragma quick_check").fetchone()[0] == "ok"
