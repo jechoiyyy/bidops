@@ -115,11 +115,9 @@ host의 `BIDOPS_ROOT`, `BIDOPS_DATA_DIR`, `BIDOPS_ATTACHMENTS_DIR`, `BIDOPS_DATA
 
 SQLite가 corrupt하거나 migration 검증이 실패하면 서비스를 계속 올리거나 자동 rollback하지 않는다. `db-backup`의 backup과 manifest를 보존하고 별도 경로에서 restore를 검증한 뒤, 운영자가 backup replacement 여부를 결정한다. restore는 수동 파일 교체 결정이며 애플리케이션·container·migration이 자동 실행하지 않는다. 결정 후에도 서비스 중지→교체→`db-verify`→web health 순서를 다시 따른다. `docker compose down -v`로 복구하지 않는다.
 
-## 현재 Git baseline과 모델 안전성
+## 모델·baseline 안전성
 
-profile `git:<40hex>`는 승인된 commit `ee621835db934ddac944f7a07a986ed0b73ecc7a`의 canonical path만 허용한다. Git이 사용 가능하면 blob bytes를 읽고 vendored baseline과 일치하는지 확인하고, Git executable/repository가 없을 때만 `web/backend/app/screening/baseline_company_profile.md`를 fallback으로 사용한다. fallback 허용 digest는 `a231ab54c36031a7e72779bbca550f70561dc0c946dc5544eeb930c7c6149de2`다. mismatch는 실패다. container Git wrapper는 이 정확한 baseline show 요청만 vendored bytes로 응답한다.
-
-모델은 exact `qwen3.8:27b`, `think=false`, `stream=false`다. endpoint unavailable/model identity mismatch는 실패이며 OpenAI fallback/BF16 fallback이 없다. 모델 출력과 profile/prompt 원문을 로그·오류·audit에 넣지 않는다.
+모델은 exact `qwen3.8:27b`, `think=false`, `stream=false`다. endpoint unavailable/model identity mismatch는 실패이며 OpenAI fallback/BF16 fallback이 없다. `profile git:<40hex>`의 승인 commit·vendored baseline·Git 부재 시 허용 digest fallback 규칙은 [아키텍처](./architecture.md)의 단일 정본을 따른다. 모델 출력과 profile/prompt 원문을 로그·오류·audit에 넣지 않는다.
 
 ## Docker 빌드·visual 확인
 
@@ -132,7 +130,7 @@ docker compose build
 visual 테스트는 host `cd web/frontend && npm run test:visual`의 webServer(빌드 후 preview, port 4173) 계약이다. 테스트는 Google Fonts 요청을 차단하고 컨테이너에 설치된 `WenQuanYi Zen Hei`·`Liberation Mono` local fonts로 CSS 변수를 덮어써 remote font 상태에 따른 snapshot 변동을 막는다. host에 `libnspr4/libnss3`가 없어 browser launch가 막히면 project root에서 다음처럼 동일 테스트를 Playwright image로 실행한다.
 
 ```bash
-docker run --rm --ipc=host --user 1000:1000 \
+docker run --rm --network host --ipc=host --user 1000:1000 \
   -e PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
   -v "$PWD:/work" \
   -v "$PWD/web/frontend/node_modules:/work/web/frontend/node_modules" \
@@ -140,7 +138,7 @@ docker run --rm --ipc=host --user 1000:1000 \
   mcr.microsoft.com/playwright:v1.62.1-noble npm run test:visual
 ```
 
-이 실행의 preview bind 주소는 `127.0.0.1:4173`이다. fresh Docker 실행 두 번에서 각각 98 passed, 10 intentional skipped가 관찰되었다. 10 skip은 draft spec의 mobile/tablet 너비 조건에 따른 의도된 skip이다. host 직접 launch 제한은 환경에 설치된 browser system libraries 문제일 뿐 제품 코드의 결과로 해석하지 않는다. 시각 evidence는 [tracking/status](./tracking/status.md)에 실제 실행 결과만 기록한다.
+기본 bridge 네트워크에서는 Vite preview의 localhost/`::1` bind와 readiness 확인 주소가 분리되어 timeout이 날 수 있다. 이 환경에서는 `--network host`를 포함해야 preview의 `127.0.0.1:4173` readiness가 맞는다. 위 exact image·mount·UID/GID·IPC 명령으로 fresh Docker 실행 두 번에서 각각 98 passed, 10 intentional skipped가 관찰되었다. 10 skip은 draft spec의 mobile/tablet 너비 조건에 따른 의도된 skip이다. host 직접 launch 제한은 환경에 `libnspr4/libnss3`가 없는 browser system libraries 문제일 뿐 제품 코드의 결과로 해석하지 않는다. 시각 evidence는 [tracking/status](./tracking/status.md)에 실제 실행 결과만 기록한다.
 
 ## 장애 시 확인
 
