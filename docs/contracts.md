@@ -11,9 +11,11 @@
 조회는 허용하지만 mutation은 claimed-name boundary와 idempotency/request fence를 통과해야 한다. 이름 입력은 인증/권한 부여가 아니다.
 
 `X-BidOps-Actor-Name`의 printable ASCII 값은 wire value를 그대로 사용한다. 표준 라이브러리 기반
-인수 CLI는 비ASCII 이름만 `UTF-8''` 뒤에 canonical UTF-8 percent encoding을 붙여 보내며, 서버는
-그 형식의 비ASCII 값만 복원한다. prefix처럼 보이는 기존 ASCII 이름은 변경하지 않고 malformed 또는
-제어문자로 복원되는 encoding은 `actor_name_invalid`로 거부한다.
+인수 CLI는 비ASCII 이름만 `UTF-8''` 뒤에 canonical UTF-8 percent encoding을 붙이고
+`X-BidOps-Actor-Name-Format: utf-8-percent-v1`을 함께 보낸다. 서버는 이 명시적 형식 헤더가 있을
+때만 비ASCII 값을 복원한다. 형식 헤더가 없으면 prefix나 percent 문자열처럼 보이는 기존 ASCII 이름도
+변경하지 않으며, unknown format과 malformed·ASCII-only·제어문자 encoding은 `actor_name_invalid`로
+거부한다.
 
 ## Lean API 경로
 

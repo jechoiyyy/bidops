@@ -28,6 +28,7 @@ MEDIA_TYPES = {
     ".pdf": "application/pdf",
 }
 UTF8_ACTOR_PREFIX = "UTF-8''"
+UTF8_ACTOR_FORMAT = "utf-8-percent-v1"
 
 
 def actor_header_value(actor: str) -> str:
@@ -38,6 +39,16 @@ def actor_header_value(actor: str) -> str:
     except UnicodeEncodeError:
         return UTF8_ACTOR_PREFIX + quote_from_bytes(actor.encode("utf-8"), safe="")
     return actor
+
+
+def actor_headers(actor: str) -> dict[str, str]:
+    """Return the claimed name and an explicit format marker when encoded."""
+
+    value = actor_header_value(actor)
+    headers = {"X-BidOps-Actor-Name": value}
+    if value != actor:
+        headers["X-BidOps-Actor-Name-Format"] = UTF8_ACTOR_FORMAT
+    return headers
 
 
 class BcE2EError(RuntimeError):
@@ -210,7 +221,7 @@ class JsonAcceptanceApi:
         if body is not None:
             headers["Content-Type"] = "application/json"
         if actor is not None:
-            headers["X-BidOps-Actor-Name"] = actor_header_value(actor)
+            headers.update(actor_headers(actor))
         raw = self._send(Request(f"{self.api_base}{path}", data=body, headers=headers, method=method), retryable=retryable)
         try:
             result = json.loads(raw.decode("utf-8"))
@@ -246,7 +257,7 @@ class JsonAcceptanceApi:
             headers={
                 "Accept": "application/json",
                 "Content-Type": f"multipart/form-data; boundary={boundary}",
-                "X-BidOps-Actor-Name": actor_header_value(actor),
+                **actor_headers(actor),
             },
             method="POST",
         )

@@ -63,6 +63,7 @@ API_ERROR_CODES = {
     "version_conflict", "idempotency_conflict", "service_unavailable", "processing_failed",
 }
 UTF8_ACTOR_PREFIX = "UTF-8''"
+UTF8_ACTOR_FORMAT = "utf-8-percent-v1"
 
 _UNSAFE_ASSET_CODES = {
     "unsafe_document", "malware_detected", "mime_mismatch", "malformed_pdf",
@@ -231,31 +232,31 @@ def _legacy_scope_matches(
 
 def _decode_actor_header(actor: str) -> str:
     if not actor.startswith(UTF8_ACTOR_PREFIX):
-        return actor
+        raise BundleServiceError("actor_name_invalid", "담당자 이름이 올바르지 않습니다", status_code=400)
     encoded = actor[len(UTF8_ACTOR_PREFIX):]
     try:
         if not encoded:
             raise ValueError("empty encoded actor")
-        # The acceptance client only uses this envelope for non-ASCII names.
-        # Preserve pre-existing printable ASCII names that happen to begin with
-        # the reserved-looking prefix instead of silently changing identity.
-        if "%" not in encoded:
-            return actor
         raw = unquote_to_bytes(encoded)
         if quote_from_bytes(raw, safe="") != encoded:
             raise ValueError("non-canonical actor encoding")
         decoded = raw.decode("utf-8")
-        if decoded.isascii() and _CONTROL.search(decoded) is None:
-            return actor
+        if decoded.isascii():
+            raise ValueError("encoded actor must contain non-ASCII text")
         return decoded
     except (UnicodeDecodeError, ValueError) as error:
         raise BundleServiceError("actor_name_invalid", "담당자 이름이 올바르지 않습니다", status_code=400) from error
 
 
-def validate_actor(actor: str | None) -> str:
+def validate_actor(actor: str | None, actor_format: str | None = None) -> str:
     if actor is None or not actor.strip():
         raise BundleServiceError("actor_name_required", "X-BidOps-Actor-Name이 필요합니다", status_code=400)
-    value = _decode_actor_header(actor).strip()
+    if actor_format is None:
+        value = actor.strip()
+    elif actor_format == UTF8_ACTOR_FORMAT:
+        value = _decode_actor_header(actor).strip()
+    else:
+        raise BundleServiceError("actor_name_invalid", "담당자 이름이 올바르지 않습니다", status_code=400)
     if not value or len(value) > MAX_ACTOR_NAME or _CONTROL.search(value) or value.casefold() == "system":
         raise BundleServiceError("actor_name_invalid", "담당자 이름이 올바르지 않습니다", status_code=400)
     return value

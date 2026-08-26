@@ -89,11 +89,11 @@ router = APIRouter(prefix="/api", tags=["deep-reviews"])
 service = DeepReviewService()
 
 
-def _actor_ref(actor: str | None) -> AgentActorRef:
+def _actor_ref(actor: str | None, actor_format: str | None = None) -> AgentActorRef:
     """Build the strict human actor after preserving the legacy validation."""
 
     try:
-        claimed_name = validate_actor(actor)
+        claimed_name = validate_actor(actor, actor_format)
         return AgentActorRef(actor_kind=AgentActorKind.human, claimed_name=claimed_name)
     except BundleServiceError as error:
         raise DeepReviewServiceError(error.code, error.message, status_code=error.status_code) from error
@@ -173,6 +173,7 @@ def create_deep_review(
     notice_id: int,
     payload: DeepReviewCreateRequest,
     actor: Annotated[str | None, Header(alias="X-BidOps-Actor-Name")] = None,
+    actor_format: Annotated[str | None, Header(alias="X-BidOps-Actor-Name-Format")] = None,
     session: Session = Depends(get_db),
 ) -> dict[str, object] | JSONResponse:
     try:
@@ -184,7 +185,7 @@ def create_deep_review(
                 aggregate_type=AgentAggregateType.notice,
                 aggregate_id=str(notice_id),
             ),
-            actor=_actor_ref(actor),
+            actor=_actor_ref(actor, actor_format),
             request_id=payload.request_id,
             correlation_id=None,
             expected_version=None,
@@ -215,6 +216,7 @@ def create_deep_review_attempt(
     deep_review_id: UUID,
     payload: DeepReviewAttemptRequest,
     actor: Annotated[str | None, Header(alias="X-BidOps-Actor-Name")] = None,
+    actor_format: Annotated[str | None, Header(alias="X-BidOps-Actor-Name-Format")] = None,
     session: Session = Depends(get_db),
 ) -> dict[str, object] | JSONResponse:
     try:
@@ -226,7 +228,7 @@ def create_deep_review_attempt(
                 aggregate_type=AgentAggregateType.deep_review,
                 aggregate_id=str(deep_review_id),
             ),
-            actor=_actor_ref(actor),
+            actor=_actor_ref(actor, actor_format),
             request_id=payload.request_id,
             correlation_id=None,
             expected_version=None,
