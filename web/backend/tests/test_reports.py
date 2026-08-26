@@ -347,6 +347,45 @@ def test_validation_failed_label_ack_history_and_final_opinion(report_context):
         assert "실패를 확인" not in str(final_audit.safe_metadata) and "reason" not in str(final_audit.safe_metadata).lower()
 
 
+def test_report_revision_and_opinion_audits_inherit_deep_review_lineage(report_context):
+    correlation = UUID("99999999-9999-9999-9999-999999999999")
+    with Session(report_context["engine"]) as session:
+        session.add(AuditEvent(
+            actor_kind="human", claimed_name="담당자", action="deep_review.create",
+            aggregate_type="deep_review", aggregate_id=str(report_context["review_id"]),
+            safe_metadata={"correlation_id": str(correlation)},
+            created_at=datetime.now(UTC) - timedelta(minutes=1),
+        ))
+        session.commit()
+
+    view = materialize(report_context)
+    with Session(report_context["engine"]) as session:
+        machine_audit = session.scalar(select(AuditEvent).where(AuditEvent.action == "deep_review.report.machine_materialized"))
+        assert machine_audit is not None
+        assert machine_audit.safe_metadata["correlation_id"] == str(correlation)
+
+    request = revision_request(view, report_context["evidence_id"], request_id=uuid4(), reason="사람이 전체 snapshot을 보완했습니다")
+    with Session(report_context["engine"]) as session:
+        revised = ReportService().create_revision(session, report_context["review_id"], "담당자", request)
+        opinion_request = FinalOpinionRequest.model_validate({
+            "request_id": str(uuid4()),
+            "report_revision_id": revised["current_revision_id"],
+            "validation_run_id": revised["validation"]["validation_run_id"],
+            "value": "보류",
+            "reason": "사람이 최종 확인했습니다",
+            "acknowledged_validation_failure": False,
+        })
+        ReportService().create_final_opinion(session, report_context["review_id"], "담당자", opinion_request)
+        revision_audit = session.scalar(select(AuditEvent).where(AuditEvent.action == "deep_review.report_revision.created"))
+        opinion_audit = session.scalar(select(AuditEvent).where(AuditEvent.action == "deep_review.final_opinion.created"))
+        assert revision_audit is not None and revision_audit.safe_metadata["correlation_id"] == str(correlation)
+        assert opinion_audit is not None and opinion_audit.safe_metadata["correlation_id"] == str(correlation)
+        for audit in (revision_audit, opinion_audit):
+            assert "사람이" not in str(audit.safe_metadata)
+            assert "reason" not in str(audit.safe_metadata).lower()
+            assert "quote" not in str(audit.safe_metadata).lower()
+
+
 def test_evidence_union_locator_confidence_and_safety(report_context):
     assert _safe_locator("profile_fact", {"fact_key": "fixture.fact"}) == {"fact_key": "fixture.fact"}
     for locator in ({"fact_key": "fixture.fact", "extra": "no"}, {"fact_key": ""}, {"fact_key": 1}, {"page": 0}):

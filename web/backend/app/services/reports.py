@@ -367,6 +367,7 @@ class ReportService:
             session.add(opinion)
             session.flush()
             response = self._opinion_view(opinion)
+            correlation_id = self._review_correlation_id(session, review.id)
             session.add(AuditEvent(
                 actor_kind="human", claimed_name=claimed_name,
                 action="deep_review.final_opinion.created",
@@ -377,6 +378,7 @@ class ReportService:
                     "report_revision_id": str(revision.id), "validation_run_id": str(validation.id),
                     "sequence": opinion.sequence, "validation_status": validation.status,
                     "status": "succeeded",
+                    **({"correlation_id": str(correlation_id)} if correlation_id is not None else {}),
                 },
             ))
             session.add(IdempotencyRecord(
@@ -794,6 +796,37 @@ class ReportService:
             for row in rows
         )
 
+    @staticmethod
+    def _review_correlation_id(session: Session, review_id: UUID) -> UUID | None:
+        """Read immutable review lineage without backfilling legacy audits."""
+
+        rows = session.scalars(
+            select(AuditEvent)
+            .where(
+                AuditEvent.action == "deep_review.create",
+                AuditEvent.aggregate_type == "deep_review",
+                AuditEvent.aggregate_id == str(review_id),
+            )
+            .order_by(AuditEvent.created_at.asc(), AuditEvent.id.asc())
+            .limit(2)
+        ).all()
+        if len(rows) > 1:
+            raise _error("processing_failed", "deep review 계보를 확인할 수 없습니다", status_code=500)
+        if not rows:
+            return None
+        if not isinstance(rows[0].safe_metadata, Mapping):
+            raise _error("processing_failed", "deep review 계보를 확인할 수 없습니다", status_code=500)
+        metadata = rows[0].safe_metadata
+        if "correlation_id" not in metadata:
+            return None
+        value = metadata.get("correlation_id")
+        if value is None:
+            raise _error("processing_failed", "deep review 계보를 확인할 수 없습니다", status_code=500)
+        try:
+            return value if isinstance(value, UUID) else UUID(str(value))
+        except (TypeError, ValueError, AttributeError) as exc:
+            raise _error("processing_failed", "deep review 계보를 확인할 수 없습니다", status_code=500) from exc
+
     def _add_machine_audit_if_missing(self, session: Session, claim: JobClaim, review: DeepReview, revision: ReportRevision, validation: ValidationRun) -> None:
         if self._audit_exists(
             session,
@@ -803,6 +836,7 @@ class ReportService:
             metadata_value=str(revision.id),
         ):
             return
+        correlation_id = self._review_correlation_id(session, review.id)
         session.add(AuditEvent(
             actor_kind="system", claimed_name=None,
             action="deep_review.report.machine_materialized",
@@ -814,6 +848,7 @@ class ReportService:
                 "report_sha256": revision.report_sha256,
                 "validation_run_id": str(validation.id), "validation_status": validation.status,
                 "status": "succeeded",
+                **({"correlation_id": str(correlation_id)} if correlation_id is not None else {}),
             },
         ))
 
@@ -826,6 +861,7 @@ class ReportService:
             metadata_value=str(revision.id),
         ):
             return
+        correlation_id = self._review_correlation_id(session, review.id)
         session.add(AuditEvent(
             actor_kind="human", claimed_name=claimed_name,
             action="deep_review.report_revision.created",
@@ -836,6 +872,7 @@ class ReportService:
                 "sequence": int(revision.sequence), "report_sha256": revision.report_sha256,
                 "validation_run_id": str(validation.id), "validation_status": validation.status,
                 "status": "succeeded",
+                **({"correlation_id": str(correlation_id)} if correlation_id is not None else {}),
             },
         ))
 
