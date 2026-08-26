@@ -817,6 +817,109 @@ def test_duplicate_request_and_active_setting_change_keep_started_inputs(engine,
         assert row.policy_version_id == policy_id
 
 
+def test_deep_review_audit_lineage_is_inherited_by_retry(engine, monkeypatch):
+    notice_id, bundle_id, _profile_id, _policy_id = _seed_review_context(engine, monkeypatch)
+    correlation = UUID("33333333-3333-3333-3333-333333333333")
+    service = DeepReviewService(structure_loader=_fixture_structure)
+    with Session(engine) as session:
+        session.add(AuditEvent(
+            actor_kind="human", claimed_name="담당자", action="document_bundle.create",
+            aggregate_type="document_bundle", aggregate_id=str(bundle_id),
+            safe_metadata={"correlation_id": str(correlation)},
+        ))
+        session.commit()
+        created = service.create_review(session, notice_id, bundle_id, "담당자", uuid4())
+        review_id = UUID(created["id"])
+        creation = session.scalar(select(AuditEvent).where(
+            AuditEvent.action == "deep_review.create", AuditEvent.aggregate_id == str(review_id),
+        ))
+        assert creation is not None
+        assert creation.safe_metadata["correlation_id"] == str(correlation)
+
+        review = session.get(DeepReview, review_id)
+        assert review is not None and review.current_attempt_id is not None
+        attempt = session.get(DeepReviewAttempt, review.current_attempt_id)
+        assert attempt is not None
+        job = session.get(WorkJob, attempt.work_job_id)
+        assert job is not None
+        attempt.status = "failed"
+        review.status = "failed"
+        job.status = "failed"
+        session.commit()
+
+        retried = service.create_attempt(session, review_id, "담당자", uuid4())
+        assert retried["sequence"] == 2
+        retry_audit = session.scalar(select(AuditEvent).where(
+            AuditEvent.action == "deep_review.attempt",
+            AuditEvent.aggregate_id == str(review_id),
+            AuditEvent.safe_metadata["attempt_id"].as_string() == retried["id"],
+        ))
+        assert retry_audit is not None
+        assert retry_audit.safe_metadata["correlation_id"] == str(correlation)
+
+
+def test_legacy_bundle_lineage_remains_absent_without_backfill(engine, monkeypatch):
+    notice_id, bundle_id, _profile_id, _policy_id = _seed_review_context(engine, monkeypatch)
+    service = DeepReviewService(structure_loader=_fixture_structure)
+    with Session(engine) as session:
+        session.add(AuditEvent(
+            actor_kind="human", claimed_name="담당자", action="document_bundle.create",
+            aggregate_type="document_bundle", aggregate_id=str(bundle_id), safe_metadata={},
+        ))
+        session.commit()
+        created = service.create_review(session, notice_id, bundle_id, "담당자", uuid4())
+        creation = session.scalar(select(AuditEvent).where(
+            AuditEvent.action == "deep_review.create", AuditEvent.aggregate_id == created["id"],
+        ))
+        assert creation is not None and "correlation_id" not in creation.safe_metadata
+
+
+def test_invalid_bundle_lineage_fails_closed(engine, monkeypatch):
+    notice_id, bundle_id, _profile_id, _policy_id = _seed_review_context(engine, monkeypatch)
+    service = DeepReviewService(structure_loader=_fixture_structure)
+    with Session(engine) as session:
+        session.add(AuditEvent(
+            actor_kind="human", claimed_name="담당자", action="document_bundle.create",
+            aggregate_type="document_bundle", aggregate_id=str(bundle_id),
+            safe_metadata={"correlation_id": None},
+        ))
+        session.commit()
+        with pytest.raises(DeepReviewServiceError) as error:
+            service.create_review(session, notice_id, bundle_id, "담당자", uuid4())
+        assert error.value.code == "processing_failed"
+
+
+def test_retry_rejects_review_and_bundle_lineage_mismatch(engine, monkeypatch):
+    notice_id, bundle_id, _profile_id, _policy_id = _seed_review_context(engine, monkeypatch)
+    service = DeepReviewService(structure_loader=_fixture_structure)
+    with Session(engine) as session:
+        session.add(AuditEvent(
+            actor_kind="human", claimed_name="담당자", action="document_bundle.create",
+            aggregate_type="document_bundle", aggregate_id=str(bundle_id),
+            safe_metadata={"correlation_id": str(uuid4())},
+        ))
+        session.commit()
+        created = service.create_review(session, notice_id, bundle_id, "담당자", uuid4())
+        review = session.get(DeepReview, UUID(created["id"]))
+        assert review is not None and review.current_attempt_id is not None
+        attempt = session.get(DeepReviewAttempt, review.current_attempt_id)
+        job = session.get(WorkJob, attempt.work_job_id) if attempt is not None else None
+        assert attempt is not None and job is not None
+        attempt.status = "failed"
+        review.status = "failed"
+        job.status = "failed"
+        creation = session.scalar(select(AuditEvent).where(
+            AuditEvent.action == "deep_review.create", AuditEvent.aggregate_id == str(review.id),
+        ))
+        assert creation is not None
+        creation.safe_metadata = {"correlation_id": str(uuid4())}
+        session.commit()
+
+        with pytest.raises(DeepReviewServiceError) as error:
+            service.create_attempt(session, review.id, "담당자", uuid4())
+        assert error.value.code == "processing_failed"
+
+
 def test_failed_attempt_can_create_a_new_fenced_attempt(engine, monkeypatch):
     notice_id, bundle_id, _profile_id, _policy_id = _seed_review_context(engine, monkeypatch)
     service = DeepReviewService(structure_loader=_fixture_structure)

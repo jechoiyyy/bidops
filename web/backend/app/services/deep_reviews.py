@@ -240,6 +240,41 @@ def _policy_payload(policy: AnalysisPolicyVersion) -> dict[str, Any]:
     }
 
 
+def _audit_correlation_id(
+    session: Session,
+    *,
+    action: str,
+    aggregate_type: str,
+    aggregate_id: str,
+) -> UUID | None:
+    """Read one immutable lineage value without backfilling legacy audits."""
+
+    rows = session.scalars(
+        select(AuditEvent)
+        .where(
+            AuditEvent.action == action,
+            AuditEvent.aggregate_type == aggregate_type,
+            AuditEvent.aggregate_id == aggregate_id,
+        )
+        .order_by(AuditEvent.created_at.asc(), AuditEvent.id.asc())
+        .limit(2)
+    ).all()
+    if len(rows) > 1:
+        raise DeepReviewServiceError("processing_failed", "deep review 계보를 확인할 수 없습니다", status_code=500)
+    if not rows:
+        return None
+    metadata = rows[0].safe_metadata if isinstance(rows[0].safe_metadata, Mapping) else {}
+    if "correlation_id" not in metadata:
+        return None
+    value = metadata.get("correlation_id")
+    if value is None:
+        raise DeepReviewServiceError("processing_failed", "deep review 계보를 확인할 수 없습니다", status_code=500)
+    try:
+        return value if isinstance(value, UUID) else UUID(str(value))
+    except (TypeError, ValueError, AttributeError) as exc:
+        raise DeepReviewServiceError("processing_failed", "deep review 계보를 확인할 수 없습니다", status_code=500) from exc
+
+
 class DeepReviewService:
     """Owns review/attempt/job state while keeping model I/O transaction-free."""
 
@@ -417,6 +452,12 @@ class DeepReviewService:
                 raise InputVersionError("bundle_not_ready", "ready document bundle이 필요합니다") from error
             if bundle["notice_id"] != notice_id:
                 raise DeepReviewServiceError("not_found", "공고와 document bundle이 일치하지 않습니다", status_code=404, request_id=request_id)
+            bundle_correlation_id = _audit_correlation_id(
+                session,
+                action="document_bundle.create",
+                aggregate_type="document_bundle",
+                aggregate_id=str(bundle_id),
+            )
             # The unique input tuple is authoritative; existing review rows are
             # returned only when they are the same immutable input set.
             existing = session.scalar(select(DeepReview).where(
@@ -457,6 +498,11 @@ class DeepReviewService:
                 "reference_workflow_mode": self.reference_workflow_mode,
                 "effective_grade": basis.grade,
                 "grade_source": basis.source, "source_run_id": basis.run_id, "source_review_id": basis.review_id,
+                **(
+                    {"correlation_id": str(bundle_correlation_id)}
+                    if bundle_correlation_id is not None
+                    else {}
+                ),
             }))
             session.commit()
             return response
@@ -495,6 +541,20 @@ class DeepReviewService:
                 raise DeepReviewServiceError("active_attempt_exists", "이미 실행 중인 attempt가 있습니다", status_code=409, request_id=request_id)
             if current.status not in {"failed", "completed"}:
                 raise DeepReviewServiceError("review_not_ready", "실패 또는 완료된 current attempt만 재시도할 수 있습니다", status_code=409, request_id=request_id)
+            correlation_id = _audit_correlation_id(
+                session,
+                action="deep_review.create",
+                aggregate_type="deep_review",
+                aggregate_id=str(review.id),
+            )
+            bundle_correlation_id = _audit_correlation_id(
+                session,
+                action="document_bundle.create",
+                aggregate_type="document_bundle",
+                aggregate_id=str(review.bundle_id),
+            )
+            if correlation_id != bundle_correlation_id:
+                raise DeepReviewServiceError("processing_failed", "deep review 계보를 확인할 수 없습니다", status_code=500, request_id=request_id)
             max_sequence = session.scalar(select(DeepReviewAttempt.sequence).where(DeepReviewAttempt.deep_review_id == review.id).order_by(DeepReviewAttempt.sequence.desc()).limit(1)) or 0
             # Completed attempts are immutable snapshots.  A retry may move
             # the review pointer to a new attempt, but never rewrites a
@@ -506,7 +566,10 @@ class DeepReviewService:
             session.flush()
             response = self._attempt_view(session, attempt)
             session.add(IdempotencyRecord(operation="deep_review_attempt", aggregate_type="deep_review", aggregate_id=str(review_id), claimed_name=claimed_name, request_id=request_id, request_sha256=request_hash, response_status=202, response_snapshot=response))
-            session.add(AuditEvent(actor_kind="human", claimed_name=claimed_name, action="deep_review.attempt", aggregate_type="deep_review", aggregate_id=str(review.id), request_id=str(request_id), safe_metadata={"attempt_id": str(attempt.id), "sequence": attempt.sequence}))
+            session.add(AuditEvent(actor_kind="human", claimed_name=claimed_name, action="deep_review.attempt", aggregate_type="deep_review", aggregate_id=str(review.id), request_id=str(request_id), safe_metadata={
+                "attempt_id": str(attempt.id), "sequence": attempt.sequence,
+                **({"correlation_id": str(correlation_id)} if correlation_id is not None else {}),
+            }))
             session.commit()
         except DeepReviewServiceError:
             session.rollback()
