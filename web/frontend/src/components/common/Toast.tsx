@@ -13,8 +13,13 @@ interface ToastProps {
  * 화면 낭독기가 결과를 놓치지 않도록 aria-live 영역으로 둔다.
  */
 export function Toast({ message, actionLabel, onAction, onDismiss, variant = "success" }: ToastProps) {
+  const isError = variant === "error";
   return (
-    <div className={`toast toast-${variant}`} role="status" aria-live="polite">
+    <div
+      className={`toast toast-${variant}`}
+      role={isError ? "alert" : "status"}
+      aria-live={isError ? "assertive" : "polite"}
+    >
       <span className="toast-message">{message}</span>
       {actionLabel && onAction ? (
         <button className="toast-action" type="button" onClick={onAction}>{actionLabel}</button>

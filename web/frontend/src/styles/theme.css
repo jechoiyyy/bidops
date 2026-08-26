@@ -5443,152 +5443,30 @@ a.dashboard-grade-segment-excluded {
 }
 
 /* ---- 여유형 공통 계층 ----
-   화면별 업무 정보와 검토 순서는 유지하고, 공통 표면·간격·조작부만 한 체계로 맞춘다.
-   간격은 8px 배수, 카드 본문은 24px, 일반 조작부는 42px을 기본으로 한다. */
-:root {
-  background: var(--surface-app);
-}
-
+   화면별 배치 규칙은 각 화면 전용 스타일이 소유하고, 이 구역은 공통 컴포넌트와
+   의미별 표면·상태만 정의한다. */
+:root,
 body {
   background: var(--surface-app);
 }
 
-.app-shell {
-  background: var(--surface-app);
-}
-
-.sidebar {
-  flex-basis: 240px;
-  width: 240px;
-  border-top-width: 4px;
-}
-
-.sidebar-brand {
-  gap: 12px;
-  padding: 24px 20px;
-}
-
-.sidebar-brand-logo {
-  width: 40px;
-  height: 40px;
-  flex-basis: 40px;
-}
-
-.sidebar-group {
-  padding: 24px 12px 0;
-}
-
-.sidebar-group-label {
-  padding: 0 12px 8px;
-  font-size: 11px;
-}
-
-.sidebar-items {
-  gap: 4px;
-}
-
-.sidebar-item {
-  min-height: 40px;
-  gap: 10px;
-  padding: 8px 12px;
-  border-radius: var(--radius-md);
-  font-size: 14px;
-}
-
-.sidebar-footer {
-  gap: 4px;
-  padding: 16px 20px;
-  font-size: 12px;
-}
-
-.topbar {
-  flex-basis: 64px;
-  height: 64px;
-  gap: 16px;
-  padding: 0 24px;
-}
-
-.topbar h1 {
-  font-size: 17px;
-}
-
-.topbar-status {
-  font-size: 12px;
-}
-
-.topbar-menu {
-  width: var(--control-height);
-  height: var(--control-height);
-  border-radius: var(--radius-md);
-}
-
-.basis-popover-trigger {
-  height: var(--control-height);
-  gap: 8px;
-  padding: 0 14px;
-  border-radius: var(--radius-md);
-  font-size: 13px;
-}
-
-.run-selector {
-  min-width: 280px;
-  height: var(--control-height);
-  gap: 8px;
-  padding: 0 14px;
-  border-radius: var(--radius-md);
-  font-size: 13px;
-}
-
-.run-selector select {
-  font-size: 13px;
-}
-
-.select-chevron {
-  right: 14px;
-  width: 13px;
-  height: 13px;
-}
-
-.page-canvas {
-  padding: 24px;
-  background: var(--surface-app);
-}
-
-.placeholder-page {
-  min-height: calc(100vh - 112px);
-  padding: var(--card-padding);
+.panel {
+  border-color: var(--border-subtle);
   border-radius: var(--radius-lg);
   background: var(--surface-card);
 }
 
-.placeholder-page h2 {
-  font-size: 18px;
-}
-
-.shell-notice {
-  padding: 0 24px;
-}
-
-.panel,
-.dashboard-kpi,
-.dashboard-action-strip {
-  border-radius: var(--radius-lg);
-}
-
-.panel-header,
-.dashboard-page .panel-header {
+.panel-header {
   min-height: 64px;
-  gap: 16px;
-  padding: 16px var(--card-padding);
+  gap: var(--space-2);
+  padding: var(--space-2) var(--card-padding);
 }
 
-.panel-header h3,
-.dashboard-page .panel-header h3 {
+.panel-header h3 {
   font-size: 15px;
 }
 
-.panel-body,
-.dashboard-page .panel-body {
+.panel-body {
   padding: var(--card-padding);
 }
 
@@ -5620,16 +5498,6 @@ body {
   line-height: 1.3;
 }
 
-.runs-status,
-.dashboard-kpi-status,
-.queue-list-deadline,
-.queue-detail-deadline {
-  min-height: 28px;
-  padding: 0 10px;
-  border-radius: var(--radius-sm);
-  font-size: 12px;
-}
-
 .empty-state {
   min-height: 224px;
   gap: 12px;
@@ -5659,17 +5527,9 @@ body {
   margin-top: var(--space-1);
 }
 
-.empty-state-action,
-.runs-primary-button,
-.runs-secondary-button,
-.runs-stage-button,
-.attachment-primary-button,
-.attachment-secondary-button,
-.notice-source-link,
-.queue-filter-reset,
-.profile-filter-button {
+.empty-state-action {
   min-height: var(--control-height);
-  padding: 0 16px;
+  padding: 0 var(--space-2);
   border-radius: var(--radius-md);
   font-size: 13px;
 }
@@ -5684,7 +5544,7 @@ body {
 
 .facts {
   row-gap: 12px;
-  column-gap: 16px;
+  column-gap: var(--space-2);
   font-size: 14px;
 }
 
@@ -5697,13 +5557,13 @@ body {
 }
 
 .data-table th {
-  padding: 12px 16px 12px 0;
+  padding: 12px var(--space-2) 12px 0;
   background: var(--surface-secondary);
   font-size: 12px;
 }
 
 .data-table td {
-  padding: 14px 16px 14px 0;
+  padding: 14px var(--space-2) 14px 0;
 }
 
 .data-table tbody tr:hover td {
@@ -5719,387 +5579,16 @@ pre {
   font-variant-numeric: tabular-nums;
 }
 
-.runs-page-header {
-  gap: 24px;
-  margin-bottom: 24px;
-}
-
-.runs-page-header h2,
-.runs-detail-heading h3 {
-  font-size: 18px;
-}
-
-.runs-actions {
-  gap: var(--space-1);
-}
-
-.runs-layout {
-  border-radius: var(--radius-lg);
-}
-
-.runs-list-heading {
-  min-height: 48px;
-  padding: 0 20px;
-  font-size: 12px;
-}
-
-.runs-list-item {
-  gap: var(--space-1);
-  padding: 16px 20px;
-}
-
-.runs-list-item-heading strong {
-  font-size: 13px;
-}
-
-.runs-list-item-meta,
-.runs-list-item-counts,
-.runs-list-item-counts span {
-  font-size: 12px;
-}
-
-.runs-detail {
-  padding: 24px;
-}
-
-.runs-detail-heading {
-  margin-bottom: 16px;
-}
-
-.runs-stages,
-.runs-two-column {
-  gap: 16px;
-}
-
-.runs-stages {
-  margin-bottom: 16px;
-}
-
-.runs-stage {
-  min-height: 180px;
-  padding: 20px;
-  border-radius: var(--radius-lg);
-}
-
-.runs-stage-details {
-  gap: 4px;
-  margin: 16px 0;
-  font-size: 12px;
-}
-
-.runs-stage-button {
-  min-height: var(--control-height);
-  padding: 0 12px;
-  font-size: 12px;
-}
-
-.dashboard-page {
-  gap: var(--space-3);
-}
-
-.dashboard-kpi-grid,
-.dashboard-primary-grid,
-.dashboard-secondary-grid {
-  gap: var(--space-2);
-}
-
-.dashboard-kpi {
-  padding: 20px var(--card-padding);
-}
-
-.dashboard-kpi-value {
-  margin-top: var(--space-1);
-  font-size: 30px;
-}
-
-.dashboard-kpi-description {
-  margin-top: var(--space-1);
-  font-size: 12px;
-}
-
-.dashboard-page .panel,
-.dashboard-action-strip {
-  border-radius: var(--radius-lg);
-}
-
-.dashboard-funnel-list,
-.dashboard-validation-list {
-  gap: var(--space-2);
-}
-
-.dashboard-funnel-track {
-  height: 36px;
-}
-
-.dashboard-action-title {
-  gap: 12px;
-  padding: 16px 20px;
-  font-size: 13px;
-}
-
-.dashboard-action-item {
-  gap: 16px;
-  padding: 16px 20px;
-}
-
-.dashboard-action-item-description {
-  font-size: 12px;
-}
-
-.queue-page,
-.judgment-page {
-  width: calc(100% + 48px);
-  margin-right: -24px;
-  margin-left: -24px;
-}
-
-.queue-page,
-.judgment-page {
-  height: calc(100vh - 112px);
-  min-height: 560px;
-}
-
-.queue-filters {
-  flex-basis: 66px;
-  gap: var(--space-1);
-  padding: 0 24px;
-}
-
-.queue-search,
-.queue-filter-select,
-.queue-filter-reset {
-  height: var(--control-height);
-  font-size: 13px;
-}
-
-.queue-search {
-  flex-basis: 240px;
-  gap: var(--space-1);
-  padding: 0 12px;
-}
-
-.queue-search input,
-.queue-filter-select select {
-  font-size: 13px;
-}
-
-.queue-filter-select {
-  gap: var(--space-1);
-  padding-right: 32px;
-  padding-left: 12px;
-}
-
-.queue-filter-select svg {
-  right: 12px;
-  width: 13px;
-  height: 13px;
-}
-
-.queue-filter-reset {
-  gap: var(--space-1);
-}
-
-.queue-list-header {
-  padding: 16px 20px;
-  font-size: 12px;
-}
-
-.queue-group-header {
-  height: 40px;
-  padding: 0 20px;
-  font-size: 11px;
-}
-
-.queue-list-item {
-  padding: 16px 20px;
-}
-
-.queue-list-badges {
-  gap: var(--space-1);
-  margin-top: var(--space-1);
-}
-
-.queue-list-meta {
-  gap: var(--space-1);
-  margin-top: var(--space-1);
-  font-size: 12px;
-}
-
-.queue-detail-header,
-.judgment-page-header {
-  gap: 24px;
-  padding: 20px 24px;
-}
-
-.queue-detail-header h2,
-.judgment-page-header h2 {
-  font-size: 20px;
-}
-
-.queue-detail-scroll,
-.judgment-detail-scroll {
-  gap: var(--space-3);
-  padding: var(--space-3);
-}
-
-.notice-facts-grid,
-.notice-review-grid {
-  gap: var(--space-2);
-}
-
-.notice-facts {
-  grid-template-columns: 120px minmax(0, 1fr);
-  row-gap: 12px;
-  column-gap: 16px;
-  font-size: 14px;
-}
-
-.verification-list {
-  margin: -8px 0;
-}
-
-.verification-row {
-  padding: 16px 0;
-}
-
-.verification-row-main {
-  gap: var(--space-1);
-}
-
-.verification-row-main strong {
-  font-size: 14px;
-}
-
-.verification-row-main p {
-  margin-top: var(--space-1);
-  font-size: 13px;
-}
-
-.verification-answer-input {
-  height: var(--control-height);
-  margin-top: var(--space-1);
-  padding: 0 12px;
-  border-radius: var(--radius-md);
-  font-size: 13px;
-}
-
-.review-bar {
-  gap: var(--space-1);
-  padding: 16px 24px;
-}
-
-.review-segmented button,
-.review-more-toggle,
-.review-save-button {
-  min-height: var(--control-height);
-}
-
-.review-segmented button {
-  padding: 0 12px;
-  font-size: 13px;
-}
-
-.review-control {
-  min-height: var(--control-height);
-  gap: var(--space-1);
-  padding: 0 12px;
-  border-radius: var(--radius-md);
-  font-size: 12px;
-}
-
-.review-control select {
-  font-size: 13px;
-}
-
-.review-reason textarea {
-  min-height: var(--control-height);
-  padding: 9px 12px;
-  border-radius: var(--radius-md);
-  font-size: 13px;
-}
-
-.review-save-button {
-  padding: 0 16px;
-  border-radius: var(--radius-md);
-  font-size: 13px;
-}
-
-.review-dirty {
-  min-height: 28px;
-  padding: 0 10px;
-  border-radius: var(--radius-sm);
-  font-size: 12px;
-  line-height: 1.3;
-}
-
-.profile-filter-bar {
-  gap: var(--space-1);
-  min-height: 56px;
-  margin-bottom: var(--space-2);
-  padding: 8px 12px;
-  border-radius: var(--radius-md);
-}
-
-.profile-filter-button {
-  min-height: 40px;
-}
-
-.profile-layout,
-.attachment-workflow-grid {
-  gap: var(--space-2);
-}
-
-.attachment-dropzone {
-  min-height: 144px;
-  gap: var(--space-1);
-  padding: 24px;
-  border-radius: var(--radius-md);
-}
-
-.portal-form input:not([type="checkbox"]),
-.portal-form textarea {
-  min-height: var(--control-height);
-  padding: 9px 12px;
-  border-radius: var(--radius-md);
-  font-size: 13px;
-}
-
-.portal-form textarea {
-  min-height: 96px;
-}
-
-.portal-form-actions {
-  gap: var(--space-1);
-}
-
-.attachment-link,
-.attachment-delete {
-  width: 36px;
-  height: 36px;
-  border-radius: var(--radius-sm);
-}
-
 .toast {
-  right: 24px;
-  bottom: 24px;
-  gap: 16px;
+  right: var(--space-3);
+  bottom: var(--space-3);
+  gap: var(--space-2);
   min-height: 48px;
   max-width: min(480px, calc(100vw - 48px));
-  padding: 12px 16px;
+  padding: 12px var(--space-2);
   border-radius: var(--radius-md);
   box-shadow: 0 4px 14px rgb(0 0 0 / 14%);
   font-size: 13px;
-}
-
-.toast-action,
-.toast-dismiss {
-  min-height: 28px;
-  font-size: 13px;
-}
-
-.toast-dismiss {
-  width: 28px;
-  justify-content: center;
 }
 
 .toast-info {
@@ -6129,135 +5618,31 @@ pre {
   color: inherit;
 }
 
-input:disabled,
-select:disabled,
-textarea:disabled,
-button:disabled {
+:where(input, select, textarea, button):disabled {
   cursor: not-allowed;
-}
-
-.runs-primary-button:disabled,
-.runs-secondary-button:disabled,
-.runs-stage-button:disabled,
-.attachment-primary-button:disabled,
-.attachment-secondary-button:disabled,
-.review-save-button:disabled {
   opacity: 0.55;
 }
 
-input[aria-invalid="true"],
-select[aria-invalid="true"],
-textarea[aria-invalid="true"] {
+:where(input, select, textarea)[aria-invalid="true"] {
   border-color: var(--color-danger);
   background: var(--surface-error);
 }
 
-input[aria-invalid="true"]:focus,
-select[aria-invalid="true"]:focus,
-textarea[aria-invalid="true"]:focus {
+:where(input, select, textarea)[aria-invalid="true"]:focus-visible {
   outline-color: var(--color-danger);
 }
 
-@media (max-width: 900px) {
-  .page-canvas {
-    padding: 20px;
-  }
-
-  .sidebar {
-    width: 280px;
-    flex-basis: 280px;
-  }
-
-  .topbar {
-    padding-right: 20px;
-    padding-left: 20px;
-  }
-
-  .queue-page,
-  .judgment-page {
-    width: calc(100% + 40px);
-    margin-right: -20px;
-    margin-left: -20px;
-    min-height: calc(100vh - 104px);
-  }
-
-  .queue-filters {
-    padding-right: 20px;
-    padding-left: 20px;
-  }
-
-  .queue-detail-header,
-  .judgment-page-header,
-  .review-bar {
-    padding-right: 20px;
-    padding-left: 20px;
-  }
-
-  .queue-detail-scroll,
-  .judgment-detail-scroll,
-  .runs-detail {
-    padding: 20px;
-  }
-}
-
 @media (max-width: 640px) {
-  .page-canvas {
-    padding: 16px;
-  }
-
-  .topbar {
-    gap: var(--space-1);
-    padding: 12px 16px;
-  }
-
-  .topbar h1 {
-    font-size: 16px;
-  }
-
-  .run-selector {
-    min-width: 0;
-  }
-
-  .queue-page,
-  .judgment-page {
-    width: calc(100% + 32px);
-    margin-right: -16px;
-    margin-left: -16px;
-  }
-
-  .queue-filters {
-    padding-right: 16px;
-    padding-left: 16px;
-  }
-
-  .queue-detail-header,
-  .judgment-page-header,
-  .review-bar {
-    padding-right: 16px;
-    padding-left: 16px;
-  }
-
-  .queue-detail-scroll,
-  .judgment-detail-scroll,
-  .runs-detail {
-    padding: 16px;
-  }
-
   .panel-header,
-  .dashboard-page .panel-header,
   .panel-body,
-  .dashboard-page .panel-body {
-    padding-right: 16px;
-    padding-left: 16px;
-  }
-
   .empty-state {
-    padding: 16px;
+    padding-right: var(--space-2);
+    padding-left: var(--space-2);
   }
 
   .toast {
-    right: 16px;
-    bottom: 16px;
+    right: var(--space-2);
+    bottom: var(--space-2);
     max-width: calc(100vw - 32px);
   }
 }
