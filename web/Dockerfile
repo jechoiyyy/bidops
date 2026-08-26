@@ -30,7 +30,9 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app/web/backend
 COPY web/backend/requirements.lock ./
-RUN python -m pip install --no-cache-dir --requirement requirements.lock
+RUN python -m pip install --no-cache-dir --no-deps --only-binary=:all: \
+        --require-hashes --requirement requirements.lock \
+    && python -m pip check
 
 # Git is retained only as an optional source-inspection tool. The image has no
 # repository metadata; the wrapper below serves the one exact baseline lookup
