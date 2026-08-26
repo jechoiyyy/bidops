@@ -75,6 +75,13 @@ def test_skipped_recovery_trigger_upgrades_from_0002_and_downgrades(tmp_path: Pa
         with pytest.raises(sqlite3.IntegrityError):
             add_recovery(connection, run_key, target_id, 2)
         connection.commit()
+        projection_sql = {
+            row[0]: row[1]
+            for row in connection.execute(
+                "select name, sql from sqlite_master where type='trigger' and name in ('screening_policy_projection_changed', 'quality_gate_evaluation_projection_changed')"
+            )
+        }
+        assert all("audit_event" not in sql for sql in projection_sql.values())
 
     # An already deployed 0002 database receives the new trigger semantics.
     upgraded = run_alembic(database, "upgrade", "head")
@@ -84,6 +91,17 @@ def test_skipped_recovery_trigger_upgrades_from_0002_and_downgrades(tmp_path: Pa
         add_recovery(connection, run_key, target_id, 4)
         connection.commit()
         assert connection.execute("select version_num from alembic_version").fetchone()[0] == "0003_schedule_skipped_recovery"
+        projection_sql = {
+            row[0]: row[1]
+            for row in connection.execute(
+                "select name, sql from sqlite_master where type='trigger' and name in ('screening_policy_projection_changed', 'quality_gate_evaluation_projection_changed')"
+            )
+        }
+        assert set(projection_sql) == {
+            "screening_policy_projection_changed",
+            "quality_gate_evaluation_projection_changed",
+        }
+        assert all("audit_event" in sql for sql in projection_sql.values())
 
     downgraded = run_alembic(database, "downgrade", "0002_screening_runtime")
     assert downgraded.returncode == 0, downgraded.stderr
@@ -93,6 +111,13 @@ def test_skipped_recovery_trigger_upgrades_from_0002_and_downgrades(tmp_path: Pa
             add_recovery(connection, run_key, target_id, 6)
         connection.rollback()
         assert connection.execute("select version_num from alembic_version").fetchone()[0] == "0002_screening_runtime"
+        projection_sql = {
+            row[0]: row[1]
+            for row in connection.execute(
+                "select name, sql from sqlite_master where type='trigger' and name in ('screening_policy_projection_changed', 'quality_gate_evaluation_projection_changed')"
+            )
+        }
+        assert all("audit_event" not in sql for sql in projection_sql.values())
 
 
 def test_startup_does_not_upgrade_a_behind_database(tmp_path: Path) -> None:
