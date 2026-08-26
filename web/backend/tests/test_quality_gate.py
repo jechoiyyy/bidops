@@ -7,6 +7,7 @@ import hashlib
 import os
 import pickle
 import shutil
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -520,6 +521,250 @@ def test_snapshot_and_binding_canonical_identity_reject_foreign_root_and_run_id(
         _QualitySampleBinding(
             capability=object(), sample_raw=b"", baseline_raw=b"", results_raw=b"",
         )
+
+
+def test_snapshot_issuer_state_is_opaque_and_old_registry_forge_is_ignored(tmp_path: Path, monkeypatch):
+    _settings, _engine, _factory, _run_dir, _canonical_run_id = _canonical_service_fixture(tmp_path)
+    snapshot = quality_gate_module._read_strict_fixed_snapshot(tmp_path)
+    module_namespace = vars(quality_gate_module)
+    assert "_SNAPSHOT_FACTS" not in module_namespace
+    assert "_SNAPSHOT_REFS" not in module_namespace
+    issuer = module_namespace["_SNAPSHOT_ISSUER"]
+    with pytest.raises(TypeError):
+        vars(issuer)
+    with pytest.raises(AttributeError):
+        object.__getattribute__(issuer, "_IdentityIssuer__entries")
+    with pytest.raises((AttributeError, TypeError)):
+        object.__setattr__(issuer, "lookup_fn", lambda _value: None)
+    facts = quality_gate_module._snapshot_registry_entry(snapshot)
+    assert isinstance(facts, tuple)
+    with pytest.raises((AttributeError, TypeError)):
+        object.__setattr__(facts, "root", tmp_path / "foreign")
+    monkeypatch.setattr(
+        quality_gate_module,
+        "_SNAPSHOT_FACTS",
+        {id(snapshot): (tmp_path / "foreign", b"forged")},
+        raising=False,
+    )
+    assert quality_gate_module._snapshot_matches_raw(snapshot)
+
+
+def test_snapshot_binding_rejects_foreign_public_prepare_without_side_effect(tmp_path: Path):
+    _settings, engine, factory, _run_dir, canonical_run_id = _canonical_service_fixture(tmp_path)
+    snapshot = quality_gate_module._read_strict_fixed_snapshot(tmp_path)
+    binding = _make_quality_sample_binding(
+        canonical_run_id,
+        source_token=snapshot,
+        capability=_QUALITY_BINDING_FACTORY_CAPABILITY,
+    )
+    foreign_root = tmp_path / "foreign-service-root"
+    foreign_settings = Settings(
+        bidops_root=foreign_root,
+        data_dir=foreign_root / "data",
+        database_url=f"sqlite:///{foreign_root / 'quality.db'}",
+    )
+    creator = ScreeningOrchestrator(
+        foreign_settings,
+        session_factory=factory,
+        ollama=type("NoModelCall", (), {"inspect_model": lambda _self: (_ for _ in ()).throw(AssertionError("must reject before model"))})(),
+        clock=lambda: NOW,
+    )
+    with factory() as session:
+        with pytest.raises(ScreeningCreationError):
+            creator.prepare_execution(
+                session,
+                run_id=canonical_run_id,
+                policy_version="policy-1",
+                requested_by="tester",
+                scope="quality_sample",
+                trigger="quality_gate",
+                _quality_binding=binding,
+            )
+        session.rollback()
+    with Session(engine) as session:
+        assert session.scalars(select(ScreeningExecution)).all() == []
+    workspace_root = tmp_path / "data/screening-executions"
+    assert not workspace_root.exists() or not list(workspace_root.iterdir())
+
+
+@pytest.mark.parametrize("preflight", ["policy", "model", "profile"])
+def test_quality_binding_preflight_failure_releases_retry_capability(tmp_path: Path, preflight: str):
+    settings, engine, factory, _run_dir, canonical_run_id = _canonical_service_fixture(tmp_path)
+    snapshot = quality_gate_module._read_strict_fixed_snapshot(tmp_path)
+    binding = _make_quality_sample_binding(
+        canonical_run_id,
+        source_token=snapshot,
+        capability=_QUALITY_BINDING_FACTORY_CAPABILITY,
+    )
+    good_model = type(
+        "GoodModel",
+        (),
+        {"inspect_model": lambda _self: ModelIdentity(MODEL_NAME, "c" * 64)},
+    )()
+    bad_model = type(
+        "BadModel",
+        (),
+        {"inspect_model": lambda _self: (_ for _ in ()).throw(OSError("model unavailable"))},
+    )()
+    bad_policy = "missing-policy" if preflight == "policy" else "policy-1"
+    bad_profile = "invalid-profile" if preflight == "profile" else "current"
+    bad_creator = ScreeningOrchestrator(
+        settings,
+        session_factory=factory,
+        ollama=bad_model if preflight == "model" else good_model,
+        clock=lambda: NOW,
+    )
+    with factory() as session:
+        with pytest.raises(ScreeningCreationError):
+            bad_creator.prepare_execution(
+                session,
+                run_id=canonical_run_id,
+                policy_version=bad_policy,
+                profile_source=bad_profile,
+                requested_by="tester",
+                scope="quality_sample",
+                trigger="quality_gate",
+                _quality_binding=binding,
+            )
+        session.rollback()
+    with Session(engine) as session:
+        assert session.scalars(select(ScreeningExecution)).all() == []
+    workspace_root = tmp_path / "data/screening-executions"
+    assert not workspace_root.exists() or not list(workspace_root.iterdir())
+
+    good_creator = ScreeningOrchestrator(
+        settings,
+        session_factory=factory,
+        ollama=good_model,
+        clock=lambda: NOW,
+    )
+    with factory() as session:
+        prepared = good_creator.prepare_execution(
+            session,
+            run_id=canonical_run_id,
+            policy_version="policy-1",
+            profile_source="current",
+            requested_by="tester",
+            scope="quality_sample",
+            trigger="quality_gate",
+            _quality_binding=binding,
+        )
+        session.commit()
+        prepared.workspace.close()
+    with Session(engine) as session:
+        assert len(session.scalars(select(ScreeningExecution)).all()) == 1
+
+
+def test_quality_binding_reservation_failure_releases_for_retry(tmp_path: Path, monkeypatch):
+    settings, engine, factory, _run_dir, canonical_run_id = _canonical_service_fixture(tmp_path)
+    snapshot = quality_gate_module._read_strict_fixed_snapshot(tmp_path)
+    binding = _make_quality_sample_binding(
+        canonical_run_id,
+        source_token=snapshot,
+        capability=_QUALITY_BINDING_FACTORY_CAPABILITY,
+    )
+    good_model = type(
+        "GoodModel",
+        (),
+        {"inspect_model": lambda _self: ModelIdentity(MODEL_NAME, "c" * 64)},
+    )()
+    creator = ScreeningOrchestrator(settings, session_factory=factory, ollama=good_model, clock=lambda: NOW)
+
+    def fail_workspace(_self, _execution_id):
+        raise OSError("workspace unavailable")
+
+    monkeypatch.setattr(ArtifactStore, "create_execution_workspace", fail_workspace)
+    with factory() as session:
+        with pytest.raises(ScreeningCreationError):
+            creator.prepare_execution(
+                session,
+                run_id=canonical_run_id,
+                policy_version="policy-1",
+                profile_source="current",
+                requested_by="tester",
+                scope="quality_sample",
+                trigger="quality_gate",
+                _quality_binding=binding,
+            )
+        session.rollback()
+    with Session(engine) as session:
+        assert session.scalars(select(ScreeningExecution)).all() == []
+    monkeypatch.undo()
+    with factory() as session:
+        prepared = creator.prepare_execution(
+            session,
+            run_id=canonical_run_id,
+            policy_version="policy-1",
+            profile_source="current",
+            requested_by="tester",
+            scope="quality_sample",
+            trigger="quality_gate",
+            _quality_binding=binding,
+        )
+        session.commit()
+        prepared.workspace.close()
+
+
+def test_quality_binding_concurrent_consume_and_invalid_preflight_race(tmp_path: Path):
+    _settings, _engine, _factory, _run_dir, canonical_run_id = _canonical_service_fixture(tmp_path)
+    snapshot_refs = []
+
+    def issue():
+        snapshot = quality_gate_module._read_strict_fixed_snapshot(tmp_path)
+        snapshot_refs.append(snapshot)
+        return _make_quality_sample_binding(
+            canonical_run_id,
+            source_token=snapshot,
+            capability=_QUALITY_BINDING_FACTORY_CAPABILITY,
+        )
+
+    binding = issue()
+    barrier = threading.Barrier(2)
+    outcomes: list[str] = []
+    outcome_lock = threading.Lock()
+
+    def consume_once():
+        barrier.wait()
+        try:
+            _consume_quality_binding(binding, canonical_run_id, tmp_path)
+        except ScreeningCreationError:
+            outcome = "rejected"
+        else:
+            outcome = "accepted"
+        with outcome_lock:
+            outcomes.append(outcome)
+
+    threads = [threading.Thread(target=consume_once) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=5)
+    assert sorted(outcomes) == ["accepted", "rejected"]
+
+    binding = issue()
+    barrier = threading.Barrier(2)
+    outcomes = []
+
+    def consume_with_run(candidate_run_id: str):
+        barrier.wait()
+        try:
+            _consume_quality_binding(binding, candidate_run_id, tmp_path)
+        except ScreeningCreationError:
+            outcome = "rejected"
+        else:
+            outcome = "accepted"
+        with outcome_lock:
+            outcomes.append(outcome)
+
+    threads = [
+        threading.Thread(target=consume_with_run, args=("invalid-run",)),
+        threading.Thread(target=consume_with_run, args=(canonical_run_id,)),
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=5)
+    assert sorted(outcomes) == ["accepted", "rejected"]
 
 
 @pytest.mark.parametrize("unsupported", ["_O_NOFOLLOW", "_O_DIRECTORY", "supports_dir_fd"])
