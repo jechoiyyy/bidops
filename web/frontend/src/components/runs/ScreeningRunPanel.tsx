@@ -30,6 +30,7 @@ interface ScreeningRunPanelProps {
   executionError: unknown;
   listLoading: boolean;
   listError: unknown;
+  listReady: boolean;
   onRetryConfiguration: () => void;
   onStart: () => void;
   startBusy: boolean;
@@ -187,6 +188,7 @@ export function ScreeningRunPanel({
   executionError,
   listLoading,
   listError,
+  listReady,
   onRetryConfiguration,
   onStart,
   startBusy,
@@ -207,7 +209,8 @@ export function ScreeningRunPanel({
   const currentStatus = currentExecution?.status;
   const stopDisabled = !currentExecution || isTerminal(currentStatus) || currentStatus === "중지 요청" || !actor.trim() || stopBusy;
   const executionBusy = Boolean(currentExecution && !isTerminal(currentStatus));
-  const startDisabled = startBusy || executionBusy || !actor.trim() || !selectedPolicy || !selectedProfile || !selectedProfileSource || Boolean(policiesError || profilesError) || policiesLoading || profilesLoading;
+  const executionListUnavailable = listLoading || Boolean(listError) || !listReady;
+  const startDisabled = startBusy || executionBusy || executionListUnavailable || !actor.trim() || !selectedPolicy || !selectedProfile || !selectedProfileSource || Boolean(policiesError || profilesError) || policiesLoading || profilesLoading;
 
   useEffect(() => {
     const dialog = stopDialogRef.current;
@@ -307,13 +310,13 @@ export function ScreeningRunPanel({
           <button className="runs-primary-button runs-screening-start-button" type="submit" disabled={startDisabled}>
             {startBusy ? "실행 요청 중…" : "전량 판정 대기열에 넣기"}
           </button>
-          {startDisabled && !startBusy ? <span className="runs-screening-required-note">{executionBusy ? "진행 중인 전량 판정 실행이 있어 새 실행을 시작할 수 없습니다." : "담당자·정책·프로필을 모두 선택해야 실행할 수 있습니다."}</span> : null}
+          {startDisabled && !startBusy ? <span className="runs-screening-required-note">{executionListUnavailable ? "현재 회차의 판정 실행 목록을 확인할 때까지 실행할 수 없습니다." : executionBusy ? "진행 중인 전량 판정 실행이 있어 새 실행을 시작할 수 없습니다." : "담당자·정책·프로필을 모두 선택해야 실행할 수 있습니다."}</span> : null}
         </div>
       </form>
 
       {actionError ? <p className="runs-screening-error" role="alert">{actionError}</p> : null}
-      {listLoading && !currentExecution ? <p className="runs-screening-muted" role="status" aria-live="polite">판정 실행 기록을 불러오는 중입니다.</p> : null}
-      {listError && !currentExecution ? <p className="runs-screening-error" role="alert">판정 실행 기록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.</p> : null}
+      {listLoading ? <p className="runs-screening-muted" role="status" aria-live="polite">판정 실행 기록을 불러오는 중입니다. 목록 확인 전에는 새 실행을 시작할 수 없습니다.</p> : null}
+      {listError ? <p className="runs-screening-error" role="alert">판정 실행 기록을 불러오지 못했습니다. 목록을 다시 확인한 뒤 실행해 주세요.</p> : null}
       {executionLoading && currentExecution ? <p className="runs-screening-muted" role="status" aria-live="polite">실행 상세를 갱신하는 중입니다.</p> : null}
       {executionError && currentExecution ? <p className="runs-screening-error" role="alert">실행 상세를 갱신하지 못했습니다. 자동 갱신을 계속 시도합니다.</p> : null}
 

@@ -185,6 +185,22 @@ export function RunsPage() {
   const [screeningStartBusy, setScreeningStartBusy] = useState(false);
   const [screeningStopBusy, setScreeningStopBusy] = useState(false);
   const screeningStartInFlight = useRef(false);
+  const screeningStopInFlight = useRef(false);
+  const screeningStartOperation = useRef(0);
+  const screeningStopOperation = useRef(0);
+  const mountedRef = useRef(true);
+  const selectedScreeningRunRef = useRef<string | null>(selectedRunId);
+  const screeningRunGeneration = useRef(0);
+  if (selectedScreeningRunRef.current !== selectedRunId) {
+    selectedScreeningRunRef.current = selectedRunId;
+    screeningRunGeneration.current += 1;
+  }
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const policies = useMemo(() => {
     const byVersion = new Map<string, PolicyVersionResponse>();
@@ -257,6 +273,12 @@ export function RunsPage() {
   useEffect(() => {
     // A run switch should not carry a previous run's execution or transient
     // error into the newly selected original run.
+    screeningStartOperation.current += 1;
+    screeningStopOperation.current += 1;
+    screeningStartInFlight.current = false;
+    screeningStopInFlight.current = false;
+    setScreeningStartBusy(false);
+    setScreeningStopBusy(false);
     setScreeningExecutionId(null);
     setScreeningActionError(null);
   }, [selectedRunId]);
@@ -296,45 +318,80 @@ export function RunsPage() {
   };
 
   const startScreening = async () => {
+    const capturedRunId = selectedRunId;
+    const capturedGeneration = screeningRunGeneration.current;
     const hasNonterminalManualFullRun = manualFullRunExecutions.some((item) => !isScreeningTerminal(item.status));
+    const screeningListReady = screeningExecutionsQuery.data !== undefined && !screeningExecutionsQuery.isLoading && !screeningExecutionsQuery.error;
     if (screeningStartInFlight.current) return;
-    if (!selectedRunId || !screeningActor.trim() || !selectedPolicy || !selectedProfile || hasNonterminalManualFullRun) {
+    if (!screeningListReady) {
+      setScreeningActionError("현재 회차의 판정 실행 목록을 확인하는 중입니다. 목록을 불러온 뒤 다시 시도해 주세요.");
+      return;
+    }
+    if (!capturedRunId || !screeningActor.trim() || !selectedPolicy || !selectedProfile || hasNonterminalManualFullRun) {
       if (hasNonterminalManualFullRun) setScreeningActionError("이미 진행 중인 전량 판정 실행이 있습니다.");
       else setScreeningActionError("담당자 이름, 판정 정책, 프로필 snapshot을 모두 선택해야 합니다.");
       return;
     }
     screeningStartInFlight.current = true;
+    const operationToken = ++screeningStartOperation.current;
     setScreeningActionError(null);
     setScreeningStartBusy(true);
     try {
-      const execution = await api.enqueueJudgment(selectedRunId, {
+      const execution = await api.enqueueJudgment(capturedRunId, {
         policy_version: selectedPolicy.policy_version,
         profile_source: profileSourceFor(selectedProfile),
         requested_by: screeningActor.trim(),
       });
+      const responseIsCurrent = mountedRef.current
+        && selectedScreeningRunRef.current === capturedRunId
+        && screeningRunGeneration.current === capturedGeneration
+        && screeningStartOperation.current === operationToken
+        && execution.source_run_id === capturedRunId;
+      if (!responseIsCurrent) return;
       setScreeningExecutionId(execution.execution_id);
-      await queryClient.invalidateQueries({ queryKey: ["screening-executions", selectedRunId] });
+      void queryClient.invalidateQueries({ queryKey: ["screening-executions", capturedRunId] });
     } catch (error) {
-      setScreeningActionError(screeningActionMessage(error));
+      if (mountedRef.current && selectedScreeningRunRef.current === capturedRunId && screeningRunGeneration.current === capturedGeneration) {
+        setScreeningActionError(screeningActionMessage(error));
+      }
     } finally {
-      setScreeningStartBusy(false);
-      screeningStartInFlight.current = false;
+      if (mountedRef.current && screeningStartOperation.current === operationToken) {
+        setScreeningStartBusy(false);
+        screeningStartInFlight.current = false;
+      }
     }
   };
 
   const stopScreening = async () => {
+    const capturedRunId = selectedRunId;
+    const capturedGeneration = screeningRunGeneration.current;
+    const capturedExecutionId = screeningExecutionId;
     const latestStatus = screeningDetailPoll.data?.status ?? selectedScreeningSummary?.status;
-    if (!screeningExecutionId || !screeningActor.trim() || !latestStatus || isScreeningTerminal(latestStatus) || latestStatus === "중지 요청") return;
+    if (screeningStopInFlight.current) return;
+    if (!capturedRunId || !capturedExecutionId || !screeningActor.trim() || !latestStatus || isScreeningTerminal(latestStatus) || latestStatus === "중지 요청") return;
+    screeningStopInFlight.current = true;
+    const operationToken = ++screeningStopOperation.current;
     setScreeningActionError(null);
     setScreeningStopBusy(true);
     try {
-      const stopped = await api.stopScreeningExecution(screeningExecutionId, { requested_by: screeningActor.trim() });
+      const stopped = await api.stopScreeningExecution(capturedExecutionId, { requested_by: screeningActor.trim() });
+      const responseIsCurrent = mountedRef.current
+        && selectedScreeningRunRef.current === capturedRunId
+        && screeningRunGeneration.current === capturedGeneration
+        && screeningStopOperation.current === operationToken
+        && stopped.source_run_id === capturedRunId;
+      if (!responseIsCurrent) return;
       setScreeningExecutionId(stopped.execution_id);
-      await queryClient.invalidateQueries({ queryKey: ["screening-executions", selectedRunId] });
+      void queryClient.invalidateQueries({ queryKey: ["screening-executions", capturedRunId] });
     } catch (error) {
-      setScreeningActionError(screeningActionMessage(error));
+      if (mountedRef.current && selectedScreeningRunRef.current === capturedRunId && screeningRunGeneration.current === capturedGeneration) {
+        setScreeningActionError(screeningActionMessage(error));
+      }
     } finally {
-      setScreeningStopBusy(false);
+      if (mountedRef.current && screeningStopOperation.current === operationToken) {
+        setScreeningStopBusy(false);
+        screeningStopInFlight.current = false;
+      }
     }
   };
 
@@ -398,6 +455,7 @@ export function RunsPage() {
             executionError={screeningDetailPoll.error}
             listLoading={screeningExecutionsQuery.isLoading}
             listError={screeningExecutionsQuery.error}
+            listReady={screeningExecutionsQuery.data !== undefined}
             onRetryConfiguration={() => {
               void activationCandidatePoliciesQuery.refetch();
               void activePoliciesQuery.refetch();
