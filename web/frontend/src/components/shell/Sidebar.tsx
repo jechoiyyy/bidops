@@ -1,6 +1,6 @@
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 
-type IconName = "dashboard" | "queue" | "deadline" | "judgment" | "review" | "profile" | "metrics" | "runs" | "attachments" | "audit";
+type IconName = "dashboard" | "queue" | "deadline" | "judgment" | "review" | "profile" | "metrics" | "quality" | "policy" | "runs" | "attachments" | "operations" | "audit";
 
 interface NavItem {
   label: string;
@@ -36,6 +36,8 @@ const groups: NavGroup[] = [
     label: "기준",
     items: [
       { label: "회사 프로필", path: "/profile", icon: "profile" },
+      { label: "판정 정책", path: "/policies", icon: "policy" },
+      { label: "품질 게이트", path: "/quality-gates", icon: "quality" },
       { label: "검증 지표", path: "/metrics", icon: "metrics" },
     ],
   },
@@ -44,6 +46,7 @@ const groups: NavGroup[] = [
     items: [
       { label: "수집 실행", path: "/runs", icon: "runs" },
       { label: "첨부 확보", path: "/attachments", icon: "attachments" },
+      { label: "상시 운영", path: "/operations", icon: "operations" },
       { label: "산출물 감사 로그", path: "/audit", icon: "audit", linksTo: "/runs" },
     ],
   },
@@ -66,10 +69,16 @@ function NavIcon({ name }: { name: IconName }) {
       return <svg {...common}><path d="M4 21V6l7-3 7 3v15" /><path d="M9 21v-6h4v6M4 21h16" /></svg>;
     case "metrics":
       return <svg {...common}><path d="M4 19V5M4 19h16" /><path d="m8 15 4-6 3 3 4-7" /></svg>;
+    case "quality":
+      return <svg {...common}><path d="m12 3 7 3v5c0 4.4-2.9 8.3-7 10-4.1-1.7-7-5.6-7-10V6z" /><path d="m9 12 2 2 4-4" /></svg>;
+    case "policy":
+      return <svg {...common}><path d="M6 3h9l4 4v14H6z" /><path d="M14 3v5h5M9 13h7M9 17h5" /></svg>;
     case "runs":
       return <svg {...common}><path d="M12 3v6M12 15v6M5 12H3M21 12h-2" /><circle cx="12" cy="12" r="3" /><path d="m6.5 6.5 1.5 1.5M17.5 17.5 16 16" /></svg>;
     case "attachments":
       return <svg {...common}><path d="m21 11-8.5 8.5a5 5 0 0 1-7-7L14 4a3.5 3.5 0 0 1 5 5l-8.7 8.7a2 2 0 0 1-2.9-2.8L15.5 6" /></svg>;
+    case "operations":
+      return <svg {...common}><path d="M4 17h3l2-10 4 14 2-8h5" /></svg>;
     case "audit":
       return <svg {...common}><path d="M3 7h18M3 12h18M3 17h18" /></svg>;
   }
