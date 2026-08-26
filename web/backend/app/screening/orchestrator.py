@@ -320,6 +320,24 @@ def _validation_notices(directory: Path) -> list[dict[str, Any]]:
     return result
 
 
+def _quality_source_from_validation(directory: Path) -> dict[str, Any]:
+    """Use the trusted validation projection for fixed quality samples.
+
+    Historical fixed runs intentionally retain only the three reviewed
+    artifacts (validation, baseline decisions, and screening results).  A
+    quality gate must not require a mutable collection artifact or synthesize
+    one on disk; the validation notices are already normalized and carry the
+    fixed sample annotations.
+    """
+
+    value = _json_file(directory / "validation-set.json", "input_error")
+    source_window = value.get("source_window")
+    if not isinstance(source_window, dict):
+        raise ScreeningCreationError("input_error")
+    notices = _validation_notices(directory)
+    return {"source_window": source_window, "notices": notices}, value
+
+
 def _quality_sample_selection(
     collection_notices: list[dict[str, Any]], validation_notices: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
@@ -434,7 +452,12 @@ class ScreeningOrchestrator:
         execution_id = "scr-" + uuid4().hex
         workspace: ExecutionWorkspace | None = None
         source_dir = _safe_run_directory(self.settings, run_id)
-        source, _collection = _source_notices(source_dir)
+        try:
+            source, _collection = _source_notices(source_dir)
+        except ScreeningCreationError:
+            if scope != "quality_sample":
+                raise
+            source, _collection = _quality_source_from_validation(source_dir)
         notices = source["notices"]
         old_notices, old_judgments = _prior_maps(source_dir)
         with self._session() as session:
@@ -589,7 +612,12 @@ class ScreeningOrchestrator:
         execution_id = "scr-" + uuid4().hex
         workspace: ExecutionWorkspace | None = None
         source_dir = _safe_run_directory(self.settings, run_id)
-        source, _collection = _source_notices(source_dir)
+        try:
+            source, _collection = _source_notices(source_dir)
+        except ScreeningCreationError:
+            if scope != "quality_sample":
+                raise
+            source, _collection = _quality_source_from_validation(source_dir)
         notices = source["notices"]
         old_notices, old_judgments = _prior_maps(source_dir)
         run = session.scalar(select(Run).where(Run.id == run_id))
