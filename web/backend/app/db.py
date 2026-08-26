@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+import json
 from collections.abc import Generator
 from pathlib import Path
 from typing import Any
@@ -12,6 +13,18 @@ from sqlalchemy import inspect
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from .config import get_settings
+
+
+def _json_serializer(value: Any) -> str:
+    """Use the repository JSON byte contract for SQLAlchemy JSON values."""
+
+    return json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    )
 
 
 class Base(DeclarativeBase):
@@ -26,12 +39,13 @@ DATABASE_URL = settings.database_url or f"sqlite:///{Path(settings.database_path
 engine = create_engine(
     DATABASE_URL,
     connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {},
+    json_serializer=_json_serializer,
     future=True,
 )
 
 
 @event.listens_for(engine, "connect")
-def _configure_sqlite_connection(dbapi_connection: Any, _connection_record: Any) -> None:
+def configure_sqlite_connection(dbapi_connection: Any, _connection_record: Any = None) -> None:
     """Enable SQLite safeguards and WAL for every new file-DB connection."""
 
     if not isinstance(dbapi_connection, sqlite3.Connection):
@@ -45,6 +59,14 @@ def _configure_sqlite_connection(dbapi_connection: Any, _connection_record: Any)
         cursor.execute("PRAGMA journal_mode=WAL")
     finally:
         cursor.close()
+    # Do this after the connection is opened, not only for ORM sessions: the
+    # Alembic and db-admin engines use the same callback as well.
+    from .screening.generation_config import register_sqlite_functions
+
+    register_sqlite_functions(dbapi_connection)
+
+
+_configure_sqlite_connection = configure_sqlite_connection
 
 
 SessionLocal = sessionmaker(

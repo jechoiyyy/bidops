@@ -23,6 +23,7 @@ from sqlalchemy.engine import make_url
 
 from .config import get_settings
 from .db import ALEMBIC_HEAD, MIGRATION_COMMAND
+from .screening.generation_config import register_sqlite_functions
 
 BACKEND = Path(__file__).resolve().parents[1]
 BASELINE_REVISION = "0001_existing_schema"
@@ -40,6 +41,14 @@ CORE_TABLES = ("run", "notice", "judgment", "review", "attachment")
 
 class DBAdminError(RuntimeError):
     """An operator-actionable database administration error."""
+
+
+def _connect(path: str | os.PathLike[str], **kwargs: Any) -> sqlite3.Connection:
+    """Open a SQLite connection with the same validator as the app/Alembic engine."""
+
+    connection = sqlite3.connect(path, **kwargs)
+    register_sqlite_functions(connection)
+    return connection
 
 
 def _database_path() -> Path:
@@ -71,7 +80,7 @@ def _snapshot_fingerprint(path: Path) -> str:
     digest = hashlib.sha256()
     # URI mode=ro is important here: sqlite3.connect(path) would create a
     # missing source while we are only trying to verify a snapshot.
-    with sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True) as connection:
+    with _connect(path.resolve().as_uri() + "?mode=ro", uri=True) as connection:
         for statement in connection.iterdump():
             if statement not in {"BEGIN TRANSACTION;", "COMMIT;"}:
                 digest.update(statement.encode("utf-8"))
@@ -81,7 +90,7 @@ def _snapshot_fingerprint(path: Path) -> str:
 
 def _sqlite_backup(source: Path, destination: Path) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(source) as source_connection, sqlite3.connect(destination) as destination_connection:
+    with _connect(source) as source_connection, _connect(destination) as destination_connection:
         source_connection.backup(destination_connection)
         destination_connection.commit()
 
@@ -113,7 +122,7 @@ def _tables(connection: sqlite3.Connection) -> set[str]:
 def _schema_signature(path: Path) -> dict[str, Any]:
     """Return a structural SQLite signature, excluding Alembic bookkeeping."""
 
-    with sqlite3.connect(path) as connection:
+    with _connect(path) as connection:
         names = sorted(name for name in _tables(connection) if name != "alembic_version")
         objects = [
             (row[0], row[1], row[2], " ".join((row[4] or "").lower().split()))
@@ -168,7 +177,7 @@ def _baseline_is_exact(path: Path) -> tuple[bool, str]:
 
 
 def _revision(path: Path) -> str | None:
-    with sqlite3.connect(path) as connection:
+    with _connect(path) as connection:
         if "alembic_version" not in _tables(connection):
             return None
         row = connection.execute("SELECT version_num FROM alembic_version").fetchone()
@@ -176,14 +185,14 @@ def _revision(path: Path) -> str | None:
 
 
 def _integrity(path: Path) -> tuple[list[tuple[Any, ...]], str]:
-    with sqlite3.connect(path) as connection:
+    with _connect(path) as connection:
         foreign_keys = [tuple(row) for row in connection.execute("PRAGMA foreign_key_check")]
         quick = connection.execute("PRAGMA quick_check").fetchone()
         return foreign_keys, str(quick[0] if quick else "")
 
 
 def _counts(path: Path) -> dict[str, int]:
-    with sqlite3.connect(path) as connection:
+    with _connect(path) as connection:
         return {
             table: int(connection.execute(f'SELECT count(*) FROM "{table}"').fetchone()[0])
             for table in CORE_TABLES
@@ -253,7 +262,7 @@ def _read_manifest(path: Path) -> dict[str, Any]:
 def _prepare_copy(path: Path, temporary: Path) -> str:
     revision = _validate_version(path)
     if revision is None:
-        with sqlite3.connect(path) as connection:
+        with _connect(path) as connection:
             present = _tables(connection)
         if not present:
             raise DBAdminError("unversioned empty database cannot be baselined; use alembic upgrade head")
