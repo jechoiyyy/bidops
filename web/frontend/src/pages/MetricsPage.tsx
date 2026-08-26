@@ -179,7 +179,8 @@ export function MetricsPage() {
               <li className={run.run_id === selectedRun.run_id ? "is-current" : ""} key={run.run_id}>
                 <code>{run.run_id}</code>
                 <span>{formatRunRange(run.run_id, run.window_from, run.window_to)}</span>
-                <strong>{index < history.length ? runStatusLabel(run.status) : "지표 미확인"}</strong>
+                <strong><span className="visually-hidden">실행 상태 </span>{runStatusLabel(run.status)}</strong>
+                {index >= history.length ? <em className="metrics-history-availability">지표 미확인</em> : null}
               </li>
             ))}
           </ol>
