@@ -706,8 +706,8 @@
 .policy-action-block p { margin: 0; color: var(--color-muted-soft); font-size: 11px; }
 .policy-action-block label { max-width: 450px; }
 .policy-activation-block { border-color: var(--color-warning-edge); background: var(--color-warning-bg); }
-.policy-activation-block .policy-button-primary { border-color: var(--color-warning); color: var(--color-warning); background: var(--color-white); }
-.policy-activation-block .policy-button-primary:hover { color: var(--color-white); background: var(--color-warning); }
+.policy-activation-block .policy-button-primary:not(:disabled) { border-color: var(--color-warning); color: var(--color-warning); background: var(--color-white); }
+.policy-activation-block .policy-button-primary:not(:disabled):hover { color: var(--color-white); background: var(--color-warning); }
 .policy-binding { padding: 11px 12px; border-left: 3px solid var(--color-primary); background: var(--color-info-bg); }
 .policy-binding > strong { color: var(--color-deep); font-size: 11px; }
 .policy-binding dl { display: grid; gap: 5px; margin: 8px 0 0; }
