@@ -91,18 +91,27 @@ export function DeadlineTable({ notices, referenceAt, timezone, runId }: Deadlin
                 return (
                   <tr className={`dashboard-deadline-row ${critical ? "is-critical" : ""}`.trim()} key={notice.id}>
                     <td className="dashboard-deadline-cell">
+                      <span aria-hidden="true" className="dashboard-mobile-cell-label">마감</span>
                       <span className={`dashboard-deadline-day mono tabular-nums ${critical ? "is-critical" : ""}`.trim()}>{daysUntil(notice.deadline_at, referenceAt)}</span>
                       <span className="dashboard-deadline-date mono tabular-nums">{formatDeadline(notice.deadline_at, timezone)}</span>
                     </td>
-                    <td><Badge label={notice.grade ?? "등급 미확인"} variant={gradeVariant(notice.grade)} /></td>
+                    <td>
+                      <span aria-hidden="true" className="dashboard-mobile-cell-label">등급</span>
+                      <Badge label={notice.grade ?? "등급 미확인"} variant={gradeVariant(notice.grade)} />
+                    </td>
                     <td className="dashboard-notice-cell">
+                      <span aria-hidden="true" className="dashboard-mobile-cell-label">공고</span>
                       <Link className="dashboard-notice-link" to={`/judgments/${notice.id}${search}`}>
                         <span className="dashboard-notice-title">{notice.title?.trim() || "공고명 없음"}</span>
                         <span className="dashboard-notice-agency">{notice.agency?.trim() || "발주기관 미확인"}</span>
                       </Link>
                     </td>
-                    <td className="mono tabular-nums dashboard-price-cell">{formatPrice(notice.estimated_price)}</td>
+                    <td className="mono tabular-nums dashboard-price-cell">
+                      <span aria-hidden="true" className="dashboard-mobile-cell-label">추정가격</span>
+                      {formatPrice(notice.estimated_price)}
+                    </td>
                     <td>
+                      <span aria-hidden="true" className="dashboard-mobile-cell-label">확인 항목</span>
                       {blockingCount > 0 ? (
                         <Badge label={`차단 ${formatNumber(blockingCount)}`} variant="alert" />
                       ) : (
