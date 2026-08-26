@@ -10,7 +10,7 @@ from pathlib import Path
 import re
 from threading import RLock
 from types import MappingProxyType
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any, Callable, Mapping, NamedTuple, Sequence
 from uuid import uuid4
 import weakref
 
@@ -178,8 +178,60 @@ class _QualitySampleBinding:
         return source
 
 
-@dataclass(frozen=True, slots=True)
-class _BindingFacts:
+class _BindingIssuer(NamedTuple):
+    """Immutable view over closure-owned binding state."""
+
+    lookup_fn: Callable[[Any], tuple[Any, str] | None]
+    transition_fn: Callable[[Any, str, str], Any | None]
+
+    def entry(self, value: Any) -> tuple[Any, str] | None:
+        return self.lookup_fn(value)
+
+    def transition(self, value: Any, *, expected: str, replacement: str) -> Any | None:
+        return self.transition_fn(value, expected, replacement)
+
+
+def _make_binding_issuer() -> tuple[_BindingIssuer, Callable[[Any, Any], None]]:
+    lock = RLock()
+    entries: dict[int, tuple[weakref.ReferenceType[Any], Any, str]] = {}
+
+    def entry(value: Any) -> tuple[Any, str] | None:
+        key = id(value)
+        with lock:
+            registered = entries.get(key)
+            if registered is None or registered[0]() is not value:
+                return None
+            return registered[1], registered[2]
+
+    def register(value: Any, facts: Any, state: str = "issued") -> None:
+        key = id(value)
+
+        def cleanup(reference: weakref.ReferenceType[Any]) -> None:
+            with lock:
+                registered = entries.get(key)
+                if registered is not None and registered[0] is reference:
+                    entries.pop(key, None)
+
+        reference = weakref.ref(value, cleanup)
+        with lock:
+            registered = entries.get(key)
+            if registered is not None and registered[0]() is not None:
+                raise RuntimeError("issuer identity is already registered")
+            entries[key] = (reference, facts, state)
+
+    def transition(value: Any, expected: str, replacement: str) -> Any | None:
+        key = id(value)
+        with lock:
+            registered = entries.get(key)
+            if registered is None or registered[0]() is not value or registered[2] != expected:
+                return None
+            entries[key] = (registered[0], registered[1], replacement)
+            return registered[1]
+
+    return _BindingIssuer(entry, transition), register
+
+
+class _BindingFacts(NamedTuple):
     run_id: str
     source_window: Mapping[str, Any]
     notices: tuple[Mapping[str, Any], ...]
@@ -192,21 +244,25 @@ class _BindingFacts:
     source_ref: weakref.ReferenceType[Any]
 
 
-_BINDING_REGISTRY_LOCK = RLock()
-_BINDING_REFS: dict[int, weakref.ReferenceType[_QualitySampleBinding]] = {}
-_BINDING_FACTS: dict[int, _BindingFacts] = {}
-_BINDING_USED: set[int] = set()
+_BINDING_ISSUER, _binding_register = _make_binding_issuer()
 
 
-def _binding_registry_entry(binding: Any) -> _BindingFacts | None:
+def _binding_registry_entry(
+    binding: Any, issuer: _BindingIssuer = _BINDING_ISSUER
+) -> _BindingFacts | None:
     if type(binding) is not _QualitySampleBinding:
         return None
-    key = id(binding)
-    with _BINDING_REGISTRY_LOCK:
-        reference = _BINDING_REFS.get(key)
-        if reference is None or reference() is not binding:
-            return None
-        return _BINDING_FACTS.get(key)
+    entry = issuer.entry(binding)
+    return None if entry is None else entry[0]
+
+
+def _binding_registry_state(
+    binding: Any, issuer: _BindingIssuer = _BINDING_ISSUER
+) -> str | None:
+    if type(binding) is not _QualitySampleBinding:
+        return None
+    entry = issuer.entry(binding)
+    return None if entry is None else entry[1]
 
 
 def _binding_facts(binding: _QualitySampleBinding) -> _BindingFacts:
@@ -216,26 +272,21 @@ def _binding_facts(binding: _QualitySampleBinding) -> _BindingFacts:
     return facts
 
 
-def _register_quality_binding(binding: _QualitySampleBinding, facts: _BindingFacts) -> None:
-    key = id(binding)
-
-    def cleanup(reference: weakref.ReferenceType[_QualitySampleBinding]) -> None:
-        with _BINDING_REGISTRY_LOCK:
-            if _BINDING_REFS.get(key) is reference:
-                _BINDING_REFS.pop(key, None)
-                _BINDING_FACTS.pop(key, None)
-                _BINDING_USED.discard(key)
-
-    reference = weakref.ref(binding, cleanup)
-    with _BINDING_REGISTRY_LOCK:
-        _BINDING_REFS[key] = reference
-        _BINDING_FACTS[key] = facts
+def _register_quality_binding(
+    binding: _QualitySampleBinding,
+    facts: _BindingFacts,
+    register: Callable[[Any, Any], None] = _binding_register,
+) -> None:
+    register(binding, facts)
 
 
-def _consume_quality_binding(
+del _binding_register
+
+
+def _validate_quality_binding(
     binding: _QualitySampleBinding, run_id: str, project_root: Path | str
 ) -> tuple[_BindingFacts, object]:
-    """Atomically validate and consume one issuer binding."""
+    """Validate an issued binding without consuming its retry capability."""
 
     from .quality_gate import (
         FIXED_BASELINE_DIGEST,
@@ -245,47 +296,92 @@ def _consume_quality_binding(
         _absolute_root,
         _snapshot_matches_raw,
         _snapshot_registry_entry,
+        _trusted_root_identity,
     )
 
-    key = id(binding)
-    with _BINDING_REGISTRY_LOCK:
-        facts = _binding_registry_entry(binding)
-        reference = _BINDING_REFS.get(key)
-        if facts is None or reference is None or reference() is not binding or key in _BINDING_USED:
-            raise ScreeningCreationError("input_error")
-        if (
-            not isinstance(binding.sample_raw, bytes)
-            or not isinstance(binding.baseline_raw, bytes)
-            or not isinstance(binding.results_raw, bytes)
-            or binding.sample_raw != facts.sample_raw
-            or binding.baseline_raw != facts.baseline_raw
-            or binding.results_raw != facts.results_raw
-            or facts.sample_digest != FIXED_SAMPLE_DIGEST
-            or facts.baseline_digest != FIXED_BASELINE_DIGEST
-            or facts.results_digest != FIXED_RESULTS_DIGEST
-            or sha256_bytes(binding.sample_raw) != FIXED_SAMPLE_DIGEST
-            or sha256_bytes(binding.baseline_raw) != FIXED_BASELINE_DIGEST
-            or sha256_bytes(binding.results_raw) != FIXED_RESULTS_DIGEST
-            or facts.run_id != run_id
-        ):
-            raise ScreeningCreationError("input_error")
-        source = facts.source_ref()
-        if type(source) is not _FixedInputSnapshot or not _snapshot_matches_raw(source):
-            raise ScreeningCreationError("input_error")
-        source_facts = _snapshot_registry_entry(source)
-        if (
-            source_facts is None
-            or source_facts.canonical_run_id != run_id
-            or source_facts.root != _absolute_root(project_root)
-            or facts.sample_raw != source_facts.sample_raw
-            or facts.baseline_raw != source_facts.baseline_raw
-            or facts.results_raw != source_facts.results_raw
-            or facts.source_window != source_facts.sample.get("source_window")
-            or facts.notices != tuple(source_facts.sample.get("notices", ()))
-        ):
-            raise ScreeningCreationError("input_error")
-        _BINDING_USED.add(key)
-        return facts, source
+    if _binding_registry_state(binding) != "issued":
+        raise ScreeningCreationError("input_error")
+    facts = _binding_registry_entry(binding)
+    if facts is None:
+        raise ScreeningCreationError("input_error")
+    if (
+        not isinstance(binding.sample_raw, bytes)
+        or not isinstance(binding.baseline_raw, bytes)
+        or not isinstance(binding.results_raw, bytes)
+        or binding.sample_raw != facts.sample_raw
+        or binding.baseline_raw != facts.baseline_raw
+        or binding.results_raw != facts.results_raw
+        or facts.sample_digest != FIXED_SAMPLE_DIGEST
+        or facts.baseline_digest != FIXED_BASELINE_DIGEST
+        or facts.results_digest != FIXED_RESULTS_DIGEST
+        or sha256_bytes(binding.sample_raw) != FIXED_SAMPLE_DIGEST
+        or sha256_bytes(binding.baseline_raw) != FIXED_BASELINE_DIGEST
+        or sha256_bytes(binding.results_raw) != FIXED_RESULTS_DIGEST
+        or facts.run_id != run_id
+    ):
+        raise ScreeningCreationError("input_error")
+    source = facts.source_ref()
+    if type(source) is not _FixedInputSnapshot or not _snapshot_matches_raw(source):
+        raise ScreeningCreationError("input_error")
+    source_facts = _snapshot_registry_entry(source)
+    if (
+        source_facts is None
+        or source_facts.canonical_run_id != run_id
+        or source_facts.root != _absolute_root(project_root)
+        or source_facts.root_identity != _trusted_root_identity(project_root)
+        or facts.sample_raw != source_facts.sample_raw
+        or facts.baseline_raw != source_facts.baseline_raw
+        or facts.results_raw != source_facts.results_raw
+        or facts.source_window != source_facts.sample.get("source_window")
+        or facts.notices != tuple(source_facts.sample.get("notices", ()))
+    ):
+        raise ScreeningCreationError("input_error")
+    return facts, source
+
+
+def _reserve_quality_binding(
+    binding: _QualitySampleBinding,
+    run_id: str,
+    project_root: Path | str,
+    issuer: _BindingIssuer = _BINDING_ISSUER,
+) -> tuple[_BindingFacts, object]:
+    """Atomically move one validated issuer binding from issued to reserved."""
+
+    facts, source = _validate_quality_binding(binding, run_id, project_root)
+    if issuer.transition(binding, expected="issued", replacement="reserved") is None:
+        raise ScreeningCreationError("input_error")
+    return facts, source
+
+
+def _release_quality_binding(
+    binding: _QualitySampleBinding, issuer: _BindingIssuer = _BINDING_ISSUER
+) -> None:
+    """Return a reservation to issued when no persistent row was published."""
+
+    issuer.transition(binding, expected="reserved", replacement="issued")
+
+
+def _commit_quality_binding(
+    binding: _QualitySampleBinding, issuer: _BindingIssuer = _BINDING_ISSUER
+) -> None:
+    """Finalize a reservation after the execution row is published."""
+
+    if issuer.transition(binding, expected="reserved", replacement="used") is None:
+        raise ScreeningCreationError("input_error")
+
+
+def _consume_quality_binding(
+    binding: _QualitySampleBinding, run_id: str, project_root: Path | str
+) -> tuple[_BindingFacts, object]:
+    """Compatibility helper that reserves and immediately consumes a binding."""
+
+    facts, source = _reserve_quality_binding(binding, run_id, project_root)
+    try:
+        _commit_quality_binding(binding)
+    except Exception:
+        _release_quality_binding(binding)
+        raise
+    return facts, source
 
 
 def _make_quality_sample_binding(
@@ -679,9 +775,9 @@ def _mode_for(item: Mapping[str, Any], scope: str, old_notice: Mapping[str, Any]
 def _trusted_quality_source(
     binding: _QualitySampleBinding, run_id: str, project_root: Path | str
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    """Validate, consume, and thaw the only fixed source accepted by prepare."""
+    """Validate and thaw the only fixed source accepted by prepare."""
 
-    facts, _source = _consume_quality_binding(binding, run_id, project_root)
+    facts, _source = _validate_quality_binding(binding, run_id, project_root)
     if (
         not _quality_value_is_frozen(facts.source_window)
         or not _quality_value_is_frozen(facts.notices)
@@ -909,6 +1005,7 @@ class ScreeningOrchestrator:
             raise ScreeningCreationError("input_error")
         execution_id = "scr-" + uuid4().hex
         workspace: ExecutionWorkspace | None = None
+        binding_reserved = False
         source_dir = None if scope == "quality_sample" else _safe_run_directory(self.settings, run_id)
         if scope == "quality_sample":
             source, notices = _trusted_quality_source(_quality_binding, run_id, self.settings.bidops_root)
@@ -968,6 +1065,9 @@ class ScreeningOrchestrator:
             "generation_config_digest": generation_config.digest(),
         }
         store = ArtifactStore(Path(self.settings.bidops_root))
+        if scope == "quality_sample":
+            _reserve_quality_binding(_quality_binding, run_id, self.settings.bidops_root)
+            binding_reserved = True
         try:
             workspace = store.create_execution_workspace(execution_id)
             input_path, input_digest = workspace.write_json("screening-input.json", input_value)
@@ -994,7 +1094,12 @@ class ScreeningOrchestrator:
                 candidate_count=len(frozen),
                 **({"notice_pk": queue_notice_pk, "notice_id": queue_notice} if scope == "single_notice" else {}),
             )
+            if scope == "quality_sample":
+                _commit_quality_binding(_quality_binding)
+                binding_reserved = False
         except Exception as exc:
+            if binding_reserved:
+                _release_quality_binding(_quality_binding)
             try:
                 if workspace is not None:
                     store.remove_execution(workspace)

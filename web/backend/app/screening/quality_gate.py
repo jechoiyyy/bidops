@@ -17,7 +17,7 @@ from pathlib import Path
 import stat
 from threading import RLock
 from types import MappingProxyType
-from typing import Any, Iterator, Mapping, Sequence
+from typing import Any, Callable, Iterator, Mapping, NamedTuple, Sequence
 from uuid import uuid4
 import weakref
 
@@ -191,7 +191,7 @@ class _FixedInputSnapshot:
     """Opaque raw-byte handle issued by the secure fixed-input loader.
 
     Parsed projections and provenance are intentionally not constructor fields.
-    They live in the issuer registry below, keyed by object identity, so a
+    They live in an opaque issuer below, keyed by object identity, so a
     caller cannot preserve trust by mutating a backing mapping or swapping a
     dataclass field with ``object.__setattr__``.
     """
@@ -253,8 +253,68 @@ class _FixedInputSnapshot:
         return _snapshot_facts(self).canonical_run_id
 
 
-@dataclass(frozen=True, slots=True)
-class _SnapshotFacts:
+class _IdentityIssuer(NamedTuple):
+    """Immutable view over identity state held only in factory closures.
+
+    The lock and map are deliberately closure locals rather than attributes of
+    this module-level object.  ``vars(module)``, ``vars(issuer)``, and normal
+    attribute replacement therefore cannot expose or replace registered
+    facts.  Only the loader's private registration closure can issue entries.
+    """
+
+    lookup_fn: Callable[[Any], tuple[Any, str] | None]
+    transition_fn: Callable[[Any, str, str], Any | None]
+
+    def entry(self, value: Any) -> tuple[Any, str] | None:
+        return self.lookup_fn(value)
+
+    def transition(self, value: Any, *, expected: str, replacement: str) -> Any | None:
+        return self.transition_fn(value, expected, replacement)
+
+
+def _make_identity_issuer() -> tuple[_IdentityIssuer, Callable[[Any, Any], None]]:
+    lock = RLock()
+    entries: dict[int, tuple[weakref.ReferenceType[Any], Any, str]] = {}
+
+    def entry(value: Any) -> tuple[Any, str] | None:
+        if value is None:
+            return None
+        key = id(value)
+        with lock:
+            registered = entries.get(key)
+            if registered is None or registered[0]() is not value:
+                return None
+            return registered[1], registered[2]
+
+    def register(value: Any, facts: Any, state: str = "issued") -> None:
+        key = id(value)
+
+        def cleanup(reference: weakref.ReferenceType[Any]) -> None:
+            with lock:
+                registered = entries.get(key)
+                if registered is not None and registered[0] is reference:
+                    entries.pop(key, None)
+
+        reference = weakref.ref(value, cleanup)
+        with lock:
+            registered = entries.get(key)
+            if registered is not None and registered[0]() is not None:
+                raise RuntimeError("issuer identity is already registered")
+            entries[key] = (reference, facts, state)
+
+    def transition(value: Any, expected: str, replacement: str) -> Any | None:
+        key = id(value)
+        with lock:
+            registered = entries.get(key)
+            if registered is None or registered[0]() is not value or registered[2] != expected:
+                return None
+            entries[key] = (registered[0], registered[1], replacement)
+            return registered[1]
+
+    return _IdentityIssuer(entry, transition), register
+
+
+class _SnapshotFacts(NamedTuple):
     root: Path
     root_identity: tuple[int, int]
     sample: Mapping[str, Any]
@@ -271,9 +331,7 @@ class _SnapshotFacts:
 
 
 _FIXED_SNAPSHOT_CAPABILITY = object()
-_SNAPSHOT_REGISTRY_LOCK = RLock()
-_SNAPSHOT_REFS: dict[int, weakref.ReferenceType[_FixedInputSnapshot]] = {}
-_SNAPSHOT_FACTS: dict[int, _SnapshotFacts] = {}
+_SNAPSHOT_ISSUER, _snapshot_register = _make_identity_issuer()
 
 
 FIXED_INPUT_MAX_BYTES = 8 * 1024 * 1024
@@ -305,17 +363,15 @@ def _absolute_root(project_root: Path | str) -> Path:
     return root
 
 
-def _snapshot_registry_entry(snapshot: Any) -> _SnapshotFacts | None:
+def _snapshot_registry_entry(
+    snapshot: Any, issuer: _IdentityIssuer = _SNAPSHOT_ISSUER
+) -> _SnapshotFacts | None:
     """Return issuer facts only for the exact registered object identity."""
 
     if type(snapshot) is not _FixedInputSnapshot:
         return None
-    key = id(snapshot)
-    with _SNAPSHOT_REGISTRY_LOCK:
-        reference = _SNAPSHOT_REFS.get(key)
-        if reference is None or reference() is not snapshot:
-            return None
-        return _SNAPSHOT_FACTS.get(key)
+    entry = issuer.entry(snapshot)
+    return None if entry is None else entry[0]
 
 
 def _snapshot_facts(snapshot: _FixedInputSnapshot) -> _SnapshotFacts:
@@ -325,19 +381,15 @@ def _snapshot_facts(snapshot: _FixedInputSnapshot) -> _SnapshotFacts:
     return facts
 
 
-def _register_snapshot(snapshot: _FixedInputSnapshot, facts: _SnapshotFacts) -> None:
-    key = id(snapshot)
+def _register_snapshot(
+    snapshot: _FixedInputSnapshot,
+    facts: _SnapshotFacts,
+    register: Callable[[Any, Any], None] = _snapshot_register,
+) -> None:
+    register(snapshot, facts)
 
-    def cleanup(reference: weakref.ReferenceType[_FixedInputSnapshot]) -> None:
-        with _SNAPSHOT_REGISTRY_LOCK:
-            if _SNAPSHOT_REFS.get(key) is reference:
-                _SNAPSHOT_REFS.pop(key, None)
-                _SNAPSHOT_FACTS.pop(key, None)
 
-    reference = weakref.ref(snapshot, cleanup)
-    with _SNAPSHOT_REGISTRY_LOCK:
-        _SNAPSHOT_REFS[key] = reference
-        _SNAPSHOT_FACTS[key] = facts
+del _snapshot_register
 
 
 def _open_trusted_root(project_root: Path | str) -> tuple[int, Path]:
@@ -360,6 +412,22 @@ def _open_trusted_root(project_root: Path | str) -> tuple[int, Path]:
         os.close(root_fd)
         raise QualityGateValidationError("fixed quality input is invalid")
     return root_fd, root
+
+
+def _trusted_root_identity(project_root: Path | str) -> tuple[int, int]:
+    """Check only the root directory identity, never any fixed file path."""
+
+    root_fd, _root = _open_trusted_root(project_root)
+    try:
+        root_stat = os.fstat(root_fd)
+        return root_stat.st_dev, root_stat.st_ino
+    except OSError:
+        raise QualityGateValidationError("fixed quality input is invalid") from None
+    finally:
+        try:
+            os.close(root_fd)
+        except OSError:
+            pass
 
 
 def _open_fixed_relative(root_fd: int, relative: str) -> int:
@@ -638,7 +706,12 @@ def _trusted_snapshot(
     if not _snapshot_matches_raw(fixed):
         raise QualityGateValidationError("fixed quality input is invalid")
     facts = _snapshot_registry_entry(fixed)
-    if facts is None or facts.root != _absolute_root(project_root):
+    requested_root = _absolute_root(project_root)
+    if (
+        facts is None
+        or facts.root != requested_root
+        or facts.root_identity != _trusted_root_identity(requested_root)
+    ):
         raise QualityGateValidationError("fixed quality input is invalid")
     return fixed
 
