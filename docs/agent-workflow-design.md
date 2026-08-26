@@ -1,7 +1,8 @@
 # BidOps Agent 워크플로우 설계
 
-> - 상태: T1 범위 확정용 설계 초안
-> - 기준일: 2026-08-26
+> - 상태: T8 구현 검토 완료본
+> - 기준일: 2026-08-27
+> - 기준 HEAD: `4f98a5c` (`feat(agent): add deterministic workflow acceptance`)
 > - 적용 범위: 현재 Lean v1의 문서 준비 → 심층 검토 → 사람 의사결정 지원 흐름
 > - 권위 계약: `.dryforge/spec.md`, `docs/deep-review-erd.md`, `docs/contracts.md`
 
@@ -27,6 +28,23 @@ DocumentPreparationAgent
 Agent는 자율적으로 업무 결정을 내리는 주체가 아니라 기존 도메인 서비스와 상태 기계를 감싸는
 application-level facade다. 최종 입찰 참여 결정, 입찰 제출, 발주처 연락은 자동화하지 않는다.
 
+### 1.1 현재 구현 판정 (T8)
+
+현재 HEAD에는 이 설계의 downstream 구현이 다음 범위까지 반영되어 있다.
+
+- `web/backend/app/agents/common/`에 폐쇄형 공통 계약·안전 오류·순수 projection helper가 있다.
+- `document_preparation`, `deep_review`, `decision` 각 패키지에 typed command, adapter, projection과
+  단위 테스트가 있다.
+- 기존 document bundle, deep review, report mutation router는 각각 해당 Agent adapter를 호출하고,
+  조회 API와 기존 response model은 유지한다. 새 Agent REST API는 없다.
+- `web/backend/app/services/agent_e2e.py`와 `app.cli.run_bc_e2e --t7`는 별도 저장소나 API를 추가하지
+  않고 실제 DB snapshot에서 세 Agent projection을 읽어 연속 인수를 검증한다.
+- `opportunity_discovery`, `BidOpsCoordinator`, Agent 전용 persistence는 구현하지 않았다.
+
+`AgentRunView` 자체는 DB에 저장된 별도 정본이 아니라 기존 aggregate·attempt·stage·revision·validation·
+opinion·audit 행에서 계산되는 read-only projection이다. T7 결과 JSON은 이 projection과 workflow
+경계를 확인하는 운영자 증적이며 Qwen 품질 측정 결과가 아니다.
+
 ## 2. 설계 목표
 
 1. 현재 구현된 DB, worker, 검증기와 REST 계약을 다시 만들지 않고 재사용한다.
@@ -48,7 +66,7 @@ application-level facade다. 최종 입찰 참여 결정, 입찰 제출, 발주�
 - 멱등성, 동시성, 실패, 재실행, 감사 규칙
 - 현재 서비스에 adapter를 추가하는 순서와 완료 조건
 
-### 3.2 이번 설계에서 제외
+### 3.2 현재도 제외하거나 별도 승인인 범위
 
 - 새로운 `/api/agents/*` REST API
 - 범용 `agent_run`, `agent_message`, `agent_memory`, outbox 테이블
@@ -57,7 +75,6 @@ application-level facade다. 최종 입찰 참여 결정, 입찰 제출, 발주�
 - DecisionAgent의 자동 Go/No-Go 결정
 - Qwen 품질 승인과 prompt 튜닝
 - OpportunityDiscoveryAgent의 상세 구현
-- 이번 T1에서의 공통 계약·실제 Agent adapter 구현
 - SSO, 권한 체계, 외부 공개
 
 ## 4. 논리 구조
@@ -207,7 +224,7 @@ AgentSafeError = {
   code: AgentErrorCode,
   message: string,
   retryable: boolean,
-  details: {field: string | null, reason: string | null} | null
+  details: null
 }
 
 AgentWait = {
@@ -220,6 +237,9 @@ AgentWait = {
 Artifact ref에는 object key, 내부 path, credential, 원문 byte, prompt, raw model output을 넣지 않는다.
 `actor_kind=system`은 내부 worker만 사용할 수 있고 HTTP mutation은 항상 검증된 claimed name을 가진
 `human`으로 기록한다.
+
+현재 v1 구현의 `AgentSafeError`에는 `details` 필드가 존재하지만 값은 항상 `null`이어야 한다. 내부
+exception이나 원문 위치를 details로 전달하지 않는다.
 
 ### 6.3 명령 envelope
 
@@ -577,8 +597,8 @@ validation status가 `failed`여도 handoff 자체는 허용한다. DecisionAgen
 
 ## 9. BidOpsCoordinator의 역할 — 향후 별도 범위
 
-Coordinator는 세 Agent 위의 얇은 orchestration layer로 예약한다. 이번 T1과 현재 워크트리의 구현
-범위에서는 만들지 않는다.
+Coordinator는 세 Agent 위의 얇은 orchestration layer로 예약한다. 현재 HEAD와 T8 문서 범위에서는
+만들지 않는다.
 
 ### 담당
 
@@ -781,8 +801,8 @@ endpoint별로 전환한다.
 
 1. `docs/deep-review-erd.md` SHA-256을 승인값
    `0d23875d71f539037bd5ee0b24f874a71d39d8466d1897f035023ef72092c77d`와 대조한다.
-2. Agent 계약이 새 REST API/DB table을 만들지 않는다는 결정을 확인한다. `.dryforge/`는 이번 T1에서
-   읽거나 수정하지 않는다.
+2. Agent 계약이 새 REST API/DB table을 만들지 않는다는 결정을 확인한다. `.dryforge/`는 T1 설계
+   검토 이후에도 이 범위의 변경 대상이 아니다.
 
 ### Phase 1 — 공통 계약과 projection
 
@@ -863,7 +883,7 @@ cd web/frontend && npm run build
 git diff --check
 ```
 
-## 17. T1에서 확정한 설계 게이트
+## 17. 설계 게이트와 T8 구현 검토
 
 ### 17.1 ERD hash
 
@@ -883,6 +903,20 @@ T1에서 확정한 `docs/deep-review-erd.md` SHA-256은
 
 Lean v1 신규 application table은 25개로 닫혀 있다. 별도 `agent_run`이나 event/outbox 테이블은
 추가하지 않는다. 장기적으로 durable coordinator가 필요하면 Lean v2 계약으로 다룬다.
+
+### 17.4 현재 구현·검증 경계
+
+- T1~T7 commit에서 common contract → 세 Agent projection/adapter → 기존 mutation router 연결 →
+  deterministic T7 acceptance 순서가 보존된다. 상세 commit 순서와 충돌 지점은
+  `docs/worktree-agent-boundary-and-merge-direction.md`에 있다.
+- T7 실제 격리 실행은 PostgreSQL, MinIO, ClamAV, document worker 2개, analysis worker, web을
+  사용했고 `mock-analysis`/`bidops-deterministic-mock-v1`, 외부 OpenAI/Codex/Qwen 호출 0건,
+  종료 active WorkJob 0건, `passed=true`를 확인한 뒤 격리 자원을 정리했다.
+- 이 결과는 상태 전이·영속화·검증·계보 증적이다. `mock_quality.evaluated=false`이며 실제 Qwen
+  품질 gate를 통과했다는 뜻이 아니다.
+- 깨끗한 PostgreSQL에 `data/runs/20260817-20260823`를 적재하는 경로는 `Run.screening_basis`
+  `varchar(64)`에 긴 실제 설명을 쓰는 `StringDataRightTruncation` 미해결 문제가 있다. 이 문제를
+  해결한 것으로 간주하거나 문자열을 자동 절단하지 않는다.
 
 ## 18. 최종 경계
 
