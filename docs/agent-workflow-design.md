@@ -151,10 +151,10 @@ LLM은 DeepReviewAgent 내부의 bounded invocation 도구로만 사용한다.
 
 ```text
 AgentName =
-  document_preparation
+  opportunity_discovery  # 이름만 예약; 이번 범위에서 구현하지 않음
+  | document_preparation
   | deep_review
   | decision
-  | opportunity_discovery  # 이름만 예약; 이번 범위에서 구현하지 않음
 
 AgentRunStatus =
   queued
@@ -187,12 +187,12 @@ AgentRunStatus =
 
 ```text
 AgentAggregateRef = {
-  aggregate_type: string,
+  aggregate_type: AgentAggregateType,
   aggregate_id: string
 }
 
 AgentArtifactRef = {
-  artifact_type: string,
+  artifact_type: AgentArtifactType,
   artifact_id: string,
   version: int | null,
   sha256: lowercase-hex-64 | null
@@ -204,16 +204,16 @@ AgentActorRef = {
 }
 
 AgentSafeError = {
-  code: string,
+  code: AgentErrorCode,
   message: string,
   retryable: boolean,
   details: {field: string | null, reason: string | null} | null
 }
 
 AgentWait = {
-  reason_code: string,
+  reason_code: AgentWaitReason,
   message: string,
-  required_actions: string[]
+  required_actions: AgentAction[]
 }
 ```
 
@@ -233,7 +233,7 @@ AgentCommand[TAction] = {
   aggregate: AgentAggregateRef,
   actor: AgentActorRef,
   request_id: UUID | null,
-  correlation_id: UUID,
+  correlation_id: UUID | null,
   expected_version: int | null,
   input_refs: AgentArtifactRef[],
   payload: action-specific closed model
@@ -276,7 +276,7 @@ AgentRunView = {
   output_refs: AgentArtifactRef[],
   wait: AgentWait | null,
   error: AgentSafeError | null,
-  available_actions: string[],
+  available_actions: AgentAction[],
   correlation_id: UUID | null,
   created_at: timestamp,
   started_at: timestamp | null,
@@ -724,20 +724,37 @@ processing_failed
 로그와 audit에는 원문 byte, 전체 prompt, raw model output, credential, object key, 내부 path를 넣지 않는다.
 raw model response는 기존 encrypted object 경계에서만 보관한다.
 
-## 14. 권장 backend 구조
+## 14. backend 구조
 
-초기 adapter는 다음 구조를 권장한다.
+Agent별 코드 소유권은 다음 구조로 고정한다.
 
 ```text
 web/backend/app/agents/
   __init__.py
-  contracts.py                 # AgentName/status/ref/command/run view
-  projections.py               # 공통 상태 투영 helper
-  document_preparation.py      # DocumentBundleService adapter
-  deep_review.py               # DeepReviewService/ReportService adapter
-  decision.py                  # ReportService/EvidenceService adapter
-  coordinator.py               # 향후 별도 범위; 이번 T1에서 만들지 않음
+  common/
+    __init__.py
+    contracts.py               # 폐쇄 enum/ref/command/run view
+    errors.py                  # 고정 안전 오류·대기 매핑
+    projection.py              # 공통 순수 projection helper
+  document_preparation/
+    __init__.py
+    commands.py
+    projection.py
+    agent.py
+  deep_review/
+    __init__.py
+    commands.py
+    projection.py
+    agent.py
+  decision/
+    __init__.py
+    commands.py
+    projection.py
+    agent.py
 ```
+
+테스트도 `web/backend/tests/agents/` 아래에서 같은 경계를 따른다. 상위 조정자 폴더, 범용 registry,
+factory framework는 이번 범위에 만들지 않는다.
 
 기존 서비스 소유권은 유지한다.
 
@@ -769,9 +786,10 @@ endpoint별로 전환한다.
 
 ### Phase 1 — 공통 계약과 projection
 
-1. `app/agents/contracts.py`에 Pydantic/enum/Protocol 계약 작성
-2. DB write 없는 projection 함수 작성
-3. 상태/outcome/wait/error 매핑 단위 테스트
+1. `app/agents/common/contracts.py`에 Pydantic 폐쇄 계약 작성
+2. `app/agents/common/errors.py`에 고정 안전 오류·대기 매핑 작성
+3. `app/agents/common/projection.py`에 DB write 없는 순수 helper 작성
+4. `tests/agents/test_common_contracts.py`에 계약·projection 단위 테스트 작성
 
 ### Phase 2 — DocumentPreparationAgent adapter
 
