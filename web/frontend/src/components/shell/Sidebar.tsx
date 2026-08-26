@@ -1,3 +1,4 @@
+import type { RefObject } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 
 type IconName = "dashboard" | "queue" | "deadline" | "judgment" | "review" | "profile" | "metrics" | "quality" | "policy" | "runs" | "attachments" | "operations" | "audit";
@@ -88,7 +89,7 @@ function isCurrentPath(pathname: string, path: string): boolean {
   return path === "/" ? pathname === "/" : pathname === path || pathname.startsWith(`${path}/`);
 }
 
-export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function Sidebar({ navRef, open, onClose }: { navRef: RefObject<HTMLElement | null>; open: boolean; onClose: () => void }) {
   const { pathname } = useLocation();
   const [searchParams] = useSearchParams();
   // 회차 선택은 주소의 run 파라미터에만 남아 있다. 화면을 옮길 때 이 값을 잃으면
@@ -108,6 +109,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
         aria-label="주 메뉴"
         className={`sidebar ${open ? "is-open" : ""}`.trim()}
         id="primary-navigation"
+        ref={navRef}
       >
         <Link
           aria-current={atHome ? "page" : undefined}
