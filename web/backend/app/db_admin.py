@@ -27,7 +27,12 @@ from .db import ALEMBIC_HEAD, MIGRATION_COMMAND
 BACKEND = Path(__file__).resolve().parents[1]
 BASELINE_REVISION = "0001_existing_schema"
 KNOWN_MIGRATION_REVISIONS = frozenset(
-    {BASELINE_REVISION, "0002_screening_runtime", ALEMBIC_HEAD}
+    {
+        BASELINE_REVISION,
+        "0002_screening_runtime",
+        "0003_schedule_skipped_recovery",
+        ALEMBIC_HEAD,
+    }
 )
 CORE_TABLES = ("run", "notice", "judgment", "review", "attachment")
 

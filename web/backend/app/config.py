@@ -9,12 +9,18 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
+import math
+import re
+from urllib.parse import urlsplit
 
-from pydantic import AliasChoices, Field, model_validator
+from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 DEFAULT_BIDOPS_ROOT = Path(__file__).resolve().parents[3]
+_OLLAMA_DURATION = re.compile(
+    r"(?:-1|0|(?:\d+(?:\.\d+)?(?:ns|us|µs|ms|s|m|h))+)$"
+)
 
 
 class Settings(BaseSettings):
@@ -69,7 +75,9 @@ class Settings(BaseSettings):
         default=180,
         validation_alias="BIDOPS_OLLAMA_TIMEOUT_SECONDS",
     )
-    model_keep_alive: str = Field(
+    # Ollama accepts a Go duration string, or a numeric nanosecond value.
+    # Keep the numeric forms because 0 unloads a model and -1 keeps it loaded.
+    model_keep_alive: str | int | float = Field(
         default="30m",
         validation_alias="BIDOPS_OLLAMA_KEEP_ALIVE",
     )
@@ -102,6 +110,61 @@ class Settings(BaseSettings):
     )
     schedule_prespec: bool = Field(default=False, validation_alias="BIDOPS_PRESPEC_ENABLED")
     live_test: bool = Field(default=False, validation_alias="BIDOPS_LIVE_OLLAMA_TEST")
+
+    @field_validator("model_base_url")
+    @classmethod
+    def validate_model_base_url(cls, value: str) -> str:
+        """Require a credential-free absolute HTTP(S) Ollama endpoint."""
+
+        if (
+            not isinstance(value, str)
+            or not value
+            or any(character.isspace() for character in value)
+            or "?" in value
+            or "#" in value
+            or "\\" in value
+        ):
+            raise ValueError("BIDOPS_OLLAMA_BASE_URL must be an absolute HTTP(S) URL")
+        try:
+            parsed = urlsplit(value)
+            hostname = parsed.hostname
+            # Accessing port also validates malformed ports and brackets.
+            _ = parsed.port
+        except ValueError as exc:
+            raise ValueError("BIDOPS_OLLAMA_BASE_URL must be an absolute HTTP(S) URL") from exc
+        if (
+            parsed.scheme not in {"http", "https"}
+            or not parsed.netloc
+            or not hostname
+            or parsed.netloc.endswith(":")
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise ValueError(
+                "BIDOPS_OLLAMA_BASE_URL must use http/https without credentials, query, or fragment"
+            )
+        return value
+
+    @field_validator("model_keep_alive", mode="before")
+    @classmethod
+    def validate_model_keep_alive(cls, value: object) -> object:
+        """Accept Ollama duration strings and its numeric sentinel forms."""
+
+        if isinstance(value, bool):
+            raise ValueError("BIDOPS_OLLAMA_KEEP_ALIVE must be an Ollama duration or number")
+        if isinstance(value, (int, float)):
+            if isinstance(value, float) and not math.isfinite(value):
+                raise ValueError("BIDOPS_OLLAMA_KEEP_ALIVE must be finite")
+            if value < -1:
+                raise ValueError("BIDOPS_OLLAMA_KEEP_ALIVE must be -1 or greater")
+            return value
+        if isinstance(value, str) and _OLLAMA_DURATION.fullmatch(value):
+            return value
+        raise ValueError(
+            "BIDOPS_OLLAMA_KEEP_ALIVE must be a duration such as 30m, 0, or -1"
+        )
 
     @model_validator(mode="after")
     def derive_paths(self) -> "Settings":
@@ -160,7 +223,7 @@ class Settings(BaseSettings):
         return self.model_timeout
 
     @property
-    def ollama_keep_alive(self) -> str:
+    def ollama_keep_alive(self) -> str | int | float:
         return self.model_keep_alive
 
     @property

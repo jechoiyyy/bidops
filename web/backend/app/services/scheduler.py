@@ -272,7 +272,11 @@ class SchedulerService:
                 session,
                 "schedule.settings_updated",
                 "1",
-                {"daily_time": row.daily_time, "weekly_time": row.weekly_time},
+                {
+                    "daily_time": row.daily_time,
+                    "weekly_time": row.weekly_time,
+                    "prespec_enabled": bool(row.prespec_enabled),
+                },
                 actor=updated_by.strip(),
             )
             session.flush()
@@ -690,7 +694,18 @@ class SchedulerService:
 
     @staticmethod
     def _audit(session: Session, event_type: str, target_id: str, details: dict[str, Any], *, actor: str = "system:scheduler") -> None:
-        allowed = {"reason", "run_key", "duplicate_of", "skip_reason", "quality_gate_result_id", "policy_version", "prompt_version"}
+        allowed = {
+            "reason",
+            "run_key",
+            "duplicate_of",
+            "skip_reason",
+            "quality_gate_result_id",
+            "policy_version",
+            "prompt_version",
+            "daily_time",
+            "weekly_time",
+            "prespec_enabled",
+        }
         session.add(AuditEvent(event_id="audit-" + uuid4().hex, event_type=event_type, actor=actor, target_type="schedule", target_id=target_id, occurred_at=utc_now(), details_json={k: v for k, v in details.items() if k in allowed}))
 
     @staticmethod

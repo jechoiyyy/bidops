@@ -66,8 +66,19 @@ pipeline_service = PipelineService()
 
 
 def _pipeline_service(request: Request) -> PipelineService:
-    value = getattr(request.app.state, "pipeline_service", None)
-    return value if callable(getattr(value, "start", None)) else pipeline_service
+    """Resolve the one pipeline service owned by this application instance.
+
+    The module-level service remains only as a test/import fallback.  Once a
+    request has an application state, remember that fallback there as well so
+    every run endpoint observes the same in-memory execution registry.
+    """
+
+    state = request.app.state
+    value = getattr(state, "pipeline_service", None)
+    if value is None:
+        value = pipeline_service
+        state.pipeline_service = value
+    return value
 
 
 def _screening_orchestrator(request: Request, session: Session) -> ScreeningOrchestrator:
@@ -177,7 +188,11 @@ def _scope(run: Run) -> CollectionScopeResponse:
     )
 
 
-def _pipeline(run: Run, artifacts: list[ArtifactValidationResponse]) -> list[PipelineStageResponse]:
+def _pipeline(
+    run: Run,
+    artifacts: list[ArtifactValidationResponse],
+    service: PipelineService,
+) -> list[PipelineStageResponse]:
     present = {row.name: row.present for row in artifacts}
     report_dir = get_settings().bidops_root / "reports" / run_directory(run).name
     definitions = [
@@ -221,7 +236,7 @@ def _pipeline(run: Run, artifacts: list[ArtifactValidationResponse]) -> list[Pip
     rows: list[PipelineStageResponse] = []
     for name, status, artifact, script, execution_allowed, message in definitions:
         stage_key = {"collect_normalize": "collect"}.get(name, name)
-        execution = pipeline_service.latest_for(run.id, stage_key) if execution_allowed else None
+        execution = service.latest_for(run.id, stage_key) if execution_allowed else None
         if execution and execution.status in {"pending", "running", "failed"}:
             status = execution.status
         rows.append(
@@ -357,11 +372,12 @@ def start_pipeline_stage(
 @router.get("/{run_id}/pipeline/logs", response_model=PipelineLogResponse)
 def pipeline_logs(
     run_id: str,
+    request: Request,
     execution_id: str | None = Query(default=None),
     session: Session = Depends(get_db),
 ) -> PipelineLogResponse:
     run = get_run(session, run_id)
-    executions = pipeline_service.logs_for(run.id, execution_id=execution_id)
+    executions = _pipeline_service(request).logs_for(run.id, execution_id=execution_id)
     items = [
         PipelineLogLineResponse.model_validate(item)
         for execution in executions
@@ -515,14 +531,14 @@ def run_stats(run_id: str, session: Session = Depends(get_db)) -> RunStatsRespon
 
 
 @router.get("/{run_id}", response_model=RunDetailResponse)
-def run_detail(run_id: str, session: Session = Depends(get_db)) -> RunDetailResponse:
+def run_detail(run_id: str, request: Request, session: Session = Depends(get_db)) -> RunDetailResponse:
     run = get_run(session, run_id)
     warnings = _run_warnings(session, run.id)
     artifacts = _artifact_rows(run, warnings)
     return RunDetailResponse(
         **run_summary(run).model_dump(),
         collection_scope=_scope(run),
-        pipeline=_pipeline(run, artifacts),
+        pipeline=_pipeline(run, artifacts, _pipeline_service(request)),
         artifacts=artifacts,
         warning_counts=warning_counts(warnings),
     )

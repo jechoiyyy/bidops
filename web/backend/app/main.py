@@ -75,6 +75,21 @@ async def lifespan(_app: FastAPI):
     finally:
         if runtime is not None:
             runtime.shutdown()
+            # A FastAPI application can be entered more than once by tests
+            # and by ASGI lifespan managers.  Do not leave closed runtime
+            # objects in app.state for the next lifespan.
+            for name in (
+                "runtime",
+                "pipeline_service",
+                "screening_store",
+                "screening_orchestrator",
+                "screening_worker",
+                "scheduler_service",
+                "scheduled_pipeline",
+                "dispatch_schedule",
+            ):
+                if hasattr(_app.state, name):
+                    delattr(_app.state, name)
 
 
 app = FastAPI(title="BidOps Admin API", lifespan=lifespan)
