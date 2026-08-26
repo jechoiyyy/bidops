@@ -7,6 +7,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
+from sqlalchemy.orm import aliased
 from sqlalchemy.orm import Session
 
 from ..config import get_settings
@@ -169,6 +170,65 @@ def _not_found() -> HTTPException:
     return HTTPException(status_code=404, detail="품질 게이트를 찾을 수 없습니다.")
 
 
+def _aggregate_execution_status(status_a: str, status_b: str) -> str:
+    if status_a == status_b == "대기":
+        return "대기"
+    if "중단됨" in {status_a, status_b}:
+        return "중단됨"
+    if "실패" in {status_a, status_b}:
+        return "실패"
+    if status_a in {"성공", "부분 성공"} and status_b in {"성공", "부분 성공"}:
+        return "완료"
+    return "실행 중"
+
+
+def _refresh_stale_gates(session: Session) -> None:
+    """Reconcile terminal pass transitions before list filtering/pagination.
+
+    The projection is read once with both pass statuses, stale IDs are
+    refreshed through the durable service, and the request transaction is
+    explicitly restarted before the caller performs its count/page query.
+    This prevents a stale SQLite snapshot from hiding a gate that just became
+    terminal.  The service has no bulk operation, so only genuinely stale
+    gates incur a refresh transaction; healthy gates are never refreshed per
+    response item.
+    """
+
+    pass_a = aliased(ScreeningExecution)
+    pass_b = aliased(ScreeningExecution)
+    rows = session.execute(
+        select(
+            QualityGate.gate_id,
+            QualityGate.execution_status,
+            pass_a.status.label("status_a"),
+            pass_b.status.label("status_b"),
+        )
+        .join(pass_a, pass_a.execution_id == QualityGate.pass_a_execution_id)
+        .join(pass_b, pass_b.execution_id == QualityGate.pass_b_execution_id)
+    ).all()
+    stale_ids = [
+        gate_id
+        for gate_id, projection, status_a, status_b in rows
+        if projection != _aggregate_execution_status(status_a, status_b)
+    ]
+    if not stale_ids:
+        return
+    # The first projection SELECT may have opened a read transaction.  End it
+    # before the service obtains its own write lock, then force another fresh
+    # transaction for the count/page query below.
+    session.rollback()
+    service = QualityGateService(session_factory=session)
+    try:
+        for gate_id in stale_ids:
+            service.refresh(gate_id)
+    except QualityGateValidationError as exc:
+        raise HTTPException(status_code=409, detail="품질 게이트 상태를 갱신할 수 없습니다.") from exc
+    except QualityGateError as exc:
+        raise HTTPException(status_code=409, detail="품질 게이트 상태를 갱신할 수 없습니다.") from exc
+    session.rollback()
+    session.expire_all()
+
+
 @router.post("", response_model=QualityGateResponse, status_code=status.HTTP_202_ACCEPTED)
 def create_quality_gate(
     request: QualityGateCreateRequest,
@@ -212,6 +272,7 @@ def list_quality_gates(
     offset: int = Query(default=0, ge=0),
     session: Session = Depends(get_db),
 ) -> QualityGateListResponse:
+    _refresh_stale_gates(session)
     filters = []
     if purpose is not None:
         filters.append(QualityGate.purpose == purpose)

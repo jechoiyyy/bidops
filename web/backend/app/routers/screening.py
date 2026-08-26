@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
+import stat
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -81,6 +83,70 @@ def _artifact_file(row: ScreeningExecution, filename: str) -> Path | None:
         return resolved
     except (OSError, ValueError):
         return None
+
+
+def _open_artifact_fd(row: ScreeningExecution, filename: str) -> tuple[int, int] | None:
+    """Open an artifact through a no-follow descriptor chain.
+
+    The returned descriptor is the authority used by the response stream;
+    callers must not re-open the pathname after this function returns.  This
+    closes the usual validate-then-open race where an attacker swaps the
+    artifact name for a symlink between a path check and ``FileResponse``.
+    """
+
+    expected_dir = f"data/screening-executions/{row.execution_id}"
+    if row.artifact_dir != expected_dir:
+        return None
+    root = Path(get_settings().bidops_root)
+    if not root.is_dir() or root.is_symlink():
+        return None
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    directory_flags = flags | getattr(os, "O_DIRECTORY", 0)
+    descriptors: list[int] = []
+    try:
+        root_fd = os.open(root, directory_flags)
+        descriptors.append(root_fd)
+        data_fd = os.open("data", directory_flags, dir_fd=root_fd)
+        descriptors.append(data_fd)
+        artifacts_fd = os.open("screening-executions", directory_flags, dir_fd=data_fd)
+        descriptors.append(artifacts_fd)
+        execution_fd = os.open(row.execution_id, directory_flags, dir_fd=artifacts_fd)
+        descriptors.append(execution_fd)
+        artifact_fd = os.open(filename, flags, dir_fd=execution_fd)
+        descriptors.append(artifact_fd)
+        metadata = os.fstat(artifact_fd)
+        if not stat.S_ISREG(metadata.st_mode):
+            raise OSError("artifact is not a regular file")
+        # ArtifactStore leaves content-addressed files with one link.  A link
+        # to an unrelated file (for example /etc/passwd) has nlink >= 2 and
+        # is rejected as a hard escape even though its pathname is beneath
+        # the execution directory.
+        if metadata.st_nlink != 1:
+            raise OSError("artifact has an unexpected hard-link count")
+        for descriptor in descriptors[:-1]:
+            os.close(descriptor)
+        return artifact_fd, metadata.st_size
+    except (OSError, ValueError):
+        for descriptor in reversed(descriptors):
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
+        return None
+
+
+def _stream_fd(descriptor: int):  # type: ignore[no-untyped-def]
+    try:
+        while True:
+            chunk = os.read(descriptor, 1024 * 1024)
+            if not chunk:
+                break
+            yield chunk
+    finally:
+        try:
+            os.close(descriptor)
+        except OSError:
+            pass
 
 
 def _artifact_urls(row: ScreeningExecution) -> ScreeningArtifactUrls:
@@ -183,11 +249,18 @@ def _attempt_response(row: ScreeningAttempt) -> ScreeningAttemptResponse:
 
 
 def _failure_items(row: ScreeningExecution) -> list[ScreeningFailureItem]:
-    path = _artifact_file(row, "screening-failures.json")
-    if path is None:
+    opened = _open_artifact_fd(row, "screening-failures.json")
+    if opened is None:
         return []
+    descriptor, _size = opened
     try:
-        value = json.loads(path.read_text(encoding="utf-8"))
+        raw = b""
+        while True:
+            chunk = os.read(descriptor, 1024 * 1024)
+            if not chunk:
+                break
+            raw += chunk
+        value = json.loads(raw.decode("utf-8"))
         failures = value.get("failures") if isinstance(value, dict) else None
         if not isinstance(failures, list):
             return []
@@ -197,6 +270,11 @@ def _failure_items(row: ScreeningExecution) -> list[ScreeningFailureItem]:
         # response object.  The artifact endpoint remains available for the
         # operator to diagnose it, subject to the same path checks.
         return []
+    finally:
+        try:
+            os.close(descriptor)
+        except OSError:
+            pass
 
 
 def execution_detail(
@@ -285,17 +363,22 @@ def get_artifact(
     execution_id: str,
     kind: Literal["decisions", "failures", "telemetry", "screening_result"],
     session: Session = Depends(get_db),
-) -> FileResponse:
+) -> StreamingResponse:
     row = session.scalar(
         select(ScreeningExecution).where(ScreeningExecution.execution_id == execution_id)
     )
     if row is None:
         raise HTTPException(status_code=404, detail="판정 실행을 찾을 수 없습니다.")
     filename, media_type = _ARTIFACTS[kind]
-    path = _artifact_file(row, filename)
-    if path is None:
+    opened = _open_artifact_fd(row, filename)
+    if opened is None:
         raise HTTPException(status_code=404, detail="판정 산출물을 찾을 수 없습니다.")
-    return FileResponse(path, media_type=media_type)
+    descriptor, size = opened
+    return StreamingResponse(
+        _stream_fd(descriptor),
+        media_type=media_type,
+        headers={"Content-Length": str(size)},
+    )
 
 
 __all__ = ["execution_detail", "execution_response", "router"]
