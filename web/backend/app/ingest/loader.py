@@ -43,13 +43,23 @@ from .contracts import (
     missing_judgment_fields,
     model_extra_fields,
 )
-from ..screening.generation_config import GenerationConfigError, config_from_value, validate_digest
+from ..screening.generation_config import (
+    GenerationConfigError,
+    config_from_value,
+    legacy_generation_config,
+    validate_digest,
+)
 
 
 RUN_ID_RE = re.compile(r"^(?P<directory>.+)--(?P<generated>\d{8}T\d{6}(?:\.\d{1,6})?Z)$")
 EXECUTION_ID_RE = re.compile(r"^scr-[0-9a-f]{32}$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 DECIMAL_RE = re.compile(r"^[+-]?\d+(?:\.\d+)?$")
+V3_GENERATION_SCHEMAS = {
+    "bidops.screening-input.v1",
+    "bidops.decisions.v3",
+    "bidops.screening.v3",
+}
 
 
 def _is_aware_iso(value: Any) -> bool:
@@ -72,13 +82,17 @@ class IngestResult:
     judgments: int = 0
     reviews: int = 0
     warnings: list[dict[str, Any]] = field(default_factory=list)
+    # A v3 binding is retained in the run projection and exposed to callers
+    # after legacy normalization.  It is intentionally absent for v2 runs.
+    generation_config: dict[str, Any] | None = None
+    generation_config_digest: str | None = None
 
     @property
     def warning_counts(self) -> dict[str, int]:
         return dict(Counter(item["level"] for item in self.warnings))
 
     def as_dict(self) -> dict[str, Any]:
-        return {
+        result = {
             "run_id": self.run_id,
             "notices": self.notices,
             "judgments": self.judgments,
@@ -86,6 +100,10 @@ class IngestResult:
             "warnings": self.warnings,
             "warning_counts": self.warning_counts,
         }
+        if self.generation_config is not None and self.generation_config_digest is not None:
+            result["generation_config"] = self.generation_config
+            result["generation_config_digest"] = self.generation_config_digest
+        return result
 
 
 def discover_run_dirs(data_root: Path, run_id: str | None = None) -> list[Path]:
@@ -208,6 +226,68 @@ def _read_optional_json(path: Path) -> dict[str, Any] | None:
     return value if isinstance(value, dict) else None
 
 
+def _normalize_v3_generation_binding(
+    value: Any, artifact_name: str
+) -> tuple[dict[str, Any] | None, str | None]:
+    """Normalize a v3 binding in memory and verify its canonical digest.
+
+    The only compatibility exception is an old v3 artifact with neither
+    generation field.  A missing half is ambiguous and all supplied values
+    are parsed through the shared backend GenerationConfig parser; accepting
+    a digest string by itself would let a producer claim an unverified model
+    budget.  The caller owns the source bytes, which are never rewritten.
+    """
+
+    if not isinstance(value, dict):
+        return None, f"{artifact_name} is not an object"
+    if value.get("schema_version") not in V3_GENERATION_SCHEMAS:
+        return value, None
+    has_config = "generation_config" in value
+    has_digest = "generation_config_digest" in value
+    if has_config != has_digest:
+        missing = "generation_config_digest" if has_config else "generation_config"
+        return None, f"{artifact_name} generation binding is partial ({missing} is missing)"
+
+    if not has_config:
+        legacy = legacy_generation_config()
+        return {
+            **value,
+            "generation_config": legacy.canonical_value(),
+            "generation_config_digest": legacy.digest(),
+        }, None
+
+    try:
+        config = config_from_value(value.get("generation_config"))
+        digest = validate_digest(config, value.get("generation_config_digest"))
+    except (GenerationConfigError, AttributeError, TypeError):
+        return None, f"{artifact_name} generation binding is invalid"
+    # Keep the derived object canonical even when an equivalent mapping was
+    # supplied with a different key order.  The digest remains the producer's
+    # value only after parser verification above.
+    normalized = {
+        **value,
+        "generation_config": config.canonical_value(),
+        "generation_config_digest": digest,
+    }
+    return normalized, None
+
+
+def _generation_binding_matches(
+    value: dict[str, Any],
+    expected_config: dict[str, Any] | None,
+    expected_digest: str | None,
+    artifact_name: str,
+) -> str | None:
+    if expected_config is None or expected_digest is None:
+        return None
+    if (
+        value.get("generation_config") != expected_config
+        or value.get("generation_config_digest") != expected_digest
+    ):
+        return f"{artifact_name} generation binding does not match its source"
+    return None
+
+
 def _read_screening_input(path: Path) -> tuple[bool, dict[str, Any] | None, str | None]:
     """Read the immutable v3 input without conflating absent and invalid.
 
@@ -236,7 +316,12 @@ def _read_screening_input(path: Path) -> tuple[bool, dict[str, Any] | None, str 
         return True, None, "JSON is not canonical"
     if canonical != raw:
         return True, None, "JSON is not canonical"
-    return True, value, None
+    normalized, generation_error = _normalize_v3_generation_binding(
+        value, "screening-input.json"
+    )
+    if generation_error is not None or normalized is None:
+        return True, None, generation_error or "generation binding is invalid"
+    return True, normalized, None
 
 
 def _first_generated_at(
@@ -970,6 +1055,69 @@ def _screening_input_error(raw: Any) -> str | None:
     return None
 
 
+_DECISIONS_V3_KEYS = {
+    "schema_version", "execution_id", "run_id", "generated_at", "screening_basis",
+    "model_name", "model_digest", "prompt_version", "policy_version",
+    "company_profile_version", "company_profile_digest", "judgments",
+    "generation_config", "generation_config_digest",
+}
+_SCREENING_V3_KEYS = {
+    "schema_version", "execution_id", "generated_at", "screening_basis",
+    "source_window", "model_name", "model_digest", "prompt_version",
+    "policy_version", "company_profile_version", "company_profile_digest",
+    "generation_config", "generation_config_digest", "candidate_count",
+    "result_count", "failure_count", "partial_artifact", "failure_artifact",
+    "results",
+}
+
+
+def _v3_generation_artifact_error(
+    raw: Any, artifact_name: str, expected_keys: set[str]
+) -> str | None:
+    """Validate top-level v3 identity and the generation binding.
+
+    Nested judgment validation remains deliberately owned by the producer
+    merge contract; ingest still refuses an artifact whose frozen generation
+    metadata is malformed or cannot be bound to its sibling artifact.
+    """
+
+    if not isinstance(raw, dict):
+        return f"{artifact_name} top-level value is not an object"
+    missing_keys = expected_keys - set(raw)
+    if missing_keys:
+        return f"{artifact_name} top-level fields are missing"
+    if raw.get("schema_version") not in V3_GENERATION_SCHEMAS:
+        return f"{artifact_name} schema version is invalid"
+    if not isinstance(raw.get("execution_id"), str) or EXECUTION_ID_RE.fullmatch(raw["execution_id"]) is None:
+        return f"{artifact_name} execution id is invalid"
+    for key in ("run_id", "prompt_version", "policy_version", "company_profile_version"):
+        if key in raw and (not isinstance(raw.get(key), str) or not raw[key].strip()):
+            return f"{artifact_name} identity field is invalid"
+    run_id = raw.get("run_id")
+    if isinstance(run_id, str) and ("/" in run_id or "\\" in run_id or Path(run_id).name != run_id):
+        return f"{artifact_name} run identity is unsafe"
+    generated = raw.get("generated_at")
+    if not _is_aware_iso(generated):
+        return f"{artifact_name} generated_at is invalid"
+    profile_digest = raw.get("company_profile_digest")
+    if not isinstance(profile_digest, str) or SHA256_RE.fullmatch(profile_digest) is None:
+        return f"{artifact_name} profile digest is invalid"
+    if raw.get("company_profile_version") != f"company-profile.sha256:{profile_digest}":
+        return f"{artifact_name} profile identity is invalid"
+    if not isinstance(raw.get("model_name"), str) or not raw["model_name"].strip():
+        return f"{artifact_name} model name is invalid"
+    if not isinstance(raw.get("model_digest"), str) or SHA256_RE.fullmatch(raw["model_digest"]) is None:
+        return f"{artifact_name} model digest is invalid"
+    try:
+        config = config_from_value(raw.get("generation_config"))
+        validate_digest(config, raw.get("generation_config_digest"))
+    except (GenerationConfigError, AttributeError, TypeError):
+        return f"{artifact_name} generation binding is invalid"
+    if raw.get("generation_config") != config.canonical_value():
+        return f"{artifact_name} generation config is not canonical"
+    return None
+
+
 def _load_screening_input_notices(
     session: Session,
     run_id: str,
@@ -1030,7 +1178,32 @@ def _load_screening_results(
     raw: dict[str, Any],
     source_file: str,
     schema_version: str,
+    *,
+    expected_generation_config: dict[str, Any] | None = None,
+    expected_generation_digest: str | None = None,
 ) -> int:
+    if raw.get("schema_version") == "bidops.screening.v3":
+        generation_error = _v3_generation_artifact_error(
+            raw, "screening-results.json", _SCREENING_V3_KEYS
+        )
+        if generation_error is None:
+            generation_error = _generation_binding_matches(
+                raw,
+                expected_generation_config,
+                expected_generation_digest,
+                "screening-results.json",
+            )
+        if generation_error is not None:
+            _record_warning(
+                session,
+                run_id,
+                "error",
+                "screening_results_invalid",
+                "screening-results.json generation 계약을 해석하지 못했습니다.",
+                {"file": source_file, "reason": generation_error},
+            )
+            _remove_judgments_without_screening(session, notices)
+            return 0
     try:
         artifact = ScreeningArtifact.model_validate(raw)
     except ValidationError as exc:
@@ -1240,6 +1413,63 @@ def _update_counts(session: Session, run: Run) -> tuple[int, int, int]:
     return notices, judgments, reviews
 
 
+def _persist_generation_metadata(
+    run: Run,
+    *artifacts: dict[str, Any] | None,
+) -> tuple[dict[str, Any] | None, str | None]:
+    """Keep the normalized v3 binding in the run projection.
+
+    ``Run`` predates generation binding and its JSON counts projection is the
+    compatibility storage available without changing the DB model.  The
+    public counts schema ignores these metadata keys, while re-ingest and
+    callers that need a round-trip binding can recover the exact object and
+    digest.  v2 artifacts intentionally leave this untouched.
+    """
+
+    config: dict[str, Any] | None = None
+    digest: str | None = None
+    for artifact in artifacts:
+        if not isinstance(artifact, dict) or artifact.get("schema_version") not in V3_GENERATION_SCHEMAS:
+            continue
+        candidate = artifact.get("generation_config")
+        candidate_digest = artifact.get("generation_config_digest")
+        if isinstance(candidate, dict) and isinstance(candidate_digest, str):
+            if config is None:
+                config, digest = candidate, candidate_digest
+            elif config != candidate or digest != candidate_digest:
+                # Cross-artifact mismatch is handled by the strict loader;
+                # never store a mixed binding under an apparently valid run.
+                _clear_generation_metadata(run)
+                return None, None
+    if config is not None and digest is not None:
+        # A later DB revision may provide dedicated immutable columns.  Use
+        # them when present; the current Run model falls back to its JSON
+        # projection so this compatibility layer remains migration-neutral.
+        if hasattr(run, "generation_config_json"):
+            run.generation_config_json = config
+        if hasattr(run, "generation_config_digest"):
+            run.generation_config_digest = digest
+        current = run.counts_json if isinstance(run.counts_json, dict) else {}
+        run.counts_json = {
+            **current,
+            "generation_config": config,
+            "generation_config_digest": digest,
+        }
+    else:
+        _clear_generation_metadata(run)
+    return config, digest
+
+
+def _clear_generation_metadata(run: Run) -> None:
+    current = run.counts_json if isinstance(run.counts_json, dict) else {}
+    if "generation_config" in current or "generation_config_digest" in current:
+        run.counts_json = {
+            key: value
+            for key, value in current.items()
+            if key not in {"generation_config", "generation_config_digest"}
+        }
+
+
 def ingest_run(
     run_directory: str | Path,
     session: Session | None = None,
@@ -1297,6 +1527,38 @@ def ingest_run(
             generated_at,
             screening_basis,
         )
+        decisions_generation_invalid = False
+        screening_generation_invalid = False
+        if isinstance(decisions_raw, dict) and decisions_raw.get("schema_version") in V3_GENERATION_SCHEMAS:
+            decisions_raw, generation_error = _normalize_v3_generation_binding(
+                decisions_raw, "screening-decisions.json"
+            )
+            if generation_error is not None or decisions_raw is None:
+                decisions_generation_invalid = True
+                _record_warning(
+                    session,
+                    run_id,
+                    "error",
+                    "decisions_invalid",
+                    "screening-decisions.json generation 계약을 해석하지 못했습니다.",
+                    {"file": str(decisions_path), "reason": generation_error or "invalid"},
+                )
+                decisions_raw = None
+        if isinstance(screening_raw, dict) and screening_raw.get("schema_version") in V3_GENERATION_SCHEMAS:
+            screening_raw, generation_error = _normalize_v3_generation_binding(
+                screening_raw, "screening-results.json"
+            )
+            if generation_error is not None or screening_raw is None:
+                screening_generation_invalid = True
+                _record_warning(
+                    session,
+                    run_id,
+                    "error",
+                    "screening_results_invalid",
+                    "screening-results.json generation 계약을 해석하지 못했습니다.",
+                    {"file": str(screening_path), "reason": generation_error or "invalid"},
+                )
+                screening_raw = None
         if screening_input_present and screening_input_invalid is not None:
             _record_warning(
                 session,
@@ -1356,6 +1618,39 @@ def ingest_run(
         decisions_schema = None
         if decisions_raw is not None:
             try:
+                if decisions_raw.get("schema_version") == "bidops.decisions.v3":
+                    generation_error = _v3_generation_artifact_error(
+                        decisions_raw, "screening-decisions.json", _DECISIONS_V3_KEYS
+                    )
+                    input_config = (
+                        screening_input_raw.get("generation_config")
+                        if isinstance(screening_input_raw, dict)
+                        else None
+                    )
+                    input_digest = (
+                        screening_input_raw.get("generation_config_digest")
+                        if isinstance(screening_input_raw, dict)
+                        else None
+                    )
+                    if generation_error is None:
+                        generation_error = _generation_binding_matches(
+                            decisions_raw,
+                            input_config,
+                            input_digest,
+                            "screening-decisions.json",
+                        )
+                    if generation_error is not None:
+                        decisions_generation_invalid = True
+                        _record_warning(
+                            session,
+                            run_id,
+                            "error",
+                            "decisions_invalid",
+                            "screening-decisions.json generation 계약을 해석하지 못했습니다.",
+                            {"file": str(decisions_path), "reason": generation_error},
+                        )
+                        decisions_raw = None
+                        raise ValueError("invalid v3 generation binding")
                 decisions_model = DecisionArtifact.model_validate(decisions_raw)
                 _record_unknown_fields(
                     session,
@@ -1363,7 +1658,7 @@ def ingest_run(
                     _artifact_unknown_fields(decisions_raw, decisions_model),
                     str(decisions_path),
                 )
-                decisions_schema = artifact_version(decisions_model)
+                decisions_schema = artifact_version(decisions_model) or decisions_raw.get("schema_version")
             except ValidationError as exc:
                 _record_warning(
                     session,
@@ -1373,6 +1668,9 @@ def ingest_run(
                     "screening-decisions.json 계약을 해석하지 못했습니다.",
                     {"file": str(decisions_path), "error": str(exc)},
                 )
+            except ValueError:
+                # The safe generation-specific warning was already recorded.
+                pass
         if decisions_schema == "bidops.decisions.v1":
             _record_warning(
                 session,
@@ -1400,17 +1698,48 @@ def ingest_run(
                 "bidops.screening.v2": "bidops.decisions.v2",
             }.get(screening_schema, screening_schema or "unknown")
             result_schema = decisions_schema or inferred_schema
-            judgments_count = _load_screening_results(
-                session,
-                run_id,
-                notices,
-                screening_raw,
-                str(screening_path),
-                result_schema,
-            )
+            if decisions_generation_invalid:
+                # A v3 result without a trustworthy sibling decision artifact
+                # is not a safe projection, even when its nested rows happen
+                # to contain usable grade/readiness fields.
+                _record_warning(
+                    session,
+                    run_id,
+                    "error",
+                    "screening_results_invalid",
+                    "screening-decisions.json generation binding이 유효하지 않아 판정을 적재하지 않았습니다.",
+                    {"file": str(screening_path), "reason": "decisions generation binding is invalid"},
+                )
+                _remove_judgments_without_screening(session, notices)
+                judgments_count = 0
+            else:
+                expected_config = None
+                expected_digest = None
+                for source in (screening_input_raw, decisions_raw):
+                    if isinstance(source, dict) and source.get("schema_version") in V3_GENERATION_SCHEMAS:
+                        expected_config = source.get("generation_config")
+                        expected_digest = source.get("generation_config_digest")
+                        break
+                judgments_count = _load_screening_results(
+                    session,
+                    run_id,
+                    notices,
+                    screening_raw,
+                    str(screening_path),
+                    result_schema,
+                    expected_generation_config=expected_config,
+                    expected_generation_digest=expected_digest,
+                )
 
         if collection_raw is not None:
             _load_collection_stats(session, run_id, collection_raw, str(collection_path), run)
+        if screening_input_invalid is not None or decisions_generation_invalid or screening_generation_invalid:
+            _clear_generation_metadata(run)
+            generation_config_result, generation_digest_result = None, None
+        else:
+            generation_config_result, generation_digest_result = _persist_generation_metadata(
+                run, screening_input_raw, decisions_raw, screening_raw
+            )
         review_count = _load_feedback(session, run, notices, directory, reports_path)
         notices_count, judgments_count, review_count = _update_counts(session, run)
         session.commit()
@@ -1420,6 +1749,8 @@ def ingest_run(
             notices=notices_count,
             judgments=judgments_count,
             reviews=review_count,
+            generation_config=generation_config_result,
+            generation_config_digest=generation_digest_result,
             warnings=warnings,
         )
     except Exception:
