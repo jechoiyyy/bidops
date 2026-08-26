@@ -104,7 +104,7 @@ def isolated_test_boundary_active() -> bool:
 
 
 def init_db(bind: Engine | None = None) -> None:
-    """Create all declared tables.
+    """Create isolated-test tables or verify the migrated PostgreSQL schema.
 
     ``bind`` is optional to make isolated in-memory test databases possible;
     normal application code uses the configured file-backed engine.
@@ -129,9 +129,15 @@ def init_db(bind: Engine | None = None) -> None:
 
     target = schema_bound(bind or engine)
     if target.dialect.name == "postgresql":
-        with target.begin() as connection:
-            connection.execute(text("CREATE SCHEMA IF NOT EXISTS bidops"))
-            Base.metadata.create_all(bind=connection)
+        # PostgreSQL DDL belongs exclusively to Alembic and the migrate role.
+        # Runtime app/worker roles intentionally lack CREATE privileges; doing
+        # CREATE SCHEMA/create_all here both breaks least privilege and can
+        # bypass migration history.  A single known table is enough to fail
+        # fast when the ordered postgres-init -> migrate gate was skipped.
+        with target.connect() as connection:
+            migrated = connection.scalar(text("SELECT to_regclass('bidops.run')"))
+        if migrated is None:
+            raise RuntimeError("BidOps PostgreSQL schema is not migrated")
     else:
         Base.metadata.create_all(bind=target)
 

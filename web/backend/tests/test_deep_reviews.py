@@ -14,6 +14,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
+from app.cli.import_profile_policy import import_profile_policy
 from app.db import init_db
 from app.models import (
     AnalysisPolicyVersion,
@@ -36,8 +37,10 @@ from app.models import (
     Run,
     WorkJob,
 )
+from app.services import input_versions
 from app.services.deep_review_validation import DeepReviewValidationError, merge_stage_chunks
 from app.services.deep_reviews import DeepReviewService, DeepReviewServiceError, JobClaim, StaleFenceError
+from app.services.deep_reviews import _resolve_exact_evidence_quotes
 from app.services.input_versions import (
     InputVersionError,
     MODEL_NAME,
@@ -48,7 +51,8 @@ from app.services.input_versions import (
     load_canonical_policy,
     policy_activation_valid,
 )
-from app.services.ollama_client import InvocationResult, OllamaClient, OllamaInvocationError, build_prompt, sanitize_for_prompt
+from app.services.vllm_client import InvocationResult, VllmClient, VllmInvocationError, build_prompt, sanitize_for_prompt
+from app.services.object_store import ObjectMetadata
 
 
 def _fixture_structure(_session, structure):
@@ -108,28 +112,77 @@ def test_approved_policy_is_byte_canonical():
     assert policy["chunking"]["max_characters"] == 24000
     assert policy["chunking"]["max_requirements"] == 20
     assert policy["chunking"]["retries"] == 2
-    assert policy["chunking"]["timeout_seconds"] == 120
+    assert policy["chunking"]["timeout_seconds"] == 300
+    assert policy["generation"] == {
+        "enable_thinking": False, "max_completion_tokens": 16384, "seed": 0,
+        "temperature": 0.7, "top_k": 20, "top_p": 0.8,
+    }
     assert policy["stages"][1]["instruction"] == "고정된 요구사항과 회사 profile 근거만 사용해 수행 방안, 위험, 역량 적합성, 금액과 경제성을 분석한다."
     assert raw.hex()[-2:] != "0a"
 
 
 def test_policy_hash_is_the_approved_literal_hash():
     path = Path(__file__).parents[1] / "app" / "policies" / "analysis-policy-lean-v1.json"
-    assert hashlib.sha256(path.read_bytes()).hexdigest() == "1968dd843e6e945d6ca5bec43af808ae6b1c105e0fa9ffbfdde8ed5eba426c17"
+    assert hashlib.sha256(path.read_bytes()).hexdigest() == "ade63ebfafa2eec424bbb456dea1b5b21da0980eac6c484853612e37dda422e8"
 
 
 def test_profile_policy_import_is_immutable_and_policy_activation_requires_quality(engine):
     with Session(engine) as session:
         profile_path = Path(__file__).parents[3] / "docs" / "reference" / "company-profile.md"
         profile = import_profile_version(session, profile_path, created_by_name="운영자")
-        assert len(profile.profile_payload["facts"]) == 39
-        assert len({fact["fact_key"] for fact in profile.profile_payload["facts"]}) == 39
+        assert len(profile.profile_payload["facts"]) == 43
+        assert len({fact["fact_key"] for fact in profile.profile_payload["facts"]}) == 43
         assert import_profile_version(session, profile_path, created_by_name="다른 운영자").id == profile.id
         policy = import_policy_version(session, created_by_name="운영자", sample_hash="a" * 64, required_item_recall=.8, human_agreement=.7, unsupported_false_positive_rate=.1)
         assert policy_activation_valid(policy)
         unmeasured = import_policy_version(session, created_by_name="다른 운영자")
         assert unmeasured.id != policy.id
         assert import_policy_version(session, created_by_name="세 번째 운영자").id == unmeasured.id
+
+
+def test_measured_profile_policy_import_requires_and_matches_expected_policy_hash(engine, monkeypatch):
+    profile_path = Path(__file__).parents[3] / "docs" / "reference" / "company-profile.md"
+    monkeypatch.setattr(
+        input_versions,
+        "_store_profile_source",
+        lambda raw, digest: (
+            f"source/profile-{digest}.md",
+            len(raw),
+            ObjectMetadata("source", f"source/profile-{digest}.md", digest, digest, len(raw)),
+        ),
+    )
+    metrics = {
+        "sample_hash": "a" * 64,
+        "required_item_recall": .8,
+        "human_agreement": .7,
+        "unsupported_false_positive_rate": .1,
+    }
+    with Session(engine) as session:
+        with pytest.raises(InputVersionError):
+            import_profile_policy(session, profile_source=profile_path, actor="운영자", **metrics)
+        assert session.query(ProfileVersion).count() == 0
+        assert session.query(AnalysisPolicyVersion).count() == 0
+
+        with pytest.raises(InputVersionError) as mismatch:
+            import_profile_policy(
+                session,
+                profile_source=profile_path,
+                actor="운영자",
+                expected_policy_sha256="f" * 64,
+                **metrics,
+            )
+        assert mismatch.value.code == "policy_hash_mismatch"
+        assert session.query(ProfileVersion).count() == 0
+        assert session.query(AnalysisPolicyVersion).count() == 0
+
+        result = import_profile_policy(
+            session,
+            profile_source=profile_path,
+            actor="운영자",
+            expected_policy_sha256="ade63ebfafa2eec424bbb456dea1b5b21da0980eac6c484853612e37dda422e8",
+            **metrics,
+        )
+        assert result["policy_sha256"] == "ade63ebfafa2eec424bbb456dea1b5b21da0980eac6c484853612e37dda422e8"
 
 
 @pytest.mark.parametrize("insertion_order", ["unmeasured_then_measured", "measured_then_unmeasured"])
@@ -192,6 +245,21 @@ def test_input_imports_preserve_caller_pending_rows_and_reject_tampered_profile(
         with pytest.raises(InputVersionError):
             import_profile_version(session, profile_path, created_by_name="운영자")
         assert session.get(Run, pending.id) is not None
+
+
+def test_profile_context_validates_snapshot_without_private_source_credentials(engine, monkeypatch):
+    """The structure-only analysis worker must not need the source namespace."""
+
+    with Session(engine) as session:
+        profile_path = Path(__file__).parents[3] / "docs" / "reference" / "company-profile.md"
+        profile = import_profile_version(session, profile_path, created_by_name="운영자")
+        monkeypatch.setattr(input_versions, "_verified_profile_source", lambda _session, _rows: None)
+
+        context = input_versions.profile_context(session, profile)
+
+        assert context["profile_version_id"] == str(profile.id)
+        assert len(context["facts"]) == 43
+        assert len(context["evidence"]) > 0
 
 
 @pytest.mark.parametrize(
@@ -277,46 +345,119 @@ def test_actual_built_prompt_has_24000_unicode_limit():
         )
 
 
-def test_ollama_timeout_retries_twice_without_exposing_prompt():
+def test_vllm_timeout_retries_twice_without_exposing_prompt():
     calls = []
 
-    def transport(request, timeout):
-        calls.append((request, timeout))
+    def completion_create(**kwargs):
+        calls.append(kwargs)
         raise TimeoutError
 
-    client = OllamaClient(transport=transport)
-    with pytest.raises(OllamaInvocationError) as error:
-        client.invoke("requirements_and_evaluation", {"requirements": [{"text": "safe"}]}, {"chunking": {"retries": 2, "timeout_seconds": 120}, "stages": []})
+    client = VllmClient(completion_create=completion_create)
+    with pytest.raises(VllmInvocationError) as error:
+        client.invoke("requirements_and_evaluation", {"requirements": [{"text": "safe"}]}, {"chunking": {"retries": 2, "timeout_seconds": 300}, "stages": []})
     assert error.value.code == "timeout"
     assert len(calls) == 3
-    assert all(item[1] == 120.0 for item in calls)
+    assert all(item["timeout"] == 300.0 for item in calls)
     assert "safe" not in str(error.value)
 
 
-def test_ollama_malformed_json_is_safe_error():
-    def transport(_request, _timeout):
-        return b"not-json"
+def test_vllm_malformed_json_is_safe_error():
+    response = {
+        "model": MODEL_NAME,
+        "choices": [{"finish_reason": "stop", "message": {"content": "not-json"}}],
+    }
 
-    client = OllamaClient(transport=transport)
-    with pytest.raises(OllamaInvocationError) as error:
+    client = VllmClient(completion_create=lambda **_kwargs: response)
+    with pytest.raises(VllmInvocationError) as error:
         client.invoke("requirements_and_evaluation", {"requirements": []}, {"chunking": {"retries": 0}, "stages": []})
     assert error.value.code == "malformed_json"
 
 
-@pytest.mark.parametrize("endpoint", [
-    "https://127.0.0.1:11434/api/generate",
-    "http://127.0.0.1/api/generate",
-    "http://127.0.0.1:11434/api/tags",
-    "http://user:pass@127.0.0.1:11434/api/generate",
-    "http://127.0.0.1:11434/api/generate?secret=1",
-    "http://127.0.0.1:11434/api/generate#fragment",
+def test_vllm_reasoning_is_not_returned_or_hashed():
+    content = '{"claims":[],"evidence":[],"unknowns":[],"warnings":[]}'
+    response = {
+        "model": MODEL_NAME,
+        "choices": [{
+            "finish_reason": "stop",
+            "message": {"content": content, "reasoning": "private chain of thought"},
+        }],
+        "usage": {"prompt_tokens": 69, "completion_tokens": 48},
+    }
+    result = VllmClient(completion_create=lambda **_kwargs: response).invoke(
+        "requirements_and_evaluation",
+        {"requirements": []},
+        {"chunking": {"retries": 0, "timeout_seconds": 300}, "stages": []},
+    )
+    assert result.raw_response == content.encode()
+    assert b"private chain of thought" not in result.raw_response
+    assert result.prompt_tokens == 69 and result.output_tokens == 48
+
+
+def test_vllm_enforces_the_authoritative_stage_json_schema():
+    seen = []
+    response = {
+        "model": MODEL_NAME,
+        "choices": [{
+            "finish_reason": "stop",
+            "message": {"content": '{"claims":[],"evidence":[],"unknowns":[],"warnings":[]}'},
+        }],
+    }
+
+    def completion_create(**kwargs):
+        seen.append(kwargs)
+        return response
+
+    VllmClient(completion_create=completion_create).invoke(
+        "requirements_and_evaluation",
+        {},
+        {"chunking": {"retries": 0, "timeout_seconds": 300}, "stages": []},
+    )
+    response_format = seen[0]["response_format"]
+    assert response_format["type"] == "json_schema"
+    assert response_format["json_schema"]["strict"] is True
+    assert response_format["json_schema"]["schema"]["$id"] == "bidops.deep-review-stage.v1"
+    provider_evidence = response_format["json_schema"]["schema"]["$defs"]["evidence"]
+    assert "allOf" not in provider_evidence
+    assert set(provider_evidence["required"]) >= {"source_kind", "document_version_id", "structure_id", "locator_type", "quote", "source_sha256"}
+    assert seen[0]["temperature"] == 0.7 and seen[0]["top_p"] == 0.8 and seen[0]["seed"] == 0
+    assert seen[0]["extra_body"] == {"top_k": 20, "chat_template_kwargs": {"enable_thinking": False}}
+
+
+def test_vllm_length_finish_reason_is_safe_truncated_json_error():
+    response = {
+        "model": MODEL_NAME,
+        "choices": [{"finish_reason": "length", "message": {"content": '{"claims":['}}],
+    }
+    client = VllmClient(completion_create=lambda **_kwargs: response)
+    with pytest.raises(VllmInvocationError) as error:
+        client.invoke("requirements_and_evaluation", {}, {"chunking": {"retries": 0}, "stages": []})
+    assert error.value.code == "truncated_json"
+
+
+@pytest.mark.parametrize("base_url", [
+    "https://127.0.0.1:8000/v1",
+    "http://127.0.0.1/v1",
+    "http://127.0.0.1:8000/v1/models",
+    "http://user:pass@127.0.0.1:8000/v1",
+    "http://127.0.0.1:8000/v1?secret=1",
+    "http://127.0.0.1:8000/v1#fragment",
 ])
-def test_ollama_endpoint_is_exact_local_generate_url(endpoint):
+def test_vllm_base_url_is_exact_openai_compatible_url(base_url):
     with pytest.raises(ValueError):
-        OllamaClient(endpoint=endpoint)
+        VllmClient(base_url=base_url)
 
 
-def test_ollama_retention_is_clamped_to_one_to_ninety(monkeypatch):
+def test_remote_vllm_ip_must_be_an_exact_explicit_allowlist_entry(monkeypatch):
+    base_url = "http://10.23.45.67:58765/v1"
+    with pytest.raises(ValueError):
+        VllmClient(base_url=base_url)
+
+    monkeypatch.setenv("BIDOPS_VLLM_ALLOWED_HOSTS", "10.23.45.67")
+    client = VllmClient(base_url=base_url, completion_create=lambda **_kwargs: {})
+    assert client.base_url == base_url
+
+
+def test_vllm_retention_is_clamped_to_one_to_ninety(monkeypatch):
     seen = []
 
     class Store:
@@ -324,7 +465,7 @@ def test_ollama_retention_is_clamped_to_one_to_ninety(monkeypatch):
             seen.append((len(data), retention_days, content_type))
             return {"encrypted": True, "object_key": "model-response/fixture", "encryption_key_ref": "fixture", "plaintext_sha256": hashlib.sha256(data).hexdigest(), "plaintext_size_bytes": len(data)}
 
-    from app.services.ollama_client import InvocationResult
+    from app.services.vllm_client import InvocationResult
     service = DeepReviewService(raw_response_store=Store())
     result = InvocationResult({}, b"{}", "a" * 64, "b" * 64, None, None, 1, ())
     monkeypatch.setenv("BIDOPS_MODEL_RESPONSE_RETENTION_DAYS", "999")
@@ -410,7 +551,7 @@ def test_multi_invocation_raw_aggregate_is_complete_sorted_and_metadata_safe():
 
 def test_lease_budget_and_worker_id_are_bounded():
     service = DeepReviewService(lease_seconds=1)
-    assert service.lease_seconds >= 480
+    assert service.lease_seconds >= 960
     with pytest.raises(Exception):
         service.claim_next_job(None, "worker id with spaces")
 
@@ -418,10 +559,12 @@ def test_lease_budget_and_worker_id_are_bounded():
 def test_requirements_are_bounded_at_20_and_24000_characters():
     service = DeepReviewService()
     blocks = [{"block_key": f"b-{index}", "page": index + 1, "text": "요구사항 " + ("x" * 900)} for index in range(55)]
-    bundle = {"documents": [{"ordinal": 0, "document_version_id": str(uuid4()), "structure_id_at_confirmation": "s-1"}]}
+    document_version_id = str(uuid4())
+    bundle = {"documents": [{"ordinal": 0, "document_version_id": document_version_id, "structure_id_at_confirmation": "s-1", "content_sha256": "c" * 64}]}
     groups = service._requirements(bundle, {"s-1": {"blocks": blocks}})
     assert len(groups) >= 3
     assert all(len(group) <= 20 for group in groups)
+    assert all(item["document_version_id"] == document_version_id and item["structure_id"] == "s-1" and item["source_sha256"] == "c" * 64 for group in groups for item in group)
     assert all(sum(len(str(item["text"])) for item in group) <= 24000 for group in groups)
     assert [item["requirement_id"] for group in groups for item in group] == sorted(item["requirement_id"] for group in groups for item in group)
 
@@ -467,6 +610,30 @@ def test_stage3_slices_include_every_prior_claim_and_each_referenced_evidence_on
     prompt_evidence = [item for payload in prompt_inputs for item in payload["prior_evidence"]]
     assert [claim["claim_id"] for claim in prompt_claims] == [claim["claim_id"] for claim in claims]
     assert [item["evidence_id"] for item in prompt_evidence] == [evidence[0]["evidence_id"], evidence[1]["evidence_id"]]
+
+
+def test_document_quote_whitespace_is_resolved_only_for_one_exact_source_span():
+    structure_id = str(uuid4())
+    payload = {
+        "evidence": [{
+            "source_kind": "document", "structure_id": structure_id,
+            "locator_type": "page", "locator": {"page": 1},
+            "quote": "제안서 제출 기한",
+        }],
+    }
+    structures = {
+        structure_id: {
+            "blocks": [{"page": 1, "block_key": "b-1", "text": "제안서   제출\n기한은 별도 공지"}],
+        },
+    }
+
+    resolved = _resolve_exact_evidence_quotes(payload, structures)
+    assert resolved["evidence"][0]["quote"] == "제안서   제출\n기한"
+    assert payload["evidence"][0]["quote"] == "제안서 제출 기한"
+
+    structures[structure_id]["blocks"].append({"page": 1, "block_key": "b-2", "text": "제안서\t제출 기한"})
+    ambiguous = _resolve_exact_evidence_quotes(payload, structures)
+    assert ambiguous["evidence"][0]["quote"] == "제안서 제출 기한"
 
 
 def test_deterministic_merge_rejects_duplicate_or_out_of_scope_evidence():
@@ -619,7 +786,7 @@ def _seed_review_context(engine, monkeypatch):
         bundle = DocumentBundle(id=uuid4(), notice_id=notice.id, revision=1, version=1, status="ready", issues_snapshot=[], confirmed_by_name="담당자")
         profile = ProfileVersion(id=uuid4(), version=1, label="profile", profile_payload={"schema": "bidops.company-profile.v1", "source_file": "docs/reference/company-profile.md", "source_sha256": "a" * 64, "facts": [{"fact_key": f"fixture.fact[{index}]", "status": "unknown", "quote": "fixture"} for index in range(39)]}, profile_sha256="a" * 64, source_kind="fixture")
         policy_payload, _canonical, policy_hash = load_canonical_policy()
-        policy = AnalysisPolicyVersion(id=uuid4(), version=1, label="policy", model_endpoint_ref="ollama-local", model_name=MODEL_NAME, prompts=policy_payload["stages"], validation_rules={**policy_payload["validation"], "sample_hash": "b" * 64, "required_item_recall": .8, "human_agreement": .7, "unsupported_false_positive_rate": .1}, policy_sha256=policy_hash)
+        policy = AnalysisPolicyVersion(id=uuid4(), version=1, label="policy", model_endpoint_ref="vllm-openai-compatible", model_name=MODEL_NAME, prompts=policy_payload["stages"], validation_rules={**policy_payload["validation"], "generation": policy_payload["generation"], "sample_hash": "b" * 64, "required_item_recall": .8, "human_agreement": .7, "unsupported_false_positive_rate": .1}, policy_sha256=policy_hash)
         content_id = uuid4()
         from app.models import ContentObject
         content = ContentObject(id=content_id, sha256="d" * 64, size_bytes=0, detected_mime="application/json", retention_class="fixture")
@@ -778,7 +945,7 @@ def test_expired_reclaim_refences_inflight_stage_and_rejects_old_worker(engine, 
 
     class Client:
         def invoke(self, stage, input_slice, _policy, **_kwargs):
-            from app.services.ollama_client import InvocationResult
+            from app.services.vllm_client import InvocationResult
             payload = _valid_stage_payload(input_slice, stage)
             raw = json.dumps(payload).encode()
             return InvocationResult(payload, raw, "a" * 64, "b" * 64, 1, 1, 1, ({"retry_index": 0, "status": "succeeded"},))
@@ -812,9 +979,9 @@ def test_failure_after_completed_stage_keeps_completed_stage_and_allows_new_atte
 
     class Client:
         def invoke(self, stage, input_slice, _policy, **_kwargs):
-            from app.services.ollama_client import InvocationResult
+            from app.services.vllm_client import InvocationResult
             if stage == "delivery_risk_economics":
-                raise OllamaInvocationError("timeout", ({"retry_index": 0, "status": "failed", "error_code": "timeout"},))
+                raise VllmInvocationError("timeout", ({"retry_index": 0, "status": "failed", "error_code": "timeout"},))
             payload = {"schema": "bidops.deep-review-stage.v1", "deep_review_id": input_slice["deep_review_id"], "attempt_id": input_slice["attempt_id"], "stage": stage, "claims": [], "evidence": [], "unknowns": [], "warnings": []}
             raw = json.dumps(payload).encode()
             return InvocationResult(payload, raw, "a" * 64, "b" * 64, 1, 1, 1, ({"retry_index": 0, "status": "succeeded"},))
@@ -886,7 +1053,7 @@ def test_reclaim_resumes_after_immutable_stage_one_prefix_and_rejects_noncontigu
 
     class Client:
         def invoke(self, stage, input_slice, _policy, **_kwargs):
-            from app.services.ollama_client import InvocationResult
+            from app.services.vllm_client import InvocationResult
             calls.append(stage)
             payload = _valid_stage_payload(input_slice, stage)
             raw = json.dumps(payload).encode()
@@ -956,7 +1123,7 @@ def test_normal_worker_runs_exactly_three_ordered_stages(engine, monkeypatch):
 
     class Client:
         def invoke(self, stage, input_slice, _policy, **_kwargs):
-            from app.services.ollama_client import InvocationResult
+            from app.services.vllm_client import InvocationResult
             payload = _valid_stage_payload(input_slice, stage)
             raw = json.dumps(payload, ensure_ascii=False).encode()
             return InvocationResult(payload, raw, "a" * 64, "b" * 64, 1, 1, 1, ({"retry_index": 0, "status": "succeeded"},))

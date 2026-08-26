@@ -47,12 +47,21 @@ from .input_versions import (
     resolve_active_versions,
     validate_pinned_policy,
 )
-from .ollama_client import EncryptedObjectStore, InvocationResult, OllamaClient, OllamaInvocationError
+from .vllm_client import (
+    APPROVED_RETRIES,
+    APPROVED_TIMEOUT_SECONDS,
+    EncryptedObjectStore,
+    InvocationResult,
+    VllmClient,
+    VllmInvocationError,
+)
+from .codex_exec_client import CodexExecClient
+from .mock_analysis_client import MockAnalysisClient
 from .object_store import EncryptedModelResponseStore
 
 
 STAGE_SEQUENCE = {name: index for index, name in enumerate(STAGES, start=1)}
-MIN_LEASE_SECONDS = 480
+MIN_LEASE_SECONDS = APPROVED_TIMEOUT_SECONDS * (APPROVED_RETRIES + 1) + 60
 WORKER_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 EMPTY_PRIOR_CLAIM_ID = uuid5(NAMESPACE_URL, "bidops.deep-review.empty-prior-claim")
 _SAFE_INVOCATION_ATTEMPT_KEYS = frozenset({"retry_index", "status", "error_code", "latency_ms"})
@@ -60,7 +69,7 @@ _SAFE_INVOCATION_KEYS = frozenset({
     "slice_index", "input_slice_sha256", "prompt_sha256", "response_sha256",
     "model", "policy_sha256", "prompt_tokens", "output_tokens", "latency_ms",
     "status", "error_code", "retry_index", "fixed_input_hash", "safe",
-    "attempts",
+    "attempts", "provider",
 })
 
 
@@ -138,6 +147,52 @@ def _safe_invocation_metadata(value: Mapping[str, Any] | Any) -> dict[str, Any]:
     return output
 
 
+def _resolve_exact_evidence_quotes(
+    payload: Mapping[str, Any],
+    structures: Mapping[str, Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Resolve whitespace-normalized document quotes to one exact substring.
+
+    PDF layout extractors commonly retain runs of spaces/newlines that a model
+    collapses while copying.  A quote is repaired only when all non-whitespace
+    characters are unchanged and the whitespace-flexible pattern resolves to
+    exactly one source span inside the already-pinned locator scope.  Anything
+    ambiguous or textually different is left untouched for fail-closed
+    validation.
+    """
+
+    resolved = deepcopy(dict(payload))
+    evidence_rows = resolved.get("evidence")
+    if not isinstance(evidence_rows, list):
+        return resolved
+    for evidence in evidence_rows:
+        if not isinstance(evidence, dict) or evidence.get("source_kind") != "document":
+            continue
+        quote = evidence.get("quote")
+        locator = evidence.get("locator")
+        structure = structures.get(str(evidence.get("structure_id")))
+        if not isinstance(quote, str) or not quote.strip() or not isinstance(locator, Mapping) or not isinstance(structure, Mapping):
+            continue
+        page = locator.get("page")
+        blocks = [
+            block for block in structure.get("blocks", [])
+            if isinstance(block, Mapping) and block.get("page") == page and isinstance(block.get("text"), str)
+        ]
+        if evidence.get("locator_type") != "page":
+            blocks = [block for block in blocks if block.get("block_key") == locator.get("block_key")]
+        texts = [str(block["text"]) for block in blocks]
+        if any(quote in text for text in texts):
+            continue
+        tokens = re.findall(r"\S+", quote)
+        if not tokens:
+            continue
+        pattern = re.compile(r"\s+".join(re.escape(token) for token in tokens))
+        matches = [match.group(0) for text in texts for match in pattern.finditer(text)]
+        if len(matches) == 1:
+            evidence["quote"] = matches[0]
+    return resolved
+
+
 def _add_job_audit(
     session: Session,
     *,
@@ -177,8 +232,9 @@ def _policy_payload(policy: AnalysisPolicyVersion) -> dict[str, Any]:
     return {
         "schema": "bidops.analysis-policy.v1", "model_endpoint_ref": policy.model_endpoint_ref,
         "model_name": policy.model_name, "policy_sha256": policy.policy_sha256,
-        "chunking": {"max_characters": 24000, "max_requirements": 20, "retries": 2, "timeout_seconds": 120,
+        "chunking": {"max_characters": 24000, "max_requirements": 20, "retries": 2, "timeout_seconds": 300,
                      "merge_order": ["stage_sequence", "document_ordinal", "page", "block_order", "requirement_id", "slice_index"]},
+        "generation": rules.get("generation"),
         "stages": policy.prompts if isinstance(policy.prompts, list) else [],
         "validation": threshold_keys,
     }
@@ -190,7 +246,7 @@ class DeepReviewService:
     def __init__(
         self,
         *,
-        client: OllamaClient | Any | None = None,
+        client: VllmClient | Any | None = None,
         raw_response_store: EncryptedObjectStore | Any | None = None,
         structure_loader: Callable[[Session, Any], Mapping[str, Any]] | None = None,
         report_service: Any | None = None,
@@ -198,16 +254,46 @@ class DeepReviewService:
         clock: Callable[[], datetime] = _now,
     ) -> None:
         settings = get_settings()
-        self.client = client or OllamaClient(endpoint=settings.ollama_endpoint, model=settings.ollama_model)
+        if client is not None:
+            self.client = client
+        elif settings.analysis_provider == "mock":
+            self.client = MockAnalysisClient()
+        elif settings.analysis_provider == "codex-exec":
+            self.client = CodexExecClient(
+                enabled=settings.openai_enabled and settings.codex_exec_enabled,
+                binary=settings.codex_exec_binary,
+                model=settings.codex_exec_model,
+                reasoning_effort=settings.codex_exec_reasoning_effort,
+                approved_notice_ids=settings.approved_codex_notice_ids,
+            )
+        else:
+            self.client = VllmClient(
+                base_url=settings.vllm_base_url,
+                api_key=settings.vllm_api_key.get_secret_value(),
+                allowed_hosts=settings.vllm_allowed_hosts,
+                model=settings.vllm_model,
+            )
+        self.reference_workflow_mode = bool(settings.reference_workflow_mode and (
+            (
+                settings.analysis_provider == "mock"
+                and getattr(self.client, "provider_name", None) == "mock-analysis"
+            )
+            or (
+                settings.analysis_provider == "codex-exec"
+                and settings.openai_enabled
+                and settings.codex_exec_enabled
+                and getattr(self.client, "provider_name", None) == "codex-exec-reference"
+            )
+        ))
         # The configured store is lazy so module import remains usable for
         # isolated unit tests; production lifespan/worker startup validates
         # MinIO credentials and encryption key configuration before serving.
         self.raw_response_store = raw_response_store or EncryptedModelResponseStore(settings)
         self.structure_loader = structure_loader
         self.report_service = report_service
-        # Three 120-second invocations (two retries) need one uninterrupted
+        # One initial 300-second invocation plus two retries needs one
         # budget plus margin.  A shorter lease would make a valid worker look
-        # stale while Ollama is still processing the approved request.
+        # stale while vLLM is still processing the approved request.
         self.lease_seconds = max(int(lease_seconds), MIN_LEASE_SECONDS)
         self.clock = clock
 
@@ -289,11 +375,32 @@ class DeepReviewService:
             notice = session.scalar(select(Notice).where(Notice.id == notice_id).with_for_update())
             if notice is None:
                 raise InputVersionError("not_found", "공고를 찾을 수 없습니다")
+            approval_check = getattr(self.client, "require_notice_approval", None)
+            if callable(approval_check):
+                try:
+                    approval_check(notice_id)
+                except VllmInvocationError as error:
+                    raise DeepReviewServiceError(
+                        error.code,
+                        "외부 분석 provider 사용 승인이 없습니다",
+                        status_code=403,
+                        request_id=request_id,
+                    ) from error
             duplicate = self._idempotent_response(session, operation="deep_review_create", aggregate_type="notice", aggregate_id=str(notice_id), actor=claimed_name, request_id=request_id, request_hash=request_hash)
             if duplicate is not None:
                 session.commit()
                 return dict(duplicate)
-            profile, policy = resolve_active_versions(session)
+            profile, policy = resolve_active_versions(
+                session,
+                allow_unmeasured_reference=self.reference_workflow_mode,
+            )
+            runtime_provider = str(getattr(self.client, "provider_name", "injected-analysis-client"))
+            runtime_model = str(getattr(self.client, "model", policy.model_name))
+            quality_snapshot = (
+                {"status": "reference_workflow_unmeasured", "deployable": False}
+                if self.reference_workflow_mode
+                else policy_quality_snapshot(policy)
+            )
             basis = effective_grade_basis(session, notice_id)
             if basis.grade != "우선 검토":
                 raise DeepReviewServiceError("effective_grade_ineligible", "우선 검토 공고만 심층 분석할 수 있습니다", status_code=403, request_id=request_id)
@@ -317,6 +424,19 @@ class DeepReviewService:
                 DeepReview.profile_version_id == profile.id, DeepReview.policy_version_id == policy.id,
             ).limit(1))
             if existing is not None:
+                creation = session.scalar(select(AuditEvent).where(
+                    AuditEvent.action == "deep_review.create",
+                    AuditEvent.aggregate_type == "deep_review",
+                    AuditEvent.aggregate_id == str(existing.id),
+                ).order_by(AuditEvent.created_at.asc(), AuditEvent.id.asc()).limit(1))
+                metadata = creation.safe_metadata if creation is not None and isinstance(creation.safe_metadata, Mapping) else {}
+                if metadata.get("analysis_provider") not in {None, runtime_provider} or metadata.get("runtime_model") not in {None, runtime_model}:
+                    raise DeepReviewServiceError(
+                        "provider_context_conflict",
+                        "같은 입력의 기존 review가 다른 분석 provider로 생성되었습니다",
+                        status_code=409,
+                        request_id=request_id,
+                    )
                 response = self.view(session, existing.id)
                 session.add(IdempotencyRecord(operation="deep_review_create", aggregate_type="notice", aggregate_id=str(notice_id), claimed_name=claimed_name, request_id=request_id, request_sha256=request_hash, response_status=202, response_snapshot=response))
                 session.commit()
@@ -331,7 +451,11 @@ class DeepReviewService:
             session.add(AuditEvent(actor_kind="human", claimed_name=claimed_name, action="deep_review.create", aggregate_type="deep_review", aggregate_id=str(review.id), request_id=str(request_id), safe_metadata={
                 "notice_id": notice_id, "bundle_id": str(bundle_id), "profile_version_id": str(profile.id), "profile_sha256": profile.profile_sha256,
                 "policy_version_id": str(policy.id), "policy_sha256": policy.policy_sha256, "policy_model_name": policy.model_name,
-                "policy_quality": policy_quality_snapshot(policy), "effective_grade": basis.grade,
+                "analysis_provider": runtime_provider, "runtime_model": runtime_model,
+                "external_provider_approved": runtime_provider == "codex-exec-reference",
+                "policy_quality": quality_snapshot,
+                "reference_workflow_mode": self.reference_workflow_mode,
+                "effective_grade": basis.grade,
                 "grade_source": basis.source, "source_run_id": basis.run_id, "source_review_id": basis.review_id,
             }))
             session.commit()
@@ -530,34 +654,63 @@ class DeepReviewService:
 
     @staticmethod
     def _requirements(bundle: Mapping[str, Any], structures: Mapping[str, Mapping[str, Any]], *, max_characters: int = 24000, max_requirements: int = 20) -> list[list[dict[str, Any]]]:
+        """Build bounded page excerpts for stage 1.
+
+        Extractor blocks are source structure, not one requirement each.  HWP
+        tables can contain thousands of tiny cells, so treating every block as
+        a model invocation row caused hundreds of calls for one notice.  Page
+        excerpts keep every source character while retaining a resolvable page
+        locator from which the model must quote an exact block substring.
+        """
+
         requirements: list[dict[str, Any]] = []
         for document in sorted(bundle.get("documents", []), key=lambda item: (item.get("ordinal", 0), item.get("document_version_id", ""))):
             structure = structures.get(document.get("structure_id_at_confirmation"), {})
             blocks = structure.get("blocks", []) if isinstance(structure, Mapping) else []
+            by_page: dict[int, list[tuple[int, Mapping[str, Any]]]] = {}
             for block_order, block in enumerate(blocks):
-                if not isinstance(block, Mapping):
-                    continue
-                text = block.get("text")
-                if not isinstance(text, str) or not text.strip():
-                    continue
-                page = int(block.get("page", 1)) if isinstance(block.get("page", 1), int) else 1
-                block_key = str(block.get("block_key", f"block-{block_order}"))
-                stable = f"req-{int(document.get('ordinal', 0)):04d}-{page:04d}-{block_order:06d}-{hashlib.sha256(block_key.encode()).hexdigest()[:10]}"
-                # A pathological single extractor block still receives a
-                # bounded requirement slice; each part retains a deterministic
-                # locator offset instead of silently truncating source text.
-                # Reserve prompt-envelope space (stage metadata, contract,
-                # IDs, and sanitizer output) so an individual block can never
-                # exceed the actual 24,000-Unicode prompt budget.
-                part_size = 10000
-                parts = [text[start:start + part_size] for start in range(0, len(text), part_size)] or [""]
-                for part_index, part in enumerate(parts):
+                if isinstance(block, Mapping) and isinstance(block.get("text"), str) and block["text"].strip():
+                    page = int(block.get("page", 1)) if isinstance(block.get("page", 1), int) else 1
+                    by_page.setdefault(page, []).append((block_order, block))
+
+            excerpt_limit = min(max(max_characters // 2, 1000), 8000)
+            for page, page_blocks in sorted(by_page.items()):
+                excerpts: list[tuple[int, int, str]] = []
+                current_parts: list[str] = []
+                current_start = 0
+                current_end = 0
+                current_chars = 0
+
+                def flush_excerpt() -> None:
+                    nonlocal current_parts, current_start, current_end, current_chars
+                    if current_parts:
+                        excerpts.append((current_start, current_end, "\n".join(current_parts)))
+                    current_parts, current_chars = [], 0
+
+                for block_order, block in page_blocks:
+                    text = str(block["text"])
+                    parts = [text[start:start + excerpt_limit] for start in range(0, len(text), excerpt_limit)]
+                    for part in parts:
+                        separator_chars = 1 if current_parts else 0
+                        if current_parts and current_chars + separator_chars + len(part) > excerpt_limit:
+                            flush_excerpt()
+                        if not current_parts:
+                            current_start = block_order
+                        current_parts.append(part)
+                        current_end = block_order
+                        current_chars += separator_chars + len(part)
+                flush_excerpt()
+
+                for excerpt_index, (start_order, end_order, text) in enumerate(excerpts):
+                    identity = f"{page}:{start_order}:{end_order}:{excerpt_index}"
                     requirements.append({
-                        "requirement_id": stable if len(parts) == 1 else f"{stable}-part-{part_index:04d}",
+                        "requirement_id": f"req-{int(document.get('ordinal', 0)):04d}-{page:04d}-{start_order:06d}-{hashlib.sha256(identity.encode()).hexdigest()[:10]}",
+                        "document_version_id": str(document.get("document_version_id", "")),
+                        "structure_id": str(document.get("structure_id_at_confirmation", "")),
+                        "source_sha256": str(document.get("content_sha256") or structure.get("source_sha256") or ""),
                         "document_ordinal": int(document.get("ordinal", 0)), "page": page,
-                        "block_order": block_order, "locator_type": "paragraph",
-                        "locator": {"page": page, "block_key": block_key, "paragraph_key": None, "text_start": part_index * part_size if len(parts) > 1 else None, "text_end": (part_index * part_size) + len(part) if len(parts) > 1 else None},
-                        "text": part,
+                        "block_order": start_order, "locator_type": "page",
+                        "locator": {"page": page}, "text": text,
                     })
         if not requirements:
             requirements = [{"requirement_id": "req-unknown-0000", "document_ordinal": 0, "page": 1, "block_order": 0, "locator_type": "page", "locator": {"page": 1}, "text": ""}]
@@ -597,7 +750,11 @@ class DeepReviewService:
         # ``max_characters`` is a source-row budget, not the prompt budget.
         # Leave room for the closed output contract, stage metadata, IDs, and
         # stage-2 profile rows so the actual built prompt remains <=24,000.
-        requirements = self._requirements(bundle, structures, max_characters=12000)
+        # Stage 2 also carries one bounded company-profile slice.  Reserve a
+        # larger share of the 24K prompt envelope for legitimate profile facts
+        # (some evidence-backed portfolio rows exceed 2K by themselves).
+        requirement_budget = 18000 if stage == STAGES[0] else 15000
+        requirements = self._requirements(bundle, structures, max_characters=requirement_budget)
         if stage == STAGES[0]:
             return [{"slice_index": index, "requirements": rows} for index, rows in enumerate(requirements)]
         if stage == STAGES[1]:
@@ -614,7 +771,7 @@ class DeepReviewService:
             ]
             if not profile_rows:
                 profile_rows = [{"fact": {"fact_key": "profile.unknown", "status": "unknown", "value": None}, "evidence": []}]
-            profile_slices = self._bounded_rows(profile_rows, max_characters=2000)
+            profile_slices = self._bounded_rows(profile_rows, max_characters=4000, max_rows=8)
             output: list[dict[str, Any]] = []
             count = max(len(requirements), len(profile_slices))
             for index in range(count):
@@ -1019,7 +1176,7 @@ class DeepReviewService:
             policy = session.get(AnalysisPolicyVersion, review.policy_version_id)
             if profile is None or policy is None:
                 raise DeepReviewServiceError("service_unavailable", "고정된 profile 또는 policy가 없습니다", status_code=503)
-            validate_pinned_policy(policy)
+            validate_pinned_policy(policy, allow_unmeasured_reference=self.reference_workflow_mode)
             creation_audit = session.scalar(select(AuditEvent).where(AuditEvent.action == "deep_review.create", AuditEvent.aggregate_type == "deep_review", AuditEvent.aggregate_id == str(review.id)).order_by(AuditEvent.created_at.asc(), AuditEvent.id.asc()).limit(1))
             audit_snapshot = creation_audit.safe_metadata if creation_audit is not None and isinstance(creation_audit.safe_metadata, Mapping) else None
             if audit_snapshot is None:
@@ -1030,9 +1187,26 @@ class DeepReviewService:
                 or audit_snapshot.get("policy_version_id") != str(policy.id)
                 or audit_snapshot.get("policy_sha256") != policy.policy_sha256
                 or audit_snapshot.get("policy_model_name") != policy.model_name
-                or audit_snapshot.get("policy_quality") != policy_quality_snapshot(policy)
+                or audit_snapshot.get("policy_quality") != (
+                    {"status": "reference_workflow_unmeasured", "deployable": False}
+                    if self.reference_workflow_mode
+                    else policy_quality_snapshot(policy)
+                )
+                or bool(audit_snapshot.get("reference_workflow_mode", False)) != self.reference_workflow_mode
+                or audit_snapshot.get("analysis_provider") not in {
+                    None, str(getattr(self.client, "provider_name", "injected-analysis-client")),
+                }
+                or audit_snapshot.get("runtime_model") not in {
+                    None, str(getattr(self.client, "model", policy.model_name)),
+                }
             ):
                 raise DeepReviewServiceError("service_unavailable", "pinned deep review 입력이 변경되었습니다", status_code=503)
+            approval_check = getattr(self.client, "require_notice_approval", None)
+            if callable(approval_check):
+                try:
+                    approval_check(review.notice_id)
+                except VllmInvocationError as error:
+                    raise DeepReviewServiceError(error.code, "외부 분석 provider 사용 승인이 없습니다", status_code=403) from error
             bundle, structures = bundle_context(session, review.bundle_id, structure_loader=self.structure_loader)
             profile_payload = profile_context(session, profile)
             policy_payload = _policy_payload(policy)
@@ -1048,6 +1222,7 @@ class DeepReviewService:
                 session=session, attempt_id=str(claim.attempt_id),
             )
             review_id = review.id
+            pinned_notice_id = review.notice_id
             attempt_id = attempt.id
             pinned_profile_id = str(profile.id)
             pinned_profile_sha256 = str(profile.profile_sha256)
@@ -1077,6 +1252,7 @@ class DeepReviewService:
                 for slice_index, input_slice in enumerate(slices):
                     invocation_input = {
                         **input_slice,
+                        "notice_id": pinned_notice_id,
                         "deep_review_id": str(review_id),
                         "attempt_id": str(attempt_id),
                         "stage": stage_name,
@@ -1090,24 +1266,53 @@ class DeepReviewService:
                             profile={"profile_version_id": pinned_profile_id, "profile_sha256": pinned_profile_sha256} if stage_name == STAGES[1] else None,
                             prior_stages=(),
                         )
+                        chunk_output = _resolve_exact_evidence_quotes(result.structured_output, structures)
+                        # Validate each untrusted chunk before paying for the
+                        # next provider call.  The final merge repeats this
+                        # check and adds cross-chunk duplicate/conflict rules.
+                        # Same-chunk premise/evidence IDs are in scope; future
+                        # chunks are deliberately not, so output cannot depend
+                        # on model results that do not exist yet.
+                        chunk_claim_ids = {
+                            str(item.get("claim_id"))
+                            for item in chunk_output.get("claims", [])
+                            if isinstance(item, Mapping) and item.get("claim_id")
+                        }
+                        chunk_evidence_ids = {
+                            str(item.get("evidence_id"))
+                            for item in chunk_output.get("evidence", [])
+                            if isinstance(item, Mapping) and item.get("evidence_id")
+                        }
+                        validate_deep_review_stage(
+                            chunk_output,
+                            bundle=bundle,
+                            profile=profile_payload,
+                            profile_version_id=pinned_profile_id,
+                            expected_deep_review_id=str(review_id),
+                            known_claim_ids=known_claim_ids | chunk_claim_ids,
+                            known_evidence_ids=known_evidence_ids | chunk_evidence_ids,
+                            structures=structures,
+                        )
                         # Raw responses are persisted as one stage aggregate
                         # only after every invocation in this stage succeeds.
                         raw_records.append((result, {"slice_index": slice_index}))
                         safe_attempts = [_safe_invocation_attempt(item) for item in result.attempts]
                         invocation_metadata.append({
                             "slice_index": slice_index, "input_slice_sha256": _canonical_hash(invocation_input), "prompt_sha256": result.input_sha256,
-                            "response_sha256": hashlib.sha256(result.raw_response).hexdigest(), "model": pinned_model_name,
+                            "response_sha256": hashlib.sha256(result.raw_response).hexdigest(),
+                            "provider": result.provider or str(getattr(self.client, "provider_name", "unknown")),
+                            "model": result.model or pinned_model_name,
                             "policy_sha256": pinned_policy_sha256, "prompt_tokens": result.prompt_tokens,
                             "output_tokens": result.output_tokens, "latency_ms": result.latency_ms,
                             "status": "succeeded", "attempts": safe_attempts,
                         })
                         stage_invocations.extend(safe_attempts)
-                        chunks.append(result.structured_output)
-                    except OllamaInvocationError as error:
+                        chunks.append(chunk_output)
+                    except VllmInvocationError as error:
                         safe_attempts = [_safe_invocation_attempt(item) for item in error.attempts]
                         invocation_metadata.extend({"slice_index": slice_index, "input_slice_sha256": _canonical_hash(invocation_input), **item} for item in safe_attempts)
                         stage_invocations.extend({"slice_index": slice_index, "input_slice_sha256": _canonical_hash(invocation_input), **item} for item in safe_attempts)
-                        raise DeepReviewServiceError(error.code, "로컬 model invocation이 실패했습니다", status_code=503)
+                        raise DeepReviewServiceError(error.code, "승인된 model invocation이 실패했습니다", status_code=503)
                 chunk_orders = {
                     id(chunk): (
                         STAGE_SEQUENCE[stage_name],
@@ -1148,8 +1353,15 @@ class DeepReviewService:
         except StaleFenceError:
             session.rollback()
             raise
-        except DeepReviewValidationError:
-            self._fail_claim(session, claim, stage_row, "validation_failed", stage_invocations if "stage_invocations" in locals() else ())
+        except DeepReviewValidationError as error:
+            # Persist stable validator codes only.  Messages, quotes, locators,
+            # and model content remain outside DB/audit failure metadata.
+            diagnostics = tuple(
+                {"status": "failed", "error_code": f"validation:{issue.code}"}
+                for issue in error.issues[:20]
+            )
+            observations = tuple(stage_invocations if "stage_invocations" in locals() else ()) + diagnostics
+            self._fail_claim(session, claim, stage_row, "validation_failed", observations)
             raise DeepReviewServiceError("processing_failed", "model 결과가 권위 schema를 통과하지 못했습니다", status_code=500)
         except DeepReviewServiceError as error:
             self._fail_claim(session, claim, stage_row, error.code, stage_invocations if "stage_invocations" in locals() else ())

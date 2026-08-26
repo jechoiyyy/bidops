@@ -10,16 +10,22 @@ PostgreSQL 17.11의 `bidops` schema가 live canonical DB다. 기존 SQLite는 �
 cd /path/to/bidops-agent
 cp .env.example .env  # secret manager가 주입한 값으로만 채운다.
 COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose -f docker-compose.t7.yml build
-COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose -f docker-compose.t7.yml up -d postgres minio ollama clamav
+COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose -f docker-compose.t7.yml up -d postgres minio clamav
 COMPOSE_PROJECT_NAME=bidops-deep-review-t7 ./scripts/init-runtime.sh
-COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose -f docker-compose.t7.yml up -d web document-worker analysis-worker
+COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose \
+  -f docker-compose.t7.yml -f docker-compose.t7.remote-vllm.yml \
+  up -d web document-worker analysis-worker
 ```
 
-`postgres`는 owner/migrate/app/worker/ro_backup 역할을 분리하고, Compose bootstrap은 MinIO source/structure/quarantine/model-response 버킷·버전닝·정책을 만든다. FastAPI web은 목적별 MinIO credential로 원문·구조를 저장하고 ClamAV clean scan envelope를 원문 hash에 결합해 scratch request를 만들며, credential-free `document-worker` 두 replica는 `network_mode: none`으로 scratch만 처리한다. analysis worker는 concurrency 1·DB와 내부 Ollama/MinIO analysis network에서 immutable structure를 읽고 암호화된 model response만 쓴다. OpenAI와 Langfuse는 사용하지 않는다.
+`postgres`는 owner/migrate/app/worker/ro_backup 역할을 분리하고, Compose bootstrap은 MinIO source/structure/quarantine/model-response 버킷·버전닝·정책을 만든다. FastAPI web은 목적별 MinIO credential로 원문·구조를 저장하고 ClamAV clean scan envelope를 원문 hash에 결합해 scratch request를 만들며, credential-free `document-worker` 두 replica는 `network_mode: none`으로 scratch만 처리한다. analysis worker는 concurrency 1로 immutable structure를 읽고, 승인된 원격 vLLM OpenAI-compatible API를 호출해 암호화된 model response만 쓴다. OpenAI Python SDK는 protocol client로만 사용하며 OpenAI hosted API와 Langfuse는 비활성이다.
+
+승인된 원격 vLLM IP를 쓰는 인수 환경은 `docker-compose.t7.remote-vllm.yml`을 추가한다. endpoint와 literal IP allowlist를 외부 env로 주입하고 host firewall에서 그 IP/port 외 egress를 차단한다. 기본 Compose와 `document-worker` network 경계는 바뀌지 않는다.
 
 일상 운영에서 `docker compose down -v`, volume 삭제, host 실데이터 bind mount를 사용하지 않는다. T7 volume은 프로젝트 이름으로 격리되며, 삭제가 필요한 경우에도 별도 승인과 복구 확인이 먼저다.
 
 ## 검증
+
+단계 B의 document bundle부터 단계 C의 실제 Qwen machine report까지 연속 인수하는 절차와 증적 형식은 [단계 B→C 연속 인수 테스트](e2e-bc-acceptance.md)를 따른다. 실제 모델·대표 원문·사람 gold가 없는 환경에서는 코드 계약 테스트만 통과한 것으로 기록하고 Qwen 품질 또는 전체 E2E 통과로 표시하지 않는다.
 
 호스트에 backend venv/pytest가 없으면 T7 이미지에서 임시 테스트한다.
 
@@ -57,6 +63,6 @@ BIDOPS_DATABASE_URL='postgresql+psycopg://ro_backup:***@restore-db/bidops' \
 | profile unavailable | 컨테이너 `/app/docs/reference/company-profile.md`와 `BIDOPS_ROOT=/app`를 확인한다. |
 | HWP converter unavailable | `document-worker` image에 Node 22와 pinned converter가 있는지, scratch request/result가 atomic인지 확인한다. worker network는 계속 none이어야 하며 web의 scanner clean envelope가 같은 원문 hash인지 확인한다. |
 | object storage unavailable | MinIO endpoint 또는 해당 작업의 purpose credential을 확인한다. Production은 filesystem fallback 없이 fail fast하며, isolated pytest만 filesystem backend를 허용한다. |
-| model invocation blocked | `BIDOPS_OPENAI_ENABLED=false`, Ollama endpoint/allowlist와 analysis network를 확인한다. |
+| model invocation blocked | `BIDOPS_OPENAI_ENABLED=false`, `BIDOPS_VLLM_BASE_URL`·literal IP allowlist·API key와 `model-egress`를 확인한다. |
 | 보고서/validation 불일치 | 해당 claim lease fence, stage 3 persist, materializer, finish audit 순서를 확인하고 수동 DB 수정하지 않는다. |
 | API 오류 | `error.code`, `error.message`, `request_id`만 사용자에게 표시하고 내부 exception·경로·credential을 노출하지 않는다. |

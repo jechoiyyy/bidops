@@ -758,18 +758,37 @@ class DocumentBundleService:
                     safe_result={"code": inspected.error_code, "warnings": list(inspected.warnings)},
                 )
             )
-            attachment = Attachment(
-                notice_id=bundle.notice_id,
-                name=asset.filename,
-                source_url=asset.source_url,
-                origin="manual" if asset.source_kind == "manual" else "g2b",
-                file_ext=Path(asset.filename).suffix.upper().lstrip("."),
-                size_bytes=asset.size_bytes,
-                source_system=asset.source_system,
-                source_attachment_key=asset.source_attachment_key,
+            retry_document = session.scalar(
+                select(DocumentVersion)
+                .join(Attachment, Attachment.id == DocumentVersion.attachment_id)
+                .where(
+                    DocumentVersion.notice_id == bundle.notice_id,
+                    DocumentVersion.content_object_id == content.id,
+                    DocumentVersion.source_kind == asset.source_kind,
+                    DocumentVersion.original_filename == asset.filename,
+                    DocumentVersion.is_current.is_(True),
+                )
+                .order_by(DocumentVersion.created_at.desc(), DocumentVersion.id.desc())
+                .limit(1)
             )
-            session.add(attachment)
-            session.flush()
+            if retry_document is not None:
+                attachment = session.get(Attachment, retry_document.attachment_id)
+                if attachment is None:
+                    raise BundleServiceError("processing_failed", "이전 document version 계보가 올바르지 않습니다", status_code=500, request_id=request_id)
+                retry_document.is_current = False
+            else:
+                attachment = Attachment(
+                    notice_id=bundle.notice_id,
+                    name=asset.filename,
+                    source_url=asset.source_url,
+                    origin="manual" if asset.source_kind == "manual" else "g2b",
+                    file_ext=Path(asset.filename).suffix.upper().lstrip("."),
+                    size_bytes=asset.size_bytes,
+                    source_system=asset.source_system,
+                    source_attachment_key=asset.source_attachment_key,
+                )
+                session.add(attachment)
+                session.flush()
             version = (session.scalar(select(func.max(DocumentVersion.version)).where(DocumentVersion.attachment_id == attachment.id)) or 0) + 1
             document = DocumentVersion(
                 id=uuid4(),
@@ -782,7 +801,9 @@ class DocumentBundleService:
                 source_attachment_key=asset.source_attachment_key,
                 source_url=asset.source_url,
                 original_filename=asset.filename,
-                role="기타",
+                role=retry_document.role if retry_document is not None else "기타",
+                effective_date=retry_document.effective_date if retry_document is not None else None,
+                replaces_document_version_id=retry_document.id if retry_document is not None else None,
                 is_current=True,
                 safety_status=inspected.safety_status,
                 needs_human_review=inspected.safety_status != "safe",

@@ -76,6 +76,12 @@ SECTION_TOKENS = {
     "document_bundle_limitations": ("document", "bundle", "limit", "문서", "한계"),
     "project_overview": ("project", "overview", "프로젝트", "기본"),
 }
+SYSTEM_RECOMMENDATIONS = frozenset({"추진 검토", "조건부 추진 검토", "보류", "검토 종료"})
+RECOMMENDATION_ALIASES = {
+    "참여": "추진 검토",
+    "조건부 참여": "조건부 추진 검토",
+    "미참여": "검토 종료",
+}
 
 
 class ReportServiceError(RuntimeError):
@@ -459,8 +465,39 @@ class ReportService:
                     unknowns.append(value)
         failed_claims = [claim for claim in claim_payloads if claim["status"] in {"unsupported", "conflicting"}]
         status = "failed" if failed_claims else "passed"
-        report = self._render_report(review, claim_payloads, unknowns, status)
+        recommendation, recommendation_unknown = self._system_recommendation(stage_payloads, status)
+        if recommendation_unknown and recommendation_unknown not in unknowns:
+            unknowns.append(recommendation_unknown)
+        report = self._render_report(review, claim_payloads, unknowns, status, recommendation)
         return report, stage_payloads, evidence_payloads, contexts
+
+    @staticmethod
+    def _system_recommendation(stage_payloads: Sequence[Mapping[str, Any]], validation_status: str) -> tuple[str, str | None]:
+        """Resolve exactly one supported Stage 3 recommendation without invention."""
+
+        if validation_status == "failed":
+            return "보류", None
+        synthesis = next((row for row in stage_payloads if row.get("stage") == "synthesis_and_validation"), None)
+        claims = synthesis.get("claims", []) if isinstance(synthesis, Mapping) else []
+        resolved: set[str] = set()
+        for claim in claims if isinstance(claims, list) else []:
+            if not isinstance(claim, Mapping) or claim.get("status") != "supported":
+                continue
+            category = str(claim.get("category", "")).strip().casefold().replace(" ", "_")
+            if category not in {"system_recommendation", "recommendation", "시스템_권고", "종합_권고"}:
+                continue
+            body = str(claim.get("body", "")).strip().rstrip(".!。")
+            for prefix in ("시스템 권고:", "시스템 권고：", "system recommendation:"):
+                if body.casefold().startswith(prefix.casefold()):
+                    body = body[len(prefix):].strip()
+                    break
+            value = RECOMMENDATION_ALIASES.get(body, body)
+            if value in SYSTEM_RECOMMENDATIONS:
+                resolved.add(value)
+        if len(resolved) == 1:
+            return next(iter(resolved)), None
+        reason = "Stage 3 시스템 권고가 없습니다." if not resolved else "Stage 3 시스템 권고가 서로 충돌합니다."
+        return "보류", reason
 
     def _claims(self, session: Session, review_id: UUID, stages: Sequence[DeepReviewStage]) -> list[dict[str, Any]]:
         stage_ids = [stage.id for stage in stages]
@@ -568,7 +605,14 @@ class ReportService:
         }
         return {"bundle": bundle_context, "profile": profile_context, "structures": structures}
 
-    def _render_report(self, review: DeepReview, claims: list[dict[str, Any]], unknowns: list[str], validation_status: str) -> dict[str, Any]:
+    def _render_report(
+        self,
+        review: DeepReview,
+        claims: list[dict[str, Any]],
+        unknowns: list[str],
+        validation_status: str,
+        system_recommendation: str,
+    ) -> dict[str, Any]:
         all_ids = [claim["claim_id"] for claim in claims]
         sections: list[dict[str, Any]] = []
         matrix_sections = {"eligibility_matrix", "requirements_matrix", "evaluation_strategy"}
@@ -580,7 +624,7 @@ class ReportService:
             first_body = selected[0]["body"] if selected else None
             decision_rows: list[dict[str, Any]] = []
             if section_key == "decision_card":
-                recommendation = "보류" if validation_status == "failed" else "추진 검토"
+                recommendation = system_recommendation
                 failed = [claim for claim in selected if claim.get("status") in {"unsupported", "conflicting"}]
                 body = f"시스템 권고: {recommendation}. 핵심 근거, 차단 위험, 미확인 사항과 다음 조치를 연결된 claim에서 확인하십시오."
                 block_type = "decision_card"
@@ -619,7 +663,7 @@ class ReportService:
             "schema": "bidops.deep-review-report.v1", "deep_review_id": str(review.id), "notice_id": review.notice_id,
             "bundle_id": str(review.bundle_id), "profile_version_id": str(review.profile_version_id),
             "policy_version_id": str(review.policy_version_id), "sections": sections,
-            "system_recommendation": "보류" if validation_status == "failed" else "추진 검토",
+            "system_recommendation": system_recommendation,
             "claims": claims, "unknowns": unknowns,
             "validation_summary": {"status": validation_status, "failed": failed, "warnings": len(unknowns), "passed": 1 - failed},
             "created_at": _iso(_now()),

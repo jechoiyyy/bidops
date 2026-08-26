@@ -86,14 +86,6 @@ services:
     entrypoint: ["/bin/sh", "/usr/local/bin/minio-init.sh"]
     networks: [storage]
 
-  ollama:
-    image: ollama/ollama:0.11.4
-    environment:
-      OLLAMA_HOST: 0.0.0.0:11434
-    volumes:
-      - ollama-models:/root/.ollama
-    networks: [analysis]
-
   clamav:
     image: clamav/clamav:1.4.3
     networks: [scanning]
@@ -108,7 +100,6 @@ services:
     environment:
       BIDOPS_ROOT: /app
       BIDOPS_DATABASE_URL: "postgresql+psycopg://app:${BIDOPS_APP_PASSWORD:?set an external app password}@postgres:5432/bidops"
-      BIDOPS_OLLAMA_ENDPOINT: http://127.0.0.1:11434/api/generate
       BIDOPS_OPENAI_ENABLED: "false"
       BIDOPS_DOCUMENT_WORKER_CONCURRENCY: "2"
       BIDOPS_DOCUMENT_CONVERTER_WAIT_SECONDS: "45"
@@ -124,6 +115,12 @@ services:
       BIDOPS_QUARANTINE_ACCESS_KEY: "${BIDOPS_QUARANTINE_ACCESS_KEY:?set an external quarantine access key}"
       BIDOPS_QUARANTINE_SECRET_KEY: "${BIDOPS_QUARANTINE_SECRET_KEY:?set an external quarantine secret key}"
       BIDOPS_ANALYSIS_WORKER_CONCURRENCY: "1"
+      # These deployment references are intentionally optional while an
+      # operator prepares a document bundle and evaluates a candidate policy.
+      # Deep-review creation fails closed until both immutable IDs are set and
+      # the measured policy passes its activation gate.
+      BIDOPS_ACTIVE_PROFILE_VERSION_ID: "${BIDOPS_ACTIVE_PROFILE_VERSION_ID:-}"
+      BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID: "${BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID:-}"
     ports:
       - "${BIDOPS_WEB_PORT:-18787}:8787"
     networks: [database, storage, scanning]
@@ -135,6 +132,9 @@ services:
     build: { context: ., dockerfile: web/Dockerfile }
     environment: {}
     command: ["python", "-m", "app.workers.document"]
+    # The shared image probes the web HTTP endpoint by default, but this
+    # worker intentionally has no HTTP listener.
+    healthcheck: { disable: true }
     volumes:
       - document-scratch:/scratch
     network_mode: none
@@ -145,13 +145,14 @@ services:
     build: { context: ., dockerfile: web/Dockerfile }
     depends_on:
       migrate: { condition: service_completed_successfully }
-      ollama: { condition: service_started }
       minio-init: { condition: service_completed_successfully }
     environment:
       BIDOPS_ROOT: /app
       BIDOPS_DATABASE_URL: "postgresql+psycopg://worker:${BIDOPS_WORKER_PASSWORD:?set an external worker password}@postgres:5432/bidops"
-      BIDOPS_OLLAMA_ENDPOINT: http://ollama:11434/api/generate
-      BIDOPS_OLLAMA_ALLOWED_HOSTS: ollama
+      BIDOPS_VLLM_BASE_URL: "${BIDOPS_VLLM_BASE_URL:-http://127.0.0.1:8000/v1}"
+      BIDOPS_VLLM_ALLOWED_HOSTS: "${BIDOPS_VLLM_ALLOWED_HOSTS:-}"
+      BIDOPS_VLLM_MODEL: qwen3.8-27B
+      BIDOPS_VLLM_API_KEY: "${BIDOPS_VLLM_API_KEY:-EMPTY}"
       BIDOPS_OPENAI_ENABLED: "false"
       BIDOPS_ANALYSIS_WORKER_CONCURRENCY: "1"
       BIDOPS_OBJECT_STORE_BACKEND: minio
@@ -164,6 +165,9 @@ services:
       BIDOPS_MODEL_RESPONSE_ENCRYPTION_KEY: "${BIDOPS_MODEL_RESPONSE_ENCRYPTION_KEY:?set an external model-response encryption key}"
       BIDOPS_MODEL_RESPONSE_ENCRYPTION_KEY_REF: "${BIDOPS_MODEL_RESPONSE_ENCRYPTION_KEY_REF:?set an external model-response encryption key reference}"
     command: ["python", "-m", "app.workers.analysis"]
+    # Worker liveness is observed through its process/job lease; it does not
+    # expose the web image's 8787 health endpoint.
+    healthcheck: { disable: true }
     networks: [database, analysis]
 
   ro-backup:
@@ -194,7 +198,6 @@ services:
 volumes:
   postgres-data:
   minio-data:
-  ollama-models:
   document-scratch:
   recovery-backup:
 

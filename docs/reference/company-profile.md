@@ -2,7 +2,7 @@
 
 > 목적: AI 에이전트, 제안서 작성, 사업기회 분석, 기술·레퍼런스 매칭 등 여러 서비스에서 공통으로 참조할 수 있는 회사 기준 정보
 > 프로필 기준 시점: 2026-08
-> 정보 상태: `confirmed` = 소개서에서 직접 확인, `inferred` = 소개서의 최근 포지셔닝·실적에서 도출, `unknown` = 자료만으로 확인 불가
+> 정보 상태: `confirmed` = 회사소개서 또는 별도 확인 근거에서 직접 확인, `inferred` = 최근 포지셔닝·실적에서 도출, `unknown` = 현재 근거만으로 확인 불가
 
 ---
 
@@ -215,7 +215,10 @@ business_domains:
 ### 수행실적 데이터 유의사항
 
 - 회사소개서 PDF 41–46페이지의 사업명 130건은 [검색용 수행실적 레퍼런스](company-performance-titles.tsv)에 별도로 구조화했다.
+- 소개서 수록 순서 상위 30건은 [최근 수행사업 30건 분석](company-performance-latest-30-analysis.tsv)에 사업유형·도메인·증거 성격을 분리하여 정리했다.
+- 최신 30건의 조달청 API 대조 결과는 [입찰공고 매칭 데이터](company-performance-latest-30-g2b.json)에, 자동 연결하지 못한 항목은 [공고번호 수동 확인 목록](company-performance-g2b-manual-check.md)에 정리했다.
 - 해당 사업명은 유사 공고를 후보군으로 회수하는 탐색 근거이며, 사업 범위의 동일성이나 입찰 자격 충족을 자동으로 증명하지 않는다.
+- 최신 30건의 순서는 실제 계약일이 아니라 회사소개서 수록 순서를 최신순 대용치로 사용한 것이다.
 - 회사 설립일은 2022-09-23임.
 - 회사소개서의 수행실적 목록은 2014년부터 제시됨.
 - 2022년 이전 실적이 현재 법인의 직접 수행실적인지, 대표자·구성원의 이전 실적인지 자료만으로 확인되지 않음.
@@ -408,6 +411,58 @@ business_scale_evidence:
 
 이 항목은 과거 수행규모에 대한 참고정보이며 회사의 선호 예산이나 단독 수행 한도를 의미하지 않음.
 
+## 3.4 최근 수행사업 30건 포트폴리오 분석
+
+> 분석 범위: 회사소개서 PDF 41–42페이지의 수록 순서 상위 30건. 30건의 수행 사실은 담당자가 확인했으며, 사업유형과 도메인 분류는 사업명에 근거한 추정 정보임.
+
+```yaml
+recent_performance_portfolio:
+    source_item_count:
+        value: 30
+        status: confirmed
+    performance_fact:
+        value: "30건 모두 수행 사실 확인"
+        status: confirmed
+        evidence_source: "담당자 확인"
+        verified_as_of: "2026-08-25"
+    g2b_notice_enrichment:
+        confirmed_notice_projects: 16
+        confirmed_notice_records: 28
+        related_candidates_requiring_review: 2
+        not_found_by_title_search: 12
+        confirmed_projects_requiring_industry_1468: 13
+        confirmed_projects_requiring_other_industry: 1
+        confirmed_projects_with_industry_unverified: 2
+        verified_as_of: "2026-08-25"
+    portfolio_interpretation:
+        value:
+            evidence_class:
+                delivery_or_service: 19
+                support_or_selection: 11
+            delivery_type:
+                build_or_enhancement: 10
+                operation_or_maintenance: 7
+                rnd_or_support: 11
+                analysis_service: 1
+                education_or_training: 1
+            repeated_signals:
+                - "블록체인 명시 사업 8건"
+                - "재난·소방·산업안전 관련 사업 6건"
+                - "구축·고도화와 운영·유지관리 사업이 함께 확인되어 시스템 생애주기 전반의 최근 경험을 시사"
+                - "글로벌·해외시장 관련 지원사업 3건"
+        status: inferred
+```
+
+해석:
+- 최근 포트폴리오에서도 블록체인, 공공 SI, 재난·소방안전, 데이터 플랫폼이 반복된다.
+- 구축·고도화 10건과 운영·유지관리 7건이 함께 나타나 신규 구축 이후의 연속 수행 경험을 유사사업 탐색 근거로 사용할 수 있다.
+- R&D·지원 11건도 수행 사실은 확인되었으나, 용역 계약실적 또는 입찰의 법적 실적요건 충족 근거로 자동 인정하지 않는다.
+- 디지털헬스케어, 산업안전 모니터링, SaaS 전자티켓·출입관리, 스포츠 동작코칭은 최근 확장 신호로만 취급한다.
+- 30건 모두 계약금액, 수행기간, 원도급 여부, 공동수급 지분, 실적증명 가능 여부는 확인되지 않았다.
+- 최신 수행사업 16건을 조달청 공고 28건과 연결했다. 변경·재공고와 연차 공고를 포함한 수치이며, 13개 사업에서 소프트웨어사업자(컴퓨터관련서비스사업)(1468) 제한이 확인됐다. 재난안전통신망 교육·훈련 지원은 기타자유업종(9999), 담당자 제공 R25 공고 2건은 API 상세정보 미조회로 업종이 미확인 상태다.
+- 제목 검색에서 찾지 못한 12건과 관련 후보만 확인된 2건은 공고번호 또는 비조달 지원사업 증빙을 수동 보완해야 한다. API 미조회 자체는 수행 사실을 부정하지 않는다.
+- 원본 최신 30건 중 `2025년 소방안전 빅데이터 플랫폼 위탁운영` 행은 담당자 지시에 따라 2025년 공고(`20241028491-000`)와 2026년 공고(`R25BK01157189-000`)를 함께 포괄한다. 두 공고 모두 소방청 수요·업종 1468 제한으로 확인됐다.
+
 ---
 
 # 4. Business Preference
@@ -419,6 +474,7 @@ business_scale_evidence:
 ```yaml
 interested_areas:
     status: inferred
+    evidence_source: "회사소개서 수록 순서 상위 30건의 사업유형·도메인 분석"
     primary:
         - "공공 AI / 공공 AX"
         - "생성형 AI / LLM"
@@ -454,11 +510,26 @@ uninterested_areas:
 
 ```yaml
 preferred_project_types:
-    value: null
-    status: unknown
+    value:
+        observed_activity_types:
+            - "신규 구축 및 기능 고도화"
+            - "운영 및 유지관리"
+            - "R&D·실증 및 기술개발 지원사업"
+            - "데이터 분석서비스"
+            - "교육·훈련 지원"
+        official_priority_order: null
+        recent_30_distribution:
+            build_or_enhancement: 10
+            operation_or_maintenance: 7
+            rnd_or_support: 11
+            analysis_service: 1
+            education_or_training: 1
+    status: inferred
+    evidence_source: "회사소개서 수록 순서 상위 30건"
+    note: "최근 활동 분포를 나타내며 회사의 공식 영업 우선순위는 별도 확인 필요"
 ```
 
-수행실적으로는 구축, 고도화, 운영·유지관리, ISP/BPR, 연구, R&D/실증, SaaS 공급 경험이 확인되지만 선호 우선순위는 자료만으로 확정할 수 없음.
+최근 30건에서는 구축·고도화, 운영·유지관리, R&D·지원이 반복되어 관심 사업유형 후보로 사용한다. 목록의 순서는 선호도를 뜻하지 않으며 실제 우선순위는 회사 정책으로 확인되기 전까지 확정 근거로 사용하지 않는다.
 
 ## 4.4 선호 기관
 
@@ -501,6 +572,8 @@ new_business_areas:
         - "공공 AI 거버넌스 / 영향평가"
         - "온톨로지·지식그래프 + 생성형 AI"
         - "의료·헬스케어 데이터 플랫폼"
+        - "산업안전 모니터링"
+        - "스포츠·동작코칭 AI"
         - "글로벌 SaaS / 블록체인·헬스케어"
 ```
 
@@ -545,13 +618,28 @@ participation_constraints:
 - CSAP
 - 클라우드서비스 확인(KACI)
 - 기술평가등급 T3
+- 나라장터 입찰참가자격 업종: 소프트웨어사업자(컴퓨터관련서비스사업)(1468)
+
+```yaml
+procurement_qualifications:
+    software_business_computer_related_services:
+        value: true
+        industry_name: "소프트웨어사업자(컴퓨터관련서비스사업)"
+        industry_code: "1468"
+        status: confirmed
+        evidence_source: "담당자 확인 및 최신 수행사업 중 조달청 공고가 연결된 13개 사업의 면허 제한정보"
+        supporting_project_count: 13
+        supporting_notice_count: 22
+        supporting_data: "company-performance-latest-30-g2b.json"
+        verified_as_of: "2026-08-25"
+        note: "업종 등록 사실은 확인됨. 실제 입찰 제출용으로는 현재 나라장터 등록상태를 보여주는 원본 증빙을 별도 보관할 필요가 있음"
+```
 
 ### 추가 확인 필요
 
 ```yaml
 qualification_unknowns:
     direct_production_certificate: null
-    software_business_registration: null
     gs_certification_by_product: null
     procurement_registration: null
     digital_service_marketplace_registration: null
@@ -588,7 +676,7 @@ avoid_conditions:
 
 1. 확정 관심 분야 및 관심 키워드
 2. 확정 비관심 분야 및 제외 키워드
-3. 사업유형별 선호 우선순위
+3. 최근 30건에서 추정한 사업유형 우선순위의 공식 확인
 4. 최소·선호·최대 사업예산
 5. 단독수행과 컨소시엄 참여 기준
 6. 전략 고객 및 고객별 중요도
@@ -600,7 +688,7 @@ avoid_conditions:
 12. AI / 데이터 / 온톨로지 / 블록체인 분야별 실제 투입 가능 인력
 13. PM/PL 보유인력 및 공공사업 경력
 14. 기술등급·자격증별 인력 현황
-15. 직접생산확인증명 및 조달 관련 자격
+15. 직접생산확인증명 및 소프트웨어사업자(1468) 외 조달 관련 자격
 16. GS인증 및 제품별 공공조달 등록현황
 17. 2022년 이전 수행실적의 법적·계약상 인정 범위
 18. 솔루션별 표준 기능, 가격정책, 라이선스·구독 정책

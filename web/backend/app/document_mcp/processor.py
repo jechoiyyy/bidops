@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 import selectors
 import signal
 import shutil
@@ -26,6 +27,21 @@ from .safety import OutputBudget, ProcessorOptions, detect_media_type, enforce_i
 OCRResult = str | tuple[str, float | None] | dict[str, Any]
 OCREngine = Callable[[bytes, str], OCRResult]
 ClamAVChecker = Callable[[bytes], bool | None]
+
+
+def _has_binary_text_controls(blocks: list[dict[str, Any]]) -> bool:
+    """Reject PDF text that is actually a decoded font/binary stream.
+
+    The small stdlib parser intentionally supports only portable PDF text.
+    Complex CID/font streams can still contain tokens that look like ``Tj``;
+    accepting their control-heavy bytes as text produces unusable evidence.
+    """
+
+    return any(
+        any((ord(char) < 32 and char not in "\t\n\r") or 127 <= ord(char) <= 159 for char in text)
+        for block in blocks
+        if isinstance(block, dict) and isinstance((text := block.get("text")), str)
+    )
 
 
 class ProcessedDocument(dict[str, Any]):
@@ -288,9 +304,19 @@ class DocumentProcessor:
             warnings.extend(child_warnings)
             extractor = extractor_info()
         elif detected == "application/pdf":
-            pages, blocks, child_warnings, parsed_pages = extract_pdf(original, opts)
+            try:
+                pages, blocks, child_warnings, parsed_pages = extract_pdf(original, opts)
+                if _has_binary_text_controls(blocks):
+                    raise DocumentProcessingError("malformed_pdf", "PDF text stream이 portable text가 아닙니다")
+                pdf_extractor = "pdf-stdlib"
+            except DocumentProcessingError as exc:
+                if exc.code != "malformed_pdf":
+                    raise
+                pages, blocks, child_warnings, parsed_pages = self._extract_pdf_poppler(original, opts)
+                pdf_extractor = "pdf-poppler-fallback"
+                child_warnings.append("pdf_stdlib_text_fallback")
             warnings.extend(child_warnings)
-            extractor = {"name": "pdf-stdlib", "version": "1", "upstream_commit": None}
+            extractor = {"name": pdf_extractor, "version": "1", "upstream_commit": None}
             render_targets = parsed_pages if opts.render_pages else [page for page in parsed_pages if not page.text]
             rendered_budget = OutputBudget(opts.max_output_bytes)
             if render_targets:
@@ -403,6 +429,88 @@ class DocumentProcessor:
             if not stdout.startswith((b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08")):
                 raise DocumentProcessingError("conversion_required", "HWP 변환 확인 필요", source_preserved=True)
             return stdout
+
+    def _extract_pdf_poppler(
+        self,
+        original: bytes,
+        options: ProcessorOptions,
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str], list[PdfPage]]:
+        """Parse valid complex PDFs with bounded Poppler subprocesses.
+
+        This fallback runs only in the credential-free, network-disabled
+        document worker.  It is intentionally limited to metadata and UTF-8
+        text extraction; rendering/OCR continues through the existing bounded
+        path below.
+        """
+
+        info_executable = shutil.which("pdfinfo")
+        text_executable = shutil.which("pdftotext")
+        if not info_executable or not text_executable:
+            raise DocumentProcessingError("malformed_pdf", "PDF object를 해석할 수 없습니다")
+        with tempfile.TemporaryDirectory(prefix="bidops-pdf-") as tmp:
+            source = Path(tmp) / "source.pdf"
+            source.write_bytes(original)
+            try:
+                info_code, info_stdout, _info_stderr = _run_limited_subprocess(
+                    [info_executable, str(source)], cwd=tmp,
+                    env=_child_environment(info_executable),
+                    timeout=options.timeout_seconds, output_limit=64 * 1024,
+                    preexec_fn=_resource_limiter(options.max_output_bytes),
+                )
+                text_code, text_stdout, _text_stderr = _run_limited_subprocess(
+                    [text_executable, "-layout", "-enc", "UTF-8", str(source), "-"],
+                    cwd=tmp, env=_child_environment(text_executable),
+                    timeout=options.timeout_seconds, output_limit=options.max_output_bytes,
+                    preexec_fn=_resource_limiter(options.max_output_bytes),
+                )
+            except _ChildTimeout as exc:
+                raise DocumentProcessingError("timeout", "PDF 처리 시간이 제한을 초과했습니다", source_preserved=True) from exc
+            except _ChildOutputLimit as exc:
+                raise DocumentProcessingError("output_size_limit", "PDF 처리 결과 크기 제한을 초과했습니다", source_preserved=True) from exc
+            except (OSError, subprocess.SubprocessError) as exc:
+                raise DocumentProcessingError("malformed_pdf", "PDF object를 해석할 수 없습니다") from exc
+        if info_code != 0 or text_code != 0:
+            raise DocumentProcessingError("malformed_pdf", "PDF object를 해석할 수 없습니다")
+        try:
+            info = info_stdout.decode("utf-8", "strict")
+            text = text_stdout.decode("utf-8", "strict")
+        except UnicodeDecodeError as exc:
+            raise DocumentProcessingError("malformed_pdf", "PDF text encoding이 올바르지 않습니다") from exc
+        encrypted = re.search(r"(?mi)^Encrypted:\s*(\S+)", info)
+        if encrypted and encrypted.group(1).casefold() not in {"no", "false"}:
+            raise DocumentProcessingError("encrypted_pdf", "암호화된 PDF는 처리할 수 없습니다")
+        page_match = re.search(r"(?mi)^Pages:\s*(\d+)\s*$", info)
+        if page_match is None:
+            raise DocumentProcessingError("malformed_pdf", "PDF page 수를 확인할 수 없습니다")
+        page_count = int(page_match.group(1))
+        if not 1 <= page_count <= min(options.max_pdf_pages, options.max_pages):
+            raise DocumentProcessingError("pdf_page_limit", "PDF page 수 제한을 초과했습니다")
+        size_match = re.search(r"(?mi)^Page size:\s*([0-9.]+)\s+x\s+([0-9.]+)\s+pts", info)
+        width = float(size_match.group(1)) if size_match else 595.0
+        height = float(size_match.group(2)) if size_match else 842.0
+        if width <= 0 or height <= 0 or width * height > 100_000_000:
+            raise DocumentProcessingError("pdf_page_limit", "PDF page 해상도 제한을 초과했습니다")
+        page_texts = text.split("\f")
+        if page_texts and not page_texts[-1].strip():
+            page_texts.pop()
+        page_texts.extend([""] * max(0, page_count - len(page_texts)))
+        pages: list[dict[str, Any]] = []
+        blocks: list[dict[str, Any]] = []
+        parsed: list[PdfPage] = []
+        budget = OutputBudget(options.max_output_bytes)
+        for page_number in range(1, page_count + 1):
+            page_text = page_texts[page_number - 1].strip() if page_number <= len(page_texts) else ""
+            budget.consume_text(page_text)
+            pages.append({"number": page_number, "width": width, "height": height, "image_content_object_id": None})
+            if page_text:
+                blocks.append({
+                    "block_key": f"page-{page_number}-text",
+                    "parent_block_key": None, "type": "text", "page": page_number,
+                    "bbox": [0.0, 0.0, width, height], "text": page_text,
+                    "confidence": 1.0, "attributes": {"source": "pdf-poppler-text"},
+                })
+            parsed.append(PdfPage(page_number, width, height, page_text, b""))
+        return pages, blocks, ["pdf_poppler_fallback"], parsed
 
     def _render_pdf_page(self, original: bytes, page: int, options: ProcessorOptions) -> bytes:
         executable = shutil.which("pdftoppm")

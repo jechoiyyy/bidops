@@ -552,6 +552,32 @@ def test_upload_and_confirm_idempotency_replay_and_conflict(context: Context) ->
         assert error.value.code == "idempotency_conflict"
 
 
+def test_same_named_same_byte_reupload_creates_one_replacement_lineage(context: Context) -> None:
+    first_bundle = make_bundle(context)
+    first = upload(context, first_bundle.id, filename="재처리.pdf")
+    with Session(context.engine) as session:  # type: ignore[arg-type]
+        context.service.confirm(
+            session,
+            first_bundle.id,
+            ConfirmRequest(
+                request_id=uuid4(), version=first_bundle.version,
+                confirmed_documents=[{"document_version_id": first.id, "version": first.version}],
+            ),
+            "담당자",
+        )
+
+    second_bundle = make_bundle(context)
+    replacement = upload(context, second_bundle.id, filename="재처리.pdf")
+    with Session(context.engine) as session:  # type: ignore[arg-type]
+        old = session.get(DocumentVersion, first.id)
+        new = session.get(DocumentVersion, replacement.id)
+        assert old is not None and new is not None
+        assert old.attachment_id == new.attachment_id
+        assert old.is_current is False and new.is_current is True
+        assert new.replaces_document_version_id == old.id
+        assert session.query(Attachment).count() == 1
+
+
 def test_confirm_rechecks_idempotency_after_bundle_lock(monkeypatch: pytest.MonkeyPatch, context: Context) -> None:
     bundle = make_bundle(context)
     document = upload(context, bundle.id)

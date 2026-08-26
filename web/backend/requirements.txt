@@ -11,3 +11,4 @@ minio>=7.2,<8
 cryptography>=43,<46
 pytest>=8,<9
 httpx>=0.27,<1
+openai>=1.109,<3

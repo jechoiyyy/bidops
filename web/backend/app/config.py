@@ -9,8 +9,9 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
-from pydantic import AliasChoices, Field, model_validator
+from pydantic import AliasChoices, Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -57,13 +58,21 @@ class Settings(BaseSettings):
         default=None,
         validation_alias="BIDOPS_G2B_API_KEY",
     )
-    ollama_endpoint: str = Field(
-        default="http://127.0.0.1:11434/api/generate",
-        validation_alias="BIDOPS_OLLAMA_ENDPOINT",
+    vllm_base_url: str = Field(
+        default="http://127.0.0.1:8000/v1",
+        validation_alias="BIDOPS_VLLM_BASE_URL",
     )
-    ollama_model: str = Field(default="qwen3.8:27b", validation_alias="BIDOPS_OLLAMA_MODEL")
-    ollama_allowed_hosts: str = Field(default="", validation_alias="BIDOPS_OLLAMA_ALLOWED_HOSTS")
+    vllm_model: str = Field(default="qwen3.8-27B", validation_alias="BIDOPS_VLLM_MODEL")
+    vllm_api_key: SecretStr = Field(default_factory=lambda: SecretStr("EMPTY"), validation_alias="BIDOPS_VLLM_API_KEY")
+    vllm_allowed_hosts: str = Field(default="", validation_alias="BIDOPS_VLLM_ALLOWED_HOSTS")
+    analysis_provider: Literal["vllm", "codex-exec", "mock"] = Field(default="vllm", validation_alias="BIDOPS_ANALYSIS_PROVIDER")
     openai_enabled: bool = Field(default=False, validation_alias="BIDOPS_OPENAI_ENABLED")
+    codex_exec_enabled: bool = Field(default=False, validation_alias="BIDOPS_CODEX_EXEC_ENABLED")
+    codex_exec_binary: str = Field(default="codex", validation_alias="BIDOPS_CODEX_EXEC_BIN")
+    codex_exec_model: str = Field(default="gpt-5.6-sol", validation_alias="BIDOPS_CODEX_EXEC_MODEL")
+    codex_exec_reasoning_effort: Literal["low", "medium", "high", "xhigh"] = Field(default="low", validation_alias="BIDOPS_CODEX_EXEC_REASONING_EFFORT")
+    codex_exec_approved_notice_ids: str = Field(default="", validation_alias="BIDOPS_CODEX_EXEC_APPROVED_NOTICE_IDS")
+    reference_workflow_mode: bool = Field(default=False, validation_alias="BIDOPS_REFERENCE_WORKFLOW_MODE")
     document_worker_concurrency: int = Field(default=2, validation_alias="BIDOPS_DOCUMENT_WORKER_CONCURRENCY")
     analysis_worker_concurrency: int = Field(default=1, validation_alias="BIDOPS_ANALYSIS_WORKER_CONCURRENCY")
     document_worker_poll_seconds: float = Field(default=1.0, validation_alias="BIDOPS_DOCUMENT_WORKER_POLL_SECONDS")
@@ -94,6 +103,8 @@ class Settings(BaseSettings):
     def derive_paths(self) -> "Settings":
         """Derive web data paths from the project root unless overridden."""
 
+        if self.analysis_provider == "mock" and not self.reference_workflow_mode:
+            raise ValueError("mock analysis provider requires reference workflow mode")
         if self.data_dir is None:
             self.data_dir = self.bidops_root / "web" / "data"
         if self.attachments_dir is None:
@@ -123,6 +134,22 @@ class Settings(BaseSettings):
             return values[namespace]
         except KeyError as error:
             raise ValueError("unknown object namespace") from error
+
+    @property
+    def approved_codex_notice_ids(self) -> tuple[int, ...]:
+        """Parse the explicit per-notice external transmission allowlist."""
+
+        if not self.codex_exec_approved_notice_ids.strip():
+            return ()
+        values: list[int] = []
+        for item in self.codex_exec_approved_notice_ids.split(","):
+            value = item.strip()
+            if not value or not value.isdecimal() or int(value) <= 0:
+                raise ValueError("BIDOPS_CODEX_EXEC_APPROVED_NOTICE_IDS must contain positive integer IDs")
+            values.append(int(value))
+        if len(set(values)) != len(values):
+            raise ValueError("BIDOPS_CODEX_EXEC_APPROVED_NOTICE_IDS must not contain duplicates")
+        return tuple(values)
 
     @property
     def database_path(self) -> Path:
