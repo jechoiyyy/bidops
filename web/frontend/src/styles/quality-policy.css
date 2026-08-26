@@ -304,6 +304,11 @@
   white-space: nowrap;
 }
 
+.quality-gate-list-meta code {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
 .quality-status,
 .policy-status-badge {
   display: inline-flex;

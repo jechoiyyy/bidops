@@ -25,9 +25,9 @@ const pages = [
 ];
 
 test.beforeEach(async ({ page }) => {
-  // The app theme imports Google Fonts. Keep visual tests entirely local: an
-  // empty CSS response prevents any gstatic font-face follow-up, while the
-  // second route closes the gap if a future import adds one.
+  // Keep visual tests on the local Pretendard contract. These defensive routes
+  // also make an accidental future Google Fonts import fail closed without
+  // allowing a remote font to affect a snapshot.
   await page.route("**://fonts.googleapis.com/**", async (route) => {
     await route.fulfill({ status: 200, contentType: "text/css", body: "" });
   });
@@ -38,31 +38,21 @@ test.beforeEach(async ({ page }) => {
   await mockApi(page);
 });
 
-/**
- * Google Fonts가 없어도 레이아웃 측정을 기다리는 동안 같은 글꼴을 쓴다.
- * theme의 IBM Plex 변수는 Playwright 이미지에 설치된 로컬 글꼴로
- * 덮어쓰므로 폰트 서버의 성공 여부에 따라 스냅샷이 달라지지 않는다.
- */
+/** 로컬 Pretendard가 적용된 뒤에만 레이아웃을 안정화하고 스냅샷을 찍는다. */
 async function settleFonts(page: Page): Promise<void> {
-  await page.addStyleTag({
-    content: `
-      :root {
-        --font-sans: "WenQuanYi Zen Hei", sans-serif;
-        --font-mono: "Liberation Mono", monospace;
-      }
-    `,
-  });
-  await page.evaluate(async () => {
+  const computedFontFamily = await page.evaluate(async () => {
     const text = document.documentElement.textContent ?? "";
     await Promise.all([
-      document.fonts.load('400 13px "WenQuanYi Zen Hei"', text),
+      document.fonts.load('400 14px "Pretendard"', text),
       document.fonts.load('400 13px "Liberation Mono"', text),
     ]);
     await document.fonts.ready;
     await new Promise<void>((resolve) => {
       requestAnimationFrame(() => requestAnimationFrame(resolve));
     });
+    return getComputedStyle(document.documentElement).fontFamily;
   });
+  expect(computedFontFamily).toContain("Pretendard");
 }
 
 for (const target of pages) {
@@ -71,28 +61,56 @@ for (const target of pages) {
     await expect(page.locator("h1").first()).toBeVisible();
     await page.waitForLoadState("networkidle");
     const overflow = await page.evaluate(() => {
-      const viewport = document.documentElement.clientWidth;
-      const isContainedByIntentionalScroller = (element: Element): boolean => {
+      const root = document.documentElement;
+      const canvas = document.querySelector<HTMLElement>(".page-canvas");
+      const widthOverflow = (element: HTMLElement): number => Math.max(0, element.scrollWidth - element.clientWidth);
+      const explicitInternalScrollerSelector = [
+        ".table-wrap",
+        ".operations-table-scroll",
+        ".quality-table-wrap",
+        ".runs-artifact-table-scroll",
+        ".runs-log-lines",
+      ].join(", ");
+      const explicitInternalScrollers = new Set(
+        [...document.querySelectorAll<HTMLElement>(explicitInternalScrollerSelector)],
+      );
+      const actualLocalScrollers = new Set(
+        [...document.querySelectorAll<HTMLElement>("body *")].filter((element) => {
+          if (element === canvas) return false;
+          const style = getComputedStyle(element);
+          return (style.overflowX === "auto" || style.overflowX === "scroll")
+            && element.scrollWidth > element.clientWidth + 1;
+        }),
+      );
+      const allowedScrollers = new Set([...explicitInternalScrollers, ...actualLocalScrollers]);
+      const isContainedByAllowedScroller = (element: Element): boolean => {
         let parent = element.parentElement;
         while (parent) {
-          const overflowX = getComputedStyle(parent).overflowX;
-          if (overflowX === "auto" || overflowX === "scroll") return true;
+          if (allowedScrollers.has(parent)) return true;
           parent = parent.parentElement;
         }
         return false;
       };
-      // The operations history is intentionally scrollable as a local data
-      // table on narrow viewports. Measure content escaping the page itself,
-      // while excluding descendants inside that local scroller.
-      return Math.max(0, ...[...document.querySelectorAll<HTMLElement>("body *")]
-        .filter((element) => !isContainedByIntentionalScroller(element))
+      const viewport = root.clientWidth;
+      // Check both page-level scroll containers directly. Descendant
+      // exclusions are limited to named table/log scrollers or another real
+      // local horizontal scroller; page-canvas itself is never an exclusion.
+      const descendantOverflow = Math.max(0, ...[...document.querySelectorAll<HTMLElement>("body *")]
+        .filter((element) => !isContainedByAllowedScroller(element))
         .map((element) => {
           const rect = element.getBoundingClientRect();
           if (rect.right <= 0 || rect.left >= viewport) return 0;
           return Math.max(rect.right - viewport, -rect.left);
         }));
+      return {
+        documentElement: widthOverflow(root),
+        pageCanvas: canvas ? widthOverflow(canvas) : 0,
+        descendants: descendantOverflow,
+      };
     });
-    expect(overflow).toBeLessThanOrEqual(1);
+    expect(overflow.documentElement).toBeLessThanOrEqual(1);
+    expect(overflow.pageCanvas, JSON.stringify(overflow)).toBeLessThanOrEqual(1);
+    expect(overflow.descendants, JSON.stringify(overflow)).toBeLessThanOrEqual(1);
   });
 
   test(`${target.name} 화면 스냅샷`, async ({ page }) => {
@@ -166,6 +184,13 @@ test("담당자 확인 요청을 펼치고 접을 수 있다", async ({ page }) 
   await expect(toggle).toHaveAttribute("aria-expanded", "true");
   await expect(toggle).toHaveText("나머지 접기");
   expect(await list.locator("li").count()).toBeGreaterThan(3);
+});
+
+test("감사 누락 수는 보존하고 확인할 수 없는 분모를 추정하지 않는다", async ({ page }) => {
+  await page.goto(`/?run=${encodeURIComponent(RUN_ID)}`);
+  const kpi = page.getByRole("region", { name: "1차 필터 누락" });
+  await expect(kpi).toContainText("5 / 표본 미확인");
+  await expect(kpi).toContainText("감사 표본 분모를 확인할 수 없어 누락률을 계산하지 않습니다.");
 });
 
 test("진행 중인 전량 판정은 중복 실행할 수 없다", async ({ page }) => {

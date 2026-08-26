@@ -2,7 +2,7 @@
    기존 API 상태와 조작부의 계약은 유지하고, 이 파일에서는 화면의 우선순위,
    카드 안쪽 여백, 반응형 폭과 내부 스크롤 경계만 조정한다. */
 
-.runs-page,
+.page-canvas > .runs-page,
 .attachments-page {
   width: 100%;
   max-width: 1680px;
@@ -901,6 +901,14 @@
 }
 
 @media (max-width: 1180px) {
+  .runs-page .runs-screening-form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .runs-page .runs-screening-field:first-child {
+    grid-column: 1 / -1;
+  }
+
   .runs-page .runs-stages {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

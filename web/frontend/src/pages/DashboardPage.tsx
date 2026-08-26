@@ -17,10 +17,6 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "대시보드 데이터를 확인할 수 없습니다.";
 }
 
-function sampleCountFromDistribution(distribution: { count: number }[]): number {
-  return distribution.reduce((sum, item) => sum + item.count, 0);
-}
-
 function priorityStatus(metric: ValidationMetric | undefined): string | undefined {
   if (!metric || metric.percentage === null || typeof metric.threshold !== "object" || metric.threshold === null) return undefined;
   if (!("min" in metric.threshold) || !("max" in metric.threshold)) return undefined;
@@ -137,8 +133,6 @@ export function DashboardPage() {
   }
 
   const discriminativePower = validation.metrics.find((metric) => metric.key === "discriminative_power");
-  const analysisSampleCount = sampleCountFromDistribution(stats.grade_distribution);
-  const auditSampleCount = Math.max(stats.sample_count - analysisSampleCount, 0);
   // 수집 통계는 collected-notices.json 이 있어야 나온다. 없으면 비율도 계산하지 않는다.
   const candidateRatio =
     stats.collected_count !== null && stats.candidate_count !== null && stats.collected_count > 0
@@ -150,7 +144,7 @@ export function DashboardPage() {
       : null;
   const priorityDescription = discriminativePower
     ? `분석 표본 ${formatNumber(discriminativePower.basis.denominator)}건의 ${percentageText(discriminativePower.percentage)}`
-    : `분석 표본 ${formatNumber(analysisSampleCount)}건 기준`;
+    : "분석 표본 분모 확인 불가";
 
   return (
     <div className="dashboard-page">
@@ -177,8 +171,8 @@ export function DashboardPage() {
         />
         <KpiCard
           label="1차 필터 누락"
-          value={<><span>{formatNumber(stats.audit_missed_count)}</span><span className="dashboard-kpi-fraction"> / {formatNumber(auditSampleCount)}건</span></>}
-          description={auditSampleCount === 0 ? "감사 표본 0건 기준 · 누락도 0건" : "감사 표본에서 비제외 판정 건수"}
+          value={<><span>{formatNumber(stats.audit_missed_count)}</span><span className="dashboard-kpi-fraction"> / 표본 미확인</span></>}
+          description="감사 표본 분모를 확인할 수 없어 누락률을 계산하지 않습니다."
         />
       </section>
 
