@@ -93,7 +93,9 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
   const [searchParams] = useSearchParams();
   // 회차 선택은 주소의 run 파라미터에만 남아 있다. 화면을 옮길 때 이 값을 잃으면
   // 담당자가 고른 회차가 최신 회차로 되돌아가므로, 모든 이동에 그대로 넘긴다.
-  const runSearch = searchParams.get("run") ? `?run=${encodeURIComponent(searchParams.get("run") as string)}` : "";
+  const runSearchParams = new URLSearchParams();
+  if (searchParams.has("run")) runSearchParams.set("run", searchParams.get("run") ?? "");
+  const runSearch = runSearchParams.toString() ? `?${runSearchParams.toString()}` : "";
   const atHome = pathname === "/";
   return (
     <>
@@ -102,7 +104,11 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
         aria-hidden="true"
         onClick={onClose}
       />
-      <aside className={`sidebar ${open ? "is-open" : ""}`.trim()}>
+      <aside
+        aria-label="주 메뉴"
+        className={`sidebar ${open ? "is-open" : ""}`.trim()}
+        id="primary-navigation"
+      >
         <Link
           aria-current={atHome ? "page" : undefined}
           aria-label="RootLab BidOps 대시보드로 이동"
