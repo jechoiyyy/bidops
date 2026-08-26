@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from app.screening.generation_config import register_sqlite_functions
+from app.screening.generation_config import GenerationConfig, legacy_generation_config, register_sqlite_functions
 
 
 BACKEND = Path(__file__).resolve().parents[1]
@@ -66,7 +66,13 @@ def test_generation_config_migration_backfills_and_freezes_execution_rows(tmp_pa
     assert run_alembic(database, "upgrade", "0004_migration_audit").returncode == 0
     digest = "a" * 64
 
-    def add_execution(connection: sqlite3.Connection, suffix: str, *, config: str | None = None) -> None:
+    def add_execution(
+        connection: sqlite3.Connection,
+        suffix: str,
+        *,
+        config: str | None = None,
+        config_digest: str | None = None,
+    ) -> None:
         values = {
             "execution_id": "scr-" + suffix,
             "input_path": f"runs/{suffix}.json",
@@ -77,8 +83,11 @@ def test_generation_config_migration_backfills_and_freezes_execution_rows(tmp_pa
         placeholders = ":execution_id, 'manual_run', 'r1', 'full_run', '대기', 'migration-test', 'p1', 'prompt-1', 'qwen3.8:27b', :digest, 'company-profile.sha256:' || :digest, :digest, :input_path, :digest, :artifact_dir, '2026-01-01T00:00:00+00:00'"
         if config is not None:
             columns += ", generation_config_json, generation_config_digest"
-            placeholders += ", :config, :digest"
-        connection.execute(f"insert into screening_execution({columns}) values ({placeholders})", {**values, "config": config})
+            placeholders += ", :config, :config_digest"
+        connection.execute(
+            f"insert into screening_execution({columns}) values ({placeholders})",
+            {**values, "config": config, "config_digest": config_digest or digest},
+        )
 
     with validated_connect(database) as connection:
         connection.execute("insert into run(id, timezone, generated_at, status) values ('r1', 'UTC', '2026-01-01T00:00:00+00:00', '성공')")
@@ -105,6 +114,14 @@ def test_generation_config_migration_backfills_and_freezes_execution_rows(tmp_pa
             connection.execute("update screening_execution set generation_config_digest=? where execution_id=?", ("b" * 64, "scr-" + "1" * 32))
         with pytest.raises(sqlite3.IntegrityError):
             add_execution(connection, "2" * 32, config="[]")
+        default = GenerationConfig()
+        legacy = legacy_generation_config()
+        add_execution(connection, "3" * 32, config=default.canonical_json(), config_digest=default.digest())
+        add_execution(connection, "4" * 32, config=legacy.canonical_json(), config_digest=legacy.digest())
+        with pytest.raises(sqlite3.IntegrityError):
+            add_execution(connection, "5" * 32, config=default.canonical_json(), config_digest=legacy.digest())
+        with pytest.raises(sqlite3.IntegrityError):
+            add_execution(connection, "6" * 32, config=legacy.canonical_json(), config_digest=default.digest())
         trigger_names = {
             row[0]
             for row in connection.execute("select name from sqlite_master where type='trigger'")
@@ -119,6 +136,87 @@ def test_generation_config_migration_backfills_and_freezes_execution_rows(tmp_pa
             "quality_gate_evaluation_generation_binding",
             "quality_gate_evaluation_generation_binding_update",
         } <= trigger_names
+
+
+def test_generation_config_partial_defaults_with_quoted_commas_retry_safely(tmp_path: Path) -> None:
+    database = tmp_path / "generation-config-partial.db"
+    assert run_alembic(database, "upgrade", "0004_migration_audit").returncode == 0
+    default = GenerationConfig()
+    expected_default = "'" + default.canonical_json().replace("'", "''") + "'"
+    residue_default = "(" + expected_default + ")"
+    # Simulate a failed 0005 after nontransactional DDL. Add digest before JSON
+    # to exercise column-order independence; the JSON default contains commas
+    # and nested parentheses-like structure that defeated the old delimiter.
+    with validated_connect(database) as connection:
+        for table in ("screening_execution", "quality_gate"):
+            connection.execute(
+                f"ALTER TABLE {table} ADD COLUMN generation_config_digest VARCHAR(64) NOT NULL DEFAULT '0'"
+            )
+            connection.execute(
+                f"ALTER TABLE {table} ADD COLUMN generation_config_json JSON NOT NULL DEFAULT {residue_default}"
+            )
+        connection.commit()
+
+    upgraded = run_alembic(database, "upgrade", "head")
+    assert upgraded.returncode == 0, upgraded.stderr
+    with validated_connect(database) as connection:
+        for table in ("screening_execution", "quality_gate"):
+            defaults = {
+                row[1]: row[4]
+                for row in connection.execute(f"PRAGMA table_info('{table}')")
+                if row[1].startswith("generation_config")
+            }
+            assert defaults["generation_config_json"] == expected_default
+            assert defaults["generation_config_digest"] == "'" + default.digest() + "'"
+
+        digest = "a" * 64
+        execution_id = "scr-" + "1" * 32
+        connection.execute(
+            "INSERT INTO run(id, timezone, generated_at, status) VALUES ('r1', 'UTC', '2026-01-01T00:00:00+00:00', '성공')"
+        )
+        connection.execute(
+            "INSERT INTO company_profile_snapshot(digest, version, source_kind, source_ref, artifact_path, created_at) "
+            "VALUES (?, ?, 'working_tree', 'partial-test', ?, '2026-01-01T00:00:00+00:00')",
+            (digest, "company-profile.sha256:" + digest, "web/data/profile-snapshots/" + digest + ".md"),
+        )
+        connection.execute(
+            "INSERT INTO screening_policy(policy_version, prompt_version, content_digest, status, "
+            "perspective_prompts_json, counterargument_prompt_json, synthesis_prompt_json, "
+            "candidate_selection_json, thresholds_json, created_at, created_by) "
+            "VALUES ('p1', 'prompt-1', ?, 'draft', '{}', '{}', '{}', '{}', '{}', '2026-01-01T00:00:00+00:00', 'partial-test')",
+            (digest,),
+        )
+        connection.execute(
+            "INSERT INTO screening_execution(execution_id, trigger, source_run_id, scope, status, requested_by, "
+            "policy_version, prompt_version, model_name, model_digest, company_profile_version, company_profile_digest, "
+            "input_artifact_path, input_artifact_digest, artifact_dir, queued_at) "
+            "VALUES (?, 'manual_run', 'r1', 'full_run', '대기', 'partial-test', 'p1', 'prompt-1', 'model', ?, ?, ?, ?, ?, ?, ?)",
+            (
+                execution_id,
+                digest,
+                "company-profile.sha256:" + digest,
+                digest,
+                "runs/partial.json",
+                digest,
+                "runs/partial",
+                "2026-01-01T00:00:00+00:00",
+            ),
+        )
+        row = connection.execute(
+            "SELECT generation_config_json, generation_config_digest FROM screening_execution WHERE execution_id=?",
+            (execution_id,),
+        ).fetchone()
+        assert row == (default.canonical_json(), default.digest())
+        assert connection.execute("SELECT json_valid(?)", (row[0],)).fetchone()[0] == 1
+        assert connection.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "0005_generation_config_binding"
+        assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
+        assert connection.execute("PRAGMA quick_check").fetchone()[0] == "ok"
+
+    downgraded = run_alembic(database, "downgrade", "0004_migration_audit")
+    assert downgraded.returncode == 0, downgraded.stderr
+    with validated_connect(database) as connection:
+        assert connection.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "0004_migration_audit"
+        assert connection.execute("PRAGMA quick_check").fetchone()[0] == "ok"
 
 
 def test_migration_audit_is_idempotent_from_0003_and_safe_to_downgrade(tmp_path: Path) -> None:
