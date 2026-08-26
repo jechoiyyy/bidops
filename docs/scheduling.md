@@ -10,6 +10,8 @@
 - `BIDOPS_SCHEDULE_DAILY_TIME`, `BIDOPS_SCHEDULE_WEEKLY_TIME`, `BIDOPS_PRESPEC_ENABLED`는 최초 DB row의 기본값을 제공한다. DB 설정 row가 있으면 실행 중 환경 변경으로 기존 설정을 덮지 않는다.
 - `PATCH /api/schedule/settings`는 DB singleton을 바꾸고 즉시 job을 재예약한다. 이미 만들어진 reservation은 변경하지 않는다.
 
+fresh migration은 schedule settings와 disabled always-on singleton 및 deterministic migration audit event를 만들고 policy/portal row는 만들지 않는다. 따라서 active policy가 없으면 scheduler callback은 effective enabled가 될 수 없고, portal 검색도 별도 API 등록 전에는 매칭되지 않는다. startup은 이 seed를 수행하지 않는다.
+
 상시 실행의 유효 조건은 `BIDOPS_SCHEDULER_ENABLED=true`, DB `always_on_state.enabled=true`, active policy, 최신 passing `operational_approval`, 그리고 그 평가의 current profile·정확한 model/prompt/policy binding이다. 환경 cap 또는 binding 불일치가 있으면 DB switch를 false로 내리고 audit한다. DB switch가 false면 scheduler job이 등록되어도 callback은 no-op이며 reservation·model call을 만들지 않는다. always-on PUT을 환경 false에서 true로 요청하면 409다.
 
 ## 예약 키와 기간
@@ -54,7 +56,7 @@ schedule enqueue 전 Ollama endpoint 및 exact model/digest preflight를 한다.
 
 | 호출 | 의미 |
 |---|---|
-| `GET /api/schedule/settings` | timezone·daily/weekly time·prespec·effective state 조회 |
+| `GET /api/schedule/settings` | timezone·daily/weekly time·prespec·update metadata 조회 |
 | `PATCH /api/schedule/settings` | DB singleton 갱신 및 job 즉시 reschedule |
 | `GET /api/schedule/executions` | 상태·job kind·기간·recovery 관계 조회 |
 | `POST /api/schedule/executions` | 수동 예약/복구. job kind/window/requested_by를 받고 202 |

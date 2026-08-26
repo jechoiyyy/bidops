@@ -21,7 +21,7 @@
 ## 불변성·보안
 
 - profile/policy/prompt/model/input/artifact binding은 실행 생성 뒤 바꾸지 않는다. profile `current`는 bytes snapshot, 역사 비교는 승인된 Git commit과 vendored digest를 검증한다.
-- DB는 SQLite WAL/foreign keys와 Alembic head를 사용한다. 앱 start/container entrypoint는 migrate, `create_all`, seed를 하지 않는다. migration은 중지된 서비스, retained backup manifest, explicit confirm으로만 수행한다.
+- DB는 SQLite WAL/foreign keys와 Alembic head를 사용한다. 앱 start/container entrypoint는 migrate, `create_all`, portal seed, policy seed를 하지 않는다. fresh migrated DB는 schedule/always-on singleton과 migration audit event만 초기화하고 policy/portal row는 0이며 명시적 seed/API 등록이 필요하다. migration은 중지된 서비스, retained backup manifest, explicit confirm으로만 수행한다.
 - FIFO는 queue_no 오름차순, active slot과 max concurrency는 1이다. heartbeat stale recovery는 중단으로 끝나며 자동 resume/재시작을 만들지 않는다.
 - artifact는 known filename, symlink/path escape 검사 후에만 읽고 쓰며 API는 내부 저장 경로를 조합하지 않는다.
 - API key, `.env`, Ollama credential, 원문 첨부, run data, prompt/response body를 image/Git/log/audit에 넣지 않는다. 오류·audit에는 안전한 상태·원인 요약만 둔다.
@@ -31,6 +31,7 @@
 
 - FastAPI 요청/응답은 명명된 Pydantic schema를 사용하고 상태/오류를 임의 dict로 새로 만들지 않는다. 422(계약), 404(존재), 409(상태/중복/활성화), 503(preflight) 의미를 보존한다.
 - 프론트엔드는 API만 사용하고 SQLite·`data/runs`·첨부 루트를 읽지 않는다. TypeScript strict build와 lockfile 기반 설치를 통과해야 한다.
+- Docker Python image는 `web/backend/requirements.lock`의 exact transitive pins만 설치한다. visual test는 Google Fonts network를 차단하고 image local fonts로 결정성을 확보한다.
 - 파일은 UTF-8과 schema version을 사용한다. full run publish는 새 파생 디렉터리에만 쓰고 원 run/review/files를 수정하지 않는다. partial/failed/stopped 결과를 성공으로 숨기지 않는다.
 
 ## 검증 명령

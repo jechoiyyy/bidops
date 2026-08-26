@@ -49,7 +49,7 @@ grade, perspective, discrimination은 구조적으로 유효한 판정만 사용
 
 ## 정책 activation과 always-on의 분리
 
-정책은 `draft|activation_candidate|active`이고 body/prompt는 immutable version이다. 명시적 seed 명령은 `policy seed-default --created-by system-bootstrap`이며 idempotent seed는 같은 digest일 때만 허용된다. seed 상태는 `activation_candidate`이고 migration/startup/container는 seed하지 않는다.
+정책은 `draft|activation_candidate|active`이고 body/prompt는 immutable version이다. fresh migrated DB의 `screening_policy`와 `agency_portal`은 0행이며, 명시적 seed 명령은 `policy seed-default --created-by system-bootstrap`이다. idempotent seed는 같은 digest일 때만 허용된다. seed 상태는 `activation_candidate`이고 migration/startup/container는 policy/portal을 seed하지 않는다.
 
 `POST /api/policies/{version}/activate`는 다음을 모두 요구한다.
 

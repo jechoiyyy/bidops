@@ -1,12 +1,14 @@
 # 운영 절차
 
-이 runbook은 SQLite를 사용하는 현재 compose/host 구현의 순서를 고정한다. 서비스 중지·backup·migration·seed는 웹 기동과 분리한다. container entrypoint와 앱 startup은 migrate, `create_all`, policy seed를 자동 실행하지 않는다.
+이 runbook은 SQLite를 사용하는 현재 compose/host 구현의 순서를 고정한다. 서비스 중지·backup·migration·seed는 웹 기동과 분리한다. container entrypoint와 앱 startup은 migrate, `create_all`, portal seed, policy seed를 자동 실행하지 않는다.
 
 ## 사전 조건
 
 프로젝트 루트는 `bidops-agent/`다. Docker 방식은 Docker Engine/Compose, host 방식은 Python 3.12+, venv, Node 22+/npm 10+가 필요하다. 컨테이너는 root로 실행하지 않으며 `.env`의 `BIDOPS_UID`/`BIDOPS_GID`는 0이 아닌 host 사용자와 맞춰야 한다. `/app/data`, `/app/reports`, `/app/backups`, `/app/web/data`는 존재하고 non-root가 읽고 쓸 수 있어야 하며 skills/docs는 읽을 수 있어야 한다. entrypoint는 chown/chmod로 권한을 고치지 않고 권한 오류로 종료한다.
 
-compose는 `data`와 `reports` bind mount, `/app/web/data`의 `bidops-web-data` named volume, `/app/backups`의 `bidops-backups` named volume을 사용한다. 백업 manifest와 DB 파일은 같은 backup volume에서 보존한다. `.env`, API key, run data와 첨부를 image/Git에 복사하지 않는다.
+compose는 `data`와 `reports` bind mount, `/app/web/data`의 `bidops-web-data` named volume, `/app/backups`의 `bidops-backups` named volume을 사용한다. 백업 manifest와 DB 파일은 같은 backup volume에서 보존한다. `.env`, API key, run data와 첨부를 image/Git에 복사하지 않는다. compose의 고정 container 경로는 DB `/app/web/data/bidops.db`, attachment `/app/web/data/attachments`, report `/app/reports`, backup `/app/backups`다.
+
+앱이 읽는 경로 설정은 `BIDOPS_ROOT`(호환 alias `BIDOPS_PROJECT_ROOT`), `BIDOPS_DATA_DIR`, `BIDOPS_ATTACHMENTS_DIR`(호환 alias `BIDOPS_ATTACHMENT_DIR`), `BIDOPS_DATABASE_URL`이다. reports는 별도 directory 환경변수 없이 project root의 `reports` 경로를 사용한다. backup directory도 별도 directory 환경변수 없이 compose의 `/app/backups` named volume을 사용한다. compose에서 backup 관련 설정으로 지원되는 것은 `BIDOPS_BACKUP_OUTPUT`(backup file path)과 `BIDOPS_BACKUP_MANIFEST`(migrate manifest path)다.
 
 ## 표준 Docker 순서
 
@@ -46,6 +48,8 @@ docker compose --profile ops run --rm db-verify
 ```
 
 verify는 head revision, foreign-key check, SQLite quick check, `run/notice/judgment/review/attachment` core count를 확인한다. 실패하면 web을 올리지 않고 원인과 보존한 manifest를 조사한다.
+
+fresh migration 뒤에는 `schedule_setting`과 disabled `always_on_state` 기본 singleton 및 deterministic migration audit event가 있고, `screening_policy`와 `agency_portal`은 0행이다. 따라서 다음 단계의 policy seed는 명시적으로 필요하며, portal 검색을 사용하려면 operator가 `/api/portals`로 기관 portal metadata를 등록해야 한다. startup/entrypoint는 어느 것도 자동 seed하지 않는다.
 
 ### 5. 명시적 policy seed
 
@@ -105,7 +109,7 @@ BIDOPS_LIVE_OLLAMA_TEST=true .venv/bin/python -m app.screening.cli run-one \
   --profile-source current --requested-by <explicit-actor> --wait
 ```
 
-host의 `BIDOPS_DATA_DIR`, `BIDOPS_REPORTS_DIR`, `BIDOPS_BACKUP_DIR`, Ollama endpoint와 profile path가 실제 mount/path와 일치해야 한다. `BIDOPS_UID/GID`는 host equivalent에는 적용되지 않지만 파일 소유권을 별도로 확인한다.
+host의 `BIDOPS_ROOT`, `BIDOPS_DATA_DIR`, `BIDOPS_ATTACHMENTS_DIR`, `BIDOPS_DATABASE_URL`, Ollama endpoint가 실제 경로와 일치해야 한다. reports는 `<BIDOPS_ROOT>/reports`, backup은 `db_admin backup --output`의 명시적인 host 경로를 사용한다. `BIDOPS_BACKUP_OUTPUT`/`BIDOPS_BACKUP_MANIFEST`는 container ops wrapper 변수이며 host에서는 명령 인자를 사용한다. `BIDOPS_UID/GID`는 host equivalent에는 적용되지 않지만 파일 소유권을 별도로 확인한다.
 
 ## 복구와 restore
 
@@ -119,13 +123,13 @@ profile `git:<40hex>`는 승인된 commit `ee621835db934ddac944f7a07a986ed0b73ec
 
 ## Docker 빌드·visual 확인
 
-일반 image build는 다음이다. frontend production build와 Python runtime을 multistage Dockerfile에서 함께 만든다.
+일반 image build는 다음이다. frontend production build와 Python runtime을 multistage Dockerfile에서 함께 만든다. Python runtime은 `web/backend/requirements.lock`의 exact pinned transitive closure를 설치하며, `requirements.txt`의 범위 제약을 Docker 설치에 사용하지 않는다. 이미지에는 DB·`.env`·API key·run data를 넣지 않는다.
 
 ```bash
 docker compose build
 ```
 
-visual 테스트는 host `cd web/frontend && npm run test:visual`의 webServer(빌드 후 preview, port 4173) 계약이다. host에 `libnspr4/libnss3`가 없어 browser launch가 막히면 project root에서 다음처럼 동일 테스트를 Playwright image로 실행한다.
+visual 테스트는 host `cd web/frontend && npm run test:visual`의 webServer(빌드 후 preview, port 4173) 계약이다. 테스트는 Google Fonts 요청을 차단하고 컨테이너에 설치된 `WenQuanYi Zen Hei`·`Liberation Mono` local fonts로 CSS 변수를 덮어써 remote font 상태에 따른 snapshot 변동을 막는다. host에 `libnspr4/libnss3`가 없어 browser launch가 막히면 project root에서 다음처럼 동일 테스트를 Playwright image로 실행한다.
 
 ```bash
 docker run --rm --ipc=host --user 1000:1000 \
@@ -136,7 +140,7 @@ docker run --rm --ipc=host --user 1000:1000 \
   mcr.microsoft.com/playwright:v1.62.1-noble npm run test:visual
 ```
 
-이 실행의 preview bind 주소는 `127.0.0.1:4173`이다. 시각 evidence의 pass/skip 수는 [tracking/status](./tracking/status.md)에 실제 실행 결과만 기록한다.
+이 실행의 preview bind 주소는 `127.0.0.1:4173`이다. fresh Docker 실행 두 번에서 각각 98 passed, 10 intentional skipped가 관찰되었다. 10 skip은 draft spec의 mobile/tablet 너비 조건에 따른 의도된 skip이다. host 직접 launch 제한은 환경에 설치된 browser system libraries 문제일 뿐 제품 코드의 결과로 해석하지 않는다. 시각 evidence는 [tracking/status](./tracking/status.md)에 실제 실행 결과만 기록한다.
 
 ## 장애 시 확인
 
