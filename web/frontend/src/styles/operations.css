@@ -66,6 +66,7 @@
 .operations-side-column { display: grid; min-width: 0; gap: 12px; }
 
 .operations-panel {
+  min-width: 0;
   overflow: hidden;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
@@ -113,7 +114,8 @@
 .operations-actor-field input {
   width: 100%;
   min-width: 0;
-  height: 31px;
+  min-height: var(--control-height);
+  height: auto;
   padding: 0 8px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
@@ -167,7 +169,7 @@
 .operations-form-footer .operations-actor-field { width: min(260px, 100%); }
 .operations-button {
   display: inline-flex;
-  min-height: 31px;
+  min-height: var(--control-height);
   align-items: center;
   justify-content: center;
   padding: 0 11px;
@@ -235,6 +237,32 @@
 .operations-switch-actions .operations-actor-field { flex: 1 1 150px; min-width: 130px; }
 .operations-gate-confirm { flex: 1.4 1 220px !important; }
 .operations-switch-buttons { display: flex; gap: 6px; flex-wrap: wrap; }
+.operations-always-on .operations-switch-actions {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--color-warning-edge);
+  border-radius: var(--radius-md);
+  background: var(--color-warning-bg);
+}
+.operations-always-on .operations-switch-actions .operations-actor-field > span { color: var(--color-warning); }
+.operations-always-on .operations-switch-actions .operations-button-primary {
+  border-color: var(--color-warning);
+  color: var(--color-warning);
+  background: var(--color-white);
+}
+.operations-always-on .operations-switch-actions .operations-button-primary:hover {
+  color: var(--color-white);
+  background: var(--color-warning);
+}
+.operations-always-on .operations-switch-actions .operations-button-secondary {
+  border-color: var(--color-danger-edge);
+  color: var(--color-danger);
+  background: var(--color-danger-bg);
+}
+.operations-always-on .operations-switch-actions .operations-button-secondary:hover {
+  border-color: var(--color-danger);
+  background: var(--color-white);
+}
 .operations-help,
 .operations-side-note { margin: 9px 0 0; color: var(--color-muted); font-size: 10px; line-height: 1.5; }
 
@@ -261,9 +289,10 @@
 .operations-status-failed { color: var(--color-danger); border-color: var(--color-danger-edge); background: var(--color-danger-bg); }
 .operations-status-skipped { color: var(--color-muted-soft); border-color: var(--color-border); background: var(--color-neutral-soft); }
 
-.operations-table-scroll { width: 100%; overflow-x: auto; }
+.operations-table-scroll { max-height: 560px; width: 100%; overflow: auto; overscroll-behavior: contain; }
 .operations-history-table { width: 100%; min-width: 970px; border-collapse: collapse; font-size: 10px; }
 .operations-history-table th { padding: 7px 8px; border-bottom: 1px solid var(--color-border); color: var(--color-muted); font-size: 10px; font-weight: 500; text-align: left; white-space: nowrap; }
+.operations-history-table thead th { position: sticky; top: 0; z-index: 1; background: var(--color-white); }
 .operations-history-table td { padding: 9px 8px; border-bottom: 1px solid var(--color-neutral-soft); vertical-align: top; }
 .operations-history-table tbody tr:last-child td { border-bottom: 0; }
 .operations-history-table strong { display: block; color: var(--color-text); font-size: 10px; font-weight: 500; }
@@ -289,6 +318,15 @@
 @media (max-width: 900px) {
   .operations-layout { grid-template-columns: 1fr; }
   .operations-guard-panel { position: static; }
+  .operations-side-column { order: -1; }
+  .operations-settings-grid,
+  .operations-manual-form { grid-template-columns: 1fr; }
+  .operations-manual-form > button { grid-column: auto; }
+  .operations-form-footer,
+  .operations-switch-actions { align-items: stretch; flex-direction: column; }
+  .operations-form-footer .operations-actor-field,
+  .operations-switch-actions .operations-actor-field { width: 100%; flex-basis: auto; }
+  .operations-switch-buttons { width: 100%; }
   .operations-guard-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
