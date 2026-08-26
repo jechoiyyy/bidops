@@ -389,8 +389,61 @@ class V3ContractTests(unittest.TestCase):
         self.assertIsNone(output["failure_artifact"])
         self.assertEqual(
             set(output),
-            {"schema_version", "execution_id", "generated_at", "screening_basis", "source_window", "model_name", "model_digest", "prompt_version", "policy_version", "company_profile_version", "company_profile_digest", "candidate_count", "result_count", "failure_count", "partial_artifact", "failure_artifact", "results"},
+            {"schema_version", "execution_id", "generated_at", "screening_basis", "source_window", "model_name", "model_digest", "prompt_version", "policy_version", "company_profile_version", "company_profile_digest", "generation_config", "generation_config_digest", "candidate_count", "result_count", "failure_count", "partial_artifact", "failure_artifact", "results"},
         )
+        self.assertEqual(2048, output["generation_config"]["num_predict"]["synthesis"])
+        self.assertEqual(
+            BUILD.LEGACY_GENERATION_CONFIG_DIGEST,
+            output["generation_config_digest"],
+        )
+
+    def test_legacy_v3_normalizes_only_when_both_generation_fields_are_absent(self) -> None:
+        input_value = v3_input()
+        decisions = v3_decisions(input_value, [v3_judgment("bid:v3:0")])
+        output = BUILD.merge(input_value, decisions)
+        self.assertNotIn("generation_config", input_value)
+        self.assertNotIn("generation_config_digest", decisions)
+        self.assertEqual(
+            BUILD.LEGACY_GENERATION_CONFIG,
+            output["generation_config"],
+        )
+
+    def test_partial_generation_binding_is_rejected(self) -> None:
+        input_value = v3_input()
+        input_value["generation_config_digest"] = BUILD.LEGACY_GENERATION_CONFIG_DIGEST
+        with self.assertRaises(SystemExit):
+            BUILD.merge(input_value, v3_decisions(input_value, [v3_judgment("bid:v3:0")]))
+
+    def test_malformed_or_mismatched_generation_binding_is_rejected(self) -> None:
+        input_value = v3_input()
+        decisions = v3_decisions(input_value, [v3_judgment("bid:v3:0")])
+        input_value["generation_config"] = dict(BUILD.LEGACY_GENERATION_CONFIG)
+        input_value["generation_config"]["num_predict"] = {
+            **BUILD.LEGACY_GENERATION_CONFIG["num_predict"],
+            "synthesis": 4096,
+        }
+        input_value["generation_config_digest"] = BUILD.LEGACY_GENERATION_CONFIG_DIGEST
+        with self.assertRaises(SystemExit):
+            BUILD.merge(input_value, decisions)
+
+    def test_new_generation_binding_is_preserved(self) -> None:
+        input_value = v3_input()
+        config = {
+            **BUILD.LEGACY_GENERATION_CONFIG,
+            "num_predict": {
+                **BUILD.LEGACY_GENERATION_CONFIG["num_predict"],
+                "synthesis": 4096,
+            },
+        }
+        digest = BUILD.sha256_digest(BUILD.canonical_json_bytes(config))
+        input_value["generation_config"] = config
+        input_value["generation_config_digest"] = digest
+        decisions = v3_decisions(input_value, [v3_judgment("bid:v3:0")])
+        decisions["generation_config"] = config
+        decisions["generation_config_digest"] = digest
+        output = BUILD.merge(input_value, decisions)
+        self.assertEqual(config, output["generation_config"])
+        self.assertEqual(digest, output["generation_config_digest"])
 
     def test_partial_v3_requires_failure_artifact_and_excludes_failed_notice(self) -> None:
         input_value = v3_input(modes=("신규", "신규"))

@@ -166,6 +166,10 @@ class DecisionArtifact(ContractModel):
     generated_at: datetime | str | None = None
     source_window: SourceWindow | dict[str, Any] | None = None
     judgments: list[JudgmentContract | dict[str, Any]] | None = None
+    # v3 generation binding.  Optional keeps v1/v2 importer compatibility;
+    # the loader applies the strict pair/legacy normalization policy.
+    generation_config: dict[str, Any] | None = None
+    generation_config_digest: str | None = None
 
 
 class ScreeningResultContract(ContractModel):
@@ -179,6 +183,9 @@ class ScreeningArtifact(ContractModel):
     screening_basis: str | None = None
     source_window: SourceWindow | dict[str, Any] | None = None
     results: list[ScreeningResultContract | dict[str, Any]] | None = None
+    # v3 generation binding; see DecisionArtifact above.
+    generation_config: dict[str, Any] | None = None
+    generation_config_digest: str | None = None
 
 
 class ValidationArtifact(ContractModel):
@@ -293,7 +300,7 @@ def artifact_version(value: Any) -> str | None:
     version = getattr(value, "schema_version", None)
     if version is None and isinstance(value, dict):
         version = value.get("schema_version")
-    if version in {"bidops.decisions.v1", "bidops.decisions.v2"}:
+    if version in {"bidops.decisions.v1", "bidops.decisions.v2", "bidops.decisions.v3"}:
         return version
     return None
 
