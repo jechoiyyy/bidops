@@ -9,8 +9,8 @@
 | source pipeline | 완료 | `./run-tests.sh` 통과: collect 28, report 13, screen 48, root 2 (총 91) |
 | backend/frontend fake CI | 완료 | fresh SQLite migration 뒤 backend 312 passed, frontend production build 통과; 기존 Vite chunk size warning만 관찰 |
 | Docker config/build | 완료 | `docker compose config --quiet` 및 `docker compose build` 통과; Python은 `web/backend/requirements.lock` exact pins, frontend production build warning(>500 kB chunk)만 관찰 |
-| 관리자 화면 | 완료(컨테이너 검증) | 밝은 RootLab 여유형 체계, 로컬 Pretendard, 공통 셸과 12개 화면 대상을 390/768/1024/1440px에서 검증했다. Pretendard 기반 스냅샷 48개를 갱신했으며 exact Docker 갱신·비갱신 실행 모두 150 passed, 10 intentional skipped였다. host 직접 browser launch는 환경의 `libnspr4/libnss3` 부재로 제한됨 |
-| 독립 검토 blocker 수정본 재검증 | 부분 완료 | `npm run build` 및 `git diff --check` 통과. `visual.spec.ts` 회귀 테스트 3개 추가 후 Playwright `--list`는 172개를 확인했으나 exact Docker 갱신·비갱신 실행은 Docker socket 권한 거부로, host 실행은 preview bind `EPERM`으로 시작하지 못했다. 따라서 수정본의 passed/skipped 최종 수와 스냅샷 갱신 여부는 미확인이다. |
+| 관리자 화면 | 완료(컨테이너 검증) | 밝은 RootLab 여유형 체계, 로컬 Pretendard, 공통 셸과 12개 화면 대상을 390/768/1024/1440px에서 검증했다. 독립 검토 blocker 수정본의 exact Docker 갱신·비갱신 실행은 각각 172개 중 162 passed, 10 intentional skipped였고, 갱신 실행에서 dashboard 스냅샷 4개를 재생성했다. host 직접 browser launch는 환경의 `libnspr4/libnss3` 부재로 제한됨 |
+| 독립 검토 blocker 수정본 재검증 | 완료 | `npm run build` 및 `git diff --check` 통과. `visual.spec.ts` 회귀 테스트 3개 추가 후 Playwright `--list`와 exact Docker 실행 모두 172개를 확인했고, 갱신·비갱신 각각 162 passed, 10 intentional skipped, 갱신 실행의 dashboard 스냅샷 4개 재생성을 확인했다. |
 | live Ollama/T15 | 대기 | `BIDOPS_LIVE_OLLAMA_TEST=true`와 explicit single live command/marker를 포함한 operator smoke 결과 없음 |
 
 visual의 10 skip은 draft spec의 기존 넓은 화면 보조 흐름 5건이 390px/768px 조건에서 각각 skip된 것이다. 새 검토 대기열 초안 복귀 흐름은 390/768/1024/1440px 모두에서 실행한다. 스냅샷에는 대시보드, 검토 대기열, 판정 이력, 담당자 리뷰 준비 화면, 수집 실행, 첨부 확보, 프로필, 검증 지표, 품질 게이트 두 상태, 정책, 상시 운영이 네 폭으로 고정돼 있다.
