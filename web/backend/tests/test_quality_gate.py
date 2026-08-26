@@ -778,7 +778,9 @@ def test_quality_binding_reservation_failure_releases_for_retry(tmp_path: Path, 
                 trigger="quality_gate",
                 _quality_binding=binding,
             )
+        assert _binding_registry_state(binding) == "reserved"
         session.rollback()
+        assert _binding_registry_state(binding) == "issued"
     with Session(engine) as session:
         assert session.scalars(select(ScreeningExecution)).all() == []
     monkeypatch.undo()
@@ -863,6 +865,25 @@ def test_quality_binding_outer_rollback_releases_and_commit_consumes(tmp_path: P
     )()
     creator = ScreeningOrchestrator(settings, session_factory=factory, ollama=model, clock=lambda: NOW)
     store = ArtifactStore(settings.bidops_root)
+    with factory() as session:
+        outer = session.begin()
+        nested = session.begin_nested()
+        closed = creator.prepare_execution(
+            session,
+            run_id=canonical_run_id,
+            policy_version="policy-1",
+            profile_source="current",
+            requested_by="tester",
+            scope="quality_sample",
+            trigger="quality_gate",
+            _quality_binding=binding,
+        )
+        nested.close()
+        assert _binding_registry_state(binding) == "issued"
+        store.remove_execution(closed.workspace)
+        closed.workspace.close()
+        outer.rollback()
+
     with factory() as session:
         first = creator.prepare_execution(
             session,
@@ -1040,6 +1061,35 @@ def test_quality_binding_direct_release_cannot_cancel_transaction_reservation(tm
         assert not any(isinstance(value, orchestrator_module._BindingLease) for value in session.info.values())
         with pytest.raises(TypeError):
             orchestrator_module._BINDING_ISSUER.release(binding)
+        pending = inspect.getclosurevars(orchestrator_module._track_quality_binding).nonlocals[
+            "pending_by_session"
+        ]
+        lease = next(iter(pending[session].values())).lease
+        assert not orchestrator_module._release_quality_binding(binding, lease)
+        assert not orchestrator_module._release_quality_binding(
+            binding,
+            lease,
+            session=session,
+            transaction=session.get_transaction(),
+        )
+        # Even the listener's rollback authorization cannot turn an active
+        # transaction into an event receipt when a caller supplies it.
+        assert not orchestrator_module._release_quality_binding(
+            binding,
+            lease,
+            session=session,
+            transaction=session.get_transaction(),
+            event_transaction=session.get_transaction(),
+            _authorization=orchestrator_module._binding_rollback_event_authorization,
+        )
+        with pytest.raises(ScreeningCreationError):
+            orchestrator_module._commit_quality_binding(
+                binding,
+                lease,
+                session=session,
+                transaction=session.get_transaction(),
+                event_transaction=session.get_transaction(),
+            )
         assert _binding_registry_state(binding) == "reserved"
         with pytest.raises(ScreeningCreationError):
             creator.prepare_execution(
@@ -1121,8 +1171,10 @@ def test_quality_binding_lease_is_exact_and_transaction_bound(tmp_path: Path):
             session_binding,
             session_identity=id(session),
             transaction_identity=id(transaction),
+            reservation_transaction_identity=id(transaction),
         )
         assert session_lease is not None
+        orchestrator_module._track_quality_binding(session, session_binding, session_lease)
         cross_session = factory()
         try:
             with pytest.raises(ScreeningCreationError):
@@ -1141,9 +1193,10 @@ def test_quality_binding_lease_is_exact_and_transaction_bound(tmp_path: Path):
             assert _binding_registry_state(session_binding) == "reserved"
         finally:
             cross_session.close()
-        assert _release_quality_binding_for_test(
+        assert not _release_quality_binding_for_test(
             session_binding, session_lease, session=session, transaction=transaction
         )
+        session.rollback()
     assert _binding_registry_state(session_binding) == "issued"
     assert _commit_quality_binding_for_test(binding, lease) is None
     assert not _release_quality_binding_for_test(binding, lease)
