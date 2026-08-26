@@ -9,11 +9,30 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from ..agents import (
+    AgentAction,
+    AgentActorKind,
+    AgentActorRef,
+    AgentAggregateRef,
+    AgentAggregateType,
+    AgentArtifactRef,
+    AgentArtifactType,
+    DeepReviewAgent,
+    RetryAttemptCommand,
+    RetryAttemptPayload,
+    StartReviewCommand,
+    StartReviewPayload,
+    attempt_artifact_ref,
+    bundle_artifact_ref,
+)
 from ..db import get_db
+from ..models import DeepReview, DeepReviewAttempt, DeepReviewStage, DocumentBundle, DocumentBundleItem
 from ..services.deep_reviews import DeepReviewService, DeepReviewServiceError
+from ..services.document_bundles import BundleServiceError, validate_actor
 from ..services.input_versions import InputVersionError
 
 
@@ -70,6 +89,62 @@ router = APIRouter(prefix="/api", tags=["deep-reviews"])
 service = DeepReviewService()
 
 
+def _actor_ref(actor: str | None) -> AgentActorRef:
+    """Build the strict human actor after preserving the legacy validation."""
+
+    try:
+        claimed_name = validate_actor(actor)
+        return AgentActorRef(actor_kind=AgentActorKind.human, claimed_name=claimed_name)
+    except BundleServiceError as error:
+        raise DeepReviewServiceError(error.code, error.message, status_code=error.status_code) from error
+    except ValidationError as error:
+        raise DeepReviewServiceError("actor_name_invalid", "담당자 이름이 올바르지 않습니다", status_code=400) from error
+
+
+def _bundle_ref(session: Session, bundle_id: UUID, *, notice_id: int) -> AgentArtifactRef:
+    bundle = session.get(DocumentBundle, bundle_id)
+    if bundle is None:
+        raise InputVersionError("not_found", "document bundle을 찾을 수 없습니다")
+    if bundle.notice_id != notice_id:
+        raise DeepReviewServiceError("not_found", "공고와 document bundle이 일치하지 않습니다", status_code=404)
+    if bundle.status != "ready":
+        raise InputVersionError("bundle_not_ready", "ready document bundle이 필요합니다")
+    items = session.scalars(
+        select(DocumentBundleItem)
+        .where(DocumentBundleItem.bundle_id == bundle.id)
+        .order_by(DocumentBundleItem.ordinal.asc(), DocumentBundleItem.document_version_id.asc())
+    ).all()
+    return bundle_artifact_ref(bundle, items)
+
+
+def _attempt_ref(session: Session, review_id: UUID) -> AgentArtifactRef:
+    review = session.get(DeepReview, review_id)
+    if review is None:
+        raise DeepReviewServiceError("not_found", "deep review를 찾을 수 없습니다", status_code=404)
+    attempt_id = review.current_attempt_id
+    if attempt_id is None:
+        # The adapter performs the authoritative readiness check.  This
+        # placeholder only lets the strict retry command reach that check.
+        return AgentArtifactRef(
+            artifact_type=AgentArtifactType.deep_review_attempt,
+            artifact_id=str(review_id),
+            version=1,
+        )
+    attempt = session.get(DeepReviewAttempt, attempt_id)
+    if attempt is None:
+        return AgentArtifactRef(
+            artifact_type=AgentArtifactType.deep_review_attempt,
+            artifact_id=str(attempt_id),
+            version=1,
+        )
+    stages = session.scalars(
+        select(DeepReviewStage)
+        .where(DeepReviewStage.attempt_id == attempt.id)
+        .order_by(DeepReviewStage.sequence.asc(), DeepReviewStage.id.asc())
+    ).all()
+    return attempt_artifact_ref(attempt, stages)
+
+
 def _error_response(error: DeepReviewServiceError | InputVersionError, *, request_id: UUID | None = None) -> JSONResponse:
     allowed = {
         "invalid_request", "actor_name_required", "actor_name_invalid", "not_found", "effective_grade_ineligible",
@@ -101,7 +176,22 @@ def create_deep_review(
     session: Session = Depends(get_db),
 ) -> dict[str, object] | JSONResponse:
     try:
-        return service.create_review(session, notice_id, payload.bundle_id, actor, payload.request_id)
+        command = StartReviewCommand(
+            schema="bidops.agent-command.v1",
+            agent_name="deep_review",
+            action=AgentAction.start_review,
+            aggregate=AgentAggregateRef(
+                aggregate_type=AgentAggregateType.notice,
+                aggregate_id=str(notice_id),
+            ),
+            actor=_actor_ref(actor),
+            request_id=payload.request_id,
+            correlation_id=None,
+            expected_version=None,
+            input_refs=[_bundle_ref(session, payload.bundle_id, notice_id=notice_id)],
+            payload=StartReviewPayload(bundle_id=payload.bundle_id),
+        )
+        return DeepReviewAgent(service).start(session, command).result
     except (DeepReviewServiceError, InputVersionError) as error:
         return _error_response(error, request_id=payload.request_id)
     except Exception:
@@ -128,7 +218,22 @@ def create_deep_review_attempt(
     session: Session = Depends(get_db),
 ) -> dict[str, object] | JSONResponse:
     try:
-        return service.create_attempt(session, deep_review_id, actor, payload.request_id)
+        command = RetryAttemptCommand(
+            schema="bidops.agent-command.v1",
+            agent_name="deep_review",
+            action=AgentAction.retry_attempt,
+            aggregate=AgentAggregateRef(
+                aggregate_type=AgentAggregateType.deep_review,
+                aggregate_id=str(deep_review_id),
+            ),
+            actor=_actor_ref(actor),
+            request_id=payload.request_id,
+            correlation_id=None,
+            expected_version=None,
+            input_refs=[_attempt_ref(session, deep_review_id)],
+            payload=RetryAttemptPayload(),
+        )
+        return DeepReviewAgent(service).retry_attempt(session, command).result
     except DeepReviewServiceError as error:
         return _error_response(error, request_id=payload.request_id)
     except Exception:

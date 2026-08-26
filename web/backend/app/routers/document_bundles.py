@@ -7,9 +7,31 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, Header, UploadFile
 from fastapi.responses import JSONResponse
+from pydantic import ValidationError
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from ..agents import (
+    AgentAction,
+    AgentActorKind,
+    AgentActorRef,
+    AgentAggregateRef,
+    AgentAggregateType,
+    AgentArtifactRef,
+    AgentArtifactType,
+    ConfirmReadyCommand,
+    ConfirmReadyPayload,
+    DocumentPreparationAgent,
+    RegisterDocumentCommand,
+    RegisterDocumentPayload,
+    StartBundleCommand,
+    StartBundlePayload,
+    UpdateDocumentMetadataCommand,
+    UpdateDocumentMetadataPayload,
+    bundle_artifact_ref,
+)
 from ..db import get_db
+from ..models import DocumentBundle, DocumentBundleItem, DocumentVersion
 from ..schemas.document_bundles import (
     BundleListResponse,
     BundleView,
@@ -24,6 +46,51 @@ from ..services.document_bundles import BundleServiceError, DocumentBundleServic
 
 router = APIRouter(prefix="/api", tags=["document-bundles"])
 service = DocumentBundleService()
+
+
+def _actor_ref(actor: str | None) -> AgentActorRef:
+    """Build the strict human actor after preserving the legacy validation."""
+
+    claimed_name = validate_actor(actor)
+    try:
+        return AgentActorRef(
+            actor_kind=AgentActorKind.human,
+            claimed_name=claimed_name,
+        )
+    except ValidationError as error:
+        raise BundleServiceError("actor_name_invalid", "담당자 이름이 올바르지 않습니다", status_code=400) from error
+
+
+def _bundle_ref(session: Session, bundle: DocumentBundle) -> AgentArtifactRef:
+    """Build the persisted bundle ref used by metadata mutation commands."""
+
+    if bundle.status in {"ready", "superseded"}:
+        items = session.scalars(
+            select(DocumentBundleItem)
+            .where(DocumentBundleItem.bundle_id == bundle.id)
+            .order_by(DocumentBundleItem.ordinal.asc(), DocumentBundleItem.document_version_id.asc())
+        ).all()
+        return bundle_artifact_ref(bundle, items)
+    return AgentArtifactRef(
+        artifact_type=AgentArtifactType.document_bundle,
+        artifact_id=str(bundle.id),
+        version=bundle.version,
+    )
+
+
+def _latest_bundle_ref(session: Session, document_id: UUID) -> AgentArtifactRef:
+    document = session.get(DocumentVersion, document_id)
+    if document is None:
+        raise BundleServiceError("not_found", "document version을 찾을 수 없습니다", status_code=404)
+    bundle = session.scalar(
+        select(DocumentBundle)
+        .where(DocumentBundle.notice_id == document.notice_id)
+        .order_by(DocumentBundle.revision.desc(), DocumentBundle.id.desc())
+        .limit(1)
+    )
+    if bundle is None:
+        raise BundleServiceError("not_found", "document bundle을 찾을 수 없습니다", status_code=404)
+    return _bundle_ref(session, bundle)
 
 
 def _error_response(error: BundleServiceError) -> JSONResponse:
@@ -70,7 +137,22 @@ def create_document_bundle(
     session: Session = Depends(get_db),
 ) -> BundleView | JSONResponse:
     try:
-        return service.create_bundle(session, notice_id, validate_actor(actor))
+        command = StartBundleCommand(
+            schema="bidops.agent-command.v1",
+            agent_name="document_preparation",
+            action=AgentAction.start_bundle,
+            aggregate=AgentAggregateRef(
+                aggregate_type=AgentAggregateType.notice,
+                aggregate_id=str(notice_id),
+            ),
+            actor=_actor_ref(actor),
+            request_id=None,
+            correlation_id=None,
+            expected_version=None,
+            input_refs=[],
+            payload=StartBundlePayload(),
+        )
+        return DocumentPreparationAgent(service).start(session, command).result
     except BundleServiceError as error:
         return _error_response(error)
     except Exception as error:  # pragma: no cover - defensive API boundary
@@ -86,7 +168,22 @@ async def upload_document(
     session: Session = Depends(get_db),
 ) -> DocumentVersionView | JSONResponse:
     try:
-        return await service.upload_document(session, bundle_id, file, validate_actor(actor), request_id)
+        command = RegisterDocumentCommand(
+            schema="bidops.agent-command.v1",
+            agent_name="document_preparation",
+            action=AgentAction.register_document,
+            aggregate=AgentAggregateRef(
+                aggregate_type=AgentAggregateType.document_bundle,
+                aggregate_id=str(bundle_id),
+            ),
+            actor=_actor_ref(actor),
+            request_id=request_id,
+            correlation_id=None,
+            expected_version=None,
+            input_refs=[],
+            payload=RegisterDocumentPayload(),
+        )
+        return (await DocumentPreparationAgent(service).register_document(session, command, upload=file)).result
     except BundleServiceError as error:
         return _error_response(error)
     except Exception as error:  # pragma: no cover - defensive API boundary
@@ -101,7 +198,27 @@ def patch_document_version(
     session: Session = Depends(get_db),
 ) -> DocumentVersionView | JSONResponse:
     try:
-        return service.patch_document(session, document_version_id, payload, validate_actor(actor))
+        command = UpdateDocumentMetadataCommand(
+            schema="bidops.agent-command.v1",
+            agent_name="document_preparation",
+            action=AgentAction.update_document_metadata,
+            aggregate=AgentAggregateRef(
+                aggregate_type=AgentAggregateType.document_version,
+                aggregate_id=str(document_version_id),
+            ),
+            actor=_actor_ref(actor),
+            request_id=None,
+            correlation_id=None,
+            expected_version=payload.version,
+            input_refs=[_latest_bundle_ref(session, document_version_id)],
+            payload=UpdateDocumentMetadataPayload(
+                role=payload.role,
+                effective_date=payload.effective_date,
+                replaces_document_version_id=payload.replaces_document_version_id,
+                is_current=payload.is_current,
+            ),
+        )
+        return DocumentPreparationAgent(service).update_document_metadata(session, command).result
     except BundleServiceError as error:
         return _error_response(error)
     except Exception as error:  # pragma: no cover - defensive API boundary
@@ -116,7 +233,48 @@ def confirm_document_bundle(
     session: Session = Depends(get_db),
 ) -> BundleView | JSONResponse:
     try:
-        return service.confirm(session, bundle_id, payload, validate_actor(actor))
+        document_ids = [item.document_version_id for item in payload.confirmed_documents]
+        if len(document_ids) != len(set(document_ids)):
+            # The legacy service reports duplicate confirmation IDs as a
+            # blocking bundle issue.  The closed command intentionally rejects
+            # duplicates, so preserve that API result before constructing it.
+            raise BundleServiceError(
+                "bundle_has_blocking_issues",
+                "확인 문서 ID가 중복되었습니다",
+                status_code=409,
+                request_id=payload.request_id,
+            )
+        command = ConfirmReadyCommand(
+            schema="bidops.agent-command.v1",
+            agent_name="document_preparation",
+            action=AgentAction.confirm_ready,
+            aggregate=AgentAggregateRef(
+                aggregate_type=AgentAggregateType.document_bundle,
+                aggregate_id=str(bundle_id),
+            ),
+            actor=_actor_ref(actor),
+            request_id=payload.request_id,
+            correlation_id=None,
+            expected_version=payload.version,
+            input_refs=[
+                AgentArtifactRef(
+                    artifact_type=AgentArtifactType.document_version,
+                    artifact_id=str(item.document_version_id),
+                    version=item.version,
+                )
+                for item in payload.confirmed_documents
+            ],
+            payload=ConfirmReadyPayload(
+                confirmed_documents=[
+                    {
+                        "document_version_id": item.document_version_id,
+                        "version": item.version,
+                    }
+                    for item in payload.confirmed_documents
+                ]
+            ),
+        )
+        return DocumentPreparationAgent(service).confirm_ready(session, command).result
     except BundleServiceError as error:
         return _error_response(error)
     except Exception as error:  # pragma: no cover - defensive API boundary
