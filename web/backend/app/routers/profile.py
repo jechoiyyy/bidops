@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..db import get_db
+from ..models import CompanyProfileSnapshot
 from ..schemas import (
+    CompanyProfileSnapshotListResponse,
+    CompanyProfileSnapshotResponse,
     ProfileItemResponse,
     ProfileRawBlockResponse,
     ProfileSectionResponse,
@@ -24,6 +28,36 @@ from ..services.profile import (
 
 
 router = APIRouter(prefix="/api/profile", tags=["profile"])
+
+
+@router.get("/snapshots", response_model=CompanyProfileSnapshotListResponse)
+def profile_snapshots(
+    session: Session = Depends(get_db),
+) -> CompanyProfileSnapshotListResponse:
+    """List immutable profile snapshot metadata without body or filesystem path."""
+
+    total = int(
+        session.scalar(select(func.count()).select_from(CompanyProfileSnapshot)) or 0
+    )
+    rows = session.scalars(
+        select(CompanyProfileSnapshot).order_by(
+            CompanyProfileSnapshot.created_at.desc(),
+            CompanyProfileSnapshot.digest.desc(),
+        )
+    ).all()
+    return CompanyProfileSnapshotListResponse(
+        items=[
+            CompanyProfileSnapshotResponse(
+                version=row.version,
+                digest=row.digest,
+                source_kind=row.source_kind,
+                source_ref=row.source_ref,
+                created_at=row.created_at,
+            )
+            for row in rows
+        ],
+        total=total,
+    )
 
 
 def _item_response(item) -> ProfileItemResponse:  # type: ignore[no-untyped-def]
