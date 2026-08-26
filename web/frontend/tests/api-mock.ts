@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import fixtures from "./fixtures/api.json" with { type: "json" };
+import { getVisualResponse } from "./fixtures/visual-api";
 
 const responses = fixtures as Record<string, unknown>;
 
@@ -10,7 +11,7 @@ const responses = fixtures as Record<string, unknown>;
 export async function mockApi(page: Page): Promise<void> {
   await page.route("**/api/**", async (route) => {
     const pathname = new URL(route.request().url()).pathname;
-    const body = responses[pathname];
+    const body = responses[pathname] ?? getVisualResponse(pathname, page.url());
     if (body === undefined) {
       await route.fulfill({
         status: 404,
