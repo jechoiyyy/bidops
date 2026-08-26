@@ -534,6 +534,12 @@ class ScreeningWorker:
             except ScreeningCreationError:
                 raise WorkerError("input_error") from None
             mode = notice["judgment_mode"]
+            if row.scope == "quality_sample" and (
+                mode != "신규"
+                or notice["carry_over_from"] is not None
+                or notice["rejudge_reason"] is not None
+            ):
+                raise WorkerError("input_error")
             if mode == "신규" and (notice["carry_over_from"] is not None or notice["rejudge_reason"] is not None):
                 raise WorkerError("input_error")
             if mode == "재판정" and (notice["carry_over_from"] is not None or notice["rejudge_reason"] not in {"정정", "재공고", "본공고 전환", "담당자 요청"}):

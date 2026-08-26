@@ -431,6 +431,21 @@ class PolicyRepository:
         row = self._get(policy_version)
         if row.status != "activation_candidate":
             raise PolicyActivationError("only an activation candidate can become active")
+        # Keep the gate row lock through the rest of this activation
+        # transaction.  A point-in-time boolean from a closed session is not
+        # sufficient: a concurrent review may otherwise append a newer
+        # revision before this policy commit.
+        try:
+            from .quality_gate import QualityGateActivationError, QualityGateService
+
+            QualityGateService.validate_activation_in_session(
+                self.session,
+                quality_gate_result_id,
+                policy_version=policy_version,
+                prompt_version=row.prompt_version,
+            )
+        except QualityGateActivationError as exc:
+            raise PolicyActivationError(str(exc)) from None
         evaluation, gate = self._valid_gate(
             policy_version=policy_version,
             prompt_version=row.prompt_version,

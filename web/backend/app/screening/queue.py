@@ -432,6 +432,107 @@ class ScreeningQueue:
             # races/duplicates into a stable conflict without leaking SQL.
             raise ExecutionConflict("execution identity conflicts with an existing row") from None
 
+    def enqueue_in_session(
+        self,
+        session: Session,
+        **kwargs: Any,
+    ) -> ScreeningExecution:
+        """Validate and append a queue row to a caller-owned transaction.
+
+        This is intentionally the same validation/row construction boundary
+        as :meth:`enqueue`, but it never commits or opens another session.
+        Quality-gate creation uses it to make both FIFO rows visible only in
+        the transaction that also persists the gate and revision one.
+        """
+
+        if not isinstance(session, Session):
+            raise TypeError("session must be a SQLAlchemy Session")
+        trigger = _text(kwargs["trigger"], "trigger", max_length=32)
+        if trigger not in TRIGGERS:
+            raise QueueValidationError("trigger is invalid")
+        scope = _text(kwargs["scope"], "scope", max_length=32)
+        if scope not in SCOPES:
+            raise QueueValidationError("scope is invalid")
+        if TRIGGER_SCOPES[trigger] != scope:
+            raise QueueValidationError("trigger and scope do not match")
+        source_run_id = _text(kwargs["source_run_id"], "source_run_id", max_length=160)
+        requested_by = _actor(kwargs["requested_by"], max_length=128)
+        policy_version = _text(kwargs["policy_version"], "policy_version")
+        prompt_version = _text(kwargs["prompt_version"], "prompt_version")
+        model_name = _text(kwargs["model_name"], "model_name")
+        if model_name != MODEL_NAME:
+            raise QueueValidationError("model_name is not the approved model")
+        model_digest = _digest(kwargs["model_digest"], "model_digest")
+        company_profile_version = _text(kwargs["company_profile_version"], "company_profile_version", max_length=128)
+        company_profile_digest = _digest(kwargs["company_profile_digest"], "company_profile_digest")
+        input_artifact_path = safe_relative_path(kwargs["input_artifact_path"], "input_artifact_path")
+        input_artifact_digest = _digest(kwargs["input_artifact_digest"], "input_artifact_digest")
+        artifact_dir = safe_relative_path(kwargs["artifact_dir"], "artifact_dir")
+        candidate_count = kwargs.get("candidate_count", 0)
+        if type(candidate_count) is not int or candidate_count < 0:
+            raise QueueValidationError("candidate_count must be a nonnegative integer")
+        notice_pk = kwargs.get("notice_pk")
+        notice_id = kwargs.get("notice_id")
+        if scope == "single_notice":
+            if type(notice_pk) is not int or notice_pk < 1 or not isinstance(notice_id, str) or not notice_id.strip():
+                raise QueueValidationError("single_notice requires notice_pk and notice_id")
+            notice_id = _text(notice_id, "notice_id", max_length=255)
+        elif notice_pk is not None or notice_id is not None:
+            raise QueueValidationError("full_run and quality_sample cannot include a notice")
+        queued_at = normalize_utc(kwargs.get("queued_at"), default=self.now)
+        execution_id = kwargs.get("execution_id")
+        if execution_id is not None and (not isinstance(execution_id, str) or _EXECUTION_ID.fullmatch(execution_id) is None):
+            raise QueueValidationError("execution_id is invalid")
+        if session.scalar(select(Run.id).where(Run.id == source_run_id)) is None:
+            raise QueueValidationError("source run does not exist")
+        policy = session.scalar(select(ScreeningPolicy).where(ScreeningPolicy.policy_version == policy_version))
+        if policy is None:
+            raise QueueValidationError("policy version does not exist")
+        if policy.prompt_version != prompt_version:
+            raise QueueValidationError("policy and prompt identities do not match")
+        allowed_policy_statuses = {
+            "schedule": {"active"},
+            "cli_single": {"activation_candidate", "active"},
+            "manual_run": {"activation_candidate", "active"},
+            "quality_gate": {"activation_candidate", "active"},
+        }
+        if policy.status not in allowed_policy_statuses[trigger]:
+            raise QueueValidationError("policy status is not selectable for this trigger")
+        profile = session.scalar(select(CompanyProfileSnapshot).where(CompanyProfileSnapshot.version == company_profile_version))
+        if profile is None or profile.digest != company_profile_digest:
+            raise QueueValidationError("company profile identity does not match")
+        if scope == "single_notice":
+            notice = session.scalar(select(Notice).where(Notice.id == notice_pk))
+            if notice is None or notice.run_id != source_run_id or notice.notice_key != notice_id:
+                raise QueueValidationError("single notice identity does not match source run")
+        execution = ScreeningExecution(
+            execution_id=execution_id or ("scr-" + uuid4().hex),
+            trigger=trigger,
+            source_run_id=source_run_id,
+            scope=scope,
+            notice_pk=notice_pk,
+            notice_id=notice_id,
+            status=QUEUED,
+            active_slot=None,
+            requested_by=requested_by,
+            policy_version=policy_version,
+            prompt_version=prompt_version,
+            model_name=model_name,
+            model_digest=model_digest,
+            company_profile_version=company_profile_version,
+            company_profile_digest=company_profile_digest,
+            input_artifact_path=input_artifact_path,
+            input_artifact_digest=input_artifact_digest,
+            artifact_dir=artifact_dir,
+            queued_at=queued_at,
+            candidate_count=candidate_count,
+            completed_count=0,
+            failure_count=0,
+        )
+        session.add(execution)
+        session.flush()
+        return execution
+
     def _recover_stale_locked(self, session: Session, *, now: datetime) -> list[str]:
         stale_seconds = getattr(self.settings, "stale_seconds", None)
         if stale_seconds is None:
