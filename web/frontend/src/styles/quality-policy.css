@@ -536,6 +536,22 @@
   font-weight: 500;
 }
 
+.quality-metric-table .quality-metric-group th {
+  padding-top: 13px;
+  padding-bottom: 6px;
+  color: var(--color-primary-strong);
+  background: var(--color-soft-surface);
+  font-weight: 600;
+}
+
+.quality-metric-group small {
+  display: block;
+  margin-top: 3px;
+  color: var(--color-muted-soft);
+  font-size: 10px;
+  font-weight: 400;
+}
+
 .quality-metric-table code,
 .quality-review-table code,
 .quality-evaluation-table code {

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { EmptyState } from "../components/common/EmptyState";
@@ -7,7 +7,91 @@ import { QualityGateMetrics } from "../components/quality/QualityGateMetrics";
 import { QualityGateReviewForm } from "../components/quality/QualityGateReviewForm";
 import { QualityGateRuns } from "../components/quality/QualityGateRuns";
 import { ApiError, api } from "../lib/api";
-import type { QualityGateDetailResponse, QualityGateResponse } from "../lib/types";
+import type { QualityGateDetailResponse, QualityGateListResponse, QualityGateResponse } from "../lib/types";
+
+const ACTIVE_GATE_STATUSES = new Set(["대기", "실행 중", "중지 요청"]);
+const ACTIVE_EXECUTION_STATUSES = new Set(["대기", "실행 중", "중지 요청"]);
+
+function gateNeedsPolling(gate: QualityGateResponse | QualityGateDetailResponse): boolean {
+  if (ACTIVE_GATE_STATUSES.has(gate.execution_status)) return true;
+  if ("pass_a" in gate && "pass_b" in gate) {
+    return ACTIVE_EXECUTION_STATUSES.has(gate.pass_a.status) || ACTIVE_EXECUTION_STATUSES.has(gate.pass_b.status);
+  }
+  return false;
+}
+
+/**
+ * Poll with one recursive timeout instead of an interval. The in-flight guard
+ * prevents a slow API response from overlapping the next request; the
+ * generation token prevents an old selection's response from touching the
+ * current query cache after unmount or selection change.
+ */
+function useQualityGatePolling({
+  shouldPoll,
+  selectedGateId,
+  queryClient,
+}: {
+  shouldPoll: boolean;
+  selectedGateId: string | null;
+  queryClient: ReturnType<typeof useQueryClient>;
+}) {
+  const generationRef = useRef(0);
+  const inFlightRef = useRef(false);
+  const waitingForInFlightRef = useRef(false);
+  const scheduleCurrentRef = useRef<(() => void) | null>(null);
+  const shouldPollRef = useRef(shouldPoll);
+  shouldPollRef.current = shouldPoll;
+
+  useEffect(() => {
+    const generation = ++generationRef.current;
+    let disposed = false;
+    let timer: number | undefined;
+    let failureCount = 0;
+
+    const schedule = (delayMs: number) => {
+      if (disposed || generation !== generationRef.current || !shouldPollRef.current) return;
+      timer = window.setTimeout(async () => {
+        timer = undefined;
+        if (disposed || generation !== generationRef.current || !shouldPollRef.current) return;
+        if (inFlightRef.current) {
+          // The request that owns the timer will schedule the next one in its
+          // finally path. Do not create a second timer while it is in flight.
+          waitingForInFlightRef.current = true;
+          return;
+        }
+        inFlightRef.current = true;
+        const listPromise = api.getQualityGates({ limit: 100, offset: 0 });
+        const detailPromise = selectedGateId ? api.getQualityGate(selectedGateId) : null;
+        const [listResult, detailResult] = await Promise.allSettled([listPromise, detailPromise ?? Promise.resolve(null)]);
+        const failed = listResult.status === "rejected" || detailResult.status === "rejected";
+        if (!disposed && generation === generationRef.current) {
+          if (listResult.status === "fulfilled") queryClient.setQueryData<QualityGateListResponse>(["quality-gates"], listResult.value);
+          if (detailResult.status === "fulfilled" && detailResult.value) queryClient.setQueryData<QualityGateDetailResponse>(["quality-gate", selectedGateId], detailResult.value);
+          failureCount = failed ? Math.min(failureCount + 1, 3) : 0;
+        }
+        inFlightRef.current = false;
+        if (waitingForInFlightRef.current) {
+          waitingForInFlightRef.current = false;
+          scheduleCurrentRef.current?.();
+        } else if (!disposed && generation === generationRef.current && shouldPollRef.current) {
+          schedule(failed ? Math.min(30_000, 5_000 * (2 ** failureCount)) : 5_000);
+        }
+      }, delayMs);
+    };
+
+    const currentSchedule = () => schedule(5_000);
+    scheduleCurrentRef.current = currentSchedule;
+    schedule(5_000);
+    return () => {
+      disposed = true;
+      ++generationRef.current;
+      if (timer !== undefined) window.clearTimeout(timer);
+      if (scheduleCurrentRef.current === currentSchedule) scheduleCurrentRef.current = null;
+      // Do not clear inFlightRef here: a request from the previous generation
+      // must finish before a new selection starts another one.
+    };
+  }, [queryClient, selectedGateId, shouldPoll]);
+}
 
 function queryError(error: unknown, resource: string): string {
   if (error instanceof ApiError && error.status === 409) return "최신 상태와 충돌했습니다. 목록을 새로 고치십시오.";
@@ -99,7 +183,8 @@ export function QualityGatesPage() {
   const gatesQuery = useQuery({
     queryKey: ["quality-gates"],
     queryFn: () => api.getQualityGates({ limit: 100, offset: 0 }),
-    refetchInterval: 5000,
+    retry: false,
+    refetchOnWindowFocus: false,
     staleTime: 0,
   });
   const policiesQuery = useQuery({ queryKey: ["policies"], queryFn: () => api.getPolicies(), staleTime: 10_000 });
@@ -108,11 +193,14 @@ export function QualityGatesPage() {
     queryKey: ["quality-gate", selectedGateId],
     queryFn: () => api.getQualityGate(selectedGateId as string),
     enabled: Boolean(selectedGateId),
-    refetchInterval: 5000,
+    retry: false,
+    refetchOnWindowFocus: false,
     staleTime: 0,
   });
   const listItems = gatesQuery.data?.items ?? [];
   const selectedExists = useMemo(() => listItems.some((gate) => gate.gate_id === selectedGateId), [listItems, selectedGateId]);
+  const shouldPoll = listItems.some(gateNeedsPolling) || (detailQuery.data ? gateNeedsPolling(detailQuery.data) : false);
+  useQualityGatePolling({ shouldPoll, selectedGateId, queryClient });
   const refreshDetail = () => {
     void queryClient.invalidateQueries({ queryKey: ["quality-gate", selectedGateId] });
     void queryClient.invalidateQueries({ queryKey: ["quality-gates"] });
