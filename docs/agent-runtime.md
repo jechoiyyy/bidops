@@ -1,341 +1,95 @@
-# 판정 에이전트 런타임 설계
+# 에이전트 런타임
 
-판정 에이전트는 정규화된 공고와 회사 프로필의 필요한 절만 받아 1차 판정 결과를 만든다. 수집·정규화와 보고서 렌더링은 기존 결정적 스크립트가 담당하며, 모델 호출기는 원문 보관소나 DB에 직접 쓰지 않는다. 오케스트레이터가 입력 묶음과 회차를 고정하고, 결정적 검증을 통과한 결과만 저장 계층으로 넘긴다.
+판정 런타임은 파일 계약으로 입력을 고정하고, 하나의 DB FIFO에서 실행을 claim하며, 일곱 개의 논리 span을 순서대로 수행한다. 현재 구현의 동시성은 전역 1이다. 이 문서는 모델이 사람의 최종 판단을 대신하지 않는다는 전제를 포함한다.
 
-이 문서의 판정 기준과 프롬프트는 정책 저장소의 불변 버전을 정본으로 삼는다. `skills/bidops-screen` 문서는 기존 관점과 산출물 계약을 확인하기 위한 사본으로 남긴다. 시스템은 입찰 제출, 발주처 연락, 최종 참여 결정을 자동 실행하지 않는다.
+## 입력 동결과 바인딩
 
-## 1. 실행 경계
+오케스트레이터는 `data/screening-executions/<execution_id>/screening-input.json`을 만들고 SHA-256 및 다음을 `screening_execution`에 저장한다.
 
-한 회차의 판정 대상은 규칙 필터를 통과한 후보 전량이다. 공고마다 신규 판정, 재판정 또는 승계 중 하나를 선택한다. 정정·재공고·사전규격의 본공고 전환은 재판정 대상이며, 그 밖에 이미 판정한 공고는 모델을 다시 호출하지 않고 이전 판정을 승계한다.
+- `execution_id`는 `scr-` 뒤 32자리 lowercase hex, `queue_no`는 DB FIFO 순번이다.
+- trigger는 `cli_single|manual_run|quality_gate|schedule`, scope는 `single_notice|full_run|quality_sample`이다.
+- `run_id`, single scope의 `notice_id`, requested actor, 정책·프롬프트 version, 모델명·모델 digest, profile source/version/digest, input/artifact 경로·digest가 필수다.
+- 입력은 `bidops.screening-input.v1`, run/window/timezone, candidate count, 정규화 공고, 판정 모드, 정책/prompt/profile identity를 포함한다. profile 전문을 입력 계약에 복사하지 않는다.
 
-오케스트레이터의 입력은 다음 네 묶음이다.
+프로필 `current`는 working tree snapshot이고 `git:<40hex>`는 승인된 역사 commit only다. 현재 문서의 경로와 digest 검사는 [아키텍처](./architecture.md)의 프로필 절차와 동일하다. 정책 body·prompt·모델 설정이 생성 후 바뀌면 실행과 섞지 않고 새 version을 만든다.
 
-- 회차에 고정된 정규화 공고 산출물과 공고별 판정 대상 상태
-- 회차에 고정된 회사 프로필 버전과 관점별 필요한 절
-- 정책 저장소의 불변 정책 버전과 프롬프트 버전
-- Ollama 호출 설정과 회차 식별자
+워커는 queue claim 후 input bytes, path hardening, DB binding, Ollama `/api/tags`의 정확한 `qwen3.8:27b`와 64-hex digest를 다시 확인한다. mismatch, missing input, invalid profile/policy는 모델 호출 전에 실패한다.
 
-오케스트레이터는 호출 결과를 파일에 모은 뒤 `build_screening_results.py`를 기존 프로세스로 호출한다. 모델 호출기와 오케스트레이터는 원문 보관소·DB에 직접 쓰지 않으며, 병합기와 저장 계층의 경계를 우회하지 않는다.
+## 단일 FIFO와 슬롯
 
-## 2. 호출 구조
+모든 모델 생성 경로가 동일한 `screening_execution` 테이블에 insert한다. `queue_no ASC`가 유일한 순서이고 전역 `active_slot=1` partial unique index가 마지막 동시성 경쟁을 막는다. `BIDOPS_SCREEN_MAX_CONCURRENCY=1`이 코드와 설정의 고정값이다. 따라서 각 다섯 관점도 병렬이 아니라 순차 호출이다.
 
-### 2.1 호출 순서
+claim은 SQLite `BEGIN IMMEDIATE`로 수행하고 busy retry는 제한된다. API는 queue row를 만든 뒤 202를 반환한다. CLI `--wait`도 직접 호출하지 않고 FIFO 앞의 작업을 먼저 처리한 뒤 자기 실행의 terminal state를 기다린다.
 
-한 공고는 다음 순서로 처리한다. 다섯 관점 호출은 서로의 결과를 입력으로 사용하지 않으므로 설정된 동시성 범위에서 독립적으로 실행할 수 있다. 다섯 호출이 모두 종료된 뒤에만 반론 검토를 시작하고, 반론 검토가 끝난 뒤에만 종합 판정을 시작한다.
+heartbeat pump는 기본 5초마다 갱신한다. 시작 또는 다음 claim에서 기본 60초보다 오래 heartbeat가 없는 active row는 `중단됨`, `stop_reason=process_interrupted`로 회수하고 slot을 푼다. 새 실행을 자동 생성하거나 중단 위치부터 재개하지 않는다.
 
-```text
-정규화 공고 + 관점별 회사 프로필 절 + 정책·프롬프트 버전
-    ├─→ 기술 적합성 호출 ─┐
-    ├─→ 실적 정합성 호출 ─┤
-    ├─→ 공공 SI 적합성 호출 ─┼─→ 반론 검토 호출 ─→ 종합 판정 호출
-    ├─→ 사업성·자격 제약 호출 ─┤                              │
-    └─→ 전략 부합 호출 ─────┘                              ↓
-                                            screening-decisions.json
-                                                        │
-                                                        ↓
-                                      build_screening_results.py
-```
+## 일곱 span
 
-다섯 관점의 이름과 질문은 기존 계약에서 옮긴 정본이다. 관점별 결과는 다른 관점의 결론을 복사하지 않고 자기 관점의 판단과 근거만 반환한다.
+신규와 재판정은 공고마다 다음 순서다. 모든 Ollama 호출은 `think=false`, `stream=false`다.
 
-| 단계 | 호출 입력 | 호출 출력 | 실행 조건 |
-|---|---|---|---|
-| 기술 적합성 | 공고의 기술·분류·수행 역할 신호, 관점에 대응하는 회사의 보유 기술·수행 가능 역할 | `name`, `assessment`, `reason`, `evidence[]`를 가진 기술 적합성 관점 객체 | 독립 호출. `assessment`는 `적합`, `부분 적합`, `부적합`, `확인 불가` 중 하나다. |
-| 실적 정합성 | 공고 기본 정보와 `performance_matches` 탐색 신호, 대표 수행실적·실적 유의사항 | `name`, `assessment`, `reason`, `evidence[]`를 가진 실적 정합성 관점 객체 | 유사도는 탐색 신호로만 사용한다. 과업 범위의 동일성이나 법적 실적 자격으로 복사하지 않는다. |
-| 공공 SI 적합성 | 공고의 조달 분류·수행 방식·일치 신호, 회사의 수행 역할·사업영역·SI 관련 실적 | `name`, `assessment`, `reason`, `evidence[]`를 가진 공공 SI 적합성 관점 객체 | 구축·고도화·운영·유지관리·통합·ISP/BPR·포털·데이터 플랫폼의 해당 여부를 이 관점에서만 답한다. |
-| 사업성·자격 제약 | 예산·추정가격·지역·업종·실적 요건·참여 형태와 회사의 자격·인력·수행 제약 | `name`, `assessment`, `reason`, `evidence[]`를 가진 사업성·자격 제약 관점 객체 | 확인되지 않은 자격·인력·실적을 확정하지 않는다. 미확인은 `unknown` 근거로 남긴다. |
-| 전략 부합 | 공고 기관·분류·우선 축 일치 신호와 회사의 관심·비관심·신규 진출·지역 전략 | `name`, `assessment`, `reason`, `evidence[]`를 가진 전략 부합 관점 객체 | 세 우선 축과 신규 진출 방향의 부합 여부를 이 관점에서만 판단한다. |
-| 반론 검토 | 위 다섯 관점 결과, 공고 원문 위치를 가리키는 정규화 필드와 필요한 회사 프로필 절 | `counterarguments[]` | 다섯 결과가 모두 들어온 뒤 실행한다. 이 공고에서만 성립하는 반론을 최소 한 건 반환한다. |
-| 종합 판정 | 다섯 관점 결과와 반론, 원래 정규화 공고 필드, 필요한 회사 프로필 절, 정책 버전 | `judgment` 한 건 | 반론 검토가 끝난 뒤 실행한다. 등급과 참여 준비 상태를 독립적으로 정하고, 확인 항목과 다음 조치를 함께 반환한다. |
+| 순번 | span/stage | 산출물·핵심 검증 |
+|---:|---|---|
+| 1 | `기술 적합성` | 요구기술·수행 범위와 근거 |
+| 2 | `실적 정합성` | 회사 실적과 공고 요구의 source/evidence |
+| 3 | `공공 SI 적합성` | 공공·SI 수행 적합성 |
+| 4 | `사업성·자격 제약` | 자격·제약·정보 부족을 확정하지 않는 판단 |
+| 5 | `전략 부합` | 전략 초점과 근거 |
+| 6 | `counterargument` | 반대 근거를 별도 구조화하고 generic/repetition 검사 |
+| 7 | `synthesis` | grade/readiness를 독립 검증하는 종합 |
 
-관점 다섯 번, 반론 한 번, 종합 한 번으로 공고당 논리적 호출 수는 일곱 번이다. 재시도는 추가 시도로 계측하며 성공 결과가 이미 있다고 해서 실패 스팬을 지우지 않는다.
+각 perspective는 정확히 한 번씩 있어야 하고 다섯 개 이름은 unique다. evidence는 source, status, fact를 가져야 한다. 근거 위치가 확인되지 않은 주장을 확정값으로 만들지 않는다. `grade`는 `우선 검토|검토 권장|관찰 대상|제외`, readiness는 `확인 완료|부분 확인 필요|참여 불가 확인|해당 없음` enum이다.
 
-### 2.2 자유 서술 단일 호출 금지
+승계는 이전 완료 판정에 대한 deterministic carry-over validation만 수행하며 모델 span을 호출하지 않는다. 검증 실패는 `병합·검증`의 `carried_over_validation` stage로 기록한다. 승계 결과는 원 판정의 최초 생성 회차·model/prompt/policy binding을 보존한다.
 
-문서 전체를 한 번의 자유 서술 프롬프트로 넘겨 기술·실적·자격·전략·종합을 동시에 요구하지 않는다. 대형 단일 Qwen 호출에서는 문서 구조화, 전 영역 판단, 보고서 서술, 자기검증을 한 호출에 맡길 때 긴 문맥에서 계수와 분류 경계가 약해지고, 출력이 길이 제한에 걸리며, 모델의 자연어 자기검증이 결정적 검사가 되지 못했다. 이 근거와 대응은 `docs/engineering-notes.md`의 「대형 단일 Qwen 호출이 끝나지 않거나 숫자를 틀린다」 절에 있다.
+## 호출·재시도·실패
 
-따라서 관점별 판단을 먼저 제한된 JSON으로 만들고, 반론과 종합을 별도 호출로 분리한다. 요구사항·금액·기간·배점과 인용 위치 같은 값은 모델의 설명이 아니라 결정적 검증기가 원문과 대조한다.
+Ollama `/api/generate` 호출의 bounded retry는 최대 2 attempts다. timeout, truncated output, schema violation, evidence missing, counterargument repetition에 한해 correction prompt가 frozen input/schema를 다시 제시한다. 거부된 response를 이어 붙여 JSON을 복구하지 않는다. 모든 attempt telemetry는 남기되 prompt·response body와 비밀은 오류·로그에 남기지 않는다.
 
-## 3. 입력 구성
+실패한 공고는 `screening-failures.json`에 notice, stage, failure type, last attempt, retry count와 trace/span을 남기고 `사람 검토 대기`가 된다. 성공 공고는 보존한다.
 
-### 3.1 공통 입력 원칙
+- full run에서 일부 공고가 성공하면 `부분 성공`; 하나도 유효하지 않으면 `실패`다.
+- 중지 요청이 blocking HTTP 호출 중이면 호출이 끝난 직후 다음 단계 전에 `중단됨`으로 전이한다. 중단 결과는 publish하지 않는다.
+- deterministic validator는 값을 보정하거나 grade/readiness를 자동 변경하지 않는다.
+- `사업성·자격 제약=확인 불가`이고 종합 grade가 `관찰 대상` 또는 `제외`인 경우 `two_axis_mixing_flag=true`, label `확인 요망`을 남긴다. grade는 그대로이고 사람 검토 대상이다.
 
-모든 호출은 `notice_id`와 회차를 키로 사용하고, 회차에 고정된 정규화 공고만 받는다. 공통 메타데이터에는 `notice_id`, `title`, `agency`, `raw_source`, `unknown_fields`를 포함한다. 관점에 필요한 경우에만 아래 정규화 필드를 추가한다.
+## 산출물과 발행
 
-`focus_matches`와 `performance_matches`는 후보 회수와 탐색을 위한 신호다. `focus_matches[].field_kind`가 `classification`이면 조달 분류 라벨일 뿐 공고 과업 범위의 확정 근거가 아니다. `performance_matches`와 `performance_top_score`도 범위 동일성이나 법적 실적 자격을 증명하지 않는다. API가 확인하지 못한 값은 `unknown` 또는 `unknown_fields`로 보존하고 0·빈 문자열·확정값으로 바꾸지 않는다.
+execution artifact directory에는 다음 파일만 알려진 계약으로 취급한다.
 
-회사 프로필은 전문을 넣지 않는다. 각 호출은 아래 대응표에 있는 절만 읽으며, 회사 근거를 출력할 때는 해당 절 번호와 그 절의 `confirmed`, `inferred`, `unknown` 상태를 `source`에 함께 기록한다. 회사소개서 수행실적은 기술·도메인 경험의 근거로만 쓰고 법적 입찰 실적 인정은 `unknown`으로 둔다.
+| 파일 | schema | 역할 |
+|---|---|---|
+| `screening-input.json` | `bidops.screening-input.v1` | frozen input |
+| `screening-decisions.json` | `bidops.decisions.v3` | 성공 판정 |
+| `screening-failures.json` | `bidops.screening-failures.v1` | 공고별 실패 |
+| `screening-telemetry.jsonl` | `bidops.screening-telemetry.v1` | 호출 시도 메타데이터 |
+| `screening-results.json` | 구현 회차 v3 | 병합된 결과 |
 
-### 3.2 관점별 대응표
+파일과 디렉터리는 UTF-8, immutable-after-publish, symlink/path escape 검사 대상이다. API artifact endpoint는 이 known kind만 허용하고 내부 path를 소비자에게 위임하지 않는다.
 
-| 호출 | 넘기는 정규화 공고 필드 | 넘기는 회사 프로필 절 | 입력에서 제외하거나 주의할 값 |
-|---|---|---|---|
-| 기술 적합성 | `title`, `procurement_class`, `focus_matches`와 각 `field_kind`, `qualification_flags`의 정보사업·기술평가 관련 신호, `method`, `attachments`의 문서명, `unknown_fields` | `2.1 보유 기술`, `2.2 수행 가능 역할`, `2.3 사업영역`, 필요한 경우 `2.8 솔루션` | 분류 라벨만으로 기술 요구를 확정하지 않는다. 첨부 문서가 제공되지 않았으면 내용이 있다고 가정하지 않는다. |
-| 실적 정합성 | `title`, `agency`, `procurement_class`, `focus_matches`, `performance_matches`, `performance_top_score`, `lifecycle`, `unknown_fields` | `2.4 대표 수행실적`과 그 안의 「수행실적 데이터 유의사항」, 필요한 경우 `3.4 최근 수행사업 30건 포트폴리오 분석`, 법적 자격 검토가 필요한 경우 `5.2 자격·조달 관련 정보` | 유사도 점수나 사업명만으로 과업 범위·법적 실적 요건을 확정하지 않는다. 2022년 이전 실적의 현재 법인 직접 수행 여부도 확인 전에는 `unknown`이다. |
-| 공공 SI 적합성 | `title`, `procurement_class`, `method`, `focus_matches`와 `field_kind`, `qualification_flags`의 정보사업·PQ·기술평가 신호, `lifecycle`, `unknown_fields` | `2.2 수행 가능 역할`, `2.3 사업영역`, `2.4 대표 수행실적`, 필요한 경우 `4.3 선호 사업유형` | `procurement_class`는 조달 분류이며 실제 구축·고도화·운영 범위를 대신하지 않는다. |
-| 사업성·자격 제약 | `budget`, `estimated_price`, `region_limit`, `qualification_flags`, `method`, `lifecycle`, `attachments`, `unknown_fields` | `1. Company Identity` 중 자격 판단에 필요한 확인 상태, `2.5 인증·기업역량`, `2.7 인력`, `4.5 선호 예산`, `5.1 참여 제약`, `5.2 자격·조달 관련 정보`, `5.3 수행 제약`, `5.4 기피 조건` | 회사소개서에 자격 자료가 없으면 자격 충족으로 채우지 않는다. 지역·업종·실적·인력의 미확인은 참여 불가로 자동 변환하지 않는다. |
-| 전략 부합 | `title`, `agency`, `procurement_class`, `focus_matches`, `candidate_sources`, `performance_matches`, `region_limit`, `unknown_fields` | `2.3 사업영역`, `4.1 관심 분야`, `4.2 비관심 분야`, `4.3 선호 사업유형`, `4.4 선호 기관`, `4.6 전략 고객`, `4.7 신규 진출 영역`, `4.8 지역 전략` | 회수 신호가 없다는 사실을 부합하지 않는다는 사실로 바꾸지 않는다. 전략 부합은 참여 준비 상태나 법적 자격을 대신하지 않는다. |
+full run의 성공·부분 성공 처리에서는 원 `data/runs/<source>`를 읽기만 하고 새 이름에 source provenance, current screening artifacts, `screening-replacement-provenance.json`을 복사한다. 원 회차의 reviews/files/judgments는 변경하지 않는다. single notice와 quality sample은 execution artifact와 DB gate evidence로만 남는다.
 
-반론 검토에는 다섯 관점의 제한된 출력과 그 출력이 가리키는 공고 필드·회사 프로필 절만 넣는다. 종합 판정에는 다섯 관점 출력, 반론 출력, 원래 정규화 필드 중 판정에 사용된 값, 같은 공고에 필요한 회사 프로필 절만 넣는다. 어느 단계에도 회사 프로필 전문이나 회차 전체의 다른 공고를 넣지 않는다.
+## CLI와 API 진입점
 
-모든 호출에는 현재 `prompt_version`과 `policy_version`을 입력 메타데이터로 고정한다. 같은 입력이라도 두 버전 중 하나가 달라지면 기존 회차 결과를 덮어쓰지 않고 별도 실행으로 취급한다.
-
-## 4. 출력 계약
-
-### 4.1 호출별 제한 JSON
-
-모델은 Markdown, 설명 문장, JSON 앞뒤의 안내문을 반환하지 않고 호출 단계에 맞는 제한된 JSON만 반환한다. 파서는 JSON 외 텍스트를 성공 결과로 취급하지 않는다. 누락 필드를 오케스트레이터가 채우거나, 숫자·등급·근거를 자동 보정하지 않는다.
-
-관점 호출의 출력은 기존 계약의 다음 구조를 따른다.
-
-```json
-{
-  "name": "기술 적합성",
-  "assessment": "확인 불가",
-  "reason": "이 관점에서만 성립하는 판단",
-  "evidence": [
-    {
-      "source": "공고의 정규화 필드명 또는 company-profile.md 2.1, status: unknown",
-      "status": "unknown",
-      "fact": "원문에서 확인된 사실 또는 확인되지 않은 범위"
-    }
-  ]
-}
-```
-
-`name`은 다음 다섯 값과 정확히 일치해야 한다.
-
-| 관점 이름 | 답해야 하는 질문 |
-|---|---|
-| `기술 적합성` | 공고가 요구하는 기술과 수행 역할을 회사가 보유하고 있는가 |
-| `실적 정합성` | 회사소개서의 수행실적이 이 과업과 실제로 대응하는가 |
-| `공공 SI 적합성` | 시스템 구축·고도화·운영·통합·ISP/BPR 가운데 어디에 해당하는가 |
-| `사업성·자격 제약` | 예산, 지역, 업종, 실적 요건, 참여 형태가 참여를 제약하는가 |
-| `전략 부합` | 세 우선 축과 신규 진출 방향에 부합하는가 |
-
-각 관점의 `assessment`는 `적합`, `부분 적합`, `부적합`, `확인 불가` 중 하나다. `reason`은 해당 관점의 판단만 설명하며 다른 관점의 결론을 옮겨 적지 않는다. `evidence[]`는 최소 한 건이고 각 항목은 `source`, `status`, `fact`를 가진다. `status`는 `confirmed`, `inferred`, `unknown` 중 하나다. 공고 근거는 사용한 필드 이름을, 회사 근거는 회사 프로필 절 번호와 절의 상태를 가리킨다.
-
-반론 호출은 `counterarguments[]`만 반환한다. 최소 한 건이어야 하며, 각 항목은 해당 공고에서만 성립하는 반론이어야 한다. 모든 공고에 붙일 수 있는 문장은 반론으로 인정하지 않는다. 동일 문장이 전체 판정의 40%를 넘게 반복되면 병합 단계에서 오류로 처리한다.
-
-종합 호출은 `bidops.decisions.v3`의 한 판정 항목에 필요한 제한 필드를 반환한다. 오케스트레이터가 다섯 관점과 반론의 구조를 보존하여 다음 파일의 `judgments[]`로 조립한다.
-
-```json
-{
-  "schema_version": "bidops.decisions.v3",
-  "screening_basis": "판정에 사용한 정보 범위",
-  "judgments": [
-    {
-      "notice_id": "공고 식별자",
-      "grade": "우선 검토",
-      "readiness": "부분 확인 필요",
-      "primary_focus": "우선 축 또는 확인된 값",
-      "exclusion_category": null,
-      "summary": "종합 판정",
-      "perspectives": [],
-      "matched_performances": [],
-      "counterarguments": [],
-      "verification_items": [],
-      "next_action": "담당자가 확인할 다음 조치",
-      "carried_over": false,
-      "judged_in_run": "20260825-20260825",
-      "recorded_in_run": "20260825-20260825"
-    }
-  ]
-}
-```
-
-이 예시는 필드의 의미와 승계 표시를 설명하기 위한 구조이며, 실제 필수 필드와 허용 값은 `bidops.decisions.v3` 계약을 따른다. `judged_in_run`은 불리언이 아니라 최초 판정 회차의 식별자 문자열이다. 신규·재판정에서는 `judged_in_run`과 `recorded_in_run`이 같고 `carried_over`가 `false`이며, 승계에서는 두 값이 다르고 `carried_over`가 `true`다. 승계 판정의 처리 방식은 7절에 따른다.
-
-### 4.2 등급·준비 상태·근거 규칙
-
-`grade`와 `readiness`는 서로 다른 축이다.
-
-- `grade`: `우선 검토`, `검토 권장`, `관찰 대상`, `제외`
-- `readiness`: `확인 완료`, `부분 확인 필요`, `참여 불가 확인`, `해당 없음`
-
-자격 조건이 확인되지 않았다는 이유만으로 등급을 낮추지 않는다. 등급이 높아도 자격이 확인되지 않았으면 `readiness`를 `부분 확인 필요`로 둘 수 있다. `제외`인 경우 `readiness`는 `해당 없음` 또는 `참여 불가 확인`이어야 하고 `exclusion_category`가 필수다. 그 밖의 등급에서는 `exclusion_category`가 `null`이어야 한다.
-
-`exclusion_category`는 `도메인 불일치`, `시설·현장 용역`, `공사·인프라`, `행사·교육·홍보`, `연구·조사`, `감리·평가`, `물품·임차`, `자격 미달`, `취소·종료`, `기타 비관련` 중 하나다. 확인되지 않은 정보만으로 `제외` 또는 `자격 미달`을 만들지 않는다.
-
-`verification_items[]`의 각 항목은 `item`, `why`, `blocking`, `status`를 가진다. `blocking`은 실제 입찰 참여 자체를 막는지를 나타내는 불리언이며, `status`는 `미확인` 또는 `확인 완료`다. `readiness`가 `부분 확인 필요`이면 최소 한 건이 있어야 하고, `확인 완료`이면 `blocking: true`인 미확인 항목이 없어야 한다. `참여 불가 확인`이면 `blocking: true`인 항목이 최소 한 건 있어야 한다.
-
-`notice.performance_matches`가 비어 있지 않으면 `matched_performances[]`도 비어 있지 않아야 한다. 각 항목은 `name`, `match_reason`, `mismatch_or_limit`, `source`, `status`를 가지며, `mismatch_or_limit`에는 유사도가 설명하지 못하는 차이를 적는다.
-
-## 5. 병합·검증 경계
-
-오케스트레이터는 성공한 신규 판정과 검증 가능한 승계 판정만 `screening-decisions.json`에 넣는다. 실패한 공고의 판정은 이 파일의 병합 입력에 넣지 않고 실패 목록에만 남긴다. 파일을 쓴 뒤 다음 기존 스크립트를 별도 프로세스로 그대로 호출한다.
+재현 가능한 single notice 명령은 다음이다.
 
 ```bash
-python3 skills/bidops-screen/scripts/build_screening_results.py \
-  <run>/validation-set.json \
-  <run>/screening-decisions.json \
-  --output <run>/screening-results.json
+cd web/backend
+python -m app.screening.cli run-one \
+  --run-id <run_id> --notice-id <notice_id> \
+  --policy-version screening-policy.v1.20260825 \
+  --profile-source current --requested-by <actor> [--wait]
 ```
 
-`build_screening_results.py`는 표본·정규화 공고와 판정의 식별자, 등급, 준비 상태, 다섯 관점, 근거, 반론, 확인 항목과 교차 필드를 결정적으로 검사한다. 병합기는 값을 추가하거나 보정하지 않는다. 누락값을 추정하거나 등급을 자동 변경하지 않으며, 실패 결과를 통과 결과로 바꾸지 않는다.
+CLI는 profile/model/digest와 artifact 경로·상태 메타데이터만 출력한다. exit code는 성공 0, 부분 성공 2, 실패·중단·입력 오류 1이다. prompt, profile 전문, API key를 출력하지 않는다.
 
-승계 판정에도 신규 판정과 같은 검사를 적용한다. 이전 회차가 현재 계약을 만족하지 않거나 식별자·등급·준비 상태·필수 관점이 없으면 승계하지 않고 사람 검토 대기로 보낸다.
+`POST /api/runs/{run_id}/pipeline/judgment`는 동일한 queue로 enqueue하고 202를 반환한다. Ollama preflight 실패는 queue row를 만들기 전에 503이다. `POST /api/screening/executions/{execution_id}/stop`은 actor를 audit attribution으로 저장하며 인증을 제공하지 않는다. queued stop은 즉시 terminal `중단됨`, running stop은 `중지 요청`, terminal stop은 409다.
 
-## 6. 실패 처리
+Quality gate가 만드는 두 pass도 각각 독립적인 `quality_sample` execution이며 같은 fixed input/identity를 사용한다. A/B와 review/evaluation revision은 [모델 품질 게이트](./model-quality-gate.md)를 참조한다.
 
-한 공고의 실패가 회차 전체를 중단시키지 않도록 공고 단위로 실패를 격리한다. 실패한 공고는 병합 입력에서 빠지고, 별도의 실패 목록에 기록되며, 관리 화면에서 사람 검토 대기 상태로 표시된다. 하나라도 이 방식으로 격리되면 회차 상태는 `부분 산출물`이다.
+## 운영 불변식
 
-| 실패 종류 | 실패를 확정하는 조건과 공고 상태 | 이동 경로 | 병합 입력과 기록 |
-|---|---|---|---|
-| 타임아웃 | 정해진 호출 시간 안에 Ollama 응답이 끝나지 않음. 호출은 `실패`, 공고는 `사람 검토 대기` | 허용된 횟수만 재시도한 뒤 실패 목록으로 이동 | `screening-decisions.json`에 넣지 않고 `timeout`으로 기록한다. 마지막 시도의 시간은 시간대가 있는 값으로 남긴다. |
-| 잘린 출력 | 응답이 출력 상한에 닿았거나 JSON이 닫히기 전에 종료되어 제한 JSON을 만들 수 없음. 호출은 `실패`, 공고는 `사람 검토 대기` | 허용된 횟수만 재시도한 뒤 실패 목록으로 이동. 문자열을 잘라 JSON으로 만들지 않음 | 병합 입력에서 제외하고 `truncated_output`으로 기록한다. |
-| 스키마 위반 | 필수 키 누락, 허용되지 않은 enum, 단계에 맞지 않는 키 또는 JSON 외 텍스트가 남음. 호출은 `실패`, 공고는 `사람 검토 대기` | 한정 재시도 후에도 위반이면 실패 목록으로 이동. 파서나 오케스트레이터가 값을 채우지 않음 | 병합 입력에서 제외하고 `schema_violation`으로 기록한다. |
-| 근거 누락 | 관점의 `evidence[]`가 없거나, `source`가 공고 필드·회사 프로필 절·상태를 가리키지 않거나, 확정 사실의 원문 위치가 없음. 호출은 `실패`, 공고는 `사람 검토 대기` | 모델 출력의 문장을 보정하지 않고 실패 목록으로 이동 | 병합 입력에서 제외하고 `evidence_missing`으로 기록한다. `unknown`을 임의의 확정 근거로 바꾸지 않는다. |
-| 반론 상투구 반복 | 반론이 해당 공고에 특화되지 않거나 동일 문장이 전체 판정의 40%를 넘어 병합 검사를 통과하지 못함. 공고는 `사람 검토 대기` | 문장을 자동으로 바꾸지 않고 실패 목록으로 이동 | 병합 입력에서 제외하고 `counterargument_repetition`으로 기록한다. |
-
-두 축 혼입은 위 실패 종류에 포함하지 않는다. 12절의 검출기가 붙이는 **표시**이며, 판정 자체는 병합 입력에 그대로 들어간다. 구분하는 이유는 12절에 적는다.
-
-실패 목록의 각 항목은 최소한 다음을 가진다.
-
-| 필드 | 내용 |
-|---|---|
-| `notice_id` | 실패한 공고 식별자 |
-| `failed_stage` | `기술 적합성`, `실적 정합성`, `공공 SI 적합성`, `사업성·자격 제약`, `전략 부합`, `반론 검토`, `종합 판정`, `병합·검증` 중 실패 단계 |
-| `failure_type` | 위 표의 실패 종류 |
-| `last_attempt_at` | 마지막 시도 시각. `Asia/Seoul` 기준을 보존한 시간대 포함 값 |
-
-호출 스팬의 계측 값과 오류 상세는 실패 목록의 식별자를 통해 연결한다. 실패 목록에는 원문·회사 프로필 전문이나 API 키를 복사하지 않는다. 실패 한 건을 근거 부족으로 자동 등급화하거나, 빈 결과를 성공 결과로 채우지 않는다.
-
-## 7. 승계 판정
-
-정정 공고, 재공고, 사전규격에서 본공고로 전환된 공고는 신규 입력으로 보고 일곱 호출을 수행한다. 이미 판정했고 이 조건에 해당하지 않는 공고는 모델을 호출하지 않는다. 이전 회차의 판정 항목을 현재 회차의 판정 파일에 그대로 채우고 다음 표시를 붙인다.
-
-| 표시 | 의미 |
-|---|---|
-| `carried_over` | 현재 회차에서 이전 판정을 승계하고 모델을 호출하지 않았으면 `true` |
-| `judged_in_run` | 이 판정이 **처음 만들어진 회차** 식별자. 승계해도 바꾸지 않는다 |
-| `recorded_in_run` | 이 판정 항목을 현재 판정 파일에 기록한 회차 식별자 |
-
-승계한 항목에는 이전 판정이 만들어진 회차, 모델 이름·모델 버전·프롬프트 버전·정책 버전을 보존한다. 현재 회차 식별자는 해당 항목이 어느 판정 파일에 들어갔는지 추적하기 위해 기록한다. 이때 현재 회차에서 모델을 호출했다고 기록하지 않는다.
-
-승계 판정도 새 판정과 동일하게 식별자·등급·준비 상태·다섯 관점·근거·반론·확인 항목·교차 필드를 검사한다. 이전 판정의 부족한 값을 이번 회차에서 추정해 채우지 않는다. 검사 실패 시 승계 항목도 병합 입력에서 제외하고 실패 목록에 `carried_over_validation`을 남겨 사람 검토 대기로 보낸다.
-
-## 8. 재시도 정책
-
-재시도는 같은 회차·같은 공고·같은 관점의 새 호출로 계측한다. 재시도 결과가 성공해도 앞선 실패 스팬은 보존한다. 재시도 중 프롬프트 버전, 정책 버전, 공고 원문, 회사 프로필의 의미를 바꾸지 않는다.
-
-| 재시도 | 정책 | 이유 |
-|---|---|---|
-| 타임아웃 | 허용. 호출당 한정된 횟수만 시도하고, 마지막 실패는 사람 검토로 보냄 | 일시적인 모델 응답 지연과 영구적인 프롬프트 실패를 구분할 수 있다. |
-| 잘린 출력 | 허용. 한정된 횟수만 시도하며 잘린 문자열을 복구하지 않음 | 일시적인 생성 종료와 출력 상한 부족을 다시 측정할 수 있다. |
-| 스키마 위반 | 최대 한 번만 허용. 새 호출도 제한 JSON을 반환해야 하며 파서 보정은 금지 | 반복 위반을 무한 재시도해 결과를 억지로 만드는 동작을 막는다. |
-| 근거 누락 | 금지 | 모델이 만들지 않은 원문 위치를 재시도로 생성하면 근거 규칙을 우회하게 된다. |
-| 반론 상투구 반복 | 금지 | 반복 문장을 다른 상투구로 바꾸는 것은 공고 특화 반론을 검증하는 것이 아니다. |
-| 두 축 혼입 | 해당 없음 | 실패가 아니라 표시이므로 재시도 대상이 아니다. 판정은 그대로 남고 담당자가 확인한다. |
-
-허용된 재시도가 소진되면 공고 상태를 성공으로 바꾸지 않는다. 모든 실패는 실패 목록에 남고 회차는 `부분 산출물`로 유지한다.
-
-## 9. 동시성과 시간 예산
-
-단일 사내 Ollama 인스턴스에 대한 동시 호출 수는 설정값으로 둔다. 기본값은 `BIDOPS_SCREEN_MAX_CONCURRENCY=1`로 시작한다. 모델 적재와 생성 자원을 한 인스턴스에서 공유하므로, 먼저 순차 기준선을 확보하고 동시성 증가가 실제로 회차 시간을 줄이는지 측정해야 한다. 동시성 값을 올려도 생성 시간이 선형으로 줄어든다고 가정하지 않는다.
-
-회차당 후보 60건, 공고당 논리 호출 7회의 기준은 다음과 같다.
-
-```text
-60건 × (관점 5회 + 반론 1회 + 종합 1회) = 60 × 7 = 420회
-```
-
-파일럿에서 생성 속도는 41.7 token/s, 입력 처리는 약 847 token/s로 측정되었다. 출처는 [`comparison-qwen3.8-27b.md`](deep-review-pilot/cases/2025-fire-prevention-system/comparison-qwen3.8-27b.md)이다. 다만 이 측정은 심층 검토 한 건에서 얻은 값이다. 1차 판정의 입력·출력 프롬프트로 다시 실측하기 전에는 운영 성능 확정값으로 쓰지 않는다.
-
-입력 3,000토큰과 출력 400토큰을 계산용 가정으로 두면 호출당 시간은 다음과 같다.
-
-```text
-입력 처리: 3,000 ÷ 847 ≈ 3.54초
-생성:       400 ÷ 41.7 ≈ 9.59초
-호출 합계:                ≈ 13.13초
-회차 합계: 420 × 13.13 ≈ 5,515초 ≈ 92분
-```
-
-모델 적재, 파일 입출력, 호출 조정, 재시도와 동시성 경합을 포함하면 순차 회차는 두 시간 안팎으로 추정된다. 이 추정은 1차 판정 프롬프트 실측으로 확정해야 하며, 실제 후보 수·평균 토큰 수·실패율을 측정하지 않은 상태에서 더 정밀한 값을 주장하지 않는다.
-
-야간 실행 창을 넘으면 다음 선택지를 운영 판단으로 기록한다.
-
-- 다섯 관점 중 입력과 출력 계약을 안전하게 유지할 수 있는 호출을 병합하여 호출 수를 줄인다.
-- 후보 전체 판정이라는 운영 기준을 바꾸어야 하는 경우 상위 후보 제한을 별도 승인된 운영 정책으로 둔다.
-- 후보 전량 판정을 유지하면서 실행 창을 확대한다.
-
-선택지를 적용해도 실패 공고를 조용히 누락하지 않는다. 회차의 대상 수, 병합된 수, 실패 수와 부분 산출물 상태를 함께 남긴다.
-
-## 10. 모델 설정
-
-모델 설정은 `BIDOPS_` 접두사의 환경변수로만 주입한다. 실제 키·자격증명·절대 경로는 문서나 산출물에 쓰지 않는다. 아래에서 `1차 판정 실측 후 확정`으로 표시한 값은 심층 검토 파일럿 값을 복사해 확정하지 않는다.
-
-| 환경변수 | 의미 | 기준값 또는 확정 방법 |
-|---|---|---|
-| `BIDOPS_OLLAMA_ENDPOINT` | Ollama HTTP 엔드포인트 | 아키텍처의 사내 기본 주소 `http://192.168.0.139:11434`. 환경별 값은 환경변수로 주입한다. |
-| `BIDOPS_OLLAMA_MODEL` | 판정 모델 이름 | `qwen3.8:27b` |
-| `BIDOPS_OLLAMA_FORMAT` | 응답 형식 강제 | `json`으로 고정한다. JSON 외 안내문은 성공 출력으로 인정하지 않는다. |
-| `BIDOPS_OLLAMA_TEMPERATURE` | 생성 온도 | 결정적 기준선을 위해 `0`으로 시작하고, 품질 게이트에서 변경 필요성을 별도 측정한다. |
-| `BIDOPS_OLLAMA_TIMEOUT_SECONDS` | 호출별 시간 제한 | 1차 판정 프롬프트의 실제 응답 분포를 측정한 뒤 확정한다. 미측정 값을 운영 확정값으로 쓰지 않는다. |
-| `BIDOPS_OLLAMA_CONTEXT_SIZE` | 컨텍스트 크기 | 관점별 입력 묶음의 최대 토큰과 모델 한계를 1차 판정으로 측정한 뒤 확정한다. 프로필 전문을 넣지 않는 전제에서 산정한다. |
-| `BIDOPS_OLLAMA_MAX_OUTPUT_TOKENS` | 호출별 출력 상한 | 파일럿 계산의 400토큰은 시간 예산 가정일 뿐이다. 관점·반론·종합의 제한 JSON이 완결되는 상한을 1차 판정으로 실측해 확정한다. |
-| `BIDOPS_OLLAMA_KEEP_ALIVE` | 모델 유지 시간 | 회차 동안 모델이 내려가지 않도록 실행 창을 포함하는 값으로 설정한다. 파일럿에서 모델 적재에만 16.7초가 걸렸으므로 설정 후 적재 시간 0이 아닌 호출 비율을 측정한다. |
-| `BIDOPS_OLLAMA_THINK` | 내부 추론 사용 여부 | `false`로 고정한다. `true`가 주입되면 호출하지 않고 설정 오류로 사람 검토 대기 처리한다. |
-| `BIDOPS_SCREEN_MAX_CONCURRENCY` | 단일 Ollama 인스턴스에 대한 최대 동시 호출 수 | 기본값 `1`. 동시성 증가 효과는 1차 판정 실측 뒤 조정한다. |
-
-모델은 반드시 `think=false`로 호출한다. 파일럿에서 `think=true`일 때 내부 추론이 출력 예산을 소모하여 응답이 두 번 잘렸고, `think=false`에서는 요청한 모든 절이 상한 안에 완결되었다. 따라서 내부 추론을 출력 예산의 일부로 허용하거나, 잘린 출력을 재조립하는 우회는 사용하지 않는다.
-
-OpenAI는 기본 비활성 보조 경로다. 로컬 Qwen 결과가 검증을 통과하지 못한 경우에도 공고·회차별 담당자의 외부 전송 승인이 없으면 호출하지 않으며, 이 문서의 Ollama 실패 처리를 외부 호출로 자동 전환하지 않는다.
-
-## 11. 호출 계측
-
-모델 호출마다 성공과 실패를 가리지 않고 하나의 스팬을 만든다. 공고 한 건은 하나의 트레이스이며, 기본 일곱 논리 호출을 각각 스팬으로 묶는다. 재시도는 같은 트레이스 아래 별도 시도 스팬으로 기록하고, 승계 판정에는 모델 호출 스팬을 만들지 않는다.
-
-다음 값은 Ollama 응답에 실려 오는 값을 그대로 기록한다. 오케스트레이터가 토큰 수나 처리 시간을 다시 계산해 대체하지 않는다. 실패로 Ollama 응답이 도착하지 않은 값은 `unknown` 또는 `null`로 남기며, 로컬에서 추정값을 채우지 않는다.
-
-| Ollama 응답 값 | 기록 내용 |
-|---|---|
-| `done_reason` | 정상 종료인지, 출력 상한 등으로 종료되었는지 나타내는 종료 사유 |
-| `prompt_eval_count` | 입력 토큰 수 |
-| `eval_count` | 출력 토큰 수 |
-| `prompt_eval_duration` | 입력 처리 시간 |
-| `eval_duration` | 생성 시간 |
-| `load_duration` | 모델 적재 시간 |
-
-각 스팬에는 공고 식별자, 단계, 시도 번호, 성공·실패 상태, 모델 이름, 모델 버전, 프롬프트 버전, 정책 버전, 회차를 연결한다. 호출 응답 원문은 계약 검증에 필요한 범위에서만 회차 파일 경계에 보관하며, 계측 기록을 판정 결과의 정본으로 사용하지 않는다.
-
-모델 적재 시간이 0이 아닌 호출의 비율은 다음 지표로 본다.
-
-```text
-load_duration이 0보다 큰 호출 수 ÷ Ollama 응답이 있는 전체 호출 수
-```
-
-이 비율과 `BIDOPS_OLLAMA_KEEP_ALIVE` 설정을 함께 관리한다. 파일럿에서 적재에만 16.7초가 걸렸으므로 호출 사이에 모델이 내려가면 회차가 크게 느려질 수 있다. 실패한 호출만 남기면 성공 호출의 지연과 모델 재적재가 회차 시간에 미친 영향을 알 수 없으므로, 성공한 호출도 반드시 같은 구조로 기록한다.
-
-## 12. 두 축 혼입 검출
-
-결정적 검출기는 다음 교차 조건을 검사한다.
-
-```text
-사업성·자격 제약 관점의 assessment == "확인 불가"
-그리고 종합 grade ∈ {"관찰 대상", "제외"}
-```
-
-조건이 참이면 자격을 확인하지 못했다는 사실을 등급 하락의 근거로 사용했을 가능성이 있으므로, 판정에 **확인 요망 표시**를 붙이고 관리 화면의 사람 검토 목록에 올린다. 파일럿에서 실제로 관측된 실패 방식이므로 결정적으로 감시한다.
-
-**이 조건은 실패가 아니다.** 판정은 병합 입력에 그대로 들어가고 검증도 정상적으로 받는다. 세 가지 이유가 있다.
-
-- 조건이 참이어도 정상 판정일 수 있다. 사업 영역이 명백히 다른 공고는 자격을 따질 필요가 없어 `확인 불가`가 되고 등급은 `제외`가 된다. 이것은 올바른 판정이며, 실패로 다루면 매 회차 정상 판정이 대량으로 버려진다.
-- 다섯 관점과 근거와 반론이 모두 갖추어진 판정을 버리는 것은 담당자에게서 판단 재료를 빼앗는 일이다. 검출기의 역할은 **눈에 띄게 만드는 것**이지 지우는 것이 아니다.
-- 회차 지표로 세는 혼입 비율은 판정이 결과에 남아 있어야 계산할 수 있다. 실패로 빼면 분자와 분모가 모두 사라진다.
-
-검출기는 `grade`를 `검토 권장` 등으로 자동 고치지 않는다. 담당자가 원문과 회사 프로필을 확인해 등급과 준비 상태를 별도로 정한다. 표시가 붙은 판정의 비율은 회차마다 집계해 추이를 남긴다. 측정 방법은 `docs/model-quality-gate.md`에 규정한다.
-
-## 13. 역추적
-
-모델이 만든 모든 신규 판정과 승계 판정에는 다음 다섯 가지를 기록한다.
-
-| 값 | 의미 |
-|---|---|
-| 모델 이름 | 호출에 사용한 모델 식별자. 기본은 `qwen3.8:27b`다. |
-| 모델 버전 | 실행 시점에 확인한 모델 버전 또는 해시 등 모델 식별 정보. 확인되지 않으면 추정하지 않는다. |
-| 프롬프트 버전 | 관점·반론·종합 호출에 적용한 프롬프트의 불변 버전 |
-| 정책 버전 | 회차에 고정한 정책 저장소의 불변 버전 |
-| 회차 | 판정이 생성되거나 승계되어 기록된 회차 식별자 |
-
-승계 판정은 현재 모델을 호출하지 않았다는 사실과 함께 원래 판정이 생성된 회차의 모델·모델 버전·프롬프트·정책 정보를 보존한다. 이를 통해 현재 회차의 파일에 들어온 판정이 언제, 어떤 기준으로 만들어졌는지와 이번 회차에서 새로 판단했는지를 분리해 추적할 수 있다.
+1. model은 정확히 `qwen3.8:27b`; Ollama unavailable/identity mismatch는 실패이며 OpenAI fallback이 아니다.
+2. 정책·prompt·model·profile·input/artifact digest는 실행 생성 후 바뀌지 않는다.
+3. FIFO, active slot 1, bounded retry, heartbeat recovery는 수동·스케줄·quality trigger에 공통이다.
+4. 실패·부분 성공·중단의 사실과 성공 subset을 보존하며 자동 재개·자동 등급 보정·자동 발행을 하지 않는다.
+5. 스케줄 catch-up/recovery와 DB migration/seed는 별도 운영 계약이다. 정확한 명령은 [운영 절차](./operations.md), REST·파일·DB status/error는 [외부 인터페이스 계약](./contracts.md)에 있다.

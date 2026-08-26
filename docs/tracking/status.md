@@ -1,43 +1,33 @@
-# 구현 현황
+# T14 통합 상태
 
-기준일: 2026-08-25. `./run-tests.sh`는 수집 34건·보고 13건·판정 21건·통합 2건, 총 70개 테스트를 통과했다. `./web/run-web-tests.sh`는 백엔드 38개 테스트와 프론트엔드 프로덕션 빌드를 통과했다. 이 명령에 포함되지 않은 Playwright 테스트는 이번 검증에서 실행하지 않았다.
+기준일: 2026-08-26. 이 표는 aggregate `dryforge/task-t14`에서 확인한 사실만 기록한다. 실행 ID·게이트 ID·평가 결과를 만들어 쓰지 않는다.
 
-## 구현됨
+## 증거 상태
 
-| 영역 | 상태 | 확인 근거 |
+| 영역 | 상태 | 확인 사실 |
 |---|---|---|
-| 나라장터 입찰공고 수집·원문 보존·정규화 | 구현됨, 수집 테스트 통과 | 표준 라이브러리 수집 스크립트와 모듈 테스트가 있으며 `bidops.collected.v2`를 생성한다. |
-| 고재현율 후보군·감사 표본 선정 | 구현됨, 수집·통합 테스트 통과 | 세 우선 축·수행실적 신호와 근접/무작위 감사층을 만든다. |
-| 1차 판정 계약과 병합 검증 | 구현됨, 판정·통합 테스트 통과, 애플리케이션 자동 실행 미구현 | 다섯 관점의 `bidops.decisions.v2`를 검증하지만 판정 JSON은 현재 에이전트가 별도로 작성한다. |
-| HTML 보고서와 피드백 YAML 생성 | 구현됨, 보고·통합 테스트 통과 | 렌더러는 결과를 판단·보정하지 않고 표시한다. |
-| FastAPI·SQLite 산출물 적재와 조회 | 구현됨, 백엔드 테스트 통과 | 부분 과거 산출물을 경고와 함께 적재하고 핵심 필드 누락은 거부한다. SQLite는 WAL을 사용한다. |
-| 회차 스냅샷·판정 이력·관련 공고 | 구현됨, 백엔드 테스트 통과 | 같은 기간 재실행과 같은 공고의 회차별 변화를 보존한다. |
-| 리뷰 입력·DB 정본·YAML 내보내기 | 구현됨, 백엔드 테스트 통과 | 공고/회차별 리뷰와 확인 답변을 저장하며 YAML 호환 출력을 제공한다. |
-| 첨부 확보 대기열·기관 포털·수동 업로드 | 구현됨, 백엔드 테스트 통과 | HWP/HWPX/PDF 50MB 제한, 서버 파일명, 경로 격리, 제공 첨부 삭제 거부가 있다. 변환·추출은 없다. |
-| React 관리 화면 | 구현됨, 타입·프로덕션 빌드 통과, Playwright 미실행 | 대시보드, 검토 대기열, 판정 이력, 첨부, 회차, 프로필, 지표 화면이 있다. 전체 리뷰 로그 화면은 자리표시자다. |
-| 첨부문서 심층 검토 파일럿 | 두 사례 연구 완료, 제품 통합 안 됨 | 소방예방정보시스템과 양산문화재단 사례의 분석·요구사항 매트릭스가 보존되어 있다. 구조적 회귀 기준과 Qwen 비교는 소방 사례 중심이다. |
+| source pipeline | 완료 | `./run-tests.sh` 통과: collect 28, report 13, screen 48, root 2 (총 91) |
+| backend/frontend fake CI | 완료 | `./web/run-web-tests.sh` 통과: backend 309 tests, frontend production build; 기존 Starlette/httpx deprecation warning 1건과 Vite chunk size warning만 관찰 |
+| Docker config/build | 완료 | `docker compose config --quiet` 및 `docker compose build` 통과; frontend production build warning(>500 kB chunk)만 관찰 |
+| visual | 완료(컨테이너) | `mcr.microsoft.com/playwright:v1.62.1-noble`, UID/GID·IPC·browser path를 고정한 실행에서 98 passed, 10 intentional skipped. host 직접 실행은 `libnspr4/libnss3`가 없어 browser launch가 막힘 |
+| live Ollama/T15 | 대기 | `BIDOPS_LIVE_OLLAMA_TEST=true`와 explicit single live command/marker를 포함한 operator smoke 결과 없음 |
 
-## 남은 작업
+visual의 10 skip은 draft spec의 mobile/tablet 너비 조건에 따른 의도된 skip(5 × 2)이다. 재현 명령과 image/mount 전제는 [운영 절차](../operations.md)에 있다.
 
-이번 설계는 판정 에이전트 런타임, 정기 실행, 모델 품질 게이트의 문서 설계를 확정했다. 설계 확정은 구현 완료를 뜻하지 않으며, 아래 목록에서 이번 설계의 구현 대상과 기존 미완료 작업을 구분해 진행한다.
+## 운영·활성화 상태
 
-우선순위는 앞 항목의 출력이 뒤 항목의 입력이 되는 순서다.
+- 기본 scheduler env는 false이고 DB always-on switch도 false다.
+- T14/T15에서 policy activation은 수행하지 않았다. seed가 필요하면 operator가 명시적 actor로 별도 실행한다.
+- always-on enable, live smoke, OpenAI 호출, 자동 restore/rollback, `down -v`는 수행하지 않았다.
+- quality gate의 고정 입력은 run `20260817-20260823`, validation schema v2, 40건 A/B 계약이다. 이 문서는 실제 gate/evaluation ID나 pass/fail 값을 주장하지 않는다.
 
-1. 사용자 편집 가능한 선정·분석 정책 저장소와 관리 화면을 구현한다. 저장 시 불변 정책 버전을 만들고 이후 회차에만 적용하며 회차에 사용 버전을 기록한다.
-2. 이름 입력 기반 작성자 식별과 감사 이벤트 모델을 구현한다. 조회는 이름 없이 허용하되 리뷰·정책 승인·외부 전송 승인은 이름을 요구한다.
-3. 첨부 문서 집합과 작업 상태 모델을 추가한다. 원본 해시, 획득 출처, 변환기 버전, HWPX 정본, 실패/사람확인 상태를 보존한다.
-4. 헤드리스 HWP→HWPX 자동 변환기를 연결하고 대표 문서를 한컴 변환 결과와 회귀 비교한다. 직접 HWP 파서를 운영 경로에 넣지 않는다.
-5. HWPX 문단·표·요구사항 ID·원문 위치 구조화기와 결정적 문서 검증기를 구현한다. 소방예방정보시스템 사례의 유일 요구사항 55개를 회귀 기준으로 사용한다.
-6. [이번 설계 구현 대상] `qwen3.8:27b`를 이용한 1차 다섯 관점 판정을 판정 에이전트 런타임과 애플리케이션 워크플로에 연결한다. 단계별 JSON, 타임아웃, 잘린 출력, 스키마 실패를 사람 검토로 라우팅한다.
-7. 1차 판정 품질, 심층 리포트 품질, 실제 사업 결과, UX 피드백을 수집하고 모델 품질 게이트와 정책 변경 제안으로 연결한다. 등급 재현성 등 미측정 항목은 통과로 취급하지 않으며, 제안은 사람 승인 후 새 정책 버전으로만 활성화한다.
-8. `우선 검토` 공고의 첨부 확보 후 심층 분석 오케스트레이터를 구현한다. 자격, 요구사항, 평가, 위험을 단계별로 실행하고 원문 인용·산술·ID를 검증한다.
-9. 심층 리포트 검토·수정 UI와 구조화 결과 내보내기를 구현한다. 자동 권고와 담당자의 최종 결정을 분리해 표시한다.
-10. OpenAI 보조 경로를 기본 비활성으로 구현한다. 공고/회차별 전송 미리보기·승인·최소 데이터·감사 기록이 갖춰지기 전에는 API 호출을 추가하지 않는다.
-11. [이번 설계 구현 대상] 전체 리뷰 로그 화면과 운영 백업·복구 자동화를 완성하고, 정기 수집과 실패·부분 성공의 관리 화면 표시를 스케줄링 설계에 따라 구현한다. 메일·메신저 등 외부 알림은 만들지 않으며, 품질 게이트와 담당자의 명시적 활성화 전에는 정기 실행을 상시 운영 스위치로 켜지 않는다.
+## 다음 operator gate
 
-## 차단·외부 의존 사항
+1. [운영 절차](../operations.md)의 서비스 중지 → `db-backup`(manifest 보존) → confirm+manifest `db-migrate` → `db-verify` → explicit policy seed → web health 순서를 실제 운영 DB에서 수행한다.
+2. [모델 품질 게이트](../model-quality-gate.md)의 `operational_approval`을 current profile snapshot으로 측정하고 review/threshold evidence를 기록한다. `model_comparison` pass는 activation 근거가 아니다.
+3. 명시적 operator direction이 있을 때만 marker와 explicit command를 함께 사용한 단 한 번의 live smoke를 기록한다. 그 전에는 T15 live를 pending으로 유지한다.
+4. scheduler env cap와 DB switch를 별도로 검토하고, activation과 always-on을 자동으로 켜지 않는다.
 
-- 사전규격 API의 운영 이용 승인이 없으면 사전규격 실전 수집 범위가 제한된다.
-- 운영용 HWP 변환기 패키지와 격리 방식은 후보 구현을 대표 문서로 비교한 뒤 확정해야 한다.
-- OpenAI 보조 경로는 조직의 외부 데이터 전송 허용 범위와 키 관리 주체가 정해지기 전까지 운영 활성화할 수 없다.
-- 백업 주기·보관 위치·복구 책임자는 사내 배포 환경이 정해져야 확정할 수 있다.
+## 관련 문서
+
+[아키텍처](../architecture.md) · [에이전트 런타임](../agent-runtime.md) · [스케줄링](../scheduling.md) · [모델 품질 게이트](../model-quality-gate.md) · [외부 인터페이스 계약](../contracts.md) · [운영 절차](../operations.md) · [구현·검증 표준](../standards.md)

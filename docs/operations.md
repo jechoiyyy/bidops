@@ -1,163 +1,150 @@
 # 운영 절차
 
-## 전제 조건
+이 runbook은 SQLite를 사용하는 현재 compose/host 구현의 순서를 고정한다. 서비스 중지·backup·migration·seed는 웹 기동과 분리한다. container entrypoint와 앱 startup은 migrate, `create_all`, policy seed를 자동 실행하지 않는다.
 
-프로젝트 루트는 `bidops-agent/`다. Docker 방식은 Docker Engine과 Compose가 필요하다. 직접 실행은 Python 3.12 이상, `python3-venv`, Node.js 22 이상, npm 10 이상이 필요하다. 실전 나라장터 수집에만 공공데이터포털에서 발급된 API 키가 필요하다.
+## 사전 조건
 
-## Docker로 처음 실행
+프로젝트 루트는 `bidops-agent/`다. Docker 방식은 Docker Engine/Compose, host 방식은 Python 3.12+, venv, Node 22+/npm 10+가 필요하다. 컨테이너는 root로 실행하지 않으며 `.env`의 `BIDOPS_UID`/`BIDOPS_GID`는 0이 아닌 host 사용자와 맞춰야 한다. `/app/data`, `/app/reports`, `/app/backups`, `/app/web/data`는 존재하고 non-root가 읽고 쓸 수 있어야 하며 skills/docs는 읽을 수 있어야 한다. entrypoint는 chown/chmod로 권한을 고치지 않고 권한 오류로 종료한다.
 
-다음 순서를 지킨다. 적재 전에 서버를 올려도 화면은 뜨지만 목록이 비어 있다.
+compose는 `data`와 `reports` bind mount, `/app/web/data`의 `bidops-web-data` named volume, `/app/backups`의 `bidops-backups` named volume을 사용한다. 백업 manifest와 DB 파일은 같은 backup volume에서 보존한다. `.env`, API key, run data와 첨부를 image/Git에 복사하지 않는다.
+
+## 표준 Docker 순서
+
+아래 `<manifest>`는 backup 단계에서 출력된 실제 manifest 파일명으로 대체한다. `down -v`는 사용하지 않는다.
+
+### 1. 서비스 중지
 
 ```bash
 cd /path/to/bidops-agent
-cp .env.example .env
-# 실전 수집을 할 때만 .env의 BIDOPS_G2B_API_KEY를 입력한다.
-docker compose run --rm web python -m app.ingest.cli --all
-docker compose up -d
-```
-
-`http://localhost:8787`에서 화면을 열고 `http://localhost:8787/api/health`가 `{"status":"ok"}`를 반환하는지 확인한다. 적재된 회차가 없다면 회차 선택기는 비어 있는 것이 정상이다.
-
-```bash
-docker compose logs -f web
 docker compose down
 ```
 
-볼륨까지 삭제하는 `docker compose down -v`는 SQLite와 수동 첨부를 지우므로 백업·복구가 확인된 경우에만 사용한다.
+기존 web/worker가 완전히 멈춘 것을 확인한 뒤에만 다음 단계로 간다. 일반 `down`은 named volume을 보존한다.
 
-## 직접 개발 실행
+### 2. DB backup 및 manifest 보존
+
+```bash
+docker compose --profile ops run --rm db-backup
+```
+
+기본 출력은 `/app/backups/bidops-<UTC>.db`와 `.manifest.json`이다. 다른 이름이 필요하면 `.env`의 `BIDOPS_BACKUP_OUTPUT`을 명시한다. manifest schema는 `bidops.sqlite-backup.v1`이며 source/backup path, SHA-256, logical snapshot fingerprint, UTC `created_at`을 포함한다. 운영 기록에 DB와 manifest를 모두 보존한다.
+
+### 3. 명시적 migration
+
+```bash
+export BIDOPS_CONFIRM_SERVICE_STOPPED=true
+export BIDOPS_BACKUP_MANIFEST=/app/backups/<manifest>.manifest.json
+docker compose --profile ops run --rm db-migrate
+```
+
+컨테이너 wrapper가 두 환경변수를 요구하며 Python `db_admin migrate --backup-manifest ... --confirm-service-stopped`로 위임한다. migrate는 manifest identity/digest/fingerprint, core row counts, FK/quick_check를 확인하고 temp DB에서 Alembic을 실행한 뒤 검증된 경우에만 live DB를 교체한다. 현재 head는 `0004_migration_audit`다. backup은 유지되며 자동 rollback하지 않는다.
+
+### 4. DB verify
+
+```bash
+docker compose --profile ops run --rm db-verify
+```
+
+verify는 head revision, foreign-key check, SQLite quick check, `run/notice/judgment/review/attachment` core count를 확인한다. 실패하면 web을 올리지 않고 원인과 보존한 manifest를 조사한다.
+
+### 5. 명시적 policy seed
+
+```bash
+export BIDOPS_POLICY_SEED_ACTOR=<explicit-operator-or-bootstrap-actor>
+docker compose --profile ops run --rm policy-seed
+```
+
+seed는 `policy seed-default --created-by <actor>`를 실행하고 `activation_candidate`를 만든다. 같은 digest에 대해서만 idempotent다. seed는 activation이나 always-on enable이 아니다. actor를 비워 실행하지 않는다.
+
+### 6. web 시작 및 health
+
+```bash
+docker compose up -d web
+curl -fsS http://127.0.0.1:8787/api/health
+docker compose logs --tail=100 web
+```
+
+health의 기대 응답은 `{"status":"ok"}`다. health는 Ollama, scheduler, migration을 점검하지 않는다. DB가 empty/unversioned/stale이면 앱이 시작하지 않는 것이 정상적인 안전 동작이다. scheduler/always-on은 기본 false이며 worker만 시작할 수 있다.
+
+### 7. 단 한 번의 live smoke
+
+T14/T15는 operator direction 없이 live smoke, policy activation, always-on을 수행하지 않는다. 명시적으로 승인된 단 한 번의 smoke만 다음 safety marker와 explicit command를 함께 사용한다.
+
+```bash
+export BIDOPS_LIVE_OLLAMA_TEST=true
+docker compose exec web python -m app.screening.cli run-one \
+  --run-id <run_id> --notice-id <notice_id> \
+  --policy-version <approved-policy-version> \
+  --profile-source current --requested-by <explicit-actor> --wait
+```
+
+`BIDOPS_LIVE_OLLAMA_TEST=true`는 marker일 뿐 CLI가 marker를 검사해 자동으로 실행하는 스위치가 아니다. 명령·actor·대상·결과를 운영자가 기록하고, 같은 변경에서 추가 live smoke를 반복하지 않는다. live smoke가 필요 없으면 이 단계는 수행하지 않는다. fake CI는 live endpoint를 호출하지 않는다.
+
+## Host equivalent
+
+host에서는 먼저 uvicorn/worker 프로세스를 멈추고 같은 순서를 실행한다.
 
 ```bash
 cd /path/to/bidops-agent/web/backend
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
-.venv/bin/python -m app.ingest.cli --all
-
-cd ../frontend
-npm install
-npm run build
-
-cd ../backend
-.venv/bin/uvicorn app.main:app --port 8787
+.venv/bin/python -m app.db_admin backup --output /absolute/backup/bidops-<UTC>.db
+.venv/bin/python -m app.db_admin migrate \
+  --backup-manifest /absolute/backup/bidops-<UTC>.db.manifest.json \
+  --confirm-service-stopped
+.venv/bin/python -m app.db_admin verify
+.venv/bin/python -m app.screening.policy seed-default --created-by <explicit-actor>
+.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8787
 ```
 
-프론트엔드를 수정할 때는 백엔드와 Vite를 서로 다른 터미널에서 실행한다.
+별도 터미널에서 `curl -fsS http://127.0.0.1:8787/api/health`를 확인하고, 명시적 live가 승인된 경우에만 다음처럼 marker와 command를 함께 쓴다.
 
 ```bash
 cd /path/to/bidops-agent/web/backend
-.venv/bin/uvicorn app.main:app --reload --port 8787
+BIDOPS_LIVE_OLLAMA_TEST=true .venv/bin/python -m app.screening.cli run-one \
+  --run-id <run_id> --notice-id <notice_id> \
+  --policy-version <approved-policy-version> \
+  --profile-source current --requested-by <explicit-actor> --wait
 ```
 
-```bash
-cd /path/to/bidops-agent/web/frontend
-npm run dev
-```
+host의 `BIDOPS_DATA_DIR`, `BIDOPS_REPORTS_DIR`, `BIDOPS_BACKUP_DIR`, Ollama endpoint와 profile path가 실제 mount/path와 일치해야 한다. `BIDOPS_UID/GID`는 host equivalent에는 적용되지 않지만 파일 소유권을 별도로 확인한다.
 
-개발 화면은 `http://localhost:5173`이며 `/api` 요청은 8787 포트로 전달된다.
+## 복구와 restore
 
-## 산출물 적재와 파이프라인
+SQLite가 corrupt하거나 migration 검증이 실패하면 서비스를 계속 올리거나 자동 rollback하지 않는다. `db-backup`의 backup과 manifest를 보존하고 별도 경로에서 restore를 검증한 뒤, 운영자가 backup replacement 여부를 결정한다. restore는 수동 파일 교체 결정이며 애플리케이션·container·migration이 자동 실행하지 않는다. 결정 후에도 서비스 중지→교체→`db-verify`→web health 순서를 다시 따른다. `docker compose down -v`로 복구하지 않는다.
 
-```bash
-cd /path/to/bidops-agent/web/backend
-.venv/bin/python -m app.ingest.cli --run 20260817-20260823
-.venv/bin/python -m app.ingest.cli --all
-```
+## 현재 Git baseline과 모델 안전성
 
-적재 순서는 `validation-set.json`, `screening-results.json`, `collected-notices.json`, 값이 있는 `review-feedback.yaml`이다. 같은 회차를 다시 적재해도 중복 행을 만들지 않아야 하며 경고는 수집 실행 화면에서 확인한다.
+profile `git:<40hex>`는 승인된 commit `ee621835db934ddac944f7a07a986ed0b73ecc7a`의 canonical path만 허용한다. Git이 사용 가능하면 blob bytes를 읽고 vendored baseline과 일치하는지 확인하고, Git executable/repository가 없을 때만 `web/backend/app/screening/baseline_company_profile.md`를 fallback으로 사용한다. fallback 허용 digest는 `a231ab54c36031a7e72779bbca550f70561dc0c946dc5544eeb930c7c6149de2`다. mismatch는 실패다. container Git wrapper는 이 정확한 baseline show 요청만 vendored bytes로 응답한다.
 
-웹 화면은 현재 `collect`, `sample`, `report`를 실행한다. `collect` 실전 실행에는 API 키가 필요하고 `--from-raw`는 보존된 원문이 필요하다. 1차 Qwen 판정과 첨부 심층 분석은 목표 기능이며 구현 완료 전에는 기존 skill 실행과 생성된 파일 적재 절차를 사용한다.
+모델은 exact `qwen3.8:27b`, `think=false`, `stream=false`다. endpoint unavailable/model identity mismatch는 실패이며 OpenAI fallback/BF16 fallback이 없다. 모델 출력과 profile/prompt 원문을 로그·오류·audit에 넣지 않는다.
 
-## 검증
+## Docker 빌드·visual 확인
 
-```bash
-cd /path/to/bidops-agent
-./run-tests.sh
-./web/run-web-tests.sh
-```
-
-첫 명령은 각 skill과 교차 파이프라인의 `unittest`를 실행한다. 두 번째는 백엔드 `pytest`와 프론트엔드 타입 검사·빌드를 실행한다. 화면 구조 또는 검토 흐름을 바꾼 경우 다음도 실행한다.
-
-```bash
-cd /path/to/bidops-agent/web/frontend
-npm run test:visual
-```
-
-Docker 환경에서는 다음으로 대체할 수 있다.
+일반 image build는 다음이다. frontend production build와 Python runtime을 multistage Dockerfile에서 함께 만든다.
 
 ```bash
 docker compose build
-docker compose run --rm web pytest -q
 ```
 
-## 환경 설정
+visual 테스트는 host `cd web/frontend && npm run test:visual`의 webServer(빌드 후 preview, port 4173) 계약이다. host에 `libnspr4/libnss3`가 없어 browser launch가 막히면 project root에서 다음처럼 동일 테스트를 Playwright image로 실행한다.
 
-| 이름 | 기본값 | 유효 범위와 역할 |
-|---|---|---|
-| `BIDOPS_G2B_API_KEY` | 없음 | 실전 나라장터 수집 요청에만 사용한다. 미설정이어도 웹 조회와 기존 산출물 적재는 가능하다. |
-| `BIDOPS_ROOT` | 프로젝트 루트 | `data`, `reports`, `skills`, `docs`, 프론트엔드 빌드 위치의 기준 경로다. 컨테이너에서는 `/app`이다. |
-| `BIDOPS_DATA_DIR` | `web/data` | SQLite와 런타임 데이터의 상위 경로다. 쓰기 가능한 로컬/볼륨 경로여야 한다. |
-| `BIDOPS_ATTACHMENTS_DIR` | `<data>/attachments` | 수동 첨부 원문 보관 경로다. 웹 프로세스만 쓰고 정적 파일 서버로 직접 공개하지 않는다. |
-| `BIDOPS_DATABASE_URL` | `<data>/bidops.db` SQLite URL | DB 연결을 덮어쓴다. 현재 운영 전제는 SQLite WAL이다. |
-| `BIDOPS_REVIEWER` | 빈 값 | 기존 리뷰의 기본 작성자 호환값이다. 사용자 이름 입력 기능이 구현되면 요청의 이름이 우선한다. |
-| `BIDOPS_UID`, `BIDOPS_GID` | `1000`, `1000` | Docker 프로세스의 호스트 파일 소유자를 맞춘다. |
-| `BIDOPS_OLLAMA_ENDPOINT` | `http://192.168.0.139:11434` | 사내 Ollama HTTP 엔드포인트다. 환경별 주소는 이 변수로 주입한다. |
-| `BIDOPS_OLLAMA_MODEL` | `qwen3.8:27b` | 1차 판정에 사용할 모델 이름이다. |
-| `BIDOPS_OLLAMA_FORMAT` | `json` | 응답 형식을 `json`으로 고정한다. JSON 외 안내문이 섞인 응답은 성공으로 인정하지 않는다. |
-| `BIDOPS_OLLAMA_TEMPERATURE` | `0` | 결정적 기준선의 생성 온도다. 변경 필요성은 품질 게이트에서 별도 측정한다. |
-| `BIDOPS_OLLAMA_TIMEOUT_SECONDS` | 1차 판정 실측 후 확정 | 호출별 시간 제한이다. 실제 응답 분포를 측정하기 전에는 운영 확정값으로 쓰지 않는다. |
-| `BIDOPS_OLLAMA_CONTEXT_SIZE` | 1차 판정 실측 후 확정 | 관점별 입력 묶음의 최대 토큰과 모델 한계를 측정해 정한다. 회사 프로필 전문을 넣지 않는 전제에서 산정한다. |
-| `BIDOPS_OLLAMA_MAX_OUTPUT_TOKENS` | 1차 판정 실측 후 확정 | 관점·반론·종합의 제한 JSON이 완결되는 호출별 출력 상한이다. 파일럿의 가정값을 운영 확정값으로 복사하지 않는다. |
-| `BIDOPS_OLLAMA_KEEP_ALIVE` | 1차 판정 실측 후 확정 | 회차 실행 창 동안 모델이 내려가지 않도록 설정하는 유지 시간이다. 설정 후 모델 적재가 발생한 호출 비율을 측정한다. |
-| `BIDOPS_OLLAMA_THINK` | `false` | 내부 추론 사용 여부다. `false`로 고정하며 `true`가 주입되면 설정 오류로 사람 검토 대기 처리한다. |
-| `BIDOPS_SCREEN_MAX_CONCURRENCY` | `1` | 단일 Ollama 인스턴스의 최대 동시 호출 수다. 양의 정수로 설정하며 증가는 1차 판정 실측 뒤 결정한다. |
-| `BIDOPS_SCHEDULER_ENABLED` | `false` | 웹 프로세스 기동 시 일간·주간 예약을 등록할지 결정한다. |
-| `BIDOPS_SCHEDULE_DAILY_TIME` | `02:00` | 다음 날 실행할 전일 회차의 기본 시각이다. 설정으로 조정할 수 있다. |
-| `BIDOPS_SCHEDULE_WEEKLY_TIME` | `06:00` | 월요일에 전 주 누계를 만드는 기본 시각이다. 설정으로 조정할 수 있다. |
-| `BIDOPS_PRESPEC_ENABLED` | `false` | 사전규격 API 호출 여부다. 권한 확보 뒤 담당자 승인 절차에서 `true` 적용 여부를 결정한다. |
+```bash
+docker run --rm --ipc=host --user 1000:1000 \
+  -e PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
+  -v "$PWD:/work" \
+  -v "$PWD/web/frontend/node_modules:/work/web/frontend/node_modules" \
+  -w /work/web/frontend \
+  mcr.microsoft.com/playwright:v1.62.1-noble npm run test:visual
+```
 
-이번 설계로 Ollama와 스케줄 실행 설정의 환경변수 계약을 위 표에 반영했다. HWPX 변환기와 OpenAI 활성화·키, 정책 저장 위치에 대한 운영 설정은 아직 코드 계약이 없으므로 구현 시 `BIDOPS_` 접두사와 비밀 분리 규칙에 맞춰 추가한다.
+이 실행의 preview bind 주소는 `127.0.0.1:4173`이다. 시각 evidence의 pass/skip 수는 [tracking/status](./tracking/status.md)에 실제 실행 결과만 기록한다.
 
-## 상시 운영 개시
+## 장애 시 확인
 
-상시 운영 스위치는 품질 게이트와 담당자 승인 전까지 `BIDOPS_SCHEDULER_ENABLED=false`로 둔다. 다음 순서를 모두 마친 뒤에만 예약 실행을 켠다.
-
-1. 공공데이터포털에서 사전규격 API 활용 권한을 신청하고 승인 여부를 확인한다. 권한이 없는 동안에는 `BIDOPS_PRESPEC_ENABLED=false`로 둔다. 이 상태에서도 본공고 수집은 계속할 수 있어야 하며, 사전규격 권한 부족을 회차 전체 실패로 만들지 않는다.
-2. `BIDOPS_OLLAMA_ENDPOINT`에 연결하고 `BIDOPS_OLLAMA_MODEL`이 응답하는지 확인한다. 응답 형식은 `json`, 온도는 기준선 `0`, 내부 추론은 `BIDOPS_OLLAMA_THINK=false`인지 함께 확인한다. 연결 실패를 OpenAI 호출로 자동 대체하지 않는다.
-3. 현재 모델·프롬프트·정책 버전과 고정 표본으로 품질 게이트를 측정한다. 최종 등급 재현성은 80% 이상이어야 하며 다섯 관점별 일치율도 기록하고 불일치가 어느 한 관점에 절반을 넘게 몰리지 않아야 한다. 유효 판정 대상이 10건 이상이면 변별력은 10~25% 구간이어야 하며, 10건 미만이면 `계산 불가(소표본)`으로 기록한다. 유효 담당자 리뷰는 10건 이상이어야 하며 `동의` 70% 이상과 `근거 부족` 10% 이하를 모두 충족해야 한다. 관점 분할은 40% 이상이어야 한다. 정보 충분성도 정량화해야 하며 별도 합격 수치가 없는 항목을 통과값으로 바꾸지 않는다. 두 축 혼입 검출 결과는 사람 검토로 보내고 등급을 자동 보정하지 않는다. 필요한 값이 미측정·`계산 불가`이거나 임계값을 충족하지 못하면 운영을 켜지 않는다.
-4. 담당자가 게이트 결과, 모델·프롬프트·정책 버전과 운영 설정을 화면에서 확인하고 상시 운영을 명시적으로 승인한다. 승인 뒤 `BIDOPS_SCHEDULER_ENABLED=true`를 적용하며, 사전규격 권한이 승인된 경우에만 `BIDOPS_PRESPEC_ENABLED=true`를 적용한다. 권한이 아직 없으면 사전규격 스위치는 `false`로 남긴다. 이 승인은 입찰 참여나 최종 Go/No-Go 결정을 대신하지 않는다.
-
-게이트 결과와 스위치 변경 시각은 관리 이력에 남긴다. 새 모델·프롬프트·정책 버전은 별도 측정과 게이트 통과 없이는 상시 운영에 사용하지 않는다.
-
-## 회차 실패 확인과 재실행
-
-실행 결과와 실패는 관리 화면에서만 확인한다. 메일·메신저 등 외부 알림을 추가하지 않는다.
-
-1. 담당자는 회차 목록과 상세 화면에서 상태, 대상 공고 수, 유효 판정 수, 실패 수, 경고, 실패 목록, 회차의 모델·프롬프트·정책 버전을 확인한다. 실행 시각을 놓쳤거나 웹 프로세스가 내려간 경우에도 날짜별 회차를 합치지 않고 누락된 회차를 각각 확인한다.
-2. 판정 실패 건은 실패 목록의 `notice_id`, 실패 단계, 실패 유형, 마지막 시도 시각과 관리 화면의 계측 기록을 대조한다. 타임아웃·잘린 출력·스키마 위반·근거 누락 등은 병합 입력에 넣지 않고 `사람 검토 대기`로 남긴다. 모델 출력이나 등급을 자동 보정하지 않으며, 승인 없는 OpenAI 호출로 바꾸지 않는다.
-3. 유효한 신규 판정과 검증된 승계 판정이 남은 회차는 `부분 성공`으로 확인한다. 부분 성공 회차를 성공으로 승격하지 않고, 성공한 산출물·실패 목록·경고를 함께 보존한다. 승계 판정은 새 판정으로 표시하지 않으며, 검증에 실패한 승계 판정도 실패 목록으로 보낸다.
-4. 담당자가 원인을 확인한 뒤 회차 상세 화면에서 재실행을 명시적으로 요청한다. 복구 실행은 기존 `실패`·`부분 성공` 회차를 되돌리거나 덮어쓰지 않고 새 실행·스냅샷으로 기록하며 원래 회차와의 관계를 남긴다. 실패 공고만 재실행하는 경우에도 새 호출과 계측을 남기고, 회차 전체를 재실행하는 경우에도 기존 원문·판정·리뷰를 보존한다.
-5. 재실행 후 화면에서 새 상태와 누락 건수를 다시 확인한다. 결정적 검증에 실패한 결과는 성공 결과로 바꾸지 않으며, 정본 결과를 만들 수 없으면 `실패`, 일부 검증된 결과만 남으면 `부분 성공`으로 유지한다.
-
-## 백업과 복구
-
-초기 보존 기간은 제한하지 않는다. 매일 생성되는 `data/runs`의 일간 회차 디렉터리와 그 안의 원문·정규화·판정·실패 목록·경고·계측 기록, SQLite, 수동 첨부 디렉터리, `reports`, 활성·과거 정책 버전을 같은 시점의 묶음으로 정기 백업한다. 정책은 저장할 때 새 불변 버전을 만들므로 새 정책 버전이 누락되지 않게 함께 보관한다. SQLite는 실행 중 파일 복사 대신 SQLite 백업 API 또는 서비스를 중지한 뒤 복사해야 한다. Docker named volume을 사용할 때는 볼륨 내부 DB와 첨부를 모두 포함한다.
-
-복구 검증은 운영본이 아닌 별도 경로에서 수행한다.
-
-1. 백업을 빈 데이터 경로에 복원한다.
-2. 복원 경로를 `BIDOPS_DATA_DIR`과 프로젝트 루트 설정으로 가리킨다.
-3. API를 기동해 회차 수, 임의 리뷰, 수동 첨부 다운로드, 정책 버전을 확인한다.
-4. YAML 내보내기를 실행하고 DB 리뷰와 건수를 대조한다.
-
-일간 회차가 쌓이는 주기에 맞춰 최소 하루 한 번, 해당 회차의 적재와 보고서 생성이 끝난 뒤 백업한다. 실제 저장 용량·백업 소요 시간·복구 목표를 측정한 뒤 보존 기간, 외부 보관 위치와 전체·증분 방식은 사내 운영 환경에 맞춰 확정한다.
-
-## 장애 확인
-
-| 증상 | 확인과 조치 |
+| 증상 | 확인 |
 |---|---|
-| 화면은 503, API health는 정상 | `web/frontend`에서 `npm run build` 후 `dist/index.html` 존재를 확인한다. |
-| 회차가 비어 있음 | `python -m app.ingest.cli --all` 실행 여부와 `data/runs` 위치를 확인한다. |
-| 수집 건수가 값 없음 | `collected-notices.json` 부재 여부를 확인한다. 필요하면 API 키로 수집한다. |
-| 첨부 업로드 거부 | HWP/HWPX/PDF, 50MB 이하인지 확인한다. 우회 확장자로 바꾸지 않는다. |
-| Docker 파일 삭제 불가 | 호스트 UID/GID를 `.env`에 설정하고 컨테이너를 재생성한다. |
-| 8787 포트 충돌 | 백엔드 포트를 바꾸고 개발 모드라면 Vite 프록시 대상도 함께 바꾼다. |
+| web 시작 실패 | `docker compose logs web`; DB head/empty 상태, mount UID/GID, required dirs 확인 |
+| migration 거부 | 서비스가 정말 중지됐는지, 실제 backup manifest path/digest/fingerprint와 `BIDOPS_CONFIRM_SERVICE_STOPPED=true` 확인 |
+| verify 실패 | backup을 보존하고 자동 restore하지 말 것; 별도 복사본에서 검사 |
+| queue가 멈춤 | execution heartbeat/stop/stale recovery와 Ollama exact model/digest 확인; 새 실행을 임의로 중복 생성하지 말 것 |
+| 스케줄이 없음 | scheduler env cap와 DB always-on switch를 각각 확인; 두 값 모두 true여야 callback이 실제로 동작 |
+| 화면이 비어 있음 | health가 아니라 `data/runs`/DB 적재와 API response를 확인; startup이 seed/migrate하지 않는 것이 정상 |

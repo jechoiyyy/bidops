@@ -1,78 +1,79 @@
-# 시스템 구성
+# BidOps 아키텍처
 
-## 목표 토폴로지
+이 문서는 현재 구현된 T14 통합 경계를 설명한다. BidOps는 공고를 수집하고 근거가 연결된 판단 초안을 만드는 의사결정 지원 도구다. 입찰 제출, 발주기관 연락, 최종 Go/No-Go, 알림·SSO, 첨부 심층 검토를 수행하지 않는다. OpenAI 폴백도 없다.
 
-BidOps는 수집·정규화처럼 재현성이 필요한 단계와 문서 해석처럼 언어모델이 필요한 단계를 분리한다.
+관련 계약은 [에이전트 런타임](./agent-runtime.md), [스케줄링](./scheduling.md), [모델 품질 게이트](./model-quality-gate.md), [외부 인터페이스 계약](./contracts.md), [운영 절차](./operations.md), [구현·검증 표준](./standards.md)에 있다.
+
+## 경계와 소유권
 
 ```text
-[매일 정해진 시각]
-스케줄러(웹 컨테이너 내부)
-    │
-    ├─→ 수집·정규화·표본 스크립트  ←── 나라장터 공개 API(입찰공고·사전규격)
-    │       └─→ 버전이 있는 회차 산출물
-    │
-    ├─→ 판정 오케스트레이터
-    │       │   입력: 회차 산출물 + 회사 프로필 + 정책 저장소의 불변 버전
-    │       ├─→ 모델 호출기 ─→ 사내 Ollama `qwen3.8:27b`
-    │       └─→ 결정적 검증기
-    │               ├─→ 통과: 판정 결과
-    │               └─→ 실패: 병합 입력에서 제외 ─→ 사람 검토 대기
-    │
-    └─→ 보고서 렌더러 ─→ 일간 브리핑 · 주간 누계
+skills/* (수집·표본·병합·보고 파일 계약)
+        │ subprocess / UTF-8 JSON·YAML
+        ▼
+FastAPI API ── SQLAlchemy/SQLite ── Alembic migrations
+        │                         │
+        │                         ├─ immutable policy/profile/gate bindings
+        │                         └─ queue, attempts, schedules, audit
+        ▼
+Runtime worker ── Ollama (qwen3.8:27b, think=false)
+        │
+        ├─ screening-input / decisions / failures / telemetry
+        └─ deterministic merge → derived run (full run only)
 
-[첨부 경로 · 심층 검토 단계]
-기관 조달시스템 ─→ 링크 안내/수동 업로드 ─→ 첨부 보관소
-    └─→ HWP→HWPX 변환·문서 구조화 ─→ 심층 검토 오케스트레이터
-            └─→ 모델 호출기 ─→ 결정적 검증기 ─→ 심층 검토 초안
-
-[저장과 화면]
-판정 결과 · 심층 검토 초안 · 계측 기록 ─→ SQLite
-    └─→ FastAPI REST API ─→ React 관리 화면
-            └─→ 담당자 검토·수정·실제 결과·UX 피드백
+APScheduler (Asia/Seoul clock only) ── durable reservation ── same queue
 ```
 
-OpenAI는 로컬 Qwen 결과가 검증을 통과하지 못하고 사용자가 해당 공고 또는 회차의 외부 전송을 명시적으로 승인한 경우에만 선택 가능한 보조 경로다. 검증 실패 자체가 외부 전송을 시작하지 않으며, 승인하지 않으면 사람 검토 대기 상태로 남는다.
+- `skills/bidops-collect`, `skills/bidops-screen`, `skills/bidops-report`는 파일 계약을 소유한다. 웹 계층은 스킬 내부 함수를 import하지 않고 subprocess와 파일을 통해 호출한다.
+- `web/backend/app`은 API, DB 상태, 대기열·워커, 결정적 검증·병합, 산출물 경로를 소유한다. 프론트엔드는 API만 사용하며 DB·`data/runs`·첨부 루트를 직접 읽지 않는다.
+- APScheduler는 시계를 깨우고 고정된 기간을 예약하는 경계다. 판정 단계나 모델 호출을 소유하지 않는다. 수동·CLI·품질 게이트·스케줄 트리거는 모두 같은 DB FIFO로 들어간다.
+- SQLite가 상태의 정본이다. 애플리케이션 시작은 `init_db()`로 현재 Alembic revision만 읽어 확인한다. 마이그레이션과 정책 seed는 운영자가 별도 명령으로 실행한다.
 
-## 구성요소와 의존 방향
+## 데이터 흐름
 
-| 구성요소 | 역할 | 의존 방향과 경계 |
-|---|---|---|
-| 스케줄러 | 웹 컨테이너 안에서 매일 회차를 깨우고 수집·판정·보고서 생성 작업을 순서대로 시작 | 기존 스크립트와 웹 작업 실행 경계를 호출한다. 호스트 cron이나 별도 워커 컨테이너를 사용하지 않으며, 중복 회차를 시작하거나 메일·메신저 알림과 최종 참여 결정을 실행하지 않는다. |
-| `skills/bidops-collect` | 공개 API 원문 보존, 정규화, 고재현율 후보화, 검증 표본 선정 | 나라장터 API와 회사 실적 제목 자료를 읽고 버전 산출물을 쓴다. 웹 DB나 LLM을 참조하지 않는다. |
-| 판정 오케스트레이터 | 판정 대상 목록과 정책 버전을 고정하고, 1차·심층 판정의 입력 구성·단계 실행·실패 분리·결과 전달을 조정 | 스케줄러와 파일 계약으로 연결된 회차 산출물, 첨부 구조화 문서, 회사 프로필, 정책 저장소를 읽고 모델 호출기와 결정적 검증기를 조정한다. 원문 보관소·DB에 직접 쓰거나 검증을 우회하지 않으며, 등급·준비 상태·최종 참여 결정을 임의로 확정하지 않는다. |
-| `skills/bidops-screen` | 1차 판정 구조와 다섯 관점 검증 | 검증 표본과 회사 프로필을 입력으로 받고 판정 JSON을 만든다. 수집 원문이나 UI 상태를 직접 수정하지 않는다. |
-| `skills/bidops-report` | 판정 결과를 HTML과 피드백 양식으로 표시 | 완성된 결과만 읽는 결정적 렌더러다. 등급을 생성하거나 보정하지 않는다. |
-| 첨부 획득·변환 계층 | 기관 포털 안내, 수동 업로드, HWP의 HWPX 변환, 텍스트·표·이미지 위치 보존 | 파일 보관소에서 읽고 구조화 문서 묶음을 쓴다. 원본은 수정하지 않으며 HWP 처리 시 변환된 HWPX가 분석 정본이다. |
-| 모델 호출기 | 판정 오케스트레이터의 단계별 입력을 사내 Ollama의 `qwen3.8:27b`에 전달하고 원시 응답과 호출 계측을 반환 | 오케스트레이터가 만든 입력만 받아 `think=false`로 호출한다. 원문 보관소·DB에 직접 쓰거나 결과를 보정하지 않으며, 회차별 외부 전송 승인 없이 OpenAI를 호출하지 않는다. |
-| 결정적 검증기 | 요구사항 ID·금액·기간·배점·인용 위치·필수 절·자격 모순 검사 | 모델 JSON과 구조화 원문을 비교한다. 실패 결과를 자동 수정하거나 통과시키지 않는다. |
-| 정책 저장소 | 다섯 관점의 판정 기준과 프롬프트를 불변 버전으로 저장하고 회차에 적용할 버전을 제공 | 관리되는 정책 입력을 새 버전으로만 저장하고 오케스트레이터가 읽을 버전을 제공한다. 활성 버전을 제자리에서 수정하거나 완료 회차의 정책 참조를 바꾸지 않으며, 모델·수집 원문·리뷰 결과를 저장하지 않는다. |
-| `web/backend` | 산출물 적재, SQLite 정본, API, 파일 처리, 작업 실행과 감사 이벤트 | 스크립트는 서브프로세스 또는 파일 계약으로만 호출한다. 프론트엔드에 REST 응답을 제공한다. |
-| `web/frontend` | 검토 대기열, 근거·경고 표시, 사용자 입력, 운영 화면 | REST API만 호출한다. 파일 경로나 DB를 직접 다루지 않는다. |
-| SQLite·첨부 저장소 | 회차, 공고, 판정, 리뷰, 분석 초안, 정책 버전, 피드백과 파일 메타데이터 보관 | DB가 사용자 리뷰의 정본이다. 원문 첨부와 대형 산출물은 파일로 보관하고 DB에는 경로·해시·상태를 둔다. |
+1. 수집기가 `data/runs/<run_id>/collected-notices.json`과 원문·경고를 만든다. 표본기는 별도로 `validation-set.json`을 만들며, 정기 판정 전체 입력을 표본으로 줄이지 않는다.
+2. 오케스트레이터가 공고·기간·정책·프롬프트·프로필 식별자를 동결하여 `data/screening-executions/<execution_id>/screening-input.json`을 만든다. 스냅샷은 `bidops.screening-input.v1`이다.
+3. 실행 행은 모델·정책·프롬프트·프로필 버전과 digest, 입력 digest, artifact 디렉터리를 함께 저장한다. 워커는 호출 직전에 이 바인딩과 Ollama 모델 digest를 다시 확인한다.
+4. 워커는 한 번에 하나의 execution만 claim한다. 공고별 성공 판정은 `screening-decisions.json`(`bidops.decisions.v3`), 실패는 `screening-failures.json`(`bidops.screening-failures.v1`), 호출 계측은 `screening-telemetry.jsonl`(`bidops.screening-telemetry.v1`)로 기록한다.
+5. 모든 공고가 성공한 full run만 새 파생 회차 디렉터리 `data/runs/<source.name>--screen-<UTC YYYYmmddHHMMSS>-<8hex>/`에 발행한다. 원 회차·원문·리뷰·파일은 수정하지 않는다. 일부 성공은 `부분 성공`으로 남고 실패 공고를 조용히 정본에 넣지 않는다. single notice와 quality sample은 experiment artifact로만 남는다.
 
-## 대표 흐름
+## 불변 바인딩
 
-1. 스케줄러가 매일 회차를 시작하면 실행 시점의 정책 저장소 불변 버전을 회차에 고정하고, 수집기는 공개 API 원문을 보존해 정규화 공고·규칙 필터 통과 후보·감사 표본을 생성한다. 같은 회차의 중복 시작은 데이터베이스 유일 제약으로 막는다.
-2. 판정 오케스트레이터는 규칙 필터를 통과한 후보를 전량 판정 대상으로 만들고, 고정된 정책 버전과 회사 프로필을 입력에 묶는다. 다섯 관점의 모델 호출 결과를 구조화 JSON으로 만들고, 결정적 병합 검증을 거친다. 등급이 `우선 검토`인 공고는 심층 검토 후보가 된다.
-3. 첨부가 있으면 파일을 보관소에 고정하고 해시를 기록한다. 첨부가 없으면 기관 포털 검색 주소와 수동 업로드 작업을 대기열에 만든다.
-4. HWP는 헤드리스 변환기로 HWPX로 바꾸고 샘플을 한컴 결과와 대조한다. 이미 HWPX인 파일은 그대로 정본으로 삼으며, 원본과 변환본을 함께 보존한다.
-5. 문서 구조화 계층은 문단·표·요구사항 ID·페이지/절 위치를 보존한 분석 입력을 만든다. 모델 호출기는 이를 받아 `think=false`로 단계별 결과를 생성하고 성공·실패와 무관하게 트레이스·스팬 구조의 계측 값을 남긴다. 자격, 요구사항, 평가, 위험을 한 번에 자유서술하지 않는다.
-6. 검증기는 원문과 결과를 대조한다. 통과한 초안만 저장 계층을 거쳐 담당자에게 심층 리포트로 표시하고, 실패 결과는 병합 입력에서 제외해 별도 실패 목록과 부분 산출물 경고로 남긴다. 외부 보조 분석이 필요하더라도 공고·회차별 담당자 외부 전송 승인이 없으면 원문·회사 프로필·분석 결과를 전송하지 않는다.
-7. 스케줄러가 같은 회차의 보고서 생성을 이어서 실행하면 `skills/bidops-report`가 일간 브리핑 또는 주간 누계 보고서를 렌더링한다. 담당자는 관리 화면에서 이름을 입력하고 등급 수정, 근거 부족, 심층 리포트 품질, 실제 입찰 결과, UX 불편을 기록한다. 이 피드백은 변경 제안의 근거가 되지만 정책·프로필·프롬프트를 자동 변경하지 않는다.
+### 회사 프로필
 
-## 경계를 넘는 데이터
+정식 경로는 `docs/reference/company-profile.md`다. 이 파일은 이 작업에서 수정하지 않는다. `current`는 실행 시점 working-tree bytes를 SHA-256으로 저장하고 `web/data/profile-snapshots/<sha256>.md`에 복사한다. 버전은 `company-profile.sha256:<64hex>`다.
 
-- 나라장터 경계에서는 공개 공고 데이터와 첨부 URL만 들어오며 API 키는 요청 자격으로만 사용되고 산출물로 나가지 않는다.
-- 기관 포털 경계에서는 검색 주소 안내까지만 자동화한다. 시스템이 기관 사이트 인증을 우회하거나 자동 다운로드하지 않는다.
-- Ollama 경계에는 구조화 문서와 필요한 회사 프로필 절만 전달한다. 로컬 사내망 밖으로 나가지 않는 것이 기본 전제다.
-- OpenAI 경계에는 사용자가 승인한 공고의 최소 필요 문서만 전송한다. 승인 기록 없이 원문·회사 프로필·분석 결과를 외부로 보내지 않는다.
-- 브라우저 경계에는 API 응답과 다운로드 스트림만 나간다. 서버의 실제 저장 경로와 API 키는 응답에 포함하지 않는다.
+비교용 `git:<40hex>`는 승인된 commit `ee621835db934ddac944f7a07a986ed0b73ecc7a`의 정식 경로만 허용한다. Git이 있으면 blob을 읽고 vendored baseline과 일치하는지 확인한다. Git executable/repository가 없을 때만 `web/backend/app/screening/baseline_company_profile.md`를 사용하며, 허용 digest `a231ab54c36031a7e72779bbca550f70561dc0c946dc5544eeb930c7c6149de2`와 일치해야 한다. mismatch는 성공 입력이 아니다.
 
-## 외부 의존성
+컨테이너의 `git` wrapper는 이 정확한 `git -C /app show ee621835db934ddac944f7a07a986ed0b73ecc7a:bidops-agent/docs/reference/company-profile.md` 요청을 vendored bytes로 응답하고 나머지는 실제 Git에 위임한다.
 
-- 공공데이터포털의 나라장터 입찰공고·사전규격 API: 수집 가용성과 승인 상태가 실전 데이터 범위를 결정한다.
-- 사전규격 API 권한: 구현 착수 전에 공공데이터포털 API 활용 권한을 신청한다. 권한이 승인되지 않은 동안에는 사전규격 수집 불가 상태를 회차에 기록하고 회차 전체를 실패시키지 않으며, 권한이 필요한 데이터는 확인되지 않은 값으로 보존한다.
-- 기관별 자체 조달시스템: 첨부 미제공 공고의 수동 획득 경로이며 시스템별 URL 형식이 다르다.
-- 사내 Ollama `192.168.0.139:11434`의 `qwen3.8:27b`: 모델 호출기가 `think=false`로 1차·심층 분석에 사용하는 기본 모델이다.
-- HWP→HWPX 헤드리스 변환기: 운영 기본 경로이며 한컴 변환 결과는 표본 품질 검증에 사용한다.
-- OpenAI API: 기본 비활성인 선택적 보조 분석 경로다.
+### 정책·프롬프트·모델
+
+정책 body와 prompt는 저장 시 새 immutable version을 만든다. 실행은 policy version, prompt version, model name/version·digest를 저장하며 완료 회차의 참조를 바꾸지 않는다. 기본 모델은 정확히 `qwen3.8:27b`다. Ollama `/api/tags`에서 실행 시 확인한 model digest(64 lowercase hex)가 실행에 묶인다. `think=false`, `stream=false`를 사용하며 BF16·OpenAI 대체 경로는 없다.
+
+정책 상태는 `draft`, `activation_candidate`, `active`이고 active는 최대 하나다. 기본 seed는 `policy seed-default --created-by system-bootstrap`을 운영자가 실행할 때만 만들어진다. 시작·migration·container entrypoint는 seed하지 않는다.
+
+### 품질 게이트
+
+게이트는 고정 40건으로 A/B 두 번을 독립 실행한다. 비교 목적은 역사적 Git 프로필만, 운영 승인 목적은 current snapshot만 허용한다. 게이트가 pass여도 정책 activation과 always-on을 자동 수행하지 않는다. 자세한 분리 규칙은 [모델 품질 게이트](./model-quality-gate.md)를 따른다.
+
+## 실행 슬롯과 상태
+
+`screening_execution.queue_no`가 모든 `cli_single`, `manual_run`, `quality_gate`, `schedule` 작업의 FIFO 순서를 정한다. SQLite `BEGIN IMMEDIATE` claim과 `active_slot=1` partial unique index가 마지막 경쟁을 막고, `BIDOPS_SCREEN_MAX_CONCURRENCY=1`은 고정이다. 실행 중 heartbeat가 기본 60초보다 오래되면 시작·claim 때 `중단됨`/`process_interrupted`로 회수하며 자동 재개하지 않는다.
+
+실행의 주요 상태는 `대기`, `실행 중`, `중지 요청`, `성공`, `부분 성공`, `실패`, `중단됨`이다. stop 요청은 대기 행을 즉시 중단하고 실행 중 행은 현재 blocking HTTP 호출이 끝난 뒤 중단한다. 성공 공고는 실패 공고와 분리해 보존하고, 중단 실행은 발행하지 않는다. 상세한 7-span 및 재시도 규칙은 [에이전트 런타임](./agent-runtime.md)에 있다.
+
+## 스케줄과 상시 운영
+
+APScheduler 3.11 계열은 in-process clock이다. 시간대는 `Asia/Seoul`, 초기 기본 시각은 daily `02:00`, weekly Monday `06:00`이다. durable `schedule_reservation`이 기간별 승자를 한 번만 정하고, duplicate reservation은 `건너뜀` 실행과 audit를 남긴다. 재기동 catch-up은 예약 누락 기간만 오래된 순서로 보충하며 기존 실패·부분 성공을 자동 재시도하지 않는다.
+
+스케줄러 등록은 `BIDOPS_SCHEDULER_ENABLED=true`일 때만 한다. worker는 이 값과 관계없이 시작한다. 상시 운영은 환경 cap, DB `always_on_state.enabled`, active policy, 최신 passing `operational_approval`의 정확한 model/profile/current binding을 모두 만족해야 한다. 환경·DB 스위치는 기본 false다. T14/T15는 operator direction 없이 activation이나 always-on을 수행하지 않는다. [스케줄링](./scheduling.md)에 catch-up·복구·감사 규칙을 정리했다.
+
+## 저장·보안 경계
+
+- SQLite는 WAL과 foreign keys를 켠다. 현재 head는 `0004_migration_audit`이며 앱은 자동 migrate하지 않는다. backup manifest를 보존한 명시적 migrate와 `db-verify`를 운영자가 수행한다.
+- artifact 경로는 알려진 파일명, symlink 거부, root escape 검사를 통과해야 한다. API는 내부 저장 경로를 조합하게 하지 않고 허용된 artifact endpoint만 노출한다.
+- `.env`, API key, Ollama credential, 원문 첨부와 run data를 image·Git에 넣지 않는다. web container는 root로 실행하지 않고 UID/GID bind mount 권한을 검사한다.
+- 모델 prompt/response body는 오류·audit/log에 기록하지 않는다. telemetry에는 trace/span과 호출 메타데이터만 둔다.
+- health는 `GET /api/health`의 내부 lightweight 응답이며 Ollama나 외부 수집 API를 확인하지 않는다.
+
+운영자의 중지→backup→명시적 migrate→verify→seed→web health→단 한 번의 live smoke 순서는 [운영 절차](./operations.md)에 고정되어 있다.
