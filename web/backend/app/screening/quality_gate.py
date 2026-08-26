@@ -265,13 +265,9 @@ class _IdentityIssuer(NamedTuple):
     """
 
     lookup_fn: Callable[[Any], tuple[Any, str] | None]
-    transition_fn: Callable[[Any, str, str], Any | None]
 
     def entry(self, value: Any) -> tuple[Any, str] | None:
         return self.lookup_fn(value)
-
-    def transition(self, value: Any, *, expected: str, replacement: str) -> Any | None:
-        return self.transition_fn(value, expected, replacement)
 
 
 class _IssuerRecord(NamedTuple):
@@ -372,24 +368,7 @@ def _make_identity_issuer(
             tag = verifier.sign(payload_fn(value, facts, state, generation))
             entries[key] = _IssuerRecord(reference, facts, state, generation, tag)
 
-    def transition(value: Any, expected: str, replacement: str) -> Any | None:
-        key = id(value)
-        with lock:
-            registered = entries.get(key)
-            if registered is None or not valid(value, registered):
-                if registered is not None:
-                    entries.pop(key, None)
-                return None
-            if registered.state != expected:
-                return None
-            generation = registered.generation + 1
-            tag = verifier.sign(payload_fn(value, registered.facts, replacement, generation))
-            entries[key] = _IssuerRecord(
-                registered.reference, registered.facts, replacement, generation, tag
-            )
-            return registered.facts
-
-    return _IdentityIssuer(entry, transition), register
+    return _IdentityIssuer(entry), register
 
 
 class _SnapshotFacts(NamedTuple):

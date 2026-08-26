@@ -861,6 +861,101 @@ def test_quality_binding_outer_rollback_releases_and_commit_consumes(tmp_path: P
         session.rollback()
 
 
+@pytest.mark.parametrize("abandonment", ["close", "invalidate", "exception"])
+def test_quality_binding_session_abandonment_releases_and_allows_retry(tmp_path: Path, abandonment: str):
+    settings, engine, factory, _run_dir, canonical_run_id = _canonical_service_fixture(tmp_path)
+    snapshot = quality_gate_module._read_strict_fixed_snapshot(tmp_path)
+    binding = _make_quality_sample_binding(
+        canonical_run_id,
+        source_token=snapshot,
+        capability=_QUALITY_BINDING_FACTORY_CAPABILITY,
+    )
+    model = type(
+        "GoodModel",
+        (),
+        {"inspect_model": lambda _self: ModelIdentity(MODEL_NAME, "c" * 64)},
+    )()
+    creator = ScreeningOrchestrator(settings, session_factory=factory, ollama=model, clock=lambda: NOW)
+    store = ArtifactStore(settings.bidops_root)
+    with factory() as session:
+        abandoned = creator.prepare_execution(
+            session,
+            run_id=canonical_run_id,
+            policy_version="policy-1",
+            profile_source="current",
+            requested_by="tester",
+            scope="quality_sample",
+            trigger="quality_gate",
+            _quality_binding=binding,
+        )
+        assert _binding_registry_state(binding) == "reserved"
+        if abandonment == "close":
+            session.close()
+        elif abandonment == "invalidate":
+            session.invalidate()
+        else:
+            with pytest.raises(RuntimeError):
+                raise RuntimeError("caller abandoned transaction")
+    assert _binding_registry_state(binding) == "issued"
+    store.remove_execution(abandoned.workspace)
+    abandoned.workspace.close()
+    with Session(engine) as session:
+        assert session.scalars(select(ScreeningExecution)).all() == []
+
+    with factory() as session:
+        retried = creator.prepare_execution(
+            session,
+            run_id=canonical_run_id,
+            policy_version="policy-1",
+            profile_source="current",
+            requested_by="tester",
+            scope="quality_sample",
+            trigger="quality_gate",
+            _quality_binding=binding,
+        )
+        session.commit()
+        retried.workspace.close()
+        assert _binding_registry_state(binding) == "used"
+    with Session(engine) as session:
+        assert len(session.scalars(select(ScreeningExecution)).all()) == 1
+    with factory() as session:
+        with pytest.raises(ScreeningCreationError):
+            creator.prepare_execution(
+                session,
+                run_id=canonical_run_id,
+                policy_version="policy-1",
+                profile_source="current",
+                requested_by="tester",
+                scope="quality_sample",
+                trigger="quality_gate",
+                _quality_binding=binding,
+            )
+        session.rollback()
+
+
+def test_quality_binding_issuer_exposes_only_hardcoded_one_shot_ops(tmp_path: Path):
+    _settings, _engine, _factory, _run_dir, canonical_run_id = _canonical_service_fixture(tmp_path)
+    assert not hasattr(orchestrator_module._BINDING_ISSUER, "transition")
+    with pytest.raises(AttributeError):
+        getattr(orchestrator_module._BINDING_ISSUER, "transition")
+    snapshot = quality_gate_module._read_strict_fixed_snapshot(tmp_path)
+    binding = _make_quality_sample_binding(
+        canonical_run_id,
+        source_token=snapshot,
+        capability=_QUALITY_BINDING_FACTORY_CAPABILITY,
+    )
+    issuer = orchestrator_module._BINDING_ISSUER
+    assert issuer.reserve(binding) is not None
+    assert _binding_registry_state(binding) == "reserved"
+    assert issuer.finalize(binding) is not None
+    assert _binding_registry_state(binding) == "used"
+    assert issuer.release(binding) is None
+    assert issuer.reserve(binding) is None
+    assert _binding_registry_state(binding) == "used"
+    with pytest.raises(ScreeningCreationError):
+        _consume_quality_binding(binding, canonical_run_id, tmp_path)
+
+
 def test_quality_binding_nested_savepoint_lifecycle_is_transaction_aware(tmp_path: Path):
     settings, engine, factory, _run_dir, canonical_run_id = _canonical_service_fixture(tmp_path)
     snapshot = quality_gate_module._read_strict_fixed_snapshot(tmp_path)
