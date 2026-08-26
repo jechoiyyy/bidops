@@ -123,7 +123,7 @@ snapshot 목록은 `created_at` 내림차순, 같은 시각에는 `digest` 내�
 | `data/runs/<derived>/screening-replacement-provenance.json` | 실행·source 관계 | full run 파생 publish |
 | `data/runs/<run_id>/review-feedback.yaml` | `bidops.feedback.v2` | 사람이 읽는 export/DB 정본 호환 |
 
-`screening-input.v1`은 `schema_version`, `run_id`, `generated_at`, `source_window{from,to,timezone}`, `candidate_count`, `notices[]`를 갖는다. notice는 normalized fields와 `judgment_mode`(`신규|재판정|승계`), 승계의 `carry_over_from`, 재판정의 `rejudge_reason`을 가진다. 신규/재판정은 일곱 span 대상, 승계는 모델 호출 없음이다.
+`screening-input.v1`은 `schema_version`, `execution_id`, `run_id`, `generated_at`, `source_window{from,to,timezone}`, `prompt_version`, `policy_version`, `company_profile_version`, `company_profile_digest`, `candidate_count`, `notices[]`를 갖는다. notice는 normalized fields와 `judgment_mode`(`신규|재판정|승계`), 승계의 `carry_over_from`, 재판정의 `rejudge_reason`을 가진다. 신규/재판정은 일곱 span 대상, 승계는 모델 호출 없음이다.
 
 | 필드 | 계약·검증 |
 |---|---|
@@ -173,7 +173,7 @@ v3의 grade는 `우선 검토|검토 권장|관찰 대상|제외`, readiness는 
 
 ### 실패·병합·계측 파일
 
-`screening-failures.json`은 `bidops.screening-failures.v1`, `run_id`, `generated_at`, `failures[]`다. failure item은 `notice_id`, `failed_stage`(다섯 관점/반론 검토/종합 판정/병합·검증), `failure_type`(`timeout|truncated_output|schema_violation|evidence_missing|counterargument_repetition`), `last_attempt_at`, `retry_count`, status=`사람 검토 대기`, `failure_context`(승계 검증이면 `carried_over_validation`), optional trace/span, safe `error_summary`다. 승계 검증 실패는 새 failure type을 만들지 않고 `schema_violation`+`carried_over_validation`으로 기록한다. 실패 공고는 decisions와 merge input에서 제외한다.
+`screening-failures.json`은 `schema_version=bidops.screening-failures.v1`, `execution_id`, `run_id`, `generated_at`, `failure_count`, `failures[]`다. failure item은 `notice_id`, `failed_stage`(다섯 관점/반론 검토/종합 판정/병합·검증), `failure_type`(`timeout|truncated_output|schema_violation|evidence_missing|counterargument_repetition`), `last_attempt_at`, `retry_count`, status=`사람 검토 대기`, `failure_context`(승계 검증이면 `carried_over_validation`), optional trace/span, safe `error_summary`다. 승계 검증 실패는 새 failure type을 만들지 않고 `schema_violation`+`carried_over_validation`으로 기록한다. 실패 공고는 decisions와 merge input에서 제외한다.
 
 | 필드 | 허용 값·의미 |
 |---|---|
@@ -185,11 +185,11 @@ v3의 grade는 `우선 검토|검토 권장|관찰 대상|제외`, readiness는 
 | `trace_id`, `span_id` | model 호출 실패에는 연결자를 남기고 병합·검증 실패에는 `null`일 수 있음 |
 | `error_summary` | 안전한 분류만 저장하며 원문·prompt·profile·secret을 포함하지 않음 |
 
-`screening-telemetry.jsonl`은 한 line에 `schema_version`, `trace_id`, `span_id`, `parent_span_id`, `run_id`, `notice_id`, `stage`, `attempt`, `status`, `done_reason`, Ollama token/duration fields, model name/version, prompt/policy version, `recorded_at`을 저장한다. 공고 하나의 trace 아래 다섯 perspective·counterargument·synthesis span과 재시도 span을 남긴다. 응답이 없거나 측정하지 못한 수치에는 0을 넣지 않고 null/unknown을 보존하며 prompt/response body·비밀은 기록하지 않는다.
+`screening-telemetry.jsonl`은 실제 artifact line마다 정확히 `schema_version`, `execution_id`, `trace_id`, `span_id`, `notice_id`, `stage`, `attempt_no`, `status`, `failure_type`, `done_reason`, `model_name`, `model_digest`, `prompt_eval_count`, `eval_count`, `prompt_eval_duration_ns`, `eval_duration_ns`, `load_duration_ns`, `total_duration_ns`, `started_at`, `finished_at`을 저장한다. `parent_span_id`, `run_id`, `prompt_version`, `policy_version`, `recorded_at`은 이 JSONL의 필드가 아니며 실행/DB binding에서 추적한다. 공고 하나의 trace 아래 다섯 perspective·counterargument·synthesis span과 재시도 span을 남긴다. 응답이 없거나 측정하지 못한 수치에는 0을 넣지 않고 null을 보존하며 prompt/response body·비밀은 기록하지 않는다.
 
-telemetry의 `stage`는 다섯 관점, `counterargument`, `synthesis` 중 호출 단계이고 `attempt` 최초 값은 1이다. `status`는 `success|failure`이며 Ollama가 반환한 token/duration 수치를 재계산하지 않는다. 승계에는 model-call span을 만들지 않고, 재시도는 같은 trace 아래 앞선 실패 span을 삭제하지 않은 채 새 span으로 기록한다. 이 파일은 관측 정본이지 grade/readiness의 정본이 아니다.
+telemetry의 `stage`는 다섯 관점, `counterargument`, `synthesis` 중 호출 단계이고 `attempt_no` 최초 값은 1이다. `status`는 `success|failure`이며 Ollama가 반환한 token/duration 수치를 재계산하지 않는다. 승계에는 model-call span을 만들지 않고, 재시도는 같은 trace 아래 앞선 실패 span을 삭제하지 않은 채 새 span으로 기록한다. 이 파일은 관측 정본이지 grade/readiness의 정본이 아니다.
 
-v3 merge의 허용 조합은 `screening-input.v1 + decisions.v3 → bidops.screening.v3`뿐이며, 과거 호환은 `validation-set.v2 + decisions.v2 → bidops.screening.v2`다. 다른 세대 조합은 중단한다. v3 top-level은 `schema_version`, `run_id`, `generated_at`, `screening_basis`, `source_window`, `candidate_count`, `result_count`, `partial_artifact`, `failure_count`, `failure_artifact`, `results[]`다. `partial_artifact`는 성공 subset과 failure artifact가 함께 있을 때 true이며, 모든 후보가 검증되면 false·failure_count 0·failure_artifact null이다. 전역 merge/validation 실패를 성공 산출물로 만들지 않는다. full-run 파생 publish는 `screening-replacement-provenance.json`으로 source/execution 관계를 기록하고 원 run/review/file을 수정하지 않는다.
+v3 merge의 허용 조합은 `screening-input.v1 + decisions.v3 → bidops.screening.v3`뿐이며, 과거 호환은 `validation-set.v2 + decisions.v2 → bidops.screening.v2`다. 다른 세대 조합은 중단한다. 현재 v3 top-level은 `schema_version`, `execution_id`, `generated_at`, `screening_basis`, `source_window`, `model_name`, `model_digest`, `prompt_version`, `policy_version`, `company_profile_version`, `company_profile_digest`, `candidate_count`, `result_count`, `partial_artifact`, `failure_count`, `failure_artifact`, `results[]`다. `partial_artifact`는 성공 subset과 failure artifact가 함께 있을 때 true이며, 모든 후보가 검증되면 false·failure_count 0·failure_artifact null이다. 전역 merge/validation 실패를 성공 산출물로 만들지 않는다. full-run 파생 publish는 `screening-replacement-provenance.json`으로 source/execution 관계를 기록하고 원 run/review/file을 수정하지 않는다.
 
 ### 정책 JSON `bidops.screening-policy.v1`
 
