@@ -24,6 +24,7 @@ from app import main
 from app.config import Settings, get_settings
 from app.db import ALEMBIC_HEAD, SessionLocal, current_revision, ensure_database_current
 from app.models import (
+    AgencyPortal,
     AlwaysOnState,
     CompanyProfileSnapshot,
     Run,
@@ -115,6 +116,51 @@ def test_migrated_database_is_at_head_before_lifespan() -> None:
 
     assert os.environ.get("BIDOPS_DATABASE_URL", "").startswith("sqlite:///")
     assert current_revision() == ALEMBIC_HEAD
+
+
+def test_full_lifespan_does_not_seed_portals_and_portal_api_is_explicit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A head DB stays empty until an operator calls the portal API."""
+
+    transport = FakeOllamaTransport()
+    _patch_ollama(monkeypatch, transport)
+    portal_id: int | None = None
+
+    try:
+        with TestClient(main.app) as client:
+            with SessionLocal() as session:
+                assert session.scalar(select(func.count()).select_from(AgencyPortal)) == 0
+
+            created = client.post(
+                "/api/portals",
+                json={
+                    "agency_pattern": "T14 기관",
+                    "system_name": "T14 조달",
+                    "search_url_template": "https://example.invalid/search?q={query}",
+                    "enabled": True,
+                    "note": "explicit test fixture",
+                },
+            )
+            assert created.status_code == 201, created.text
+            portal_id = created.json()["id"]
+
+            with SessionLocal() as session:
+                assert session.scalar(select(func.count()).select_from(AgencyPortal)) == 1
+
+        # A second complete lifespan does not reseed or duplicate the explicit row.
+        with TestClient(main.app) as client:
+            listed = client.get("/api/portals")
+            assert listed.status_code == 200
+            assert [item["id"] for item in listed.json()] == [portal_id]
+            with SessionLocal() as session:
+                assert session.scalar(select(func.count()).select_from(AgencyPortal)) == 1
+    finally:
+        # Keep the shared fresh runner database clean for later tests.
+        if portal_id is not None:
+            with SessionLocal() as session:
+                session.query(AgencyPortal).filter(AgencyPortal.id == portal_id).delete()
+                session.commit()
 
 
 def test_lifespan_rejects_stale_unversioned_database(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

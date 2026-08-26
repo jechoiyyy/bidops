@@ -107,7 +107,6 @@ def test_repeated_lifespans_replace_and_clear_runtime_pipeline_service(monkeypat
             self.stopped = True
 
     monkeypatch.setattr("app.main.init_db", lambda: None)
-    monkeypatch.setattr("app.main.seed_default_portals", lambda session: None)
     application = FastAPI(lifespan=lifespan)
     application.state.runtime_factory = FakeRuntime
     # The lifespan intentionally sees an injected runtime and therefore does
