@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import stat
+import threading
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -135,18 +136,77 @@ def _open_artifact_fd(row: ScreeningExecution, filename: str) -> tuple[int, int]
         return None
 
 
-def _stream_fd(descriptor: int):  # type: ignore[no-untyped-def]
+class _ArtifactFdOwner:
+    """Own one validated descriptor and close it exactly once.
+
+    The lock is held across ``read`` so cancellation cleanup cannot close and
+    allow the integer descriptor to be reused while a worker-thread read is
+    still in flight.  Both the iterator and response call ``close``; the
+    owner makes that pair idempotent and is the only code that calls
+    ``os.close`` for the artifact descriptor.
+    """
+
+    def __init__(self, descriptor: int) -> None:
+        self._descriptor: int | None = descriptor
+        self._lock = threading.Lock()
+
+    def read(self) -> bytes:
+        with self._lock:
+            if self._descriptor is None:
+                return b""
+            return os.read(self._descriptor, 1024 * 1024)
+
+    def close(self) -> None:
+        with self._lock:
+            descriptor = self._descriptor
+            self._descriptor = None
+            if descriptor is None:
+                return
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
+
+    @property
+    def descriptor(self) -> int | None:
+        with self._lock:
+            return self._descriptor
+
+
+def _stream_fd(owner: _ArtifactFdOwner):  # type: ignore[no-untyped-def]
     try:
         while True:
-            chunk = os.read(descriptor, 1024 * 1024)
+            chunk = owner.read()
             if not chunk:
                 break
             yield chunk
     finally:
+        owner.close()
+
+
+class _ArtifactFdResponse(StreamingResponse):
+    """Stream a validated artifact while owning cleanup for the whole call."""
+
+    def __init__(self, owner: _ArtifactFdOwner, size: int, media_type: str) -> None:
+        self._owner = owner
         try:
-            os.close(descriptor)
-        except OSError:
-            pass
+            super().__init__(
+                _stream_fd(owner),
+                media_type=media_type,
+                headers={"Content-Length": str(size)},
+            )
+        except BaseException:
+            owner.close()
+            raise
+
+    async def __call__(self, scope, receive, send):  # type: ignore[no-untyped-def]
+        try:
+            await super().__call__(scope, receive, send)
+        finally:
+            # This covers normal completion, disconnect/send errors,
+            # cancellation, and iterator read errors.  The owner also closes
+            # from the iterator's finally, but duplicate close is harmless.
+            self._owner.close()
 
 
 def _artifact_urls(row: ScreeningExecution) -> ScreeningArtifactUrls:
@@ -253,10 +313,11 @@ def _failure_items(row: ScreeningExecution) -> list[ScreeningFailureItem]:
     if opened is None:
         return []
     descriptor, _size = opened
+    owner = _ArtifactFdOwner(descriptor)
     try:
         raw = b""
         while True:
-            chunk = os.read(descriptor, 1024 * 1024)
+            chunk = owner.read()
             if not chunk:
                 break
             raw += chunk
@@ -271,10 +332,7 @@ def _failure_items(row: ScreeningExecution) -> list[ScreeningFailureItem]:
         # operator to diagnose it, subject to the same path checks.
         return []
     finally:
-        try:
-            os.close(descriptor)
-        except OSError:
-            pass
+        owner.close()
 
 
 def execution_detail(
@@ -374,11 +432,12 @@ def get_artifact(
     if opened is None:
         raise HTTPException(status_code=404, detail="판정 산출물을 찾을 수 없습니다.")
     descriptor, size = opened
-    return StreamingResponse(
-        _stream_fd(descriptor),
-        media_type=media_type,
-        headers={"Content-Length": str(size)},
-    )
+    owner = _ArtifactFdOwner(descriptor)
+    try:
+        return _ArtifactFdResponse(owner, size, media_type)
+    except BaseException:
+        owner.close()
+        raise
 
 
 __all__ = ["execution_detail", "execution_response", "router"]
