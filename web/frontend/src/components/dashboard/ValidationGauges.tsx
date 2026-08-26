@@ -73,14 +73,17 @@ function gaugeWidth(metric: ValidationMetric): number {
 export function ValidationGauges({ metrics }: ValidationGaugesProps) {
   const rows = orderedMetrics(metrics);
   const failed = rows.filter((metric) => metric.status === "fail").length;
+  const panelAction = rows.length === 0
+    ? <span className="panel-note">검증 기준 없음</span>
+    : failed > 0
+      ? <Badge label={`${formatNumber(rows.length)}개 중 ${formatNumber(failed)}개 미달`} variant="alert" />
+      : <span className="panel-note">{formatNumber(rows.length)}개 항목 모두 통과</span>;
 
   return (
     <Panel
       className="dashboard-validation-panel"
       title="검증 통과 기준"
-      action={failed > 0
-        ? <Badge label={`${formatNumber(rows.length)}개 중 ${formatNumber(failed)}개 미달`} variant="alert" />
-        : <span className="panel-note">{formatNumber(rows.length)}개 항목 모두 통과</span>}
+      action={panelAction}
     >
       <div className="dashboard-validation-list">
         {rows.length === 0 ? (

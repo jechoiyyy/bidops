@@ -11,6 +11,7 @@ import { VerificationRequests } from "../components/dashboard/VerificationReques
 import { api } from "../lib/api";
 import { formatNumber } from "../lib/format";
 import type { DeadlineNotice, RunStatsResponse, ValidationMetric } from "../lib/types";
+import "../styles/dashboard-relaxed.css";
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "대시보드 데이터를 확인할 수 없습니다.";
@@ -172,8 +173,8 @@ export function DashboardPage() {
         />
         <KpiCard
           label="1차 필터 누락"
-          value={<><span>{formatNumber(stats.audit_missed_count)}</span><span className="dashboard-kpi-fraction"> / {auditSampleCount > 0 ? `${formatNumber(auditSampleCount)}건` : "표본 미확인"}</span></>}
-          description="감사 표본에서 비제외 판정 건수"
+          value={<><span>{formatNumber(stats.audit_missed_count)}</span><span className="dashboard-kpi-fraction"> / {formatNumber(auditSampleCount)}건</span></>}
+          description={auditSampleCount === 0 ? "감사 표본 0건 기준 · 누락도 0건" : "감사 표본에서 비제외 판정 건수"}
         />
       </section>
 
