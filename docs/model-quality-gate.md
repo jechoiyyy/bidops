@@ -15,6 +15,12 @@
 
 두 pass는 frozen generation configuration도 공유해야 한다. 기본값은 context 16384, perspective/counterargument 2048, synthesis 4096, `think=false`, `stream=false`이며 canonical compact UTF-8 JSON의 SHA-256 digest를 gate와 evaluation에 저장한다. A/B config 또는 digest가 다르면 gate 생성·평가·통과·activation 전에 거부한다. 이 T15 구현은 아직 live 재검증 전이며 기존 Phase 1 synthesis truncation 실패 evidence를 변경하지 않는다.
 
+Gate JSON 자체도 shared canonical parser와 digest로 검증한다. persisted JSON이
+tamper되거나 evaluation/pass execution과 불일치하면 activation/always-on을
+변경하지 않고 fail closed한다. API 응답은 `generation_config`와 digest를
+함께 반환하며 요청으로 이 값을 주입하는 경로는 없다. legacy all-2048 digest는
+새 scheduled/manual recovery 승인의 우회로가 아니다.
+
 ## 목적과 프로필 분리
 
 | 목적 (`purpose`) | 프로필 source | 의미 | activation 사용 |

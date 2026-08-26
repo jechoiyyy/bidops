@@ -28,6 +28,7 @@ from ..schemas import (
     ScreeningStopRequest,
 )
 from ..screening.execution_store import ScreeningExecutionStore
+from ..screening.generation_config import GenerationConfigError, config_from_value, validate_digest
 from ..screening.queue import (
     ExecutionConflict,
     ExecutionNotFound,
@@ -54,6 +55,21 @@ _PUBLIC_STAGES = {
     "merge",
     "publish",
 }
+
+
+def _generation_binding_response(row: ScreeningExecution) -> tuple[dict, str]:
+    """Validate persisted generation JSON before exposing it over REST."""
+
+    try:
+        config = config_from_value(row.generation_config_json)
+        digest = validate_digest(config, row.generation_config_digest)
+        if row.generation_config_json != config.canonical_value():
+            raise GenerationConfigError("generation config is not canonical")
+    except (GenerationConfigError, TypeError, ValueError, AttributeError):
+        # A malformed persisted binding is a server/data integrity failure;
+        # never replace it with an empty object or a caller-supplied default.
+        raise HTTPException(status_code=500, detail="스크리닝 generation config 상태를 읽을 수 없습니다.") from None
+    return config.canonical_value(), digest
 
 
 def _artifact_file(row: ScreeningExecution, filename: str) -> Path | None:
@@ -245,6 +261,7 @@ def execution_response(
     current_stage: str | None = row.current_stage
     if current_stage not in _PUBLIC_STAGES:
         current_stage = None
+    generation_config, generation_digest = _generation_binding_response(row)
     return ScreeningExecutionResponse.model_validate(
         {
             "queue_no": row.queue_no,
@@ -261,7 +278,8 @@ def execution_response(
             "model_digest": row.model_digest,
             "company_profile_version": row.company_profile_version,
             "company_profile_digest": row.company_profile_digest,
-            "generation_config_digest": row.generation_config_digest,
+            "generation_config": generation_config,
+            "generation_config_digest": generation_digest,
             "input_artifact_digest": row.input_artifact_digest,
             "queued_at": row.queued_at,
             "started_at": row.started_at,
