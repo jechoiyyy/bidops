@@ -17,6 +17,7 @@ from app.db import Base, get_db
 from app.models import CompanyProfileSnapshot, Run, ScreeningExecution, ScreeningPolicy
 from app.routers.profile import router as profile_router
 from app.routers.screening import router as screening_router
+from app.screening.generation_config import GenerationConfig
 
 
 def _app(tmp_path: Path) -> tuple[FastAPI, str]:
@@ -83,6 +84,8 @@ def _app(tmp_path: Path) -> tuple[FastAPI, str]:
                 model_digest=digest,
                 company_profile_version=f"company-profile.sha256:{digest}",
                 company_profile_digest=digest,
+                generation_config_json=GenerationConfig().canonical_value(),
+                generation_config_digest=GenerationConfig().digest(),
                 input_artifact_path=f"data/screening-executions/{execution_id}/screening-input.json",
                 input_artifact_digest=digest,
                 artifact_dir=f"data/screening-executions/{execution_id}",
@@ -115,11 +118,14 @@ def test_screening_and_profile_metadata_contracts(tmp_path: Path) -> None:
             "queue_no", "execution_id", "trigger", "source_run_id", "scope", "notice_id",
             "status", "requested_by", "policy_version", "prompt_version", "model_name",
             "model_digest", "company_profile_version", "company_profile_digest",
+            "generation_config", "generation_config_digest",
             "input_artifact_digest", "queued_at", "started_at", "finished_at", "heartbeat_at",
             "stop_requested_at", "stop_requested_by", "stop_reason", "candidate_count",
             "completed_count", "failure_count", "published_run_id", "error_summary",
             "queue_position", "current_notice_id", "current_stage", "result_urls",
         }
+        assert item["generation_config"] == GenerationConfig().canonical_value()
+        assert item["generation_config_digest"] == GenerationConfig().digest()
         snapshots = client.get("/api/profile/snapshots")
         assert snapshots.status_code == 200
         assert set(snapshots.json()["items"][0]) == {

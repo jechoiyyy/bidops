@@ -8,11 +8,13 @@ import sys
 import time
 
 import pytest
-from sqlalchemy import create_engine, select, update
+from sqlalchemy import create_engine, event, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models import AuditEvent, CompanyProfileSnapshot, Run, ScreeningExecution, ScreeningPolicy
+from app.db import _json_serializer
+from app.screening.generation_config import register_sqlite_functions
 from app.screening.execution_store import ScreeningExecutionStore
 from app.screening.queue import INTERRUPTED
 from test_screening_queue import DIGEST, NOW, PROFILE_VERSION, enqueue, make_store
@@ -162,7 +164,11 @@ def test_actual_alembic_database_claim_stop_recovery_and_constraints(tmp_path):
     engine = create_engine(
         f"sqlite:///{database}",
         connect_args={"check_same_thread": False, "timeout": 5},
+        json_serializer=_json_serializer,
     )
+    # Reproduce the application/Alembic SQLite connection contract on this
+    # independently-created engine before ORM writes exercise the triggers.
+    event.listen(engine, "connect", lambda dbapi_connection, _record: register_sqlite_functions(dbapi_connection))
     with Session(engine) as session:
         session.add(Run(id="run-1", timezone="Asia/Seoul", generated_at=NOW, status="active"))
         session.add(

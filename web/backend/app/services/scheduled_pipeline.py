@@ -290,7 +290,7 @@ class ScheduledPipeline:
             if screening_execution_id:
                 from ..models import ScreeningExecution
 
-                if session.get(ScreeningExecution, screening_execution_id) is not None:
+                if session.scalar(select(ScreeningExecution).where(ScreeningExecution.execution_id == screening_execution_id)) is not None:
                     row.screening_execution_id = screening_execution_id
             row.candidate_count = candidate_count if candidate_count is not None else row.candidate_count
             row.result_count = result_count if result_count is not None else row.result_count

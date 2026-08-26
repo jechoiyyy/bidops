@@ -10,7 +10,8 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from app.db import Base
-from app.models import AuditEvent, QualityGate, QualityGateEvaluation, ScreeningPolicy
+from app.models import AuditEvent, QualityGate, QualityGateEvaluation, ScreeningExecution, ScreeningPolicy
+from app.screening.generation_config import GenerationConfig
 from app.screening.policy import (
     PolicyActivationError,
     PolicyConflict,
@@ -88,7 +89,39 @@ def test_seed_private_path_helper_fails_closed_on_modified_seed(tmp_path: Path):
 
 def _gate(session: Session, policy: ScreeningPolicy, *, result: str = "통과", revision: int = 1, suffix: str = "a"):
     now = datetime.now(timezone.utc)
+    generation_config = GenerationConfig()
+    generation_value = generation_config.canonical_value()
+    generation_digest = generation_config.digest()
     gate_id = "gate-" + suffix * 32
+    pass_a_id = "scr-" + suffix * 30 + "1" * 2
+    pass_b_id = "scr-" + suffix * 30 + "2" * 2
+    pass_rows = [
+        ScreeningExecution(
+            execution_id=execution_id,
+            trigger="quality_gate",
+            source_run_id="baseline",
+            scope="quality_sample",
+            status="성공",
+            requested_by="operator",
+            policy_version=policy.policy_version,
+            prompt_version=policy.prompt_version,
+            model_name="model",
+            model_digest="c" * 64,
+            company_profile_version="company-profile.sha256:" + "d" * 64,
+            company_profile_digest="d" * 64,
+            generation_config_json=generation_value,
+            generation_config_digest=generation_digest,
+            input_artifact_path=f"data/screening-executions/{execution_id}/screening-input.json",
+            input_artifact_digest="e" * 64,
+            artifact_dir=f"data/screening-executions/{execution_id}",
+            queued_at=now,
+            finished_at=now,
+            candidate_count=0,
+            completed_count=0,
+            failure_count=0,
+        )
+        for execution_id in (pass_a_id, pass_b_id)
+    ]
     gate = QualityGate(
         gate_id=gate_id,
         purpose="operational_approval",
@@ -105,8 +138,10 @@ def _gate(session: Session, policy: ScreeningPolicy, *, result: str = "통과", 
         model_digest="c" * 64,
         company_profile_version="company-profile.sha256:" + "d" * 64,
         company_profile_digest="d" * 64,
-        pass_a_execution_id="scr-" + suffix * 30 + "1" * 2,
-        pass_b_execution_id="scr-" + suffix * 30 + "2" * 2,
+        generation_config_json=generation_value,
+        generation_config_digest=generation_digest,
+        pass_a_execution_id=pass_a_id,
+        pass_b_execution_id=pass_b_id,
         created_at=now,
         completed_at=now,
         metrics_json={},
@@ -122,14 +157,15 @@ def _gate(session: Session, policy: ScreeningPolicy, *, result: str = "통과", 
         reasons_json=[],
         valid_review_count=10,
         distinct_notice_review_count=10,
+        generation_config_digest=generation_digest,
         created_at=now,
     )
-    session.add_all([gate, evaluation])
+    session.add_all([*pass_rows, gate, evaluation])
     return evaluation.evaluation_id
 
 
 def test_activation_requires_gate_and_audits_old_active_demotion():
-    session = session_for(ScreeningPolicy, AuditEvent, QualityGate, QualityGateEvaluation)
+    session = session_for(ScreeningPolicy, AuditEvent, QualityGate, QualityGateEvaluation, ScreeningExecution)
     repo = PolicyRepository(session)
     first_body = {**load_policy_file(), "policy_version": "z-policy"}
     first = repo.create(first_body, created_by="operator")

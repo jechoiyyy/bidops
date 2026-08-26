@@ -577,8 +577,8 @@ class PolicyRepository:
             if evaluation_config.canonical_value() != gate_config.canonical_value():
                 raise PolicyActivationError("quality gate evaluation generation config mismatch")
         passes = [
-            self.session.get(ScreeningExecution, gate.pass_a_execution_id),
-            self.session.get(ScreeningExecution, gate.pass_b_execution_id),
+            self.session.scalar(select(ScreeningExecution).where(ScreeningExecution.execution_id == execution_id))
+            for execution_id in (gate.pass_a_execution_id, gate.pass_b_execution_id)
         ]
         if any(
             execution is None

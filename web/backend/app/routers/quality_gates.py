@@ -138,8 +138,8 @@ def _gate_response(session: Session, gate: QualityGate) -> QualityGateResponse:
 
 
 def _maybe_refresh(gate: QualityGate, session: Session) -> None:
-    a = session.get(ScreeningExecution, gate.pass_a_execution_id)
-    b = session.get(ScreeningExecution, gate.pass_b_execution_id)
+    a = session.scalar(select(ScreeningExecution).where(ScreeningExecution.execution_id == gate.pass_a_execution_id))
+    b = session.scalar(select(ScreeningExecution).where(ScreeningExecution.execution_id == gate.pass_b_execution_id))
     if a is None or b is None:
         raise HTTPException(status_code=500, detail="품질 게이트 실행을 찾을 수 없습니다.")
     execution_status = (
@@ -171,8 +171,8 @@ def _maybe_refresh(gate: QualityGate, session: Session) -> None:
 def _detail(session: Session, gate: QualityGate) -> QualityGateDetailResponse:
     _maybe_refresh(gate, session)
     session.refresh(gate)
-    pass_a = session.get(ScreeningExecution, gate.pass_a_execution_id)
-    pass_b = session.get(ScreeningExecution, gate.pass_b_execution_id)
+    pass_a = session.scalar(select(ScreeningExecution).where(ScreeningExecution.execution_id == gate.pass_a_execution_id))
+    pass_b = session.scalar(select(ScreeningExecution).where(ScreeningExecution.execution_id == gate.pass_b_execution_id))
     if pass_a is None or pass_b is None:
         raise HTTPException(status_code=500, detail="품질 게이트 실행을 찾을 수 없습니다.")
     generation_config, generation_digest = _generation_binding_response(gate)
@@ -344,7 +344,7 @@ def get_quality_gate(
 
 
 def _pass_a_digest(session: Session, gate: QualityGate, notice_id: str) -> str | None:
-    execution = session.get(ScreeningExecution, gate.pass_a_execution_id)
+    execution = session.scalar(select(ScreeningExecution).where(ScreeningExecution.execution_id == gate.pass_a_execution_id))
     if execution is None or execution.status not in {"성공", "부분 성공"}:
         return None
     try:

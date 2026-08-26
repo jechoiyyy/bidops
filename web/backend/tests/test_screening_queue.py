@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.db import Base
 from app.models import CompanyProfileSnapshot, Notice, Run, ScreeningExecution, ScreeningPolicy
 from app.screening.execution_store import ScreeningExecutionStore
+from app.screening.generation_config import GenerationConfig
 from app.screening.queue import ExecutionConflict, QueueValidationError
 
 
@@ -80,6 +81,8 @@ def enqueue(store, *, n=0, scope="full_run", trigger="manual_run", **extra):
         model_digest=DIGEST,
         company_profile_version=PROFILE_VERSION,
         company_profile_digest=DIGEST,
+        generation_config=GenerationConfig().canonical_value(),
+        generation_config_digest=GenerationConfig().digest(),
         input_artifact_path=f"runs/input-{n}.json",
         input_artifact_digest=DIGEST,
         artifact_dir=f"runs/execution-{n}",

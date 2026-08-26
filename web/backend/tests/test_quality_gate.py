@@ -18,6 +18,7 @@ from app.screening.contracts import MODEL_NAME, ModelIdentity
 from app.screening.orchestrator import CreatedExecution, ScreeningCreationError, ScreeningOrchestrator
 from app.screening.policy import load_policy_file, policy_content_digest
 from app.screening.profile_snapshot import BASELINE_COMMIT
+from app.screening.generation_config import legacy_generation_config
 from app.screening.quality_metrics import judgment_digest
 from app.screening.quality_gate import (
     FIXED_BASELINE_RELATIVE,
@@ -267,6 +268,12 @@ def test_production_transaction_preparer_publishes_two_fifo_rows_atomically(tmp_
 
 def _completed_gate_fixture(root: Path):
     settings, engine, factory = _service_fixture(root)
+    # This fixture intentionally models a pre-binding v3 artifact: the
+    # artifact JSON omits generation fields, so the persisted execution and
+    # gate must carry the deterministic legacy binding.
+    legacy_config = legacy_generation_config()
+    legacy_value = legacy_config.canonical_value()
+    legacy_digest = legacy_config.digest()
     from tests.test_quality_metrics import judgment
 
     store = ArtifactStore(root)
@@ -304,6 +311,7 @@ def _completed_gate_fixture(root: Path):
             execution_id=execution_id, trigger="quality_gate", source_run_id=FIXED_RUN_ID, scope="quality_sample", status="성공",
             requested_by="tester", policy_version="policy-1", prompt_version="prompt-1", model_name=MODEL_NAME,
             model_digest=DIGEST, company_profile_version=PROFILE_VERSION, company_profile_digest=DIGEST,
+            generation_config_json=legacy_value, generation_config_digest=legacy_digest,
             input_artifact_path=input_path, input_artifact_digest=input_digest, artifact_dir=f"data/screening-executions/{execution_id}",
             queued_at=NOW, finished_at=NOW, candidate_count=40, completed_count=40, failure_count=0,
         ))
@@ -317,13 +325,15 @@ def _completed_gate_fixture(root: Path):
             baseline_run_id=FIXED_RUN_ID, sample_artifact_path=FIXED_SAMPLE_RELATIVE, sample_artifact_digest=hashlib.sha256(sample_raw).hexdigest(),
             baseline_decisions_path=FIXED_BASELINE_RELATIVE, baseline_decisions_digest=hashlib.sha256(baseline_raw).hexdigest(),
             policy_version="policy-1", prompt_version="prompt-1", model_name=MODEL_NAME, model_digest=DIGEST,
+            generation_config_json=legacy_value, generation_config_digest=legacy_digest,
             company_profile_version=PROFILE_VERSION, company_profile_digest=DIGEST,
             pass_a_execution_id=execution_rows[0].execution_id, pass_b_execution_id=execution_rows[1].execution_id,
             created_at=NOW, metrics_json={}, reasons_json=[], created_by="tester",
         ))
         session.add(QualityGateEvaluation(
             evaluation_id="gateeval-" + "f" * 32, gate_id=gate_id, revision=1, result_status="미측정",
-            metrics_json={}, reasons_json=["execution_pending"], valid_review_count=0, distinct_notice_review_count=0, created_at=NOW,
+            metrics_json={}, reasons_json=["execution_pending"], valid_review_count=0, distinct_notice_review_count=0,
+            generation_config_digest=legacy_digest, created_at=NOW,
         ))
         session.commit()
     return settings, engine, factory, gate_id, judgments_a
