@@ -1,4 +1,7 @@
-# 1단계: 프론트엔드 빌드
+# syntax=docker/dockerfile:1
+
+# Keep the frontend build isolated from the runtime image. npm ci consumes the
+# committed lockfile, so a build cannot silently resolve another dependency tree.
 FROM node:22-alpine AS frontend
 
 WORKDIR /build
@@ -7,29 +10,69 @@ RUN npm ci
 COPY web/frontend/ ./
 RUN npm run build
 
-# 2단계: 백엔드 실행 이미지
+# Build-time UID/GID defaults match .env.example and may be changed to the host
+# account. The image never creates an operating database, .env, API key, or run
+# data.
 FROM python:3.12-slim AS runtime
 
-# 파이프라인 단계는 skills/ 아래 스크립트를 python3 서브프로세스로 실행한다.
-# 해당 스크립트는 표준 라이브러리만 사용하므로 추가 의존성이 필요하지 않다.
+ARG BIDOPS_UID=1000
+ARG BIDOPS_GID=1000
+
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    BIDOPS_ROOT=/app
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    BIDOPS_ROOT=/app \
+    BIDOPS_DATA_DIR=/app/web/data \
+    BIDOPS_ATTACHMENTS_DIR=/app/web/data/attachments \
+    BIDOPS_DATABASE_URL=sqlite:////app/web/data/bidops.db \
+    BIDOPS_OLLAMA_BASE_URL=http://127.0.0.1:11434 \
+    BIDOPS_SCHEDULER_ENABLED=false
 
 WORKDIR /app/web/backend
 COPY web/backend/requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+RUN python -m pip install --no-cache-dir --requirement requirements.txt
+
+# Refuse root as a build-time application identity and create a stable runtime
+# account. Compose may set the same numeric IDs to match the host account.
+RUN case "$BIDOPS_UID:$BIDOPS_GID" in \
+        0:*|*:0) echo 'BIDOPS_UID and BIDOPS_GID must be non-zero' >&2; exit 1 ;; \
+        *[!0-9:]*|*:|:*) echo 'BIDOPS_UID and BIDOPS_GID must be numeric' >&2; exit 1 ;; \
+    esac \
+    && groupadd --gid "$BIDOPS_GID" bidops \
+    && useradd --uid "$BIDOPS_UID" --gid "$BIDOPS_GID" --create-home --shell /usr/sbin/nologin bidops
 
 COPY web/backend/ ./
 COPY --from=frontend /build/dist /app/web/frontend/dist
 
-# 데이터베이스와 첨부 원문이 쌓이는 위치. compose 에서 볼륨으로 덮어쓴다.
-# 호스트 사용자로 실행할 수 있도록 쓰기 권한을 열어 둔다.
-RUN mkdir -p /app/web/data && chmod 777 /app/web/data
+# Bundle the immutable execution contract as a fallback for docker run.
+# Compose overlays these directories read-only from the checked-out project.
+# Only runtime reference material is copied; company profile/source documents
+# stay out of the image.
+COPY skills/ /app/skills/
+COPY docs/reference/company-performance-titles.tsv /app/docs/reference/company-performance-titles.tsv
+COPY skills/references/ /app/skills/references/
+COPY web/container-entrypoint.sh /usr/local/bin/bidops-entrypoint
+COPY web/container-ops.sh /usr/local/bin/bidops-ops
+
+# Data, report, and backup roots are group-writable, not world-writable. The
+# named DB volume inherits these permissions on first use.
+RUN install -d -o bidops -g bidops -m 0770 \
+        /app/data /app/reports /app/backups /app/web/data \
+        /app/web/data/attachments /app/web/data/profile-snapshots \
+    && chmod 0555 /usr/local/bin/bidops-entrypoint /usr/local/bin/bidops-ops \
+    && chown -R root:root /app/skills /app/docs \
+    && find /app/skills /app/docs -type d -exec chmod 0555 {} + \
+    && find /app/skills /app/docs -type f -exec chmod 0444 {} + \
+    && chown -R bidops:bidops /app/web/backend /app/web/frontend/dist
+
+USER bidops:bidops
 
 EXPOSE 8787
 
-HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8787/api/health').read()"
+# Python's standard library HTTP client is present in every supported runtime;
+# health does not contact Ollama or any external API.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD python -c "import urllib.request; response=urllib.request.urlopen('http://127.0.0.1:8787/api/health', timeout=3); raise SystemExit(0 if response.status == 200 else 1)"
 
+ENTRYPOINT ["/usr/local/bin/bidops-entrypoint"]
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8787"]
