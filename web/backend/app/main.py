@@ -12,7 +12,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.staticfiles import StaticFiles
 
 from .config import get_settings
-from .db import SessionLocal, get_db, init_db
+from .db import get_db, init_db
 from .routers.attachments import router as attachments_router
 from .routers.metrics import router as metrics_router
 from .routers.notices import router as notices_router
@@ -26,7 +26,6 @@ from .routers.runs import router as runs_router
 from .routers.schedule import router as schedule_router
 from .routers.screening import router as screening_router
 from .runtime import ApplicationRuntime
-from .services.attachments import seed_default_portals
 
 
 @asynccontextmanager
@@ -42,8 +41,6 @@ async def lifespan(_app: FastAPI):
     using_test_db = get_db in _app.dependency_overrides and not callable(injected_runtime_factory)
     if not using_test_db:
         init_db()
-        with SessionLocal() as session:
-            seed_default_portals(session)
 
     runtime = injected_runtime_factory() if callable(injected_runtime_factory) else (
         None if using_test_db else ApplicationRuntime()
