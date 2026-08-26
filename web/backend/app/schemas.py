@@ -594,6 +594,33 @@ def _validate_profile_binding(version: str, digest: str) -> None:
         raise ValueError("company profile version and digest must match")
 
 
+def _validate_generation_binding(
+    value: dict[str, Any] | None,
+    digest: str | None,
+    *,
+    required: bool = False,
+) -> dict[str, Any] | None:
+    """Require response config/digest pairs to be canonical and identical."""
+
+    if value is None or digest is None:
+        if required:
+            raise ValueError("generation config and digest are required")
+        if value is not None or digest is not None:
+            raise ValueError("generation config metadata must be provided as a pair")
+        return None
+    try:
+        from .screening.generation_config import config_from_value, validate_digest
+
+        config = config_from_value(value)
+        validate_digest(config, digest)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("generation config and digest do not match") from exc
+    canonical = config.canonical_value()
+    if value != canonical:
+        raise ValueError("generation config must be canonical")
+    return canonical
+
+
 AwareDateTime = Annotated[datetime, AfterValidator(_require_aware)]
 Actor = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=128)]
 NonEmpty = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
@@ -693,7 +720,8 @@ class ScreeningExecutionResponse(RuntimeContractModel):
     model_digest: Digest
     company_profile_version: CompanyProfileVersion
     company_profile_digest: Digest
-    generation_config_digest: Digest | None = None
+    generation_config: dict[str, Any]
+    generation_config_digest: Digest
     input_artifact_digest: Digest
     queued_at: AwareDateTime
     started_at: AwareDateTime | None = None
@@ -715,6 +743,7 @@ class ScreeningExecutionResponse(RuntimeContractModel):
     @model_validator(mode="after")
     def validate_scope_and_state(self) -> "ScreeningExecutionResponse":
         _validate_profile_binding(self.company_profile_version, self.company_profile_digest)
+        _validate_generation_binding(self.generation_config, self.generation_config_digest, required=True)
         if self.scope == "single_notice" and self.notice_id is None:
             raise ValueError("single_notice execution requires notice_id")
         if self.scope != "single_notice" and self.notice_id is not None:
@@ -870,8 +899,14 @@ class QualityGateEvaluationResponse(RuntimeContractModel):
     reasons: list[NonEmpty] = Field(default_factory=list)
     valid_review_count: int = Field(ge=0)
     distinct_notice_review_count: int = Field(ge=0)
-    generation_config_digest: Digest | None = None
+    generation_config: dict[str, Any]
+    generation_config_digest: Digest
     created_at: AwareDateTime
+
+    @model_validator(mode="after")
+    def validate_generation(self) -> "QualityGateEvaluationResponse":
+        _validate_generation_binding(self.generation_config, self.generation_config_digest, required=True)
+        return self
 
 
 class QualityGateReviewResponse(RuntimeContractModel):
@@ -907,7 +942,8 @@ class QualityGateResponse(RuntimeContractModel):
     model_digest: Digest
     company_profile_version: CompanyProfileVersion
     company_profile_digest: Digest
-    generation_config_digest: Digest | None = None
+    generation_config: dict[str, Any]
+    generation_config_digest: Digest
     pass_a_execution_id: ScreeningExecutionId
     pass_b_execution_id: ScreeningExecutionId
     created_by: Actor
@@ -920,6 +956,7 @@ class QualityGateResponse(RuntimeContractModel):
     @model_validator(mode="after")
     def validate_execution_status(self) -> "QualityGateResponse":
         _validate_profile_binding(self.company_profile_version, self.company_profile_digest)
+        _validate_generation_binding(self.generation_config, self.generation_config_digest, required=True)
         terminal = {"완료", "실패", "중단됨"}
         if self.execution_status in terminal and self.completed_at is None:
             raise ValueError("terminal quality gate requires completed_at")
@@ -1102,6 +1139,7 @@ class ScheduleExecutionSummary(RuntimeContractModel):
     prompt_version: NonEmpty | None = None
     company_profile_version: CompanyProfileVersion | None = None
     company_profile_digest: Digest | None = None
+    generation_config: dict[str, Any] | None = None
     generation_config_digest: Digest | None = None
 
     @model_validator(mode="after")
@@ -1126,6 +1164,7 @@ class ScheduleExecutionSummary(RuntimeContractModel):
             raise ValueError("company profile metadata must be provided as a pair")
         if self.company_profile_version is not None and self.company_profile_digest is not None:
             _validate_profile_binding(self.company_profile_version, self.company_profile_digest)
+        _validate_generation_binding(self.generation_config, self.generation_config_digest)
         if self.status == "건너뜀" and self.skip_reason is None:
             raise ValueError("skipped schedule execution requires skip_reason")
         if self.status != "건너뜀" and self.skip_reason is not None:
@@ -1181,6 +1220,7 @@ class AlwaysOnSwitchResponse(RuntimeContractModel):
     prompt_version: NonEmpty | None = None
     company_profile_version: CompanyProfileVersion | None = None
     company_profile_digest: Digest | None = None
+    generation_config: dict[str, Any] | None = None
     generation_config_digest: Digest | None = None
     updated_at: AwareDateTime
     updated_by: Actor
@@ -1192,4 +1232,5 @@ class AlwaysOnSwitchResponse(RuntimeContractModel):
             raise ValueError("company profile metadata must be provided as a pair")
         if self.company_profile_version is not None and self.company_profile_digest is not None:
             _validate_profile_binding(self.company_profile_version, self.company_profile_digest)
+        _validate_generation_binding(self.generation_config, self.generation_config_digest)
         return self

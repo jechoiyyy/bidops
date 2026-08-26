@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from ..config import get_settings
 from ..db import get_db
-from ..models import AlwaysOnState, QualityGateEvaluation, ScheduleExecution, ScheduleReservation
+from ..models import AlwaysOnState, QualityGate, QualityGateEvaluation, ScheduleExecution, ScheduleReservation
 from ..schemas import (
     AlwaysOnSwitchResponse,
     AlwaysOnSwitchUpdateRequest,
@@ -28,6 +28,7 @@ from ..services.scheduler import (
     ScheduleGateError,
     SchedulerService,
 )
+from ..screening.generation_config import GenerationConfigError, config_from_value, validate_digest
 
 
 router = APIRouter(prefix="/api/schedule", tags=["schedule"])
@@ -48,7 +49,60 @@ def _run_key(window_from: date, window_to: date, job_kind: str) -> str:
     return f"weekly:{window_from:%Y%m%d}-{window_to:%Y%m%d}"
 
 
-def _summary(row: ScheduleExecution, reservation: ScheduleReservation) -> ScheduleExecutionSummary:
+def _generation_binding(
+    session: Session,
+    row: ScheduleExecution,
+    *,
+    evaluation: QualityGateEvaluation | None = None,
+) -> tuple[dict[str, Any] | None, str | None]:
+    """Resolve schedule config from the row or its immutable gate projection."""
+
+    value = getattr(row, "generation_config_json", None)
+    digest = row.generation_config_digest
+    if value is None and digest is not None:
+        gate_query = select(QualityGate).join(
+            QualityGateEvaluation, QualityGateEvaluation.gate_id == QualityGate.gate_id
+        )
+        if evaluation is not None:
+            gate_query = gate_query.where(QualityGateEvaluation.evaluation_id == evaluation.evaluation_id)
+        else:
+            gate_query = gate_query.where(QualityGate.generation_config_digest == digest)
+        gate = session.scalars(gate_query.order_by(QualityGate.created_at.desc())).first()
+        if gate is not None:
+            value = gate.generation_config_json
+    if value is None and digest is None:
+        return None, None
+    try:
+        config = config_from_value(value)
+        verified = validate_digest(config, digest)
+        if value != config.canonical_value():
+            raise GenerationConfigError("generation config is not canonical")
+    except (GenerationConfigError, TypeError, ValueError, AttributeError):
+        raise HTTPException(status_code=500, detail="예약 generation config 상태를 읽을 수 없습니다.") from None
+    return config.canonical_value(), verified
+
+
+def _summary(row: ScheduleExecution, reservation: ScheduleReservation, session: Session | None = None) -> ScheduleExecutionSummary:
+    if session is None:
+        # Keep direct service-level callers useful while still refusing to
+        # manufacture an empty config for a persisted digest.
+        value = getattr(row, "generation_config_json", None)
+        digest = row.generation_config_digest
+        if value is not None and digest is not None:
+            try:
+                config = config_from_value(value)
+                verified = validate_digest(config, digest)
+                if value != config.canonical_value():
+                    raise GenerationConfigError("generation config is not canonical")
+            except (GenerationConfigError, TypeError, ValueError, AttributeError):
+                raise HTTPException(status_code=500, detail="예약 generation config 상태를 읽을 수 없습니다.") from None
+            generation_config, generation_digest = config.canonical_value(), verified
+        elif value is None and digest is None:
+            generation_config = generation_digest = None
+        else:
+            raise HTTPException(status_code=500, detail="예약 generation config 상태를 읽을 수 없습니다.")
+    else:
+        generation_config, generation_digest = _generation_binding(session, row)
     return ScheduleExecutionSummary.model_validate(
         {
             "run_key": row.run_key,
@@ -76,7 +130,8 @@ def _summary(row: ScheduleExecution, reservation: ScheduleReservation) -> Schedu
             "prompt_version": row.prompt_version,
             "company_profile_version": row.company_profile_version,
             "company_profile_digest": row.company_profile_digest,
-            "generation_config_digest": row.generation_config_digest,
+            "generation_config": generation_config,
+            "generation_config_digest": generation_digest,
         }
     )
 
@@ -161,7 +216,7 @@ def create_schedule_execution(
             window_to=payload.window_to,
             timezone="Asia/Seoul",
         )
-    result = _summary(row, reservation)
+    result = _summary(row, reservation, session)
     _dispatch(request, row)
     return result
 
@@ -198,7 +253,7 @@ def list_schedule_executions(
         query.order_by(ScheduleReservation.window_from.desc(), ScheduleExecution.execution_id.desc()).offset(offset).limit(limit)
     ).all()
     return ScheduleExecutionListResponse(
-        items=[_summary(row, session.get(ScheduleReservation, row.run_key)) for row in rows],
+        items=[_summary(row, session.get(ScheduleReservation, row.run_key), session) for row in rows],
         total=total,
         limit=limit,
         offset=offset,
@@ -207,6 +262,27 @@ def list_schedule_executions(
 
 def _always_on_response(request: Request, session: Session, state: AlwaysOnState) -> AlwaysOnSwitchResponse:
     evaluation = session.get(QualityGateEvaluation, state.quality_gate_result_id) if state.quality_gate_result_id else None
+    generation_value = getattr(state, "generation_config_json", None)
+    generation_digest = state.generation_config_digest
+    if generation_value is None and evaluation is not None:
+        gate = session.get(QualityGate, evaluation.gate_id)
+        if gate is not None:
+            generation_value = gate.generation_config_json
+            if generation_digest is None:
+                generation_digest = gate.generation_config_digest
+            elif generation_digest != gate.generation_config_digest:
+                raise HTTPException(status_code=500, detail="상시 운영 generation config 바인딩이 손상되었습니다.")
+    if generation_value is None and generation_digest is None:
+        generation_config = None
+    else:
+        try:
+            config = config_from_value(generation_value)
+            generation_digest = validate_digest(config, generation_digest)
+            if generation_value != config.canonical_value():
+                raise GenerationConfigError("generation config is not canonical")
+            generation_config = config.canonical_value()
+        except (GenerationConfigError, TypeError, ValueError, AttributeError):
+            raise HTTPException(status_code=500, detail="상시 운영 generation config 상태를 읽을 수 없습니다.") from None
     effective = False
     rejection: str | None = None
     service = _service(request, session)
@@ -233,7 +309,8 @@ def _always_on_response(request: Request, session: Session, state: AlwaysOnState
             "prompt_version": state.prompt_version,
             "company_profile_version": state.company_profile_version,
             "company_profile_digest": state.company_profile_digest,
-            "generation_config_digest": state.generation_config_digest,
+            "generation_config": generation_config,
+            "generation_config_digest": generation_digest,
             "updated_at": state.updated_at,
             "updated_by": state.updated_by,
             "rejection_reason": rejection,

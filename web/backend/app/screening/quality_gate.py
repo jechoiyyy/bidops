@@ -174,6 +174,19 @@ def _canonical_pass_input(value: Mapping[str, Any]) -> str:
         raise QualityGateValidationError("quality pass input is invalid") from None
 
 
+def _validated_generation_binding(row: ScreeningExecution | QualityGate) -> tuple[Any, str]:
+    """Return canonical persisted config and its verified digest."""
+
+    try:
+        config = config_from_value(getattr(row, "generation_config_json", None))
+        digest = validate_digest(config, getattr(row, "generation_config_digest", None))
+    except (GenerationConfigError, TypeError, ValueError):
+        raise QualityGateValidationError("generation config binding is invalid") from None
+    if getattr(row, "generation_config_json", None) != config.canonical_value():
+        raise QualityGateValidationError("generation config is not canonical")
+    return config, digest
+
+
 def _input_matches_fixed_sample(value: Mapping[str, Any], sample: Mapping[str, Any], sample_ids: Sequence[str]) -> bool:
     notices = value.get("notices")
     expected = sample.get("notices")
@@ -201,9 +214,9 @@ def _input_binding_valid(
     *, expected_source_window: Mapping[str, Any] | None = None,
 ) -> bool:
     if set(value) == _INPUT_KEYS - {"generation_config", "generation_config_digest"}:
-        # Historical pre-0005 artifacts are accepted only when their migrated
-        # execution row carries the deterministic legacy digest. New rows and
-        # workers still require the explicit frozen fields in the artifact.
+        # Historical pre-binding artifacts remain readable for compatibility;
+        # the persisted execution row still supplies the deterministic legacy
+        # binding. New execution artifacts always carry explicit fields.
         legacy = legacy_generation_config()
         if execution.generation_config_digest != legacy.digest():
             return False
@@ -217,12 +230,13 @@ def _input_binding_valid(
     if value.get("company_profile_version") != execution.company_profile_version or value.get("company_profile_digest") != execution.company_profile_digest:
         return False
     try:
+        execution_config, execution_digest = _validated_generation_binding(execution)
         generation_config = config_from_value(value.get("generation_config"))
-        if validate_digest(generation_config, value.get("generation_config_digest")) != execution.generation_config_digest:
+        if validate_digest(generation_config, value.get("generation_config_digest")) != execution_digest:
             return False
-        if execution.generation_config_json != generation_config.canonical_value():
+        if execution_config.canonical_value() != generation_config.canonical_value():
             return False
-    except (GenerationConfigError, AttributeError):
+    except (GenerationConfigError, QualityGateValidationError, AttributeError):
         return False
     profile_digest = value.get("company_profile_digest")
     if not isinstance(profile_digest, str) or len(profile_digest) != 64 or any(char not in "0123456789abcdef" for char in profile_digest):
@@ -306,10 +320,10 @@ def _decisions_binding_issues(
         "generation_config": expected_input_config,
         "generation_config_digest": expected_input_digest or execution.generation_config_digest,
     }
+    top_reasons: list[str] = []
     if set(value) == {"schema_version", "execution_id", "run_id", "generated_at", "screening_basis", "model_name", "model_digest", "prompt_version", "policy_version", "company_profile_version", "company_profile_digest", "judgments"}:
         if execution.generation_config_digest == legacy.digest():
             value = {**value, "generation_config": legacy.canonical_value(), "generation_config_digest": legacy.digest()}
-    top_reasons: list[str] = []
     if set(value) != {"schema_version", "execution_id", "run_id", "generated_at", "screening_basis", "model_name", "model_digest", "prompt_version", "policy_version", "company_profile_version", "company_profile_digest", "generation_config", "generation_config_digest", "judgments"}:
         top_reasons.append("decisions_top_level_invalid")
     if value.get("schema_version") != "bidops.decisions.v3":
@@ -583,6 +597,11 @@ class QualityGateService:
                 profile = session.scalar(select(CompanyProfileSnapshot).where(CompanyProfileSnapshot.version == execution_a.company_profile_version))
                 if profile is None or profile.digest != execution_a.company_profile_digest:
                     raise QualityGateConflict("quality pass profile identity is invalid")
+                try:
+                    config_a, digest_a = _validated_generation_binding(execution_a)
+                    config_b, digest_b = _validated_generation_binding(execution_b)
+                except QualityGateValidationError:
+                    raise QualityGateConflict("quality pass generation config is invalid") from None
                 if (
                     execution_a.policy_version != policy_version
                     or execution_b.policy_version != policy_version
@@ -591,8 +610,8 @@ class QualityGateService:
                     or execution_a.model_digest != execution_b.model_digest
                     or execution_a.company_profile_version != execution_b.company_profile_version
                     or execution_a.company_profile_digest != execution_b.company_profile_digest
-                    or execution_a.generation_config_digest != execution_b.generation_config_digest
-                    or execution_a.generation_config_json != execution_b.generation_config_json
+                    or digest_a != digest_b
+                    or config_a.canonical_value() != config_b.canonical_value()
                     or execution_a.candidate_count != 40
                     or execution_b.candidate_count != 40
                 ):
@@ -605,19 +624,22 @@ class QualityGateService:
                     prompt_version=execution_a.prompt_version, model_name=execution_a.model_name,
                     model_digest=execution_a.model_digest, company_profile_version=execution_a.company_profile_version,
                     company_profile_digest=execution_a.company_profile_digest,
-                    generation_config_json=execution_a.generation_config_json,
-                    generation_config_digest=execution_a.generation_config_digest,
+                    generation_config_json=config_a.canonical_value(),
+                    generation_config_digest=digest_a,
                     pass_a_execution_id=first.execution_id, pass_b_execution_id=second.execution_id,
                     created_by=actor, created_at=now, completed_at=None, metrics_json=_initial_metrics(sample_ids),
                     reasons_json=["execution_pending"],
                 )
                 session.add(gate)
                 session.flush()
-                session.add(QualityGateEvaluation(
+                initial_evaluation = QualityGateEvaluation(
                     evaluation_id=_evaluation_id(), gate_id=gate_id, revision=1, result_status="미측정",
                     metrics_json=gate.metrics_json, reasons_json=["execution_pending"], valid_review_count=0,
-                    distinct_notice_review_count=0, generation_config_digest=gate.generation_config_digest, created_at=now,
-                ))
+                    distinct_notice_review_count=0, generation_config_digest=digest_a, created_at=now,
+                )
+                if hasattr(initial_evaluation, "generation_config_json"):
+                    initial_evaluation.generation_config_json = config_a.canonical_value()
+                session.add(initial_evaluation)
                 session.add(AuditEvent(
                     event_id="audit-" + uuid4().hex, event_type="quality_gate.created", actor=actor,
                     target_type="quality_gate", target_id=gate_id, occurred_at=now,
@@ -719,6 +741,8 @@ class QualityGateService:
             generation_config_digest=gate.generation_config_digest,
             created_at=_now(self.clock()),
         )
+        if hasattr(evaluation, "generation_config_json"):
+            evaluation.generation_config_json = gate.generation_config_json
         session.add(evaluation)
         gate.result_status = result_status
         gate.metrics_json = dict(metrics)
@@ -1070,10 +1094,18 @@ class QualityGateService:
         try:
             gate_config = config_from_value(gate.generation_config_json)
             validate_digest(gate_config, gate.generation_config_digest)
-        except (GenerationConfigError, AttributeError):
+        except (GenerationConfigError, AttributeError, TypeError, ValueError):
             raise QualityGateActivationError("generation config is invalid") from None
         if evaluation.generation_config_digest != gate.generation_config_digest:
             raise QualityGateActivationError("evaluation generation config does not match quality gate")
+        if hasattr(evaluation, "generation_config_json"):
+            try:
+                evaluation_config = config_from_value(evaluation.generation_config_json)
+                validate_digest(evaluation_config, evaluation.generation_config_digest)
+            except (GenerationConfigError, TypeError, ValueError, AttributeError):
+                raise QualityGateActivationError("evaluation generation config is invalid") from None
+            if evaluation_config.canonical_value() != gate_config.canonical_value():
+                raise QualityGateActivationError("evaluation generation config does not match quality gate")
         passes = [
             session.get(ScreeningExecution, gate.pass_a_execution_id),
             session.get(ScreeningExecution, gate.pass_b_execution_id),

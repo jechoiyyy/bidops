@@ -564,10 +564,18 @@ class PolicyRepository:
 
             gate_config = config_from_value(gate.generation_config_json)
             validate_digest(gate_config, gate.generation_config_digest)
-        except (GenerationConfigError, AttributeError):
+        except (GenerationConfigError, AttributeError, TypeError, ValueError):
             raise PolicyActivationError("quality gate generation config is invalid") from None
         if evaluation.generation_config_digest != gate.generation_config_digest:
             raise PolicyActivationError("quality gate evaluation generation config mismatch")
+        if hasattr(evaluation, "generation_config_json"):
+            try:
+                evaluation_config = config_from_value(evaluation.generation_config_json)
+                validate_digest(evaluation_config, evaluation.generation_config_digest)
+            except (GenerationConfigError, TypeError, ValueError, AttributeError):
+                raise PolicyActivationError("quality gate evaluation generation config is invalid") from None
+            if evaluation_config.canonical_value() != gate_config.canonical_value():
+                raise PolicyActivationError("quality gate evaluation generation config mismatch")
         passes = [
             self.session.get(ScreeningExecution, gate.pass_a_execution_id),
             self.session.get(ScreeningExecution, gate.pass_b_execution_id),
