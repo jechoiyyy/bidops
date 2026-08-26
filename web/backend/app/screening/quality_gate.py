@@ -1106,9 +1106,11 @@ class QualityGateService:
                 raise QualityGateActivationError("evaluation generation config is invalid") from None
             if evaluation_config.canonical_value() != gate_config.canonical_value():
                 raise QualityGateActivationError("evaluation generation config does not match quality gate")
+        # execution_id is the public immutable identifier; queue_no is the
+        # ORM primary key, so do not use Session.get with the wrong key.
         passes = [
-            session.get(ScreeningExecution, gate.pass_a_execution_id),
-            session.get(ScreeningExecution, gate.pass_b_execution_id),
+            session.scalar(select(ScreeningExecution).where(ScreeningExecution.execution_id == execution_id))
+            for execution_id in (gate.pass_a_execution_id, gate.pass_b_execution_id)
         ]
         if any(
             execution is None

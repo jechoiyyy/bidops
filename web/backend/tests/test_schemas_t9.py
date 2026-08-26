@@ -20,6 +20,7 @@ from app.schemas import (
     ScreeningExecutionResponse,
     ScreeningStopRequest,
 )
+from app.screening.generation_config import GenerationConfig
 
 
 NOW = datetime(2026, 8, 26, 1, 0, tzinfo=timezone.utc)
@@ -44,6 +45,8 @@ def execution_payload(**changes: object) -> dict[str, object]:
         "model_digest": DIGEST,
         "company_profile_version": PROFILE_VERSION,
         "company_profile_digest": DIGEST,
+        "generation_config": GenerationConfig().canonical_value(),
+        "generation_config_digest": GenerationConfig().digest(),
         "input_artifact_digest": DIGEST,
         "queued_at": NOW,
         "started_at": None,
@@ -83,8 +86,9 @@ def test_screening_response_and_detail_have_exact_public_keys() -> None:
         "model_digest",
         "company_profile_version",
         "company_profile_digest",
-        "input_artifact_digest",
+        "generation_config",
         "generation_config_digest",
+        "input_artifact_digest",
         "queued_at",
         "started_at",
         "finished_at",

@@ -4,12 +4,14 @@ from pathlib import Path
 import subprocess
 import sys
 
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, event, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import Settings
 import pytest
 
+from app.db import _json_serializer
+from app.screening.generation_config import register_sqlite_functions
 from app.models import AlwaysOnState, AuditEvent, Base, ScheduleExecution, ScheduleReservation
 from app.services.scheduler import (
     EnvironmentDisabledError,
@@ -217,7 +219,11 @@ def test_migrated_sqlite_allows_recovery_of_skipped_execution(tmp_path: Path):
         capture_output=True,
     )
     assert upgraded.returncode == 0, upgraded.stderr
-    engine = create_engine(f"sqlite:///{database}", future=True)
+    engine = create_engine(f"sqlite:///{database}", future=True, json_serializer=_json_serializer)
+    # Alembic's generation-binding triggers call the same canonical UDF that
+    # the application installs on its engine.  This test deliberately creates
+    # a plain SQLAlchemy engine, so register the runtime DB contract here.
+    event.listen(engine, "connect", lambda dbapi_connection, _record: register_sqlite_functions(dbapi_connection))
     run_key = "20260825-20260825"
     target_id = "sched-" + "1" * 32
     with Session(engine) as session:

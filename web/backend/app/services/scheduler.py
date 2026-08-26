@@ -773,7 +773,10 @@ class SchedulerService:
                     return None, "generation_config_mismatch"
         except (GenerationConfigError, TypeError, ValueError):
             return None, "generation_config_mismatch"
-        passes = [session.get(ScreeningExecution, execution_id) for execution_id in (gate.pass_a_execution_id, gate.pass_b_execution_id)]
+        passes = [
+            session.scalar(select(ScreeningExecution).where(ScreeningExecution.execution_id == execution_id))
+            for execution_id in (gate.pass_a_execution_id, gate.pass_b_execution_id)
+        ]
         try:
             pass_bindings = [_validated_generation_binding(row) for row in passes]
         except (GenerationConfigError, TypeError, ValueError):
