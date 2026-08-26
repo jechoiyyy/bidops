@@ -377,6 +377,46 @@ def test_strict_fixed_source_rejects_symlinked_file(tmp_path: Path, relative: st
         quality_gate_module._read_strict_fixed_snapshot(tmp_path)
 
 
+def test_trusted_snapshot_is_deep_immutable_and_cannot_be_forged_for_resolver(tmp_path: Path):
+    _settings, engine, factory, _run_dir, canonical_run_id = _canonical_service_fixture(tmp_path)
+    snapshot = quality_gate_module._read_strict_fixed_snapshot(tmp_path)
+
+    with pytest.raises(TypeError):
+        snapshot.sample["notices"][0]["sample_role"] = "audit"  # type: ignore[index]
+    with pytest.raises(AttributeError):
+        snapshot.sample["notices"].append({})  # type: ignore[union-attr]
+    with pytest.raises(TypeError):
+        quality_gate_module._FixedInputSnapshot(
+            root=snapshot.root, sample=snapshot.sample, baseline=snapshot.baseline,
+            results=snapshot.results, sample_raw=snapshot.sample_raw,
+            baseline_raw=snapshot.baseline_raw, results_raw=snapshot.results_raw,
+            sample_digest=snapshot.sample_digest, baseline_digest=snapshot.baseline_digest,
+            results_digest=snapshot.results_digest, ids=snapshot.ids,
+        )
+
+    with Session(engine) as session:
+        resolved = quality_gate_module.resolve_fixed_run(session, tmp_path, snapshot=snapshot)
+        assert resolved.id == canonical_run_id
+
+
+def test_db_and_nested_snapshot_forge_is_rejected_without_gate_side_effects(tmp_path: Path):
+    settings, engine, factory, _run_dir, canonical_run_id = _canonical_service_fixture(tmp_path)
+    snapshot = quality_gate_module._read_strict_fixed_snapshot(tmp_path)
+    with pytest.raises(TypeError):
+        snapshot.sample["notices"][0]["title"] = "forged"  # type: ignore[index]
+    with factory() as session:
+        notice = session.scalar(select(Notice).where(Notice.run_id == canonical_run_id).order_by(Notice.id))
+        assert notice is not None
+        notice.title = "database forge"
+        session.commit()
+
+    with pytest.raises(QualityGateValidationError):
+        QualityGateService(settings, session_factory=factory, orchestrator=SimpleNamespace()).create_gate(
+            purpose="operational_approval", policy_version="policy-1", profile_source="current", created_by="tester"
+        )
+    _assert_no_gate_side_effects(engine, tmp_path)
+
+
 @pytest.mark.parametrize("component", ["data", "runs", FIXED_RUN_ID])
 def test_strict_fixed_source_rejects_symlinked_path_component(tmp_path: Path, component: str):
     production_root = Path(__file__).resolve().parents[3]
@@ -484,6 +524,58 @@ def test_refresh_fixed_source_tamper_has_no_evaluation_side_effect(tmp_path: Pat
         assert session.scalar(select(func.count()).select_from(QualityGateEvaluation)) == before
         gate = session.get(QualityGate, gate_id)
         assert gate is not None and gate.execution_status == "대기"
+
+
+@pytest.mark.parametrize(
+    ("status_a", "status_b"),
+    [("대기", "대기"), ("실행 중", "대기"), ("성공", "성공")],
+)
+def test_refresh_tamper_is_fail_closed_before_pending_running_or_terminal_side_effect(
+    tmp_path: Path, status_a: str, status_b: str,
+):
+    settings, engine, factory, gate_id, _judgments_a, _sample_ids = _completed_gate_fixture(tmp_path)
+    with factory() as session:
+        gate = session.get(QualityGate, gate_id)
+        assert gate is not None
+        rows = [
+            session.scalar(select(ScreeningExecution).where(ScreeningExecution.execution_id == gate.pass_a_execution_id)),
+            session.scalar(select(ScreeningExecution).where(ScreeningExecution.execution_id == gate.pass_b_execution_id)),
+        ]
+        assert all(row is not None for row in rows)
+        rows[0].status = status_a
+        rows[1].status = status_b
+        if status_a in {"대기", "실행 중"}:
+            rows[0].finished_at = None
+        if status_b in {"대기", "실행 중"}:
+            rows[1].finished_at = None
+        if status_a == "실행 중":
+            rows[0].active_slot = 1
+            rows[0].started_at = NOW
+            rows[0].heartbeat_at = NOW
+        session.commit()
+    with Session(engine) as session:
+        gate = session.get(QualityGate, gate_id)
+        assert gate is not None
+        before_gate = (gate.execution_status, gate.result_status, gate.completed_at, gate.metrics_json, gate.reasons_json)
+        before_evaluations = session.scalar(select(func.count()).select_from(QualityGateEvaluation))
+        before_rows = [
+            (row.execution_id, row.status, row.finished_at, row.completed_count, row.failure_count)
+            for row in session.scalars(select(ScreeningExecution).where(ScreeningExecution.execution_id.in_([gate.pass_a_execution_id, gate.pass_b_execution_id])).order_by(ScreeningExecution.execution_id))
+        ]
+    path = tmp_path / FIXED_SAMPLE_RELATIVE
+    path.write_bytes(path.read_bytes() + b"\n")
+    with pytest.raises(QualityGateValidationError):
+        QualityGateService(settings, session_factory=factory, orchestrator=SimpleNamespace()).refresh(gate_id)
+    with Session(engine) as session:
+        gate = session.get(QualityGate, gate_id)
+        assert gate is not None
+        assert (gate.execution_status, gate.result_status, gate.completed_at, gate.metrics_json, gate.reasons_json) == before_gate
+        assert session.scalar(select(func.count()).select_from(QualityGateEvaluation)) == before_evaluations
+        after_rows = [
+            (row.execution_id, row.status, row.finished_at, row.completed_count, row.failure_count)
+            for row in session.scalars(select(ScreeningExecution).where(ScreeningExecution.execution_id.in_([gate.pass_a_execution_id, gate.pass_b_execution_id])).order_by(ScreeningExecution.execution_id))
+        ]
+        assert after_rows == before_rows
 
 
 def test_fixed_run_resolver_query_budget_is_bounded(tmp_path: Path):

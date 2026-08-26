@@ -15,6 +15,7 @@ import json
 import os
 from pathlib import Path
 import stat
+from types import MappingProxyType
 from typing import Any, Iterator, Mapping, Sequence
 from uuid import uuid4
 
@@ -42,6 +43,7 @@ from .execution_store import ScreeningExecutionStore
 from .orchestrator import (
     ScreeningCreationError,
     ScreeningOrchestrator,
+    _QUALITY_BINDING_FACTORY_CAPABILITY,
     _make_quality_sample_binding,
 )
 from .profile_snapshot import BASELINE_COMMIT
@@ -141,14 +143,55 @@ def _read_json(path: Path) -> tuple[bytes, dict[str, Any]]:
     return raw, value
 
 
-@dataclass(frozen=True)
+def _deep_freeze(value: Any) -> Any:
+    """Return a JSON-shaped value whose containers cannot be mutated.
+
+    ``dataclass(frozen=True)`` only protects the attributes themselves.  The
+    fixed artifacts are evidence, so their nested objects must be immutable as
+    well.  Mapping proxies and tuples are deliberately kept as the internal
+    representation; callers that need to write an artifact receive a deep
+    thawed copy at the orchestrator boundary.
+    """
+
+    if isinstance(value, Mapping):
+        return MappingProxyType({key: _deep_freeze(item) for key, item in value.items()})
+    if isinstance(value, (list, tuple)):
+        return tuple(_deep_freeze(item) for item in value)
+    if isinstance(value, (set, frozenset)):
+        return frozenset(_deep_freeze(item) for item in value)
+    return value
+
+
+def _deep_thaw(value: Any) -> Any:
+    """Copy an internal immutable JSON value into ordinary JSON containers."""
+
+    if isinstance(value, Mapping):
+        return {key: _deep_thaw(item) for key, item in value.items()}
+    if isinstance(value, (tuple, list)):
+        return [_deep_thaw(item) for item in value]
+    if isinstance(value, (frozenset, set)):
+        return [_deep_thaw(item) for item in value]
+    return value
+
+
+def _all_frozen(value: Any) -> bool:
+    if isinstance(value, Mapping):
+        return type(value) is MappingProxyType and all(_all_frozen(item) for item in value.values())
+    if isinstance(value, tuple):
+        return all(_all_frozen(item) for item in value)
+    if isinstance(value, frozenset):
+        return all(_all_frozen(item) for item in value)
+    return True
+
+
+@dataclass(frozen=True, slots=True, init=False)
 class _FixedInputSnapshot:
     """One trusted, immutable raw/parsed snapshot of all fixed inputs."""
 
     root: Path
-    sample: dict[str, Any]
-    baseline: dict[str, Any]
-    results: dict[str, Any]
+    sample: Mapping[str, Any]
+    baseline: Mapping[str, Any]
+    results: Mapping[str, Any]
     sample_raw: bytes
     baseline_raw: bytes
     results_raw: bytes
@@ -158,7 +201,35 @@ class _FixedInputSnapshot:
     ids: tuple[str, ...]
     token: object
 
+    def __init__(
+        self,
+        *,
+        capability: object,
+        root: Path,
+        sample: Mapping[str, Any],
+        baseline: Mapping[str, Any],
+        results: Mapping[str, Any],
+        sample_raw: bytes,
+        baseline_raw: bytes,
+        results_raw: bytes,
+        sample_digest: str,
+        baseline_digest: str,
+        results_digest: str,
+        ids: tuple[str, ...],
+    ) -> None:
+        if capability is not _FIXED_SNAPSHOT_CAPABILITY:
+            raise TypeError("fixed input snapshot is internal")
+        for name, value in (
+            ("root", root), ("sample", sample), ("baseline", baseline), ("results", results),
+            ("sample_raw", sample_raw), ("baseline_raw", baseline_raw), ("results_raw", results_raw),
+            ("sample_digest", sample_digest), ("baseline_digest", baseline_digest),
+            ("results_digest", results_digest), ("ids", ids),
+        ):
+            object.__setattr__(self, name, value)
+        object.__setattr__(self, "token", _FIXED_SNAPSHOT_TOKEN)
 
+
+_FIXED_SNAPSHOT_CAPABILITY = object()
 _FIXED_SNAPSHOT_TOKEN = object()
 
 
@@ -281,7 +352,7 @@ def _validate_fixed_shape(
     if sample.get("schema_version") != "bidops.validation-set.v2" or sample.get("source_window") != FIXED_SOURCE_WINDOW:
         raise QualityGateValidationError("fixed quality input is invalid")
     notices = sample.get("notices")
-    if not isinstance(notices, list) or len(notices) != 40:
+    if not isinstance(notices, (list, tuple)) or len(notices) != 40:
         raise QualityGateValidationError("fixed quality input is invalid")
     ids: list[str] = []
     for item in notices:
@@ -303,7 +374,7 @@ def _validate_fixed_shape(
         raise QualityGateValidationError("fixed quality input is invalid")
     judgments = baseline.get("judgments")
     baseline_ids: list[str] = []
-    if not isinstance(judgments, list) or len(judgments) != 40:
+    if not isinstance(judgments, (list, tuple)) or len(judgments) != 40:
         raise QualityGateValidationError("fixed quality input is invalid")
     for item in judgments:
         if not isinstance(item, Mapping) or not isinstance(item.get("notice_id"), str) or not item["notice_id"].strip():
@@ -324,7 +395,7 @@ def _validate_fixed_shape(
     if parsed.tzinfo is None or parsed.utcoffset() is None:
         raise QualityGateValidationError("fixed quality input is invalid")
     result_rows = results.get("results")
-    if not isinstance(result_rows, list) or len(result_rows) != 40:
+    if not isinstance(result_rows, (list, tuple)) or len(result_rows) != 40:
         raise QualityGateValidationError("fixed quality input is invalid")
     result_ids: list[str] = []
     for row in result_rows:
@@ -354,17 +425,83 @@ def _read_strict_fixed_snapshot(project_root: Path | str) -> _FixedInputSnapshot
             pass
     ids = _validate_fixed_shape(sample, baseline, results)
     return _FixedInputSnapshot(
-        root=root, sample=sample, baseline=baseline, results=results,
+        capability=_FIXED_SNAPSHOT_CAPABILITY,
+        root=root, sample=_deep_freeze(sample), baseline=_deep_freeze(baseline), results=_deep_freeze(results),
         sample_raw=sample_raw, baseline_raw=baseline_raw, results_raw=results_raw,
         sample_digest=FIXED_SAMPLE_DIGEST, baseline_digest=FIXED_BASELINE_DIGEST,
         results_digest=FIXED_RESULTS_DIGEST,
         ids=tuple(ids),
-        token=_FIXED_SNAPSHOT_TOKEN,
     )
 
 
+def _snapshot_matches_raw(snapshot: _FixedInputSnapshot) -> bool:
+    """Verify a supplied snapshot is exactly one produced by the secure loader.
+
+    The token is an in-process capability, while the byte digests and parsed
+    projections make the boundary fail closed even if a caller obtains the
+    private class and attempts to assemble a look-alike value.  No path is
+    reopened here: the resolver consumes the already-opened loader result.
+    """
+
+    if type(snapshot) is not _FixedInputSnapshot or snapshot.token is not _FIXED_SNAPSHOT_TOKEN:
+        return False
+    if not isinstance(snapshot.root, Path):
+        return False
+    if (
+        snapshot.sample_digest != FIXED_SAMPLE_DIGEST
+        or snapshot.baseline_digest != FIXED_BASELINE_DIGEST
+        or snapshot.results_digest != FIXED_RESULTS_DIGEST
+        or not isinstance(snapshot.sample_raw, bytes)
+        or not isinstance(snapshot.baseline_raw, bytes)
+        or not isinstance(snapshot.results_raw, bytes)
+        or sha256_bytes(snapshot.sample_raw) != FIXED_SAMPLE_DIGEST
+        or sha256_bytes(snapshot.baseline_raw) != FIXED_BASELINE_DIGEST
+        or sha256_bytes(snapshot.results_raw) != FIXED_RESULTS_DIGEST
+    ):
+        return False
+    if (
+        not isinstance(snapshot.sample, Mapping)
+        or not isinstance(snapshot.baseline, Mapping)
+        or not isinstance(snapshot.results, Mapping)
+        or type(snapshot.sample) is not MappingProxyType
+        or type(snapshot.baseline) is not MappingProxyType
+        or type(snapshot.results) is not MappingProxyType
+        or not _all_frozen(snapshot.sample)
+        or not _all_frozen(snapshot.baseline)
+        or not _all_frozen(snapshot.results)
+    ):
+        return False
+    try:
+        parsed = tuple(
+            _deep_freeze(json.loads(raw.decode("utf-8")))
+            for raw in (snapshot.sample_raw, snapshot.baseline_raw, snapshot.results_raw)
+        )
+    except (UnicodeError, json.JSONDecodeError, TypeError, ValueError):
+        return False
+    if parsed != (snapshot.sample, snapshot.baseline, snapshot.results):
+        return False
+    try:
+        ids = _validate_fixed_shape(snapshot.sample, snapshot.baseline, snapshot.results)
+    except (QualityGateValidationError, TypeError, AttributeError, KeyError):
+        return False
+    return tuple(ids) == snapshot.ids and all(isinstance(item, str) and item for item in snapshot.ids)
+
+
+def _trusted_snapshot(
+    project_root: Path | str, snapshot: _FixedInputSnapshot | None
+) -> _FixedInputSnapshot:
+    """Load or validate the only snapshot type accepted by fixed-gate code."""
+
+    fixed = _read_strict_fixed_snapshot(project_root) if snapshot is None else snapshot
+    if not _snapshot_matches_raw(fixed):
+        raise QualityGateValidationError("fixed quality input is invalid")
+    if fixed.root != _absolute_root(project_root):
+        raise QualityGateValidationError("fixed quality input is invalid")
+    return fixed
+
+
 def _read_strict_fixed_inputs(project_root: Path | str) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], bytes, bytes, bytes, list[str]]:
-    snapshot = _read_strict_fixed_snapshot(project_root)
+    snapshot = _trusted_snapshot(project_root, None)
     return (
         snapshot.sample, snapshot.baseline, snapshot.results,
         snapshot.sample_raw, snapshot.baseline_raw, snapshot.results_raw,
@@ -385,7 +522,7 @@ def validate_fixed_inputs(
     """
 
     if strict:
-        snapshot = _read_strict_fixed_snapshot(project_root)
+        snapshot = _trusted_snapshot(project_root, None)
         return snapshot.sample, snapshot.baseline, snapshot.sample_raw, snapshot.baseline_raw, list(snapshot.ids)
     root = Path(project_root).resolve()
     sample_raw, sample = _read_json(root / FIXED_SAMPLE_RELATIVE)
@@ -442,14 +579,14 @@ def _validated_generation_binding(row: ScreeningExecution | QualityGate) -> tupl
 def _input_matches_fixed_sample(value: Mapping[str, Any], sample: Mapping[str, Any], sample_ids: Sequence[str]) -> bool:
     notices = value.get("notices")
     expected = sample.get("notices")
-    if not isinstance(notices, list) or not isinstance(expected, list) or len(notices) != len(expected) or len(notices) != len(sample_ids):
+    if not isinstance(notices, (list, tuple)) or not isinstance(expected, (list, tuple)) or len(notices) != len(expected) or len(notices) != len(sample_ids):
         return False
     if [item.get("notice_id") if isinstance(item, Mapping) else None for item in notices] != list(sample_ids):
         return False
     for actual, fixed in zip(notices, expected):
         if not isinstance(actual, Mapping) or not isinstance(fixed, Mapping):
             return False
-        if any(actual.get(key) != fixed_value for key, fixed_value in fixed.items()):
+        if any(actual.get(key) != _deep_thaw(fixed_value) for key, fixed_value in fixed.items()):
             return False
     return True
 
@@ -506,7 +643,7 @@ def _identity_value(value: Any) -> Any:
         return _identity_datetime(value)
     if isinstance(value, Mapping):
         return {key: _identity_value(item) for key, item in value.items()}
-    if isinstance(value, list):
+    if isinstance(value, (list, tuple)):
         return [_identity_value(item) for item in value]
     return value
 
@@ -627,12 +764,7 @@ def resolve_fixed_run(
 
     if run_alias != FIXED_RUN_ID:
         raise QualityGateValidationError("fixed quality run is invalid")
-    fixed = snapshot or _read_strict_fixed_snapshot(project_root)
-    if not isinstance(fixed, _FixedInputSnapshot) or fixed.token is not _FIXED_SNAPSHOT_TOKEN:
-        raise QualityGateValidationError("fixed quality input is invalid")
-    requested_root = _absolute_root(project_root)
-    if fixed.root != requested_root:
-        raise QualityGateValidationError("fixed quality input is invalid")
+    fixed = _trusted_snapshot(project_root, snapshot)
     sample, baseline, results, sample_ids = fixed.sample, fixed.baseline, fixed.results, list(fixed.ids)
     try:
         generated_at = datetime.fromisoformat(str(results["generated_at"]).replace("Z", "+00:00"))
@@ -1018,7 +1150,7 @@ class QualityGateService:
             raise QualityGateValidationError("quality gate must use the fixed baseline run")
         # This is deliberately the first operation.  Invalid correspondence
         # must leave no gate, snapshot, or queue rows behind.
-        fixed = _read_strict_fixed_snapshot(self.settings.bidops_root)
+        fixed = _trusted_snapshot(self.settings.bidops_root, None)
         sample, baseline, sample_raw, baseline_raw, sample_ids = (
             fixed.sample, fixed.baseline, fixed.sample_raw, fixed.baseline_raw, list(fixed.ids)
         )
@@ -1035,7 +1167,17 @@ class QualityGateService:
         root = Path(self.settings.bidops_root)
         prepared_artifacts: list[tuple[str, ExecutionWorkspace]] = []
         quality_binding = _make_quality_sample_binding(
-            resolved_run_id, fixed.sample["source_window"], fixed.sample["notices"]
+            resolved_run_id,
+            fixed.sample["source_window"],
+            fixed.sample["notices"],
+            sample_raw=fixed.sample_raw,
+            baseline_raw=fixed.baseline_raw,
+            results_raw=fixed.results_raw,
+            sample_digest=fixed.sample_digest,
+            baseline_digest=fixed.baseline_digest,
+            results_digest=fixed.results_digest,
+            source_token=fixed,
+            capability=_QUALITY_BINDING_FACTORY_CAPABILITY,
         )
         try:
             if self.transaction_preparer is None:
@@ -1263,11 +1405,21 @@ class QualityGateService:
     def refresh(self, gate_id: str) -> QualityGateEvaluation:
         """Reconcile pass statuses and append the newest immutable evaluation."""
 
+        # A fixed gate is bound to all three reviewed artifacts even while its
+        # passes are pending/running.  Secure-open and validate before opening
+        # the write transaction so a tampered file cannot change status,
+        # timestamps, evaluations, or any other persistent state.
+        root = Path(self.settings.bidops_root)
+        fresh_snapshot = _trusted_snapshot(root, None)
         with self._session(immediate=True) as session:
             # PostgreSQL needs the row lock before any artifact/review read;
             # SQLite's BEGIN IMMEDIATE provides the same serialization.
             self._lock_gate(session, gate_id)
             gate, a, b = self._gate_and_rows(session, gate_id)
+            # Reuse the one fresh trusted snapshot for both the terminal and
+            # non-terminal paths.  This helper performs gate path/digest
+            # binding checks without reopening any fixed path.
+            self._fixed_for_metrics(root, gate, snapshot=fresh_snapshot)
             aggregate = _status_for_executions(a.status, b.status)
             completed_at = (
                 gate.completed_at
@@ -1280,7 +1432,7 @@ class QualityGateService:
             if aggregate == "완료":
                 try:
                     metrics, valid_count, distinct_count, structure = self._calculate_gate_metrics(
-                        gate=gate, execution_a=a, execution_b=b, reviews=reviews,
+                        gate=gate, execution_a=a, execution_b=b, reviews=reviews, snapshot=fresh_snapshot,
                     )
                     result, reasons = _result_for_metrics(execution_status=aggregate, metrics=metrics, valid_review_count=valid_count, distinct_notice_review_count=distinct_count, structure_reasons=structure)
                 except QualityGateValidationError:
@@ -1315,8 +1467,13 @@ class QualityGateService:
     recalculate = refresh
 
     @staticmethod
-    def _fixed_for_metrics(root: Path, gate: QualityGate) -> tuple[bytes, bytes, dict[str, Any], dict[str, Any], list[str]]:
-        snapshot = _read_strict_fixed_snapshot(root)
+    def _fixed_for_metrics(
+        root: Path,
+        gate: QualityGate,
+        *,
+        snapshot: _FixedInputSnapshot | None = None,
+    ) -> tuple[bytes, bytes, Mapping[str, Any], Mapping[str, Any], list[str]]:
+        snapshot = _trusted_snapshot(root, snapshot)
         if (
             gate.sample_artifact_path != FIXED_SAMPLE_RELATIVE
             or gate.baseline_decisions_path != FIXED_BASELINE_RELATIVE
@@ -1337,6 +1494,7 @@ class QualityGateService:
         execution_a: ScreeningExecution,
         execution_b: ScreeningExecution,
         reviews: Sequence[Mapping[str, Any]],
+        snapshot: _FixedInputSnapshot | None = None,
     ) -> tuple[dict[str, Any], int, int, list[str]]:
         """Load and validate one authoritative A/B calculation input set.
 
@@ -1364,7 +1522,7 @@ class QualityGateService:
         input_b = _load_execution_artifact(root, execution_b.execution_id, "screening-input.json", expected_digest=execution_b.input_artifact_digest)
         decisions_a = _load_execution_artifact(root, execution_a.execution_id, "screening-decisions.json")
         decisions_b = _load_execution_artifact(root, execution_b.execution_id, "screening-decisions.json")
-        sample_raw, baseline_raw, sample, baseline, ids = self._fixed_for_metrics(root, gate)
+        sample_raw, baseline_raw, sample, baseline, ids = self._fixed_for_metrics(root, gate, snapshot=snapshot)
         structure: list[str] = []
         input_binding = {}
         for pass_name, execution, input_value in (("A", execution_a, input_a), ("B", execution_b, input_b)):
@@ -1410,7 +1568,7 @@ class QualityGateService:
             return filtered
 
         metrics = calculate_metrics(
-            valid_decisions(decisions_a, "A"), valid_decisions(decisions_b, "B"), baseline=baseline, reviews=reviews,
+            valid_decisions(decisions_a, "A"), valid_decisions(decisions_b, "B"), baseline=_deep_thaw(baseline), reviews=reviews,
             sample_ids=ids, expected_sample_count=40, input_a=input_a, input_b=input_b,
         )
         if not input_binding["A"]:
@@ -1464,6 +1622,7 @@ class QualityGateService:
         if note is not None and (not isinstance(note, str) or not note.strip()):
             raise QualityGateValidationError("note must be null or nonblank")
         root = Path(self.settings.bidops_root)
+        fresh_snapshot = _trusted_snapshot(root, None)
         with self._session(immediate=True) as session:
             self._lock_gate(session, gate_id)
             gate, a, b = self._gate_and_rows(session, gate_id)
@@ -1471,7 +1630,7 @@ class QualityGateService:
                 raise QualityGateConflict("pass A is not a completed execution")
             input_a = _load_execution_artifact(root, a.execution_id, "screening-input.json", expected_digest=a.input_artifact_digest)
             decisions_a = _load_execution_artifact(root, a.execution_id, "screening-decisions.json")
-            _sample_raw, _baseline_raw, _sample, _baseline, ids = self._fixed_for_metrics(root, gate)
+            _sample_raw, _baseline_raw, _sample, _baseline, ids = self._fixed_for_metrics(root, gate, snapshot=fresh_snapshot)
             binding_issues = _decisions_binding_issues(decisions_a, a, input_a, ids, pass_name="A", expected_source_window=_sample.get("source_window"))
             valid_judgments, _ = _judgment_map(
                 decisions_a,
@@ -1516,7 +1675,7 @@ class QualityGateService:
             if aggregate == "완료":
                 try:
                     metrics, valid, distinct, structure = self._calculate_gate_metrics(
-                        gate=gate, execution_a=a, execution_b=b, reviews=reviews,
+                        gate=gate, execution_a=a, execution_b=b, reviews=reviews, snapshot=fresh_snapshot,
                     )
                     result, reasons = _result_for_metrics(execution_status=aggregate, metrics=metrics, valid_review_count=valid, distinct_notice_review_count=distinct, structure_reasons=structure)
                 except Exception:

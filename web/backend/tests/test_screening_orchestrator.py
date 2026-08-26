@@ -233,6 +233,38 @@ def test_prepare_single_notice_binds_notice_identity_in_caller_transaction(tmp_p
         assert row.notice_pk is not None and row.notice_id == "notice-1"
 
 
+def test_public_prepare_quality_sample_requires_trusted_binding_and_rejects_forged_notice(tmp_path: Path):
+    root, settings, engine, factory, body = _fixture(tmp_path)
+    creator = ScreeningOrchestrator(
+        settings,
+        session_factory=factory,
+        ollama=type("NoModelCall", (), {"inspect_model": lambda _self: (_ for _ in ()).throw(AssertionError("must reject before model inspection"))})(),
+        clock=lambda: NOW,
+    )
+    forged_values = [
+        SimpleNamespace(run_id="run-1", source_window={}, notices=[_notice()] * 40),
+        {"run_id": "run-1", "source_window": {}, "notices": [_notice()] * 40},
+    ]
+    for forged in [None, *forged_values]:
+        with factory() as session:
+            kwargs = {} if forged is None else {"_quality_binding": forged}
+            with pytest.raises(ScreeningCreationError):
+                creator.prepare_execution(
+                    session,
+                    run_id="run-1",
+                    policy_version=body["policy_version"],
+                    requested_by="tester",
+                    scope="quality_sample",
+                    trigger="quality_gate",
+                    **kwargs,
+                )
+            session.rollback()
+    with factory() as session:
+        assert session.scalars(select(ScreeningExecution)).all() == []
+    execution_root = root / "data/screening-executions"
+    assert not execution_root.exists() or not list(execution_root.iterdir())
+
+
 def test_input_tamper_fails_before_any_generate_call(tmp_path: Path):
     root, settings, _engine, factory, body = _fixture(tmp_path)
     transport = FakeOllamaTransport(_script())
