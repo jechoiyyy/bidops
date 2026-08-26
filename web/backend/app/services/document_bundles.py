@@ -600,7 +600,56 @@ class DocumentBundleService:
         bundles = session.scalars(select(DocumentBundle).where(DocumentBundle.notice_id == notice_id).order_by(DocumentBundle.revision.desc())).all()
         return BundleListResponse(items=[self._bundle_view(session, bundle) for bundle in bundles])
 
-    def create_bundle(self, session: Session, notice_id: int, actor: str) -> BundleView:
+    def _bundle_creation_audit(self, session: Session, bundle: DocumentBundle) -> AuditEvent | None:
+        rows = session.scalars(
+            select(AuditEvent)
+            .where(
+                AuditEvent.action == "document_bundle.create",
+                AuditEvent.aggregate_type == "document_bundle",
+                AuditEvent.aggregate_id == str(bundle.id),
+            )
+            .order_by(AuditEvent.created_at.asc(), AuditEvent.id.asc())
+            .limit(2)
+        ).all()
+        if len(rows) > 1:
+            raise BundleServiceError(
+                "processing_failed",
+                "문서 bundle creation audit이 올바르지 않습니다",
+                status_code=500,
+            )
+        return rows[0] if rows else None
+
+    def _bundle_correlation_id(self, session: Session, bundle: DocumentBundle) -> UUID | None:
+        """Read the immutable creation lineage without backfilling legacy rows."""
+
+        creation = self._bundle_creation_audit(session, bundle)
+        metadata = creation.safe_metadata if creation is not None and isinstance(creation.safe_metadata, Mapping) else {}
+        if "correlation_id" not in metadata:
+            return None
+        value = metadata.get("correlation_id")
+        try:
+            if value is None:
+                raise ValueError("null correlation")
+            return value if isinstance(value, UUID) else UUID(str(value))
+        except (TypeError, ValueError, AttributeError) as exc:
+            raise BundleServiceError(
+                "processing_failed",
+                "문서 bundle 계보를 확인할 수 없습니다",
+                status_code=500,
+            ) from exc
+
+    @staticmethod
+    def _lineage_metadata(correlation_id: UUID | None) -> dict[str, str | None]:
+        return {"correlation_id": str(correlation_id) if correlation_id is not None else None}
+
+    def create_bundle(
+        self,
+        session: Session,
+        notice_id: int,
+        actor: str,
+        *,
+        correlation_id: UUID | None = None,
+    ) -> BundleView:
         claimed_name = validate_actor(actor)
         for attempt in range(CREATE_BUNDLE_RETRIES):
             # The notice is the allocation aggregate for bundle revisions.
@@ -615,7 +664,8 @@ class DocumentBundleService:
             )
             if notice is None:
                 raise BundleServiceError("not_found", "공고를 찾을 수 없습니다", status_code=404)
-            if self.effective_grade(session, notice.id) != "우선 검토":
+            effective_grade_at_start = self.effective_grade(session, notice.id)
+            if effective_grade_at_start != "우선 검토":
                 raise BundleServiceError("effective_grade_ineligible", "우선 검토 공고만 문서 bundle을 만들 수 있습니다", status_code=403)
             previous = session.scalar(select(DocumentBundle).where(DocumentBundle.notice_id == notice.id).order_by(DocumentBundle.revision.desc()).limit(1))
             revision = (previous.revision + 1) if previous else 1
@@ -641,7 +691,16 @@ class DocumentBundleService:
                         action="document_bundle.create",
                         aggregate_type="document_bundle",
                         aggregate_id=str(bundle.id),
-                        safe_metadata={"notice_id": notice.id, "revision": revision},
+                        safe_metadata={
+                            "notice_id": notice.id,
+                            "revision": revision,
+                            "effective_grade_at_start": effective_grade_at_start,
+                            **(
+                                {"correlation_id": str(correlation_id)}
+                                if correlation_id is not None
+                                else {}
+                            ),
+                        },
                     )
                 )
                 session.commit()
@@ -747,6 +806,11 @@ class DocumentBundleService:
                 assets.cleanup_asset(asset)
                 session.rollback()
                 return DocumentVersionView.model_validate(existing.response_snapshot)
+            try:
+                correlation_id = self._bundle_correlation_id(session, bundle)
+            except BundleServiceError as error:
+                error.request_id = request_id
+                raise
             content = self._ensure_content_object(session, asset, inspected.detected_mime)
             self._add_location(session, content.id, "quarantine", asset.path, asset.sha256)
             session.add(
@@ -844,7 +908,13 @@ class DocumentBundleService:
                     action="document.upload",
                     aggregate_type="document_version",
                     aggregate_id=str(document.id),
-                    safe_metadata={"bundle_id": str(bundle.id), "status": inspected.safety_status, "scan_status": inspected.scan_status, "error_code": inspected.error_code},
+                    safe_metadata={
+                        "bundle_id": str(bundle.id),
+                        "status": inspected.safety_status,
+                        "scan_status": inspected.scan_status,
+                        "error_code": inspected.error_code,
+                        **self._lineage_metadata(correlation_id),
+                    },
                     request_id=str(request_id),
                 )
             )
@@ -920,6 +990,7 @@ class DocumentBundleService:
                     raise BundleServiceError("bundle_not_ready", "bundle은 더 이상 수정할 수 없습니다", status_code=409)
                 if not _provider_scope_matches(snapshot, bundle, attachment):
                     raise BundleServiceError("bundle_not_ready", "provider 첨부 source가 변경되었습니다", status_code=409)
+            correlation_id = self._bundle_correlation_id(session, bundle)
             # Provider I/O is deliberately unlocked.  Confirmation may have
             # won while it was in flight; only a still-draft bundle may receive
             # the blocking marker.  In particular, never mutate a ready or
@@ -937,7 +1008,11 @@ class DocumentBundleService:
                     action="provider_attachment.ingest_failed",
                     aggregate_type="attachment",
                     aggregate_id=str(attachment.id),
-                    safe_metadata={"status": "blocked", "reason": "provider_acquisition_failed"},
+                    safe_metadata={
+                        "status": "blocked",
+                        "reason": "provider_acquisition_failed",
+                        **self._lineage_metadata(correlation_id),
+                    },
                 )
             )
             session.commit()
@@ -987,6 +1062,7 @@ class DocumentBundleService:
                 raise BundleServiceError("not_found", "기존 첨부를 찾을 수 없습니다", status_code=404)
             if bundle.status != "draft" or not _legacy_scope_matches(snapshot, bundle, attachment):
                 raise BundleServiceError("bundle_not_ready", "기존 첨부 source가 변경되었습니다", status_code=409)
+            correlation_id = self._bundle_correlation_id(session, bundle)
 
             # Do not copy source details or replace legacy metadata.  This
             # marker is deliberately generic and safe for API/audit output.
@@ -999,7 +1075,11 @@ class DocumentBundleService:
                     action="legacy_attachment.ingest_failed",
                     aggregate_type="attachment",
                     aggregate_id=str(attachment.id),
-                    safe_metadata={"status": "blocked", "reason": "legacy_source_unavailable"},
+                    safe_metadata={
+                        "status": "blocked",
+                        "reason": "legacy_source_unavailable",
+                        **self._lineage_metadata(correlation_id),
+                    },
                 )
             )
             session.commit()
@@ -1125,6 +1205,7 @@ class DocumentBundleService:
                 raise BundleServiceError("not_found", "기존 첨부를 찾을 수 없습니다", status_code=404)
             if bundle.status != "draft" or not _legacy_scope_matches(snapshot, bundle, attachment):
                 raise BundleServiceError("bundle_not_ready", "기존 첨부 source가 변경되었습니다", status_code=409)
+            correlation_id = self._bundle_correlation_id(session, bundle)
 
             content = self._ensure_content_object(session, asset, inspected.detected_mime)
             self._add_location(session, content.id, "quarantine", asset.path, asset.sha256)
@@ -1230,6 +1311,7 @@ class DocumentBundleService:
                         "version": document.version,
                         "same_byte_restore": same_byte_restore,
                         "status": inspected.safety_status,
+                        **self._lineage_metadata(correlation_id),
                     },
                 )
             )
@@ -1374,6 +1456,7 @@ class DocumentBundleService:
                 raise BundleServiceError("bundle_not_ready", "bundle은 더 이상 수정할 수 없습니다", status_code=409)
             if not _provider_scope_matches(snapshot, bundle, attachment):
                 raise BundleServiceError("bundle_not_ready", "provider 첨부 source가 변경되었습니다", status_code=409)
+            correlation_id = self._bundle_correlation_id(session, bundle)
 
             content = self._ensure_content_object(session, asset, inspected.detected_mime)
             self._add_location(session, content.id, "quarantine", asset.path, asset.sha256)
@@ -1472,6 +1555,7 @@ class DocumentBundleService:
                         "version": document.version,
                         "same_byte_restore": same_byte_restore,
                         "status": inspected.safety_status,
+                        **self._lineage_metadata(correlation_id),
                     },
                 )
             )
@@ -1655,6 +1739,15 @@ class DocumentBundleService:
             replaced = session.get(DocumentVersion, request.replaces_document_version_id)
             if replaced is None or replaced.notice_id != document.notice_id:
                 raise BundleServiceError("invalid_request", "대체 document version이 같은 공고에 속하지 않습니다", status_code=400)
+        latest_bundle = session.scalar(
+            select(DocumentBundle)
+            .where(DocumentBundle.notice_id == document.notice_id)
+            .order_by(DocumentBundle.revision.desc(), DocumentBundle.id.desc())
+            .limit(1)
+        )
+        if latest_bundle is None:
+            raise BundleServiceError("not_found", "document bundle을 찾을 수 없습니다", status_code=404)
+        correlation_id = self._bundle_correlation_id(session, latest_bundle)
         if request.is_current:
             session.execute(
                 update(DocumentVersion)
@@ -1683,11 +1776,21 @@ class DocumentBundleService:
                 action="document_version.patch",
                 aggregate_type="document_version",
                 aggregate_id=str(document.id),
-                safe_metadata={"version": document.version, "role": document.role, "is_current": document.is_current},
+                safe_metadata={
+                    "version": document.version,
+                    "role": document.role,
+                    "is_current": document.is_current,
+                    **self._lineage_metadata(correlation_id),
+                },
             )
         )
         session.commit()
-        bundle = session.scalar(select(DocumentBundle).where(DocumentBundle.notice_id == document.notice_id).order_by(DocumentBundle.revision.desc()).limit(1))
+        bundle = session.scalar(
+            select(DocumentBundle)
+            .where(DocumentBundle.notice_id == document.notice_id)
+            .order_by(DocumentBundle.revision.desc(), DocumentBundle.id.desc())
+            .limit(1)
+        )
         if bundle is None:
             raise BundleServiceError("not_found", "document bundle을 찾을 수 없습니다", status_code=404)
         return self._document_view(document, bundle.id, session)
@@ -1744,6 +1847,7 @@ class DocumentBundleService:
             response = BundleView.model_validate(existing.response_snapshot)
             session.rollback()
             return response
+        correlation_id = self._bundle_correlation_id(session, bundle)
         if bundle.version != request.version:
             raise BundleServiceError("version_conflict", "bundle version이 변경되었습니다", status_code=409, request_id=request.request_id)
         if bundle.status in {"ready", "superseded"}:
@@ -1905,7 +2009,11 @@ class DocumentBundleService:
                 action="document_bundle.confirm",
                 aggregate_type="document_bundle",
                 aggregate_id=str(bundle.id),
-                safe_metadata={"version": bundle.version, "document_count": len(response.documents)},
+                safe_metadata={
+                    "version": bundle.version,
+                    "document_count": len(response.documents),
+                    **self._lineage_metadata(correlation_id),
+                },
                 request_id=str(request.request_id),
             )
         )
