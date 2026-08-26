@@ -127,6 +127,8 @@ snapshot 목록은 `created_at` 내림차순, 같은 시각에는 `digest` 내�
 
 `screening-input.v1`에는 `generation_config`와 `generation_config_digest`도 필수다. canonical config는 `bidops.generation-config.v1` object이며 기본 `num_ctx=16384`, stage map `perspective=2048`, `counterargument=2048`, `synthesis=4096`, `think=false`, `stream=false`이다. digest는 compact UTF-8 canonical JSON의 SHA-256 lowercase hex다. execution row와 input artifact가 이 값과 다르면 worker는 호출 전에 실패한다. telemetry와 execution/attempt API는 digest 및 실제 `num_ctx`/`num_predict`를 노출하며 prompt/response는 노출하지 않는다. quality gate A/B와 activation/scheduler도 같은 binding을 요구한다. live 재검증은 pending이다.
 
+생성기와 신규 v3 artifact는 위 두 필드를 반드시 기록하고 shared canonical parser로 config와 digest를 함께 검증한다. ingest/build의 제한된 legacy 경로는 v3 artifact에서 두 필드가 모두 없을 때에만 `num_ctx=16384`, 각 stage `2048`, `think=false`, `stream=false`인 legacy canonical config와 그 SHA-256(`f5005da40315a4d24edba05b9394e71dba6c1c3c5790c84e5cc43673215134aa`)를 메모리상 파생 값으로 주입한다. 원본 파일은 다시 쓰지 않는다. 한쪽만 없거나 config가 malformed/noncanonical이거나 digest가 일치하지 않으면 fail closed하며, v2 호환 경로에는 적용하지 않는다. 정규화된 binding은 screening 결과와 ingest run projection에 보존한다.
+
 | 필드 | 계약·검증 |
 |---|---|
 | `schema_version` | 정확히 `bidops.screening-input.v1` |

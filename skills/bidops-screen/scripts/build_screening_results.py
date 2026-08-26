@@ -105,6 +105,25 @@ EXECUTION_ID_RE = re.compile(r"^scr-[0-9a-f]{32}$")
 DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
 DECIMAL_RE = re.compile(r"^[+-]?\d+(?:\.\d+)?$")
 
+# v3 artifacts written before generation binding carried neither of these
+# fields.  Their behavior is defined by the migration contract: all stages
+# used the 2048-token budget.  Keep this value local to the file-contract
+# boundary so accepting a legacy artifact never depends on process settings.
+LEGACY_GENERATION_CONFIG = {
+    "schema_version": "bidops.generation-config.v1",
+    "num_ctx": 16384,
+    "num_predict": {
+        "perspective": 2048,
+        "counterargument": 2048,
+        "synthesis": 2048,
+    },
+    "think": False,
+    "stream": False,
+}
+LEGACY_GENERATION_CONFIG_DIGEST = (
+    "f5005da40315a4d24edba05b9394e71dba6c1c3c5790c84e5cc43673215134aa"
+)
+
 DEFAULT_BOILERPLATE_RATIO = 0.4
 MIN_REASON_LENGTH = 10
 
@@ -382,6 +401,36 @@ def _digest(value: Any, prefix: str) -> list[str]:
     return []
 
 
+def _normalize_legacy_generation_fields(
+    value: Any, prefix: str
+) -> tuple[Any, list[str]]:
+    """Add the deterministic legacy binding only when both fields are absent.
+
+    The returned mapping is a derived in-memory value.  The source artifact is
+    never rewritten.  A partially present binding is intentionally not
+    completed: it is ambiguous whether the producer omitted the config or
+    digest, so callers must fail closed.
+    """
+
+    if not isinstance(value, dict):
+        return value, []
+    has_config = "generation_config" in value
+    has_digest = "generation_config_digest" in value
+    if has_config and has_digest:
+        return value, []
+    if has_config or has_digest:
+        missing = "generation_config_digest" if has_config else "generation_config"
+        return value, [f"{prefix}.{missing}가 함께 제공되지 않았습니다."]
+    return {
+        **value,
+        "generation_config": {
+            **LEGACY_GENERATION_CONFIG,
+            "num_predict": dict(LEGACY_GENERATION_CONFIG["num_predict"]),
+        },
+        "generation_config_digest": LEGACY_GENERATION_CONFIG_DIGEST,
+    }, []
+
+
 def _generation_config_errors(value: Any, digest: Any, prefix: str) -> list[str]:
     """Validate the frozen generation contract without importing the app."""
 
@@ -653,7 +702,11 @@ def validate_common_notice(notice: Any, prefix: str = "notice") -> list[str]:
 
 
 def validate_screening_input(value: Any) -> list[str]:
-    errors = _keys_error(value, SCREENING_INPUT_KEYS, "screening-input")
+    value, normalization_errors = _normalize_legacy_generation_fields(
+        value, "screening-input"
+    )
+    errors = list(normalization_errors)
+    errors.extend(_keys_error(value, SCREENING_INPUT_KEYS, "screening-input"))
     if errors or not isinstance(value, dict):
         return errors
     if value.get("schema_version") != "bidops.screening-input.v1":
@@ -1032,7 +1085,15 @@ def merge(
     if decisions.get("schema_version") != "bidops.decisions.v3":
         raise SystemExit(f"지원하지 않는 판정 스키마입니다: {decisions.get('schema_version')}")
 
-    errors = validate_screening_input(validation)
+    validation, validation_normalization_errors = _normalize_legacy_generation_fields(
+        validation, "screening-input"
+    )
+    decisions, decisions_normalization_errors = _normalize_legacy_generation_fields(
+        decisions, "decisions"
+    )
+    errors = list(validation_normalization_errors)
+    errors.extend(decisions_normalization_errors)
+    errors.extend(validate_screening_input(validation))
     errors.extend(_keys_error(decisions, DECISIONS_V3_KEYS, "decisions"))
     try:
         canonical_json_bytes(validation)
