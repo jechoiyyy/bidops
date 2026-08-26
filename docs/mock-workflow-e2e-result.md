@@ -3,6 +3,10 @@
 Mock 결과는 워크플로우 상태 전이와 저장·검증 경계의 증적이다. 고정 claim과 권고는
 Qwen 품질 또는 실제 사업 판단을 승인하지 않는다.
 
+T8 문서 검토에서도 아래 2026-08-26 기존 B→C 증적과 2026-08-27 Agent 연속 E2E 증적을
+그대로 보존한다. 어느 결과도 실제 Qwen 품질 evidence로 승격하지 않으며, `passed=true`는
+해당 Mock workflow의 저장·검증·계보 인수에만 적용된다.
+
 ## 2026-08-27 Agent 연속 E2E
 
 - 격리 Compose project: `bidops-agent-e2e-20260827-a`

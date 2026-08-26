@@ -1,6 +1,18 @@
 # 미해결 문제
 
-기준일: 2026-08-26
+기준일: 2026-08-27
+
+## T7 실제 격리 Mock E2E는 통과했지만 Qwen 품질 증적은 아님
+
+- 2026-08-27 새 격리 Compose project에서 PostgreSQL, MinIO, ClamAV, document worker 2개,
+  analysis worker, web을 사용해 Agent 연속 E2E를 실행했다.
+- provider/model은 `mock-analysis` / `bidops-deterministic-mock-v1`이고 결과는
+  `bidops.t7-e2e-result.v1`, `passed=true`였다. 외부 OpenAI/Codex/Qwen 호출은 0건이며 종료
+  queued/running WorkJob도 0건이었다.
+- 종료 후 격리 container, network, volume을 정리했다. 상세 두 날짜 증적과 ID는
+  [`docs/mock-workflow-e2e-result.md`](../mock-workflow-e2e-result.md)에 보존한다.
+- `mock_quality.evaluated=false`이므로 이 결과를 Qwen 품질 gate, 실제 사업 판단, 배포 승인으로
+  재사용할 수 없다.
 
 ## 원격 vLLM 연결은 확인됐지만 배포 artifact가 immutable하게 고정되지 않음
 
@@ -24,11 +36,24 @@
 - 실제 대표 HWP/PDF, source SHA, 모델 출력, gold item mapping, claim별 사람 판정이 있어야 0.80/0.70/0.10 gate를 측정할 수 있다.
 - scorer는 준비됐지만 Qwen 호출이나 사람 adjudication을 대신하지 않는다.
 
-## 실제 B→C 서비스 인수 실행이 아직 없음
+## 실제 Qwen B→C 서비스 인수와 품질 승인은 아직 없음
 
-- 현재는 fake API를 사용한 연속 실행기 계약, 전체 backend 회귀, 실제 vLLM 단일 Stage 1 schema/evidence 검증까지만 통과했다.
-- 실제 PostgreSQL·MinIO·ClamAV·document worker·remote vLLM를 함께 사용한 `bc-result.json`은 아직 없다.
+- 위 T7 결과는 Mock 경로의 실제 서비스 E2E이며, remote vLLM/Qwen을 사용한 `bc-result.json`은 아직 없다.
+- 실제 대표 HWP/PDF, immutable model/image digest, 55개 gold mapping과 사람 판정이 없어
+  `0.80/0.70/0.10` quality gate를 측정할 수 없다.
 - 실제 timeout·잘린 JSON·provider 실패의 재시도는 unit test로 검증됐지만 승인 endpoint에서의 fault-injection 증적은 없다.
+
+## 깨끗한 PostgreSQL legacy ingest에서 screening_basis 길이 오류
+
+- 재현 조건: 기존 운영 DB가 아닌 깨끗한 PostgreSQL에 `data/runs/20260817-20260823`의 기존
+  산출물을 읽기 전용으로 연결하고 `python -m app.ingest.cli --run 20260817-20260823`를 실행한다.
+- 실제 결과: `Run.screening_basis` 모델/컬럼이 `varchar(64)`인데 screening 결과의 긴 실제
+  설명을 그대로 저장하려다 PostgreSQL `StringDataRightTruncation`이 발생했다.
+- 영향: 해당 회차 ingest 성공을 주장할 수 없고, clean legacy ingest/cutover 검증은 미완료다.
+  T8에서는 코드나 schema를 변경하지 않았다.
+- 후속 조치: 원문 설명을 자동 절단하거나 빈 값으로 바꾸지 말고, 보존 길이·DB schema·REST
+  표시 계약을 함께 결정한 뒤 migration과 회귀 테스트를 추가해야 한다. 해결 전에는 이 회차가
+  성공적으로 적재된 것처럼 기록하지 않는다.
 
 ## SQLite 이관·복구 훈련용 외부 입력이 없음
 

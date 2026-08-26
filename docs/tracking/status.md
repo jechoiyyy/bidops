@@ -1,6 +1,8 @@
 # 구현·검증 현황
 
-기준일: 2026-08-26
+기준일: 2026-08-27
+기준 HEAD: `4f98a5c9ed986b534403df4c8feebaf3ebdbfab0` (`bidops-deep-review`)
+T8: 코드 변경 없이 지정 문서 7개를 현재 구현·검증 결과에 맞게 갱신한다. commit/push/merge/release는 하지 않는다.
 
 ## 코드 상태
 
@@ -10,32 +12,61 @@
 | PostgreSQL 정본과 SQLite 이관 | 구현됨, 실제 백업본 리허설 미수행 | PostgreSQL 17 `bidops` schema, Alembic, 13개 legacy table import/reconciliation 코드 |
 | MinIO·ClamAV·문서 격리 | 구현됨, 실제 운영 권한 검증 미수행 | 목적별 bucket/credential, clean scan, `document-worker network_mode:none`, object hash/location |
 | 단계 B document bundle | 구현됨 | 7개 bundle/document API, HWP/HWPX/PDF 검사·구조화, immutable ready snapshot |
-| 단계 C Qwen deep review | 구현됨 | 세 stage, bounded chunk/retry, fenced job, encrypted raw response, report/validation/evidence API |
-| React 심층 검토 화면 | 핵심 조회·리포트 검토 구현됨 | ready bundle 선택, review 시작, report/revision/final opinion 화면과 기능 테스트 |
+| Agent 공통 계약·projection | 구현됨 | `web/backend/app/agents/common/`, 별도 Agent 상태 table 없음 |
+| DocumentPreparation/DeepReview/Decision Agent | 구현됨 | 세 package의 typed command·adapter·projection과 대응 테스트 |
+| 기존 mutation router 연결 | 구현됨 | document bundle·deep review·report mutation이 해당 Agent adapter를 호출하고 Lean v1 14개 API 계약 유지 |
+| 단계 C deep-review runtime | 구현됨, provider-neutral | 세 stage, bounded chunk/retry, fenced job, encrypted raw response, report/validation/evidence API |
+| React 심층 검토 화면 | 핵심 조회·리포트 검토 구현됨 | ready bundle 선택, review 시작, report/revision/final opinion 화면과 기능 테스트; T8 frontend 코드는 변경하지 않음 |
 | Qwen 품질 activation gate | 계산·import 연결 구현됨, 실제 품질 증적 없음 | human-adjudicated scorer, 0.80/0.70/0.10 gate, policy SHA 일치 import |
-| B→C 연속 인수 실행기 | 구현됨, 실제 서비스 실행 미수행 | upload→confirm→review→3 stages→validation→evidence 실행기와 dry-run/target 확인 |
-| 원격 vLLM 연결 | SDK 스모크 통과, artifact 고정 미완료 | OpenAI-compatible SDK, remote IP egress override, exact base URL/model allowlist |
+| T7 Agent 연속 인수 | 실제 격리 Mock E2E 통과 | PostgreSQL·MinIO·ClamAV·document worker 2개·analysis worker·web, `passed=true`, 종료 active WorkJob 0 |
+| legacy run ingest | 미해결 차단 문제 있음 | 깨끗한 PostgreSQL에서 긴 `screening_basis`가 `varchar(64)`에 기록되며 `StringDataRightTruncation` 발생 |
 | 백업·복구 자동화 | 구현됨, 실제 snapshot 복구 훈련 미수행 | object-first restore, PostgreSQL restore, active hash 검증 script |
 
-## 2026-08-26 검증 결과
+## 2026-08-27 T8 검증 결과
 
-- backend 전체: `278 passed, 4 skipped` (`/app/web/data`만 tmpfs인 read-only source container)
-- skip 4개: 별도 격리 T7 MinIO가 필요한 live integration test
-- vLLM policy/client/prompt 경계 집중 검증: `31 passed`
-- 실제 vLLM SDK Stage 1: `qwen3.8-27B` non-thinking, 25.29초, prompt 531/completion 853 tokens, supported claim 2/evidence 1, 권위 validator 통과
-- Compose config: base+remote vLLM 조합 유효
-- 운영 DB, 기존 Compose project/volume, 실제 MinIO object는 변경하지 않음
+| 실행 명령 | 결과 |
+|---|---|
+| `./run-tests.sh` | 성공. `skills/bidops-collect` 28개, `skills/bidops-report` 13개, `skills/bidops-screen` 21개, root `tests` 2개가 모두 `OK`(총 64개) |
+| `./web/run-web-tests.sh` | 성공. backend `356 passed, 4 skipped, 6 warnings`; 이어서 frontend Vite build 성공(135 modules transformed) |
+| `web/backend/.venv/bin/pytest web/backend/tests` | 성공. `356 passed, 4 skipped, 6 warnings in 20.02s` |
+| `cd web/frontend && npm run build` | 성공. Vite 6.4.3, 135 modules transformed, `built in 1.88s` |
+| `git diff --check` | T8 문서 수정 완료 후 최종 실행에서 성공 확인 |
 
-frontend 파일은 이번 변경에서 수정하지 않았다. 기존 기능 테스트는 통과 상태이나 28개 시각 snapshot은 실행 환경의 한글 font 차이가 남아 있다.
+backend의 4 skip은 `test_document_bundles.py` 1개와 `test_minio_e2e.py` 3개로, 별도 isolated T7
+MinIO service가 필요한 live integration test다. pytest의 6 warnings는 Pydantic `schema` field
+shadowing 5건과 Starlette/httpx deprecation 1건이며 이번 실행을 실패로 만들지 않았다.
 
-## 배포 후보 승격 전 남은 P0
+검증 환경에 `web/backend/.venv`가 처음 없어서 `./web/run-web-tests.sh`의 첫 실행은
+`/usr/bin/python3: No module named pytest`(exit 1)로 끝났다. `.gitignore` 대상 virtualenv에
+`web/backend/requirements.txt`를 설치한 뒤 같은 명령을 재실행해 위 성공 결과를 얻었다. 첫 실패를
+통과 결과로 세지 않는다.
 
-1. 현재 원격 vLLM의 image digest와 `Qwen/Qwen3.8-27B` immutable revision/artifact digest를 고정하고 대표 HWP/PDF·55개 요구사항 gold로 실제 품질 manifest를 만든다.
-2. scorer 통과 결과로 measured profile/policy를 import하고 active UUID를 격리 web에 배포한다.
-3. 새 Compose project에서 [단계 B→C 연속 인수 테스트](../e2e-bc-acceptance.md)를 실행해 실제 증적을 보관한다.
-4. 운영 SQLite가 아닌 백업 복사본으로 13개 table row/PK/FK, 리뷰·첨부 metadata, PostgreSQL sequence, 실패 후 재실행, SQLite write 차단을 리허설한다.
-5. secret manager·MinIO 권한·remote model egress firewall·복구 순서·RPO/RTO·UID/GID를 실제 배포 환경에서 검증한다.
-6. 고정 Playwright image/font에서 snapshot을 재생성하고 사람이 28개 변경 이미지를 승인한다.
-7. 위 P0 증적이 통과한 뒤 원격 push, main PR, migration/Compose/security review, merge, Lean v1 tag를 진행한다.
+## 2026-08-27 T7 실제 격리 E2E
 
-현재 상태는 “vLLM SDK 연결과 단건 실제 호출 확인”이며, 전체 B→C 서비스 E2E와 사람 품질 gate를 통과한 배포 후보는 아니다.
+- `docker-compose.t7.yml` + `docker-compose.t7.mock-reference.yml`의 새 격리 project에서 실행했다.
+- PostgreSQL, MinIO, ClamAV, document worker 2개, analysis worker, web을 사용했다.
+- provider/model은 `mock-analysis` / `bidops-deterministic-mock-v1`이다.
+- 외부 OpenAI/Codex/Qwen 호출은 0건이고 종료 queued/running WorkJob은 0건이었다.
+- 결과 schema는 `bidops.t7-e2e-result.v1`, `passed=true`였다.
+- 종료 후 격리 container, network, volume을 정리했다.
+
+두 날짜의 bundle/review/revision/opinion ID와 projection checkpoint는
+[`docs/mock-workflow-e2e-result.md`](../mock-workflow-e2e-result.md)에 보존한다. Mock 결과의
+`mock_quality.evaluated=false`는 실제 Qwen 품질 gate를 통과했다는 의미가 아니다.
+
+## 배포 후보 승격 전 남은 일
+
+1. [미해결 문제](findings.md)에 기록한 `screening_basis` 저장 길이 문제의 schema/계약을 결정하고,
+   원문 설명을 조용히 절단하지 않는 방식으로 수정·회귀한다.
+2. 원격 vLLM image digest와 `Qwen/Qwen3.8-27B` immutable revision/artifact digest를 고정하고,
+   대표 HWP/PDF와 55개 요구사항 gold로 실제 0.80/0.70/0.10 품질 gate를 측정한다.
+3. measured profile/policy import와 승인된 외부 egress·secret·MinIO 권한을 실제 배포 환경에서
+   검증한다. Mock E2E 증적을 Qwen evidence로 재사용하지 않는다.
+4. 운영 SQLite가 아닌 백업 복사본으로 13개 table row/PK/FK, sequence, 리뷰·첨부 metadata,
+   실패 후 재실행과 object→DB→active hash 복구를 리허설한다.
+5. 고정 Playwright image/font에서 28개 snapshot을 재생성하고 사람이 승인한다. T8에서는 Playwright
+   visual test를 실행하지 않았다.
+6. 위 조건을 충족하기 전에는 main merge, push, release, Lean v1 tag를 수행하지 않는다.
+
+현재는 T1~T7 Agent 구현과 Mock workflow 인수는 완료됐지만, 실제 Qwen 품질 승인·clean legacy
+ingest 성공·운영 복구/권한 검증은 완료되지 않은 상태다.

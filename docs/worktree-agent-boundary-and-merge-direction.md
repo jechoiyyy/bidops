@@ -1,10 +1,33 @@
 # Worktree별 Agent 경계와 병합 방향
 
+기준일: 2026-08-27
+검토 기준 HEAD: `4f98a5c9ed986b534403df4c8feebaf3ebdbfab0` (`bidops-deep-review`)
+T8 상태: 코드 변경 없음, 이 문서를 포함한 지정 문서 7개만 갱신, commit/push/merge/release 없음
+
 ## 1. 목적
 
 이 문서는 `bidops-agent-runtime-design`, `ui-component-refresh`, `bidops-deep-review`가 서로 다른 책임을 유지하면서 최종 integration branch에서 합쳐지기 위한 방향과 병합 전 조건을 고정한다.
 
-현재 선택은 runtime-design의 진행 중인 코드를 즉시 Agent 폴더로 이동하는 것이 아니다. runtime의 내부 책임을 정리하고 안정적인 application service 경계를 남긴 뒤, 공통 Agent 계약과 개별 Agent adapter를 소유 워크트리 또는 integration 단계에서 연결한다.
+통합 목표는 runtime-design의 내부 책임을 Agent 폴더로 옮기지 않고 안정적인 application service 경계를
+남기는 것이다. 현재 downstream Agent 계약과 adapter 연결은 이 worktree의 T1~T7에서 완료됐으며,
+runtime-design과 integration 단계에서는 그 경계를 보존한다.
+
+### 1.1 현재 HEAD의 경계 판정
+
+T1~T7 구현은 `bidops-deep-review`의 현재 HEAD에 순서대로 고정되어 있다. `AgentRunView`는 별도
+저장 row가 아니라 기존 domain/audit snapshot에서 계산되고, T7의 `agent_e2e.py`는 새 API나 새
+테이블 없이 이 projection을 읽는다. 따라서 통합자는 Agent 상태를 runtime-design의 별도 상태
+저장소로 합치지 않는다.
+
+현재 확인된 실제 상태:
+
+- `agents/common`, `document_preparation`, `deep_review`, `decision`과 관련 테스트가 존재한다.
+- document bundle/deep review/report의 mutation router는 해당 adapter를 사용한다. 기존 Lean v1
+  14개 endpoint와 response/error 의미는 유지한다.
+- T7 실제 격리 Mock E2E는 PostgreSQL, MinIO, ClamAV, document worker 2개, analysis worker, web에서
+  `passed=true`, `mock-analysis`/`bidops-deterministic-mock-v1`, 외부 OpenAI/Codex/Qwen 호출 0건,
+  종료 active WorkJob 0건을 확인한 뒤 자원을 정리했다.
+- `OpportunityDiscoveryAgent`, `BidOpsCoordinator`, Agent REST API, Agent 전용 table은 현재도 없다.
 
 ## 2. 최종 목표 구조
 
@@ -103,13 +126,13 @@ runtime-design 완료 문서에는 다음을 기록한다.
 
 ### 5.3 bidops-deep-review
 
-- [ ] 현재 Lean v1, vLLM, mock 관련 dirty 변경을 기준 커밋으로 분리했다.
-- [ ] `agents/common`과 세 Agent가 Agent별 패키지에 분리돼 있다.
-- [ ] Agent 패키지 사이 직접 import와 service 로직 복사가 없다.
-- [ ] 기존 REST 14개의 성공·오류 의미가 유지된다.
-- [ ] 결정적 mock E2E와 전체 backend/frontend 회귀 결과를 기록했다.
-- [ ] 실제 Qwen/OpenAI/Codex 호출이 mock 검증에서 0건임을 확인했다.
-- [ ] runtime과 겹치는 파일 및 계약별 해결 기준을 기록했다.
+- [x] 현재 Lean v1, vLLM, mock 관련 변경이 T1~T7 commit으로 기준 커밋에 고정돼 있다.
+- [x] `agents/common`과 세 Agent가 Agent별 패키지에 분리돼 있다.
+- [x] Agent 패키지 사이 직접 import와 service 로직 복사가 없다.
+- [x] 기존 REST 14개의 성공·오류 의미가 유지된다.
+- [x] 결정적 Mock E2E와 전체 backend/frontend 회귀 결과를 기록했다.
+- [x] 실제 Qwen/OpenAI/Codex 호출이 Mock 검증에서 0건임을 확인했다.
+- [x] runtime과 겹치는 파일 및 계약별 해결 기준을 이 문서와 HANDOFF에 기록했다.
 
 ### 5.4 integration branch
 
@@ -138,6 +161,26 @@ runtime-design 완료 문서에는 다음을 기록한다.
 - dirty runtime 또는 deep-review worktree에서 서로 직접 merge하지 않는다.
 - 큰 feature commit을 임의 순서로 cherry-pick하지 않는다.
 
+### 6.1 현재 Agent commit 순서
+
+현재 HEAD의 Agent 구현은 다음 순서로 누적됐다. 통합자가 cherry-pick을 선택한다면 이 순서를
+그대로 사용하고, 한 번에 branch를 merge한다면 아래 순서를 conflict review 기준으로 사용한다.
+
+| 순서 | commit | 내용 |
+|---:|---|---|
+| 1 | `1f080f3` | common contract, safe error, 순수 projection helper |
+| 2 | `dc049ee` | DocumentPreparationAgent |
+| 3 | `d658253` | DeepReviewAgent |
+| 4 | `dfbe31f` | DecisionAgent |
+| 5 | `0a51af2` | decision projection contract 보정 |
+| 6 | `110d62f` | 기존 mutation router를 Agent adapter에 연결 |
+| 7 | `18ca38b` | adapter 경유 mutation idempotency 보존 |
+| 8 | `7313a31` | PDF content object 누락 거부 회귀 보정 |
+| 9 | `4f98a5c` | 결정적 T7 Agent 연속 acceptance와 증적 runner |
+
+T8 문서 변경은 별도 commit이 없으므로 `git diff -- <지정 문서>`로 확인한다. T8 변경을
+임의로 코드 commit에 섞거나, 아래 증적을 새 Qwen 품질 결과로 이름을 바꾸지 않는다.
+
 ## 7. 집중 충돌 검토 대상
 
 다음 파일과 영역은 양쪽 변경의 의미를 함께 보존해야 한다.
@@ -153,7 +196,58 @@ runtime-design 완료 문서에는 다음을 기록한다.
 
 충돌 해결 후에는 schema, API, transaction, provider, UI 계약별로 무엇을 선택했는지 integration 기록에 남긴다.
 
-## 8. 중단 조건
+### 7.1 실제 충돌 파일별 해결 기준
+
+| 영역 | 현재 HEAD의 의미 | 통합 시 보존할 것 |
+|---|---|---|
+| `web/backend/app/agents/**` | 세 Agent와 common 계약의 유일한 구현 | runtime-design 쪽에 동명 Agent 계약이 생겨도 양쪽을 통째로 선택하지 말고 이 branch의 공통 enum·RunView·adapter를 기준으로 수동 대조 |
+| `web/backend/app/agents/__init__.py` | common, command, projection, Agent의 root export | 다른 branch의 export를 필요한 만큼 합치되 Agent export와 import 순서를 보존 |
+| `web/backend/app/routers/document_bundles.py` | bundle 4 mutation이 DocumentPreparationAgent command/adapter를 사용 | 기존 response model·stable error·actor header·version/idempotency 검사를 유지하며 router 변경을 수동 결합 |
+| `web/backend/app/routers/deep_reviews.py` | review 생성·attempt retry가 DeepReviewAgent를 사용 | ready bundle/attempt ref 검증과 기존 `DeepReviewView` 계약을 함께 유지 |
+| `web/backend/app/routers/reports.py` | full revision·final opinion이 DecisionAgent를 사용 | full snapshot, evidence scope, validation acknowledgement, append-only 응답을 함께 유지 |
+| `web/backend/app/services/{document_bundles,deep_reviews,reports}.py` | adapter가 재사용하는 기존 domain service 경계 | 업무 로직을 Agent 폴더로 복사하지 말고 service 계약과 transaction 경계를 유지 |
+| `web/backend/app/services/agent_e2e.py`, `app/cli/run_bc_e2e.py`, T7 tests | 새 API/table 없는 persisted projection acceptance | `--t7`, provider/model guard, projection assertion, active WorkJob 0 검사를 유지 |
+| `docker-compose.t7.mock-reference.yml` | web/analysis-worker를 local Mock으로 고정 | `mock-analysis`, `bidops-deterministic-mock-v1`, OpenAI/Codex disabled, reference mode를 보존 |
+| models/migrations/config/db | Agent 전용 table/column/migration은 없음 | 충돌이 생겨도 `agent_run`/outbox를 추가하지 않고 Lean v1 schema·security 경계를 계약별로 검토 |
+| frontend | T1~T7 Agent 구현에서 frontend 코드는 변경하지 않음 | UI branch의 변경을 이 branch의 backend adapter 결과로 추정해 덮어쓰지 않음 |
+
+## 8. 통합 재현 검증
+
+통합자는 새 작업 디렉터리와 새 격리 Compose project에서 다음을 실행한다. 현재 운영/기존
+Compose project와 volume은 대상이 아니다.
+
+```bash
+git diff --check
+./run-tests.sh
+./web/run-web-tests.sh
+web/backend/.venv/bin/pytest web/backend/tests
+cd web/frontend && npm run build
+```
+
+T8에서 확인한 최종 기준은 root unittest 64개 성공, backend `356 passed, 4 skipped`, frontend
+Vite build 성공이다. backend의 4 skip은 isolated T7 MinIO가 필요한 live integration test다.
+검증 환경에 `.venv`가 없으면 `./web/run-web-tests.sh`는 pytest import 단계에서 실패하므로,
+`web/backend/requirements.txt`를 설치한 격리 virtualenv를 먼저 준비하고 실패한 첫 실행을
+성공으로 세지 않는다. Playwright visual test는 T8에서 실행하지 않았고, 28개 한글 font snapshot
+차이는 아직 사람 승인이 필요하다.
+
+T7 acceptance를 재현할 때는 새 project에 `docker-compose.t7.yml`과
+`docker-compose.t7.mock-reference.yml`을 결합하고, 실행 중인 web container 안에서 아래 CLI를
+호출한다. `mock_quality.evaluated=false`를 유지하며 실제 Qwen 품질 gate로 해석하지 않는다.
+
+```bash
+docker exec <fresh-isolated-web-container> \
+  python -m app.cli.run_bc_e2e /tmp/t7-manifest.json \
+  --t7 --confirm-target http://127.0.0.1:8787 \
+  --output /tmp/t7-result.json
+```
+
+현재 기록된 T7 project는 이미 정리됐으며, 그 실행은 PostgreSQL·MinIO·ClamAV·document worker
+2개·analysis worker·web, Mock provider/model, 외부 OpenAI/Codex/Qwen 0건, 종료 active WorkJob
+0건, `passed=true`를 확인했다. 상세 ID와 두 날짜 증적은
+`docs/mock-workflow-e2e-result.md`에 있다.
+
+## 9. 중단 조건
 
 다음 상황에서는 임의로 구조를 바꾸거나 병합하지 않는다.
 
