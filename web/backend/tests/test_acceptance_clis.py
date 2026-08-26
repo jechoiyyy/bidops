@@ -113,6 +113,11 @@ def test_acceptance_actor_header_round_trips_unicode_without_raw_header_bytes(mo
     assert api.request_json("POST", "/api/example", payload={}, actor=actor) == {}
     assert observed == {"actor": encoded, "retryable": False}
     assert actor_header_value("E2E Operator") == "E2E Operator"
+    prefixed_ascii = "UTF-8''E2E Operator"
+    assert actor_header_value(prefixed_ascii) == prefixed_ascii
+    assert validate_actor(prefixed_ascii) == prefixed_ascii
+    percent_ascii = "UTF-8''E2E%20Operator"
+    assert validate_actor(percent_ascii) == percent_ascii
     for invalid in ("UTF-8''", "UTF-8''%ZZ", "UTF-8''%0A"):
         with pytest.raises(BundleServiceError) as error:
             validate_actor(invalid)

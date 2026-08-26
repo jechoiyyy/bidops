@@ -234,10 +234,20 @@ def _decode_actor_header(actor: str) -> str:
         return actor
     encoded = actor[len(UTF8_ACTOR_PREFIX):]
     try:
+        if not encoded:
+            raise ValueError("empty encoded actor")
+        # The acceptance client only uses this envelope for non-ASCII names.
+        # Preserve pre-existing printable ASCII names that happen to begin with
+        # the reserved-looking prefix instead of silently changing identity.
+        if "%" not in encoded:
+            return actor
         raw = unquote_to_bytes(encoded)
         if quote_from_bytes(raw, safe="") != encoded:
             raise ValueError("non-canonical actor encoding")
-        return raw.decode("utf-8")
+        decoded = raw.decode("utf-8")
+        if decoded.isascii() and _CONTROL.search(decoded) is None:
+            return actor
+        return decoded
     except (UnicodeDecodeError, ValueError) as error:
         raise BundleServiceError("actor_name_invalid", "담당자 이름이 올바르지 않습니다", status_code=400) from error
 
