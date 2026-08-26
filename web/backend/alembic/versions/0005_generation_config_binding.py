@@ -8,8 +8,6 @@ configuration; column defaults retained by the final schema use the current
 
 from __future__ import annotations
 
-import re
-
 from alembic import op
 import sqlalchemy as sa
 
@@ -72,6 +70,194 @@ def _add(table: str, name: str, column: sa.Column) -> None:
         op.add_column(table, column)
 
 
+def _table_definition_segments(sql: str) -> list[tuple[int, int]]:
+    """Return top-level comma-delimited segments of a CREATE TABLE body.
+
+    SQLite stores the original CREATE TABLE statement in ``sqlite_master``.
+    Defaults can contain both quoted commas and nested expressions, so a plain
+    ``str.find(',')`` cannot identify the end of a column definition. This
+    scanner tracks SQLite's quoted strings/identifiers and parenthesis depth.
+    """
+
+    quote: str | None = None
+    opening = None
+    index = 0
+    while index < len(sql):
+        char = sql[index]
+        if quote is not None:
+            if quote == "[":
+                if char == "]":
+                    quote = None
+            elif char == quote:
+                if index + 1 < len(sql) and sql[index + 1] == quote:
+                    index += 1
+                else:
+                    quote = None
+        elif char in "'\"`[":
+            quote = char
+        elif char == "(":
+            opening = index
+            break
+        index += 1
+    if opening is None:
+        raise RuntimeError("cannot locate CREATE TABLE body")
+
+    segments: list[tuple[int, int]] = []
+    start = opening + 1
+    depth = 1
+    quote = None
+    index = start
+    while index < len(sql):
+        char = sql[index]
+        if quote is not None:
+            if quote == "[":
+                if char == "]":
+                    quote = None
+            elif char == quote:
+                if index + 1 < len(sql) and sql[index + 1] == quote:
+                    index += 1
+                else:
+                    quote = None
+        elif char in "'\"`[":
+            quote = char
+        elif char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+            if depth == 0:
+                segments.append((start, index))
+                return segments
+        elif char == "," and depth == 1:
+            segments.append((start, index))
+            start = index + 1
+        index += 1
+    raise RuntimeError("unterminated CREATE TABLE body")
+
+
+def _segment_identifier(segment: str) -> str:
+    segment = segment.lstrip()
+    if not segment:
+        return ""
+    if segment[0] in "\"`":
+        quote = segment[0]
+        end = 1
+        value: list[str] = []
+        while end < len(segment):
+            if segment[end] == quote:
+                if end + 1 < len(segment) and segment[end + 1] == quote:
+                    value.append(quote)
+                    end += 2
+                    continue
+                return "".join(value)
+            value.append(segment[end])
+            end += 1
+        return ""
+    if segment[0] == "[":
+        end = segment.find("]", 1)
+        return segment[1:end] if end >= 0 else ""
+    end = 0
+    while end < len(segment) and not segment[end].isspace():
+        end += 1
+    return segment[:end]
+
+
+def _parenthesized_end(text: str, start: int) -> int | None:
+    """Return the matching ``)`` for a parenthesized SQL expression."""
+
+    if start >= len(text) or text[start] != "(":
+        return None
+    quote: str | None = None
+    depth = 0
+    index = start
+    while index < len(text):
+        char = text[index]
+        if quote is not None:
+            if quote == "[":
+                if char == "]":
+                    quote = None
+            elif char == quote:
+                if index + 1 < len(text) and text[index + 1] == quote:
+                    index += 1
+                else:
+                    quote = None
+        elif char in "'\"`[":
+            quote = char
+        elif char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+            if depth == 0:
+                return index
+        index += 1
+    return None
+
+
+def _replace_segment_default(segment: str, old_default: str, new_default: str) -> str | None:
+    """Replace one DEFAULT value while ignoring nested/quoted text."""
+
+    quote: str | None = None
+    depth = 0
+    index = 0
+    while index < len(segment):
+        char = segment[index]
+        if quote is not None:
+            if quote == "[":
+                if char == "]":
+                    quote = None
+            elif char == quote:
+                if index + 1 < len(segment) and segment[index + 1] == quote:
+                    index += 1
+                else:
+                    quote = None
+            index += 1
+            continue
+        if char in "'\"`[":
+            quote = char
+            index += 1
+            continue
+        if char == "(":
+            depth += 1
+            index += 1
+            continue
+        if char == ")":
+            depth = max(0, depth - 1)
+            index += 1
+            continue
+        keyword = "DEFAULT"
+        if depth == 0 and segment[index : index + len(keyword)].upper() == keyword:
+            before = segment[index - 1] if index else " "
+            after_index = index + len(keyword)
+            after = segment[after_index] if after_index < len(segment) else " "
+            if (not (before.isalnum() or before == "_")) and (not (after.isalnum() or after == "_")):
+                value_start = after_index
+                while value_start < len(segment) and segment[value_start].isspace():
+                    value_start += 1
+                if segment.startswith(old_default, value_start):
+                    value_end = value_start + len(old_default)
+                    return segment[:value_start] + new_default + segment[value_end:]
+                # SQLite's PRAGMA reports DEFAULT ('value') as 'value', while
+                # sqlite_master retains the surrounding parentheses. Replace
+                # the complete balanced expression in that representation.
+                if value_start < len(segment) and segment[value_start] == "(":
+                    value_end = _parenthesized_end(segment, value_start)
+                    if value_end is not None and segment[value_start + 1 : value_end].strip() == old_default:
+                        return segment[:value_start] + new_default + segment[value_end + 1 :]
+        index += 1
+    return None
+
+
+def _replace_column_default(sql: str, column: str, old_default: str, new_default: str) -> str:
+    for start, end in _table_definition_segments(sql):
+        segment = sql[start:end]
+        if _segment_identifier(segment) != column:
+            continue
+        replaced = _replace_segment_default(segment, old_default, new_default)
+        if replaced is None:
+            break
+        return sql[:start] + replaced + sql[end:]
+    raise RuntimeError(f"cannot repair {column} server default safely")
+
+
 def _repair_server_defaults(table: str, expected: dict[str, str]) -> None:
     """Repair all generation defaults for a table in one schema rewrite."""
 
@@ -85,7 +271,7 @@ def _repair_server_defaults(table: str, expected: dict[str, str]) -> None:
     changed = False
     for column, value in expected.items():
         info = next(
-            (item for item in connection.exec_driver_sql(f'PRAGMA table_info("{table}")').fetchall() if item[1] == column),
+            (item for item in connection.exec_driver_sql(f'PRAGMA table_xinfo("{table}")').fetchall() if item[1] == column),
             None,
         )
         if info is None or info[4] is None:
@@ -94,22 +280,7 @@ def _repair_server_defaults(table: str, expected: dict[str, str]) -> None:
         new_default = "'" + value.replace("'", "''") + "'"
         if old_default == new_default:
             continue
-        column_match = re.search(
-            r'(?i)(?:"' + re.escape(column) + r'"|`' + re.escape(column) + r'`|(?<![A-Za-z0-9_])' + re.escape(column) + r'(?![A-Za-z0-9_]))',
-            repaired,
-        )
-        if column_match is None:
-            raise RuntimeError(f"cannot repair {table}.{column} server default safely")
-        column_end = repaired.find(",", column_match.end())
-        if column_end < 0:
-            column_end = len(repaired)
-        fragment = repaired[column_match.end() : column_end]
-        match = re.search(r"\bDEFAULT\s+" + re.escape(old_default), fragment, flags=re.IGNORECASE)
-        if match is None:
-            raise RuntimeError(f"cannot repair {table}.{column} server default safely")
-        start = column_match.end() + match.start()
-        end = column_match.end() + match.end()
-        repaired = repaired[:start] + "DEFAULT " + new_default + repaired[end:]
+        repaired = _replace_column_default(repaired, column, old_default, new_default)
         changed = True
     if not changed:
         return
@@ -165,12 +336,12 @@ def _config_shape(alias: str) -> str:
 def _known_config(alias: str) -> str:
     value = f"CAST({alias}.generation_config_json AS TEXT)"
     digest = f"{alias}.generation_config_digest"
-    # Raw connections without the UDF are allowed to use only the two
-    # migration-established constants. Any custom or tampered value must go
-    # through the registered validator and consequently fails closed.
+    # Raw connections without the UDF are allowed to use only the two exact
+    # migration-established pairs. Keeping JSON and digest in the same tuple
+    # prevents a cross-pair value from skipping the UDF branch.
     return (
-        f"({value} IN ('{_LEGACY_JSON}', '{_DEFAULT_JSON}') "
-        f"AND {digest} IN ('{_LEGACY_DIGEST}', '{_DEFAULT_DIGEST}'))"
+        f"(({value} = '{_LEGACY_JSON}' AND {digest} = '{_LEGACY_DIGEST}') "
+        f"OR ({value} = '{_DEFAULT_JSON}' AND {digest} = '{_DEFAULT_DIGEST}'))"
     )
 
 
