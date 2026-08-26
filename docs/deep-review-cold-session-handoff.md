@@ -1,9 +1,10 @@
 # BidOps 심층 검토 설계 — Cold Session 인계
 
-> **2026-08-25 대체됨:** 이 문서 본문의 확장안·미결정 목록은 역사 참고용이다.
-> 현재 권위 계약은 Lean v1로 개정된 `docs/deep-review-erd.md`, `.dryforge/spec.md`,
-> `.dryforge/plan.md`, `.dryforge/handoff.md` 네 문서다. 새 세션은 네 문서를 우선 읽고,
-> 최종 승인·동결된 Git 기준선을 확인한 뒤에만 구현 또는 `dryforge go`를 시작한다.
+> **2026-08-26 구현 완료로 대체됨:** 본문의 워크트리 경로, 구현 전 지시,
+> 확장안과 미결정 목록은 역사 참고용이다. 현재 권위 계약은
+> `docs/business-rules.md`, `docs/deep-review-erd.md`, `docs/contracts.md`,
+> `docs/security.md`, `docs/architecture.md`다. 본문에서 언급하는 `.dryforge` 세 문서는
+> 설계 기준선 commit `d5941c7`의 Git 이력에만 보존되어 있다.
 
 이 문서는 이전 대화가 없는 새 세션에서 PostgreSQL ERD 검토와 심층 검토 기능 설계를 안전하게 이어가기 위한 인계 문서다.
 

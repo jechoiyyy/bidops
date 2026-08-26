@@ -7,6 +7,7 @@ import hashlib
 import json
 import re
 import time
+import os
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any, Protocol
 from urllib.error import HTTPError, URLError
@@ -184,7 +185,9 @@ class OllamaClient:
         if endpoint_ref != MODEL_ENDPOINT_REF or model != MODEL_NAME:
             raise ValueError("only ollama-local qwen3.8:27b is permitted")
         parsed = urlsplit(endpoint)
-        if parsed.scheme != "http" or parsed.hostname not in {"localhost", "127.0.0.1"}:
+        allowed_hosts = {"localhost", "127.0.0.1"}
+        allowed_hosts.update(item.strip().lower() for item in os.getenv("BIDOPS_OLLAMA_ALLOWED_HOSTS", "").split(",") if item.strip())
+        if parsed.scheme != "http" or parsed.hostname is None or parsed.hostname.lower() not in allowed_hosts:
             raise ValueError("Ollama endpoint must be local http")
         if parsed.username is not None or parsed.password is not None or parsed.query or parsed.fragment:
             raise ValueError("Ollama endpoint must not contain userinfo, query, or fragment")

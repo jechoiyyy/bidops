@@ -1,65 +1,33 @@
-# 보안 정책
+# 보안 정책 (Lean v1)
 
-## 보호 대상과 신뢰 경계
+## 권위와 신뢰 경계
 
-공고 메타데이터 자체는 공개 정보지만 회사 프로필, 수행실적 정리, 담당자 리뷰, 입찰 전략, 첨부 원문과 분석 결과는 사내 자료로 취급한다. 나라장터 API 키와 향후 OpenAI API 키는 비밀정보다. 애플리케이션은 사내망에서 운영하며 인터넷에 직접 공개하지 않는다.
+PostgreSQL 17 `bidops`와 MinIO purpose buckets가 live canonical이다. SQLite는 migration input/격리 테스트만 허용한다. source/structure/quarantine/model-response bucket과 policy는 Compose bootstrap으로 분리되고 backend가 각 namespace를 요청할 때만 해당 credential/client를 구성한다. filesystem object backend는 명시적 isolated pytest boundary에서만 허용한다. actor table은 만들지 않는다.
 
-## 사용자 식별 흐름
+## API와 claimed name
 
-첫 운영 단계에는 계정 인증을 두지 않고 사용자가 화면에서 이름을 입력한다.
+승인된 mutation API는 `X-BidOps-Actor-Name`을 요구하고 이름은 인증이 아닌 감사용 claimed name이다. 비어 있거나 제어문자·`system`인 이름은 거부한다. worker 이벤트는 `actor_kind=system`과 safe metadata를 사용한다. 비밀번호·token·원문 byte·full prompt·raw model output·개인정보는 로그에 쓰지 않는다.
 
-1. 이름이 비어 있으면 조회는 가능하지만 리뷰 저장, 정책 변경 승인, 외부 모델 전송 승인을 거부한다.
-2. 공백만 있거나 허용 길이를 넘는 이름은 저장하지 않고 입력 오류를 반환한다.
-3. 유효한 이름은 현재 브라우저 세션의 작성자 표시로 사용하고 각 변경 이벤트에 함께 기록한다.
-4. 세션이 끝나거나 사용자가 이름을 바꾸면 이후 이벤트에 새 이름을 기록하되 과거 기록을 다시 쓰지 않는다.
+새 Lean API의 오류는 다음 형태로만 반환한다.
 
-이 흐름은 인증이 아니다. 동일한 이름 입력이나 타인 이름 입력을 탐지하지 못하며, 이름을 권한 근거로 사용해서는 안 된다. 사내망 밖 접근이 필요하거나 사용자별 책임 추적이 요구되면 내부 계정 또는 SSO를 도입하기 전까지 서비스를 공개해서는 안 된다.
+```json
+{"error":{"code":"processing_failed","message":"안전한 설명","details":null},"request_id":"..."}
+```
 
-## 권한 행렬
+내부 exception, filesystem path, credentials, SQL, prompt는 response/log에 포함하지 않는다.
 
-| 주체 | 행위 | 허용 조건 | 명시적 금지 |
-|---|---|---|---|
-| 사내망 접속자 | 공고·분석·첨부 조회 | 서비스에 네트워크 접근 가능 | 서버 실제 경로, API 키, 다른 시스템 자격증명 조회 |
-| 이름 미입력 접속자 | 리뷰·피드백 저장 | 허용 안 함 | 익명 변경 기록 생성 |
-| 이름 미입력 접속자 | 적재·파이프라인 실행·포털 변경·첨부 업로드/삭제 | 허용 안 함 | 조회 외 REST 변경 요청 실행 |
-| 이름 입력 접속자 | 리뷰·피드백 저장 | 유효한 이름과 대상 공고·회차가 존재 | 과거 리뷰·감사 기록 덮어쓰기 |
-| 이름 입력 접속자 | 산출물 적재·파이프라인 실행 | 유효한 이름, 허용 단계와 입력, 시작 이벤트 기록 | 완료 회차 원본 덮어쓰기, 지원하지 않는 단계 실행 |
-| 이름 입력 접속자 | 기관 포털 생성·수정 | 유효한 이름과 필수 URL 템플릿 | 감사 기록 없는 활성 포털 변경 |
-| 이름 입력 접속자 | 수동 첨부 업로드·삭제 | 유효한 이름, 허용 형식·크기, `origin=manual` 삭제 | 제공 첨부 또는 저장 루트 밖 파일 삭제 |
-| 이름 입력 접속자 | 선정 기준·프롬프트 변경 제안 | 새 버전 초안 생성 | 활성 정책을 제자리 수정하거나 완료 회차 재작성 |
-| 이름 입력 접속자 | 정책 버전 활성화 | 명시적 승인 행위와 감사 기록 | 승인자 없이 자동 활성화 |
-| 이름 입력 접속자 | OpenAI 보조 분석 | 공고/회차별 명시적 승인, 전송 내용 미리보기 | 검증 실패만으로 자동 전송, 전체 저장소 또는 불필요한 회사자료 전송 |
-| 시스템 작업자 | 예약 수집·변환·로컬 Ollama 분석 | 활성 정책, 허용 엔드포인트, `actor=system`과 시작 원인 기록 | 사람 이름 위조, 모델에 파일 시스템·DB 쓰기 권한 부여, 외부 모델 자동 전송 |
+## 런타임 경계
 
-초기 단계에는 파일별 접근 제한을 두지 않는다. 따라서 사내망에 접속할 수 있는 모든 사용자는 모든 첨부와 분석을 열람할 수 있으며, 더 좁은 열람 범위가 필요한 자료는 이 시스템에 넣어서는 안 된다.
+FastAPI web은 PostgreSQL·MinIO·ClamAV restricted networks에서 원문을 먼저 검사하고, clean verdict와 동일 원문 SHA-256을 scratch envelope에 기록한다. web은 source/structure/quarantine만, analysis worker는 structure read와 model-response write/encryption만 사용하며 source/quarantine credential은 받지 않는다. bounded scratch 외의 canonical object는 MinIO에 남고 object key/version/etag가 DB location에 고정된다. credential-free `document-worker` 두 replica는 atomic scratch request/result만 사용하며 `network_mode: none`이다. worker는 Node HWP converter, PDF renderer와 OCR을 실행하되 raw request headers, credentials, DB/object capability를 받지 않는다. analysis worker는 concurrency 1이고 PostgreSQL 및 configured Ollama/internal analysis network만 접근한다. Ollama endpoint는 explicit host allowlist와 `/api/generate` path를 통과해야 하며 redirect/proxy를 허용하지 않는다. OpenAI와 Langfuse는 기본·운영 경로 모두 비활성이다.
 
-## 감사 기록
+## HTTP와 다운로드
 
-다음 이벤트는 시간, 사용자 입력 이름, 대상 ID, 실행/정책 버전, 성공 여부, 실패 사유를 기록한다.
+FastAPI는 CSP, `X-Content-Type-Options: nosniff`, no-referrer와 API no-store를 설정한다. attachment download는 `default-src 'none'`, nosniff, no-store와 서버 생성 filename을 사용한다. `/api` route 등록 후에만 SPA fallback이 동작하며 API 404가 index로 바뀌지 않는다.
 
-- 리뷰·확인 답변·심층 리포트 수정의 생성과 변경
-- 첨부 업로드·삭제·다운로드, HWPX 변환 시작/완료/실패
-- 1차·심층 모델 실행, 모델·프롬프트 버전, 결정적 검증 결과
-- OpenAI 전송 미리보기, 승인/거부, 실제 전송 범위와 응답 식별자
-- 선정 기준·가중치·프롬프트 변경 제안과 정책 버전 활성화
-- 산출물 적재, 회차 대체, YAML 내보내기, 백업과 복구
+## 문서·객체 안전
 
-로그에는 원문 전체, 프롬프트 전체, API 키, 첨부 바이너리를 넣지 않는다. 실패 로그도 키를 마스킹하고 사용자가 입력한 파일명 대신 서버 식별자를 우선 사용한다.
+허용된 HWP/HWPX/PDF만 서버 생성 이름으로 quarantine에 보관하고, path traversal/symlink 탈출·확장자 위장은 거부한다. source/structure/quarantine object는 routine delete를 허용하지 않는다. active hash verification 없는 object/DB restore는 성공으로 표시하지 않는다.
 
-## 자격증명 수명주기
+## 백업·복구
 
-API 키는 저장소에 커밋하지 않고 `.env` 또는 배포 환경의 비밀 주입으로 제공한다. 프로세스 시작 시 읽고 API 응답·회차 산출물·로그·브라우저 번들에 포함하지 않는다. 키가 노출되거나 담당자가 변경되면 발급 기관에서 폐기하고 새 키를 발급한 뒤 실행 환경을 재시작한다. 사용하지 않는 OpenAI 키는 환경에 두지 않으며, 보조 경로를 비활성화할 때 키도 제거한다.
-
-이름 입력 세션은 장기 자격증명이 아니며 비밀번호나 토큰을 만들지 않는다. 향후 SSO를 도입하면 로그인 실패, 만료, 잠금, 로그아웃, 권한 회수 절차를 별도로 정의해야 한다.
-
-## 첨부와 경로 안전
-
-업로드 파일은 HWP·HWPX·PDF, 파일당 50MB 이하만 허용하고 서버가 생성한 이름으로 첨부 저장 루트 아래에 쓴다. 경로 정규화 후 저장 루트를 벗어나거나 심볼릭 링크로 탈출하는 경로는 거부한다. 업로드 도중 검증이나 DB 저장이 실패하면 해당 요청에서 만든 임시 파일을 제거한다.
-
-현재 확장자와 크기 검증만으로 파일 내용의 안전성을 보장할 수 없다. 변환기는 네트워크와 불필요한 파일 시스템 권한이 없는 격리 프로세스에서 실행해야 하며, 변환 전 MIME·매직바이트 확인과 악성코드 검사를 추가하기 전에는 신뢰할 수 없는 외부 파일을 자동 실행 가능한 도구에 넘겨서는 안 된다.
-
-## 외부 모델 전송
-
-OpenAI 보조 경로는 기본 비활성이다. 활성화 가능한 환경에서도 사용자는 전송 전에 공고 ID, 첨부 파일명, 전송할 추출 범위, 포함되는 회사 프로필 절을 확인하고 승인해야 한다. 승인은 해당 공고 또는 명시된 회차 한 번에만 유효하며 이후 실행에 재사용하지 않는다.
-
-전송 데이터는 분석에 필요한 최소 범위로 제한하고 API 키·담당자 피드백·불필요한 첨부·서버 경로를 제거한다. 승인 거부, 네트워크 오류, 제공자 오류가 발생하면 로컬 결과와 원문은 유지하고 사람 검토 상태로 끝낸다.
+RPO 4h/RTO 8h, daily full+continuous WAL, object version-aware copy <=4h, retention daily14/weekly8/monthly6이다. 복구 순서는 object → DB → active hash 검증이며 pre-prod와 quarterly drill을 별도 기록한다. `docker compose down -v` 등 destructive volume command는 일상 절차가 아니다.

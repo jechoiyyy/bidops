@@ -1,6 +1,6 @@
 # BidOps 심층 검토 PostgreSQL ERD — Lean v1
 
-> 상태: Lean v1 최종 승인·동결 — `dryforge go` 실행 전 기준선
+> 상태: Lean v1 최종 승인·동결 — 구현·검증 기준 계약
 > 기준일: 2026-08-25
 > 대상: PostgreSQL 정본 전환, 안전한 첨부 구조화, Qwen 근거 기반 보고서
 
@@ -663,5 +663,5 @@ URL-only provider attachment는 migration 성공과 별개로 남길 수 있지�
 Lean v1 축소안은 기존 P0 무결성 경계를 유지하면서 운영·미래 기능을 단계 2로 분리했다.
 사용자가 2026-08-25 최종 승인했으며 기준선 ID는
 `bidops-deep-review-lean-v1-2026-08-25`다. 미결정 설계 항목은 없다. 이 문서를 포함한 승인
-기준선이 Git에 저장되기 전에는 `dryforge go`를 실행하지 않으며, 이후 변경은 문서와 migration
-영향을 함께 검토하는 새 승인 대상으로 취급한다.
+설계 기준선은 commit `d5941c7`에 보존되어 있다. 이후 변경은 문서와 migration 영향을 함께
+검토하는 새 승인 대상으로 취급한다.

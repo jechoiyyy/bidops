@@ -87,6 +87,22 @@ def get_db() -> Generator[Session, None, None]:
         db.close()
 
 
+def isolated_test_boundary_active() -> bool:
+    """Return whether the process explicitly opted into SQLite test mode.
+
+    ``PYTEST_CURRENT_TEST`` is present while an individual pytest test is
+    running, but it is not guaranteed to be set while a TestClient lifespan
+    starts.  The explicit flag is therefore used by the isolated runner for
+    application-lifespan tests; it is never set by the production Compose
+    template.
+    """
+
+    return bool(
+        os.environ.get("PYTEST_CURRENT_TEST")
+        or os.environ.get("BIDOPS_TEST_MODE") == "1"
+    )
+
+
 def init_db(bind: Engine | None = None) -> None:
     """Create all declared tables.
 
@@ -104,7 +120,7 @@ def init_db(bind: Engine | None = None) -> None:
     if (
         bind is None
         and not DATABASE_URL.startswith(("postgresql", "postgres"))
-        and not os.environ.get("PYTEST_CURRENT_TEST")
+        and not isolated_test_boundary_active()
     ):
         raise RuntimeError(
             "BidOps application runtime requires PostgreSQL 17; SQLite is only "

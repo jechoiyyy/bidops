@@ -31,6 +31,7 @@ from ..config import get_settings
 from ..document_mcp.errors import DocumentProcessingError
 from ..document_mcp.processor import ClamAVChecker, DocumentProcessor, ProcessedDocument
 from ..document_mcp.safety import MAX_INPUT_BYTES
+from .object_store import FilesystemObjectStore, ObjectMetadata, ObjectStoreError, object_store
 
 MAX_ASSET_BYTES = MAX_INPUT_BYTES
 UPLOAD_CHUNK_BYTES = 1024 * 1024
@@ -76,6 +77,9 @@ class QuarantinedAsset:
     source_system: str | None = None
     source_attachment_key: str | None = None
     source_url: str | None = None
+    object_key: str | None = None
+    object_version_id: str | None = None
+    object_etag: str | None = None
 
 
 @dataclass(frozen=True)
@@ -120,6 +124,63 @@ def _new_key(namespace: str, digest: str, suffix: str = "") -> Path:
     # The digest is useful for recovery/audit while the random component means
     # a user cannot infer or overwrite another object location.
     return Path(namespace) / f"{digest[:16]}-{uuid.uuid4().hex}{suffix}"
+
+
+def _store(root: Path | None = None, *, namespace: str, read_only: bool = False):
+    try:
+        return object_store(root, namespaces=(namespace,), read_namespaces=(namespace,) if read_only else ())
+    except ObjectStoreError as error:
+        raise AssetError("service_unavailable", "문서 object storage를 사용할 수 없습니다") from error
+
+
+def _path_for_key(root: Path | None, object_key: str) -> Path:
+    return asset_root(root) / Path(*object_key.split("/"))
+
+
+def _store_bytes(namespace: str, data: bytes, *, root: Path | None = None, suffix: str = "") -> tuple[Path, ObjectMetadata]:
+    digest = hashlib.sha256(data).hexdigest()
+    object_key = _new_key(namespace, digest, suffix).as_posix()
+    try:
+        metadata = _store(root, namespace=namespace).put(namespace, object_key, data, content_type="application/octet-stream")
+    except ObjectStoreError as error:
+        raise AssetError("service_unavailable", "문서 object storage에 저장할 수 없습니다") from error
+    return _path_for_key(root, object_key), metadata
+
+
+def store_bytes(namespace: str, data: bytes, *, root: Path | None = None, suffix: str = "", content_type: str = "application/octet-stream") -> tuple[Path, ObjectMetadata]:
+    """Store bounded bytes in a purpose bucket and return persisted metadata."""
+
+    digest = hashlib.sha256(data).hexdigest()
+    object_key = _new_key(namespace, digest, suffix).as_posix()
+    try:
+        metadata = _store(root, namespace=namespace).put(namespace, object_key, data, content_type=content_type)
+    except ObjectStoreError as error:
+        raise AssetError("service_unavailable", "문서 object storage에 저장할 수 없습니다") from error
+    return _path_for_key(root, object_key), metadata
+
+
+def store_named(namespace: str, object_key: str, data: bytes, *, root: Path | None = None, content_type: str = "application/octet-stream") -> tuple[Path, ObjectMetadata]:
+    """Store a validated server-generated key when idempotent identity is required."""
+
+    try:
+        metadata = _store(root, namespace=namespace).put(namespace, object_key, data, content_type=content_type)
+    except ObjectStoreError as error:
+        raise AssetError("service_unavailable", "문서 object storage에 저장할 수 없습니다") from error
+    return _path_for_key(root, object_key), metadata
+
+
+def read_object(namespace: str, object_key: str, *, root: Path | None = None, max_bytes: int = MAX_ASSET_BYTES) -> tuple[bytes, ObjectMetadata]:
+    try:
+        return _store(root, namespace=namespace, read_only=True).get(namespace, object_key, max_bytes=max_bytes)
+    except ObjectStoreError as error:
+        raise AssetError("service_unavailable", "문서 object storage를 읽을 수 없습니다") from error
+
+
+def head_object(namespace: str, object_key: str, *, root: Path | None = None) -> ObjectMetadata:
+    try:
+        return _store(root, namespace=namespace, read_only=True).head(namespace, object_key)
+    except ObjectStoreError as error:
+        raise AssetError("service_unavailable", "문서 object metadata를 읽을 수 없습니다") from error
 
 
 def _write_stream_sync(chunks: Iterable[bytes], destination: Path) -> tuple[int, str]:
@@ -185,8 +246,14 @@ async def quarantine_upload(
         if size == 0:
             raise AssetError("invalid_request", "빈 문서는 처리할 수 없습니다")
         digest = hasher.hexdigest()
-        final = base / _new_key("quarantine", digest, Path(filename).suffix.casefold())
-        temporary.replace(final)
+        object_key = _new_key("quarantine", digest, Path(filename).suffix.casefold()).as_posix()
+        try:
+            store = _store(root, namespace="quarantine")
+            metadata = store.put("quarantine", object_key, temporary.read_bytes(), content_type=upload.content_type or "application/octet-stream")
+        except ObjectStoreError as error:
+            raise AssetError("service_unavailable", "문서 quarantine object를 저장할 수 없습니다") from error
+        final = _path_for_key(root, object_key)
+        temporary.unlink(missing_ok=True)
         return QuarantinedAsset(
             final,
             filename,
@@ -197,6 +264,9 @@ async def quarantine_upload(
             source_system,
             source_attachment_key,
             source_url,
+            object_key,
+            metadata.object_version_id,
+            metadata.etag,
         )
     except Exception:
         temporary.unlink(missing_ok=True)
@@ -221,21 +291,21 @@ def quarantine_bytes(
     safe_name = _safe_filename(filename)
     base = asset_root(root)
     digest = hashlib.sha256(content).hexdigest()
-    destination = base / _new_key("quarantine", digest, Path(safe_name).suffix.casefold())
-    size, actual_digest = _write_stream_sync((content,), destination)
-    if actual_digest != digest:
-        destination.unlink(missing_ok=True)
-        raise AssetError("hash_mismatch", "격리 저장 hash 검증에 실패했습니다")
+    destination, metadata = _store_bytes("quarantine", content, root=root, suffix=Path(safe_name).suffix.casefold())
+    actual_digest = digest
     return QuarantinedAsset(
         destination,
         safe_name,
-        size,
+        len(content),
         actual_digest,
         declared_media_type,
         source_kind,
         source_system,
         source_attachment_key,
         source_url,
+        metadata.object_key,
+        metadata.object_version_id,
+        metadata.etag,
     )
 
 
@@ -369,6 +439,14 @@ def acquire_legacy_attachment(
             raise AssetError("legacy_source_changed", "기존 첨부 원문이 복사 중 변경되었습니다")
         if expected_size is not None and size != expected_size:
             raise AssetError("legacy_size_mismatch", "기존 첨부 원문 크기가 메타데이터와 다릅니다")
+        object_key = destination.relative_to(base).as_posix()
+        store = _store(root, namespace="quarantine")
+        try:
+            metadata = store.put("quarantine", object_key, destination.read_bytes(), content_type="application/octet-stream")
+        except ObjectStoreError as error:
+            raise AssetError("service_unavailable", "기존 첨부 quarantine object를 저장할 수 없습니다") from error
+        if not isinstance(store, FilesystemObjectStore):
+            destination.unlink(missing_ok=True)
     except Exception:
         destination.unlink(missing_ok=True)
         raise
@@ -385,10 +463,23 @@ def acquire_legacy_attachment(
         digest,
         None,
         "manual",
+        object_key,
+        metadata.object_version_id,
+        metadata.etag,
     )
 
 
 def read_quarantine(asset: QuarantinedAsset) -> bytes:
+    if asset.object_key:
+        try:
+            data, metadata = read_object("quarantine", asset.object_key, root=asset.path.parents[2])
+        except AssetError:
+            raise
+        if len(data) != asset.size_bytes or hashlib.sha256(data).hexdigest() != asset.sha256:
+            raise AssetError("hash_mismatch", "격리 문서 hash 검증에 실패했습니다")
+        if asset.object_etag and metadata.etag != asset.object_etag:
+            raise AssetError("hash_mismatch", "격리 문서 object metadata 검증에 실패했습니다")
+        return data
     base = asset.path.parent.parent
     if base.name != "document-assets" or asset.path.parent.name != "quarantine":
         raise AssetError("unsafe_document", "격리 문서 경로가 올바르지 않습니다")
@@ -461,22 +552,16 @@ def commit_source(asset: QuarantinedAsset, *, root: Path | None = None) -> tuple
     """Copy a verified quarantine object to source and verify hash/size again."""
 
     data = read_quarantine(asset)
-    base = asset_root(root)
     suffix = Path(asset.filename).suffix.casefold()
-    destination = base / _new_key("source", asset.sha256, suffix)
-    temporary = destination.with_name(f".{destination.name}.copy")
+    destination, metadata = _store_bytes("source", data, root=root, suffix=suffix)
     try:
-        size, digest = _write_stream_sync((data,), temporary)
-        if size != asset.size_bytes or digest != asset.sha256:
+        size, digest = len(data), hashlib.sha256(data).hexdigest()
+        if size != asset.size_bytes or digest != asset.sha256 or metadata.size_bytes != asset.size_bytes:
             raise AssetError("hash_mismatch", "원문 location hash 검증에 실패했습니다")
-        temporary.replace(destination)
-        reread = destination.read_bytes()
-        if len(reread) != asset.size_bytes or hashlib.sha256(reread).hexdigest() != asset.sha256:
-            destination.unlink(missing_ok=True)
+        reread, reread_metadata = read_object("source", metadata.object_key, root=root)
+        if len(reread) != asset.size_bytes or hashlib.sha256(reread).hexdigest() != asset.sha256 or reread_metadata.etag != metadata.etag:
             raise AssetError("hash_mismatch", "원문 location hash 검증에 실패했습니다")
-    except Exception:
-        temporary.unlink(missing_ok=True)
-        destination.unlink(missing_ok=True)
+    except AssetError:
         raise
     return destination, asset.sha256, asset.size_bytes
 
@@ -486,13 +571,10 @@ def store_structure_payload(payload: Mapping[str, object], *, root: Path | None 
 
     encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
     digest = hashlib.sha256(encoded).hexdigest()
-    base = asset_root(root)
-    destination = base / _new_key("structure", digest, ".json")
-    size, actual = _write_stream_sync((encoded,), destination)
-    if actual != digest:
-        destination.unlink(missing_ok=True)
+    destination, metadata = store_bytes("structure", encoded, root=root, suffix=".json", content_type="application/json")
+    if metadata.etag != digest and isinstance(_store(root, namespace="structure"), FilesystemObjectStore):
         raise AssetError("hash_mismatch", "구조 payload hash 검증에 실패했습니다")
-    return destination, digest, size
+    return destination, digest, len(encoded)
 
 
 def _is_public_ip(address: str) -> bool:

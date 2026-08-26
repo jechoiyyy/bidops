@@ -1,65 +1,43 @@
-# 시스템 구성
+# 시스템 구성 (Lean v1)
 
 ## 목표 토폴로지
 
-BidOps는 수집·정규화처럼 재현성이 필요한 단계와 문서 해석처럼 언어모델이 필요한 단계를 분리한다.
-
 ```text
-나라장터 공개 API ─→ 수집·정규화·표본 스크립트 ─→ 버전이 있는 회차 산출물
-                                                     │
-기관 조달시스템 ─→ 링크 안내/수동 업로드 ─→ 첨부 보관소 ─→ HWP→HWPX 변환·문서 구조화
-                                                     │
-회사 프로필 + 정책 버전 ────────────────────────────┼─→ 로컬 Qwen 분석
-                                                     │       │
-                                                     │       └→ 결정적 검증기
-                                                     │              │
-                                                     │        심층 검토 초안
-                                                     │              │
-                                                     └──────────────┼─→ SQLite
-                                                                    │
-React 관리 화면 ←──────────── FastAPI REST API ←───────────────────┘
-       │
-       └→ 담당자 검토·수정·실제 결과·UX 피드백
+공개 수집/기존 SQLite backup --(one-time reconciliation)--> PostgreSQL 17 bidops schema
+기관 문서 --> FastAPI MinIO quarantine + ClamAV --> MinIO source/structure
+                         | hash-bound atomic scratch protocol
+                         v
+              document-worker (network none, replicas 2)
+고정 bundle/profile/policy snapshot ---------------------> analysis worker (concurrency 1)
+                                                           |  Ollama/Qwen local only
+                                                           v
+                                                   3 stages + deterministic validation
+                                                           |
+                                                   immutable report/evidence/audit
+                                                           |
+React SPA <---------------- FastAPI ----------------------+
 ```
 
-OpenAI는 로컬 Qwen 결과가 검증을 통과하지 못하고 사용자가 해당 공고 또는 회차의 외부 전송을 명시적으로 승인한 경우에만 선택 가능한 보조 경로다. 검증 실패 자체가 외부 전송을 시작하지 않으며, 승인하지 않으면 사람 검토 대기 상태로 남는다.
+PostgreSQL 17.11과 MinIO가 live canonical DB/object store이고 SQLite는 migration input이다. FastAPI는 목적별 MinIO source/structure/quarantine credential과 DB/ClamAV restricted networks를 사용하며, bounded scratch만 임시 staging으로 남긴다. document-worker는 검증된 원문 hash와 clean scan envelope를 가진 credential-free scratch request만 network none에서 신뢰한다. analysis worker는 immutable structure를 읽고 application-encrypted model response를 model-response bucket에 쓴다. worker가 model, DB, object locator를 prompt에 직접 노출하지 않으며 report/evidence/validation과 finish는 동일한 fenced transition에서 확정된다.
 
-## 구성요소와 의존 방향
+## 구성요소와 경계
 
-| 구성요소 | 역할 | 의존 방향과 경계 |
+| 구성요소 | 역할 | 경계 |
 |---|---|---|
-| `skills/bidops-collect` | 공개 API 원문 보존, 정규화, 고재현율 후보화, 검증 표본 선정 | 나라장터 API와 회사 실적 제목 자료를 읽고 버전 산출물을 쓴다. 웹 DB나 LLM을 참조하지 않는다. |
-| `skills/bidops-screen` | 1차 판정 구조와 다섯 관점 검증 | 검증 표본과 회사 프로필을 입력으로 받고 판정 JSON을 만든다. 수집 원문이나 UI 상태를 직접 수정하지 않는다. |
-| `skills/bidops-report` | 판정 결과를 HTML과 피드백 양식으로 표시 | 완성된 결과만 읽는 결정적 렌더러다. 등급을 생성하거나 보정하지 않는다. |
-| 첨부 획득·변환 계층 | 기관 포털 안내, 수동 업로드, HWP의 HWPX 변환, 텍스트·표·이미지 위치 보존 | 파일 보관소에서 읽고 구조화 문서 묶음을 쓴다. 원본은 수정하지 않으며 HWP 처리 시 변환된 HWPX가 분석 정본이다. |
-| 심층 분석 오케스트레이터 | 단계별 프롬프트 실행, Qwen 호출, 결과 결합, 재시도와 상태 관리 | 구조화 문서·회사 프로필·고정된 정책 버전을 읽는다. 모델은 DB나 파일 시스템을 직접 조작하지 않는다. |
-| 결정적 검증기 | 요구사항 ID·금액·기간·배점·인용 위치·필수 절·자격 모순 검사 | 모델 JSON과 구조화 원문을 비교한다. 실패 결과를 자동 수정하거나 통과시키지 않는다. |
-| `web/backend` | 산출물 적재, SQLite 정본, API, 파일 처리, 작업 실행과 감사 이벤트 | 스크립트는 서브프로세스 또는 파일 계약으로만 호출한다. 프론트엔드에 REST 응답을 제공한다. |
-| `web/frontend` | 검토 대기열, 근거·경고 표시, 사용자 입력, 운영 화면 | REST API만 호출한다. 파일 경로나 DB를 직접 다루지 않는다. |
-| SQLite·첨부 저장소 | 회차, 공고, 판정, 리뷰, 분석 초안, 정책 버전, 피드백과 파일 메타데이터 보관 | DB가 사용자 리뷰의 정본이다. 원문 첨부와 대형 산출물은 파일로 보관하고 DB에는 경로·해시·상태를 둔다. |
+| legacy 13 tables | 기존 수집·판정·리뷰 projection | SQLite backup에서 한 번 import하고 PostgreSQL에 보존 |
+| Lean 25 tables | bundle, structures, attempts, claims, evidence, report, validation, audit | 총 38 application table, actor table 없음 |
+| FastAPI document producer | MinIO quarantine/source 저장, 동일 원문의 ClamAV 검사, hash-bound scratch request/result | DB/MinIO/ClamAV restricted networks; purpose credential별 접근 |
+| document-worker | HWP/HWPX/PDF 안전 검사·구조화 | credential-free atomic scratch protocol, Node/PDF/OCR 로컬 도구, network none, replicas 2 |
+| analysis worker | 요구사항·위험·경제성·종합 3단계 | fixed snapshots와 Qwen/Ollama endpoint만 사용, concurrency 1 |
+| FastAPI | 정확히 승인된 새 API #1-14와 기존 조회 API | stable error shape, claimed-name boundary, security headers, SPA fallback after API |
+| React frontend | notice detail entry, deep-review route, report/evidence/decision flow | REST API only, keyboard and narrow-viewport fixture |
 
-## 대표 흐름
+OpenAI, Langfuse, phase2 기능은 없다. 기존 SQLite-live 문구는 폐기한다.
 
-1. 운영자가 기간과 정책 버전을 선택해 수집을 시작하면 수집기는 공개 API 원문을 보존하고 정규화 공고·후보군·감사 표본을 생성한다.
-2. 1차 분석은 다섯 관점의 Qwen 결과를 구조화 JSON으로 만들고, 결정적 병합 검증을 거친다. 등급이 `우선 검토`인 공고는 심층 검토 후보가 된다.
-3. 첨부가 있으면 파일을 보관소에 고정하고 해시를 기록한다. 첨부가 없으면 기관 포털 검색 주소와 수동 업로드 작업을 대기열에 만든다.
-4. HWP는 헤드리스 변환기로 HWPX로 바꾸고 샘플을 한컴 결과와 대조한다. 이미 HWPX인 파일은 그대로 정본으로 삼으며, 원본과 변환본을 함께 보존한다.
-5. 문서 구조화 계층은 문단·표·요구사항 ID·페이지/절 위치를 보존한 분석 입력을 만든다. Qwen은 자격, 요구사항, 평가, 위험을 한 번에 자유서술하지 않고 단계별 구조화 결과로 생성한다.
-6. 검증기는 원문과 결과를 대조한다. 통과한 초안만 담당자에게 심층 리포트로 표시하고, 실패 결과는 실패 항목과 함께 사람 검토 대기열로 보낸다.
-7. 담당자는 이름을 입력하고 등급 수정, 근거 부족, 심층 리포트 품질, 실제 입찰 결과, UX 불편을 기록한다. 이 피드백은 변경 제안의 근거가 되지만 정책·프로필·프롬프트를 자동 변경하지 않는다.
+## 순서와 transaction fence
 
-## 경계를 넘는 데이터
+문서 bundle confirmation이 fixed input을 만들고, attempt는 3 stages를 순서대로 저장한다. 분석과 report는 live attachment/document projection을 다시 읽지 않는다. 세 번째 stage persist 뒤 `ReportService.materialize_machine_report(session, claim)`가 immutable report, validation, evidence joins, audit를 만들고, 바로 `_finish_claim`이 같은 lease를 재검증한 뒤 commit한다. materializer 오류는 rollback 후 safe worker failure로만 기록한다.
 
-- 나라장터 경계에서는 공개 공고 데이터와 첨부 URL만 들어오며 API 키는 요청 자격으로만 사용되고 산출물로 나가지 않는다.
-- 기관 포털 경계에서는 검색 주소 안내까지만 자동화한다. 시스템이 기관 사이트 인증을 우회하거나 자동 다운로드하지 않는다.
-- Ollama 경계에는 구조화 문서와 필요한 회사 프로필 절만 전달한다. 로컬 사내망 밖으로 나가지 않는 것이 기본 전제다.
-- OpenAI 경계에는 사용자가 승인한 공고의 최소 필요 문서만 전송한다. 승인 기록 없이 원문·회사 프로필·분석 결과를 외부로 보내지 않는다.
-- 브라우저 경계에는 API 응답과 다운로드 스트림만 나간다. 서버의 실제 저장 경로와 API 키는 응답에 포함하지 않는다.
+## 배포
 
-## 외부 의존성
-
-- 공공데이터포털의 나라장터 입찰공고·사전규격 API: 수집 가용성과 승인 상태가 실전 데이터 범위를 결정한다.
-- 기관별 자체 조달시스템: 첨부 미제공 공고의 수동 획득 경로이며 시스템별 URL 형식이 다르다.
-- 사내 Ollama `192.168.0.139:11434`의 `qwen3.8:27b`: 1차·심층 분석의 기본 모델이다.
-- HWP→HWPX 헤드리스 변환기: 운영 기본 경로이며 한컴 변환 결과는 표본 품질 검증에 사용한다.
-- OpenAI API: 기본 비활성인 선택적 보조 분석 경로다.
+이 worktree/production template은 `docker-compose.t7.yml`이다. 항상 `COMPOSE_PROJECT_NAME=bidops-deep-review-t7`와 함께 실행하고 main worktree의 compose/data/volume을 공유하지 않는다. Web은 database/storage/scanning과 scratch volume에 연결되고 source/structure/quarantine 목적별 MinIO credential만 받는다. analysis worker는 database/analysis network에서 structure-read와 model-response credential만 받는다. document-worker는 network none의 두 replica로 credential-free scratch만 소비한다. PostgreSQL owner/migrate/app/worker/ro_backup, MinIO purpose-specific credentials/policies, ClamAV, Ollama/Qwen local configuration은 외부 secrets로 주입되며 MinIO 미설정 production은 fail fast한다.

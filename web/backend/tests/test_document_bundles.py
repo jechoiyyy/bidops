@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import io
+import os
 import socket
 import time
 import zipfile
@@ -24,7 +26,10 @@ from app.document_mcp.processor import DocumentProcessor
 from app.models import AuditEvent, Attachment, ContentObject, ContentObjectLocation, ContentScan, DocumentBundle, DocumentBundleItem, DocumentStructure, DocumentVersion, IdempotencyRecord, Judgment, Notice, Run
 from app.schemas.document_bundles import ConfirmRequest, PatchDocumentVersionRequest
 from app.services import assets
+from app.services import document_converter
+from app.services.document_converter import ScratchDocumentProcessor
 from app.services.document_bundles import BundleServiceError, DocumentBundleService, stable_api_error
+from app.workers.document_protocol import convert_one
 
 FIXTURES = Path(__file__).parent / "fixtures" / "document_bundles"
 
@@ -105,6 +110,68 @@ def test_safe_upload_streams_quarantine_then_commits_source_and_structure(contex
         assert payload.source_sha256
         page = context.service.get_structure_page(session, structure.id, 1)
         assert page.blocks
+
+
+def test_production_upload_writes_and_consumes_converter_result(monkeypatch: pytest.MonkeyPatch, context: Context, tmp_path: Path) -> None:
+    scratch = tmp_path / "converter-scratch"
+    converter = ScratchDocumentProcessor(scratch, wait_seconds=2, clamav_checker=lambda _content: True)
+    requests: list[Path] = []
+    real_write_request = document_converter.write_request
+
+    def write_and_run_converter(*args, **kwargs):  # type: ignore[no-untyped-def]
+        request = real_write_request(*args, **kwargs)
+        requests.append(request)
+        assert convert_one(scratch) is True
+        return request
+
+    monkeypatch.setattr(document_converter, "write_request", write_and_run_converter)
+    service = DocumentBundleService(root=context.asset_root, converter=converter)
+    bundle = make_bundle(context)
+    with Session(context.engine) as session:  # type: ignore[arg-type]
+        document = asyncio.run(service.upload_document(session, bundle.id, MemoryUpload(fixture_pdf(), "sidecar.pdf", "application/pdf"), "담당자", uuid4()))
+        structure = session.scalar(select(DocumentStructure).where(DocumentStructure.document_version_id == document.id))
+        assert structure is not None
+    assert len(requests) == 1
+    assert requests[0].name.endswith(".json")
+    assert not list((scratch / "results").glob("*.json"))
+
+
+@pytest.mark.skipif(os.environ.get("BIDOPS_MINIO_E2E") != "1", reason="requires the isolated T7 MinIO service")
+def test_t7_minio_e2e_upload_provider_and_structure_round_trip(monkeypatch: pytest.MonkeyPatch, context: Context) -> None:
+    """Exercise the production bundle paths against live purpose buckets."""
+
+    bundle = make_bundle(context)
+    uploaded = upload(context, bundle.id, fixture_pdf(), "minio-upload.pdf", "application/pdf")
+    with Session(context.engine) as session:  # type: ignore[arg-type]
+        structure = session.scalar(select(DocumentStructure).where(DocumentStructure.document_version_id == uploaded.id))
+        assert structure is not None
+        payload = context.service.get_structure(session, structure.id)
+        expected_source_sha256 = hashlib.sha256(fixture_pdf()).hexdigest()
+        assert payload.source_sha256 == expected_source_sha256
+        locations = session.scalars(
+            select(ContentObjectLocation)
+            .join(ContentObject, ContentObject.id == ContentObjectLocation.content_object_id)
+        ).all()
+        assert {row.namespace_key for row in locations} >= {"source", "structure", "quarantine"}
+        assert all(row.object_key and row.object_version_id and row.etag for row in locations)
+
+        monkeypatch.setattr(assets, "resolve_public_ips", lambda _host, _port: ("8.8.8.8",))
+        attachment = Attachment(
+            notice_id=context.notice_id,
+            name="minio-provider.pdf",
+            source_url="https://files.example.test/minio-provider.pdf",
+            origin="g2b",
+            file_ext="PDF",
+            source_system="g2b",
+            source_attachment_key="minio-provider-1",
+        )
+        session.add(attachment)
+        session.commit()
+        connector = assets.ProviderConnector("g2b", frozenset({"files.example.test"}), fetcher=lambda _url: fixture_pdf())
+        provider_view = context.service.ingest_provider_attachment(session, bundle.id, attachment.id, {"g2b": connector})
+        provider_structure = session.scalar(select(DocumentStructure).where(DocumentStructure.document_version_id == provider_view.id))
+        assert provider_structure is not None
+        assert context.service.get_structure(session, provider_structure.id).source_sha256 == expected_source_sha256
 
 
 def test_upload_processor_runs_without_an_open_db_transaction(context: Context) -> None:

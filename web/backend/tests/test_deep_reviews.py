@@ -6,7 +6,7 @@ import json
 import hashlib
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from uuid import UUID, uuid4
+from uuid import UUID, NAMESPACE_URL, uuid4, uuid5
 
 import pytest
 from sqlalchemy import create_engine, event, select, text
@@ -61,6 +61,24 @@ def _fixture_structure(_session, structure):
         "extractor": {"name": structure.extractor_name, "version": structure.extractor_version, "upstream_commit": structure.upstream_commit},
         "pages": [{"number": 1, "width": 612, "height": 792, "image_content_object_id": None}],
         "blocks": [], "warnings": [], "created_at": "2026-08-25T00:00:00+09:00",
+    }
+
+
+def _valid_stage_payload(input_slice: dict, stage: str) -> dict:
+    """Return the smallest materializable stage fixture for worker tests."""
+
+    claim_id = uuid5(NAMESPACE_URL, f"{input_slice['deep_review_id']}:{input_slice['attempt_id']}:fixture-claim")
+    claims = []
+    if stage == "requirements_and_evaluation":
+        claims = [{
+            "claim_id": str(claim_id), "category": "requirements", "claim_type": "unknown",
+            "body": "fixture claim is not established", "status": "unknown", "formula": None,
+            "premise_claim_ids": [], "reason": "fixture", "evidence_ids": [],
+        }]
+    return {
+        "schema": "bidops.deep-review-stage.v1", "deep_review_id": input_slice["deep_review_id"],
+        "attempt_id": input_slice["attempt_id"], "stage": stage, "claims": claims,
+        "evidence": [], "unknowns": ["fixture unknown"], "warnings": [],
     }
 
 
@@ -558,7 +576,7 @@ def test_job_transition_audits_are_fenced_and_safe(engine, monkeypatch):
 
     class Client:
         def invoke(self, stage, input_slice, _policy, **_kwargs):
-            payload = {"schema": "bidops.deep-review-stage.v1", "deep_review_id": input_slice["deep_review_id"], "attempt_id": input_slice["attempt_id"], "stage": stage, "claims": [], "evidence": [], "unknowns": [], "warnings": []}
+            payload = _valid_stage_payload(input_slice, stage)
             raw = json.dumps(payload).encode()
             return InvocationResult(payload, raw, "a" * 64, hashlib.sha256(raw).hexdigest(), 1, 1, 1, ({"retry_index": 0, "status": "succeeded", "locator": "drop", "object_key": "drop"},))
 
@@ -761,7 +779,7 @@ def test_expired_reclaim_refences_inflight_stage_and_rejects_old_worker(engine, 
     class Client:
         def invoke(self, stage, input_slice, _policy, **_kwargs):
             from app.services.ollama_client import InvocationResult
-            payload = {"schema": "bidops.deep-review-stage.v1", "deep_review_id": input_slice["deep_review_id"], "attempt_id": input_slice["attempt_id"], "stage": stage, "claims": [], "evidence": [], "unknowns": [], "warnings": []}
+            payload = _valid_stage_payload(input_slice, stage)
             raw = json.dumps(payload).encode()
             return InvocationResult(payload, raw, "a" * 64, "b" * 64, 1, 1, 1, ({"retry_index": 0, "status": "succeeded"},))
 
@@ -830,7 +848,7 @@ def test_malformed_mid_stage_fails_then_new_attempt_runs_successfully(engine, mo
             if self.fail_mid_stage and stage == "delivery_risk_economics":
                 payload = {"malformed": True}
             else:
-                payload = {"schema": "bidops.deep-review-stage.v1", "deep_review_id": input_slice["deep_review_id"], "attempt_id": input_slice["attempt_id"], "stage": stage, "claims": [], "evidence": [], "unknowns": [], "warnings": []}
+                payload = _valid_stage_payload(input_slice, stage)
             raw = json.dumps(payload).encode()
             return InvocationResult(payload, raw, "a" * 64, hashlib.sha256(raw).hexdigest(), 1, 1, 1, ({"retry_index": 0, "status": "succeeded"},))
 
@@ -870,7 +888,7 @@ def test_reclaim_resumes_after_immutable_stage_one_prefix_and_rejects_noncontigu
         def invoke(self, stage, input_slice, _policy, **_kwargs):
             from app.services.ollama_client import InvocationResult
             calls.append(stage)
-            payload = {"schema": "bidops.deep-review-stage.v1", "deep_review_id": input_slice["deep_review_id"], "attempt_id": input_slice["attempt_id"], "stage": stage, "claims": [], "evidence": [], "unknowns": [], "warnings": []}
+            payload = _valid_stage_payload(input_slice, stage)
             raw = json.dumps(payload).encode()
             return InvocationResult(payload, raw, "a" * 64, "b" * 64, 1, 1, 1, ({"retry_index": 0, "status": "succeeded"},))
 
@@ -884,12 +902,19 @@ def test_reclaim_resumes_after_immutable_stage_one_prefix_and_rejects_noncontigu
         old_claim = service.claim_next_job(session, "worker-old")
         assert old_claim is not None
         stages = session.scalars(select(DeepReviewStage).where(DeepReviewStage.attempt_id == old_claim.attempt_id).order_by(DeepReviewStage.sequence)).all()
-        prefix_output = {"schema": "bidops.deep-review-stage.v1", "deep_review_id": str(old_claim.deep_review_id), "attempt_id": str(old_claim.attempt_id), "stage": stages[0].stage, "claims": [], "evidence": [], "unknowns": [], "warnings": []}
+        prefix_output = _valid_stage_payload({"deep_review_id": str(old_claim.deep_review_id), "attempt_id": str(old_claim.attempt_id)}, stages[0].stage)
         raw_object = ContentObject(id=uuid4(), sha256="c" * 64, size_bytes=2, detected_mime="application/json", retention_class="model-response-90d")
         session.add(raw_object)
         stages[0].status = "completed"
         stages[0].structured_output = prefix_output
+        stages[0].completed_at = datetime.now(UTC)
         stages[0].raw_response_content_object_id = raw_object.id
+        prefix_claim_id = UUID(prefix_output["claims"][0]["claim_id"])
+        session.add(Claim(
+            id=prefix_claim_id, deep_review_id=old_claim.deep_review_id, stage_id=stages[0].id,
+            category="requirements", claim_type="unknown", body="fixture claim is not established",
+            status="unknown", formula=None, premise_claim_ids=[], reason="fixture",
+        ))
         stages[1].status = "running"
         job = session.get(WorkJob, old_claim.job_id)
         assert job is not None
@@ -932,7 +957,7 @@ def test_normal_worker_runs_exactly_three_ordered_stages(engine, monkeypatch):
     class Client:
         def invoke(self, stage, input_slice, _policy, **_kwargs):
             from app.services.ollama_client import InvocationResult
-            payload = {"schema": "bidops.deep-review-stage.v1", "deep_review_id": input_slice["deep_review_id"], "attempt_id": input_slice["attempt_id"], "stage": stage, "claims": [], "evidence": [], "unknowns": [], "warnings": []}
+            payload = _valid_stage_payload(input_slice, stage)
             raw = json.dumps(payload, ensure_ascii=False).encode()
             return InvocationResult(payload, raw, "a" * 64, "b" * 64, 1, 1, 1, ({"retry_index": 0, "status": "succeeded"},))
 

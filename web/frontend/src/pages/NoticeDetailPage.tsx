@@ -1,5 +1,5 @@
-import { useEffect, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Badge } from "../components/common/Badge";
 import { EmptyState } from "../components/common/EmptyState";
@@ -18,6 +18,7 @@ import { api } from "../lib/api";
 import { formatDate, formatDateTime, formatPrice, present } from "../lib/format";
 import type { NoticeListItem } from "../lib/types";
 import { gradeVariant } from "../lib/grade";
+import { createDeepReview, getDocumentBundles } from "../components/deep-review/api";
 
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
@@ -67,6 +68,17 @@ export function NoticeDetailPage() {
     queryFn: () => api.getNotice(selectedId as number),
     enabled: selectedId !== null,
     staleTime: 30_000,
+  });
+  const bundleQuery = useQuery({
+    queryKey: ["document-bundles", selectedId],
+    queryFn: () => getDocumentBundles(selectedId as number),
+    enabled: selectedId !== null,
+    staleTime: 30_000,
+  });
+  const [deepReviewActor, setDeepReviewActor] = useState("");
+  const deepReviewMutation = useMutation({
+    mutationFn: (bundleId: string) => createDeepReview(selectedId as number, bundleId, deepReviewActor),
+    onSuccess: (review) => navigate(`/deep-reviews/${review.id}`),
   });
 
   const notices = noticesQuery.data?.items ?? [];
@@ -149,6 +161,22 @@ export function NoticeDetailPage() {
                 <Badge label={detail.judgment?.primary_focus} variant="focus" />
                 <span className="mono tabular-nums judgment-published">{detail.published_at ? `공고 ${formatDate(detail.published_at)}` : "공고일 미확인"}</span>
               </div>
+              <section aria-labelledby="deep-review-entry-title" style={{ border: "1px solid #d4e0e2", borderRadius: 8, padding: 14, background: "#f8fbfb" }}>
+                <h3 id="deep-review-entry-title" style={{ marginTop: 0 }}>심층 검토</h3>
+                {bundleQuery.isLoading ? <p role="status">문서 bundle 준비 상태를 확인하는 중입니다.</p> : null}
+                {bundleQuery.error ? <p role="status">문서 bundle을 확인할 수 없습니다.</p> : null}
+                {(() => {
+                  const readyBundle = bundleQuery.data?.items.find((bundle) => bundle.status === "ready");
+                  if (!readyBundle) return <p>문서 준비가 완료된 ready bundle이 있어야 심층 검토를 시작할 수 있습니다.</p>;
+                  return (
+                    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "end", gap: 8 }}>
+                      <label>담당자 이름<input aria-label="심층 검토 담당자 이름" value={deepReviewActor} onChange={(event) => setDeepReviewActor(event.target.value)} style={{ display: "block", padding: 7, marginTop: 4 }} /></label>
+                      <button type="button" onClick={() => deepReviewMutation.mutate(readyBundle.id)} disabled={deepReviewMutation.isPending || !deepReviewActor.trim()} style={{ padding: "8px 12px" }}>심층 검토 시작</button>
+                    </div>
+                  );
+                })()}
+                {deepReviewMutation.error ? <p role="alert">심층 검토를 시작할 수 없습니다.</p> : null}
+              </section>
               <LifecycleTimeline notice={detail} />
               <JudgmentBanner judgment={detail.judgment} />
               <div className="judgment-summary-grid">

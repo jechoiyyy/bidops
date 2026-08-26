@@ -1,0 +1,209 @@
+# Lean v1 isolated production template. Always invoke with an explicit
+# COMPOSE_PROJECT_NAME from this worktree; volumes are intentionally unnamed so
+# Compose scopes them to that project and cannot overlap the main worktree.
+services:
+  postgres:
+    image: postgres:17.11@sha256:051f7b7b3abdd564d5d1bd1e8c4b9c1b6e77087d1dd22020ede611c096a272e0
+    environment:
+      POSTGRES_DB: bidops
+      POSTGRES_USER: owner
+      POSTGRES_PASSWORD: "${BIDOPS_OWNER_PASSWORD:?set an external owner password}"
+    command: ["postgres", "-c", "search_path=bidops,public"]
+    ports:
+      - "${BIDOPS_POSTGRES_PORT:-15432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U owner -d bidops"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [database]
+
+  postgres-init:
+    build: { context: ., dockerfile: web/Dockerfile }
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      PGPASSWORD: "${BIDOPS_OWNER_PASSWORD:?set an external owner password}"
+      BIDOPS_DATABASE_HOST: postgres
+      BIDOPS_OWNER_PASSWORD: "${BIDOPS_OWNER_PASSWORD:?set an external owner password}"
+      BIDOPS_MIGRATE_PASSWORD: "${BIDOPS_MIGRATE_PASSWORD:?set an external migrate password}"
+      BIDOPS_APP_PASSWORD: "${BIDOPS_APP_PASSWORD:?set an external app password}"
+      BIDOPS_WORKER_PASSWORD: "${BIDOPS_WORKER_PASSWORD:?set an external worker password}"
+      BIDOPS_RO_BACKUP_PASSWORD: "${BIDOPS_RO_BACKUP_PASSWORD:?set an external ro_backup password}"
+    entrypoint: ["/app/scripts/postgres-init.sh"]
+    networks: [database]
+
+  migrate:
+    build: { context: ., dockerfile: web/Dockerfile }
+    depends_on:
+      postgres-init: { condition: service_completed_successfully }
+    environment:
+      BIDOPS_DATABASE_URL: "postgresql+psycopg://migrate:${BIDOPS_MIGRATE_PASSWORD:?set an external migrate password}@postgres:5432/bidops"
+      BIDOPS_DATABASE_HOST: postgres
+      BIDOPS_MIGRATE_PASSWORD: "${BIDOPS_MIGRATE_PASSWORD:?set an external migrate password}"
+    entrypoint: ["/app/scripts/migrate.sh"]
+    networks: [database]
+
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: "${BIDOPS_MINIO_ROOT_USER:?set an external MinIO root user}"
+      MINIO_ROOT_PASSWORD: "${BIDOPS_MINIO_ROOT_PASSWORD:?set an external MinIO root password}"
+    ports:
+      - "${BIDOPS_MINIO_PORT:-19000}:9000"
+      - "${BIDOPS_MINIO_CONSOLE_PORT:-19001}:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [storage, analysis]
+
+  minio-init:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    depends_on:
+      minio: { condition: service_healthy }
+    environment:
+      MINIO_ROOT_USER: "${BIDOPS_MINIO_ROOT_USER:?set an external MinIO root user}"
+      MINIO_ROOT_PASSWORD: "${BIDOPS_MINIO_ROOT_PASSWORD:?set an external MinIO root password}"
+      BIDOPS_SOURCE_ACCESS_KEY: "${BIDOPS_SOURCE_ACCESS_KEY:?set an external source access key}"
+      BIDOPS_SOURCE_SECRET_KEY: "${BIDOPS_SOURCE_SECRET_KEY:?set an external source secret key}"
+      BIDOPS_STRUCTURE_ACCESS_KEY: "${BIDOPS_STRUCTURE_ACCESS_KEY:?set an external structure access key}"
+      BIDOPS_STRUCTURE_SECRET_KEY: "${BIDOPS_STRUCTURE_SECRET_KEY:?set an external structure secret key}"
+      BIDOPS_STRUCTURE_READ_ACCESS_KEY: "${BIDOPS_STRUCTURE_READ_ACCESS_KEY:?set an external structure read access key}"
+      BIDOPS_STRUCTURE_READ_SECRET_KEY: "${BIDOPS_STRUCTURE_READ_SECRET_KEY:?set an external structure read secret key}"
+      BIDOPS_QUARANTINE_ACCESS_KEY: "${BIDOPS_QUARANTINE_ACCESS_KEY:?set an external quarantine access key}"
+      BIDOPS_QUARANTINE_SECRET_KEY: "${BIDOPS_QUARANTINE_SECRET_KEY:?set an external quarantine secret key}"
+      BIDOPS_MODEL_RESPONSE_ACCESS_KEY: "${BIDOPS_MODEL_RESPONSE_ACCESS_KEY:?set an external model-response access key}"
+      BIDOPS_MODEL_RESPONSE_SECRET_KEY: "${BIDOPS_MODEL_RESPONSE_SECRET_KEY:?set an external model-response secret key}"
+    volumes:
+      - ./scripts/minio-init.sh:/usr/local/bin/minio-init.sh:ro
+    entrypoint: ["/bin/sh", "/usr/local/bin/minio-init.sh"]
+    networks: [storage]
+
+  ollama:
+    image: ollama/ollama:0.11.4
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+    volumes:
+      - ollama-models:/root/.ollama
+    networks: [analysis]
+
+  clamav:
+    image: clamav/clamav:1.4.3
+    networks: [scanning]
+
+  web:
+    build: { context: ., dockerfile: web/Dockerfile }
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      minio-init: { condition: service_completed_successfully }
+      clamav: { condition: service_started }
+      document-worker: { condition: service_started }
+    environment:
+      BIDOPS_ROOT: /app
+      BIDOPS_DATABASE_URL: "postgresql+psycopg://app:${BIDOPS_APP_PASSWORD:?set an external app password}@postgres:5432/bidops"
+      BIDOPS_OLLAMA_ENDPOINT: http://127.0.0.1:11434/api/generate
+      BIDOPS_OPENAI_ENABLED: "false"
+      BIDOPS_DOCUMENT_WORKER_CONCURRENCY: "2"
+      BIDOPS_DOCUMENT_CONVERTER_WAIT_SECONDS: "45"
+      BIDOPS_CLAMAV_HOST: clamav
+      BIDOPS_CLAMAV_PORT: "3310"
+      BIDOPS_OBJECT_STORE_BACKEND: minio
+      BIDOPS_OBJECT_STORE_ENDPOINT: minio:9000
+      BIDOPS_OBJECT_STORE_SECURE: "false"
+      BIDOPS_SOURCE_ACCESS_KEY: "${BIDOPS_SOURCE_ACCESS_KEY:?set an external source access key}"
+      BIDOPS_SOURCE_SECRET_KEY: "${BIDOPS_SOURCE_SECRET_KEY:?set an external source secret key}"
+      BIDOPS_STRUCTURE_ACCESS_KEY: "${BIDOPS_STRUCTURE_ACCESS_KEY:?set an external structure access key}"
+      BIDOPS_STRUCTURE_SECRET_KEY: "${BIDOPS_STRUCTURE_SECRET_KEY:?set an external structure secret key}"
+      BIDOPS_QUARANTINE_ACCESS_KEY: "${BIDOPS_QUARANTINE_ACCESS_KEY:?set an external quarantine access key}"
+      BIDOPS_QUARANTINE_SECRET_KEY: "${BIDOPS_QUARANTINE_SECRET_KEY:?set an external quarantine secret key}"
+      BIDOPS_ANALYSIS_WORKER_CONCURRENCY: "1"
+    ports:
+      - "${BIDOPS_WEB_PORT:-18787}:8787"
+    networks: [database, storage, scanning]
+    volumes:
+      - document-scratch:/scratch
+    restart: unless-stopped
+
+  document-worker:
+    build: { context: ., dockerfile: web/Dockerfile }
+    environment: {}
+    command: ["python", "-m", "app.workers.document"]
+    volumes:
+      - document-scratch:/scratch
+    network_mode: none
+    deploy:
+      replicas: 2
+
+  analysis-worker:
+    build: { context: ., dockerfile: web/Dockerfile }
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      ollama: { condition: service_started }
+      minio-init: { condition: service_completed_successfully }
+    environment:
+      BIDOPS_ROOT: /app
+      BIDOPS_DATABASE_URL: "postgresql+psycopg://worker:${BIDOPS_WORKER_PASSWORD:?set an external worker password}@postgres:5432/bidops"
+      BIDOPS_OLLAMA_ENDPOINT: http://ollama:11434/api/generate
+      BIDOPS_OLLAMA_ALLOWED_HOSTS: ollama
+      BIDOPS_OPENAI_ENABLED: "false"
+      BIDOPS_ANALYSIS_WORKER_CONCURRENCY: "1"
+      BIDOPS_OBJECT_STORE_BACKEND: minio
+      BIDOPS_OBJECT_STORE_ENDPOINT: minio:9000
+      BIDOPS_OBJECT_STORE_SECURE: "false"
+      BIDOPS_MODEL_RESPONSE_ACCESS_KEY: "${BIDOPS_MODEL_RESPONSE_ACCESS_KEY:?set an external model-response access key}"
+      BIDOPS_MODEL_RESPONSE_SECRET_KEY: "${BIDOPS_MODEL_RESPONSE_SECRET_KEY:?set an external model-response secret key}"
+      BIDOPS_STRUCTURE_READ_ACCESS_KEY: "${BIDOPS_STRUCTURE_READ_ACCESS_KEY:?set an external structure read access key}"
+      BIDOPS_STRUCTURE_READ_SECRET_KEY: "${BIDOPS_STRUCTURE_READ_SECRET_KEY:?set an external structure read secret key}"
+      BIDOPS_MODEL_RESPONSE_ENCRYPTION_KEY: "${BIDOPS_MODEL_RESPONSE_ENCRYPTION_KEY:?set an external model-response encryption key}"
+      BIDOPS_MODEL_RESPONSE_ENCRYPTION_KEY_REF: "${BIDOPS_MODEL_RESPONSE_ENCRYPTION_KEY_REF:?set an external model-response encryption key reference}"
+    command: ["python", "-m", "app.workers.analysis"]
+    networks: [database, analysis]
+
+  ro-backup:
+    build: { context: ., dockerfile: web/Dockerfile }
+    profiles: [backup]
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      BIDOPS_DATABASE_URL: "postgresql+psycopg://ro_backup:${BIDOPS_RO_BACKUP_PASSWORD:?set an external ro_backup password}@postgres:5432/bidops"
+      BIDOPS_DATABASE_HOST: postgres
+      BIDOPS_RO_BACKUP_PASSWORD: "${BIDOPS_RO_BACKUP_PASSWORD:?set an external ro_backup password}"
+      BIDOPS_DATABASE_USER: ro_backup
+      BIDOPS_DATABASE_PASSWORD: "${BIDOPS_RO_BACKUP_PASSWORD:?set an external ro_backup password}"
+      BACKUP_DIR: /backup
+    volumes:
+      - ./backups/t7:/backup
+    entrypoint: ["/app/scripts/backup-postgres.sh"]
+    networks: [database]
+
+  ops:
+    build: { context: ., dockerfile: web/Ops.Dockerfile }
+    profiles: [ops]
+    volumes:
+      - recovery-backup:/backup
+    networks: [database, storage]
+    entrypoint: ["/bin/sh"]
+
+volumes:
+  postgres-data:
+  minio-data:
+  ollama-models:
+  document-scratch:
+  recovery-backup:
+
+networks:
+  database:
+    internal: true
+  storage:
+    internal: true
+  scanning:
+    internal: true
+  analysis:
+    internal: true
