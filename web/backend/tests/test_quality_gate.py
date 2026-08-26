@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+import os
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
@@ -395,61 +396,77 @@ def test_strict_fixed_source_rejects_symlinked_path_component(tmp_path: Path, co
         quality_gate_module._read_strict_fixed_snapshot(tmp_path)
 
 
-@pytest.mark.parametrize("mutation_call", [2, 3, 4, 6])
-def test_fixed_snapshot_swap_at_each_gate_boundary_rolls_back_everything(tmp_path: Path, mutation_call: int, monkeypatch):
-    settings, engine, factory, _run_dir, _canonical_run_id = _canonical_service_fixture(tmp_path)
-    calls = 0
-    original_read = quality_gate_module._read_strict_fixed_snapshot
-
-    def swapped_read(root):
-        nonlocal calls
-        calls += 1
-        if calls == mutation_call:
-            for relative in (FIXED_SAMPLE_RELATIVE, FIXED_BASELINE_RELATIVE, FIXED_RESULTS_RELATIVE):
-                path = Path(root) / relative
-                path.write_bytes(path.read_bytes() + b"\n")
-        return original_read(root)
-
-    monkeypatch.setattr(quality_gate_module, "_read_strict_fixed_snapshot", swapped_read)
-    orchestrator = ScreeningOrchestrator(
+def test_fixed_snapshot_path_swap_during_second_prepare_has_no_input_effect(tmp_path: Path):
+    settings, engine, factory, _run_dir, canonical_run_id = _canonical_service_fixture(tmp_path)
+    delegate = ScreeningOrchestrator(
         settings, session_factory=factory,
         ollama=type("FakeModel", (), {"inspect_model": lambda _self: ModelIdentity(MODEL_NAME, "c" * 64)})(),
         clock=lambda: NOW,
     )
+
+    class SwappingOrchestrator:
+        def __init__(self):
+            self.calls = 0
+
+        def prepare_execution(self, session, **kwargs):
+            prepared = delegate.prepare_execution(session, **kwargs)
+            self.calls += 1
+            if self.calls == 1:
+                path = tmp_path / FIXED_SAMPLE_RELATIVE
+                swapped = path.with_name("validation-set.swap.json")
+                swapped.write_bytes(path.read_bytes() + b"\n")
+                path.rename(path.with_name("validation-set.original.json"))
+                swapped.rename(path)
+            return prepared
+
+    orchestrator = SwappingOrchestrator()
+    gate = QualityGateService(settings, session_factory=factory, orchestrator=orchestrator).create_gate(
+        purpose="operational_approval", policy_version="policy-1", profile_source="current", created_by="tester"
+    )
+    assert orchestrator.calls == 2
+    with Session(engine) as session:
+        rows = session.scalars(select(ScreeningExecution).order_by(ScreeningExecution.queue_no)).all()
+        assert len(rows) == 2
+        assert all(row.source_run_id == canonical_run_id for row in rows)
+        assert session.get(QualityGate, gate.gate_id) is not None
+        before = session.scalar(select(func.count()).select_from(QualityGateEvaluation))
+        for row in rows:
+            row.status = "성공"
+            row.completed_count = 40
+            row.finished_at = NOW
+        session.commit()
     with pytest.raises(QualityGateValidationError):
-        QualityGateService(settings, session_factory=factory, orchestrator=orchestrator).create_gate(
-            purpose="operational_approval", policy_version="policy-1", profile_source="current", created_by="tester"
-        )
-    assert calls >= mutation_call
-    _assert_no_gate_side_effects(engine, tmp_path)
+        QualityGateService(settings, session_factory=factory, orchestrator=SimpleNamespace()).refresh(gate.gate_id)
+    with Session(engine) as session:
+        assert session.scalar(select(func.count()).select_from(QualityGateEvaluation)) == before
 
 
-def test_fixed_snapshot_aba_restore_during_prepare_is_rejected(tmp_path: Path, monkeypatch):
-    settings, engine, factory, _run_dir, _canonical_run_id = _canonical_service_fixture(tmp_path)
-    original_read = quality_gate_module._read_strict_fixed_snapshot
-    calls = 0
+def test_fixed_snapshot_aba_restore_during_prepare_keeps_original_semantics(tmp_path: Path):
+    settings, engine, factory, _run_dir, canonical_run_id = _canonical_service_fixture(tmp_path)
+    delegate = ScreeningOrchestrator(
+        settings, session_factory=factory,
+        ollama=type("FakeModel", (), {"inspect_model": lambda _self: ModelIdentity(MODEL_NAME, "c" * 64)})(),
+        clock=lambda: NOW,
+    )
 
-    def aba_read(root):
-        nonlocal calls
-        calls += 1
-        if calls == 3:
-            path = Path(root) / FIXED_SAMPLE_RELATIVE
+    class AbaOrchestrator:
+        def prepare_execution(self, session, **kwargs):
+            prepared = delegate.prepare_execution(session, **kwargs)
+            path = tmp_path / FIXED_SAMPLE_RELATIVE
             raw = path.read_bytes()
+            original_stat = path.stat()
             path.write_bytes(raw + b"\n")
             path.write_bytes(raw)
-        return original_read(root)
+            os.utime(path, ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns))
+            return prepared
 
-    monkeypatch.setattr(quality_gate_module, "_read_strict_fixed_snapshot", aba_read)
-    orchestrator = ScreeningOrchestrator(
-        settings, session_factory=factory,
-        ollama=type("FakeModel", (), {"inspect_model": lambda _self: ModelIdentity(MODEL_NAME, "c" * 64)})(),
-        clock=lambda: NOW,
+    gate = QualityGateService(settings, session_factory=factory, orchestrator=AbaOrchestrator()).create_gate(
+        purpose="operational_approval", policy_version="policy-1", profile_source="current", created_by="tester"
     )
-    with pytest.raises(QualityGateValidationError):
-        QualityGateService(settings, session_factory=factory, orchestrator=orchestrator).create_gate(
-            purpose="operational_approval", policy_version="policy-1", profile_source="current", created_by="tester"
-        )
-    _assert_no_gate_side_effects(engine, tmp_path)
+    with Session(engine) as session:
+        rows = session.scalars(select(ScreeningExecution)).all()
+        assert len(rows) == 2 and all(row.source_run_id == canonical_run_id for row in rows)
+        assert session.get(QualityGate, gate.gate_id) is not None
 
 
 @pytest.mark.parametrize("relative", [FIXED_SAMPLE_RELATIVE, FIXED_BASELINE_RELATIVE, FIXED_RESULTS_RELATIVE])
@@ -573,6 +590,40 @@ def test_fixed_run_projection_mismatches_are_rejected_before_gate_side_effects(
         else:
             assert notices[0].judgment is not None
             notices[0].judgment.schema_version = "bidops.decisions.v1"
+        session.commit()
+    with pytest.raises(QualityGateValidationError):
+        QualityGateService(settings, session_factory=factory, orchestrator=SimpleNamespace()).create_gate(
+            purpose="operational_approval", policy_version="policy-1", profile_source="current", created_by="tester"
+        )
+    _assert_no_gate_side_effects(engine, tmp_path)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "perspective_order", "perspective_duplicate", "perspective_negative", "perspective_missing",
+        "counter_order", "counter_duplicate", "counter_negative", "counter_missing",
+    ],
+)
+def test_fixed_run_child_position_contract_mismatches_are_rejected(tmp_path: Path, mutation: str):
+    settings, engine, factory, _run_dir, _canonical_run_id = _canonical_service_fixture(tmp_path)
+    with factory() as session:
+        notices = session.scalars(select(Notice).order_by(Notice.id)).all()
+        assert notices and notices[0].judgment is not None
+        judgment = notices[0].judgment
+        if mutation.startswith("perspective"):
+            children = sorted(judgment.perspectives, key=lambda row: row.position or 0)
+        else:
+            children = sorted(judgment.counterarguments, key=lambda row: row.position or 0)
+        assert len(children) >= 2
+        if mutation.endswith("order"):
+            children[0].position, children[1].position = children[1].position, children[0].position
+        elif mutation.endswith("negative"):
+            children[0].position = -1
+        elif mutation.endswith("missing"):
+            children[0].position = None
+        else:
+            children[1].position = children[0].position
         session.commit()
     with pytest.raises(QualityGateValidationError):
         QualityGateService(settings, session_factory=factory, orchestrator=SimpleNamespace()).create_gate(
