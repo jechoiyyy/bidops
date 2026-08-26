@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
+import os
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -155,3 +156,50 @@ def test_screening_artifact_kind_and_missing_file_are_safe(tmp_path: Path, monke
             f"/api/screening/executions/{execution_id}/artifacts/telemetry"
         )
         assert missing.status_code == 404
+
+
+def test_screening_artifact_rejects_hardlinks_and_survives_symlink_swap(
+    tmp_path: Path, monkeypatch
+) -> None:
+    application, execution_id = _app(tmp_path)
+    import app.routers.screening as screening
+    from app.config import Settings
+
+    monkeypatch.setattr(screening, "get_settings", lambda: Settings(bidops_root=tmp_path))
+    directory = tmp_path / "data" / "screening-executions" / execution_id
+    directory.mkdir(parents=True)
+    artifact = directory / "screening-decisions.json"
+    artifact.write_bytes(b'{"safe":true}')
+
+    # A hard link can be beneath the approved directory while referring to a
+    # different file identity.  The endpoint rejects it before streaming.
+    outside = tmp_path / "outside.json"
+    outside.write_bytes(b'{"secret":"must-not-leak"}')
+    artifact.unlink()
+    os.link(outside, artifact)
+    with TestClient(application) as client:
+        assert client.get(
+            f"/api/screening/executions/{execution_id}/artifacts/decisions"
+        ).status_code == 404
+
+    artifact.unlink()
+    artifact.write_bytes(b'{"safe":true}')
+    original_open = screening.os.open
+
+    def swap_after_open(path, flags, mode=0o777, *, dir_fd=None):  # type: ignore[no-untyped-def]
+        descriptor = original_open(path, flags, mode, dir_fd=dir_fd)
+        if path == artifact.name and dir_fd is not None:
+            artifact.unlink()
+            artifact.symlink_to("/etc/passwd")
+        return descriptor
+
+    monkeypatch.setattr(screening.os, "open", swap_after_open)
+    with TestClient(application) as client:
+        response = client.get(
+            f"/api/screening/executions/{execution_id}/artifacts/decisions"
+        )
+    # The validated inode is unlinked before the response is built.  The
+    # endpoint treats that replacement race as unavailable and never follows
+    # the newly installed symlink into a host file.
+    assert response.status_code == 404
+    assert b"root:" not in response.content
