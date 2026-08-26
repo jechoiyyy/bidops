@@ -9,14 +9,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
+import time as _time
 from typing import Any, Callable, Mapping
 
 from sqlalchemy import Engine, select, update
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, sessionmaker
 
 from ..config import Settings, get_settings
 from ..models import AlwaysOnState, CompanyProfileSnapshot, Run, ScheduleExecution, ScheduleReservation, ScreeningPolicy, utc_now
-from ..screening.orchestrator import ScreeningCreationError, ScreeningOrchestrator
+from ..screening.orchestrator import ScreeningOrchestrator
 from .scheduler import SchedulerService, previous_week_window
 
 
@@ -142,17 +144,24 @@ def _has_partial_progress(result: StageResult) -> bool:
     )
 
 
-def _precondition_failed(exc: BaseException) -> bool:
-    """Recognize a model precondition through one safe wrapper layer."""
+_MODEL_PRECONDITION_CODES = frozenset({
+    "precondition_failed",
+    "model_inspection",
+    "model_mismatch",
+    "ollama_unavailable",
+})
+
+
+def _model_precondition_failed(exc: BaseException) -> bool:
+    """Recognize only allow-listed model precondition failures."""
 
     seen: set[int] = set()
     current: BaseException | None = exc
     while current is not None and id(current) not in seen:
         seen.add(id(current))
-        if isinstance(current, ScreeningCreationError) and getattr(current, "code", None) == "precondition_failed":
-            return True
-        if getattr(current, "code", None) == "precondition_failed":
-            return True
+        for attribute in ("code", "failure_type", "error_code"):
+            if getattr(current, attribute, None) in _MODEL_PRECONDITION_CODES:
+                return True
         current = current.__cause__ or current.__context__
     return False
 
@@ -188,16 +197,26 @@ class ScheduledPipeline:
         self.clock = clock or (lambda: datetime.now(timezone.utc))
 
     def _run(self, fn: Callable[[Session], Any]) -> Any:
-        session = self.session_factory()
-        try:
-            result = fn(session)
-            session.commit()
-            return result
-        except Exception:
-            session.rollback()
-            raise
-        finally:
-            session.close()
+        for attempt in range(7):
+            session = self.session_factory()
+            try:
+                result = fn(session)
+                session.commit()
+                return result
+            except OperationalError as exc:
+                session.rollback()
+                message = str(exc).lower()
+                if "locked" not in message and "busy" not in message:
+                    raise
+                if attempt == 6:
+                    raise
+                _time.sleep(0.01 * (attempt + 1))
+            except Exception:
+                session.rollback()
+                raise
+            finally:
+                session.close()
+        raise ScheduledPipelineError("database remained busy")
 
     def _now(self) -> datetime:
         value = self.clock()
@@ -213,13 +232,22 @@ class ScheduledPipeline:
 
     def _start(self, execution_id: str) -> ScheduleExecution | None:
         def fn(session: Session) -> ScheduleExecution | None:
-            row = session.get(ScheduleExecution, execution_id)
-            if row is None:
-                raise ScheduledPipelineError("schedule execution not found")
-            if row.status != "예약":
+            claimed_at = self._now()
+            claimed = session.execute(
+                update(ScheduleExecution)
+                .where(
+                    ScheduleExecution.execution_id == execution_id,
+                    ScheduleExecution.status == "예약",
+                )
+                .values(status="실행 중", started_at=claimed_at)
+            )
+            if claimed.rowcount != 1:
+                # A loser must not execute any stage.  The caller performs a
+                # fresh read and returns the current durable state.
                 return None
-            row.status = "실행 중"
-            row.started_at = self._now()
+            row = session.get(ScheduleExecution, execution_id)
+            if row is None:  # pragma: no cover - the conditional update claimed it
+                raise ScheduledPipelineError("schedule execution not found")
             if row.policy_version is None:
                 state = session.get(AlwaysOnState, 1)
                 if state is not None:
@@ -340,9 +368,8 @@ class ScheduledPipeline:
         except Exception as exc:
             # Model inspection/preflight failure is deliberately represented by
             # a stable safe category, not a model response or endpoint body.
-            precondition = _precondition_failed(exc)
-            model_failure = "model" in type(exc).__name__.lower()
-            return StageResult(status="failed", failure_reason="ollama_unavailable" if precondition or model_failure else "judgment_failed", value=exc)
+            model_failure = _model_precondition_failed(exc)
+            return StageResult(status="failed", failure_reason="ollama_unavailable" if model_failure else "judgment_failed", value=exc)
         screening_id = getattr(created, "execution_id", None) or (created.get("execution_id") if isinstance(created, Mapping) else None)
         if not screening_id:
             return StageResult(status="failed", failure_reason="judgment_failed")
@@ -385,7 +412,13 @@ class ScheduledPipeline:
         if judgment.status == "interrupted":
             return self._finish(execution_id, status="실패", failure_reason="judgment_interrupted", run_id=run_id, screening_execution_id=screening_id, candidate_count=judgment.candidate_count, result_count=judgment.result_count, failure_count=judgment.failure_count, partial_artifact=judgment.partial_artifact)
         if judgment.status == "failed":
-            return self._finish(execution_id, status="실패", failure_reason=judgment.failure_reason or "judgment_failed", run_id=run_id, screening_execution_id=screening_id, candidate_count=judgment.candidate_count, result_count=judgment.result_count, failure_count=judgment.failure_count, partial_artifact=judgment.partial_artifact)
+            partial = _has_partial_progress(judgment)
+            return self._finish(execution_id, status="부분 성공" if partial else "실패", failure_reason=judgment.failure_reason or "judgment_failed", run_id=run_id, screening_execution_id=screening_id, candidate_count=judgment.candidate_count, result_count=judgment.result_count, failure_count=judgment.failure_count, partial_artifact=judgment.partial_artifact)
+        if judgment.status == "success" and (
+            judgment.result_count == 0
+            or (judgment.candidate_count == 0 and judgment.result_count is None)
+        ):
+            return self._finish(execution_id, status="실패", failure_reason="judgment_zero_result", run_id=run_id, screening_execution_id=screening_id, candidate_count=judgment.candidate_count, result_count=judgment.result_count, failure_count=judgment.failure_count, partial_artifact=judgment.partial_artifact)
         merge = self._stage("merge_load", **{**common, "run_id": run_id, "judgment": judgment, "screening_execution_id": screening_id})
         if _is_interrupted(merge):
             partial = _has_partial_progress(merge) or _has_partial_progress(judgment)
