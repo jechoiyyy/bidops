@@ -9,6 +9,10 @@ interface ScheduleExecutionTableProps {
 
 const recoverableStatuses: ScheduleStatus[] = ["실패", "부분 성공", "건너뜀"];
 
+export function executionAnchor(executionId: string): string {
+  return `schedule-execution-${encodeURIComponent(executionId)}`;
+}
+
 function triggerLabel(trigger: ScheduleExecutionSummary["trigger"]): string {
   return trigger === "manual" ? "수동" : "예약";
 }
@@ -40,10 +44,15 @@ export function ScheduleExecutionTable({ items, onRecover }: ScheduleExecutionTa
                 {items.map((item) => {
                   const recoverable = recoverableStatuses.includes(item.status);
                   return (
-                    <tr key={item.execution_id}>
+                    <tr id={executionAnchor(item.execution_id)} key={item.execution_id}>
                       <td><ExecutionStatus status={item.status} /></td>
                       <td><strong className="mono">{item.window_from} ~ {item.window_to}</strong><span className="operations-row-sub">{item.job_kind === "daily" ? "일간" : "주간"} · <span className="mono">{item.run_key}</span></span></td>
-                      <td>{triggerLabel(item.trigger)}<span className="operations-row-sub">{item.recovery_of_execution_id ? "명시 복구" : item.duplicate_of_execution_id ? "중복 요청" : "정기 실행"}</span></td>
+                      <td>
+                        {triggerLabel(item.trigger)}
+                        {item.recovery_of_execution_id ? <a className="operations-related-link" href={`#${executionAnchor(item.recovery_of_execution_id)}`}>복구 대상 · <span className="mono">{item.recovery_of_execution_id}</span></a> : null}
+                        {item.duplicate_of_execution_id ? <a className="operations-related-link" href={`#${executionAnchor(item.duplicate_of_execution_id)}`}>중복 대상 · <span className="mono">{item.duplicate_of_execution_id}</span></a> : null}
+                        {!item.recovery_of_execution_id && !item.duplicate_of_execution_id ? <span className="operations-row-sub">정기 실행</span> : null}
+                      </td>
                       <td><span className="mono">{item.execution_id}</span>{item.run_id ? <a className="operations-inline-link" href={`/runs?run=${encodeURIComponent(item.run_id)}`}>파생 회차 {item.run_id}</a> : <span className="operations-row-sub">파생 회차 없음</span>}</td>
                       <td><span className="operations-counts">후보 {formatNumber(item.candidate_count)} · 결과 {formatNumber(item.result_count)} · 실패 {formatNumber(item.failure_count)}</span>{item.partial_artifact ? <span className="operations-partial-indicator">부분 산출물</span> : null}</td>
                       <td><span className="operations-reason">{reasonLabel(item)}</span></td>

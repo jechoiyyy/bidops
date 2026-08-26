@@ -4,7 +4,7 @@ import type { ScheduleExecutionCreateRequest, ScheduleExecutionSummary, Schedule
 interface ScheduleExecutionFormProps {
   recoveryTarget: ScheduleExecutionSummary | null;
   busy: boolean;
-  onSubmit: (payload: ScheduleExecutionCreateRequest) => Promise<void>;
+  onSubmit: (payload: ScheduleExecutionCreateRequest) => Promise<boolean>;
   onCancelRecovery: () => void;
 }
 
@@ -97,8 +97,8 @@ export function ScheduleExecutionForm({ recoveryTarget, busy, onSubmit, onCancel
       recovery_of_execution_id: recoveryTarget?.execution_id ?? null,
       requested_by: actorValue,
     };
-    await onSubmit(payload);
-    setActor("");
+    const submitted = await onSubmit(payload);
+    if (submitted) setActor("");
   };
 
   return (
