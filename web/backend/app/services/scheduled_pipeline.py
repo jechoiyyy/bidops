@@ -18,7 +18,12 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from ..config import Settings, get_settings
 from ..models import AlwaysOnState, CompanyProfileSnapshot, Run, ScheduleExecution, ScheduleReservation, ScreeningPolicy, utc_now
-from ..screening.generation_config import GenerationConfigError, generation_config_from_settings
+from ..screening.generation_config import (
+    GenerationConfigError,
+    config_from_value,
+    generation_config_from_settings,
+    validate_digest,
+)
 from ..screening.orchestrator import ScreeningOrchestrator
 from .scheduler import SchedulerService, previous_week_window
 
@@ -262,6 +267,8 @@ class ScheduledPipeline:
                     row.model_digest = state.model_digest
                     row.prompt_version = state.prompt_version
                     row.generation_config_digest = state.generation_config_digest
+                    if hasattr(row, "generation_config_json"):
+                        row.generation_config_json = getattr(state, "generation_config_json", None)
                     if state.company_profile_version and session.scalar(select(CompanyProfileSnapshot.version).where(CompanyProfileSnapshot.version == state.company_profile_version)):
                         row.company_profile_version = state.company_profile_version
                     row.company_profile_digest = state.company_profile_digest
@@ -345,8 +352,38 @@ class ScheduledPipeline:
             return None
         return model_name, digest
 
+    def _generation_identity_matches_environment(self, execution: ScheduleExecution) -> bool:
+        """Validate the frozen schedule binding before any model inspection."""
+
+        try:
+            current = generation_config_from_settings(self.settings)
+            expected_digest = getattr(execution, "generation_config_digest", None)
+            # Generic manual fixtures may predate this binding. Scheduled
+            # rows and explicit recovery rows may not: those paths are the
+            # durable always-on boundary and fail closed when absent.
+            if expected_digest is None:
+                if execution.trigger == "schedule" or execution.recovery_of_execution_id is not None:
+                    return False
+                return True
+            if not isinstance(expected_digest, str) or expected_digest != current.digest():
+                return False
+            persisted = getattr(execution, "generation_config_json", None)
+            if persisted is not None:
+                config = config_from_value(persisted)
+                validate_digest(config, expected_digest)
+                if persisted != config.canonical_value() or config.digest() != current.digest():
+                    return False
+            return True
+        except (GenerationConfigError, TypeError, ValueError):
+            return False
+
     def _judgment(self, execution: ScheduleExecution, *, run_id: str) -> StageResult:
-        # Exact model tag/digest inspection is a precondition to enqueue.  No
+        # Generation config is checked first. This guarantees an environment
+        # drift exits without model inspection, queue-row creation, or model
+        # work. No legacy digest exception is available for scheduled runs.
+        if not self._generation_identity_matches_environment(execution):
+            return StageResult(status="failed", failure_reason="generation_config_mismatch")
+        # Exact model tag/digest inspection is a precondition to enqueue. No
         # screening row is created when it fails and there is no fallback.
         if self._model_identity(execution) is None:
             return StageResult(status="failed", failure_reason="ollama_unavailable")
@@ -358,18 +395,6 @@ class ScheduledPipeline:
             return result
         if not execution.policy_version:
             return StageResult(status="failed", failure_reason="policy_unavailable")
-        # The approval binds the settings used to create its two passes.  A
-        # process-env change after enablement must stop before enqueue/model
-        # work rather than silently creating a differently budgeted run.
-        try:
-            current_generation_digest = generation_config_from_settings(self.settings).digest()
-        except (GenerationConfigError, TypeError, ValueError):
-            return StageResult(status="failed", failure_reason="generation_config_mismatch")
-        # Legacy/manual reservations may predate 0005 and have no binding;
-        # they remain worker-incomplete rather than being treated as an
-        # approved scheduled run. Any populated digest is fail-closed.
-        if execution.generation_config_digest and execution.generation_config_digest != current_generation_digest:
-            return StageResult(status="failed", failure_reason="generation_config_mismatch")
         try:
             created = orchestrator.create_execution(
                 run_id=run_id,

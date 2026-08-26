@@ -34,7 +34,12 @@ from ..models import (
     utc_now,
 )
 from ..screening.ollama import OllamaClient
-from ..screening.generation_config import GenerationConfigError, generation_config_from_settings, legacy_generation_config
+from ..screening.generation_config import (
+    GenerationConfigError,
+    config_from_value,
+    generation_config_from_settings,
+    validate_digest,
+)
 from ..screening.profile_snapshot import read_working_tree_source
 
 
@@ -59,6 +64,25 @@ class ScheduleConflictError(ScheduleError):
 
 class ScheduleGateError(ScheduleError):
     code = "gate_mismatch"
+
+
+def _validated_generation_binding(row: Any) -> tuple[Any, str]:
+    """Parse and verify one persisted generation binding.
+
+    Schedule rows historically carried only a digest. New rows may carry the
+    canonical JSON object too; when it is present, accepting a digest without
+    validating the object would make a tampered projection schedulable.
+    """
+
+    value = getattr(row, "generation_config_json", None)
+    digest = getattr(row, "generation_config_digest", None)
+    if value is None or digest is None:
+        raise GenerationConfigError("generation config binding is missing")
+    config = config_from_value(value)
+    validate_digest(config, digest)
+    if value != config.canonical_value():
+        raise GenerationConfigError("generation config is not canonical")
+    return config, digest
 
 
 @dataclass(frozen=True)
@@ -363,6 +387,12 @@ class SchedulerService:
             raise ValueError("invalid reservation")
 
         def fn(session: Session) -> ScheduleExecution:
+            # A durable always-on projection is the source of the schedule
+            # identity. Check its frozen generation binding before creating a
+            # reservation or execution row. This path deliberately does not
+            # inspect Ollama; config drift must be observable without a model
+            # call and must fail closed first.
+            self._assert_generation_for_reservation(session)
             reservation = session.get(ScheduleReservation, run_key)
             if reservation is None:
                 if recovery_of is not None:
@@ -370,7 +400,15 @@ class SchedulerService:
                 reservation = ScheduleReservation(run_key=run_key, job_kind=job_kind, window_from=window_from, window_to=window_to, timezone="Asia/Seoul", created_at=self._now())
                 session.add(reservation)
                 session.flush()
-                row = ScheduleExecution(execution_id="sched-" + uuid4().hex, run_key=run_key, job_kind=job_kind, trigger=trigger, status="예약", requested_by=requested_by.strip())
+                row = ScheduleExecution(
+                    execution_id="sched-" + uuid4().hex,
+                    run_key=run_key,
+                    job_kind=job_kind,
+                    trigger=trigger,
+                    status="예약",
+                    requested_by=requested_by.strip(),
+                    **self._schedule_generation_fields(session),
+                )
                 session.add(row)
                 session.flush()
                 self._audit(session, "schedule.execution_reserved", row.execution_id, {"run_key": run_key}, actor=requested_by.strip())
@@ -381,7 +419,16 @@ class SchedulerService:
                 target = session.get(ScheduleExecution, recovery_of)
                 if target is None or target.run_key != run_key or target.status not in {"실패", "부분 성공", "건너뜀"}:
                     raise ScheduleConflictError("only failed, partial, or skipped execution may be recovered")
-                row = ScheduleExecution(execution_id="sched-" + uuid4().hex, run_key=run_key, job_kind=job_kind, trigger="manual", status="예약", recovery_of_execution_id=target.execution_id, requested_by=requested_by.strip())
+                row = ScheduleExecution(
+                    execution_id="sched-" + uuid4().hex,
+                    run_key=run_key,
+                    job_kind=job_kind,
+                    trigger="manual",
+                    status="예약",
+                    recovery_of_execution_id=target.execution_id,
+                    requested_by=requested_by.strip(),
+                    **self._schedule_generation_fields(session, target=target),
+                )
                 session.add(row)
                 session.flush()
                 self._audit(session, "schedule.execution_recovered", row.execution_id, {"run_key": run_key}, actor=requested_by.strip())
@@ -389,7 +436,17 @@ class SchedulerService:
             existing = session.scalar(select(ScheduleExecution).where(ScheduleExecution.run_key == run_key, ScheduleExecution.duplicate_of_execution_id.is_(None)).order_by(ScheduleExecution.execution_id.asc()).limit(1))
             if existing is None:
                 raise ScheduleConflictError("reservation has no execution")
-            row = ScheduleExecution(execution_id="sched-" + uuid4().hex, run_key=run_key, job_kind=job_kind, trigger=trigger, status="건너뜀", duplicate_of_execution_id=existing.execution_id, skip_reason="duplicate_reservation", requested_by=requested_by.strip())
+            row = ScheduleExecution(
+                execution_id="sched-" + uuid4().hex,
+                run_key=run_key,
+                job_kind=job_kind,
+                trigger=trigger,
+                status="건너뜀",
+                duplicate_of_execution_id=existing.execution_id,
+                skip_reason="duplicate_reservation",
+                requested_by=requested_by.strip(),
+                **self._schedule_generation_fields(session),
+            )
             session.add(row)
             session.flush()
             self._audit(session, "schedule.execution_skipped_duplicate", row.execution_id, {"run_key": run_key, "duplicate_of": existing.execution_id, "skip_reason": "duplicate_reservation"}, actor=requested_by.strip())
@@ -406,7 +463,17 @@ class SchedulerService:
                 existing = session.scalar(select(ScheduleExecution).where(ScheduleExecution.run_key == run_key, ScheduleExecution.duplicate_of_execution_id.is_(None)).order_by(ScheduleExecution.execution_id.asc()).limit(1))
                 if existing is None:
                     raise ScheduleConflictError("reservation race unresolved")
-                row = ScheduleExecution(execution_id="sched-" + uuid4().hex, run_key=run_key, job_kind=job_kind, trigger=trigger, status="건너뜀", duplicate_of_execution_id=existing.execution_id, skip_reason="duplicate_reservation", requested_by=requested_by.strip())
+                row = ScheduleExecution(
+                    execution_id="sched-" + uuid4().hex,
+                    run_key=run_key,
+                    job_kind=job_kind,
+                    trigger=trigger,
+                    status="건너뜀",
+                    duplicate_of_execution_id=existing.execution_id,
+                    skip_reason="duplicate_reservation",
+                    requested_by=requested_by.strip(),
+                    **self._schedule_generation_fields(session),
+                )
                 session.add(row)
                 session.flush()
                 self._audit(session, "schedule.execution_skipped_duplicate", row.execution_id, {"run_key": run_key, "duplicate_of": existing.execution_id, "skip_reason": "duplicate_reservation"}, actor=requested_by.strip())
@@ -429,13 +496,95 @@ class SchedulerService:
                 raise ScheduleConflictError("reservation not found")
             if target.status not in {"실패", "부분 성공", "건너뜀"}:
                 raise ScheduleConflictError("successful execution cannot be recovered")
-            row = ScheduleExecution(execution_id="sched-" + uuid4().hex, run_key=target.run_key, job_kind=target.job_kind, trigger="manual", status="예약", recovery_of_execution_id=target.execution_id, requested_by=requested_by.strip())
+            self._assert_generation_for_reservation(session, target=target)
+            row = ScheduleExecution(
+                execution_id="sched-" + uuid4().hex,
+                run_key=target.run_key,
+                job_kind=target.job_kind,
+                trigger="manual",
+                status="예약",
+                recovery_of_execution_id=target.execution_id,
+                requested_by=requested_by.strip(),
+                **self._schedule_generation_fields(session, target=target),
+            )
             session.add(row)
             session.flush()
             self._audit(session, "schedule.execution_recovered", row.execution_id, {"run_key": target.run_key}, actor=requested_by.strip())
             return row
 
         return self._run(fn)
+
+    def _assert_generation_for_reservation(
+        self,
+        session: Session,
+        *,
+        target: ScheduleExecution | None = None,
+    ) -> None:
+        """Reject environment drift before a reservation/recovery is added.
+
+        Manual schedule fixtures from before generation binding can still be
+        inspected when always-on is disabled. Once an always-on projection is
+        enabled, however, every scheduled or recovered row must carry the
+        same canonical generation identity as the current process settings.
+        """
+
+        try:
+            current = generation_config_from_settings(self.settings)
+            target_digest = getattr(target, "generation_config_digest", None) if target is not None else None
+            if target_digest is not None and target_digest != current.digest():
+                raise GenerationConfigError("schedule execution generation config differs from current settings")
+            if target is not None and getattr(target, "generation_config_json", None) is not None:
+                target_config, verified_target_digest = _validated_generation_binding(target)
+                if verified_target_digest != current.digest() or target_config.digest() != current.digest():
+                    raise GenerationConfigError("schedule execution generation config differs from current settings")
+            state = session.get(AlwaysOnState, 1)
+            if state is None or not bool(state.enabled):
+                return
+            expected_digest = target_digest or state.generation_config_digest
+            # A projection produced by the new binding migration has a
+            # digest. Keep disabled/legacy fixtures readable, but once a
+            # binding is present it is an exact environment contract.
+            if expected_digest is None:
+                return
+            if expected_digest != current.digest():
+                raise GenerationConfigError("generation config differs from current settings")
+            state_value = getattr(state, "generation_config_json", None)
+            if state_value is not None:
+                state_config = config_from_value(state_value)
+                validate_digest(state_config, state.generation_config_digest)
+                if state_config.digest() != current.digest():
+                    raise GenerationConfigError("always-on generation config differs from current settings")
+        except (GenerationConfigError, TypeError, ValueError):
+            self._audit(
+                session,
+                "schedule.execution_rejected",
+                getattr(target, "execution_id", "reservation"),
+                {"reason": "generation_config_mismatch"},
+            )
+            raise ScheduleConflictError("generation_config_mismatch") from None
+
+    @staticmethod
+    def _schedule_generation_fields(
+        session: Session,
+        *,
+        target: ScheduleExecution | None = None,
+    ) -> dict[str, Any]:
+        """Copy the approved binding into a newly durable schedule row."""
+
+        if target is not None and getattr(target, "generation_config_digest", None) is not None:
+            fields: dict[str, Any] = {"generation_config_digest": target.generation_config_digest}
+            target_value = getattr(target, "generation_config_json", None)
+            if target_value is not None and hasattr(ScheduleExecution, "generation_config_json"):
+                fields["generation_config_json"] = target_value
+            return fields
+        state = session.get(AlwaysOnState, 1)
+        if state is None or not bool(state.enabled):
+            return {}
+        fields: dict[str, Any] = {"generation_config_digest": state.generation_config_digest}
+        state_value = getattr(state, "generation_config_json", None)
+        if state_value is not None and hasattr(ScheduleExecution, "generation_config_json"):
+            fields["generation_config_json"] = state_value
+        return fields
 
     manual_recovery = recover
     recover_execution = recover
@@ -519,14 +668,27 @@ class SchedulerService:
                     company_profile_digest=state.company_profile_digest,
                     rejection_reason=reason or "gate_mismatch",
                 )
-            # Approval rows created before generation-config binding do not
-            # expose a digest.  They are deterministically legacy-bound by
-            # migration 0005; keep that read compatibility at this final
-            # projection boundary while new approvals remain strict in
-            # ``_approval`` above.
+            # Compatibility for test/dry-run approval adapters that predate
+            # the explicit field. Real `_approval` always returns this exact
+            # binding; synthesize only the current settings here so the DB
+            # enabled-metadata constraint cannot be bypassed with NULL.
             if "generation_config_digest" not in metadata:
-                metadata = dict(metadata)
-                metadata["generation_config_digest"] = legacy_generation_config().digest()
+                try:
+                    current = generation_config_from_settings(self.settings)
+                except (GenerationConfigError, TypeError, ValueError):
+                    metadata = None
+                    reason = "generation_config_mismatch"
+                else:
+                    metadata = dict(metadata)
+                    metadata["generation_config_digest"] = current.digest()
+                    if hasattr(state, "generation_config_json"):
+                        metadata["generation_config_json"] = current.canonical_value()
+            if metadata is None:
+                state.enabled = False
+                state.updated_at = self._now()
+                state.updated_by = "system:quality-gate"
+                self._audit(session, "schedule.always_on_enable_rejected", "1", {"reason": reason or "generation_config_mismatch"})
+                return EnableResult(enabled=False, rejection_reason=reason or "generation_config_mismatch")
             for key, value in metadata.items():
                 setattr(state, key, value)
             state.enabled = True
@@ -599,10 +761,27 @@ class SchedulerService:
             return None, "operational_approval_not_latest"
         if (gate.policy_version != policy.policy_version or gate.prompt_version != policy.prompt_version or gate.company_profile_version != profile[0] or gate.company_profile_digest != profile[1] or policy.quality_gate_result_id != evaluation.evaluation_id):
             return None, "approval_metadata_mismatch"
-        passes = [session.get(ScreeningExecution, execution_id) for execution_id in (gate.pass_a_execution_id, gate.pass_b_execution_id)]
-        if any(row is None or row.generation_config_digest != gate.generation_config_digest or row.generation_config_json != gate.generation_config_json for row in passes):
+        try:
+            gate_config, gate_digest = _validated_generation_binding(gate)
+            if gate_digest != evaluation.generation_config_digest:
+                return None, "generation_config_mismatch"
+            evaluation_value = getattr(evaluation, "generation_config_json", None)
+            if evaluation_value is not None:
+                evaluation_config = config_from_value(evaluation_value)
+                validate_digest(evaluation_config, evaluation.generation_config_digest)
+                if evaluation_value != evaluation_config.canonical_value() or evaluation_config.canonical_value() != gate_config.canonical_value():
+                    return None, "generation_config_mismatch"
+        except (GenerationConfigError, TypeError, ValueError):
             return None, "generation_config_mismatch"
-        if evaluation.generation_config_digest != gate.generation_config_digest:
+        passes = [session.get(ScreeningExecution, execution_id) for execution_id in (gate.pass_a_execution_id, gate.pass_b_execution_id)]
+        try:
+            pass_bindings = [_validated_generation_binding(row) for row in passes]
+        except (GenerationConfigError, TypeError, ValueError):
+            return None, "generation_config_mismatch"
+        if any(
+            digest != gate_digest or config.canonical_value() != gate_config.canonical_value()
+            for config, digest in pass_bindings
+        ):
             return None, "generation_config_mismatch"
         # A scheduler enable is an approval for subsequent executions.  Bind
         # the current process settings to that approval now; a changed env
@@ -611,10 +790,10 @@ class SchedulerService:
             current_generation = generation_config_from_settings(self.settings)
         except (GenerationConfigError, TypeError, ValueError):
             return None, "generation_config_mismatch"
-        # A migrated pre-0005 approval is retained for audit/backward
-        # compatibility; its subsequent scheduled execution is still checked
-        # against current settings by ScheduledPipeline before model work.
-        if current_generation.digest() != gate.generation_config_digest and gate.generation_config_digest != legacy_generation_config().digest():
+        # The process environment is part of the approval boundary. Legacy
+        # all-2048 rows have no intentional scheduled execution path and are
+        # therefore rejected instead of being treated as an exception.
+        if current_generation.digest() != gate_digest:
             return None, "generation_config_mismatch"
         inspector = self.ollama or OllamaClient(settings=self.settings)
         try:
@@ -628,7 +807,7 @@ class SchedulerService:
             model_digest = identity.get("digest") or identity.get("model_digest")
         if model_name != self.settings.model_name or model_name != gate.model_name or model_digest != gate.model_digest:
             return None, "model_identity_mismatch"
-        return {
+        metadata = {
             "quality_gate_result_id": evaluation.evaluation_id,
             "policy_version": policy.policy_version,
             "model_name": gate.model_name,
@@ -636,8 +815,11 @@ class SchedulerService:
             "prompt_version": policy.prompt_version,
             "company_profile_version": profile[0],
             "company_profile_digest": profile[1],
-            "generation_config_digest": gate.generation_config_digest,
-        }, None
+            "generation_config_digest": gate_digest,
+        }
+        if hasattr(AlwaysOnState, "generation_config_json"):
+            metadata["generation_config_json"] = gate_config.canonical_value()
+        return metadata, None
 
     # Catch-up and callbacks -----------------------------------------
     def _daily_callback(self) -> Any:

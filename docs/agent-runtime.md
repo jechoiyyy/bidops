@@ -147,3 +147,10 @@ Quality gate가 만드는 두 pass도 각각 독립적인 `quality_sample` execu
 3. FIFO, active slot 1, bounded retry, heartbeat recovery는 수동·스케줄·quality trigger에 공통이다.
 4. 실패·부분 성공·중단의 사실과 성공 subset을 보존하며 자동 재개·자동 등급 보정·자동 발행을 하지 않는다.
 5. 스케줄 catch-up/recovery와 DB migration/seed는 별도 운영 계약이다. 정확한 명령은 [운영 절차](./operations.md), REST·파일·DB status/error는 [외부 인터페이스 계약](./contracts.md)에 있다.
+
+모델 실행의 `generation_config` JSON과 digest는 execution artifact, DB
+projection, quality gate/evaluation, schedule/always-on response에서 동일한
+canonical object로 검증·노출한다. 환경 drift는 model inspection,
+reservation, queue row보다 먼저 fail closed하며 legacy all-2048 digest를 새
+예약의 승인으로 승격하지 않는다. 이 경계는 아직 live 재검증되지 않았고
+Phase 1 synthesis truncation 실패 evidence를 성공으로 바꾸지 않는다.
