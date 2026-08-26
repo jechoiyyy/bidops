@@ -22,25 +22,43 @@ const pages = [
 ];
 
 test.beforeEach(async ({ page }) => {
+  // The app theme imports Google Fonts. Keep visual tests entirely local: an
+  // empty CSS response prevents any gstatic font-face follow-up, while the
+  // second route closes the gap if a future import adds one.
+  await page.route("**://fonts.googleapis.com/**", async (route) => {
+    await route.fulfill({ status: 200, contentType: "text/css", body: "" });
+  });
+  await page.route("**://fonts.gstatic.com/**", async (route) => {
+    await route.fulfill({ status: 204, body: "" });
+  });
   await page.clock.setFixedTime(FIXED_TIME);
   await mockApi(page);
 });
 
 /**
- * 본문 글꼴은 Google Fonts에서 유니코드 구간별로 나뉘어 도착한다.
- * document.fonts.ready는 그 시점까지 요청된 구간만 보장하므로, select 같은
- * 네이티브 컨트롤의 글자가 뒤늦게 바뀌어 스냅샷이 흔들린다.
- * 화면에 실제로 놓인 글자를 넘겨 필요한 구간을 모두 받아 온 뒤에 촬영한다.
- * innerText는 select의 option 글자를 담지 않으므로 textContent를 써야 한다.
+ * Google Fonts가 없어도 레이아웃 측정을 기다리는 동안 같은 글꼴을 쓴다.
+ * theme의 IBM Plex 변수는 Playwright 이미지에 설치된 로컬 글꼴로
+ * 덮어쓰므로 폰트 서버의 성공 여부에 따라 스냅샷이 달라지지 않는다.
  */
 async function settleFonts(page: Page): Promise<void> {
+  await page.addStyleTag({
+    content: `
+      :root {
+        --font-sans: "WenQuanYi Zen Hei", sans-serif;
+        --font-mono: "Liberation Mono", monospace;
+      }
+    `,
+  });
   await page.evaluate(async () => {
     const text = document.documentElement.textContent ?? "";
-    for (const weight of ["300", "400", "500", "600"]) {
-      await document.fonts.load(`${weight} 13px "IBM Plex Sans KR"`, text);
-    }
-    await document.fonts.load("400 13px \"IBM Plex Mono\"", text);
+    await Promise.all([
+      document.fonts.load('400 13px "WenQuanYi Zen Hei"', text),
+      document.fonts.load('400 13px "Liberation Mono"', text),
+    ]);
     await document.fonts.ready;
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(resolve));
+    });
   });
 }
 
