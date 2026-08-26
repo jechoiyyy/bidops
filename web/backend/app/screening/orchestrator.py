@@ -139,9 +139,15 @@ def _policy_body(row: ScreeningPolicy) -> dict[str, Any]:
 def _notice_common(value: Any) -> dict[str, Any]:
     if not isinstance(value, Mapping):
         raise ScreeningCreationError("input_error")
-    if set(value) != set(COMMON_NOTICE_KEYS):
+    # Collection output predates validation sampling and may omit the two
+    # sample annotations.  They are optional in the ingest contract; preserve
+    # their absence as explicit nulls instead of rejecting the notice or
+    # inventing a stratum/role before the sample stage.
+    optional_keys = {"sample_stratum", "sample_role"}
+    required_keys = set(COMMON_NOTICE_KEYS).difference(optional_keys)
+    if not required_keys.issubset(value) or set(value).difference(COMMON_NOTICE_KEYS):
         raise ScreeningCreationError("input_error")
-    result = {key: value[key] for key in COMMON_NOTICE_KEYS}
+    result = {key: value.get(key) for key in COMMON_NOTICE_KEYS}
     if not isinstance(result["notice_id"], str) or not result["notice_id"].strip():
         raise ScreeningCreationError("input_error")
     raw_source = result["raw_source"]
