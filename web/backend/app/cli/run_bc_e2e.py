@@ -20,6 +20,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output", type=Path, help="absolute evidence JSON path (required unless --dry-run)")
     parser.add_argument("--analysis-timeout-seconds", type=float, default=3600)
     parser.add_argument("--poll-seconds", type=float, default=2)
+    parser.add_argument("--t7", action="store_true", help="run the complete mock-reference B-to-C-to-decision acceptance flow")
     parser.add_argument("--dry-run", action="store_true", help="validate inputs and print the bounded plan without API mutation")
     return parser
 
@@ -77,7 +78,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.analysis_timeout_seconds < 30 or args.poll_seconds <= 0 or args.poll_seconds > 60:
             raise BcE2EError("invalid_request", "timeout must be >=30 seconds and poll interval must be within 0..60 seconds")
         plan = {
-            "schema": "bidops.bc-e2e-plan.v1",
+            "schema": "bidops.t7-e2e-plan.v1" if args.t7 else "bidops.bc-e2e-plan.v1",
             "api_base": manifest.api_base,
             "notice_id": manifest.notice_id,
             "document_count": len(manifest.documents),
@@ -87,6 +88,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             ],
             "analysis_retry_limit": manifest.analysis_retry_limit,
         }
+        if args.t7:
+            plan["workflow"] = "t7-mock-reference"
         if args.dry_run:
             print(json.dumps(plan, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
             return 0
@@ -94,19 +97,46 @@ def main(argv: Sequence[str] | None = None) -> int:
             raise BcE2EError("target_not_confirmed", "--confirm-target must exactly match manifest api_base")
         if args.output is None:
             raise BcE2EError("invalid_output", "--output is required for a mutating acceptance run")
-        result = run_bc_e2e(
-            manifest,
-            JsonAcceptanceApi(manifest.api_base),
-            timeout_seconds=args.analysis_timeout_seconds,
-            poll_seconds=args.poll_seconds,
-        )
+        if args.t7:
+            from ..services.agent_e2e import PersistedAgentProjectionReader, run_t7_e2e
+
+            result = run_t7_e2e(
+                manifest,
+                JsonAcceptanceApi(manifest.api_base),
+                PersistedAgentProjectionReader(),
+                timeout_seconds=args.analysis_timeout_seconds,
+                poll_seconds=args.poll_seconds,
+            )
+        else:
+            result = run_bc_e2e(
+                manifest,
+                JsonAcceptanceApi(manifest.api_base),
+                timeout_seconds=args.analysis_timeout_seconds,
+                poll_seconds=args.poll_seconds,
+            )
         _write_evidence(args.output, result)
-        print(json.dumps({
-            "passed": True,
-            "evidence_file": str(args.output),
-            "bundle_id": result["bundle"]["id"],
-            "deep_review_id": result["deep_review"]["id"],
-        }, ensure_ascii=False, sort_keys=True))
+        if args.t7:
+            first_flow = result["first_flow"]
+            second_flow = result["second_flow"]
+            summary = {
+                "passed": True,
+                "evidence_file": str(args.output),
+                "workflow": result["workflow"],
+                "first_bundle_id": first_flow["bundle_id"],
+                "first_deep_review_id": first_flow["review_id"],
+                "second_bundle_id": second_flow["bundle_id"],
+                "second_deep_review_id": second_flow["review_id"],
+                "final_opinion_id": first_flow["final_opinion"]["id"],
+                "active_work_jobs": result["work_jobs"]["active"],
+            }
+        else:
+            summary = {
+                "passed": True,
+                "evidence_file": str(args.output),
+                "bundle_id": result["bundle"]["id"],
+                "deep_review_id": result["deep_review"]["id"],
+            }
+        print(json.dumps(summary, ensure_ascii=False, sort_keys=True))
         return 0
     except BcE2EError as error:
         print(json.dumps({"error": {"code": error.code, "message": str(error), "status": error.status}}, ensure_ascii=False, sort_keys=True))
