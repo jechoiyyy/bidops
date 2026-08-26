@@ -29,8 +29,8 @@ ENV PYTHONUNBUFFERED=1 \
     BIDOPS_SCHEDULER_ENABLED=false
 
 WORKDIR /app/web/backend
-COPY web/backend/requirements.txt ./
-RUN python -m pip install --no-cache-dir --requirement requirements.txt
+COPY web/backend/requirements.lock ./
+RUN python -m pip install --no-cache-dir --requirement requirements.lock
 
 # Git is retained only as an optional source-inspection tool. The image has no
 # repository metadata; the wrapper below serves the one exact baseline lookup
