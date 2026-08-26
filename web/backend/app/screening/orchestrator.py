@@ -8,7 +8,7 @@ import json
 import math
 from pathlib import Path
 import re
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Mapping, Sequence
 from uuid import uuid4
 
 from sqlalchemy import select
@@ -74,6 +74,30 @@ class PreparedExecution:
     created: CreatedExecution
     row: ScreeningExecution
     workspace: ExecutionWorkspace
+
+
+_QUALITY_BINDING_TOKEN = object()
+
+
+@dataclass(frozen=True)
+class _QualitySampleBinding:
+    """Private caller-owned fixed sample projection for quality preparation."""
+
+    run_id: str
+    source_window: Mapping[str, Any]
+    notices: tuple[Mapping[str, Any], ...]
+    token: object
+
+
+def _make_quality_sample_binding(
+    run_id: str, source_window: Mapping[str, Any], notices: Sequence[Mapping[str, Any]]
+) -> _QualitySampleBinding:
+    return _QualitySampleBinding(
+        run_id=run_id,
+        source_window=dict(source_window),
+        notices=tuple(dict(item) for item in notices),
+        token=_QUALITY_BINDING_TOKEN,
+    )
 
 
 def _now(clock: Callable[[], datetime]) -> datetime:
@@ -594,6 +618,7 @@ class ScreeningOrchestrator:
         scope: str = "full_run",
         notice_id: str | None = None,
         trigger: str | None = None,
+        _quality_binding: _QualitySampleBinding | None = None,
     ) -> PreparedExecution:
         """Prepare one execution in a caller-owned transaction.
 
@@ -611,15 +636,34 @@ class ScreeningOrchestrator:
             raise ScreeningCreationError("input_error")
         execution_id = "scr-" + uuid4().hex
         workspace: ExecutionWorkspace | None = None
-        source_dir = _safe_run_directory(self.settings, run_id)
-        try:
-            source, _collection = _source_notices(source_dir)
-        except ScreeningCreationError:
-            if scope != "quality_sample":
-                raise
-            source, _collection = _quality_source_from_validation(source_dir)
-        notices = source["notices"]
-        old_notices, old_judgments = _prior_maps(source_dir)
+        source_dir = (
+            None
+            if scope == "quality_sample" and _quality_binding is not None
+            else _safe_run_directory(self.settings, run_id)
+        )
+        if scope == "quality_sample" and _quality_binding is not None:
+            if (
+                not isinstance(_quality_binding, _QualitySampleBinding)
+                or _quality_binding.token is not _QUALITY_BINDING_TOKEN
+                or _quality_binding.run_id != run_id
+                or len(_quality_binding.notices) != 40
+            ):
+                raise ScreeningCreationError("input_error")
+            source = {
+                "source_window": dict(_quality_binding.source_window),
+                "notices": [dict(item) for item in _quality_binding.notices],
+            }
+            notices = source["notices"]
+            old_notices, old_judgments = {}, {}
+        else:
+            try:
+                source, _collection = _source_notices(source_dir)
+            except ScreeningCreationError:
+                if scope != "quality_sample":
+                    raise
+                source, _collection = _quality_source_from_validation(source_dir)
+            notices = source["notices"]
+            old_notices, old_judgments = _prior_maps(source_dir)
         run = session.scalar(select(Run).where(Run.id == run_id))
         if run is None or run.status not in {"active", "complete", "성공", "부분 성공"}:
             raise ScreeningCreationError("input_error")
@@ -635,7 +679,10 @@ class ScreeningOrchestrator:
                 raise ScreeningCreationError("policy_mismatch")
             selected = [item for item in notices if item.get("collection_bucket") in buckets]
         elif scope == "quality_sample":
-            selected = _quality_sample_selection(notices, _validation_notices(source_dir))
+            if _quality_binding is not None:
+                selected = [dict(item) for item in notices]
+            else:
+                selected = _quality_sample_selection(notices, _validation_notices(source_dir))
         else:
             selected = [item for item in notices if item["notice_id"] == notice_id]
             if len(selected) != 1:

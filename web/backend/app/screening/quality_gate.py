@@ -39,7 +39,11 @@ from .artifacts import ArtifactError, ArtifactStore, ExecutionWorkspace, sha256_
 from ..ingest.loader import deterministic_run_id
 from .generation_config import GenerationConfigError, config_from_value, legacy_generation_config, validate_digest
 from .execution_store import ScreeningExecutionStore
-from .orchestrator import ScreeningCreationError, ScreeningOrchestrator
+from .orchestrator import (
+    ScreeningCreationError,
+    ScreeningOrchestrator,
+    _make_quality_sample_binding,
+)
 from .profile_snapshot import BASELINE_COMMIT
 from .quality_metrics import (
     QualityMetricError,
@@ -137,12 +141,9 @@ def _read_json(path: Path) -> tuple[bytes, dict[str, Any]]:
     return raw, value
 
 
-PathIdentity = tuple[tuple[str, int, int, int, int], ...]
-
-
 @dataclass(frozen=True)
 class _FixedInputSnapshot:
-    """One trusted, byte-and-path identity snapshot of all fixed inputs."""
+    """One trusted, immutable raw/parsed snapshot of all fixed inputs."""
 
     root: Path
     sample: dict[str, Any]
@@ -151,66 +152,121 @@ class _FixedInputSnapshot:
     sample_raw: bytes
     baseline_raw: bytes
     results_raw: bytes
-    sample_identity: PathIdentity
-    baseline_identity: PathIdentity
-    results_identity: PathIdentity
+    sample_digest: str
+    baseline_digest: str
+    results_digest: str
     ids: tuple[str, ...]
+    token: object
 
 
-def _fixed_file_identity(root: Path, relative: str) -> PathIdentity:
-    """Verify every component without following symlinks and fingerprint it."""
+_FIXED_SNAPSHOT_TOKEN = object()
 
-    current = root
-    entries: list[tuple[str, int, int, int, int]] = []
+
+FIXED_INPUT_MAX_BYTES = 8 * 1024 * 1024
+_O_CLOEXEC = getattr(os, "O_CLOEXEC", 0)
+_O_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
+_O_DIRECTORY = getattr(os, "O_DIRECTORY", 0)
+
+
+def _absolute_root(project_root: Path | str) -> Path:
+    root = Path(project_root)
+    if not root.is_absolute():
+        root = Path(os.path.abspath(root))
+    return root
+
+
+def _open_trusted_root(project_root: Path | str) -> tuple[int, Path]:
+    """Open the configured root without following its final symlink."""
+
+    root = _absolute_root(project_root)
+    root_fd: int | None = None
     try:
-        root_stat = os.lstat(current)
+        root_fd = os.open(str(root), os.O_RDONLY | _O_DIRECTORY | _O_NOFOLLOW | _O_CLOEXEC)
+        root_stat = os.fstat(root_fd)
     except OSError:
-        raise QualityGateValidationError("fixed quality input is unavailable") from None
-    if stat.S_ISLNK(root_stat.st_mode) or not stat.S_ISDIR(root_stat.st_mode):
-        raise QualityGateValidationError("fixed quality input is unavailable")
-    for index, component in enumerate(Path(relative).parts):
-        current = current / component
-        try:
-            value = os.lstat(current)
-        except OSError:
-            raise QualityGateValidationError("fixed quality input is unavailable") from None
-        if stat.S_ISLNK(value.st_mode):
-            raise QualityGateValidationError("fixed quality input is unavailable")
-        is_final = index == len(Path(relative).parts) - 1
-        if (is_final and not stat.S_ISREG(value.st_mode)) or (not is_final and not stat.S_ISDIR(value.st_mode)):
-            raise QualityGateValidationError("fixed quality input is unavailable")
-        # Parent directory mtimes legitimately change when execution/profile
-        # artifacts are created elsewhere under the same root.  Their
-        # device/inode identities still detect a replacement or symlink swap;
-        # retain size/mtime only for the trusted file itself.
-        entries.append((component, value.st_dev, value.st_ino, value.st_size if is_final else 0, value.st_mtime_ns if is_final else 0))
-    return tuple(entries)
-
-
-def _fixed_path(root: Path, relative: str) -> Path:
-    """Return a fixed artifact path only when every path component is real."""
-
-    path = root / relative
-    try:
-        path.relative_to(root)
-    except ValueError:
-        raise QualityGateValidationError("fixed quality input is unavailable") from None
-    _fixed_file_identity(root, relative)
-    return path
-
-
-def _read_pinned_json(root: Path, relative: str, expected_digest: str) -> tuple[bytes, dict[str, Any]]:
-    """Read one byte-pinned fixed artifact without disclosing its contents."""
-
-    path = _fixed_path(root, relative)
-    try:
-        before = _fixed_file_identity(root, relative)
-        raw = path.read_bytes()
-        value = json.loads(raw.decode("utf-8"))
-        after = _fixed_file_identity(root, relative)
-    except (OSError, UnicodeError, json.JSONDecodeError):
+        if root_fd is not None:
+            try:
+                os.close(root_fd)
+            except OSError:
+                pass
         raise QualityGateValidationError("fixed quality input is invalid") from None
-    if before != after or sha256_bytes(raw) != expected_digest or not isinstance(value, dict):
+    if not stat.S_ISDIR(root_stat.st_mode):
+        os.close(root_fd)
+        raise QualityGateValidationError("fixed quality input is invalid")
+    return root_fd, root
+
+
+def _open_fixed_relative(root_fd: int, relative: str) -> int:
+    """Open a fixed relative file through directory FDs and no-follow flags."""
+
+    path = Path(relative)
+    parts = path.parts
+    if not parts or path.is_absolute() or any(part in {"", ".", ".."} for part in parts):
+        raise QualityGateValidationError("fixed quality input is invalid")
+    parent_fd = root_fd
+    opened_dirs: list[int] = []
+    try:
+        for component in parts[:-1]:
+            child_fd = os.open(
+                component,
+                os.O_RDONLY | _O_DIRECTORY | _O_NOFOLLOW | _O_CLOEXEC,
+                dir_fd=parent_fd,
+            )
+            opened_dirs.append(child_fd)
+            parent_fd = child_fd
+        final_fd = os.open(
+            parts[-1], os.O_RDONLY | _O_NOFOLLOW | _O_CLOEXEC, dir_fd=parent_fd
+        )
+        final_stat = os.fstat(final_fd)
+        if not stat.S_ISREG(final_stat.st_mode):
+            os.close(final_fd)
+            raise QualityGateValidationError("fixed quality input is invalid")
+        return final_fd
+    except OSError:
+        raise QualityGateValidationError("fixed quality input is invalid") from None
+    finally:
+        for descriptor in reversed(opened_dirs):
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
+
+
+def _read_bounded_fd(file_fd: int) -> bytes:
+    try:
+        initial_size = os.fstat(file_fd).st_size
+        if initial_size < 0 or initial_size > FIXED_INPUT_MAX_BYTES:
+            raise QualityGateValidationError("fixed quality input is invalid")
+        chunks: list[bytes] = []
+        total = 0
+        while total <= FIXED_INPUT_MAX_BYTES:
+            chunk = os.read(file_fd, min(1024 * 1024, FIXED_INPUT_MAX_BYTES + 1 - total))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            total += len(chunk)
+        if total > FIXED_INPUT_MAX_BYTES:
+            raise QualityGateValidationError("fixed quality input is invalid")
+        return b"".join(chunks)
+    except OSError:
+        raise QualityGateValidationError("fixed quality input is invalid") from None
+
+
+def _read_pinned_json_fd(root_fd: int, relative: str, expected_digest: str) -> tuple[bytes, dict[str, Any]]:
+    """Read one pinned artifact through a secure FD with a bounded size."""
+
+    file_fd = _open_fixed_relative(root_fd, relative)
+    try:
+        raw = _read_bounded_fd(file_fd)
+        value = json.loads(raw.decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError):
+        raise QualityGateValidationError("fixed quality input is invalid") from None
+    finally:
+        try:
+            os.close(file_fd)
+        except OSError:
+            pass
+    if sha256_bytes(raw) != expected_digest or not isinstance(value, dict):
         raise QualityGateValidationError("fixed quality input is invalid")
     return raw, value
 
@@ -286,24 +342,24 @@ def _validate_fixed_shape(
 def _read_strict_fixed_snapshot(project_root: Path | str) -> _FixedInputSnapshot:
     """Read and validate all fixed files as one reusable immutable snapshot."""
 
-    root = Path(project_root)
-    if root.is_symlink():
-        raise QualityGateValidationError("fixed quality input is unavailable")
+    root_fd, root = _open_trusted_root(project_root)
     try:
-        root = root.resolve(strict=True)
-    except OSError:
-        raise QualityGateValidationError("fixed quality input is unavailable") from None
-    sample_raw, sample = _read_pinned_json(root, FIXED_SAMPLE_RELATIVE, FIXED_SAMPLE_DIGEST)
-    baseline_raw, baseline = _read_pinned_json(root, FIXED_BASELINE_RELATIVE, FIXED_BASELINE_DIGEST)
-    results_raw, results = _read_pinned_json(root, FIXED_RESULTS_RELATIVE, FIXED_RESULTS_DIGEST)
+        sample_raw, sample = _read_pinned_json_fd(root_fd, FIXED_SAMPLE_RELATIVE, FIXED_SAMPLE_DIGEST)
+        baseline_raw, baseline = _read_pinned_json_fd(root_fd, FIXED_BASELINE_RELATIVE, FIXED_BASELINE_DIGEST)
+        results_raw, results = _read_pinned_json_fd(root_fd, FIXED_RESULTS_RELATIVE, FIXED_RESULTS_DIGEST)
+    finally:
+        try:
+            os.close(root_fd)
+        except OSError:
+            pass
     ids = _validate_fixed_shape(sample, baseline, results)
     return _FixedInputSnapshot(
         root=root, sample=sample, baseline=baseline, results=results,
         sample_raw=sample_raw, baseline_raw=baseline_raw, results_raw=results_raw,
-        sample_identity=_fixed_file_identity(root, FIXED_SAMPLE_RELATIVE),
-        baseline_identity=_fixed_file_identity(root, FIXED_BASELINE_RELATIVE),
-        results_identity=_fixed_file_identity(root, FIXED_RESULTS_RELATIVE),
+        sample_digest=FIXED_SAMPLE_DIGEST, baseline_digest=FIXED_BASELINE_DIGEST,
+        results_digest=FIXED_RESULTS_DIGEST,
         ids=tuple(ids),
+        token=_FIXED_SNAPSHOT_TOKEN,
     )
 
 
@@ -314,23 +370,6 @@ def _read_strict_fixed_inputs(project_root: Path | str) -> tuple[dict[str, Any],
         snapshot.sample_raw, snapshot.baseline_raw, snapshot.results_raw,
         list(snapshot.ids),
     )
-
-
-def _revalidate_fixed_snapshot(snapshot: _FixedInputSnapshot) -> _FixedInputSnapshot:
-    """Reject any content, path, symlink, or inode change since the snapshot."""
-
-    current = _read_strict_fixed_snapshot(snapshot.root)
-    if (
-        current.sample_raw != snapshot.sample_raw
-        or current.baseline_raw != snapshot.baseline_raw
-        or current.results_raw != snapshot.results_raw
-        or current.sample_identity != snapshot.sample_identity
-        or current.baseline_identity != snapshot.baseline_identity
-        or current.results_identity != snapshot.results_identity
-        or current.ids != snapshot.ids
-    ):
-        raise QualityGateValidationError("fixed quality input changed")
-    return current
 
 
 def validate_fixed_inputs(
@@ -487,6 +526,20 @@ def _normalized_fixed_notice(value: Mapping[str, Any]) -> dict[str, Any]:
     return result
 
 
+def _ordered_children(rows: Sequence[Any], *, positioned: bool, label: str) -> list[Any]:
+    """Return deterministic child order and reject malformed position contracts."""
+
+    if positioned:
+        positions = [getattr(row, "position", None) for row in rows]
+        if any(type(position) is not int or position <= 0 for position in positions):
+            raise QualityGateValidationError("fixed quality run is invalid")
+        expected = list(range(1, len(positions) + 1))
+        if sorted(positions) != expected:
+            raise QualityGateValidationError("fixed quality run is invalid")
+        return sorted(rows, key=lambda row: (row.position, row.id or 0))
+    return sorted(rows, key=lambda row: (row.id is None, row.id or 0))
+
+
 def _db_notice_identity(notice: Notice) -> dict[str, Any]:
     return _normalized_fixed_notice({
         "notice_id": notice.notice_key,
@@ -502,7 +555,7 @@ def _db_notice_identity(notice: Notice) -> dict[str, Any]:
         "procurement_class": notice.procurement_class_json,
         "region_limit": notice.region_limit_json,
         "lifecycle": notice.lifecycle_json,
-        "attachments": [{"name": item.name, "url": item.url} for item in notice.attachments],
+        "attachments": [{"name": item.name, "url": item.url} for item in _ordered_children(notice.attachments, positioned=False, label="attachments")],
         "qualification_flags": notice.qualification_flags_json,
         "focus_matches": notice.focus_matches_json,
         "performance_matches": notice.performance_matches_json,
@@ -534,10 +587,10 @@ def _db_judgment_identity(notice: Notice) -> dict[str, Any] | None:
                 "reason": perspective.reason,
                 "evidence": [
                     {"source": evidence.source, "status": evidence.status, "fact": evidence.fact}
-                    for evidence in perspective.evidence
+                    for evidence in _ordered_children(perspective.evidence, positioned=False, label="evidence")
                 ],
             }
-            for perspective in sorted(judgment.perspectives, key=lambda row: (row.position is None, row.position or 0, row.id or 0))
+            for perspective in _ordered_children(judgment.perspectives, positioned=True, label="perspectives")
         ],
         "matched_performances": [
             {
@@ -547,12 +600,12 @@ def _db_judgment_identity(notice: Notice) -> dict[str, Any] | None:
                 "source": item.source,
                 "status": item.status,
             }
-            for item in judgment.matched_performances
+            for item in _ordered_children(judgment.matched_performances, positioned=False, label="matched_performances")
         ],
-        "counterarguments": [item.text for item in judgment.counterarguments],
+        "counterarguments": [item.text for item in _ordered_children(judgment.counterarguments, positioned=True, label="counterarguments")],
         "verification_items": [
             {"item": item.item, "why": item.why, "blocking": item.blocking, "status": item.status}
-            for item in judgment.verification_items
+            for item in _ordered_children(judgment.verification_items, positioned=False, label="verification_items")
         ],
         "next_action": judgment.next_action,
     }
@@ -575,10 +628,9 @@ def resolve_fixed_run(
     if run_alias != FIXED_RUN_ID:
         raise QualityGateValidationError("fixed quality run is invalid")
     fixed = snapshot or _read_strict_fixed_snapshot(project_root)
-    try:
-        requested_root = Path(project_root).resolve(strict=True)
-    except OSError:
-        raise QualityGateValidationError("fixed quality input is unavailable") from None
+    if not isinstance(fixed, _FixedInputSnapshot) or fixed.token is not _FIXED_SNAPSHOT_TOKEN:
+        raise QualityGateValidationError("fixed quality input is invalid")
+    requested_root = _absolute_root(project_root)
     if fixed.root != requested_root:
         raise QualityGateValidationError("fixed quality input is invalid")
     sample, baseline, results, sample_ids = fixed.sample, fixed.baseline, fixed.results, list(fixed.ids)
@@ -982,6 +1034,9 @@ class QualityGateService:
 
         root = Path(self.settings.bidops_root)
         prepared_artifacts: list[tuple[str, ExecutionWorkspace]] = []
+        quality_binding = _make_quality_sample_binding(
+            resolved_run_id, fixed.sample["source_window"], fixed.sample["notices"]
+        )
         try:
             if self.transaction_preparer is None:
                 raise QualityGateConflict("quality gate requires a transaction-aware execution preparer")
@@ -990,7 +1045,6 @@ class QualityGateService:
             now = _now(self.clock())
             gate_id = "gate-" + uuid4().hex
             with self._session(immediate=True) as session:
-                _revalidate_fixed_snapshot(fixed)
                 # Re-resolve while holding the same write transaction that
                 # will publish both passes and the gate.  A stale, changed,
                 # superseded, or ambiguous row cannot leak into any side
@@ -1001,26 +1055,22 @@ class QualityGateService:
                 policy = session.scalar(select(ScreeningPolicy).where(ScreeningPolicy.policy_version == policy_version))
                 if policy is None or policy.status not in {"activation_candidate", "active"}:
                     raise QualityGateValidationError("quality gate policy is not selectable")
-                # prepare_execution reads the source directory itself.  The
-                # pre/post checks make that separate read a guarded boundary
-                # and keep any changed/symlinked source from being published.
-                _revalidate_fixed_snapshot(fixed)
                 prepared_a = self.transaction_preparer(
                     session, run_id=resolved_run_id, policy_version=policy_version, profile_source=profile_source,
                     requested_by=actor, scope="quality_sample", trigger="quality_gate",
+                    _quality_binding=quality_binding,
                 )
                 if not isinstance(getattr(prepared_a, "workspace", None), ExecutionWorkspace):
                     raise QualityGateConflict("quality pass ownership was not retained")
                 prepared_artifacts.append((prepared_a.created.execution_id, prepared_a.workspace))
-                _revalidate_fixed_snapshot(fixed)
                 prepared_b = self.transaction_preparer(
                     session, run_id=resolved_run_id, policy_version=policy_version, profile_source=profile_source,
                     requested_by=actor, scope="quality_sample", trigger="quality_gate",
+                    _quality_binding=quality_binding,
                 )
                 if not isinstance(getattr(prepared_b, "workspace", None), ExecutionWorkspace):
                     raise QualityGateConflict("quality pass ownership was not retained")
                 prepared_artifacts.append((prepared_b.created.execution_id, prepared_b.workspace))
-                _revalidate_fixed_snapshot(fixed)
                 first, second = prepared_a.created, prepared_b.created
                 if first.execution_id == second.execution_id:
                     raise QualityGateConflict("quality passes must be independent")
@@ -1071,10 +1121,6 @@ class QualityGateService:
                     or execution_b.candidate_count != 40
                 ):
                     raise QualityGateConflict("quality pass policy identity differs")
-                # This is the final trust boundary.  Any content, symlink,
-                # inode, or path replacement observed after either prepare
-                # rolls back the transaction and removes both workspaces.
-                _revalidate_fixed_snapshot(fixed)
                 final_resolved = resolve_fixed_run(
                     session, self.settings.bidops_root, run_alias=run_id, snapshot=fixed
                 )
