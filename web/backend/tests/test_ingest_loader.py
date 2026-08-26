@@ -10,6 +10,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.db import Base, init_db
 from app.ingest.loader import ingest_run
+from app.screening.generation_config import legacy_generation_config
 from app.models import (
     Counterargument,
     IngestWarning,
@@ -212,6 +213,96 @@ def test_loader_v3_input_is_fail_closed_for_duplicate_and_invalid_identity(tmp_p
     result = ingest_run(run_dir, db_session, reports_root=tmp_path / "reports")
     assert result.notices == 0
     assert db_session.scalar(select(func.count()).select_from(Notice)) == 0
+    assert any(item["code"] == "screening_input_invalid" for item in result.warnings)
+
+
+def test_legacy_v3_generation_binding_is_normalized_in_memory_and_run_projection(tmp_path, db_session):
+    raw_notice = screening_notice("candidate-legacy")
+    raw_notice.update({"judgment_mode": "신규", "carry_over_from": None, "rejudge_reason": None})
+    source_window = {"from": "2026-08-25", "to": "2026-08-26", "timezone": "Asia/Seoul"}
+    common = {
+        "execution_id": "scr-" + "a" * 32,
+        "run_id": "source-run",
+        "generated_at": "2026-08-26T01:00:00+00:00",
+        "prompt_version": "prompt-v1",
+        "policy_version": "policy-v1",
+        "company_profile_version": "company-profile.sha256:" + "b" * 64,
+        "company_profile_digest": "b" * 64,
+    }
+    input_value = {
+        "schema_version": "bidops.screening-input.v1",
+        **common,
+        "source_window": source_window,
+        "candidate_count": 1,
+        "notices": [raw_notice],
+    }
+    decisions_value = {
+        "schema_version": "bidops.decisions.v3",
+        **common,
+        "screening_basis": "legacy",
+        "model_name": "qwen-test",
+        "model_digest": "c" * 64,
+        "judgments": [],
+    }
+    results_value = {
+        "schema_version": "bidops.screening.v3",
+        "execution_id": common["execution_id"],
+        "generated_at": common["generated_at"],
+        "screening_basis": "legacy",
+        "source_window": source_window,
+        "model_name": "qwen-test",
+        "model_digest": "c" * 64,
+        "prompt_version": common["prompt_version"],
+        "policy_version": common["policy_version"],
+        "company_profile_version": common["company_profile_version"],
+        "company_profile_digest": common["company_profile_digest"],
+        "candidate_count": 1,
+        "result_count": 0,
+        "failure_count": 1,
+        "partial_artifact": True,
+        "failure_artifact": "screening-failures.json",
+        "results": [],
+    }
+    run_dir = tmp_path / "runs" / "legacy-v3"
+    run_dir.mkdir(parents=True)
+    (run_dir / "screening-input.json").write_bytes(
+        json.dumps(input_value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+    )
+    (run_dir / "screening-decisions.json").write_text(json.dumps(decisions_value), encoding="utf-8")
+    (run_dir / "screening-results.json").write_text(json.dumps(results_value), encoding="utf-8")
+
+    result = ingest_run(run_dir, db_session, reports_root=tmp_path / "reports")
+
+    legacy = legacy_generation_config()
+    assert result.generation_config == legacy.canonical_value()
+    assert result.generation_config_digest == legacy.digest()
+    stored_run = db_session.scalar(select(Run).where(Run.id == result.run_id))
+    assert stored_run is not None
+    assert stored_run.counts_json["generation_config"] == legacy.canonical_value()
+    assert stored_run.counts_json["generation_config_digest"] == legacy.digest()
+    assert b"generation_config" not in (run_dir / "screening-input.json").read_bytes()
+
+
+def test_v3_generation_binding_partial_input_is_rejected_without_projection(tmp_path, db_session):
+    run_dir = tmp_path / "runs" / "partial-v3"
+    run_dir.mkdir(parents=True)
+    value = {
+        "schema_version": "bidops.screening-input.v1",
+        "execution_id": "scr-" + "a" * 32,
+        "run_id": "source-run",
+        "generated_at": "2026-08-26T01:00:00+00:00",
+        "source_window": {"from": "2026-08-25", "to": "2026-08-26", "timezone": "Asia/Seoul"},
+        "policy_version": "policy-v1", "prompt_version": "prompt-v1",
+        "company_profile_version": "company-profile.sha256:" + "b" * 64,
+        "company_profile_digest": "b" * 64,
+        "candidate_count": 0, "notices": [],
+        "generation_config_digest": "f" * 64,
+    }
+    (run_dir / "screening-input.json").write_bytes(
+        json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
+    )
+    result = ingest_run(run_dir, db_session, reports_root=tmp_path / "reports")
+    assert result.notices == 0
     assert any(item["code"] == "screening_input_invalid" for item in result.warnings)
 
 
