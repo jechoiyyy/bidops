@@ -6,6 +6,7 @@ interface AlwaysOnPanelProps {
   activePolicy: PolicyVersionResponse | null;
   activePolicyVersion: string | null;
   policyLoading: boolean;
+  policyRefreshing: boolean;
   busy: boolean;
   onUpdate: (payload: { enabled: boolean; confirmed_by: string; quality_gate_result_id: string | null }) => Promise<boolean>;
 }
@@ -18,7 +19,7 @@ function valueLabel(value: string | null): string {
   return value && value.trim() ? value : "값 없음";
 }
 
-export function AlwaysOnPanel({ state, activePolicy, activePolicyVersion, policyLoading, busy, onUpdate }: AlwaysOnPanelProps) {
+export function AlwaysOnPanel({ state, activePolicy, activePolicyVersion, policyLoading, policyRefreshing, busy, onUpdate }: AlwaysOnPanelProps) {
   const [actor, setActor] = useState("");
   const [confirmedGateId, setConfirmedGateId] = useState("");
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -37,13 +38,27 @@ export function AlwaysOnPanel({ state, activePolicy, activePolicyVersion, policy
     state.prompt_version,
     state.company_profile_version,
     state.company_profile_digest,
+    activePolicy?.quality_gate_result_id ?? null,
+    activePolicy?.prompt_version ?? null,
     activePolicy?.content_digest ?? null,
   ].every((value) => typeof value === "string" && value.trim().length > 0);
+  const policyGateMatches = Boolean(
+    activePolicy?.quality_gate_result_id
+      && activePolicy.quality_gate_result_id === state.quality_gate_result_id,
+  );
+  const policyPromptMatches = Boolean(
+    activePolicy?.prompt_version
+      && activePolicy.prompt_version === state.prompt_version,
+  );
   const policyMatches = Boolean(
-    activePolicy
+    !policyLoading
+      && !policyRefreshing
+      && activePolicy
       && activePolicyVersion
       && activePolicy.policy_version === activePolicyVersion
       && state.policy_version === activePolicyVersion
+      && policyGateMatches
+      && policyPromptMatches
       && activePolicy.content_digest.trim(),
   );
   const gateReady = Boolean(gateId) && state.quality_gate_status === "통과" && confirmedGateId.trim() === gateId;
@@ -101,8 +116,11 @@ export function AlwaysOnPanel({ state, activePolicy, activePolicyVersion, policy
             {!state.environment_enabled ? <li>환경 안전 상한이 꺼져 있습니다.</li> : null}
             {hasRejection ? <li>서버가 현재 승인 조합을 거부하여 다시 확인해야 합니다.</li> : null}
             {state.quality_gate_status !== "통과" || !gateId ? <li>quality gate evaluation이 통과 상태가 아니거나 결과 ID가 없습니다.</li> : null}
+            {policyRefreshing ? <li>승인 조합 확인 중입니다. 확인이 끝날 때까지 켤 수 없습니다.</li> : null}
             {policyLoading || !activePolicy ? <li>현재 active 정책을 확인할 수 없습니다.</li> : null}
-            {!policyLoading && activePolicy && !policyMatches ? <li>현재 active 정책 버전이 승인 조합의 정책 버전과 일치하지 않습니다.</li> : null}
+            {!policyLoading && !policyRefreshing && activePolicy && !policyMatches ? <li>현재 active 정책 버전이 승인 조합의 정책 버전과 일치하지 않습니다.</li> : null}
+            {!policyLoading && !policyRefreshing && activePolicy && !policyGateMatches ? <li>active 정책의 quality gate evaluation ID가 현재 승인 조합과 일치하지 않거나 없습니다.</li> : null}
+            {!policyLoading && !policyRefreshing && activePolicy && !policyPromptMatches ? <li>active 정책의 prompt version이 현재 승인 조합과 일치하지 않습니다.</li> : null}
             {!metadataComplete ? <li>승인 조합의 정책·모델·prompt·프로필 메타데이터가 모두 확인되지 않았습니다.</li> : null}
             {gateId && confirmedGateId.trim() !== gateId ? <li>켜기 전에 quality gate evaluation ID를 정확히 입력하십시오.</li> : null}
           </ul>
