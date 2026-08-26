@@ -18,6 +18,17 @@
 | 503 | 모델 preflight 또는 필수 외부 runtime을 접수 전에 사용할 수 없음 |
 | 500 | DB·파일·서버 내부 오류. 오류에 prompt/profile/API key를 포함하지 않음 |
 
+### Generation config binding
+
+Screening execution, quality-gate, evaluation, schedule, and always-on
+responses expose the persisted `generation_config` canonical object together
+with `generation_config_digest`. The shared generation-config parser validates
+the object and its compact UTF-8 JSON SHA-256 digest before serialization. A
+malformed or tampered persisted pair is a server/data-integrity error (500);
+the API never substitutes `{}` or a process default. Generation config is
+response-only: request bodies cannot inject or override it. Legacy all-2048
+rows are not an approval exception for new scheduled executions.
+
 `GET /api/health`는 `{"status":"ok"}`의 lightweight 응답이며 Ollama·수집기·DB migration 상태를 대신 보장하지 않는다. 앱 시작에서 DB revision이 head가 아니거나 빈/unversioned DB이면 프로세스가 actionable error로 종료한다.
 
 ## 기존 회차·공고 API

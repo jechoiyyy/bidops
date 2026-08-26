@@ -28,6 +28,7 @@ from ..schemas import (
     QualityGateReviewUpsertRequest,
 )
 from ..screening.artifacts import ArtifactError, ArtifactStore
+from ..screening.generation_config import GenerationConfigError, config_from_value, validate_digest
 from ..screening.quality_gate import (
     QualityGateConflict,
     QualityGateError,
@@ -41,7 +42,29 @@ from .screening import execution_response
 router = APIRouter(prefix="/api/quality-gates", tags=["quality-gates"])
 
 
-def _evaluation_response(row: QualityGateEvaluation) -> QualityGateEvaluationResponse:
+def _generation_binding_response(row: QualityGate) -> tuple[dict, str]:
+    try:
+        config = config_from_value(row.generation_config_json)
+        digest = validate_digest(config, row.generation_config_digest)
+        if row.generation_config_json != config.canonical_value():
+            raise GenerationConfigError("generation config is not canonical")
+    except (GenerationConfigError, TypeError, ValueError, AttributeError):
+        raise HTTPException(status_code=500, detail="품질 게이트 generation config 상태를 읽을 수 없습니다.") from None
+    return config.canonical_value(), digest
+
+
+def _evaluation_response(
+    row: QualityGateEvaluation,
+    *,
+    generation_config: dict | None = None,
+    generation_digest: str | None = None,
+) -> QualityGateEvaluationResponse:
+    if generation_config is None:
+        generation_config = getattr(row, "generation_config_json", None)
+    if generation_digest is None:
+        generation_digest = row.generation_config_digest
+    if generation_config is None or generation_digest is None:
+        raise HTTPException(status_code=500, detail="품질 평가 generation config 상태를 읽을 수 없습니다.")
     return QualityGateEvaluationResponse(
         evaluation_id=row.evaluation_id,
         gate_id=row.gate_id,
@@ -51,7 +74,8 @@ def _evaluation_response(row: QualityGateEvaluation) -> QualityGateEvaluationRes
         reasons=row.reasons_json if isinstance(row.reasons_json, list) else [],
         valid_review_count=row.valid_review_count,
         distinct_notice_review_count=row.distinct_notice_review_count,
-        generation_config_digest=row.generation_config_digest,
+        generation_config=generation_config,
+        generation_config_digest=generation_digest,
         created_at=row.created_at,
     )
 
@@ -85,6 +109,7 @@ def _latest(session: Session, gate_id: str) -> QualityGateEvaluation:
 
 def _gate_response(session: Session, gate: QualityGate) -> QualityGateResponse:
     latest = _latest(session, gate.gate_id)
+    generation_config, generation_digest = _generation_binding_response(gate)
     return QualityGateResponse(
         gate_id=gate.gate_id,
         purpose=gate.purpose,
@@ -99,7 +124,8 @@ def _gate_response(session: Session, gate: QualityGate) -> QualityGateResponse:
         model_digest=gate.model_digest,
         company_profile_version=gate.company_profile_version,
         company_profile_digest=gate.company_profile_digest,
-        generation_config_digest=gate.generation_config_digest,
+        generation_config=generation_config,
+        generation_config_digest=generation_digest,
         pass_a_execution_id=gate.pass_a_execution_id,
         pass_b_execution_id=gate.pass_b_execution_id,
         created_by=gate.created_by,
@@ -149,6 +175,7 @@ def _detail(session: Session, gate: QualityGate) -> QualityGateDetailResponse:
     pass_b = session.get(ScreeningExecution, gate.pass_b_execution_id)
     if pass_a is None or pass_b is None:
         raise HTTPException(status_code=500, detail="품질 게이트 실행을 찾을 수 없습니다.")
+    generation_config, generation_digest = _generation_binding_response(gate)
     evaluations = session.scalars(
         select(QualityGateEvaluation)
         .where(QualityGateEvaluation.gate_id == gate.gate_id)
@@ -163,7 +190,14 @@ def _detail(session: Session, gate: QualityGate) -> QualityGateDetailResponse:
         **_gate_response(session, gate).model_dump(),
         pass_a=execution_response(session, pass_a),
         pass_b=execution_response(session, pass_b),
-        evaluations=[_evaluation_response(item) for item in evaluations],
+        evaluations=[
+            _evaluation_response(
+                item,
+                generation_config=generation_config,
+                generation_digest=generation_digest,
+            )
+            for item in evaluations
+        ],
         reviews=[_review_response(item) for item in reviews],
     )
 

@@ -45,3 +45,7 @@ visual의 10 skip은 draft spec의 mobile/tablet 너비 조건에 따른 의도�
 ## T15 generation-budget binding implementation
 
 stage-aware immutable generation config, migration `0005_generation_config_binding`, A/B/activation/scheduler binding, and fake-only tests are implemented in the T15 worktree. The implementation has not been live revalidated; the Phase 1 synthesis-truncation failure evidence above remains unchanged and no success claim is made.
+
+Runtime/API follow-up keeps the same status boundary: canonical JSON+digest
+roundtrip and fail-closed drift/tamper checks are fake-tested only. No Phase 1
+success or live revalidation claim is made.

@@ -50,7 +50,14 @@ daily callback은 effective always-on 확인 후 전일 reservation을 만들고
 
 ## 모델 preflight와 실패
 
-schedule enqueue 전 Ollama endpoint 및 exact model/digest preflight를 한다. 실패하면 빈 screening input이나 fallback을 만들지 않고 schedule execution을 실패 사유 `ollama_unavailable`로 남긴다. worker가 실행 중 다시 identity를 검사하며 mismatch도 실패다. OpenAI 호출은 존재하지 않는다.
+schedule enqueue 전 frozen `generation_config` JSON/digest를 current process
+settings와 먼저 대조한다. drift 또는 legacy all-2048 approval이면 model
+inspection·reservation·queue row보다 먼저 fail closed한다. 그 뒤 Ollama
+endpoint 및 exact model/digest preflight를 한다. 실패하면 빈 screening input이나
+fallback을 만들지 않고 schedule execution을 실패 사유 `ollama_unavailable`로
+남긴다. worker가 실행 중 다시 identity를 검사하며 mismatch도 실패다. OpenAI
+호출은 존재하지 않는다. API schedule/always-on 응답은 canonical
+`generation_config`와 digest를 함께 노출하고, 요청은 이 값을 받지 않는다.
 
 수집기·표본기·판정·보고 중 한 단계가 실패해도 schedule row에는 정확한 status와 안전한 요약 오류만 남긴다. prompt/profile 원문·API key는 log/audit에 기록하지 않는다. 판정의 공고별 실패와 성공 subset은 [에이전트 런타임](./agent-runtime.md)의 `부분 성공` 규칙을 따른다.
 
