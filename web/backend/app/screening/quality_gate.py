@@ -12,6 +12,8 @@ from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
 import json
+import hashlib
+import hmac
 import os
 from pathlib import Path
 import stat
@@ -272,9 +274,73 @@ class _IdentityIssuer(NamedTuple):
         return self.transition_fn(value, expected, replacement)
 
 
-def _make_identity_issuer() -> tuple[_IdentityIssuer, Callable[[Any, Any], None]]:
+class _IssuerRecord(NamedTuple):
+    reference: weakref.ReferenceType[Any]
+    facts: Any
+    state: str
+    generation: int
+    tag: bytes
+
+
+class _TagVerifier(NamedTuple):
+    sign_fn: Callable[[bytes], bytes]
+    verify_fn: Callable[[bytes, bytes], bool]
+
+    def sign(self, payload: bytes) -> bytes:
+        return self.sign_fn(payload)
+
+    def verify(self, payload: bytes, tag: bytes) -> bool:
+        return self.verify_fn(payload, tag)
+
+
+def _make_tag_verifier() -> _TagVerifier:
+    # The key lives in this verifier boundary, not in the issuer lookup
+    # closure.  It is intentionally never returned as a scalar or stored in
+    # the issuer view/module namespace.
+    secret = os.urandom(32)
+
+    def sign(payload: bytes) -> bytes:
+        return hmac.new(secret, payload, hashlib.sha256).digest()
+
+    def verify(payload: bytes, tag: bytes) -> bool:
+        return isinstance(tag, bytes) and hmac.compare_digest(sign(payload), tag)
+
+    return _TagVerifier(sign, verify)
+
+
+def _tag_payload(*values: Any) -> bytes:
+    chunks: list[bytes] = []
+    for value in values:
+        if isinstance(value, bytes):
+            encoded = b"b:" + value
+        elif isinstance(value, (tuple, list)):
+            encoded = b"j:" + json.dumps(
+                value, ensure_ascii=False, separators=(",", ":"), sort_keys=True
+            ).encode("utf-8")
+        else:
+            encoded = b"s:" + str(value).encode("utf-8")
+        chunks.append(len(encoded).to_bytes(8, "big") + encoded)
+    return b"".join(chunks)
+
+
+def _make_identity_issuer(
+    payload_fn: Callable[[Any, Any, str, int], bytes], verifier: _TagVerifier
+) -> tuple[_IdentityIssuer, Callable[[Any, Any], None]]:
     lock = RLock()
-    entries: dict[int, tuple[weakref.ReferenceType[Any], Any, str]] = {}
+    entries: dict[int, _IssuerRecord] = {}
+
+    def valid(value: Any, record: Any) -> bool:
+        try:
+            return (
+                isinstance(record, _IssuerRecord)
+                and record.reference() is value
+                and verifier.verify(
+                    payload_fn(value, record.facts, record.state, record.generation),
+                    record.tag,
+                )
+            )
+        except (AttributeError, TypeError, ValueError, OverflowError):
+            return False
 
     def entry(value: Any) -> tuple[Any, str] | None:
         if value is None:
@@ -282,9 +348,11 @@ def _make_identity_issuer() -> tuple[_IdentityIssuer, Callable[[Any, Any], None]
         key = id(value)
         with lock:
             registered = entries.get(key)
-            if registered is None or registered[0]() is not value:
+            if registered is None or not valid(value, registered):
+                if registered is not None:
+                    entries.pop(key, None)
                 return None
-            return registered[1], registered[2]
+            return registered.facts, registered.state
 
     def register(value: Any, facts: Any, state: str = "issued") -> None:
         key = id(value)
@@ -292,24 +360,34 @@ def _make_identity_issuer() -> tuple[_IdentityIssuer, Callable[[Any, Any], None]
         def cleanup(reference: weakref.ReferenceType[Any]) -> None:
             with lock:
                 registered = entries.get(key)
-                if registered is not None and registered[0] is reference:
+                if registered is not None and registered.reference is reference:
                     entries.pop(key, None)
 
         reference = weakref.ref(value, cleanup)
         with lock:
             registered = entries.get(key)
-            if registered is not None and registered[0]() is not None:
+            if registered is not None and registered.reference() is not None:
                 raise RuntimeError("issuer identity is already registered")
-            entries[key] = (reference, facts, state)
+            generation = 0
+            tag = verifier.sign(payload_fn(value, facts, state, generation))
+            entries[key] = _IssuerRecord(reference, facts, state, generation, tag)
 
     def transition(value: Any, expected: str, replacement: str) -> Any | None:
         key = id(value)
         with lock:
             registered = entries.get(key)
-            if registered is None or registered[0]() is not value or registered[2] != expected:
+            if registered is None or not valid(value, registered):
+                if registered is not None:
+                    entries.pop(key, None)
                 return None
-            entries[key] = (registered[0], registered[1], replacement)
-            return registered[1]
+            if registered.state != expected:
+                return None
+            generation = registered.generation + 1
+            tag = verifier.sign(payload_fn(value, registered.facts, replacement, generation))
+            entries[key] = _IssuerRecord(
+                registered.reference, registered.facts, replacement, generation, tag
+            )
+            return registered.facts
 
     return _IdentityIssuer(entry, transition), register
 
@@ -330,8 +408,35 @@ class _SnapshotFacts(NamedTuple):
     canonical_run_id: str
 
 
+def _snapshot_tag_payload(
+    snapshot: _FixedInputSnapshot, facts: _SnapshotFacts, state: str, generation: int
+) -> bytes:
+    generated_at = facts.results.get("generated_at") if isinstance(facts.results, Mapping) else None
+    return _tag_payload(
+        "snapshot-v1",
+        id(snapshot),
+        str(facts.root),
+        facts.root_identity,
+        FIXED_RUN_ID,
+        facts.canonical_run_id,
+        generated_at,
+        facts.sample_raw,
+        facts.baseline_raw,
+        facts.results_raw,
+        facts.sample_digest,
+        facts.baseline_digest,
+        facts.results_digest,
+        facts.ids,
+        state,
+        generation,
+    )
+
+
 _FIXED_SNAPSHOT_CAPABILITY = object()
-_SNAPSHOT_ISSUER, _snapshot_register = _make_identity_issuer()
+_SNAPSHOT_VERIFIER = _make_tag_verifier()
+_SNAPSHOT_ISSUER, _snapshot_register = _make_identity_issuer(
+    _snapshot_tag_payload, _SNAPSHOT_VERIFIER
+)
 
 
 FIXED_INPUT_MAX_BYTES = 8 * 1024 * 1024
@@ -390,6 +495,7 @@ def _register_snapshot(
 
 
 del _snapshot_register
+del _SNAPSHOT_VERIFIER
 
 
 def _open_trusted_root(project_root: Path | str) -> tuple[int, Path]:

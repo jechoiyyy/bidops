@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 from dataclasses import replace
+import inspect
 import json
 import hashlib
 import os
@@ -17,6 +18,7 @@ from sqlalchemy import create_engine, func, select, update
 from sqlalchemy.orm import Session, sessionmaker
 
 import app.screening.quality_gate as quality_gate_module
+import app.screening.orchestrator as orchestrator_module
 from app.config import Settings
 from app.db import Base
 from app.ingest.loader import ingest_run, deterministic_run_id
@@ -29,6 +31,7 @@ from app.screening.orchestrator import (
     ScreeningOrchestrator,
     _QUALITY_BINDING_FACTORY_CAPABILITY,
     _QualitySampleBinding,
+    _binding_registry_state,
     _consume_quality_binding,
     _make_quality_sample_binding,
 )
@@ -549,6 +552,95 @@ def test_snapshot_issuer_state_is_opaque_and_old_registry_forge_is_ignored(tmp_p
     assert quality_gate_module._snapshot_matches_raw(snapshot)
 
 
+def test_snapshot_closure_entry_tamper_is_authenticated_before_public_prepare(tmp_path: Path):
+    _settings, engine, factory, _run_dir, canonical_run_id = _canonical_service_fixture(tmp_path)
+    snapshot = quality_gate_module._read_strict_fixed_snapshot(tmp_path)
+    binding = _make_quality_sample_binding(
+        canonical_run_id,
+        source_token=snapshot,
+        capability=_QUALITY_BINDING_FACTORY_CAPABILITY,
+    )
+    lookup_vars = inspect.getclosurevars(quality_gate_module._SNAPSHOT_ISSUER.lookup_fn)
+    entries = lookup_vars.nonlocals["entries"]
+    assert "secret" not in lookup_vars.nonlocals
+    record = entries[id(snapshot)]
+    foreign_root = tmp_path / "foreign-root"
+    foreign_root.mkdir()
+    entries[id(snapshot)] = record._replace(
+        facts=record.facts._replace(root=foreign_root, root_identity=(0, 0))
+    )
+    foreign_settings = Settings(
+        bidops_root=foreign_root,
+        data_dir=foreign_root / "data",
+        database_url=f"sqlite:///{foreign_root / 'quality.db'}",
+    )
+    creator = ScreeningOrchestrator(
+        foreign_settings,
+        session_factory=factory,
+        ollama=type("NoModelCall", (), {"inspect_model": lambda _self: (_ for _ in ()).throw(AssertionError("must reject before model"))})(),
+        clock=lambda: NOW,
+    )
+    with factory() as session:
+        with pytest.raises(ScreeningCreationError):
+            creator.prepare_execution(
+                session,
+                run_id=canonical_run_id,
+                policy_version="policy-1",
+                requested_by="tester",
+                scope="quality_sample",
+                trigger="quality_gate",
+                _quality_binding=binding,
+            )
+        session.rollback()
+    assert quality_gate_module._snapshot_registry_entry(snapshot) is None
+    with Session(engine) as session:
+        assert session.scalars(select(ScreeningExecution)).all() == []
+    execution_root = tmp_path / "data/screening-executions"
+    assert not execution_root.exists() or not list(execution_root.iterdir())
+
+
+@pytest.mark.parametrize("tamper", ["tag", "facts", "state"])
+def test_snapshot_registry_tag_tamper_fails_closed(tmp_path: Path, tamper: str):
+    _settings, _engine, _factory, _run_dir, _canonical_run_id = _canonical_service_fixture(tmp_path)
+    snapshot = quality_gate_module._read_strict_fixed_snapshot(tmp_path)
+    entries = inspect.getclosurevars(quality_gate_module._SNAPSHOT_ISSUER.lookup_fn).nonlocals["entries"]
+    record = entries[id(snapshot)]
+    if tamper == "tag":
+        forged = record._replace(tag=b"x" * len(record.tag))
+    elif tamper == "facts":
+        forged = record._replace(facts=record.facts._replace(canonical_run_id="forged-run"))
+    else:
+        forged = record._replace(state="used")
+    entries[id(snapshot)] = forged
+    assert not quality_gate_module._snapshot_matches_raw(snapshot)
+    assert quality_gate_module._snapshot_registry_entry(snapshot) is None
+
+
+@pytest.mark.parametrize("tamper", ["tag", "facts", "state"])
+def test_binding_registry_tag_tamper_rejects_replay(tmp_path: Path, tamper: str):
+    _settings, _engine, _factory, _run_dir, canonical_run_id = _canonical_service_fixture(tmp_path)
+    snapshot = quality_gate_module._read_strict_fixed_snapshot(tmp_path)
+    binding = _make_quality_sample_binding(
+        canonical_run_id,
+        source_token=snapshot,
+        capability=_QUALITY_BINDING_FACTORY_CAPABILITY,
+    )
+    entries = inspect.getclosurevars(orchestrator_module._BINDING_ISSUER.lookup_fn).nonlocals["entries"]
+    record = entries[id(binding)]
+    if tamper == "tag":
+        forged = record._replace(tag=b"x" * len(record.tag))
+    elif tamper == "facts":
+        forged = record._replace(facts=record.facts._replace(run_id="forged-run"))
+    else:
+        _consume_quality_binding(binding, canonical_run_id, tmp_path)
+        record = entries[id(binding)]
+        forged = record._replace(state="issued")
+    entries[id(binding)] = forged
+    with pytest.raises(ScreeningCreationError):
+        _consume_quality_binding(binding, canonical_run_id, tmp_path)
+    assert _binding_registry_state(binding) is None
+
+
 def test_snapshot_binding_rejects_foreign_public_prepare_without_side_effect(tmp_path: Path):
     _settings, engine, factory, _run_dir, canonical_run_id = _canonical_service_fixture(tmp_path)
     snapshot = quality_gate_module._read_strict_fixed_snapshot(tmp_path)
@@ -703,6 +795,141 @@ def test_quality_binding_reservation_failure_releases_for_retry(tmp_path: Path, 
         )
         session.commit()
         prepared.workspace.close()
+
+
+def test_quality_binding_outer_rollback_releases_and_commit_consumes(tmp_path: Path):
+    settings, engine, factory, _run_dir, canonical_run_id = _canonical_service_fixture(tmp_path)
+    snapshot = quality_gate_module._read_strict_fixed_snapshot(tmp_path)
+    binding = _make_quality_sample_binding(
+        canonical_run_id,
+        source_token=snapshot,
+        capability=_QUALITY_BINDING_FACTORY_CAPABILITY,
+    )
+    model = type(
+        "GoodModel",
+        (),
+        {"inspect_model": lambda _self: ModelIdentity(MODEL_NAME, "c" * 64)},
+    )()
+    creator = ScreeningOrchestrator(settings, session_factory=factory, ollama=model, clock=lambda: NOW)
+    store = ArtifactStore(settings.bidops_root)
+    with factory() as session:
+        first = creator.prepare_execution(
+            session,
+            run_id=canonical_run_id,
+            policy_version="policy-1",
+            profile_source="current",
+            requested_by="tester",
+            scope="quality_sample",
+            trigger="quality_gate",
+            _quality_binding=binding,
+        )
+        assert _binding_registry_state(binding) == "reserved"
+        session.rollback()
+        store.remove_execution(first.workspace)
+        first.workspace.close()
+        assert _binding_registry_state(binding) == "issued"
+
+        second = creator.prepare_execution(
+            session,
+            run_id=canonical_run_id,
+            policy_version="policy-1",
+            profile_source="current",
+            requested_by="tester",
+            scope="quality_sample",
+            trigger="quality_gate",
+            _quality_binding=binding,
+        )
+        assert _binding_registry_state(binding) == "reserved"
+        session.commit()
+        second.workspace.close()
+        assert _binding_registry_state(binding) == "used"
+    with Session(engine) as session:
+        assert len(session.scalars(select(ScreeningExecution)).all()) == 1
+
+    with factory() as session:
+        with pytest.raises(ScreeningCreationError):
+            creator.prepare_execution(
+                session,
+                run_id=canonical_run_id,
+                policy_version="policy-1",
+                profile_source="current",
+                requested_by="tester",
+                scope="quality_sample",
+                trigger="quality_gate",
+                _quality_binding=binding,
+            )
+        session.rollback()
+
+
+def test_quality_binding_nested_savepoint_lifecycle_is_transaction_aware(tmp_path: Path):
+    settings, engine, factory, _run_dir, canonical_run_id = _canonical_service_fixture(tmp_path)
+    snapshot = quality_gate_module._read_strict_fixed_snapshot(tmp_path)
+    binding = _make_quality_sample_binding(
+        canonical_run_id,
+        source_token=snapshot,
+        capability=_QUALITY_BINDING_FACTORY_CAPABILITY,
+    )
+    model = type(
+        "GoodModel",
+        (),
+        {"inspect_model": lambda _self: ModelIdentity(MODEL_NAME, "c" * 64)},
+    )()
+    creator = ScreeningOrchestrator(settings, session_factory=factory, ollama=model, clock=lambda: NOW)
+    store = ArtifactStore(settings.bidops_root)
+    with factory() as session:
+        outer = session.begin()
+        nested = session.begin_nested()
+        first = creator.prepare_execution(
+            session,
+            run_id=canonical_run_id,
+            policy_version="policy-1",
+            profile_source="current",
+            requested_by="tester",
+            scope="quality_sample",
+            trigger="quality_gate",
+            _quality_binding=binding,
+        )
+        nested.rollback()
+        assert _binding_registry_state(binding) == "issued"
+        store.remove_execution(first.workspace)
+        first.workspace.close()
+
+        nested = session.begin_nested()
+        second = creator.prepare_execution(
+            session,
+            run_id=canonical_run_id,
+            policy_version="policy-1",
+            profile_source="current",
+            requested_by="tester",
+            scope="quality_sample",
+            trigger="quality_gate",
+            _quality_binding=binding,
+        )
+        nested.commit()
+        assert _binding_registry_state(binding) == "reserved"
+        outer.rollback()
+        assert _binding_registry_state(binding) == "issued"
+        store.remove_execution(second.workspace)
+        second.workspace.close()
+
+        outer = session.begin()
+        nested = session.begin_nested()
+        third = creator.prepare_execution(
+            session,
+            run_id=canonical_run_id,
+            policy_version="policy-1",
+            profile_source="current",
+            requested_by="tester",
+            scope="quality_sample",
+            trigger="quality_gate",
+            _quality_binding=binding,
+        )
+        nested.commit()
+        outer.commit()
+        third.workspace.close()
+        assert _binding_registry_state(binding) == "used"
+    with Session(engine) as session:
+        assert len(session.scalars(select(ScreeningExecution)).all()) == 1
 
 
 def test_quality_binding_concurrent_consume_and_invalid_preflight_race(tmp_path: Path):
