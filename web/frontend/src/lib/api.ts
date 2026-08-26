@@ -50,6 +50,10 @@ import type {
 
 const API_PREFIX = "/api";
 
+type ReadRequestOptions = {
+  signal?: AbortSignal;
+};
+
 export class ApiError extends Error {
   readonly status: number;
   readonly detail: unknown;
@@ -178,20 +182,34 @@ export const api = {
       },
     ),
 
-  getScreeningExecutions: (params: ScreeningExecutionQuery = {}) =>
-    request<ScreeningExecutionListResponse>(`/screening/executions${query({ ...params })}`),
-
-  listScreeningExecutions: (params: ScreeningExecutionQuery = {}) =>
-    request<ScreeningExecutionListResponse>(`/screening/executions${query({ ...params })}`),
-
-  getScreeningExecution: (executionId: string) =>
-    request<ScreeningExecutionDetailResponse>(
-      `/screening/executions/${encodeURIComponent(executionId)}`,
+  getScreeningExecutions: (
+    params: ScreeningExecutionQuery = {},
+    options?: ReadRequestOptions,
+  ) =>
+    request<ScreeningExecutionListResponse>(
+      `/screening/executions${query({ ...params })}`,
+      options,
     ),
 
-  getScreeningExecutionDetail: (executionId: string) =>
+  listScreeningExecutions: (
+    params: ScreeningExecutionQuery = {},
+    options?: ReadRequestOptions,
+  ) =>
+    request<ScreeningExecutionListResponse>(
+      `/screening/executions${query({ ...params })}`,
+      options,
+    ),
+
+  getScreeningExecution: (executionId: string, options?: ReadRequestOptions) =>
     request<ScreeningExecutionDetailResponse>(
       `/screening/executions/${encodeURIComponent(executionId)}`,
+      options,
+    ),
+
+  getScreeningExecutionDetail: (executionId: string, options?: ReadRequestOptions) =>
+    request<ScreeningExecutionDetailResponse>(
+      `/screening/executions/${encodeURIComponent(executionId)}`,
+      options,
     ),
 
   stopScreeningExecution: (executionId: string, payload: ScreeningStopRequest) =>
@@ -214,8 +232,15 @@ export const api = {
       `/screening/executions/${encodeURIComponent(executionId)}/artifacts/${kind}`,
     ),
 
-  getPipelineLogs: (runId: string, executionId?: string) =>
-    request<PipelineLogResponse>(`/runs/${encodeURIComponent(runId)}/pipeline/logs${query({ execution_id: executionId })}`),
+  getPipelineLogs: (
+    runId: string,
+    executionId?: string,
+    options?: ReadRequestOptions,
+  ) =>
+    request<PipelineLogResponse>(
+      `/runs/${encodeURIComponent(runId)}/pipeline/logs${query({ execution_id: executionId })}`,
+      options,
+    ),
 
   getValidationMetrics: (runId: string) =>
     request<ValidationMetricsResponse>(`/metrics/validation${query({ run_id: runId })}`),
@@ -234,17 +259,17 @@ export const api = {
       body: JSON.stringify(payload),
     }),
 
-  getQualityGates: (params: QualityGateQuery = {}) =>
-    request<QualityGateListResponse>(`/quality-gates${query({ ...params })}`),
+  getQualityGates: (params: QualityGateQuery = {}, options?: ReadRequestOptions) =>
+    request<QualityGateListResponse>(`/quality-gates${query({ ...params })}`, options),
 
-  listQualityGates: (params: QualityGateQuery = {}) =>
-    request<QualityGateListResponse>(`/quality-gates${query({ ...params })}`),
+  listQualityGates: (params: QualityGateQuery = {}, options?: ReadRequestOptions) =>
+    request<QualityGateListResponse>(`/quality-gates${query({ ...params })}`, options),
 
-  getQualityGate: (gateId: string) =>
-    request<QualityGateDetailResponse>(`/quality-gates/${encodeURIComponent(gateId)}`),
+  getQualityGate: (gateId: string, options?: ReadRequestOptions) =>
+    request<QualityGateDetailResponse>(`/quality-gates/${encodeURIComponent(gateId)}`, options),
 
-  getQualityGateDetail: (gateId: string) =>
-    request<QualityGateDetailResponse>(`/quality-gates/${encodeURIComponent(gateId)}`),
+  getQualityGateDetail: (gateId: string, options?: ReadRequestOptions) =>
+    request<QualityGateDetailResponse>(`/quality-gates/${encodeURIComponent(gateId)}`, options),
 
   upsertQualityGateReview: (
     gateId: string,
@@ -274,11 +299,11 @@ export const api = {
       },
     ),
 
-  getPolicies: (params: PolicyVersionQuery = {}) =>
-    request<PolicyVersionListResponse>(`/policies${query({ ...params })}`),
+  getPolicies: (params: PolicyVersionQuery = {}, options?: ReadRequestOptions) =>
+    request<PolicyVersionListResponse>(`/policies${query({ ...params })}`, options),
 
-  listPolicies: (params: PolicyVersionQuery = {}) =>
-    request<PolicyVersionListResponse>(`/policies${query({ ...params })}`),
+  listPolicies: (params: PolicyVersionQuery = {}, options?: ReadRequestOptions) =>
+    request<PolicyVersionListResponse>(`/policies${query({ ...params })}`, options),
 
   getPolicy: (policyVersion: string) =>
     request<PolicyVersionResponse>(`/policies/${encodeURIComponent(policyVersion)}`),
@@ -310,8 +335,8 @@ export const api = {
       },
     ),
 
-  getScheduleSettings: () =>
-    request<ScheduleSettingsResponse>("/schedule/settings"),
+  getScheduleSettings: (options?: ReadRequestOptions) =>
+    request<ScheduleSettingsResponse>("/schedule/settings", options),
 
   updateScheduleSettings: (payload: ScheduleSettingsUpdateRequest) =>
     request<ScheduleSettingsResponse>("/schedule/settings", {
@@ -341,17 +366,29 @@ export const api = {
       body: JSON.stringify(payload),
     }),
 
-  getScheduleExecutions: (params: ScheduleExecutionQuery = {}) =>
-    request<ScheduleExecutionListResponse>(`/schedule/executions${query({ ...params })}`),
+  getScheduleExecutions: (
+    params: ScheduleExecutionQuery = {},
+    options?: ReadRequestOptions,
+  ) =>
+    request<ScheduleExecutionListResponse>(
+      `/schedule/executions${query({ ...params })}`,
+      options,
+    ),
 
-  listScheduleExecutions: (params: ScheduleExecutionQuery = {}) =>
-    request<ScheduleExecutionListResponse>(`/schedule/executions${query({ ...params })}`),
+  listScheduleExecutions: (
+    params: ScheduleExecutionQuery = {},
+    options?: ReadRequestOptions,
+  ) =>
+    request<ScheduleExecutionListResponse>(
+      `/schedule/executions${query({ ...params })}`,
+      options,
+    ),
 
-  getAlwaysOn: () =>
-    request<AlwaysOnSwitchResponse>("/schedule/always-on"),
+  getAlwaysOn: (options?: ReadRequestOptions) =>
+    request<AlwaysOnSwitchResponse>("/schedule/always-on", options),
 
-  getAlwaysOnSwitch: () =>
-    request<AlwaysOnSwitchResponse>("/schedule/always-on"),
+  getAlwaysOnSwitch: (options?: ReadRequestOptions) =>
+    request<AlwaysOnSwitchResponse>("/schedule/always-on", options),
 
   updateAlwaysOn: (payload: AlwaysOnSwitchUpdateRequest) =>
     request<AlwaysOnSwitchResponse>("/schedule/always-on", {
