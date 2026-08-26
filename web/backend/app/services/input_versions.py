@@ -383,7 +383,7 @@ def _safe_fact_quote(source_text: str, item: ParsedItem) -> str | None:
     return "".join(lines[opening:closing + 1])
 
 
-def _store_profile_source(raw: bytes, digest: str) -> tuple[str, int]:
+def _store_profile_source(raw: bytes, digest: str) -> tuple[str, int, assets.ObjectMetadata]:
     """Store and re-read profile bytes before creating DB references.
 
     Profile evidence is valid only when its ContentObject points at bytes that
@@ -392,34 +392,15 @@ def _store_profile_source(raw: bytes, digest: str) -> tuple[str, int]:
     verified digest; callers never accept a user-supplied path.
     """
 
-    base = assets.asset_root()
-    destination = base / "source" / f"profile-{digest}.md"
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    if destination.exists() or destination.is_symlink():
-        if destination.is_symlink():
-            raise InputVersionError("service_unavailable", "프로필 source location이 안전하지 않습니다")
-        try:
-            existing = destination.read_bytes()
-        except OSError as exc:
-            raise InputVersionError("service_unavailable", "프로필 source location을 읽을 수 없습니다") from exc
-        if len(existing) != len(raw) or _sha256(existing) != digest:
-            raise InputVersionError("service_unavailable", "프로필 source location hash가 일치하지 않습니다")
-    else:
-        try:
-            size, actual = assets._write_stream_sync((raw,), destination)
-            if size != len(raw) or actual != digest:
-                destination.unlink(missing_ok=True)
-                raise InputVersionError("service_unavailable", "프로필 source location hash 검증에 실패했습니다")
-            reread = destination.read_bytes()
-        except InputVersionError:
-            raise
-        except OSError as exc:
-            destination.unlink(missing_ok=True)
-            raise InputVersionError("service_unavailable", "프로필 source location을 저장할 수 없습니다") from exc
-        if len(reread) != len(raw) or _sha256(reread) != digest:
-            destination.unlink(missing_ok=True)
-            raise InputVersionError("service_unavailable", "프로필 source location hash 검증에 실패했습니다")
-    return destination.relative_to(base).as_posix(), len(raw)
+    object_key = f"source/profile-{digest}.md"
+    try:
+        _destination, metadata = assets.store_named("source", object_key, raw, content_type="text/markdown")
+        reread, reread_metadata = assets.read_object("source", object_key)
+    except assets.AssetError as exc:
+        raise InputVersionError("service_unavailable", "프로필 source location을 저장할 수 없습니다") from exc
+    if len(reread) != len(raw) or _sha256(reread) != digest or metadata.etag != reread_metadata.etag:
+        raise InputVersionError("service_unavailable", "프로필 source location hash 검증에 실패했습니다")
+    return object_key, len(raw), reread_metadata
 
 
 def _profile_payload_and_facts(source: Path) -> tuple[dict[str, Any], list[dict[str, Any]], bytes]:
@@ -489,7 +470,7 @@ def import_profile_version(
     except (OSError, UnicodeError) as exc:
         raise InputVersionError("invalid_request", "프로필 source를 읽을 수 없습니다") from exc
     digest = payload["source_sha256"]
-    source_key, source_size = _store_profile_source(raw, digest)
+    source_key, source_size, source_metadata = _store_profile_source(raw, digest)
     existing = session.scalar(select(ProfileVersion).where(ProfileVersion.profile_sha256 == digest).limit(1))
     if existing is not None:
         _validate_profile_snapshot(session, existing)
@@ -523,7 +504,8 @@ def import_profile_version(
                 if location is None:
                     session.add(ContentObjectLocation(
                         id=uuid4(), content_object_id=content.id, namespace_key="source",
-                        object_key=source_key, status="verified", etag=digest,
+                        object_key=source_key, object_version_id=source_metadata.object_version_id,
+                        status="verified", etag=source_metadata.etag,
                         verified_at=datetime.now(UTC),
                     ))
                 for fact in facts:
@@ -567,15 +549,10 @@ def _verified_profile_source(session: Session, evidence_rows: Sequence[ProfileEv
     if location is None or not isinstance(location.object_key, str) or not location.object_key or location.object_key.startswith(("/", "\\")):
         return None
     try:
-        base = assets.asset_root().resolve()
-        path = (base / location.object_key).resolve(strict=True)
-        path.relative_to(base)
-        if path.is_symlink():
-            return None
-        raw = path.read_bytes()
-    except (OSError, ValueError):
+        raw, metadata = assets.read_object("source", location.object_key)
+    except (assets.AssetError, OSError, ValueError):
         return None
-    if len(raw) != content.size_bytes or _sha256(raw) != content.sha256:
+    if len(raw) != content.size_bytes or _sha256(raw) != content.sha256 or location.etag != metadata.etag or location.object_version_id != metadata.object_version_id:
         return None
     try:
         return raw.decode("utf-8")
@@ -756,17 +733,11 @@ def _structure_payload(session: Session, item: DocumentBundleItem, structure: Do
     if location is None or payload_object is None or payload_object.sha256 != structure.payload_sha256:
         raise InputVersionError("structure_unavailable", "문서 구조 snapshot을 읽을 수 없습니다")
     try:
-        base = assets.asset_root()
-        path = base / location.object_key
-        resolved = path.resolve(strict=True)
-        resolved.relative_to(base)
-        if path.is_symlink():
-            raise ValueError("symlink")
-        raw = resolved.read_bytes()
-        if len(raw) != payload_object.size_bytes or hashlib.sha256(raw).hexdigest() != structure.payload_sha256 or location.etag != structure.payload_sha256:
+        raw, metadata = assets.read_object("structure", location.object_key)
+        if len(raw) != payload_object.size_bytes or hashlib.sha256(raw).hexdigest() != structure.payload_sha256 or location.etag != metadata.etag or location.object_version_id != metadata.object_version_id:
             raise ValueError("hash")
         payload = json.loads(raw.decode("utf-8"))
-    except (OSError, UnicodeError, ValueError, json.JSONDecodeError) as exc:
+    except (assets.AssetError, OSError, UnicodeError, ValueError, json.JSONDecodeError) as exc:
         raise InputVersionError("structure_unavailable", "문서 구조 snapshot을 읽을 수 없습니다") from exc
     if not isinstance(payload, Mapping) or payload.get("document_version_id") != str(item.document_version_id) or payload.get("structure_id") != str(item.structure_id_at_confirmation) or payload.get("source_sha256") != item.content_sha256:
         raise InputVersionError("structure_unavailable", "문서 구조 snapshot 계보가 일치하지 않습니다")

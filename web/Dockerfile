@@ -7,6 +7,11 @@ RUN npm ci
 COPY web/frontend/ ./
 RUN npm run build
 
+# The document worker executes the pinned HWP converter with Node.  Keep the
+# runtime binary in the application image while its processing network remains
+# isolated by Compose.
+FROM node:22-bookworm-slim AS node-runtime
+
 # 2단계: 백엔드 실행 이미지
 FROM python:3.12-slim AS runtime
 
@@ -18,10 +23,18 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app/web/backend
 COPY web/backend/requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends poppler-utils clamav postgresql-client \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir -r requirements.txt
 
 COPY web/backend/ ./
 COPY --from=frontend /build/dist /app/web/frontend/dist
+COPY --from=node-runtime /usr/local/bin/node /usr/local/bin/node
+COPY docs/reference /app/docs/reference
+COPY scripts /app/scripts
+COPY docker-compose.t7.yml /app/docker-compose.t7.yml
+RUN chmod +x /app/scripts/*.sh
 
 # 데이터베이스와 첨부 원문이 쌓이는 위치. compose 에서 볼륨으로 덮어쓴다.
 # 호스트 사용자로 실행할 수 있도록 쓰기 권한을 열어 둔다.

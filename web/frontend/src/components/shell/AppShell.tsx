@@ -17,6 +17,7 @@ const pageTitles: Record<string, string> = {
   "/runs": "수집 실행",
   "/attachments": "첨부 확보",
   "/audit": "산출물 감사 로그",
+  "/deep-reviews": "심층 검토 보고서",
 };
 
 // 화면마다 무엇을 고칠 수 있는지가 다르다. 전역 "읽기 전용"은 실제 동작과 맞지 않았다.

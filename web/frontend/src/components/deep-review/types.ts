@@ -19,6 +19,35 @@ export type ReportSectionKey =
 export type ReportBlockType = "paragraph" | "matrix" | "decision_card" | "scenario" | "action_list";
 export type SystemRecommendation = "추진 검토" | "조건부 추진 검토" | "보류" | "검토 종료";
 export type FinalOpinionValue = "추진" | "조건부 추진" | "보류" | "검토 종료";
+export type BundleStatus = "draft" | "processing" | "needs_review" | "ready" | "quarantined" | "failed" | "superseded";
+
+export interface DocumentVersionView {
+  id: string;
+  bundle_id: string;
+  version: number;
+  role: string;
+  effective_date: string | null;
+  replaces_document_version_id: string | null;
+  is_current: boolean;
+  safety_status: string;
+  structure_status: string;
+  original_filename: string;
+}
+
+export interface BundleView {
+  id: string;
+  notice_id: number;
+  revision: number;
+  version: number;
+  status: BundleStatus;
+  documents: DocumentVersionView[];
+  issues: Array<{ issue_id: string; code: string; severity: string; blocking: boolean; document_version_id: string | null; message: string; locator_type: string; locator: Record<string, unknown> | null }>;
+  confirmed_by: string | null;
+  confirmed_at: string | null;
+  created_at: string;
+}
+
+export interface BundleListResponse { items: BundleView[]; }
 
 export interface StageView {
   stage: StageName;

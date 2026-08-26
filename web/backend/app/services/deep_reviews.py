@@ -33,6 +33,7 @@ from ..models import (
     ProfileVersion,
     WorkJob,
 )
+from ..config import get_settings
 from .deep_review_validation import DeepReviewValidationError, merge_stage_chunks, validate_deep_review_stage
 from .input_versions import (
     STAGES,
@@ -47,6 +48,7 @@ from .input_versions import (
     validate_pinned_policy,
 )
 from .ollama_client import EncryptedObjectStore, InvocationResult, OllamaClient, OllamaInvocationError
+from .object_store import EncryptedModelResponseStore
 
 
 STAGE_SEQUENCE = {name: index for index, name in enumerate(STAGES, start=1)}
@@ -191,12 +193,18 @@ class DeepReviewService:
         client: OllamaClient | Any | None = None,
         raw_response_store: EncryptedObjectStore | Any | None = None,
         structure_loader: Callable[[Session, Any], Mapping[str, Any]] | None = None,
+        report_service: Any | None = None,
         lease_seconds: int = 300,
         clock: Callable[[], datetime] = _now,
     ) -> None:
-        self.client = client or OllamaClient()
-        self.raw_response_store = raw_response_store or _MissingEncryptedStore()
+        settings = get_settings()
+        self.client = client or OllamaClient(endpoint=settings.ollama_endpoint, model=settings.ollama_model)
+        # The configured store is lazy so module import remains usable for
+        # isolated unit tests; production lifespan/worker startup validates
+        # MinIO credentials and encryption key configuration before serving.
+        self.raw_response_store = raw_response_store or EncryptedModelResponseStore(settings)
         self.structure_loader = structure_loader
+        self.report_service = report_service
         # Three 120-second invocations (two retries) need one uninterrupted
         # budget plus margin.  A shorter lease would make a valid worker look
         # stale while Ollama is still processing the approved request.
@@ -771,7 +779,7 @@ class DeepReviewService:
         if metadata.get("encrypted") is not True or not isinstance(metadata.get("encrypted"), bool):
             raise DeepReviewServiceError("service_unavailable", "model raw response 저장소가 암호화를 보장하지 않습니다", status_code=503)
         object_key = metadata.get("object_key")
-        if not isinstance(object_key, str) or not object_key.strip() or object_key != object_key.strip() or any(ord(char) < 32 or ord(char) == 127 for char in object_key) or "\\" in object_key or object_key.startswith(("/", "~")) or re.match(r"^[A-Za-z]:[/\\]", object_key) or ".." in object_key.split("/"):
+        if not isinstance(object_key, str) or not object_key.startswith("model-response/") or not object_key.strip() or object_key != object_key.strip() or any(ord(char) < 32 or ord(char) == 127 for char in object_key) or "\\" in object_key or object_key.startswith(("/", "~")) or re.match(r"^[A-Za-z]:[/\\]", object_key) or ".." in object_key.split("/"):
             raise DeepReviewServiceError("service_unavailable", "model raw response object locator가 안전하지 않습니다", status_code=503)
         if re.match(r"^[A-Za-z][A-Za-z0-9+.-]*://", object_key) or re.search(r"(?:credential|secret|password|api[_-]?key|token|authorization|cookie)", object_key, re.I):
             raise DeepReviewServiceError("service_unavailable", "model raw response object locator가 안전하지 않습니다", status_code=503)
@@ -797,7 +805,21 @@ class DeepReviewService:
             or returned_size != len(aggregate)
         ):
             raise DeepReviewServiceError("service_unavailable", "model raw response 저장소 plaintext metadata가 일치하지 않습니다", status_code=503)
-        return {"object_key": object_key, "encrypted": True, "plaintext_sha256": digest, "plaintext_size_bytes": len(aggregate), "encryption_key_ref": key_ref}
+        object_version_id = metadata.get("object_version_id")
+        etag = metadata.get("etag")
+        if object_version_id is not None and (not isinstance(object_version_id, str) or not object_version_id.strip()):
+            raise DeepReviewServiceError("service_unavailable", "model raw response object version metadata가 올바르지 않습니다", status_code=503)
+        if etag is not None and (not isinstance(etag, str) or not etag.strip()):
+            raise DeepReviewServiceError("service_unavailable", "model raw response object etag metadata가 올바르지 않습니다", status_code=503)
+        return {
+            "object_key": object_key,
+            "object_version_id": object_version_id,
+            "etag": etag,
+            "encrypted": True,
+            "plaintext_sha256": digest,
+            "plaintext_size_bytes": len(aggregate),
+            "encryption_key_ref": key_ref,
+        }
 
     def _store_raw_aggregate(self, raw_records: Sequence[tuple[InvocationResult, Mapping[str, Any]]]) -> tuple[bytes, Mapping[str, Any]]:
         aggregate = self._raw_aggregate_bytes(raw_records)
@@ -821,6 +843,8 @@ class DeepReviewService:
         content = session.scalar(select(ContentObject).where(ContentObject.sha256 == digest).limit(1))
         object_key = str(metadata["object_key"])
         key_ref = str(metadata["encryption_key_ref"])
+        object_version_id = metadata.get("object_version_id")
+        object_etag = str(metadata.get("etag") or digest)
         # Object keys are globally unique within the model-response namespace.
         # Reusing one is safe only when the existing location is a verified
         # pointer to the exact bytes and encryption key; otherwise fail closed.
@@ -836,7 +860,8 @@ class DeepReviewService:
                 or linked_content.size_bytes != len(aggregate)
                 or content is not None and linked_content.id != content.id
                 or location.status != "verified"
-                or location.etag != digest
+                or location.etag != object_etag
+                or location.object_version_id != object_version_id
                 or location.encryption_key_ref != key_ref
             ):
                 raise DeepReviewServiceError("service_unavailable", "model raw response object location metadata가 일치하지 않습니다", status_code=503)
@@ -849,7 +874,7 @@ class DeepReviewService:
             raise DeepReviewServiceError("service_unavailable", "model raw response aggregate size가 일치하지 않습니다", status_code=503)
         session.add(ContentObjectLocation(
             id=uuid4(), content_object_id=content.id, namespace_key="model-response",
-            object_key=object_key, status="verified", etag=digest,
+            object_key=object_key, object_version_id=object_version_id, status="verified", etag=object_etag,
             encryption_key_ref=key_ref, verified_at=self.clock(),
         ))
         return content
@@ -1106,6 +1131,19 @@ class DeepReviewService:
                 raw_aggregate = self._store_raw_aggregate(raw_records)
                 self._persist_stage(session, claim, stage_row, merged, invocation_doc, raw_aggregate=raw_aggregate)
                 previous_outputs.append(merged)
+            # Report materialization and the terminal fence transition share
+            # one transaction.  The materializer locks the pinned stage rows
+            # and creates immutable report/validation/evidence/audit records;
+            # _finish_claim then verifies the same lease before committing.
+            from .reports import ReportService, ReportServiceError
+            report_service = self.report_service
+            if report_service is None:
+                report_service = ReportService()
+            try:
+                report_service.materialize_machine_report(session, claim)
+            except ReportServiceError as error:
+                safe_code = "validation_failed" if error.code == "validation_failed" else "processing_failed"
+                raise DeepReviewServiceError(safe_code, "machine report materialization failed", status_code=500) from error
             self._finish_claim(session, claim)
         except StaleFenceError:
             session.rollback()
@@ -1116,9 +1154,9 @@ class DeepReviewService:
         except DeepReviewServiceError as error:
             self._fail_claim(session, claim, stage_row, error.code, stage_invocations if "stage_invocations" in locals() else ())
             raise
-        except Exception:
+        except Exception as error:
             self._fail_claim(session, claim, stage_row, "processing_failed")
-            raise DeepReviewServiceError("processing_failed", "deep review 실행에 실패했습니다", status_code=500)
+            raise DeepReviewServiceError("processing_failed", "deep review 실행에 실패했습니다", status_code=500) from error
 
 
 __all__ = ["DeepReviewError", "DeepReviewService", "DeepReviewServiceError", "JobClaim", "StaleFenceError"]

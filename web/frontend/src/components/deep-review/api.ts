@@ -1,4 +1,4 @@
-import type { DeepReviewView, EvidenceView, ReportView, DeepReviewReport, FinalOpinionValue, FinalOpinionView } from "./types";
+import type { BundleListResponse, DeepReviewView, EvidenceView, ReportView, DeepReviewReport, FinalOpinionValue, FinalOpinionView } from "./types";
 
 const API_PREFIX = "/api";
 
@@ -35,6 +35,18 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export function getDeepReview(id: string): Promise<DeepReviewView> {
   return request<DeepReviewView>(`/deep-reviews/${encodeURIComponent(id)}`);
+}
+
+export function getDocumentBundles(noticeId: number): Promise<BundleListResponse> {
+  return request<BundleListResponse>(`/notices/${encodeURIComponent(noticeId)}/document-bundles`);
+}
+
+export function createDeepReview(noticeId: number, bundleId: string, actorName: string): Promise<DeepReviewView> {
+  return request<DeepReviewView>(`/notices/${encodeURIComponent(noticeId)}/deep-reviews`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-BidOps-Actor-Name": actorName },
+    body: JSON.stringify({ request_id: crypto.randomUUID(), bundle_id: bundleId }),
+  });
 }
 
 export function getReport(id: string): Promise<ReportView> {

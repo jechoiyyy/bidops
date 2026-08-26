@@ -50,6 +50,7 @@ from ..schemas.document_bundles import (
     PatchDocumentVersionRequest,
 )
 from . import assets
+from .document_converter import ScratchDocumentProcessor
 
 MAX_ACTOR_NAME = 128
 CREATE_BUNDLE_RETRIES = 3
@@ -281,10 +282,12 @@ class DocumentBundleService:
         root: Path | None = None,
         processor: DocumentProcessor | None = None,
         clamav_checker: ClamAVChecker | None = None,
+        converter: ScratchDocumentProcessor | None = None,
     ) -> None:
         self.root = root
         self.processor = processor
         self.clamav_checker = clamav_checker
+        self.converter = converter or ScratchDocumentProcessor(clamav_checker=clamav_checker)
 
     # ------------------------------------------------------------------
     # ORM projection helpers
@@ -489,20 +492,15 @@ class DocumentBundleService:
         if location is None:
             return None
         try:
-            base = assets.asset_root(self.root)
-            path = base / location.object_key
-            raw_path = path.resolve(strict=True)
-            raw_path.relative_to(base)
-            if path.is_symlink():
-                return None
-            raw = raw_path.read_bytes()
+            raw, object_metadata = assets.read_object("structure", location.object_key, root=self.root)
             payload_object = session.get(ContentObject, structure.payload_content_object_id)
             if (
                 payload_object is None
                 or payload_object.sha256 != structure.payload_sha256
                 or len(raw) != payload_object.size_bytes
                 or hashlib.sha256(raw).hexdigest() != structure.payload_sha256
-                or location.etag != structure.payload_sha256
+                or location.etag != object_metadata.etag
+                or location.object_version_id != object_metadata.object_version_id
             ):
                 return None
             payload = json.loads(raw.decode("utf-8"))
@@ -519,7 +517,7 @@ class DocumentBundleService:
             # must also fail closed before it can influence ready validation.
             validate_structure(payload)
             return payload
-        except (OSError, UnicodeError, ValueError, json.JSONDecodeError, RuntimeError):
+        except (assets.AssetError, OSError, UnicodeError, ValueError, json.JSONDecodeError, RuntimeError):
             return None
 
     def _latest_scan_clean(self, session: Session, content_id: UUID) -> bool:
@@ -544,17 +542,12 @@ class DocumentBundleService:
         if location is None:
             return False
         try:
-            base = assets.asset_root(self.root)
-            path = base / location.object_key
-            raw_path = path.resolve(strict=True)
-            raw_path.relative_to(base)
-            if path.is_symlink():
-                return False
-            raw = raw_path.read_bytes()
-        except (OSError, ValueError):
+            raw, object_metadata = assets.read_object("source", location.object_key, root=self.root)
+        except (assets.AssetError, OSError, ValueError):
             return False
         return (
-            location.etag == content.sha256
+            location.etag == object_metadata.etag
+            and location.object_version_id == object_metadata.object_version_id
             and len(raw) == content.size_bytes
             and hashlib.sha256(raw).hexdigest() == content.sha256
         )
@@ -733,7 +726,7 @@ class DocumentBundleService:
             asset = await assets.quarantine_upload(upload, root=self.root)
             request_paths.append(asset.path)
             request_hash = _canonical_hash({"filename": asset.filename, "sha256": asset.sha256, "size": asset.size_bytes, "media_type": asset.declared_media_type})
-            inspected = assets.inspect_quarantine(asset, processor=self.processor, clamav_checker=self.clamav_checker)
+            inspected = assets.inspect_quarantine(asset, processor=self.processor or self.converter, clamav_checker=self.clamav_checker)
 
             # Quarantine and inspection intentionally happen before the first
             # database read.  Acquire the aggregate lock only for the short
@@ -1083,7 +1076,7 @@ class DocumentBundleService:
                 root=self.root,
             )
             request_paths.append(asset.path)
-            inspected = assets.inspect_quarantine(asset, processor=self.processor, clamav_checker=self.clamav_checker)
+            inspected = assets.inspect_quarantine(asset, processor=self.processor or self.converter, clamav_checker=self.clamav_checker)
 
             # This is the race fence: no ORM write happens before this lock
             # and complete source/bundle comparison.
@@ -1329,7 +1322,7 @@ class DocumentBundleService:
                 root=self.root,
             )
             request_paths.append(asset.path)
-            inspected = assets.inspect_quarantine(asset, processor=self.processor, clamav_checker=self.clamav_checker)
+            inspected = assets.inspect_quarantine(asset, processor=self.processor or self.converter, clamav_checker=self.clamav_checker)
 
             # Recheck only after connector/document I/O.  This is the first
             # transaction/lock after the snapshot and is the race fence with
@@ -1523,10 +1516,8 @@ class DocumentBundleService:
             object_row = ContentObject(sha256=digest, size_bytes=len(content), detected_mime=media_type, retention_class="document-structure")
             session.add(object_row)
             session.flush()
-        destination = assets.asset_root(self.root) / assets._new_key("structure", digest, ".bin")
-        size, actual = assets._write_stream_sync((content,), destination)
-        if size != len(content) or actual != digest:
-            destination.unlink(missing_ok=True)
+        destination, metadata = assets.store_bytes("structure", content, root=self.root, suffix=".bin")
+        if metadata.size_bytes != len(content):
             raise BundleServiceError("processing_failed", "구조 이미지 hash 검증에 실패했습니다", status_code=400)
         if created_paths is not None:
             created_paths.append(destination)
@@ -1603,7 +1594,19 @@ class DocumentBundleService:
             key = path.resolve().relative_to(root).as_posix()
         except ValueError as exc:
             raise BundleServiceError("processing_failed", "asset location이 격리 루트 밖입니다", status_code=500) from exc
-        session.add(ContentObjectLocation(content_object_id=content_id, namespace_key=namespace, object_key=key, status="verified", etag=digest, verified_at=_now()))
+        try:
+            metadata = assets.head_object(namespace, key, root=self.root)
+        except assets.AssetError as exc:
+            raise BundleServiceError("processing_failed", "asset object metadata를 확인할 수 없습니다", status_code=500) from exc
+        session.add(ContentObjectLocation(
+            content_object_id=content_id,
+            namespace_key=namespace,
+            object_key=key,
+            object_version_id=metadata.object_version_id,
+            status="verified",
+            etag=metadata.etag,
+            verified_at=_now(),
+        ))
 
     def patch_document(self, session: Session, document_id: UUID, request: PatchDocumentVersionRequest, actor: str) -> DocumentVersionView:
         claimed_name = validate_actor(actor)

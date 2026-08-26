@@ -1,34 +1,24 @@
 from datetime import date, datetime, timezone
 
+import pytest
 from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
+import app.db as db
 from app.db import Base, init_db
 from app.models import (
     Evidence,
     Judgment,
+    LEGACY_TABLES,
+    NEW_TABLES,
     Notice,
     Perspective,
     Run,
 )
 
 
-EXPECTED_TABLES = {
-    "run",
-    "notice",
-    "judgment",
-    "perspective",
-    "evidence",
-    "counterargument",
-    "verification_item",
-    "matched_performance",
-    "attachment",
-    "agency_portal",
-    "review",
-    "verification_answer",
-    "ingest_warning",
-}
+EXPECTED_TABLES = set(LEGACY_TABLES + NEW_TABLES)
 
 
 def make_test_engine():
@@ -37,6 +27,22 @@ def make_test_engine():
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
+
+
+def test_configured_sqlite_requires_the_explicit_isolated_test_boundary(monkeypatch):
+    monkeypatch.setattr(db, "DATABASE_URL", "sqlite:////tmp/bidops-runtime-test.db")
+    monkeypatch.setattr(db, "engine", make_test_engine())
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+    monkeypatch.delenv("BIDOPS_TEST_MODE", raising=False)
+
+    with pytest.raises(RuntimeError, match="PostgreSQL 17"):
+        db.assert_postgresql_runtime()
+    with pytest.raises(RuntimeError, match="PostgreSQL 17"):
+        db.init_db()
+
+    monkeypatch.setenv("BIDOPS_TEST_MODE", "1")
+    db.init_db()
+    assert db.isolated_test_boundary_active()
 
 
 def test_init_db_creates_all_declared_tables_and_indexes():
@@ -55,11 +61,11 @@ def test_init_db_creates_all_declared_tables_and_indexes():
     assert ("deadline_at",) in notice_indexes
 
     judgment_constraints = inspector.get_unique_constraints("judgment")
-    assert any(constraint["column_names"] == ["notice_pk"] for constraint in judgment_constraints)
+    assert any(constraint["column_names"] == ["notice_id"] for constraint in judgment_constraints)
 
     review_constraints = inspector.get_unique_constraints("review")
     assert any(
-        constraint["column_names"] == ["notice_pk", "run_id"]
+        constraint["column_names"] == ["notice_id", "run_id"]
         for constraint in review_constraints
     )
 

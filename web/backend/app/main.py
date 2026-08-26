@@ -12,7 +12,12 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.staticfiles import StaticFiles
 
 from .config import get_settings
-from .db import SessionLocal, init_db
+from .db import (
+    SessionLocal,
+    assert_postgresql_runtime,
+    init_db,
+    isolated_test_boundary_active,
+)
 from .routers.attachments import router as attachments_router
 from .routers.metrics import router as metrics_router
 from .routers.notices import router as notices_router
@@ -21,11 +26,24 @@ from .routers.profile import router as profile_router
 from .routers.reviews import notice_router as notice_reviews_router
 from .routers.reviews import router as reviews_router
 from .routers.runs import router as runs_router
+from .routers.document_bundles import router as document_bundles_router
+from .routers.deep_reviews import router as deep_reviews_router
+from .routers.reports import router as reports_router
 from .services.attachments import seed_default_portals
+from .services.object_store import ObjectStoreError, assert_object_store_runtime
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    # The process serving production traffic must never silently create or
+    # mutate the SQLite migration input.  Isolated pytest dependency overrides
+    # do not enter this lifespan in the test suite.
+    if not isolated_test_boundary_active():
+        assert_postgresql_runtime()
+        try:
+            assert_object_store_runtime()
+        except ObjectStoreError as error:
+            raise RuntimeError("BidOps application runtime requires configured MinIO object storage") from error
     init_db()
     with SessionLocal() as session:
         seed_default_portals(session)
@@ -46,6 +64,22 @@ app.add_middleware(
 )
 
 
+@app.middleware("http")
+async def security_headers(request, call_next):  # type: ignore[no-untyped-def]
+    response = await call_next(request)
+    response.headers.setdefault(
+        "Content-Security-Policy",
+        "default-src 'self'; connect-src 'self'; img-src 'self' data:; "
+        "style-src 'self' 'unsafe-inline'; script-src 'self'; base-uri 'self'; "
+        "frame-ancestors 'none'",
+    )
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    if request.url.path.startswith("/api/"):
+        response.headers.setdefault("Cache-Control", "no-store")
+    return response
+
+
 @app.get("/api/health")
 def health() -> dict[str, str]:
     """Return a lightweight liveness response."""
@@ -61,6 +95,9 @@ app.include_router(metrics_router)
 app.include_router(attachments_router)
 app.include_router(portals_router)
 app.include_router(profile_router)
+app.include_router(document_bundles_router)
+app.include_router(deep_reviews_router)
+app.include_router(reports_router)
 
 
 class SPAStaticFiles(StaticFiles):

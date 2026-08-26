@@ -57,6 +57,38 @@ class Settings(BaseSettings):
         default=None,
         validation_alias="BIDOPS_G2B_API_KEY",
     )
+    ollama_endpoint: str = Field(
+        default="http://127.0.0.1:11434/api/generate",
+        validation_alias="BIDOPS_OLLAMA_ENDPOINT",
+    )
+    ollama_model: str = Field(default="qwen3.8:27b", validation_alias="BIDOPS_OLLAMA_MODEL")
+    ollama_allowed_hosts: str = Field(default="", validation_alias="BIDOPS_OLLAMA_ALLOWED_HOSTS")
+    openai_enabled: bool = Field(default=False, validation_alias="BIDOPS_OPENAI_ENABLED")
+    document_worker_concurrency: int = Field(default=2, validation_alias="BIDOPS_DOCUMENT_WORKER_CONCURRENCY")
+    analysis_worker_concurrency: int = Field(default=1, validation_alias="BIDOPS_ANALYSIS_WORKER_CONCURRENCY")
+    document_worker_poll_seconds: float = Field(default=1.0, validation_alias="BIDOPS_DOCUMENT_WORKER_POLL_SECONDS")
+    document_converter_wait_seconds: float = Field(default=45.0, validation_alias="BIDOPS_DOCUMENT_CONVERTER_WAIT_SECONDS")
+    clamav_host: str = Field(default="clamav", validation_alias="BIDOPS_CLAMAV_HOST")
+    clamav_port: int = Field(default=3310, validation_alias="BIDOPS_CLAMAV_PORT")
+    clamav_timeout_seconds: float = Field(default=15.0, validation_alias="BIDOPS_CLAMAV_TIMEOUT_SECONDS")
+    analysis_worker_poll_seconds: float = Field(default=1.0, validation_alias="BIDOPS_ANALYSIS_WORKER_POLL_SECONDS")
+    worker_id: str = Field(default="bidops-worker", validation_alias="BIDOPS_WORKER_ID")
+    document_scratch_dir: Path = Field(default=Path("/scratch"), validation_alias="BIDOPS_DOCUMENT_SCRATCH_DIR")
+    object_store_backend: str | None = Field(default=None, validation_alias="BIDOPS_OBJECT_STORE_BACKEND")
+    object_store_endpoint: str | None = Field(default=None, validation_alias="BIDOPS_OBJECT_STORE_ENDPOINT")
+    object_store_secure: bool = Field(default=False, validation_alias="BIDOPS_OBJECT_STORE_SECURE")
+    source_access_key: str | None = Field(default=None, validation_alias="BIDOPS_SOURCE_ACCESS_KEY")
+    source_secret_key: str | None = Field(default=None, validation_alias="BIDOPS_SOURCE_SECRET_KEY")
+    structure_access_key: str | None = Field(default=None, validation_alias="BIDOPS_STRUCTURE_ACCESS_KEY")
+    structure_secret_key: str | None = Field(default=None, validation_alias="BIDOPS_STRUCTURE_SECRET_KEY")
+    structure_read_access_key: str | None = Field(default=None, validation_alias="BIDOPS_STRUCTURE_READ_ACCESS_KEY")
+    structure_read_secret_key: str | None = Field(default=None, validation_alias="BIDOPS_STRUCTURE_READ_SECRET_KEY")
+    quarantine_access_key: str | None = Field(default=None, validation_alias="BIDOPS_QUARANTINE_ACCESS_KEY")
+    quarantine_secret_key: str | None = Field(default=None, validation_alias="BIDOPS_QUARANTINE_SECRET_KEY")
+    model_response_access_key: str | None = Field(default=None, validation_alias="BIDOPS_MODEL_RESPONSE_ACCESS_KEY")
+    model_response_secret_key: str | None = Field(default=None, validation_alias="BIDOPS_MODEL_RESPONSE_SECRET_KEY")
+    model_response_encryption_key: str | None = Field(default=None, validation_alias="BIDOPS_MODEL_RESPONSE_ENCRYPTION_KEY")
+    model_response_encryption_key_ref: str | None = Field(default=None, validation_alias="BIDOPS_MODEL_RESPONSE_ENCRYPTION_KEY_REF")
 
     @model_validator(mode="after")
     def derive_paths(self) -> "Settings":
@@ -73,6 +105,24 @@ class Settings(BaseSettings):
         """Compatibility alias for callers that use the descriptive name."""
 
         return self.bidops_root
+
+    def object_store_credentials(self, namespace: str, *, read_only: bool = False) -> tuple[str | None, str | None]:
+        """Return purpose-specific credentials without exposing them to logs."""
+
+        values = {
+            "source": (self.source_access_key, self.source_secret_key),
+            "structure": (self.structure_access_key, self.structure_secret_key),
+            "quarantine": (self.quarantine_access_key, self.quarantine_secret_key),
+            "model-response": (self.model_response_access_key, self.model_response_secret_key),
+        }
+        try:
+            if namespace == "structure" and read_only:
+                if self.structure_access_key and self.structure_secret_key:
+                    return self.structure_access_key, self.structure_secret_key
+                return self.structure_read_access_key, self.structure_read_secret_key
+            return values[namespace]
+        except KeyError as error:
+            raise ValueError("unknown object namespace") from error
 
     @property
     def database_path(self) -> Path:
