@@ -46,7 +46,8 @@ invocation metadata는 모두 같은 mock provider/model이었으며 review별 m
 
 T7 실행기는 Agent projection을 DB에서 직접 읽으므로 별도 runner container가 아니라 격리
 project의 실행 중인 web container 안에서 실행한다. Manifest의 `api_base`는 그 container의
-loopback 주소여야 하고 actor fixture는 HTTP header로 전송 가능한 ASCII 이름을 사용한다.
+loopback 주소여야 한다. 당시 fixture는 ASCII 이름을 사용했으며, 최종 리뷰 이후 CLI는 한글 actor도
+명시적인 UTF-8 percent-encoded header로 안전하게 전송한다.
 
 ```text
 docker exec <isolated-web-container> \

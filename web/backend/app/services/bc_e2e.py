@@ -10,7 +10,7 @@ from pathlib import Path
 import time
 from typing import Any, Literal, Protocol
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlsplit
+from urllib.parse import quote_from_bytes, urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 from uuid import uuid4
 
@@ -27,6 +27,17 @@ MEDIA_TYPES = {
     ".hwpx": "application/hwp+zip",
     ".pdf": "application/pdf",
 }
+UTF8_ACTOR_PREFIX = "UTF-8''"
+
+
+def actor_header_value(actor: str) -> str:
+    """Return an HTTP-header-safe claimed name without changing ASCII names."""
+
+    try:
+        actor.encode("ascii")
+    except UnicodeEncodeError:
+        return UTF8_ACTOR_PREFIX + quote_from_bytes(actor.encode("utf-8"), safe="")
+    return actor
 
 
 class BcE2EError(RuntimeError):
@@ -199,7 +210,7 @@ class JsonAcceptanceApi:
         if body is not None:
             headers["Content-Type"] = "application/json"
         if actor is not None:
-            headers["X-BidOps-Actor-Name"] = actor
+            headers["X-BidOps-Actor-Name"] = actor_header_value(actor)
         raw = self._send(Request(f"{self.api_base}{path}", data=body, headers=headers, method=method), retryable=retryable)
         try:
             result = json.loads(raw.decode("utf-8"))
@@ -235,7 +246,7 @@ class JsonAcceptanceApi:
             headers={
                 "Accept": "application/json",
                 "Content-Type": f"multipart/form-data; boundary={boundary}",
-                "X-BidOps-Actor-Name": actor,
+                "X-BidOps-Actor-Name": actor_header_value(actor),
             },
             method="POST",
         )
@@ -504,5 +515,6 @@ __all__ = [
     "BcE2EError",
     "BcE2EManifest",
     "JsonAcceptanceApi",
+    "actor_header_value",
     "run_bc_e2e",
 ]

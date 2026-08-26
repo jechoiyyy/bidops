@@ -44,8 +44,6 @@ def fake_settings(**overrides):
 
     def credentials(namespace: str, *, read_only: bool = False):
         if namespace == "structure" and read_only:
-            if values["structure_access_key"] and values["structure_secret_key"]:
-                return values["structure_access_key"], values["structure_secret_key"]
             return values["structure_read_access_key"], values["structure_read_secret_key"]
         return values[f"{namespace.replace('-', '_')}_access_key"], values[f"{namespace.replace('-', '_')}_secret_key"]
 
@@ -60,7 +58,7 @@ def test_each_factory_only_constructs_requested_namespace(monkeypatch):
     monkeypatch.setattr(storage, "get_settings", lambda: fake_settings())
     store = storage.object_store(namespaces=("structure", "model-response"), read_namespaces=("structure",))
     assert set(store._clients) == {"structure", "model-response"}  # type: ignore[attr-defined]
-    assert {row[1] for row in FakeMinio.clients} == {"structure", "model"}
+    assert {row[1] for row in FakeMinio.clients} == {"structure-read", "model"}
     FakeMinio.clients = []
     analysis_settings = fake_settings(structure_access_key=None, structure_secret_key=None)
     monkeypatch.setattr(storage, "get_settings", lambda: analysis_settings)

@@ -21,8 +21,11 @@ from ..common import (
     AgentName,
     AgentRunView,
 )
-from ...services.document_bundles import BundleServiceError, DocumentBundleService
-from ...services.input_versions import canonical_json_hash
+from ...services.document_bundles import (
+    BundleServiceError,
+    DocumentBundleService,
+    document_bundle_snapshot_hash,
+)
 from ...models import (
     Attachment,
     AuditEvent,
@@ -115,44 +118,7 @@ class DocumentPreparationAgent:
 
     @staticmethod
     def _bundle_sha256(bundle: DocumentBundle, items: list[DocumentBundleItem]) -> str | None:
-        if bundle.status not in {"ready", "superseded"}:
-            return None
-        canonical_documents = [
-            {
-                "document_version_id": str(item.document_version_id),
-                "document_version_version": item.document_version_version,
-                "ordinal": item.ordinal,
-                "content_sha256": item.content_sha256,
-                "detected_mime": item.detected_mime,
-                "size_bytes": item.size_bytes,
-                "role_at_confirmation": item.role_at_confirmation,
-                "effective_date_at_confirmation": item.effective_date_at_confirmation.isoformat() if item.effective_date_at_confirmation else None,
-                "replaces_id_at_confirmation": str(item.replaces_id_at_confirmation) if item.replaces_id_at_confirmation else None,
-                "is_current_at_confirmation": item.is_current_at_confirmation,
-                "safety_status_at_confirmation": item.safety_status_at_confirmation,
-                "structure_id_at_confirmation": str(item.structure_id_at_confirmation),
-                "structure_payload_sha256": item.structure_payload_sha256,
-            }
-            for item in sorted(items, key=lambda row: (row.ordinal, str(row.document_version_id)))
-        ]
-        return canonical_json_hash(
-            {
-                "schema": "bidops.document-bundle.v1",
-                "bundle_id": str(bundle.id),
-                "notice_id": bundle.notice_id,
-                "revision": bundle.revision,
-                "version": bundle.version,
-                # Superseding a ready bundle changes only which revision is
-                # current; its immutable handoff snapshot was serialized as
-                # ready and must retain that original hash.
-                "status": "ready",
-                "documents": canonical_documents,
-                "issues": bundle.issues_snapshot if isinstance(bundle.issues_snapshot, list) else [],
-                "confirmed_by": bundle.confirmed_by_name,
-                "confirmed_at": bundle.confirmed_at.isoformat() if bundle.confirmed_at else None,
-                "created_at": bundle.created_at.isoformat(),
-            }
-        )
+        return document_bundle_snapshot_hash(bundle, items)
 
     def _bundle_snapshot(
         self,
@@ -361,20 +327,6 @@ class DocumentPreparationAgent:
         run = self._project(session, bundle_id)
         return AgentActionResult[BundleView | DocumentVersionView](run=run, result=result)
 
-    def _latest_bundle_for_document(self, session: Session, document_id: UUID) -> tuple[DocumentVersion, DocumentBundle]:
-        document = session.get(DocumentVersion, document_id)
-        if document is None:
-            raise BundleServiceError("not_found", "document version을 찾을 수 없습니다", status_code=404)
-        bundle = session.scalar(
-            select(DocumentBundle)
-            .where(DocumentBundle.notice_id == document.notice_id)
-            .order_by(DocumentBundle.revision.desc(), DocumentBundle.id.desc())
-            .limit(1)
-        )
-        if bundle is None:
-            raise self._invalid("document version에 연결할 최신 bundle이 없습니다")
-        return document, bundle
-
     def update_document_metadata(
         self,
         session: Session,
@@ -382,23 +334,9 @@ class DocumentPreparationAgent:
     ) -> AgentActionResult[BundleView | DocumentVersionView]:
         typed = self._command(command, UpdateDocumentMetadataCommand)
         document_id = self._uuid(typed.aggregate.aggregate_id)
-        _document, latest_bundle = self._latest_bundle_for_document(session, document_id)
-        latest_items = session.scalars(
-            select(DocumentBundleItem)
-            .where(DocumentBundleItem.bundle_id == latest_bundle.id)
-            .order_by(DocumentBundleItem.ordinal.asc(), DocumentBundleItem.document_version_id.asc())
-        ).all()
-        latest_sha256 = self._bundle_sha256(latest_bundle, list(latest_items))
         ref = typed.input_refs[0]
-        if (
-            ref.artifact_type is not AgentArtifactType.document_bundle
-            or ref.artifact_id != str(latest_bundle.id)
-            or ref.version != latest_bundle.version
-            or ref.sha256 != latest_sha256
-        ):
-            session.rollback()
+        if ref.artifact_type is not AgentArtifactType.document_bundle:
             raise self._invalid("최신 document bundle ref가 필요합니다")
-        session.rollback()
         payload = typed.payload
         result = self.service.patch_document(
             session,
@@ -411,6 +349,9 @@ class DocumentPreparationAgent:
                 version=typed.expected_version,  # type: ignore[arg-type]
             ),
             self._actor(typed),  # type: ignore[arg-type]
+            expected_bundle_id=self._uuid(ref.artifact_id),
+            expected_bundle_version=ref.version,
+            expected_bundle_sha256=ref.sha256,
         )
         run = self._project(session, result.bundle_id)
         return AgentActionResult[BundleView | DocumentVersionView](run=run, result=result)

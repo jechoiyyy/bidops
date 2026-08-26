@@ -13,7 +13,7 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import Column, Integer, MetaData, create_engine, inspect, select, Table
+from sqlalchemy import Column, Integer, MetaData, Text, create_engine, inspect, select, Table
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.pool import StaticPool
 
@@ -274,6 +274,7 @@ def test_model_has_exact_closed_table_set():
     assert "actor" not in LEGACY_TABLES + NEW_TABLES
     assert len(Base.metadata.tables) == 38
     assert set(Base.metadata.tables) == set(LEGACY_TABLES + NEW_TABLES)
+    assert isinstance(Base.metadata.tables["run"].c.screening_basis.type, Text)
     assert "fk_evidence_document_bundle_scope" in {
         constraint.name for constraint in Base.metadata.tables["evidence_ref"].foreign_key_constraints
     }

@@ -105,7 +105,9 @@ class Run(Base):
     window_to: Mapped[date | None] = mapped_column(Date, nullable=True)
     timezone: Mapped[str] = mapped_column(String(64), default="Asia/Seoul", nullable=False)
     generated_at: Mapped[datetime] = mapped_column(AwareDateTime(), default=utc_now, nullable=False)
-    screening_basis: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Legacy workflow artifacts store a human-readable explanation here, not a
+    # short enum.  Preserve it verbatim during PostgreSQL cutover.
+    screening_basis: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(32), default="active", nullable=False)
     superseded_by: Mapped[str | None] = mapped_column(_fk("run.id", ondelete="SET NULL"), nullable=True)
     counts_json: Mapped[dict[str, Any] | list[Any] | None] = mapped_column(JSONB_COMPAT, nullable=True)

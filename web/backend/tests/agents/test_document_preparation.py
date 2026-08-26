@@ -294,6 +294,37 @@ def test_duplicate_upload_and_stale_metadata_preserve_service_fences(agent_conte
         assert conflict.value.code == "version_conflict"
 
 
+def test_metadata_update_rejects_ref_superseded_by_new_bundle(agent_context: tuple[object, DocumentBundleService, int]) -> None:
+    engine, service, notice_id = agent_context
+    agent = DocumentPreparationAgent(service)
+    with Session(engine) as session:  # type: ignore[arg-type]
+        started = agent.start(session, start_command(notice_id))
+        document = asyncio.run(
+            agent.register_document(
+                session,
+                register_command(started.result.id),
+                upload=MemoryUpload((FIXTURES / "safe.pdf").read_bytes(), "stale-ref.pdf"),
+            )
+        ).result
+        stale = metadata_command(
+            document.id,
+            document.version,
+            started.result.id,
+            bundle_version=started.result.version,
+        )
+        successor = agent.start(session, start_command(notice_id))
+        assert successor.result.id != started.result.id
+
+        with pytest.raises(BundleServiceError) as conflict:
+            agent.update_document_metadata(session, stale)
+
+        assert conflict.value.code == "version_conflict"
+        persisted = session.get(DocumentVersion, document.id)
+        assert persisted is not None
+        assert persisted.version == document.version
+        assert persisted.role == document.role
+
+
 def test_unsafe_document_fails_projection_and_never_exposes_confirm(agent_context: tuple[object, DocumentBundleService, int]) -> None:
     engine, service, notice_id = agent_context
     agent = DocumentPreparationAgent(service)

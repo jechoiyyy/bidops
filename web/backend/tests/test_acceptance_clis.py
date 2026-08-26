@@ -8,7 +8,8 @@ import pytest
 
 from app.cli.run_bc_e2e import _write_evidence, main as run_bc_main
 from app.cli.score_candidate_quality import main as score_quality_main
-from app.services.bc_e2e import BcE2EError
+from app.services.bc_e2e import BcE2EError, JsonAcceptanceApi, actor_header_value
+from app.services.document_bundles import BundleServiceError, validate_actor
 
 
 def _write_json(path: Path, payload: dict) -> Path:
@@ -92,6 +93,30 @@ def test_bc_cli_dry_run_validates_without_mutating_the_api(tmp_path: Path, capsy
         "notice_id": 7,
         "schema": "bidops.bc-e2e-plan.v1",
     }
+
+
+def test_acceptance_actor_header_round_trips_unicode_without_raw_header_bytes(monkeypatch) -> None:
+    actor = "E2E 담당자"
+    encoded = actor_header_value(actor)
+    assert encoded.isascii()
+    assert validate_actor(encoded) == actor
+
+    api = JsonAcceptanceApi("http://127.0.0.1:28787")
+    observed = {}
+
+    def send(request, *, retryable):
+        observed["actor"] = request.get_header("X-bidops-actor-name")
+        observed["retryable"] = retryable
+        return b"{}"
+
+    monkeypatch.setattr(api, "_send", send)
+    assert api.request_json("POST", "/api/example", payload={}, actor=actor) == {}
+    assert observed == {"actor": encoded, "retryable": False}
+    assert actor_header_value("E2E Operator") == "E2E Operator"
+    for invalid in ("UTF-8''", "UTF-8''%ZZ", "UTF-8''%0A"):
+        with pytest.raises(BundleServiceError) as error:
+            validate_actor(invalid)
+        assert error.value.code in {"actor_name_required", "actor_name_invalid"}
 
 
 def test_t7_cli_dry_run_selects_the_agent_acceptance_plan(tmp_path: Path, capsys) -> None:
