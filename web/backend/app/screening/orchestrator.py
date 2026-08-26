@@ -10,12 +10,12 @@ import json
 import math
 from pathlib import Path
 import re
+import secrets
 from threading import RLock
 from types import MappingProxyType
 from typing import Any, Callable, Mapping, NamedTuple, Sequence
 from uuid import uuid4
 import weakref
-import secrets
 
 from sqlalchemy import event, select
 from sqlalchemy.orm import Session, sessionmaker
@@ -185,13 +185,21 @@ class _BindingIssuer(NamedTuple):
     """Immutable view over closure-owned binding state."""
 
     lookup_fn: Callable[[Any], tuple[Any, str] | None]
-    transition_fn: Callable[[Any, str, str], Any | None]
+    reserve_fn: Callable[[Any], Any | None]
+    finalize_fn: Callable[[Any], Any | None]
+    release_fn: Callable[[Any], Any | None]
 
     def entry(self, value: Any) -> tuple[Any, str] | None:
         return self.lookup_fn(value)
 
-    def transition(self, value: Any, *, expected: str, replacement: str) -> Any | None:
-        return self.transition_fn(value, expected, replacement)
+    def reserve(self, value: Any) -> Any | None:
+        return self.reserve_fn(value)
+
+    def finalize(self, value: Any) -> Any | None:
+        return self.finalize_fn(value)
+
+    def release(self, value: Any) -> Any | None:
+        return self.release_fn(value)
 
 
 class _IssuerRecord(NamedTuple):
@@ -289,7 +297,7 @@ def _make_binding_issuer(
             tag = verifier.sign(payload_fn(value, facts, state, generation))
             entries[key] = _IssuerRecord(reference, facts, state, generation, tag)
 
-    def transition(value: Any, expected: str, replacement: str) -> Any | None:
+    def move(value: Any, expected: str, replacement: str) -> Any | None:
         key = id(value)
         with lock:
             registered = entries.get(key)
@@ -306,7 +314,16 @@ def _make_binding_issuer(
             )
             return registered.facts
 
-    return _BindingIssuer(entry, transition), register
+    def reserve(value: Any) -> Any | None:
+        return move(value, "issued", "reserved")
+
+    def finalize(value: Any) -> Any | None:
+        return move(value, "reserved", "used")
+
+    def release(value: Any) -> Any | None:
+        return move(value, "reserved", "issued")
+
+    return _BindingIssuer(entry, reserve, finalize, release), register
 
 
 class _BindingFacts(NamedTuple):
@@ -436,8 +453,9 @@ def _finalize_quality_bindings(session: Session, *, committed: bool) -> None:
     # SQLAlchemy fires after_commit/after_rollback for savepoints as well as
     # the outer transaction.  During the callback the outer transaction may
     # still be visible through ``in_transaction()``; nested savepoints are
-    # instead identified by ``in_nested_transaction()``.  Only the outer
-    # event changes issuer state, making session reuse leak-free.
+    # instead identified by ``in_nested_transaction()``.  A nested rollback
+    # changes only reservations made in that savepoint; the outer event
+    # changes the remaining reservations, making session reuse leak-free.
     nested = session.get_nested_transaction()
     pending = session.info.get(_QUALITY_BINDING_SESSION_KEY)
     if not isinstance(pending, dict):
@@ -480,6 +498,16 @@ def _quality_binding_after_commit(session: Session) -> None:
 @event.listens_for(Session, "after_rollback")
 def _quality_binding_after_rollback(session: Session) -> None:
     _finalize_quality_bindings(session, committed=False)
+
+
+@event.listens_for(Session, "after_transaction_end")
+def _quality_binding_after_transaction_end(session: Session, transaction: Any) -> None:
+    # Session.close()/invalidate() can end an outer transaction without
+    # emitting after_rollback.  If commit/rollback already finalized the
+    # pending list this is a no-op; otherwise the abandoned transaction has
+    # no durable execution and every reservation must be released.
+    if transaction.parent is None and session.info.get(_QUALITY_BINDING_SESSION_KEY):
+        _finalize_quality_bindings(session, committed=False)
 
 
 def _validate_quality_binding(
@@ -553,13 +581,13 @@ def _reserve_quality_binding(
     """Atomically move one validated issuer binding from issued to reserved."""
 
     facts, source = _validate_quality_binding(binding, run_id, project_root)
-    if issuer.transition(binding, expected="issued", replacement="reserved") is None:
+    if issuer.reserve(binding) is None:
         raise ScreeningCreationError("input_error")
     if session is not None:
         try:
             _track_quality_binding(session, binding)
         except Exception:
-            issuer.transition(binding, expected="reserved", replacement="issued")
+            issuer.release(binding)
             raise
     return facts, source
 
@@ -572,7 +600,7 @@ def _release_quality_binding(
 ) -> None:
     """Return a reservation to issued when no persistent row was published."""
 
-    issuer.transition(binding, expected="reserved", replacement="issued")
+    issuer.release(binding)
     if session is not None:
         _untrack_quality_binding(session, binding)
 
@@ -582,7 +610,7 @@ def _commit_quality_binding(
 ) -> None:
     """Finalize a reservation after the execution row is published."""
 
-    if issuer.transition(binding, expected="reserved", replacement="used") is None:
+    if issuer.finalize(binding) is None:
         raise ScreeningCreationError("input_error")
 
 
