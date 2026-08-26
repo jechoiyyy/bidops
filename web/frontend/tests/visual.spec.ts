@@ -12,6 +12,13 @@ const pages = [
   { name: "attachments", path: "/attachments" },
   { name: "profile", path: "/profile" },
   { name: "metrics", path: "/metrics" },
+  { name: "quality-gates", path: "/quality-gates" },
+  // The default gate is operational approval (10/10); this second target
+  // keeps the model-comparison "not eligible for activation" warning under
+  // responsive visual coverage as well.
+  { name: "quality-gates-comparison", path: "/quality-gates?gate=gate-model-comparison" },
+  { name: "policies", path: "/policies" },
+  { name: "operations", path: "/operations" },
 ];
 
 test.beforeEach(async ({ page }) => {
@@ -40,17 +47,36 @@ async function settleFonts(page: Page): Promise<void> {
 for (const target of pages) {
   test(`${target.name} 화면이 가로로 넘치지 않는다`, async ({ page }) => {
     await page.goto(target.path);
-    await expect(page.locator("h1")).toBeVisible();
+    await expect(page.locator("h1").first()).toBeVisible();
     await page.waitForLoadState("networkidle");
-    const overflow = await page.evaluate(
-      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-    );
+    const overflow = await page.evaluate(() => {
+      const viewport = document.documentElement.clientWidth;
+      const isContainedByIntentionalScroller = (element: Element): boolean => {
+        let parent = element.parentElement;
+        while (parent) {
+          const overflowX = getComputedStyle(parent).overflowX;
+          if (overflowX === "auto" || overflowX === "scroll") return true;
+          parent = parent.parentElement;
+        }
+        return false;
+      };
+      // The operations history is intentionally scrollable as a local data
+      // table on narrow viewports. Measure content escaping the page itself,
+      // while excluding descendants inside that local scroller.
+      return Math.max(0, ...[...document.querySelectorAll<HTMLElement>("body *")]
+        .filter((element) => !isContainedByIntentionalScroller(element))
+        .map((element) => {
+          const rect = element.getBoundingClientRect();
+          if (rect.right <= 0 || rect.left >= viewport) return 0;
+          return Math.max(rect.right - viewport, -rect.left);
+        }));
+    });
     expect(overflow).toBeLessThanOrEqual(1);
   });
 
   test(`${target.name} 화면 스냅샷`, async ({ page }) => {
     await page.goto(target.path);
-    await expect(page.locator("h1")).toBeVisible();
+    await expect(page.locator("h1").first()).toBeVisible();
     await page.waitForLoadState("networkidle");
     await settleFonts(page);
     await expect(page).toHaveScreenshot(`${target.name}.png`, {
