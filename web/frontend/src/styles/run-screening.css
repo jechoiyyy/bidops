@@ -299,6 +299,11 @@
   text-underline-offset: 2px;
 }
 
+.runs-screening-text-button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
 .runs-screening-error {
   margin: 0;
 }

@@ -31,6 +31,7 @@ interface ScreeningRunPanelProps {
   listLoading: boolean;
   listError: unknown;
   listReady: boolean;
+  listRefreshing: boolean;
   onRetryConfiguration: () => void;
   onStart: () => void;
   startBusy: boolean;
@@ -38,6 +39,8 @@ interface ScreeningRunPanelProps {
   onStop: () => void;
   stopBusy: boolean;
   onOpenPublishedRun: (runId: string) => void;
+  publishedRunNavigationBusy: boolean;
+  publishedRunNavigationError: string | null;
 }
 
 const statusMeta: Record<ScreeningStatus, { label: string; tone: string }> = {
@@ -189,6 +192,7 @@ export function ScreeningRunPanel({
   listLoading,
   listError,
   listReady,
+  listRefreshing,
   onRetryConfiguration,
   onStart,
   startBusy,
@@ -196,6 +200,8 @@ export function ScreeningRunPanel({
   onStop,
   stopBusy,
   onOpenPublishedRun,
+  publishedRunNavigationBusy,
+  publishedRunNavigationError,
 }: ScreeningRunPanelProps) {
   const [stopDialogOpen, setStopDialogOpen] = useState(false);
   const stopDialogRef = useRef<HTMLDialogElement>(null);
@@ -316,7 +322,14 @@ export function ScreeningRunPanel({
 
       {actionError ? <p className="runs-screening-error" role="alert">{actionError}</p> : null}
       {listLoading ? <p className="runs-screening-muted" role="status" aria-live="polite">판정 실행 기록을 불러오는 중입니다. 목록 확인 전에는 새 실행을 시작할 수 없습니다.</p> : null}
-      {listError ? <p className="runs-screening-error" role="alert">판정 실행 기록을 불러오지 못했습니다. 목록을 다시 확인한 뒤 실행해 주세요.</p> : null}
+      {listError ? (
+        <div className="runs-screening-inline-error" role="alert" aria-live="assertive" aria-busy={listRefreshing} tabIndex={-1}>
+          <span>판정 실행 기록을 불러오지 못했습니다. 목록을 다시 확인한 뒤 실행해 주세요.</span>
+          <button className="runs-screening-text-button" type="button" onClick={onRetryConfiguration} disabled={listRefreshing}>
+            {listRefreshing ? "다시 확인 중…" : "다시 시도"}
+          </button>
+        </div>
+      ) : null}
       {executionLoading && currentExecution ? <p className="runs-screening-muted" role="status" aria-live="polite">실행 상세를 갱신하는 중입니다.</p> : null}
       {executionError && currentExecution ? <p className="runs-screening-error" role="alert">실행 상세를 갱신하지 못했습니다. 자동 갱신을 계속 시도합니다.</p> : null}
 
@@ -341,7 +354,17 @@ export function ScreeningRunPanel({
           {currentExecution.published_run_id ? (
             <div className="runs-screening-derived-run">
               <div><strong>게시된 파생 회차</strong><span>원본 회차 <code>{runId}</code>는 유지되며, 아래 회차에 새 판정 결과가 게시되었습니다.</span></div>
-              <button className="runs-screening-text-button" type="button" onClick={() => onOpenPublishedRun(currentExecution.published_run_id as string)}>파생 회차 보기 <code>{currentExecution.published_run_id}</code></button>
+              <button className="runs-screening-text-button" type="button" disabled={publishedRunNavigationBusy} onClick={() => onOpenPublishedRun(currentExecution.published_run_id as string)} aria-busy={publishedRunNavigationBusy}>
+                {publishedRunNavigationBusy ? "파생 회차 확인 중…" : "파생 회차 보기"} <code>{currentExecution.published_run_id}</code>
+              </button>
+            </div>
+          ) : null}
+          {publishedRunNavigationError && currentExecution.published_run_id ? (
+            <div className="runs-screening-inline-error" role="alert" aria-live="assertive">
+              <span>{publishedRunNavigationError}</span>
+              <button className="runs-screening-text-button" type="button" onClick={() => onOpenPublishedRun(currentExecution.published_run_id as string)} disabled={publishedRunNavigationBusy}>
+                {publishedRunNavigationBusy ? "다시 확인 중…" : "다시 시도"}
+              </button>
             </div>
           ) : null}
           {detailExecution?.result_urls.published_run ? <a className="runs-screening-published-link" href={detailExecution.result_urls.published_run} target="_blank" rel="noreferrer">게시 결과 링크 열기</a> : null}

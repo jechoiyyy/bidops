@@ -184,12 +184,17 @@ export function RunsPage() {
   const [screeningActionError, setScreeningActionError] = useState<string | null>(null);
   const [screeningStartBusy, setScreeningStartBusy] = useState(false);
   const [screeningStopBusy, setScreeningStopBusy] = useState(false);
+  const [publishedRunNavigationBusy, setPublishedRunNavigationBusy] = useState(false);
+  const [publishedRunNavigationError, setPublishedRunNavigationError] = useState<string | null>(null);
   const screeningStartInFlight = useRef(false);
   const screeningStopInFlight = useRef(false);
   const screeningStartOperation = useRef(0);
   const screeningStopOperation = useRef(0);
+  const publishedRunNavigationInFlight = useRef(false);
+  const publishedRunNavigationOperation = useRef(0);
   const mountedRef = useRef(true);
   const selectedScreeningRunRef = useRef<string | null>(selectedRunId);
+  const selectedScreeningExecutionRef = useRef<string | null>(screeningExecutionId);
   const screeningRunGeneration = useRef(0);
   if (selectedScreeningRunRef.current !== selectedRunId) {
     selectedScreeningRunRef.current = selectedRunId;
@@ -225,6 +230,15 @@ export function RunsPage() {
     ?? (screeningExecutionId === null ? manualFullRunExecutions[0] : null)
     ?? null;
   const screeningDetailPoll = useScreeningExecutionPoll(screeningExecutionId);
+  const currentScreeningExecution = screeningDetailPoll.data?.execution_id === screeningExecutionId
+    ? screeningDetailPoll.data
+    : selectedScreeningSummary;
+  const effectiveScreeningExecutionId = screeningExecutionId ?? currentScreeningExecution?.execution_id ?? null;
+  if (selectedScreeningExecutionRef.current !== effectiveScreeningExecutionId) {
+    selectedScreeningExecutionRef.current = effectiveScreeningExecutionId;
+  }
+  const currentScreeningExecutionRef = useRef<ScreeningExecutionResponse | null>(currentScreeningExecution);
+  currentScreeningExecutionRef.current = currentScreeningExecution;
   const selectedPolicy = policies.find((policy) => policy.policy_version === selectedPolicyVersion) ?? null;
   const selectedProfile = profileSnapshots.find((snapshot) => snapshot.version === selectedProfileVersion) ?? null;
 
@@ -275,10 +289,14 @@ export function RunsPage() {
     // error into the newly selected original run.
     screeningStartOperation.current += 1;
     screeningStopOperation.current += 1;
+    publishedRunNavigationOperation.current += 1;
     screeningStartInFlight.current = false;
     screeningStopInFlight.current = false;
+    publishedRunNavigationInFlight.current = false;
     setScreeningStartBusy(false);
     setScreeningStopBusy(false);
+    setPublishedRunNavigationBusy(false);
+    setPublishedRunNavigationError(null);
     setScreeningExecutionId(null);
     setScreeningActionError(null);
   }, [selectedRunId]);
@@ -365,7 +383,7 @@ export function RunsPage() {
   const stopScreening = async () => {
     const capturedRunId = selectedRunId;
     const capturedGeneration = screeningRunGeneration.current;
-    const capturedExecutionId = screeningExecutionId;
+    const capturedExecutionId = selectedScreeningExecutionRef.current;
     const latestStatus = screeningDetailPoll.data?.status ?? selectedScreeningSummary?.status;
     if (screeningStopInFlight.current) return;
     if (!capturedRunId || !capturedExecutionId || !screeningActor.trim() || !latestStatus || isScreeningTerminal(latestStatus) || latestStatus === "중지 요청") return;
@@ -395,16 +413,65 @@ export function RunsPage() {
     }
   };
 
-  const selectPublishedRun = (runId: string) => {
-    setSearchParams((current) => {
-      const next = new URLSearchParams(current);
-      next.set("run", runId);
-      return next;
-    }, { replace: false });
+  const selectPublishedRun = async (publishedRunId: string) => {
+    const capturedRunId = selectedRunId;
+    const capturedGeneration = screeningRunGeneration.current;
+    const capturedExecutionId = selectedScreeningExecutionRef.current;
+    const selectedExecution = currentScreeningExecutionRef.current?.execution_id === capturedExecutionId
+      ? currentScreeningExecutionRef.current
+      : null;
+    if (
+      publishedRunNavigationInFlight.current
+      || !capturedRunId
+      || !capturedExecutionId
+      || !publishedRunId.trim()
+      || !selectedExecution
+      || selectedExecution.source_run_id !== capturedRunId
+      || selectedExecution.published_run_id !== publishedRunId
+    ) return;
+
+    publishedRunNavigationInFlight.current = true;
+    const operationToken = ++publishedRunNavigationOperation.current;
+    setPublishedRunNavigationBusy(true);
+    setPublishedRunNavigationError(null);
+    const isCurrent = () => mountedRef.current
+      && publishedRunNavigationOperation.current === operationToken
+      && selectedScreeningRunRef.current === capturedRunId
+      && screeningRunGeneration.current === capturedGeneration
+      && selectedScreeningExecutionRef.current === capturedExecutionId;
+    try {
+      const refreshed = await runsQuery.refetch();
+      if (!isCurrent()) return;
+      if (refreshed.error || !refreshed.data) {
+        setPublishedRunNavigationError("파생 회차 목록을 확인하지 못했습니다. 다시 시도해 주세요.");
+        return;
+      }
+      const targetExists = refreshed.data?.items.some((run) => run.run_id === publishedRunId) ?? false;
+      if (!targetExists) {
+        setPublishedRunNavigationError("게시된 파생 회차가 아직 회차 목록에 없습니다. 잠시 후 다시 시도해 주세요.");
+        return;
+      }
+      const currentExecution = currentScreeningExecutionRef.current?.execution_id === capturedExecutionId
+        ? currentScreeningExecutionRef.current
+        : null;
+      if (!currentExecution || currentExecution.source_run_id !== capturedRunId || currentExecution.published_run_id !== publishedRunId) return;
+      setSearchParams((current) => {
+        const next = new URLSearchParams(current);
+        next.set("run", publishedRunId);
+        return next;
+      }, { replace: false });
+    } catch {
+      if (isCurrent()) setPublishedRunNavigationError("파생 회차 목록을 확인하지 못했습니다. 다시 시도해 주세요.");
+    } finally {
+      if (mountedRef.current && publishedRunNavigationOperation.current === operationToken) {
+        setPublishedRunNavigationBusy(false);
+        publishedRunNavigationInFlight.current = false;
+      }
+    }
   };
 
   if (runsQuery.isLoading && runs.length === 0) return <div className="runs-loading" role="status" aria-live="polite">실행 회차를 불러오는 중입니다.</div>;
-  if (runsQuery.error) return <EmptyState title="실행 회차를 불러오지 못했습니다." description={errorMessage(runsQuery.error)} action={{ label: "다시 시도", onClick: () => void runsQuery.refetch() }} />;
+  if (runsQuery.error && runs.length === 0) return <EmptyState title="실행 회차를 불러오지 못했습니다." description={errorMessage(runsQuery.error)} action={{ label: "다시 시도", onClick: () => void runsQuery.refetch() }} />;
   if (!selectedRunId) return <EmptyState title="실행 회차가 없습니다." description="수집할 회차가 적재되면 이곳에서 파이프라인을 실행할 수 있습니다." />;
   // 오류일 때도 data가 없으므로, 오류 검사를 로딩 검사보다 먼저 해야 안내가 표시된다.
   if (detailQuery.error) return <EmptyState title="회차 상세를 불러오지 못했습니다." description={errorMessage(detailQuery.error)} action={{ label: "다시 시도", onClick: () => void detailQuery.refetch() }} />;
@@ -426,6 +493,7 @@ export function RunsPage() {
           </button>
         </div>
       </header>
+      {runsQuery.error ? <p className="runs-error" role="alert">회차 목록을 최신화하지 못했습니다. 기존 회차 목록을 유지하고 있습니다.</p> : null}
       {actionError ? <p className="runs-error" role="alert">{actionError}</p> : null}
       <div className="runs-layout">
         <aside className="runs-list" aria-label="실행 회차 목록">
@@ -456,6 +524,7 @@ export function RunsPage() {
             listLoading={screeningExecutionsQuery.isLoading}
             listError={screeningExecutionsQuery.error}
             listReady={screeningExecutionsQuery.data !== undefined}
+            listRefreshing={screeningExecutionsQuery.isFetching}
             onRetryConfiguration={() => {
               void activationCandidatePoliciesQuery.refetch();
               void activePoliciesQuery.refetch();
@@ -468,6 +537,8 @@ export function RunsPage() {
             onStop={() => void stopScreening()}
             stopBusy={screeningStopBusy}
             onOpenPublishedRun={selectPublishedRun}
+            publishedRunNavigationBusy={publishedRunNavigationBusy}
+            publishedRunNavigationError={publishedRunNavigationError}
           />
           <PipelineStages stages={detail.pipeline} counts={selectedSummary.counts} onRun={(stage) => void startStage(stage)} busy={Boolean(logsQuery.data?.executions.some((item) => item.status === "pending" || item.status === "running"))} />
           <div className="runs-two-column"><ArtifactValidation artifacts={detail.artifacts} warningCounts={detail.warning_counts} /><CollectionScope scope={detail.collection_scope} runId={detail.run_id} /></div>
