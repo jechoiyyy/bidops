@@ -138,10 +138,6 @@ export function DashboardPage() {
     stats.collected_count !== null && stats.candidate_count !== null && stats.collected_count > 0
       ? (stats.candidate_count / stats.collected_count) * 100
       : null;
-  const auditPoolCount =
-    stats.collected_count !== null && stats.candidate_count !== null
-      ? Math.max(stats.collected_count - stats.candidate_count, 0)
-      : null;
   const priorityDescription = discriminativePower
     ? `분석 표본 ${formatNumber(discriminativePower.basis.denominator)}건의 ${percentageText(discriminativePower.percentage)}`
     : "분석 표본 분모 확인 불가";
@@ -159,7 +155,7 @@ export function DashboardPage() {
         <KpiCard
           label="후보 풀"
           value={<><span>{countText(stats.candidate_count)}</span>{stats.candidate_count !== null ? <span className="dashboard-kpi-unit">건</span> : null}</>}
-          description={<><span>전체 수집의 </span><span className="mono tabular-nums">{percentageText(candidateRatio)}</span><span> · 감사 풀 </span><span className="mono tabular-nums">{countText(auditPoolCount)}</span>{auditPoolCount !== null ? <span>건</span> : null}</>}
+          description={<><span>전체 수집의 </span><span className="mono tabular-nums">{percentageText(candidateRatio)}</span></>}
         />
         <KpiCard
           accent
@@ -185,7 +181,7 @@ export function DashboardPage() {
 
       <div className="dashboard-secondary-grid">
         <DeadlineTable notices={stats.imminent_deadlines} referenceAt={stats.generated_at} runId={runId} timezone={stats.timezone} />
-        <VerificationRequests requests={stats.verification_requests} />
+        <VerificationRequests requests={stats.verification_requests} runId={runId} />
       </div>
     </div>
   );

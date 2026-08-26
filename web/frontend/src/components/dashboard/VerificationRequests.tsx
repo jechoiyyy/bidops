@@ -8,6 +8,7 @@ import { formatNumber } from "../../lib/format";
 
 interface VerificationRequestsProps {
   requests: VerificationRequest[];
+  runId: string;
 }
 
 function profileBasis(sections: string[]): string {
@@ -15,7 +16,7 @@ function profileBasis(sections: string[]): string {
   return `회사 프로필 ${sections.join(" · ")}`;
 }
 
-export function VerificationRequests({ requests }: VerificationRequestsProps) {
+export function VerificationRequests({ requests, runId }: VerificationRequestsProps) {
   const sorted = [...requests].sort((left, right) => right.count - left.count || left.item.localeCompare(right.item, "ko"));
   const total = sorted.reduce((sum, request) => sum + request.count, 0);
   const [expanded, setExpanded] = useState(false);
@@ -56,7 +57,7 @@ export function VerificationRequests({ requests }: VerificationRequestsProps) {
           ) : null}
         </>
       )}
-      <Link className="dashboard-profile-link" to="/profile">회사 프로필에서 확정하기 <span aria-hidden="true">→</span></Link>
+      <Link className="dashboard-profile-link" to={`/profile?run=${encodeURIComponent(runId)}`}>회사 프로필에서 확정하기 <span aria-hidden="true">→</span></Link>
     </Panel>
   );
 }

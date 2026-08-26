@@ -64,25 +64,15 @@ for (const target of pages) {
       const root = document.documentElement;
       const canvas = document.querySelector<HTMLElement>(".page-canvas");
       const widthOverflow = (element: HTMLElement): number => Math.max(0, element.scrollWidth - element.clientWidth);
-      const explicitInternalScrollerSelector = [
-        ".table-wrap",
-        ".operations-table-scroll",
-        ".quality-table-wrap",
-        ".runs-artifact-table-scroll",
-        ".runs-log-lines",
-      ].join(", ");
-      const explicitInternalScrollers = new Set(
-        [...document.querySelectorAll<HTMLElement>(explicitInternalScrollerSelector)],
-      );
       const actualLocalScrollers = new Set(
         [...document.querySelectorAll<HTMLElement>("body *")].filter((element) => {
           if (element === canvas) return false;
           const style = getComputedStyle(element);
           return (style.overflowX === "auto" || style.overflowX === "scroll")
-            && element.scrollWidth > element.clientWidth + 1;
+            && element.scrollWidth > element.clientWidth;
         }),
       );
-      const allowedScrollers = new Set([...explicitInternalScrollers, ...actualLocalScrollers]);
+      const allowedScrollers = actualLocalScrollers;
       const isContainedByAllowedScroller = (element: Element): boolean => {
         let parent = element.parentElement;
         while (parent) {
@@ -92,9 +82,9 @@ for (const target of pages) {
         return false;
       };
       const viewport = root.clientWidth;
-      // Check both page-level scroll containers directly. Descendant
-      // exclusions are limited to named table/log scrollers or another real
-      // local horizontal scroller; page-canvas itself is never an exclusion.
+      // Descendant exclusions require a real local horizontal scroller with
+      // overflow-x auto/scroll and measurable scrollWidth excess; page-canvas
+      // itself is never an exclusion.
       const descendantOverflow = Math.max(0, ...[...document.querySelectorAll<HTMLElement>("body *")]
         .filter((element) => !isContainedByAllowedScroller(element))
         .map((element) => {
@@ -186,11 +176,60 @@ test("담당자 확인 요청을 펼치고 접을 수 있다", async ({ page }) 
   expect(await list.locator("li").count()).toBeGreaterThan(3);
 });
 
+test("담당자 확인 요청 프로필 링크가 선택한 회차를 보존한다", async ({ page }) => {
+  await page.goto(`/?run=${encodeURIComponent(RUN_ID)}`);
+  await page.getByRole("link", { name: /회사 프로필에서 확정하기/ }).click();
+  await expect.poll(() => new URL(page.url()).pathname).toBe("/profile");
+  expect(new URL(page.url()).searchParams.get("run")).toBe(RUN_ID);
+});
+
 test("감사 누락 수는 보존하고 확인할 수 없는 분모를 추정하지 않는다", async ({ page }) => {
   await page.goto(`/?run=${encodeURIComponent(RUN_ID)}`);
+  const candidateKpi = page.getByRole("region", { name: "후보 풀" });
+  await expect(candidateKpi).toContainText("327");
+  await expect(candidateKpi).not.toContainText("감사 풀");
   const kpi = page.getByRole("region", { name: "1차 필터 누락" });
   await expect(kpi).toContainText("5 / 표본 미확인");
   await expect(kpi).toContainText("감사 표본 분모를 확인할 수 없어 누락률을 계산하지 않습니다.");
+});
+
+test("프로필의 불완전한 응답은 상태와 미확인을 0으로 확정하지 않는다", async ({ page }) => {
+  await page.route("**/api/profile/sections", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ source: "profile.md", sections: [], parse_errors: ["프로필 원문 일부를 읽지 못했습니다."] }),
+    });
+  });
+  await page.route("**/api/profile/unknowns", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ source: "profile.md", items: [], total: 0, reference_fields: [], parse_errors: [] }),
+    });
+  });
+
+  await page.goto("/profile");
+  await expect(page.getByRole("alert")).toContainText("프로필 응답 확인 필요");
+  await expect(page.locator(".profile-summary")).toContainText("미확인");
+  await expect(page.locator(".profile-summary")).not.toContainText("0");
+  await expect(page.locator(".profile-unknown-panel")).toContainText("미확인 항목을 표시할 수 없습니다.");
+  await expect(page.locator(".profile-unknown-panel")).not.toContainText("0건");
+  await expect(page.getByText("미확인 항목이 없습니다. · 0건", { exact: true })).toHaveCount(0);
+});
+
+test("프로필 읽기 실패는 빈 정상 상태가 아니라 오류 상태로 표시한다", async ({ page }) => {
+  await page.route("**/api/profile/sections", async (route) => {
+    await route.fulfill({
+      status: 500,
+      contentType: "application/json",
+      body: JSON.stringify({ detail: "프로필 원문을 읽을 수 없습니다." }),
+    });
+  });
+
+  await page.goto("/profile");
+  await expect(page.getByText("회사 프로필을 불러오지 못했습니다.", { exact: true })).toBeVisible();
+  await expect(page.getByText("프로필 원문을 읽을 수 없습니다.", { exact: true })).toBeVisible();
 });
 
 test("진행 중인 전량 판정은 중복 실행할 수 없다", async ({ page }) => {

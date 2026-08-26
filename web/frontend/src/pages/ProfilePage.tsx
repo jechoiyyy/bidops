@@ -5,7 +5,7 @@ import { EmptyState } from "../components/common/EmptyState";
 import { Panel } from "../components/common/Panel";
 import { api } from "../lib/api";
 import { formatNumber } from "../lib/format";
-import type { ProfileSection, ProfileSectionState, ProfileStatus } from "../lib/types";
+import type { ProfileSection, ProfileSectionState, ProfileSectionsResponse, ProfileStatus, ProfileUnknownsResponse } from "../lib/types";
 import "../styles/reference-relaxed.css";
 
 type ProfileFilter = "all" | ProfileStatus;
@@ -40,11 +40,44 @@ function valueLabel(value: unknown): string {
   return String(value);
 }
 
-function countLabel(value: number | null | undefined): string {
+function countLabel(value: unknown): string {
   return typeof value === "number" && Number.isFinite(value) ? formatNumber(value) : "미확인";
 }
 
-function summaryCount(summary: Record<string, number>, status: ProfileStatus): string {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+
+function hasSectionsPayload(data: ProfileSectionsResponse | undefined): boolean {
+  return Boolean(
+    data
+      && Array.isArray(data.sections)
+      && isRecord(data.status_counts)
+      && isStringArray(data.parse_errors),
+  );
+}
+
+function hasUnknownsPayload(data: ProfileUnknownsResponse | undefined): boolean {
+  return Boolean(
+    data
+      && Array.isArray(data.items)
+      && typeof data.total === "number"
+      && Array.isArray(data.reference_fields)
+      && isStringArray(data.parse_errors),
+  );
+}
+
+function parseErrorMessages(value: unknown, label: string): string[] {
+  if (!isStringArray(value)) return [`${label} 응답의 파싱 상태를 확인할 수 없습니다.`];
+  return value;
+}
+
+function summaryCount(summary: Record<string, number>, status: ProfileStatus, available: boolean): string {
+  if (!available) return "미확인";
   // The parser's Counter omits zero-valued statuses; an omitted key therefore
   // means a known zero, while a malformed/null value remains unconfirmed.
   return Object.prototype.hasOwnProperty.call(summary, status) ? countLabel(summary[status]) : countLabel(0);
@@ -71,9 +104,11 @@ function ProfileTree({ section, filter }: { section: ProfileSection; filter: Pro
         </div>
         <div className="profile-section-meta">
           <Badge variant={stateVariant(section.state)} label={stateLabels[section.state]} />
-          {Object.entries(section.status_counts).map(([status, count]) => (
-            <span className="profile-count" key={status}><span className="mono">{status}</span> {countLabel(count)}</span>
-          ))}
+          {isRecord(section.status_counts)
+            ? Object.entries(section.status_counts).map(([status, count]) => (
+              <span className="profile-count" key={status}><span className="mono">{status}</span> {countLabel(count)}</span>
+            ))
+            : <span className="profile-count">상태 미확인</span>}
         </div>
       </div>
       {items.length > 0 ? (
@@ -124,8 +159,12 @@ export function ProfilePage() {
   const sectionsQuery = useQuery({ queryKey: ["profile-sections"], queryFn: api.getProfileSections, staleTime: 30_000 });
   const unknownsQuery = useQuery({ queryKey: ["profile-unknowns"], queryFn: api.getProfileUnknowns, staleTime: 30_000 });
 
-  const sections = sectionsQuery.data?.sections ?? [];
-  const unknowns = unknownsQuery.data?.items ?? [];
+  const sectionsResponse = sectionsQuery.data;
+  const unknownsResponse = unknownsQuery.data;
+  const sectionsPayloadAvailable = hasSectionsPayload(sectionsResponse);
+  const unknownsPayloadAvailable = hasUnknownsPayload(unknownsResponse);
+  const sections = Array.isArray(sectionsResponse?.sections) ? sectionsResponse.sections : [];
+  const unknowns = Array.isArray(unknownsResponse?.items) ? unknownsResponse.items : [];
   const filteredUnknowns = useMemo(
     () => filter === "unknown" || filter === "all" ? unknowns : [],
     [filter, unknowns],
@@ -137,11 +176,17 @@ export function ProfilePage() {
     return <EmptyState title="회사 프로필을 불러오지 못했습니다." description={error instanceof Error ? error.message : "프로필 API 응답을 확인할 수 없습니다."} action={{ label: "다시 시도", onClick: () => { void sectionsQuery.refetch(); void unknownsQuery.refetch(); } }} />;
   }
 
-  const summary = sectionsQuery.data?.status_counts ?? {};
-  const parseErrors = [...(sectionsQuery.data?.parse_errors ?? []), ...(unknownsQuery.data?.parse_errors ?? [])];
-  const source = sectionsQuery.data?.source ?? unknownsQuery.data?.source ?? null;
-  const referenceFields = unknownsQuery.data?.reference_fields ?? [];
-  const unknownTotal = unknownsQuery.data?.total;
+  const summary = sectionsPayloadAvailable && isRecord(sectionsResponse?.status_counts)
+    ? sectionsResponse.status_counts as Record<string, number>
+    : {};
+  const parseErrors = [
+    ...parseErrorMessages(sectionsResponse?.parse_errors, "프로필 절"),
+    ...parseErrorMessages(unknownsResponse?.parse_errors, "미확인 항목"),
+  ];
+  const profileReadError = !sectionsPayloadAvailable || !unknownsPayloadAvailable || parseErrors.length > 0;
+  const source = sectionsResponse?.source ?? unknownsResponse?.source ?? null;
+  const referenceFields = Array.isArray(unknownsResponse?.reference_fields) ? unknownsResponse.reference_fields : [];
+  const unknownTotal = !profileReadError && unknownsPayloadAvailable ? unknownsResponse?.total : undefined;
   return (
     <div className="profile-page">
       <header className="profile-page-header">
@@ -164,15 +209,15 @@ export function ProfilePage() {
           {(["confirmed", "inferred", "unknown"] as const).map((status) => (
             <div className="profile-summary-item" key={status}>
               <span>{filterLabels[status]}</span>
-              <strong className="mono">{summaryCount(summary, status)}</strong>
+              <strong className="mono">{summaryCount(summary, status, sectionsPayloadAvailable)}</strong>
             </div>
           ))}
         </div>
       </header>
-      {parseErrors.length > 0 ? (
+      {profileReadError ? (
         <div className="profile-page-warning" role="alert">
-          <strong>파싱 경고</strong>
-          <span>{parseErrors.join(" ")}</span>
+          <strong>프로필 응답 확인 필요</strong>
+          <span>{parseErrors.length > 0 ? parseErrors.join(" ") : "응답 형식이 불완전하여 일부 상태를 미확인으로 표시합니다."}</span>
         </div>
       ) : null}
       <div className="profile-filter-bar" role="group" aria-label="정보 상태 필터">
@@ -217,7 +262,9 @@ export function ProfilePage() {
             </ul>
           ) : (
             <p className="profile-empty-value">
-              {filter !== "all" && filter !== "unknown"
+              {profileReadError
+                ? "미확인 항목을 표시할 수 없습니다. 프로필 원문 읽기 오류가 있습니다."
+                : filter !== "all" && filter !== "unknown"
                 ? `현재 ${filterLabels[filter]} 필터에서는 미확인 항목을 숨겼습니다.`
                 : unknownTotal === 0
                   ? "미확인 항목이 없습니다. · 0건"
