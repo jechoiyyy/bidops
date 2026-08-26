@@ -34,6 +34,8 @@ export function BasisPopover({ run }: BasisPopoverProps) {
     <div className="basis-popover" ref={containerRef}>
       <button
         aria-expanded={open}
+        aria-controls="basis-popover-panel"
+        aria-haspopup="dialog"
         className="basis-popover-trigger"
         type="button"
         onClick={() => setOpen((current) => !current)}
@@ -45,7 +47,7 @@ export function BasisPopover({ run }: BasisPopoverProps) {
         판정 기준
       </button>
       {open ? (
-        <div className="basis-popover-panel">
+        <div aria-label="판정 기준 상세" className="basis-popover-panel" id="basis-popover-panel" role="dialog">
           <dl className="facts facts-wide">
             <div className="fact-row">
               <dt>기준선</dt>

@@ -1,3 +1,4 @@
+import type { RefObject } from "react";
 import type { RunSummary } from "../../lib/types";
 import { BasisPopover } from "./BasisPopover";
 import { RunSelector } from "./RunSelector";
@@ -9,7 +10,9 @@ interface TopBarProps {
   selectedRun: RunSummary | null;
   onRunChange: (runId: string) => void;
   editScope: string | null;
-  onOpenNav: () => void;
+  onToggleNav: () => void;
+  menuButtonRef: RefObject<HTMLButtonElement | null>;
+  navOpen: boolean;
   isLoading?: boolean;
 }
 
@@ -20,26 +23,43 @@ export function TopBar({
   selectedRun,
   onRunChange,
   editScope,
-  onOpenNav,
+  onToggleNav,
+  menuButtonRef,
+  navOpen,
   isLoading = false,
 }: TopBarProps) {
   return (
     <header className="topbar">
-      <button className="topbar-menu" type="button" aria-label="주 메뉴 열기" onClick={onOpenNav}>
+      <button
+        aria-controls="primary-navigation"
+        aria-expanded={navOpen}
+        aria-label={navOpen ? "주 메뉴 닫기" : "주 메뉴 열기"}
+        className="topbar-menu"
+        ref={menuButtonRef}
+        type="button"
+        onClick={onToggleNav}
+      >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
           <path d="M4 7h16M4 12h16M4 17h16" />
         </svg>
       </button>
-      <h1>{title}</h1>
-      <RunSelector
-        disabled={isLoading}
-        onChange={onRunChange}
-        runs={runs}
-        selectedRunId={selectedRunId}
-      />
-      <div className="topbar-spacer" />
-      {editScope ? <span className="topbar-status">{editScope}</span> : null}
-      <BasisPopover run={selectedRun} />
+      <div className="topbar-heading">
+        <h1>{title}</h1>
+      </div>
+      <div className="topbar-context">
+        <RunSelector
+          disabled={isLoading}
+          onChange={onRunChange}
+          runs={runs}
+          selectedRunId={selectedRunId}
+        />
+        {editScope ? (
+          <span aria-label={`페이지별 편집 범위: ${editScope}`} className="topbar-status">
+            {editScope}
+          </span>
+        ) : null}
+        <BasisPopover run={selectedRun} />
+      </div>
     </header>
   );
 }
