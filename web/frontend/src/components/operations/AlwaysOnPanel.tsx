@@ -4,8 +4,10 @@ import type { AlwaysOnSwitchResponse, PolicyVersionResponse } from "../../lib/ty
 interface AlwaysOnPanelProps {
   state: AlwaysOnSwitchResponse;
   activePolicy: PolicyVersionResponse | null;
+  activePolicyVersion: string | null;
+  policyLoading: boolean;
   busy: boolean;
-  onUpdate: (payload: { enabled: boolean; confirmed_by: string; quality_gate_result_id: string | null }) => Promise<void>;
+  onUpdate: (payload: { enabled: boolean; confirmed_by: string; quality_gate_result_id: string | null }) => Promise<boolean>;
 }
 
 function enabledLabel(value: boolean): string {
@@ -16,7 +18,7 @@ function valueLabel(value: string | null): string {
   return value && value.trim() ? value : "값 없음";
 }
 
-export function AlwaysOnPanel({ state, activePolicy, busy, onUpdate }: AlwaysOnPanelProps) {
+export function AlwaysOnPanel({ state, activePolicy, activePolicyVersion, policyLoading, busy, onUpdate }: AlwaysOnPanelProps) {
   const [actor, setActor] = useState("");
   const [confirmedGateId, setConfirmedGateId] = useState("");
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -27,8 +29,26 @@ export function AlwaysOnPanel({ state, activePolicy, busy, onUpdate }: AlwaysOnP
 
   const gateId = state.quality_gate_result_id;
   const actorReady = actor.trim().length > 0;
+  const metadataComplete = [
+    state.quality_gate_result_id,
+    state.policy_version,
+    state.model_name,
+    state.model_digest,
+    state.prompt_version,
+    state.company_profile_version,
+    state.company_profile_digest,
+    activePolicy?.content_digest ?? null,
+  ].every((value) => typeof value === "string" && value.trim().length > 0);
+  const policyMatches = Boolean(
+    activePolicy
+      && activePolicyVersion
+      && activePolicy.policy_version === activePolicyVersion
+      && state.policy_version === activePolicyVersion
+      && activePolicy.content_digest.trim(),
+  );
   const gateReady = Boolean(gateId) && state.quality_gate_status === "통과" && confirmedGateId.trim() === gateId;
-  const enableDisabled = busy || !actorReady || !state.environment_enabled || !gateReady;
+  const hasRejection = Boolean(state.rejection_reason?.trim());
+  const enableDisabled = busy || !actorReady || !state.environment_enabled || !gateReady || hasRejection || !policyMatches || !metadataComplete;
   const disableDisabled = busy || !actorReady || !state.configured_enabled;
 
   const update = async (enabled: boolean) => {
@@ -41,9 +61,11 @@ export function AlwaysOnPanel({ state, activePolicy, busy, onUpdate }: AlwaysOnP
       return;
     }
     setValidationError(null);
-    await onUpdate({ enabled, confirmed_by: actor.trim(), quality_gate_result_id: enabled ? gateId : null });
-    setActor("");
-    if (enabled) setConfirmedGateId("");
+    const updated = await onUpdate({ enabled, confirmed_by: actor.trim(), quality_gate_result_id: enabled ? gateId : null });
+    if (updated) {
+      setActor("");
+      if (enabled) setConfirmedGateId("");
+    }
   };
 
   const policyDigest = activePolicy?.content_digest ?? null;
@@ -74,8 +96,17 @@ export function AlwaysOnPanel({ state, activePolicy, busy, onUpdate }: AlwaysOnP
         </div>
 
         {state.rejection_reason ? <div className="operations-rejection" role="alert"><strong>상시 운영이 거부되었습니다.</strong><span>{state.rejection_reason}</span></div> : null}
-        {!state.environment_enabled ? <p className="operations-callout operations-callout-warning">환경 안전 상한이 꺼져 있어 활성화할 수 없습니다.</p> : null}
-        {state.quality_gate_status !== "통과" || !gateId ? <p className="operations-callout operations-callout-warning">운영 승인 게이트 결과가 통과로 확인되지 않았거나 현재 승인 조합과 불일치하여 켜기 버튼이 잠깁니다.</p> : null}
+        {enableDisabled ? (
+          <ul className="operations-callout operations-callout-warning operations-enable-blockers" aria-label="상시 운영 켜기 차단 사유">
+            {!state.environment_enabled ? <li>환경 안전 상한이 꺼져 있습니다.</li> : null}
+            {hasRejection ? <li>서버가 현재 승인 조합을 거부하여 다시 확인해야 합니다.</li> : null}
+            {state.quality_gate_status !== "통과" || !gateId ? <li>quality gate evaluation이 통과 상태가 아니거나 결과 ID가 없습니다.</li> : null}
+            {policyLoading || !activePolicy ? <li>현재 active 정책을 확인할 수 없습니다.</li> : null}
+            {!policyLoading && activePolicy && !policyMatches ? <li>현재 active 정책 버전이 승인 조합의 정책 버전과 일치하지 않습니다.</li> : null}
+            {!metadataComplete ? <li>승인 조합의 정책·모델·prompt·프로필 메타데이터가 모두 확인되지 않았습니다.</li> : null}
+            {gateId && confirmedGateId.trim() !== gateId ? <li>켜기 전에 quality gate evaluation ID를 정확히 입력하십시오.</li> : null}
+          </ul>
+        ) : null}
 
         <div className="operations-switch-actions">
           <label className="operations-actor-field"><span>변경 담당자</span><input value={actor} onChange={(event) => setActor(event.target.value)} placeholder="담당자 이름" autoComplete="name" disabled={busy} /></label>

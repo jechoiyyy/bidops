@@ -5,6 +5,7 @@ import { AlwaysOnPanel } from "../components/operations/AlwaysOnPanel";
 import { ScheduleExecutionForm } from "../components/operations/ScheduleExecutionForm";
 import { ScheduleExecutionTable } from "../components/operations/ScheduleExecutionTable";
 import { ScheduleSettingsForm } from "../components/operations/ScheduleSettingsForm";
+import { operationsWriteError } from "../components/operations/feedback";
 import { api } from "../lib/api";
 import type { ScheduleExecutionCreateRequest, ScheduleExecutionSummary } from "../lib/types";
 
@@ -15,8 +16,20 @@ const operationsQueryKeys = {
   policies: ["operations", "policies"],
 } as const;
 
-function genericActionError(): string {
-  return "요청을 처리하지 못했습니다. 현재 상태와 담당자 입력을 확인하십시오.";
+async function refreshOperationsReads(
+  queryClient: ReturnType<typeof useQueryClient>,
+  queryKeys: readonly (readonly string[])[],
+): Promise<void> {
+  // A conflict can still commit a rejection/disable/audit projection. Read
+  // every related projection immediately; failures here must not mask the
+  // original write outcome or leave an unhandled promise.
+  await Promise.all(queryKeys.map(async (queryKey) => {
+    try {
+      await queryClient.invalidateQueries({ queryKey, refetchType: "active" });
+    } catch {
+      // The next safe polling cycle can retry a read that is temporarily down.
+    }
+  }));
 }
 
 function useSafeOperationsPolling(queryClient: ReturnType<typeof useQueryClient>) {
@@ -66,55 +79,77 @@ export function OperationsPage() {
   const [recoveryTarget, setRecoveryTarget] = useState<ScheduleExecutionSummary | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const settingsWriteInFlight = useRef(false);
+  const alwaysOnWriteInFlight = useRef(false);
+  const executionWriteInFlight = useRef(false);
 
   const activePolicy = useMemo(
     () => policiesQuery.data?.items.find((policy) => policy.status === "active") ?? null,
     [policiesQuery.data],
   );
+  const activePolicyVersion = policiesQuery.data?.active_policy_version ?? null;
 
-  const saveSettings = async (payload: { daily_time: string; weekly_time: string; prespec_enabled: boolean; updated_by: string }) => {
+  const saveSettings = async (payload: { daily_time: string; weekly_time: string; prespec_enabled: boolean; updated_by: string }): Promise<boolean> => {
+    if (settingsWriteInFlight.current) return false;
+    settingsWriteInFlight.current = true;
     setSettingsBusy(true);
     setActionError(null);
     setActionMessage(null);
     try {
       await api.updateScheduleSettings(payload);
-      await queryClient.invalidateQueries({ queryKey: operationsQueryKeys.settings });
+      await refreshOperationsReads(queryClient, Object.values(operationsQueryKeys));
       setActionMessage("정기 실행 설정을 저장했습니다.");
-    } catch {
-      setActionError(genericActionError());
+      return true;
+    } catch (error) {
+      setActionError(operationsWriteError(error, "settings"));
+      await refreshOperationsReads(queryClient, Object.values(operationsQueryKeys));
+      return false;
     } finally {
       setSettingsBusy(false);
+      settingsWriteInFlight.current = false;
     }
   };
 
-  const updateAlwaysOn = async (payload: { enabled: boolean; confirmed_by: string; quality_gate_result_id: string | null }) => {
+  const updateAlwaysOn = async (payload: { enabled: boolean; confirmed_by: string; quality_gate_result_id: string | null }): Promise<boolean> => {
+    if (alwaysOnWriteInFlight.current) return false;
+    alwaysOnWriteInFlight.current = true;
     setAlwaysOnBusy(true);
     setActionError(null);
     setActionMessage(null);
     try {
       await api.updateAlwaysOn(payload);
-      await queryClient.invalidateQueries({ queryKey: operationsQueryKeys.alwaysOn });
+      await refreshOperationsReads(queryClient, Object.values(operationsQueryKeys));
       setActionMessage(payload.enabled ? "상시 운영을 켰습니다." : "상시 운영을 껐습니다. 기존 실행·산출물은 보존됩니다.");
-    } catch {
-      setActionError(genericActionError());
+      return true;
+    } catch (error) {
+      setActionError(operationsWriteError(error, "always_on"));
+      await refreshOperationsReads(queryClient, Object.values(operationsQueryKeys));
+      return false;
     } finally {
       setAlwaysOnBusy(false);
+      alwaysOnWriteInFlight.current = false;
     }
   };
 
-  const submitExecution = async (payload: ScheduleExecutionCreateRequest) => {
+  const submitExecution = async (payload: ScheduleExecutionCreateRequest): Promise<boolean> => {
+    if (executionWriteInFlight.current) return false;
+    executionWriteInFlight.current = true;
     setExecutionBusy(true);
     setActionError(null);
     setActionMessage(null);
     try {
       await api.createManualScheduleExecution(payload);
-      await queryClient.invalidateQueries({ queryKey: operationsQueryKeys.executions });
+      await refreshOperationsReads(queryClient, Object.values(operationsQueryKeys));
       setRecoveryTarget(null);
       setActionMessage(payload.recovery_of_execution_id ? "명시 복구를 예약했습니다." : "수동 정기 실행을 예약했습니다.");
-    } catch {
-      setActionError(genericActionError());
+      return true;
+    } catch (error) {
+      setActionError(operationsWriteError(error, "schedule_execution"));
+      await refreshOperationsReads(queryClient, Object.values(operationsQueryKeys));
+      return false;
     } finally {
       setExecutionBusy(false);
+      executionWriteInFlight.current = false;
     }
   };
 
@@ -141,7 +176,7 @@ export function OperationsPage() {
             <div className="operations-panel-heading"><div><span className="operations-eyebrow">정기 예약</span><h3 id="operations-settings-title">스케줄 설정</h3></div><span className="operations-panel-note">DB 정본</span></div>
             <div className="operations-panel-body"><ScheduleSettingsForm settings={settingsQuery.data} busy={settingsBusy} onSave={saveSettings} /></div>
           </section>
-          <AlwaysOnPanel state={alwaysOnQuery.data} activePolicy={activePolicy} busy={alwaysOnBusy} onUpdate={updateAlwaysOn} />
+          <AlwaysOnPanel state={alwaysOnQuery.data} activePolicy={activePolicy} activePolicyVersion={activePolicyVersion} policyLoading={policiesQuery.isLoading || Boolean(policiesQuery.error)} busy={alwaysOnBusy} onUpdate={updateAlwaysOn} />
           <ScheduleExecutionForm recoveryTarget={recoveryTarget} busy={executionBusy} onSubmit={submitExecution} onCancelRecovery={() => setRecoveryTarget(null)} />
         </div>
         <aside className="operations-side-column" aria-label="승인 조합 요약">

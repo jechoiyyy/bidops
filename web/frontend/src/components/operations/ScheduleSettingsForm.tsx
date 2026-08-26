@@ -9,7 +9,7 @@ interface ScheduleSettingsFormProps {
     weekly_time: string;
     prespec_enabled: boolean;
     updated_by: string;
-  }) => Promise<void>;
+  }) => Promise<boolean>;
 }
 
 export function ScheduleSettingsForm({ settings, busy, onSave }: ScheduleSettingsFormProps) {
@@ -42,8 +42,8 @@ export function ScheduleSettingsForm({ settings, busy, onSave }: ScheduleSetting
       return;
     }
     setValidationError(null);
-    await onSave({ daily_time: dailyTime, weekly_time: weeklyTime, prespec_enabled: prespecEnabled, updated_by: trimmedActor });
-    setActor("");
+    const saved = await onSave({ daily_time: dailyTime, weekly_time: weeklyTime, prespec_enabled: prespecEnabled, updated_by: trimmedActor });
+    if (saved) setActor("");
   };
 
   return (
