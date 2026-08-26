@@ -1,0 +1,634 @@
+"""Durable periodic-job scheduling.
+
+APScheduler is only a clock/wakeup source here.  Reservation ownership and
+duplicate handling are decided by SQLite constraints and transactions.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import date, datetime, time, timedelta, timezone
+from pathlib import Path
+import re
+import time as _time
+from typing import Any, Callable
+from uuid import uuid4
+from zoneinfo import ZoneInfo
+
+from apscheduler.schedulers.background import BackgroundScheduler
+from sqlalchemy import Engine, select
+from sqlalchemy.exc import IntegrityError, OperationalError
+from sqlalchemy.orm import Session, sessionmaker
+
+from ..config import Settings, get_settings
+from ..models import (
+    AlwaysOnState,
+    AuditEvent,
+    QualityGate,
+    QualityGateEvaluation,
+    ScheduleExecution,
+    ScheduleReservation,
+    ScheduleSetting,
+    ScreeningPolicy,
+    utc_now,
+)
+from ..screening.ollama import OllamaClient
+from ..screening.profile_snapshot import read_working_tree_source
+
+
+TIMEZONE = ZoneInfo("Asia/Seoul")
+UTC = timezone.utc
+DAILY_JOB_ID = "bidops-daily"
+WEEKLY_JOB_ID = "bidops-weekly"
+_HHMM = re.compile(r"^(?:[01][0-9]|2[0-3]):[0-5][0-9]$")
+
+
+class ScheduleError(RuntimeError):
+    """Safe domain error raised by the schedule boundary."""
+
+
+class EnvironmentDisabledError(ScheduleError):
+    code = "environment_disabled"
+
+
+class ScheduleConflictError(ScheduleError):
+    pass
+
+
+class ScheduleGateError(ScheduleError):
+    code = "gate_mismatch"
+
+
+@dataclass(frozen=True)
+class EnableResult:
+    enabled: bool
+    quality_gate_result_id: str | None = None
+    policy_version: str | None = None
+    model_name: str | None = None
+    model_digest: str | None = None
+    prompt_version: str | None = None
+    company_profile_version: str | None = None
+    company_profile_digest: str | None = None
+    rejection_reason: str | None = None
+
+
+def _factory(value: Any | None) -> sessionmaker[Session]:
+    if value is None:
+        from ..db import SessionLocal
+
+        return SessionLocal
+    if isinstance(value, Engine):
+        return sessionmaker(bind=value, class_=Session, autoflush=False, expire_on_commit=False)
+    if isinstance(value, Session):
+        bind = value.get_bind()
+        if not isinstance(bind, Engine):
+            raise TypeError("session must be bound to an Engine")
+        return sessionmaker(bind=bind, class_=Session, autoflush=False, expire_on_commit=False)
+    if callable(value):
+        return value
+    raise TypeError("session_factory must be an Engine, Session, or callable")
+
+
+def _local(value: datetime) -> datetime:
+    if value.tzinfo is None or value.utcoffset() is None:
+        raise ValueError("clock must return an aware datetime")
+    return value.astimezone(TIMEZONE)
+
+
+def _utc(value: datetime) -> datetime:
+    if value.tzinfo is None or value.utcoffset() is None:
+        raise ValueError("clock must return an aware datetime")
+    return value.astimezone(UTC)
+
+
+def _clock_time(value: str) -> time:
+    if not isinstance(value, str) or _HHMM.fullmatch(value) is None:
+        raise ValueError("time must use HH:MM")
+    hour, minute = (int(v) for v in value.split(":"))
+    return time(hour, minute)
+
+
+def daily_run_key(day: date) -> str:
+    return f"{day:%Y%m%d}-{day:%Y%m%d}"
+
+
+def weekly_run_key(start: date, end: date) -> str:
+    return f"weekly:{start:%Y%m%d}-{end:%Y%m%d}"
+
+
+def previous_daily_target(now: datetime) -> date:
+    return _local(now).date() - timedelta(days=1)
+
+
+def previous_week_window(now: datetime) -> tuple[date, date]:
+    current = _local(now).date()
+    monday = current - timedelta(days=current.weekday())
+    end = monday - timedelta(days=1)
+    return end - timedelta(days=6), end
+
+
+class SchedulerService:
+    """Own schedule settings, APScheduler jobs, reservations and gate checks."""
+
+    def __init__(
+        self,
+        settings: Settings | None = None,
+        *,
+        session_factory: Any | None = None,
+        engine: Engine | None = None,
+        scheduler: Any | None = None,
+        clock: Callable[[], datetime] | None = None,
+        ollama: Any | None = None,
+        on_daily: Callable[[str], Any] | None = None,
+        on_weekly: Callable[[str], Any] | None = None,
+    ) -> None:
+        if session_factory is not None and engine is not None:
+            raise TypeError("provide one of engine or session_factory")
+        self.settings = settings or get_settings()
+        self.session_factory = _factory(session_factory or engine)
+        self.scheduler = scheduler or BackgroundScheduler(timezone=TIMEZONE)
+        self.clock = clock or (lambda: datetime.now(UTC))
+        self.ollama = ollama
+        self.on_daily = on_daily
+        self.on_weekly = on_weekly
+
+    @property
+    def apscheduler(self) -> Any:
+        return self.scheduler
+
+    def _run(self, fn: Callable[[Session], Any]) -> Any:
+        for attempt in range(7):
+            session = self.session_factory()
+            if not isinstance(session, Session):
+                raise TypeError("session factory did not return Session")
+            try:
+                result = fn(session)
+                session.commit()
+                return result
+            except OperationalError as exc:
+                session.rollback()
+                message = str(exc).lower()
+                if "locked" not in message and "busy" not in message:
+                    raise
+                if attempt == 6:
+                    raise ScheduleConflictError("database remained busy") from None
+                _time.sleep(0.01 * (attempt + 1))
+            except Exception:
+                session.rollback()
+                raise
+            finally:
+                session.close()
+        raise ScheduleConflictError("database remained busy")
+
+    def _now(self) -> datetime:
+        return _utc(self.clock())
+
+    # Settings and APScheduler ---------------------------------------
+    def get_schedule_settings(self) -> ScheduleSetting:
+        def fn(session: Session) -> ScheduleSetting:
+            row = session.get(ScheduleSetting, 1)
+            if row is None:
+                row = ScheduleSetting(
+                    singleton_id=1,
+                    timezone="Asia/Seoul",
+                    daily_time=self.settings.schedule_daily_time,
+                    weekly_time=self.settings.schedule_weekly_time,
+                    prespec_enabled=self.settings.schedule_prespec,
+                    updated_at=self._now(),
+                    updated_by="system:scheduler",
+                )
+                session.add(row)
+                session.flush()
+            return row
+
+        return self._run(fn)
+
+    get_settings = get_schedule_settings
+    get = get_schedule_settings
+
+    def update_schedule_settings(
+        self,
+        *,
+        daily_time: str | None = None,
+        weekly_time: str | None = None,
+        prespec_enabled: bool | None = None,
+        updated_by: str,
+    ) -> ScheduleSetting:
+        if not isinstance(updated_by, str) or not updated_by.strip():
+            raise ValueError("updated_by is required")
+        if daily_time is not None:
+            _clock_time(daily_time)
+        if weekly_time is not None:
+            _clock_time(weekly_time)
+        if prespec_enabled is not None and type(prespec_enabled) is not bool:
+            raise ValueError("prespec_enabled must be boolean")
+
+        def fn(session: Session) -> ScheduleSetting:
+            row = session.get(ScheduleSetting, 1)
+            if row is None:
+                row = ScheduleSetting(
+                    singleton_id=1,
+                    timezone="Asia/Seoul",
+                    daily_time=daily_time or self.settings.schedule_daily_time,
+                    weekly_time=weekly_time or self.settings.schedule_weekly_time,
+                    prespec_enabled=self.settings.schedule_prespec if prespec_enabled is None else prespec_enabled,
+                    updated_at=self._now(),
+                    updated_by=updated_by.strip(),
+                )
+                session.add(row)
+            else:
+                if daily_time is not None:
+                    row.daily_time = daily_time
+                if weekly_time is not None:
+                    row.weekly_time = weekly_time
+                if prespec_enabled is not None:
+                    row.prespec_enabled = prespec_enabled
+                row.updated_at = self._now()
+                row.updated_by = updated_by.strip()
+            session.flush()
+            return row
+
+        result = self._run(fn)
+        self.reschedule()
+        return result
+
+    update_settings = update_schedule_settings
+    update = update_schedule_settings
+
+    def _remove_jobs(self) -> None:
+        remove = getattr(self.scheduler, "remove_job", None)
+        if remove is None:
+            return
+        for job_id in (DAILY_JOB_ID, WEEKLY_JOB_ID):
+            try:
+                remove(job_id)
+            except Exception:
+                pass
+
+    def reschedule(self) -> None:
+        if not self.settings.scheduler_enabled:
+            self._remove_jobs()
+            return
+        setting = self.get_schedule_settings()
+        daily = _clock_time(setting.daily_time)
+        weekly = _clock_time(setting.weekly_time)
+        add = self.scheduler.add_job
+        add(self._daily_callback, trigger="cron", hour=daily.hour, minute=daily.minute, timezone=TIMEZONE, id=DAILY_JOB_ID, replace_existing=True, coalesce=True, max_instances=1)
+        add(self._weekly_callback, trigger="cron", day_of_week="mon", hour=weekly.hour, minute=weekly.minute, timezone=TIMEZONE, id=WEEKLY_JOB_ID, replace_existing=True, coalesce=True, max_instances=1)
+
+    def start(self) -> bool:
+        if not self.settings.scheduler_enabled:
+            self._remove_jobs()
+            return False
+        self.reschedule()
+        if not getattr(self.scheduler, "running", False):
+            self.scheduler.start()
+        self.catch_up()
+        return True
+
+    start_scheduler = start
+
+    def shutdown(self, *, wait: bool = False) -> None:
+        if getattr(self.scheduler, "running", False):
+            self.scheduler.shutdown(wait=wait)
+
+    stop = shutdown
+
+    # Durable reservations -------------------------------------------
+    def reserve_daily(self, day: date, **kwargs: Any) -> ScheduleExecution | None:
+        return self.reserve(run_key=daily_run_key(day), job_kind="daily", window_from=day, window_to=day, **kwargs)
+
+    def reserve_weekly(self, start: date, end: date, **kwargs: Any) -> ScheduleExecution | None:
+        return self.reserve(run_key=weekly_run_key(start, end), job_kind="weekly", window_from=start, window_to=end, **kwargs)
+
+    def reserve(
+        self,
+        *,
+        run_key: str,
+        job_kind: str,
+        window_from: date,
+        window_to: date,
+        trigger: str = "schedule",
+        requested_by: str = "system:scheduler",
+        recovery_of: str | None = None,
+    ) -> ScheduleExecution | None:
+        if job_kind not in {"daily", "weekly"} or trigger not in {"schedule", "manual"}:
+            raise ValueError("invalid schedule request")
+        if trigger == "schedule" and (not self.settings.scheduler_enabled or requested_by != "system:scheduler"):
+            return None if not self.settings.scheduler_enabled else (_ for _ in ()).throw(ValueError("invalid scheduler actor"))
+        if not isinstance(requested_by, str) or not requested_by.strip() or window_from > window_to:
+            raise ValueError("invalid reservation")
+
+        def fn(session: Session) -> ScheduleExecution:
+            reservation = session.get(ScheduleReservation, run_key)
+            if reservation is None:
+                if recovery_of is not None:
+                    raise ScheduleConflictError("recovery requires an existing reservation")
+                reservation = ScheduleReservation(run_key=run_key, job_kind=job_kind, window_from=window_from, window_to=window_to, timezone="Asia/Seoul", created_at=self._now())
+                session.add(reservation)
+                session.flush()
+                row = ScheduleExecution(execution_id="sched-" + uuid4().hex, run_key=run_key, job_kind=job_kind, trigger=trigger, status="예약", requested_by=requested_by.strip())
+                session.add(row)
+                session.flush()
+                return row
+            if reservation.job_kind != job_kind or reservation.window_from != window_from or reservation.window_to != window_to:
+                raise ScheduleConflictError("reservation identity mismatch")
+            if recovery_of is not None:
+                target = session.get(ScheduleExecution, recovery_of)
+                if target is None or target.run_key != run_key or target.status not in {"실패", "부분 성공", "건너뜀"}:
+                    raise ScheduleConflictError("only failed, partial, or skipped execution may be recovered")
+                row = ScheduleExecution(execution_id="sched-" + uuid4().hex, run_key=run_key, job_kind=job_kind, trigger="manual", status="예약", recovery_of_execution_id=target.execution_id, requested_by=requested_by.strip())
+                session.add(row)
+                session.flush()
+                return row
+            existing = session.scalar(select(ScheduleExecution).where(ScheduleExecution.run_key == run_key).order_by(ScheduleExecution.execution_id.asc()).limit(1))
+            if existing is None:
+                raise ScheduleConflictError("reservation has no execution")
+            row = ScheduleExecution(execution_id="sched-" + uuid4().hex, run_key=run_key, job_kind=job_kind, trigger=trigger, status="건너뜀", duplicate_of_execution_id=existing.execution_id, skip_reason="duplicate_reservation", requested_by=requested_by.strip())
+            session.add(row)
+            session.flush()
+            self._audit(session, "schedule.execution_skipped_duplicate", row.execution_id, {"run_key": run_key, "duplicate_of": existing.execution_id, "skip_reason": "duplicate_reservation"})
+            return row
+
+        try:
+            return self._run(fn)
+        except IntegrityError:
+            if recovery_of is not None:
+                raise ScheduleConflictError("reservation race during recovery") from None
+            # The PK winner is now visible to a fresh transaction.  Record the
+            # loser as a skipped execution and do not update the winner.
+            def loser(session: Session) -> ScheduleExecution:
+                existing = session.scalar(select(ScheduleExecution).where(ScheduleExecution.run_key == run_key).order_by(ScheduleExecution.execution_id.asc()).limit(1))
+                if existing is None:
+                    raise ScheduleConflictError("reservation race unresolved")
+                row = ScheduleExecution(execution_id="sched-" + uuid4().hex, run_key=run_key, job_kind=job_kind, trigger=trigger, status="건너뜀", duplicate_of_execution_id=existing.execution_id, skip_reason="duplicate_reservation", requested_by=requested_by.strip())
+                session.add(row)
+                session.flush()
+                self._audit(session, "schedule.execution_skipped_duplicate", row.execution_id, {"run_key": run_key, "duplicate_of": existing.execution_id, "skip_reason": "duplicate_reservation"})
+                return row
+
+            return self._run(loser)
+
+    create_reservation = reserve
+    reserve_run = reserve
+
+    def recover(self, execution_id: str, *, requested_by: str) -> ScheduleExecution:
+        if not isinstance(requested_by, str) or not requested_by.strip():
+            raise ValueError("requested_by is required")
+        def fn(session: Session) -> ScheduleExecution:
+            target = session.get(ScheduleExecution, execution_id)
+            if target is None:
+                raise ScheduleConflictError("execution not found")
+            reservation = session.get(ScheduleReservation, target.run_key)
+            if reservation is None:
+                raise ScheduleConflictError("reservation not found")
+            if target.status not in {"실패", "부분 성공", "건너뜀"}:
+                raise ScheduleConflictError("successful execution cannot be recovered")
+            row = ScheduleExecution(execution_id="sched-" + uuid4().hex, run_key=target.run_key, job_kind=target.job_kind, trigger="manual", status="예약", recovery_of_execution_id=target.execution_id, requested_by=requested_by.strip())
+            session.add(row)
+            session.flush()
+            return row
+
+        return self._run(fn)
+
+    manual_recovery = recover
+    recover_execution = recover
+
+    def get_execution(self, execution_id: str) -> ScheduleExecution | None:
+        return self._run(lambda session: session.get(ScheduleExecution, execution_id))
+
+    def list_executions(self, *, status: str | None = None, from_date: date | None = None, to_date: date | None = None, limit: int = 100, offset: int = 0) -> list[ScheduleExecution]:
+        if not 1 <= limit <= 500 or offset < 0:
+            raise ValueError("invalid pagination")
+
+        def fn(session: Session) -> list[ScheduleExecution]:
+            stmt = select(ScheduleExecution).join(ScheduleReservation, ScheduleExecution.run_key == ScheduleReservation.run_key)
+            if status is not None:
+                stmt = stmt.where(ScheduleExecution.status == status)
+            if from_date is not None:
+                stmt = stmt.where(ScheduleReservation.window_to >= from_date)
+            if to_date is not None:
+                stmt = stmt.where(ScheduleReservation.window_from <= to_date)
+            return list(session.scalars(stmt.order_by(ScheduleReservation.window_from.desc(), ScheduleExecution.execution_id.desc()).limit(limit).offset(offset)))
+
+        return self._run(fn)
+
+    # Always-on switch and gate --------------------------------------
+    def get_always_on(self) -> AlwaysOnState:
+        return self._run(lambda session: self._ensure_switch(session))
+
+    get_always_on_state = get_always_on
+
+    def set_enabled(
+        self,
+        enabled: bool,
+        *,
+        confirmed_by: str | None = None,
+        updated_by: str | None = None,
+    ) -> EnableResult:
+        confirmed_by = confirmed_by or updated_by
+        if type(enabled) is not bool or not isinstance(confirmed_by, str) or not confirmed_by.strip():
+            raise ValueError("invalid always-on request")
+        if enabled and not self.settings.scheduler_enabled:
+            self._reject_environment()
+            raise EnvironmentDisabledError("environment_disabled")
+
+        def fn(session: Session) -> EnableResult:
+            state = self._ensure_switch(session)
+            if not enabled:
+                state.enabled = False
+                state.updated_at = self._now()
+                state.updated_by = confirmed_by.strip()
+                self._audit(session, "schedule.always_on_disabled", "1", {"reason": "operator_disabled"})
+                return self._result(state)
+            metadata, reason = self._approval(session)
+            if metadata is None:
+                state.enabled = False
+                state.updated_at = self._now()
+                state.updated_by = "system:quality-gate"
+                self._audit(session, "schedule.always_on_enable_rejected", "1", {"reason": reason or "gate_mismatch"})
+                raise ScheduleGateError(reason or "gate_mismatch")
+            for key, value in metadata.items():
+                setattr(state, key, value)
+            state.enabled = True
+            state.updated_at = self._now()
+            state.updated_by = confirmed_by.strip()
+            self._audit(session, "schedule.always_on_enabled", "1", {"quality_gate_result_id": state.quality_gate_result_id, "policy_version": state.policy_version, "prompt_version": state.prompt_version})
+            return self._result(state)
+
+        result = self._run(fn)
+        self.reschedule()
+        if enabled:
+            self.catch_up(first_enable=True)
+        return result
+
+    set_always_on = set_enabled
+    update_always_on = set_enabled
+
+    def _effective_enabled(self) -> bool:
+        if not self.settings.scheduler_enabled:
+            return False
+
+        def fn(session: Session) -> bool:
+            state = self._ensure_switch(session)
+            if not state.enabled:
+                return False
+            metadata, reason = self._approval(session)
+            if metadata is None or any(getattr(state, key) != value for key, value in metadata.items()):
+                state.enabled = False
+                state.updated_at = self._now()
+                state.updated_by = "system:quality-gate"
+                self._audit(session, "schedule.always_on_disabled", "1", {"reason": reason or "approval_metadata_mismatch"})
+                return False
+            return True
+
+        return bool(self._run(fn))
+
+    effective_enabled = _effective_enabled
+    is_effectively_enabled = _effective_enabled
+
+    def _profile_identity(self, session: Session) -> tuple[str, str] | None:
+        try:
+            digest = read_working_tree_source(Path(self.settings.bidops_root)).digest
+        except Exception:
+            # A DB snapshot without readable current bytes is not proof that
+            # the current profile is unchanged.  Disable automatic scheduling
+            # rather than silently approving a stale profile.
+            return None
+        return f"company-profile.sha256:{digest}", digest
+
+    def _approval(self, session: Session) -> tuple[dict[str, Any] | None, str | None]:
+        policy = session.scalar(select(ScreeningPolicy).where(ScreeningPolicy.status == "active", ScreeningPolicy.active_slot == 1))
+        if policy is None:
+            return None, "active_policy_missing"
+        profile = self._profile_identity(session)
+        if profile is None:
+            return None, "profile_unavailable"
+        evaluation = session.scalar(select(QualityGateEvaluation).join(QualityGate, QualityGate.gate_id == QualityGateEvaluation.gate_id).where(QualityGate.purpose == "operational_approval", QualityGate.execution_status == "완료", QualityGateEvaluation.result_status == "통과").order_by(QualityGateEvaluation.created_at.desc(), QualityGateEvaluation.revision.desc()).limit(1))
+        if evaluation is None:
+            return None, "operational_approval_missing"
+        gate = session.get(QualityGate, evaluation.gate_id)
+        # The immutable evaluation is authoritative.  ``quality_gate`` is a
+        # projection and may be updated by a trigger after the evaluation is
+        # appended, so its result label is not an approval source.
+        if gate is None or gate.execution_status != "완료":
+            return None, "operational_approval_invalid"
+        latest = session.scalar(select(QualityGateEvaluation.revision).where(QualityGateEvaluation.gate_id == gate.gate_id).order_by(QualityGateEvaluation.revision.desc()).limit(1))
+        if latest != evaluation.revision:
+            return None, "operational_approval_not_latest"
+        if (gate.policy_version != policy.policy_version or gate.prompt_version != policy.prompt_version or gate.company_profile_version != profile[0] or gate.company_profile_digest != profile[1] or policy.quality_gate_result_id != evaluation.evaluation_id):
+            return None, "approval_metadata_mismatch"
+        inspector = self.ollama or OllamaClient(settings=self.settings)
+        try:
+            identity = inspector.inspect_model()
+        except Exception:
+            return None, "ollama_unavailable"
+        if identity.model_name != self.settings.model_name or identity.model_name != gate.model_name or identity.digest != gate.model_digest:
+            return None, "model_identity_mismatch"
+        return {
+            "quality_gate_result_id": evaluation.evaluation_id,
+            "policy_version": policy.policy_version,
+            "model_name": gate.model_name,
+            "model_digest": gate.model_digest,
+            "prompt_version": policy.prompt_version,
+            "company_profile_version": profile[0],
+            "company_profile_digest": profile[1],
+        }, None
+
+    # Catch-up and callbacks -----------------------------------------
+    def _daily_callback(self) -> Any:
+        if not self._effective_enabled():
+            return None
+        row = self.reserve_daily(previous_daily_target(self.clock()))
+        if row is not None and row.status == "예약":
+            if self.on_daily:
+                return self.on_daily(row.execution_id)
+        return row
+
+    def _weekly_callback(self) -> Any:
+        if not self._effective_enabled():
+            return None
+        start, end = previous_week_window(self.clock())
+        row = self.reserve_weekly(start, end)
+        if row is not None and row.status == "예약":
+            if self.on_weekly:
+                return self.on_weekly(row.execution_id)
+        return row
+
+    def catch_up(self, *, first_enable: bool = False) -> list[ScheduleExecution]:
+        # A stale/mismatched projection is disabled before any reservation is
+        # created.  This keeps restart catch-up subject to the same approval
+        # boundary as the cron callbacks.
+        if not self.settings.scheduler_enabled or not self._effective_enabled():
+            return []
+        now = _local(self.clock())
+        rows: list[ScheduleExecution] = []
+        setting = self.get_schedule_settings()
+        yesterday = now.date() - timedelta(days=1)
+        if first_enable:
+            if now.time().replace(tzinfo=None) >= _clock_time(setting.daily_time):
+                row = self.reserve_daily(yesterday)
+                if row is not None and row.status == "예약":
+                    rows.append(row)
+        else:
+            existing = self._run(lambda s: list(s.scalars(select(ScheduleReservation).where(ScheduleReservation.job_kind == "daily").order_by(ScheduleReservation.window_to.asc()))))
+            if existing:
+                day = max(x.window_to for x in existing) + timedelta(days=1)
+                while day <= yesterday:
+                    row = self.reserve_daily(day)
+                    if row is not None and row.status == "예약":
+                        rows.append(row)
+                    day += timedelta(days=1)
+        monday = now.date() - timedelta(days=now.date().weekday())
+        if first_enable and now.date().weekday() == 0 and now.time().replace(tzinfo=None) >= _clock_time(setting.weekly_time):
+            start, end = monday - timedelta(days=7), monday - timedelta(days=1)
+            if not self._weekly_exists(start, end):
+                row = self.reserve_weekly(start, end)
+                if row is not None and row.status == "예약":
+                    rows.append(row)
+        elif not first_enable:
+            start, end = monday - timedelta(days=7), monday - timedelta(days=1)
+            if not self._weekly_exists(start, end):
+                row = self.reserve_weekly(start, end)
+                if row is not None and row.status == "예약":
+                    rows.append(row)
+        return rows
+
+    def _switch_enabled(self) -> bool:
+        return bool(self._run(lambda s: self._ensure_switch(s).enabled))
+
+    def _weekly_exists(self, start: date, end: date) -> bool:
+        return bool(self._run(lambda s: s.get(ScheduleReservation, weekly_run_key(start, end)) is not None))
+
+    # Helpers ---------------------------------------------------------
+    def _ensure_switch(self, session: Session) -> AlwaysOnState:
+        row = session.get(AlwaysOnState, 1)
+        if row is None:
+            row = AlwaysOnState(singleton_id=1, enabled=False, updated_at=self._now(), updated_by="system:scheduler")
+            session.add(row)
+            session.flush()
+        return row
+
+    @staticmethod
+    def _audit(session: Session, event_type: str, target_id: str, details: dict[str, Any]) -> None:
+        allowed = {"reason", "run_key", "duplicate_of", "skip_reason", "quality_gate_result_id", "policy_version", "prompt_version"}
+        session.add(AuditEvent(event_id="audit-" + uuid4().hex, event_type=event_type, actor="system:scheduler", target_type="schedule", target_id=target_id, occurred_at=utc_now(), details_json={k: v for k, v in details.items() if k in allowed}))
+
+    @staticmethod
+    def _result(state: AlwaysOnState) -> EnableResult:
+        return EnableResult(state.enabled, state.quality_gate_result_id, state.policy_version, state.model_name, state.model_digest, state.prompt_version, state.company_profile_version, state.company_profile_digest)
+
+    def _reject_environment(self) -> None:
+        self._run(lambda s: self._audit(s, "schedule.always_on_enable_rejected", "1", {"reason": "environment_disabled"}))
+
+
+ScheduleService = SchedulerService
+Scheduler = SchedulerService
+ScheduleReservationService = SchedulerService
+
+__all__ = [
+    "DAILY_JOB_ID", "WEEKLY_JOB_ID", "EnableResult", "EnvironmentDisabledError",
+    "ScheduleConflictError", "ScheduleError", "ScheduleGateError", "ScheduleService",
+    "Scheduler", "SchedulerService", "ScheduleReservationService", "TIMEZONE", "daily_run_key", "weekly_run_key",
+    "previous_daily_target", "previous_week_window",
+]
