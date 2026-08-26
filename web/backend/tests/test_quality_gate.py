@@ -2,17 +2,19 @@ from __future__ import annotations
 
 import json
 import hashlib
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, func, select, update
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import Settings
 from app.db import Base
-from app.models import AuditEvent, CompanyProfileSnapshot, QualityGate, QualityGateEvaluation, QualityGateReview, Run, ScreeningExecution, ScreeningPolicy
+from app.ingest.loader import ingest_run, deterministic_run_id
+from app.models import AuditEvent, CompanyProfileSnapshot, Judgment, Notice, QualityGate, QualityGateEvaluation, QualityGateReview, Run, ScreeningExecution, ScreeningPolicy
 from app.screening.artifacts import ArtifactStore
 from app.screening.contracts import MODEL_NAME, ModelIdentity
 from app.screening.orchestrator import CreatedExecution, ScreeningCreationError, ScreeningOrchestrator
@@ -22,8 +24,13 @@ from app.screening.generation_config import legacy_generation_config
 from app.screening.quality_metrics import judgment_digest
 from app.screening.quality_gate import (
     FIXED_BASELINE_RELATIVE,
+    FIXED_BASELINE_DIGEST,
+    FIXED_RESULTS_DIGEST,
+    FIXED_SAMPLE_DIGEST,
+    FIXED_RESULTS_RELATIVE,
     FIXED_RUN_ID,
     FIXED_SAMPLE_RELATIVE,
+    QualityGateConflict,
     QualityGateValidationError,
     validate_fixed_inputs,
     QualityGateService,
@@ -131,6 +138,44 @@ def _service_fixture(root: Path, *, sample_count: int = 40):
     return settings, engine, factory
 
 
+def _canonical_service_fixture(root: Path):
+    """Build the production fixed source and ingest its suffixed Run row."""
+
+    production_root = Path(__file__).resolve().parents[3]
+    run_dir = root / "data/runs" / FIXED_RUN_ID
+    run_dir.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(production_root / "data/runs" / FIXED_RUN_ID, run_dir)
+    (root / "docs/reference").mkdir(parents=True, exist_ok=True)
+    shutil.copy(production_root / "docs/reference/company-profile.md", root / "docs/reference/company-profile.md")
+    settings = Settings(bidops_root=root, data_dir=root / "data", database_url=f"sqlite:///{root / 'quality.db'}")
+    engine = create_engine(settings.database_url, future=True)
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(bind=engine, expire_on_commit=False)
+    body = load_policy_file()
+    body["policy_version"] = "policy-1"
+    with factory() as session:
+        ingested = ingest_run(run_dir, session, reports_root=root / "reports")
+        session.add(ScreeningPolicy(
+            policy_version=body["policy_version"], prompt_version=body["prompt_version"],
+            content_digest=policy_content_digest(body), status="activation_candidate",
+            schema_version=body["schema_version"], perspective_prompts_json=body["perspective_prompts"],
+            counterargument_prompt_json=body["counterargument_prompt"],
+            synthesis_prompt_json=body["synthesis_prompt"], candidate_selection_json=body["candidate_selection"],
+            thresholds_json=body["thresholds"],
+            created_at=NOW, created_by="tester",
+        ))
+        session.commit()
+    return settings, engine, factory, run_dir, ingested.run_id
+
+
+def _assert_no_gate_side_effects(engine, root: Path) -> None:
+    with Session(engine) as session:
+        assert session.scalar(select(func.count()).select_from(QualityGate)) == 0
+        assert session.scalar(select(func.count()).select_from(ScreeningExecution)) == 0
+    execution_root = root / "data/screening-executions"
+    assert not execution_root.exists() or not list(execution_root.iterdir())
+
+
 class _FailingPassOrchestrator:
     def __init__(self, settings, factory):
         self.settings = settings
@@ -209,32 +254,21 @@ def test_purpose_profile_source_mismatch_has_no_side_effects(tmp_path: Path, pur
 
 def test_production_transaction_preparer_publishes_two_fifo_rows_atomically(tmp_path: Path):
     root = tmp_path
-    _fixed_fixture(root)
-    from tests.test_screening_orchestrator import _notice
-
-    notices = [
-        {**_notice(f"n-{index}"), "sample_stratum": "AI/데이터", "sample_role": "analysis" if index % 2 == 0 else "audit"}
-        for index in range(40)
-    ]
-    (root / FIXED_SAMPLE_RELATIVE).write_text(
-        json.dumps({"schema_version": "bidops.validation-set.v2", "source_window": {"from": "2026-08-17", "to": "2026-08-23", "timezone": "Asia/Seoul"}, "notices": notices}, ensure_ascii=False), encoding="utf-8"
-    )
+    production_root = Path(__file__).resolve().parents[3]
     run_dir = root / "data/runs" / FIXED_RUN_ID
-    run_dir.mkdir(parents=True, exist_ok=True)
-    (run_dir / "collected-notices.json").write_text(json.dumps({
-        "schema_version": "bidops.collected.v2",
-        "source_window": {"from": "2026-08-17", "to": "2026-08-23", "timezone": "Asia/Seoul"},
-        "notices": notices,
-    }, ensure_ascii=False), encoding="utf-8")
+    run_dir.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(production_root / "data/runs" / FIXED_RUN_ID, run_dir)
     (root / "docs/reference").mkdir(parents=True, exist_ok=True)
-    (root / "docs/reference/company-profile.md").write_text("# profile\n", encoding="utf-8")
+    shutil.copy(production_root / "docs/reference/company-profile.md", root / "docs/reference/company-profile.md")
     settings = Settings(bidops_root=root, data_dir=root / "data", database_url=f"sqlite:///{root / 'quality.db'}")
     engine = create_engine(settings.database_url, future=True, connect_args={"check_same_thread": False})
     Base.metadata.create_all(engine)
     factory = sessionmaker(bind=engine, expire_on_commit=False)
     body = load_policy_file()
     with factory() as session:
-        session.add(Run(id=FIXED_RUN_ID, timezone="Asia/Seoul", generated_at=NOW, status="active"))
+        ingested = ingest_run(run_dir, session, reports_root=root / "reports")
+        canonical_run_id = ingested.run_id
+        assert canonical_run_id == "20260817-20260823--20260824T090927.138116Z"
         session.add(ScreeningPolicy(
             policy_version=body["policy_version"], schema_version=body["schema_version"],
             prompt_version=body["prompt_version"], content_digest=policy_content_digest(body),
@@ -254,16 +288,173 @@ def test_production_transaction_preparer_publishes_two_fifo_rows_atomically(tmp_
         purpose="operational_approval", policy_version=body["policy_version"], profile_source="current", created_by="tester"
     )
     with Session(engine) as session:
+        assert session.get(Run, FIXED_RUN_ID) is None
+        run = session.get(Run, canonical_run_id)
+        assert run is not None
         rows = session.scalars(select(ScreeningExecution).order_by(ScreeningExecution.queue_no)).all()
         assert [row.execution_id for row in rows] == [gate.pass_a_execution_id, gate.pass_b_execution_id]
         assert [row.queue_no for row in rows] == [1, 2]
         assert all(row.status == "대기" for row in rows)
+        assert [row.source_run_id for row in rows] == [canonical_run_id, canonical_run_id]
+        gate_row = session.get(QualityGate, gate.gate_id)
+        assert gate_row is not None
+        assert gate_row.baseline_run_id == canonical_run_id
+        assert session.get(Run, gate_row.baseline_run_id).id == canonical_run_id
     a = ArtifactStore(root).read_json(gate.pass_a_execution_id, "screening-input.json")
     b = ArtifactStore(root).read_json(gate.pass_b_execution_id, "screening-input.json")
+    sample, _baseline, _sample_raw, _baseline_raw, sample_ids = validate_fixed_inputs(root, strict=True)
     assert a["execution_id"] != b["execution_id"]
+    assert a["run_id"] == canonical_run_id and b["run_id"] == canonical_run_id
     assert a["notices"] == b["notices"]
+    assert _input_matches_fixed_sample(a, sample, sample_ids)
+    assert _input_matches_fixed_sample(b, sample, sample_ids)
+    assert [item["notice_id"] for item in a["notices"]] == sample_ids
+    assert [item["notice_id"] for item in b["notices"]] == sample_ids
+    assert a["candidate_count"] == b["candidate_count"] == 40
     assert a["source_window"] == {"from": "2026-08-17", "to": "2026-08-23", "timezone": "Asia/Seoul"}
     assert all(item["judgment_mode"] == "신규" and item["carry_over_from"] is None and item["rejudge_reason"] is None for item in a["notices"])
+
+
+@pytest.mark.parametrize(
+    ("relative", "expected_digest"),
+    [
+        (FIXED_SAMPLE_RELATIVE, FIXED_SAMPLE_DIGEST),
+        (FIXED_BASELINE_RELATIVE, FIXED_BASELINE_DIGEST),
+        (FIXED_RESULTS_RELATIVE, FIXED_RESULTS_DIGEST),
+    ],
+)
+def test_trusted_fixed_hash_pin_tamper_is_fail_closed_without_side_effects(
+    tmp_path: Path, relative: str, expected_digest: str
+):
+    settings, engine, factory, _run_dir, canonical_run_id = _canonical_service_fixture(tmp_path)
+    path = tmp_path / relative
+    original = path.read_bytes()
+    path.write_bytes(original + b"\n")
+    assert hashlib.sha256(original).hexdigest() == expected_digest
+    with pytest.raises(QualityGateValidationError):
+        QualityGateService(settings, session_factory=factory, orchestrator=SimpleNamespace()).create_gate(
+            purpose="operational_approval", policy_version="policy-1", profile_source="current", created_by="tester"
+        )
+    _assert_no_gate_side_effects(engine, tmp_path)
+    with Session(engine) as session:
+        assert session.get(Run, canonical_run_id) is not None
+
+
+@pytest.mark.parametrize("mutation", ["missing", "stale", "superseded", "ambiguous"])
+def test_fixed_run_resolver_rejects_missing_stale_superseded_and_ambiguous_rows(
+    tmp_path: Path, mutation: str
+):
+    settings, engine, factory, _run_dir, canonical_run_id = _canonical_service_fixture(tmp_path)
+    with factory() as session:
+        run = session.get(Run, canonical_run_id)
+        assert run is not None
+        if mutation == "missing":
+            session.delete(run)
+        elif mutation == "stale":
+            run.generated_at = datetime(2026, 8, 24, 9, 9, 28, 138116, tzinfo=timezone.utc)
+        elif mutation == "superseded":
+            run.status = "superseded"
+        else:
+            session.add(Run(
+                id="20260817-20260823--20260824T090928Z", window_from=run.window_from,
+                window_to=run.window_to, timezone=run.timezone, generated_at=run.generated_at, status="active",
+            ))
+        session.commit()
+    with pytest.raises(QualityGateValidationError):
+        QualityGateService(settings, session_factory=factory, orchestrator=SimpleNamespace()).create_gate(
+            purpose="operational_approval", policy_version="policy-1", profile_source="current", created_by="tester"
+        )
+    _assert_no_gate_side_effects(engine, tmp_path)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["window", "generated_at", "count", "order", "notice_id", "normalized_field", "judgment", "provenance"],
+)
+def test_fixed_run_projection_mismatches_are_rejected_before_gate_side_effects(
+    tmp_path: Path, mutation: str
+):
+    settings, engine, factory, _run_dir, canonical_run_id = _canonical_service_fixture(tmp_path)
+    with factory() as session:
+        run = session.get(Run, canonical_run_id)
+        notices = session.scalars(select(Notice).where(Notice.run_id == canonical_run_id).order_by(Notice.id)).all()
+        assert run is not None and len(notices) == 40
+        if mutation == "window":
+            run.window_to = run.window_to.replace(day=22)
+        elif mutation == "generated_at":
+            run.generated_at = datetime(2026, 8, 24, 9, 9, 28, 138116, tzinfo=timezone.utc)
+        elif mutation == "count":
+            session.delete(notices[-1])
+        elif mutation == "order":
+            first_id, second_id = notices[0].id, notices[1].id
+            first_key, second_key = notices[0].notice_key, notices[1].notice_key
+            session.execute(update(Notice).where(Notice.id == first_id).values(notice_key="__temporary-order-key__"))
+            session.execute(update(Notice).where(Notice.id == second_id).values(notice_key=first_key))
+            session.execute(update(Notice).where(Notice.id == first_id).values(notice_key=second_key))
+        elif mutation == "notice_id":
+            notices[0].notice_key = "bid:tampered:000"
+        elif mutation == "normalized_field":
+            notices[0].title = "tampered normalized title"
+        elif mutation == "judgment":
+            assert notices[0].judgment is not None
+            notices[0].judgment.grade = "제외"
+        else:
+            assert notices[0].judgment is not None
+            notices[0].judgment.schema_version = "bidops.decisions.v1"
+        session.commit()
+    with pytest.raises(QualityGateValidationError):
+        QualityGateService(settings, session_factory=factory, orchestrator=SimpleNamespace()).create_gate(
+            purpose="operational_approval", policy_version="policy-1", profile_source="current", created_by="tester"
+        )
+    _assert_no_gate_side_effects(engine, tmp_path)
+
+
+def test_quality_pass_provenance_alias_is_rejected_before_gate_publish(tmp_path: Path):
+    settings, engine, factory, _run_dir, canonical_run_id = _canonical_service_fixture(tmp_path)
+
+    class AliasBindingOrchestrator:
+        def __init__(self):
+            self.delegate = ScreeningOrchestrator(
+                settings, session_factory=factory,
+                ollama=type("FakeModel", (), {"inspect_model": lambda _self: ModelIdentity(MODEL_NAME, "c" * 64)})(),
+                clock=lambda: NOW,
+            )
+
+        def prepare_execution(self, session, **kwargs):
+            prepared = self.delegate.prepare_execution(session, **kwargs)
+            prepared.row.source_run_id = FIXED_RUN_ID
+            return prepared
+
+    service = QualityGateService(
+        settings, session_factory=factory, orchestrator=AliasBindingOrchestrator()
+    )
+    with pytest.raises(QualityGateConflict):
+        service.create_gate(
+            purpose="operational_approval", policy_version="policy-1", profile_source="current", created_by="tester"
+        )
+    _assert_no_gate_side_effects(engine, tmp_path)
+    with Session(engine) as session:
+        assert session.get(Run, FIXED_RUN_ID) is None
+        assert session.get(Run, canonical_run_id) is not None
+
+
+def test_reingest_fixed_artifacts_reuses_one_canonical_id_and_no_alias_row(tmp_path: Path):
+    production_root = Path(__file__).resolve().parents[3]
+    run_dir = tmp_path / "data/runs" / FIXED_RUN_ID
+    run_dir.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(production_root / "data/runs" / FIXED_RUN_ID, run_dir)
+    engine = create_engine(f"sqlite:///{tmp_path / 'repeat.db'}", future=True)
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        first = ingest_run(run_dir, session, reports_root=tmp_path / "reports")
+        second = ingest_run(run_dir, session, reports_root=tmp_path / "reports")
+        assert first.run_id == second.run_id == deterministic_run_id(
+            FIXED_RUN_ID, datetime(2026, 8, 24, 9, 9, 27, 138116, tzinfo=timezone.utc)
+        )
+        assert session.scalar(select(func.count()).select_from(Run)) == 1
+        assert session.scalar(select(func.count()).select_from(Notice)) == 40
+        assert session.scalar(select(func.count()).select_from(Judgment)) == 40
+        assert session.get(Run, FIXED_RUN_ID) is None
 
 
 def _completed_gate_fixture(root: Path):
