@@ -245,21 +245,21 @@
   background: var(--color-warning-bg);
 }
 .operations-always-on .operations-switch-actions .operations-actor-field > span { color: var(--color-warning); }
-.operations-always-on .operations-switch-actions .operations-button-primary {
+.operations-always-on .operations-switch-actions .operations-button-primary:not(:disabled) {
   border-color: var(--color-warning);
   color: var(--color-warning);
   background: var(--color-white);
 }
-.operations-always-on .operations-switch-actions .operations-button-primary:hover {
+.operations-always-on .operations-switch-actions .operations-button-primary:not(:disabled):hover {
   color: var(--color-white);
   background: var(--color-warning);
 }
-.operations-always-on .operations-switch-actions .operations-button-secondary {
+.operations-always-on .operations-switch-actions .operations-button-secondary:not(:disabled) {
   border-color: var(--color-danger-edge);
   color: var(--color-danger);
   background: var(--color-danger-bg);
 }
-.operations-always-on .operations-switch-actions .operations-button-secondary:hover {
+.operations-always-on .operations-switch-actions .operations-button-secondary:not(:disabled):hover {
   border-color: var(--color-danger);
   background: var(--color-white);
 }
