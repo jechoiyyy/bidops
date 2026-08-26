@@ -480,3 +480,428 @@ export interface ProfileUnknownsResponse {
   reference_fields: string[];
   parse_errors: string[];
 }
+
+// ---------------------------------------------------------------------------
+// Screening runtime REST contracts
+//
+// These types intentionally mirror the strict metadata-only contracts in
+// backend/app/schemas.py.  Datetimes and dates remain ISO strings at the
+// transport boundary; callers can format them for display without losing the
+// timezone or the original date value.
+
+export type Actor = string;
+export type Digest = string;
+export type CompanyProfileVersion = string;
+export type ProfileSource = "current" | `git:${string}`;
+
+export type ScreeningTrigger = "cli_single" | "manual_run" | "quality_gate" | "schedule";
+export type ScreeningScope = "single_notice" | "full_run" | "quality_sample";
+export type ScreeningStatus =
+  | "대기"
+  | "실행 중"
+  | "중지 요청"
+  | "성공"
+  | "부분 성공"
+  | "실패"
+  | "중단됨";
+export type ScreeningStage =
+  | "기술 적합성"
+  | "실적 정합성"
+  | "공공 SI 적합성"
+  | "사업성·자격 제약"
+  | "전략 부합"
+  | "counterargument"
+  | "synthesis"
+  | "merge"
+  | "publish";
+export type ScreeningAttemptStage =
+  | "기술 적합성"
+  | "실적 정합성"
+  | "공공 SI 적합성"
+  | "사업성·자격 제약"
+  | "전략 부합"
+  | "counterargument"
+  | "synthesis"
+  | "carried_over_validation";
+export type ScreeningFailureType =
+  | "timeout"
+  | "truncated_output"
+  | "schema_violation"
+  | "evidence_missing"
+  | "counterargument_repetition";
+export type ScreeningArtifactKind = "decisions" | "failures" | "telemetry" | "screening_result";
+
+export interface JudgmentExecutionCreateRequest {
+  policy_version: string;
+  profile_source: ProfileSource;
+  requested_by: Actor;
+}
+
+export interface ScreeningStopRequest {
+  requested_by: Actor;
+}
+
+export interface ScreeningArtifactUrls {
+  decisions: string | null;
+  failures: string | null;
+  telemetry: string | null;
+  screening_result: string | null;
+  published_run: string | null;
+}
+
+export interface ScreeningExecutionResponse {
+  queue_no: number;
+  execution_id: string;
+  trigger: ScreeningTrigger;
+  source_run_id: string;
+  scope: ScreeningScope;
+  notice_id: string | null;
+  status: ScreeningStatus;
+  requested_by: Actor;
+  policy_version: string;
+  prompt_version: string;
+  model_name: string;
+  model_digest: Digest;
+  company_profile_version: CompanyProfileVersion;
+  company_profile_digest: Digest;
+  input_artifact_digest: Digest;
+  queued_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  heartbeat_at: string | null;
+  stop_requested_at: string | null;
+  stop_requested_by: Actor | null;
+  stop_reason: "user_requested" | "process_interrupted" | null;
+  candidate_count: number;
+  completed_count: number;
+  failure_count: number;
+  published_run_id: string | null;
+  error_summary: string | null;
+  queue_position: number | null;
+  current_notice_id: string | null;
+  current_stage: ScreeningStage | null;
+  result_urls: ScreeningArtifactUrls;
+}
+
+export interface ScreeningAttemptResponse {
+  attempt_id: number;
+  execution_id: string;
+  notice_id: string;
+  stage: ScreeningAttemptStage;
+  attempt_no: number;
+  status: "success" | "failure";
+  failure_type: ScreeningFailureType | null;
+  done_reason: string | null;
+  trace_id: string;
+  span_id: string;
+  prompt_eval_count: number | null;
+  eval_count: number | null;
+  prompt_eval_duration_ns: number | null;
+  eval_duration_ns: number | null;
+  load_duration_ns: number | null;
+  total_duration_ns: number | null;
+  started_at: string;
+  finished_at: string;
+  error_summary: string | null;
+}
+
+export type ScreeningFailureStage =
+  | "기술 적합성"
+  | "실적 정합성"
+  | "공공 SI 적합성"
+  | "사업성·자격 제약"
+  | "전략 부합"
+  | "반론 검토"
+  | "종합 판정"
+  | "병합·검증";
+
+export interface ScreeningFailureItem {
+  notice_id: string;
+  failed_stage: ScreeningFailureStage;
+  failure_type: ScreeningFailureType;
+  last_attempt_at: string;
+  retry_count: number;
+  status: "사람 검토 대기";
+  failure_context: "carried_over_validation" | null;
+  trace_id: string | null;
+  span_id: string | null;
+  error_summary: string;
+}
+
+export interface ScreeningExecutionListResponse {
+  items: ScreeningExecutionResponse[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface ScreeningExecutionDetailResponse extends ScreeningExecutionResponse {
+  attempts: ScreeningAttemptResponse[];
+  failures: ScreeningFailureItem[];
+}
+
+export interface ScreeningExecutionQuery {
+  status?: ScreeningStatus;
+  trigger?: ScreeningTrigger;
+  run_id?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export type CompanyProfileSnapshotSourceKind = "working_tree" | "git_blob";
+
+export interface CompanyProfileSnapshotResponse {
+  version: CompanyProfileVersion;
+  digest: Digest;
+  source_kind: CompanyProfileSnapshotSourceKind;
+  source_ref: string;
+  created_at: string;
+}
+
+export interface CompanyProfileSnapshotListResponse {
+  items: CompanyProfileSnapshotResponse[];
+  total: number;
+}
+
+export type QualityGatePurpose = "model_comparison" | "operational_approval";
+export type QualityGateExecutionStatus = "대기" | "실행 중" | "완료" | "실패" | "중단됨";
+export type QualityGateResultStatus = "통과" | "미달" | "미측정" | "보류";
+export type QualityGateEvidenceJudgment = "동의" | "근거 부족" | "판단 보류";
+export type RuntimeJsonObject = Record<string, JsonValue>;
+
+export interface QualityGateCreateRequest {
+  purpose: QualityGatePurpose;
+  policy_version: string;
+  profile_source: ProfileSource;
+  created_by: Actor;
+}
+
+export interface QualityGateEvaluationResponse {
+  evaluation_id: string;
+  gate_id: string;
+  revision: number;
+  result_status: QualityGateResultStatus;
+  metrics: RuntimeJsonObject;
+  reasons: string[];
+  valid_review_count: number;
+  distinct_notice_review_count: number;
+  created_at: string;
+}
+
+export interface QualityGateReviewResponse {
+  review_id: number;
+  gate_id: string;
+  execution_id: string;
+  notice_id: string;
+  decision_digest: Digest;
+  reviewer: Actor;
+  evidence_judgment: QualityGateEvidenceJudgment;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface QualityGateReviewUpsertRequest {
+  reviewer: Actor;
+  evidence_judgment: QualityGateEvidenceJudgment;
+  note: string | null;
+}
+
+export interface QualityGateResponse {
+  gate_id: string;
+  purpose: QualityGatePurpose;
+  execution_status: QualityGateExecutionStatus;
+  result_status: QualityGateResultStatus;
+  baseline_run_id: string;
+  sample_artifact_digest: Digest;
+  baseline_decisions_digest: Digest;
+  policy_version: string;
+  prompt_version: string;
+  model_name: string;
+  model_digest: Digest;
+  company_profile_version: CompanyProfileVersion;
+  company_profile_digest: Digest;
+  pass_a_execution_id: string;
+  pass_b_execution_id: string;
+  created_by: Actor;
+  created_at: string;
+  completed_at: string | null;
+  latest_evaluation_id: string;
+  metrics: RuntimeJsonObject;
+  reasons: string[];
+}
+
+export interface QualityGateDetailResponse extends QualityGateResponse {
+  pass_a: ScreeningExecutionResponse;
+  pass_b: ScreeningExecutionResponse;
+  evaluations: QualityGateEvaluationResponse[];
+  reviews: QualityGateReviewResponse[];
+}
+
+export interface QualityGateListResponse {
+  items: QualityGateResponse[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface QualityGateQuery {
+  purpose?: QualityGatePurpose;
+  execution_status?: QualityGateExecutionStatus;
+  result_status?: QualityGateResultStatus;
+  limit?: number;
+  offset?: number;
+}
+
+export type PolicyStatus = "draft" | "activation_candidate" | "active";
+
+export interface PolicyVersionCreateRequest {
+  policy_version: string;
+  created_by: Actor;
+  prompt_version: string;
+  perspective_prompts: RuntimeJsonObject;
+  counterargument_prompt: RuntimeJsonObject;
+  synthesis_prompt: RuntimeJsonObject;
+  candidate_selection: RuntimeJsonObject;
+  thresholds: RuntimeJsonObject;
+}
+
+export interface PolicyCandidateRequest {
+  confirmed_by: Actor;
+}
+
+export interface PolicyActivationRequest {
+  quality_gate_result_id: string;
+  confirmed_by: Actor;
+}
+
+export interface PolicyVersionResponse {
+  schema_version: "bidops.screening-policy.v1";
+  policy_version: string;
+  prompt_version: string;
+  perspective_prompts: RuntimeJsonObject;
+  counterargument_prompt: RuntimeJsonObject;
+  synthesis_prompt: RuntimeJsonObject;
+  candidate_selection: RuntimeJsonObject;
+  thresholds: RuntimeJsonObject;
+  content_digest: Digest;
+  status: PolicyStatus;
+  created_at: string;
+  created_by: Actor;
+  activated_at: string | null;
+  activated_by: Actor | null;
+  quality_gate_result_id: string | null;
+}
+
+export interface PolicyVersionListResponse {
+  items: PolicyVersionResponse[];
+  total: number;
+  active_policy_version: string | null;
+}
+
+export interface PolicyVersionQuery {
+  status?: PolicyStatus;
+}
+
+export interface PolicyActivationResponse {
+  policy: PolicyVersionResponse;
+  previous_active_policy_version: string | null;
+  quality_gate_result_id: string;
+  activation_status: "activated";
+  activated_at: string;
+}
+
+export interface ScheduleSettingsResponse {
+  timezone: "Asia/Seoul";
+  daily_time: string;
+  weekly_time: string;
+  prespec_enabled: boolean;
+  updated_at: string;
+  updated_by: Actor;
+}
+
+export interface ScheduleSettingsUpdateRequest {
+  daily_time?: string;
+  weekly_time?: string;
+  prespec_enabled?: boolean;
+  updated_by: Actor;
+}
+
+export type ScheduleJobKind = "daily" | "weekly";
+export type ScheduleStatus = "예약" | "실행 중" | "성공" | "부분 성공" | "실패" | "건너뜀";
+export type ScheduleTrigger = "schedule" | "manual";
+
+export interface ScheduleExecutionCreateRequest {
+  job_kind: ScheduleJobKind;
+  window_from: string;
+  window_to: string;
+  recovery_of_execution_id: string | null;
+  requested_by: Actor;
+}
+
+export interface ScheduleExecutionSummary {
+  run_key: string;
+  run_id: string | null;
+  window_from: string;
+  window_to: string;
+  job_kind: ScheduleJobKind;
+  status: ScheduleStatus;
+  execution_id: string;
+  trigger: ScheduleTrigger;
+  duplicate_of_execution_id: string | null;
+  recovery_of_execution_id: string | null;
+  skip_reason: string | null;
+  failure_reason: string | null;
+  requested_by: Actor;
+  started_at: string | null;
+  finished_at: string | null;
+  candidate_count: number | null;
+  result_count: number | null;
+  failure_count: number | null;
+  partial_artifact: boolean | null;
+  policy_version: string | null;
+  model_name: string | null;
+  model_digest: Digest | null;
+  prompt_version: string | null;
+  company_profile_version: CompanyProfileVersion | null;
+  company_profile_digest: Digest | null;
+}
+
+export interface ScheduleExecutionListResponse {
+  items: ScheduleExecutionSummary[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface ScheduleExecutionQuery {
+  job_kind?: ScheduleJobKind;
+  status?: ScheduleStatus;
+  from?: string;
+  to?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface AlwaysOnSwitchUpdateRequest {
+  enabled: boolean;
+  confirmed_by: Actor;
+  quality_gate_result_id: string | null;
+}
+
+export interface AlwaysOnSwitchResponse {
+  configured_enabled: boolean;
+  effective_enabled: boolean;
+  environment_enabled: boolean;
+  quality_gate_status: QualityGateResultStatus | null;
+  quality_gate_result_id: string | null;
+  policy_version: string | null;
+  model_name: string | null;
+  model_digest: Digest | null;
+  prompt_version: string | null;
+  company_profile_version: CompanyProfileVersion | null;
+  company_profile_digest: Digest | null;
+  updated_at: string;
+  updated_by: Actor;
+  rejection_reason: string | null;
+}
