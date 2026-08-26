@@ -156,10 +156,18 @@ def extract_pdf(data: bytes, options: ProcessorOptions) -> tuple[list[dict[str, 
         reference = _REF.search(page_obj)
         references = _REFS.search(page_obj)
         if reference:
-            content_parts.append(_stream_body(objects.get((int(reference.group(1)), int(reference.group(2))), b""), decoded_budget))
+            content_key = (int(reference.group(1)), int(reference.group(2)))
+            content_object = objects.get(content_key)
+            if content_object is None:
+                raise DocumentProcessingError("malformed_pdf", "PDF content object가 손상되었습니다")
+            content_parts.append(_stream_body(content_object, decoded_budget))
         elif references:
             for number, generation in re.findall(rb"(\d+)\s+(\d+)\s+R", references.group(1)):
-                content_parts.append(_stream_body(objects.get((int(number), int(generation)), b""), decoded_budget))
+                content_key = (int(number), int(generation))
+                content_object = objects.get(content_key)
+                if content_object is None:
+                    raise DocumentProcessingError("malformed_pdf", "PDF content object가 손상되었습니다")
+                content_parts.append(_stream_body(content_object, decoded_budget))
         elif b"stream" in page_obj:
             content_parts.append(_stream_body(page_obj, decoded_budget))
         content = b"".join(content_parts)
