@@ -42,10 +42,19 @@ visual의 10 skip은 draft spec의 mobile/tablet 너비 조건에 따른 의도�
 
 [아키텍처](../architecture.md) · [에이전트 런타임](../agent-runtime.md) · [스케줄링](../scheduling.md) · [모델 품질 게이트](../model-quality-gate.md) · [외부 인터페이스 계약](../contracts.md) · [운영 절차](../operations.md) · [구현·검증 표준](../standards.md)
 
+## T15 Phase 1 generation-bound live retry (2026-08-26)
+
+- generation binding 후 승인된 current-profile 단일 live execution `scr-72a1ae87342d4d4485fbb467b0e4d3fa`가 exact Ollama `http://192.168.0.139:11434`, tag `qwen3.8:27b`, digest `22130167c4c20e20c7b71454612966ca8e8171e9b3cc8ab6ce8aa6cbfec79643`로 `성공`했다.
+- 7 logical stages(5 perspectives + counterargument + synthesis), 8 attempts, v3 judgment 1건을 확인했다. 첫 synthesis `schema_violation` 후 bounded retry가 성공했으며 모든 attempts/telemetry가 generation digest `51f1878845ed282b20e9c074ca29adbb5ce0a208c89ffae51425a2565ad5dfd1`에 결합됐다.
+- 성공 조건 확인 후 stop execution `scr-650cd5e1eea04205b8ffffeaa789df7f`를 실제 `counterargument` 호출 중 한 번 중지했다. actor `t15-validation`, reason `user_requested`, terminal `중단됨`; 6 attempts, synthesis 0건, 부분 artifact 보존을 확인했다.
+- 전용 retry DB는 Alembic `0005_generation_config_binding`, policy `activation_candidate`로 유지된다. always-on `false`, schedule `prespec_enabled=false`, `BIDOPS_SCHEDULER_ENABLED=false`, quality gate/schedule execution 0건이다.
+- 기존 synthesis-truncation 실패 문서는 수정하지 않았다. 이번 결과는 Phase 1 live retry/stop 증거이며 T15 전체 완료, 40건 A/B 완료, Phase 2/3 gate 통과를 의미하지 않는다. 상세 증거는 [T15 Phase 1 generation-bound live retry](../validation-runs/20260826-t15-phase1-live-retry.md)에 있다.
+
 ## T15 generation-budget binding implementation
 
-stage-aware immutable generation config, migration `0005_generation_config_binding`, A/B/activation/scheduler binding, and fake-only tests are implemented in the T15 worktree. The implementation has not been live revalidated; the Phase 1 synthesis-truncation failure evidence above remains unchanged and no success claim is made.
+stage-aware immutable generation config, migration `0005_generation_config_binding`, A/B/activation/scheduler binding, and fake-only tests are implemented in the T15 worktree. The generation binding was live revalidated once in the Phase 1 retry above; the prior synthesis-truncation failure evidence remains unchanged. This is not a T15-wide completion or Phase 2/3 gate result.
 
 Runtime/API follow-up keeps the same status boundary: canonical JSON+digest
-roundtrip and fail-closed drift/tamper checks are fake-tested only. No Phase 1
-success or live revalidation claim is made.
+roundtrip and fail-closed drift/tamper checks are fake-tested only. The separate
+stop-smoke evidence and partial artifacts are recorded in the Phase 1 retry
+document; no activation or always-on state change was made.
