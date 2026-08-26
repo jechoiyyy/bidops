@@ -8,7 +8,7 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from sqlalchemy import case, select
 from sqlalchemy.orm import Session, selectinload
 
@@ -16,7 +16,7 @@ from ..config import get_settings
 from ..constants import GRADE_ORDER, READINESS_ORDER
 from ..db import get_db
 from ..ingest.loader import discover_run_dirs, ingest_run
-from ..models import IngestWarning, Judgment, Notice, Run
+from ..models import IngestWarning, Judgment, Notice, Run, ScreeningExecution, ScreeningPolicy
 from ..schemas import (
     ArtifactValidationResponse,
     CollectionScopeResponse,
@@ -25,6 +25,8 @@ from ..schemas import (
     FunnelItem,
     IngestRequest,
     IngestResponse,
+    JudgmentExecutionCreateRequest,
+    ScreeningExecutionResponse,
     PipelineExecutionResponse,
     PipelineLogResponse,
     PipelineLogLineResponse,
@@ -44,6 +46,9 @@ from ..services.pipeline import (
     execution_response,
     log_response,
 )
+from ..screening.ollama import ModelInspectionError
+from ..screening.orchestrator import ScreeningCreationError, ScreeningOrchestrator
+from .screening import execution_response as screening_execution_response
 from .common import (
     get_run,
     load_json_file,
@@ -58,6 +63,18 @@ router = APIRouter(prefix="/api/runs", tags=["runs"])
 
 FOCUS_ORDER = ["AI/데이터", "블록체인·DID", "공공 SI·통합관리", "해당 없음"]
 pipeline_service = PipelineService()
+
+
+def _pipeline_service(request: Request) -> PipelineService:
+    value = getattr(request.app.state, "pipeline_service", None)
+    return value if callable(getattr(value, "start", None)) else pipeline_service
+
+
+def _screening_orchestrator(request: Request, session: Session) -> ScreeningOrchestrator:
+    value = getattr(request.app.state, "screening_orchestrator", None)
+    if callable(getattr(value, "create_execution", None)):
+        return value
+    return ScreeningOrchestrator(session_factory=session)
 
 
 def _run_warnings(session: Session, run_id: str) -> list[IngestWarning]:
@@ -259,6 +276,57 @@ def ingest_selected_run(
     )
 
 
+@router.post("/{run_id}/pipeline/judgment", response_model=ScreeningExecutionResponse, status_code=202)
+def start_judgment_pipeline(
+    run_id: str,
+    payload: JudgmentExecutionCreateRequest,
+    request: Request,
+    session: Session = Depends(get_db),
+) -> ScreeningExecutionResponse:
+    """Enqueue one immutable full-run judgment and return immediately."""
+
+    run = get_run(session, run_id)
+    orchestrator = _screening_orchestrator(request, session)
+    try:
+        # A fresh tags inspection is deliberately done before any artifact or
+        # queue write.  The orchestrator repeats the binding while preparing
+        # the frozen input, so a changed model cannot be silently accepted.
+        ollama = getattr(orchestrator, "ollama", None)
+        if ollama is not None:
+            ollama.inspect_model(refresh=True)
+        created = orchestrator.create_execution(
+            run_id=run.id,
+            policy_version=payload.policy_version,
+            profile_source=payload.profile_source,
+            requested_by=payload.requested_by,
+            scope="full_run",
+            trigger="manual_run",
+        )
+    except ModelInspectionError as exc:
+        raise HTTPException(status_code=503, detail="모델 사전 확인을 완료할 수 없습니다.") from exc
+    except ScreeningCreationError as exc:
+        if exc.code in {"precondition_failed", "model_inspection", "ollama_unavailable"}:
+            raise HTTPException(status_code=503, detail="모델 사전 확인을 완료할 수 없습니다.") from exc
+        if exc.code == "profile_snapshot":
+            raise HTTPException(status_code=400, detail="회사 프로필 스냅샷을 준비할 수 없습니다.") from exc
+        if exc.code in {"policy_mismatch", "input_error"}:
+            # Missing policy/profile and malformed frozen input are reported
+            # without exposing filesystem paths or policy/profile contents.
+            if exc.code == "policy_mismatch" and session.get(ScreeningPolicy, payload.policy_version) is None:
+                raise HTTPException(status_code=404, detail="정책 버전을 찾을 수 없습니다.") from exc
+            raise HTTPException(status_code=400, detail="판정 입력을 준비할 수 없습니다.") from exc
+        raise HTTPException(status_code=400, detail="판정 실행을 준비할 수 없습니다.") from exc
+    except (OSError, ConnectionError, TimeoutError) as exc:
+        raise HTTPException(status_code=503, detail="모델 사전 확인을 완료할 수 없습니다.") from exc
+    session.rollback()
+    row = session.scalar(
+        select(ScreeningExecution).where(ScreeningExecution.execution_id == created.execution_id)
+    )
+    if row is None:
+        raise HTTPException(status_code=500, detail="판정 실행을 읽을 수 없습니다.")
+    return screening_execution_response(session, row)
+
+
 @router.post(
     "/{run_id}/pipeline/{stage}",
     response_model=PipelineExecutionResponse,
@@ -267,6 +335,7 @@ def ingest_selected_run(
 def start_pipeline_stage(
     run_id: str,
     stage: str,
+    request: Request,
     payload: PipelineRunRequest | None = Body(default=None),
     from_raw: bool = Query(default=False),
     session: Session = Depends(get_db),
@@ -274,7 +343,7 @@ def start_pipeline_stage(
     run = get_run(session, run_id)
     requested_from_raw = from_raw or bool(payload and payload.from_raw)
     try:
-        execution = pipeline_service.start(run, stage, from_raw=requested_from_raw)
+        execution = _pipeline_service(request).start(run, stage, from_raw=requested_from_raw)
     except PipelineBusyError as exc:
         raise HTTPException(
             status_code=409,

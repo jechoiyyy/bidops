@@ -12,24 +12,69 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.staticfiles import StaticFiles
 
 from .config import get_settings
-from .db import SessionLocal, init_db
+from .db import SessionLocal, get_db, init_db
 from .routers.attachments import router as attachments_router
 from .routers.metrics import router as metrics_router
 from .routers.notices import router as notices_router
 from .routers.portals import router as portals_router
 from .routers.profile import router as profile_router
+from .routers.policies import router as policies_router
+from .routers.quality_gates import router as quality_gates_router
 from .routers.reviews import notice_router as notice_reviews_router
 from .routers.reviews import router as reviews_router
 from .routers.runs import router as runs_router
+from .routers.schedule import router as schedule_router
+from .routers.screening import router as screening_router
+from .runtime import ApplicationRuntime
 from .services.attachments import seed_default_portals
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    init_db()
-    with SessionLocal() as session:
-        seed_default_portals(session)
-    yield
+    """Validate the migrated DB, then own all durable runtime resources."""
+
+    # The explicit dependency-override escape hatch is for isolated API tests
+    # that provide their own legacy in-memory fixture.  It cannot affect the
+    # production process because overrides are only installed by callers of
+    # the FastAPI application object.  T9 tests inject a runtime factory when
+    # they want to exercise the migrated worker lifecycle.
+    injected_runtime_factory = getattr(_app.state, "runtime_factory", None)
+    using_test_db = get_db in _app.dependency_overrides and not callable(injected_runtime_factory)
+    if not using_test_db:
+        init_db()
+        with SessionLocal() as session:
+            seed_default_portals(session)
+
+    runtime = injected_runtime_factory() if callable(injected_runtime_factory) else (
+        None if using_test_db else ApplicationRuntime()
+    )
+    if runtime is not None:
+        try:
+            runtime.start()
+        except Exception:
+            runtime.shutdown()
+            raise
+        _app.state.runtime = runtime
+        for name in (
+            "pipeline_service",
+            "store",
+            "orchestrator",
+            "worker",
+            "scheduler_service",
+            "scheduled_pipeline",
+            "dispatch_schedule",
+        ):
+            if hasattr(runtime, name):
+                setattr(_app.state, {
+                    "store": "screening_store",
+                    "orchestrator": "screening_orchestrator",
+                    "worker": "screening_worker",
+                }.get(name, name), getattr(runtime, name))
+    try:
+        yield
+    finally:
+        if runtime is not None:
+            runtime.shutdown()
 
 
 app = FastAPI(title="BidOps Admin API", lifespan=lifespan)
@@ -61,6 +106,10 @@ app.include_router(metrics_router)
 app.include_router(attachments_router)
 app.include_router(portals_router)
 app.include_router(profile_router)
+app.include_router(screening_router)
+app.include_router(quality_gates_router)
+app.include_router(policies_router)
+app.include_router(schedule_router)
 
 
 class SPAStaticFiles(StaticFiles):

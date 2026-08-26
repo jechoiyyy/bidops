@@ -139,7 +139,10 @@ class PipelineService:
         self.settings = settings or get_settings()
         self._popen = popen
         self._session_factory = session_factory
-        self._executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="bidops-pipeline")
+        # Do not allocate worker threads while importing the API module.  The
+        # lifespan owns service lifetime; the first requested subprocess gets
+        # a lazily-created executor.
+        self._executor: ThreadPoolExecutor | None = None
         self._lock = threading.RLock()
         self._executions: dict[str, PipelineExecution] = {}
         self._active_by_run: dict[str, str] = {}
@@ -186,8 +189,18 @@ class PipelineService:
             )
             self._executions[execution.execution_id] = execution
             self._active_by_run[run.id] = execution.execution_id
+            if self._executor is None:
+                self._executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="bidops-pipeline")
             self._futures[execution.execution_id] = self._executor.submit(self._execute, execution)
             return execution
+
+    def shutdown(self, *, wait: bool = True) -> None:
+        """Release subprocess executor resources; safe to call repeatedly."""
+
+        with self._lock:
+            executor, self._executor = self._executor, None
+        if executor is not None:
+            executor.shutdown(wait=wait, cancel_futures=False)
 
     def get(self, execution_id: str) -> PipelineExecution | None:
         with self._lock:

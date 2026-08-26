@@ -427,9 +427,12 @@ class ScreeningOrchestrator:
                 snapshot = create_profile_snapshot(session, profile_source=profile_source, project_root=Path(self.settings.bidops_root))
                 profile_digest = snapshot.digest
                 profile_version = snapshot.version
+            except (ProfileSnapshotError, OSError):
+                raise ScreeningCreationError("profile_snapshot") from None
+            try:
                 model_identity = self.ollama.inspect_model()
-            except (ProfileSnapshotError, ModelInspectionError, OSError):
-                raise ScreeningCreationError("precondition_failed") from None
+            except (ModelInspectionError, OSError, ConnectionError, TimeoutError):
+                raise ScreeningCreationError("model_inspection") from None
             if model_identity.model_name != MODEL_NAME:
                 raise ScreeningCreationError("model_inspection")
             generated_at = aware_iso(_now(self.clock))
@@ -570,9 +573,12 @@ class ScreeningOrchestrator:
             snapshot = create_profile_snapshot(session, profile_source=profile_source, project_root=Path(self.settings.bidops_root))
             profile_digest = snapshot.digest
             profile_version = snapshot.version
+        except (ProfileSnapshotError, OSError):
+            raise ScreeningCreationError("profile_snapshot") from None
+        try:
             model_identity = self.ollama.inspect_model()
-        except (ProfileSnapshotError, ModelInspectionError, OSError):
-            raise ScreeningCreationError("precondition_failed") from None
+        except (ModelInspectionError, OSError, ConnectionError, TimeoutError):
+            raise ScreeningCreationError("model_inspection") from None
         if model_identity.model_name != MODEL_NAME:
             raise ScreeningCreationError("model_inspection")
         generated_at = aware_iso(_now(self.clock))
