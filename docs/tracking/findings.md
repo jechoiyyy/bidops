@@ -1,4 +1,4 @@
-# 미해결 문제와 해소 기록
+# 미해결 문제
 
 기준일: 2026-08-27
 
@@ -42,27 +42,6 @@
 - 실제 대표 HWP/PDF, immutable model/image digest, 55개 gold mapping과 사람 판정이 없어
   `0.80/0.70/0.10` quality gate를 측정할 수 없다.
 - 실제 timeout·잘린 JSON·provider 실패의 재시도는 unit test로 검증됐지만 승인 endpoint에서의 fault-injection 증적은 없다.
-
-## 해소됨: 깨끗한 PostgreSQL legacy ingest의 screening_basis 길이 오류
-
-- 재현 조건: 기존 운영 DB가 아닌 깨끗한 PostgreSQL에 `data/runs/20260817-20260823`의 기존
-  산출물을 읽기 전용으로 연결하고 `python -m app.ingest.cli --run 20260817-20260823`를 실행한다.
-- 원인: `Run.screening_basis` 모델/컬럼이 `varchar(64)`인데 screening 결과의 긴 실제 설명을
-  그대로 저장하면서 PostgreSQL `StringDataRightTruncation`이 발생했다.
-- 조치: 모델을 `TEXT`로 바꾸고 `0002_screening_basis_text` migration 및 64자 초과 원문 보존
-  회귀 테스트를 추가했다. 문자열 절단이나 빈 값 대체는 하지 않았다.
-- 재검증: 별도의 깨끗한 PostgreSQL 17에서 migration 후 같은 회차를 두 번 적재했다. 두 번 모두
-  공고 40건·판정 40건, 동일 run ID였고 컬럼 `text`, 실제 설명 길이 102자를 확인했다. 격리
-  project 자원은 검증 뒤 삭제했다.
-
-## 해소됨: 최종 독립 리뷰의 runtime 경계 문제
-
-- structure read client가 web process에 write credential도 있을 때 write key를 우선하던 선택을
-  제거했다. read namespace는 항상 전용 read credential을 사용한다.
-- document metadata command의 최신 bundle ref 검증과 실제 patch 사이 경쟁 구간을 제거했다.
-  notice → bundle → document 잠금 트랜잭션 안에서 ref ID/version/hash를 다시 확인한다.
-- stdlib HTTP가 한글 actor header를 전송하지 못하던 문제를 명시적인 UTF-8 percent encoding과
-  strict server-side 복원으로 해결했다. ASCII actor는 기존 wire value를 그대로 유지한다.
 
 ## SQLite 이관·복구 훈련용 외부 입력이 없음
 

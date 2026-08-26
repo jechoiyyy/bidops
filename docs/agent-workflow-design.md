@@ -4,7 +4,7 @@
 > - 기준일: 2026-08-27
 > - 기준 HEAD: `4f98a5c` (`feat(agent): add deterministic workflow acceptance`)
 > - 적용 범위: 현재 Lean v1의 문서 준비 → 심층 검토 → 사람 의사결정 지원 흐름
-> - 권위 계약: `.dryforge/spec.md`, `docs/deep-review-erd.md`, `docs/contracts.md`
+> - 권위 계약: 승인된 Agent 사양, `docs/deep-review-erd.md`, `docs/contracts.md`
 
 ## 1. 결정 요약
 
@@ -801,8 +801,7 @@ endpoint별로 전환한다.
 
 1. `docs/deep-review-erd.md` SHA-256을 승인값
    `0d23875d71f539037bd5ee0b24f874a71d39d8466d1897f035023ef72092c77d`와 대조한다.
-2. Agent 계약이 새 REST API/DB table을 만들지 않는다는 결정을 확인한다. `.dryforge/`는 T1 설계
-   검토 이후에도 이 범위의 변경 대상이 아니다.
+2. Agent 계약이 새 REST API/DB table을 만들지 않는다는 승인 범위를 확인한다.
 
 ### Phase 1 — 공통 계약과 projection
 
@@ -896,7 +895,7 @@ T1에서 확정한 `docs/deep-review-erd.md` SHA-256은
 ### 17.2 외부 Agent API
 
 현재 Lean v1은 신규 API 14개를 폐쇄 계약으로 둔다. 공통 `AgentRunView`를 Web UI에 직접 노출하는
-새 endpoint가 필요하면 편의상 추가하지 않고 `.dryforge/spec.md`와 `docs/contracts.md` 변경 승인을
+새 endpoint가 필요하면 편의상 추가하지 않고 승인된 Agent 사양과 `docs/contracts.md` 변경 승인을
 먼저 받는다. 초기 구현은 내부 adapter와 기존 API 응답을 유지한다.
 
 ### 17.3 Agent 저장소
