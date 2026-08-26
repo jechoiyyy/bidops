@@ -1,7 +1,7 @@
 # 구현·검증 현황
 
 기준일: 2026-08-27
-기준 HEAD: `4f98a5c9ed986b534403df4c8feebaf3ebdbfab0` (`bidops-deep-review`)
+T8 기준 HEAD: `4f98a5c9ed986b534403df4c8feebaf3ebdbfab0` (`bidops-deep-review`)
 T8: 코드 변경 없이 지정 문서 7개를 현재 구현·검증 결과에 맞게 갱신한다. commit/push/merge/release는 하지 않는다.
 
 ## 코드 상태
@@ -19,7 +19,7 @@ T8: 코드 변경 없이 지정 문서 7개를 현재 구현·검증 결과에 �
 | React 심층 검토 화면 | 핵심 조회·리포트 검토 구현됨 | ready bundle 선택, review 시작, report/revision/final opinion 화면과 기능 테스트; T8 frontend 코드는 변경하지 않음 |
 | Qwen 품질 activation gate | 계산·import 연결 구현됨, 실제 품질 증적 없음 | human-adjudicated scorer, 0.80/0.70/0.10 gate, policy SHA 일치 import |
 | T7 Agent 연속 인수 | 실제 격리 Mock E2E 통과 | PostgreSQL·MinIO·ClamAV·document worker 2개·analysis worker·web, `passed=true`, 종료 active WorkJob 0 |
-| legacy run ingest | 미해결 차단 문제 있음 | 깨끗한 PostgreSQL에서 긴 `screening_basis`가 `varchar(64)`에 기록되며 `StringDataRightTruncation` 발생 |
+| legacy run ingest | 최종 리뷰에서 해결·실제 재검증됨 | `screening_basis TEXT` migration, 깨끗한 PostgreSQL에서 40 notices/40 judgments를 두 번 멱등 적재, 102자 원문 보존 |
 | 백업·복구 자동화 | 구현됨, 실제 snapshot 복구 훈련 미수행 | object-first restore, PostgreSQL restore, active hash 검증 script |
 
 ## 2026-08-27 T8 검증 결과
@@ -41,6 +41,15 @@ shadowing 5건과 Starlette/httpx deprecation 1건이며 이번 실행을 실패
 `web/backend/requirements.txt`를 설치한 뒤 같은 명령을 재실행해 위 성공 결과를 얻었다. 첫 실패를
 통과 결과로 세지 않는다.
 
+## 2026-08-27 최종 리뷰 검증 결과
+
+- `web/backend/.venv/bin/pytest -q web/backend/tests`: `359 passed, 4 skipped, 6 warnings`
+- `./run-tests.sh`: collect 28, report 13, screen 21, root 2; 총 64개 성공
+- `./web/run-web-tests.sh`: backend 위 결과와 frontend Vite build 성공
+- 별도 `npm run build`: Vite 6.4.3, 135 modules transformed, 성공
+- 깨끗한 PostgreSQL 17: Alembic head `0002_screening_basis_text`, 같은 legacy 회차를 두 번 적재해
+  40 notices/40 judgments와 동일 run ID, `screening_basis` 102자 무절단 보존 확인
+
 ## 2026-08-27 T7 실제 격리 E2E
 
 - `docker-compose.t7.yml` + `docker-compose.t7.mock-reference.yml`의 새 격리 project에서 실행했다.
@@ -56,17 +65,16 @@ shadowing 5건과 Starlette/httpx deprecation 1건이며 이번 실행을 실패
 
 ## 배포 후보 승격 전 남은 일
 
-1. [미해결 문제](findings.md)에 기록한 `screening_basis` 저장 길이 문제의 schema/계약을 결정하고,
-   원문 설명을 조용히 절단하지 않는 방식으로 수정·회귀한다.
-2. 원격 vLLM image digest와 `Qwen/Qwen3.8-27B` immutable revision/artifact digest를 고정하고,
+1. 원격 vLLM image digest와 `Qwen/Qwen3.8-27B` immutable revision/artifact digest를 고정하고,
    대표 HWP/PDF와 55개 요구사항 gold로 실제 0.80/0.70/0.10 품질 gate를 측정한다.
-3. measured profile/policy import와 승인된 외부 egress·secret·MinIO 권한을 실제 배포 환경에서
+2. measured profile/policy import와 승인된 외부 egress·secret·MinIO 권한을 실제 배포 환경에서
    검증한다. Mock E2E 증적을 Qwen evidence로 재사용하지 않는다.
-4. 운영 SQLite가 아닌 백업 복사본으로 13개 table row/PK/FK, sequence, 리뷰·첨부 metadata,
+3. 운영 SQLite가 아닌 백업 복사본으로 13개 table row/PK/FK, sequence, 리뷰·첨부 metadata,
    실패 후 재실행과 object→DB→active hash 복구를 리허설한다.
-5. 고정 Playwright image/font에서 28개 snapshot을 재생성하고 사람이 승인한다. T8에서는 Playwright
+4. 고정 Playwright image/font에서 28개 snapshot을 재생성하고 사람이 승인한다. T8에서는 Playwright
    visual test를 실행하지 않았다.
-6. 위 조건을 충족하기 전에는 main merge, push, release, Lean v1 tag를 수행하지 않는다.
+5. 위 조건을 충족하기 전에는 main merge, push, release, Lean v1 tag를 수행하지 않는다.
 
 현재는 T1~T7 Agent 구현과 Mock workflow 인수는 완료됐지만, 실제 Qwen 품질 승인·clean legacy
-ingest 성공·운영 복구/권한 검증은 완료되지 않은 상태다.
+운영 복구/권한 검증은 완료되지 않은 상태다. clean legacy ingest 차단 문제는 최종 리뷰에서
+해결하고 실제 PostgreSQL로 재검증했다.

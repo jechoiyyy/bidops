@@ -128,8 +128,6 @@ class Settings(BaseSettings):
         }
         try:
             if namespace == "structure" and read_only:
-                if self.structure_access_key and self.structure_secret_key:
-                    return self.structure_access_key, self.structure_secret_key
                 return self.structure_read_access_key, self.structure_read_secret_key
             return values[namespace]
         except KeyError as error:

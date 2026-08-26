@@ -616,7 +616,8 @@ T1~T7 구현은 실제로 9개 commit에 순서대로 고정돼 있다. short ha
 - 실제 Qwen 품질 승인으로 오해할 표현이 없음
 - Coordinator와 upstream Agent가 구현되지 않음
 - 통합 작업자가 필요한 ID, 상태, 파일, 테스트 명령을 HANDOFF만 보고 재현 가능
-- 깨끗한 PostgreSQL ingest의 `Run.screening_basis` 길이 오류가 미해결로 명시됨
+- T8 시점의 `Run.screening_basis` 길이 오류가 최종 리뷰에서 `TEXT` migration과 실제 PostgreSQL
+  재적재 검증으로 해소됨
 
 ## 13. 예상 작업량
 

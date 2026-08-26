@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote_from_bytes, unquote_to_bytes
 from uuid import UUID, uuid4
 
 from sqlalchemy import func, select, update
@@ -61,6 +62,7 @@ API_ERROR_CODES = {
     "bundle_not_ready", "bundle_has_blocking_issues", "unsafe_document", "structure_unavailable",
     "version_conflict", "idempotency_conflict", "service_unavailable", "processing_failed",
 }
+UTF8_ACTOR_PREFIX = "UTF-8''"
 
 _UNSAFE_ASSET_CODES = {
     "unsafe_document", "malware_detected", "mime_mismatch", "malformed_pdf",
@@ -227,11 +229,24 @@ def _legacy_scope_matches(
     )
 
 
+def _decode_actor_header(actor: str) -> str:
+    if not actor.startswith(UTF8_ACTOR_PREFIX):
+        return actor
+    encoded = actor[len(UTF8_ACTOR_PREFIX):]
+    try:
+        raw = unquote_to_bytes(encoded)
+        if quote_from_bytes(raw, safe="") != encoded:
+            raise ValueError("non-canonical actor encoding")
+        return raw.decode("utf-8")
+    except (UnicodeDecodeError, ValueError) as error:
+        raise BundleServiceError("actor_name_invalid", "담당자 이름이 올바르지 않습니다", status_code=400) from error
+
+
 def validate_actor(actor: str | None) -> str:
     if actor is None or not actor.strip():
         raise BundleServiceError("actor_name_required", "X-BidOps-Actor-Name이 필요합니다", status_code=400)
-    value = actor.strip()
-    if len(value) > MAX_ACTOR_NAME or _CONTROL.search(value) or value.casefold() == "system":
+    value = _decode_actor_header(actor).strip()
+    if not value or len(value) > MAX_ACTOR_NAME or _CONTROL.search(value) or value.casefold() == "system":
         raise BundleServiceError("actor_name_invalid", "담당자 이름이 올바르지 않습니다", status_code=400)
     return value
 
@@ -263,6 +278,51 @@ def _error_issue(
 def _canonical_hash(value: Any) -> str:
     encoded = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
+
+
+def document_bundle_snapshot_hash(
+    bundle: DocumentBundle,
+    items: Iterable[DocumentBundleItem],
+) -> str | None:
+    """Hash the immutable ready snapshot used by agent artifact refs."""
+
+    if bundle.status not in {"ready", "superseded"}:
+        return None
+    canonical_documents = [
+        {
+            "document_version_id": str(item.document_version_id),
+            "document_version_version": item.document_version_version,
+            "ordinal": item.ordinal,
+            "content_sha256": item.content_sha256,
+            "detected_mime": item.detected_mime,
+            "size_bytes": item.size_bytes,
+            "role_at_confirmation": item.role_at_confirmation,
+            "effective_date_at_confirmation": item.effective_date_at_confirmation.isoformat() if item.effective_date_at_confirmation else None,
+            "replaces_id_at_confirmation": str(item.replaces_id_at_confirmation) if item.replaces_id_at_confirmation else None,
+            "is_current_at_confirmation": item.is_current_at_confirmation,
+            "safety_status_at_confirmation": item.safety_status_at_confirmation,
+            "structure_id_at_confirmation": str(item.structure_id_at_confirmation),
+            "structure_payload_sha256": item.structure_payload_sha256,
+        }
+        for item in sorted(items, key=lambda row: (row.ordinal, str(row.document_version_id)))
+    ]
+    return _canonical_hash(
+        {
+            "schema": "bidops.document-bundle.v1",
+            "bundle_id": str(bundle.id),
+            "notice_id": bundle.notice_id,
+            "revision": bundle.revision,
+            # Superseding a ready bundle changes only which revision is current;
+            # the immutable handoff snapshot retains its original ready hash.
+            "status": "ready",
+            "version": bundle.version,
+            "documents": canonical_documents,
+            "issues": bundle.issues_snapshot if isinstance(bundle.issues_snapshot, list) else [],
+            "confirmed_by": bundle.confirmed_by_name,
+            "confirmed_at": bundle.confirmed_at.isoformat() if bundle.confirmed_at else None,
+            "created_at": bundle.created_at.isoformat(),
+        }
+    )
 
 
 def _uuid(value: UUID | str) -> UUID:
@@ -1713,8 +1773,58 @@ class DocumentBundleService:
             verified_at=_now(),
         ))
 
-    def patch_document(self, session: Session, document_id: UUID, request: PatchDocumentVersionRequest, actor: str) -> DocumentVersionView:
+    def patch_document(
+        self,
+        session: Session,
+        document_id: UUID,
+        request: PatchDocumentVersionRequest,
+        actor: str,
+        *,
+        expected_bundle_id: UUID | None = None,
+        expected_bundle_version: int | None = None,
+        expected_bundle_sha256: str | None = None,
+    ) -> DocumentVersionView:
         claimed_name = validate_actor(actor)
+        # Discover the aggregate scope without retaining a read transaction,
+        # then take the same notice allocation fence used by create_bundle.
+        # This keeps an agent's latest-bundle ref valid through the mutation.
+        session.rollback()
+        identity = session.scalar(select(DocumentVersion).where(DocumentVersion.id == document_id))
+        if identity is None:
+            session.rollback()
+            raise BundleServiceError("not_found", "document version을 찾을 수 없습니다", status_code=404)
+        notice_id = identity.notice_id
+        session.rollback()
+        notice = session.scalar(select(Notice).where(Notice.id == notice_id).with_for_update())
+        if notice is None:
+            session.rollback()
+            raise BundleServiceError("not_found", "공고를 찾을 수 없습니다", status_code=404)
+        latest_bundle = session.scalar(
+            select(DocumentBundle)
+            .where(DocumentBundle.notice_id == notice.id)
+            .order_by(DocumentBundle.revision.desc(), DocumentBundle.id.desc())
+            .limit(1)
+            .with_for_update()
+        )
+        if latest_bundle is None:
+            raise BundleServiceError("not_found", "document bundle을 찾을 수 없습니다", status_code=404)
+        if expected_bundle_id is not None:
+            latest_items = session.scalars(
+                select(DocumentBundleItem)
+                .where(DocumentBundleItem.bundle_id == latest_bundle.id)
+                .order_by(DocumentBundleItem.ordinal.asc(), DocumentBundleItem.document_version_id.asc())
+            ).all()
+            if (
+                latest_bundle.id != expected_bundle_id
+                or latest_bundle.version != expected_bundle_version
+                or document_bundle_snapshot_hash(latest_bundle, latest_items) != expected_bundle_sha256
+            ):
+                session.rollback()
+                raise BundleServiceError(
+                    "version_conflict",
+                    "document bundle이 변경되었습니다",
+                    status_code=409,
+                )
         document = session.scalar(
             select(DocumentVersion)
             .where(DocumentVersion.id == document_id)
@@ -1739,14 +1849,6 @@ class DocumentBundleService:
             replaced = session.get(DocumentVersion, request.replaces_document_version_id)
             if replaced is None or replaced.notice_id != document.notice_id:
                 raise BundleServiceError("invalid_request", "대체 document version이 같은 공고에 속하지 않습니다", status_code=400)
-        latest_bundle = session.scalar(
-            select(DocumentBundle)
-            .where(DocumentBundle.notice_id == document.notice_id)
-            .order_by(DocumentBundle.revision.desc(), DocumentBundle.id.desc())
-            .limit(1)
-        )
-        if latest_bundle is None:
-            raise BundleServiceError("not_found", "document bundle을 찾을 수 없습니다", status_code=404)
         correlation_id = self._bundle_correlation_id(session, latest_bundle)
         if request.is_current:
             session.execute(

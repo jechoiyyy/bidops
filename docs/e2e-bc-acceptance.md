@@ -166,6 +166,10 @@ docker compose --project-name bidops-deep-review-e2e \
 }
 ```
 
+CLI는 ASCII가 아닌 `actor_name`을 `UTF-8''` percent-encoded 헤더로 전송하고 서버가 strict UTF-8로
+복원한다. 따라서 한글 담당자명을 manifest에 그대로 쓸 수 있으며 제어문자·비정규 encoding은
+기존 actor validation에서 거부된다.
+
 먼저 dry-run으로 target·파일·크기·역할만 확인한다. 이 단계는 API를 호출하지 않는다.
 
 ```bash

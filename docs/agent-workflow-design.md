@@ -914,9 +914,9 @@ Lean v1 신규 application table은 25개로 닫혀 있다. 별도 `agent_run`�
   종료 active WorkJob 0건, `passed=true`를 확인한 뒤 격리 자원을 정리했다.
 - 이 결과는 상태 전이·영속화·검증·계보 증적이다. `mock_quality.evaluated=false`이며 실제 Qwen
   품질 gate를 통과했다는 뜻이 아니다.
-- 깨끗한 PostgreSQL에 `data/runs/20260817-20260823`를 적재하는 경로는 `Run.screening_basis`
-  `varchar(64)`에 긴 실제 설명을 쓰는 `StringDataRightTruncation` 미해결 문제가 있다. 이 문제를
-  해결한 것으로 간주하거나 문자열을 자동 절단하지 않는다.
+- 최종 리뷰에서 `Run.screening_basis`를 원문 보존형 `TEXT`로 이관했다. 깨끗한 PostgreSQL 17에
+  `data/runs/20260817-20260823`를 두 번 적재해 공고 40건·판정 40건, 동일 run ID, 102자 설명의
+  무절단 보존을 확인했다.
 
 ## 18. 최종 경계
 

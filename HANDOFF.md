@@ -101,19 +101,22 @@ requirements를 설치한 뒤 재실행해 위 성공 결과를 얻었다. 첫 �
 Playwright visual test는 T8에서 실행하지 않았다. 28개 한글 font snapshot 차이는 사람 승인이
 필요하므로 통과로 표시하지 않는다.
 
-## 5. 아직 해결하지 않은 차단 사항
+### 최종 리뷰 재검증
 
-### 5.1 clean PostgreSQL legacy ingest
+최종 리뷰 수정 후 backend는 `359 passed, 4 skipped, 6 warnings`, `./run-tests.sh`는 64개 모두
+성공했고 `./web/run-web-tests.sh`와 별도 frontend build도 성공했다. 추가로 읽기 전용 structure
+client가 write credential을 선택하던 문제, metadata mutation의 최신 bundle ref 경쟁 조건,
+한글 actor HTTP header 전송 실패를 수정하고 회귀 테스트를 추가했다.
 
-기존 운영 DB가 아닌 깨끗한 PostgreSQL에서 `data/runs/20260817-20260823`를 읽기 전용으로 연결하고
-`python -m app.ingest.cli --run 20260817-20260823`를 실행하면, 실제 screening 설명이
-`Run.screening_basis`의 `varchar(64)`에 그대로 저장되는 시점에 PostgreSQL
-`StringDataRightTruncation`이 발생한다.
+## 5. 최종 리뷰 결과와 남은 차단 사항
 
-이 문제는 T8에서 수정하지 않았다. 원문을 자동 절단하거나 빈 값으로 바꾸지 말고 보존 길이,
-DB schema, REST 표시 계약을 함께 결정한 뒤 migration과 회귀 테스트를 추가해야 한다. 해결 전에는
-이 회차의 clean ingest 또는 cutover 성공을 기록하지 않는다. 자세한 내용은
-[`docs/tracking/findings.md`](docs/tracking/findings.md)를 참조한다.
+### 5.1 clean PostgreSQL legacy ingest — 해결됨
+
+최종 리뷰에서 `Run.screening_basis`를 원문 보존형 `TEXT`로 바꾸고
+`0002_screening_basis_text` migration과 회귀 테스트를 추가했다. 별도의 깨끗한 PostgreSQL 17에서
+migration 후 `data/runs/20260817-20260823`를 두 번 적재해 두 실행 모두 공고 40건·판정 40건,
+동일 run ID를 확인했다. 실제 102자 설명이 절단 없이 저장됐고 컬럼은 `text`였다. 검증용
+container, network, volume은 해당 격리 project에 한정해 정리했다.
 
 ### 5.2 Qwen 품질·운영 증적
 
@@ -169,9 +172,9 @@ docker exec <fresh-isolated-web-container> \
 Qwen 품질 gate가 아니다. secret, 원문 bytes, 내부 object key를 로그나 문서에 남기지 않으며,
 project/volume 정리는 그 새 project에만 한정한다.
 
-legacy ingest 문제를 확인할 때도 운영 DB가 아닌 별도의 깨끗한 PostgreSQL에서 실행하고,
-실패가 재현되면 성공으로 표시하지 않는다. `screening_basis`를 임의로 자르거나 기존 산출물을
-덮어써서 검증을 통과시키지 않는다.
+legacy ingest를 재검증할 때도 운영 DB가 아닌 별도의 깨끗한 PostgreSQL에서 실행하고,
+`screening_basis` 원문 길이와 두 번째 적재의 멱등성을 함께 확인한다. 기존 산출물을 덮어써서
+검증을 통과시키지 않는다.
 
 ## 8. 중단 조건과 금지 작업
 
