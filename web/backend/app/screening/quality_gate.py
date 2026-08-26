@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from datetime import date, datetime, timezone
+from decimal import Decimal, InvalidOperation
 import json
 from pathlib import Path
 from typing import Any, Iterator, Mapping, Sequence
@@ -27,11 +28,13 @@ from ..models import (
     Run,
     ScreeningExecution,
     ScreeningPolicy,
+    Notice,
 )
 from .artifacts import ArtifactError, ArtifactStore, ExecutionWorkspace, sha256_bytes
+from ..ingest.loader import deterministic_run_id
 from .generation_config import GenerationConfigError, config_from_value, legacy_generation_config, validate_digest
 from .execution_store import ScreeningExecutionStore
-from .orchestrator import ScreeningOrchestrator
+from .orchestrator import ScreeningCreationError, ScreeningOrchestrator
 from .profile_snapshot import BASELINE_COMMIT
 from .quality_metrics import (
     QualityMetricError,
@@ -47,6 +50,13 @@ from .quality_metrics import (
 FIXED_RUN_ID = "20260817-20260823"
 FIXED_SAMPLE_RELATIVE = "data/runs/20260817-20260823/validation-set.json"
 FIXED_BASELINE_RELATIVE = "data/runs/20260817-20260823/screening-decisions.json"
+FIXED_RESULTS_RELATIVE = "data/runs/20260817-20260823/screening-results.json"
+# These are the byte-level identities of the reviewed, historical inputs.  A
+# JSON re-serialization is not equivalent: whitespace, ordering, and Unicode
+# escaping are all part of the frozen evidence contract.
+FIXED_SAMPLE_DIGEST = "2ea6a21e6b121f691195bbc891b8ec7766817f821d6b343c20b12b608f3e47e3"
+FIXED_BASELINE_DIGEST = "69a444e5ec9846c592de4b454472817477abaa4a109c97dbe84787dff9c6789d"
+FIXED_RESULTS_DIGEST = "fb9160602771ff057b708d69b197b9fc7e464f9e021615a7ebaa83a94733903b"
 FIXED_SOURCE_WINDOW = {"from": "2026-08-17", "to": "2026-08-23", "timezone": "Asia/Seoul"}
 PURPOSES = frozenset({"model_comparison", "operational_approval"})
 EXECUTION_TERMINAL = frozenset({"성공", "부분 성공", "실패", "중단됨"})
@@ -60,7 +70,7 @@ class QualityGateError(RuntimeError):
     """Base class for safe gate errors."""
 
 
-class QualityGateValidationError(QualityGateError, ValueError):
+class QualityGateValidationError(QualityGateError, ScreeningCreationError):
     """Input or profile/source correspondence is invalid."""
 
 
@@ -122,14 +132,139 @@ def _read_json(path: Path) -> tuple[bytes, dict[str, Any]]:
     return raw, value
 
 
-def validate_fixed_inputs(project_root: Path | str) -> tuple[dict[str, Any], dict[str, Any], bytes, bytes, list[str]]:
-    """Validate the exact fixed sample and Claude baseline before DB writes."""
+def _fixed_path(root: Path, relative: str) -> Path:
+    """Return a fixed artifact path only when every path component is real."""
 
+    path = root / relative
+    try:
+        path.relative_to(root)
+    except ValueError:
+        raise QualityGateValidationError("fixed quality input is unavailable") from None
+    current = root
+    for component in Path(relative).parts:
+        current = current / component
+        if current.is_symlink():
+            raise QualityGateValidationError("fixed quality input is unavailable")
+    if not path.is_file():
+        raise QualityGateValidationError("fixed quality input is unavailable")
+    return path
+
+
+def _read_pinned_json(root: Path, relative: str, expected_digest: str) -> tuple[bytes, dict[str, Any]]:
+    """Read one byte-pinned fixed artifact without disclosing its contents."""
+
+    path = _fixed_path(root, relative)
+    try:
+        raw = path.read_bytes()
+        value = json.loads(raw.decode("utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        raise QualityGateValidationError("fixed quality input is invalid") from None
+    if sha256_bytes(raw) != expected_digest or not isinstance(value, dict):
+        raise QualityGateValidationError("fixed quality input is invalid")
+    return raw, value
+
+
+def _validate_fixed_shape(
+    sample: Mapping[str, Any], baseline: Mapping[str, Any], results: Mapping[str, Any]
+) -> list[str]:
+    """Validate the closed, historical three-file source contract."""
+
+    if set(sample) != {"schema_version", "source_window", "selection", "warnings", "notices"}:
+        raise QualityGateValidationError("fixed quality input is invalid")
+    if sample.get("schema_version") != "bidops.validation-set.v2" or sample.get("source_window") != FIXED_SOURCE_WINDOW:
+        raise QualityGateValidationError("fixed quality input is invalid")
+    notices = sample.get("notices")
+    if not isinstance(notices, list) or len(notices) != 40:
+        raise QualityGateValidationError("fixed quality input is invalid")
+    ids: list[str] = []
+    for item in notices:
+        if (
+            not isinstance(item, Mapping)
+            or not isinstance(item.get("notice_id"), str)
+            or not item["notice_id"].strip()
+            or not isinstance(item.get("sample_stratum"), str)
+            or item["sample_stratum"] not in FIXED_SAMPLE_STRATA
+            or not isinstance(item.get("sample_role"), str)
+            or item["sample_role"] not in FIXED_SAMPLE_ROLES
+        ):
+            raise QualityGateValidationError("fixed quality input is invalid")
+        ids.append(item["notice_id"])
+    if len(set(ids)) != 40:
+        raise QualityGateValidationError("fixed quality input is invalid")
+
+    if set(baseline) != {"schema_version", "screening_basis", "judgments"} or baseline.get("schema_version") != "bidops.decisions.v2":
+        raise QualityGateValidationError("fixed quality input is invalid")
+    judgments = baseline.get("judgments")
+    baseline_ids: list[str] = []
+    if not isinstance(judgments, list) or len(judgments) != 40:
+        raise QualityGateValidationError("fixed quality input is invalid")
+    for item in judgments:
+        if not isinstance(item, Mapping) or not isinstance(item.get("notice_id"), str) or not item["notice_id"].strip():
+            raise QualityGateValidationError("fixed quality input is invalid")
+        baseline_ids.append(item["notice_id"])
+    if baseline_ids != ids or len(set(baseline_ids)) != 40:
+        raise QualityGateValidationError("fixed quality input is invalid")
+
+    if set(results) != {"schema_version", "generated_at", "screening_basis", "source_window", "results"}:
+        raise QualityGateValidationError("fixed quality input is invalid")
+    if results.get("schema_version") != "bidops.screening.v2" or results.get("source_window") != FIXED_SOURCE_WINDOW:
+        raise QualityGateValidationError("fixed quality input is invalid")
+    generated_at = results.get("generated_at")
+    try:
+        parsed = datetime.fromisoformat(str(generated_at).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        raise QualityGateValidationError("fixed quality input is invalid") from None
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise QualityGateValidationError("fixed quality input is invalid")
+    result_rows = results.get("results")
+    if not isinstance(result_rows, list) or len(result_rows) != 40:
+        raise QualityGateValidationError("fixed quality input is invalid")
+    result_ids: list[str] = []
+    for row in result_rows:
+        if not isinstance(row, Mapping) or set(row) != {"notice", "judgment"} or not isinstance(row.get("notice"), Mapping) or not isinstance(row.get("judgment"), Mapping):
+            raise QualityGateValidationError("fixed quality input is invalid")
+        notice_id = row["notice"].get("notice_id")
+        if not isinstance(notice_id, str) or not notice_id.strip():
+            raise QualityGateValidationError("fixed quality input is invalid")
+        result_ids.append(notice_id)
+    if result_ids != ids:
+        raise QualityGateValidationError("fixed quality input is invalid")
+    return ids
+
+
+def _read_strict_fixed_inputs(project_root: Path | str) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], bytes, bytes, bytes, list[str]]:
+    root = Path(project_root)
+    if root.is_symlink():
+        raise QualityGateValidationError("fixed quality input is unavailable")
+    try:
+        root = root.resolve(strict=True)
+    except OSError:
+        raise QualityGateValidationError("fixed quality input is unavailable") from None
+    sample_raw, sample = _read_pinned_json(root, FIXED_SAMPLE_RELATIVE, FIXED_SAMPLE_DIGEST)
+    baseline_raw, baseline = _read_pinned_json(root, FIXED_BASELINE_RELATIVE, FIXED_BASELINE_DIGEST)
+    results_raw, results = _read_pinned_json(root, FIXED_RESULTS_RELATIVE, FIXED_RESULTS_DIGEST)
+    ids = _validate_fixed_shape(sample, baseline, results)
+    return sample, baseline, results, sample_raw, baseline_raw, results_raw, ids
+
+
+def validate_fixed_inputs(
+    project_root: Path | str, *, strict: bool = False
+) -> tuple[dict[str, Any], dict[str, Any], bytes, bytes, list[str]]:
+    """Validate the fixed sample and Claude baseline before DB writes.
+
+    ``strict=True`` is used by quality gates and additionally verifies the
+    trusted results artifact, path components, closed schemas, and all three
+    pinned byte digests.  The small compatibility mode keeps the historical
+    importer-facing helper useful for synthetic unit fixtures; it is never a
+    gate preflight.
+    """
+
+    if strict:
+        sample, baseline, _results, sample_raw, baseline_raw, _results_raw, ids = _read_strict_fixed_inputs(project_root)
+        return sample, baseline, sample_raw, baseline_raw, ids
     root = Path(project_root).resolve()
-    sample_path = root / FIXED_SAMPLE_RELATIVE
-    baseline_path = root / FIXED_BASELINE_RELATIVE
-    sample_raw, sample = _read_json(sample_path)
-    baseline_raw, baseline = _read_json(baseline_path)
+    sample_raw, sample = _read_json(root / FIXED_SAMPLE_RELATIVE)
+    baseline_raw, baseline = _read_json(root / FIXED_BASELINE_RELATIVE)
     if sample.get("schema_version") != "bidops.validation-set.v2":
         raise QualityGateValidationError("validation sample schema is invalid")
     notices = sample.get("notices")
@@ -150,19 +285,11 @@ def validate_fixed_inputs(project_root: Path | str) -> tuple[dict[str, Any], dic
         ):
             raise QualityGateValidationError("validation notice identity is invalid")
         ids.append(item["notice_id"])
-    if len(set(ids)) != 40:
-        raise QualityGateValidationError("validation notice IDs must be unique")
-    if baseline.get("schema_version") != "bidops.decisions.v2":
-        raise QualityGateValidationError("Claude baseline schema is invalid")
+    if len(set(ids)) != 40 or baseline.get("schema_version") != "bidops.decisions.v2":
+        raise QualityGateValidationError("fixed quality input is invalid")
     judgments = baseline.get("judgments")
-    if not isinstance(judgments, list) or len(judgments) != 40:
-        raise QualityGateValidationError("Claude baseline must contain exactly 40 judgments")
-    baseline_ids: list[str] = []
-    for item in judgments:
-        if not isinstance(item, Mapping) or not isinstance(item.get("notice_id"), str) or not item["notice_id"].strip():
-            raise QualityGateValidationError("Claude baseline identity is invalid")
-        baseline_ids.append(item["notice_id"])
-    if baseline_ids != ids or len(set(baseline_ids)) != 40:
+    baseline_ids = [item.get("notice_id") for item in judgments] if isinstance(judgments, list) else []
+    if len(baseline_ids) != 40 or baseline_ids != ids or len(set(baseline_ids)) != 40:
         raise QualityGateValidationError("validation and Claude baseline notice correspondence is invalid")
     return sample, baseline, sample_raw, baseline_raw, ids
 
@@ -200,6 +327,195 @@ def _input_matches_fixed_sample(value: Mapping[str, Any], sample: Mapping[str, A
         if any(actual.get(key) != fixed_value for key, fixed_value in fixed.items()):
             return False
     return True
+
+
+_FIXED_RUN_ELIGIBLE_STATUSES = frozenset({"active", "complete", "성공", "부분 성공"})
+
+
+def _identity_datetime(value: Any) -> str | None:
+    if value is None:
+        return None
+    try:
+        parsed = value if isinstance(value, datetime) else datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        return None
+    return parsed.astimezone(timezone.utc).isoformat()
+
+
+def _identity_decimal(value: Any) -> str | None:
+    if value is None:
+        return None
+    try:
+        parsed = Decimal(str(value))
+    except (InvalidOperation, ValueError, TypeError):
+        return None
+    if not parsed.is_finite():
+        return None
+    normalized = format(parsed, "f")
+    if "." in normalized:
+        normalized = normalized.rstrip("0").rstrip(".")
+    return normalized or "0"
+
+
+def _identity_value(value: Any) -> Any:
+    if isinstance(value, Decimal):
+        return _identity_decimal(value)
+    if isinstance(value, datetime):
+        return _identity_datetime(value)
+    if isinstance(value, Mapping):
+        return {key: _identity_value(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_identity_value(item) for item in value]
+    return value
+
+
+def _normalized_fixed_notice(value: Mapping[str, Any]) -> dict[str, Any]:
+    result = {key: _identity_value(value.get(key)) for key in (
+        "notice_id", "source_type", "title", "agency", "published_at", "deadline_at",
+        "budget", "estimated_price", "method", "url", "procurement_class", "region_limit",
+        "lifecycle", "attachments", "qualification_flags", "focus_matches", "performance_matches",
+        "performance_top_score", "candidate_sources", "collection_bucket", "unknown_fields",
+        "raw_source", "sample_role", "sample_stratum",
+    )}
+    for key in ("published_at", "deadline_at"):
+        result[key] = _identity_datetime(result[key])
+    for key in ("budget", "estimated_price"):
+        result[key] = _identity_decimal(result[key])
+    return result
+
+
+def _db_notice_identity(notice: Notice) -> dict[str, Any]:
+    return _normalized_fixed_notice({
+        "notice_id": notice.notice_key,
+        "source_type": notice.source_type,
+        "title": notice.title,
+        "agency": notice.agency,
+        "published_at": notice.published_at,
+        "deadline_at": notice.deadline_at,
+        "budget": notice.budget,
+        "estimated_price": notice.estimated_price,
+        "method": notice.method,
+        "url": notice.url,
+        "procurement_class": notice.procurement_class_json,
+        "region_limit": notice.region_limit_json,
+        "lifecycle": notice.lifecycle_json,
+        "attachments": [{"name": item.name, "url": item.url} for item in notice.attachments],
+        "qualification_flags": notice.qualification_flags_json,
+        "focus_matches": notice.focus_matches_json,
+        "performance_matches": notice.performance_matches_json,
+        "performance_top_score": notice.performance_top_score,
+        "candidate_sources": notice.candidate_sources_json,
+        "collection_bucket": notice.collection_bucket,
+        "unknown_fields": notice.unknown_fields_json,
+        "raw_source": notice.raw_source,
+        "sample_role": notice.sample_role,
+        "sample_stratum": notice.sample_stratum,
+    })
+
+
+def _db_judgment_identity(notice: Notice) -> dict[str, Any] | None:
+    judgment = notice.judgment
+    if judgment is None:
+        return None
+    return {
+        "notice_id": notice.notice_key,
+        "grade": judgment.grade,
+        "readiness": judgment.readiness,
+        "primary_focus": judgment.primary_focus,
+        "exclusion_category": judgment.exclusion_category,
+        "summary": judgment.summary,
+        "perspectives": [
+            {
+                "name": perspective.name,
+                "assessment": perspective.assessment,
+                "reason": perspective.reason,
+                "evidence": [
+                    {"source": evidence.source, "status": evidence.status, "fact": evidence.fact}
+                    for evidence in perspective.evidence
+                ],
+            }
+            for perspective in sorted(judgment.perspectives, key=lambda row: (row.position is None, row.position or 0, row.id or 0))
+        ],
+        "matched_performances": [
+            {
+                "name": item.name,
+                "match_reason": item.match_reason,
+                "mismatch_or_limit": item.mismatch_or_limit,
+                "source": item.source,
+                "status": item.status,
+            }
+            for item in judgment.matched_performances
+        ],
+        "counterarguments": [item.text for item in judgment.counterarguments],
+        "verification_items": [
+            {"item": item.item, "why": item.why, "blocking": item.blocking, "status": item.status}
+            for item in judgment.verification_items
+        ],
+        "next_action": judgment.next_action,
+    }
+
+
+def resolve_fixed_run(
+    session: Session,
+    project_root: Path | str,
+    *,
+    run_alias: str = FIXED_RUN_ID,
+) -> Run:
+    """Resolve the trusted artifact alias to exactly one canonical Run row.
+
+    This function is deliberately read-only.  It performs every source, DB,
+    notice, judgment, and provenance check before a quality gate can create a
+    profile snapshot, queue row, artifact, or gate/evaluation row.
+    """
+
+    if run_alias != FIXED_RUN_ID:
+        raise QualityGateValidationError("fixed quality run is invalid")
+    sample, baseline, results, _sample_raw, _baseline_raw, _results_raw, sample_ids = _read_strict_fixed_inputs(project_root)
+    try:
+        generated_at = datetime.fromisoformat(str(results["generated_at"]).replace("Z", "+00:00"))
+    except (TypeError, ValueError, KeyError):
+        raise QualityGateValidationError("fixed quality run is invalid") from None
+    canonical_id = deterministic_run_id(run_alias, generated_at)
+    # An alias row is never a valid fallback.  It was the original Phase 2
+    # defect and accepting it would make foreign keys point at the wrong row.
+    if session.get(Run, run_alias) is not None:
+        raise QualityGateValidationError("fixed quality run is invalid")
+    candidates = session.scalars(select(Run).where(Run.id.like(f"{run_alias}--%"))).all()
+    if not candidates:
+        raise QualityGateValidationError("quality gate run or policy is missing")
+    eligible = [row for row in candidates if row.status in _FIXED_RUN_ELIGIBLE_STATUSES and row.superseded_by is None]
+    if len(eligible) != 1 or eligible[0].id != canonical_id:
+        raise QualityGateValidationError("fixed quality run is invalid")
+    run = eligible[0]
+    if (
+        run.window_from != date(2026, 8, 17)
+        or run.window_to != date(2026, 8, 23)
+        or run.timezone != "Asia/Seoul"
+        or _identity_datetime(run.generated_at) != _identity_datetime(generated_at)
+        or run.screening_basis != results.get("screening_basis")
+    ):
+        raise QualityGateValidationError("fixed quality run is invalid")
+
+    db_notices = session.scalars(select(Notice).where(Notice.run_id == run.id).order_by(Notice.id)).all()
+    if len(db_notices) != 40 or [row.notice_key for row in db_notices] != sample_ids:
+        raise QualityGateValidationError("fixed quality run is invalid")
+    expected_notices = sample["notices"]
+    for db_notice, expected in zip(db_notices, expected_notices):
+        if _normalized_fixed_notice(expected) != _db_notice_identity(db_notice):
+            raise QualityGateValidationError("fixed quality run is invalid")
+    if sum(
+        1
+        for row in db_notices
+        if row.judgment is not None and row.judgment.schema_version == "bidops.decisions.v2"
+    ) != 40:
+        raise QualityGateValidationError("fixed quality run is invalid")
+    baseline_judgments = baseline["judgments"]
+    for db_notice, expected in zip(db_notices, baseline_judgments):
+        if _db_judgment_identity(db_notice) != _identity_value(dict(expected)):
+            raise QualityGateValidationError("fixed quality run is invalid")
+    return run
 
 
 _INPUT_KEYS = frozenset({
@@ -534,38 +850,48 @@ class QualityGateService:
             raise QualityGateValidationError("quality gate must use the fixed baseline run")
         # This is deliberately the first operation.  Invalid correspondence
         # must leave no gate, snapshot, or queue rows behind.
-        sample, baseline, sample_raw, baseline_raw, sample_ids = validate_fixed_inputs(self.settings.bidops_root)
+        sample, baseline, sample_raw, baseline_raw, sample_ids = validate_fixed_inputs(
+            self.settings.bidops_root, strict=True
+        )
 
         with self._session() as session:
-            run = session.scalar(select(Run).where(Run.id == run_id))
+            run = resolve_fixed_run(session, self.settings.bidops_root, run_alias=run_id)
             policy = session.scalar(select(ScreeningPolicy).where(ScreeningPolicy.policy_version == policy_version))
-            if run is None or policy is None:
+            if policy is None:
                 raise QualityGateValidationError("quality gate run or policy is missing")
             if policy.status not in {"activation_candidate", "active"}:
                 raise QualityGateValidationError("policy is not selectable")
+            resolved_run_id = run.id
 
         root = Path(self.settings.bidops_root)
         prepared_artifacts: list[tuple[str, ExecutionWorkspace]] = []
         try:
             if self.transaction_preparer is None:
                 raise QualityGateConflict("quality gate requires a transaction-aware execution preparer")
-            sample_digest = sha256_bytes(sample_raw)
-            baseline_digest = sha256_bytes(baseline_raw)
+            sample_digest = FIXED_SAMPLE_DIGEST
+            baseline_digest = FIXED_BASELINE_DIGEST
             now = _now(self.clock())
             gate_id = "gate-" + uuid4().hex
             with self._session(immediate=True) as session:
+                # Re-resolve while holding the same write transaction that
+                # will publish both passes and the gate.  A stale, changed,
+                # superseded, or ambiguous row cannot leak into any side
+                # effect, even if the first read raced a DB writer.
+                resolved = resolve_fixed_run(session, self.settings.bidops_root, run_alias=run_id)
+                if resolved.id != resolved_run_id:
+                    raise QualityGateConflict("fixed quality run changed")
                 policy = session.scalar(select(ScreeningPolicy).where(ScreeningPolicy.policy_version == policy_version))
                 if policy is None or policy.status not in {"activation_candidate", "active"}:
                     raise QualityGateValidationError("quality gate policy is not selectable")
                 prepared_a = self.transaction_preparer(
-                    session, run_id=run_id, policy_version=policy_version, profile_source=profile_source,
+                    session, run_id=resolved_run_id, policy_version=policy_version, profile_source=profile_source,
                     requested_by=actor, scope="quality_sample", trigger="quality_gate",
                 )
                 if not isinstance(getattr(prepared_a, "workspace", None), ExecutionWorkspace):
                     raise QualityGateConflict("quality pass ownership was not retained")
                 prepared_artifacts.append((prepared_a.created.execution_id, prepared_a.workspace))
                 prepared_b = self.transaction_preparer(
-                    session, run_id=run_id, policy_version=policy_version, profile_source=profile_source,
+                    session, run_id=resolved_run_id, policy_version=policy_version, profile_source=profile_source,
                     requested_by=actor, scope="quality_sample", trigger="quality_gate",
                 )
                 if not isinstance(getattr(prepared_b, "workspace", None), ExecutionWorkspace):
@@ -575,6 +901,11 @@ class QualityGateService:
                 if first.execution_id == second.execution_id:
                     raise QualityGateConflict("quality passes must be independent")
                 execution_a, execution_b = prepared_a.row, prepared_b.row
+                if (
+                    execution_a.source_run_id != resolved_run_id
+                    or execution_b.source_run_id != resolved_run_id
+                ):
+                    raise QualityGateConflict("quality pass source run identity is invalid")
                 prepared_a.workspace.require_named()
                 prepared_b.workspace.require_named()
                 input_a = prepared_a.workspace.read_json("screening-input.json", expected_digest=execution_a.input_artifact_digest)
@@ -618,7 +949,7 @@ class QualityGateService:
                     raise QualityGateConflict("quality pass policy identity differs")
                 gate = QualityGate(
                     gate_id=gate_id, purpose=purpose, execution_status="대기", result_status="미측정",
-                    baseline_run_id=run_id, sample_artifact_path=_safe_relative(FIXED_SAMPLE_RELATIVE),
+                    baseline_run_id=resolved_run_id, sample_artifact_path=_safe_relative(FIXED_SAMPLE_RELATIVE),
                     sample_artifact_digest=sample_digest, baseline_decisions_path=_safe_relative(FIXED_BASELINE_RELATIVE),
                     baseline_decisions_digest=baseline_digest, policy_version=policy_version,
                     prompt_version=execution_a.prompt_version, model_name=execution_a.model_name,
