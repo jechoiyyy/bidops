@@ -11,12 +11,13 @@ import pytest
 from sqlalchemy import create_engine, func, select, update
 from sqlalchemy.orm import Session, sessionmaker
 
+import app.screening.quality_gate as quality_gate_module
 from app.config import Settings
 from app.db import Base
 from app.ingest.loader import ingest_run, deterministic_run_id
 from app.models import AuditEvent, CompanyProfileSnapshot, Judgment, Notice, QualityGate, QualityGateEvaluation, QualityGateReview, Run, ScreeningExecution, ScreeningPolicy
 from app.screening.artifacts import ArtifactStore
-from app.screening.contracts import MODEL_NAME, ModelIdentity
+from app.screening.contracts import MODEL_NAME, ModelIdentity, two_axis_mixing
 from app.screening.orchestrator import CreatedExecution, ScreeningCreationError, ScreeningOrchestrator
 from app.screening.policy import load_policy_file, policy_content_digest
 from app.screening.profile_snapshot import BASELINE_COMMIT
@@ -177,9 +178,11 @@ def _assert_no_gate_side_effects(engine, root: Path) -> None:
 
 
 class _FailingPassOrchestrator:
-    def __init__(self, settings, factory):
+    def __init__(self, settings, factory, *, run_id: str, sample: dict[str, object]):
         self.settings = settings
         self.factory = factory
+        self.run_id = run_id
+        self.sample = sample
         self.queue = SimpleNamespace()
         self.calls = 0
 
@@ -190,22 +193,29 @@ class _FailingPassOrchestrator:
         execution_id = "scr-" + "1" * 32
         store = ArtifactStore(self.settings.bidops_root)
         workspace = store.create_execution_workspace(execution_id)
+        legacy = legacy_generation_config()
         input_value = {
             "schema_version": "bidops.screening-input.v1", "execution_id": execution_id,
-            "run_id": FIXED_RUN_ID, "generated_at": NOW.isoformat(), "source_window": {"from": "2026-08-17", "to": "2026-08-23", "timezone": "Asia/Seoul"},
+            "run_id": self.run_id, "generated_at": NOW.isoformat(), "source_window": self.sample["source_window"],
             "policy_version": "policy-1", "prompt_version": "prompt-1",
             "company_profile_version": PROFILE_VERSION, "company_profile_digest": DIGEST,
-            "candidate_count": 40, "notices": [{"notice_id": f"n-{i}"} for i in range(40)],
+            "candidate_count": 40,
+            "notices": [
+                {**item, "judgment_mode": "신규", "carry_over_from": None, "rejudge_reason": None}
+                for item in self.sample["notices"]
+            ],
+            "generation_config": legacy.canonical_value(), "generation_config_digest": legacy.digest(),
         }
         path, digest = workspace.write_json("screening-input.json", input_value)
         row = ScreeningExecution(
-                execution_id=execution_id, trigger="quality_gate", source_run_id=FIXED_RUN_ID,
+                execution_id=execution_id, trigger="quality_gate", source_run_id=self.run_id,
                 scope="quality_sample", status="대기", requested_by="tester", policy_version="policy-1",
                 prompt_version="prompt-1", model_name="qwen3.8:27b", model_digest=DIGEST,
                 company_profile_version=PROFILE_VERSION, company_profile_digest=DIGEST,
                 input_artifact_path=path, input_artifact_digest=digest,
                 artifact_dir=f"data/screening-executions/{execution_id}", queued_at=NOW,
                 candidate_count=40, completed_count=0, failure_count=0,
+                generation_config_json=legacy.canonical_value(), generation_config_digest=legacy.digest(),
             )
         session.add(row)
         session.flush()
@@ -218,12 +228,24 @@ class _FailingPassOrchestrator:
 
 
 def test_failed_second_pass_leaves_no_execution_or_artifact(tmp_path: Path):
-    settings, engine, factory = _service_fixture(tmp_path)
-    service = QualityGateService(settings, session_factory=factory, orchestrator=_FailingPassOrchestrator(settings, factory))
+    settings, engine, factory, _run_dir, canonical_run_id = _canonical_service_fixture(tmp_path)
+    fixed_sample = json.loads((tmp_path / FIXED_SAMPLE_RELATIVE).read_text(encoding="utf-8"))
+    with factory() as session:
+        session.add(CompanyProfileSnapshot(
+            digest=DIGEST, version=PROFILE_VERSION, source_kind="working_tree",
+            source_ref="docs/reference/company-profile.md",
+            artifact_path=f"web/data/profile-snapshots/{DIGEST}.md", created_at=NOW,
+        ))
+        session.commit()
+    orchestrator = _FailingPassOrchestrator(
+        settings, factory, run_id=canonical_run_id, sample=fixed_sample,
+    )
+    service = QualityGateService(settings, session_factory=factory, orchestrator=orchestrator)
     with pytest.raises(ScreeningCreationError):
         service.create_gate(
             purpose="operational_approval", policy_version="policy-1", profile_source="current", created_by="tester"
         )
+    assert orchestrator.calls == 2
     with Session(engine) as session:
         assert session.scalars(select(ScreeningExecution)).all() == []
     assert not (tmp_path / "data/screening-executions").exists() or not list((tmp_path / "data/screening-executions").iterdir())
@@ -338,6 +360,156 @@ def test_trusted_fixed_hash_pin_tamper_is_fail_closed_without_side_effects(
     _assert_no_gate_side_effects(engine, tmp_path)
     with Session(engine) as session:
         assert session.get(Run, canonical_run_id) is not None
+
+
+@pytest.mark.parametrize("relative", [FIXED_SAMPLE_RELATIVE, FIXED_BASELINE_RELATIVE, FIXED_RESULTS_RELATIVE])
+def test_strict_fixed_source_rejects_symlinked_file(tmp_path: Path, relative: str):
+    production_root = Path(__file__).resolve().parents[3]
+    target = tmp_path / relative
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes((production_root / relative).read_bytes())
+    real = tmp_path / "outside-fixed-input.json"
+    real.write_bytes(target.read_bytes())
+    target.unlink()
+    target.symlink_to(real)
+    with pytest.raises(QualityGateValidationError):
+        quality_gate_module._read_strict_fixed_snapshot(tmp_path)
+
+
+@pytest.mark.parametrize("component", ["data", "runs", FIXED_RUN_ID])
+def test_strict_fixed_source_rejects_symlinked_path_component(tmp_path: Path, component: str):
+    production_root = Path(__file__).resolve().parents[3]
+    source = production_root / "data/runs" / FIXED_RUN_ID
+    target = tmp_path / "data/runs" / FIXED_RUN_ID
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(source, target)
+    if component == "data":
+        original, moved = tmp_path / "data", tmp_path / "data-real"
+    elif component == "runs":
+        original, moved = tmp_path / "data/runs", tmp_path / "runs-real"
+    else:
+        original, moved = target, tmp_path / "run-real"
+    original.rename(moved)
+    original.symlink_to(moved, target_is_directory=True)
+    with pytest.raises(QualityGateValidationError):
+        quality_gate_module._read_strict_fixed_snapshot(tmp_path)
+
+
+@pytest.mark.parametrize("mutation_call", [2, 3, 4, 6])
+def test_fixed_snapshot_swap_at_each_gate_boundary_rolls_back_everything(tmp_path: Path, mutation_call: int, monkeypatch):
+    settings, engine, factory, _run_dir, _canonical_run_id = _canonical_service_fixture(tmp_path)
+    calls = 0
+    original_read = quality_gate_module._read_strict_fixed_snapshot
+
+    def swapped_read(root):
+        nonlocal calls
+        calls += 1
+        if calls == mutation_call:
+            for relative in (FIXED_SAMPLE_RELATIVE, FIXED_BASELINE_RELATIVE, FIXED_RESULTS_RELATIVE):
+                path = Path(root) / relative
+                path.write_bytes(path.read_bytes() + b"\n")
+        return original_read(root)
+
+    monkeypatch.setattr(quality_gate_module, "_read_strict_fixed_snapshot", swapped_read)
+    orchestrator = ScreeningOrchestrator(
+        settings, session_factory=factory,
+        ollama=type("FakeModel", (), {"inspect_model": lambda _self: ModelIdentity(MODEL_NAME, "c" * 64)})(),
+        clock=lambda: NOW,
+    )
+    with pytest.raises(QualityGateValidationError):
+        QualityGateService(settings, session_factory=factory, orchestrator=orchestrator).create_gate(
+            purpose="operational_approval", policy_version="policy-1", profile_source="current", created_by="tester"
+        )
+    assert calls >= mutation_call
+    _assert_no_gate_side_effects(engine, tmp_path)
+
+
+def test_fixed_snapshot_aba_restore_during_prepare_is_rejected(tmp_path: Path, monkeypatch):
+    settings, engine, factory, _run_dir, _canonical_run_id = _canonical_service_fixture(tmp_path)
+    original_read = quality_gate_module._read_strict_fixed_snapshot
+    calls = 0
+
+    def aba_read(root):
+        nonlocal calls
+        calls += 1
+        if calls == 3:
+            path = Path(root) / FIXED_SAMPLE_RELATIVE
+            raw = path.read_bytes()
+            path.write_bytes(raw + b"\n")
+            path.write_bytes(raw)
+        return original_read(root)
+
+    monkeypatch.setattr(quality_gate_module, "_read_strict_fixed_snapshot", aba_read)
+    orchestrator = ScreeningOrchestrator(
+        settings, session_factory=factory,
+        ollama=type("FakeModel", (), {"inspect_model": lambda _self: ModelIdentity(MODEL_NAME, "c" * 64)})(),
+        clock=lambda: NOW,
+    )
+    with pytest.raises(QualityGateValidationError):
+        QualityGateService(settings, session_factory=factory, orchestrator=orchestrator).create_gate(
+            purpose="operational_approval", policy_version="policy-1", profile_source="current", created_by="tester"
+        )
+    _assert_no_gate_side_effects(engine, tmp_path)
+
+
+@pytest.mark.parametrize("relative", [FIXED_SAMPLE_RELATIVE, FIXED_BASELINE_RELATIVE, FIXED_RESULTS_RELATIVE])
+def test_refresh_fixed_source_tamper_has_no_evaluation_side_effect(tmp_path: Path, relative: str):
+    settings, engine, factory, gate_id, _judgments_a, _sample_ids = _completed_gate_fixture(tmp_path)
+    path = tmp_path / relative
+    path.write_bytes(path.read_bytes() + b"\n")
+    with Session(engine) as session:
+        before = session.scalar(select(func.count()).select_from(QualityGateEvaluation))
+        gate = session.get(QualityGate, gate_id)
+        assert gate is not None and gate.execution_status == "대기"
+    with pytest.raises(QualityGateValidationError):
+        QualityGateService(settings, session_factory=factory, orchestrator=SimpleNamespace()).refresh(gate_id)
+    with Session(engine) as session:
+        assert session.scalar(select(func.count()).select_from(QualityGateEvaluation)) == before
+        gate = session.get(QualityGate, gate_id)
+        assert gate is not None and gate.execution_status == "대기"
+
+
+def test_fixed_run_resolver_query_budget_is_bounded(tmp_path: Path):
+    settings, engine, factory, _run_dir, canonical_run_id = _canonical_service_fixture(tmp_path)
+    statements: list[str] = []
+
+    from sqlalchemy import event
+
+    def record(_conn, _cursor, statement, _parameters, _context, _executemany):
+        statements.append(statement)
+
+    event.listen(engine, "before_cursor_execute", record)
+    try:
+        with Session(engine) as session:
+            resolved = quality_gate_module.resolve_fixed_run(session, tmp_path)
+            assert resolved.id == canonical_run_id
+    finally:
+        event.remove(engine, "before_cursor_execute", record)
+    assert len(statements) < 30
+
+
+def test_quality_gate_creation_query_budget_is_bounded(tmp_path: Path):
+    settings, engine, factory, _run_dir, _canonical_run_id = _canonical_service_fixture(tmp_path)
+    statements: list[str] = []
+
+    from sqlalchemy import event
+
+    def record(_conn, _cursor, statement, _parameters, _context, _executemany):
+        statements.append(statement)
+
+    orchestrator = ScreeningOrchestrator(
+        settings, session_factory=factory,
+        ollama=type("FakeModel", (), {"inspect_model": lambda _self: ModelIdentity(MODEL_NAME, "c" * 64)})(),
+        clock=lambda: NOW,
+    )
+    event.listen(engine, "before_cursor_execute", record)
+    try:
+        QualityGateService(settings, session_factory=factory, orchestrator=orchestrator).create_gate(
+            purpose="operational_approval", policy_version="policy-1", profile_source="current", created_by="tester"
+        )
+    finally:
+        event.remove(engine, "before_cursor_execute", record)
+    assert len(statements) < 100
 
 
 @pytest.mark.parametrize("mutation", ["missing", "stale", "superseded", "ambiguous"])
@@ -459,6 +631,13 @@ def test_reingest_fixed_artifacts_reuses_one_canonical_id_and_no_alias_row(tmp_p
 
 def _completed_gate_fixture(root: Path):
     settings, engine, factory = _service_fixture(root)
+    production_root = Path(__file__).resolve().parents[3]
+    for relative in (FIXED_SAMPLE_RELATIVE, FIXED_BASELINE_RELATIVE, FIXED_RESULTS_RELATIVE):
+        destination = root / relative
+        shutil.copy(production_root / relative, destination)
+    fixed_sample = json.loads((root / FIXED_SAMPLE_RELATIVE).read_text(encoding="utf-8"))
+    sample_ids = [item["notice_id"] for item in fixed_sample["notices"]]
+    sample_by_id = {item["notice_id"]: item for item in fixed_sample["notices"]}
     # This fixture intentionally models a pre-binding v3 artifact: the
     # artifact JSON omits generation fields, so the persisted execution and
     # gate must carry the deterministic legacy binding.
@@ -466,7 +645,6 @@ def _completed_gate_fixture(root: Path):
     legacy_value = legacy_config.canonical_value()
     legacy_digest = legacy_config.digest()
     from tests.test_quality_metrics import judgment
-
     store = ArtifactStore(root)
     execution_rows: list[ScreeningExecution] = []
     judgments_a: list[dict[str, object]] = []
@@ -479,14 +657,34 @@ def _completed_gate_fixture(root: Path):
             "policy_version": "policy-1", "prompt_version": "prompt-1",
             "company_profile_version": PROFILE_VERSION, "company_profile_digest": DIGEST,
             "candidate_count": 40,
-            "notices": [{"notice_id": f"n-{i}", "judgment_mode": "신규", "carry_over_from": None, "rejudge_reason": None} for i in range(40)],
+            "notices": [
+                {**item, "judgment_mode": "신규", "carry_over_from": None, "rejudge_reason": None}
+                for item in fixed_sample["notices"]
+            ],
         }
         workspace = store.create_execution_workspace(execution_id)
         input_path, input_digest = workspace.write_json("screening-input.json", input_value)
         decisions: list[dict[str, object]] = []
-        for i in range(40):
-            value = dict(judgment(f"n-{i}"))
-            value.update({"model_digest": DIGEST, "prompt_version": "prompt-1", "policy_version": "policy-1", "company_profile_version": PROFILE_VERSION, "company_profile_digest": DIGEST, "judged_in_run": FIXED_RUN_ID, "recorded_in_run": FIXED_RUN_ID})
+        for notice_id in sample_ids:
+            value = dict(judgment(notice_id))
+            performance_matches = sample_by_id[notice_id].get("performance_matches") or []
+            if performance_matches:
+                value["matched_performances"] = [{
+                    "name": match.get("project_name") or "검증 대상 수행실적",
+                    "match_reason": "수행실적 후보 신호를 검토했습니다",
+                    "mismatch_or_limit": "직접 정합성은 추가 확인이 필요합니다",
+                    "source": str(match.get("source_page") or "수집 단계 performance_matches"),
+                    "status": "unknown",
+                } for match in performance_matches[:1]]
+            mixing = two_axis_mixing(value["perspectives"], value["grade"])
+            value.update({
+                "notice_id": notice_id, "judgment_mode": "신규", "carried_over": False,
+                "rejudge_reason": None, "model_name": MODEL_NAME, "model_digest": DIGEST,
+                "prompt_version": "prompt-1", "policy_version": "policy-1",
+                "company_profile_version": PROFILE_VERSION, "company_profile_digest": DIGEST,
+                "judged_in_run": FIXED_RUN_ID, "recorded_in_run": FIXED_RUN_ID,
+                "two_axis_mixing_flag": mixing.flag, "two_axis_mixing_label": mixing.label,
+            })
             decisions.append(value)
         if pass_index == 1:
             judgments_a = decisions
@@ -527,22 +725,22 @@ def _completed_gate_fixture(root: Path):
             generation_config_digest=legacy_digest, created_at=NOW,
         ))
         session.commit()
-    return settings, engine, factory, gate_id, judgments_a
+    return settings, engine, factory, gate_id, judgments_a, sample_ids
 
 
 def test_refresh_review_upsert_audit_and_immutable_history(tmp_path: Path):
-    settings, engine, factory, gate_id, judgments_a = _completed_gate_fixture(tmp_path)
+    settings, engine, factory, gate_id, judgments_a, sample_ids = _completed_gate_fixture(tmp_path)
     service = QualityGateService(settings, session_factory=factory, orchestrator=SimpleNamespace())
     first = service.refresh(gate_id)
     assert first.revision == 2
     assert first.result_status == "미측정"
     for index in range(10):
         service.upsert_review(
-            gate_id, f"n-{index}", reviewer="reviewer", evidence_judgment="동의",
+            gate_id, sample_ids[index], reviewer="reviewer", evidence_judgment="동의",
             decision_digest=judgment_digest(judgments_a[index]), note=f"old-{index}",
         )
     updated = service.upsert_review(
-        gate_id, "n-0", reviewer="reviewer", evidence_judgment="근거 부족",
+        gate_id, sample_ids[0], reviewer="reviewer", evidence_judgment="근거 부족",
         decision_digest=judgment_digest(judgments_a[0]), note="new-note",
     )
     assert updated.note == "new-note"
@@ -557,7 +755,7 @@ def test_refresh_review_upsert_audit_and_immutable_history(tmp_path: Path):
             and event.details_json["after"].get("note") == "new-note"
             for event in audits
         )
-        review = session.scalar(select(QualityGateReview).where(QualityGateReview.gate_id == gate_id, QualityGateReview.notice_id == "n-0"))
+        review = session.scalar(select(QualityGateReview).where(QualityGateReview.gate_id == gate_id, QualityGateReview.notice_id == sample_ids[0]))
         assert review is not None and review.execution_id == "scr-" + "1" * 32
 
 
@@ -576,7 +774,7 @@ def test_partial_success_missing_notice_is_fixed_denominator_mismatch_not_struct
 
 
 def test_partial_success_service_evaluation_does_not_hold_for_legal_missing_notice(tmp_path: Path):
-    settings, engine, factory, gate_id, judgments_a = _completed_gate_fixture(tmp_path)
+    settings, engine, factory, gate_id, judgments_a, sample_ids = _completed_gate_fixture(tmp_path)
     store = ArtifactStore(tmp_path)
     with factory() as session:
         gate = session.get(QualityGate, gate_id)
@@ -593,7 +791,7 @@ def test_partial_success_service_evaluation_does_not_hold_for_legal_missing_noti
             session.add(QualityGateReview(
                 gate_id=gate_id,
                 execution_id=execution.execution_id,
-                notice_id=f"n-{index}",
+                notice_id=sample_ids[index],
                 decision_digest=judgment_digest(judgments_a[index]),
                 reviewer="reviewer",
                 evidence_judgment="동의",

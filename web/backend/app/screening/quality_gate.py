@@ -8,15 +8,18 @@ therefore subject to the same FIFO worker as every other Qwen call.
 from __future__ import annotations
 
 from contextlib import contextmanager
+from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
 import json
+import os
 from pathlib import Path
+import stat
 from typing import Any, Iterator, Mapping, Sequence
 from uuid import uuid4
 
 from sqlalchemy import Engine, func, select, update
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import Session, selectinload, sessionmaker
 
 from ..config import Settings, get_settings
 from ..models import (
@@ -29,6 +32,8 @@ from ..models import (
     ScreeningExecution,
     ScreeningPolicy,
     Notice,
+    Judgment,
+    Perspective,
 )
 from .artifacts import ArtifactError, ArtifactStore, ExecutionWorkspace, sha256_bytes
 from ..ingest.loader import deterministic_run_id
@@ -132,6 +137,56 @@ def _read_json(path: Path) -> tuple[bytes, dict[str, Any]]:
     return raw, value
 
 
+PathIdentity = tuple[tuple[str, int, int, int, int], ...]
+
+
+@dataclass(frozen=True)
+class _FixedInputSnapshot:
+    """One trusted, byte-and-path identity snapshot of all fixed inputs."""
+
+    root: Path
+    sample: dict[str, Any]
+    baseline: dict[str, Any]
+    results: dict[str, Any]
+    sample_raw: bytes
+    baseline_raw: bytes
+    results_raw: bytes
+    sample_identity: PathIdentity
+    baseline_identity: PathIdentity
+    results_identity: PathIdentity
+    ids: tuple[str, ...]
+
+
+def _fixed_file_identity(root: Path, relative: str) -> PathIdentity:
+    """Verify every component without following symlinks and fingerprint it."""
+
+    current = root
+    entries: list[tuple[str, int, int, int, int]] = []
+    try:
+        root_stat = os.lstat(current)
+    except OSError:
+        raise QualityGateValidationError("fixed quality input is unavailable") from None
+    if stat.S_ISLNK(root_stat.st_mode) or not stat.S_ISDIR(root_stat.st_mode):
+        raise QualityGateValidationError("fixed quality input is unavailable")
+    for index, component in enumerate(Path(relative).parts):
+        current = current / component
+        try:
+            value = os.lstat(current)
+        except OSError:
+            raise QualityGateValidationError("fixed quality input is unavailable") from None
+        if stat.S_ISLNK(value.st_mode):
+            raise QualityGateValidationError("fixed quality input is unavailable")
+        is_final = index == len(Path(relative).parts) - 1
+        if (is_final and not stat.S_ISREG(value.st_mode)) or (not is_final and not stat.S_ISDIR(value.st_mode)):
+            raise QualityGateValidationError("fixed quality input is unavailable")
+        # Parent directory mtimes legitimately change when execution/profile
+        # artifacts are created elsewhere under the same root.  Their
+        # device/inode identities still detect a replacement or symlink swap;
+        # retain size/mtime only for the trusted file itself.
+        entries.append((component, value.st_dev, value.st_ino, value.st_size if is_final else 0, value.st_mtime_ns if is_final else 0))
+    return tuple(entries)
+
+
 def _fixed_path(root: Path, relative: str) -> Path:
     """Return a fixed artifact path only when every path component is real."""
 
@@ -140,13 +195,7 @@ def _fixed_path(root: Path, relative: str) -> Path:
         path.relative_to(root)
     except ValueError:
         raise QualityGateValidationError("fixed quality input is unavailable") from None
-    current = root
-    for component in Path(relative).parts:
-        current = current / component
-        if current.is_symlink():
-            raise QualityGateValidationError("fixed quality input is unavailable")
-    if not path.is_file():
-        raise QualityGateValidationError("fixed quality input is unavailable")
+    _fixed_file_identity(root, relative)
     return path
 
 
@@ -155,11 +204,13 @@ def _read_pinned_json(root: Path, relative: str, expected_digest: str) -> tuple[
 
     path = _fixed_path(root, relative)
     try:
+        before = _fixed_file_identity(root, relative)
         raw = path.read_bytes()
         value = json.loads(raw.decode("utf-8"))
+        after = _fixed_file_identity(root, relative)
     except (OSError, UnicodeError, json.JSONDecodeError):
         raise QualityGateValidationError("fixed quality input is invalid") from None
-    if sha256_bytes(raw) != expected_digest or not isinstance(value, dict):
+    if before != after or sha256_bytes(raw) != expected_digest or not isinstance(value, dict):
         raise QualityGateValidationError("fixed quality input is invalid")
     return raw, value
 
@@ -232,7 +283,9 @@ def _validate_fixed_shape(
     return ids
 
 
-def _read_strict_fixed_inputs(project_root: Path | str) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], bytes, bytes, bytes, list[str]]:
+def _read_strict_fixed_snapshot(project_root: Path | str) -> _FixedInputSnapshot:
+    """Read and validate all fixed files as one reusable immutable snapshot."""
+
     root = Path(project_root)
     if root.is_symlink():
         raise QualityGateValidationError("fixed quality input is unavailable")
@@ -244,7 +297,40 @@ def _read_strict_fixed_inputs(project_root: Path | str) -> tuple[dict[str, Any],
     baseline_raw, baseline = _read_pinned_json(root, FIXED_BASELINE_RELATIVE, FIXED_BASELINE_DIGEST)
     results_raw, results = _read_pinned_json(root, FIXED_RESULTS_RELATIVE, FIXED_RESULTS_DIGEST)
     ids = _validate_fixed_shape(sample, baseline, results)
-    return sample, baseline, results, sample_raw, baseline_raw, results_raw, ids
+    return _FixedInputSnapshot(
+        root=root, sample=sample, baseline=baseline, results=results,
+        sample_raw=sample_raw, baseline_raw=baseline_raw, results_raw=results_raw,
+        sample_identity=_fixed_file_identity(root, FIXED_SAMPLE_RELATIVE),
+        baseline_identity=_fixed_file_identity(root, FIXED_BASELINE_RELATIVE),
+        results_identity=_fixed_file_identity(root, FIXED_RESULTS_RELATIVE),
+        ids=tuple(ids),
+    )
+
+
+def _read_strict_fixed_inputs(project_root: Path | str) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], bytes, bytes, bytes, list[str]]:
+    snapshot = _read_strict_fixed_snapshot(project_root)
+    return (
+        snapshot.sample, snapshot.baseline, snapshot.results,
+        snapshot.sample_raw, snapshot.baseline_raw, snapshot.results_raw,
+        list(snapshot.ids),
+    )
+
+
+def _revalidate_fixed_snapshot(snapshot: _FixedInputSnapshot) -> _FixedInputSnapshot:
+    """Reject any content, path, symlink, or inode change since the snapshot."""
+
+    current = _read_strict_fixed_snapshot(snapshot.root)
+    if (
+        current.sample_raw != snapshot.sample_raw
+        or current.baseline_raw != snapshot.baseline_raw
+        or current.results_raw != snapshot.results_raw
+        or current.sample_identity != snapshot.sample_identity
+        or current.baseline_identity != snapshot.baseline_identity
+        or current.results_identity != snapshot.results_identity
+        or current.ids != snapshot.ids
+    ):
+        raise QualityGateValidationError("fixed quality input changed")
+    return current
 
 
 def validate_fixed_inputs(
@@ -260,8 +346,8 @@ def validate_fixed_inputs(
     """
 
     if strict:
-        sample, baseline, _results, sample_raw, baseline_raw, _results_raw, ids = _read_strict_fixed_inputs(project_root)
-        return sample, baseline, sample_raw, baseline_raw, ids
+        snapshot = _read_strict_fixed_snapshot(project_root)
+        return snapshot.sample, snapshot.baseline, snapshot.sample_raw, snapshot.baseline_raw, list(snapshot.ids)
     root = Path(project_root).resolve()
     sample_raw, sample = _read_json(root / FIXED_SAMPLE_RELATIVE)
     baseline_raw, baseline = _read_json(root / FIXED_BASELINE_RELATIVE)
@@ -330,6 +416,21 @@ def _input_matches_fixed_sample(value: Mapping[str, Any], sample: Mapping[str, A
 
 
 _FIXED_RUN_ELIGIBLE_STATUSES = frozenset({"active", "complete", "성공", "부분 성공"})
+
+
+def _fixed_run_load_options() -> tuple[Any, ...]:
+    """Eagerly load the complete fixed projection used by the resolver."""
+
+    notices = selectinload(Run.notices)
+    judgment = notices.selectinload(Notice.judgment)
+    perspectives = judgment.selectinload(Judgment.perspectives)
+    return (
+        notices.selectinload(Notice.attachments),
+        perspectives.selectinload(Perspective.evidence),
+        judgment.selectinload(Judgment.counterarguments),
+        judgment.selectinload(Judgment.verification_items),
+        judgment.selectinload(Judgment.matched_performances),
+    )
 
 
 def _identity_datetime(value: Any) -> str | None:
@@ -462,6 +563,7 @@ def resolve_fixed_run(
     project_root: Path | str,
     *,
     run_alias: str = FIXED_RUN_ID,
+    snapshot: _FixedInputSnapshot | None = None,
 ) -> Run:
     """Resolve the trusted artifact alias to exactly one canonical Run row.
 
@@ -472,7 +574,14 @@ def resolve_fixed_run(
 
     if run_alias != FIXED_RUN_ID:
         raise QualityGateValidationError("fixed quality run is invalid")
-    sample, baseline, results, _sample_raw, _baseline_raw, _results_raw, sample_ids = _read_strict_fixed_inputs(project_root)
+    fixed = snapshot or _read_strict_fixed_snapshot(project_root)
+    try:
+        requested_root = Path(project_root).resolve(strict=True)
+    except OSError:
+        raise QualityGateValidationError("fixed quality input is unavailable") from None
+    if fixed.root != requested_root:
+        raise QualityGateValidationError("fixed quality input is invalid")
+    sample, baseline, results, sample_ids = fixed.sample, fixed.baseline, fixed.results, list(fixed.ids)
     try:
         generated_at = datetime.fromisoformat(str(results["generated_at"]).replace("Z", "+00:00"))
     except (TypeError, ValueError, KeyError):
@@ -482,7 +591,11 @@ def resolve_fixed_run(
     # defect and accepting it would make foreign keys point at the wrong row.
     if session.get(Run, run_alias) is not None:
         raise QualityGateValidationError("fixed quality run is invalid")
-    candidates = session.scalars(select(Run).where(Run.id.like(f"{run_alias}--%"))).all()
+    candidates = session.scalars(
+        select(Run)
+        .where(Run.id.like(f"{run_alias}--%"))
+        .options(*_fixed_run_load_options())
+    ).all()
     if not candidates:
         raise QualityGateValidationError("quality gate run or policy is missing")
     eligible = [row for row in candidates if row.status in _FIXED_RUN_ELIGIBLE_STATUSES and row.superseded_by is None]
@@ -498,7 +611,10 @@ def resolve_fixed_run(
     ):
         raise QualityGateValidationError("fixed quality run is invalid")
 
-    db_notices = session.scalars(select(Notice).where(Notice.run_id == run.id).order_by(Notice.id)).all()
+    # The resolver touches every child projection below.  Keep this as one
+    # bounded select-in graph rather than triggering a query per notice and
+    # per judgment child collection.
+    db_notices = sorted(run.notices, key=lambda row: row.id)
     if len(db_notices) != 40 or [row.notice_key for row in db_notices] != sample_ids:
         raise QualityGateValidationError("fixed quality run is invalid")
     expected_notices = sample["notices"]
@@ -850,12 +966,13 @@ class QualityGateService:
             raise QualityGateValidationError("quality gate must use the fixed baseline run")
         # This is deliberately the first operation.  Invalid correspondence
         # must leave no gate, snapshot, or queue rows behind.
-        sample, baseline, sample_raw, baseline_raw, sample_ids = validate_fixed_inputs(
-            self.settings.bidops_root, strict=True
+        fixed = _read_strict_fixed_snapshot(self.settings.bidops_root)
+        sample, baseline, sample_raw, baseline_raw, sample_ids = (
+            fixed.sample, fixed.baseline, fixed.sample_raw, fixed.baseline_raw, list(fixed.ids)
         )
 
         with self._session() as session:
-            run = resolve_fixed_run(session, self.settings.bidops_root, run_alias=run_id)
+            run = resolve_fixed_run(session, self.settings.bidops_root, run_alias=run_id, snapshot=fixed)
             policy = session.scalar(select(ScreeningPolicy).where(ScreeningPolicy.policy_version == policy_version))
             if policy is None:
                 raise QualityGateValidationError("quality gate run or policy is missing")
@@ -873,16 +990,21 @@ class QualityGateService:
             now = _now(self.clock())
             gate_id = "gate-" + uuid4().hex
             with self._session(immediate=True) as session:
+                _revalidate_fixed_snapshot(fixed)
                 # Re-resolve while holding the same write transaction that
                 # will publish both passes and the gate.  A stale, changed,
                 # superseded, or ambiguous row cannot leak into any side
                 # effect, even if the first read raced a DB writer.
-                resolved = resolve_fixed_run(session, self.settings.bidops_root, run_alias=run_id)
+                resolved = resolve_fixed_run(session, self.settings.bidops_root, run_alias=run_id, snapshot=fixed)
                 if resolved.id != resolved_run_id:
                     raise QualityGateConflict("fixed quality run changed")
                 policy = session.scalar(select(ScreeningPolicy).where(ScreeningPolicy.policy_version == policy_version))
                 if policy is None or policy.status not in {"activation_candidate", "active"}:
                     raise QualityGateValidationError("quality gate policy is not selectable")
+                # prepare_execution reads the source directory itself.  The
+                # pre/post checks make that separate read a guarded boundary
+                # and keep any changed/symlinked source from being published.
+                _revalidate_fixed_snapshot(fixed)
                 prepared_a = self.transaction_preparer(
                     session, run_id=resolved_run_id, policy_version=policy_version, profile_source=profile_source,
                     requested_by=actor, scope="quality_sample", trigger="quality_gate",
@@ -890,6 +1012,7 @@ class QualityGateService:
                 if not isinstance(getattr(prepared_a, "workspace", None), ExecutionWorkspace):
                     raise QualityGateConflict("quality pass ownership was not retained")
                 prepared_artifacts.append((prepared_a.created.execution_id, prepared_a.workspace))
+                _revalidate_fixed_snapshot(fixed)
                 prepared_b = self.transaction_preparer(
                     session, run_id=resolved_run_id, policy_version=policy_version, profile_source=profile_source,
                     requested_by=actor, scope="quality_sample", trigger="quality_gate",
@@ -897,6 +1020,7 @@ class QualityGateService:
                 if not isinstance(getattr(prepared_b, "workspace", None), ExecutionWorkspace):
                     raise QualityGateConflict("quality pass ownership was not retained")
                 prepared_artifacts.append((prepared_b.created.execution_id, prepared_b.workspace))
+                _revalidate_fixed_snapshot(fixed)
                 first, second = prepared_a.created, prepared_b.created
                 if first.execution_id == second.execution_id:
                     raise QualityGateConflict("quality passes must be independent")
@@ -947,6 +1071,15 @@ class QualityGateService:
                     or execution_b.candidate_count != 40
                 ):
                     raise QualityGateConflict("quality pass policy identity differs")
+                # This is the final trust boundary.  Any content, symlink,
+                # inode, or path replacement observed after either prepare
+                # rolls back the transaction and removes both workspaces.
+                _revalidate_fixed_snapshot(fixed)
+                final_resolved = resolve_fixed_run(
+                    session, self.settings.bidops_root, run_alias=run_id, snapshot=fixed
+                )
+                if final_resolved.id != resolved_run_id:
+                    raise QualityGateConflict("fixed quality run changed")
                 gate = QualityGate(
                     gate_id=gate_id, purpose=purpose, execution_status="대기", result_status="미측정",
                     baseline_run_id=resolved_run_id, sample_artifact_path=_safe_relative(FIXED_SAMPLE_RELATIVE),
@@ -1104,6 +1237,11 @@ class QualityGateService:
                         gate=gate, execution_a=a, execution_b=b, reviews=reviews,
                     )
                     result, reasons = _result_for_metrics(execution_status=aggregate, metrics=metrics, valid_review_count=valid_count, distinct_notice_review_count=distinct_count, structure_reasons=structure)
+                except QualityGateValidationError:
+                    # A trusted fixed-file failure is a transaction failure,
+                    # not a metric result.  Do not append an evaluation that
+                    # would make a tampered source look auditable.
+                    raise
                 except (QualityGateError, ArtifactError, QualityMetricError, KeyError, TypeError, ValueError):
                     metrics = gate.metrics_json if isinstance(gate.metrics_json, dict) else {}
                     valid_count = sum(row.get("evidence_judgment") in {"동의", "근거 부족"} for row in reviews)
@@ -1132,10 +1270,19 @@ class QualityGateService:
 
     @staticmethod
     def _fixed_for_metrics(root: Path, gate: QualityGate) -> tuple[bytes, bytes, dict[str, Any], dict[str, Any], list[str]]:
-        sample_raw, sample = _read_json(root / gate.sample_artifact_path)
-        baseline_raw, baseline = _read_json(root / gate.baseline_decisions_path)
-        _sample, _baseline, _sample_raw, _baseline_raw, ids = validate_fixed_inputs(root)
-        return sample_raw, baseline_raw, sample, baseline, ids
+        snapshot = _read_strict_fixed_snapshot(root)
+        if (
+            gate.sample_artifact_path != FIXED_SAMPLE_RELATIVE
+            or gate.baseline_decisions_path != FIXED_BASELINE_RELATIVE
+            or gate.sample_artifact_digest != FIXED_SAMPLE_DIGEST
+            or gate.baseline_decisions_digest != FIXED_BASELINE_DIGEST
+        ):
+            raise QualityGateValidationError("fixed quality input binding is invalid")
+        # Reading the results file is part of the strict source contract even
+        # though refresh metrics consume the sample and baseline projections.
+        if sha256_bytes(snapshot.results_raw) != FIXED_RESULTS_DIGEST:
+            raise QualityGateValidationError("fixed quality input binding is invalid")
+        return snapshot.sample_raw, snapshot.baseline_raw, snapshot.sample, snapshot.baseline, list(snapshot.ids)
 
     def _calculate_gate_metrics(
         self,
@@ -1153,6 +1300,20 @@ class QualityGateService:
         """
 
         root = Path(self.settings.bidops_root)
+        try:
+            gate_config, gate_digest = _validated_generation_binding(gate)
+            execution_config_a, execution_digest_a = _validated_generation_binding(execution_a)
+            execution_config_b, execution_digest_b = _validated_generation_binding(execution_b)
+        except QualityGateValidationError:
+            raise
+        if (
+            gate_digest != gate.generation_config_digest
+            or execution_digest_a != gate_digest
+            or execution_digest_b != gate_digest
+            or gate_config.canonical_value() != execution_config_a.canonical_value()
+            or gate_config.canonical_value() != execution_config_b.canonical_value()
+        ):
+            raise QualityGateValidationError("quality gate generation config binding is invalid")
         input_a = _load_execution_artifact(root, execution_a.execution_id, "screening-input.json", expected_digest=execution_a.input_artifact_digest)
         input_b = _load_execution_artifact(root, execution_b.execution_id, "screening-input.json", expected_digest=execution_b.input_artifact_digest)
         decisions_a = _load_execution_artifact(root, execution_a.execution_id, "screening-decisions.json")
