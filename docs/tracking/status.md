@@ -58,3 +58,9 @@ Runtime/API follow-up keeps the same status boundary: canonical JSON+digest
 roundtrip and fail-closed drift/tamper checks are fake-tested only. The separate
 stop-smoke evidence and partial artifacts are recorded in the Phase 1 retry
 document; no activation or always-on state change was made.
+
+## T15 Phase 2 `model_comparison` live A/B (2026-08-26)
+
+- Phase 2는 모델 호출 전에 중단되었다. fixed validation set과 Claude baseline은 각각 40건이고 sample order/correspondence 및 digest 검증은 통과했지만, `QualityGateService.create_gate()`가 고정 ID `20260817-20260823`를 DB에서 요구했다. 검증 DB의 유일한 imported run ID는 `20260817-20260823--20260824T090927.138116Z`여서 `QualityGateValidationError: quality gate run or policy is missing`가 재현되었다.
+- Phase 2 gate/evaluation/pass A/pass B는 생성되지 않았고 모델 호출·quality metric·review는 0/미측정이다. 첫 실패 뒤 live 호출은 하지 않았으며, 동일 no-write 전검증 오류를 확인하는 재현 명령만 1회 수행했다. 상세 원인과 backup/hash는 [T15 Phase 2 model comparison 기록](../validation-runs/20260826-t15-phase2-model-comparison.md)에 있다.
+- 종료 상태는 Alembic `0005_generation_config_binding`, seed policy `activation_candidate`, always-on `false`, `BIDOPS_SCHEDULER_ENABLED=false`, quality gate/evaluation/review 0이다. 이 상태는 Phase 2 blocker 기록이며 T15 전체 또는 Phase 3 완료를 의미하지 않는다.
