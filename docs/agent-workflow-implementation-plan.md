@@ -23,7 +23,7 @@ DocumentPreparationAgent
 3. 기존 REST API 14개의 request/response 계약이 바뀌지 않는다.
 4. Mock provider를 이용한 세 Agent 연속 E2E가 통과한다.
 5. 새 첨부 이후 새 bundle/review 계보와 이전 결과 보존이 확인된다.
-6. 통합 워크트리에서 Coordinator를 구현할 수 있는 HANDOFF가 준비되어 있다.
+6. 별도 통합 워크트리에서 후속 변경을 안전하게 합칠 수 있는 HANDOFF가 준비되어 있다.
 
 다음 작업은 이 워크트리의 범위가 아니다.
 
@@ -243,10 +243,10 @@ DB write 없이 도메인 상태를 동일한 `AgentRunView`로 표현하는 기
 
 ```text
 web/backend/app/agents/__init__.py
-web/backend/app/agents/contracts.py
-web/backend/app/agents/projections.py
-web/backend/tests/test_agent_contracts.py
-web/backend/tests/test_agent_projections.py
+web/backend/app/agents/common/contracts.py
+web/backend/app/agents/common/errors.py
+web/backend/app/agents/common/projection.py
+web/backend/tests/agents/test_common_contracts.py
 ```
 
 ### 구현
@@ -291,8 +291,10 @@ bundle 생성부터 사람의 ready 확인까지를 하나의 장기 실행 Agen
 ### 신규/수정 대상
 
 ```text
-web/backend/app/agents/document_preparation.py
-web/backend/tests/test_document_preparation_agent.py
+web/backend/app/agents/document_preparation/commands.py
+web/backend/app/agents/document_preparation/projection.py
+web/backend/app/agents/document_preparation/agent.py
+web/backend/tests/agents/test_document_preparation.py
 web/backend/app/routers/document_bundles.py       # 최소 delegate 변경만 허용
 ```
 
@@ -350,8 +352,10 @@ ready bundle을 입력으로 review/attempt/stage/report 생성을 하나의 분
 ### 신규/수정 대상
 
 ```text
-web/backend/app/agents/deep_review.py
-web/backend/tests/test_deep_review_agent.py
+web/backend/app/agents/deep_review/commands.py
+web/backend/app/agents/deep_review/projection.py
+web/backend/app/agents/deep_review/agent.py
+web/backend/tests/agents/test_deep_review.py
 web/backend/app/routers/deep_reviews.py            # 최소 delegate 변경만 허용
 ```
 
@@ -378,7 +382,9 @@ status/report/evidence read는 기존 read service/API로 유지한다. `status`
    - passed → `report_ready_validated`
    - failed → `report_ready_validation_failed`
 7. review completed인데 report/validation이 없으면 `processing_failed` invariant 오류로 표시한다.
-8. failed attempt에만 retry action을 제공하고 active attempt가 있으면 금지한다.
+8. current attempt가 failed 또는 completed일 때 retry action을 제공하고 active attempt가 있으면
+   금지한다. failed 과거 attempt만 superseded로 표시하며 completed 과거 attempt는 completed와 기존
+   report/validation을 보존한다.
 
 ### 테스트
 
@@ -408,8 +414,10 @@ human-in-the-loop Agent로 표현한다.
 ### 신규/수정 대상
 
 ```text
-web/backend/app/agents/decision.py
-web/backend/tests/test_decision_agent.py
+web/backend/app/agents/decision/commands.py
+web/backend/app/agents/decision/projection.py
+web/backend/app/agents/decision/agent.py
+web/backend/tests/agents/test_decision.py
 web/backend/app/routers/reports.py                 # 최소 delegate 변경만 허용
 ```
 
