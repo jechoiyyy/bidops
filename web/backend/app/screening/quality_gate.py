@@ -51,6 +51,8 @@ PURPOSES = frozenset({"model_comparison", "operational_approval"})
 EXECUTION_TERMINAL = frozenset({"성공", "부분 성공", "실패", "중단됨"})
 EXECUTION_COMPLETED = frozenset({"성공", "부분 성공"})
 RESULT_STATUSES = frozenset({"통과", "미달", "미측정", "보류"})
+FIXED_SAMPLE_ROLES = frozenset({"analysis", "audit"})
+FIXED_SAMPLE_STRATA = frozenset({"AI/데이터", "블록체인·DID", "공공 SI·통합관리", "수행실적 유사", "분류 근접", "실적 유사 근접", "무작위"})
 
 
 class QualityGateError(RuntimeError):
@@ -136,7 +138,15 @@ def validate_fixed_inputs(project_root: Path | str) -> tuple[dict[str, Any], dic
         raise QualityGateValidationError("validation sample source window is invalid")
     ids: list[str] = []
     for item in notices:
-        if not isinstance(item, Mapping) or not isinstance(item.get("notice_id"), str) or not item["notice_id"].strip():
+        if (
+            not isinstance(item, Mapping)
+            or not isinstance(item.get("notice_id"), str)
+            or not item["notice_id"].strip()
+            or not isinstance(item.get("sample_stratum"), str)
+            or item["sample_stratum"] not in FIXED_SAMPLE_STRATA
+            or not isinstance(item.get("sample_role"), str)
+            or item["sample_role"] not in FIXED_SAMPLE_ROLES
+        ):
             raise QualityGateValidationError("validation notice identity is invalid")
         ids.append(item["notice_id"])
     if len(set(ids)) != 40:

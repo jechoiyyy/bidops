@@ -27,6 +27,7 @@ from app.screening.quality_gate import (
     validate_fixed_inputs,
     QualityGateService,
     _metric_structure_reasons,
+    _input_matches_fixed_sample,
 )
 
 
@@ -41,7 +42,14 @@ def _fixed_fixture(root: Path, *, sample_count: int = 40, baseline_ids: list[str
     sample_path.parent.mkdir(parents=True, exist_ok=True)
     ids = [f"n-{index}" for index in range(sample_count)]
     baseline_ids = baseline_ids or ids
-    sample_path.write_text(json.dumps({"schema_version": "bidops.validation-set.v2", "source_window": {"from": "2026-08-17", "to": "2026-08-23", "timezone": "Asia/Seoul"}, "notices": [{"notice_id": value} for value in ids]}), encoding="utf-8")
+    sample_path.write_text(json.dumps({
+        "schema_version": "bidops.validation-set.v2",
+        "source_window": {"from": "2026-08-17", "to": "2026-08-23", "timezone": "Asia/Seoul"},
+        "notices": [
+            {"notice_id": value, "sample_stratum": "AI/데이터", "sample_role": "analysis" if index % 2 == 0 else "audit"}
+            for index, value in enumerate(ids)
+        ],
+    }), encoding="utf-8")
     baseline_path.write_text(json.dumps({"schema_version": "bidops.decisions.v2", "judgments": [{"notice_id": value} for value in baseline_ids]}), encoding="utf-8")
 
 
@@ -56,6 +64,37 @@ def test_fixed_sample_requires_exactly_40_and_matching_claude_ids(tmp_path: Path
     _fixed_fixture(tmp_path, sample_count=39)
     with pytest.raises(QualityGateValidationError):
         validate_fixed_inputs(tmp_path)
+
+
+@pytest.mark.parametrize(
+    "field_value",
+    [None, "not-a-role", 17],
+)
+def test_fixed_sample_rejects_missing_or_invalid_sample_annotations(tmp_path: Path, field_value):
+    _fixed_fixture(tmp_path)
+    path = tmp_path / FIXED_SAMPLE_RELATIVE
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if field_value is None:
+        value["notices"][0].pop("sample_role")
+    else:
+        value["notices"][0]["sample_role"] = field_value
+    path.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
+
+    with pytest.raises(QualityGateValidationError):
+        validate_fixed_inputs(tmp_path)
+
+
+def test_fixed_sample_binding_preserves_order_and_metadata(tmp_path: Path):
+    _fixed_fixture(tmp_path)
+    sample, _baseline, _sample_raw, _baseline_raw, ids = validate_fixed_inputs(tmp_path)
+    value = {"notices": [dict(item) for item in sample["notices"]]}
+    assert _input_matches_fixed_sample(value, sample, ids)
+
+    value["notices"][0]["sample_role"] = "audit"
+    assert not _input_matches_fixed_sample(value, sample, ids)
+    value["notices"][0] = dict(sample["notices"][1])
+    value["notices"][1] = dict(sample["notices"][0])
+    assert not _input_matches_fixed_sample(value, sample, ids)
 
     _fixed_fixture(tmp_path, baseline_ids=[f"other-{index}" for index in range(40)])
     with pytest.raises(QualityGateValidationError):
@@ -172,7 +211,10 @@ def test_production_transaction_preparer_publishes_two_fifo_rows_atomically(tmp_
     _fixed_fixture(root)
     from tests.test_screening_orchestrator import _notice
 
-    notices = [_notice(f"n-{index}") for index in range(40)]
+    notices = [
+        {**_notice(f"n-{index}"), "sample_stratum": "AI/데이터", "sample_role": "analysis" if index % 2 == 0 else "audit"}
+        for index in range(40)
+    ]
     (root / FIXED_SAMPLE_RELATIVE).write_text(
         json.dumps({"schema_version": "bidops.validation-set.v2", "source_window": {"from": "2026-08-17", "to": "2026-08-23", "timezone": "Asia/Seoul"}, "notices": notices}, ensure_ascii=False), encoding="utf-8"
     )

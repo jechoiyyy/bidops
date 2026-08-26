@@ -17,8 +17,9 @@ from app.db import Base
 from app.models import Notice, Run, ScreeningAttempt, ScreeningExecution, ScreeningPolicy
 from app.screening.execution_store import ScreeningExecutionStore
 from app.screening.ollama import OllamaClient
-from app.screening.orchestrator import ScreeningOrchestrator, _source_notices
+from app.screening.orchestrator import ScreeningCreationError, ScreeningOrchestrator, _source_notices, _validation_notices
 from app.screening.policy import load_policy_file, policy_content_digest
+from app.screening.quality_gate import _input_matches_fixed_sample
 from app.screening.worker import ScreeningWorker, WorkerError
 from tests.fakes import FakeOllamaTransport
 
@@ -88,10 +89,11 @@ def _fixture(tmp_path: Path, *, notice_id: str = "notice-1"):
         "source_window": {"from": "2026-08-25", "to": "2026-08-25", "timezone": "Asia/Seoul"},
         "counts": {"total": 1, "candidate_pool": 1, "audit_pool": 0}, "warnings": [], "notices": [item],
     }, ensure_ascii=False), encoding="utf-8")
+    validation_item = {**item, "sample_stratum": "AI/데이터", "sample_role": "analysis"}
     (run_directory / "validation-set.json").write_text(json.dumps({
         "schema_version": "bidops.validation-set.v2", "generated_at": NOW.isoformat(),
         "source_window": {"from": "2026-08-25", "to": "2026-08-25", "timezone": "Asia/Seoul"},
-        "selection": {"sample_size": 1}, "warnings": [], "notices": [item],
+        "selection": {"sample_size": 1}, "warnings": [], "notices": [validation_item],
     }, ensure_ascii=False), encoding="utf-8")
     settings = Settings(bidops_root=root, data_dir=root / "data", database_url=f"sqlite:///{root / 'db.sqlite'}")
     engine = create_engine(settings.database_url, future=True)
@@ -123,6 +125,71 @@ def test_collected_notice_without_sample_annotations_is_optional(tmp_path: Path)
 
     assert source["notices"][0]["sample_stratum"] is None
     assert source["notices"][0]["sample_role"] is None
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda item: item.pop("sample_stratum"),
+        lambda item: item.update(sample_role="not-a-role"),
+        lambda item: item.update(sample_stratum=17),
+        lambda item: item.pop("title"),
+    ],
+)
+def test_validation_notice_sample_annotations_are_strict(tmp_path: Path, mutate):
+    root, _settings, _engine, _factory, _body = _fixture(tmp_path)
+    path = root / "data/runs/run-1/validation-set.json"
+    value = json.loads(path.read_text(encoding="utf-8"))
+    mutate(value["notices"][0])
+    path.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
+
+    with pytest.raises(ScreeningCreationError):
+        _validation_notices(path.parent)
+
+
+def test_unknown_notice_key_is_rejected_for_both_sources(tmp_path: Path):
+    root, _settings, _engine, _factory, _body = _fixture(tmp_path)
+    for filename in ("collected-notices.json", "validation-set.json"):
+        path = root / "data/runs/run-1" / filename
+        value = json.loads(path.read_text(encoding="utf-8"))
+        value["notices"][0]["attacker_key"] = "rejected"
+        path.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
+        with pytest.raises(ScreeningCreationError):
+            (_source_notices if filename.startswith("collected") else _validation_notices)(path.parent)
+
+
+def test_quality_sample_rejects_collection_validation_field_mismatch_before_model(tmp_path: Path):
+    root, settings, _engine, factory, body = _fixture(tmp_path)
+    path = root / "data/runs/run-1/validation-set.json"
+    value = json.loads(path.read_text(encoding="utf-8"))
+    value["notices"][0]["title"] = "조작된 제목"
+    path.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
+
+    class ModelMustNotBeInspected:
+        def inspect_model(self):
+            raise AssertionError("model inspection must follow the frozen source correspondence check")
+
+    creator = ScreeningOrchestrator(settings, session_factory=factory, ollama=ModelMustNotBeInspected(), clock=lambda: NOW)
+    with pytest.raises(ScreeningCreationError) as error:
+        creator.create_execution(run_id="run-1", policy_version=body["policy_version"], requested_by="tester", scope="quality_sample")
+    assert error.value.code == "input_error"
+
+
+def test_quality_sample_freezes_validation_metadata_and_preserves_fixed_order(tmp_path: Path):
+    root, settings, _engine, factory, body = _fixture(tmp_path)
+    transport = FakeOllamaTransport(_script())
+    creator = ScreeningOrchestrator(
+        settings, session_factory=factory, ollama=OllamaClient(settings=settings, transport=transport), clock=lambda: NOW,
+    )
+    created = creator.create_execution(
+        run_id="run-1", policy_version=body["policy_version"], requested_by="tester", scope="quality_sample",
+    )
+    input_value = json.loads((root / created.input_artifact_path).read_text(encoding="utf-8"))
+    assert [item["notice_id"] for item in input_value["notices"]] == ["notice-1"]
+    assert input_value["notices"][0]["sample_stratum"] == "AI/데이터"
+    assert input_value["notices"][0]["sample_role"] == "analysis"
+    validation = json.loads((root / "data/runs/run-1/validation-set.json").read_text(encoding="utf-8"))
+    assert _input_matches_fixed_sample(input_value, validation, ["notice-1"])
 
 
 def test_single_success_writes_exact_seven_attempts_and_telemetry(tmp_path: Path):
@@ -673,7 +740,7 @@ def test_quality_sample_mixed_results_is_partial_without_publication(tmp_path: P
         path = root / "data/runs/run-1" / filename
         value = json.loads(path.read_text(encoding="utf-8"))
         value["counts"] = {"total": 2, "candidate_pool": 2, "audit_pool": 0}
-        value["notices"].append(second)
+        value["notices"].append(second if filename == "collected-notices.json" else {**second, "sample_stratum": "AI/데이터", "sample_role": "audit"})
         if filename == "validation-set.json":
             value["selection"]["sample_size"] = 2
         path.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")

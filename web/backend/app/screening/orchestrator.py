@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from ..config import Settings, get_settings
 from ..ingest.loader import parse_run_id
 from ..models import CompanyProfileSnapshot, Notice, Run, ScreeningExecution, ScreeningPolicy
-from .artifacts import ArtifactError, ArtifactStore, ExecutionWorkspace, aware_iso, sha256_bytes
+from .artifacts import ArtifactError, ArtifactStore, ExecutionWorkspace, aware_iso, canonical_bytes, sha256_bytes
 from .contracts import MODEL_NAME
 from .ollama import ModelInspectionError, OllamaClient
 from .policy import canonical_policy_bytes, policy_content_digest
@@ -38,6 +38,7 @@ COMMON_NOTICE_KEYS = (
     "performance_matches", "performance_top_score", "candidate_sources",
     "unknown_fields", "sample_stratum", "sample_role", "raw_source",
 )
+SAMPLE_METADATA_KEYS = frozenset({"sample_stratum", "sample_role"})
 JUDGMENT_MODES = {"신규", "재판정", "승계"}
 REJUDGE_REASONS = {"정정", "재공고", "본공고 전환", "담당자 요청"}
 EXECUTION_RE = re.compile(r"^scr-[0-9a-f]{32}$")
@@ -136,15 +137,16 @@ def _policy_body(row: ScreeningPolicy) -> dict[str, Any]:
     return body
 
 
-def _notice_common(value: Any) -> dict[str, Any]:
+def _notice_common(value: Any, *, require_sample_metadata: bool = False) -> dict[str, Any]:
     if not isinstance(value, Mapping):
         raise ScreeningCreationError("input_error")
     # Collection output predates validation sampling and may omit the two
     # sample annotations.  They are optional in the ingest contract; preserve
     # their absence as explicit nulls instead of rejecting the notice or
     # inventing a stratum/role before the sample stage.
-    optional_keys = {"sample_stratum", "sample_role"}
-    required_keys = set(COMMON_NOTICE_KEYS).difference(optional_keys)
+    required_keys = set(COMMON_NOTICE_KEYS).difference(SAMPLE_METADATA_KEYS)
+    if require_sample_metadata:
+        required_keys.update(SAMPLE_METADATA_KEYS)
     if not required_keys.issubset(value) or set(value).difference(COMMON_NOTICE_KEYS):
         raise ScreeningCreationError("input_error")
     result = {key: value.get(key) for key in COMMON_NOTICE_KEYS}
@@ -157,6 +159,13 @@ def _notice_common(value: Any) -> dict[str, Any]:
     if any(part in {"", ".", ".."} or ":" in part for part in raw_parts):
         raise ScreeningCreationError("input_error")
     _validate_collected_notice(result)
+    if require_sample_metadata and (
+        not isinstance(result["sample_stratum"], str)
+        or result["sample_stratum"] not in _SAMPLE_STRATA
+        or not isinstance(result["sample_role"], str)
+        or result["sample_role"] not in _SAMPLE_ROLES
+    ):
+        raise ScreeningCreationError("input_error")
     return result
 
 
@@ -287,19 +296,50 @@ def _source_notices(directory: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     return {"source_window": window, "notices": notices}, collection
 
 
-def _validation_notices(directory: Path) -> list[str]:
+def _notice_canonical_fields(value: Mapping[str, Any]) -> dict[str, Any]:
+    return {key: value[key] for key in COMMON_NOTICE_KEYS if key not in SAMPLE_METADATA_KEYS}
+
+
+def _notice_canonical_digest(value: Mapping[str, Any]) -> str:
+    return sha256_bytes(canonical_bytes(_notice_canonical_fields(value)))
+
+
+def _validation_notices(directory: Path) -> list[dict[str, Any]]:
     value = _json_file(directory / "validation-set.json", "input_error")
     if value.get("schema_version") != "bidops.validation-set.v2" or not isinstance(value.get("notices"), list):
         raise ScreeningCreationError("input_error")
-    result: list[str] = []
+    result: list[dict[str, Any]] = []
     for item in value["notices"]:
         if not isinstance(item, Mapping):
             raise ScreeningCreationError("input_error")
-        normalized = _notice_common(item)
-        result.append(normalized["notice_id"])
-    if len(set(result)) != len(result):
+        result.append(_notice_common(item, require_sample_metadata=True))
+    if len({item["notice_id"] for item in result}) != len(result):
         raise ScreeningCreationError("input_error")
     return result
+
+
+def _quality_sample_selection(
+    collection_notices: list[dict[str, Any]], validation_notices: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    by_id = {item["notice_id"]: item for item in collection_notices}
+    selected: list[dict[str, Any]] = []
+    for validation in validation_notices:
+        collection = by_id.get(validation["notice_id"])
+        if collection is None:
+            raise ScreeningCreationError("input_error")
+        if (
+            _notice_canonical_fields(collection) != _notice_canonical_fields(validation)
+            or _notice_canonical_digest(collection) != _notice_canonical_digest(validation)
+        ):
+            raise ScreeningCreationError("input_error")
+        # Collection is authoritative for the notice.  Only the two strict
+        # validation annotations are added to the frozen sample projection.
+        selected.append({
+            **collection,
+            "sample_stratum": validation["sample_stratum"],
+            "sample_role": validation["sample_role"],
+        })
+    return selected
 
 
 def _prior_maps(directory: Path) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
@@ -413,11 +453,7 @@ class ScreeningOrchestrator:
                     raise ScreeningCreationError("policy_mismatch")
                 selected = [item for item in notices if item.get("collection_bucket") in buckets]
             elif scope == "quality_sample":
-                order = _validation_notices(source_dir)
-                by_id = {item["notice_id"]: item for item in notices}
-                if any(value not in by_id for value in order):
-                    raise ScreeningCreationError("input_error")
-                selected = [by_id[value] for value in order]
+                selected = _quality_sample_selection(notices, _validation_notices(source_dir))
             else:
                 selected = [item for item in notices if item["notice_id"] == notice_id]
                 if len(selected) != 1:
@@ -563,11 +599,7 @@ class ScreeningOrchestrator:
                 raise ScreeningCreationError("policy_mismatch")
             selected = [item for item in notices if item.get("collection_bucket") in buckets]
         elif scope == "quality_sample":
-            order = _validation_notices(source_dir)
-            by_id = {item["notice_id"]: item for item in notices}
-            if any(value not in by_id for value in order):
-                raise ScreeningCreationError("input_error")
-            selected = [by_id[value] for value in order]
+            selected = _quality_sample_selection(notices, _validation_notices(source_dir))
         else:
             selected = [item for item in notices if item["notice_id"] == notice_id]
             if len(selected) != 1:
