@@ -61,6 +61,10 @@ function hasSectionsPayload(data: ProfileSectionsResponse | undefined): boolean 
   );
 }
 
+function hasParseFreeSectionsPayload(data: ProfileSectionsResponse | undefined): boolean {
+  return Boolean(data && hasSectionsPayload(data) && data.parse_errors.length === 0);
+}
+
 function hasUnknownsPayload(data: ProfileUnknownsResponse | undefined): boolean {
   return Boolean(
     data
@@ -162,6 +166,7 @@ export function ProfilePage() {
   const sectionsResponse = sectionsQuery.data;
   const unknownsResponse = unknownsQuery.data;
   const sectionsPayloadAvailable = hasSectionsPayload(sectionsResponse);
+  const sectionsSummaryAvailable = hasParseFreeSectionsPayload(sectionsResponse);
   const unknownsPayloadAvailable = hasUnknownsPayload(unknownsResponse);
   const sections = Array.isArray(sectionsResponse?.sections) ? sectionsResponse.sections : [];
   const unknowns = Array.isArray(unknownsResponse?.items) ? unknownsResponse.items : [];
@@ -209,7 +214,7 @@ export function ProfilePage() {
           {(["confirmed", "inferred", "unknown"] as const).map((status) => (
             <div className="profile-summary-item" key={status}>
               <span>{filterLabels[status]}</span>
-              <strong className="mono">{summaryCount(summary, status, sectionsPayloadAvailable)}</strong>
+              <strong className="mono">{summaryCount(summary, status, sectionsSummaryAvailable)}</strong>
             </div>
           ))}
         </div>
