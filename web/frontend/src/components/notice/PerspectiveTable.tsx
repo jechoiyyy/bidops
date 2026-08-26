@@ -54,15 +54,18 @@ export function PerspectiveTable({ perspectives }: PerspectiveTableProps) {
                   <td>
                     <div>{present(perspective.reason, "판정 사유 미확인")}</div>
                     {perspective.evidence.length > 0 ? (
-                      <div className="evidence-list">
-                        {perspective.evidence.map((evidence) => (
-                          <div className="evidence-row" key={evidence.id}>
-                            <Badge label={evidenceLabel(evidence.status)} variant={evidenceVariant(evidence.status)} />
-                            <span>{present(evidence.source, "출처 미확인")}</span>
-                            <span className="evidence-fact">{present(evidence.fact, "근거 내용 미확인")}</span>
-                          </div>
-                        ))}
-                      </div>
+                      <details className="evidence-details" open>
+                        <summary>근거 {perspective.evidence.length}개</summary>
+                        <div className="evidence-list">
+                          {perspective.evidence.map((evidence) => (
+                            <div className="evidence-row" key={evidence.id}>
+                              <Badge label={evidenceLabel(evidence.status)} variant={evidenceVariant(evidence.status)} />
+                              <span>{present(evidence.source, "출처 미확인")}</span>
+                              <span className="evidence-fact">{present(evidence.fact, "근거 내용 미확인")}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </details>
                     ) : (
                       <div className="evidence-empty">근거 없음</div>
                     )}

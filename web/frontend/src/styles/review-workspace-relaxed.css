@@ -1,0 +1,773 @@
+/* 검토 대기열·판정 이력 전용 여유형 계층.
+   기존 theme의 업무 상태·색·계약은 유지하고, 이 파일에서는 두 화면의
+   목록/상세 경계와 폭별 배치만 조정한다. */
+
+.queue-page,
+.judgment-page {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--surface-app);
+}
+
+.queue-page {
+  height: calc(100vh - 82px);
+}
+
+.judgment-page {
+  height: calc(100vh - 82px);
+}
+
+.queue-filters {
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-content: center;
+  gap: 8px;
+  height: auto;
+  min-height: 72px;
+  padding: 14px 20px;
+  overflow: visible;
+}
+
+.queue-search,
+.queue-filter-select,
+.queue-filter-reset {
+  min-height: 40px;
+  height: 40px;
+}
+
+.queue-search {
+  flex: 1 1 230px;
+  min-width: 190px;
+}
+
+.queue-filter-select select {
+  max-width: 180px;
+}
+
+.queue-filter-spacer {
+  flex: 1 1 8px;
+  min-width: 8px;
+}
+
+.queue-workspace,
+.judgment-workspace,
+.queue-list-pane,
+.judgment-notice-list,
+.queue-detail-pane,
+.judgment-detail-pane,
+.queue-detail-scroll,
+.judgment-detail-scroll,
+.review-workspace-section {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.queue-list-pane {
+  flex-basis: min(390px, 34%);
+  width: min(390px, 34%);
+}
+
+.judgment-notice-list {
+  flex-basis: min(360px, 32%);
+  width: min(360px, 32%);
+}
+
+.queue-list-header,
+.judgment-list-header {
+  padding: 14px 20px 13px;
+}
+
+.queue-list-progress {
+  height: 5px;
+  margin-top: 10px;
+}
+
+.queue-list-scroll,
+.judgment-list-scroll {
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.queue-group-header {
+  height: 34px;
+  padding-right: 20px;
+  padding-left: 20px;
+  font-size: 11px;
+}
+
+.queue-list-item,
+.judgment-notice-item {
+  padding: 16px 20px 17px;
+}
+
+.queue-list-item {
+  min-height: 124px;
+}
+
+.queue-list-title,
+.judgment-notice-title {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.queue-list-badges,
+.judgment-notice-badges {
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.queue-list-meta,
+.judgment-notice-meta {
+  margin-top: 9px;
+  font-size: 12px;
+}
+
+.queue-detail-header,
+.judgment-page-header {
+  gap: 24px;
+  padding: 20px 24px 19px;
+}
+
+.queue-detail-heading,
+.judgment-page-header > div:first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.queue-detail-badges,
+.judgment-page-heading-meta,
+.judgment-detail-badges {
+  align-items: center;
+  gap: 8px;
+}
+
+.queue-detail-badges {
+  margin-bottom: 10px;
+}
+
+.queue-detail-header h2,
+.judgment-page-header h2 {
+  max-width: none;
+  overflow-wrap: anywhere;
+  font-size: 22px;
+  line-height: 1.4;
+}
+
+.queue-detail-subline,
+.judgment-page-subline {
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+.judgment-page-heading-meta {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: 11px;
+}
+
+.queue-detail-actions,
+.judgment-page-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-self: flex-start;
+  gap: 8px;
+}
+
+.notice-source-link {
+  min-height: 40px;
+  padding: 0 13px;
+  font-size: 12px;
+}
+
+.queue-detail-scroll,
+.judgment-detail-scroll {
+  gap: 24px;
+  padding: 24px;
+  overscroll-behavior: contain;
+}
+
+.queue-detail-scroll > *,
+.judgment-detail-scroll > * {
+  flex: 0 0 auto;
+}
+
+.review-workspace-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.review-section-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
+  padding: 0 2px;
+}
+
+.review-section-heading > div {
+  min-width: 0;
+}
+
+.review-section-heading h3 {
+  margin: 2px 0 0;
+  color: var(--color-deep);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.review-section-heading > span {
+  flex: 0 0 auto;
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: right;
+}
+
+.review-section-eyebrow {
+  display: block;
+  color: var(--color-info);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+.notice-facts-grid,
+.judgment-summary-grid,
+.judgment-history-grid {
+  gap: 16px;
+}
+
+.notice-facts-grid {
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+}
+
+.judgment-summary-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.notice-review-grid {
+  gap: 16px;
+}
+
+.panel {
+  border-radius: var(--radius-lg);
+}
+
+.panel-header {
+  min-height: 52px;
+  padding: 0 20px;
+}
+
+.panel-header h3 {
+  font-size: 14px;
+}
+
+.panel-body {
+  padding: 20px;
+}
+
+.notice-facts,
+.qualification-flags-list {
+  row-gap: 11px;
+  font-size: 13px;
+}
+
+.notice-facts {
+  grid-template-columns: 104px minmax(0, 1fr);
+}
+
+.table-wrap,
+.lifecycle-panel .panel-body {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.perspective-table {
+  min-width: 720px;
+}
+
+.perspective-table th,
+.perspective-table td {
+  padding-right: 16px;
+}
+
+.perspective-table td {
+  line-height: 1.6;
+}
+
+.judgment-detail-badges {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.judgment-detail-back {
+  display: none;
+}
+
+.judgment-history-details {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.judgment-history-summary {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  cursor: pointer;
+  list-style: none;
+}
+
+.judgment-history-summary::-webkit-details-marker {
+  display: none;
+}
+
+.judgment-history-summary::before,
+.evidence-details summary::before {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  margin: 6px 8px 0 0;
+  border-right: 1px solid currentcolor;
+  border-bottom: 1px solid currentcolor;
+  color: var(--color-muted);
+  content: "";
+  transform: rotate(-45deg);
+}
+
+.judgment-history-details[open] > .judgment-history-summary::before,
+.evidence-details[open] > summary::before {
+  margin-top: 4px;
+  transform: rotate(45deg);
+}
+
+.judgment-history-content {
+  padding-left: 16px;
+}
+
+.evidence-details {
+  margin-top: 10px;
+}
+
+.evidence-details summary {
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  align-items: center;
+  color: var(--color-info);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  list-style: none;
+}
+
+.evidence-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.evidence-details summary::before {
+  margin-top: -2px;
+}
+
+.evidence-details .evidence-list {
+  margin-top: 9px;
+  padding-left: 16px;
+  border-left: 2px solid var(--color-neutral-soft);
+}
+
+.evidence-row,
+.retrieval-signal-value,
+.retrieval-signal-source,
+.retrieval-signal-note {
+  overflow-wrap: anywhere;
+}
+
+.review-bar {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.7fr) minmax(0, 1fr) auto;
+  grid-template-areas:
+    "title judgment save"
+    "disposition reason reason"
+    "secondary secondary hint"
+    "error error error";
+  align-items: center;
+  gap: 10px 12px;
+  padding: 16px 24px;
+}
+
+.review-bar-title {
+  grid-area: title;
+  margin-right: 0;
+}
+
+.review-segmented {
+  grid-area: judgment;
+  min-height: 40px;
+}
+
+.review-segmented button,
+.review-control,
+.review-reason textarea,
+.review-save-button {
+  min-height: 40px;
+}
+
+.review-segmented button {
+  flex: 1 1 0;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+.review-bar > .review-control {
+  grid-area: disposition;
+}
+
+.review-secondary {
+  display: flex;
+  grid-area: secondary;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.review-secondary > .review-control {
+  flex: 1 1 180px;
+}
+
+.review-more-toggle {
+  display: none;
+}
+
+.review-control {
+  min-width: 0;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+.review-control select {
+  max-width: none;
+  min-width: 0;
+  font-size: 12px;
+}
+
+.review-reason {
+  grid-area: reason;
+  min-width: 0;
+}
+
+.review-reason textarea {
+  min-height: 40px;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.review-save-button {
+  grid-area: save;
+  justify-content: center;
+  padding: 0 16px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.review-shortcut-hint {
+  grid-area: hint;
+  justify-self: end;
+}
+
+.review-error {
+  grid-area: error;
+}
+
+@media (max-width: 1180px) {
+  .queue-page,
+  .judgment-page {
+    height: auto;
+    min-height: calc(100vh - 82px);
+    overflow: visible;
+  }
+
+  .queue-filters {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .queue-workspace,
+  .judgment-workspace {
+    flex-direction: column;
+    overflow: visible;
+  }
+
+  .queue-list-pane,
+  .judgment-notice-list {
+    flex: 0 0 320px;
+    width: 100%;
+    border-right: 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .queue-detail-pane,
+  .judgment-detail-pane {
+    min-height: 720px;
+  }
+
+  .queue-detail-header,
+  .judgment-page-header,
+  .queue-detail-scroll,
+  .judgment-detail-scroll,
+  .review-bar {
+    padding-right: 20px;
+    padding-left: 20px;
+  }
+
+  .queue-detail-header,
+  .judgment-page-header {
+    flex-direction: column;
+  }
+
+  .queue-detail-actions,
+  .judgment-page-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 900px) {
+  .queue-workspace.shows-detail .queue-list-pane,
+  .queue-workspace.shows-list .queue-detail-pane,
+  .judgment-workspace.shows-detail .judgment-notice-list,
+  .judgment-workspace.shows-list .judgment-detail-pane {
+    display: none;
+  }
+
+  .queue-workspace.shows-list .queue-list-pane,
+  .judgment-workspace.shows-list .judgment-notice-list {
+    flex: 1 1 auto;
+    min-height: calc(100vh - 230px);
+    border-bottom: 0;
+  }
+
+  .queue-detail-pane,
+  .judgment-detail-pane {
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .queue-detail-scroll,
+  .judgment-detail-scroll {
+    flex: 0 0 auto;
+    overflow-y: visible;
+    padding: 20px;
+  }
+
+  .queue-detail-back,
+  .judgment-detail-back {
+    display: flex;
+    width: 100%;
+    margin-bottom: 0;
+  }
+
+  .queue-detail-header {
+    padding-top: 16px;
+    padding-bottom: 16px;
+  }
+
+  .judgment-page-header {
+    padding-top: 16px;
+    padding-bottom: 16px;
+  }
+
+  .review-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "title title"
+      "judgment judgment"
+      "disposition disposition"
+      "secondary secondary"
+      "reason reason"
+      "save save"
+      "hint hint"
+      "error error";
+    align-items: stretch;
+    padding-top: 14px;
+    padding-bottom: 14px;
+    box-shadow: 0 -4px 14px rgb(27 72 48 / 7%);
+  }
+
+  .review-secondary {
+    display: flex;
+  }
+
+  .review-secondary > .review-control {
+    flex: 1 1 200px;
+  }
+
+  .review-shortcut-hint {
+    justify-self: start;
+  }
+
+  .review-control,
+  .review-segmented button,
+  .review-reason textarea,
+  .review-save-button {
+    min-height: 42px;
+  }
+
+  .review-reason textarea {
+    min-height: 72px;
+    resize: vertical;
+  }
+}
+
+@media (max-width: 640px) {
+  .queue-page,
+  .judgment-page {
+    border-right: 0;
+    border-left: 0;
+    border-radius: 0;
+  }
+
+  .queue-filters {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+    padding: 12px;
+  }
+
+  .queue-search,
+  .queue-filter-sort {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  .queue-filter-select:not(.queue-filter-sort),
+  .queue-filter-reset {
+    flex: 1 1 calc(50% - 4px);
+    min-width: 0;
+  }
+
+  .queue-filter-select select {
+    min-width: 0;
+    max-width: none;
+  }
+
+  .queue-filter-spacer {
+    display: none;
+  }
+
+  .queue-list-header,
+  .judgment-list-header,
+  .queue-list-item,
+  .judgment-notice-item {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .queue-list-item,
+  .judgment-notice-item {
+    min-height: 0;
+    padding-top: 15px;
+    padding-bottom: 16px;
+  }
+
+  .queue-detail-header,
+  .judgment-page-header,
+  .queue-detail-scroll,
+  .judgment-detail-scroll,
+  .review-bar {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .queue-detail-header h2,
+  .judgment-page-header h2 {
+    font-size: 18px;
+  }
+
+  .queue-detail-actions,
+  .judgment-page-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .queue-detail-actions .notice-source-link,
+  .judgment-page-actions .notice-source-link {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .review-section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .review-section-heading > span {
+    text-align: left;
+  }
+
+  .notice-facts-grid,
+  .notice-review-grid,
+  .judgment-summary-grid,
+  .judgment-history-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .panel-header {
+    min-height: 50px;
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .panel-body {
+    padding: 16px;
+  }
+
+  .notice-facts {
+    grid-template-columns: 92px minmax(0, 1fr);
+  }
+
+  .review-secondary > .review-control {
+    flex-basis: 100%;
+  }
+
+  .review-bar {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "title"
+      "judgment"
+      "disposition"
+      "secondary"
+      "reason"
+      "save"
+      "hint"
+      "error";
+  }
+
+  .review-segmented,
+  .review-control,
+  .review-reason,
+  .review-save-button {
+    width: 100%;
+  }
+
+  .review-segmented button {
+    flex: 1 1 0;
+  }
+
+  .review-save-button {
+    min-height: 44px;
+  }
+}
