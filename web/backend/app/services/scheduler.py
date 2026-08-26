@@ -268,6 +268,13 @@ class SchedulerService:
                     row.prespec_enabled = prespec_enabled
                 row.updated_at = self._now()
                 row.updated_by = updated_by.strip()
+            self._audit(
+                session,
+                "schedule.settings_updated",
+                "1",
+                {"daily_time": row.daily_time, "weekly_time": row.weekly_time},
+                actor=updated_by.strip(),
+            )
             session.flush()
             return row
 
@@ -359,6 +366,7 @@ class SchedulerService:
                 row = ScheduleExecution(execution_id="sched-" + uuid4().hex, run_key=run_key, job_kind=job_kind, trigger=trigger, status="예약", requested_by=requested_by.strip())
                 session.add(row)
                 session.flush()
+                self._audit(session, "schedule.execution_reserved", row.execution_id, {"run_key": run_key}, actor=requested_by.strip())
                 return row
             if reservation.job_kind != job_kind or reservation.window_from != window_from or reservation.window_to != window_to:
                 raise ScheduleConflictError("reservation identity mismatch")
@@ -369,6 +377,7 @@ class SchedulerService:
                 row = ScheduleExecution(execution_id="sched-" + uuid4().hex, run_key=run_key, job_kind=job_kind, trigger="manual", status="예약", recovery_of_execution_id=target.execution_id, requested_by=requested_by.strip())
                 session.add(row)
                 session.flush()
+                self._audit(session, "schedule.execution_recovered", row.execution_id, {"run_key": run_key}, actor=requested_by.strip())
                 return row
             existing = session.scalar(select(ScheduleExecution).where(ScheduleExecution.run_key == run_key, ScheduleExecution.duplicate_of_execution_id.is_(None)).order_by(ScheduleExecution.execution_id.asc()).limit(1))
             if existing is None:
@@ -376,7 +385,7 @@ class SchedulerService:
             row = ScheduleExecution(execution_id="sched-" + uuid4().hex, run_key=run_key, job_kind=job_kind, trigger=trigger, status="건너뜀", duplicate_of_execution_id=existing.execution_id, skip_reason="duplicate_reservation", requested_by=requested_by.strip())
             session.add(row)
             session.flush()
-            self._audit(session, "schedule.execution_skipped_duplicate", row.execution_id, {"run_key": run_key, "duplicate_of": existing.execution_id, "skip_reason": "duplicate_reservation"})
+            self._audit(session, "schedule.execution_skipped_duplicate", row.execution_id, {"run_key": run_key, "duplicate_of": existing.execution_id, "skip_reason": "duplicate_reservation"}, actor=requested_by.strip())
             return row
 
         try:
@@ -393,7 +402,7 @@ class SchedulerService:
                 row = ScheduleExecution(execution_id="sched-" + uuid4().hex, run_key=run_key, job_kind=job_kind, trigger=trigger, status="건너뜀", duplicate_of_execution_id=existing.execution_id, skip_reason="duplicate_reservation", requested_by=requested_by.strip())
                 session.add(row)
                 session.flush()
-                self._audit(session, "schedule.execution_skipped_duplicate", row.execution_id, {"run_key": run_key, "duplicate_of": existing.execution_id, "skip_reason": "duplicate_reservation"})
+                self._audit(session, "schedule.execution_skipped_duplicate", row.execution_id, {"run_key": run_key, "duplicate_of": existing.execution_id, "skip_reason": "duplicate_reservation"}, actor=requested_by.strip())
                 return row
 
             return self._run(loser)
@@ -416,6 +425,7 @@ class SchedulerService:
             row = ScheduleExecution(execution_id="sched-" + uuid4().hex, run_key=target.run_key, job_kind=target.job_kind, trigger="manual", status="예약", recovery_of_execution_id=target.execution_id, requested_by=requested_by.strip())
             session.add(row)
             session.flush()
+            self._audit(session, "schedule.execution_recovered", row.execution_id, {"run_key": target.run_key}, actor=requested_by.strip())
             return row
 
         return self._run(fn)
@@ -454,12 +464,13 @@ class SchedulerService:
         *,
         confirmed_by: str | None = None,
         updated_by: str | None = None,
+        quality_gate_result_id: str | None = None,
     ) -> EnableResult:
         confirmed_by = confirmed_by or updated_by
         if type(enabled) is not bool or not isinstance(confirmed_by, str) or not confirmed_by.strip():
             raise ValueError("invalid always-on request")
         if enabled and not self.settings.scheduler_enabled:
-            self._reject_environment()
+            self._reject_environment(actor=confirmed_by.strip())
             raise EnvironmentDisabledError("environment_disabled")
 
         was_enabled = False
@@ -471,10 +482,17 @@ class SchedulerService:
                 state.enabled = False
                 state.updated_at = self._now()
                 state.updated_by = confirmed_by.strip()
-                self._audit(session, "schedule.always_on_disabled", "1", {"reason": "operator_disabled"})
+                self._audit(session, "schedule.always_on_disabled", "1", {"reason": "operator_disabled"}, actor=confirmed_by.strip())
                 return self._result(state)
             was_enabled = bool(state.enabled)
             metadata, reason = self._approval(session)
+            # The caller must submit the immutable evaluation revision that is
+            # currently operationally approved.  Looking up "some" latest
+            # passing evaluation here would allow a stale UI to activate a
+            # different policy/model/profile combination.
+            if metadata is not None and quality_gate_result_id is not None and quality_gate_result_id != metadata.get("quality_gate_result_id"):
+                metadata = None
+                reason = "quality_gate_result_mismatch"
             if metadata is None:
                 state.enabled = False
                 state.updated_at = self._now()
@@ -499,7 +517,7 @@ class SchedulerService:
             state.enabled = True
             state.updated_at = self._now()
             state.updated_by = confirmed_by.strip()
-            self._audit(session, "schedule.always_on_enabled", "1", {"quality_gate_result_id": state.quality_gate_result_id, "policy_version": state.policy_version, "prompt_version": state.prompt_version})
+            self._audit(session, "schedule.always_on_enabled", "1", {"quality_gate_result_id": state.quality_gate_result_id, "policy_version": state.policy_version, "prompt_version": state.prompt_version}, actor=confirmed_by.strip())
             return self._result(state)
 
         result = self._run(fn)
@@ -671,16 +689,16 @@ class SchedulerService:
         return row
 
     @staticmethod
-    def _audit(session: Session, event_type: str, target_id: str, details: dict[str, Any]) -> None:
+    def _audit(session: Session, event_type: str, target_id: str, details: dict[str, Any], *, actor: str = "system:scheduler") -> None:
         allowed = {"reason", "run_key", "duplicate_of", "skip_reason", "quality_gate_result_id", "policy_version", "prompt_version"}
-        session.add(AuditEvent(event_id="audit-" + uuid4().hex, event_type=event_type, actor="system:scheduler", target_type="schedule", target_id=target_id, occurred_at=utc_now(), details_json={k: v for k, v in details.items() if k in allowed}))
+        session.add(AuditEvent(event_id="audit-" + uuid4().hex, event_type=event_type, actor=actor, target_type="schedule", target_id=target_id, occurred_at=utc_now(), details_json={k: v for k, v in details.items() if k in allowed}))
 
     @staticmethod
     def _result(state: AlwaysOnState) -> EnableResult:
         return EnableResult(state.enabled, state.quality_gate_result_id, state.policy_version, state.model_name, state.model_digest, state.prompt_version, state.company_profile_version, state.company_profile_digest)
 
-    def _reject_environment(self) -> None:
-        self._run(lambda s: self._audit(s, "schedule.always_on_enable_rejected", "1", {"reason": "environment_disabled"}))
+    def _reject_environment(self, *, actor: str = "system:scheduler") -> None:
+        self._run(lambda s: self._audit(s, "schedule.always_on_enable_rejected", "1", {"reason": "environment_disabled"}, actor=actor))
 
 
 ScheduleService = SchedulerService
