@@ -127,7 +127,7 @@ SQLite가 corrupt하거나 migration 검증이 실패하면 서비스를 계속 
 docker compose build
 ```
 
-visual 테스트는 host `cd web/frontend && npm run test:visual`의 webServer(빌드 후 preview, port 4173) 계약이다. 테스트는 Google Fonts 요청을 차단하고 컨테이너에 설치된 `WenQuanYi Zen Hei`·`Liberation Mono` local fonts로 CSS 변수를 덮어써 remote font 상태에 따른 snapshot 변동을 막는다. host에 `libnspr4/libnss3`가 없어 browser launch가 막히면 project root에서 다음처럼 동일 테스트를 Playwright image로 실행한다.
+visual 테스트는 host `cd web/frontend && npm run test:visual`의 webServer(빌드 후 preview, port 4173) 계약이다. 테스트는 `public/fonts/PretendardVariable.woff2`가 요청되고 적용될 때까지 기다리며 Google Fonts 요청이 없음을 확인한다. host에 `libnspr4/libnss3`가 없어 browser launch가 막히면 project root에서 다음처럼 동일 테스트를 Playwright image로 실행한다.
 
 ```bash
 docker run --rm --network host --ipc=host --user 1000:1000 \
@@ -138,7 +138,7 @@ docker run --rm --network host --ipc=host --user 1000:1000 \
   mcr.microsoft.com/playwright:v1.62.1-noble npm run test:visual
 ```
 
-기본 bridge 네트워크에서는 Vite preview의 localhost/`::1` bind와 readiness 확인 주소가 분리되어 timeout이 날 수 있다. 이 환경에서는 `--network host`를 포함해야 preview의 `127.0.0.1:4173` readiness가 맞는다. 위 exact image·mount·UID/GID·IPC 명령으로 fresh Docker 실행 두 번에서 각각 98 passed, 10 intentional skipped가 관찰되었다. 10 skip은 draft spec의 mobile/tablet 너비 조건에 따른 의도된 skip이다. host 직접 launch 제한은 환경에 `libnspr4/libnss3`가 없는 browser system libraries 문제일 뿐 제품 코드의 결과로 해석하지 않는다. 시각 evidence는 [tracking/status](./tracking/status.md)에 실제 실행 결과만 기록한다.
+기본 bridge 네트워크에서는 Vite preview의 localhost/`::1` bind와 readiness 확인 주소가 분리되어 timeout이 날 수 있다. 이 환경에서는 `--network host`를 포함해야 preview의 `127.0.0.1:4173` readiness가 맞는다. 위 exact image·mount·UID/GID·IPC 명령으로 390/768/1024/1440px의 12개 화면 대상과 핵심 동작을 검증한다. 2026-08-26 실행에서는 134 passed, draft의 모바일 조건 10건이 intentional skipped였다. host 직접 launch 제한은 환경에 `libnspr4/libnss3`가 없는 browser system libraries 문제일 뿐 제품 코드의 결과로 해석하지 않는다.
 
 ## 장애 시 확인
 
