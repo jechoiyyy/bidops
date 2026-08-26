@@ -118,6 +118,18 @@ def test_gate_evaluation_append_and_input_immutability(tmp_path: Path) -> None:
             "update screening_policy set status='activation_candidate', active_slot=NULL, activated_at=NULL, activated_by=NULL, quality_gate_result_id=NULL where policy_version='p1'"
         )
         assert connection.execute("select enabled from always_on_state where singleton_id=1").fetchone()[0] == 0
+        policy_disable_audits = connection.execute(
+            "select event_type, actor, target_type, target_id, details_json from audit_event where event_type='schedule.always_on_disabled'"
+        ).fetchall()
+        assert len(policy_disable_audits) == 1
+        assert policy_disable_audits[0] == (
+            "schedule.always_on_disabled",
+            "system:policy",
+            "schedule",
+            "1",
+            '{"reason":"policy_inactive"}',
+        )
+        assert "secret" not in policy_disable_audits[0][-1]
         connection.execute(
             "update screening_policy set status='active', active_slot=1, activated_at=?, activated_by='tester', quality_gate_result_id=? where policy_version='p1'",
             ("2026-01-01T00:00:00+00:00", "gateeval-" + "3" * 32),
@@ -129,6 +141,18 @@ def test_gate_evaluation_append_and_input_immutability(tmp_path: Path) -> None:
         )
         assert connection.execute("select enabled from always_on_state where singleton_id=1").fetchone()[0] == 0
         assert connection.execute("select result_status, metrics_json, reasons_json from quality_gate where gate_id=?", ("gate-" + "1" * 32,)).fetchone() == ("미달", '{"passed": 0}', '["failed"]')
+        quality_disable_audits = connection.execute(
+            "select event_type, actor, target_type, target_id, details_json from audit_event where event_type='schedule.always_on_disabled' order by rowid"
+        ).fetchall()
+        assert len(quality_disable_audits) == 2
+        assert quality_disable_audits[-1] == (
+            "schedule.always_on_disabled",
+            "system:quality-gate",
+            "schedule",
+            "1",
+            '{"reason":"quality_gate_not_passing"}',
+        )
+        assert all("secret" not in row[-1] for row in quality_disable_audits)
 
 
 def test_quality_gate_delete_cascades_evaluations(tmp_path: Path) -> None:
