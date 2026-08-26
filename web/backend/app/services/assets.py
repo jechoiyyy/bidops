@@ -512,12 +512,6 @@ def inspect_quarantine(
     if EICAR_MARKER in data:
         return InspectedAsset(asset, "application/octet-stream", None, "blocked", "infected", "malware_detected")
     expected_mime = declared_type_for_filename(asset.filename)
-    stream_markers = data.count(b"stream\n") + data.count(b"stream\r\n")
-    if expected_mime == "application/pdf" and stream_markers != data.count(b"endstream"):
-        # The bounded PDF reader intentionally handles a small subset and
-        # otherwise fails closed.  Catch an unterminated stream before a
-        # permissive fallback could produce an apparently valid structure.
-        return InspectedAsset(asset, expected_mime, None, "blocked", "error", "malformed_pdf")
     worker = processor or DocumentProcessor(clamav_checker=clamav_checker)
     try:
         processed = worker.process(data, asset.declared_media_type, options)

@@ -58,7 +58,7 @@ flowchart LR
     OPS[work_job / idempotency / audit]
     STORE[MinIO / S3]
     MCP[격리 문서 처리기]
-    QWEN[Ollama / Qwen]
+    QWEN[vLLM / Qwen]
 
     LEGACY --> ATTACHMENT
     ATTACHMENT --> DOCUMENT

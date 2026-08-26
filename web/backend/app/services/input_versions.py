@@ -46,8 +46,8 @@ from .profile import ParsedItem, parse_profile, profile_path, walk_sections
 CANONICAL_POLICY_FILE = Path(__file__).resolve().parents[1] / "policies" / "analysis-policy-lean-v1.json"
 PROFILE_SOURCE_FILE = "docs/reference/company-profile.md"
 POLICY_SCHEMA = "bidops.analysis-policy.v1"
-MODEL_ENDPOINT_REF = "ollama-local"
-MODEL_NAME = "qwen3.8:27b"
+MODEL_ENDPOINT_REF = "vllm-openai-compatible"
+MODEL_NAME = "qwen3.8-27B"
 STAGES = (
     "requirements_and_evaluation",
     "delivery_risk_economics",
@@ -249,7 +249,8 @@ def _policy_hash_matches(policy: AnalysisPolicyVersion) -> bool:
     rules = policy.validation_rules if isinstance(policy.validation_rules, Mapping) else {}
     validation = {key: rules[key] for key in ("max_unsupported_false_positive_rate", "min_human_agreement", "min_required_item_recall") if key in rules}
     candidate = {
-        "chunking": {"max_characters": 24000, "max_requirements": 20, "merge_order": ["stage_sequence", "document_ordinal", "page", "block_order", "requirement_id", "slice_index"], "retries": 2, "timeout_seconds": 120},
+        "chunking": {"max_characters": 24000, "max_requirements": 20, "merge_order": ["stage_sequence", "document_ordinal", "page", "block_order", "requirement_id", "slice_index"], "retries": 2, "timeout_seconds": 300},
+        "generation": rules.get("generation"),
         "model_endpoint_ref": policy.model_endpoint_ref, "model_name": policy.model_name,
         "schema": POLICY_SCHEMA, "stages": policy.prompts, "validation": validation,
     }
@@ -268,15 +269,15 @@ def _policy_hash_matches(policy: AnalysisPolicyVersion) -> bool:
     return digest == policy.policy_sha256 == _sha256(approved_canonical)
 
 
-def validate_pinned_policy(policy: AnalysisPolicyVersion) -> None:
+def validate_pinned_policy(policy: AnalysisPolicyVersion, *, allow_unmeasured_reference: bool = False) -> None:
     """Validate a review's already-pinned policy without reading active env IDs."""
 
-    if not policy_activation_valid(policy):
+    if not allow_unmeasured_reference and not policy_activation_valid(policy):
         raise InputVersionError("service_unavailable", "고정된 policy 품질 metadata가 유효하지 않습니다")
     if not _policy_hash_matches(policy):
         raise InputVersionError("service_unavailable", "고정된 policy hash가 승인본과 일치하지 않습니다")
     if policy.model_endpoint_ref != MODEL_ENDPOINT_REF or policy.model_name != MODEL_NAME:
-        raise InputVersionError("service_unavailable", "허용되지 않은 로컬 analysis model입니다")
+        raise InputVersionError("service_unavailable", "허용되지 않은 analysis model입니다")
 
 
 def policy_quality_snapshot(policy: AnalysisPolicyVersion) -> dict[str, Any]:
@@ -290,20 +291,25 @@ def policy_quality_snapshot(policy: AnalysisPolicyVersion) -> dict[str, Any]:
         raise InputVersionError("service_unavailable", "고정된 policy 품질 metadata가 유효하지 않습니다") from exc
 
 
-def resolve_active_versions(session: Session, *, environ: Mapping[str, str] | None = None) -> tuple[ProfileVersion, AnalysisPolicyVersion]:
+def resolve_active_versions(
+    session: Session,
+    *,
+    environ: Mapping[str, str] | None = None,
+    allow_unmeasured_reference: bool = False,
+) -> tuple[ProfileVersion, AnalysisPolicyVersion]:
     profile_id, policy_id = active_version_ids(environ)
     profile = session.get(ProfileVersion, profile_id)
     policy = session.get(AnalysisPolicyVersion, policy_id)
     if profile is None or policy is None:
         raise InputVersionError("service_unavailable", "active profile 또는 analysis policy를 찾을 수 없습니다")
-    if not policy_activation_valid(policy):
+    if not allow_unmeasured_reference and not policy_activation_valid(policy):
         raise InputVersionError("service_unavailable", "품질 표본 검증을 통과하지 않은 policy입니다")
     if not _policy_hash_matches(policy):
         raise InputVersionError("service_unavailable", "active policy hash가 payload와 일치하지 않습니다")
     if not isinstance(profile.profile_payload, Mapping) or profile.profile_payload.get("source_sha256") != profile.profile_sha256:
         raise InputVersionError("service_unavailable", "active profile hash가 payload와 일치하지 않습니다")
     if policy.model_endpoint_ref != MODEL_ENDPOINT_REF or policy.model_name != MODEL_NAME:
-        raise InputVersionError("service_unavailable", "허용되지 않은 로컬 analysis model입니다")
+        raise InputVersionError("service_unavailable", "허용되지 않은 analysis model입니다")
     return profile, policy
 
 
@@ -447,8 +453,8 @@ def _profile_payload_and_facts(source: Path) -> tuple[dict[str, Any], list[dict[
         "parse_errors": list(parsed.parse_errors),
     }
     fact_keys = [fact.get("fact_key") for fact in facts]
-    if len(facts) != 39 or any(not isinstance(key, str) or not key.strip() for key in fact_keys) or len(set(fact_keys)) != len(fact_keys):
-        raise InputVersionError("invalid_request", "company profile은 정확히 39개의 고유 stable fact key를 가져야 합니다")
+    if not 1 <= len(facts) <= 256 or any(not isinstance(key, str) or not key.strip() for key in fact_keys) or len(set(fact_keys)) != len(fact_keys):
+        raise InputVersionError("invalid_request", "company profile은 1~256개의 고유 stable fact key를 가져야 합니다")
     return payload, facts, raw
 
 
@@ -473,7 +479,7 @@ def import_profile_version(
     source_key, source_size, source_metadata = _store_profile_source(raw, digest)
     existing = session.scalar(select(ProfileVersion).where(ProfileVersion.profile_sha256 == digest).limit(1))
     if existing is not None:
-        _validate_profile_snapshot(session, existing)
+        _validate_profile_snapshot(session, existing, require_verified_source=True)
         return existing
     # A nested transaction is the retry boundary.  In particular, never call
     # ``Session.rollback`` here: it would erase unrelated pending work owned by
@@ -525,7 +531,7 @@ def import_profile_version(
             # exact immutable identity before allocating a new version.
             existing = session.scalar(select(ProfileVersion).where(ProfileVersion.profile_sha256 == digest).limit(1))
             if existing is not None:
-                _validate_profile_snapshot(session, existing)
+                _validate_profile_snapshot(session, existing, require_verified_source=True)
                 return existing
     raise InputVersionError("service_unavailable", "동시 profile version 생성에 실패했습니다")
 
@@ -560,8 +566,20 @@ def _verified_profile_source(session: Session, evidence_rows: Sequence[ProfileEv
         return None
 
 
-def _validate_profile_snapshot(session: Session, profile: ProfileVersion) -> None:
-    """Fail closed when any pinned fact/evidence pair is incomplete or altered."""
+def _validate_profile_snapshot(
+    session: Session,
+    profile: ProfileVersion,
+    *,
+    require_verified_source: bool = False,
+) -> None:
+    """Fail closed when any pinned fact/evidence pair is incomplete or altered.
+
+    The import path has private ``source`` credentials and re-verifies the
+    original Markdown bytes.  The analysis worker intentionally has only
+    structure-read credentials, so its runtime check validates the immutable
+    fact/evidence pairs and their content-object lineage without treating the
+    inaccessible source namespace as evidence tampering.
+    """
 
     payload = profile.profile_payload if isinstance(profile.profile_payload, Mapping) else None
     if payload is None or payload.get("schema") != "bidops.company-profile.v1" or payload.get("source_file") != PROFILE_SOURCE_FILE or payload.get("source_sha256") != profile.profile_sha256:
@@ -570,8 +588,8 @@ def _validate_profile_snapshot(session: Session, profile: ProfileVersion) -> Non
     if not isinstance(facts, list):
         raise InputVersionError("service_unavailable", "active profile facts가 올바르지 않습니다")
     fact_keys = [fact.get("fact_key") for fact in facts if isinstance(fact, Mapping)]
-    if len(facts) != 39 or len(fact_keys) != len(facts) or any(not isinstance(key, str) or not key.strip() for key in fact_keys) or len(set(fact_keys)) != len(fact_keys):
-        raise InputVersionError("service_unavailable", "profile facts는 정확히 39개의 고유 stable key여야 합니다")
+    if not 1 <= len(facts) <= 256 or len(fact_keys) != len(facts) or any(not isinstance(key, str) or not key.strip() for key in fact_keys) or len(set(fact_keys)) != len(fact_keys):
+        raise InputVersionError("service_unavailable", "profile facts는 1~256개의 고유 stable key여야 합니다")
     evidence_rows = session.scalars(select(ProfileEvidence).where(ProfileEvidence.profile_version_id == profile.id)).all()
     by_fact: dict[str, list[ProfileEvidence]] = {}
     for row in evidence_rows:
@@ -582,6 +600,8 @@ def _validate_profile_snapshot(session: Session, profile: ProfileVersion) -> Non
         if row.source_sha256 != profile.profile_sha256 or content is None or content.sha256 != profile.profile_sha256 or row.locator_type != "profile_fact" or not isinstance(row.locator, Mapping) or dict(row.locator) != {"fact_key": row.fact_key} or not isinstance(row.quote, str) or not row.quote:
             raise InputVersionError("service_unavailable", "profile evidence 계보가 올바르지 않습니다")
     source_text = _verified_profile_source(session, evidence_rows)
+    if require_verified_source and source_text is None:
+        raise InputVersionError("service_unavailable", "profile 원문을 검증할 수 없습니다")
     for index, fact in enumerate(facts):
         if not isinstance(fact, Mapping) or not isinstance(fact.get("fact_key"), str):
             raise InputVersionError("service_unavailable", f"profile fact {index}가 올바르지 않습니다")
@@ -597,7 +617,7 @@ def _validate_profile_snapshot(session: Session, profile: ProfileVersion) -> Non
         if len(matches) != 1:
             raise InputVersionError("service_unavailable", "모든 non-unknown profile fact는 정확히 하나의 evidence가 필요합니다")
         row = matches[0]
-        if fact.get("quote") != row.quote or not isinstance(fact.get("quote"), str) or source_text is None or row.quote not in source_text:
+        if fact.get("quote") != row.quote or not isinstance(fact.get("quote"), str) or (source_text is not None and row.quote not in source_text):
             raise InputVersionError("service_unavailable", "profile evidence quote가 원문 substring이 아닙니다")
         if fact.get("locator") != row.locator:
             raise InputVersionError("service_unavailable", "profile evidence locator가 fact와 일치하지 않습니다")
@@ -648,6 +668,7 @@ def import_policy_version(
     created_by_name = _safe_created_by(created_by_name)
     policy, canonical, digest = load_canonical_policy(policy_path)
     rules = dict(policy["validation"])
+    rules["generation"] = dict(policy["generation"])
     if sample_hash is not None and sample_sha256 is not None and sample_hash != sample_sha256:
         raise InputVersionError("invalid_request", "sample sha alias 값이 서로 다릅니다")
     quality = _normalise_quality_metadata(

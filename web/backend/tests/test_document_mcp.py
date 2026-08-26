@@ -135,6 +135,36 @@ def test_text_pdf_page_bbox() -> None:
     assert result["blocks"][0]["text"] == "Fixture PDF"
 
 
+def test_control_heavy_stdlib_pdf_text_uses_bounded_poppler_fallback(monkeypatch) -> None:
+    processor = DocumentProcessor()
+    fallback = (
+        [{"number": 1, "width": 612.0, "height": 792.0, "image_content_object_id": None}],
+        [{
+            "block_key": "page-1-text", "parent_block_key": None, "type": "text", "page": 1,
+            "bbox": [0.0, 0.0, 612.0, 792.0], "text": "정상 공고문", "confidence": 1.0,
+            "attributes": {"source": "pdf-poppler-text"},
+        }],
+        [],
+        [],
+    )
+    monkeypatch.setattr(
+        "app.document_mcp.processor.extract_pdf",
+        lambda _data, _options: (
+            fallback[0],
+            [{**fallback[1][0], "text": "binary\x01font\x9cstream"}],
+            [],
+            [],
+        ),
+    )
+    monkeypatch.setattr(processor, "_extract_pdf_poppler", lambda _data, _options: fallback)
+
+    result = processor.process(text_pdf(), "application/pdf", {"ocr": False})
+
+    assert result["extractor"]["name"] == "pdf-poppler-fallback"
+    assert result["blocks"][0]["text"] == "정상 공고문"
+    assert "pdf_stdlib_text_fallback" in result["warnings"]
+
+
 def test_pdf_decoded_output_limit_rejects_compressed_two_megabyte_payload() -> None:
     with pytest.raises(DocumentProcessingError) as caught:
         process_document(compressed_large_text_pdf(), "application/pdf", {"ocr": False, "max_output_bytes": 1024})

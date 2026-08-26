@@ -115,6 +115,25 @@ def test_machine_report_has_exact_sections_and_immutable_hash(report_context):
     assert second["current_revision_id"] == first["current_revision_id"]
 
 
+def test_stage3_recommendation_is_resolved_without_default_invention():
+    service = ReportService()
+    stage = {
+        "stage": "synthesis_and_validation",
+        "claims": [{
+            "category": "system_recommendation", "status": "supported",
+            "body": "조건부 참여",
+        }],
+    }
+    assert service._system_recommendation([stage], "passed") == ("조건부 추진 검토", None)
+    assert service._system_recommendation([], "passed") == ("보류", "Stage 3 시스템 권고가 없습니다.")
+    conflict = deepcopy(stage)
+    conflict["claims"].append({
+        "category": "시스템 권고", "status": "supported", "body": "검토 종료",
+    })
+    assert service._system_recommendation([conflict], "passed") == ("보류", "Stage 3 시스템 권고가 서로 충돌합니다.")
+    assert service._system_recommendation([stage], "failed") == ("보류", None)
+
+
 def test_get_report_is_read_only_and_never_lazy_materializes(report_context):
     with Session(report_context["engine"]) as session, pytest.raises(ReportServiceError) as raised:
         ReportService().get_report(session, report_context["review_id"])
@@ -221,7 +240,7 @@ def test_factual_evidence_scope_and_system_recommendation_immutability(report_co
         service.create_revision(session, report_context["review_id"], "담당자", out_scope)
     assert raised.value.code == "evidence_out_of_scope"
     changed = deepcopy(view["report"])
-    changed["system_recommendation"] = "보류"
+    changed["system_recommendation"] = "추진 검토"
     immutable = ReportRevisionRequest.model_validate({"request_id": str(uuid4()), "base_revision_id": view["current_revision_id"], "report": changed, "reason": "시스템 권고 변경", "factual_change_evidence_ids": [str(report_context["evidence_id"])]})
     with Session(report_context["engine"]) as session, pytest.raises(ReportServiceError) as raised:
         service.create_revision(session, report_context["review_id"], "담당자", immutable)
@@ -483,7 +502,7 @@ def test_reports_router_contract_is_exactly_four_routes_and_error_shape(report_c
     view = materialize(report_context)
     payload = revision_request(view, report_context["evidence_id"]).model_dump(mode="json")
     changed = deepcopy(payload["report"])
-    changed["system_recommendation"] = "보류"
+    changed["system_recommendation"] = "추진 검토"
     validation_payload = {**payload, "report": changed, "request_id": str(uuid4())}
     stale_payload = {**payload, "request_id": str(uuid4()), "base_revision_id": str(uuid4())}
     unsafe_id = uuid4()
