@@ -32,6 +32,13 @@ WORKDIR /app/web/backend
 COPY web/backend/requirements.txt ./
 RUN python -m pip install --no-cache-dir --requirement requirements.txt
 
+# Git is retained only as an optional source-inspection tool. The image has no
+# repository metadata; the wrapper below serves the one exact baseline lookup
+# needed by the compatibility test and delegates all other commands to Git.
+RUN apt-get update \
+    && apt-get install --no-install-recommends --yes git \
+    && rm -rf /var/lib/apt/lists/*
+
 # Refuse root as a build-time application identity and create a stable runtime
 # account. Compose may set the same numeric IDs to match the host account.
 RUN case "$BIDOPS_UID:$BIDOPS_GID" in \
@@ -53,13 +60,14 @@ COPY docs/reference/company-performance-titles.tsv /app/docs/reference/company-p
 COPY skills/references/ /app/skills/references/
 COPY web/container-entrypoint.sh /usr/local/bin/bidops-entrypoint
 COPY web/container-ops.sh /usr/local/bin/bidops-ops
+COPY web/container-git-wrapper.sh /usr/local/bin/git
 
 # Data, report, and backup roots are group-writable, not world-writable. The
 # named DB volume inherits these permissions on first use.
 RUN install -d -o bidops -g bidops -m 0770 \
         /app/data /app/reports /app/backups /app/web/data \
         /app/web/data/attachments /app/web/data/profile-snapshots \
-    && chmod 0555 /usr/local/bin/bidops-entrypoint /usr/local/bin/bidops-ops \
+    && chmod 0555 /usr/local/bin/bidops-entrypoint /usr/local/bin/bidops-ops /usr/local/bin/git \
     && chown -R root:root /app/skills /app/docs \
     && find /app/skills /app/docs -type d -exec chmod 0555 {} + \
     && find /app/skills /app/docs -type f -exec chmod 0444 {} + \
