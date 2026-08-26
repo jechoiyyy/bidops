@@ -366,9 +366,12 @@ def final_opinion_snapshot_payload(opinion: object) -> dict[str, Any]:
     created_at = _timestamp(_get(opinion, "created_at"), "final_opinion.created_at", required=True)
     return {
         "id": opinion_id,
+        "deep_review_id": _uuid_text(_get(opinion, "deep_review_id"), "final_opinion.deep_review_id"),
+        "report_revision_id": _uuid_text(_get(opinion, "report_revision_id"), "final_opinion.report_revision_id"),
         "sequence": sequence,
         "value": value,
         "reason": reason,
+        "validation_run_id": _uuid_text(_get(opinion, "validation_run_id"), "final_opinion.validation_run_id"),
         "validation_status_at_opinion": validation_status,
         "acknowledged_validation_failure": acknowledged,
         "claimed_name": claimed_name,
@@ -600,7 +603,7 @@ def _project_valid(parts: Mapping[str, Any], review_id: str, lineage: UUID | Non
                 status=AgentRunStatus.blocked,
                 outcome=None,
                 current_step=STEP_NAMES[0],
-                steps_status=(AgentStepStatus.blocked, AgentStepStatus.queued, AgentStepStatus.queued),
+                steps_status=(AgentStepStatus.blocked, AgentStepStatus.blocked, AgentStepStatus.blocked),
                 input_refs=[],
                 output_refs=[],
                 wait=make_wait("machine_report_required"),
@@ -609,7 +612,7 @@ def _project_valid(parts: Mapping[str, Any], review_id: str, lineage: UUID | Non
                 created_at=created_at,
                 updated_at=_updated_timestamp(parts, created_at),
                 completed_at=None,
-                started_at=created_at,
+                started_at=_timestamp(_get(revisions[0], "created_at"), "machine report_revision.created_at", required=True),
                 step_timestamps=((created_at, None), (None, None), (None, None)),
             )
         if len(latest_validation_rows) > 1:
@@ -710,7 +713,7 @@ def _project_valid(parts: Mapping[str, Any], review_id: str, lineage: UUID | Non
             status=AgentRunStatus.blocked,
             outcome=None,
             current_step=STEP_NAMES[0],
-            steps_status=(AgentStepStatus.blocked, AgentStepStatus.queued, AgentStepStatus.queued),
+            steps_status=(AgentStepStatus.blocked, AgentStepStatus.blocked, AgentStepStatus.blocked),
             input_refs=[],
             output_refs=[],
             wait=make_wait("machine_report_required"),
@@ -719,7 +722,7 @@ def _project_valid(parts: Mapping[str, Any], review_id: str, lineage: UUID | Non
             created_at=created_at,
             updated_at=_updated_timestamp(parts, created_at),
             completed_at=None,
-            started_at=created_at,
+            started_at=None,
             step_timestamps=(
                 (created_at, None),
                 (None, None),
@@ -754,9 +757,17 @@ def _project_valid(parts: Mapping[str, Any], review_id: str, lineage: UUID | Non
         )
         output_refs.append(_opinion_ref(final_opinion))
         completed_at = _timestamp(_get(final_opinion, "created_at"), "final_opinion.created_at", required=True)
+        machine_revision_created = _timestamp(_get(revisions[0], "created_at"), "machine report_revision.created_at", required=True)
+        machine_validation = validation_by_revision[_uuid_text(_get(revisions[0], "id"), "machine report_revision.id")]
+        machine_validation_created = _timestamp(_get(machine_validation, "created_at"), "machine validation_run.created_at", required=True)
+        review_completed_at = (
+            _timestamp(_get(latest_revision, "created_at"), "human report_revision.created_at", required=True)
+            if _get(latest_revision, "origin") == "human"
+            else completed_at
+        )
         step_timestamps = (
-            (_timestamp(_get(latest_revision, "created_at"), "report_revision.created_at", required=True), _timestamp(_get(latest_validation, "created_at"), "validation_run.created_at", required=True)),
-            (_timestamp(_get(latest_revision, "created_at"), "report_revision.created_at", required=True), _timestamp(_get(latest_validation, "created_at"), "validation_run.created_at", required=True)),
+            (created_at, machine_validation_created),
+            (machine_revision_created, review_completed_at),
             (_timestamp(_get(latest_validation, "created_at"), "validation_run.created_at", required=True), completed_at),
         )
     elif _get(latest_revision, "origin") == "human":
@@ -765,17 +776,20 @@ def _project_valid(parts: Mapping[str, Any], review_id: str, lineage: UUID | Non
         current_step = STEP_NAMES[2]
         steps_status = (AgentStepStatus.completed, AgentStepStatus.completed, AgentStepStatus.waiting_human)
         wait = make_wait("final_opinion_required")
-        available_actions = [AgentAction.record_final_opinion]
+        available_actions = [AgentAction.create_full_revision, AgentAction.record_final_opinion]
         output_refs = [revision_refs[latest_revision_id], validation_refs[latest_revision_id]]
         completed_at = None
         revision_created = _timestamp(_get(latest_revision, "created_at"), "report_revision.created_at", required=True)
         validation_created = _timestamp(_get(latest_validation, "created_at"), "validation_run.created_at", required=True)
-        step_timestamps = ((created_at, validation_created), (revision_created, validation_created), (validation_created, None))
+        machine_revision_created = _timestamp(_get(revisions[0], "created_at"), "machine report_revision.created_at", required=True)
+        machine_validation = validation_by_revision[_uuid_text(_get(revisions[0], "id"), "machine report_revision.id")]
+        machine_validation_created = _timestamp(_get(machine_validation, "created_at"), "machine validation_run.created_at", required=True)
+        step_timestamps = ((created_at, machine_validation_created), (machine_revision_created, revision_created), (validation_created, None))
     else:
         status = AgentRunStatus.waiting_human
         outcome = None
         current_step = STEP_NAMES[1]
-        steps_status = (AgentStepStatus.completed, AgentStepStatus.waiting_human, AgentStepStatus.queued)
+        steps_status = (AgentStepStatus.completed, AgentStepStatus.waiting_human, AgentStepStatus.blocked)
         wait = make_wait("report_review_required")
         available_actions = [AgentAction.create_full_revision, AgentAction.record_final_opinion]
         output_refs = []
@@ -798,7 +812,7 @@ def _project_valid(parts: Mapping[str, Any], review_id: str, lineage: UUID | Non
         created_at=created_at,
         updated_at=_updated_timestamp(parts, created_at),
         completed_at=completed_at,
-        started_at=created_at,
+        started_at=_timestamp(_get(revisions[0], "created_at"), "machine report_revision.created_at", required=True),
         step_timestamps=step_timestamps,
     )
 
@@ -806,7 +820,6 @@ def _project_valid(parts: Mapping[str, Any], review_id: str, lineage: UUID | Non
 def _updated_timestamp(parts: Mapping[str, Any], created_at: datetime) -> datetime:
     values: list[datetime | None] = [created_at]
     for collection in (
-        parts.get("audits"),
         parts.get("revisions"),
         parts.get("validations"),
         parts.get("opinions"),
@@ -899,18 +912,19 @@ def project_decision(
     if review is None:
         raise DecisionProjectionError("deep review snapshot is missing")
     review_id = _uuid_text(_get(review, "id"), "deep_review.id")
+    review_created_at = _timestamp(_get(review, "created_at"), "deep_review.created_at", required=True)
     try:
-        _create_audit, lineage, created_at = _lineage(parts, review_id)
-        return _project_valid(parts, review_id, lineage, created_at)
+        _create_audit, lineage, _audit_created_at = _lineage(parts, review_id)
+        return _project_valid(parts, review_id, lineage, review_created_at)  # type: ignore[arg-type]
     except (DecisionProjectionError, ValueError, TypeError, KeyError):
         try:
-            created_at, lineage = _failure_context(parts, review_id)
+            _failure_created_at, lineage = _failure_context(parts, review_id)
         except (DecisionProjectionError, ValueError, TypeError, KeyError):
             # A completely absent/invalid root audit has no persisted decision
             # timestamp from which a valid AgentRunView can be built.  Raise
             # rather than using the review row or a runtime clock.
             raise
-        return _safe_error_view(review_id, created_at, parts, lineage)
+        return _safe_error_view(review_id, review_created_at, parts, lineage)  # type: ignore[arg-type]
 
 
 project_decision_run = project_decision

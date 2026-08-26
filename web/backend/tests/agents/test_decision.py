@@ -103,7 +103,7 @@ def _base_snapshot(*, validation_status: str = "passed", with_machine: bool = Tr
             created_at=NOW + timedelta(seconds=3),
         ))
     return {
-        "review": {"id": REVIEW},
+        "review": {"id": REVIEW, "created_at": NOW},
         "revisions": revisions,
         "validations": validations,
         "validation_checks": checks,
@@ -252,7 +252,8 @@ def test_blocked_projection_has_exact_steps_wait_and_no_refs_or_actions() -> Non
     assert view.input_refs == [] and view.output_refs == [] and view.available_actions == []
     assert [step.step_name for step in view.steps] == list(STEP_NAMES)
     assert [step.sequence for step in view.steps] == [1, 2, 3]
-    assert [step.status for step in view.steps] == [AgentStepStatus.blocked, AgentStepStatus.queued, AgentStepStatus.queued]
+    assert [step.status for step in view.steps] == [AgentStepStatus.blocked] * 3
+    assert view.created_at == NOW and view.started_at is None
     assert view.execution_ref is None and view.run_id == f"decision:{REVIEW}"
 
 
@@ -285,7 +286,7 @@ def test_human_revision_waits_for_opinion_then_completion_and_new_revision_reope
     assert waiting.status is AgentRunStatus.waiting_human
     assert waiting.current_step == "record_final_opinion"
     assert waiting.wait is not None and waiting.wait.reason_code.value == "final_opinion_required"
-    assert waiting.available_actions == [AgentAction.record_final_opinion]
+    assert waiting.available_actions == [AgentAction.create_full_revision, AgentAction.record_final_opinion]
     assert [ref.artifact_type for ref in waiting.output_refs] == [AgentArtifactType.report_revision, AgentArtifactType.validation_run]
 
     _opinion(snapshot)
@@ -302,7 +303,7 @@ def test_human_revision_waits_for_opinion_then_completion_and_new_revision_reope
     reopened = project_decision(snapshot)
     assert reopened.status is AgentRunStatus.waiting_human
     assert reopened.current_step == "record_final_opinion"
-    assert reopened.available_actions == [AgentAction.record_final_opinion]
+    assert reopened.available_actions == [AgentAction.create_full_revision, AgentAction.record_final_opinion]
     assert len(snapshot["revisions"]) == 3 and len(snapshot["opinions"]) == 1  # type: ignore[arg-type]
 
 
