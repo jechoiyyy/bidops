@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Badge } from "../components/common/Badge";
 import { EmptyState } from "../components/common/EmptyState";
 import { AttachmentPanel } from "../components/notice/AttachmentPanel";
@@ -49,12 +49,14 @@ function NoticePickerItem({ notice, selected, onSelect }: { notice: NoticeListIt
 }
 
 export function NoticeDetailPage() {
+  const location = useLocation();
   const navigate = useNavigate();
   const { noticePk: noticePkParam } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const runsQuery = useQuery({ queryKey: ["runs"], queryFn: api.getRuns, staleTime: 30_000 });
   const runId = searchParams.get("run") ?? runsQuery.data?.items[0]?.run_id ?? null;
   const selectedId = noticePkParam && Number.isInteger(Number(noticePkParam)) ? Number(noticePkParam) : null;
+  const keepListOpen = Boolean((location.state as { keepListOpen?: boolean } | null)?.keepListOpen);
 
   useEffect(() => {
     if (searchParams.get("run") || !runId) return;
@@ -84,12 +86,12 @@ export function NoticeDetailPage() {
 
   useEffect(() => {
     if (!runId || noticesQuery.isLoading || notices.length === 0) return;
-    if (selectedId === null || selectedIndex === -1) {
-      navigate({ pathname: `/judgments/${notices[0].id}`, search: searchParams.toString() }, { replace: true });
+    if ((selectedId === null && !keepListOpen) || (selectedId !== null && selectedIndex === -1)) {
+      navigate({ pathname: `/judgments/${notices[0].id}`, search: searchParams.toString() }, { replace: true, state: null });
     }
-  }, [navigate, notices, noticesQuery.isLoading, runId, searchParams, selectedId, selectedIndex]);
+  }, [keepListOpen, navigate, notices, noticesQuery.isLoading, runId, searchParams, selectedId, selectedIndex]);
 
-  const selectNotice = (id: number) => navigate({ pathname: `/judgments/${id}`, search: searchParams.toString() });
+  const selectNotice = (id: number) => navigate({ pathname: `/judgments/${id}`, search: searchParams.toString() }, { state: null });
 
   if (runsQuery.error) {
     return <EmptyState title="회차 정보를 불러오지 못했습니다." description={errorMessage(runsQuery.error, "회차를 확인할 수 없습니다.")} />;
@@ -167,7 +169,7 @@ export function NoticeDetailPage() {
           ) : (
             <div className="judgment-detail-scroll">
               <div className="queue-detail-back judgment-detail-back">
-                <Link to={{ pathname: "/judgments", search: searchParams.toString() }}>
+                <Link state={{ keepListOpen: true }} to={{ pathname: "/judgments", search: searchParams.toString() }}>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M19 12H6M11 6l-6 6 6 6" /></svg>
                   목록으로
                 </Link>
