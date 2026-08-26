@@ -39,21 +39,25 @@ export function JudgmentHistory({ noticePk }: JudgmentHistoryProps) {
             return (
               <li className="judgment-history-item" key={`${item.run_id}-${item.notice_pk}`}>
                 <div className="judgment-history-marker" aria-hidden="true" />
-                <div className="judgment-history-content">
-                  <div className="judgment-history-heading">
-                    <span className="mono tabular-nums">{formatDateTime(item.generated_at)}</span>
-                    <Badge label={item.grade} variant={gradeVariant(item.grade)} />
-                    <Badge label={item.readiness} variant="readiness" />
+                <details className="judgment-history-details" open={index === 0}>
+                  <summary className="judgment-history-summary">
+                    <span className="judgment-history-heading">
+                      <span className="mono tabular-nums">{formatDateTime(item.generated_at)}</span>
+                      <Badge label={item.grade} variant={gradeVariant(item.grade)} />
+                      <Badge label={item.readiness} variant="readiness" />
+                    </span>
+                  </summary>
+                  <div className="judgment-history-content">
+                    <div className="judgment-history-run mono tabular-nums">
+                      {formatRunRange(item.run_id, item.window_from, item.window_to)}
+                    </div>
+                    <p>{present(item.summary, "판정 요약 없음")}</p>
+                    <div className="judgment-history-change">
+                      <span>변경 사유</span>
+                      <strong>{changeLabel(item, previous)}</strong>
+                    </div>
                   </div>
-                  <div className="judgment-history-run mono tabular-nums">
-                    {formatRunRange(item.run_id, item.window_from, item.window_to)}
-                  </div>
-                  <p>{present(item.summary, "판정 요약 없음")}</p>
-                  <div className="judgment-history-change">
-                    <span>변경 사유</span>
-                    <strong>{changeLabel(item, previous)}</strong>
-                  </div>
-                </div>
+                </details>
               </li>
             );
           })}
