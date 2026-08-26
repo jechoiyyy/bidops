@@ -9,10 +9,10 @@ interface PipelineFunnelProps {
 }
 
 function formatDrop(previous: number | null, current: number | null): string {
-  if (previous === null || current === null) return "감소 폭 계산 불가";
+  if (previous === null || current === null) return "변화 계산 불가";
   if (current > previous) return `증가 ${formatNumber(current - previous)}건`;
+  if (current === previous) return "변화 없음 · 0건";
   const drop = previous - current;
-  if (previous === 0) return "감소율 계산 불가";
   const percentage = (drop / previous) * 100;
   return `감소 ${formatNumber(drop)}건 · ${percentage.toFixed(1)}%`;
 }
