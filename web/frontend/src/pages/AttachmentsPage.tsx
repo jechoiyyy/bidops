@@ -6,6 +6,7 @@ import { EmptyState } from "../components/common/EmptyState";
 import { Panel } from "../components/common/Panel";
 import { api } from "../lib/api";
 import { formatDeadline, present } from "../lib/format";
+import "../styles/operations-workflow-relaxed.css";
 import type { AgencyPortal, AttachmentQueueItem } from "../lib/types";
 import { gradeVariant } from "../lib/grade";
 
