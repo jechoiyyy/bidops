@@ -176,7 +176,7 @@ export function OperationsPage() {
             <div className="operations-panel-heading"><div><span className="operations-eyebrow">정기 예약</span><h3 id="operations-settings-title">스케줄 설정</h3></div><span className="operations-panel-note">DB 정본</span></div>
             <div className="operations-panel-body"><ScheduleSettingsForm settings={settingsQuery.data} busy={settingsBusy} onSave={saveSettings} /></div>
           </section>
-          <AlwaysOnPanel state={alwaysOnQuery.data} activePolicy={activePolicy} activePolicyVersion={activePolicyVersion} policyLoading={policiesQuery.isLoading || Boolean(policiesQuery.error)} busy={alwaysOnBusy} onUpdate={updateAlwaysOn} />
+          <AlwaysOnPanel state={alwaysOnQuery.data} activePolicy={activePolicy} activePolicyVersion={activePolicyVersion} policyLoading={Boolean(policiesQuery.error)} policyRefreshing={policiesQuery.isFetching} busy={alwaysOnBusy} onUpdate={updateAlwaysOn} />
           <ScheduleExecutionForm recoveryTarget={recoveryTarget} busy={executionBusy} onSubmit={submitExecution} onCancelRecovery={() => setRecoveryTarget(null)} />
         </div>
         <aside className="operations-side-column" aria-label="승인 조합 요약">
