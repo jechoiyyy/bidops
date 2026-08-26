@@ -1,18 +1,18 @@
-# T14 통합 상태
+# 통합 상태
 
-기준일: 2026-08-26. 이 표는 aggregate `dryforge/task-t14`에서 확인한 사실만 기록한다. 실행 ID·게이트 ID·평가 결과를 만들어 쓰지 않는다.
+기준일: 2026-08-26. 이 표는 현재 브랜치에서 직접 검증한 사실만 기록한다. 실행 ID·게이트 ID·평가 결과를 만들어 쓰지 않는다.
 
 ## 증거 상태
 
 | 영역 | 상태 | 확인 사실 |
 |---|---|---|
 | source pipeline | 완료 | `./run-tests.sh` 통과: collect 28, report 13, screen 48, root 2 (총 91) |
-| backend/frontend fake CI | 완료 | `./web/run-web-tests.sh` 통과: backend 311 passed, frontend production build; 기존 Starlette/httpx deprecation warning 1건과 Vite chunk size warning만 관찰 |
+| backend/frontend fake CI | 완료 | fresh SQLite migration 뒤 backend 312 passed, frontend production build 통과; 기존 Vite chunk size warning만 관찰 |
 | Docker config/build | 완료 | `docker compose config --quiet` 및 `docker compose build` 통과; Python은 `web/backend/requirements.lock` exact pins, frontend production build warning(>500 kB chunk)만 관찰 |
-| visual | 완료(컨테이너) | fresh Docker 실행 2회가 각각 98 passed, 10 intentional skipped. Google Fonts network 차단과 image local fonts(`WenQuanYi Zen Hei`, `Liberation Mono`)로 결정성 확보. host 직접 launch는 환경의 `libnspr4/libnss3` 부재로 제한됨 |
+| 관리자 화면 | 완료(컨테이너 검증) | 밝은 RootLab 여유형 체계, 로컬 Pretendard, 공통 셸과 12개 화면 대상을 390/768/1024/1440px에서 검증했다. 시각·동작·가로 넘침 검증은 134 passed, draft의 모바일 조건 10건은 intentional skipped. host 직접 browser launch는 환경의 `libnspr4/libnss3` 부재로 제한됨 |
 | live Ollama/T15 | 대기 | `BIDOPS_LIVE_OLLAMA_TEST=true`와 explicit single live command/marker를 포함한 operator smoke 결과 없음 |
 
-visual의 10 skip은 draft spec의 mobile/tablet 너비 조건에 따른 의도된 skip(5 × 2)이다. 재현 명령과 image/mount 전제는 [운영 절차](../operations.md)에 있다.
+visual의 10 skip은 draft spec의 mobile 너비 조건에 따른 의도된 skip이다. 스냅샷에는 대시보드, 검토 대기열, 판정 이력, 담당자 리뷰 준비 화면, 수집 실행, 첨부 확보, 프로필, 검증 지표, 품질 게이트 두 상태, 정책, 상시 운영이 네 폭으로 고정돼 있다.
 
 ## 운영·활성화 상태
 

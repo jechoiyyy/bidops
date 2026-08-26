@@ -59,3 +59,9 @@
 - 증상: 하위 프로세스가 환경변수 또는 `serviceKey` 파라미터를 출력하면 수집 로그에 비밀이 남을 수 있다.
 - 원인: 웹 실행기는 API 키를 하위 프로세스 환경에 전달해야 하고 외부 오류 메시지를 그대로 수집할 수 있다.
 - 대응: 키 실제 값과 알려진 키 파라미터 형식을 저장 전 마스킹한다. 성공·실패 테스트 모두에서 실제 키 문자열이 로그 응답과 DB에 없는지 확인한다.
+
+## 컨테이너에서 만든 venv가 호스트에서 실행되지 않는다
+
+- 증상: 컨테이너에서 `python -m venv web/backend/.venv`를 만든 뒤 호스트의 `./web/run-web-tests.sh`가 `.venv/bin/python`을 실행하지 못한다.
+- 원인: venv의 Python 링크가 컨테이너 안의 `/usr/local/bin/python`을 가리키며, 그 절대 경로가 호스트에는 없다.
+- 대응: host 검증용 venv는 host Python 3.12+로 만들고 잠금 파일을 설치한다. 컨테이너 검증은 venv를 bind mount로 만들지 말고 이미지 안 Python으로 fresh SQLite migration과 pytest를 실행한 뒤, 저장소에 깨진 `.venv`가 남지 않았는지 확인한다.
