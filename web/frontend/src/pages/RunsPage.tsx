@@ -9,6 +9,7 @@ import { PipelineStages } from "../components/runs/PipelineStages";
 import { ScreeningRunPanel } from "../components/runs/ScreeningRunPanel";
 import { api } from "../lib/api";
 import { formatDateTime, formatNumber, formatRunRange, present, runStatusLabel } from "../lib/format";
+import "../styles/operations-workflow-relaxed.css";
 import type {
   CompanyProfileSnapshotResponse,
   PolicyVersionResponse,
