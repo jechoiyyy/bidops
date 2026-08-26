@@ -8,8 +8,8 @@
 |---|---|---|
 | source pipeline | 완료 | `./run-tests.sh` 통과: collect 28, report 13, screen 48, root 2 (총 91) |
 | backend/frontend fake CI | 완료 | `./web/run-web-tests.sh` 통과: backend 309 tests, frontend production build; 기존 Starlette/httpx deprecation warning 1건과 Vite chunk size warning만 관찰 |
-| Docker config/build | 완료 | `docker compose config --quiet` 및 `docker compose build` 통과; frontend production build warning(>500 kB chunk)만 관찰 |
-| visual | 완료(컨테이너) | `mcr.microsoft.com/playwright:v1.62.1-noble`, UID/GID·IPC·browser path를 고정한 실행에서 98 passed, 10 intentional skipped. host 직접 실행은 `libnspr4/libnss3`가 없어 browser launch가 막힘 |
+| Docker config/build | 완료 | `docker compose config --quiet` 및 `docker compose build` 통과; Python은 `web/backend/requirements.lock` exact pins, frontend production build warning(>500 kB chunk)만 관찰 |
+| visual | 완료(컨테이너) | fresh Docker 실행 2회가 각각 98 passed, 10 intentional skipped. Google Fonts network 차단과 image local fonts(`WenQuanYi Zen Hei`, `Liberation Mono`)로 결정성 확보. host 직접 launch는 환경의 `libnspr4/libnss3` 부재로 제한됨 |
 | live Ollama/T15 | 대기 | `BIDOPS_LIVE_OLLAMA_TEST=true`와 explicit single live command/marker를 포함한 operator smoke 결과 없음 |
 
 visual의 10 skip은 draft spec의 mobile/tablet 너비 조건에 따른 의도된 skip(5 × 2)이다. 재현 명령과 image/mount 전제는 [운영 절차](../operations.md)에 있다.
@@ -17,6 +17,7 @@ visual의 10 skip은 draft spec의 mobile/tablet 너비 조건에 따른 의도�
 ## 운영·활성화 상태
 
 - 기본 scheduler env는 false이고 DB always-on switch도 false다.
+- fresh migrated DB는 schedule/always-on 기본 singleton과 migration audit event를 만들며 `screening_policy`와 `agency_portal`은 0행이다. startup/entrypoint는 migration, `create_all`, portal seed, policy seed를 하지 않는다.
 - T14/T15에서 policy activation은 수행하지 않았다. seed가 필요하면 operator가 명시적 actor로 별도 실행한다.
 - always-on enable, live smoke, OpenAI 호출, 자동 restore/rollback, `down -v`는 수행하지 않았다.
 - quality gate의 고정 입력은 run `20260817-20260823`, validation schema v2, 40건 A/B 계약이다. 이 문서는 실제 gate/evaluation ID나 pass/fail 값을 주장하지 않는다.

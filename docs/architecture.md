@@ -26,7 +26,7 @@ APScheduler (Asia/Seoul clock only) ── durable reservation ── same queue
 - `skills/bidops-collect`, `skills/bidops-screen`, `skills/bidops-report`는 파일 계약을 소유한다. 웹 계층은 스킬 내부 함수를 import하지 않고 subprocess와 파일을 통해 호출한다.
 - `web/backend/app`은 API, DB 상태, 대기열·워커, 결정적 검증·병합, 산출물 경로를 소유한다. 프론트엔드는 API만 사용하며 DB·`data/runs`·첨부 루트를 직접 읽지 않는다.
 - APScheduler는 시계를 깨우고 고정된 기간을 예약하는 경계다. 판정 단계나 모델 호출을 소유하지 않는다. 수동·CLI·품질 게이트·스케줄 트리거는 모두 같은 DB FIFO로 들어간다.
-- SQLite가 상태의 정본이다. 애플리케이션 시작은 `init_db()`로 현재 Alembic revision만 읽어 확인한다. 마이그레이션과 정책 seed는 운영자가 별도 명령으로 실행한다.
+- SQLite가 상태의 정본이다. 애플리케이션 시작은 `init_db()`로 현재 Alembic revision과 schema presence만 읽어 확인한다. migration, `create_all`, portal seed, policy seed는 시작 시 수행하지 않는다. fresh migrated DB에는 schedule/always-on 기본 singleton과 deterministic migration audit event가 생기며 `screening_policy`·`agency_portal`은 0행이다. seed/portal 등록은 운영자 명령/API로 별도 실행한다.
 
 ## 데이터 흐름
 
@@ -50,7 +50,7 @@ APScheduler (Asia/Seoul clock only) ── durable reservation ── same queue
 
 정책 body와 prompt는 저장 시 새 immutable version을 만든다. 실행은 policy version, prompt version, model name/version·digest를 저장하며 완료 회차의 참조를 바꾸지 않는다. 기본 모델은 정확히 `qwen3.8:27b`다. Ollama `/api/tags`에서 실행 시 확인한 model digest(64 lowercase hex)가 실행에 묶인다. `think=false`, `stream=false`를 사용하며 BF16·OpenAI 대체 경로는 없다.
 
-정책 상태는 `draft`, `activation_candidate`, `active`이고 active는 최대 하나다. 기본 seed는 `policy seed-default --created-by system-bootstrap`을 운영자가 실행할 때만 만들어진다. 시작·migration·container entrypoint는 seed하지 않는다.
+정책 상태는 `draft`, `activation_candidate`, `active`이고 active는 최대 하나다. 기본 seed는 `python -m app.screening.policy seed-default --created-by system-bootstrap`을 운영자가 실행할 때만 만들어진다. 시작·migration·container entrypoint는 policy/portal seed를 하지 않는다.
 
 ### 품질 게이트
 
@@ -73,6 +73,7 @@ APScheduler 3.11 계열은 in-process clock이다. 시간대는 `Asia/Seoul`, �
 - SQLite는 WAL과 foreign keys를 켠다. 현재 head는 `0004_migration_audit`이며 앱은 자동 migrate하지 않는다. backup manifest를 보존한 명시적 migrate와 `db-verify`를 운영자가 수행한다.
 - artifact 경로는 알려진 파일명, symlink 거부, root escape 검사를 통과해야 한다. API는 내부 저장 경로를 조합하게 하지 않고 허용된 artifact endpoint만 노출한다.
 - `.env`, API key, Ollama credential, 원문 첨부와 run data를 image·Git에 넣지 않는다. web container는 root로 실행하지 않고 UID/GID bind mount 권한을 검사한다.
+- Docker Python runtime은 `web/backend/requirements.lock`의 exact transitive pins만 설치한다. visual은 remote Google Fonts를 차단하고 image local fonts로 고정한다.
 - 모델 prompt/response body는 오류·audit/log에 기록하지 않는다. telemetry에는 trace/span과 호출 메타데이터만 둔다.
 - health는 `GET /api/health`의 내부 lightweight 응답이며 Ollama나 외부 수집 API를 확인하지 않는다.
 
