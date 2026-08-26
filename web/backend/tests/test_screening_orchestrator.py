@@ -17,7 +17,14 @@ from app.db import Base
 from app.models import Notice, Run, ScreeningAttempt, ScreeningExecution, ScreeningPolicy
 from app.screening.execution_store import ScreeningExecutionStore
 from app.screening.ollama import OllamaClient
-from app.screening.orchestrator import ScreeningCreationError, ScreeningOrchestrator, _source_notices, _validation_notices
+from app.screening.orchestrator import (
+    ScreeningCreationError,
+    ScreeningOrchestrator,
+    _QUALITY_BINDING_CAPABILITY,
+    _QualitySampleBinding,
+    _source_notices,
+    _validation_notices,
+)
 from app.screening.policy import load_policy_file, policy_content_digest
 from app.screening.quality_gate import _input_matches_fixed_sample
 from app.screening.worker import ScreeningWorker, WorkerError
@@ -244,6 +251,10 @@ def test_public_prepare_quality_sample_requires_trusted_binding_and_rejects_forg
     forged_values = [
         SimpleNamespace(run_id="run-1", source_window={}, notices=[_notice()] * 40),
         {"run_id": "run-1", "source_window": {}, "notices": [_notice()] * 40},
+        _QualitySampleBinding(
+            capability=_QUALITY_BINDING_CAPABILITY,
+            sample_raw=b"forged", baseline_raw=b"forged", results_raw=b"forged",
+        ),
     ]
     for forged in [None, *forged_values]:
         with factory() as session:

@@ -15,9 +15,11 @@ import json
 import os
 from pathlib import Path
 import stat
+from threading import RLock
 from types import MappingProxyType
 from typing import Any, Iterator, Mapping, Sequence
 from uuid import uuid4
+import weakref
 
 from sqlalchemy import Engine, func, select, update
 from sqlalchemy.orm import Session, selectinload, sessionmaker
@@ -184,11 +186,77 @@ def _all_frozen(value: Any) -> bool:
     return True
 
 
-@dataclass(frozen=True, slots=True, init=False)
+@dataclass(frozen=True, slots=True, init=False, eq=False, weakref_slot=True)
 class _FixedInputSnapshot:
-    """One trusted, immutable raw/parsed snapshot of all fixed inputs."""
+    """Opaque raw-byte handle issued by the secure fixed-input loader.
 
+    Parsed projections and provenance are intentionally not constructor fields.
+    They live in the issuer registry below, keyed by object identity, so a
+    caller cannot preserve trust by mutating a backing mapping or swapping a
+    dataclass field with ``object.__setattr__``.
+    """
+
+    sample_raw: bytes
+    baseline_raw: bytes
+    results_raw: bytes
+
+    def __init__(
+        self,
+        *,
+        capability: object,
+        sample_raw: bytes,
+        baseline_raw: bytes,
+        results_raw: bytes,
+    ) -> None:
+        if capability is not _FIXED_SNAPSHOT_CAPABILITY:
+            raise TypeError("fixed input snapshot is internal")
+        if not all(isinstance(value, bytes) for value in (sample_raw, baseline_raw, results_raw)):
+            raise TypeError("fixed input snapshot is invalid")
+        object.__setattr__(self, "sample_raw", bytes(sample_raw))
+        object.__setattr__(self, "baseline_raw", bytes(baseline_raw))
+        object.__setattr__(self, "results_raw", bytes(results_raw))
+
+    @property
+    def root(self) -> Path:
+        return _snapshot_facts(self).root
+
+    @property
+    def sample(self) -> Mapping[str, Any]:
+        return _snapshot_facts(self).sample
+
+    @property
+    def baseline(self) -> Mapping[str, Any]:
+        return _snapshot_facts(self).baseline
+
+    @property
+    def results(self) -> Mapping[str, Any]:
+        return _snapshot_facts(self).results
+
+    @property
+    def sample_digest(self) -> str:
+        return _snapshot_facts(self).sample_digest
+
+    @property
+    def baseline_digest(self) -> str:
+        return _snapshot_facts(self).baseline_digest
+
+    @property
+    def results_digest(self) -> str:
+        return _snapshot_facts(self).results_digest
+
+    @property
+    def ids(self) -> tuple[str, ...]:
+        return _snapshot_facts(self).ids
+
+    @property
+    def canonical_run_id(self) -> str:
+        return _snapshot_facts(self).canonical_run_id
+
+
+@dataclass(frozen=True, slots=True)
+class _SnapshotFacts:
     root: Path
+    root_identity: tuple[int, int]
     sample: Mapping[str, Any]
     baseline: Mapping[str, Any]
     results: Mapping[str, Any]
@@ -199,44 +267,35 @@ class _FixedInputSnapshot:
     baseline_digest: str
     results_digest: str
     ids: tuple[str, ...]
-    token: object
-
-    def __init__(
-        self,
-        *,
-        capability: object,
-        root: Path,
-        sample: Mapping[str, Any],
-        baseline: Mapping[str, Any],
-        results: Mapping[str, Any],
-        sample_raw: bytes,
-        baseline_raw: bytes,
-        results_raw: bytes,
-        sample_digest: str,
-        baseline_digest: str,
-        results_digest: str,
-        ids: tuple[str, ...],
-    ) -> None:
-        if capability is not _FIXED_SNAPSHOT_CAPABILITY:
-            raise TypeError("fixed input snapshot is internal")
-        for name, value in (
-            ("root", root), ("sample", sample), ("baseline", baseline), ("results", results),
-            ("sample_raw", sample_raw), ("baseline_raw", baseline_raw), ("results_raw", results_raw),
-            ("sample_digest", sample_digest), ("baseline_digest", baseline_digest),
-            ("results_digest", results_digest), ("ids", ids),
-        ):
-            object.__setattr__(self, name, value)
-        object.__setattr__(self, "token", _FIXED_SNAPSHOT_TOKEN)
+    canonical_run_id: str
 
 
 _FIXED_SNAPSHOT_CAPABILITY = object()
-_FIXED_SNAPSHOT_TOKEN = object()
+_SNAPSHOT_REGISTRY_LOCK = RLock()
+_SNAPSHOT_REFS: dict[int, weakref.ReferenceType[_FixedInputSnapshot]] = {}
+_SNAPSHOT_FACTS: dict[int, _SnapshotFacts] = {}
 
 
 FIXED_INPUT_MAX_BYTES = 8 * 1024 * 1024
 _O_CLOEXEC = getattr(os, "O_CLOEXEC", 0)
-_O_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
-_O_DIRECTORY = getattr(os, "O_DIRECTORY", 0)
+_O_NOFOLLOW = getattr(os, "O_NOFOLLOW", None)
+_O_DIRECTORY = getattr(os, "O_DIRECTORY", None)
+
+
+def _require_secure_open_support() -> None:
+    """Fail closed when the platform cannot enforce the fixed-file boundary."""
+
+    if not isinstance(_O_NOFOLLOW, int) or _O_NOFOLLOW <= 0:
+        raise QualityGateValidationError("fixed quality input secure-open is unsupported")
+    if not isinstance(_O_DIRECTORY, int) or _O_DIRECTORY <= 0:
+        raise QualityGateValidationError("fixed quality input secure-open is unsupported")
+    supports_dir_fd = getattr(os, "supports_dir_fd", None)
+    try:
+        supports_openat = supports_dir_fd is not None and os.open in supports_dir_fd
+    except TypeError:
+        supports_openat = False
+    if not supports_openat:
+        raise QualityGateValidationError("fixed quality input secure-open is unsupported")
 
 
 def _absolute_root(project_root: Path | str) -> Path:
@@ -246,9 +305,45 @@ def _absolute_root(project_root: Path | str) -> Path:
     return root
 
 
+def _snapshot_registry_entry(snapshot: Any) -> _SnapshotFacts | None:
+    """Return issuer facts only for the exact registered object identity."""
+
+    if type(snapshot) is not _FixedInputSnapshot:
+        return None
+    key = id(snapshot)
+    with _SNAPSHOT_REGISTRY_LOCK:
+        reference = _SNAPSHOT_REFS.get(key)
+        if reference is None or reference() is not snapshot:
+            return None
+        return _SNAPSHOT_FACTS.get(key)
+
+
+def _snapshot_facts(snapshot: _FixedInputSnapshot) -> _SnapshotFacts:
+    facts = _snapshot_registry_entry(snapshot)
+    if facts is None:
+        raise QualityGateValidationError("fixed quality input is invalid")
+    return facts
+
+
+def _register_snapshot(snapshot: _FixedInputSnapshot, facts: _SnapshotFacts) -> None:
+    key = id(snapshot)
+
+    def cleanup(reference: weakref.ReferenceType[_FixedInputSnapshot]) -> None:
+        with _SNAPSHOT_REGISTRY_LOCK:
+            if _SNAPSHOT_REFS.get(key) is reference:
+                _SNAPSHOT_REFS.pop(key, None)
+                _SNAPSHOT_FACTS.pop(key, None)
+
+    reference = weakref.ref(snapshot, cleanup)
+    with _SNAPSHOT_REGISTRY_LOCK:
+        _SNAPSHOT_REFS[key] = reference
+        _SNAPSHOT_FACTS[key] = facts
+
+
 def _open_trusted_root(project_root: Path | str) -> tuple[int, Path]:
     """Open the configured root without following its final symlink."""
 
+    _require_secure_open_support()
     root = _absolute_root(project_root)
     root_fd: int | None = None
     try:
@@ -270,12 +365,14 @@ def _open_trusted_root(project_root: Path | str) -> tuple[int, Path]:
 def _open_fixed_relative(root_fd: int, relative: str) -> int:
     """Open a fixed relative file through directory FDs and no-follow flags."""
 
+    _require_secure_open_support()
     path = Path(relative)
     parts = path.parts
     if not parts or path.is_absolute() or any(part in {"", ".", ".."} for part in parts):
         raise QualityGateValidationError("fixed quality input is invalid")
     parent_fd = root_fd
     opened_dirs: list[int] = []
+    final_fd: int | None = None
     try:
         for component in parts[:-1]:
             child_fd = os.open(
@@ -294,6 +391,11 @@ def _open_fixed_relative(root_fd: int, relative: str) -> int:
             raise QualityGateValidationError("fixed quality input is invalid")
         return final_fd
     except OSError:
+        if final_fd is not None:
+            try:
+                os.close(final_fd)
+            except OSError:
+                pass
         raise QualityGateValidationError("fixed quality input is invalid") from None
     finally:
         for descriptor in reversed(opened_dirs):
@@ -415,6 +517,7 @@ def _read_strict_fixed_snapshot(project_root: Path | str) -> _FixedInputSnapshot
 
     root_fd, root = _open_trusted_root(project_root)
     try:
+        root_stat = os.fstat(root_fd)
         sample_raw, sample = _read_pinned_json_fd(root_fd, FIXED_SAMPLE_RELATIVE, FIXED_SAMPLE_DIGEST)
         baseline_raw, baseline = _read_pinned_json_fd(root_fd, FIXED_BASELINE_RELATIVE, FIXED_BASELINE_DIGEST)
         results_raw, results = _read_pinned_json_fd(root_fd, FIXED_RESULTS_RELATIVE, FIXED_RESULTS_DIGEST)
@@ -424,67 +527,106 @@ def _read_strict_fixed_snapshot(project_root: Path | str) -> _FixedInputSnapshot
         except OSError:
             pass
     ids = _validate_fixed_shape(sample, baseline, results)
-    return _FixedInputSnapshot(
+    parsed_generated_at = datetime.fromisoformat(str(results["generated_at"]).replace("Z", "+00:00"))
+    frozen_sample = _deep_freeze(sample)
+    frozen_baseline = _deep_freeze(baseline)
+    frozen_results = _deep_freeze(results)
+    snapshot = _FixedInputSnapshot(
         capability=_FIXED_SNAPSHOT_CAPABILITY,
-        root=root, sample=_deep_freeze(sample), baseline=_deep_freeze(baseline), results=_deep_freeze(results),
         sample_raw=sample_raw, baseline_raw=baseline_raw, results_raw=results_raw,
-        sample_digest=FIXED_SAMPLE_DIGEST, baseline_digest=FIXED_BASELINE_DIGEST,
-        results_digest=FIXED_RESULTS_DIGEST,
-        ids=tuple(ids),
     )
+    _register_snapshot(
+        snapshot,
+        _SnapshotFacts(
+            root=root,
+            root_identity=(root_stat.st_dev, root_stat.st_ino),
+            sample=frozen_sample,
+            baseline=frozen_baseline,
+            results=frozen_results,
+            sample_raw=bytes(sample_raw),
+            baseline_raw=bytes(baseline_raw),
+            results_raw=bytes(results_raw),
+            sample_digest=FIXED_SAMPLE_DIGEST,
+            baseline_digest=FIXED_BASELINE_DIGEST,
+            results_digest=FIXED_RESULTS_DIGEST,
+            ids=tuple(ids),
+            canonical_run_id=deterministic_run_id(FIXED_RUN_ID, parsed_generated_at),
+        ),
+    )
+    return snapshot
 
 
 def _snapshot_matches_raw(snapshot: _FixedInputSnapshot) -> bool:
-    """Verify a supplied snapshot is exactly one produced by the secure loader.
+    """Verify that *snapshot* is the exact object issued by the secure loader.
 
-    The token is an in-process capability, while the byte digests and parsed
-    projections make the boundary fail closed even if a caller obtains the
-    private class and attempts to assemble a look-alike value.  No path is
-    reopened here: the resolver consumes the already-opened loader result.
+    Trust is an identity fact held in the issuer registry, never in a field a
+    caller can copy or replace.  The raw bytes are checked against both that
+    entry and the three immutable pins; parsed projections are reconstructed
+    from those bytes so a forged backing mapping cannot affect consumers.
+    No path is reopened here.
     """
 
-    if type(snapshot) is not _FixedInputSnapshot or snapshot.token is not _FIXED_SNAPSHOT_TOKEN:
+    facts = _snapshot_registry_entry(snapshot)
+    if facts is None:
         return False
-    if not isinstance(snapshot.root, Path):
+    try:
+        sample_raw, baseline_raw, results_raw = snapshot.sample_raw, snapshot.baseline_raw, snapshot.results_raw
+    except (AttributeError, QualityGateValidationError):
         return False
     if (
-        snapshot.sample_digest != FIXED_SAMPLE_DIGEST
-        or snapshot.baseline_digest != FIXED_BASELINE_DIGEST
-        or snapshot.results_digest != FIXED_RESULTS_DIGEST
-        or not isinstance(snapshot.sample_raw, bytes)
-        or not isinstance(snapshot.baseline_raw, bytes)
-        or not isinstance(snapshot.results_raw, bytes)
-        or sha256_bytes(snapshot.sample_raw) != FIXED_SAMPLE_DIGEST
-        or sha256_bytes(snapshot.baseline_raw) != FIXED_BASELINE_DIGEST
-        or sha256_bytes(snapshot.results_raw) != FIXED_RESULTS_DIGEST
+        not isinstance(facts.root, Path)
+        or not isinstance(facts.root_identity, tuple)
+        or len(facts.root_identity) != 2
+        or not all(type(value) is int for value in facts.root_identity)
+        or not isinstance(sample_raw, bytes)
+        or not isinstance(baseline_raw, bytes)
+        or not isinstance(results_raw, bytes)
+        or sample_raw != facts.sample_raw
+        or baseline_raw != facts.baseline_raw
+        or results_raw != facts.results_raw
+        or sha256_bytes(sample_raw) != FIXED_SAMPLE_DIGEST
+        or sha256_bytes(baseline_raw) != FIXED_BASELINE_DIGEST
+        or sha256_bytes(results_raw) != FIXED_RESULTS_DIGEST
+        or facts.sample_digest != FIXED_SAMPLE_DIGEST
+        or facts.baseline_digest != FIXED_BASELINE_DIGEST
+        or facts.results_digest != FIXED_RESULTS_DIGEST
     ):
         return False
     if (
-        not isinstance(snapshot.sample, Mapping)
-        or not isinstance(snapshot.baseline, Mapping)
-        or not isinstance(snapshot.results, Mapping)
-        or type(snapshot.sample) is not MappingProxyType
-        or type(snapshot.baseline) is not MappingProxyType
-        or type(snapshot.results) is not MappingProxyType
-        or not _all_frozen(snapshot.sample)
-        or not _all_frozen(snapshot.baseline)
-        or not _all_frozen(snapshot.results)
+        not isinstance(facts.sample, Mapping)
+        or not isinstance(facts.baseline, Mapping)
+        or not isinstance(facts.results, Mapping)
+        or type(facts.sample) is not MappingProxyType
+        or type(facts.baseline) is not MappingProxyType
+        or type(facts.results) is not MappingProxyType
+        or not _all_frozen(facts.sample)
+        or not _all_frozen(facts.baseline)
+        or not _all_frozen(facts.results)
     ):
         return False
     try:
         parsed = tuple(
             _deep_freeze(json.loads(raw.decode("utf-8")))
-            for raw in (snapshot.sample_raw, snapshot.baseline_raw, snapshot.results_raw)
+            for raw in (sample_raw, baseline_raw, results_raw)
         )
     except (UnicodeError, json.JSONDecodeError, TypeError, ValueError):
         return False
-    if parsed != (snapshot.sample, snapshot.baseline, snapshot.results):
+    if parsed != (facts.sample, facts.baseline, facts.results):
         return False
     try:
-        ids = _validate_fixed_shape(snapshot.sample, snapshot.baseline, snapshot.results)
-    except (QualityGateValidationError, TypeError, AttributeError, KeyError):
+        ids = _validate_fixed_shape(facts.sample, facts.baseline, facts.results)
+        generated_at = datetime.fromisoformat(str(facts.results["generated_at"]).replace("Z", "+00:00"))
+    except (QualityGateValidationError, TypeError, AttributeError, KeyError, ValueError):
         return False
-    return tuple(ids) == snapshot.ids and all(isinstance(item, str) and item for item in snapshot.ids)
+    try:
+        canonical_run_id = deterministic_run_id(FIXED_RUN_ID, generated_at)
+    except (TypeError, ValueError):
+        return False
+    return (
+        tuple(ids) == facts.ids
+        and all(isinstance(item, str) and item for item in facts.ids)
+        and facts.canonical_run_id == canonical_run_id
+    )
 
 
 def _trusted_snapshot(
@@ -495,7 +637,8 @@ def _trusted_snapshot(
     fixed = _read_strict_fixed_snapshot(project_root) if snapshot is None else snapshot
     if not _snapshot_matches_raw(fixed):
         raise QualityGateValidationError("fixed quality input is invalid")
-    if fixed.root != _absolute_root(project_root):
+    facts = _snapshot_registry_entry(fixed)
+    if facts is None or facts.root != _absolute_root(project_root):
         raise QualityGateValidationError("fixed quality input is invalid")
     return fixed
 
@@ -753,7 +896,24 @@ def resolve_fixed_run(
     project_root: Path | str,
     *,
     run_alias: str = FIXED_RUN_ID,
-    snapshot: _FixedInputSnapshot | None = None,
+) -> Run:
+    """Resolve fixed inputs using a fresh secure snapshot.
+
+    The public resolver intentionally has no snapshot injection parameter.
+    Gate creation uses the private sibling below so its already-validated
+    loader result can flow through DB resolution without a path reread.
+    """
+
+    fixed = _trusted_snapshot(project_root, None)
+    return _resolve_fixed_run(session, project_root, run_alias=run_alias, snapshot=fixed)
+
+
+def _resolve_fixed_run(
+    session: Session,
+    project_root: Path | str,
+    *,
+    run_alias: str = FIXED_RUN_ID,
+    snapshot: _FixedInputSnapshot,
 ) -> Run:
     """Resolve the trusted artifact alias to exactly one canonical Run row.
 
@@ -771,6 +931,8 @@ def resolve_fixed_run(
     except (TypeError, ValueError, KeyError):
         raise QualityGateValidationError("fixed quality run is invalid") from None
     canonical_id = deterministic_run_id(run_alias, generated_at)
+    if fixed.canonical_run_id != canonical_id:
+        raise QualityGateValidationError("fixed quality run is invalid")
     # An alias row is never a valid fallback.  It was the original Phase 2
     # defect and accepting it would make foreign keys point at the wrong row.
     if session.get(Run, run_alias) is not None:
@@ -1156,7 +1318,7 @@ class QualityGateService:
         )
 
         with self._session() as session:
-            run = resolve_fixed_run(session, self.settings.bidops_root, run_alias=run_id, snapshot=fixed)
+            run = _resolve_fixed_run(session, self.settings.bidops_root, run_alias=run_id, snapshot=fixed)
             policy = session.scalar(select(ScreeningPolicy).where(ScreeningPolicy.policy_version == policy_version))
             if policy is None:
                 raise QualityGateValidationError("quality gate run or policy is missing")
@@ -1166,19 +1328,12 @@ class QualityGateService:
 
         root = Path(self.settings.bidops_root)
         prepared_artifacts: list[tuple[str, ExecutionWorkspace]] = []
-        quality_binding = _make_quality_sample_binding(
-            resolved_run_id,
-            fixed.sample["source_window"],
-            fixed.sample["notices"],
-            sample_raw=fixed.sample_raw,
-            baseline_raw=fixed.baseline_raw,
-            results_raw=fixed.results_raw,
-            sample_digest=fixed.sample_digest,
-            baseline_digest=fixed.baseline_digest,
-            results_digest=fixed.results_digest,
-            source_token=fixed,
-            capability=_QUALITY_BINDING_FACTORY_CAPABILITY,
-        )
+        def issue_quality_binding() -> object:
+            return _make_quality_sample_binding(
+                resolved_run_id,
+                source_token=fixed,
+                capability=_QUALITY_BINDING_FACTORY_CAPABILITY,
+            )
         try:
             if self.transaction_preparer is None:
                 raise QualityGateConflict("quality gate requires a transaction-aware execution preparer")
@@ -1191,7 +1346,7 @@ class QualityGateService:
                 # will publish both passes and the gate.  A stale, changed,
                 # superseded, or ambiguous row cannot leak into any side
                 # effect, even if the first read raced a DB writer.
-                resolved = resolve_fixed_run(session, self.settings.bidops_root, run_alias=run_id, snapshot=fixed)
+                resolved = _resolve_fixed_run(session, self.settings.bidops_root, run_alias=run_id, snapshot=fixed)
                 if resolved.id != resolved_run_id:
                     raise QualityGateConflict("fixed quality run changed")
                 policy = session.scalar(select(ScreeningPolicy).where(ScreeningPolicy.policy_version == policy_version))
@@ -1200,7 +1355,7 @@ class QualityGateService:
                 prepared_a = self.transaction_preparer(
                     session, run_id=resolved_run_id, policy_version=policy_version, profile_source=profile_source,
                     requested_by=actor, scope="quality_sample", trigger="quality_gate",
-                    _quality_binding=quality_binding,
+                    _quality_binding=issue_quality_binding(),
                 )
                 if not isinstance(getattr(prepared_a, "workspace", None), ExecutionWorkspace):
                     raise QualityGateConflict("quality pass ownership was not retained")
@@ -1208,7 +1363,7 @@ class QualityGateService:
                 prepared_b = self.transaction_preparer(
                     session, run_id=resolved_run_id, policy_version=policy_version, profile_source=profile_source,
                     requested_by=actor, scope="quality_sample", trigger="quality_gate",
-                    _quality_binding=quality_binding,
+                    _quality_binding=issue_quality_binding(),
                 )
                 if not isinstance(getattr(prepared_b, "workspace", None), ExecutionWorkspace):
                     raise QualityGateConflict("quality pass ownership was not retained")
@@ -1263,7 +1418,7 @@ class QualityGateService:
                     or execution_b.candidate_count != 40
                 ):
                     raise QualityGateConflict("quality pass policy identity differs")
-                final_resolved = resolve_fixed_run(
+                final_resolved = _resolve_fixed_run(
                     session, self.settings.bidops_root, run_alias=run_id, snapshot=fixed
                 )
                 if final_resolved.id != resolved_run_id:

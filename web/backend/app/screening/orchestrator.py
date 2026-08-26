@@ -8,9 +8,11 @@ import json
 import math
 from pathlib import Path
 import re
+from threading import RLock
 from types import MappingProxyType
 from typing import Any, Callable, Mapping, Sequence
 from uuid import uuid4
+import weakref
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
@@ -115,10 +117,69 @@ def _quality_value_is_frozen(value: Any) -> bool:
     return True
 
 
-@dataclass(frozen=True, slots=True, init=False)
+@dataclass(frozen=True, slots=True, init=False, eq=False, weakref_slot=True)
 class _QualitySampleBinding:
-    """Opaque, immutable fixed sample projection for quality preparation."""
+    """Raw-byte capability issued by the quality-gate service.
 
+    Issuer facts are deliberately absent from this object.  They are held in
+    the identity registry below, so copying, replacing, unpickling, or
+    mutating this handle cannot manufacture a trusted binding.
+    """
+
+    sample_raw: bytes
+    baseline_raw: bytes
+    results_raw: bytes
+
+    def __init__(
+        self,
+        *,
+        capability: object,
+        sample_raw: bytes,
+        baseline_raw: bytes,
+        results_raw: bytes,
+    ) -> None:
+        if capability is not _QUALITY_BINDING_CAPABILITY or not all(
+            isinstance(value, bytes) for value in (sample_raw, baseline_raw, results_raw)
+        ):
+            raise TypeError("quality sample binding is internal")
+        object.__setattr__(self, "sample_raw", bytes(sample_raw))
+        object.__setattr__(self, "baseline_raw", bytes(baseline_raw))
+        object.__setattr__(self, "results_raw", bytes(results_raw))
+
+    @property
+    def run_id(self) -> str:
+        return _binding_facts(self).run_id
+
+    @property
+    def source_window(self) -> Mapping[str, Any]:
+        return _binding_facts(self).source_window
+
+    @property
+    def notices(self) -> tuple[Mapping[str, Any], ...]:
+        return _binding_facts(self).notices
+
+    @property
+    def sample_digest(self) -> str:
+        return _binding_facts(self).sample_digest
+
+    @property
+    def baseline_digest(self) -> str:
+        return _binding_facts(self).baseline_digest
+
+    @property
+    def results_digest(self) -> str:
+        return _binding_facts(self).results_digest
+
+    @property
+    def source_token(self) -> object:
+        source = _binding_facts(self).source_ref()
+        if source is None:
+            raise ScreeningCreationError("input_error")
+        return source
+
+
+@dataclass(frozen=True, slots=True)
+class _BindingFacts:
     run_id: str
     source_window: Mapping[str, Any]
     notices: tuple[Mapping[str, Any], ...]
@@ -128,106 +189,155 @@ class _QualitySampleBinding:
     sample_digest: str
     baseline_digest: str
     results_digest: str
-    source_token: object
-    token: object
+    source_ref: weakref.ReferenceType[Any]
 
-    def __init__(
-        self,
-        *,
-        capability: object,
-        run_id: str,
-        source_window: Mapping[str, Any],
-        notices: tuple[Mapping[str, Any], ...],
-        sample_raw: bytes,
-        baseline_raw: bytes,
-        results_raw: bytes,
-        sample_digest: str,
-        baseline_digest: str,
-        results_digest: str,
-        source_token: object,
-    ) -> None:
-        if capability is not _QUALITY_BINDING_CAPABILITY:
-            raise TypeError("quality sample binding is internal")
-        object.__setattr__(self, "run_id", run_id)
-        object.__setattr__(self, "source_window", source_window)
-        object.__setattr__(self, "notices", notices)
-        object.__setattr__(self, "sample_raw", sample_raw)
-        object.__setattr__(self, "baseline_raw", baseline_raw)
-        object.__setattr__(self, "results_raw", results_raw)
-        object.__setattr__(self, "sample_digest", sample_digest)
-        object.__setattr__(self, "baseline_digest", baseline_digest)
-        object.__setattr__(self, "results_digest", results_digest)
-        object.__setattr__(self, "source_token", source_token)
-        object.__setattr__(self, "token", _QUALITY_BINDING_CAPABILITY)
+
+_BINDING_REGISTRY_LOCK = RLock()
+_BINDING_REFS: dict[int, weakref.ReferenceType[_QualitySampleBinding]] = {}
+_BINDING_FACTS: dict[int, _BindingFacts] = {}
+_BINDING_USED: set[int] = set()
+
+
+def _binding_registry_entry(binding: Any) -> _BindingFacts | None:
+    if type(binding) is not _QualitySampleBinding:
+        return None
+    key = id(binding)
+    with _BINDING_REGISTRY_LOCK:
+        reference = _BINDING_REFS.get(key)
+        if reference is None or reference() is not binding:
+            return None
+        return _BINDING_FACTS.get(key)
+
+
+def _binding_facts(binding: _QualitySampleBinding) -> _BindingFacts:
+    facts = _binding_registry_entry(binding)
+    if facts is None:
+        raise ScreeningCreationError("input_error")
+    return facts
+
+
+def _register_quality_binding(binding: _QualitySampleBinding, facts: _BindingFacts) -> None:
+    key = id(binding)
+
+    def cleanup(reference: weakref.ReferenceType[_QualitySampleBinding]) -> None:
+        with _BINDING_REGISTRY_LOCK:
+            if _BINDING_REFS.get(key) is reference:
+                _BINDING_REFS.pop(key, None)
+                _BINDING_FACTS.pop(key, None)
+                _BINDING_USED.discard(key)
+
+    reference = weakref.ref(binding, cleanup)
+    with _BINDING_REGISTRY_LOCK:
+        _BINDING_REFS[key] = reference
+        _BINDING_FACTS[key] = facts
+
+
+def _consume_quality_binding(
+    binding: _QualitySampleBinding, run_id: str, project_root: Path | str
+) -> tuple[_BindingFacts, object]:
+    """Atomically validate and consume one issuer binding."""
+
+    from .quality_gate import (
+        FIXED_BASELINE_DIGEST,
+        FIXED_RESULTS_DIGEST,
+        FIXED_SAMPLE_DIGEST,
+        _FixedInputSnapshot,
+        _absolute_root,
+        _snapshot_matches_raw,
+        _snapshot_registry_entry,
+    )
+
+    key = id(binding)
+    with _BINDING_REGISTRY_LOCK:
+        facts = _binding_registry_entry(binding)
+        reference = _BINDING_REFS.get(key)
+        if facts is None or reference is None or reference() is not binding or key in _BINDING_USED:
+            raise ScreeningCreationError("input_error")
+        if (
+            not isinstance(binding.sample_raw, bytes)
+            or not isinstance(binding.baseline_raw, bytes)
+            or not isinstance(binding.results_raw, bytes)
+            or binding.sample_raw != facts.sample_raw
+            or binding.baseline_raw != facts.baseline_raw
+            or binding.results_raw != facts.results_raw
+            or facts.sample_digest != FIXED_SAMPLE_DIGEST
+            or facts.baseline_digest != FIXED_BASELINE_DIGEST
+            or facts.results_digest != FIXED_RESULTS_DIGEST
+            or sha256_bytes(binding.sample_raw) != FIXED_SAMPLE_DIGEST
+            or sha256_bytes(binding.baseline_raw) != FIXED_BASELINE_DIGEST
+            or sha256_bytes(binding.results_raw) != FIXED_RESULTS_DIGEST
+            or facts.run_id != run_id
+        ):
+            raise ScreeningCreationError("input_error")
+        source = facts.source_ref()
+        if type(source) is not _FixedInputSnapshot or not _snapshot_matches_raw(source):
+            raise ScreeningCreationError("input_error")
+        source_facts = _snapshot_registry_entry(source)
+        if (
+            source_facts is None
+            or source_facts.canonical_run_id != run_id
+            or source_facts.root != _absolute_root(project_root)
+            or facts.sample_raw != source_facts.sample_raw
+            or facts.baseline_raw != source_facts.baseline_raw
+            or facts.results_raw != source_facts.results_raw
+            or facts.source_window != source_facts.sample.get("source_window")
+            or facts.notices != tuple(source_facts.sample.get("notices", ()))
+        ):
+            raise ScreeningCreationError("input_error")
+        _BINDING_USED.add(key)
+        return facts, source
 
 
 def _make_quality_sample_binding(
     run_id: str,
-    source_window: Mapping[str, Any],
-    notices: Sequence[Mapping[str, Any]],
     *,
-    sample_raw: bytes,
-    baseline_raw: bytes,
-    results_raw: bytes,
-    sample_digest: str,
-    baseline_digest: str,
-    results_digest: str,
     source_token: object,
     capability: object,
 ) -> _QualitySampleBinding:
+    """Issue a binding only from a registered secure snapshot."""
+
     if capability is not _QUALITY_BINDING_FACTORY_CAPABILITY:
         raise TypeError("quality sample binding factory is internal")
+    from .quality_gate import _FixedInputSnapshot, _snapshot_matches_raw, _snapshot_registry_entry
+
+    if type(source_token) is not _FixedInputSnapshot or not _snapshot_matches_raw(source_token):
+        raise TypeError("quality sample binding is invalid")
+    snapshot_facts = _snapshot_registry_entry(source_token)
+    if snapshot_facts is None or not isinstance(run_id, str) or run_id != snapshot_facts.canonical_run_id:
+        raise TypeError("quality sample binding is invalid")
+    source_window = snapshot_facts.sample.get("source_window")
+    notices = snapshot_facts.sample.get("notices")
     frozen_window = _freeze_quality_value(source_window)
-    frozen_notices = tuple(_freeze_quality_value(item) for item in notices)
+    frozen_notices = tuple(_freeze_quality_value(item) for item in notices) if isinstance(notices, (list, tuple)) else ()
     if (
-        not isinstance(run_id, str)
-        or not isinstance(frozen_window, Mapping)
-        or not isinstance(frozen_notices, tuple)
+        not isinstance(frozen_window, Mapping)
         or len(frozen_notices) != 40
         or not _quality_value_is_frozen(frozen_window)
         or not all(isinstance(item, Mapping) and _quality_value_is_frozen(item) for item in frozen_notices)
-        or not isinstance(sample_raw, bytes)
-        or not isinstance(baseline_raw, bytes)
-        or not isinstance(results_raw, bytes)
-        or not isinstance(sample_digest, str)
-        or not isinstance(baseline_digest, str)
-        or not isinstance(results_digest, str)
-        or sha256_bytes(sample_raw) != sample_digest
-        or sha256_bytes(baseline_raw) != baseline_digest
-        or sha256_bytes(results_raw) != results_digest
-        or source_token is None
     ):
         raise TypeError("quality sample binding is invalid")
-    try:
-        sample_value = json.loads(sample_raw.decode("utf-8"))
-        baseline_value = json.loads(baseline_raw.decode("utf-8"))
-        results_value = json.loads(results_raw.decode("utf-8"))
-    except (UnicodeError, json.JSONDecodeError):
-        raise TypeError("quality sample binding is invalid") from None
-    if (
-        not isinstance(sample_value, Mapping)
-        or not isinstance(baseline_value, Mapping)
-        or not isinstance(results_value, Mapping)
-        or _freeze_quality_value(sample_value.get("source_window")) != frozen_window
-        or _freeze_quality_value(sample_value.get("notices")) != frozen_notices
-        or sample_value.get("schema_version") != "bidops.validation-set.v2"
-        or baseline_value.get("schema_version") != "bidops.decisions.v2"
-        or results_value.get("schema_version") != "bidops.screening.v2"
-    ):
-        raise TypeError("quality sample binding is invalid")
-    return _QualitySampleBinding(
+    binding = _QualitySampleBinding(
         capability=_QUALITY_BINDING_CAPABILITY,
-        run_id=run_id,
-        source_window=frozen_window,
-        notices=frozen_notices,
-        sample_raw=sample_raw,
-        baseline_raw=baseline_raw,
-        results_raw=results_raw,
-        sample_digest=sample_digest,
-        baseline_digest=baseline_digest,
-        results_digest=results_digest,
-        source_token=source_token,
+        sample_raw=snapshot_facts.sample_raw,
+        baseline_raw=snapshot_facts.baseline_raw,
+        results_raw=snapshot_facts.results_raw,
     )
+    _register_quality_binding(
+        binding,
+        _BindingFacts(
+            run_id=run_id,
+            source_window=frozen_window,
+            notices=frozen_notices,
+            sample_raw=bytes(snapshot_facts.sample_raw),
+            baseline_raw=bytes(snapshot_facts.baseline_raw),
+            results_raw=bytes(snapshot_facts.results_raw),
+            sample_digest=snapshot_facts.sample_digest,
+            baseline_digest=snapshot_facts.baseline_digest,
+            results_digest=snapshot_facts.results_digest,
+            source_ref=weakref.ref(source_token),
+        ),
+    )
+    return binding
 
 
 def _now(clock: Callable[[], datetime]) -> datetime:
@@ -569,76 +679,18 @@ def _mode_for(item: Mapping[str, Any], scope: str, old_notice: Mapping[str, Any]
 def _trusted_quality_source(
     binding: _QualitySampleBinding, run_id: str, project_root: Path | str
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    """Validate and thaw the only fixed source accepted by ``prepare``.
+    """Validate, consume, and thaw the only fixed source accepted by prepare."""
 
-    The digest pins are repeated at this boundary intentionally.  A caller
-    cannot turn a quality binding into a general-purpose sample by mutating a
-    frozen dataclass through reflection or by passing a look-alike object.
-    """
-
-    if type(binding) is not _QualitySampleBinding:
-        raise ScreeningCreationError("input_error")
-    if binding.token is not _QUALITY_BINDING_CAPABILITY or binding.run_id != run_id or binding.source_token is None:
-        raise ScreeningCreationError("input_error")
-    # Import lazily to keep orchestrator -> quality_gate's existing dependency
-    # direction acyclic during module import.
-    from .quality_gate import (
-        FIXED_BASELINE_DIGEST,
-        FIXED_RESULTS_DIGEST,
-        FIXED_SAMPLE_DIGEST,
-        FIXED_SOURCE_WINDOW,
-        _FixedInputSnapshot,
-        _absolute_root,
-        _snapshot_matches_raw,
-    )
-
+    facts, _source = _consume_quality_binding(binding, run_id, project_root)
     if (
-        type(binding.source_token) is not _FixedInputSnapshot
-        or not _snapshot_matches_raw(binding.source_token)
-        or binding.source_token.root != _absolute_root(project_root)
-        or binding.source_token.sample_raw != binding.sample_raw
-        or binding.source_token.baseline_raw != binding.baseline_raw
-        or binding.source_token.results_raw != binding.results_raw
+        not _quality_value_is_frozen(facts.source_window)
+        or not _quality_value_is_frozen(facts.notices)
+        or len(facts.notices) != 40
     ):
         raise ScreeningCreationError("input_error")
-
-    if (
-        binding.sample_digest != FIXED_SAMPLE_DIGEST
-        or binding.baseline_digest != FIXED_BASELINE_DIGEST
-        or binding.results_digest != FIXED_RESULTS_DIGEST
-        or not isinstance(binding.sample_raw, bytes)
-        or not isinstance(binding.baseline_raw, bytes)
-        or not isinstance(binding.results_raw, bytes)
-        or sha256_bytes(binding.sample_raw) != FIXED_SAMPLE_DIGEST
-        or sha256_bytes(binding.baseline_raw) != FIXED_BASELINE_DIGEST
-        or sha256_bytes(binding.results_raw) != FIXED_RESULTS_DIGEST
-        or not _quality_value_is_frozen(binding.source_window)
-        or not _quality_value_is_frozen(binding.notices)
-        or len(binding.notices) != 40
-    ):
-        raise ScreeningCreationError("input_error")
-    try:
-        sample = json.loads(binding.sample_raw.decode("utf-8"))
-        baseline = json.loads(binding.baseline_raw.decode("utf-8"))
-        results = json.loads(binding.results_raw.decode("utf-8"))
-    except (UnicodeError, json.JSONDecodeError):
-        raise ScreeningCreationError("input_error") from None
-    if (
-        not isinstance(sample, Mapping)
-        or not isinstance(baseline, Mapping)
-        or not isinstance(results, Mapping)
-        or sample.get("schema_version") != "bidops.validation-set.v2"
-        or baseline.get("schema_version") != "bidops.decisions.v2"
-        or results.get("schema_version") != "bidops.screening.v2"
-        or sample.get("source_window") != dict(FIXED_SOURCE_WINDOW)
-        or binding.source_window != dict(FIXED_SOURCE_WINDOW)
-        or _freeze_quality_value(sample.get("source_window")) != binding.source_window
-        or _freeze_quality_value(sample.get("notices")) != binding.notices
-    ):
-        raise ScreeningCreationError("input_error")
-    source = {"source_window": _thaw_quality_value(binding.source_window)}
+    source = {"source_window": _thaw_quality_value(facts.source_window)}
     notices: list[dict[str, Any]] = []
-    for item in binding.notices:
+    for item in facts.notices:
         thawed = _thaw_quality_value(item)
         try:
             notices.append(_notice_common(thawed, require_sample_metadata=True))

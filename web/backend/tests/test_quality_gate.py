@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import copy
+from dataclasses import replace
 import json
 import hashlib
 import os
+import pickle
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
@@ -19,7 +22,15 @@ from app.ingest.loader import ingest_run, deterministic_run_id
 from app.models import AuditEvent, CompanyProfileSnapshot, Judgment, Notice, QualityGate, QualityGateEvaluation, QualityGateReview, Run, ScreeningExecution, ScreeningPolicy
 from app.screening.artifacts import ArtifactStore
 from app.screening.contracts import MODEL_NAME, ModelIdentity, two_axis_mixing
-from app.screening.orchestrator import CreatedExecution, ScreeningCreationError, ScreeningOrchestrator
+from app.screening.orchestrator import (
+    CreatedExecution,
+    ScreeningCreationError,
+    ScreeningOrchestrator,
+    _QUALITY_BINDING_FACTORY_CAPABILITY,
+    _QualitySampleBinding,
+    _consume_quality_binding,
+    _make_quality_sample_binding,
+)
 from app.screening.policy import load_policy_file, policy_content_digest
 from app.screening.profile_snapshot import BASELINE_COMMIT
 from app.screening.generation_config import legacy_generation_config
@@ -395,7 +406,9 @@ def test_trusted_snapshot_is_deep_immutable_and_cannot_be_forged_for_resolver(tm
         )
 
     with Session(engine) as session:
-        resolved = quality_gate_module.resolve_fixed_run(session, tmp_path, snapshot=snapshot)
+        with pytest.raises(TypeError):
+            quality_gate_module.resolve_fixed_run(session, tmp_path, snapshot=snapshot)
+        resolved = quality_gate_module.resolve_fixed_run(session, tmp_path)
         assert resolved.id == canonical_run_id
 
 
@@ -415,6 +428,110 @@ def test_db_and_nested_snapshot_forge_is_rejected_without_gate_side_effects(tmp_
             purpose="operational_approval", policy_version="policy-1", profile_source="current", created_by="tester"
         )
     _assert_no_gate_side_effects(engine, tmp_path)
+
+
+def test_snapshot_issuer_identity_rejects_copy_replace_pickle_and_field_forge(tmp_path: Path):
+    _settings, engine, factory, _run_dir, _canonical_run_id = _canonical_service_fixture(tmp_path)
+    snapshot = quality_gate_module._read_strict_fixed_snapshot(tmp_path)
+
+    for operation in (
+        lambda: copy.copy(snapshot),
+        lambda: copy.deepcopy(snapshot),
+        lambda: replace(snapshot, sample_raw=b"forged"),
+    ):
+        try:
+            forged = operation()
+        except Exception:
+            continue
+        assert forged is not snapshot
+        assert not quality_gate_module._snapshot_matches_raw(forged)
+
+    try:
+        forged_pickle = pickle.loads(pickle.dumps(snapshot))
+    except Exception:
+        forged_pickle = None
+    if forged_pickle is not None:
+        assert not quality_gate_module._snapshot_matches_raw(forged_pickle)
+
+    object.__setattr__(snapshot, "sample_raw", b"forged")
+    assert not quality_gate_module._snapshot_matches_raw(snapshot)
+    with Session(engine) as session:
+        with pytest.raises(QualityGateValidationError):
+            quality_gate_module._resolve_fixed_run(
+                session, tmp_path, snapshot=snapshot,
+            )
+
+    fresh = quality_gate_module._read_strict_fixed_snapshot(tmp_path)
+    for name, value in (
+        ("root", tmp_path / "other-root"),
+        ("sample_digest", "0" * 64),
+        ("canonical_run_id", "forged-run"),
+    ):
+        try:
+            object.__setattr__(fresh, name, value)
+        except (AttributeError, TypeError):
+            pass
+        else:
+            assert not quality_gate_module._snapshot_matches_raw(fresh)
+
+
+def test_snapshot_external_backing_mutation_cannot_change_semantics(tmp_path: Path):
+    _settings, _engine, _factory, _run_dir, _canonical_run_id = _canonical_service_fixture(tmp_path)
+    backing = {"nested": [{"value": "original"}]}
+    frozen = quality_gate_module._deep_freeze(backing)
+    backing["nested"][0]["value"] = "forged"
+    backing["nested"].append({"value": "new"})
+    assert frozen["nested"][0]["value"] == "original"
+    assert len(frozen["nested"]) == 1
+
+
+def test_snapshot_and_binding_canonical_identity_reject_foreign_root_and_run_id(tmp_path: Path):
+    _settings, engine, _factory, _run_dir, canonical_run_id = _canonical_service_fixture(tmp_path)
+    snapshot = quality_gate_module._read_strict_fixed_snapshot(tmp_path)
+    binding = _make_quality_sample_binding(
+        canonical_run_id,
+        source_token=snapshot,
+        capability=_QUALITY_BINDING_FACTORY_CAPABILITY,
+    )
+    with pytest.raises(TypeError):
+        _make_quality_sample_binding(
+            "arbitrary-run-id",
+            source_token=snapshot,
+            capability=_QUALITY_BINDING_FACTORY_CAPABILITY,
+        )
+    with Session(engine) as session:
+        with pytest.raises(QualityGateValidationError):
+            quality_gate_module._resolve_fixed_run(
+                session, tmp_path / "foreign-root", snapshot=snapshot,
+            )
+
+    _consume_quality_binding(binding, canonical_run_id, tmp_path)
+    with pytest.raises(ScreeningCreationError):
+        _consume_quality_binding(binding, canonical_run_id, tmp_path)
+    forged = _make_quality_sample_binding(
+        canonical_run_id,
+        source_token=snapshot,
+        capability=_QUALITY_BINDING_FACTORY_CAPABILITY,
+    )
+    object.__setattr__(forged, "sample_raw", b"forged")
+    with pytest.raises(ScreeningCreationError):
+        _consume_quality_binding(forged, canonical_run_id, tmp_path)
+    with pytest.raises(TypeError):
+        _QualitySampleBinding(
+            capability=object(), sample_raw=b"", baseline_raw=b"", results_raw=b"",
+        )
+
+
+@pytest.mark.parametrize("unsupported", ["_O_NOFOLLOW", "_O_DIRECTORY", "supports_dir_fd"])
+def test_fixed_secure_open_unsupported_platform_fails_closed(tmp_path: Path, monkeypatch, unsupported: str):
+    production_root = Path(__file__).resolve().parents[3]
+    shutil.copytree(production_root / "data/runs" / FIXED_RUN_ID, tmp_path / "data/runs" / FIXED_RUN_ID)
+    if unsupported == "supports_dir_fd":
+        monkeypatch.setattr(quality_gate_module.os, "supports_dir_fd", set())
+    else:
+        monkeypatch.setattr(quality_gate_module, unsupported, 0)
+    with pytest.raises(QualityGateValidationError):
+        quality_gate_module._read_strict_fixed_snapshot(tmp_path)
 
 
 @pytest.mark.parametrize("component", ["data", "runs", FIXED_RUN_ID])
