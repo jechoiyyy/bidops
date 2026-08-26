@@ -258,20 +258,20 @@
   gap: 16px;
 }
 
-.panel {
+:where(.queue-page, .judgment-page) .panel {
   border-radius: var(--radius-lg);
 }
 
-.panel-header {
+:where(.queue-page, .judgment-page) .panel-header {
   min-height: 52px;
   padding: 0 20px;
 }
 
-.panel-header h3 {
+:where(.queue-page, .judgment-page) .panel-header h3 {
   font-size: 14px;
 }
 
-.panel-body {
+:where(.queue-page, .judgment-page) .panel-body {
   padding: 20px;
 }
 
@@ -285,8 +285,8 @@
   grid-template-columns: 104px minmax(0, 1fr);
 }
 
-.table-wrap,
-.lifecycle-panel .panel-body {
+:where(.queue-page, .judgment-page) .table-wrap,
+:where(.queue-page, .judgment-page) .lifecycle-panel .panel-body {
   max-width: 100%;
   overflow-x: auto;
   overscroll-behavior-x: contain;
@@ -725,13 +725,13 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .panel-header {
+  :where(.queue-page, .judgment-page) .panel-header {
     min-height: 50px;
     padding-right: 16px;
     padding-left: 16px;
   }
 
-  .panel-body {
+  :where(.queue-page, .judgment-page) .panel-body {
     padding: 16px;
   }
 
