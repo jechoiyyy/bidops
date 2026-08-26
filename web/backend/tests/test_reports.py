@@ -576,3 +576,69 @@ def test_reports_router_contract_is_exactly_four_routes_and_error_shape(report_c
         assert_error(validation_error, 409, "validation_failed")
         unsafe_error = client.get(f"/api/evidence/{unsafe_id}")
         assert_error(unsafe_error, 403, "evidence_out_of_scope")
+
+
+def test_reports_router_agent_mutations_preserve_success_and_idempotent_replay(report_context):
+    correlation_id = uuid4()
+    with Session(report_context["engine"]) as session:
+        session.add(AuditEvent(
+            actor_kind="human",
+            claimed_name="담당자",
+            action="deep_review.create",
+            aggregate_type="deep_review",
+            aggregate_id=str(report_context["review_id"]),
+            safe_metadata={"correlation_id": str(correlation_id)},
+        ))
+        session.commit()
+
+    view = materialize(report_context)
+    revision_payload = revision_request(
+        view,
+        report_context["evidence_id"],
+        request_id=uuid4(),
+        reason="router Agent replay 확인",
+    ).model_dump(mode="json")
+    app = FastAPI()
+    app.include_router(reports_router)
+
+    def override_db():
+        with Session(report_context["engine"]) as session:
+            yield session
+
+    app.dependency_overrides[get_db] = override_db
+    headers = {"X-BidOps-Actor-Name": "reviewer"}
+    with TestClient(app) as client:
+        first_revision = client.post(
+            f"/api/deep-reviews/{report_context['review_id']}/report-revisions",
+            headers=headers,
+            json=revision_payload,
+        )
+        replay_revision = client.post(
+            f"/api/deep-reviews/{report_context['review_id']}/report-revisions",
+            headers=headers,
+            json=revision_payload,
+        )
+        assert first_revision.status_code == replay_revision.status_code == 201
+        assert first_revision.json()["current_revision_id"] == replay_revision.json()["current_revision_id"]
+
+        revised = first_revision.json()
+        opinion_payload = {
+            "request_id": str(uuid4()),
+            "report_revision_id": revised["current_revision_id"],
+            "validation_run_id": revised["validation"]["validation_run_id"],
+            "value": "보류",
+            "reason": "router Agent 최종 확인",
+            "acknowledged_validation_failure": False,
+        }
+        first_opinion = client.post(
+            f"/api/deep-reviews/{report_context['review_id']}/final-opinions",
+            headers=headers,
+            json=opinion_payload,
+        )
+        replay_opinion = client.post(
+            f"/api/deep-reviews/{report_context['review_id']}/final-opinions",
+            headers=headers,
+            json=opinion_payload,
+        )
+        assert first_opinion.status_code == replay_opinion.status_code == 201
+        assert first_opinion.json()["id"] == replay_opinion.json()["id"]
