@@ -83,7 +83,7 @@ SQLite backup API로 만든 백업과 별도 안전 복사본을 다음 ignored 
 | `phase2-initial.db` | `da6af6643938ca3487b0354836ec7f816dac343968e4812f57bb099b70f4191f` |
 | `phase2-initial.db.manifest.json` | `6c43cf238c26d88369ac50ff08f1c68552994d46be473268e03fbb95f0b3bb44` |
 | `phase1-source-copy.db` | `dc5074fcabe8d9b3ab8bbdd8d30c8c6fbd36cbd43853e475fea3daa370cfc03c` |
-| `phase2-preflight.log` | `6288ae5760c5fb51eeab8ab8337cff944eb9235a67b2d3be2ccec09706b798f` |
+| `phase2-preflight.log` | `6288ae5760c5fb51eeab8ab8337cff944eb9235a67b2d3dbe2ccec09706b798f` |
 | `phase2-gate-defect-repro.log` | `76233545e814ecf0292f6e0ad79058902a0c8876128e3b9e719a479990ee2d9a` |
 | `phase2-final-state.log` | `34d7882bdbe4b8b46c8d3c7dd619834c7a15706f372848daf35b0b36e29c675a` |
 
