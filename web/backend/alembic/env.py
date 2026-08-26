@@ -5,11 +5,11 @@ from __future__ import annotations
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import engine_from_config, event, pool
 
 from app import models  # noqa: F401
 from app.config import get_settings
-from app.db import Base
+from app.db import Base, configure_sqlite_connection
 
 config = context.config
 if config.config_file_name is not None:
@@ -61,6 +61,10 @@ def run_migrations_online() -> None:
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
+    # ``engine_from_config`` creates a separate Alembic engine rather than
+    # reusing app.db.engine.  Install the same SQLite UDF/PRAGMA callback so
+    # migration DDL and backfills cannot bypass the DB validator.
+    event.listen(connectable, "connect", configure_sqlite_connection)
     with connectable.connect() as connection:
         context.configure(connection=connection, target_metadata=target_metadata, include_object=_include_object)
         with context.begin_transaction():

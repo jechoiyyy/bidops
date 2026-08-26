@@ -9,8 +9,16 @@ from pathlib import Path
 
 import pytest
 
+from app.screening.generation_config import register_sqlite_functions
+
 
 BACKEND = Path(__file__).resolve().parents[1]
+
+
+def validated_connect(database: Path | str) -> sqlite3.Connection:
+    connection = sqlite3.connect(database)
+    register_sqlite_functions(connection)
+    return connection
 
 
 def run_alembic(database: Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -29,7 +37,7 @@ def test_empty_database_upgrade_creates_runtime_tables(tmp_path: Path) -> None:
     database = tmp_path / "empty.db"
     result = run_alembic(database, "upgrade", "head")
     assert result.returncode == 0, result.stderr
-    with sqlite3.connect(database) as connection:
+    with validated_connect(database) as connection:
         tables = {
             row[0]
             for row in connection.execute(
@@ -72,7 +80,7 @@ def test_generation_config_migration_backfills_and_freezes_execution_rows(tmp_pa
             placeholders += ", :config, :digest"
         connection.execute(f"insert into screening_execution({columns}) values ({placeholders})", {**values, "config": config})
 
-    with sqlite3.connect(database) as connection:
+    with validated_connect(database) as connection:
         connection.execute("insert into run(id, timezone, generated_at, status) values ('r1', 'UTC', '2026-01-01T00:00:00+00:00', '성공')")
         connection.execute(
             "insert into company_profile_snapshot(digest, version, source_kind, source_ref, artifact_path, created_at) values (?, ?, 'working_tree', 'migration-test', ?, '2026-01-01T00:00:00+00:00')",
@@ -89,7 +97,7 @@ def test_generation_config_migration_backfills_and_freezes_execution_rows(tmp_pa
         "stream": False,
         "think": False,
     }
-    with sqlite3.connect(database) as connection:
+    with validated_connect(database) as connection:
         row = connection.execute("select generation_config_json, generation_config_digest from screening_execution where execution_id=?", ("scr-" + "1" * 32,)).fetchone()
         assert json.loads(row[0]) == legacy_json
         assert row[1] == "f5005da40315a4d24edba05b9394e71dba6c1c3c5790c84e5cc43673215134aa"
@@ -118,7 +126,7 @@ def test_migration_audit_is_idempotent_from_0003_and_safe_to_downgrade(tmp_path:
     assert run_alembic(database, "upgrade", "0003_schedule_skipped_recovery").returncode == 0
     assert run_alembic(database, "upgrade", "head").returncode == 0
     assert run_alembic(database, "upgrade", "head").returncode == 0
-    with sqlite3.connect(database) as connection:
+    with validated_connect(database) as connection:
         assert connection.execute("select version_num from alembic_version").fetchone()[0] == "0005_generation_config_binding"
         assert connection.execute(
             "select count(*) from audit_event where event_id = 'audit-e7854deca36d619ac1921856bb9bdbcd'"
@@ -126,10 +134,10 @@ def test_migration_audit_is_idempotent_from_0003_and_safe_to_downgrade(tmp_path:
         assert connection.execute("pragma quick_check").fetchone()[0] == "ok"
 
     assert run_alembic(database, "downgrade", "0003_schedule_skipped_recovery").returncode == 0
-    with sqlite3.connect(database) as connection:
+    with validated_connect(database) as connection:
         assert connection.execute("select count(*) from audit_event where event_id = 'audit-e7854deca36d619ac1921856bb9bdbcd'").fetchone()[0] == 0
     assert run_alembic(database, "upgrade", "head").returncode == 0
-    with sqlite3.connect(database) as connection:
+    with validated_connect(database) as connection:
         assert connection.execute("select version_num from alembic_version").fetchone()[0] == "0005_generation_config_binding"
         assert connection.execute("select count(*) from audit_event where event_id = 'audit-e7854deca36d619ac1921856bb9bdbcd'").fetchone()[0] == 1
 
@@ -161,7 +169,7 @@ def test_skipped_recovery_trigger_upgrades_from_0002_and_downgrades(tmp_path: Pa
         )
 
     assert run_alembic(database, "upgrade", "0002_screening_runtime").returncode == 0
-    with sqlite3.connect(database) as connection:
+    with validated_connect(database) as connection:
         run_key, target_id = add_skipped_execution(connection, 1)
         with pytest.raises(sqlite3.IntegrityError):
             add_recovery(connection, run_key, target_id, 2)
@@ -177,7 +185,7 @@ def test_skipped_recovery_trigger_upgrades_from_0002_and_downgrades(tmp_path: Pa
     # An already deployed 0002 database receives the new trigger semantics.
     upgraded = run_alembic(database, "upgrade", "head")
     assert upgraded.returncode == 0, upgraded.stderr
-    with sqlite3.connect(database) as connection:
+    with validated_connect(database) as connection:
         run_key, target_id = add_skipped_execution(connection, 3)
         add_recovery(connection, run_key, target_id, 4)
         connection.commit()
@@ -196,7 +204,7 @@ def test_skipped_recovery_trigger_upgrades_from_0002_and_downgrades(tmp_path: Pa
 
     downgraded = run_alembic(database, "downgrade", "0002_screening_runtime")
     assert downgraded.returncode == 0, downgraded.stderr
-    with sqlite3.connect(database) as connection:
+    with validated_connect(database) as connection:
         run_key, target_id = add_skipped_execution(connection, 5)
         with pytest.raises(sqlite3.IntegrityError):
             add_recovery(connection, run_key, target_id, 6)
@@ -225,14 +233,14 @@ def test_startup_does_not_upgrade_a_behind_database(tmp_path: Path) -> None:
     )
     assert probe.returncode != 0
     assert "alembic upgrade head" in probe.stderr
-    with sqlite3.connect(database) as connection:
+    with validated_connect(database) as connection:
         assert connection.execute("select version_num from alembic_version").fetchone()[0] == "0001_existing_schema"
 
 
 def test_unknown_revision_is_rejected_without_change(tmp_path: Path) -> None:
     database = tmp_path / "unknown.db"
     assert run_alembic(database, "upgrade", "head").returncode == 0
-    with sqlite3.connect(database) as connection:
+    with validated_connect(database) as connection:
         connection.execute("update alembic_version set version_num='not-known'")
         connection.commit()
     env = os.environ.copy()
@@ -282,7 +290,7 @@ def test_migrate_rejects_source_changed_after_snapshot(tmp_path: Path) -> None:
     assert run_alembic(database, "upgrade", "head").returncode == 0
     env = os.environ.copy()
     env["BIDOPS_DATABASE_URL"] = f"sqlite:///{database}"
-    with sqlite3.connect(database) as connection:
+    with validated_connect(database) as connection:
         connection.execute("pragma journal_mode=wal")
         connection.execute(
             "insert into audit_event(event_id, event_type, actor, target_type, target_id, occurred_at, details_json) values ('audit-' || printf('%032d', 1), 'test', 'tester', 'run', 'r1', ?, '{}')",
@@ -290,7 +298,7 @@ def test_migrate_rejects_source_changed_after_snapshot(tmp_path: Path) -> None:
         )
         connection.commit()
     assert subprocess.run([sys.executable, "-m", "app.db_admin", "backup", "--output", str(backup)], cwd=BACKEND, env=env, text=True, capture_output=True).returncode == 0
-    with sqlite3.connect(database) as connection:
+    with validated_connect(database) as connection:
         connection.execute(
             "update audit_event set details_json=? where event_id='audit-' || printf('%032d', 1)",
             ('{"changed": true}',),
@@ -332,7 +340,7 @@ def test_partial_unversioned_baseline_is_rejected(tmp_path: Path) -> None:
     database = tmp_path / "database.db"
     backup = tmp_path / "backup.db"
     assert run_alembic(database, "upgrade", "0001_existing_schema").returncode == 0
-    with sqlite3.connect(database) as connection:
+    with validated_connect(database) as connection:
         connection.execute("DROP TABLE attachment")
         connection.execute("DELETE FROM alembic_version")
         connection.commit()
@@ -356,7 +364,7 @@ def test_partial_unversioned_baseline_is_rejected(tmp_path: Path) -> None:
         capture_output=True,
     )
     assert result.returncode != 0
-    with sqlite3.connect(database) as connection:
+    with validated_connect(database) as connection:
         assert connection.execute("select name from sqlite_master where type='table' and name='screening_execution'").fetchone() is None
 
 
@@ -364,7 +372,7 @@ def test_unversioned_baseline_with_extra_sqlite_objects_is_rejected(tmp_path: Pa
     database = tmp_path / "database.db"
     backup = tmp_path / "backup.db"
     assert run_alembic(database, "upgrade", "0001_existing_schema").returncode == 0
-    with sqlite3.connect(database) as connection:
+    with validated_connect(database) as connection:
         connection.execute("delete from alembic_version")
         connection.execute("create trigger legacy_extra_trigger after insert on run begin select 1; end")
         connection.execute("create view legacy_extra_view as select id from run")
@@ -402,7 +410,7 @@ def test_unversioned_exact_baseline_migrates_a_backup_copy_and_preserves_core_ro
     database = tmp_path / "database.db"
     backup = tmp_path / "backup.db"
     assert run_alembic(database, "upgrade", "0001_existing_schema").returncode == 0
-    with sqlite3.connect(database) as connection:
+    with validated_connect(database) as connection:
         connection.execute("insert into run(id, timezone, generated_at, status) values ('r1', 'Asia/Seoul', '2026-01-01T00:00:00+00:00', 'active')")
         connection.execute("insert into notice(run_id, notice_key) values ('r1', 'n1')")
         notice_pk = connection.execute("select id from notice where notice_key='n1'").fetchone()[0]
@@ -416,7 +424,7 @@ def test_unversioned_exact_baseline_migrates_a_backup_copy_and_preserves_core_ro
     assert subprocess.run([sys.executable, "-m", "app.db_admin", "backup", "--output", str(backup)], cwd=BACKEND, env=env, text=True, capture_output=True).returncode == 0
     result = subprocess.run([sys.executable, "-m", "app.db_admin", "migrate", "--backup-manifest", str(backup) + ".manifest.json", "--confirm-service-stopped"], cwd=BACKEND, env=env, text=True, capture_output=True)
     assert result.returncode == 0, result.stderr
-    with sqlite3.connect(database) as connection:
+    with validated_connect(database) as connection:
         assert connection.execute("select version_num from alembic_version").fetchone()[0] == "0005_generation_config_binding"
         assert [connection.execute(f"select count(*) from {table}").fetchone()[0] for table in ("run", "notice", "judgment", "review", "attachment")] == [1, 1, 1, 1, 1]
         assert connection.execute("pragma foreign_key_check").fetchall() == []

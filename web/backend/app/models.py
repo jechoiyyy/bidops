@@ -25,13 +25,25 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
-from .screening.generation_config import legacy_generation_config
+from .screening.generation_config import GenerationConfig, legacy_generation_config
 
 
 _LEGACY_GENERATION_CONFIG = legacy_generation_config()
 _LEGACY_GENERATION_CONFIG_VALUE = _LEGACY_GENERATION_CONFIG.canonical_value()
 _LEGACY_GENERATION_CONFIG_DIGEST = _LEGACY_GENERATION_CONFIG.digest()
-_LEGACY_GENERATION_CONFIG_SERVER_DEFAULT = text("(json('" + _LEGACY_GENERATION_CONFIG.canonical_json().replace(":", "\\:") + "'))")
+_DEFAULT_GENERATION_CONFIG = GenerationConfig()
+_DEFAULT_GENERATION_CONFIG_VALUE = _DEFAULT_GENERATION_CONFIG.canonical_value()
+_DEFAULT_GENERATION_CONFIG_DIGEST = _DEFAULT_GENERATION_CONFIG.digest()
+
+
+def _json_server_default(value: str) -> str:
+    # SQLAlchemy quotes string server defaults itself. Passing raw JSON through
+    # ``sa.text`` makes tokens such as ``:16384`` and ``:false`` look like bind
+    # parameters in some SQLAlchemy versions. This keeps SQLite bytes exact.
+    return value
+
+
+_DEFAULT_GENERATION_CONFIG_SERVER_DEFAULT = _json_server_default(_DEFAULT_GENERATION_CONFIG.canonical_json())
 
 
 def utc_now() -> datetime:
@@ -446,8 +458,8 @@ class ScreeningExecution(Base):
     model_digest: Mapped[str] = mapped_column(String(64), nullable=False)
     company_profile_version: Mapped[str] = mapped_column(ForeignKey("company_profile_snapshot.version", ondelete="RESTRICT"), nullable=False)
     company_profile_digest: Mapped[str] = mapped_column(ForeignKey("company_profile_snapshot.digest", ondelete="RESTRICT"), nullable=False)
-    generation_config_json: Mapped[Any] = mapped_column(JSON, nullable=False, default=_LEGACY_GENERATION_CONFIG_VALUE, server_default=_LEGACY_GENERATION_CONFIG_SERVER_DEFAULT)
-    generation_config_digest: Mapped[str] = mapped_column(String(64), nullable=False, default=_LEGACY_GENERATION_CONFIG_DIGEST, server_default=_LEGACY_GENERATION_CONFIG_DIGEST)
+    generation_config_json: Mapped[Any] = mapped_column(JSON, nullable=False, default=_DEFAULT_GENERATION_CONFIG_VALUE, server_default=_DEFAULT_GENERATION_CONFIG_SERVER_DEFAULT)
+    generation_config_digest: Mapped[str] = mapped_column(String(64), nullable=False, default=_DEFAULT_GENERATION_CONFIG_DIGEST, server_default=_DEFAULT_GENERATION_CONFIG_DIGEST)
     input_artifact_path: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
     input_artifact_digest: Mapped[str] = mapped_column(String(64), nullable=False)
     artifact_dir: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
@@ -511,7 +523,7 @@ class ScreeningAttempt(Base):
     eval_duration_ns: Mapped[int | None] = mapped_column(Integer, nullable=True)
     load_duration_ns: Mapped[int | None] = mapped_column(Integer, nullable=True)
     total_duration_ns: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    generation_config_digest: Mapped[str | None] = mapped_column(String(64), nullable=True, default=_LEGACY_GENERATION_CONFIG_DIGEST, server_default=_LEGACY_GENERATION_CONFIG_DIGEST)
+    generation_config_digest: Mapped[str | None] = mapped_column(String(64), nullable=True, default=_DEFAULT_GENERATION_CONFIG_DIGEST, server_default=_DEFAULT_GENERATION_CONFIG_DIGEST)
     num_ctx: Mapped[int | None] = mapped_column(Integer, nullable=True)
     num_predict: Mapped[int | None] = mapped_column(Integer, nullable=True)
     started_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False)
@@ -574,8 +586,8 @@ class QualityGate(Base):
     prompt_version: Mapped[str] = mapped_column(String(255), nullable=False)
     model_name: Mapped[str] = mapped_column(String(255), nullable=False)
     model_digest: Mapped[str] = mapped_column(String(64), nullable=False)
-    generation_config_json: Mapped[Any] = mapped_column(JSON, nullable=False, default=_LEGACY_GENERATION_CONFIG_VALUE, server_default=_LEGACY_GENERATION_CONFIG_SERVER_DEFAULT)
-    generation_config_digest: Mapped[str] = mapped_column(String(64), nullable=False, default=_LEGACY_GENERATION_CONFIG_DIGEST, server_default=_LEGACY_GENERATION_CONFIG_DIGEST)
+    generation_config_json: Mapped[Any] = mapped_column(JSON, nullable=False, default=_DEFAULT_GENERATION_CONFIG_VALUE, server_default=_DEFAULT_GENERATION_CONFIG_SERVER_DEFAULT)
+    generation_config_digest: Mapped[str] = mapped_column(String(64), nullable=False, default=_DEFAULT_GENERATION_CONFIG_DIGEST, server_default=_DEFAULT_GENERATION_CONFIG_DIGEST)
     company_profile_version: Mapped[str] = mapped_column(ForeignKey("company_profile_snapshot.version", ondelete="RESTRICT"), nullable=False)
     company_profile_digest: Mapped[str] = mapped_column(ForeignKey("company_profile_snapshot.digest", ondelete="RESTRICT"), nullable=False)
     pass_a_execution_id: Mapped[str] = mapped_column(ForeignKey("screening_execution.execution_id", ondelete="RESTRICT"), unique=True, nullable=False)
@@ -609,7 +621,7 @@ class QualityGateEvaluation(Base):
     reasons_json: Mapped[Any] = mapped_column(JSON, nullable=False)
     valid_review_count: Mapped[int] = mapped_column(Integer, nullable=False)
     distinct_notice_review_count: Mapped[int] = mapped_column(Integer, nullable=False)
-    generation_config_digest: Mapped[str | None] = mapped_column(String(64), nullable=False, default=_LEGACY_GENERATION_CONFIG_DIGEST, server_default=_LEGACY_GENERATION_CONFIG_DIGEST)
+    generation_config_digest: Mapped[str | None] = mapped_column(String(64), nullable=False, default=_DEFAULT_GENERATION_CONFIG_DIGEST, server_default=_DEFAULT_GENERATION_CONFIG_DIGEST)
     created_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False, default=utc_now)
 
 

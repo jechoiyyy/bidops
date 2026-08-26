@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import hashlib
 import json
+import sqlite3
 from types import MappingProxyType
 from typing import Any, Final, Mapping
 
@@ -172,6 +173,57 @@ def config_from_json(value: str | bytes) -> GenerationConfig:
     return config_from_value(parsed)
 
 
+def _sqlite_config_json(value: Any) -> str | None:
+    """Return canonical JSON for SQLite, or NULL for any invalid value.
+
+    SQLite deliberately has no SHA-256 primitive and its JSON1 extension only
+    checks syntax.  These small deterministic UDFs bridge both gaps while
+    reusing the exact Python validator used by artifact and worker code.  A
+    NULL result is consumed by the database triggers as a failed validation.
+    """
+
+    if isinstance(value, bytes):
+        try:
+            value = value.decode("utf-8")
+        except UnicodeDecodeError:
+            return None
+    if not isinstance(value, str):
+        return None
+    try:
+        return config_from_json(value).canonical_json()
+    except GenerationConfigError:
+        return None
+
+
+def _sqlite_config_digest(value: Any) -> str | None:
+    canonical = _sqlite_config_json(value)
+    if canonical is None:
+        return None
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def register_sqlite_functions(connection: sqlite3.Connection) -> None:
+    """Install the canonical generation-config functions on one SQLite DBAPI connection."""
+
+    if not isinstance(connection, sqlite3.Connection):
+        return
+    # Keep the long names explicit in sqlite_master trigger definitions.  The
+    # aliases make the shared validator convenient for diagnostics without
+    # changing the trigger contract.
+    connection.create_function(
+        "bidops_generation_config_canonical_json", 1, _sqlite_config_json, deterministic=True
+    )
+    connection.create_function(
+        "bidops_generation_config_digest", 1, _sqlite_config_digest, deterministic=True
+    )
+    connection.create_function(
+        "generation_config_canonical_json", 1, _sqlite_config_json, deterministic=True
+    )
+    connection.create_function(
+        "generation_config_digest", 1, _sqlite_config_digest, deterministic=True
+    )
+
+
 def validate_digest(config: GenerationConfig, digest: Any) -> str:
     if not isinstance(digest, str) or len(digest) != 64 or any(char not in "0123456789abcdef" for char in digest):
         raise GenerationConfigError("generation config digest is invalid")
@@ -219,4 +271,5 @@ __all__ = [
     "GENERATION_CONFIG_SCHEMA", "GenerationConfig", "GenerationConfigError", "MAX_NUM_CTX", "MAX_NUM_PREDICT", "MIN_NUM_CTX", "MIN_NUM_PREDICT",
     "STAGE_COUNTERARGUMENT", "STAGE_KEYS", "STAGE_PERSPECTIVE", "STAGE_SYNTHESIS", "canonical_json", "config_from_json", "config_from_value",
     "ensure_generation_config", "generation_config_from_settings", "legacy_generation_config", "stage_key", "validate_digest",
+    "register_sqlite_functions",
 ]
