@@ -17,7 +17,7 @@ from app.db import Base
 from app.models import Notice, Run, ScreeningAttempt, ScreeningExecution, ScreeningPolicy
 from app.screening.execution_store import ScreeningExecutionStore
 from app.screening.ollama import OllamaClient
-from app.screening.orchestrator import ScreeningOrchestrator
+from app.screening.orchestrator import ScreeningOrchestrator, _source_notices
 from app.screening.policy import load_policy_file, policy_content_digest
 from app.screening.worker import ScreeningWorker, WorkerError
 from tests.fakes import FakeOllamaTransport
@@ -109,6 +109,20 @@ def _fixture(tmp_path: Path, *, notice_id: str = "notice-1"):
         ))
         session.commit()
     return root, settings, engine, factory, body
+
+
+def test_collected_notice_without_sample_annotations_is_optional(tmp_path: Path):
+    root, _settings, _engine, _factory, _body = _fixture(tmp_path)
+    path = root / "data/runs/run-1/collected-notices.json"
+    value = json.loads(path.read_text(encoding="utf-8"))
+    value["notices"][0].pop("sample_stratum")
+    value["notices"][0].pop("sample_role")
+    path.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
+
+    source, _collection = _source_notices(path.parent)
+
+    assert source["notices"][0]["sample_stratum"] is None
+    assert source["notices"][0]["sample_role"] is None
 
 
 def test_single_success_writes_exact_seven_attempts_and_telemetry(tmp_path: Path):
