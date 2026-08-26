@@ -41,6 +41,7 @@ function titleForPath(pathname: string): string {
 export function AppShell() {
   const location = useLocation();
   const [navOpen, setNavOpen] = useState(false);
+  const navRef = useRef<HTMLElement>(null);
   const navTriggerRef = useRef<HTMLButtonElement>(null);
   const navWasOpenRef = useRef(false);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -83,6 +84,7 @@ export function AppShell() {
   useEffect(() => {
     if (navOpen) {
       navWasOpenRef.current = true;
+      navRef.current?.querySelector<HTMLElement>("a[href]")?.focus({ preventScroll: true });
       return;
     }
     if (!navWasOpenRef.current) return;
@@ -113,7 +115,7 @@ export function AppShell() {
 
   return (
     <div className="app-shell">
-      <Sidebar open={navOpen} onClose={() => setNavOpen(false)} />
+      <Sidebar navRef={navRef} open={navOpen} onClose={() => setNavOpen(false)} />
       <div className="app-content">
         <TopBar
           editScope={editScopeForPath(location.pathname)}
