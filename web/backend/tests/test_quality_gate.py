@@ -797,6 +797,57 @@ def test_quality_binding_reservation_failure_releases_for_retry(tmp_path: Path, 
         prepared.workspace.close()
 
 
+def test_quality_binding_listener_registration_failure_releases_exact_lease(tmp_path: Path, monkeypatch):
+    settings, engine, factory, _run_dir, canonical_run_id = _canonical_service_fixture(tmp_path)
+    snapshot = quality_gate_module._read_strict_fixed_snapshot(tmp_path)
+    binding = _make_quality_sample_binding(
+        canonical_run_id,
+        source_token=snapshot,
+        capability=_QUALITY_BINDING_FACTORY_CAPABILITY,
+    )
+    model = type(
+        "GoodModel",
+        (),
+        {"inspect_model": lambda _self: ModelIdentity(MODEL_NAME, "c" * 64)},
+    )()
+    creator = ScreeningOrchestrator(settings, session_factory=factory, ollama=model, clock=lambda: NOW)
+
+    def fail_registration(_session, _binding, _lease):
+        raise RuntimeError("listener registration failed")
+
+    monkeypatch.setattr(orchestrator_module, "_track_quality_binding", fail_registration)
+    with factory() as session:
+        with pytest.raises(RuntimeError):
+            creator.prepare_execution(
+                session,
+                run_id=canonical_run_id,
+                policy_version="policy-1",
+                profile_source="current",
+                requested_by="tester",
+                scope="quality_sample",
+                trigger="quality_gate",
+                _quality_binding=binding,
+            )
+        session.rollback()
+    assert _binding_registry_state(binding) == "issued"
+    monkeypatch.undo()
+    with factory() as session:
+        prepared = creator.prepare_execution(
+            session,
+            run_id=canonical_run_id,
+            policy_version="policy-1",
+            profile_source="current",
+            requested_by="tester",
+            scope="quality_sample",
+            trigger="quality_gate",
+            _quality_binding=binding,
+        )
+        session.commit()
+        prepared.workspace.close()
+    with Session(engine) as session:
+        assert len(session.scalars(select(ScreeningExecution)).all()) == 1
+
+
 def test_quality_binding_outer_rollback_releases_and_commit_consumes(tmp_path: Path):
     settings, engine, factory, _run_dir, canonical_run_id = _canonical_service_fixture(tmp_path)
     snapshot = quality_gate_module._read_strict_fixed_snapshot(tmp_path)
@@ -945,15 +996,176 @@ def test_quality_binding_issuer_exposes_only_hardcoded_one_shot_ops(tmp_path: Pa
         capability=_QUALITY_BINDING_FACTORY_CAPABILITY,
     )
     issuer = orchestrator_module._BINDING_ISSUER
-    assert issuer.reserve(binding) is not None
+    lease = issuer.reserve(binding)
+    assert lease is not None
     assert _binding_registry_state(binding) == "reserved"
-    assert issuer.finalize(binding) is not None
-    assert _binding_registry_state(binding) == "used"
-    assert issuer.release(binding) is None
+    with pytest.raises(TypeError):
+        issuer.finalize(binding)
+    with pytest.raises(TypeError):
+        issuer.finalize(binding, lease)
+    with pytest.raises(TypeError):
+        issuer.release(binding)
+    with pytest.raises(TypeError):
+        issuer.release(binding, lease)
+    assert _binding_registry_state(binding) == "reserved"
     assert issuer.reserve(binding) is None
+
+
+def test_quality_binding_direct_release_cannot_cancel_transaction_reservation(tmp_path: Path):
+    settings, engine, factory, _run_dir, canonical_run_id = _canonical_service_fixture(tmp_path)
+    snapshot = quality_gate_module._read_strict_fixed_snapshot(tmp_path)
+    binding = _make_quality_sample_binding(
+        canonical_run_id,
+        source_token=snapshot,
+        capability=_QUALITY_BINDING_FACTORY_CAPABILITY,
+    )
+    model = type(
+        "GoodModel",
+        (),
+        {"inspect_model": lambda _self: ModelIdentity(MODEL_NAME, "c" * 64)},
+    )()
+    creator = ScreeningOrchestrator(settings, session_factory=factory, ollama=model, clock=lambda: NOW)
+    with factory() as session:
+        prepared = creator.prepare_execution(
+            session,
+            run_id=canonical_run_id,
+            policy_version="policy-1",
+            profile_source="current",
+            requested_by="tester",
+            scope="quality_sample",
+            trigger="quality_gate",
+            _quality_binding=binding,
+        )
+        assert _binding_registry_state(binding) == "reserved"
+        assert not any(isinstance(value, orchestrator_module._BindingLease) for value in session.info.values())
+        with pytest.raises(TypeError):
+            orchestrator_module._BINDING_ISSUER.release(binding)
+        assert _binding_registry_state(binding) == "reserved"
+        with pytest.raises(ScreeningCreationError):
+            creator.prepare_execution(
+                session,
+                run_id=canonical_run_id,
+                policy_version="policy-1",
+                profile_source="current",
+                requested_by="tester",
+                scope="quality_sample",
+                trigger="quality_gate",
+                _quality_binding=binding,
+            )
+        session.commit()
+        prepared.workspace.close()
     assert _binding_registry_state(binding) == "used"
+    with Session(engine) as session:
+        assert len(session.scalars(select(ScreeningExecution)).all()) == 1
+    with factory() as session:
+        with pytest.raises(ScreeningCreationError):
+            creator.prepare_execution(
+                session,
+                run_id=canonical_run_id,
+                policy_version="policy-1",
+                profile_source="current",
+                requested_by="tester",
+                scope="quality_sample",
+                trigger="quality_gate",
+                _quality_binding=binding,
+            )
+        session.rollback()
+
+
+def test_quality_binding_lease_is_exact_and_transaction_bound(tmp_path: Path):
+    _settings, _engine, factory, _run_dir, canonical_run_id = _canonical_service_fixture(tmp_path)
+    snapshot = quality_gate_module._read_strict_fixed_snapshot(tmp_path)
+    issuer = orchestrator_module._BINDING_ISSUER
+    binding = _make_quality_sample_binding(
+        canonical_run_id,
+        source_token=snapshot,
+        capability=_QUALITY_BINDING_FACTORY_CAPABILITY,
+    )
+    lease = issuer.reserve(binding)
+    assert lease is not None
+    assert _binding_registry_state(binding) == "reserved"
+
+    copied = copy.copy(lease)
+    unpickled = pickle.loads(pickle.dumps(lease))
+    forged = copy.copy(lease)
+    object.__setattr__(forged, "binding_identity", id(object()))
+    for candidate in (copied, unpickled, forged, object()):
+        with pytest.raises(ScreeningCreationError):
+            _commit_quality_binding_for_test(binding, candidate)
+        assert not _release_quality_binding_for_test(binding, candidate)
+        assert _binding_registry_state(binding) == "reserved"
+
+    other = _make_quality_sample_binding(
+        canonical_run_id,
+        source_token=snapshot,
+        capability=_QUALITY_BINDING_FACTORY_CAPABILITY,
+    )
+    other_lease = issuer.reserve(other)
+    assert other_lease is not None
     with pytest.raises(ScreeningCreationError):
-        _consume_quality_binding(binding, canonical_run_id, tmp_path)
+        _commit_quality_binding_for_test(other, lease)
+    assert _binding_registry_state(other) == "reserved"
+    assert _release_quality_binding_for_test(other, other_lease)
+    assert _binding_registry_state(other) == "issued"
+
+    session_binding = _make_quality_sample_binding(
+        canonical_run_id,
+        source_token=snapshot,
+        capability=_QUALITY_BINDING_FACTORY_CAPABILITY,
+    )
+    with factory() as session:
+        session.begin()
+        transaction = session.get_transaction()
+        assert transaction is not None
+        session_lease = issuer.reserve(
+            session_binding,
+            session_identity=id(session),
+            transaction_identity=id(transaction),
+        )
+        assert session_lease is not None
+        cross_session = factory()
+        try:
+            with pytest.raises(ScreeningCreationError):
+                _commit_quality_binding_for_test(
+                    session_binding,
+                    session_lease,
+                    session=cross_session,
+                    transaction=transaction,
+                )
+            assert not _release_quality_binding_for_test(
+                session_binding,
+                session_lease,
+                session=cross_session,
+                transaction=transaction,
+            )
+            assert _binding_registry_state(session_binding) == "reserved"
+        finally:
+            cross_session.close()
+        assert _release_quality_binding_for_test(
+            session_binding, session_lease, session=session, transaction=transaction
+        )
+    assert _binding_registry_state(session_binding) == "issued"
+    assert _commit_quality_binding_for_test(binding, lease) is None
+    assert not _release_quality_binding_for_test(binding, lease)
+
+
+def _commit_quality_binding_for_test(binding, lease, *, session=None, transaction=None):
+    return orchestrator_module._commit_quality_binding(
+        binding,
+        lease,
+        session=session,
+        transaction=transaction,
+    )
+
+
+def _release_quality_binding_for_test(binding, lease, *, session=None, transaction=None):
+    result = orchestrator_module._release_quality_binding(
+        binding,
+        lease,
+        session=session,
+        transaction=transaction,
+    )
+    return result
 
 
 def test_quality_binding_nested_savepoint_lifecycle_is_transaction_aware(tmp_path: Path):
