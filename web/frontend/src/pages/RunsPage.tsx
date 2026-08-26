@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { EmptyState } from "../components/common/EmptyState";
@@ -81,7 +81,7 @@ function useScreeningExecutionPoll(executionId: string | null) {
       inFlight = true;
       setLoading(true);
       try {
-        const next = await api.getScreeningExecution(executionId);
+        const next = await api.getScreeningExecution(executionId, { signal: controller.signal });
         if (controller.signal.aborted) return;
         setData(next);
         setError(null);
@@ -137,7 +137,7 @@ export function RunsPage() {
   });
   const logsQuery = useQuery({
     queryKey: ["pipeline-logs", selectedRunId],
-    queryFn: () => api.getPipelineLogs(selectedRunId as string),
+    queryFn: ({ signal }) => api.getPipelineLogs(selectedRunId as string, undefined, { signal }),
     enabled: Boolean(selectedRunId),
     staleTime: 0,
     refetchInterval: (query) => {
@@ -163,13 +163,16 @@ export function RunsPage() {
   });
   const screeningExecutionsQuery = useQuery({
     queryKey: ["screening-executions", selectedRunId],
-    queryFn: () => api.listScreeningExecutions({ run_id: selectedRunId as string, limit: 25, offset: 0 }),
+    queryFn: ({ signal }) => api.listScreeningExecutions(
+      { run_id: selectedRunId as string, trigger: "manual_run", limit: 25, offset: 0 },
+      { signal },
+    ),
     enabled: Boolean(selectedRunId),
     staleTime: 0,
     refetchInterval: (query) => {
       const data = query.state.data;
       if (!data) return 1500;
-      return data.items.some((execution) => !isScreeningTerminal(execution.status)) ? 1500 : false;
+      return data.items.some((execution) => execution.trigger === "manual_run" && execution.scope === "full_run" && !isScreeningTerminal(execution.status)) ? 1500 : false;
     },
   });
   const [actionError, setActionError] = useState<string | null>(null);
@@ -181,6 +184,7 @@ export function RunsPage() {
   const [screeningActionError, setScreeningActionError] = useState<string | null>(null);
   const [screeningStartBusy, setScreeningStartBusy] = useState(false);
   const [screeningStopBusy, setScreeningStopBusy] = useState(false);
+  const screeningStartInFlight = useRef(false);
 
   const policies = useMemo(() => {
     const byVersion = new Map<string, PolicyVersionResponse>();
@@ -197,10 +201,15 @@ export function RunsPage() {
     return [...byVersion.values()];
   }, [profileSnapshotsQuery.data]);
   const screeningExecutions = useMemo(() => screeningExecutionsQuery.data?.items ?? [], [screeningExecutionsQuery.data]);
-  const selectedScreeningSummary = screeningExecutions.find((item) => item.execution_id === screeningExecutionId)
-    ?? screeningExecutions[0]
+  const manualFullRunExecutions = useMemo(
+    () => screeningExecutions.filter((item) => item.trigger === "manual_run" && item.scope === "full_run"),
+    [screeningExecutions],
+  );
+  const selectedScreeningSummary = manualFullRunExecutions.find((item) => item.execution_id === screeningExecutionId)
+    ?? (screeningExecutionId === null ? manualFullRunExecutions[0] : null)
     ?? null;
   const screeningDetailPoll = useScreeningExecutionPoll(screeningExecutionId);
+  const selectedPolicy = policies.find((policy) => policy.policy_version === selectedPolicyVersion) ?? null;
   const selectedProfile = profileSnapshots.find((snapshot) => snapshot.version === selectedProfileVersion) ?? null;
 
   useEffect(() => {
@@ -226,12 +235,15 @@ export function RunsPage() {
   }, [profileSnapshots, selectedProfileVersion]);
 
   useEffect(() => {
-    // Keep the active execution selected while it is running. Once it is
-    // terminal, show the newest run returned by the list endpoint.
-    if (screeningExecutionId && screeningExecutions.some((item) => item.execution_id === screeningExecutionId)) return;
-    const active = screeningExecutions.find((item) => !isScreeningTerminal(item.status));
-    setScreeningExecutionId(active?.execution_id ?? screeningExecutions[0]?.execution_id ?? null);
-  }, [screeningExecutionId, screeningExecutions]);
+    // The API returns queue_no-descending order. Prefer the newest active
+    // manual full-run execution; when none is active, show the newest one.
+    if (screeningExecutionId && !manualFullRunExecutions.some((item) => item.execution_id === screeningExecutionId)) return;
+    const preferred = manualFullRunExecutions.find((item) => !isScreeningTerminal(item.status))
+      ?? manualFullRunExecutions[0]
+      ?? null;
+    const nextId = preferred?.execution_id ?? null;
+    if (nextId !== screeningExecutionId) setScreeningExecutionId(nextId);
+  }, [manualFullRunExecutions, screeningExecutionId]);
 
   useEffect(() => {
     if (!screeningDetailPoll.data || !screeningExecutionId) return;
@@ -284,15 +296,19 @@ export function RunsPage() {
   };
 
   const startScreening = async () => {
-    if (!selectedRunId || !screeningActor.trim() || !selectedPolicyVersion || !selectedProfile) {
-      setScreeningActionError("담당자 이름, 판정 정책, 프로필 snapshot을 모두 선택해야 합니다.");
+    const hasNonterminalManualFullRun = manualFullRunExecutions.some((item) => !isScreeningTerminal(item.status));
+    if (screeningStartInFlight.current) return;
+    if (!selectedRunId || !screeningActor.trim() || !selectedPolicy || !selectedProfile || hasNonterminalManualFullRun) {
+      if (hasNonterminalManualFullRun) setScreeningActionError("이미 진행 중인 전량 판정 실행이 있습니다.");
+      else setScreeningActionError("담당자 이름, 판정 정책, 프로필 snapshot을 모두 선택해야 합니다.");
       return;
     }
+    screeningStartInFlight.current = true;
     setScreeningActionError(null);
     setScreeningStartBusy(true);
     try {
       const execution = await api.enqueueJudgment(selectedRunId, {
-        policy_version: selectedPolicyVersion,
+        policy_version: selectedPolicy.policy_version,
         profile_source: profileSourceFor(selectedProfile),
         requested_by: screeningActor.trim(),
       });
@@ -302,11 +318,13 @@ export function RunsPage() {
       setScreeningActionError(screeningActionMessage(error));
     } finally {
       setScreeningStartBusy(false);
+      screeningStartInFlight.current = false;
     }
   };
 
   const stopScreening = async () => {
-    if (!screeningExecutionId || !screeningActor.trim() || !selectedScreeningSummary || isScreeningTerminal(selectedScreeningSummary.status)) return;
+    const latestStatus = screeningDetailPoll.data?.status ?? selectedScreeningSummary?.status;
+    if (!screeningExecutionId || !screeningActor.trim() || !latestStatus || isScreeningTerminal(latestStatus) || latestStatus === "중지 요청") return;
     setScreeningActionError(null);
     setScreeningStopBusy(true);
     try {

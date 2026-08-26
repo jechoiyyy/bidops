@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import type {
   CompanyProfileSnapshotResponse,
   PolicyVersionResponse,
@@ -72,6 +72,10 @@ function isTerminal(status: ScreeningStatus | undefined): boolean {
   return status === "성공" || status === "부분 성공" || status === "실패" || status === "중단됨";
 }
 
+function isManualFullRun(execution: ScreeningExecutionResponse): boolean {
+  return execution.trigger === "manual_run" && execution.scope === "full_run";
+}
+
 function statusFor(status: ScreeningStatus | undefined): { label: string; tone: string } {
   if (status && status in statusMeta) return statusMeta[status];
   return { label: "상태 미확인", tone: "unknown" };
@@ -106,7 +110,9 @@ function ExecutionProgress({ execution }: { execution: ScreeningExecutionRespons
   const failures = Math.max(0, execution.failure_count);
   const percent = candidate > 0 ? Math.min(100, Math.max(0, Math.round((completed / candidate) * 100))) : null;
   const currentStage = execution.current_stage ? stageLabels[execution.current_stage] ?? "단계 미확인" : "대기 중";
-  const queuePosition = execution.queue_position ?? execution.queue_no;
+  const queuePosition = execution.status === "대기" && execution.queue_position !== null
+    ? execution.queue_position
+    : null;
 
   return (
     <div className="runs-screening-progress" aria-live="polite">
@@ -118,7 +124,7 @@ function ExecutionProgress({ execution }: { execution: ScreeningExecutionRespons
         <span style={{ width: `${percent ?? 0}%` }} />
       </div>
       <div className="runs-screening-progress-grid">
-        <div><span>대기 순번</span><strong>{isTerminal(execution.status) ? "-" : formatNumber(queuePosition)}</strong></div>
+        <div><span>대기 순번</span><strong>{queuePosition === null ? "-" : formatNumber(queuePosition)}</strong></div>
         <div><span>현재 단계</span><strong>{currentStage}</strong></div>
         <div><span>후보</span><strong>{formatNumber(candidate)}건</strong></div>
         <div><span>완료</span><strong>{formatNumber(completed)}건</strong></div>
@@ -190,13 +196,54 @@ export function ScreeningRunPanel({
   onOpenPublishedRun,
 }: ScreeningRunPanelProps) {
   const [stopDialogOpen, setStopDialogOpen] = useState(false);
+  const stopDialogRef = useRef<HTMLDialogElement>(null);
+  const stopOpenerRef = useRef<HTMLButtonElement>(null);
+  const stopCancelRef = useRef<HTMLButtonElement>(null);
   const selectedPolicy = policies.find((policy) => policy.policy_version === selectedPolicyVersion) ?? null;
   const selectedProfile = profileSnapshots.find((snapshot) => snapshot.version === selectedProfileVersion) ?? null;
-  const currentExecution = execution ?? executionSummary;
+  const detailExecution = execution && isManualFullRun(execution) ? execution : null;
+  const summaryExecution = executionSummary && isManualFullRun(executionSummary) ? executionSummary : null;
+  const currentExecution = detailExecution ?? summaryExecution;
   const currentStatus = currentExecution?.status;
   const stopDisabled = !currentExecution || isTerminal(currentStatus) || currentStatus === "중지 요청" || !actor.trim() || stopBusy;
   const executionBusy = Boolean(currentExecution && !isTerminal(currentStatus));
   const startDisabled = startBusy || executionBusy || !actor.trim() || !selectedPolicy || !selectedProfile || !selectedProfileSource || Boolean(policiesError || profilesError) || policiesLoading || profilesLoading;
+
+  useEffect(() => {
+    const dialog = stopDialogRef.current;
+    if (!dialog) return undefined;
+    if (stopDialogOpen) {
+      if (!dialog.open) dialog.showModal();
+      window.requestAnimationFrame(() => stopCancelRef.current?.focus());
+    } else if (dialog.open) {
+      dialog.close();
+    }
+    return () => {
+      if (dialog.open) dialog.close();
+    };
+  }, [stopDialogOpen]);
+
+  const closeStopDialog = () => {
+    if (stopDialogRef.current?.open) stopDialogRef.current.close();
+    setStopDialogOpen(false);
+    window.requestAnimationFrame(() => stopOpenerRef.current?.focus());
+  };
+
+  const openStopDialog = (event: MouseEvent<HTMLButtonElement>) => {
+    if (stopDisabled) return;
+    stopOpenerRef.current = event.currentTarget;
+    setStopDialogOpen(true);
+  };
+
+  const confirmStop = () => {
+    const latestStatus = detailExecution?.status ?? summaryExecution?.status;
+    if (!currentExecution || !latestStatus || isTerminal(latestStatus) || latestStatus === "중지 요청" || stopBusy || !actor.trim()) {
+      closeStopDialog();
+      return;
+    }
+    closeStopDialog();
+    onStop();
+  };
 
   return (
     <section className="runs-screening-panel" aria-labelledby="runs-screening-title">
@@ -280,7 +327,7 @@ export function ScreeningRunPanel({
           {currentExecution.status === "중지 요청" ? <p className="runs-screening-stop-note" role="status" aria-live="polite">중지 요청을 기록했습니다. 현재 모델 호출이 끝난 뒤 다음 공고를 시작하지 않고 중단됩니다.</p> : null}
           {!isTerminal(currentExecution.status) ? (
             <div className="runs-screening-stop-area">
-              <button className="runs-secondary-button runs-screening-stop-button" type="button" disabled={stopDisabled} onClick={() => setStopDialogOpen(true)} aria-haspopup="dialog">
+              <button className="runs-secondary-button runs-screening-stop-button" type="button" disabled={stopDisabled} onClick={openStopDialog} aria-haspopup="dialog">
                 {stopBusy || currentExecution.status === "중지 요청" ? "중지 요청 처리 중…" : "협력적으로 중지"}
               </button>
               {!actor.trim() ? <span>중지를 요청하려면 담당자 이름을 입력하세요.</span> : <span>현재 호출이 끝나는 지점에서 안전하게 멈춥니다.</span>}
@@ -294,23 +341,23 @@ export function ScreeningRunPanel({
               <button className="runs-screening-text-button" type="button" onClick={() => onOpenPublishedRun(currentExecution.published_run_id as string)}>파생 회차 보기 <code>{currentExecution.published_run_id}</code></button>
             </div>
           ) : null}
-          {execution?.result_urls.published_run ? <a className="runs-screening-published-link" href={execution.result_urls.published_run} target="_blank" rel="noreferrer">게시 결과 링크 열기</a> : null}
+          {detailExecution?.result_urls.published_run ? <a className="runs-screening-published-link" href={detailExecution.result_urls.published_run} target="_blank" rel="noreferrer">게시 결과 링크 열기</a> : null}
 
-          {execution ? (
+          {detailExecution ? (
             <>
               <div className="runs-screening-artifacts">
                 <h4>안전한 산출물 링크</h4>
                 <div className="runs-screening-artifact-links">
-                  {artifactLabels.map(({ key, label }) => execution.result_urls[key] ? <a href={execution.result_urls[key] as string} key={key} target="_blank" rel="noreferrer">{label}</a> : null)}
-                  {!artifactLabels.some(({ key }) => Boolean(execution.result_urls[key])) ? <span className="runs-screening-muted">사용 가능한 산출물 링크가 없습니다.</span> : null}
+                  {artifactLabels.map(({ key, label }) => detailExecution.result_urls[key] ? <a href={detailExecution.result_urls[key] as string} key={key} target="_blank" rel="noreferrer">{label}</a> : null)}
+                  {!artifactLabels.some(({ key }) => Boolean(detailExecution.result_urls[key])) ? <span className="runs-screening-muted">사용 가능한 산출물 링크가 없습니다.</span> : null}
                 </div>
               </div>
-              {execution.failure_count > 0 ? (
+              {detailExecution.failure_count > 0 ? (
                 <div className="runs-screening-failures">
-                  <h4>사람 검토 대기 실패 목록 <span>{execution.failure_count}건</span></h4>
-                  {execution.failures.length ? (
+                  <h4>사람 검토 대기 실패 목록 <span>{detailExecution.failure_count}건</span></h4>
+                  {detailExecution.failures.length ? (
                     <ul>
-                      {execution.failures.map((failure) => <li key={`${failure.notice_id}-${failure.failed_stage}`}><div><code>{failure.notice_id}</code><strong>{failure.failed_stage}</strong><span>{failure.failure_type}</span></div><p>{failure.error_summary}</p></li>)}
+                      {detailExecution.failures.map((failure) => <li key={`${failure.notice_id}-${failure.failed_stage}`}><div><code>{failure.notice_id}</code><strong>{failure.failed_stage}</strong><span>{failure.failure_type}</span></div><p>{failure.error_summary}</p></li>)}
                     </ul>
                   ) : <p className="runs-screening-muted">실패 건수는 기록되었지만 세부 목록을 아직 불러오지 못했습니다.</p>}
                 </div>
@@ -320,14 +367,14 @@ export function ScreeningRunPanel({
         </div>
       ) : null}
 
-      <dialog className="runs-screening-stop-dialog" open={stopDialogOpen} onCancel={() => setStopDialogOpen(false)} aria-labelledby="runs-screening-stop-title">
+      <dialog ref={stopDialogRef} className="runs-screening-stop-dialog" onCancel={(event) => { event.preventDefault(); closeStopDialog(); }} aria-labelledby="runs-screening-stop-title">
         <div className="runs-screening-dialog-body">
           <h4 id="runs-screening-stop-title">판정 실행을 중지할까요?</h4>
           <p>중지는 협력적으로 처리됩니다. 현재 모델 호출이 끝나면 다음 공고를 시작하지 않고 <strong>중단됨</strong>으로 남습니다. 이미 완료된 결과는 삭제되지 않습니다.</p>
-          <div className="runs-screening-dialog-actions">
-            <button className="runs-secondary-button" type="button" onClick={() => setStopDialogOpen(false)}>계속 실행</button>
-            <button className="runs-primary-button runs-screening-danger-button" type="button" onClick={() => { setStopDialogOpen(false); onStop(); }}>중지 요청</button>
-          </div>
+          <form method="dialog" className="runs-screening-dialog-actions" onSubmit={(event) => { event.preventDefault(); confirmStop(); }}>
+            <button ref={stopCancelRef} className="runs-secondary-button" type="button" onClick={closeStopDialog}>계속 실행</button>
+            <button className="runs-primary-button runs-screening-danger-button" type="submit">중지 요청</button>
+          </form>
         </div>
       </dialog>
     </section>
