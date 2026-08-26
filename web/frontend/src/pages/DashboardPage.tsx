@@ -34,7 +34,11 @@ function priorityStatus(metric: ValidationMetric | undefined): string | undefine
 const CRITICAL_DAYS = 3;
 
 function criticalDeadlineCount(notices: DeadlineNotice[], referenceAt: string | null): number {
-  const referenceMs = referenceAt ? new Date(referenceAt).getTime() : Date.now();
+  // 기준 시각이 없으면 임박 여부도 계산하지 않는다. 현재 시각으로 대체하면
+  // 같은 회차가 실행 시점에 따라 다른 작업 목록으로 보일 수 있다.
+  if (!referenceAt) return 0;
+  const referenceMs = new Date(referenceAt).getTime();
+  if (Number.isNaN(referenceMs)) return 0;
   return notices.filter((notice) => {
     const deadlineMs = new Date(notice.deadline_at ?? "").getTime();
     if (Number.isNaN(deadlineMs)) return false;

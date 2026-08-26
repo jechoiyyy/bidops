@@ -26,9 +26,10 @@ export function QualityGateReviewForm({ gateId, reviews, latestEvaluation, onSav
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const validCount = latestEvaluation?.valid_review_count ?? 0;
-  const distinctCount = latestEvaluation?.distinct_notice_review_count ?? 0;
-  const ready = validCount >= 10 && distinctCount >= 10;
+  // 평가가 아직 없거나 수치가 누락된 상태는 실제 0건과 구분한다.
+  const validCount = typeof latestEvaluation?.valid_review_count === "number" ? latestEvaluation.valid_review_count : null;
+  const distinctCount = typeof latestEvaluation?.distinct_notice_review_count === "number" ? latestEvaluation.distinct_notice_review_count : null;
+  const ready = validCount !== null && distinctCount !== null && validCount >= 10 && distinctCount >= 10;
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -58,8 +59,8 @@ export function QualityGateReviewForm({ gateId, reviews, latestEvaluation, onSav
           <h2 id="quality-review-heading">담당자 리뷰</h2>
         </div>
         <div className={`quality-review-readiness ${ready ? "is-ready" : "is-not-ready"}`} role="status" aria-live="polite">
-          <strong>{validCount}/10 유효 리뷰</strong>
-          <span>{distinctCount}/10 서로 다른 공고</span>
+          <strong>{validCount === null ? "계산 불가" : validCount}/10 유효 리뷰</strong>
+          <span>{distinctCount === null ? "계산 불가" : distinctCount}/10 서로 다른 공고</span>
         </div>
       </div>
       <p className="quality-review-explanation">리뷰는 Pass A의 judgment digest에 묶입니다. 판단 보류와 digest 불일치는 유효 분모에서 제외됩니다.</p>

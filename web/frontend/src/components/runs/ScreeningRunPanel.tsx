@@ -124,7 +124,7 @@ function ExecutionProgress({ execution }: { execution: ScreeningExecutionRespons
         <strong>전량 판정 진행</strong>
         <span>{percent === null ? "진행률 계산 불가" : `${percent}%`}</span>
       </div>
-      <div className="runs-screening-progress-track" role="progressbar" aria-label="전량 판정 진행률" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent ?? 0}>
+      <div className="runs-screening-progress-track" role="progressbar" aria-label="전량 판정 진행률" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent === null ? undefined : percent}>
         <span style={{ width: `${percent ?? 0}%` }} />
       </div>
       <div className="runs-screening-progress-grid">
