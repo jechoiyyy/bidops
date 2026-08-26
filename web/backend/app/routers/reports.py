@@ -41,11 +41,11 @@ service = ReportService()
 evidence_service = EvidenceService()
 
 
-def _actor_ref(actor: str | None) -> AgentActorRef:
+def _actor_ref(actor: str | None, actor_format: str | None = None) -> AgentActorRef:
     """Build the strict human actor after preserving the legacy validation."""
 
     try:
-        claimed_name = validate_actor(actor)
+        claimed_name = validate_actor(actor, actor_format)
         return AgentActorRef(actor_kind=AgentActorKind.human, claimed_name=claimed_name)
     except BundleServiceError as error:
         raise ReportServiceError(error.code, error.message, status_code=error.status_code) from error
@@ -233,10 +233,11 @@ def create_report_revision(
     deep_review_id: UUID,
     payload: ReportRevisionRequest,
     actor: Annotated[str | None, Header(alias="X-BidOps-Actor-Name")] = None,
+    actor_format: Annotated[str | None, Header(alias="X-BidOps-Actor-Name-Format")] = None,
     session: Session = Depends(get_db),
 ) -> ReportView | JSONResponse:
     try:
-        actor_ref = _actor_ref(actor)
+        actor_ref = _actor_ref(actor, actor_format)
         _review(session, deep_review_id)
         replay = _has_replay(
             session,
@@ -306,10 +307,11 @@ def create_final_opinion(
     deep_review_id: UUID,
     payload: FinalOpinionRequest,
     actor: Annotated[str | None, Header(alias="X-BidOps-Actor-Name")] = None,
+    actor_format: Annotated[str | None, Header(alias="X-BidOps-Actor-Name-Format")] = None,
     session: Session = Depends(get_db),
 ) -> FinalOpinionView | JSONResponse:
     try:
-        actor_ref = _actor_ref(actor)
+        actor_ref = _actor_ref(actor, actor_format)
         _review(session, deep_review_id)
         replay = _has_replay(
             session,

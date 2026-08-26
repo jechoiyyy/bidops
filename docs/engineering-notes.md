@@ -82,4 +82,4 @@
 
 - 증상: 표준 라이브러리 HTTP client가 한글 담당자 이름을 header로 보내지 못하거나, 인코딩 prefix처럼 보이는 기존 ASCII 이름이 server에서 다른 이름으로 복원된다.
 - 원인: raw Unicode header의 Latin-1 제약과 in-band prefix를 모든 일치 문자열에 무조건 적용한 디코딩 때문이다.
-- 대응: acceptance client만 비ASCII 이름을 canonical UTF-8 percent envelope로 만들고 server는 실제 percent 표식과 비ASCII 결과가 있는 canonical 값만 복원한다. printable ASCII 이름은 prefix로 시작하거나 percent 문자열을 포함해도 원래 값을 보존하며 malformed/control encoding은 거부한다.
+- 대응: acceptance client만 비ASCII 이름을 canonical UTF-8 percent envelope로 만들고 별도 format header를 함께 보낸다. server는 명시된 format이 있을 때만 복원한다. printable ASCII 이름은 prefix로 시작하거나 percent 문자열을 포함해도 원래 값을 보존하며 unknown format과 malformed/ASCII-only/control encoding은 거부한다.

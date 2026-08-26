@@ -48,10 +48,10 @@ router = APIRouter(prefix="/api", tags=["document-bundles"])
 service = DocumentBundleService()
 
 
-def _actor_ref(actor: str | None) -> AgentActorRef:
+def _actor_ref(actor: str | None, actor_format: str | None = None) -> AgentActorRef:
     """Build the strict human actor after preserving the legacy validation."""
 
-    claimed_name = validate_actor(actor)
+    claimed_name = validate_actor(actor, actor_format)
     try:
         return AgentActorRef(
             actor_kind=AgentActorKind.human,
@@ -134,6 +134,7 @@ def create_document_bundle(
     notice_id: int,
     _payload: EmptyRequest,
     actor: Annotated[str | None, Header(alias="X-BidOps-Actor-Name")] = None,
+    actor_format: Annotated[str | None, Header(alias="X-BidOps-Actor-Name-Format")] = None,
     session: Session = Depends(get_db),
 ) -> BundleView | JSONResponse:
     try:
@@ -145,7 +146,7 @@ def create_document_bundle(
                 aggregate_type=AgentAggregateType.notice,
                 aggregate_id=str(notice_id),
             ),
-            actor=_actor_ref(actor),
+            actor=_actor_ref(actor, actor_format),
             request_id=None,
             correlation_id=None,
             expected_version=None,
@@ -165,6 +166,7 @@ async def upload_document(
     file: UploadFile = File(...),
     request_id: UUID = Form(...),
     actor: Annotated[str | None, Header(alias="X-BidOps-Actor-Name")] = None,
+    actor_format: Annotated[str | None, Header(alias="X-BidOps-Actor-Name-Format")] = None,
     session: Session = Depends(get_db),
 ) -> DocumentVersionView | JSONResponse:
     try:
@@ -176,7 +178,7 @@ async def upload_document(
                 aggregate_type=AgentAggregateType.document_bundle,
                 aggregate_id=str(bundle_id),
             ),
-            actor=_actor_ref(actor),
+            actor=_actor_ref(actor, actor_format),
             request_id=request_id,
             correlation_id=None,
             expected_version=None,
@@ -195,6 +197,7 @@ def patch_document_version(
     document_version_id: UUID,
     payload: PatchDocumentVersionRequest,
     actor: Annotated[str | None, Header(alias="X-BidOps-Actor-Name")] = None,
+    actor_format: Annotated[str | None, Header(alias="X-BidOps-Actor-Name-Format")] = None,
     session: Session = Depends(get_db),
 ) -> DocumentVersionView | JSONResponse:
     try:
@@ -206,7 +209,7 @@ def patch_document_version(
                 aggregate_type=AgentAggregateType.document_version,
                 aggregate_id=str(document_version_id),
             ),
-            actor=_actor_ref(actor),
+            actor=_actor_ref(actor, actor_format),
             request_id=None,
             correlation_id=None,
             expected_version=payload.version,
@@ -230,6 +233,7 @@ def confirm_document_bundle(
     bundle_id: UUID,
     payload: ConfirmRequest,
     actor: Annotated[str | None, Header(alias="X-BidOps-Actor-Name")] = None,
+    actor_format: Annotated[str | None, Header(alias="X-BidOps-Actor-Name-Format")] = None,
     session: Session = Depends(get_db),
 ) -> BundleView | JSONResponse:
     try:
@@ -252,7 +256,7 @@ def confirm_document_bundle(
                 aggregate_type=AgentAggregateType.document_bundle,
                 aggregate_id=str(bundle_id),
             ),
-            actor=_actor_ref(actor),
+            actor=_actor_ref(actor, actor_format),
             request_id=payload.request_id,
             correlation_id=None,
             expected_version=payload.version,

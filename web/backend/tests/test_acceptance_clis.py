@@ -99,29 +99,35 @@ def test_acceptance_actor_header_round_trips_unicode_without_raw_header_bytes(mo
     actor = "E2E 담당자"
     encoded = actor_header_value(actor)
     assert encoded.isascii()
-    assert validate_actor(encoded) == actor
+    assert validate_actor(encoded, "utf-8-percent-v1") == actor
 
     api = JsonAcceptanceApi("http://127.0.0.1:28787")
     observed = {}
 
     def send(request, *, retryable):
         observed["actor"] = request.get_header("X-bidops-actor-name")
+        observed["actor_format"] = request.get_header("X-bidops-actor-name-format")
         observed["retryable"] = retryable
         return b"{}"
 
     monkeypatch.setattr(api, "_send", send)
     assert api.request_json("POST", "/api/example", payload={}, actor=actor) == {}
-    assert observed == {"actor": encoded, "retryable": False}
+    assert observed == {"actor": encoded, "actor_format": "utf-8-percent-v1", "retryable": False}
     assert actor_header_value("E2E Operator") == "E2E Operator"
     prefixed_ascii = "UTF-8''E2E Operator"
     assert actor_header_value(prefixed_ascii) == prefixed_ascii
     assert validate_actor(prefixed_ascii) == prefixed_ascii
     percent_ascii = "UTF-8''E2E%20Operator"
     assert validate_actor(percent_ascii) == percent_ascii
+    mixed_ascii = "UTF-8''Alice%C3%A9"
+    assert actor_header_value(mixed_ascii) == mixed_ascii
+    assert validate_actor(mixed_ascii) == mixed_ascii
     for invalid in ("UTF-8''", "UTF-8''%ZZ", "UTF-8''%0A"):
         with pytest.raises(BundleServiceError) as error:
-            validate_actor(invalid)
+            validate_actor(invalid, "utf-8-percent-v1")
         assert error.value.code in {"actor_name_required", "actor_name_invalid"}
+    with pytest.raises(BundleServiceError):
+        validate_actor(encoded, "unknown-format")
 
 
 def test_t7_cli_dry_run_selects_the_agent_acceptance_plan(tmp_path: Path, capsys) -> None:
