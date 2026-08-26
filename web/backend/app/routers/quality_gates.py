@@ -51,6 +51,7 @@ def _evaluation_response(row: QualityGateEvaluation) -> QualityGateEvaluationRes
         reasons=row.reasons_json if isinstance(row.reasons_json, list) else [],
         valid_review_count=row.valid_review_count,
         distinct_notice_review_count=row.distinct_notice_review_count,
+        generation_config_digest=row.generation_config_digest,
         created_at=row.created_at,
     )
 
@@ -98,6 +99,7 @@ def _gate_response(session: Session, gate: QualityGate) -> QualityGateResponse:
         model_digest=gate.model_digest,
         company_profile_version=gate.company_profile_version,
         company_profile_digest=gate.company_profile_digest,
+        generation_config_digest=gate.generation_config_digest,
         pass_a_execution_id=gate.pass_a_execution_id,
         pass_b_execution_id=gate.pass_b_execution_id,
         created_by=gate.created_by,

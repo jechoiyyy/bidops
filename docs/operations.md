@@ -8,6 +8,8 @@
 
 compose는 `data`와 `reports` bind mount, `/app/web/data`의 `bidops-web-data` named volume, `/app/backups`의 `bidops-backups` named volume을 사용한다. 백업 manifest와 DB 파일은 같은 backup volume에서 보존한다. `.env`, API key, run data와 첨부를 image/Git에 복사하지 않는다. compose의 고정 container 경로는 DB `/app/web/data/bidops.db`, attachment `/app/web/data/attachments`, report `/app/reports`, backup `/app/backups`다.
 
+판정 generation budget은 `.env`의 `BIDOPS_OLLAMA_MAX_OUTPUT_TOKENS`(기본 2048)와 `BIDOPS_OLLAMA_SYNTHESIS_MAX_OUTPUT_TOKENS`(기본 4096)에서 읽지만 실행 생성 시 canonical frozen config로 한 번만 저장한다. context 기본값은 16384이며 synthesis budget은 context를 넘을 수 없다. migration `0005_generation_config_binding`은 기존 row를 모든 stage 2048의 legacy canonical JSON/digest로 결정적으로 backfill하고 config 변경 및 quality A/B mismatch를 SQLite trigger로 거부한다. live 재검증은 아직 pending이다.
+
 앱이 읽는 경로 설정은 `BIDOPS_ROOT`(호환 alias `BIDOPS_PROJECT_ROOT`), `BIDOPS_DATA_DIR`, `BIDOPS_ATTACHMENTS_DIR`(호환 alias `BIDOPS_ATTACHMENT_DIR`), `BIDOPS_DATABASE_URL`이다. reports는 별도 directory 환경변수 없이 project root의 `reports` 경로를 사용한다. backup directory도 별도 directory 환경변수 없이 compose의 `/app/backups` named volume을 사용한다. compose에서 backup 관련 설정으로 지원되는 것은 `BIDOPS_BACKUP_OUTPUT`(backup file path)과 `BIDOPS_BACKUP_MANIFEST`(migrate manifest path)다.
 
 ## 표준 Docker 순서
@@ -39,7 +41,7 @@ export BIDOPS_BACKUP_MANIFEST=/app/backups/<manifest>.manifest.json
 docker compose --profile ops run --rm db-migrate
 ```
 
-컨테이너 wrapper가 두 환경변수를 요구하며 Python `db_admin migrate --backup-manifest ... --confirm-service-stopped`로 위임한다. migrate는 manifest identity/digest/fingerprint, core row counts, FK/quick_check를 확인하고 temp DB에서 Alembic을 실행한 뒤 검증된 경우에만 live DB를 교체한다. 현재 head는 `0004_migration_audit`다. backup은 유지되며 자동 rollback하지 않는다.
+컨테이너 wrapper가 두 환경변수를 요구하며 Python `db_admin migrate --backup-manifest ... --confirm-service-stopped`로 위임한다. migrate는 manifest identity/digest/fingerprint, core row counts, FK/quick_check를 확인하고 temp DB에서 Alembic을 실행한 뒤 검증된 경우에만 live DB를 교체한다. 현재 head는 `0005_generation_config_binding`다. backup은 유지되며 자동 rollback하지 않는다.
 
 ### 4. DB verify
 

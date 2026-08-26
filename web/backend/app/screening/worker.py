@@ -33,6 +33,7 @@ from .contracts import (
     validate_judgment,
     validate_perspective,
 )
+from .generation_config import GenerationConfigError, config_from_value, validate_digest
 from .execution_store import ScreeningExecutionStore
 from .ollama import OllamaCallError, OllamaClient
 from .orchestrator import ScreeningCreationError, _notice_common
@@ -63,12 +64,12 @@ class PublicationHandle:
 _INPUT_KEYS = {
     "schema_version", "execution_id", "run_id", "generated_at", "source_window",
     "policy_version", "prompt_version", "company_profile_version", "company_profile_digest",
-    "candidate_count", "notices",
+    "candidate_count", "notices", "generation_config", "generation_config_digest",
 }
 _DECISIONS_KEYS = {
     "schema_version", "execution_id", "run_id", "generated_at", "screening_basis",
     "model_name", "model_digest", "prompt_version", "policy_version",
-    "company_profile_version", "company_profile_digest", "judgments",
+    "company_profile_version", "company_profile_digest", "generation_config", "generation_config_digest", "judgments",
 }
 _JUDGMENT_KEYS = {
     "notice_id", "judgment_mode", "model_name", "model_digest", "prompt_version",
@@ -83,7 +84,7 @@ _RESULT_KEYS = {
     "schema_version", "execution_id", "generated_at", "screening_basis", "source_window",
     "model_name", "model_digest", "prompt_version", "policy_version",
     "company_profile_version", "company_profile_digest", "candidate_count", "result_count",
-    "failure_count", "partial_artifact", "failure_artifact", "results",
+    "generation_config", "generation_config_digest", "failure_count", "partial_artifact", "failure_artifact", "results",
 }
 _RESULT_ITEM_KEYS = {"notice", "judgment"}
 _SAFE_FAILURE_STAGES = set(PERSPECTIVE_NAMES) | {"반론 검토", "종합 판정", "병합·검증"}
@@ -333,6 +334,13 @@ class ScreeningWorker:
         input_raw = store.read_bytes(row.execution_id, "screening-input.json", expected_digest=row.input_artifact_digest)
         input_value = _read_json(store.execution_dir(row.execution_id) / "screening-input.json")
         self._verify_binding(row, input_value, input_raw)
+        try:
+            generation_config = config_from_value(input_value["generation_config"])
+            validate_digest(generation_config, input_value["generation_config_digest"])
+            if row.generation_config_digest != input_value["generation_config_digest"] or row.generation_config_json != generation_config.canonical_value():
+                raise WorkerError("generation_config_mismatch")
+        except (GenerationConfigError, AttributeError):
+            raise WorkerError("generation_config_mismatch") from None
         with self._session() as session:
             policy = session.scalar(select(ScreeningPolicy).where(ScreeningPolicy.policy_version == row.policy_version))
             profile = session.scalar(select(CompanyProfileSnapshot).where(CompanyProfileSnapshot.version == row.company_profile_version))
@@ -401,7 +409,7 @@ class ScreeningWorker:
                         completed += 1
                         self.store.update_progress(row.execution_id, completed_count=completed)
                     continue
-                result, failed = self._run_notice(row, input_value, notice, policy_body, _profile_sections(profile_raw), store)
+                result, failed = self._run_notice(row, input_value, notice, policy_body, _profile_sections(profile_raw), store, generation_config=generation_config)
                 if result is None and failed is None:
                     # A stop may be observed after a blocking call returned and
                     # its attempts were persisted. Never assert or classify
@@ -475,7 +483,7 @@ class ScreeningWorker:
             self.store.finish(row.execution_id, status=status, completed_count=completed, failure_count=len(failures), candidate_count=len(notices), now=_aware(self.clock), error_summary="execution_failure" if failures else None)
 
     def _verify_binding(self, row: ScreeningExecution, value: Any, raw: bytes) -> None:
-        expected_keys = {"schema_version", "execution_id", "run_id", "generated_at", "source_window", "policy_version", "prompt_version", "company_profile_version", "company_profile_digest", "candidate_count", "notices"}
+        expected_keys = {"schema_version", "execution_id", "run_id", "generated_at", "source_window", "policy_version", "prompt_version", "company_profile_version", "company_profile_digest", "candidate_count", "notices", "generation_config", "generation_config_digest"}
         if not isinstance(value, dict) or set(value) != expected_keys or value.get("schema_version") != "bidops.screening-input.v1":
             raise WorkerError("input_error")
         try:
@@ -493,6 +501,13 @@ class ScreeningWorker:
             raise WorkerError("input_mismatch")
         if value.get("policy_version") != row.policy_version or value.get("prompt_version") != row.prompt_version or value.get("company_profile_version") != row.company_profile_version or value.get("company_profile_digest") != row.company_profile_digest:
             raise WorkerError("input_mismatch")
+        try:
+            config = config_from_value(value.get("generation_config"))
+            digest = validate_digest(config, value.get("generation_config_digest"))
+            if row.generation_config_digest != digest or row.generation_config_json != config.canonical_value():
+                raise WorkerError("generation_config_mismatch")
+        except (GenerationConfigError, AttributeError):
+            raise WorkerError("generation_config_mismatch") from None
         window = value.get("source_window")
         if not isinstance(window, dict) or set(window) != {"from", "to", "timezone"} or window.get("timezone") != "Asia/Seoul":
             raise WorkerError("input_error")
@@ -553,7 +568,9 @@ class ScreeningWorker:
             "generated_at": input_value["generated_at"], "screening_basis": "회차에 고정된 정규화 공고와 회사 프로필·정책 버전",
             "model_name": row.model_name, "model_digest": row.model_digest, "prompt_version": row.prompt_version,
             "policy_version": row.policy_version, "company_profile_version": row.company_profile_version,
-            "company_profile_digest": row.company_profile_digest, "judgments": judgments,
+            "company_profile_digest": row.company_profile_digest,
+            "generation_config": input_value["generation_config"], "generation_config_digest": input_value["generation_config_digest"],
+            "judgments": judgments,
         }
 
     def _persist_decisions(self, store: ArtifactStore, row: ScreeningExecution, input_value: Mapping[str, Any], judgments: list[dict[str, Any]]) -> None:
@@ -571,6 +588,7 @@ class ScreeningWorker:
                 done_reason=metadata.done_reason, prompt_eval_count=metadata.prompt_eval_count, eval_count=metadata.eval_count,
                 prompt_eval_duration_ns=metadata.prompt_eval_duration_ns, eval_duration_ns=metadata.eval_duration_ns,
                 load_duration_ns=metadata.load_duration_ns, total_duration_ns=metadata.total_duration_ns,
+                generation_config_digest=metadata.generation_config_digest, num_ctx=metadata.num_ctx, num_predict=metadata.num_predict,
                 started_at=metadata.started_at, finished_at=metadata.finished_at or metadata.started_at,
                 response_artifact_path=response_path, error_summary=(metadata.failure_type or "execution_failure") if metadata.status != "success" else None,
             ))
@@ -583,6 +601,9 @@ class ScreeningWorker:
             "stage": metadata.stage, "attempt_no": metadata.attempt_no, "status": metadata.status,
             "failure_type": metadata.failure_type, "done_reason": metadata.done_reason,
             "model_name": row.model_name, "model_digest": row.model_digest,
+            "generation_config_digest": metadata.generation_config_digest or row.generation_config_digest,
+            "num_ctx": metadata.num_ctx,
+            "num_predict": metadata.num_predict,
             "prompt_eval_count": metadata.prompt_eval_count, "eval_count": metadata.eval_count,
             "prompt_eval_duration_ns": metadata.prompt_eval_duration_ns,
             "eval_duration_ns": metadata.eval_duration_ns, "load_duration_ns": metadata.load_duration_ns,
@@ -599,7 +620,7 @@ class ScreeningWorker:
         self._persist_metadata(row, metadata, response_path, value)
         store.append_jsonl(row.execution_id, "screening-telemetry.jsonl", self._telemetry(row, metadata))
 
-    def _run_notice(self, row: ScreeningExecution, input_value: Mapping[str, Any], notice: dict[str, Any], policy: Mapping[str, Any], profile: Mapping[str, Any], store: ArtifactStore) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    def _run_notice(self, row: ScreeningExecution, input_value: Mapping[str, Any], notice: dict[str, Any], policy: Mapping[str, Any], profile: Mapping[str, Any], store: ArtifactStore, *, generation_config: Any) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
         trace = new_trace_id()
         perspectives: list[dict[str, Any]] = []
 
@@ -617,7 +638,7 @@ class ScreeningWorker:
                     return None, None
                 self.store.update_progress(row.execution_id, current_notice_id=notice["notice_id"], current_stage=name)
                 prompt = assemble_perspective_prompt(policy, name, notice, profile)
-                result = self.ollama.generate(prompt.user_message, schema_for_stage(name), execution_id=row.execution_id, notice_id=notice["notice_id"], stage=name, trace_id=trace, validator=lambda value, expected=name: validate_perspective(value, expected_name=expected), attempt_callback=record_failure_attempt)
+                result = self.ollama.generate(prompt.user_message, schema_for_stage(name), execution_id=row.execution_id, notice_id=notice["notice_id"], stage=name, trace_id=trace, validator=lambda value, expected=name: validate_perspective(value, expected_name=expected), attempt_callback=record_failure_attempt, generation_config=generation_config)
                 self._record_attempt(row, result.metadata, store, result.value)
                 perspectives.append(result.value)
                 if self.store.should_stop(row.execution_id):
@@ -626,13 +647,13 @@ class ScreeningWorker:
                 return None, None
             self.store.update_progress(row.execution_id, current_stage="counterargument")
             counter_prompt = assemble_counterargument_prompt(policy, notice, perspectives)
-            counter = self.ollama.generate(counter_prompt.user_message, schema_for_stage("counterargument.v1"), execution_id=row.execution_id, notice_id=notice["notice_id"], stage="counterargument", trace_id=trace, validator=validate_counterargument, attempt_callback=record_failure_attempt)
+            counter = self.ollama.generate(counter_prompt.user_message, schema_for_stage("counterargument.v1"), execution_id=row.execution_id, notice_id=notice["notice_id"], stage="counterargument", trace_id=trace, validator=validate_counterargument, attempt_callback=record_failure_attempt, generation_config=generation_config)
             self._record_attempt(row, counter.metadata, store, counter.value)
             if self.store.should_stop(row.execution_id):
                 return None, None
             self.store.update_progress(row.execution_id, current_stage="synthesis")
             synthesis_prompt = assemble_synthesis_prompt(policy, notice, perspectives, counter.value)
-            synthesis = self.ollama.generate(synthesis_prompt.user_message, schema_for_stage("judgment.v3"), execution_id=row.execution_id, notice_id=notice["notice_id"], stage="synthesis", trace_id=trace, validator=lambda value: validate_judgment(value, notice=notice), attempt_callback=record_failure_attempt)
+            synthesis = self.ollama.generate(synthesis_prompt.user_message, schema_for_stage("judgment.v3"), execution_id=row.execution_id, notice_id=notice["notice_id"], stage="synthesis", trace_id=trace, validator=lambda value: validate_judgment(value, notice=notice), attempt_callback=record_failure_attempt, generation_config=generation_config)
             self._record_attempt(row, synthesis.metadata, store, synthesis.value)
             judgment = add_two_axis_metadata(synthesis.value)
             judgment.update({
@@ -686,6 +707,15 @@ class ScreeningWorker:
         if set(old) != _DECISIONS_KEYS or old.get("schema_version") != "bidops.decisions.v3":
             return None
         if prior_input.get("execution_id") != old.get("execution_id") or prior_input.get("run_id") != old.get("run_id"):
+            return None
+        try:
+            prior_generation = config_from_value(prior_input.get("generation_config"))
+            validate_digest(prior_generation, prior_input.get("generation_config_digest"))
+            old_generation = config_from_value(old.get("generation_config"))
+            validate_digest(old_generation, old.get("generation_config_digest"))
+        except (GenerationConfigError, AttributeError):
+            return None
+        if prior_input.get("generation_config_digest") != old.get("generation_config_digest") or prior_input.get("generation_config_digest") != input_value.get("generation_config_digest"):
             return None
         if prior_input.get("generated_at") != old.get("generated_at"):
             return None
@@ -853,6 +883,13 @@ class ScreeningWorker:
         for key in ("execution_id", "generated_at", "source_window", "prompt_version", "policy_version", "company_profile_version", "company_profile_digest"):
             if value.get(key) != input_value.get(key):
                 raise WorkerError("execution_failure")
+        try:
+            result_config = config_from_value(value.get("generation_config"))
+            validate_digest(result_config, value.get("generation_config_digest"))
+        except (GenerationConfigError, AttributeError):
+            raise WorkerError("execution_failure") from None
+        if value.get("generation_config") != input_value.get("generation_config") or value.get("generation_config_digest") != input_value.get("generation_config_digest"):
+            raise WorkerError("execution_failure")
         for key in ("model_name", "model_digest"):
             if value.get(key) != getattr(row, key):
                 raise WorkerError("execution_failure")

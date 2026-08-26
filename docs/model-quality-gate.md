@@ -13,6 +13,8 @@
 
 두 pass는 같은 frozen 40건을 사용하고 각각 고유 execution/artifact/telemetry를 가진다. 분모는 항상 40이며 threshold 직전에 반올림하지 않는다.
 
+두 pass는 frozen generation configuration도 공유해야 한다. 기본값은 context 16384, perspective/counterargument 2048, synthesis 4096, `think=false`, `stream=false`이며 canonical compact UTF-8 JSON의 SHA-256 digest를 gate와 evaluation에 저장한다. A/B config 또는 digest가 다르면 gate 생성·평가·통과·activation 전에 거부한다. 이 T15 구현은 아직 live 재검증 전이며 기존 Phase 1 synthesis truncation 실패 evidence를 변경하지 않는다.
+
 ## 목적과 프로필 분리
 
 | 목적 (`purpose`) | 프로필 source | 의미 | activation 사용 |

@@ -205,7 +205,7 @@ def test_single_success_writes_exact_seven_attempts_and_telemetry(tmp_path: Path
         attempts = session.scalars(select(ScreeningAttempt)).all()
     assert len(attempts) == 7
     telemetry = (root / created.artifact_dir / "screening-telemetry.jsonl").read_text(encoding="utf-8").splitlines()
-    expected = {"schema_version", "execution_id", "trace_id", "span_id", "notice_id", "stage", "attempt_no", "status", "failure_type", "done_reason", "model_name", "model_digest", "prompt_eval_count", "eval_count", "prompt_eval_duration_ns", "eval_duration_ns", "load_duration_ns", "total_duration_ns", "started_at", "finished_at"}
+    expected = {"schema_version", "execution_id", "trace_id", "span_id", "notice_id", "stage", "attempt_no", "status", "failure_type", "done_reason", "model_name", "model_digest", "generation_config_digest", "num_ctx", "num_predict", "prompt_eval_count", "eval_count", "prompt_eval_duration_ns", "eval_duration_ns", "load_duration_ns", "total_duration_ns", "started_at", "finished_at"}
     assert len(telemetry) == 7
     assert all(set(json.loads(line)) == expected for line in telemetry)
     assert [json.loads(line)["stage"] for line in telemetry] == [*NAMES, "counterargument", "synthesis"]

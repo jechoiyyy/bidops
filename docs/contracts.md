@@ -125,6 +125,8 @@ snapshot 목록은 `created_at` 내림차순, 같은 시각에는 `digest` 내�
 
 `screening-input.v1`은 `schema_version`, `execution_id`, `run_id`, `generated_at`, `source_window{from,to,timezone}`, `prompt_version`, `policy_version`, `company_profile_version`, `company_profile_digest`, `candidate_count`, `notices[]`를 갖는다. notice는 normalized fields와 `judgment_mode`(`신규|재판정|승계`), 승계의 `carry_over_from`, 재판정의 `rejudge_reason`을 가진다. 신규/재판정은 일곱 span 대상, 승계는 모델 호출 없음이다.
 
+`screening-input.v1`에는 `generation_config`와 `generation_config_digest`도 필수다. canonical config는 `bidops.generation-config.v1` object이며 기본 `num_ctx=16384`, stage map `perspective=2048`, `counterargument=2048`, `synthesis=4096`, `think=false`, `stream=false`이다. digest는 compact UTF-8 canonical JSON의 SHA-256 lowercase hex다. execution row와 input artifact가 이 값과 다르면 worker는 호출 전에 실패한다. telemetry와 execution/attempt API는 digest 및 실제 `num_ctx`/`num_predict`를 노출하며 prompt/response는 노출하지 않는다. quality gate A/B와 activation/scheduler도 같은 binding을 요구한다. live 재검증은 pending이다.
+
 | 필드 | 계약·검증 |
 |---|---|
 | `schema_version` | 정확히 `bidops.screening-input.v1` |
@@ -227,7 +229,7 @@ v3 merge의 허용 조합은 `screening-input.v1 + decisions.v3 → bidops.scree
 
 ## DB·migration 계약
 
-Alembic head는 `0004_migration_audit`이며 앱이 실행하는 migration command는 `cd web/backend && alembic upgrade head`다. migration 순서는 다음과 같다.
+Alembic head는 `0005_generation_config_binding`이며 앱이 실행하는 migration command는 `cd web/backend && alembic upgrade head`다. migration 순서는 다음과 같다.
 
 | revision | 내용 |
 |---|---|
@@ -235,6 +237,7 @@ Alembic head는 `0004_migration_audit`이며 앱이 실행하는 migration comma
 | `0002_screening_runtime` | profile snapshot, screening execution/attempt, quality gate/evaluation/review, policy, schedule/always-on/audit 및 immutable/approval trigger |
 | `0003_schedule_skipped_recovery` | skipped schedule recovery와 projection disable audit |
 | `0004_migration_audit` | deterministic `db.migration` event(`audit-e7854deca36d619ac1921856bb9bdbcd`, actor `system:migration`, target head) |
+| `0005_generation_config_binding` | frozen stage-aware generation config/digest on execution, input, attempts, quality gate/evaluation, schedule and always-on; deterministic legacy backfill and SQLite immutability/binding triggers |
 
 핵심 runtime row는 `screening_execution`(queue_no, execution_id, trigger/scope/status, source run/notice, requested_by, policy/prompt/model/profile/input/artifact binding, heartbeat/stop/count/publish metadata), `screening_attempt`(stage/status/failure/trace/span/Ollama telemetry), `profile_snapshot`, `quality_gate`, `quality_gate_evaluation`(append-only revision), `quality_gate_review`, `screening_policy`, `schedule_reservation`, `schedule_execution`, `always_on_state`, `audit_event`다.
 

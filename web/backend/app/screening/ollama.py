@@ -33,6 +33,7 @@ from .contracts import (
     validate_judgment,
     validate_perspective,
 )
+from .generation_config import GenerationConfig, ensure_generation_config, generation_config_from_settings
 from .prompts import (
     assemble_counterargument_prompt,
     assemble_perspective_prompt,
@@ -247,8 +248,16 @@ class OllamaClient:
             return self.inspect_model()
         return self.identity
 
-    def _request_payload(self, prompt: str, schema: Mapping[str, Any]) -> dict[str, Any]:
+    def _request_payload(
+        self,
+        prompt: str,
+        schema: Mapping[str, Any],
+        *,
+        generation_config: GenerationConfig | None = None,
+        stage: str = "",
+    ) -> dict[str, Any]:
         identity = self._ensure_identity()
+        config = generation_config or generation_config_from_settings(self.settings)
         # Build a fresh object each attempt; callers cannot mutate future
         # attempts or the original prompt inputs.
         return {
@@ -260,8 +269,7 @@ class OllamaClient:
             "format": deepcopy(dict(schema)),
             "keep_alive": self.settings.model_keep_alive,
             "options": {
-                "num_ctx": self.settings.model_context,
-                "num_predict": self.settings.model_max_output,
+                **config.stage_options(stage),
             },
         }
 
@@ -275,6 +283,7 @@ class OllamaClient:
         trace_id: str,
         span_id: str,
         started_at: datetime,
+        generation_config: GenerationConfig | None = None,
         **kwargs: Any,
     ) -> CallMetadata:
         identity = self.identity
@@ -299,6 +308,9 @@ class OllamaClient:
             load_duration_ns=kwargs.pop("load_duration_ns", None),
             total_duration_ns=kwargs.pop("total_duration_ns", None),
             error_summary=kwargs.pop("error_summary", None),
+            generation_config_digest=(generation_config.digest() if generation_config is not None else kwargs.pop("generation_config_digest", None)),
+            num_ctx=(generation_config.num_ctx if generation_config is not None else kwargs.pop("num_ctx", None)),
+            num_predict=(generation_config.budget_for_stage(stage) if generation_config is not None else kwargs.pop("num_predict", None)),
         )
 
     def _generate_once(
@@ -312,18 +324,21 @@ class OllamaClient:
         attempt: int,
         trace_id: str,
         span_id: str,
+        generation_config: GenerationConfig,
     ) -> tuple[dict[str, Any], CallMetadata]:
         started = _aware_now()
+        def new_metadata(**kwargs: Any) -> CallMetadata:
+            return self._new_metadata(generation_config=generation_config, **kwargs)
         try:
             response = self.transport.request(
                 "POST",
                 "/api/generate",
-                self._request_payload(prompt, schema),
+                self._request_payload(prompt, schema, generation_config=generation_config, stage=stage),
                 timeout=float(self.settings.model_timeout),
             )
         except (TimeoutError, ConnectionError, OSError, urllib_error.URLError) as exc:
             finished = _aware_now()
-            metadata = self._new_metadata(
+            metadata = new_metadata(
                 execution_id=execution_id,
                 notice_id=notice_id,
                 stage=stage,
@@ -338,7 +353,7 @@ class OllamaClient:
             raise OllamaCallError(metadata) from None
         except ValueError:
             finished = _aware_now()
-            metadata = self._new_metadata(
+            metadata = new_metadata(
                 execution_id=execution_id,
                 notice_id=notice_id,
                 stage=stage,
@@ -355,7 +370,7 @@ class OllamaClient:
             raise
         except Exception:
             finished = _aware_now()
-            metadata = self._new_metadata(
+            metadata = new_metadata(
                 execution_id=execution_id,
                 notice_id=notice_id,
                 stage=stage,
@@ -371,7 +386,7 @@ class OllamaClient:
 
         finished = _aware_now()
         if not isinstance(response, Mapping):
-            failure = self._new_metadata(
+            failure = new_metadata(
                 execution_id=execution_id, notice_id=notice_id, stage=stage, attempt=attempt,
                 trace_id=trace_id, span_id=span_id, started_at=started, finished_at=finished,
                 failure_type="schema_violation", error_summary="Ollama response is not an object",
@@ -380,7 +395,7 @@ class OllamaClient:
 
         returned_model = response.get("model")
         if returned_model != MODEL_NAME:
-            failure = self._new_metadata(
+            failure = new_metadata(
                 execution_id=execution_id, notice_id=notice_id, stage=stage, attempt=attempt,
                 trace_id=trace_id, span_id=span_id, started_at=started, finished_at=finished,
                 failure_type="schema_violation", error_summary="Ollama response model tag mismatch",
@@ -392,7 +407,7 @@ class OllamaClient:
             or not _DIGEST_RE.fullmatch(response["digest"])
             or response["digest"] != self.identity.digest
         ):
-            failure = self._new_metadata(
+            failure = new_metadata(
                 execution_id=execution_id, notice_id=notice_id, stage=stage, attempt=attempt,
                 trace_id=trace_id, span_id=span_id, started_at=started, finished_at=finished,
                 failure_type="schema_violation", error_summary="Ollama response model digest mismatch",
@@ -410,14 +425,14 @@ class OllamaClient:
                 "total_duration_ns": _metric(response, "total_duration"),
             }
         except ContractViolation as exc:
-            failure = self._new_metadata(
+            failure = new_metadata(
                 execution_id=execution_id, notice_id=notice_id, stage=stage, attempt=attempt,
                 trace_id=trace_id, span_id=span_id, started_at=started, finished_at=finished,
                 failure_type="schema_violation", error_summary=exc.reason,
             )
             raise OllamaCallError(failure)
         if type(response.get("done")) is not bool:
-            failure = self._new_metadata(
+            failure = new_metadata(
                 execution_id=execution_id, notice_id=notice_id, stage=stage, attempt=attempt,
                 trace_id=trace_id, span_id=span_id, started_at=started, finished_at=finished,
                 failure_type="schema_violation", error_summary="Ollama response done flag is invalid",
@@ -425,7 +440,7 @@ class OllamaClient:
             )
             raise OllamaCallError(failure)
         if response.get("done") is False or done_reason in _TRUNCATION_REASONS:
-            failure = self._new_metadata(
+            failure = new_metadata(
                 execution_id=execution_id, notice_id=notice_id, stage=stage, attempt=attempt,
                 trace_id=trace_id, span_id=span_id, started_at=started, finished_at=finished,
                 failure_type="truncated_output", error_summary="Ollama output was truncated",
@@ -434,7 +449,7 @@ class OllamaClient:
             raise OllamaCallError(failure)
         raw = response.get("response")
         if not isinstance(raw, str):
-            failure = self._new_metadata(
+            failure = new_metadata(
                 execution_id=execution_id, notice_id=notice_id, stage=stage, attempt=attempt,
                 trace_id=trace_id, span_id=span_id, started_at=started, finished_at=finished,
                 failure_type="schema_violation", error_summary="Ollama response field is not text",
@@ -444,14 +459,14 @@ class OllamaClient:
         try:
             parsed = parse_json_object(raw)
         except ContractViolation as exc:
-            failure = self._new_metadata(
+            failure = new_metadata(
                 execution_id=execution_id, notice_id=notice_id, stage=stage, attempt=attempt,
                 trace_id=trace_id, span_id=span_id, started_at=started, finished_at=finished,
                 failure_type=exc.failure_type, error_summary=exc.reason,
                 done_reason=done_reason, **metrics,
             )
             raise OllamaCallError(failure)
-        success = self._new_metadata(
+        success = new_metadata(
             execution_id=execution_id, notice_id=notice_id, stage=stage, attempt=attempt,
             trace_id=trace_id, span_id=span_id, started_at=started, finished_at=finished,
             status="success", done_reason=done_reason, **metrics,
@@ -470,6 +485,7 @@ class OllamaClient:
         validator: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
         correction_prompt: str | None = None,
         attempt_callback: Callable[[CallMetadata], None] | None = None,
+        generation_config: GenerationConfig | Mapping[str, Any] | None = None,
     ) -> CallResult:
         """Generate one validated object, with the exact bounded retry policy."""
 
@@ -482,6 +498,12 @@ class OllamaClient:
         # Model inspection is an enqueue/use boundary, not a generate
         # transport failure.  Keep ModelInspectionError distinguishable.
         self._ensure_identity()
+        # Direct client callers freeze the current settings once at the
+        # generation boundary; queued workers pass their persisted config and
+        # never reach this fallback.
+        frozen_config, _config_digest = ensure_generation_config(
+            generation_config if generation_config is not None else generation_config_from_settings(self.settings)
+        )
         trace = trace_id or new_trace_id()
         attempts: list[CallMetadata] = []
         current_prompt = prompt
@@ -498,6 +520,7 @@ class OllamaClient:
                     attempt=attempt,
                     trace_id=trace,
                     span_id=span,
+                    generation_config=frozen_config,
                 )
                 if validator is not None:
                     value = validator(value)

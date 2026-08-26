@@ -25,6 +25,13 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
+from .screening.generation_config import legacy_generation_config
+
+
+_LEGACY_GENERATION_CONFIG = legacy_generation_config()
+_LEGACY_GENERATION_CONFIG_VALUE = _LEGACY_GENERATION_CONFIG.canonical_value()
+_LEGACY_GENERATION_CONFIG_DIGEST = _LEGACY_GENERATION_CONFIG.digest()
+_LEGACY_GENERATION_CONFIG_SERVER_DEFAULT = text("(json('" + _LEGACY_GENERATION_CONFIG.canonical_json().replace(":", "\\:") + "'))")
 
 
 def utc_now() -> datetime:
@@ -416,6 +423,8 @@ class ScreeningExecution(Base):
         CheckConstraint("length(company_profile_digest) = 64 AND company_profile_digest NOT GLOB '*[^0-9a-f]*'", name="ck_screening_execution_profile_digest"),
         CheckConstraint("length(trim(input_artifact_path)) > 0 AND input_artifact_path NOT LIKE '/%' AND input_artifact_path NOT LIKE '%\\%' AND input_artifact_path <> '..' AND input_artifact_path NOT LIKE '../%' AND input_artifact_path NOT LIKE '%/../%' AND input_artifact_path NOT LIKE '%/..'", name="ck_screening_execution_input_artifact_path"),
         CheckConstraint("length(trim(artifact_dir)) > 0 AND artifact_dir NOT LIKE '/%' AND artifact_dir NOT LIKE '%\\%' AND artifact_dir <> '..' AND artifact_dir NOT LIKE '../%' AND artifact_dir NOT LIKE '%/../%' AND artifact_dir NOT LIKE '%/..'", name="ck_screening_execution_artifact_dir"),
+        CheckConstraint("json_valid(generation_config_json) AND json_type(generation_config_json) = 'object'", name="ck_screening_execution_generation_config_json"),
+        CheckConstraint("length(generation_config_digest) = 64 AND generation_config_digest NOT GLOB '*[^0-9a-f]*'", name="ck_screening_execution_generation_config_digest"),
         Index("uq_screening_execution_active_slot", "active_slot", unique=True, sqlite_where=text("active_slot IS NOT NULL")),
     )
 
@@ -437,6 +446,8 @@ class ScreeningExecution(Base):
     model_digest: Mapped[str] = mapped_column(String(64), nullable=False)
     company_profile_version: Mapped[str] = mapped_column(ForeignKey("company_profile_snapshot.version", ondelete="RESTRICT"), nullable=False)
     company_profile_digest: Mapped[str] = mapped_column(ForeignKey("company_profile_snapshot.digest", ondelete="RESTRICT"), nullable=False)
+    generation_config_json: Mapped[Any] = mapped_column(JSON, nullable=False, default=_LEGACY_GENERATION_CONFIG_VALUE, server_default=_LEGACY_GENERATION_CONFIG_SERVER_DEFAULT)
+    generation_config_digest: Mapped[str] = mapped_column(String(64), nullable=False, default=_LEGACY_GENERATION_CONFIG_DIGEST, server_default=_LEGACY_GENERATION_CONFIG_DIGEST)
     input_artifact_path: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
     input_artifact_digest: Mapped[str] = mapped_column(String(64), nullable=False)
     artifact_dir: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
@@ -475,6 +486,7 @@ class ScreeningAttempt(Base):
         CheckConstraint("eval_duration_ns IS NULL OR eval_duration_ns >= 0", name="ck_screening_attempt_eval_duration_ns"),
         CheckConstraint("load_duration_ns IS NULL OR load_duration_ns >= 0", name="ck_screening_attempt_load_duration_ns"),
         CheckConstraint("total_duration_ns IS NULL OR total_duration_ns >= 0", name="ck_screening_attempt_total_duration_ns"),
+        CheckConstraint("generation_config_digest IS NULL OR (length(generation_config_digest) = 64 AND generation_config_digest NOT GLOB '*[^0-9a-f]*')", name="ck_screening_attempt_generation_config_digest"),
         CheckConstraint("finished_at >= started_at", name="ck_screening_attempt_finished_after_started"),
         CheckConstraint("length(trim(execution_id)) > 0 AND length(trim(notice_id)) > 0 AND length(trim(stage)) > 0 AND length(trim(status)) > 0 AND (failure_type IS NULL OR length(trim(failure_type)) > 0) AND length(trim(trace_id)) > 0 AND length(trim(span_id)) > 0 AND (done_reason IS NULL OR length(trim(done_reason)) > 0) AND (response_artifact_path IS NULL OR length(trim(response_artifact_path)) > 0) AND (error_summary IS NULL OR length(trim(error_summary)) > 0)", name="ck_screening_attempt_strings"),
         CheckConstraint("response_artifact_path IS NULL OR (response_artifact_path NOT LIKE '/%' AND response_artifact_path NOT LIKE '%\\%' AND response_artifact_path <> '..' AND response_artifact_path NOT LIKE '../%' AND response_artifact_path NOT LIKE '%/../%' AND response_artifact_path NOT LIKE '%/..')", name="ck_screening_attempt_response_artifact_path"),
@@ -499,6 +511,9 @@ class ScreeningAttempt(Base):
     eval_duration_ns: Mapped[int | None] = mapped_column(Integer, nullable=True)
     load_duration_ns: Mapped[int | None] = mapped_column(Integer, nullable=True)
     total_duration_ns: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    generation_config_digest: Mapped[str | None] = mapped_column(String(64), nullable=True, default=_LEGACY_GENERATION_CONFIG_DIGEST, server_default=_LEGACY_GENERATION_CONFIG_DIGEST)
+    num_ctx: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    num_predict: Mapped[int | None] = mapped_column(Integer, nullable=True)
     started_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False)
     finished_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False)
     response_artifact_path: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -538,6 +553,8 @@ class QualityGate(Base):
         CheckConstraint("length(sample_artifact_digest) = 64 AND sample_artifact_digest NOT GLOB '*[^0-9a-f]*'", name="ck_quality_gate_sample_digest"),
         CheckConstraint("length(baseline_decisions_digest) = 64 AND baseline_decisions_digest NOT GLOB '*[^0-9a-f]*'", name="ck_quality_gate_baseline_decision_digest"),
         CheckConstraint("length(model_digest) = 64 AND model_digest NOT GLOB '*[^0-9a-f]*'", name="ck_quality_gate_model_digest"),
+        CheckConstraint("json_valid(generation_config_json) AND json_type(generation_config_json) = 'object'", name="ck_quality_gate_generation_config_json"),
+        CheckConstraint("length(generation_config_digest) = 64 AND generation_config_digest NOT GLOB '*[^0-9a-f]*'", name="ck_quality_gate_generation_config_digest"),
         CheckConstraint("length(company_profile_digest) = 64 AND company_profile_digest NOT GLOB '*[^0-9a-f]*'", name="ck_quality_gate_profile_digest"),
         CheckConstraint("json_valid(metrics_json) AND json_type(metrics_json) = 'object'", name="ck_quality_gate_metrics_json"),
         CheckConstraint("json_valid(reasons_json) AND json_type(reasons_json) = 'array'", name="ck_quality_gate_reasons_json"),
@@ -557,6 +574,8 @@ class QualityGate(Base):
     prompt_version: Mapped[str] = mapped_column(String(255), nullable=False)
     model_name: Mapped[str] = mapped_column(String(255), nullable=False)
     model_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    generation_config_json: Mapped[Any] = mapped_column(JSON, nullable=False, default=_LEGACY_GENERATION_CONFIG_VALUE, server_default=_LEGACY_GENERATION_CONFIG_SERVER_DEFAULT)
+    generation_config_digest: Mapped[str] = mapped_column(String(64), nullable=False, default=_LEGACY_GENERATION_CONFIG_DIGEST, server_default=_LEGACY_GENERATION_CONFIG_DIGEST)
     company_profile_version: Mapped[str] = mapped_column(ForeignKey("company_profile_snapshot.version", ondelete="RESTRICT"), nullable=False)
     company_profile_digest: Mapped[str] = mapped_column(ForeignKey("company_profile_snapshot.digest", ondelete="RESTRICT"), nullable=False)
     pass_a_execution_id: Mapped[str] = mapped_column(ForeignKey("screening_execution.execution_id", ondelete="RESTRICT"), unique=True, nullable=False)
@@ -576,6 +595,7 @@ class QualityGateEvaluation(Base):
         CheckConstraint("result_status IN ('통과', '미달', '미측정', '보류')", name="ck_quality_gate_evaluation_result_status"),
         CheckConstraint("length(trim(gate_id)) > 0", name="ck_quality_gate_evaluation_strings"),
         CheckConstraint("valid_review_count >= 0 AND distinct_notice_review_count >= 0", name="ck_quality_gate_evaluation_counts"),
+        CheckConstraint("generation_config_digest IS NULL OR (length(generation_config_digest) = 64 AND generation_config_digest NOT GLOB '*[^0-9a-f]*')", name="ck_quality_gate_evaluation_generation_config_digest"),
         CheckConstraint("json_valid(metrics_json) AND json_type(metrics_json) = 'object'", name="ck_quality_gate_evaluation_metrics_json"),
         CheckConstraint("json_valid(reasons_json) AND json_type(reasons_json) = 'array'", name="ck_quality_gate_evaluation_reasons_json"),
         UniqueConstraint("gate_id", "revision", name="uq_quality_gate_evaluation_revision"),
@@ -589,6 +609,7 @@ class QualityGateEvaluation(Base):
     reasons_json: Mapped[Any] = mapped_column(JSON, nullable=False)
     valid_review_count: Mapped[int] = mapped_column(Integer, nullable=False)
     distinct_notice_review_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    generation_config_digest: Mapped[str | None] = mapped_column(String(64), nullable=False, default=_LEGACY_GENERATION_CONFIG_DIGEST, server_default=_LEGACY_GENERATION_CONFIG_DIGEST)
     created_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False, default=utc_now)
 
 
@@ -700,6 +721,7 @@ class ScheduleExecution(Base):
         CheckConstraint("length(trim(requested_by)) > 0", name="ck_schedule_execution_requested_by"),
         CheckConstraint("length(trim(run_key)) > 0 AND length(trim(job_kind)) > 0 AND length(trim(trigger)) > 0 AND length(trim(status)) > 0 AND (duplicate_of_execution_id IS NULL OR length(trim(duplicate_of_execution_id)) > 0) AND (recovery_of_execution_id IS NULL OR length(trim(recovery_of_execution_id)) > 0) AND (skip_reason IS NULL OR length(trim(skip_reason)) > 0) AND (failure_reason IS NULL OR length(trim(failure_reason)) > 0) AND (policy_version IS NULL OR length(trim(policy_version)) > 0) AND (prompt_version IS NULL OR length(trim(prompt_version)) > 0) AND (model_name IS NULL OR length(trim(model_name)) > 0) AND (company_profile_version IS NULL OR length(trim(company_profile_version)) > 0)", name="ck_schedule_execution_strings"),
         CheckConstraint("(run_id IS NULL OR length(trim(run_id)) > 0) AND (screening_execution_id IS NULL OR length(trim(screening_execution_id)) > 0) AND (model_digest IS NULL OR (length(model_digest) = 64 AND model_digest NOT GLOB '*[^0-9a-f]*')) AND (company_profile_digest IS NULL OR (length(company_profile_digest) = 64 AND company_profile_digest NOT GLOB '*[^0-9a-f]*'))", name="ck_schedule_execution_digests"),
+        CheckConstraint("generation_config_digest IS NULL OR (length(generation_config_digest) = 64 AND generation_config_digest NOT GLOB '*[^0-9a-f]*')", name="ck_schedule_execution_generation_config_digest"),
         CheckConstraint("((status = '건너뜀' AND skip_reason IS NOT NULL) OR (status <> '건너뜀' AND skip_reason IS NULL))", name="ck_schedule_execution_skip_reason"),
         CheckConstraint("candidate_count IS NULL OR candidate_count >= 0", name="ck_schedule_execution_candidate_count"),
         CheckConstraint("result_count IS NULL OR result_count >= 0", name="ck_schedule_execution_result_count"),
@@ -734,6 +756,7 @@ class ScheduleExecution(Base):
     prompt_version: Mapped[str | None] = mapped_column(String(255), nullable=True)
     company_profile_version: Mapped[str | None] = mapped_column(ForeignKey("company_profile_snapshot.version", ondelete="RESTRICT"), nullable=True)
     company_profile_digest: Mapped[str | None] = mapped_column(ForeignKey("company_profile_snapshot.digest", ondelete="RESTRICT"), nullable=True)
+    generation_config_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 
 class AlwaysOnState(Base):
@@ -743,7 +766,8 @@ class AlwaysOnState(Base):
         CheckConstraint("updated_by IS NULL OR length(trim(updated_by)) > 0", name="ck_always_on_updated_by"),
         CheckConstraint("(quality_gate_result_id IS NULL OR length(trim(quality_gate_result_id)) > 0) AND (policy_version IS NULL OR length(trim(policy_version)) > 0) AND (model_name IS NULL OR length(trim(model_name)) > 0) AND (prompt_version IS NULL OR length(trim(prompt_version)) > 0) AND (company_profile_version IS NULL OR length(trim(company_profile_version)) > 0)", name="ck_always_on_strings"),
         CheckConstraint("(model_digest IS NULL OR (length(model_digest) = 64 AND model_digest NOT GLOB '*[^0-9a-f]*')) AND (company_profile_digest IS NULL OR (length(company_profile_digest) = 64 AND company_profile_digest NOT GLOB '*[^0-9a-f]*'))", name="ck_always_on_digests"),
-        CheckConstraint("((enabled = 0) OR (quality_gate_result_id IS NOT NULL AND policy_version IS NOT NULL AND model_name IS NOT NULL AND model_digest IS NOT NULL AND prompt_version IS NOT NULL AND company_profile_version IS NOT NULL AND company_profile_digest IS NOT NULL))", name="ck_always_on_enabled_metadata"),
+        CheckConstraint("generation_config_digest IS NULL OR (length(generation_config_digest) = 64 AND generation_config_digest NOT GLOB '*[^0-9a-f]*')", name="ck_always_on_generation_config_digest"),
+        CheckConstraint("((enabled = 0) OR (quality_gate_result_id IS NOT NULL AND policy_version IS NOT NULL AND model_name IS NOT NULL AND model_digest IS NOT NULL AND prompt_version IS NOT NULL AND company_profile_version IS NOT NULL AND company_profile_digest IS NOT NULL AND generation_config_digest IS NOT NULL))", name="ck_always_on_enabled_metadata"),
     )
 
     singleton_id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
@@ -755,6 +779,7 @@ class AlwaysOnState(Base):
     prompt_version: Mapped[str | None] = mapped_column(String(255), nullable=True)
     company_profile_version: Mapped[str | None] = mapped_column(ForeignKey("company_profile_snapshot.version", ondelete="RESTRICT"), nullable=True)
     company_profile_digest: Mapped[str | None] = mapped_column(ForeignKey("company_profile_snapshot.digest", ondelete="RESTRICT"), nullable=True)
+    generation_config_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False, default=utc_now)
     updated_by: Mapped[str] = mapped_column(String(255), nullable=False, default="system:migration")
 

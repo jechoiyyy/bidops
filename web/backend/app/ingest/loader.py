@@ -43,6 +43,7 @@ from .contracts import (
     missing_judgment_fields,
     model_extra_fields,
 )
+from ..screening.generation_config import GenerationConfigError, config_from_value, validate_digest
 
 
 RUN_ID_RE = re.compile(r"^(?P<directory>.+)--(?P<generated>\d{8}T\d{6}(?:\.\d{1,6})?Z)$")
@@ -829,7 +830,7 @@ _SCREENING_COMMON_NOTICE_KEYS = (
 _SCREENING_INPUT_KEYS = {
     "schema_version", "execution_id", "run_id", "generated_at", "source_window",
     "policy_version", "prompt_version", "company_profile_version", "company_profile_digest",
-    "candidate_count", "notices",
+    "candidate_count", "notices", "generation_config", "generation_config_digest",
 }
 
 
@@ -849,6 +850,11 @@ def _screening_input_error(raw: Any) -> str | None:
     digest = raw.get("company_profile_digest")
     if not isinstance(digest, str) or SHA256_RE.fullmatch(digest) is None or raw.get("company_profile_version") != f"company-profile.sha256:{digest}":
         return "profile identity is invalid"
+    try:
+        generation_config = config_from_value(raw.get("generation_config"))
+        validate_digest(generation_config, raw.get("generation_config_digest"))
+    except (GenerationConfigError, AttributeError):
+        return "generation config is invalid"
     generated = raw.get("generated_at")
     if not isinstance(generated, str):
         return "generated_at is invalid"

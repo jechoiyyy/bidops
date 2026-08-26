@@ -108,6 +108,9 @@ class CallMetadata:
     load_duration_ns: int | None = None
     total_duration_ns: int | None = None
     error_summary: str | None = None
+    generation_config_digest: str | None = None
+    num_ctx: int | None = None
+    num_predict: int | None = None
 
 
 @dataclass(frozen=True)

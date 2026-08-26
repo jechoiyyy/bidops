@@ -76,6 +76,7 @@ def _summary(row: ScheduleExecution, reservation: ScheduleReservation) -> Schedu
             "prompt_version": row.prompt_version,
             "company_profile_version": row.company_profile_version,
             "company_profile_digest": row.company_profile_digest,
+            "generation_config_digest": row.generation_config_digest,
         }
     )
 
@@ -232,6 +233,7 @@ def _always_on_response(request: Request, session: Session, state: AlwaysOnState
             "prompt_version": state.prompt_version,
             "company_profile_version": state.company_profile_version,
             "company_profile_digest": state.company_profile_digest,
+            "generation_config_digest": state.generation_config_digest,
             "updated_at": state.updated_at,
             "updated_by": state.updated_by,
             "rejection_reason": rejection,

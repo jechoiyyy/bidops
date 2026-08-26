@@ -29,6 +29,7 @@ from ..models import (
     ScreeningPolicy,
 )
 from .artifacts import ArtifactError, ArtifactStore, ExecutionWorkspace, sha256_bytes
+from .generation_config import GenerationConfigError, config_from_value, legacy_generation_config, validate_digest
 from .execution_store import ScreeningExecutionStore
 from .orchestrator import ScreeningOrchestrator
 from .profile_snapshot import BASELINE_COMMIT
@@ -191,7 +192,7 @@ def _input_matches_fixed_sample(value: Mapping[str, Any], sample: Mapping[str, A
 _INPUT_KEYS = frozenset({
     "schema_version", "execution_id", "run_id", "generated_at", "source_window",
     "policy_version", "prompt_version", "company_profile_version", "company_profile_digest",
-    "candidate_count", "notices",
+    "candidate_count", "notices", "generation_config", "generation_config_digest",
 })
 
 
@@ -199,6 +200,14 @@ def _input_binding_valid(
     value: Mapping[str, Any], execution: ScreeningExecution, sample: Mapping[str, Any], sample_ids: Sequence[str],
     *, expected_source_window: Mapping[str, Any] | None = None,
 ) -> bool:
+    if set(value) == _INPUT_KEYS - {"generation_config", "generation_config_digest"}:
+        # Historical pre-0005 artifacts are accepted only when their migrated
+        # execution row carries the deterministic legacy digest. New rows and
+        # workers still require the explicit frozen fields in the artifact.
+        legacy = legacy_generation_config()
+        if execution.generation_config_digest != legacy.digest():
+            return False
+        value = {**value, "generation_config": legacy.canonical_value(), "generation_config_digest": legacy.digest()}
     if set(value) != _INPUT_KEYS or value.get("schema_version") != "bidops.screening-input.v1":
         return False
     if value.get("execution_id") != execution.execution_id or value.get("run_id") != execution.source_run_id:
@@ -206,6 +215,14 @@ def _input_binding_valid(
     if value.get("policy_version") != execution.policy_version or value.get("prompt_version") != execution.prompt_version:
         return False
     if value.get("company_profile_version") != execution.company_profile_version or value.get("company_profile_digest") != execution.company_profile_digest:
+        return False
+    try:
+        generation_config = config_from_value(value.get("generation_config"))
+        if validate_digest(generation_config, value.get("generation_config_digest")) != execution.generation_config_digest:
+            return False
+        if execution.generation_config_json != generation_config.canonical_value():
+            return False
+    except (GenerationConfigError, AttributeError):
         return False
     profile_digest = value.get("company_profile_digest")
     if not isinstance(profile_digest, str) or len(profile_digest) != 64 or any(char not in "0123456789abcdef" for char in profile_digest):
@@ -270,6 +287,12 @@ def _decisions_binding_issues(
         sample_ids, expected_source_window=expected_source_window,
     ):
         return [issue(notice_id, "screening_input_binding_invalid") for notice_id in sample_ids]
+    legacy = legacy_generation_config()
+    expected_input_config = input_value.get("generation_config")
+    expected_input_digest = input_value.get("generation_config_digest")
+    if expected_input_config is None and execution.generation_config_digest == legacy.digest():
+        expected_input_config = legacy.canonical_value()
+        expected_input_digest = legacy.digest()
     expected_top = {
         "execution_id": execution.execution_id,
         "run_id": execution.source_run_id,
@@ -280,9 +303,14 @@ def _decisions_binding_issues(
         "policy_version": execution.policy_version,
         "company_profile_version": execution.company_profile_version,
         "company_profile_digest": execution.company_profile_digest,
+        "generation_config": expected_input_config,
+        "generation_config_digest": expected_input_digest or execution.generation_config_digest,
     }
+    if set(value) == {"schema_version", "execution_id", "run_id", "generated_at", "screening_basis", "model_name", "model_digest", "prompt_version", "policy_version", "company_profile_version", "company_profile_digest", "judgments"}:
+        if execution.generation_config_digest == legacy.digest():
+            value = {**value, "generation_config": legacy.canonical_value(), "generation_config_digest": legacy.digest()}
     top_reasons: list[str] = []
-    if set(value) != {"schema_version", "execution_id", "run_id", "generated_at", "screening_basis", "model_name", "model_digest", "prompt_version", "policy_version", "company_profile_version", "company_profile_digest", "judgments"}:
+    if set(value) != {"schema_version", "execution_id", "run_id", "generated_at", "screening_basis", "model_name", "model_digest", "prompt_version", "policy_version", "company_profile_version", "company_profile_digest", "generation_config", "generation_config_digest", "judgments"}:
         top_reasons.append("decisions_top_level_invalid")
     if value.get("schema_version") != "bidops.decisions.v3":
         top_reasons.append("decisions_schema_invalid")
@@ -563,6 +591,8 @@ class QualityGateService:
                     or execution_a.model_digest != execution_b.model_digest
                     or execution_a.company_profile_version != execution_b.company_profile_version
                     or execution_a.company_profile_digest != execution_b.company_profile_digest
+                    or execution_a.generation_config_digest != execution_b.generation_config_digest
+                    or execution_a.generation_config_json != execution_b.generation_config_json
                     or execution_a.candidate_count != 40
                     or execution_b.candidate_count != 40
                 ):
@@ -575,6 +605,8 @@ class QualityGateService:
                     prompt_version=execution_a.prompt_version, model_name=execution_a.model_name,
                     model_digest=execution_a.model_digest, company_profile_version=execution_a.company_profile_version,
                     company_profile_digest=execution_a.company_profile_digest,
+                    generation_config_json=execution_a.generation_config_json,
+                    generation_config_digest=execution_a.generation_config_digest,
                     pass_a_execution_id=first.execution_id, pass_b_execution_id=second.execution_id,
                     created_by=actor, created_at=now, completed_at=None, metrics_json=_initial_metrics(sample_ids),
                     reasons_json=["execution_pending"],
@@ -584,7 +616,7 @@ class QualityGateService:
                 session.add(QualityGateEvaluation(
                     evaluation_id=_evaluation_id(), gate_id=gate_id, revision=1, result_status="미측정",
                     metrics_json=gate.metrics_json, reasons_json=["execution_pending"], valid_review_count=0,
-                    distinct_notice_review_count=0, created_at=now,
+                    distinct_notice_review_count=0, generation_config_digest=gate.generation_config_digest, created_at=now,
                 ))
                 session.add(AuditEvent(
                     event_id="audit-" + uuid4().hex, event_type="quality_gate.created", actor=actor,
@@ -684,6 +716,7 @@ class QualityGateService:
             evaluation_id=_evaluation_id(), gate_id=gate.gate_id, revision=revision,
             result_status=result_status, metrics_json=dict(metrics), reasons_json=reasons_list,
             valid_review_count=valid_reviews, distinct_notice_review_count=distinct_reviews,
+            generation_config_digest=gate.generation_config_digest,
             created_at=_now(self.clock()),
         )
         session.add(evaluation)
@@ -1031,6 +1064,27 @@ class QualityGateService:
             raise QualityGateActivationError("profile identity does not match quality gate")
         if company_profile_digest is not None and gate.company_profile_digest != company_profile_digest:
             raise QualityGateActivationError("profile digest does not match quality gate")
+        # Generation configuration is part of the approval identity. Check
+        # the immutable gate projection, both frozen pass executions, and the
+        # selected evaluation together.
+        try:
+            gate_config = config_from_value(gate.generation_config_json)
+            validate_digest(gate_config, gate.generation_config_digest)
+        except (GenerationConfigError, AttributeError):
+            raise QualityGateActivationError("generation config is invalid") from None
+        if evaluation.generation_config_digest != gate.generation_config_digest:
+            raise QualityGateActivationError("evaluation generation config does not match quality gate")
+        passes = [
+            session.get(ScreeningExecution, gate.pass_a_execution_id),
+            session.get(ScreeningExecution, gate.pass_b_execution_id),
+        ]
+        if any(
+            execution is None
+            or execution.generation_config_digest != gate.generation_config_digest
+            or execution.generation_config_json != gate_config.canonical_value()
+            for execution in passes
+        ):
+            raise QualityGateActivationError("quality pass generation config does not match quality gate")
         return True
 
     validate_activation = can_activate

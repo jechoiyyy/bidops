@@ -30,6 +30,7 @@ from ..models import (
     ScreeningPolicy,
     utc_now,
 )
+from .generation_config import GenerationConfigError, ensure_generation_config
 
 
 TRIGGERS: Final[frozenset[str]] = frozenset(
@@ -328,6 +329,8 @@ class ScreeningQueue:
         input_artifact_path: str,
         input_artifact_digest: str,
         artifact_dir: str,
+        generation_config: Any | None = None,
+        generation_config_digest: str | None = None,
         notice_pk: int | None = None,
         notice_id: str | None = None,
         candidate_count: int = 0,
@@ -361,6 +364,10 @@ class ScreeningQueue:
         input_artifact_path = safe_relative_path(input_artifact_path, "input_artifact_path")
         input_artifact_digest = _digest(input_artifact_digest, "input_artifact_digest")
         artifact_dir = safe_relative_path(artifact_dir, "artifact_dir")
+        try:
+            frozen_generation_config, frozen_generation_config_digest = ensure_generation_config(generation_config, generation_config_digest)
+        except GenerationConfigError:
+            raise QueueValidationError("generation config is invalid") from None
         if type(candidate_count) is not int or candidate_count < 0:
             raise QueueValidationError("candidate_count must be a nonnegative integer")
         if scope == "single_notice":
@@ -413,6 +420,8 @@ class ScreeningQueue:
                 model_digest=model_digest,
                 company_profile_version=company_profile_version,
                 company_profile_digest=company_profile_digest,
+                generation_config_json=frozen_generation_config.canonical_value(),
+                generation_config_digest=frozen_generation_config_digest,
                 input_artifact_path=input_artifact_path,
                 input_artifact_digest=input_artifact_digest,
                 artifact_dir=artifact_dir,
@@ -468,6 +477,10 @@ class ScreeningQueue:
         input_artifact_path = safe_relative_path(kwargs["input_artifact_path"], "input_artifact_path")
         input_artifact_digest = _digest(kwargs["input_artifact_digest"], "input_artifact_digest")
         artifact_dir = safe_relative_path(kwargs["artifact_dir"], "artifact_dir")
+        try:
+            frozen_generation_config, frozen_generation_config_digest = ensure_generation_config(kwargs.get("generation_config"), kwargs.get("generation_config_digest"))
+        except GenerationConfigError:
+            raise QueueValidationError("generation config is invalid") from None
         candidate_count = kwargs.get("candidate_count", 0)
         if type(candidate_count) is not int or candidate_count < 0:
             raise QueueValidationError("candidate_count must be a nonnegative integer")
@@ -521,6 +534,8 @@ class ScreeningQueue:
             model_digest=model_digest,
             company_profile_version=company_profile_version,
             company_profile_digest=company_profile_digest,
+            generation_config_json=frozen_generation_config.canonical_value(),
+            generation_config_digest=frozen_generation_config_digest,
             input_artifact_path=input_artifact_path,
             input_artifact_digest=input_artifact_digest,
             artifact_dir=artifact_dir,

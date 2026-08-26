@@ -38,7 +38,7 @@ def test_empty_database_upgrade_creates_runtime_tables(tmp_path: Path) -> None:
         }
         assert "alembic_version" in tables
         assert "screening_execution" in tables
-        assert connection.execute("select version_num from alembic_version").fetchone()[0] == "0004_migration_audit"
+        assert connection.execute("select version_num from alembic_version").fetchone()[0] == "0005_generation_config_binding"
         migration_event = connection.execute(
             "select event_id, actor, target_id, details_json from audit_event "
             "where event_type = 'db.migration'"
@@ -53,13 +53,73 @@ def test_empty_database_upgrade_creates_runtime_tables(tmp_path: Path) -> None:
     assert check.returncode == 0, check.stderr + check.stdout
 
 
+def test_generation_config_migration_backfills_and_freezes_execution_rows(tmp_path: Path) -> None:
+    database = tmp_path / "generation-config.db"
+    assert run_alembic(database, "upgrade", "0004_migration_audit").returncode == 0
+    digest = "a" * 64
+
+    def add_execution(connection: sqlite3.Connection, suffix: str, *, config: str | None = None) -> None:
+        values = {
+            "execution_id": "scr-" + suffix,
+            "input_path": f"runs/{suffix}.json",
+            "artifact_dir": f"runs/{suffix}",
+            "digest": digest,
+        }
+        columns = "execution_id, trigger, source_run_id, scope, status, requested_by, policy_version, prompt_version, model_name, model_digest, company_profile_version, company_profile_digest, input_artifact_path, input_artifact_digest, artifact_dir, queued_at"
+        placeholders = ":execution_id, 'manual_run', 'r1', 'full_run', '대기', 'migration-test', 'p1', 'prompt-1', 'qwen3.8:27b', :digest, 'company-profile.sha256:' || :digest, :digest, :input_path, :digest, :artifact_dir, '2026-01-01T00:00:00+00:00'"
+        if config is not None:
+            columns += ", generation_config_json, generation_config_digest"
+            placeholders += ", :config, :digest"
+        connection.execute(f"insert into screening_execution({columns}) values ({placeholders})", {**values, "config": config})
+
+    with sqlite3.connect(database) as connection:
+        connection.execute("insert into run(id, timezone, generated_at, status) values ('r1', 'UTC', '2026-01-01T00:00:00+00:00', '성공')")
+        connection.execute(
+            "insert into company_profile_snapshot(digest, version, source_kind, source_ref, artifact_path, created_at) values (?, ?, 'working_tree', 'migration-test', ?, '2026-01-01T00:00:00+00:00')",
+            (digest, "company-profile.sha256:" + digest, "web/data/profile-snapshots/" + digest + ".md"),
+        )
+        add_execution(connection, "1" * 32)
+        connection.commit()
+
+    assert run_alembic(database, "upgrade", "head").returncode == 0
+    legacy_json = {
+        "num_ctx": 16384,
+        "num_predict": {"counterargument": 2048, "perspective": 2048, "synthesis": 2048},
+        "schema_version": "bidops.generation-config.v1",
+        "stream": False,
+        "think": False,
+    }
+    with sqlite3.connect(database) as connection:
+        row = connection.execute("select generation_config_json, generation_config_digest from screening_execution where execution_id=?", ("scr-" + "1" * 32,)).fetchone()
+        assert json.loads(row[0]) == legacy_json
+        assert row[1] == "f5005da40315a4d24edba05b9394e71dba6c1c3c5790c84e5cc43673215134aa"
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute("update screening_execution set generation_config_digest=? where execution_id=?", ("b" * 64, "scr-" + "1" * 32))
+        with pytest.raises(sqlite3.IntegrityError):
+            add_execution(connection, "2" * 32, config="[]")
+        trigger_names = {
+            row[0]
+            for row in connection.execute("select name from sqlite_master where type='trigger'")
+        }
+        assert {
+            "screening_execution_generation_config_immutable",
+            "screening_execution_generation_shape_insert",
+            "quality_gate_generation_config_immutable",
+            "quality_gate_generation_shape_insert",
+            "quality_gate_generation_binding_insert",
+            "quality_gate_generation_binding_update",
+            "quality_gate_evaluation_generation_binding",
+            "quality_gate_evaluation_generation_binding_update",
+        } <= trigger_names
+
+
 def test_migration_audit_is_idempotent_from_0003_and_safe_to_downgrade(tmp_path: Path) -> None:
     database = tmp_path / "migration-audit.db"
     assert run_alembic(database, "upgrade", "0003_schedule_skipped_recovery").returncode == 0
     assert run_alembic(database, "upgrade", "head").returncode == 0
     assert run_alembic(database, "upgrade", "head").returncode == 0
     with sqlite3.connect(database) as connection:
-        assert connection.execute("select version_num from alembic_version").fetchone()[0] == "0004_migration_audit"
+        assert connection.execute("select version_num from alembic_version").fetchone()[0] == "0005_generation_config_binding"
         assert connection.execute(
             "select count(*) from audit_event where event_id = 'audit-e7854deca36d619ac1921856bb9bdbcd'"
         ).fetchone()[0] == 1
@@ -70,7 +130,7 @@ def test_migration_audit_is_idempotent_from_0003_and_safe_to_downgrade(tmp_path:
         assert connection.execute("select count(*) from audit_event where event_id = 'audit-e7854deca36d619ac1921856bb9bdbcd'").fetchone()[0] == 0
     assert run_alembic(database, "upgrade", "head").returncode == 0
     with sqlite3.connect(database) as connection:
-        assert connection.execute("select version_num from alembic_version").fetchone()[0] == "0004_migration_audit"
+        assert connection.execute("select version_num from alembic_version").fetchone()[0] == "0005_generation_config_binding"
         assert connection.execute("select count(*) from audit_event where event_id = 'audit-e7854deca36d619ac1921856bb9bdbcd'").fetchone()[0] == 1
 
 
@@ -121,7 +181,7 @@ def test_skipped_recovery_trigger_upgrades_from_0002_and_downgrades(tmp_path: Pa
         run_key, target_id = add_skipped_execution(connection, 3)
         add_recovery(connection, run_key, target_id, 4)
         connection.commit()
-        assert connection.execute("select version_num from alembic_version").fetchone()[0] == "0004_migration_audit"
+        assert connection.execute("select version_num from alembic_version").fetchone()[0] == "0005_generation_config_binding"
         projection_sql = {
             row[0]: row[1]
             for row in connection.execute(
@@ -357,7 +417,7 @@ def test_unversioned_exact_baseline_migrates_a_backup_copy_and_preserves_core_ro
     result = subprocess.run([sys.executable, "-m", "app.db_admin", "migrate", "--backup-manifest", str(backup) + ".manifest.json", "--confirm-service-stopped"], cwd=BACKEND, env=env, text=True, capture_output=True)
     assert result.returncode == 0, result.stderr
     with sqlite3.connect(database) as connection:
-        assert connection.execute("select version_num from alembic_version").fetchone()[0] == "0004_migration_audit"
+        assert connection.execute("select version_num from alembic_version").fetchone()[0] == "0005_generation_config_binding"
         assert [connection.execute(f"select count(*) from {table}").fetchone()[0] for table in ("run", "notice", "judgment", "review", "attachment")] == [1, 1, 1, 1, 1]
         assert connection.execute("pragma foreign_key_check").fetchall() == []
         assert connection.execute("pragma quick_check").fetchone()[0] == "ok"

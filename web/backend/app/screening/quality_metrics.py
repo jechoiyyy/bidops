@@ -18,6 +18,7 @@ from typing import Any, Mapping, Sequence
 
 from .artifacts import canonical_bytes
 from .contracts import ContractViolation, PERSPECTIVE_NAMES, two_axis_mixing, validate_judgment
+from .generation_config import GenerationConfigError, config_from_value, legacy_generation_config, validate_digest
 
 
 VALID_GRADES = frozenset({"우선 검토", "검토 권장", "관찰 대상", "제외"})
@@ -37,6 +38,7 @@ _DECISIONS_KEYS = frozenset({
     "schema_version", "execution_id", "run_id", "generated_at", "screening_basis",
     "model_name", "model_digest", "prompt_version", "policy_version",
     "company_profile_version", "company_profile_digest", "judgments",
+    "generation_config", "generation_config_digest",
 })
 _EXECUTION_ID_RE = re.compile(r"^scr-[0-9a-f]{32}$")
 SCREENING_BASIS = "회차에 고정된 정규화 공고와 회사 프로필·정책 버전"
@@ -134,6 +136,12 @@ def _judgment_map(
     if not isinstance(pass_value, Mapping):
         return {}, [issue("", "decisions_not_object")]
     if strict:
+        # Keep the pure metric helper compatible with pre-0005 fixture
+        # artifacts. The quality-gate service performs the stricter frozen
+        # input/decision binding before this helper is called.
+        if set(pass_value) == _DECISIONS_KEYS - {"generation_config", "generation_config_digest"}:
+            legacy = legacy_generation_config()
+            pass_value = {**pass_value, "generation_config": legacy.canonical_value(), "generation_config_digest": legacy.digest()}
         if set(pass_value) != _DECISIONS_KEYS:
             return {}, [issue("", "decisions_top_level_invalid")]
         if pass_value.get("schema_version") != "bidops.decisions.v3":
@@ -148,6 +156,12 @@ def _judgment_map(
                 return {}, [issue("", f"decisions_{key}_invalid")]
         if pass_value["company_profile_version"] != f"company-profile.sha256:{pass_value['company_profile_digest']}":
             return {}, [issue("", "decisions_profile_identity_invalid")]
+        try:
+            generation_config = config_from_value(pass_value.get("generation_config"))
+            if validate_digest(generation_config, pass_value.get("generation_config_digest")) != generation_config.digest():
+                return {}, [issue("", "decisions_generation_config_invalid")]
+        except GenerationConfigError:
+            return {}, [issue("", "decisions_generation_config_invalid")]
         if not _EXECUTION_ID_RE.fullmatch(pass_value["execution_id"]):
             return {}, [issue("", "decisions_execution_id_invalid")]
         try:

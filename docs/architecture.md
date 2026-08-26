@@ -70,7 +70,7 @@ APScheduler 3.11 계열은 in-process clock이다. 시간대는 `Asia/Seoul`, �
 
 ## 저장·보안 경계
 
-- SQLite는 WAL과 foreign keys를 켠다. 현재 head는 `0004_migration_audit`이며 앱은 자동 migrate하지 않는다. backup manifest를 보존한 명시적 migrate와 `db-verify`를 운영자가 수행한다.
+- SQLite는 WAL과 foreign keys를 켠다. 현재 head는 `0005_generation_config_binding`이며 앱은 자동 migrate하지 않는다. backup manifest를 보존한 명시적 migrate와 `db-verify`를 운영자가 수행한다.
 - artifact 경로는 알려진 파일명, symlink 거부, root escape 검사를 통과해야 한다. API는 내부 저장 경로를 조합하게 하지 않고 허용된 artifact endpoint만 노출한다.
 - `.env`, API key, Ollama credential, 원문 첨부와 run data를 image·Git에 넣지 않는다. web container는 root로 실행하지 않고 UID/GID bind mount 권한을 검사한다.
 - Docker Python runtime은 `web/backend/requirements.lock`의 exact transitive pins만 설치한다. visual은 remote Google Fonts를 차단하고 image local fonts로 고정한다.

@@ -84,6 +84,7 @@ def test_screening_response_and_detail_have_exact_public_keys() -> None:
         "company_profile_version",
         "company_profile_digest",
         "input_artifact_digest",
+        "generation_config_digest",
         "queued_at",
         "started_at",
         "finished_at",
