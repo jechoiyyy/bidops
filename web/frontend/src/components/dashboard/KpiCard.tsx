@@ -25,7 +25,7 @@ export function KpiCard({ label, value, description, status, accent = false, to 
   );
 
   if (to) {
-    return <Link className={className} to={to} aria-label={`${label} 상세 보기`}>{body}</Link>;
+    return <Link className={className} to={to}>{body}</Link>;
   }
   return <section className={className} aria-label={label}>{body}</section>;
 }
