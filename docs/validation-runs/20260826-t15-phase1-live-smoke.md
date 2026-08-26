@@ -98,6 +98,8 @@ Ollama 호출 payload 구현은 `think=false`, `stream=false`를 사용하며, �
 
 `phase1-logs/`의 migration, seed, ingest, 최초 preflight input 오류, 수정 후 live 실행 로그도 runtime에 삭제 없이 보존했다.
 
+`phase1-logs/00-model-preflight-attempts.log`에는 3회 제한 preflight 중 성공한 첫 번째 `/api/tags` HTTP 응답과 시각/exit code가 그대로 보존되어 있으며 SHA-256은 `23779c076c2e0ec9d302b50a177c4e281e908fcddd584a88acbf8a5f036ba795`이다.
+
 ## stop smoke 및 활성화 상태
 
 stop smoke는 실행하지 않았다. 단일 smoke가 v3 judgment와 7-span 성공 조건을 충족하지 못했기 때문에 중지 요청을 추가하는 것은 계약상 의미가 없다. 해당 execution의 `stop_requested_by`와 `stop_reason`은 모두 null이며, 중지 actor/reason 또는 stop artifact는 존재하지 않는다.
