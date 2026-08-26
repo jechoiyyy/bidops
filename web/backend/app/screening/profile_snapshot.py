@@ -27,6 +27,8 @@ from ..models import CompanyProfileSnapshot, utc_now
 
 PROFILE_SOURCE_PATH: Final[str] = "docs/reference/company-profile.md"
 BASELINE_COMMIT: Final[str] = "ee621835db934ddac944f7a07a986ed0b73ecc7a"
+BASELINE_PROFILE_PATH: Final[Path] = Path(__file__).with_name("baseline_company_profile.md")
+BASELINE_PROFILE_SHA256: Final[str] = "a231ab54c36031a7e72779bbca550f70561dc0c946dc5544eeb930c7c6149de2"
 PROFILE_ARTIFACT_PREFIX: Final[str] = "web/data/profile-snapshots/"
 GIT_TIMEOUT_SECONDS: Final[float] = 10.0
 _HEX40_RE = re.compile(r"^[0-9a-f]{40}$")
@@ -39,6 +41,10 @@ class ProfileSnapshotError(RuntimeError):
 
 class ProfileSnapshotConflict(ProfileSnapshotError):
     """Raised when a durable profile artifact does not match its digest."""
+
+
+class _GitLookupUnavailable(ProfileSnapshotError):
+    """Git is unavailable, so the approved vendored baseline may be used."""
 
 
 SnapshotError = ProfileSnapshotError
@@ -134,12 +140,14 @@ def _git_blob(root: Path, commit: str, relative: str) -> bytes:
             timeout=GIT_TIMEOUT_SECONDS,
         )
         if repo_top_result.returncode != 0:
-            raise ProfileSnapshotError("git repository could not be located")
+            raise _GitLookupUnavailable("git repository could not be located")
         repo_top = Path(repo_top_result.stdout.strip()).resolve()
         project_prefix = root.resolve().relative_to(repo_top)
         git_relative = (project_prefix / relative).as_posix()
     except subprocess.TimeoutExpired:
         raise ProfileSnapshotError("git profile source inspection timed out") from None
+    except FileNotFoundError as exc:
+        raise _GitLookupUnavailable("git executable is unavailable") from exc
     except (OSError, ValueError) as exc:
         raise ProfileSnapshotError("git repository path is invalid") from exc
     # Verify the object is a blob before reading it.  Separate argv items are
@@ -154,6 +162,8 @@ def _git_blob(root: Path, commit: str, relative: str) -> bytes:
         )
     except subprocess.TimeoutExpired:
         raise ProfileSnapshotError("git profile source inspection timed out") from None
+    except FileNotFoundError as exc:
+        raise _GitLookupUnavailable("git executable is unavailable") from exc
     except OSError as exc:
         raise ProfileSnapshotError("git profile source could not be inspected") from exc
     if kind.returncode != 0 or kind.stdout.strip() != "blob":
@@ -167,11 +177,28 @@ def _git_blob(root: Path, commit: str, relative: str) -> bytes:
         )
     except subprocess.TimeoutExpired:
         raise ProfileSnapshotError("git profile source read timed out") from None
+    except FileNotFoundError as exc:
+        raise _GitLookupUnavailable("git executable is unavailable") from exc
     except OSError as exc:
         raise ProfileSnapshotError("git profile source could not be read") from exc
     if result.returncode != 0:
         raise ProfileSnapshotError("approved git profile blob could not be read")
     return bytes(result.stdout)
+
+
+def _vendored_baseline_blob() -> bytes:
+    """Read and verify the one approved baseline blob bundled for containers."""
+
+    path = BASELINE_PROFILE_PATH
+    if path.is_symlink() or not path.is_file():
+        raise ProfileSnapshotError("vendored baseline profile is missing or not a regular file")
+    try:
+        raw = path.read_bytes()
+    except (OSError, UnicodeError) as exc:
+        raise ProfileSnapshotError("vendored baseline profile could not be read") from exc
+    if hashlib.sha256(raw).hexdigest() != BASELINE_PROFILE_SHA256:
+        raise ProfileSnapshotConflict("vendored baseline profile digest does not match its identity")
+    return raw
 
 
 def read_git_source(
@@ -183,7 +210,17 @@ def read_git_source(
     """Read the approved historical profile blob as raw bytes."""
 
     root = _project_root(project_root)
-    raw = _git_blob(root, commit, relative)
+    try:
+        raw = _git_blob(root, commit, relative)
+        # Git remains authoritative whenever it is available, while this
+        # equality check prevents the vendored fallback from drifting from the
+        # approved historical blob in source checkouts.
+        if raw != _vendored_baseline_blob():
+            raise ProfileSnapshotConflict("git profile blob differs from vendored baseline")
+    except _GitLookupUnavailable:
+        if commit != BASELINE_COMMIT or relative != PROFILE_SOURCE_PATH:
+            raise ProfileSnapshotError("approved git profile source is unavailable") from None
+        raw = _vendored_baseline_blob()
     return ProfileSource(raw=raw, source_kind="git_blob", source_ref=commit)
 
 
@@ -495,6 +532,8 @@ ProfileSnapshotStore = ProfileSnapshotRepository
 
 __all__ = [
     "BASELINE_COMMIT",
+    "BASELINE_PROFILE_PATH",
+    "BASELINE_PROFILE_SHA256",
     "PROFILE_SOURCE_PATH",
     "GIT_TIMEOUT_SECONDS",
     "ProfileSnapshotConflict",
