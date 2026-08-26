@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { EmptyState } from "../components/common/EmptyState";
 import { PolicyCreateForm } from "../components/policies/PolicyCreateForm";
 import { PolicyVersionCard } from "../components/policies/PolicyVersionCard";
@@ -13,13 +13,19 @@ function errorText(error: unknown, resource: string): string {
 }
 
 export function PoliciesPage() {
-  const queryClient = useQueryClient();
   const [activationNotice, setActivationNotice] = useState<PolicyActivationResponse | null>(null);
-  const policiesQuery = useQuery({ queryKey: ["policies"], queryFn: () => api.getPolicies(), refetchInterval: 10_000, staleTime: 0 });
-  const gatesQuery = useQuery({ queryKey: ["quality-gates", "operational"], queryFn: () => api.getQualityGates({ purpose: "operational_approval", limit: 100, offset: 0 }), refetchInterval: 5000, staleTime: 0 });
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshInFlightRef = useRef(false);
+  const policiesQuery = useQuery({ queryKey: ["policies"], queryFn: () => api.getPolicies(), retry: false, refetchOnWindowFocus: false, staleTime: 0 });
+  const gatesQuery = useQuery({ queryKey: ["quality-gates", "operational"], queryFn: () => api.getQualityGates({ purpose: "operational_approval", limit: 100, offset: 0 }), retry: false, refetchOnWindowFocus: false, staleTime: 0 });
   const refresh = () => {
-    void queryClient.invalidateQueries({ queryKey: ["policies"] });
-    void queryClient.invalidateQueries({ queryKey: ["quality-gates", "operational"] });
+    if (refreshInFlightRef.current) return;
+    refreshInFlightRef.current = true;
+    setRefreshing(true);
+    void Promise.allSettled([policiesQuery.refetch(), gatesQuery.refetch()]).finally(() => {
+      refreshInFlightRef.current = false;
+      setRefreshing(false);
+    });
   };
   const policies = policiesQuery.data?.items ?? [];
   const operationalGates = gatesQuery.data?.items ?? [];
@@ -36,6 +42,7 @@ export function PoliciesPage() {
     <div className="policy-page">
       <header className="policy-page-header">
         <div><span className="policy-eyebrow">판정 런타임 · 불변 설정</span><h1>판정 정책</h1><p>정책 본문은 버전과 digest로 고정됩니다. 후보 지정과 운영 활성화는 별도 확인 절차입니다.</p></div>
+        <button className="policy-button policy-button-secondary policy-refresh-button" type="button" onClick={refresh} disabled={refreshing}>{refreshing ? "새로고침 중…" : "새로고침"}</button>
         <div className="policy-header-facts"><span>버전</span><strong>{policies.length}개</strong><span>현재 active</span><strong className="mono">{policiesQuery.data?.active_policy_version ?? "없음"}</strong></div>
       </header>
       <div className="policy-critical-note" role="note"><strong>운영 경계</strong><span>모델 비교용 게이트는 정책 활성화 근거로 사용할 수 없습니다. 운영 활성화에는 최신 operational_approval 통과 evaluation ID가 필요합니다.</span></div>
