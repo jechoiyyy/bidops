@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
+import hashlib
+import hmac
 import json
 import math
 from pathlib import Path
@@ -13,8 +15,9 @@ from types import MappingProxyType
 from typing import Any, Callable, Mapping, NamedTuple, Sequence
 from uuid import uuid4
 import weakref
+import secrets
 
-from sqlalchemy import select
+from sqlalchemy import event, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from ..config import Settings, get_settings
@@ -191,17 +194,82 @@ class _BindingIssuer(NamedTuple):
         return self.transition_fn(value, expected, replacement)
 
 
-def _make_binding_issuer() -> tuple[_BindingIssuer, Callable[[Any, Any], None]]:
+class _IssuerRecord(NamedTuple):
+    reference: weakref.ReferenceType[Any]
+    facts: Any
+    state: str
+    generation: int
+    tag: bytes
+
+
+class _TagVerifier(NamedTuple):
+    sign_fn: Callable[[bytes], bytes]
+    verify_fn: Callable[[bytes, bytes], bool]
+
+    def sign(self, payload: bytes) -> bytes:
+        return self.sign_fn(payload)
+
+    def verify(self, payload: bytes, tag: bytes) -> bool:
+        return self.verify_fn(payload, tag)
+
+
+def _make_tag_verifier() -> _TagVerifier:
+    # Keep the key in a verifier boundary separate from the issuer lookup
+    # closure.  The issuer exposes neither the key nor its mutable map.
+    secret = secrets.token_bytes(32)
+
+    def sign(payload: bytes) -> bytes:
+        return hmac.new(secret, payload, hashlib.sha256).digest()
+
+    def verify(payload: bytes, tag: bytes) -> bool:
+        return isinstance(tag, bytes) and hmac.compare_digest(sign(payload), tag)
+
+    return _TagVerifier(sign, verify)
+
+
+def _tag_payload(*values: Any) -> bytes:
+    chunks: list[bytes] = []
+    for value in values:
+        if isinstance(value, bytes):
+            encoded = b"b:" + value
+        elif isinstance(value, (tuple, list)):
+            encoded = b"j:" + json.dumps(
+                value, ensure_ascii=False, separators=(",", ":"), sort_keys=True
+            ).encode("utf-8")
+        else:
+            encoded = b"s:" + str(value).encode("utf-8")
+        chunks.append(len(encoded).to_bytes(8, "big") + encoded)
+    return b"".join(chunks)
+
+
+def _make_binding_issuer(
+    payload_fn: Callable[[Any, Any, str, int], bytes], verifier: _TagVerifier
+) -> tuple[_BindingIssuer, Callable[[Any, Any], None]]:
     lock = RLock()
-    entries: dict[int, tuple[weakref.ReferenceType[Any], Any, str]] = {}
+    entries: dict[int, _IssuerRecord] = {}
+
+    def valid(value: Any, record: Any) -> bool:
+        try:
+            return (
+                isinstance(record, _IssuerRecord)
+                and record.reference() is value
+                and verifier.verify(
+                    payload_fn(value, record.facts, record.state, record.generation),
+                    record.tag,
+                )
+            )
+        except (AttributeError, TypeError, ValueError, OverflowError):
+            return False
 
     def entry(value: Any) -> tuple[Any, str] | None:
         key = id(value)
         with lock:
             registered = entries.get(key)
-            if registered is None or registered[0]() is not value:
+            if registered is None or not valid(value, registered):
+                if registered is not None:
+                    entries.pop(key, None)
                 return None
-            return registered[1], registered[2]
+            return registered.facts, registered.state
 
     def register(value: Any, facts: Any, state: str = "issued") -> None:
         key = id(value)
@@ -209,24 +277,34 @@ def _make_binding_issuer() -> tuple[_BindingIssuer, Callable[[Any, Any], None]]:
         def cleanup(reference: weakref.ReferenceType[Any]) -> None:
             with lock:
                 registered = entries.get(key)
-                if registered is not None and registered[0] is reference:
+                if registered is not None and registered.reference is reference:
                     entries.pop(key, None)
 
         reference = weakref.ref(value, cleanup)
         with lock:
             registered = entries.get(key)
-            if registered is not None and registered[0]() is not None:
+            if registered is not None and registered.reference() is not None:
                 raise RuntimeError("issuer identity is already registered")
-            entries[key] = (reference, facts, state)
+            generation = 0
+            tag = verifier.sign(payload_fn(value, facts, state, generation))
+            entries[key] = _IssuerRecord(reference, facts, state, generation, tag)
 
     def transition(value: Any, expected: str, replacement: str) -> Any | None:
         key = id(value)
         with lock:
             registered = entries.get(key)
-            if registered is None or registered[0]() is not value or registered[2] != expected:
+            if registered is None or not valid(value, registered):
+                if registered is not None:
+                    entries.pop(key, None)
                 return None
-            entries[key] = (registered[0], registered[1], replacement)
-            return registered[1]
+            if registered.state != expected:
+                return None
+            generation = registered.generation + 1
+            tag = verifier.sign(payload_fn(value, registered.facts, replacement, generation))
+            entries[key] = _IssuerRecord(
+                registered.reference, registered.facts, replacement, generation, tag
+            )
+            return registered.facts
 
     return _BindingIssuer(entry, transition), register
 
@@ -242,9 +320,38 @@ class _BindingFacts(NamedTuple):
     baseline_digest: str
     results_digest: str
     source_ref: weakref.ReferenceType[Any]
+    source_identity: int
+    source_root: Path
+    source_root_identity: tuple[int, int]
+    source_canonical_run_id: str
 
 
-_BINDING_ISSUER, _binding_register = _make_binding_issuer()
+def _binding_tag_payload(
+    binding: _QualitySampleBinding, facts: _BindingFacts, state: str, generation: int
+) -> bytes:
+    return _tag_payload(
+        "binding-v1",
+        id(binding),
+        facts.run_id,
+        facts.source_identity,
+        str(facts.source_root),
+        facts.source_root_identity,
+        facts.source_canonical_run_id,
+        facts.sample_raw,
+        facts.baseline_raw,
+        facts.results_raw,
+        facts.sample_digest,
+        facts.baseline_digest,
+        facts.results_digest,
+        state,
+        generation,
+    )
+
+
+_BINDING_VERIFIER = _make_tag_verifier()
+_BINDING_ISSUER, _binding_register = _make_binding_issuer(
+    _binding_tag_payload, _BINDING_VERIFIER
+)
 
 
 def _binding_registry_entry(
@@ -281,6 +388,98 @@ def _register_quality_binding(
 
 
 del _binding_register
+del _BINDING_VERIFIER
+
+
+_QUALITY_BINDING_SESSION_KEY = "_screening_quality_binding_reservations"
+
+
+class _PendingQualityBinding(NamedTuple):
+    binding: _QualitySampleBinding
+    transaction: Any
+
+
+def _track_quality_binding(session: Session, binding: _QualitySampleBinding) -> None:
+    pending = session.info.get(_QUALITY_BINDING_SESSION_KEY)
+    if pending is None:
+        pending = {}
+        session.info[_QUALITY_BINDING_SESSION_KEY] = pending
+    if not isinstance(pending, dict):
+        raise ScreeningCreationError("input_error")
+    transaction = session.get_nested_transaction() or session.get_transaction()
+    if transaction is None:
+        raise ScreeningCreationError("input_error")
+    pending[id(binding)] = _PendingQualityBinding(binding, transaction)
+
+
+def _untrack_quality_binding(session: Session, binding: _QualitySampleBinding) -> None:
+    pending = session.info.get(_QUALITY_BINDING_SESSION_KEY)
+    if isinstance(pending, dict):
+        pending.pop(id(binding), None)
+        if not pending:
+            session.info.pop(_QUALITY_BINDING_SESSION_KEY, None)
+
+
+def _pop_quality_bindings(session: Session) -> tuple[_QualitySampleBinding, ...]:
+    pending = session.info.pop(_QUALITY_BINDING_SESSION_KEY, None)
+    if not isinstance(pending, dict):
+        return ()
+    return tuple(
+        item.binding
+        for item in pending.values()
+        if isinstance(item, _PendingQualityBinding)
+        and type(item.binding) is _QualitySampleBinding
+    )
+
+
+def _finalize_quality_bindings(session: Session, *, committed: bool) -> None:
+    # SQLAlchemy fires after_commit/after_rollback for savepoints as well as
+    # the outer transaction.  During the callback the outer transaction may
+    # still be visible through ``in_transaction()``; nested savepoints are
+    # instead identified by ``in_nested_transaction()``.  Only the outer
+    # event changes issuer state, making session reuse leak-free.
+    nested = session.get_nested_transaction()
+    pending = session.info.get(_QUALITY_BINDING_SESSION_KEY)
+    if not isinstance(pending, dict):
+        return
+    if nested is not None:
+        if committed:
+            return
+        # A savepoint rollback removes only reservations made in that
+        # savepoint.  Reservations made by the outer transaction remain
+        # pending for its eventual commit/rollback.
+        affected = [
+            item.binding
+            for item in pending.values()
+            if isinstance(item, _PendingQualityBinding) and item.transaction is nested
+        ]
+        for binding in affected:
+            pending.pop(id(binding), None)
+            _release_quality_binding(binding)
+        if not pending:
+            session.info.pop(_QUALITY_BINDING_SESSION_KEY, None)
+        return
+    for binding in _pop_quality_bindings(session):
+        if committed:
+            try:
+                _commit_quality_binding(binding)
+            except ScreeningCreationError:
+                # A tag failure revokes the entry and the durable row remains
+                # auditable; never turn an already-committed SQL transaction
+                # into a misleading caller failure.
+                continue
+        else:
+            _release_quality_binding(binding)
+
+
+@event.listens_for(Session, "after_commit")
+def _quality_binding_after_commit(session: Session) -> None:
+    _finalize_quality_bindings(session, committed=True)
+
+
+@event.listens_for(Session, "after_rollback")
+def _quality_binding_after_rollback(session: Session) -> None:
+    _finalize_quality_bindings(session, committed=False)
 
 
 def _validate_quality_binding(
@@ -329,6 +528,10 @@ def _validate_quality_binding(
         or source_facts.canonical_run_id != run_id
         or source_facts.root != _absolute_root(project_root)
         or source_facts.root_identity != _trusted_root_identity(project_root)
+        or facts.source_identity != id(source)
+        or facts.source_root != source_facts.root
+        or facts.source_root_identity != source_facts.root_identity
+        or facts.source_canonical_run_id != source_facts.canonical_run_id
         or facts.sample_raw != source_facts.sample_raw
         or facts.baseline_raw != source_facts.baseline_raw
         or facts.results_raw != source_facts.results_raw
@@ -343,6 +546,8 @@ def _reserve_quality_binding(
     binding: _QualitySampleBinding,
     run_id: str,
     project_root: Path | str,
+    *,
+    session: Session | None = None,
     issuer: _BindingIssuer = _BINDING_ISSUER,
 ) -> tuple[_BindingFacts, object]:
     """Atomically move one validated issuer binding from issued to reserved."""
@@ -350,15 +555,26 @@ def _reserve_quality_binding(
     facts, source = _validate_quality_binding(binding, run_id, project_root)
     if issuer.transition(binding, expected="issued", replacement="reserved") is None:
         raise ScreeningCreationError("input_error")
+    if session is not None:
+        try:
+            _track_quality_binding(session, binding)
+        except Exception:
+            issuer.transition(binding, expected="reserved", replacement="issued")
+            raise
     return facts, source
 
 
 def _release_quality_binding(
-    binding: _QualitySampleBinding, issuer: _BindingIssuer = _BINDING_ISSUER
+    binding: _QualitySampleBinding,
+    *,
+    session: Session | None = None,
+    issuer: _BindingIssuer = _BINDING_ISSUER,
 ) -> None:
     """Return a reservation to issued when no persistent row was published."""
 
     issuer.transition(binding, expected="reserved", replacement="issued")
+    if session is not None:
+        _untrack_quality_binding(session, binding)
 
 
 def _commit_quality_binding(
@@ -431,6 +647,10 @@ def _make_quality_sample_binding(
             baseline_digest=snapshot_facts.baseline_digest,
             results_digest=snapshot_facts.results_digest,
             source_ref=weakref.ref(source_token),
+            source_identity=id(source_token),
+            source_root=snapshot_facts.root,
+            source_root_identity=snapshot_facts.root_identity,
+            source_canonical_run_id=snapshot_facts.canonical_run_id,
         ),
     )
     return binding
@@ -1066,7 +1286,12 @@ class ScreeningOrchestrator:
         }
         store = ArtifactStore(Path(self.settings.bidops_root))
         if scope == "quality_sample":
-            _reserve_quality_binding(_quality_binding, run_id, self.settings.bidops_root)
+            _reserve_quality_binding(
+                _quality_binding,
+                run_id,
+                self.settings.bidops_root,
+                session=session,
+            )
             binding_reserved = True
         try:
             workspace = store.create_execution_workspace(execution_id)
@@ -1094,12 +1319,9 @@ class ScreeningOrchestrator:
                 candidate_count=len(frozen),
                 **({"notice_pk": queue_notice_pk, "notice_id": queue_notice} if scope == "single_notice" else {}),
             )
-            if scope == "quality_sample":
-                _commit_quality_binding(_quality_binding)
-                binding_reserved = False
         except Exception as exc:
             if binding_reserved:
-                _release_quality_binding(_quality_binding)
+                _release_quality_binding(_quality_binding, session=session)
             try:
                 if workspace is not None:
                     store.remove_execution(workspace)
