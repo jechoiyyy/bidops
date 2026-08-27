@@ -94,6 +94,60 @@
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 12px;
+
+  --chart-grade-1: #114C33;
+  --chart-grade-2: #1D7B4E;
+  --chart-grade-3: #4FB98A;
+  --chart-grade-4: #A9DCC3;
+}
+
+/* shadcn/ui가 사용하는 의미 토큰을 RootLab의 기존 표면·텍스트·상태 토큰에 연결한다. */
+/* 새 색을 만들지 않고 같은 의미의 RootLab 값을 참조해 기존 화면과의 일관성을 유지한다. */
+:root {
+  --background: var(--surface-app);
+  --foreground: var(--color-text);
+  --card: var(--surface-card);
+  --card-foreground: var(--color-text);
+  --popover: var(--surface-card);
+  --popover-foreground: var(--color-text);
+  --primary: var(--color-deep);
+  --primary-foreground: var(--color-white);
+  --secondary: var(--surface-secondary);
+  --secondary-foreground: var(--color-text);
+  --muted: var(--surface-secondary);
+  --muted-foreground: var(--color-muted);
+  --accent: var(--surface-secondary);
+  --accent-foreground: var(--color-text);
+  --destructive: var(--color-danger);
+  --destructive-foreground: var(--color-white);
+  --border: var(--border-subtle);
+  --input: var(--border-subtle);
+  --ring: var(--color-focus);
+  --radius: var(--radius-md);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  /* Keep shadcn utilities separate from RootLab's legacy primary/muted names. */
+  --color-shadcn-primary: var(--primary);
+  --color-shadcn-primary-foreground: var(--primary-foreground);
+  --color-shadcn-muted: var(--muted);
+  /* --color-border remains the canonical RootLab token from @theme above. */
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
 }
 
 /* ---- 반응형 전환점 ----
@@ -101,7 +155,8 @@
    아래 세 값 외의 전환점을 새로 만들지 않는다.
      max-width: 1180px  좁은 데스크톱. 3단 배치를 2단으로 줄인다.
      max-width:  900px  태블릿. 가로 배치를 세로 스택으로 바꾼다.
-     max-width:  640px  모바일. 남은 다열 배치를 한 열로 정리한다. */
+     max-width:  640px  모바일. 남은 다열 배치를 한 열로 정리한다.
+   검토 화면(queue·judgments)은 901~1180px에서도 목록·상세 2열을 유지한다. */
 
 :root {
   color: var(--color-text);
@@ -1548,6 +1603,22 @@ a {
   gap: 10px;
 }
 
+.dashboard-funnel-axis {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) minmax(138px, auto);
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.dashboard-funnel-axis-scale {
+  display: flex;
+  grid-column: 2;
+  justify-content: space-between;
+  color: var(--color-muted);
+  font-size: 10px;
+  line-height: 1.2;
+}
+
 .dashboard-funnel-row {
   display: grid;
   grid-template-columns: 72px minmax(0, 1fr) minmax(138px, auto);
@@ -1571,47 +1642,76 @@ a {
 
 .dashboard-funnel-bar {
   display: flex;
-  min-width: 8%;
   height: 100%;
   align-items: center;
   padding: 0 9px;
   border-radius: var(--radius-sm);
-  color: var(--color-ink-deep);
   font-size: 11px;
   font-weight: 500;
   white-space: nowrap;
 }
 
-.dashboard-funnel-bar-0 {
+/* 작은 잔존율도 숫자를 잃지 않도록 라벨을 막대 끝의 트랙 안에 둔다. */
+.dashboard-funnel-bar.is-compact {
+  position: relative;
+  overflow: visible;
+  padding: 0;
+}
+
+.dashboard-funnel-bar.is-compact > span {
+  position: absolute;
+  left: calc(100% + 6px);
   color: var(--color-dark);
-  background: var(--color-teal);
+}
+
+.dashboard-funnel-bar-0 {
+  color: var(--color-white);
+  background: var(--chart-grade-1);
 }
 
 .dashboard-funnel-bar-1 {
-  color: var(--color-ink-deep);
-  background: var(--color-mint-soft);
+  color: var(--color-white);
+  background: var(--chart-grade-2);
 }
 
 .dashboard-funnel-bar-2 {
-  color: var(--color-ink-deep);
-  background: var(--color-deck-soft);
+  color: var(--color-dark);
+  background: var(--chart-grade-3);
 }
 
 .dashboard-funnel-bar-3 {
-  color: var(--color-paper);
-  background: var(--color-primary-strong);
+  color: var(--color-dark);
+  background: var(--chart-grade-4);
 }
 
-.dashboard-funnel-unit {
-  margin-left: 4px;
-  font-weight: 400;
+.dashboard-funnel-state {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  padding: 0 9px;
+  color: var(--color-muted);
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .dashboard-funnel-change {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
   color: var(--color-muted);
   font-size: 10px;
   text-align: right;
   white-space: nowrap;
+}
+
+.dashboard-funnel-count {
+  color: var(--color-text);
+  font-size: 11px;
+}
+
+.dashboard-funnel-drop {
+  color: var(--color-muted);
 }
 
 .dashboard-funnel-extra {
@@ -4306,10 +4406,15 @@ a {
     grid-template-columns: 62px minmax(0, 1fr);
   }
 
+  .dashboard-funnel-axis {
+    grid-template-columns: 62px minmax(0, 1fr);
+  }
+
   .dashboard-funnel-change {
     grid-column: 2;
     margin-top: -6px;
     text-align: left;
+    align-items: flex-start;
   }
 
   .dashboard-validation-heading {
@@ -4919,19 +5024,6 @@ a {
   white-space: pre-wrap;
   word-break: break-word;
 }
-
-.dashboard-funnel-bar.is-unknown {
-  border: 1px dashed var(--border-strong);
-  color: var(--color-muted-soft);
-  background: var(--surface-secondary);
-}
-
-.dashboard-funnel-unknown {
-  color: var(--color-muted);
-  font-size: 11px;
-  white-space: nowrap;
-}
-
 
 /* ---- 판정 요약 밴드 ----
    담당자가 먼저 봐야 하는 등급·종합 권고·다음 행동·확인 항목 수를 상세 화면 맨 위에 모은다. */
