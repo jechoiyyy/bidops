@@ -1,0 +1,40 @@
+# Development-only override for replacing local Qwen generation with Codex
+# exec while exercising the unchanged BidOps workflow. Never combine this
+# file with production deployment. The auth file is mounted read-only and the
+# Codex subprocess runs ephemeral, read-only, without tools or repository rules.
+services:
+  web:
+    environment:
+      BIDOPS_ANALYSIS_PROVIDER: codex-exec
+      BIDOPS_OPENAI_ENABLED: "true"
+      BIDOPS_CODEX_EXEC_ENABLED: "true"
+      BIDOPS_CODEX_EXEC_MODEL: "${BIDOPS_CODEX_EXEC_MODEL:-gpt-5.6-sol}"
+      BIDOPS_CODEX_EXEC_REASONING_EFFORT: "${BIDOPS_CODEX_EXEC_REASONING_EFFORT:-low}"
+      BIDOPS_CODEX_EXEC_APPROVED_NOTICE_IDS: "${BIDOPS_CODEX_EXEC_APPROVED_NOTICE_IDS:?set approved internal notice IDs}"
+      BIDOPS_REFERENCE_WORKFLOW_MODE: "true"
+
+  analysis-worker:
+    environment:
+      BIDOPS_ANALYSIS_PROVIDER: codex-exec
+      BIDOPS_OPENAI_ENABLED: "true"
+      BIDOPS_CODEX_EXEC_ENABLED: "true"
+      BIDOPS_CODEX_EXEC_BIN: /usr/local/bin/codex
+      BIDOPS_CODEX_EXEC_MODEL: "${BIDOPS_CODEX_EXEC_MODEL:-gpt-5.6-sol}"
+      BIDOPS_CODEX_EXEC_REASONING_EFFORT: "${BIDOPS_CODEX_EXEC_REASONING_EFFORT:-low}"
+      BIDOPS_CODEX_EXEC_APPROVED_NOTICE_IDS: "${BIDOPS_CODEX_EXEC_APPROVED_NOTICE_IDS:?set approved internal notice IDs}"
+      BIDOPS_REFERENCE_WORKFLOW_MODE: "true"
+      CODEX_HOME: /codex-home
+      HOME: /tmp
+    volumes:
+      - type: bind
+        source: "${BIDOPS_CODEX_EXEC_HOST_BIN:?set absolute host Codex binary path}"
+        target: /usr/local/bin/codex
+        read_only: true
+      - type: bind
+        source: "${BIDOPS_CODEX_EXEC_HOST_AUTH_FILE:?set absolute host Codex auth.json path}"
+        target: /codex-home/auth.json
+        read_only: true
+    networks: [database, analysis, codex-egress]
+
+networks:
+  codex-egress:

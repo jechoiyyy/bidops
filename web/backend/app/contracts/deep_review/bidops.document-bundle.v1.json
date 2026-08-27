@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "bidops.document-bundle.v1",
+  "title": "BidOps document bundle v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "bundle_id", "notice_id", "revision", "version", "status", "documents", "issues", "confirmed_by", "confirmed_at", "created_at"],
+  "properties": {
+    "schema": {"const": "bidops.document-bundle.v1"},
+    "bundle_id": {"$ref": "#/$defs/uuid"},
+    "notice_id": {"type": "integer"},
+    "revision": {"type": "integer", "minimum": 1},
+    "version": {"type": "integer", "minimum": 1},
+    "status": {"enum": ["draft", "processing", "needs_review", "ready", "quarantined", "failed", "superseded"]},
+    "documents": {"type": "array", "items": {"$ref": "#/$defs/document"}},
+    "issues": {"type": "array", "items": {"$ref": "#/$defs/issue"}},
+    "confirmed_by": {"type": ["string", "null"]},
+    "confirmed_at": {"anyOf": [{"$ref": "#/$defs/timestamp"}, {"type": "null"}]},
+    "created_at": {"$ref": "#/$defs/timestamp"}
+  },
+  "$defs": {
+    "uuid": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "timestamp": {"type": "string", "format": "date-time", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]+)?(?:Z|[+-][0-9]{2}:[0-9]{2})$"},
+    "date": {"type": ["string", "null"], "format": "date", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
+    "document_role": {"enum": ["공고", "정정", "제안요청서", "과업지시서", "내역서", "제출서식", "부록", "기타"]},
+    "risk": {"enum": ["차단", "중대", "보통", "낮음"]},
+    "document": {
+      "type": "object", "additionalProperties": false,
+      "required": ["document_version_id", "document_version_version", "ordinal", "content_object_id", "content_sha256", "detected_mime", "size_bytes", "original_filename", "source_kind", "source_system", "source_attachment_key", "source_url", "role_at_confirmation", "effective_date_at_confirmation", "replaces_id_at_confirmation", "is_current_at_confirmation", "safety_status_at_confirmation", "structure_id_at_confirmation", "structure_payload_sha256"],
+      "properties": {
+        "document_version_id": {"$ref": "#/$defs/uuid"}, "document_version_version": {"type": "integer", "minimum": 1}, "ordinal": {"type": "integer", "minimum": 0}, "content_object_id": {"$ref": "#/$defs/uuid"}, "content_sha256": {"$ref": "#/$defs/sha256"}, "detected_mime": {"type": "string", "minLength": 1}, "size_bytes": {"type": "integer", "minimum": 0}, "original_filename": {"type": "string", "minLength": 1},
+        "source_kind": {"enum": ["provider", "manual"]}, "source_system": {"type": ["string", "null"]}, "source_attachment_key": {"type": ["string", "null"]}, "source_url": {"type": ["string", "null"]}, "role_at_confirmation": {"$ref": "#/$defs/document_role"}, "effective_date_at_confirmation": {"$ref": "#/$defs/date"}, "replaces_id_at_confirmation": {"type": ["string", "null"], "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"}, "is_current_at_confirmation": {"type": "boolean"}, "safety_status_at_confirmation": {"const": "safe"}, "structure_id_at_confirmation": {"$ref": "#/$defs/uuid"}, "structure_payload_sha256": {"$ref": "#/$defs/sha256"}
+      },
+      "oneOf": [
+        {"properties": {"source_kind": {"const": "provider"}, "source_system": {"type": "string", "minLength": 1}, "source_attachment_key": {"type": "string", "minLength": 1}}},
+        {"properties": {"source_kind": {"const": "manual"}, "source_system": {"const": null}, "source_attachment_key": {"const": null}, "source_url": {"const": null}}}
+      ]
+    },
+    "page_locator": {"type": "object", "additionalProperties": false, "required": ["page"], "properties": {"page": {"type": "integer", "minimum": 1}}},
+    "paragraph_locator": {"type": "object", "additionalProperties": false, "required": ["page", "block_key", "paragraph_key", "text_start", "text_end"], "properties": {"page": {"type": "integer", "minimum": 1}, "block_key": {"type": "string", "minLength": 1}, "paragraph_key": {"type": ["string", "null"]}, "text_start": {"type": ["integer", "null"], "minimum": 0}, "text_end": {"type": ["integer", "null"], "minimum": 0}}},
+    "table_cell_locator": {"type": "object", "additionalProperties": false, "required": ["page", "block_key", "table_key", "row", "column"], "properties": {"page": {"type": "integer", "minimum": 1}, "block_key": {"type": "string", "minLength": 1}, "table_key": {"type": "string", "minLength": 1}, "row": {"type": "integer", "minimum": 0}, "column": {"type": "integer", "minimum": 0}}},
+    "bbox_locator": {"type": "object", "additionalProperties": false, "required": ["page", "block_key", "bbox"], "properties": {"page": {"type": "integer", "minimum": 1}, "block_key": {"type": "string", "minLength": 1}, "bbox": {"type": "array", "minItems": 4, "maxItems": 4, "items": {"type": "number"}}}},
+    "issue": {
+      "type": "object", "additionalProperties": false,
+      "required": ["issue_id", "code", "severity", "blocking", "document_version_id", "message", "locator_type", "locator"],
+      "properties": {"issue_id": {"type": "string", "minLength": 1}, "code": {"type": "string", "minLength": 1}, "severity": {"$ref": "#/$defs/risk"}, "blocking": {"type": "boolean"}, "document_version_id": {"type": ["string", "null"], "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"}, "message": {"type": "string", "minLength": 1}, "locator_type": {"enum": ["none", "page", "paragraph", "table_cell", "bbox"]}, "locator": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/page_locator"}, {"$ref": "#/$defs/paragraph_locator"}, {"$ref": "#/$defs/table_cell_locator"}, {"$ref": "#/$defs/bbox_locator"}]}}
+    }
+  }
+}

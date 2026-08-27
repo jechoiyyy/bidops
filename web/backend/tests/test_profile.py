@@ -7,9 +7,9 @@ def test_company_profile_status_counts_and_unknown_items_are_preserved():
     profile = parse_profile()
 
     assert len(profile.sections) == 7
-    assert dict(profile.status_counts) == {"confirmed": 21, "inferred": 2, "unknown": 16}
-    assert len(profile.unknown_items) == 16
-    assert {item.section_number for _, item in profile.unknown_items} == {"2.7", "4.2", "4.3", "4.4", "4.5", "4.6", "4.8", "5.1", "5.3", "5.4"}
+    assert dict(profile.status_counts) == {"confirmed": 24, "inferred": 4, "unknown": 15}
+    assert len(profile.unknown_items) == 15
+    assert {item.section_number for _, item in profile.unknown_items} == {"2.7", "4.2", "4.4", "4.5", "4.6", "4.8", "5.1", "5.3", "5.4"}
 
 
 def test_malformed_yaml_keeps_the_original_block(tmp_path: Path):

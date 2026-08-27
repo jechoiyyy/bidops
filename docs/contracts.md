@@ -82,7 +82,7 @@ snapshot 목록은 `created_at` 내림차순, 같은 시각에는 `digest` 내�
 
 `AttachmentProcedureResponse`는 `notice_pk`, agency/bid_no/title, `status`(`missing|provided|completed`), `matched_portal`, `search_url`, `portal_message`, procedure `steps`, `attachments[]`를 반환한다. attachment item은 `id`, name, API `url`, `origin`, `file_ext`, `size_bytes`, `stored_path`, `extract_status`, `created_at`이다. 다운로드는 stored path가 없거나 파일이 아니면 404, PDF만 `application/pdf`, 나머지는 `application/octet-stream`이다. 원래 name의 CR/LF는 filename header에서 제거한다.
 
-`GET /api/attachments/queue`는 run의 첨부 없는 공고만 반환하고 agency, grade, deadline, id로 결정적으로 정렬한다. portal 매칭은 enabled row 중 agency pattern의 casefold 부분 일치에서 가장 긴 pattern, 동률이면 작은 id를 선택한다. `0001_existing_schema`는 portal table을 만들지만 row를 seed하지 않으므로 fresh migrated DB의 queue는 등록된 portal이 없을 때 `matched_portal=null`, search URL 없음으로 응답한다.
+`GET /api/attachments/queue`는 run의 첨부 없는 공고만 반환하고 agency, grade, deadline, id로 결정적으로 정렬한다. portal 매칭은 enabled row 중 agency pattern의 casefold 부분 일치에서 가장 긴 pattern, 동률이면 작은 id를 선택한다. `0001_lean_v1_postgresql`은 portal table을 만들지만 row를 seed하지 않으므로 fresh migrated DB의 queue는 등록된 portal이 없을 때 `matched_portal=null`, search URL 없음으로 응답한다.
 
 ## 판정 실행 API
 
@@ -281,3 +281,49 @@ container wrapper의 migrate는 `BIDOPS_CONFIRM_SERVICE_STOPPED=true`와 `BIDOPS
 기본 model `qwen3.8:27b`, endpoint는 host default `http://192.168.0.139:11434`, compose default `http://127.0.0.1:11434`, timeout 180s, keep-alive 30m, context 16384, max output 2048, heartbeat 5s, stale 60s, max concurrency 1, scheduler/daily/weekly/prespec/live false다. `BIDOPS_LIVE_OLLAMA_TEST=true`는 운영자가 명시한 단일 live smoke의 safety marker일 뿐 CLI를 자동 live로 바꾸지 않는다. Docker runtime은 `web/backend/requirements.lock`의 exact pinned transitive closure만 `pip install --requirement`으로 설치하며 range-only `requirements.txt`를 설치하지 않는다.
 
 정확한 stop/backup/migrate/verify/seed/start/health/live 순서는 [운영 절차](./operations.md), 재시도·FIFO·7-span은 [에이전트 런타임](./agent-runtime.md), metric threshold는 [모델 품질 게이트](./model-quality-gate.md)를 따른다.
+
+# 심층 검토 API 계약 (Lean v1)
+
+기본 경로는 `/api`다. 신규 Lean v1은 승인된 API 정확히 14개(#1-7 document/bundle, #8-10 deep review, #11-14 report/evidence)를 등록한다. 기존 legacy API는 호환성을 위해 유지하지만 새 계약의 common error shape는 다음과 같다.
+
+```json
+{"error":{"code":"bundle_not_ready","message":"ready document bundle이 필요합니다","details":null},"request_id":"..."}
+```
+
+조회는 허용하지만 mutation은 claimed-name boundary와 idempotency/request fence를 통과해야 한다. 이름 입력은 인증/권한 부여가 아니다.
+
+`X-BidOps-Actor-Name`의 printable ASCII 값은 wire value를 그대로 사용한다. 표준 라이브러리 기반
+인수 CLI는 비ASCII 이름만 `UTF-8''` 뒤에 canonical UTF-8 percent encoding을 붙이고
+`X-BidOps-Actor-Name-Format: utf-8-percent-v1`을 함께 보낸다. 서버는 이 명시적 형식 헤더가 있을
+때만 비ASCII 값을 복원한다. 형식 헤더가 없으면 prefix나 percent 문자열처럼 보이는 기존 ASCII 이름도
+변경하지 않으며, unknown format과 malformed·ASCII-only·제어문자 encoding은 `actor_name_invalid`로
+거부한다.
+
+## Lean API 경로
+
+| 번호 | 호출 |
+|---:|---|
+| 1 | `GET /api/notices/{notice_id}/document-bundles` |
+| 2 | `POST /api/notices/{notice_id}/document-bundles` |
+| 3 | `POST /api/document-bundles/{bundle_id}/documents` |
+| 4 | `PATCH /api/document-versions/{document_version_id}` |
+| 5 | `POST /api/document-bundles/{bundle_id}/confirm` |
+| 6 | `GET /api/document-structures/{structure_id}` |
+| 7 | `GET /api/document-structures/{structure_id}/pages/{page}` |
+| 8 | `POST /api/notices/{notice_id}/deep-reviews` |
+| 9 | `GET /api/deep-reviews/{deep_review_id}` |
+| 10 | `POST /api/deep-reviews/{deep_review_id}/attempts` |
+| 11 | `GET /api/deep-reviews/{deep_review_id}/report` |
+| 12 | `POST /api/deep-reviews/{deep_review_id}/report-revisions` |
+| 13 | `POST /api/deep-reviews/{deep_review_id}/final-opinions` |
+| 14 | `GET /api/evidence/{evidence_id}` |
+
+## 상태와 재현성
+
+bundle confirmation은 ready/safe/structure snapshot을 고정한다. attempt는 `requirements_and_evaluation`, `delivery_risk_economics`, `synthesis_and_validation` 3 stage만 허용한다. analysis/report는 live attachment/document projection을 reread하지 않고 fixed snapshot/hash를 사용한다. Qwen local endpoint와 policy/model version은 audit-safe metadata/hash로만 기록한다.
+
+세 stage persist 이후 machine report materializer가 report, validation, evidence joins, audit를 만들고 같은 fenced transaction 안에서 finish한다. report revision/final opinion은 append-only이며 validation 실패를 자동 통과로 바꾸지 않는다.
+
+## 배포 입력
+
+PostgreSQL 17.11 `bidops` schema가 canonical이며 SQLite는 one-time import only다. `docker-compose.t7.yml`은 현재 worktree 전용 template이고 `COMPOSE_PROJECT_NAME=bidops-deep-review-t7`를 지정해서 사용한다. credentials는 `.env.example`의 placeholder를 참고해 외부 secret manager에서 주입한다.

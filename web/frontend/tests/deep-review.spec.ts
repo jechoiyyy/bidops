@@ -1,0 +1,18 @@
+import { test, expect } from "@playwright/test";
+import { mockApi } from "./api-mock";
+
+test.describe("심층 검토 보고서 접근성·반응형 계약", () => {
+  test.beforeEach(async ({ page }) => {
+    await mockApi(page);
+  });
+
+  test("키보드 focus, 좁은 화면, 긴 matrix containment", async ({ page }) => {
+    await page.goto("/deep-reviews/fixture-review");
+    await expect(page.getByRole("heading", { name: "심층 검토 보고서", level: 1 })).toBeVisible();
+    await page.getByRole("button", { name: /근거/ }).first().focus();
+    await expect(page.getByRole("button", { name: /근거/ }).first()).toBeFocused();
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(1);
+    await expect(page.locator("table").first()).toBeVisible();
+  });
+});

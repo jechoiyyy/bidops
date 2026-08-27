@@ -1,529 +1,228 @@
+"""PostgreSQL migration contract for the merged screening/deep-review lineage.
+
+The T15 branch built the screening runtime through four SQLite revisions whose
+DDL (``RAISE(ABORT)`` triggers, ``PRAGMA writable_schema`` rewrites, and CHECK
+constraints calling per-connection Python UDFs) has no PostgreSQL form.  The
+merged lineage replaces them with ``0003_screening_runtime_pg``, so these tests
+assert what that lineage actually guarantees rather than replaying the removed
+incremental SQLite history.
+"""
+
 from __future__ import annotations
 
-import os
 import json
-import sqlite3
-import subprocess
-import sys
-from pathlib import Path
 
 import pytest
+from sqlalchemy import text
 
-from app.screening.generation_config import GenerationConfig, legacy_generation_config, register_sqlite_functions
+from app.db import ALEMBIC_HEAD
+from app.models import LEGACY_TABLES, NEW_TABLES, SCREENING_RUNTIME_TABLES
+from app.screening.generation_config import GenerationConfig, legacy_generation_config
+from tests.postgres import migrated_engine, requires_postgres, run_alembic, temporary_database
+
+pytestmark = requires_postgres
+
+LEAN_V1_HEAD = "0002_screening_basis_text"
+ALL_TABLES = frozenset(LEGACY_TABLES + NEW_TABLES + SCREENING_RUNTIME_TABLES)
 
 
-BACKEND = Path(__file__).resolve().parents[1]
+def _scalars(engine, sql: str, **params) -> list:
+    with engine.connect() as connection:
+        return list(connection.scalars(text(sql), params))
 
 
-def validated_connect(database: Path | str) -> sqlite3.Connection:
-    connection = sqlite3.connect(database)
-    register_sqlite_functions(connection)
-    return connection
+def _scalar(engine, sql: str, **params):
+    with engine.connect() as connection:
+        return connection.scalar(text(sql), params)
 
 
-def run_alembic(database: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    env = os.environ.copy()
-    env["BIDOPS_DATABASE_URL"] = f"sqlite:///{database}"
-    return subprocess.run(
-        [sys.executable, "-m", "alembic", *args],
-        cwd=BACKEND,
-        env=env,
-        text=True,
-        capture_output=True,
+def _tables(engine) -> set[str]:
+    return set(
+        _scalars(
+            engine,
+            "SELECT table_name FROM information_schema.tables WHERE table_schema = 'bidops'",
+        )
     )
 
 
-def test_empty_database_upgrade_creates_runtime_tables(tmp_path: Path) -> None:
-    database = tmp_path / "empty.db"
-    result = run_alembic(database, "upgrade", "head")
-    assert result.returncode == 0, result.stderr
-    with validated_connect(database) as connection:
-        tables = {
-            row[0]
-            for row in connection.execute(
-                "select name from sqlite_master where type='table'"
-            )
-        }
-        assert "alembic_version" in tables
-        assert "screening_execution" in tables
-        assert connection.execute("select version_num from alembic_version").fetchone()[0] == "0005_generation_config_binding"
-        migration_event = connection.execute(
-            "select event_id, actor, target_id, details_json from audit_event "
-            "where event_type = 'db.migration'"
-        ).fetchone()
-        assert migration_event[0] == "audit-e7854deca36d619ac1921856bb9bdbcd"
-        assert migration_event[1:] == (
-            "system:migration",
-            "0004_migration_audit",
-            '{"migration_revision":"0004_migration_audit","action":"upgrade"}',
-        )
-    check = run_alembic(database, "check")
-    assert check.returncode == 0, check.stderr + check.stdout
+def test_clean_database_migrates_to_a_single_head() -> None:
+    with migrated_engine() as engine:
+        assert _scalar(engine, "SELECT version_num FROM bidops.alembic_version") == ALEMBIC_HEAD
+        assert _tables(engine) == ALL_TABLES | {"alembic_version"}
 
 
-def test_generation_config_migration_backfills_and_freezes_execution_rows(tmp_path: Path) -> None:
-    database = tmp_path / "generation-config.db"
-    assert run_alembic(database, "upgrade", "0004_migration_audit").returncode == 0
-    digest = "a" * 64
-
-    def add_execution(
-        connection: sqlite3.Connection,
-        suffix: str,
-        *,
-        config: str | None = None,
-        config_digest: str | None = None,
-    ) -> None:
-        values = {
-            "execution_id": "scr-" + suffix,
-            "input_path": f"runs/{suffix}.json",
-            "artifact_dir": f"runs/{suffix}",
-            "digest": digest,
-        }
-        columns = "execution_id, trigger, source_run_id, scope, status, requested_by, policy_version, prompt_version, model_name, model_digest, company_profile_version, company_profile_digest, input_artifact_path, input_artifact_digest, artifact_dir, queued_at"
-        placeholders = ":execution_id, 'manual_run', 'r1', 'full_run', '대기', 'migration-test', 'p1', 'prompt-1', 'qwen3.8:27b', :digest, 'company-profile.sha256:' || :digest, :digest, :input_path, :digest, :artifact_dir, '2026-01-01T00:00:00+00:00'"
-        if config is not None:
-            columns += ", generation_config_json, generation_config_digest"
-            placeholders += ", :config, :config_digest"
-        connection.execute(
-            f"insert into screening_execution({columns}) values ({placeholders})",
-            {**values, "config": config, "config_digest": config_digest or digest},
-        )
-
-    with validated_connect(database) as connection:
-        connection.execute("insert into run(id, timezone, generated_at, status) values ('r1', 'UTC', '2026-01-01T00:00:00+00:00', '성공')")
-        connection.execute(
-            "insert into company_profile_snapshot(digest, version, source_kind, source_ref, artifact_path, created_at) values (?, ?, 'working_tree', 'migration-test', ?, '2026-01-01T00:00:00+00:00')",
-            (digest, "company-profile.sha256:" + digest, "web/data/profile-snapshots/" + digest + ".md"),
-        )
-        add_execution(connection, "1" * 32)
-        connection.commit()
-
-    assert run_alembic(database, "upgrade", "head").returncode == 0
-    legacy_json = {
-        "num_ctx": 16384,
-        "num_predict": {"counterargument": 2048, "perspective": 2048, "synthesis": 2048},
-        "schema_version": "bidops.generation-config.v1",
-        "stream": False,
-        "think": False,
-    }
-    with validated_connect(database) as connection:
-        row = connection.execute("select generation_config_json, generation_config_digest from screening_execution where execution_id=?", ("scr-" + "1" * 32,)).fetchone()
-        assert json.loads(row[0]) == legacy_json
-        assert row[1] == "f5005da40315a4d24edba05b9394e71dba6c1c3c5790c84e5cc43673215134aa"
-        with pytest.raises(sqlite3.IntegrityError):
-            connection.execute("update screening_execution set generation_config_digest=? where execution_id=?", ("b" * 64, "scr-" + "1" * 32))
-        with pytest.raises(sqlite3.IntegrityError):
-            add_execution(connection, "2" * 32, config="[]")
-        default = GenerationConfig()
-        legacy = legacy_generation_config()
-        add_execution(connection, "3" * 32, config=default.canonical_json(), config_digest=default.digest())
-        add_execution(connection, "4" * 32, config=legacy.canonical_json(), config_digest=legacy.digest())
-        with pytest.raises(sqlite3.IntegrityError):
-            add_execution(connection, "5" * 32, config=default.canonical_json(), config_digest=legacy.digest())
-        with pytest.raises(sqlite3.IntegrityError):
-            add_execution(connection, "6" * 32, config=legacy.canonical_json(), config_digest=default.digest())
-        trigger_names = {
-            row[0]
-            for row in connection.execute("select name from sqlite_master where type='trigger'")
-        }
-        assert {
-            "screening_execution_generation_config_immutable",
-            "screening_execution_generation_shape_insert",
-            "quality_gate_generation_config_immutable",
-            "quality_gate_generation_shape_insert",
-            "quality_gate_generation_binding_insert",
-            "quality_gate_generation_binding_update",
-            "quality_gate_evaluation_generation_binding",
-            "quality_gate_evaluation_generation_binding_update",
-        } <= trigger_names
+def test_alembic_reports_exactly_one_head() -> None:
+    with temporary_database(upgrade_to=None) as database_url:
+        result = run_alembic(database_url, "heads")
+        assert result.returncode == 0, result.stderr
+        heads = [line for line in result.stdout.splitlines() if line.strip()]
+        assert len(heads) == 1, result.stdout
+        assert ALEMBIC_HEAD in heads[0]
 
 
-def test_generation_config_partial_defaults_with_quoted_commas_retry_safely(tmp_path: Path) -> None:
-    database = tmp_path / "generation-config-partial.db"
-    assert run_alembic(database, "upgrade", "0004_migration_audit").returncode == 0
-    default = GenerationConfig()
-    expected_default = "'" + default.canonical_json().replace("'", "''") + "'"
-    residue_default = "(" + expected_default + ")"
-    # Simulate a failed 0005 after nontransactional DDL. Add digest before JSON
-    # to exercise column-order independence; the JSON default contains commas
-    # and nested parentheses-like structure that defeated the old delimiter.
-    with validated_connect(database) as connection:
-        for table in ("screening_execution", "quality_gate"):
+def test_existing_lean_v1_database_upgrades_without_recreating_tables() -> None:
+    """The screening tables belong to 0003 only, so neither path creates them twice."""
+
+    with temporary_database(upgrade_to=LEAN_V1_HEAD) as database_url:
+        from sqlalchemy import create_engine
+
+        engine = create_engine(database_url, future=True)
+        lean_tables = _tables(engine)
+        assert lean_tables == set(LEGACY_TABLES + NEW_TABLES) | {"alembic_version"}
+        assert not lean_tables & set(SCREENING_RUNTIME_TABLES)
+
+        # A long legacy basis must survive the upgrade untruncated.
+        basis = "근거 " * 40
+        with engine.begin() as connection:
             connection.execute(
-                f"ALTER TABLE {table} ADD COLUMN generation_config_digest VARCHAR(64) NOT NULL DEFAULT '0'"
+                text(
+                    "INSERT INTO bidops.run"
+                    " (id, window_from, window_to, timezone, generated_at, screening_basis,"
+                    "  status, counts_json)"
+                    " VALUES ('legacy-run', '2026-08-01', '2026-08-02', 'Asia/Seoul',"
+                    "         now(), :basis, 'active', '{}')"
+                ),
+                {"basis": basis},
             )
-            connection.execute(
-                f"ALTER TABLE {table} ADD COLUMN generation_config_json JSON NOT NULL DEFAULT {residue_default}"
-            )
-        connection.commit()
 
-    upgraded = run_alembic(database, "upgrade", "head")
-    assert upgraded.returncode == 0, upgraded.stderr
-    with validated_connect(database) as connection:
-        for table in ("screening_execution", "quality_gate"):
-            defaults = {
-                row[1]: row[4]
-                for row in connection.execute(f"PRAGMA table_info('{table}')")
-                if row[1].startswith("generation_config")
-            }
-            assert defaults["generation_config_json"] == expected_default
-            assert defaults["generation_config_digest"] == "'" + default.digest() + "'"
+        upgraded = run_alembic(database_url, "upgrade", "head")
+        assert upgraded.returncode == 0, upgraded.stderr
 
-        digest = "a" * 64
-        execution_id = "scr-" + "1" * 32
-        connection.execute(
-            "INSERT INTO run(id, timezone, generated_at, status) VALUES ('r1', 'UTC', '2026-01-01T00:00:00+00:00', '성공')"
+        assert _tables(engine) == ALL_TABLES | {"alembic_version"}
+        assert _scalar(engine, "SELECT version_num FROM bidops.alembic_version") == ALEMBIC_HEAD
+        assert (
+            _scalar(engine, "SELECT screening_basis FROM bidops.run WHERE id = 'legacy-run'")
+            == basis
         )
-        connection.execute(
-            "INSERT INTO company_profile_snapshot(digest, version, source_kind, source_ref, artifact_path, created_at) "
-            "VALUES (?, ?, 'working_tree', 'partial-test', ?, '2026-01-01T00:00:00+00:00')",
-            (digest, "company-profile.sha256:" + digest, "web/data/profile-snapshots/" + digest + ".md"),
-        )
-        connection.execute(
-            "INSERT INTO screening_policy(policy_version, prompt_version, content_digest, status, "
-            "perspective_prompts_json, counterargument_prompt_json, synthesis_prompt_json, "
-            "candidate_selection_json, thresholds_json, created_at, created_by) "
-            "VALUES ('p1', 'prompt-1', ?, 'draft', '{}', '{}', '{}', '{}', '{}', '2026-01-01T00:00:00+00:00', 'partial-test')",
-            (digest,),
-        )
-        connection.execute(
-            "INSERT INTO screening_execution(execution_id, trigger, source_run_id, scope, status, requested_by, "
-            "policy_version, prompt_version, model_name, model_digest, company_profile_version, company_profile_digest, "
-            "input_artifact_path, input_artifact_digest, artifact_dir, queued_at) "
-            "VALUES (?, 'manual_run', 'r1', 'full_run', '대기', 'partial-test', 'p1', 'prompt-1', 'model', ?, ?, ?, ?, ?, ?, ?)",
-            (
-                execution_id,
-                digest,
-                "company-profile.sha256:" + digest,
-                digest,
-                "runs/partial.json",
-                digest,
-                "runs/partial",
-                "2026-01-01T00:00:00+00:00",
-            ),
-        )
-        row = connection.execute(
-            "SELECT generation_config_json, generation_config_digest FROM screening_execution WHERE execution_id=?",
-            (execution_id,),
-        ).fetchone()
-        assert row == (default.canonical_json(), default.digest())
-        assert connection.execute("SELECT json_valid(?)", (row[0],)).fetchone()[0] == 1
-        assert connection.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "0005_generation_config_binding"
-        assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
-        assert connection.execute("PRAGMA quick_check").fetchone()[0] == "ok"
-
-    downgraded = run_alembic(database, "downgrade", "0004_migration_audit")
-    assert downgraded.returncode == 0, downgraded.stderr
-    with validated_connect(database) as connection:
-        assert connection.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "0004_migration_audit"
-        assert connection.execute("PRAGMA quick_check").fetchone()[0] == "ok"
+        engine.dispose()
 
 
-def test_migration_audit_is_idempotent_from_0003_and_safe_to_downgrade(tmp_path: Path) -> None:
-    database = tmp_path / "migration-audit.db"
-    assert run_alembic(database, "upgrade", "0003_schedule_skipped_recovery").returncode == 0
-    assert run_alembic(database, "upgrade", "head").returncode == 0
-    assert run_alembic(database, "upgrade", "head").returncode == 0
-    with validated_connect(database) as connection:
-        assert connection.execute("select version_num from alembic_version").fetchone()[0] == "0005_generation_config_binding"
-        assert connection.execute(
-            "select count(*) from audit_event where event_id = 'audit-e7854deca36d619ac1921856bb9bdbcd'"
-        ).fetchone()[0] == 1
-        assert connection.execute("pragma quick_check").fetchone()[0] == "ok"
+def test_clean_and_upgraded_databases_have_the_same_schema() -> None:
+    column_sql = (
+        "SELECT table_name || '.' || column_name || ':' || data_type"
+        " FROM information_schema.columns WHERE table_schema = 'bidops' ORDER BY 1"
+    )
+    with migrated_engine() as clean:
+        clean_columns = _scalars(clean, column_sql)
+    with temporary_database(upgrade_to=LEAN_V1_HEAD) as database_url:
+        from sqlalchemy import create_engine
 
-    assert run_alembic(database, "downgrade", "0003_schedule_skipped_recovery").returncode == 0
-    with validated_connect(database) as connection:
-        assert connection.execute("select count(*) from audit_event where event_id = 'audit-e7854deca36d619ac1921856bb9bdbcd'").fetchone()[0] == 0
-    assert run_alembic(database, "upgrade", "head").returncode == 0
-    with validated_connect(database) as connection:
-        assert connection.execute("select version_num from alembic_version").fetchone()[0] == "0005_generation_config_binding"
-        assert connection.execute("select count(*) from audit_event where event_id = 'audit-e7854deca36d619ac1921856bb9bdbcd'").fetchone()[0] == 1
+        engine = create_engine(database_url, future=True)
+        assert run_alembic(database_url, "upgrade", "head").returncode == 0
+        upgraded_columns = _scalars(engine, column_sql)
+        engine.dispose()
+    assert clean_columns == upgraded_columns
 
 
-def test_skipped_recovery_trigger_upgrades_from_0002_and_downgrades(tmp_path: Path) -> None:
-    database = tmp_path / "schedule-recovery.db"
+def test_fresh_database_seeds_only_the_runtime_singletons() -> None:
+    """Migration must not seed policy or portal rows, and always-on stays off."""
 
-    def add_skipped_execution(connection: sqlite3.Connection, number: int) -> tuple[str, str]:
-        day = f"202608{number:02d}"
-        run_key = f"{day}-{day}"
-        target_id = "sched-" + f"{number:032x}"
-        connection.execute(
-            "insert into schedule_reservation(run_key, job_kind, window_from, window_to, timezone, created_at) "
-            "values (?, 'daily', ?, ?, 'Asia/Seoul', ?)",
-            (run_key, f"2026-08-{number:02d}", f"2026-08-{number:02d}", "2026-08-26T00:00:00+00:00"),
-        )
-        connection.execute(
-            "insert into schedule_execution(execution_id, run_key, job_kind, trigger, status, skip_reason, requested_by) "
-            "values (?, ?, 'daily', 'schedule', '건너뜀', 'duplicate reservation', 'system:scheduler')",
-            (target_id, run_key),
-        )
-        return run_key, target_id
+    with migrated_engine() as engine:
+        assert _scalar(engine, "SELECT count(*) FROM bidops.schedule_setting") == 1
+        assert _scalar(engine, "SELECT count(*) FROM bidops.always_on_state") == 1
+        assert _scalar(engine, "SELECT bool_or(enabled) FROM bidops.always_on_state") is False
+        assert _scalar(engine, "SELECT count(*) FROM bidops.screening_policy") == 0
+        assert _scalar(engine, "SELECT count(*) FROM bidops.agency_portal") == 0
+        assert _scalar(engine, "SELECT count(*) FROM bidops.screening_execution") == 0
 
-    def add_recovery(connection: sqlite3.Connection, run_key: str, target_id: str, number: int) -> None:
-        connection.execute(
-            "insert into schedule_execution(execution_id, run_key, job_kind, trigger, status, recovery_of_execution_id, requested_by) "
-            "values (?, ?, 'daily', 'manual', '예약', ?, 'operator:test')",
-            ("sched-" + f"{number:032x}", run_key, target_id),
-        )
 
-    assert run_alembic(database, "upgrade", "0002_screening_runtime").returncode == 0
-    with validated_connect(database) as connection:
-        run_key, target_id = add_skipped_execution(connection, 1)
-        with pytest.raises(sqlite3.IntegrityError):
-            add_recovery(connection, run_key, target_id, 2)
-        connection.commit()
-        projection_sql = {
-            row[0]: row[1]
-            for row in connection.execute(
-                "select name, sql from sqlite_master where type='trigger' and name in ('screening_policy_projection_changed', 'quality_gate_evaluation_projection_changed')"
-            )
+def test_migration_records_a_deterministic_audit_marker() -> None:
+    with migrated_engine() as engine:
+        with engine.connect() as connection:
+            row = connection.execute(
+                text(
+                    "SELECT event_id, actor, target_type, target_id, details_json"
+                    " FROM bidops.screening_audit_event WHERE event_type = 'db.migration'"
+                )
+            ).one()
+        assert row.actor == "system:migration"
+        assert row.target_type == "database"
+        assert row.target_id == ALEMBIC_HEAD
+        assert row.details_json == {
+            "migration_revision": ALEMBIC_HEAD,
+            "action": "upgrade",
         }
-        assert all("audit_event" not in sql for sql in projection_sql.values())
-
-    # An already deployed 0002 database receives the new trigger semantics.
-    upgraded = run_alembic(database, "upgrade", "head")
-    assert upgraded.returncode == 0, upgraded.stderr
-    with validated_connect(database) as connection:
-        run_key, target_id = add_skipped_execution(connection, 3)
-        add_recovery(connection, run_key, target_id, 4)
-        connection.commit()
-        assert connection.execute("select version_num from alembic_version").fetchone()[0] == "0005_generation_config_binding"
-        projection_sql = {
-            row[0]: row[1]
-            for row in connection.execute(
-                "select name, sql from sqlite_master where type='trigger' and name in ('screening_policy_projection_changed', 'quality_gate_evaluation_projection_changed')"
-            )
-        }
-        assert set(projection_sql) == {
-            "screening_policy_projection_changed",
-            "quality_gate_evaluation_projection_changed",
-        }
-        assert all("audit_event" in sql for sql in projection_sql.values())
-
-    downgraded = run_alembic(database, "downgrade", "0002_screening_runtime")
-    assert downgraded.returncode == 0, downgraded.stderr
-    with validated_connect(database) as connection:
-        run_key, target_id = add_skipped_execution(connection, 5)
-        with pytest.raises(sqlite3.IntegrityError):
-            add_recovery(connection, run_key, target_id, 6)
-        connection.rollback()
-        assert connection.execute("select version_num from alembic_version").fetchone()[0] == "0002_screening_runtime"
-        projection_sql = {
-            row[0]: row[1]
-            for row in connection.execute(
-                "select name, sql from sqlite_master where type='trigger' and name in ('screening_policy_projection_changed', 'quality_gate_evaluation_projection_changed')"
-            )
-        }
-        assert all("audit_event" not in sql for sql in projection_sql.values())
 
 
-def test_startup_does_not_upgrade_a_behind_database(tmp_path: Path) -> None:
-    database = tmp_path / "behind.db"
-    assert run_alembic(database, "upgrade", "0001_existing_schema").returncode == 0
-    env = os.environ.copy()
-    env["BIDOPS_DATABASE_URL"] = f"sqlite:///{database}"
-    probe = subprocess.run(
-        [sys.executable, "-c", "from app.db import init_db; init_db()"],
-        cwd=BACKEND,
-        env=env,
-        text=True,
-        capture_output=True,
-    )
-    assert probe.returncode != 0
-    assert "alembic upgrade head" in probe.stderr
-    with validated_connect(database) as connection:
-        assert connection.execute("select version_num from alembic_version").fetchone()[0] == "0001_existing_schema"
+@pytest.mark.parametrize(
+    "config", [GenerationConfig(), legacy_generation_config()], ids=["default", "legacy"]
+)
+def test_database_canonical_json_matches_the_python_contract(config: GenerationConfig) -> None:
+    """The digest binding is only fail-closed if both sides agree byte for byte."""
 
-
-def test_unknown_revision_is_rejected_without_change(tmp_path: Path) -> None:
-    database = tmp_path / "unknown.db"
-    assert run_alembic(database, "upgrade", "head").returncode == 0
-    with validated_connect(database) as connection:
-        connection.execute("update alembic_version set version_num='not-known'")
-        connection.commit()
-    env = os.environ.copy()
-    env["BIDOPS_DATABASE_URL"] = f"sqlite:///{database}"
-    probe = subprocess.run(
-        [sys.executable, "-m", "app.db_admin", "migrate", "--backup-manifest", str(database) + ".manifest.json", "--confirm-service-stopped"],
-        cwd=BACKEND,
-        env=env,
-        text=True,
-        capture_output=True,
-    )
-    assert probe.returncode != 0
-
-
-def test_manifest_and_confirmation_are_required_before_migration(tmp_path: Path) -> None:
-    database = tmp_path / "database.db"
-    backup = tmp_path / "backup.db"
-    assert run_alembic(database, "upgrade", "head").returncode == 0
-    env = os.environ.copy()
-    env["BIDOPS_DATABASE_URL"] = f"sqlite:///{database}"
-    backup_result = subprocess.run(
-        [sys.executable, "-m", "app.db_admin", "backup", "--output", str(backup)],
-        cwd=BACKEND,
-        env=env,
-        text=True,
-        capture_output=True,
-    )
-    assert backup_result.returncode == 0, backup_result.stderr
-    manifest = Path(str(backup) + ".manifest.json")
-    manifest_data = json.loads(manifest.read_text(encoding="utf-8"))
-    assert manifest_data["source_snapshot_fingerprint"]
-    before = database.read_bytes()
-    no_confirm = subprocess.run(
-        [sys.executable, "-m", "app.db_admin", "migrate", "--backup-manifest", str(manifest)],
-        cwd=BACKEND,
-        env=env,
-        text=True,
-        capture_output=True,
-    )
-    assert no_confirm.returncode != 0
-    assert database.read_bytes() == before
-
-
-def test_migrate_rejects_source_changed_after_snapshot(tmp_path: Path) -> None:
-    database = tmp_path / "database.db"
-    backup = tmp_path / "backup.db"
-    assert run_alembic(database, "upgrade", "head").returncode == 0
-    env = os.environ.copy()
-    env["BIDOPS_DATABASE_URL"] = f"sqlite:///{database}"
-    with validated_connect(database) as connection:
-        connection.execute("pragma journal_mode=wal")
-        connection.execute(
-            "insert into audit_event(event_id, event_type, actor, target_type, target_id, occurred_at, details_json) values ('audit-' || printf('%032d', 1), 'test', 'tester', 'run', 'r1', ?, '{}')",
-            ("2026-01-01T00:00:00+00:00",),
+    with migrated_engine() as engine:
+        canonical = _scalar(
+            engine,
+            "SELECT bidops.generation_config_canonical_json(:value)",
+            value=config.canonical_json(),
         )
-        connection.commit()
-    assert subprocess.run([sys.executable, "-m", "app.db_admin", "backup", "--output", str(backup)], cwd=BACKEND, env=env, text=True, capture_output=True).returncode == 0
-    with validated_connect(database) as connection:
-        connection.execute(
-            "update audit_event set details_json=? where event_id='audit-' || printf('%032d', 1)",
-            ('{"changed": true}',),
+        digest = _scalar(
+            engine,
+            "SELECT bidops.generation_config_digest(:value)",
+            value=config.canonical_json(),
         )
-        connection.commit()
-    result = subprocess.run([sys.executable, "-m", "app.db_admin", "migrate", "--backup-manifest", str(backup) + ".manifest.json", "--confirm-service-stopped"], cwd=BACKEND, env=env, text=True, capture_output=True)
-    assert result.returncode != 0
-    assert "source DB changed since backup" in result.stderr
+    assert canonical == config.canonical_json()
+    assert digest == config.digest()
 
 
-def test_migrate_missing_source_does_not_recreate_deleted_database(tmp_path: Path) -> None:
-    database = tmp_path / "database.db"
-    backup = tmp_path / "backup.db"
-    assert run_alembic(database, "upgrade", "head").returncode == 0
-    env = os.environ.copy()
-    env["BIDOPS_DATABASE_URL"] = f"sqlite:///{database}"
-    backup_result = subprocess.run(
-        [sys.executable, "-m", "app.db_admin", "backup", "--output", str(backup)],
-        cwd=BACKEND,
-        env=env,
-        text=True,
-        capture_output=True,
+def test_database_normalises_key_order_and_whitespace_to_one_digest() -> None:
+    reordered = (
+        '{ "think": false, "stream": false,'
+        ' "schema_version": "bidops.generation-config.v1",'
+        ' "num_predict": {"synthesis": 4096, "perspective": 2048, "counterargument": 2048},'
+        ' "num_ctx": 16384 }'
     )
-    assert backup_result.returncode == 0, backup_result.stderr
-    database.unlink()
-    result = subprocess.run(
-        [sys.executable, "-m", "app.db_admin", "migrate", "--backup-manifest", str(backup) + ".manifest.json", "--confirm-service-stopped"],
-        cwd=BACKEND,
-        env=env,
-        text=True,
-        capture_output=True,
-    )
-    assert result.returncode != 0
-    assert not database.exists()
-    assert "source DB does not exist" in result.stderr
+    with migrated_engine() as engine:
+        assert (
+            _scalar(engine, "SELECT bidops.generation_config_digest(:value)", value=reordered)
+            == GenerationConfig().digest()
+        )
 
 
-def test_partial_unversioned_baseline_is_rejected(tmp_path: Path) -> None:
-    database = tmp_path / "database.db"
-    backup = tmp_path / "backup.db"
-    assert run_alembic(database, "upgrade", "0001_existing_schema").returncode == 0
-    with validated_connect(database) as connection:
-        connection.execute("DROP TABLE attachment")
-        connection.execute("DELETE FROM alembic_version")
-        connection.commit()
-    env = os.environ.copy()
-    env["BIDOPS_DATABASE_URL"] = f"sqlite:///{database}"
-    # The backup itself is valid SQLite but the source shape is intentionally
-    # partial; migrate must refuse it before stamping or creating new tables.
-    backup_result = subprocess.run(
-        [sys.executable, "-m", "app.db_admin", "backup", "--output", str(backup)],
-        cwd=BACKEND,
-        env=env,
-        text=True,
-        capture_output=True,
-    )
-    assert backup_result.returncode == 0
-    result = subprocess.run(
-        [sys.executable, "-m", "app.db_admin", "migrate", "--backup-manifest", str(backup) + ".manifest.json", "--confirm-service-stopped"],
-        cwd=BACKEND,
-        env=env,
-        text=True,
-        capture_output=True,
-    )
-    assert result.returncode != 0
-    with validated_connect(database) as connection:
-        assert connection.execute("select name from sqlite_master where type='table' and name='screening_execution'").fetchone() is None
+@pytest.mark.parametrize(
+    "value",
+    [
+        pytest.param('{"num_ctx":16384}', id="missing-keys"),
+        pytest.param("not json", id="malformed"),
+        pytest.param(
+            '{"num_ctx":16384.0,"num_predict":{"counterargument":2048,"perspective":2048,'
+            '"synthesis":4096},"schema_version":"bidops.generation-config.v1",'
+            '"stream":false,"think":false}',
+            id="float-num-ctx",
+        ),
+        pytest.param(
+            '{"num_ctx":16384,"num_predict":{"counterargument":2048,"perspective":2048,'
+            '"synthesis":4096},"schema_version":"bidops.generation-config.v1",'
+            '"stream":false,"think":true}',
+            id="think-enabled",
+        ),
+        pytest.param(
+            '{"num_ctx":16384,"num_predict":{"counterargument":2048,"perspective":2048,'
+            '"synthesis":99999},"schema_version":"bidops.generation-config.v1",'
+            '"stream":false,"think":false}',
+            id="budget-over-context",
+        ),
+        pytest.param(
+            '{"num_ctx":16384,"num_predict":{"counterargument":2048,"perspective":2048,'
+            '"synthesis":4096},"schema_version":"bidops.generation-config.v2",'
+            '"stream":false,"think":false}',
+            id="unknown-schema",
+        ),
+    ],
+)
+def test_database_rejects_non_canonical_generation_config(value: str) -> None:
+    with migrated_engine() as engine:
+        assert _scalar(engine, "SELECT bidops.generation_config_digest(:value)", value=value) is None
 
 
-def test_unversioned_baseline_with_extra_sqlite_objects_is_rejected(tmp_path: Path) -> None:
-    database = tmp_path / "database.db"
-    backup = tmp_path / "backup.db"
-    assert run_alembic(database, "upgrade", "0001_existing_schema").returncode == 0
-    with validated_connect(database) as connection:
-        connection.execute("delete from alembic_version")
-        connection.execute("create trigger legacy_extra_trigger after insert on run begin select 1; end")
-        connection.execute("create view legacy_extra_view as select id from run")
-        connection.commit()
-    env = os.environ.copy()
-    env["BIDOPS_DATABASE_URL"] = f"sqlite:///{database}"
-    assert subprocess.run([sys.executable, "-m", "app.db_admin", "backup", "--output", str(backup)], cwd=BACKEND, env=env, text=True, capture_output=True).returncode == 0
-    result = subprocess.run([sys.executable, "-m", "app.db_admin", "migrate", "--backup-manifest", str(backup) + ".manifest.json", "--confirm-service-stopped"], cwd=BACKEND, env=env, text=True, capture_output=True)
-    assert result.returncode != 0
-    assert "backup remains" in result.stderr
+def test_downgrade_removes_only_the_screening_runtime() -> None:
+    with temporary_database() as database_url:
+        from sqlalchemy import create_engine
 
-
-def test_startup_check_does_not_create_missing_database(tmp_path: Path) -> None:
-    database = tmp_path / "not-created.db"
-    env = os.environ.copy()
-    env["BIDOPS_DATABASE_URL"] = f"sqlite:///{database}"
-    probe = subprocess.run([sys.executable, "-c", "from app.db import init_db; init_db()"], cwd=BACKEND, env=env, text=True, capture_output=True)
-    assert probe.returncode != 0
-    assert not database.exists()
-    assert "alembic upgrade head" in probe.stderr
-
-
-def test_startup_empty_database_allows_explicit_upgrade_guidance(tmp_path: Path) -> None:
-    database = tmp_path / "empty-existing.db"
-    database.touch()
-    env = os.environ.copy()
-    env["BIDOPS_DATABASE_URL"] = f"sqlite:///{database}"
-    probe = subprocess.run([sys.executable, "-c", "from app.db import init_db; init_db()"], cwd=BACKEND, env=env, text=True, capture_output=True)
-    assert probe.returncode != 0
-    assert "alembic upgrade head" in probe.stderr
-    assert database.exists()
-
-
-def test_unversioned_exact_baseline_migrates_a_backup_copy_and_preserves_core_rows(tmp_path: Path) -> None:
-    database = tmp_path / "database.db"
-    backup = tmp_path / "backup.db"
-    assert run_alembic(database, "upgrade", "0001_existing_schema").returncode == 0
-    with validated_connect(database) as connection:
-        connection.execute("insert into run(id, timezone, generated_at, status) values ('r1', 'Asia/Seoul', '2026-01-01T00:00:00+00:00', 'active')")
-        connection.execute("insert into notice(run_id, notice_key) values ('r1', 'n1')")
-        notice_pk = connection.execute("select id from notice where notice_key='n1'").fetchone()[0]
-        connection.execute("insert into judgment(notice_pk) values (?)", (notice_pk,))
-        connection.execute("insert into review(notice_pk, run_id, created_at, updated_at) values (?, 'r1', '2026-01-01T00:00:00+00:00', '2026-01-01T00:00:00+00:00')", (notice_pk,))
-        connection.execute("insert into attachment(notice_pk, created_at) values (?, '2026-01-01T00:00:00+00:00')", (notice_pk,))
-        connection.execute("delete from alembic_version")
-        connection.commit()
-    env = os.environ.copy()
-    env["BIDOPS_DATABASE_URL"] = f"sqlite:///{database}"
-    assert subprocess.run([sys.executable, "-m", "app.db_admin", "backup", "--output", str(backup)], cwd=BACKEND, env=env, text=True, capture_output=True).returncode == 0
-    result = subprocess.run([sys.executable, "-m", "app.db_admin", "migrate", "--backup-manifest", str(backup) + ".manifest.json", "--confirm-service-stopped"], cwd=BACKEND, env=env, text=True, capture_output=True)
-    assert result.returncode == 0, result.stderr
-    with validated_connect(database) as connection:
-        assert connection.execute("select version_num from alembic_version").fetchone()[0] == "0005_generation_config_binding"
-        assert [connection.execute(f"select count(*) from {table}").fetchone()[0] for table in ("run", "notice", "judgment", "review", "attachment")] == [1, 1, 1, 1, 1]
-        assert connection.execute("pragma foreign_key_check").fetchall() == []
-        assert connection.execute("pragma quick_check").fetchone()[0] == "ok"
+        engine = create_engine(database_url, future=True)
+        result = run_alembic(database_url, "downgrade", LEAN_V1_HEAD)
+        assert result.returncode == 0, result.stderr
+        remaining = _tables(engine)
+        assert remaining == set(LEGACY_TABLES + NEW_TABLES) | {"alembic_version"}
+        assert not remaining & set(SCREENING_RUNTIME_TABLES)
+        engine.dispose()

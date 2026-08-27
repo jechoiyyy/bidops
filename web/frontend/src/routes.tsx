@@ -11,6 +11,7 @@ import { ProfilePage } from "./pages/ProfilePage";
 import { QualityGatesPage } from "./pages/QualityGatesPage";
 import { PoliciesPage } from "./pages/PoliciesPage";
 import { OperationsPage } from "./pages/OperationsPage";
+import { DeepReviewPage } from "./pages/DeepReviewPage";
 
 // 회차 선택은 주소의 run 파라미터에만 남아 있으므로 옮길 때 그대로 넘긴다.
 function RedirectWithSearch({ to, extraParams }: { to: string; extraParams?: Record<string, string> }) {
@@ -56,6 +57,7 @@ export const routes: RouteObject[] = [
       { path: "attachments", element: <AttachmentsPage /> },
       { path: "operations", element: <OperationsPage /> },
       { path: "audit", element: <RedirectWithSearch to="/runs" /> },
+      { path: "deep-reviews/:deepReviewId", element: <DeepReviewPage /> },
     ],
   },
 ];

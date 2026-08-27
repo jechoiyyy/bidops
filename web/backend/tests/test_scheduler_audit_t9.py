@@ -6,7 +6,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.config import Settings
 from app.db import Base
-from app.models import AuditEvent
+from app.models import ScreeningAuditEvent
 from app.services.scheduler import SchedulerService
 
 
@@ -22,7 +22,7 @@ def test_schedule_settings_audit_keeps_safe_values_and_actor() -> None:
     )
     with Session(engine) as session:
         event = session.scalar(
-            select(AuditEvent).where(AuditEvent.event_type == "schedule.settings_updated")
+            select(ScreeningAuditEvent).where(ScreeningAuditEvent.event_type == "schedule.settings_updated")
         )
         assert event is not None
         assert event.actor == "operator:test"

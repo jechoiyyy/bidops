@@ -10,7 +10,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from app.db import Base
-from app.models import AuditEvent, QualityGate, QualityGateEvaluation, ScreeningExecution, ScreeningPolicy
+from app.models import ScreeningAuditEvent, QualityGate, QualityGateEvaluation, ScreeningExecution, ScreeningPolicy
 from app.screening.generation_config import GenerationConfig
 from app.screening.policy import (
     PolicyActivationError,
@@ -32,7 +32,7 @@ def session_for(*tables):
 
 
 def test_seed_is_exact_and_idempotent():
-    session = session_for(ScreeningPolicy, AuditEvent)
+    session = session_for(ScreeningPolicy, ScreeningAuditEvent)
     first = seed_policy(session, actor="operator")
     second = seed_policy(session, actor="operator")
     body = load_policy_file()
@@ -40,11 +40,11 @@ def test_seed_is_exact_and_idempotent():
     assert first.status == "activation_candidate"
     assert first.content_digest == policy_content_digest(body)
     assert canonical_policy_bytes(body).decode().count("notice_json={notice_json}") == 7
-    assert session.scalar(select(AuditEvent).where(AuditEvent.event_type == "screening_policy.created"))
+    assert session.scalar(select(ScreeningAuditEvent).where(ScreeningAuditEvent.event_type == "screening_policy.created"))
 
 
 def test_same_version_different_content_conflicts_and_only_draft_can_candidate():
-    session = session_for(ScreeningPolicy, AuditEvent)
+    session = session_for(ScreeningPolicy, ScreeningAuditEvent)
     body = load_policy_file()
     repo = PolicyRepository(session)
     row = repo.create(body, created_by="operator")
@@ -82,7 +82,7 @@ def test_seed_private_path_helper_fails_closed_on_modified_seed(tmp_path: Path):
     body["thresholds"]["min_valid_reviews"] = 11
     modified = tmp_path / "seed_policy.json"
     modified.write_text(json.dumps(body, ensure_ascii=False), encoding="utf-8")
-    session = session_for(ScreeningPolicy, AuditEvent)
+    session = session_for(ScreeningPolicy, ScreeningAuditEvent)
     with pytest.raises(PolicyError):
         _seed_policy_from_path(session, actor="operator", path=modified)
 
@@ -165,7 +165,7 @@ def _gate(session: Session, policy: ScreeningPolicy, *, result: str = "통과", 
 
 
 def test_activation_requires_gate_and_audits_old_active_demotion():
-    session = session_for(ScreeningPolicy, AuditEvent, QualityGate, QualityGateEvaluation, ScreeningExecution)
+    session = session_for(ScreeningPolicy, ScreeningAuditEvent, QualityGate, QualityGateEvaluation, ScreeningExecution)
     repo = PolicyRepository(session)
     first_body = {**load_policy_file(), "policy_version": "z-policy"}
     first = repo.create(first_body, created_by="operator")
@@ -184,6 +184,6 @@ def test_activation_requires_gate_and_audits_old_active_demotion():
     rows = list(session.scalars(select(ScreeningPolicy)))
     assert sum(row.status == "active" for row in rows) == 1
     assert next(row for row in rows if row.status == "active").policy_version == second.policy_version
-    assert session.scalar(select(AuditEvent).where(AuditEvent.event_type == "screening_policy.deactivated"))
-    for event in session.scalars(select(AuditEvent)):
+    assert session.scalar(select(ScreeningAuditEvent).where(ScreeningAuditEvent.event_type == "screening_policy.deactivated"))
+    for event in session.scalars(select(ScreeningAuditEvent)):
         assert "template" not in str(event.details_json)

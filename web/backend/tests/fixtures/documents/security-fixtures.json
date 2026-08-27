@@ -1,0 +1,12 @@
+{
+  "cases": [
+    {"name": "zip-traversal", "member": "../escape.xml", "expected_code": "archive_traversal"},
+    {"name": "nested-disguised", "member": "notes.txt", "magic": "PK", "expected_code": "archive_depth_limit"},
+    {"name": "archive-bomb", "expected_code": "archive_size_limit"},
+    {"name": "malformed-pdf", "expected_code": "malformed_pdf"},
+    {"name": "encrypted-pdf", "marker": "/Encrypt", "expected_code": "encrypted_pdf"},
+    {"name": "unsupported-media", "expected_code": "mime_mismatch"},
+    {"name": "ocr-unavailable", "expected_warning": "ocr_unavailable"}
+  ],
+  "note": "Payload bytes are constructed in test_document_mcp.py to avoid writing untrusted content to a path."
+}

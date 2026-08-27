@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from ..config import Settings, get_settings
 from ..models import (
     AlwaysOnState,
-    AuditEvent,
+    ScreeningAuditEvent,
     QualityGate,
     QualityGateEvaluation,
     ScheduleExecution,
@@ -920,7 +920,7 @@ class SchedulerService:
             "weekly_time",
             "prespec_enabled",
         }
-        session.add(AuditEvent(event_id="audit-" + uuid4().hex, event_type=event_type, actor=actor, target_type="schedule", target_id=target_id, occurred_at=utc_now(), details_json={k: v for k, v in details.items() if k in allowed}))
+        session.add(ScreeningAuditEvent(event_id="audit-" + uuid4().hex, event_type=event_type, actor=actor, target_type="schedule", target_id=target_id, occurred_at=utc_now(), details_json={k: v for k, v in details.items() if k in allowed}))
 
     @staticmethod
     def _result(state: AlwaysOnState) -> EnableResult:

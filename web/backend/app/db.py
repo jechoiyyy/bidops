@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
+import os
 import sqlite3
 import json
 from collections.abc import Generator
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import Engine, create_engine, event
-from sqlalchemy import inspect
+from sqlalchemy import Engine, create_engine, event, inspect, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from .config import get_settings
@@ -36,12 +36,31 @@ settings.data_dir.mkdir(parents=True, exist_ok=True)
 
 DATABASE_URL = settings.database_url or f"sqlite:///{Path(settings.database_path).as_posix()}"
 
-engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {},
-    json_serializer=_json_serializer,
-    future=True,
-)
+# ``bidops`` is the sole application schema in PostgreSQL.  Alembic binds the
+# local declarative table keys to this schema; explicitly-created SQLite test
+# engines remain schema-less.
+MODEL_SCHEMA = "bidops" if DATABASE_URL.startswith(("postgresql", "postgres")) else None
+
+_ENGINE_OPTIONS: dict[str, Any] = {
+    "connect_args": {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {},
+    # The repository JSON byte contract is what the generation-config digest is
+    # computed over, so every engine must serialize JSON the same way.
+    "json_serializer": _json_serializer,
+    "future": True,
+}
+
+
+def schema_bound(bind: Engine) -> Engine:
+    """Route PostgreSQL table keys to the sole ``bidops`` schema."""
+
+    if bind.dialect.name == "postgresql":
+        return bind.execution_options(schema_translate_map={None: "bidops"})
+    return bind
+
+
+# Declarative tables intentionally use local keys so SQLite isolated binds
+# remain schema-less. PostgreSQL application sessions are schema-translated.
+engine = schema_bound(create_engine(DATABASE_URL, **_ENGINE_OPTIONS))
 
 
 @event.listens_for(engine, "connect")
@@ -81,8 +100,8 @@ SessionLocal = sessionmaker(
 # unsurprising for code that expects a session factory named ``Session``.
 SessionFactory = SessionLocal
 
-ALEMBIC_HEAD = "0005_generation_config_binding"
-MIGRATION_COMMAND = "cd web/backend && alembic upgrade head"
+ALEMBIC_HEAD = "0003_screening_runtime_pg"
+MIGRATION_COMMAND = "docker compose --project-name <isolated> -f docker-compose.t7.yml run --rm migrate"
 
 
 def get_db() -> Generator[Session, None, None]:
@@ -100,9 +119,28 @@ def current_revision(bind: Engine | None = None) -> str | None:
 
     from alembic.migration import MigrationContext
 
-    target = bind or engine
+    target = schema_bound(bind or engine)
     with target.connect() as connection:
-        return MigrationContext.configure(connection).get_current_revision()
+        version_schema = "bidops" if target.dialect.name == "postgresql" else None
+        return MigrationContext.configure(
+            connection, opts={"version_table_schema": version_schema}
+        ).get_current_revision()
+
+
+def isolated_test_boundary_active() -> bool:
+    """Return whether the process explicitly opted into SQLite test mode.
+
+    ``PYTEST_CURRENT_TEST`` is present while an individual pytest test is
+    running, but it is not guaranteed to be set while a TestClient lifespan
+    starts.  The explicit flag is therefore used by the isolated runner for
+    application-lifespan tests; it is never set by the production Compose
+    template.
+    """
+
+    return bool(
+        os.environ.get("PYTEST_CURRENT_TEST")
+        or os.environ.get("BIDOPS_TEST_MODE") == "1"
+    )
 
 
 def ensure_database_current(bind: Engine | None = None) -> None:
@@ -110,39 +148,30 @@ def ensure_database_current(bind: Engine | None = None) -> None:
 
     The application process is intentionally not an administrator.  It never
     runs Alembic and never calls ``create_all`` for the configured database.
+    PostgreSQL DDL belongs exclusively to Alembic and the ``migrate`` role;
+    the runtime ``app``/``worker`` roles do not hold CREATE privileges.
     """
 
-    target = bind or engine
-    if target.url.get_backend_name() == "sqlite":
-        database_name = target.url.database
-        if bind is None and database_name in (None, ":memory:"):
-            raise RuntimeError(
-                "Database migration required: a file-backed SQLite database is required; "
-                f"run `{MIGRATION_COMMAND}` for a new database."
-            )
-        if database_name not in (None, ":memory:"):
-            database_path = Path(database_name)
-            if not database_path.is_absolute():
-                database_path = Path.cwd() / database_path
-        else:
-            database_path = None
-        if database_path is not None and not database_path.exists():
-            raise RuntimeError(
-                "Database migration required: database file does not exist; "
-                f"run `{MIGRATION_COMMAND}` to create a new database."
-            )
+    target = schema_bound(bind or engine)
+    if target.dialect.name == "postgresql":
+        with target.connect() as connection:
+            if connection.scalar(text("SELECT to_regclass('bidops.run')")) is None:
+                raise RuntimeError(
+                    "Database migration required: the bidops.run table is missing; "
+                    f"run `{MIGRATION_COMMAND}` to create the schema."
+                )
     inspector = inspect(target)
-    tables = set(inspector.get_table_names())
+    schema = "bidops" if target.dialect.name == "postgresql" else None
+    tables = set(inspector.get_table_names(schema=schema))
     if "alembic_version" not in tables:
         if not tables:
             raise RuntimeError(
                 "Database migration required: database is empty; "
-                "run alembic upgrade head to create the schema."
+                f"run `{MIGRATION_COMMAND}` to create the schema."
             )
         raise RuntimeError(
             "Database migration required: existing database is unversioned; "
-            "create a backup and run `python -m app.db_admin migrate --backup-manifest "
-            "<backup.db.manifest.json> --confirm-service-stopped`."
+            f"create a backup and run `{MIGRATION_COMMAND}`."
         )
     revision = current_revision(target)
     if revision != ALEMBIC_HEAD:
@@ -154,35 +183,43 @@ def ensure_database_current(bind: Engine | None = None) -> None:
 
 
 def init_db(bind: Engine | None = None) -> None:
-    """Initialize an isolated legacy test engine or validate the app DB.
+    """Create isolated-test tables or verify the migrated PostgreSQL schema.
 
-    Existing unit tests pass an explicit in-memory engine.  That narrow path
-    remains a fixture convenience and only creates the pre-Alembic tables.
-    The no-argument application path performs a read-only revision check.
+    An explicit ``bind`` is the isolated-test path: the caller owns a private
+    SQLite engine and the full declarative table set is created directly.  The
+    no-argument application path never creates or migrates anything; it only
+    verifies that the configured PostgreSQL database is at the expected head.
     """
 
-    from . import models  # noqa: F401
+    from . import models  # noqa: F401 - register every declarative table
 
-    if bind is None:
-        ensure_database_current()
-        return
-
-    legacy_tables = [
-        Base.metadata.tables[name]
-        for name in (
-            "run",
-            "notice",
-            "judgment",
-            "perspective",
-            "evidence",
-            "counterargument",
-            "verification_item",
-            "matched_performance",
-            "attachment",
-            "agency_portal",
-            "review",
-            "verification_answer",
-            "ingest_warning",
+    # pytest's application tests use dependency-overridden isolated SQLite
+    # engines. That test-only path is explicit; every non-test process still
+    # fails before opening a configured SQLite database.
+    if (
+        bind is None
+        and not DATABASE_URL.startswith(("postgresql", "postgres"))
+        and not isolated_test_boundary_active()
+    ):
+        raise RuntimeError(
+            "BidOps application runtime requires PostgreSQL 17; SQLite is only "
+            "accepted for isolated tests and one-time migration input"
         )
-    ]
-    Base.metadata.create_all(bind=bind, tables=legacy_tables)
+
+    target = schema_bound(bind or engine)
+    if target.dialect.name == "postgresql":
+        # A single known table is not enough: the ordered
+        # postgres-init -> migrate gate must have run to completion, so the
+        # recorded Alembic revision is checked as well.
+        ensure_database_current(target)
+    else:
+        Base.metadata.create_all(bind=target)
+
+
+def assert_postgresql_runtime() -> None:
+    """Fail fast when a live application is configured with SQLite."""
+
+    if not DATABASE_URL.startswith(("postgresql", "postgres")):
+        raise RuntimeError(
+            "BIDOPS_DATABASE_URL must point to PostgreSQL 17; live SQLite is forbidden"
+        )

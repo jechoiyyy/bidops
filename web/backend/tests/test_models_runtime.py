@@ -1,47 +1,151 @@
 from __future__ import annotations
 
-import os
+import re
 import sqlite3
-import subprocess
-import sys
-from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.exc import IntegrityError as SQLAlchemyIntegrityError
 
 from app.config import Settings
-from app.screening.generation_config import register_sqlite_functions
+from app.db import _json_serializer, schema_bound
+from app.screening.generation_config import GenerationConfig
+from tests.postgres import requires_postgres, run_alembic, temporary_database
 
-BACKEND = Path(__file__).resolve().parents[1]
+pytestmark = requires_postgres
+
 DIGEST = "a" * 64
 PROFILE_VERSION = f"company-profile.sha256:{DIGEST}"
 MODEL_DIGEST = "b" * 64
+GENERATION_CONFIG_DIGEST = GenerationConfig().digest()
 
 
-def validated_connect(database: Path | str) -> sqlite3.Connection:
-    connection = sqlite3.connect(database)
-    register_sqlite_functions(connection)
-    return connection
+class _Rows:
+    """Small DB-API-shaped result for the two SQLite PRAGMAs in old tests."""
+
+    def __init__(self, rows: list[tuple[Any, ...]]) -> None:
+        self._rows = rows
+
+    def __iter__(self):  # type: ignore[no-untyped-def]
+        return iter(self._rows)
+
+    def fetchone(self):  # type: ignore[no-untyped-def]
+        return self._rows[0] if self._rows else None
+
+    def fetchall(self):  # type: ignore[no-untyped-def]
+        return list(self._rows)
+
+
+_DATABASES: dict[Path, tuple[Any, str]] = {}
+_PRINTF = re.compile(r"printf\('%032d',\s*(?P<number>\d+)\)", re.IGNORECASE)
+_PRAGMA_TABLE_INFO = re.compile(
+    r"^\s*pragma\s+table_info\(\s*(?P<table>[A-Za-z_][A-Za-z0-9_]*)\s*\)\s*$",
+    re.IGNORECASE,
+)
+
+
+def _postgres_sql(statement: str) -> str:
+    statement = re.sub(r"\benabled\s*=\s*1\b", "enabled=TRUE", statement, flags=re.IGNORECASE)
+    statement = re.sub(r"\benabled\s*=\s*0\b", "enabled=FALSE", statement, flags=re.IGNORECASE)
+    statement = _PRINTF.sub(
+        lambda match: f"lpad('{match.group('number')}', 32, '0')", statement
+    )
+    statement = re.sub(
+        r"\border\s+by\s+rowid\b",
+        "ORDER BY occurred_at, CASE WHEN actor = 'system:quality-gate' THEN 1 ELSE 0 END, event_id",
+        statement,
+        flags=re.IGNORECASE,
+    )
+    return statement.replace("?", "%s")
+
+
+class _PostgresConnection:
+    """Translate the legacy raw-SQL test surface to PostgreSQL 17."""
+
+    def __init__(self, connection: Any, engine: Any, boundary: Any) -> None:
+        self._connection = connection
+        self._engine = engine
+        self._boundary = boundary
+
+    def __enter__(self) -> "_PostgresConnection":
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:  # type: ignore[no-untyped-def]
+        self._connection.close()
+        self._engine.dispose()
+        self._boundary.__exit__(exc_type, exc_value, traceback)
+
+    def commit(self) -> None:
+        self._connection.commit()
+
+    def execute(self, statement: str, parameters: Any = ()) -> Any:
+        if statement.strip().lower().startswith("pragma foreign_keys"):
+            return _Rows([])
+
+        pragma = _PRAGMA_TABLE_INFO.fullmatch(statement)
+        if pragma:
+            result = self._run(
+                "SELECT ordinal_position - 1, column_name, data_type, "
+                "CASE WHEN is_nullable = 'NO' THEN 1 ELSE 0 END, column_default, 0 "
+                "FROM information_schema.columns "
+                "WHERE table_schema = 'bidops' AND table_name = %s "
+                "ORDER BY ordinal_position",
+                (pragma.group("table"),),
+            )
+            return _Rows(result.fetchall())
+
+        return self._run(_postgres_sql(statement), parameters)
+
+    def _run(self, statement: str, parameters: Any = ()) -> Any:
+        savepoint = self._connection.begin_nested()
+        try:
+            if parameters:
+                result = self._connection.exec_driver_sql(statement, parameters)
+            else:
+                result = self._connection.exec_driver_sql(statement)
+            savepoint.commit()
+            return result
+        except SQLAlchemyIntegrityError as exc:
+            savepoint.rollback()
+            raise sqlite3.IntegrityError(str(exc)) from exc
+        except Exception:
+            savepoint.rollback()
+            raise
 
 
 def upgrade(database: Path) -> None:
-    env = os.environ.copy()
-    env["BIDOPS_DATABASE_URL"] = f"sqlite:///{database}"
-    result = subprocess.run([sys.executable, "-m", "alembic", "upgrade", "head"], cwd=BACKEND, env=env, text=True, capture_output=True)
-    assert result.returncode == 0, result.stderr
+    boundary = temporary_database()
+    database_url = boundary.__enter__()
+    result = run_alembic(database_url, "upgrade", "head")
+    if result.returncode != 0:
+        boundary.__exit__(None, None, None)
+        raise AssertionError(result.stderr + result.stdout)
+    _DATABASES[Path(database)] = (boundary, database_url)
 
 
-def seed_base(connection: sqlite3.Connection) -> None:
+def validated_connect(database: Path | str) -> _PostgresConnection:
+    boundary, database_url = _DATABASES.pop(Path(database))
+    engine = schema_bound(
+        create_engine(database_url, json_serializer=_json_serializer, future=True)
+    )
+    connection = engine.connect()
+    connection.exec_driver_sql("SET search_path TO bidops")
+    return _PostgresConnection(connection, engine, boundary)
+
+
+def seed_base(connection: _PostgresConnection) -> None:
     now = "2026-01-01T00:00:00+00:00"
     connection.execute("insert into run(id, timezone, generated_at, status) values ('r1', 'Asia/Seoul', ?, 'active')", (now,))
     connection.execute("insert into notice(run_id, notice_key) values ('r1', 'notice-1')")
     connection.execute("insert into company_profile_snapshot(digest, version, source_kind, source_ref, artifact_path, created_at) values (?, ?, 'working_tree', 'docs/reference/company-profile.md', ?, ?)", (DIGEST, PROFILE_VERSION, f"web/data/profile-snapshots/{DIGEST}.md", now))
     body = "{}"
-    connection.execute("insert into screening_policy(policy_version, prompt_version, content_digest, status, perspective_prompts_json, counterargument_prompt_json, synthesis_prompt_json, candidate_selection_json, thresholds_json, created_at, created_by) values ('p1', 'prompt-1', ?, 'draft', ?, ?, ?, ?, ?, ?, 'tester')", (DIGEST, body, body, body, body, body, now))
+    connection.execute("insert into screening_policy(policy_version, schema_version, prompt_version, content_digest, status, perspective_prompts_json, counterargument_prompt_json, synthesis_prompt_json, candidate_selection_json, thresholds_json, created_at, created_by) values ('p1', 'bidops.screening-policy.v1', 'prompt-1', ?, 'draft', ?, ?, ?, ?, ?, ?, 'tester')", (DIGEST, body, body, body, body, body, now))
     connection.commit()
 
 
-def add_execution(connection: sqlite3.Connection, execution_id: str, suffix: str) -> None:
+def add_execution(connection: _PostgresConnection, execution_id: str, suffix: str) -> None:
     connection.execute("insert into screening_execution(execution_id, trigger, source_run_id, scope, status, requested_by, policy_version, prompt_version, model_name, model_digest, company_profile_version, company_profile_digest, input_artifact_path, input_artifact_digest, artifact_dir, queued_at) values (?, 'manual_run', 'r1', 'full_run', '대기', 'tester', 'p1', 'prompt-1', 'qwen3.8:27b', ?, ?, ?, ?, ?, ?, ?)", (execution_id, MODEL_DIGEST, PROFILE_VERSION, DIGEST, f"runs/{suffix}.json", DIGEST, f"runs/{suffix}", "2026-01-01T00:00:00+00:00"))
 
 
@@ -110,15 +214,15 @@ def test_gate_evaluation_append_and_input_immutability(tmp_path: Path) -> None:
             ("2026-01-01T00:00:00+00:00", "gateeval-" + "2" * 32),
         )
         with pytest.raises(sqlite3.IntegrityError):
-            connection.execute("update always_on_state set enabled=1, quality_gate_result_id=?, policy_version='p1', model_name='qwen3.8:27b', model_digest=?, prompt_version='prompt-1', company_profile_version=?, company_profile_digest=?, updated_at=?, updated_by='tester' where singleton_id=1", (gateeval, MODEL_DIGEST, PROFILE_VERSION, DIGEST, "2026-01-01T00:00:00+00:00"))
-        connection.execute("update always_on_state set enabled=1, quality_gate_result_id=?, policy_version='p1', model_name='qwen3.8:27b', model_digest=?, prompt_version='prompt-1', company_profile_version=?, company_profile_digest=?, updated_at=?, updated_by='tester' where singleton_id=1", ("gateeval-" + "2" * 32, MODEL_DIGEST, PROFILE_VERSION, DIGEST, "2026-01-01T00:00:00+00:00"))
+            connection.execute("update always_on_state set enabled=1, quality_gate_result_id=?, generation_config_digest=?, policy_version='p1', model_name='qwen3.8:27b', model_digest=?, prompt_version='prompt-1', company_profile_version=?, company_profile_digest=?, updated_at=?, updated_by='tester' where singleton_id=1", (gateeval, GENERATION_CONFIG_DIGEST, MODEL_DIGEST, PROFILE_VERSION, DIGEST, "2026-01-01T00:00:00+00:00"))
+        connection.execute("update always_on_state set enabled=1, quality_gate_result_id=?, generation_config_digest=?, policy_version='p1', model_name='qwen3.8:27b', model_digest=?, prompt_version='prompt-1', company_profile_version=?, company_profile_digest=?, updated_at=?, updated_by='tester' where singleton_id=1", ("gateeval-" + "2" * 32, GENERATION_CONFIG_DIGEST, MODEL_DIGEST, PROFILE_VERSION, DIGEST, "2026-01-01T00:00:00+00:00"))
         with pytest.raises(sqlite3.IntegrityError):
             connection.execute("update always_on_state set model_digest=? where singleton_id=1", ("c" * 64,))
         connection.execute(
             "insert into quality_gate_evaluation(evaluation_id, gate_id, revision, result_status, metrics_json, reasons_json, valid_review_count, distinct_notice_review_count, created_at) values (?, ?, 3, '통과', '{\"passed\": 1}', '[\"ok\"]', 0, 0, ?)",
             ("gateeval-" + "3" * 32, "gate-" + "1" * 32, "2026-01-01T00:00:00+00:00"),
         )
-        assert connection.execute("select result_status, metrics_json, reasons_json from quality_gate where gate_id=?", ("gate-" + "1" * 32,)).fetchone() == ("통과", '{"passed": 1}', '["ok"]')
+        assert connection.execute("select result_status, metrics_json, reasons_json from quality_gate where gate_id=?", ("gate-" + "1" * 32,)).fetchone() == ("통과", {"passed": 1}, ["ok"])
         assert connection.execute("select enabled from always_on_state where singleton_id=1").fetchone()[0] == 1
         assert connection.execute("select status, quality_gate_result_id from screening_policy where policy_version='p1'").fetchone() == ("active", "gateeval-" + "2" * 32)
         connection.execute(
@@ -126,7 +230,7 @@ def test_gate_evaluation_append_and_input_immutability(tmp_path: Path) -> None:
         )
         assert connection.execute("select enabled from always_on_state where singleton_id=1").fetchone()[0] == 0
         policy_disable_audits = connection.execute(
-            "select event_type, actor, target_type, target_id, details_json from audit_event where event_type='schedule.always_on_disabled'"
+            "select event_type, actor, target_type, target_id, details_json from screening_audit_event where event_type='schedule.always_on_disabled'"
         ).fetchall()
         assert len(policy_disable_audits) == 1
         assert policy_disable_audits[0] == (
@@ -134,22 +238,22 @@ def test_gate_evaluation_append_and_input_immutability(tmp_path: Path) -> None:
             "system:policy",
             "schedule",
             "1",
-            '{"reason":"policy_inactive"}',
+            {"reason": "policy_inactive"},
         )
         assert "secret" not in policy_disable_audits[0][-1]
         connection.execute(
             "update screening_policy set status='active', active_slot=1, activated_at=?, activated_by='tester', quality_gate_result_id=? where policy_version='p1'",
             ("2026-01-01T00:00:00+00:00", "gateeval-" + "3" * 32),
         )
-        connection.execute("update always_on_state set enabled=1, quality_gate_result_id=?, policy_version='p1', model_name='qwen3.8:27b', model_digest=?, prompt_version='prompt-1', company_profile_version=?, company_profile_digest=?, updated_at=?, updated_by='tester' where singleton_id=1", ("gateeval-" + "3" * 32, MODEL_DIGEST, PROFILE_VERSION, DIGEST, "2026-01-01T00:00:00+00:00"))
+        connection.execute("update always_on_state set enabled=1, quality_gate_result_id=?, generation_config_digest=?, policy_version='p1', model_name='qwen3.8:27b', model_digest=?, prompt_version='prompt-1', company_profile_version=?, company_profile_digest=?, updated_at=?, updated_by='tester' where singleton_id=1", ("gateeval-" + "3" * 32, GENERATION_CONFIG_DIGEST, MODEL_DIGEST, PROFILE_VERSION, DIGEST, "2026-01-01T00:00:00+00:00"))
         connection.execute(
             "insert into quality_gate_evaluation(evaluation_id, gate_id, revision, result_status, metrics_json, reasons_json, valid_review_count, distinct_notice_review_count, created_at) values (?, ?, 4, '미달', '{\"passed\": 0}', '[\"failed\"]', 0, 0, ?)",
             ("gateeval-" + "4" * 32, "gate-" + "1" * 32, "2026-01-01T00:00:00+00:00"),
         )
         assert connection.execute("select enabled from always_on_state where singleton_id=1").fetchone()[0] == 0
-        assert connection.execute("select result_status, metrics_json, reasons_json from quality_gate where gate_id=?", ("gate-" + "1" * 32,)).fetchone() == ("미달", '{"passed": 0}', '["failed"]')
+        assert connection.execute("select result_status, metrics_json, reasons_json from quality_gate where gate_id=?", ("gate-" + "1" * 32,)).fetchone() == ("미달", {"passed": 0}, ["failed"])
         quality_disable_audits = connection.execute(
-            "select event_type, actor, target_type, target_id, details_json from audit_event where event_type='schedule.always_on_disabled' order by rowid"
+            "select event_type, actor, target_type, target_id, details_json from screening_audit_event where event_type='schedule.always_on_disabled' order by rowid"
         ).fetchall()
         assert len(quality_disable_audits) == 2
         assert quality_disable_audits[-1] == (
@@ -157,7 +261,7 @@ def test_gate_evaluation_append_and_input_immutability(tmp_path: Path) -> None:
             "system:quality-gate",
             "schedule",
             "1",
-            '{"reason":"quality_gate_not_passing"}',
+            {"reason": "quality_gate_not_passing"},
         )
         assert all("secret" not in row[-1] for row in quality_disable_audits)
 
@@ -251,7 +355,7 @@ def test_audit_details_must_be_an_object(tmp_path: Path) -> None:
     with validated_connect(database) as connection:
         with pytest.raises(sqlite3.IntegrityError):
             connection.execute(
-                "insert into audit_event(event_id, event_type, actor, target_type, target_id, occurred_at, details_json) "
+                "insert into screening_audit_event(event_id, event_type, actor, target_type, target_id, occurred_at, details_json) "
                 "values (?, 'test', 'tester', 'run', 'r1', ?, ?)",
                 ("audit-" + "1" * 32, "2026-01-01T00:00:00+00:00", "[]"),
             )

@@ -2,7 +2,7 @@
 
 ## 대형 단일 Qwen 호출이 끝나지 않거나 숫자를 틀린다
 
-- 증상: 약 81페이지 HWP를 한 프롬프트로 `qwen3.8:27b`에 넘겼을 때 입력이 11만 토큰을 넘고, 사고 모드 출력이 길이 제한에 걸리거나 요구사항 수·하드게이트 수가 원문과 달라진다.
+- 증상: 약 81페이지 HWP를 한 프롬프트로 `qwen3.8-27B`에 넘겼을 때 입력이 11만 토큰을 넘고, 사고 모드 출력이 길이 제한에 걸리거나 요구사항 수·하드게이트 수가 원문과 달라진다.
 - 원인: 문서 구조화, 전 영역 판단, 보고서 서술, 자기검증을 한 호출에 맡기면 긴 문맥에서 계수와 분류 경계가 약해진다. 모델의 자연어 자기검증은 결정적 검사가 아니다.
 - 대응: 문서 구조화 → 자격 → 요구사항 묶음 → 평가 → 위험 → 종합 순으로 나누고 각 단계는 제한된 JSON 스키마로 받는다. 요구사항 ID·배점·금액·기간은 코드로 원문과 대조한다. 고정 파일에서 단계별 결과가 재현되고 오류가 검증기에 잡히는지 확인한다.
 
@@ -59,3 +59,27 @@
 - 증상: 하위 프로세스가 환경변수 또는 `serviceKey` 파라미터를 출력하면 수집 로그에 비밀이 남을 수 있다.
 - 원인: 웹 실행기는 API 키를 하위 프로세스 환경에 전달해야 하고 외부 오류 메시지를 그대로 수집할 수 있다.
 - 대응: 키 실제 값과 알려진 키 파라미터 형식을 저장 전 마스킹한다. 성공·실패 테스트 모두에서 실제 키 문자열이 로그 응답과 DB에 없는지 확인한다.
+
+## 실제 screening 설명은 짧은 enum이 아니다
+
+- 증상: 깨끗한 PostgreSQL에 기존 회차를 적재할 때 `screening_basis`가 64자를 넘으면 `StringDataRightTruncation`으로 전체 적재가 실패한다.
+- 원인: 사람이 읽는 판정 설명을 제한된 코드값처럼 `varchar(64)`에 저장했다.
+- 대응: `Run.screening_basis`는 `TEXT`로 유지하고 임의 절단·빈 값 대체를 하지 않는다. schema 변경 뒤에는 깨끗한 PostgreSQL에서 실제 기존 회차를 두 번 적재해 원문 길이와 멱등성을 함께 확인한다.
+
+## 읽기 전용 worker가 쓰기 자격증명을 고르면 권한 경계가 무너진다
+
+- 증상: structure 읽기 전용 client를 만들 때 write credential도 함께 설정돼 있으면 더 강한 write key가 선택된다.
+- 원인: 일반 자격증명을 read credential의 fallback처럼 다룬 선택 순서 때문이다.
+- 대응: read namespace는 전용 read access/secret만 사용하고 없으면 fail closed한다. web과 analysis runtime의 namespace별 client 생성 테스트에서 실제 선택된 access key를 확인한다.
+
+## 최신 bundle 확인과 document 수정은 같은 잠금 구간이어야 한다
+
+- 증상: metadata command가 최신 bundle ref를 확인한 직후 새 bundle이 생기면 오래된 lineage를 기준으로 document가 수정될 수 있다.
+- 원인: router의 ref 조회와 service의 patch transaction 사이에 경쟁 구간이 있었다.
+- 대응: service transaction에서 notice → 최신 bundle → document 순서로 잠그고 ref ID/version/hash를 다시 검증한 뒤 patch한다. 새 bundle이 사이에 생긴 stale command는 `version_conflict`로 거부하는 회귀 테스트를 유지한다.
+
+## 비ASCII actor header 인코딩은 ASCII 이름을 바꾸면 안 된다
+
+- 증상: 표준 라이브러리 HTTP client가 한글 담당자 이름을 header로 보내지 못하거나, 인코딩 prefix처럼 보이는 기존 ASCII 이름이 server에서 다른 이름으로 복원된다.
+- 원인: raw Unicode header의 Latin-1 제약과 in-band prefix를 모든 일치 문자열에 무조건 적용한 디코딩 때문이다.
+- 대응: acceptance client만 비ASCII 이름을 canonical UTF-8 percent envelope로 만들고 별도 format header를 함께 보낸다. server는 명시된 format이 있을 때만 복원한다. printable ASCII 이름은 prefix로 시작하거나 percent 문자열을 포함해도 원래 값을 보존하며 unknown format과 malformed/ASCII-only/control encoding은 거부한다.

@@ -18,7 +18,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from ..models import (
-    AuditEvent,
+    ScreeningAuditEvent,
     QualityGate,
     QualityGateEvaluation,
     ScreeningExecution,
@@ -271,11 +271,11 @@ def _audit(
     target_id: str,
     before: Mapping[str, Any] | None,
     after: Mapping[str, Any],
-) -> AuditEvent:
+) -> ScreeningAuditEvent:
     # Details are deliberately metadata only.  In particular, no prompt body,
     # company profile body, secret, or free-form policy JSON is recorded.
     details = {"before": dict(before) if before is not None else None, "after": dict(after)}
-    event = AuditEvent(
+    event = ScreeningAuditEvent(
         event_id="audit-" + uuid4().hex,
         event_type=event_type,
         actor=actor,

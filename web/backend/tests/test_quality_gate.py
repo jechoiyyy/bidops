@@ -22,7 +22,7 @@ import app.screening.orchestrator as orchestrator_module
 from app.config import Settings
 from app.db import Base
 from app.ingest.loader import ingest_run, deterministic_run_id
-from app.models import AuditEvent, CompanyProfileSnapshot, Judgment, Notice, QualityGate, QualityGateEvaluation, QualityGateReview, Run, ScreeningExecution, ScreeningPolicy
+from app.models import ScreeningAuditEvent, CompanyProfileSnapshot, Judgment, Notice, QualityGate, QualityGateEvaluation, QualityGateReview, Run, ScreeningExecution, ScreeningPolicy
 from app.screening.artifacts import ArtifactStore
 from app.screening.contracts import MODEL_NAME, ModelIdentity, two_axis_mixing
 from app.screening.orchestrator import (
@@ -1840,7 +1840,7 @@ def test_refresh_review_upsert_audit_and_immutable_history(tmp_path: Path):
         evaluations = session.scalars(select(QualityGateEvaluation).where(QualityGateEvaluation.gate_id == gate_id).order_by(QualityGateEvaluation.revision)).all()
         assert [row.revision for row in evaluations] == list(range(1, len(evaluations) + 1))
         assert evaluations[0].result_status == "미측정"
-        audits = session.scalars(select(AuditEvent).where(AuditEvent.event_type == "quality_gate.review_updated").order_by(AuditEvent.event_id)).all()
+        audits = session.scalars(select(ScreeningAuditEvent).where(ScreeningAuditEvent.event_type == "quality_gate.review_updated").order_by(ScreeningAuditEvent.event_id)).all()
         assert any(
             isinstance(event.details_json.get("before"), dict)
             and event.details_json["before"].get("note") == "old-0"

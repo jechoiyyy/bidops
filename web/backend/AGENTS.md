@@ -2,7 +2,7 @@
 
 ## 범위
 
-이 모듈은 FastAPI REST 계약, SQLAlchemy·SQLite 정본, 산출물 적재, 회차·리뷰·첨부·기관 포털·프로필·지표, 로컬 파이프라인 프로세스 실행을 소유한다. 수집·판정 규칙의 원본 구현과 React 화면 표현은 이 모듈의 범위가 아니다.
+이 모듈은 FastAPI REST 계약, SQLAlchemy·PostgreSQL 17 정본, 산출물 적재, 회차·리뷰·첨부·기관 포털·프로필·지표, 로컬 파이프라인 프로세스 실행을 소유한다. SQLite는 migration input/격리 테스트만 허용한다. 수집·판정 규칙의 원본 구현과 React 화면 표현은 이 모듈의 범위가 아니다.
 
 ## 경계
 
@@ -13,7 +13,7 @@
 
 ## 불변 조건
 
-- SQLite는 WAL을 사용하며 사용자 리뷰는 DB가 정본이다. YAML 재적재가 기존 리뷰를 덮어쓰지 않는다.
+- PostgreSQL `bidops` schema가 live 정본이며 사용자 리뷰와 Lean report는 append-only DB 기록이다. SQLite WAL backup은 one-time migration input이고 YAML 재적재가 기존 기록을 덮어쓰지 않는다.
 - 회차와 정책·문서 버전 결과는 불변이다. 재실행은 새 행을 만들고 이전 행에는 관계만 기록한다.
 - 핵심 식별자·등급·준비 상태가 없는 판정은 적재하지 않는다. 비핵심 누락은 경고와 실제 값만 저장하고 생성값으로 채우지 않는다.
 - `null`, 0, 빈 문자열, 계산 불가는 서로 다른 상태다. 응답 직렬화에서 임의로 합치지 않는다.
