@@ -16,6 +16,15 @@
 PostgreSQL 17 단일 정본으로 두 브랜치를 통합했다. 통합 커밋의 실제 검증 명령과
 결과는 이 절에 기록한다. 통합 이전 두 브랜치의 수치를 통합 결과로 재사용하지 않는다.
 
+### 2026-08-27 통합 후 검증 결과
+
+| 실행 명령 | 결과 |
+|---|---|
+| `npm run build` | 성공. Vite 6.4.3, 266 modules transformed |
+| `npm run test:visual:update` | 성공. 통합 UI 기준선 갱신 후 184개 중 174 passed, 10 skipped |
+| `npm run test:visual` | 성공. 갱신된 기준선과 비교해 184개 중 174 passed, 10 skipped |
+| `git diff --check` | 성공 |
+
 ---
 
 # Deep Review 브랜치 증거
@@ -36,7 +45,7 @@ T1~T8 구현과 검증을 완료했고, 최종 독립 리뷰에서 확인된 회
 | DocumentPreparation/DeepReview/Decision Agent | 구현됨 | 세 package의 typed command·adapter·projection과 대응 테스트 |
 | 기존 mutation router 연결 | 구현됨 | document bundle·deep review·report mutation이 해당 Agent adapter를 호출하고 Lean v1 14개 API 계약 유지 |
 | 단계 C deep-review runtime | 구현됨, provider-neutral | 세 stage, bounded chunk/retry, fenced job, encrypted raw response, report/validation/evidence API |
-| React 심층 검토 화면 | 핵심 조회·리포트 검토 구현됨 | ready bundle 선택, review 시작, report/revision/final opinion 화면과 기능 테스트; T8 frontend 코드는 변경하지 않음 |
+| React 심층 검토 화면 | 핵심 조회·리포트 검토 구현됨 | ready bundle 선택, review 시작, report/revision/final opinion 화면과 기능 테스트; 통합 후 `ui-component-refresh`의 review workspace 레이아웃을 적용함 |
 | Qwen 품질 activation gate | 계산·import 연결 구현됨, 실제 품질 증적 없음 | human-adjudicated scorer, 0.80/0.70/0.10 gate, policy SHA 일치 import |
 | T7 Agent 연속 인수 | 실제 격리 Mock E2E 통과 | PostgreSQL·MinIO·ClamAV·document worker 2개·analysis worker·web, `passed=true`, 종료 active WorkJob 0 |
 | legacy run ingest | 최종 리뷰에서 해결·실제 재검증됨 | `screening_basis TEXT` migration, 깨끗한 PostgreSQL에서 40 notices/40 judgments를 두 번 멱등 적재, 102자 원문 보존 |
@@ -108,19 +117,21 @@ shadowing 5건과 Starlette/httpx deprecation 1건이며 이번 실행을 실패
 
 # T15 브랜치 증거
 
-기준일: 2026-08-26. 이 표는 aggregate `dryforge/task-t14`에서 확인한 사실만 기록한다. 실행 ID·게이트 ID·평가 결과를 만들어 쓰지 않는다.
+기준일: 2026-08-26. 이 표는 현재 브랜치에서 직접 검증한 사실만 기록한다. 실행 ID·게이트 ID·평가 결과를 만들어 쓰지 않는다.
 
 ### 증거 상태
 
 | 영역 | 상태 | 확인 사실 |
 |---|---|---|
 | source pipeline | 완료 | `./run-tests.sh` 통과: collect 28, report 13, screen 48, root 2 (총 91) |
-| backend/frontend fake CI | 완료 | `./web/run-web-tests.sh` 통과: backend 311 passed, frontend production build; 기존 Starlette/httpx deprecation warning 1건과 Vite chunk size warning만 관찰 |
+| backend/frontend fake CI | 완료 | fresh SQLite migration 뒤 backend 312 passed, frontend production build 통과; 기존 Vite chunk size warning만 관찰 |
 | Docker config/build | 완료 | `docker compose config --quiet` 및 `docker compose build` 통과; Python은 `web/backend/requirements.lock` exact pins, frontend production build warning(>500 kB chunk)만 관찰 |
 | visual | 완료(컨테이너) | fresh Docker 실행 2회가 각각 98 passed, 10 intentional skipped. Google Fonts network 차단과 image local fonts(`WenQuanYi Zen Hei`, `Liberation Mono`)로 결정성 확보. host 직접 launch는 환경의 `libnspr4/libnss3` 부재로 제한됨 |
 | live Ollama/T15 Phase 1 | 실패 증거 보존 | exact tag/digest preflight 후 단일 live execution이 5 perspective+counterargument 성공, synthesis bounded retry 2회 `truncated_output`; 최종 `실패` |
+| 관리자 화면 | 완료(컨테이너 검증) | 밝은 RootLab 여유형 체계, 로컬 Pretendard, 공통 셸과 12개 화면 대상을 390/768/1024/1440px에서 검증했다. 독립 검토 blocker 수정본의 exact Docker 갱신·비갱신 실행은 각각 172개 중 162 passed, 10 intentional skipped였고, 갱신 실행에서 dashboard 스냅샷 4개를 재생성했다. host 직접 browser launch는 환경의 `libnspr4/libnss3` 부재로 제한됨 |
+| 독립 검토 blocker 수정본 재검증 | 완료 | `npm run build` 및 `git diff --check` 통과. `visual.spec.ts` 회귀 테스트 3개 추가 후 Playwright `--list`와 exact Docker 실행 모두 172개를 확인했고, 갱신·비갱신 각각 162 passed, 10 intentional skipped, 갱신 실행의 dashboard 스냅샷 4개 재생성을 확인했다. |
 
-visual의 10 skip은 draft spec의 mobile/tablet 너비 조건에 따른 의도된 skip(5 × 2)이다. 재현 명령과 image/mount 전제는 [운영 절차](../operations.md)에 있다.
+visual의 10 skip은 draft spec의 기존 넓은 화면 보조 흐름 5건이 390px/768px 조건에서 각각 skip된 것이다. 새 검토 대기열 초안 복귀 흐름은 390/768/1024/1440px 모두에서 실행한다. 스냅샷에는 대시보드, 검토 대기열, 판정 이력, 담당자 리뷰 준비 화면, 수집 실행, 첨부 확보, 프로필, 검증 지표, 품질 게이트 두 상태, 정책, 상시 운영이 네 폭으로 고정돼 있다.
 
 ### 운영·활성화 상태
 

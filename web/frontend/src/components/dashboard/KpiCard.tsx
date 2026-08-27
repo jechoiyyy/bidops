@@ -15,11 +15,6 @@ export function KpiCard({ label, value, description, status, accent = false, to 
   const className = `dashboard-kpi ${accent ? "is-accent" : ""} ${to ? "is-linked" : ""}`.replace(/\s+/g, " ").trim();
   const body = (
     <>
-      {to ? (
-        <svg className="dashboard-kpi-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
-          <path d="M5 12h13M13 6l6 6-6 6" />
-        </svg>
-      ) : null}
       <div className="dashboard-kpi-label">{label}</div>
       <div className="dashboard-kpi-value mono tabular-nums">{value}</div>
       <div className="dashboard-kpi-description">
@@ -30,7 +25,7 @@ export function KpiCard({ label, value, description, status, accent = false, to 
   );
 
   if (to) {
-    return <Link className={className} to={to} aria-label={label}>{body}</Link>;
+    return <Link className={className} to={to}>{body}</Link>;
   }
   return <section className={className} aria-label={label}>{body}</section>;
 }

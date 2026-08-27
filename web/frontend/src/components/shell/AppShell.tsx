@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Outlet, useLocation, useSearchParams } from "react-router-dom";
 import { EmptyState } from "../common/EmptyState";
 import { api } from "../../lib/api";
+import "../../styles/shell-relaxed.css";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 
@@ -41,6 +42,9 @@ function titleForPath(pathname: string): string {
 export function AppShell() {
   const location = useLocation();
   const [navOpen, setNavOpen] = useState(false);
+  const navRef = useRef<HTMLElement>(null);
+  const navTriggerRef = useRef<HTMLButtonElement>(null);
+  const navWasOpenRef = useRef(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const runsQuery = useQuery({
@@ -76,6 +80,19 @@ export function AppShell() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [navOpen]);
 
+  // 바깥 클릭·Esc·메뉴 이동으로 서랍이 닫힌 뒤에는 메뉴를 연 조작부로
+  // 초점을 돌려 키보드 탐색이 문서 중간으로 이탈하지 않게 한다.
+  useEffect(() => {
+    if (navOpen) {
+      navWasOpenRef.current = true;
+      navRef.current?.querySelector<HTMLElement>("a[href]")?.focus({ preventScroll: true });
+      return;
+    }
+    if (!navWasOpenRef.current) return;
+    navWasOpenRef.current = false;
+    navTriggerRef.current?.focus({ preventScroll: true });
+  }, [navOpen]);
+
   useEffect(() => {
     if (runs.length === 0 || !selectedRunId || queryRunId === selectedRunId) return;
     setSearchParams((current) => {
@@ -99,12 +116,14 @@ export function AppShell() {
 
   return (
     <div className="app-shell">
-      <Sidebar open={navOpen} onClose={() => setNavOpen(false)} />
+      <Sidebar navRef={navRef} open={navOpen} onClose={() => setNavOpen(false)} />
       <div className="app-content">
         <TopBar
           editScope={editScopeForPath(location.pathname)}
           isLoading={runsQuery.isLoading || detailQuery.isLoading}
-          onOpenNav={() => setNavOpen(true)}
+          onToggleNav={() => setNavOpen((current) => !current)}
+          menuButtonRef={navTriggerRef}
+          navOpen={navOpen}
           onRunChange={onRunChange}
           runs={runs}
           selectedRun={selectedRun}

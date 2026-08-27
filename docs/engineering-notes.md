@@ -83,3 +83,8 @@
 - 증상: 표준 라이브러리 HTTP client가 한글 담당자 이름을 header로 보내지 못하거나, 인코딩 prefix처럼 보이는 기존 ASCII 이름이 server에서 다른 이름으로 복원된다.
 - 원인: raw Unicode header의 Latin-1 제약과 in-band prefix를 모든 일치 문자열에 무조건 적용한 디코딩 때문이다.
 - 대응: acceptance client만 비ASCII 이름을 canonical UTF-8 percent envelope로 만들고 별도 format header를 함께 보낸다. server는 명시된 format이 있을 때만 복원한다. printable ASCII 이름은 prefix로 시작하거나 percent 문자열을 포함해도 원래 값을 보존하며 unknown format과 malformed/ASCII-only/control encoding은 거부한다.
+## 컨테이너에서 만든 venv가 호스트에서 실행되지 않는다
+
+- 증상: 컨테이너에서 `python -m venv web/backend/.venv`를 만든 뒤 호스트의 `./web/run-web-tests.sh`가 `.venv/bin/python`을 실행하지 못한다.
+- 원인: venv의 Python 링크가 컨테이너 안의 `/usr/local/bin/python`을 가리키며, 그 절대 경로가 호스트에는 없다.
+- 대응: host 검증용 venv는 host Python 3.12+로 만들고 잠금 파일을 설치한다. 컨테이너 검증은 venv를 bind mount로 만들지 말고 이미지 안 Python으로 fresh SQLite migration과 pytest를 실행한 뒤, 저장소에 깨진 `.venv`가 남지 않았는지 확인한다.

@@ -544,6 +544,21 @@ export function getVisualResponse(pathname: string, pageUrl: string): unknown | 
     return { items: [derivedExecution], total: 1, limit: 25, offset: 0 };
   }
 
+  // Keep the missing-evaluation path explicit: the review readiness indicator
+  // must not turn an absent count into a real zero.
+  if (pathname === "/api/quality-gates/gate-model-comparison" && pageUrl.includes("state=null-review")) {
+    const detail = visualResponses["/api/quality-gates/gate-model-comparison"] as Record<string, unknown>;
+    const evaluations = detail.evaluations as Array<Record<string, unknown>>;
+    return {
+      ...detail,
+      evaluations: evaluations.map((evaluation) => ({
+        ...evaluation,
+        valid_review_count: null,
+        distinct_notice_review_count: null,
+      })),
+    };
+  }
+
   const exact = visualResponses[pathname];
   if (exact !== undefined) return exact;
 

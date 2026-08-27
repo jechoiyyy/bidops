@@ -8,13 +8,17 @@ interface QualityGateRunsProps {
 const terminalStatuses = new Set(["성공", "부분 성공", "실패", "중단됨"]);
 
 function runStatus(run: ScreeningExecutionResponse): string {
-  if (run.status === "실행 중" || run.status === "중지 요청") return "실행 중";
   return run.status;
 }
 
 function runStateDescription(run: ScreeningExecutionResponse): string {
   if (run.status === "대기") return run.queue_position ? `대기 순번 ${run.queue_position}` : "대기 중";
-  if (run.status === "실행 중" || run.status === "중지 요청") {
+  if (run.status === "중지 요청") {
+    return ["중지 요청 처리 중", run.current_stage ?? "단계 확인 중", run.current_notice_id ? `공고 ${run.current_notice_id}` : null]
+      .filter(Boolean)
+      .join(" · ");
+  }
+  if (run.status === "실행 중") {
     return [run.current_stage ?? "단계 확인 중", run.current_notice_id ? `공고 ${run.current_notice_id}` : null]
       .filter(Boolean)
       .join(" · ");
@@ -25,9 +29,12 @@ function runStateDescription(run: ScreeningExecutionResponse): string {
 }
 
 function stateClass(run: ScreeningExecutionResponse): string {
+  if (run.status === "대기") return "quality-state-queued";
+  if (run.status === "중지 요청") return "quality-state-stopping";
   if (run.status === "성공") return "quality-state-passed";
   if (run.status === "부분 성공") return "quality-state-held";
-  if (run.status === "실패" || run.status === "중단됨") return "quality-state-failed";
+  if (run.status === "실패") return "quality-state-failed";
+  if (run.status === "중단됨") return "quality-state-interrupted";
   return "quality-state-running";
 }
 
