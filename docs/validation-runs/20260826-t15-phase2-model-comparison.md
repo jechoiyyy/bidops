@@ -94,3 +94,120 @@ SQLite backup API로 만든 백업과 별도 안전 복사본을 다음 ignored 
 `model_comparison`은 원래도 정책 활성화 근거가 아니다. 이번 실행에서는 해당 gate 자체가 생성되지 않았으므로 `통과/미달/보류/미측정` evaluation 결과를 만들거나 refresh할 수 없었다. 사람 review도 만들지 않았다. 운영 정책은 계속 `activation_candidate`, always-on과 scheduler는 계속 `false`다.
 
 재개 조건은 구현 결함을 고쳐 실제 DB의 imported run ID와 fixed gate contract를 일치시키는 별도 코드 변경 및 검증 승인이다. 그 전에는 같은 runtime에서 gate 또는 live 실행을 재시도하지 않는다.
+
+## 2026-08-27 Phase 2 live retry — `BLOCKED` (localhost preflight)
+
+### 결론
+
+이번 재시도는 모델 호출·gate 생성 전에 중단됐다. 승인된 endpoint
+`http://127.0.0.1:11434/api/tags`가 연결을 거부해 2xx 응답과 exact model
+identity를 확인할 수 없었다. 지침에 따라 다른 포트, 원격 Ollama, OpenAI 호환
+endpoint, 대체 모델을 사용하지 않았고 gate·evaluation·execution·review 행을
+만들지 않았다. 최종 상태는 `BLOCKED`이며 성공으로 보정하지 않는다.
+
+모델 preflight 증거는 다음 시각(UTC/KST)에 남겼다.
+
+- 시작: `2026-08-27T00:14:52.658970+00:00` /
+  `2026-08-27T09:14:52.658970+09:00`
+- 종료: `2026-08-27T00:14:52.691494+00:00` /
+  `2026-08-27T09:14:52.691494+09:00`
+- 결과: `URLError: [Errno 111] Connection refused`, curl-equivalent exit `7`
+- 증거: `/home/jechoi/projects/side/bidops-agent/.dryforge/t15-runtime/phase2-live-retry-20260827/phase2-logs/00-model-preflight.log`
+
+### 고정 binding과 read-only source preflight
+
+| 항목 | 값 |
+|---|---|
+| endpoint policy | `http://127.0.0.1:11434` only |
+| endpoint requested | `http://127.0.0.1:11434/api/tags` |
+| required model tag | `qwen3.8:27b` |
+| required model digest | `22130167c4c20e20c7b71454612966ca8e8171e9b3cc8ab6ce8aa6cbfec79643` |
+| observed HTTP/model metadata | unavailable (connection refused before response) |
+| canonical generation config | `num_ctx=16384`, perspective/counterargument `2048`, synthesis `4096`, `think=false`, `stream=false` |
+| required config digest | `51f1878845ed282b20e9c074ca29adbb5ce0a208c89ffae51425a2565ad5dfd1` |
+| scheduler env | `BIDOPS_SCHEDULER_ENABLED=false` |
+| live marker | `BIDOPS_LIVE_OLLAMA_TEST=true` was not used to bypass preflight |
+
+The fixed artifacts were read-only copied into the new retry root and their
+byte pins still match: validation set
+`2ea6a21e6b121f691195bbc891b8ec7766817f821d6b343c20b12b608f3e47e3`, baseline
+decisions `69a444e5ec9846c592de4b454472817477abaa4a109c97dbe84787dff9c6789d`,
+and screening results
+`fb9160602771ff057b708d69b197b9fc7e464f9e021615a7ebaa83a94733903b`. The
+`screening-results.generated_at` resolver target remains canonical
+`20260817-20260823--20260824T090927.138116Z`; no alias row was created or used.
+The copied collection artifact SHA-256 is
+`ec5021f5e09c6c15ccde090998df39b57dfdaf728f7a30a1bf24c8f1f1d98ce0`.
+
+### Fresh backup, baseline, and terminal no-write state
+
+This retry uses a new deterministic ignored runtime directory and does not
+overwrite the earlier `phase2-backup` evidence:
+
+`/home/jechoi/projects/side/bidops-agent/.dryforge/t15-runtime/phase2-live-retry-20260827`
+
+The source was the requested Phase 1 retry DB
+`phase1-retry/phase1-db/bidops.db`; its pre-run SHA-256 was
+`dc5074fcabe8d9b3ab8bbdd8d30c8c6fbd36cbd43853e475fea3daa370cfc03c`. A
+SQLite online backup was taken before any gate operation:
+
+- backup: `phase2-db/phase2-live-pre-run.db`, SHA-256
+  `da6af6643938ca3487b0354836ec7f816dac343968e4812f57bb099b70f4191f`
+- working DB copy: `phase2-db/bidops.db`, SHA-256
+  `da6af6643938ca3487b0354836ec7f816dac343968e4812f57bb099b70f4191f`
+- backup manifest:
+  `phase2-db/phase2-live-pre-run.db.manifest.json`, SHA-256
+  `66f370292a50e4f0006a3571a6f73b975666acd53ae3a3b83e6d167dc849cc73`
+- logical snapshot fingerprint in the manifest:
+  `7dd8b1539532d854d72e999d5ce7802843ce96f7a6ec054991b467246236c66a`
+- baseline JSON:
+  `phase2-logs/01-pre-run-baseline.json`, SHA-256
+  `1f69c6349cdf37fa78f33fcd1b3a098b7adc07bd95932a850b789ae019817e65`
+- post-run read-only verification:
+  `phase2-logs/02-post-run-verify.json`, SHA-256
+  `d0859dc0e9effaa2e18decfb5ea62c5e700eff129470f1f3025720b06d07a9d0`,
+  exit `0`
+
+The read-only baseline was Alembic
+`0005_generation_config_binding`, SQLite `quick_check=ok`, foreign-key
+violations `0`, with core counts run/notice/judgment/review/attachment
+`1/40/40/0/149`. Existing executions were unchanged: successful
+`scr-72a1ae87342d4d4485fbb467b0e4d3fa` and stopped
+`scr-650cd5e1eea04205b8ffffeaa789df7f`. The initial quality counts were and
+remain gate/evaluation/review `0/0/0`; schedule execution `0`, policy remains
+`activation_candidate`, always-on remains `false`, and prespec remains
+`false`.
+
+### Gate and execution result
+
+No gate ID, pass-A/B execution ID, evaluation ID, or review ID was allocated.
+Consequently the following are **미측정 / not run**, not zero-quality claims:
+
+| measure | result |
+|---|---|
+| model calls | `0` (preflight blocked) |
+| A/B notices | `0 + 0` processed; required `40 + 40` was not started |
+| logical executions | `0` new quality-sample executions |
+| persisted attempts | `0` new attempts |
+| FIFO order/completion | not applicable; no queue rows added |
+| A/B metrics / gate result / evaluation | not measured; no rows |
+| provider/schema retries | none; no provider request was issued |
+| truncation/error output events | none; only preflight connection refusal |
+
+No policy activation candidate mutation, policy activation, scheduler enable,
+always-on enable, operational-approval gate, external model call, or release
+operation occurred. The working DB hash equals the pre-run backup hash, and
+the source DB was not modified.
+
+### Safety and deferred hardening
+
+The requested basic file-pin/TOCTOU, transaction rollback/replay, and public
+bypass protections were not exercised because the required localhost runtime
+was unavailable; no result is claimed for them. Same-process inspect/closure
+attack hardening is explicitly deferred to a future strengthening phase per
+the operator decision and is not a blocker classification for this retry.
+
+To resume T15 Phase 2, `127.0.0.1:11434/api/tags` must first return 2xx with
+exact tag `qwen3.8:27b` and the required digest. A new deterministic retry
+directory and fresh pre-run backup are required; this blocked evidence and
+the earlier Phase 2 record remain immutable.
