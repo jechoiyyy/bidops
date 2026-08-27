@@ -1,8 +1,8 @@
-"""T14-A integration boundaries on a migrated, file-backed SQLite database.
+"""T14-A integration boundaries on a migrated PostgreSQL database.
 
 These tests deliberately use the process-wide database configured by
 ``web/run-web-tests.sh``.  The runner creates and migrates that database in a
-private temporary directory before pytest imports ``app.db``.  Ollama is
+private disposable PostgreSQL 17 container before pytest imports ``app.db``. Ollama is
 always a scripted transport; a regression that opens a real socket therefore
 fails at the fake boundary instead of making CI network-dependent.
 """
@@ -114,7 +114,7 @@ def _seed_queue_dependencies(policy_version: str) -> None:
 def test_migrated_database_is_at_head_before_lifespan() -> None:
     """The ordinary web runner proves migration before any app startup."""
 
-    assert os.environ.get("BIDOPS_DATABASE_URL", "").startswith("sqlite:///")
+    assert os.environ.get("BIDOPS_DATABASE_URL", "").startswith(("postgresql://", "postgresql+"))
     assert current_revision() == ALEMBIC_HEAD
 
 

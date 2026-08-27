@@ -10,6 +10,11 @@ RUN npm ci
 COPY web/frontend/ ./
 RUN npm run build
 
+# The document worker executes the pinned HWP converter with Node.  Keep the
+# runtime binary in the application image while its processing network remains
+# isolated by Compose.
+FROM node:22-bookworm-slim AS node-runtime
+
 # Build-time UID/GID defaults match .env.example and may be changed to the host
 # account. The image never creates an operating database, .env, API key, or run
 # data.
@@ -24,7 +29,6 @@ ENV PYTHONUNBUFFERED=1 \
     BIDOPS_ROOT=/app \
     BIDOPS_DATA_DIR=/app/web/data \
     BIDOPS_ATTACHMENTS_DIR=/app/web/data/attachments \
-    BIDOPS_DATABASE_URL=sqlite:////app/web/data/bidops.db \
     BIDOPS_OLLAMA_BASE_URL=http://127.0.0.1:11434 \
     BIDOPS_SCHEDULER_ENABLED=false
 
@@ -34,11 +38,14 @@ RUN python -m pip install --no-cache-dir --no-deps --only-binary=:all: \
         --require-hashes --requirement requirements.lock \
     && python -m pip check
 
-# Git is retained only as an optional source-inspection tool. The image has no
-# repository metadata; the wrapper below serves the one exact baseline lookup
-# needed by the compatibility test and delegates all other commands to Git.
+# poppler-utils, clamav, and postgresql-client are document-pipeline and
+# PostgreSQL operator tools. Git is retained only as an optional
+# source-inspection tool: the image has no repository metadata, and the wrapper
+# below serves the one exact baseline lookup needed by the compatibility test
+# and delegates all other commands to Git.
 RUN apt-get update \
-    && apt-get install --no-install-recommends --yes git \
+    && apt-get install --no-install-recommends --yes \
+        git poppler-utils clamav postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
 # Refuse root as a build-time application identity and create a stable runtime
@@ -52,6 +59,11 @@ RUN case "$BIDOPS_UID:$BIDOPS_GID" in \
 
 COPY web/backend/ ./
 COPY --from=frontend /build/dist /app/web/frontend/dist
+COPY --from=node-runtime /usr/local/bin/node /usr/local/bin/node
+COPY docs/reference /app/docs/reference
+COPY scripts /app/scripts
+COPY docker-compose.t7.yml /app/docker-compose.t7.yml
+RUN chmod +x /app/scripts/*.sh
 
 # Bundle the immutable execution contract as a fallback for docker run.
 # Compose overlays these directories read-only from the checked-out project.

@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "bidops.deep-review-report.v1",
+  "title": "BidOps deep review report v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "deep_review_id", "notice_id", "bundle_id", "profile_version_id", "policy_version_id", "sections", "system_recommendation", "claims", "unknowns", "validation_summary", "created_at"],
+  "properties": {
+    "schema": {"const": "bidops.deep-review-report.v1"},
+    "deep_review_id": {"$ref": "#/$defs/uuid"},
+    "notice_id": {"type": "integer"},
+    "bundle_id": {"$ref": "#/$defs/uuid"},
+    "profile_version_id": {"$ref": "#/$defs/uuid"},
+    "policy_version_id": {"$ref": "#/$defs/uuid"},
+    "sections": {"type": "array", "items": {"$ref": "#/$defs/section"}},
+    "system_recommendation": {"enum": ["추진 검토", "조건부 추진 검토", "보류", "검토 종료"]},
+    "claims": {"type": "array", "items": {"$ref": "#/$defs/claim"}},
+    "unknowns": {"type": "array", "items": {"type": "string"}},
+    "validation_summary": {"$ref": "#/$defs/validation_summary"},
+    "created_at": {"$ref": "#/$defs/timestamp"}
+  },
+  "$defs": {
+    "uuid": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},
+    "timestamp": {"type": "string", "format": "date-time", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]+)?(?:Z|[+-][0-9]{2}:[0-9]{2})$"},
+    "claim": {
+      "type": "object", "additionalProperties": false,
+      "required": ["claim_id", "category", "claim_type", "body", "status", "formula", "premise_claim_ids", "reason", "evidence_ids"],
+      "properties": {"claim_id": {"$ref": "#/$defs/uuid"}, "category": {"type": "string", "minLength": 1}, "claim_type": {"enum": ["fact", "calculation", "inference", "opinion", "unknown"]}, "body": {"type": "string", "minLength": 1}, "status": {"enum": ["supported", "unsupported", "conflicting", "unknown"]}, "formula": {"type": ["string", "null"]}, "premise_claim_ids": {"type": "array", "items": {"$ref": "#/$defs/uuid"}}, "reason": {"type": ["string", "null"]}, "evidence_ids": {"type": "array", "items": {"$ref": "#/$defs/uuid"}}
+      }
+    },
+    "required_section": {"enum": ["project_overview", "eligibility_matrix", "scope_deliverables", "requirements_matrix", "evaluation_strategy", "delivery_plan", "technical_integration_risks", "security_legal_contract_risks", "economics_scenarios", "competitive_proposal_strategy", "questions_internal_actions", "document_bundle_limitations", "decision_card"]},
+    "block": {
+      "type": "object", "additionalProperties": false,
+      "required": ["block_id", "type", "title", "body", "claim_ids", "rows"],
+      "properties": {"block_id": {"type": "string", "minLength": 1}, "type": {"enum": ["paragraph", "matrix", "decision_card", "scenario", "action_list"]}, "title": {"type": ["string", "null"]}, "body": {"type": ["string", "null"]}, "claim_ids": {"type": "array", "items": {"$ref": "#/$defs/uuid"}}, "rows": {"type": "array", "items": {"$ref": "#/$defs/row"}}
+      }
+    },
+    "row": {
+      "type": "object", "additionalProperties": false,
+      "required": ["row_key", "label", "cells", "claim_ids"],
+      "properties": {"row_key": {"type": "string", "minLength": 1}, "label": {"type": "string", "minLength": 1}, "cells": {"type": "array", "items": {"type": "string"}}, "claim_ids": {"type": "array", "items": {"$ref": "#/$defs/uuid"}}
+      }
+    },
+    "section": {
+      "type": "object", "additionalProperties": false,
+      "required": ["section_key", "title", "blocks"],
+      "properties": {"section_key": {"$ref": "#/$defs/required_section"}, "title": {"type": "string", "minLength": 1}, "blocks": {"type": "array", "items": {"$ref": "#/$defs/block"}}
+      }
+    },
+    "validation_summary": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "failed", "warnings", "passed"],
+      "properties": {"status": {"enum": ["passed", "failed"]}, "failed": {"type": "integer", "minimum": 0}, "warnings": {"type": "integer", "minimum": 0}, "passed": {"type": "integer", "minimum": 0}}
+    }
+  }
+}

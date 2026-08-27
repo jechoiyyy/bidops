@@ -1,18 +1,14 @@
 from datetime import date, datetime, timezone
-import os
 from pathlib import Path
-import subprocess
-import sys
 
-from sqlalchemy import create_engine, event, select
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import Settings
 import pytest
 
-from app.db import _json_serializer
-from app.screening.generation_config import register_sqlite_functions
-from app.models import AlwaysOnState, AuditEvent, Base, ScheduleExecution, ScheduleReservation
+from app.db import _json_serializer, schema_bound
+from app.models import AlwaysOnState, ScreeningAuditEvent, Base, ScheduleExecution, ScheduleReservation
 from app.services.scheduler import (
     EnvironmentDisabledError,
     ScheduleGateError,
@@ -20,6 +16,7 @@ from app.services.scheduler import (
     daily_run_key,
     previous_week_window,
 )
+from tests.postgres import requires_postgres, temporary_database
 
 
 def _service(tmp_path: Path, *, enabled: bool = False, now: datetime | None = None):
@@ -39,7 +36,7 @@ def test_reservation_pk_and_duplicate_execution_are_transactional(tmp_path: Path
     with Session(engine) as session:
         assert session.get(ScheduleReservation, daily_run_key(date(2026, 8, 25))) is not None
         assert session.scalar(select(ScheduleExecution).where(ScheduleExecution.status == "예약")).execution_id == duplicate.duplicate_of_execution_id
-        assert session.scalar(select(AuditEvent).where(AuditEvent.event_type == "schedule.execution_skipped_duplicate")) is not None
+        assert session.scalar(select(ScreeningAuditEvent).where(ScreeningAuditEvent.event_type == "schedule.execution_skipped_duplicate")) is not None
 
 
 def test_environment_false_creates_no_automatic_reservation_and_rejects_enable(tmp_path: Path):
@@ -184,7 +181,7 @@ def test_gate_rejection_commits_disable_and_audit_before_raising(tmp_path: Path)
         service.set_enabled(True, confirmed_by="operator")
     with Session(_engine) as session:
         assert session.get(AlwaysOnState, 1).enabled is False
-        assert session.scalar(select(AuditEvent).where(AuditEvent.event_type == "schedule.always_on_enable_rejected")) is not None
+        assert session.scalar(select(ScreeningAuditEvent).where(ScreeningAuditEvent.event_type == "schedule.always_on_enable_rejected")) is not None
 
 
 def test_repeated_enable_does_not_run_first_enable_catch_up_again(tmp_path: Path):
@@ -206,50 +203,44 @@ def test_repeated_enable_does_not_run_first_enable_catch_up_again(tmp_path: Path
     assert calls == [True]
 
 
-def test_migrated_sqlite_allows_recovery_of_skipped_execution(tmp_path: Path):
-    database = tmp_path / "migrated.db"
-    backend = Path(__file__).resolve().parents[1]
-    environment = os.environ.copy()
-    environment["BIDOPS_DATABASE_URL"] = f"sqlite:///{database}"
-    upgraded = subprocess.run(
-        [sys.executable, "-m", "alembic", "upgrade", "head"],
-        cwd=backend,
-        env=environment,
-        text=True,
-        capture_output=True,
-    )
-    assert upgraded.returncode == 0, upgraded.stderr
-    engine = create_engine(f"sqlite:///{database}", future=True, json_serializer=_json_serializer)
-    # Alembic's generation-binding triggers call the same canonical UDF that
-    # the application installs on its engine.  This test deliberately creates
-    # a plain SQLAlchemy engine, so register the runtime DB contract here.
-    event.listen(engine, "connect", lambda dbapi_connection, _record: register_sqlite_functions(dbapi_connection))
-    run_key = "20260825-20260825"
-    target_id = "sched-" + "1" * 32
-    with Session(engine) as session:
-        session.add(
-            ScheduleReservation(
-                run_key=run_key,
-                job_kind="daily",
-                window_from=date(2026, 8, 25),
-                window_to=date(2026, 8, 25),
-                timezone="Asia/Seoul",
-                created_at=datetime(2026, 8, 25, tzinfo=timezone.utc),
-            )
+@requires_postgres
+def test_migrated_postgresql_allows_recovery_of_skipped_execution(tmp_path: Path):
+    with temporary_database() as database_url:
+        engine = schema_bound(
+            create_engine(database_url, future=True, json_serializer=_json_serializer)
         )
-        session.add(
-            ScheduleExecution(
-                execution_id=target_id,
-                run_key=run_key,
-                job_kind="daily",
-                trigger="schedule",
-                status="건너뜀",
-                requested_by="system:scheduler",
-                skip_reason="duplicate_reservation",
+        run_key = "20260825-20260825"
+        target_id = "sched-" + "1" * 32
+        with Session(engine) as session:
+            session.add(
+                ScheduleReservation(
+                    run_key=run_key,
+                    job_kind="daily",
+                    window_from=date(2026, 8, 25),
+                    window_to=date(2026, 8, 25),
+                    timezone="Asia/Seoul",
+                    created_at=datetime(2026, 8, 25, tzinfo=timezone.utc),
+                )
             )
+            session.flush()
+            session.add(
+                ScheduleExecution(
+                    execution_id=target_id,
+                    run_key=run_key,
+                    job_kind="daily",
+                    trigger="schedule",
+                    status="건너뜀",
+                    requested_by="system:scheduler",
+                    skip_reason="duplicate_reservation",
+                )
+            )
+            session.commit()
+        settings = Settings(
+            bidops_root=tmp_path, database_url=database_url, scheduler_enabled=True
         )
-        session.commit()
-    settings = Settings(bidops_root=tmp_path, database_url=f"sqlite:///{database}", scheduler_enabled=True)
-    service = SchedulerService(settings, session_factory=sessionmaker(bind=engine, expire_on_commit=False))
-    recovered = service.recover(target_id, requested_by="operator")
-    assert recovered.recovery_of_execution_id == target_id
+        service = SchedulerService(
+            settings, session_factory=sessionmaker(bind=engine, expire_on_commit=False)
+        )
+        recovered = service.recover(target_id, requested_by="operator")
+        assert recovered.recovery_of_execution_id == target_id
+        engine.dispose()

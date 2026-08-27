@@ -1,0 +1,18 @@
+# Test-only override for exercising the complete workflow without Qwen or
+# Codex. The analysis worker remains on the internal database/analysis networks
+# and the provider/model lineage is persisted as mock-analysis.
+services:
+  web:
+    environment:
+      BIDOPS_ANALYSIS_PROVIDER: mock
+      BIDOPS_VLLM_MODEL: bidops-deterministic-mock-v1
+      BIDOPS_OPENAI_ENABLED: "false"
+      BIDOPS_CODEX_EXEC_ENABLED: "false"
+      BIDOPS_REFERENCE_WORKFLOW_MODE: "true"
+  analysis-worker:
+    environment:
+      BIDOPS_ANALYSIS_PROVIDER: mock
+      BIDOPS_VLLM_MODEL: bidops-deterministic-mock-v1
+      BIDOPS_OPENAI_ENABLED: "false"
+      BIDOPS_CODEX_EXEC_ENABLED: "false"
+      BIDOPS_REFERENCE_WORKFLOW_MODE: "true"

@@ -1,0 +1,10 @@
+# Optional override for an operator-approved remote OpenAI-compatible vLLM
+# endpoint. Set BIDOPS_VLLM_BASE_URL and BIDOPS_VLLM_ALLOWED_HOSTS in the
+# external env file, then restrict this network to that IP/port at the host
+# firewall.
+services:
+  analysis-worker:
+    networks: [database, analysis, model-egress]
+
+networks:
+  model-egress:

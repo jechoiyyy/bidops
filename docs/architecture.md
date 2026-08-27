@@ -1,8 +1,8 @@
 # BidOps 아키텍처
 
-이 문서는 현재 구현된 T14 통합 경계를 설명한다. BidOps는 공고를 수집하고 근거가 연결된 판단 초안을 만드는 의사결정 지원 도구다. 입찰 제출, 발주기관 연락, 최종 Go/No-Go, 알림·SSO, 첨부 심층 검토를 수행하지 않는다. OpenAI 폴백도 없다.
+이 문서는 현재 구현된 T14 통합 경계를 설명한다. BidOps는 공고를 수집하고 근거가 연결된 판단 초안을 만드는 의사결정 지원 도구다. 입찰 제출, 발주기관 연락, 최종 Go/No-Go, 알림·SSO는 수행하지 않는다. 첨부 심층 검토는 사람이 최종 판단하는 보조 단계로만 수행한다. OpenAI hosted 폴백도 없다.
 
-관련 계약은 [에이전트 런타임](./agent-runtime.md), [스케줄링](./scheduling.md), [모델 품질 게이트](./model-quality-gate.md), [외부 인터페이스 계약](./contracts.md), [운영 절차](./operations.md), [구현·검증 표준](./standards.md)에 있다.
+관련 계약은 [Agent 워크플로 설계](./agent-workflow-design.md), [에이전트 런타임](./agent-runtime.md), [스케줄링](./scheduling.md), [모델 품질 게이트](./model-quality-gate.md), [외부 인터페이스 계약](./contracts.md), [운영 절차](./operations.md), [구현·검증 표준](./standards.md)에 있다.
 
 ## 경계와 소유권
 
@@ -10,7 +10,7 @@
 skills/* (수집·표본·병합·보고 파일 계약)
         │ subprocess / UTF-8 JSON·YAML
         ▼
-FastAPI API ── SQLAlchemy/SQLite ── Alembic migrations
+FastAPI API ── SQLAlchemy/PostgreSQL 17 ── Alembic migrations
         │                         │
         │                         ├─ immutable policy/profile/gate bindings
         │                         └─ queue, attempts, schedules, audit
@@ -26,7 +26,7 @@ APScheduler (Asia/Seoul clock only) ── durable reservation ── same queue
 - `skills/bidops-collect`, `skills/bidops-screen`, `skills/bidops-report`는 파일 계약을 소유한다. 웹 계층은 스킬 내부 함수를 import하지 않고 subprocess와 파일을 통해 호출한다.
 - `web/backend/app`은 API, DB 상태, 대기열·워커, 결정적 검증·병합, 산출물 경로를 소유한다. 프론트엔드는 API만 사용하며 DB·`data/runs`·첨부 루트를 직접 읽지 않는다.
 - APScheduler는 시계를 깨우고 고정된 기간을 예약하는 경계다. 판정 단계나 모델 호출을 소유하지 않는다. 수동·CLI·품질 게이트·스케줄 트리거는 모두 같은 DB FIFO로 들어간다.
-- SQLite가 상태의 정본이다. 애플리케이션 시작은 `init_db()`로 현재 Alembic revision과 schema presence만 읽어 확인한다. migration, `create_all`, portal seed, policy seed는 시작 시 수행하지 않는다. fresh migrated DB에는 schedule/always-on 기본 singleton과 deterministic migration audit event가 생기며 `screening_policy`·`agency_portal`은 0행이다. seed/portal 등록은 운영자 명령/API로 별도 실행한다.
+- PostgreSQL 17의 `bidops` schema가 상태의 정본이다. 애플리케이션 시작은 `init_db()`로 현재 Alembic revision과 schema presence만 읽어 확인한다. migration, `create_all`, portal seed, policy seed는 시작 시 수행하지 않는다. fresh migrated DB에는 schedule/always-on 기본 singleton과 deterministic migration audit event가 생기며 `screening_policy`·`agency_portal`은 0행이다. seed/portal 등록은 운영자 명령/API로 별도 실행한다.
 
 ## 데이터 흐름
 
@@ -58,7 +58,7 @@ APScheduler (Asia/Seoul clock only) ── durable reservation ── same queue
 
 ## 실행 슬롯과 상태
 
-`screening_execution.queue_no`가 모든 `cli_single`, `manual_run`, `quality_gate`, `schedule` 작업의 FIFO 순서를 정한다. SQLite `BEGIN IMMEDIATE` claim과 `active_slot=1` partial unique index가 마지막 경쟁을 막고, `BIDOPS_SCREEN_MAX_CONCURRENCY=1`은 고정이다. 실행 중 heartbeat가 기본 60초보다 오래되면 시작·claim 때 `중단됨`/`process_interrupted`로 회수하며 자동 재개하지 않는다.
+`screening_execution.queue_no`가 모든 `cli_single`, `manual_run`, `quality_gate`, `schedule` 작업의 FIFO 순서를 정한다. PostgreSQL row-level claim lock과 `active_slot=1` partial unique index가 마지막 경쟁을 막고, `BIDOPS_SCREEN_MAX_CONCURRENCY=1`은 고정이다. 실행 중 heartbeat가 기본 60초보다 오래되면 시작·claim 때 `중단됨`/`process_interrupted`로 회수하며 자동 재개하지 않는다.
 
 실행의 주요 상태는 `대기`, `실행 중`, `중지 요청`, `성공`, `부분 성공`, `실패`, `중단됨`이다. stop 요청은 대기 행을 즉시 중단하고 실행 중 행은 현재 blocking HTTP 호출이 끝난 뒤 중단한다. 성공 공고는 실패 공고와 분리해 보존하고, 중단 실행은 발행하지 않는다. 상세한 7-span 및 재시도 규칙은 [에이전트 런타임](./agent-runtime.md)에 있다.
 
@@ -70,7 +70,7 @@ APScheduler 3.11 계열은 in-process clock이다. 시간대는 `Asia/Seoul`, �
 
 ## 저장·보안 경계
 
-- SQLite는 WAL과 foreign keys를 켠다. 현재 head는 `0005_generation_config_binding`이며 앱은 자동 migrate하지 않는다. backup manifest를 보존한 명시적 migrate와 `db-verify`를 운영자가 수행한다.
+- PostgreSQL 17이 정본이고 SQLite는 isolated test와 일회성 migration 입력으로만 쓴다. 현재 head는 `0003_screening_runtime_pg`이며 앱은 자동 migrate하지 않는다. backup manifest를 보존한 명시적 migrate와 `db-verify`를 운영자가 수행한다.
 - artifact 경로는 알려진 파일명, symlink 거부, root escape 검사를 통과해야 한다. API는 내부 저장 경로를 조합하게 하지 않고 허용된 artifact endpoint만 노출한다.
 - `.env`, API key, Ollama credential, 원문 첨부와 run data를 image·Git에 넣지 않는다. web container는 root로 실행하지 않고 UID/GID bind mount 권한을 검사한다.
 - Docker Python runtime은 `web/backend/requirements.lock`의 exact transitive pins만 설치한다. visual은 remote Google Fonts를 차단하고 image local fonts로 고정한다.
@@ -78,3 +78,45 @@ APScheduler 3.11 계열은 in-process clock이다. 시간대는 `Asia/Seoul`, �
 - health는 `GET /api/health`의 내부 lightweight 응답이며 Ollama나 외부 수집 API를 확인하지 않는다.
 
 운영자의 중지→backup→명시적 migrate→verify→seed→web health→단 한 번의 live smoke 순서는 [운영 절차](./operations.md)에 고정되어 있다.
+
+## 심층 검토 경계 (Lean v1)
+
+```text
+공개 수집/기존 SQLite backup --(one-time reconciliation)--> PostgreSQL 17 bidops schema
+기관 문서 --> FastAPI MinIO quarantine + ClamAV --> MinIO source/structure
+                         | hash-bound atomic scratch protocol
+                         v
+              document-worker (network none, replicas 2)
+고정 bundle/profile/policy snapshot ---------------------> analysis worker (concurrency 1)
+                                                           |  approved vLLM OpenAI-compatible API
+                                                           v
+                                                   3 stages + deterministic validation
+                                                           |
+                                                   immutable report/evidence/audit
+                                                           |
+React SPA <---------------- FastAPI ----------------------+
+```
+
+PostgreSQL 17.11과 MinIO가 live canonical DB/object store이고 SQLite는 migration input이다. FastAPI는 목적별 MinIO source/structure/quarantine credential과 DB/ClamAV restricted networks를 사용하며, bounded scratch만 임시 staging으로 남긴다. document-worker는 검증된 원문 hash와 clean scan envelope를 가진 credential-free scratch request만 network none에서 신뢰한다. analysis worker는 immutable structure를 읽고 application-encrypted model response를 model-response bucket에 쓴다. prompt에는 evidence에 필요한 immutable document/structure UUID와 source SHA만 포함하고 object key·path·credential은 포함하지 않는다. report/evidence/validation과 finish는 동일한 fenced transition에서 확정된다.
+
+## 구성요소와 경계
+
+| 구성요소 | 역할 | 경계 |
+|---|---|---|
+| legacy 13 tables | 기존 수집·판정·리뷰 projection | SQLite backup에서 한 번 import하고 PostgreSQL에 보존 |
+| Lean 25 tables | bundle, structures, attempts, claims, evidence, report, validation, audit | 총 38 application table, actor table 없음 |
+| FastAPI document producer | MinIO quarantine/source 저장, 동일 원문의 ClamAV 검사, hash-bound scratch request/result | DB/MinIO/ClamAV restricted networks; purpose credential별 접근 |
+| document-worker | HWP/HWPX/PDF 안전 검사·구조화 | credential-free atomic scratch protocol, Node/PDF/OCR 로컬 도구, network none, replicas 2 |
+| analysis worker | 요구사항·위험·경제성·종합 3단계 | fixed snapshots와 Qwen/vLLM endpoint만 사용, concurrency 1 |
+| FastAPI | 정확히 승인된 새 API #1-14와 기존 조회 API | stable error shape, claimed-name boundary, security headers, SPA fallback after API |
+| React frontend | notice detail entry, deep-review route, report/evidence/decision flow | REST API only, keyboard and narrow-viewport fixture |
+
+OpenAI hosted API, Langfuse, phase2 기능은 없다. OpenAI Python SDK는 내부 vLLM compatible protocol client로만 사용한다. 기존 SQLite-live 문구는 폐기한다.
+
+## 순서와 transaction fence
+
+문서 bundle confirmation이 fixed input을 만들고, attempt는 3 stages를 순서대로 저장한다. 분석과 report는 live attachment/document projection을 다시 읽지 않는다. 세 번째 stage persist 뒤 `ReportService.materialize_machine_report(session, claim)`가 immutable report, validation, evidence joins, audit를 만들고, 바로 `_finish_claim`이 같은 lease를 재검증한 뒤 commit한다. materializer 오류는 rollback 후 safe worker failure로만 기록한다.
+
+## 배포
+
+이 worktree/production template은 `docker-compose.t7.yml`이고 원격 모델 egress는 `docker-compose.t7.remote-vllm.yml`에서만 추가한다. 항상 `COMPOSE_PROJECT_NAME=bidops-deep-review-t7`와 함께 실행하고 main worktree의 compose/data/volume을 공유하지 않는다. Web은 database/storage/scanning과 scratch volume에 연결되고 source/structure/quarantine 목적별 MinIO credential만 받는다. analysis worker는 database/analysis network에서 structure-read와 model-response credential만 받고, 승인 환경에서만 literal-IP vLLM egress를 추가한다. document-worker는 network none의 두 replica로 credential-free scratch만 소비한다. PostgreSQL 역할, MinIO purpose-specific credentials/policies, vLLM API key는 외부 secrets로 주입되며 MinIO 미설정 production은 fail fast한다.

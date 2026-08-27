@@ -28,7 +28,7 @@ from sqlalchemy.orm import Session, selectinload, sessionmaker
 
 from ..config import Settings, get_settings
 from ..models import (
-    AuditEvent,
+    ScreeningAuditEvent,
     CompanyProfileSnapshot,
     QualityGate,
     QualityGateEvaluation,
@@ -1605,7 +1605,7 @@ class QualityGateService:
                 if hasattr(initial_evaluation, "generation_config_json"):
                     initial_evaluation.generation_config_json = config_a.canonical_value()
                 session.add(initial_evaluation)
-                session.add(AuditEvent(
+                session.add(ScreeningAuditEvent(
                     event_id="audit-" + uuid4().hex, event_type="quality_gate.created", actor=actor,
                     target_type="quality_gate", target_id=gate_id, occurred_at=now,
                     details_json={
@@ -1971,7 +1971,7 @@ class QualityGateService:
                 previous.note = note
                 previous.updated_at = _now(self.clock())
             session.flush()
-            session.add(AuditEvent(
+            session.add(ScreeningAuditEvent(
                 event_id="audit-" + uuid4().hex,
                 event_type="quality_gate.review_updated",
                 actor=actor,

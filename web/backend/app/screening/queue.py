@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from ..config import Settings, get_settings
 from ..models import (
-    AuditEvent,
+    ScreeningAuditEvent,
     CompanyProfileSnapshot,
     Notice,
     Run,
@@ -181,10 +181,10 @@ def _new_event(
     target_id: str,
     details: dict[str, Any],
     occurred_at: datetime,
-) -> AuditEvent:
+) -> ScreeningAuditEvent:
     # Callers pass metadata-only dictionaries.  This helper is intentionally
     # not generic JSON logging: prompt/profile/model bodies have no route here.
-    return AuditEvent(
+    return ScreeningAuditEvent(
         event_id="audit-" + uuid4().hex,
         event_type=event_type,
         actor=actor,

@@ -256,4 +256,13 @@ def download_attachment(
     name = Path(attachment.name or f"attachment-{attachment.id}").name
     name = name.replace("\r", "").replace("\n", "") or f"attachment-{attachment.id}"
     media_type = "application/pdf" if attachment.file_ext == "PDF" else "application/octet-stream"
-    return FileResponse(path, media_type=media_type, filename=name)
+    return FileResponse(
+        path,
+        media_type=media_type,
+        filename=name,
+        headers={
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
+        },
+    )

@@ -306,6 +306,21 @@ def test_v3_generation_binding_partial_input_is_rejected_without_projection(tmp_
     assert any(item["code"] == "screening_input_invalid" for item in result.warnings)
 
 
+def test_loader_preserves_long_screening_basis_without_truncation(tmp_path, db_session):
+    validation, screening, decisions = base_artifacts()
+    long_basis = "메타데이터와 공고 원문을 바탕으로 자격, 지역 제한, 수행 실적, 예산, 마감일을 교차 검토한 기준 " * 3
+    screening["screening_basis"] = long_basis
+    decisions["screening_basis"] = long_basis
+    run_dir = write_run(tmp_path, validation=validation, screening=screening, decisions=decisions)
+
+    result = ingest_run(run_dir, db_session, reports_root=tmp_path / "reports")
+
+    stored = db_session.get(Run, result.run_id)
+    assert stored is not None
+    assert stored.screening_basis == long_basis
+    assert len(stored.screening_basis) > 64
+
+
 def test_v1_schema_gap_is_a_warning_and_legacy_judgment_is_loaded(tmp_path, db_session):
     validation, screening, decisions = base_artifacts()
     decisions["schema_version"] = "bidops.decisions.v1"
