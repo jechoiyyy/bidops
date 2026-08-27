@@ -1,5 +1,12 @@
-@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@300;400;500;600&display=swap");
 @import "tailwindcss";
+
+@font-face {
+  font-family: "Pretendard";
+  src: url("/fonts/PretendardVariable.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
 
 @theme {
   /* RootLab canonical palette. Keep these names stable for the next rollout steps. */
@@ -9,22 +16,22 @@
   --color-deck: #218B56;
   --color-mint-accent: #24A266;
   --color-teal: #2096A1;
-  --color-soft-surface: #F2F6F4;
+  --color-soft-surface: #F3F7F4;
   --color-text: #333333;
   --color-muted-brand: #777777;
-  --color-border: #DDDDDD;
+  --color-border: #D7E1DB;
   --color-dark: #171717;
   --color-white: #FFFFFF;
 
   /* Light support fills keep inherited dark labels at readable contrast. */
-  --color-deck-soft: #DCEFE5;
+  --color-deck-soft: #E7F3EB;
   --color-mint-soft: #B9E3CD;
   --color-teal-soft: #D9F0F2;
-  --color-neutral-soft: #EEEEEE;
+  --color-neutral-soft: #EEF3F0;
 
   /* #777777 is the extracted muted swatch, but it falls below 4.5:1 on the
      soft-green canvas. Use this slightly darker semantic text token in UI copy. */
-  --color-muted: #707070;
+  --color-muted: #5F6B64;
 
   /* Compatibility aliases for existing components. Mapping is documented here:
      ink/ink-deep → deep, sage → primary, keylime → soft-surface,
@@ -33,14 +40,14 @@
   --color-ink: #114C33;
   --color-ink-deep: #114C33;
   --color-sage: #1A9058;
-  --color-keylime: #F2F6F4;
+  --color-keylime: #F3F7F4;
   --color-mint: #24A266;
   --color-slate: #2096A1;
   --color-paper: #FFFFFF;
-  --color-canvas: #F2F6F4;
+  --color-canvas: #F3F7F4;
   --color-charcoal: #333333;
-  --color-hair: #DDDDDD;
-  --color-hair-soft: #EEEEEE;
+  --color-hair: #D7E1DB;
+  --color-hair-soft: #EEF3F0;
   --color-alert: #7a3e00;
   --color-error: #8f2f1d;
   --color-error-edge: #e8b6a8;
@@ -58,19 +65,89 @@
   --color-success-bg: #eaf6eb;
   --color-info: #24576a;
   --color-info-bg: #eef7fa;
-  --color-focus: #2096A1;
+  --color-focus: #16784B;
 
   /* Canonical palette를 배경 위에서 읽히게 하는 보조 색. */
   --color-nav-text: rgb(255 255 255 / 82%); /* 사이드바 본문 */
-  --color-muted-soft: #666666; /* 연한 표면 위의 작은 보조 문자 대비를 보강한다. */
+  --color-muted-soft: #56615B; /* 연한 표면 위의 작은 보조 문자 대비를 보강한다. */
   --color-alert-edge: #e3c49c; /* 경고 배지 테두리 */
 
-  --font-sans: "IBM Plex Sans KR", system-ui, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --font-sans: "Pretendard", system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
-  --radius-sm: 3px;
-  --radius-md: 4px;
-  --radius-lg: 5px;
+  /* 여유형 RootLab 표면 토큰: 모든 공통 UI는 이 단계와 표면 조합을 따른다. */
+  --surface-app: #F3F7F4;
+  --surface-card: #FFFFFF;
+  --surface-selected: #E7F3EB;
+  --surface-secondary: #EEF3F0;
+  --surface-warning: #FFF7E8;
+  --surface-error: #FFF2EE;
+  --border-subtle: #D7E1DB;
+  --border-strong: #B8CFC0;
+  --space-1: 8px;
+  --space-2: 16px;
+  --space-3: 24px;
+  --space-4: 32px;
+  --control-height: 42px;
+  --card-padding: 24px;
+
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  --chart-grade-1: #114C33;
+  --chart-grade-2: #1D7B4E;
+  --chart-grade-3: #4FB98A;
+  --chart-grade-4: #A9DCC3;
+}
+
+/* shadcn/ui가 사용하는 의미 토큰을 RootLab의 기존 표면·텍스트·상태 토큰에 연결한다. */
+/* 새 색을 만들지 않고 같은 의미의 RootLab 값을 참조해 기존 화면과의 일관성을 유지한다. */
+:root {
+  --background: var(--surface-app);
+  --foreground: var(--color-text);
+  --card: var(--surface-card);
+  --card-foreground: var(--color-text);
+  --popover: var(--surface-card);
+  --popover-foreground: var(--color-text);
+  --primary: var(--color-deep);
+  --primary-foreground: var(--color-white);
+  --secondary: var(--surface-secondary);
+  --secondary-foreground: var(--color-text);
+  --muted: var(--surface-secondary);
+  --muted-foreground: var(--color-muted);
+  --accent: var(--surface-secondary);
+  --accent-foreground: var(--color-text);
+  --destructive: var(--color-danger);
+  --destructive-foreground: var(--color-white);
+  --border: var(--border-subtle);
+  --input: var(--border-subtle);
+  --ring: var(--color-focus);
+  --radius: var(--radius-md);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  /* Keep shadcn utilities separate from RootLab's legacy primary/muted names. */
+  --color-shadcn-primary: var(--primary);
+  --color-shadcn-primary-foreground: var(--primary-foreground);
+  --color-shadcn-muted: var(--muted);
+  /* --color-border remains the canonical RootLab token from @theme above. */
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
 }
 
 /* ---- 반응형 전환점 ----
@@ -78,14 +155,16 @@
    아래 세 값 외의 전환점을 새로 만들지 않는다.
      max-width: 1180px  좁은 데스크톱. 3단 배치를 2단으로 줄인다.
      max-width:  900px  태블릿. 가로 배치를 세로 스택으로 바꾼다.
-     max-width:  640px  모바일. 남은 다열 배치를 한 열로 정리한다. */
+     max-width:  640px  모바일. 남은 다열 배치를 한 열로 정리한다.
+   검토 화면(queue·judgments)은 901~1180px에서도 목록·상세 2열을 유지한다. */
 
 :root {
   color: var(--color-text);
   background: var(--color-soft-surface);
   font-family: var(--font-sans);
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: 14px;
+  line-height: 1.6;
+  font-variant-numeric: tabular-nums;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -237,6 +316,7 @@ a {
   gap: 9px;
   min-height: 31px;
   padding: 7px 8px;
+  border-left: 3px solid transparent;
   border-radius: 4px;
   color: var(--color-nav-text);
   font-size: 13px;
@@ -257,7 +337,7 @@ a {
 
 .sidebar-item.is-active {
   font-weight: 500;
-  box-shadow: inset 2px 0 0 var(--color-mint-accent);
+  border-left-color: var(--color-mint-accent);
 }
 
 .sidebar-item-pending {
@@ -786,6 +866,7 @@ a {
   gap: 5px;
   padding: 11px 13px;
   border: 0;
+  border-left: 3px solid transparent;
   border-bottom: 1px solid var(--color-neutral-soft);
   color: var(--color-text);
   background: var(--color-white);
@@ -799,7 +880,7 @@ a {
 
 .runs-list-item.is-selected {
   background: var(--color-deck-soft);
-  box-shadow: inset 2px 0 0 var(--color-primary);
+  border-left-color: var(--color-primary);
 }
 
 .runs-list-item-heading,
@@ -1392,7 +1473,6 @@ a {
   border: 1px solid var(--color-hair);
   border-radius: 8px;
   background: var(--color-paper);
-  box-shadow: 0 8px 26px rgb(17 76 51 / 7%);
 }
 
 .dashboard-kpi.is-accent {
@@ -1488,7 +1568,6 @@ a {
 .dashboard-page .panel {
   border-color: var(--color-border);
   border-radius: 8px;
-  box-shadow: 0 8px 26px rgb(17 76 51 / 7%);
 }
 
 .dashboard-page .panel-header {
@@ -1524,6 +1603,22 @@ a {
   gap: 10px;
 }
 
+.dashboard-funnel-axis {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) minmax(138px, auto);
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.dashboard-funnel-axis-scale {
+  display: flex;
+  grid-column: 2;
+  justify-content: space-between;
+  color: var(--color-muted);
+  font-size: 10px;
+  line-height: 1.2;
+}
+
 .dashboard-funnel-row {
   display: grid;
   grid-template-columns: 72px minmax(0, 1fr) minmax(138px, auto);
@@ -1547,47 +1642,76 @@ a {
 
 .dashboard-funnel-bar {
   display: flex;
-  min-width: 8%;
   height: 100%;
   align-items: center;
   padding: 0 9px;
   border-radius: var(--radius-sm);
-  color: var(--color-ink-deep);
   font-size: 11px;
   font-weight: 500;
   white-space: nowrap;
 }
 
-.dashboard-funnel-bar-0 {
+/* 작은 잔존율도 숫자를 잃지 않도록 라벨을 막대 끝의 트랙 안에 둔다. */
+.dashboard-funnel-bar.is-compact {
+  position: relative;
+  overflow: visible;
+  padding: 0;
+}
+
+.dashboard-funnel-bar.is-compact > span {
+  position: absolute;
+  left: calc(100% + 6px);
   color: var(--color-dark);
-  background: var(--color-teal);
+}
+
+.dashboard-funnel-bar-0 {
+  color: var(--color-white);
+  background: var(--chart-grade-1);
 }
 
 .dashboard-funnel-bar-1 {
-  color: var(--color-ink-deep);
-  background: var(--color-mint-soft);
+  color: var(--color-white);
+  background: var(--chart-grade-2);
 }
 
 .dashboard-funnel-bar-2 {
-  color: var(--color-ink-deep);
-  background: var(--color-deck-soft);
+  color: var(--color-dark);
+  background: var(--chart-grade-3);
 }
 
 .dashboard-funnel-bar-3 {
-  color: var(--color-paper);
-  background: var(--color-primary-strong);
+  color: var(--color-dark);
+  background: var(--chart-grade-4);
 }
 
-.dashboard-funnel-unit {
-  margin-left: 4px;
-  font-weight: 400;
+.dashboard-funnel-state {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  padding: 0 9px;
+  color: var(--color-muted);
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .dashboard-funnel-change {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
   color: var(--color-muted);
   font-size: 10px;
   text-align: right;
   white-space: nowrap;
+}
+
+.dashboard-funnel-count {
+  color: var(--color-text);
+  font-size: 11px;
+}
+
+.dashboard-funnel-drop {
+  color: var(--color-muted);
 }
 
 .dashboard-funnel-extra {
@@ -1931,7 +2055,6 @@ a {
   background: var(--color-deep);
   font-size: 11px;
   font-weight: 500;
-  box-shadow: 0 3px 10px rgb(17 76 51 / 18%);
 }
 
 .dashboard-profile-link:hover {
@@ -2241,10 +2364,10 @@ a {
   width: 100%;
   padding: 11px 16px 12px;
   border: 0;
+  border-left: 3px solid var(--rail-color, transparent);
   border-bottom: 1px solid var(--color-neutral-soft);
   color: var(--color-text);
   background: var(--color-white);
-  box-shadow: inset 3px 0 0 var(--rail-color, transparent);
   cursor: pointer;
   text-align: left;
 }
@@ -2720,7 +2843,8 @@ a {
 .queue-search:focus-within,
 .queue-filter-select:focus-within {
   border-color: var(--color-teal);
-  box-shadow: 0 0 0 2px var(--color-teal-soft);
+  outline: 2px solid var(--color-focus);
+  outline-offset: 1px;
 }
 
 .retrieval-signal-list {
@@ -2847,15 +2971,7 @@ a {
   outline: 0;
   color: var(--color-text);
   background: transparent;
-  background-image:
-    linear-gradient(45deg, transparent 50%, var(--color-muted) 50%),
-    linear-gradient(135deg, var(--color-muted) 50%, transparent 50%);
-  background-position:
-    calc(100% - 7px) 50%,
-    calc(100% - 4px) 50%;
-  background-repeat: no-repeat;
-  background-size: 3px 3px;
-  appearance: none;
+  appearance: auto;
   cursor: pointer;
   font-size: 11px;
 }
@@ -3036,6 +3152,7 @@ a {
   width: 100%;
   padding: 11px 16px 12px;
   border: 0;
+  border-left: 3px solid transparent;
   border-bottom: 1px solid var(--color-neutral-soft);
   color: var(--color-text);
   background: var(--color-white);
@@ -3049,7 +3166,7 @@ a {
 }
 
 .judgment-notice-item.is-selected {
-  box-shadow: inset 2px 0 0 var(--color-primary);
+  border-left-color: var(--color-primary);
 }
 
 .judgment-notice-title {
@@ -4191,7 +4308,6 @@ a {
     position: sticky;
     bottom: 0;
     border-top: 1px solid var(--color-border);
-    box-shadow: 0 -1px 0 rgb(0 0 0 / 4%);
   }
 
   .review-secondary {
@@ -4290,10 +4406,15 @@ a {
     grid-template-columns: 62px minmax(0, 1fr);
   }
 
+  .dashboard-funnel-axis {
+    grid-template-columns: 62px minmax(0, 1fr);
+  }
+
   .dashboard-funnel-change {
     grid-column: 2;
     margin-top: -6px;
     text-align: left;
+    align-items: flex-start;
   }
 
   .dashboard-validation-heading {
@@ -4477,7 +4598,8 @@ a {
 
 .attachment-dropzone:focus-visible {
   outline: 0;
-  box-shadow: 0 0 0 2px var(--color-teal-soft);
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
 }
 
 .attachment-dropzone svg {
@@ -4775,7 +4897,8 @@ a {
 .portal-form input:not([type="checkbox"]):focus,
 .portal-form textarea:focus {
   border-color: var(--color-teal);
-  box-shadow: 0 0 0 2px var(--color-teal-soft);
+  outline: 2px solid var(--color-focus);
+  outline-offset: 1px;
 }
 
 .portal-form-help {
@@ -4901,23 +5024,6 @@ a {
   white-space: pre-wrap;
   word-break: break-word;
 }
-
-.dashboard-funnel-bar.is-unknown {
-  background: repeating-linear-gradient(
-    135deg,
-    var(--color-hair-soft),
-    var(--color-hair-soft) 5px,
-    var(--color-hair) 5px,
-    var(--color-hair) 10px
-  );
-}
-
-.dashboard-funnel-unknown {
-  color: var(--color-muted);
-  font-size: 11px;
-  white-space: nowrap;
-}
-
 
 /* ---- 판정 요약 밴드 ----
    담당자가 먼저 봐야 하는 등급·종합 권고·다음 행동·확인 항목 수를 상세 화면 맨 위에 모은다. */
@@ -5200,7 +5306,6 @@ a {
   border: 1px solid var(--color-border);
   border-radius: 8px;
   background: var(--color-paper);
-  box-shadow: 0 8px 26px rgb(17 76 51 / 7%);
 }
 
 .dashboard-action-title {
@@ -5390,7 +5495,7 @@ a.dashboard-grade-segment-excluded {
 }
 
 .dashboard-deadline-row.is-critical td:first-child {
-  box-shadow: inset 3px 0 0 var(--color-alert);
+  border-left: 3px solid var(--color-alert);
 }
 
 .dashboard-deadline-day.is-critical {
@@ -5427,4 +5532,209 @@ a.dashboard-grade-segment-excluded {
   border-color: var(--color-danger-edge);
   color: var(--color-danger);
   background: var(--color-danger-bg);
+}
+
+/* ---- 여유형 공통 계층 ----
+   화면별 배치 규칙은 각 화면 전용 스타일이 소유하고, 이 구역은 공통 컴포넌트와
+   의미별 표면·상태만 정의한다. */
+:root,
+body {
+  background: var(--surface-app);
+}
+
+.panel {
+  border-color: var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+}
+
+.panel-header {
+  min-height: 64px;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--card-padding);
+}
+
+.panel-header h3 {
+  font-size: 15px;
+}
+
+.panel-body {
+  padding: var(--card-padding);
+}
+
+.panel-tone-secondary {
+  border-color: var(--border-subtle);
+  background: var(--surface-secondary);
+}
+
+.panel-tone-selected {
+  border-color: var(--color-primary);
+  background: var(--surface-selected);
+}
+
+.panel-tone-warning {
+  border-color: var(--color-warning-edge);
+  background: var(--surface-warning);
+}
+
+.panel-tone-error {
+  border-color: var(--color-danger-edge);
+  background: var(--surface-error);
+}
+
+.badge {
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.empty-state {
+  min-height: 224px;
+  gap: 12px;
+  padding: var(--card-padding);
+}
+
+.empty-state-compact {
+  min-height: 160px;
+}
+
+.empty-state-mark {
+  width: 40px;
+  height: 40px;
+}
+
+.empty-state strong {
+  font-size: 15px;
+}
+
+.empty-state p {
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.empty-state-actions {
+  gap: var(--space-1);
+  margin-top: var(--space-1);
+}
+
+.empty-state-action {
+  min-height: var(--control-height);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+}
+
+.empty-state-warning .empty-state-mark {
+  color: var(--color-warning);
+}
+
+.empty-state-error .empty-state-mark {
+  color: var(--color-danger);
+}
+
+.facts {
+  row-gap: 12px;
+  column-gap: var(--space-2);
+  font-size: 14px;
+}
+
+.facts:not(.facts-wide) {
+  grid-template-columns: 120px minmax(0, 1fr);
+}
+
+.data-table {
+  font-size: 13px;
+}
+
+.data-table th {
+  padding: 12px var(--space-2) 12px 0;
+  background: var(--surface-secondary);
+  font-size: 12px;
+}
+
+.data-table td {
+  padding: 14px var(--space-2) 14px 0;
+}
+
+.data-table tbody tr:hover td {
+  background: var(--surface-app);
+}
+
+.mono,
+.tabular-nums,
+code,
+kbd,
+pre {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.toast {
+  right: var(--space-3);
+  bottom: var(--space-3);
+  gap: var(--space-2);
+  min-height: 48px;
+  max-width: min(480px, calc(100vw - 48px));
+  padding: 12px var(--space-2);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 14%);
+  font-size: 13px;
+}
+
+.toast-info {
+  border-color: var(--color-teal);
+  color: var(--color-info);
+  background: var(--color-info-bg);
+}
+
+.toast-warning {
+  border-color: var(--color-warning-edge);
+  color: var(--color-warning);
+  background: var(--surface-warning);
+}
+
+.toast-error {
+  border-color: var(--color-danger-edge);
+  color: var(--color-danger);
+  background: var(--surface-error);
+}
+
+.toast-info .toast-action,
+.toast-info .toast-dismiss,
+.toast-warning .toast-action,
+.toast-warning .toast-dismiss,
+.toast-error .toast-action,
+.toast-error .toast-dismiss {
+  color: inherit;
+}
+
+:where(input, select, textarea, button):disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+:where(input, select, textarea)[aria-invalid="true"] {
+  border-color: var(--color-danger);
+  background: var(--surface-error);
+}
+
+:where(input, select, textarea)[aria-invalid="true"]:focus-visible {
+  outline-color: var(--color-danger);
+}
+
+@media (max-width: 640px) {
+  .panel-header,
+  .panel-body,
+  .empty-state {
+    padding-right: var(--space-2);
+    padding-left: var(--space-2);
+  }
+
+  .toast {
+    right: var(--space-2);
+    bottom: var(--space-2);
+    max-width: calc(100vw - 32px);
+  }
 }

@@ -1,3 +1,4 @@
+import type { RefObject } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 
 type IconName = "dashboard" | "queue" | "deadline" | "judgment" | "review" | "profile" | "metrics" | "quality" | "policy" | "runs" | "attachments" | "operations" | "audit";
@@ -53,7 +54,7 @@ const groups: NavGroup[] = [
 ];
 
 function NavIcon({ name }: { name: IconName }) {
-  const common = { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.7 };
+  const common = { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.7, "aria-hidden": true };
   switch (name) {
     case "dashboard":
       return <svg {...common}><rect x="3" y="3" width="7" height="9" rx="1" /><rect x="14" y="3" width="7" height="5" rx="1" /><rect x="14" y="12" width="7" height="9" rx="1" /><rect x="3" y="16" width="7" height="5" rx="1" /></svg>;
@@ -88,12 +89,14 @@ function isCurrentPath(pathname: string, path: string): boolean {
   return path === "/" ? pathname === "/" : pathname === path || pathname.startsWith(`${path}/`);
 }
 
-export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function Sidebar({ navRef, open, onClose }: { navRef: RefObject<HTMLElement | null>; open: boolean; onClose: () => void }) {
   const { pathname } = useLocation();
   const [searchParams] = useSearchParams();
   // 회차 선택은 주소의 run 파라미터에만 남아 있다. 화면을 옮길 때 이 값을 잃으면
   // 담당자가 고른 회차가 최신 회차로 되돌아가므로, 모든 이동에 그대로 넘긴다.
-  const runSearch = searchParams.get("run") ? `?run=${encodeURIComponent(searchParams.get("run") as string)}` : "";
+  const runSearchParams = new URLSearchParams();
+  if (searchParams.has("run")) runSearchParams.set("run", searchParams.get("run") ?? "");
+  const runSearch = runSearchParams.toString() ? `?${runSearchParams.toString()}` : "";
   const atHome = pathname === "/";
   return (
     <>
@@ -102,7 +105,12 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
         aria-hidden="true"
         onClick={onClose}
       />
-      <aside className={`sidebar ${open ? "is-open" : ""}`.trim()}>
+      <aside
+        aria-label="주 메뉴"
+        className={`sidebar ${open ? "is-open" : ""}`.trim()}
+        id="primary-navigation"
+        ref={navRef}
+      >
         <Link
           aria-current={atHome ? "page" : undefined}
           aria-label="RootLab BidOps 대시보드로 이동"

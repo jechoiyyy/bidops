@@ -19,6 +19,7 @@ import { formatPrice, present } from "../lib/format";
 import { describeDeadline } from "../lib/deadline";
 import type { NoticeDetailResponse, ReviewAnswerInput, ReviewResponse, ReviewUpsertRequest } from "../lib/types";
 import { gradeVariant } from "../lib/grade";
+import "../styles/review-workspace-relaxed.css";
 
 const emptyDraft: ReviewDraft = {
   disposition: "",
@@ -425,7 +426,7 @@ export function QueuePage() {
                     <Badge label={detail.judgment?.grade} variant={gradeVariant(detail.judgment?.grade ?? null)} />
                     <Badge label={detail.judgment?.readiness} variant="readiness" />
                     <Badge label={detail.judgment?.primary_focus} variant="focus" />
-                    {detailDeadline && detailDeadline.urgency !== "none" ? (
+                    {detailDeadline ? (
                       <span className={`queue-detail-deadline is-${detailDeadline.urgency} mono tabular-nums`}>{detailDeadline.label}</span>
                     ) : null}
                     <span className="mono tabular-nums notice-key">{present(detail.notice_key, "식별자 미확인")}</span>
@@ -451,21 +452,48 @@ export function QueuePage() {
                 </div>
               </header>
               <div className="queue-detail-scroll">
-                <JudgmentBanner judgment={detail.judgment} />
-                <div className="notice-facts-grid">
-                  <NoticeFacts notice={detail} />
-                  <AttachmentPanel noticePk={detail.id} attachments={detail.attachments} />
-                </div>
-                <PerspectiveTable perspectives={detail.judgment?.perspectives ?? []} />
-                <div className="notice-review-grid">
-                  <CounterargumentList items={detail.judgment?.counterarguments ?? []} />
-                  <VerificationItemTable
-                    items={detail.judgment?.verification_items ?? []}
-                    answers={draft.verification_answers}
-                    onAnswerChange={updateAnswer}
-                  />
-                </div>
-                <RetrievalSignals matches={detail.focus_matches} />
+                <section className="review-workspace-section queue-information-section" aria-labelledby="queue-information-heading">
+                  <div className="review-section-heading">
+                    <div>
+                      <span className="review-section-eyebrow">공고 원문과 메타데이터</span>
+                      <h3 id="queue-information-heading">공고 정보</h3>
+                    </div>
+                    <span>등급·준비 상태와 별도 확인</span>
+                  </div>
+                  <div className="notice-facts-grid">
+                    <NoticeFacts notice={detail} />
+                    <AttachmentPanel noticePk={detail.id} attachments={detail.attachments} />
+                  </div>
+                </section>
+                <section className="review-workspace-section queue-basis-section" aria-labelledby="queue-basis-heading">
+                  <div className="review-section-heading">
+                    <div>
+                      <span className="review-section-eyebrow">시스템 판정</span>
+                      <h3 id="queue-basis-heading">판정 근거</h3>
+                    </div>
+                    <span>요약·관점·확인 항목</span>
+                  </div>
+                  <JudgmentBanner judgment={detail.judgment} />
+                  <PerspectiveTable perspectives={detail.judgment?.perspectives ?? []} />
+                  <div className="notice-review-grid">
+                    <CounterargumentList items={detail.judgment?.counterarguments ?? []} />
+                    <VerificationItemTable
+                      items={detail.judgment?.verification_items ?? []}
+                      answers={draft.verification_answers}
+                      onAnswerChange={updateAnswer}
+                    />
+                  </div>
+                </section>
+                <section className="review-workspace-section queue-support-section" aria-labelledby="queue-support-heading">
+                  <div className="review-section-heading">
+                    <div>
+                      <span className="review-section-eyebrow">탐색 보조 정보</span>
+                      <h3 id="queue-support-heading">추가 확인</h3>
+                    </div>
+                    <span>후보 편입 신호</span>
+                  </div>
+                  <RetrievalSignals matches={detail.focus_matches} />
+                </section>
               </div>
               <ReviewBar
                 draft={draft}

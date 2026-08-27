@@ -11,13 +11,10 @@ import { VerificationRequests } from "../components/dashboard/VerificationReques
 import { api } from "../lib/api";
 import { formatNumber } from "../lib/format";
 import type { DeadlineNotice, RunStatsResponse, ValidationMetric } from "../lib/types";
+import "../styles/dashboard-relaxed.css";
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "대시보드 데이터를 확인할 수 없습니다.";
-}
-
-function sampleCountFromDistribution(distribution: { count: number }[]): number {
-  return distribution.reduce((sum, item) => sum + item.count, 0);
 }
 
 function priorityStatus(metric: ValidationMetric | undefined): string | undefined {
@@ -33,7 +30,11 @@ function priorityStatus(metric: ValidationMetric | undefined): string | undefine
 const CRITICAL_DAYS = 3;
 
 function criticalDeadlineCount(notices: DeadlineNotice[], referenceAt: string | null): number {
-  const referenceMs = referenceAt ? new Date(referenceAt).getTime() : Date.now();
+  // 기준 시각이 없으면 임박 여부도 계산하지 않는다. 현재 시각으로 대체하면
+  // 같은 회차가 실행 시점에 따라 다른 작업 목록으로 보일 수 있다.
+  if (!referenceAt) return 0;
+  const referenceMs = new Date(referenceAt).getTime();
+  if (Number.isNaN(referenceMs)) return 0;
   return notices.filter((notice) => {
     const deadlineMs = new Date(notice.deadline_at ?? "").getTime();
     if (Number.isNaN(deadlineMs)) return false;
@@ -132,20 +133,14 @@ export function DashboardPage() {
   }
 
   const discriminativePower = validation.metrics.find((metric) => metric.key === "discriminative_power");
-  const analysisSampleCount = sampleCountFromDistribution(stats.grade_distribution);
-  const auditSampleCount = Math.max(stats.sample_count - analysisSampleCount, 0);
   // 수집 통계는 collected-notices.json 이 있어야 나온다. 없으면 비율도 계산하지 않는다.
   const candidateRatio =
     stats.collected_count !== null && stats.candidate_count !== null && stats.collected_count > 0
       ? (stats.candidate_count / stats.collected_count) * 100
       : null;
-  const auditPoolCount =
-    stats.collected_count !== null && stats.candidate_count !== null
-      ? Math.max(stats.collected_count - stats.candidate_count, 0)
-      : null;
   const priorityDescription = discriminativePower
     ? `분석 표본 ${formatNumber(discriminativePower.basis.denominator)}건의 ${percentageText(discriminativePower.percentage)}`
-    : `분석 표본 ${formatNumber(analysisSampleCount)}건 기준`;
+    : "분석 표본 분모 확인 불가";
 
   return (
     <div className="dashboard-page">
@@ -160,7 +155,7 @@ export function DashboardPage() {
         <KpiCard
           label="후보 풀"
           value={<><span>{countText(stats.candidate_count)}</span>{stats.candidate_count !== null ? <span className="dashboard-kpi-unit">건</span> : null}</>}
-          description={<><span>전체 수집의 </span><span className="mono tabular-nums">{percentageText(candidateRatio)}</span><span> · 감사 풀 </span><span className="mono tabular-nums">{countText(auditPoolCount)}</span>{auditPoolCount !== null ? <span>건</span> : null}</>}
+          description={<><span>전체 수집의 </span><span className="mono tabular-nums">{percentageText(candidateRatio)}</span></>}
         />
         <KpiCard
           accent
@@ -172,8 +167,8 @@ export function DashboardPage() {
         />
         <KpiCard
           label="1차 필터 누락"
-          value={<><span>{formatNumber(stats.audit_missed_count)}</span><span className="dashboard-kpi-fraction"> / {auditSampleCount > 0 ? `${formatNumber(auditSampleCount)}건` : "표본 미확인"}</span></>}
-          description="감사 표본에서 비제외 판정 건수"
+          value={<><span>{formatNumber(stats.audit_missed_count)}</span><span className="dashboard-kpi-fraction"> / 표본 미확인</span></>}
+          description="감사 표본 분모를 확인할 수 없어 누락률을 계산하지 않습니다."
         />
       </section>
 
@@ -186,7 +181,7 @@ export function DashboardPage() {
 
       <div className="dashboard-secondary-grid">
         <DeadlineTable notices={stats.imminent_deadlines} referenceAt={stats.generated_at} runId={runId} timezone={stats.timezone} />
-        <VerificationRequests requests={stats.verification_requests} />
+        <VerificationRequests requests={stats.verification_requests} runId={runId} />
       </div>
     </div>
   );

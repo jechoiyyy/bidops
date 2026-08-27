@@ -13,6 +13,8 @@ interface DataTableProps<T> {
   rows: T[];
   rowKey: keyof T | ((row: T, index: number) => Key);
   emptyTitle?: string;
+  emptyDescription?: string;
+  className?: string;
 }
 
 function valueOrFallback(value: ReactNode): ReactNode {
@@ -26,11 +28,13 @@ export function DataTable<T>({
   rows,
   rowKey,
   emptyTitle = "표시할 데이터가 없습니다.",
+  emptyDescription,
+  className = "",
 }: DataTableProps<T>) {
-  if (rows.length === 0) return <EmptyState title={emptyTitle} compact />;
+  if (rows.length === 0) return <EmptyState title={emptyTitle} description={emptyDescription} compact />;
 
   return (
-    <div className="table-wrap">
+    <div className={`table-wrap ${className}`.trim()}>
       <table className="data-table">
         <thead>
           <tr>

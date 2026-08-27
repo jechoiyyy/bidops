@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Badge } from "../components/common/Badge";
 import { EmptyState } from "../components/common/EmptyState";
 import { AttachmentPanel } from "../components/notice/AttachmentPanel";
@@ -16,18 +16,25 @@ import { RetrievalSignals } from "../components/notice/RetrievalSignals";
 import { VerificationItemTable } from "../components/notice/VerificationItemTable";
 import { api } from "../lib/api";
 import { formatDate, formatDateTime, formatPrice, present } from "../lib/format";
+import { describeDeadline } from "../lib/deadline";
 import type { NoticeListItem } from "../lib/types";
 import { gradeVariant } from "../lib/grade";
 import { createDeepReview, getDocumentBundles } from "../components/deep-review/api";
+import "../styles/review-workspace-relaxed.css";
 
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
 }
 
-
 function NoticePickerItem({ notice, selected, onSelect }: { notice: NoticeListItem; selected: boolean; onSelect: () => void }) {
+  const itemRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (selected) itemRef.current?.scrollIntoView({ block: "nearest" });
+  }, [selected]);
+
   return (
-    <button className={`judgment-notice-item ${selected ? "is-selected" : ""}`.trim()} type="button" onClick={onSelect}>
+    <button aria-current={selected ? "true" : undefined} className={`judgment-notice-item ${selected ? "is-selected" : ""}`.trim()} ref={itemRef} type="button" onClick={onSelect}>
       <span className="judgment-notice-title">{present(notice.title, "공고명 미확인")}</span>
       <span className="judgment-notice-badges">
         <Badge label={notice.grade} variant={gradeVariant(notice.grade)} />
@@ -43,12 +50,14 @@ function NoticePickerItem({ notice, selected, onSelect }: { notice: NoticeListIt
 }
 
 export function NoticeDetailPage() {
+  const location = useLocation();
   const navigate = useNavigate();
   const { noticePk: noticePkParam } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const runsQuery = useQuery({ queryKey: ["runs"], queryFn: api.getRuns, staleTime: 30_000 });
   const runId = searchParams.get("run") ?? runsQuery.data?.items[0]?.run_id ?? null;
   const selectedId = noticePkParam && Number.isInteger(Number(noticePkParam)) ? Number(noticePkParam) : null;
+  const keepListOpen = Boolean((location.state as { keepListOpen?: boolean } | null)?.keepListOpen);
 
   useEffect(() => {
     if (searchParams.get("run") || !runId) return;
@@ -84,8 +93,17 @@ export function NoticeDetailPage() {
   const notices = noticesQuery.data?.items ?? [];
   const selectedNotice = useMemo(() => notices.find((notice) => notice.id === selectedId), [notices, selectedId]);
   const detail = detailQuery.data?.id === selectedId ? detailQuery.data : undefined;
+  const selectedIndex = notices.findIndex((notice) => notice.id === selectedId);
+  const detailDeadline = detail ? describeDeadline(detail.deadline_at) : null;
 
-  const selectNotice = (id: number) => navigate({ pathname: `/judgments/${id}`, search: searchParams.toString() });
+  useEffect(() => {
+    if (!runId || noticesQuery.isLoading || notices.length === 0) return;
+    if ((selectedId === null && !keepListOpen) || (selectedId !== null && selectedIndex === -1)) {
+      navigate({ pathname: `/judgments/${notices[0].id}`, search: searchParams.toString() }, { replace: true, state: null });
+    }
+  }, [keepListOpen, navigate, notices, noticesQuery.isLoading, runId, searchParams, selectedId, selectedIndex]);
+
+  const selectNotice = (id: number) => navigate({ pathname: `/judgments/${id}`, search: searchParams.toString() }, { state: null });
 
   if (runsQuery.error) {
     return <EmptyState title="회차 정보를 불러오지 못했습니다." description={errorMessage(runsQuery.error, "회차를 확인할 수 없습니다.")} />;
@@ -108,13 +126,20 @@ export function NoticeDetailPage() {
           </div>
           <h2>{detail ? present(detail.title, "공고명 미확인") : "공고 판정 상세"}</h2>
           {detail ? (
-            <div className="judgment-page-subline">
-              <span className="mono tabular-nums">{present(detail.notice_key, "식별자 미확인")}</span>
-              <span aria-hidden="true">·</span>
-              <span>{present(detail.agency, "발주기관 미확인")}</span>
-              <span aria-hidden="true">·</span>
-              <span className="mono tabular-nums">{formatPrice(detail.estimated_price)}</span>
-            </div>
+            <>
+              <div className="judgment-page-heading-meta">
+                <Badge label={detail.judgment?.grade} variant={gradeVariant(detail.judgment?.grade ?? null)} />
+                <Badge label={detail.judgment?.readiness} variant="readiness" />
+                {detailDeadline ? <span className={`queue-detail-deadline is-${detailDeadline.urgency} mono tabular-nums`}>{detailDeadline.label}</span> : null}
+              </div>
+              <div className="judgment-page-subline">
+                <span className="mono tabular-nums">{present(detail.notice_key, "식별자 미확인")}</span>
+                <span aria-hidden="true">·</span>
+                <span>{present(detail.agency, "발주기관 미확인")}</span>
+                <span aria-hidden="true">·</span>
+                <span className="mono tabular-nums">{formatPrice(detail.estimated_price)}</span>
+              </div>
+            </>
           ) : null}
         </div>
         <div className="judgment-page-actions">
@@ -130,7 +155,7 @@ export function NoticeDetailPage() {
           ) : null}
         </div>
       </header>
-      <div className="judgment-workspace">
+      <div className={`judgment-workspace ${selectedId !== null ? "shows-detail" : "shows-list"}`}>
         <aside className="judgment-notice-list" aria-label="회차 공고 목록">
           <div className="judgment-list-header">
             <span><strong className="mono tabular-nums">{noticesQuery.data?.total ?? notices.length}</strong>건 · 회차 공고</span>
@@ -155,14 +180,28 @@ export function NoticeDetailPage() {
             <EmptyState title="공고 상세가 없습니다." description="선택한 공고의 상세 데이터를 확인할 수 없습니다." />
           ) : (
             <div className="judgment-detail-scroll">
+              <div className="queue-detail-back judgment-detail-back">
+                <Link state={{ keepListOpen: true }} to={{ pathname: "/judgments", search: searchParams.toString() }}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M19 12H6M11 6l-6 6 6 6" /></svg>
+                  목록으로
+                </Link>
+                {selectedIndex >= 0 ? <span className="mono tabular-nums">{selectedIndex + 1} / {notices.length}</span> : null}
+              </div>
               <div className="judgment-detail-badges">
                 <Badge label={detail.judgment?.grade} variant={gradeVariant(detail.judgment?.grade ?? null)} />
                 <Badge label={detail.judgment?.readiness} variant="readiness" />
                 <Badge label={detail.judgment?.primary_focus} variant="focus" />
+                {detailDeadline ? <span className={`queue-detail-deadline is-${detailDeadline.urgency} mono tabular-nums`}>{detailDeadline.label}</span> : null}
                 <span className="mono tabular-nums judgment-published">{detail.published_at ? `공고 ${formatDate(detail.published_at)}` : "공고일 미확인"}</span>
               </div>
-              <section aria-labelledby="deep-review-entry-title" style={{ border: "1px solid #d4e0e2", borderRadius: 8, padding: 14, background: "#f8fbfb" }}>
-                <h3 id="deep-review-entry-title" style={{ marginTop: 0 }}>심층 검토</h3>
+              <section className="review-workspace-section judgment-deep-review-section" aria-labelledby="deep-review-entry-title">
+                <div className="review-section-heading">
+                  <div>
+                    <span className="review-section-eyebrow">문서 준비</span>
+                    <h3 id="deep-review-entry-title">심층 검토</h3>
+                  </div>
+                  <span>ready bundle 기반 시작</span>
+                </div>
                 {bundleQuery.isLoading ? <p role="status">문서 bundle 준비 상태를 확인하는 중입니다.</p> : null}
                 {bundleQuery.error ? <p role="status">문서 bundle을 확인할 수 없습니다.</p> : null}
                 {(() => {
@@ -177,23 +216,68 @@ export function NoticeDetailPage() {
                 })()}
                 {deepReviewMutation.error ? <p role="alert">심층 검토를 시작할 수 없습니다.</p> : null}
               </section>
-              <LifecycleTimeline notice={detail} />
-              <JudgmentBanner judgment={detail.judgment} />
-              <div className="judgment-summary-grid">
-                <NoticeFacts notice={detail} />
-                <QualificationFlags notice={detail} />
-              </div>
-              <div className="judgment-history-grid">
-                <JudgmentHistory noticePk={detail.id} />
-                <RelatedNotices noticePk={detail.id} />
-              </div>
-              <AttachmentPanel noticePk={detail.id} attachments={detail.attachments} />
-              <PerspectiveTable perspectives={detail.judgment?.perspectives ?? []} />
-              <div className="notice-review-grid">
-                <CounterargumentList items={detail.judgment?.counterarguments ?? []} />
-                <VerificationItemTable items={detail.judgment?.verification_items ?? []} answers={[]} />
-              </div>
-              <RetrievalSignals matches={detail.focus_matches} />
+              <section className="review-workspace-section judgment-overview-section" aria-labelledby="judgment-overview-heading">
+                <div className="review-section-heading">
+                  <div>
+                    <span className="review-section-eyebrow">이력 확인</span>
+                    <h3 id="judgment-overview-heading">공고 생애주기와 판정 요약</h3>
+                  </div>
+                  <span>현재 공고의 기준선</span>
+                </div>
+                <LifecycleTimeline notice={detail} />
+                <JudgmentBanner judgment={detail.judgment} />
+              </section>
+              <section className="review-workspace-section judgment-information-section" aria-labelledby="judgment-information-heading">
+                <div className="review-section-heading">
+                  <div>
+                    <span className="review-section-eyebrow">원문 메타데이터</span>
+                    <h3 id="judgment-information-heading">공고 정보와 자격</h3>
+                  </div>
+                  <span>API 직접 제공값</span>
+                </div>
+                <div className="judgment-summary-grid">
+                  <NoticeFacts notice={detail} />
+                  <QualificationFlags notice={detail} />
+                </div>
+              </section>
+              <section className="review-workspace-section judgment-history-section" aria-labelledby="judgment-history-heading">
+                <div className="review-section-heading">
+                  <div>
+                    <span className="review-section-eyebrow">회차별 기록</span>
+                    <h3 id="judgment-history-heading">판정 이력과 관련 공고</h3>
+                  </div>
+                  <span>첫 이력 자동 펼침</span>
+                </div>
+                <div className="judgment-history-grid">
+                  <JudgmentHistory noticePk={detail.id} />
+                  <RelatedNotices noticePk={detail.id} />
+                </div>
+              </section>
+              <section className="review-workspace-section judgment-basis-section" aria-labelledby="judgment-basis-heading">
+                <div className="review-section-heading">
+                  <div>
+                    <span className="review-section-eyebrow">검토 자료</span>
+                    <h3 id="judgment-basis-heading">첨부 문서와 판정 근거</h3>
+                  </div>
+                  <span>원문·관점·확인 항목</span>
+                </div>
+                <AttachmentPanel noticePk={detail.id} attachments={detail.attachments} />
+                <PerspectiveTable perspectives={detail.judgment?.perspectives ?? []} />
+                <div className="notice-review-grid">
+                  <CounterargumentList items={detail.judgment?.counterarguments ?? []} />
+                  <VerificationItemTable items={detail.judgment?.verification_items ?? []} answers={[]} />
+                </div>
+              </section>
+              <section className="review-workspace-section judgment-support-section" aria-labelledby="judgment-support-heading">
+                <div className="review-section-heading">
+                  <div>
+                    <span className="review-section-eyebrow">탐색 보조 정보</span>
+                    <h3 id="judgment-support-heading">추가 검색 신호</h3>
+                  </div>
+                  <span>후보 편입 근거</span>
+                </div>
+                <RetrievalSignals matches={detail.focus_matches} />
+              </section>
             </div>
           )}
         </section>
