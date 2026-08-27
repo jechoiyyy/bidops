@@ -4,6 +4,8 @@ import { mockApi } from "./api-mock";
 // 마감까지 남은 날짜가 화면에 그려지므로, 시각을 고정하지 않으면 매일 스냅샷이 달라진다.
 const FIXED_TIME = new Date("2026-08-25T09:00:00+09:00");
 const RUN_ID = "20260817-20260823--20260824T090927.138116Z";
+const ACTIVE_POLICY = "screening-policy.v1.20260825";
+const ACTIVE_GATE_EVALUATION = "gateeval-11111111111111111111111111111111";
 const CANDIDATE_GATE_EVALUATION = "gateeval-22222222222222222222222222222222";
 
 const pages = [
@@ -40,7 +42,7 @@ test.beforeEach(async ({ page }) => {
 
 /** 로컬 Pretendard가 적용된 뒤에만 레이아웃을 안정화하고 스냅샷을 찍는다. */
 async function settleFonts(page: Page): Promise<void> {
-  const computedFontFamily = await page.evaluate(async () => {
+  const fontState = await page.evaluate(async () => {
     const text = document.documentElement.textContent ?? "";
     await Promise.all([
       document.fonts.load('400 14px "Pretendard"', text),
@@ -48,11 +50,15 @@ async function settleFonts(page: Page): Promise<void> {
     ]);
     await document.fonts.ready;
     await new Promise<void>((resolve) => {
-      requestAnimationFrame(() => requestAnimationFrame(resolve));
-    });
-    return getComputedStyle(document.documentElement).fontFamily;
+        requestAnimationFrame(() => requestAnimationFrame(resolve));
+      });
+    return {
+      computedFontFamily: getComputedStyle(document.documentElement).fontFamily,
+      pretendardLoaded: document.fonts.check('400 14px "Pretendard"'),
+    };
   });
-  expect(computedFontFamily).toContain("Pretendard");
+  expect(fontState.computedFontFamily).toContain("Pretendard");
+  expect(fontState.pretendardLoaded).toBe(true);
 }
 
 for (const target of pages) {
@@ -148,6 +154,25 @@ test("대시보드의 마감 링크가 회차와 정렬을 함께 전달한다",
   const params = new URL(page.url()).searchParams;
   expect(params.get("run")).toBe(RUN_ID);
   expect(params.get("sort")).toBe("deadline");
+});
+
+test("대시보드 퍼널은 단계별 건수와 직전 단계 잔존율을 함께 보여준다", async ({ page }) => {
+  await page.goto(`/?run=${encodeURIComponent(RUN_ID)}`);
+  const rows = page.locator(".dashboard-funnel-row");
+  await expect(rows).toHaveCount(4);
+  const widths = await rows.locator(".dashboard-funnel-bar").evaluateAll((bars) => bars.map((bar) => Number.parseFloat((bar as HTMLElement).style.width)));
+  expect(widths[0]).toBeCloseTo(100, 3);
+  expect(widths[1]).toBeCloseTo((327 / 2546) * 100, 3);
+  expect(widths[2]).toBeCloseTo((40 / 327) * 100, 3);
+  expect(widths[3]).toBeCloseTo((17 / 40) * 100, 3);
+  expect(widths[3]).toBeGreaterThan(widths[2]);
+  await expect(rows.nth(0)).toContainText("2,546건");
+  await expect(rows.nth(0)).toContainText("기준");
+  await expect(rows.nth(2)).toContainText("12.2%");
+  await expect(rows.nth(2)).toContainText("40건");
+  await expect(rows.nth(3)).toContainText("42.5%");
+  await expect(rows.nth(3)).toContainText("17건");
+  await expect(page.locator(".dashboard-funnel-axis")).toContainText("0%25%50%75%100%");
 });
 
 test("마감과 감사 redirect가 기존 쿼리를 보존한다", async ({ page }) => {
@@ -254,7 +279,64 @@ test("정책 활성화는 최신 운영 게이트와 담당자 없이는 열리�
 test("상시 운영은 승인 조합 불일치 상태에서 켤 수 없다", async ({ page }) => {
   await page.goto("/operations");
   await expect(page.getByText("상시 운영이 거부되었습니다.")).toBeVisible();
-  await expect(page.getByRole("button", { name: "상시 운영 켜기" })).toBeDisabled();
+  await expect(page.getByRole("alert", { name: "상시 운영 켜기 차단 사유" })).toContainText("켤 수 없는 상태입니다");
+  await expect(page.getByRole("button", { name: "상시 운영 켜기" })).toHaveCount(0);
+});
+
+test("상시 운영 켜기는 대화상자에서 조합·담당자·결과 ID를 재확인한다", async ({ page }) => {
+  const readyState = {
+    configured_enabled: false,
+    effective_enabled: false,
+    environment_enabled: true,
+    quality_gate_status: "통과",
+    quality_gate_result_id: ACTIVE_GATE_EVALUATION,
+    policy_version: ACTIVE_POLICY,
+    model_name: "qwen3.8:27b",
+    model_digest: "sha256:model-20260825-qwen",
+    prompt_version: "screening-prompt.v1",
+    company_profile_version: "company-profile.v1.20260825",
+    company_profile_digest: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    updated_at: "2026-08-25T08:00:00+09:00",
+    updated_by: "system:migration",
+    rejection_reason: null,
+  };
+  let updatePayload: Record<string, unknown> | undefined;
+  await page.route("**/api/schedule/always-on", async (route) => {
+    if (route.request().method() === "PUT") {
+      updatePayload = route.request().postDataJSON() as Record<string, unknown>;
+    }
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(readyState) });
+  });
+
+  await page.goto("/operations");
+  const trigger = page.getByRole("button", { name: "상시 운영 켜기" });
+  await expect(trigger).toBeVisible();
+  await trigger.click();
+
+  const dialog = page.getByRole("alertdialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("기존 회차와 산출물은 바뀌지 않지만");
+  await expect(dialog.getByRole("button", { name: "상시 운영 켜기" })).toBeDisabled();
+  await dialog.getByLabel("변경 담당자").fill("운영 담당자");
+  await dialog.getByLabel("게이트 결과 ID 확인").fill(ACTIVE_GATE_EVALUATION);
+  await expect(dialog.getByRole("button", { name: "상시 운영 켜기" })).toBeEnabled();
+
+  await page.keyboard.press("Tab");
+  expect(await page.evaluate(() => document.activeElement?.closest('[role="alertdialog"]') !== null)).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(trigger).toBeFocused();
+
+  await trigger.click();
+  await dialog.getByLabel("변경 담당자").fill("운영 담당자");
+  await dialog.getByLabel("게이트 결과 ID 확인").fill(ACTIVE_GATE_EVALUATION);
+  await dialog.getByRole("button", { name: "상시 운영 켜기" }).click();
+  await expect(dialog).toBeHidden();
+  expect(updatePayload).toEqual({ enabled: true, confirmed_by: "운영 담당자", quality_gate_result_id: ACTIVE_GATE_EVALUATION });
+
+  const overflow = await page.evaluate(() => ({ document: document.documentElement.scrollWidth - document.documentElement.clientWidth, body: document.body.scrollWidth - document.body.clientWidth }));
+  expect(overflow.document).toBeLessThanOrEqual(1);
+  expect(overflow.body).toBeLessThanOrEqual(1);
 });
 
 test("값 없음·미확인·계산 불가·0을 구분해 표시한다", async ({ page }) => {

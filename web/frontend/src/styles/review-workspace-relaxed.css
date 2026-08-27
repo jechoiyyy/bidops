@@ -12,6 +12,7 @@
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
   background: var(--surface-app);
+  overflow: hidden;
 }
 
 .queue-page {
@@ -65,6 +66,12 @@
 .review-workspace-section {
   min-width: 0;
   max-width: 100%;
+}
+
+.queue-workspace,
+.judgment-workspace {
+  flex-direction: row;
+  overflow: hidden;
 }
 
 .queue-list-pane {
@@ -131,6 +138,7 @@
 .judgment-page-header {
   gap: 24px;
   padding: 20px 24px 19px;
+  flex-direction: row;
 }
 
 .queue-detail-heading,
@@ -392,6 +400,14 @@
   overflow-wrap: anywhere;
 }
 
+/* theme.css의 공통 규칙보다 우선해 모든 검토 화면에서 하단에 붙인다. */
+.queue-page .review-bar,
+.judgment-page .review-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+}
+
 .review-bar {
   display: grid;
   grid-template-columns: minmax(120px, 0.7fr) minmax(0, 1fr) auto;
@@ -403,6 +419,7 @@
   align-items: center;
   gap: 10px 12px;
   padding: 16px 24px;
+  box-shadow: 0 -4px 14px rgb(27 72 48 / 7%);
 }
 
 .review-bar-title {
@@ -488,7 +505,61 @@
   grid-area: error;
 }
 
-@media (max-width: 1180px) {
+/* 901~1180px에서는 상세 pane이 좁아지므로 내부 카드만 한 열로 접는다. */
+@media (min-width: 901px) and (max-width: 1180px) {
+  /* theme.css의 기존 1180px 규칙은 다른 화면을 위해 남겨 두고,
+     검토 화면만 이 구간에서 목록·상세 2열을 유지한다. */
+  .queue-page.queue-page,
+  .judgment-page.judgment-page {
+    height: calc(100vh - 82px);
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .queue-page .queue-workspace,
+  .judgment-page .judgment-workspace {
+    flex-direction: row;
+    overflow: hidden;
+  }
+
+  .queue-page .queue-list-pane {
+    flex: 0 0 min(390px, 34%);
+    width: min(390px, 34%);
+    border-right: 1px solid var(--color-border);
+    border-bottom: 0;
+  }
+
+  .judgment-page .judgment-notice-list {
+    flex: 0 0 min(360px, 32%);
+    width: min(360px, 32%);
+    border-right: 1px solid var(--color-border);
+    border-bottom: 0;
+  }
+
+  .queue-page .queue-detail-pane,
+  .judgment-page .judgment-detail-pane {
+    min-height: 0;
+  }
+
+  .queue-page .queue-detail-header,
+  .judgment-page .judgment-page-header {
+    flex-direction: row;
+  }
+
+  .queue-page .queue-detail-scroll,
+  .judgment-page .judgment-detail-scroll {
+    padding: 24px;
+  }
+
+  .queue-page .notice-facts-grid,
+  .queue-page .notice-review-grid,
+  .judgment-page .judgment-summary-grid,
+  .judgment-page .judgment-history-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 900px) {
   .queue-page,
   .judgment-page {
     height: auto;
@@ -539,9 +610,7 @@
     width: 100%;
     justify-content: flex-start;
   }
-}
 
-@media (max-width: 900px) {
   .queue-workspace.shows-detail .queue-list-pane,
   .queue-workspace.shows-list .queue-detail-pane,
   .judgment-workspace.shows-detail .judgment-notice-list,
@@ -587,9 +656,6 @@
   }
 
   .review-bar {
-    position: sticky;
-    bottom: 0;
-    z-index: 2;
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
       "title title"
@@ -603,7 +669,6 @@
     align-items: stretch;
     padding-top: 14px;
     padding-bottom: 14px;
-    box-shadow: 0 -4px 14px rgb(27 72 48 / 7%);
   }
 
   .review-secondary {
