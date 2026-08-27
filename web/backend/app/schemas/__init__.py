@@ -609,7 +609,7 @@ def _validate_generation_binding(
             raise ValueError("generation config metadata must be provided as a pair")
         return None
     try:
-        from .screening.generation_config import config_from_value, validate_digest
+        from ..screening.generation_config import config_from_value, validate_digest
 
         config = config_from_value(value)
         validate_digest(config, digest)
