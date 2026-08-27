@@ -211,3 +211,161 @@ To resume T15 Phase 2, `127.0.0.1:11434/api/tags` must first return 2xx with
 exact tag `qwen3.8:27b` and the required digest. A new deterministic retry
 directory and fresh pre-run backup are required; this blocked evidence and
 the earlier Phase 2 record remain immutable.
+
+## 2026-08-27 Phase 2 live retry r2 — `BLOCKED` (localhost preflight)
+
+### 결론
+
+The operator-requested r2 retry was stopped at the read-only Ollama preflight.
+`http://127.0.0.1:11434/api/tags` refused the connection, so the required 2xx
+response, exact model tag, and exact digest could not be verified. No alternate
+port, remote endpoint, OpenAI-compatible endpoint, or substitute model was
+attempted. No gate, evaluation, execution, review, activation, scheduler, or
+always-on mutation was performed. This run is `BLOCKED`, not a quality pass or
+failure result.
+
+The preflight command and result are preserved at
+`/home/jechoi/projects/side/bidops-agent/.dryforge/t15-runtime/phase2-live-retry-20260827-r2/phase2-logs/00-model-preflight.log`:
+
+- command: `curl --silent --show-error --max-time 20 --connect-timeout 5 -w '\\n__HTTP_STATUS__:%{http_code}\\n' http://127.0.0.1:11434/api/tags`
+- start: `2026-08-27T00:22:57.478295+00:00` /
+  `2026-08-27T09:22:57.478295+09:00` KST
+- finish: `2026-08-27T00:22:57.486349+00:00` /
+  `2026-08-27T09:22:57.486349+09:00` KST
+- exit: `7`; HTTP status: `000`; error: `curl: (7) Failed to connect to 127.0.0.1 port 11434 after 0 ms: Couldn't connect to server`
+- log SHA-256: `51328bf7c97fd06edd2b20b6d9dcf106d7fb51d1e6f6d29b518e6f069a316a24`
+
+### Binding and fixed-input evidence
+
+| binding | required value | observed |
+|---|---|---|
+| endpoint | `http://127.0.0.1:11434` (`/api/tags`) | connection refused |
+| model tag | `qwen3.8:27b` | unavailable; no response |
+| model digest | `22130167c4c20e20c7b71454612966ca8e8171e9b3cc8ab6ce8aa6cbfec79643` | unavailable; no response |
+| generation config | `num_ctx=16384`, perspective/counterargument `2048`, synthesis `4096`, `think=false`, `stream=false` | reserved config; no execution binding created |
+| generation config digest | `51f1878845ed282b20e9c074ca29adbb5ce0a208c89ffae51425a2565ad5dfd1` | not exercised |
+| scheduler | `BIDOPS_SCHEDULER_ENABLED=false` | unchanged |
+
+The fixed artifact byte pins remain the approved values from the preceding
+read-only baseline: validation set
+`2ea6a21e6b121f691195bbc891b8ec7766817f821d6b343c20b12b608f3e47e3`, baseline
+decisions `69a444e5ec9846c592de4b454472817477abaa4a109c97dbe84787dff9c6789d`,
+screening results
+`fb9160602771ff057b708d69b197b9fc7e464f9e021615a7ebaa83a94733903b`, and
+collection `ec5021f5e09c6c15ccde090998df39b57dfdaf728f7a30a1bf24c8f1f1d98ce0`.
+The generated-at resolver target is still canonical
+`20260817-20260823--20260824T090927.138116Z`; alias
+`20260817-20260823` was not inserted or used as a DB row.
+
+### Fresh r2 no-write backup and baseline
+
+The new deterministic ignored runtime is
+`/home/jechoi/projects/side/bidops-agent/.dryforge/t15-runtime/phase2-live-retry-20260827-r2`.
+It does not overwrite the earlier `phase2-backup` or r1 runtime. A read-only
+SQLite backup of the requested source DB was captured before any possible gate
+operation:
+
+- source DB: `phase1-retry/phase1-db/bidops.db`, pre-run SHA-256
+  `dc5074fcabe8d9b3ab8bbdd8d30c8c6fbd36cbd43853e475fea3daa370cfc03c`
+- backup: `phase2-db/phase2-live-pre-run.db`, SHA-256
+  `da6af6643938ca3487b0354836ec7f816dac343968e4812f57bb099b70f4191f`
+- working copy: `phase2-db/bidops.db`, SHA-256
+  `da6af6643938ca3487b0354836ec7f816dac343968e4812f57bb099b70f4191f`
+- manifest: `phase2-db/phase2-live-pre-run.db.manifest.json`, SHA-256
+  `df0dd0b97563392cda959e5d55a8de876f1da6261aa61019520d663e59f9c1fd`
+- manifest logical snapshot fingerprint:
+  `7dd8b1539532d854d72e999d5ce7802843ce96f7a6ec054991b467246236c66a`
+- baseline JSON: `phase2-logs/01-pre-run-baseline.json`, SHA-256
+  `e0747dde6823de07ef7520480e122ea65e09769ad89e93093f4eca3e96cbc225`
+
+The baseline has Alembic head `0005_generation_config_binding`, SQLite
+`quick_check=ok`, and zero foreign-key violations. Counts are run/notice/
+judgment/review/attachment `1/40/40/0/149`; existing executions remain the
+Phase 1 success `scr-72a1ae87342d4d4485fbb467b0e4d3fa` and stop smoke
+`scr-650cd5e1eea04205b8ffffeaa789df7f`. Initial quality gate/evaluation/review
+counts are `0/0/0`, schedule execution is `0`, policy remains
+`activation_candidate`, always-on remains `false`, and prespec remains
+`false`. The source and working DB hashes were unchanged by this retry.
+
+### Gate, A/B, and model-call result
+
+No gate ID, pass-A/pass-B execution ID, evaluation ID, or review ID was
+allocated. The following are not measured because preflight failed before
+gate creation:
+
+| item | result |
+|---|---|
+| model calls | `0` |
+| A/B processing | `0 + 0`; required `40 + 40` not started |
+| quality-sample logical executions | `0` |
+| persisted attempts | `0` |
+| FIFO/sequential processing | not started |
+| A/B metrics, gate result, evaluation | not measured; no rows |
+| provider/schema/truncation retries | none; no provider request occurred |
+| errors | one preflight connection refusal, no model-output error |
+
+No `operational_approval` gate, policy activation candidate change, policy
+activation, scheduler enable, always-on enable, public bypass, or external
+model call occurred. Same-process inspect/closure attack testing is explicitly
+deferred to the future security-hardening phase requested by the operator.
+
+### Post-check and resume condition
+
+This r2 path is no-write by construction: the source DB was opened read-only,
+the working copy equals the immutable pre-run backup, and only ignored runtime
+evidence files plus this append-only validation section were created. A future
+retry requires `127.0.0.1:11434/api/tags` to return 2xx with exact
+`qwen3.8:27b` and digest
+`22130167c4c20e20c7b71454612966ca8e8171e9b3cc8ab6ce8aa6cbfec79643`, followed
+by a new deterministic runtime and fresh backup. Neither this blocked retry
+nor the earlier evidence may be reclassified as a pass.
+
+### Fresh r3 remote preflight, partial run, and operator stop
+
+The requested remote Ollama endpoint was verified before any database write:
+`http://192.168.0.139:11434/api/tags` returned HTTP 200 with exactly one
+`qwen3.8:27b` entry and the approved digest
+`22130167c4c20e20c7b71454612966ca8e8171e9b3cc8ab6ce8aa6cbfec79643`.
+The run used the existing Ollama API and the fixed generation binding
+(`num_ctx=16384`, perspective/counterargument `2048`, synthesis `4096`,
+`think=false`, `stream=false`, digest
+`51f1878845ed282b20e9c074ca29adbb5ce0a208c89ffae51425a2565ad5dfd1`).
+
+The deterministic ignored runtime was
+`/home/jechoi/projects/side/bidops-agent/.dryforge/t15-runtime/phase2-live-retry-20260827-r3`.
+The initial gate attempt failed before publication because Git parent discovery
+looked for the approved profile at the wrong runtime-prefixed path. The
+diagnosis is preserved in `phase2-logs/02-gate-create-diagnosis.json`; setting
+`GIT_CEILING_DIRECTORIES=/home/jechoi/projects/side/bidops-agent/.dryforge`
+enabled the verified vendored baseline fallback without changing source code or
+fixed inputs. The corrected attempt created exactly one `model_comparison`
+gate (`gate-97dea790d27542c8bf4b0ee966374b36`) with independent A/B executions:
+`scr-c9cbcd041e7a40c0976f8b67b59fc1b8` and
+`scr-5a4896bbd8f24e28bf4b9f9db9a874b5`.
+
+The operator then requested a pause before the full A/B sample completed. A
+cooperative stop was persisted at 2026-08-27 00:55:29 UTC. The worker finished
+its in-flight synthesis call and exited; no further model call was started.
+Final execution state was:
+
+| item | result |
+|---|---|
+| A status / sample | `중단됨` / fixed 40; completed `2`, failure `8` |
+| A attempts | `79` total: `62` success, `17` `schema_violation` failures |
+| B status / sample | `중단됨` / fixed 40; not started, `0` attempts |
+| gate status / result | `대기` / `미측정` |
+| quality gate/evaluation/review rows | `1 / 1 / 0` |
+| schedule execution/reservation rows | `0 / 0` |
+| always-on / policy | unchanged; disabled / `activation_candidate` |
+
+Post-stop SQLite checks passed: `quick_check=ok`, foreign-key violations `[]`.
+The final working DB SHA-256 was
+`01d42cb5e6be4ae766abe20005e488be936176fd86dd02d209095b818e6da812`; the
+immutable pre-run backup remained
+`da6af6643938ca3487b0354836ec7f816dac343968e4812f57bb099b70f4191f`.
+No operational-approval gate, policy activation, scheduler/always-on change,
+or public bypass occurred, and no additional external provider call occurred
+after the operator stop. The partial run is not a quality pass and must not be
+resumed until the `bidops-deep-review` merge is completed. Same-process
+inspect/closure attack testing remains deferred to the later security-hardening
+phase requested by the operator.
