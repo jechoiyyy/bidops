@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import re
 import subprocess
 import threading
 import uuid
@@ -19,6 +18,7 @@ from ..config import Settings, get_settings
 from ..db import SessionFactory
 from ..ingest.loader import ingest_run, parse_run_id
 from ..models import Run
+from ..redaction import mask_secrets
 
 
 PIPELINE_STAGES = {"collect", "sample", "report"}
@@ -96,20 +96,6 @@ def _secret_values(settings: Settings) -> tuple[str, ...]:
         if any(marker in upper for marker in ("KEY", "TOKEN", "SECRET", "PASSWORD")) and value:
             values.add(value)
     return tuple(sorted((value for value in values if len(value) >= 4), key=len, reverse=True))
-
-
-def mask_secrets(value: str, secrets: tuple[str, ...] | list[str] = ()) -> str:
-    """Redact known secret values and common key-like query parameters from a log line."""
-
-    masked = value
-    for secret in sorted(set(secrets), key=len, reverse=True):
-        if secret:
-            masked = masked.replace(secret, "[비밀 값]")
-    return re.sub(
-        r"(?i)((?:service[_-]?key|api[_-]?key|access[_-]?token|secret|password)\s*[=:]\s*)[^\s&,;]+",
-        r"\1[비밀 값]",
-        masked,
-    )
 
 
 def _level_for(message: str, stream: str) -> str:

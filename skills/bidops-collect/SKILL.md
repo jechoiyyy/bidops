@@ -1,23 +1,23 @@
 ---
 name: bidops-collect
-description: Collect and normalize Korean G2B service bid notices and pre-specifications, then create a high-recall BidOps validation sample. Use for BidOps collection, filtering, or validation-set preparation; do not make semantic fit or bid-participation judgments.
+description: 나라장터 용역 공고와 사전규격을 수집·정규화하여 고재현율 BidOps 검증 표본을 만든다. BidOps 수집, 필터링, 검증 표본 준비에 사용하며, 의미 적합성이나 입찰 참여 판단은 내리지 않는다.
 ---
 
 # BidOps Collect
 
-Collect official G2B records deterministically and preserve enough raw evidence to reproduce every later decision.
+나라장터 공식 데이터를 결정적으로 수집하고, 이후 모든 판단을 재현할 수 있을 만큼 원문 근거를 보존한다.
 
-Read [the workflow contract](../references/workflow-contract.md) before producing artifacts.
-For candidate retrieval, also use the company-introduction project-title reference at
-`../../docs/reference/company-performance-titles.tsv` (PDF pages 41–46).
+산출물을 만들기 전에 [워크플로 계약](../references/workflow-contract.md)을 읽는다.
+후보 탐색을 위해 회사소개서 사업명 참조 파일
+`../../docs/reference/company-performance-titles.tsv` (PDF 41–46페이지)도 함께 사용한다.
 
-## Workflow
+## 작업 순서
 
-1. Confirm the exact collection window and output directory. For the initial validation use `2026-08-17` through `2026-08-23`, inclusive, in `Asia/Seoul`.
-2. Run `scripts/collect_notices.py` from the `bidops-agent` directory. It reads `BIDOPS_G2B_API_KEY` from the environment or a git-ignored `.env` file. Never print or persist the key.
-3. Inspect collection counts and warnings. Preserve raw API pages under the run directory.
-4. Run `scripts/select_validation_sample.py` to select up to 30 analysis records and 10 audit records.
-5. Report underfilled strata or missing fields; do not silently invent or backfill data.
+1. 정확한 수집 기간과 출력 디렉터리를 확정한다. 초기 검증에는 `Asia/Seoul` 기준 `2026-08-17`부터 `2026-08-23`까지(양 끝 포함)를 사용한다.
+2. `bidops-agent` 디렉터리에서 `scripts/collect_notices.py`를 실행한다. 이 스크립트는 환경 변수 또는 git-ignore된 `.env` 파일에서 `BIDOPS_G2B_API_KEY`를 읽는다. 이 키를 출력하거나 저장하지 않는다.
+3. 수집 건수와 경고를 확인한다. API 원문 페이지는 실행 디렉터리 아래에 보존한다.
+4. `scripts/select_validation_sample.py`를 실행해 분석 표본 최대 30건과 감사 표본 10건을 선정한다.
+5. 층이 채워지지 않았거나 필드가 누락된 경우 그대로 보고한다. 데이터를 임의로 만들어내거나 채워 넣지 않는다.
 
 ```bash
 python3 skills/bidops-collect/scripts/collect_notices.py \
@@ -29,7 +29,7 @@ python3 skills/bidops-collect/scripts/select_validation_sample.py \
   --output data/runs/20260817-20260823/validation-set.json
 ```
 
-Changing a retrieval rule does not require a new API call. `--from-raw` re-normalizes the preserved pages in the run directory, so a rule change can be measured against the identical record set:
+탐색 규칙을 바꾸는 데는 API를 새로 호출할 필요가 없다. `--from-raw`는 실행 디렉터리에 보존된 원문 페이지를 다시 정규화하므로, 규칙 변경 효과를 동일한 레코드 집합에 대해 측정할 수 있다:
 
 ```bash
 python3 skills/bidops-collect/scripts/collect_notices.py \
@@ -37,30 +37,30 @@ python3 skills/bidops-collect/scripts/collect_notices.py \
   --output-dir data/runs/20260817-20260823 --from-raw
 ```
 
-## Filtering boundary
+## 필터링 경계
 
-Candidate retrieval is the union of two independent signals:
+후보 탐색은 서로 독립적인 두 신호의 합집합이다:
 
-1. A normalized Korean/English focus-concept match.
-2. A sufficiently specific project-title similarity to the company performances on PDF pages 41–46.
+1. 정규화된 한국어/영어 핵심 개념 일치.
+2. PDF 41–46페이지의 회사 수행실적과 충분히 구체적으로 유사한 사업명.
 
-Normalize Unicode width, case, punctuation, and separators before concept matching. Treat `AI Agent`, `ai-agent`, and full-width variants as the same concept. Maintain Korean/English aliases for concepts such as `온톨로지`/`ontology`, `지식그래프`/`knowledge graph`, and `블록체인`/`blockchain`. Short English abbreviations require token boundaries so `AI` does not match inside `G-Fair` or `KAIST`.
+개념 일치 판정 전에 유니코드 폭, 대소문자, 문장부호, 구분자를 정규화한다. `AI Agent`, `ai-agent`, 전각 변형을 같은 개념으로 취급한다. `온톨로지`/`ontology`, `지식그래프`/`knowledge graph`, `블록체인`/`blockchain` 같은 개념의 한국어/영어 별칭을 유지한다. 짧은 영문 약어는 토큰 경계를 요구해서 `AI`가 `G-Fair`나 `KAIST` 내부에 매칭되지 않게 한다.
 
-Match each API field on its own and record where every signal came from. A concept must not be formed from the tail of one field and the head of the next.
+각 API 필드는 개별적으로 매칭하고 모든 신호의 출처를 기록한다. 한 필드의 끝부분과 다음 필드의 시작 부분을 이어붙여 개념을 만들어서는 안 된다.
 
-Performance similarity is a discovery signal, not proof that the new notice has the same scope. Require a digital-deliverable context and suppress matches caused only by generic words such as system, platform, maintenance, or project support. Preserve the top matching titles, source pages, similarity values, and legal-qualification status on the notice. That status remains `unknown`.
+수행실적 유사도는 탐색 신호이지, 신규 공고가 같은 범위를 가진다는 증거가 아니다. 디지털 산출물 맥락을 요구하고, 시스템, 플랫폼, 유지보수, 사업관리 같은 일반 단어만으로 발생한 매칭은 억제한다. 최상위 일치 사업명, 출처 페이지, 유사도 값, 법적 자격 인정 상태를 공고에 보존한다. 이 자격 상태는 항상 `unknown`으로 남는다.
 
-A record without either signal belongs to the audit pool, not a definitive exclusion set. Keep ambiguous records for semantic screening. Do not filter on budget, region, company qualification, or unconfirmed negative keywords during this validation.
+두 신호 중 어느 것도 없는 레코드는 확정 제외 집합이 아니라 감사 표본군에 속한다. 모호한 레코드는 의미 판정을 위해 남겨 둔다. 이번 검증에서는 예산, 지역, 회사 자격, 미확인 부정 키워드로 필터링하지 않는다.
 
-The three equal-priority focus axes are `AI/데이터`, `블록체인·DID`, and `공공 SI·통합관리`.
+세 개의 동등한 우선순위 축은 `AI/데이터`, `블록체인·DID`, `공공 SI·통합관리`이다.
 
-## Signal provenance
+## 신호 출처
 
-Procurement classification labels (`pubPrcrmntLrgClsfcNm`, `pubPrcrmntMidClsfcNm`, `pubPrcrmntClsfcNm`) are attached to every service notice by the procurement office. They are useful for retrieval but they are not evidence about the scope of one notice. Record `field_kind` on every signal so the screening step can weigh a title concept differently from a classification label, and report how many sampled records were retrieved by classification alone.
+조달 분류 라벨(`pubPrcrmntLrgClsfcNm`, `pubPrcrmntMidClsfcNm`, `pubPrcrmntClsfcNm`)은 발주기관이 모든 용역 공고에 일괄 부여한다. 탐색에는 유용하지만 개별 공고의 범위를 증명하는 근거는 아니다. 판정 단계가 제목에서 나온 개념과 분류 라벨을 다른 무게로 평가할 수 있도록 모든 신호에 `field_kind`를 기록하고, 분류만으로 탐색된 표본 건수를 보고한다.
 
-## Fields that later steps depend on
+## 이후 단계가 의존하는 필드
 
-Preserve these API values on the normalized record even when the current validation does not filter on them. They answer questions the screening step would otherwise raise as verification items, and they carry the lifecycle the design depends on.
+현재 검증에서 필터링에 쓰지 않더라도 다음 API 값은 정규화된 레코드에 보존한다. 이 값들은 판정 단계가 확인 항목으로 다시 물어야 할 질문에 미리 답하며, 설계가 의존하는 생애주기 정보를 담고 있다.
 
 | 필드 | 목적 |
 |---|---|
@@ -72,14 +72,14 @@ Preserve these API values on the normalized record even when the current validat
 
 `rgnLmtBidLocplcJdgmBssNm`이 비어 있다는 사실은 지역 제한이 없다는 뜻이 아니다. 값이 없으면 `API 미표기`로 다루고 확인 항목으로 넘긴다.
 
-## Sampling
+## 표본 선정
 
-When selecting a small validation sample, rotate the analysis records through the three axes and a fourth `수행실적 유사` retrieval stratum. Report how many sampled records were retrieved only by performance similarity.
+작은 검증 표본을 선정할 때는 분석 레코드를 세 축과 네 번째 층인 `수행실적 유사` 탐색층 사이에서 순환시킨다. 수행실적 유사도만으로 탐색된 표본 건수를 보고한다.
 
-The audit sample exists to find records the first filter missed, so it is not drawn at random. Rotate it through three strata:
+감사 표본은 1차 필터가 놓친 레코드를 찾기 위한 것이므로 무작위로 뽑지 않는다. 세 층을 순환시킨다:
 
-1. `분류 근접`: the procurement classification describes a digital deliverable, yet retrieval failed.
-2. `실적 유사 근접`: portfolio similarity landed just below the acceptance threshold.
-3. `무작위`: everything else.
+1. `분류 근접`: 조달 분류는 디지털 산출물을 나타내지만 탐색에는 실패한 경우.
+2. `실적 유사 근접`: 수행실적 유사도가 채택 임계값 바로 아래인 경우.
+3. `무작위`: 그 외 나머지.
 
-Ten records drawn uniformly from more than two thousand unrelated notices cannot measure recall. Targeted strata can.
+무관한 공고 2천여 건에서 균등하게 뽑은 10건으로는 재현율을 측정할 수 없다. 목표를 정한 층 구성이라면 가능하다.

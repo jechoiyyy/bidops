@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
+import logging
 import re
 import time as _time
 from typing import Any, Callable
@@ -41,6 +42,9 @@ from ..screening.generation_config import (
     validate_digest,
 )
 from ..screening.profile_snapshot import read_working_tree_source
+
+
+logger = logging.getLogger(__name__)
 
 
 TIMEZONE = ZoneInfo("Asia/Seoul")
@@ -324,7 +328,16 @@ class SchedulerService:
             try:
                 remove(job_id)
             except Exception:
-                pass
+                logger.warning(
+                    "scheduler job removal failed",
+                    extra={
+                        "bidops": {
+                            "event": "scheduler.job_remove_failed",
+                            "job_id": job_id,
+                        }
+                    },
+                    exc_info=True,
+                )
 
     def reschedule(self) -> None:
         if not self.settings.scheduler_enabled:

@@ -1,8 +1,8 @@
 # BidOps Agent 워크플로우 설계
 
-> - 상태: T8 구현 검토 완료본
+> - 상태: 현재 checkout의 Agent 구현·통합 경계
 > - 기준일: 2026-08-27
-> - 기준 HEAD: `4f98a5c` (`feat(agent): add deterministic workflow acceptance`)
+> - 기준 HEAD: `d8d60ea` (`merge: integrate ui component refresh`)
 > - 적용 범위: 현재 Lean v1의 문서 준비 → 심층 검토 → 사람 의사결정 지원 흐름
 > - 권위 계약: 승인된 Agent 사양, `docs/deep-review-erd.md`, `docs/contracts.md`
 
@@ -907,7 +907,7 @@ Lean v1 신규 application table은 25개로 닫혀 있다. 별도 `agent_run`�
 
 - T1~T7 commit에서 common contract → 세 Agent projection/adapter → 기존 mutation router 연결 →
   deterministic T7 acceptance 순서가 보존된다. 상세 commit 순서와 충돌 지점은
-  `docs/worktree-agent-boundary-and-merge-direction.md`에 있다.
+  `docs/legacy/integration/worktree-agent-boundary-and-merge-direction.md`에 있다.
 - T7 실제 격리 실행은 PostgreSQL, MinIO, ClamAV, document worker 2개, analysis worker, web을
   사용했고 `mock-analysis`/`bidops-deterministic-mock-v1`, 외부 OpenAI/Codex/Qwen 호출 0건,
   종료 active WorkJob 0건, `passed=true`를 확인한 뒤 격리 자원을 정리했다.

@@ -1,17 +1,17 @@
 ---
 name: bidops-screen
-description: Screen normalized Korean public-service opportunities against Rootlab's company profile, producing evidence-backed grades, readiness, counterarguments, and verification items. Use after bidops-collect; do not treat inferred or unknown company facts as confirmed eligibility.
+description: 정규화된 국내 공공 용역 공고를 Rootlab의 회사 프로필과 대조해 근거를 갖춘 등급, 참여 준비 상태, 반론, 확인 항목을 산출한다. bidops-collect 이후에 사용하며, 추론되거나 미확인된 회사 사실을 확정 자격으로 취급하지 않는다.
 ---
 
 # BidOps Screen
 
-Read these sources before judging:
+판정에 앞서 다음 자료를 읽는다:
 
-- [workflow contract](../references/workflow-contract.md) — the `bidops.decisions.v2` section defines every field you must write
+- [워크플로 계약](../references/workflow-contract.md) — `bidops.decisions.v2` 절이 작성해야 할 모든 필드를 정의한다
 - `../../docs/reference/company-profile.md`
 - `../../docs/legacy/validation/skill-workflow-validation.md`
 
-Use `validation-set.json` as input and write `screening-decisions.json`. That file is the only artifact in this workflow authored by an agent, and nothing downstream fills in what it omits. A judgment missing a perspective, a piece of evidence, a counterargument, or a verification item is rejected, and no report is produced.
+`validation-set.json`을 입력으로 사용하고 `screening-decisions.json`을 작성한다. 이 파일은 이 워크플로에서 에이전트가 직접 작성하는 유일한 산출물이며, 이후 단계는 누락된 내용을 채워주지 않는다. 관점, 근거, 반론, 확인 항목 가운데 하나라도 빠진 판정은 거부되며 보고서가 만들어지지 않는다.
 
 ```bash
 python3 skills/bidops-screen/scripts/build_screening_results.py \
@@ -20,44 +20,44 @@ python3 skills/bidops-screen/scripts/build_screening_results.py \
   --output data/runs/20260817-20260823/screening-results.json
 ```
 
-## Independent review passes
+## 독립적 검토 단계
 
-Write all five perspectives for every record, under exactly these names:
+모든 레코드에 대해 다음 이름 그대로 다섯 관점을 모두 작성한다:
 
 | 관점 | 답해야 하는 질문 |
 |---|---|
-| `기술 적합성` | Required technology and delivery role versus confirmed capabilities |
-| `실적 정합성` | Similarity to named performances, including the mismatch as well as the match |
-| `공공 SI 적합성` | System build, enhancement, operations, integration, ISP/BPR, portal, or data-platform relevance |
-| `사업성·자격 제약` | Budget, region, licences, direct-production certificates, software-business registration, staffing, participation form |
-| `전략 부합` | Alignment to the three priority axes and to declared new-entry areas |
+| `기술 적합성` | 공고가 요구하는 기술과 수행 역할을 확인된 역량과 대조 |
+| `실적 정합성` | 명시된 수행실적과의 유사성. 일치뿐 아니라 불일치도 포함 |
+| `공공 SI 적합성` | 시스템 구축, 고도화, 운영, 통합, ISP/BPR, 포털, 데이터 플랫폼과의 관련성 |
+| `사업성·자격 제약` | 예산, 지역, 인허가, 직접생산확인증명, 소프트웨어사업자 신고, 인력, 참여 형태 |
+| `전략 부합` | 세 우선 축 및 선언된 신규 진출 분야와의 정합성 |
 
-Each perspective carries its own `assessment` (`적합`, `부분 적합`, `부적합`, `확인 불가`), its own reason, and at least one piece of evidence. Do not let one pass copy another pass's conclusion; a perspective that only restates the summary tells the reviewer nothing about where the judgment is weak. Synthesize only after all five and the counterarguments are written.
+각 관점은 고유한 `assessment`(`적합`, `부분 적합`, `부적합`, `확인 불가`)와 고유한 사유, 최소 한 건의 근거를 가진다. 한 단계가 다른 단계의 결론을 그대로 옮겨 적지 않게 한다. 요약을 반복할 뿐인 관점은 판정이 어디에서 취약한지 검토자에게 아무것도 알려주지 않는다. 종합 판단은 다섯 관점과 반론을 모두 작성한 뒤에만 한다.
 
-Then write the counterargument pass separately into `counterarguments`. Look for reasons the positive assessment may be overstated or unsupported. A counterargument that would fit any notice in the sample is not a counterargument, and repeating one sentence across most records is rejected by the merge step.
+그다음 반론 단계를 별도로 `counterarguments`에 작성한다. 긍정적 평가가 과장되었거나 근거가 부족할 수 있는 이유를 찾는다. 표본의 어떤 공고에도 들어맞을 반론은 반론이 아니며, 같은 문장이 대부분의 레코드에서 반복되면 병합 단계에서 거부된다.
 
-## Evidence rules
+## 근거 규칙
 
-- Cite the notice field or source text used for every material notice claim.
-- Cite the company-profile section and its `confirmed`, `inferred`, or `unknown` status for every company claim.
-- Company-introduction performances prove technical/domain experience only. Their legal recognition for bid qualification is `unknown`.
-- Treat `notice.performance_matches` as retrieval suggestions. Verify the substantive match independently; never copy the similarity score into the final grade as if it proved scope equivalence. When the collector attached such a signal, record what it does *not* establish in `mismatch_or_limit`.
-- Check `focus_matches[].field_kind`. A concept found only in `pubPrcrmnt*ClsfcNm` is a procurement office's classification label, not a statement about this notice's scope.
-- Read `procurement_class`, `region_limit`, `lifecycle`, and `qualification_flags` before raising a verification item. Asking the reviewer to confirm something the API already answered wastes the reviewer's attention.
-- Missing attachment text is an information gap, not a negative fact.
-- Never infer a certificate, registration, staffing level, budget preference, regional feasibility, or legal performance qualification.
+- 공고에 관한 중요한 주장마다 사용한 공고 필드나 원문을 인용한다.
+- 회사에 관한 주장마다 회사 프로필의 절과 그 `confirmed`, `inferred`, `unknown` 상태를 인용한다.
+- 회사소개서의 수행실적은 기술·분야 경험만 증명한다. 입찰 자격으로서의 법적 인정 여부는 `unknown`이다.
+- `notice.performance_matches`는 탐색 제안으로 취급한다. 실질적 일치 여부는 별도로 검증하고, 유사도 점수를 범위 동등성의 증거인 것처럼 최종 등급에 그대로 옮기지 않는다. 수집 단계가 이런 신호를 붙였다면 그것이 증명하지 *못하는* 바를 `mismatch_or_limit`에 기록한다.
+- `focus_matches[].field_kind`를 확인한다. `pubPrcrmnt*ClsfcNm`에서만 발견된 개념은 발주기관의 분류 라벨일 뿐, 해당 공고의 범위에 관한 진술이 아니다.
+- 확인 항목을 제기하기 전에 `procurement_class`, `region_limit`, `lifecycle`, `qualification_flags`를 먼저 읽는다. API가 이미 답한 내용을 검토자에게 다시 확인하라고 요청하는 것은 검토자의 주의를 낭비한다.
+- 첨부 문서 텍스트가 없다는 것은 정보 공백이지 부정적 사실이 아니다.
+- 인증서, 등록, 인력 수준, 예산 선호, 지역 수행 가능성, 법적 실적 인정 여부를 절대 추론하지 않는다.
 
-## Two-dimensional result
+## 2차원 결과
 
-Assign opportunity grade separately from participation readiness.
+기회 등급과 참여 준비 상태는 서로 독립적으로 부여한다.
 
-- `우선 검토`: strong fit to at least one priority axis and no verified disqualifier.
-- `검토 권장`: plausible fit, but the current notice text is too weak or mixed for immediate prioritization.
-- `관찰 대상`: not actionable now, but institution, topic, or expected follow-up has tracking value.
-- `제외`: clear domain mismatch or a verified disqualifier. Unknown information alone never justifies exclusion.
+- `우선 검토`: 우선 축 중 하나 이상에 강하게 부합하고, 검증된 결격 사유가 없음.
+- `검토 권장`: 부합 가능성은 있으나, 현재 공고 문면이 즉시 우선순위를 매기기에는 약하거나 혼재됨.
+- `관찰 대상`: 지금 당장 실행 가능하지는 않지만 기관, 주제, 예상되는 후속 공고 측면에서 추적 가치가 있음.
+- `제외`: 명백한 분야 불일치 또는 검증된 결격 사유. 미확인 정보만으로는 절대 제외 사유가 되지 않는다.
 
-Readiness is one of `확인 완료`, `부분 확인 필요`, `참여 불가 확인`, or `해당 없음`. A strong opportunity may be `우선 검토` and `부분 확인 필요` at the same time.
+준비 상태는 `확인 완료`, `부분 확인 필요`, `참여 불가 확인`, `해당 없음` 중 하나이다. 강한 기회라도 동시에 `우선 검토`이면서 `부분 확인 필요`일 수 있다.
 
-A `제외` record takes `해당 없음` or `참여 불가 확인`. Never `확인 완료`: nothing was verified on a notice you decided not to pursue, and the report would read as "checked and clear to bid". Every `제외` also needs an `exclusion_category` from the contract's list, because the weekly report summarizes exclusion reasons from that field and never guesses them from the title.
+`제외` 레코드는 `해당 없음` 또는 `참여 불가 확인`을 가진다. 절대 `확인 완료`를 부여하지 않는다. 진행하지 않기로 한 공고에서는 아무것도 검증하지 않았고, 그렇게 표시하면 보고서가 "확인을 마쳤고 입찰해도 좋다"는 뜻으로 읽히기 때문이다. `제외`는 계약서 목록에 있는 `exclusion_category`도 반드시 필요하다. 주간 보고서가 이 필드에서 제외 사유를 요약하며 제목에서 사유를 추측하지 않기 때문이다.
 
-For each verification item, distinguish whether it blocks actual bid participation. Keep it visible beside the grade and include a concrete next action.
+각 확인 항목에 대해 실제 입찰 참여를 막는지 여부를 구분한다. 등급 옆에 보이도록 유지하고 구체적인 다음 행동을 포함한다.

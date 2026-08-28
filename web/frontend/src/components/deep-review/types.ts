@@ -2,6 +2,11 @@ export type StageName = "requirements_and_evaluation" | "delivery_risk_economics
 export type StageStatus = "queued" | "running" | "completed" | "failed";
 export type ReviewStatus = "queued" | "running" | "completed" | "failed";
 export type ValidationStatus = "passed" | "failed";
+export type DocumentRole = "공고" | "정정" | "제안요청서" | "과업지시서" | "내역서" | "제출서식" | "부록" | "기타";
+export type SafetyStatus = "quarantined" | "scanning" | "safe" | "blocked";
+export type StructureStatus = "pending" | "processing" | "ready" | "failed" | "needs_review";
+export type RiskSeverity = "차단" | "중대" | "보통" | "낮음";
+export type LocatorType = "none" | "page" | "paragraph" | "table_cell" | "bbox";
 export type ReportSectionKey =
   | "project_overview"
   | "eligibility_matrix"
@@ -21,17 +26,58 @@ export type SystemRecommendation = "추진 검토" | "조건부 추진 검토" |
 export type FinalOpinionValue = "추진" | "조건부 추진" | "보류" | "검토 종료";
 export type BundleStatus = "draft" | "processing" | "needs_review" | "ready" | "quarantined" | "failed" | "superseded";
 
+export type EmptyRequest = Record<string, never>;
+
+export interface PatchDocumentVersionPayload {
+  role: DocumentRole;
+  effective_date: string | null;
+  replaces_document_version_id: string | null;
+  is_current: boolean;
+  version: number;
+}
+
+export interface ConfirmedDocument {
+  document_version_id: string;
+  version: number;
+}
+
+export interface ConfirmDocumentBundlePayload {
+  request_id: string;
+  version: number;
+  confirmed_documents: ConfirmedDocument[];
+}
+
+export interface CreateDeepReviewPayload {
+  request_id: string;
+  bundle_id: string;
+}
+
+export interface CreateDeepReviewAttemptPayload {
+  request_id: string;
+}
+
 export interface DocumentVersionView {
   id: string;
   bundle_id: string;
   version: number;
-  role: string;
+  role: DocumentRole;
   effective_date: string | null;
   replaces_document_version_id: string | null;
   is_current: boolean;
-  safety_status: string;
-  structure_status: string;
+  safety_status: SafetyStatus;
+  structure_status: StructureStatus;
   original_filename: string;
+}
+
+export interface BundleIssue {
+  issue_id: string;
+  code: string;
+  severity: RiskSeverity;
+  blocking: boolean;
+  document_version_id: string | null;
+  message: string;
+  locator_type: LocatorType;
+  locator: Record<string, unknown> | null;
 }
 
 export interface BundleView {
@@ -41,7 +87,7 @@ export interface BundleView {
   version: number;
   status: BundleStatus;
   documents: DocumentVersionView[];
-  issues: Array<{ issue_id: string; code: string; severity: string; blocking: boolean; document_version_id: string | null; message: string; locator_type: string; locator: Record<string, unknown> | null }>;
+  issues: BundleIssue[];
   confirmed_by: string | null;
   confirmed_at: string | null;
   created_at: string;
@@ -209,4 +255,48 @@ export interface EvidenceView {
       attributes: Record<string, unknown>;
     }>;
   } | null;
+}
+
+export interface PageMetadata {
+  number: number;
+  width: number;
+  height: number;
+  image_content_object_id: string | null;
+}
+
+export interface StructureExtractor {
+  name: string;
+  version: string;
+  upstream_commit: string | null;
+}
+
+export interface StructureBlock {
+  block_key: string;
+  parent_block_key: string | null;
+  type: string;
+  page: number;
+  bbox: number[] | null;
+  text: string;
+  confidence: number | null;
+  attributes: Record<string, unknown>;
+}
+
+export interface DocumentStructure {
+  schema: "bidops.document-structure.v1";
+  structure_id: string;
+  document_version_id: string;
+  source_sha256: string;
+  media_type: string;
+  extractor: StructureExtractor;
+  pages: PageMetadata[];
+  blocks: StructureBlock[];
+  warnings: string[];
+  created_at: string;
+}
+
+export interface DocumentStructurePageView {
+  structure_id: string;
+  page: number;
+  metadata: PageMetadata;
+  blocks: StructureBlock[];
 }

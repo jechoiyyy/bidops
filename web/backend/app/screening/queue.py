@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
+import logging
 import re
 import time
 from typing import Any, Final
@@ -31,6 +32,9 @@ from ..models import (
     utc_now,
 )
 from .generation_config import GenerationConfigError, ensure_generation_config
+
+
+logger = logging.getLogger(__name__)
 
 
 TRIGGERS: Final[frozenset[str]] = frozenset(
@@ -296,7 +300,27 @@ class ScreeningQueue:
                 is_busy = "database is locked" in message or "database is busy" in message
                 if not is_busy or attempt >= retries:
                     if is_busy:
+                        logger.warning(
+                            "screening queue remained busy",
+                            extra={
+                                "bidops": {
+                                    "event": "screening.queue_busy",
+                                    "retry_count": attempt,
+                                }
+                            },
+                            exc_info=True,
+                        )
                         raise QueueBusy("database remained busy") from None
+                    logger.warning(
+                        "screening queue database operation failed",
+                        extra={
+                            "bidops": {
+                                "event": "screening.queue_error",
+                                "retry_count": attempt,
+                            }
+                        },
+                        exc_info=True,
+                    )
                     raise QueueDatabaseError("database operation failed") from None
                 time.sleep(self.busy_sleep * (attempt + 1))
             except Exception:
@@ -304,6 +328,15 @@ class ScreeningQueue:
                 raise
             finally:
                 session.close()
+        logger.warning(
+            "screening queue remained busy",
+            extra={
+                "bidops": {
+                    "event": "screening.queue_busy",
+                    "retry_count": retries,
+                }
+            },
+        )
         raise QueueBusy("database remained busy") from None
 
     @staticmethod

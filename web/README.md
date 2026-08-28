@@ -1,121 +1,56 @@
 # BidOps Admin 웹
 
-나라장터 입찰공고 모니터링 워크플로가 만들어 낸 산출물을 읽어, 담당자가 판정을 검토하고 리뷰를 기록하는 관리자 화면입니다. 애플리케이션은 산출물을 **읽어서 보여줄 뿐** 판정 값을 스스로 만들거나 보정하지 않습니다.
+나라장터 공고 수집·선별·첨부 심층 검토 결과를 담당자가 확인하고 리뷰를 기록하는 관리 화면입니다.
+화면은 REST API와 저장된 산출물을 사용하며, 확인되지 않은 판정 값이나 회사 역량을 브라우저에서
+새로 만들거나 보정하지 않습니다. 최종 참여 판단은 담당자가 합니다.
 
-- 백엔드: FastAPI · SQLAlchemy 2.x · Pydantic v2 · SQLite(WAL)
+- 백엔드: FastAPI · SQLAlchemy 2.x · Pydantic v2 · PostgreSQL 17
 - 프론트엔드: Vite 6 · React 19 · TypeScript · Tailwind v4 · TanStack Query v5 · React Router v7
-- 현재 운영 기준: `docs/architecture.md`, `docs/business-rules.md`, `docs/security.md`, `docs/standards.md`
-- 이전 설계 보관본: `docs/legacy/planning/`
+- live 정본: PostgreSQL 17의 `bidops` schema
+- SQLite: 격리 테스트와 일회성 migration input에만 사용
+- 현재 운영 기준: `docs/architecture.md`, `docs/business-rules.md`, `docs/security.md`, `docs/contracts.md`, `docs/operations.md`, `docs/standards.md`
+- 과거 계획·인수 자료: `docs/legacy/README.md`
 
-## 두 가지 실행 방법
+## 현재 T7 runtime 실행
 
-| 방법 | 어떤 경우에 |
-|---|---|
-| **Docker Compose**(권장) | 화면을 띄워서 확인할 때. 파이썬·Node 설치가 필요 없습니다 |
-| **직접 실행** | 코드를 고치면서 확인할 때 |
-
-저장소를 새로 클론했다면 Docker 쪽이 확실합니다. 직접 실행은 시스템에 `python3-venv` 와 Node가 갖추어져 있어야 합니다.
-
-## 새로 클론한 뒤 처음 실행하기
+운영·통합 확인은 반드시 별도 Compose 프로젝트 이름과 `docker-compose.t7.yml`을 사용합니다. 비밀값은
+`.env`에 직접 기록하거나 Git에 넣지 말고 외부 secret 주입 절차를 따릅니다.
 
 ```bash
-git clone <저장소 주소>
-cd <저장소>/bidops-agent
-
-docker compose run --rm web python -m app.ingest.cli --all   # 산출물 적재
-docker compose up -d                                          # 서버 기동
+cp .env.example .env
+COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose -f docker-compose.t7.yml build
+COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose -f docker-compose.t7.yml up -d postgres minio clamav
+COMPOSE_PROJECT_NAME=bidops-deep-review-t7 ./scripts/init-runtime.sh
+COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose \
+  -f docker-compose.t7.yml -f docker-compose.t7.remote-vllm.yml \
+  up -d web document-worker analysis-worker
+curl -fsS http://127.0.0.1:18787/api/health
 ```
 
-`http://localhost:8787` 을 엽니다. 공고 40건과 판정 40건이 화면에 나타나면 정상입니다.
+앱 시작은 migration·`create_all`·policy/portal seed를 수행하지 않습니다. `init-runtime.sh`가 만든
+PostgreSQL migration과 object-store 초기화가 먼저 완료되어야 하며, policy seed와 always-on 전환은
+담당자가 별도로 승인·실행합니다. 일상 운영에서 `docker compose down -v`를 사용하거나 main worktree의
+Compose·volume을 공유하지 않습니다.
 
-테스트는 컨테이너 안에서 실행합니다. 이미지를 만들 때 프론트엔드 빌드가 함께 수행되므로, `docker compose build` 가 성공했다면 화면 코드의 타입 검사도 통과한 것입니다.
+## 개발 실행
 
-```bash
-docker compose run --rm web pytest -q
-```
+호스트 개발에는 Python 3.12+, Node.js 22+, npm 10+이 필요합니다. 백엔드는 승인된
+PostgreSQL 17 인스턴스와 현재 운영 경로를 사용해야 하며, SQLite URL로 실행하지 않습니다.
+통합 환경의 DB·object store 준비와 seed 순서는 [운영 절차](../docs/operations.md)를 따릅니다.
 
-**클론 직후에는 대시보드의 수집 건수와 후보 풀이 `값 없음` 으로 나옵니다.** 원문 API 페이지(`data/runs/*/raw/`, 14MB)와 `collected-notices.json`(7.5MB)이 용량 때문에 저장소에서 제외되어 있기 때문입니다. 표본 40건과 판정, 검증 지표, 첨부 확보, 프로필은 모두 정상적으로 나옵니다. 수집 통계까지 채우려면 API 키를 넣고 수집을 다시 실행해야 합니다.
-
-## 사전 준비
-
-| 항목 | 필요 버전 | 확인 명령 |
-|---|---|---|
-| Python | 3.12 이상 | `python3 --version` |
-| Node.js | 22 이상 | `node --version` |
-| npm | 10 이상 | `npm --version` |
-
-Docker Compose로 실행할 때는 Docker만 있으면 되며 위 도구는 필요하지 않습니다.
-
-아래 모든 명령은 저장소의 `bidops-agent/` 디렉토리를 기준으로 합니다.
-
-## Docker Compose로 실행
-
-`bidops-agent/` 에서 다음 두 명령이면 됩니다. 첫 명령은 산출물을 데이터베이스에 넣고, 두 번째가 서버를 띄웁니다.
+화면 코드를 고치면서 확인할 때는 백엔드와 프론트엔드 개발 서버를 함께 띄웁니다. 프론트엔드 개발
+서버가 `/api` 요청을 8787 포트 백엔드로 프록시합니다.
 
 ```bash
-docker compose run --rm web python -m app.ingest.cli --all
-docker compose up -d
-```
-
-브라우저에서 `http://localhost:8787` 을 엽니다.
-
-```bash
-docker compose logs -f web   # 로그 보기
-docker compose down          # 중지
-```
-
-구성은 다음과 같습니다.
-
-- 이미지에는 웹 계층만 담고, 회차 산출물(`data/`)·보고서(`reports/`)·skill 스크립트(`skills/`)·회사 프로필(`docs/`)은 호스트에서 마운트합니다. 파이프라인이 만든 새 산출물이 이미지를 다시 만들지 않아도 화면에 반영됩니다
-- `skills/` 와 `docs/` 는 읽기 전용으로 연결합니다. 애플리케이션이 판정 스크립트와 기준 문서를 고치지 않는다는 원칙을 파일 권한으로도 보장합니다
-- 데이터베이스와 첨부 원문은 `bidops-web-data` 볼륨에 남습니다. 컨테이너를 다시 만들어도 유지되며, 지우려면 `docker compose down -v` 를 사용합니다
-- 컨테이너는 호스트와 같은 사용자(기본 `1000:1000`)로 실행합니다. 파이프라인이 호스트에 만드는 파일을 그대로 지울 수 있게 하기 위한 설정이며, 사용자 번호가 다르면 `.env` 에 `BIDOPS_UID` 와 `BIDOPS_GID` 를 지정하십시오
-- API 키는 `.env` 가 있으면 자동으로 전달됩니다. 없어도 기동합니다
-
-산출물을 다시 적재해야 할 때는 서버를 띄운 채로 다음을 실행하면 됩니다.
-
-```bash
-docker compose exec web python -m app.ingest.cli --all
-```
-
-## 직접 실행
-
-처음 실행한다면 다음 네 단계를 순서대로 따르면 됩니다. 마지막 단계가 끝나면 브라우저에서 화면을 볼 수 있습니다.
-
-```bash
-# 1. 백엔드 의존성 설치
+# 의존성 준비
 cd web/backend
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
-
-# 2. 산출물을 데이터베이스에 적재
-.venv/bin/python -m app.ingest.cli --all
-
-# 3. 프론트엔드 설치와 빌드
-cd ../frontend
-npm install
-npm run build
-
-# 4. 백엔드 단독 실행
-cd ../backend
-.venv/bin/uvicorn app.main:app --port 8787
-```
-
-브라우저에서 `http://localhost:8787` 을 엽니다. 프론트엔드를 빌드해 두면 백엔드 하나만 띄워도 전체 화면이 동작합니다.
-
-2번 단계를 건너뛰면 화면은 뜨지만 모든 목록이 비어 있습니다. 회차 선택기에 아무것도 나오지 않는다면 적재를 먼저 실행하십시오.
-
-## 화면 수정 중이라면: 개발 실행
-
-화면 코드를 고치면서 확인할 때는 두 서버를 함께 띄웁니다. 프론트엔드 개발 서버가 `/api` 요청을 8787 포트 백엔드로 프록시합니다.
-
-```bash
-# 터미널 1
-cd web/backend
 .venv/bin/uvicorn app.main:app --reload --port 8787
 
-# 터미널 2
+# 별도 터미널
 cd web/frontend
+npm ci
 npm run dev
 ```
 
@@ -123,7 +58,8 @@ npm run dev
 
 ## 산출물 적재
 
-`data/runs/<회차>/` 아래 파일을 읽어 SQLite에 넣습니다. 같은 회차를 두 번 적재해도 행이 중복되지 않습니다.
+`data/runs/<회차>/` 아래 파일을 읽어 live canonical PostgreSQL에 넣습니다. 같은 회차를 두 번 적재해도
+행이 중복되지 않습니다. SQLite 적재는 격리 테스트나 일회성 migration input에서만 허용됩니다.
 
 ```bash
 cd web/backend
@@ -171,38 +107,34 @@ cd web/backend
 | 환경변수 | 기본값 | 설명 |
 |---|---|---|
 | `BIDOPS_G2B_API_KEY` | 없음 | 나라장터 API 키. 실전 수집에만 필요합니다 |
-| `BIDOPS_ROOT` | `bidops-agent/` | 프로젝트 루트 |
-| `BIDOPS_DATA_DIR` | `web/data/` | 데이터베이스와 첨부 보관 위치 |
-| `BIDOPS_ATTACHMENTS_DIR` | `web/data/attachments/` | 첨부 원문 보관 경로 |
-| `BIDOPS_DATABASE_URL` | `sqlite:///web/data/bidops.db` | 데이터베이스 주소 |
+| `BIDOPS_ROOT` | 프로젝트 루트 | 프로젝트 루트. 컨테이너에서는 `/app` |
+| `BIDOPS_DATA_DIR` | runtime별 경로 | 회차 산출물·runtime 데이터 경로 |
+| `BIDOPS_ATTACHMENTS_DIR` | runtime별 경로 | 첨부 원문 보관 경로 |
+| `BIDOPS_DATABASE_URL` | 기본값 없음 | live 실행은 PostgreSQL 17 URL 필수 |
 | `BIDOPS_REVIEWER` | 빈 값 | 리뷰 저장 시 기본 작성자 이름 |
 
-`web/data/` 는 통째로 `.gitignore` 대상입니다. 데이터베이스는 산출물에서 언제든 다시 만들 수 있고, 첨부 원문은 저장소에 두지 않습니다.
+runtime 데이터·첨부·비밀값은 저장소에 넣지 않습니다. `.env`는 `.gitignore` 대상이며, 실제 보관 경로와
+PostgreSQL/object-store 자격 증명은 [운영 절차](../docs/operations.md)의 격리 구성을 따릅니다.
 
 ## 테스트
 
-직접 실행 환경에서는 다음 한 줄로 백엔드 pytest와 프론트엔드 타입 검사·빌드를 함께 돌립니다.
+저장소 전체와 웹 계층의 기본 검증 진입점은 다음과 같습니다.
 
 ```bash
+./run-tests.sh
 ./web/run-web-tests.sh
 ```
 
-Docker만 쓰는 환경에서는 다음 두 가지로 나누어 확인합니다.
-
-```bash
-docker compose build                    # 프론트엔드 타입 검사·빌드 포함
-docker compose run --rm web pytest -q   # 백엔드 테스트
-```
-
-저장소 루트의 `run-tests.sh` 는 기존 파이프라인 테스트 진입점이며 웹 테스트 스크립트가 건드리지 않습니다.
+화면 스냅샷 검증은 `cd web/frontend && npm run test:visual`을 사용합니다. `web/run-web-tests.sh`는
+임시 PostgreSQL을 준비해 migration과 backend pytest, frontend build를 함께 수행합니다.
 
 ## 문제가 생기면
 
 | 증상 | 원인과 해결 |
 |---|---|
-| 회차 선택기가 비어 있다 | 적재를 실행하지 않았습니다. `.venv/bin/python -m app.ingest.cli --all` |
+| 회차 선택기가 비어 있다 | 현재 runtime의 PostgreSQL에 적재가 되었는지 확인하고 `.venv/bin/python -m app.ingest.cli --all`을 실행하십시오 |
 | `빌드된 프론트엔드가 없습니다` 라는 503 응답이 온다 | `web/frontend` 에서 `npm run build` 를 실행하십시오. 빌드 산출물이 없어도 백엔드 기동 자체는 실패하지 않습니다 |
-| Docker 실행에서 화면이 비어 있다 | 적재를 하지 않았습니다. `docker compose run --rm web python -m app.ingest.cli --all` |
+| Docker 실행에서 화면이 비어 있다 | T7 runtime의 health, migration, PostgreSQL 적재 상태와 API 응답을 순서대로 확인하십시오 |
 | Docker가 만든 파일을 지울 수 없다 | 컨테이너 사용자 번호가 호스트와 다릅니다. `id -u` 와 `id -g` 를 확인해 `.env` 에 `BIDOPS_UID`·`BIDOPS_GID` 를 지정하고 다시 띄우십시오 |
 | 직접 실행에서 `ensurepip is not available` 이 나온다 | 시스템에 `python3-venv` 가 없습니다. `sudo apt install python3.12-venv` 로 설치하거나 Docker 실행을 쓰십시오 |
 | 8787 포트가 이미 쓰이고 있다 | `--port` 로 다른 번호를 지정하십시오. 개발 실행에서는 `web/frontend/vite.config.ts` 의 프록시 대상도 함께 바꿔야 합니다 |

@@ -9,7 +9,7 @@
 
 ## 결정
 
-리뷰는 화면에서 SQLite에 저장하고 공고·회차별 DB 행을 정본으로 삼는다. YAML은 초기 가져오기와 `bidops.feedback.v2` 호환 내보내기로 유지한다.
+리뷰는 화면에서 운영 관계형 DB에 저장하고 공고·회차별 DB 행을 정본으로 삼는다. 현재 운영 DB는 PostgreSQL 17이다. YAML은 초기 가져오기와 `bidops.feedback.v2` 호환 내보내기로 유지한다.
 
 ## 대안
 

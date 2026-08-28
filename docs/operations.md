@@ -1,226 +1,181 @@
-# 운영 절차 (Lean v1)
+# 운영 절차
 
-## 권위 런타임
+## 운영 기준선
 
-PostgreSQL 17.11의 `bidops` schema가 live canonical DB다. 기존 SQLite는 일회성 migration input 또는 격리 테스트에만 사용하며, 애플리케이션은 SQLite URL로 기동하지 않는다. Lean v1은 기존 13개와 신규 25개, 총 38개 application table을 유지하고 `alembic_version`은 migration DB에만 추가된다.
+- 운영 정본은 PostgreSQL 17의 `bidops` schema와 버전 관리가 켜진 MinIO 객체 저장소다.
+- `docker-compose.t7.yml`이 웹, DB, 객체 저장소, 악성코드 검사, 문서 worker, 분석 worker의 기준 배포 파일이다.
+- 루트 `docker-compose.yml`은 SQLite 이전 입력 스냅숏을 백업·검증하는 명시적 `ops` 명령만 제공한다. 애플리케이션 런타임으로 사용하지 않는다.
+- 모든 T7 명령에는 전용 `COMPOSE_PROJECT_NAME`을 사용한다. 다른 worktree의 컨테이너와 volume을 중지하거나 삭제하지 않는다.
+- 일상 운영에서 `docker compose down -v`, volume 삭제, 원본 객체 삭제를 사용하지 않는다.
 
-이 worktree의 Compose는 반드시 명시적인 프로젝트 이름과 T7 파일로 실행한다. main worktree의 Compose·volume을 중지하거나 삭제하지 않는다.
+## 현재 배포 차단 조건
+
+현재 T7 stack은 개발·검증에는 사용할 수 있지만 다음 문제가 해결되기 전에는 운영 배포 후보가 아니다.
+
+- runtime image에 회사 profile 자료가 포함된다.
+- profile snapshots·sections·unknowns API가 filesystem source/reference, raw profile block, 가공되지 않은 parse error를 반환할 수 있다.
+- 개발용 hosted Codex 심층 검토 경로가 RFP와 회사 profile slice를 외부로 보낼 수 있다.
+- PostgreSQL과 MinIO port가 host 전체 interface에 publish될 수 있다.
+- MinIO versioning 활성화 실패를 bootstrap이 무시한다.
+- analysis worker DB role이 업무 table 전체 DML 권한을 가진다.
+- 객체 restore가 source와 target version ID를 연결하지 못하고 active manifest 생성·완전성 검사가 없다.
+- legacy notice attachment upload가 quarantine·ClamAV·MinIO를 우회하고 응답에 로컬 `stored_path`를 노출한다.
+
+개발 검증에서도 hosted Codex reference overlay, legacy notice attachment upload, profile snapshots·sections·unknowns route를 사용하지 않는다. 회사 profile이 들어간 image를 registry에 push·export하지 않으며 로컬 build cache의 접근 범위를 제한한다. 나머지 stack 기동은 폐기 가능한 데이터와 host firewall로 격리한 환경에서만 수행한다.
+
+## 사전 조건
+
+- Docker Engine과 Docker Compose가 필요하다. host 검증에는 Python 3.12+, Node 22+, npm 10+가 필요하다.
+- `.env.example`을 `.env`로 복사하고 실제 비밀은 외부 secret manager에서 주입한다. `.env`는 커밋하지 않는다.
+- `BIDOPS_UID`와 `BIDOPS_GID`는 0이 아닌 host 계정과 맞춘다.
+- PostgreSQL owner, migrate, app, worker, read-only backup 계정의 비밀번호를 서로 다르게 설정한다.
+- MinIO root와 source, structure write/read, quarantine, model-response 자격증명을 용도별로 분리한다.
+- 심층 검토 전에 승인된 profile version과 analysis policy version을 채운다. 빈 값이면 deep-review 생성이 fail closed하는 것이 정상이다.
+- 사설 vLLM을 사용할 때 endpoint의 literal IP와 allowlist를 일치시키고 host firewall에서 해당 IP와 port 외 egress를 차단한다.
+
+## 최초 기동
 
 ```bash
-cd /path/to/bidops-agent
-cp .env.example .env  # secret manager가 주입한 값으로만 채운다.
+cp .env.example .env
 COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose -f docker-compose.t7.yml build
 COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose -f docker-compose.t7.yml up -d postgres minio clamav
 COMPOSE_PROJECT_NAME=bidops-deep-review-t7 ./scripts/init-runtime.sh
 COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose \
   -f docker-compose.t7.yml -f docker-compose.t7.remote-vllm.yml \
   up -d web document-worker analysis-worker
+curl --fail "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/health"
 ```
 
-`postgres`는 owner/migrate/app/worker/ro_backup 역할을 분리하고, Compose bootstrap은 MinIO source/structure/quarantine/model-response 버킷·버전닝·정책을 만든다. FastAPI web은 목적별 MinIO credential로 원문·구조를 저장하고 ClamAV clean scan envelope를 원문 hash에 결합해 scratch request를 만들며, credential-free `document-worker` 두 replica는 `network_mode: none`으로 scratch만 처리한다. analysis worker는 concurrency 1로 immutable structure를 읽고, 승인된 원격 vLLM OpenAI-compatible API를 호출해 암호화된 model response만 쓴다. OpenAI Python SDK는 protocol client로만 사용하며 OpenAI hosted API와 Langfuse는 비활성이다.
+`scripts/init-runtime.sh`는 DB 역할 초기화, Alembic migration, MinIO 버킷·정책 초기화를 순서대로 실행한다. 앱 startup은 이 작업을 대신하지 않는다. `bidops-source`, `bidops-structure`, `bidops-quarantine`, `bidops-model-response` 버킷은 versioning과 최소 권한 정책을 유지한다.
 
-승인된 원격 vLLM IP를 쓰는 인수 환경은 `docker-compose.t7.remote-vllm.yml`을 추가한다. endpoint와 literal IP allowlist를 외부 env로 주입하고 host firewall에서 그 IP/port 외 egress를 차단한다. 기본 Compose와 `document-worker` network 경계는 바뀌지 않는다.
+사설 vLLM 없이 웹과 문서 준비만 확인할 때는 remote-vLLM overlay를 빼고 기동할 수 있다. 이 경우 분석 worker가 모델 단계에서 실패하는 것은 정상이며 성공으로 보정하지 않는다.
 
-일상 운영에서 `docker compose down -v`, volume 삭제, host 실데이터 bind mount를 사용하지 않는다. T7 volume은 프로젝트 이름으로 격리되며, 삭제가 필요한 경우에도 별도 승인과 복구 확인이 먼저다.
-
----
-
-## 판정 런타임 runbook
-
-live canonical DB는 PostgreSQL 17이다. 아래 「권위 런타임」이 기동 절차를 정하고, 이어지는 판정 런타임 runbook이 중지·backup·migration·seed·health·live smoke의 순서를 고정한다. container entrypoint와 앱 startup은 migrate, `create_all`, portal seed, policy seed를 자동 실행하지 않는다.
-
-`docker-compose.yml`의 `ops` profile에 있는 `db-backup`·`db-verify`는 이제 SQLite migration 입력 스냅숏 전용 도구다. PostgreSQL 정본의 backup·restore는 `scripts/backup-postgres.sh`, `scripts/backup-objects.sh`, `scripts/restore.sh`가 담당한다.
-
-## 사전 조건
-
-프로젝트 루트는 `bidops-agent/`다. Docker 방식은 Docker Engine/Compose, host 방식은 Python 3.12+, venv, Node 22+/npm 10+가 필요하다. 컨테이너는 root로 실행하지 않으며 `.env`의 `BIDOPS_UID`/`BIDOPS_GID`는 0이 아닌 host 사용자와 맞춰야 한다. `/app/data`, `/app/reports`, `/app/backups`, `/app/web/data`는 존재하고 non-root가 읽고 쓸 수 있어야 하며 skills/docs는 읽을 수 있어야 한다. entrypoint는 chown/chmod로 권한을 고치지 않고 권한 오류로 종료한다.
-
-compose는 `data`와 `reports` bind mount, `/app/web/data`의 `bidops-web-data` named volume, `/app/backups`의 `bidops-backups` named volume을 사용한다. 백업 manifest와 DB 파일은 같은 backup volume에서 보존한다. `.env`, API key, run data와 첨부를 image/Git에 복사하지 않는다. compose의 고정 container 경로는 attachment `/app/web/data/attachments`, report `/app/reports`, backup `/app/backups`다. `/app/web/data/bidops.db`는 정본이 아니라 migration 입력 스냅숏 경로다.
-
-판정 generation budget은 `.env`의 `BIDOPS_OLLAMA_MAX_OUTPUT_TOKENS`(기본 2048)와 `BIDOPS_OLLAMA_SYNTHESIS_MAX_OUTPUT_TOKENS`(기본 4096)에서 읽지만 실행 생성 시 canonical frozen config로 한 번만 저장한다. context 기본값은 16384이며 synthesis budget은 context를 넘을 수 없다. migration `0003_screening_runtime_pg`은 canonical JSON/digest 계산을 `bidops.generation_config_canonical_json`·`bidops.generation_config_digest` plpgsql 함수로 제공하고, config 변경 및 quality A/B mismatch를 plpgsql trigger로 거부한다. live 재검증은 아직 pending이다.
-
-앱이 읽는 경로 설정은 `BIDOPS_ROOT`(호환 alias `BIDOPS_PROJECT_ROOT`), `BIDOPS_DATA_DIR`, `BIDOPS_ATTACHMENTS_DIR`(호환 alias `BIDOPS_ATTACHMENT_DIR`), `BIDOPS_DATABASE_URL`이다. reports는 별도 directory 환경변수 없이 project root의 `reports` 경로를 사용한다. backup directory도 별도 directory 환경변수 없이 compose의 `/app/backups` named volume을 사용한다. compose에서 backup 관련 설정으로 지원되는 것은 `BIDOPS_BACKUP_OUTPUT`(backup file path)과 `BIDOPS_BACKUP_MANIFEST`(migrate manifest path)다.
-
-## 표준 Docker 순서
-
-아래 `<manifest>`는 backup 단계에서 출력된 실제 manifest 파일명으로 대체한다. `down -v`는 사용하지 않는다.
-
-### 1. 서비스 중지
+판정 파이프라인이 승인된 Ollama와 나라장터 OpenAPI에 접근해야 할 때만 다음 overlay를 추가한다.
 
 ```bash
-cd /path/to/bidops-agent
-docker compose down
+COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose \
+  -f docker-compose.t7.yml -f docker-compose.t7.screening.yml \
+  up -d web
 ```
 
-기존 web/worker가 완전히 멈춘 것을 확인한 뒤에만 다음 단계로 간다. 일반 `down`은 named volume을 보존한다.
+overlay 추가만으로 egress가 안전해지지 않는다. host firewall의 목적지 제한과 실제 endpoint 승인을 함께 확인한다.
 
-### 2. DB backup 및 manifest 보존
+## 상태 확인과 중지
 
 ```bash
-docker compose --profile ops run --rm db-backup
+COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose -f docker-compose.t7.yml ps
+curl --fail "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/health"
+COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose -f docker-compose.t7.yml logs --since=30m web analysis-worker
+COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose -f docker-compose.t7.yml stop web analysis-worker document-worker
 ```
 
-기본 출력은 `/app/backups/bidops-<UTC>.db`와 `.manifest.json`이다. 다른 이름이 필요하면 `.env`의 `BIDOPS_BACKUP_OUTPUT`을 명시한다. manifest schema는 `bidops.sqlite-backup.v1`이며 source/backup path, SHA-256, logical snapshot fingerprint, UTC `created_at`을 포함한다. 운영 기록에 DB와 manifest를 모두 보존한다.
+로그에는 prompt, 모델 응답, 회사자료, 첨부 본문, 자격증명, URL 쿼리 문자열이 없어야 한다. traceback은 기본 비활성이고 안전한 식별자와 오류 분류만 확인한다.
 
-### 3. 명시적 migration
+## 설정 범주
 
-```bash
-export BIDOPS_CONFIRM_SERVICE_STOPPED=true
-export BIDOPS_BACKUP_MANIFEST=/app/backups/<manifest>.manifest.json
-docker compose --profile ops run --rm db-migrate
-```
+| 범주 | 주요 설정 | 운영 규칙 |
+|---|---|---|
+| 프로세스 | `BIDOPS_UID`, `BIDOPS_GID`, `BIDOPS_LOG_LEVEL`, `BIDOPS_LOG_TRACEBACK` | non-root, 기본 WARNING, 비밀 없는 로그 |
+| 나라장터 | `BIDOPS_G2B_API_KEY` | 수집 실행 때만 주입, 로그·URL·DB에 원문 키 금지 |
+| 로컬 판정 | `BIDOPS_OLLAMA_BASE_URL`, `BIDOPS_OLLAMA_MODEL`, context/output/timeout, concurrency/heartbeat/stale | 승인 endpoint, digest 고정, concurrency 1 |
+| 일정 | `BIDOPS_SCHEDULER_ENABLED`, daily/weekly 시간, `BIDOPS_PRESPEC_ENABLED` | 기본 false, 품질 승인과 운영자 확인 뒤 활성화 |
+| DB | owner/migrate/app/worker/ro-backup 비밀번호, port | 역할 분리, migration은 전용 계정 |
+| 객체 저장소 | MinIO root와 namespace별 access/secret, endpoint, secure flag | 용도별 최소 권한, versioning 유지 |
+| 문서 검사 | ClamAV host/port/timeout | clean scan envelope 없이는 준비 단계 진행 금지 |
+| 심층 모델 | vLLM base URL, allowed hosts, model, API key, response encryption key/ref | 승인된 사설 endpoint만, 응답 암호화 |
+| 활성 버전 | active profile version, active analysis policy version | 불변 ID, 빈 값이면 fail closed |
+| 외부 참조 | OpenAI·Codex exec enabled, approved notice IDs, reference workflow mode | 현재 Codex deep-review 경로는 사용 금지. 향후 발주계획 전용 projection에서만 공개 plan metadata+최소 승인 요약을 preview·건별 승인 후 전송 |
 
-컨테이너 wrapper가 두 환경변수를 요구하며 Python `db_admin migrate --backup-manifest ... --confirm-service-stopped`로 위임한다. migrate는 manifest identity/digest/fingerprint, core row counts, FK/quick_check를 확인하고 temp DB에서 Alembic을 실행한 뒤 검증된 경우에만 live DB를 교체한다. 현재 head는 `0005_generation_config_binding`다. backup은 유지되며 자동 rollback하지 않는다.
+## 발주계획 선별 실험 운영
 
-### 4. DB verify
+제품 선별기를 구현하기 전에 동일한 3일 입력을 동결해 네 방식을 비교한다.
 
-```bash
-docker compose --profile ops run --rm db-verify
-```
+1. 일반용역과 기술용역을 수집하고 발주계획 단계에서는 SW사업대상 여부로 선필터하지 않는다.
+2. 원본 응답, 정규화 전체 레코드, 조회 조건, 페이지, source hash, 최초 수집 시각을 보존한다.
+3. 키워드 규칙, ColBERT, Qwen3.8:27B, GPT Luna xhigh를 같은 모집단에 실행한다.
+4. GPT Luna에는 공개 발주계획 메타데이터와 별도 승인된 회사 역량 요약만 전송한다. 전송 전에 담당자가 payload를 확인하고 승인 기록을 남긴다.
+5. Sol xhigh 결과는 silver reference와 이견 탐색에만 사용한다. 최종 relevance·우선순위 정답은 사람이 판정한다.
+6. 방식별 recall, precision, 검토량, 중요 누락, 순위 품질, 비용, 지연, 재현성을 보고서에 기록한다.
+7. 선택 방식 또는 조합과 운영 threshold를 승인한 뒤에만 제품 구현과 자동 일정 활성화를 진행한다.
 
-verify는 head revision, foreign-key check, SQLite quick check, `run/notice/judgment/review/attachment` core count를 확인한다. 실패하면 web을 올리지 않고 원인과 보존한 manifest를 조사한다.
+개발계정의 일일 1,000회 요청 한도는 레코드 수가 아니라 실제 HTTP 요청 수로 관리한다. endpoint·페이지·재시도별 사용량을 세고 같은 응답은 회차 cache로 재사용한다. 초기 방어선은 700회 경고, 900회에서 신규 요청 중지다. 운영 전 실제 관측치와 필요한 endpoint 수를 근거로 활용사례를 등록해 증액을 신청한다.
 
-fresh migration 뒤에는 `schedule_setting`과 disabled `always_on_state` 기본 singleton 및 deterministic migration audit event가 있고, `screening_policy`와 `agency_portal`은 0행이다. 따라서 다음 단계의 policy seed는 명시적으로 필요하며, portal 검색을 사용하려면 operator가 `/api/portals`로 기관 portal metadata를 등록해야 한다. startup/entrypoint는 어느 것도 자동 seed하지 않는다.
+## 목표 수집 일정
 
-### 5. 명시적 policy seed
+발주계획과 사전규격 수집기는 아직 구현 전이므로 아래는 활성 명령이 아니라 운영 목표다.
 
-```bash
-export BIDOPS_POLICY_SEED_ACTOR=<explicit-operator-or-bootstrap-actor>
-docker compose --profile ops run --rm policy-seed
-```
-
-seed는 `policy seed-default --created-by <actor>`를 실행하고 `activation_candidate`를 만든다. 같은 digest에 대해서만 idempotent다. seed는 activation이나 always-on enable이 아니다. actor를 비워 실행하지 않는다.
-
-### 6. web 시작 및 health
-
-```bash
-docker compose up -d web
-curl -fsS http://127.0.0.1:8787/api/health
-docker compose logs --tail=100 web
-```
-
-health의 기대 응답은 `{"status":"ok"}`다. health는 Ollama, scheduler, migration을 점검하지 않는다. DB가 empty/unversioned/stale이면 앱이 시작하지 않는 것이 정상적인 안전 동작이다. scheduler/always-on은 기본 false이며 worker만 시작할 수 있다.
-
-### 7. 단 한 번의 live smoke
-
-T14/T15는 operator direction 없이 live smoke, policy activation, always-on을 수행하지 않는다. 명시적으로 승인된 단 한 번의 smoke만 다음 safety marker와 explicit command를 함께 사용한다.
-
-```bash
-export BIDOPS_LIVE_OLLAMA_TEST=true
-docker compose exec web python -m app.screening.cli run-one \
-  --run-id <run_id> --notice-id <notice_id> \
-  --policy-version <approved-policy-version> \
-  --profile-source current --requested-by <explicit-actor> --wait
-```
-
-`BIDOPS_LIVE_OLLAMA_TEST=true`는 marker일 뿐 CLI가 marker를 검사해 자동으로 실행하는 스위치가 아니다. 명령·actor·대상·결과를 운영자가 기록하고, 같은 변경에서 추가 live smoke를 반복하지 않는다. live smoke가 필요 없으면 이 단계는 수행하지 않는다. fake CI는 live endpoint를 호출하지 않는다.
-
-## Host equivalent
-
-host에서는 먼저 uvicorn/worker 프로세스를 멈추고 같은 순서를 실행한다.
-
-```bash
-cd /path/to/bidops-agent/web/backend
-.venv/bin/python -m app.db_admin backup --output /absolute/backup/bidops-<UTC>.db
-.venv/bin/python -m app.db_admin migrate \
-  --backup-manifest /absolute/backup/bidops-<UTC>.db.manifest.json \
-  --confirm-service-stopped
-.venv/bin/python -m app.db_admin verify
-.venv/bin/python -m app.screening.policy seed-default --created-by <explicit-actor>
-.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8787
-```
-
-별도 터미널에서 `curl -fsS http://127.0.0.1:8787/api/health`를 확인하고, 명시적 live가 승인된 경우에만 다음처럼 marker와 command를 함께 쓴다.
-
-```bash
-cd /path/to/bidops-agent/web/backend
-BIDOPS_LIVE_OLLAMA_TEST=true .venv/bin/python -m app.screening.cli run-one \
-  --run-id <run_id> --notice-id <notice_id> \
-  --policy-version <approved-policy-version> \
-  --profile-source current --requested-by <explicit-actor> --wait
-```
-
-host의 `BIDOPS_ROOT`, `BIDOPS_DATA_DIR`, `BIDOPS_ATTACHMENTS_DIR`, `BIDOPS_DATABASE_URL`, Ollama endpoint가 실제 경로와 일치해야 한다. reports는 `<BIDOPS_ROOT>/reports`, backup은 `db_admin backup --output`의 명시적인 host 경로를 사용한다. `BIDOPS_BACKUP_OUTPUT`/`BIDOPS_BACKUP_MANIFEST`는 container ops wrapper 변수이며 host에서는 명령 인자를 사용한다. `BIDOPS_UID/GID`는 host equivalent에는 적용되지 않지만 파일 소유권을 별도로 확인한다.
-
-## 복구와 restore
-
-SQLite가 corrupt하거나 migration 검증이 실패하면 서비스를 계속 올리거나 자동 rollback하지 않는다. `db-backup`의 backup과 manifest를 보존하고 별도 경로에서 restore를 검증한 뒤, 운영자가 backup replacement 여부를 결정한다. restore는 수동 파일 교체 결정이며 애플리케이션·container·migration이 자동 실행하지 않는다. 결정 후에도 서비스 중지→교체→`db-verify`→web health 순서를 다시 따른다. `docker compose down -v`로 복구하지 않는다.
-
-## 모델·baseline 안전성
-
-모델은 exact `qwen3.8:27b`, `think=false`, `stream=false`다. endpoint unavailable/model identity mismatch는 실패이며 OpenAI fallback/BF16 fallback이 없다. `profile git:<40hex>`의 승인 commit·vendored baseline·Git 부재 시 허용 digest fallback 규칙은 [아키텍처](./architecture.md)의 단일 정본을 따른다. 모델 출력과 profile/prompt 원문을 로그·오류·audit에 넣지 않는다.
-
-## Docker 빌드·visual 확인
-
-일반 image build는 다음이다. frontend production build와 Python runtime을 multistage Dockerfile에서 함께 만든다. Python runtime은 `web/backend/requirements.lock`의 exact pinned transitive closure를 설치하며, `requirements.txt`의 범위 제약을 Docker 설치에 사용하지 않는다. 이미지에는 DB·`.env`·API key·run data를 넣지 않는다.
-
-```bash
-docker compose build
-```
-
-visual 테스트는 host `cd web/frontend && npm run test:visual`의 webServer(빌드 후 preview, port 4173) 계약이다. 테스트는 `public/fonts/PretendardVariable.woff2`가 요청되고 적용될 때까지 기다리며 Google Fonts 요청이 없음을 확인한다. host에 `libnspr4/libnss3`가 없어 browser launch가 막히면 project root에서 다음처럼 동일 테스트를 Playwright image로 실행한다.
-
-```bash
-docker run --rm --network host --ipc=host --user 1000:1000 \
-  -e PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
-  -v "$PWD:/work" \
-  -v "$PWD/web/frontend/node_modules:/work/web/frontend/node_modules" \
-  -w /work/web/frontend \
-  mcr.microsoft.com/playwright:v1.62.1-noble npm run test:visual
-```
-
-기본 bridge 네트워크에서는 Vite preview의 localhost/`::1` bind와 readiness 확인 주소가 분리되어 timeout이 날 수 있다. 이 환경에서는 `--network host`를 포함해야 preview의 `127.0.0.1:4173` readiness가 맞는다. 위 exact image·mount·UID/GID·IPC 명령으로 390/768/1024/1440px의 12개 화면 대상과 핵심 동작을 검증한다. 스냅샷을 갱신할 때는 같은 명령의 `npm run test:visual`을 `npm run test:visual:update`로 바꾼다. 2026-08-26 독립 검토 blocker 수정본의 exact Docker 갱신·비갱신 실행은 각각 전체 172개 중 162 passed, 10 intentional skipped였고, 갱신 실행에서 dashboard 스냅샷 4개가 재생성됐다. 이 10건은 draft spec의 기존 넓은 화면 보조 흐름 5건이 390px와 768px 조건에서 각각 skip된 것이고, 새 동일 공고 초안 복귀 흐름은 네 폭에서 실행된다. host 직접 launch 제한은 환경에 `libnspr4/libnss3`가 없는 browser system libraries 문제일 뿐 제품 코드의 결과로 해석하지 않는다.
-
-## 장애 시 확인
-
-| 증상 | 확인 |
-|---|---|
-| web 시작 실패 | `docker compose logs web`; DB head/empty 상태, mount UID/GID, required dirs 확인 |
-| migration 거부 | 서비스가 정말 중지됐는지, 실제 backup manifest path/digest/fingerprint와 `BIDOPS_CONFIRM_SERVICE_STOPPED=true` 확인 |
-| verify 실패 | backup을 보존하고 자동 restore하지 말 것; 별도 복사본에서 검사 |
-| queue가 멈춤 | execution heartbeat/stop/stale recovery와 Ollama exact model/digest 확인; 새 실행을 임의로 중복 생성하지 말 것 |
-| 스케줄이 없음 | scheduler env cap와 DB always-on switch를 각각 확인; 두 값 모두 true여야 callback이 실제로 동작 |
-| 화면이 비어 있음 | health가 아니라 `data/runs`/DB 적재와 API response를 확인; startup이 seed/migrate하지 않는 것이 정상 |
+- 발주계획 수집: 매일, 일반용역·기술용역, SW사업대상 선필터 없음.
+- 발주계획 사람 검토: 월요일과 목요일. 수집 회차는 검토 일정과 독립적으로 보존한다.
+- 사전규격 수집: 매일, 일반용역·기술용역 중 SW사업대상.
+- 사전규격 1차선별: 저비용 판정 후 사람 확인. 승인된 건만 심층 검토 실행.
+- 입찰 추적: `계속 추적` 기회에 대해 신규 공고와 정정공고를 확인하고 사전규격 대비 중요 변경을 계산한다.
+- 각 단계는 자동 연결 실행과 수동 단독 실행·재시도를 같은 실행 ID, artifact, 상태 전이 규칙으로 제공한다.
 
 ## 검증
-단계 B의 document bundle부터 단계 C의 실제 Qwen machine report까지 연속 인수하는 절차와 증적 형식은 [단계 B→C 연속 인수 테스트](e2e-bc-acceptance.md)를 따른다. 실제 모델·대표 원문·사람 gold가 없는 환경에서는 코드 계약 테스트만 통과한 것으로 기록하고 Qwen 품질 또는 전체 E2E 통과로 표시하지 않는다.
 
-호스트에 backend venv/pytest가 없으면 T7 이미지에서 임시 테스트한다.
+소스와 fake 모델 검증은 live API key나 model endpoint 없이 실행한다.
 
 ```bash
-COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose -f docker-compose.t7.yml run --rm web pytest -q
-cd /path/to/bidops-agent
 ./run-tests.sh
 ./web/run-web-tests.sh
+cd web/frontend && npm run test:visual
+COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose -f docker-compose.t7.yml build
 ```
 
-T7 이미지를 만든 뒤에는 위 검증을 현재 worktree image로 반복한다. 실제 snapshot/restore가 제공되지 않은 환경에서는 해당 검사를 통과로 표시하지 않는다. MinIO object backup/restore/hash scripts are wired for version-aware copy, but an actual user-provided snapshot and pre-prod restore drill remain required evidence. PostgreSQL clean migration, downgrade 정책, SQLite reconciliation, HWP/문서 안전성, Qwen fence/chunk/retry/merge, immutable report, API/table/stage 수와 frontend 접근성 fixture를 각각 기록한다.
+`web/run-web-tests.sh`는 임시 PostgreSQL 17에서 migration을 수행하고, 격리 DB의 backend 테스트와 frontend production build를 실행한다. Docker가 없으면 `BIDOPS_TEST_POSTGRES_URL`에 폐기 가능한 PostgreSQL 관리 URL을 제공한다. 운영 DB URL을 사용하지 않는다.
 
-## 백업·복구 목표와 실행
+live Ollama 또는 vLLM smoke는 운영자가 명시한 한 번의 명령과 대상에서만 수행한다. safety 환경변수가 true라는 사실만으로 실행하지 않는다. 결과에는 모델명, digest 또는 승인된 immutable reference, 정책·프로필 버전, 입력 hash, 시작·종료 시각을 남긴다.
 
-RPO는 4시간, RTO는 8시간이다. 매일 full PostgreSQL custom dump와 continuous WAL archive를 수행하고, object store는 version-aware copy를 4시간 이내 수행한다. 보존은 daily 14, weekly 8, monthly 6이다. `scripts/backup-postgres.sh`와 `scripts/backup-objects.sh`는 파일을 삭제하지 않는다.
+## 백업
 
-복구 순서는 반드시 versioned object copy → 빈 pre-prod DB에 dump restore → active object hash와 DB 연결 검증이다.
+PostgreSQL 백업은 현재 Compose 계약상 host의 `./backups/t7`에 쓴다. 실행 뒤 dump를 승인된 외부 보존 위치로 복사하고 보존 위치의 접근권한과 hash를 기록한다.
 
 ```bash
+COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose \
+  -f docker-compose.t7.yml --profile backup run --rm ro-backup
+```
+
+`scripts/backup-postgres.sh`는 timestamp가 붙은 custom-format dump를 만들고 기존 백업을 삭제하지 않는다. 4시간 RPO가 필요하면 이 스크립트와 별도로 WAL 보관을 구성하고 복구 시험으로 확인한다.
+
+객체 백업은 버전별 파일과 `object-versions.tsv`를 만든다. 실행 환경에 `mc`, `MINIO_ALIAS`, `OBJECT_BACKUP_DIR`를 제공한다.
+
+```bash
+./scripts/backup-objects.sh
+```
+
+DB dump와 객체 manifest는 같은 복구 지점을 식별할 수 있게 함께 보존한다. 암호화 key reference와 실제 key의 백업 정책은 분리하고 접근을 감사한다.
+
+## 복구
+
+현재 restore script는 source version ID와 target version ID를 연결하지 못하고 DB active reference에서 완전한 manifest를 만들지 않으므로 복구 가능한 운영 도구가 아니다. 아래 순서와 환경변수는 수정 후 지켜야 할 목표 계약이며, 현재 script를 가치 있는 snapshot이나 운영 전환에 사용하지 않는다.
+
+복구는 기존 운영 대상 위가 아니라 빈 PostgreSQL과 빈 MinIO 대상에서 수행한다.
+
+1. 복구 대상과 네트워크를 격리한다.
+2. `OBJECT_BACKUP_DIR`, `RESTORE_MINIO_ALIAS`로 버전별 객체를 먼저 복사한다.
+3. `DUMP_FILE`을 빈 PostgreSQL에 `pg_restore`한다.
+4. `ACTIVE_HASH_MANIFEST`와 복구 객체의 hash를 대조한다.
+5. FK, Alembic head, 핵심 row 수, active document·model response 참조를 검사한다.
+6. API read-only smoke와 대표 보고서 재현을 확인한 뒤에만 전환 여부를 사람이 결정한다.
+
+```bash
+OBJECT_BACKUP_DIR=/approved/objects \
+DUMP_FILE=/approved/db.dump \
+ACTIVE_HASH_MANIFEST=/approved/active-hashes.tsv \
 RESTORE_MINIO_ALIAS=restore \
-OBJECT_BACKUP_DIR=/external/restore/objects \
-DUMP_FILE=/external/restore/bidops.dump \
-ACTIVE_HASH_MANIFEST=/external/restore/active.tsv \
-BIDOPS_DATABASE_URL='postgresql+psycopg://ro_backup:***@restore-db/bidops' \
+BIDOPS_DATABASE_URL='postgresql+psycopg://...' \
+BIDOPS_DATABASE_HOST=restore-db \
+BIDOPS_DATABASE_USER=restore-user \
+BIDOPS_DATABASE_PASSWORD='injected-secret' \
 ./scripts/restore.sh
 ```
 
-복구는 별도 pre-prod target에서 수행하며 운영 DB/volume을 drop하지 않는다. 사전 운영 복구 검증과 quarterly drill을 기록하고, 사용자 제공 snapshot이 없는 현재 환경에서는 실제 복구 성공을 주장하지 않는다.
+현재 명령은 source volume 삭제나 `dropdb`는 수행하지 않지만 target version mapping과 active manifest 검증이 보완되기 전에는 성공적인 복구를 보장하지 않는다.
 
-## 장애 확인
+## 장애 대응
 
-| 증상 | 확인 |
-|---|---|
-| SQLite runtime error | `BIDOPS_DATABASE_URL`이 PostgreSQL 17인지 확인한다. SQLite URL로 우회하지 않는다. |
-| profile unavailable | 컨테이너 `/app/docs/reference/company-profile.md`와 `BIDOPS_ROOT=/app`를 확인한다. |
-| HWP converter unavailable | `document-worker` image에 Node 22와 pinned converter가 있는지, scratch request/result가 atomic인지 확인한다. worker network는 계속 none이어야 하며 web의 scanner clean envelope가 같은 원문 hash인지 확인한다. |
-| object storage unavailable | MinIO endpoint 또는 해당 작업의 purpose credential을 확인한다. Production은 filesystem fallback 없이 fail fast하며, isolated pytest만 filesystem backend를 허용한다. |
-| model invocation blocked | `BIDOPS_OPENAI_ENABLED=false`, `BIDOPS_VLLM_BASE_URL`·literal IP allowlist·API key와 `model-egress`를 확인한다. |
-| 보고서/validation 불일치 | 해당 claim lease fence, stage 3 persist, materializer, finish audit 순서를 확인하고 수동 DB 수정하지 않는다. |
-| API 오류 | `error.code`, `error.message`, `request_id`만 사용자에게 표시하고 내부 exception·경로·credential을 노출하지 않는다. |
+- 첨부 경로 이탈, 비밀·회사자료 노출, 승인 없는 외부 모델 전송, 기존 회차·리뷰 덮어쓰기, 원문과 다른 근거의 검증 통과가 발견되면 관련 worker와 egress를 즉시 중지하고 상태를 보존한다.
+- 중단된 판정은 자동 resume하지 않는다. heartbeat와 마지막 stage를 확인하고 새 실행 ID로 사람이 재시작한다.
+- 부분 산출물은 성공 subset과 failure artifact를 함께 보존한다. 유효 결과가 없으면 성공 run을 발행하지 않는다.
+- 모델 endpoint 장애가 로컬 판정에서 hosted OpenAI 자동 fallback을 일으키면 안 된다. 외부 재분석은 별도 승인 실행으로만 만든다.
+- `document-worker`가 `PermissionError: '/scratch/inbox'`로 즉시 종료하면 image가 `/scratch`를 만들기 전에 생성된 `document-scratch` volume이 root 소유로 남은 것이다. 스택을 중지하고 그 volume만 삭제한 뒤 다시 올린다. 이 volume은 변환 중인 handoff만 담으므로 보존 대상이 아니다.

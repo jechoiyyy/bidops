@@ -1,329 +1,238 @@
-# 외부 인터페이스·파일·DB 계약
+# 외부 계약
 
-이 문서는 현재 FastAPI router, Pydantic schema, 파일 writer, SQLAlchemy model과 Alembic migration이 실제로 제공하는 계약을 요약한다. JSON은 UTF-8이다. 날짜·시각은 timezone을 포함한 ISO 8601을 사용하고 확인 불가 값은 `null`/`unknown`을 보존한다.
+웹 클라이언트, 파이프라인 subprocess, 운영 도구가 의존하는 기본 REST 경로는 `/api`다. 발주계획 중심의 새 수집·기회 API는 아직 구현되지 않았으므로 현재 경로로 추정해 호출하지 않는다.
 
-기본 경로는 `/api`이며 현재 인증 헤더는 없다. JSON 요청은 `application/json`, 첨부 등록은 `multipart/form-data`를 사용한다. 성공 응답은 명명된 Pydantic 모델이고, YAML export와 다운로드는 각 endpoint가 지정한 media type을 사용한다. 소비자는 오류 `detail` 문구를 영구적인 오류 식별자로 사용하지 않는다.
+## 공통 REST 규칙
 
-## 공통 REST 오류
-
-기본 prefix는 `/api`이고 현재 인증 헤더는 없다. 오류 body는 FastAPI의 `{"detail": <문자열 또는 검증 오류 목록>}`이며 `detail` 문구는 영구적인 오류 식별자가 아니다.
-
-| 상태 | 의미 |
-|---:|---|
-| 202 | queue 또는 비동기 pipeline이 접수됨 |
-| 400 | 입력·파일·profile/policy 계약 또는 안전 경로 위반 |
-| 404 | run/notice/attachment/policy/gate/execution 없음 |
-| 409 | 현재 상태·중복 reservation·활성화·환경 cap 충돌 |
-| 422 | Pydantic body/query/enum/필수 값 검증 오류 |
-| 503 | 모델 preflight 또는 필수 외부 runtime을 접수 전에 사용할 수 없음 |
-| 500 | DB·파일·서버 내부 오류. 오류에 prompt/profile/API key를 포함하지 않음 |
-
-### Generation config binding
-
-Screening execution, quality-gate, evaluation, schedule, and always-on
-responses expose the persisted `generation_config` canonical object together
-with `generation_config_digest`. The shared generation-config parser validates
-the object and its compact UTF-8 JSON SHA-256 digest before serialization. A
-malformed or tampered persisted pair is a server/data-integrity error (500);
-the API never substitutes `{}` or a process default. Generation config is
-response-only: request bodies cannot inject or override it. Legacy all-2048
-rows are not an approval exception for new scheduled executions.
-
-`GET /api/health`는 `{"status":"ok"}`의 lightweight 응답이며 Ollama·수집기·DB migration 상태를 대신 보장하지 않는다. 앱 시작에서 DB revision이 head가 아니거나 빈/unversioned DB이면 프로세스가 actionable error로 종료한다.
-
-## 기존 회차·공고 API
-
-| 호출 | 계약 |
-|---|---|
-| `GET /api/runs` | 최신순 run `items`, `total` |
-| `GET /api/runs/{run_id}` | 수집 범위, 단계, artifact 검증, warning count |
-| `GET /api/runs/{run_id}/stats` | funnel, grade/readiness, focus, unknown/마감 지표 |
-| `GET /api/runs/{run_id}/warnings` | `level`, `code` 선택 filter와 items/total |
-| `POST /api/runs/ingest` | JSON 또는 `run_id`로 기존 파일을 DB에 적재; 경로 안전성 위반 400 |
-| `POST /api/runs/{run_id}/pipeline/{stage}` | `collect|sample|report`(및 아래 judgment); 비동기 202, 실행 중 중복 409 |
-| `GET /api/runs/{run_id}/pipeline/logs` | 선택 `execution_id`에 대한 순서 있는 pipeline 로그 |
-| `GET /api/notices` | 필수 `run_id`, grade/readiness/focus/sample_role/attachment/q/sort/limit/offset filter |
-| `GET /api/notices/{notice_pk}` | 공고, 다섯 관점 판정, 첨부, review |
-| `GET /api/notices/{notice_pk}/related` | 차수·통합·사전규격 관련 공고 |
-| `GET /api/notices/{notice_pk}/history` | 안정 공고 key의 회차별 판정·수정 이력 |
-
-`GET /api/notices`는 `run_id`가 필수이고 기본값은 `sample_role=analysis`, `attachment=any`, `sort=deadline`, `limit=50`, `offset=0`이다. `limit`은 1..500, `offset`은 0 이상이다. `grade`를 생략하거나 `all`이 아니면 `제외`를 기본 제외하며, `grade=all`에서 포함한다. `sample_role=all`은 표본 역할 filter를 해제한다. `attachment=any`는 제한 없음, `none`은 첨부가 없는 공고, `manual`은 수동 첨부가 있는 공고다.
-
-정렬은 `deadline`이 마감일 오름차순(null last)·notice DB id 오름차순, `grade`가 `GRADE_ORDER` 순·마감일 오름차순(null last)·id 오름차순, `published`가 게시일 내림차순(null last)·id 내림차순이다. `q`는 title 또는 agency의 case-insensitive 부분 문자열 검색이며, `focus`는 `Judgment.primary_focus`, `readiness`는 readiness 값 filter다. 응답 `filters`는 실제 적용한 값과 limit/offset을 그대로 반환한다.
-
-| `GET /api/reviews?run_id=...` | DB 정본 review |
-| `PUT /api/notices/{notice_pk}/review` | review body 전체 교체; 확인 답변은 누락 시 기존 배열을 삭제 |
-| `GET /api/reviews/export?run_id=...` | `application/yaml`, `bidops.feedback.v2` |
-| `GET /api/metrics/validation?run_id=...` | 계산 가능한 validation 지표와 미측정/계산 불가 상태 |
-
-`ReviewUpsertRequest`는 `run_id`, `disposition`, `system_judgment_review`, `corrected_grade`, `corrected_readiness`, `weakest_perspective`, `reason`, `reviewer`, `verification_answers[]`를 가진다. answer item은 `item`, `answer`이고 모두 nullable text다. 빈 reviewer는 설정의 reviewer name fallback을 사용하며, 문자열은 trim 후 빈 값이면 null로 저장한다. 같은 `(notice_pk, run_id)`는 하나의 review만 가진다. 목록은 notice_pk 오름차순이다.
-
-`ReviewResponse`는 `id`, `run_id`, `notice_pk`, 위 review 필드, `created_at`, `updated_at`, `answers[{id,item,answer}]`를 반환한다. PUT은 answer 배열 전체를 교체한다. `GET /api/reviews/export`는 모든 공고를 포함한 `bidops.feedback.v2` YAML을 `application/yaml`과 `review-feedback.yaml` attachment filename으로 반환하며, 리뷰가 없는 공고도 null 필드와 빈 `verification_answers`로 포함한다.
-
-YAML 정본 호환 구조는 top-level `schema_version: bidops.feedback.v2`, `reviews[]`이며 각 행은 `notice_id`, `disposition`, `system_judgment_review`, `corrected_grade`, `corrected_readiness`, `weakest_perspective`, `reason`, `verification_answers[{item,answer}]`를 가진다. export는 DB review를 수정하지 않으며, reviewer와 내부 DB id는 이 호환 YAML에 포함하지 않는다.
-
-`GET /api/metrics/validation`의 metric item은 `key`, `label`, `value`, `percentage`, `threshold`, `meets_threshold`, `status`, `basis{numerator,denominator,detail}`, `reason`이다. status는 `pass|fail|measured|not_measurable`이고, 계산할 수 없는 단계의 count를 0으로 숨기지 않는다.
-
-프로필·기관 포털의 읽기/관리 경계도 API에만 있다. `GET /api/profile/snapshots`, `/api/profile/sections`, `/api/profile/unknowns`는 snapshot/tree/unknown 보존 정보를 반환한다. `GET /api/portals`, `POST /api/portals`, `PATCH /api/portals/{portal_id}`는 기관 portal metadata를 관리한다. `GET /api/attachments/queue?run_id=...`는 첨부가 없는 공고의 작업 목록을 반환한다.
-
-`GET /api/profile/snapshots`는 immutable metadata만 반환한다: `version`, `digest`, `source_kind`(`working_tree|git_blob`), `source_ref`, `created_at`, `total`. body와 filesystem path는 반환하지 않는다. version은 `company-profile.sha256:<64hex>`이고 digest와 suffix가 일치해야 한다. `git_blob` source_ref는 lowercase 40-hex commit, working-tree source_ref는 relative POSIX path이며 absolute/traversal/backslash를 허용하지 않는다.
-
-snapshot 목록은 `created_at` 내림차순, 같은 시각에는 `digest` 내림차순이며 `total`은 전체 immutable row 수다. `git_blob` snapshot은 승인된 baseline commit과 canonical profile path를 사용하고, working-tree snapshot은 읽은 bytes의 digest를 version에 묶는다.
-
-`ProfileSectionsResponse`는 `source`, recursive `sections`, `status_counts`, `parse_errors`를 반환한다. section은 `id`, number/title/heading/level, state(`confirmed|inferred|unknown|mixed|unrecorded`), status_counts, `items`, `raw_blocks`, `raw`, children을 가진다. item은 key/label/section identity/status(`confirmed|inferred|unknown`)/value/source_line이다. `raw_blocks`는 line_start/raw/error를 가지며 parser가 인식하지 못한 원문을 버리지 않는다.
-
-`ProfileUnknownsResponse`는 source, unknown `items`, total, reference_fields, parse_errors를 반환한다. unknown item은 key/label/section identity/status=`unknown`/value/reference_count/reference_status(`counted|unavailable`)를 가진다. reference DB 조회 실패는 `reference_count=null`, `reference_status=unavailable`이며 0으로 치환하지 않는다.
-
-기관 portal item은 `id`, `agency_pattern`, `system_name`, `search_url_template`, `enabled`, `note`다. `GET /api/portals`는 enabled 내림차순·id 오름차순, POST는 세 필수 text(agency pattern/system name/search template)와 enabled/note를 받아 201, PATCH는 제공한 field만 갱신한다. 필수 text가 공백이면 422, 없는 id는 404다. URL template은 `{bid_no}`와 `{title}` placeholder를 URL-encode해 검색 URL로 만든다.
-
-첨부는 `GET /api/notices/{notice_pk}/attachments`, multipart `POST /api/notices/{notice_pk}/attachments`(HWP/HWPX/PDF, 50MB 이하), `DELETE /api/attachments/{attachment_id}`(수동 첨부만), `GET /api/attachments/{attachment_id}/download`(PDF 또는 octet-stream)이다. 내부 `stored_path`를 조합하지 말고 API URL만 사용한다. 제공 첨부 삭제는 403이다.
-
-업로드는 extension을 filename suffix에서 lowercase로 정규화해 `hwp|hwpx|pdf`만 허용하고, streaming chunk 단위로 50 MiB 초과를 거부한다. 서버 생성 UUID filename을 notice별 attachment root 아래에 쓰며 원래 filename은 metadata로만 보존한다. 임시 upload와 final file은 실패 시 정리한다. `stored_path`는 상대 path로 저장하고 `safe_stored_path`가 root 밖·`..`·symlink escape를 거부한다. 삭제도 동일한 경로 검사를 통과한 수동 파일만 지운다.
-
-`AttachmentProcedureResponse`는 `notice_pk`, agency/bid_no/title, `status`(`missing|provided|completed`), `matched_portal`, `search_url`, `portal_message`, procedure `steps`, `attachments[]`를 반환한다. attachment item은 `id`, name, API `url`, `origin`, `file_ext`, `size_bytes`, `stored_path`, `extract_status`, `created_at`이다. 다운로드는 stored path가 없거나 파일이 아니면 404, PDF만 `application/pdf`, 나머지는 `application/octet-stream`이다. 원래 name의 CR/LF는 filename header에서 제거한다.
-
-`GET /api/attachments/queue`는 run의 첨부 없는 공고만 반환하고 agency, grade, deadline, id로 결정적으로 정렬한다. portal 매칭은 enabled row 중 agency pattern의 casefold 부분 일치에서 가장 긴 pattern, 동률이면 작은 id를 선택한다. `0001_lean_v1_postgresql`은 portal table을 만들지만 row를 seed하지 않으므로 fresh migrated DB의 queue는 등록된 portal이 없을 때 `matched_portal=null`, search URL 없음으로 응답한다.
-
-## 판정 실행 API
-
-| 호출 | 입력·성공 | 안전한 실패 |
-|---|---|---|
-| `POST /api/runs/{run_id}/pipeline/judgment` | `policy_version`, `profile_source`, `requested_by`; queue 접수 202 | run/profile/input 400/404, model preflight 503, 중복 409 |
-| `GET /api/screening/executions` | status/trigger/run filter, limit/offset; queue list | query validation 422 |
-| `GET /api/screening/executions/{execution_id}` | execution detail, binding, current stage, counts, stop/publish/error metadata | 없음 404 |
-| `POST /api/screening/executions/{execution_id}/stop` | actor/requester; queued 즉시 중단, running `중지 요청` | terminal state 409 |
-| `GET /api/screening/executions/{execution_id}/artifacts/{kind}` | `decisions|failures|telemetry|screening_result` known kind만 | unknown/path escape/not ready 400/404 |
-
-상태는 `대기|실행 중|중지 요청|성공|부분 성공|실패|중단됨`이다. `--wait` CLI도 이 FIFO를 우회하지 않는다. 실행 actor는 인증이 아니라 audit attribution이다.
-
-## 품질·정책·스케줄 API
-
-| 호출 | 계약 |
-|---|---|
-| `POST /api/quality-gates` | `purpose`, policy version, profile source, `created_by`; A/B 두 `quality_sample`을 같은 transaction으로 queue하고 202 |
-| `GET /api/quality-gates` | purpose/status/run filter 목록 |
-| `GET /api/quality-gates/{gate_id}` | A/B execution, aggregate status, latest immutable evaluation |
-| `PUT /api/quality-gates/{gate_id}/reviews/{notice_id}` | reviewer, evidence judgment, note, decision digest; pass A review만 허용 |
-| `GET /api/policies` / `GET /api/policies/{version}` | immutable policy versions/status |
-| `POST /api/policies` | version, creator, prompt version, five prompt objects, candidate selection, thresholds; 새 body 생성 |
-| `POST /api/policies/{version}/candidate` | actor와 activation candidate projection |
-| `POST /api/policies/{version}/activate` | passing operational evaluation ID와 confirmed actor; exact binding일 때만 활성화 |
-| `GET /api/schedule/settings` | `ScheduleSettingsResponse`: Asia/Seoul, daily/weekly time, prespec, update metadata |
-| `PATCH /api/schedule/settings` | DB singleton 변경 및 즉시 reschedule |
-| `GET /api/schedule/executions` | job kind/status/window/recovery 관계 |
-| `POST /api/schedule/executions` | 예약·수동 복구 요청; 202 |
-| `GET /api/schedule/always-on` | 환경 cap, DB switch, gate/policy binding |
-| `PUT /api/schedule/always-on` | false도 actor 필요; true는 actor+passing evaluation ID+환경 true 필요 |
-
-`model_comparison` gate는 activate할 수 없고 `operational_approval`만 current profile로 activate 후보가 된다. 환경 scheduler false에서 always-on true는 409다. 정책/always-on은 pass만으로 자동 변경되지 않는다.
-
-## 파일 계약
-
-모든 artifact는 알려진 execution root 안에 생성되고 UTF-8, SHA-256, path/symlink 검사 대상이다. `data/runs` 파일과 DB run/review/attachment는 원본 보존 정책을 따른다.
-
-| 경로·파일 | schema/제약 | 생성·소비 |
-|---|---|---|
-| `data/runs/<run_id>/collected-notices.json` | `bidops.collected.v2` | collect → ingest/sample |
-| `data/runs/<run_id>/validation-set.json` | `bidops.validation-set.v2` | fixed 40 quality gate; 정기 전체 판정 대체 아님 |
-| `data/runs/<run_id>/screening-decisions.json` | 기존 v2, 신규 v3 | 역사 파일 또는 screening worker |
-| `data/screening-executions/<id>/screening-input.json` | `bidops.screening-input.v1` | frozen model input |
-| `.../screening-decisions.json` | `bidops.decisions.v3` | 성공 판정, 다섯 unique perspective |
-| `.../screening-failures.json` | `bidops.screening-failures.v1` | notice별 stage/failure/attempt |
-| `.../screening-telemetry.jsonl` | `bidops.screening-telemetry.v1` | trace/span/Ollama 호출 메타데이터 |
-| `.../screening-results.json` | screening v3 결과 | deterministic merge |
-| `data/runs/<derived>/screening-replacement-provenance.json` | 실행·source 관계 | full run 파생 publish |
-| `data/runs/<run_id>/review-feedback.yaml` | `bidops.feedback.v2` | 사람이 읽는 export/DB 정본 호환 |
-
-`screening-input.v1`은 `schema_version`, `execution_id`, `run_id`, `generated_at`, `source_window{from,to,timezone}`, `prompt_version`, `policy_version`, `company_profile_version`, `company_profile_digest`, `candidate_count`, `notices[]`를 갖는다. notice는 normalized fields와 `judgment_mode`(`신규|재판정|승계`), 승계의 `carry_over_from`, 재판정의 `rejudge_reason`을 가진다. 신규/재판정은 일곱 span 대상, 승계는 모델 호출 없음이다.
-
-`screening-input.v1`에는 `generation_config`와 `generation_config_digest`도 필수다. canonical config는 `bidops.generation-config.v1` object이며 기본 `num_ctx=16384`, stage map `perspective=2048`, `counterargument=2048`, `synthesis=4096`, `think=false`, `stream=false`이다. digest는 compact UTF-8 canonical JSON의 SHA-256 lowercase hex다. execution row와 input artifact가 이 값과 다르면 worker는 호출 전에 실패한다. telemetry와 execution/attempt API는 digest 및 실제 `num_ctx`/`num_predict`를 노출하며 prompt/response는 노출하지 않는다. quality gate A/B와 activation/scheduler도 같은 binding을 요구한다. live 재검증은 pending이다.
-
-생성기와 신규 v3 artifact는 위 두 필드를 반드시 기록하고 shared canonical parser로 config와 digest를 함께 검증한다. ingest/build의 제한된 legacy 경로는 v3 artifact에서 두 필드가 모두 없을 때에만 `num_ctx=16384`, 각 stage `2048`, `think=false`, `stream=false`인 legacy canonical config와 그 SHA-256(`f5005da40315a4d24edba05b9394e71dba6c1c3c5790c84e5cc43673215134aa`)를 메모리상 파생 값으로 주입한다. 원본 파일은 다시 쓰지 않는다. 한쪽만 없거나 config가 malformed/noncanonical이거나 digest가 일치하지 않으면 fail closed하며, v2 호환 경로에는 적용하지 않는다. 정규화된 binding은 screening 결과와 ingest run projection에 보존한다.
-
-| 필드 | 계약·검증 |
-|---|---|
-| `schema_version` | 정확히 `bidops.screening-input.v1` |
-| `run_id`, `generated_at` | 현재 immutable run과 연결하고 timezone-aware ISO 8601을 사용 |
-| `source_window` | `from`, `to`, `timezone`을 가지며 `timezone=Asia/Seoul`, from ≤ to |
-| `candidate_count` | `notices[]` 길이와 정확히 일치하며 후보를 누락해 0으로 숨기지 않음 |
-| `notices[]` | `bidops.collected.v2` normalized fields(`notice_id`, 기본 정보, lifecycle, qualification flags, attachments, focus/performance matches, candidate sources, unknown fields, raw source)를 보존하고 회차 안에서 `notice_id`가 unique |
-| `judgment_mode` | `신규`, `재판정`, `승계` 중 하나 |
-| `carry_over_from` | `승계`에서 완료된 이전 판정 회차 식별자 필수, 그 밖에는 `null` |
-| `rejudge_reason` | `재판정`에서만 `정정`, `재공고`, `본공고 전환`, `담당자 요청` 중 하나, 그 밖에는 `null` |
-
-공고 원문·회사 프로필 전문은 입력 파일에 복사하지 않는다. 승계가 이전 계약 검증에 실패하면 모델 호출이나 자동 보정 없이 `screening-failures.v1`의 `schema_violation`으로 격리한다. 이전 run의 파일·DB row·review는 수정하지 않는다.
-
-`decisions.v3`는 model/prompt/policy/profile identity, `judged_in_run`, `recorded_in_run`, `carried_over`, `rejudge_reason`, `two_axis_mixing_flag/label`, grade/readiness, 다섯 perspective, evidence, counterargument, verification items를 가진다. 승계는 원 binding/최초 회차를 보존하며 신규처럼 기록하지 않는다.
-
-### 판정 대상 입력 `bidops.screening-input.v1`
-
-`screening-input.json`은 `schema_version`, `run_id`, `execution_id`, `generated_at`, `source_window{from,to,timezone}`, `prompt_version`, `policy_version`, `company_profile_version`, `company_profile_digest`, `candidate_count`, `notices[]`를 가진다. 실행 artifact의 입력 digest와 DB binding은 bytes를 기준으로 확인한다. `notices[]`는 `bidops.collected.v2`의 normalized notice fields(`notice_id`, 기본 정보, lifecycle, qualification flags, attachments, focus/performance matches, candidate sources, unknown fields, raw source)와 `judgment_mode`를 가진다. 원문·프로필 전문을 복사하지 않는다.
-
-| `judgment_mode` | 호출 | 추가 제약 |
-|---|---|---|
-| `신규` | 7 span | `carry_over_from=null`, `rejudge_reason=null` |
-| `재판정` | 7 span | reason은 `정정|재공고|본공고 전환|담당자 요청` 중 하나 |
-| `승계` | 모델 호출 없음 | 완료된 이전 회차 `carry_over_from` 필수, reason null |
-
-후보 전량은 `screening-input.v1`에 들어가며 `validation-set.v2`가 정기 판정 대기열을 대신하지 않는다. `candidate_count`는 notices 길이와 같고 notice ID는 회차 안에서 unique다. 승계는 이전 식별자·grade/readiness·관점·근거·반론·verification을 보존한 새 immutable artifact이고, 원 DB/file/review를 수정하지 않는다.
-
-### 판정 결과 `bidops.decisions.v3`
-
-새 실행의 decisions top-level은 `schema_version`, `execution_id`, `run_id`, `generated_at`, `screening_basis`, `model_name`, `model_digest`, `prompt_version`, `policy_version`, `company_profile_version`, `company_profile_digest`, `judgments[]`다. 각 judgment는 notice identity, `judgment_mode`, `grade`, `readiness`, `primary_focus`, `exclusion_category`, `summary`, `next_action`, 다섯 perspective, `matched_performances`, `counterarguments`, `verification_items`, model/policy/profile binding과 `judged_in_run`, `recorded_in_run`, `carried_over`, `rejudge_reason`, `two_axis_mixing_flag`, `two_axis_mixing_label`을 보존한다.
-
-grade는 `우선 검토|검토 권장|관찰 대상|제외`, readiness는 `확인 완료|부분 확인 필요|참여 불가 확인|해당 없음`이다. perspective 이름은 기술 적합성·실적 정합성·공공 SI 적합성·사업성·자격 제약·전략 부합이 각각 정확히 한 번이다. 각 perspective는 assessment, reason, evidence[{source,status,fact}]를 결정적으로 검증한다. counterargument는 공고 특화 문장이어야 하며 verification item은 item/why/blocking/status를 가진다. 확인 불가를 이유로 grade를 자동 하향하지 않는다.
-
-승계에서 `carried_over=true`, `judged_in_run`은 최초 생성 회차, `recorded_in_run`은 현재 회차다. 신규·재판정은 carried_over false이며 원본 생성과 현재 기록 회차가 같다. profile version은 항상 `company-profile.sha256:<company_profile_digest>`와 일치한다. `사업성·자격 제약=확인 불가`이고 grade가 `관찰 대상|제외`면 `two_axis_mixing_flag=true`, label `확인 요망`을 남기지만 실패나 자동 보정으로 바꾸지 않는다.
-
-| v3 교차 규칙 | 제약 |
-|---|---|
-| `judgment_mode` | 입력의 같은 notice 값과 일치 |
-| `carried_over` | `신규`·`재판정`은 `false`, `승계`는 `true` |
-| `judged_in_run` / `recorded_in_run` | 신규·재판정은 동일, 승계는 최초 생성 회차와 현재 기록 회차를 각각 보존 |
-| model/prompt/policy/profile binding | 신규·재판정은 실행과 일치, 승계는 원 판정 값을 보존 |
-| five perspectives | 기술 적합성, 실적 정합성, 공공 SI 적합성, 사업성·자격 제약, 전략 부합이 각각 정확히 한 번 |
-| `two_axis_mixing_*` | 표시가 true여도 실패·재시도·등급 자동 변경을 하지 않고 review/metrics에 남김 |
-
-v3의 grade는 `우선 검토|검토 권장|관찰 대상|제외`, readiness는 `확인 완료|부분 확인 필요|참여 불가 확인|해당 없음`이다. perspective는 assessment/reason/evidence[{source,status,fact}], counterargument는 공고 특화 문장, verification item은 item/why/blocking/status를 가지며 기존 결정적 검증 규칙을 그대로 적용한다.
-
-### 실패·병합·계측 파일
-
-`screening-failures.json`은 `schema_version=bidops.screening-failures.v1`, `execution_id`, `run_id`, `generated_at`, `failure_count`, `failures[]`다. failure item은 `notice_id`, `failed_stage`(다섯 관점/반론 검토/종합 판정/병합·검증), `failure_type`(`timeout|truncated_output|schema_violation|evidence_missing|counterargument_repetition`), `last_attempt_at`, `retry_count`, status=`사람 검토 대기`, `failure_context`(승계 검증이면 `carried_over_validation`), optional trace/span, safe `error_summary`다. 승계 검증 실패는 새 failure type을 만들지 않고 `schema_violation`+`carried_over_validation`으로 기록한다. 실패 공고는 decisions와 merge input에서 제외한다.
-
-| 필드 | 허용 값·의미 |
-|---|---|
-| `failed_stage` | 다섯 관점, `반론 검토`, `종합 판정`, `병합·검증` |
-| `failure_type` | `timeout`, `truncated_output`, `schema_violation`, `evidence_missing`, `counterargument_repetition` |
-| `retry_count` | 최초 시도 후 재시도 횟수인 0 이상 정수; 시도 횟수를 성공으로 보정하지 않음 |
-| `status` | 항상 `사람 검토 대기` |
-| `failure_context` | 승계 검증 실패에서만 `carried_over_validation`, 그 밖에는 `null` |
-| `trace_id`, `span_id` | model 호출 실패에는 연결자를 남기고 병합·검증 실패에는 `null`일 수 있음 |
-| `error_summary` | 안전한 분류만 저장하며 원문·prompt·profile·secret을 포함하지 않음 |
-
-`screening-telemetry.jsonl`은 실제 artifact line마다 정확히 `schema_version`, `execution_id`, `trace_id`, `span_id`, `notice_id`, `stage`, `attempt_no`, `status`, `failure_type`, `done_reason`, `model_name`, `model_digest`, `prompt_eval_count`, `eval_count`, `prompt_eval_duration_ns`, `eval_duration_ns`, `load_duration_ns`, `total_duration_ns`, `started_at`, `finished_at`을 저장한다. `parent_span_id`, `run_id`, `prompt_version`, `policy_version`, `recorded_at`은 이 JSONL의 필드가 아니며 실행/DB binding에서 추적한다. 공고 하나의 trace 아래 다섯 perspective·counterargument·synthesis span과 재시도 span을 남긴다. 응답이 없거나 측정하지 못한 수치에는 0을 넣지 않고 null을 보존하며 prompt/response body·비밀은 기록하지 않는다.
-
-telemetry의 `stage`는 다섯 관점, `counterargument`, `synthesis` 중 호출 단계이고 `attempt_no` 최초 값은 1이다. `status`는 `success|failure`이며 Ollama가 반환한 token/duration 수치를 재계산하지 않는다. 승계에는 model-call span을 만들지 않고, 재시도는 같은 trace 아래 앞선 실패 span을 삭제하지 않은 채 새 span으로 기록한다. 이 파일은 관측 정본이지 grade/readiness의 정본이 아니다.
-
-v3 merge의 허용 조합은 `screening-input.v1 + decisions.v3 → bidops.screening.v3`뿐이며, 과거 호환은 `validation-set.v2 + decisions.v2 → bidops.screening.v2`다. 다른 세대 조합은 중단한다. 현재 v3 top-level은 `schema_version`, `execution_id`, `generated_at`, `screening_basis`, `source_window`, `model_name`, `model_digest`, `prompt_version`, `policy_version`, `company_profile_version`, `company_profile_digest`, `candidate_count`, `result_count`, `partial_artifact`, `failure_count`, `failure_artifact`, `results[]`다. `partial_artifact`는 성공 subset과 failure artifact가 함께 있을 때 true이며, 모든 후보가 검증되면 false·failure_count 0·failure_artifact null이다. 전역 merge/validation 실패를 성공 산출물로 만들지 않는다. full-run 파생 publish는 `screening-replacement-provenance.json`으로 source/execution 관계를 기록하고 원 run/review/file을 수정하지 않는다.
-
-### 정책 JSON `bidops.screening-policy.v1`
-
-정책 body는 `schema_version`, `policy_version`, `prompt_version`, `perspective_prompts`, `counterargument_prompt`, `synthesis_prompt`, `candidate_selection`, `thresholds`의 canonical JSON이고 DB row에 `content_digest`를 저장한다. perspective prompt key는 다섯 관점과 정확히 일치하고, 각 prompt object는 version/template/input allow-list/output schema/evidence location requirement를 가진다. policy body/threshold는 immutable이며 status는 `draft|activation_candidate|active`, active slot은 최대 하나다. 실제 공고·프로필·API key를 policy body에 넣지 않는다.
-
-`candidate_selection`은 rules version과 focus-title/classification, performance similarity, include conditions, unknown handling을 보존한다. `thresholds`의 고정 이름은 `quality_gate`(reproducibility grade, reviewer agreement, evidence missing, perspective split, discrimination, audit sample size, information sufficiency는 별도 수치 없음)와 `validation.counterargument_repetition`이며, 측정되지 않은 운영값을 0·빈 문자열·통과값으로 채우지 않는다. 현재 gate 기준 수치는 [모델 품질 게이트](./model-quality-gate.md)의 단일 표를 따른다.
-
-## Runtime REST response 세부
-
-`JudgmentExecutionCreateRequest`는 `policy_version`, `profile_source`(`current` 또는 `git:<40 lowercase hex>`), `requested_by`다. actor는 trim 후 1..128자다. `ScreeningStopRequest`는 `requested_by`다. `ScreeningExecutionResponse`는 `queue_no`, `execution_id`(`scr-`+32 lowercase hex), `trigger`, `source_run_id`, `scope`, optional single `notice_id`, `status`, actor/binding fields, `queued_at`, start/finish/heartbeat/stop metadata, counts, optional publish/error/current metadata, `queue_position`, `result_urls`를 가진다. single 외 scope는 notice_id null이다. 대기만 queue_position을 가지며 terminal은 finished_at이 필수다.
-
-`ScreeningExecutionDetailResponse`는 response와 `attempts[]`, `failures[]`를 추가한다. attempt는 `attempt_id`, execution/notice/stage, attempt_no, success/failure, failure type, done reason, trace/span, Ollama token/duration fields, started/finished, error summary다. stage에는 `carried_over_validation`이 포함된다. artifact kind는 `decisions|failures|telemetry|screening_result`만 허용하고 JSON/NDJSON media type과 known API path만 노출한다.
-
-`QualityGateCreateRequest`는 purpose/policy/profile/created_by다. comparison은 정확한 역사 Git profile, approval은 `current`만 허용한다. `QualityGateResponse`는 gate identity, purpose/execution/result status, fixed baseline/sample paths의 digest, policy/prompt/model/profile binding, distinct pass A/B execution IDs, actor/timestamps, latest evaluation ID, metrics/reasons를 가진다. evaluation은 evaluation ID(`gateeval-`+32 hex), gate/revision/result/metrics/reasons/valid review counts/created_at이고 append-only다. review는 review/gate/execution/notice ID, decision digest, reviewer, evidence judgment(`동의|근거 부족|판단 보류`), note, timestamps다.
-
-`PolicyVersionCreateRequest`는 policy_version, created_by, prompt_version, five prompt objects, counterargument/synthesis prompt, candidate selection, thresholds다. candidate request는 confirmed_by, activation request는 `quality_gate_result_id`(`gateeval-`+32 hex)와 confirmed_by다. active response에는 이전 active version, activation status, activated_at과 평가 ID가 포함된다. gate가 latest passing operational approval이 아니거나 binding이 다르면 409다.
-
-`ScheduleSettingsResponse`는 timezone=`Asia/Seoul`, daily_time, weekly_time, prespec_enabled, updated_at/updated_by다. PATCH는 이 셋 중 적어도 하나와 updated_by가 필요하고 HH:MM을 검사한다. `ScheduleExecutionCreateRequest`는 job_kind daily/weekly, window_from/to, optional recovery execution ID, requested_by다. daily는 하루, weekly는 월요일–일요일 7일이어야 한다. summary는 run_key, run/status/kind, execution/trigger, duplicate/recovery relation, skip/failure reason, actor/timestamps/counts/partial, policy/model/prompt/profile binding을 반환한다. run_key는 daily `YYYYMMDD-YYYYMMDD`, weekly `weekly:YYYYMMDD-YYYYMMDD`다.
-
-`AlwaysOnSwitchResponse`는 configured/effective/environment flags, quality gate status/result ID, policy/model/prompt/profile binding, updated actor/time, rejection_reason을 반환한다. PUT body는 enabled, confirmed_by, enabled=true일 때 required evaluation ID다. 환경 false는 409; binding/approval mismatch도 409다. false는 기존 실행·artifact를 삭제하지 않는다.
-
-### REST 모델 필드 표
-
-`ScreeningExecutionResponse`의 exact public keys는 `queue_no`, `execution_id`, `trigger`, `source_run_id`, `scope`, `notice_id`, `status`, `requested_by`, `policy_version`, `prompt_version`, `model_name`, `model_digest`, `company_profile_version`, `company_profile_digest`, `input_artifact_digest`, `queued_at`, `started_at`, `finished_at`, `heartbeat_at`, `stop_requested_at`, `stop_requested_by`, `stop_reason`, `candidate_count`, `completed_count`, `failure_count`, `published_run_id`, `error_summary`, `queue_position`, `current_notice_id`, `current_stage`, `result_urls`다. `result_urls`는 decisions/failures/telemetry/screening_result/published_run의 `/api/` path 또는 null이다. 실행·프로필 전문, filesystem path, prompt body는 public response에 없다.
-
-`QualityGateResponse`의 exact public keys는 `gate_id`, `purpose`, `execution_status`, `result_status`, `baseline_run_id`, `sample_artifact_digest`, `baseline_decisions_digest`, policy/prompt/model/profile binding, `pass_a_execution_id`, `pass_b_execution_id`, `created_by`, `created_at`, `completed_at`, `latest_evaluation_id`, `metrics`, `reasons`다. detail은 `pass_a`, `pass_b`, `evaluations`, `reviews`를 추가한다. pass IDs는 서로 달라야 하며 terminal execution status에서만 completed_at이 존재한다. latest evaluation revision 1은 gate 생성 transaction에 함께 생성된다.
-
-`ScheduleExecutionSummary`의 exact public keys는 `run_key`, `run_id`, `window_from`, `window_to`, `job_kind`, `status`, `execution_id`, `trigger`, `duplicate_of_execution_id`, `recovery_of_execution_id`, `skip_reason`, `failure_reason`, `requested_by`, `started_at`, `finished_at`, `candidate_count`, `result_count`, `failure_count`, `partial_artifact`, policy/model/prompt/profile binding이다. duplicate와 recovery는 동시에 있을 수 없고, duplicate는 반드시 `건너뜀`이다. schedule trigger actor는 `system:scheduler`다.
-
-`PolicyVersionResponse`는 policy body의 schema/version/prompt/perspective/counterargument/synthesis/candidate/threshold fields와 `content_digest`, `status`, `created_at`, `created_by`, `activated_at`, `activated_by`, `quality_gate_result_id`를 반환한다. `PolicyVersionListResponse`는 items/total/active_policy_version, activation response는 policy/previous active version/quality_gate_result_id/activation_status=`activated`/activated_at이다.
-
-`ScheduleSettingsResponse`는 `timezone`, `daily_time`, `weekly_time`, `prespec_enabled`, `updated_at`, `updated_by`; update는 optional daily/weekly/prespec 중 하나 이상과 required updated_by다. `AlwaysOnSwitchResponse`의 configured/effective/environment flags와 결합 metadata는 configured state와 historical approval 조합을 구분하며, rejection reason은 `environment_disabled`, `approval_unavailable`, `approval_metadata_mismatch` 등 안전한 분류만 반환한다.
-
-목록 모델은 공통으로 `{items,total,limit,offset}` 형태를 사용하고 runtime list의 기본 limit은 50, 범위 1..200, offset은 0 이상이다. legacy notices만 limit 최대 500이다. 날짜·timestamp는 timezone-aware 값이고 계산 불가 수량을 0으로 대체하지 않는다.
-
-## DB·migration 계약
-
-Alembic head는 `0005_generation_config_binding`이며 앱이 실행하는 migration command는 `cd web/backend && alembic upgrade head`다. migration 순서는 다음과 같다.
-
-| revision | 내용 |
-|---|---|
-| `0001_existing_schema` | run, notice, judgment, perspective/evidence, counterargument, verification, attachment, portal, review, ingest warning |
-| `0002_screening_runtime` | profile snapshot, screening execution/attempt, quality gate/evaluation/review, policy, schedule/always-on/audit 및 immutable/approval trigger |
-| `0003_schedule_skipped_recovery` | skipped schedule recovery와 projection disable audit |
-| `0004_migration_audit` | deterministic `db.migration` event(`audit-e7854deca36d619ac1921856bb9bdbcd`, actor `system:migration`, target head) |
-| `0005_generation_config_binding` | frozen stage-aware generation config/digest on execution, input, attempts, quality gate/evaluation, schedule and always-on; deterministic legacy backfill and SQLite immutability/binding triggers |
-
-핵심 runtime row는 `screening_execution`(queue_no, execution_id, trigger/scope/status, source run/notice, requested_by, policy/prompt/model/profile/input/artifact binding, heartbeat/stop/count/publish metadata), `screening_attempt`(stage/status/failure/trace/span/Ollama telemetry), `profile_snapshot`, `quality_gate`, `quality_gate_evaluation`(append-only revision), `quality_gate_review`, `screening_policy`, `schedule_reservation`, `schedule_execution`, `always_on_state`, `audit_event`다.
-
-fresh `alembic upgrade head`는 `schedule_setting(singleton_id=1)`과 `always_on_state(singleton_id=1, enabled=false)` 기본 singleton 및 deterministic `db.migration` audit event를 만든다. `schedule_setting`은 migration 시점의 `BIDOPS_SCHEDULE_DAILY_TIME`, `BIDOPS_SCHEDULE_WEEKLY_TIME`, `BIDOPS_PRESPEC_ENABLED`를 읽고, always-on actor는 `system:migration`이다. `screening_policy`와 legacy `agency_portal`에는 migration/startup seed row가 없으므로 fresh migrated DB에서는 두 table 모두 0행이다. policy는 명시적 `python -m app.screening.policy seed-default --created-by ...`로만, portal은 `POST /api/portals`로만 추가한다. 앱 startup은 `init_db()`에서 revision/schema presence를 읽기 확인할 뿐 migration, `create_all`, portal seed, policy seed를 수행하지 않는다.
-
-`screening_execution.active_slot=1`은 하나만 허용한다. queue claim은 `BEGIN IMMEDIATE`와 bounded busy retry다. profile/policy/evaluation binding은 update trigger로 불변이며, policy active는 하나만 허용한다. schedule reservation PK는 run_key이고 duplicate는 skipped execution이다. DB의 empty/unversioned/stale/integrity failure는 성공 서비스가 아니다.
-
-### 안전한 실패 코드·상태
-
-모델 시도에서 사용하는 `failure_type`은 `timeout`, `truncated_output`, `schema_violation`, `evidence_missing`, `counterargument_repetition`이며, 실행 중단은 `stop_reason=process_interrupted` 또는 요청 actor로 남긴다. schedule preflight 실패는 `ollama_unavailable`로 기록한다. 이 값들은 처리 경로를 고르는 안전한 분류이지, 오류 body의 prompt/profile 내용을 대체하는 상세 로그가 아니다. 공고 실패는 `screening-failures.v1`에 격리하고 성공 subset을 보존한다. full run은 일부 성공이면 `부분 성공`, 유효 판정이 없으면 `실패`, stop이면 `중단됨`이고 새 canonical run을 발행하지 않는다. 알 수 없는 artifact kind는 schema validation 422, 존재하지 않는 execution/artifact는 404다.
-
-## DB admin 명령 계약
-
-```bash
-cd web/backend
-python -m app.db_admin backup --output <backup.db>
-python -m app.db_admin migrate --backup-manifest <backup.db.manifest.json> --confirm-service-stopped
-python -m app.db_admin verify
-python -m app.screening.policy seed-default --created-by <explicit-actor>
-```
-
-backup은 SQLite backup API와 `<backup>.manifest.json`을 만들고 schema `bidops.sqlite-backup.v1`, source/backup path, SHA-256, logical snapshot fingerprint, UTC `created_at`을 저장한다. migrate는 manifest identity/digest/fingerprint와 core counts(`run`, `notice`, `judgment`, `review`, `attachment`), FK/quick_check, exact unversioned baseline을 검사한 뒤 temp copy에 Alembic을 적용하고 검증 후에만 live DB를 바꾼다. manifest를 보존하고 자동 rollback하지 않는다.
-
-container wrapper의 migrate는 `BIDOPS_CONFIRM_SERVICE_STOPPED=true`와 `BIDOPS_BACKUP_MANIFEST`가 모두 필요하다. restore는 운영자가 검증한 backup replacement 결정이며 자동으로 수행하지 않는다. `docker compose down -v`는 이 계약에 없다.
-
-## 환경·CLI 고정값
-
-기본 model `qwen3.8:27b`, endpoint는 host default `http://192.168.0.139:11434`, compose default `http://127.0.0.1:11434`, timeout 180s, keep-alive 30m, context 16384, max output 2048, heartbeat 5s, stale 60s, max concurrency 1, scheduler/daily/weekly/prespec/live false다. `BIDOPS_LIVE_OLLAMA_TEST=true`는 운영자가 명시한 단일 live smoke의 safety marker일 뿐 CLI를 자동 live로 바꾸지 않는다. Docker runtime은 `web/backend/requirements.lock`의 exact pinned transitive closure만 `pip install --requirement`으로 설치하며 range-only `requirements.txt`를 설치하지 않는다.
-
-정확한 stop/backup/migrate/verify/seed/start/health/live 순서는 [운영 절차](./operations.md), 재시도·FIFO·7-span은 [에이전트 런타임](./agent-runtime.md), metric threshold는 [모델 품질 게이트](./model-quality-gate.md)를 따른다.
-
-# 심층 검토 API 계약 (Lean v1)
-
-기본 경로는 `/api`다. 신규 Lean v1은 승인된 API 정확히 14개(#1-7 document/bundle, #8-10 deep review, #11-14 report/evidence)를 등록한다. 기존 legacy API는 호환성을 위해 유지하지만 새 계약의 common error shape는 다음과 같다.
+- JSON 요청과 응답은 UTF-8이다. timestamp는 timezone 정보를 포함하고, 알 수 없는 값은 `null`과 사유로 표현한다.
+- 목록 응답은 원칙적으로 `items`, `total`, `limit`, `offset`을 사용한다. legacy endpoint 중 배열이나 별도 pagination을 반환하는 곳은 호환성을 유지한다.
+- 일반 validation 오류는 422, 존재하지 않는 자원은 404, 중복·불가능한 상태 전이는 409, 준비되지 않은 외부 의존성은 503이다.
+- Lean document/deep-review API에서 router·service가 반환하는 안정 오류는 다음 형식을 사용한다. `request_id`는 요청에 UUID가 없거나 검증 전에 실패하면 `null`이다.
 
 ```json
-{"error":{"code":"bundle_not_ready","message":"ready document bundle이 필요합니다","details":null},"request_id":"..."}
+{
+  "error": {
+    "code": "bundle_not_ready",
+    "message": "ready document bundle이 필요합니다",
+    "details": null
+  },
+  "request_id": "request-id"
+}
 ```
 
-조회는 허용하지만 mutation은 claimed-name boundary와 idempotency/request fence를 통과해야 한다. 이름 입력은 인증/권한 부여가 아니다.
+- Lean API도 path·JSON body·multipart/form 자체가 Pydantic/FastAPI 검증을 통과하지 못한 422에는 FastAPI 기본 `{"detail":[...]}`를 반환한다. 그 밖의 Lean 안정 오류만 위 `error` envelope를 사용한다. legacy API는 다른 `{"detail": ...}` 오류도 계속 반환할 수 있으므로 소비자는 endpoint와 status에 맞는 parser를 사용한다.
+- 새 API와 Lean API 응답은 내부 filesystem path, 객체 저장소 key의 자격증명, prompt, 모델 원응답, 회사 프로필 전문을 포함하지 않는다. 현재 legacy `AttachmentResponse`는 `stored_path?`를, profile snapshots·sections·unknowns는 filesystem `source_ref`/`source`와 raw·parse error를 반환할 수 있는 구현 격차가 있다. 이 field들은 안전한 소비자 계약으로 사용하지 않는다.
+- Lean mutation은 `X-BidOps-Actor-Name`을 요구한다. 이 값은 감사 표식이지 인증 정보가 아니다. 비ASCII 이름은 `X-BidOps-Actor-Name-Format: utf-8-percent-v1`과 canonical UTF-8 percent encoding을 함께 사용한다. 형식이 없으면 printable ASCII를 그대로 보존하며 malformed·제어문자 입력은 `actor_name_invalid`로 거부한다.
 
-`X-BidOps-Actor-Name`의 printable ASCII 값은 wire value를 그대로 사용한다. 표준 라이브러리 기반
-인수 CLI는 비ASCII 이름만 `UTF-8''` 뒤에 canonical UTF-8 percent encoding을 붙이고
-`X-BidOps-Actor-Name-Format: utf-8-percent-v1`을 함께 보낸다. 서버는 이 명시적 형식 헤더가 있을
-때만 비ASCII 값을 복원한다. 형식 헤더가 없으면 prefix나 percent 문자열처럼 보이는 기존 ASCII 이름도
-변경하지 않으며, unknown format과 malformed·ASCII-only·제어문자 encoding은 `actor_name_invalid`로
-거부한다.
+## 상태와 식별자
 
-## Lean API 경로
+- 수집·판정·심층 검토 실행은 서로 다른 불변 execution ID를 사용한다. 재시도는 기존 실행을 덮지 않고 새 attempt 또는 새 execution으로 남긴다.
+- 공고 식별자는 외부 공고번호와 DB 내부 식별자를 구분한다. API 경로의 `{notice_pk}`와 `{notice_id}` 의미를 endpoint schema 그대로 따른다.
+- 판정 실행 status는 대기, 실행, 부분 성공, 성공, 실패, 중단을 구분한다. terminal status에는 종료 시각이 있어야 한다.
+- 심층 검토 attempt stage는 `requirements_and_evaluation`, `delivery_risk_economics`, `synthesis_and_validation`만 허용한다.
+- `계속 추적`, `보류`, `종료`와 최종 입찰 `Go/No-Go`는 향후 기회 계약에서 별도 필드·별도 이벤트로 정의해야 하며 현재 final opinion 값에 임의 매핑하지 않는다.
 
-| 번호 | 호출 |
-|---:|---|
-| 1 | `GET /api/notices/{notice_id}/document-bundles` |
-| 2 | `POST /api/notices/{notice_id}/document-bundles` |
-| 3 | `POST /api/document-bundles/{bundle_id}/documents` |
-| 4 | `PATCH /api/document-versions/{document_version_id}` |
-| 5 | `POST /api/document-bundles/{bundle_id}/confirm` |
-| 6 | `GET /api/document-structures/{structure_id}` |
-| 7 | `GET /api/document-structures/{structure_id}/pages/{page}` |
-| 8 | `POST /api/notices/{notice_id}/deep-reviews` |
-| 9 | `GET /api/deep-reviews/{deep_review_id}` |
-| 10 | `POST /api/deep-reviews/{deep_review_id}/attempts` |
-| 11 | `GET /api/deep-reviews/{deep_review_id}/report` |
-| 12 | `POST /api/deep-reviews/{deep_review_id}/report-revisions` |
-| 13 | `POST /api/deep-reviews/{deep_review_id}/final-opinions` |
-| 14 | `GET /api/evidence/{evidence_id}` |
+## JSON wire shape 규칙
 
-## 상태와 재현성
+아래에서 `field?`는 field가 wire에 있을 때 JSON `null`이 허용된다는 뜻이다. 생략 가능성은 `optional`, null 가능성은 `nullable`로 각각 적는다. `optional`은 생략, `nullable`은 `null`, `optional nullable`은 둘 다를 허용한다. Lean request·response는 열거하지 않은 field를 거부한다. legacy model은 호환 동작을 유지하므로 새 소비자는 정의된 field만 사용한다.
 
-bundle confirmation은 ready/safe/structure snapshot을 고정한다. attempt는 `requirements_and_evaluation`, `delivery_risk_economics`, `synthesis_and_validation` 3 stage만 허용한다. analysis/report는 live attachment/document projection을 reread하지 않고 fixed snapshot/hash를 사용한다. Qwen local endpoint와 policy/model version은 audit-safe metadata/hash로만 기록한다.
+- `RunSummary`: `run_id`, `window_from?`, `window_to?`, `timezone`, `generated_at`, `screening_basis?`, `status`, `superseded_by?`, `counts`. `counts`는 `notices`, `judgments`, `reviews`, `collection`이다.
+- `IngestRequest`: body의 optional nullable `run_id`와 query의 optional nullable `run_id` 중 적어도 하나가 필요하다. `IngestResponse`는 `run_id`, `notices`, `judgments`, `reviews`, `warnings[]`, `warning_counts`다. 같은 회차 재적재는 지원되는 갱신·멱등 경로이며 중복 자체로 409를 반환하지 않는다.
+- `NoticeList` query: required `run_id`; optional `grade`, `readiness`, `focus`, `sample_role`(default `analysis`), `attachment=any|none|manual`, `q`, `sort=deadline|grade|published`, `limit` 1..500(default 50), `offset` 0 이상. 응답은 `items`, `total`, 실제 적용한 `filters`다.
+- `NoticeListItem`: `id`, `notice_key`, `run_id`, `title?`, `agency?`, `published_at?`, `deadline_at?`, `estimated_price?`, `sample_role?`, `sample_stratum?`, `collection_bucket?`, `grade?`, `readiness?`, `focus?`, `attachment_count`, `attachment_status=none|g2b|manual`이다.
+- `ReviewUpsertRequest`: required `run_id`; optional nullable `disposition`, `system_judgment_review`, `corrected_grade`, `corrected_readiness`, `weakest_perspective`, `reason`, `reviewer`; optional `verification_answers`(default `[]`), 요소는 optional nullable `item`, `answer`다. `ReviewResponse`는 `id`, `run_id`, `notice_pk`, 같은 nullable review field, `created_at?`, `updated_at?`, `answers[{id,item?,answer?}]`다. 이 legacy schema의 review 문자열은 wire enum으로 강제되지 않으므로 소비자가 임의의 추가 enum을 가정하지 않는다.
+- `AgencyPortalCreateRequest`: required `agency_pattern`, `system_name`, `search_url_template`; optional non-null `enabled`(default `true`), optional nullable `note`. PATCH는 이 다섯 field의 partial body이다. PATCH `enabled`는 nullable이며 `null`을 보내면 현재 값을 바꾸지 않는 no-op이다. `AgencyPortalResponse`는 `id`, 위 다섯 field다.
+- legacy `AttachmentResponse`: `id`, `name?`, `url?`, `origin?`, `file_ext?`, `size_bytes?`, `stored_path?`, `extract_status?`, `created_at?`. `stored_path` 노출은 지원할 계약이 아니라 제거 전 구현 격차다. notice detail과 첨부 처리 상태에 nested 될 수 있으므로 client는 해당 field를 표시·저장·재전송하지 않는다.
+- `RunDetailResponse`는 `RunSummary` 전체와 `collection_scope`, `pipeline[]`, `artifacts[]`, `warning_counts`다. `collection_scope`는 `window_from?`, `window_to?`, `timezone`, `business_area?`, `pre_spec_available?`, `pre_spec_reason?`, `focus_axes[]`, `performance_reference_count?`다. pipeline item은 `name`, `status`, `artifact?`, `script?`, `execution_id?`, `started_at?`, `finished_at?`, `exit_code?`, `execution_allowed`, `message?`다. artifact item은 `name`, `present`, `schema_version?`, `expected_schema_version?`, `valid?`, `warnings[]`다. legacy `status`들은 wire enum으로 강제되지 않는 string이다.
+- `RunStatsResponse`: `run_id`, `timezone`, `generated_at`, `collected_count?`, `candidate_count?`, `sample_count`, `priority_review_count`, `audit_missed_count`, `funnel[]`, grade/readiness/focus `*_distribution[]`, `verification_requests[]`, `imminent_deadlines[]`. funnel item은 `key`, `label`, `count?`; distribution item은 `key`, `label`, `count`; verification request는 `item`, `count`, `notice_pks[]`, `profile_sections[]`; deadline item은 `NoticeListItem` 전체와 `blocking_verification_items[]`다.
+- `WarningListResponse`: `run_id`, `items[]`, `total`, `level?`, `code?`. warning item은 `id`, `run_id`, `level`, `code`, `message`, nullable opaque JSON `context?`다. `level`은 legacy wire에서 enum으로 강제되지 않는다.
+- `NoticeDetailResponse`는 `NoticeListItem` 전체와 `bid_no?`, `bid_ord?`, `source_type?`, `budget?`, `method?`, `url?`, `timezone`, nullable opaque JSON `procurement_class?`, `region_limit?`, `lifecycle?`, `qualification_flags?`, opaque JSON list `focus_matches[]`, `performance_matches[]`, `candidate_sources[]`, `performance_top_score?`, `judgment?`, `attachments[]`, `reviews[]`다.
+- `JudgmentResponse`: `id`, `schema_version?`, `grade?`, `readiness?`, `primary_focus?`, `exclusion_category?`, `summary?`, `next_action?`, `perspectives[]`, `counterarguments[]`, `verification_items[]`, `matched_performances[]`. perspective는 `id`, `position?`, `name?`, `assessment?`, `reason?`, `evidence[{id,source?,status?,fact?}]`; counterargument는 `id`, `position?`, `text?`; verification item은 `id`, `item?`, `why?`, `blocking`, `status?`; matched performance는 `id`, `name?`, `match_reason?`, `mismatch_or_limit?`, `source?`, `status?`다. 이 legacy 문자열도 wire enum으로 강제되지 않는다.
+- `RelatedNoticeListResponse`: `notice_pk`, `items[]`; item은 `relation=ordinal|unified|pre_spec`, `notice_pk`, `notice_key`, `title?`, `grade?`, `published_at?`, `change_reason?`다. `NoticeHistoryResponse`는 `notice_key`, `items[]`; history item은 `notice_pk`, `run_id`, `window_from?`, `window_to?`, `timezone`, `generated_at`, `grade?`, `readiness?`, `focus?`, `summary?`, `corrected_grade?`, `corrected_readiness?`, `review_reason?`다.
+- `AttachmentProcedureResponse`: `notice_pk`, `agency?`, `bid_no?`, `title?`, `status`, `matched_portal?`, `search_url?`, `portal_message`, `steps[]`, `attachments[]`. 현재 producer의 status는 `missing|provided|completed`이지만 legacy schema는 일반 string으로 받는다. `AttachmentQueueResponse`는 `run_id`, `total`, `items[]`; item은 `NoticeListItem` 전체와 `bid_no?`, `matched_portal?`, `search_url?`, `portal_message`다.
+- `ValidationMetricsResponse`: `run_id`, `metrics[]`. metric은 `key`, `label`, `value?`, `percentage?`, nullable opaque JSON `threshold?`, `meets_threshold?`, `status=pass|fail|measured|not_measurable`, `basis`, `reason?`; basis는 `numerator`, `denominator`, opaque JSON object `detail`이다.
+- 목표 `ProfileSectionsProjectionResponse`: `schema_version=bidops.profile-projection.v1`, `profile_version`, `profile_digest`, `sections[]`, `status_counts`, `error_codes[]`. section은 `id`, `number?`, `title`, `heading`, `level`, `state=confirmed|inferred|unknown|mixed|unrecorded`, `status_counts`, `items[]`, `children[]`다. item은 `key`, `label`, `section_id`, `section_number?`, `status=confirmed|inferred|unknown`, `value?`다.
+- 목표 `ProfileUnknownsProjectionResponse`: 같은 schema·profile binding, `items[]`, `total`, `reference_fields`, `error_codes[]`. item은 `key`, `label`, `section_id`, `section_number?`, `section_title`, `status=unknown`, `value?`, `reference_count?`, `reference_status=counted|unavailable`다. 두 projection은 filesystem `source`, source line, `raw_blocks`, `raw`, 자유 형식 `parse_errors`를 허용하지 않는다. 현재 route는 아직 이 schema를 구현하지 않았다.
+- 목표 snapshot list item은 `version`, `digest`, `source_kind=working_tree|git_blob`, `created_at`만 반환한다. 현재 `source_ref`는 working-tree 상대 파일 경로나 Git commit을 반환하므로 API projection에서 제거하고, 내부 provenance로만 보존한다.
+- 차단된 현재 profile wire는 다음과 같다. snapshots item은 `version`, `digest`, `source_kind`, `source_ref`, `created_at`이다. sections 응답은 `source`, `sections[]`, `status_counts`, `parse_errors[]`; section은 목표 section field에 `raw_blocks[{line_start,raw,error}]`, `raw?`를 추가하고 item에 `source_line?`을 추가한다. unknowns 응답은 `source`, `items[]`, `total`, `reference_fields[]`, `parse_errors[]`; item은 목표 unknown item과 같다. 이 shape는 현재 코드 사실을 기록할 뿐 신규 client가 의존할 계약이 아니다.
+- `PipelineExecutionResponse`: `execution_id`, `source_run_id`, `result_run_id?`, `stage`, `status`, start/finish, `exit_code?`, `error?`, `log_count`. log 응답은 `run_id`, `executions[]`, `items[{timestamp,stream,level,message}]`, `total`이다.
+- screening create request는 `policy_version`, `profile_source=current|git:<40 lowercase hex>`, `requested_by`다. stop request는 `requested_by`다.
+- `ScreeningExecutionResponse`: `queue_no`, `execution_id`, `trigger=cli_single|manual_run|quality_gate|schedule`, `source_run_id`, `scope=single_notice|full_run|quality_sample`, `notice_id?`, `status=대기|실행 중|중지 요청|성공|부분 성공|실패|중단됨`, `requested_by`, `policy_version`, `prompt_version`, `model_name`, `model_digest`, `company_profile_version`, `company_profile_digest`, `generation_config`, `generation_config_digest`, `input_artifact_digest`, `queued_at`, `started_at?`, `finished_at?`, `heartbeat_at?`, `stop_requested_at?`, `stop_requested_by?`, `stop_reason=user_requested|process_interrupted|null`, `candidate_count`, `completed_count`, `failure_count`, `published_run_id?`, `error_summary?`, `queue_position?`, `current_notice_id?`, `current_stage?`, `result_urls`. result URL field는 nullable `decisions`, `failures`, `telemetry`, `screening_result`, `published_run`이며 non-null 값은 `/api/`로 시작한다.
+- execution은 `single_notice`일 때만 `notice_id`를 갖는다. `대기`일 때만 `queue_position`이 필수이며, `중지 요청`은 요청 시각·actor를 필요로 한다. terminal `성공|부분 성공|실패|중단됨`은 `finished_at`이 필수다. model/profile/generation/input digest는 64자 lowercase SHA-256이고 profile version과 digest는 서로 일치한다.
+- `current_stage`는 `기술 적합성|실적 정합성|공공 SI 적합성|사업성·자격 제약|전략 부합|counterargument|synthesis|merge|publish|null`이다. `ScreeningExecutionDetailResponse`는 execution field 전체와 `attempts[]`, `failures[]`다. attempt는 `attempt_id`, `execution_id`, `notice_id`, `stage`, `attempt_no`, `status=success|failure`, `failure_type?`, `done_reason?`, `trace_id`, `span_id`, `prompt_eval_count?`, `eval_count?`, `prompt_eval_duration_ns?`, `eval_duration_ns?`, `load_duration_ns?`, `total_duration_ns?`, `generation_config_digest?`, `num_ctx?`, `num_predict?`, `started_at`, `finished_at`, `error_summary?`다. attempt stage는 `기술 적합성|실적 정합성|공공 SI 적합성|사업성·자격 제약|전략 부합|counterargument|synthesis|carried_over_validation`이다.
+- failure는 `notice_id`, `failed_stage=기술 적합성|실적 정합성|공공 SI 적합성|사업성·자격 제약|전략 부합|반론 검토|종합 판정|병합·검증`, `failure_type=timeout|truncated_output|schema_violation|evidence_missing|counterargument_repetition`, `last_attempt_at`, `retry_count`, `status=사람 검토 대기`, `failure_context=carried_over_validation|null`, `trace_id?`, `span_id?`, `error_summary`다. success attempt에는 failure type이 없고 failure attempt에는 필수다.
+- quality gate create request는 `purpose=model_comparison|operational_approval`, `policy_version`, `profile_source`, `created_by`다. comparison은 고정 역사 Git profile, approval은 `current`만 허용한다. review upsert는 `reviewer`, `evidence_judgment=동의|근거 부족|판단 보류`, optional note다.
+- `QualityGateResponse`: `gate_id`, `purpose`, `execution_status=대기|실행 중|완료|실패|중단됨`, `result_status=통과|미달|미측정|보류`, `baseline_run_id`, `sample_artifact_digest`, `baseline_decisions_digest`, `policy_version`, `prompt_version`, `model_name`, `model_digest`, `company_profile_version`, `company_profile_digest`, `generation_config`, `generation_config_digest`, `pass_a_execution_id`, `pass_b_execution_id`, `created_by`, `created_at`, `completed_at?`, `latest_evaluation_id`, opaque `metrics`, `reasons[]`. terminal execution은 completion time이 필수이고 비terminal에는 없으며 pass A/B ID는 다르다.
+- `QualityGateDetailResponse`는 gate field 전체와 `pass_a`, `pass_b`, `evaluations[]`, `reviews[]`다. evaluation은 `evaluation_id`, `gate_id`, `revision`, `result_status`, opaque `metrics`, `reasons[]`, `valid_review_count`, `distinct_notice_review_count`, `generation_config`, `generation_config_digest`, `created_at`이다. review는 `review_id`, `gate_id`, `execution_id`, `notice_id`, `decision_digest`, `reviewer`, `evidence_judgment`, `note?`, `created_at`, `updated_at`이다.
+- policy create request는 `policy_version`, `created_by`, `prompt_version`, 정확히 다섯 perspective prompt object, `counterargument_prompt`, `synthesis_prompt`, `candidate_selection`, `thresholds`를 가진다. candidate request는 `confirmed_by`, activation request는 `quality_gate_result_id`와 `confirmed_by`다. `PolicyVersionResponse`는 `schema_version=bidops.screening-policy.v1`, `policy_version`, `prompt_version`, `perspective_prompts`, `counterargument_prompt`, `synthesis_prompt`, `candidate_selection`, `thresholds`, `content_digest`, `status=draft|activation_candidate|active`, `created_at`, `created_by`, `activated_at?`, `activated_by?`, `quality_gate_result_id?`다. active일 때 activation metadata 세 field는 모두 필수이고 나머지 status에서는 모두 null이다. activation response는 `policy`, `previous_active_policy_version?`, `quality_gate_result_id`, `activation_status=activated`, `activated_at`이다.
+- schedule settings update는 optional nullable `daily_time`, `weekly_time`, `prespec_enabled` 중 non-null 하나 이상과 required `updated_by`가 필요하다. 시각은 24시간 `HH:MM`이다. `ScheduleSettingsResponse`는 `timezone=Asia/Seoul`, `daily_time`, `weekly_time`, `prespec_enabled`, `updated_at`, `updated_by`다. schedule execution create는 `job_kind=daily|weekly`, `window_from`, `window_to`, optional nullable `recovery_of_execution_id`, required `requested_by`다. daily window는 하루, weekly는 월→일 7일이다.
+- `ScheduleExecutionSummary`: `run_key`, `run_id?`, `window_from`, `window_to`, `job_kind`, `status=예약|실행 중|성공|부분 성공|실패|건너뜀`, `execution_id`, `trigger=schedule|manual`, `duplicate_of_execution_id?`, `recovery_of_execution_id?`, `skip_reason?`, `failure_reason?`, `requested_by`, `started_at?`, `finished_at?`, `candidate_count?`, `result_count?`, `failure_count?`, `partial_artifact?`, `policy_version?`, `model_name?`, `model_digest?`, `prompt_version?`, `company_profile_version?`, `company_profile_digest?`, `generation_config?`, `generation_config_digest?`다. daily run key는 `YYYYMMDD-YYYYMMDD`, weekly는 `weekly:YYYYMMDD-YYYYMMDD`다. duplicate와 recovery는 동시에 있을 수 없고 duplicate는 `건너뜀`+필수 skip reason, recovery는 manual trigger다. profile·generation binding은 각각 pair다. list는 `items,total,limit,offset`이다.
+- always-on update는 `enabled`, `confirmed_by`, optional nullable `quality_gate_result_id`이며 enabled일 때 gate ID가 필요하다. `AlwaysOnSwitchResponse`는 `configured_enabled`, `effective_enabled`, `environment_enabled`, `quality_gate_status?`, `quality_gate_result_id?`, `policy_version?`, `model_name?`, `model_digest?`, `prompt_version?`, `company_profile_version?`, `company_profile_digest?`, `generation_config?`, `generation_config_digest?`, `updated_at`, `updated_by`, `rejection_reason?`다. profile version·digest와 generation config·digest는 각각 둘 다 있거나 둘 다 null이어야 한다.
 
-세 stage persist 이후 machine report materializer가 report, validation, evidence joins, audit를 만들고 같은 fenced transaction 안에서 finish한다. report revision/final opinion은 append-only이며 validation 실패를 자동 통과로 바꾸지 않는다.
+## 현재 REST 경로
 
-## 배포 입력
+### 상태, 회차, 공고
 
-PostgreSQL 17.11 `bidops` schema가 canonical이며 SQLite는 one-time import only다. `docker-compose.t7.yml`은 현재 worktree 전용 template이고 `COMPOSE_PROJECT_NAME=bidops-deep-review-t7`를 지정해서 사용한다. credentials는 `.env.example`의 placeholder를 참고해 외부 secret manager에서 주입한다.
+| 호출 | 입력 | 성공 응답 | 주요 실패 |
+|---|---|---|---|
+| `GET /api/health` | 없음 | `{"status":"ok"}` | 프로세스 불가용 |
+| `GET /api/runs` | 없음 | `{items: RunSummary[], total}` 전체 회차 | 없음 |
+| `POST /api/runs/ingest` | body 또는 query의 run ID | 적재·재적재 건수와 경고 | 404 run directory, 422 run ID 부재 |
+| `GET /api/runs/{run_id}` | path run ID | `RunDetailResponse` | 404 |
+| `GET /api/runs/{run_id}/stats` | path run ID | `RunStatsResponse`; 계산 불가 count는 null | 404 |
+| `GET /api/runs/{run_id}/warnings` | path run ID; optional query `level`, `code` | `WarningListResponse` | 404 |
+| `GET /api/runs/{run_id}/pipeline/logs` | path run ID; optional query `execution_id` | `PipelineLogResponse` | 404 |
+| `POST /api/runs/{run_id}/pipeline/{stage}` | `stage=collect|sample|report`; optional query `from_raw=false` 또는 optional body `{from_raw:false}` | 202 `PipelineExecutionResponse` | 400 입력·stage, 404 run, 409 active 충돌, 422 body·query |
+| `GET /api/notices` | `NoticeList` query | `NoticeListResponse` | 404 run, 422 query |
+| `GET /api/notices/{notice_pk}` | path DB integer notice PK | `NoticeDetailResponse` | 404 |
+| `GET /api/notices/{notice_pk}/related` | path DB integer notice PK | `RelatedNoticeListResponse` | 404 |
+| `GET /api/notices/{notice_pk}/history` | path DB integer notice PK | `NoticeHistoryResponse` | 404 |
+
+### 리뷰, 첨부, 포털, 프로필
+
+| 호출 | 입력 | 성공 응답 | 주요 실패 |
+|---|---|---|---|
+| `GET /api/reviews` | required query `run_id` | `ReviewResponse[]` | 404 run, 422 run ID 부재 |
+| `GET /api/reviews/export` | required query `run_id` | `bidops.feedback.v2` YAML | 404 run, 422 run ID 부재 |
+| `PUT /api/notices/{notice_pk}/review` | run ID, reviewer, disposition, grade/readiness feedback, verification answers | DB 정본 리뷰 | 404 공고·회차, 422 |
+| `GET /api/notices/{notice_pk}/attachments` | path DB integer notice PK | `AttachmentProcedureResponse` | 404 |
+| `POST /api/notices/{notice_pk}/attachments` | path DB integer notice PK; multipart optional `files[]` and optional `file`, 합쳐 1개 이상 | legacy `AttachmentProcedureResponse`; ClamAV·quarantine·MinIO를 거치지 않음 | 400 형식·크기·빈 upload, 404 공고 |
+| `DELETE /api/attachments/{attachment_id}` | attachment ID | 204 | 403 나라장터 제공 첨부, 404 |
+| `GET /api/attachments/queue` | required query `run_id` | `AttachmentQueueResponse` | 404 run, 422 run ID 부재 |
+| `GET /api/attachments/{attachment_id}/download` | attachment ID | legacy 로컬 파일 stream | 404 |
+| `GET /api/portals` | 없음 | `AgencyPortalResponse[]` | 없음 |
+| `POST /api/portals` | `AgencyPortalCreateRequest` | 201 `AgencyPortalResponse` | 422 빈 필수 field |
+| `PATCH /api/portals/{portal_id}` | `AgencyPortalUpdateRequest` partial body | `AgencyPortalResponse` | 404 portal, 422 빈 field |
+| `GET /api/profile/snapshots` | 없음 | 현재 `{items,total}`; item의 working-tree `source_ref`가 내부 상대 경로일 수 있어 운영 사용 차단 | 없음 |
+| `GET /api/profile/sections` | 없음 | 현재 `source`, structured sections, raw blocks·raw text, parse errors; 운영 사용 차단 | 파싱 실패가 응답에 노출될 수 있음 |
+| `GET /api/profile/unknowns` | 없음 | 현재 `source`, unknown items, reference fields, parse errors; 운영 사용 차단 | 파싱 실패가 응답에 노출될 수 있음 |
+| `GET /api/metrics/validation` | required query `run_id` | `ValidationMetricsResponse` | 404 run, 422 run ID 부재 |
+
+### 판정 실행, 정책, 품질, 일정
+
+| 호출 | 입력 | 성공 응답 | 주요 실패 |
+|---|---|---|---|
+| `POST /api/runs/{run_id}/pipeline/judgment` | path run ID; `JudgmentExecutionCreateRequest` | 202 `ScreeningExecutionResponse` | 400 profile·input·준비, 404 run·policy, 422 body, 500 생성 후 재조회, 503 model preflight |
+| `GET /api/screening/executions` | optional status, trigger, nonblank run ID, limit 1..200(default 50), offset | `{items,total,limit,offset}` | 422 query, 500 저장 binding 손상 |
+| `GET /api/screening/executions/{execution_id}` | path execution ID | `ScreeningExecutionDetailResponse` | 404, 500 저장 binding 손상 |
+| `POST /api/screening/executions/{execution_id}/stop` | path execution ID; `ScreeningStopRequest` | `ScreeningExecutionResponse` | 404, 409 terminal, 422 ID·actor, 500 binding 손상 |
+| `GET /api/screening/executions/{execution_id}/artifacts/{kind}` | kind=`decisions|failures|telemetry|screening_result` | JSON 또는 NDJSON | 404, 422 |
+| `POST /api/quality-gates` | `QualityGateCreateRequest` | 202 `QualityGateResponse` | 404 run·policy, 409 conflict, 422 body·고정 입력, 500 생성 후 재조회, 503 model preflight |
+| `GET /api/quality-gates` | optional purpose, execution/result status, limit 1..200, offset | `{items,total,limit,offset}` | 409 stale refresh, 422 query, 500 binding 손상 |
+| `GET /api/quality-gates/{gate_id}` | path gate ID | `QualityGateDetailResponse` | 404, 500 binding 손상 |
+| `PUT /api/quality-gates/{gate_id}/reviews/{notice_id}` | path gate·notice ID; `QualityGateReviewUpsertRequest` | `QualityGateDetailResponse` | 404 gate·pass A notice, 409 review conflict, 422 body, 500 binding 손상 |
+| `GET /api/policies` | optional `status=draft|activation_candidate|active` | `{items,total,active_policy_version}` | 422 query |
+| `POST /api/policies` | immutable `PolicyVersionCreateRequest` | 201 draft `PolicyVersionResponse` | 409 version, 422 schema |
+| `GET /api/policies/{policy_version}` | path version | `PolicyVersionResponse` | 404 |
+| `POST /api/policies/{policy_version}/candidate` | path version; `PolicyCandidateRequest` | `PolicyVersionResponse` | 404, 409 status, 422 body |
+| `POST /api/policies/{policy_version}/activate` | path version; `PolicyActivationRequest` | `PolicyActivationResponse` | 404, 409 gate·binding, 422 body |
+| `GET /api/schedule/settings` | 없음 | `ScheduleSettingsResponse` | 500 조회 불가 |
+| `PATCH /api/schedule/settings` | daily/weekly time 또는 prespec flag 중 하나 이상, updated by | `ScheduleSettingsResponse` | 400 저장, 422 설정 |
+| `POST /api/schedule/executions` | `ScheduleExecutionCreateRequest` | 202 `ScheduleExecutionSummary` | 409 예약·recovery, 422 body·window, 500 저장 binding 손상 |
+| `GET /api/schedule/executions` | optional job kind, status, `from`, `to`, limit 1..200, offset | `{items,total,limit,offset}` | 422 filter·range, 500 저장 binding 손상 |
+| `GET /api/schedule/always-on` | 없음 | `AlwaysOnSwitchResponse` | 500 조회 불가 |
+| `PUT /api/schedule/always-on` | `AlwaysOnSwitchUpdateRequest` | `AlwaysOnSwitchResponse` | 409 환경·승인·binding, 422 body, 500 응답 binding 손상 |
+
+판정 실행 응답은 queue number, execution ID, trigger, source run, scope, optional notice, status, actor, policy·prompt·model·profile·input digest binding, 시간, stop 정보, counts, 현재 stage, artifact URL을 반환한다. 실행 detail은 attempts와 failures를 추가한다. 측정하지 않은 token·duration은 0으로 만들지 않는다.
+
+품질 gate는 `model_comparison`과 `operational_approval` 목적을 구분한다. 고정 표본과 baseline digest, 서로 다른 pass A/B 실행, policy·prompt·model·profile binding, append-only evaluation revision, 사람 리뷰를 보존한다. 최신 passing operational approval과 binding이 정확히 일치해야 정책과 always-on을 활성화할 수 있다.
+
+### 문서 준비와 심층 검토
+
+| 호출 | 입력 | 성공 응답 | 주요 실패 |
+|---|---|---|---|
+| `GET /api/notices/{notice_id}/document-bundles` | integer notice ID | 200 `BundleListResponse` | 404 `not_found`; 422 path; 500 `processing_failed` |
+| `POST /api/notices/{notice_id}/document-bundles` | actor header; strict 빈 JSON `{}` | 201 `BundleView` | 400 `actor_name_required|actor_name_invalid`; 403 `effective_grade_ineligible`; 404 `not_found`; 422 path·body; 500 `processing_failed` |
+| `POST /api/document-bundles/{bundle_id}/documents` | actor header; multipart required `file`; form required UUID `request_id` | 202 `DocumentVersionView` | 400 `actor_name_required|actor_name_invalid|invalid_request|unsafe_document`; 404 `not_found`; 409 `idempotency_conflict`; 422 path·form; 500 `processing_failed`; 503 `service_unavailable` |
+| `PATCH /api/document-versions/{document_version_id}` | actor header; `PatchDocumentVersionRequest` | 200 `DocumentVersionView` | 400 `actor_name_required|actor_name_invalid|invalid_request`; 404 `not_found`; 409 `version_conflict`; 422 path·body; 500 `processing_failed` |
+| `POST /api/document-bundles/{bundle_id}/confirm` | actor header; `ConfirmRequest` | 200 `BundleView` | 400 `actor_name_required|actor_name_invalid|invalid_request`; 404 `not_found`; 409 `version_conflict|idempotency_conflict|bundle_has_blocking_issues|structure_unavailable`; 422 path·body; 500 `processing_failed` |
+| `GET /api/document-structures/{structure_id}` | UUID structure ID | 200 `DocumentStructure` | 403 `unsafe_document`; 404 `not_found`; 422 path; 500 `processing_failed` |
+| `GET /api/document-structures/{structure_id}/pages/{page}` | UUID structure ID; page는 1 이상 정수 문자열 | 200 `DocumentStructurePageView` | 403 `unsafe_document`; 404 `not_found`(비정수·1 미만·없는 page 포함); 422 structure UUID; 500 `processing_failed` |
+| `POST /api/notices/{notice_id}/deep-reviews` | actor header; `DeepReviewCreateRequest`; active profile/policy는 서버가 고정 | 202 `DeepReviewView` | 400 `actor_name_required|actor_name_invalid|invalid_request`; 403 `effective_grade_ineligible`; 404 `not_found`; 409 `bundle_not_ready|idempotency_conflict|active_attempt_exists`; 422 path·body; 500 `processing_failed`; 503 `service_unavailable` |
+| `GET /api/deep-reviews/{deep_review_id}` | UUID review ID | 200 `DeepReviewView` | 404 `not_found`; 422 path; 500 `processing_failed` |
+| `POST /api/deep-reviews/{deep_review_id}/attempts` | actor header; `DeepReviewAttemptRequest` | 202 `AttemptView` | 400 `actor_name_required|actor_name_invalid|invalid_request`; 404 `not_found`; 409 `review_not_ready|active_attempt_exists|idempotency_conflict`; 422 path·body; 500 `processing_failed` |
+| `GET /api/deep-reviews/{deep_review_id}/report` | UUID review ID | 200 `ReportView` | 404 `not_found`; 409 `review_not_ready`; 422 path; 500 `processing_failed` |
+| `POST /api/deep-reviews/{deep_review_id}/report-revisions` | actor header; `ReportRevisionRequest` | 201 `ReportView` | 400 `actor_name_required|actor_name_invalid|factual_change_evidence_required`; 403 `evidence_out_of_scope|unsafe_document`; 404 `not_found`; 409 `review_not_ready|version_conflict|idempotency_conflict|validation_failed`; 422 path·body 또는 scope 불일치 `validation_failed`; 500 `processing_failed` |
+| `POST /api/deep-reviews/{deep_review_id}/final-opinions` | actor header; `FinalOpinionRequest` | 201 `FinalOpinionView` | 400 `actor_name_required|actor_name_invalid|final_opinion_reason_required`; 404 `not_found`; 409 `idempotency_conflict|validation_failed|version_conflict`; 422 path·body; 500 `processing_failed` |
+| `GET /api/evidence/{evidence_id}` | UUID evidence ID | 200 `EvidenceView` | 403 `evidence_out_of_scope|unsafe_document`; 404 `not_found`; 422 path; 500 `processing_failed` |
+
+bundle confirm은 악성코드 clean 결과, document version, structure snapshot과 hash를 고정한다. 심층 attempt와 report materializer는 live 첨부를 다시 읽지 않고 이 snapshot만 사용한다. validation 실패는 report에서 드러나며 자동 통과로 바뀌지 않는다.
+
+Lean wire model의 정확한 shape는 다음과 같다. 별도 `optional` 표기가 없으므로 모든 field는 wire에 필수이며 `?` field만 필수 nullable이다. UUID·date·datetime은 JSON 문자열이고 `source_sha256`는 64자 lowercase SHA-256이다.
+
+- `DocumentVersionView`: `id`, `bundle_id`, `version>=1`, `role`, `effective_date?`, `replaces_document_version_id?`, `is_current`, `safety_status`, `structure_status`, `original_filename`. `role=공고|정정|제안요청서|과업지시서|내역서|제출서식|부록|기타`, `safety_status=quarantined|scanning|safe|blocked`, `structure_status=pending|processing|ready|failed|needs_review`다.
+- `BundleIssue`: `issue_id`, `code`, `severity=차단|중대|보통|낮음`, `blocking`, `document_version_id?`, `message`, `locator_type=none|page|paragraph|table_cell|bbox`, nullable opaque object `locator?`다. `BundleView`: `id`, `notice_id`, `revision>=1`, `version>=1`, `status=draft|processing|needs_review|ready|quarantined|failed|superseded`, `documents: DocumentVersionView[]`, `issues: BundleIssue[]`, `confirmed_by?`, `confirmed_at?`, `created_at`. `BundleListResponse`는 pagination field 없는 정확히 `{items: BundleView[]}`다.
+- `PatchDocumentVersionRequest`는 `role`, nullable `effective_date`, nullable `replaces_document_version_id`, `is_current`, `version>=1`이 모두 필수다. `ConfirmRequest`는 `request_id`, `version>=1`, `confirmed_documents[]`; 각 확인 항목은 `document_version_id`, `version>=1`이다.
+- `DocumentStructure`: `schema=bidops.document-structure.v1`, `structure_id`, `document_version_id`, `source_sha256`, `media_type`, `extractor`, `pages[]`, `blocks[]`, `warnings[]`, `created_at`. extractor는 `name`, `version`, nullable `upstream_commit`; page metadata는 `number>=1`, `width>0`, `height>0`, nullable `image_content_object_id`; block은 `block_key`, nullable `parent_block_key`, `type`, `page>=1`, nullable numeric `bbox[]`, `text`, nullable `confidence`(0..1), opaque object `attributes`다. `DocumentStructurePageView`는 `structure_id`, `page>=1`, `metadata`, `blocks[]`다.
+- `DeepReviewCreateRequest`는 `request_id`, `bundle_id`; `DeepReviewAttemptRequest`는 `request_id`다. `StageView`는 `stage=requirements_and_evaluation|delivery_risk_economics|synthesis_and_validation`, `sequence>=1`, `status=queued|running|completed|failed`, `started_at?`, `completed_at?`, `last_error_code?`. `AttemptView`는 `id`, `sequence>=1`, `status=queued|running|completed|failed|superseded`, `stages: StageView[]`, `started_at?`, `completed_at?`, `last_error_code?`. `DeepReviewView`는 `id`, `notice_id`, `bundle_id`, `status=queued|running|completed|failed`, `current_attempt?`, `attempts: AttemptView[]`, `created_at`, `completed_at?`다.
+- `ReportRow`: nonblank `row_key`, nonblank `label`, `cells[]`, `claim_ids[]`. `ReportBlock`: nonblank `block_id`, `type=paragraph|matrix|decision_card|scenario|action_list`, nullable `title`, nullable `body`, `claim_ids[]`, `rows: ReportRow[]`. `ReportSection`: `section_key`, nonblank `title`, `blocks: ReportBlock[]`. section key는 `project_overview|eligibility_matrix|scope_deliverables|requirements_matrix|evaluation_strategy|delivery_plan|technical_integration_risks|security_legal_contract_risks|economics_scenarios|competitive_proposal_strategy|questions_internal_actions|document_bundle_limitations|decision_card`다.
+- `ReportClaim`: `claim_id`, nonblank `category`, `claim_type=fact|calculation|inference|opinion|unknown`, nonblank `body`, `status=supported|unsupported|conflicting|unknown`, nullable `formula`, `premise_claim_ids[]`, nullable `reason`, `evidence_ids[]`. `ValidationSummary`: `status=passed|failed`, nonnegative `failed`, `warnings`, `passed`다.
+- `DeepReviewReport`: `schema=bidops.deep-review-report.v1`, `deep_review_id`, `notice_id`, `bundle_id`, `profile_version_id`, `policy_version_id`, `sections: ReportSection[]`, `system_recommendation=추진 검토|조건부 추진 검토|보류|검토 종료`, `claims: ReportClaim[]`, `unknowns[]`, `validation_summary`, `created_at`.
+- `ValidationCheck`: nonblank `check_type`, `status=passed|failed|warning`, `severity=차단|중대|보통|낮음`, nonblank `message`, `related_claim_ids[]`, `related_evidence_ids[]`. `DeepReviewValidation`: `schema=bidops.deep-review-validation.v1`, `validation_run_id`, `report_revision_id`, `status=passed|failed`, `checks: ValidationCheck[]`, `created_at`. `RevisionHistoryItem`: `revision_id`, `sequence>=1`, `origin=machine|human`, nullable `validation_status=passed|failed`, nullable `created_by_name`, `created_at`.
+- `FinalOpinionView`: `id`, `sequence>=1`, `value=추진|조건부 추진|보류|검토 종료`, `reason`, `validation_status_at_opinion=passed|failed`, `acknowledged_validation_failure`, `claimed_name`, `created_at`. `ReportView`: `deep_review_id`, `current_revision_id`, `report: DeepReviewReport`, `validation: DeepReviewValidation`, `history: RevisionHistoryItem[]`, nullable `final_opinion: FinalOpinionView`다.
+- `ReportRevisionRequest`: `request_id`, `base_revision_id`, `report: DeepReviewReport`, nonblank `reason`, `factual_change_evidence_ids[]`. `FinalOpinionRequest`: `request_id`, `report_revision_id`, `validation_run_id`, `value=추진|조건부 추진|보류|검토 종료`, `reason`, `acknowledged_validation_failure`; schema는 빈 문자열을 구조적으로 거부하지 않지만 service는 blank reason을 400 `final_opinion_reason_required`로 거부한다.
+- `EvidenceView`: `evidence_id`, `source_kind=document|profile`, nullable `document_version_id`, nullable `structure_id`, nullable `profile_version_id`, nullable `profile_evidence_id`, `locator_type=page|paragraph|table_cell|bbox|profile_fact`, opaque object `locator`, `quote`, nullable `confidence`(0..1), `source_sha256`, nullable `page: DocumentStructurePageView`다.
+
+Lean 안정 오류 code의 전체 vocabulary는 `invalid_request`, `actor_name_required`, `actor_name_invalid`, `not_found`, `effective_grade_ineligible`, `bundle_not_ready`, `bundle_has_blocking_issues`, `unsafe_document`, `structure_unavailable`, `version_conflict`, `idempotency_conflict`, `active_attempt_exists`, `service_unavailable`, `review_not_ready`, `evidence_out_of_scope`, `factual_change_evidence_required`, `validation_failed`, `final_opinion_reason_required`, `processing_failed`다. 소비자는 table에 적힌 endpoint별 status/code 조합만 정상 계약으로 처리하고, 알려지지 않은 조합은 안전하게 실패시킨다.
+
+## 파이프라인 파일 계약
+
+모든 파일은 UTF-8, 불변 run 디렉터리, 명시적 schema version을 사용한다.
+
+| 파일·schema | 생산자 | 소비자 | 핵심 의미 |
+|---|---|---|---|
+| `collected-notices.json` / `bidops.collected.v2` | collect | 표본 선정, 웹 적재 | 원본 회차, 정규화 notices, source window |
+| `validation-set.json` / `bidops.validation-set.v2` | collect sample | screen v2, 품질 기준선 | 고정 표본과 source identity |
+| `screening-input.json` / `bidops.screening-input.v1` | runtime orchestrator | screen v3 worker | execution/run, 후보, 불변 binding |
+| `screening-decisions.json` / `bidops.decisions.v2` | 과거 screen | v2 merge, 품질 baseline | 과거 판정 계약 |
+| `screening-decisions.json` / `bidops.decisions.v3` | 현재 screen | v3 merge, 웹 적재 | 5개 관점, 반론, 종합, 근거 |
+| `screening-failures.json` / `bidops.screening-failures.v1` | screen | 웹, 운영자 | 실패 stage/type, retry, 안전한 요약 |
+| `screening-telemetry.jsonl` / `bidops.screening-telemetry.v1` | screen | 관측 적재 | 호출 span, model digest, token/duration |
+| `screening-results.json` / `bidops.screening.v2` | legacy merge | report, 웹 적재 | 과거 결정적 HTML·feedback 입력 |
+| `screening-results.json` / `bidops.screening.v3` | runtime merge | 웹 적재 | 성공 subset, partial/failure·execution binding; 현재 report renderer는 미지원 |
+| `review-feedback.yaml` / `bidops.feedback.v2` | report/API export | 호환 가져오기 | 사람 리뷰 교환; DB가 적재 뒤 정본 |
+| replacement provenance / `bidops.screening-replacement.v1` | full rerun publish | 적재·감사 | source run과 새 execution 관계 |
+
+허용 merge는 `validation-set.v2 + decisions.v2 → screening.v2`와 `screening-input.v1 + decisions.v3 → screening.v3`다. 세대를 섞으면 중단한다. v3 성공 결과는 execution, run, policy, prompt, model digest, profile digest, input digest를 역추적할 수 있어야 한다. 일부 notice 실패 시 성공 subset과 failure artifact를 함께 보존하고 `partial_artifact=true`로 표시한다.
+
+현재 `render_report.py`는 `bidops.screening.v2`만 허용한다. v3를 report stage에 전달하면 계약 오류로 종료하며, v3 HTML·feedback 연결은 구현되지 않았다. 소비자는 v3가 자동으로 보고서까지 이어진다고 가정하지 않는다.
+
+승계 판정은 `carried_over=true`, 최초 `judged_in_run`, 현재 `recorded_in_run`을 보존한다. 승계를 새 모델 호출로 기록하지 않는다. 승계 validation 실패는 별도 성공 판정으로 만들지 않고 사람 검토 대기 failure로 남긴다.
+
+## 심층 검토 내부 artifact
+
+| schema | 용도 |
+|---|---|
+| `bidops.agent-command.v1` | API가 worker에 전달하는 fenced command |
+| `bidops.agent-run.v1` | worker 실행, 입력·출력 hash, 상태와 lineage |
+| `bidops.document-converter-request.v1` | network 없는 변환 worker 요청 |
+| `bidops.document-converter-result.v1` | 변환 결과와 안전한 오류 |
+| `bidops.document-structure.v1` | page/block/table 구조와 원문 locator |
+| `bidops.document-bundle.v1` | 확정된 document versions와 structure snapshot |
+| `bidops.deep-review-stage.v1` | 세 단계의 claims, evidence, unknowns, warnings |
+| `bidops.deep-review-report.v1` | 검증된 claim을 이용한 보고서 |
+| `bidops.deep-review-validation.v1` | 근거·수치·계약 검증 결과 |
+| `bidops.analysis-policy.v1` | 모델, chunk, retry, generation, validation 정책 |
+| `bidops.company-profile.v1` | 승인된 회사 profile snapshot |
+
+모델 response 원문은 암호화된 객체로 저장하고 DB에는 namespace, version, hash, key reference만 둔다. evidence locator는 document version, structure ID, page·block 또는 표 좌표를 포함하며 report의 사실·숫자와 연결된다.
+
+## DB와 migration 계약
+
+- 현재 Alembic head는 `0003_screening_runtime_pg`다.
+- `0001_lean_v1_postgresql`은 기존 수집·리뷰와 심층 검토 table, `0002_screening_basis_text`는 긴 판정 설명 보존, `0003_screening_runtime_pg`는 판정 실행·품질·정책·일정·감사와 불변 trigger를 추가한다.
+- 앱 startup은 revision과 필수 table 존재만 확인한다. migration과 seed를 실행하지 않는다.
+- fresh migration은 schedule과 always-on singleton, migration audit만 만든다. screening policy와 agency portal은 명시적 운영 명령 또는 API로 생성한다.
+- active screening slot과 active policy는 각각 최대 하나다. queue claim은 queue number FIFO와 짧은 transaction으로 처리한다. deep-review job claim은 PostgreSQL row lock과 `SKIP LOCKED`를 사용한다.
+
+## 발주계획 중심 목표 계약
+
+다음 의미 계약은 합의됐지만 route와 schema version은 아직 배정하지 않았다. 구현할 때 기존 notice 계약을 몰래 확장하지 말고 새 version을 정의한다.
+
+- 발주계획 원본 전체: 공식 계획번호, 사업명, 기관 코드·명, 예산, 예정일, 계약 방식, 업무 구분, SW 상태, 원문 URL, 최초·최근 발견, source hash.
+- 방식별 실험 결과: method/version, score, rank, reason, raw output reference, 실행 비용·지연, 사람 relevance·우선순위와 adjudication.
+- 내부 opportunity: plan, pre-spec, bid의 공식 관계와 미확정 후보 관계를 분리하고 관계 근거·확인자를 기록한다.
+- 사전규격: 독립 수집 회차, 업무·SW 필터, RFP 첨부 bundle, 저비용 선별, 사람 심층 검토 승인.
+- 추적: `계속 추적|보류|종료`, 변경 이력, bid 발견, 사전규격 대비 delta, 알림 delivery 상태.
+- 실행: 자동 연결과 수동 단독 실행이 같은 execution, attempt, artifact, idempotency, audit 계약을 공유한다.
+- 최종 결정: 입찰공고 시점의 사람 `Go/No-Go`를 추적 선택이나 모델 권고와 분리한다.
