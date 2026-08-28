@@ -56,6 +56,14 @@ class Settings(BaseSettings):
             "BIDOPS_REVIEWER_NAME",
         ),
     )
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = Field(
+        default="WARNING",
+        validation_alias="BIDOPS_LOG_LEVEL",
+    )
+    log_traceback: bool = Field(
+        default=False,
+        validation_alias="BIDOPS_LOG_TRACEBACK",
+    )
     database_url: str | None = Field(
         default=None,
         validation_alias="BIDOPS_DATABASE_URL",
@@ -212,6 +220,16 @@ class Settings(BaseSettings):
     model_response_secret_key: str | None = Field(default=None, validation_alias="BIDOPS_MODEL_RESPONSE_SECRET_KEY")
     model_response_encryption_key: str | None = Field(default=None, validation_alias="BIDOPS_MODEL_RESPONSE_ENCRYPTION_KEY")
     model_response_encryption_key_ref: str | None = Field(default=None, validation_alias="BIDOPS_MODEL_RESPONSE_ENCRYPTION_KEY_REF")
+
+    @field_validator("log_level", mode="before")
+    @classmethod
+    def validate_log_level(cls, value: object) -> str:
+        if not isinstance(value, str):
+            raise ValueError("BIDOPS_LOG_LEVEL must be DEBUG, INFO, WARNING, or ERROR")
+        normalized = value.upper()
+        if normalized not in {"DEBUG", "INFO", "WARNING", "ERROR"}:
+            raise ValueError("BIDOPS_LOG_LEVEL must be DEBUG, INFO, WARNING, or ERROR")
+        return normalized
 
     @model_validator(mode="after")
     def derive_paths(self) -> "Settings":

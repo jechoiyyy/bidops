@@ -1,0 +1,34 @@
+{
+  "schema_version": "bidops.order-plan-capabilities.v1",
+  "approval_status": "approved",
+  "profile_version": "rootlab-company-profile-2026-08-96731dd5f77d",
+  "summary_sha256": "2ee0ebdd126341a6a79997341ebb93a76b00d5477d65ee21f635a41ecef2a57a",
+  "approved_by": "choi",
+  "approved_at": "2026-08-28T09:35+09:00",
+  "capabilities": [
+    {
+      "id": "ai-data-analytics",
+      "summary": "생성형 AI·LLM 기반 정보 분석, AI Agent 업무자동화·의사결정 지원·보고서 생성, 빅데이터 분석·예측·시각화, AI 학습모델과 영상 분석 개발 역량이 확인됨."
+    },
+    {
+      "id": "data-platform-integration",
+      "summary": "공공·행정·산업 데이터 수집·통합, 데이터 표준화·품질관리, 기관 간 API·시스템 연계, 공공 마이데이터와 데이터 플랫폼 구축·운영 역량이 확인됨."
+    },
+    {
+      "id": "blockchain-did-credentials",
+      "summary": "블록체인 메인넷 구축·운영, DID 신원인증, 전자지갑·전자증명, 디지털배지·학습이력 증명, 스마트컨트랙트와 데이터 위변조 방지 역량이 확인됨."
+    },
+    {
+      "id": "public-si-lifecycle",
+      "summary": "공공 정보화 ISP·BPR, 신규 시스템 구축, 기능 고도화, 운영·유지관리, 통합관리·PMS·평가·접수·심사 시스템과 CMS·홈페이지·포털 수행 역량이 확인됨."
+    },
+    {
+      "id": "saas-cloud",
+      "summary": "SaaS 기반 업무시스템, 클라우드 기반 통합관리·데이터 플랫폼, 공공 클라우드 기반 서비스 구축 역량이 확인됨."
+    },
+    {
+      "id": "ontology-knowledge-graph",
+      "summary": "이기종 데이터 모델링·표준화, 산업 도메인 지식베이스, 지식 기반 추론과 AI 연계 검색·추천 역량이 확인되지만 대표 수행실적 근거는 다른 핵심 기술영역보다 제한적임."
+    }
+  ]
+}

@@ -1,29 +1,49 @@
 # 프론트엔드 모듈 작업 규칙
 
-## 범위
+## 책임
 
-이 모듈은 React 관리자 화면, 탐색·검토 흐름, REST 호출과 서버 상태 표현을 소유한다. 판정·지표 계산, 파일 저장, DB 접근, 모델 실행 로직은 이 모듈의 범위가 아니다.
+이 모듈은 React 관리자 화면, REST client와 TypeScript API model, 목록·상세 검토 상태, 실행 진행·실패 표현을 소유한다. 판정 계산, DB·파일 접근, model 호출, 알림 발송은 수행하지 않는다.
 
-## 경계
+## 데이터 경계
 
-- API 응답을 재판정하거나 누락된 등급·준비 상태·지표를 브라우저에서 계산하지 않는다.
-- SQLite, `data/runs`, 첨부 저장 경로를 직접 읽지 않는다. 다운로드도 API URL만 사용한다.
-- 백엔드 오류의 `detail` 문구를 영구 오류 코드처럼 분기하지 않는다.
-- 컴포넌트에서 모델·OpenAI API를 직접 호출하거나 키를 번들에 넣지 않는다.
+- 서버 응답을 브라우저에서 재판정하거나 누락된 등급, 준비 상태, 지표, relation을 계산하지 않는다.
+- DB, run 디렉터리, 첨부·객체 경로를 직접 읽지 않는다. 조회와 다운로드는 API URL만 사용한다.
+- API error의 human message를 안정 code처럼 분기하지 않는다. endpoint 계열의 typed error shape와 code를 사용한다.
+- 모델 provider를 브라우저에서 직접 호출하거나 key, profile, prompt를 bundle에 넣지 않는다.
+- 프로필 화면은 API의 승인된 구조화 항목·`unknown`만 사용한다. filesystem source, source line, raw block·raw text, parser 예외을 type이나 UI에 추가하지 않는다.
+- TypeScript strict를 유지하고 API payload를 `any`로 우회하지 않는다.
 
-## 불변 조건
+## 상태 표현
 
 - `값 없음`, `미확인`, `계산 불가`, 실제 0을 서로 다르게 표시한다.
-- 등급과 준비 상태를 별도 필드와 라벨로 보여 주며 하나를 다른 하나의 색·문구로 대체하지 않는다.
-- 색만으로 등급·마감·차단 상태를 전달하지 않고 문자, 아이콘 또는 구조적 표시를 함께 제공한다.
-- 리뷰 저장은 현재 공고와 회차를 함께 보내며 확인 답변 전체 교체 의미를 UI 상태에 반영한다.
-- 이름 입력 기능이 구현되면 변경 저장 전 이름을 요구하되 로그인 완료나 신원 인증으로 표현하지 않는다.
-- OpenAI 보조 분석은 전송 대상 미리보기와 건별 승인 없이 시작 버튼을 활성화하지 않는다.
+- 적합성 등급, 참여 준비 상태, 추적 선택, 최종 Go/No-Go를 별도 필드·라벨·action으로 표시한다.
+- 성공, 부분 성공, 실패, 중단, 사람 검토 대기를 서로 구분하고 failure artifact나 재시작 가능 여부를 숨기지 않는다.
+- 색만으로 등급, deadline, 차단, delta를 전달하지 않고 문자·아이콘·구조적 표시를 함께 제공한다.
+- 담당자 이름은 저장 전에 요구할 수 있지만 로그인이나 신원 인증으로 표현하지 않는다.
+- 외부 모델 보조 실행은 전송 필드와 payload 미리보기, 대상 모델, 승인 action 없이는 시작할 수 없게 한다. 허용 payload는 공개 발주계획 metadata와 별도 승인된 최소 회사 역량 요약뿐이다. RFP·첨부, profile 전문, evidence, 내부 review·실적은 preview 후 사람이 승인해도 외부 전송 action을 활성화하지 않는다.
 
-## 구현 패턴
+## 검토 흐름
 
-서버 상태는 TanStack Query로 조회·무효화하고 URL이 필요한 필터는 라우터 상태와 동기화한다. API 모델은 명시적 TypeScript 타입으로 다루며 `any`로 우회하지 않는다. 화면은 밝은 RootLab 표면과 8px 간격 단위, 20~24px 카드 안쪽 여백, 40~44px 조작부를 기본으로 하는 여유형 계층을 사용한다. 여유를 확보하더라도 목록–상세 검토 화면의 공고 선택과 상세 스크롤 위치를 안정적으로 유지하고 저장 후 다음 공고 이동을 명시적으로 처리한다. 업무 정보·검토 흐름을 위해 필요한 밀도는 유지하되 마케팅식 큰 빈 공간, 장식 아이콘, 그라데이션, 유리 효과는 사용하지 않는다.
+- 목록 필터는 URL과 동기화하고 선택한 항목, 상세 scroll, 저장 후 이동을 예측 가능하게 유지한다.
+- 자동 연결 실행과 단계별 수동 실행은 같은 execution 상태 컴포넌트를 사용한다. 별도 상태 의미를 복제하지 않는다.
+- 문서 준비 화면은 upload, scan, convert, structure, bundle confirm을 구분하고 실패 stage와 안전한 retry action을 보여야 한다.
+- 심층 검토 실패 재시작은 기존 attempt를 덮지 않으며 새 attempt가 생긴다는 점을 확인시킨다.
+- 향후 opportunity 화면은 plan, pre-spec, bid의 공식 연결과 사람 확인 대기 후보를 시각적으로 구분한다.
+- 사전규격 보고서 뒤 `계속 추적|보류|종료`와 입찰공고 뒤 최종 `Go/No-Go`를 같은 버튼 집합으로 재사용하지 않는다.
 
-## 테스트
+## UI 패턴
 
-`npm run build`로 TypeScript strict와 프로덕션 번들을 검증한다. 핵심 화면 흐름 또는 레이아웃 변경은 `npm run test:visual`도 실행한다. 필터 기본값에서 제외 공고가 숨겨지는지, 첨부 `any`가 무제한 의미인지, null/0 표시, 리뷰 저장·다음 이동, API 오류·빈 목록·로딩, 긴 한글 제목과 좁은 화면을 포함한다.
+- TanStack Query로 서버 상태를 조회하고 mutation 성공 뒤 영향 query만 무효화한다.
+- 밝은 중립 표면, 8px 간격 단위, 20~24px 카드 여백, 40~44px 조작부의 실무형 계층을 유지한다.
+- 공고 목록과 상세 정보 밀도를 유지한다. 마케팅식 큰 여백, 장식 아이콘, gradient, glass effect를 사용하지 않는다.
+- 긴 한글 제목, 표의 긴 요구사항, 좁은 화면, keyboard focus, empty/loading/error 상태를 설계한다.
+
+## 검증
+
+```bash
+cd web/frontend
+npm run build
+npm run test:visual
+```
+
+TypeScript strict, production bundle, 기본 필터, null/0 표시, 부분 실패, review 저장과 다음 이동, API 오류, empty/loading, 긴 한글, 좁은 viewport, keyboard focus를 확인한다. 외부 font network 없이 visual 결과가 재현되어야 한다.

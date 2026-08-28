@@ -1,0 +1,178 @@
+{
+  "schema_version": "bidops.order-plan-methods.v2",
+  "top_k": 50,
+  "model_plan_allowed_fields": ["title"],
+  "methods": {
+    "keyword": {
+      "method_version": "keyword-title-v2",
+      "model_name": null,
+      "model_revision": null,
+      "prompt_id": null,
+      "prompt_sha256": null,
+      "positive_rules": [
+        {
+          "id": "core-ai-analytics",
+          "fields": ["title"],
+          "terms": ["인공지능", "생성형 AI", "AI Agent", "AI HUB", "지능형", "빅데이터", "데이터 분석", "분석서비스"],
+          "weight": 4.0
+        },
+        {
+          "id": "core-blockchain-digital-credential",
+          "fields": ["title"],
+          "terms": ["블록체인", "메인넷", "전자지갑", "전자증명", "디지털배지", "디지털 배지", "Web3", "분산신원", "DID"],
+          "weight": 4.0
+        },
+        {
+          "id": "core-disaster-fire-safety",
+          "fields": ["title"],
+          "terms": ["재난안전", "재난현장", "재난", "소방예방", "소방안전", "소방", "산업안전", "안전관리 모니터링", "영상정보 공유"],
+          "weight": 3.0
+        },
+        {
+          "id": "core-data-platform-integration",
+          "fields": ["title"],
+          "terms": ["데이터 플랫폼", "데이터플랫폼", "데이터맵", "데이터 허브", "정보제공 플랫폼", "DB 구축", "DB 시스템", "DB 연동", "데이터 연계", "데이터 표준화", "공공마이데이터", "마이데이터"],
+          "weight": 2.75
+        },
+        {
+          "id": "core-saas-cloud",
+          "fields": ["title"],
+          "terms": ["SaaS", "클라우드 플랫폼", "클라우드 기반", "클라우드 서비스", "K-PaaS", "e-티켓", "전자티켓"],
+          "weight": 3.0
+        },
+        {
+          "id": "domain-education-learning",
+          "fields": ["title"],
+          "terms": ["교육 플랫폼", "비대면 교육", "학습이력", "맞춤배움길", "교육·훈련", "교육훈련", "활용훈련", "학습관리"],
+          "weight": 2.25
+        },
+        {
+          "id": "domain-healthcare-medical",
+          "fields": ["title"],
+          "terms": ["헬스케어", "의료", "의료기기", "가상병원", "병원 플랫폼", "K-Dental", "치과"],
+          "weight": 2.0
+        },
+        {
+          "id": "domain-industry-rnd-equipment",
+          "fields": ["title"],
+          "terms": ["연구장비", "장비정보시스템", "3D 프린팅", "반도체", "공정혁신", "공정관리", "시험인증", "기술개발", "기술 개발", "실증"],
+          "weight": 1.75
+        },
+        {
+          "id": "domain-public-administration",
+          "fields": ["title"],
+          "terms": ["민원", "행정서비스", "행정데이터", "일자리", "사업관리", "평가관리", "과제관리", "성과관리", "접수 시스템", "지원시스템", "홈서비스"],
+          "weight": 1.75
+        },
+        {
+          "id": "domain-metaverse-xr",
+          "fields": ["title"],
+          "terms": ["메타버스", "가상현실", "동작코칭", "라이브 커머스", "스마트컬링"],
+          "weight": 1.75
+        },
+        {
+          "id": "domain-sports-culture-tourism",
+          "fields": ["title"],
+          "terms": ["스포츠", "체육대회", "문화재단", "의료관광", "전통시장"],
+          "weight": 1.0
+        },
+        {
+          "id": "delivery-planning-consulting",
+          "fields": ["title"],
+          "terms": ["정보화전략계획", "ISP", "BPR", "기본계획", "실행과제 수립"],
+          "weight": 2.0
+        },
+        {
+          "id": "delivery-integrated-management",
+          "fields": ["title"],
+          "terms": ["통합관리", "통합정보", "통합 플랫폼", "통합플랫폼", "종합 관리시스템", "PMS", "업무시스템", "시스템 연계", "공동활용 플랫폼"],
+          "weight": 1.5
+        },
+        {
+          "id": "delivery-portal-web-cms",
+          "fields": ["title"],
+          "terms": ["홈페이지", "누리집", "웹사이트", "연구포털", "온라인시스템", "정보망", "홈서비스", "CMS"],
+          "weight": 1.25
+        },
+        {
+          "id": "delivery-public-si",
+          "fields": ["title"],
+          "terms": ["시스템 구축", "플랫폼 구축", "시스템 고도화", "플랫폼 고도화", "시스템 개발", "플랫폼 개발", "시스템 유지보수", "플랫폼 유지보수", "소프트웨어 개발", "S/W 개발", "응용 S/W", "온라인 플랫폼", "플랫폼 시스템", "기능 구축", "시스템 개선", "이력시스템"],
+          "weight": 1.0
+        },
+        {
+          "id": "delivery-lifecycle-operation",
+          "fields": ["title"],
+          "terms": ["기능개선", "기능 개선", "기능강화", "기능 강화", "기능보강", "고도화", "유지보수", "유지관리", "운영관리", "위탁운영", "운영·고도화", "통합 이전", "개편", "리뉴얼"],
+          "weight": 1.0
+        },
+        {
+          "id": "delivery-mobile-application",
+          "fields": ["title"],
+          "terms": ["앱 개발", "앱 구입", "앱 구매", "어플리케이션 개발", "모바일 페이지"],
+          "weight": 1.0
+        }
+      ],
+      "negative_rules": [
+        {
+          "id": "downrank-participant-recruitment",
+          "fields": ["title"],
+          "terms": ["참여 스타트업 모집", "참여기업 모집", "초기창업패키지 지원사업", "유망벤처·고성장기업 지원사업", "참가 지원사업", "해외 현지화 지원사업"],
+          "weight": 2.0
+        },
+        {
+          "id": "downrank-promotion-package",
+          "fields": ["title"],
+          "terms": ["글로벌 비상 프로젝트", "파워풀 패키지 지원", "전시회 참가 지원", "박람회 참가 지원"],
+          "weight": 1.0
+        }
+      ]
+    },
+    "bge_m3_colbert": {
+      "method_version": "bge-m3-colbert-title-v2",
+      "model_name": "BAAI/bge-m3",
+      "model_revision": "5617a9f61b028005a4858fdac845db406aefb181",
+      "prompt_id": null,
+      "prompt_sha256": null,
+      "batch_size": 12,
+      "max_length": 512,
+      "use_fp16": false,
+      "device": "cpu"
+    },
+    "qwen": {
+      "method_version": "qwen-order-plan-batch-v2",
+      "model_name": "qwen3.8:27b",
+      "model_revision": "22130167c4c20e20c7b71454612966ca8e8171e9b3cc8ab6ce8aa6cbfec79643",
+      "prompt_id": "order-plan-batch-relevance-v2",
+      "prompt_sha256": null,
+      "api_style": "ollama_native",
+      "base_url_env": "BIDOPS_OLLAMA_BASE_URL",
+      "revision_env": "BIDOPS_QWEN_MODEL_REVISION",
+      "allowed_hosts": [
+        "127.0.0.1",
+        "localhost",
+        "192.168.0.139"
+      ],
+      "timeout_seconds": 120,
+      "batch_size": 25,
+      "max_output_tokens": 4096,
+      "think": "high"
+    },
+    "luna": {
+      "method_version": "luna-order-plan-batch-v2",
+      "model_name": "gpt-5.6-luna",
+      "model_revision": null,
+      "reasoning_effort": "xhigh",
+      "prompt_id": "order-plan-batch-relevance-v2",
+      "prompt_sha256": null,
+      "timeout_seconds": 180,
+      "batch_size": 25,
+      "max_output_tokens": 8192,
+      "pricing_usd_per_million_tokens": {
+        "input": 0.2,
+        "cached_input": 0.02,
+        "output": 1.2
+      }
+    }
+  }
+}

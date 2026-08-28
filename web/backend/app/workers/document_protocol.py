@@ -11,11 +11,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 from pathlib import Path, PurePosixPath
 import re
 import signal
 import tempfile
+import time
 from typing import Any, Mapping
 from uuid import UUID
 
@@ -23,6 +25,8 @@ from ..document_mcp.errors import DocumentProcessingError
 from ..document_mcp.processor import DocumentProcessor
 from ..document_mcp.safety import MAX_INPUT_BYTES, ProcessorOptions
 
+
+logger = logging.getLogger(__name__)
 
 MAX_REQUEST_BYTES = 64 * 1024
 MAX_RESULT_BYTES = 24 * 1024 * 1024
@@ -181,6 +185,14 @@ def convert_one(root: Path) -> bool:
     except FileNotFoundError:
         return False
     request_id = request_path.stem
+    # This replica now owns the request, so it is the only process that can
+    # report on it.  The identifiers below are protocol metadata; the document
+    # bytes, its original filename, and the structure never reach the log.
+    started = time.monotonic()
+    logger.info(
+        "document request claimed",
+        extra={"bidops": {"event": "document.claimed", "job_id": request_id}},
+    )
     result: dict[str, Any] = {"schema": RESULT_SCHEMA, "request_id": request_id, "status": "failed"}
     old_handler = signal.signal(signal.SIGALRM, _timeout)
     try:
@@ -204,6 +216,20 @@ def convert_one(root: Path) -> bool:
     finally:
         signal.setitimer(signal.ITIMER_REAL, 0)
         signal.signal(signal.SIGALRM, old_handler)
+    telemetry = {
+        "event": "document.converted",
+        "job_id": request_id,
+        "status": result["status"],
+        "duration_ms": max(0, int((time.monotonic() - started) * 1000)),
+    }
+    if result["status"] == "succeeded":
+        logger.info("document request converted", extra={"bidops": telemetry})
+    else:
+        # ``error.message`` is operator-facing Korean text from a fixed set, but
+        # only the stable code is logged so a future message cannot smuggle
+        # document content into the log.
+        telemetry["error_code"] = result.get("error", {}).get("code", "unknown")
+        logger.warning("document request failed", extra={"bidops": telemetry})
     _atomic_json(results / f"{request_id}.json", result)
     claimed_path.unlink(missing_ok=True)
     (inbox / f"{request_id}.bin").unlink(missing_ok=True)

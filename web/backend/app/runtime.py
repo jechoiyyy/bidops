@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+import logging
 import subprocess
 import threading
 from typing import Any
@@ -23,6 +24,9 @@ from .screening.worker import ScreeningWorker
 from .services.pipeline import PipelineService
 from .services.scheduled_pipeline import ScheduledPipeline
 from .services.scheduler import SchedulerService
+
+
+logger = logging.getLogger(__name__)
 
 
 class RuntimePipelineBridge:
@@ -118,7 +122,17 @@ class RuntimePipelineBridge:
             if stage == "weekly_report":
                 return {"status": "success", "run_id": run_id}
         except (OSError, ValueError, KeyError, TypeError):
-            pass
+            logger.error(
+                "runtime stage failed",
+                extra={
+                    "bidops": {
+                        "event": "runtime.stage_failed",
+                        "stage": stage,
+                        "run_id": run_id,
+                    }
+                },
+                exc_info=True,
+            )
         return {"status": "failed", "failure_reason": f"{stage}_failed"}
 
 

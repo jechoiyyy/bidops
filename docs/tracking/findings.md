@@ -2,115 +2,138 @@
 
 기준일: 2026-08-27
 
-## T7 실제 격리 Mock E2E는 통과했지만 Qwen 품질 증적은 아님
+## 개발용 Codex 심층 검토 경로가 외부 전송 허용 범위를 넘는다
 
-- 2026-08-27 새 격리 Compose project에서 PostgreSQL, MinIO, ClamAV, document worker 2개,
-  analysis worker, web을 사용해 Agent 연속 E2E를 실행했다.
-- provider/model은 `mock-analysis` / `bidops-deterministic-mock-v1`이고 결과는
-  `bidops.t7-e2e-result.v1`, `passed=true`였다. 외부 OpenAI/Codex/Qwen 호출은 0건이며 종료
-  queued/running WorkJob도 0건이었다.
-- 종료 후 격리 container, network, volume을 정리했다. 상세 두 날짜 증적과 ID는
-  [`docs/mock-workflow-e2e-result.md`](../mock-workflow-e2e-result.md)에 보존한다.
-- `mock_quality.evaluated=false`이므로 이 결과를 Qwen 품질 gate, 실제 사업 판단, 배포 승인으로
-  재사용할 수 없다.
+- 재현 조건: `docker-compose.t7.codex-reference.yml`로 `BIDOPS_ANALYSIS_PROVIDER=codex-exec`, reference mode, 승인 notice ID를 설정하고 심층 검토 stage를 실행한다.
+- 증상: `CodexExecClient.invoke()`가 일반 vLLM과 같은 `build_prompt()`를 사용한다. stage 입력에는 구조화된 RFP 요구사항 excerpt가 들어가고 delivery stage에는 회사 profile facts·evidence가 들어가므로 hosted Codex에 전송될 수 있다.
+- 영향: 공개 발주계획 메타데이터와 별도 승인된 최소 회사 역량 요약만 외부 모델에 보낸다는 확정 정책을 위반한다. 공고 allowlist와 기본 비활성은 실행 승인만 제한할 뿐 금지된 payload 종류를 제거하지 않는다.
+- 지금 해결할 수 없는 이유: provider code와 Compose overlay의 삭제·재설계는 실행 경로와 기존 reference 검증을 함께 바꾸므로 별도 구현·회귀 검증이 필요하다.
+- 접근 방법: 이 overlay와 `codex-exec` deep-review provider를 사용 금지 상태로 유지하고, 외부 비교 실험이 필요하면 발주계획 전용 projection·payload preview·사람 승인 경계를 별도로 구현한다. 테스트는 RFP, 첨부, profile 전문·evidence, 내부 review 필드가 payload에 들어가면 호출 전에 실패하는지 확인해야 한다.
 
-## 원격 vLLM 연결은 확인됐지만 배포 artifact가 immutable하게 고정되지 않음
+## 런타임 이미지에 회사 프로필 자료가 포함된다
 
-- 확인됨: private literal-IP의 OpenAI-compatible `/v1`, served ID `qwen3.8-27B`, `/v1/models`와 실제 Chat Completions SDK 호출이 성공했다.
-- 실제 스모크: thinking+단순 JSON은 84.36초가 걸렸고, thinking+권위 structured output은 120초 timeout 및 재시험에서 schema 불일치가 확인됐다. 같은 schema를 non-thinking으로 실행하면 빈 stage는 5.94초에 identity/validator를 통과했다.
-- 실제 요구사항 1건: non-thinking candidate가 25.29초, prompt 531/completion 853 tokens에 supported claim 2개와 유효 evidence 1개를 만들고 권위 validator를 통과했다. 이 결과로 non-thinking·temperature 0.7·top_p 0.8·top_k 20·seed 0을 candidate policy에 고정했다.
-- 남은 값: 서버 Compose의 `vllm/vllm-openai:latest`를 image digest로 바꾸고 `Qwen/Qwen3.8-27B`의 immutable Hugging Face revision 또는 로컬 artifact digest를 제공해야 한다.
-- 현재 경계: plain HTTP private endpoint, optional API key, redirect/proxy 없음만 지원한다. IP는 `BIDOPS_VLLM_ALLOWED_HOSTS`와 정확히 일치해야 한다. analysis worker의 `model-egress`도 host firewall에서 해당 IP/port 하나로 제한해야 한다.
+- 재현 조건: 현재 `web/Dockerfile`로 runtime image를 build한 뒤 `/app/docs/reference`와 `/app/web/backend/app/screening` 내용을 검사한다.
+- 증상: `COPY docs/reference /app/docs/reference`가 `company-profile.md`와 회사 실적 제목 TSV를 복사하고, 별도 TSV copy가 이를 반복한다. `COPY web/backend/ ./`는 `baseline_company_profile.md`도 복사한다. `.dockerignore`는 reference PDF만 제외한다. Dockerfile의 회사자료 제외 주석과 실제 image 내용이 다르다.
+- 영향: image registry, build cache, image export에 회사 프로필·실적 근거가 포함될 수 있어 회사자료를 image에 넣지 않는 보안 경계를 위반한다.
+- 지금 해결할 수 없는 이유: baseline fallback과 profile snapshot 검증이 해당 파일에 의존하므로 단순 ignore만 추가하면 runtime·test 계약이 깨진다. profile 주입과 검증 경계를 함께 바꿔야 한다.
+- 접근 방법: 일반 `docs/reference`와 backend baseline의 bulk copy를 제거하고, 허용된 공개 runtime reference만 명시적으로 복사한다. 필요한 회사 프로필 snapshot은 승인된 read-only volume·객체·secret 경계로 실행 시 주입하고 digest를 검증한다. image filesystem과 build context에 `company-profile.md`, 회사 실적 제목 TSV, `baseline_company_profile.md`가 없음을 회귀 테스트로 고정한다.
 
-## runtime model artifact digest를 worker가 직접 대조하지 않음
+## 프로필 조회 API가 원문과 서버 경로를 노출한다
 
-- 증상: policy와 client는 `qwen3.8-27B` 이름을 고정하고 응답 model ID를 대조하지만, `/v1/models` 응답 자체에는 model weight digest가 없다.
-- 영향: 같은 tag가 다른 bytes를 가리키면 사전·사후 운영 대조를 누락했을 때 승인 모델과 실행 모델이 달라질 수 있다.
-- 현재 통제: 인수 절차에서 서버 운영자가 제공한 image/model digest를 quality manifest와 사람이 대조한다.
-- 후속 선택: startup preflight가 신뢰할 수 있는 배포 manifest 또는 model gateway의 digest를 강제하도록 서버 계약을 확장한다.
+- 재현 조건: `GET /api/profile/snapshots`, `GET /api/profile/sections`, `GET /api/profile/unknowns`를 호출하거나 프로필 파일 읽기 오류를 유발한다.
+- 증상: snapshots item의 working-tree `source_ref`는 내부 상대 파일 경로다. sections 응답은 filesystem `source`, `raw_blocks[].raw`, section `raw`, `source_line`을 포함한다. unknowns도 filesystem `source`를 반환하며 `parse_errors` 문자열에 원본 `OSError`의 절대 경로가 들어갈 수 있다. sections·unknowns는 현재 working tree parser 결과에 묶이고 승인된 불변 profile version·digest를 응답에 고정하지 않는다.
+- 영향: 사내망 사용자 모두에게 UI에 필요한 범위를 넘는 회사 프로필 원문과 서버 배치 구조가 노출된다. 실행 중 working tree가 변하면 같은 조회 route가 다른 프로필을 반환할 수 있어 승인 snapshot 경계도 흐려진다.
+- 지금 해결할 수 없는 이유: Pydantic schema, parser presenter, profile snapshot 선택, frontend type·화면을 원자적으로 전환하고 기존 client 호환성과 노출 방지 회귀를 같이 검증해야 하므로 아직 구현되지 않았다.
+- 접근 방법: 기존 세 route를 운영에서 비활성화하고 `bidops.profile-projection.v1`로 교체한다. snapshots에서 `source_ref`를 제거하고, sections·unknowns는 승인 profile version·digest, 구조화 항목, `unknown`, 안정 error code만 반환한다. filesystem source, source line, raw block·text, 원문 예외를 schema·serializer·frontend type에서 제거한다. 파일 경로·원문 sentinel이 response에 없음을 통합 테스트로 고정한다.
 
-## 실제 품질 corpus와 사람 gold가 저장소에 없음
+## legacy 첨부 업로드가 악성코드 검사와 객체 격리를 우회한다
 
-- `fire_prevention_55.json`은 기대 ID만 포함하며 해당 55개 요구사항 원문은 없다.
-- `labor_template.hwp`, `safe.pdf`는 문서 변환·안전성 fixture이지 모델 품질 corpus가 아니다.
-- 실제 대표 HWP/PDF, source SHA, 모델 출력, gold item mapping, claim별 사람 판정이 있어야 0.80/0.70/0.10 gate를 측정할 수 있다.
-- scorer는 준비됐지만 Qwen 호출이나 사람 adjudication을 대신하지 않는다.
+- 재현 조건: `POST /api/notices/{notice_pk}/attachments`로 허용 확장자·크기의 파일을 등록한 뒤 download endpoint를 호출한다.
+- 증상: legacy attachment service는 확장자와 50MiB 한도만 확인하고 `/app/web/data/attachments`로 rename한 뒤 DB를 commit한다. MIME 판별, quarantine, ClamAV, MinIO object version·hash 없이 바로 다운로드할 수 있다. T7은 `/app/data`와 `/app/reports`만 volume으로 연결하므로 이 attachment 경로는 container 재생성 때 유실될 수도 있다. `AttachmentResponse.stored_path`는 DB 값을 그대로 내보내 notice directory와 로컬 저장 layout을 client 계약에 노출한다.
+- 영향: 파일 내용이 확장자와 다르거나 악성인 첨부가 웹 process의 로컬 저장소와 사용자 download 경로로 들어가 Lean document upload의 안전 경계를 우회한다. DB row는 남고 파일만 사라지는 불일치도 생길 수 있고, path 노출은 서버 배치 구조를 외부 wire에 고정한다.
+- 지금 해결할 수 없는 이유: 기존 attachment 화면·다운로드·DB row를 Lean document object lifecycle로 이전하고 기존 manual attachment 호환 정책을 정해야 한다.
+- 접근 방법: 운영에서는 legacy mutation·path 조회를 비활성화한다. 장기적으로 모든 upload를 quarantine → MIME·size → ClamAV → versioned object → ready projection으로 통합하고 clean 전 download를 거부한다. `stored_path`를 response schema와 serializer에서 제거하고 우회 endpoint가 없는지 API 통합 테스트로 고정한다.
 
-## 실제 Qwen B→C 서비스 인수와 품질 승인은 아직 없음
+## MinIO versioning 초기화가 실패해도 stack이 계속 기동한다
 
-- 위 T7 결과는 Mock 경로의 실제 서비스 E2E이며, remote vLLM/Qwen을 사용한 `bc-result.json`은 아직 없다.
-- 실제 대표 HWP/PDF, immutable model/image digest, 55개 gold mapping과 사람 판정이 없어
-  `0.80/0.70/0.10` quality gate를 측정할 수 없다.
-- 실제 timeout·잘린 JSON·provider 실패의 재시도는 unit test로 검증됐지만 승인 endpoint에서의 fault-injection 증적은 없다.
+- 재현 조건: MinIO에서 bucket versioning 명령이 권한·호환성 오류로 실패하는 환경에서 `scripts/minio-init.sh`를 실행한다.
+- 증상: `mc version enable` 뒤 `|| true`가 모든 실패를 삼키고 실제 versioning 상태를 다시 확인하지 않는다. init service는 versioning이 꺼져 있어도 성공할 수 있다.
+- 영향: DB가 object version ID를 불변 정본처럼 저장하는 전제가 깨지고 overwrite·backup·restore에서 같은 object key의 역사 bytes를 보장할 수 없다.
+- 지금 해결할 수 없는 이유: bootstrap의 멱등성 처리와 실제 상태 검증, 기존 non-versioned bucket의 전환 정책을 함께 설계하고 MinIO 통합 테스트가 필요하다.
+- 접근 방법: 이미 존재한다는 안전한 결과만 명시적으로 허용하고 그 밖의 오류는 실패시킨다. 각 bucket에서 versioning enabled 상태를 조회·검증한 뒤에만 init service를 성공으로 끝낸다.
 
-## SQLite 이관·복구 훈련용 외부 입력이 없음
+## 객체 복구가 원본 version ID와 복구 대상 version ID를 혼동한다
 
-- 운영 DB를 건드리지 않는 SQLite 백업 복사본과 빈 pre-prod PostgreSQL target이 필요하다.
-- 13개 table row/PK/FK, 리뷰·첨부 metadata, sequence, 실패 후 재실행, cutover 이후 SQLite write 차단의 실제 기록이 아직 없다.
-- object backup과 PostgreSQL dump도 제공되지 않아 object→DB→active hash 복구와 RPO 4시간/RTO 8시간 달성을 주장할 수 없다.
+- 재현 조건: `backup-objects.sh`로 version별 backup을 만든 뒤 빈 MinIO에 `restore.sh`를 실행하고 `verify-active-hashes.sh`로 검사한다.
+- 증상: backup manifest는 source version ID를 기록하지만 local file을 target에 `mc cp`하면 새 target version ID가 생긴다. restore는 새 ID를 기록하지 않고 verifier는 source version ID로 target object를 조회한다. `ACTIVE_HASH_MANIFEST`를 DB active reference에서 생성·완전성 검사하는 경로도 없다.
+- 영향: 정상 복구도 version lookup에서 실패하거나, 수동 manifest가 일부 active object를 빠뜨려도 DB 연결만 확인한 채 복구 검증이 끝날 수 있다. object-first 복구 완료를 주장할 수 없다.
+- 지금 해결할 수 없는 이유: target version mapping, DB object reference 재결합 여부, active manifest 생성 계약을 함께 결정해야 한다.
+- 접근 방법: restore 때 source version → target version mapping과 stored-byte hash를 기록하고 DB가 가리키는 모든 active object를 query해 manifest와 일대일 대조한다. verifier는 target version ID와 hash를 검사하며 누락·추가·중복을 모두 실패시킨다.
 
-## 운영 secret·권한·방화벽 검증이 없음
+## 분석 worker DB 역할이 모든 업무 table을 수정할 수 있다
 
-- `.env.example`은 placeholder뿐이며 실제 secret manager 주입 결과가 없다.
-- 목적별 MinIO credential 정책은 코드·bootstrap에 있지만 실제 bucket 권한의 allow/deny matrix를 실행하지 않았다.
-- remote model egress firewall, container artifact UID/GID, backup 책임자·보관 위치가 실제 환경에서 확인되지 않았다.
+- 재현 조건: migration 뒤 PostgreSQL에서 `worker` role의 table privilege를 조회한다.
+- 증상: `scripts/migrate.sh`가 현재와 미래의 `bidops` 모든 table에 `SELECT, INSERT, UPDATE, DELETE`를 부여한다.
+- 영향: 분석 worker 자격증명이 탈취되거나 코드가 오동작하면 사람 리뷰·최종 의견·정책·감사 등 worker 책임 밖의 row도 수정할 수 있어 최소 권한과 사람 결정 경계가 DB에서 강제되지 않는다.
+- 지금 해결할 수 없는 이유: worker가 실제로 읽고 쓰는 table·sequence와 stored operation을 확정해 migration grant를 세분화해야 한다.
+- 접근 방법: analysis claim·stage·report 전이에 필요한 table과 operation만 allowlist로 grant하고 사람 의견·review·policy·audit의 직접 DML을 revoke한다. future default 전체 DML을 제거하고 allow/deny matrix를 PostgreSQL 통합 테스트로 고정한다.
 
-## frontend 시각 기준선이 font 환경에 민감함
+## PostgreSQL과 MinIO 관리 port가 모든 host interface에 publish된다
 
-- 기능 테스트와 build는 통과 상태지만 28개 image snapshot이 한글 font 차이로 흔들린다.
-- Playwright image와 font를 고정한 뒤 같은 환경에서 재생성하고 사람이 변경 이미지를 승인해야 한다.
+- 재현 조건: 기본 `docker-compose.t7.yml`을 기동하고 host의 listen address를 확인한다.
+- 증상: PostgreSQL, MinIO API, MinIO console port mapping에 host IP가 없어 Docker가 기본적으로 모든 host interface에 bind할 수 있다.
+- 영향: Compose internal network와 무관하게 LAN에서 DB·객체 저장소 port에 직접 접근할 수 있어 애플리케이션 API만 사용하는 접근 경계를 우회한다. 실제 노출 범위가 host firewall 상태에 의존한다.
+- 지금 해결할 수 없는 이유: 운영자가 host에서 DB·MinIO 관리 접근을 필요로 하는지와 reverse proxy·방화벽 경계를 확정해야 한다.
+- 접근 방법: 기본 template은 `127.0.0.1`에만 bind하거나 내부 전용으로 port publish를 제거한다. 원격 관리가 필요하면 별도 opt-in overlay와 source allowlist를 사용하고 LAN 외부에서 연결 거부를 검증한다.
 
-## 단계 B 준비와 retry 제어 UI가 완결되지 않음
+## legacy mutation 일부가 담당자 이름과 감사 기록 없이 실행된다
 
-- 현재 UI는 ready bundle을 선택해 review를 시작하고 report/revision/final opinion을 볼 수 있다.
-- document bundle 준비 전체 과정, 진행 polling, 실패 attempt 재시작은 운영자용 API/CLI가 담당하며 화면에서 완전히 이어지지 않는다.
-- E2E API 인수에는 차단 요인이 아니지만 Lean v1 운영 UX 범위로 별도 결정이 필요하다.
+- 재현 조건: legacy review upsert, attachment upload·delete, agency portal create·patch, run ingest·subprocess 실행 endpoint를 호출한다.
+- 증상: 해당 경로는 `X-BidOps-Actor-Name`을 요구하지 않거나 reviewer가 optional이고, 작업별 `AuditEvent`를 같은 transaction에 남기지 않는다. Lean 문서·심층 검토와 screening control 계열만 별도 actor·audit 경계를 가진다.
+- 영향: 사내 사용자가 변경·승인할 때 이름을 남긴다는 채택 결정이 API 전체에서 성립하지 않으며 누가 첨부를 지우거나 포털·리뷰·회차를 바꿨는지 일관되게 추적할 수 없다.
+- 지금 해결할 수 없는 이유: 기존 frontend와 pipeline client의 request 계약을 함께 바꾸고 과거 actor 없는 기록의 표시 정책을 정해야 한다.
+- 접근 방법: 모든 사람 mutation에 공통 actor parser와 safe audit service를 적용하고 mutation 결과와 같은 transaction에서 event를 기록한다. 과거 row는 actor를 추정하지 않고 `unknown`으로 남기며 기존 client를 명시적 계약 version으로 전환한다.
 
-## 사전규격 API 운영 권한이 확인되지 않음
+## 현재 보고서 renderer가 screening v3를 처리하지 못한다
 
-- 재현 조건과 증상: 운영 수집에서 사전규격 API를 호출하려 할 때 이용 승인이 없으면 입찰공고 전 단계의 사업을 안정적으로 가져올 수 없다.
-- 영향: 조기 탐지 범위가 입찰공고 중심으로 좁아지고 준비 시간이 짧아진다.
-- 지금 해결할 수 없는 이유: 공공데이터포털 계정의 이용 신청·승인은 저장소 밖의 행정 작업이다.
-- 접근 방법: 운영 계정에서 해당 API 활용 신청 상태를 확인하고 승인 후 제한된 기간 수집으로 필드·쿼터를 검증한다.
+- 재현 조건: `bidops.screening.v3`의 `screening-results.json`을 현재 report stage 또는 `render_report.py`에 전달한다.
+- 증상: current screening runtime은 v3를 만들고 적재기는 v3를 받지만 report renderer는 `bidops.screening.v2`만 허용해 즉시 종료한다.
+- 영향: 새 판정 실행의 결과를 기존 HTML·feedback 흐름으로 연결할 수 없고 자동 pipeline에서 판정과 보고 사이가 끊긴다.
+- 지금 해결할 수 없는 이유: v3의 partial/failure·execution binding을 HTML과 feedback에 어떻게 표시할지 소비자 계약과 회귀 기준이 필요하다.
+- 접근 방법: v2 의미를 바꾸지 않은 채 renderer에 명시적 v3 adapter를 추가하고 부분 성공·failure artifact·승계 provenance를 표시한다. v2와 v3 fixture의 결정성을 각각 검증한다.
 
-## 이름 입력은 신원을 보장하지 않음
+## 승인된 프로필 기준선 commit이 현재 저장소 history에 없다
 
-- 재현 조건과 증상: 사내망 사용자가 다른 사람의 이름을 입력해도 시스템이 구분할 수 없다.
-- 영향: 리뷰·정책 승인·외부 전송 감사 기록의 작성자 신뢰도가 네트워크 접근 통제 수준에 머문다.
-- 지금 해결할 수 없는 이유: 초기 운영은 이름 입력만 사용하기로 합의했으며 내부 계정 또는 SSO 연동 정보가 없다.
-- 접근 방법: 사용자 수와 책임 추적 요구가 커지면 이름 필드를 내부 계정 ID에 매핑하고 SSO 로그인·세션 만료·권한 회수를 도입한다.
+- 재현 조건: 현재 source checkout에서 backend 전체 테스트를 실행하면 `test_baseline_git_snapshot_and_source_validation`과 `test_vendored_baseline_equals_git_show_in_a_source_checkout`가 실패한다.
+- 증상: `git cat-file -e ee621835db934ddac944f7a07a986ed0b73ecc7a`가 해당 commit을 찾지 못한다.
+- 영향: backend 결과가 741 passed, 5 skipped, 2 failed에 머물러 현재 저장소 기준 전체 green을 주장할 수 없다. 운영 profile bytes 검증도 저장소 이력과 vendored 기준선 중 어느 쪽이 권위인지 불명확하다.
+- 지금 해결할 수 없는 이유: 승인 baseline은 선행 저장소 history에서 만들어졌고, 어떤 commit을 현재 저장소에 보존할지 또는 새 기준선을 승인할지는 이력 소유자와 업무 담당자의 확인이 필요하다.
+- 접근 방법: 승인된 profile bytes와 source commit을 다시 확인한 뒤, 현재 저장소가 그 commit을 보유하게 하거나 새 immutable baseline과 digest를 승인한다. source checkout과 container fallback 테스트가 같은 bytes를 확인해야 한다.
 
-## OpenAI 외부 전송의 조직 정책이 미정임
+## 문서 준비와 실패 심층 검토 재시작을 화면에서 완료할 수 없다
 
-- 재현 조건과 증상: 로컬 Qwen 검증 실패 공고를 OpenAI로 보조 분석하려 해도 어떤 첨부·회사자료를 외부로 보낼 수 있는지 조직 승인이 없다.
-- 영향: 보조 경로를 안전하게 운영 활성화할 수 없으며 실패 결과는 사람 검토로만 처리해야 한다.
-- 지금 해결할 수 없는 이유: 데이터 분류와 외부 처리자 사용 승인은 저장소 밖의 조직 결정이다.
-- 접근 방법: 전송 허용 문서 유형, 최소화 규칙, 보존 정책, 키 소유자와 감사 요구를 합의한 뒤 기본 비활성·건별 승인으로 제한한다.
+- 재현 조건: ready document bundle이 없는 공고를 브라우저에서 열거나 deep-review attempt가 실패한 상태를 연다.
+- 증상: 조회와 ready bundle 이후 심층 검토 화면은 있지만 bundle 생성·문서 upload·metadata 수정·확정, 실패 attempt의 새 attempt 생성 action이 없다.
+- 영향: 담당자는 curl 또는 CLI를 사용해야 하므로 목표 업무 흐름이 화면에서 끊기고, actor·idempotency·상태 fence를 잘못 다룰 가능성이 커진다.
+- 지금 해결할 수 없는 이유: backend 계약은 준비됐지만 frontend Phase 3 구현과 browser 회귀 검증이 별도 코드 작업으로 남아 있다.
+- 접근 방법: typed Lean API client, document preparation panel, terminal failure 전용 retry, polling, 403/503 상태 표현을 구현하고 fake API browser 흐름과 좁은 viewport를 검증한다.
 
-## 심층 분석 품질 기준선이 사례 하나에 치우침
+## 개발계정 일일 1,000회 한도의 실제 여유가 측정되지 않았다
 
-- 재현 조건과 증상: 현재 구조적 오류가 자세히 확인된 사례는 2025년 소방예방정보시스템 고도화 RFP 중심이며 다른 발주기관·문서 형식에 대한 요구사항 회수율과 사람 일치율이 없다.
-- 영향: 이 사례에 맞춘 프롬프트·검증기가 다른 사업 유형에서 누락이나 과잉 경고를 만들 수 있다.
-- 지금 해결할 수 없는 이유: 완료 사업 1~2개의 추가 첨부와 담당자 기준 답안이 아직 준비되지 않았다.
-- 접근 방법: 공공 SI와 AI/데이터 또는 블록체인 축에서 서로 다른 문서 구조의 완료 사례를 추가하고 요구사항·자격·배점·위험의 기준 답안을 만든다.
+- 재현 조건: 발주계획·사전규격을 3일 window로 page 끝까지 수집하고 endpoint·page·retry별 실제 요청 수를 집계한다.
+- 증상: 알려진 것은 약 1,200개 발주계획과 약 40개 SW 사전규격이라는 레코드 규모뿐이며, 페이지 크기·endpoint 분할·정정 조회·재시도를 포함한 호출 수 기록은 없다.
+- 영향: 일 1,000회가 초기 실험에 충분하다는 추정은 가능하지만 scheduler를 안전하게 활성화하거나 운영 증액량을 산정할 근거는 부족하다.
+- 지금 해결할 수 없는 이유: 신규 수집기와 quota telemetry가 아직 없고 실제 개발계정 응답의 pagination을 관측하지 않았다.
+- 접근 방법: 동결 3일 실험에서 실제 HTTP 요청을 endpoint·page·retry별로 기록하고 cache hit를 분리한다. 700회 경고, 900회 신규 요청 중지로 시작한 뒤 관측치를 이용해 운영계정 활용사례와 증액량을 정한다.
 
-## 1차 판정 프롬프트 응답 시간이 실측되지 않음
+## 사설 vLLM model artifact가 불변 digest로 고정되지 않았다
 
-- 재현 조건과 증상: `qwen3.8:27b`의 1차 판정 프롬프트별 호출 시간과 전체 회차 처리 시간이 아직 측정되지 않았다. 파일럿의 심층 검토 측정에서 회차 처리 시간이 두 시간 안팎일 것으로 추정했을 뿐, 프롬프트와 호출 구조가 다른 1차 판정의 응답 시간 실측값은 아니다.
-- 영향: 다음 날 02:00 실행 시각과 판정 시간 예산이 실제 처리량을 충족하는지 확인할 수 없으며, 측정되지 않은 시간을 운영 보장값으로 사용할 수 없다.
-- 지금 해결할 수 없는 이유: 판정 에이전트가 아직 애플리케이션에 연결되지 않아 고정된 입력 표본에서 다섯 관점·반론·종합 호출, 동시성, 재시도, 타임아웃을 포함한 실제 계측을 수행하지 못했다.
-- 접근 방법: 고정 표본과 동일한 모델·프롬프트·정책 버전으로 호출별 시작·종료 시각과 전체 회차 시간을 계측하고, 성공·타임아웃·잘린 출력·재시도 결과를 구분해 기록한다. 대표 회차를 반복 측정한 뒤 02:00 실행 창과 운영 시간 예산을 다시 정한다.
+- 재현 조건: analysis worker preflight와 `/v1/models` 응답으로 실행 model identity를 확인한다.
+- 증상: served model ID `qwen3.8-27B`는 확인할 수 있지만 weight digest가 응답에 없고 server image도 mutable tag를 사용할 수 있다.
+- 영향: 같은 model name이 다른 bytes를 가리켜도 실행 당시 승인한 artifact와의 차이를 자동 검출하지 못할 수 있다.
+- 지금 해결할 수 없는 이유: image digest와 model revision 또는 로컬 artifact digest는 모델 서버 운영자가 제공해야 한다.
+- 접근 방법: server image digest, immutable model revision·artifact digest를 deployment manifest에 고정하고 startup preflight가 이를 quality manifest와 대조하도록 provider 계약을 확장한다.
 
-## 등급 재현성이 실측되지 않음
+## 실제 심층 검토 품질 corpus와 사람 gold가 부족하다
 
-- 재현 조건과 증상: 같은 공고 입력에 같은 `qwen3.8:27b` 모델·프롬프트·정책 버전을 반복 적용해 최종 등급 일치율을 계산한 실행이 아직 없어 재현성이 `계산 불가` 상태다.
-- 영향: 새 모델·프롬프트·정책 버전을 품질 게이트 통과 후보로 판단할 수 없고, 재현성 미측정 상태에서 정기 실행을 상시 활성화할 수 없다.
-- 지금 해결할 수 없는 이유: 품질 게이트의 다섯 기준 가운데 등급 재현성은 원문 위치·숫자·요구사항을 결정적으로 검사하는 프롬프트나 검증기만으로 보장하기 어려운 유일한 항목이다. 같은 고정 입력의 반복 실행 자체가 필요하다.
-- 접근 방법: 고정 표본 40건에 동일한 입력·모델·프롬프트·정책 버전으로 두 번 실행하고, 다섯 관점별 판단과 최종 `grade`의 일치율을 각각 계산한다. 최종 등급 일치율 80% 기준과 불일치 집중 여부를 함께 확인하며, 측정 전에는 통과로 처리하지 않는다.
+- 재현 조건: 대표 HWP/PDF에서 요구사항 recall, 사람 일치율, unsupported claim 비율을 계산하려 한다.
+- 증상: 55개 요구사항 기대 ID 사례는 있으나 원문·claim별 gold mapping과 다양한 기관·문서 형식의 사람 adjudication이 충분하지 않다.
+- 영향: Mock E2E와 단일 후보 호출은 실제 사업 판단 품질이나 0.80/0.70/0.10 activation 기준을 증명하지 못한다.
+- 지금 해결할 수 없는 이유: 완료 사업의 사용 승인된 첨부와 담당자 기준 답안이 더 필요하다.
+- 접근 방법: 공공 SI와 AI·데이터 또는 블록체인 축에서 서로 다른 HWP/PDF 사례를 선정하고 source hash, requirement·자격·배점·위험 gold, claim별 사람 판정을 만든다. 실제 immutable model로 gate를 측정한다.
 
-## 관측 도구 도입 여부가 미정임
+## 실제 backup·권한·복구 훈련이 없다
 
-- 재현 조건과 증상: 판정 호출과 회차 실행의 계측 기록은 트레이스·스팬 구조로 남기도록 했지만, 전용 관측 도구를 도입할지 관리 화면에서 직접 조회할지는 결정되지 않았다.
-- 영향: 실제 운영 전 호출 지연, 재시도, 실패 공고, 부분 성공 회차를 어떤 화면과 검색 방식으로 관찰·알림할지 확정할 수 없다.
-- 지금 해결할 수 없는 이유: 판정 에이전트가 실제로 실행되지 않아 트레이스·스팬의 건수, 보존 기간, 조회량과 운영 담당자의 관측 요구를 측정할 수 없다. 사내 자료가 프롬프트에 들어가므로 외부 관측 서비스는 대상이 아니다.
-- 접근 방법: 우선 회차·공고·호출 식별자와 시작·종료·상태·실패 사유를 트레이스·스팬 구조로 내부에 보존하고 파일럿 운영에서 조회·보존 요구를 확인한다. 실제 기록량과 보안 조건을 바탕으로 자체 화면과 자체 호스팅 전용 도구를 비교한 뒤 도입 여부를 정한다.
+- 재현 조건: 운영과 같은 secret·MinIO policy·firewall을 가진 격리 환경에서 PostgreSQL dump와 versioned object backup을 빈 대상에 복구한다.
+- 증상: script와 Mock E2E는 있지만 실제 snapshot, object manifest, allow/deny matrix, object → DB → active hash 복구 기록이 없다.
+- 영향: RPO·RTO, 최소 권한, 암호화 key 복구, container 재생성 뒤 참조 무결성을 운영 수준으로 주장할 수 없다.
+- 지금 해결할 수 없는 이유: 실제 secret manager 주입, 백업 보관 위치, 운영 snapshot, 빈 pre-production target은 저장소 밖의 운영 준비가 필요하다.
+- 접근 방법: 운영자가 승인한 복사본으로 역할별 DB 권한, MinIO namespace allow/deny, egress, UID/GID를 검사하고 객체를 먼저 복구한 뒤 DB와 active hash를 대조하는 훈련을 기록한다.
+
+## 담당자 이름은 신원을 증명하지 않는다
+
+- 재현 조건: 사내망 사용자가 mutation에서 다른 담당자의 이름을 입력한다.
+- 증상: 시스템은 입력 이름을 감사에 남기지만 실제 사용자의 내부 계정과 일치하는지 확인하지 못한다.
+- 영향: 리뷰, 정책 활성화, 외부 모델 전송 승인 기록의 작성자 신뢰도가 사내망 접근 통제 수준에 머문다.
+- 지금 해결할 수 없는 이유: 현재는 사내망과 claimed name만 사용하기로 했고 SSO·계정·역할 정보가 연결되지 않았다.
+- 접근 방법: 향후 SSO subject를 내부 계정에 매핑하고 세션 만료, 역할, 권한 회수, 기존 claimed-name 감사와의 연결 정책을 도입한다.

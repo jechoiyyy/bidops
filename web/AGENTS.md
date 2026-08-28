@@ -1,28 +1,40 @@
 # 웹 통합 모듈 작업 규칙
 
-## 범위
+## 책임
 
-이 모듈은 백엔드와 프론트엔드를 하나의 로컬 웹 서비스로 조립하는 Docker 이미지, Compose 마운트·포트·프로세스 사용자, 두 하위 모듈을 함께 검증하는 실행 진입점을 소유한다. FastAPI 업무 로직과 React 화면 구현은 각각 하위 모듈의 범위이며 이 위치에서 복제하지 않는다.
+이 모듈은 frontend build와 FastAPI runtime image, PostgreSQL·MinIO·ClamAV·worker Compose 조립, 목적별 network overlay, 통합 검증 진입점을 소유한다. 업무 판정 로직과 화면 컴포넌트를 Dockerfile이나 Compose에 구현하지 않는다.
 
-## 경계
+## 배포 경계
 
-- Dockerfile이나 통합 스크립트에 수집·판정·심층 분석 업무 규칙을 넣지 않는다.
-- 이미지에 운영 DB, 수동 첨부, `.env`, API 키, 회차 원문을 복사하지 않는다.
-- `skills`와 회사 근거 문서를 컨테이너가 수정 가능한 경로로 마운트하지 않는다.
-- 하위 모듈 테스트를 생략하고 이미지 기동만으로 통합 검증을 통과 처리하지 않는다.
+- `docker-compose.t7.yml`이 애플리케이션 스택이다. 루트 Compose의 ops profile을 웹 런타임으로 바꾸지 않는다.
+- 기본 database, storage, scanning, analysis network는 internal이다. Ollama·나라장터, 사설 vLLM egress는 서로 다른 명시적 overlay로만 연다.
+- `document-worker`는 network 없이 scratch request만 처리한다. 자격증명이나 HTTP listener를 추가하지 않는다.
+- 이미지에 `.env`, API key, DB dump, 객체 원문, run, report, 회사자료를 복사하지 않는다.
+- PostgreSQL, MinIO, pipeline data, report는 project-scoped volume으로 보존한다. 다른 Compose project의 volume을 공유하거나 삭제하지 않는다.
 
-## 불변 조건
+## 런타임 불변 조건
 
-- 이미지는 프론트엔드를 빌드한 뒤 FastAPI가 빌드 산출물을 제공하는 단일 8787 서비스로 동작한다.
-- `data`와 `reports`는 파이프라인 산출물을 위해 읽기·쓰기로, `skills`와 `docs`는 읽기 전용으로 마운트한다. DB와 첨부는 지속 볼륨에 남긴다.
-- 컨테이너 프로세스는 `BIDOPS_UID`·`BIDOPS_GID`로 호스트 파일 소유권을 맞춘다. root가 만든 산출물을 정상 운영으로 허용하지 않는다.
-- 프론트엔드 빌드가 없어도 API는 기동할 수 있지만 화면 요청은 명시적 503을 반환해야 한다. API 라우트보다 SPA fallback이 먼저 요청을 가로채면 위반이다.
-- 컨테이너 healthcheck는 내부 `/api/health`를 사용하고 외부 서비스나 나라장터 키에 의존하지 않는다.
+- 컨테이너는 non-root로 동작하고 쓰기 경로는 image build 시 생성한다. named volume이 root 소유로 생겨 런타임 chown이 필요해지는 구성을 만들지 않는다.
+- web은 8787에서 API와 production frontend를 제공한다. frontend build가 없으면 API는 기동하되 화면 요청은 503을 반환한다.
+- API route가 SPA fallback보다 먼저 매칭되어야 한다.
+- healthcheck는 내부 `/api/health`만 사용하고 나라장터, 모델, 외부 인터넷을 호출하지 않는다.
+- 앱 startup은 DB migration, MinIO policy 생성, seed, 모델 호출을 수행하지 않는다. 초기화 서비스가 성공한 뒤 web과 worker를 시작한다.
+- screening worker concurrency와 analysis worker concurrency는 각각 1이다. document worker만 계약된 replica 수로 실행한다.
 
-## 구현 패턴
+## 변경 패턴
 
-Docker 빌드는 프론트엔드 의존성·타입 빌드와 백엔드 의존성 설치를 재현 가능한 순서로 수행한다. 호스트의 새 산출물이 이미지 재빌드 없이 보이도록 런타임 데이터는 마운트로 전달한다. 통합 스크립트는 백엔드 검증이 끝난 뒤 프론트엔드 빌드를 수행하고 어느 하나라도 실패하면 0이 아닌 상태로 끝낸다.
+- Python image는 exact lockfile을 설치하고 frontend는 lockfile 기반 production build를 사용한다.
+- network 변경은 source와 destination, protocol, port, 필요한 service를 최소 범위로 적고 기본 stack에 광범위 egress를 추가하지 않는다.
+- 새 persistent path는 backup·restore·ownership·container recreation 검증을 함께 추가한다.
+- 새 secret은 외부 주입 placeholder, 해당 service만의 environment, 로그 마스킹 검증을 함께 추가한다.
+- 운영 명령은 명시적 `COMPOSE_PROJECT_NAME`을 요구하고 `down -v`나 자동 volume 정리를 포함하지 않는다.
 
-## 테스트
+## 검증
 
-프로젝트 루트에서 `./web/run-web-tests.sh`로 백엔드 pytest와 프론트엔드 빌드를 함께 실행한다. 컨테이너 변경은 `docker compose build`와 `docker compose run --rm web pytest -q`를 검증하고, 기동 후 `/api/health`, SPA 화면, 읽기 전용 마운트, 호스트 UID/GID로 생성된 산출물 소유권을 확인한다. 볼륨 삭제가 포함된 검증은 운영 데이터가 아닌 임시 Compose 프로젝트에서만 수행한다.
+```bash
+./web/run-web-tests.sh
+COMPOSE_PROJECT_NAME=bidops-verify docker compose -f docker-compose.t7.yml build
+COMPOSE_PROJECT_NAME=bidops-verify docker compose -f docker-compose.t7.yml config
+```
+
+임시 project에서 health, SPA, migration-before-start, internal network, worker 자격증명, volume 재생성 후 데이터 보존, non-root 쓰기 권한을 확인한다. 검증용 project만 제거하며 운영 volume은 건드리지 않는다.

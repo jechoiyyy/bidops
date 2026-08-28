@@ -126,6 +126,11 @@ services:
     networks: [database, storage, scanning]
     volumes:
       - document-scratch:/scratch
+      # Run artifacts and generated reports must outlive container
+      # recreation.  These are project-scoped named volumes rather than host
+      # bind mounts; use `docker compose cp` to take a copy out.
+      - pipeline-data:/app/data
+      - pipeline-reports:/app/reports
     restart: unless-stopped
 
   document-worker:
@@ -199,6 +204,8 @@ volumes:
   postgres-data:
   minio-data:
   document-scratch:
+  pipeline-data:
+  pipeline-reports:
   recovery-backup:
 
 networks:

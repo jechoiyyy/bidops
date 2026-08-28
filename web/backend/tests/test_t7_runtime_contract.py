@@ -94,6 +94,18 @@ def test_remote_vllm_egress_is_an_explicit_override():
     assert override["networks"] == {"model-egress": None}
 
 
+def test_screening_egress_is_an_explicit_override():
+    override = yaml.safe_load((ROOT / "docker-compose.t7.screening.yml").read_text(encoding="utf-8"))
+    assert set(override["services"]) == {"web"}
+    assert set(override["services"]["web"]["networks"]) == {
+        "database", "storage", "scanning", "screening-egress",
+    }
+    assert override["networks"] == {"screening-egress": None}
+    base = yaml.safe_load((ROOT / "docker-compose.t7.yml").read_text(encoding="utf-8"))
+    assert "screening-egress" not in base["networks"]
+    assert all(network.get("internal") is True for network in base["networks"].values())
+
+
 def test_non_http_workers_disable_the_shared_web_image_healthcheck():
     compose = yaml.safe_load((ROOT / "docker-compose.t7.yml").read_text(encoding="utf-8"))
     for name in ("document-worker", "analysis-worker"):

@@ -76,11 +76,14 @@ COPY web/container-entrypoint.sh /usr/local/bin/bidops-entrypoint
 COPY web/container-ops.sh /usr/local/bin/bidops-ops
 COPY web/container-git-wrapper.sh /usr/local/bin/git
 
-# Data, report, and backup roots are group-writable, not world-writable. The
-# named DB volume inherits these permissions on first use.
+# Data, report, backup, and scratch roots are group-writable, not
+# world-writable. A named volume inherits these permissions on first use, so
+# every mount point a non-root service writes to must exist here first;
+# Docker otherwise creates the volume root-owned and the service cannot start.
+# /scratch is the document-converter handoff shared by web and document-worker.
 RUN install -d -o bidops -g bidops -m 0770 \
         /app/data /app/reports /app/backups /app/web/data \
-        /app/web/data/attachments /app/web/data/profile-snapshots \
+        /app/web/data/attachments /app/web/data/profile-snapshots /scratch \
     && chmod 0555 /usr/local/bin/bidops-entrypoint /usr/local/bin/bidops-ops /usr/local/bin/git \
     && chown -R root:root /app/skills /app/docs \
     && find /app/skills /app/docs -type d -exec chmod 0555 {} + \

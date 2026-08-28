@@ -1,8 +1,7 @@
-# BidOps Admin local/isolated runtime.
-#
-# `web` is the only default service. Database administration and policy seed
-# services are in the `ops` profile and are never dependencies of `web`; invoke
-# them explicitly after stopping `web` where the command requires it.
+# 이 파일은 SQLite migration 입력 스냅숏을 다루는 operator 도구만 담는다.
+# 애플리케이션 런타임(`web`, `document-worker`, `analysis-worker`)은
+# `docker-compose.t7.yml`이 담당한다.
+# 모든 서비스는 `ops` profile이므로 인자 없는 `docker compose up`은 아무것도 띄우지 않는다.
 
 x-bidops-runtime: &bidops-runtime
   image: bidops-admin:local
@@ -23,6 +22,8 @@ x-bidops-runtime: &bidops-runtime
     BIDOPS_ROOT: /app
     BIDOPS_DATA_DIR: /app/web/data
     BIDOPS_ATTACHMENTS_DIR: /app/web/data/attachments
+    # 이 SQLite 경로는 정본이 아니라 `db-backup`/`db-migrate`/`db-verify`가
+    # 다루는 migration 입력 스냅숏이다.
     BIDOPS_DATABASE_URL: sqlite:////app/web/data/bidops.db
     # Set this to an approved Ollama endpoint in .env. Loopback is safe by
     # default, so an unavailable model never affects /api/health.
@@ -49,14 +50,8 @@ x-bidops-runtime: &bidops-runtime
   entrypoint: ["/usr/local/bin/bidops-entrypoint"]
 
 services:
-  web:
-    <<: *bidops-runtime
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8787"]
-    ports:
-      - "${BIDOPS_HTTP_PORT:-8787}:8787"
-    restart: unless-stopped
-
-  # Explicit operator commands. None has a depends_on relationship with web.
+  # Explicit operator commands. None starts on its own or depends on another
+  # service; each is invoked by name after the T7 runtime is stopped.
   # `db-migrate` additionally requires a retained manifest and an explicit
   # service-stopped confirmation in container-ops.sh.
   db-backup:

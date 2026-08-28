@@ -1,122 +1,90 @@
-# BidOps 아키텍처
+# BidOps 시스템 구성
 
-이 문서는 현재 구현된 T14 통합 경계를 설명한다. BidOps는 공고를 수집하고 근거가 연결된 판단 초안을 만드는 의사결정 지원 도구다. 입찰 제출, 발주기관 연락, 최종 Go/No-Go, 알림·SSO는 수행하지 않는다. 첨부 심층 검토는 사람이 최종 판단하는 보조 단계로만 수행한다. OpenAI hosted 폴백도 없다.
+BidOps는 나라장터의 발주계획을 조기에 탐색하고, 사전규격의 제안요청서를 근거로 사업기회를 검토한 뒤, 선택된 기회를 입찰공고까지 추적하는 사내 의사결정 지원 시스템이다. 자동 제출·발주기관 연락·최종 참여 결정은 수행하지 않는다.
 
-관련 계약은 [Agent 워크플로 설계](./agent-workflow-design.md), [에이전트 런타임](./agent-runtime.md), [스케줄링](./scheduling.md), [모델 품질 게이트](./model-quality-gate.md), [외부 인터페이스 계약](./contracts.md), [운영 절차](./operations.md), [구현·검증 표준](./standards.md)에 있다.
-
-## 경계와 소유권
+## 전체 구성
 
 ```text
-skills/* (수집·표본·병합·보고 파일 계약)
-        │ subprocess / UTF-8 JSON·YAML
-        ▼
-FastAPI API ── SQLAlchemy/PostgreSQL 17 ── Alembic migrations
-        │                         │
-        │                         ├─ immutable policy/profile/gate bindings
-        │                         └─ queue, attempts, schedules, audit
-        ▼
-Runtime worker ── Ollama (qwen3.8:27b, think=false)
-        │
-        ├─ screening-input / decisions / failures / telemetry
-        └─ deterministic merge → derived run (full run only)
+나라장터 발주계획 API ─┐
+                       ├─ 수집·정규화 ─ 선별 정책 ─ 사업기회 연결 ─ PostgreSQL
+나라장터 사전규격 API ─┤                                  │
+                       │                                  ├─ FastAPI ─ React 관리 화면
+나라장터 입찰공고 API ─┘                                  │
+                                                          ├─ MinIO 원문·구조·모델응답
+                                                          └─ 실행 대기열·감사 기록
 
-APScheduler (Asia/Seoul clock only) ── durable reservation ── same queue
+사전규격/입찰 첨부 ─ ClamAV ─ 격리 scratch ─ 문서 변환 worker ─ 구조화 문서
+구조화 문서 + 고정 프로필·정책 ─ 분석 worker ─ 검증 ─ 불변 리포트 ─ 사람 의견
 ```
 
-- `skills/bidops-collect`, `skills/bidops-screen`, `skills/bidops-report`는 파일 계약을 소유한다. 웹 계층은 스킬 내부 함수를 import하지 않고 subprocess와 파일을 통해 호출한다.
-- `web/backend/app`은 API, DB 상태, 대기열·워커, 결정적 검증·병합, 산출물 경로를 소유한다. 프론트엔드는 API만 사용하며 DB·`data/runs`·첨부 루트를 직접 읽지 않는다.
-- APScheduler는 시계를 깨우고 고정된 기간을 예약하는 경계다. 판정 단계나 모델 호출을 소유하지 않는다. 수동·CLI·품질 게이트·스케줄 트리거는 모두 같은 DB FIFO로 들어간다.
-- PostgreSQL 17의 `bidops` schema가 상태의 정본이다. 애플리케이션 시작은 `init_db()`로 현재 Alembic revision과 schema presence만 읽어 확인한다. migration, `create_all`, portal seed, policy seed는 시작 시 수행하지 않는다. fresh migrated DB에는 schedule/always-on 기본 singleton과 deterministic migration audit event가 생기며 `screening_policy`·`agency_portal`은 0행이다. seed/portal 등록은 운영자 명령/API로 별도 실행한다.
-
-## 데이터 흐름
-
-1. 수집기가 `data/runs/<run_id>/collected-notices.json`과 원문·경고를 만든다. 표본기는 별도로 `validation-set.json`을 만들며, 정기 판정 전체 입력을 표본으로 줄이지 않는다.
-2. 오케스트레이터가 공고·기간·정책·프롬프트·프로필 식별자를 동결하여 `data/screening-executions/<execution_id>/screening-input.json`을 만든다. 스냅샷은 `bidops.screening-input.v1`이다.
-3. 실행 행은 모델·정책·프롬프트·프로필 버전과 digest, 입력 digest, artifact 디렉터리를 함께 저장한다. 워커는 호출 직전에 이 바인딩과 Ollama 모델 digest를 다시 확인한다.
-4. 워커는 한 번에 하나의 execution만 claim한다. 공고별 성공 판정은 `screening-decisions.json`(`bidops.decisions.v3`), 실패는 `screening-failures.json`(`bidops.screening-failures.v1`), 호출 계측은 `screening-telemetry.jsonl`(`bidops.screening-telemetry.v1`)로 기록한다.
-5. 모든 공고가 성공한 full run만 새 파생 회차 디렉터리 `data/runs/<source.name>--screen-<UTC YYYYmmddHHMMSS>-<8hex>/`에 발행한다. 원 회차·원문·리뷰·파일은 수정하지 않는다. 일부 성공은 `부분 성공`으로 남고 실패 공고를 조용히 정본에 넣지 않는다. single notice와 quality sample은 experiment artifact로만 남는다.
-
-## 불변 바인딩
-
-### 회사 프로필
-
-정식 경로는 `docs/reference/company-profile.md`다. 이 파일은 이 작업에서 수정하지 않는다. `current`는 실행 시점 working-tree bytes를 SHA-256으로 저장하고 `web/data/profile-snapshots/<sha256>.md`에 복사한다. 버전은 `company-profile.sha256:<64hex>`다.
-
-비교용 `git:<40hex>`는 승인된 commit `ee621835db934ddac944f7a07a986ed0b73ecc7a`의 정식 경로만 허용한다. Git이 있으면 blob을 읽고 vendored baseline과 일치하는지 확인한다. Git executable/repository가 없을 때만 `web/backend/app/screening/baseline_company_profile.md`를 사용하며, 허용 digest `a231ab54c36031a7e72779bbca550f70561dc0c946dc5544eeb930c7c6149de2`와 일치해야 한다. mismatch는 성공 입력이 아니다.
-
-컨테이너의 `git` wrapper는 이 정확한 `git -C /app show ee621835db934ddac944f7a07a986ed0b73ecc7a:bidops-agent/docs/reference/company-profile.md` 요청을 vendored bytes로 응답하고 나머지는 실제 Git에 위임한다.
-
-### 정책·프롬프트·모델
-
-정책 body와 prompt는 저장 시 새 immutable version을 만든다. 실행은 policy version, prompt version, model name/version·digest를 저장하며 완료 회차의 참조를 바꾸지 않는다. 기본 모델은 정확히 `qwen3.8:27b`다. Ollama `/api/tags`에서 실행 시 확인한 model digest(64 lowercase hex)가 실행에 묶인다. `think=false`, `stream=false`를 사용하며 BF16·OpenAI 대체 경로는 없다.
-
-정책 상태는 `draft`, `activation_candidate`, `active`이고 active는 최대 하나다. 기본 seed는 `python -m app.screening.policy seed-default --created-by system-bootstrap`을 운영자가 실행할 때만 만들어진다. 시작·migration·container entrypoint는 policy/portal seed를 하지 않는다.
-
-### 품질 게이트
-
-게이트는 고정 40건으로 A/B 두 번을 독립 실행한다. 비교 목적은 역사적 Git 프로필만, 운영 승인 목적은 current snapshot만 허용한다. 게이트가 pass여도 정책 activation과 always-on을 자동 수행하지 않는다. 자세한 분리 규칙은 [모델 품질 게이트](./model-quality-gate.md)를 따른다.
-
-## 실행 슬롯과 상태
-
-`screening_execution.queue_no`가 모든 `cli_single`, `manual_run`, `quality_gate`, `schedule` 작업의 FIFO 순서를 정한다. PostgreSQL row-level claim lock과 `active_slot=1` partial unique index가 마지막 경쟁을 막고, `BIDOPS_SCREEN_MAX_CONCURRENCY=1`은 고정이다. 실행 중 heartbeat가 기본 60초보다 오래되면 시작·claim 때 `중단됨`/`process_interrupted`로 회수하며 자동 재개하지 않는다.
-
-실행의 주요 상태는 `대기`, `실행 중`, `중지 요청`, `성공`, `부분 성공`, `실패`, `중단됨`이다. stop 요청은 대기 행을 즉시 중단하고 실행 중 행은 현재 blocking HTTP 호출이 끝난 뒤 중단한다. 성공 공고는 실패 공고와 분리해 보존하고, 중단 실행은 발행하지 않는다. 상세한 7-span 및 재시도 규칙은 [에이전트 런타임](./agent-runtime.md)에 있다.
-
-## 스케줄과 상시 운영
-
-APScheduler 3.11 계열은 in-process clock이다. 시간대는 `Asia/Seoul`, 초기 기본 시각은 daily `02:00`, weekly Monday `06:00`이다. durable `schedule_reservation`이 기간별 승자를 한 번만 정하고, duplicate reservation은 `건너뜀` 실행과 audit를 남긴다. 재기동 catch-up은 예약 누락 기간만 오래된 순서로 보충하며 기존 실패·부분 성공을 자동 재시도하지 않는다.
-
-스케줄러 등록은 `BIDOPS_SCHEDULER_ENABLED=true`일 때만 한다. worker는 이 값과 관계없이 시작한다. 상시 운영은 환경 cap, DB `always_on_state.enabled`, active policy, 최신 passing `operational_approval`의 정확한 model/profile/current binding을 모두 만족해야 한다. 환경·DB 스위치는 기본 false다. T14/T15는 operator direction 없이 activation이나 always-on을 수행하지 않는다. [스케줄링](./scheduling.md)에 catch-up·복구·감사 규칙을 정리했다.
-
-## 저장·보안 경계
-
-- PostgreSQL 17이 정본이고 SQLite는 isolated test와 일회성 migration 입력으로만 쓴다. 현재 head는 `0003_screening_runtime_pg`이며 앱은 자동 migrate하지 않는다. backup manifest를 보존한 명시적 migrate와 `db-verify`를 운영자가 수행한다.
-- artifact 경로는 알려진 파일명, symlink 거부, root escape 검사를 통과해야 한다. API는 내부 저장 경로를 조합하게 하지 않고 허용된 artifact endpoint만 노출한다.
-- `.env`, API key, Ollama credential, 원문 첨부와 run data를 image·Git에 넣지 않는다. web container는 root로 실행하지 않고 UID/GID bind mount 권한을 검사한다.
-- Docker Python runtime은 `web/backend/requirements.lock`의 exact transitive pins만 설치한다. visual은 remote Google Fonts를 차단하고 image local fonts로 고정한다.
-- 모델 prompt/response body는 오류·audit/log에 기록하지 않는다. telemetry에는 trace/span과 호출 메타데이터만 둔다.
-- health는 `GET /api/health`의 내부 lightweight 응답이며 Ollama나 외부 수집 API를 확인하지 않는다.
-
-운영자의 중지→backup→명시적 migrate→verify→seed→web health→단 한 번의 live smoke 순서는 [운영 절차](./operations.md)에 고정되어 있다.
-
-## 심층 검토 경계 (Lean v1)
-
-```text
-공개 수집/기존 SQLite backup --(one-time reconciliation)--> PostgreSQL 17 bidops schema
-기관 문서 --> FastAPI MinIO quarantine + ClamAV --> MinIO source/structure
-                         | hash-bound atomic scratch protocol
-                         v
-              document-worker (network none, replicas 2)
-고정 bundle/profile/policy snapshot ---------------------> analysis worker (concurrency 1)
-                                                           |  approved vLLM OpenAI-compatible API
-                                                           v
-                                                   3 stages + deterministic validation
-                                                           |
-                                                   immutable report/evidence/audit
-                                                           |
-React SPA <---------------- FastAPI ----------------------+
-```
-
-PostgreSQL 17.11과 MinIO가 live canonical DB/object store이고 SQLite는 migration input이다. FastAPI는 목적별 MinIO source/structure/quarantine credential과 DB/ClamAV restricted networks를 사용하며, bounded scratch만 임시 staging으로 남긴다. document-worker는 검증된 원문 hash와 clean scan envelope를 가진 credential-free scratch request만 network none에서 신뢰한다. analysis worker는 immutable structure를 읽고 application-encrypted model response를 model-response bucket에 쓴다. prompt에는 evidence에 필요한 immutable document/structure UUID와 source SHA만 포함하고 object key·path·credential은 포함하지 않는다. report/evidence/validation과 finish는 동일한 fenced transition에서 확정된다.
-
-## 구성요소와 경계
-
-| 구성요소 | 역할 | 경계 |
+| 구성요소 | 역할 | 의존 방향과 경계 |
 |---|---|---|
-| legacy 13 tables | 기존 수집·판정·리뷰 projection | SQLite backup에서 한 번 import하고 PostgreSQL에 보존 |
-| Lean 25 tables | bundle, structures, attempts, claims, evidence, report, validation, audit | 총 38 application table, actor table 없음 |
-| FastAPI document producer | MinIO quarantine/source 저장, 동일 원문의 ClamAV 검사, hash-bound scratch request/result | DB/MinIO/ClamAV restricted networks; purpose credential별 접근 |
-| document-worker | HWP/HWPX/PDF 안전 검사·구조화 | credential-free atomic scratch protocol, Node/PDF/OCR 로컬 도구, network none, replicas 2 |
-| analysis worker | 요구사항·위험·경제성·종합 3단계 | fixed snapshots와 Qwen/vLLM endpoint만 사용, concurrency 1 |
-| FastAPI | 정확히 승인된 새 API #1-14와 기존 조회 API | stable error shape, claimed-name boundary, security headers, SPA fallback after API |
-| React frontend | notice detail entry, deep-review route, report/evidence/decision flow | REST API only, keyboard and narrow-viewport fixture |
+| `skills/bidops-collect` | 나라장터 응답 보존·정규화, 후보 신호와 감사 표본 생성 | 공개 API를 읽어 버전 있는 파일을 만든다. DB와 웹 코드를 호출하지 않는다. |
+| `skills/bidops-screen` | 고정 입력과 판정 파일을 일대일 검증·병합 | 모델 호출과 DB 적재를 소유하지 않는다. 입력에 없는 판단을 만들지 않는다. |
+| `skills/bidops-report` | 검증된 판정으로 HTML·호환 YAML을 결정적으로 렌더링 | 등급·준비 상태·근거를 다시 계산하지 않는다. |
+| 발주계획 선별 실험 | 키워드, ColBERT, Qwen, Luna를 같은 3일 입력에서 비교 | 운영 선별기를 구현하기 전에 결과와 사람 판정을 고정한다. 아직 운영 구성요소가 아니다. |
+| 사업기회 연결 계층 | 발주계획·사전규격·입찰공고를 내부 사업기회로 묶음 | 공식 통합번호는 확정 관계로, 유사도 관계는 사람 확인 전 후보로만 저장한다. 아직 구현 전이다. |
+| FastAPI | REST 계약, 상태 전이, 적재, 실행 대기열, 정책·감사 경계 | 스킬은 별도 프로세스와 파일로 호출한다. React에는 API만 제공하며 회사 프로필은 승인된 구조화 항목·`unknown` projection으로 제한한다. |
+| PostgreSQL 17 | 회차·공고·판정·리뷰·정책·사업 문서·실행·감사의 정본 | `bidops` 스키마를 사용한다. SQLite는 격리 테스트와 일회성 이관 입력에만 남는다. |
+| MinIO | 원문, 구조화 결과, 격리본, 암호화된 모델 응답 보존 | 목적별 버킷과 자격증명을 분리한다. DB에는 객체 위치·버전·해시를 고정한다. |
+| 문서 변환 worker | HWP/HWPX/PDF 안전검사와 구조화 | 네트워크·DB·객체 저장소 자격증명 없이 원자적 scratch 요청만 처리한다. |
+| 분석 worker | 고정된 문서·프로필·정책으로 심층검토 수행 | 구조 읽기와 암호화된 모델응답 쓰기만 허용하며 동시성은 1이다. |
+| React 관리 화면 | 탐색 후보, 검토 대기열, 리포트, 운영 상태 표시 | DB·파일·모델에 직접 접근하지 않는다. |
+| 스케줄러 | 서울 시간 기준 예약과 누락 기간 회수 | 같은 DB 실행 대기열에 작업을 넣을 뿐 판정이나 모델 호출을 직접 수행하지 않는다. |
 
-OpenAI hosted API, Langfuse, phase2 기능은 없다. OpenAI Python SDK는 내부 vLLM compatible protocol client로만 사용한다. 기존 SQLite-live 문구는 폐기한다.
+## 사업기회 수명주기
 
-## 순서와 transaction fence
+### 발주계획 조기 탐색
 
-문서 bundle confirmation이 fixed input을 만들고, attempt는 3 stages를 순서대로 저장한다. 분석과 report는 live attachment/document projection을 다시 읽지 않는다. 세 번째 stage persist 뒤 `ReportService.materialize_machine_report(session, claim)`가 immutable report, validation, evidence joins, audit를 만들고, 바로 `_finish_claim`이 같은 lease를 재검증한 뒤 commit한다. materializer 오류는 rollback 후 safe worker failure로만 기록한다.
+운영 목표는 발주계획을 매일 수집하고 월요일·목요일에 사람이 누적 후보를 검토하는 것이다. 관측 규모는 3일 약 1,200건, 1주 약 2,000건이다. 발주계획은 일반용역·기술용역을 수집하며 SW사업대상 여부로 선제 제거하지 않는다. 계획 단계의 제목·기관·예산·예정 시기는 조기 신호이지 참여 가능성의 확정 근거가 아니다.
 
-## 배포
+선별 방식은 고정 3일치 입력에서 네 후보를 비교한 뒤 정한다. 원 API 응답은 한 번만 받아 모든 후보가 공유하며, 각 후보의 점수·순위·이유·버전을 함께 저장한다. 선택된 사업만 남기지 않고 탈락 기록과 감사 표본을 보존해야 누락률을 측정할 수 있다.
 
-이 worktree/production template은 `docker-compose.t7.yml`이고 원격 모델 egress는 `docker-compose.t7.remote-vllm.yml`에서만 추가한다. 항상 `COMPOSE_PROJECT_NAME=bidops-deep-review-t7`와 함께 실행하고 main worktree의 compose/data/volume을 공유하지 않는다. Web은 database/storage/scanning과 scratch volume에 연결되고 source/structure/quarantine 목적별 MinIO credential만 받는다. analysis worker는 database/analysis network에서 structure-read와 model-response credential만 받고, 승인 환경에서만 literal-IP vLLM egress를 추가한다. document-worker는 network none의 두 replica로 credential-free scratch만 소비한다. PostgreSQL 역할, MinIO purpose-specific credentials/policies, vLLM API key는 외부 secrets로 주입되며 MinIO 미설정 production은 fail fast한다.
+### 사전규격 중심 검토
+
+사전규격은 일반용역·기술용역 중 `SW사업대상=대상`인 항목을 발주계획 선택 여부와 관계없이 매일 독립 수집한다. 발주계획은 사전규격의 필수 선행 기록이 아니므로 선택된 계획만 조회하는 경로는 전체 수집을 대신할 수 없다.
+
+사전규격의 관련 규격서·제안요청서는 악성코드 검사와 구조화를 거친다. 저비용 선별 뒤 사람이 심층검토 실행을 승인하면 분석 worker가 요구사항·평가·자격·위험·경제성을 검토하고 결정적 검증을 통과한 초기 리포트를 만든다. 사용자는 결과를 보고 `계속 추적`, `보류`, `종료` 중 하나를 선택한다. 이 선택은 조사 비용과 추적 우선순위를 정할 뿐 최종 입찰 참여 승인이 아니다.
+
+### 입찰공고 추적
+
+`계속 추적` 사업에 입찰공고나 정정공고가 연결되면 사전규격 당시 문서와 공고의 금액·기간·자격·평가·제출 조건 차이를 계산한다. 중요한 변경이 있으면 새 문서 묶음과 새 심층 리포트를 만들고 이전 결과를 유지한다. 변경이 없더라도 어떤 버전끼리 비교했는지 남긴다. 최종 Go/No-Go는 담당자가 내리며 시스템은 제출이나 외부 연락으로 이어지지 않는다.
+
+## 대표 실행 흐름
+
+1. 수집기가 서울 시간 구간과 API 응답을 불변 회차로 고정한다.
+2. 정규화기는 안정 외부 식별자, 원문 해시, 확인 불가 필드와 출처를 보존한다.
+3. 선별 정책은 후보·점수·이유를 만들고 탈락 레코드를 삭제하지 않는다.
+4. 공식 통합번호가 있으면 외부 레코드를 같은 사업기회에 연결한다. 번호가 없고 기관·사업명이 유사하면 후보 관계만 만들고 사람 확인을 기다린다.
+5. 사전규격이 들어오면 발주계획 선택 여부와 무관하게 대기열에 나타난다. 사람이 심층검토를 승인하기 전에는 고비용 분석을 시작하지 않는다.
+6. 문서 원문은 MinIO 격리 버킷에 저장되고 ClamAV의 clean 판정과 같은 SHA-256이 확인된 요청만 네트워크 없는 변환 worker로 전달된다.
+7. 구조화 결과, 회사 프로필, 분석 정책과 모델 식별자는 시도 생성 시 고정된다. 분석 worker는 세 단계를 순서대로 실행하고 검증·근거·리포트를 같은 완료 전이에서 확정한다.
+8. 입찰공고가 연결되면 새 버전을 기존 리포트와 비교한다. 기존 문서·리포트·사람 의견을 수정하지 않는다.
+9. React는 API가 반환한 상태와 근거만 표시하며 사람의 추적 결정과 최종 의견을 감사 기록에 남긴다.
+
+## 현재 구현과 목표 연결
+
+현재 코드는 입찰공고 수집·다섯 관점 판정·보고 파일 계약, PostgreSQL 기반 관리 API, 문서 묶음·심층검토·리포트, 모델 품질 게이트와 스케줄 대기열을 제공한다. 발주계획 선별 비교, 사업기회 연결, 사전규격 독립 수집·화면, 문서 준비 화면, 실패 단계 재시작 화면, 입찰공고 변경분 검토는 목표 흐름에 속하지만 아직 완결되지 않았다.
+
+T7 조립은 개발 stack health까지 확인됐지만 운영 배포 경계는 완성되지 않았다. 현재 template와 API에는 회사자료의 image 포함, profile 원문·filesystem source 응답, hosted Codex 심층 prompt, legacy 첨부 안전검사 우회, host-wide 관리 port, MinIO versioning fail-open, broad worker DB 권한, 불완전 객체 restore가 남아 있으므로 운영 정본으로 승격할 수 없다.
+
+현재 판정 실행은 `screening_execution.queue_no` 오름차순과 활성 슬롯 하나를 사용한다. 심층검토 작업은 PostgreSQL 행 잠금과 lease fence로 claim한다. 두 실행 계열은 서로의 모델 결과를 직접 수정하지 않고 버전 있는 입력·산출물과 API를 통해 연결된다.
+
+## 외부 시스템 경계
+
+| 외부 시스템 | 들어오는 값 | 나가는 값 | 실패 처리 |
+|---|---|---|---|
+| 나라장터·공공데이터포털 | 발주계획, 사전규격, 입찰공고, 첨부와 변경 이력 | API 인증키가 포함된 조회 요청 | 페이지별 실패를 제한 재시도하고 성공 페이지를 보존한다. 빈 응답을 0건으로 확정하기 전에 응답 상태를 확인한다. |
+| Ollama `qwen3.8:27b` | 1차 판정에 허용된 공고·프로필 절 | 구조화 단계별 JSON | 태그·digest 불일치, timeout, 잘린 출력은 실패로 남기고 외부 서비스로 자동 전환하지 않는다. |
+| 사설 vLLM | 승인된 구조화 문서와 고정 분석 입력 | OpenAI 호환 형식의 구조화 응답 | 허용된 단일 주소·모델 식별자가 아니면 호출 전에 중단한다. |
+| 실험용 Luna·Sol | 공개 발주계획 정보와 승인된 회사 역량 요약 | 선별 후보와 참고 평가 | 건별 전송 내용 확인이 없으면 호출하지 않는다. 회사 프로필 원문·제안요청서·첨부·리뷰는 보내지 않는다. |
+| ClamAV | 격리된 첨부 바이트 | 검사 판정과 원문 해시 | 검사 실패·미확인은 clean으로 취급하지 않고 변환을 시작하지 않는다. |
+| Git | 승인된 역사 회사 프로필 blob | 프로필 bytes와 commit identity | 승인 commit을 찾을 수 없거나 vendored digest가 다르면 비교 실행을 만들지 않는다. |
+
+## 저장 경계
+
+- 실행·회차·정책·프로필·문서 묶음·리포트는 생성 뒤 제자리에서 수정하지 않는다. 재실행과 정정은 새 식별자와 관계를 만든다.
+- PostgreSQL에는 업무 상태와 객체 식별자를 저장하고, 원문·구조·모델응답 바이트는 목적별 MinIO 객체로 보존한다.
+- `data/runs`와 실행 파일은 기존 스킬 소비자와 재현 검증을 위한 파일 계약이다. DB가 이를 임의로 대체하거나 과거 파일을 다시 쓰지 않는다.
+- scratch는 자격증명이 없는 변환 요청의 제한된 임시 경계일 뿐 정본 저장소가 아니다.
+- 모델 응답은 확정 근거가 아니다. 원문 위치와 결정적 검증을 통과한 주장만 리포트의 확인 사실이 된다.

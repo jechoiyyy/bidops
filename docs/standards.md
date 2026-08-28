@@ -1,50 +1,84 @@
 # 구현·검증 표준
 
-이 표준은 현재 구현과 CI가 지켜야 할 불변식을 적는다. 새 기능의 추측이나 운영 승인 기록을 코드 상수로 대체하지 않는다.
+BidOps의 코드, 데이터, 모델 호출, 운영 변경은 아래 기준을 통과해야 한다. 아직 구현되지 않은 목표 흐름을 현재 기능처럼 취급하지 않으며, 검증하지 않은 결과를 완료로 기록하지 않는다.
 
-## 경계와 데이터
+## 변경 전 확인
 
-- `skills/bidops-collect`, `bidops-screen`, `bidops-report`는 subprocess/file contract 경계다. 웹이 내부 skill module을 import하거나 같은 동작을 복제하지 않는다.
-- 모든 JSON에는 명시적 `schema_version`이 있다. 의미를 바꾸면 새 schema version을 만들고 기존 파일을 소급 변경하지 않는다.
-- `screening-input.v1`, `decisions.v3`, failures/telemetry는 execution ID·run/window·policy/prompt/model/profile identity를 역추적할 수 있어야 한다.
-- 승계는 `carried_over=true`와 최초 `judged_in_run`/현재 `recorded_in_run`을 보존한다. 승계를 신규 호출처럼 기록하거나 missing binding을 추정하지 않는다.
-- 모델/검증기는 `unknown`, `null`, `계산 불가`, `값 없음`을 확정값·0·빈 문자열로 치환하지 않는다. deterministic validator는 grade/readiness를 보정하지 않는다.
+- 변경 대상의 입력·출력·정본·소비자를 먼저 확인한다. 파일이나 REST 형식의 의미가 바뀌면 명시적인 새 버전과 이전 소비자 처리 방식을 함께 설계한다.
+- 등급, 참여 준비 상태, 심층 검토 단계, 사람 피드백 상태를 바꿀 때는 가능한 상태 조합과 실패 상태를 먼저 고정한다.
+- DB나 적재기를 바꿀 때는 회차 원본 불변성, 부분 산출물 경고, DB 정본 리뷰를 보존한다.
+- 첨부 업로드·변환·다운로드·모델 전송을 바꿀 때는 경로 격리, 악성코드 검사, 감사 이벤트, 건별 외부 전송 승인을 검토한다.
+- 일정, 판정 실행, 정책, 프롬프트, 모델을 바꿀 때는 실행 회차, 재시도, 불변 바인딩, 품질 활성화 게이트까지 한 변경으로 검토한다.
 
-## 모델·근거·품질
+## 모듈과 계약 경계
 
-- 모델은 정확히 `qwen3.8:27b`, Ollama digest를 execution에 묶고 `think=false`, `stream=false`를 사용한다. OpenAI/BF16 fallback은 없다.
-- 신규·재판정은 다섯 unique perspective + counterargument + synthesis의 7 span을 호출한다. 승계는 model call 없이 carry-over validation을 한다.
-- timeout/truncated/schema/evidence/repetition은 최대 2 attempts bounded retry 후 실패 목록과 사람 검토 상태로 남긴다. 잘린 response를 이어 붙여 성공으로 만들지 않는다.
-- 근거는 source/status/fact와 검증 가능한 위치를 가져야 하며, 모델의 자기검증 문장을 근거로 삼지 않는다.
-- fixed quality gate는 40건 A/B다. `model_comparison`과 `operational_approval`의 profile source를 섞지 않고, pass만으로 activation하지 않는다. threshold는 [모델 품질 게이트](./model-quality-gate.md)와 동일하다.
+- `skills/bidops-collect`, `skills/bidops-screen`, `skills/bidops-report`는 subprocess와 파일 계약으로 연결한다. 웹 애플리케이션이 이 모듈의 내부 함수를 직접 가져오거나 같은 업무 규칙을 복제하지 않는다.
+- 웹 프론트엔드는 API만 사용한다. DB, `data/runs`, 첨부 저장소, 모델 응답 저장소를 직접 읽지 않는다.
+- 모든 파이프라인 JSON에는 `schema_version`을 둔다. 필드 의미, 허용 상태, 필수 여부가 바뀌면 버전을 올리고 이미 생성된 파일은 소급 수정하지 않는다.
+- 생산자는 현재 계약을 엄격히 지킨다. 과거 산출물 적재기는 식별자와 핵심 판정이 유효한 범위에서만 관대하게 읽고, 누락 필드를 추정하지 않으며 경고를 남긴다.
+- 발주계획, 사전규격, 입찰공고는 내부 기회 식별자로 연결한다. 공식 통합번호가 없는 유사도 연결은 확정 관계로 저장하지 않고 사람 확인 대기 후보로 둔다.
 
-## 불변성·보안
+## 데이터 불변성과 상태
 
-- profile/policy/prompt/model/input/artifact binding은 실행 생성 뒤 바꾸지 않는다. profile `current`는 bytes snapshot, 역사 비교는 승인된 Git commit과 vendored digest를 검증한다.
-- DB는 SQLite WAL/foreign keys와 Alembic head를 사용한다. 앱 start/container entrypoint는 migrate, `create_all`, portal seed, policy seed를 하지 않는다. fresh migrated DB는 schedule/always-on singleton과 migration audit event만 초기화하고 policy/portal row는 0이며 명시적 seed/API 등록이 필요하다. migration은 중지된 서비스, retained backup manifest, explicit confirm으로만 수행한다.
-- FIFO는 queue_no 오름차순, active slot과 max concurrency는 1이다. heartbeat stale recovery는 중단으로 끝나며 자동 resume/재시작을 만들지 않는다.
-- artifact는 known filename, symlink/path escape 검사 후에만 읽고 쓰며 API는 내부 저장 경로를 조합하지 않는다.
-- API key, `.env`, Ollama credential, 원문 첨부, run data, prompt/response body를 image/Git/log/audit에 넣지 않는다. 오류·audit에는 안전한 상태·원인 요약만 둔다.
-- `BIDOPS_SCHEDULER_ENABLED=false`와 DB always-on false를 기본으로 하고, gate pass·seed·startup이 activation/always-on을 자동 수행하지 않는다.
+- 수집 회차의 원문, 정규화 결과, 프로필·정책·프롬프트·모델 입력 스냅숏, 모델 산출물, 사람 리뷰는 생성 뒤 덮어쓰지 않는다. 수정은 새 버전이나 새 파생 산출물로 남긴다.
+- 발주계획은 선택된 건만이 아니라 수집·정규화된 전체를 저장한다. 각 선별 방식의 점수, 순위, 사유, 버전, 사람 판정을 함께 보존한다.
+- `unknown`, `null`, `값 없음`, `계산 불가`를 0, 빈 문자열, `false`, 확인 완료로 바꾸지 않는다.
+- 1차 등급과 참여 준비 상태를 별도 필드와 별도 전이로 유지한다. 적합성 점수로 자격 확인을 대신하거나 자격 미확인만으로 적합성 등급을 낮추지 않는다.
+- 성공, 부분 성공, 실패, 중단을 구분한다. 일부 결과나 잘린 모델 응답을 완전한 성공으로 발행하지 않는다.
+- 사람의 `계속 추적`, `보류`, `종료`는 입찰 추적 범위를 정하는 결정이다. 최종 입찰 `Go/No-Go`와 동일한 값으로 저장하지 않는다.
 
-## API·UI·파일
+## 모델, 근거, 품질
 
-- FastAPI 요청/응답은 명명된 Pydantic schema를 사용하고 상태/오류를 임의 dict로 새로 만들지 않는다. 422(계약), 404(존재), 409(상태/중복/활성화), 503(preflight) 의미를 보존한다.
-- 프론트엔드는 API만 사용하고 SQLite·`data/runs`·첨부 루트를 읽지 않는다. TypeScript strict build와 lockfile 기반 설치를 통과해야 한다.
-- Docker Python image는 `web/backend/requirements.lock`의 exact transitive pins만 설치한다. visual test는 Google Fonts network를 차단하고 image local fonts로 결정성을 확보한다.
-- 파일은 UTF-8과 schema version을 사용한다. full run publish는 새 파생 디렉터리에만 쓰고 원 run/review/files를 수정하지 않는다. partial/failed/stopped 결과를 성공으로 숨기지 않는다.
+- 회사 역량·자격·실적, 공고 요구사항, 숫자, 날짜를 추정해서 채우지 않는다. 확인할 수 없으면 `unknown`과 확인 항목으로 남긴다.
+- 모델이 만든 사실·숫자·판정 근거는 원문 문서, 페이지·절·표·셀 또는 정규화 원본 레코드의 검증 가능한 위치에 연결한다.
+- 계수, 금액, 배점, 기간, 요구사항 ID, 증거 인용은 결정적 검증기로 검사한다. 불일치 결과를 자동 보정하지 않고 사람 검토로 보낸다.
+- timeout, 잘림, schema 위반, 근거 누락, 반복은 제한된 횟수만 재시도한다. 실패 원문을 이어 붙이거나 검증기를 우회하지 않는다.
+- 운영 선별 정책은 고정 표본, 사람 정답, 재현 가능한 지표, 명시적 승인 전에는 활성화하지 않는다. 모델이 만든 참조 정답은 사람 판정을 대체하지 않는다.
+- 발주계획 선별 방식은 동일한 동결 3일 표본에서 키워드 규칙, ColBERT, Qwen3.8:27B, GPT Luna xhigh를 비교한 뒤 선택한다. 외부 모델은 승인된 공개 메타데이터와 별도 승인된 회사 역량 요약만 받으며 운영 자동 fallback으로 사용하지 않는다.
+- 현재 로컬 판정 모델은 실행마다 정확한 모델명과 digest를 묶는다. 승인된 사설 OpenAI-compatible vLLM은 심층 검토의 별도 실행 경계이며, hosted OpenAI 사용으로 간주해 자동 허용하지 않는다.
 
-## 검증 명령
+## DB, 저장소, 동시성
 
-소스/가짜 모델 테스트는 live endpoint·API key 없이 실행한다.
+- 운영 정본은 PostgreSQL 17의 `bidops` schema와 버전 관리되는 객체 저장소다. SQLite는 격리 테스트와 일회성 이전 입력에만 사용한다.
+- 앱 시작과 컨테이너 진입점은 migration, `create_all`, 정책 seed, 포털 seed, 모델 활성화를 자동 실행하지 않는다.
+- DB migration은 서비스 중지, 검증 가능한 백업 manifest, 명시적 확인 후 실행한다. 객체와 DB 복구는 객체를 먼저 복구한 뒤 참조 hash를 검증한다.
+- 판정 큐는 FIFO, active slot 1개, concurrency 1을 유지한다. stale heartbeat는 중단 상태로 닫고 자동 resume나 무한 재시작을 만들지 않는다.
+- 첨부와 산출물은 알려진 파일명, 허용 루트, symlink·경로 이탈 검사 후에만 접근한다. API 응답에 내부 파일 경로나 객체 자격증명을 노출하지 않는다.
+
+## 보안과 감사
+
+- `.env`, API key, DB·객체 저장소 비밀번호, 원문 첨부, 회사 프로필 전문, 프롬프트·응답 본문을 Git, 이미지, 일반 로그, 오류 응답, 감사 상세에 넣지 않는다.
+- 변경 API의 담당자 이름은 인증이나 권한 부여가 아니라 감사 표식이다. 현재 사내망 경계를 넘어 노출하는 배포는 인증·권한 모델을 먼저 구현해야 한다.
+- 외부 모델 전송은 실행 단위의 사람 승인, 허용 필드 목록, 전송 payload 미리보기, 목적·모델·승인자·시간 감사 기록이 있어야 한다.
+- 로그에는 안전한 식별자, 상태, 지속 시간, 정규화된 오류 분류만 남긴다. 하위 프로세스 stderr와 외부 서비스 오류도 저장 전에 비밀값과 쿼리 문자열을 제거한다.
+
+## 의존성과 배포
+
+- Python 운영 이미지는 `web/backend/requirements.lock`의 정확한 전이 의존성을 설치한다. 프론트엔드는 lockfile 기반 설치와 TypeScript strict build를 사용한다.
+- 런타임 설정은 환경변수와 외부 secret manager로 주입한다. 실제 비밀값, 운영 endpoint, 내부 회사자료를 기본값이나 테스트 픽스처로 커밋하지 않는다.
+- 스케줄러와 always-on은 기본 비활성이다. 품질 게이트 통과, 정책 seed, 프로세스 시작만으로 자동 활성화되지 않는다.
+- 구현되지 않은 수집기, 알림, 화면, SSO를 환경변수만 추가해 제공된 기능으로 표시하지 않는다.
+
+## 검증 게이트
+
+변경 범위에 맞는 최소 검증은 다음과 같다.
 
 ```bash
 ./run-tests.sh
 ./web/run-web-tests.sh
+cd web/frontend && npm run test:visual
+docker compose -f docker-compose.t7.yml build
 ```
 
-`web/run-web-tests.sh`는 private temporary DB에서 `alembic upgrade head`, backend pytest, frontend production build를 수행해야 한다. DB migration 검증은 실제 운영 DB가 아닌 복사본에서 한다. visual은 `cd web/frontend && npm run test:visual`이며 host browser prerequisite가 없으면 [운영 절차](./operations.md)의 Playwright image command를 사용한다. Docker image는 `docker compose build`로 확인한다.
+- 파이프라인 계약 변경은 관련 skill 단위 테스트와 교차 파이프라인 테스트를 모두 통과해야 한다.
+- DB 변경은 임시 PostgreSQL 17에서 빈 DB migration, 제약, 재적재 멱등성을 확인한다. 운영 DB를 테스트 대상으로 사용하지 않는다.
+- API 변경은 정상·권한 경계·중복·상태 충돌·부분 실패·비밀 마스킹을 검사한다.
+- UI 변경은 production build와 핵심 화면 visual 회귀를 확인한다. visual 검증은 네트워크 글꼴에 의존하지 않는다.
+- 모델 검증은 fake 경로와 live 경로를 분리한다. live endpoint 호출, 외부 전송, 정책 활성화는 운영자의 명시적 실행 승인 없이는 수행하지 않는다.
+- 검증 기록에는 실행한 명령, 통과한 범위, 실패·skip 사유를 사실대로 남긴다. 이전 통과 기록을 현재 변경의 검증으로 재사용하지 않는다.
 
-CI는 fake-only다. live Ollama는 `BIDOPS_LIVE_OLLAMA_TEST=true`와 operator가 명시한 단일 CLI command/marker가 모두 있을 때만 실행할 수 있다. marker alone은 실행 허가가 아니며, T14/T15는 operator direction 없이 live smoke·policy activation·always-on을 하지 않는다.
+## Git 작업
 
-검증 출력·상태는 [tracking/status](./tracking/status.md)에 실제로 통과한 범위만 기록한다. 결과·ID·수치를 생성해 채우지 않는다.
+- 사용자 변경과 무관한 파일을 되돌리거나 재포맷하지 않는다. 생성물·첨부·비밀·로컬 DB를 커밋하지 않는다.
+- 자동 commit·push·merge를 하지 않는다. 요청받은 변경과 검증 결과를 검토 가능한 단위로 남기고, 커밋 여부는 담당자가 결정한다.
+- 계약·migration·운영 절차가 함께 바뀌는 경우 코드만 먼저 병합해 서로 다른 정본을 만들지 않는다.

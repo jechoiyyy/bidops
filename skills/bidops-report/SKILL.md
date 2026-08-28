@@ -1,11 +1,11 @@
 ---
 name: bidops-report
-description: Render BidOps screening JSON into a weekly monitoring report, per-notice analysis pages, and a reviewer feedback template. Use after bidops-screen; do not change judgments while rendering.
+description: BidOps 판정 JSON을 주간 모니터링 보고서, 공고별 분석 페이지, 검토자 피드백 양식으로 렌더링한다. bidops-screen 이후에 사용하며, 렌더링 과정에서 판정을 바꾸지 않는다.
 ---
 
 # BidOps Report
 
-Read [the workflow contract](../references/workflow-contract.md), validate the input shape, and run the deterministic renderer.
+[워크플로 계약](../references/workflow-contract.md)을 읽고, 입력 형식을 검증한 뒤 결정적 렌더러를 실행한다.
 
 ```bash
 python3 skills/bidops-report/scripts/render_report.py \
@@ -13,16 +13,16 @@ python3 skills/bidops-report/scripts/render_report.py \
   --output-dir reports/20260817-20260823
 ```
 
-The renderer creates:
+렌더러는 다음을 만든다:
 
-- `weekly-monitoring.html`: counts, priority queue, deadlines, pre-specifications, and verification requests.
-- `details/<notice-id>.html`: judgment, readiness, perspectives, matched performances, counterarguments, evidence, retrieval signals, and next action.
-- `review-feedback.yaml`: blank structured review entries for each notice.
+- `weekly-monitoring.html`: 건수, 우선순위 큐, 마감일, 사전규격, 확인 요청.
+- `details/<notice-id>.html`: 판정, 준비 상태, 관점, 매칭된 수행실적, 반론, 근거, 탐색 신호, 다음 행동.
+- `review-feedback.yaml`: 공고별 빈 구조화 검토 항목.
 
-Keep grade and readiness visually separate. Show verification counts beside the grade. Do not hide `unknown` evidence or convert it into positive or negative claims.
+등급과 준비 상태는 시각적으로 분리해서 보여준다. 확인 항목 건수는 등급 옆에 표시한다. `unknown` 근거를 숨기거나 긍정·부정 주장으로 바꾸지 않는다.
 
-HTML is a presentation of the screening JSON, never a second judgment pass. Every value on the page must be traceable to a field in the input. In particular, exclusion reasons come from `judgment.exclusion_category`; when that field is missing the page says `사유 미기재` rather than guessing a reason from the notice title. Keyword rules that classify a notice belong in the screening step, where they are recorded as a judgment with evidence.
+HTML은 판정 JSON을 표현할 뿐, 두 번째 판정 단계가 아니다. 페이지의 모든 값은 입력의 필드로 추적 가능해야 한다. 특히 제외 사유는 `judgment.exclusion_category`에서 가져오며, 그 필드가 없으면 공고 제목에서 사유를 추측하지 않고 `사유 미기재`라고 표시한다. 공고를 분류하는 키워드 규칙은 판정 단계의 몫이며, 그곳에서 근거를 갖춘 판정으로 기록된다.
 
-The default queue holds analysis-sample records graded `우선 검토`, `검토 권장`, or `관찰 대상`. Keep semantic-screen exclusions and filter-audit samples in separate collapsed sections, retain their detail pages for traceability, and summarize exclusion reasons above those sections.
+기본 큐에는 등급이 `우선 검토`, `검토 권장`, `관찰 대상`인 분석 표본 레코드가 들어간다. 의미 판정 제외 건과 필터 감사 표본은 별도의 접힌 섹션에 두고, 추적을 위해 상세 페이지는 유지하며, 해당 섹션 위에 제외 사유를 요약한다.
 
-Audit-sample records never enter the review queue, whatever their grade. An audit record that screening did *not* exclude is a first-filter miss, which is the one number this sample exists to produce: show it in the statistics row and mark the record itself.
+감사 표본 레코드는 등급과 무관하게 검토 큐에 들어가지 않는다. 판정 단계에서 제외되지 *않은* 감사 레코드는 1차 필터가 놓친 사례이며, 이 표본이 존재하는 이유인 바로 그 수치다. 통계 행에 표시하고 해당 레코드 자체에도 표시한다.

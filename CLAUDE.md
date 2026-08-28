@@ -1,59 +1,68 @@
-# BidOps Agent 작업 지침
+# BidOps 작업 지침
 
-BidOps Agent는 기획·사업개발 담당자가 나라장터 공고를 빠짐없이 모으고, 회사 적합성을 선별한 뒤 첨부문서 기반 심층 검토까지 수행하도록 돕는 사내 의사결정 지원 시스템이다. Python 기반 파이프라인과 FastAPI·React 관리 화면으로 구성되며, 자동 입찰·외부 연락·최종 참여 결정은 담당자의 몫으로 남긴다.
+BidOps는 기획·사업개발 담당자가 나라장터 발주계획을 조기에 탐색하고, 사전규격 제안요청서를 검토한 뒤 입찰공고까지 추적하도록 돕는 사내 의사결정 지원 시스템이다.
+관측 규모는 발주계획 3일 약 1,200건, 1주 약 2,000건이며, Python 파이프라인과 FastAPI·React 관리 화면으로 처리한다.
+자동 입찰, 발주처 연락, 추적 승인, 최종 Go/No-Go는 사람이 결정한다.
 
-## 프로젝트 구조
+## 저장소 지도
 
 ```text
-bidops-agent/
-├── CLAUDE.md                         ← Claude Code 작업 진입점
-├── AGENTS.md                         ← Codex 작업 진입점
+bidops/
+├── AGENTS.md, CLAUDE.md              작업 진입점이며 내용은 동일하다
+├── docker-compose.t7.yml             PostgreSQL·MinIO 기반 애플리케이션 스택
+├── docker-compose.t7.*.yml           목적별 egress·모델 overlay
+├── docker-compose.yml                SQLite 이전 입력용 ops 명령
+├── run-tests.sh                      파이프라인 단위·교차 테스트
+├── data/, reports/                   불변 회차 입력과 파생 보고서
 ├── docs/
-│   ├── architecture.md               ← 목표 구성과 데이터 흐름
-│   ├── business-rules.md             ← 선별·심층 검토 도메인 규칙
-│   ├── security.md                   ← 사내망 접근·감사·민감정보 정책
-│   ├── standards.md                  ← 구현과 검증의 강제 규칙
-│   ├── engineering-notes.md          ← 재발하기 쉬운 함정과 대응법
-│   ├── operations.md                 ← 설치·실행·검증·백업 절차
-│   ├── contracts.md                  ← 웹 API와 파이프라인 산출물 계약
-│   ├── agent-runtime.md              ← 판정 에이전트 실행 경계와 모델 호출 설계
-│   ├── scheduling.md                 ← 정기 실행·회차 경계·실패 처리 설계
-│   ├── model-quality-gate.md         ← 모델 품질 측정과 활성화 게이트
+│   ├── architecture.md               현재 구조와 목표 데이터 흐름
+│   ├── business-rules.md             생애주기·선별·심층 검토 상태 규칙
+│   ├── security.md                   접근·민감정보·모델 전송·감사 정책
+│   ├── standards.md                  구현·검증 강제 기준
+│   ├── engineering-notes.md          증상별 재발 방지 지식
+│   ├── operations.md                 설치·실행·백업·복구 절차
+│   ├── contracts.md                  REST·파일·DB 소비자 계약
 │   └── tracking/
-│       ├── status.md                 ← 구현·검증 현황과 다음 순서
-│       ├── findings.md               ← 당장 해결하지 못한 문제
-│       ├── runtime-design-validation.html ← 판정 런타임 설계 검증 결과
-│       └── decisions/
-│           ├── index.md              ← 기술·운영 결정 목록
-│           └── NNNN-<slug>.md         ← 개별 결정과 대안·결과
+│       ├── status.md                 구현과 검증의 현재 상태
+│       ├── findings.md               재현 가능한 미해결 문제
+│       └── decisions/                기술·운영 결정과 대안·결과
 ├── skills/
-│   ├── bidops-collect/AGENTS.md       ← 수집·정규화·표본 선정 규칙
-│   ├── bidops-screen/AGENTS.md        ← 1차 판정 산출물 규칙
-│   └── bidops-report/AGENTS.md        ← 결정적 보고서 렌더링 규칙
+│   ├── bidops-collect/AGENTS.md       수집·정규화·표본 선정
+│   ├── bidops-screen/AGENTS.md        구조화 1차 판정·병합
+│   └── bidops-report/AGENTS.md        결정적 HTML·피드백 렌더링
 └── web/
-    ├── AGENTS.md                      ← 컨테이너 조립·통합 검증 규칙
-    ├── backend/AGENTS.md              ← API·DB·적재·파일 처리 규칙
-    └── frontend/AGENTS.md             ← 관리 화면 구현·검증 규칙
+    ├── AGENTS.md                      이미지·Compose·통합 검증
+    ├── backend/AGENTS.md              API·PostgreSQL·객체·worker
+    └── frontend/AGENTS.md             React 검토 화면
 ```
 
-## 최상위 불변 조건
-
-- 확인되지 않은 회사 역량·자격·실적과 공고 사실을 추정해 채우지 않는다. `unknown`은 결함이 아니라 검증 대기 상태로 보존한다.
-- 1차 등급과 참여 준비 상태를 섞지 않는다. 자격 미확인만으로 등급을 낮추거나, 적합성이 높다는 이유로 자격을 확인 완료 처리해서는 안 된다.
-- 모델이 만든 숫자·요구사항·근거는 원문 위치와 연결하고 결정적 검증을 통과시킨다. 실패한 결과는 사람 검토로 보내며 자동 보정하지 않는다.
-- 기존 파이프라인 스크립트와 산출물 계약은 기준선으로 유지한다. 새 기능은 파일 계약과 명시적 어댑터를 통해 연결한다.
-- 시스템은 참여 판단을 보조할 뿐 입찰 제출, 발주처 연락, 최종 Go/No-Go 결정을 자동 실행하지 않는다.
+`docs/legacy`는 과거 계획과 목업, `docs/review`와 `docs/validation-runs`는 시점별 검토·실행 증거다. 이 자료가 현재 코드와 위 핵심 문서의 계약을 대체하지 않는다. 외부 의존성은 나라장터 OpenAPI, PostgreSQL 17, MinIO, ClamAV, Ollama Qwen3.8:27B, 승인된 사설 OpenAI-compatible vLLM, 문서 변환기, 승인 프로필 기준선 검증용 Git이다.
 
 ## 작업 전 확인
 
-- 모든 변경 전에 `docs/standards.md`, `docs/engineering-notes.md`, 수정 대상 모듈의 `AGENTS.md`를 읽는다.
-- 등급·준비 상태·심층 검토 단계·피드백 필드를 바꾸기 전에는 `docs/business-rules.md`에서 상태 조합과 실패 처리를 확인한다.
-- 데이터베이스나 적재기를 바꾸기 전에는 불변 회차, 부분 산출물 경고, DB 정본 리뷰의 세 메커니즘을 먼저 확인한다.
-- 첨부 업로드·변환·다운로드·외부 모델 전송을 바꾸기 전에는 `docs/security.md`의 경로 격리, 감사 대상, 건별 외부 전송 승인을 확인한다.
-- 파이프라인 JSON/YAML 또는 REST 응답을 바꾸기 전에는 `docs/contracts.md`의 소비자 계약과 버전 규칙을 확인한다.
-- 스케줄·판정 에이전트·정책 버전을 바꾸기 전에는 `docs/scheduling.md`, `docs/agent-runtime.md`, `docs/model-quality-gate.md`에서 회차 경계·호출 경계·품질 게이트를 확인하고, `docs/business-rules.md`와 `docs/contracts.md`의 상태·버전 계약을 함께 확인한다.
-- Qwen 프롬프트나 검증기를 바꾸기 전에는 `docs/engineering-notes.md`의 대형 단일 프롬프트 실패 사례와 55개 요구사항 계수 사례를 확인한다.
+- 모든 변경 전에 `docs/standards.md`, `docs/engineering-notes.md`, 변경 경로에서 가장 가까운 `AGENTS.md`를 읽는다.
+- 상태·등급·참여 준비·사람 판정 필드를 바꾸면 `docs/business-rules.md`를, JSON/YAML/REST/DB 계약을 바꾸면 `docs/contracts.md`를 확인한다.
+- DB·적재·회차를 바꾸면 원본 불변성, 부분 산출물 경고, DB 정본 리뷰, Alembic 경계를 확인한다.
+- 첨부·변환·다운로드·모델 전송·로그를 바꾸면 `docs/security.md`의 경로 격리, 최소 권한, 감사, 건별 외부 전송 승인을 확인한다.
+- 배포·일정·모델·backup을 바꾸면 `docs/operations.md`의 현재 실행 명령과 fail-closed 기본값을 확인한다.
+- 발주계획 선별 제품 구현은 고정 3일 표본의 키워드·ColBERT·Qwen·GPT Luna 비교 실험과 사람 정답 보고서가 승인된 뒤 시작한다.
 
-## 문제 보고 경로
+## 강제 게이트
 
-첨부 원문의 프로젝트 경로 이탈, API 키·회사자료의 로그/응답 노출, 승인 없는 OpenAI 전송, 회차 원본 또는 기존 리뷰의 덮어쓰기, 모델 근거가 원문과 다른데 통과한 경우는 작업을 멈추고 사용자에게 즉시 알린다. 그 밖에 현재 작업 범위에서 해결할 수 없는 구조 문제는 재현 조건·영향 범위·지금 해결할 수 없는 이유를 `docs/tracking/findings.md`에 기록한다.
+- 확인되지 않은 회사 역량·자격·실적과 공고 사실을 추정하지 않는다. `unknown`과 `null`은 검증 대기 상태로 보존한다.
+- 적합성 등급, 참여 준비 상태, 심층 검토 추적 선택, 최종 입찰 Go/No-Go를 서로 대신하지 않는다.
+- 모델의 숫자·요구사항·근거는 원문 위치와 연결하고 결정적 검증을 통과시킨다. 실패 결과는 사람 검토로 보내며 자동 보정하지 않는다.
+- 기존 파이프라인은 subprocess·버전 파일 계약으로 연결한다. 웹에서 내부 구현을 가져오거나 같은 업무 규칙을 복제하지 않는다.
+- 외부 모델은 승인된 payload만 건별 전송한다. 운영 장애 때 hosted OpenAI로 자동 fallback하지 않는다.
+
+## 현재 런타임 사실
+
+- PostgreSQL 17의 `bidops` schema와 versioned MinIO가 운영 정본이다. SQLite는 격리 테스트와 일회성 이전 입력에만 사용한다.
+- `docker-compose.t7.yml`이 애플리케이션 스택이다. 기본 network는 내부망이며 외부 호출은 목적별 overlay를 명시한 경우에만 연다.
+- 현재 애플리케이션에는 로그인·역할 기반 권한이 없다. 사내망 접근 제한이 경계이고 담당자 이름은 감사 표식일 뿐 인증이 아니다.
+- 스케줄러와 always-on은 기본 비활성이다. 앱 startup은 migration, seed, 정책 활성화, 모델 호출을 수행하지 않는다.
+- 발주계획·사전규격 중심 신규 흐름, 준비·실패 재시작 화면, 입찰 delta 추적, SSO, 알림은 아직 구현 전이다.
+
+## 문제 보고
+
+첨부 원문의 허용 경로 이탈, API 키·회사자료의 로그나 응답 노출, 승인 없는 외부 모델 전송, 회차 원본 또는 기존 리뷰 덮어쓰기, 원문과 다른 모델 근거의 검증 통과를 발견하면 관련 실행을 중지하고 즉시 보고한다. 현재 범위에서 해결할 수 없는 구조 문제는 재현 조건, 영향, 지금 해결할 수 없는 이유, 후속 방향을 `docs/tracking/findings.md`에 기록한다.

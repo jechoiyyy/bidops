@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
+import logging
 import signal
 import time
 import argparse
 
 from ..config import get_settings
 from ..db import SessionLocal
+from ..logging_setup import configure
 from ..services.object_store import ObjectStoreError, assert_object_store_runtime
 from .deep_review import run_once
+
+
+logger = logging.getLogger(__name__)
 
 
 def main() -> None:
@@ -17,6 +22,7 @@ def main() -> None:
     parser.add_argument("--once", action="store_true", help="claim at most one job and exit")
     args = parser.parse_args()
     settings = get_settings()
+    configure(settings)
     if settings.analysis_worker_concurrency != 1:
         raise RuntimeError("analysis worker concurrency must remain 1")
     try:
@@ -42,11 +48,32 @@ def main() -> None:
                     # provider/materializer error not converted there must not
                     # leave a transaction open for the next poll.
                     session.rollback()
+                    logger.warning(
+                        "analysis worker job failed",
+                        extra={
+                            "bidops": {
+                                "event": "worker.job_failed",
+                                "worker_id": worker_id,
+                            }
+                        },
+                        exc_info=True,
+                    )
         except Exception:
-            # Connection/claim failures are retried on the bounded interval;
-            # no exception contents are logged because they may contain DSN
-            # material or provider details.
-            pass
+            # Connection/claim failures are retried on the bounded interval.
+            # Exception contents may carry DSN material or provider details, so
+            # only a fixed message and the worker id go out at WARNING; the
+            # traceback is rendered solely when BIDOPS_LOG_TRACEBACK is on, and
+            # the masking filter redacts it on the way out.
+            logger.warning(
+                "analysis worker poll failed",
+                extra={
+                    "bidops": {
+                        "event": "worker.poll_failed",
+                        "worker_id": worker_id,
+                    }
+                },
+                exc_info=True,
+            )
         if args.once or stopping:
             return
         if not stopping:

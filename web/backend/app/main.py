@@ -18,6 +18,7 @@ from .db import (
     init_db,
     isolated_test_boundary_active,
 )
+from .logging_setup import configure
 from .routers.attachments import router as attachments_router
 from .routers.metrics import router as metrics_router
 from .routers.notices import router as notices_router
@@ -46,6 +47,8 @@ async def lifespan(_app: FastAPI):
     policy rows, and never contacts a model provider.  It only verifies that
     the ordered postgres-init -> migrate gate already completed.
     """
+
+    configure()
 
     # The explicit dependency-override escape hatch is for isolated API tests
     # that provide their own in-memory fixture.  It cannot affect the
