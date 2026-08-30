@@ -45,6 +45,9 @@
 | 사전규격은 발주계획보다 늦게 채워진다. 3일 시점 5.5% 대 45.8% | 같은 측정 |
 | 사전규격의 `chgDt`는 모든 나이에서 90~94%다. **너무 흔해서** 갱신 신호로 못 쓴다 | 같은 측정 |
 | `swBizObjYn=Y`는 7.8~10.5%, 첨부 URL 보유는 88~91%로 여섯 코호트에서 안정적이다 | 같은 측정 |
+| 제안요청서에 **목차가 있는 문서는 32%뿐이다.** 첫 주제 소제목이 `사업개요`인 것은 58%, 아무 주제 소제목도 못 찾는 문서가 14%다 | [rfp-structure](../validation-runs/20260831-prespec-rfp-structure.md), 65건 |
+| `과업내용` 절이 없는 제안요청서가 34%다. 첫 소제목 위치는 p50 32 / p90 49 / 최대 211 block으로 흩어진다 | 같은 측정 |
+| **문서 파이프라인 측정은 컨테이너에서 해야 한다.** host에는 poppler가 없어 PDF 16건 중 15건이 부당하게 `malformed_pdf`가 된다 | 같은 측정 |
 | 첨부는 `Content-Disposition`의 **percent-encoded UTF-8**로만 파일명이 온다. RFC 5987 `filename*` 0건. 평균 411KB, 최대 3.0MB | [attachment probe](../validation-runs/20260830-prespec-attachment-probe.md), 30건 |
 | `Content-Type`으로 hwp/hwpx를 구분할 수 없다(둘 다 `application/octet-stream`). 30건 중 2건(6.7%)은 정책상 차단된다 | 같은 측정 |
 | `ntceNticeYn=Y` 비율은 `bidNtceNoList` 채움률과 모든 구간에서 일치한다 | 같은 측정 |
@@ -123,11 +126,11 @@
 | T-17 | 사업기회 조회 API | 완료 | `GET /api/opportunities`; 종료 포함 기본 목록, 추적 상태·최초 등록 단계 필터, 연결 레코드 요약·단건 전체 link 노출 |
 | T-18 | 사업기회 화면 (`추적`/`신규` 구분, 추적 상태 선택) | 완료 | `/opportunities` 새 페이지. `종료` 기본 노출, 재검토 신호와 근거 링크 표시, `검색 미확인`을 "없음"으로 표시하지 않음. `추적`/`신규` 매핑은 `src/lib/opportunity.ts` 한 곳에서만 계약대로 변환 |
 | T-19 | 판정의 모델 계보를 API에 노출 (mock 표시의 선행 조건) | 대기 | **`Judgment`에 모델 계보가 없다.** `ScreeningAttempt.model_digest`는 런타임 쪽에 있고 judgment와 FK로 이어져 있지 않다. 어느 쪽을 정본으로 볼지 결정이 필요하다. [ADR-0030](decisions/0030-opportunity-tracking-state.md)의 부수 결정이 mock 표시를 요구했으나 데이터가 닿지 않아 화면에 넣지 않았다 |
-| T-20 | 사전규격 첨부 다운로드 경로 (수집기 → 회차 → quarantine → ClamAV → content object) | 대기 | T-4가 URL까지 담았다. 다운로드는 수집기가 한다 — `document-worker`는 `network_mode: none`이고 모든 network가 `internal: true`라 웹 계층에 egress를 여는 것은 별도 보안 결정이다([findings.md](findings.md)). **스캔 통과 전에는 변환·파싱·제공하지 않는다** (`security.md:56`) |
-| T-21 | 제안요청서 소제목·목차 분포 측정 | 대기 | 앞부분을 어디까지 자를지 정하려면 실제 표본이 필요하다. 목차가 있는 문서와 없는 문서가 섞여 있다. T-20 뒤 |
+| T-20 | 사전규격 첨부 조건부 취득·적재 (quarantine → ClamAV → content object → bundle 없는 DocumentVersion) | 완료 | 메타데이터는 전량 수집하고 `SW사업대상=Y` 또는 추적 중 발주계획 연결만 재평가 큐에 넣는다. strict G2B provenance, lease worker, 안전한 오류 분류, source 승격 전 스캔, version 멱등성을 구현했다. 다운로드는 backend `prespec-attachment-worker`가 전담하며 egress는 명시적 overlay로만 연다. **스캔 통과 전에는 변환·파싱·제공하지 않는다** (`security.md:56`) |
+| T-21 | 제안요청서 소제목·목차 분포 측정 | 완료 | 실제 문서 120건 수집·추출. 제안요청서·과업지시서 65건에서 **목차 보유 32%**, 첫 주제 소제목이 `사업개요`인 것 58%, **주제 소제목을 하나도 못 찾는 문서 14%**, `과업내용` 절 보유 66%. 번호 체계 최빈이 아라비아 62%. 첫 소제목 위치 p50 32 / p90 49 / 최대 211 block. **단일 규칙으로는 어떤 것을 골라도 최소 3분의 1이 사람에게 간다.** [validation-run](../validation-runs/20260831-prespec-rfp-structure.md) |
 | T-22 | 앞부분 잘라내기 규칙 확정 | 대기 | T-21 측정 뒤 ADR. 규칙에 맞지 않는 문서는 추측해 자르지 말고 `unknown`으로 사람에게 보낸다 |
 | T-23 | `사전규격 개요 검토` 구현 | 대기 | [ADR-0031](decisions/0031-prespec-overview-review-stage.md). 산출물로 `참여 준비 상태`나 `등급`의 자격 축을 채우지 않는다 |
-| T-24 | 사전규격 화면의 SW사업대상 기본 필터와 `신규` 표시 | 대기 | 기본 켜짐 + 끌 수 있음. **추적 중인 발주계획에 연결된 건은 `SW사업대상=N`이어도 목록에 남긴다** |
+| T-24 | 사전규격 화면의 SW사업대상 기본 필터와 `신규` 표시 | 완료 | 누적 `GET /api/pre-specs`와 `/pre-specs` 화면을 구현했다. 기본 SW 필터, 추적 예외(`SW사업대상=N` 포함), `추적`·`신규` 데이터 값, 문서 취득 상태 집계와 안전한 빈 상태를 제공한다. 전용 테스트 11건 |
 
 ## 이번 범위가 아닌 것
 
@@ -162,7 +165,13 @@
 | 2026-08-29 | ADR-0028 채택과 구현. 입찰공고 최초 등록 기회, 대기 참조번호 보존과 해소 | [ADR-0028](decisions/0028-bid-first-opportunity-registration.md), `0006` |
 | 2026-08-29 | 백엔드 `.venv` 구성(sudo 없이 `--without-pip` + get-pip). `.env`의 컨테이너 전용 경로 3개 제거 | `web/backend/.venv`, `.env`·`.env.example` |
 | 2026-08-31 | T-20a 완료(codex 위임 후 직접 검수). 첨부 파일명 취득 경계 — percent-encoded UTF-8 파서, `ProviderResponse`, 확장자 allowlist 밖을 재시도 불가 종료 상태로 구분, 기본 비활성 g2b connector | `assets.py`, `test_prespec_attachment_assets.py` 17건 |
+| 2026-08-31 | T-20b 완료. strict G2B provenance, 조건부 자격 재평가 큐, lease-fenced backend worker, quarantine/ClamAV/source 계보, bundle 없는 provider `DocumentVersion`, 재수집 멱등성과 안전한 retry/blocked/failed 전이를 구현 | `0008_prespec_attachment_fetch`, `prespec_attachments.py`, `prespec_attachment.py`, `docker-compose.t7.prespec-attachment.yml`, `test_prespec_attachment_fetch.py` |
 | 2026-08-31 | legacy 첨부 `QuarantinedAsset` 위치 인자 어긋남 수정. `object_key`가 `source_system` 자리에 들어가 비-filesystem store에서 격리 원문을 읽지 못하던 결함. dataclass를 `kw_only`로 바꿔 재발을 구조적으로 차단 | `assets.py`, `test_legacy_attachment_provenance.py` 4건 |
+| 2026-08-31 | T-3 완료. HWP 변환기가 외부 의존성이 아니라 저장소 벤더링임을 확인하고 host에서 실제 추출 검증 | `app/document_mcp/vendor/rhwp` |
+| 2026-08-31 | T-24 완료(codex 위임 후 직접 검수). 누적 `GET /api/pre-specs`와 `/pre-specs` 화면. 추적 예외 판정을 `_tracked_order_plan_conditions()` 한 곳으로 모아 목록과 첨부 자격이 같은 조건을 공유하게 했다. 쿼리 수를 세는 N+1 회귀 테스트 포함. `tsc -b`·`vite build` 통과 | `routers/pre_specs.py`, `PreSpecsPage.tsx`, `test_api_pre_specs.py` 11건 |
+| 2026-08-31 | T-20b 완료(codex 위임 후 직접 검수). 조건부 취득 큐·자격 재평가·lease worker·bundle 없는 `DocumentVersion` 적재, egress overlay. **PostgreSQL에서 `0008` upgrade·downgrade·제약조건 7종을 직접 실행 검증했다**(codex는 Docker 권한으로 못 함) | `0008_prespec_attachment_fetch`, `prespec_attachments.py`, `test_prespec_attachment_fetch.py` 25건 |
+| 2026-08-31 | T-21 완료. 실제 제안요청서 120건 수집·구조 추출·소제목 분포 측정. T-22의 근거 확보 | [validation-run](../validation-runs/20260831-prespec-rfp-structure.md), `data/experiments/prespec-rfp-structure/` |
+| 2026-08-31 | T-24 완료. 누적 사전규격 REST·화면, SW 기본 필터·추적 예외·`추적`/`신규` 표시·첨부 취득 상태 집계와 회귀 테스트 구현 | `/api/pre-specs`, `/pre-specs`, `test_api_pre_specs.py` 11건 |
 | 2026-08-31 | T-2b 3번째 종단 관측점. 횡단면 곡선과 21 포인트 어긋남을 확인하고 ADR-0027 근거를 재검토 대상으로 올림 | [validation-run](../validation-runs/20260831-order-plan-longitudinal.md) |
 | 2026-08-31 | T-2c 완료. 사전규격 채움 곡선 횡단면 6점 측정. 평탄화 시점과 `chgDt` 사용 불가를 확인 | [validation-run](../validation-runs/20260831-prespec-fill-curve.md), `scripts/prespec_fill_curve.py` |
 | 2026-08-30 | 사전규격 첨부 응답 30건 실측. 파일명 인코딩·확장자 분포·크기 확보, T-20 취득 경계 설계 근거 | [validation-run](../validation-runs/20260830-prespec-attachment-probe.md), `data/experiments/prespec-attachment-probe/` |

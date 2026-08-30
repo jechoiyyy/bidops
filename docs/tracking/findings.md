@@ -65,6 +65,14 @@
 - (해결 전 기록) 지금 해결할 수 없는 이유: 정규화 계약을 바꾸면 `collected-notices.json` 소비자와 적재 경로의 계약이 함께 바뀐다. 첨부 URL을 실제로 내려받는 경로는 허용 형식·크기, 서버 생성 key, 악성코드 검사, quarantine, 객체 version 검증을 함께 갖춰야 하므로 정규화 필드 추가만으로 끝나지 않는다.
 - 접근 방법: 수집 endpoint를 `getPublicPrcureThngInfoServcPPSSrch`로 바꾸고 `inqryDiv=1`(접수일시)로 구간 조회한다. **`swBizObjYn`을 서버 조건으로 얹지 않는다.** 이 문단의 이전 판은 `swBizObjYn=Y` 필터를 지시했으나 [ADR-0024](decisions/0024-prespec-collect-all-flag-sw.md)가 그 반대를 결정했다. 650건 중 `Y`는 55건(8.5%)뿐이고 필터를 켜면 91.5%가 사라진다. 업무구분(일반용역·기술용역)으로만 좁히고 `swBizObjYn`은 저장 후 표시·필터 값으로만 쓴다. 이미 아는 등록번호를 다시 읽을 때는 `inqryDiv=2`가 날짜 구간 없이 단건을 반환한다. 두 endpoint의 응답은 650건에서 필드·값이 완전히 동일하므로 정규화 계약은 그대로 쓸 수 있다. 그 위에서 `specDocFileUrl1`~`5`를 `attachments`로, `swBizObjYn`·`bsnsDivNm`·`bidNtceNoList`를 구조화 필드로 옮긴다. 응답에 없는 필드를 읽는 현재 `url` 경로는 제거한다. 다운로드는 기존 첨부 파이프라인의 검사·격리 경계를 그대로 통과시키고, 원문에 URL이 없는 건은 추정 없이 `unknown`으로 남긴다. 회귀 테스트는 실제 응답 형태의 fixture로 첨부 개수와 SW대상 값이 보존되는지 고정한다.
 
+## host 측정이 정상 PDF를 손상 문서로 판정한다
+
+- 재현 조건: poppler가 없는 host에서 `app.document_mcp.processor.DocumentProcessor.process()`에 정상 PDF를 넣는다. 실측은 [`20260831-prespec-rfp-structure.md`](../validation-runs/20260831-prespec-rfp-structure.md)에 있다.
+- 증상: 실제 조달 PDF 16건 중 15건이 `malformed_pdf`가 된다. 같은 파일을 `bidops-mock-t7-web` 이미지 안에서 처리하면 16건 전부 통과한다.
+- 영향: 결함이 아니라 측정 함정이다. host에서 문서 파이프라인을 재면 처리 실패율이 크게 부풀려지고, 그 수치로 "PDF는 못 쓴다" 같은 잘못된 결론을 내리게 된다. T-21 초기 측정이 실제로 이 오류를 냈다.
+- 상태: **원인 확인.** 표준 PDF 파서가 실패하면 poppler fallback으로 넘어가는데(`processor.py:315`) `pdftotext`·`pdfinfo`가 없으면 fallback이 `malformed_pdf`를 던진다(`processor.py:447-449`). `poppler-utils`는 런타임 이미지에만 있다(`web/Dockerfile:48`).
+- 접근 방법: 문서 파이프라인 측정은 런타임 이미지 안에서 한다. 코드 수정은 필요 없다 — 운영 환경에는 poppler가 있다. 다만 fallback이 없을 때의 오류 코드가 `malformed_pdf`(문서 탓)인 것은 오해를 부른다. `converter_unavailable`처럼 환경 탓임이 드러나는 코드로 바꾸면 같은 혼동을 막을 수 있다. 이는 안전 판정을 완화하지 않는 변경이지만 오류 코드 계약을 건드리므로 별도로 다룬다.
+
 ## legacy 첨부 취득이 객체 식별자를 provenance 자리에 넣어 운영 백엔드에서 원문을 잃는다
 
 - 재현 조건: `MinioObjectStore`처럼 `FilesystemObjectStore`가 아닌 object store에서 `assets.acquire_legacy_attachment()`를 호출하고 반환된 asset으로 `read_quarantine()`을 호출한다. `web/backend/tests/test_legacy_attachment_provenance.py`가 가짜 store로 이 조건을 재현한다.
