@@ -68,6 +68,9 @@ def main() -> None:
     if settings.prespec_attachment_worker_concurrency != 1:
         raise RuntimeError("pre-specification attachment worker concurrency must remain 1")
     connectors = assets.g2b_attachment_connectors(settings)
+    # Fail closed at startup rather than per row: a worker that can reach
+    # G2B but cannot write versioned objects would quarantine bytes it
+    # cannot preserve.
     if connectors:
         try:
             assert_object_store_runtime(require_model_response=False)
