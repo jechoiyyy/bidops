@@ -67,6 +67,37 @@ COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose \
 
 overlay 추가만으로 egress가 안전해지지 않는다. host firewall의 목적지 제한과 실제 endpoint 승인을 함께 확인한다. endpoint나 allowlist가 비어 있으면 overlay가 기동 전에 fail closed한다.
 
+사전규격 첨부 바이트 취득은 기본 비활성이다. 메타데이터는 독립 수집 회차에 전량 보존하고,
+`SW사업대상=Y` 또는 추적 중인 발주계획으로 연결된 사전규격만 backend worker가 다운로드한다.
+연결 조건은 `docs/business-rules.md`의 규칙을 따르며, 사람이 추적 상태를 고른 뒤 큐가 재평가된다.
+사용 전에 host firewall에서 승인된 G2B 목적지만 허용하고 별도 env 파일에 allowlist를 채운다.
+
+```bash
+cp env/prespec-attachment.env.example env/prespec-attachment.env
+# env/prespec-attachment.env의 BIDOPS_G2B_ATTACHMENT_ALLOWED_HOSTS를 승인된 값으로 채운다.
+COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose \
+  --env-file .env --env-file env/prespec-attachment.env \
+  -f docker-compose.t7.yml -f docker-compose.t7.prespec-attachment.yml \
+  up -d prespec-attachment-worker
+```
+
+`BIDOPS_G2B_ATTACHMENT_ENABLED`는 overlay에서만 `true`로 덮고, overlay를 사용하지 않으면
+기본값 `false`로 connector와 worker가 idle한다. `BIDOPS_G2B_ATTACHMENT_ALLOWED_HOSTS`가
+비어 있으면 fail closed한다. `BIDOPS_G2B_ATTACHMENT_TIMEOUT_SECONDS`의 기본값은 30초이며,
+worker 설정은 `BIDOPS_PRESPEC_ATTACHMENT_WORKER_CONCURRENCY=1`,
+`BIDOPS_PRESPEC_ATTACHMENT_WORKER_POLL_SECONDS=5`,
+`BIDOPS_PRESPEC_ATTACHMENT_LEASE_SECONDS=120`이다.
+
+worker를 직접 실행할 때는 migration·MinIO·ClamAV가 준비된 backend 환경에서 다음 명령을 쓴다.
+
+```bash
+python -m app.workers.prespec_attachment
+python -m app.workers.prespec_attachment --once
+```
+
+첨부 URL의 수명은 아직 측정하지 않았으므로 `unknown`으로 유지한다. URL·object key·로컬
+경로·자격증명은 worker 상태와 감사 상세에 저장하지 않는다.
+
 모델 없이 상태 전이와 저장·검증 계보만 확인할 때는 mock override를 사용한다. 이 override는 전용 값을 파일 안에 리터럴로 선언하므로 추가 env 파일이 필요 없고 어떤 egress도 열지 않는다.
 
 ```bash
@@ -114,9 +145,9 @@ COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose -f docker-compose.t7.y
 | 범주 | 주요 설정 | 운영 규칙 |
 |---|---|---|
 | 프로세스 | `BIDOPS_UID`, `BIDOPS_GID`, `BIDOPS_LOG_LEVEL`, `BIDOPS_LOG_TRACEBACK` | non-root, 기본 WARNING, 비밀 없는 로그 |
-| 나라장터 | `BIDOPS_G2B_API_KEY` | 수집 실행 때만 주입, 로그·URL·DB에 원문 키 금지 |
+| 나라장터 | `BIDOPS_G2B_API_KEY`, `BIDOPS_G2B_ATTACHMENT_ENABLED`, `BIDOPS_G2B_ATTACHMENT_ALLOWED_HOSTS`, `BIDOPS_G2B_ATTACHMENT_TIMEOUT_SECONDS` | API key는 수집 실행 때만 주입. 첨부 취득은 기본 false, 승인 host allowlist가 없으면 fail closed |
 | 로컬 판정 | `BIDOPS_OLLAMA_BASE_URL`, `BIDOPS_OLLAMA_MODEL`, context/output/timeout, concurrency/heartbeat/stale | 승인 endpoint, digest 고정, concurrency 1 |
-| 일정 | `BIDOPS_SCHEDULER_ENABLED`, daily/weekly 시간, `BIDOPS_PRESPEC_ENABLED` | 기본 false, 품질 승인과 운영자 확인 뒤 활성화 |
+| 일정·첨부 worker | `BIDOPS_SCHEDULER_ENABLED`, daily/weekly 시간, `BIDOPS_PRESPEC_ENABLED`, `BIDOPS_PRESPEC_ATTACHMENT_WORKER_CONCURRENCY`, `BIDOPS_PRESPEC_ATTACHMENT_WORKER_POLL_SECONDS`, `BIDOPS_PRESPEC_ATTACHMENT_LEASE_SECONDS` | 기본 false/worker 1·5초·120초, 품질 승인·운영자 확인·host firewall 뒤 활성화 |
 | DB | owner/migrate/app/worker/ro-backup 비밀번호, port | 역할 분리, migration은 전용 계정 |
 | 객체 저장소 | MinIO root와 namespace별 access/secret, endpoint, secure flag | 용도별 최소 권한, versioning 유지 |
 | 문서 검사 | ClamAV host/port/timeout | clean scan envelope 없이는 준비 단계 진행 금지 |
@@ -169,7 +200,8 @@ python3 skills/bidops-collect/scripts/collect_order_plans.py \
 
 - 발주계획 수집: 매일, 일반용역·기술용역, SW사업대상 선필터 없음.
 - 발주계획 사람 검토: 월요일과 목요일. 수집 회차는 검토 일정과 독립적으로 보존한다.
-- 사전규격 수집: 매일, 일반용역·기술용역 중 SW사업대상.
+- 사전규격 수집: 매일, 일반용역·기술용역 메타데이터 전량. `SW사업대상`은 필터가 아니라 저장·표시 값이다.
+- 사전규격 첨부 문서 다운로드: `SW사업대상=Y` 또는 추적 중인 발주계획 연결로 자격이 생긴 건만 수행한다. 자격이 뒤늦게 생기므로 재평가 큐를 사용한다.
 - 사전규격 1차선별: 저비용 판정 후 사람 확인. 승인된 건만 심층 검토 실행.
 - 입찰 추적: `계속 추적` 기회에 대해 신규 공고와 정정공고를 확인하고 사전규격 대비 중요 변경을 계산한다.
 - 각 단계는 자동 연결 실행과 수동 단독 실행·재시도를 같은 실행 ID, artifact, 상태 전이 규칙으로 제공한다.
