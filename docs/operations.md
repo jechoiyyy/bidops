@@ -27,6 +27,7 @@
 
 - Docker Engine과 Docker Compose가 필요하다. host 검증에는 Python 3.12+, Node 22+, npm 10+가 필요하다.
 - `.env.example`을 `.env`로 복사하고 실제 비밀은 외부 secret manager에서 주입한다. `.env`는 커밋하지 않는다.
+- `.env`는 모든 compose 파일이 공유하는 공통 파일이다. overlay 전용 값은 `env/<overlay>.env`에 두고 추가 `--env-file`로 넘긴다. `env/*.env.example`을 같은 이름의 `.env`로 복사해 사용하며 실제 파일은 커밋하지 않는다.
 - `BIDOPS_UID`와 `BIDOPS_GID`는 0이 아닌 host 계정과 맞춘다.
 - PostgreSQL owner, migrate, app, worker, read-only backup 계정의 비밀번호를 서로 다르게 설정한다.
 - MinIO root와 source, structure write/read, quarantine, model-response 자격증명을 용도별로 분리한다.
@@ -37,14 +38,18 @@
 
 ```bash
 cp .env.example .env
-COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose -f docker-compose.t7.yml build
-COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose -f docker-compose.t7.yml up -d postgres minio clamav
-COMPOSE_PROJECT_NAME=bidops-deep-review-t7 ./scripts/init-runtime.sh
-COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose \
+cp env/vllm.env.example env/vllm.env
+export COMPOSE_PROJECT_NAME=bidops-deep-review-t7
+docker compose -f docker-compose.t7.yml build
+docker compose -f docker-compose.t7.yml up -d postgres minio clamav
+./scripts/init-runtime.sh
+docker compose --env-file .env --env-file env/vllm.env \
   -f docker-compose.t7.yml -f docker-compose.t7.remote-vllm.yml \
   up -d web document-worker analysis-worker
 curl --fail "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/health"
 ```
+
+`--env-file`을 명시하면 기본 `.env` 자동 로드가 꺼지므로 공통 파일과 overlay 파일을 함께 넘긴다. overlay 없이 기동할 때는 `--env-file` 없이 `.env`가 자동 로드된다.
 
 `scripts/init-runtime.sh`는 DB 역할 초기화, Alembic migration, MinIO 버킷·정책 초기화를 순서대로 실행한다. 앱 startup은 이 작업을 대신하지 않는다. `bidops-source`, `bidops-structure`, `bidops-quarantine`, `bidops-model-response` 버킷은 versioning과 최소 권한 정책을 유지한다.
 
@@ -53,12 +58,45 @@ curl --fail "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/health"
 판정 파이프라인이 승인된 Ollama와 나라장터 OpenAPI에 접근해야 할 때만 다음 overlay를 추가한다.
 
 ```bash
+cp env/screening.env.example env/screening.env   # BIDOPS_OLLAMA_BASE_URL을 채운다
 COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose \
+  --env-file .env --env-file env/screening.env \
   -f docker-compose.t7.yml -f docker-compose.t7.screening.yml \
   up -d web
 ```
 
-overlay 추가만으로 egress가 안전해지지 않는다. host firewall의 목적지 제한과 실제 endpoint 승인을 함께 확인한다.
+overlay 추가만으로 egress가 안전해지지 않는다. host firewall의 목적지 제한과 실제 endpoint 승인을 함께 확인한다. endpoint나 allowlist가 비어 있으면 overlay가 기동 전에 fail closed한다.
+
+모델 없이 상태 전이와 저장·검증 계보만 확인할 때는 mock override를 사용한다. 이 override는 전용 값을 파일 안에 리터럴로 선언하므로 추가 env 파일이 필요 없고 어떤 egress도 열지 않는다.
+
+```bash
+COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose \
+  -f docker-compose.t7.yml -f docker-compose.t7.mock-reference.yml \
+  up -d web document-worker analysis-worker
+```
+
+이 override는 두 단계를 모두 덮는다. 심층 검토는 `BIDOPS_ANALYSIS_PROVIDER=mock`,
+1차 분류는 `BIDOPS_SCREENING_PROVIDER=mock`이다. 둘 다 `BIDOPS_REFERENCE_WORKFLOW_MODE`가
+참이 아니면 기동 전에 설정 검증에서 거부된다.
+
+mock 결과의 provider/model 계보는 `mock-analysis` / `bidops-deterministic-mock-v1`로 고정되고 policy quality는 `reference_workflow_unmeasured`, `deployable=false`다. 사업 판단이나 모델 품질 평가 근거로 사용하지 않는다.
+
+1차 분류 mock은 `ScreeningAttempt.model_digest`가 mock 전용 상수
+(`app/screening/mock_transport.py`의 `MOCK_MODEL_DIGEST`)로 남는다. 저장된 판정이
+실제 모델 산출인지 mock인지는 이 값으로 판별한다. `model_name`은 `OllamaClient`가
+허용 모델만 받으므로 구별에 쓸 수 없다.
+
+## 환경 파일 배치
+
+| 파일 | 소비하는 compose | 담는 값 |
+|---|---|---|
+| `.env` | `docker-compose.t7.yml`, `docker-compose.yml` | 프로세스 정체성, 로그, DB·MinIO 자격증명, 암호화 키, port, 승인 profile/policy 참조 |
+| `env/vllm.env` | `docker-compose.t7.remote-vllm.yml` | `BIDOPS_VLLM_BASE_URL`, `BIDOPS_VLLM_ALLOWED_HOSTS`, `BIDOPS_VLLM_API_KEY` |
+| `env/screening.env` | `docker-compose.t7.screening.yml` | `BIDOPS_OLLAMA_BASE_URL`, `BIDOPS_OLLAMA_MODEL` |
+| `env/codex.env` | `docker-compose.t7.codex-reference.yml` | 승인 notice ID, host Codex 바이너리·auth 경로 (개발 검증 한정) |
+| 없음 | `docker-compose.t7.mock-reference.yml` | 전용 값을 override 파일 안에 리터럴로 선언한다 |
+
+overlay 전용 값을 `.env`에 두지 않는다. `.env`에 두면 overlay를 붙이지 않은 기동에서도 endpoint가 주입되어 fail-closed 기본값이 흐려진다.
 
 ## 상태 확인과 중지
 
@@ -102,7 +140,32 @@ COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose -f docker-compose.t7.y
 
 ## 목표 수집 일정
 
-발주계획과 사전규격 수집기는 아직 구현 전이므로 아래는 활성 명령이 아니라 운영 목표다.
+발주계획 수집기는 아래 명령으로 명시적으로 실행한다. 스케줄러와 always-on은 기본 비활성이고,
+운영자가 회차 디렉터리와 API key 주입을 확인한 뒤 실행한다.
+
+```bash
+python3 skills/bidops-collect/scripts/collect_order_plans.py \
+  --output-dir data/runs/order-plans-$(date +%Y%m%d) \
+  --days 21
+
+# 날짜를 고정하는 재현·재조회 모드 (to-date는 제외)
+python3 skills/bidops-collect/scripts/collect_order_plans.py \
+  --from-date 2026-08-08 --to-date 2026-08-29 \
+  --output-dir data/runs/order-plans-20260808-20260829
+```
+
+기존 raw page를 다시 정규화할 때는 새 회차 디렉터리를 지정한다. 이 모드는 API를 호출하지
+않는다.
+
+```bash
+python3 skills/bidops-collect/scripts/collect_order_plans.py \
+  --from-date 2026-08-08 --to-date 2026-08-29 \
+  --from-raw data/runs/order-plans-20260808-20260829/raw \
+  --output-dir data/runs/order-plans-20260808-20260829-reclassified
+```
+
+발주계획과 사전규격 수집은 공고 수집과 별도 회차로 유지한다. 아래 일정은 현재 자동 활성화된
+스케줄이 아니라 운영 목표다.
 
 - 발주계획 수집: 매일, 일반용역·기술용역, SW사업대상 선필터 없음.
 - 발주계획 사람 검토: 월요일과 목요일. 수집 회차는 검토 일정과 독립적으로 보존한다.

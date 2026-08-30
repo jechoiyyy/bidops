@@ -33,7 +33,9 @@ from methods import (
     BGEM3ColBERTAdapter,
     KeywordAdapter,
     LunaAdapter,
+    OllamaDenseAdapter,
     QwenAdapter,
+    TfidfAdapter,
 )
 
 
@@ -47,7 +49,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--method",
         required=True,
-        choices=("keyword", "bge_m3_colbert", "qwen", "luna"),
+        choices=(
+            "keyword",
+            "tfidf",
+            "bge_m3_dense",
+            "bge_m3_colbert",
+            "qwen",
+            "luna",
+        ),
     )
     parser.add_argument(
         "--company-capabilities",
@@ -101,7 +110,7 @@ def check_bindings(
         "company_capabilities_sha256": digest_json(capabilities),
         "batch_sizes": {
             method: methods_config["methods"][method]["batch_size"]
-            for method in ("qwen", "luna")
+            for method in ("bge_m3_dense", "qwen", "luna")
         },
     }
     if run["model_payload"] != expected_payload_binding:
@@ -121,7 +130,7 @@ def check_bindings(
             raise ExperimentError("method_binding_mismatch", f"run method binding {key}가 다릅니다")
     if method_name == "keyword" and not method_config.get("positive_rules"):
         raise ExperimentError("keyword_rules_missing", "승인된 고정 keyword positive_rules가 필요합니다")
-    if method_name != "keyword":
+    if method_name not in {"keyword", "tfidf"}:
         revision = method_config.get("model_revision")
         if not isinstance(revision, str) or not revision or revision == method_config.get("model_name"):
             raise ExperimentError("model_revision_unfixed", "고정 model revision 또는 digest가 필요합니다")
@@ -131,6 +140,8 @@ def check_bindings(
         revision = method_config["model_revision"]
         if len(revision) != 40 or any(char not in "0123456789abcdef" for char in revision):
             raise ExperimentError("model_revision_unfixed", "BGE-M3에 40자 commit SHA가 필요합니다")
+    if method_name == "bge_m3_dense" and not is_sha256(method_config["model_revision"]):
+        raise ExperimentError("model_revision_unfixed", "Ollama BGE-M3에 64자 model digest가 필요합니다")
     if method_name == "qwen" and not is_sha256(method_config["model_revision"]):
         raise ExperimentError("model_revision_unfixed", "Qwen에 64자 model digest가 필요합니다")
     if method_name == "luna" and method_config.get("reasoning_effort") != "xhigh":
@@ -304,7 +315,7 @@ def build_result(
             "approved_at": approval["approved_at"],
         }
     batching = None
-    if method_name in {"qwen", "luna"}:
+    if method_name in {"bge_m3_dense", "qwen", "luna"}:
         batch_size = int(method_config["batch_size"])
         batching = {
             "mode": "fixed",
@@ -390,13 +401,13 @@ def main() -> int:
                         "model_revision": method_config.get("model_revision"),
                         "prompt_sha256": prompt_hash,
                         "batch_size": method_config.get("batch_size")
-                        if args.method in {"qwen", "luna"}
+                        if args.method in {"bge_m3_dense", "qwen", "luna"}
                         else None,
                         "batch_count": (
                             len(population["items"]) + method_config["batch_size"] - 1
                         )
                         // method_config["batch_size"]
-                        if args.method in {"qwen", "luna"}
+                        if args.method in {"bge_m3_dense", "qwen", "luna"}
                         else None,
                     },
                     ensure_ascii=False,
@@ -406,6 +417,10 @@ def main() -> int:
         execution_started = time.monotonic()
         if args.method == "keyword":
             adapter = KeywordAdapter(method_config)
+        elif args.method == "tfidf":
+            adapter = TfidfAdapter(method_config)
+        elif args.method == "bge_m3_dense":
+            adapter = OllamaDenseAdapter(method_config)
         elif args.method == "bge_m3_colbert":
             adapter = BGEM3ColBERTAdapter(method_config)
         elif args.method == "qwen":

@@ -1,0 +1,154 @@
+{
+  "schema_version": "bidops.lifecycle-prespec-fill-curve.v1",
+  "endpoint_id": "g2b_prespec_pps_search_service_v1",
+  "observed_on": "2026-08-31",
+  "timezone": "Asia/Seoul",
+  "window_days": 3,
+  "design": "cross-sectional: each point is a different publication cohort observed once, not a repeated observation of the same records",
+  "points": [
+    {
+      "age_days": 3,
+      "from": "2026-08-25",
+      "to_exclusive": "2026-08-28",
+      "records": 650,
+      "bid_ntce_no_list": {
+        "filled": 36,
+        "rate": 0.055384615384615386,
+        "field_present": true
+      },
+      "changed_at": {
+        "filled": 600,
+        "rate": 0.9230769230769231,
+        "field_present": true
+      },
+      "sw_business_object": {
+        "filled": 55,
+        "rate": 0.08461538461538462
+      },
+      "attachment_url": {
+        "filled": 586,
+        "rate": 0.9015384615384615
+      }
+    },
+    {
+      "age_days": 9,
+      "from": "2026-08-19",
+      "to_exclusive": "2026-08-22",
+      "records": 665,
+      "bid_ntce_no_list": {
+        "filled": 445,
+        "rate": 0.6691729323308271,
+        "field_present": true
+      },
+      "changed_at": {
+        "filled": 608,
+        "rate": 0.9142857142857143,
+        "field_present": true
+      },
+      "sw_business_object": {
+        "filled": 52,
+        "rate": 0.07819548872180451
+      },
+      "attachment_url": {
+        "filled": 588,
+        "rate": 0.8842105263157894
+      }
+    },
+    {
+      "age_days": 17,
+      "from": "2026-08-11",
+      "to_exclusive": "2026-08-14",
+      "records": 671,
+      "bid_ntce_no_list": {
+        "filled": 522,
+        "rate": 0.7779433681073026,
+        "field_present": true
+      },
+      "changed_at": {
+        "filled": 615,
+        "rate": 0.9165424739195231,
+        "field_present": true
+      },
+      "sw_business_object": {
+        "filled": 58,
+        "rate": 0.08643815201192251
+      },
+      "attachment_url": {
+        "filled": 592,
+        "rate": 0.8822652757078987
+      }
+    },
+    {
+      "age_days": 31,
+      "from": "2026-07-28",
+      "to_exclusive": "2026-07-31",
+      "records": 731,
+      "bid_ntce_no_list": {
+        "filled": 616,
+        "rate": 0.8426812585499316,
+        "field_present": true
+      },
+      "changed_at": {
+        "filled": 671,
+        "rate": 0.9179206566347469,
+        "field_present": true
+      },
+      "sw_business_object": {
+        "filled": 74,
+        "rate": 0.1012311901504788
+      },
+      "attachment_url": {
+        "filled": 657,
+        "rate": 0.8987688098495212
+      }
+    },
+    {
+      "age_days": 60,
+      "from": "2026-06-29",
+      "to_exclusive": "2026-07-02",
+      "records": 744,
+      "bid_ntce_no_list": {
+        "filled": 623,
+        "rate": 0.8373655913978495,
+        "field_present": true
+      },
+      "changed_at": {
+        "filled": 673,
+        "rate": 0.9045698924731183,
+        "field_present": true
+      },
+      "sw_business_object": {
+        "filled": 78,
+        "rate": 0.10483870967741936
+      },
+      "attachment_url": {
+        "filled": 659,
+        "rate": 0.885752688172043
+      }
+    },
+    {
+      "age_days": 150,
+      "from": "2026-03-31",
+      "to_exclusive": "2026-04-03",
+      "records": 1365,
+      "bid_ntce_no_list": {
+        "filled": 1228,
+        "rate": 0.8996336996336997,
+        "field_present": true
+      },
+      "changed_at": {
+        "filled": 1282,
+        "rate": 0.9391941391941392,
+        "field_present": true
+      },
+      "sw_business_object": {
+        "filled": 130,
+        "rate": 0.09523809523809523
+      },
+      "attachment_url": {
+        "filled": 1248,
+        "rate": 0.9142857142857143
+      }
+    }
+  ]
+}

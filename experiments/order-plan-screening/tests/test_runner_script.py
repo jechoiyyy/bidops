@@ -25,8 +25,13 @@ class LocalRunnerScriptTests(unittest.TestCase):
         )
         self.assertEqual(help_result.returncode, 0, help_result.stderr)
         self.assertIn("--approve-capabilities", help_result.stdout)
+        self.assertIn("--execute-dense", help_result.stdout)
         self.assertIn("--execute-qwen", help_result.stdout)
-        self.assertIn("GPT Luna remains a separate", help_result.stdout)
+        self.assertIn("GPT Luna remain deferred", help_result.stdout)
+        script_text = SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("--timeout 60", script_text)
+        self.assertIn("--max-attempts 3", script_text)
+        self.assertIn("render_decision_report.py", script_text)
 
     def test_live_execution_requires_explicit_approval_arguments(self) -> None:
         result = subprocess.run(

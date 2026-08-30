@@ -1,38 +1,42 @@
 # 발주계획 선별 방법 간이 비교
 
-2026-08-24 00:00 KST 이상, 2026-08-27 00:00 KST 미만에 게시된 나라장터 일반용역·기술용역 전체를 한 번 동결하고 키워드, BGE-M3 ColBERT, Qwen3.8:27B, GPT-5.6 Luna xhigh의 Top 50을 비교하는 일회성 실험 코드다. 웹·DB·scheduler·운영 정책과 연결하지 않는다.
+2026-08-24 00:00 KST 이상, 2026-08-27 00:00 KST 미만에 게시된 나라장터 일반용역·기술용역 전체를 한 번 동결해 선별 방법을 비교하는 일회성 실험 코드다. 정식 비교 게이트는 keyword, BGE-M3 ColBERT, Qwen3.8:27B, GPT-5.6 Luna xhigh와 사람 정답의 Top 50 비교다. 현재는 ColBERT 환경을 준비하는 동안 TF-IDF, Ollama BGE-M3 dense representation, Qwen의 중간 실행만 수행한다. 웹·DB·scheduler·운영 정책과 연결하지 않는다.
 
 ## 현재 안전 상태
 
-저장소의 `config/company-capabilities.json`에는 최소 회사 역량 요약이 작성돼 있지만 아직 `pending`이라 실행 입력으로 승인되지 않는다. `config/methods.json`의 title 전용 keyword 규칙과 확인된 Qwen digest는 고정돼 있고, Qwen/Luna prompt hash와 Luna immutable revision은 비어 있다. 따라서 현 상태에서는 수집과 비모델 test만 가능하고 모델 실행은 fail-closed한다.
+저장소의 `config/company-capabilities.json`에는 승인 상태의 최소 회사 역량 요약 6개가 있다. 간편 실행기는 담당자가 그 내용을 다시 확인하고 `--approve-capabilities`와 `--approved-by`를 명시해야 실행별 승인 사본을 만든다. `config/methods.json`에는 TF-IDF 계약과 확인된 Ollama BGE-M3·Qwen digest가 고정돼 있고, Qwen prompt hash는 실행할 때 Git 밖의 승인 파일에서 계산해 실행 사본에 묶는다. Luna immutable revision은 아직 비어 있으므로 fail-closed한다.
 
-실제 최소 회사 역량 요약과 prompt 본문은 Git 밖의 접근 제한 위치에 둔다. 산출물에는 파일 경로나 본문 대신 hash만 기록한다. Luna는 공식 immutable revision을 확인할 수 없으면 실행하지 않는다. 모델 alias를 revision으로 복제해 이 검사를 우회하지 않는다.
+승인된 최소 회사 역량 요약은 저장소의 전용 config에 두고, prompt 본문은 Git 밖의 접근 제한 위치에 둔다. 보고서에는 회사 역량·prompt 본문 대신 hash만 기록한다. Luna는 공식 immutable revision을 확인할 수 없으면 실행하지 않는다. 모델 alias를 revision으로 복제해 이 검사를 우회하지 않는다.
 
 ## 파일 계약
 
 ```text
 experiments/order-plan-screening/
 ├── config/
-│   ├── company-capabilities.json   # 비어 있는 계약 template
-│   └── methods.json                # 비모델 기본값과 미확정 binding
+│   ├── company-capabilities.json   # 승인된 최소 회사 역량 projection
+│   └── methods.json                # 방법별 고정 설정과 모델 binding
 ├── scripts/
 │   ├── collect.py
 │   ├── run_methods.py
 │   ├── record_external_approval.py
 │   ├── make_review_set.py
-│   └── compare.py
+│   ├── compare.py
+│   ├── render_execution_report.py
+│   └── render_decision_report.py
 └── tests/
 
 data/experiments/order-plan-screening/<run-id>/
 ├── run.json
 ├── raw/page-*.json
 ├── population.json
-├── results/{keyword,bge_m3_colbert,qwen,luna}.json
+├── results/{keyword,tfidf,bge_m3_dense,bge_m3_colbert,qwen,luna}.json
 └── review/{manifest.json,review.tsv,labels.tsv}
 
 reports/order-plan-screening/<run-id>/
 ├── comparison.csv
-└── report.md
+├── report.md
+├── report.html                    # 중간 3방법 실행 요약
+└── decision-report.html           # 고도화·의사결정 상세 보고서
 ```
 
 모든 JSON은 `schema_version`, `run_id`, 입력 hash를 가진다. raw, population, 결과, review, report는 기존 파일을 덮어쓰지 않는다. 재실행은 새 디렉터리를 사용한다. API key, prompt, 모델 원응답, 회사 역량 본문은 로그·보고서에 저장하지 않는다.
@@ -48,10 +52,11 @@ flowchart LR
     D --> E[run.json<br/>입력·설정·모델·prompt hash 고정]
     E --> P[방법별 최소 projection<br/>plan은 title만 사용]
     P --> F{승인·revision·prompt<br/>실행 직전 검사}
-    F -->|통과| G[키워드<br/>title]
-    F -->|통과| H[BGE-M3 ColBERT<br/>capability query ↔ title passage]
+    F -->|통과| G[TF-IDF<br/>title ↔ capability summary]
+    F -->|통과| H[BGE-M3 dense<br/>capability vector ↔ title vector]
     F -->|통과| I[Qwen local/private<br/>25건 고정 batch]
-    F -->|외부 payload 별도 승인| J[Luna xhigh<br/>25건 고정 batch]
+    F -. 환경 준비 뒤 정식 비교 .-> C1[BGE-M3 ColBERT]
+    F -. 외부 payload 별도 승인 .-> J[Luna xhigh<br/>25건 고정 batch]
     F -->|실패| X
     G --> K[results/*.json<br/>전체 plan_id + score/rank/selected/status]
     H --> K
@@ -61,11 +66,11 @@ flowchart LR
 
 raw에는 인증키를 뺀 query와 API 응답 전체를 불변 page 단위로 두고, `population.json`은 공식 통합번호를 `plan_id`로 사용해 제목·기관·업무구분·금액·발주예정월·조달/계약방법·게시/변경일시를 정규화한다. 없거나 해석할 수 없는 값은 추정하지 않고 `null`과 `unknown_fields`로 남기며, 각 항목은 `raw_ref`와 원본 항목 hash를 가진다.
 
-전체 원본과 정규화 데이터는 향후 조건 추가와 사람 검토를 위해 그대로 보존한다. 다만 이번 발주계획 비교에서 네 방법이 계획 쪽에서 읽는 값은 `title` 하나뿐이다. 기관·금액·계약 방식·원문 ID 등은 비교 입력에 섞지 않는다.
+전체 원본과 정규화 데이터는 향후 조건 추가와 사람 검토를 위해 그대로 보존한다. 다만 발주계획 비교에서 모든 방법이 계획 쪽에서 읽는 값은 `title` 하나뿐이다. 기관·금액·계약 방식·원문 ID 등은 비교 입력에 섞지 않는다.
 
-## 로컬 3방법 간편 실행
+## 중간 3방법 간편 실행
 
-Keyword, BGE-M3 ColBERT, 로컬 Qwen까지는 한 명령으로 실행할 수 있다. 승인된 prompt는 Git 밖의 파일로 준비하고, 회사 역량 projection을 실제로 검토한 담당자만 승인 flag와 감사 표식을 입력한다. 첫 실행의 `--install-model-deps`는 격리 venv에 BGE 의존성을 설치한다.
+TF-IDF, Ollama BGE-M3 dense representation, 로컬 Qwen을 한 명령으로 실행할 수 있다. 승인된 prompt는 Git 밖의 파일로 준비하고, 회사 역량 projection을 실제로 검토한 담당자만 승인 flag와 감사 표식을 입력한다. 이 실행은 ColBERT, Luna, 사람 정답을 포함하지 않으므로 정식 방법 선정이나 운영 활성화의 근거로 사용하지 않는다.
 
 ### 실행 전 준비
 
@@ -73,7 +78,8 @@ Keyword, BGE-M3 ColBERT, 로컬 Qwen까지는 한 명령으로 실행할 수 있
 - `BIDOPS_G2B_API_KEY`는 신규 수집 때만 필요하다. 기존 raw를 재사용하면 필요하지 않다.
 - `BIDOPS_OLLAMA_BASE_URL`에는 승인된 Ollama endpoint를 넣는다.
 - `--prompt-file`은 symlink가 아닌 비어 있지 않은 승인 prompt 파일이어야 한다. 스크립트가 SHA-256을 계산해 실행별 methods 설정 사본에 묶는다.
-- 이 작업공간의 기본 prompt는 Git에서 제외되는 `.dryforge/approved/order-plan-batch-relevance-v2.txt`에 준비돼 있다. 실행 전에 본문을 검토하고 승인한 뒤 사용한다. 새 clone에는 이 파일이 따라오지 않는다.
+- 이 작업공간의 기본 prompt는 Git에서 제외되는 `.dryforge/approved/order-plan-batch-relevance-v3.txt`에 준비돼 있다. 실행 전에 본문을 검토하고 승인한 뒤 사용한다. 새 clone에는 이 파일이 따라오지 않는다.
+- `.dryforge/approved/order-plan-batch-relevance-v2.txt`는 직전 회차 재현용으로 보존한다.
 - `--approve-capabilities`는 저장소의 회사 역량 projection을 실제로 읽고 승인한 뒤에만 지정한다. `--approved-by`는 인증된 신원이 아니라 실행 artifact에 남는 감사 표식이다.
 
 스크립트는 원본 `config/company-capabilities.json`과 `config/methods.json`을 수정하지 않는다. 실행별 승인 사본은 `.dryforge/order-plan-screening/<run-id>/config/`에 만들고, 모집단과 결과는 `data/experiments/order-plan-screening/<run-id>/`에 새로 만든다.
@@ -85,17 +91,17 @@ cd /home/jechoi/projects/bidops
 
 export BIDOPS_OLLAMA_BASE_URL=http://192.168.0.139:11434
 export BIDOPS_G2B_API_KEY='환경에서 주입한 키'
-PROMPT_FILE="$PWD/.dryforge/approved/order-plan-batch-relevance-v2.txt"
+PROMPT_FILE="$PWD/.dryforge/approved/order-plan-batch-relevance-v3.txt"
 
 ./experiments/order-plan-screening/run-local-comparison.sh \
   --approved-by 'jechoi' \
   --approve-capabilities \
   --prompt-file "$PROMPT_FILE" \
-  --execute-qwen \
-  --install-model-deps
+  --execute-dense \
+  --execute-qwen
 ```
 
-`--install-model-deps`는 `.dryforge/venvs/order-plan-models/`에 격리 venv를 만들고 고정 BGE 의존성을 설치한다. 이후 실행에서는 이 option을 생략할 수 있다.
+TF-IDF는 Python 표준 라이브러리로 계산하고 dense embedding은 Ollama `/api/embed`를 사용하므로 로컬 Python 모델 의존성을 설치하지 않는다. 이전 명령과의 호환을 위해 `--install-model-deps`를 받아들이지만 현재는 아무 작업도 하지 않는 폐기 예정 option이다.
 
 ### 기존 raw 재사용
 
@@ -103,7 +109,7 @@ API를 다시 호출하지 않고 이전 run의 raw를 재사용하려면 새 ru
 
 ```bash
 export BIDOPS_OLLAMA_BASE_URL=http://192.168.0.139:11434
-PROMPT_FILE="$PWD/.dryforge/approved/order-plan-batch-relevance-v2.txt"
+PROMPT_FILE="$PWD/.dryforge/approved/order-plan-batch-relevance-v3.txt"
 
 ./experiments/order-plan-screening/run-local-comparison.sh \
   --run-id order-plan-replay-v2 \
@@ -111,6 +117,7 @@ PROMPT_FILE="$PWD/.dryforge/approved/order-plan-batch-relevance-v2.txt"
   --approved-by 'jechoi' \
   --approve-capabilities \
   --prompt-file "$PROMPT_FILE" \
+  --execute-dense \
   --execute-qwen
 ```
 
@@ -119,12 +126,13 @@ PROMPT_FILE="$PWD/.dryforge/approved/order-plan-batch-relevance-v2.txt"
 스크립트는 아래 작업을 순서대로 수행한다.
 
 1. live endpoint를 쓰지 않는 fake/unit test
-2. BGE 의존성 확인 또는 명시적으로 승인된 설치
+2. TF-IDF·dense adapter 계약 확인
 3. 회사 역량 승인 사본과 prompt hash가 묶인 methods 설정 생성
-4. 나라장터 신규 수집 또는 불변 raw replay
-5. Keyword readiness 검사와 실행
-6. BGE-M3 ColBERT readiness 검사와 실행
+4. 나라장터 신규 수집(페이지당 60초·최대 3회) 또는 불변 raw replay
+5. TF-IDF 실행
+6. Ollama에서 BGE-M3 digest 확인 후 dense embedding을 128건 고정 batch로 실행
 7. Qwen revision 확인과 25건 고정 batch 실행
+8. 중간 실행 요약과 상세 의사결정 HTML 보고서 생성
 
 완료 시 각 방법의 `status`, 성공·실패 건수, 전체 실제 소요시간 `elapsed_ms`와 run 디렉터리를 출력한다. 상세 결과는 다음 위치에 생긴다.
 
@@ -134,18 +142,24 @@ data/experiments/order-plan-screening/<run-id>/
 ├── population.json
 ├── raw/page-*.json
 └── results/
-    ├── keyword.json
-    ├── bge_m3_colbert.json
+    ├── tfidf.json
+    ├── bge_m3_dense.json
     └── qwen.json
+
+reports/order-plan-screening/<run-id>/
+├── report.html
+└── decision-report.html
 ```
 
 기존 run과 승인 설정 사본은 덮어쓰지 않는다. 중간 실패 뒤 재실행하거나 설정·prompt를 바꿀 때는 새 run ID를 사용한다. 수집이 완료된 run이라면 `--from-raw`로 기존 raw만 재사용한다. 전체 option은 다음 명령으로 확인한다.
+
+`decision-report.html`은 데이터 완전성, title-only 전송 흐름, 실행 성능·점수 분포, Top-K 중복·순위 상관, capability 귀속, Qwen batch 실패, 1,200·2,000건 용량 추정, 단계형 파이프라인 대안과 품질·운영 게이트를 함께 정리한다. 사람 정답이 없으면 품질 우승이나 운영 활성화를 결론내리지 않는다.
 
 ```bash
 ./experiments/order-plan-screening/run-local-comparison.sh --help
 ```
 
-GPT Luna는 hosted 외부 전송이므로 이 스크립트에 포함하지 않는다. 고정 모델 식별자 정책, API key, payload preview와 실행별 사람 승인을 별도로 확정한 뒤 기존 수동 승인 절차를 사용한다.
+ColBERT는 로컬 실행 환경이 준비된 뒤 정식 비교 절차에서 실행한다. GPT Luna는 hosted 외부 전송이므로 이 스크립트에 포함하지 않는다. 고정 모델 식별자 정책, API key, payload preview와 실행별 사람 승인을 별도로 확정한 뒤 기존 수동 승인 절차를 사용한다.
 
 ## 1. 설정 확정
 
@@ -263,13 +277,13 @@ python3 experiments/order-plan-screening/scripts/run_methods.py \
 
 python3 experiments/order-plan-screening/scripts/run_methods.py \
   --run-dir "$RUN_DIR" --method qwen --check-ready \
-  --prompt-file /approved/order-plan-batch-relevance-v2.txt \
+  --prompt-file /approved/order-plan-batch-relevance-v3.txt \
   --company-capabilities /approved/company-capabilities.json \
   --methods-config /approved/methods.json
 
 python3 experiments/order-plan-screening/scripts/run_methods.py \
   --run-dir "$RUN_DIR" --method luna --check-ready \
-  --prompt-file /approved/order-plan-batch-relevance-v2.txt \
+  --prompt-file /approved/order-plan-batch-relevance-v3.txt \
   --external-approval /approved/luna-approval-20260824-20260826.json \
   --company-capabilities /approved/company-capabilities.json \
   --methods-config /approved/methods.json
@@ -313,18 +327,20 @@ Qwen과 Luna에 보내는 한 batch의 사용자 입력은 다음 형태다. `it
 
 계획 쪽 근거가 title 하나뿐이므로 모델에게 `evidence_fields`를 생성시키지 않는다. 검증을 통과한 모델 항목에는 실행기가 `evidence_fields: ["title"]`을 붙인다. 이 응답은 로컬에서 `plan_id`, 상태, 순위, Top 50 선택 여부, 지연·token·오류 정보와 결합해 결과 JSON에 저장한다. 모델의 원응답과 reasoning은 저장하지 않는다. batch 단위 지연과 token 수는 총합이 유지되도록 항목에 결정적으로 나눠 담는다.
 
-각 방법 결과의 `metrics.elapsed_ms`에는 adapter 생성 직전부터 전체 모집단 처리가 끝날 때까지의 실제 벽시계 시간을 기록한다. 따라서 BGE 모델 로딩, Qwen revision 확인, 모델 호출과 응답 검증이 포함된다. `total_latency_ms`는 항목·batch에서 측정한 지연의 합으로 별도 보존하며, 비교 CSV와 보고서에는 두 값을 모두 표시한다.
+각 방법 결과의 `metrics.elapsed_ms`에는 adapter 생성 직전부터 전체 모집단 처리가 끝날 때까지의 실제 벽시계 시간을 기록한다. 따라서 TF-IDF 전체 계산, BGE embedding과 revision 확인, Qwen 호출과 응답 검증이 포함된다. `total_latency_ms`는 항목·batch에서 측정한 지연의 합으로 별도 보존하며, 비교 CSV와 보고서에는 두 값을 모두 표시한다.
 
 방법별 실제 입력·출력은 다음과 같다.
 
 | 방법 | 입력 | 일차 출력 |
 |---|---|---|
 | keyword | title에만 적용하는 고정 rule | 가중치 합 `score`, `matched:<rule>@title` |
+| TF-IDF | 승인 회사 역량 요약과 title의 결정적 문자 2~5-gram 벡터 | 최대 cosine `score`, `nearest_capability:<id>` |
+| BGE-M3 dense | Ollama에 승인 회사 역량 요약과 title 문자열만 128건씩 전송 | 최대 cosine `score`, `nearest_capability:<id>` |
 | BGE-M3 ColBERT | 승인 회사 역량 요약을 query로, title만 passage로 사용 | late-interaction `score`, `nearest_capability:<id>` |
 | Qwen | 고정 prompt + title 25건 + 승인 회사 역량 projection | batch별 `item_id`, `relevance`, 0..1 `score`, `reason` |
 | Luna | Qwen과 같은 최소 batch이며 preview hash와 사람 승인을 추가 검증 | batch별 `item_id`, `relevance`, 0..1 `score`, `reason` |
 
-모든 점수는 해당 방법 안의 순위에만 사용한다. keyword 가중치 합, ColBERT 유사도, Qwen/Luna의 0..1 판정 점수를 서로 같은 확률처럼 비교하지 않는다.
+모든 점수는 해당 방법 안의 순위에만 사용한다. keyword 가중치 합, TF-IDF·dense·ColBERT 유사도, Qwen/Luna의 0..1 판정 점수를 서로 같은 확률처럼 비교하지 않는다.
 
 ## 5. 사람 검토와 비교
 

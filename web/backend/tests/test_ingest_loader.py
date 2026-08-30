@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -9,13 +12,18 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.db import Base, init_db
-from app.ingest.loader import ingest_run
+from app.ingest.loader import parse_order_plan_unty_no, ingest_run
 from app.screening.generation_config import legacy_generation_config
 from app.models import (
     Counterargument,
     IngestWarning,
     Judgment,
     Notice,
+    NoticeObservation,
+    Opportunity,
+    OpportunityLink,
+    OrderPlan,
+    OrderPlanObservation,
     Perspective,
     Review,
     Run,
@@ -89,12 +97,14 @@ def judgment(
 def write_run(
     root: Path,
     *,
+    directory_name: str = "20260817-20260823",
     validation: dict | None = None,
     screening: dict | None = None,
     decisions: dict | None = None,
+    order_plans: dict | None = None,
     feedback: str | None = None,
 ) -> Path:
-    run_dir = root / "runs" / "20260817-20260823"
+    run_dir = root / "runs" / directory_name
     run_dir.mkdir(parents=True, exist_ok=True)
     if validation is not None:
         (run_dir / "validation-set.json").write_text(
@@ -107,6 +117,10 @@ def write_run(
     if decisions is not None:
         (run_dir / "screening-decisions.json").write_text(
             json.dumps(decisions, ensure_ascii=False), encoding="utf-8"
+        )
+    if order_plans is not None:
+        (run_dir / "collected-order-plans.json").write_text(
+            json.dumps(order_plans, ensure_ascii=False), encoding="utf-8"
         )
     if feedback is not None:
         report_dir = root / "reports" / run_dir.name
@@ -172,6 +186,17 @@ def test_loader_records_contract_gaps_and_keeps_available_rows(tmp_path, db_sess
     assert "perspectives_below_contract" in codes
     assert "counterarguments_missing" in codes
     assert "verification_items_missing" in codes
+
+
+def test_optional_order_plan_linkage_does_not_rewrite_old_notice_identity(tmp_path, db_session):
+    validation, _screening, _decisions = base_artifacts()
+    run_dir = write_run(tmp_path, validation=validation)
+
+    ingest_run(run_dir, db_session, reports_root=tmp_path / "reports")
+
+    stored_notice = db_session.scalar(select(Notice))
+    assert stored_notice is not None
+    assert "order_plan_no" not in stored_notice.lifecycle_json
 
 
 @pytest.mark.parametrize(
@@ -365,6 +390,351 @@ def test_missing_validation_stops_after_recording_error(tmp_path, db_session):
     assert db_session.scalar(select(func.count()).select_from(Run)) == 1
 
 
+def test_order_plan_ingest_resolves_bid_first_waiting_reference(tmp_path, db_session):
+    """A plan arriving in a later run reuses the bid-first opportunity."""
+
+    reference = "R26DD20999999"
+    bid_validation = {
+        "schema_version": "bidops.validation-set.v2",
+        "source_window": {
+            "from": "2026-08-25",
+            "to": "2026-08-26",
+            "timezone": "Asia/Seoul",
+        },
+        "notices": [
+            {
+                **notice("bid:R26BK01696186:000"),
+                "lifecycle": {
+                    "pre_spec_no": None,
+                    "re_notice": None,
+                    "changed_at": None,
+                    "change_reason": None,
+                    "unified_notice_no": None,
+                    "previous_failed_notice_no": None,
+                    "order_plan_no": reference,
+                },
+            }
+        ],
+    }
+    first_run_dir = write_run(
+        tmp_path,
+        directory_name="bid-first-run",
+        validation=bid_validation,
+    )
+    first = ingest_run(first_run_dir, db_session, reports_root=tmp_path / "reports")
+    assert first.notices == 1
+
+    plan_artifact = {
+        "schema_version": "bidops.collected-order-plans.v1",
+        "generated_at": "2026-08-29T01:00:00+00:00",
+        "source_window": {
+            "from": "2026-08-25",
+            "to": "2026-08-26",
+            "timezone": "Asia/Seoul",
+        },
+        "counts": {"total": 1},
+        "warnings": [],
+        "order_plans": [
+            {
+                "order_plan_unty_no": reference,
+                "title": "늦게 도착한 계획",
+                "agency_code": "7430073",
+                "agency_name": "테스트 기관",
+                "supervising_agency_name": "상위 기관",
+                "business_division": "일반용역",
+                "business_division_code": "03",
+                "service_type": "신규(단기)",
+                "service_type_code": "신120001",
+                "budget_amount": "100000000",
+                "contract_amount": "0",
+                "planned_order_year": "2027",
+                "planned_order_month": "2027-09",
+                "procurement_method": "자체조달",
+                "contract_method": "제한경쟁",
+                "sw_business_status": None,
+                "published_at": "2026-08-25T18:56:27+09:00",
+                "changed_at": None,
+                "bid_ntice_no_list": "R26BK01696186000",
+                "notice_posted": "Y",
+                "rcrit_rgst_no": None,
+                "source_url": "https://www.g2b.go.kr/link/plan",
+                "first_discovered_at": "2026-08-25T18:56:27+09:00",
+                "last_discovered_at": "2026-08-29T01:00:00+00:00",
+                "source_sha256": "a" * 64,
+                "unknown_fields": ["sw_business_status"],
+                "raw_source": "raw/order-plan-page-00001.json",
+            }
+        ],
+    }
+    second_run_dir = write_run(
+        tmp_path,
+        directory_name="plan-later-run",
+        order_plans=plan_artifact,
+    )
+    second = ingest_run(second_run_dir, db_session, reports_root=tmp_path / "reports")
+
+    assert second.order_plans == 1
+    plan = db_session.scalar(select(OrderPlan).where(OrderPlan.order_plan_unty_no == reference))
+    assert plan is not None
+    assert plan.title == "늦게 도착한 계획"
+    assert plan.bid_ntice_no_list == "R26BK01696186000"
+    assert plan.raw_source["unprojected_fields"] == {
+        "sw_business_status": None,
+        "rcrit_rgst_no": None,
+    }
+    assert db_session.scalar(select(func.count()).select_from(OrderPlanObservation)) == 1
+
+    links = db_session.scalars(select(OpportunityLink)).all()
+    plan_link = next(link for link in links if link.order_plan_id == plan.id)
+    bid_link = next(link for link in links if link.notice_id is not None)
+    assert plan_link.opportunity_id == bid_link.opportunity_id
+    assert plan_link.evidence_bid_no == "R26BK01696186"
+    assert plan_link.status == "확정"
+    assert plan_link.notice_id is None
+    assert db_session.scalar(select(func.count()).select_from(Opportunity)) == 1
+
+
+def test_order_plan_ingest_maps_measured_g2b_fields_without_inference(tmp_path, db_session):
+    reference = "R26DD20853714"
+    artifact = {
+        "schema_version": "bidops.collected-order-plans.v1",
+        "generated_at": "2026-08-29T01:00:00+00:00",
+        "source_window": {
+            "from": "2026-08-25",
+            "to": "2026-08-26",
+            "timezone": "Asia/Seoul",
+        },
+        "counts": {"total": 1},
+        "order_plans": [
+            {
+                "orderPlanUntyNo": reference,
+                "bizNm": "실측 API 발주계획",
+                "orderInsttCd": "1234567",
+                "orderInsttNm": "발주기관",
+                "totlmngInsttNm": "총괄기관",
+                "bsnsDivCd": "03",
+                "bsnsDivNm": "일반용역",
+                "bsnsTyCd": "신120001",
+                "bsnsTyNm": "신규(단기)",
+                "sumOrderAmt": "123456789",
+                "orderContrctAmt": "0",
+                "orderYear": "2027",
+                "orderMnth": "09",
+                "prcrmntMethd": "자체조달",
+                "cntrctMthdNm": "제한경쟁",
+                "swBizObjYn": None,
+                "nticeDt": "20260825185627",
+                "chgDt": "",
+                "bidNtceNoList": "R26BK01696186000",
+                "ntceNticeYn": "Y",
+                "rcritRgstNo": "",
+                "orderPlanDtlUrl": "https://www.g2b.go.kr/order-plan",
+                "source": {
+                    "raw_ref": "raw/page-00001.json#payload.items/0",
+                    "source_sha256": "b" * 64,
+                },
+                "future_field": "warning-only",
+            }
+        ],
+    }
+    run_dir = write_run(
+        tmp_path,
+        directory_name="measured-plan-run",
+        order_plans=artifact,
+    )
+
+    result = ingest_run(run_dir, db_session, reports_root=tmp_path / "reports")
+
+    assert result.order_plans == 1
+    plan = db_session.scalar(select(OrderPlan))
+    assert plan is not None
+    assert plan.order_plan_unty_no == reference
+    assert plan.title == "실측 API 발주계획"
+    assert plan.budget_amount == 123456789
+    assert plan.planned_order_month == "2027-09"
+    assert plan.bid_ntice_no_list == "R26BK01696186000"
+    assert plan.notice_posted == "Y"
+    assert plan.source_url == "https://www.g2b.go.kr/order-plan"
+    assert plan.source_sha256 == "b" * 64
+    assert plan.raw_source == {
+        "raw_ref": "raw/page-00001.json#payload.items/0",
+        "unprojected_fields": {
+            "swBizObjYn": None,
+            "rcritRgstNo": "",
+        },
+    }
+    assert any(
+        warning["code"] == "unknown_field"
+        and warning["context"]["field"] == "order_plan[0].future_field"
+        for warning in result.warnings
+    )
+
+
+def test_collector_artifact_round_trips_through_ingest_run(tmp_path, db_session):
+    """The real producer subprocess must create rows in the existing loader."""
+
+    def digest(value):
+        canonical = json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+        return hashlib.sha256(canonical).hexdigest()
+
+    source_item = {
+        "orderPlanUntyNo": "R26DD20999999",
+        "bizNm": "왕복 검증용 실측 발주계획",
+        "orderInsttCd": "1234567",
+        "orderInsttNm": "테스트 발주기관",
+        "totlmngInsttNm": "테스트 총괄기관",
+        "bsnsDivCd": "03",
+        "bsnsDivNm": "일반용역",
+        "bsnsTyCd": "신120001",
+        "bsnsTyNm": "신규(단기)",
+        "sumOrderAmt": "123456789",
+        "orderContrctAmt": "0",
+        "orderYear": "2027",
+        "orderMnth": "09",
+        "prcrmntMethd": "자체조달",
+        "cntrctMthdNm": "제한경쟁",
+        "nticeDt": "20260825185627",
+        "chgDt": "20260826101010",
+        "bidNtceNoList": "R26BK01696186000",
+        "ntceNticeYn": "Y",
+        "rcritRgstNo": "",
+        "orderPlanDtlUrl": "https://www.g2b.go.kr/order-plan",
+    }
+    source_payload = {
+        "response": {
+            "header": {"resultCode": "00", "resultMsg": "정상"},
+            "body": {
+                "totalCount": "1",
+                "pageNo": "1",
+                "numOfRows": "500",
+                "items": [source_item],
+            },
+        }
+    }
+    query = {
+        "pageNo": "1",
+        "numOfRows": "500",
+        "type": "json",
+        "orderBgnYm": "200412",
+        "orderEndYm": "999912",
+        "inqryBgnDt": "202608250000",
+        "inqryEndDt": "202608262359",
+    }
+    raw_input = tmp_path / "raw-fixture"
+    raw_input.mkdir()
+    (raw_input / "page-00001.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "bidops.collected-order-plans-raw-page.v1",
+                "endpoint_id": "g2b_order_plan_service_pps_search_v1",
+                "query": query,
+                "page_no": 1,
+                "request_attempts": 1,
+                "collected_at": "2026-08-29T12:00:00+09:00",
+                "payload_sha256": digest(source_payload),
+                "payload": source_payload,
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    project_root = Path(__file__).resolve().parents[3]
+    producer = project_root / "skills/bidops-collect/scripts/collect_order_plans.py"
+    run_dir = tmp_path / "runs" / "order-plan-roundtrip"
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(producer),
+            "--from-date",
+            "2026-08-25",
+            "--to-date",
+            "2026-08-27",
+            "--from-raw",
+            str(raw_input),
+            "--output-dir",
+            str(run_dir),
+        ],
+        cwd=project_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+
+    artifact = json.loads(
+        (run_dir / "collected-order-plans.json").read_text(encoding="utf-8")
+    )
+    assert artifact["schema_version"] == "bidops.collected-order-plans.v1"
+    assert artifact["order_plans"][0]["rcrit_rgst_no"] is None
+    assert artifact["order_plans"][0]["sw_business_status"] is None
+
+    result = ingest_run(run_dir, db_session, reports_root=tmp_path / "reports")
+
+    assert result.order_plans == 1
+    plan = db_session.scalar(
+        select(OrderPlan).where(OrderPlan.order_plan_unty_no == "R26DD20999999")
+    )
+    assert plan is not None
+    assert plan.title == "왕복 검증용 실측 발주계획"
+    assert plan.budget_amount == 123456789
+    assert plan.planned_order_month == "2027-09"
+    assert plan.source_url == "https://www.g2b.go.kr/order-plan"
+    assert plan.raw_source["unprojected_fields"] == {
+        "sw_business_status": None,
+        "rcrit_rgst_no": None,
+    }
+    assert db_session.scalar(select(func.count()).select_from(OrderPlanObservation)) == 1
+
+
+# 생애주기 조사에서 입찰공고 1,628건 중 14건(0.9%)이 아래 두 형태를 가졌다.
+# 형식을 추측해 억지로 파싱하지 않고, 원문을 링크에 보존해 사람이 볼 수 있게 둔다.
+# ADR-0028: "해소 안 된 공식 참조번호는 링크에 보존한다."
+@pytest.mark.parametrize(
+    "nonstandard_no",
+    ["204200-2026-S-01200", "P812026007CB-00"],
+)
+def test_nonstandard_order_plan_number_is_preserved_not_treated_as_absent(
+    tmp_path, db_session, nonstandard_no
+):
+    validation = {
+        "schema_version": "bidops.validation-set.v2",
+        "source_window": {"from": "2026-08-24", "to": "2026-08-26", "timezone": "Asia/Seoul"},
+        "notices": [
+            {
+                **notice("bid:R26BK01696190:000"),
+                "lifecycle": {"order_plan_no": nonstandard_no},
+            }
+        ],
+    }
+    run_dir = write_run(tmp_path, directory_name="nonstandard-plan-no", validation=validation)
+    result = ingest_run(run_dir, db_session, reports_root=tmp_path / "reports")
+    assert result.notices == 1
+
+    # 파싱은 실패해야 한다. 임의 추출로 그럴듯한 키를 만들어 내면 안 된다.
+    assert parse_order_plan_unty_no(nonstandard_no) is None
+
+    # 그러나 그 사실이 "발주계획 없음"을 뜻하지는 않는다. 원문이 링크에 남는다.
+    links = db_session.scalars(select(OpportunityLink)).all()
+    preserved = [link for link in links if link.evidence_external_no == nonstandard_no]
+    assert preserved, "비표준 계획번호가 링크에 보존되지 않았다"
+    assert preserved[0].link_type == "official"
+    assert preserved[0].order_plan_id is None
+
+    # 공고 자체는 정확히 하나의 사업기회에 속한다 (ADR-0028).
+    assert db_session.scalar(select(func.count()).select_from(Opportunity)) == 1
+
+
+def test_standard_order_plan_number_still_parses(tmp_path, db_session):
+    assert parse_order_plan_unty_no("R26DD20853714") == "R26DD20853714"
+
+
 def test_missing_screening_loads_notices_only(tmp_path, db_session):
     validation, _, _ = base_artifacts()
     run_dir = write_run(tmp_path, validation=validation)
@@ -448,7 +818,8 @@ def test_new_generated_at_creates_snapshot_and_supersedes_previous(tmp_path, db_
     runs = db_session.scalars(select(Run).order_by(Run.id)).all()
     assert runs[0].status == "superseded"
     assert runs[0].superseded_by == runs[1].id
-    assert db_session.scalar(select(func.count()).select_from(Notice)) == 2
+    assert db_session.scalar(select(func.count()).select_from(Notice)) == 1
+    assert db_session.scalar(select(func.count()).select_from(NoticeObservation)) == 2
 
 
 def test_real_run_integration_if_artifacts_are_available(tmp_path, db_session):

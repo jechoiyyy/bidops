@@ -1,5 +1,5 @@
 {
-  "schema_version": "bidops.order-plan-methods.v2",
+  "schema_version": "bidops.order-plan-methods.v3",
   "top_k": 50,
   "model_plan_allowed_fields": ["title"],
   "methods": {
@@ -128,6 +128,39 @@
         }
       ]
     },
+    "tfidf": {
+      "method_version": "tfidf-char-title-capability-v1",
+      "model_name": null,
+      "model_revision": null,
+      "prompt_id": null,
+      "prompt_sha256": null,
+      "analyzer": "char",
+      "ngram_min": 2,
+      "ngram_max": 5,
+      "tf": "sublinear",
+      "idf": "smooth",
+      "normalization": "l2",
+      "capability_aggregation": "max_cosine"
+    },
+    "bge_m3_dense": {
+      "method_version": "ollama-bge-m3-dense-title-v1",
+      "model_name": "bge-m3:latest",
+      "model_revision": "7907646426070047a77226ac3e684fbbe8410524f7b4a74d02837e43f2146bab",
+      "prompt_id": null,
+      "prompt_sha256": null,
+      "api_style": "ollama_native",
+      "base_url_env": "BIDOPS_OLLAMA_BASE_URL",
+      "allowed_hosts": [
+        "127.0.0.1",
+        "localhost",
+        "192.168.0.139"
+      ],
+      "timeout_seconds": 120,
+      "batch_size": 128,
+      "representation": "dense_cls",
+      "normalization": "l2",
+      "capability_aggregation": "max_cosine"
+    },
     "bge_m3_colbert": {
       "method_version": "bge-m3-colbert-title-v2",
       "model_name": "BAAI/bge-m3",
@@ -143,7 +176,7 @@
       "method_version": "qwen-order-plan-batch-v2",
       "model_name": "qwen3.8:27b",
       "model_revision": "22130167c4c20e20c7b71454612966ca8e8171e9b3cc8ab6ce8aa6cbfec79643",
-      "prompt_id": "order-plan-batch-relevance-v2",
+      "prompt_id": "order-plan-batch-relevance-v3",
       "prompt_sha256": null,
       "api_style": "ollama_native",
       "base_url_env": "BIDOPS_OLLAMA_BASE_URL",
@@ -153,9 +186,9 @@
         "localhost",
         "192.168.0.139"
       ],
-      "timeout_seconds": 120,
+      "timeout_seconds": 300,
       "batch_size": 25,
-      "max_output_tokens": 4096,
+      "max_output_tokens": 8192,
       "think": "high"
     },
     "luna": {
@@ -163,7 +196,7 @@
       "model_name": "gpt-5.6-luna",
       "model_revision": null,
       "reasoning_effort": "xhigh",
-      "prompt_id": "order-plan-batch-relevance-v2",
+      "prompt_id": "order-plan-batch-relevance-v3",
       "prompt_sha256": null,
       "timeout_seconds": 180,
       "batch_size": 25,

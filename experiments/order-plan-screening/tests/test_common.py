@@ -136,6 +136,13 @@ class CommonContractTests(unittest.TestCase):
             validate_result_run_binding(result, run)
         self.assertEqual(caught.exception.code, "method_binding_mismatch")
 
+    def test_dense_batch_binding_does_not_require_judgment_evidence(self) -> None:
+        population = validate_population(make_population(3))
+        run = make_run(population)
+        result = make_result(population, "bge_m3_dense", {"P0000", "P0001"})
+        validate_method_result(result, population, "bge_m3_dense")
+        validate_result_run_binding(result, run)
+
 
 if __name__ == "__main__":
     unittest.main()

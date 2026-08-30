@@ -12,7 +12,9 @@ from methods import (  # noqa: E402
     FakeAdapter,
     KeywordAdapter,
     LunaAdapter,
+    OllamaDenseAdapter,
     QwenAdapter,
+    TfidfAdapter,
     plan_text,
     run_fixed_model_batches,
     validate_local_base_url,
@@ -39,6 +41,26 @@ class RecordingClient:
     def post(self, url, body, headers):  # type: ignore[no-untyped-def]
         self.calls.append((url, body, headers))
         return self.response, 12
+
+
+class DenseRecordingClient:
+    def __init__(self):
+        self.calls = []
+
+    def get(self, url, headers):  # type: ignore[no-untyped-def]
+        self.calls.append(("GET", url, None))
+        return {
+            "models": [
+                {"name": "bge-m3:latest", "digest": "d" * 64}
+            ]
+        }, 2
+
+    def post(self, url, body, headers):  # type: ignore[no-untyped-def]
+        self.calls.append(("POST", url, body))
+        inputs = body["input"]
+        if inputs == ["최소 요약"]:
+            return {"embeddings": [[1.0, 0.0]]}, 3
+        return {"embeddings": [[1.0, 0.0], [0.0, 1.0]]}, 8
 
 
 class MethodExecutionTests(unittest.TestCase):
@@ -208,6 +230,54 @@ class MethodExecutionTests(unittest.TestCase):
         with self.assertRaises(ExperimentError):
             KeywordAdapter(forbidden)
         self.assertEqual(plan_text({"title": "AI 구축", "agency_name": "노이즈"}), "AI 구축")
+
+    def test_tfidf_is_deterministic_and_uses_title_only(self) -> None:
+        config = {
+            "analyzer": "char",
+            "ngram_min": 2,
+            "ngram_max": 4,
+            "tf": "sublinear",
+            "idf": "smooth",
+            "normalization": "l2",
+            "capability_aggregation": "max_cosine",
+        }
+        adapter = TfidfAdapter(config)
+        plans = [
+            {"plan_id": "P1", "title": "데이터 분석 시스템", "agency_name": "노이즈 A"},
+            {"plan_id": "P2", "title": "청사 조경 관리", "agency_name": "데이터 분석"},
+        ]
+        capabilities = {
+            "capabilities": [{"id": "cap-data", "summary": "데이터 분석과 AI 시스템 구축"}]
+        }
+        first = adapter.score_all(plans, capabilities)
+        second = adapter.score_all(plans, capabilities)
+        self.assertEqual([row.score for row in first], [row.score for row in second])
+        self.assertGreater(first[0].score, first[1].score)
+        self.assertEqual(first[0].reason, "nearest_capability:cap-data")
+
+    def test_ollama_dense_sends_only_capability_summaries_and_titles(self) -> None:
+        adapter = OllamaDenseAdapter.__new__(OllamaDenseAdapter)
+        adapter.url = "http://127.0.0.1:11434/api/embed"
+        adapter.tags_url = "http://127.0.0.1:11434/api/tags"
+        adapter.model_name = "bge-m3:latest"
+        adapter.model_revision = "d" * 64
+        adapter.batch_size = 2
+        adapter.client = DenseRecordingClient()
+        adapter._revision_verified = False
+        plans = [
+            {"plan_id": "P1", "title": "데이터 분석", "agency_name": "금지 기관"},
+            {"plan_id": "P2", "title": "조경 관리", "budget_amount": 100},
+        ]
+        outcomes = adapter.score_many(plans, CAPABILITIES)
+        self.assertTrue(all(isinstance(row, AdapterResult) for row in outcomes))
+        self.assertEqual([round(row.score, 4) for row in outcomes], [1.0, 0.0])
+        post_bodies = [call[2] for call in adapter.client.calls if call[0] == "POST"]
+        self.assertEqual(post_bodies[0]["input"], ["최소 요약"])
+        self.assertEqual(post_bodies[1]["input"], ["데이터 분석", "조경 관리"])
+        serialized = json.dumps(post_bodies, ensure_ascii=False)
+        self.assertNotIn("plan_id", serialized)
+        self.assertNotIn("agency_name", serialized)
+        self.assertNotIn("profile_version", serialized)
 
     def test_ties_and_top_50_are_deterministic(self) -> None:
         population = make_population(60)

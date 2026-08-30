@@ -22,12 +22,12 @@ from collections.abc import AsyncIterable, Callable, Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.error import HTTPError, URLError
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import unquote_to_bytes, urljoin, urlsplit
 from urllib.request import HTTPRedirectHandler, HTTPSHandler, ProxyHandler, Request, build_opener
 
 from fastapi import UploadFile
 
-from ..config import get_settings
+from ..config import Settings, get_settings
 from ..document_mcp.errors import DocumentProcessingError
 from ..document_mcp.processor import ClamAVChecker, DocumentProcessor, ProcessedDocument
 from ..document_mcp.safety import MAX_INPUT_BYTES
@@ -67,6 +67,17 @@ class ProviderSecurityError(AssetError):
 
 
 @dataclass(frozen=True)
+class ProviderResponse:
+    body: bytes
+    final_url: str
+    suggested_filename: str | None = None
+
+
+# ``kw_only`` is deliberate: the twelve fields below were once passed
+# positionally and a caller that omitted three of them silently shifted the
+# object-store identity into the provenance slots.  Keywords make that class
+# of defect impossible rather than merely unlikely.
+@dataclass(frozen=True, kw_only=True)
 class QuarantinedAsset:
     path: Path
     filename: str
@@ -93,6 +104,116 @@ class InspectedAsset:
     warnings: tuple[str, ...] = ()
 
 
+def _contains_filename_control(value: str) -> bool:
+    return any(ord(character) <= 0x1F or 0x7F <= ord(character) <= 0x9F for character in value)
+
+
+def _filename_last_component(value: str) -> str:
+    return value.replace("\\", "/").rsplit("/", 1)[-1]
+
+
+def _validate_suggested_filename(value: str) -> str | None:
+    if _contains_filename_control(value):
+        return None
+    value = _filename_last_component(value)
+    if not value or value in {".", ".."}:
+        return None
+    if _contains_filename_control(value) or len(value) > 255:
+        return None
+    return value
+
+
+def _split_content_disposition(header: str) -> list[str]:
+    """Split disposition parameters without treating quoted semicolons as separators."""
+
+    parts: list[str] = []
+    start = 0
+    quoted = False
+    escaped = False
+    for index, character in enumerate(header):
+        if escaped:
+            escaped = False
+            continue
+        if quoted and character == "\\":
+            escaped = True
+            continue
+        if character == '"':
+            quoted = not quoted
+        elif character == ";" and not quoted:
+            parts.append(header[start:index])
+            start = index + 1
+    parts.append(header[start:])
+    return parts
+
+
+def _header_parameter_value(value: str) -> str:
+    value = value.strip()
+    if len(value) >= 2 and value[0] == '"' and value[-1] == '"':
+        value = value[1:-1]
+        value = value.replace(r"\\", "\\").replace(r'\"', '"')
+    return value.strip()
+
+
+def _strict_percent_decode(value: str, encoding: str) -> str | None:
+    """Decode a header value only when every percent escape is well formed."""
+
+    for index, character in enumerate(value):
+        if character != "%":
+            continue
+        if index + 2 >= len(value) or any(digit not in "0123456789abcdefABCDEF" for digit in value[index + 1:index + 3]):
+            return None
+    try:
+        return unquote_to_bytes(value).decode(encoding, errors="strict")
+    except (UnicodeDecodeError, UnicodeEncodeError):
+        return None
+
+
+def parse_content_disposition_filename(header: str | None) -> str | None:
+    """Return a safe filename candidate from a provider Content-Disposition header.
+
+    G2B emits percent-encoded UTF-8 in the non-standard ``filename=`` form,
+    so this parser deliberately does not delegate that value to an RFC 6266
+    parser that would preserve the percent escapes literally.
+    """
+
+    if not isinstance(header, str) or not header:
+        return None
+
+    extended: list[str] = []
+    plain: list[str] = []
+    for part in _split_content_disposition(header):
+        name, separator, raw_value = part.partition("=")
+        if not separator:
+            continue
+        normalized_name = name.strip().casefold()
+        value = _header_parameter_value(raw_value)
+        if normalized_name == "filename*":
+            extended.append(value)
+        elif normalized_name == "filename":
+            plain.append(value)
+
+    for value in extended:
+        charset, separator, remainder = value.partition("'")
+        if not separator:
+            continue
+        _language, separator, encoded = remainder.partition("'")
+        if not separator or charset.casefold() not in {"utf-8", "us-ascii"}:
+            continue
+        decoded = _strict_percent_decode(encoded, "utf-8" if charset.casefold() == "utf-8" else "ascii")
+        if decoded is None:
+            continue
+        candidate = _validate_suggested_filename(decoded)
+        if candidate is not None:
+            return candidate
+
+    for value in plain:
+        decoded = value if "%" not in value else _strict_percent_decode(value, "utf-8")
+        if decoded is None:
+            return None
+        return _validate_suggested_filename(decoded)
+    return None
+
+
 def asset_root(root: Path | None = None) -> Path:
     """Return the private asset root and create only its known namespaces."""
 
@@ -106,9 +227,11 @@ def asset_root(root: Path | None = None) -> Path:
 
 
 def _safe_filename(filename: str | None) -> str:
-    value = Path(filename or "").name
+    value = _filename_last_component(filename or "")
     if not value or value in {".", ".."}:
         raise AssetError("invalid_request", "파일명이 없습니다")
+    if _contains_filename_control(value) or len(value) > 255:
+        raise AssetError("invalid_request", "파일명이 올바르지 않습니다")
     suffix = Path(value).suffix.casefold()
     if suffix not in SUPPORTED_EXTENSIONS:
         raise AssetError("unsafe_document", "지원하지 않는 문서 확장자입니다")
@@ -255,18 +378,18 @@ async def quarantine_upload(
         final = _path_for_key(root, object_key)
         temporary.unlink(missing_ok=True)
         return QuarantinedAsset(
-            final,
-            filename,
-            size,
-            digest,
-            upload.content_type,
-            source_kind,
-            source_system,
-            source_attachment_key,
-            source_url,
-            object_key,
-            metadata.object_version_id,
-            metadata.etag,
+            path=final,
+            filename=filename,
+            size_bytes=size,
+            sha256=digest,
+            declared_media_type=upload.content_type,
+            source_kind=source_kind,
+            source_system=source_system,
+            source_attachment_key=source_attachment_key,
+            source_url=source_url,
+            object_key=object_key,
+            object_version_id=metadata.object_version_id,
+            object_etag=metadata.etag,
         )
     except Exception:
         temporary.unlink(missing_ok=True)
@@ -294,18 +417,18 @@ def quarantine_bytes(
     destination, metadata = _store_bytes("quarantine", content, root=root, suffix=Path(safe_name).suffix.casefold())
     actual_digest = digest
     return QuarantinedAsset(
-        destination,
-        safe_name,
-        len(content),
-        actual_digest,
-        declared_media_type,
-        source_kind,
-        source_system,
-        source_attachment_key,
-        source_url,
-        metadata.object_key,
-        metadata.object_version_id,
-        metadata.etag,
+        path=destination,
+        filename=safe_name,
+        size_bytes=len(content),
+        sha256=actual_digest,
+        declared_media_type=declared_media_type,
+        source_kind=source_kind,
+        source_system=source_system,
+        source_attachment_key=source_attachment_key,
+        source_url=source_url,
+        object_key=metadata.object_key,
+        object_version_id=metadata.object_version_id,
+        object_etag=metadata.etag,
     )
 
 
@@ -456,16 +579,23 @@ def acquire_legacy_attachment(
                 os.close(fd)
             except OSError:
                 pass
+    # A legacy attachment has no provider provenance: source_system,
+    # source_attachment_key and source_url stay unset, which is what
+    # ``ck_document_version_source_provenance`` requires of source_kind
+    # ``manual``.  The object identity belongs in the object_* fields; putting
+    # it anywhere else loses the quarantine object and, on a non-filesystem
+    # store where the local copy is removed after the put, makes the bytes
+    # unreadable.
     return QuarantinedAsset(
-        destination,
-        safe_name,
-        size,
-        digest,
-        None,
-        "manual",
-        object_key,
-        metadata.object_version_id,
-        metadata.etag,
+        path=destination,
+        filename=safe_name,
+        size_bytes=size,
+        sha256=digest,
+        declared_media_type=None,
+        source_kind="manual",
+        object_key=object_key,
+        object_version_id=metadata.object_version_id,
+        object_etag=metadata.etag,
     )
 
 
@@ -727,7 +857,7 @@ class ProviderConnector:
         if not 0.1 <= self.timeout_seconds <= 60:
             raise ValueError("provider connector timeout out of range")
 
-    def fetch(self, url: str) -> tuple[bytes, str]:
+    def fetch(self, url: str) -> ProviderResponse:
         current = url
         deadline = time.monotonic() + self.timeout_seconds
         for redirect_count in range(MAX_REDIRECTS + 1):
@@ -769,7 +899,7 @@ class ProviderConnector:
                     ) from exc
                 if len(body) > MAX_ASSET_BYTES:
                     raise ProviderSecurityError("provider_size_limit", "provider 응답이 50MiB를 초과합니다")
-                return body, current
+                return ProviderResponse(body=body, final_url=current)
             request = Request(
                 current,
                 headers={
@@ -821,7 +951,15 @@ class ProviderConnector:
                         if total > MAX_ASSET_BYTES:
                             raise ProviderSecurityError("provider_size_limit", "provider 응답이 50MiB를 초과합니다")
                         chunks.append(chunk)
-                    return b"".join(chunks), current
+                    body = b"".join(chunks)
+                    suggested_filename = parse_content_disposition_filename(
+                        response.headers.get("Content-Disposition")
+                    )
+                    return ProviderResponse(
+                        body=body,
+                        final_url=final_url,
+                        suggested_filename=suggested_filename,
+                    )
             except HTTPError as exc:
                 if exc.code in {301, 302, 303, 307, 308}:
                     location = exc.headers.get("Location")
@@ -837,6 +975,27 @@ class ProviderConnector:
             except (URLError, OSError, ssl.SSLError) as exc:
                 raise ProviderSecurityError("provider_fetch_failed", "provider 원문을 취득할 수 없습니다") from exc
         raise ProviderSecurityError("provider_redirect_blocked", "provider redirect 횟수 제한을 초과했습니다")
+
+
+def g2b_attachment_connectors(settings: Settings) -> dict[str, ProviderConnector]:
+    """Build the explicitly enabled G2B attachment connector, fail closed."""
+
+    if not settings.g2b_attachment_enabled:
+        return {}
+    hosts = frozenset(
+        host.strip()
+        for host in settings.g2b_attachment_allowed_hosts.split(",")
+        if host.strip()
+    )
+    if not hosts:
+        return {}
+    return {
+        "g2b": ProviderConnector(
+            "g2b",
+            hosts,
+            timeout_seconds=settings.g2b_attachment_timeout_seconds,
+        )
+    }
 
 
 def _collect_chunks(chunks: Iterable[bytes] | AsyncIterable[bytes], *, deadline: float | None = None) -> tuple[int, bytes]:
@@ -865,7 +1024,7 @@ def acquire_provider_attachment(
     *,
     source_system: str,
     source_url: str,
-    filename: str,
+    filename: str | None = None,
     source_attachment_key: str | None = None,
     connectors: Mapping[str, ProviderConnector],
     root: Path | None = None,
@@ -875,10 +1034,19 @@ def acquire_provider_attachment(
     connector = connectors.get(source_system)
     if connector is None or connector.source_system != source_system:
         raise ProviderSecurityError("provider_connector_blocked", "허용된 provider connector가 없습니다")
-    body, _final_url = connector.fetch(source_url)
+    response = connector.fetch(source_url)
+    selected_filename = filename if filename is not None else response.suggested_filename
+    if selected_filename is None:
+        raise AssetError("unsupported_extension", "첨부 파일명을 확인할 수 없습니다")
+    try:
+        safe_filename = _safe_filename(selected_filename)
+    except AssetError as error:
+        if error.code == "unsafe_document":
+            raise AssetError("unsupported_extension", "지원하지 않는 문서 확장자입니다") from error
+        raise
     return quarantine_bytes(
-        body,
-        filename,
+        response.body,
+        safe_filename,
         declared_media_type=None,
         root=root,
         source_kind="provider",

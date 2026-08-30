@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from ..config import get_settings
 from ..ingest.loader import parse_run_id
-from ..models import Judgment, Notice, Run
+from ..models import Judgment, Notice, NoticeObservation, Run
 from ..schemas import NoticeListItem, RunCounts, RunSummary
 
 
@@ -71,12 +71,28 @@ def decimal_float(value: Any) -> float | None:
     return float(value) if value is not None else None
 
 
-def notice_list_item(notice: Notice) -> NoticeListItem:
+def latest_notice_observation(notice: Notice) -> NoticeObservation | None:
+    """Return the newest observation already attached to a Notice instance."""
+
+    return max(
+        notice.observations,
+        key=lambda item: (item.observed_at, item.id),
+        default=None,
+    )
+
+
+def notice_list_item(notice: Notice, run_id: str | None = None) -> NoticeListItem:
     judgment = notice.judgment
+    observation = latest_notice_observation(notice)
+    effective_run_id = run_id or (observation.run_id if observation is not None else None)
+    if effective_run_id is None:
+        # A Notice without an observation is not a valid application row, but
+        # keeping the response shape deterministic is safer for legacy data.
+        effective_run_id = "unknown"
     return NoticeListItem(
         id=notice.id,
         notice_key=notice.notice_key,
-        run_id=notice.run_id,
+        run_id=effective_run_id,
         title=notice.title,
         agency=notice.agency,
         published_at=notice.published_at,

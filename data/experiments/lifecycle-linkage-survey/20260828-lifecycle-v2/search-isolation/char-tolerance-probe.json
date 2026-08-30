@@ -1,0 +1,1027 @@
+{
+  "schema_version": "bidops.lifecycle-search-char-tolerance-probe.v2",
+  "mode": "char_tolerance",
+  "run_id": "20260828-lifecycle-v2",
+  "created_at": "2026-08-28T23:18:27.846956+09:00",
+  "endpoint_id": "g2b_prespec_pps_search_service_v1",
+  "search_field": "prdctClsfcNoNm",
+  "search_window": {
+    "from": "2026-01-01",
+    "to_exclusive": "2026-08-29"
+  },
+  "raw_source": "raw",
+  "minimum_control_chars": 6,
+  "candidate_target_count": 13,
+  "request_count": 24,
+  "planned_request_count": 24,
+  "max_requests": 24,
+  "target_count": 12,
+  "skipped_count": 1,
+  "skipped": [
+    {
+      "target": "∙",
+      "target_label": "bullet_operator_u2219",
+      "target_codepoints": [
+        "U+2219"
+      ],
+      "status": "unknown",
+      "reason_code": "not_present_in_local_prespec",
+      "reason": "로컬 prespec 이름에 대상 문자가 없어 표본을 구성하지 못했습니다; unknown",
+      "occurrence_count": 0,
+      "minimum_control_chars": 6
+    }
+  ],
+  "comparisons": [
+    {
+      "target": "&",
+      "target_label": "ampersand",
+      "target_codepoints": [
+        "U+0026"
+      ],
+      "sample_source_spec_no": "R26BD00268393",
+      "expected_spec_no": "R26BD00268393",
+      "sample_source_name": "미래순환자원분야 R&D사업 2027년도 성과평가 대응",
+      "query": "&D사업 20",
+      "control_query": "D사업 20",
+      "query_is_contiguous_substring": true,
+      "control_query_is_contiguous_substring": true,
+      "substring_validation": {
+        "query": true,
+        "control_query": true
+      },
+      "target_boundary": "start",
+      "probe_variant_no": 1,
+      "control_variant_no": 2,
+      "conclusion": "breaking_candidate",
+      "interpretation_code": "control_hit_probe_zero_breaking_candidate",
+      "interpretation": "대조군 적중 + 본 질의 0건: 해당 문자가 검색을 깨뜨리는 후보"
+    },
+    {
+      "target": "~",
+      "target_label": "tilde",
+      "target_codepoints": [
+        "U+007E"
+      ],
+      "sample_source_spec_no": "R26BD00267415",
+      "expected_spec_no": "R26BD00267415",
+      "sample_source_name": "경기교통공사 2026~2028 회계연도 회계감사 용역",
+      "query": "~2028 회",
+      "control_query": "2028 회",
+      "query_is_contiguous_substring": true,
+      "control_query_is_contiguous_substring": true,
+      "substring_validation": {
+        "query": true,
+        "control_query": true
+      },
+      "target_boundary": "start",
+      "probe_variant_no": 3,
+      "control_variant_no": 4,
+      "conclusion": "not_breaking_observed",
+      "interpretation_code": "both_hit_not_breaking_observed",
+      "interpretation": "본 질의와 대조군 모두 기대 사전규격을 적중해 파손을 관측하지 않음"
+    },
+    {
+      "target": "/",
+      "target_label": "slash",
+      "target_codepoints": [
+        "U+002F"
+      ],
+      "sample_source_spec_no": "R26BD00268055",
+      "expected_spec_no": "R26BD00268055",
+      "sample_source_name": "2027/28년 (주)강원랜드 외국어 교육 위탁운영 용역",
+      "query": "/28년 (주",
+      "control_query": "28년 (주",
+      "query_is_contiguous_substring": true,
+      "control_query_is_contiguous_substring": true,
+      "substring_validation": {
+        "query": true,
+        "control_query": true
+      },
+      "target_boundary": "start",
+      "probe_variant_no": 5,
+      "control_variant_no": 6,
+      "conclusion": "not_breaking_observed",
+      "interpretation_code": "both_hit_not_breaking_observed",
+      "interpretation": "본 질의와 대조군 모두 기대 사전규격을 적중해 파손을 관측하지 않음"
+    },
+    {
+      "target": "’",
+      "target_label": "right_single_quote",
+      "target_codepoints": [
+        "U+2019"
+      ],
+      "sample_source_spec_no": "R26BD00267677",
+      "expected_spec_no": "R26BD00267677",
+      "sample_source_name": "‘레이저 빔의 열 해석 모듈(COMSOL Multiphysics, Heat Transfer Module)’ 임대차",
+      "query": "odule)’",
+      "control_query": "odule)",
+      "query_is_contiguous_substring": true,
+      "control_query_is_contiguous_substring": true,
+      "substring_validation": {
+        "query": true,
+        "control_query": true
+      },
+      "target_boundary": "end",
+      "probe_variant_no": 7,
+      "control_variant_no": 8,
+      "conclusion": "breaking_candidate",
+      "interpretation_code": "control_hit_probe_zero_breaking_candidate",
+      "interpretation": "대조군 적중 + 본 질의 0건: 해당 문자가 검색을 깨뜨리는 후보"
+    },
+    {
+      "target": "‘",
+      "target_label": "left_single_quote",
+      "target_codepoints": [
+        "U+2018"
+      ],
+      "sample_source_spec_no": "R26BD00267677",
+      "expected_spec_no": "R26BD00267677",
+      "sample_source_name": "‘레이저 빔의 열 해석 모듈(COMSOL Multiphysics, Heat Transfer Module)’ 임대차",
+      "query": "‘레이저 빔의",
+      "control_query": "레이저 빔의",
+      "query_is_contiguous_substring": true,
+      "control_query_is_contiguous_substring": true,
+      "substring_validation": {
+        "query": true,
+        "control_query": true
+      },
+      "target_boundary": "start",
+      "probe_variant_no": 9,
+      "control_variant_no": 10,
+      "conclusion": "breaking_candidate",
+      "interpretation_code": "control_hit_probe_zero_breaking_candidate",
+      "interpretation": "대조군 적중 + 본 질의 0건: 해당 문자가 검색을 깨뜨리는 후보"
+    },
+    {
+      "target": "_",
+      "target_label": "underscore",
+      "target_codepoints": [
+        "U+005F"
+      ],
+      "sample_source_spec_no": "R26BD00267267",
+      "expected_spec_no": "R26BD00267267",
+      "sample_source_name": "2026년OTT특화콘텐츠 제작지원(IP확보형)_금월도_VFX/AI 용역",
+      "query": "IP확보형)_",
+      "control_query": "IP확보형)",
+      "query_is_contiguous_substring": true,
+      "control_query_is_contiguous_substring": true,
+      "substring_validation": {
+        "query": true,
+        "control_query": true
+      },
+      "target_boundary": "end",
+      "probe_variant_no": 11,
+      "control_variant_no": 12,
+      "conclusion": "not_breaking_observed",
+      "interpretation_code": "both_hit_not_breaking_observed",
+      "interpretation": "본 질의와 대조군 모두 기대 사전규격을 적중해 파손을 관측하지 않음"
+    },
+    {
+      "target": "『",
+      "target_label": "corner_quote_open",
+      "target_codepoints": [
+        "U+300E"
+      ],
+      "sample_source_spec_no": "R26BD00267349",
+      "expected_spec_no": "R26BD00267349",
+      "sample_source_name": "2026년『행복 북구, THE(더) 빛나길』빛거리 운영 용역",
+      "query": "『행복 북구,",
+      "control_query": "행복 북구,",
+      "query_is_contiguous_substring": true,
+      "control_query_is_contiguous_substring": true,
+      "substring_validation": {
+        "query": true,
+        "control_query": true
+      },
+      "target_boundary": "start",
+      "probe_variant_no": 13,
+      "control_variant_no": 14,
+      "conclusion": "not_breaking_observed",
+      "interpretation_code": "both_hit_not_breaking_observed",
+      "interpretation": "본 질의와 대조군 모두 기대 사전규격을 적중해 파손을 관측하지 않음"
+    },
+    {
+      "target": "』",
+      "target_label": "corner_quote_close",
+      "target_codepoints": [
+        "U+300F"
+      ],
+      "sample_source_spec_no": "R26BD00267349",
+      "expected_spec_no": "R26BD00267349",
+      "sample_source_name": "2026년『행복 북구, THE(더) 빛나길』빛거리 운영 용역",
+      "query": "더) 빛나길』",
+      "control_query": "더) 빛나길",
+      "query_is_contiguous_substring": true,
+      "control_query_is_contiguous_substring": true,
+      "substring_validation": {
+        "query": true,
+        "control_query": true
+      },
+      "target_boundary": "end",
+      "probe_variant_no": 15,
+      "control_variant_no": 16,
+      "conclusion": "not_breaking_observed",
+      "interpretation_code": "both_hit_not_breaking_observed",
+      "interpretation": "본 질의와 대조군 모두 기대 사전규격을 적중해 파손을 관측하지 않음"
+    },
+    {
+      "target": "・",
+      "target_label": "middle_dot_u30fb",
+      "target_codepoints": [
+        "U+30FB"
+      ],
+      "sample_source_spec_no": "R26BD00267261",
+      "expected_spec_no": "R26BD00267261",
+      "sample_source_name": "[2차년도 앵커사업] 대구가톨릭대학교 경북 앵커 U-온동네 초등돌봄・교육 간담회 운영 사업자 선정",
+      "query": "네 초등돌봄・",
+      "control_query": "네 초등돌봄",
+      "query_is_contiguous_substring": true,
+      "control_query_is_contiguous_substring": true,
+      "substring_validation": {
+        "query": true,
+        "control_query": true
+      },
+      "target_boundary": "end",
+      "probe_variant_no": 17,
+      "control_variant_no": 18,
+      "conclusion": "not_breaking_observed",
+      "interpretation_code": "both_hit_not_breaking_observed",
+      "interpretation": "본 질의와 대조군 모두 기대 사전규격을 적중해 파손을 관측하지 않음"
+    },
+    {
+      "target": "‧",
+      "target_label": "middle_dot_u2027",
+      "target_codepoints": [
+        "U+2027"
+      ],
+      "sample_source_spec_no": "R26BD00268253",
+      "expected_spec_no": "R26BD00268253",
+      "sample_source_name": "2026년 하반기 사상‧덕천지소 소관 배수지 청소용역",
+      "query": "‧덕천지소 소",
+      "control_query": "덕천지소 소",
+      "query_is_contiguous_substring": true,
+      "control_query_is_contiguous_substring": true,
+      "substring_validation": {
+        "query": true,
+        "control_query": true
+      },
+      "target_boundary": "start",
+      "probe_variant_no": 19,
+      "control_variant_no": 20,
+      "conclusion": "not_breaking_observed",
+      "interpretation_code": "both_hit_not_breaking_observed",
+      "interpretation": "본 질의와 대조군 모두 기대 사전규격을 적중해 파손을 관측하지 않음"
+    },
+    {
+      "target": "․",
+      "target_label": "middle_dot_u2024",
+      "target_codepoints": [
+        "U+2024"
+      ],
+      "sample_source_spec_no": "R26BD00267762",
+      "expected_spec_no": "R26BD00267762",
+      "sample_source_name": "용담․밀양․부안다목적댐 수중조사 용역",
+      "query": "․부안다목적댐",
+      "control_query": "부안다목적댐",
+      "query_is_contiguous_substring": true,
+      "control_query_is_contiguous_substring": true,
+      "substring_validation": {
+        "query": true,
+        "control_query": true
+      },
+      "target_boundary": "start",
+      "probe_variant_no": 21,
+      "control_variant_no": 22,
+      "conclusion": "not_breaking_observed",
+      "interpretation_code": "both_hit_not_breaking_observed",
+      "interpretation": "본 질의와 대조군 모두 기대 사전규격을 적중해 파손을 관측하지 않음"
+    },
+    {
+      "target": "•",
+      "target_label": "bullet_u2022",
+      "target_codepoints": [
+        "U+2022"
+      ],
+      "sample_source_spec_no": "R26BD00267760",
+      "expected_spec_no": "R26BD00267760",
+      "sample_source_name": "2026년 서울•인천 하천매설배관 하상고 측정 용역",
+      "query": "•인천 하천매",
+      "control_query": "인천 하천매",
+      "query_is_contiguous_substring": true,
+      "control_query_is_contiguous_substring": true,
+      "substring_validation": {
+        "query": true,
+        "control_query": true
+      },
+      "target_boundary": "start",
+      "probe_variant_no": 23,
+      "control_variant_no": 24,
+      "conclusion": "breaking_candidate",
+      "interpretation_code": "control_hit_probe_zero_breaking_candidate",
+      "interpretation": "대조군 적중 + 본 질의 0건: 해당 문자가 검색을 깨뜨리는 후보"
+    }
+  ],
+  "variants": [
+    {
+      "variant_no": 1,
+      "strategy": "char_tolerance_probe",
+      "isolation_target": "& 포함 본 질의",
+      "encoding": "quote_plus",
+      "query": "&D사업 20",
+      "public_query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=%26D%EC%82%AC%EC%97%85+20",
+      "result_count": 0,
+      "returned_count": 0,
+      "expected_found": false,
+      "returned_spec_nos": [],
+      "raw_file": "raw/char-tolerance/variant-01-ampersand-probe.json",
+      "target": "&",
+      "target_label": "ampersand",
+      "target_codepoints": [
+        "U+0026"
+      ],
+      "sample_source_spec_no": "R26BD00268393",
+      "sample_source_name": "미래순환자원분야 R&D사업 2027년도 성과평가 대응",
+      "case_query": "&D사업 20",
+      "case_control_query": "D사업 20",
+      "case_query_is_contiguous_substring": true,
+      "case_control_query_is_contiguous_substring": true,
+      "target_boundary": "start",
+      "query_role": "probe"
+    },
+    {
+      "variant_no": 2,
+      "strategy": "char_tolerance_control",
+      "isolation_target": "& 제거 대조군",
+      "encoding": "quote_plus",
+      "query": "D사업 20",
+      "public_query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=D%EC%82%AC%EC%97%85+20",
+      "result_count": 3,
+      "returned_count": 3,
+      "expected_found": true,
+      "returned_spec_nos": [
+        "R26BD00260967",
+        "R26BD00263643",
+        "R26BD00268393"
+      ],
+      "raw_file": "raw/char-tolerance/variant-02-ampersand-control.json",
+      "target": "&",
+      "target_label": "ampersand",
+      "target_codepoints": [
+        "U+0026"
+      ],
+      "sample_source_spec_no": "R26BD00268393",
+      "sample_source_name": "미래순환자원분야 R&D사업 2027년도 성과평가 대응",
+      "case_query": "&D사업 20",
+      "case_control_query": "D사업 20",
+      "case_query_is_contiguous_substring": true,
+      "case_control_query_is_contiguous_substring": true,
+      "target_boundary": "start",
+      "query_role": "control"
+    },
+    {
+      "variant_no": 3,
+      "strategy": "char_tolerance_probe",
+      "isolation_target": "~ 포함 본 질의",
+      "encoding": "quote_plus",
+      "query": "~2028 회",
+      "public_query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=~2028+%ED%9A%8C",
+      "result_count": 38,
+      "returned_count": 38,
+      "expected_found": true,
+      "returned_spec_nos": [
+        "R26BD00161416",
+        "R26BD00162730",
+        "R26BD00164942",
+        "R26BD00165778",
+        "R26BD00166423",
+        "R26BD00168039",
+        "R26BD00168261",
+        "R26BD00169789",
+        "R26BD00170122",
+        "R26BD00173252"
+      ],
+      "raw_file": "raw/char-tolerance/variant-03-tilde-probe.json",
+      "target": "~",
+      "target_label": "tilde",
+      "target_codepoints": [
+        "U+007E"
+      ],
+      "sample_source_spec_no": "R26BD00267415",
+      "sample_source_name": "경기교통공사 2026~2028 회계연도 회계감사 용역",
+      "case_query": "~2028 회",
+      "case_control_query": "2028 회",
+      "case_query_is_contiguous_substring": true,
+      "case_control_query_is_contiguous_substring": true,
+      "target_boundary": "start",
+      "query_role": "probe"
+    },
+    {
+      "variant_no": 4,
+      "strategy": "char_tolerance_control",
+      "isolation_target": "~ 제거 대조군",
+      "encoding": "quote_plus",
+      "query": "2028 회",
+      "public_query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=2028+%ED%9A%8C",
+      "result_count": 45,
+      "returned_count": 45,
+      "expected_found": true,
+      "returned_spec_nos": [
+        "R26BD00161416",
+        "R26BD00162730",
+        "R26BD00163251",
+        "R26BD00164942",
+        "R26BD00165778",
+        "R26BD00166423",
+        "R26BD00168039",
+        "R26BD00168261",
+        "R26BD00169789",
+        "R26BD00170122"
+      ],
+      "raw_file": "raw/char-tolerance/variant-04-tilde-control.json",
+      "target": "~",
+      "target_label": "tilde",
+      "target_codepoints": [
+        "U+007E"
+      ],
+      "sample_source_spec_no": "R26BD00267415",
+      "sample_source_name": "경기교통공사 2026~2028 회계연도 회계감사 용역",
+      "case_query": "~2028 회",
+      "case_control_query": "2028 회",
+      "case_query_is_contiguous_substring": true,
+      "case_control_query_is_contiguous_substring": true,
+      "target_boundary": "start",
+      "query_role": "control"
+    },
+    {
+      "variant_no": 5,
+      "strategy": "char_tolerance_probe",
+      "isolation_target": "/ 포함 본 질의",
+      "encoding": "quote_plus",
+      "query": "/28년 (주",
+      "public_query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=%2F28%EB%85%84+%28%EC%A3%BC",
+      "result_count": 1,
+      "returned_count": 1,
+      "expected_found": true,
+      "returned_spec_nos": [
+        "R26BD00268055"
+      ],
+      "raw_file": "raw/char-tolerance/variant-05-slash-probe.json",
+      "target": "/",
+      "target_label": "slash",
+      "target_codepoints": [
+        "U+002F"
+      ],
+      "sample_source_spec_no": "R26BD00268055",
+      "sample_source_name": "2027/28년 (주)강원랜드 외국어 교육 위탁운영 용역",
+      "case_query": "/28년 (주",
+      "case_control_query": "28년 (주",
+      "case_query_is_contiguous_substring": true,
+      "case_control_query_is_contiguous_substring": true,
+      "target_boundary": "start",
+      "query_role": "probe"
+    },
+    {
+      "variant_no": 6,
+      "strategy": "char_tolerance_control",
+      "isolation_target": "/ 제거 대조군",
+      "encoding": "quote_plus",
+      "query": "28년 (주",
+      "public_query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=28%EB%85%84+%28%EC%A3%BC",
+      "result_count": 1,
+      "returned_count": 1,
+      "expected_found": true,
+      "returned_spec_nos": [
+        "R26BD00268055"
+      ],
+      "raw_file": "raw/char-tolerance/variant-06-slash-control.json",
+      "target": "/",
+      "target_label": "slash",
+      "target_codepoints": [
+        "U+002F"
+      ],
+      "sample_source_spec_no": "R26BD00268055",
+      "sample_source_name": "2027/28년 (주)강원랜드 외국어 교육 위탁운영 용역",
+      "case_query": "/28년 (주",
+      "case_control_query": "28년 (주",
+      "case_query_is_contiguous_substring": true,
+      "case_control_query_is_contiguous_substring": true,
+      "target_boundary": "start",
+      "query_role": "control"
+    },
+    {
+      "variant_no": 7,
+      "strategy": "char_tolerance_probe",
+      "isolation_target": "’ 포함 본 질의",
+      "encoding": "quote_plus",
+      "query": "odule)’",
+      "public_query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=odule%29%E2%80%99",
+      "result_count": 0,
+      "returned_count": 0,
+      "expected_found": false,
+      "returned_spec_nos": [],
+      "raw_file": "raw/char-tolerance/variant-07-right_single_quote-probe.json",
+      "target": "’",
+      "target_label": "right_single_quote",
+      "target_codepoints": [
+        "U+2019"
+      ],
+      "sample_source_spec_no": "R26BD00267677",
+      "sample_source_name": "‘레이저 빔의 열 해석 모듈(COMSOL Multiphysics, Heat Transfer Module)’ 임대차",
+      "case_query": "odule)’",
+      "case_control_query": "odule)",
+      "case_query_is_contiguous_substring": true,
+      "case_control_query_is_contiguous_substring": true,
+      "target_boundary": "end",
+      "query_role": "probe"
+    },
+    {
+      "variant_no": 8,
+      "strategy": "char_tolerance_control",
+      "isolation_target": "’ 제거 대조군",
+      "encoding": "quote_plus",
+      "query": "odule)",
+      "public_query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=odule%29",
+      "result_count": 2,
+      "returned_count": 2,
+      "expected_found": true,
+      "returned_spec_nos": [
+        "R26BD00232945",
+        "R26BD00267677"
+      ],
+      "raw_file": "raw/char-tolerance/variant-08-right_single_quote-control.json",
+      "target": "’",
+      "target_label": "right_single_quote",
+      "target_codepoints": [
+        "U+2019"
+      ],
+      "sample_source_spec_no": "R26BD00267677",
+      "sample_source_name": "‘레이저 빔의 열 해석 모듈(COMSOL Multiphysics, Heat Transfer Module)’ 임대차",
+      "case_query": "odule)’",
+      "case_control_query": "odule)",
+      "case_query_is_contiguous_substring": true,
+      "case_control_query_is_contiguous_substring": true,
+      "target_boundary": "end",
+      "query_role": "control"
+    },
+    {
+      "variant_no": 9,
+      "strategy": "char_tolerance_probe",
+      "isolation_target": "‘ 포함 본 질의",
+      "encoding": "quote_plus",
+      "query": "‘레이저 빔의",
+      "public_query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=%E2%80%98%EB%A0%88%EC%9D%B4%EC%A0%80+%EB%B9%94%EC%9D%98",
+      "result_count": 0,
+      "returned_count": 0,
+      "expected_found": false,
+      "returned_spec_nos": [],
+      "raw_file": "raw/char-tolerance/variant-09-left_single_quote-probe.json",
+      "target": "‘",
+      "target_label": "left_single_quote",
+      "target_codepoints": [
+        "U+2018"
+      ],
+      "sample_source_spec_no": "R26BD00267677",
+      "sample_source_name": "‘레이저 빔의 열 해석 모듈(COMSOL Multiphysics, Heat Transfer Module)’ 임대차",
+      "case_query": "‘레이저 빔의",
+      "case_control_query": "레이저 빔의",
+      "case_query_is_contiguous_substring": true,
+      "case_control_query_is_contiguous_substring": true,
+      "target_boundary": "start",
+      "query_role": "probe"
+    },
+    {
+      "variant_no": 10,
+      "strategy": "char_tolerance_control",
+      "isolation_target": "‘ 제거 대조군",
+      "encoding": "quote_plus",
+      "query": "레이저 빔의",
+      "public_query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=%EB%A0%88%EC%9D%B4%EC%A0%80+%EB%B9%94%EC%9D%98",
+      "result_count": 1,
+      "returned_count": 1,
+      "expected_found": true,
+      "returned_spec_nos": [
+        "R26BD00267677"
+      ],
+      "raw_file": "raw/char-tolerance/variant-10-left_single_quote-control.json",
+      "target": "‘",
+      "target_label": "left_single_quote",
+      "target_codepoints": [
+        "U+2018"
+      ],
+      "sample_source_spec_no": "R26BD00267677",
+      "sample_source_name": "‘레이저 빔의 열 해석 모듈(COMSOL Multiphysics, Heat Transfer Module)’ 임대차",
+      "case_query": "‘레이저 빔의",
+      "case_control_query": "레이저 빔의",
+      "case_query_is_contiguous_substring": true,
+      "case_control_query_is_contiguous_substring": true,
+      "target_boundary": "start",
+      "query_role": "control"
+    },
+    {
+      "variant_no": 11,
+      "strategy": "char_tolerance_probe",
+      "isolation_target": "_ 포함 본 질의",
+      "encoding": "quote_plus",
+      "query": "IP확보형)_",
+      "public_query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=IP%ED%99%95%EB%B3%B4%ED%98%95%29_",
+      "result_count": 6,
+      "returned_count": 6,
+      "expected_found": true,
+      "returned_spec_nos": [
+        "R26BD00246739",
+        "R26BD00246745",
+        "R26BD00246756",
+        "R26BD00246764",
+        "R26BD00250094",
+        "R26BD00267267"
+      ],
+      "raw_file": "raw/char-tolerance/variant-11-underscore-probe.json",
+      "target": "_",
+      "target_label": "underscore",
+      "target_codepoints": [
+        "U+005F"
+      ],
+      "sample_source_spec_no": "R26BD00267267",
+      "sample_source_name": "2026년OTT특화콘텐츠 제작지원(IP확보형)_금월도_VFX/AI 용역",
+      "case_query": "IP확보형)_",
+      "case_control_query": "IP확보형)",
+      "case_query_is_contiguous_substring": true,
+      "case_control_query_is_contiguous_substring": true,
+      "target_boundary": "end",
+      "query_role": "probe"
+    },
+    {
+      "variant_no": 12,
+      "strategy": "char_tolerance_control",
+      "isolation_target": "_ 제거 대조군",
+      "encoding": "quote_plus",
+      "query": "IP확보형)",
+      "public_query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=IP%ED%99%95%EB%B3%B4%ED%98%95%29",
+      "result_count": 6,
+      "returned_count": 6,
+      "expected_found": true,
+      "returned_spec_nos": [
+        "R26BD00246739",
+        "R26BD00246745",
+        "R26BD00246756",
+        "R26BD00246764",
+        "R26BD00250094",
+        "R26BD00267267"
+      ],
+      "raw_file": "raw/char-tolerance/variant-12-underscore-control.json",
+      "target": "_",
+      "target_label": "underscore",
+      "target_codepoints": [
+        "U+005F"
+      ],
+      "sample_source_spec_no": "R26BD00267267",
+      "sample_source_name": "2026년OTT특화콘텐츠 제작지원(IP확보형)_금월도_VFX/AI 용역",
+      "case_query": "IP확보형)_",
+      "case_control_query": "IP확보형)",
+      "case_query_is_contiguous_substring": true,
+      "case_control_query_is_contiguous_substring": true,
+      "target_boundary": "end",
+      "query_role": "control"
+    },
+    {
+      "variant_no": 13,
+      "strategy": "char_tolerance_probe",
+      "isolation_target": "『 포함 본 질의",
+      "encoding": "quote_plus",
+      "query": "『행복 북구,",
+      "public_query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=%E3%80%8E%ED%96%89%EB%B3%B5+%EB%B6%81%EA%B5%AC%2C",
+      "result_count": 1,
+      "returned_count": 1,
+      "expected_found": true,
+      "returned_spec_nos": [
+        "R26BD00267349"
+      ],
+      "raw_file": "raw/char-tolerance/variant-13-corner_quote_open-probe.json",
+      "target": "『",
+      "target_label": "corner_quote_open",
+      "target_codepoints": [
+        "U+300E"
+      ],
+      "sample_source_spec_no": "R26BD00267349",
+      "sample_source_name": "2026년『행복 북구, THE(더) 빛나길』빛거리 운영 용역",
+      "case_query": "『행복 북구,",
+      "case_control_query": "행복 북구,",
+      "case_query_is_contiguous_substring": true,
+      "case_control_query_is_contiguous_substring": true,
+      "target_boundary": "start",
+      "query_role": "probe"
+    },
+    {
+      "variant_no": 14,
+      "strategy": "char_tolerance_control",
+      "isolation_target": "『 제거 대조군",
+      "encoding": "quote_plus",
+      "query": "행복 북구,",
+      "public_query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=%ED%96%89%EB%B3%B5+%EB%B6%81%EA%B5%AC%2C",
+      "result_count": 1,
+      "returned_count": 1,
+      "expected_found": true,
+      "returned_spec_nos": [
+        "R26BD00267349"
+      ],
+      "raw_file": "raw/char-tolerance/variant-14-corner_quote_open-control.json",
+      "target": "『",
+      "target_label": "corner_quote_open",
+      "target_codepoints": [
+        "U+300E"
+      ],
+      "sample_source_spec_no": "R26BD00267349",
+      "sample_source_name": "2026년『행복 북구, THE(더) 빛나길』빛거리 운영 용역",
+      "case_query": "『행복 북구,",
+      "case_control_query": "행복 북구,",
+      "case_query_is_contiguous_substring": true,
+      "case_control_query_is_contiguous_substring": true,
+      "target_boundary": "start",
+      "query_role": "control"
+    },
+    {
+      "variant_no": 15,
+      "strategy": "char_tolerance_probe",
+      "isolation_target": "』 포함 본 질의",
+      "encoding": "quote_plus",
+      "query": "더) 빛나길』",
+      "public_query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=%EB%8D%94%29+%EB%B9%9B%EB%82%98%EA%B8%B8%E3%80%8F",
+      "result_count": 1,
+      "returned_count": 1,
+      "expected_found": true,
+      "returned_spec_nos": [
+        "R26BD00267349"
+      ],
+      "raw_file": "raw/char-tolerance/variant-15-corner_quote_close-probe.json",
+      "target": "』",
+      "target_label": "corner_quote_close",
+      "target_codepoints": [
+        "U+300F"
+      ],
+      "sample_source_spec_no": "R26BD00267349",
+      "sample_source_name": "2026년『행복 북구, THE(더) 빛나길』빛거리 운영 용역",
+      "case_query": "더) 빛나길』",
+      "case_control_query": "더) 빛나길",
+      "case_query_is_contiguous_substring": true,
+      "case_control_query_is_contiguous_substring": true,
+      "target_boundary": "end",
+      "query_role": "probe"
+    },
+    {
+      "variant_no": 16,
+      "strategy": "char_tolerance_control",
+      "isolation_target": "』 제거 대조군",
+      "encoding": "quote_plus",
+      "query": "더) 빛나길",
+      "public_query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=%EB%8D%94%29+%EB%B9%9B%EB%82%98%EA%B8%B8",
+      "result_count": 1,
+      "returned_count": 1,
+      "expected_found": true,
+      "returned_spec_nos": [
+        "R26BD00267349"
+      ],
+      "raw_file": "raw/char-tolerance/variant-16-corner_quote_close-control.json",
+      "target": "』",
+      "target_label": "corner_quote_close",
+      "target_codepoints": [
+        "U+300F"
+      ],
+      "sample_source_spec_no": "R26BD00267349",
+      "sample_source_name": "2026년『행복 북구, THE(더) 빛나길』빛거리 운영 용역",
+      "case_query": "더) 빛나길』",
+      "case_control_query": "더) 빛나길",
+      "case_query_is_contiguous_substring": true,
+      "case_control_query_is_contiguous_substring": true,
+      "target_boundary": "end",
+      "query_role": "control"
+    },
+    {
+      "variant_no": 17,
+      "strategy": "char_tolerance_probe",
+      "isolation_target": "・ 포함 본 질의",
+      "encoding": "quote_plus",
+      "query": "네 초등돌봄・",
+      "public_query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=%EB%84%A4+%EC%B4%88%EB%93%B1%EB%8F%8C%EB%B4%84%E3%83%BB",
+      "result_count": 1,
+      "returned_count": 1,
+      "expected_found": true,
+      "returned_spec_nos": [
+        "R26BD00267261"
+      ],
+      "raw_file": "raw/char-tolerance/variant-17-middle_dot_u30fb-probe.json",
+      "target": "・",
+      "target_label": "middle_dot_u30fb",
+      "target_codepoints": [
+        "U+30FB"
+      ],
+      "sample_source_spec_no": "R26BD00267261",
+      "sample_source_name": "[2차년도 앵커사업] 대구가톨릭대학교 경북 앵커 U-온동네 초등돌봄・교육 간담회 운영 사업자 선정",
+      "case_query": "네 초등돌봄・",
+      "case_control_query": "네 초등돌봄",
+      "case_query_is_contiguous_substring": true,
+      "case_control_query_is_contiguous_substring": true,
+      "target_boundary": "end",
+      "query_role": "probe"
+    },
+    {
+      "variant_no": 18,
+      "strategy": "char_tolerance_control",
+      "isolation_target": "・ 제거 대조군",
+      "encoding": "quote_plus",
+      "query": "네 초등돌봄",
+      "public_query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=%EB%84%A4+%EC%B4%88%EB%93%B1%EB%8F%8C%EB%B4%84",
+      "result_count": 7,
+      "returned_count": 7,
+      "expected_found": true,
+      "returned_spec_nos": [
+        "R26BD00199004",
+        "R26BD00205882",
+        "R26BD00208240",
+        "R26BD00216432",
+        "R26BD00237191",
+        "R26BD00265538",
+        "R26BD00267261"
+      ],
+      "raw_file": "raw/char-tolerance/variant-18-middle_dot_u30fb-control.json",
+      "target": "・",
+      "target_label": "middle_dot_u30fb",
+      "target_codepoints": [
+        "U+30FB"
+      ],
+      "sample_source_spec_no": "R26BD00267261",
+      "sample_source_name": "[2차년도 앵커사업] 대구가톨릭대학교 경북 앵커 U-온동네 초등돌봄・교육 간담회 운영 사업자 선정",
+      "case_query": "네 초등돌봄・",
+      "case_control_query": "네 초등돌봄",
+      "case_query_is_contiguous_substring": true,
+      "case_control_query_is_contiguous_substring": true,
+      "target_boundary": "end",
+      "query_role": "control"
+    },
+    {
+      "variant_no": 19,
+      "strategy": "char_tolerance_probe",
+      "isolation_target": "‧ 포함 본 질의",
+      "encoding": "quote_plus",
+      "query": "‧덕천지소 소",
+      "public_query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=%E2%80%A7%EB%8D%95%EC%B2%9C%EC%A7%80%EC%86%8C+%EC%86%8C",
+      "result_count": 1,
+      "returned_count": 1,
+      "expected_found": true,
+      "returned_spec_nos": [
+        "R26BD00268253"
+      ],
+      "raw_file": "raw/char-tolerance/variant-19-middle_dot_u2027-probe.json",
+      "target": "‧",
+      "target_label": "middle_dot_u2027",
+      "target_codepoints": [
+        "U+2027"
+      ],
+      "sample_source_spec_no": "R26BD00268253",
+      "sample_source_name": "2026년 하반기 사상‧덕천지소 소관 배수지 청소용역",
+      "case_query": "‧덕천지소 소",
+      "case_control_query": "덕천지소 소",
+      "case_query_is_contiguous_substring": true,
+      "case_control_query_is_contiguous_substring": true,
+      "target_boundary": "start",
+      "query_role": "probe"
+    },
+    {
+      "variant_no": 20,
+      "strategy": "char_tolerance_control",
+      "isolation_target": "‧ 제거 대조군",
+      "encoding": "quote_plus",
+      "query": "덕천지소 소",
+      "public_query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=%EB%8D%95%EC%B2%9C%EC%A7%80%EC%86%8C+%EC%86%8C",
+      "result_count": 1,
+      "returned_count": 1,
+      "expected_found": true,
+      "returned_spec_nos": [
+        "R26BD00268253"
+      ],
+      "raw_file": "raw/char-tolerance/variant-20-middle_dot_u2027-control.json",
+      "target": "‧",
+      "target_label": "middle_dot_u2027",
+      "target_codepoints": [
+        "U+2027"
+      ],
+      "sample_source_spec_no": "R26BD00268253",
+      "sample_source_name": "2026년 하반기 사상‧덕천지소 소관 배수지 청소용역",
+      "case_query": "‧덕천지소 소",
+      "case_control_query": "덕천지소 소",
+      "case_query_is_contiguous_substring": true,
+      "case_control_query_is_contiguous_substring": true,
+      "target_boundary": "start",
+      "query_role": "control"
+    },
+    {
+      "variant_no": 21,
+      "strategy": "char_tolerance_probe",
+      "isolation_target": "․ 포함 본 질의",
+      "encoding": "quote_plus",
+      "query": "․부안다목적댐",
+      "public_query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=%E2%80%A4%EB%B6%80%EC%95%88%EB%8B%A4%EB%AA%A9%EC%A0%81%EB%8C%90",
+      "result_count": 1,
+      "returned_count": 1,
+      "expected_found": true,
+      "returned_spec_nos": [
+        "R26BD00267762"
+      ],
+      "raw_file": "raw/char-tolerance/variant-21-middle_dot_u2024-probe.json",
+      "target": "․",
+      "target_label": "middle_dot_u2024",
+      "target_codepoints": [
+        "U+2024"
+      ],
+      "sample_source_spec_no": "R26BD00267762",
+      "sample_source_name": "용담․밀양․부안다목적댐 수중조사 용역",
+      "case_query": "․부안다목적댐",
+      "case_control_query": "부안다목적댐",
+      "case_query_is_contiguous_substring": true,
+      "case_control_query_is_contiguous_substring": true,
+      "target_boundary": "start",
+      "query_role": "probe"
+    },
+    {
+      "variant_no": 22,
+      "strategy": "char_tolerance_control",
+      "isolation_target": "․ 제거 대조군",
+      "encoding": "quote_plus",
+      "query": "부안다목적댐",
+      "public_query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=%EB%B6%80%EC%95%88%EB%8B%A4%EB%AA%A9%EC%A0%81%EB%8C%90",
+      "result_count": 1,
+      "returned_count": 1,
+      "expected_found": true,
+      "returned_spec_nos": [
+        "R26BD00267762"
+      ],
+      "raw_file": "raw/char-tolerance/variant-22-middle_dot_u2024-control.json",
+      "target": "․",
+      "target_label": "middle_dot_u2024",
+      "target_codepoints": [
+        "U+2024"
+      ],
+      "sample_source_spec_no": "R26BD00267762",
+      "sample_source_name": "용담․밀양․부안다목적댐 수중조사 용역",
+      "case_query": "․부안다목적댐",
+      "case_control_query": "부안다목적댐",
+      "case_query_is_contiguous_substring": true,
+      "case_control_query_is_contiguous_substring": true,
+      "target_boundary": "start",
+      "query_role": "control"
+    },
+    {
+      "variant_no": 23,
+      "strategy": "char_tolerance_probe",
+      "isolation_target": "• 포함 본 질의",
+      "encoding": "quote_plus",
+      "query": "•인천 하천매",
+      "public_query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=%E2%80%A2%EC%9D%B8%EC%B2%9C+%ED%95%98%EC%B2%9C%EB%A7%A4",
+      "result_count": 0,
+      "returned_count": 0,
+      "expected_found": false,
+      "returned_spec_nos": [],
+      "raw_file": "raw/char-tolerance/variant-23-bullet_u2022-probe.json",
+      "target": "•",
+      "target_label": "bullet_u2022",
+      "target_codepoints": [
+        "U+2022"
+      ],
+      "sample_source_spec_no": "R26BD00267760",
+      "sample_source_name": "2026년 서울•인천 하천매설배관 하상고 측정 용역",
+      "case_query": "•인천 하천매",
+      "case_control_query": "인천 하천매",
+      "case_query_is_contiguous_substring": true,
+      "case_control_query_is_contiguous_substring": true,
+      "target_boundary": "start",
+      "query_role": "probe"
+    },
+    {
+      "variant_no": 24,
+      "strategy": "char_tolerance_control",
+      "isolation_target": "• 제거 대조군",
+      "encoding": "quote_plus",
+      "query": "인천 하천매",
+      "public_query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=%EC%9D%B8%EC%B2%9C+%ED%95%98%EC%B2%9C%EB%A7%A4",
+      "result_count": 1,
+      "returned_count": 1,
+      "expected_found": true,
+      "returned_spec_nos": [
+        "R26BD00267760"
+      ],
+      "raw_file": "raw/char-tolerance/variant-24-bullet_u2022-control.json",
+      "target": "•",
+      "target_label": "bullet_u2022",
+      "target_codepoints": [
+        "U+2022"
+      ],
+      "sample_source_spec_no": "R26BD00267760",
+      "sample_source_name": "2026년 서울•인천 하천매설배관 하상고 측정 용역",
+      "case_query": "•인천 하천매",
+      "case_control_query": "인천 하천매",
+      "case_query_is_contiguous_substring": true,
+      "case_control_query_is_contiguous_substring": true,
+      "target_boundary": "start",
+      "query_role": "control"
+    }
+  ]
+}

@@ -1,9 +1,20 @@
 # Optional override for an operator-approved remote OpenAI-compatible vLLM
-# endpoint. Set BIDOPS_VLLM_BASE_URL and BIDOPS_VLLM_ALLOWED_HOSTS in the
-# external env file, then restrict this network to that IP/port at the host
-# firewall.
+# endpoint. This overlay owns its own values; supply them with an extra
+# --env-file so the base stack keeps its safe loopback defaults when the
+# overlay is not used.
+#
+#   docker compose --env-file .env --env-file env/vllm.env \
+#     -f docker-compose.t7.yml -f docker-compose.t7.remote-vllm.yml \
+#     up -d web document-worker analysis-worker
+#
+# Opening this network is not sufficient: restrict egress to that IP/port at
+# the host firewall and keep the allowlist identical to the endpoint IP.
 services:
   analysis-worker:
+    environment:
+      BIDOPS_VLLM_BASE_URL: "${BIDOPS_VLLM_BASE_URL:?set an approved vLLM endpoint in env/vllm.env}"
+      BIDOPS_VLLM_ALLOWED_HOSTS: "${BIDOPS_VLLM_ALLOWED_HOSTS:?set the literal allowed host in env/vllm.env}"
+      BIDOPS_VLLM_API_KEY: "${BIDOPS_VLLM_API_KEY:-EMPTY}"
     networks: [database, analysis, model-egress]
 
 networks:

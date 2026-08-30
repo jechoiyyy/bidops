@@ -1,0 +1,1011 @@
+{
+  "schema_version": "bidops.lifecycle-name-match-probe.v1",
+  "run_id": "20260828-name-match-v1",
+  "created_at": "2026-08-28T20:36:10.955259+09:00",
+  "search_field": "prdctClsfcNoNm",
+  "search_window": {
+    "from": "2026-01-01",
+    "to_exclusive": "2026-08-29"
+  },
+  "request_count": 87,
+  "summary": {
+    "pair_count": 87,
+    "hit_count": 58,
+    "hit_rate": 0.6667,
+    "unique_hit_count": 55,
+    "unique_hit_rate": 0.6322,
+    "empty_result_count": 29,
+    "agency_match_count": 57
+  },
+  "results": [
+    {
+      "plan_id": "R26DD20854235",
+      "expected_spec_no": "R26BD00267401",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00267401"
+      ]
+    },
+    {
+      "plan_id": "R26DD20854242",
+      "expected_spec_no": "R26BD00265353",
+      "result_count": 0,
+      "returned_count": 0,
+      "hit": false,
+      "unique_hit": false,
+      "agency_matches": false,
+      "returned_spec_nos": []
+    },
+    {
+      "plan_id": "R26DD20855357",
+      "expected_spec_no": "R26BD00265850",
+      "result_count": 0,
+      "returned_count": 0,
+      "hit": false,
+      "unique_hit": false,
+      "agency_matches": false,
+      "returned_spec_nos": []
+    },
+    {
+      "plan_id": "R26DD20855179",
+      "expected_spec_no": "R26BD00266476",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00266476"
+      ]
+    },
+    {
+      "plan_id": "R26DD20852705",
+      "expected_spec_no": "R26BD00266782",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00266782"
+      ]
+    },
+    {
+      "plan_id": "R26DD20853461",
+      "expected_spec_no": "R26BD00265761",
+      "result_count": 0,
+      "returned_count": 0,
+      "hit": false,
+      "unique_hit": false,
+      "agency_matches": false,
+      "returned_spec_nos": []
+    },
+    {
+      "plan_id": "R26DD20852729",
+      "expected_spec_no": "R26BD00264449",
+      "result_count": 2,
+      "returned_count": 2,
+      "hit": true,
+      "unique_hit": false,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00264449",
+        "R26BD00267383"
+      ]
+    },
+    {
+      "plan_id": "R26DD20852675",
+      "expected_spec_no": "R26BD00264797",
+      "result_count": 2,
+      "returned_count": 2,
+      "hit": true,
+      "unique_hit": false,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00163260",
+        "R26BD00264797"
+      ]
+    },
+    {
+      "plan_id": "R26DD20854994",
+      "expected_spec_no": "R26BD00265644",
+      "result_count": 0,
+      "returned_count": 0,
+      "hit": false,
+      "unique_hit": false,
+      "agency_matches": false,
+      "returned_spec_nos": []
+    },
+    {
+      "plan_id": "R26DD20855281",
+      "expected_spec_no": "R26BD00263691",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00263691"
+      ]
+    },
+    {
+      "plan_id": "R26DD20853626",
+      "expected_spec_no": "R26BD00265177",
+      "result_count": 0,
+      "returned_count": 0,
+      "hit": false,
+      "unique_hit": false,
+      "agency_matches": false,
+      "returned_spec_nos": []
+    },
+    {
+      "plan_id": "R26DD20854193",
+      "expected_spec_no": "R26BD00265902",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00265902"
+      ]
+    },
+    {
+      "plan_id": "R26DD20853309",
+      "expected_spec_no": "R26BD00264486",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00264486"
+      ]
+    },
+    {
+      "plan_id": "R26DD20853989",
+      "expected_spec_no": "R26BD00223576",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00223576"
+      ]
+    },
+    {
+      "plan_id": "R26DD20853836",
+      "expected_spec_no": "R26BD00257138",
+      "result_count": 0,
+      "returned_count": 0,
+      "hit": false,
+      "unique_hit": false,
+      "agency_matches": false,
+      "returned_spec_nos": []
+    },
+    {
+      "plan_id": "R26DD20853850",
+      "expected_spec_no": "R26BD00265095",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00265095"
+      ]
+    },
+    {
+      "plan_id": "R26DD20853631",
+      "expected_spec_no": "R26BD00258566",
+      "result_count": 0,
+      "returned_count": 0,
+      "hit": false,
+      "unique_hit": false,
+      "agency_matches": false,
+      "returned_spec_nos": []
+    },
+    {
+      "plan_id": "R26DD20853362",
+      "expected_spec_no": "R26BD00265604",
+      "result_count": 0,
+      "returned_count": 0,
+      "hit": false,
+      "unique_hit": false,
+      "agency_matches": false,
+      "returned_spec_nos": []
+    },
+    {
+      "plan_id": "R26DD20853464",
+      "expected_spec_no": "R26BD00265766",
+      "result_count": 0,
+      "returned_count": 0,
+      "hit": false,
+      "unique_hit": false,
+      "agency_matches": false,
+      "returned_spec_nos": []
+    },
+    {
+      "plan_id": "R26DD20852556",
+      "expected_spec_no": "R26BD00265859",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00265859"
+      ]
+    },
+    {
+      "plan_id": "R26DD20855274",
+      "expected_spec_no": "R26BD00262391",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00262391"
+      ]
+    },
+    {
+      "plan_id": "R26DD20854466",
+      "expected_spec_no": "R26BD00265350",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00265350"
+      ]
+    },
+    {
+      "plan_id": "R26DD20855024",
+      "expected_spec_no": "R26BD00265852",
+      "result_count": 0,
+      "returned_count": 0,
+      "hit": false,
+      "unique_hit": false,
+      "agency_matches": false,
+      "returned_spec_nos": []
+    },
+    {
+      "plan_id": "R26DD20853019",
+      "expected_spec_no": "R26BD00266924",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00266924"
+      ]
+    },
+    {
+      "plan_id": "R26DD20854927",
+      "expected_spec_no": "R26BD00258621",
+      "result_count": 0,
+      "returned_count": 0,
+      "hit": false,
+      "unique_hit": false,
+      "agency_matches": false,
+      "returned_spec_nos": []
+    },
+    {
+      "plan_id": "R26DD20854788",
+      "expected_spec_no": "R26BD00267599",
+      "result_count": 0,
+      "returned_count": 0,
+      "hit": false,
+      "unique_hit": false,
+      "agency_matches": false,
+      "returned_spec_nos": []
+    },
+    {
+      "plan_id": "R26DD20853624",
+      "expected_spec_no": "R26BD00260037",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00260037"
+      ]
+    },
+    {
+      "plan_id": "R26DD20853380",
+      "expected_spec_no": "R26BD00265156",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00265156"
+      ]
+    },
+    {
+      "plan_id": "R26DD20853339",
+      "expected_spec_no": "R26BD00265650",
+      "result_count": 0,
+      "returned_count": 0,
+      "hit": false,
+      "unique_hit": false,
+      "agency_matches": false,
+      "returned_spec_nos": []
+    },
+    {
+      "plan_id": "R26DD20853321",
+      "expected_spec_no": "R26BD00265024",
+      "result_count": 0,
+      "returned_count": 0,
+      "hit": false,
+      "unique_hit": false,
+      "agency_matches": false,
+      "returned_spec_nos": []
+    },
+    {
+      "plan_id": "R26DD20853320",
+      "expected_spec_no": "R26BD00264606",
+      "result_count": 0,
+      "returned_count": 0,
+      "hit": false,
+      "unique_hit": false,
+      "agency_matches": false,
+      "returned_spec_nos": []
+    },
+    {
+      "plan_id": "R26DD20855148",
+      "expected_spec_no": "R26BD00266087",
+      "result_count": 0,
+      "returned_count": 0,
+      "hit": false,
+      "unique_hit": false,
+      "agency_matches": false,
+      "returned_spec_nos": []
+    },
+    {
+      "plan_id": "R26DD20853313",
+      "expected_spec_no": "R26BD00265146",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00265146"
+      ]
+    },
+    {
+      "plan_id": "R26DD20854916",
+      "expected_spec_no": "R26BD00267629",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00267629"
+      ]
+    },
+    {
+      "plan_id": "R26DD20854428",
+      "expected_spec_no": "R26BD00265046",
+      "result_count": 0,
+      "returned_count": 0,
+      "hit": false,
+      "unique_hit": false,
+      "agency_matches": false,
+      "returned_spec_nos": []
+    },
+    {
+      "plan_id": "R26DD20852293",
+      "expected_spec_no": "R26BD00263840",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00263840"
+      ]
+    },
+    {
+      "plan_id": "R26DD20855469",
+      "expected_spec_no": "R26BD00265344",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00265344"
+      ]
+    },
+    {
+      "plan_id": "R26DD20853555",
+      "expected_spec_no": "R26BD00264811",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00264811"
+      ]
+    },
+    {
+      "plan_id": "R26DD20854353",
+      "expected_spec_no": "R26BD00267435",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00267435"
+      ]
+    },
+    {
+      "plan_id": "R26DD20853445",
+      "expected_spec_no": "R26BD00265420",
+      "result_count": 0,
+      "returned_count": 0,
+      "hit": false,
+      "unique_hit": false,
+      "agency_matches": false,
+      "returned_spec_nos": []
+    },
+    {
+      "plan_id": "R26DD20855366",
+      "expected_spec_no": "R26BD00267847",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00267847"
+      ]
+    },
+    {
+      "plan_id": "R26DD20852451",
+      "expected_spec_no": "R26BD00266708",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00266708"
+      ]
+    },
+    {
+      "plan_id": "R26DD20854143",
+      "expected_spec_no": "R26BD00267367",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00267367"
+      ]
+    },
+    {
+      "plan_id": "R26DD20854149",
+      "expected_spec_no": "756503",
+      "result_count": 0,
+      "returned_count": 0,
+      "hit": false,
+      "unique_hit": false,
+      "agency_matches": false,
+      "returned_spec_nos": []
+    },
+    {
+      "plan_id": "R26DD20854025",
+      "expected_spec_no": "R26BD00265386",
+      "result_count": 2,
+      "returned_count": 2,
+      "hit": true,
+      "unique_hit": false,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00263202",
+        "R26BD00265386"
+      ]
+    },
+    {
+      "plan_id": "R26DD20855477",
+      "expected_spec_no": "R26BD00265744",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00265744"
+      ]
+    },
+    {
+      "plan_id": "R26DD20853792",
+      "expected_spec_no": "R26BD00266459",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00266459"
+      ]
+    },
+    {
+      "plan_id": "R26DD20853714",
+      "expected_spec_no": "R26BD00267196",
+      "result_count": 0,
+      "returned_count": 0,
+      "hit": false,
+      "unique_hit": false,
+      "agency_matches": false,
+      "returned_spec_nos": []
+    },
+    {
+      "plan_id": "R26DD20852924",
+      "expected_spec_no": "R26BD00265373",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00265373"
+      ]
+    },
+    {
+      "plan_id": "R26DD20853312",
+      "expected_spec_no": "R26BD00265151",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00265151"
+      ]
+    },
+    {
+      "plan_id": "R26DD20853253",
+      "expected_spec_no": "R26BD00266135",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00266135"
+      ]
+    },
+    {
+      "plan_id": "R26DD20853578",
+      "expected_spec_no": "R26BD00263309",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00263309"
+      ]
+    },
+    {
+      "plan_id": "R26DD20853277",
+      "expected_spec_no": "R26BD00265180",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00265180"
+      ]
+    },
+    {
+      "plan_id": "R26DD20853242",
+      "expected_spec_no": "R26BD00267009",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00267009"
+      ]
+    },
+    {
+      "plan_id": "R26DD20853620",
+      "expected_spec_no": "R26BD00242467",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00242467"
+      ]
+    },
+    {
+      "plan_id": "R26DD20855167",
+      "expected_spec_no": "R26BD00265769",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00265769"
+      ]
+    },
+    {
+      "plan_id": "R26DD20855334",
+      "expected_spec_no": "R26BD00265840",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00265840"
+      ]
+    },
+    {
+      "plan_id": "R26DD20855263",
+      "expected_spec_no": "R26BD00264170",
+      "result_count": 0,
+      "returned_count": 0,
+      "hit": false,
+      "unique_hit": false,
+      "agency_matches": false,
+      "returned_spec_nos": []
+    },
+    {
+      "plan_id": "R26DD20854493",
+      "expected_spec_no": "R26BD00264216",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00264216"
+      ]
+    },
+    {
+      "plan_id": "R26DD20854153",
+      "expected_spec_no": "R26BD00259985",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00259985"
+      ]
+    },
+    {
+      "plan_id": "R26DD20852730",
+      "expected_spec_no": "R26BD00252146",
+      "result_count": 0,
+      "returned_count": 0,
+      "hit": false,
+      "unique_hit": false,
+      "agency_matches": false,
+      "returned_spec_nos": []
+    },
+    {
+      "plan_id": "R26DD20853904",
+      "expected_spec_no": "R26BD00262737",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00262737"
+      ]
+    },
+    {
+      "plan_id": "R26DD20852207",
+      "expected_spec_no": "R26BD00266586",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00266586"
+      ]
+    },
+    {
+      "plan_id": "R26DD20854435",
+      "expected_spec_no": "R26BD00265881",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": false,
+      "returned_spec_nos": [
+        "R26BD00265881"
+      ]
+    },
+    {
+      "plan_id": "R26DD20855271",
+      "expected_spec_no": "R26BD00267802",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00267802"
+      ]
+    },
+    {
+      "plan_id": "R26DD20855422",
+      "expected_spec_no": "R26BD00261898",
+      "result_count": 0,
+      "returned_count": 0,
+      "hit": false,
+      "unique_hit": false,
+      "agency_matches": false,
+      "returned_spec_nos": []
+    },
+    {
+      "plan_id": "R26DD20855389",
+      "expected_spec_no": "R26BD00265795",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00265795"
+      ]
+    },
+    {
+      "plan_id": "R26DD20855362",
+      "expected_spec_no": "R26BD00267844",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00267844"
+      ]
+    },
+    {
+      "plan_id": "R26DD20852812",
+      "expected_spec_no": "R26BD00266819",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00266819"
+      ]
+    },
+    {
+      "plan_id": "R26DD20855312",
+      "expected_spec_no": "R26BD00262283",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00262283"
+      ]
+    },
+    {
+      "plan_id": "R26DD20852797",
+      "expected_spec_no": "R26BD00266816",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00266816"
+      ]
+    },
+    {
+      "plan_id": "R26DD20854599",
+      "expected_spec_no": "R26BD00267527",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00267527"
+      ]
+    },
+    {
+      "plan_id": "R26DD20854538",
+      "expected_spec_no": "R26BD00266314",
+      "result_count": 0,
+      "returned_count": 0,
+      "hit": false,
+      "unique_hit": false,
+      "agency_matches": false,
+      "returned_spec_nos": []
+    },
+    {
+      "plan_id": "R26DD20852631",
+      "expected_spec_no": "R26BD00266753",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00266753"
+      ]
+    },
+    {
+      "plan_id": "R26DD20852357",
+      "expected_spec_no": "R26BD00265674",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00265674"
+      ]
+    },
+    {
+      "plan_id": "R26DD20854819",
+      "expected_spec_no": "R26BD00263814",
+      "result_count": 0,
+      "returned_count": 0,
+      "hit": false,
+      "unique_hit": false,
+      "agency_matches": false,
+      "returned_spec_nos": []
+    },
+    {
+      "plan_id": "R26DD20853987",
+      "expected_spec_no": "R26BD00265506",
+      "result_count": 0,
+      "returned_count": 0,
+      "hit": false,
+      "unique_hit": false,
+      "agency_matches": false,
+      "returned_spec_nos": []
+    },
+    {
+      "plan_id": "R26DD20853794",
+      "expected_spec_no": "R26BD00267221",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00267221"
+      ]
+    },
+    {
+      "plan_id": "R26DD20853776",
+      "expected_spec_no": "R26BD00267213",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00267213"
+      ]
+    },
+    {
+      "plan_id": "R26DD20853736",
+      "expected_spec_no": "R26BD00267198",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00267198"
+      ]
+    },
+    {
+      "plan_id": "R26DD20853902",
+      "expected_spec_no": "R26BD00264568",
+      "result_count": 0,
+      "returned_count": 0,
+      "hit": false,
+      "unique_hit": false,
+      "agency_matches": false,
+      "returned_spec_nos": []
+    },
+    {
+      "plan_id": "R26DD20853725",
+      "expected_spec_no": "R26BD00266492",
+      "result_count": 0,
+      "returned_count": 0,
+      "hit": false,
+      "unique_hit": false,
+      "agency_matches": false,
+      "returned_spec_nos": []
+    },
+    {
+      "plan_id": "R26DD20853595",
+      "expected_spec_no": "R26BD00267142",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00267142"
+      ]
+    },
+    {
+      "plan_id": "R26DD20852160",
+      "expected_spec_no": "R26BD00264948",
+      "result_count": 0,
+      "returned_count": 0,
+      "hit": false,
+      "unique_hit": false,
+      "agency_matches": false,
+      "returned_spec_nos": []
+    },
+    {
+      "plan_id": "R26DD20854357",
+      "expected_spec_no": "R26BD00267440",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00267440"
+      ]
+    },
+    {
+      "plan_id": "R26DD20854354",
+      "expected_spec_no": "R26BD00267438",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00267438"
+      ]
+    },
+    {
+      "plan_id": "R26DD20854144",
+      "expected_spec_no": "R26BD00259421",
+      "result_count": 1,
+      "returned_count": 1,
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "returned_spec_nos": [
+        "R26BD00259421"
+      ]
+    }
+  ]
+}

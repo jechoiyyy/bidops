@@ -1,0 +1,41 @@
+# 사전규격 첨부 취득 전용 egress overlay.
+# 이 overlay를 붙이지 않으면 base stack의 내부망 격리가 그대로 유지된다.
+# host 방화벽에서 승인된 G2B 주소 외 egress를 차단하고 allowlist를 확인한
+# 뒤에만 이 파일을 사용한다.
+#
+#   docker compose --env-file .env --env-file env/prespec-attachment.env \
+#     -f docker-compose.t7.yml -f docker-compose.t7.prespec-attachment.yml \
+#     up -d prespec-attachment-worker
+services:
+  prespec-attachment-worker:
+    build: { context: ., dockerfile: web/Dockerfile }
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      minio-init: { condition: service_completed_successfully }
+      clamav: { condition: service_started }
+    environment:
+      BIDOPS_ROOT: /app
+      BIDOPS_DATABASE_URL: "postgresql+psycopg://worker:${BIDOPS_WORKER_PASSWORD:?set an external worker password}@postgres:5432/bidops"
+      BIDOPS_OBJECT_STORE_BACKEND: minio
+      BIDOPS_OBJECT_STORE_ENDPOINT: minio:9000
+      BIDOPS_OBJECT_STORE_SECURE: "false"
+      BIDOPS_SOURCE_ACCESS_KEY: "${BIDOPS_SOURCE_ACCESS_KEY:?set an external source access key}"
+      BIDOPS_SOURCE_SECRET_KEY: "${BIDOPS_SOURCE_SECRET_KEY:?set an external source secret key}"
+      BIDOPS_QUARANTINE_ACCESS_KEY: "${BIDOPS_QUARANTINE_ACCESS_KEY:?set an external quarantine access key}"
+      BIDOPS_QUARANTINE_SECRET_KEY: "${BIDOPS_QUARANTINE_SECRET_KEY:?set an external quarantine secret key}"
+      BIDOPS_CLAMAV_HOST: clamav
+      BIDOPS_CLAMAV_PORT: "3310"
+      BIDOPS_CLAMAV_TIMEOUT_SECONDS: "15"
+      BIDOPS_G2B_ATTACHMENT_ENABLED: "true"
+      BIDOPS_G2B_ATTACHMENT_ALLOWED_HOSTS: "${BIDOPS_G2B_ATTACHMENT_ALLOWED_HOSTS:?set approved G2B attachment hosts in env/prespec-attachment.env}"
+      BIDOPS_G2B_ATTACHMENT_TIMEOUT_SECONDS: "30"
+      BIDOPS_PRESPEC_ATTACHMENT_WORKER_CONCURRENCY: "1"
+      BIDOPS_PRESPEC_ATTACHMENT_WORKER_POLL_SECONDS: "5"
+      BIDOPS_PRESPEC_ATTACHMENT_LEASE_SECONDS: "120"
+    command: ["python", "-m", "app.workers.prespec_attachment"]
+    healthcheck: { disable: true }
+    restart: unless-stopped
+    networks: [database, storage, scanning, prespec-egress]
+
+networks:
+  prespec-egress:

@@ -91,6 +91,11 @@ JSON_COLUMNS = {
     "candidate_sources_json", "unknown_fields_json", "raw_source", "context_json",
 }
 
+# ``notice.run_id`` existed only in the legacy SQLite snapshot.  The target
+# PostgreSQL model stores that relationship in notice_observation instead of
+# copying the run id onto the cumulative Notice row.
+IGNORED_TARGET_COLUMNS = {("notice", "run_id")}
+
 STAGING_SCHEMA = "migration_staging"
 
 
@@ -307,6 +312,8 @@ def _coerce_target_value(value: Any, target_type: Any, *, table: str, column: st
 def _target_row(source_table: str, row: Mapping[str, Any], target: Table) -> dict[str, Any]:
     converted: dict[str, Any] = {}
     for source_column, value in row.items():
+        if (source_table, source_column) in IGNORED_TARGET_COLUMNS:
+            continue
         target_column = RENAMES.get((source_table, source_column), source_column)
         if target_column not in target.c:
             raise ImportContractError("target_column_missing", f"target column {target_column} is missing", table=source_table, column=target_column)
@@ -422,6 +429,8 @@ def _table_reconciliation(connection, source_table: str, target_table: Table, so
                 column_match = False
                 continue
             for source_column, expected in source_row.items():
+                if (source_table, source_column) in IGNORED_TARGET_COLUMNS:
+                    continue
                 target_column = RENAMES.get((source_table, source_column), source_column)
                 actual = target_row.get(target_column)
                 if _canonical_value(_decode_json(expected) if source_column in JSON_COLUMNS else expected) != _canonical_value(actual):
@@ -675,6 +684,37 @@ def _promote_staged(
             table_report = report["tables"][-1]
             if not all(table_report[key] for key in ("pk_match", "column_match", "reviewer_match")):
                 raise ImportContractError("reconciliation_mismatch", "legacy table reconciliation failed", table=source_table)
+        # The source snapshot's notice.run_id is migrated after all legacy
+        # rows exist.  It is provenance for the imported row, not a column on
+        # the cumulative Notice table.
+        observation_table = Base.metadata.tables.get("notice_observation")
+        if observation_table is None:
+            raise ImportContractError("target_table_missing", "notice observation table is not in the model", table="notice_observation")
+        run_generated_at = {
+            str(row["id"]): row.get("generated_at")
+            for row in source_tables["run"]
+        }
+        observation_rows = []
+        for source_notice in source_tables["notice"]:
+            run_id = source_notice.get("run_id")
+            if not run_id:
+                raise ImportContractError("notice_observation_missing_run", "legacy notice has no run id", table="notice")
+            observed_at = run_generated_at.get(str(run_id))
+            if not observed_at:
+                raise ImportContractError("notice_observation_missing_run", "legacy notice references an unknown run", table="notice")
+            observation_rows.append({
+                "notice_id": source_notice["id"],
+                "run_id": run_id,
+                "observed_at": _coerce_target_value(
+                    observed_at,
+                    observation_table.c.observed_at.type,
+                    table="notice_observation",
+                    column="observed_at",
+                ),
+                "changed_fields_json": [],
+            })
+        if observation_rows:
+            connection.execute(observation_table.insert(), observation_rows)
         # PostgreSQL sequences are non-transactional, so adjust them only after
         # every table has reconciled; a promotion failure retains staging.
         for source_table in LEGACY_COLUMNS:

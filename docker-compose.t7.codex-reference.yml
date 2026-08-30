@@ -2,6 +2,11 @@
 # exec while exercising the unchanged BidOps workflow. Never combine this
 # file with production deployment. The auth file is mounted read-only and the
 # Codex subprocess runs ephemeral, read-only, without tools or repository rules.
+#
+# This overlay owns its own values; supply them with an extra --env-file.
+#
+#   docker compose --env-file .env --env-file env/codex.env \
+#     -f docker-compose.t7.yml -f docker-compose.t7.codex-reference.yml up -d
 services:
   web:
     environment:

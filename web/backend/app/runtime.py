@@ -18,6 +18,7 @@ from .config import Settings, get_settings
 from .db import SessionLocal
 from .ingest.loader import ingest_run, parse_run_id
 from .screening.execution_store import ScreeningExecutionStore
+from .screening.mock_transport import MockScreeningTransport
 from .screening.ollama import OllamaClient
 from .screening.orchestrator import ScreeningOrchestrator
 from .screening.worker import ScreeningWorker
@@ -144,7 +145,8 @@ class ApplicationRuntime:
         self.session_factory = session_factory or SessionLocal
         self.pipeline_service = PipelineService(self.settings, session_factory=self.session_factory)
         self.store = ScreeningExecutionStore(session_factory=self.session_factory, settings=self.settings)
-        self.ollama = OllamaClient(settings=self.settings)
+        transport = MockScreeningTransport() if self.settings.screening_provider == "mock" else None
+        self.ollama = OllamaClient(settings=self.settings, transport=transport)
         self.orchestrator = ScreeningOrchestrator(
             self.settings,
             session_factory=self.session_factory,

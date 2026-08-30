@@ -1,0 +1,606 @@
+{
+  "schema_version": "bidops.lifecycle-survey.v1",
+  "run_id": "20260831-plan-longitudinal",
+  "created_at": "2026-08-31T00:11:16.060394+09:00",
+  "targets": [
+    {
+      "target": "order_plan",
+      "description": "용역 발주계획 현황",
+      "endpoint_id": "g2b_order_plan_service_pps_search_v1",
+      "window": {
+        "from": "202608240000",
+        "to_exclusive": "202608262359"
+      },
+      "page_count": 2,
+      "record_count": 997,
+      "linkage": {
+        "orderPlanUntyNo": {
+          "status": "present",
+          "filled": 997,
+          "total": 997,
+          "fill_rate": 1.0
+        },
+        "bidNtceNoList": {
+          "status": "present",
+          "filled": 465,
+          "total": 997,
+          "fill_rate": 0.4664
+        },
+        "rcritRgstNo": {
+          "status": "present",
+          "filled": 0,
+          "total": 997,
+          "fill_rate": 0.0
+        },
+        "bfSpecRgstNo": {
+          "status": "absent_from_response"
+        },
+        "ntceNticeYn": {
+          "status": "present",
+          "filled": 997,
+          "total": 997,
+          "fill_rate": 1.0
+        }
+      },
+      "fields": [
+        {
+          "field": "agrmntYn",
+          "filled": 997,
+          "total": 997,
+          "fill_rate": 1.0,
+          "example": "N",
+          "personal": false
+        },
+        {
+          "field": "atchFileExistnceYn",
+          "filled": 997,
+          "total": 997,
+          "fill_rate": 1.0,
+          "example": "N",
+          "personal": false
+        },
+        {
+          "field": "bdgtDivCd",
+          "filled": 0,
+          "total": 997,
+          "fill_rate": 0.0,
+          "example": null,
+          "personal": false
+        },
+        {
+          "field": "bidNtceNoList",
+          "filled": 465,
+          "total": 997,
+          "fill_rate": 0.4664,
+          "example": "R26BK01698278000",
+          "personal": false
+        },
+        {
+          "field": "bizNm",
+          "filled": 997,
+          "total": 997,
+          "fill_rate": 1.0,
+          "example": "2027학년도 2학년 제주도 수학여행 위탁용역 ",
+          "personal": false
+        },
+        {
+          "field": "bsnsDivCd",
+          "filled": 997,
+          "total": 997,
+          "fill_rate": 1.0,
+          "example": "03",
+          "personal": false
+        },
+        {
+          "field": "bsnsDivNm",
+          "filled": 997,
+          "total": 997,
+          "fill_rate": 1.0,
+          "example": "일반용역",
+          "personal": false
+        },
+        {
+          "field": "bsnsTyCd",
+          "filled": 970,
+          "total": 997,
+          "fill_rate": 0.9729,
+          "example": "신120001",
+          "personal": false
+        },
+        {
+          "field": "bsnsTyNm",
+          "filled": 970,
+          "total": 997,
+          "fill_rate": 0.9729,
+          "example": "신규(단기)",
+          "personal": false
+        },
+        {
+          "field": "chgDt",
+          "filled": 78,
+          "total": 997,
+          "fill_rate": 0.0782,
+          "example": "2026-08-24 22:30:12",
+          "personal": false
+        },
+        {
+          "field": "cnsttyDivNm",
+          "filled": 0,
+          "total": 997,
+          "fill_rate": 0.0,
+          "example": null,
+          "personal": false
+        },
+        {
+          "field": "cnstwkPrdCntnts",
+          "filled": 0,
+          "total": 997,
+          "fill_rate": 0.0,
+          "example": null,
+          "personal": false
+        },
+        {
+          "field": "cnstwkRgnNm",
+          "filled": 0,
+          "total": 997,
+          "fill_rate": 0.0,
+          "example": null,
+          "personal": false
+        },
+        {
+          "field": "cntrctMthdNm",
+          "filled": 997,
+          "total": 997,
+          "fill_rate": 1.0,
+          "example": "제한경쟁",
+          "personal": false
+        },
+        {
+          "field": "deptNm",
+          "filled": 997,
+          "total": 997,
+          "fill_rate": 1.0,
+          "example": "학년지원부",
+          "personal": false
+        },
+        {
+          "field": "dsgnDocRdngPlceNm",
+          "filled": 0,
+          "total": 997,
+          "fill_rate": 0.0,
+          "example": null,
+          "personal": false
+        },
+        {
+          "field": "dsgnDocRdngPrdCntnts",
+          "filled": 0,
+          "total": 997,
+          "fill_rate": 0.0,
+          "example": null,
+          "personal": false
+        },
+        {
+          "field": "dtilPrdctClsfcNo",
+          "filled": 0,
+          "total": 997,
+          "fill_rate": 0.0,
+          "example": null,
+          "personal": false
+        },
+        {
+          "field": "dtilPrdctClsfcNoNm",
+          "filled": 0,
+          "total": 997,
+          "fill_rate": 0.0,
+          "example": null,
+          "personal": false
+        },
+        {
+          "field": "jrsdctnDivCd",
+          "filled": 997,
+          "total": 997,
+          "fill_rate": 1.0,
+          "example": "소110003",
+          "personal": false
+        },
+        {
+          "field": "jrsdctnDivNm",
+          "filled": 997,
+          "total": 997,
+          "fill_rate": 1.0,
+          "example": "교육기관",
+          "personal": false
+        },
+        {
+          "field": "ntceNticeYn",
+          "filled": 997,
+          "total": 997,
+          "fill_rate": 1.0,
+          "example": "Y",
+          "personal": false
+        },
+        {
+          "field": "nticeDt",
+          "filled": 997,
+          "total": 997,
+          "fill_rate": 1.0,
+          "example": "2026-08-25 18:56:27",
+          "personal": false
+        },
+        {
+          "field": "ofclNm",
+          "filled": 997,
+          "total": 997,
+          "fill_rate": 1.0,
+          "example": "<담당자 정보 · 예시 생략>",
+          "personal": true
+        },
+        {
+          "field": "orderContrctAmt",
+          "filled": 997,
+          "total": 997,
+          "fill_rate": 1.0,
+          "example": "0",
+          "personal": false
+        },
+        {
+          "field": "orderEtcAmt",
+          "filled": 997,
+          "total": 997,
+          "fill_rate": 1.0,
+          "example": "0",
+          "personal": false
+        },
+        {
+          "field": "orderGovsplyMtrcst",
+          "filled": 997,
+          "total": 997,
+          "fill_rate": 1.0,
+          "example": "0",
+          "personal": false
+        },
+        {
+          "field": "orderInsttCd",
+          "filled": 997,
+          "total": 997,
+          "fill_rate": 1.0,
+          "example": "7430073",
+          "personal": false
+        },
+        {
+          "field": "orderInsttNm",
+          "filled": 997,
+          "total": 997,
+          "fill_rate": 1.0,
+          "example": "대전광역시교육청 충남기계공업고등학교",
+          "personal": false
+        },
+        {
+          "field": "orderMnth",
+          "filled": 997,
+          "total": 997,
+          "fill_rate": 1.0,
+          "example": "04",
+          "personal": false
+        },
+        {
+          "field": "orderNtntrsAuxAmt",
+          "filled": 997,
+          "total": 997,
+          "fill_rate": 1.0,
+          "example": "0.0",
+          "personal": false
+        },
+        {
+          "field": "orderPlanDtlUrl",
+          "filled": 997,
+          "total": 997,
+          "fill_rate": 1.0,
+          "example": "https://www.g2b.go.kr/link/PRPA015_01/single/?oderPlanNo=R26…",
+          "personal": false
+        },
+        {
+          "field": "orderPlanSno",
+          "filled": 997,
+          "total": 997,
+          "fill_rate": 1.0,
+          "example": "0",
+          "personal": false
+        },
+        {
+          "field": "orderPlanUntyNo",
+          "filled": 997,
+          "total": 997,
+          "fill_rate": 1.0,
+          "example": "R26DD20854235",
+          "personal": false
+        },
+        {
+          "field": "orderThtmContrctAmt",
+          "filled": 997,
+          "total": 997,
+          "fill_rate": 1.0,
+          "example": "0.0",
+          "personal": false
+        },
+        {
+          "field": "orderYear",
+          "filled": 997,
+          "total": 997,
+          "fill_rate": 1.0,
+          "example": "2027",
+          "personal": false
+        },
+        {
+          "field": "prcrmntMethd",
+          "filled": 997,
+          "total": 997,
+          "fill_rate": 1.0,
+          "example": "자체조달",
+          "personal": false
+        },
+        {
+          "field": "prdctClsfcNo",
+          "filled": 0,
+          "total": 997,
+          "fill_rate": 0.0,
+          "example": null,
+          "personal": false
+        },
+        {
+          "field": "prdctClsfcNoNm",
+          "filled": 0,
+          "total": 997,
+          "fill_rate": 0.0,
+          "example": null,
+          "personal": false
+        },
+        {
+          "field": "qtyCntnts",
+          "filled": 997,
+          "total": 997,
+          "fill_rate": 1.0,
+          "example": "0",
+          "personal": false
+        },
+        {
+          "field": "rcritRgstNo",
+          "filled": 0,
+          "total": 997,
+          "fill_rate": 0.0,
+          "example": null,
+          "personal": false
+        },
+        {
+          "field": "rmrkCntnts",
+          "filled": 0,
+          "total": 997,
+          "fill_rate": 0.0,
+          "example": null,
+          "personal": false
+        },
+        {
+          "field": "specCntnts",
+          "filled": 0,
+          "total": 997,
+          "fill_rate": 0.0,
+          "example": null,
+          "personal": false
+        },
+        {
+          "field": "specItemCntnts1",
+          "filled": 0,
+          "total": 997,
+          "fill_rate": 0.0,
+          "example": null,
+          "personal": false
+        },
+        {
+          "field": "specItemCntnts2",
+          "filled": 0,
+          "total": 997,
+          "fill_rate": 0.0,
+          "example": null,
+          "personal": false
+        },
+        {
+          "field": "specItemCntnts3",
+          "filled": 0,
+          "total": 997,
+          "fill_rate": 0.0,
+          "example": null,
+          "personal": false
+        },
+        {
+          "field": "specItemCntnts4",
+          "filled": 0,
+          "total": 997,
+          "fill_rate": 0.0,
+          "example": null,
+          "personal": false
+        },
+        {
+          "field": "specItemCntnts5",
+          "filled": 0,
+          "total": 997,
+          "fill_rate": 0.0,
+          "example": null,
+          "personal": false
+        },
+        {
+          "field": "specItemNm1",
+          "filled": 0,
+          "total": 997,
+          "fill_rate": 0.0,
+          "example": null,
+          "personal": false
+        },
+        {
+          "field": "specItemNm2",
+          "filled": 0,
+          "total": 997,
+          "fill_rate": 0.0,
+          "example": null,
+          "personal": false
+        },
+        {
+          "field": "specItemNm3",
+          "filled": 0,
+          "total": 997,
+          "fill_rate": 0.0,
+          "example": null,
+          "personal": false
+        },
+        {
+          "field": "specItemNm4",
+          "filled": 0,
+          "total": 997,
+          "fill_rate": 0.0,
+          "example": null,
+          "personal": false
+        },
+        {
+          "field": "specItemNm5",
+          "filled": 0,
+          "total": 997,
+          "fill_rate": 0.0,
+          "example": null,
+          "personal": false
+        },
+        {
+          "field": "sumOrderAmt",
+          "filled": 997,
+          "total": 997,
+          "fill_rate": 1.0,
+          "example": "131125670",
+          "personal": false
+        },
+        {
+          "field": "sumOrderDolAmt",
+          "filled": 0,
+          "total": 997,
+          "fill_rate": 0.0,
+          "example": null,
+          "personal": false
+        },
+        {
+          "field": "telNo",
+          "filled": 997,
+          "total": 997,
+          "fill_rate": 1.0,
+          "example": "<담당자 정보 · 예시 생략>",
+          "personal": true
+        },
+        {
+          "field": "totlmngInsttNm",
+          "filled": 974,
+          "total": 997,
+          "fill_rate": 0.9769,
+          "example": "대전광역시교육청",
+          "personal": false
+        },
+        {
+          "field": "unit",
+          "filled": 0,
+          "total": 997,
+          "fill_rate": 0.0,
+          "example": null,
+          "personal": false
+        },
+        {
+          "field": "usgCntnts",
+          "filled": 0,
+          "total": 997,
+          "fill_rate": 0.0,
+          "example": null,
+          "personal": false
+        }
+      ]
+    }
+  ],
+  "order_plan_recheck": {
+    "record_key": "orderPlanUntyNo",
+    "baseline_count": 997,
+    "current_count": 997,
+    "common_count": 997,
+    "only_in_baseline": [],
+    "only_in_current": [],
+    "changed_record_count": 9,
+    "changed_field_counts": {
+      "bidNtceNoList": 9,
+      "ntceNticeYn": 8
+    },
+    "examples": [
+      {
+        "record_key": "R26DD20852592",
+        "changed_fields": [
+          "bidNtceNoList",
+          "ntceNticeYn"
+        ],
+        "before": {
+          "ntceNticeYn": "N"
+        },
+        "after": {
+          "bidNtceNoList": "R26BK01704250000",
+          "ntceNticeYn": "Y"
+        }
+      },
+      {
+        "record_key": "R26DD20853266",
+        "changed_fields": [
+          "bidNtceNoList",
+          "ntceNticeYn"
+        ],
+        "before": {
+          "ntceNticeYn": "N"
+        },
+        "after": {
+          "bidNtceNoList": "R26BK01703813000",
+          "ntceNticeYn": "Y"
+        }
+      },
+      {
+        "record_key": "R26DD20853271",
+        "changed_fields": [
+          "bidNtceNoList",
+          "ntceNticeYn"
+        ],
+        "before": {
+          "ntceNticeYn": "N"
+        },
+        "after": {
+          "bidNtceNoList": "R26BK01704022000",
+          "ntceNticeYn": "Y"
+        }
+      },
+      {
+        "record_key": "R26DD20853273",
+        "changed_fields": [
+          "bidNtceNoList",
+          "ntceNticeYn"
+        ],
+        "before": {
+          "ntceNticeYn": "N"
+        },
+        "after": {
+          "bidNtceNoList": "R26BK01704029000",
+          "ntceNticeYn": "Y"
+        }
+      },
+      {
+        "record_key": "R26DD20853599",
+        "changed_fields": [
+          "bidNtceNoList",
+          "ntceNticeYn"
+        ],
+        "before": {
+          "ntceNticeYn": "N"
+        },
+        "after": {
+          "bidNtceNoList": "R26BK01704073000",
+          "ntceNticeYn": "Y"
+        }
+      }
+    ]
+  }
+}

@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..constants import GRADE_ORDER
 from ..db import get_db
-from ..models import Attachment, Judgment, Notice, Perspective, Review, Run
+from ..models import Attachment, Judgment, Notice, NoticeObservation, Perspective, Review
 from ..services.attachments import attachment_download_url
 from ..schemas import (
     AttachmentResponse,
@@ -31,7 +31,7 @@ from ..schemas import (
     ReviewResponse,
     VerificationItemResponse,
 )
-from .common import decimal_float, get_run, notice_list_item
+from .common import decimal_float, get_run, latest_notice_observation, notice_list_item
 
 
 router = APIRouter(prefix="/api/notices", tags=["notices"])
@@ -86,7 +86,7 @@ def list_notices(
     session: Session = Depends(get_db),
 ) -> NoticeListResponse:
     run = get_run(session, run_id)
-    conditions: list[Any] = [Notice.run_id == run.id]
+    conditions: list[Any] = [NoticeObservation.run_id == run.id]
     if sample_role and sample_role != "all":
         conditions.append(Notice.sample_role == sample_role)
     if grade and grade != "all":
@@ -111,8 +111,9 @@ def list_notices(
         conditions.append((Notice.title.ilike(needle)) | (Notice.agency.ilike(needle)))
 
     count_query = (
-        select(func.count(Notice.id))
+        select(func.count(func.distinct(Notice.id)))
         .select_from(Notice)
+        .join(NoticeObservation, NoticeObservation.notice_id == Notice.id)
         .outerjoin(Judgment, Judgment.notice_pk == Notice.id)
         .where(*conditions)
     )
@@ -120,6 +121,7 @@ def list_notices(
 
     query = (
         select(Notice)
+        .join(NoticeObservation, NoticeObservation.notice_id == Notice.id)
         .outerjoin(Judgment, Judgment.notice_pk == Notice.id)
         .where(*conditions)
         .options(*_list_options())
@@ -148,7 +150,7 @@ def list_notices(
         offset=offset,
     )
     return NoticeListResponse(
-        items=[notice_list_item(notice) for notice in rows],
+        items=[notice_list_item(notice, run.id) for notice in rows],
         total=total,
         filters=filters,
     )
@@ -239,7 +241,9 @@ def _judgment_response(judgment: Judgment | None) -> JudgmentResponse | None:
 
 
 def _detail_response(notice: Notice) -> NoticeDetailResponse:
-    base = notice_list_item(notice)
+    observation = latest_notice_observation(notice)
+    run = observation.run if observation is not None else None
+    base = notice_list_item(notice, run.id if run is not None else None)
     return NoticeDetailResponse(
         **base.model_dump(),
         bid_no=notice.bid_no,
@@ -248,7 +252,7 @@ def _detail_response(notice: Notice) -> NoticeDetailResponse:
         budget=decimal_float(notice.budget),
         method=notice.method,
         url=notice.url,
-        timezone=notice.run.timezone,
+        timezone=run.timezone if run is not None else "Asia/Seoul",
         procurement_class=notice.procurement_class_json,
         region_limit=notice.region_limit_json,
         lifecycle=notice.lifecycle_json,
@@ -277,7 +281,7 @@ def _detail_response(notice: Notice) -> NoticeDetailResponse:
 
 
 DETAIL_OPTIONS = (
-    selectinload(Notice.run),
+    selectinload(Notice.observations).selectinload(NoticeObservation.run),
     selectinload(Notice.attachments),
     selectinload(Notice.reviews).selectinload(Review.answers),
     selectinload(Notice.judgment).selectinload(Judgment.perspectives).selectinload(Perspective.evidence),
@@ -336,7 +340,16 @@ def related_notices(notice_pk: int, session: Session = Depends(get_db)) -> Relat
 
     candidates = session.scalars(
         select(Notice)
-        .where(Notice.run_id == current.run_id, Notice.id != current.id)
+        .join(NoticeObservation, NoticeObservation.notice_id == Notice.id)
+        .where(
+            NoticeObservation.run_id.in_(
+                select(NoticeObservation.run_id).where(
+                    NoticeObservation.notice_id == current.id
+                )
+            ),
+            Notice.id != current.id,
+        )
+        .distinct()
         .options(selectinload(Notice.judgment))
         .order_by(Notice.published_at.asc().nulls_last(), Notice.id.asc())
     ).all()
@@ -381,27 +394,29 @@ def notice_history(notice_pk: int, session: Session = Depends(get_db)) -> Notice
     if current is None:
         raise HTTPException(status_code=404, detail=f"공고를 찾을 수 없습니다: {notice_pk}")
     rows = session.scalars(
-        select(Notice)
+        select(NoticeObservation)
+        .join(Notice, NoticeObservation.notice_id == Notice.id)
         .where(Notice.notice_key == current.notice_key)
         .options(
-            selectinload(Notice.run),
-            selectinload(Notice.judgment),
-            selectinload(Notice.reviews),
+            selectinload(NoticeObservation.run),
+            selectinload(NoticeObservation.notice).selectinload(Notice.judgment),
+            selectinload(NoticeObservation.notice).selectinload(Notice.reviews),
         )
-        .join(Notice.run)
-        .order_by(Run.generated_at.asc(), Notice.id.asc())
+        .order_by(NoticeObservation.observed_at.asc(), NoticeObservation.id.asc())
     ).all()
     history: list[HistoryItemResponse] = []
-    for row in rows:
-        review = next(iter(row.reviews), None)
+    for observation in rows:
+        row = observation.notice
+        run = observation.run
+        review = next((item for item in row.reviews if item.run_id == run.id), None)
         history.append(
             HistoryItemResponse(
                 notice_pk=row.id,
-                run_id=row.run_id,
-                window_from=row.run.window_from,
-                window_to=row.run.window_to,
-                timezone=row.run.timezone,
-                generated_at=row.run.generated_at,
+                run_id=run.id,
+                window_from=run.window_from,
+                window_to=run.window_to,
+                timezone=run.timezone,
+                generated_at=run.generated_at,
                 grade=row.judgment.grade if row.judgment else None,
                 readiness=row.judgment.readiness if row.judgment else None,
                 focus=row.judgment.primary_focus if row.judgment else None,

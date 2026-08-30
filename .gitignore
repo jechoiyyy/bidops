@@ -1,4 +1,7 @@
 .env
+# overlay 전용 env는 자격증명과 host 경로를 담으므로 예시만 추적한다.
+env/*.env
+!env/*.env.example
 .dryforge/
 __pycache__/
 *.pyc

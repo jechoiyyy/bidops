@@ -37,6 +37,7 @@ from ..models import (
     ProfileVersion,
     Review,
     Notice,
+    NoticeObservation,
 )
 from . import assets
 from .deep_review_validation import validate_structure
@@ -333,9 +334,16 @@ def effective_grade_basis(session: Session, notice_id: int) -> GradeBasis:
     )
     if review is not None and review.corrected_grade:
         return GradeBasis(review.corrected_grade, review.run_id, review.id, "human_review")
+    latest_observation = session.scalar(
+        select(NoticeObservation)
+        .where(NoticeObservation.notice_id == notice_id)
+        .order_by(NoticeObservation.observed_at.desc(), NoticeObservation.id.desc())
+        .limit(1)
+    )
+    observed_run_id = latest_observation.run_id if latest_observation is not None else None
     if notice.judgment is not None:
-        return GradeBasis(notice.judgment.grade, notice.run_id, None, "screening_judgment")
-    return GradeBasis(None, notice.run_id, None, "unknown")
+        return GradeBasis(notice.judgment.grade, observed_run_id, None, "screening_judgment")
+    return GradeBasis(None, observed_run_id, None, "unknown")
 
 
 def _safe_fact_quote(source_text: str, item: ParsedItem) -> str | None:

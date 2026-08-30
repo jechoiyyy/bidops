@@ -1,0 +1,288 @@
+{
+  "schema_version": "bidops.lifecycle-plan-fill-curve.v1",
+  "created_at": "2026-08-29T01:10:18.811660+09:00",
+  "mode": "collect",
+  "observed_at": "2026-08-29T01:03:26.542082+09:00",
+  "observed_at_source": "collection_start",
+  "endpoint_id": "g2b_order_plan_service_pps_search_v1",
+  "rows": 500,
+  "max_requests": 40,
+  "window_count": 6,
+  "request_count": 16,
+  "page_count": 16,
+  "curve_order": "age_days_ascending",
+  "limitations": [
+    "서로 다른 발행 구간을 비교하므로 같은 발주계획을 시간순으로 추적한 종단 관측이 아니다.",
+    "계절성·연도별 발주 패턴 차이가 구간 간 수치에 섞일 수 있다.",
+    "횡단면 채움률만으로 필요한 재조회 종료일이나 최대 k를 종단 결론으로 확정하지 않는다.",
+    "횡단면과 종단 결과가 어긋나면 2026-08-24~2026-08-26 구간의 반복 재조회인 종단 관측을 정본으로 삼는다."
+  ],
+  "windows": [
+    {
+      "window": {
+        "from": "2026-08-24",
+        "to_inclusive": "2026-08-26",
+        "to_exclusive": "2026-08-27"
+      },
+      "age_days": 3,
+      "total_count": 997,
+      "bidNtceNoList": {
+        "filled_count": 457,
+        "fill_rate": 0.4584,
+        "notice_number_total": 482,
+        "multi_notice_record_count": 23,
+        "max_notice_numbers_per_record": 3,
+        "count_distribution": {
+          "0": 540,
+          "1": 434,
+          "2": 21,
+          "3": 2
+        }
+      },
+      "ntceNticeYn": {
+        "y_count": 457,
+        "y_rate": 0.4584
+      },
+      "chgDt": {
+        "filled_count": 78,
+        "fill_rate": 0.0782
+      },
+      "chgDt_minus_nticeDt": {
+        "available_count": 78,
+        "unavailable_count": 919,
+        "p50_days": 0.0016,
+        "p90_days": 0.7225,
+        "p95_days": 1.294,
+        "p99_days": 2.1507,
+        "max_days": 3.0566
+      },
+      "id": "window-01-20260824-20260826",
+      "page_count": 2,
+      "request_count": 2,
+      "raw_directory": "window-01-20260824-20260826"
+    },
+    {
+      "window": {
+        "from": "2026-08-10",
+        "to_inclusive": "2026-08-12",
+        "to_exclusive": "2026-08-13"
+      },
+      "age_days": 17,
+      "total_count": 1019,
+      "bidNtceNoList": {
+        "filled_count": 866,
+        "fill_rate": 0.8499,
+        "notice_number_total": 973,
+        "multi_notice_record_count": 99,
+        "max_notice_numbers_per_record": 4,
+        "count_distribution": {
+          "0": 153,
+          "1": 767,
+          "2": 92,
+          "3": 6,
+          "4": 1
+        }
+      },
+      "ntceNticeYn": {
+        "y_count": 866,
+        "y_rate": 0.8499
+      },
+      "chgDt": {
+        "filled_count": 86,
+        "fill_rate": 0.0844
+      },
+      "chgDt_minus_nticeDt": {
+        "available_count": 86,
+        "unavailable_count": 933,
+        "p50_days": 0.0037,
+        "p90_days": 1.0589,
+        "p95_days": 4.7043,
+        "p99_days": 9.8029,
+        "max_days": 13.9592
+      },
+      "id": "window-02-20260810-20260812",
+      "page_count": 3,
+      "request_count": 3,
+      "raw_directory": "window-02-20260810-20260812"
+    },
+    {
+      "window": {
+        "from": "2026-07-27",
+        "to_inclusive": "2026-07-29",
+        "to_exclusive": "2026-07-30"
+      },
+      "age_days": 31,
+      "total_count": 985,
+      "bidNtceNoList": {
+        "filled_count": 842,
+        "fill_rate": 0.8548,
+        "notice_number_total": 1038,
+        "multi_notice_record_count": 172,
+        "max_notice_numbers_per_record": 15,
+        "count_distribution": {
+          "0": 143,
+          "1": 670,
+          "2": 161,
+          "3": 9,
+          "4": 1,
+          "15": 1
+        }
+      },
+      "ntceNticeYn": {
+        "y_count": 842,
+        "y_rate": 0.8548
+      },
+      "chgDt": {
+        "filled_count": 84,
+        "fill_rate": 0.0853
+      },
+      "chgDt_minus_nticeDt": {
+        "available_count": 84,
+        "unavailable_count": 901,
+        "p50_days": 0.0033,
+        "p90_days": 1.0937,
+        "p95_days": 5.6131,
+        "p99_days": 8.3539,
+        "max_days": 10.7766
+      },
+      "id": "window-03-20260727-20260729",
+      "page_count": 2,
+      "request_count": 2,
+      "raw_directory": "window-03-20260727-20260729"
+    },
+    {
+      "window": {
+        "from": "2026-07-01",
+        "to_inclusive": "2026-07-03",
+        "to_exclusive": "2026-07-04"
+      },
+      "age_days": 57,
+      "total_count": 1018,
+      "bidNtceNoList": {
+        "filled_count": 851,
+        "fill_rate": 0.836,
+        "notice_number_total": 1126,
+        "multi_notice_record_count": 231,
+        "max_notice_numbers_per_record": 5,
+        "count_distribution": {
+          "0": 167,
+          "1": 620,
+          "2": 192,
+          "3": 35,
+          "4": 3,
+          "5": 1
+        }
+      },
+      "ntceNticeYn": {
+        "y_count": 851,
+        "y_rate": 0.836
+      },
+      "chgDt": {
+        "filled_count": 77,
+        "fill_rate": 0.0756
+      },
+      "chgDt_minus_nticeDt": {
+        "available_count": 77,
+        "unavailable_count": 941,
+        "p50_days": 0.0041,
+        "p90_days": 2.1016,
+        "p95_days": 8.8052,
+        "p99_days": 27.1508,
+        "max_days": 47.2347
+      },
+      "id": "window-04-20260701-20260703",
+      "page_count": 3,
+      "request_count": 3,
+      "raw_directory": "window-04-20260701-20260703"
+    },
+    {
+      "window": {
+        "from": "2026-06-01",
+        "to_inclusive": "2026-06-03",
+        "to_exclusive": "2026-06-04"
+      },
+      "age_days": 87,
+      "total_count": 949,
+      "bidNtceNoList": {
+        "filled_count": 841,
+        "fill_rate": 0.8862,
+        "notice_number_total": 1138,
+        "multi_notice_record_count": 238,
+        "max_notice_numbers_per_record": 5,
+        "count_distribution": {
+          "0": 108,
+          "1": 603,
+          "2": 187,
+          "3": 45,
+          "4": 4,
+          "5": 2
+        }
+      },
+      "ntceNticeYn": {
+        "y_count": 841,
+        "y_rate": 0.8862
+      },
+      "chgDt": {
+        "filled_count": 77,
+        "fill_rate": 0.0811
+      },
+      "chgDt_minus_nticeDt": {
+        "available_count": 77,
+        "unavailable_count": 872,
+        "p50_days": 0.0061,
+        "p90_days": 35.7854,
+        "p95_days": 35.788,
+        "p99_days": 60.8258,
+        "max_days": 63.747
+      },
+      "id": "window-05-20260601-20260603",
+      "page_count": 2,
+      "request_count": 2,
+      "raw_directory": "window-05-20260601-20260603"
+    },
+    {
+      "window": {
+        "from": "2026-04-01",
+        "to_inclusive": "2026-04-03",
+        "to_exclusive": "2026-04-04"
+      },
+      "age_days": 148,
+      "total_count": 1826,
+      "bidNtceNoList": {
+        "filled_count": 1576,
+        "fill_rate": 0.8631,
+        "notice_number_total": 2098,
+        "multi_notice_record_count": 406,
+        "max_notice_numbers_per_record": 4,
+        "count_distribution": {
+          "0": 250,
+          "1": 1170,
+          "2": 299,
+          "3": 98,
+          "4": 9
+        }
+      },
+      "ntceNticeYn": {
+        "y_count": 1576,
+        "y_rate": 0.8631
+      },
+      "chgDt": {
+        "filled_count": 163,
+        "fill_rate": 0.0893
+      },
+      "chgDt_minus_nticeDt": {
+        "available_count": 163,
+        "unavailable_count": 1663,
+        "p50_days": 0.002,
+        "p90_days": 1.7111,
+        "p95_days": 5.002,
+        "p99_days": 15.3428,
+        "max_days": 27.2354
+      },
+      "id": "window-06-20260401-20260403",
+      "page_count": 4,
+      "request_count": 4,
+      "raw_directory": "window-06-20260401-20260403"
+    }
+  ]
+}

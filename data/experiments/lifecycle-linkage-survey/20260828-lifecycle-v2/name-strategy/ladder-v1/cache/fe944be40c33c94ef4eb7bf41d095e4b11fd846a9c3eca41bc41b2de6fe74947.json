@@ -1,0 +1,46 @@
+{
+  "schema_version": "bidops.lifecycle-name-search-cache.v1",
+  "cache_key": "fe944be40c33c94ef4eb7bf41d095e4b11fd846a9c3eca41bc41b2de6fe74947",
+  "url": "https://apis.data.go.kr/1230000/ao/HrcspSsstndrdInfoService/getPublicPrcureThngInfoServcPPSSrch",
+  "query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=2026+%EA%B2%BD%EB%B6%81%ED%95%99%EA%B5%90%EC%98%88%EC%88%A0%EA%B5%90%EC%9C%A1%ED%8E%98%EC%8A%A4%ED%8B%B0%EB%B2%8C",
+  "response": {
+    "response": {
+      "header": {
+        "resultCode": "00",
+        "resultMsg": "정상"
+      },
+      "body": {
+        "items": [
+          {
+            "bsnsDivNm": "일반용역",
+            "refNo": "5068300160",
+            "prdctClsfcNoNm": "[긴급] 2026 경북학교예술교육페스티벌 「어울림1000인음악제」 운영 대행 용역",
+            "orderInsttNm": "경상북도교육청 경상북도포항교육지원청",
+            "rlDminsttNm": "경상북도교육청 경상북도포항교육지원청",
+            "asignBdgtAmt": "95000000",
+            "rcptDt": "2026-08-21 20:59:21",
+            "opninRgstClseDt": "2026-08-24 23:59:00",
+            "ofclTelNo": "",
+            "ofclNm": "송준호",
+            "swBizObjYn": "N",
+            "dlvrTmlmtDt": "2026-12-31 00:00:00",
+            "dlvrDaynum": "0",
+            "bfSpecRgstNo": "R26BD00266492",
+            "specDocFileUrl1": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00266492&fileType=BFDTL&fileSeq=1",
+            "specDocFileUrl2": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00266492&fileType=BFDTL&fileSeq=2",
+            "specDocFileUrl3": "",
+            "specDocFileUrl4": "",
+            "specDocFileUrl5": "",
+            "prdctDtlList": "",
+            "rgstDt": "2026-08-21 20:59:18",
+            "chgDt": "2026-08-21 20:59:21",
+            "bidNtceNoList": "R26BK01697344"
+          }
+        ],
+        "numOfRows": 50,
+        "pageNo": 1,
+        "totalCount": 1
+      }
+    }
+  }
+}

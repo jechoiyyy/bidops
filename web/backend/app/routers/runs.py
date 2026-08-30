@@ -16,7 +16,7 @@ from ..config import get_settings
 from ..constants import GRADE_ORDER, READINESS_ORDER
 from ..db import get_db
 from ..ingest.loader import discover_run_dirs, ingest_run
-from ..models import IngestWarning, Judgment, Notice, Run, ScreeningExecution, ScreeningPolicy
+from ..models import IngestWarning, Judgment, Notice, NoticeObservation, Run, ScreeningExecution, ScreeningPolicy
 from ..schemas import (
     ArtifactValidationResponse,
     CollectionScopeResponse,
@@ -114,6 +114,7 @@ def _artifact_rows(
         "screening-results.json": "bidops.screening.v2",
         "screening-decisions.json": "bidops.decisions.v2",
         "collected-notices.json": "bidops.collected.v2",
+        "collected-order-plans.json": "bidops.collected-order-plans.v1",
     }
     rows: list[ArtifactValidationResponse] = []
     for name, expected_version in expected.items():
@@ -284,6 +285,7 @@ def ingest_selected_run(
     return IngestResponse(
         run_id=result.run_id,
         notices=result.notices,
+        order_plans=result.order_plans,
         judgments=result.judgments,
         reviews=result.reviews,
         warnings=response_warnings,
@@ -430,7 +432,8 @@ def run_stats(run_id: str, session: Session = Depends(get_db)) -> RunStatsRespon
     run = get_run(session, run_id)
     notices = session.scalars(
         select(Notice)
-        .where(Notice.run_id == run.id)
+        .join(NoticeObservation, NoticeObservation.notice_id == Notice.id)
+        .where(NoticeObservation.run_id == run.id)
         .options(
             selectinload(Notice.judgment).selectinload(Judgment.verification_items),
             selectinload(Notice.attachments),
@@ -490,7 +493,7 @@ def run_stats(run_id: str, session: Session = Depends(get_db)) -> RunStatsRespon
     ):
         if not (start <= notice.deadline_at <= end):
             continue
-        item = notice_list_item(notice)
+        item = notice_list_item(notice, run.id)
         blocking = [
             verification_item.item
             for verification_item in (notice.judgment.verification_items if notice.judgment else [])

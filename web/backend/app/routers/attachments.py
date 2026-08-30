@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..constants import GRADE_ORDER, GRADE_RANK
 from ..db import get_db
-from ..models import AgencyPortal, Attachment, Notice
+from ..models import AgencyPortal, Attachment, Notice, NoticeObservation
 from ..schemas import (
     AttachmentProcedureResponse,
     AttachmentQueueItem,
@@ -103,8 +103,8 @@ def _procedure_response(session: Session, notice: Notice) -> AttachmentProcedure
     )
 
 
-def _queue_item(session: Session, notice: Notice) -> AttachmentQueueItem:
-    base = notice_list_item(notice)
+def _queue_item(session: Session, notice: Notice, run_id: str | None = None) -> AttachmentQueueItem:
+    base = notice_list_item(notice, run_id)
     portal, search_url, portal_message = _portal_context(session, notice)
     return AttachmentQueueItem(
         **base.model_dump(),
@@ -218,7 +218,8 @@ def attachment_queue(
     run = get_run(session, run_id)
     notices = session.scalars(
         select(Notice)
-        .where(Notice.run_id == run.id, ~Notice.attachments.any())
+        .join(NoticeObservation, NoticeObservation.notice_id == Notice.id)
+        .where(NoticeObservation.run_id == run.id, ~Notice.attachments.any())
         .options(selectinload(Notice.judgment), selectinload(Notice.attachments))
         .order_by(Notice.agency.asc().nulls_last(), Notice.deadline_at.asc().nulls_last(), Notice.id.asc())
     ).all()
@@ -234,7 +235,7 @@ def attachment_queue(
     return AttachmentQueueResponse(
         run_id=run.id,
         total=len(notices),
-        items=[_queue_item(session, notice) for notice in notices],
+        items=[_queue_item(session, notice, run.id) for notice in notices],
     )
 
 

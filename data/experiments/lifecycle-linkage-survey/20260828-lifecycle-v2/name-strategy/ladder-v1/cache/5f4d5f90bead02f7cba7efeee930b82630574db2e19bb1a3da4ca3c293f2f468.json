@@ -1,0 +1,46 @@
+{
+  "schema_version": "bidops.lifecycle-name-search-cache.v1",
+  "cache_key": "5f4d5f90bead02f7cba7efeee930b82630574db2e19bb1a3da4ca3c293f2f468",
+  "url": "https://apis.data.go.kr/1230000/ao/HrcspSsstndrdInfoService/getPublicPrcureThngInfoServcPPSSrch",
+  "query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=%EB%B3%B4%EC%88%98+%EC%B2%B4%EA%B3%84+%EA%B3%A0%EB%8F%84%ED%99%94+%EB%B0%8F+%EC%A3%BC%EC%9A%94%EC%82%AC%EC%97%85+%EA%B3%84%EB%9F%89%EC%A7%80%ED%91%9C+%EA%B0%9C%EC%84%A0+%EC%9A%A9%EC%97%AD",
+  "response": {
+    "response": {
+      "header": {
+        "resultCode": "00",
+        "resultMsg": "정상"
+      },
+      "body": {
+        "items": [
+          {
+            "bsnsDivNm": "일반용역",
+            "refNo": "재무회계팀-1283",
+            "prdctClsfcNoNm": "국제식물검역인증원 직무 중심 인사·보수 체계 고도화 및 주요사업 계량지표 개선 용역",
+            "orderInsttNm": "국제식물검역인증원",
+            "rlDminsttNm": "국제식물검역인증원",
+            "asignBdgtAmt": "60000000",
+            "rcptDt": "2026-08-19 10:58:40",
+            "opninRgstClseDt": "2026-08-24 23:59:00",
+            "ofclTelNo": "051-600-8050",
+            "ofclNm": "김남희",
+            "swBizObjYn": "N",
+            "dlvrTmlmtDt": "2026-12-21 00:00:00",
+            "dlvrDaynum": "0",
+            "bfSpecRgstNo": "R26BD00265024",
+            "specDocFileUrl1": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00265024&fileType=BFDTL&fileSeq=1",
+            "specDocFileUrl2": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00265024&fileType=BFDTL&fileSeq=2",
+            "specDocFileUrl3": "",
+            "specDocFileUrl4": "",
+            "specDocFileUrl5": "",
+            "prdctDtlList": "",
+            "rgstDt": "2026-08-19 09:50:32",
+            "chgDt": "2026-08-19 10:58:40",
+            "bidNtceNoList": "R26BK01696596"
+          }
+        ],
+        "numOfRows": 50,
+        "pageNo": 1,
+        "totalCount": 1
+      }
+    }
+  }
+}

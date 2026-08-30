@@ -364,14 +364,22 @@ def sha256_digest(value: bytes | str) -> str:
     return hashlib.sha256(raw).hexdigest()
 
 
-def _keys_error(value: Any, allowed: Iterable[str], prefix: str, *, require_all: bool = True) -> list[str]:
+def _keys_error(
+    value: Any,
+    allowed: Iterable[str],
+    prefix: str,
+    *,
+    require_all: bool = True,
+    optional: Iterable[str] = (),
+) -> list[str]:
     if not isinstance(value, dict):
         return [f"{prefix} 객체가 아닙니다."]
     allowed_set = set(allowed)
+    optional_set = set(optional)
     actual = set(value)
     errors: list[str] = []
-    missing = sorted(allowed_set - actual) if require_all else []
-    extra = sorted(actual - allowed_set)
+    missing = sorted(allowed_set - actual - optional_set) if require_all else []
+    extra = sorted(actual - allowed_set - optional_set)
     if missing:
         errors.append(f"{prefix} 필드가 누락되었습니다: {', '.join(missing)}")
     if extra:
@@ -565,13 +573,27 @@ def _validate_nested_notice(notice: dict[str, Any], prefix: str) -> list[str]:
             "successful_bid_method",
         ),
     }
+    optional_keys = {
+        # Optional projections were added without changing the collected.v2
+        # record shape.  Historical artifacts may omit them entirely.
+        "lifecycle": ("order_plan_no", "bid_ntice_no_list"),
+        "qualification_flags": ("sw_business_status", "business_division"),
+    }
     for name, keys in object_keys.items():
         value = notice.get(name)
         # An empty qualification_flags object is emitted for pre-spec notices;
         # every other collected object, and any populated qualification object,
         # must retain the complete collected.v2 shape.
         require_all = name != "qualification_flags" or bool(value)
-        errors.extend(_keys_error(value, keys, f"{prefix}.{name}", require_all=require_all))
+        errors.extend(
+            _keys_error(
+                value,
+                keys,
+                f"{prefix}.{name}",
+                require_all=require_all,
+                optional=optional_keys.get(name, ()),
+            )
+        )
     lifecycle = notice.get("lifecycle")
     if isinstance(lifecycle, dict):
         errors.extend(_timestamp(
@@ -581,6 +603,10 @@ def _validate_nested_notice(notice: dict[str, Any], prefix: str) -> list[str]:
             "pre_spec_no", "re_notice", "change_reason", "unified_notice_no",
             "previous_failed_notice_no",
         ):
+            errors.extend(_nullable_string_type(
+                lifecycle.get(key), f"{prefix}.lifecycle.{key}"
+            ))
+        for key in ("order_plan_no", "bid_ntice_no_list"):
             errors.extend(_nullable_string_type(
                 lifecycle.get(key), f"{prefix}.lifecycle.{key}"
             ))
@@ -608,6 +634,10 @@ def _validate_nested_notice(notice: dict[str, Any], prefix: str) -> list[str]:
             "performance_restricted_competition", "pq_evaluation",
             "technical_evaluation", "technical_evaluation_rate", "successful_bid_method",
         ):
+            errors.extend(_nullable_string_type(
+                qualification_flags.get(key), f"{prefix}.qualification_flags.{key}"
+            ))
+        for key in ("sw_business_status", "business_division"):
             errors.extend(_nullable_string_type(
                 qualification_flags.get(key), f"{prefix}.qualification_flags.{key}"
             ))

@@ -9,17 +9,21 @@ import app.db as db
 from app.db import Base, init_db
 from app.models import (
     Evidence,
+    ATTACHMENT_FETCH_TABLES,
     Judgment,
     LEGACY_TABLES,
     NEW_TABLES,
     SCREENING_RUNTIME_TABLES,
+    IDENTITY_TABLES,
     Notice,
     Perspective,
     Run,
 )
 
 
-EXPECTED_TABLES = set(LEGACY_TABLES + NEW_TABLES + SCREENING_RUNTIME_TABLES)
+EXPECTED_TABLES = set(
+    LEGACY_TABLES + NEW_TABLES + SCREENING_RUNTIME_TABLES + IDENTITY_TABLES + ATTACHMENT_FETCH_TABLES
+)
 
 
 def make_test_engine():
@@ -57,7 +61,7 @@ def test_init_db_creates_all_declared_tables_and_indexes():
         tuple(index["column_names"])
         for index in inspector.get_indexes("notice")
     }
-    assert ("run_id", "collection_bucket", "sample_role") in notice_indexes
+    assert ("collection_bucket", "sample_role") in notice_indexes
     assert ("notice_key",) in notice_indexes
     assert ("deadline_at",) in notice_indexes
 
@@ -66,7 +70,7 @@ def test_init_db_creates_all_declared_tables_and_indexes():
 
     review_constraints = inspector.get_unique_constraints("review")
     assert any(
-        constraint["column_names"] == ["notice_id", "run_id"]
+        constraint["column_names"] == ["notice_id"]
         for constraint in review_constraints
     )
 

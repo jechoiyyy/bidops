@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import time
+import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections import Counter
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable, Sequence
 
@@ -267,6 +270,106 @@ class KeywordAdapter:
         return AdapterResult(score=score, reason=reason, latency_ms=latency, device="cpu")
 
 
+class TfidfAdapter:
+    """Deterministic character n-gram TF-IDF over capabilities and plan titles."""
+
+    def __init__(self, config: dict[str, Any]):
+        if config.get("analyzer") != "char":
+            raise ExperimentError("invalid_tfidf_config", "TF-IDF analyzer는 char로 고정됩니다")
+        self.ngram_min = config.get("ngram_min")
+        self.ngram_max = config.get("ngram_max")
+        if (
+            not isinstance(self.ngram_min, int)
+            or isinstance(self.ngram_min, bool)
+            or not isinstance(self.ngram_max, int)
+            or isinstance(self.ngram_max, bool)
+            or not 1 <= self.ngram_min <= self.ngram_max <= 8
+        ):
+            raise ExperimentError("invalid_tfidf_config", "TF-IDF n-gram 범위가 잘못됐습니다")
+        if config.get("tf") != "sublinear" or config.get("idf") != "smooth":
+            raise ExperimentError("invalid_tfidf_config", "TF-IDF tf/idf 계약이 잘못됐습니다")
+        if config.get("normalization") != "l2" or config.get("capability_aggregation") != "max_cosine":
+            raise ExperimentError("invalid_tfidf_config", "TF-IDF 정규화/집계 계약이 잘못됐습니다")
+
+    def _features(self, value: str) -> Counter[str]:
+        text = unicodedata.normalize("NFKC", _normalize_text(value))
+        if not text:
+            raise AdapterFailure("text_missing")
+        features: Counter[str] = Counter()
+        for size in range(self.ngram_min, self.ngram_max + 1):
+            for index in range(max(0, len(text) - size + 1)):
+                features[text[index : index + size]] += 1
+        if not features:
+            features[text] = 1
+        return features
+
+    @staticmethod
+    def _vector(counts: Counter[str], idf: dict[str, float]) -> dict[str, float]:
+        weighted = {
+            feature: (1.0 + math.log(count)) * idf[feature]
+            for feature, count in counts.items()
+        }
+        norm = math.sqrt(sum(value * value for value in weighted.values()))
+        if norm <= 0 or not math.isfinite(norm):
+            raise AdapterFailure("adapter_execution_failed")
+        return {feature: value / norm for feature, value in weighted.items()}
+
+    @staticmethod
+    def _cosine(left: dict[str, float], right: dict[str, float]) -> float:
+        if len(left) > len(right):
+            left, right = right, left
+        return sum(value * right.get(feature, 0.0) for feature, value in left.items())
+
+    def score_all(
+        self,
+        plans: Sequence[dict[str, Any]],
+        capabilities: dict[str, Any],
+    ) -> list[AdapterResult]:
+        started = time.monotonic()
+        capability_rows = capabilities.get("capabilities") or []
+        if not capability_rows:
+            raise AdapterFailure("capabilities_empty")
+        try:
+            capability_counts = [self._features(row["summary"]) for row in capability_rows]
+            title_counts = [self._features(plan_text(plan)) for plan in plans]
+            documents = capability_counts + title_counts
+            document_frequency: Counter[str] = Counter()
+            for counts in documents:
+                document_frequency.update(counts.keys())
+            document_count = len(documents)
+            idf = {
+                feature: math.log((1.0 + document_count) / (1.0 + frequency)) + 1.0
+                for feature, frequency in document_frequency.items()
+            }
+            capability_vectors = [self._vector(counts, idf) for counts in capability_counts]
+            title_vectors = [self._vector(counts, idf) for counts in title_counts]
+            scored: list[tuple[float, str]] = []
+            for title_vector in title_vectors:
+                candidates = [
+                    (
+                        self._cosine(capability_vectors[index], title_vector),
+                        capability_rows[index]["id"],
+                    )
+                    for index in range(len(capability_rows))
+                ]
+                scored.append(max(candidates, key=lambda item: (item[0], item[1])))
+        except AdapterFailure:
+            raise
+        except (KeyError, TypeError, ValueError, OverflowError) as exc:
+            raise AdapterFailure("adapter_execution_failed") from exc
+        total_latency = max(0, round((time.monotonic() - started) * 1000))
+        latency_parts = _split_measurement(total_latency, len(plans))
+        return [
+            AdapterResult(
+                score=score,
+                reason=f"nearest_capability:{capability_id}",
+                latency_ms=int(latency_parts[index]),
+                device="cpu",
+            )
+            for index, (score, capability_id) in enumerate(scored)
+        ]
+
+
 class BGEM3ColBERTAdapter:
     """Use the official FlagEmbedding late-interaction score at a fixed model revision."""
 
@@ -431,6 +534,164 @@ def validate_local_base_url(
     ):
         raise ExperimentError("model_endpoint_rejected", "Qwen base URL이 승인된 endpoint 계약과 다릅니다")
     return value.rstrip("/")
+
+
+class OllamaDenseAdapter:
+    """Score title embeddings against approved capability embeddings via Ollama."""
+
+    def __init__(self, config: dict[str, Any]):
+        env_name = config.get("base_url_env")
+        if not isinstance(env_name, str) or not env_name:
+            raise ExperimentError("model_endpoint_missing", "dense base URL 환경변수 이름이 없습니다")
+        base_url = os.environ.get(env_name, "").strip()
+        if not base_url:
+            raise ExperimentError("model_endpoint_missing", f"{env_name}가 필요합니다")
+        validated_base = validate_local_base_url(
+            base_url, config.get("allowed_hosts") or [], "ollama_native"
+        )
+        self.url = validated_base + "/api/embed"
+        self.tags_url = validated_base + "/api/tags"
+        self.model_name = config["model_name"]
+        self.model_revision = config["model_revision"]
+        self.client = SafeJsonHttpClient(int(config.get("timeout_seconds", 120)))
+        self.batch_size = int(config["batch_size"])
+        self._revision_verified = False
+
+    def verify_model_revision(self) -> None:
+        if self._revision_verified:
+            return
+        response, latency = self.client.get(self.tags_url, {})
+        models = response.get("models")
+        if not isinstance(models, list):
+            raise AdapterFailure("model_revision_unverifiable", latency)
+        matches = [
+            row
+            for row in models
+            if isinstance(row, dict)
+            and self.model_name in {row.get("name"), row.get("model")}
+        ]
+        if len(matches) != 1 or matches[0].get("digest") != self.model_revision:
+            raise AdapterFailure("model_revision_mismatch", latency)
+        self._revision_verified = True
+
+    def prepare(self) -> None:
+        self.verify_model_revision()
+
+    @staticmethod
+    def _normalize_embedding(value: Any, expected_dimension: int | None = None) -> list[float]:
+        if not isinstance(value, list) or not value:
+            raise AdapterFailure("malformed_response")
+        if expected_dimension is not None and len(value) != expected_dimension:
+            raise AdapterFailure("embedding_dimension_mismatch")
+        vector: list[float] = []
+        for item in value:
+            if not isinstance(item, (int, float)) or isinstance(item, bool):
+                raise AdapterFailure("malformed_response")
+            number = float(item)
+            if not math.isfinite(number):
+                raise AdapterFailure("malformed_response")
+            vector.append(number)
+        norm = math.sqrt(sum(item * item for item in vector))
+        if norm <= 0 or not math.isfinite(norm):
+            raise AdapterFailure("embedding_zero_norm")
+        return [item / norm for item in vector]
+
+    def _embed(
+        self,
+        texts: Sequence[str],
+        expected_dimension: int | None = None,
+    ) -> tuple[list[list[float]], int]:
+        response, latency = self.client.post(
+            self.url,
+            {
+                "model": self.model_name,
+                "input": list(texts),
+                "truncate": False,
+            },
+            {},
+        )
+        embeddings = response.get("embeddings")
+        if not isinstance(embeddings, list) or len(embeddings) != len(texts):
+            raise AdapterFailure("population_coverage_mismatch", latency)
+        try:
+            normalized = [
+                self._normalize_embedding(vector, expected_dimension)
+                for vector in embeddings
+            ]
+        except AdapterFailure as exc:
+            raise AdapterFailure(exc.error_code, latency) from exc
+        dimensions = {len(vector) for vector in normalized}
+        if len(dimensions) != 1:
+            raise AdapterFailure("embedding_dimension_mismatch", latency)
+        return normalized, latency
+
+    @staticmethod
+    def _cosine(left: Sequence[float], right: Sequence[float]) -> float:
+        return sum(a * b for a, b in zip(left, right, strict=True))
+
+    def score_many(
+        self,
+        plans: Sequence[dict[str, Any]],
+        capabilities: dict[str, Any],
+    ) -> list[AdapterResult | AdapterFailure]:
+        self.verify_model_revision()
+        capability_rows = capabilities.get("capabilities") or []
+        if not capability_rows:
+            return [AdapterFailure("capabilities_empty") for _plan in plans]
+        try:
+            capability_vectors, capability_latency = self._embed(
+                [row["summary"] for row in capability_rows]
+            )
+        except (KeyError, TypeError) as exc:
+            return [AdapterFailure("capabilities_invalid") for _plan in plans]
+        except AdapterFailure as exc:
+            latency_parts = _split_measurement(exc.latency_ms, len(plans))
+            return [
+                AdapterFailure(exc.error_code, latency_parts[index])
+                for index in range(len(plans))
+            ]
+        dimension = len(capability_vectors[0])
+        capability_latency_parts = _split_measurement(capability_latency, len(plans))
+        outcomes: list[AdapterResult | AdapterFailure] = []
+        offset = 0
+        for batch in fixed_batches(plans, self.batch_size):
+            try:
+                title_vectors, batch_latency = self._embed(
+                    [plan_text(plan) for plan in batch], dimension
+                )
+                batch_latency_parts = _split_measurement(batch_latency, len(batch))
+                for local_index, title_vector in enumerate(title_vectors):
+                    candidates = [
+                        (
+                            self._cosine(capability_vectors[index], title_vector),
+                            capability_rows[index]["id"],
+                        )
+                        for index in range(len(capability_rows))
+                    ]
+                    score, capability_id = max(
+                        candidates, key=lambda item: (item[0], item[1])
+                    )
+                    outcomes.append(
+                        AdapterResult(
+                            score=score,
+                            reason=f"nearest_capability:{capability_id}",
+                            latency_ms=int(capability_latency_parts[offset + local_index])
+                            + int(batch_latency_parts[local_index]),
+                            device="ollama",
+                        )
+                    )
+            except AdapterFailure as exc:
+                batch_latency_parts = _split_measurement(exc.latency_ms, len(batch))
+                outcomes.extend(
+                    AdapterFailure(
+                        exc.error_code,
+                        (capability_latency_parts[offset + local_index] or 0)
+                        + (batch_latency_parts[local_index] or 0),
+                    )
+                    for local_index in range(len(batch))
+                )
+            offset += len(batch)
+        return outcomes
 
 
 class QwenAdapter:

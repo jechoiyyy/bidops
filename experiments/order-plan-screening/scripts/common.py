@@ -12,15 +12,24 @@ from typing import Any, Iterable, Sequence
 
 
 POPULATION_SCHEMA = "bidops.order-plan-population.v1"
-RUN_SCHEMA = "bidops.order-plan-screening-run.v2"
+RUN_SCHEMA = "bidops.order-plan-screening-run.v3"
 RAW_PAGE_SCHEMA = "bidops.order-plan-raw-page.v1"
-METHOD_RESULT_SCHEMA = "bidops.order-plan-method-result.v2"
+METHOD_RESULT_SCHEMA = "bidops.order-plan-method-result.v3"
 CAPABILITIES_SCHEMA = "bidops.order-plan-capabilities.v1"
-METHODS_CONFIG_SCHEMA = "bidops.order-plan-methods.v2"
+METHODS_CONFIG_SCHEMA = "bidops.order-plan-methods.v3"
 EXTERNAL_APPROVAL_SCHEMA = "bidops.order-plan-external-approval.v2"
 REVIEW_MANIFEST_SCHEMA = "bidops.order-plan-review-manifest.v1"
 
-METHOD_NAMES = ("keyword", "bge_m3_colbert", "qwen", "luna")
+METHOD_NAMES = (
+    "keyword",
+    "tfidf",
+    "bge_m3_dense",
+    "bge_m3_colbert",
+    "qwen",
+    "luna",
+)
+BATCHED_METHOD_NAMES = ("bge_m3_dense", "qwen", "luna")
+JUDGMENT_METHOD_NAMES = {"qwen", "luna"}
 ROW_STATUSES = {"success", "failed"}
 HEX_64 = set("0123456789abcdef")
 
@@ -223,7 +232,9 @@ def validate_run(document: Any, population: dict[str, Any]) -> dict[str, Any]:
     ):
         raise ExperimentError("invalid_allowlist", "run model plan payload는 title 하나여야 합니다")
     batch_sizes = require_exact_keys(
-        model_payload["batch_sizes"], {"qwen", "luna"}, "run.model_payload.batch_sizes"
+        model_payload["batch_sizes"],
+        set(BATCHED_METHOD_NAMES),
+        "run.model_payload.batch_sizes",
     )
     if any(
         not isinstance(value, int) or isinstance(value, bool) or value < 1
@@ -231,7 +242,7 @@ def validate_run(document: Any, population: dict[str, Any]) -> dict[str, Any]:
     ):
         raise ExperimentError("invalid_batch_size", "run model batch size binding이 잘못됐습니다")
     if not isinstance(run["methods"], dict) or set(run["methods"]) != set(METHOD_NAMES):
-        raise ExperimentError("method_set_mismatch", "run의 네 방법 binding이 완전하지 않습니다")
+        raise ExperimentError("method_set_mismatch", "run의 방법 binding이 완전하지 않습니다")
     return run
 
 
@@ -252,7 +263,7 @@ def load_methods_config(path: Path) -> dict[str, Any]:
     if not isinstance(config["top_k"], int) or isinstance(config["top_k"], bool) or config["top_k"] != 50:
         raise ExperimentError("invalid_top_k", "이 실험의 top_k는 50으로 고정됩니다")
     if not isinstance(config["methods"], dict) or set(config["methods"]) != set(METHOD_NAMES):
-        raise ExperimentError("method_set_mismatch", "methods config에 네 방법이 필요합니다")
+        raise ExperimentError("method_set_mismatch", "methods config에 고정 방법 전체가 필요합니다")
     for method_name, method_config in config["methods"].items():
         if not isinstance(method_config, dict):
             raise ExperimentError("invalid_contract", f"{method_name} config는 object여야 합니다")
@@ -261,7 +272,7 @@ def load_methods_config(path: Path) -> dict[str, Any]:
     allowed = config["model_plan_allowed_fields"]
     if allowed != ["title"]:
         raise ExperimentError("invalid_allowlist", "발주계획 모델 입력은 title 하나로 고정됩니다")
-    for method_name in ("qwen", "luna"):
+    for method_name in BATCHED_METHOD_NAMES:
         batch_size = config["methods"][method_name].get("batch_size")
         if not isinstance(batch_size, int) or isinstance(batch_size, bool) or batch_size < 1:
             raise ExperimentError("invalid_batch_size", f"{method_name} batch_size가 잘못됐습니다")
@@ -469,7 +480,7 @@ def validate_method_result(
         raise ExperimentError("invalid_top_k", "method result top_k가 잘못됐습니다")
     if expected_top_k is not None and result["top_k"] != expected_top_k:
         raise ExperimentError("invalid_top_k", "method result top_k가 run binding과 다릅니다")
-    if result["method"] in {"qwen", "luna"}:
+    if result["method"] in BATCHED_METHOD_NAMES:
         batching = require_exact_keys(
             result["batching"], {"mode", "batch_size", "batch_count"}, "method result batching"
         )
@@ -491,7 +502,7 @@ def validate_method_result(
         ):
             raise ExperimentError("count_mismatch", "method result batch_count가 다릅니다")
     elif result["batching"] is not None:
-        raise ExperimentError("invalid_contract", "keyword/BGE result에는 model batching이 없어야 합니다")
+        raise ExperimentError("invalid_contract", "비-batch 방법 result에는 batching이 없어야 합니다")
     parse_timezone_timestamp(result["created_at"], "method-result.created_at")
     items = result["items"]
     if not isinstance(items, list):
@@ -558,7 +569,7 @@ def validate_method_result(
                 raise ExperimentError("invalid_contract", "성공 item에는 error_code가 없어야 합니다")
             if not isinstance(row["reason"], str) or not row["reason"].strip() or len(row["reason"]) > 500:
                 raise ExperimentError("invalid_contract", "성공 item에 짧은 reason이 필요합니다")
-            if result["method"] in {"qwen", "luna"}:
+            if result["method"] in JUDGMENT_METHOD_NAMES:
                 if (
                     row["relevance"] not in {"relevant", "not_relevant", "uncertain"}
                     or evidence_fields != ["title"]
@@ -672,10 +683,11 @@ def validate_result_run_binding(
             raise ExperimentError("approval_mismatch", "Luna result와 run의 외부 승인 기록이 다릅니다")
     elif result.get("external_approval") is not None:
         raise ExperimentError("approval_not_applicable", "Luna 외 result에 외부 승인 기록이 있습니다")
-    if method_name in {"qwen", "luna"}:
+    if method_name in BATCHED_METHOD_NAMES:
         batch_size = run["model_payload"]["batch_sizes"][method_name]
         if result["batching"]["batch_size"] != batch_size:
             raise ExperimentError("method_binding_mismatch", "method result batch_size가 run binding과 다릅니다")
+    if method_name in JUDGMENT_METHOD_NAMES:
         for row in result["items"]:
             if row["status"] == "success" and row["evidence_fields"] != ["title"]:
                 raise ExperimentError("external_payload_rejected", "모델 근거는 title로 고정됩니다")

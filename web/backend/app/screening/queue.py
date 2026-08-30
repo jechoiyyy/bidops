@@ -435,8 +435,8 @@ class ScreeningQueue:
                 raise QueueValidationError("company profile identity does not match")
             if scope == "single_notice":
                 notice = session.scalar(select(Notice).where(Notice.id == notice_pk))
-                if notice is None or notice.run_id != source_run_id or notice.notice_key != notice_id:
-                    raise QueueValidationError("single notice identity does not match source run")
+                if notice is None or notice.notice_key != notice_id:
+                    raise QueueValidationError("single notice identity does not match notice key")
             execution = ScreeningExecution(
                 execution_id=execution_id or ("scr-" + uuid4().hex),
                 trigger=trigger,
@@ -549,8 +549,8 @@ class ScreeningQueue:
             raise QueueValidationError("company profile identity does not match")
         if scope == "single_notice":
             notice = session.scalar(select(Notice).where(Notice.id == notice_pk))
-            if notice is None or notice.run_id != source_run_id or notice.notice_key != notice_id:
-                raise QueueValidationError("single notice identity does not match source run")
+            if notice is None or notice.notice_key != notice_id:
+                raise QueueValidationError("single notice identity does not match notice key")
         execution = ScreeningExecution(
             execution_id=execution_id or ("scr-" + uuid4().hex),
             trigger=trigger,

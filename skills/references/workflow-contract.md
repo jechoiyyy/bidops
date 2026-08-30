@@ -7,6 +7,7 @@
 | 파일 | 스키마 | 작성 주체 |
 |---|---|---|
 | `collected-notices.json` | `bidops.collected.v2` | `collect_notices.py` |
+| `collected-order-plans.json` | `bidops.collected-order-plans.v1` | `collect_order_plans.py` |
 | `validation-set.json` | `bidops.validation-set.v2` | `select_validation_sample.py` |
 | `screening-decisions.json` | `bidops.decisions.v2` | **에이전트가 직접 작성한다** |
 | `screening-results.json` | `bidops.screening.v2` | `build_screening_results.py` |
@@ -38,7 +39,7 @@
 | `title`, `agency`, `published_at`, `deadline_at`, `budget`, `estimated_price`, `method`, `url` | 정규화된 기본 정보 |
 | `procurement_class` | 조달 분류. `large`, `middle`, `detail`, `code`를 포함한다 |
 | `region_limit` | 지역 제한. `basis`, `joint_contract_regions`, `joint_contract_rate`, `regional_joint_contract_limit`을 포함한다 |
-| `lifecycle` | 공고 생애주기. `pre_spec_no`, `re_notice`, `changed_at`, `change_reason`, `unified_notice_no`, `previous_failed_notice_no`를 포함한다 |
+| `lifecycle` | 공고 생애주기. `pre_spec_no`, `re_notice`, `changed_at`, `change_reason`, `unified_notice_no`, `previous_failed_notice_no`와 선택적 `order_plan_no`를 포함한다. `order_plan_no`는 원문 `orderPlanUntyNo`의 optional v2 projection이다 |
 | `qualification_flags` | 참가제한, 업종제한, 정보사업 여부, 실적제한경쟁, PQ·기술평가 여부와 배점 등 API가 직접 제공한 자격 관련 플래그 |
 | `attachments` | API가 제공한 첨부 문서 이름과 URL |
 | `focus_matches` | 정규화 개념 일치 신호의 목록. 의미 판정 결과가 아니다 |
@@ -66,6 +67,35 @@
 `field_kind`는 `title`, `classification`, `other` 가운데 하나이다. 조달 분류명은 모든 용역 공고에 일괄 부여되는 라벨이므로, 공고 제목에 등장한 개념과 같은 무게로 취급하면 안 된다. 판정 단계는 `field_kind`를 확인하여 신호의 근거 강도를 구분해야 한다.
 
 `candidate_sources`는 `focus_title`, `focus_classification`, `performance_similarity` 가운데 해당하는 값을 담는다. `collection_bucket`은 `candidate_sources`가 비어 있지 않으면 `candidate_pool`이다.
+
+## 발주계획 수집 결과
+
+`collected-order-plans.json`은 공고 목록과 별도의 누적 발주계획 계약이다.
+
+```json
+{
+  "schema_version": "bidops.collected-order-plans.v1",
+  "generated_at": "2026-08-29T01:00:00+00:00",
+  "source_window": {"from": "2026-08-25", "to": "2026-08-26", "timezone": "Asia/Seoul"},
+  "counts": {"total": 0},
+  "warnings": [],
+  "order_plans": []
+}
+```
+
+각 `order_plans[]`는 `order_plan_unty_no`(원문 `orderPlanUntyNo`), `title`(`bizNm`),
+기관·업무·서비스(`orderInsttCd`, `orderInsttNm`, `totlmngInsttNm`, `bsnsDivCd`,
+`bsnsDivNm`, `bsnsTyCd`, `bsnsTyNm`), 금액(`sumOrderAmt`, `orderContrctAmt`),
+예정 시기(`orderYear`, `orderMnth`), 방식(`prcrmntMethd`, `cntrctMthdNm`),
+`published_at`/`changed_at`(`nticeDt`/`chgDt`), `bid_ntice_no_list`(`bidNtceNoList`),
+`notice_posted`(`ntceNticeYn`), `rcrit_rgst_no`(`rcritRgstNo`), `source_url`(`orderPlanDtlUrl`),
+`first_discovered_at`, `last_discovered_at`, `source_sha256`, `unknown_fields`, `raw_source`를
+담는다. `rcritRgstNo`의 현재 빈 값은 `null`로 남기고, 측정되지 않은 SW 상태는
+`sw_business_status: null`과 `unknown_fields`로 분리한다. `bidNtceNoList`와 `ntceNticeYn`만
+전환 비교 신호로 쓰며 `chgDt`는 보존만 한다.
+
+artifact `metadata`에는 `bsnsDivNm` allowlist인 `일반용역`·`기술용역`과
+`200412`~`999912` 발주월 보조 범위를 남긴다. 범위 밖 원문 건수는 `counts`에서 확인한다.
 
 ### 수행실적 탐색 신호
 

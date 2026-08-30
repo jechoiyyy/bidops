@@ -1,0 +1,96 @@
+{
+  "schema_version": "bidops.lifecycle-name-search-cache.v1",
+  "cache_key": "e47ea7812da2f7a58b1986565787f721f583e429231dc3a37266f08b4848bf02",
+  "url": "https://apis.data.go.kr/1230000/ao/HrcspSsstndrdInfoService/getPublicPrcureThngInfoServcPPSSrch",
+  "query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=2026%ED%95%99%EB%85%84%EB%8F%84+%EB%A7%88%EC%82%B0%EC%A0%9C%EC%9D%BC",
+  "response": {
+    "response": {
+      "header": {
+        "resultCode": "00",
+        "resultMsg": "정상"
+      },
+      "body": {
+        "items": [
+          {
+            "bsnsDivNm": "일반용역",
+            "refNo": "마산제일고등학교-13",
+            "prdctClsfcNoNm": "2026학년도 마산제일고등학교 2학년 문화체험여행 위탁 용역",
+            "orderInsttNm": "경상남도교육청 마산제일고등학교",
+            "rlDminsttNm": "경상남도교육청 마산제일고등학교",
+            "asignBdgtAmt": "167648080",
+            "rcptDt": "2026-02-19 08:51:05",
+            "opninRgstClseDt": "2026-02-24 23:59:00",
+            "ofclTelNo": "070-5210-8611",
+            "ofclNm": "이혜웅",
+            "swBizObjYn": "N",
+            "dlvrTmlmtDt": "2026-04-04 00:00:00",
+            "dlvrDaynum": "0",
+            "bfSpecRgstNo": "R26BD00183766",
+            "specDocFileUrl1": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00183766&fileType=BFDTL&fileSeq=1",
+            "specDocFileUrl2": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00183766&fileType=BFDTL&fileSeq=2",
+            "specDocFileUrl3": "",
+            "specDocFileUrl4": "",
+            "specDocFileUrl5": "",
+            "prdctDtlList": "",
+            "rgstDt": "2026-02-19 08:51:00",
+            "chgDt": "2026-02-19 08:51:05",
+            "bidNtceNoList": "R26BK01353107"
+          },
+          {
+            "bsnsDivNm": "일반용역",
+            "refNo": "마산제일여자고등학교 제2026-31호",
+            "prdctClsfcNoNm": "2026학년도 마산제일여자고등학교 2학년 문화체험여행 용역 입찰 공고",
+            "orderInsttNm": "경상남도교육청 마산제일여자고등학교",
+            "rlDminsttNm": "경상남도교육청 마산제일여자고등학교",
+            "asignBdgtAmt": "132007960",
+            "rcptDt": "2026-04-13 10:27:40",
+            "opninRgstClseDt": "2026-04-17 14:00:00",
+            "ofclTelNo": "",
+            "ofclNm": "최준석",
+            "swBizObjYn": "N",
+            "dlvrTmlmtDt": "2026-05-30 00:00:00",
+            "dlvrDaynum": "0",
+            "bfSpecRgstNo": "R26BD00212348",
+            "specDocFileUrl1": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00212348&fileType=BFDTL&fileSeq=1",
+            "specDocFileUrl2": "",
+            "specDocFileUrl3": "",
+            "specDocFileUrl4": "",
+            "specDocFileUrl5": "",
+            "prdctDtlList": "",
+            "rgstDt": "2026-04-13 10:27:37",
+            "chgDt": "2026-04-13 10:27:40",
+            "bidNtceNoList": "R26BK01474707,R26BK01474922"
+          },
+          {
+            "bsnsDivNm": "일반용역",
+            "refNo": "마산제일여자중학교-7547",
+            "prdctClsfcNoNm": "2026학년도 마산제일여자중학교 2학년 수학여행 입찰 공고 사전규격",
+            "orderInsttNm": "경상남도마산교육청 마산제일여자중학교",
+            "rlDminsttNm": "경상남도마산교육청 마산제일여자중학교",
+            "asignBdgtAmt": "82472090",
+            "rcptDt": "2026-08-20 13:41:28",
+            "opninRgstClseDt": "2026-08-24 15:00:00",
+            "ofclTelNo": "055-242-1125",
+            "ofclNm": "박재현",
+            "swBizObjYn": "N",
+            "dlvrTmlmtDt": "2026-10-02 00:00:00",
+            "dlvrDaynum": "0",
+            "bfSpecRgstNo": "R26BD00265650",
+            "specDocFileUrl1": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00265650&fileType=BFDTL&fileSeq=1",
+            "specDocFileUrl2": "",
+            "specDocFileUrl3": "",
+            "specDocFileUrl4": "",
+            "specDocFileUrl5": "",
+            "prdctDtlList": "",
+            "rgstDt": "2026-08-20 13:41:12",
+            "chgDt": "2026-08-20 13:42:38",
+            "bidNtceNoList": "R26BK01696457"
+          }
+        ],
+        "numOfRows": 50,
+        "pageNo": 1,
+        "totalCount": 3
+      }
+    }
+  }
+}

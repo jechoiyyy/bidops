@@ -1,0 +1,115 @@
+{
+  "schema_version": "bidops.order-plan-screening-run.v3",
+  "run_id": "20260824-20260826-interim-v3",
+  "created_at": "2026-08-28T10:30:13.071098+09:00",
+  "input_sha256": "19f80ef40287b710593a14211b36d3c622617c89f21a09bd02ff6e6abad9d28b",
+  "population_sha256": "3a91dab71cd483faa45de393f1cbea990f7b543cc7a7b686e6fae5b18ab4d28f",
+  "population_count": 997,
+  "selection": {
+    "top_k": 50
+  },
+  "model_payload": {
+    "allowed_plan_fields": [
+      "title"
+    ],
+    "company_capabilities_sha256": "2ee0ebdd126341a6a79997341ebb93a76b00d5477d65ee21f635a41ecef2a57a",
+    "batch_sizes": {
+      "bge_m3_dense": 128,
+      "qwen": 25,
+      "luna": 25
+    }
+  },
+  "query_window": {
+    "from": "2026-08-24T00:00:00+09:00",
+    "to_exclusive": "2026-08-27T00:00:00+09:00",
+    "business_divisions": [
+      "기술용역",
+      "일반용역"
+    ],
+    "prefilters": [],
+    "api_order_month_scope": {
+      "from": "200412",
+      "to_inclusive": "999912",
+      "purpose": "required_api_dimension_without_population_prefilter"
+    }
+  },
+  "collection": {
+    "endpoint_id": "g2b_order_plan_service_pps_search_v1",
+    "page_count": 2,
+    "request_count": 3,
+    "first_collected_at": "2026-08-28T10:30:13.071098+09:00",
+    "last_collected_at": "2026-08-28T10:32:01.697916+09:00",
+    "raw_input_sha256": "19f80ef40287b710593a14211b36d3c622617c89f21a09bd02ff6e6abad9d28b",
+    "complete": true
+  },
+  "config": {
+    "company_capabilities_sha256": "b6f766c4a2c419fcb5b91a2252dc7a9dbbc80596bed754597c6af15c9ce1f3aa",
+    "methods_sha256": "d0e6f75eaeb162bae7282e7566080e2d4a6fa7e773131d95efc2a5463ff8e74a",
+    "company_capabilities_approval_status": "approved",
+    "company_capabilities_summary_sha256": "2ee0ebdd126341a6a79997341ebb93a76b00d5477d65ee21f635a41ecef2a57a"
+  },
+  "methods": {
+    "keyword": {
+      "method_version": "keyword-title-v2",
+      "model_name": null,
+      "model_revision": null,
+      "prompt_id": null,
+      "prompt_sha256": null,
+      "config_sha256": "d78402f2f9f1f1e631c9ae0a98985d5c81afebd90f2e85dbf81c8212c275504b"
+    },
+    "tfidf": {
+      "method_version": "tfidf-char-title-capability-v1",
+      "model_name": null,
+      "model_revision": null,
+      "prompt_id": null,
+      "prompt_sha256": null,
+      "config_sha256": "309addd34e6868bd1dbb8c8a052b011ec7447a546053a49074a48b0c935d6730"
+    },
+    "bge_m3_dense": {
+      "method_version": "ollama-bge-m3-dense-title-v1",
+      "model_name": "bge-m3:latest",
+      "model_revision": "7907646426070047a77226ac3e684fbbe8410524f7b4a74d02837e43f2146bab",
+      "prompt_id": null,
+      "prompt_sha256": null,
+      "config_sha256": "696a9bea14126ba736ec62e70346bf877649383c737c1d229f729028cc8bbc74"
+    },
+    "bge_m3_colbert": {
+      "method_version": "bge-m3-colbert-title-v2",
+      "model_name": "BAAI/bge-m3",
+      "model_revision": "5617a9f61b028005a4858fdac845db406aefb181",
+      "prompt_id": null,
+      "prompt_sha256": null,
+      "config_sha256": "9bf322716ad0ebcadd21214e0bc96baf60c3c18a3b736d5d4bc405fc4ceb9cd8"
+    },
+    "qwen": {
+      "method_version": "qwen-order-plan-batch-v2",
+      "model_name": "qwen3.8:27b",
+      "model_revision": "22130167c4c20e20c7b71454612966ca8e8171e9b3cc8ab6ce8aa6cbfec79643",
+      "prompt_id": "order-plan-batch-relevance-v2",
+      "prompt_sha256": "593e3fdb97d1c4bf325d831eea7494908e4510e0cee999e349db224a2b5cf4d1",
+      "config_sha256": "16283d3c3657759f7010220173ba56595bda9f04551e39afbf504a28d4dfaf8c"
+    },
+    "luna": {
+      "method_version": "luna-order-plan-batch-v2",
+      "model_name": "gpt-5.6-luna",
+      "model_revision": null,
+      "prompt_id": "order-plan-batch-relevance-v2",
+      "prompt_sha256": "593e3fdb97d1c4bf325d831eea7494908e4510e0cee999e349db224a2b5cf4d1",
+      "config_sha256": "41514e271153e3cd6b3f0cfdcb1170680cdfd45aafa9cab3232f958cb7100399"
+    }
+  },
+  "external_transmission": {
+    "status": "pending_approval",
+    "model": null,
+    "purpose": "order_plan_screening_comparison",
+    "prompt_sha256": "593e3fdb97d1c4bf325d831eea7494908e4510e0cee999e349db224a2b5cf4d1",
+    "company_capabilities_sha256": "2ee0ebdd126341a6a79997341ebb93a76b00d5477d65ee21f635a41ecef2a57a",
+    "payload_fields": [
+      "title"
+    ],
+    "record_count": 997,
+    "batch_size": 25,
+    "batch_count": 40,
+    "preview_sha256": "0372fde2714f12bbe242dc59411c384519f728cc20f6b6e5043d66ed169c3de5"
+  }
+}

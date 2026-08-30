@@ -1,0 +1,46 @@
+{
+  "schema_version": "bidops.lifecycle-name-search-cache.v1",
+  "cache_key": "4c931216f22bcf0bc179b0ab6c05371b6580d85314e64176eb392284a9e2d828",
+  "url": "https://apis.data.go.kr/1230000/ao/HrcspSsstndrdInfoService/getPublicPrcureThngInfoServcPPSSrch",
+  "query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=2026%EB%85%84+%EC%9A%B0%EC%88%98%EB%AC%BC%EB%A5%98%EA%B8%B0%EC%97%85+%EC%9D%B8%EC%A6%9D%EC%A0%9C+%EC%8B%AC%EC%82%AC%EC%97%85%EB%AC%B4+%EB%8C%80%ED%96%89",
+  "response": {
+    "response": {
+      "header": {
+        "resultCode": "00",
+        "resultMsg": "정상"
+      },
+      "body": {
+        "items": [
+          {
+            "bsnsDivNm": "기술용역",
+            "refNo": "B552071",
+            "prdctClsfcNoNm": "2026년 우수물류기업 인증제 심사업무 대행",
+            "orderInsttNm": "한국교통연구원",
+            "rlDminsttNm": "한국교통연구원",
+            "asignBdgtAmt": "20000000",
+            "rcptDt": "2026-07-30 14:14:51",
+            "opninRgstClseDt": "2026-08-04 23:59:00",
+            "ofclTelNo": "044-211-3333",
+            "ofclNm": "전지백",
+            "swBizObjYn": "Y",
+            "dlvrTmlmtDt": "2027-01-31 00:00:00",
+            "dlvrDaynum": "0",
+            "bfSpecRgstNo": "R26BD00258621",
+            "specDocFileUrl1": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00258621&fileType=BFDTL&fileSeq=1",
+            "specDocFileUrl2": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00258621&fileType=BFDTL&fileSeq=2",
+            "specDocFileUrl3": "",
+            "specDocFileUrl4": "",
+            "specDocFileUrl5": "",
+            "prdctDtlList": "",
+            "rgstDt": "2026-07-30 14:14:49",
+            "chgDt": "2026-07-30 14:14:51",
+            "bidNtceNoList": "R26BK01676679,R26BK01699381"
+          }
+        ],
+        "numOfRows": 50,
+        "pageNo": 1,
+        "totalCount": 1
+      }
+    }
+  }
+}

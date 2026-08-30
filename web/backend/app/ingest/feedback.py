@@ -197,9 +197,14 @@ def load_feedback(
                 {"file": str(feedback_path), "index": index, "notice_id": notice_id},
             )
             continue
-        existing = session.scalar(
-            select(Review).where(Review.notice_pk == notice.id, Review.run_id == run.id)
-        )
+        # Review is canonical per notice.  The run is provenance for the
+        # observation in which a new decision was entered, not part of its
+        # identity.
+        # The application SessionFactory disables autoflush; flush before the
+        # lookup so two entries for the same notice in one artifact cannot
+        # stage duplicate canonical reviews in the same transaction.
+        session.flush()
+        existing = session.scalar(select(Review).where(Review.notice_pk == notice.id))
         if existing is not None:
             continue
         review = Review(
@@ -219,4 +224,3 @@ def load_feedback(
         imported += 1
     session.flush()
     return imported
-

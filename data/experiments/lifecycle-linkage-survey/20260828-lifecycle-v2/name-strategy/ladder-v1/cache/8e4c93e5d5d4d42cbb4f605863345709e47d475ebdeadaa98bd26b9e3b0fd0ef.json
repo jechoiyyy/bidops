@@ -1,0 +1,71 @@
+{
+  "schema_version": "bidops.lifecycle-name-search-cache.v1",
+  "cache_key": "8e4c93e5d5d4d42cbb4f605863345709e47d475ebdeadaa98bd26b9e3b0fd0ef",
+  "url": "https://apis.data.go.kr/1230000/ao/HrcspSsstndrdInfoService/getPublicPrcureThngInfoServcPPSSrch",
+  "query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=%EC%A0%9C%EC%A3%BC%EA%B3%B5%ED%95%AD+%EC%A0%84%EB%A0%A5%EA%B3%84%ED%86%B5+%EB%B0%8F",
+  "response": {
+    "response": {
+      "header": {
+        "resultCode": "00",
+        "resultMsg": "정상"
+      },
+      "body": {
+        "items": [
+          {
+            "bsnsDivNm": "기술용역",
+            "refNo": "20260113",
+            "prdctClsfcNoNm": "제주공항 전력계통 및 수배전시설 개량 설계용역",
+            "orderInsttNm": "한국공항공사 제주공항",
+            "rlDminsttNm": "한국공항공사 제주공항",
+            "asignBdgtAmt": "232650000",
+            "rcptDt": "2026-01-13 15:43:02",
+            "opninRgstClseDt": "2026-01-18 23:59:00",
+            "ofclTelNo": "064-797-2317",
+            "ofclNm": "정아람",
+            "swBizObjYn": "N",
+            "dlvrTmlmtDt": "",
+            "dlvrDaynum": "270",
+            "bfSpecRgstNo": "R26BD00164777",
+            "specDocFileUrl1": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00164777&fileType=BFDTL&fileSeq=1",
+            "specDocFileUrl2": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00164777&fileType=BFDTL&fileSeq=2",
+            "specDocFileUrl3": "",
+            "specDocFileUrl4": "",
+            "specDocFileUrl5": "",
+            "prdctDtlList": "",
+            "rgstDt": "2026-01-13 15:42:58",
+            "chgDt": "2026-01-13 15:43:02",
+            "bidNtceNoList": "R26BK01346642"
+          },
+          {
+            "bsnsDivNm": "기술용역",
+            "refNo": "제주시설단-11513",
+            "prdctClsfcNoNm": "제주공항 전력계통 및 수배전시설 개량 설계용역",
+            "orderInsttNm": "한국공항공사 제주공항",
+            "rlDminsttNm": "한국공항공사 제주공항",
+            "asignBdgtAmt": "282858400",
+            "rcptDt": "2026-07-27 16:37:17",
+            "opninRgstClseDt": "2026-08-01 23:59:00",
+            "ofclTelNo": "064-797-2317",
+            "ofclNm": "정아람",
+            "swBizObjYn": "N",
+            "dlvrTmlmtDt": "",
+            "dlvrDaynum": "270",
+            "bfSpecRgstNo": "R26BD00257138",
+            "specDocFileUrl1": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00257138&fileType=BFDTL&fileSeq=1",
+            "specDocFileUrl2": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00257138&fileType=BFDTL&fileSeq=2",
+            "specDocFileUrl3": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00257138&fileType=BFDTL&fileSeq=3",
+            "specDocFileUrl4": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00257138&fileType=BFDTL&fileSeq=4",
+            "specDocFileUrl5": "",
+            "prdctDtlList": "",
+            "rgstDt": "2026-07-27 16:37:14",
+            "chgDt": "2026-07-27 16:37:17",
+            "bidNtceNoList": "R26BK01698007,R26BK01703607"
+          }
+        ],
+        "numOfRows": 50,
+        "pageNo": 1,
+        "totalCount": 2
+      }
+    }
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "schema_version": "bidops.lifecycle-name-search-cache.v1",
+  "cache_key": "00c4ac23f40b4de9a491fd22b8ae6318ff82149ddb954869db350e6aed530904",
+  "url": "https://apis.data.go.kr/1230000/ao/HrcspSsstndrdInfoService/getPublicPrcureThngInfoServcPPSSrch",
+  "query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=2026%EB%85%84+%EC%96%B4%EB%94%94Go+%EC%8B%A4%EC%8B%9C%EA%B0%84+%EC%9C%84%EC%B9%98+%EA%B3%B5%EC%9C%A0+%EC%84%9C%EB%B9%84%EC%8A%A4+%EC%82%AC%EC%97%85+%EC%9A%A9%EC%97%AD",
+  "response": {
+    "response": {
+      "header": {
+        "resultCode": "00",
+        "resultMsg": "정상"
+      },
+      "body": {
+        "items": [
+          {
+            "bsnsDivNm": "일반용역",
+            "refNo": "행정지원과-20377",
+            "prdctClsfcNoNm": "2026년 어디Go 실시간 위치 공유 서비스 사업 용역",
+            "orderInsttNm": "경상남도교육청 경상남도거제교육지원청",
+            "rlDminsttNm": "경상남도교육청 경상남도거제교육지원청",
+            "asignBdgtAmt": "71879000",
+            "rcptDt": "2026-08-18 18:41:23",
+            "opninRgstClseDt": "2026-08-21 23:59:00",
+            "ofclTelNo": "055-630-9281",
+            "ofclNm": "박진영",
+            "swBizObjYn": "N",
+            "dlvrTmlmtDt": "2027-02-28 00:00:00",
+            "dlvrDaynum": "0",
+            "bfSpecRgstNo": "R26BD00264948",
+            "specDocFileUrl1": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00264948&fileType=BFDTL&fileSeq=1",
+            "specDocFileUrl2": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00264948&fileType=BFDTL&fileSeq=2",
+            "specDocFileUrl3": "",
+            "specDocFileUrl4": "",
+            "specDocFileUrl5": "",
+            "prdctDtlList": "",
+            "rgstDt": "2026-08-18 18:41:20",
+            "chgDt": "2026-08-18 18:41:23",
+            "bidNtceNoList": "R26BK01695735"
+          }
+        ],
+        "numOfRows": 50,
+        "pageNo": 1,
+        "totalCount": 1
+      }
+    }
+  }
+}

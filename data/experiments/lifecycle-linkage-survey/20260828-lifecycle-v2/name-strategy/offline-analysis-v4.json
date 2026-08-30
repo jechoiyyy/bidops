@@ -1,0 +1,2360 @@
+{
+  "schema_version": "bidops.lifecycle-name-offline-analysis.v4",
+  "created_at": "2026-08-28T23:26:44.381723+09:00",
+  "offline_only": true,
+  "inputs": {
+    "raw_dir": "raw",
+    "baseline_probe": "name-match-probe.json",
+    "order_plan_count": 997,
+    "prespec_count": 650,
+    "bid_count": 1628,
+    "order_plan_items_sha256": "b66c7e22010a3defa96b95ebac848de33bdab92c8e40cfd49abda3a47f6148e6",
+    "prespec_items_sha256": "67094a3c99bef598a9571ba65616a483089bcf073a9be8a30c66ac0e9722bce5",
+    "bid_items_sha256": "270ad86adbcb9eb5acd43eb3d964d4984b22427380fbec5aefca7699c9f3942a"
+  },
+  "collision_risk": {
+    "order_plan": {
+      "record_count": 997,
+      "record_key": "orderPlanUntyNo",
+      "title_field": "bizNm",
+      "strategies": {
+        "full": {
+          "eligible_record_count": 997,
+          "unique_query_count": 989,
+          "collision_group_count": 8,
+          "collision_record_count": 16,
+          "collision_pair_count": 8,
+          "example_count": 8,
+          "examples_truncated": 0,
+          "examples": [
+            {
+              "query": "[건국대학교 산학협력단] 2026년 세계행정학회 서울대회 개최 및 운영 대행 용역",
+              "records": [
+                {
+                  "record_id": "R26DD20854618",
+                  "title": "[건국대학교 산학협력단] 2026년 세계행정학회 서울대회 개최 및 운영 대행 용역"
+                },
+                {
+                  "record_id": "R26DD20855286",
+                  "title": "[건국대학교 산학협력단] 2026년 세계행정학회 서울대회 개최 및 운영 대행 용역"
+                }
+              ]
+            },
+            {
+              "query": "각남지구농어촌생활용수개발사업GISDB구축용역",
+              "records": [
+                {
+                  "record_id": "R26DD20853370",
+                  "title": "각남지구농어촌생활용수개발사업GISDB구축용역"
+                },
+                {
+                  "record_id": "R26DD20852880",
+                  "title": "각남지구농어촌생활용수개발사업GISDB구축용역"
+                }
+              ]
+            },
+            {
+              "query": "국민통합을 위한 5대 사회갈등 국민 인식 조사",
+              "records": [
+                {
+                  "record_id": "R26DD20853698",
+                  "title": "국민통합을 위한 5대 사회갈등 국민 인식 조사"
+                },
+                {
+                  "record_id": "R26DD20853640",
+                  "title": "국민통합을 위한 5대 사회갈등 국민 인식 조사"
+                }
+              ]
+            },
+            {
+              "query": "무주군 소하천정비종합계획 재수립 및 지형도면고시 용역(1,2권역)",
+              "records": [
+                {
+                  "record_id": "R26DD20853139",
+                  "title": "무주군 소하천정비종합계획 재수립 및 지형도면고시 용역(1,2권역)"
+                },
+                {
+                  "record_id": "R26DD20853131",
+                  "title": "무주군 소하천정비종합계획 재수립 및 지형도면고시 용역(1,2권역) "
+                }
+              ]
+            },
+            {
+              "query": "충남대학교병원 중환자실 인프라 확충사업 설계용역",
+              "records": [
+                {
+                  "record_id": "R26DD20852671",
+                  "title": "충남대학교병원 중환자실 인프라 확충사업 설계용역"
+                },
+                {
+                  "record_id": "R26DD20852673",
+                  "title": "충남대학교병원 중환자실 인프라 확충사업 설계용역"
+                }
+              ]
+            },
+            {
+              "query": "태안군 강소형 스마트시티 조성사업 투어스테이션 건축감리",
+              "records": [
+                {
+                  "record_id": "R26DD20853461",
+                  "title": "태안군 강소형 스마트시티 조성사업 투어스테이션 건축감리"
+                },
+                {
+                  "record_id": "R26DD20853464",
+                  "title": "태안군 강소형 스마트시티 조성사업 투어스테이션 건축감리"
+                }
+              ]
+            },
+            {
+              "query": "하천화상감시장치 등 구매.설치 실시설계 용역",
+              "records": [
+                {
+                  "record_id": "R26DD20853734",
+                  "title": "하천화상감시장치 등 구매.설치 실시설계 용역"
+                },
+                {
+                  "record_id": "R26DD20853366",
+                  "title": "하천화상감시장치 등 구매.설치 실시설계 용역"
+                }
+              ]
+            },
+            {
+              "query": "효자미성으뜸 가로주택정비사업 주택건설공사 감리자(건축) 모집 공고",
+              "records": [
+                {
+                  "record_id": "R26DD20855426",
+                  "title": "효자미성으뜸 가로주택정비사업 주택건설공사 감리자(건축) 모집 공고"
+                },
+                {
+                  "record_id": "R26DD20855356",
+                  "title": "효자미성으뜸 가로주택정비사업 주택건설공사 감리자(건축) 모집 공고"
+                }
+              ]
+            }
+          ],
+          "increase_vs_full": {
+            "collision_group_count": 0,
+            "collision_record_count": 0,
+            "collision_pair_count": 0
+          }
+        },
+        "breaking_split": {
+          "eligible_record_count": 72,
+          "unique_query_count": 72,
+          "collision_group_count": 0,
+          "collision_record_count": 0,
+          "collision_pair_count": 0,
+          "example_count": 0,
+          "examples_truncated": 0,
+          "examples": [],
+          "increase_vs_full": {
+            "collision_group_count": -8,
+            "collision_record_count": -16,
+            "collision_pair_count": -8
+          }
+        },
+        "normalized": {
+          "eligible_record_count": 997,
+          "unique_query_count": 989,
+          "collision_group_count": 8,
+          "collision_record_count": 16,
+          "collision_pair_count": 8,
+          "example_count": 8,
+          "examples_truncated": 0,
+          "examples": [
+            {
+              "query": "각남지구농어촌생활용수개발사업GISDB구축용역",
+              "records": [
+                {
+                  "record_id": "R26DD20853370",
+                  "title": "각남지구농어촌생활용수개발사업GISDB구축용역"
+                },
+                {
+                  "record_id": "R26DD20852880",
+                  "title": "각남지구농어촌생활용수개발사업GISDB구축용역"
+                }
+              ]
+            },
+            {
+              "query": "건국대학교 산학협력단 2026년 세계행정학회 서울대회 개최 및 운영 대행 용역",
+              "records": [
+                {
+                  "record_id": "R26DD20854618",
+                  "title": "[건국대학교 산학협력단] 2026년 세계행정학회 서울대회 개최 및 운영 대행 용역"
+                },
+                {
+                  "record_id": "R26DD20855286",
+                  "title": "[건국대학교 산학협력단] 2026년 세계행정학회 서울대회 개최 및 운영 대행 용역"
+                }
+              ]
+            },
+            {
+              "query": "국민통합을 위한 5대 사회갈등 국민 인식 조사",
+              "records": [
+                {
+                  "record_id": "R26DD20853698",
+                  "title": "국민통합을 위한 5대 사회갈등 국민 인식 조사"
+                },
+                {
+                  "record_id": "R26DD20853640",
+                  "title": "국민통합을 위한 5대 사회갈등 국민 인식 조사"
+                }
+              ]
+            },
+            {
+              "query": "무주군 소하천정비종합계획 재수립 및 지형도면고시 용역 1 2권역",
+              "records": [
+                {
+                  "record_id": "R26DD20853139",
+                  "title": "무주군 소하천정비종합계획 재수립 및 지형도면고시 용역(1,2권역)"
+                },
+                {
+                  "record_id": "R26DD20853131",
+                  "title": "무주군 소하천정비종합계획 재수립 및 지형도면고시 용역(1,2권역) "
+                }
+              ]
+            },
+            {
+              "query": "충남대학교병원 중환자실 인프라 확충사업 설계용역",
+              "records": [
+                {
+                  "record_id": "R26DD20852671",
+                  "title": "충남대학교병원 중환자실 인프라 확충사업 설계용역"
+                },
+                {
+                  "record_id": "R26DD20852673",
+                  "title": "충남대학교병원 중환자실 인프라 확충사업 설계용역"
+                }
+              ]
+            },
+            {
+              "query": "태안군 강소형 스마트시티 조성사업 투어스테이션 건축감리",
+              "records": [
+                {
+                  "record_id": "R26DD20853461",
+                  "title": "태안군 강소형 스마트시티 조성사업 투어스테이션 건축감리"
+                },
+                {
+                  "record_id": "R26DD20853464",
+                  "title": "태안군 강소형 스마트시티 조성사업 투어스테이션 건축감리"
+                }
+              ]
+            },
+            {
+              "query": "하천화상감시장치 등 구매 설치 실시설계 용역",
+              "records": [
+                {
+                  "record_id": "R26DD20853734",
+                  "title": "하천화상감시장치 등 구매.설치 실시설계 용역"
+                },
+                {
+                  "record_id": "R26DD20853366",
+                  "title": "하천화상감시장치 등 구매.설치 실시설계 용역"
+                }
+              ]
+            },
+            {
+              "query": "효자미성으뜸 가로주택정비사업 주택건설공사 감리자 건축 모집 공고",
+              "records": [
+                {
+                  "record_id": "R26DD20855426",
+                  "title": "효자미성으뜸 가로주택정비사업 주택건설공사 감리자(건축) 모집 공고"
+                },
+                {
+                  "record_id": "R26DD20855356",
+                  "title": "효자미성으뜸 가로주택정비사업 주택건설공사 감리자(건축) 모집 공고"
+                }
+              ]
+            }
+          ],
+          "increase_vs_full": {
+            "collision_group_count": 0,
+            "collision_record_count": 0,
+            "collision_pair_count": 0
+          }
+        },
+        "longest_fragment": {
+          "eligible_record_count": 997,
+          "unique_query_count": 963,
+          "collision_group_count": 27,
+          "collision_record_count": 61,
+          "collision_pair_count": 41,
+          "example_count": 10,
+          "examples_truncated": 17,
+          "examples": [
+            {
+              "query": "2026학년도 서울대학교 경영전문대학원 MBA 해외현장학습",
+              "records": [
+                {
+                  "record_id": "R26DD20853273",
+                  "title": "2026학년도 서울대학교 경영전문대학원 MBA 해외현장학습(GRP, Global Residence Program) 위탁 운영(일본)"
+                },
+                {
+                  "record_id": "R26DD20853271",
+                  "title": "2026학년도 서울대학교 경영전문대학원 MBA 해외현장학습(GRP, Global Residence Program) 위탁 운영(대만)"
+                },
+                {
+                  "record_id": "R26DD20853266",
+                  "title": "2026학년도 서울대학교 경영전문대학원 MBA 해외현장학습(GRP, Global Residence Program) 위탁 운영(싱가포르)"
+                }
+              ]
+            },
+            {
+              "query": "광양 덕례지구 C2블럭 공동주택 신축공사",
+              "records": [
+                {
+                  "record_id": "R26DD20853466",
+                  "title": "광양 덕례지구 C2블럭 공동주택 신축공사_감리자모집공고(건축)"
+                },
+                {
+                  "record_id": "R26DD20853486",
+                  "title": "광양 덕례지구 C2블럭 공동주택 신축공사_감리자모집공고(전기)"
+                },
+                {
+                  "record_id": "R26DD20853494",
+                  "title": "광양 덕례지구 C2블럭 공동주택 신축공사_감리자모집공고(소방)"
+                }
+              ]
+            },
+            {
+              "query": "근로복지공단 울산병원 인력 위탁",
+              "records": [
+                {
+                  "record_id": "R26DD20855366",
+                  "title": "근로복지공단 울산병원 인력 위탁(미화, 경비) 용역"
+                },
+                {
+                  "record_id": "R26DD20855368",
+                  "title": "근로복지공단 울산병원 인력 위탁(원무) 용역"
+                },
+                {
+                  "record_id": "R26DD20855362",
+                  "title": "근로복지공단 울산병원 인력 위탁(시설 관리) 용역"
+                }
+              ]
+            },
+            {
+              "query": "수소안전기술원 청사관리 용역 계약",
+              "records": [
+                {
+                  "record_id": "R26DD20853336",
+                  "title": "수소안전기술원 청사관리 용역 계약(설비)"
+                },
+                {
+                  "record_id": "R26DD20853344",
+                  "title": "수소안전기술원 청사관리 용역 계약(경비)"
+                },
+                {
+                  "record_id": "R26DD20853338",
+                  "title": "수소안전기술원 청사관리 용역 계약(미화)"
+                }
+              ]
+            },
+            {
+              "query": "안동시 소하천정비 종합계획 재수립 및 지형도면고시 용역",
+              "records": [
+                {
+                  "record_id": "R26DD20852865",
+                  "title": "안동시 소하천정비 종합계획 재수립 및 지형도면고시 용역(1권역)"
+                },
+                {
+                  "record_id": "R26DD20853108",
+                  "title": "안동시 소하천정비 종합계획 재수립 및 지형도면고시 용역(2권역)"
+                },
+                {
+                  "record_id": "R26DD20853110",
+                  "title": "안동시 소하천정비 종합계획 재수립 및 지형도면고시 용역(3권역)"
+                }
+              ]
+            },
+            {
+              "query": "주택건설공사 감리자",
+              "records": [
+                {
+                  "record_id": "R26DD20853351",
+                  "title": "주택건설공사 감리자(건축) 모집 공고(방배13구역 재건축)"
+                },
+                {
+                  "record_id": "R26DD20853603",
+                  "title": "주택건설공사 감리자(건축) 모집공고[월산12지구 2BL]"
+                },
+                {
+                  "record_id": "R26DD20853356",
+                  "title": "주택건설공사 감리자(전기) 모집 공고(방배13구역 재건축)"
+                }
+              ]
+            },
+            {
+              "query": "평택 고덕국제화계획지구 Ab",
+              "records": [
+                {
+                  "record_id": "R26DD20853855",
+                  "title": "주택건설공사 감리자(건축) 모집 공고(평택 고덕국제화계획지구 Ab-52BL 공동주택 신축공사)"
+                },
+                {
+                  "record_id": "R26DD20854066",
+                  "title": "주택건설공사 감리업자(전기) 모집 공고(평택 고덕국제화계획지구 Ab-52BL 공동주택 신축공사)"
+                },
+                {
+                  "record_id": "R26DD20853991",
+                  "title": "주택건설공사 감리업자(소방)모집 공고(평택 고덕국제화계획지구 Ab-52BL 공동주택 신축공사)"
+                }
+              ]
+            },
+            {
+              "query": "2026년 글로벌 OTT 플랫폼 연계형 제작지원",
+              "records": [
+                {
+                  "record_id": "R26DD20855476",
+                  "title": "2026년 글로벌 OTT 플랫폼 연계형 제작지원(Rakuten Viki) 사업 조련의 여왕 의상 제작 및 운영 용역"
+                },
+                {
+                  "record_id": "R26DD20855487",
+                  "title": "2026년 글로벌 OTT 플랫폼 연계형 제작지원(Rakuten Viki) 사업 조련의 여왕 미술·세트·소품 제작 및 운영 용역"
+                }
+              ]
+            },
+            {
+              "query": "2026년 세계행정학회 서울대회 개최 및 운영 대행 용역",
+              "records": [
+                {
+                  "record_id": "R26DD20854618",
+                  "title": "[건국대학교 산학협력단] 2026년 세계행정학회 서울대회 개최 및 운영 대행 용역"
+                },
+                {
+                  "record_id": "R26DD20855286",
+                  "title": "[건국대학교 산학협력단] 2026년 세계행정학회 서울대회 개최 및 운영 대행 용역"
+                }
+              ]
+            },
+            {
+              "query": "2026년 제주 바다숲 2년차 조성해역",
+              "records": [
+                {
+                  "record_id": "R26DD20853372",
+                  "title": "2026년 제주 바다숲 2년차 조성해역(동부권) 해조류 확산단지 조성"
+                },
+                {
+                  "record_id": "R26DD20853300",
+                  "title": "2026년 제주 바다숲 2년차 조성해역(서부권) 해조류 확산단지 조성"
+                }
+              ]
+            }
+          ],
+          "increase_vs_full": {
+            "collision_group_count": 19,
+            "collision_record_count": 45,
+            "collision_pair_count": 33
+          }
+        },
+        "prefix12": {
+          "eligible_record_count": 997,
+          "unique_query_count": 923,
+          "collision_group_count": 61,
+          "collision_record_count": 135,
+          "collision_pair_count": 94,
+          "example_count": 10,
+          "examples_truncated": 51,
+          "examples": [
+            {
+              "query": "주택건설공사 감리자(건",
+              "records": [
+                {
+                  "record_id": "R26DD20852765",
+                  "title": "주택건설공사 감리자(건축) 모집공고(금호교대리 공동주택 신축)"
+                },
+                {
+                  "record_id": "R26DD20854277",
+                  "title": "주택건설공사 감리자(건축) 모집 공고(홍제3구역 주택재건축 정비사업)"
+                },
+                {
+                  "record_id": "R26DD20853855",
+                  "title": "주택건설공사 감리자(건축) 모집 공고(평택 고덕국제화계획지구 Ab-52BL 공동주택 신축공사)"
+                },
+                {
+                  "record_id": "R26DD20853351",
+                  "title": "주택건설공사 감리자(건축) 모집 공고(방배13구역 재건축)"
+                },
+                {
+                  "record_id": "R26DD20853603",
+                  "title": "주택건설공사 감리자(건축) 모집공고[월산12지구 2BL]"
+                }
+              ]
+            },
+            {
+              "query": "호산중·고등학교 통합운",
+              "records": [
+                {
+                  "record_id": "R26DD20852584",
+                  "title": "호산중·고등학교 통합운영학교 조성 기계설비공사 재해예방 기술지도용역"
+                },
+                {
+                  "record_id": "R26DD20852644",
+                  "title": "호산중·고등학교 통합운영학교 조성 전기공사 감리용역"
+                },
+                {
+                  "record_id": "R26DD20852678",
+                  "title": "호산중·고등학교 통합운영학교 조성 시설개선공사 재해예방 기술지도용역"
+                },
+                {
+                  "record_id": "R26DD20852715",
+                  "title": "호산중·고등학교 통합운영학교 조성 시설개선공사 건설폐기물 처리용역"
+                },
+                {
+                  "record_id": "R26DD20852607",
+                  "title": "호산중·고등학교 통합운영학교 조성 시설개선공사 재활용폐기물 처리용역"
+                }
+              ]
+            },
+            {
+              "query": "제8회 GAC공연예술축",
+              "records": [
+                {
+                  "record_id": "R26DD20854154",
+                  "title": "제8회 GAC공연예술축제 그라제 음향 임차"
+                },
+                {
+                  "record_id": "R26DD20854148",
+                  "title": "제8회 GAC공연예술축제 그라제 조명 임차"
+                },
+                {
+                  "record_id": "R26DD20854152",
+                  "title": "제8회 GAC공연예술축제 그라제 야외 공연용품 임차"
+                },
+                {
+                  "record_id": "R26DD20854150",
+                  "title": "제8회 GAC공연예술축제 그라제 야외무대 설치"
+                }
+              ]
+            },
+            {
+              "query": "2026학년도 서울대학",
+              "records": [
+                {
+                  "record_id": "R26DD20853273",
+                  "title": "2026학년도 서울대학교 경영전문대학원 MBA 해외현장학습(GRP, Global Residence Program) 위탁 운영(일본)"
+                },
+                {
+                  "record_id": "R26DD20853271",
+                  "title": "2026학년도 서울대학교 경영전문대학원 MBA 해외현장학습(GRP, Global Residence Program) 위탁 운영(대만)"
+                },
+                {
+                  "record_id": "R26DD20853266",
+                  "title": "2026학년도 서울대학교 경영전문대학원 MBA 해외현장학습(GRP, Global Residence Program) 위탁 운영(싱가포르)"
+                }
+              ]
+            },
+            {
+              "query": "광양 덕례지구 C2블럭",
+              "records": [
+                {
+                  "record_id": "R26DD20853466",
+                  "title": "광양 덕례지구 C2블럭 공동주택 신축공사_감리자모집공고(건축)"
+                },
+                {
+                  "record_id": "R26DD20853486",
+                  "title": "광양 덕례지구 C2블럭 공동주택 신축공사_감리자모집공고(전기)"
+                },
+                {
+                  "record_id": "R26DD20853494",
+                  "title": "광양 덕례지구 C2블럭 공동주택 신축공사_감리자모집공고(소방)"
+                }
+              ]
+            },
+            {
+              "query": "근로복지공단 울산병원",
+              "records": [
+                {
+                  "record_id": "R26DD20855366",
+                  "title": "근로복지공단 울산병원 인력 위탁(미화, 경비) 용역"
+                },
+                {
+                  "record_id": "R26DD20855368",
+                  "title": "근로복지공단 울산병원 인력 위탁(원무) 용역"
+                },
+                {
+                  "record_id": "R26DD20855362",
+                  "title": "근로복지공단 울산병원 인력 위탁(시설 관리) 용역"
+                }
+              ]
+            },
+            {
+              "query": "수소안전기술원 청사관리",
+              "records": [
+                {
+                  "record_id": "R26DD20853336",
+                  "title": "수소안전기술원 청사관리 용역 계약(설비)"
+                },
+                {
+                  "record_id": "R26DD20853344",
+                  "title": "수소안전기술원 청사관리 용역 계약(경비)"
+                },
+                {
+                  "record_id": "R26DD20853338",
+                  "title": "수소안전기술원 청사관리 용역 계약(미화)"
+                }
+              ]
+            },
+            {
+              "query": "안동시 소하천정비 종합",
+              "records": [
+                {
+                  "record_id": "R26DD20852865",
+                  "title": "안동시 소하천정비 종합계획 재수립 및 지형도면고시 용역(1권역)"
+                },
+                {
+                  "record_id": "R26DD20853108",
+                  "title": "안동시 소하천정비 종합계획 재수립 및 지형도면고시 용역(2권역)"
+                },
+                {
+                  "record_id": "R26DD20853110",
+                  "title": "안동시 소하천정비 종합계획 재수립 및 지형도면고시 용역(3권역)"
+                }
+              ]
+            },
+            {
+              "query": "(가칭)대장3초 신축",
+              "records": [
+                {
+                  "record_id": "R26DD20855037",
+                  "title": "(가칭)대장3초 신축 통신공사 재해예방 기술지도 용역"
+                },
+                {
+                  "record_id": "R26DD20855033",
+                  "title": "(가칭)대장3초 신축 전기공사 재해예방 기술지도 용역"
+                }
+              ]
+            },
+            {
+              "query": "(동의대학교 산학협력단",
+              "records": [
+                {
+                  "record_id": "R26DD20853358",
+                  "title": "(동의대학교 산학협력단) AI 교육용 키트 제작 및 교육 컨텐츠 제작"
+                },
+                {
+                  "record_id": "R26DD20853496",
+                  "title": "(동의대학교 산학협력단) 2026년 파워반도체 공유대학 운영 용역"
+                }
+              ]
+            }
+          ],
+          "increase_vs_full": {
+            "collision_group_count": 53,
+            "collision_record_count": 119,
+            "collision_pair_count": 86
+          }
+        }
+      }
+    },
+    "prespec": {
+      "record_count": 650,
+      "record_key": "bfSpecRgstNo",
+      "title_field": "prdctClsfcNoNm",
+      "strategies": {
+        "full": {
+          "eligible_record_count": 650,
+          "unique_query_count": 649,
+          "collision_group_count": 1,
+          "collision_record_count": 2,
+          "collision_pair_count": 1,
+          "example_count": 1,
+          "examples_truncated": 0,
+          "examples": [
+            {
+              "query": "2026년 소방정(전남705호) 기관수리 용역",
+              "records": [
+                {
+                  "record_id": "R26BD00267610",
+                  "title": "2026년 소방정(전남705호) 기관수리 용역"
+                },
+                {
+                  "record_id": "R26BD00267619",
+                  "title": "2026년 소방정(전남705호) 기관수리 용역"
+                }
+              ]
+            }
+          ],
+          "increase_vs_full": {
+            "collision_group_count": 0,
+            "collision_record_count": 0,
+            "collision_pair_count": 0
+          }
+        },
+        "breaking_split": {
+          "eligible_record_count": 55,
+          "unique_query_count": 48,
+          "collision_group_count": 1,
+          "collision_record_count": 8,
+          "collision_pair_count": 28,
+          "example_count": 1,
+          "examples_truncated": 0,
+          "examples": [
+            {
+              "query": "2026년 전주시 생활폐기물 수집",
+              "records": [
+                {
+                  "record_id": "R26BD00268014",
+                  "title": "2026년 전주시 생활폐기물 수집·운반 대행용역(1권역)(긴급)"
+                },
+                {
+                  "record_id": "R26BD00268015",
+                  "title": "2026년 전주시 생활폐기물 수집·운반 대행용역(2권역)(긴급)"
+                },
+                {
+                  "record_id": "R26BD00268019",
+                  "title": "2026년 전주시 생활폐기물 수집·운반 대행용역(3권역)(긴급)"
+                },
+                {
+                  "record_id": "R26BD00268020",
+                  "title": "2026년 전주시 생활폐기물 수집·운반 대행용역(4권역)(긴급)"
+                },
+                {
+                  "record_id": "R26BD00268021",
+                  "title": "2026년 전주시 생활폐기물 수집·운반 대행용역(5권역)(긴급)"
+                },
+                {
+                  "record_id": "R26BD00268023",
+                  "title": "2026년 전주시 생활폐기물 수집·운반 대행용역(6권역)(긴급)"
+                },
+                {
+                  "record_id": "R26BD00268024",
+                  "title": "2026년 전주시 생활폐기물 수집·운반 대행용역(7권역)(긴급)"
+                },
+                {
+                  "record_id": "R26BD00268026",
+                  "title": "2026년 전주시 생활폐기물 수집·운반 대행용역(8권역)(긴급)"
+                }
+              ]
+            }
+          ],
+          "increase_vs_full": {
+            "collision_group_count": 0,
+            "collision_record_count": 6,
+            "collision_pair_count": 27
+          }
+        },
+        "normalized": {
+          "eligible_record_count": 650,
+          "unique_query_count": 649,
+          "collision_group_count": 1,
+          "collision_record_count": 2,
+          "collision_pair_count": 1,
+          "example_count": 1,
+          "examples_truncated": 0,
+          "examples": [
+            {
+              "query": "2026년 소방정 전남705호 기관수리 용역",
+              "records": [
+                {
+                  "record_id": "R26BD00267610",
+                  "title": "2026년 소방정(전남705호) 기관수리 용역"
+                },
+                {
+                  "record_id": "R26BD00267619",
+                  "title": "2026년 소방정(전남705호) 기관수리 용역"
+                }
+              ]
+            }
+          ],
+          "increase_vs_full": {
+            "collision_group_count": 0,
+            "collision_record_count": 0,
+            "collision_pair_count": 0
+          }
+        },
+        "longest_fragment": {
+          "eligible_record_count": 650,
+          "unique_query_count": 625,
+          "collision_group_count": 13,
+          "collision_record_count": 38,
+          "collision_pair_count": 53,
+          "example_count": 10,
+          "examples_truncated": 3,
+          "examples": [
+            {
+              "query": "2026년 전주시 생활폐기물 수집",
+              "records": [
+                {
+                  "record_id": "R26BD00268014",
+                  "title": "2026년 전주시 생활폐기물 수집·운반 대행용역(1권역)(긴급)"
+                },
+                {
+                  "record_id": "R26BD00268015",
+                  "title": "2026년 전주시 생활폐기물 수집·운반 대행용역(2권역)(긴급)"
+                },
+                {
+                  "record_id": "R26BD00268019",
+                  "title": "2026년 전주시 생활폐기물 수집·운반 대행용역(3권역)(긴급)"
+                },
+                {
+                  "record_id": "R26BD00268020",
+                  "title": "2026년 전주시 생활폐기물 수집·운반 대행용역(4권역)(긴급)"
+                },
+                {
+                  "record_id": "R26BD00268021",
+                  "title": "2026년 전주시 생활폐기물 수집·운반 대행용역(5권역)(긴급)"
+                },
+                {
+                  "record_id": "R26BD00268023",
+                  "title": "2026년 전주시 생활폐기물 수집·운반 대행용역(6권역)(긴급)"
+                },
+                {
+                  "record_id": "R26BD00268024",
+                  "title": "2026년 전주시 생활폐기물 수집·운반 대행용역(7권역)(긴급)"
+                },
+                {
+                  "record_id": "R26BD00268026",
+                  "title": "2026년 전주시 생활폐기물 수집·운반 대행용역(8권역)(긴급)"
+                }
+              ]
+            },
+            {
+              "query": "과천과천 공공주택지구 조성공사 1공구 건설폐기물처리용역",
+              "records": [
+                {
+                  "record_id": "R26BD00268433",
+                  "title": "과천과천 공공주택지구 조성공사 1공구 건설폐기물처리용역(소각)"
+                },
+                {
+                  "record_id": "R26BD00268437",
+                  "title": "과천과천 공공주택지구 조성공사 1공구 건설폐기물처리용역(폐판넬재활용)"
+                },
+                {
+                  "record_id": "R26BD00268440",
+                  "title": "과천과천 공공주택지구 조성공사 1공구 건설폐기물처리용역(폐목재재활용)"
+                },
+                {
+                  "record_id": "R26BD00268445",
+                  "title": "과천과천 공공주택지구 조성공사 1공구 건설폐기물처리용역(폐아스콘 등)"
+                }
+              ]
+            },
+            {
+              "query": "2026학년도 서울대학교 경영전문대학원 MBA 해외현장학습",
+              "records": [
+                {
+                  "record_id": "R26BD00267250",
+                  "title": "2026학년도 서울대학교 경영전문대학원 MBA 해외현장학습(GRP, Global Residence Program) 위탁 운영(싱가포르)"
+                },
+                {
+                  "record_id": "R26BD00267252",
+                  "title": "2026학년도 서울대학교 경영전문대학원 MBA 해외현장학습(GRP, Global Residence Program) 위탁 운영(대만)"
+                },
+                {
+                  "record_id": "R26BD00267254",
+                  "title": "2026학년도 서울대학교 경영전문대학원 MBA 해외현장학습(GRP, Global Residence Program) 위탁 운영(일본)"
+                }
+              ]
+            },
+            {
+              "query": "갈곡리 하수관로 정비사업",
+              "records": [
+                {
+                  "record_id": "R26BD00267513",
+                  "title": "갈곡리 하수관로 정비사업(GIS DB 구축 용역)(전체분)"
+                },
+                {
+                  "record_id": "R26BD00267577",
+                  "title": "갈곡리 하수관로 정비사업(시공 및 준공검사 용역)(전체분)"
+                },
+                {
+                  "record_id": "R26BD00268345",
+                  "title": "갈곡리 하수관로 정비사업(폐기물 처리용역)(전체분)"
+                }
+              ]
+            },
+            {
+              "query": "광양 덕례지구 C2블럭 공동주택 신축공사",
+              "records": [
+                {
+                  "record_id": "R26BD00267102",
+                  "title": "광양 덕례지구 C2블럭 공동주택 신축공사_감리자모집공고(건축)"
+                },
+                {
+                  "record_id": "R26BD00267106",
+                  "title": "광양 덕례지구 C2블럭 공동주택 신축공사_감리자모집공고(전기)"
+                },
+                {
+                  "record_id": "R26BD00267109",
+                  "title": "광양 덕례지구 C2블럭 공동주택 신축공사_감리자모집공고(소방)"
+                }
+              ]
+            },
+            {
+              "query": "근로복지공단 울산병원 인력 위탁",
+              "records": [
+                {
+                  "record_id": "R26BD00267844",
+                  "title": "근로복지공단 울산병원 인력 위탁(시설 관리) 용역(R26BD00263785 재게시)"
+                },
+                {
+                  "record_id": "R26BD00267847",
+                  "title": "근로복지공단 울산병원 인력 위탁(미화, 경비) 용역(R26BD00263791 재게시)"
+                },
+                {
+                  "record_id": "R26BD00267849",
+                  "title": "근로복지공단 울산병원 인력 위탁(원무) 용역(R26BD00263804 재게시)"
+                }
+              ]
+            },
+            {
+              "query": "2026년 글로벌 OTT 플랫폼 연계형 제작지원",
+              "records": [
+                {
+                  "record_id": "R26BD00267893",
+                  "title": "2026년 글로벌 OTT 플랫폼 연계형 제작지원(Rakuten Viki) 사업 조련의 여왕 의상 제작 및 운영 용역"
+                },
+                {
+                  "record_id": "R26BD00267897",
+                  "title": "2026년 글로벌 OTT 플랫폼 연계형 제작지원(Rakuten Viki) 사업 조련의 여왕 미술·세트·소품 제작 및 운영 용역"
+                }
+              ]
+            },
+            {
+              "query": "2026년 소방정",
+              "records": [
+                {
+                  "record_id": "R26BD00267610",
+                  "title": "2026년 소방정(전남705호) 기관수리 용역"
+                },
+                {
+                  "record_id": "R26BD00267619",
+                  "title": "2026년 소방정(전남705호) 기관수리 용역"
+                }
+              ]
+            },
+            {
+              "query": "2026년 임대아파트 주방가구 및 신발장 제작설치납품 부분감독권한대행 등 건설사업관리",
+              "records": [
+                {
+                  "record_id": "R26BD00267999",
+                  "title": "2026년 임대아파트 주방가구 및 신발장 제작설치납품 부분감독권한대행 등 건설사업관리(1-1권역)"
+                },
+                {
+                  "record_id": "R26BD00268005",
+                  "title": "2026년 임대아파트 주방가구 및 신발장 제작설치납품 부분감독권한대행 등 건설사업관리(1-2권역)"
+                }
+              ]
+            },
+            {
+              "query": "강원랜드 도로제설 장비운영 용역",
+              "records": [
+                {
+                  "record_id": "R26BD00267495",
+                  "title": "강원랜드 도로제설 장비운영 용역[1구역]"
+                },
+                {
+                  "record_id": "R26BD00267504",
+                  "title": "강원랜드 도로제설 장비운영 용역[2구역]"
+                }
+              ]
+            }
+          ],
+          "increase_vs_full": {
+            "collision_group_count": 12,
+            "collision_record_count": 36,
+            "collision_pair_count": 52
+          }
+        },
+        "prefix12": {
+          "eligible_record_count": 650,
+          "unique_query_count": 602,
+          "collision_group_count": 31,
+          "collision_record_count": 79,
+          "collision_pair_count": 83,
+          "example_count": 10,
+          "examples_truncated": 21,
+          "examples": [
+            {
+              "query": "2026년 전주시 생활",
+              "records": [
+                {
+                  "record_id": "R26BD00268014",
+                  "title": "2026년 전주시 생활폐기물 수집·운반 대행용역(1권역)(긴급)"
+                },
+                {
+                  "record_id": "R26BD00268015",
+                  "title": "2026년 전주시 생활폐기물 수집·운반 대행용역(2권역)(긴급)"
+                },
+                {
+                  "record_id": "R26BD00268019",
+                  "title": "2026년 전주시 생활폐기물 수집·운반 대행용역(3권역)(긴급)"
+                },
+                {
+                  "record_id": "R26BD00268020",
+                  "title": "2026년 전주시 생활폐기물 수집·운반 대행용역(4권역)(긴급)"
+                },
+                {
+                  "record_id": "R26BD00268021",
+                  "title": "2026년 전주시 생활폐기물 수집·운반 대행용역(5권역)(긴급)"
+                },
+                {
+                  "record_id": "R26BD00268023",
+                  "title": "2026년 전주시 생활폐기물 수집·운반 대행용역(6권역)(긴급)"
+                },
+                {
+                  "record_id": "R26BD00268024",
+                  "title": "2026년 전주시 생활폐기물 수집·운반 대행용역(7권역)(긴급)"
+                },
+                {
+                  "record_id": "R26BD00268026",
+                  "title": "2026년 전주시 생활폐기물 수집·운반 대행용역(8권역)(긴급)"
+                }
+              ]
+            },
+            {
+              "query": "(긴급)2026년 유엔",
+              "records": [
+                {
+                  "record_id": "R26BD00268334",
+                  "title": "(긴급)2026년 유엔남구대학로자율상권조합 상인역량강화 및 맞춤형컨설팅 용역"
+                },
+                {
+                  "record_id": "R26BD00268344",
+                  "title": "(긴급)2026년 유엔남구대학로자율상권조합 낮앤 플리마켓 밤앤 비어축제 용역"
+                },
+                {
+                  "record_id": "R26BD00268346",
+                  "title": "(긴급)2026년 유엔남구대학로자율상권조합 청년과 외국인이 함께하는 문화예술 콘서트 용역"
+                },
+                {
+                  "record_id": "R26BD00268347",
+                  "title": "(긴급)2026년 유엔남구대학로자율상권조합 청년 창업지원 용역"
+                }
+              ]
+            },
+            {
+              "query": "과천과천 공공주택지구",
+              "records": [
+                {
+                  "record_id": "R26BD00268433",
+                  "title": "과천과천 공공주택지구 조성공사 1공구 건설폐기물처리용역(소각)"
+                },
+                {
+                  "record_id": "R26BD00268437",
+                  "title": "과천과천 공공주택지구 조성공사 1공구 건설폐기물처리용역(폐판넬재활용)"
+                },
+                {
+                  "record_id": "R26BD00268440",
+                  "title": "과천과천 공공주택지구 조성공사 1공구 건설폐기물처리용역(폐목재재활용)"
+                },
+                {
+                  "record_id": "R26BD00268445",
+                  "title": "과천과천 공공주택지구 조성공사 1공구 건설폐기물처리용역(폐아스콘 등)"
+                }
+              ]
+            },
+            {
+              "query": "국립대구박물관 복식문화",
+              "records": [
+                {
+                  "record_id": "R26BD00268178",
+                  "title": "국립대구박물관 복식문화관 건립공사 공사감독대행 건설사업관리 용역"
+                },
+                {
+                  "record_id": "R26BD00268348",
+                  "title": "국립대구박물관 복식문화관 건립공사 건설폐기물 처리용역"
+                },
+                {
+                  "record_id": "R26BD00268349",
+                  "title": "국립대구박물관 복식문화관 건립공사 폐아스콘 건설폐기물 처리용역"
+                },
+                {
+                  "record_id": "R26BD00268350",
+                  "title": "국립대구박물관 복식문화관 건립공사 가연성 건설폐기물 처리용역"
+                }
+              ]
+            },
+            {
+              "query": "2026학년도 서울대학",
+              "records": [
+                {
+                  "record_id": "R26BD00267250",
+                  "title": "2026학년도 서울대학교 경영전문대학원 MBA 해외현장학습(GRP, Global Residence Program) 위탁 운영(싱가포르)"
+                },
+                {
+                  "record_id": "R26BD00267252",
+                  "title": "2026학년도 서울대학교 경영전문대학원 MBA 해외현장학습(GRP, Global Residence Program) 위탁 운영(대만)"
+                },
+                {
+                  "record_id": "R26BD00267254",
+                  "title": "2026학년도 서울대학교 경영전문대학원 MBA 해외현장학습(GRP, Global Residence Program) 위탁 운영(일본)"
+                }
+              ]
+            },
+            {
+              "query": "갈곡리 하수관로 정비사",
+              "records": [
+                {
+                  "record_id": "R26BD00267513",
+                  "title": "갈곡리 하수관로 정비사업(GIS DB 구축 용역)(전체분)"
+                },
+                {
+                  "record_id": "R26BD00267577",
+                  "title": "갈곡리 하수관로 정비사업(시공 및 준공검사 용역)(전체분)"
+                },
+                {
+                  "record_id": "R26BD00268345",
+                  "title": "갈곡리 하수관로 정비사업(폐기물 처리용역)(전체분)"
+                }
+              ]
+            },
+            {
+              "query": "광양 덕례지구 C2블럭",
+              "records": [
+                {
+                  "record_id": "R26BD00267102",
+                  "title": "광양 덕례지구 C2블럭 공동주택 신축공사_감리자모집공고(건축)"
+                },
+                {
+                  "record_id": "R26BD00267106",
+                  "title": "광양 덕례지구 C2블럭 공동주택 신축공사_감리자모집공고(전기)"
+                },
+                {
+                  "record_id": "R26BD00267109",
+                  "title": "광양 덕례지구 C2블럭 공동주택 신축공사_감리자모집공고(소방)"
+                }
+              ]
+            },
+            {
+              "query": "국지도 23호선 소음저",
+              "records": [
+                {
+                  "record_id": "R26BD00267899",
+                  "title": "국지도 23호선 소음저감시설(방음터널) 방재시설 소방공사 감리용역"
+                },
+                {
+                  "record_id": "R26BD00267900",
+                  "title": "국지도 23호선 소음저감시설(방음터널) 방재시설 전기공사 감리용역"
+                },
+                {
+                  "record_id": "R26BD00267906",
+                  "title": "국지도 23호선 소음저감시설(방음터널) 방재시설 정보통신공사 감리용역"
+                }
+              ]
+            },
+            {
+              "query": "근로복지공단 울산병원",
+              "records": [
+                {
+                  "record_id": "R26BD00267844",
+                  "title": "근로복지공단 울산병원 인력 위탁(시설 관리) 용역(R26BD00263785 재게시)"
+                },
+                {
+                  "record_id": "R26BD00267847",
+                  "title": "근로복지공단 울산병원 인력 위탁(미화, 경비) 용역(R26BD00263791 재게시)"
+                },
+                {
+                  "record_id": "R26BD00267849",
+                  "title": "근로복지공단 울산병원 인력 위탁(원무) 용역(R26BD00263804 재게시)"
+                }
+              ]
+            },
+            {
+              "query": "(긴급)남양주도심 공공",
+              "records": [
+                {
+                  "record_id": "R26BD00267902",
+                  "title": "(긴급)남양주도심 공공주택지구 재해영향성검토 용역"
+                },
+                {
+                  "record_id": "R26BD00267903",
+                  "title": "(긴급)남양주도심 공공주택지구 전략환경영향평가 및 기후변화영향평가 용역"
+                }
+              ]
+            }
+          ],
+          "increase_vs_full": {
+            "collision_group_count": 30,
+            "collision_record_count": 77,
+            "collision_pair_count": 82
+          }
+        }
+      }
+    }
+  },
+  "missed_pair_ladder": {
+    "source": "name-match-probe.json",
+    "schema_version": "bidops.lifecycle-name-match-probe.v1",
+    "failed_pair_count": 29,
+    "total_variant_count": 91,
+    "query_length_by_strategy": {
+      "full": {
+        "count": 29,
+        "min": 16,
+        "max": 54,
+        "mean": 32.31,
+        "distribution": {
+          "16": 2,
+          "19": 1,
+          "21": 1,
+          "25": 1,
+          "28": 2,
+          "29": 1,
+          "30": 4,
+          "31": 1,
+          "32": 2,
+          "34": 3,
+          "35": 3,
+          "36": 1,
+          "38": 1,
+          "40": 2,
+          "41": 1,
+          "42": 2,
+          "54": 1
+        }
+      },
+      "breaking_split": {
+        "count": 9,
+        "min": 16,
+        "max": 27,
+        "mean": 22.56,
+        "distribution": {
+          "16": 2,
+          "18": 1,
+          "23": 1,
+          "25": 2,
+          "26": 1,
+          "27": 2
+        }
+      },
+      "normalized": {
+        "count": 17,
+        "min": 21,
+        "max": 46,
+        "mean": 34.59,
+        "distribution": {
+          "21": 1,
+          "28": 2,
+          "29": 1,
+          "30": 1,
+          "31": 1,
+          "33": 1,
+          "35": 2,
+          "36": 2,
+          "39": 2,
+          "40": 2,
+          "42": 1,
+          "46": 1
+        }
+      },
+      "longest_fragment": {
+        "count": 7,
+        "min": 17,
+        "max": 34,
+        "mean": 23.71,
+        "distribution": {
+          "17": 2,
+          "22": 1,
+          "24": 1,
+          "25": 1,
+          "27": 1,
+          "34": 1
+        }
+      },
+      "prefix12": {
+        "count": 29,
+        "min": 11,
+        "max": 12,
+        "mean": 11.76,
+        "distribution": {
+          "11": 7,
+          "12": 22
+        }
+      }
+    },
+    "breaking_split": {
+      "pair_count": 9,
+      "queries": [
+        {
+          "plan_id": "R26DD20855357",
+          "expected_spec_no": "R26BD00265850",
+          "plan_title": "2026학년도 하반기 G7&GX 분야 산업 중심 직무역량 강화 프로그램 운영",
+          "breaking_chars": [
+            "&"
+          ],
+          "query": "GX 분야 산업 중심 직무역량 강화 프로그램 운영"
+        },
+        {
+          "plan_id": "R26DD20853631",
+          "expected_spec_no": "R26BD00258566",
+          "plan_title": "서울5호선 김포·검단 연장사업 타당성평가 및 기본계획 수립 용역",
+          "breaking_chars": [
+            "·"
+          ],
+          "query": "검단 연장사업 타당성평가 및 기본계획 수립 용역"
+        },
+        {
+          "plan_id": "R26DD20853362",
+          "expected_spec_no": "R26BD00265604",
+          "plan_title": "농업 분야 메탄·아산화질소 배출 저감 농자재 실증·사업화",
+          "breaking_chars": [
+            "·"
+          ],
+          "query": "아산화질소 배출 저감 농자재 실증"
+        },
+        {
+          "plan_id": "R26DD20855024",
+          "expected_spec_no": "R26BD00265852",
+          "plan_title": "수원 H·S 아파트 재정비 컨설팅 용역",
+          "breaking_chars": [
+            "·"
+          ],
+          "query": "S 아파트 재정비 컨설팅 용역"
+        },
+        {
+          "plan_id": "R26DD20853321",
+          "expected_spec_no": "R26BD00265024",
+          "plan_title": "직무 중심 인사·보수 체계 고도화 및 주요사업 계량지표 개선 용역",
+          "breaking_chars": [
+            "·"
+          ],
+          "query": "보수 체계 고도화 및 주요사업 계량지표 개선 용역"
+        },
+        {
+          "plan_id": "R26DD20853320",
+          "expected_spec_no": "R26BD00264606",
+          "plan_title": "수입·지출 구조 및 검역수수료 합리화 방안 연구용역",
+          "breaking_chars": [
+            "·"
+          ],
+          "query": "지출 구조 및 검역수수료 합리화 방안 연구용역"
+        },
+        {
+          "plan_id": "R26DD20853445",
+          "expected_spec_no": "R26BD00265420",
+          "plan_title": "대전환경사업지방자치단체조합 생활폐기물 수집·운반차량 자동차보험 가입 계약",
+          "breaking_chars": [
+            "·"
+          ],
+          "query": "대전환경사업지방자치단체조합 생활폐기물 수집"
+        },
+        {
+          "plan_id": "R26DD20853714",
+          "expected_spec_no": "R26BD00267196",
+          "plan_title": "2026 디지털새싹 교재 개발·제작 7종 용역(하반기)",
+          "breaking_chars": [
+            "·"
+          ],
+          "query": "2026 디지털새싹 교재 개발"
+        },
+        {
+          "plan_id": "R26DD20852730",
+          "expected_spec_no": "R26BD00252146",
+          "plan_title": "석현·대월 처리구역 하수관로 정비사업 폐기물처리용역",
+          "breaking_chars": [
+            "·"
+          ],
+          "query": "대월 처리구역 하수관로 정비사업 폐기물처리용역"
+        }
+      ]
+    },
+    "confirmed_breaking_failure_count": 9,
+    "unexplained_failure_count": 20,
+    "unexplained_commonality": {
+      "status": "unknown",
+      "inference": false,
+      "note": "확정 파손 문자 5종으로 설명되지 않는 20건에서 API 호출 없이 공통 원인을 판정하지 않음."
+    },
+    "unexplained_pairs": [
+      {
+        "plan_id": "R26DD20854242",
+        "expected_spec_no": "R26BD00265353",
+        "plan_title": "2026년 군포시늘푸른노인복지관 식자재 납품업체 입찰 공고"
+      },
+      {
+        "plan_id": "R26DD20853461",
+        "expected_spec_no": "R26BD00265761",
+        "plan_title": "태안군 강소형 스마트시티 조성사업 투어스테이션 건축감리"
+      },
+      {
+        "plan_id": "R26DD20854994",
+        "expected_spec_no": "R26BD00265644",
+        "plan_title": "2026년창녕군공공하수도기술진단용역사업수행능력평가서제출안내공고"
+      },
+      {
+        "plan_id": "R26DD20853626",
+        "expected_spec_no": "R26BD00265177",
+        "plan_title": "국제우편 세관검사센터 자동분류장비 도입 사업 기술(감리) 용역"
+      },
+      {
+        "plan_id": "R26DD20853836",
+        "expected_spec_no": "R26BD00257138",
+        "plan_title": "제주공항 전력계통 및 수배전설비 개량 설계용역"
+      },
+      {
+        "plan_id": "R26DD20853464",
+        "expected_spec_no": "R26BD00265766",
+        "plan_title": "태안군 강소형 스마트시티 조성사업 투어스테이션 건축감리"
+      },
+      {
+        "plan_id": "R26DD20854927",
+        "expected_spec_no": "R26BD00258621",
+        "plan_title": "[재공고] 「2026년 우수물류기업 인증제 심사업무 대행」 사업 중 웹사이트 기능개선 및 유지관리"
+      },
+      {
+        "plan_id": "R26DD20854788",
+        "expected_spec_no": "R26BD00267599",
+        "plan_title": "건설공사 안전점검 수행기관 지정(광사동 652-4, 오피스텔등 신축)"
+      },
+      {
+        "plan_id": "R26DD20853339",
+        "expected_spec_no": "R26BD00265650",
+        "plan_title": "2026학년도 마산제일여자중학교 2학년 수학여행 용역"
+      },
+      {
+        "plan_id": "R26DD20855148",
+        "expected_spec_no": "R26BD00266087",
+        "plan_title": "2026. 김해교육지원청 어디Go 실시간 위치 공유 서비스사업 위탁 용역"
+      },
+      {
+        "plan_id": "R26DD20854428",
+        "expected_spec_no": "R26BD00265046",
+        "plan_title": "2027학년도 시흥능곡고 2학년 수련활동 위탁용역 입찰공고"
+      },
+      {
+        "plan_id": "R26DD20854149",
+        "expected_spec_no": "756503",
+        "plan_title": "제22회 도농 어울림 나눔축제"
+      },
+      {
+        "plan_id": "R26DD20855263",
+        "expected_spec_no": "R26BD00264170",
+        "plan_title": "수중 자율기동 표적 장비 보험"
+      },
+      {
+        "plan_id": "R26DD20855422",
+        "expected_spec_no": "R26BD00261898",
+        "plan_title": "울산공항 관리동 및 장비고 신축공사 건설폐기물 처리 용"
+      },
+      {
+        "plan_id": "R26DD20854538",
+        "expected_spec_no": "R26BD00266314",
+        "plan_title": "2026. 직업계고 글로벌 현장학습 위탁용역 2단계(규격.가격 동시) 입찰"
+      },
+      {
+        "plan_id": "R26DD20854819",
+        "expected_spec_no": "R26BD00263814",
+        "plan_title": "26-N-함정 6.6kV 전력망 도입 대비 기술 확보 방안 연구"
+      },
+      {
+        "plan_id": "R26DD20853987",
+        "expected_spec_no": "R26BD00265506",
+        "plan_title": "김천시 DRT 도입에 따른 노선 전면 개편 및 교통량 조사 용역"
+      },
+      {
+        "plan_id": "R26DD20853902",
+        "expected_spec_no": "R26BD00264568",
+        "plan_title": "경주시립도서관 홈페이지 서비스 개선"
+      },
+      {
+        "plan_id": "R26DD20853725",
+        "expected_spec_no": "R26BD00266492",
+        "plan_title": "2026 경북학교예술교육페스티벌 「어울림 1000인 음악제」 운영 대행 용역"
+      },
+      {
+        "plan_id": "R26DD20852160",
+        "expected_spec_no": "R26BD00264948",
+        "plan_title": "(긴급)2026년 어디Go 실시간 위치 공유 서비스 사업 용역"
+      }
+    ],
+    "confirmed_breaking_chars": [
+      "·",
+      "&",
+      "‘",
+      "’",
+      "•"
+    ],
+    "unknown_chars": [
+      "∙"
+    ],
+    "breaking_split_rationale": "확정 파손 문자만 제거한 가장 긴 연속 부분문자열을 사용해, longest_fragment보다 무해 문맥을 더 많이 보존한다.",
+    "breaking_split_contract": {
+      "all_queries_are_source_substrings": true,
+      "unknown_u2219_is_not_split": true
+    },
+    "pairs": [
+      {
+        "plan_id": "R26DD20854242",
+        "expected_spec_no": "R26BD00265353",
+        "plan_title": "2026년 군포시늘푸른노인복지관 식자재 납품업체 입찰 공고",
+        "variants": [
+          {
+            "strategy": "full",
+            "query": "2026년 군포시늘푸른노인복지관 식자재 납품업체 입찰 공고",
+            "query_length": 32,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "prefix12",
+            "query": "2026년 군포시늘푸른",
+            "query_length": 12,
+            "is_literal_substring": null
+          }
+        ]
+      },
+      {
+        "plan_id": "R26DD20855357",
+        "expected_spec_no": "R26BD00265850",
+        "plan_title": "2026학년도 하반기 G7&GX 분야 산업 중심 직무역량 강화 프로그램 운영",
+        "variants": [
+          {
+            "strategy": "full",
+            "query": "2026학년도 하반기 G7&GX 분야 산업 중심 직무역량 강화 프로그램 운영",
+            "query_length": 42,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "breaking_split",
+            "query": "GX 분야 산업 중심 직무역량 강화 프로그램 운영",
+            "query_length": 27,
+            "is_literal_substring": true
+          },
+          {
+            "strategy": "normalized",
+            "query": "2026학년도 하반기 G7 GX 분야 산업 중심 직무역량 강화 프로그램 운영",
+            "query_length": 42,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "prefix12",
+            "query": "2026학년도 하반기",
+            "query_length": 11,
+            "is_literal_substring": null
+          }
+        ]
+      },
+      {
+        "plan_id": "R26DD20853461",
+        "expected_spec_no": "R26BD00265761",
+        "plan_title": "태안군 강소형 스마트시티 조성사업 투어스테이션 건축감리",
+        "variants": [
+          {
+            "strategy": "full",
+            "query": "태안군 강소형 스마트시티 조성사업 투어스테이션 건축감리",
+            "query_length": 30,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "prefix12",
+            "query": "태안군 강소형 스마트시",
+            "query_length": 12,
+            "is_literal_substring": null
+          }
+        ]
+      },
+      {
+        "plan_id": "R26DD20854994",
+        "expected_spec_no": "R26BD00265644",
+        "plan_title": "2026년창녕군공공하수도기술진단용역사업수행능력평가서제출안내공고",
+        "variants": [
+          {
+            "strategy": "full",
+            "query": "2026년창녕군공공하수도기술진단용역사업수행능력평가서제출안내공고",
+            "query_length": 34,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "prefix12",
+            "query": "2026년창녕군공공하수",
+            "query_length": 12,
+            "is_literal_substring": null
+          }
+        ]
+      },
+      {
+        "plan_id": "R26DD20853626",
+        "expected_spec_no": "R26BD00265177",
+        "plan_title": "국제우편 세관검사센터 자동분류장비 도입 사업 기술(감리) 용역",
+        "variants": [
+          {
+            "strategy": "full",
+            "query": "국제우편 세관검사센터 자동분류장비 도입 사업 기술(감리) 용역",
+            "query_length": 34,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "normalized",
+            "query": "국제우편 세관검사센터 자동분류장비 도입 사업 기술 감리 용역",
+            "query_length": 33,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "longest_fragment",
+            "query": "국제우편 세관검사센터 자동분류장비 도입 사업 기술",
+            "query_length": 27,
+            "is_literal_substring": true
+          },
+          {
+            "strategy": "prefix12",
+            "query": "국제우편 세관검사센터",
+            "query_length": 11,
+            "is_literal_substring": null
+          }
+        ]
+      },
+      {
+        "plan_id": "R26DD20853836",
+        "expected_spec_no": "R26BD00257138",
+        "plan_title": "제주공항 전력계통 및 수배전설비 개량 설계용역",
+        "variants": [
+          {
+            "strategy": "full",
+            "query": "제주공항 전력계통 및 수배전설비 개량 설계용역",
+            "query_length": 25,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "prefix12",
+            "query": "제주공항 전력계통 및",
+            "query_length": 11,
+            "is_literal_substring": null
+          }
+        ]
+      },
+      {
+        "plan_id": "R26DD20853631",
+        "expected_spec_no": "R26BD00258566",
+        "plan_title": "서울5호선 김포·검단 연장사업 타당성평가 및 기본계획 수립 용역",
+        "variants": [
+          {
+            "strategy": "full",
+            "query": "서울5호선 김포·검단 연장사업 타당성평가 및 기본계획 수립 용역",
+            "query_length": 35,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "breaking_split",
+            "query": "검단 연장사업 타당성평가 및 기본계획 수립 용역",
+            "query_length": 26,
+            "is_literal_substring": true
+          },
+          {
+            "strategy": "normalized",
+            "query": "서울5호선 김포 검단 연장사업 타당성평가 및 기본계획 수립 용역",
+            "query_length": 35,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "prefix12",
+            "query": "서울5호선 김포·검단",
+            "query_length": 11,
+            "is_literal_substring": null
+          }
+        ]
+      },
+      {
+        "plan_id": "R26DD20853362",
+        "expected_spec_no": "R26BD00265604",
+        "plan_title": "농업 분야 메탄·아산화질소 배출 저감 농자재 실증·사업화",
+        "variants": [
+          {
+            "strategy": "full",
+            "query": "농업 분야 메탄·아산화질소 배출 저감 농자재 실증·사업화",
+            "query_length": 31,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "breaking_split",
+            "query": "아산화질소 배출 저감 농자재 실증",
+            "query_length": 18,
+            "is_literal_substring": true
+          },
+          {
+            "strategy": "normalized",
+            "query": "농업 분야 메탄 아산화질소 배출 저감 농자재 실증 사업화",
+            "query_length": 31,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "prefix12",
+            "query": "농업 분야 메탄·아산화",
+            "query_length": 12,
+            "is_literal_substring": null
+          }
+        ]
+      },
+      {
+        "plan_id": "R26DD20853464",
+        "expected_spec_no": "R26BD00265766",
+        "plan_title": "태안군 강소형 스마트시티 조성사업 투어스테이션 건축감리",
+        "variants": [
+          {
+            "strategy": "full",
+            "query": "태안군 강소형 스마트시티 조성사업 투어스테이션 건축감리",
+            "query_length": 30,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "prefix12",
+            "query": "태안군 강소형 스마트시",
+            "query_length": 12,
+            "is_literal_substring": null
+          }
+        ]
+      },
+      {
+        "plan_id": "R26DD20855024",
+        "expected_spec_no": "R26BD00265852",
+        "plan_title": "수원 H·S 아파트 재정비 컨설팅 용역",
+        "variants": [
+          {
+            "strategy": "full",
+            "query": "수원 H·S 아파트 재정비 컨설팅 용역",
+            "query_length": 21,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "breaking_split",
+            "query": "S 아파트 재정비 컨설팅 용역",
+            "query_length": 16,
+            "is_literal_substring": true
+          },
+          {
+            "strategy": "normalized",
+            "query": "수원 H S 아파트 재정비 컨설팅 용역",
+            "query_length": 21,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "prefix12",
+            "query": "수원 H·S 아파트 재",
+            "query_length": 12,
+            "is_literal_substring": null
+          }
+        ]
+      },
+      {
+        "plan_id": "R26DD20854927",
+        "expected_spec_no": "R26BD00258621",
+        "plan_title": "[재공고] 「2026년 우수물류기업 인증제 심사업무 대행」 사업 중 웹사이트 기능개선 및 유지관리",
+        "variants": [
+          {
+            "strategy": "full",
+            "query": "[재공고] 「2026년 우수물류기업 인증제 심사업무 대행」 사업 중 웹사이트 기능개선 및 유지관리",
+            "query_length": 54,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "normalized",
+            "query": "2026년 우수물류기업 인증제 심사업무 대행 사업 중 웹사이트 기능개선 및 유지관리",
+            "query_length": 46,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "longest_fragment",
+            "query": "2026년 우수물류기업 인증제 심사업무 대행",
+            "query_length": 24,
+            "is_literal_substring": true
+          },
+          {
+            "strategy": "prefix12",
+            "query": "[재공고] 「2026년",
+            "query_length": 12,
+            "is_literal_substring": null
+          }
+        ]
+      },
+      {
+        "plan_id": "R26DD20854788",
+        "expected_spec_no": "R26BD00267599",
+        "plan_title": "건설공사 안전점검 수행기관 지정(광사동 652-4, 오피스텔등 신축)",
+        "variants": [
+          {
+            "strategy": "full",
+            "query": "건설공사 안전점검 수행기관 지정(광사동 652-4, 오피스텔등 신축)",
+            "query_length": 38,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "normalized",
+            "query": "건설공사 안전점검 수행기관 지정 광사동 652 4 오피스텔등 신축",
+            "query_length": 36,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "longest_fragment",
+            "query": "건설공사 안전점검 수행기관 지정",
+            "query_length": 17,
+            "is_literal_substring": true
+          },
+          {
+            "strategy": "prefix12",
+            "query": "건설공사 안전점검 수행",
+            "query_length": 12,
+            "is_literal_substring": null
+          }
+        ]
+      },
+      {
+        "plan_id": "R26DD20853339",
+        "expected_spec_no": "R26BD00265650",
+        "plan_title": "2026학년도 마산제일여자중학교 2학년 수학여행 용역",
+        "variants": [
+          {
+            "strategy": "full",
+            "query": "2026학년도 마산제일여자중학교 2학년 수학여행 용역",
+            "query_length": 29,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "prefix12",
+            "query": "2026학년도 마산제일",
+            "query_length": 12,
+            "is_literal_substring": null
+          }
+        ]
+      },
+      {
+        "plan_id": "R26DD20853321",
+        "expected_spec_no": "R26BD00265024",
+        "plan_title": "직무 중심 인사·보수 체계 고도화 및 주요사업 계량지표 개선 용역",
+        "variants": [
+          {
+            "strategy": "full",
+            "query": "직무 중심 인사·보수 체계 고도화 및 주요사업 계량지표 개선 용역",
+            "query_length": 36,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "breaking_split",
+            "query": "보수 체계 고도화 및 주요사업 계량지표 개선 용역",
+            "query_length": 27,
+            "is_literal_substring": true
+          },
+          {
+            "strategy": "normalized",
+            "query": "직무 중심 인사 보수 체계 고도화 및 주요사업 계량지표 개선 용역",
+            "query_length": 36,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "prefix12",
+            "query": "직무 중심 인사·보수",
+            "query_length": 11,
+            "is_literal_substring": null
+          }
+        ]
+      },
+      {
+        "plan_id": "R26DD20853320",
+        "expected_spec_no": "R26BD00264606",
+        "plan_title": "수입·지출 구조 및 검역수수료 합리화 방안 연구용역",
+        "variants": [
+          {
+            "strategy": "full",
+            "query": "수입·지출 구조 및 검역수수료 합리화 방안 연구용역",
+            "query_length": 28,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "breaking_split",
+            "query": "지출 구조 및 검역수수료 합리화 방안 연구용역",
+            "query_length": 25,
+            "is_literal_substring": true
+          },
+          {
+            "strategy": "normalized",
+            "query": "수입 지출 구조 및 검역수수료 합리화 방안 연구용역",
+            "query_length": 28,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "prefix12",
+            "query": "수입·지출 구조 및 검",
+            "query_length": 12,
+            "is_literal_substring": null
+          }
+        ]
+      },
+      {
+        "plan_id": "R26DD20855148",
+        "expected_spec_no": "R26BD00266087",
+        "plan_title": "2026. 김해교육지원청 어디Go 실시간 위치 공유 서비스사업 위탁 용역",
+        "variants": [
+          {
+            "strategy": "full",
+            "query": "2026. 김해교육지원청 어디Go 실시간 위치 공유 서비스사업 위탁 용역",
+            "query_length": 40,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "normalized",
+            "query": "2026 김해교육지원청 어디Go 실시간 위치 공유 서비스사업 위탁 용역",
+            "query_length": 39,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "longest_fragment",
+            "query": "김해교육지원청 어디Go 실시간 위치 공유 서비스사업 위탁 용역",
+            "query_length": 34,
+            "is_literal_substring": true
+          },
+          {
+            "strategy": "prefix12",
+            "query": "2026. 김해교육지원",
+            "query_length": 12,
+            "is_literal_substring": null
+          }
+        ]
+      },
+      {
+        "plan_id": "R26DD20854428",
+        "expected_spec_no": "R26BD00265046",
+        "plan_title": "2027학년도 시흥능곡고 2학년 수련활동 위탁용역 입찰공고",
+        "variants": [
+          {
+            "strategy": "full",
+            "query": "2027학년도 시흥능곡고 2학년 수련활동 위탁용역 입찰공고",
+            "query_length": 32,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "prefix12",
+            "query": "2027학년도 시흥능곡",
+            "query_length": 12,
+            "is_literal_substring": null
+          }
+        ]
+      },
+      {
+        "plan_id": "R26DD20853445",
+        "expected_spec_no": "R26BD00265420",
+        "plan_title": "대전환경사업지방자치단체조합 생활폐기물 수집·운반차량 자동차보험 가입 계약",
+        "variants": [
+          {
+            "strategy": "full",
+            "query": "대전환경사업지방자치단체조합 생활폐기물 수집·운반차량 자동차보험 가입 계약",
+            "query_length": 40,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "breaking_split",
+            "query": "대전환경사업지방자치단체조합 생활폐기물 수집",
+            "query_length": 23,
+            "is_literal_substring": true
+          },
+          {
+            "strategy": "normalized",
+            "query": "대전환경사업지방자치단체조합 생활폐기물 수집 운반차량 자동차보험 가입 계약",
+            "query_length": 40,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "prefix12",
+            "query": "대전환경사업지방자치단체",
+            "query_length": 12,
+            "is_literal_substring": null
+          }
+        ]
+      },
+      {
+        "plan_id": "R26DD20854149",
+        "expected_spec_no": "756503",
+        "plan_title": "제22회 도농 어울림 나눔축제",
+        "variants": [
+          {
+            "strategy": "full",
+            "query": "제22회 도농 어울림 나눔축제",
+            "query_length": 16,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "prefix12",
+            "query": "제22회 도농 어울림",
+            "query_length": 11,
+            "is_literal_substring": null
+          }
+        ]
+      },
+      {
+        "plan_id": "R26DD20853714",
+        "expected_spec_no": "R26BD00267196",
+        "plan_title": "2026 디지털새싹 교재 개발·제작 7종 용역(하반기)",
+        "variants": [
+          {
+            "strategy": "full",
+            "query": "2026 디지털새싹 교재 개발·제작 7종 용역(하반기)",
+            "query_length": 30,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "breaking_split",
+            "query": "2026 디지털새싹 교재 개발",
+            "query_length": 16,
+            "is_literal_substring": true
+          },
+          {
+            "strategy": "normalized",
+            "query": "2026 디지털새싹 교재 개발 제작 7종 용역 하반기",
+            "query_length": 29,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "prefix12",
+            "query": "2026 디지털새싹 교",
+            "query_length": 12,
+            "is_literal_substring": null
+          }
+        ]
+      },
+      {
+        "plan_id": "R26DD20855263",
+        "expected_spec_no": "R26BD00264170",
+        "plan_title": "수중 자율기동 표적 장비 보험",
+        "variants": [
+          {
+            "strategy": "full",
+            "query": "수중 자율기동 표적 장비 보험",
+            "query_length": 16,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "prefix12",
+            "query": "수중 자율기동 표적 장",
+            "query_length": 12,
+            "is_literal_substring": null
+          }
+        ]
+      },
+      {
+        "plan_id": "R26DD20852730",
+        "expected_spec_no": "R26BD00252146",
+        "plan_title": "석현·대월 처리구역 하수관로 정비사업 폐기물처리용역",
+        "variants": [
+          {
+            "strategy": "full",
+            "query": "석현·대월 처리구역 하수관로 정비사업 폐기물처리용역",
+            "query_length": 28,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "breaking_split",
+            "query": "대월 처리구역 하수관로 정비사업 폐기물처리용역",
+            "query_length": 25,
+            "is_literal_substring": true
+          },
+          {
+            "strategy": "normalized",
+            "query": "석현 대월 처리구역 하수관로 정비사업 폐기물처리용역",
+            "query_length": 28,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "prefix12",
+            "query": "석현·대월 처리구역 하",
+            "query_length": 12,
+            "is_literal_substring": null
+          }
+        ]
+      },
+      {
+        "plan_id": "R26DD20855422",
+        "expected_spec_no": "R26BD00261898",
+        "plan_title": "울산공항 관리동 및 장비고 신축공사 건설폐기물 처리 용",
+        "variants": [
+          {
+            "strategy": "full",
+            "query": "울산공항 관리동 및 장비고 신축공사 건설폐기물 처리 용",
+            "query_length": 30,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "prefix12",
+            "query": "울산공항 관리동 및 장",
+            "query_length": 12,
+            "is_literal_substring": null
+          }
+        ]
+      },
+      {
+        "plan_id": "R26DD20854538",
+        "expected_spec_no": "R26BD00266314",
+        "plan_title": "2026. 직업계고 글로벌 현장학습 위탁용역 2단계(규격.가격 동시) 입찰",
+        "variants": [
+          {
+            "strategy": "full",
+            "query": "2026. 직업계고 글로벌 현장학습 위탁용역 2단계(규격.가격 동시) 입찰",
+            "query_length": 41,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "normalized",
+            "query": "2026 직업계고 글로벌 현장학습 위탁용역 2단계 규격 가격 동시 입찰",
+            "query_length": 39,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "longest_fragment",
+            "query": "직업계고 글로벌 현장학습 위탁용역 2단계",
+            "query_length": 22,
+            "is_literal_substring": true
+          },
+          {
+            "strategy": "prefix12",
+            "query": "2026. 직업계고 글",
+            "query_length": 12,
+            "is_literal_substring": null
+          }
+        ]
+      },
+      {
+        "plan_id": "R26DD20854819",
+        "expected_spec_no": "R26BD00263814",
+        "plan_title": "26-N-함정 6.6kV 전력망 도입 대비 기술 확보 방안 연구",
+        "variants": [
+          {
+            "strategy": "full",
+            "query": "26-N-함정 6.6kV 전력망 도입 대비 기술 확보 방안 연구",
+            "query_length": 35,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "normalized",
+            "query": "26 N 함정 6 6kV 전력망 도입 대비 기술 확보 방안 연구",
+            "query_length": 35,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "longest_fragment",
+            "query": "6kV 전력망 도입 대비 기술 확보 방안 연구",
+            "query_length": 25,
+            "is_literal_substring": true
+          },
+          {
+            "strategy": "prefix12",
+            "query": "26-N-함정 6.6k",
+            "query_length": 12,
+            "is_literal_substring": null
+          }
+        ]
+      },
+      {
+        "plan_id": "R26DD20853987",
+        "expected_spec_no": "R26BD00265506",
+        "plan_title": "김천시 DRT 도입에 따른 노선 전면 개편 및 교통량 조사 용역",
+        "variants": [
+          {
+            "strategy": "full",
+            "query": "김천시 DRT 도입에 따른 노선 전면 개편 및 교통량 조사 용역",
+            "query_length": 35,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "prefix12",
+            "query": "김천시 DRT 도입에",
+            "query_length": 11,
+            "is_literal_substring": null
+          }
+        ]
+      },
+      {
+        "plan_id": "R26DD20853902",
+        "expected_spec_no": "R26BD00264568",
+        "plan_title": "경주시립도서관 홈페이지 서비스 개선",
+        "variants": [
+          {
+            "strategy": "full",
+            "query": "경주시립도서관 홈페이지 서비스 개선",
+            "query_length": 19,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "prefix12",
+            "query": "경주시립도서관 홈페이지",
+            "query_length": 12,
+            "is_literal_substring": null
+          }
+        ]
+      },
+      {
+        "plan_id": "R26DD20853725",
+        "expected_spec_no": "R26BD00266492",
+        "plan_title": "2026 경북학교예술교육페스티벌 「어울림 1000인 음악제」 운영 대행 용역",
+        "variants": [
+          {
+            "strategy": "full",
+            "query": "2026 경북학교예술교육페스티벌 「어울림 1000인 음악제」 운영 대행 용역",
+            "query_length": 42,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "normalized",
+            "query": "2026 경북학교예술교육페스티벌 어울림 1000인 음악제 운영 대행 용역",
+            "query_length": 40,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "longest_fragment",
+            "query": "2026 경북학교예술교육페스티벌",
+            "query_length": 17,
+            "is_literal_substring": true
+          },
+          {
+            "strategy": "prefix12",
+            "query": "2026 경북학교예술교",
+            "query_length": 12,
+            "is_literal_substring": null
+          }
+        ]
+      },
+      {
+        "plan_id": "R26DD20852160",
+        "expected_spec_no": "R26BD00264948",
+        "plan_title": "(긴급)2026년 어디Go 실시간 위치 공유 서비스 사업 용역",
+        "variants": [
+          {
+            "strategy": "full",
+            "query": "(긴급)2026년 어디Go 실시간 위치 공유 서비스 사업 용역",
+            "query_length": 34,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "normalized",
+            "query": "2026년 어디Go 실시간 위치 공유 서비스 사업 용역",
+            "query_length": 30,
+            "is_literal_substring": null
+          },
+          {
+            "strategy": "prefix12",
+            "query": "(긴급)2026년 어디",
+            "query_length": 12,
+            "is_literal_substring": null
+          }
+        ]
+      }
+    ]
+  },
+  "local_title_comparison": {
+    "ground_truth_pair_count": 87,
+    "local_prespec_pair_count": 17,
+    "sample_size_note": "로컬 raw에 정답 사전규격이 있는 17쌍 표본만 비교함",
+    "counts": {
+      "exact": 14,
+      "normalized": 0,
+      "neither": 3
+    },
+    "pairs": [
+      {
+        "plan_id": "R26DD20854235",
+        "expected_spec_no": "R26BD00267401",
+        "category": "exact",
+        "plan_title": "2027학년도 2학년 제주도 수학여행 위탁용역 ",
+        "prespec_title": "2027학년도 2학년 제주도 수학여행 위탁용역 "
+      },
+      {
+        "plan_id": "R26DD20854788",
+        "expected_spec_no": "R26BD00267599",
+        "category": "neither",
+        "plan_title": "건설공사 안전점검 수행기관 지정(광사동 652-4, 오피스텔등 신축)",
+        "prespec_title": "안전점검 수행기관 지정 공고(양주시 광사동 652-4, 신영부동산신탁)"
+      },
+      {
+        "plan_id": "R26DD20854916",
+        "expected_spec_no": "R26BD00267629",
+        "category": "exact",
+        "plan_title": "퇴직공제제도 계리용역",
+        "prespec_title": "퇴직공제제도 계리용역"
+      },
+      {
+        "plan_id": "R26DD20854353",
+        "expected_spec_no": "R26BD00267435",
+        "category": "exact",
+        "plan_title": "논산 시민 인문콘서트 운영 용역",
+        "prespec_title": "논산 시민 인문콘서트 운영 용역"
+      },
+      {
+        "plan_id": "R26DD20855366",
+        "expected_spec_no": "R26BD00267847",
+        "category": "neither",
+        "plan_title": "근로복지공단 울산병원 인력 위탁(미화, 경비) 용역",
+        "prespec_title": "근로복지공단 울산병원 인력 위탁(미화, 경비) 용역(R26BD00263791 재게시)"
+      },
+      {
+        "plan_id": "R26DD20854143",
+        "expected_spec_no": "R26BD00267367",
+        "category": "exact",
+        "plan_title": "진안군 상전면마을 LPG배관망 구축사업 건설폐기물 처리용역",
+        "prespec_title": "진안군 상전면마을 LPG배관망 구축사업 건설폐기물 처리용역"
+      },
+      {
+        "plan_id": "R26DD20853714",
+        "expected_spec_no": "R26BD00267196",
+        "category": "exact",
+        "plan_title": "2026 디지털새싹 교재 개발·제작 7종 용역(하반기)",
+        "prespec_title": "2026 디지털새싹 교재 개발·제작 7종 용역(하반기)"
+      },
+      {
+        "plan_id": "R26DD20853242",
+        "expected_spec_no": "R26BD00267009",
+        "category": "exact",
+        "plan_title": "2026년 발전소 주변지역 지원사업 주민 인식 및 기여도 조사",
+        "prespec_title": "2026년 발전소 주변지역 지원사업 주민 인식 및 기여도 조사"
+      },
+      {
+        "plan_id": "R26DD20855271",
+        "expected_spec_no": "R26BD00267802",
+        "category": "exact",
+        "plan_title": "2026년 전통시장 온라인 상인교육 콘텐츠 개발 및 제작",
+        "prespec_title": "2026년 전통시장 온라인 상인교육 콘텐츠 개발 및 제작"
+      },
+      {
+        "plan_id": "R26DD20855362",
+        "expected_spec_no": "R26BD00267844",
+        "category": "neither",
+        "plan_title": "근로복지공단 울산병원 인력 위탁(시설 관리) 용역",
+        "prespec_title": "근로복지공단 울산병원 인력 위탁(시설 관리) 용역(R26BD00263785 재게시)"
+      },
+      {
+        "plan_id": "R26DD20854599",
+        "expected_spec_no": "R26BD00267527",
+        "category": "exact",
+        "plan_title": "KOITA 기업공감원스톱지원센터 콜센터 기능개선",
+        "prespec_title": "KOITA 기업공감원스톱지원센터 콜센터 기능개선"
+      },
+      {
+        "plan_id": "R26DD20853794",
+        "expected_spec_no": "R26BD00267221",
+        "category": "exact",
+        "plan_title": "한림대학교 2026 KELI 국제 심포지엄 운영 업체 선정",
+        "prespec_title": "한림대학교 2026 KELI 국제 심포지엄 운영 업체 선정"
+      },
+      {
+        "plan_id": "R26DD20853776",
+        "expected_spec_no": "R26BD00267213",
+        "category": "exact",
+        "plan_title": "2026년 국가기술은행(NTB) 기술이전실적 조사",
+        "prespec_title": "2026년 국가기술은행(NTB) 기술이전실적 조사"
+      },
+      {
+        "plan_id": "R26DD20853736",
+        "expected_spec_no": "R26BD00267198",
+        "category": "exact",
+        "plan_title": "대한민국 제조AX전환(M.AX) 산업분류체계 개발 연구",
+        "prespec_title": "대한민국 제조AX전환(M.AX) 산업분류체계 개발 연구"
+      },
+      {
+        "plan_id": "R26DD20853595",
+        "expected_spec_no": "R26BD00267142",
+        "category": "exact",
+        "plan_title": "BIST WITH 캠퍼스 공간구축 및 공간활용계획 용역",
+        "prespec_title": "BIST WITH 캠퍼스 공간구축 및 공간활용계획 용역"
+      },
+      {
+        "plan_id": "R26DD20854357",
+        "expected_spec_no": "R26BD00267440",
+        "category": "exact",
+        "plan_title": "논산 시민관광 아카데미 운영 용역",
+        "prespec_title": "논산 시민관광 아카데미 운영 용역"
+      },
+      {
+        "plan_id": "R26DD20854354",
+        "expected_spec_no": "R26BD00267438",
+        "category": "exact",
+        "plan_title": "논산 문화예술교육지원 및 네트워킹 운영 용역",
+        "prespec_title": "논산 문화예술교육지원 및 네트워킹 운영 용역"
+      }
+    ]
+  }
+}

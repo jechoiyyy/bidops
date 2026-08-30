@@ -11,6 +11,7 @@ const pageTitles: Record<string, string> = {
   "/": "대시보드",
   "/queue": "검토 대기열",
   "/deadlines": "마감 추적",
+  "/opportunities": "사업기회",
   "/judgments": "공고 판정 이력",
   "/reviews": "담당자 리뷰 기록",
   "/profile": "회사 프로필",
@@ -24,6 +25,7 @@ const pageTitles: Record<string, string> = {
 // 화면마다 무엇을 고칠 수 있는지가 다르다. 전역 "읽기 전용"은 실제 동작과 맞지 않았다.
 const editScopes: Record<string, string> = {
   "/queue": "리뷰 저장 가능",
+  "/opportunities": "추적 상태 저장 가능",
   "/judgments": "판정 원문 읽기 전용",
   "/profile": "원본 문서에서 관리",
 };

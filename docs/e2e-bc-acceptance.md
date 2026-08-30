@@ -270,12 +270,22 @@ Qwen 품질 조정 전에 B→C와 보고서 후속 흐름을 먼저 확정할 �
 
 override는 host Codex 실행 파일과 `auth.json` 파일 하나만 analysis worker에 읽기 전용으로 mount한다. Codex는 `--ephemeral`, read-only sandbox, user config/rules 무시, shell·browser·computer-use·plugin·multi-agent 비활성 상태로 실행된다. BidOps DB/MinIO credential은 subprocess 환경에서 제거되며 prompt와 원문은 stdin으로만 전달된다. raw 응답은 Qwen과 동일하게 암호화 model-response namespace에 저장된다.
 
+이 값들은 override 전용이므로 공통 `.env`가 아니라 `env/codex.env`에 두고 추가 `--env-file`로 넘긴다(`env/codex.env.example` 참고).
+
 ```text
+# env/codex.env
 BIDOPS_CODEX_EXEC_HOST_BIN=/absolute/path/to/codex
 BIDOPS_CODEX_EXEC_HOST_AUTH_FILE=/absolute/path/to/auth.json
 BIDOPS_CODEX_EXEC_MODEL=gpt-5.6-sol
 BIDOPS_CODEX_EXEC_REASONING_EFFORT=low
 BIDOPS_CODEX_EXEC_APPROVED_NOTICE_IDS=123
+```
+
+```bash
+docker compose -p "$COMPOSE_PROJECT_NAME" \
+  --env-file .env --env-file env/codex.env \
+  -f docker-compose.t7.yml -f docker-compose.t7.codex-reference.yml \
+  up -d
 ```
 
 기동할 때 remote-vLLM override 대신 Codex override를 결합한다. 이 실행의 creation audit와 stage invocation metadata에는 실제 provider/model이 `codex-exec-reference`와 Codex model로 남지만, 고정 policy의 Qwen model 이름은 별도 필드로 보존된다. 동일 입력을 Qwen으로 재검증할 때는 provider lineage 충돌을 피하도록 새 격리 DB 또는 새 policy version에서 새 review를 만든다.

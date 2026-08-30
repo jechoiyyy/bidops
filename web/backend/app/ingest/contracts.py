@@ -49,6 +49,12 @@ class Lifecycle(ContractModel):
     change_reason: Any = None
     unified_notice_no: Any = None
     previous_failed_notice_no: Any = None
+    # Optional in collected.v2.  This is a projection of the bid API's own
+    # orderPlanUntyNo value; keeping it optional preserves old v2 artifacts.
+    order_plan_no: Any = None
+    # Optional projection of the pre-spec response's bidNtceNoList.  Empty
+    # source values remain null; a missing field is not fabricated.
+    bid_ntice_no_list: Any = None
 
 
 class QualificationFlags(ContractModel):
@@ -63,6 +69,10 @@ class QualificationFlags(ContractModel):
     technical_evaluation: Any = None
     technical_evaluation_rate: Any = None
     successful_bid_method: Any = None
+    # Pre-spec-only API projections.  They are optional so older collected.v2
+    # notices and bid-only qualification objects remain readable.
+    sw_business_status: Any = None
+    business_division: Any = None
 
 
 class AttachmentContract(ContractModel):
@@ -206,6 +216,76 @@ class CollectionArtifact(ContractModel):
     notices: list[NoticeContract | dict[str, Any]] | None = None
 
 
+class OrderPlanContract(ContractModel):
+    """One normalized order-plan record in the independent plan artifact.
+
+    The measured API spellings (``orderPlanUntyNo``, ``bidNtceNoList``,
+    ``nticeNticeYn``, ``rcritRgstNo`` and ``chgDt``) are accepted by the
+    importer as compatibility aliases.  The canonical producer spelling is
+    snake_case so this artifact is not a hidden extension of collected.v2.
+    ``sw_business_status`` is deliberately nullable: the plan response did
+    not expose a measured SW flag, so the loader must not infer one.
+    """
+
+    order_plan_unty_no: str | None = None
+    title: str | None = None
+    agency_code: str | None = None
+    agency_name: str | None = None
+    supervising_agency_name: str | None = None
+    business_division: str | None = None
+    business_division_code: str | None = None
+    service_type: str | None = None
+    service_type_code: str | None = None
+    budget_amount: Decimal | int | float | str | None = None
+    contract_amount: Decimal | int | float | str | None = None
+    planned_order_year: str | None = None
+    planned_order_month: str | None = None
+    procurement_method: str | None = None
+    contract_method: str | None = None
+    sw_business_status: str | None = None
+    published_at: datetime | date | str | None = None
+    changed_at: datetime | date | str | None = None
+    bid_ntice_no_list: str | None = None
+    notice_posted: str | None = None
+    rcrit_rgst_no: str | None = None
+    source_url: str | None = None
+    official_url: str | None = None
+    first_discovered_at: datetime | date | str | None = None
+    last_discovered_at: datetime | date | str | None = None
+    source_sha256: str | None = None
+    unknown_fields: list[Any] | None = None
+    raw_source: Any = None
+    source: dict[str, Any] | None = None
+
+
+class OrderPlanArtifact(ContractModel):
+    """Independent, cumulative order-plan collection artifact."""
+
+    schema_version: str
+    generated_at: datetime | str | None = None
+    # Metadata names used by the earlier offline population artifact.  They
+    # are accepted for read-only compatibility; the canonical file uses
+    # generated_at/source_window/counts below.
+    run_id: str | None = None
+    created_at: datetime | str | None = None
+    input_sha256: str | None = None
+    population_sha256: str | None = None
+    source_window: SourceWindow | dict[str, Any] | None = None
+    # The current producer records the endpoint and explicit business-scope
+    # allowlist here so later runs can be compared when the scope changes.
+    metadata: dict[str, Any] | None = None
+    counts: dict[str, Any] | None = None
+    warnings: list[Any] | None = None
+    # Rows are validated individually by the loader so one malformed/partial
+    # row can be warned and skipped without rejecting the whole artifact.
+    order_plans: list[Any] | None = None
+    # ``items`` and ``plans`` are read-only compatibility spellings for the
+    # earlier offline population artifact and first producer drafts.  The
+    # canonical file uses ``order_plans``.
+    items: list[Any] | None = None
+    plans: list[Any] | None = None
+
+
 class FeedbackAnswerContract(ContractModel):
     item: str | None = None
     answer: str | None = None
@@ -323,5 +403,6 @@ def decision_contract_requirements(schema_version: str) -> dict[str, int]:
 ValidationSetArtifact = ValidationArtifact
 ScreeningResultsArtifact = ScreeningArtifact
 CollectedNoticesArtifact = CollectionArtifact
+CollectedOrderPlansArtifact = OrderPlanArtifact
 ReviewFeedbackArtifact = FeedbackArtifact
 DecisionJudgment = JudgmentContract

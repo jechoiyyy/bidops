@@ -72,7 +72,7 @@ _UNSAFE_ASSET_CODES = {
     "provider_url_blocked", "provider_host_blocked", "provider_private_ip", "provider_dns_blocked",
     "provider_redirect_blocked", "provider_size_limit", "provider_response_invalid",
     "provider_connector_blocked", "provider_proxy_blocked", "legacy_path_blocked", "legacy_symlink_blocked",
-    "legacy_non_regular", "legacy_size_limit", "legacy_size_mismatch", "legacy_source_changed",
+    "unsupported_extension", "legacy_non_regular", "legacy_size_limit", "legacy_size_mismatch", "legacy_source_changed",
     "legacy_source_missing", "legacy_provenance_invalid",
 }
 _SAFE_API_MESSAGES = {
@@ -1477,12 +1477,7 @@ class DocumentBundleService:
         if snapshot.retired or not snapshot.source_system or not snapshot.source_attachment_key or not snapshot.source_url:
             return self._record_provider_failure(session, bundle_id, attachment_id, snapshot=snapshot)
 
-        source_name = filename or snapshot.name
-        if not source_name:
-            # Do not invent a permissive extension from an untrusted URL.  A
-            # configured connector must provide a filename through the
-            # existing attachment metadata for processing to proceed.
-            return self._record_provider_failure(session, bundle_id, attachment_id, snapshot=snapshot)
+        requested_filename = filename if filename is not None else snapshot.name
 
         asset: assets.QuarantinedAsset | None = None
         request_paths: list[Path] = []
@@ -1491,11 +1486,12 @@ class DocumentBundleService:
                 source_system=snapshot.source_system,
                 source_url=snapshot.source_url,
                 source_attachment_key=snapshot.source_attachment_key,
-                filename=source_name,
+                filename=requested_filename,
                 connectors=connectors,
                 root=self.root,
             )
             request_paths.append(asset.path)
+            source_name = asset.filename
             inspected = assets.inspect_quarantine(asset, processor=self.processor or self.converter, clamav_checker=self.clamav_checker)
 
             # Recheck only after connector/document I/O.  This is the first

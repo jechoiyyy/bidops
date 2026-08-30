@@ -1,0 +1,57 @@
+{
+  "schema_version": "bidops.lifecycle-survey-raw-page.v1",
+  "endpoint_id": "g2b_prespec_pps_search_service_v1",
+  "query": {
+    "pageNo": "1",
+    "numOfRows": "50",
+    "type": "json",
+    "inqryDiv": "1",
+    "inqryBgnDt": "202601010000",
+    "inqryEndDt": "202608282359",
+    "prdctClsfcNoNm": "‧덕천지소 소"
+  },
+  "page_no": 1,
+  "request_attempts": 1,
+  "collected_at": "2026-08-28T23:18:23.350542+09:00",
+  "payload_sha256": "9de1be6abac6360fd68ec3e88293636ac01911b5a9b59d39dc1ca23d493f5253",
+  "payload": {
+    "response": {
+      "header": {
+        "resultCode": "00",
+        "resultMsg": "정상"
+      },
+      "body": {
+        "items": [
+          {
+            "bsnsDivNm": "일반용역",
+            "refNo": "공무팀-4030",
+            "prdctClsfcNoNm": "2026년 하반기 사상‧덕천지소 소관 배수지 청소용역",
+            "orderInsttNm": "부산광역시 상수도사업본부 시설관리사업소",
+            "rlDminsttNm": "부산광역시 상수도사업본부 시설관리사업소",
+            "asignBdgtAmt": "57639000",
+            "rcptDt": "2026-08-28 10:21:27",
+            "opninRgstClseDt": "2026-08-31 23:59:00",
+            "ofclTelNo": "",
+            "ofclNm": "권성재",
+            "swBizObjYn": "N",
+            "dlvrTmlmtDt": "",
+            "dlvrDaynum": "100",
+            "bfSpecRgstNo": "R26BD00268253",
+            "specDocFileUrl1": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00268253&fileType=BFDTL&fileSeq=1",
+            "specDocFileUrl2": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00268253&fileType=BFDTL&fileSeq=2",
+            "specDocFileUrl3": "",
+            "specDocFileUrl4": "",
+            "specDocFileUrl5": "",
+            "prdctDtlList": "",
+            "rgstDt": "2026-08-27 15:51:13",
+            "chgDt": "2026-08-28 10:21:27",
+            "bidNtceNoList": ""
+          }
+        ],
+        "numOfRows": 50,
+        "pageNo": 1,
+        "totalCount": 1
+      }
+    }
+  }
+}

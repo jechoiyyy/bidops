@@ -147,7 +147,7 @@ class ReviewUpsertRequest(APIModel):
 
 class ReviewResponse(APIModel):
     id: int
-    run_id: str
+    run_id: str | None
     notice_pk: int
     disposition: str | None = None
     system_judgment_review: str | None = None
@@ -402,6 +402,7 @@ class IngestRequest(APIModel):
 class IngestResponse(APIModel):
     run_id: str
     notices: int
+    order_plans: int = 0
     judgments: int
     reviews: int
     warnings: list[WarningResponse] = Field(default_factory=list)

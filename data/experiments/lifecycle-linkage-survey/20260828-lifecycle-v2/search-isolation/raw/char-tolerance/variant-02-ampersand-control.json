@@ -1,0 +1,107 @@
+{
+  "schema_version": "bidops.lifecycle-survey-raw-page.v1",
+  "endpoint_id": "g2b_prespec_pps_search_service_v1",
+  "query": {
+    "pageNo": "1",
+    "numOfRows": "50",
+    "type": "json",
+    "inqryDiv": "1",
+    "inqryBgnDt": "202601010000",
+    "inqryEndDt": "202608282359",
+    "prdctClsfcNoNm": "D사업 20"
+  },
+  "page_no": 1,
+  "request_attempts": 1,
+  "collected_at": "2026-08-28T23:18:08.851474+09:00",
+  "payload_sha256": "f2cc568c3d9f1ad609fdf84437c0899d019f165a926fbe9451ff60d3ff9535a2",
+  "payload": {
+    "response": {
+      "header": {
+        "resultCode": "00",
+        "resultMsg": "정상"
+      },
+      "body": {
+        "items": [
+          {
+            "bsnsDivNm": "일반용역",
+            "refNo": "CT01202607310001",
+            "prdctClsfcNoNm": "생태‧보건분야 R&D사업 2027년도 성과평가 대응",
+            "orderInsttNm": "한국환경산업기술원",
+            "rlDminsttNm": "한국환경산업기술원",
+            "asignBdgtAmt": "80000000",
+            "rcptDt": "2026-08-05 18:01:12",
+            "opninRgstClseDt": "2026-08-10 23:59:00",
+            "ofclTelNo": "02-2284-1143",
+            "ofclNm": "김용주",
+            "swBizObjYn": "N",
+            "dlvrTmlmtDt": "2027-08-31 00:00:00",
+            "dlvrDaynum": "0",
+            "bfSpecRgstNo": "R26BD00260967",
+            "specDocFileUrl1": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00260967&fileType=BFDTL&fileSeq=1",
+            "specDocFileUrl2": "",
+            "specDocFileUrl3": "",
+            "specDocFileUrl4": "",
+            "specDocFileUrl5": "",
+            "prdctDtlList": "",
+            "rgstDt": "2026-08-05 18:01:11",
+            "chgDt": "2026-08-05 18:01:12",
+            "bidNtceNoList": "R26BK01677896"
+          },
+          {
+            "bsnsDivNm": "일반용역",
+            "refNo": "CT01202608100001",
+            "prdctClsfcNoNm": "물‧토양분야 R&D사업 2027년도 성과평가 대응",
+            "orderInsttNm": "한국환경산업기술원",
+            "rlDminsttNm": "한국환경산업기술원",
+            "asignBdgtAmt": "120000000",
+            "rcptDt": "2026-08-13 13:03:53",
+            "opninRgstClseDt": "2026-08-18 23:59:00",
+            "ofclTelNo": "02-2284-1143",
+            "ofclNm": "김용주",
+            "swBizObjYn": "N",
+            "dlvrTmlmtDt": "2027-08-31 00:00:00",
+            "dlvrDaynum": "0",
+            "bfSpecRgstNo": "R26BD00263643",
+            "specDocFileUrl1": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00263643&fileType=BFDTL&fileSeq=1",
+            "specDocFileUrl2": "",
+            "specDocFileUrl3": "",
+            "specDocFileUrl4": "",
+            "specDocFileUrl5": "",
+            "prdctDtlList": "",
+            "rgstDt": "2026-08-13 13:03:52",
+            "chgDt": "2026-08-13 13:03:53",
+            "bidNtceNoList": "R26BK01688460"
+          },
+          {
+            "bsnsDivNm": "일반용역",
+            "refNo": "CT01202608270001",
+            "prdctClsfcNoNm": "미래순환자원분야 R&D사업 2027년도 성과평가 대응",
+            "orderInsttNm": "한국환경산업기술원",
+            "rlDminsttNm": "한국환경산업기술원",
+            "asignBdgtAmt": "80000000",
+            "rcptDt": "2026-08-27 18:42:17",
+            "opninRgstClseDt": "2026-09-01 23:59:00",
+            "ofclTelNo": "02-2284-1143",
+            "ofclNm": "김용주",
+            "swBizObjYn": "N",
+            "dlvrTmlmtDt": "2027-08-31 00:00:00",
+            "dlvrDaynum": "0",
+            "bfSpecRgstNo": "R26BD00268393",
+            "specDocFileUrl1": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00268393&fileType=BFDTL&fileSeq=1",
+            "specDocFileUrl2": "",
+            "specDocFileUrl3": "",
+            "specDocFileUrl4": "",
+            "specDocFileUrl5": "",
+            "prdctDtlList": "",
+            "rgstDt": "2026-08-27 18:42:16",
+            "chgDt": "2026-08-27 18:42:17",
+            "bidNtceNoList": ""
+          }
+        ],
+        "numOfRows": 50,
+        "pageNo": 1,
+        "totalCount": 3
+      }
+    }
+  }
+}

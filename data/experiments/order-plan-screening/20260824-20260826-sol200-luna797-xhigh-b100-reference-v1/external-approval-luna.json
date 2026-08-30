@@ -1,0 +1,17 @@
+{
+  "approved_at": "2026-08-28T13:02:47.677578+09:00",
+  "approved_by": "interactive-user-request",
+  "batch_count": 8,
+  "batch_size": 100,
+  "company_capabilities_sha256": "2ee0ebdd126341a6a79997341ebb93a76b00d5477d65ee21f635a41ecef2a57a",
+  "model": "gpt-5.6-luna",
+  "payload_fields": [
+    "title"
+  ],
+  "preview_sha256": "cb0f9d619823ba8862eb33d15bb98134a0c7ad5c81aff09f72af09783d61d388",
+  "prompt_sha256": "593e3fdb97d1c4bf325d831eea7494908e4510e0cee999e349db224a2b5cf4d1",
+  "purpose": "order_plan_screening_comparison",
+  "record_count": 797,
+  "run_id": "20260824-20260826-sol200-luna797-xhigh-b100-reference-v1",
+  "schema_version": "bidops.order-plan-external-approval.v2"
+}

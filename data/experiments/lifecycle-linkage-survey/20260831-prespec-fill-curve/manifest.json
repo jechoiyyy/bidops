@@ -1,0 +1,53 @@
+{
+  "schema_version": "bidops.lifecycle-prespec-fill-curve-manifest.v1",
+  "endpoint_id": "g2b_prespec_pps_search_service_v1",
+  "observed_on": "2026-08-31",
+  "timezone": "Asia/Seoul",
+  "window_days": 3,
+  "rows": 500,
+  "requests": 13,
+  "windows": [
+    {
+      "age_days": 3,
+      "slug": "age-003",
+      "from": "2026-08-25",
+      "to_exclusive": "2026-08-28",
+      "received": 650
+    },
+    {
+      "age_days": 9,
+      "slug": "age-009",
+      "from": "2026-08-19",
+      "to_exclusive": "2026-08-22",
+      "received": 665
+    },
+    {
+      "age_days": 17,
+      "slug": "age-017",
+      "from": "2026-08-11",
+      "to_exclusive": "2026-08-14",
+      "received": 671
+    },
+    {
+      "age_days": 31,
+      "slug": "age-031",
+      "from": "2026-07-28",
+      "to_exclusive": "2026-07-31",
+      "received": 731
+    },
+    {
+      "age_days": 60,
+      "slug": "age-060",
+      "from": "2026-06-29",
+      "to_exclusive": "2026-07-02",
+      "received": 744
+    },
+    {
+      "age_days": 150,
+      "slug": "age-150",
+      "from": "2026-03-31",
+      "to_exclusive": "2026-04-03",
+      "received": 1365
+    }
+  ]
+}

@@ -74,8 +74,22 @@ def make_run(population: dict[str, Any]) -> dict[str, Any]:
             "prompt_id": None,
             "prompt_sha256": None,
         },
+        "tfidf": {
+            "method_version": "tfidf-v1",
+            "model_name": None,
+            "model_revision": None,
+            "prompt_id": None,
+            "prompt_sha256": None,
+        },
+        "bge_m3_dense": {
+            "method_version": "bge_m3_dense-v1",
+            "model_name": "bge-m3:latest",
+            "model_revision": "d" * 64,
+            "prompt_id": None,
+            "prompt_sha256": None,
+        },
         "bge_m3_colbert": {
-            "method_version": "bge-v1",
+            "method_version": "bge_m3_colbert-v1",
             "model_name": "BAAI/bge-m3",
             "model_revision": "a" * 40,
             "prompt_id": None,
@@ -109,13 +123,18 @@ def make_run(population: dict[str, Any]) -> dict[str, Any]:
         "model_payload": {
             "allowed_plan_fields": ["title"],
             "company_capabilities_sha256": "f" * 64,
-            "batch_sizes": {"qwen": 25, "luna": 25},
+            "batch_sizes": {"bge_m3_dense": 128, "qwen": 25, "luna": 25},
         },
         "config": {
             "company_capabilities_sha256": "d" * 64,
             "methods_sha256": "e" * 64,
         },
         "methods": bindings,
+        "collection": {
+            "page_count": 1,
+            "request_count": 1,
+            "complete": True,
+        },
     }
 
 
@@ -175,6 +194,17 @@ def make_result(
             )
     success_count = len(successful_ids)
     failure_count = len(failed_ids)
+    model_bindings = {
+        "bge_m3_dense": {"name": "bge-m3:latest", "revision": "d" * 64},
+        "bge_m3_colbert": {"name": "BAAI/bge-m3", "revision": "a" * 40},
+        "qwen": {"name": "qwen", "revision": "b" * 64},
+        "luna": {"name": "gpt-5.6-luna", "revision": "gpt-5.6-luna-immutable-test"},
+    }
+    prompt_bindings = {
+        "qwen": {"id": "prompt-v1", "sha256": "c" * 64},
+        "luna": {"id": "prompt-v1", "sha256": "c" * 64},
+    }
+    batch_size = {"bge_m3_dense": 128, "qwen": 25, "luna": 25}.get(method)
     return {
         "schema_version": METHOD_RESULT_SCHEMA,
         "run_id": population["run_id"],
@@ -184,14 +214,14 @@ def make_result(
         "method_version": f"{method}-v1",
         "top_k": len(selected_ids),
         "config_sha256": "a" * 64,
-        "model": {"name": None, "revision": None},
-        "prompt": {"id": None, "sha256": None},
+        "model": model_bindings.get(method, {"name": None, "revision": None}),
+        "prompt": prompt_bindings.get(method, {"id": None, "sha256": None}),
         "batching": {
             "mode": "fixed",
-            "batch_size": 25,
-            "batch_count": (len(items) + 24) // 25,
+            "batch_size": batch_size,
+            "batch_count": (len(items) + batch_size - 1) // batch_size,
         }
-        if method in {"qwen", "luna"}
+        if batch_size is not None
         else None,
         "external_approval": None,
         "status": (

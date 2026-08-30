@@ -1,0 +1,192 @@
+{
+  "schema_version": "bidops.lifecycle-plan-fill-curve.v1",
+  "created_at": "2026-08-29T01:14:14.114403+09:00",
+  "mode": "collect",
+  "observed_at": "2026-08-29T01:11:27.224981+09:00",
+  "observed_at_source": "collection_start",
+  "endpoint_id": "g2b_order_plan_service_pps_search_v1",
+  "rows": 500,
+  "max_requests": 40,
+  "window_count": 4,
+  "request_count": 6,
+  "page_count": 6,
+  "curve_order": "age_days_ascending",
+  "limitations": [
+    "서로 다른 발행 구간을 비교하므로 같은 발주계획을 시간순으로 추적한 종단 관측이 아니다.",
+    "계절성·연도별 발주 패턴 차이가 구간 간 수치에 섞일 수 있다.",
+    "횡단면 채움률만으로 필요한 재조회 종료일이나 최대 k를 종단 결론으로 확정하지 않는다.",
+    "횡단면과 종단 결과가 어긋나면 2026-08-24~2026-08-26 구간의 반복 재조회인 종단 관측을 정본으로 삼는다."
+  ],
+  "windows": [
+    {
+      "window": {
+        "from": "2026-08-21",
+        "to_inclusive": "2026-08-23",
+        "to_exclusive": "2026-08-24"
+      },
+      "age_days": 6,
+      "total_count": 388,
+      "bidNtceNoList": {
+        "filled_count": 263,
+        "fill_rate": 0.6778,
+        "notice_number_total": 270,
+        "multi_notice_record_count": 7,
+        "max_notice_numbers_per_record": 2,
+        "count_distribution": {
+          "0": 125,
+          "1": 256,
+          "2": 7
+        }
+      },
+      "ntceNticeYn": {
+        "y_count": 263,
+        "y_rate": 0.6778
+      },
+      "chgDt": {
+        "filled_count": 37,
+        "fill_rate": 0.0954
+      },
+      "chgDt_minus_nticeDt": {
+        "available_count": 37,
+        "unavailable_count": 351,
+        "p50_days": 0.0062,
+        "p90_days": 1.2813,
+        "p95_days": 2.5581,
+        "p99_days": 5.3454,
+        "max_days": 6.9058
+      },
+      "id": "window-01-20260821-20260823",
+      "page_count": 1,
+      "request_count": 1,
+      "raw_directory": "window-01-20260821-20260823"
+    },
+    {
+      "window": {
+        "from": "2026-08-18",
+        "to_inclusive": "2026-08-20",
+        "to_exclusive": "2026-08-21"
+      },
+      "age_days": 9,
+      "total_count": 957,
+      "bidNtceNoList": {
+        "filled_count": 738,
+        "fill_rate": 0.7712,
+        "notice_number_total": 781,
+        "multi_notice_record_count": 42,
+        "max_notice_numbers_per_record": 3,
+        "count_distribution": {
+          "0": 219,
+          "1": 696,
+          "2": 41,
+          "3": 1
+        }
+      },
+      "ntceNticeYn": {
+        "y_count": 738,
+        "y_rate": 0.7712
+      },
+      "chgDt": {
+        "filled_count": 86,
+        "fill_rate": 0.0899
+      },
+      "chgDt_minus_nticeDt": {
+        "available_count": 86,
+        "unavailable_count": 871,
+        "p50_days": 0.0028,
+        "p90_days": 1.4316,
+        "p95_days": 4.5112,
+        "p99_days": 6.3842,
+        "max_days": 7.7591
+      },
+      "id": "window-02-20260818-20260820",
+      "page_count": 2,
+      "request_count": 2,
+      "raw_directory": "window-02-20260818-20260820"
+    },
+    {
+      "window": {
+        "from": "2026-08-15",
+        "to_inclusive": "2026-08-17",
+        "to_exclusive": "2026-08-18"
+      },
+      "age_days": 12,
+      "total_count": 28,
+      "bidNtceNoList": {
+        "filled_count": 22,
+        "fill_rate": 0.7857,
+        "notice_number_total": 25,
+        "multi_notice_record_count": 3,
+        "max_notice_numbers_per_record": 2,
+        "count_distribution": {
+          "0": 6,
+          "1": 19,
+          "2": 3
+        }
+      },
+      "ntceNticeYn": {
+        "y_count": 22,
+        "y_rate": 0.7857
+      },
+      "chgDt": {
+        "filled_count": 4,
+        "fill_rate": 0.1429
+      },
+      "chgDt_minus_nticeDt": {
+        "available_count": 4,
+        "unavailable_count": 24,
+        "p50_days": 0.4724,
+        "p90_days": 2.1404,
+        "p95_days": 2.3968,
+        "p99_days": 2.6018,
+        "max_days": 2.6531
+      },
+      "id": "window-03-20260815-20260817",
+      "page_count": 1,
+      "request_count": 1,
+      "raw_directory": "window-03-20260815-20260817"
+    },
+    {
+      "window": {
+        "from": "2026-08-12",
+        "to_inclusive": "2026-08-14",
+        "to_exclusive": "2026-08-15"
+      },
+      "age_days": 15,
+      "total_count": 948,
+      "bidNtceNoList": {
+        "filled_count": 794,
+        "fill_rate": 0.8376,
+        "notice_number_total": 872,
+        "multi_notice_record_count": 73,
+        "max_notice_numbers_per_record": 3,
+        "count_distribution": {
+          "0": 154,
+          "1": 721,
+          "2": 68,
+          "3": 5
+        }
+      },
+      "ntceNticeYn": {
+        "y_count": 794,
+        "y_rate": 0.8376
+      },
+      "chgDt": {
+        "filled_count": 85,
+        "fill_rate": 0.0897
+      },
+      "chgDt_minus_nticeDt": {
+        "available_count": 85,
+        "unavailable_count": 863,
+        "p50_days": 0.0042,
+        "p90_days": 0.9101,
+        "p95_days": 1.0991,
+        "p99_days": 7.9871,
+        "max_days": 13.9592
+      },
+      "id": "window-04-20260812-20260814",
+      "page_count": 2,
+      "request_count": 2,
+      "raw_directory": "window-04-20260812-20260814"
+    }
+  ]
+}

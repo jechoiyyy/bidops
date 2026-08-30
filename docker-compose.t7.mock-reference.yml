@@ -1,10 +1,19 @@
 # Test-only override for exercising the complete workflow without Qwen or
-# Codex. The analysis worker remains on the internal database/analysis networks
-# and the provider/model lineage is persisted as mock-analysis.
+# Codex. It covers both stages: 1차 분류 uses the deterministic screening
+# transport and 심층 검토 uses the mock analysis provider. The analysis worker
+# remains on the internal database/analysis networks and the provider/model
+# lineage is persisted as mock-analysis.
+#
+# Every value this overlay needs is declared literally below, so it needs no
+# env file beyond the shared .env.
+#
+#   docker compose -f docker-compose.t7.yml \
+#     -f docker-compose.t7.mock-reference.yml up -d
 services:
   web:
     environment:
       BIDOPS_ANALYSIS_PROVIDER: mock
+      BIDOPS_SCREENING_PROVIDER: mock
       BIDOPS_VLLM_MODEL: bidops-deterministic-mock-v1
       BIDOPS_OPENAI_ENABLED: "false"
       BIDOPS_CODEX_EXEC_ENABLED: "false"
@@ -12,6 +21,7 @@ services:
   analysis-worker:
     environment:
       BIDOPS_ANALYSIS_PROVIDER: mock
+      BIDOPS_SCREENING_PROVIDER: mock
       BIDOPS_VLLM_MODEL: bidops-deterministic-mock-v1
       BIDOPS_OPENAI_ENABLED: "false"
       BIDOPS_CODEX_EXEC_ENABLED: "false"

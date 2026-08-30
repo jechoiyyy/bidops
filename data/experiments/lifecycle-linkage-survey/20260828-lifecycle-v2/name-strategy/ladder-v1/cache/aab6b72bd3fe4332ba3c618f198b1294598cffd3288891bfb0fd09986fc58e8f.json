@@ -1,0 +1,46 @@
+{
+  "schema_version": "bidops.lifecycle-name-search-cache.v1",
+  "cache_key": "aab6b72bd3fe4332ba3c618f198b1294598cffd3288891bfb0fd09986fc58e8f",
+  "url": "https://apis.data.go.kr/1230000/ao/HrcspSsstndrdInfoService/getPublicPrcureThngInfoServcPPSSrch",
+  "query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=6kV+%EC%A0%84%EB%A0%A5%EB%A7%9D+%EB%8F%84%EC%9E%85+%EB%8C%80%EB%B9%84+%EA%B8%B0%EC%88%A0+%ED%99%95%EB%B3%B4+%EB%B0%A9%EC%95%88+%EC%97%B0%EA%B5%AC",
+  "response": {
+    "response": {
+      "header": {
+        "resultCode": "00",
+        "resultMsg": "정상"
+      },
+      "body": {
+        "items": [
+          {
+            "bsnsDivNm": "일반용역",
+            "refNo": "PS2026UMM32889",
+            "prdctClsfcNoNm": "함정 6.6KV 전력망 도입 대비 기술 확보 방안 연구",
+            "orderInsttNm": "국방부 국군재정관리단",
+            "rlDminsttNm": "국방부 국군재정관리단",
+            "asignBdgtAmt": "40000000",
+            "rcptDt": "2026-08-13 16:17:05",
+            "opninRgstClseDt": "2026-08-19 00:00:00",
+            "ofclTelNo": "",
+            "ofclNm": "",
+            "swBizObjYn": "N",
+            "dlvrTmlmtDt": "",
+            "dlvrDaynum": "0",
+            "bfSpecRgstNo": "R26BD00263814",
+            "specDocFileUrl1": "",
+            "specDocFileUrl2": "",
+            "specDocFileUrl3": "",
+            "specDocFileUrl4": "",
+            "specDocFileUrl5": "",
+            "prdctDtlList": "",
+            "rgstDt": "2026-08-13 16:17:05",
+            "chgDt": "",
+            "bidNtceNoList": "R26BK01699156"
+          }
+        ],
+        "numOfRows": 50,
+        "pageNo": 1,
+        "totalCount": 1
+      }
+    }
+  }
+}
