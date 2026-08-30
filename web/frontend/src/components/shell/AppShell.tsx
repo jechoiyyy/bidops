@@ -12,6 +12,7 @@ const pageTitles: Record<string, string> = {
   "/queue": "검토 대기열",
   "/deadlines": "마감 추적",
   "/opportunities": "사업기회",
+  "/pre-specs": "사전규격",
   "/judgments": "공고 판정 이력",
   "/reviews": "담당자 리뷰 기록",
   "/profile": "회사 프로필",

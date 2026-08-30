@@ -1,0 +1,341 @@
+/* 누적 사전규격 목록은 기존 Panel·DataTable·Badge 표면을 그대로 사용한다. */
+
+.pre-specs-page {
+  display: flex;
+  width: 100%;
+  max-width: 1680px;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-inline: auto;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.pre-specs-page-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-3);
+}
+
+.pre-specs-eyebrow {
+  display: block;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.pre-specs-page-header h2 {
+  margin: 4px 0 8px;
+  color: var(--color-deep);
+  font-size: 26px;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+
+.pre-specs-page-header p {
+  max-width: 860px;
+  margin: 0;
+  color: var(--color-muted-soft);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.pre-specs-count {
+  display: flex;
+  min-width: 112px;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  padding: 12px 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+}
+
+.pre-specs-count strong {
+  color: var(--color-deep);
+  font-size: 26px;
+  line-height: 1;
+}
+
+.pre-specs-count span {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.pre-specs-filter-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+}
+
+.pre-specs-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 10px 14px;
+}
+
+.pre-specs-filter-row > label,
+.pre-specs-search {
+  display: flex;
+  min-width: 138px;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pre-specs-filter-row select,
+.pre-specs-search input {
+  min-height: var(--control-height);
+  padding: 7px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  background: var(--surface-card);
+  font-size: 13px;
+}
+
+.pre-specs-switch {
+  display: inline-flex !important;
+  min-height: var(--control-height);
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px !important;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  color: var(--color-deep) !important;
+  background: var(--surface-selected);
+  cursor: pointer;
+  font-size: 13px !important;
+}
+
+.pre-specs-switch input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--color-primary);
+}
+
+.pre-specs-filter-help {
+  align-self: center;
+  margin-right: auto;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.pre-specs-search {
+  min-width: min(320px, 100%);
+  flex: 1 1 240px;
+}
+
+.pre-specs-search > div {
+  display: flex;
+  gap: 6px;
+}
+
+.pre-specs-search input {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.pre-specs-search button,
+.pre-specs-pager button {
+  min-height: var(--control-height);
+  padding: 0 14px;
+  border: 1px solid var(--color-deep);
+  border-radius: var(--radius-md);
+  color: var(--color-white);
+  background: var(--color-deep);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.pre-specs-search button:hover,
+.pre-specs-pager button:hover:not(:disabled) {
+  background: var(--color-primary-strong);
+}
+
+.pre-specs-search button:disabled,
+.pre-specs-pager button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.pre-specs-policy-note {
+  margin: 0;
+  color: var(--color-muted-soft);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.pre-specs-policy-note strong {
+  color: var(--color-warning);
+  font-weight: 650;
+}
+
+.pre-specs-table-panel {
+  min-width: 0;
+}
+
+.pre-specs-table-panel .panel-body {
+  padding: 0;
+}
+
+.pre-specs-table {
+  overflow-x: auto;
+}
+
+.pre-specs-table .data-table {
+  min-width: 1180px;
+}
+
+.pre-specs-table .data-table th,
+.pre-specs-table .data-table td {
+  vertical-align: top;
+}
+
+.pre-specs-title-cell {
+  min-width: 260px;
+}
+
+.pre-specs-title-stack,
+.pre-specs-origin-stack,
+.pre-specs-document-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pre-specs-title-link {
+  color: var(--color-deep);
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.pre-specs-title-link:hover {
+  color: var(--color-primary-strong);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.pre-specs-title-stack > span,
+.pre-specs-title-stack > code {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.pre-specs-title-stack > code {
+  color: var(--color-deep);
+  font-family: var(--font-mono);
+}
+
+.pre-specs-origin-cell {
+  min-width: 88px;
+}
+
+.pre-specs-tracking-exception {
+  display: inline-block;
+  max-width: 150px;
+  color: var(--color-warning);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.pre-specs-date-cell {
+  min-width: 126px;
+  white-space: nowrap;
+}
+
+.pre-specs-budget-cell {
+  min-width: 112px;
+  white-space: nowrap;
+}
+
+.pre-specs-document-cell {
+  min-width: 180px;
+}
+
+.pre-specs-document-summary strong {
+  color: var(--color-deep);
+  font-weight: 650;
+}
+
+.pre-specs-document-summary span {
+  color: var(--color-muted);
+  font-size: 11px;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.pre-specs-muted {
+  color: var(--color-muted);
+}
+
+.pre-specs-loading {
+  padding: 28px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--color-muted);
+  background: var(--surface-card);
+  text-align: center;
+}
+
+.pre-specs-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.pre-specs-pager button {
+  min-width: 74px;
+}
+
+@media (max-width: 900px) {
+  .pre-specs-page-header {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pre-specs-count {
+    width: fit-content;
+    min-width: 90px;
+    align-items: flex-start;
+  }
+
+  .pre-specs-filter-help {
+    flex-basis: 100%;
+    margin-right: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .pre-specs-page-header h2 {
+    font-size: 22px;
+  }
+
+  .pre-specs-filter-row > label,
+  .pre-specs-search {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .pre-specs-switch {
+    width: fit-content !important;
+  }
+}

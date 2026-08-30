@@ -199,6 +199,52 @@ export interface NoticeListResponse {
   filters: PageFilters;
 }
 
+export type PreSpecOrigin = "추적" | "신규";
+export type PreSpecSort = "published" | "deadline";
+
+export interface PreSpecDocumentSummary {
+  attachments: number;
+  "완료": number;
+  "대기": number;
+  "진행": number;
+  "차단": number;
+  "실패": number;
+}
+
+export interface PreSpecListItem {
+  notice_pk: number;
+  pre_spec_no: string | null;
+  title: string | null;
+  agency: string | null;
+  published_at: string | null;
+  deadline_at: string | null;
+  budget: number | null;
+  sw_business_status: string | null;
+  business_division: string | null;
+  origin: PreSpecOrigin | null;
+  opportunity_id: number | null;
+  tracking_status: OpportunityTrackingStatus | null;
+  kept_by_tracking: boolean;
+  document: PreSpecDocumentSummary;
+}
+
+export interface PreSpecListResponse {
+  items: PreSpecListItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface PreSpecListQuery {
+  sw_only?: boolean | null;
+  business_division?: string | null;
+  origin?: PreSpecOrigin | null;
+  q?: string | null;
+  sort?: PreSpecSort | null;
+  limit?: number | null;
+  offset?: number | null;
+}
+
 export interface HistoryItemResponse {
   notice_pk: number;
   run_id: string;

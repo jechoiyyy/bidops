@@ -9,6 +9,8 @@ import type {
   NoticeDetailResponse,
   NoticeHistoryResponse,
   NoticeListResponse,
+  PreSpecListQuery,
+  PreSpecListResponse,
   OpportunityDetailResponse,
   OpportunityListQuery,
   OpportunityListResponse,
@@ -437,6 +439,20 @@ export const api = {
     limit?: number;
     offset?: number;
   }) => request<NoticeListResponse>(`/notices${query(params)}`),
+
+  getPreSpecs: (params: PreSpecListQuery = {}, options?: ReadRequestOptions) =>
+    request<PreSpecListResponse>(
+      `/pre-specs${query({
+        sw_only: params.sw_only === null || params.sw_only === undefined ? undefined : String(params.sw_only),
+        business_division: params.business_division,
+        origin: params.origin,
+        q: params.q,
+        sort: params.sort,
+        limit: params.limit,
+        offset: params.offset,
+      })}`,
+      options,
+    ),
 
   getNotice: (noticePk: number) => request<NoticeDetailResponse>(`/notices/${noticePk}`),
 

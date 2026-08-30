@@ -25,6 +25,7 @@ const groups: NavGroup[] = [
       { label: "검토 대기열", path: "/queue", icon: "queue" },
       { label: "마감 추적", path: "/deadlines", icon: "deadline", linksTo: "/queue" },
       { label: "사업기회", path: "/opportunities", icon: "queue" },
+      { label: "사전규격", path: "/pre-specs", icon: "judgment" },
     ],
   },
   {

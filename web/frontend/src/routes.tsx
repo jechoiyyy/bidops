@@ -4,6 +4,7 @@ import { AppShell } from "./components/shell/AppShell";
 import { DashboardPage } from "./pages/DashboardPage";
 import { QueuePage } from "./pages/QueuePage";
 import { OpportunitiesPage } from "./pages/OpportunitiesPage";
+import { PreSpecsPage } from "./pages/PreSpecsPage";
 import { NoticeDetailPage } from "./pages/NoticeDetailPage";
 import { RunsPage } from "./pages/RunsPage";
 import { AttachmentsPage } from "./pages/AttachmentsPage";
@@ -48,6 +49,7 @@ export const routes: RouteObject[] = [
       { path: "queue/:noticePk", element: <QueuePage /> },
       { path: "deadlines", element: <RedirectWithSearch to="/queue" extraParams={{ sort: "deadline" }} /> },
       { path: "opportunities", element: <OpportunitiesPage /> },
+      { path: "pre-specs", element: <PreSpecsPage /> },
       { path: "judgments", element: <NoticeDetailPage /> },
       { path: "judgments/:noticePk", element: <NoticeDetailPage /> },
       { path: "reviews", element: <ReviewLogPage /> },
