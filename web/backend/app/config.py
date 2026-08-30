@@ -72,6 +72,18 @@ class Settings(BaseSettings):
         default=None,
         validation_alias="BIDOPS_G2B_API_KEY",
     )
+    g2b_attachment_enabled: bool = Field(
+        default=False,
+        validation_alias="BIDOPS_G2B_ATTACHMENT_ENABLED",
+    )
+    g2b_attachment_allowed_hosts: str = Field(
+        default="",
+        validation_alias="BIDOPS_G2B_ATTACHMENT_ALLOWED_HOSTS",
+    )
+    g2b_attachment_timeout_seconds: float = Field(
+        default=30.0,
+        validation_alias="BIDOPS_G2B_ATTACHMENT_TIMEOUT_SECONDS",
+    )
     model_name: str = Field(
         default="qwen3.8:27b",
         validation_alias="BIDOPS_OLLAMA_MODEL",
@@ -101,6 +113,10 @@ class Settings(BaseSettings):
     model_synthesis_output: int = Field(
         default=4096,
         validation_alias="BIDOPS_OLLAMA_SYNTHESIS_MAX_OUTPUT_TOKENS",
+    )
+    screening_provider: Literal["ollama", "mock"] = Field(
+        default="ollama",
+        validation_alias="BIDOPS_SCREENING_PROVIDER",
     )
     screen_concurrency: int = Field(
         default=1,
@@ -203,6 +219,15 @@ class Settings(BaseSettings):
     clamav_port: int = Field(default=3310, validation_alias="BIDOPS_CLAMAV_PORT")
     clamav_timeout_seconds: float = Field(default=15.0, validation_alias="BIDOPS_CLAMAV_TIMEOUT_SECONDS")
     analysis_worker_poll_seconds: float = Field(default=1.0, validation_alias="BIDOPS_ANALYSIS_WORKER_POLL_SECONDS")
+    prespec_attachment_worker_concurrency: int = Field(
+        default=1, validation_alias="BIDOPS_PRESPEC_ATTACHMENT_WORKER_CONCURRENCY"
+    )
+    prespec_attachment_worker_poll_seconds: float = Field(
+        default=5.0, validation_alias="BIDOPS_PRESPEC_ATTACHMENT_WORKER_POLL_SECONDS"
+    )
+    prespec_attachment_lease_seconds: float = Field(
+        default=120.0, validation_alias="BIDOPS_PRESPEC_ATTACHMENT_LEASE_SECONDS"
+    )
     worker_id: str = Field(default="bidops-worker", validation_alias="BIDOPS_WORKER_ID")
     document_scratch_dir: Path = Field(default=Path("/scratch"), validation_alias="BIDOPS_DOCUMENT_SCRATCH_DIR")
     object_store_backend: str | None = Field(default=None, validation_alias="BIDOPS_OBJECT_STORE_BACKEND")
@@ -237,6 +262,8 @@ class Settings(BaseSettings):
 
         if self.analysis_provider == "mock" and not self.reference_workflow_mode:
             raise ValueError("mock analysis provider requires reference workflow mode")
+        if self.screening_provider == "mock" and not self.reference_workflow_mode:
+            raise ValueError("mock screening provider requires reference workflow mode")
         if self.data_dir is None:
             self.data_dir = self.bidops_root / "web" / "data"
         if self.attachments_dir is None:

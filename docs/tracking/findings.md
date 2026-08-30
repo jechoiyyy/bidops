@@ -1,6 +1,117 @@
 # 미해결 문제
 
-기준일: 2026-08-27
+기준일: 2026-08-28
+
+## 저장소 `.env`가 host 백엔드 테스트를 깨뜨리고 90배 느리게 만든다
+
+- 확인: 2026-08-29
+- 상태: **해결** (2026-08-29)
+
+`web/backend/app/config.py:33`이 `env_file=DEFAULT_BIDOPS_ROOT / ".env"`로 저장소 루트의
+`.env`를 읽는다. 그 파일에는 컨테이너 안에서만 유효한 값이 들어 있어서 host에서 pytest를
+돌리면 실패와 지연을 만든다.
+
+**재현**: HEAD를 별도 worktree(`git worktree add`)로 떼면 `.env`가 gitignore 대상이라 딸려오지
+않는다. 같은 코드에 `.env`만 넣고 빼서 비교했다.
+
+| 조건 | 결과 |
+|---|---|
+| `.env` 없음 | `tests/agents/test_document_preparation.py` 9 passed in **4.5초** |
+| `.env` 있음 | 같은 파일 6 failed, 3 passed in **404초** |
+
+원인을 키 단위로 좁혔다.
+
+- **실패 6건**: `BIDOPS_OBJECT_STORE_BACKEND=minio`. 이 세 줄만 넣어도 재현된다(5.2초, 6 failed).
+  host에는 MinIO가 없다.
+- **404초 지연**: object-store와 ClamAV 키만으로는 재현되지 않는다(5.4초). 전체 `.env`가 있어야
+  나오므로 MinIO 자격증명까지 있어야 실제 접속을 시도하며 재시도하는 것으로 보인다. 미확정.
+
+`.env`가 있는 원래 트리에서는 `test_quality_gate.py`·`test_deep_reviews.py`·
+`test_document_bundles.py`가 90초 안에 끝나지 않아 행으로 오인했다. 깨끗한 worktree에서는
+각각 108초·10.8초·12.6초에 **전부 통과한다.**
+
+**영향**: `.env`가 있는 상태의 host 테스트 결과는 baseline으로 쓸 수 없다. 실패 12건 중 6건이
+`.env` 때문이고, 실행 시간도 신뢰할 수 없다.
+
+**해결 방향**: `docker-compose.t7.yml`이 `BIDOPS_CLAMAV_HOST`·`BIDOPS_OBJECT_STORE_*`를
+이미 106~110행과 163~165행에서 선언한다. 공통 `.env`에 중복으로 둘 이유가 없으므로 제거한다.
+같은 이유로 `BIDOPS_ROOT`·`BIDOPS_DATA_DIR`·`BIDOPS_ATTACHMENTS_DIR`은 2026-08-29에 이미
+제거했다(그 셋은 `PermissionError: /app`으로 수집 단계에서 48개 파일을 전멸시켰다).
+
+**적용 결과 (2026-08-29)**: `.env`와 `.env.example`에서 `BIDOPS_OBJECT_STORE_*`와
+`BIDOPS_CLAMAV_*`를 제거했다. `BIDOPS_ROOT`·`BIDOPS_DATA_DIR`·`BIDOPS_ATTACHMENTS_DIR`은
+같은 날 먼저 제거했다.
+
+| | 제거 전 | 제거 후 |
+|---|---|---|
+| 전체 스위트 | 25분 초과로 완주 실패 | **3분 36초** |
+| 통과 | 484 (느린 3개 제외 측정) | **711** |
+| 실패 | 12 | **6** |
+
+남은 실패 6건은 환경 의존이며 `.env`와 무관하다. `tests/test_integration_t14.py` 4건은
+`BIDOPS_DATABASE_URL`이 PostgreSQL을 가리켜야 하고, `tests/test_profile_snapshot*.py` 2건은
+승인된 git profile blob이 필요하다.
+
+**남은 미확인**: 404초 지연의 정확한 원인 키는 특정하지 못했다. object-store와 ClamAV 키만
+넣었을 때는 5.4초에 끝났고 전체 `.env`가 있어야 재현됐으므로, MinIO 자격증명이 관여하는 것으로
+보이나 확인하지 않았다. 지연 자체는 사라졌으므로 추적을 중단한다.
+
+## 사전규격 정규화가 원문의 첨부·SW대상·업무구분을 버린다
+
+- 재현 조건: `skills/bidops-collect/scripts/collect_notices.py`의 `normalize_prespec`을 `HrcspSsstndrdInfoService/getPublicPrcureThngInfoServc` 응답에 적용하고 결과의 `url`과 `attachments`를 확인한다. 실측은 [`20260828-lifecycle-linkage-survey.md`](../validation-runs/20260828-lifecycle-linkage-survey.md)에 있다.
+- 증상: `url`이 읽는 `specDocFileUrl`과 `bfSpecDtlUrl`이 응답에 존재하지 않아 항상 `None`이 된다. 실제 규격서 URL은 `specDocFileUrl1`~`specDocFileUrl5`이며 650건 중 586건이 최소 하나를 갖는다. `attachments`는 빈 배열로 고정돼 있어 과업지시서·제안요청서를 한 건도 확보하지 못한다. `swBizObjYn`(650/650), `bsnsDivNm`(650/650), `bidNtceNoList`(29/650)도 정규화에 담기지 않는다.
+- 영향: 사전규격 심층 검토의 입력원이 성립하지 않는다. 문서 묶음을 만들 원문이 없으므로 `docs/architecture.md:127`의 사전규격 중심 검토가 현재 수집 결과만으로는 시작될 수 없다. SW사업대상과 업무구분이 저장되지 않아 수집 대상 선별의 근거도 남지 않고, 공고 전환 감지에 쓸 `bidNtceNoList`도 유실된다.
+- 상태: **해결** (2026-08-30, T-4). `PPSSrch`로 전환하고 `specDocFileUrl1~5`를 `attachments`로, `swBizObjYn`·`bsnsDivNm`을 `qualification_flags`로, `bidNtceNoList`를 `lifecycle`로 옮겼다. 응답에 없는 필드를 읽던 `url` 경로는 제거했다. 원문에 URL이 없는 건은 `unknown_fields`에 `attachments`로 남는다. **첨부를 실제로 내려받는 경로는 여전히 미구현이며 별도 작업이다.** `bidops.collected.v2`는 유지했다 — 기존 필드의 값이 채워지는 변화이고 병합기에 optional로 등록했다.
+- (해결 전 기록) 지금 해결할 수 없는 이유: 정규화 계약을 바꾸면 `collected-notices.json` 소비자와 적재 경로의 계약이 함께 바뀐다. 첨부 URL을 실제로 내려받는 경로는 허용 형식·크기, 서버 생성 key, 악성코드 검사, quarantine, 객체 version 검증을 함께 갖춰야 하므로 정규화 필드 추가만으로 끝나지 않는다.
+- 접근 방법: 수집 endpoint를 `getPublicPrcureThngInfoServcPPSSrch`로 바꾸고 `inqryDiv=1`(접수일시)로 구간 조회한다. **`swBizObjYn`을 서버 조건으로 얹지 않는다.** 이 문단의 이전 판은 `swBizObjYn=Y` 필터를 지시했으나 [ADR-0024](decisions/0024-prespec-collect-all-flag-sw.md)가 그 반대를 결정했다. 650건 중 `Y`는 55건(8.5%)뿐이고 필터를 켜면 91.5%가 사라진다. 업무구분(일반용역·기술용역)으로만 좁히고 `swBizObjYn`은 저장 후 표시·필터 값으로만 쓴다. 이미 아는 등록번호를 다시 읽을 때는 `inqryDiv=2`가 날짜 구간 없이 단건을 반환한다. 두 endpoint의 응답은 650건에서 필드·값이 완전히 동일하므로 정규화 계약은 그대로 쓸 수 있다. 그 위에서 `specDocFileUrl1`~`5`를 `attachments`로, `swBizObjYn`·`bsnsDivNm`·`bidNtceNoList`를 구조화 필드로 옮긴다. 응답에 없는 필드를 읽는 현재 `url` 경로는 제거한다. 다운로드는 기존 첨부 파이프라인의 검사·격리 경계를 그대로 통과시키고, 원문에 URL이 없는 건은 추정 없이 `unknown`으로 남긴다. 회귀 테스트는 실제 응답 형태의 fixture로 첨부 개수와 SW대상 값이 보존되는지 고정한다.
+
+## legacy 첨부 취득이 객체 식별자를 provenance 자리에 넣어 운영 백엔드에서 원문을 잃는다
+
+- 재현 조건: `MinioObjectStore`처럼 `FilesystemObjectStore`가 아닌 object store에서 `assets.acquire_legacy_attachment()`를 호출하고 반환된 asset으로 `read_quarantine()`을 호출한다. `web/backend/tests/test_legacy_attachment_provenance.py`가 가짜 store로 이 조건을 재현한다.
+- 증상: `acquire_legacy_attachment()`가 12필드 `QuarantinedAsset`에 인자를 **9개만 위치로** 넘겼다. `object_key`가 `source_system` 자리에, object version id가 `source_attachment_key` 자리에, etag가 `source_url` 자리에 들어가고 `object_key`·`object_version_id`·`object_etag`는 `None`으로 남았다. `acquire_legacy_attachment()`는 store가 filesystem이 아니면 put 직후 로컬 quarantine 파일을 지우는데, `read_quarantine()`은 `object_key`가 없으면 그 지워진 로컬 경로를 읽으려 한다.
+- 영향: 운영 기본 백엔드가 MinIO이므로(`docker-compose.t7.yml`) legacy 첨부 ingest가 운영에서 항상 실패한다. 테스트는 filesystem store를 쓰기 때문에 로컬 파일이 남아 전부 통과했다. `test_minio_e2e`는 upload와 provider 경로만 덮고 legacy 경로를 덮지 않아 이 결함이 드러나지 않았다. 감사·응답으로 object key가 새지는 않는다 — 호출부가 `asset.source_*`를 쓰지 않고 자신의 snapshot 값을 쓴다.
+- 상태: **해결** (2026-08-31). 세 생성 지점을 모두 키워드 인자로 바꾸고 `QuarantinedAsset`을 `@dataclass(frozen=True, kw_only=True)`로 만들어 위치 인자 구성을 아예 막았다. 생성 지점이 `assets.py` 안 세 곳뿐이라 외부 호출부에 영향이 없다. 회귀 테스트 4건을 추가했고 결함을 일부러 되살려 두 건이 실패하는 것을 확인했다.
+- 남은 위험: 이 결함은 "운영 백엔드에서만 실패하고 테스트 백엔드에서는 통과한다"는 부류다. `test_minio_e2e`는 `BIDOPS_MINIO_E2E=1`이 없으면 skip되므로 같은 부류가 또 잠복할 수 있다. 새 테스트는 MinIO 없이도 도는 가짜 store로 이 부류를 잡는다.
+
+## ADR-0027의 21일 재조회 근거가 종단 관측에서 재현되지 않는다
+
+- 재현 조건: `experiments/lifecycle-linkage-survey/scripts/survey.py`로 게시일 2026-08-24~2026-08-26 구간을 재조회하고 `--baseline-raw`로 이전 관측과 대조한다. 실행 기록은 [`20260831-order-plan-longitudinal.md`](../validation-runs/20260831-order-plan-longitudinal.md)에 있다.
+- 증상: 같은 997건이 5일 동안 `bidNtceNoList` 채움률 45.6% → 46.6%로 **1 포인트**만 올랐다. 같은 나이(6일)의 횡단면 점은 67.8%다. 횡단면 곡선은 3일 45.8% → 6일 67.8% → 9일 77.1%로 가파르게 오르지만 실제로 추적 가능한 코호트는 그 속도로 채워지지 않는다.
+- 영향: [ADR-0027](decisions/0027-order-plan-requery-window.md)이 재조회 범위를 최근 21일로 정한 근거는 횡단면 곡선의 "15~17일 평탄화"다. 실제 코호트가 훨씬 느리게 채워진다면 평탄화 시점이 21일보다 뒤일 수 있고 그러면 창이 짧아 공고 전환을 놓친다. [fill-curve](../validation-runs/20260829-order-plan-fill-curve.md)가 "횡단면과 종단이 어긋나면 종단이 정본"이라고 미리 정해 두었으므로 이 관측이 우선한다.
+- 지금 해결할 수 없는 이유: 종단 관측점이 세 개이고 기간이 5일뿐이다. 21일이 틀렸다고 단정하기에 부족하다. 나이 15일과 21일 근처(2026-09-08, 2026-09-14 무렵) 관측이 나와야 판단할 수 있고, 재조회 범위 변경은 수집 비용과 API 한도에 직접 영향을 주므로 사람 결정이 필요하다.
+- 접근 방법: 같은 구간의 재조회를 계속 쌓아 나이 21일 이후까지 본다. 횡단면 구간들은 폭이 3일로 같은데 건수가 28~997로 흔들려(08-15 광복절 구간이 28건) 비교 가능한 코호트가 아니다. 횡단면 기울기가 나이 효과인지 코호트 구성 차이인지 구분하려면 요일 구성이 같은 구간끼리 비교하거나, 08-21~08-23 구간도 종단으로 추적해 두 방법을 같은 코호트에서 직접 대조한다.
+
+## Alembic revision 식별자가 version table 컬럼보다 길어 PostgreSQL 배포가 불가능했다
+
+- 재현 조건: 빈 PostgreSQL 17에서 `alembic upgrade head`를 실행한다. `docs/validation-runs/20260831-postgresql-migration-verification.md`에 실행 기록이 있다.
+- 증상: `0003`까지 적용한 뒤 `psycopg.errors.StringDataRightTruncation: value too long for type character varying(32)`로 중단한다. Alembic 1.19.1은 version table을 만들 때 `Column("version_num", String(32))`를 하드코딩하는데(`alembic/ddl/impl.py:169`) `0004_cumulative_external_identity`(33자)와 `0006_bid_first_opportunity_registration`(39자)이 그보다 길다. PostgreSQL DDL은 트랜잭션이라 실행 전체가 롤백되어 `alembic_version` table조차 남지 않는다.
+- 영향: `0004` 이후 어떤 배포도 불가능했다. PostgreSQL만 선언 길이를 강제하고 SQLite는 무시하므로 전체 테스트 스위트는 통과하고 있었다. T-7·T-8·T-12·T-16a가 추가한 스키마가 정본 저장소에 한 번도 적용된 적이 없다.
+- 상태: **해결** (2026-08-31, T-9). `alembic/env.py`가 migration 실행 전에 version table을 `VARCHAR(64)`로 직접 만들고, 기본 폭으로 이미 만들어진 table은 `ALTER TABLE IF EXISTS`로 넓힌다. Alembic은 `Table.create(checkfirst=True)`로 생성하므로 이미 있는 table을 건드리지 않는다. 두 문장 모두 멱등이다. 폭은 `app.db.ALEMBIC_VERSION_NUM_WIDTH` 한 곳에 있고 `test_every_revision_identifier_fits_the_version_column`이 모든 revision 식별자를 그 안에 가둔다.
+- (해결 전 기록) 대안이던 revision 식별자 단축은 `down_revision` 사슬, 파일명, `contracts.md`·`findings.md`·`lifecycle-workstream.md`의 문서화된 식별자를 모두 바꿔야 해서 선택하지 않았다.
+
+## PostgreSQL 전용 테스트가 스키마 변경 뒤에도 갱신되지 않고 skip됐다
+
+- 재현 조건: `BIDOPS_TEST_POSTGRES_URL`을 disposable PostgreSQL 17에 맞추고 `pytest tests/test_models_runtime.py`를 실행한다.
+- 증상: 9건이 `column "run_id" of relation "notice" does not exist`로 실패한다. `seed_base()`가 `insert into notice(run_id, notice_key)`를 실행하는데 `run_id`는 `0004_cumulative_external_identity`가 ADR-0026에 따라 `notice`에서 없애고 `notice_observation`으로 옮긴 컬럼이다.
+- 영향: T-7이 공고 정체성 모델을 바꿀 때 이 테스트가 함께 갱신되지 않았다. `BIDOPS_TEST_POSTGRES_URL`이 없으면 `requires_postgres`가 조용히 skip하므로 스위트는 계속 초록이었다. **정본 저장소의 불변식을 검증하라고 만든 테스트가 검증하지 않는 상태로 남아 있었다.**
+- 상태: **해결** (2026-08-31, T-9). `seed_base()`가 `notice`를 누적 행으로 넣고 `notice_observation(notice_id, run_id, ...)`을 따로 넣는다. 13건 전부 통과한다.
+- 남은 위험: skip이 기본값이라는 구조는 그대로다. PostgreSQL 없이 도는 개발 환경에서는 같은 종류의 결함이 또 잠복할 수 있다. CI나 `web/run-web-tests.sh`에서 PostgreSQL 실행을 필수로 만드는 것은 별도 결정이다.
+
+## T7 스택의 publish port가 host에서 열리지 않는다
+
+- 재현 조건: Docker Engine 29.7.2에서 `docker compose -f docker-compose.t7.yml up -d`로 기동한 뒤 `curl http://127.0.0.1:18787/api/health`, `ss -ltn`으로 15432·18787·19000·19001을 확인한다.
+- 증상: 컨테이너는 정상이고 `web` 컨테이너 안에서 `/api/health`가 `{"status":"ok"}`를 반환하지만 host에서는 어떤 publish port도 바인딩되지 않는다. `HostConfig.PortBindings`에는 매핑이 남아 있으나 `NetworkSettings.Ports`가 `null`이다. `--internal` bridge 하나에만 붙은 컨테이너에 `-p`를 준 최소 재현에서도 host 연결이 실패하고, 일반 bridge에서는 같은 구성이 성공한다. `docker-compose.t7.yml`의 `database`·`storage`·`scanning`·`analysis`는 모두 `internal: true`이므로 web·postgres·minio의 publish 선언이 전부 무효다.
+- 영향: 문서화된 최초 기동 절차의 host `curl` health 확인과 관리 화면 접근이 현재 Docker 버전에서 동작하지 않는다. 컨테이너 내부 실행으로만 상태를 확인할 수 있어 통합 검증 절차와 운영 접근 경로가 성립하지 않는다.
+- 지금 해결할 수 없는 이유: 해결하려면 `web`에 non-internal network를 추가해야 하는데, 이는 "기본 network는 내부망"이라는 배포 경계와 `test_t7_runtime_contract.py`의 `all(network.get("internal") is True ...)` 계약을 함께 바꾸는 변경이다. 보안 경계 변경이므로 결정 기록과 회귀 테스트 갱신이 선행되어야 한다.
+- 접근 방법: `com.docker.network.bridge.enable_ip_masquerade=false`를 지정한 전용 edge bridge를 만들어 `web`에만 연결하는 방식을 실측했다. host에서 publish port가 열리고 컨테이너의 외부 TCP 연결은 계속 차단된다(다만 embedded DNS를 통한 외부 이름 해석은 남는다). 함께 `127.0.0.1` 바인딩을 명시해 현재 `0.0.0.0` publish를 좁히고, postgres·minio는 publish 없이 `docker compose exec`로만 접근하도록 분리한다. 계약 테스트는 "egress network는 overlay에서만 추가한다"와 "edge network는 masquerade 비활성"을 확인하도록 바꾼다.
+
+## 발주계획 Qwen 잘림 응답의 실패 token 계측이 보존되지 않는다
+
+- 재현 조건: 실행 `20260824-20260826-interim-v4`의 동결 모집단 997건을 Qwen `qwen3.8:27b`, 고정 batch 25, `think="high"`, `num_predict=4096`으로 판정한다. 40개 중 10개 batch에서 Ollama가 `done_reason=length`를 반환한다.
+- 증상: adapter가 `done_reason=length`를 확인하자마자 `truncated_output` 예외를 발생시켜 실패 응답의 `prompt_eval_count`, `eval_count`, thinking/content 길이와 duration을 결과에 옮기지 못한다. 해당 batch의 25건은 오류와 분배 latency만 갖고 input/output token은 `null`로 남는다.
+- 영향: 생성 길이 제한이 직접 종료 원인이라는 것은 확인할 수 있지만, batch 크기, thinking 길이, 최종 JSON 길이가 각각 한도 소진에 얼마나 기여했는지 분해할 수 없다. 현재 실행은 747/997건만 성공했으므로 Qwen을 운영 후보로 승인하거나 안전한 batch·token 값을 결정할 근거가 부족하다.
+- 지금 해결할 수 없는 이유: 현재 범위는 기존 불변 실행의 사후 결과 기록이다. 실패 batch telemetry를 추가하려면 method-result 계약의 batch 진단 표현, 비밀·본문 비보존 경계, renderer와 단위 테스트를 함께 변경하고 새 run ID로 live 재검증해야 한다.
+- 접근 방법: 실패 응답 본문은 저장하지 않고 `done_reason`, prompt/eval token count, total/eval duration, thinking/content 문자 수만 안전한 batch 진단으로 보존한다. 동일 실패 batch에서 기준 설정을 재현한 뒤 batch 10, `num_predict=8192`, 모델이 지원하는 thinking 설정을 한 변수씩 분리해 비교한다. 상세 증거와 artifact hash는 [`20260828-order-plan-screening-interim-v4.md`](../validation-runs/20260828-order-plan-screening-interim-v4.md)에 기록했다.
 
 ## 개발용 Codex 심층 검토 경로가 외부 전송 허용 범위를 넘는다
 

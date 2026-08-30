@@ -1,0 +1,57 @@
+{
+  "schema_version": "bidops.lifecycle-survey-raw-page.v1",
+  "endpoint_id": "g2b_prespec_pps_search_service_v1",
+  "query": {
+    "pageNo": "1",
+    "numOfRows": "50",
+    "type": "json",
+    "inqryDiv": "1",
+    "inqryBgnDt": "202601010000",
+    "inqryEndDt": "202608282359",
+    "prdctClsfcNoNm": "․부안다목적댐"
+  },
+  "page_no": 1,
+  "request_attempts": 1,
+  "collected_at": "2026-08-28T23:18:25.407684+09:00",
+  "payload_sha256": "603fc1bc0ec050f2c9fb54b89000cad936130092e8083ebde006d4ce80efe10e",
+  "payload": {
+    "response": {
+      "header": {
+        "resultCode": "00",
+        "resultMsg": "정상"
+      },
+      "body": {
+        "items": [
+          {
+            "bsnsDivNm": "기술용역",
+            "refNo": "국토안전관리원",
+            "prdctClsfcNoNm": "용담․밀양․부안다목적댐 수중조사 용역",
+            "orderInsttNm": "국토안전관리원",
+            "rlDminsttNm": "국토안전관리원",
+            "asignBdgtAmt": "91750000",
+            "rcptDt": "2026-08-27 07:13:59",
+            "opninRgstClseDt": "2026-09-01 23:59:00",
+            "ofclTelNo": "055-771-4659",
+            "ofclNm": "김진영",
+            "swBizObjYn": "N",
+            "dlvrTmlmtDt": "",
+            "dlvrDaynum": "90",
+            "bfSpecRgstNo": "R26BD00267762",
+            "specDocFileUrl1": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00267762&fileType=BFDTL&fileSeq=1",
+            "specDocFileUrl2": "",
+            "specDocFileUrl3": "",
+            "specDocFileUrl4": "",
+            "specDocFileUrl5": "",
+            "prdctDtlList": "",
+            "rgstDt": "2026-08-26 16:23:35",
+            "chgDt": "2026-08-27 07:13:59",
+            "bidNtceNoList": ""
+          }
+        ],
+        "numOfRows": 50,
+        "pageNo": 1,
+        "totalCount": 1
+      }
+    }
+  }
+}

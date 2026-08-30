@@ -16,14 +16,16 @@ import pytest
 from sqlalchemy import text
 
 from app.db import ALEMBIC_HEAD
-from app.models import LEGACY_TABLES, NEW_TABLES, SCREENING_RUNTIME_TABLES
+from app.models import ATTACHMENT_FETCH_TABLES, IDENTITY_TABLES, LEGACY_TABLES, NEW_TABLES, SCREENING_RUNTIME_TABLES
 from app.screening.generation_config import GenerationConfig, legacy_generation_config
 from tests.postgres import migrated_engine, requires_postgres, run_alembic, temporary_database
 
 pytestmark = requires_postgres
 
 LEAN_V1_HEAD = "0002_screening_basis_text"
-ALL_TABLES = frozenset(LEGACY_TABLES + NEW_TABLES + SCREENING_RUNTIME_TABLES)
+ALL_TABLES = frozenset(
+    LEGACY_TABLES + NEW_TABLES + SCREENING_RUNTIME_TABLES + IDENTITY_TABLES + ATTACHMENT_FETCH_TABLES
+)
 
 
 def _scalars(engine, sql: str, **params) -> list:
@@ -132,8 +134,10 @@ def test_migration_records_a_deterministic_audit_marker() -> None:
             row = connection.execute(
                 text(
                     "SELECT event_id, actor, target_type, target_id, details_json"
-                    " FROM bidops.screening_audit_event WHERE event_type = 'db.migration'"
-                )
+                    " FROM bidops.screening_audit_event"
+                    " WHERE event_type = 'db.migration' AND target_id = :revision"
+                ),
+                {"revision": ALEMBIC_HEAD},
             ).one()
         assert row.actor == "system:migration"
         assert row.target_type == "database"
@@ -226,3 +230,35 @@ def test_downgrade_removes_only_the_screening_runtime() -> None:
         assert remaining == set(LEGACY_TABLES + NEW_TABLES) | {"alembic_version"}
         assert not remaining & set(SCREENING_RUNTIME_TABLES)
         engine.dispose()
+
+
+def test_every_revision_identifier_fits_the_version_column() -> None:
+    """Guard the defect that made ``upgrade head`` impossible on PostgreSQL.
+
+    Alembic hard-codes ``version_num VARCHAR(32)`` when it creates its own
+    version table, and two identifiers in this lineage are longer than that.
+    PostgreSQL enforces the declared length while SQLite ignores it, so an
+    over-long identifier fails only on the canonical store -- and, because
+    PostgreSQL DDL is transactional, it fails the whole run without leaving a
+    version table behind.  ``alembic/env.py`` therefore creates the table at
+    ``VERSION_NUM_WIDTH``; this test keeps the identifiers inside it.
+    """
+
+    import re
+    from pathlib import Path
+
+    from app.db import ALEMBIC_VERSION_NUM_WIDTH as VERSION_NUM_WIDTH
+
+    versions = Path(__file__).resolve().parents[1] / "alembic" / "versions"
+    pattern = re.compile(r"^revision(?::\s*str)?\s*=\s*[\"']([^\"']+)[\"']", re.MULTILINE)
+    identifiers = []
+    for path in sorted(versions.glob("*.py")):
+        if path.name.startswith("_"):
+            continue
+        match = pattern.search(path.read_text(encoding="utf-8"))
+        assert match is not None, f"{path.name} has no revision identifier"
+        identifiers.append(match.group(1))
+
+    assert identifiers, "no Alembic revisions were found"
+    too_long = {value: len(value) for value in identifiers if len(value) > VERSION_NUM_WIDTH}
+    assert not too_long, f"revision identifiers exceed VARCHAR({VERSION_NUM_WIDTH}): {too_long}"

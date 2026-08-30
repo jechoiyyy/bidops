@@ -46,7 +46,36 @@
 ## 검증
 
 ```bash
-python3 -m unittest discover -s skills/bidops-collect/tests -p 'test_*.py' -t skills/bidops-collect -v
+python3 -m unittest discover -s skills/bidops-collect/tests -p 'test_*.py' -v
 ```
 
 페이지네이션, 제한 재시도, 빈 응답, Asia/Seoul 경계, 안정 ID, 제목·분류 신호 구분, threshold 경계, audit pool, 원문 재분류, key 마스킹, 동일 입력 재현성을 검사한다. 파일 계약에 영향이 있으면 루트 `./run-tests.sh`도 실행한다.
+
+## 발주계획 수집기
+
+`collect_order_plans.py`는 공고 수집기와 별도의 회차로 발주계획을 수집한다. 기본 모드는
+Asia/Seoul 오늘을 포함한 최근 21일이며, `--from-date`·`--to-date`를 함께 주면 `to-date`
+미만의 명시적인 반개구간으로 조회한다. 범위는 `bsnsDivNm`이 `일반용역` 또는 `기술용역`인
+항목이며, 범위 밖 원문 건수도 artifact의 `counts`에 남긴다. 발주월 query 범위
+`200412`~`999912`는 생략하지 않는다.
+
+```bash
+python3 skills/bidops-collect/scripts/collect_order_plans.py \
+  --output-dir data/runs/order-plans-$(date +%Y%m%d) \
+  --days 21
+
+python3 skills/bidops-collect/scripts/collect_order_plans.py \
+  --from-date 2026-08-08 --to-date 2026-08-29 \
+  --output-dir data/runs/order-plans-20260808-20260829
+```
+
+`BIDOPS_G2B_API_KEY`는 프로세스 환경 또는 루트 `.env`에서만 읽고 query·raw·로그에
+저장하지 않는다. API 응답 page는 회차 아래 `raw/`에 먼저 보존하며, 규칙 변경 뒤에는 새
+회차 디렉터리를 만들어 API 호출 없이 재정규화한다.
+
+```bash
+python3 skills/bidops-collect/scripts/collect_order_plans.py \
+  --from-date 2026-08-08 --to-date 2026-08-29 \
+  --from-raw data/runs/order-plans-20260808-20260829/raw \
+  --output-dir data/runs/order-plans-20260808-20260829-reclassified
+```

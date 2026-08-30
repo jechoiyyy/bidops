@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from ..config import Settings, get_settings
 from ..ingest.loader import ingest_run, parse_run_id
-from ..models import CompanyProfileSnapshot, Judgment, Notice, Run, ScreeningAttempt, ScreeningExecution, ScreeningPolicy
+from ..models import CompanyProfileSnapshot, Judgment, Notice, NoticeObservation, Run, ScreeningAttempt, ScreeningExecution, ScreeningPolicy
 from .artifacts import ArtifactError, ArtifactStore, aware_iso, canonical_bytes, sha256_bytes
 from .contracts import (
     MODEL_NAME,
@@ -351,7 +351,7 @@ class ScreeningWorker:
                 raise WorkerError("input_error")
             if row.scope == "single_notice":
                 notice = input_value["notices"][0]
-                db_notice = session.scalar(select(Notice).where(Notice.run_id == row.source_run_id, Notice.notice_key == notice.get("notice_id")))
+                db_notice = session.scalar(select(Notice).where(Notice.notice_key == notice.get("notice_id")))
                 if db_notice is None or db_notice.id != row.notice_pk:
                     raise WorkerError("input_mismatch")
             policy_body = {
@@ -1174,9 +1174,18 @@ class ScreeningWorker:
                 input_ids = {item.get("notice_id") for item in staged_input.get("notices", []) if isinstance(item, Mapping)}
                 result_count = int(staged_results.get("result_count", -1))
                 failed_ids = {item.get("notice_id") for item in staged_failures.get("failures", []) if isinstance(item, Mapping)} if isinstance(staged_failures, Mapping) else set()
-                actual_notices = session.scalars(select(Notice).where(Notice.run_id == derived_id)).all()
+                actual_notices = session.scalars(
+                    select(Notice)
+                    .join(NoticeObservation, NoticeObservation.notice_id == Notice.id)
+                    .where(NoticeObservation.run_id == derived_id)
+                ).all()
                 actual_notice_ids = {item.notice_key for item in actual_notices}
-                actual_judgments = session.scalars(select(Judgment).join(Notice, Judgment.notice_pk == Notice.id).where(Notice.run_id == derived_id)).all()
+                actual_judgments = session.scalars(
+                    select(Judgment)
+                    .join(Notice, Judgment.notice_pk == Notice.id)
+                    .join(NoticeObservation, NoticeObservation.notice_id == Notice.id)
+                    .where(NoticeObservation.run_id == derived_id)
+                ).all()
                 if actual_notice_ids != input_ids or len(actual_judgments) != result_count or any(item.notice_key in failed_ids and item.judgment is not None for item in actual_notices):
                     raise WorkerError("execution_failure")
                 if run.counts_json is None or not isinstance(run.counts_json, dict) or run.counts_json.get("notices") != len(input_ids) or run.counts_json.get("judgments") != result_count:

@@ -1,0 +1,46 @@
+{
+  "schema_version": "bidops.lifecycle-name-search-cache.v1",
+  "cache_key": "550d993ea33cc53ad0f07e37298907891ef44ed3a54bc2e41ce8c0030c1becc2",
+  "url": "https://apis.data.go.kr/1230000/ao/HrcspSsstndrdInfoService/getPublicPrcureThngInfoServcPPSSrch",
+  "query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=2026%EB%85%84+%EA%B5%B0%ED%8F%AC%EC%8B%9C%EB%8A%98%ED%91%B8%EB%A5%B8",
+  "response": {
+    "response": {
+      "header": {
+        "resultCode": "00",
+        "resultMsg": "정상"
+      },
+      "body": {
+        "items": [
+          {
+            "bsnsDivNm": "일반용역",
+            "refNo": "군포시늘푸른노인복지관 제2026-01호",
+            "prdctClsfcNoNm": "2026년 군포시늘푸른노인복지관 식자재 납품 선정 입찰 공고",
+            "orderInsttNm": "군포시늘푸른노인복지관",
+            "rlDminsttNm": "군포시늘푸른노인복지관",
+            "asignBdgtAmt": "800000000",
+            "rcptDt": "2026-08-19 17:17:08",
+            "opninRgstClseDt": "2026-08-24 23:59:00",
+            "ofclTelNo": "",
+            "ofclNm": "채희영",
+            "swBizObjYn": "N",
+            "dlvrTmlmtDt": "2027-09-30 00:00:00",
+            "dlvrDaynum": "0",
+            "bfSpecRgstNo": "R26BD00265353",
+            "specDocFileUrl1": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00265353&fileType=BFDTL&fileSeq=1",
+            "specDocFileUrl2": "",
+            "specDocFileUrl3": "",
+            "specDocFileUrl4": "",
+            "specDocFileUrl5": "",
+            "prdctDtlList": "",
+            "rgstDt": "2026-08-19 17:17:06",
+            "chgDt": "2026-08-19 17:17:08",
+            "bidNtceNoList": "R26BK01700044"
+          }
+        ],
+        "numOfRows": 50,
+        "pageNo": 1,
+        "totalCount": 1
+      }
+    }
+  }
+}

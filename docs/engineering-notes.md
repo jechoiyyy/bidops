@@ -125,3 +125,56 @@
 - 증상: 컨테이너 재생성 뒤 DB 레코드는 남지만 연결된 run·report 파일을 찾지 못한다.
 - 원인: 애플리케이션 파일 경로가 임시 container filesystem에만 있다.
 - 대응: 운영 전용 volume 또는 객체 저장 계약을 각 경로에 명시하고, 재시작·백업·복구 검증에서 DB 참조와 hash를 대조한다.
+
+## host에서 백엔드 테스트를 돌리는 실행기가 저장소 안에 없다
+
+- 증상: `python3 -m pytest`가 `No module named pytest`로 끝난다.
+- 원인: 시스템 Python에는 개발 의존성이 없고 저장소에 host용 venv를 두지 않는다.
+- 대응: host 검증용 venv를 만들어 `requirements.txt` 전체를 설치하고 그 절대 경로로 실행한다.
+  `openai`, `minio`, `psycopg`, `cryptography`가 빠지면 18개 test module이 수집 단계에서
+  `ImportError`로 죽는다. 부분 설치된 venv를 재사용하지 말 것.
+
+## 백엔드 전체 스위트는 4분 넘게 걸리고 멈춘 것처럼 보인다
+
+- 증상: `TestClient`를 쓰는 test module 구간에서 출력이 오래 없어 hang으로 보인다.
+- 원인: 전체 스위트가 800개 가까운 테스트를 돌고 그중 API 구간이 느리다.
+- 대응: 4분 30초까지는 기다린다. 위임한 에이전트가 "hang"이라고 보고해도 그대로 믿지 말고
+  직접 한 번 돌려 확인한다. 지난 다섯 번의 위임에서 전부 정상 종료했다.
+  **위임 결과는 전체 스위트 요약 줄로만 확인한다.**
+
+## 프론트엔드 빌드가 rollup native 모듈 누락으로 깨진다
+
+- 증상: `npm run build`가 `rollup/dist/native.js`에서 `MODULE_NOT_FOUND`로 실패한다.
+  `npx tsc -b`는 통과한다.
+- 원인: npm의 optional dependency 설치 버그로 플랫폼별 rollup 바이너리가 빠진다.
+- 대응: `npm install @rollup/rollup-linux-x64-gnu --no-save`로 복구한다.
+  타입 오류와 구분해야 하므로 `tsc -b`와 `npm run build`를 따로 돌린다.
+
+## 선택 필드를 계약 모델에 더하면 기존 레코드의 저장 identity가 바뀐다
+
+- 증상: 관계없는 `test_quality_gate.py` 여러 건이 "fixed quality run is invalid"로 깨진다.
+- 원인: `ContractModel`의 기본값을 `_json_value`가 materialize하므로, 원본 artifact에 없던
+  선택 필드가 모든 레코드의 저장 JSON에 `null`로 나타난다. digest로 고정된 fixture와 어긋난다.
+- 대응: `_lifecycle_payload`·`_qualification_flags_payload`처럼 `model_fields_set`에 없는
+  선택 필드를 저장 직전에 제거한다. 계약에 선택 필드를 더할 때마다 이 가드가 필요한지 확인한다.
+
+## SQLite에서 통과한 마이그레이션이 PostgreSQL에서 전부 롤백된다
+
+- 증상: `alembic upgrade head`가 중간 revision에서 `StringDataRightTruncation`으로 끝나고
+  `alembic_version` table조차 만들어지지 않는다. 테스트 스위트는 전부 통과한다.
+- 원인: PostgreSQL은 `VARCHAR(n)` 길이를 강제하고 SQLite는 무시한다. Alembic은 자기
+  version table을 `VARCHAR(32)`로 만드는데 서술적인 revision 식별자가 그보다 길었다.
+  PostgreSQL DDL이 트랜잭션이므로 한 revision의 실패가 실행 전체를 되돌린다.
+- 대응: 길이를 강제하지 않는 dialect에서 통과했다는 것을 정본 저장소의 근거로 쓰지 않는다.
+  스키마를 바꾸는 작업은 disposable PostgreSQL에서 `upgrade head`와 단계별 `downgrade`를
+  실제로 돌려 확인한다. Docker가 있으면 `postgres:17` 컨테이너 하나로 충분하다.
+
+## PostgreSQL 전용 테스트는 변수를 안 주면 조용히 skip된다
+
+- 증상: 스키마를 바꿔도 관련 테스트가 깨지지 않는다. 나중에 실행해 보면 오래전에 없어진
+  컬럼에 insert하고 있다.
+- 원인: `tests/postgres.py`의 `requires_postgres`가 `BIDOPS_TEST_POSTGRES_URL` 없이는
+  skip한다. skip은 초록으로 보이고 스위트 요약의 `skipped` 숫자는 잘 읽히지 않는다.
+- 대응: 스키마를 바꾸면 그 변수를 주고 PostgreSQL 테스트를 한 번 돌린다.
+  `pytest -q`의 `skipped` 개수가 늘어나거나 그대로인 것을 통과의 근거로 삼지 않는다.
+

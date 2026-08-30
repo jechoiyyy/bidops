@@ -1,0 +1,20 @@
+{
+  "schema_version": "bidops.lifecycle-name-search-cache.v1",
+  "cache_key": "cc38e399e7ae61ac9e28346b0ab113b397fe859283a49b9e6fdc24fe20788928",
+  "url": "https://apis.data.go.kr/1230000/ao/HrcspSsstndrdInfoService/getPublicPrcureThngInfoServcPPSSrch",
+  "query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=%ED%83%9C%EC%95%88%EA%B5%B0+%EA%B0%95%EC%86%8C%ED%98%95+%EC%8A%A4%EB%A7%88%ED%8A%B8%EC%8B%9C%ED%8B%B0+%EC%A1%B0%EC%84%B1%EC%82%AC%EC%97%85+%ED%88%AC%EC%96%B4%EC%8A%A4%ED%85%8C%EC%9D%B4%EC%85%98+%EA%B1%B4%EC%B6%95%EA%B0%90%EB%A6%AC",
+  "response": {
+    "response": {
+      "header": {
+        "resultCode": "00",
+        "resultMsg": "정상"
+      },
+      "body": {
+        "items": [],
+        "numOfRows": 50,
+        "pageNo": 1,
+        "totalCount": 0
+      }
+    }
+  }
+}

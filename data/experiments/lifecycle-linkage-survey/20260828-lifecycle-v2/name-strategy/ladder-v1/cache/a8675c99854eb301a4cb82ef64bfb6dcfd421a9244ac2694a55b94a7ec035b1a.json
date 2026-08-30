@@ -1,0 +1,46 @@
+{
+  "schema_version": "bidops.lifecycle-name-search-cache.v1",
+  "cache_key": "a8675c99854eb301a4cb82ef64bfb6dcfd421a9244ac2694a55b94a7ec035b1a",
+  "url": "https://apis.data.go.kr/1230000/ao/HrcspSsstndrdInfoService/getPublicPrcureThngInfoServcPPSSrch",
+  "query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=%EA%B2%80%EB%8B%A8+%EC%97%B0%EC%9E%A5%EC%82%AC%EC%97%85+%ED%83%80%EB%8B%B9%EC%84%B1%ED%8F%89%EA%B0%80+%EB%B0%8F+%EA%B8%B0%EB%B3%B8%EA%B3%84%ED%9A%8D+%EC%88%98%EB%A6%BD+%EC%9A%A9%EC%97%AD",
+  "response": {
+    "response": {
+      "header": {
+        "resultCode": "00",
+        "resultMsg": "정상"
+      },
+      "body": {
+        "items": [
+          {
+            "bsnsDivNm": "기술용역",
+            "refNo": "회계담당관-11539",
+            "prdctClsfcNoNm": "서울5호선 김포·검단 연장사업 타당성평가 및 기본계획 수립 용역",
+            "orderInsttNm": "경기도청 북부청사",
+            "rlDminsttNm": "경기도청 북부청사",
+            "asignBdgtAmt": "4632205000",
+            "rcptDt": "2026-07-30 13:23:18",
+            "opninRgstClseDt": "2026-08-04 23:59:00",
+            "ofclTelNo": "031-8030-2247",
+            "ofclNm": "노동주",
+            "swBizObjYn": "N",
+            "dlvrTmlmtDt": "",
+            "dlvrDaynum": "540",
+            "bfSpecRgstNo": "R26BD00258566",
+            "specDocFileUrl1": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00258566&fileType=BFDTL&fileSeq=1",
+            "specDocFileUrl2": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00258566&fileType=BFDTL&fileSeq=2",
+            "specDocFileUrl3": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00258566&fileType=BFDTL&fileSeq=3",
+            "specDocFileUrl4": "",
+            "specDocFileUrl5": "",
+            "prdctDtlList": "",
+            "rgstDt": "2026-07-30 13:23:11",
+            "chgDt": "2026-07-30 13:23:37",
+            "bidNtceNoList": "R26BK01697077"
+          }
+        ],
+        "numOfRows": 50,
+        "pageNo": 1,
+        "totalCount": 1
+      }
+    }
+  }
+}

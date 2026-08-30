@@ -9,6 +9,9 @@ import type {
   NoticeDetailResponse,
   NoticeHistoryResponse,
   NoticeListResponse,
+  OpportunityDetailResponse,
+  OpportunityListQuery,
+  OpportunityListResponse,
   PolicyActivationRequest,
   PolicyActivationResponse,
   PolicyCandidateRequest,
@@ -44,6 +47,7 @@ import type {
   ScreeningExecutionQuery,
   ScreeningExecutionResponse,
   ScreeningStopRequest,
+  TrackingStatusUpdateRequest,
   ValidationMetricsResponse,
   WarningListResponse,
 } from "./types";
@@ -64,6 +68,23 @@ export class ApiError extends Error {
     this.status = status;
     this.detail = detail;
   }
+}
+
+/**
+ * Build the audit-marker headers for a Lean mutation.
+ *
+ * `docs/contracts.md` requires percent encoding plus an explicit format header
+ * for non-ASCII names, because a raw non-ASCII header value cannot be sent.
+ * This name is an audit marker, never an authentication credential.
+ */
+function actorHeaders(actorName: string): Record<string, string> {
+  const trimmed = actorName.trim();
+  // eslint-disable-next-line no-control-regex
+  if (/^[\x20-\x7e]+$/.test(trimmed)) return { "X-BidOps-Actor-Name": trimmed };
+  return {
+    "X-BidOps-Actor-Name": `UTF-8''${encodeURIComponent(trimmed)}`,
+    "X-BidOps-Actor-Name-Format": "utf-8-percent-v1",
+  };
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -466,6 +487,32 @@ export const api = {
     request<ReviewResponse>(`/notices/${noticePk}/review`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+
+  getOpportunities: (params: OpportunityListQuery = {}, options?: ReadRequestOptions) =>
+    request<OpportunityListResponse>(
+      `/opportunities${query({
+        tracking_status: params.tracking_status,
+        first_registered_stage: params.first_registered_stage,
+        sort: params.sort,
+        limit: params.limit,
+        offset: params.offset,
+      })}`,
+      options,
+    ),
+
+  getOpportunity: (opportunityId: number, options?: ReadRequestOptions) =>
+    request<OpportunityDetailResponse>(`/opportunities/${opportunityId}`, options),
+
+  updateOpportunityTrackingStatus: (
+    opportunityId: number,
+    payload: TrackingStatusUpdateRequest,
+    actorName: string,
+  ) =>
+    request<OpportunityDetailResponse>(`/opportunities/${opportunityId}/tracking-status`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...actorHeaders(actorName) },
       body: JSON.stringify(payload),
     }),
 };

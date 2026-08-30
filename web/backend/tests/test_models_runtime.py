@@ -138,7 +138,14 @@ def validated_connect(database: Path | str) -> _PostgresConnection:
 def seed_base(connection: _PostgresConnection) -> None:
     now = "2026-01-01T00:00:00+00:00"
     connection.execute("insert into run(id, timezone, generated_at, status) values ('r1', 'Asia/Seoul', ?, 'active')", (now,))
-    connection.execute("insert into notice(run_id, notice_key) values ('r1', 'notice-1')")
+    # ``0004_cumulative_external_identity`` moved run dependency off ``notice``
+    # and onto ``notice_observation``; the notice itself is now cumulative.
+    connection.execute("insert into notice(notice_key) values ('notice-1')")
+    connection.execute(
+        "insert into notice_observation(notice_id, run_id, observed_at, changed_fields_json)"
+        " select id, 'r1', ?, '[]' from notice where notice_key='notice-1'",
+        (now,),
+    )
     connection.execute("insert into company_profile_snapshot(digest, version, source_kind, source_ref, artifact_path, created_at) values (?, ?, 'working_tree', 'docs/reference/company-profile.md', ?, ?)", (DIGEST, PROFILE_VERSION, f"web/data/profile-snapshots/{DIGEST}.md", now))
     body = "{}"
     connection.execute("insert into screening_policy(policy_version, schema_version, prompt_version, content_digest, status, perspective_prompts_json, counterargument_prompt_json, synthesis_prompt_json, candidate_selection_json, thresholds_json, created_at, created_by) values ('p1', 'bidops.screening-policy.v1', 'prompt-1', ?, 'draft', ?, ?, ?, ?, ?, ?, 'tester')", (DIGEST, body, body, body, body, body, now))

@@ -905,3 +905,83 @@ export interface AlwaysOnSwitchResponse {
   updated_by: Actor;
   rejection_reason: string | null;
 }
+
+// 누적 사업기회. 회차 단위 공고 목록과 달리 외부 식별자로 누적된다.
+// 계약은 docs/contracts.md의 `## 현재 REST 경로`에 있다.
+export type OpportunityTrackingStatus = "미선택" | "계속 추적" | "보류" | "종료";
+export type OpportunityFirstRegisteredStage = "order_plan" | "pre_spec" | "bid_notice";
+export type OpportunityLinkStage = "order_plan" | "notice";
+export type OpportunityLinkType = "official" | "candidate";
+export type OpportunityLinkStatus = "확정" | "후보 확인 대기" | "사람 확인 완료" | "검색 미확인";
+export type OpportunitySearchStrategy =
+  | "full"
+  | "breaking_split"
+  | "normalized"
+  | "longest_fragment"
+  | "prefix12";
+
+export interface OpportunityLinkView {
+  id: number;
+  stage: OpportunityLinkStage;
+  link_type: OpportunityLinkType;
+  status: OpportunityLinkStatus;
+  search_strategy: OpportunitySearchStrategy | null;
+  attempted_strategies: OpportunitySearchStrategy[];
+  agency_match: boolean | null;
+  last_searched_at: string | null;
+  evidence_external_no: string | null;
+  evidence_bid_no: string | null;
+  human_decision: "accepted" | "rejected" | null;
+  reviewer_name: string | null;
+  reviewed_at: string | null;
+  review_reason: string | null;
+  record_type: string | null;
+  record_id: number | null;
+  notice_id: number | null;
+  order_plan_id: number | null;
+  source_type: string | null;
+  title: string | null;
+  agency: string | null;
+  external_id: string | null;
+  record_external_id: string | null;
+}
+
+export interface OpportunityStateView {
+  id: number;
+  tracking_status: OpportunityTrackingStatus;
+  tracking_reason: string | null;
+  tracking_selected_by: string | null;
+  tracking_selected_at: string | null;
+  recheck_signal: boolean;
+  recheck_signal_at: string | null;
+  recheck_signal_link_id: number | null;
+  first_registered_stage: OpportunityFirstRegisteredStage;
+}
+
+export interface OpportunityListItem extends OpportunityStateView {
+  links: OpportunityLinkView[];
+}
+
+export interface OpportunityDetailResponse extends OpportunityStateView {
+  links: OpportunityLinkView[];
+}
+
+export interface OpportunityListResponse {
+  items: OpportunityListItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface OpportunityListQuery {
+  tracking_status?: OpportunityTrackingStatus | null;
+  first_registered_stage?: OpportunityFirstRegisteredStage | null;
+  sort?: "created_at" | "tracking_status" | "first_registered_stage" | null;
+  limit?: number | null;
+  offset?: number | null;
+}
+
+export interface TrackingStatusUpdateRequest {
+  tracking_status: OpportunityTrackingStatus;
+  reason: string;
+}

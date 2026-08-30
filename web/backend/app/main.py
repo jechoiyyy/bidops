@@ -22,6 +22,7 @@ from .logging_setup import configure
 from .routers.attachments import router as attachments_router
 from .routers.metrics import router as metrics_router
 from .routers.notices import router as notices_router
+from .routers.opportunities import router as opportunities_router
 from .routers.portals import router as portals_router
 from .routers.profile import router as profile_router
 from .routers.policies import router as policies_router
@@ -159,6 +160,7 @@ def health() -> dict[str, str]:
 
 app.include_router(runs_router)
 app.include_router(notices_router)
+app.include_router(opportunities_router)
 app.include_router(notice_reviews_router)
 app.include_router(reviews_router)
 app.include_router(metrics_router)

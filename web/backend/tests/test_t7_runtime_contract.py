@@ -106,6 +106,27 @@ def test_screening_egress_is_an_explicit_override():
     assert all(network.get("internal") is True for network in base["networks"].values())
 
 
+def test_prespec_attachment_egress_is_an_explicit_override():
+    override = yaml.safe_load(
+        (ROOT / "docker-compose.t7.prespec-attachment.yml").read_text(encoding="utf-8")
+    )
+    assert set(override["services"]) == {"prespec-attachment-worker"}
+    worker = override["services"]["prespec-attachment-worker"]
+    assert set(worker["networks"]) == {
+        "database", "storage", "scanning", "prespec-egress",
+    }
+    assert worker["environment"]["BIDOPS_G2B_ATTACHMENT_ENABLED"] == "true"
+    assert worker["environment"]["BIDOPS_G2B_ATTACHMENT_ALLOWED_HOSTS"].startswith(
+        "${BIDOPS_G2B_ATTACHMENT_ALLOWED_HOSTS:?"
+    )
+    assert worker["command"] == ["python", "-m", "app.workers.prespec_attachment"]
+    assert worker["healthcheck"] == {"disable": True}
+    assert override["networks"] == {"prespec-egress": None}
+    base = yaml.safe_load((ROOT / "docker-compose.t7.yml").read_text(encoding="utf-8"))
+    assert "prespec-egress" not in base["networks"]
+    assert all(network.get("internal") is True for network in base["networks"].values())
+
+
 def test_non_http_workers_disable_the_shared_web_image_healthcheck():
     compose = yaml.safe_load((ROOT / "docker-compose.t7.yml").read_text(encoding="utf-8"))
     for name in ("document-worker", "analysis-worker"):

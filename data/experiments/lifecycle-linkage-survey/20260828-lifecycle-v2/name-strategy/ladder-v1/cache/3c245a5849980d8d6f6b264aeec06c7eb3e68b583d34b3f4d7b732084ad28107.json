@@ -1,0 +1,71 @@
+{
+  "schema_version": "bidops.lifecycle-name-search-cache.v1",
+  "cache_key": "3c245a5849980d8d6f6b264aeec06c7eb3e68b583d34b3f4d7b732084ad28107",
+  "url": "https://apis.data.go.kr/1230000/ao/HrcspSsstndrdInfoService/getPublicPrcureThngInfoServcPPSSrch",
+  "query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=GX+%EB%B6%84%EC%95%BC+%EC%82%B0%EC%97%85+%EC%A4%91%EC%8B%AC+%EC%A7%81%EB%AC%B4%EC%97%AD%EB%9F%89+%EA%B0%95%ED%99%94+%ED%94%84%EB%A1%9C%EA%B7%B8%EB%9E%A8+%EC%9A%B4%EC%98%81",
+  "response": {
+    "response": {
+      "header": {
+        "resultCode": "00",
+        "resultMsg": "정상"
+      },
+      "body": {
+        "items": [
+          {
+            "bsnsDivNm": "일반용역",
+            "refNo": "-",
+            "prdctClsfcNoNm": "2026학년도 상반기 G7&GX 분야 산업 중심 직무역량 강화 프로그램 운영",
+            "orderInsttNm": "한양대학교 에리카산학협력단",
+            "rlDminsttNm": "한양대학교 에리카산학협력단",
+            "asignBdgtAmt": "82000000",
+            "rcptDt": "2026-03-24 21:00:38",
+            "opninRgstClseDt": "2026-03-29 23:59:00",
+            "ofclTelNo": "",
+            "ofclNm": "서상진",
+            "swBizObjYn": "N",
+            "dlvrTmlmtDt": "2026-08-31 00:00:00",
+            "dlvrDaynum": "0",
+            "bfSpecRgstNo": "R26BD00202307",
+            "specDocFileUrl1": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00202307&fileType=BFDTL&fileSeq=1",
+            "specDocFileUrl2": "",
+            "specDocFileUrl3": "",
+            "specDocFileUrl4": "",
+            "specDocFileUrl5": "",
+            "prdctDtlList": "",
+            "rgstDt": "2026-03-24 21:00:36",
+            "chgDt": "2026-03-24 21:00:38",
+            "bidNtceNoList": "R26BK01429964"
+          },
+          {
+            "bsnsDivNm": "일반용역",
+            "refNo": "-",
+            "prdctClsfcNoNm": "2026학년도 하반기 G7&GX 분야 산업 중심 직무역량 강화 프로그램 운영",
+            "orderInsttNm": "한양대학교 에리카산학협력단",
+            "rlDminsttNm": "한양대학교 에리카산학협력단",
+            "asignBdgtAmt": "82000000",
+            "rcptDt": "2026-08-20 17:26:53",
+            "opninRgstClseDt": "2026-08-25 23:59:00",
+            "ofclTelNo": "",
+            "ofclNm": "서상진",
+            "swBizObjYn": "N",
+            "dlvrTmlmtDt": "2026-12-05 00:00:00",
+            "dlvrDaynum": "0",
+            "bfSpecRgstNo": "R26BD00265850",
+            "specDocFileUrl1": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00265850&fileType=BFDTL&fileSeq=1",
+            "specDocFileUrl2": "",
+            "specDocFileUrl3": "",
+            "specDocFileUrl4": "",
+            "specDocFileUrl5": "",
+            "prdctDtlList": "",
+            "rgstDt": "2026-08-20 17:26:51",
+            "chgDt": "2026-08-20 17:26:53",
+            "bidNtceNoList": "R26BK01700263"
+          }
+        ],
+        "numOfRows": 50,
+        "pageNo": 1,
+        "totalCount": 2
+      }
+    }
+  }
+}

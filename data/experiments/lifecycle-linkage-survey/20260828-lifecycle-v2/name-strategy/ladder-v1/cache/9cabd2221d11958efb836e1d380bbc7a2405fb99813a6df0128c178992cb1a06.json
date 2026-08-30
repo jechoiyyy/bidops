@@ -1,0 +1,71 @@
+{
+  "schema_version": "bidops.lifecycle-name-search-cache.v1",
+  "cache_key": "9cabd2221d11958efb836e1d380bbc7a2405fb99813a6df0128c178992cb1a06",
+  "url": "https://apis.data.go.kr/1230000/ao/HrcspSsstndrdInfoService/getPublicPrcureThngInfoServcPPSSrch",
+  "query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=%EB%8C%80%EC%A0%84%ED%99%98%EA%B2%BD%EC%82%AC%EC%97%85%EC%A7%80%EB%B0%A9%EC%9E%90%EC%B9%98%EB%8B%A8%EC%B2%B4%EC%A1%B0%ED%95%A9+%EC%83%9D%ED%99%9C%ED%8F%90%EA%B8%B0%EB%AC%BC+%EC%88%98%EC%A7%91",
+  "response": {
+    "response": {
+      "header": {
+        "resultCode": "00",
+        "resultMsg": "정상"
+      },
+      "body": {
+        "items": [
+          {
+            "bsnsDivNm": "일반용역",
+            "refNo": "운영관리-2678",
+            "prdctClsfcNoNm": "2026년 대전환경사업지방자치단체조합 생활폐기물 수집·운반차량 자동차보험 가입 계약(긴급)",
+            "orderInsttNm": "대전환경사업지방자치단체조합",
+            "rlDminsttNm": "대전환경사업지방자치단체조합",
+            "asignBdgtAmt": "656300000",
+            "rcptDt": "2026-07-07 16:34:14",
+            "opninRgstClseDt": "2026-07-13 23:59:00",
+            "ofclTelNo": "",
+            "ofclNm": "남호진",
+            "swBizObjYn": "N",
+            "dlvrTmlmtDt": "",
+            "dlvrDaynum": "365",
+            "bfSpecRgstNo": "R26BD00249209",
+            "specDocFileUrl1": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00249209&fileType=BFDTL&fileSeq=1",
+            "specDocFileUrl2": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00249209&fileType=BFDTL&fileSeq=2",
+            "specDocFileUrl3": "",
+            "specDocFileUrl4": "",
+            "specDocFileUrl5": "",
+            "prdctDtlList": "",
+            "rgstDt": "2026-07-07 14:01:44",
+            "chgDt": "2026-07-07 16:34:14",
+            "bidNtceNoList": "R26BK01630518,R26BK01643099"
+          },
+          {
+            "bsnsDivNm": "일반용역",
+            "refNo": "운영관리팀",
+            "prdctClsfcNoNm": "대전환경사업지방자치단체조합 생활폐기물 수집·운반차량 자동차보험 가입 계약",
+            "orderInsttNm": "대전환경사업지방자치단체조합",
+            "rlDminsttNm": "대전환경사업지방자치단체조합",
+            "asignBdgtAmt": "528794120",
+            "rcptDt": "2026-08-19 18:57:23",
+            "opninRgstClseDt": "2026-08-24 23:59:00",
+            "ofclTelNo": "",
+            "ofclNm": "남호진",
+            "swBizObjYn": "N",
+            "dlvrTmlmtDt": "2027-07-28 00:00:00",
+            "dlvrDaynum": "0",
+            "bfSpecRgstNo": "R26BD00265420",
+            "specDocFileUrl1": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00265420&fileType=BFDTL&fileSeq=1",
+            "specDocFileUrl2": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00265420&fileType=BFDTL&fileSeq=2",
+            "specDocFileUrl3": "",
+            "specDocFileUrl4": "",
+            "specDocFileUrl5": "",
+            "prdctDtlList": "",
+            "rgstDt": "2026-08-19 18:57:20",
+            "chgDt": "2026-08-19 18:57:23",
+            "bidNtceNoList": "R26BK01696785"
+          }
+        ],
+        "numOfRows": 50,
+        "pageNo": 1,
+        "totalCount": 2
+      }
+    }
+  }
+}

@@ -648,6 +648,11 @@ def test_provider_connector_allowlist_dns_private_ip_and_size_limits(monkeypatch
     )
     assert asset.source_attachment_key == "source-1"
     assert asset.path.parent.name == "quarantine"
+    response = connector.fetch("https://files.example.test/request.pdf")
+    assert isinstance(response, assets.ProviderResponse)
+    assert response.body == fixture_pdf()
+    assert response.final_url == "https://files.example.test/request.pdf"
+    assert response.suggested_filename is None
     with pytest.raises(assets.ProviderSecurityError) as arbitrary:
         assets.acquire_provider_attachment(source_system="unknown", source_url="https://files.example.test/x.pdf", filename="x.pdf", connectors={}, root=tmp_path)
     assert arbitrary.value.code == "provider_connector_blocked"

@@ -1,0 +1,1575 @@
+{
+  "schema_version": "bidops.lifecycle-name-strategy-probe.v1",
+  "run_id": "20260828-ladder-v1",
+  "created_at": "2026-08-28T23:34:33.669718+09:00",
+  "search_field": "prdctClsfcNoNm",
+  "search_window": {
+    "from": "2026-01-01",
+    "to_exclusive": "2026-08-29"
+  },
+  "selection": {
+    "enabled": true,
+    "source": "name-match-probe.json",
+    "failure_count": 29,
+    "selected_pair_count": 29
+  },
+  "cache": {
+    "directory": "cache",
+    "offline": false,
+    "cache_hit_count": 2,
+    "cache_miss_count": 73
+  },
+  "request_count": 73,
+  "summary": {
+    "pair_count": 29,
+    "hit_count": 18,
+    "hit_rate": 0.6207,
+    "unique_hit_count": 9,
+    "cache_incomplete_pair_count": 0,
+    "strategies": {
+      "full": {
+        "attempt_count": 29,
+        "hit_count": 0,
+        "cumulative_hit_count": 0,
+        "cumulative_recall": 0.0,
+        "empty_result_count": 29,
+        "result_count_distribution": {
+          "0": 29
+        },
+        "unknown_result_count": 0,
+        "cache_hit_count": 1,
+        "cache_miss_count": 0
+      },
+      "breaking_split": {
+        "attempt_count": 9,
+        "hit_count": 6,
+        "cumulative_hit_count": 6,
+        "cumulative_recall": 0.2069,
+        "empty_result_count": 3,
+        "result_count_distribution": {
+          "0": 3,
+          "1": 3,
+          "2": 3
+        },
+        "unknown_result_count": 0,
+        "cache_hit_count": 0,
+        "cache_miss_count": 0
+      },
+      "normalized": {
+        "attempt_count": 11,
+        "hit_count": 1,
+        "cumulative_hit_count": 7,
+        "cumulative_recall": 0.2414,
+        "empty_result_count": 10,
+        "result_count_distribution": {
+          "0": 10,
+          "1": 1
+        },
+        "unknown_result_count": 0,
+        "cache_hit_count": 0,
+        "cache_miss_count": 0
+      },
+      "longest_fragment": {
+        "attempt_count": 7,
+        "hit_count": 3,
+        "cumulative_hit_count": 10,
+        "cumulative_recall": 0.3448,
+        "empty_result_count": 3,
+        "result_count_distribution": {
+          "0": 3,
+          "1": 3,
+          "16": 1
+        },
+        "unknown_result_count": 0,
+        "cache_hit_count": 0,
+        "cache_miss_count": 0
+      },
+      "prefix12": {
+        "attempt_count": 19,
+        "hit_count": 8,
+        "cumulative_hit_count": 18,
+        "cumulative_recall": 0.6207,
+        "empty_result_count": 10,
+        "result_count_distribution": {
+          "0": 10,
+          "1": 2,
+          "2": 2,
+          "3": 1,
+          "4": 1,
+          "9": 2,
+          "16": 1
+        },
+        "unknown_result_count": 0,
+        "cache_hit_count": 1,
+        "cache_miss_count": 0
+      }
+    }
+  },
+  "results": [
+    {
+      "plan_id": "R26DD20854242",
+      "plan_title": "2026년 군포시늘푸른노인복지관 식자재 납품업체 입찰 공고",
+      "expected_spec_no": "R26BD00265353",
+      "first_hit_strategy": "prefix12",
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "status": "hit",
+      "attempt_count": 2,
+      "cache_miss_count": 0,
+      "attempts": [
+        {
+          "strategy": "full",
+          "query": "2026년 군포시늘푸른노인복지관 식자재 납품업체 입찰 공고",
+          "query_length": 32,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "prefix12",
+          "query": "2026년 군포시늘푸른",
+          "query_length": 12,
+          "status": "ok",
+          "result_count": 1,
+          "returned_count": 1,
+          "hit": true,
+          "unique_hit": true,
+          "agency_matches": true,
+          "returned_spec_nos": [
+            "R26BD00265353"
+          ],
+          "cache_hit": false
+        }
+      ]
+    },
+    {
+      "plan_id": "R26DD20855357",
+      "plan_title": "2026학년도 하반기 G7&GX 분야 산업 중심 직무역량 강화 프로그램 운영",
+      "expected_spec_no": "R26BD00265850",
+      "first_hit_strategy": "breaking_split",
+      "hit": true,
+      "unique_hit": false,
+      "agency_matches": true,
+      "status": "hit",
+      "attempt_count": 2,
+      "cache_miss_count": 0,
+      "attempts": [
+        {
+          "strategy": "full",
+          "query": "2026학년도 하반기 G7&GX 분야 산업 중심 직무역량 강화 프로그램 운영",
+          "query_length": 42,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "breaking_split",
+          "query": "GX 분야 산업 중심 직무역량 강화 프로그램 운영",
+          "query_length": 27,
+          "status": "ok",
+          "result_count": 2,
+          "returned_count": 2,
+          "hit": true,
+          "unique_hit": false,
+          "agency_matches": true,
+          "returned_spec_nos": [
+            "R26BD00202307",
+            "R26BD00265850"
+          ],
+          "cache_hit": false
+        }
+      ]
+    },
+    {
+      "plan_id": "R26DD20853461",
+      "plan_title": "태안군 강소형 스마트시티 조성사업 투어스테이션 건축감리",
+      "expected_spec_no": "R26BD00265761",
+      "first_hit_strategy": "prefix12",
+      "hit": true,
+      "unique_hit": false,
+      "agency_matches": true,
+      "status": "hit",
+      "attempt_count": 2,
+      "cache_miss_count": 0,
+      "attempts": [
+        {
+          "strategy": "full",
+          "query": "태안군 강소형 스마트시티 조성사업 투어스테이션 건축감리",
+          "query_length": 30,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "prefix12",
+          "query": "태안군 강소형 스마트시",
+          "query_length": 12,
+          "status": "ok",
+          "result_count": 9,
+          "returned_count": 9,
+          "hit": true,
+          "unique_hit": false,
+          "agency_matches": true,
+          "returned_spec_nos": [
+            "R26BD00206964",
+            "R26BD00244667",
+            "R26BD00244677",
+            "R26BD00265746",
+            "R26BD00265750",
+            "R26BD00265753",
+            "R26BD00265757",
+            "R26BD00265761",
+            "R26BD00265766"
+          ],
+          "cache_hit": false
+        }
+      ]
+    },
+    {
+      "plan_id": "R26DD20854994",
+      "plan_title": "2026년창녕군공공하수도기술진단용역사업수행능력평가서제출안내공고",
+      "expected_spec_no": "R26BD00265644",
+      "first_hit_strategy": "prefix12",
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "status": "hit",
+      "attempt_count": 2,
+      "cache_miss_count": 0,
+      "attempts": [
+        {
+          "strategy": "full",
+          "query": "2026년창녕군공공하수도기술진단용역사업수행능력평가서제출안내공고",
+          "query_length": 34,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "prefix12",
+          "query": "2026년창녕군공공하수",
+          "query_length": 12,
+          "status": "ok",
+          "result_count": 1,
+          "returned_count": 1,
+          "hit": true,
+          "unique_hit": true,
+          "agency_matches": true,
+          "returned_spec_nos": [
+            "R26BD00265644"
+          ],
+          "cache_hit": false
+        }
+      ]
+    },
+    {
+      "plan_id": "R26DD20853626",
+      "plan_title": "국제우편 세관검사센터 자동분류장비 도입 사업 기술(감리) 용역",
+      "expected_spec_no": "R26BD00265177",
+      "first_hit_strategy": "prefix12",
+      "hit": true,
+      "unique_hit": false,
+      "agency_matches": true,
+      "status": "hit",
+      "attempt_count": 4,
+      "cache_miss_count": 0,
+      "attempts": [
+        {
+          "strategy": "full",
+          "query": "국제우편 세관검사센터 자동분류장비 도입 사업 기술(감리) 용역",
+          "query_length": 34,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "normalized",
+          "query": "국제우편 세관검사센터 자동분류장비 도입 사업 기술 감리 용역",
+          "query_length": 33,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "longest_fragment",
+          "query": "국제우편 세관검사센터 자동분류장비 도입 사업 기술",
+          "query_length": 27,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "prefix12",
+          "query": "국제우편 세관검사센터",
+          "query_length": 11,
+          "status": "ok",
+          "result_count": 2,
+          "returned_count": 2,
+          "hit": true,
+          "unique_hit": false,
+          "agency_matches": true,
+          "returned_spec_nos": [
+            "R26BD00253294",
+            "R26BD00265177"
+          ],
+          "cache_hit": false
+        }
+      ]
+    },
+    {
+      "plan_id": "R26DD20853836",
+      "plan_title": "제주공항 전력계통 및 수배전설비 개량 설계용역",
+      "expected_spec_no": "R26BD00257138",
+      "first_hit_strategy": "prefix12",
+      "hit": true,
+      "unique_hit": false,
+      "agency_matches": true,
+      "status": "hit",
+      "attempt_count": 2,
+      "cache_miss_count": 0,
+      "attempts": [
+        {
+          "strategy": "full",
+          "query": "제주공항 전력계통 및 수배전설비 개량 설계용역",
+          "query_length": 25,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "prefix12",
+          "query": "제주공항 전력계통 및",
+          "query_length": 11,
+          "status": "ok",
+          "result_count": 2,
+          "returned_count": 2,
+          "hit": true,
+          "unique_hit": false,
+          "agency_matches": true,
+          "returned_spec_nos": [
+            "R26BD00164777",
+            "R26BD00257138"
+          ],
+          "cache_hit": false
+        }
+      ]
+    },
+    {
+      "plan_id": "R26DD20853631",
+      "plan_title": "서울5호선 김포·검단 연장사업 타당성평가 및 기본계획 수립 용역",
+      "expected_spec_no": "R26BD00258566",
+      "first_hit_strategy": "breaking_split",
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "status": "hit",
+      "attempt_count": 2,
+      "cache_miss_count": 0,
+      "attempts": [
+        {
+          "strategy": "full",
+          "query": "서울5호선 김포·검단 연장사업 타당성평가 및 기본계획 수립 용역",
+          "query_length": 35,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "breaking_split",
+          "query": "검단 연장사업 타당성평가 및 기본계획 수립 용역",
+          "query_length": 26,
+          "status": "ok",
+          "result_count": 1,
+          "returned_count": 1,
+          "hit": true,
+          "unique_hit": true,
+          "agency_matches": true,
+          "returned_spec_nos": [
+            "R26BD00258566"
+          ],
+          "cache_hit": false
+        }
+      ]
+    },
+    {
+      "plan_id": "R26DD20853362",
+      "plan_title": "농업 분야 메탄·아산화질소 배출 저감 농자재 실증·사업화",
+      "expected_spec_no": "R26BD00265604",
+      "first_hit_strategy": null,
+      "hit": false,
+      "unique_hit": false,
+      "agency_matches": false,
+      "status": "miss",
+      "attempt_count": 4,
+      "cache_miss_count": 0,
+      "attempts": [
+        {
+          "strategy": "full",
+          "query": "농업 분야 메탄·아산화질소 배출 저감 농자재 실증·사업화",
+          "query_length": 31,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "breaking_split",
+          "query": "아산화질소 배출 저감 농자재 실증",
+          "query_length": 18,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "normalized",
+          "query": "농업 분야 메탄 아산화질소 배출 저감 농자재 실증 사업화",
+          "query_length": 31,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "prefix12",
+          "query": "농업 분야 메탄·아산화",
+          "query_length": 12,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        }
+      ]
+    },
+    {
+      "plan_id": "R26DD20853464",
+      "plan_title": "태안군 강소형 스마트시티 조성사업 투어스테이션 건축감리",
+      "expected_spec_no": "R26BD00265766",
+      "first_hit_strategy": "prefix12",
+      "hit": true,
+      "unique_hit": false,
+      "agency_matches": true,
+      "status": "hit",
+      "attempt_count": 2,
+      "cache_miss_count": 0,
+      "attempts": [
+        {
+          "strategy": "full",
+          "query": "태안군 강소형 스마트시티 조성사업 투어스테이션 건축감리",
+          "query_length": 30,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": true
+        },
+        {
+          "strategy": "prefix12",
+          "query": "태안군 강소형 스마트시",
+          "query_length": 12,
+          "status": "ok",
+          "result_count": 9,
+          "returned_count": 9,
+          "hit": true,
+          "unique_hit": false,
+          "agency_matches": true,
+          "returned_spec_nos": [
+            "R26BD00206964",
+            "R26BD00244667",
+            "R26BD00244677",
+            "R26BD00265746",
+            "R26BD00265750",
+            "R26BD00265753",
+            "R26BD00265757",
+            "R26BD00265761",
+            "R26BD00265766"
+          ],
+          "cache_hit": true
+        }
+      ]
+    },
+    {
+      "plan_id": "R26DD20855024",
+      "plan_title": "수원 H·S 아파트 재정비 컨설팅 용역",
+      "expected_spec_no": "R26BD00265852",
+      "first_hit_strategy": null,
+      "hit": false,
+      "unique_hit": false,
+      "agency_matches": false,
+      "status": "miss",
+      "attempt_count": 4,
+      "cache_miss_count": 0,
+      "attempts": [
+        {
+          "strategy": "full",
+          "query": "수원 H·S 아파트 재정비 컨설팅 용역",
+          "query_length": 21,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "breaking_split",
+          "query": "S 아파트 재정비 컨설팅 용역",
+          "query_length": 16,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "normalized",
+          "query": "수원 H S 아파트 재정비 컨설팅 용역",
+          "query_length": 21,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "prefix12",
+          "query": "수원 H·S 아파트 재",
+          "query_length": 12,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        }
+      ]
+    },
+    {
+      "plan_id": "R26DD20854927",
+      "plan_title": "[재공고] 「2026년 우수물류기업 인증제 심사업무 대행」 사업 중 웹사이트 기능개선 및 유지관리",
+      "expected_spec_no": "R26BD00258621",
+      "first_hit_strategy": "longest_fragment",
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "status": "hit",
+      "attempt_count": 3,
+      "cache_miss_count": 0,
+      "attempts": [
+        {
+          "strategy": "full",
+          "query": "[재공고] 「2026년 우수물류기업 인증제 심사업무 대행」 사업 중 웹사이트 기능개선 및 유지관리",
+          "query_length": 54,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "normalized",
+          "query": "2026년 우수물류기업 인증제 심사업무 대행 사업 중 웹사이트 기능개선 및 유지관리",
+          "query_length": 46,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "longest_fragment",
+          "query": "2026년 우수물류기업 인증제 심사업무 대행",
+          "query_length": 24,
+          "status": "ok",
+          "result_count": 1,
+          "returned_count": 1,
+          "hit": true,
+          "unique_hit": true,
+          "agency_matches": true,
+          "returned_spec_nos": [
+            "R26BD00258621"
+          ],
+          "cache_hit": false
+        }
+      ]
+    },
+    {
+      "plan_id": "R26DD20854788",
+      "plan_title": "건설공사 안전점검 수행기관 지정(광사동 652-4, 오피스텔등 신축)",
+      "expected_spec_no": "R26BD00267599",
+      "first_hit_strategy": null,
+      "hit": false,
+      "unique_hit": false,
+      "agency_matches": false,
+      "status": "miss",
+      "attempt_count": 4,
+      "cache_miss_count": 0,
+      "attempts": [
+        {
+          "strategy": "full",
+          "query": "건설공사 안전점검 수행기관 지정(광사동 652-4, 오피스텔등 신축)",
+          "query_length": 38,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "normalized",
+          "query": "건설공사 안전점검 수행기관 지정 광사동 652 4 오피스텔등 신축",
+          "query_length": 36,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "longest_fragment",
+          "query": "건설공사 안전점검 수행기관 지정",
+          "query_length": 17,
+          "status": "ok",
+          "result_count": 16,
+          "returned_count": 16,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": true,
+          "returned_spec_nos": [
+            "R26BD00161368",
+            "R26BD00161918",
+            "R26BD00162455",
+            "R26BD00183445",
+            "R26BD00189011",
+            "R26BD00208512",
+            "R26BD00216045",
+            "R26BD00228262",
+            "R26BD00237541",
+            "R26BD00241782"
+          ],
+          "cache_hit": false
+        },
+        {
+          "strategy": "prefix12",
+          "query": "건설공사 안전점검 수행",
+          "query_length": 12,
+          "status": "ok",
+          "result_count": 16,
+          "returned_count": 16,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": true,
+          "returned_spec_nos": [
+            "R26BD00161368",
+            "R26BD00161918",
+            "R26BD00162455",
+            "R26BD00183445",
+            "R26BD00189011",
+            "R26BD00208512",
+            "R26BD00216045",
+            "R26BD00228262",
+            "R26BD00237541",
+            "R26BD00241782"
+          ],
+          "cache_hit": false
+        }
+      ]
+    },
+    {
+      "plan_id": "R26DD20853339",
+      "plan_title": "2026학년도 마산제일여자중학교 2학년 수학여행 용역",
+      "expected_spec_no": "R26BD00265650",
+      "first_hit_strategy": "prefix12",
+      "hit": true,
+      "unique_hit": false,
+      "agency_matches": true,
+      "status": "hit",
+      "attempt_count": 2,
+      "cache_miss_count": 0,
+      "attempts": [
+        {
+          "strategy": "full",
+          "query": "2026학년도 마산제일여자중학교 2학년 수학여행 용역",
+          "query_length": 29,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "prefix12",
+          "query": "2026학년도 마산제일",
+          "query_length": 12,
+          "status": "ok",
+          "result_count": 3,
+          "returned_count": 3,
+          "hit": true,
+          "unique_hit": false,
+          "agency_matches": true,
+          "returned_spec_nos": [
+            "R26BD00183766",
+            "R26BD00212348",
+            "R26BD00265650"
+          ],
+          "cache_hit": false
+        }
+      ]
+    },
+    {
+      "plan_id": "R26DD20853321",
+      "plan_title": "직무 중심 인사·보수 체계 고도화 및 주요사업 계량지표 개선 용역",
+      "expected_spec_no": "R26BD00265024",
+      "first_hit_strategy": "breaking_split",
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "status": "hit",
+      "attempt_count": 2,
+      "cache_miss_count": 0,
+      "attempts": [
+        {
+          "strategy": "full",
+          "query": "직무 중심 인사·보수 체계 고도화 및 주요사업 계량지표 개선 용역",
+          "query_length": 36,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "breaking_split",
+          "query": "보수 체계 고도화 및 주요사업 계량지표 개선 용역",
+          "query_length": 27,
+          "status": "ok",
+          "result_count": 1,
+          "returned_count": 1,
+          "hit": true,
+          "unique_hit": true,
+          "agency_matches": true,
+          "returned_spec_nos": [
+            "R26BD00265024"
+          ],
+          "cache_hit": false
+        }
+      ]
+    },
+    {
+      "plan_id": "R26DD20853320",
+      "plan_title": "수입·지출 구조 및 검역수수료 합리화 방안 연구용역",
+      "expected_spec_no": "R26BD00264606",
+      "first_hit_strategy": null,
+      "hit": false,
+      "unique_hit": false,
+      "agency_matches": false,
+      "status": "miss",
+      "attempt_count": 4,
+      "cache_miss_count": 0,
+      "attempts": [
+        {
+          "strategy": "full",
+          "query": "수입·지출 구조 및 검역수수료 합리화 방안 연구용역",
+          "query_length": 28,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "breaking_split",
+          "query": "지출 구조 및 검역수수료 합리화 방안 연구용역",
+          "query_length": 25,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "normalized",
+          "query": "수입 지출 구조 및 검역수수료 합리화 방안 연구용역",
+          "query_length": 28,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "prefix12",
+          "query": "수입·지출 구조 및 검",
+          "query_length": 12,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        }
+      ]
+    },
+    {
+      "plan_id": "R26DD20855148",
+      "plan_title": "2026. 김해교육지원청 어디Go 실시간 위치 공유 서비스사업 위탁 용역",
+      "expected_spec_no": "R26BD00266087",
+      "first_hit_strategy": null,
+      "hit": false,
+      "unique_hit": false,
+      "agency_matches": false,
+      "status": "miss",
+      "attempt_count": 4,
+      "cache_miss_count": 0,
+      "attempts": [
+        {
+          "strategy": "full",
+          "query": "2026. 김해교육지원청 어디Go 실시간 위치 공유 서비스사업 위탁 용역",
+          "query_length": 40,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "normalized",
+          "query": "2026 김해교육지원청 어디Go 실시간 위치 공유 서비스사업 위탁 용역",
+          "query_length": 39,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "longest_fragment",
+          "query": "김해교육지원청 어디Go 실시간 위치 공유 서비스사업 위탁 용역",
+          "query_length": 34,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "prefix12",
+          "query": "2026. 김해교육지원",
+          "query_length": 12,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        }
+      ]
+    },
+    {
+      "plan_id": "R26DD20854428",
+      "plan_title": "2027학년도 시흥능곡고 2학년 수련활동 위탁용역 입찰공고",
+      "expected_spec_no": "R26BD00265046",
+      "first_hit_strategy": null,
+      "hit": false,
+      "unique_hit": false,
+      "agency_matches": false,
+      "status": "miss",
+      "attempt_count": 2,
+      "cache_miss_count": 0,
+      "attempts": [
+        {
+          "strategy": "full",
+          "query": "2027학년도 시흥능곡고 2학년 수련활동 위탁용역 입찰공고",
+          "query_length": 32,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "prefix12",
+          "query": "2027학년도 시흥능곡",
+          "query_length": 12,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        }
+      ]
+    },
+    {
+      "plan_id": "R26DD20853445",
+      "plan_title": "대전환경사업지방자치단체조합 생활폐기물 수집·운반차량 자동차보험 가입 계약",
+      "expected_spec_no": "R26BD00265420",
+      "first_hit_strategy": "breaking_split",
+      "hit": true,
+      "unique_hit": false,
+      "agency_matches": true,
+      "status": "hit",
+      "attempt_count": 2,
+      "cache_miss_count": 0,
+      "attempts": [
+        {
+          "strategy": "full",
+          "query": "대전환경사업지방자치단체조합 생활폐기물 수집·운반차량 자동차보험 가입 계약",
+          "query_length": 40,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "breaking_split",
+          "query": "대전환경사업지방자치단체조합 생활폐기물 수집",
+          "query_length": 23,
+          "status": "ok",
+          "result_count": 2,
+          "returned_count": 2,
+          "hit": true,
+          "unique_hit": false,
+          "agency_matches": true,
+          "returned_spec_nos": [
+            "R26BD00249209",
+            "R26BD00265420"
+          ],
+          "cache_hit": false
+        }
+      ]
+    },
+    {
+      "plan_id": "R26DD20854149",
+      "plan_title": "제22회 도농 어울림 나눔축제",
+      "expected_spec_no": "756503",
+      "first_hit_strategy": null,
+      "hit": false,
+      "unique_hit": false,
+      "agency_matches": false,
+      "status": "miss",
+      "attempt_count": 2,
+      "cache_miss_count": 0,
+      "attempts": [
+        {
+          "strategy": "full",
+          "query": "제22회 도농 어울림 나눔축제",
+          "query_length": 16,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "prefix12",
+          "query": "제22회 도농 어울림",
+          "query_length": 11,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        }
+      ]
+    },
+    {
+      "plan_id": "R26DD20853714",
+      "plan_title": "2026 디지털새싹 교재 개발·제작 7종 용역(하반기)",
+      "expected_spec_no": "R26BD00267196",
+      "first_hit_strategy": "breaking_split",
+      "hit": true,
+      "unique_hit": false,
+      "agency_matches": true,
+      "status": "hit",
+      "attempt_count": 2,
+      "cache_miss_count": 0,
+      "attempts": [
+        {
+          "strategy": "full",
+          "query": "2026 디지털새싹 교재 개발·제작 7종 용역(하반기)",
+          "query_length": 30,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "breaking_split",
+          "query": "2026 디지털새싹 교재 개발",
+          "query_length": 16,
+          "status": "ok",
+          "result_count": 2,
+          "returned_count": 2,
+          "hit": true,
+          "unique_hit": false,
+          "agency_matches": true,
+          "returned_spec_nos": [
+            "R26BD00246337",
+            "R26BD00267196"
+          ],
+          "cache_hit": false
+        }
+      ]
+    },
+    {
+      "plan_id": "R26DD20855263",
+      "plan_title": "수중 자율기동 표적 장비 보험",
+      "expected_spec_no": "R26BD00264170",
+      "first_hit_strategy": null,
+      "hit": false,
+      "unique_hit": false,
+      "agency_matches": false,
+      "status": "miss",
+      "attempt_count": 2,
+      "cache_miss_count": 0,
+      "attempts": [
+        {
+          "strategy": "full",
+          "query": "수중 자율기동 표적 장비 보험",
+          "query_length": 16,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "prefix12",
+          "query": "수중 자율기동 표적 장",
+          "query_length": 12,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        }
+      ]
+    },
+    {
+      "plan_id": "R26DD20852730",
+      "plan_title": "석현·대월 처리구역 하수관로 정비사업 폐기물처리용역",
+      "expected_spec_no": "R26BD00252146",
+      "first_hit_strategy": "breaking_split",
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "status": "hit",
+      "attempt_count": 2,
+      "cache_miss_count": 0,
+      "attempts": [
+        {
+          "strategy": "full",
+          "query": "석현·대월 처리구역 하수관로 정비사업 폐기물처리용역",
+          "query_length": 28,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "breaking_split",
+          "query": "대월 처리구역 하수관로 정비사업 폐기물처리용역",
+          "query_length": 25,
+          "status": "ok",
+          "result_count": 1,
+          "returned_count": 1,
+          "hit": true,
+          "unique_hit": true,
+          "agency_matches": true,
+          "returned_spec_nos": [
+            "R26BD00252146"
+          ],
+          "cache_hit": false
+        }
+      ]
+    },
+    {
+      "plan_id": "R26DD20855422",
+      "plan_title": "울산공항 관리동 및 장비고 신축공사 건설폐기물 처리 용",
+      "expected_spec_no": "R26BD00261898",
+      "first_hit_strategy": "prefix12",
+      "hit": true,
+      "unique_hit": false,
+      "agency_matches": true,
+      "status": "hit",
+      "attempt_count": 2,
+      "cache_miss_count": 0,
+      "attempts": [
+        {
+          "strategy": "full",
+          "query": "울산공항 관리동 및 장비고 신축공사 건설폐기물 처리 용",
+          "query_length": 30,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "prefix12",
+          "query": "울산공항 관리동 및 장",
+          "query_length": 12,
+          "status": "ok",
+          "result_count": 4,
+          "returned_count": 4,
+          "hit": true,
+          "unique_hit": false,
+          "agency_matches": true,
+          "returned_spec_nos": [
+            "R26BD00169181",
+            "R26BD00180255",
+            "R26BD00216246",
+            "R26BD00261898"
+          ],
+          "cache_hit": false
+        }
+      ]
+    },
+    {
+      "plan_id": "R26DD20854538",
+      "plan_title": "2026. 직업계고 글로벌 현장학습 위탁용역 2단계(규격.가격 동시) 입찰",
+      "expected_spec_no": "R26BD00266314",
+      "first_hit_strategy": null,
+      "hit": false,
+      "unique_hit": false,
+      "agency_matches": false,
+      "status": "miss",
+      "attempt_count": 4,
+      "cache_miss_count": 0,
+      "attempts": [
+        {
+          "strategy": "full",
+          "query": "2026. 직업계고 글로벌 현장학습 위탁용역 2단계(규격.가격 동시) 입찰",
+          "query_length": 41,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "normalized",
+          "query": "2026 직업계고 글로벌 현장학습 위탁용역 2단계 규격 가격 동시 입찰",
+          "query_length": 39,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "longest_fragment",
+          "query": "직업계고 글로벌 현장학습 위탁용역 2단계",
+          "query_length": 22,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "prefix12",
+          "query": "2026. 직업계고 글",
+          "query_length": 12,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        }
+      ]
+    },
+    {
+      "plan_id": "R26DD20854819",
+      "plan_title": "26-N-함정 6.6kV 전력망 도입 대비 기술 확보 방안 연구",
+      "expected_spec_no": "R26BD00263814",
+      "first_hit_strategy": "longest_fragment",
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "status": "hit",
+      "attempt_count": 3,
+      "cache_miss_count": 0,
+      "attempts": [
+        {
+          "strategy": "full",
+          "query": "26-N-함정 6.6kV 전력망 도입 대비 기술 확보 방안 연구",
+          "query_length": 35,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "normalized",
+          "query": "26 N 함정 6 6kV 전력망 도입 대비 기술 확보 방안 연구",
+          "query_length": 35,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "longest_fragment",
+          "query": "6kV 전력망 도입 대비 기술 확보 방안 연구",
+          "query_length": 25,
+          "status": "ok",
+          "result_count": 1,
+          "returned_count": 1,
+          "hit": true,
+          "unique_hit": true,
+          "agency_matches": true,
+          "returned_spec_nos": [
+            "R26BD00263814"
+          ],
+          "cache_hit": false
+        }
+      ]
+    },
+    {
+      "plan_id": "R26DD20853987",
+      "plan_title": "김천시 DRT 도입에 따른 노선 전면 개편 및 교통량 조사 용역",
+      "expected_spec_no": "R26BD00265506",
+      "first_hit_strategy": null,
+      "hit": false,
+      "unique_hit": false,
+      "agency_matches": false,
+      "status": "miss",
+      "attempt_count": 2,
+      "cache_miss_count": 0,
+      "attempts": [
+        {
+          "strategy": "full",
+          "query": "김천시 DRT 도입에 따른 노선 전면 개편 및 교통량 조사 용역",
+          "query_length": 35,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "prefix12",
+          "query": "김천시 DRT 도입에",
+          "query_length": 11,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        }
+      ]
+    },
+    {
+      "plan_id": "R26DD20853902",
+      "plan_title": "경주시립도서관 홈페이지 서비스 개선",
+      "expected_spec_no": "R26BD00264568",
+      "first_hit_strategy": null,
+      "hit": false,
+      "unique_hit": false,
+      "agency_matches": false,
+      "status": "miss",
+      "attempt_count": 2,
+      "cache_miss_count": 0,
+      "attempts": [
+        {
+          "strategy": "full",
+          "query": "경주시립도서관 홈페이지 서비스 개선",
+          "query_length": 19,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "prefix12",
+          "query": "경주시립도서관 홈페이지",
+          "query_length": 12,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        }
+      ]
+    },
+    {
+      "plan_id": "R26DD20853725",
+      "plan_title": "2026 경북학교예술교육페스티벌 「어울림 1000인 음악제」 운영 대행 용역",
+      "expected_spec_no": "R26BD00266492",
+      "first_hit_strategy": "longest_fragment",
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "status": "hit",
+      "attempt_count": 3,
+      "cache_miss_count": 0,
+      "attempts": [
+        {
+          "strategy": "full",
+          "query": "2026 경북학교예술교육페스티벌 「어울림 1000인 음악제」 운영 대행 용역",
+          "query_length": 42,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "normalized",
+          "query": "2026 경북학교예술교육페스티벌 어울림 1000인 음악제 운영 대행 용역",
+          "query_length": 40,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "longest_fragment",
+          "query": "2026 경북학교예술교육페스티벌",
+          "query_length": 17,
+          "status": "ok",
+          "result_count": 1,
+          "returned_count": 1,
+          "hit": true,
+          "unique_hit": true,
+          "agency_matches": true,
+          "returned_spec_nos": [
+            "R26BD00266492"
+          ],
+          "cache_hit": false
+        }
+      ]
+    },
+    {
+      "plan_id": "R26DD20852160",
+      "plan_title": "(긴급)2026년 어디Go 실시간 위치 공유 서비스 사업 용역",
+      "expected_spec_no": "R26BD00264948",
+      "first_hit_strategy": "normalized",
+      "hit": true,
+      "unique_hit": true,
+      "agency_matches": true,
+      "status": "hit",
+      "attempt_count": 2,
+      "cache_miss_count": 0,
+      "attempts": [
+        {
+          "strategy": "full",
+          "query": "(긴급)2026년 어디Go 실시간 위치 공유 서비스 사업 용역",
+          "query_length": 34,
+          "status": "ok",
+          "result_count": 0,
+          "returned_count": 0,
+          "hit": false,
+          "unique_hit": false,
+          "agency_matches": false,
+          "returned_spec_nos": [],
+          "cache_hit": false
+        },
+        {
+          "strategy": "normalized",
+          "query": "2026년 어디Go 실시간 위치 공유 서비스 사업 용역",
+          "query_length": 30,
+          "status": "ok",
+          "result_count": 1,
+          "returned_count": 1,
+          "hit": true,
+          "unique_hit": true,
+          "agency_matches": true,
+          "returned_spec_nos": [
+            "R26BD00264948"
+          ],
+          "cache_hit": false
+        }
+      ]
+    }
+  ]
+}

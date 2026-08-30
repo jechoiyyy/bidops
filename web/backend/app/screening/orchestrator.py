@@ -1608,7 +1608,7 @@ class ScreeningOrchestrator:
             # quality executions are artifact-authoritative and may contain
             # collected candidates outside the validation-set DB projection.
             if scope == "single_notice":
-                db_notice = session.scalar(select(Notice).where(Notice.run_id == run_id, Notice.notice_key == notice_id))
+                db_notice = session.scalar(select(Notice).where(Notice.notice_key == notice_id))
                 if db_notice is None:
                     raise ScreeningCreationError("input_error")
             try:
@@ -1768,7 +1768,7 @@ class ScreeningOrchestrator:
             selected = [item for item in notices if item["notice_id"] == notice_id]
             if len(selected) != 1:
                 raise ScreeningCreationError("input_error")
-            db_notice = session.scalar(select(Notice).where(Notice.run_id == run_id, Notice.notice_key == notice_id))
+            db_notice = session.scalar(select(Notice).where(Notice.notice_key == notice_id))
             if db_notice is None:
                 raise ScreeningCreationError("input_error")
         try:
@@ -1866,7 +1866,7 @@ class ScreeningOrchestrator:
 
     def _notice_pk(self, run_id: str, notice_id: str | None) -> int:
         with self._session() as session:
-            row = session.scalar(select(Notice).where(Notice.run_id == run_id, Notice.notice_key == notice_id))
+            row = session.scalar(select(Notice).where(Notice.notice_key == notice_id))
             if row is None:
                 raise ScreeningCreationError("input_error")
             return row.id

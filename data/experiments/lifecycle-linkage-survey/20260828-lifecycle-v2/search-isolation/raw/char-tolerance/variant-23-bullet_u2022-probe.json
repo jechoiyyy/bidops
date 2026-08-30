@@ -1,0 +1,31 @@
+{
+  "schema_version": "bidops.lifecycle-survey-raw-page.v1",
+  "endpoint_id": "g2b_prespec_pps_search_service_v1",
+  "query": {
+    "pageNo": "1",
+    "numOfRows": "50",
+    "type": "json",
+    "inqryDiv": "1",
+    "inqryBgnDt": "202601010000",
+    "inqryEndDt": "202608282359",
+    "prdctClsfcNoNm": "•인천 하천매"
+  },
+  "page_no": 1,
+  "request_attempts": 1,
+  "collected_at": "2026-08-28T23:18:26.738670+09:00",
+  "payload_sha256": "8a81f1d20a81e7e9112253f606738984a066a798679f3e4282de7a66b1cba9f8",
+  "payload": {
+    "response": {
+      "header": {
+        "resultCode": "00",
+        "resultMsg": "정상"
+      },
+      "body": {
+        "items": [],
+        "numOfRows": 50,
+        "pageNo": 1,
+        "totalCount": 0
+      }
+    }
+  }
+}

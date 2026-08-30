@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.db import init_db
-from app.models import Judgment, Notice, Perspective, Run
+from app.models import Judgment, Notice, NoticeObservation, Perspective, Run
 from app.services.metrics import calculate_validation_metrics
 
 
@@ -34,14 +34,12 @@ def test_validation_metrics_keep_unmeasurable_values_as_null():
             notice_key="bid:SAME:000",
             sample_role="analysis",
         )
-        first_notice.judgment = Judgment(grade="우선 검토", readiness="부분 확인 필요")
-        second_notice = Notice(
-            run=second_run,
-            notice_key="bid:SAME:000",
-            sample_role="analysis",
+        first_notice.judgment = Judgment(grade="검토 권장", readiness="부분 확인 필요")
+        second_notice = first_notice
+        second_judgment = first_notice.judgment
+        second_run.notice_observations.append(
+            NoticeObservation(notice=first_notice, changed_fields_json=[])
         )
-        second_judgment = Judgment(grade="검토 권장", readiness="부분 확인 필요")
-        second_notice.judgment = second_judgment
         second_judgment.perspectives.extend(
             [
                 Perspective(name="기술", assessment="적합"),
@@ -53,7 +51,7 @@ def test_validation_metrics_keep_unmeasurable_values_as_null():
 
         metrics = {item.key: item for item in calculate_validation_metrics(session, second_run.id)}
 
-    assert metrics["reproducibility"].value == 0
+    assert metrics["reproducibility"].status == "not_measurable"
     assert metrics["discriminative_power"].value == 0
     assert metrics["evidence_validity"].status == "not_measurable"
     assert metrics["evidence_validity"].value is None

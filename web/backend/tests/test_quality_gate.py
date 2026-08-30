@@ -22,7 +22,7 @@ import app.screening.orchestrator as orchestrator_module
 from app.config import Settings
 from app.db import Base
 from app.ingest.loader import ingest_run, deterministic_run_id
-from app.models import ScreeningAuditEvent, CompanyProfileSnapshot, Judgment, Notice, QualityGate, QualityGateEvaluation, QualityGateReview, Run, ScreeningExecution, ScreeningPolicy
+from app.models import ScreeningAuditEvent, CompanyProfileSnapshot, Judgment, Notice, NoticeObservation, QualityGate, QualityGateEvaluation, QualityGateReview, Run, ScreeningExecution, ScreeningPolicy
 from app.screening.artifacts import ArtifactStore
 from app.screening.contracts import MODEL_NAME, ModelIdentity, two_axis_mixing
 from app.screening.orchestrator import (
@@ -422,7 +422,12 @@ def test_db_and_nested_snapshot_forge_is_rejected_without_gate_side_effects(tmp_
     with pytest.raises(TypeError):
         snapshot.sample["notices"][0]["title"] = "forged"  # type: ignore[index]
     with factory() as session:
-        notice = session.scalar(select(Notice).where(Notice.run_id == canonical_run_id).order_by(Notice.id))
+        notice = session.scalar(
+            select(Notice)
+            .join(NoticeObservation, NoticeObservation.notice_id == Notice.id)
+            .where(NoticeObservation.run_id == canonical_run_id)
+            .order_by(Notice.id)
+        )
         assert notice is not None
         notice.title = "database forge"
         session.commit()
@@ -1607,7 +1612,12 @@ def test_fixed_run_projection_mismatches_are_rejected_before_gate_side_effects(
     settings, engine, factory, _run_dir, canonical_run_id = _canonical_service_fixture(tmp_path)
     with factory() as session:
         run = session.get(Run, canonical_run_id)
-        notices = session.scalars(select(Notice).where(Notice.run_id == canonical_run_id).order_by(Notice.id)).all()
+        notices = session.scalars(
+            select(Notice)
+            .join(NoticeObservation, NoticeObservation.notice_id == Notice.id)
+            .where(NoticeObservation.run_id == canonical_run_id)
+            .order_by(Notice.id)
+        ).all()
         assert run is not None and len(notices) == 40
         if mutation == "window":
             run.window_to = run.window_to.replace(day=22)

@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..config import get_settings
 from ..db import get_db
-from ..models import Notice, Review, Run, VerificationAnswer
+from ..models import Notice, NoticeObservation, Review, VerificationAnswer
 from ..schemas import (
     ReviewAnswerResponse,
     ReviewResponse,
@@ -78,12 +78,14 @@ def list_reviews(
     run_id: str = Query(...),
     session: Session = Depends(get_db),
 ) -> list[ReviewResponse]:
-    """Return the database-authoritative reviews for one run."""
+    """Return canonical reviews for notices observed in one run."""
 
     run = get_run(session, run_id)
     reviews = session.scalars(
         select(Review)
-        .where(Review.run_id == run.id)
+        .join(Notice, Review.notice_pk == Notice.id)
+        .join(NoticeObservation, NoticeObservation.notice_id == Notice.id)
+        .where(NoticeObservation.run_id == run.id)
         .options(selectinload(Review.answers))
         .order_by(Review.notice_pk.asc())
     ).all()
@@ -96,18 +98,15 @@ def upsert_review(
     payload: ReviewUpsertRequest,
     session: Session = Depends(get_db),
 ) -> ReviewResponse:
-    """Create or update exactly one review for a notice/run pair."""
+    """Create or update exactly one canonical review for a notice."""
 
     run = get_run(session, payload.run_id)
     notice = session.scalar(select(Notice).where(Notice.id == notice_pk))
     if notice is None:
         raise HTTPException(status_code=404, detail=f"공고를 찾을 수 없습니다: {notice_pk}")
-    if notice.run_id != run.id:
-        raise HTTPException(status_code=404, detail="공고와 회차가 일치하지 않습니다.")
-
     review = session.scalar(
         select(Review)
-        .where(Review.notice_pk == notice_pk, Review.run_id == run.id)
+        .where(Review.notice_pk == notice_pk)
         .options(selectinload(Review.answers))
     )
     reviewer = _nullable_text(payload.reviewer)
@@ -122,6 +121,10 @@ def upsert_review(
         )
         session.add(review)
         session.flush()
+    else:
+        # Keep the observation in which the latest human edit was made as
+        # nullable provenance; it does not change the review's identity.
+        review.run_id = run.id
 
     review.disposition = _nullable_text(payload.disposition)
     review.system_judgment_review = _nullable_text(payload.system_judgment_review)
@@ -178,7 +181,8 @@ def export_reviews(
     run = get_run(session, run_id)
     notices = session.scalars(
         select(Notice)
-        .where(Notice.run_id == run.id)
+        .join(NoticeObservation, NoticeObservation.notice_id == Notice.id)
+        .where(NoticeObservation.run_id == run.id)
         .options(selectinload(Notice.reviews).selectinload(Review.answers))
         .order_by(Notice.id.asc())
     ).all()
@@ -186,7 +190,6 @@ def export_reviews(
         review.notice_pk: review
         for notice in notices
         for review in notice.reviews
-        if review.run_id == run.id
     }
     document = {
         "schema_version": "bidops.feedback.v2",

@@ -174,6 +174,7 @@ class FieldExtractionTests(unittest.TestCase):
         "rgnDutyJntcontrctRt": "40",
         "cmmnSpldmdCorpRgnLmtYn": "Y",
         "bfSpecRgstNo": "20260800123",
+        "orderPlanUntyNo": "R26DD20999999",
         "reNtceYn": "Y",
         "chgDt": "202608200930",
         "chgNtceRsn": "과업내용서 정정",
@@ -218,6 +219,7 @@ class FieldExtractionTests(unittest.TestCase):
         self.assertEqual("2026-08-20T09:30:00+09:00", lifecycle["changed_at"])
         self.assertEqual("과업내용서 정정", lifecycle["change_reason"])
         self.assertEqual("R26BK00000000", lifecycle["previous_failed_notice_no"])
+        self.assertEqual("R26DD20999999", lifecycle["order_plan_no"])
 
     def test_qualification_flags_carry_eligibility_signals(self) -> None:
         notice = COLLECT.normalize_bid(dict(self.RECORD), "fixture")
@@ -242,6 +244,76 @@ class PrespecNormalizationTests(unittest.TestCase):
         )
         self.assertEqual("지식그래프 기반 행정정보 검색 고도화", notice["title"])
         self.assertIn("지식그래프", labels_of(notice["focus_matches"]))
+
+    # 측정된 PPSSrch 응답은 규격서 URL을 specDocFileUrl1~5로만 노출한다.
+    # 650건 중 586건이 최소 하나를 갖고, 나머지는 원문에 URL이 없다.
+    def test_spec_document_urls_become_attachments(self) -> None:
+        notice = COLLECT.normalize_prespec(
+            {
+                "bfSpecRgstNo": "20260800100",
+                "bfSpecNm": "행정정보 통합 검색 고도화",
+                "specDocFileUrl1": "https://example.g2b/spec-1.hwp",
+                "specDocFileUrl3": "https://example.g2b/spec-3.pdf",
+            },
+            "fixture",
+        )
+        urls = [item["url"] for item in notice["attachments"]]
+        self.assertEqual(
+            ["https://example.g2b/spec-1.hwp", "https://example.g2b/spec-3.pdf"], urls
+        )
+        self.assertNotIn("attachments", notice["unknown_fields"])
+
+    def test_missing_spec_document_urls_stay_unknown_rather_than_silently_empty(self) -> None:
+        notice = COLLECT.normalize_prespec(
+            {"bfSpecRgstNo": "20260800101", "bfSpecNm": "첨부 없는 사전규격"},
+            "fixture",
+        )
+        self.assertEqual([], notice["attachments"])
+        self.assertIn("attachments", notice["unknown_fields"])
+
+    def test_sw_flag_business_division_and_bid_notice_list_are_preserved(self) -> None:
+        notice = COLLECT.normalize_prespec(
+            {
+                "bfSpecRgstNo": "20260800102",
+                "bfSpecNm": "통합관제 시스템 구축",
+                "swBizObjYn": "Y",
+                "bsnsDivNm": "일반용역",
+                "bidNtceNoList": "R26BK01698278000",
+            },
+            "fixture",
+        )
+        self.assertEqual("Y", notice["qualification_flags"]["sw_business_status"])
+        self.assertEqual("일반용역", notice["qualification_flags"]["business_division"])
+        self.assertEqual("R26BK01698278000", notice["lifecycle"]["bid_ntice_no_list"])
+
+    # ADR-0024: swBizObjYn으로 걸러 내지 않는다. 650건 중 Y는 55건(8.5%)뿐이라
+    # 필터를 켜면 91.5%가 사라진다. 표시 값으로만 쓴다.
+    def test_non_software_prespec_is_normalized_and_not_dropped(self) -> None:
+        notice = COLLECT.normalize_prespec(
+            {
+                "bfSpecRgstNo": "20260800103",
+                "bfSpecNm": "SW 대상이 아닌 용역",
+                "swBizObjYn": "N",
+                "bsnsDivNm": "기술용역",
+            },
+            "fixture",
+        )
+        self.assertEqual("pre:20260800103", notice["notice_id"])
+        self.assertEqual("N", notice["qualification_flags"]["sw_business_status"])
+
+    # 응답에 없는 필드를 읽던 경로가 사라졌다. specDocFileUrl(번호 없음)과
+    # bfSpecDtlUrl은 PPSSrch 응답에 존재하지 않으므로 url 자리에 넣지 않는다.
+    def test_url_is_not_filled_from_fields_absent_in_the_response(self) -> None:
+        notice = COLLECT.normalize_prespec(
+            {
+                "bfSpecRgstNo": "20260800104",
+                "bfSpecNm": "존재하지 않는 필드 확인",
+                "specDocFileUrl": "https://example.g2b/legacy.hwp",
+                "bfSpecDtlUrl": "https://example.g2b/legacy-detail",
+            },
+            "fixture",
+        )
+        self.assertIsNone(notice["url"])
 
     def test_budget_amount_is_never_matched_as_description_text(self) -> None:
         notice = COLLECT.normalize_prespec(

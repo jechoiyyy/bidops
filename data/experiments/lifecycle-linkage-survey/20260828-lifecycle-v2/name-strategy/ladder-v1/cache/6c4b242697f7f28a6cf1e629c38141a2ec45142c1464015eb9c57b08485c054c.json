@@ -1,0 +1,46 @@
+{
+  "schema_version": "bidops.lifecycle-name-search-cache.v1",
+  "cache_key": "6c4b242697f7f28a6cf1e629c38141a2ec45142c1464015eb9c57b08485c054c",
+  "url": "https://apis.data.go.kr/1230000/ao/HrcspSsstndrdInfoService/getPublicPrcureThngInfoServcPPSSrch",
+  "query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=%EB%8C%80%EC%9B%94+%EC%B2%98%EB%A6%AC%EA%B5%AC%EC%97%AD+%ED%95%98%EC%88%98%EA%B4%80%EB%A1%9C+%EC%A0%95%EB%B9%84%EC%82%AC%EC%97%85+%ED%8F%90%EA%B8%B0%EB%AC%BC%EC%B2%98%EB%A6%AC%EC%9A%A9%EC%97%AD",
+  "response": {
+    "response": {
+      "header": {
+        "resultCode": "00",
+        "resultMsg": "정상"
+      },
+      "body": {
+        "items": [
+          {
+            "bsnsDivNm": "일반용역",
+            "refNo": "상하수도사업소-7908",
+            "prdctClsfcNoNm": "석현대월 처리구역 하수관로 정비사업 폐기물처리용역",
+            "orderInsttNm": "강원특별자치도 양구군 상하수도사업소",
+            "rlDminsttNm": "강원특별자치도 양구군 상하수도사업소",
+            "asignBdgtAmt": "246840000",
+            "rcptDt": "2026-07-14 16:52:21",
+            "opninRgstClseDt": "2026-07-19 23:59:00",
+            "ofclTelNo": "033-480-7813",
+            "ofclNm": "이상화",
+            "swBizObjYn": "N",
+            "dlvrTmlmtDt": "",
+            "dlvrDaynum": "720",
+            "bfSpecRgstNo": "R26BD00252146",
+            "specDocFileUrl1": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00252146&fileType=BFDTL&fileSeq=1",
+            "specDocFileUrl2": "",
+            "specDocFileUrl3": "",
+            "specDocFileUrl4": "",
+            "specDocFileUrl5": "",
+            "prdctDtlList": "",
+            "rgstDt": "2026-07-14 16:52:18",
+            "chgDt": "2026-07-14 16:52:21",
+            "bidNtceNoList": "R26BK01695452"
+          }
+        ],
+        "numOfRows": 50,
+        "pageNo": 1,
+        "totalCount": 1
+      }
+    }
+  }
+}

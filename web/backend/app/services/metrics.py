@@ -9,7 +9,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from ..models import Judgment, Notice, Review
+from ..models import Judgment, Notice, NoticeObservation, Review
 from ..schemas import MetricBasis, ValidationMetric
 
 
@@ -116,7 +116,8 @@ def _discriminative_power(session: Session, run_id: str) -> ValidationMetric:
     rows = session.execute(
         select(Judgment.grade)
         .join(Notice, Judgment.notice_pk == Notice.id)
-        .where(Notice.run_id == run_id, Notice.sample_role == "analysis")
+        .join(NoticeObservation, NoticeObservation.notice_id == Notice.id)
+        .where(NoticeObservation.run_id == run_id, Notice.sample_role == "analysis")
     ).all()
     grades = [grade for (grade,) in rows if grade]
     denominator = len(grades)
@@ -144,8 +145,11 @@ def _discriminative_power(session: Session, run_id: str) -> ValidationMetric:
 
 def _evidence_validity(session: Session, run_id: str) -> ValidationMetric:
     values = session.scalars(
-        select(Review.system_judgment_review).where(
-            Review.run_id == run_id,
+        select(Review.system_judgment_review)
+        .join(Notice, Review.notice_pk == Notice.id)
+        .join(NoticeObservation, NoticeObservation.notice_id == Notice.id)
+        .where(
+            NoticeObservation.run_id == run_id,
             Review.system_judgment_review.is_not(None),
         )
     ).all()
@@ -176,7 +180,8 @@ def _information_sufficiency(session: Session, run_id: str) -> ValidationMetric:
     judgments = session.scalars(
         select(Judgment)
         .join(Notice, Judgment.notice_pk == Notice.id)
-        .where(Notice.run_id == run_id)
+        .join(NoticeObservation, NoticeObservation.notice_id == Notice.id)
+        .where(NoticeObservation.run_id == run_id)
         .options(
             # notice.attachments 까지 함께 읽지 않으면 판정 수만큼 조회가 늘어난다.
             selectinload(Judgment.notice).selectinload(Notice.attachments),
@@ -222,7 +227,8 @@ def _perspective_split(session: Session, run_id: str) -> ValidationMetric:
     judgments = session.scalars(
         select(Judgment)
         .join(Notice, Judgment.notice_pk == Notice.id)
-        .where(Notice.run_id == run_id)
+        .join(NoticeObservation, NoticeObservation.notice_id == Notice.id)
+        .where(NoticeObservation.run_id == run_id)
         .options(selectinload(Judgment.perspectives))
     ).all()
     eligible = [judgment for judgment in judgments if len(judgment.perspectives) >= 2]

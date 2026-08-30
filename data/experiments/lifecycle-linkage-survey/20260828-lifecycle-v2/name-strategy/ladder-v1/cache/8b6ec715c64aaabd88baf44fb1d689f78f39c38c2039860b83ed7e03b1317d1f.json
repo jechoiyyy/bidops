@@ -1,0 +1,71 @@
+{
+  "schema_version": "bidops.lifecycle-name-search-cache.v1",
+  "cache_key": "8b6ec715c64aaabd88baf44fb1d689f78f39c38c2039860b83ed7e03b1317d1f",
+  "url": "https://apis.data.go.kr/1230000/ao/HrcspSsstndrdInfoService/getPublicPrcureThngInfoServcPPSSrch",
+  "query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=%EA%B5%AD%EC%A0%9C%EC%9A%B0%ED%8E%B8+%EC%84%B8%EA%B4%80%EA%B2%80%EC%82%AC%EC%84%BC%ED%84%B0",
+  "response": {
+    "response": {
+      "header": {
+        "resultCode": "00",
+        "resultMsg": "정상"
+      },
+      "body": {
+        "items": [
+          {
+            "bsnsDivNm": "일반용역",
+            "refNo": "세관운영과-260710",
+            "prdctClsfcNoNm": "국제우편 세관검사센터 자동분류장비 도입",
+            "orderInsttNm": "조달청 인천지방조달청",
+            "rlDminsttNm": "관세청 인천공항세관",
+            "asignBdgtAmt": "13370015000",
+            "rcptDt": "2026-07-16 15:45:27",
+            "opninRgstClseDt": "2026-07-23 23:59:00",
+            "ofclTelNo": "070-4056-7866",
+            "ofclNm": "박정웅",
+            "swBizObjYn": "Y",
+            "dlvrTmlmtDt": "2027-11-30 00:00:00",
+            "dlvrDaynum": "0",
+            "bfSpecRgstNo": "R26BD00253294",
+            "specDocFileUrl1": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00253294&fileType=BFDTL&fileSeq=2",
+            "specDocFileUrl2": "",
+            "specDocFileUrl3": "",
+            "specDocFileUrl4": "",
+            "specDocFileUrl5": "",
+            "prdctDtlList": "[1^8111179901^정보인프라구축서비스]",
+            "rgstDt": "2026-07-16 15:45:25",
+            "chgDt": "2026-07-16 15:45:27",
+            "bidNtceNoList": "R26BK01686102"
+          },
+          {
+            "bsnsDivNm": "기술용역",
+            "refNo": "인천공항세관-260819",
+            "prdctClsfcNoNm": "국제우편 세관검사센터 자동분류장비 도입사업 기술용역(감리)",
+            "orderInsttNm": "관세청 인천공항세관",
+            "rlDminsttNm": "관세청 인천공항세관",
+            "asignBdgtAmt": "617000000",
+            "rcptDt": "2026-08-19 14:13:58",
+            "opninRgstClseDt": "2026-08-24 23:59:00",
+            "ofclTelNo": "032-722-4028",
+            "ofclNm": "성원영",
+            "swBizObjYn": "N",
+            "dlvrTmlmtDt": "2027-11-30 00:00:00",
+            "dlvrDaynum": "0",
+            "bfSpecRgstNo": "R26BD00265177",
+            "specDocFileUrl1": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00265177&fileType=BFDTL&fileSeq=1",
+            "specDocFileUrl2": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00265177&fileType=BFDTL&fileSeq=2",
+            "specDocFileUrl3": "",
+            "specDocFileUrl4": "",
+            "specDocFileUrl5": "",
+            "prdctDtlList": "",
+            "rgstDt": "2026-08-19 14:13:49",
+            "chgDt": "2026-08-21 10:40:52",
+            "bidNtceNoList": "R26BK01697479"
+          }
+        ],
+        "numOfRows": 50,
+        "pageNo": 1,
+        "totalCount": 2
+      }
+    }
+  }
+}

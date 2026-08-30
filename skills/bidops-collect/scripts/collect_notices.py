@@ -26,7 +26,21 @@ BID_ENDPOINT = (
 )
 PRESPEC_ENDPOINT = (
     "https://apis.data.go.kr/1230000/ao/HrcspSsstndrdInfoService/"
-    "getPublicPrcureThngInfoServc"
+    "getPublicPrcureThngInfoServcPPSSrch"
+)
+
+PRESPEC_QUALIFICATION_FIELDS = (
+    "participation_limited",
+    "industry_limited",
+    "information_business",
+    "general_service",
+    "service_division",
+    "joint_contract_method",
+    "performance_restricted_competition",
+    "pq_evaluation",
+    "technical_evaluation",
+    "technical_evaluation_rate",
+    "successful_bid_method",
 )
 
 PERFORMANCE_REFERENCE_PATH = (
@@ -594,6 +608,10 @@ def normalize_bid(record: dict[str, Any], raw_source: str) -> dict[str, Any]:
         },
         "lifecycle": {
             "pre_spec_no": text_value(record.get("bfSpecRgstNo")),
+            # The bid response carries the official upstream plan identity.
+            # It is optional in collected.v2 so historical artifacts remain
+            # valid while newer rows can resolve the cumulative plan link.
+            "order_plan_no": text_value(record.get("orderPlanUntyNo")),
             "re_notice": text_value(record.get("reNtceYn")),
             "changed_at": normalize_datetime(record.get("chgDt")),
             "change_reason": text_value(record.get("chgNtceRsn")),
@@ -640,6 +658,14 @@ def normalize_prespec(record: dict[str, Any], raw_source: str) -> dict[str, Any]
         ("prdctClsfcNoNm", "classification", classification),
     ))
     matched_performances, best_performance_score = performance_signals(title)
+    attachments = [
+        {"name": f"첨부 {index}", "url": url}
+        for index in range(1, 6)
+        if (url := text_value(record.get(f"specDocFileUrl{index}")))
+    ]
+    sw_business_status = text_value(record.get("swBizObjYn"))
+    business_division = text_value(record.get("bsnsDivNm"))
+    bid_ntice_no_list = text_value(record.get("bidNtceNoList"))
     unknown = [
         name
         for name, value in {
@@ -651,6 +677,16 @@ def normalize_prespec(record: dict[str, Any], raw_source: str) -> dict[str, Any]
         }.items()
         if value in (None, "")
     ]
+    if not attachments:
+        # The source has no URL to turn into an attachment.  Keep the empty
+        # array as the canonical type, but make the missing evidence explicit.
+        unknown.append("attachments")
+    if sw_business_status is None:
+        unknown.append("qualification_flags.sw_business_status")
+    if business_division is None:
+        unknown.append("qualification_flags.business_division")
+    if "bidNtceNoList" not in record:
+        unknown.append("lifecycle.bid_ntice_no_list")
     sources = candidate_sources(signals, matched_performances)
     return {
         "notice_id": f"pre:{number}",
@@ -664,7 +700,10 @@ def normalize_prespec(record: dict[str, Any], raw_source: str) -> dict[str, Any]
         "budget": first(record, "asignBdgtAmt", "sumOrderAmt"),
         "estimated_price": None,
         "method": None,
-        "url": text_value(first(record, "specDocFileUrl", "bfSpecDtlUrl")),
+        # PPSSrch exposes document URLs only as specDocFileUrl1..5.  There is
+        # no notice-detail URL in this response, so do not read legacy or
+        # speculative fields into this slot.
+        "url": None,
         "procurement_class": {
             "large": None,
             "middle": None,
@@ -684,9 +723,14 @@ def normalize_prespec(record: dict[str, Any], raw_source: str) -> dict[str, Any]
             "change_reason": text_value(record.get("chgNtceRsn")),
             "unified_notice_no": None,
             "previous_failed_notice_no": None,
+            "bid_ntice_no_list": bid_ntice_no_list,
         },
-        "attachments": [],
-        "qualification_flags": {},
+        "attachments": attachments,
+        "qualification_flags": {
+            **{field: None for field in PRESPEC_QUALIFICATION_FIELDS},
+            "sw_business_status": sw_business_status,
+            "business_division": business_division,
+        },
         "focus_matches": signals,
         "performance_matches": matched_performances,
         "performance_top_score": best_performance_score,

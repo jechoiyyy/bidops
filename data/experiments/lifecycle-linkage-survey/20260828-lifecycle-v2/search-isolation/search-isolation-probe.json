@@ -1,0 +1,114 @@
+{
+  "schema_version": "bidops.lifecycle-search-isolation-probe.v1",
+  "run_id": "20260828-lifecycle-v2",
+  "created_at": "2026-08-28T22:27:16.898446+09:00",
+  "endpoint_id": "g2b_prespec_pps_search_service_v1",
+  "search_field": "prdctClsfcNoNm",
+  "case": {
+    "name": "2026 디지털새싹 교재 개발·제작 7종 용역(하반기)",
+    "expected_spec_no": "R26BD00267196",
+    "from": "2026-01-01",
+    "to_exclusive": "2026-08-29"
+  },
+  "request_count": 6,
+  "max_requests": 6,
+  "variants": [
+    {
+      "variant_no": 1,
+      "strategy": "full_quote_plus",
+      "isolation_target": "대조군: 전체 이름 검색 실패가 재현되는지 확인",
+      "encoding": "quote_plus",
+      "query": "2026 디지털새싹 교재 개발·제작 7종 용역(하반기)",
+      "public_query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=2026+%EB%94%94%EC%A7%80%ED%84%B8%EC%83%88%EC%8B%B9+%EA%B5%90%EC%9E%AC+%EA%B0%9C%EB%B0%9C%C2%B7%EC%A0%9C%EC%9E%91+7%EC%A2%85+%EC%9A%A9%EC%97%AD%28%ED%95%98%EB%B0%98%EA%B8%B0%29",
+      "result_count": 0,
+      "returned_count": 0,
+      "expected_found": false,
+      "returned_spec_nos": [],
+      "raw_file": "variant-01-full_quote_plus.json"
+    },
+    {
+      "variant_no": 2,
+      "strategy": "token",
+      "isolation_target": "특수문자·공백 없는 순수 한글 토큰; 적중하면 레코드 구간과 부분일치를 함께 지지",
+      "encoding": "quote_plus",
+      "query": "디지털새싹",
+      "public_query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=%EB%94%94%EC%A7%80%ED%84%B8%EC%83%88%EC%8B%B9",
+      "result_count": 8,
+      "returned_count": 8,
+      "expected_found": true,
+      "returned_spec_nos": [
+        "R26BD00172279",
+        "R26BD00227103",
+        "R26BD00233231",
+        "R26BD00243766",
+        "R26BD00246337",
+        "R26BD00260187",
+        "R26BD00260541",
+        "R26BD00267196"
+      ],
+      "raw_file": "variant-02-token.json"
+    },
+    {
+      "variant_no": 3,
+      "strategy": "token_with_space",
+      "isolation_target": "#2에 공백과 선행 연도 토큰을 추가해 공백 처리를 확인",
+      "encoding": "quote_plus",
+      "query": "2026 디지털새싹",
+      "public_query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=2026+%EB%94%94%EC%A7%80%ED%84%B8%EC%83%88%EC%8B%B9",
+      "result_count": 2,
+      "returned_count": 2,
+      "expected_found": true,
+      "returned_spec_nos": [
+        "R26BD00246337",
+        "R26BD00267196"
+      ],
+      "raw_file": "variant-03-token_with_space.json"
+    },
+    {
+      "variant_no": 4,
+      "strategy": "middle_dot",
+      "isolation_target": "가운뎃점이 포함된 부분만 보내 특수문자 처리를 확인",
+      "encoding": "quote_plus",
+      "query": "개발·제작",
+      "public_query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=%EA%B0%9C%EB%B0%9C%C2%B7%EC%A0%9C%EC%9E%91",
+      "result_count": 0,
+      "returned_count": 0,
+      "expected_found": false,
+      "returned_spec_nos": [],
+      "raw_file": "variant-04-middle_dot.json"
+    },
+    {
+      "variant_no": 5,
+      "strategy": "parentheses",
+      "isolation_target": "괄호가 포함된 부분만 보내 괄호 처리를 확인",
+      "encoding": "quote_plus",
+      "query": "용역(하반기)",
+      "public_query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=%EC%9A%A9%EC%97%AD%28%ED%95%98%EB%B0%98%EA%B8%B0%29",
+      "result_count": 6,
+      "returned_count": 6,
+      "expected_found": true,
+      "returned_spec_nos": [
+        "R26BD00233476",
+        "R26BD00234365",
+        "R26BD00236520",
+        "R26BD00263261",
+        "R26BD00267196",
+        "R26BD00268321"
+      ],
+      "raw_file": "variant-05-parentheses.json"
+    },
+    {
+      "variant_no": 6,
+      "strategy": "full_quote_percent20",
+      "isolation_target": "#1과 문자열은 같고 공백 인코딩만 +에서 %20으로 변경",
+      "encoding": "quote",
+      "query": "2026 디지털새싹 교재 개발·제작 7종 용역(하반기)",
+      "public_query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=2026%20%EB%94%94%EC%A7%80%ED%84%B8%EC%83%88%EC%8B%B9%20%EA%B5%90%EC%9E%AC%20%EA%B0%9C%EB%B0%9C%C2%B7%EC%A0%9C%EC%9E%91%207%EC%A2%85%20%EC%9A%A9%EC%97%AD%28%ED%95%98%EB%B0%98%EA%B8%B0%29",
+      "result_count": 0,
+      "returned_count": 0,
+      "expected_found": false,
+      "returned_spec_nos": [],
+      "raw_file": "variant-06-full_quote_percent20.json"
+    }
+  ]
+}

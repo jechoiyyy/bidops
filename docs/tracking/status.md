@@ -11,7 +11,7 @@
 - 발주계획과 사전규격은 매일 독립 수집한다.
 - 발주계획은 일반용역·기술용역 전체를 수집하고 SW사업대상을 선필터로 쓰지 않는다.
 - 발주계획 사람 검토는 월요일·목요일에 수행한다.
-- 사전규격은 일반용역·기술용역 중 SW사업대상을 수집하고 저비용 선별 뒤 사람 승인을 거쳐 심층 검토한다.
+- 사전규격은 일반용역·기술용역 전체를 수집하고 SW사업대상은 표시 값으로만 남긴다([ADR-0024](decisions/0024-prespec-collect-all-flag-sw.md)). 저비용 선별 뒤 사람 승인을 거쳐 심층 검토한다.
 - 심층 검토 뒤 사람은 `계속 추적|보류|종료`를 선택한다. 입찰공고가 올라오면 사전규격 대비 중요 변경을 확인하고 최종 `Go/No-Go`는 다시 사람이 결정한다.
 - 자동 연결 실행과 각 단계의 수동 실행·재시도는 같은 execution, artifact, 상태 전이를 공유한다.
 
@@ -61,6 +61,11 @@
 - Deep Review Mock T7 E2E는 PostgreSQL, MinIO, ClamAV, document worker 2개, analysis worker, web에서 `passed=true`였다. 외부 모델 호출은 없었고 Qwen 품질 근거가 아니다.
 - 실제 Ollama 단일 판정은 한 번 실패한 뒤 generation binding을 고정한 재실행에서 7개 logical stage, 8 attempts, v3 judgment 1건으로 성공했다. 별도 stop 실행도 중단 artifact를 보존했다. 40건 A/B와 운영 activation을 뜻하지 않는다.
 - 사설 vLLM 후보는 제한된 구조화 입력에서 호출·validator 통과 기록이 있으나 server image와 model artifact digest가 아직 immutable하게 고정되지 않았다.
+
+## 진행 중 작업 기록
+
+발주계획·사전규격·입찰공고 생애주기 구현의 확정 사실, 대기 중인 결정, 할 일과 끝낸 일은
+[`lifecycle-workstream.md`](lifecycle-workstream.md)에서 갱신한다. 아래 순서의 6~10번이 그 범위다.
 
 ## 다음 작업 순서
 

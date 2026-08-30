@@ -14,7 +14,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool, text
 
-from app.db import Base, settings
+from app.db import ALEMBIC_VERSION_NUM_WIDTH, Base, settings
 from app import models  # noqa: F401 - register every declarative table
 
 
@@ -23,6 +23,30 @@ if config.config_file_name:
     fileConfig(config.config_file_name)
 
 target_metadata = Base.metadata
+
+# Alembic hard-codes ``version_num VARCHAR(32)`` when it creates its version
+# table, and two revision identifiers in this project are longer than that.
+# PostgreSQL enforces the declared length, so ``alembic upgrade head`` failed
+# on the canonical store while SQLite -- which ignores VARCHAR length --
+# passed.  The table is therefore created here at a width that fits, before
+# Alembic looks for it; ``Table.create(checkfirst=True)`` then leaves the
+# existing table alone.  Both statements are idempotent.
+#
+# The width lives in ``app.db`` so ``tests/test_db_migrations.py`` can hold
+# every revision identifier to it without importing this Alembic script.
+VERSION_NUM_WIDTH = ALEMBIC_VERSION_NUM_WIDTH
+CREATE_VERSION_TABLE = (
+    f"CREATE TABLE IF NOT EXISTS bidops.alembic_version ("
+    f"version_num VARCHAR({VERSION_NUM_WIDTH}) NOT NULL, "
+    f"CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num))"
+)
+# A version table left at the default width by an earlier run is widened
+# before any revision runs, so the first UPDATE of version_num cannot
+# truncate.
+WIDEN_VERSION_COLUMN = (
+    f"ALTER TABLE IF EXISTS bidops.alembic_version "
+    f"ALTER COLUMN version_num TYPE VARCHAR({VERSION_NUM_WIDTH})"
+)
 
 
 def _database_url() -> str:
@@ -43,6 +67,8 @@ def run_migrations_offline() -> None:
     )
     with context.begin_transaction():
         context.execute("CREATE SCHEMA IF NOT EXISTS bidops")
+        context.execute(CREATE_VERSION_TABLE)
+        context.execute(WIDEN_VERSION_COLUMN)
         context.run_migrations()
 
 
@@ -55,6 +81,8 @@ def do_run_migrations(connection) -> None:  # type: ignore[no-untyped-def]
     )
     with context.begin_transaction():
         connection.execute(text("CREATE SCHEMA IF NOT EXISTS bidops"))
+        connection.execute(text(CREATE_VERSION_TABLE))
+        connection.execute(text(WIDEN_VERSION_COLUMN))
         context.run_migrations()
 
 

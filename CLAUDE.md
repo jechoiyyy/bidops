@@ -24,6 +24,7 @@ bidops/
 │   ├── contracts.md                  REST·파일·DB 소비자 계약
 │   └── tracking/
 │       ├── status.md                 구현과 검증의 현재 상태
+│       ├── lifecycle-workstream.md 생애주기 구현의 결정 대기·할 일 기록
 │       ├── findings.md               재현 가능한 미해결 문제
 │       └── decisions/                기술·운영 결정과 대안·결과
 ├── skills/

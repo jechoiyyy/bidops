@@ -1,0 +1,46 @@
+{
+  "schema_version": "bidops.lifecycle-name-search-cache.v1",
+  "cache_key": "a9fe05dcdca0dee494c4dc5747bf5e9b3d8615f7aecb7e616b8150758af6025b",
+  "url": "https://apis.data.go.kr/1230000/ao/HrcspSsstndrdInfoService/getPublicPrcureThngInfoServcPPSSrch",
+  "query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=2026%EB%85%84%EC%B0%BD%EB%85%95%EA%B5%B0%EA%B3%B5%EA%B3%B5%ED%95%98%EC%88%98",
+  "response": {
+    "response": {
+      "header": {
+        "resultCode": "00",
+        "resultMsg": "정상"
+      },
+      "body": {
+        "items": [
+          {
+            "bsnsDivNm": "기술용역",
+            "refNo": "창녕군수도과",
+            "prdctClsfcNoNm": "2026년창녕군공공하수도기술진단용역",
+            "orderInsttNm": "경상남도 창녕군",
+            "rlDminsttNm": "경상남도 창녕군",
+            "asignBdgtAmt": "729720000",
+            "rcptDt": "2026-08-20 13:34:55",
+            "opninRgstClseDt": "2026-08-25 23:59:00",
+            "ofclTelNo": "055-530-6454",
+            "ofclNm": "김혜정",
+            "swBizObjYn": "N",
+            "dlvrTmlmtDt": "",
+            "dlvrDaynum": "270",
+            "bfSpecRgstNo": "R26BD00265644",
+            "specDocFileUrl1": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00265644&fileType=BFDTL&fileSeq=1",
+            "specDocFileUrl2": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00265644&fileType=BFDTL&fileSeq=2",
+            "specDocFileUrl3": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00265644&fileType=BFDTL&fileSeq=3",
+            "specDocFileUrl4": "",
+            "specDocFileUrl5": "",
+            "prdctDtlList": "",
+            "rgstDt": "2026-08-20 13:34:53",
+            "chgDt": "2026-08-20 14:01:30",
+            "bidNtceNoList": "R26BK01699464"
+          }
+        ],
+        "numOfRows": 50,
+        "pageNo": 1,
+        "totalCount": 1
+      }
+    }
+  }
+}

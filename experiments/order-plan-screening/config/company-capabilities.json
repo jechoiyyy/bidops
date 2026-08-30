@@ -2,9 +2,9 @@
   "schema_version": "bidops.order-plan-capabilities.v1",
   "approval_status": "approved",
   "profile_version": "rootlab-company-profile-2026-08-96731dd5f77d",
-  "summary_sha256": "2ee0ebdd126341a6a79997341ebb93a76b00d5477d65ee21f635a41ecef2a57a",
+  "summary_sha256": "b2e07cba7d571f244e37c09ad0261624f3ad1786f1bbd2e6614904b75e7a7cf6",
   "approved_by": "choi",
-  "approved_at": "2026-08-28T09:35+09:00",
+  "approved_at": "2026-08-28T15:26+09:00",
   "capabilities": [
     {
       "id": "ai-data-analytics",
@@ -29,6 +29,22 @@
     {
       "id": "ontology-knowledge-graph",
       "summary": "이기종 데이터 모델링·표준화, 산업 도메인 지식베이스, 지식 기반 추론과 AI 연계 검색·추천 역량이 확인되지만 대표 수행실적 근거는 다른 핵심 기술영역보다 제한적임."
+    },
+    {
+      "id": "domain-disaster-fire-safety",
+      "summary": "소방·재난안전 도메인에서 소방안전 빅데이터 플랫폼, 재난안전 영상정보 공유 플랫폼, 소방예방정보시스템 기능 고도화 수행 경험이 확인되며, 산업안전 모니터링은 최근 확장 신호로 확인됨."
+    },
+    {
+      "id": "domain-healthcare-data",
+      "summary": "디지털 헬스케어를 사업영역으로 제시하고 SaaS 기반 K-Dental 플랫폼 수행이 확인되지만, 의료·헬스케어 데이터 플랫폼은 신규 진출 영역으로 다뤄지며 대표 수행실적 근거는 제한적임."
+    },
+    {
+      "id": "domain-education-credentials",
+      "summary": "디지털 교육 도메인에서 학습이력 관리, 디지털배지 발급·검증·제출이력 관리, 배움이력 전자지갑, 교육 플랫폼 구축·운영 역량이 확인됨."
+    },
+    {
+      "id": "delivery-research-poc",
+      "summary": "정책·기술 연구, R&D·실증사업, 교육·훈련 지원 수행 경험이 확인되고 공공 AI 영향평가 세부설계 및 제도화 방안 연구가 대표 근거이지만, 이 경험이 입찰 실적요건 충족을 뜻하지는 않음."
     }
   ]
 }

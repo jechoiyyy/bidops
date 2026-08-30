@@ -551,6 +551,7 @@ def build_run_document(
             "allowed_plan_fields": list(methods["model_plan_allowed_fields"]),
             "company_capabilities_sha256": digest_json(capabilities),
             "batch_sizes": {
+                "bge_m3_dense": methods["methods"]["bge_m3_dense"]["batch_size"],
                 "qwen": methods["methods"]["qwen"]["batch_size"],
                 "luna": methods["methods"]["luna"]["batch_size"],
             },

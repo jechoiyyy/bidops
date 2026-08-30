@@ -1,0 +1,12 @@
+{
+  "run_id": "20260828-lifecycle-v2",
+  "collected_at": "2026-08-28T20:27:34.919005+09:00",
+  "window": {
+    "from": "2026-08-25",
+    "to_exclusive": "2026-08-28"
+  },
+  "targets": {
+    "prespec_search": 650
+  },
+  "request_count": 2
+}

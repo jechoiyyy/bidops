@@ -5,21 +5,23 @@ usage() {
   cat <<'EOF'
 Usage:
   run-local-comparison.sh --approved-by NAME --approve-capabilities \
-    --prompt-file PATH --execute-qwen [options]
+    --prompt-file PATH --execute-dense --execute-qwen [options]
 
-Runs the fixed order-plan comparison through Keyword, BGE-M3 ColBERT, and
-local Qwen. GPT Luna remains a separate externally approved execution.
+Runs the interim order-plan comparison through deterministic TF-IDF,
+Ollama BGE-M3 dense representation, and local Qwen. BGE-M3 ColBERT and
+GPT Luna remain deferred, separately controlled executions.
 
 Required:
   --approved-by NAME       Human audit marker approving company capabilities
   --approve-capabilities   Confirm the reviewed capability projection
   --prompt-file PATH       Approved batch prompt stored outside tracked files
+  --execute-dense          Explicitly allow local BGE-M3 embedding calls
   --execute-qwen           Explicitly allow local Qwen inference calls
 
 Options:
   --run-id ID              Unique immutable run ID (default: timestamped)
   --from-raw DIR           Replay immutable raw pages instead of calling G2B
-  --install-model-deps     Create/reuse an isolated venv and install BGE deps
+  --install-model-deps     Deprecated compatibility option; no effect
   --skip-tests             Skip the fake/unit test suite
   --help                   Show this help
 
@@ -42,6 +44,7 @@ PROMPT_FILE=""
 RUN_ID="order-plan-local-$(date +%Y%m%d-%H%M%S)"
 FROM_RAW=""
 INSTALL_MODEL_DEPS=false
+EXECUTE_DENSE=false
 EXECUTE_QWEN=false
 RUN_TESTS=true
 
@@ -75,6 +78,10 @@ while (($#)); do
       INSTALL_MODEL_DEPS=true
       shift
       ;;
+    --execute-dense)
+      EXECUTE_DENSE=true
+      shift
+      ;;
     --execute-qwen)
       EXECUTE_QWEN=true
       shift
@@ -106,6 +113,8 @@ done
   || fail "안전하지 않은 run ID입니다"
 [[ -n "${BIDOPS_OLLAMA_BASE_URL:-}" ]] \
   || fail "BIDOPS_OLLAMA_BASE_URL을 설정해야 합니다"
+[[ "$EXECUTE_DENSE" == true ]] \
+  || fail "BGE-M3 dense 호출에는 --execute-dense 명시가 필요합니다"
 [[ "$EXECUTE_QWEN" == true ]] \
   || fail "Qwen 호출에는 --execute-qwen 명시가 필요합니다"
 
@@ -122,42 +131,30 @@ RUN_DIR="$PROJECT_ROOT/data/experiments/order-plan-screening/$RUN_ID"
 CONFIG_DIR="$PROJECT_ROOT/.dryforge/order-plan-screening/$RUN_ID/config"
 CAPABILITIES_FILE="$CONFIG_DIR/company-capabilities.json"
 METHODS_FILE="$CONFIG_DIR/methods.json"
-VENV_DIR="$PROJECT_ROOT/.dryforge/venvs/order-plan-models"
+REPORT_DIR="$PROJECT_ROOT/reports/order-plan-screening/$RUN_ID"
 
 [[ ! -e "$RUN_DIR" ]] || fail "run 디렉터리가 이미 존재합니다: $RUN_DIR"
 [[ ! -e "$CONFIG_DIR" ]] || fail "승인 설정 디렉터리가 이미 존재합니다: $CONFIG_DIR"
+[[ ! -e "$REPORT_DIR" && ! -L "$REPORT_DIR" ]] \
+  || fail "보고서 디렉터리가 이미 존재합니다: $REPORT_DIR"
 
 umask 077
 
 if [[ "$RUN_TESTS" == true ]]; then
-  printf '%s\n' '[1/7] fake/unit tests'
+  printf '%s\n' '[1/8] fake/unit tests'
   PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \
     -s "$EXPERIMENT_ROOT/tests" -p 'test_*.py' -v
 else
-  printf '%s\n' '[1/7] fake/unit tests skipped by operator'
+  printf '%s\n' '[1/8] fake/unit tests skipped by operator'
 fi
 
 PYTHON_BIN=python3
-if ! python3 -c 'import FlagEmbedding, huggingface_hub' >/dev/null 2>&1; then
-  if [[ "$INSTALL_MODEL_DEPS" != true ]]; then
-    fail "BGE 의존성이 없습니다. 첫 실행에 --install-model-deps를 추가하세요"
-  fi
-  printf '%s\n' '[2/7] install isolated BGE dependencies'
-  if [[ ! -x "$VENV_DIR/bin/python" ]]; then
-    python3 -m venv "$VENV_DIR"
-  fi
-  "$VENV_DIR/bin/python" -m pip install \
-    --requirement "$EXPERIMENT_ROOT/requirements-models.txt"
-  PYTHON_BIN="$VENV_DIR/bin/python"
-elif [[ -x "$VENV_DIR/bin/python" ]] \
-  && "$VENV_DIR/bin/python" -c 'import FlagEmbedding, huggingface_hub' >/dev/null 2>&1; then
-  printf '%s\n' '[2/7] reuse isolated BGE dependencies'
-  PYTHON_BIN="$VENV_DIR/bin/python"
-else
-  printf '%s\n' '[2/7] use existing BGE dependencies'
+printf '%s\n' '[2/8] standard-library TF-IDF and Ollama dense adapters'
+if [[ "$INSTALL_MODEL_DEPS" == true ]]; then
+  printf '%s\n' '  note: --install-model-deps is deprecated and ignored for this interim run'
 fi
 
-printf '%s\n' '[3/7] bind approved capabilities, prompt, and method config'
+printf '%s\n' '[3/8] bind approved capabilities, prompt, and method config'
 mkdir -p "$CONFIG_DIR"
 APPROVED_BY_VALUE="$APPROVED_BY" \
 PROMPT_FILE_VALUE="$PROMPT_FILE" \
@@ -200,11 +197,13 @@ write_json_new(Path(os.environ["CAPABILITIES_OUTPUT"]), capabilities)
 write_json_new(Path(os.environ["METHODS_OUTPUT"]), methods)
 PY
 
-printf '%s\n' '[4/7] collect or replay immutable population'
+printf '%s\n' '[4/8] collect or replay immutable population'
 COLLECT_ARGS=(
   "$EXPERIMENT_ROOT/scripts/collect.py"
   --run-id "$RUN_ID"
   --output-dir "$RUN_DIR"
+  --timeout 60
+  --max-attempts 3
   --company-capabilities "$CAPABILITIES_FILE"
   --methods-config "$METHODS_FILE"
 )
@@ -233,14 +232,24 @@ run_method() {
     "$@"
 }
 
-printf '%s\n' '[5/7] Keyword'
-run_method keyword
+printf '%s\n' '[5/8] deterministic TF-IDF'
+run_method tfidf
 
-printf '%s\n' '[6/7] BGE-M3 ColBERT'
-run_method bge_m3_colbert
+printf '%s\n' '[6/8] Ollama BGE-M3 dense representation'
+run_method bge_m3_dense
 
-printf '%s\n' '[7/7] local Qwen fixed batches'
+printf '%s\n' '[7/8] local Qwen fixed batches'
 run_method qwen --prompt-file "$PROMPT_FILE"
+
+printf '%s\n' '[8/8] interim HTML execution report'
+"$PYTHON_BIN" "$EXPERIMENT_ROOT/scripts/render_execution_report.py" \
+  --run-dir "$RUN_DIR" \
+  --output-dir "$REPORT_DIR" \
+  --methods tfidf bge_m3_dense qwen
+"$PYTHON_BIN" "$EXPERIMENT_ROOT/scripts/render_decision_report.py" \
+  --run-dir "$RUN_DIR" \
+  --output-dir "$REPORT_DIR" \
+  --methods tfidf bge_m3_dense qwen
 
 PYTHONDONTWRITEBYTECODE=1 "$PYTHON_BIN" - "$RUN_DIR" <<'PY'
 import json
@@ -249,7 +258,7 @@ from pathlib import Path
 
 run_dir = Path(sys.argv[1])
 print("\nmethod summary")
-for method in ("keyword", "bge_m3_colbert", "qwen"):
+for method in ("tfidf", "bge_m3_dense", "qwen"):
     result = json.loads((run_dir / "results" / f"{method}.json").read_text())
     metrics = result["metrics"]
     print(
@@ -258,4 +267,6 @@ for method in ("keyword", "bge_m3_colbert", "qwen"):
         f"elapsed_ms={metrics['elapsed_ms']}"
     )
 print(f"run_dir={run_dir}")
+print(f"report={run_dir.parents[3] / 'reports' / 'order-plan-screening' / run_dir.name / 'report.html'}")
+print(f"decision_report={run_dir.parents[3] / 'reports' / 'order-plan-screening' / run_dir.name / 'decision-report.html'}")
 PY

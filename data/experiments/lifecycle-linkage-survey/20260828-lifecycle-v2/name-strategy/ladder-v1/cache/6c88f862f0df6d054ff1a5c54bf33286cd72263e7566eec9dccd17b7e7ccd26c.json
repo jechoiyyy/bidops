@@ -1,0 +1,71 @@
+{
+  "schema_version": "bidops.lifecycle-name-search-cache.v1",
+  "cache_key": "6c88f862f0df6d054ff1a5c54bf33286cd72263e7566eec9dccd17b7e7ccd26c",
+  "url": "https://apis.data.go.kr/1230000/ao/HrcspSsstndrdInfoService/getPublicPrcureThngInfoServcPPSSrch",
+  "query_string": "pageNo=1&numOfRows=50&type=json&inqryDiv=1&inqryBgnDt=202601010000&inqryEndDt=202608282359&prdctClsfcNoNm=2026+%EB%94%94%EC%A7%80%ED%84%B8%EC%83%88%EC%8B%B9+%EA%B5%90%EC%9E%AC+%EA%B0%9C%EB%B0%9C",
+  "response": {
+    "response": {
+      "header": {
+        "resultCode": "00",
+        "resultMsg": "정상"
+      },
+      "body": {
+        "items": [
+          {
+            "bsnsDivNm": "일반용역",
+            "refNo": "SM-경영지원팀-품의-디지털새싹-260527-001",
+            "prdctClsfcNoNm": "2026 디지털새싹 교재 개발·제작 7종 용역(상반기)",
+            "orderInsttNm": "사단법인 스마트제조혁신협회",
+            "rlDminsttNm": "사단법인 스마트제조혁신협회",
+            "asignBdgtAmt": "38000000",
+            "rcptDt": "2026-06-29 20:46:31",
+            "opninRgstClseDt": "2026-07-04 23:59:00",
+            "ofclTelNo": "***********",
+            "ofclNm": "이혜인",
+            "swBizObjYn": "N",
+            "dlvrTmlmtDt": "2026-08-31 00:00:00",
+            "dlvrDaynum": "0",
+            "bfSpecRgstNo": "R26BD00246337",
+            "specDocFileUrl1": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00246337&fileType=BFDTL&fileSeq=1",
+            "specDocFileUrl2": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00246337&fileType=BFDTL&fileSeq=2",
+            "specDocFileUrl3": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00246337&fileType=BFDTL&fileSeq=3",
+            "specDocFileUrl4": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00246337&fileType=BFDTL&fileSeq=4",
+            "specDocFileUrl5": "",
+            "prdctDtlList": "",
+            "rgstDt": "2026-06-29 20:46:29",
+            "chgDt": "2026-06-29 20:46:31",
+            "bidNtceNoList": "R26BK01607936"
+          },
+          {
+            "bsnsDivNm": "일반용역",
+            "refNo": "경영지원-품의-디지털새싹-260527-001호",
+            "prdctClsfcNoNm": "2026 디지털새싹 교재 개발·제작 7종 용역(하반기)",
+            "orderInsttNm": "사단법인 스마트제조혁신협회",
+            "rlDminsttNm": "사단법인 스마트제조혁신협회",
+            "asignBdgtAmt": "36900000",
+            "rcptDt": "2026-08-25 14:17:28",
+            "opninRgstClseDt": "2026-08-30 23:59:00",
+            "ofclTelNo": "***********",
+            "ofclNm": "이혜인",
+            "swBizObjYn": "N",
+            "dlvrTmlmtDt": "2026-09-21 00:00:00",
+            "dlvrDaynum": "0",
+            "bfSpecRgstNo": "R26BD00267196",
+            "specDocFileUrl1": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00267196&fileType=BFDTL&fileSeq=1",
+            "specDocFileUrl2": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00267196&fileType=BFDTL&fileSeq=2",
+            "specDocFileUrl3": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00267196&fileType=BFDTL&fileSeq=3",
+            "specDocFileUrl4": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00267196&fileType=BFDTL&fileSeq=4",
+            "specDocFileUrl5": "",
+            "prdctDtlList": "",
+            "rgstDt": "2026-08-25 14:17:25",
+            "chgDt": "2026-08-25 14:17:28",
+            "bidNtceNoList": "R26BK01697312"
+          }
+        ],
+        "numOfRows": 50,
+        "pageNo": 1,
+        "totalCount": 2
+      }
+    }
+  }
+}

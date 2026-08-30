@@ -1,0 +1,57 @@
+{
+  "schema_version": "bidops.lifecycle-survey-raw-page.v1",
+  "endpoint_id": "g2b_prespec_pps_search_service_v1",
+  "query": {
+    "pageNo": "1",
+    "numOfRows": "50",
+    "type": "json",
+    "inqryDiv": "1",
+    "inqryBgnDt": "202601010000",
+    "inqryEndDt": "202608282359",
+    "prdctClsfcNoNm": "더) 빛나길"
+  },
+  "page_no": 1,
+  "request_attempts": 1,
+  "collected_at": "2026-08-28T23:18:20.354761+09:00",
+  "payload_sha256": "7fb07f14d16be6fe8ca1feb66a97a8830ddc252b5e71b86aad8819f196387457",
+  "payload": {
+    "response": {
+      "header": {
+        "resultCode": "00",
+        "resultMsg": "정상"
+      },
+      "body": {
+        "items": [
+          {
+            "bsnsDivNm": "일반용역",
+            "refNo": "문화예술과-8657",
+            "prdctClsfcNoNm": "2026년『행복 북구, THE(더) 빛나길』빛거리 운영 용역",
+            "orderInsttNm": "대구광역시 북구",
+            "rlDminsttNm": "대구광역시 북구",
+            "asignBdgtAmt": "90000000",
+            "rcptDt": "2026-08-25 17:16:42",
+            "opninRgstClseDt": "2026-08-28 23:59:00",
+            "ofclTelNo": "",
+            "ofclNm": "최연경",
+            "swBizObjYn": "N",
+            "dlvrTmlmtDt": "2027-02-14 00:00:00",
+            "dlvrDaynum": "0",
+            "bfSpecRgstNo": "R26BD00267349",
+            "specDocFileUrl1": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26BD00267349&fileType=BFDTL&fileSeq=1",
+            "specDocFileUrl2": "",
+            "specDocFileUrl3": "",
+            "specDocFileUrl4": "",
+            "specDocFileUrl5": "",
+            "prdctDtlList": "",
+            "rgstDt": "2026-08-25 17:16:39",
+            "chgDt": "2026-08-25 17:16:42",
+            "bidNtceNoList": ""
+          }
+        ],
+        "numOfRows": 50,
+        "pageNo": 1,
+        "totalCount": 1
+      }
+    }
+  }
+}

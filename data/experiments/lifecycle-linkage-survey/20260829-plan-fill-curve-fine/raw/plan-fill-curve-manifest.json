@@ -1,0 +1,33 @@
+{
+  "schema_version": "bidops.lifecycle-plan-fill-curve-manifest.v1",
+  "observed_at": "2026-08-29T01:11:27.224981+09:00",
+  "rows": 500,
+  "max_requests": 40,
+  "request_count": 6,
+  "windows": [
+    {
+      "id": "window-01-20260821-20260823",
+      "from": "2026-08-21",
+      "to_exclusive": "2026-08-24",
+      "raw_directory": "window-01-20260821-20260823"
+    },
+    {
+      "id": "window-02-20260818-20260820",
+      "from": "2026-08-18",
+      "to_exclusive": "2026-08-21",
+      "raw_directory": "window-02-20260818-20260820"
+    },
+    {
+      "id": "window-03-20260815-20260817",
+      "from": "2026-08-15",
+      "to_exclusive": "2026-08-18",
+      "raw_directory": "window-03-20260815-20260817"
+    },
+    {
+      "id": "window-04-20260812-20260814",
+      "from": "2026-08-12",
+      "to_exclusive": "2026-08-15",
+      "raw_directory": "window-04-20260812-20260814"
+    }
+  ]
+}

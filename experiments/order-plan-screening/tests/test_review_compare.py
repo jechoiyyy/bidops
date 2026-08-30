@@ -9,6 +9,8 @@ from helpers import make_population, make_result, make_run
 
 from common import ExperimentError  # noqa: E402
 from compare import build_comparison_rows, render_report  # noqa: E402
+from render_execution_report import render_report as render_execution_report  # noqa: E402
+from render_decision_report import render_report as render_decision_report  # noqa: E402
 from make_review_set import (  # noqa: E402
     METHOD_NAMES,
     REVIEW_FIELDS,
@@ -95,6 +97,42 @@ class ReviewAndComparisonTests(unittest.TestCase):
         self.assertIn("실제 총 소요(ms)", report)
         self.assertIn("단일 평가자", report)
         self.assertNotIn("우승 방법", report)
+
+    def test_interim_html_report_states_missing_quality_gate(self) -> None:
+        methods = ("tfidf", "bge_m3_dense", "qwen")
+        results = {
+            method: make_result(
+                self.population,
+                method,
+                {"P0000", "P0001", "P0002"},
+            )
+            for method in methods
+        }
+        report = render_execution_report(
+            self.run,
+            self.population,
+            methods,
+            results,
+        )
+        self.assertIn("발주계획 임시 선별 실행 보고서", report)
+        self.assertIn("title만 projection", report)
+        self.assertIn("사람 정답과 ColBERT 결과가 없으므로", report)
+        self.assertIn("BGE-M3 dense", report)
+        self.assertNotIn("최종 우승 방법", report)
+
+        decision_report = render_decision_report(
+            self.run,
+            self.population,
+            methods,
+            results,
+        )
+        self.assertIn("발주계획 선별 상세 의사결정 보고서", decision_report)
+        self.assertIn("의사결정 요약", decision_report)
+        self.assertIn("Qwen 판정과 실패 분석", decision_report)
+        self.assertIn("1,200·2,000건 예상시간", decision_report)
+        self.assertIn("운영 활성화", decision_report)
+        self.assertIn("title만 projection", decision_report)
+        self.assertNotIn("최종 우승 방법", decision_report)
 
 
 if __name__ == "__main__":

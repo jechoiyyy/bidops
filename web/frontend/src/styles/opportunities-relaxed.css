@@ -1,0 +1,262 @@
+/* 누적 사업기회 화면.
+   회차 목록(queue)과 달리 사업 단위로 세로로 쌓고, 재검토 신호가
+   시선을 먼저 받도록 카드 경계에서 구분한다. 색·간격 토큰은 theme를 따른다. */
+
+.opportunities-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  min-width: 0;
+}
+
+.opportunities-header h2 {
+  margin: 0 0 var(--space-1);
+}
+
+.opportunities-header p {
+  margin: 0;
+  color: var(--color-muted);
+  max-width: 68ch;
+}
+
+.opportunities-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--color-paper);
+}
+
+.opportunities-filters label,
+.opportunity-tracking-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.875rem;
+}
+
+.opportunities-filters select,
+.opportunity-tracking-form select,
+.opportunity-tracking-form input,
+.opportunity-tracking-form textarea {
+  padding: 6px 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--color-paper);
+  color: var(--color-text);
+  font: inherit;
+  min-width: 0;
+}
+
+.opportunity-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+}
+
+.opportunity-card {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--color-paper);
+  padding: var(--space-2);
+}
+
+/* 재검토 신호는 사람이 다시 봐야 한다는 뜻이므로 목록에서 먼저 눈에 띈다. */
+.opportunity-card-signal {
+  border-left: 4px solid var(--color-alert);
+}
+
+.opportunity-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.opportunity-card-id {
+  margin-left: auto;
+  color: var(--color-muted);
+  font-size: 0.8125rem;
+}
+
+.opportunity-card-title {
+  margin: var(--space-1) 0 4px;
+  font-size: 1rem;
+}
+
+.opportunity-card-meta {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.875rem;
+}
+
+.opportunity-card-toggle {
+  margin-top: var(--space-1);
+  padding: 4px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--color-soft-surface);
+  color: var(--color-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.opportunity-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.opportunity-detail-status {
+  margin: 0;
+  color: var(--color-muted);
+}
+
+.opportunity-detail-block h4,
+.opportunity-tracking-form h4 {
+  margin: 0 0 var(--space-1);
+  font-size: 0.9375rem;
+}
+
+.opportunity-signal {
+  border: 1px solid var(--color-alert);
+  border-radius: var(--radius-lg);
+  background: var(--color-keylime);
+  padding: var(--space-2);
+}
+
+.opportunity-signal p {
+  margin: 4px 0 0;
+}
+
+.opportunity-signal-source {
+  color: var(--color-muted);
+  font-size: 0.875rem;
+}
+
+.opportunity-links {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+}
+
+.opportunity-link {
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: var(--space-1);
+}
+
+.opportunity-link-signal {
+  border-color: var(--color-alert);
+}
+
+.opportunity-link-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.opportunity-link-kind {
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.opportunity-link-title {
+  margin: 4px 0;
+}
+
+.opportunity-link-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.opportunity-link-facts dt {
+  color: var(--color-muted);
+  font-size: 0.8125rem;
+}
+
+.opportunity-link-facts dd {
+  margin: 0;
+}
+
+.opportunity-link-note {
+  margin: 4px 0 0;
+  color: var(--color-muted);
+  font-size: 0.8125rem;
+}
+
+.opportunity-tracking-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-2);
+  background: var(--color-soft-surface);
+  max-width: 48rem;
+}
+
+.opportunity-form-note,
+.opportunity-form-hint {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.8125rem;
+}
+
+.opportunity-form-error {
+  margin: 0;
+  color: var(--color-error);
+  font-size: 0.875rem;
+}
+
+.opportunity-tracking-form button {
+  align-self: flex-start;
+  padding: 6px 14px;
+  border: 1px solid var(--color-primary-strong);
+  border-radius: 8px;
+  background: var(--color-primary);
+  color: var(--color-white);
+  font: inherit;
+  cursor: pointer;
+}
+
+.opportunity-tracking-form button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.opportunity-pager {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.opportunity-pager button {
+  padding: 4px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--color-paper);
+  font: inherit;
+  cursor: pointer;
+}
+
+.opportunity-pager button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

@@ -1,0 +1,78 @@
+{
+  "schema_version": "bidops.order-plan-mixed-codex-reference-run.v1",
+  "run_id": "20260824-20260826-sol200-luna797-xhigh-b100-reference-v1",
+  "source_run_id": "20260824-20260826-interim-v4",
+  "created_at": "2026-08-28T13:30:37.757505+09:00",
+  "status": "success",
+  "reference_role": "silver_reference_only",
+  "population_sha256": "3a91dab71cd483faa45de393f1cbea990f7b543cc7a7b686e6fae5b18ab4d28f",
+  "prompt_sha256": "593e3fdb97d1c4bf325d831eea7494908e4510e0cee999e349db224a2b5cf4d1",
+  "company_capabilities_sha256": "2ee0ebdd126341a6a79997341ebb93a76b00d5477d65ee21f635a41ecef2a57a",
+  "models": [
+    {
+      "name": "gpt-5.6-sol",
+      "revision": "gpt-5.6-sol",
+      "reasoning_effort": "xhigh",
+      "interface": "codex exec",
+      "cli_version": "codex-cli 0.150.1"
+    },
+    {
+      "name": "gpt-5.6-luna",
+      "revision": "gpt-5.6-luna",
+      "reasoning_effort": "xhigh",
+      "interface": "codex exec",
+      "cli_version": "codex-cli 0.150.1"
+    }
+  ],
+  "batching": {
+    "mode": "fixed",
+    "batch_size": 100,
+    "batch_count": 10
+  },
+  "external_approvals": [
+    {
+      "approved_at": "2026-08-28T12:55:34.717646+09:00",
+      "approved_by": "interactive-user-request",
+      "batch_count": 10,
+      "batch_size": 100,
+      "company_capabilities_sha256": "2ee0ebdd126341a6a79997341ebb93a76b00d5477d65ee21f635a41ecef2a57a",
+      "model": "gpt-5.6-sol",
+      "payload_fields": [
+        "title"
+      ],
+      "preview_sha256": "8b46f7efd2561a9ef5b930794a4eb4c20da539b3615620ab81345e35040da1b0",
+      "prompt_sha256": "593e3fdb97d1c4bf325d831eea7494908e4510e0cee999e349db224a2b5cf4d1",
+      "purpose": "order_plan_screening_comparison",
+      "record_count": 997,
+      "run_id": "20260824-20260826-sol-xhigh-b100-reference-v1",
+      "schema_version": "bidops.order-plan-external-approval.v2"
+    },
+    {
+      "approved_at": "2026-08-28T13:02:47.677578+09:00",
+      "approved_by": "interactive-user-request",
+      "batch_count": 8,
+      "batch_size": 100,
+      "company_capabilities_sha256": "2ee0ebdd126341a6a79997341ebb93a76b00d5477d65ee21f635a41ecef2a57a",
+      "model": "gpt-5.6-luna",
+      "payload_fields": [
+        "title"
+      ],
+      "preview_sha256": "cb0f9d619823ba8862eb33d15bb98134a0c7ad5c81aff09f72af09783d61d388",
+      "prompt_sha256": "593e3fdb97d1c4bf325d831eea7494908e4510e0cee999e349db224a2b5cf4d1",
+      "purpose": "order_plan_screening_comparison",
+      "record_count": 797,
+      "run_id": "20260824-20260826-sol200-luna797-xhigh-b100-reference-v1",
+      "schema_version": "bidops.order-plan-external-approval.v2"
+    }
+  ],
+  "preflight_smoke": {
+    "purpose": "output_contract_validation_only",
+    "included_in_result": false,
+    "batch_size": 25,
+    "record_count": 25,
+    "elapsed_ms": 52452,
+    "status": "success",
+    "response_sha256": "5d8da7e37907b7fa75c2293908155dec94b7b0fc2fd9ac9f9db9425419184b48"
+  },
+  "result_sha256": "9e7c0a6f3f3b0d310247d068b710a4e0f3f1e781ba2f17961bade6152fd8ea8d"
+}

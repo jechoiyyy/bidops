@@ -42,6 +42,9 @@ _T6_EXPORTS = {
     "ArtifactError", "ArtifactStore", "CreatedExecution", "ScreeningCreationError",
     "ScreeningWorker", "WorkerError",
 }
+_MOCK_EXPORTS = {
+    "MOCK_MODEL_DIGEST", "MockScreeningTransport", "MockScreeningTransportError",
+}
 
 
 def __getattr__(name: str):  # type: ignore[no-untyped-def]
@@ -61,7 +64,9 @@ def __getattr__(name: str):  # type: ignore[no-untyped-def]
     if name in _T6_EXPORTS:
         module_name = ".artifacts" if name in {"ArtifactError", "ArtifactStore"} else ".worker" if name in {"ScreeningWorker", "WorkerError"} else ".orchestrator"
         return getattr(import_module(module_name, __name__), name)
+    if name in _MOCK_EXPORTS:
+        return getattr(import_module(".mock_transport", __name__), name)
     raise AttributeError(name)
 
 
-__all__ = sorted(_POLICY_EXPORTS | _PROFILE_EXPORTS | _RUNTIME_EXPORTS | _T6_EXPORTS)
+__all__ = sorted(_POLICY_EXPORTS | _PROFILE_EXPORTS | _RUNTIME_EXPORTS | _T6_EXPORTS | _MOCK_EXPORTS)
