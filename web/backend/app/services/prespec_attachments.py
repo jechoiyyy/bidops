@@ -16,8 +16,9 @@ from typing import Any
 from urllib.parse import parse_qsl, urlsplit
 from uuid import UUID
 
-from sqlalchemy import func, or_, select, update
-from sqlalchemy.orm import Session
+from sqlalchemy import exists, or_, select, update
+from sqlalchemy.orm import Session, aliased, selectinload
+from sqlalchemy.sql.elements import ColumnElement
 
 from ..document_mcp.errors import DocumentProcessingError
 from ..models import (
@@ -80,8 +81,39 @@ _TERMINAL_CODES = frozenset(
         "output_size_limit",
         "page_limit",
         "archive_size_limit",
+        "block_limit",
+        "invalid_attribute",
+        "invalid_input",
+        "invalid_options",
+        "invalid_structure",
+        "unsafe_attribute",
+        "unsafe_xml",
+        "xml_depth_limit",
+        "encrypted_pdf",
+        "pdf_object_limit",
+        "pdf_page_limit",
+        "malformed_image",
+        "ocr_failed",
+        "ocr_unavailable",
+        "renderer_unavailable",
+        "render_failed",
+        "converter_unavailable",
+        "timeout",
+        "unsupported_media",
+        "encrypted_archive",
+        "archive_duplicate",
+        "archive_link",
+        "archive_traversal",
+        "legacy_non_regular",
+        "legacy_path_blocked",
+        "legacy_size_limit",
+        "legacy_size_mismatch",
+        "legacy_source_changed",
+        "legacy_source_missing",
+        "legacy_symlink_blocked",
     }
 )
+_SAFE_ERROR_CODES = _RETRYABLE_CODES | _TERMINAL_CODES
 
 
 @dataclass(frozen=True)
@@ -147,34 +179,107 @@ def parse_attachment_key(url: str | None) -> str | None:
     return f"{values['bfSpecRegNo']}:{values['fileType']}:{values['fileSeq']}"
 
 
-def _tracked_order_plan_connection(session: Session, notice_id: int) -> bool:
-    """Return whether a notice has the exact tracked order-plan path."""
+def _tracked_order_plan_conditions(
+    *,
+    notice_link: Any,
+    opportunity: Any,
+    order_plan_link: Any,
+    notice_id: Any | None = None,
+) -> list[ColumnElement[bool]]:
+    """Build the single source of truth for the tracked order-plan path."""
 
-    opportunity_ids = set(
-        session.scalars(
-            select(OpportunityLink.opportunity_id)
-            .join(Opportunity, Opportunity.id == OpportunityLink.opportunity_id)
+    conditions: list[ColumnElement[bool]] = [
+        notice_link.stage == "notice",
+        notice_link.status.in_(_TRACKING_LINK_STATUSES),
+        opportunity.tracking_status.in_(_TRACKING_STATUSES),
+        exists(
+            select(1)
+            .select_from(order_plan_link)
             .where(
-                OpportunityLink.notice_id == notice_id,
-                OpportunityLink.stage == "notice",
-                OpportunityLink.status.in_(_TRACKING_LINK_STATUSES),
-                Opportunity.tracking_status.in_(_TRACKING_STATUSES),
+                order_plan_link.opportunity_id == opportunity.id,
+                order_plan_link.stage == "order_plan",
+                order_plan_link.order_plan_id.is_not(None),
             )
-        ).all()
-    )
-    if not opportunity_ids:
-        return False
-    return (
-        session.scalar(
-            select(OpportunityLink.id)
-            .where(
-                OpportunityLink.opportunity_id.in_(opportunity_ids),
-                OpportunityLink.stage == "order_plan",
-                OpportunityLink.order_plan_id.is_not(None),
+        ),
+    ]
+    if notice_id is not None:
+        conditions.insert(0, notice_link.notice_id == notice_id)
+    return conditions
+
+
+def tracked_order_plan_connection_predicate(notice_id: Any) -> ColumnElement[bool]:
+    """Return the exact tracked order-plan exception as a SQL predicate.
+
+    This expression is shared by the cumulative pre-spec list and the
+    attachment eligibility refresh.  Keeping the status and link conditions in
+    one builder prevents the display exception from drifting from the fetch
+    eligibility rule.
+    """
+
+    notice_link = aliased(OpportunityLink)
+    opportunity = aliased(Opportunity)
+    order_plan_link = aliased(OpportunityLink)
+    return exists(
+        select(1)
+        .select_from(notice_link)
+        .join(opportunity, opportunity.id == notice_link.opportunity_id)
+        .where(
+            *_tracked_order_plan_conditions(
+                notice_link=notice_link,
+                opportunity=opportunity,
+                order_plan_link=order_plan_link,
+                notice_id=notice_id,
             )
-            .limit(1)
         )
-        is not None
+    )
+
+
+def tracked_order_plan_connections(
+    session: Session,
+    *,
+    notice_ids: Sequence[int] | None = None,
+) -> dict[int, set[int]]:
+    """Return qualifying opportunity IDs grouped by notice in one query."""
+
+    if notice_ids is not None:
+        narrowed_ids = tuple(dict.fromkeys(int(value) for value in notice_ids))
+        if not narrowed_ids:
+            return {}
+    else:
+        narrowed_ids = ()
+
+    notice_link = aliased(OpportunityLink)
+    opportunity = aliased(Opportunity)
+    order_plan_link = aliased(OpportunityLink)
+    conditions = _tracked_order_plan_conditions(
+        notice_link=notice_link,
+        opportunity=opportunity,
+        order_plan_link=order_plan_link,
+    )
+    conditions.append(notice_link.notice_id.is_not(None))
+    if notice_ids is not None:
+        conditions.append(notice_link.notice_id.in_(narrowed_ids))
+    rows = session.execute(
+        select(notice_link.notice_id, notice_link.opportunity_id)
+        .select_from(notice_link)
+        .join(opportunity, opportunity.id == notice_link.opportunity_id)
+        .where(*conditions)
+    ).all()
+    grouped: dict[int, set[int]] = {}
+    for notice_id_value, opportunity_id in rows:
+        grouped.setdefault(int(notice_id_value), set()).add(int(opportunity_id))
+    return grouped
+
+
+def tracked_order_plan_connection(session: Session, notice_id: int) -> bool:
+    """Return whether one notice has the exact tracked order-plan path."""
+
+    return bool(
+        session.scalar(
+            select(tracked_order_plan_connection_predicate(Notice.id))
+            .select_from(Notice)
+            .where(Notice.id == int(notice_id))
+        )
     )
 
 
@@ -217,7 +322,10 @@ def refresh_fetch_eligibility(
     if notice_ids is not None:
         conditions.append(Notice.id.in_(narrowed_ids))
     candidates = session.scalars(
-        select(Attachment).join(Notice, Notice.id == Attachment.notice_id).where(*conditions)
+        select(Attachment)
+        .join(Notice, Notice.id == Attachment.notice_id)
+        .where(*conditions)
+        .options(selectinload(Attachment.notice))
     ).all()
     if not candidates:
         return 0
@@ -230,12 +338,16 @@ def refresh_fetch_eligibility(
             )
         ).all()
     }
+    tracked_connections = tracked_order_plan_connections(
+        session,
+        notice_ids={attachment.notice_id for attachment in candidates},
+    )
     created = 0
     next_attempt_at = utc_now()
     for attachment in candidates:
         notice = attachment.notice
         sw = _sw_business_object(notice)
-        tracked = _tracked_order_plan_connection(session, notice.id)
+        tracked = bool(tracked_connections.get(notice.id))
         if not sw and not tracked:
             continue
         reason = "both" if sw and tracked else "sw_business_object" if sw else "tracked_order_plan"
@@ -384,7 +496,7 @@ def _lock_claim(session: Session, claim: AttachmentFetchClaim) -> AttachmentFetc
 
 
 def _safe_error_code(value: object, *, fallback: str = "processing_failed") -> str:
-    if isinstance(value, str) and _SAFE_CODE_RE.fullmatch(value):
+    if isinstance(value, str) and _SAFE_CODE_RE.fullmatch(value) and value in _SAFE_ERROR_CODES:
         return value
     return fallback
 
@@ -706,6 +818,19 @@ def fetch_claimed(
             connectors=connectors,
             root=root,
         )
+        processor_checker = getattr(processor, "clamav_checker", None)
+        if clamav_checker is None and processor_checker is None:
+            # Keep the inspection seam and fail before any document
+            # conversion/parsing when no scanner has been supplied.  The
+            # worker normally provides a real ClamAV checker; this fallback
+            # makes direct adapters fail closed without processing bytes.
+            def unavailable_checker(_content: bytes) -> bool:
+                raise DocumentProcessingError(
+                    "clamav_unavailable", "malware 검사를 완료할 수 없습니다"
+                )
+
+            processor = None
+            clamav_checker = unavailable_checker
         inspected = assets.inspect_quarantine(
             asset,
             processor=processor,
@@ -760,4 +885,7 @@ __all__ = [
     "fetch_claimed",
     "parse_attachment_key",
     "refresh_fetch_eligibility",
+    "tracked_order_plan_connection",
+    "tracked_order_plan_connection_predicate",
+    "tracked_order_plan_connections",
 ]

@@ -14,8 +14,12 @@ import type { BadgeVariant } from "../components/common/Badge";
  */
 export type OpportunityOrigin = "추적" | "신규";
 
-export function originOf(stage: OpportunityFirstRegisteredStage): OpportunityOrigin {
-  return stage === "order_plan" ? "추적" : "신규";
+export function originOf(value: OpportunityFirstRegisteredStage | OpportunityOrigin): OpportunityOrigin {
+  // Pre-spec list responses already carry the server's projected data value.
+  // Accepting it here keeps the display conversion in this one module without
+  // inventing an origin when the opportunity is not connected.
+  if (value === "추적" || value === "신규") return value;
+  return value === "order_plan" ? "추적" : "신규";
 }
 
 const stageLabels: Record<OpportunityFirstRegisteredStage, string> = {
