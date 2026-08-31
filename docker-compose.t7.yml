@@ -131,6 +131,8 @@ services:
       # bind mounts; use `docker compose cp` to take a copy out.
       - pipeline-data:/app/data
       - pipeline-reports:/app/reports
+      # The current profile is deployment input, not an image layer.
+      - ./docs/reference/company-profile.md:/app/docs/reference/company-profile.md:ro
     restart: unless-stopped
 
   document-worker:

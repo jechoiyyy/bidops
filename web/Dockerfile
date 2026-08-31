@@ -60,15 +60,15 @@ RUN case "$BIDOPS_UID:$BIDOPS_GID" in \
 COPY web/backend/ ./
 COPY --from=frontend /build/dist /app/web/frontend/dist
 COPY --from=node-runtime /usr/local/bin/node /usr/local/bin/node
-COPY docs/reference /app/docs/reference
 COPY scripts /app/scripts
 COPY docker-compose.t7.yml /app/docker-compose.t7.yml
 RUN chmod +x /app/scripts/*.sh
 
 # Bundle the immutable execution contract as a fallback for docker run.
-# Compose overlays these directories read-only from the checked-out project.
-# Only runtime reference material is copied; company profile/source documents
-# stay out of the image.
+# The T7 web service supplies the current company profile as a read-only bind
+# mount; the profile and its source documents are intentionally not copied.
+# Only the non-sensitive runtime reference material needed by the collection
+# subprocess is copied below.
 COPY skills/ /app/skills/
 COPY docs/reference/company-performance-titles.tsv /app/docs/reference/company-performance-titles.tsv
 COPY skills/references/ /app/skills/references/

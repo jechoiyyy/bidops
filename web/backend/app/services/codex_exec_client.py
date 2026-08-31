@@ -112,6 +112,12 @@ _ENV_ALLOWLIST = frozenset({
     "SSL_CERT_FILE", "SSL_CERT_DIR", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE",
     "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "LANG", "LC_ALL", "TERM",
 })
+# These are the only identity and approval fields used by the current caller
+# and prompt contract. Requirements, profile rows, and prior review outputs
+# are source or internal decision content and cannot cross the hosted boundary.
+CODEX_INPUT_ALLOWLIST = frozenset({
+    "notice_id", "deep_review_id", "attempt_id", "stage", "slice_index",
+})
 _DISABLED_FEATURES = (
     "shell_tool", "code_mode_host", "hooks", "apps", "browser_use",
     "computer_use", "multi_agent", "plugins", "image_generation",
@@ -195,6 +201,20 @@ class CodexExecClient:
         if int(notice_id) not in self.approved_notice_ids:
             raise CodexExecInvocationError("external_provider_notice_not_approved", ())
 
+    @staticmethod
+    def _validate_external_payload(
+        input_slice: Mapping[str, Any],
+        *,
+        profile: Mapping[str, Any] | None,
+        prior_stages: Sequence[Mapping[str, Any]],
+    ) -> None:
+        if profile or prior_stages:
+            raise CodexExecInvocationError("external_provider_payload_not_approved", ())
+        if not isinstance(input_slice, Mapping) or any(not isinstance(key, str) for key in input_slice):
+            raise CodexExecInvocationError("external_provider_payload_not_approved", ())
+        if set(input_slice) - CODEX_INPUT_ALLOWLIST:
+            raise CodexExecInvocationError("external_provider_payload_not_approved", ())
+
     def _command(self, schema_path: Path, output_path: Path) -> list[str]:
         command = [
             self.binary, "exec", "--ephemeral", "--sandbox", "read-only",
@@ -223,6 +243,7 @@ class CodexExecClient:
         if not isinstance(notice_id, int) or isinstance(notice_id, bool):
             raise CodexExecInvocationError("external_provider_notice_not_approved", ())
         self.require_notice_approval(notice_id)
+        self._validate_external_payload(input_slice, profile=profile, prior_stages=prior_stages)
         chunking = policy.get("chunking") if isinstance(policy.get("chunking"), Mapping) else {}
         try:
             timeout_seconds = int(chunking.get("timeout_seconds", APPROVED_TIMEOUT_SECONDS))
