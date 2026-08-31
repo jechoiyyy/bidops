@@ -1,21 +1,26 @@
+import { lazy } from "react";
 import { Navigate, useSearchParams, type RouteObject } from "react-router-dom";
 import { EmptyState } from "./components/common/EmptyState";
+import { LazyRouteBoundary } from "./components/common/LazyRouteBoundary";
 import { AppShell } from "./components/shell/AppShell";
 import { routeHandle, routeMetadata } from "./components/shell/route-meta";
-import { DashboardPage } from "./pages/DashboardPage";
-import { QueuePage } from "./pages/QueuePage";
-import { OpportunitiesPage, OpportunityDetailPage } from "./pages/OpportunitiesPage";
-import { PreSpecsPage } from "./pages/PreSpecsPage";
-import { PreSpecDetailPage } from "./pages/PreSpecDetailPage";
-import { NoticeDetailPage } from "./pages/NoticeDetailPage";
-import { RunsPage } from "./pages/RunsPage";
-import { AttachmentsPage } from "./pages/AttachmentsPage";
-import { MetricsPage } from "./pages/MetricsPage";
-import { ProfilePage } from "./pages/ProfilePage";
-import { QualityGatesPage } from "./pages/QualityGatesPage";
-import { PoliciesPage } from "./pages/PoliciesPage";
-import { OperationsPage } from "./pages/OperationsPage";
-import { DeepReviewPage } from "./pages/DeepReviewPage";
+
+const DashboardPage = lazy(() => import("./pages/DashboardPage").then(({ DashboardPage }) => ({ default: DashboardPage })));
+const QueuePage = lazy(() => import("./pages/QueuePage").then(({ QueuePage }) => ({ default: QueuePage })));
+const OpportunitiesPage = lazy(() => import("./pages/OpportunitiesPage").then(({ OpportunitiesPage }) => ({ default: OpportunitiesPage })));
+const OpportunityDetailPage = lazy(() => import("./pages/OpportunitiesPage").then(({ OpportunityDetailPage }) => ({ default: OpportunityDetailPage })));
+const PreSpecsPage = lazy(() => import("./pages/PreSpecsPage").then(({ PreSpecsPage }) => ({ default: PreSpecsPage })));
+const PreSpecDetailPage = lazy(() => import("./pages/PreSpecDetailPage").then(({ PreSpecDetailPage }) => ({ default: PreSpecDetailPage })));
+const NoticeDetailPage = lazy(() => import("./pages/NoticeDetailPage").then(({ NoticeDetailPage }) => ({ default: NoticeDetailPage })));
+const RunsPage = lazy(() => import("./pages/RunsPage").then(({ RunsPage }) => ({ default: RunsPage })));
+const AttachmentsPage = lazy(() => import("./pages/AttachmentsPage").then(({ AttachmentsPage }) => ({ default: AttachmentsPage })));
+const MetricsPage = lazy(() => import("./pages/MetricsPage").then(({ MetricsPage }) => ({ default: MetricsPage })));
+const ProfilePage = lazy(() => import("./pages/ProfilePage").then(({ ProfilePage }) => ({ default: ProfilePage })));
+const QualityGatesPage = lazy(() => import("./pages/QualityGatesPage").then(({ QualityGatesPage }) => ({ default: QualityGatesPage })));
+const PoliciesPage = lazy(() => import("./pages/PoliciesPage").then(({ PoliciesPage }) => ({ default: PoliciesPage })));
+const OperationsPage = lazy(() => import("./pages/OperationsPage").then(({ OperationsPage }) => ({ default: OperationsPage })));
+const DeepReviewPage = lazy(() => import("./pages/DeepReviewPage").then(({ DeepReviewPage }) => ({ default: DeepReviewPage })));
+const BidDeltaDecisionPage = lazy(() => import("./pages/BidDeltaDecisionPage").then(({ BidDeltaDecisionPage }) => ({ default: BidDeltaDecisionPage })));
 
 // 회차 선택은 주소의 run 파라미터에만 남아 있으므로 옮길 때 그대로 넘긴다.
 function RedirectWithSearch({ to, extraParams }: { to: string; extraParams?: Record<string, string> }) {
@@ -46,26 +51,32 @@ export const routes: RouteObject[] = [
     path: "/",
     element: <AppShell />,
     children: [
-      { index: true, element: <DashboardPage />, handle: routeHandle(routeMetadata.dashboard) },
-      { path: "queue", element: <QueuePage />, handle: routeHandle(routeMetadata.queue) },
-      { path: "queue/:noticePk", element: <QueuePage />, handle: routeHandle(routeMetadata.queue) },
-      { path: "deadlines", element: <RedirectWithSearch to="/queue" extraParams={{ sort: "deadline" }} />, handle: routeHandle(routeMetadata.deadlines) },
-      { path: "opportunities", element: <OpportunitiesPage />, handle: routeHandle(routeMetadata.opportunities) },
-      { path: "opportunities/:opportunityId", element: <OpportunityDetailPage />, handle: routeHandle(routeMetadata.opportunities) },
-      { path: "pre-specs", element: <PreSpecsPage />, handle: routeHandle(routeMetadata.preSpecs) },
-      { path: "pre-specs/:noticeId", element: <PreSpecDetailPage />, handle: routeHandle(routeMetadata.preSpecs) },
-      { path: "judgments", element: <NoticeDetailPage />, handle: routeHandle(routeMetadata.judgments) },
-      { path: "judgments/:noticePk", element: <NoticeDetailPage />, handle: routeHandle(routeMetadata.judgments) },
-      { path: "reviews", element: <ReviewLogPage />, handle: routeHandle(routeMetadata.reviews) },
-      { path: "profile", element: <ProfilePage />, handle: routeHandle(routeMetadata.profile) },
-      { path: "metrics", element: <MetricsPage />, handle: routeHandle(routeMetadata.metrics) },
-      { path: "quality-gates", element: <QualityGatesPage />, handle: routeHandle(routeMetadata.qualityGates) },
-      { path: "policies", element: <PoliciesPage />, handle: routeHandle(routeMetadata.policies) },
-      { path: "runs", element: <RunsPage />, handle: routeHandle(routeMetadata.runs) },
-      { path: "attachments", element: <AttachmentsPage />, handle: routeHandle(routeMetadata.attachments) },
-      { path: "operations", element: <OperationsPage />, handle: routeHandle(routeMetadata.operations) },
-      { path: "audit", element: <RedirectWithSearch to="/runs" />, handle: routeHandle(routeMetadata.audit) },
-      { path: "deep-reviews/:deepReviewId", element: <DeepReviewPage />, handle: routeHandle(routeMetadata.deepReview) },
+      {
+        element: <LazyRouteBoundary />,
+        children: [
+          { index: true, element: <DashboardPage />, handle: routeHandle(routeMetadata.dashboard) },
+          { path: "queue", element: <QueuePage />, handle: routeHandle(routeMetadata.queue) },
+          { path: "queue/:noticePk", element: <QueuePage />, handle: routeHandle(routeMetadata.queue) },
+          { path: "deadlines", element: <RedirectWithSearch to="/queue" extraParams={{ sort: "deadline" }} />, handle: routeHandle(routeMetadata.deadlines) },
+          { path: "opportunities", element: <OpportunitiesPage />, handle: routeHandle(routeMetadata.opportunities) },
+          { path: "opportunities/:opportunityId", element: <OpportunityDetailPage />, handle: routeHandle(routeMetadata.opportunities) },
+          { path: "opportunities/:opportunityId/bid-delta", element: <BidDeltaDecisionPage />, handle: routeHandle(routeMetadata.bidDelta) },
+          { path: "pre-specs", element: <PreSpecsPage />, handle: routeHandle(routeMetadata.preSpecs) },
+          { path: "pre-specs/:noticeId", element: <PreSpecDetailPage />, handle: routeHandle(routeMetadata.preSpecs) },
+          { path: "judgments", element: <NoticeDetailPage />, handle: routeHandle(routeMetadata.judgments) },
+          { path: "judgments/:noticePk", element: <NoticeDetailPage />, handle: routeHandle(routeMetadata.judgments) },
+          { path: "reviews", element: <ReviewLogPage />, handle: routeHandle(routeMetadata.reviews) },
+          { path: "profile", element: <ProfilePage />, handle: routeHandle(routeMetadata.profile) },
+          { path: "metrics", element: <MetricsPage />, handle: routeHandle(routeMetadata.metrics) },
+          { path: "quality-gates", element: <QualityGatesPage />, handle: routeHandle(routeMetadata.qualityGates) },
+          { path: "policies", element: <PoliciesPage />, handle: routeHandle(routeMetadata.policies) },
+          { path: "runs", element: <RunsPage />, handle: routeHandle(routeMetadata.runs) },
+          { path: "attachments", element: <AttachmentsPage />, handle: routeHandle(routeMetadata.attachments) },
+          { path: "operations", element: <OperationsPage />, handle: routeHandle(routeMetadata.operations) },
+          { path: "audit", element: <RedirectWithSearch to="/runs" />, handle: routeHandle(routeMetadata.audit) },
+          { path: "deep-reviews/:deepReviewId", element: <DeepReviewPage />, handle: routeHandle(routeMetadata.deepReview) },
+        ],
+      },
     ],
   },
 ];

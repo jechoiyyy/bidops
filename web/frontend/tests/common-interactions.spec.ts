@@ -11,7 +11,31 @@ const opportunity = {
   recheck_signal_at: null,
   recheck_signal_link_id: null,
   first_registered_stage: "order_plan",
-  links: [],
+  links: [{
+    id: 5011,
+    stage: "notice",
+    link_type: "official",
+    status: "확정",
+    search_strategy: null,
+    attempted_strategies: [],
+    agency_match: null,
+    last_searched_at: null,
+    evidence_external_no: null,
+    evidence_bid_no: null,
+    human_decision: null,
+    reviewer_name: null,
+    reviewed_at: null,
+    review_reason: null,
+    record_type: "bid_notice",
+    record_id: 1102,
+    notice_id: 1102,
+    order_plan_id: null,
+    source_type: "bid_notice",
+    title: "접근성 검증 입찰공고",
+    agency: "테스트 조달기관",
+    external_id: "R26BK00267196",
+    record_external_id: "R26BK00267196",
+  }],
 };
 
 const preSpecNotice = {
@@ -212,18 +236,15 @@ test("UC-04는 키보드만으로 append-only 재시작 직전까지 이동한�
   expect(trace.attemptPosts).toHaveLength(0);
 });
 
-test("UC-05는 계약 승인 전 변경 비교 navigation과 최종 결정 저장 control을 노출하지 않는다", async ({ page }) => {
-  const bidDeltaRequests: string[] = [];
-  page.on("request", (request) => {
-    if (new URL(request.url()).pathname.endsWith("/bid-delta")) bidDeltaRequests.push(request.url());
-  });
+test("R-08 이후 상세는 변경 비교로 이동하고 추적 저장과 최종 결정 저장을 분리한다", async ({ page }) => {
   await mockOpportunity(page);
   await page.goto("/opportunities/501");
 
   await expect(page.getByText("사람의 추적 판단", { exact: true })).toBeVisible();
-  await expect(page.locator('a[href="/opportunities/501/bid-delta"]')).toHaveCount(0);
-  await expect(page.getByRole("button", { name: /Go|No-Go|저장/ })).toHaveCount(0);
-  expect(bidDeltaRequests).toHaveLength(0);
+  await expect(page.locator('a[href="/opportunities/501/bid-delta"]')).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "최종 결정 저장" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "추적 상태 변경" })).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "추적 상태 저장" })).toHaveCount(0);
 });
 
 test("공통 unsaved guard가 기존 queue 임시 초안 보호를 유지한다", async ({ page, viewport }) => {
