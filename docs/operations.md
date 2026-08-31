@@ -15,7 +15,7 @@
 
 - PostgreSQL과 MinIO port가 host 전체 interface에 publish될 수 있다.
 - MinIO versioning 활성화 실패를 bootstrap이 무시한다.
-- 객체 restore가 source와 target version ID를 연결하지 못하고 active manifest 생성·완전성 검사가 없다.
+- 객체 restore는 source와 target version ID mapping을 보존하고 DB active object 집합·hash·완전성을 검사한다(A-6 해결).
 
 개발 검증에서도 hosted Codex reference overlay를 사용하지 않는다. 회사자료 host 입력을 registry에 push·export하지 않으며 로컬 build cache의 접근 범위를 제한한다. legacy notice attachment upload는 quarantine·ClamAV·MinIO 경계를 통과한 파일만 사용한다. 나머지 stack 기동은 폐기 가능한 데이터와 host firewall로 격리한 환경에서만 수행한다.
 
@@ -251,7 +251,12 @@ COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose \
 
 `scripts/backup-postgres.sh`는 timestamp가 붙은 custom-format dump를 만들고 기존 백업을 삭제하지 않는다. 4시간 RPO가 필요하면 이 스크립트와 별도로 WAL 보관을 구성하고 복구 시험으로 확인한다.
 
-객체 백업은 버전별 파일과 `object-versions.tsv`를 만든다. 실행 환경에 `mc`, `MINIO_ALIAS`, `OBJECT_BACKUP_DIR`를 제공한다.
+객체 백업은 네 개의 MinIO 버킷에서 모든 version을 버전별 파일로 복사하고
+`OBJECT_BACKUP_DIR/object-versions.tsv`를 만든다. manifest의 각 행은 헤더 없이
+`namespace/object_name<TAB>source_version_id<TAB>sha256` 형식이다. `sha256`은 source와
+백업 파일의 stored bytes가 같은지 복사 직후 다시 확인한 값이다. 실행 환경에 `mc`,
+`MINIO_ALIAS`, `OBJECT_BACKUP_DIR`를 제공한다. object key에 공백과 괄호가 있어도 TSV
+필드와 version-qualified 파일명으로 보존한다.
 
 ```bash
 ./scripts/backup-objects.sh
@@ -261,16 +266,36 @@ DB dump와 객체 manifest는 같은 복구 지점을 식별할 수 있게 함�
 
 ## 복구
 
-현재 restore script는 source version ID와 target version ID를 연결하지 못하고 DB active reference에서 완전한 manifest를 만들지 않으므로 복구 가능한 운영 도구가 아니다. 아래 순서와 환경변수는 수정 후 지켜야 할 목표 계약이며, 현재 script를 가치 있는 snapshot이나 운영 전환에 사용하지 않는다.
+복구는 기존 운영 대상 위가 아니라 빈 PostgreSQL과 빈 MinIO 대상에서 수행한다. 네 개 대상
+버킷은 versioning이 켜져 있어야 한다. restore는 source version ID를 target에 그대로
+재사용한다고 가정하지 않고, 각 `mc cp` 직후 target version ID를 조회한다. 복사 전 백업
+파일의 stored-byte hash도 manifest와 대조한다.
 
-복구는 기존 운영 대상 위가 아니라 빈 PostgreSQL과 빈 MinIO 대상에서 수행한다.
+`restore.sh`가 만드는 산출물은 다음과 같다.
+
+- `OBJECT_BACKUP_DIR/object-version-mapping.tsv`: 헤더 없는
+  `namespace/object_name<TAB>source_version_id<TAB>target_version_id<TAB>sha256` mapping.
+  백업 manifest의 source ID와 복구 대상에서 새로 발급된 target ID를 함께 보존한다.
+- `ACTIVE_HASH_MANIFEST`: `pg_restore` 뒤
+  `scripts/generate-active-hash-manifest.sh`가 복구 DB의 active object reference에서
+  원자적으로 다시 만든 manifest다. 수동으로 일부 object를 적은 파일을 준비하지 않는다.
+
+복구 순서는 객체 복사·백업 hash 확인 → DB restore → DB active manifest 생성 → target
+version ID·namespace별 무결성 및 active 집합 일대일 검증이다. source·structure·quarantine는
+target version의 stored-byte hash까지 대조한다. model-response는 암호화된 응답 envelope를
+저장하고 DB의 `ContentObject.sha256`에는 plaintext hash만 기록하므로, 내용 hash는 대조하지
+않고 target version에서 object 존재와 version만 확인한다. verifier는 mapping과 target의
+모든 복구 version을 대조하며, DB active object의 누락·추가·중복과 target object의
+누락·추가·중복을 실패시킨다.
 
 1. 복구 대상과 네트워크를 격리한다.
-2. `OBJECT_BACKUP_DIR`, `RESTORE_MINIO_ALIAS`로 버전별 객체를 먼저 복사한다.
+2. `OBJECT_BACKUP_DIR`, `RESTORE_MINIO_ALIAS`로 버전별 객체를 먼저 복사하고 target ID mapping을 남긴다.
 3. `DUMP_FILE`을 빈 PostgreSQL에 `pg_restore`한다.
-4. `ACTIVE_HASH_MANIFEST`와 복구 객체의 hash를 대조한다.
-5. FK, Alembic head, 핵심 row 수, active document·model response 참조를 검사한다.
-6. API read-only smoke와 대표 보고서 재현을 확인한 뒤에만 전환 여부를 사람이 결정한다.
+4. `ACTIVE_HASH_MANIFEST`를 복구 DB의 `bidops.content_object_location`과
+   `bidops.content_object`에서 생성한다.
+5. mapping의 target version ID로 active object의 hash와 DB active 집합을 대조한다.
+6. FK, Alembic head, 핵심 row 수, active document·model response 참조를 검사한다.
+7. API read-only smoke와 대표 보고서 재현을 확인한 뒤에만 전환 여부를 사람이 결정한다.
 
 ```bash
 OBJECT_BACKUP_DIR=/approved/objects \
@@ -279,12 +304,19 @@ ACTIVE_HASH_MANIFEST=/approved/active-hashes.tsv \
 RESTORE_MINIO_ALIAS=restore \
 BIDOPS_DATABASE_URL='postgresql+psycopg://...' \
 BIDOPS_DATABASE_HOST=restore-db \
+BIDOPS_DATABASE_PORT=5432 \
+BIDOPS_DATABASE_NAME=bidops \
 BIDOPS_DATABASE_USER=restore-user \
 BIDOPS_DATABASE_PASSWORD='injected-secret' \
 ./scripts/restore.sh
 ```
 
-현재 명령은 source volume 삭제나 `dropdb`는 수행하지 않지만 target version mapping과 active manifest 검증이 보완되기 전에는 성공적인 복구를 보장하지 않는다.
+host에 `mc`·`pg_restore`·`psql`이 없으면 동일한 변수를 주입한 승인된 ops image에서
+`bash /opt/bidops/scripts/restore.sh`를 실행한다. `BIDOPS_DATABASE_URL`은 실행 계약 식별자로
+함께 주입하고, 실제 명령은 `BIDOPS_DATABASE_HOST`·`PORT`·`NAME`·`USER`와
+`BIDOPS_DATABASE_PASSWORD`를 사용한다. `RESTORE_MINIO_ALIAS`는 네 개 target bucket에
+접근할 수 있는 `mc` alias여야 한다. 복구 중 source object, 기존 백업 파일, DB row를
+삭제하지 않으며, target이 비어 있지 않거나 versioning이 꺼져 있으면 검증 실패로 끝난다.
 
 ## 장애 대응
 

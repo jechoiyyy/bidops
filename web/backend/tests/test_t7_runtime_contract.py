@@ -119,7 +119,7 @@ def test_t7_compose_commands_and_recovery_scripts_exist():
         if entrypoint and isinstance(entrypoint, list) and entrypoint[0].startswith("/app/scripts/"):
             assert (ROOT / "scripts" / Path(entrypoint[0]).name).is_file()
 
-    for script in ("postgres-init.sh", "migrate.sh", "minio-init.sh", "backup-postgres.sh", "backup-objects.sh", "restore.sh", "verify-active-hashes.sh", "init-runtime.sh"):
+    for script in ("postgres-init.sh", "migrate.sh", "minio-init.sh", "backup-postgres.sh", "backup-objects.sh", "restore.sh", "generate-active-hash-manifest.sh", "verify-active-hashes.sh", "init-runtime.sh"):
         assert (ROOT / "scripts" / script).is_file()
     ops = compose["services"]["ops"]
     assert ops["profiles"] == ["ops"]
@@ -211,13 +211,34 @@ def test_t7_minio_versioning_and_object_first_recovery_contract():
     bootstrap = (ROOT / "scripts/minio-init.sh").read_text(encoding="utf-8")
     backup = (ROOT / "scripts/backup-objects.sh").read_text(encoding="utf-8")
     restore = (ROOT / "scripts/restore.sh").read_text(encoding="utf-8")
+    generate_active = (ROOT / "scripts/generate-active-hash-manifest.sh").read_text(encoding="utf-8")
     verify = (ROOT / "scripts/verify-active-hashes.sh").read_text(encoding="utf-8")
     assert bootstrap.count("mc version enable") == 1
     assert "for bucket in bidops-source bidops-structure bidops-quarantine bidops-model-response" in bootstrap
     assert "mc ilm add --expire-days 90 local/bidops-model-response" in bootstrap
     assert "mc find --versions" in backup and "object-versions.tsv" in backup
     assert "--version-id" in backup
+    assert "{version}\\t{}" in backup and 'suffix=" ($version_id)"' in backup
     assert "RESTORE_MINIO_ALIAS" in restore
     assert restore.index("version_manifest") < restore.index("pg_restore")
-    assert "OBJECT_VERIFY_ALIAS" in verify and "mc stat --version-id" in verify and "mc cat --version-id" in verify
-    assert verify.index("mc cat") < verify.index("psql")
+    assert "object-version-mapping.tsv" in restore
+    assert "target_version_id" in restore and "mc stat --json" in restore
+    assert "versioned object backup hash verification failed" in restore
+    assert "generate-active-hash-manifest.sh" in restore
+    assert "psql" in generate_active
+    assert "content_object_location" in generate_active
+    assert "content.sha256" in generate_active
+    assert "location.status = 'verified'" in generate_active
+    assert "location.purged_at IS NULL" in generate_active
+    assert "OBJECT_VERIFY_ALIAS" in verify
+    assert "OBJECT_VERSION_MAPPING_MANIFEST" in verify
+    assert "mc stat --version-id \"$target_version_id\"" in verify
+    assert "mc cat --version-id \"$target_version_id\"" in verify
+    assert "active hash manifest does not match database active object set" in verify
+    assert "restored object missing" in verify
+    assert "restored object extra" in verify
+    assert "duplicate active object" in verify
+    assert "duplicate source mapping" in verify
+    assert "duplicate target object" in verify
+    assert "comm -23" in verify and "comm -13" in verify
+    assert "SELECT 1 FROM bidops.document_bundle LIMIT 1" not in verify
