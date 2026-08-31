@@ -332,29 +332,29 @@ export const api = {
   getPolicy: (policyVersion: string) =>
     request<PolicyVersionResponse>(`/policies/${encodeURIComponent(policyVersion)}`),
 
-  createPolicy: (payload: PolicyVersionCreateRequest) =>
+  createPolicy: (payload: PolicyVersionCreateRequest, actorName: string) =>
     request<PolicyVersionResponse>("/policies", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...actorHeaders(actorName) },
       body: JSON.stringify(payload),
     }),
 
-  designatePolicyCandidate: (policyVersion: string, payload: PolicyCandidateRequest) =>
+  designatePolicyCandidate: (policyVersion: string, payload: PolicyCandidateRequest, actorName: string) =>
     request<PolicyVersionResponse>(
       `/policies/${encodeURIComponent(policyVersion)}/candidate`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...actorHeaders(actorName) },
         body: JSON.stringify(payload),
       },
     ),
 
-  activatePolicy: (policyVersion: string, payload: PolicyActivationRequest) =>
+  activatePolicy: (policyVersion: string, payload: PolicyActivationRequest, actorName: string) =>
     request<PolicyActivationResponse>(
       `/policies/${encodeURIComponent(policyVersion)}/activate`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...actorHeaders(actorName) },
         body: JSON.stringify(payload),
       },
     ),
@@ -463,34 +463,38 @@ export const api = {
   getNoticeAttachments: (noticePk: number) =>
     request<AttachmentProcedureResponse>(`/notices/${noticePk}/attachments`),
 
-  uploadNoticeAttachments: (noticePk: number, file: File) => {
+  uploadNoticeAttachments: (noticePk: number, file: File, actorName: string) => {
     const form = new FormData();
     form.append("files", file);
     return request<AttachmentProcedureResponse>(`/notices/${noticePk}/attachments`, {
       method: "POST",
+      headers: actorHeaders(actorName),
       body: form,
     });
   },
 
-  deleteAttachment: (attachmentId: number) =>
-    request<void>(`/attachments/${attachmentId}`, { method: "DELETE" }),
+  deleteAttachment: (attachmentId: number, actorName: string) =>
+    request<void>(`/attachments/${attachmentId}`, {
+      method: "DELETE",
+      headers: actorHeaders(actorName),
+    }),
 
   getAttachmentQueue: (runId: string) =>
     request<AttachmentQueueResponse>(`/attachments/queue${query({ run_id: runId })}`),
 
   getPortals: () => request<AgencyPortal[]>("/portals"),
 
-  createPortal: (payload: Omit<AgencyPortal, "id">) =>
+  createPortal: (payload: Omit<AgencyPortal, "id">, actorName: string) =>
     request<AgencyPortal>("/portals", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...actorHeaders(actorName) },
       body: JSON.stringify(payload),
     }),
 
-  updatePortal: (portalId: number, payload: Partial<Omit<AgencyPortal, "id">>) =>
+  updatePortal: (portalId: number, payload: Partial<Omit<AgencyPortal, "id">>, actorName: string) =>
     request<AgencyPortal>(`/portals/${portalId}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...actorHeaders(actorName) },
       body: JSON.stringify(payload),
     }),
 

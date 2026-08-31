@@ -136,6 +136,7 @@ def test_full_lifespan_does_not_seed_portals_and_portal_api_is_explicit(
 
             created = client.post(
                 "/api/portals",
+                headers={"X-BidOps-Actor-Name": "t14-test"},
                 json={
                     "agency_pattern": "T14 기관",
                     "system_name": "T14 조달",

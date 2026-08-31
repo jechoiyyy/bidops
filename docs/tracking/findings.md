@@ -167,8 +167,9 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 - 재현 조건: `POST /api/notices/{notice_pk}/attachments`로 허용 확장자·크기의 파일을 등록한 뒤 download endpoint를 호출한다.
 - 증상: legacy attachment service는 확장자와 50MiB 한도만 확인하고 `/app/web/data/attachments`로 rename한 뒤 DB를 commit한다. MIME 판별, quarantine, ClamAV, MinIO object version·hash 없이 바로 다운로드할 수 있다. T7은 `/app/data`와 `/app/reports`만 volume으로 연결하므로 이 attachment 경로는 container 재생성 때 유실될 수도 있다. `AttachmentResponse.stored_path`는 DB 값을 그대로 내보내 notice directory와 로컬 저장 layout을 client 계약에 노출한다.
 - 영향: 파일 내용이 확장자와 다르거나 악성인 첨부가 웹 process의 로컬 저장소와 사용자 download 경로로 들어가 Lean document upload의 안전 경계를 우회한다. DB row는 남고 파일만 사라지는 불일치도 생길 수 있고, path 노출은 서버 배치 구조를 외부 wire에 고정한다.
-- 지금 해결할 수 없는 이유: 기존 attachment 화면·다운로드·DB row를 Lean document object lifecycle로 이전하고 기존 manual attachment 호환 정책을 정해야 한다.
-- 접근 방법: 운영에서는 legacy mutation·path 조회를 비활성화한다. 장기적으로 모든 upload를 quarantine → MIME·size → ClamAV → versioned object → ready projection으로 통합하고 clean 전 download를 거부한다. `stored_path`를 response schema와 serializer에서 제거하고 우회 endpoint가 없는지 API 통합 테스트로 고정한다.
+- 상태: **해결** (2026-09-01, A-2 legacy upload 안전 경계·응답 projection·보관 volume 보완). 기존 `Attachment` schema와 id 기반 legacy download 호환성은 유지한다.
+- 검증: 감염 표식·ClamAV 사용 불가 파일은 4xx로 등록되지 않고 filesystem 산출물이 남지 않으며, safe PDF만 등록된다. 첨부 처리·notice detail 응답에는 `stored_path`가 없고 `docker compose -f docker-compose.t7.yml config`가 통과한다.
+- 접근 방법: 업로드 바이트를 quarantine object에 저장하고 MIME·구조·ClamAV 검사를 통과한 경우에만 source object로 승격한 뒤 legacy `Attachment`와 named-volume의 로컬 호환 사본을 만든다. `stored_path`는 내부 metadata로만 유지하고 response schema·serializer에서 제거했다. 기존 attachment object metadata schema 이전은 별도 범위다.
 
 ## MinIO versioning 초기화가 실패해도 stack이 계속 기동한다
 
@@ -207,8 +208,9 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 - 재현 조건: legacy review upsert, attachment upload·delete, agency portal create·patch, run ingest·subprocess 실행 endpoint를 호출한다.
 - 증상: 해당 경로는 `X-BidOps-Actor-Name`을 요구하지 않거나 reviewer가 optional이고, 작업별 `AuditEvent`를 같은 transaction에 남기지 않는다. Lean 문서·심층 검토와 screening control 계열만 별도 actor·audit 경계를 가진다.
 - 영향: 사내 사용자가 변경·승인할 때 이름을 남긴다는 채택 결정이 API 전체에서 성립하지 않으며 누가 첨부를 지우거나 포털·리뷰·회차를 바꿨는지 일관되게 추적할 수 없다.
-- 지금 해결할 수 없는 이유: 기존 frontend와 pipeline client의 request 계약을 함께 바꾸고 과거 actor 없는 기록의 표시 정책을 정해야 한다.
-- 접근 방법: 모든 사람 mutation에 공통 actor parser와 safe audit service를 적용하고 mutation 결과와 같은 transaction에서 event를 기록한다. 과거 row는 actor를 추정하지 않고 `unknown`으로 남기며 기존 client를 명시적 계약 version으로 전환한다.
+- 상태: **부분 해결** (2026-09-01, A-4). 첨부 upload/delete, agency portal create/patch, screening policy create/candidate/activate에 기존 actor parser와 append-only `AuditEvent`를 적용했다. legacy review와 일부 run/subprocess mutation은 여전히 별도 작업이다.
+- 검증: 세 router의 7개 mutation이 actor 없는 요청을 400으로 거부하고, actor가 있으면 같은 transaction에 `AuditEvent`를 남기는 회귀가 통과했다. frontend API 호출부와 포털·정책 화면도 actor header를 전송한다.
+- 접근 방법: 새 감사 테이블이나 helper layer를 만들지 않고 기존 `validate_actor`와 `AuditEvent`를 각 mutation transaction에 연결했다. 과거 actor 없는 row는 추정하지 않는다.
 
 ## 현재 보고서 renderer가 screening v3를 처리하지 못한다
 
