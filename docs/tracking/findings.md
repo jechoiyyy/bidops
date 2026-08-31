@@ -184,8 +184,17 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 - 재현 조건: `backup-objects.sh`로 version별 backup을 만든 뒤 빈 MinIO에 `restore.sh`를 실행하고 `verify-active-hashes.sh`로 검사한다.
 - 증상: backup manifest는 source version ID를 기록하지만 local file을 target에 `mc cp`하면 새 target version ID가 생긴다. restore는 새 ID를 기록하지 않고 verifier는 source version ID로 target object를 조회한다. `ACTIVE_HASH_MANIFEST`를 DB active reference에서 생성·완전성 검사하는 경로도 없다.
 - 영향: 정상 복구도 version lookup에서 실패하거나, 수동 manifest가 일부 active object를 빠뜨려도 DB 연결만 확인한 채 복구 검증이 끝날 수 있다. object-first 복구 완료를 주장할 수 없다.
-- 지금 해결할 수 없는 이유: target version mapping, DB object reference 재결합 여부, active manifest 생성 계약을 함께 결정해야 한다.
-- 접근 방법: restore 때 source version → target version mapping과 stored-byte hash를 기록하고 DB가 가리키는 모든 active object를 query해 manifest와 일대일 대조한다. verifier는 target version ID와 hash를 검사하며 누락·추가·중복을 모두 실패시킨다.
+- 상태: **해결** (2026-09-01, A-6 object-first restore MVP).
+- 검증: `backup-objects.sh`가 source stored-byte hash를 확인하고, `restore.sh`가 매 object의 target version ID를 `object-version-mapping.tsv`에 기록한다. 복구 뒤 DB에서 `content_object_location`과 `content_object`를 query해 active manifest를 생성하고, verifier가 일반 namespace의 target ID·stored-byte hash와 model-response의 target ID·존재를 확인하며 DB active 집합 및 복구된 모든 version 집합의 누락·추가·중복을 실패시킨다. disposable MinIO 원본·case별 빈 복구 대상과 PostgreSQL 17에서 정상 복구, 손상 backup, 누락 active object 세 경우를 실행해 확인했다.
+- 접근 방법: restore 때 source version → target version mapping과 stored-byte hash를 기록하고 DB가 가리키는 모든 active object를 query해 manifest와 일대일 대조한다. verifier는 일반 namespace에 target version ID와 stored-byte hash를, model-response에는 target version ID와 존재를 검사하며 누락·추가·중복을 모두 실패시킨다.
+
+## 암호화된 model-response active object는 stored-byte hash로 검증할 수 없다
+
+- 재현 조건: 암호화된 model-response를 생성해 `ContentObjectLocation(namespace_key='model-response', status='verified')`로 active manifest에 포함한 뒤 복구 검증을 실행한다. `ContentObject.sha256`는 plaintext aggregate의 SHA-256이고 MinIO object bytes는 `BIDOPS-AESGCM-V1\0` envelope와 nonce·ciphertext다.
+- 영향: manifest의 model-response hash를 MinIO stored bytes의 SHA-256과 비교하면 정상 복구도 항상 불일치해 검증이 실패한다. 암호화된 payload의 stored-byte 무결성은 현재 DB hash로 입증할 수 없다.
+- 남은 제약: verifier는 model-response의 stored-byte hash 비교를 하지 않고 target version에서 object 존재와 version만 확인한다. 다만 DB active 집합 일치, 누락·추가·중복 실패, source→target version mapping 및 target version 존재 검사는 다른 namespace와 동일하게 유지한다.
+- 지금 이렇게 두는 이유: 이번 A-6의 목적은 정상 복구를 검증 가능하게 만드는 것이며, 기존 `ContentObject.sha256`의 plaintext 의미와 암호화 저장 경계를 보존해야 한다. 스키마 변경 없이 이 namespace만 예외 처리하는 것이 현재 복구 계약과 fail-closed 집합 검사를 모두 유지하는 방법이다.
+- 후속 방향: stored-byte hash를 별도 필드로 기록하는 스키마 보완을 설계·적용해 암호화 envelope도 내용 무결성까지 검증한다. 이는 이번 범위가 아니다.
 
 ## 분석 worker DB 역할이 모든 업무 table을 수정할 수 있다
 
