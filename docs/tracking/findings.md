@@ -159,8 +159,8 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 - 재현 조건: `GET /api/profile/snapshots`, `GET /api/profile/sections`, `GET /api/profile/unknowns`를 호출하거나 프로필 파일 읽기 오류를 유발한다.
 - 증상: snapshots item의 working-tree `source_ref`는 내부 상대 파일 경로다. sections 응답은 filesystem `source`, `raw_blocks[].raw`, section `raw`, `source_line`을 포함한다. unknowns도 filesystem `source`를 반환하며 `parse_errors` 문자열에 원본 `OSError`의 절대 경로가 들어갈 수 있다. sections·unknowns는 현재 working tree parser 결과에 묶이고 승인된 불변 profile version·digest를 응답에 고정하지 않는다.
 - 영향: 사내망 사용자 모두에게 UI에 필요한 범위를 넘는 회사 프로필 원문과 서버 배치 구조가 노출된다. 실행 중 working tree가 변하면 같은 조회 route가 다른 프로필을 반환할 수 있어 승인 snapshot 경계도 흐려진다.
-- 지금 해결할 수 없는 이유: Pydantic schema, parser presenter, profile snapshot 선택, frontend type·화면을 원자적으로 전환하고 기존 client 호환성과 노출 방지 회귀를 같이 검증해야 하므로 아직 구현되지 않았다.
-- 접근 방법: 기존 세 route를 운영에서 비활성화하고 `bidops.profile-projection.v1`로 교체한다. snapshots에서 `source_ref`를 제거하고, sections·unknowns는 승인 profile version·digest, 구조화 항목, `unknown`, 안정 error code만 반환한다. filesystem source, source line, raw block·text, 원문 예외를 schema·serializer·frontend type에서 제거한다. 파일 경로·원문 sentinel이 response에 없음을 통합 테스트로 고정한다.
+- 상태: **해결** (2026-09-01, A-3 최소 projection 전환). 세 route는 승인된 snapshot version·digest와 구조화 projection만 반환하고, working-tree `source_ref`·filesystem source·source line·raw block/text·원문 예외를 wire에서 제외한다. Git blob은 40자 SHA만 계보 식별자로 유지하며 파싱·읽기 실패는 닫힌 `error_codes`로 표현한다.
+- 검증: 실제 `docs/reference/company-profile.md`의 특징적 문자열과 임시 snapshot artifact 누락 경로를 포함한 `test_profile_projection.py`가 snapshots·sections·unknowns 응답에 원문·절대 경로·원문 parse error가 없음을 확인했다. 백엔드는 `1038 passed, 5 skipped, 6 warnings in 566.02s (0:09:26)`, 프론트엔드는 `598 passed, 10 skipped (5.5m)`으로 완료했고 `tsc`·production build도 통과했다.
 
 ## legacy 첨부 업로드가 악성코드 검사와 객체 격리를 우회한다
 

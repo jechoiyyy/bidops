@@ -24,7 +24,7 @@ PostgreSQL 17의 `bidops` 스키마와 MinIO 목적별 버킷이 운영 정본�
 
 사내망 조회자에게는 승인된 불변 프로필 snapshot의 구조화 항목과 `unknown`만 제공한다. 응답은 profile version·digest를 고정하고 승인 projection에 없는 항목을 현재 working tree에서 추가로 읽지 않는다.
 
-프로필 원문 block, parser의 raw text, 원본 파일·filesystem `source`/`source_ref`, source line과 로컬 경로가 들어갈 수 있는 예외 문자열은 API에서 제공하지 않는다. 파싱 실패는 안정적인 오류 코드로만 표현한다. 현재 `/api/profile/snapshots`는 working-tree `source_ref`를, `/api/profile/sections`와 `/api/profile/unknowns`는 `source`, raw block·raw text, 가공되지 않은 parse error를 반환할 수 있어 이 경계를 만족하지 않는다. 최소 projection 계약으로 교체하기 전에는 세 route를 운영 조회에 사용하지 않는다.
+프로필 원문 block, parser의 raw text, 원본 파일·filesystem `source`, working-tree `source_ref`, source line과 로컬 경로가 들어갈 수 있는 예외 문자열은 API에서 제공하지 않는다. 파싱 실패는 닫힌 안정 오류 코드 집합으로만 표현한다. `/api/profile/snapshots`는 `working_tree`의 내부 `source_ref`를 생략하고 `git_blob`일 때만 40자 commit SHA를 계보 식별자로 유지한다. `/api/profile/sections`와 `/api/profile/unknowns`는 승인된 snapshot의 version·digest와 구조화 projection, 위치 요약, 안정 오류 코드만 반환한다.
 
 ## 행위 권한
 

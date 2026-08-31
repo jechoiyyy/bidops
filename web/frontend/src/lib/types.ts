@@ -525,11 +525,13 @@ export interface ValidationMetricsResponse {
 export type ProfileStatus = "confirmed" | "inferred" | "unknown";
 export type ProfileSectionState = ProfileStatus | "mixed" | "unrecorded";
 
-export interface ProfileRawBlock {
-  line_start: number;
-  raw: string;
-  error: string;
-}
+export type ProfileErrorCode =
+  | "profile_snapshot_unavailable"
+  | "profile_source_unavailable"
+  | "profile_yaml_unclosed"
+  | "profile_yaml_invalid"
+  | "profile_section_unstructured"
+  | "profile_references_unavailable";
 
 export interface ProfileItem {
   key: string;
@@ -538,7 +540,6 @@ export interface ProfileItem {
   section_number: string | null;
   status: ProfileStatus;
   value: JsonValue;
-  source_line: number | null;
 }
 
 export interface ProfileSection {
@@ -550,16 +551,17 @@ export interface ProfileSection {
   state: ProfileSectionState;
   status_counts: Record<string, number>;
   items: ProfileItem[];
-  raw_blocks: ProfileRawBlock[];
-  raw: string | null;
+  error_codes: ProfileErrorCode[];
   children: ProfileSection[];
 }
 
 export interface ProfileSectionsResponse {
-  source: string;
+  schema_version: "bidops.profile-projection.v1";
+  profile_version: CompanyProfileVersion;
+  profile_digest: Digest;
   sections: ProfileSection[];
   status_counts: Record<string, number>;
-  parse_errors: string[];
+  error_codes: ProfileErrorCode[];
 }
 
 export interface ProfileUnknown {
@@ -575,11 +577,13 @@ export interface ProfileUnknown {
 }
 
 export interface ProfileUnknownsResponse {
-  source: string;
+  schema_version: "bidops.profile-projection.v1";
+  profile_version: CompanyProfileVersion;
+  profile_digest: Digest;
   items: ProfileUnknown[];
   total: number;
   reference_fields: string[];
-  parse_errors: string[];
+  error_codes: ProfileErrorCode[];
 }
 
 // ---------------------------------------------------------------------------
@@ -755,7 +759,7 @@ export interface CompanyProfileSnapshotResponse {
   version: CompanyProfileVersion;
   digest: Digest;
   source_kind: CompanyProfileSnapshotSourceKind;
-  source_ref: string;
+  source_ref?: string;
   created_at: string;
 }
 
