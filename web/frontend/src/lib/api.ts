@@ -11,6 +11,7 @@ import type {
   NoticeListResponse,
   PreSpecListQuery,
   PreSpecListResponse,
+  PreSpecOverviewReviewsResponse,
   OpportunityDetailResponse,
   OpportunityListQuery,
   OpportunityListResponse,
@@ -453,6 +454,9 @@ export const api = {
       })}`,
       options,
     ),
+
+  getPreSpecOverviewReviews: (noticeId: number, options?: ReadRequestOptions) =>
+    request<PreSpecOverviewReviewsResponse>(`/pre-specs/${noticeId}/overview-reviews`, options),
 
   getNotice: (noticePk: number) => request<NoticeDetailResponse>(`/notices/${noticePk}`),
 

@@ -15,6 +15,47 @@
   overflow: hidden;
 }
 
+.document-preparation-guidance,
+.attachment-safe-guidance {
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-soft-surface);
+  color: var(--color-text);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.document-preparation-guidance strong,
+.attachment-safe-guidance strong {
+  font-weight: 600;
+}
+
+.document-preparation-guidance p,
+.attachment-safe-guidance p {
+  margin: 5px 0 0;
+  color: var(--color-muted);
+}
+
+.attachment-safe-guidance {
+  margin-top: 12px;
+  border-color: var(--color-teal);
+  background: var(--color-teal-soft);
+}
+
+.attachment-safe-guidance a,
+.attachment-safe-guidance > span {
+  display: inline-block;
+  margin-top: 8px;
+}
+
+.attachment-safe-guidance a {
+  color: var(--color-deep);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .queue-page {
   height: calc(100vh - 82px);
 }

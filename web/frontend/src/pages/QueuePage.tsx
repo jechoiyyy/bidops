@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { Badge } from "../components/common/Badge";
 import { EmptyState } from "../components/common/EmptyState";
 import { Toast } from "../components/common/Toast";
+import { useUnsavedGuard } from "../components/common/useUnsavedGuard";
 import { AttachmentPanel } from "../components/notice/AttachmentPanel";
 import { CounterargumentList } from "../components/notice/CounterargumentList";
 import { JudgmentBanner } from "../components/notice/JudgmentBanner";
@@ -208,6 +209,7 @@ export function QueuePage() {
   const isDirty = Boolean(detail) && draftMatchesDetail && !draftsEqual(draft, serverDraft);
   const detailDeadline = detail ? describeDeadline(detail.deadline_at) : null;
   const selectedIndex = notices.findIndex((notice) => notice.id === selectedId);
+  useUnsavedGuard(isDirty);
 
   useEffect(() => {
     if (!runId || noticesQuery.isLoading) return;
@@ -241,17 +243,6 @@ export function QueuePage() {
     }
     writeStoredDraft(runId, detail.id, draft);
   }, [draft, draftMatchesDetail, detail, runId, serverDraft]);
-
-  // 임시 저장은 같은 브라우저에서만 살아남으므로, 창을 닫을 때는 브라우저의 확인 절차를 쓴다.
-  useEffect(() => {
-    if (!isDirty) return;
-    const onBeforeUnload = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-      event.returnValue = "";
-    };
-    window.addEventListener("beforeunload", onBeforeUnload);
-    return () => window.removeEventListener("beforeunload", onBeforeUnload);
-  }, [isDirty]);
 
   useEffect(() => {
     if (!toast) return;

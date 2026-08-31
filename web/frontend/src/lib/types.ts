@@ -245,6 +245,61 @@ export interface PreSpecListQuery {
   offset?: number | null;
 }
 
+export type PreSpecOverviewCutStatus = "pending" | "ready" | "unknown" | "failed";
+export type PreSpecOverviewReviewStatus =
+  | "awaiting_document"
+  | "awaiting_structure"
+  | "preparing"
+  | "awaiting_model"
+  | "queued"
+  | "running"
+  | "needs_human_review"
+  | "completed"
+  | "failed"
+  | "cancelled";
+export type PreSpecOverviewAttemptStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
+
+export interface PreSpecOverviewSnapshotView {
+  id: string;
+  document_version_id: string;
+  structure_id: string;
+  source_sha256: string;
+  payload_sha256: string;
+  cut_status: PreSpecOverviewCutStatus;
+  strategy: "toc_body_match" | "topic_heading" | null;
+  start_locator: Record<string, unknown> | null;
+  end_locator: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface PreSpecOverviewAttemptView {
+  id: string;
+  snapshot_id: string;
+  sequence: number;
+  status: PreSpecOverviewAttemptStatus;
+  reference_only: boolean;
+  deployable: boolean;
+  created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+}
+
+export interface PreSpecOverviewReviewView {
+  id: string;
+  notice_id: number;
+  status: PreSpecOverviewReviewStatus;
+  result: "추진 검토" | "조건부 추진 검토" | "보류" | "검토 종료" | null;
+  completed_at: string | null;
+  current_snapshot: PreSpecOverviewSnapshotView | null;
+  attempts: PreSpecOverviewAttemptView[];
+}
+
+export interface PreSpecOverviewReviewsResponse {
+  schema_version: "bidops.prespec-overview-reviews.v1";
+  notice_id: number;
+  reviews: PreSpecOverviewReviewView[];
+}
+
 export interface HistoryItemResponse {
   notice_pk: number;
   run_id: string;

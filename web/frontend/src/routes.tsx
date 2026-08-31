@@ -1,10 +1,12 @@
 import { Navigate, useSearchParams, type RouteObject } from "react-router-dom";
 import { EmptyState } from "./components/common/EmptyState";
 import { AppShell } from "./components/shell/AppShell";
+import { routeHandle, routeMetadata } from "./components/shell/route-meta";
 import { DashboardPage } from "./pages/DashboardPage";
 import { QueuePage } from "./pages/QueuePage";
-import { OpportunitiesPage } from "./pages/OpportunitiesPage";
+import { OpportunitiesPage, OpportunityDetailPage } from "./pages/OpportunitiesPage";
 import { PreSpecsPage } from "./pages/PreSpecsPage";
+import { PreSpecDetailPage } from "./pages/PreSpecDetailPage";
 import { NoticeDetailPage } from "./pages/NoticeDetailPage";
 import { RunsPage } from "./pages/RunsPage";
 import { AttachmentsPage } from "./pages/AttachmentsPage";
@@ -44,24 +46,26 @@ export const routes: RouteObject[] = [
     path: "/",
     element: <AppShell />,
     children: [
-      { index: true, element: <DashboardPage /> },
-      { path: "queue", element: <QueuePage /> },
-      { path: "queue/:noticePk", element: <QueuePage /> },
-      { path: "deadlines", element: <RedirectWithSearch to="/queue" extraParams={{ sort: "deadline" }} /> },
-      { path: "opportunities", element: <OpportunitiesPage /> },
-      { path: "pre-specs", element: <PreSpecsPage /> },
-      { path: "judgments", element: <NoticeDetailPage /> },
-      { path: "judgments/:noticePk", element: <NoticeDetailPage /> },
-      { path: "reviews", element: <ReviewLogPage /> },
-      { path: "profile", element: <ProfilePage /> },
-      { path: "metrics", element: <MetricsPage /> },
-      { path: "quality-gates", element: <QualityGatesPage /> },
-      { path: "policies", element: <PoliciesPage /> },
-      { path: "runs", element: <RunsPage /> },
-      { path: "attachments", element: <AttachmentsPage /> },
-      { path: "operations", element: <OperationsPage /> },
-      { path: "audit", element: <RedirectWithSearch to="/runs" /> },
-      { path: "deep-reviews/:deepReviewId", element: <DeepReviewPage /> },
+      { index: true, element: <DashboardPage />, handle: routeHandle(routeMetadata.dashboard) },
+      { path: "queue", element: <QueuePage />, handle: routeHandle(routeMetadata.queue) },
+      { path: "queue/:noticePk", element: <QueuePage />, handle: routeHandle(routeMetadata.queue) },
+      { path: "deadlines", element: <RedirectWithSearch to="/queue" extraParams={{ sort: "deadline" }} />, handle: routeHandle(routeMetadata.deadlines) },
+      { path: "opportunities", element: <OpportunitiesPage />, handle: routeHandle(routeMetadata.opportunities) },
+      { path: "opportunities/:opportunityId", element: <OpportunityDetailPage />, handle: routeHandle(routeMetadata.opportunities) },
+      { path: "pre-specs", element: <PreSpecsPage />, handle: routeHandle(routeMetadata.preSpecs) },
+      { path: "pre-specs/:noticeId", element: <PreSpecDetailPage />, handle: routeHandle(routeMetadata.preSpecs) },
+      { path: "judgments", element: <NoticeDetailPage />, handle: routeHandle(routeMetadata.judgments) },
+      { path: "judgments/:noticePk", element: <NoticeDetailPage />, handle: routeHandle(routeMetadata.judgments) },
+      { path: "reviews", element: <ReviewLogPage />, handle: routeHandle(routeMetadata.reviews) },
+      { path: "profile", element: <ProfilePage />, handle: routeHandle(routeMetadata.profile) },
+      { path: "metrics", element: <MetricsPage />, handle: routeHandle(routeMetadata.metrics) },
+      { path: "quality-gates", element: <QualityGatesPage />, handle: routeHandle(routeMetadata.qualityGates) },
+      { path: "policies", element: <PoliciesPage />, handle: routeHandle(routeMetadata.policies) },
+      { path: "runs", element: <RunsPage />, handle: routeHandle(routeMetadata.runs) },
+      { path: "attachments", element: <AttachmentsPage />, handle: routeHandle(routeMetadata.attachments) },
+      { path: "operations", element: <OperationsPage />, handle: routeHandle(routeMetadata.operations) },
+      { path: "audit", element: <RedirectWithSearch to="/runs" />, handle: routeHandle(routeMetadata.audit) },
+      { path: "deep-reviews/:deepReviewId", element: <DeepReviewPage />, handle: routeHandle(routeMetadata.deepReview) },
     ],
   },
 ];

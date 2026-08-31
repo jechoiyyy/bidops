@@ -6,6 +6,7 @@ import { DataTable, type DataTableColumn } from "../components/common/DataTable"
 import { EmptyState } from "../components/common/EmptyState";
 import { Panel } from "../components/common/Panel";
 import { api } from "../lib/api";
+import { describeDeadline } from "../lib/deadline";
 import { formatDateTime, formatNumber } from "../lib/format";
 import { originOf, trackingVariant } from "../lib/opportunity";
 import type { PreSpecListItem, PreSpecOrigin, PreSpecSort } from "../lib/types";
@@ -42,7 +43,7 @@ function swStatusCell(value: string | null): ReactNode {
 }
 
 function originCell(value: PreSpecOrigin | null): ReactNode {
-  if (value === null) return <span className="pre-specs-muted">—</span>;
+  if (value === null) return <Badge label="구분 미확인" variant="evidence-unknown" />;
   const origin = originOf(value);
   return <Badge label={origin} variant={origin === "추적" ? "grade-1" : "focus"} />;
 }
@@ -61,14 +62,28 @@ function documentCell(item: PreSpecListItem): ReactNode {
       <span>
         완료 {document["완료"]} · 대기 {document["대기"]} · 진행 {document["진행"]}
       </span>
-      <span>
-        차단 {document["차단"]} · 실패 {document["실패"]}
+      <span className="pre-specs-document-alerts">
+        <Badge label={`차단 ${document["차단"]}`} variant={document["차단"] > 0 ? "alert" : "neutral"} />
+        <Badge label={`실패 ${document["실패"]}`} variant={document["실패"] > 0 ? "alert" : "neutral"} />
       </span>
     </div>
   );
 }
 
-const columns: DataTableColumn<PreSpecListItem>[] = [
+function deadlineCell(value: string | null): ReactNode {
+  const deadline = describeDeadline(value);
+  return (
+    <div className="pre-specs-deadline-stack">
+      <span>{formatDateTime(value)}</span>
+      <span aria-label={`D-day: ${deadline.label}`} className={`pre-specs-deadline is-${deadline.urgency} mono tabular-nums`}>
+        {deadline.label}
+      </span>
+    </div>
+  );
+}
+
+function columns(listSearch: string): DataTableColumn<PreSpecListItem>[] {
+  return [
   {
     key: "origin",
     header: "구분",
@@ -93,7 +108,10 @@ const columns: DataTableColumn<PreSpecListItem>[] = [
     className: "pre-specs-title-cell",
     render: (item) => (
       <div className="pre-specs-title-stack">
-        <Link className="pre-specs-title-link" to={`/judgments/${item.notice_pk}`}>
+        <Link
+          className="pre-specs-title-link"
+          to={{ pathname: `/pre-specs/${item.notice_pk}`, search: listSearch }}
+        >
           {item.title?.trim() || "사업명 미확인"}
         </Link>
         <span>{item.agency?.trim() || "발주기관 미확인"}</span>
@@ -121,7 +139,7 @@ const columns: DataTableColumn<PreSpecListItem>[] = [
     key: "deadline_at",
     header: "의견등록 마감",
     className: "pre-specs-date-cell",
-    render: (item) => formatDateTime(item.deadline_at),
+    render: (item) => deadlineCell(item.deadline_at),
   },
   {
     key: "budget",
@@ -140,7 +158,8 @@ const columns: DataTableColumn<PreSpecListItem>[] = [
     className: "pre-specs-document-cell",
     render: (item) => documentCell(item),
   },
-];
+  ];
+}
 
 export function PreSpecsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -169,11 +188,14 @@ export function PreSpecsPage() {
   const result = useQuery({
     queryKey: ["pre-specs", listQuery],
     queryFn: ({ signal }) => api.getPreSpecs(listQuery, { signal }),
-    staleTime: 10_000,
+    // 기본값으로 돌아왔을 때도 sw_only=true 요청을 다시 보내 ADR-0031의
+    // 서버 기본 projection과 화면 상태가 같은지 확인한다.
+    staleTime: 0,
   });
   const items = result.data?.items ?? [];
   const total = result.data?.total ?? 0;
-  const hasFilters = swOnly || Boolean(businessDivision || origin || queryText);
+  const isDefaultView = swOnly && !businessDivision && !origin && !queryText && sort === "published" && offset === 0;
+  const tableColumns = useMemo(() => columns(searchParams.toString()), [searchParams]);
 
   function updateSearchParams(changes: Record<string, string | null>) {
     const next = new URLSearchParams(searchParams);
@@ -185,13 +207,18 @@ export function PreSpecsPage() {
     setSearchParams(next, { replace: true });
   }
 
-  function clearFilters() {
+  function restoreDefaults() {
     updateSearchParams({ sw_only: null, business_division: null, origin: null, q: null, sort: null });
     setSearchText("");
   }
 
+  function showAllPreSpecs() {
+    updateSearchParams({ sw_only: "false" });
+  }
+
   function emptyDescription(): string {
-    if (swOnly) return "SW사업대상 기본 필터가 적용되어 있습니다. 필터를 끄거나 업무구분·검색어 조건을 조정해 보십시오.";
+    if (isDefaultView) return "SW 중심 기본 보기에 맞는 항목이 없습니다. 전체 보기는 SW사업대상과 무관한 사전규격까지 명시적으로 요청합니다.";
+    if (swOnly) return "SW 중심 기본 보기와 추가 필터가 함께 적용되어 있습니다. 기본값으로 돌아가거나 조건을 조정해 보십시오.";
     if (businessDivision || origin || queryText) return "현재 선택한 업무구분·구분·검색어 조건에 맞는 누적 데이터가 없습니다.";
     return "누적 수집된 사전규격 데이터가 아직 없습니다.";
   }
@@ -220,9 +247,9 @@ export function PreSpecsPage() {
               type="checkbox"
               onChange={(event) => updateSearchParams({ sw_only: event.target.checked ? null : "false" })}
             />
-            <span>SW사업대상만</span>
+            <span>SW 중심 · 추적 예외 포함</span>
           </label>
-          <span className="pre-specs-filter-help">기본 켜짐 · 끄면 전체 사전규격</span>
+          <span className="pre-specs-filter-help">기본 보기 · 해제 시 전체 사전규격을 명시적으로 요청</span>
           <label>
             <span>업무구분</span>
             <select
@@ -265,6 +292,7 @@ export function PreSpecsPage() {
               <button type="submit">검색</button>
             </div>
           </form>
+          <button className="pre-specs-reset" type="button" onClick={restoreDefaults}>기본값으로</button>
         </div>
         <p className="pre-specs-policy-note">
           추적 예외는 <strong>SW사업대상=Y가 아니지만 추적 중인 발주계획에 연결됨</strong>을 뜻합니다. 값이 없는 SW사업대상은 미확인으로 표시합니다.
@@ -276,7 +304,7 @@ export function PreSpecsPage() {
         <EmptyState
           tone="error"
           title="사전규격 목록을 불러오지 못했습니다."
-          description={result.error instanceof Error ? result.error.message : "사전규격 API 응답을 확인할 수 없습니다."}
+          description="사전규격 API 응답을 확인할 수 없습니다."
           action={{ label: "다시 시도", onClick: () => { void result.refetch(); } }}
         />
       ) : null}
@@ -292,12 +320,14 @@ export function PreSpecsPage() {
               compact
               title="조건에 맞는 사전규격이 없습니다."
               description={emptyDescription()}
-              action={hasFilters ? { label: "필터 초기화", onClick: clearFilters } : undefined}
+              action={isDefaultView
+                ? { label: "전체 사전규격 보기", onClick: showAllPreSpecs }
+                : { label: "기본값으로", onClick: restoreDefaults }}
             />
           ) : (
             <DataTable
               className="pre-specs-table"
-              columns={columns}
+              columns={tableColumns}
               rows={items}
               rowKey="notice_pk"
             />
