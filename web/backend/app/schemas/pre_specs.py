@@ -122,7 +122,7 @@ class PreSpecOverviewResultPayload(RuntimeContractModel):
     conditions: list[NonEmpty]
     verification_due_at: AwareDateTime | None
     unknowns: list[PreSpecOverviewUnknown]
-    evidence: list[PreSpecOverviewEvidence]
+    evidence: list[PreSpecOverviewEvidence] = Field(min_length=1)
     input_limitations: list[NonEmpty]
 
     @field_validator("verification_due_at")

@@ -1,7 +1,7 @@
 """T-23 deterministic pre-spec overview lineage tests.
 
 These tests exercise the SQLite-compatible ORM/service surface only.  The
-PostgreSQL CHECK and append-only trigger contract remains covered by the
+PostgreSQL CHECK and runtime privilege contracts remain covered by the
 PostgreSQL migration suite when ``BIDOPS_TEST_POSTGRES_URL`` is configured.
 """
 

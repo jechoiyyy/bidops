@@ -23,6 +23,7 @@ from app.ingest.contracts import NoticeContract
 from app.ingest.loader import ObservationSnapshotConflictError, _upsert_notice
 from app.models import (
     ATTACHMENT_FETCH_TABLES,
+    BID_DELTA_TABLES,
     IDENTITY_TABLES,
     LEGACY_TABLES,
     NEW_TABLES,
@@ -48,6 +49,7 @@ ALL_TABLES = frozenset(
     LEGACY_TABLES + NEW_TABLES + SCREENING_RUNTIME_TABLES + IDENTITY_TABLES
     + ATTACHMENT_FETCH_TABLES + REVISION_TABLES
     + PRESPEC_OVERVIEW_TABLES
+    + BID_DELTA_TABLES
 )
 
 

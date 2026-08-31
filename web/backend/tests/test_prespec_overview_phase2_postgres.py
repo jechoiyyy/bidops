@@ -17,7 +17,9 @@ from tests.test_prespec_overview_postgres import _seed_lineage
 pytestmark = requires_postgres
 
 
-def _seed_phase2_attempt(engine):  # type: ignore[no-untyped-def]
+def _seed_phase2_attempt(
+    engine, *, reference_only: bool = False, deployable: bool = True
+):  # type: ignore[no-untyped-def]
     notice_id, review_id, old_snapshot_id = _seed_lineage(engine)
     snapshot_id = uuid4()
     now = datetime(2026, 8, 31, tzinfo=UTC)
@@ -56,7 +58,7 @@ def _seed_phase2_attempt(engine):  # type: ignore[no-untyped-def]
                 "INSERT INTO bidops.prespec_overview_attempt "
                 "(id, review_id, snapshot_id, sequence, status, reference_only, deployable, "
                 " input_sha256, provider, model_name, model_digest, prompt_version, binding_digest, created_at) "
-                "VALUES (:id, :review_id, :snapshot_id, 1, 'queued', true, false, "
+                "VALUES (:id, :review_id, :snapshot_id, 1, 'queued', :reference_only, :deployable, "
                 " :input_sha256, 'test-fake', 'test-model', :model_digest, 'prompt-v1', "
                 " :binding_digest, :created_at)"
             ),
@@ -64,6 +66,8 @@ def _seed_phase2_attempt(engine):  # type: ignore[no-untyped-def]
                 "id": attempt_id,
                 "review_id": review_id,
                 "snapshot_id": snapshot_id,
+                "reference_only": reference_only,
+                "deployable": deployable,
                 "input_sha256": "d" * 64,
                 "model_digest": "e" * 64,
                 "binding_digest": "f" * 64,
@@ -73,140 +77,173 @@ def _seed_phase2_attempt(engine):  # type: ignore[no-untyped-def]
     return attempt_id, review_id, snapshot_id
 
 
-def test_phase2_requires_audited_transition_and_keeps_rows_immutable() -> None:
-    with migrated_engine() as engine:
-        attempt_id, review_id, snapshot_id = _seed_phase2_attempt(engine)
-        now = datetime(2026, 8, 31, 0, 1, tzinfo=UTC)
-        event_id = uuid4()
-        with engine.begin() as connection:
-            connection.execute(
-                text(
-                    "INSERT INTO bidops.prespec_overview_attempt_event "
-                    "(id, attempt_id, event_sequence, from_status, to_status, occurred_at, "
-                    " actor_kind, actor_id, reason_code) VALUES "
-                    "(:id, :attempt_id, 1, 'queued', 'running', :occurred_at, 'worker', "
-                    " 'worker-1', 'started')"
-                ),
-                {"id": event_id, "attempt_id": attempt_id, "occurred_at": now},
-            )
-            connection.execute(
-                text(
-                    "UPDATE bidops.prespec_overview_attempt SET status = 'running', started_at = :started_at "
-                    "WHERE id = :attempt_id"
-                ),
-                {"attempt_id": attempt_id, "started_at": now},
-            )
+def _start_phase2_attempt(engine, attempt_id, *, now):  # type: ignore[no-untyped-def]
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "UPDATE bidops.prespec_overview_attempt SET status = 'running', "
+                " started_at = :started_at WHERE id = :attempt_id"
+            ),
+            {"attempt_id": attempt_id, "started_at": now},
+        )
 
-        with pytest.raises(IntegrityError):
-            with engine.begin() as connection:
-                connection.execute(
-                    text(
-                        "UPDATE bidops.prespec_overview_attempt SET provider = 'tampered' "
-                        "WHERE id = :attempt_id"
-                    ),
-                    {"attempt_id": attempt_id},
-                )
 
-        result_id = uuid4()
-        payload = {
+def _valid_result_payload(*, evidence: list | None = None) -> str:
+    return json.dumps(
+        {
             "schema_version": "bidops.prespec-overview-result.v1",
             "recommendation": "추진 검토",
             "summary": "검증된 결과",
             "conditions": [],
             "verification_due_at": None,
             "unknowns": [],
-            "evidence": [],
+            "evidence": evidence
+            if evidence is not None
+            else [
+                {
+                    "claim": "사업개요 경계",
+                    "locator": {"block_key": "start", "page": 1, "ordinal": 0},
+                }
+            ],
             "input_limitations": [],
-        }
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+
+
+def _insert_result(
+    engine,
+    *,
+    attempt_id,
+    review_id,
+    snapshot_id,
+    result_id=None,
+    payload=None,
+    created_at=None,
+):  # type: ignore[no-untyped-def]
+    result_id = result_id or uuid4()
+    created_at = created_at or datetime(2026, 8, 31, 0, 1, tzinfo=UTC)
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO bidops.prespec_overview_result "
+                "(id, attempt_id, review_id, snapshot_id, schema_version, payload_jsonb, "
+                " payload_sha256, source_sha256, binding_digest, validation_status, created_at) "
+                "VALUES (:id, :attempt_id, :review_id, :snapshot_id, "
+                " 'bidops.prespec-overview-result.v1', CAST(:payload AS jsonb), "
+                " :payload_sha256, :source_sha256, :binding_digest, 'passed', :created_at)"
+            ),
+            {
+                "id": result_id,
+                "attempt_id": attempt_id,
+                "review_id": review_id,
+                "snapshot_id": snapshot_id,
+                "payload": payload or _valid_result_payload(),
+                "payload_sha256": "1" * 64,
+                "source_sha256": "a" * 64,
+                "binding_digest": "f" * 64,
+                "created_at": created_at,
+            },
+        )
+    return result_id
+
+
+def test_postgres_direct_attempt_transitions_require_no_event_but_reject_invalid_edges() -> None:
+    with migrated_engine() as engine:
+        attempt_id, _review_id, _snapshot_id = _seed_phase2_attempt(engine)
+        started_at = datetime(2026, 8, 31, 0, 1, tzinfo=UTC)
+        finished_at = datetime(2026, 8, 31, 0, 2, tzinfo=UTC)
+        # The status trigger checks only the lifecycle edge.  A direct valid
+        # update is therefore independent of an event row; the service adds
+        # both rows in one transaction when handling real work.
+        _start_phase2_attempt(engine, attempt_id, now=started_at)
+        with pytest.raises(IntegrityError):
+            with engine.begin() as connection:
+                connection.execute(
+                    text(
+                        "UPDATE bidops.prespec_overview_attempt SET status = 'queued' "
+                        "WHERE id = :attempt_id"
+                    ),
+                    {"attempt_id": attempt_id},
+                )
         with engine.begin() as connection:
             connection.execute(
                 text(
-                    "INSERT INTO bidops.prespec_overview_result "
-                    "(id, attempt_id, review_id, snapshot_id, schema_version, payload_jsonb, "
-                    " payload_sha256, source_sha256, binding_digest, validation_status, created_at) "
-                    "VALUES (:id, :attempt_id, :review_id, :snapshot_id, "
-                    " 'bidops.prespec-overview-result.v1', CAST(:payload AS jsonb), :payload_sha256, "
-                    " 'a' || repeat('a', 63), 'f' || repeat('f', 63), 'passed', :created_at)"
+                    "UPDATE bidops.prespec_overview_attempt SET status = 'failed', "
+                    " completed_at = :completed_at WHERE id = :attempt_id"
                 ),
-                {
-                    "id": result_id,
-                    "attempt_id": attempt_id,
-                    "review_id": review_id,
-                    "snapshot_id": snapshot_id,
-                    "payload": json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
-                    "payload_sha256": "1" * 64,
-                    "created_at": now,
-                },
+                {"attempt_id": attempt_id, "completed_at": finished_at},
             )
-            connection.execute(
-                text(
-                    "INSERT INTO bidops.prespec_overview_attempt_event "
-                    "(id, attempt_id, event_sequence, from_status, to_status, occurred_at, "
-                    " actor_kind, actor_id, reason_code) VALUES "
-                    "(:id, :attempt_id, 2, 'running', 'completed', :occurred_at, 'worker', "
-                    " 'worker-1', 'completed')"
-                ),
-                {"id": uuid4(), "attempt_id": attempt_id, "occurred_at": now},
-            )
-            connection.execute(
-                text(
-                    "UPDATE bidops.prespec_overview_attempt SET status = 'completed', "
-                    " completed_at = :completed_at, result_id = :result_id WHERE id = :attempt_id"
-                ),
-                {"attempt_id": attempt_id, "result_id": result_id, "completed_at": now},
-            )
-
-        for table, row_id in (
-            ("prespec_overview_result", result_id),
-            ("prespec_overview_attempt_event", event_id),
-        ):
-            with pytest.raises(IntegrityError):
-                with engine.begin() as connection:
-                    connection.execute(
-                        text(f"UPDATE bidops.{table} SET id = id WHERE id = :id"),
-                        {"id": row_id},
-                    )
-            with pytest.raises(IntegrityError):
-                with engine.begin() as connection:
-                    connection.execute(
-                        text(f"DELETE FROM bidops.{table} WHERE id = :id"),
-                        {"id": row_id},
-                    )
-
         with pytest.raises(IntegrityError):
             with engine.begin() as connection:
                 connection.execute(
                     text(
-                        "INSERT INTO bidops.prespec_overview_attempt_event "
-                        "(id, attempt_id, event_sequence, from_status, to_status, actor_kind, "
-                        "actor_id, reason_code) VALUES (:id, :attempt_id, 3, 'completed', "
-                        "'queued', 'worker', 'worker-1', 'reverse')"
+                        "UPDATE bidops.prespec_overview_attempt SET status = 'running', "
+                        " started_at = :started_at WHERE id = :attempt_id"
                     ),
-                    {"id": uuid4(), "attempt_id": attempt_id},
+                    {"attempt_id": attempt_id, "started_at": finished_at},
                 )
+        with engine.connect() as connection:
+            assert connection.scalar(
+                text("SELECT status FROM bidops.prespec_overview_attempt WHERE id = :id"),
+                {"id": attempt_id},
+            ) == "failed"
+            assert connection.scalar(
+                text(
+                    "SELECT count(*) FROM bidops.prespec_overview_attempt_event "
+                    "WHERE attempt_id = :attempt_id"
+                ),
+                {"attempt_id": attempt_id},
+            ) == 0
 
 
-def test_phase2_result_scope_is_fail_closed() -> None:
+def test_postgres_attempt_constraints_keep_binding_and_result_evidence_strict() -> None:
     with migrated_engine() as engine:
-        attempt_id, review_id, snapshot_id = _seed_phase2_attempt(engine)
-        wrong_result_id = uuid4()
+        attempt_id, review_id, snapshot_id = _seed_phase2_attempt(
+            engine, reference_only=True, deployable=False
+        )
+        now = datetime(2026, 8, 31, 0, 1, tzinfo=UTC)
+        _start_phase2_attempt(engine, attempt_id, now=now)
+        result_id = _insert_result(
+            engine,
+            attempt_id=attempt_id,
+            review_id=review_id,
+            snapshot_id=snapshot_id,
+            created_at=now,
+        )
         with pytest.raises(IntegrityError):
             with engine.begin() as connection:
                 connection.execute(
                     text(
-                        "INSERT INTO bidops.prespec_overview_result "
-                        "(id, attempt_id, review_id, snapshot_id, schema_version, payload_jsonb, "
-                        " payload_sha256, source_sha256, binding_digest, validation_status) VALUES "
-                        "(:id, :attempt_id, :review_id, :snapshot_id, 'bidops.prespec-overview-result.v1', "
-                        " '{}'::jsonb, :payload_sha256, :source_sha256, :binding_digest, 'passed')"
+                        "UPDATE bidops.prespec_overview_attempt SET status = 'completed', "
+                        " completed_at = :completed_at, result_id = :result_id "
+                        "WHERE id = :attempt_id"
                     ),
                     {
-                        "id": wrong_result_id,
                         "attempt_id": attempt_id,
-                        "review_id": review_id,
-                        "snapshot_id": snapshot_id,
-                        "payload_sha256": "1" * 64,
-                        "source_sha256": "9" * 64,
-                        "binding_digest": "f" * 64,
+                        "result_id": result_id,
+                        "completed_at": now,
                     },
                 )
+        with engine.connect() as connection:
+            assert connection.scalar(
+                text(
+                    "SELECT count(*) FROM bidops.prespec_overview_result "
+                    "WHERE attempt_id = :attempt_id"
+                ),
+                {"attempt_id": attempt_id},
+            ) == 1
+
+    with migrated_engine() as engine:
+        second_id, second_review_id, second_snapshot_id = _seed_phase2_attempt(engine)
+        _start_phase2_attempt(engine, second_id, now=now)
+        with pytest.raises(IntegrityError):
+            _insert_result(
+                engine,
+                attempt_id=second_id,
+                review_id=second_review_id,
+                snapshot_id=second_snapshot_id,
+                payload=_valid_result_payload(evidence=[]),
+                created_at=now,
+            )

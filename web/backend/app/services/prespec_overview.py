@@ -1382,6 +1382,23 @@ def _overview_scope(
     return review, snapshot, notice
 
 
+def _require_phase2_attempt(
+    attempt: PreSpecOverviewAttempt, *, for_completion: bool = False
+) -> None:
+    """Reject preserved phase-1 rows and non-deployable completion attempts."""
+
+    if (
+        attempt.review_id is None
+        or attempt.input_sha256 is None
+        or attempt.binding_digest is None
+    ):
+        raise OverviewAttemptError("legacy_attempt_frozen")
+    if for_completion and (
+        attempt.reference_only is not False or attempt.deployable is not True
+    ):
+        raise OverviewAttemptError("completion_requires_deployable_binding")
+
+
 def create_overview_attempt(
     session: Session,
     notice_id: int,
@@ -1429,7 +1446,10 @@ def create_overview_attempt(
         .with_for_update()
     ).all()
     if binding is None:
-        if not any(item.status in {"queued", "running"} for item in existing):
+        if (
+            not existing
+            and review.status not in {"completed", "failed", "cancelled"}
+        ):
             review.status = "awaiting_model"
             review.result = None
             review.completed_at = None
@@ -1437,7 +1457,14 @@ def create_overview_attempt(
             review.updated_at = _now()
             session.flush()
         return None
-    if any(item.status in {"queued", "running"} for item in existing):
+    phase2_existing = [
+        item
+        for item in existing
+        if item.review_id is not None
+        and item.input_sha256 is not None
+        and item.binding_digest is not None
+    ]
+    if any(item.status in {"queued", "running"} for item in phase2_existing):
         raise OverviewAttemptError("active_attempt_exists")
 
     attempt = PreSpecOverviewAttempt(
@@ -1487,6 +1514,7 @@ def transition_overview_attempt(
     )
     if attempt is None:
         raise OverviewAttemptError("not_found")
+    _require_phase2_attempt(attempt, for_completion=to_status == "completed")
     previous = attempt.status
     if (previous, to_status) not in PRESPEC_OVERVIEW_ATTEMPT_TRANSITIONS:
         raise OverviewAttemptError("invalid_transition")
@@ -1510,6 +1538,15 @@ def transition_overview_attempt(
     when = occurred_at or _now()
     if when.tzinfo is None or when.utcoffset() is None:
         raise OverviewAttemptError("invalid_timestamp")
+    if when < attempt.created_at:
+        raise OverviewAttemptError("invalid_timestamp")
+
+    # Lock and validate the complete scope before staging the event.  The
+    # database intentionally does not couple event inserts to attempt status;
+    # this service call is the transaction boundary that keeps the event,
+    # attempt, and current review update together.
+    review, snapshot, _notice = _overview_scope(session, attempt)
+    result: PreSpecOverviewResult | None = None
     if to_status == "completed":
         if result_id is None:
             raise OverviewAttemptError("result_required")
@@ -1522,8 +1559,27 @@ def transition_overview_attempt(
         )
         if result is None:
             raise OverviewAttemptError("result_not_found")
+        if (
+            result.review_id != attempt.review_id
+            or result.snapshot_id != attempt.snapshot_id
+            or result.binding_digest != attempt.binding_digest
+            or result.source_sha256 != snapshot.source_sha256
+            or result.validation_status != "passed"
+        ):
+            raise OverviewScopeError("scope_mismatch")
+        if not isinstance(result.payload_jsonb, Mapping):
+            raise OverviewScopeError("scope_mismatch")
+        if attempt.started_at is None or when < attempt.started_at:
+            raise OverviewAttemptError("invalid_timestamp")
     elif result_id is not None:
         raise OverviewAttemptError("result_forbidden")
+    elif to_status in {"failed", "cancelled"}:
+        if previous == "queued" and attempt.started_at is not None:
+            raise OverviewAttemptError("invalid_timestamp")
+        if previous == "running" and attempt.started_at is None:
+            raise OverviewAttemptError("invalid_timestamp")
+        if when < (attempt.started_at or attempt.created_at):
+            raise OverviewAttemptError("invalid_timestamp")
 
     next_sequence = int(
         session.scalar(
@@ -1547,42 +1603,35 @@ def transition_overview_attempt(
         reason_code=reason_code.strip(),
     )
     session.add(event_row)
-    # PostgreSQL validates the event against the old attempt status before the
-    # status update.  This flush ordering is therefore part of the contract.
-    session.flush()
-
     attempt.status = to_status
     if to_status == "running":
         attempt.started_at = when
         attempt.completed_at = None
         attempt.result_id = None
     elif to_status == "completed":
-        if attempt.started_at is None:
-            raise OverviewAttemptError("invalid_timestamp")
+        assert attempt.started_at is not None
         attempt.completed_at = when
         attempt.result_id = result_id
     else:
         attempt.completed_at = when
         attempt.result_id = None
-    session.flush()
+    if review.current_snapshot_id == attempt.snapshot_id:
+        review.status = to_status
+        review.updated_at = _now()
+        if to_status == "completed":
+            # The scope and object-shape checks above run before any row is
+            # staged, so this read cannot turn a successful attempt update
+            # into a partial review update.
+            assert result is not None
+            review.result = result.payload_jsonb.get("recommendation")
+            review.completed_at = when
+        else:
+            review.result = None
+            review.completed_at = None
 
-    if attempt.review_id is not None:
-        review = session.scalar(
-            select(PreSpecOverviewReview).where(PreSpecOverviewReview.id == attempt.review_id)
-        )
-        if review is not None and review.current_snapshot_id == attempt.snapshot_id:
-            review.status = to_status
-            review.updated_at = _now()
-            if to_status == "completed":
-                result = session.get(PreSpecOverviewResult, result_id)
-                if result is None or not isinstance(result.payload_jsonb, Mapping):
-                    raise OverviewScopeError("scope_mismatch")
-                review.result = result.payload_jsonb.get("recommendation")
-                review.completed_at = when
-            else:
-                review.result = None
-                review.completed_at = None
-            session.flush()
+    # One flush lets PostgreSQL enforce all row/FK/CHECK constraints after
+    # the service has staged the event and the corresponding lifecycle state.
+    session.flush()
     return attempt
 
 
@@ -1600,6 +1649,7 @@ def record_overview_result(
     )
     if attempt is None:
         raise OverviewAttemptError("not_found")
+    _require_phase2_attempt(attempt)
     if attempt.status != "running":
         raise OverviewAttemptError("result_requires_running")
     review, snapshot, _notice = _overview_scope(session, attempt)
@@ -1610,6 +1660,14 @@ def record_overview_result(
     )
     result_payload, payload_digest = validate_overview_result(payload, snapshot)
     if existing is not None:
+        if (
+            existing.review_id != review.id
+            or existing.snapshot_id != snapshot.id
+            or existing.binding_digest != attempt.binding_digest
+            or existing.source_sha256 != snapshot.source_sha256
+            or existing.validation_status != "passed"
+        ):
+            raise OverviewScopeError("scope_mismatch")
         if existing.payload_sha256 != payload_digest:
             raise OverviewAttemptError("result_conflict")
         return existing
@@ -1646,6 +1704,15 @@ def complete_overview_attempt(
     validation exception is re-raised to the caller.  No raw provider detail
     is retained or exposed.
     """
+
+    attempt = session.scalar(
+        select(PreSpecOverviewAttempt)
+        .where(PreSpecOverviewAttempt.id == attempt_id)
+        .with_for_update()
+    )
+    if attempt is None:
+        raise OverviewAttemptError("not_found")
+    _require_phase2_attempt(attempt, for_completion=True)
 
     try:
         result = record_overview_result(session, attempt_id, payload)
@@ -1830,6 +1897,14 @@ def get_overview_reviews_v2(
             ),
             None,
         )
+        latest_current_attempt = next(
+            (
+                item
+                for item in reversed(attempts)
+                if current_snapshot is not None and item.snapshot_id == current_snapshot.id
+            ),
+            None,
+        )
         safe_result = safe_results.get(current_attempt.id) if current_attempt else None
         current_result_row = results_by_attempt.get(current_attempt.id) if current_attempt else None
         if review.status == "completed":
@@ -1847,7 +1922,11 @@ def get_overview_reviews_v2(
         binding_digest = (
             current_result_row.binding_digest
             if current_result_row is not None
-            else (current_attempt.binding_digest if current_attempt is not None else None)
+            else (
+                latest_current_attempt.binding_digest
+                if latest_current_attempt is not None
+                else None
+            )
         )
         current_view = _snapshot_view(current_snapshot) if current_snapshot is not None else None
         review_view = PreSpecOverviewReviewV2View(
