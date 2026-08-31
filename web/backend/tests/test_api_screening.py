@@ -129,8 +129,9 @@ def test_screening_and_profile_metadata_contracts(tmp_path: Path) -> None:
         snapshots = client.get("/api/profile/snapshots")
         assert snapshots.status_code == 200
         assert set(snapshots.json()["items"][0]) == {
-            "version", "digest", "source_kind", "source_ref", "created_at"
+            "version", "digest", "source_kind", "created_at"
         }
+        assert "source_ref" not in snapshots.json()["items"][0]
         assert "artifact_path" not in snapshots.text
 
         stopped = client.post(

@@ -292,14 +292,29 @@ test("프로필의 불완전한 응답은 상태와 미확인을 0으로 확정�
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ source: "profile.md", sections: [], status_counts: {}, parse_errors: ["프로필 원문 일부를 읽지 못했습니다."] }),
+      body: JSON.stringify({
+        schema_version: "bidops.profile-projection.v1",
+        profile_version: "company-profile.sha256:" + "a".repeat(64),
+        profile_digest: "a".repeat(64),
+        sections: [],
+        status_counts: {},
+        error_codes: ["profile_yaml_invalid"],
+      }),
     });
   });
   await page.route("**/api/profile/unknowns", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ source: "profile.md", items: [], total: 0, reference_fields: [], parse_errors: [] }),
+      body: JSON.stringify({
+        schema_version: "bidops.profile-projection.v1",
+        profile_version: "company-profile.sha256:" + "a".repeat(64),
+        profile_digest: "a".repeat(64),
+        items: [],
+        total: 0,
+        reference_fields: [],
+        error_codes: [],
+      }),
     });
   });
 
@@ -322,7 +337,7 @@ test("프로필 읽기 실패는 빈 정상 상태가 아니라 오류 상태로
 
   await page.goto("/profile");
   await expect(page.getByText("회사 프로필을 불러오지 못했습니다.", { exact: true })).toBeVisible();
-  await expect(page.getByText("프로필 원문을 읽을 수 없습니다.", { exact: true })).toBeVisible();
+  await expect(page.getByText("승인된 프로필 snapshot과 구조화 상태를 확인할 수 없습니다.", { exact: true })).toBeVisible();
 });
 
 test("진행 중인 전량 판정은 중복 실행할 수 없다", async ({ page }) => {

@@ -35,8 +35,9 @@ function isScreeningTerminal(status: ScreeningStatus | undefined): boolean {
   return status === "성공" || status === "부분 성공" || status === "실패" || status === "중단됨";
 }
 
-function profileSourceFor(snapshot: CompanyProfileSnapshotResponse): ProfileSource {
-  return snapshot.source_kind === "working_tree" ? "current" : `git:${snapshot.source_ref}`;
+function profileSourceFor(snapshot: CompanyProfileSnapshotResponse): ProfileSource | null {
+  if (snapshot.source_kind === "working_tree") return "current";
+  return snapshot.source_ref ? `git:${snapshot.source_ref}` : null;
 }
 
 function screeningActionMessage(error: unknown): string {
@@ -346,7 +347,8 @@ export function RunsPage() {
       setScreeningActionError("현재 회차의 판정 실행 목록을 확인하는 중입니다. 목록을 불러온 뒤 다시 시도해 주세요.");
       return;
     }
-    if (!capturedRunId || !screeningActor.trim() || !selectedPolicy || !selectedProfile || hasNonterminalManualFullRun) {
+    const selectedProfileSource = selectedProfile ? profileSourceFor(selectedProfile) : null;
+    if (!capturedRunId || !screeningActor.trim() || !selectedPolicy || !selectedProfile || !selectedProfileSource || hasNonterminalManualFullRun) {
       if (hasNonterminalManualFullRun) setScreeningActionError("이미 진행 중인 전량 판정 실행이 있습니다.");
       else setScreeningActionError("담당자 이름, 판정 정책, 프로필 snapshot을 모두 선택해야 합니다.");
       return;
@@ -358,7 +360,7 @@ export function RunsPage() {
     try {
       const execution = await api.enqueueJudgment(capturedRunId, {
         policy_version: selectedPolicy.policy_version,
-        profile_source: profileSourceFor(selectedProfile),
+        profile_source: selectedProfileSource,
         requested_by: screeningActor.trim(),
       });
       const responseIsCurrent = mountedRef.current

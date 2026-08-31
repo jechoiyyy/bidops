@@ -3,6 +3,82 @@ import fixtures from "./fixtures/api.json" with { type: "json" };
 import { getVisualResponse } from "./fixtures/visual-api";
 
 const responses = fixtures as Record<string, unknown>;
+const PROFILE_PROJECTION_DIGEST = "a".repeat(64);
+const PROFILE_PROJECTION_VERSION = `company-profile.sha256:${PROFILE_PROJECTION_DIGEST}`;
+
+function fixtureRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function fixtureStringArray(value: unknown): string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string")
+    ? value
+    : [];
+}
+
+function safeProfileSection(value: unknown): Record<string, unknown> {
+  const section = fixtureRecord(value) ?? {};
+  const items = Array.isArray(section.items)
+    ? section.items.map((item) => {
+      const record = fixtureRecord(item) ?? {};
+      const { source_line: _sourceLine, ...safeItem } = record;
+      return safeItem;
+    })
+    : [];
+  const children = Array.isArray(section.children) ? section.children.map(safeProfileSection) : [];
+  const legacyRawBlocks = Array.isArray(section.raw_blocks) ? section.raw_blocks : [];
+  const errorCodes = fixtureStringArray(section.error_codes);
+  if (errorCodes.length === 0 && (legacyRawBlocks.length > 0 || (section.raw !== null && section.raw !== undefined && items.length === 0))) {
+    errorCodes.push("profile_section_unstructured");
+  }
+  return {
+    id: section.id,
+    number: section.number ?? null,
+    title: section.title,
+    heading: section.heading,
+    level: section.level,
+    state: section.state,
+    status_counts: section.status_counts ?? {},
+    items,
+    error_codes: errorCodes,
+    children,
+  };
+}
+
+function safeProfileProjection(pathname: string, body: unknown): unknown {
+  const response = fixtureRecord(body);
+  if (!response) return body;
+  if (pathname === "/api/profile/sections") {
+    return {
+      schema_version: "bidops.profile-projection.v1",
+      profile_version: PROFILE_PROJECTION_VERSION,
+      profile_digest: PROFILE_PROJECTION_DIGEST,
+      sections: Array.isArray(response.sections) ? response.sections.map(safeProfileSection) : [],
+      status_counts: response.status_counts ?? {},
+      error_codes: [],
+    };
+  }
+  if (pathname === "/api/profile/unknowns") {
+    return {
+      schema_version: "bidops.profile-projection.v1",
+      profile_version: PROFILE_PROJECTION_VERSION,
+      profile_digest: PROFILE_PROJECTION_DIGEST,
+      items: Array.isArray(response.items)
+        ? response.items.map((item) => {
+          const record = fixtureRecord(item) ?? {};
+          const { source_line: _sourceLine, ...safeItem } = record;
+          return safeItem;
+        })
+        : [],
+      total: response.total,
+      reference_fields: response.reference_fields ?? [],
+      error_codes: [],
+    };
+  }
+  return body;
+}
 
 const fixtureEvidenceId = "fixture-evidence-1";
 const sectionKeys = [
@@ -851,8 +927,11 @@ export async function mockApi(page: Page): Promise<void> {
     // deep-review 합성 응답이 먼저, 그다음 갈무리 fixture, 마지막으로 T15 시각
     // 회귀용 생성 응답을 쓴다. 합성 응답은 deep-review 전용 경로만 처리하므로
     // 기존 fixture 우선순위를 가리지 않는다.
-    const body =
+    const rawBody =
       syntheticResponse(pathname) ?? responses[pathname] ?? getVisualResponse(pathname, page.url());
+    const body = pathname === "/api/profile/sections" || pathname === "/api/profile/unknowns"
+      ? safeProfileProjection(pathname, rawBody)
+      : rawBody;
     if (body === undefined) {
       await route.fulfill({
         status: 404,

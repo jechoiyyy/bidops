@@ -12,13 +12,12 @@
 
 현재 T7 stack은 개발·검증에는 사용할 수 있지만 다음 문제가 해결되기 전에는 운영 배포 후보가 아니다.
 
-- profile snapshots·sections·unknowns API가 filesystem source/reference, raw profile block, 가공되지 않은 parse error를 반환할 수 있다.
 - PostgreSQL과 MinIO port가 host 전체 interface에 publish될 수 있다.
 - MinIO versioning 활성화 실패를 bootstrap이 무시한다.
 - 객체 restore가 source와 target version ID를 연결하지 못하고 active manifest 생성·완전성 검사가 없다.
 - legacy notice attachment upload가 quarantine·ClamAV·MinIO를 우회하고 응답에 로컬 `stored_path`를 노출한다.
 
-개발 검증에서도 hosted Codex reference overlay, legacy notice attachment upload, profile snapshots·sections·unknowns route를 사용하지 않는다. 회사자료 host 입력을 registry에 push·export하지 않으며 로컬 build cache의 접근 범위를 제한한다. 나머지 stack 기동은 폐기 가능한 데이터와 host firewall로 격리한 환경에서만 수행한다.
+개발 검증에서도 hosted Codex reference overlay와 legacy notice attachment upload를 사용하지 않는다. 회사자료 host 입력을 registry에 push·export하지 않으며 로컬 build cache의 접근 범위를 제한한다. 나머지 stack 기동은 폐기 가능한 데이터와 host firewall로 격리한 환경에서만 수행한다.
 
 ## 사전 조건
 
@@ -29,6 +28,7 @@
 - PostgreSQL owner, migrate, app, worker, read-only backup 계정의 비밀번호를 서로 다르게 설정한다.
 - MinIO root와 source, structure write/read, quarantine, model-response 자격증명을 용도별로 분리한다.
 - 심층 검토 전에 승인된 profile version과 analysis policy version을 채운다. 빈 값이면 deep-review 생성이 fail closed하는 것이 정상이다.
+- 프로필 조회 화면은 승인된 profile snapshot에 고정된다. snapshot이 하나도 없으면 `/api/profile/sections`와 `/api/profile/unknowns`가 `503 profile_snapshot_unavailable`로 fail closed하는 것이 정상이다([ADR-0023](tracking/decisions/0023-company-profile-minimal-projection.md)). snapshot은 판정 실행이 만들므로 신규 배포에서는 회차 판정을 한 번 실행한 뒤에 프로필 화면을 사용한다.
 - 사설 vLLM을 사용할 때 endpoint의 literal IP와 allowlist를 일치시키고 host firewall에서 해당 IP와 port 외 egress를 차단한다.
 
 ### T7 웹의 회사자료 입력 전제
