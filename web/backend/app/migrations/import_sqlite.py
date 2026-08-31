@@ -40,6 +40,12 @@ from sqlalchemy.engine import Engine
 
 from ..db import Base, schema_bound, settings
 from .. import models  # noqa: F401 - register legacy and new target tables
+from ..services.revisions import (
+    JUDGMENT_PAYLOAD_SCHEMA,
+    REVIEW_PAYLOAD_SCHEMA,
+    canonical_payload_and_hash,
+)
+from ..services.reviews import review_revision_payload
 
 
 LEGACY_COLUMNS: dict[str, tuple[str, ...]] = {
@@ -649,6 +655,263 @@ def _target_rows_match(
     return matches
 
 
+def _legacy_judgment_payload(
+    judgment: Mapping[str, Any],
+    source_tables: Mapping[str, list[dict[str, Any]]],
+) -> dict[str, Any]:
+    """Build the same ID-free actual-value snapshot as migration 0011."""
+
+    judgment_id = judgment["id"]
+    perspectives = sorted(
+        (
+            row
+            for row in source_tables["perspective"]
+            if row.get("judgment_id") == judgment_id
+        ),
+        key=lambda row: (
+            row.get("position") is None,
+            row.get("position") if row.get("position") is not None else 0,
+            row["id"],
+        ),
+    )
+    evidence_by_perspective: dict[Any, list[dict[str, Any]]] = {}
+    for evidence in sorted(source_tables["evidence"], key=lambda row: row["id"]):
+        evidence_by_perspective.setdefault(evidence.get("perspective_id"), []).append(
+            evidence
+        )
+
+    counterarguments = sorted(
+        (
+            row
+            for row in source_tables["counterargument"]
+            if row.get("judgment_id") == judgment_id
+        ),
+        key=lambda row: (
+            row.get("position") is None,
+            row.get("position") if row.get("position") is not None else 0,
+            row["id"],
+        ),
+    )
+    verification_items = sorted(
+        (
+            row
+            for row in source_tables["verification_item"]
+            if row.get("judgment_id") == judgment_id
+        ),
+        key=lambda row: row["id"],
+    )
+    matched_performances = sorted(
+        (
+            row
+            for row in source_tables["matched_performance"]
+            if row.get("judgment_id") == judgment_id
+        ),
+        key=lambda row: row["id"],
+    )
+    return {
+        "schema_version": judgment.get("schema_version"),
+        "grade": judgment.get("grade"),
+        "readiness": judgment.get("readiness"),
+        "primary_focus": judgment.get("primary_focus"),
+        "exclusion_category": judgment.get("exclusion_category"),
+        "summary": judgment.get("summary"),
+        "next_action": judgment.get("next_action"),
+        "perspectives": [
+            {
+                "position": perspective.get("position"),
+                "name": perspective.get("name"),
+                "assessment": perspective.get("assessment"),
+                "reason": perspective.get("reason"),
+                "evidence": [
+                    {
+                        "source": evidence.get("source"),
+                        "status": evidence.get("status"),
+                        "fact": evidence.get("fact"),
+                    }
+                    for evidence in evidence_by_perspective.get(
+                        perspective["id"], []
+                    )
+                ],
+            }
+            for perspective in perspectives
+        ],
+        "counterarguments": [
+            {"position": row.get("position"), "text": row.get("text")}
+            for row in counterarguments
+        ],
+        # The legacy projection never stored synthesis resolutions.  Preserve
+        # that absence as unknown instead of deriving values from arguments.
+        "counterargument_resolutions": None,
+        "verification_items": [
+            {
+                "item": row.get("item"),
+                "why": row.get("why"),
+                "blocking": (
+                    bool(row.get("blocking"))
+                    if row.get("blocking") is not None
+                    else None
+                ),
+                "status": row.get("status"),
+            }
+            for row in verification_items
+        ],
+        "matched_performances": [
+            {
+                "name": row.get("name"),
+                "match_reason": row.get("match_reason"),
+                "mismatch_or_limit": row.get("mismatch_or_limit"),
+                "source": row.get("source"),
+                "status": row.get("status"),
+            }
+            for row in matched_performances
+        ],
+    }
+
+
+def _legacy_review_payload(
+    review: Mapping[str, Any],
+    source_tables: Mapping[str, list[dict[str, Any]]],
+) -> dict[str, Any]:
+    answers = sorted(
+        (
+            row
+            for row in source_tables["verification_answer"]
+            if row.get("review_id") == review["id"]
+        ),
+        key=lambda row: row["id"],
+    )
+    return review_revision_payload(
+        disposition=review.get("disposition"),
+        system_judgment_review=review.get("system_judgment_review"),
+        corrected_grade=review.get("corrected_grade"),
+        corrected_readiness=review.get("corrected_readiness"),
+        weakest_perspective=review.get("weakest_perspective"),
+        reason=review.get("reason"),
+        reviewer=review.get("reviewer"),
+        verification_answers=[
+            (row.get("item"), row.get("answer")) for row in answers
+        ],
+    )
+
+
+def _insert_or_validate_legacy_revision(
+    connection,
+    *,
+    table: Table,
+    notice_id: int,
+    expected: Mapping[str, Any],
+) -> None:
+    """Insert one missing snapshot or prove the existing one is identical."""
+
+    existing = connection.execute(
+        select(table)
+        .where(table.c.notice_id == notice_id)
+        .order_by(table.c.sequence.asc())
+    ).mappings().all()
+    if existing:
+        comparable = {
+            key: value for key, value in expected.items() if key != "captured_at"
+        }
+        for row in existing:
+            if all(
+                _canonical_value(row.get(key)) == _canonical_value(value)
+                for key, value in comparable.items()
+            ):
+                return
+        raise ImportContractError(
+            "legacy_revision_conflict",
+            "existing revision history does not match the SQLite projection",
+            table=table.name,
+        )
+    connection.execute(
+        table.insert(),
+        {**expected, "notice_id": notice_id, "sequence": 1},
+    )
+
+
+def _promote_legacy_revisions(
+    connection,
+    source_tables: Mapping[str, list[dict[str, Any]]],
+) -> None:
+    """Promote missing legacy snapshots without inferring historical lineage."""
+
+    try:
+        judgment_revision = Base.metadata.tables["judgment_revision"]
+        review_revision = Base.metadata.tables["review_revision"]
+        observation = Base.metadata.tables["notice_observation"]
+    except KeyError as error:
+        raise ImportContractError(
+            "target_table_missing",
+            "revision promotion table is not in the model",
+            table=str(error.args[0]),
+        ) from error
+
+    captured_at = datetime.now(timezone.utc)
+    for judgment in sorted(source_tables["judgment"], key=lambda row: row["id"]):
+        payload, digest = canonical_payload_and_hash(
+            _legacy_judgment_payload(judgment, source_tables)
+        )
+        _insert_or_validate_legacy_revision(
+            connection,
+            table=judgment_revision,
+            notice_id=int(judgment["notice_pk"]),
+            expected={
+                "source_kind": "legacy_import",
+                # The legacy judgment row had no direct run/execution/parent
+                # binding.  Do not derive one from the notice projection.
+                "run_id": None,
+                "recording_execution_id": None,
+                "source_revision_id": None,
+                "payload_schema_version": JUDGMENT_PAYLOAD_SCHEMA,
+                "payload_jsonb": payload,
+                "payload_sha256": digest,
+                "captured_at": captured_at,
+            },
+        )
+
+    for review in sorted(source_tables["review"], key=lambda row: row["id"]):
+        notice_id = int(review["notice_pk"])
+        run_id = review.get("run_id")
+        if run_id is not None:
+            observed = connection.execute(
+                select(observation.c.notice_id).where(
+                    observation.c.notice_id == notice_id,
+                    observation.c.run_id == run_id,
+                )
+            ).scalar_one_or_none()
+            if observed is None:
+                raise ImportContractError(
+                    "legacy_review_observation_missing",
+                    "legacy review run did not observe the same notice",
+                    table="review",
+                )
+        payload, digest = canonical_payload_and_hash(
+            _legacy_review_payload(review, source_tables)
+        )
+        review_captured_at = _coerce_target_value(
+            review.get("updated_at"),
+            review_revision.c.captured_at.type,
+            table="review_revision",
+            column="captured_at",
+        )
+        _insert_or_validate_legacy_revision(
+            connection,
+            table=review_revision,
+            notice_id=notice_id,
+            expected={
+                "source_kind": "legacy_import",
+                "run_id": run_id,
+                # Historical judgment alignment is absent from SQLite and
+                # must remain explicitly unknown.
+                "judgment_revision_id": None,
+                "payload_schema_version": REVIEW_PAYLOAD_SCHEMA,
+                "payload_jsonb": payload,
+                "payload_sha256": digest,
+                "captured_at": review_captured_at,
+            },
+        )
+
+
 def _promote_staged(
     destination: Engine,
     context: StagingContext,
@@ -666,6 +929,7 @@ def _promote_staged(
                 break
         if nonempty_target is not None:
             if _target_rows_match(connection, translated_tables, source_tables, report):
+                _promote_legacy_revisions(connection, source_tables)
                 for source_table in LEGACY_COLUMNS:
                     _sequence_reconciliation(connection, translated_tables[source_table], source_tables[source_table], report, apply=False)
                 _drop_staging_objects(connection, context)
@@ -715,6 +979,7 @@ def _promote_staged(
             })
         if observation_rows:
             connection.execute(observation_table.insert(), observation_rows)
+        _promote_legacy_revisions(connection, source_tables)
         # PostgreSQL sequences are non-transactional, so adjust them only after
         # every table has reconciled; a promotion failure retains staging.
         for source_table in LEGACY_COLUMNS:

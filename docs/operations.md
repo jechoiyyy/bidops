@@ -17,7 +17,6 @@
 - 개발용 hosted Codex 심층 검토 경로가 RFP와 회사 profile slice를 외부로 보낼 수 있다.
 - PostgreSQL과 MinIO port가 host 전체 interface에 publish될 수 있다.
 - MinIO versioning 활성화 실패를 bootstrap이 무시한다.
-- analysis worker DB role이 업무 table 전체 DML 권한을 가진다.
 - 객체 restore가 source와 target version ID를 연결하지 못하고 active manifest 생성·완전성 검사가 없다.
 - legacy notice attachment upload가 quarantine·ClamAV·MinIO를 우회하고 응답에 로컬 `stored_path`를 노출한다.
 
@@ -52,6 +51,8 @@ curl --fail "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/health"
 `--env-file`을 명시하면 기본 `.env` 자동 로드가 꺼지므로 공통 파일과 overlay 파일을 함께 넘긴다. overlay 없이 기동할 때는 `--env-file` 없이 `.env`가 자동 로드된다.
 
 `scripts/init-runtime.sh`는 DB 역할 초기화, Alembic migration, MinIO 버킷·정책 초기화를 순서대로 실행한다. 앱 startup은 이 작업을 대신하지 않는다. `bidops-source`, `bidops-structure`, `bidops-quarantine`, `bidops-model-response` 버킷은 versioning과 최소 권한 정책을 유지한다.
+
+`migrate` service는 Alembic 성공 뒤 `scripts/runtime-privileges.sql`을 적용한다. 이 단계는 이전 blanket grant를 먼저 회수하고 현재 head의 table·operation allowlist를 다시 부여한다. 새 table은 `app`·`worker` 기본 DML을 받지 않으므로 migration에 runtime write path가 추가되면 같은 변경에서 allowlist와 역할 smoke test를 갱신해야 한다. `ro_backup`만 현재·향후 table의 `SELECT` 기본 권한을 유지한다.
 
 사설 vLLM 없이 웹과 문서 준비만 확인할 때는 remote-vLLM overlay를 빼고 기동할 수 있다. 이 경우 분석 worker가 모델 단계에서 실패하는 것은 정상이며 성공으로 보정하지 않는다.
 

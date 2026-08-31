@@ -197,11 +197,9 @@ def test_quarantine_clamav_unavailable_and_viewer_denial(context: Context) -> No
     with Session(context.engine) as session:  # type: ignore[arg-type]
         document = asyncio.run(service.upload_document(session, bundle.id, MemoryUpload(fixture_pdf(), "scan.pdf", "application/pdf"), "담당자", uuid4()))
         assert document.safety_status == "quarantined"
-        assert document.structure_status == "ready"
-        with pytest.raises(BundleServiceError, match="quarantine"):
-            structure_row = session.scalar(select(DocumentStructure).where(DocumentStructure.document_version_id == document.id))
-            assert structure_row is not None
-            service.get_structure(session, structure_row.id)
+        assert document.structure_status == "pending"
+        assert session.scalar(select(DocumentStructure).where(DocumentStructure.document_version_id == document.id)) is None
+        assert not list((assets.asset_root(context.asset_root) / "structure").iterdir())
         request = ConfirmRequest(request_id=uuid4(), version=bundle.version, confirmed_documents=[{"document_version_id": document.id, "version": document.version}])
         with pytest.raises(BundleServiceError) as error:
             service.confirm(session, bundle.id, request, "담당자")
@@ -576,6 +574,147 @@ def test_same_named_same_byte_reupload_creates_one_replacement_lineage(context: 
         assert old.is_current is False and new.is_current is True
         assert new.replaces_document_version_id == old.id
         assert session.query(Attachment).count() == 1
+
+
+def test_patch_older_lineage_row_allocates_after_existing_max_version(
+    context: Context,
+) -> None:
+    bundle = make_bundle(context)
+    first = upload(context, bundle.id, filename="lineage.pdf")
+    second = upload(context, bundle.id, filename="lineage.pdf")
+
+    with Session(context.engine) as session:  # type: ignore[arg-type]
+        patched = context.service.patch_document(
+            session,
+            first.id,
+            PatchDocumentVersionRequest(
+                role="제안요청서",
+                effective_date=None,
+                replaces_document_version_id=None,
+                is_current=True,
+                version=first.version,
+            ),
+            "담당자",
+        )
+        rows = session.scalars(
+            select(DocumentVersion)
+            .where(DocumentVersion.attachment_id.is_not(None))
+            .order_by(DocumentVersion.version.asc())
+        ).all()
+
+        assert second.version == 2
+        assert patched.version == 3
+        assert [row.version for row in rows] == [2, 3]
+        assert [row.is_current for row in rows] == [False, True]
+        assert rows[-1].id == first.id
+
+
+def test_patch_null_attachment_does_not_demote_unrelated_null_document(
+    context: Context,
+) -> None:
+    make_bundle(context)
+    with Session(context.engine) as session:  # type: ignore[arg-type]
+        first_content = ContentObject(
+            sha256=hashlib.sha256(b"null-document-one").hexdigest(),
+            size_bytes=17,
+            detected_mime="application/pdf",
+            retention_class="document-source",
+        )
+        second_content = ContentObject(
+            sha256=hashlib.sha256(b"null-document-two").hexdigest(),
+            size_bytes=17,
+            detected_mime="application/pdf",
+            retention_class="document-source",
+        )
+        session.add_all([first_content, second_content])
+        session.flush()
+        first = DocumentVersion(
+            notice_id=context.notice_id,
+            attachment_id=None,
+            content_object_id=first_content.id,
+            version=1,
+            source_kind="manual",
+            original_filename="null-one.pdf",
+            role="기타",
+            is_current=True,
+            safety_status="safe",
+            needs_human_review=False,
+        )
+        second = DocumentVersion(
+            notice_id=context.notice_id,
+            attachment_id=None,
+            content_object_id=second_content.id,
+            version=1,
+            source_kind="manual",
+            original_filename="null-two.pdf",
+            role="기타",
+            is_current=True,
+            safety_status="safe",
+            needs_human_review=False,
+        )
+        session.add_all([first, second])
+        session.commit()
+
+        patched = context.service.patch_document(
+            session,
+            first.id,
+            PatchDocumentVersionRequest(
+                role="제안요청서",
+                effective_date=None,
+                replaces_document_version_id=None,
+                is_current=True,
+                version=1,
+            ),
+            "담당자",
+        )
+        session.refresh(second)
+
+        assert patched.version == 2
+        assert patched.is_current is True
+        assert second.is_current is True
+
+
+def test_bundle_reseed_flushes_deleted_ordinals_before_canonical_recreation(
+    context: Context,
+) -> None:
+    bundle = make_bundle(context)
+    first = upload(context, bundle.id, filename="first.pdf")
+    second = upload(context, bundle.id, filename="second.pdf")
+
+    with Session(context.engine) as session:  # type: ignore[arg-type]
+        first_row = session.get(DocumentVersion, first.id)
+        assert first_row is not None and first_row.attachment_id is not None
+        retired = session.get(Attachment, first_row.attachment_id)
+        assert retired is not None
+        retired.retired_at = datetime.now(UTC)
+        retired.retired_reason = "not_seen_in_source"
+        session.commit()
+
+        ready = context.service.confirm(
+            session,
+            bundle.id,
+            ConfirmRequest(
+                request_id=uuid4(),
+                version=bundle.version,
+                confirmed_documents=[
+                    {
+                        "document_version_id": second.id,
+                        "version": second.version,
+                    }
+                ],
+            ),
+            "담당자",
+        )
+        items = session.scalars(
+            select(DocumentBundleItem)
+            .where(DocumentBundleItem.bundle_id == bundle.id)
+            .order_by(DocumentBundleItem.ordinal.asc())
+        ).all()
+
+        assert ready.status == "ready"
+        assert [(item.document_version_id, item.ordinal) for item in items] == [
+            (second.id, 0)
+        ]
 
 
 def test_confirm_rechecks_idempotency_after_bundle_lock(monkeypatch: pytest.MonkeyPatch, context: Context) -> None:

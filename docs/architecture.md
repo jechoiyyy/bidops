@@ -152,7 +152,7 @@ flowchart TB
 
 현재 코드는 입찰공고 수집·다섯 관점 판정·보고 파일 계약, PostgreSQL 기반 관리 API, 문서 묶음·심층검토·리포트, 모델 품질 게이트와 스케줄 대기열을 제공한다. 발주계획 선별에는 동일한 3일 모집단을 동결하고 키워드·BGE-M3 ColBERT·Qwen·Luna 결과와 사람 라벨을 비교하는 일회성 실험 CLI가 생겼지만, 승인되지 않은 설정은 fail closed하고 제품 웹·DB·scheduler와 연결하지 않는다. 사업기회 연결, 사전규격 독립 수집·화면, 문서 준비 화면, 실패 단계 재시작 화면, 입찰공고 변경분 검토는 목표 흐름에 속하지만 아직 완결되지 않았다.
 
-T7 조립은 개발 stack health까지 확인됐지만 운영 배포 경계는 완성되지 않았다. 현재 template와 API에는 runtime image의 회사자료 포함, profile 원문·filesystem source 응답, hosted Codex 심층 prompt, legacy 첨부 안전검사 우회, host-wide 관리 port, MinIO versioning fail-open, broad worker DB 권한, 불완전 객체 restore가 남아 있으므로 운영 정본으로 승격할 수 없다.
+T7 조립은 개발 stack health까지 확인됐지만 운영 배포 경계는 완성되지 않았다. 현재 template와 API에는 runtime image의 회사자료 포함, profile 원문·filesystem source 응답, hosted Codex 심층 prompt, legacy 첨부 안전검사 우회, host-wide 관리 port, MinIO versioning fail-open, 불완전 객체 restore가 남아 있으므로 운영 정본으로 승격할 수 없다. broad worker DB 권한은 MVP DB 보완에서 명시적 역할·동작·컬럼 allowlist로 교체했다.
 
 현재 판정 실행은 `screening_execution.queue_no` 오름차순과 활성 슬롯 하나를 사용한다. 심층검토 작업은 PostgreSQL 행 잠금과 lease fence로 claim한다. 두 실행 계열은 서로의 모델 결과를 직접 수정하지 않고 버전 있는 입력·산출물과 API를 통해 연결된다.
 
@@ -187,7 +187,7 @@ provider 오류, schema 위반, 근거 불일치 또는 stale lease는 성공으
 | `web` | `database`, `storage`, `scanning` | `pipeline-data`, `pipeline-reports`, `document-scratch` | host의 웹 port를 publish한다. app DB 역할과 source·structure·quarantine 자격증명을 사용한다. |
 | `document-worker` 2 replicas | `network_mode: none` | `document-scratch`만 공유 | HTTP listener, DB·MinIO·모델 자격증명이 없다. |
 | `analysis-worker` | `database`, `analysis` | PostgreSQL과 MinIO structure/model-response | concurrency 1이다. 사설 vLLM은 `model-egress` overlay에서만 접근한다. |
-| PostgreSQL 17.11 | 내부 `database` | `postgres-data` | owner·migrate·app·worker·ro-backup 역할을 분리하지만 현재 worker table 권한은 과도하다. |
+| PostgreSQL 17.11 | 내부 `database` | `postgres-data` | owner·migrate·app·worker·ro-backup 역할을 분리하고 migration 뒤 table·operation·column allowlist를 다시 적용한다. |
 | MinIO | 내부 `storage`, `analysis` | `minio-data` | source·structure write/read·quarantine·model-response별 자격증명을 분리한다. |
 | ClamAV 1.4.3 | 내부 `scanning` | 정본 volume 없음 | `web`의 문서 바이트 검사만 받으며 미확인 결과는 clean이 아니다. |
 | `postgres-init`, `migrate`, `minio-init` | 필요한 내부 network | 기존 DB·객체 volume | 운영자가 명시적으로 실행하는 일회성 초기화 단계이며 앱 startup이 대신하지 않는다. |
@@ -276,7 +276,6 @@ ADR의 배경·대안·결과는 아래 원문에만 두며 이 문서에서 반
 | [legacy 첨부의 안전 경계 우회](tracking/findings.md#legacy-첨부-업로드가-악성코드-검사와-객체-격리를-우회한다) | 검사하지 않은 파일이 다운로드 가능해지고 container 재생성 때 바이트가 유실될 수 있다. | 운영 mutation을 차단하고 Lean quarantine 경계로 통합해야 한다. |
 | [MinIO versioning fail-open](tracking/findings.md#minio-versioning-초기화가-실패해도-stack이-계속-기동한다) | DB가 가리키는 object version의 불변성을 보장할 수 없다. | 초기화 후 enabled 상태를 검증하고 실패 시 stack을 중단해야 한다. |
 | [불완전한 객체 복구 계약](tracking/findings.md#객체-복구가-원본-version-id와-복구-대상-version-id를-혼동한다) | 정상 복구 실패와 active object 누락을 구분하지 못할 수 있다. | source→target version mapping과 DB 기준 완전한 active manifest가 필요하다. |
-| [분석 worker의 과도한 DB 권한](tracking/findings.md#분석-worker-db-역할이-모든-업무-table을-수정할-수-있다) | worker 오동작·탈취가 사람 리뷰·정책·감사까지 수정할 수 있다. | 실제 claim·stage·report table과 operation만 allowlist로 허용해야 한다. |
 | [관리 port의 host-wide publish](tracking/findings.md#postgresql과-minio-관리-port가-모든-host-interface에-publish된다) | LAN에서 API 경계를 우회해 DB·객체 저장소에 접근할 수 있다. | 기본 bind를 loopback 또는 내부 전용으로 제한하고 원격 관리는 opt-in overlay로 분리해야 한다. |
 | [legacy mutation의 actor·감사 누락](tracking/findings.md#legacy-mutation-일부가-담당자-이름과-감사-기록-없이-실행된다) | 변경 주체와 승인 이력을 일관되게 추적할 수 없다. | 공통 actor parser와 같은 transaction의 audit event로 이전해야 한다. |
 | [screening v3와 report renderer 단절](tracking/findings.md#현재-보고서-renderer가-screening-v3를-처리하지-못한다) | 새 판정 실행이 기존 HTML·feedback 흐름으로 이어지지 않는다. | v2 의미를 유지한 명시적 v3 adapter와 partial/failure 표시가 필요하다. |

@@ -13,7 +13,7 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import Column, Integer, MetaData, Text, create_engine, inspect, select, Table
+from sqlalchemy import Column, Integer, MetaData, Text, create_engine, func, inspect, select, Table
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.pool import StaticPool
 
@@ -225,6 +225,53 @@ def test_failed_promotion_retains_stage_and_success_cleans_it(tmp_path: Path, ta
     assert "raw_row" not in inspect(target_engine).get_table_names()
     with target_engine.connect() as connection:
         assert connection.execute(select(Base.metadata.tables["notice"].c.id)).scalars().all() == [1]
+        judgment_revision = connection.execute(
+            select(Base.metadata.tables["judgment_revision"])
+        ).mappings().one()
+        review_revision = connection.execute(
+            select(Base.metadata.tables["review_revision"])
+        ).mappings().one()
+        assert judgment_revision["source_kind"] == "legacy_import"
+        assert judgment_revision["run_id"] is None
+        assert judgment_revision["recording_execution_id"] is None
+        assert judgment_revision["source_revision_id"] is None
+        assert judgment_revision["payload_jsonb"]["counterargument_resolutions"] is None
+        assert judgment_revision["payload_jsonb"]["perspectives"][0]["evidence"] == [
+            {"source": "synthetic", "status": "confirmed", "fact": "fact"}
+        ]
+        assert review_revision["source_kind"] == "legacy_import"
+        assert review_revision["run_id"] == "run-1"
+        assert review_revision["judgment_revision_id"] is None
+        assert review_revision["payload_jsonb"]["verification_answers"] == [
+            {"item": "item", "answer": "unknown"}
+        ]
+
+    # A full promotion retry verifies the immutable snapshots and must not
+    # append duplicate legacy history.
+    retry_context = _stage_snapshot(
+        target_engine,
+        source_tables,
+        source_sha256=source_sha256,
+        manifest_sha256=_manifest_sha256(manifest),
+        schema=None,
+    )
+    second_retry_report = import_sqlite._empty_report(
+        "apply", source_sha256, "2026-08-25T00:00:00+00:00"
+    )
+    _promote_staged(
+        target_engine, retry_context, translated_tables, second_retry_report
+    )
+    with target_engine.connect() as connection:
+        assert connection.scalar(
+            select(func.count()).select_from(
+                Base.metadata.tables["judgment_revision"]
+            )
+        ) == 1
+        assert connection.scalar(
+            select(func.count()).select_from(
+                Base.metadata.tables["review_revision"]
+            )
+        ) == 1
 
 
 def test_unregistered_legacy_column_stops_import(tmp_path: Path, target_engine):
@@ -267,14 +314,16 @@ def test_apply_requires_postgresql_destination(tmp_path: Path, target_engine):
 
 
 def test_model_has_exact_closed_table_set():
-    from app.models import ATTACHMENT_FETCH_TABLES, Base, IDENTITY_TABLES, LEGACY_TABLES, NEW_TABLES, SCREENING_RUNTIME_TABLES
+    from app.models import ATTACHMENT_FETCH_TABLES, Base, IDENTITY_TABLES, LEGACY_TABLES, NEW_TABLES, PRESPEC_OVERVIEW_TABLES, REVISION_TABLES, SCREENING_RUNTIME_TABLES
 
     assert len(LEGACY_TABLES) == 13
     assert len(NEW_TABLES) == 25
     assert "actor" not in LEGACY_TABLES + NEW_TABLES
-    assert len(Base.metadata.tables) == 56
+    assert len(Base.metadata.tables) == 63
     assert set(Base.metadata.tables) == set(
-        LEGACY_TABLES + NEW_TABLES + SCREENING_RUNTIME_TABLES + IDENTITY_TABLES + ATTACHMENT_FETCH_TABLES
+        LEGACY_TABLES + NEW_TABLES + SCREENING_RUNTIME_TABLES + IDENTITY_TABLES
+        + ATTACHMENT_FETCH_TABLES + REVISION_TABLES
+        + PRESPEC_OVERVIEW_TABLES
     )
     assert isinstance(Base.metadata.tables["run"].c.screening_basis.type, Text)
     assert "fk_evidence_document_bundle_scope" in {

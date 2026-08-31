@@ -1,12 +1,18 @@
 from datetime import datetime, timezone
 
+import pytest
 from sqlalchemy import UniqueConstraint, create_engine, select
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.db import Base, init_db
 from app.ingest.contracts import NoticeContract
-from app.ingest.loader import _remove_judgments_without_screening, _upsert_notice
+from app.ingest.loader import (
+    NOTICE_OBSERVATION_SNAPSHOT_SCHEMA,
+    ObservationSnapshotConflictError,
+    _remove_judgments_without_screening,
+    _upsert_notice,
+)
 from app.models import (
     Judgment,
     Notice,
@@ -51,7 +57,13 @@ def test_loader_upserts_one_notice_and_appends_changed_observations():
         session.add_all([first_run, second_run])
         session.flush()
 
-        first = NoticeContract(notice_id="bid:IDENTITY:000", title="처음 제목", agency="기관")
+        first = NoticeContract(
+            notice_id="bid:IDENTITY:000",
+            title="처음 제목",
+            agency="기관",
+            unknown_fields=["qualification"],
+            raw_source={"raw_ref": "raw/identity-1.json"},
+        )
         second = NoticeContract(notice_id="bid:IDENTITY:000", title="바뀐 제목", agency="기관")
         _upsert_notice(session, first_run.id, first, {}, "Asia/Seoul")
         _upsert_notice(session, second_run.id, second, {}, "Asia/Seoul")
@@ -65,7 +77,98 @@ def test_loader_upserts_one_notice_and_appends_changed_observations():
         assert notices[0].title == "바뀐 제목"
         assert len(observations) == 2
         assert observations[0].changed_fields_json == []
-        assert observations[1].changed_fields_json == ["title"]
+        assert observations[1].changed_fields_json == [
+            "raw_source",
+            "title",
+            "unknown_fields_json",
+        ]
+        assert observations[0].snapshot_schema_version == NOTICE_OBSERVATION_SNAPSHOT_SCHEMA
+        assert observations[0].snapshot_jsonb["record"]["raw_source"] == {
+            "raw_ref": "raw/identity-1.json"
+        }
+        assert observations[0].snapshot_jsonb["record"]["unknown_fields_json"] == [
+            "qualification"
+        ]
+        assert len(observations[0].source_sha256 or "") == 64
+
+
+def test_same_run_notice_replay_is_idempotent_and_conflict_fails_closed():
+    engine = _engine()
+    init_db(engine)
+    with Session(engine) as session:
+        run = Run(
+            id="identity-replay-run",
+            generated_at=datetime(2026, 8, 5, tzinfo=timezone.utc),
+        )
+        session.add(run)
+        session.flush()
+        original = NoticeContract(
+            notice_id="bid:IDENTITY:REPLAY",
+            title="고정 제목",
+            raw_source={"raw_ref": "raw/replay.json"},
+        )
+        first = _upsert_notice(session, run.id, original, {}, "Asia/Seoul")
+        session.commit()
+        assert first is not None
+        observation = session.scalar(select(NoticeObservation))
+        assert observation is not None
+        original_digest = observation.source_sha256
+
+        replayed = _upsert_notice(session, run.id, original, {}, "Asia/Seoul")
+        session.commit()
+        assert replayed is first
+        assert session.scalar(select(NoticeObservation)).source_sha256 == original_digest
+
+        with pytest.raises(ObservationSnapshotConflictError):
+            _upsert_notice(
+                session,
+                run.id,
+                NoticeContract(
+                    notice_id="bid:IDENTITY:REPLAY",
+                    title="같은 회차의 다른 제목",
+                    raw_source={"raw_ref": "raw/replay.json"},
+                ),
+                {},
+                "Asia/Seoul",
+            )
+        session.rollback()
+        stored = session.scalar(select(Notice))
+        assert stored is not None and stored.title == "고정 제목"
+        assert session.scalar(select(NoticeObservation)).source_sha256 == original_digest
+
+
+def test_legacy_observation_replay_is_noop_without_guessed_backfill():
+    engine = _engine()
+    init_db(engine)
+    with Session(engine) as session:
+        run = Run(
+            id="identity-legacy-run",
+            generated_at=datetime(2026, 8, 6, tzinfo=timezone.utc),
+        )
+        notice = Notice(notice_key="bid:IDENTITY:LEGACY", title="기존 제목")
+        notice.observations.append(NoticeObservation(run=run, changed_fields_json=[]))
+        session.add(run)
+        session.commit()
+
+        _upsert_notice(
+            session,
+            run.id,
+            NoticeContract(
+                notice_id=notice.notice_key,
+                title="추정하면 안 되는 제목",
+            ),
+            {},
+            "Asia/Seoul",
+        )
+        session.commit()
+
+        stored = session.scalar(select(Notice))
+        observation = session.scalar(select(NoticeObservation))
+        assert stored is not None and stored.title == "기존 제목"
+        assert observation is not None
+        assert observation.snapshot_schema_version is None
+        assert observation.snapshot_jsonb is None
+        assert observation.source_sha256 is None
 
 
 def test_order_plan_has_separate_identity_and_observation_tables():

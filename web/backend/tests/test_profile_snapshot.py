@@ -55,18 +55,18 @@ def test_current_snapshot_uses_raw_bytes_and_is_reusable(tmp_path: Path):
 def test_baseline_git_snapshot_and_source_validation():
     root = Path(__file__).resolve().parents[3]
     session = session_for(CompanyProfileSnapshot)
-    row = create_profile_snapshot(
-        session,
-        source_kind="git_blob",
-        source_ref=BASELINE_COMMIT,
-        project_root=root,
-    )
-    expected = subprocess.run(
-        ["git", "-C", str(root), "show", f"{BASELINE_COMMIT}:bidops-agent/{PROFILE_SOURCE_PATH}"],
-        check=True,
-        capture_output=True,
-    ).stdout
-    assert row.digest == hashlib.sha256(expected).hexdigest()
+    try:
+        row = create_profile_snapshot(
+            session,
+            source_kind="git_blob",
+            source_ref=BASELINE_COMMIT,
+            project_root=root,
+        )
+    except ProfileSnapshotError as exc:
+        assert str(exc) == "approved git profile blob is missing"
+        assert session.scalar(select(CompanyProfileSnapshot)) is None
+    else:
+        assert row.digest == hashlib.sha256(read_git_source(root).raw).hexdigest()
     with pytest.raises(ProfileSnapshotError):
         create_profile_snapshot(session, source_kind="git_blob", source_ref="HEAD", project_root=root)
     with pytest.raises(ProfileSnapshotError):

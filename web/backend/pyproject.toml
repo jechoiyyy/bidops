@@ -29,6 +29,9 @@ dependencies = [
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "-ra"
+markers = [
+    "requires_postgres: exercises PostgreSQL 17 behavior through the isolated session harness",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]

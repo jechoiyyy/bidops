@@ -66,6 +66,9 @@ class OpportunityStateView(RuntimeContractModel):
     recheck_signal_at: AwareDateTime | None = None
     recheck_signal_link_id: int | None = Field(default=None, ge=1)
     first_registered_stage: OpportunityFirstRegisteredStage
+    merged_into_opportunity_id: int | None = Field(default=None, ge=1)
+    merged_at: AwareDateTime | None = None
+    merge_reason: str | None = None
 
 
 class OpportunityListItem(OpportunityStateView):
@@ -100,10 +103,18 @@ class TrackingStatusUpdateRequest(RuntimeContractModel):
     )
 
 
+class CandidateDecisionRequest(RuntimeContractModel):
+    """Human decision for one pending candidate lifecycle link."""
+
+    decision: Literal["accepted", "rejected"]
+    reason: str = Field(min_length=1)
+
+
 OpportunitySort = Literal["created_at", "tracking_status", "first_registered_stage"]
 
 
 __all__ = [
+    "CandidateDecisionRequest",
     "OpportunityDetailResponse",
     "OpportunityFirstRegisteredStage",
     "OpportunityLinkView",

@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session, selectinload
 from ..db import get_db
 from ..models import Notice, Opportunity, OpportunityLink
 from ..schemas.opportunities import (
+    CandidateDecisionRequest,
     OpportunityDetailResponse,
     OpportunityFirstRegisteredStage,
     OpportunityLinkView,
@@ -23,7 +24,7 @@ from ..schemas.opportunities import (
     OpportunityTrackingStatus,
     TrackingStatusUpdateRequest,
 )
-from ..services import opportunity_tracking
+from ..services import opportunity_integrity, opportunity_tracking
 from ..services.document_bundles import BundleServiceError, validate_actor
 from ..services.prespec_attachments import refresh_fetch_eligibility
 
@@ -41,10 +42,26 @@ _ERRORS: dict[str, tuple[int, str]] = {
     "opportunity_invalid": (422, "사업기회 식별자가 올바르지 않습니다"),
     "tracking_status_invalid": (422, "지원하지 않는 추적 상태입니다"),
     "tracking_reason_required": (422, "추적 상태를 선택한 이유가 필요합니다"),
+    "opportunity_merged": (409, "병합된 사업기회의 상태는 변경할 수 없습니다"),
+    "opportunity_link_invalid": (422, "사업기회 연결 식별자가 올바르지 않습니다"),
+    "opportunity_link_not_found": (404, "사업기회 연결을 찾을 수 없습니다"),
+    "candidate_link_required": (409, "후보 연결만 사람 판정할 수 있습니다"),
+    "candidate_decision_reason_required": (422, "후보 연결 판정 이유가 필요합니다"),
+    "candidate_decision_conflict": (409, "후보 연결에 이미 다른 판정이 있습니다"),
+    "candidate_state_conflict": (409, "현재 상태에서는 후보 연결을 판정할 수 없습니다"),
+    "candidate_target_required": (409, "수락할 후보 연결 대상이 필요합니다"),
+    "candidate_target_already_authoritative": (
+        409,
+        "대상 레코드는 이미 확정된 사업기회에 연결되어 있습니다",
+    ),
 }
 
 
-def _error_response(error: OpportunityTrackingError | BundleServiceError) -> JSONResponse:
+def _error_response(
+    error: opportunity_tracking.OpportunityTrackingError
+    | opportunity_integrity.OpportunityIntegrityError
+    | BundleServiceError,
+) -> JSONResponse:
     """Return only stable, safe API error data."""
 
     status_code, message = _ERRORS.get(
@@ -167,6 +184,9 @@ def _opportunity_state(opportunity: Opportunity) -> dict[str, Any]:
         "recheck_signal_at": opportunity.recheck_signal_at,
         "recheck_signal_link_id": opportunity.recheck_signal_link_id,
         "first_registered_stage": opportunity.first_registered_stage,
+        "merged_into_opportunity_id": opportunity.merged_into_opportunity_id,
+        "merged_at": opportunity.merged_at,
+        "merge_reason": opportunity.merge_reason,
     }
 
 
@@ -201,7 +221,9 @@ def list_opportunities(
     without changing the human tracking choice.
     """
 
-    conditions: list[Any] = []
+    conditions: list[Any] = [
+        opportunity_integrity.active_opportunity_predicate(Opportunity)
+    ]
     if tracking_status is not None:
         conditions.append(Opportunity.tracking_status == tracking_status)
     if first_registered_stage is not None:
@@ -259,6 +281,44 @@ def get_opportunity(
             )
         )
     return _detail(opportunity)
+
+
+@router.patch(
+    "/links/{link_id}/decision",
+    response_model=OpportunityLinkView,
+)
+def decide_candidate_link(
+    link_id: int,
+    payload: CandidateDecisionRequest,
+    actor: Annotated[str | None, Header(alias="X-BidOps-Actor-Name")] = None,
+    actor_format: Annotated[str | None, Header(alias="X-BidOps-Actor-Name-Format")] = None,
+    session: Session = Depends(get_db),
+) -> OpportunityLinkView | JSONResponse:
+    """Record a human accept/reject decision for one pending candidate."""
+
+    try:
+        actor_name = validate_actor(actor, actor_format)
+        link = opportunity_integrity.decide_candidate_link(
+            session,
+            link_id,
+            decision=payload.decision,
+            reason=payload.reason,
+            reviewer_name=actor_name,
+            reviewed_at=datetime.now(UTC),
+        )
+        session.commit()
+        session.refresh(link)
+        return _link_view(link)
+    except (
+        opportunity_integrity.OpportunityIntegrityError,
+        opportunity_tracking.OpportunityTrackingError,
+        BundleServiceError,
+    ) as error:
+        session.rollback()
+        return _error_response(error)
+    except Exception:  # pragma: no cover - defensive API boundary
+        session.rollback()
+        return _unexpected()
 
 
 @router.patch("/{opportunity_id}/tracking-status", response_model=OpportunityDetailResponse)

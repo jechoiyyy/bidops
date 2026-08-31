@@ -87,8 +87,8 @@
 
 중요한 변경이 있으면 새 문서 묶음과 새 분석 시점을 가진 리포트를 만든다. 사전규격 리포트의 문장·근거·사람 의견을 수정하지 않는다. 변경이 없으면 비교한 양쪽 버전과 확인 범위를 남긴다. 시스템은 이 결과를 자동 제출이나 발주기관 연락으로 연결하지 않으며 최종 Go/No-Go는 사람이 결정한다.
 
-R-07의 상세 계약은 [ADR-0034](tracking/decisions/0034-bid-delta-final-decision.md)의 제안
-상태다. 구현 전에도 다음 안전 경계는 기존 업무 규칙에서 그대로 유지한다.
+R-07의 상세 계약은 [ADR-0034](tracking/decisions/0034-bid-delta-final-decision.md)로 채택했다.
+아직 backend·DB·production UI는 구현되지 않았으며 다음 안전 경계를 R-08이 그대로 구현한다.
 
 - 비교는 ready bundle에 고정된 기준·비교 document version, structure, source/payload hash를
   저장한다. live 첨부나 mutable current pointer로 과거 비교를 다시 해석하지 않는다.
@@ -102,8 +102,16 @@ R-07의 상세 계약은 [ADR-0034](tracking/decisions/0034-bid-delta-final-deci
 - 최종 입찰 결정은 actor, reason, request ID, 비교 version·result digest·양쪽 document
   version fence를 가진 append-only 사람 기록이다. 새 결정은 과거 결정을 수정하지 않는다.
 
-최종 결정 enum, material 범주·임계값, 새 공고·정정 뒤 기존 결정의 currentness는 사업개발
-업무 책임자의 선택 대기다. 결정 전에는 임시 enum이나 범주를 운영 규칙으로 사용하지 않는다.
+최종 결정은 `go|no_go`다. material 범주는 금액·경제성, 계약기간·일정, 참가자격,
+공동수급·하도급, 과업·요구사항, 평가, 제출의 7개다. v1은 근거 없는 수치 임계값을 두지
+않고 공식 값·조건의 실질 변경을 `material`, 양쪽 근거로 의미가 같은 표기·서식 차이만
+`non_material`로 둔다. 불확실·검증 실패는 `unknown|failed`로 보존한다.
+
+새 authoritative 입찰공고·정정 또는 새 ready 비교 문서가 생기면 기존 최종 결정 row는
+그대로 두고 strict currentness projection을 즉시 `stale`로 만든다. 순서·효력이 불확실하면
+`unknown`이다. 비교 모델은 회사 내부망의 allowlist된 Ollama·사설 vLLM만 사용하고 exact
+snapshot의 비교 생성 요청을 건별 처리 승인으로 감사한다. 외부·hosted fallback은 없으며
+감사 metadata에는 안전한 ID·code·count·hash·binding digest만 남긴다.
 
 ## 후보 선정과 현재 1차 판정
 

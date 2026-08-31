@@ -12,7 +12,7 @@ from __future__ import annotations
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import engine_from_config, pool, text
+from sqlalchemy import MetaData, engine_from_config, pool, text
 
 from app.db import ALEMBIC_VERSION_NUM_WIDTH, Base, settings
 from app import models  # noqa: F401 - register every declarative table
@@ -22,7 +22,45 @@ config = context.config
 if config.config_file_name:
     fileConfig(config.config_file_name)
 
-target_metadata = Base.metadata
+APPLICATION_SCHEMA = "bidops"
+
+
+def _schema_metadata(source: MetaData) -> MetaData:
+    """Return an Alembic-only copy bound to the canonical PG schema.
+
+    The ORM keeps local table keys so isolated SQLite tests remain
+    schema-less and PostgreSQL sessions use ``schema_translate_map``.  Alembic
+    autogenerate does not apply that execution option while comparing
+    metadata, so using the live metadata directly makes every ORM table look
+    new in the default schema and every migrated ``bidops`` table look
+    removed.  ``Table.to_metadata`` gives Alembic the physical schema without
+    mutating the metadata used by ORM mappers and application sessions.
+    """
+
+    translated = MetaData(naming_convention=source.naming_convention)
+    for table in source.tables.values():
+        table.to_metadata(translated, schema=APPLICATION_SCHEMA)
+    return translated
+
+
+target_metadata = _schema_metadata(Base.metadata)
+
+
+def _include_name(
+    name: str | None,
+    type_: str,
+    parent_names: dict[str, str | None],
+) -> bool:
+    """Keep reflection and drift checks inside the one application schema."""
+
+    if type_ == "schema":
+        return name == APPLICATION_SCHEMA
+    if type_ == "table":
+        return (
+            parent_names.get("schema_name") == APPLICATION_SCHEMA
+            and name != "alembic_version"
+        )
+    return True
 
 # Alembic hard-codes ``version_num VARCHAR(32)`` when it creates its version
 # table, and two revision identifiers in this project are longer than that.
@@ -62,8 +100,9 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
-        version_table_schema="bidops",
+        version_table_schema=APPLICATION_SCHEMA,
         include_schemas=True,
+        include_name=_include_name,
     )
     with context.begin_transaction():
         context.execute("CREATE SCHEMA IF NOT EXISTS bidops")
@@ -76,8 +115,9 @@ def do_run_migrations(connection) -> None:  # type: ignore[no-untyped-def]
     context.configure(
         connection=connection,
         target_metadata=target_metadata,
-        version_table_schema="bidops",
+        version_table_schema=APPLICATION_SCHEMA,
         include_schemas=True,
+        include_name=_include_name,
     )
     with context.begin_transaction():
         connection.execute(text("CREATE SCHEMA IF NOT EXISTS bidops"))

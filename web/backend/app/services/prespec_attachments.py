@@ -35,13 +35,18 @@ from ..models import (
     utc_now,
 )
 from . import assets
+from .document_structures import materialize_structure
+from .prespec_overview import prepare_overview_review
+from .opportunity_integrity import (
+    active_opportunity_predicate,
+    authoritative_link_predicate,
+)
 
 
 SOURCE_SYSTEM = "g2b"
 G2B_HOST = "www.g2b.go.kr"
 G2B_ATTACHMENT_PATH = "/pn/pnz/pnza/UntyAtchFile/downloadFile.do"
 _ATTACHMENT_QUERY_KEYS = frozenset({"bfSpecRegNo", "fileType", "fileSeq"})
-_TRACKING_LINK_STATUSES = frozenset({"확정", "사람 확인 완료", "후보 확인 대기"})
 _TRACKING_STATUSES = frozenset({"계속 추적", "보류"})
 _WORKER_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 _SAFE_CODE_RE = re.compile(r"^[a-z0-9][a-z0-9_]{0,127}$")
@@ -190,8 +195,10 @@ def _tracked_order_plan_conditions(
 
     conditions: list[ColumnElement[bool]] = [
         notice_link.stage == "notice",
-        notice_link.status.in_(_TRACKING_LINK_STATUSES),
+        notice_link.notice_id.is_not(None),
+        authoritative_link_predicate(notice_link),
         opportunity.tracking_status.in_(_TRACKING_STATUSES),
+        active_opportunity_predicate(opportunity),
         exists(
             select(1)
             .select_from(order_plan_link)
@@ -199,6 +206,7 @@ def _tracked_order_plan_conditions(
                 order_plan_link.opportunity_id == opportunity.id,
                 order_plan_link.stage == "order_plan",
                 order_plan_link.order_plan_id.is_not(None),
+                authoritative_link_predicate(order_plan_link),
             )
         ),
     ]
@@ -460,6 +468,7 @@ def _snapshot(session: Session, claim: AttachmentFetchClaim) -> _AttachmentSnaps
         .join(Attachment, Attachment.id == AttachmentFetch.attachment_id)
         .where(
             AttachmentFetch.id == fetch_id,
+            AttachmentFetch.attachment_id == int(claim.attachment_id),
             AttachmentFetch.status == "진행",
             AttachmentFetch.lease_owner == worker_id,
             AttachmentFetch.lease_fence == fence,
@@ -484,6 +493,7 @@ def _lock_claim(session: Session, claim: AttachmentFetchClaim) -> AttachmentFetc
         select(AttachmentFetch)
         .where(
             AttachmentFetch.id == fetch_id,
+            AttachmentFetch.attachment_id == int(claim.attachment_id),
             AttachmentFetch.status == "진행",
             AttachmentFetch.lease_owner == worker_id,
             AttachmentFetch.lease_fence == fence,
@@ -599,6 +609,27 @@ def _add_location(
             status="verified",
             verified_at=datetime.now(UTC),
         )
+    )
+
+
+def _add_structure_location(
+    session: Session,
+    content_id: UUID,
+    namespace: str,
+    path: Path,
+    digest: str,
+    *,
+    root: Path | None,
+) -> None:
+    """Adapt the canonical path-based structure writer to object-key storage."""
+
+    object_key = _object_key_for_path(path, namespace, root)
+    _add_location(
+        session,
+        content_object_id=content_id,
+        namespace=namespace,
+        object_key=object_key,
+        root=root,
     )
 
 
@@ -738,6 +769,9 @@ def _document_for_safe_asset(
             )
             .values(is_current=False)
         )
+        # The current-row partial unique index is immediate.  Make the
+        # demotion visible before the replacement row is inserted.
+        session.flush()
     previous = versions[0] if versions else None
     document = DocumentVersion(
         notice_id=snapshot.notice_id,
@@ -769,9 +803,29 @@ def _complete_safe(
     *,
     source_path: Path,
     root: Path | None,
+    request_paths: list[Path],
 ) -> AttachmentFetch | None:
     row = _lock_claim(session, claim)
     if row is None:
+        return None
+    attachment = session.scalar(
+        select(Attachment)
+        .where(Attachment.id == row.attachment_id)
+        .with_for_update()
+    )
+    if (
+        attachment is None
+        or row.attachment_id != snapshot.attachment_id
+        or attachment.notice_id != snapshot.notice_id
+        or attachment.source_system != SOURCE_SYSTEM
+        or attachment.source_attachment_key != snapshot.source_attachment_key
+        or attachment.source_url != snapshot.source_url
+        or attachment.retired_at is not None
+    ):
+        # Provider I/O ran against an obsolete provenance snapshot.  Leave
+        # the durable queue state untouched; the caller rolls this lock
+        # transaction back and removes request-created source bytes.
+        session.rollback()
         return None
     document = _document_for_safe_asset(
         session,
@@ -781,6 +835,29 @@ def _complete_safe(
         source_path=source_path,
         root=root,
     )
+    structure = materialize_structure(
+        session,
+        document,
+        inspected.asset,
+        inspected,
+        request_paths,
+        root=root,
+        add_location=lambda current_session, content_id, namespace, path, digest: _add_structure_location(
+            current_session,
+            content_id,
+            namespace,
+            path,
+            digest,
+            root=root,
+        ),
+    )
+    # The T-23 review snapshot is part of the same fenced transaction as the
+    # clean T-20 promotion.  A preparation error therefore rolls back the
+    # source/structure rows and lets the caller transition only the fetch
+    # claim to its safe failure state.  If conversion produced no structure,
+    # this still records ``awaiting_structure`` for a clean document.
+    if inspected.safety_status == "safe":
+        prepare_overview_review(session, snapshot.notice_id, root=root)
     row.status = "완료"
     row.last_error_code = None
     row.document_version_id = document.id
@@ -807,6 +884,7 @@ def fetch_claimed(
     if snapshot is None:
         return None
     asset: assets.QuarantinedAsset | None = None
+    request_paths: list[Path] = []
     try:
         if not snapshot.source_url or not snapshot.source_attachment_key:
             return _transition_failure(session, claim, "processing_failed")
@@ -845,26 +923,40 @@ def fetch_claimed(
                 root=root,
             )
         source_path, digest, size = assets.commit_source(asset, root=root)
+        request_paths.append(source_path)
         if digest != asset.sha256 or size != asset.size_bytes:
             raise assets.AssetError("hash_mismatch", "원문 hash 검증에 실패했습니다")
-        return _complete_safe(
+        result = _complete_safe(
             session,
             claim,
             snapshot,
             inspected,
             source_path=source_path,
             root=root,
+            request_paths=request_paths,
         )
+        if result is None:
+            # The lease may have been lost while provider I/O was in flight;
+            # no durable writer owns these newly-created source bytes then.
+            session.rollback()
+            assets.cleanup_paths(request_paths)
+        return result
     except assets.AssetError as error:
+        session.rollback()
+        assets.cleanup_paths(request_paths)
         code = _safe_error_code(error.code)
         return _transition_failure(session, claim, code)
     except DocumentProcessingError as error:
+        session.rollback()
+        assets.cleanup_paths(request_paths)
         code = _safe_error_code(error.code)
         return _transition_failure(session, claim, code)
     except Exception:
         # Exception text is intentionally discarded at this boundary.  A
         # provider, scanner, or storage adapter failure receives one stable
         # retry code and no URL/path/credential can reach the database.
+        session.rollback()
+        assets.cleanup_paths(request_paths)
         return _transition_failure(session, claim, "service_unavailable")
     finally:
         try:

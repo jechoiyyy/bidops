@@ -1,10 +1,11 @@
 """T14-A integration boundaries on a migrated PostgreSQL database.
 
-These tests deliberately use the process-wide database configured by
-``web/run-web-tests.sh``.  The runner creates and migrates that database in a
-private disposable PostgreSQL 17 container before pytest imports ``app.db``. Ollama is
-always a scripted transport; a regression that opens a real socket therefore
-fails at the fake boundary instead of making CI network-dependent.
+These tests deliberately use the process-wide database configured by the
+pytest harness.  Before pytest imports ``app.db``, the harness creates and
+migrates a private database on a disposable PostgreSQL 17 server and supplies
+isolated runtime paths.  Ollama is always a scripted transport; a regression
+that opens a real socket therefore fails at the fake boundary instead of
+making CI network-dependent.
 """
 
 from __future__ import annotations
@@ -112,9 +113,10 @@ def _seed_queue_dependencies(policy_version: str) -> None:
 
 
 def test_migrated_database_is_at_head_before_lifespan() -> None:
-    """The ordinary web runner proves migration before any app startup."""
+    """The pytest harness proves migration before any app startup."""
 
     assert os.environ.get("BIDOPS_DATABASE_URL", "").startswith(("postgresql://", "postgresql+"))
+    assert Path(os.environ["BIDOPS_ROOT"]).resolve() == Path(__file__).resolve().parents[3]
     assert current_revision() == ALEMBIC_HEAD
 
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import re
@@ -23,6 +24,7 @@ from ..models import (
     Evidence,
     IngestWarning,
     Judgment,
+    JudgmentRevision,
     MatchedPerformance,
     Notice,
     NoticeObservation,
@@ -33,6 +35,7 @@ from ..models import (
     Perspective,
     Review,
     Run,
+    ScreeningExecution,
     VerificationItem,
 )
 from .contracts import (
@@ -56,8 +59,27 @@ from ..screening.generation_config import (
     legacy_generation_config,
     validate_digest,
 )
+from ..screening.contracts import (
+    ContractViolation as ScreeningContractViolation,
+    add_two_axis_metadata,
+    validate_judgment as validate_current_judgment,
+)
 from ..services.opportunity_tracking import record_recheck_signal
+from ..services.opportunity_integrity import (
+    MERGE_REASON_OFFICIAL_LINK,
+    OpportunityIntegrityError,
+    active_opportunity_predicate,
+    authoritative_link_predicate,
+    merge_opportunities,
+)
 from ..services.prespec_attachments import parse_attachment_key, refresh_fetch_eligibility
+from ..services.revisions import (
+    RevisionValidationError,
+    append_judgment_revision,
+    current_judgment_revision,
+    require_carry_origin_run,
+)
+from .judgment_revisions import judgment_revision_payload
 
 
 RUN_ID_RE = re.compile(r"^(?P<directory>.+)--(?P<generated>\d{8}T\d{6}(?:\.\d{1,6})?Z)$")
@@ -85,6 +107,12 @@ ORDER_PLAN_ARTIFACT_SCHEMAS = {
     "bidops.order-plans.v1",
 }
 ORDER_PLAN_FILE = "collected-order-plans.json"
+NOTICE_OBSERVATION_SNAPSHOT_SCHEMA = "bidops.notice-observation-snapshot.v1"
+ORDER_PLAN_OBSERVATION_SNAPSHOT_SCHEMA = "bidops.order-plan-observation-snapshot.v1"
+
+
+class ObservationSnapshotConflictError(ValueError):
+    """The same external identity/run pair was presented with different bytes."""
 
 
 def _is_aware_iso(value: Any) -> bool:
@@ -96,6 +124,15 @@ def _is_aware_iso(value: Any) -> bool:
         return False
     return parsed.tzinfo is not None and parsed.utcoffset() is not None
 DEFAULT_TIMEZONE = "Asia/Seoul"
+
+
+@dataclass(frozen=True)
+class VerifiedV3Lineage:
+    """Database and sibling-artifact binding for one current v3 publication."""
+
+    execution_id: str
+    source_run_id: str
+    input_notices: dict[str, dict[str, Any]]
 
 
 @dataclass
@@ -554,6 +591,114 @@ def _json_value(value: Any) -> Any:
     return value
 
 
+def _snapshot_json_value(value: Any) -> Any:
+    """Return the stable JSON representation used by observation digests."""
+
+    value = _json_value(value)
+    if isinstance(value, datetime):
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("observation snapshot datetime must be timezone-aware")
+        return value.isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    if isinstance(value, Decimal):
+        return format(value, "f")
+    if isinstance(value, dict):
+        return {str(key): _snapshot_json_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_snapshot_json_value(item) for item in value]
+    return value
+
+
+def _observation_snapshot(
+    schema_version: str,
+    record_kind: str,
+    record: dict[str, Any],
+    *,
+    attachments: list[dict[str, Any]] | None = None,
+) -> tuple[dict[str, Any], str]:
+    payload: dict[str, Any] = {
+        "schema_version": schema_version,
+        "record_kind": record_kind,
+        "record": _snapshot_json_value(record),
+    }
+    if attachments is not None:
+        normalized_attachments = [
+            _snapshot_json_value(item) for item in attachments
+        ]
+        payload["attachments"] = sorted(
+            normalized_attachments,
+            key=lambda item: json.dumps(
+                item,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            ),
+        )
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")
+    return payload, hashlib.sha256(encoded).hexdigest()
+
+
+def _check_existing_observation_snapshot(
+    session: Session,
+    *,
+    run_id: str,
+    identity_kind: str,
+    identity: str,
+    observation: NoticeObservation | OrderPlanObservation,
+    schema_version: str,
+    snapshot_jsonb: dict[str, Any],
+    source_sha256: str,
+) -> bool:
+    """Return true for an idempotent replay and fail closed on a conflict.
+
+    Pre-0009 observations intentionally have no snapshot.  They are retained
+    as immutable legacy facts, so replay becomes a no-op with a warning rather
+    than guessing a backfill from the mutable current projection.
+    """
+
+    stored = (
+        observation.snapshot_schema_version,
+        observation.snapshot_jsonb,
+        observation.source_sha256,
+    )
+    if stored == (None, None, None):
+        exists = session.scalar(
+            select(IngestWarning.id).where(
+                IngestWarning.run_id == run_id,
+                IngestWarning.code == "observation_snapshot_unavailable",
+                IngestWarning.context_jsonb["record_kind"].as_string() == identity_kind,
+                IngestWarning.context_jsonb["identity"].as_string() == identity,
+            )
+        )
+        if exists is None:
+            _record_warning(
+                session,
+                run_id,
+                "warning",
+                "observation_snapshot_unavailable",
+                "과거 관측에는 snapshot이 없어 같은 회차 재적재를 변경 없이 건너뛰었습니다.",
+                {"record_kind": identity_kind, "identity": identity},
+            )
+        return True
+    if (
+        observation.snapshot_schema_version == schema_version
+        and observation.source_sha256 == source_sha256
+        and observation.snapshot_jsonb == snapshot_jsonb
+    ):
+        return True
+    raise ObservationSnapshotConflictError(
+        f"observation snapshot conflict: {identity_kind}={identity}, run_id={run_id}"
+    )
+
+
 def _qualification_flags_payload(notice: NoticeContract) -> dict[str, Any] | None:
     """Keep pre-spec-only flags out of notices whose artifact never set them.
 
@@ -792,8 +937,12 @@ def _target_opportunities(
     if order_plan is not None:
         links.extend(
             session.scalars(
-                select(OpportunityLink).where(
-                    OpportunityLink.order_plan_id == order_plan.id
+                select(OpportunityLink)
+                .join(Opportunity, Opportunity.id == OpportunityLink.opportunity_id)
+                .where(
+                    OpportunityLink.order_plan_id == order_plan.id,
+                    authoritative_link_predicate(OpportunityLink),
+                    active_opportunity_predicate(Opportunity),
                 )
             ).all()
         )
@@ -802,8 +951,12 @@ def _target_opportunities(
     ):
         links.extend(
             session.scalars(
-                select(OpportunityLink).where(
-                    OpportunityLink.notice_id == notice_target.id
+                select(OpportunityLink)
+                .join(Opportunity, Opportunity.id == OpportunityLink.opportunity_id)
+                .where(
+                    OpportunityLink.notice_id == notice_target.id,
+                    authoritative_link_predicate(OpportunityLink),
+                    active_opportunity_predicate(Opportunity),
                 )
             ).all()
         )
@@ -885,25 +1038,33 @@ def _attach_waiting_official_links(
     if primary is None:  # pragma: no cover - every waiting link has an owner.
         raise RuntimeError("deferred official link has no opportunity")
 
-    attached = 0
+    # The target may already have one authoritative owner, or multiple
+    # targetless official references may have converged here.  The partial
+    # unique index allows exactly one targetful authoritative row.  Preserve
+    # every redundant deferred row as history, but attach only the oldest one
+    # when the target has no existing owner.
+    target_owned = bool(
+        _target_opportunities(session, order_plan=order_plan, notice=notice)
+    )
+    attachable = None if target_owned else min(waiting, key=lambda item: item.id)
     for link in waiting:
         link.opportunity = primary
-        if order_plan is not None:
-            link.order_plan = order_plan
-            link.notice = None
-        else:
-            link.notice = notice
-            link.order_plan = None
         if evidence_bid_no is not None and link.evidence_bid_no is None:
             link.evidence_bid_no = evidence_bid_no
-        attached += 1
+    if attachable is not None:
+        if order_plan is not None:
+            attachable.order_plan = order_plan
+            attachable.notice = None
+        else:
+            attachable.notice = notice
+            attachable.order_plan = None
     session.flush()
-    for link in waiting:
+    if attachable is not None:
         # The deferred official row is now attached to its concrete lifecycle
         # record.  The service is deliberately the only path that can write
         # the system recheck columns; it leaves human tracking fields alone.
-        record_recheck_signal(session, primary, link)
-    return attached
+        record_recheck_signal(session, primary, attachable)
+    return 1 if attachable is not None else 0
 
 
 def resolve_order_plan_opportunity_links(
@@ -957,46 +1118,13 @@ def _merge_opportunities(
     session: Session,
     opportunities: list[Opportunity],
 ) -> Opportunity | None:
-    if not opportunities:
-        return None
-    # ``created_at`` is the closest persisted representation of first
-    # registration when two independently-created opportunities are joined by
-    # a later official bid key.  Preserve every link, including rejected
-    # candidates, while moving the secondary rows to the retained identity.
-    primary = min(
+    """Compatibility entry point for the shared non-destructive merge rule."""
+
+    return merge_opportunities(
+        session,
         opportunities,
-        key=lambda item: (
-            item.created_at or datetime.max.replace(tzinfo=timezone.utc),
-            item.id,
-        ),
+        reason=MERGE_REASON_OFFICIAL_LINK,
     )
-    moved_official_links: list[OpportunityLink] = []
-    for secondary in opportunities:
-        if secondary is primary:
-            continue
-        for link in list(secondary.links):
-            # A targetless deferred link is signaled by the attachment path
-            # after its target is filled.  Targetful official links that move
-            # to an ended primary are already newly attached to the merged
-            # result and are handled here.
-            if (
-                link.link_type == "official"
-                and (link.order_plan_id is not None or link.notice_id is not None)
-            ):
-                moved_official_links.append(link)
-            link.opportunity = primary
-        session.delete(secondary)
-    session.flush()
-    if primary.tracking_status == "종료":
-        for link in sorted(
-            moved_official_links,
-            key=lambda item: (
-                item.created_at or datetime.min.replace(tzinfo=timezone.utc),
-                item.id or 0,
-            ),
-        ):
-            record_recheck_signal(session, primary, link)
-    return primary
 
 
 def _ensure_opportunity(
@@ -1046,6 +1174,39 @@ def _ensure_official_link(
         raise ValueError("an official link cannot target both plan and notice")
     if not is_blank(evidence_external_no):
         evidence_external_no = str(evidence_external_no).strip()
+
+    # A human-accepted candidate is already authoritative ownership.  If an
+    # exact official reference later arrives for that same target, promote the
+    # existing row in place so reviewer history survives without creating a
+    # second authoritative target link.  The decision service recognizes an
+    # exact replay against this promoted row.
+    target_statement = select(OpportunityLink).where(
+        OpportunityLink.opportunity_id == opportunity.id,
+        authoritative_link_predicate(OpportunityLink),
+    )
+    if order_plan is not None:
+        target_statement = target_statement.where(
+            OpportunityLink.order_plan_id == order_plan.id,
+            OpportunityLink.notice_id.is_(None),
+        )
+    elif notice is not None:
+        target_statement = target_statement.where(
+            OpportunityLink.notice_id == notice.id,
+            OpportunityLink.order_plan_id.is_(None),
+        )
+    else:
+        target_statement = None
+    if target_statement is not None:
+        authoritative = session.scalar(target_statement)
+        if authoritative is not None:
+            if authoritative.link_type == "candidate":
+                authoritative.link_type = "official"
+                authoritative.status = "확정"
+            authoritative.evidence_external_no = evidence_external_no
+            if evidence_bid_no is not None and authoritative.evidence_bid_no is None:
+                authoritative.evidence_bid_no = evidence_bid_no
+            session.flush()
+            return authoritative
 
     statement = select(OpportunityLink).where(
         OpportunityLink.opportunity_id == opportunity.id,
@@ -1328,10 +1489,45 @@ def _upsert_notice(
     if values is None:
         return None
     notice_key = values.pop("notice_key")
+    normalized_attachments = _normalized_attachment_payloads(
+        notice,
+        raw.get("attachments"),
+    )
+    snapshot, snapshot_sha256 = _observation_snapshot(
+        NOTICE_OBSERVATION_SNAPSHOT_SCHEMA,
+        "notice",
+        {"notice_key": notice_key, **values},
+        attachments=(
+            [_attachment_snapshot_payload(item) for item in normalized_attachments]
+            if normalized_attachments is not None
+            else None
+        ),
+    )
     existing = session.scalar(
         select(Notice).where(Notice.notice_key == notice_key)
     )
     is_new = existing is None
+    run = session.get(Run, run_id)
+    if run is None:  # pragma: no cover - _upsert_run creates this boundary.
+        raise ValueError(f"run not found while observing notice: {run_id}")
+    if existing is not None:
+        observation = session.scalar(
+            select(NoticeObservation).where(
+                NoticeObservation.notice_id == existing.id,
+                NoticeObservation.run_id == run_id,
+            )
+        )
+        if observation is not None and _check_existing_observation_snapshot(
+            session,
+            run_id=run_id,
+            identity_kind="notice",
+            identity=notice_key,
+            observation=observation,
+            schema_version=NOTICE_OBSERVATION_SNAPSHOT_SCHEMA,
+            snapshot_jsonb=snapshot,
+            source_sha256=snapshot_sha256,
+        ):
+            return existing
     if existing is None:
         existing = Notice(notice_key=notice_key)
         session.add(existing)
@@ -1342,14 +1538,17 @@ def _upsert_notice(
     ]
     for key, value in values.items():
         setattr(existing, key, value)
-    _upsert_attachments(session, existing, raw.get("attachments"))
+    _upsert_attachments(
+        session,
+        existing,
+        raw.get("attachments"),
+        observed_at=_ensure_aware(run.generated_at, timezone_name),
+        normalized_attachments=normalized_attachments,
+    )
     # Flush the canonical row before looking up its observation.  The same
     # external key is shared across runs; the observation, not a second Notice
     # row, records this run's sighting and field changes.
     session.flush()
-    run = session.get(Run, run_id)
-    if run is None:  # pragma: no cover - _upsert_run creates this boundary.
-        raise ValueError(f"run not found while observing notice: {run_id}")
     observation = session.scalar(
         select(NoticeObservation).where(
             NoticeObservation.notice_id == existing.id,
@@ -1363,23 +1562,45 @@ def _upsert_notice(
                 run_id=run_id,
                 observed_at=_ensure_aware(run.generated_at, timezone_name),
                 changed_fields_json=sorted(changed_fields),
+                snapshot_schema_version=NOTICE_OBSERVATION_SNAPSHOT_SCHEMA,
+                snapshot_jsonb=snapshot,
+                source_sha256=snapshot_sha256,
             )
         )
-    elif changed_fields:
-        prior = observation.changed_fields_json
-        prior_fields = prior if isinstance(prior, list) else []
-        observation.changed_fields_json = sorted(set(prior_fields) | set(changed_fields))
+    else:  # pragma: no cover - the existing observation returned above.
+        raise ObservationSnapshotConflictError(
+            f"unexpected notice observation race: notice={notice_key}, run_id={run_id}"
+        )
     # SessionFactory deliberately disables autoflush.  Flush the association
     # here so a malformed artifact containing the same notice key twice cannot
     # create two pending observation rows for the same notice/run pair.
     session.flush()
-    _ensure_official_opportunity_links(
-        session,
-        run_id,
-        existing,
-        raw,
-        notice,
-    )
+    try:
+        # Lifecycle mutations are a smaller boundary than the immutable notice
+        # observation.  A human-selected/recheck merge conflict rolls back only
+        # those relationship writes and becomes a durable ingest warning.
+        with session.begin_nested():
+            _ensure_official_opportunity_links(
+                session,
+                run_id,
+                existing,
+                raw,
+                notice,
+            )
+    except OpportunityIntegrityError as error:
+        if error.code != "opportunity_merge_state_conflict":
+            raise
+        _record_warning(
+            session,
+            run_id,
+            "warning",
+            "opportunity_merge_state_conflict",
+            "사람 선택 또는 재검토 상태가 있어 사업기회를 자동 병합하지 않았습니다.",
+            {
+                "notice_id": existing.notice_key,
+                "requires_human_review": True,
+            },
+        )
     return existing
 
 
@@ -1829,10 +2050,36 @@ def _upsert_order_plan(
     if values is None:
         return None
     plan_no = values["order_plan_unty_no"]
+    snapshot, snapshot_sha256 = _observation_snapshot(
+        ORDER_PLAN_OBSERVATION_SNAPSHOT_SCHEMA,
+        "order_plan",
+        values,
+    )
     existing = session.scalar(
         select(OrderPlan).where(OrderPlan.order_plan_unty_no == plan_no)
     )
     is_new = existing is None
+    run = session.get(Run, run_id)
+    if run is None:  # pragma: no cover - _upsert_run creates this boundary.
+        raise ValueError(f"run not found while observing order plan: {run_id}")
+    if existing is not None:
+        observation = session.scalar(
+            select(OrderPlanObservation).where(
+                OrderPlanObservation.order_plan_id == existing.id,
+                OrderPlanObservation.run_id == run_id,
+            )
+        )
+        if observation is not None and _check_existing_observation_snapshot(
+            session,
+            run_id=run_id,
+            identity_kind="order_plan",
+            identity=plan_no,
+            observation=observation,
+            schema_version=ORDER_PLAN_OBSERVATION_SNAPSHOT_SCHEMA,
+            snapshot_jsonb=snapshot,
+            source_sha256=snapshot_sha256,
+        ):
+            return existing
     if existing is None:
         existing = OrderPlan(order_plan_unty_no=plan_no)
         session.add(existing)
@@ -1880,9 +2127,6 @@ def _upsert_order_plan(
     # lookup.  This is the T-13 boundary: the resolver below is the production
     # call that turns a bid-first waiting link into a targetful plan link.
     session.flush()
-    run = session.get(Run, run_id)
-    if run is None:  # pragma: no cover - _upsert_run creates this boundary.
-        raise ValueError(f"run not found while observing order plan: {run_id}")
     observation = session.scalar(
         select(OrderPlanObservation).where(
             OrderPlanObservation.order_plan_id == existing.id,
@@ -1896,60 +2140,210 @@ def _upsert_order_plan(
                 run_id=run_id,
                 observed_at=_ensure_aware(run.generated_at, timezone_name),
                 changed_fields_json=sorted(changed_fields),
+                snapshot_schema_version=ORDER_PLAN_OBSERVATION_SNAPSHOT_SCHEMA,
+                snapshot_jsonb=snapshot,
+                source_sha256=snapshot_sha256,
             )
         )
-    elif changed_fields:
-        prior = observation.changed_fields_json
-        prior_fields = prior if isinstance(prior, list) else []
-        observation.changed_fields_json = sorted(set(prior_fields) | set(changed_fields))
+    else:  # pragma: no cover - the existing observation returned above.
+        raise ObservationSnapshotConflictError(
+            f"unexpected order-plan observation race: plan={plan_no}, run_id={run_id}"
+        )
     session.flush()
-    resolve_order_plan_opportunity_links(
-        session,
-        existing,
-        evidence_bid_no=_first_order_plan_bid_no(existing.bid_ntice_no_list),
-    )
+    try:
+        with session.begin_nested():
+            resolve_order_plan_opportunity_links(
+                session,
+                existing,
+                evidence_bid_no=_first_order_plan_bid_no(existing.bid_ntice_no_list),
+            )
+    except OpportunityIntegrityError as error:
+        if error.code != "opportunity_merge_state_conflict":
+            raise
+        _record_warning(
+            session,
+            run_id,
+            "warning",
+            "opportunity_merge_state_conflict",
+            "사람 선택 또는 재검토 상태가 있어 사업기회를 자동 병합하지 않았습니다.",
+            {
+                "order_plan_no": existing.order_plan_unty_no,
+                "requires_human_review": True,
+            },
+        )
+        # The official target still needs one unambiguous active owner.  If it
+        # had none before the conflicting deferred references arrived, create
+        # a standalone opportunity without attaching those disputed rows.
+        if not _target_opportunities(session, order_plan=existing):
+            standalone = Opportunity(first_registered_stage="order_plan")
+            session.add(standalone)
+            session.flush()
+            _ensure_official_link(
+                session,
+                opportunity=standalone,
+                stage="order_plan",
+                order_plan=existing,
+                evidence_external_no=existing.order_plan_unty_no,
+                evidence_bid_no=_first_order_plan_bid_no(existing.bid_ntice_no_list),
+            )
     return existing
 
 
-def _attachment_key(raw: dict[str, Any]) -> tuple[Any, Any]:
-    return raw.get("name"), raw.get("url")
+def _normalized_attachment_payloads(
+    notice: NoticeContract,
+    raw_attachments: Any,
+) -> list[dict[str, Any]] | None:
+    """Normalize a collector attachment list without trusting provenance hints.
 
+    The current producer contract is the immutable ``{name, url}`` pair.  A
+    provider identity is derived only from the measured pre-spec G2B URL; raw
+    provenance hints are accepted solely when they exactly match that URL.
+    """
 
-def _upsert_attachments(session: Session, notice: Notice, raw_attachments: Any) -> None:
     if not isinstance(raw_attachments, list):
-        return
-    existing = {_attachment_key({"name": item.name, "url": item.url}): item for item in notice.attachments}
-    seen: set[tuple[Any, Any]] = set()
+        return None
+    normalized: list[dict[str, Any]] = []
+    by_identity: dict[tuple[Any, ...], dict[str, Any]] = {}
+    source_type = (notice.source_type or "").strip().lower()
+    is_pre_spec = source_type in {"pre_spec", "prespec", "pre-spec"}
     for raw in raw_attachments:
         if not isinstance(raw, dict):
             continue
-        key = _attachment_key(raw)
-        seen.add(key)
-        item = existing.get(key)
+        source_url = raw.get("source_url", raw.get("url"))
+        measured_key = parse_attachment_key(source_url) if is_pre_spec else None
+        source_system = "g2b" if measured_key is not None else None
+        source_attachment_key = measured_key
+        hinted_system = raw.get("source_system")
+        hinted_key = raw.get("source_attachment_key")
+        if hinted_system is not None or hinted_key is not None:
+            if (
+                hinted_system != "g2b"
+                or not isinstance(hinted_key, str)
+                or not hinted_key
+                or measured_key != hinted_key
+            ):
+                raise ObservationSnapshotConflictError(
+                    "attachment provenance conflicts with the measured G2B URL"
+                )
+            # Explicit normalized provenance is the primary identity, but it
+            # is accepted only after the source URL independently proves the
+            # same measured provider key.
+            source_system = hinted_system
+            source_attachment_key = hinted_key
+        item = {
+            "name": raw.get("name"),
+            "source_url": source_url,
+            "origin": raw.get("origin") or "g2b",
+            "file_ext": raw.get("file_ext"),
+            "size_bytes": raw.get("size_bytes"),
+            "legacy_stored_path": raw.get("stored_path", raw.get("legacy_stored_path")),
+            "extract_status": raw.get("extract_status"),
+            "source_system": source_system,
+            "source_attachment_key": source_attachment_key,
+        }
+        identity = (
+            ("provider", source_system, source_attachment_key)
+            if source_attachment_key is not None
+            else ("legacy", item["name"], item["source_url"])
+        )
+        previous = by_identity.get(identity)
+        if previous is not None:
+            if previous != item:
+                raise ObservationSnapshotConflictError(
+                    "duplicate attachment identity has conflicting metadata"
+                )
+            continue
+        by_identity[identity] = item
+        normalized.append(item)
+    return normalized
+
+
+def _attachment_snapshot_payload(item: dict[str, Any]) -> dict[str, Any]:
+    """Exclude the legacy local path from the immutable observation payload."""
+
+    return {
+        key: value
+        for key, value in item.items()
+        if key != "legacy_stored_path"
+    }
+
+
+def _max_observed_at(current: datetime | None, observed_at: datetime) -> datetime:
+    if current is None:
+        return observed_at
+    return max(current, observed_at)
+
+
+def _upsert_attachments(
+    session: Session,
+    notice: Notice,
+    raw_attachments: Any,
+    *,
+    observed_at: datetime | None = None,
+    normalized_attachments: list[dict[str, Any]] | None = None,
+) -> None:
+    normalized = (
+        normalized_attachments
+        if normalized_attachments is not None
+        else _normalized_attachment_payloads(
+            NoticeContract(notice_id=notice.notice_key, source_type=notice.source_type),
+            raw_attachments,
+        )
+    )
+    if normalized is None:
+        return
+    observed = observed_at or datetime.now(timezone.utc)
+    existing_provider = {
+        (item.source_system, item.source_attachment_key): item
+        for item in notice.attachments
+        if item.source_system is not None and item.source_attachment_key is not None
+    }
+    existing_legacy = {
+        (item.name, item.source_url): item
+        for item in notice.attachments
+        if item.origin == "g2b" or item.source_system is not None
+    }
+    seen_object_ids: set[int] = set()
+    for raw in normalized:
+        provider_identity = (raw["source_system"], raw["source_attachment_key"])
+        item = (
+            existing_provider.get(provider_identity)
+            if raw["source_attachment_key"] is not None
+            else None
+        )
+        if item is None:
+            item = existing_legacy.get((raw["name"], raw["source_url"]))
         if item is None:
             item = Attachment(notice=notice, origin="g2b")
             session.add(item)
-        item.name = raw.get("name")
-        item.url = raw.get("url")
-        item.origin = raw.get("origin") or item.origin or "g2b"
-        item.file_ext = raw.get("file_ext")
-        item.size_bytes = raw.get("size_bytes")
-        item.stored_path = raw.get("stored_path")
-        item.extract_status = raw.get("extract_status")
-        if notice.source_type == "pre_spec":
-            # The collector contract remains the immutable {name, url} pair.
-            # Only the exact, measured G2B URL shape becomes provenance; every
-            # other shape is deliberately ineligible for provider fetching.
-            attachment_key = parse_attachment_key(item.source_url)
-            if attachment_key is None:
-                item.source_system = None
-                item.source_attachment_key = None
-            else:
-                item.source_system = "g2b"
-                item.source_attachment_key = attachment_key
-    for key, item in existing.items():
-        if key not in seen:
-            session.delete(item)
+        item.name = raw["name"]
+        item.source_url = raw["source_url"]
+        item.origin = raw["origin"] or item.origin or "g2b"
+        item.file_ext = raw["file_ext"]
+        item.size_bytes = raw["size_bytes"]
+        item.legacy_stored_path = raw["legacy_stored_path"]
+        item.extract_status = raw["extract_status"]
+        item.source_system = raw["source_system"]
+        item.source_attachment_key = raw["source_attachment_key"]
+        item.last_seen_at = _max_observed_at(item.last_seen_at, observed)
+        if item.retired_at is None or observed >= item.retired_at:
+            item.retired_at = None
+            item.retired_reason = None
+            item.retired_by_name = None
+        seen_object_ids.add(id(item))
+
+    for item in notice.attachments:
+        if id(item) in seen_object_ids:
+            continue
+        managed_by_collection = item.origin == "g2b" or item.source_system is not None
+        if not managed_by_collection:
+            continue
+        if item.last_seen_at is not None and observed < item.last_seen_at:
+            continue
+        if item.retired_at is None:
+            item.retired_at = observed
+            item.retired_reason = "not_seen_in_source"
+            item.retired_by_name = None
 
 
 def _clear_judgment(session: Session, judgment: Judgment) -> None:
@@ -1976,6 +2370,8 @@ def _load_judgment(
     raw: dict[str, Any],
     schema_version: str,
     source_file: str,
+    *,
+    verified_lineage: VerifiedV3Lineage | None = None,
 ) -> Judgment | None:
     judgment_notice_id = raw.get("notice_id") or notice.notice_key
     missing = missing_judgment_fields(judgment, judgment_notice_id)
@@ -2027,6 +2423,80 @@ def _load_judgment(
             "확인 항목이 없어 빈 목록으로 적재했습니다.",
             {"notice_id": notice.notice_key, "schema_version": schema_version},
         )
+
+    payload = judgment_revision_payload(raw, schema_version=schema_version)
+    if verified_lineage is None:
+        existing_revision = session.scalar(
+            select(JudgmentRevision).where(
+                JudgmentRevision.notice_id == notice.id,
+                JudgmentRevision.source_kind == "legacy_import",
+                JudgmentRevision.run_id == run_id,
+            )
+        )
+        revision = append_judgment_revision(
+            session,
+            notice_id=notice.id,
+            source_kind="legacy_import",
+            run_id=run_id,
+            payload=payload,
+        )
+    else:
+        existing_revision = session.scalar(
+            select(JudgmentRevision).where(
+                JudgmentRevision.notice_id == notice.id,
+                JudgmentRevision.recording_execution_id
+                == verified_lineage.execution_id,
+            )
+        )
+        source_notice = verified_lineage.input_notices.get(notice.notice_key)
+        if source_notice is None:
+            raise ValueError("verified v3 judgment is outside its frozen input")
+        mode = source_notice.get("judgment_mode")
+        if mode == "승계":
+            if existing_revision is not None:
+                source_revision_id = existing_revision.source_revision_id
+            else:
+                parent = current_judgment_revision(session, notice.id)
+                source_revision_id = parent.id if parent is not None else None
+            if source_revision_id is None:
+                raise RevisionValidationError(
+                    "carry-over judgment has no prior same-notice revision"
+                )
+            require_carry_origin_run(
+                session,
+                source_revision_id,
+                expected_source_run_id=source_notice.get("carry_over_from"),
+            )
+            revision = append_judgment_revision(
+                session,
+                notice_id=notice.id,
+                source_kind="carry_over",
+                run_id=verified_lineage.source_run_id,
+                recording_execution_id=verified_lineage.execution_id,
+                source_revision_id=source_revision_id,
+                payload=payload,
+            )
+        elif mode in {"신규", "재판정"}:
+            revision = append_judgment_revision(
+                session,
+                notice_id=notice.id,
+                source_kind="runtime",
+                run_id=verified_lineage.source_run_id,
+                recording_execution_id=verified_lineage.execution_id,
+                payload=payload,
+            )
+        else:  # pragma: no cover - verified lineage rejects this first.
+            raise ValueError("verified v3 judgment mode is invalid")
+
+    # Immutable-scope replay validates through the core append operation but
+    # must not revert or churn the mutable current projection.  This matters
+    # when an older execution is replayed after a later rejudgment.
+    if (
+        existing_revision is not None
+        and revision.id == existing_revision.id
+        and notice.judgment is not None
+    ):
+        return notice.judgment
 
     current = notice.judgment
     if current is None:
@@ -2472,6 +2942,16 @@ _SCREENING_V3_KEYS = {
     "result_count", "failure_count", "partial_artifact", "failure_artifact",
     "results",
 }
+_V3_JUDGMENT_KEYS = {
+    "notice_id", "judgment_mode", "model_name", "model_digest",
+    "prompt_version", "policy_version", "company_profile_version",
+    "company_profile_digest", "judged_in_run", "recorded_in_run",
+    "carried_over", "rejudge_reason", "grade", "readiness",
+    "primary_focus", "exclusion_category", "summary", "next_action",
+    "perspectives", "matched_performances", "counterarguments",
+    "counterargument_resolutions", "verification_items",
+    "two_axis_mixing_flag", "two_axis_mixing_label",
+}
 
 
 def _v3_generation_artifact_error(
@@ -2521,12 +3001,216 @@ def _v3_generation_artifact_error(
     return None
 
 
+def _verified_v3_lineage(
+    session: Session,
+    *,
+    screening_input: dict[str, Any] | None,
+    decisions: dict[str, Any] | None,
+    results: dict[str, Any] | None,
+    input_digest: str | None,
+) -> tuple[VerifiedV3Lineage | None, str | None]:
+    """Bind current v3 siblings to their exact persisted execution.
+
+    Filenames and publication directories are not lineage.  Runtime
+    revisions are enabled only when the three artifacts agree with each other
+    and with the immutable ``ScreeningExecution`` row and input digest.
+    """
+
+    if not all(isinstance(value, dict) for value in (screening_input, decisions, results)):
+        return None, "current v3 runtime lineage requires input, decisions, and results siblings"
+    assert screening_input is not None and decisions is not None and results is not None
+    if screening_input.get("schema_version") != "bidops.screening-input.v1":
+        return None, "screening input schema is not current v3 input"
+    if decisions.get("schema_version") != "bidops.decisions.v3":
+        return None, "screening decisions schema is not v3"
+    if results.get("schema_version") != "bidops.screening.v3":
+        return None, "screening results schema is not v3"
+    if set(screening_input) != _SCREENING_INPUT_KEYS:
+        return None, "screening input fields are not exact"
+    if set(decisions) != _DECISIONS_V3_KEYS:
+        return None, "screening decisions fields are not exact"
+    if set(results) != _SCREENING_V3_KEYS:
+        return None, "screening results fields are not exact"
+
+    input_error = _screening_input_error(screening_input)
+    if input_error is not None:
+        return None, f"screening input is invalid: {input_error}"
+    for value, name, keys in (
+        (decisions, "screening-decisions.json", _DECISIONS_V3_KEYS),
+        (results, "screening-results.json", _SCREENING_V3_KEYS),
+    ):
+        error = _v3_generation_artifact_error(value, name, keys)
+        if error is not None:
+            return None, error
+
+    execution_id = screening_input["execution_id"]
+    if decisions.get("execution_id") != execution_id or results.get("execution_id") != execution_id:
+        return None, "v3 sibling execution ids do not match"
+    source_run_id = screening_input["run_id"]
+    if decisions.get("run_id") != source_run_id:
+        return None, "v3 sibling source run ids do not match"
+    for key in (
+        "generated_at",
+        "prompt_version",
+        "policy_version",
+        "company_profile_version",
+        "company_profile_digest",
+        "generation_config",
+        "generation_config_digest",
+    ):
+        if decisions.get(key) != screening_input.get(key) or results.get(key) != screening_input.get(key):
+            return None, f"v3 sibling {key} binding does not match"
+    for key in ("screening_basis", "model_name", "model_digest"):
+        if results.get(key) != decisions.get(key):
+            return None, f"v3 sibling {key} binding does not match"
+    if results.get("source_window") != screening_input.get("source_window"):
+        return None, "v3 sibling source window does not match"
+
+    execution = session.scalar(
+        select(ScreeningExecution).where(ScreeningExecution.execution_id == execution_id)
+    )
+    if execution is None:
+        return None, "screening execution does not exist"
+    expected_execution = {
+        "source_run_id": source_run_id,
+        "policy_version": screening_input["policy_version"],
+        "prompt_version": screening_input["prompt_version"],
+        "model_name": decisions["model_name"],
+        "model_digest": decisions["model_digest"],
+        "company_profile_version": screening_input["company_profile_version"],
+        "company_profile_digest": screening_input["company_profile_digest"],
+        "generation_config_json": screening_input["generation_config"],
+        "generation_config_digest": screening_input["generation_config_digest"],
+        "candidate_count": screening_input["candidate_count"],
+        "input_artifact_digest": input_digest,
+    }
+    if any(getattr(execution, key) != value for key, value in expected_execution.items()):
+        return None, "v3 artifacts do not match the persisted screening execution"
+
+    input_notices = screening_input.get("notices")
+    raw_decisions = decisions.get("judgments")
+    raw_results = results.get("results")
+    if not isinstance(input_notices, list) or not isinstance(raw_decisions, list) or not isinstance(raw_results, list):
+        return None, "v3 judgment arrays are invalid"
+    if (
+        type(results.get("candidate_count")) is not int
+        or type(results.get("result_count")) is not int
+        or type(results.get("failure_count")) is not int
+        or results["candidate_count"] != len(input_notices)
+        or results["result_count"] != len(raw_results)
+        or results["candidate_count"] != results["result_count"] + results["failure_count"]
+    ):
+        return None, "v3 result counts are invalid"
+    if results.get("partial_artifact") is not (results["failure_count"] > 0):
+        return None, "v3 partial artifact flag is invalid"
+    expected_failure_artifact = "screening-failures.json" if results["failure_count"] else None
+    if results.get("failure_artifact") != expected_failure_artifact:
+        return None, "v3 failure artifact binding is invalid"
+
+    input_by_id = {
+        item.get("notice_id"): item
+        for item in input_notices
+        if isinstance(item, dict) and isinstance(item.get("notice_id"), str)
+    }
+    if len(input_by_id) != len(input_notices):
+        return None, "v3 input notice identities are invalid"
+    reconstructed: list[dict[str, Any]] = []
+    for result in raw_results:
+        if not isinstance(result, dict) or set(result) != {"notice", "judgment"}:
+            return None, "v3 result item fields are not exact"
+        notice = result.get("notice")
+        judgment = result.get("judgment")
+        if not isinstance(notice, dict) or set(notice) != set(_SCREENING_COMMON_NOTICE_KEYS):
+            return None, "v3 result notice fields are not exact"
+        notice_id = notice.get("notice_id")
+        source_notice = input_by_id.get(notice_id)
+        if source_notice is None:
+            return None, "v3 result notice is outside the frozen input"
+        if notice != {key: source_notice[key] for key in _SCREENING_COMMON_NOTICE_KEYS}:
+            return None, "v3 result notice does not match the frozen input"
+        if not isinstance(judgment, dict):
+            return None, "v3 result judgment is invalid"
+        complete = {"notice_id": notice_id, **judgment}
+        if set(complete) != _V3_JUDGMENT_KEYS:
+            return None, "v3 judgment fields are not exact"
+        base = {
+            key: complete[key]
+            for key in (
+                "notice_id",
+                "grade",
+                "readiness",
+                "primary_focus",
+                "exclusion_category",
+                "summary",
+                "perspectives",
+                "matched_performances",
+                "counterarguments",
+                "counterargument_resolutions",
+                "verification_items",
+                "next_action",
+            )
+        }
+        try:
+            validate_current_judgment(base, notice=source_notice)
+        except ScreeningContractViolation:
+            return None, "v3 judgment contract is invalid"
+        axes = add_two_axis_metadata(base)
+        if (
+            complete.get("two_axis_mixing_flag")
+            != axes["two_axis_mixing_flag"]
+            or complete.get("two_axis_mixing_label")
+            != axes["two_axis_mixing_label"]
+        ):
+            return None, "v3 judgment two-axis metadata is invalid"
+        mode = source_notice.get("judgment_mode")
+        if (
+            complete.get("judgment_mode") != mode
+            or complete.get("recorded_in_run") != source_run_id
+            or complete.get("rejudge_reason") != source_notice.get("rejudge_reason")
+        ):
+            return None, "v3 judgment recording lineage does not match its input"
+        if mode in {"신규", "재판정"}:
+            if complete.get("judged_in_run") != source_run_id or complete.get("carried_over") is not False:
+                return None, "v3 runtime judgment origin is invalid"
+            for key in (
+                "model_name",
+                "model_digest",
+                "prompt_version",
+                "policy_version",
+                "company_profile_version",
+                "company_profile_digest",
+            ):
+                if complete.get(key) != getattr(execution, key):
+                    return None, "v3 runtime judgment model binding is invalid"
+        elif mode == "승계":
+            if complete.get("judged_in_run") != source_notice.get("carry_over_from") or complete.get("carried_over") is not True:
+                return None, "v3 carry-over judgment origin is invalid"
+        else:
+            return None, "v3 judgment mode is invalid"
+        reconstructed.append(complete)
+    if reconstructed != raw_decisions:
+        return None, "v3 result judgments do not match their decisions sibling"
+    if execution.scope == "single_notice":
+        if len(input_notices) != 1 or execution.notice_id not in input_by_id:
+            return None, "single-notice execution binding is invalid"
+    return (
+        VerifiedV3Lineage(
+            execution_id=execution_id,
+            source_run_id=source_run_id,
+            input_notices=input_by_id,
+        ),
+        None,
+    )
+
+
 def _load_screening_input_notices(
     session: Session,
     run_id: str,
     raw: dict[str, Any],
     timezone_name: str,
     source_file: str,
+    *,
+    verified_lineage: VerifiedV3Lineage | None = None,
 ) -> dict[str, Notice]:
     """Load v3 input notices into the DB projection without changing input bytes.
 
@@ -2563,6 +3247,43 @@ def _load_screening_input_notices(
         item = _upsert_notice(session, run_id, notice_model, {key: raw_notice[key] for key in _SCREENING_COMMON_NOTICE_KEYS}, timezone_name)
         if item is not None:
             notices[item.notice_key] = item
+            if (
+                verified_lineage is not None
+                and verified_lineage.source_run_id != run_id
+                and session.scalar(
+                    select(NoticeObservation.id).where(
+                        NoticeObservation.notice_id == item.id,
+                        NoticeObservation.run_id == verified_lineage.source_run_id,
+                    )
+                )
+                is None
+            ):
+                source_run = session.get(Run, verified_lineage.source_run_id)
+                derived_observation = session.scalar(
+                    select(NoticeObservation).where(
+                        NoticeObservation.notice_id == item.id,
+                        NoticeObservation.run_id == run_id,
+                    )
+                )
+                if source_run is None or derived_observation is None:
+                    raise ValueError("verified v3 source observation cannot be materialized")
+                # Full-run input can contain candidates outside the historic
+                # validation sample.  The frozen, execution-bound input is
+                # the actual source-run observation for such a candidate;
+                # clone its immutable snapshot before appending the revision
+                # that references that source run.
+                session.add(
+                    NoticeObservation(
+                        notice_id=item.id,
+                        run_id=verified_lineage.source_run_id,
+                        observed_at=_ensure_aware(source_run.generated_at, source_run.timezone),
+                        changed_fields_json=[],
+                        snapshot_schema_version=derived_observation.snapshot_schema_version,
+                        snapshot_jsonb=derived_observation.snapshot_jsonb,
+                        source_sha256=derived_observation.source_sha256,
+                    )
+                )
+                session.flush()
     session.flush()
     return notices
 
@@ -2588,6 +3309,7 @@ def _load_screening_results(
     *,
     expected_generation_config: dict[str, Any] | None = None,
     expected_generation_digest: str | None = None,
+    verified_v3_lineage: VerifiedV3Lineage | None = None,
 ) -> int:
     if raw.get("schema_version") == "bidops.screening.v3":
         generation_error = _v3_generation_artifact_error(
@@ -2637,8 +3359,21 @@ def _load_screening_results(
         )
         _remove_judgments_without_screening(session, notices)
         return 0
+    if (
+        raw.get("schema_version") == "bidops.screening.v3"
+        and raw_results
+        and verified_v3_lineage is None
+    ):
+        _record_warning(
+            session,
+            run_id,
+            "error",
+            "screening_lineage_invalid",
+            "screening v3 판정을 저장된 실행과 검증하지 못해 적재하지 않았습니다.",
+            {"file": source_file},
+        )
+        return 0
 
-    loaded_ids: set[str] = set()
     loaded = 0
     for index, raw_result in enumerate(raw_results):
         if not isinstance(raw_result, dict):
@@ -2732,14 +3467,11 @@ def _load_screening_results(
             raw_judgment,
             schema_version,
             source_file,
+            verified_lineage=verified_v3_lineage,
         )
         if judgment is not None:
             loaded += 1
-            loaded_ids.add(notice.notice_key)
 
-    for notice_key, notice in notices.items():
-        if notice_key not in loaded_ids and notice.judgment is not None:
-            session.delete(notice.judgment)
     session.flush()
     return loaded
 
@@ -3137,6 +3869,12 @@ def ingest_run(
 
     validation_raw = _read_optional_json(validation_path)
     screening_input_present, screening_input_raw, screening_input_invalid = _read_screening_input(screening_input_path)
+    screening_input_digest = None
+    if screening_input_raw is not None and screening_input_invalid is None:
+        try:
+            screening_input_digest = hashlib.sha256(screening_input_path.read_bytes()).hexdigest()
+        except OSError:
+            screening_input_invalid = "file became unreadable"
     screening_raw = _read_optional_json(screening_path)
     decisions_raw = _read_optional_json(decisions_path)
     collection_raw = _read_optional_json(collection_path)
@@ -3214,6 +3952,27 @@ def ingest_run(
                     {"file": str(screening_path), "reason": generation_error or "invalid"},
                 )
                 screening_raw = None
+        verified_v3_lineage = None
+        if (
+            isinstance(screening_raw, dict)
+            and screening_raw.get("schema_version") == "bidops.screening.v3"
+        ):
+            verified_v3_lineage, lineage_error = _verified_v3_lineage(
+                session,
+                screening_input=screening_input_raw,
+                decisions=decisions_raw,
+                results=screening_raw,
+                input_digest=screening_input_digest,
+            )
+            if lineage_error is not None:
+                _record_warning(
+                    session,
+                    run_id,
+                    "error",
+                    "screening_lineage_invalid",
+                    "screening v3 산출물을 저장된 실행에 연결하지 못했습니다.",
+                    {"file": str(screening_path), "reason": lineage_error},
+                )
         if screening_input_present and screening_input_invalid is not None:
             _record_warning(
                 session,
@@ -3261,7 +4020,12 @@ def ingest_run(
             notices = {}
         elif screening_input_raw is not None:
             notices = _load_screening_input_notices(
-                session, run_id, screening_input_raw, timezone_name, str(screening_input_path)
+                session,
+                run_id,
+                screening_input_raw,
+                timezone_name,
+                str(screening_input_path),
+                verified_lineage=verified_v3_lineage,
             )
         elif validation_raw is not None:
             notices = _load_validation_notices(
@@ -3394,6 +4158,7 @@ def ingest_run(
                     result_schema,
                     expected_generation_config=expected_config,
                     expected_generation_digest=expected_digest,
+                    verified_v3_lineage=verified_v3_lineage,
                 )
 
         if collection_raw is not None:

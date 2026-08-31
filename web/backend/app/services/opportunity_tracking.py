@@ -83,6 +83,11 @@ def _resolve_opportunity(
     )
     if opportunity is None:
         raise OpportunityTrackingError("opportunity_not_found", "사업기회를 찾을 수 없습니다")
+    if opportunity.merged_into_opportunity_id is not None:
+        raise OpportunityTrackingError(
+            "opportunity_merged",
+            "병합된 사업기회의 상태는 변경할 수 없습니다",
+        )
     return opportunity
 
 

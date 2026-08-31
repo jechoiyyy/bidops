@@ -30,7 +30,6 @@ from ..models import (
     ContentObject,
     ContentObjectLocation,
     ContentScan,
-    DocumentBlock,
     DocumentBundle,
     DocumentBundleItem,
     DocumentStructure,
@@ -52,6 +51,8 @@ from ..schemas.document_bundles import (
 )
 from . import assets
 from .document_converter import ScratchDocumentProcessor
+from .document_structures import materialize_structure
+from .prespec_overview import prepare_overview_review
 
 MAX_ACTOR_NAME = 128
 CREATE_BUNDLE_RETRIES = 3
@@ -64,6 +65,23 @@ API_ERROR_CODES = {
 }
 UTF8_ACTOR_PREFIX = "UTF-8''"
 UTF8_ACTOR_FORMAT = "utf-8-percent-v1"
+
+
+def _prepare_pre_spec_overview(
+    session: Session,
+    notice_id: int,
+    *,
+    root: Path | None,
+) -> None:
+    """Materialize T-23 state only for a pre-spec notice.
+
+    ``DocumentBundleService`` also handles generic/manual notices.  Those
+    callers must not accidentally create an unrelated overview review row.
+    """
+
+    notice = session.get(Notice, notice_id)
+    if notice is not None and notice.source_type == "pre_spec":
+        prepare_overview_review(session, notice_id, root=root)
 
 _UNSAFE_ASSET_CODES = {
     "unsafe_document", "malware_detected", "mime_mismatch", "malformed_pdf",
@@ -796,22 +814,20 @@ class DocumentBundleService:
             )
             .order_by(DocumentVersion.created_at.asc(), DocumentVersion.id.asc())
         ).all()
-        current_ids = {document.id for document in documents}
         existing_items = session.scalars(select(DocumentBundleItem).where(DocumentBundleItem.bundle_id == bundle.id)).all()
         for item in existing_items:
-            if item.document_version_id not in current_ids:
-                # Draft items are a live projection.  Retired attachments and
-                # superseded current versions must not leak into the ready
-                # snapshot; ready item rows are never passed here.
-                session.delete(item)
-        existing_by_document = {item.document_version_id: item for item in existing_items if item.document_version_id in current_ids}
-        for ordinal, document in enumerate(documents):
+            # Draft items are a live projection.  Recreate the projection in
+            # canonical order rather than updating ordinals in place: an
+            # immediate (bundle_id, ordinal) unique constraint cannot permit
+            # transient swaps.  Ready item rows are never passed here.
+            session.delete(item)
+        if existing_items:
+            session.flush()
+
+        ordinal = 0
+        for document in documents:
             structure = self._structure_for(session, document.id)
             if structure is None:
-                continue
-            existing = existing_by_document.get(document.id)
-            if existing is not None:
-                existing.ordinal = ordinal
                 continue
             content = session.get(ContentObject, document.content_object_id)
             if content is None:
@@ -911,6 +927,9 @@ class DocumentBundleService:
                 if attachment is None:
                     raise BundleServiceError("processing_failed", "이전 document version 계보가 올바르지 않습니다", status_code=500, request_id=request_id)
                 retry_document.is_current = False
+                # The current-row partial unique index is immediate.  Persist
+                # the demotion before adding its replacement.
+                session.flush()
             else:
                 attachment = Attachment(
                     notice_id=bundle.notice_id,
@@ -955,6 +974,13 @@ class DocumentBundleService:
                 self._add_location(session, content.id, "source", source_path, asset.sha256)
             else:
                 attachment.extract_status = inspected.error_code or inspected.safety_status
+            if inspected.safety_status == "safe":
+                # T-23 preparation runs only after the source location is
+                # persisted, while remaining inside this transaction so a
+                # failed cut cannot leave a partial bundle lineage.  A clean
+                # document with no materialized structure still gets the
+                # durable ``awaiting_structure`` state.
+                _prepare_pre_spec_overview(session, bundle.notice_id, root=self.root)
             if structure is not None:
                 self._seed_bundle_items(session, bundle)
             session.flush()
@@ -1338,6 +1364,7 @@ class DocumentBundleService:
                         .where(DocumentVersion.id == current.id, DocumentVersion.is_current.is_(True))
                         .values(is_current=False)
                     )
+                    session.flush()
                 previous = versions[0] if versions else None
                 document = DocumentVersion(
                     id=uuid4(),
@@ -1368,6 +1395,8 @@ class DocumentBundleService:
             # persistence have succeeded, so a failed retry remains visible.
             if inspected_persisted and inspected.safety_status == "safe" and attachment.extract_status == "legacy_acquisition_failed":
                 attachment.extract_status = None
+            if inspected.safety_status == "safe":
+                _prepare_pre_spec_overview(session, bundle.notice_id, root=self.root)
 
             bundle.issues_snapshot = self._issues(session, bundle)
             session.add(
@@ -1583,6 +1612,7 @@ class DocumentBundleService:
                         .where(DocumentVersion.id == current.id, DocumentVersion.is_current.is_(True))
                         .values(is_current=False)
                     )
+                    session.flush()
                 previous = versions[0] if versions else None
                 document = DocumentVersion(
                     id=uuid4(),
@@ -1607,7 +1637,11 @@ class DocumentBundleService:
                 )
                 session.add(document)
                 session.flush()
-                self._materialize_structure(session, document, asset, inspected, request_paths)
+                structure = self._materialize_structure(session, document, asset, inspected, request_paths)
+            if inspected.safety_status == "safe":
+                # Also refresh the logical review when this acquisition is a
+                # same-byte restore and no new structure row was needed.
+                _prepare_pre_spec_overview(session, bundle.notice_id, root=self.root)
 
             bundle.issues_snapshot = self._issues(session, bundle)
             session.add(
@@ -1664,38 +1698,6 @@ class DocumentBundleService:
             session.flush()
         return content
 
-    def _ensure_structure_content(self, session: Session, payload_hash: str, payload: Mapping[str, object]) -> ContentObject:
-        content = session.scalar(select(ContentObject).where(ContentObject.sha256 == payload_hash))
-        if content is None:
-            content = ContentObject(sha256=payload_hash, size_bytes=0, detected_mime="application/json", retention_class="document-structure")
-            encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
-            content.size_bytes = len(encoded)
-            session.add(content)
-            session.flush()
-        return content
-
-    def _store_generated_content(
-        self,
-        session: Session,
-        content: bytes,
-        media_type: str,
-        *,
-        created_paths: list[Path] | None = None,
-    ) -> ContentObject:
-        digest = hashlib.sha256(content).hexdigest()
-        object_row = session.scalar(select(ContentObject).where(ContentObject.sha256 == digest))
-        if object_row is None:
-            object_row = ContentObject(sha256=digest, size_bytes=len(content), detected_mime=media_type, retention_class="document-structure")
-            session.add(object_row)
-            session.flush()
-        destination, metadata = assets.store_bytes("structure", content, root=self.root, suffix=".bin")
-        if metadata.size_bytes != len(content):
-            raise BundleServiceError("processing_failed", "구조 이미지 hash 검증에 실패했습니다", status_code=400)
-        if created_paths is not None:
-            created_paths.append(destination)
-        self._add_location(session, object_row.id, "structure", destination, digest)
-        return object_row
-
     def _materialize_structure(
         self,
         session: Session,
@@ -1704,61 +1706,17 @@ class DocumentBundleService:
         inspected: assets.InspectedAsset,
         request_paths: list[Path],
     ) -> DocumentStructure | None:
-        """Persist one inspected structure and its block projection.
+        """Delegate every structure write to the canonical materializer."""
 
-        Both manual upload and internal provider ingestion pass through this
-        helper so lineage, payload hashing, and generated page objects cannot
-        drift between the two paths.
-        """
-
-        if inspected.processed is None:
-            return None
-        processed = inspected.processed
-        payload = dict(processed)
-        payload["document_version_id"] = str(document.id)
-        payload["structure_id"] = str(payload.get("structure_id") or uuid4())
-        for page in payload.get("pages", []):
-            image_id = page.get("image_content_object_id")
-            rendered = processed.rendered_pages.get(int(page["number"]))
-            if image_id is not None and rendered:
-                image_object = self._store_generated_content(session, rendered, "image/png", created_paths=request_paths)
-                page["image_content_object_id"] = str(image_object.id)
-        validate_structure(payload)
-        structure_path, payload_hash, _size = assets.store_structure_payload(payload, root=self.root)
-        request_paths.append(structure_path)
-        structure_object = self._ensure_structure_content(session, payload_hash, payload)
-        self._add_location(session, structure_object.id, "structure", structure_path, payload_hash)
-        structure = DocumentStructure(
-            id=UUID(str(payload["structure_id"])),
-            document_version_id=document.id,
-            source_sha256=asset.sha256,
-            media_type=inspected.detected_mime,
-            extractor_name=str(payload["extractor"]["name"]),
-            extractor_version=str(payload["extractor"]["version"]),
-            upstream_commit=payload["extractor"].get("upstream_commit"),
-            payload_content_object_id=structure_object.id,
-            payload_sha256=payload_hash,
-            page_count=len(payload.get("pages", [])),
-            block_count=len(payload.get("blocks", [])),
-            validation_status="ready",
+        return materialize_structure(
+            session,
+            document,
+            asset,
+            inspected,
+            request_paths,
+            root=self.root,
+            add_location=self._add_location,
         )
-        session.add(structure)
-        session.flush()
-        for block in payload.get("blocks", []):
-            session.add(
-                DocumentBlock(
-                    structure_id=structure.id,
-                    block_key=block["block_key"],
-                    parent_block_key=block["parent_block_key"],
-                    block_type=block["type"],
-                    page=block["page"],
-                    bbox=block["bbox"],
-                    content=block["text"],
-                    confidence=block["confidence"],
-                    attributes=block["attributes"],
-                )
-            )
-        return structure
 
     def _add_location(self, session: Session, content_id: UUID, namespace: str, path: Path, digest: str) -> None:
         root = assets.asset_root(self.root)
@@ -1857,12 +1815,34 @@ class DocumentBundleService:
             if replaced is None or replaced.notice_id != document.notice_id:
                 raise BundleServiceError("invalid_request", "대체 document version이 같은 공고에 속하지 않습니다", status_code=400)
         correlation_id = self._bundle_correlation_id(session, latest_bundle)
-        if request.is_current:
+
+        # A non-null attachment owns a version lineage.  Lock the complete
+        # lineage and allocate after its maximum so patching an older row can
+        # never reuse a version already assigned to a newer row.  NULL
+        # attachment IDs intentionally have no shared lineage.
+        next_version = int(document.version) + 1
+        if document.attachment_id is not None:
+            lineage = session.scalars(
+                select(DocumentVersion)
+                .where(DocumentVersion.attachment_id == document.attachment_id)
+                .order_by(DocumentVersion.version.asc(), DocumentVersion.id.asc())
+                .with_for_update()
+            ).all()
+            next_version = max(int(row.version) for row in lineage) + 1
+
+        if request.is_current and document.attachment_id is not None:
             session.execute(
                 update(DocumentVersion)
-                .where(DocumentVersion.notice_id == document.notice_id, DocumentVersion.attachment_id == document.attachment_id, DocumentVersion.id != document.id)
+                .where(
+                    DocumentVersion.attachment_id == document.attachment_id,
+                    DocumentVersion.id != document.id,
+                    DocumentVersion.is_current.is_(True),
+                )
                 .values(is_current=False)
             )
+            # The current-row uniqueness check is immediate, so the old
+            # current state must be gone before this row is marked current.
+            session.flush()
         changed = session.execute(
             update(DocumentVersion)
             .where(DocumentVersion.id == document.id, DocumentVersion.version == request.version)
@@ -1871,7 +1851,7 @@ class DocumentBundleService:
                 effective_date=request.effective_date,
                 replaces_document_version_id=request.replaces_document_version_id,
                 is_current=request.is_current,
-                version=DocumentVersion.version + 1,
+                version=next_version,
             )
         )
         if changed.rowcount != 1:

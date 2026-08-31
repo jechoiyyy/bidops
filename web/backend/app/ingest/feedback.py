@@ -10,8 +10,9 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..config import get_settings
 from ..models import IngestWarning, Review, Run, VerificationAnswer
+from ..services.revisions import append_review_revision
+from ..services.reviews import review_revision_payload
 from .contracts import FeedbackArtifact, FeedbackReviewContract, is_blank, model_extra_fields
 
 
@@ -129,7 +130,6 @@ def load_feedback(
     if not isinstance(raw_reviews, list):
         return 0
     imported = 0
-    reviewer = get_settings().reviewer_name or None
     for index, raw_review in enumerate(raw_reviews):
         if not isinstance(raw_review, dict):
             _warning(
@@ -216,11 +216,32 @@ def load_feedback(
             corrected_readiness=_filled_text(review_model.corrected_readiness),
             weakest_perspective=_filled_text(review_model.weakest_perspective),
             reason=_filled_text(review_model.reason),
-            reviewer=reviewer,
+            # The compatibility YAML has no reviewer field.  A current
+            # deployment setting cannot identify the historical author.
+            reviewer=None,
         )
         session.add(review)
         for item, answer in filled_answers:
             session.add(VerificationAnswer(review=review, item=item, answer=answer))
+        session.flush()
+        append_review_revision(
+            session,
+            notice_id=notice.id,
+            source_kind="legacy_import",
+            run_id=run.id,
+            judgment_revision_id=None,
+            payload=review_revision_payload(
+                disposition=review.disposition,
+                system_judgment_review=review.system_judgment_review,
+                corrected_grade=review.corrected_grade,
+                corrected_readiness=review.corrected_readiness,
+                weakest_perspective=review.weakest_perspective,
+                reason=review.reason,
+                reviewer=review.reviewer,
+                verification_answers=filled_answers,
+            ),
+            captured_at=review.updated_at,
+        )
         imported += 1
     session.flush()
     return imported
