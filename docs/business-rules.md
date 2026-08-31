@@ -42,9 +42,25 @@
 
 사전규격 연결 상태는 `확정`, `후보 확인 대기`, `사람 확인 완료`, `검색 미확인` 중 하나다. `검색 미확인`은 사전규격이 없다는 뜻이 아니라 확인되지 않았다는 뜻이며 화면·API·집계 어디에서도 부재로 바꾸지 않는다. 검색 시점에는 미공개와 이름 불일치를 가를 근거가 없으므로 두 상태로 쪼개지 않는다. 이 상태에는 마지막 검색 시각과 시도한 방식을 남기고 재검색과 수동 검색 경로를 제공한다([ADR-0025](tracking/decisions/0025-prespec-link-search-unconfirmed-state.md)).
 
+사업기회 소유권을 정하는 authoritative 연결은 `official + 확정` 또는 `candidate + 사람 확인 완료 + accepted`뿐이다. 후보 확인 대기, rejected, 검색 미확인은 소유권이나 자동 병합에 사용하지 않고 이력으로 남긴다. 공식 관계가 뒤늦게 여러 사업기회를 연결하더라도 모든 관련 사업기회가 `미선택`이고 recheck state가 없을 때만 자동 병합한다. 병합은 secondary row를 삭제하지 않고 retained opportunity를 가리키는 이력으로 보존하며, 사람 선택이나 recheck가 하나라도 있으면 자동 병합하지 않고 사람 확인으로 보낸다.
+
 검토는 `1차 분류`(발주계획 공고명) → `사전규격 개요 검토`(제안요청서 앞부분) → `심층 검토`(첨부 원문 전체) 순으로 좁혀 간다([ADR-0031](tracking/decisions/0031-prespec-overview-review-stage.md)).
 
 사전규격에 도달한 건은 개요 검토를 자동으로 수행한다. 발주계획에서 추적하기로 고른 건이 사전규격에 올라오면 바로 검토하고, 발주계획에 없던 건은 **`신규`로 명시하고** 역시 바로 검토한다. 개요 검토는 앞부분만 읽는 저비용 단계이므로 아래 금지의 대상이 아니다.
+
+개요 검토의 앞부분은 [ADR-0032](tracking/decisions/0032-prespec-overview-cutting-rule.md)에 따라 정한다. 목차 항목이 본문 소제목과 대응하면 목차를 사용하고, 그렇지 않으면 의미 있는 주제 소제목을 사용한다. 번호 형식만으로 절단하지 않는다. 시작 또는 종료 위치가 모호하면 추측해 자르지 않고 `unknown`으로 남겨 사람 검토로 보낸다. 자동 추출 입력에는 사용 전략(`strategy`), `start_locator`, `end_locator`, `source_sha256`를 보존하며, 고정 block 수나 전체 문서를 개요 검토에 자동 투입하지 않는다.
+
+개요 검토의 결정적 절단 snapshot과 모델 attempt는 분리한다([ADR-0033](tracking/decisions/0033-prespec-overview-review-runtime-contract.md)). 승인된 사설 vLLM binding이 없으면 절단까지만 만들고 `awaiting_model`로 두며 결과와 완료 시각은 `null`로 보존한다. 경계가 모호한 절단은 `needs_human_review`로 보내고 모델을 호출하지 않는다. 결정적 mock은 `reference_only`, `deployable=false`이며 운영 완료로 집계하지 않는다. `completed`는 승인된 binding의 응답이 strict schema, evidence locator, source hash 검증을 모두 통과한 경우에만 허용하고 hosted OpenAI·Codex로 자동 fallback하지 않는다.
+
+실제 모델 attempt의 입력 snapshot·sequence·입력 hash·binding은 생성 뒤 바꾸지 않는다
+([ADR-0035](tracking/decisions/0035-prespec-overview-attempt-result-lifecycle.md)). 상태·허용 시각·
+검증 결과 참조만 열 단위로 전이하고 모든 전이를 별도 append-only event로 남긴다. 검증된
+결과는 attempt와 분리한 immutable row에 한 번만 기록한다. 재실행은 기존 attempt나 결과를
+초기화하지 않고 새 sequence를 만든다. `조건부 추진 검토`는 조건과 확인 기한이 모두 있어야
+하고, 현재 snapshot 밖의 evidence locator나 검증되지 않은 source hash는 완료 결과로
+승격하지 않는다.
+
+개요 결과는 `추진 검토`, `조건부 추진 검토`, `보류`, `검토 종료` 중 하나다. `조건부 추진 검토`에는 조건과 확인 기한이 필요하다. 이 결과는 적합성 등급, 참여 준비 상태, 심층 검토 추적 선택, 최종 입찰 Go/No-Go를 채우거나 대신하지 않는다.
 
 사전규격 메타데이터는 전량 보존하지만 첨부 바이트는 조건을 만족할 때만 취득한다. 다음 중 하나이면 대상이다.
 
@@ -70,6 +86,24 @@
 `계속 추적`인 사업기회에 입찰공고가 연결되면 사전규격 문서와 입찰공고 문서의 금액, 계약기간, 참가자격, 공동수급, 평가방식, 배점, 제출물, 제출기한, 요구사항 변경을 비교한다. 비교할 문서 버전이나 연결이 불확실하면 `변경 없음`으로 추정하지 않고 사람 확인으로 보낸다.
 
 중요한 변경이 있으면 새 문서 묶음과 새 분석 시점을 가진 리포트를 만든다. 사전규격 리포트의 문장·근거·사람 의견을 수정하지 않는다. 변경이 없으면 비교한 양쪽 버전과 확인 범위를 남긴다. 시스템은 이 결과를 자동 제출이나 발주기관 연락으로 연결하지 않으며 최종 Go/No-Go는 사람이 결정한다.
+
+R-07의 상세 계약은 [ADR-0034](tracking/decisions/0034-bid-delta-final-decision.md)의 제안
+상태다. 구현 전에도 다음 안전 경계는 기존 업무 규칙에서 그대로 유지한다.
+
+- 비교는 ready bundle에 고정된 기준·비교 document version, structure, source/payload hash를
+  저장한다. live 첨부나 mutable current pointer로 과거 비교를 다시 해석하지 않는다.
+- 동일 사업기회에 사전규격·입찰공고·정정이 여러 개면 exact pair를 명시한다. 서버가
+  `latest`를 추정하지 않고 새 문서는 새 비교 후보로 보존한다.
+- 계산 상태 `pending|running|completed|failed`와 결과 상태
+  `changed|unchanged|unknown|failed`를 분리한다. 아직 계산하지 않음, 계산 실패, 판단 불가를
+  변경 없음으로 바꾸지 않는다.
+- `changed`와 `unchanged`에는 기준·비교 양쪽 원문 locator가 필요하다. 한쪽 근거를 검증할
+  수 없으면 `unknown` 또는 `failed`다.
+- 최종 입찰 결정은 actor, reason, request ID, 비교 version·result digest·양쪽 document
+  version fence를 가진 append-only 사람 기록이다. 새 결정은 과거 결정을 수정하지 않는다.
+
+최종 결정 enum, material 범주·임계값, 새 공고·정정 뒤 기존 결정의 currentness는 사업개발
+업무 책임자의 선택 대기다. 결정 전에는 임시 enum이나 범주를 운영 규칙으로 사용하지 않는다.
 
 ## 후보 선정과 현재 1차 판정
 

@@ -194,7 +194,7 @@ export function NoticeDetailPage() {
                 {detailDeadline ? <span className={`queue-detail-deadline is-${detailDeadline.urgency} mono tabular-nums`}>{detailDeadline.label}</span> : null}
                 <span className="mono tabular-nums judgment-published">{detail.published_at ? `공고 ${formatDate(detail.published_at)}` : "공고일 미확인"}</span>
               </div>
-              <section className="review-workspace-section judgment-deep-review-section" aria-labelledby="deep-review-entry-title">
+              <section id="document-preparation" className="review-workspace-section judgment-deep-review-section" aria-labelledby="deep-review-entry-title">
                 <div className="review-section-heading">
                   <div>
                     <span className="review-section-eyebrow">문서 준비</span>
@@ -206,7 +206,12 @@ export function NoticeDetailPage() {
                 {bundleQuery.error ? <p role="status">문서 bundle을 확인할 수 없습니다.</p> : null}
                 {(() => {
                   const readyBundle = bundleQuery.data?.items.find((bundle) => bundle.status === "ready");
-                  if (!readyBundle) return <p>문서 준비가 완료된 ready bundle이 있어야 심층 검토를 시작할 수 있습니다.</p>;
+                  if (!readyBundle) return (
+                    <div className="document-preparation-guidance" role="status">
+                      <strong>안전한 문서 준비가 필요합니다.</strong>
+                      <p>legacy 첨부 이력으로 대신할 수 없습니다. 원문 격리와 악성코드 검사, 변환·구조화, 문서 역할 확인을 거쳐 ready bundle을 확정한 뒤 심층 검토를 시작하십시오.</p>
+                    </div>
+                  );
                   return (
                     <div style={{ display: "flex", flexWrap: "wrap", alignItems: "end", gap: 8 }}>
                       <label>담당자 이름<input aria-label="심층 검토 담당자 이름" value={deepReviewActor} onChange={(event) => setDeepReviewActor(event.target.value)} style={{ display: "block", padding: 7, marginTop: 4 }} /></label>
@@ -261,7 +266,7 @@ export function NoticeDetailPage() {
                   </div>
                   <span>원문·관점·확인 항목</span>
                 </div>
-                <AttachmentPanel noticePk={detail.id} attachments={detail.attachments} />
+                <AttachmentPanel noticePk={detail.id} attachments={detail.attachments} documentPreparationHref="#document-preparation" />
                 <PerspectiveTable perspectives={detail.judgment?.perspectives ?? []} />
                 <div className="notice-review-grid">
                   <CounterargumentList items={detail.judgment?.counterarguments ?? []} />

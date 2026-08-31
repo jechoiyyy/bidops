@@ -1,49 +1,21 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Outlet, useLocation, useSearchParams } from "react-router-dom";
+import { Outlet, useLocation, useMatches, useSearchParams } from "react-router-dom";
 import { EmptyState } from "../common/EmptyState";
 import { api } from "../../lib/api";
 import "../../styles/shell-relaxed.css";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
-
-const pageTitles: Record<string, string> = {
-  "/": "대시보드",
-  "/queue": "검토 대기열",
-  "/deadlines": "마감 추적",
-  "/opportunities": "사업기회",
-  "/pre-specs": "사전규격",
-  "/judgments": "공고 판정 이력",
-  "/reviews": "담당자 리뷰 기록",
-  "/profile": "회사 프로필",
-  "/metrics": "검증 지표",
-  "/runs": "수집 실행",
-  "/attachments": "첨부 확보",
-  "/audit": "산출물 감사 로그",
-  "/deep-reviews": "심층 검토 보고서",
-};
-
-// 화면마다 무엇을 고칠 수 있는지가 다르다. 전역 "읽기 전용"은 실제 동작과 맞지 않았다.
-const editScopes: Record<string, string> = {
-  "/queue": "리뷰 저장 가능",
-  "/opportunities": "추적 상태 저장 가능",
-  "/judgments": "판정 원문 읽기 전용",
-  "/profile": "원본 문서에서 관리",
-};
-
-function editScopeForPath(pathname: string): string | null {
-  const match = Object.keys(editScopes).find((path) => pathname === path || pathname.startsWith(`${path}/`));
-  return match ? editScopes[match] : null;
-}
-
-function titleForPath(pathname: string): string {
-  if (pageTitles[pathname]) return pageTitles[pathname];
-  const match = Object.keys(pageTitles).find((path) => path !== "/" && pathname.startsWith(`${path}/`));
-  return match ? pageTitles[match] : "BidOps Admin";
-}
+import { fallbackRouteMetadata, metadataFromHandle, type RouteMetadata } from "./route-meta";
 
 export function AppShell() {
   const location = useLocation();
+  const matches = useMatches();
+  const activeRouteMetadata = matches.reduce<RouteMetadata | null>(
+    (metadata, match) => metadataFromHandle(match.handle) ?? metadata,
+    null,
+  ) ?? fallbackRouteMetadata;
+  const runContextEnabled = activeRouteMetadata.dataScope === "run";
   const [navOpen, setNavOpen] = useState(false);
   const navRef = useRef<HTMLElement>(null);
   const navTriggerRef = useRef<HTMLButtonElement>(null);
@@ -53,9 +25,10 @@ export function AppShell() {
   const runsQuery = useQuery({
     queryKey: ["runs"],
     queryFn: api.getRuns,
+    enabled: runContextEnabled,
     staleTime: 30_000,
   });
-  const runs = runsQuery.data?.items ?? [];
+  const runs = runContextEnabled ? runsQuery.data?.items ?? [] : [];
   const queryRunId = searchParams.get("run");
   // 수집·표본까지만 끝난 회차는 판정이 없어 대부분의 화면이 비어 보인다.
   // 명시적으로 고른 회차가 없으면 판정을 갖춘 최신 회차를 기본으로 삼는다.
@@ -65,7 +38,7 @@ export function AppShell() {
   const detailQuery = useQuery({
     queryKey: ["run", selectedRunId],
     queryFn: () => api.getRun(selectedRunId as string),
-    enabled: Boolean(selectedRunId),
+    enabled: runContextEnabled && Boolean(selectedRunId),
     staleTime: 30_000,
   });
 
@@ -97,13 +70,13 @@ export function AppShell() {
   }, [navOpen]);
 
   useEffect(() => {
-    if (runs.length === 0 || !selectedRunId || queryRunId === selectedRunId) return;
+    if (!runContextEnabled || runs.length === 0 || !selectedRunId || queryRunId === selectedRunId) return;
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
       next.set("run", selectedRunId);
       return next;
     }, { replace: true });
-  }, [queryRunId, runs.length, selectedRunId, setSearchParams]);
+  }, [queryRunId, runContextEnabled, runs.length, selectedRunId, setSearchParams]);
 
   const onRunChange = (runId: string) => {
     setSearchParams((current) => {
@@ -114,24 +87,26 @@ export function AppShell() {
     void queryClient.invalidateQueries();
   };
 
-  const selectedRun = detailQuery.data ?? selectedSummary;
-  const runError = runsQuery.error ?? detailQuery.error;
+  const selectedRun = runContextEnabled ? detailQuery.data ?? selectedSummary : null;
+  const runError = runContextEnabled ? runsQuery.error ?? detailQuery.error : null;
 
   return (
     <div className="app-shell">
       <Sidebar navRef={navRef} open={navOpen} onClose={() => setNavOpen(false)} />
       <div className="app-content">
         <TopBar
-          editScope={editScopeForPath(location.pathname)}
-          isLoading={runsQuery.isLoading || detailQuery.isLoading}
+          dataScope={activeRouteMetadata.dataScope}
+          editScope={activeRouteMetadata.editScope}
+          isLoading={runContextEnabled && (runsQuery.isLoading || detailQuery.isLoading)}
           onToggleNav={() => setNavOpen((current) => !current)}
           menuButtonRef={navTriggerRef}
           navOpen={navOpen}
           onRunChange={onRunChange}
+          runSelectorVisible={activeRouteMetadata.runSelectorVisible}
           runs={runs}
           selectedRun={selectedRun}
           selectedRunId={selectedRunId}
-          title={titleForPath(location.pathname)}
+          title={activeRouteMetadata.title}
         />
         {runError ? (
           <div className="shell-notice">

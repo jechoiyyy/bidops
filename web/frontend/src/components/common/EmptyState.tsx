@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { Link } from "react-router-dom";
 
 export interface EmptyStateAction {
@@ -22,16 +23,24 @@ function ActionControl({ action, variant }: { action: EmptyStateAction; variant:
 }
 
 export function EmptyState({ title, description, compact = false, action, secondaryAction, tone = "neutral" }: EmptyStateProps) {
+  const generatedId = useId();
+  const titleId = `empty-state-title-${generatedId}`;
+  const descriptionId = description ? `empty-state-description-${generatedId}` : undefined;
   return (
-    <div className={`empty-state empty-state-${tone} ${compact ? "empty-state-compact" : ""}`.trim()}>
+    <div
+      className={`empty-state empty-state-${tone} ${compact ? "empty-state-compact" : ""}`.trim()}
+      role={tone === "error" ? "alert" : undefined}
+      aria-labelledby={titleId}
+      aria-describedby={descriptionId}
+    >
       <div className="empty-state-mark" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
           <rect x="4" y="4" width="16" height="16" rx="2" />
           <path d="M8 9h8M8 13h5M8 17h3" />
         </svg>
       </div>
-      <strong>{title}</strong>
-      {description ? <p>{description}</p> : null}
+      <strong id={titleId}>{title}</strong>
+      {description ? <p id={descriptionId}>{description}</p> : null}
       {action || secondaryAction ? (
         <div className="empty-state-actions">
           {action ? <ActionControl action={action} variant="primary" /> : null}

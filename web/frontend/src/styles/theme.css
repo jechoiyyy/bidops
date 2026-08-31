@@ -5724,6 +5724,124 @@ pre {
   outline-color: var(--color-danger);
 }
 
+/* ---- 공통 interaction 계약 ---- */
+.status-badge {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  padding: 3px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--color-muted-soft);
+  background: var(--surface-secondary);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.status-badge-info {
+  color: var(--color-info);
+  border-color: var(--color-teal);
+  background: var(--color-info-bg);
+}
+
+.status-badge-success {
+  color: var(--color-success);
+  border-color: var(--color-mint-soft);
+  background: var(--color-success-bg);
+}
+
+.status-badge-warning {
+  color: var(--color-warning);
+  border-color: var(--color-warning-edge);
+  background: var(--color-warning-bg);
+}
+
+.status-badge-danger {
+  color: var(--color-danger);
+  border-color: var(--color-danger-edge);
+  background: var(--color-danger-bg);
+}
+
+.actor-field {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.actor-field label {
+  color: var(--color-deep);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.actor-field input {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--control-height);
+  padding: 8px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  background: var(--surface-card);
+}
+
+.actor-field p,
+.disabled-reason {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.disabled-reason {
+  max-width: 68ch;
+}
+
+.mutation-feedback {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--color-teal);
+  border-radius: var(--radius-md);
+  color: var(--color-info);
+  background: var(--color-info-bg);
+}
+
+.mutation-feedback-success {
+  color: var(--color-success);
+  border-color: var(--color-mint-soft);
+  background: var(--color-success-bg);
+}
+
+.mutation-feedback-warning {
+  color: var(--color-warning);
+  border-color: var(--color-warning-edge);
+  background: var(--surface-warning);
+}
+
+.mutation-feedback-error {
+  color: var(--color-danger);
+  border-color: var(--color-danger-edge);
+  background: var(--surface-error);
+}
+
+.interaction-control {
+  min-height: var(--control-height);
+}
+
+.interaction-check {
+  display: inline-flex;
+  min-height: var(--control-height);
+  align-items: center;
+  gap: 8px;
+}
+
+.interaction-check input {
+  width: 18px;
+  height: 18px;
+}
+
 @media (max-width: 640px) {
   .panel-header,
   .panel-body,

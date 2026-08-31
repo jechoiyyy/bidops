@@ -1,9 +1,13 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useSearchParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
+import { ActorField } from "../components/common/ActorField";
 import { Badge } from "../components/common/Badge";
+import { DisabledReason } from "../components/common/DisabledReason";
 import { EmptyState } from "../components/common/EmptyState";
+import { MutationFeedback } from "../components/common/MutationFeedback";
 import { Toast } from "../components/common/Toast";
+import { useUnsavedGuard } from "../components/common/useUnsavedGuard";
 import { api, ApiError } from "../lib/api";
 import {
   linkRecordLabel,
@@ -24,6 +28,8 @@ import "../styles/opportunities-relaxed.css";
 
 const TRACKING_STATUSES: OpportunityTrackingStatus[] = ["미선택", "계속 추적", "보류", "종료"];
 const STAGES: OpportunityFirstRegisteredStage[] = ["order_plan", "pre_spec", "bid_notice"];
+const SORTS = ["created_at", "tracking_status", "first_registered_stage"] as const;
+type OpportunitySort = (typeof SORTS)[number];
 const PAGE_SIZE = 50;
 
 function formatMoment(value: string | null): string {
@@ -37,14 +43,21 @@ function primaryTitle(item: OpportunityListItem | OpportunityDetailResponse): st
   return named?.title?.trim() || "제목 미확인";
 }
 
-function LinkRow({ link, isSignalSource }: { link: OpportunityLinkView; isSignalSource: boolean }) {
+function lifecycleRank(link: OpportunityLinkView): number {
+  if (link.stage === "order_plan") return 0;
+  if (link.source_type === "pre_spec") return 1;
+  return 2;
+}
+
+function LifecycleCard({ link, isSignalSource, step }: { link: OpportunityLinkView; isSignalSource: boolean; step: number }) {
   return (
     <li className={`opportunity-link ${isSignalSource ? "opportunity-link-signal" : ""}`.trim()}>
+      <span className="opportunity-link-step" aria-hidden="true">{step}</span>
       <div className="opportunity-link-head">
         <span className="opportunity-link-kind">{linkRecordLabel(link)}</span>
         <Badge variant={link.status === "검색 미확인" ? "evidence-unknown" : "neutral"} label={link.status} />
         {link.link_type === "candidate" ? <Badge variant="alert" label="후보" /> : null}
-        {isSignalSource ? <Badge variant="alert" label="이 레코드가 재검토 신호의 근거" /> : null}
+        {isSignalSource ? <Badge variant="alert" label="재검토 근거" /> : null}
       </div>
       <p className="opportunity-link-title">{link.title?.trim() || "제목 미확인"}</p>
       <dl className="opportunity-link-facts">
@@ -72,7 +85,7 @@ function LinkRow({ link, isSignalSource }: { link: OpportunityLinkView; isSignal
           </div>
         ) : null}
       </dl>
-      <p className="opportunity-link-note">{linkStatusDescription(link)}</p>
+      <p className="opportunity-link-note"><strong>연결 상태</strong> · {linkStatusDescription(link)}</p>
     </li>
   );
 }
@@ -80,9 +93,11 @@ function LinkRow({ link, isSignalSource }: { link: OpportunityLinkView; isSignal
 function TrackingForm({
   opportunity,
   onSaved,
+  onDirtyChange,
 }: {
   opportunity: OpportunityDetailResponse;
   onSaved: (message: string) => void;
+  onDirtyChange: (dirty: boolean) => void;
 }) {
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<OpportunityTrackingStatus>(opportunity.tracking_status);
@@ -97,11 +112,14 @@ function TrackingForm({
         { tracking_status: status, reason: reason.trim() },
         actorName,
       ),
-    onSuccess: async () => {
+    onSuccess: async (saved) => {
       setError(null);
+      setStatus(saved.tracking_status);
       setReason("");
+      setActorName("");
+      onDirtyChange(false);
+      queryClient.setQueryData(["opportunity", opportunity.id], saved);
       await queryClient.invalidateQueries({ queryKey: ["opportunities"] });
-      await queryClient.invalidateQueries({ queryKey: ["opportunity", opportunity.id] });
       onSaved("추적 상태를 저장했습니다.");
     },
     onError: (caught: unknown) => {
@@ -110,6 +128,19 @@ function TrackingForm({
   });
 
   const ready = reason.trim().length > 0 && actorName.trim().length > 0;
+  const dirty = status !== opportunity.tracking_status || reason.length > 0 || actorName.length > 0;
+  const disabledReason = mutation.isPending
+    ? "추적 상태 저장 요청을 처리하고 있습니다."
+    : !reason.trim()
+      ? "추적 상태를 저장하려면 이유를 입력하십시오."
+      : !actorName.trim()
+        ? "추적 상태를 저장하려면 담당자 claimed name을 입력하십시오."
+        : null;
+
+  useEffect(() => {
+    onDirtyChange(dirty);
+    return () => onDirtyChange(false);
+  }, [dirty, onDirtyChange]);
 
   return (
     <form
@@ -121,11 +152,12 @@ function TrackingForm({
     >
       <h4>추적 상태 변경</h4>
       <p className="opportunity-form-note">
-        담당자 이름은 감사 표식이며 로그인이 아니다. 이유는 기록으로 남는다.
+        선택한 상태와 이유는 사람의 추적 판단 기록으로 남는다.
       </p>
+      {dirty ? <p className="opportunity-form-unsaved" role="status">저장되지 않은 추적 상태 변경이 있습니다.</p> : null}
       <label>
         <span>추적 상태</span>
-        <select value={status} onChange={(event) => setStatus(event.target.value as OpportunityTrackingStatus)}>
+        <select className="interaction-control" value={status} onChange={(event) => setStatus(event.target.value as OpportunityTrackingStatus)}>
           {TRACKING_STATUSES.map((value) => (
             <option key={value} value={value}>
               {value}
@@ -138,35 +170,56 @@ function TrackingForm({
         <span>이유</span>
         <textarea
           required
+          className="interaction-control"
           rows={2}
           value={reason}
           onChange={(event) => setReason(event.target.value)}
           placeholder="이 상태를 고른 이유를 남깁니다."
         />
       </label>
-      <label>
-        <span>담당자 이름</span>
-        <input
-          required
-          maxLength={128}
-          value={actorName}
-          onChange={(event) => setActorName(event.target.value)}
-          placeholder="예: 홍길동"
-        />
-      </label>
-      {error ? <p className="opportunity-form-error">{error}</p> : null}
-      <button type="submit" disabled={!ready || mutation.isPending}>
+      <ActorField
+        label="담당자 이름"
+        required
+        value={actorName}
+        onChange={setActorName}
+        placeholder="예: 홍길동"
+        autoComplete="off"
+      />
+      {error ? <MutationFeedback tone="error">{error}</MutationFeedback> : null}
+      <button
+        className="interaction-control"
+        type="submit"
+        disabled={!ready || mutation.isPending}
+        aria-describedby={disabledReason ? "opportunity-save-disabled-reason" : undefined}
+      >
         {mutation.isPending ? "저장 중…" : "추적 상태 저장"}
       </button>
+      {disabledReason ? (
+        <DisabledReason id="opportunity-save-disabled-reason">{disabledReason}</DisabledReason>
+      ) : null}
     </form>
   );
 }
 
-function OpportunityDetail({ opportunityId, onSaved }: { opportunityId: number; onSaved: (message: string) => void }) {
+function OpportunityDetail({
+  opportunityId,
+  onSaved,
+  onDirtyChange,
+}: {
+  opportunityId: number;
+  onSaved: (message: string) => void;
+  onDirtyChange: (dirty: boolean) => void;
+}) {
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [formDirty, setFormDirty] = useState(false);
   const detail = useQuery({
     queryKey: ["opportunity", opportunityId],
     queryFn: ({ signal }) => api.getOpportunity(opportunityId, { signal }),
   });
+  const handleFormDirtyChange = useCallback((nextDirty: boolean) => {
+    setFormDirty(nextDirty);
+    onDirtyChange(nextDirty);
+  }, [onDirtyChange]);
 
   if (detail.isPending) return <p className="opportunity-detail-status">불러오는 중…</p>;
   if (detail.isError || !detail.data) {
@@ -175,87 +228,110 @@ function OpportunityDetail({ opportunityId, onSaved }: { opportunityId: number; 
 
   const item = detail.data;
   const signalLink = item.links.find((link) => link.id === item.recheck_signal_link_id);
+  const lifecycleLinks = [...item.links].sort((left, right) => lifecycleRank(left) - lifecycleRank(right));
 
   return (
     <div className="opportunity-detail">
-      {item.recheck_signal ? (
-        <div className="opportunity-signal" role="status">
-          <strong>재검토가 필요합니다.</strong>
-          <p>
-            {formatMoment(item.recheck_signal_at)}에 이 사업기회로 새 공식 레코드가 들어왔습니다.
-            사람이 고른 <b>{item.tracking_status}</b> 판정은 그대로 남아 있습니다.
+      <div className="opportunity-decision-grid">
+        <section
+          className={`opportunity-signal ${item.recheck_signal ? "" : "opportunity-signal-clear"}`.trim()}
+          role="status"
+          aria-labelledby="recheck-signal-title"
+        >
+            <div className="opportunity-panel-heading">
+              <span className="opportunity-panel-kicker">공식 정보 변화</span>
+              <Badge variant={item.recheck_signal ? "alert" : "neutral"} label={item.recheck_signal ? "재검토 필요" : "현재 신호 없음"} />
+            </div>
+            <h4 id="recheck-signal-title">
+              {item.recheck_signal ? "새 레코드가 연결되었습니다." : "현재 재검토 신호가 없습니다."}
+            </h4>
+            {item.recheck_signal ? <p>{formatMoment(item.recheck_signal_at)}에 공식 조달 레코드가 추가되어 다시 확인해야 합니다.</p> : null}
+            {item.recheck_signal && signalLink ? (
+              <p className="opportunity-signal-source">
+                근거 · {linkRecordLabel(signalLink)} · <span className="mono">
+                  {signalLink.record_external_id || signalLink.external_id || signalLink.evidence_external_no || "식별자 미확인"}
+                </span>
+              </p>
+            ) : item.recheck_signal ? <p className="opportunity-signal-source">근거 링크를 찾지 못했습니다.</p> : null}
+        </section>
+
+        <section className="opportunity-human-decision" aria-labelledby="tracking-decision-title">
+          <div className="opportunity-panel-heading">
+            <span className="opportunity-panel-kicker">사람의 추적 판단</span>
+            <Badge variant={trackingVariant(item.tracking_status)} label={item.tracking_status} />
+          </div>
+          <h4 id="tracking-decision-title">기존 판정 유지 · 자동 변경 없음</h4>
+          <p className="opportunity-human-reason">{item.tracking_reason || "기록된 이유 없음"}</p>
+          <p className="opportunity-decision-meta">
+            {item.tracking_selected_by || "작성자 미확인"} · {formatMoment(item.tracking_selected_at)}
           </p>
-          {signalLink ? (
-            <p className="opportunity-signal-source">
-              근거: {linkRecordLabel(signalLink)} · {signalLink.title?.trim() || "제목 미확인"} ·{" "}
-              <span className="mono">
-                {signalLink.record_external_id || signalLink.external_id || signalLink.evidence_external_no || "식별자 미확인"}
-              </span>
-            </p>
-          ) : (
-            <p className="opportunity-signal-source">근거 링크를 찾지 못했습니다.</p>
-          )}
+        </section>
+      </div>
+
+      <section className="opportunity-detail-block">
+        <div className="opportunity-section-heading">
+          <div>
+            <span className="opportunity-panel-kicker">OPPORTUNITY LIFECYCLE</span>
+            <h4>연결 레코드 {item.links.length}건</h4>
+          </div>
+          <span>서버에 저장된 관계를 그대로 표시</span>
         </div>
-      ) : null}
-
-      <section className="opportunity-detail-block">
-        <h4>사람 판정</h4>
-        <dl className="opportunity-link-facts">
-          <div>
-            <dt>추적 상태</dt>
-            <dd>
-              <Badge variant={trackingVariant(item.tracking_status)} label={item.tracking_status} />
-            </dd>
-          </div>
-          <div>
-            <dt>작성자</dt>
-            <dd>{item.tracking_selected_by || "—"}</dd>
-          </div>
-          <div>
-            <dt>선택 시각</dt>
-            <dd>{formatMoment(item.tracking_selected_at)}</dd>
-          </div>
-          <div>
-            <dt>이유</dt>
-            <dd>{item.tracking_reason || "—"}</dd>
-          </div>
-        </dl>
-      </section>
-
-      <section className="opportunity-detail-block">
-        <h4>연결된 레코드 {item.links.length}건</h4>
         {item.links.length === 0 ? (
           <EmptyState compact title="연결된 레코드가 없습니다." />
         ) : (
           <ul className="opportunity-links">
-            {item.links.map((link) => (
-              <LinkRow key={link.id} link={link} isSignalSource={link.id === item.recheck_signal_link_id} />
+            {lifecycleLinks.map((link, index) => (
+              <LifecycleCard key={link.id} link={link} step={index + 1} isSignalSource={link.id === item.recheck_signal_link_id} />
             ))}
           </ul>
         )}
       </section>
 
-      <TrackingForm opportunity={item} onSaved={onSaved} />
+      <section className="opportunity-tracking-editor">
+        <button
+          className="opportunity-tracking-editor-toggle interaction-control"
+          type="button"
+          aria-expanded={editorOpen}
+          onClick={() => {
+            if (editorOpen && formDirty && !window.confirm("저장되지 않은 추적 상태 변경을 버리고 입력 영역을 닫으시겠습니까?")) return;
+            if (editorOpen && formDirty) handleFormDirtyChange(false);
+            setEditorOpen((current) => !current);
+          }}
+        >
+          사람 추적 상태 변경
+        </button>
+        {editorOpen ? (
+          <TrackingForm
+            key={`${item.id}:${item.tracking_selected_at ?? "unselected"}`}
+            opportunity={item}
+            onSaved={onSaved}
+            onDirtyChange={handleFormDirtyChange}
+          />
+        ) : null}
+      </section>
     </div>
   );
 }
 
 export function OpportunitiesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
 
   // 필터가 비어 있으면 `종료`를 포함한 전부가 보인다. 기본으로 숨기는 것이 있으면
   // 놓친 건을 사람이 확인할 방법이 없다.
   const trackingStatus = (searchParams.get("tracking_status") as OpportunityTrackingStatus | null) ?? null;
   const stage = (searchParams.get("first_registered_stage") as OpportunityFirstRegisteredStage | null) ?? null;
-  const offset = Number(searchParams.get("offset") ?? "0") || 0;
+  const requestedSort = searchParams.get("sort");
+  const sort: OpportunitySort = SORTS.includes(requestedSort as OpportunitySort)
+    ? requestedSort as OpportunitySort
+    : "created_at";
+  const requestedOffset = Number(searchParams.get("offset") ?? "0");
+  const offset = Number.isInteger(requestedOffset) && requestedOffset >= 0 ? requestedOffset : 0;
 
   const list = useQuery({
-    queryKey: ["opportunities", trackingStatus, stage, offset],
+    queryKey: ["opportunities", trackingStatus, stage, sort, offset],
     queryFn: ({ signal }) =>
       api.getOpportunities(
-        { tracking_status: trackingStatus, first_registered_stage: stage, limit: PAGE_SIZE, offset },
+        { tracking_status: trackingStatus, first_registered_stage: stage, sort, limit: PAGE_SIZE, offset },
         { signal },
       ),
   });
@@ -270,7 +346,6 @@ export function OpportunitiesPage() {
     else next.delete(key);
     next.delete("offset");
     setSearchParams(next, { replace: true });
-    setSelectedId(null);
   }
 
   return (
@@ -309,6 +384,14 @@ export function OpportunitiesPage() {
             ))}
           </select>
         </label>
+        <label>
+          <span>정렬</span>
+          <select value={sort} onChange={(event) => applyFilter("sort", event.target.value)}>
+            <option value="created_at">최근 등록순</option>
+            <option value="tracking_status">추적 상태순</option>
+            <option value="first_registered_stage">최초 등록 단계순</option>
+          </select>
+        </label>
       </div>
 
       {list.isPending ? <p className="opportunity-detail-status">불러오는 중…</p> : null}
@@ -325,7 +408,6 @@ export function OpportunitiesPage() {
         <ol className="opportunity-list">
           {items.map((item) => {
             const origin = originOf(item.first_registered_stage);
-            const open = selectedId === item.id;
             return (
               <li key={item.id} className={`opportunity-card ${item.recheck_signal ? "opportunity-card-signal" : ""}`.trim()}>
                 <div className="opportunity-card-head">
@@ -343,15 +425,12 @@ export function OpportunitiesPage() {
                   {originDescription(item.first_registered_stage)} · 연결 {item.links.length}건
                   {item.tracking_selected_by ? ` · ${item.tracking_selected_by}` : ""}
                 </p>
-                <button
-                  className="opportunity-card-toggle"
-                  type="button"
-                  aria-expanded={open}
-                  onClick={() => setSelectedId(open ? null : item.id)}
+                <Link
+                  className="opportunity-card-toggle interaction-control"
+                  to={{ pathname: `/opportunities/${item.id}`, search: searchParams.toString() }}
                 >
-                  {open ? "접기" : "자세히 보기"}
-                </button>
-                {open ? <OpportunityDetail opportunityId={item.id} onSaved={setToast} /> : null}
+                  자세히 보기
+                </Link>
               </li>
             );
           })}
@@ -361,6 +440,7 @@ export function OpportunitiesPage() {
       {total > PAGE_SIZE ? (
         <nav className="opportunity-pager">
           <button
+            className="interaction-control"
             type="button"
             disabled={offset === 0}
             onClick={() => {
@@ -375,6 +455,7 @@ export function OpportunitiesPage() {
             {offset + 1}–{Math.min(offset + PAGE_SIZE, total)} / {total}
           </span>
           <button
+            className="interaction-control"
             type="button"
             disabled={offset + PAGE_SIZE >= total}
             onClick={() => {
@@ -387,6 +468,39 @@ export function OpportunitiesPage() {
           </button>
         </nav>
       ) : null}
+
+    </section>
+  );
+}
+
+export function OpportunityDetailPage() {
+  const { opportunityId: opportunityIdParam } = useParams();
+  const [searchParams] = useSearchParams();
+  const [toast, setToast] = useState<string | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const opportunityId = Number(opportunityIdParam);
+  const validOpportunityId = Number.isInteger(opportunityId) && opportunityId > 0;
+  const handleDirtyChange = useCallback((nextDirty: boolean) => setDirty(nextDirty), []);
+  useUnsavedGuard(dirty, {
+    blockSpaNavigation: true,
+    message: "저장되지 않은 추적 상태 변경이 있습니다. 이 페이지를 벗어나시겠습니까?",
+  });
+
+  return (
+    <section className="opportunities-page opportunity-detail-page" aria-labelledby="page-title">
+      <header className="opportunities-header opportunity-detail-header">
+        <Link className="opportunity-back-link" to={{ pathname: "/opportunities", search: searchParams.toString() }}>
+          ← 사업기회 목록
+        </Link>
+        <h2 id="page-title">사업기회 상세{validOpportunityId ? ` #${opportunityId}` : ""}</h2>
+        <p>목록의 필터·정렬·페이지 문맥을 유지한 누적 사업기회 상세다.</p>
+      </header>
+
+      {validOpportunityId ? (
+        <OpportunityDetail opportunityId={opportunityId} onSaved={setToast} onDirtyChange={handleDirtyChange} />
+      ) : (
+        <EmptyState tone="error" title="사업기회 식별자가 올바르지 않습니다." />
+      )}
 
       {toast ? <Toast message={toast} onDismiss={() => setToast(null)} /> : null}
     </section>

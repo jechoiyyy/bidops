@@ -2,9 +2,11 @@ import type { RefObject } from "react";
 import type { RunSummary } from "../../lib/types";
 import { BasisPopover } from "./BasisPopover";
 import { RunSelector } from "./RunSelector";
+import type { RouteDataScope } from "./route-meta";
 
 interface TopBarProps {
   title: string;
+  dataScope: RouteDataScope;
   runs: RunSummary[];
   selectedRunId: string | null;
   selectedRun: RunSummary | null;
@@ -13,11 +15,13 @@ interface TopBarProps {
   onToggleNav: () => void;
   menuButtonRef: RefObject<HTMLButtonElement | null>;
   navOpen: boolean;
+  runSelectorVisible: boolean;
   isLoading?: boolean;
 }
 
 export function TopBar({
   title,
+  dataScope,
   runs,
   selectedRunId,
   selectedRun,
@@ -26,10 +30,13 @@ export function TopBar({
   onToggleNav,
   menuButtonRef,
   navOpen,
+  runSelectorVisible,
   isLoading = false,
 }: TopBarProps) {
+  const contextVisible = runSelectorVisible || Boolean(editScope);
+
   return (
-    <header className="topbar">
+    <header className="topbar" data-route-data-scope={dataScope}>
       <button
         aria-controls="primary-navigation"
         aria-expanded={navOpen}
@@ -46,20 +53,24 @@ export function TopBar({
       <div className="topbar-heading">
         <h1>{title}</h1>
       </div>
-      <div className="topbar-context">
-        <RunSelector
-          disabled={isLoading}
-          onChange={onRunChange}
-          runs={runs}
-          selectedRunId={selectedRunId}
-        />
-        {editScope ? (
-          <span aria-label={`페이지별 편집 범위: ${editScope}`} className="topbar-status">
-            {editScope}
-          </span>
-        ) : null}
-        <BasisPopover run={selectedRun} />
-      </div>
+      {contextVisible ? (
+        <div className="topbar-context">
+          {runSelectorVisible ? (
+            <RunSelector
+              disabled={isLoading}
+              onChange={onRunChange}
+              runs={runs}
+              selectedRunId={selectedRunId}
+            />
+          ) : null}
+          {editScope ? (
+            <span aria-label={`페이지별 편집 범위: ${editScope}`} className="topbar-status">
+              {editScope}
+            </span>
+          ) : null}
+          {runSelectorVisible ? <BasisPopover run={selectedRun} /> : null}
+        </div>
+      ) : null}
     </header>
   );
 }

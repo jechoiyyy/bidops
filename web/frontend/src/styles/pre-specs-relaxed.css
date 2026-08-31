@@ -151,6 +151,7 @@
 }
 
 .pre-specs-search button,
+.pre-specs-reset,
 .pre-specs-pager button {
   min-height: var(--control-height);
   padding: 0 14px;
@@ -164,14 +165,27 @@
 }
 
 .pre-specs-search button:hover,
+.pre-specs-reset:hover,
 .pre-specs-pager button:hover:not(:disabled) {
   background: var(--color-primary-strong);
 }
 
 .pre-specs-search button:disabled,
+.pre-specs-reset:disabled,
 .pre-specs-pager button:disabled {
   cursor: not-allowed;
   opacity: 0.5;
+}
+
+.pre-specs-reset {
+  align-self: end;
+  color: var(--color-deep);
+  border-color: var(--border-strong);
+  background: var(--surface-card);
+}
+
+.pre-specs-reset:hover {
+  color: var(--color-white);
 }
 
 .pre-specs-policy-note {
@@ -281,6 +295,56 @@
   white-space: nowrap;
 }
 
+.pre-specs-document-alerts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  white-space: normal !important;
+}
+
+.pre-specs-deadline-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.pre-specs-deadline {
+  display: inline-flex;
+  min-height: 20px;
+  align-items: center;
+  padding: 0 7px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pre-specs-deadline.is-critical {
+  color: var(--color-white);
+  background: var(--color-warning);
+}
+
+.pre-specs-deadline.is-soon {
+  color: var(--color-warning);
+  border-color: var(--color-warning-edge);
+  background: var(--color-warning-bg);
+}
+
+.pre-specs-deadline.is-passed {
+  color: var(--color-danger);
+  border-color: var(--color-danger-edge);
+  background: var(--color-danger-bg);
+}
+
+.pre-specs-deadline.is-later,
+.pre-specs-deadline.is-none {
+  padding-inline: 2px;
+  color: var(--color-muted);
+  font-weight: 500;
+}
+
 .pre-specs-muted {
   color: var(--color-muted);
 }
@@ -307,6 +371,188 @@
   min-width: 74px;
 }
 
+.pre-spec-detail-page {
+  display: flex;
+  width: 100%;
+  max-width: 1440px;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-inline: auto;
+}
+
+.pre-spec-detail-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.pre-spec-detail-breadcrumb a {
+  color: var(--color-deep);
+  font-weight: 650;
+}
+
+.pre-spec-detail-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-3);
+  padding: 18px 20px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+}
+
+.pre-spec-detail-header h2 {
+  margin: 5px 0 8px;
+  color: var(--color-deep);
+  font-size: 25px;
+  letter-spacing: -0.03em;
+  line-height: 1.28;
+}
+
+.pre-spec-detail-subline,
+.pre-spec-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.pre-spec-detail-actions {
+  justify-content: flex-end;
+}
+
+.pre-spec-detail-actions a {
+  min-height: var(--control-height);
+  padding: 8px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  color: var(--color-deep);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.pre-spec-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.8fr) minmax(0, 1.2fr);
+  align-items: start;
+  gap: var(--space-3);
+}
+
+.pre-spec-detail-grid .panel-body {
+  padding: 16px;
+}
+
+.pre-spec-detail-facts,
+.pre-spec-overview-lineage {
+  display: grid;
+  gap: 0;
+  margin: 0;
+}
+
+.pre-spec-detail-facts > div,
+.pre-spec-overview-lineage > div {
+  display: grid;
+  grid-template-columns: minmax(100px, 0.42fr) minmax(0, 1fr);
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.pre-spec-detail-facts > div:last-child,
+.pre-spec-overview-lineage > div:last-child {
+  border-bottom: 0;
+}
+
+.pre-spec-detail-facts dt,
+.pre-spec-overview-lineage dt {
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pre-spec-detail-facts dd,
+.pre-spec-overview-lineage dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--color-deep);
+  font-size: 13px;
+}
+
+.pre-spec-overview-content,
+.pre-spec-overview-attempts {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pre-spec-overview-statuses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pre-spec-cut-state {
+  padding: 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-secondary);
+}
+
+.pre-spec-cut-state.is-unknown,
+.pre-spec-cut-state.is-failed {
+  border-color: var(--color-warning-edge);
+  background: var(--color-warning-bg);
+}
+
+.pre-spec-cut-state p,
+.pre-spec-overview-limit {
+  margin: 7px 0 0;
+  color: var(--color-muted-soft);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.pre-spec-overview-attempts > strong {
+  color: var(--color-deep);
+  font-size: 13px;
+}
+
+.pre-spec-overview-attempts > span {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.pre-spec-overview-attempts ul {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pre-spec-overview-attempts li {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  color: var(--color-muted-soft);
+  font-size: 12px;
+}
+
+.pre-spec-overview-limit {
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+}
+
 @media (max-width: 900px) {
   .pre-specs-page-header {
     grid-template-columns: minmax(0, 1fr);
@@ -321,6 +567,15 @@
   .pre-specs-filter-help {
     flex-basis: 100%;
     margin-right: 0;
+  }
+
+  .pre-spec-detail-header,
+  .pre-spec-detail-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pre-spec-detail-actions {
+    justify-content: flex-start;
   }
 }
 
@@ -337,5 +592,23 @@
 
   .pre-specs-switch {
     width: fit-content !important;
+  }
+
+  .pre-specs-reset {
+    width: 100%;
+  }
+
+  .pre-spec-detail-header {
+    padding: 15px;
+  }
+
+  .pre-spec-detail-header h2 {
+    font-size: 21px;
+  }
+
+  .pre-spec-detail-facts > div,
+  .pre-spec-overview-lineage > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
   }
 }
