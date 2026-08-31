@@ -1,0 +1,1299 @@
+{
+ "schema_version": "bidops.order-plan-arm-scoring.v1",
+ "run_dir": "data/experiments/order-plan-screening/20260824-20260826-interim-v8",
+ "population_count": 997,
+ "population_sha256": "3a91dab71cd483faa45de393f1cbea990f7b543cc7a7b686e6fae5b18ab4d28f",
+ "gold": {
+  "path": "data/experiments/order-plan-screening/20260824-20260826-sol200-luna797-xhigh-b100-reference-v1/review/human-gold-full-population.tsv",
+  "sha256": "cd3b9bc04bbbf37c9a2b5df5c3caac8de3a6a1f0a15cc609e8b4062356654cbd",
+  "relevant": 90,
+  "uncertain": 6
+ },
+ "arms": {
+  "bm25": {
+   "config": {
+    "schema_version": "bidops.order-plan-bm25.v1",
+    "note": "ADR-0021 개정이 채택한 BM25 arm 설정이다. 기존 6-method 계약(methods.json)은 닫힌 집합이라 여기에 분리해 둔다. 방식이 선택되면 그때 제품 경로에 통합한다.",
+    "method_version": "bm25-char-title-capability-v1",
+    "model_name": null,
+    "model_revision": null,
+    "prompt_id": null,
+    "prompt_sha256": null,
+    "analyzer": "char",
+    "ngram_min": 2,
+    "ngram_max": 5,
+    "k1": 1.2,
+    "b": 0.75,
+    "query_term_frequency": "binary",
+    "capability_aggregation": "max_bm25"
+   }
+  },
+  "dense": {
+   "model": {
+    "name": "bge-m3:latest",
+    "revision": "7907646426070047a77226ac3e684fbbe8410524f7b4a74d02837e43f2146bab"
+   },
+   "method_version": "ollama-bge-m3-dense-title-v1"
+  },
+  "hybrid_rrf": {
+   "k": 60,
+   "inputs": [
+    "bm25",
+    "dense"
+   ]
+  }
+ },
+ "evaluations": {
+  "bm25": {
+   "total_relevant": 90,
+   "at_cutoff": [
+    {
+     "cutoff": 20,
+     "review_load": 20,
+     "found": 16,
+     "missed": 74,
+     "recall": 0.1778,
+     "precision": 0.8
+    },
+    {
+     "cutoff": 30,
+     "review_load": 30,
+     "found": 22,
+     "missed": 68,
+     "recall": 0.2444,
+     "precision": 0.7333
+    },
+    {
+     "cutoff": 50,
+     "review_load": 50,
+     "found": 39,
+     "missed": 51,
+     "recall": 0.4333,
+     "precision": 0.78
+    },
+    {
+     "cutoff": 75,
+     "review_load": 75,
+     "found": 53,
+     "missed": 37,
+     "recall": 0.5889,
+     "precision": 0.7067
+    },
+    {
+     "cutoff": 100,
+     "review_load": 100,
+     "found": 59,
+     "missed": 31,
+     "recall": 0.6556,
+     "precision": 0.59
+    },
+    {
+     "cutoff": 150,
+     "review_load": 150,
+     "found": 67,
+     "missed": 23,
+     "recall": 0.7444,
+     "precision": 0.4467
+    },
+    {
+     "cutoff": 200,
+     "review_load": 200,
+     "found": 79,
+     "missed": 11,
+     "recall": 0.8778,
+     "precision": 0.395
+    },
+    {
+     "cutoff": 300,
+     "review_load": 300,
+     "found": 83,
+     "missed": 7,
+     "recall": 0.9222,
+     "precision": 0.2767
+    }
+   ],
+   "rank_for_full_recall": 663,
+   "rank_p50": 65,
+   "rank_p90": 243,
+   "relevant_ranks": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    22,
+    24,
+    26,
+    27,
+    28,
+    30,
+    31,
+    33,
+    34,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41,
+    42,
+    43,
+    45,
+    46,
+    47,
+    48,
+    49,
+    50,
+    53,
+    56,
+    58,
+    59,
+    60,
+    62,
+    65,
+    67,
+    68,
+    69,
+    70,
+    73,
+    74,
+    75,
+    84,
+    85,
+    88,
+    91,
+    93,
+    97,
+    103,
+    105,
+    110,
+    119,
+    132,
+    137,
+    139,
+    149,
+    151,
+    158,
+    160,
+    170,
+    177,
+    180,
+    182,
+    185,
+    189,
+    192,
+    198,
+    200,
+    215,
+    231,
+    243,
+    266,
+    306,
+    314,
+    323,
+    480,
+    481,
+    550,
+    663
+   ]
+  },
+  "dense": {
+   "total_relevant": 90,
+   "at_cutoff": [
+    {
+     "cutoff": 20,
+     "review_load": 20,
+     "found": 15,
+     "missed": 75,
+     "recall": 0.1667,
+     "precision": 0.75
+    },
+    {
+     "cutoff": 30,
+     "review_load": 30,
+     "found": 20,
+     "missed": 70,
+     "recall": 0.2222,
+     "precision": 0.6667
+    },
+    {
+     "cutoff": 50,
+     "review_load": 50,
+     "found": 32,
+     "missed": 58,
+     "recall": 0.3556,
+     "precision": 0.64
+    },
+    {
+     "cutoff": 75,
+     "review_load": 75,
+     "found": 42,
+     "missed": 48,
+     "recall": 0.4667,
+     "precision": 0.56
+    },
+    {
+     "cutoff": 100,
+     "review_load": 100,
+     "found": 54,
+     "missed": 36,
+     "recall": 0.6,
+     "precision": 0.54
+    },
+    {
+     "cutoff": 150,
+     "review_load": 150,
+     "found": 68,
+     "missed": 22,
+     "recall": 0.7556,
+     "precision": 0.4533
+    },
+    {
+     "cutoff": 200,
+     "review_load": 200,
+     "found": 77,
+     "missed": 13,
+     "recall": 0.8556,
+     "precision": 0.385
+    },
+    {
+     "cutoff": 300,
+     "review_load": 300,
+     "found": 83,
+     "missed": 7,
+     "recall": 0.9222,
+     "precision": 0.2767
+    }
+   ],
+   "rank_for_full_recall": 839,
+   "rank_p50": 83,
+   "rank_p90": 236,
+   "relevant_ranks": [
+    1,
+    2,
+    3,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    15,
+    17,
+    18,
+    19,
+    22,
+    23,
+    25,
+    26,
+    28,
+    31,
+    32,
+    35,
+    36,
+    37,
+    38,
+    41,
+    42,
+    43,
+    44,
+    46,
+    50,
+    51,
+    54,
+    56,
+    57,
+    58,
+    59,
+    61,
+    64,
+    67,
+    73,
+    77,
+    80,
+    81,
+    83,
+    85,
+    93,
+    94,
+    95,
+    96,
+    97,
+    99,
+    100,
+    101,
+    102,
+    103,
+    107,
+    113,
+    116,
+    130,
+    132,
+    133,
+    134,
+    144,
+    145,
+    148,
+    150,
+    152,
+    158,
+    162,
+    164,
+    166,
+    173,
+    178,
+    182,
+    195,
+    202,
+    203,
+    229,
+    230,
+    236,
+    247,
+    302,
+    317,
+    327,
+    491,
+    531,
+    715,
+    839
+   ]
+  },
+  "hybrid_rrf": {
+   "total_relevant": 90,
+   "at_cutoff": [
+    {
+     "cutoff": 20,
+     "review_load": 20,
+     "found": 14,
+     "missed": 76,
+     "recall": 0.1556,
+     "precision": 0.7
+    },
+    {
+     "cutoff": 30,
+     "review_load": 30,
+     "found": 22,
+     "missed": 68,
+     "recall": 0.2444,
+     "precision": 0.7333
+    },
+    {
+     "cutoff": 50,
+     "review_load": 50,
+     "found": 41,
+     "missed": 49,
+     "recall": 0.4556,
+     "precision": 0.82
+    },
+    {
+     "cutoff": 75,
+     "review_load": 75,
+     "found": 50,
+     "missed": 40,
+     "recall": 0.5556,
+     "precision": 0.6667
+    },
+    {
+     "cutoff": 100,
+     "review_load": 100,
+     "found": 60,
+     "missed": 30,
+     "recall": 0.6667,
+     "precision": 0.6
+    },
+    {
+     "cutoff": 150,
+     "review_load": 150,
+     "found": 75,
+     "missed": 15,
+     "recall": 0.8333,
+     "precision": 0.5
+    },
+    {
+     "cutoff": 200,
+     "review_load": 200,
+     "found": 81,
+     "missed": 9,
+     "recall": 0.9,
+     "precision": 0.405
+    },
+    {
+     "cutoff": 300,
+     "review_load": 300,
+     "found": 88,
+     "missed": 2,
+     "recall": 0.9778,
+     "precision": 0.2933
+    }
+   ],
+   "rank_for_full_recall": 764,
+   "rank_p50": 62,
+   "rank_p90": 215,
+   "relevant_ranks": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    9,
+    10,
+    11,
+    13,
+    14,
+    15,
+    16,
+    17,
+    19,
+    21,
+    22,
+    24,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41,
+    42,
+    43,
+    44,
+    45,
+    46,
+    48,
+    49,
+    50,
+    51,
+    55,
+    56,
+    57,
+    62,
+    63,
+    64,
+    69,
+    71,
+    79,
+    80,
+    83,
+    85,
+    89,
+    91,
+    92,
+    97,
+    98,
+    100,
+    103,
+    105,
+    107,
+    108,
+    113,
+    114,
+    118,
+    119,
+    120,
+    124,
+    126,
+    135,
+    140,
+    144,
+    148,
+    151,
+    161,
+    164,
+    179,
+    183,
+    199,
+    215,
+    216,
+    225,
+    231,
+    236,
+    240,
+    246,
+    499,
+    764
+   ]
+  }
+ },
+ "recovery": {
+  "cutoff": 50,
+  "bm25_only": [
+   "R26DD20852133",
+   "R26DD20852311",
+   "R26DD20852585",
+   "R26DD20852753",
+   "R26DD20852833",
+   "R26DD20852861",
+   "R26DD20853022",
+   "R26DD20853599",
+   "R26DD20853614",
+   "R26DD20853767",
+   "R26DD20853885",
+   "R26DD20853900",
+   "R26DD20853976",
+   "R26DD20854289",
+   "R26DD20854407",
+   "R26DD20855094",
+   "R26DD20855272",
+   "R26DD20855477"
+  ],
+  "dense_only": [
+   "R26DD20852465",
+   "R26DD20852594",
+   "R26DD20852601",
+   "R26DD20852996",
+   "R26DD20853353",
+   "R26DD20854076",
+   "R26DD20854220",
+   "R26DD20854285",
+   "R26DD20854927",
+   "R26DD20855188",
+   "R26DD20855236"
+  ],
+  "both": [
+   "R26DD20852051",
+   "R26DD20852251",
+   "R26DD20852293",
+   "R26DD20852610",
+   "R26DD20852631",
+   "R26DD20852642",
+   "R26DD20853135",
+   "R26DD20853137",
+   "R26DD20853138",
+   "R26DD20853248",
+   "R26DD20853435",
+   "R26DD20853575",
+   "R26DD20853583",
+   "R26DD20853591",
+   "R26DD20853785",
+   "R26DD20854153",
+   "R26DD20854799",
+   "R26DD20855142",
+   "R26DD20855269",
+   "R26DD20855424",
+   "R26DD20855430"
+  ],
+  "neither": [
+   "R26DD20852160",
+   "R26DD20852195",
+   "R26DD20852373",
+   "R26DD20852432",
+   "R26DD20852595",
+   "R26DD20852619",
+   "R26DD20852774",
+   "R26DD20852880",
+   "R26DD20852883",
+   "R26DD20853269",
+   "R26DD20853370",
+   "R26DD20853397",
+   "R26DD20853524",
+   "R26DD20853537",
+   "R26DD20853581",
+   "R26DD20853666",
+   "R26DD20853674",
+   "R26DD20853731",
+   "R26DD20853736",
+   "R26DD20853821",
+   "R26DD20853893",
+   "R26DD20853902",
+   "R26DD20854028",
+   "R26DD20854037",
+   "R26DD20854038",
+   "R26DD20854225",
+   "R26DD20854546",
+   "R26DD20854569",
+   "R26DD20854594",
+   "R26DD20854595",
+   "R26DD20854754",
+   "R26DD20854774",
+   "R26DD20855021",
+   "R26DD20855148",
+   "R26DD20855258",
+   "R26DD20855282",
+   "R26DD20855292",
+   "R26DD20855318",
+   "R26DD20855385",
+   "R26DD20855469"
+  ],
+  "hybrid_recovered_over_bm25": [
+   "R26DD20852465",
+   "R26DD20853353",
+   "R26DD20854076",
+   "R26DD20854220",
+   "R26DD20854285",
+   "R26DD20854927",
+   "R26DD20855188",
+   "R26DD20855236"
+  ],
+  "hybrid_lost_from_bm25": [
+   "R26DD20852133",
+   "R26DD20852585",
+   "R26DD20852833",
+   "R26DD20853900",
+   "R26DD20853976",
+   "R26DD20854289"
+  ]
+ },
+ "high_priority_misses_at_cutoff": {
+  "bm25": [
+   {
+    "plan_id": "R26DD20852465",
+    "priority": "높음"
+   },
+   {
+    "plan_id": "R26DD20852883",
+    "priority": "높음"
+   },
+   {
+    "plan_id": "R26DD20853353",
+    "priority": "높음"
+   },
+   {
+    "plan_id": "R26DD20853537",
+    "priority": "높음"
+   },
+   {
+    "plan_id": "R26DD20854076",
+    "priority": "높음"
+   },
+   {
+    "plan_id": "R26DD20854220",
+    "priority": "높음"
+   },
+   {
+    "plan_id": "R26DD20855236",
+    "priority": "높음"
+   },
+   {
+    "plan_id": "R26DD20855258",
+    "priority": "높음"
+   },
+   {
+    "plan_id": "R26DD20855385",
+    "priority": "높음"
+   },
+   {
+    "plan_id": "R26DD20852160",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20852195",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20852373",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20852432",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20852594",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20852595",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20852619",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20852774",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20852996",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20853269",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20853524",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20853581",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20853821",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20853893",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20853902",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20854028",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20854037",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20854225",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20854569",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20854594",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20854754",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20854774",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20854927",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20855021",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20855148",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20855188",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20855282",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20855292",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20852601",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20852880",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20853370",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20853397",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20853666",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20853674",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20853731",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20853736",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20854038",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20854285",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20854546",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20854595",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20855318",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20855469",
+    "priority": "낮음"
+   }
+  ],
+  "dense": [
+   {
+    "plan_id": "R26DD20852585",
+    "priority": "높음"
+   },
+   {
+    "plan_id": "R26DD20852861",
+    "priority": "높음"
+   },
+   {
+    "plan_id": "R26DD20852883",
+    "priority": "높음"
+   },
+   {
+    "plan_id": "R26DD20853022",
+    "priority": "높음"
+   },
+   {
+    "plan_id": "R26DD20853537",
+    "priority": "높음"
+   },
+   {
+    "plan_id": "R26DD20853599",
+    "priority": "높음"
+   },
+   {
+    "plan_id": "R26DD20853614",
+    "priority": "높음"
+   },
+   {
+    "plan_id": "R26DD20853885",
+    "priority": "높음"
+   },
+   {
+    "plan_id": "R26DD20854289",
+    "priority": "높음"
+   },
+   {
+    "plan_id": "R26DD20855258",
+    "priority": "높음"
+   },
+   {
+    "plan_id": "R26DD20855272",
+    "priority": "높음"
+   },
+   {
+    "plan_id": "R26DD20855385",
+    "priority": "높음"
+   },
+   {
+    "plan_id": "R26DD20852133",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20852160",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20852195",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20852311",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20852373",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20852432",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20852595",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20852619",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20852753",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20852774",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20853269",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20853524",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20853581",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20853767",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20853821",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20853893",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20853900",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20853902",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20853976",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20854028",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20854037",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20854225",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20854569",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20854594",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20854754",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20854774",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20855021",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20855094",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20855148",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20855282",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20855292",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20855477",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20852833",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20852880",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20853370",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20853397",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20853666",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20853674",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20853731",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20853736",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20854038",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20854407",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20854546",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20854595",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20855318",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20855469",
+    "priority": "낮음"
+   }
+  ],
+  "hybrid_rrf": [
+   {
+    "plan_id": "R26DD20852585",
+    "priority": "높음"
+   },
+   {
+    "plan_id": "R26DD20852883",
+    "priority": "높음"
+   },
+   {
+    "plan_id": "R26DD20853537",
+    "priority": "높음"
+   },
+   {
+    "plan_id": "R26DD20854289",
+    "priority": "높음"
+   },
+   {
+    "plan_id": "R26DD20855258",
+    "priority": "높음"
+   },
+   {
+    "plan_id": "R26DD20855385",
+    "priority": "높음"
+   },
+   {
+    "plan_id": "R26DD20852133",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20852160",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20852195",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20852373",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20852432",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20852594",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20852595",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20852619",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20852774",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20852996",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20853269",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20853524",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20853581",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20853821",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20853893",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20853900",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20853902",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20853976",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20854028",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20854037",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20854225",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20854569",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20854594",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20854754",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20854774",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20855021",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20855148",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20855282",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20855292",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20852601",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20852833",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20852880",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20853370",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20853397",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20853666",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20853674",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20853731",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20853736",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20854038",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20854546",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20854595",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20855318",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20855469",
+    "priority": "낮음"
+   }
+  ]
+ }
+}

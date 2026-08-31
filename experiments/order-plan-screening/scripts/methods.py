@@ -370,6 +370,149 @@ class TfidfAdapter:
         ]
 
 
+class BM25Adapter:
+    """Deterministic character n-gram BM25 over capabilities and plan titles.
+
+    ADR-0021 개정이 채택한 arm이다. 제목은 중앙값 30자라 term frequency 포화(k1)와
+    문서 길이 정규화(b)가 거의 작동하지 않는다. 그래서 이 arm은 사실상 IDF 가중
+    단어 겹침이며, 지배적 실패는 어휘 불일치다. 그 실패를 dense arm이 복구하는지가
+    이 실험의 측정 대상이다.
+
+    토큰화는 문자 n-gram으로 고정했다. TfidfAdapter와 같은 토큰화를 써야 두 arm의
+    차이가 순수하게 가중 방식 차이로 드러나고, 외부 사전 의존성과 `데이터플랫폼`
+    대 `데이터 플랫폼` 띄어쓰기 문제를 함께 피한다.
+
+    질의는 capability summary, 문서는 발주계획 제목이다. capability를 하나로 합치면
+    신호가 희석되므로 각각 조회하고 max를 취한다(ADR-0021 개정의 제약).
+    """
+
+    def __init__(self, config: dict[str, Any]):
+        if config.get("analyzer") != "char":
+            raise ExperimentError("invalid_bm25_config", "BM25 analyzer는 char로 고정됩니다")
+        self.ngram_min = config.get("ngram_min")
+        self.ngram_max = config.get("ngram_max")
+        if (
+            not isinstance(self.ngram_min, int)
+            or isinstance(self.ngram_min, bool)
+            or not isinstance(self.ngram_max, int)
+            or isinstance(self.ngram_max, bool)
+            or not 1 <= self.ngram_min <= self.ngram_max <= 8
+        ):
+            raise ExperimentError("invalid_bm25_config", "BM25 n-gram 범위가 잘못됐습니다")
+        self.k1 = config.get("k1")
+        self.b = config.get("b")
+        if (
+            not isinstance(self.k1, (int, float))
+            or isinstance(self.k1, bool)
+            or not isinstance(self.b, (int, float))
+            or isinstance(self.b, bool)
+            or not 0.0 <= float(self.k1) <= 5.0
+            or not 0.0 <= float(self.b) <= 1.0
+        ):
+            raise ExperimentError("invalid_bm25_config", "BM25 k1/b 범위가 잘못됐습니다")
+        self.k1 = float(self.k1)
+        self.b = float(self.b)
+        if config.get("query_term_frequency") != "binary":
+            raise ExperimentError("invalid_bm25_config", "BM25 질의 term 계약이 잘못됐습니다")
+        if config.get("capability_aggregation") != "max_bm25":
+            raise ExperimentError("invalid_bm25_config", "BM25 집계 계약이 잘못됐습니다")
+
+    def _features(self, value: str) -> Counter[str]:
+        text = unicodedata.normalize("NFKC", _normalize_text(value))
+        if not text:
+            raise AdapterFailure("text_missing")
+        features: Counter[str] = Counter()
+        for size in range(self.ngram_min, self.ngram_max + 1):
+            for index in range(max(0, len(text) - size + 1)):
+                features[text[index : index + size]] += 1
+        if not features:
+            features[text] = 1
+        return features
+
+    def _score(
+        self,
+        query_terms: Sequence[str],
+        document: Counter[str],
+        document_length: int,
+        average_length: float,
+        idf: dict[str, float],
+    ) -> float:
+        if average_length <= 0:
+            raise AdapterFailure("adapter_execution_failed")
+        denominator_length = self.k1 * (1.0 - self.b + self.b * (document_length / average_length))
+        total = 0.0
+        for term in query_terms:
+            frequency = document.get(term)
+            if not frequency:
+                continue
+            total += idf[term] * (frequency * (self.k1 + 1.0)) / (frequency + denominator_length)
+        if not math.isfinite(total):
+            raise AdapterFailure("adapter_execution_failed")
+        return total
+
+    def score_all(
+        self,
+        plans: Sequence[dict[str, Any]],
+        capabilities: dict[str, Any],
+    ) -> list[AdapterResult]:
+        started = time.monotonic()
+        capability_rows = capabilities.get("capabilities") or []
+        if not capability_rows:
+            raise AdapterFailure("capabilities_empty")
+        try:
+            # 문서 모음은 발주계획 제목이다. IDF도 이 모음에서만 계산한다.
+            title_counts = [self._features(plan_text(plan)) for plan in plans]
+            lengths = [sum(counts.values()) for counts in title_counts]
+            average_length = sum(lengths) / len(lengths) if lengths else 0.0
+            document_frequency: Counter[str] = Counter()
+            for counts in title_counts:
+                document_frequency.update(counts.keys())
+            document_count = len(title_counts)
+            idf = {
+                feature: math.log(
+                    1.0 + (document_count - frequency + 0.5) / (frequency + 0.5)
+                )
+                for feature, frequency in document_frequency.items()
+            }
+            # 질의 term은 중복을 세지 않는다. capability summary가 제목보다 훨씬
+            # 길어 질의 TF를 그대로 쓰면 긴 요약이 일방적으로 유리해진다.
+            capability_terms = [
+                sorted(term for term in self._features(row["summary"]) if term in idf)
+                for row in capability_rows
+            ]
+            scored: list[tuple[float, str]] = []
+            for index, counts in enumerate(title_counts):
+                candidates = [
+                    (
+                        self._score(
+                            capability_terms[position],
+                            counts,
+                            lengths[index],
+                            average_length,
+                            idf,
+                        ),
+                        capability_rows[position]["id"],
+                    )
+                    for position in range(len(capability_rows))
+                ]
+                scored.append(max(candidates, key=lambda item: (item[0], item[1])))
+        except AdapterFailure:
+            raise
+        except (KeyError, TypeError, ValueError, OverflowError, ZeroDivisionError) as exc:
+            raise AdapterFailure("adapter_execution_failed") from exc
+        total_latency = max(0, round((time.monotonic() - started) * 1000))
+        latency_parts = _split_measurement(total_latency, len(plans))
+        return [
+            AdapterResult(
+                score=score,
+                reason=f"nearest_capability:{capability_id}",
+                latency_ms=int(latency_parts[index]),
+                device="cpu",
+            )
+            for index, (score, capability_id) in enumerate(scored)
+        ]
+
+
 class BGEM3ColBERTAdapter:
     """Use the official FlagEmbedding late-interaction score at a fixed model revision."""
 
