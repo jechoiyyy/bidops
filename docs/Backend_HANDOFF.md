@@ -15,7 +15,7 @@
 | 2 | [`tracking/lifecycle-workstream.md`](tracking/lifecycle-workstream.md) | 작업 목록 정본. 확정된 사실·결정·할 일·끝낸 일 |
 | 3 | [`engineering-notes.md`](engineering-notes.md) 마지막 여섯 절 | host 테스트 실행법과 새로 걸린 함정들 |
 | 4 | [`tracking/findings.md`](tracking/findings.md) | 재현 가능한 미해결 문제 |
-| 5 | [`tracking/status.md`](tracking/status.md)의 구현 상태 표 | **A-1~A-6 여섯 건을 2026-09-01에 전부 해소했다.** 남은 운영 배포 blocker는 MinIO versioning fail-open과 host-wide port publish다. §7-A가 여기서 나온다 |
+| 5 | [`tracking/status.md`](tracking/status.md)의 구현 상태 표 | **A-1~A-6 여섯 건을 2026-09-01에 전부 해소했다.** 남은 운영 배포 blocker는 MinIO versioning fail-open과 host-wide port publish다. §7의 우선순위가 여기서 나온다 |
 
 바쁘면 **§7(다음 작업 순서)과 §10(콜드 세션 시작 절차)만 읽어도 착수할 수 있다.**
 
@@ -312,13 +312,97 @@ cx exec -m gpt-5.6-luna -c model_reasoning_effort="max" \
 
 ## 7. 다음 작업 순서
 
-**결정은 다 끝났다. 남은 것은 실행이다.** 아래는 의존관계 순이며, 각 항목에 착수 조건과
-막는 것을 적었다. 위에서부터 집으면 된다.
+**결정은 다 끝났고 남은 것은 실행이다.** 아래는 우선순위 순이다. 위에서부터 집으면 된다.
+각 항목에 크기와 막는 것을 적었다.
 
-### A. 운영 배포 blocker — A-1~A-6은 2026-09-01에 전부 해소했다
+| 순위 | 항목 | 크기 | 성격 |
+|---|---|---|---|
+| 1 | C-2 선별 방식 선택 · C-1 gold 재판정 확인 · D-7 방화벽 승인 상신 | — | **사람 몫.** 지금 던져두면 병렬로 돈다 |
+| 2 | MinIO versioning fail-open · host-wide port publish · 테스트 harness | 작음 | 운영 배포 blocker의 마지막 |
+| 3 | 입찰 delta worker · T-23 worker · 재시작 화면 · T-19 projection | 중간 | 껍데기를 도는 기능으로 |
+| 4 | LLM 품질 gate 2건 · screening v3 renderer 연결 | 중간 | 판정을 믿을 수 있게 |
+| 5 | 선별 제품 구현 (수집 회차·관계·일일 수집·delta 추적) | 큼 | **C-2 결정 뒤에만** |
+| 6 | 실제 운영 검증 · API 증액 근거 · SSO·권한·알림 | 큼 | 이후 범위 |
 
-`status.md`의 구현 상태 표가 정본이다. **여섯 건 모두 착수 전에 현재 코드로 재확인했고
-실재했다.** 각 건마다 위임 뒤 전체 스위트를 위임과 독립적으로 직접 실행해 확인했다.
+**어디부터 집을지 갈리면 이 기준을 쓴다.** 당장 운영 배포 계획이 있으면 2번이 먼저다
+(작아서 미룰 이유가 없고 끝나면 blocker가 0이 된다). 배포 계획이 없으면 3번이 먼저다
+(제품 체감이 가장 크게 바뀐다).
+
+### 1. 사람 몫 — 지금 던져두면 병렬로 돈다
+
+리드타임이 있으므로 다른 무엇보다 먼저 시작한다. **C-2 하나가 5번 전체를 막고 있다.**
+
+```
+C-2  방식 선택 (아래 셋 중)                ← 비용 대 누락의 교환. 토큰 실측은 §2에 있다
+       (a) 하이브리드 상위 300 → LLM 재순위   recall 97.6% 유지, LLM 호출 70% 절감
+       (b) Qwen 단독                        전량 회수 294건, 외부 전송 없음
+       (c) 하이브리드 단독 + 검토량 300      모델 비용 0, 3일마다 300건 사람 검토
+C-1  gold 재판정 9건 확인                  ← 이게 있어야 v2가 정본이 된다
+D-7  방화벽 승인 상신                      ← prespec-attachment-worker 하나가 g2b:443으로
+                                             나가는 것. analysis-worker(LLM)와 무관하다
+```
+
+D-7 overlay 적용은 승인 뒤에 하고, 그 다음이 T-20 운영 활성화다.
+
+### 2. 남은 운영 배포 blocker — 작고 기반이다
+
+`findings.md`에 재현 조건이 있다. **이 둘을 닫으면 운영 배포 blocker가 0이 된다.**
+
+| | 항목 | 크기 | 왜 지금 |
+|---|---|---|---|
+| 2-1 | **MinIO versioning fail-open** | 작음 | `scripts/minio-init.sh:22`의 `mc version enable ... \|\| true`가 모든 실패를 삼킨다. versioning이 꺼져 있어도 init이 성공한다. **2026-09-01에 만든 A-6 복구 계약이 version 불변성 전제 위에 서 있으므로 이것이 먼저다** |
+| 2-2 | **host-wide port publish** | 작음 | `docker-compose.t7.yml`의 PostgreSQL·MinIO API·console port mapping에 host IP가 없어 LAN에서 직접 접근할 수 있다. 애플리케이션 API만 쓰는 접근 경계를 우회한다 |
+| 2-3 | **테스트 harness 고정** (D-11) | 작음~중간 | **`run-web-tests.sh`도 CI도 아직 없다.** 개별 파일만 지정하면 postgres 테스트가 조용히 skip되는 함정이 살아 있고, 이 저장소는 같은 부류 결함에 두 번 데였다(§4의 1·2번) |
+
+### 3. 껍데기를 실제로 도는 기능으로
+
+전부 결정이 끝나 막는 것이 없다. B-3·B-4의 모델 binding은 승인된 사설 vLLM Qwen3.8:27B
+재사용으로 확정됐다. 새 endpoint를 열지 않으며 `resolve_runtime_binding()`이 없으면
+503으로 fail-closed한다.
+
+| | 항목 | 근거 | 지금 상태 |
+|---|---|---|---|
+| B-3 | **입찰 delta 계산 worker와 모델 adapter** | [ADR-0034](tracking/decisions/0034-bid-delta-final-decision.md) | 스키마·API·화면·불변기록이 전부 있는데 계산만 안 일어난다. 비교를 만들면 `pending` comparison과 `queued` attempt만 생긴다 |
+| B-4 | **T-23 사전규격 개요 model adapter·worker** | [ADR-0033](tracking/decisions/0033-prespec-overview-review-runtime-contract.md)·[0035](tracking/decisions/0035-prespec-overview-attempt-result-lifecycle.md) | 같은 구조. 이것으로 사전규격 검토가 Mock이 아닌 실제 모델로 돈다 |
+| B-5 | 문서 준비·실패 attempt 재시작 화면 | typed API는 있음 | 화면 연결만 |
+| B-2 | T-19 판정 모델 계보 projection | [ADR-0036](tracking/decisions/0036-judgment-model-lineage-source.md) | 스키마 변경 없이 API·화면만 |
+
+**B-3과 B-4가 "코드는 있는데 안 돎"을 없애는 가장 큰 한 방이다.**
+
+### 4. 판정을 믿을 수 있게
+
+지금은 "코드가 돈다"만 있고 "판정을 믿을 수 있다"가 없다. 심층 검토는 deterministic Mock
+provider로만 검증됐고 1차 판정도 40건 운영 품질 승인이 없다.
+
+- LLM 품질 gate 2건 — 1차 판정 40건, 심층 검토 Qwen. 실제 model artifact digest와
+  대표 HWP/PDF gold, 사람 판정이 필요하다.
+- screening v3를 보고서 renderer에 명시적으로 연결한다.
+
+### 5. 선별 제품 — C-2 결정 뒤에만 착수
+
+C-2가 정해지기 전에 시작하면 버리는 작업이 된다. 의존 순서대로다.
+
+```
+5-1  threshold 확정
+5-2  전체 발주계획 원본과 방식별 결과를 저장하는 불변 수집 회차·DB 계약
+5-3  내부 opportunity와 plan·pre-spec·bid 공식 관계, 사람 확인 대기 relation 후보
+5-4  사전규격 독립 일일 수집, 저비용 1차선별, 사람 심층 검토 승인 gate 연결
+5-5  계속 추적|보류|종료, 입찰공고 발견, 사전규격 대비 material delta, 최종 사람 Go/No-Go
+```
+
+### 6. 이후 범위
+
+- 실제 secret, MinIO allow/deny, egress firewall, PostgreSQL·객체 backup과 빈 대상 restore를
+  **운영 환경에서** 검증한다. 스크립트 결함은 2026-09-01에 고쳤고 disposable 환경 검증까지
+  했으나 운영 훈련은 아직 없다.
+- 개발계정 API 요청 수를 실측하고 운영계정 활용사례·증액 근거를 준비한다.
+- SSO·역할 권한과 dashboard·외부 알림을 설계한다. **현재 애플리케이션에는 로그인과 역할
+  기반 권한이 없고 사내망 접근 제한이 유일한 경계다.**
+
+### 2026-09-01에 끝낸 것 — 운영 배포 blocker A-1~A-6
+
+여섯 건 모두 착수 전에 현재 코드로 재확인했고 실재했다. 각 건마다 위임 뒤 전체 스위트를
+위임과 독립적으로 직접 실행해 확인했다.
 
 | | 항목 | 결과 | 커밋 |
 |---|---|---|---|
@@ -341,61 +425,15 @@ cx exec -m gpt-5.6-luna -c model_reasoning_effort="max" \
    plaintext 해시라 비교가 성립하지 않는다. 존재·target version·집합 대조는 유지한다.
    설계상 남은 제약이며 `findings.md`에 후속 방향과 함께 있다.
 
-### 남은 운영 배포 blocker
+### 날짜가 정해진 관측 (기록)
 
-`findings.md`에 재현 조건이 있다. A-1~A-6과 달리 아직 손대지 않았다.
+사람이 확인했다. 우선순위 항목이 아니라 시점 기록이다. 놓치면 그 지점은 다시 못 잰다.
 
-- **MinIO versioning 활성화 실패를 bootstrap이 무시한다.** `mc version enable` 뒤의
-  `|| true`가 모든 실패를 삼킨다. versioning이 꺼져 있어도 init이 성공할 수 있고, 그러면
-  DB가 object version ID를 불변 정본으로 저장하는 전제가 깨진다. A-6이 만든 복구 계약도
-  이 전제 위에 서 있으므로 **다음으로 집을 것은 이것이다.**
-- **PostgreSQL·MinIO 관리 port가 모든 host interface에 publish된다.** port mapping에 host IP가
-  없어 LAN에서 DB·객체 저장소에 직접 접근할 수 있다.
-
-### B. 결정이 끝나 바로 착수 가능 (선별 모델과 무관)
-
-| | 항목 | 근거 | 막는 것 |
-|---|---|---|---|
-| B-1 | **D-11 PostgreSQL 테스트 필수화** | `run-web-tests.sh`/CI에서 강제 | 없음 |
-| B-2 | **T-19 판정 모델 계보 projection** | [ADR-0036](tracking/decisions/0036-judgment-model-lineage-source.md) | 없음. 스키마 변경 없이 API·화면만 |
-| B-3 | **입찰 delta 계산 worker와 모델 adapter** | [ADR-0034](tracking/decisions/0034-bid-delta-final-decision.md) | 없음. DB·API·화면 완비, binding도 확정 |
-| B-4 | **T-23 사전규격 개요 model adapter·worker** | [ADR-0033](tracking/decisions/0033-prespec-overview-review-runtime-contract.md)·[0035](tracking/decisions/0035-prespec-overview-attempt-result-lifecycle.md) | 없음 |
-| B-5 | 문서 준비·실패 attempt 재시작 화면 | typed API는 worktree에 있음 | 화면 연결만 |
-
-B-1은 이번 세션에 **같은 부류 결함에 두 번 데였다**(§4의 1·2번). 작고 효과가 크다.
-
-B-3·B-4의 모델 binding은 승인된 사설 vLLM Qwen3.8:27B 재사용으로 확정됐다. 새 endpoint를
-열지 않는다. `resolve_runtime_binding()`이 없으면 503으로 fail-closed한다.
-
-### C. 선별 모델 (실험은 끝났고 방식 선택이 남았다)
-
-```
-C-1  gold 재판정 9건 사람 확인          ← 사람 몫. 이게 있어야 v2가 정본이 된다
-C-2  방식 선택 (아래 셋 중)
-       (a) 하이브리드 상위 300 → LLM 재순위   recall 97.6% 유지, LLM 호출 70% 절감
-       (b) Qwen 단독                        전량 회수 294건, 외부 전송 없음
-       (c) 하이브리드 단독 + 검토량 300      모델 비용 0, 3일마다 300건 사람 검토
-C-3  threshold 확정 → 선별 제품 구현
-C-4  LLM 품질 gate 2건 (1차 판정 40건, 심층 검토 Qwen)
-```
-
-C-2는 **비용 대 누락의 교환**이고 사람이 정할 문제다. 토큰 실측은 §2에 있다.
-
-### D. 사람·절차 (병렬로 진행 가능)
-
-- **D-7 방화벽 승인 상신** — `prespec-attachment-worker` 하나가 `www.g2b.go.kr:443`으로
-  나가는 것이다. `analysis-worker`(LLM)와 무관하며 base stack의 network 넷은 전부
-  `internal: true`다. 승인만 먼저 올리고 overlay 적용은 나중에 한다.
-- overlay 적용 후 T-20 운영 활성화, 그 뒤 나머지 운영 검증(실제 secret, MinIO allow/deny,
-  egress firewall).
-
-### E. 날짜가 정해진 관측 — 놓치면 못 잰다
-
-- **2026-09-08 · 09-14**: T-2b 종단 관측. 나이 15일·21일 지점이 ADR-0027의 21일 재조회
-  범위 판단의 분기점이다. 명령은
+- **2026-09-08 · 09-14**: T-2b 종단 관측. 나이 15일·21일이 ADR-0027의 21일 재조회 범위
+  판단 분기점이다. 명령은
   [validation-run](validation-runs/20260831-order-plan-longitudinal.md) 마지막 절.
-- **2026-09-13**: D-9 종단 확인. 2026-08-30 표본 30건 URL 재호출.
-  횡단면은 이미 쟀다 — 나이 3~150일 **180/180 생존**
+- **2026-09-13**: D-9 종단 확인. 2026-08-30 표본 30건 URL 재호출. 횡단면은 이미 쟀다 —
+  나이 3~150일 **180/180 생존**
   ([survival](validation-runs/20260831-prespec-attachment-survival.md)). 종단은 **URL 회전**을
   본다. 횡단면이 답하지 못하는 유일한 질문이다.
 
@@ -406,7 +444,7 @@ C-2는 **비용 대 누락의 교환**이고 사람이 정할 문제다. 토큰 
 - 자동 입찰 제출, 발주처 연락, 모델의 최종 참여 결정은 이 제품이 하지 않는다.
 - hosted OpenAI 자동 fallback과 scheduler·always-on 자동 활성화는
   선별 방식·threshold 승인 전에는 넣지 않는다.
-  (입찰 delta 계산 worker는 더 이상 범위 밖이 아니다. §7-B3으로 착수 가능하다.)
+  (입찰 delta 계산 worker는 더 이상 범위 밖이 아니다. §7의 3번으로 착수 가능하다.)
 - SSO·역할 권한·알림은 [`tracking/status.md`](tracking/status.md)의 14번 이후다.
 - 현재 애플리케이션에는 로그인과 역할 기반 권한이 없다. 사내망 접근 제한이 경계이고
   담당자 이름은 감사 표식일 뿐 인증이 아니다.
@@ -461,7 +499,8 @@ T-23 사전규격 overview phase 2
 ## 10. 콜드 세션 시작 절차
 
 1. `CLAUDE.md`와 이 파일을 읽는다.
-2. §7에서 집을 항목을 고른다. **A-1~A-6은 끝났다.** 남은 운영 배포 blocker(MinIO versioning fail-open, host-wide port publish)가 다른 무엇보다 앞이다.
+2. §7의 우선순위 표에서 집을 항목을 고른다. **1번(사람 몫)은 먼저 던져두면 병렬로 돈다.**
+   당장 운영 배포 계획이 있으면 2번, 없으면 3번부터 집는다.
 3. 착수 전에 `status.md`의 해당 행을 현재 코드로 **직접 다시 확인한다.**
    기록이 맞을 수도, 이미 고쳐졌을 수도 있다. 2026-09-01에는 A-1~A-6 여섯 건이 전부 맞았고,
    그 중 A-1은 기록보다 누출 경로가 둘 더 있었다.

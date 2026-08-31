@@ -99,24 +99,17 @@ DB에 없다. 다만 byte-identical 파일이 `web/backend/app/screening/baselin
 
 ## 다음 작업 순서
 
-1. **해결.** hosted Codex deep-review reference의 payload 차단, runtime image의 회사자료 제외, profile 원문·경로 API 노출 차단, legacy 첨부 안전 경계와 mutation attribution을 2026-09-01에 전부 해결했다.
-2. MinIO versioning fail-open과 host-wide DB·MinIO port publish를 수정하고 보안·복구 통합 검증을 한다. 객체 복구 계약은 2026-09-01에 해결했다.
-3. screening v3를 보고서 renderer에 명시적으로 연결한다.
-4. 고정 3일 발주계획 모집단으로 BM25, 한국어 dense bi-encoder, 두 결과의 RRF 하이브리드 비교 실험을 실행하고 사람이 최종 정답을 판정한다([ADR-0021 개정](decisions/0021-filter-experiment-before-implementation.md)). 착수 전에 PostgreSQL·객체 backup과 빈 대상 restore를 한 번 검증한다.
-5. 방식별 recall, precision, 검토량, 중요 누락, 순위 품질, 비용, 지연, 재현성을 보고서로 남기고 운영 방식·threshold를 선택한다. 단독 arm이 놓친 건을 하이브리드가 복구하는지를 채택 근거로 삼는다.
-6. 전체 발주계획 원본과 방식별 결과를 저장하는 불변 수집 회차·DB 계약을 구현한다.
-7. 내부 opportunity와 plan·pre-spec·bid 공식 관계, 사람 확인 대기 relation 후보를 구현한다.
-8. 사전규격 독립 일일 수집, 저비용 1차선별, 사람 심층 검토 승인 gate를 연결한다.
-9. document preparation 화면과 실패 deep-review attempt 재시작 화면을 완성한다.
-10. `계속 추적|보류|종료`, 입찰공고 발견, 사전규격 대비 material delta, 최종 사람 Go/No-Go를 구현한다.
-11. 개발계정 API 요청 수를 실측하고 운영계정 활용사례·증액 근거를 준비한다.
-12. 실제 model artifact digest, 대표 HWP/PDF gold, 사람 판정으로 Qwen·vLLM 품질 gate를 측정한다.
-13. 실제 secret, MinIO allow/deny, egress firewall, PostgreSQL·객체 backup과 빈 대상 restore를 운영 환경에서 검증한다.
-14. 이후 범위로 SSO·역할 권한과 dashboard·외부 알림을 설계한다.
+우선순위 순이다. 상세와 착수 조건은 [`../Backend_HANDOFF.md`](../Backend_HANDOFF.md) §7이 정본이다.
 
-2026-08-31에 D-5~D-11을 전부 결정했으므로 사람 결정을 기다리는 항목은 없다. 위 순서에
-앞서 오늘 할 수 있는 것이 셋 있다 — D-9 첨부 URL 수명 횡단면 측정(보존된 나이 6구간
-raw에서 각 30개, 180 GET), D-11 PostgreSQL 테스트 필수화, D-7 방화벽 승인 절차 상신이다.
-D-8 종단 관측은 2026-09-08·09-14에 계속 받는다.
+1. **사람 몫 — 지금 던져두면 병렬로 돈다.** 선별 방식 선택(비용 대 누락의 교환), gold 재판정 9건 확인, D-7 방화벽 승인 상신. 방식 선택 하나가 아래 5번 전체를 막고 있다.
+2. **남은 운영 배포 blocker.** MinIO versioning fail-open과 host-wide DB·MinIO port publish를 수정하고 테스트 harness(`run-web-tests.sh`/CI, PostgreSQL 필수화)를 만든다. 이 둘을 닫으면 운영 배포 blocker가 0이 된다. versioning이 먼저다 — 2026-09-01에 만든 객체 복구 계약이 version 불변성 전제 위에 서 있다.
+3. **껍데기를 실제로 도는 기능으로.** 입찰 delta 계산 worker와 모델 adapter, T-23 사전규격 개요 model adapter·worker, 문서 준비·실패 attempt 재시작 화면, T-19 판정 모델 계보 projection. 전부 결정이 끝나 막는 것이 없다.
+4. **판정을 믿을 수 있게.** 실제 model artifact digest·대표 HWP/PDF gold·사람 판정으로 Qwen·vLLM 품질 gate 2건을 측정하고, screening v3를 보고서 renderer에 명시적으로 연결한다.
+5. **선별 제품 — 1번의 방식 선택 뒤에만 착수한다.** threshold 확정 → 전체 발주계획 원본과 방식별 결과를 저장하는 불변 수집 회차·DB 계약 → 내부 opportunity와 plan·pre-spec·bid 공식 관계 및 사람 확인 대기 relation 후보 → 사전규격 독립 일일 수집·저비용 1차선별·사람 승인 gate 연결 → `계속 추적|보류|종료`, 입찰공고 발견, 사전규격 대비 material delta, 최종 사람 Go/No-Go.
+6. **이후 범위.** 실제 secret·MinIO allow/deny·egress firewall·backup/restore를 운영 환경에서 검증하고, 개발계정 API 요청 수를 실측해 증액 근거를 준비하며, SSO·역할 권한과 dashboard·외부 알림을 설계한다.
+
+2026-08-31에 D-5~D-11을 전부 결정했으므로 사람 결정을 기다리는 항목은 1번뿐이다.
+2026-09-01에 운영 배포 blocker A-1~A-6 여섯 건을 전부 해소했다.
+D-8 종단 관측은 2026-09-08·09-13·09-14에 계속 받는다.
 
 위 단계 전에는 hosted OpenAI 자동 fallback, scheduler·always-on 자동 활성화, 자동 입찰 제출, 발주처 연락, 모델의 최종 참여 결정을 추가하지 않는다.
