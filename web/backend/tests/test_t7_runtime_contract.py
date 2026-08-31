@@ -1,11 +1,35 @@
 """Static deployment-boundary checks for the isolated Lean v1 template."""
 
+import re
 from pathlib import Path
 
 import yaml
 
 
 ROOT = Path(__file__).parents[3]
+
+
+def test_runtime_image_copies_only_allowlisted_reference_material():
+    dockerfile = (ROOT / "web/Dockerfile").read_text(encoding="utf-8")
+    copy_instructions = [
+        line.strip()
+        for line in dockerfile.splitlines()
+        if line.lstrip().startswith("COPY ")
+    ]
+
+    assert not any(
+        re.match(r"^COPY(?:\s+--\S+)*\s+docs/reference(?:\s|$)", line)
+        for line in copy_instructions
+    )
+    assert not any(
+        "docs/reference/company-profile.md" in line
+        or "[루트랩]회사소개서_260804.pdf" in line
+        for line in copy_instructions
+    )
+    assert any(
+        line.startswith("COPY docs/reference/company-performance-titles.tsv ")
+        for line in copy_instructions
+    )
 
 
 def test_real_qwen_is_not_embedded_in_the_application_compose():
