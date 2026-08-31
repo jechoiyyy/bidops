@@ -131,8 +131,12 @@ services:
       # bind mounts; use `docker compose cp` to take a copy out.
       - pipeline-data:/app/data
       - pipeline-reports:/app/reports
-      # The current profile is deployment input, not an image layer.
+      # Profile-related inputs are deployment data, not image layers. The web
+      # process owns both the profile snapshot boundary and the collection
+      # subprocess that consumes the performance-title reference.
       - ./docs/reference/company-profile.md:/app/docs/reference/company-profile.md:ro
+      - ./docs/reference/company-performance-titles.tsv:/app/docs/reference/company-performance-titles.tsv:ro
+      - ./web/backend/app/screening/baseline_company_profile.md:/app/web/backend/app/screening/baseline_company_profile.md:ro
     restart: unless-stopped
 
   document-worker:
