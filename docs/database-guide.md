@@ -1,0 +1,443 @@
+# BidOps 데이터베이스 이해하기
+
+> 기준일: 2026-08-31
+> 기준 소스: PostgreSQL 17 `bidops` 스키마, Alembic head `0014_prespec_overview_attempt_result`, 현재 업무 계약
+> 대상 독자: 기획·사업개발 담당자, 운영자, 처음 프로젝트를 보는 개발자
+
+## 한 문장으로 이해하기
+
+BidOps DB는 공고의 최신값만 모아 둔 목록이 아니라, **어떤 회차에 무엇을 보았고, 어떤 근거로 어떻게 판정했으며, 사람이 무엇을 선택했는지 되짚을 수 있게 보존하는 업무 원장**이다.
+
+실제 첨부 파일 바이트와 큰 구조화 결과는 MinIO에 두고, PostgreSQL에는 업무 상태, 관계, 버전, 해시, 객체 위치를 저장한다.
+
+## 먼저 알아둘 현재 기준
+
+현재 ORM과 Alembic head 기준 애플리케이션 테이블은 **63개**다. PostgreSQL 자체의 Alembic 관리 테이블 `alembic_version`은 이 수에 포함하지 않는다.
+
+| 구분 | 테이블 수 | 담당하는 일 |
+|---|---:|---|
+| 수집·사업기회 | 7 | 회차, 발주계획·공고의 누적 관측, 같은 사업의 연결 |
+| 1차 판정·사람 리뷰 | 11 | 모델 판정, 근거, 반론, 확인 항목, 사람 보정과 개정 이력 |
+| 첨부 취득 | 3 | 첨부 메타데이터, 다운로드 큐, 기관 포털 정보 |
+| 문서 준비 | 8 | 파일 객체, 악성코드 검사, 문서 버전·구조·묶음 |
+| 사전규격 개요 검토 | 5 | 앞부분 절단 snapshot, 모델 실행·결과·상태 전이 계보 |
+| 심층 검토 | 17 | 고정 입력, 단계별 분석, 주장·근거, 리포트·검증·사람 의견 |
+| 판정 실행·품질·일정 | 12 | 실행 큐, 재시도, 프로필 snapshot, 품질 게이트, 정책·일정·감사 |
+| 합계 | **63** | `alembic_version` 제외 |
+
+현재 작업 트리는 전환 중이다. `0014`가 phase 2 저장 기반인 `prespec_overview_result`, `prespec_overview_attempt_event`를 추가해 스키마는 63개가 됐지만, `docs/contracts.md`와 `docs/tracking/status.md`는 아직 `0013`·61개 기준이고 실제 모델 호출·검증 결과 API도 미구현으로 적혀 있다. 따라서 **두 테이블의 존재**와 **phase 2 사용자 워크플로우의 운영 가능 여부**를 같은 뜻으로 해석하면 안 된다.
+
+## 핵심 개념 6가지
+
+### 1. 회차(`run`)
+
+한 번의 수집 또는 판정 작업을 식별한다. 언제부터 언제까지를 보았는지, 상태와 건수는 무엇인지 남긴다. 같은 외부 공고가 다음 회차에 다시 나타나도 공고 자체를 복제하지 않고 관측 이력을 추가한다.
+
+### 2. 누적 원본과 관측(`notice`/`order_plan` + `*_observation`)
+
+- `notice`, `order_plan`: 외부 식별자별 현재 누적 투영이다.
+- `notice_observation`, `order_plan_observation`: 각 회차에서 실제로 보았던 snapshot과 변경 해시다.
+
+예를 들어 같은 사전규격을 월요일과 화요일에 수집하면 `notice`는 한 건이고 `notice_observation`은 회차별로 두 건이 된다.
+
+### 3. 사업기회(`opportunity`)
+
+발주계획, 사전규격, 입찰공고가 같은 조달 목적을 가리킨다고 확인됐을 때 이를 하나로 묶는 내부 추적 단위다. 실제 연결 근거는 `opportunity_link`에 남긴다. 공식키 연결과 유사 후보 연결을 구분하며, 후보는 사람 확인 전까지 확정 관계가 아니다.
+
+### 4. 현재값과 개정 이력
+
+화면이 빠르게 읽는 현재값과 과거를 증명하는 이력을 분리한다.
+
+- 현재 판정: `judgment`; 불변 이력: `judgment_revision`
+- 현재 사람 리뷰: `review`; 불변 이력: `review_revision`
+- 현재 개요 상태: `prespec_overview_review`; 불변 절단본: `prespec_overview_snapshot`
+- 심층 리포트 이력: `report_revision`
+- 사람의 심층 의견 이력: `final_opinion`
+
+수정은 과거 행을 덮어쓰는 방식이 아니라 새 revision을 추가하는 방식이 기본이다.
+
+### 5. 문서 버전과 묶음(`document_version`, `document_bundle`)
+
+파일이 다시 올라오거나 변환 결과가 바뀌면 새 문서 버전을 만든다. 심층 검토를 시작할 때는 검토에 사용한 버전들을 `document_bundle`로 고정한다. 이후 최신 파일이 바뀌어도 과거 리포트가 무엇을 읽었는지 재현할 수 있다.
+
+### 6. 사람이 고른 값과 시스템 상태
+
+DB 안의 상태가 모두 같은 종류의 의사결정은 아니다. 특히 아래 값은 서로 대신하지 않는다.
+
+| 값 | 뜻 | 대체할 수 없는 값 |
+|---|---|---|
+| 적합성 등급 | 회사와 사업의 전략·기술 적합성 | 참여 준비 상태, 추적 승인 |
+| 참여 준비 상태 | 자격 확인 정도 | 적합성 등급 |
+| 개요 검토 결과 | RFP 앞부분을 본 저비용 권고 | 자격 판정, 심층 추적 선택 |
+| `계속 추적/보류/종료` | 사람이 고른 사업기회 추적 상태 | 최종 입찰 참여 승인 |
+| 심층 `final_opinion` | 해당 리포트에 대한 사람 의견 | 최종 입찰 Go/No-Go |
+| 최종 입찰 Go/No-Go | 입찰공고 시점의 사람 결정 | **현재 DB에는 아직 없음** |
+
+## 사용자 워크플로우로 보는 DB
+
+```mermaid
+flowchart LR
+    A[1. 수집 회차] --> B[2. 발주계획·공고 관측]
+    B --> C[3. 사업기회 연결]
+    B --> D[4. 1차 판정·사람 리뷰]
+    C --> E[5. 사전규격 첨부 취득]
+    E --> F[6. 개요 검토]
+    F --> G{사람이 심층검토 선택}
+    G -->|실행| H[7. 문서 묶음·심층 검토]
+    H --> I[8. 계속 추적·보류·종료]
+    I -. 아직 미구현 .-> J[9. 입찰 delta·최종 Go/No-Go]
+```
+
+### 1단계. 수집 회차를 연다
+
+중심 테이블은 `run`이다.
+
+- 수집 기간과 시간대, 실행 상태, 입력·처리 건수를 기록한다.
+- 잘못된 회차를 새 회차가 대체할 수 있지만 기존 회차를 조용히 덮지 않는다.
+- 앱 시작 시 migration, seed, 정책 활성화, 모델 호출을 자동 수행하지 않는다.
+
+운영자가 보는 의미는 “이 데이터가 어느 실행에서 왔는가?”에 대한 최상위 답이다.
+
+### 2단계. 발주계획과 공고를 누적 관측한다
+
+| 대상 | 현재 누적 투영 | 회차별 관측 |
+|---|---|---|
+| 발주계획 | `order_plan` | `order_plan_observation` |
+| 사전규격·입찰공고 등 | `notice` | `notice_observation` |
+
+`order_plan_unty_no`와 `notice_key`가 외부 식별자의 중복 저장을 막는다. 관측 테이블은 같은 대상과 같은 회차 조합을 한 번만 허용하고, snapshot schema, JSON, SHA-256을 한 묶음으로 보존한다.
+
+사전규격은 별도 `pre_spec` 테이블이 아니라 `notice.source_type='pre_spec'`인 공고로 저장된다. 첨부 메타데이터는 `attachment`에 연결된다.
+
+중요한 제한도 있다. 발주계획의 키워드·ColBERT·Qwen·Luna 실험 점수, 순위, 사람 정답을 운영 DB에 저장하는 제품 테이블과 API는 아직 없다. 현재 발주계획 선별 실험은 파일·CLI 경계다.
+
+### 3단계. 같은 사업을 하나의 사업기회로 연결한다
+
+`opportunity`가 내부 추적 단위이고 `opportunity_link`가 연결 근거다.
+
+- `stage`: `order_plan` 또는 `notice`
+- `link_type`: 공식 관계인지 후보 관계인지 구분
+- `status`, `human_decision`: 확정, 확인 대기, 수락·거절 같은 상태와 사람 결정
+- `external_no`: 대상 행이 아직 수집되지 않았어도 원문에 있던 공식번호를 먼저 보존
+
+한 발주계획이나 공고는 동시에 여러 사업기회의 확정 소유 대상이 될 수 없다. 공식 관계가 뒤늦게 두 사업기회를 연결하더라도 안전한 조건에서만 병합하고, 병합된 `opportunity` 행은 삭제하지 않은 채 `merged_into_opportunity_id`로 이력을 남긴다.
+
+제목 유사도만으로 candidate link를 자동 생성하는 완결된 앱 경로는 현재 없다. 공식키가 없으면 같은 사업이라고 추정하지 않는다.
+
+### 4단계. 공고를 1차 판정하고 사람이 검토한다
+
+현재 1차 판정 대상은 발주계획이 아니라 회차에서 관측된 `notice`다.
+
+1. `screening_execution`이 실행 전체를 고정한다.
+2. `screening_attempt`가 공고·단계별 성공 또는 실패를 남긴다.
+3. 결과 발행 시 `judgment` 현재값과 `judgment_revision` 불변 이력이 생성된다.
+4. 다섯 관점은 `perspective`, 근거는 `screening_evidence`에 저장된다.
+5. 반론, 확인할 항목, 유사 실적은 각각 `counterargument`, `verification_item`, `matched_performance`에 저장된다.
+6. 사람이 보정하면 `review` 현재값과 `review_revision` 새 이력이 생기고, 답변은 `verification_answer`에 저장된다.
+
+적합성 등급은 `우선 검토/검토 권장/관찰 대상/제외`, 참여 준비 상태는 `확인 완료/부분 확인 필요/참여 불가 확인/해당 없음`이다. 두 축은 독립이다. 근거가 없으면 `unknown` 또는 `null`을 유지하며, 높은 등급만으로 자격 확인 완료를 만들지 않는다.
+
+### 5단계. 사전규격 첨부를 안전하게 취득한다
+
+`attachment`는 원문 첨부의 메타데이터이고, 실제 취득 작업은 `attachment_fetch`가 관리한다.
+
+```text
+attachment
+  └─ attachment_fetch: 대기 → 진행 → 완료 | 차단 | 실패
+                              └─ 완료 시 document_version 연결
+```
+
+다운로드 자격은 단순히 목록에 보였다는 이유로 생기지 않는다. 업무 규칙에 맞는 추적 연결과 상태를 다시 평가해 큐에 넣는다. worker는 lease와 증가하는 fence 값으로 작업 소유권을 증명하므로, 오래된 worker가 뒤늦게 성공 상태를 덮어쓰는 것을 막는다.
+
+### 6단계. 파일을 검사·구조화하고 개요 검토를 준비한다
+
+파일 처리 계보는 다음과 같다.
+
+```text
+attachment
+  → content_object        파일 내용의 SHA-256 identity
+  → content_scan          악성코드 검사 결과
+  → document_version      업무상 문서 버전과 안전 상태
+  → document_structure    구조화 결과의 snapshot
+  → document_block        페이지·순서·locator 단위 블록
+```
+
+실제 파일 바이트는 MinIO에 있고 PostgreSQL은 object key, version, hash와 상태를 보존한다. 검사 전 파일이나 차단된 파일을 정상 문서처럼 사용하지 않는다.
+
+사전규격의 저비용 개요 검토는 다음 다섯 테이블을 사용한다.
+
+- `prespec_overview_review`: 공고별 현재 준비·실행 상태와 현재 snapshot 포인터
+- `prespec_overview_snapshot`: 어떤 문서·구조·원문 해시의 어느 구간을 잘랐는지 기록한 불변 입력
+- `prespec_overview_attempt`: 모델 실행의 순서와 불변 입력·binding, 제한된 현재 상태
+- `prespec_overview_result`: 검증을 통과한 구조화 결과를 attempt당 최대 하나로 보존
+- `prespec_overview_attempt_event`: `queued/running/completed/failed/cancelled` 상태 전이의 append-only 기록
+
+`0014`는 phase 2의 DB 계보와 무결성 제약을 추가했다. attempt 입력과 binding은 생성 뒤 바꿀 수 없고, 상태 전이는 먼저 event를 남긴 뒤 허용된 방향으로만 진행되며, 검증 결과는 별도 불변 행에 한 번만 저장한다. 다만 승인된 사설 모델 binding, 실제 모델 호출·결과 검증 서비스, 새 결과 API 계약은 아직 운영 완료로 볼 수 없다. binding이 없으면 `awaiting_model`, 절단 경계가 불명확하면 `needs_human_review`에 머물러야 한다. 참고용 mock은 `reference_only`, `deployable=false`이고 운영 완료로 세지 않는다.
+
+주의할 점은 현재 `GET /api/pre-specs/{notice_id}/overview-reviews`가 단순 조회만 하지 않는다는 것이다. 준비 가능한 clean 문서와 구조가 있으면 review와 snapshot을 생성하거나 상태를 전진시킬 수 있다.
+
+### 7단계. 승인된 문서 묶음으로 심층 검토한다
+
+사람이 심층 검토를 실행하기 전 먼저 `document_bundle`을 만든다. `document_bundle_item`은 검토할 문서 버전과 순서를 snapshot으로 고정한다.
+
+심층 검토 계보는 다음과 같다.
+
+```text
+document_bundle + profile_version + analysis_policy_version
+  → deep_review
+    → deep_review_attempt
+      → deep_review_stage (정확히 3단계)
+        → claim ↔ evidence_ref
+          → report_revision
+            → validation_run → validation_check
+              → final_opinion (사람 의견)
+```
+
+세 단계는 다음 값만 허용한다.
+
+1. `requirements_and_evaluation`
+2. `delivery_risk_economics`
+3. `synthesis_and_validation`
+
+`claim`은 분석 문장, `evidence_ref`는 문서나 회사 프로필의 구체적 근거 위치, `claim_evidence`는 둘의 연결이다. 리포트의 사실을 고치면 새 `report_revision`을 만들고 필요한 근거를 `report_revision_evidence`로 연결한다.
+
+검증 실패 결과는 자동 보정하지 않는다. 사람이 실패를 인지하고 이유를 남긴 경우에만 그 상태를 명시한 `final_opinion`을 추가할 수 있다. 이 의견도 최종 입찰 Go/No-Go는 아니다.
+
+### 8단계. 사람이 추적 상태를 선택한다
+
+사람은 `opportunity.tracking_status`에 `미선택/계속 추적/보류/종료` 중 하나를 선택한다.
+
+- `계속 추적`: 새 문서와 입찰공고를 계속 감시
+- `보류`: 정보나 선행 조건이 부족해 결정을 미룸
+- `종료`: 현재 사업기회의 능동 추적을 끝냄
+- `미선택`: 아직 사람 선택이 없음
+
+`recheck_signal`은 시스템이 다시 보라고 알리는 신호일 뿐 사람의 추적 선택이 아니다. 담당자 이름도 현재 로그인 인증값이 아니라 감사 표식이다.
+
+### 9단계. 입찰공고 변경과 최종 결정을 다룬다 — 아직 미구현
+
+업무 규칙에는 사전규격 대비 입찰공고의 금액, 계약기간, 참가자격, 공동수급, 평가방식, 배점, 제출물, 기한, 요구사항 변경을 비교하도록 정의되어 있다. 그러나 현재는 다음을 저장할 운영 테이블·migration·endpoint가 없다.
+
+- 비교할 기준/대상 문서 묶음 쌍
+- delta 실행과 변경·무변경·불명확·실패 결과
+- 알림 전달 상태
+- append-only 최종 입찰 Go/No-Go
+
+따라서 기존 `final_opinion`이나 `tracking_status`를 최종 입찰 결정으로 재사용하면 안 된다.
+
+## PostgreSQL과 MinIO의 역할 경계
+
+| PostgreSQL에 저장 | MinIO에 저장 |
+|---|---|
+| 공고·발주계획과 회차별 관측 | 원본 첨부 파일 바이트 |
+| 사업기회 연결과 사람 선택 | 완전한 문서 구조 JSON |
+| 실행·재시도·검증 상태 | 격리된 의심 파일 |
+| 문서 버전, object key, version ID, SHA-256 | 암호화한 모델 원응답 |
+| 판정·리뷰·리포트의 불변 이력 | 용량이 큰 파생 객체 |
+
+DB 외래키는 MinIO 객체가 실제로 존재하는지 보장할 수 없다. 복구할 때는 객체를 먼저 복원한 뒤 DB를 복원하고, 활성 객체의 version과 hash를 검증해야 한다.
+
+## DB가 강제하는 중요한 안전장치
+
+### 중복과 잘못된 관계 방지
+
+- 외부 공고 키와 발주계획 통합번호는 유일해야 한다.
+- 같은 대상·같은 회차의 관측은 하나만 허용한다.
+- 한 공고나 발주계획의 authoritative 사업기회 소유자는 하나만 허용한다.
+- 한 첨부의 같은 문서 version과 current 문서는 중복될 수 없다.
+- 문서 묶음 안의 ordinal은 중복될 수 없다.
+- revision sequence와 attempt sequence는 같은 범위에서 중복될 수 없다.
+
+### 상태와 필수값의 짝 강제
+
+- 완료 상태면 완료 시각과 결과가 있어야 한다.
+- 진행 중인 첨부 취득에는 lease 정보가 있어야 한다.
+- 추적 상태를 사람이 선택했다면 작성자와 시각이 있어야 한다.
+- hash는 64자리 소문자 SHA-256 형식이어야 한다.
+- `reference_only` 결과는 배포 가능 상태가 될 수 없다.
+- evidence는 문서 또는 프로필 중 정확히 한 출처만 가리켜야 한다.
+
+### 불변 이력 보호
+
+DB trigger가 다음 이력의 `UPDATE`와 `DELETE`를 거부한다.
+
+- `judgment_revision`
+- `review_revision`
+- `prespec_overview_snapshot`
+- `prespec_overview_result`
+- `prespec_overview_attempt_event`
+
+`prespec_overview_attempt`는 phase 2에서 전체 행 불변 대신 **입력 계보 불변 + 제한된 lifecycle 전이** 방식으로 바뀌었다. 입력 snapshot·sequence·hash·모델 binding은 수정할 수 없고, 상태는 대응하는 event가 있을 때만 `queued → running/failed/cancelled`, `running → completed/failed/cancelled`로 전이할 수 있다.
+
+다만 `notice_observation`, `order_plan_observation`에는 동일한 append-only trigger가 없다. 특히 `run` 삭제가 외래키 cascade를 통해 관측을 간접 삭제할 수 있으므로, 불변 회차를 지키는 서비스와 운영 절차가 함께 필요하다.
+
+## 실행 큐와 품질 통제
+
+`screening_execution`은 전역 FIFO 순서를 갖고 동시에 활성화할 실행을 하나로 제한한다. `screening_attempt`는 단계별 시도와 실패 사유를 남긴다. 실행은 사용한 run, 정책, 회사 프로필 snapshot, 모델·prompt·generation digest를 고정하므로 결과가 어떤 입력에서 나왔는지 추적할 수 있다.
+
+`quality_gate`는 고정 표본으로 pass A/B를 비교하고, `quality_gate_evaluation`과 `quality_gate_review`가 기계 평가와 사람 검토를 분리한다. `screening_policy`는 한 번에 하나만 활성화된다. `schedule_setting`, `schedule_reservation`, `schedule_execution`, `always_on_state`는 자동 실행 계약을 저장하지만 기본값은 비활성이다.
+
+PostgreSQL 전용 trigger·권한·동시성 테스트는 필수 환경이 없으면 skip될 수 있다. 전체 테스트가 녹색이라는 사실만으로 운영 DB 게이트가 검증됐다고 판단하면 안 된다.
+
+## DB 계정과 권한
+
+이 계정들은 웹 사용자 역할이 아니라 PostgreSQL 런타임 역할이다. 현재 애플리케이션에는 로그인·RBAC가 없다.
+
+| 역할 | 목적 | 권한 방향 |
+|---|---|---|
+| owner/migrate | schema와 migration 관리 | 운영 절차에서만 사용 |
+| app | API 요청 처리 | 읽기와 업무별 제한된 쓰기 |
+| worker | 첨부·문서·분석 작업 | worker가 맡은 테이블과 열만 갱신 |
+| ro_backup | 백업·감사 조회 | 전체 읽기 전용 |
+
+권한은 새 테이블에 자동으로 넓게 부여하지 않는 allowlist 방식이다. 새 테이블을 추가하면 역할별 `GRANT`와 권한 회귀 테스트를 함께 수정해야 한다.
+
+## 자주 묻는 질문
+
+### 같은 공고를 여러 번 수집하면 중복되지 않나?
+
+공고 identity인 `notice`는 하나로 누적하고, 회차별로 `notice_observation`을 추가한다. 그래서 현재값과 과거 관측을 모두 볼 수 있다.
+
+### 모델 판정이나 사람 리뷰를 고치면 과거가 사라지나?
+
+화면용 현재 투영은 갱신되지만, 정본 이력은 새 `judgment_revision` 또는 `review_revision`으로 추가된다. 이전 revision은 수정·삭제할 수 없다.
+
+### 첨부가 바뀌면 과거 리포트가 새 파일을 보게 되나?
+
+아니다. 새 `document_version`을 만들고 새 검토에는 새 `document_bundle`을 사용한다. 기존 리포트는 당시 확정한 bundle을 계속 가리킨다.
+
+### 정보가 없으면 어떤 값을 저장하나?
+
+검증되지 않은 사실은 `unknown` 또는 `null`로 남긴다. 모델 추론이나 외부 상식으로 `confirmed`로 올리지 않는다.
+
+### 데이터를 삭제해 정리하면 되지 않나?
+
+업무 이력은 삭제보다 supersede, merge lineage, 종료 상태, 새 revision을 사용한다. 특히 회차 원본, 관측, 기존 리뷰와 검토 근거를 임의로 덮어쓰거나 삭제하면 안 된다.
+
+### 담당자 이름은 로그인한 사용자인가?
+
+아니다. 현재 담당자 이름은 감사 표식일 뿐 인증 결과가 아니다. 실제 로그인과 역할 기반 권한은 아직 구현 전이다.
+
+## 전체 63개 테이블 빠른 사전
+
+### A. 수집·사업기회 7개
+
+| 테이블 | 쉬운 설명 |
+|---|---|
+| `run` | 수집·판정 실행의 회차와 상태 |
+| `notice` | 사전규격·입찰공고 등을 외부키별로 누적한 현재 투영 |
+| `notice_observation` | 특정 회차에서 본 공고 snapshot과 변경 정보 |
+| `order_plan` | 발주계획을 공식 통합번호별로 누적한 현재 투영 |
+| `order_plan_observation` | 특정 회차에서 본 발주계획 snapshot과 변경 정보 |
+| `opportunity` | 같은 조달 목적을 묶어 사람이 추적하는 내부 사업기회 |
+| `opportunity_link` | 사업기회와 발주계획·공고의 공식 또는 후보 연결 근거 |
+
+### B. 1차 판정·사람 리뷰 11개
+
+| 테이블 | 쉬운 설명 |
+|---|---|
+| `judgment` | 공고별 현재 모델 판정 투영 |
+| `judgment_revision` | 판정의 append-only 버전과 실행 계보 |
+| `perspective` | 다섯 관점별 판정 내용 |
+| `screening_evidence` | 관점 판정을 뒷받침하는 근거와 확실성 |
+| `counterargument` | 낙관적 판정에 대한 반론 검토 |
+| `verification_item` | 사람이 추가로 확인해야 할 질문 |
+| `matched_performance` | 공고와 연결한 회사 수행실적 후보 |
+| `review` | 공고별 현재 사람 리뷰 투영 |
+| `review_revision` | 사람 리뷰의 append-only 버전 |
+| `verification_answer` | 확인 항목에 대한 사람 답변 |
+| `ingest_warning` | 적재 중 발생한 부분 산출물·계약 경고 |
+
+### C. 첨부 취득 3개
+
+| 테이블 | 쉬운 설명 |
+|---|---|
+| `attachment` | 공고가 제공한 첨부 메타데이터 |
+| `attachment_fetch` | 첨부 다운로드·검사 큐의 상태와 lease |
+| `agency_portal` | 기관별 원문 포털 접근 정보 |
+
+### D. 문서 준비 8개
+
+| 테이블 | 쉬운 설명 |
+|---|---|
+| `content_object` | 파일 내용 SHA-256을 기준으로 한 객체 identity |
+| `content_object_location` | MinIO bucket·object key·version 같은 저장 위치 |
+| `content_scan` | 악성코드 검사 결과 |
+| `document_version` | 첨부와 연결된 업무상 문서 버전·안전 상태 |
+| `document_structure` | 문서 구조화 결과와 구조 hash |
+| `document_block` | 페이지·순서·locator 단위의 문서 블록 |
+| `document_bundle` | 한 번의 심층 검토에 사용할 문서 집합 |
+| `document_bundle_item` | bundle에 고정된 문서 버전과 순서 snapshot |
+
+### E. 사전규격 개요 검토 5개
+
+| 테이블 | 쉬운 설명 |
+|---|---|
+| `prespec_overview_review` | 사전규격별 개요 검토의 현재 상태 |
+| `prespec_overview_snapshot` | 앞부분 절단 범위와 원문·구조 hash를 고정한 입력 |
+| `prespec_overview_attempt` | 개요 모델 실행의 불변 입력·binding과 제한된 lifecycle 상태 |
+| `prespec_overview_result` | 검증된 구조화 결과의 immutable payload와 digest |
+| `prespec_overview_attempt_event` | attempt 상태 전이의 append-only event |
+
+### F. 심층 검토 17개
+
+| 테이블 | 쉬운 설명 |
+|---|---|
+| `profile_version` | 분석에 사용한 회사 프로필 버전 |
+| `profile_evidence` | 프로필 사실을 뒷받침하는 승인 근거 |
+| `analysis_policy_version` | 심층 분석 정책·prompt의 불변 버전 |
+| `deep_review` | 공고·bundle·profile·policy 조합을 고정한 심층 검토 |
+| `deep_review_attempt` | 심층 검토 실행 시도 |
+| `deep_review_stage` | 세 단계별 실행 상태와 결과 참조 |
+| `claim` | 리포트에 들어갈 분석 주장 |
+| `evidence_ref` | 문서 또는 프로필의 구체적 근거 위치 |
+| `claim_evidence` | 주장과 근거의 다대다 연결 |
+| `report_revision` | 기계·사람 리포트의 append-only 버전 |
+| `report_revision_evidence` | 사람이 사실을 고친 revision의 근거 연결 |
+| `validation_run` | 리포트 전체 검증 실행 |
+| `validation_check` | 개별 검증 항목의 통과·실패 결과 |
+| `final_opinion` | 특정 검증·리포트에 대한 사람의 append-only 의견 |
+| `work_job` | worker가 가져가는 심층 검토 작업과 lease fence |
+| `idempotency_record` | 같은 요청의 중복 실행과 충돌 방지 |
+| `audit_event` | 주요 사람·서비스 변경의 안전한 감사 로그 |
+
+### G. 판정 실행·품질·일정 12개
+
+| 테이블 | 쉬운 설명 |
+|---|---|
+| `screening_execution` | 판정 실행 큐의 전체 상태와 고정 입력 digest |
+| `screening_attempt` | 공고·단계별 시도와 실패 정보 |
+| `company_profile_snapshot` | 실행에 사용한 회사 프로필 파일·Git 기준선 snapshot |
+| `quality_gate` | pass A/B 품질 검증 단위 |
+| `quality_gate_evaluation` | 품질 지표와 통과 여부 계산 결과 |
+| `quality_gate_review` | 품질 게이트 근거에 대한 사람 검토 |
+| `screening_policy` | 판정 정책과 품질 게이트 binding |
+| `schedule_setting` | 정기 실행 시간·활성화 설정 |
+| `schedule_reservation` | scheduler가 확보한 실행 예약 |
+| `schedule_execution` | 예약과 실제 판정 실행의 연결 |
+| `always_on_state` | always-on 단일 상태와 중지 이유 |
+| `screening_audit_event` | 판정 runtime·scheduler 전용 append-only 감사 로그 |
+
+## 아직 DB에 없거나 완결되지 않은 영역
+
+- 발주계획 선별 실험의 방식별 score·rank·reason·사람 정답을 저장하는 운영 테이블/API
+- 제목·유사도 기반 candidate opportunity 연결 생성의 완결된 앱 경로
+- 사전규격 overview phase 2의 실제 모델 실행·검증 서비스, 승인된 binding, 런타임 권한·새 API 계약 완결
+- 입찰공고 delta 실행·결과·알림 전달 이력
+- 최종 입찰 Go/No-Go의 별도 append-only 이력
+- SSO, 웹 사용자, 역할 기반 권한
+
+테이블이 있다는 이유만으로 화면·worker·운영 절차까지 완성됐다고 해석하지 않아야 한다. 반대로 업무 규칙이나 ADR에 목표 구조가 적혀 있다는 이유만으로 현재 DB에 구현됐다고 가정해서도 안 된다.
+
+## 원본 확인 위치
+
+- [업무 상태와 의사결정 규칙](business-rules.md)
+- [REST·파일·DB 소비자 계약](contracts.md)
+- [현재 구조와 목표 데이터 흐름](architecture.md)
+- [보안과 PostgreSQL·MinIO 경계](security.md)
+- [운영·백업·복구 절차](operations.md)
+- [현재 구현 상태](tracking/status.md)
+- [SQLAlchemy 모델](../web/backend/app/models.py)
+- [Alembic migration](../web/backend/alembic/versions/)
+- [런타임 DB 권한 allowlist](../scripts/runtime-privileges.sql)
+- [심층 검토 상세 ERD 가이드](deep-review-erd-guide.md)
