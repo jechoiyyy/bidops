@@ -1,0 +1,16 @@
+{
+ "schema_version": "bidops.order-plan-bm25.v1",
+ "note": "ADR-0021 개정이 채택한 BM25 arm 설정이다. 기존 6-method 계약(methods.json)은 닫힌 집합이라 여기에 분리해 둔다. 방식이 선택되면 그때 제품 경로에 통합한다.",
+ "method_version": "bm25-char-title-capability-v1",
+ "model_name": null,
+ "model_revision": null,
+ "prompt_id": null,
+ "prompt_sha256": null,
+ "analyzer": "char",
+ "ngram_min": 2,
+ "ngram_max": 5,
+ "k1": 1.2,
+ "b": 0.75,
+ "query_term_frequency": "binary",
+ "capability_aggregation": "max_bm25"
+}
