@@ -24,7 +24,7 @@
 | 결정적 HTML·피드백 YAML | 구현됨 | 파이프라인 테스트에 포함됨 |
 | FastAPI 회차·공고·리뷰·프로필·지표 | 구현됨 | 전체 backend suite `1041 passed, 5 skipped, 0 failed` |
 | 프로필 조회 projection | 세 route가 승인된 불변 snapshot의 version·digest에 고정되고 구조화 항목·unknown만 반환함. filesystem source, raw block·raw text, source line, 가공되지 않은 parse error를 닫힌 안정 오류 코드로 대체하고 snapshot이 없으면 503으로 fail closed함([ADR-0023](decisions/0023-company-profile-minimal-projection.md)) | 해결; 실제 프로필 문자열 sentinel 회귀 테스트, backend `1041 passed, 5 skipped, 0 failed`, visual `598 passed, 10 skipped, 0 failed` |
-| legacy notice 첨부 | quarantine→MIME/구조·ClamAV 검사→source object 승격 후 `safe` 파일만 legacy Attachment로 등록하고, API `stored_path` 제거 및 `attachments_dir` named volume 적용 | A-2 회귀 통과; backend `1041 passed, 5 skipped, 6 warnings`; Compose `COMPOSE_OK` |
+| legacy notice 첨부 | quarantine→MIME/구조·ClamAV 검사→source object 승격 후 `safe` 파일만 legacy Attachment로 등록하고, API `stored_path` 제거 및 `/app/web/data` 전체를 덮는 `web-data` named volume 적용 | A-2 회귀 통과; backend `1041 passed, 5 skipped, 0 failed`; Compose `COMPOSE_OK` |
 | legacy mutation actor·감사 | 첨부 upload/delete, 기관 포털 create/update, 정책 create/candidate/activate에 actor header 검증과 append-only `AuditEvent` 적용 | A-4 회귀 통과; backend `1041 passed, 5 skipped, 0 failed`; frontend tsc/build 통과, visual `598 passed, 10 skipped, 0 failed` |
 | PostgreSQL 17·Alembic | 공유 worktree head `0015_bid_delta_final_decision`; T-23 revision `0014_prespec_overview_attempt_result` | T-23은 임시 PostgreSQL 17에서 `0014`까지 구조 제약·overview 상태 전이 trigger 1개와 role allowlist를 검증했다. 별도 `0015`의 검증으로 재사용하지 않는다 |
 | 누적 관측·첨부 보존 | 신규 observation의 결정적 snapshot/hash와 provider 첨부 retire/revive 구현됨 | 같은 회차 exact replay no-op, 다른 bytes rollback, legacy `null` 보존, 수집에서 사라진 첨부 비삭제 회귀 통과 |
@@ -38,9 +38,9 @@
 | T-23 사전규격 overview phase 2 기반 | immutable result/event, 제한된 attempt lifecycle service, safe v2 projection 구현됨; 실제 model transport·worker는 미구현 | SQLite 46 passed·1 PostgreSQL-only skipped, PostgreSQL 17 집중 9 passed, production build 282 modules |
 | T7 stack 조립 | PostgreSQL, MinIO, ClamAV, web, document worker, analysis worker, 일부 영속 volume, 목적별 egress overlay 구현됨 | 개발 stack health와 Ollama endpoint 도달 기록은 있으나 보안·복구 blocker로 운영 배포 불가 |
 | 구조화 안전 로그 | 기반과 주요 worker·queue·scheduler 계측 구현 중인 worktree 변경 | 신규 단위 테스트 일부 통과 기록, 현재 전체 worktree green 아님 |
-| 개발용 hosted Codex 심층 검토 reference | 기본 비활성·notice allowlist에 더해 닫힌 payload allowlist를 두고, 회사 profile·prior stage 결과·승인되지 않은 입력 필드가 있으면 prompt 생성과 subprocess 이전에 `external_provider_payload_not_approved`로 fail-closed한다 | 해결; 차단 시 runner 미호출을 단언하는 회귀 테스트가 있고 backend `1037 passed, 5 skipped, 0 failed` |
-| runtime image 회사자료 제외 | current profile·회사 실적 제목 TSV·vendored baseline을 build context와 runtime image에서 제외하고, `web`에만 read-only host bind mount로 주입하도록 경계를 고정함 | 해결; runtime contract `11 passed`, profile snapshot keyword `14 passed`, 실제 image build/run/find, `COMPOSE_OK`, backend `1037 passed, 5 skipped, 0 failed` |
-| backup·object-first restore script | 초안은 있으나 target version mapping과 active manifest 계약이 불완전 | 정적 결함이 있어 복구 가능 상태가 아니며 실제 훈련도 없음 |
+| 개발용 hosted Codex 심층 검토 reference | 기본 비활성·notice allowlist에 더해 닫힌 payload allowlist를 두고, 회사 profile·prior stage 결과·승인되지 않은 입력 필드가 있으면 prompt 생성과 subprocess 이전에 `external_provider_payload_not_approved`로 fail-closed한다 | 해결; 차단 시 runner 미호출을 단언하는 회귀 테스트가 있고 backend `1041 passed, 5 skipped, 0 failed` |
+| runtime image 회사자료 제외 | current profile·회사 실적 제목 TSV·vendored baseline을 build context와 runtime image에서 제외하고, `web`에만 read-only host bind mount로 주입하도록 경계를 고정함 | 해결; runtime contract `11 passed`, profile snapshot keyword `14 passed`, 실제 image build/run/find, `COMPOSE_OK`, backend `1041 passed, 5 skipped, 0 failed` |
+| backup·object-first restore script | restore가 source→target version mapping을 기록하고 backup hash를 실제로 검증하며, active manifest를 `content_object_location`에서 생성해 복구된 집합과 일대일 대조함. 암호화 model-response는 `ContentObject.sha256`이 plaintext라 stored-byte 비교 대신 존재·target version만 검사함 | 해결; disposable MinIO 2개와 PostgreSQL 17로 정상 복구 exit 0, 손상 backup·미복구 active object·복구 후 삭제 세 경우 exit 1 확인 |
 
 T-23 `0014` 검증 경계의 PostgreSQL application schema는 legacy 13개, 심층 검토 25개,
 판정 runtime 12개, 누적 identity 5개, 첨부 fetch 1개, 판정·리뷰 revision 2개, 사전규격
@@ -100,7 +100,7 @@ DB에 없다. 다만 byte-identical 파일이 `web/backend/app/screening/baselin
 ## 다음 작업 순서
 
 1. **해결.** hosted Codex deep-review reference의 payload 차단, runtime image의 회사자료 제외, profile 원문·경로 API 노출 차단, legacy 첨부 안전 경계와 mutation attribution을 2026-09-01에 전부 해결했다.
-2. MinIO versioning fail-open, host-wide DB·MinIO port publish, 불완전 객체 복구를 수정하고 보안·복구 통합 검증을 한다.
+2. MinIO versioning fail-open과 host-wide DB·MinIO port publish를 수정하고 보안·복구 통합 검증을 한다. 객체 복구 계약은 2026-09-01에 해결했다.
 3. screening v3를 보고서 renderer에 명시적으로 연결한다.
 4. 고정 3일 발주계획 모집단으로 BM25, 한국어 dense bi-encoder, 두 결과의 RRF 하이브리드 비교 실험을 실행하고 사람이 최종 정답을 판정한다([ADR-0021 개정](decisions/0021-filter-experiment-before-implementation.md)). 착수 전에 PostgreSQL·객체 backup과 빈 대상 restore를 한 번 검증한다.
 5. 방식별 recall, precision, 검토량, 중요 누락, 순위 품질, 비용, 지연, 재현성을 보고서로 남기고 운영 방식·threshold를 선택한다. 단독 arm이 놓친 건을 하이브리드가 복구하는지를 채택 근거로 삼는다.
