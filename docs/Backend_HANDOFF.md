@@ -15,7 +15,7 @@
 | 2 | [`tracking/lifecycle-workstream.md`](tracking/lifecycle-workstream.md) | 작업 목록 정본. 확정된 사실·결정·할 일·끝낸 일 |
 | 3 | [`engineering-notes.md`](engineering-notes.md) 마지막 여섯 절 | host 테스트 실행법과 새로 걸린 함정들 |
 | 4 | [`tracking/findings.md`](tracking/findings.md) | 재현 가능한 미해결 문제 |
-| 5 | [`tracking/status.md`](tracking/status.md)의 구현 상태 표 | **운영 배포 blocker 4건.** A-2·A-4는 2026-09-01에 해소했다. §7-A가 여기서 나온다 |
+| 5 | [`tracking/status.md`](tracking/status.md)의 구현 상태 표 | **A-1~A-6 여섯 건을 2026-09-01에 전부 해소했다.** 남은 운영 배포 blocker는 MinIO versioning fail-open과 host-wide port publish다. §7-A가 여기서 나온다 |
 
 바쁘면 **§7(다음 작업 순서)과 §10(콜드 세션 시작 절차)만 읽어도 착수할 수 있다.**
 
@@ -315,32 +315,42 @@ cx exec -m gpt-5.6-luna -c model_reasoning_effort="max" \
 **결정은 다 끝났다. 남은 것은 실행이다.** 아래는 의존관계 순이며, 각 항목에 착수 조건과
 막는 것을 적었다. 위에서부터 집으면 된다.
 
-### A. 운영 배포 blocker (로드맵 1·2번, 선별 구현보다 앞이다)
+### A. 운영 배포 blocker — A-1~A-6은 2026-09-01에 전부 해소했다
 
-`status.md`의 구현 상태 표가 정본이다. 남은 네 건이 **운영 사용 차단** 상태다.
+`status.md`의 구현 상태 표가 정본이다. **여섯 건 모두 착수 전에 현재 코드로 재확인했고
+실재했다.** 각 건마다 위임 뒤 전체 스위트를 위임과 독립적으로 직접 실행해 확인했다.
 
-| | 항목 | 크기 | 상태 |
+| | 항목 | 결과 | 커밋 |
 |---|---|---|---|
-| A-1 | **runtime image가 회사 프로필을 포함한다** | 작음 | **2026-09-01 확인함. 실재한다** |
-| A-2 | legacy notice 첨부가 scan·quarantine·MinIO를 우회하고 `stored_path`를 API에 노출 | 중간 | **2026-09-01 해결: quarantine·검사·source 승격, API path 제거, named volume** |
-| A-3 | 프로필 조회 projection이 source path·raw block·parse error를 노출할 수 있음 | 중간 | 미확인 |
-| A-4 | legacy mutation이 actor·audit 없이 변경 가능 | 중간 | **2026-09-01 부분 해결: 첨부·포털·정책 7개 mutation에 actor·AuditEvent 적용** |
-| A-5 | hosted Codex reference가 허용 payload 정책과 충돌 | 작음 | 미확인 |
-| A-6 | backup·restore script의 target version mapping·manifest 계약 결함 | 중간 | 미확인 |
+| A-1 | runtime image가 회사자료를 포함한다 | 해결. `docs/reference` bulk copy, 회사 실적 제목 TSV, `app/screening/baseline_company_profile.md` 세 경로를 build context에서 막고 `web`에 read-only bind mount로 주입한다 | `ed78d93`·`0bdbab1` |
+| A-2 | legacy 첨부가 scan·quarantine·MinIO를 우회 | 해결. quarantine→MIME·구조·ClamAV→`safe`만 등록, `stored_path` 응답 제거, `web-data` volume | `2517078` |
+| A-3 | 프로필 projection이 원문·경로를 노출 | 해결. ADR-0023의 최소 projection. 승인 snapshot에 고정하고 닫힌 오류 코드로 fail closed | `a0b34db` |
+| A-4 | legacy mutation에 actor·audit 없음 | 해결. 첨부·포털·정책 7개 mutation에 actor 검증과 `AuditEvent` | `2517078` |
+| A-5 | hosted Codex가 허용 payload 정책과 충돌 | 해결. 닫힌 allowlist 밖 필드·프로필·prior stage는 prompt 생성 전에 fail-closed | `ed78d93` |
+| A-6 | backup·restore의 version mapping·manifest 결함 | 해결. target version mapping 기록, DB에서 active manifest 생성, 집합 일대일 대조 | `6eeebd6` |
 
-**A-1은 직접 확인했다.** `web/Dockerfile:63`의 `COPY docs/reference /app/docs/reference`가
-디렉터리 전체를 복사한다. 12줄 뒤 주석은 "company profile/source documents stay out of the
-image"라고 주장하지만 `docs/reference/company-profile.md`(23KB 전문)가 이미 들어간 뒤다.
-`.dockerignore`는 `docs/reference/*.pdf`만 막는다. `security.md`가 "프로필 원문 조회 불가"로
-정한 경계가 이미지 안에서 무의미해진다. 수정은 한 줄이지만 **주석과 코드가 어긋난 것을
-테스트로 고정해야** 재발하지 않는다.
+**착수하기 전에 알아야 할 것 셋.**
 
-**A-3~A-6은 `status.md` 기록이며 오늘 다시 확인하지 않았다.** A-1처럼 직접 봐야 크기를
-안다. 착수 전에 현재 코드로 재확인하라. A-2와 A-4는 2026-09-01 구현·회귀 검증을 마쳤다.
+1. **`docker-compose.t7.yml`이 배포 입력을 요구한다.** 회사 프로필·실적 TSV·벤더링 baseline
+   세 파일은 이미지에 없고 host checkout에서 read-only로 주입된다. 파일이 없으면 Docker가
+   그 자리에 **디렉터리를 만들어** 이상하게 실패한다. 확인 명령은 `operations.md`에 있다.
+2. **프로필 화면은 승인 snapshot이 있어야 뜬다.** snapshot이 하나도 없으면
+   `/api/profile/sections`가 `503 profile_snapshot_unavailable`로 fail closed한다. 정상이다.
+   snapshot은 판정 실행이 만들므로 신규 배포에서는 회차 판정을 한 번 돌린 뒤에 쓴다.
+3. **암호화 model-response는 stored-byte hash로 검증하지 않는다.** `ContentObject.sha256`이
+   plaintext 해시라 비교가 성립하지 않는다. 존재·target version·집합 대조는 유지한다.
+   설계상 남은 제약이며 `findings.md`에 후속 방향과 함께 있다.
 
-A-6은 [B-5 결정](tracking/decisions-pending-20260831.md)과 물린다. "backup·restore를 실험
-착수 전에 먼저 검증"으로 정했는데 스크립트 자체에 정적 결함이 있어 **검증 이전에 수정이
-필요하다.** 운영 데이터가 비어 있는 지금이 가장 싸다.
+### 남은 운영 배포 blocker
+
+`findings.md`에 재현 조건이 있다. A-1~A-6과 달리 아직 손대지 않았다.
+
+- **MinIO versioning 활성화 실패를 bootstrap이 무시한다.** `mc version enable` 뒤의
+  `|| true`가 모든 실패를 삼킨다. versioning이 꺼져 있어도 init이 성공할 수 있고, 그러면
+  DB가 object version ID를 불변 정본으로 저장하는 전제가 깨진다. A-6이 만든 복구 계약도
+  이 전제 위에 서 있으므로 **다음으로 집을 것은 이것이다.**
+- **PostgreSQL·MinIO 관리 port가 모든 host interface에 publish된다.** port mapping에 host IP가
+  없어 LAN에서 DB·객체 저장소에 직접 접근할 수 있다.
 
 ### B. 결정이 끝나 바로 착수 가능 (선별 모델과 무관)
 
@@ -451,8 +461,9 @@ T-23 사전규격 overview phase 2
 ## 10. 콜드 세션 시작 절차
 
 1. `CLAUDE.md`와 이 파일을 읽는다.
-2. §7에서 집을 항목을 고른다. **A(보안 blocker)가 다른 무엇보다 앞이다.**
+2. §7에서 집을 항목을 고른다. **A-1~A-6은 끝났다.** 남은 운영 배포 blocker(MinIO versioning fail-open, host-wide port publish)가 다른 무엇보다 앞이다.
 3. 착수 전에 `status.md`의 해당 행을 현재 코드로 **직접 다시 확인한다.**
-   A-1처럼 기록이 맞을 수도, 이미 고쳐졌을 수도 있다.
+   기록이 맞을 수도, 이미 고쳐졌을 수도 있다. 2026-09-01에는 A-1~A-6 여섯 건이 전부 맞았고,
+   그 중 A-1은 기록보다 누출 경로가 둘 더 있었다.
 4. 변경 전에 §5로 기준선을 잡는다. **실패 0건이 현재 기준선이다.**
 5. 위임하면 §6의 검수 원칙을 지킨다 — 완료 보고를 근거로 쓰지 않는다.
