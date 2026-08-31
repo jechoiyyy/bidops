@@ -7,43 +7,23 @@
 
 ---
 
-## D-5. 1차 분류 방식 실험 승인 — **가장 오래 막혀 있다**
+## 해소된 항목 (2026-08-31)
 
-- 근거: [ADR-0021](decisions/0021-filter-experiment-before-implementation.md),
-  [`status.md`](status.md)의 4·5번
-- 상태: 승인 대기. 이 결정 이전에는 선별 제품 구현을 시작하지 않기로 ADR-0021이 정했다.
+D-5부터 D-11까지 전부 결정했다. 아래 각 절은 결정의 근거로 남기며, 결정 내용은 이 표가
+정본이다. 실행이 끝나면 해당 절을 지운다.
 
-**정해야 할 것**: 고정 3일 발주계획 모집단으로 키워드 규칙 · ColBERT · Qwen3.8:27B ·
-GPT Luna xhigh 비교 실험을 실행하고 사람이 최종 정답을 판정하는 것을 승인할지.
+| 항목 | 결정 | 정본 |
+|---|---|---|
+| D-5 1차 분류 방식 실험 | 승인. arm을 BM25 · 한국어 dense · RRF 하이브리드 셋으로 교체하고 ColBERT는 뺀다. LLM arm은 비용 대비 가치로 보류하되 사람 정답은 공유 보존한다 | [ADR-0021 개정](decisions/0021-filter-experiment-before-implementation.md) |
+| D-6 판정 모델 계보 (T-19) | `JudgmentRevision → ScreeningExecution`을 정본으로 하고 스키마는 바꾸지 않는다 | [ADR-0036](decisions/0036-judgment-model-lineage-source.md) |
+| D-7 G2B egress 방화벽 | **승인 절차만 먼저 올린다.** overlay 실제 적용은 D-9 수명 결과를 보고 결정한다 | 아래 D-7 절 |
+| D-8 21일 재조회 범위 | **종단 관측을 계속 쌓는다.** 2026-09-08(나이 15일)·09-14(나이 21일)을 받는다. 범위 변경 자체는 그 뒤에 판단한다 | 아래 D-8 절 |
+| D-9 첨부 URL 수명 | **횡단면 측정 완료(2026-08-31). 나이 3~150일 180/180 생존, 100%.** 09-13 종단 확인만 남았다 | [validation-run](../validation-runs/20260831-prespec-attachment-survival.md) |
+| D-10 원문 보존 정책 | **현행 유지.** 사전규격 첨부에만 별도 보존 기간을 만들지 않는다 | `security.md` |
+| D-11 PostgreSQL 테스트 | **필수로 만든다.** `run-web-tests.sh`/CI에서 PostgreSQL 실행을 강제한다 | 아래 D-11 절 |
 
-**막고 있는 것**: 발주계획 선별 제품 구현 전체. 지금 1차 분류는
-[ADR-0029](decisions/0029-screening-mock-provider.md)의 결정적 mock으로 돌고 있고,
-소비 계층(적재·화면·추적)은 그 위에 이미 구현돼 있다. 즉 **모델만 비어 있는 상태**다.
-
-**결정에 필요한 것**: 외부 모델(Luna)로 나가는 전송 내용 승인.
-[`security.md`](../security.md)가 공개 발주계획 필드와 사람이 승인한 회사 역량 요약만
-전송하도록 이미 제한하고 있고, 실행마다 전송 내용을 미리 보여 주고 승인받는 절차도 정해져 있다.
-
----
-
-## D-6. 판정의 모델 계보를 어느 쪽으로 볼 것인가 (T-19)
-
-- 근거: [ADR-0030](decisions/0030-opportunity-tracking-state.md)의 부수 결정
-- 상태: 데이터가 닿지 않아 화면에 넣지 못했다.
-
-**문제**: `Judgment`에 모델 계보가 없다. `ScreeningAttempt.model_digest`는 런타임 쪽에 있고
-`Judgment`와 FK로 이어져 있지 않다. ADR-0030이 "mock 판정임을 화면에 표시한다"고 정했는데
-표시할 값에 도달하는 경로가 없다.
-
-**선택지**
-
-1. `Judgment`에 모델 계보 컬럼을 추가한다 — 판정과 계보가 한 행에 있어 조회가 단순하다.
-   대신 런타임의 `ScreeningAttempt`와 값이 갈릴 수 있고 마이그레이션이 필요하다.
-2. `ScreeningAttempt`를 정본으로 두고 조인 경로를 만든다 — 계보의 단일 출처가 유지된다.
-   대신 승계 판정(`carried_over=true`)처럼 이번 실행에서 모델을 부르지 않은 판정의
-   계보를 어떻게 표시할지 따로 정해야 한다.
-
-**막고 있는 것**: T-19, 그리고 화면에서 "이 판정은 mock이다"를 보여 주는 일.
+같은 세션에서 입찰 delta의 문서 role allowlist, 범주 정책 v1, 내부망 binding도
+확정했다. [ADR-0034의 확정값 절](decisions/0034-bid-delta-final-decision.md)이 정본이다.
 
 ---
 
@@ -156,17 +136,16 @@ PostgreSQL 테스트 9건이 깨지지 않고 계속 초록이었다. 2026-08-31
 | T-21 제안요청서 구조 측정 | **완료** — ADR-0032로 결정 완료 |
 | T-20b 큐·자격 판정·worker·적재 | **완료·검증됨** (PostgreSQL `0008` upgrade/downgrade 포함) |
 | T-24 사전규격 목록 REST·화면 | **완료·검증됨** |
-| T-23 phase 2 결과·attempt 계약 | **결정 완료** — [ADR-0035](decisions/0035-prespec-overview-attempt-result-lifecycle.md), 구현 전 |
+| T-23 phase 2 결과·attempt 계약 | **결정·DB/API 기반 구현 완료** — [ADR-0035](decisions/0035-prespec-overview-attempt-result-lifecycle.md), 실제 모델 실행은 binding 필요 |
 
 T-23 phase 1은 [ADR-0033](decisions/0033-prespec-overview-review-runtime-contract.md)으로
-완료했고 phase 2 계약은 [ADR-0035](decisions/0035-prespec-overview-attempt-result-lifecycle.md)로
-확정했다. 실제 모델 실행은 별도 구현과 승인된 사설 binding이 필요하지만 D-14 사람 결정을
-더 기다리지는 않는다. 아래 표에는 실제로 사람 결정을 기다리는 작업만 남긴다.
+완료했고 phase 2 계약과 DB/API 기반은
+[ADR-0035](decisions/0035-prespec-overview-attempt-result-lifecycle.md)에 따라 구현했다. 실제
+모델 adapter·worker 실행은 승인된 사설 binding이 필요하지만 D-14 사람 결정을 더 기다리지는
+않는다. 아래 표에는 실제로 사람 결정을 기다리는 작업만 남긴다.
 
 | 결정을 기다리는 작업 | 무엇을 기다리나 |
 |---|---|
-| T-19 판정 모델 계보 노출 | D-6 |
 | T-20 운영 활성화 | D-7 (방화벽 승인) |
-| 선별 제품 구현 | D-5 |
 | T-2b 종단 관측 계속 | D-8. 2026-09-08·09-14 무렵이 결정적 |
 | 첨부 URL 수명 측정 | D-9. 2026-09-13이 지나면 이번 표본으로 못 잰다 |
