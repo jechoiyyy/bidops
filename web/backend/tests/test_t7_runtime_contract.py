@@ -11,6 +11,11 @@ ROOT = Path(__file__).parents[3]
 
 def test_runtime_image_copies_only_allowlisted_reference_material():
     dockerfile = (ROOT / "web/Dockerfile").read_text(encoding="utf-8")
+    dockerignore_lines = {
+        line.strip()
+        for line in (ROOT / ".dockerignore").read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    }
     copy_instructions = [
         line.strip()
         for line in dockerfile.splitlines()
@@ -24,11 +29,30 @@ def test_runtime_image_copies_only_allowlisted_reference_material():
     assert not any(
         "docs/reference/company-profile.md" in line
         or "[루트랩]회사소개서_260804.pdf" in line
+        or "docs/reference/company-performance-titles.tsv" in line
+        or "baseline_company_profile.md" in line
         for line in copy_instructions
     )
-    assert any(
-        line.startswith("COPY docs/reference/company-performance-titles.tsv ")
-        for line in copy_instructions
+    assert "COPY web/backend/ ./" in copy_instructions
+    assert "docs/reference/*" in dockerignore_lines
+    assert "docs/reference/company-performance-titles.tsv" in dockerignore_lines
+    assert "web/backend/app/screening/baseline_company_profile.md" in dockerignore_lines
+    assert "!docs/reference/company-performance-titles.tsv" not in dockerignore_lines
+
+    compose = yaml.safe_load((ROOT / "docker-compose.t7.yml").read_text(encoding="utf-8"))
+    web_volumes = compose["services"]["web"]["volumes"]
+    assert (
+        "./docs/reference/company-profile.md:/app/docs/reference/company-profile.md:ro"
+        in web_volumes
+    )
+    assert (
+        "./docs/reference/company-performance-titles.tsv:/app/docs/reference/company-performance-titles.tsv:ro"
+        in web_volumes
+    )
+    assert (
+        "./web/backend/app/screening/baseline_company_profile.md:"
+        "/app/web/backend/app/screening/baseline_company_profile.md:ro"
+        in web_volumes
     )
 
 

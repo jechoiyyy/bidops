@@ -3,7 +3,8 @@
 data
 reports
 docs/reference/*
-!docs/reference/company-performance-titles.tsv
+docs/reference/company-performance-titles.tsv
+web/backend/app/screening/baseline_company_profile.md
 web/backend/.venv
 web/data
 web/frontend/node_modules

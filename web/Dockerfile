@@ -64,13 +64,12 @@ COPY scripts /app/scripts
 COPY docker-compose.t7.yml /app/docker-compose.t7.yml
 RUN chmod +x /app/scripts/*.sh
 
-# Bundle the immutable execution contract as a fallback for docker run.
-# The T7 web service supplies the current company profile as a read-only bind
-# mount; the profile and its source documents are intentionally not copied.
-# Only the non-sensitive runtime reference material needed by the collection
-# subprocess is copied below.
+# Bundle the immutable execution contract as a fallback for docker run. The
+# T7 web service supplies the current profile, performance-title reference,
+# and approved baseline as read-only bind mounts; those profile-related inputs
+# are intentionally not copied. A docker run without these mounts cannot use
+# the profile or collection paths, which is the deliberate image boundary.
 COPY skills/ /app/skills/
-COPY docs/reference/company-performance-titles.tsv /app/docs/reference/company-performance-titles.tsv
 COPY skills/references/ /app/skills/references/
 COPY web/container-entrypoint.sh /usr/local/bin/bidops-entrypoint
 COPY web/container-ops.sh /usr/local/bin/bidops-ops
@@ -83,7 +82,8 @@ COPY web/container-git-wrapper.sh /usr/local/bin/git
 # /scratch is the document-converter handoff shared by web and document-worker.
 RUN install -d -o bidops -g bidops -m 0770 \
         /app/data /app/reports /app/backups /app/web/data \
-        /app/web/data/attachments /app/web/data/profile-snapshots /scratch \
+        /app/web/data/attachments /app/web/data/profile-snapshots \
+        /app/docs/reference /scratch \
     && chmod 0555 /usr/local/bin/bidops-entrypoint /usr/local/bin/bidops-ops /usr/local/bin/git \
     && chown -R root:root /app/skills /app/docs \
     && find /app/skills /app/docs -type d -exec chmod 0555 {} + \

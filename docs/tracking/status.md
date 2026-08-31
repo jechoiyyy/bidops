@@ -38,8 +38,8 @@
 | T-23 사전규격 overview phase 2 기반 | immutable result/event, 제한된 attempt lifecycle service, safe v2 projection 구현됨; 실제 model transport·worker는 미구현 | SQLite 46 passed·1 PostgreSQL-only skipped, PostgreSQL 17 집중 9 passed, production build 282 modules |
 | T7 stack 조립 | PostgreSQL, MinIO, ClamAV, web, document worker, analysis worker, 일부 영속 volume, 목적별 egress overlay 구현됨 | 개발 stack health와 Ollama endpoint 도달 기록은 있으나 보안·복구 blocker로 운영 배포 불가 |
 | 구조화 안전 로그 | 기반과 주요 worker·queue·scheduler 계측 구현 중인 worktree 변경 | 신규 단위 테스트 일부 통과 기록, 현재 전체 worktree green 아님 |
-| 개발용 hosted Codex 심층 검토 reference | 기본 비활성·notice allowlist 경로가 구현돼 있으나 허용 payload 정책과 충돌 | 사용 금지 blocker; RFP·회사 profile 전송 차단 검증 없음 |
-| runtime image 회사자료 제외 | Dockerfile 주석은 제외를 주장하지만 실제 copy가 profile 파일을 포함 | blocker; image 내용 회귀 검증 없음 |
+| 개발용 hosted Codex 심층 검토 reference | 기본 비활성·notice allowlist에 더해 닫힌 payload allowlist를 두고, 회사 profile·prior stage 결과·승인되지 않은 입력 필드가 있으면 prompt 생성과 subprocess 이전에 `external_provider_payload_not_approved`로 fail-closed한다 | 해결; 차단 시 runner 미호출을 단언하는 회귀 테스트가 있고 backend `1037 passed, 5 skipped, 0 failed` |
+| runtime image 회사자료 제외 | current profile·회사 실적 제목 TSV·vendored baseline을 build context와 runtime image에서 제외하고, `web`에만 read-only host bind mount로 주입하도록 경계를 고정함 | 해결; runtime contract `11 passed`, profile snapshot keyword `14 passed`, 실제 image build/run/find, `COMPOSE_OK`, backend `1037 passed, 5 skipped, 0 failed` |
 | backup·object-first restore script | 초안은 있으나 target version mapping과 active manifest 계약이 불완전 | 정적 결함이 있어 복구 가능 상태가 아니며 실제 훈련도 없음 |
 
 T-23 `0014` 검증 경계의 PostgreSQL application schema는 legacy 13개, 심층 검토 25개,
@@ -99,7 +99,7 @@ DB에 없다. 다만 byte-identical 파일이 `web/backend/app/screening/baselin
 
 ## 다음 작업 순서
 
-1. hosted Codex deep-review reference, runtime image의 회사자료 포함, profile 원문·경로 API 노출, legacy unsafe·비영속 첨부 upload을 차단한다.
+1. profile 원문·경로 API 노출과 legacy unsafe·비영속 첨부 upload을 차단한다. hosted Codex deep-review reference의 payload 차단과 runtime image의 회사자료 제외는 2026-09-01에 해결했다.
 2. MinIO versioning fail-open, host-wide DB·MinIO port publish, 불완전 객체 복구, legacy mutation actor·audit gap을 수정하고 보안·복구 통합 검증을 한다.
 3. screening v3를 보고서 renderer에 명시적으로 연결한다.
 4. 고정 3일 발주계획 모집단으로 BM25, 한국어 dense bi-encoder, 두 결과의 RRF 하이브리드 비교 실험을 실행하고 사람이 최종 정답을 판정한다([ADR-0021 개정](decisions/0021-filter-experiment-before-implementation.md)). 착수 전에 PostgreSQL·객체 backup과 빈 대상 restore를 한 번 검증한다.

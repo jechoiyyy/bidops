@@ -12,15 +12,13 @@
 
 현재 T7 stack은 개발·검증에는 사용할 수 있지만 다음 문제가 해결되기 전에는 운영 배포 후보가 아니다.
 
-- runtime image에 회사 profile 자료가 포함된다.
 - profile snapshots·sections·unknowns API가 filesystem source/reference, raw profile block, 가공되지 않은 parse error를 반환할 수 있다.
-- 개발용 hosted Codex 심층 검토 경로가 RFP와 회사 profile slice를 외부로 보낼 수 있다.
 - PostgreSQL과 MinIO port가 host 전체 interface에 publish될 수 있다.
 - MinIO versioning 활성화 실패를 bootstrap이 무시한다.
 - 객체 restore가 source와 target version ID를 연결하지 못하고 active manifest 생성·완전성 검사가 없다.
 - legacy notice attachment upload가 quarantine·ClamAV·MinIO를 우회하고 응답에 로컬 `stored_path`를 노출한다.
 
-개발 검증에서도 hosted Codex reference overlay, legacy notice attachment upload, profile snapshots·sections·unknowns route를 사용하지 않는다. 회사 profile이 들어간 image를 registry에 push·export하지 않으며 로컬 build cache의 접근 범위를 제한한다. 나머지 stack 기동은 폐기 가능한 데이터와 host firewall로 격리한 환경에서만 수행한다.
+개발 검증에서도 hosted Codex reference overlay, legacy notice attachment upload, profile snapshots·sections·unknowns route를 사용하지 않는다. 회사자료 host 입력을 registry에 push·export하지 않으며 로컬 build cache의 접근 범위를 제한한다. 나머지 stack 기동은 폐기 가능한 데이터와 host firewall로 격리한 환경에서만 수행한다.
 
 ## 사전 조건
 
@@ -32,6 +30,26 @@
 - MinIO root와 source, structure write/read, quarantine, model-response 자격증명을 용도별로 분리한다.
 - 심층 검토 전에 승인된 profile version과 analysis policy version을 채운다. 빈 값이면 deep-review 생성이 fail closed하는 것이 정상이다.
 - 사설 vLLM을 사용할 때 endpoint의 literal IP와 allowlist를 일치시키고 host firewall에서 해당 IP와 port 외 egress를 차단한다.
+
+### T7 웹의 회사자료 입력 전제
+
+`docker-compose.t7.yml`의 `web` 서비스는 다음 세 파일을 host checkout에서 read-only로 주입한다. 세 파일은 build context와 runtime image에 없으므로 Compose로 웹 서비스를 실행할 때 반드시 현재 checkout에 regular file로 존재하고 읽을 수 있어야 한다.
+
+```text
+docs/reference/company-profile.md
+docs/reference/company-performance-titles.tsv
+web/backend/app/screening/baseline_company_profile.md
+```
+
+Docker/Compose는 bind source가 없는 경우 그 자리에 디렉터리를 만들 수 있다. 그러면 파일을 읽어야 하는 프로필 경계와 수집 subprocess가 regular file 대신 디렉터리를 받아 비정상적으로 실패한다. 기동 전에 다음을 확인한다.
+
+```bash
+test -f docs/reference/company-profile.md && test -r docs/reference/company-profile.md
+test -f docs/reference/company-performance-titles.tsv && test -r docs/reference/company-performance-titles.tsv
+test -f web/backend/app/screening/baseline_company_profile.md && test -r web/backend/app/screening/baseline_company_profile.md
+```
+
+프로필 baseline은 실행 시 주입된 파일을 기존 SHA-256 검증으로 확인한다. `skills/` 스크립트는 image에 남아 있어 계약상 fallback으로 제공되지만, 위 세 mount 없이 `docker run`만 실행하면 프로필 관련 경로와 수집 subprocess를 사용할 수 없다. 이 경로는 의도된 보안 경계이므로 T7 Compose를 사용한다.
 
 ## 최초 기동
 

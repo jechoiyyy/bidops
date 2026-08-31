@@ -150,8 +150,9 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 - 재현 조건: 현재 `web/Dockerfile`로 runtime image를 build한 뒤 `/app/docs/reference`와 `/app/web/backend/app/screening` 내용을 검사한다.
 - 증상: `COPY docs/reference /app/docs/reference`가 `company-profile.md`와 회사 실적 제목 TSV를 복사하고, 별도 TSV copy가 이를 반복한다. `COPY web/backend/ ./`는 `baseline_company_profile.md`도 복사한다. `.dockerignore`는 reference PDF만 제외한다. Dockerfile의 회사자료 제외 주석과 실제 image 내용이 다르다.
 - 영향: image registry, build cache, image export에 회사 프로필·실적 근거가 포함될 수 있어 회사자료를 image에 넣지 않는 보안 경계를 위반한다.
-- 지금 해결할 수 없는 이유: baseline fallback과 profile snapshot 검증이 해당 파일에 의존하므로 단순 ignore만 추가하면 runtime·test 계약이 깨진다. profile 주입과 검증 경계를 함께 바꿔야 한다.
-- 접근 방법: 일반 `docs/reference`와 backend baseline의 bulk copy를 제거하고, 허용된 공개 runtime reference만 명시적으로 복사한다. 필요한 회사 프로필 snapshot은 승인된 read-only volume·객체·secret 경계로 실행 시 주입하고 digest를 검증한다. image filesystem과 build context에 `company-profile.md`, 회사 실적 제목 TSV, `baseline_company_profile.md`가 없음을 회귀 테스트로 고정한다.
+- 상태: **해결** (2026-09-01, runtime image 경계 보완). `docs/reference`의 build-context 예외를 제거하고 backend baseline을 `.dockerignore`로 제외했다. `COPY web/backend/ ./`는 유지하되 세 회사자료는 image에 복사하지 않으며, current profile·회사 실적 제목 TSV·승인 baseline은 `web` 서비스에만 read-only bind mount로 실행 시 주입한다. 기존 baseline digest 검증은 그대로 사용한다.
+- 검증: 기존 runtime contract test는 Dockerfile의 세 파일 copy 부재, `.dockerignore`의 세 파일 제외, `web`의 세 read-only mount를 함께 확인했고 `11 passed`였다. 2026-09-01 실제 image build/run에서 `/app/docs/reference/`에는 `.`·`..`만 있었고 profile·실적·baseline 이름을 찾는 `find`는 무출력이었다. `docker compose -f docker-compose.t7.yml config`는 `COMPOSE_OK`, backend 전체 suite는 `1037 passed, 5 skipped, 6 warnings`로 실패 0건이었다.
+- 접근 방법: 일반 `docs/reference`와 backend baseline의 bulk copy를 build context 단계에서 차단하고, `skills/`와 그 공개 workflow contract만 image에 둔다. 프로필·실적 reference·baseline은 승인된 read-only host checkout 경계로 실행 시 주입하고, baseline은 기존 digest 검증으로 무결성을 확인한다.
 
 ## 프로필 조회 API가 원문과 서버 경로를 노출한다
 
