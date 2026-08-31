@@ -49,6 +49,12 @@ function lifecycleRank(link: OpportunityLinkView): number {
   return 2;
 }
 
+function isAuthoritativeBidNotice(link: OpportunityLinkView): boolean {
+  return link.source_type === "bid_notice"
+    && ((link.link_type === "official" && link.status === "확정")
+      || (link.link_type === "candidate" && link.status === "사람 확인 완료" && link.human_decision === "accepted"));
+}
+
 function LifecycleCard({ link, isSignalSource, step }: { link: OpportunityLinkView; isSignalSource: boolean; step: number }) {
   return (
     <li className={`opportunity-link ${isSignalSource ? "opportunity-link-signal" : ""}`.trim()}>
@@ -203,10 +209,12 @@ function TrackingForm({
 
 function OpportunityDetail({
   opportunityId,
+  returnSearch,
   onSaved,
   onDirtyChange,
 }: {
   opportunityId: number;
+  returnSearch: string;
   onSaved: (message: string) => void;
   onDirtyChange: (dirty: boolean) => void;
 }) {
@@ -284,6 +292,23 @@ function OpportunityDetail({
               <LifecycleCard key={link.id} link={link} step={index + 1} isSignalSource={link.id === item.recheck_signal_link_id} />
             ))}
           </ul>
+        )}
+      </section>
+
+      <section className="opportunity-detail-block" aria-labelledby="opportunity-bid-delta-title">
+        <div className="opportunity-section-heading">
+          <div>
+            <span className="opportunity-panel-kicker">BID NOTICE REVIEW</span>
+            <h4 id="opportunity-bid-delta-title">입찰공고 변경 비교</h4>
+          </div>
+          <span>추적 상태와 별도의 최종 결정</span>
+        </div>
+        {lifecycleLinks.some(isAuthoritativeBidNotice) ? (
+          <Link className="opportunity-card-toggle interaction-control" to={{ pathname: `/opportunities/${item.id}/bid-delta`, search: returnSearch }}>
+            변경 비교
+          </Link>
+        ) : (
+          <p className="opportunity-link-note">확정된 입찰공고 연결이 없어 변경 비교를 시작할 수 없습니다. 입찰공고가 authoritative 상태로 연결된 뒤 사용할 수 있습니다.</p>
         )}
       </section>
 
@@ -497,7 +522,7 @@ export function OpportunityDetailPage() {
       </header>
 
       {validOpportunityId ? (
-        <OpportunityDetail opportunityId={opportunityId} onSaved={setToast} onDirtyChange={handleDirtyChange} />
+        <OpportunityDetail opportunityId={opportunityId} returnSearch={searchParams.toString()} onSaved={setToast} onDirtyChange={handleDirtyChange} />
       ) : (
         <EmptyState tone="error" title="사업기회 식별자가 올바르지 않습니다." />
       )}

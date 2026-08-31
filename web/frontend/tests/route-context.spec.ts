@@ -17,6 +17,7 @@ const routeContexts: RouteContextCase[] = [
   { name: "queue list", path: `/queue?run=${RUN_ID}`, title: "검토 대기열", dataScope: "run", editScope: "리뷰 저장 가능", runSelectorVisible: true },
   { name: "queue detail", path: `/queue/29?run=${RUN_ID}`, title: "검토 대기열", dataScope: "run", editScope: "리뷰 저장 가능", runSelectorVisible: true },
   { name: "opportunities", path: `/opportunities?run=${RUN_ID}`, title: "사업기회", dataScope: "cumulative", editScope: "추적 상태 저장 가능", runSelectorVisible: false },
+  { name: "bid delta", path: `/opportunities/501/bid-delta?run=${RUN_ID}`, title: "입찰 변경 비교", dataScope: "cumulative", editScope: "최종 Go/No-Go 저장 가능", runSelectorVisible: false },
   { name: "pre-specs", path: `/pre-specs?run=${RUN_ID}`, title: "사전규격", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
   { name: "pre-spec detail", path: `/pre-specs/991?run=${RUN_ID}`, title: "사전규격", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
   { name: "judgments list", path: `/judgments?run=${RUN_ID}`, title: "공고 판정 이력", dataScope: "run", editScope: "판정 원문 읽기 전용", runSelectorVisible: true },
@@ -61,6 +62,30 @@ for (const context of routeContexts) {
     }
   });
 }
+
+test("직접 진입한 lazy route가 metadata와 실제 화면을 함께 렌더링한다", async ({ page }) => {
+  await page.goto(`/opportunities?run=${RUN_ID}`);
+
+  const topbar = page.locator("header.topbar");
+  await expect(topbar.locator("h1")).toHaveText("사업기회");
+  await expect(topbar).toHaveAttribute("data-route-data-scope", "cumulative");
+  await expect(topbar.locator(".topbar-status")).toHaveText("추적 상태 저장 가능");
+  await expect(page.getByLabel("실행 회차", { exact: true })).toHaveCount(0);
+  await expect(page.locator(".opportunities-page")).toBeVisible();
+});
+
+test("SPA 내부 link click으로 lazy route에 들어가도 metadata와 화면이 유지된다", async ({ page }) => {
+  await page.goto(`/judgments/29?run=${RUN_ID}`);
+  await page.getByRole("link", { name: "검토 대기열" }).click();
+
+  const topbar = page.locator("header.topbar");
+  await expect(topbar.locator("h1")).toHaveText("검토 대기열");
+  await expect(topbar).toHaveAttribute("data-route-data-scope", "run");
+  await expect(topbar.locator(".topbar-status")).toHaveText("리뷰 저장 가능");
+  await expect(page.getByLabel("실행 회차", { exact: true })).toHaveValue(RUN_ID);
+  await expect(page.locator(".queue-page")).toBeVisible();
+  expect(new URL(page.url()).searchParams.get("run")).toBe(RUN_ID);
+});
 
 test("누적 화면은 회차 API 실패와 무관하게 열린다", async ({ page }) => {
   let runRequestCount = 0;

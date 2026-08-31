@@ -43,6 +43,12 @@ export const routeMetadata = {
     editScope: "추적 상태 저장 가능",
     runSelectorVisible: false,
   },
+  bidDelta: {
+    title: "입찰 변경 비교",
+    dataScope: "cumulative",
+    editScope: "최종 Go/No-Go 저장 가능",
+    runSelectorVisible: false,
+  },
   preSpecs: {
     title: "사전규격",
     dataScope: "cumulative",

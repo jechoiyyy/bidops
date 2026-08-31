@@ -1,5 +1,12 @@
 import { expect, test, type Page } from "@playwright/test";
-import { mockApi } from "./api-mock";
+import {
+  mockApi,
+  mockBidDelta,
+  mockDeepReviewLifecycle,
+  mockDocumentPreparationVisual,
+  mockOpportunity,
+  mockPreSpecs,
+} from "./api-mock";
 
 // 마감까지 남은 날짜가 화면에 그려지므로, 시각을 고정하지 않으면 매일 스냅샷이 달라진다.
 const FIXED_TIME = new Date("2026-08-25T09:00:00+09:00");
@@ -61,52 +68,58 @@ async function settleFonts(page: Page): Promise<void> {
   expect(fontState.pretendardLoaded).toBe(true);
 }
 
+/** Existing responsive regression contract, shared by legacy and lifecycle screens. */
+async function expectNoHorizontalOverflow(page: Page): Promise<void> {
+  const overflow = await page.evaluate(() => {
+    const root = document.documentElement;
+    const canvas = document.querySelector<HTMLElement>(".page-canvas");
+    const widthOverflow = (element: HTMLElement): number => Math.max(0, element.scrollWidth - element.clientWidth);
+    const actualLocalScrollers = new Set(
+      [...document.querySelectorAll<HTMLElement>("body *")].filter((element) => {
+        if (element === canvas) return false;
+        const style = getComputedStyle(element);
+        return (style.overflowX === "auto" || style.overflowX === "scroll")
+          && element.scrollWidth > element.clientWidth;
+      }),
+    );
+    const allowedScrollers = actualLocalScrollers;
+    const isContainedByAllowedScroller = (element: Element): boolean => {
+      let parent = element.parentElement;
+      while (parent) {
+        if (allowedScrollers.has(parent)) return true;
+        parent = parent.parentElement;
+      }
+      return false;
+    };
+    const viewport = root.clientWidth;
+    // Descendant exclusions require a real local horizontal scroller with
+    // overflow-x auto/scroll and measurable scrollWidth excess; page-canvas
+    // itself is never an exclusion.
+    const overflowingDescendants = [...document.querySelectorAll<HTMLElement>("body *")]
+      .filter((element) => !isContainedByAllowedScroller(element))
+      .map((element) => {
+        const rect = element.getBoundingClientRect();
+        if (rect.right <= 0 || rect.left >= viewport) return 0;
+        return Math.max(rect.right - viewport, -rect.left);
+      });
+    const descendantOverflow = Math.max(0, ...overflowingDescendants);
+    return {
+      documentElement: widthOverflow(root),
+      pageCanvas: canvas ? widthOverflow(canvas) : 0,
+      descendants: descendantOverflow,
+    };
+  });
+  expect(overflow.documentElement).toBeLessThanOrEqual(1);
+  expect(overflow.pageCanvas, JSON.stringify(overflow)).toBeLessThanOrEqual(1);
+  expect(overflow.descendants, JSON.stringify(overflow)).toBeLessThanOrEqual(1);
+}
+
 for (const target of pages) {
   test(`${target.name} 화면이 가로로 넘치지 않는다`, async ({ page }) => {
     await page.goto(target.path);
     await expect(page.locator("h1").first()).toBeVisible();
     await page.waitForLoadState("networkidle");
-    const overflow = await page.evaluate(() => {
-      const root = document.documentElement;
-      const canvas = document.querySelector<HTMLElement>(".page-canvas");
-      const widthOverflow = (element: HTMLElement): number => Math.max(0, element.scrollWidth - element.clientWidth);
-      const actualLocalScrollers = new Set(
-        [...document.querySelectorAll<HTMLElement>("body *")].filter((element) => {
-          if (element === canvas) return false;
-          const style = getComputedStyle(element);
-          return (style.overflowX === "auto" || style.overflowX === "scroll")
-            && element.scrollWidth > element.clientWidth;
-        }),
-      );
-      const allowedScrollers = actualLocalScrollers;
-      const isContainedByAllowedScroller = (element: Element): boolean => {
-        let parent = element.parentElement;
-        while (parent) {
-          if (allowedScrollers.has(parent)) return true;
-          parent = parent.parentElement;
-        }
-        return false;
-      };
-      const viewport = root.clientWidth;
-      // Descendant exclusions require a real local horizontal scroller with
-      // overflow-x auto/scroll and measurable scrollWidth excess; page-canvas
-      // itself is never an exclusion.
-      const descendantOverflow = Math.max(0, ...[...document.querySelectorAll<HTMLElement>("body *")]
-        .filter((element) => !isContainedByAllowedScroller(element))
-        .map((element) => {
-          const rect = element.getBoundingClientRect();
-          if (rect.right <= 0 || rect.left >= viewport) return 0;
-          return Math.max(rect.right - viewport, -rect.left);
-        }));
-      return {
-        documentElement: widthOverflow(root),
-        pageCanvas: canvas ? widthOverflow(canvas) : 0,
-        descendants: descendantOverflow,
-      };
-    });
-    expect(overflow.documentElement).toBeLessThanOrEqual(1);
-    expect(overflow.pageCanvas, JSON.stringify(overflow)).toBeLessThanOrEqual(1);
-    expect(overflow.descendants, JSON.stringify(overflow)).toBeLessThanOrEqual(1);
+    await expectNoHorizontalOverflow(page);
   });
 
   test(`${target.name} 화면 스냅샷`, async ({ page }) => {
@@ -114,6 +127,62 @@ for (const target of pages) {
     await expect(page.locator("h1").first()).toBeVisible();
     await page.waitForLoadState("networkidle");
     await settleFonts(page);
+    await expect(page).toHaveScreenshot(`${target.name}.png`, {
+      fullPage: true,
+      animations: "disabled",
+    });
+  });
+}
+
+const VISUAL_COMPARISON_ID = "77777777-7777-4777-8777-777777777777";
+
+type LifecycleVisualTarget = {
+  name: string;
+  path: string;
+  setup: (page: Page) => Promise<void>;
+};
+
+const lifecycleVisualTargets: LifecycleVisualTarget[] = [
+  { name: "opportunities-list", path: "/opportunities", setup: async (page) => { await mockOpportunity(page); } },
+  { name: "opportunity-detail", path: "/opportunities/202", setup: async (page) => { await mockOpportunity(page); } },
+  { name: "pre-specs-list", path: "/pre-specs", setup: async (page) => { await mockPreSpecs(page); } },
+  { name: "pre-spec-detail", path: "/pre-specs/991", setup: async (page) => { await mockPreSpecs(page); } },
+  { name: "pre-spec-unknown", path: "/pre-specs/991", setup: async (page) => { await mockPreSpecs(page, "unknown"); } },
+  ...(["draft", "processing", "blocked", "ready"] as const).map((state) => ({
+    name: `document-preparation-${state}`,
+    path: "/pre-specs/991",
+    setup: async (page: Page) => { await mockDocumentPreparationVisual(page, state); },
+  })),
+  ...(["queued", "running", "failed", "completed"] as const).map((state) => ({
+    name: `deep-review-${state === "completed" ? "complete" : state}`,
+    path: "/deep-reviews/fixture-review",
+    setup: async (page: Page) => { await mockDeepReviewLifecycle(page, state); },
+  })),
+  ...(["unchanged", "changed", "unknown", "failed"] as const).map((state) => ({
+    name: `bid-delta-${state}`,
+    path: `/opportunities/501/bid-delta?comparison=${VISUAL_COMPARISON_ID}`,
+    setup: async (page: Page) => { await mockBidDelta(page, { calculationStatus: "completed", resultStatus: state }); },
+  })),
+];
+
+for (const target of lifecycleVisualTargets) {
+  test(`${target.name} 화면이 가로로 넘치지 않는다`, async ({ page }) => {
+    await target.setup(page);
+    await page.goto(target.path);
+    await expect(page.locator("h1").first()).toBeVisible();
+    await page.waitForLoadState("networkidle");
+    await expectNoHorizontalOverflow(page);
+  });
+
+  test(`${target.name} 화면 스냅샷`, async ({ page }) => {
+    await target.setup(page);
+    await page.goto(target.path);
+    await expect(page.locator("h1").first()).toBeVisible();
+    await page.waitForLoadState("networkidle");
+    await settleFonts(page);
+    if (target.name === "opportunities-list") {
+      await expect(page.locator(".opportunity-list > .opportunity-card")).toHaveCount(3);
+    }
     await expect(page).toHaveScreenshot(`${target.name}.png`, {
       fullPage: true,
       animations: "disabled",

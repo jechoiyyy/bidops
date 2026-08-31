@@ -119,7 +119,7 @@ function syntheticResponse(pathname: string): unknown | undefined {
   return undefined;
 }
 
-export type DeepReviewFixtureScenario = "completed" | "polling" | "failed";
+export type DeepReviewFixtureScenario = "completed" | "polling" | "failed" | "queued" | "running";
 
 export interface DeepReviewMockTrace {
   reviewGets: number;
@@ -159,6 +159,11 @@ export async function mockDeepReviewLifecycle(page: Page, scenario: DeepReviewFi
         attempts = [currentAttempt];
         reviewStatus = status;
         completedAt = status === "completed" ? "2026-08-26T00:00:11Z" : null;
+      } else if (scenario === "queued" || scenario === "running") {
+        currentAttempt = syntheticAttempt(1, scenario);
+        attempts = [currentAttempt];
+        reviewStatus = scenario;
+        completedAt = null;
       } else if (scenario === "failed") {
         currentAttempt = retryCreated ? queuedRetryAttempt : failedAttempt;
         attempts = retryCreated ? [failedAttempt, queuedRetryAttempt] : [failedAttempt];
@@ -210,6 +215,630 @@ export async function mockDeepReviewLifecycle(page: Page, scenario: DeepReviewFi
   });
 
   return trace;
+}
+
+const bidDeltaComparisonId = "77777777-7777-4777-8777-777777777777";
+const bidDeltaBaseline = {
+  opportunity_link_id: 81,
+  notice_id: 991,
+  notice_source_type: "pre_spec",
+  notice_external_id: "R26BD00267196",
+  bid_ordinal: null,
+  published_at: "2026-08-29T09:00:00+09:00",
+  bundle_id: "11111111-1111-4111-8111-111111111111",
+  bundle_revision: 2,
+  bundle_version: 4,
+  document_version_id: "22222222-2222-4222-8222-222222222222",
+  document_version_version: 3,
+  document_role: "제안요청서",
+  structure_id: "33333333-3333-4333-8333-333333333333",
+  source_sha256: "a".repeat(64),
+  structure_payload_sha256: "b".repeat(64),
+  effective_date: null,
+};
+const bidDeltaComparison = {
+  opportunity_link_id: 82,
+  notice_id: 1102,
+  notice_source_type: "bid_notice",
+  notice_external_id: "R26BK00267196",
+  bid_ordinal: "000",
+  published_at: "2026-08-30T09:00:00+09:00",
+  bundle_id: "44444444-4444-4444-8444-444444444444",
+  bundle_revision: 1,
+  bundle_version: 2,
+  document_version_id: "55555555-5555-4555-8555-555555555555",
+  document_version_version: 1,
+  document_role: "공고",
+  structure_id: "66666666-6666-4666-8666-666666666666",
+  source_sha256: "c".repeat(64),
+  structure_payload_sha256: "d".repeat(64),
+  effective_date: "2026-09-01",
+};
+const bidDeltaCategories = [
+  "budget_and_economics", "contract_period_and_schedule", "eligibility",
+  "joint_supply_and_subcontracting", "scope_and_requirements", "evaluation", "submission",
+] as const;
+
+type BidDeltaCalculationFixture = "pending" | "running" | "completed" | "failed";
+type BidDeltaResultFixture = "changed" | "unchanged" | "unknown" | "failed";
+
+export interface BidDeltaMockOptions {
+  calculationStatus?: BidDeltaCalculationFixture;
+  resultStatus?: BidDeltaResultFixture;
+  withHistory?: boolean;
+  pollingStatuses?: BidDeltaCalculationFixture[];
+  finalDecisionErrorCode?: string | null;
+  baselineCandidates?: boolean;
+  comparisonCandidates?: boolean;
+}
+
+export interface BidDeltaMockTrace {
+  workspaceGets: number;
+  comparisonGets: number;
+  comparisonPosts: Array<{ body: Record<string, unknown>; headers: Record<string, string> }>;
+  retryPosts: Array<{ body: Record<string, unknown>; headers: Record<string, string> }>;
+  finalDecisionPosts: Array<{ body: Record<string, unknown>; headers: Record<string, string> }>;
+}
+
+function deltaAttempt(status: BidDeltaCalculationFixture, sequence: number) {
+  const attemptStatus = status === "pending" ? "queued" : status === "running" ? "running" : status === "completed" ? "completed" : "failed";
+  const terminal = attemptStatus === "completed" || attemptStatus === "failed";
+  return {
+    id: `77777777-7777-4777-8777-77777777777${sequence}`,
+    sequence,
+    status: attemptStatus,
+    started_at: status === "pending" ? null : "2026-08-31T09:01:00Z",
+    completed_at: terminal ? "2026-08-31T09:02:00Z" : null,
+    last_error_code: status === "failed" ? "model_timeout" : null,
+  };
+}
+
+function deltaEvidence(side: "baseline" | "comparison", ordinal: number) {
+  const baseline = side === "baseline";
+  return {
+    id: `${baseline ? "99999999" : "aaaaaaaa"}-8888-4888-8888-88888888888${ordinal}`,
+    side,
+    document_version_id: baseline ? bidDeltaBaseline.document_version_id : bidDeltaComparison.document_version_id,
+    structure_id: baseline ? bidDeltaBaseline.structure_id : bidDeltaComparison.structure_id,
+    source_sha256: baseline ? bidDeltaBaseline.source_sha256 : bidDeltaComparison.source_sha256,
+    locator_type: "table_cell",
+    locator: { page: baseline ? 12 : 15, table_key: `table-${ordinal}`, row: ordinal, column: 2 },
+    quote: baseline ? `기준 원문 ${ordinal}` : `비교 원문 ${ordinal}`,
+    verification_status: "verified",
+  };
+}
+
+function deltaItems(resultStatus: BidDeltaResultFixture | null) {
+  if (resultStatus === null) return [];
+  return bidDeltaCategories.map((category, index) => {
+    const itemStatus = resultStatus === "changed" && index === 0
+      ? "changed"
+      : resultStatus === "unknown" && index === 0
+        ? "unknown"
+        : resultStatus === "failed" && index === 0
+          ? "failed"
+          : "unchanged";
+    const isUncertain = itemStatus === "unknown" || itemStatus === "failed";
+    return {
+      id: `88888888-8888-4888-8888-88888888888${index + 1}`,
+      ordinal: index + 1,
+      category,
+      result_status: itemStatus,
+      materiality: itemStatus === "changed" ? "material" : isUncertain ? "unknown" : "non_material",
+      before_value: isUncertain ? null : `변경 전 ${index + 1}`,
+      after_value: isUncertain ? null : itemStatus === "changed" ? `변경 후 ${index + 1}` : `변경 전 ${index + 1}`,
+      summary: isUncertain ? null : itemStatus === "changed" ? "참가 조건이 달라졌습니다." : "검증된 의미 차이가 없습니다.",
+      baseline_evidence: isUncertain ? [] : [deltaEvidence("baseline", index + 1)],
+      comparison_evidence: isUncertain ? [] : [deltaEvidence("comparison", index + 1)],
+      error_code: itemStatus === "unknown" ? "evidence_unverified" : itemStatus === "failed" ? "extract_failed" : null,
+    };
+  });
+}
+
+function deltaDecision(sequence: number, decision: "go" | "no_go", comparisonVersion: number) {
+  return {
+    schema_version: "bidops.bid-final-decision.v1",
+    id: `aaaaaaaa-1111-4111-8111-aaaaaaaaaaa${sequence}`,
+    opportunity_id: 501,
+    sequence,
+    comparison_id: bidDeltaComparisonId,
+    comparison_version: comparisonVersion,
+    result_sha256: "e".repeat(64),
+    baseline_document_version_id: bidDeltaBaseline.document_version_id,
+    comparison_document_version_id: bidDeltaComparison.document_version_id,
+    supersedes_final_decision_id: sequence > 1 ? "aaaaaaaa-1111-4111-8111-aaaaaaaaaaa1" : null,
+    decision,
+    reason: sequence > 1 ? "최신 결정 이유" : "이전 결정 이유",
+    claimed_name: sequence > 1 ? "이전 담당자" : "기존 담당자",
+    request_id: `bd47bc02-c51c-4260-a285-68c39b991fa${sequence}`,
+    created_at: `2026-08-31T09:1${sequence}:00Z`,
+    currentness: "current",
+    currentness_reasons: [],
+  };
+}
+
+export async function mockBidDelta(page: Page, options: BidDeltaMockOptions = {}): Promise<BidDeltaMockTrace> {
+  const trace: BidDeltaMockTrace = { workspaceGets: 0, comparisonGets: 0, comparisonPosts: [], retryPosts: [], finalDecisionPosts: [] };
+  const initialStatus = options.calculationStatus ?? "completed";
+  const resultStatus = options.resultStatus ?? (initialStatus === "failed" ? "failed" : "changed");
+  const decisions = options.withHistory ? [deltaDecision(1, "no_go", 2), deltaDecision(2, "go", 2)] : [];
+  let calculationStatus = initialStatus;
+  let comparisonVersion = 2;
+  let currentResult: BidDeltaResultFixture | null = initialStatus === "pending" || initialStatus === "running" ? null : resultStatus;
+  let attemptSequence = 1;
+  const workspaceBaselineCandidates = options.baselineCandidates === false ? [] : [bidDeltaBaseline];
+  const workspaceComparisonCandidates = options.comparisonCandidates === false ? [] : [bidDeltaComparison];
+
+  const snapshot = () => {
+    const currentAttempt = deltaAttempt(calculationStatus, attemptSequence);
+    const finalDecisions = [...decisions];
+    const latest = finalDecisions.at(-1) ?? null;
+    return {
+      schema_version: "bidops.bid-delta-comparison.v1",
+      id: bidDeltaComparisonId,
+      opportunity_id: 501,
+      sequence: 1,
+      version: comparisonVersion,
+      category_policy_version: "bid-delta-policy.v1",
+      calculation_status: calculationStatus,
+      result_status: currentResult,
+      materiality: currentResult === "changed" ? "material" : currentResult === "unchanged" ? "non_material" : "unknown",
+      baseline: bidDeltaBaseline,
+      comparison: bidDeltaComparison,
+      items: deltaItems(currentResult),
+      attempts: Array.from({ length: attemptSequence }, (_, index) => index + 1 === attemptSequence ? currentAttempt : deltaAttempt("failed", index + 1)),
+      result_sha256: currentResult && currentResult !== "failed" ? "e".repeat(64) : null,
+      last_error_code: calculationStatus === "failed" ? "model_timeout" : null,
+      created_at: "2026-08-31T09:00:00Z",
+      started_at: calculationStatus === "pending" ? null : "2026-08-31T09:01:00Z",
+      completed_at: calculationStatus === "pending" || calculationStatus === "running" ? null : "2026-08-31T09:02:00Z",
+      final_decisions: finalDecisions,
+      latest_final_decision: latest,
+      decision_currentness: latest ? "current" : "unknown",
+      currentness_reasons: latest ? [] : ["no_final_decision"],
+    };
+  };
+
+  const basePath = "/api/opportunities/501/bid-delta";
+  await page.route("**/api/**", async (route) => {
+    const request = route.request();
+    const pathname = new URL(request.url()).pathname;
+    const method = request.method();
+    if (pathname === basePath && method === "GET") {
+      trace.workspaceGets += 1;
+      const current = snapshot();
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
+        schema_version: "bidops.bid-delta-workspace.v1",
+        opportunity_id: 501,
+        baseline_candidates: workspaceBaselineCandidates,
+        comparison_candidates: workspaceComparisonCandidates,
+        comparisons: [{
+          id: current.id, sequence: current.sequence, version: current.version,
+          category_policy_version: current.category_policy_version, calculation_status: current.calculation_status,
+          result_status: current.result_status, materiality: current.materiality, baseline: current.baseline,
+          comparison: current.comparison, result_sha256: current.result_sha256, created_at: current.created_at,
+          started_at: current.started_at, completed_at: current.completed_at,
+        }],
+        latest_final_decision: current.latest_final_decision,
+        decision_currentness: current.decision_currentness,
+        currentness_reasons: current.currentness_reasons,
+        generated_at: "2026-08-31T09:03:00Z",
+      }) });
+      return;
+    }
+    if (pathname === `${basePath}/comparisons/${bidDeltaComparisonId}` && method === "GET") {
+      trace.comparisonGets += 1;
+      const sequenceStatus = options.pollingStatuses?.[trace.comparisonGets - 1];
+      if (sequenceStatus) {
+        calculationStatus = sequenceStatus;
+        currentResult = sequenceStatus === "completed" ? resultStatus : sequenceStatus === "failed" ? "failed" : null;
+      }
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(snapshot()) });
+      return;
+    }
+    if (pathname === `${basePath}/comparisons` && method === "POST") {
+      const body = JSON.parse(request.postData() ?? "{}") as Record<string, unknown>;
+      trace.comparisonPosts.push({ body, headers: request.headers() });
+      calculationStatus = "pending";
+      currentResult = null;
+      comparisonVersion = 1;
+      attemptSequence = 1;
+      await route.fulfill({ status: 202, contentType: "application/json", body: JSON.stringify(snapshot()) });
+      return;
+    }
+    if (pathname === `${basePath}/comparisons/${bidDeltaComparisonId}/attempts` && method === "POST") {
+      const body = JSON.parse(request.postData() ?? "{}") as Record<string, unknown>;
+      trace.retryPosts.push({ body, headers: request.headers() });
+      attemptSequence += 1;
+      comparisonVersion += 1;
+      calculationStatus = "pending";
+      currentResult = null;
+      await route.fulfill({ status: 202, contentType: "application/json", body: JSON.stringify(snapshot()) });
+      return;
+    }
+    if (pathname === `${basePath}/comparisons/${bidDeltaComparisonId}/final-decisions` && method === "POST") {
+      const body = JSON.parse(request.postData() ?? "{}") as Record<string, unknown>;
+      trace.finalDecisionPosts.push({ body, headers: request.headers() });
+      if (options.finalDecisionErrorCode) {
+        const status = options.finalDecisionErrorCode === "bid_delta_currentness_unavailable" ? 503 : 409;
+        await route.fulfill({ status, contentType: "application/json", body: JSON.stringify({
+          error: { code: options.finalDecisionErrorCode, message: "고정 conflict fixture", details: null },
+          request_id: body.request_id ?? null,
+        }) });
+        return;
+      }
+      const sequence = decisions.length + 1;
+      const saved = { ...deltaDecision(sequence, body.decision === "go" ? "go" : "no_go", comparisonVersion), reason: String(body.reason ?? ""), claimed_name: "테스트 담당자", request_id: String(body.request_id ?? "") };
+      decisions.push(saved);
+      await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify(saved) });
+      return;
+    }
+    await route.fallback();
+  });
+  return trace;
+}
+
+const visualOpportunityLinksBase = {
+  search_strategy: null,
+  attempted_strategies: [],
+  agency_match: null,
+  last_searched_at: null,
+  evidence_external_no: null,
+  evidence_bid_no: null,
+  human_decision: null,
+  reviewer_name: null,
+  reviewed_at: null,
+  review_reason: null,
+};
+
+const visualOpportunities = [
+  {
+    id: 101,
+    tracking_status: "미선택",
+    tracking_reason: null,
+    tracking_selected_by: null,
+    tracking_selected_at: null,
+    recheck_signal: false,
+    recheck_signal_at: null,
+    recheck_signal_link_id: null,
+    first_registered_stage: "order_plan",
+    links: [{
+      ...visualOpportunityLinksBase,
+      id: 1001,
+      stage: "order_plan",
+      link_type: "official",
+      status: "확정",
+      record_type: "order_plan",
+      record_id: 51,
+      notice_id: null,
+      order_plan_id: 51,
+      source_type: null,
+      title: "미선택 공공 데이터 플랫폼 구축",
+      agency: "테스트 기관",
+      external_id: "PLAN-101",
+      record_external_id: "PLAN-101",
+    }],
+  },
+  {
+    id: 202,
+    tracking_status: "종료",
+    tracking_reason: "현재 범위와 맞지 않아 능동 추적을 종료함",
+    tracking_selected_by: "기존 담당자",
+    tracking_selected_at: "2026-08-20T09:00:00Z",
+    recheck_signal: true,
+    recheck_signal_at: "2026-08-31T01:30:00Z",
+    recheck_signal_link_id: 2002,
+    first_registered_stage: "pre_spec",
+    links: [{
+      ...visualOpportunityLinksBase,
+      id: 2001,
+      stage: "notice",
+      link_type: "official",
+      status: "확정",
+      record_type: "pre_spec",
+      record_id: 61,
+      notice_id: 61,
+      order_plan_id: null,
+      source_type: "pre_spec",
+      title: "종료된 지능형 업무 시스템 사전규격",
+      agency: "테스트 기관",
+      external_id: "PRE-202",
+      record_external_id: "PRE-202",
+    }, {
+      ...visualOpportunityLinksBase,
+      id: 2002,
+      stage: "notice",
+      link_type: "official",
+      status: "확정",
+      record_type: "bid_notice",
+      record_id: 62,
+      notice_id: 62,
+      order_plan_id: null,
+      source_type: "bid_notice",
+      title: "종료된 지능형 업무 시스템 본공고",
+      agency: "테스트 기관",
+      external_id: "BID-202",
+      record_external_id: "BID-202",
+    }],
+  },
+  {
+    id: 303,
+    tracking_status: "계속 추적",
+    tracking_reason: "후보 관계를 사람이 확인할 때까지 계속 추적",
+    tracking_selected_by: "검토 담당자",
+    tracking_selected_at: "2026-08-29T02:00:00Z",
+    recheck_signal: false,
+    recheck_signal_at: null,
+    recheck_signal_link_id: null,
+    first_registered_stage: "order_plan",
+    links: [{
+      ...visualOpportunityLinksBase,
+      id: 3001,
+      stage: "notice",
+      link_type: "candidate",
+      status: "후보 확인 대기",
+      search_strategy: "normalized",
+      attempted_strategies: ["full", "normalized"],
+      agency_match: true,
+      last_searched_at: "2026-08-30T03:00:00Z",
+      record_type: "pre_spec",
+      record_id: 71,
+      notice_id: 71,
+      order_plan_id: null,
+      source_type: "pre_spec",
+      title: "후보 관계 사전규격",
+      agency: "후보 기관",
+      external_id: "PRE-303",
+      record_external_id: "PRE-303",
+    }],
+  },
+] as const;
+
+/** Deterministic opportunity list/detail fixture shared by visual coverage. */
+export async function mockOpportunity(page: Page): Promise<void> {
+  await page.route("**/api/opportunities**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const match = url.pathname.match(/^\/api\/opportunities\/(\d+)$/);
+    if (url.pathname === "/api/opportunities" && request.method() === "GET") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ items: visualOpportunities, total: visualOpportunities.length, limit: 50, offset: 0 }),
+      });
+      return;
+    }
+    if (match && request.method() === "GET") {
+      const item = visualOpportunities.find((candidate) => candidate.id === Number(match[1]));
+      await route.fulfill({
+        status: item ? 200 : 404,
+        contentType: "application/json",
+        body: JSON.stringify(item ?? { detail: "사업기회를 찾을 수 없습니다" }),
+      });
+      return;
+    }
+    await route.fallback();
+  });
+}
+
+const visualPreSpecNotice = {
+  id: 991,
+  notice_key: "pre-spec:991",
+  run_id: "source-run-not-used-for-routing",
+  title: "안전한 문서 준비 사전규격",
+  agency: "테스트 조달기관",
+  published_at: "2026-08-30T00:00:00Z",
+  deadline_at: "2026-09-02T00:00:00Z",
+  estimated_price: null,
+  sample_role: null,
+  sample_stratum: null,
+  collection_bucket: null,
+  grade: "우선 검토",
+  readiness: null,
+  focus: null,
+  attachment_count: 2,
+  attachment_status: "g2b",
+  bid_no: null,
+  bid_ord: null,
+  source_type: "pre_spec",
+  budget: 510_000_000,
+  method: null,
+  url: "https://example.invalid/pre-specs/991",
+  timezone: "Asia/Seoul",
+  procurement_class: null,
+  region_limit: null,
+  lifecycle: { pre_spec_no: "PRE-991" },
+  qualification_flags: { sw_business_status: "Y" },
+  focus_matches: [],
+  performance_matches: [],
+  performance_top_score: null,
+  candidate_sources: [],
+  judgment: null,
+  attachments: [],
+  reviews: [],
+};
+
+const visualPreSpecItems = [
+  {
+    notice_pk: 991,
+    pre_spec_no: "PRE-991",
+    title: "안전한 문서 준비 사전규격",
+    agency: "테스트 조달기관",
+    published_at: "2026-08-30T00:00:00Z",
+    deadline_at: "2026-09-02T00:00:00Z",
+    budget: 510_000_000,
+    sw_business_status: "N",
+    business_division: "일반용역",
+    origin: "추적",
+    opportunity_id: 202,
+    tracking_status: "종료",
+    kept_by_tracking: true,
+    document: { attachments: 2, "완료": 0, "대기": 0, "진행": 0, "차단": 1, "실패": 1 },
+  },
+  {
+    notice_pk: 992,
+    pre_spec_no: "PRE-992",
+    title: "신규 지능형 행정 지원 사전규격",
+    agency: "신규 발주기관",
+    published_at: "2026-08-31T00:00:00Z",
+    deadline_at: "2026-09-07T00:00:00Z",
+    budget: null,
+    sw_business_status: "Y",
+    business_division: "일반용역",
+    origin: "신규",
+    opportunity_id: 78,
+    tracking_status: "미선택",
+    kept_by_tracking: false,
+    document: { attachments: 1, "완료": 1, "대기": 0, "진행": 0, "차단": 0, "실패": 0 },
+  },
+] as const;
+
+const visualUnknownOverview = {
+  schema_version: "bidops.prespec-overview-reviews.v1",
+  notice_id: 991,
+  reviews: [{
+    id: "00000000-0000-0000-0000-000000000991",
+    notice_id: 991,
+    status: "needs_human_review",
+    result: null,
+    completed_at: null,
+    current_snapshot: {
+      id: "10000000-0000-0000-0000-000000000991",
+      document_version_id: "20000000-0000-0000-0000-000000000991",
+      structure_id: "30000000-0000-0000-0000-000000000991",
+      source_sha256: "a".repeat(64),
+      payload_sha256: "b".repeat(64),
+      cut_status: "unknown",
+      strategy: null,
+      start_locator: null,
+      end_locator: null,
+      created_at: "2026-08-31T01:00:00Z",
+    },
+    attempts: [],
+  }],
+};
+
+function visualCompletedOverview() {
+  const review = visualUnknownOverview.reviews[0];
+  return {
+    ...visualUnknownOverview,
+    reviews: [{
+      ...review,
+      status: "completed",
+      result: "조건부 추진 검토",
+      completed_at: "2026-08-31T02:00:00Z",
+      current_snapshot: { ...review.current_snapshot, cut_status: "ready", strategy: "overview-intro-v1" },
+      attempts: [{ id: "00000000-0000-0000-0000-000000000992", sequence: 1, status: "completed", reference_only: false, deployable: true }],
+    }],
+  };
+}
+
+/** Deterministic pre-spec list/detail fixture, including the unknown overview. */
+export async function mockPreSpecs(page: Page, overviewState: "completed" | "unknown" = "completed"): Promise<void> {
+  await page.route("**/api/pre-specs**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (url.pathname === "/api/pre-specs" && request.method() === "GET") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ items: visualPreSpecItems, total: visualPreSpecItems.length, limit: 50, offset: 0 }),
+      });
+      return;
+    }
+    if (url.pathname === "/api/pre-specs/991/overview-reviews" && request.method() === "GET") {
+      const overview = overviewState === "unknown" ? visualUnknownOverview : visualCompletedOverview();
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(overview) });
+      return;
+    }
+    await route.fallback();
+  });
+  await page.route("**/api/notices/991", async (route) => {
+    if (route.request().method() === "GET") {
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(visualPreSpecNotice) });
+      return;
+    }
+    await route.fallback();
+  });
+  await page.route("**/api/notices/991/document-bundles", async (route) => {
+    if (route.request().method() === "GET") {
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ items: [] }) });
+      return;
+    }
+    await route.fallback();
+  });
+}
+
+type DocumentPreparationVisualState = "draft" | "processing" | "blocked" | "ready";
+
+function visualDocument(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "20000000-0000-0000-0000-000000000991",
+    bundle_id: "10000000-0000-0000-0000-000000000991",
+    version: 1,
+    role: "제안요청서",
+    effective_date: "2026-09-01",
+    replaces_document_version_id: null,
+    is_current: true,
+    safety_status: "safe",
+    structure_status: "ready",
+    original_filename: "제안요청서.pdf",
+    ...overrides,
+  };
+}
+
+function visualBundle(state: DocumentPreparationVisualState) {
+  const status = state === "draft" ? "draft" : state === "processing" ? "processing" : state === "blocked" ? "needs_review" : "ready";
+  const documents = state === "draft"
+    ? []
+    : [visualDocument(state === "processing"
+      ? { safety_status: "scanning", structure_status: "processing", original_filename: "진행중-제안요청서.pdf" }
+      : state === "blocked"
+        ? { safety_status: "blocked", structure_status: "failed", original_filename: "차단된-부록.pdf" }
+        : {})];
+  return {
+    id: "10000000-0000-0000-0000-000000000991",
+    notice_id: 991,
+    revision: state === "ready" ? 2 : 1,
+    version: state === "ready" ? 5 : 1,
+    status,
+    documents,
+    issues: state === "blocked" ? [{
+      issue_id: "fixture-blocking-issue",
+      code: "unsafe_document",
+      severity: "차단",
+      blocking: true,
+      document_version_id: "20000000-0000-0000-0000-000000000991",
+      message: "안전 검사에 실패한 문서가 있습니다.",
+      locator_type: "none",
+      locator: null,
+    }] : [],
+    confirmed_by: state === "ready" ? "이전 담당자" : null,
+    confirmed_at: state === "ready" ? "2026-08-31T02:00:00Z" : null,
+    created_at: "2026-08-31T00:00:00Z",
+  };
+}
+
+/** Stable bundle response for visual draft/processing/blocked/ready snapshots. */
+export async function mockDocumentPreparationVisual(page: Page, state: DocumentPreparationVisualState): Promise<void> {
+  const bundle = visualBundle(state);
+  await page.route("**/api/**", async (route) => {
+    const request = route.request();
+    const pathname = new URL(request.url()).pathname;
+    if (pathname === "/api/notices/991" && request.method() === "GET") {
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(visualPreSpecNotice) });
+      return;
+    }
+    if (pathname === "/api/pre-specs/991/overview-reviews" && request.method() === "GET") {
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(visualUnknownOverview) });
+      return;
+    }
+    if (pathname === "/api/notices/991/document-bundles" && request.method() === "GET") {
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ items: [bundle] }) });
+      return;
+    }
+    await route.fallback();
+  });
 }
 
 /**
