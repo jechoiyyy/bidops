@@ -7,7 +7,7 @@
 - 루트 `docker-compose.yml`은 SQLite 이전 입력 스냅숏을 백업·검증하는 명시적 `ops` 명령만 제공한다. 애플리케이션 런타임으로 사용하지 않는다.
 - 모든 T7 명령에는 전용 `COMPOSE_PROJECT_NAME`을 사용한다. 다른 worktree의 컨테이너와 volume을 중지하거나 삭제하지 않는다.
 - 일상 운영에서 `docker compose down -v`, volume 삭제, 원본 객체 삭제를 사용하지 않는다.
-- legacy notice attachment의 id 기반 다운로드 호환 사본은 `/app/web/data/attachments`에 있고 Compose named volume `attachments-data`로 보존한다. 업로드는 quarantine·ClamAV 검사 후에만 등록된다.
+- legacy notice attachment의 id 기반 다운로드 호환 사본은 `/app/web/data/attachments`에 있다. 같은 부모의 `/app/web/data/profile-snapshots`는 승인 프로필 projection이 읽는 artifact이므로 Compose named volume `web-data`가 `/app/web/data` 전체를 보존한다. 업로드는 quarantine·ClamAV 검사 후에만 등록된다.
 
 ## 현재 배포 차단 조건
 
@@ -15,7 +15,6 @@
 
 - PostgreSQL과 MinIO port가 host 전체 interface에 publish될 수 있다.
 - MinIO versioning 활성화 실패를 bootstrap이 무시한다.
-- 객체 restore는 source와 target version ID mapping을 보존하고 DB active object 집합·hash·완전성을 검사한다(A-6 해결).
 
 개발 검증에서도 hosted Codex reference overlay를 사용하지 않는다. 회사자료 host 입력을 registry에 push·export하지 않으며 로컬 build cache의 접근 범위를 제한한다. legacy notice attachment upload는 quarantine·ClamAV·MinIO 경계를 통과한 파일만 사용한다. 나머지 stack 기동은 폐기 가능한 데이터와 host firewall로 격리한 환경에서만 수행한다.
 
