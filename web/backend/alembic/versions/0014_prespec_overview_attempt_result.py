@@ -71,7 +71,7 @@ def _ensure_unique_constraint(table: str, name: str, columns: list[str]) -> bool
     return True
 
 
-def _create_attempt_columns() -> tuple[bool, bool, bool]:
+def _create_attempt_columns() -> None:
     uuid = postgresql.UUID(as_uuid=True)
     op.add_column(
         "prespec_overview_attempt",
@@ -93,18 +93,15 @@ def _create_attempt_columns() -> tuple[bool, bool, bool]:
         sa.Column("result_id", uuid, nullable=True),
         schema=SCHEMA,
     )
-    return (
-        _ensure_unique_constraint(
-            "prespec_overview_attempt",
-            "uq_prespec_overview_attempt_snapshot_scope",
-            ["id", "snapshot_id"],
-        ),
-        _ensure_unique_constraint(
-            "prespec_overview_attempt",
-            "uq_prespec_overview_attempt_review_scope",
-            ["id", "review_id"],
-        ),
-        True,
+    _ensure_unique_constraint(
+        "prespec_overview_attempt",
+        "uq_prespec_overview_attempt_snapshot_scope",
+        ["id", "snapshot_id"],
+    )
+    _ensure_unique_constraint(
+        "prespec_overview_attempt",
+        "uq_prespec_overview_attempt_review_scope",
+        ["id", "review_id"],
     )
 
 
@@ -146,6 +143,11 @@ def _create_result_and_event_tables() -> None:
         sa.CheckConstraint(
             "jsonb_typeof(payload_jsonb) = 'object'",
             name="ck_prespec_overview_result_payload_object",
+        ),
+        sa.CheckConstraint(
+            "CASE WHEN jsonb_typeof(payload_jsonb -> 'evidence') = 'array' "
+            "THEN jsonb_array_length(payload_jsonb -> 'evidence') >= 1 ELSE FALSE END",
+            name="ck_prespec_overview_result_evidence_nonempty",
         ),
         sa.CheckConstraint(
             "payload_sha256 ~ '^[0-9a-f]{64}$'",
@@ -263,6 +265,12 @@ def _replace_attempt_constraints() -> None:
         schema=SCHEMA,
     )
     op.create_check_constraint(
+        "ck_prespec_overview_attempt_completed_binding",
+        "prespec_overview_attempt",
+        "status <> 'completed' OR (reference_only IS FALSE AND deployable IS TRUE)",
+        schema=SCHEMA,
+    )
+    op.create_check_constraint(
         "ck_prespec_overview_attempt_review_input",
         "prespec_overview_attempt",
         "review_id IS NULL OR input_sha256 IS NOT NULL",
@@ -315,176 +323,34 @@ def _drop_phase1_attempt_trigger() -> None:
 
 
 def _create_lifecycle_triggers() -> None:
+    """Install the one database-owned lifecycle edge guard.
+
+    CHECK constraints own the shape of lifecycle metadata, the service owns
+    cross-table scope and review completion, and runtime column grants own
+    immutable input/result/event lineage.  The database only needs to reject
+    impossible status edges (including reopening a terminal attempt).
+    """
     bind = op.get_bind()
     bind.exec_driver_sql(
         f"""
-CREATE FUNCTION {SCHEMA}.tf_prespec_overview_attempt_event_validate() RETURNS trigger
-LANGUAGE plpgsql AS $function$
-DECLARE
-    current_status text;
-    expected_sequence integer;
-BEGIN
-    SELECT status INTO current_status
-      FROM {SCHEMA}.prespec_overview_attempt
-     WHERE id = NEW.attempt_id
-     FOR UPDATE;
-    IF current_status IS NULL THEN
-        RAISE EXCEPTION 'overview attempt event has no attempt' USING ERRCODE = 'check_violation';
-    END IF;
-    IF current_status <> NEW.from_status THEN
-        RAISE EXCEPTION 'overview attempt event source status mismatch' USING ERRCODE = 'check_violation';
-    END IF;
-    SELECT COALESCE(MAX(event_sequence), 0) + 1 INTO expected_sequence
-      FROM {SCHEMA}.prespec_overview_attempt_event
-     WHERE attempt_id = NEW.attempt_id;
-    IF NEW.event_sequence <> expected_sequence THEN
-        RAISE EXCEPTION 'overview attempt event sequence is not append-only' USING ERRCODE = 'check_violation';
-    END IF;
-    RETURN NEW;
-END
-$function$;
-"""
-    )
-    bind.exec_driver_sql(
-        f"""
-CREATE FUNCTION {SCHEMA}.tf_prespec_overview_attempt_lifecycle() RETURNS trigger
+CREATE FUNCTION {SCHEMA}.tf_prespec_overview_attempt_transition() RETURNS trigger
 LANGUAGE plpgsql AS $function$
 BEGIN
-    IF NEW.id IS DISTINCT FROM OLD.id
-       OR NEW.review_id IS DISTINCT FROM OLD.review_id
-       OR NEW.snapshot_id IS DISTINCT FROM OLD.snapshot_id
-       OR NEW.sequence IS DISTINCT FROM OLD.sequence
-       OR NEW.reference_only IS DISTINCT FROM OLD.reference_only
-       OR NEW.deployable IS DISTINCT FROM OLD.deployable
-       OR NEW.input_sha256 IS DISTINCT FROM OLD.input_sha256
-       OR NEW.provider IS DISTINCT FROM OLD.provider
-       OR NEW.model_name IS DISTINCT FROM OLD.model_name
-       OR NEW.model_digest IS DISTINCT FROM OLD.model_digest
-       OR NEW.prompt_version IS DISTINCT FROM OLD.prompt_version
-       OR NEW.binding_digest IS DISTINCT FROM OLD.binding_digest
-       OR NEW.result_jsonb IS DISTINCT FROM OLD.result_jsonb
-       OR NEW.result_sha256 IS DISTINCT FROM OLD.result_sha256
-       OR NEW.created_at IS DISTINCT FROM OLD.created_at THEN
-        RAISE EXCEPTION 'overview attempt input lineage is immutable' USING ERRCODE = 'check_violation';
+    IF NEW.status IS NOT DISTINCT FROM OLD.status THEN
+        RETURN NEW;
     END IF;
-
     IF (OLD.status, NEW.status) NOT IN (
         ('queued','running'), ('queued','failed'), ('queued','cancelled'),
         ('running','completed'), ('running','failed'), ('running','cancelled')
     ) THEN
         RAISE EXCEPTION 'invalid overview attempt status transition' USING ERRCODE = 'check_violation';
     END IF;
-
-    IF NOT EXISTS (
-        SELECT 1
-          FROM {SCHEMA}.prespec_overview_attempt_event AS event_row
-         WHERE event_row.attempt_id = OLD.id
-           AND event_row.event_sequence = (
-               SELECT MAX(last_event.event_sequence)
-                 FROM {SCHEMA}.prespec_overview_attempt_event AS last_event
-                WHERE last_event.attempt_id = OLD.id
-           )
-           AND event_row.from_status = OLD.status
-           AND event_row.to_status = NEW.status
-    ) THEN
-        RAISE EXCEPTION 'overview attempt transition requires an audit event' USING ERRCODE = 'check_violation';
-    END IF;
-
-    IF NEW.status = 'running' THEN
-        IF NEW.started_at IS NULL OR NEW.completed_at IS NOT NULL OR NEW.result_id IS NOT NULL THEN
-            RAISE EXCEPTION 'running overview attempt timestamps are invalid' USING ERRCODE = 'check_violation';
-        END IF;
-    ELSIF NEW.status = 'completed' THEN
-        IF OLD.started_at IS NULL OR NEW.started_at IS DISTINCT FROM OLD.started_at
-           OR NEW.completed_at IS NULL OR NEW.result_id IS NULL THEN
-            RAISE EXCEPTION 'completed overview attempt requires immutable start and result' USING ERRCODE = 'check_violation';
-        END IF;
-        IF NOT EXISTS (
-            SELECT 1 FROM {SCHEMA}.prespec_overview_result
-             WHERE id = NEW.result_id AND attempt_id = OLD.id
-        ) THEN
-            RAISE EXCEPTION 'completed overview attempt result reference is invalid' USING ERRCODE = 'check_violation';
-        END IF;
-    ELSE
-        IF NEW.completed_at IS NULL OR NEW.result_id IS NOT NULL THEN
-            RAISE EXCEPTION 'failed or cancelled overview attempt metadata is invalid' USING ERRCODE = 'check_violation';
-        END IF;
-        IF OLD.status = 'queued' AND NEW.started_at IS NOT NULL THEN
-            RAISE EXCEPTION 'queued overview attempt cannot finish with a start time' USING ERRCODE = 'check_violation';
-        END IF;
-        IF OLD.status = 'running' AND (OLD.started_at IS NULL OR NEW.started_at IS DISTINCT FROM OLD.started_at) THEN
-            RAISE EXCEPTION 'running overview attempt start time is immutable' USING ERRCODE = 'check_violation';
-        END IF;
-    END IF;
     RETURN NEW;
 END
 $function$;
-"""
-    )
-    bind.exec_driver_sql(
-        f"""
-CREATE FUNCTION {SCHEMA}.tf_prespec_overview_result_scope() RETURNS trigger
-LANGUAGE plpgsql AS $function$
-DECLARE
-    attempt_row record;
-    snapshot_row record;
-BEGIN
-    SELECT id, review_id, snapshot_id, binding_digest, status
-      INTO attempt_row
-      FROM {SCHEMA}.prespec_overview_attempt
-     WHERE id = NEW.attempt_id;
-    IF attempt_row.id IS NULL OR attempt_row.review_id IS NULL
-       OR attempt_row.status <> 'running'
-       OR attempt_row.review_id IS DISTINCT FROM NEW.review_id
-       OR attempt_row.snapshot_id IS DISTINCT FROM NEW.snapshot_id
-       OR attempt_row.binding_digest IS DISTINCT FROM NEW.binding_digest THEN
-        RAISE EXCEPTION 'overview result attempt scope mismatch' USING ERRCODE = 'check_violation';
-    END IF;
-    SELECT review_id, source_sha256
-      INTO snapshot_row
-      FROM {SCHEMA}.prespec_overview_snapshot
-     WHERE id = NEW.snapshot_id;
-    IF snapshot_row.review_id IS NULL
-       OR snapshot_row.review_id IS DISTINCT FROM NEW.review_id
-       OR snapshot_row.source_sha256 IS DISTINCT FROM NEW.source_sha256 THEN
-        RAISE EXCEPTION 'overview result snapshot scope mismatch' USING ERRCODE = 'check_violation';
-    END IF;
-    RETURN NEW;
-END
-$function$;
-"""
-    )
-    bind.exec_driver_sql(
-        f"""
-CREATE FUNCTION {SCHEMA}.tf_prespec_overview_append_only() RETURNS trigger
-LANGUAGE plpgsql AS $function$
-BEGIN
-    RAISE EXCEPTION 'prespec overview lifecycle rows are append-only'
-        USING ERRCODE = 'check_violation';
-END
-$function$;
-"""
-    )
-    bind.exec_driver_sql(
-        f"""
-CREATE TRIGGER tr_prespec_overview_attempt_event_validate
-BEFORE INSERT ON {SCHEMA}.prespec_overview_attempt_event
-FOR EACH ROW EXECUTE FUNCTION {SCHEMA}.tf_prespec_overview_attempt_event_validate();
-CREATE TRIGGER tr_prespec_overview_attempt_lifecycle
-BEFORE UPDATE ON {SCHEMA}.prespec_overview_attempt
-FOR EACH ROW EXECUTE FUNCTION {SCHEMA}.tf_prespec_overview_attempt_lifecycle();
-CREATE TRIGGER tr_prespec_overview_attempt_delete
-BEFORE DELETE ON {SCHEMA}.prespec_overview_attempt
-FOR EACH ROW EXECUTE FUNCTION {SCHEMA}.tf_prespec_overview_append_only();
-CREATE TRIGGER tr_prespec_overview_result_scope
-BEFORE INSERT ON {SCHEMA}.prespec_overview_result
-FOR EACH ROW EXECUTE FUNCTION {SCHEMA}.tf_prespec_overview_result_scope();
-CREATE TRIGGER tr_prespec_overview_result_append_only
-BEFORE UPDATE OR DELETE ON {SCHEMA}.prespec_overview_result
-FOR EACH ROW EXECUTE FUNCTION {SCHEMA}.tf_prespec_overview_append_only();
-CREATE TRIGGER tr_prespec_overview_attempt_event_append_only
-BEFORE UPDATE OR DELETE ON {SCHEMA}.prespec_overview_attempt_event
-FOR EACH ROW EXECUTE FUNCTION {SCHEMA}.tf_prespec_overview_append_only();
+CREATE TRIGGER tr_prespec_overview_attempt_transition
+BEFORE UPDATE OF status ON {SCHEMA}.prespec_overview_attempt
+FOR EACH ROW EXECUTE FUNCTION {SCHEMA}.tf_prespec_overview_attempt_transition();
 """
     )
 
@@ -569,20 +435,10 @@ def downgrade() -> None:
     _assert_downgrade_safe()
     bind = op.get_bind()
     for name, table in (
-        ("tr_prespec_overview_attempt_event_validate", "prespec_overview_attempt_event"),
-        ("tr_prespec_overview_attempt_lifecycle", "prespec_overview_attempt"),
-        ("tr_prespec_overview_attempt_delete", "prespec_overview_attempt"),
-        ("tr_prespec_overview_result_scope", "prespec_overview_result"),
-        ("tr_prespec_overview_result_append_only", "prespec_overview_result"),
-        ("tr_prespec_overview_attempt_event_append_only", "prespec_overview_attempt_event"),
+        ("tr_prespec_overview_attempt_transition", "prespec_overview_attempt"),
     ):
         _drop_trigger(name, table)
-    for function in (
-        "tf_prespec_overview_attempt_event_validate",
-        "tf_prespec_overview_attempt_lifecycle",
-        "tf_prespec_overview_result_scope",
-        "tf_prespec_overview_append_only",
-    ):
+    for function in ("tf_prespec_overview_attempt_transition",):
         bind.exec_driver_sql(f"DROP FUNCTION IF EXISTS {SCHEMA}.{function}()")
 
     op.drop_constraint(
@@ -601,6 +457,7 @@ def downgrade() -> None:
     )
     for name in (
         "ck_prespec_overview_attempt_result_reference_status",
+        "ck_prespec_overview_attempt_completed_binding",
         "ck_prespec_overview_attempt_binding_pair",
         "ck_prespec_overview_attempt_binding_digest",
         "ck_prespec_overview_attempt_input_sha256",

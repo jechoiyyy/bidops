@@ -35,6 +35,7 @@ from .routers.schedule import router as schedule_router
 from .routers.screening import router as screening_router
 from .routers.document_bundles import router as document_bundles_router
 from .routers.deep_reviews import router as deep_reviews_router
+from .routers.bid_delta import router as bid_delta_router
 from .routers.reports import router as reports_router
 from .runtime import ApplicationRuntime
 from .services.object_store import ObjectStoreError, assert_object_store_runtime
@@ -175,6 +176,7 @@ app.include_router(policies_router)
 app.include_router(schedule_router)
 app.include_router(document_bundles_router)
 app.include_router(deep_reviews_router)
+app.include_router(bid_delta_router)
 app.include_router(reports_router)
 
 
