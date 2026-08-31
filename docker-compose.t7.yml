@@ -131,6 +131,11 @@ services:
       # bind mounts; use `docker compose cp` to take a copy out.
       - pipeline-data:/app/data
       - pipeline-reports:/app/reports
+      # /app/web/data holds both the legacy attachment download copies and the
+      # profile snapshot artifacts the approved profile projection reads back.
+      # Persist the whole directory: a container recreate that keeps the DB rows
+      # but drops the artifacts leaves the profile API permanently fail-closed.
+      - web-data:/app/web/data
       # Profile-related inputs are deployment data, not image layers. The web
       # process owns both the profile snapshot boundary and the collection
       # subprocess that consumes the performance-title reference.
@@ -212,6 +217,7 @@ volumes:
   document-scratch:
   pipeline-data:
   pipeline-reports:
+  web-data:
   recovery-backup:
 
 networks:

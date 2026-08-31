@@ -42,7 +42,6 @@ class AttachmentResponse(APIModel):
     origin: str | None = None
     file_ext: str | None = None
     size_bytes: int | None = None
-    stored_path: str | None = None
     extract_status: str | None = None
     created_at: datetime | None = None
 

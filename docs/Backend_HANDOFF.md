@@ -15,7 +15,7 @@
 | 2 | [`tracking/lifecycle-workstream.md`](tracking/lifecycle-workstream.md) | 작업 목록 정본. 확정된 사실·결정·할 일·끝낸 일 |
 | 3 | [`engineering-notes.md`](engineering-notes.md) 마지막 여섯 절 | host 테스트 실행법과 새로 걸린 함정들 |
 | 4 | [`tracking/findings.md`](tracking/findings.md) | 재현 가능한 미해결 문제 |
-| 5 | [`tracking/status.md`](tracking/status.md)의 구현 상태 표 | **운영 배포 blocker 6건.** §7-A가 여기서 나온다 |
+| 5 | [`tracking/status.md`](tracking/status.md)의 구현 상태 표 | **운영 배포 blocker 4건.** A-2·A-4는 2026-09-01에 해소했다. §7-A가 여기서 나온다 |
 
 바쁘면 **§7(다음 작업 순서)과 §10(콜드 세션 시작 절차)만 읽어도 착수할 수 있다.**
 
@@ -25,18 +25,23 @@
 
 ## 2. 지금 상태
 
-### 테스트 기준선 (2026-08-31 실측)
+### 테스트 기준선 (2026-09-01 실측)
 
 ```
-백엔드 전체 완주       1033 passed, 5 skipped, 0 failed   (연속 2회 확인, 약 10분)
+백엔드 전체 완주       1041 passed, 5 skipped, 0 failed   (약 9분)
 파이프라인             41 + 13 + 52 + 2 = 108 OK
-프론트엔드 전체        598 passed, 10 skipped, 0 failed   (연속 2회 확인)
-프론트엔드 빌드        tsc -b 통과, 초기 JS 358.80 kB / gzip 113.06 kB (500 kB 경고 없음)
+프론트엔드 전체        598 passed, 10 skipped, 0 failed   (독립 실행 확인)
+프론트엔드 빌드        tsc -b 통과, 초기 JS 358.94 kB / gzip 113.10 kB (500 kB 경고 없음)
 Alembic                head = 0015_bid_delta_final_decision, alembic check 드리프트 0건
 ```
 
-**실패 0건이 현재 기준선이다.** 예전 문서의 "정상 실패 6건"·"profile_snapshot 2건 실패"는
-더 이상 유효하지 않다. `test_profile_snapshot*` 14건은 벤더링 baseline으로 전부 통과한다.
+**실패 0건이 현재 기준선이다.** 백엔드·프론트엔드 모두 위임과 독립적으로 직접 실행해
+확인했다. 예전 문서의 "정상 실패 6건"·"profile_snapshot 2건 실패"는 더 이상 유효하지 않다.
+
+**Playwright 전체 실행에도 부하 의존 flake가 있다.** 2026-09-01 위임 실행이
+`route-context.spec.ts` 2건 실패를 보고했으나 같은 트리에서 단독 실행은 84/84, 전체
+재실행은 598/598로 통과했다. 전체 실행의 실패는 단독 재실행과 전체 재실행으로 확인한
+뒤에만 회귀로 판단한다.
 
 알려진 flake 1건: `test_screening_orchestrator.py::test_retry_attempt_is_persisted_before_success_and_has_no_failed_response`가
 전체 실행에서 드물게 실패한다(2회 중 1회). 단독 재실행은 통과한다. 부하 의존이며 회귀가
@@ -171,7 +176,7 @@ reviewer가 `assistant-recommendation`이므로 **사람 확인 전까지 정본
 ```bash
 cd /home/jechoi/projects/bidops/web/backend
 .venv/bin/python -m pytest tests/ -q
-#   → 1033 passed, 5 skipped (약 10~11분)
+#   → 1041 passed, 5 skipped (약 9분)
 ```
 
 10분 넘게 걸리고 `TestClient` 구간에서 멈춘 것처럼 보인다. **기다려라.**
@@ -312,14 +317,14 @@ cx exec -m gpt-5.6-luna -c model_reasoning_effort="max" \
 
 ### A. 운영 배포 blocker (로드맵 1·2번, 선별 구현보다 앞이다)
 
-`status.md`의 구현 상태 표가 정본이다. 여섯 건 모두 **운영 사용 차단** 상태다.
+`status.md`의 구현 상태 표가 정본이다. 남은 네 건이 **운영 사용 차단** 상태다.
 
 | | 항목 | 크기 | 상태 |
 |---|---|---|---|
 | A-1 | **runtime image가 회사 프로필을 포함한다** | 작음 | **2026-09-01 확인함. 실재한다** |
-| A-2 | legacy notice 첨부가 scan·quarantine·MinIO를 우회하고 `stored_path`를 API에 노출 | 중간 | 미확인 |
+| A-2 | legacy notice 첨부가 scan·quarantine·MinIO를 우회하고 `stored_path`를 API에 노출 | 중간 | **2026-09-01 해결: quarantine·검사·source 승격, API path 제거, named volume** |
 | A-3 | 프로필 조회 projection이 source path·raw block·parse error를 노출할 수 있음 | 중간 | 미확인 |
-| A-4 | legacy mutation이 actor·audit 없이 변경 가능 | 중간 | 미확인 |
+| A-4 | legacy mutation이 actor·audit 없이 변경 가능 | 중간 | **2026-09-01 부분 해결: 첨부·포털·정책 7개 mutation에 actor·AuditEvent 적용** |
 | A-5 | hosted Codex reference가 허용 payload 정책과 충돌 | 작음 | 미확인 |
 | A-6 | backup·restore script의 target version mapping·manifest 계약 결함 | 중간 | 미확인 |
 
@@ -330,8 +335,8 @@ image"라고 주장하지만 `docs/reference/company-profile.md`(23KB 전문)가
 정한 경계가 이미지 안에서 무의미해진다. 수정은 한 줄이지만 **주석과 코드가 어긋난 것을
 테스트로 고정해야** 재발하지 않는다.
 
-**A-2~A-6은 `status.md` 기록이며 오늘 다시 확인하지 않았다.** A-1처럼 직접 봐야 크기를
-안다. 착수 전에 현재 코드로 재확인하라.
+**A-3~A-6은 `status.md` 기록이며 오늘 다시 확인하지 않았다.** A-1처럼 직접 봐야 크기를
+안다. 착수 전에 현재 코드로 재확인하라. A-2와 A-4는 2026-09-01 구현·회귀 검증을 마쳤다.
 
 A-6은 [B-5 결정](tracking/decisions-pending-20260831.md)과 물린다. "backup·restore를 실험
 착수 전에 먼저 검증"으로 정했는데 스크립트 자체에 정적 결함이 있어 **검증 이전에 수정이

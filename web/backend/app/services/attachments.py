@@ -12,7 +12,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..config import get_settings
+from ..document_mcp.processor import ClamAVChecker
 from ..models import AgencyPortal, Attachment
+from . import assets
+from .clamav import ClamAVScanner
 
 ALLOWED_EXTENSIONS = frozenset({"hwp", "hwpx", "pdf"})
 MAX_ATTACHMENT_SIZE = 50 * 1024 * 1024
@@ -36,6 +39,8 @@ class StoredUpload:
     size_bytes: int
     stored_path: str
     absolute_path: Path
+    source_path: Path
+    asset: assets.QuarantinedAsset
 
 
 def extension_for_name(filename: str | None) -> str:
@@ -98,11 +103,18 @@ def safe_stored_path(stored_path: str | None) -> Path:
     return resolved
 
 
-async def store_upload(upload: UploadFile, notice_pk: int) -> StoredUpload:
-    """Stream an upload to a temporary server-generated file and finalize it.
+async def store_upload(
+    upload: UploadFile,
+    notice_pk: int,
+    *,
+    clamav_checker: ClamAVChecker | None = None,
+) -> StoredUpload:
+    """Inspect an upload before writing the legacy download copy.
 
     The original filename is only returned as metadata. It never participates
-    in directory or stored filename construction.
+    in directory or stored filename construction.  The bytes first enter the
+    shared quarantine/object-store boundary; the legacy local copy is written
+    only after MIME, structure, and ClamAV inspection reports ``safe``.
     """
 
     original_name = upload.filename or ""
@@ -110,36 +122,83 @@ async def store_upload(upload: UploadFile, notice_pk: int) -> StoredUpload:
     if upload.size is not None:
         validate_size(upload.size)
 
-    directory = notice_attachment_directory(notice_pk)
-    temporary_path = directory / f".{uuid4().hex}.upload"
-    final_name = f"{uuid4().hex}.{extension}"
-    final_path = directory / final_name
     size_bytes = 0
+    content_parts: list[bytes] = []
+    asset: assets.QuarantinedAsset | None = None
+    source_path: Path | None = None
+    temporary_path: Path | None = None
+    final_path: Path | None = None
 
     try:
+        while True:
+            chunk = await upload.read(UPLOAD_CHUNK_SIZE)
+            if not chunk:
+                break
+            size_bytes += len(chunk)
+            validate_size(size_bytes)
+            content_parts.append(chunk)
+        if size_bytes == 0:
+            raise AttachmentValidationError("빈 파일은 등록할 수 없습니다.")
+
+        root = attachment_root()
+        content = b"".join(content_parts)
+        asset = assets.quarantine_bytes(
+            content,
+            original_name,
+            declared_media_type=upload.content_type,
+            root=root,
+            source_kind="manual",
+        )
+
+        checker = clamav_checker
+        if checker is None:
+            settings = get_settings()
+            checker = ClamAVScanner(
+                host=settings.clamav_host,
+                port=settings.clamav_port,
+                timeout=settings.clamav_timeout_seconds,
+            ).scan
+        inspected = assets.inspect_quarantine(asset, clamav_checker=checker)
+        if inspected.safety_status != "safe":
+            # ``quarantined`` includes scanner unavailable; neither an
+            # unscanned nor a blocked file may become a legacy attachment.
+            raise AttachmentValidationError("첨부파일이 안전성 검사를 통과하지 못했습니다.")
+
+        source_path, _source_sha256, source_size = assets.commit_source(asset, root=root)
+        if source_size != size_bytes:
+            raise AttachmentValidationError("첨부파일 크기 검증에 실패했습니다.")
+
+        directory = notice_attachment_directory(notice_pk)
+        temporary_path = directory / f".{uuid4().hex}.upload"
+        final_name = f"{uuid4().hex}.{extension}"
+        final_path = directory / final_name
         with temporary_path.open("wb") as target:
-            while True:
-                chunk = await upload.read(UPLOAD_CHUNK_SIZE)
-                if not chunk:
-                    break
-                size_bytes += len(chunk)
-                validate_size(size_bytes)
-                target.write(chunk)
+            target.write(content)
         temporary_path.replace(final_path)
     except Exception:
-        temporary_path.unlink(missing_ok=True)
-        final_path.unlink(missing_ok=True)
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
+        if final_path is not None:
+            final_path.unlink(missing_ok=True)
+        if source_path is not None:
+            source_path.unlink(missing_ok=True)
+        assets.cleanup_asset(asset)
         raise
     finally:
         await upload.close()
 
+    assert asset is not None
+    assert source_path is not None
+    assert final_path is not None
     relative_path = Path(str(notice_pk)) / final_name
     return StoredUpload(
         original_name=original_name,
         extension=extension,
-        size_bytes=size_bytes,
+        size_bytes=source_size,
         stored_path=relative_path.as_posix(),
         absolute_path=final_path,
+        source_path=source_path,
+        asset=asset,
     )
 
 

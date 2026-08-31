@@ -20,7 +20,6 @@ export interface AttachmentResponse {
   origin: string | null;
   file_ext: string | null;
   size_bytes: number | null;
-  stored_path: string | null;
   extract_status: string | null;
   created_at: string | null;
 }

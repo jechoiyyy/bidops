@@ -1,6 +1,6 @@
 # 구현·검증 현황
 
-기준일: 2026-08-31
+기준일: 2026-09-01
 
 `구현됨`은 코드와 계약이 존재한다는 뜻이고, `검증됨`은 기록된 명령이 해당 범위에서 통과했다는 뜻이다. Mock 결과, 과거 브랜치 결과, 현재 worktree 결과, 외부 운영 승인을 서로 대신하지 않는다.
 
@@ -22,10 +22,10 @@
 | 기존 나라장터 공고 수집·정규화·표본 | 구현됨 | 파이프라인 단위·교차 테스트의 과거 64건 통과 기록 있음 |
 | 다섯 관점·반론·종합 1차 판정 | 구현됨 | fake 테스트와 단일 live Qwen 성공·중단 기록 있음; 40건 운영 품질 승인은 없음 |
 | 결정적 HTML·피드백 YAML | 구현됨 | 파이프라인 테스트에 포함됨 |
-| FastAPI 회차·공고·리뷰·프로필·지표 | 구현됨 | 통합 backend 검증에서 대부분 통과, 환경 기준선 2건 실패가 남음 |
-| 프로필 조회 projection | 현재 snapshots·sections·unknowns가 source path/reference, raw block·raw text, 가공되지 않은 parse error를 노출할 수 있음 | 운영 사용 차단; 승인된 구조화 항목·unknown 전용 v1 projection 미구현 |
-| legacy notice 첨부 | 로컬 upload·download는 구현됐으나 scan·quarantine·MinIO와 영속 volume을 우회하고 `stored_path`를 API에 노출 | 운영 사용 차단; 안전 경계 검증 없음 |
-| legacy mutation actor·감사 | 리뷰·첨부·포털·run 실행 일부가 actor·audit 없이 변경 가능 | 채택된 attribution 경계 미충족 |
+| FastAPI 회차·공고·리뷰·프로필·지표 | 구현됨 | 전체 backend suite `1041 passed, 5 skipped, 0 failed` |
+| 프로필 조회 projection | 세 route가 승인된 불변 snapshot의 version·digest에 고정되고 구조화 항목·unknown만 반환함. filesystem source, raw block·raw text, source line, 가공되지 않은 parse error를 닫힌 안정 오류 코드로 대체하고 snapshot이 없으면 503으로 fail closed함([ADR-0023](decisions/0023-company-profile-minimal-projection.md)) | 해결; 실제 프로필 문자열 sentinel 회귀 테스트, backend `1041 passed, 5 skipped, 0 failed`, visual `598 passed, 10 skipped, 0 failed` |
+| legacy notice 첨부 | quarantine→MIME/구조·ClamAV 검사→source object 승격 후 `safe` 파일만 legacy Attachment로 등록하고, API `stored_path` 제거 및 `attachments_dir` named volume 적용 | A-2 회귀 통과; backend `1041 passed, 5 skipped, 6 warnings`; Compose `COMPOSE_OK` |
+| legacy mutation actor·감사 | 첨부 upload/delete, 기관 포털 create/update, 정책 create/candidate/activate에 actor header 검증과 append-only `AuditEvent` 적용 | A-4 회귀 통과; backend `1041 passed, 5 skipped, 0 failed`; frontend tsc/build 통과, visual `598 passed, 10 skipped, 0 failed` |
 | PostgreSQL 17·Alembic | 공유 worktree head `0015_bid_delta_final_decision`; T-23 revision `0014_prespec_overview_attempt_result` | T-23은 임시 PostgreSQL 17에서 `0014`까지 구조 제약·overview 상태 전이 trigger 1개와 role allowlist를 검증했다. 별도 `0015`의 검증으로 재사용하지 않는다 |
 | 누적 관측·첨부 보존 | 신규 observation의 결정적 snapshot/hash와 provider 첨부 retire/revive 구현됨 | 같은 회차 exact replay no-op, 다른 bytes rollback, legacy `null` 보존, 수집에서 사라진 첨부 비삭제 회귀 통과 |
 | opportunity authoritative 소유권·병합 | 공식 확정 또는 사람 수락 후보만 active 소유권을 가지며 secondary row를 삭제하지 않는 merge lineage 구현됨 | focused SQLite/API/loader 회귀와 PostgreSQL 17 migration·제약 검증 통과; 추적 선택·recheck 충돌은 자동 병합하지 않음 |
@@ -33,7 +33,7 @@
 | MinIO·ClamAV·문서 격리 | 구현됨 | Mock T7 E2E 통과; 실제 운영 권한 matrix는 미검증 |
 | document bundle·준비 API | 7개 Lean API와 attachment version/current·bundle ordinal DB 제약 구현됨 | backend 테스트, PostgreSQL migration/preflight/autogenerate, Mock E2E 통과 |
 | 3단계 심층 검토·보고서·근거 API | 7개 Lean API 구현됨 | deterministic Mock provider E2E 통과; 실제 Qwen 품질 승인은 없음 |
-| React 관리자 화면 | 기존 공고·판정·ready bundle 이후 심층 검토 구현됨 | production build와 visual 통과 기록 있음 |
+| React 관리자 화면 | 기존 공고·판정·ready bundle 이후 심층 검토 구현됨 | tsc·production build 통과; 전체 visual `598 passed, 10 skipped, 0 failed` |
 | 문서 준비·실패 attempt 재시작 화면 | typed frontend API·type 변경은 worktree에 있으나 화면과 연결은 미구현 | 화면 검증 없음 |
 | T-23 사전규격 overview phase 2 기반 | immutable result/event, 제한된 attempt lifecycle service, safe v2 projection 구현됨; 실제 model transport·worker는 미구현 | SQLite 46 passed·1 PostgreSQL-only skipped, PostgreSQL 17 집중 9 passed, production build 282 modules |
 | T7 stack 조립 | PostgreSQL, MinIO, ClamAV, web, document worker, analysis worker, 일부 영속 volume, 목적별 egress overlay 구현됨 | 개발 stack health와 Ollama endpoint 도달 기록은 있으나 보안·복구 blocker로 운영 배포 불가 |
@@ -69,8 +69,8 @@ schema는 68개이며, 별도로 빈 PostgreSQL 17 `upgrade head`와 `0014↔001
 | T7 stack V2 | services healthy, `/api/health` 성공, 구조화 worker log 관측, 승인 Ollama endpoint 도달 | 기동·관측·network 경계 검증; 실제 판정 품질 검증 아님 |
 | static diff check | 당시 통합 UI 변경에서 성공 | 이후 worktree 변경의 전체 검증으로 재사용하지 않음 |
 
-최근 끝까지 완주한 backend 전체 suite는 1033 passed, 5 skipped, 6 warnings이며
-실패 0건이다(2026-08-31, 연속 2회 확인).
+최근 끝까지 완주한 backend 전체 suite는 1041 passed, 5 skipped, 6 warnings이며
+실패 0건이다(2026-09-01).
 저장소 `.env`를 상속하지 않은 최소 환경에서 일회용 PostgreSQL 17 server, random DB,
 Alembic head, 임시 data·attachments 경로를 pytest 수집 전에 구성했고 종료 후 소유
 container가 남지 않음을 확인했다. skip 5건은 별도 MinIO가 필요한 4건과 target
@@ -99,8 +99,8 @@ DB에 없다. 다만 byte-identical 파일이 `web/backend/app/screening/baselin
 
 ## 다음 작업 순서
 
-1. profile 원문·경로 API 노출과 legacy unsafe·비영속 첨부 upload을 차단한다. hosted Codex deep-review reference의 payload 차단과 runtime image의 회사자료 제외는 2026-09-01에 해결했다.
-2. MinIO versioning fail-open, host-wide DB·MinIO port publish, 불완전 객체 복구, legacy mutation actor·audit gap을 수정하고 보안·복구 통합 검증을 한다.
+1. **해결.** hosted Codex deep-review reference의 payload 차단, runtime image의 회사자료 제외, profile 원문·경로 API 노출 차단, legacy 첨부 안전 경계와 mutation attribution을 2026-09-01에 전부 해결했다.
+2. MinIO versioning fail-open, host-wide DB·MinIO port publish, 불완전 객체 복구를 수정하고 보안·복구 통합 검증을 한다.
 3. screening v3를 보고서 renderer에 명시적으로 연결한다.
 4. 고정 3일 발주계획 모집단으로 BM25, 한국어 dense bi-encoder, 두 결과의 RRF 하이브리드 비교 실험을 실행하고 사람이 최종 정답을 판정한다([ADR-0021 개정](decisions/0021-filter-experiment-before-implementation.md)). 착수 전에 PostgreSQL·객체 backup과 빈 대상 restore를 한 번 검증한다.
 5. 방식별 recall, precision, 검토량, 중요 누락, 순위 품질, 비용, 지연, 재현성을 보고서로 남기고 운영 방식·threshold를 선택한다. 단독 arm이 놓친 건을 하이브리드가 복구하는지를 채택 근거로 삼는다.

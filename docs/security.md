@@ -13,12 +13,12 @@ PostgreSQL 17의 `bidops` 스키마와 MinIO 목적별 버킷이 운영 정본�
 1. 사내망 밖의 요청은 네트워크 경계에서 차단되어 애플리케이션에 도달하지 않아야 한다.
 2. 사내망 안의 요청은 별도 로그인 없이 API와 화면에 도달한다. 비밀번호 오류, 세션 만료, 계정 잠금은 애플리케이션에 해당하지 않는다.
 3. 조회 요청은 사용자 이름 없이 허용한다.
-4. Lean 문서·심층 검토·리포트 변경 API는 비어 있지 않은 `X-BidOps-Actor-Name`을 요구한다. screening 정책·품질·일정 API는 body의 명시적 actor를 감사에 연결한다. 제어문자, 예약된 `system`, 잘못된 비ASCII 인코딩은 요청 계약 오류로 거부한다.
+4. Lean 문서·심층 검토·리포트 변경 API와 legacy 첨부·기관 포털·screening 정책 mutation은 비어 있지 않은 `X-BidOps-Actor-Name`을 요구한다. 정책 request body의 actor field는 호환 입력으로 남아 있지만 header claimed name이 감사의 기준이다. 제어문자, 예약된 `system`, 잘못된 비ASCII 인코딩은 요청 계약 오류로 거부한다.
 5. 이름이 유효해도 사용자 신원을 증명하거나 더 높은 권한을 부여하지 않는다. 사칭 방지가 필요한 시점에는 사내 계정 연동을 별도 도입해야 하며 이름 헤더를 인증으로 승격하지 않는다.
 
 사내망 경계를 통과한 모든 사람에게 같은 읽기 권한이 있다는 점이 현재 정책의 한계다. 외부망 공개, 사용자별 파일 제한, 이름만으로 관리자 행위 허용을 주장하는 배포는 금지한다.
 
-현재 legacy 리뷰, 첨부, 기관 포털, subprocess 실행 mutation 일부는 actor를 요구하지 않거나 별도 audit event를 만들지 않는다. 이는 허용된 예외가 아니라 구현 격차다. 해당 경로를 이름·감사 경계에 편입하고 기존 client를 전환하기 전에는 변경 행위 전체의 작성자 추적이 완전하다고 주장하지 않는다.
+현재 legacy 리뷰와 일부 run/subprocess 실행 mutation은 actor를 요구하지 않거나 별도 `AuditEvent`를 만들지 않는다. 이는 허용된 예외가 아니라 구현 격차다. 해당 경로를 이름·감사 경계에 편입하기 전에는 변경 행위 전체의 작성자 추적이 완전하다고 주장하지 않는다.
 
 ## 회사 프로필 조회 경계
 
@@ -59,7 +59,7 @@ PostgreSQL 17의 `bidops` 스키마와 MinIO 목적별 버킷이 운영 정본�
 - 모델에는 근거 연결에 필요한 불변 문서·구조 식별자와 source SHA만 전달한다. object key, 로컬 경로, 자격증명, 원문 저장 위치는 전달하지 않는다.
 - 모델 원응답은 application encryption을 적용해 model-response 버킷에 쓰며 별도 reasoning 필드는 보존하지 않는다. 검증된 구조 결과만 업무 API가 소비한다.
 
-현재 Lean document-bundle upload는 위 경계를 구현한다. 반면 legacy notice attachment upload는 확장자·크기만 확인한 뒤 로컬 파일을 즉시 다운로드 가능 상태로 저장하며 MIME 판별, quarantine, ClamAV, 객체 version·hash를 적용하지 않는다. 또한 `AttachmentResponse.stored_path`로 로컬 저장 layout과 notice 디렉터리를 노출한다. 이 경로는 승인된 운영 upload·조회가 아니며 비활성화하거나 Lean 안전 경계로 통합하고 내부 path field를 제거하기 전에는 운영에서 사용하지 않는다.
+현재 Lean document-bundle upload와 legacy notice attachment upload는 모두 quarantine에 먼저 저장하고 MIME/구조·ClamAV 검사를 통과한 `safe` 바이트만 수용한다. legacy 경로는 기존 `Attachment` 스키마를 바꾸지 않는 범위에서 source object 승격·hash/size 재검증 뒤 레거시 다운로드 호환 사본도 `attachments_dir`에 저장하며, 차단·검사 불가 파일은 등록하지 않는다. `AttachmentResponse.stored_path`는 wire에서 제거했고, 컨테이너의 호환 사본은 named volume으로 보존한다. legacy object metadata schema 이전은 별도 범위다.
 
 ## 외부 모델 전송
 

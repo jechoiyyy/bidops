@@ -270,7 +270,6 @@ def _detail_response(notice: Notice) -> NoticeDetailResponse:
                 origin=attachment.origin,
                 file_ext=attachment.file_ext,
                 size_bytes=attachment.size_bytes,
-                stored_path=attachment.stored_path,
                 extract_status=attachment.extract_status,
                 created_at=attachment.created_at,
             )
