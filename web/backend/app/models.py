@@ -33,11 +33,12 @@ from sqlalchemy import (
     Uuid,
     column,
     event,
+    inspect as sa_inspect,
     select,
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, Session as OrmSession, mapped_column, relationship, synonym
+from sqlalchemy.orm import Mapped, Session as OrmSession, foreign, mapped_column, relationship, synonym
 
 from .db import Base
 from .sql_dialect import dual
@@ -66,6 +67,13 @@ _DEFAULT_GENERATION_CONFIG_SERVER_DEFAULT = _json_server_default(_DEFAULT_GENERA
 # test engines use the JSON implementation so legacy compatibility tests do
 # not require a PostgreSQL compiler.
 JSONB_COMPAT = JSONB().with_variant(JSON(), "sqlite")
+# Nullable JSON fields in the T-23 lineage use SQL NULL for an absent value;
+# PostgreSQL JSONB and SQLite JSON otherwise encode Python ``None`` as the JSON
+# literal ``null``, which would violate the state checks that distinguish an
+# absent locator/result from an actual JSON value.
+JSONB_NULL_COMPAT = JSONB(none_as_null=True).with_variant(
+    JSON(none_as_null=True), "sqlite"
+)
 
 
 def utc_now() -> datetime:
@@ -164,6 +172,16 @@ class Run(Base):
     reviews: Mapped[list["Review"]] = relationship(
         back_populates="run"
     )
+    judgment_revisions: Mapped[list["JudgmentRevision"]] = relationship(
+        primaryjoin=lambda: Run.id == foreign(JudgmentRevision.run_id),
+        back_populates="run",
+        viewonly=True,
+    )
+    review_revisions: Mapped[list["ReviewRevision"]] = relationship(
+        primaryjoin=lambda: Run.id == foreign(ReviewRevision.run_id),
+        back_populates="run",
+        viewonly=True,
+    )
 
 
 class Notice(Base):
@@ -261,6 +279,18 @@ class Notice(Base):
     reviews: Mapped[list["Review"]] = relationship(
         back_populates="notice", cascade="all, delete-orphan"
     )
+    overview_review: Mapped["PreSpecOverviewReview | None"] = relationship(
+        "PreSpecOverviewReview",
+        back_populates="notice",
+        uselist=False,
+        passive_deletes=True,
+    )
+    judgment_revisions: Mapped[list["JudgmentRevision"]] = relationship(
+        back_populates="notice", passive_deletes="all"
+    )
+    review_revisions: Mapped[list["ReviewRevision"]] = relationship(
+        back_populates="notice", passive_deletes="all"
+    )
     opportunity_links: Mapped[list["OpportunityLink"]] = relationship(
         back_populates="notice", passive_deletes=True
     )
@@ -274,6 +304,26 @@ class NoticeObservation(Base):
         UniqueConstraint("notice_id", "run_id", name="uq_notice_observation_notice_run"),
         Index("ix_notice_observation_run", "run_id"),
         Index("ix_notice_observation_notice", "notice_id"),
+        CheckConstraint(
+            "((snapshot_schema_version IS NULL AND snapshot_jsonb IS NULL AND source_sha256 IS NULL) OR "
+            "(snapshot_schema_version IS NOT NULL AND length(trim(snapshot_schema_version)) > 0 "
+            "AND snapshot_jsonb IS NOT NULL AND source_sha256 IS NOT NULL))",
+            name="ck_notice_observation_snapshot_pair",
+        ),
+        CheckConstraint(
+            dual(
+                "source_sha256 IS NULL OR (length(source_sha256) = 64 "
+                "AND source_sha256 NOT GLOB '*[^0-9a-f]*')"
+            ),
+            name="ck_notice_observation_source_sha256",
+        ),
+        CheckConstraint(
+            dual(
+                "snapshot_jsonb IS NULL OR "
+                "(json_valid(snapshot_jsonb) AND json_type(snapshot_jsonb) = 'object')"
+            ),
+            name="ck_notice_observation_snapshot_object",
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -285,6 +335,9 @@ class NoticeObservation(Base):
     changed_fields_json: Mapped[list[str] | dict[str, Any]] = mapped_column(
         JSONB_COMPAT, default=list, server_default=text("'[]'"), nullable=False
     )
+    snapshot_schema_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    snapshot_jsonb: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=True)
+    source_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     notice: Mapped["Notice"] = relationship(
         back_populates="observations", overlaps="runs,notices"
@@ -369,6 +422,26 @@ class OrderPlanObservation(Base):
         UniqueConstraint("order_plan_id", "run_id", name="uq_order_plan_observation_plan_run"),
         Index("ix_order_plan_observation_run", "run_id"),
         Index("ix_order_plan_observation_plan", "order_plan_id"),
+        CheckConstraint(
+            "((snapshot_schema_version IS NULL AND snapshot_jsonb IS NULL AND source_sha256 IS NULL) OR "
+            "(snapshot_schema_version IS NOT NULL AND length(trim(snapshot_schema_version)) > 0 "
+            "AND snapshot_jsonb IS NOT NULL AND source_sha256 IS NOT NULL))",
+            name="ck_order_plan_observation_snapshot_pair",
+        ),
+        CheckConstraint(
+            dual(
+                "source_sha256 IS NULL OR (length(source_sha256) = 64 "
+                "AND source_sha256 NOT GLOB '*[^0-9a-f]*')"
+            ),
+            name="ck_order_plan_observation_source_sha256",
+        ),
+        CheckConstraint(
+            dual(
+                "snapshot_jsonb IS NULL OR "
+                "(json_valid(snapshot_jsonb) AND json_type(snapshot_jsonb) = 'object')"
+            ),
+            name="ck_order_plan_observation_snapshot_object",
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -380,6 +453,9 @@ class OrderPlanObservation(Base):
     changed_fields_json: Mapped[list[str] | dict[str, Any]] = mapped_column(
         JSONB_COMPAT, default=list, server_default=text("'[]'"), nullable=False
     )
+    snapshot_schema_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    snapshot_jsonb: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=True)
+    source_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     order_plan: Mapped["OrderPlan"] = relationship(
         back_populates="observations", overlaps="runs,order_plans"
@@ -421,6 +497,17 @@ class Opportunity(Base):
             "(recheck_signal_at IS NOT NULL AND recheck_signal_link_id IS NOT NULL)",
             name="ck_opportunity_recheck_signal_pair",
         ),
+        CheckConstraint(
+            "((merged_into_opportunity_id IS NULL AND merged_at IS NULL "
+            "AND merge_reason IS NULL) OR "
+            "(merged_into_opportunity_id IS NOT NULL AND merged_at IS NOT NULL "
+            "AND merge_reason IS NOT NULL AND length(trim(merge_reason)) > 0))",
+            name="ck_opportunity_merge_metadata",
+        ),
+        CheckConstraint(
+            "merged_into_opportunity_id IS NULL OR merged_into_opportunity_id <> id",
+            name="ck_opportunity_not_merged_into_self",
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -445,6 +532,11 @@ class Opportunity(Base):
     recheck_signal_link_id: Mapped[int | None] = mapped_column(
         ForeignKey("opportunity_link.id", ondelete="RESTRICT"), nullable=True
     )
+    merged_into_opportunity_id: Mapped[int | None] = mapped_column(
+        _fk("opportunity.id", ondelete="RESTRICT"), nullable=True
+    )
+    merged_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
+    merge_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         AwareDateTime(), default=utc_now, server_default=text("CURRENT_TIMESTAMP"), nullable=False
     )
@@ -463,6 +555,17 @@ class Opportunity(Base):
         foreign_keys=[recheck_signal_link_id],
         uselist=False,
         overlaps="links,opportunity",
+    )
+    merged_into_opportunity: Mapped["Opportunity | None"] = relationship(
+        "Opportunity",
+        remote_side=[id],
+        foreign_keys=[merged_into_opportunity_id],
+        back_populates="merged_opportunities",
+    )
+    merged_opportunities: Mapped[list["Opportunity"]] = relationship(
+        "Opportunity",
+        foreign_keys=[merged_into_opportunity_id],
+        back_populates="merged_into_opportunity",
     )
 
 
@@ -483,6 +586,40 @@ class OpportunityLink(Base):
         Index("ix_opportunity_link_opportunity", "opportunity_id"),
         Index("ix_opportunity_link_order_plan", "order_plan_id"),
         Index("ix_opportunity_link_notice", "notice_id"),
+        Index(
+            "uq_opportunity_link_authoritative_order_plan",
+            "order_plan_id",
+            unique=True,
+            postgresql_where=text(
+                "order_plan_id IS NOT NULL AND "
+                "((link_type = 'official' AND status = '확정') OR "
+                "(link_type = 'candidate' AND status = '사람 확인 완료' "
+                "AND human_decision = 'accepted'))"
+            ),
+            sqlite_where=text(
+                "order_plan_id IS NOT NULL AND "
+                "((link_type = 'official' AND status = '확정') OR "
+                "(link_type = 'candidate' AND status = '사람 확인 완료' "
+                "AND human_decision = 'accepted'))"
+            ),
+        ),
+        Index(
+            "uq_opportunity_link_authoritative_notice",
+            "notice_id",
+            unique=True,
+            postgresql_where=text(
+                "notice_id IS NOT NULL AND "
+                "((link_type = 'official' AND status = '확정') OR "
+                "(link_type = 'candidate' AND status = '사람 확인 완료' "
+                "AND human_decision = 'accepted'))"
+            ),
+            sqlite_where=text(
+                "notice_id IS NOT NULL AND "
+                "((link_type = 'official' AND status = '확정') OR "
+                "(link_type = 'candidate' AND status = '사람 확인 완료' "
+                "AND human_decision = 'accepted'))"
+            ),
+        ),
         CheckConstraint(
             "stage IN ('order_plan', 'notice')",
             name="ck_opportunity_link_stage",
@@ -664,6 +801,120 @@ class Judgment(Base):
     counterarguments: Mapped[list["Counterargument"]] = relationship(back_populates="judgment", cascade="all, delete-orphan")
     verification_items: Mapped[list["VerificationItem"]] = relationship(back_populates="judgment", cascade="all, delete-orphan")
     matched_performances: Mapped[list["MatchedPerformance"]] = relationship(back_populates="judgment", cascade="all, delete-orphan")
+
+
+class JudgmentRevision(Base):
+    """Immutable, notice-scoped snapshot of the judgment projection."""
+
+    __tablename__ = "judgment_revision"
+    __table_args__ = (
+        CheckConstraint("sequence >= 1", name="ck_judgment_revision_sequence"),
+        CheckConstraint(
+            "source_kind IN ('runtime', 'legacy_import', 'carry_over')",
+            name="ck_judgment_revision_source_kind",
+        ),
+        CheckConstraint(
+            "((source_kind = 'runtime' AND run_id IS NOT NULL "
+            "AND recording_execution_id IS NOT NULL AND source_revision_id IS NULL) OR "
+            "(source_kind = 'carry_over' AND run_id IS NOT NULL "
+            "AND recording_execution_id IS NOT NULL AND source_revision_id IS NOT NULL) OR "
+            "(source_kind = 'legacy_import' AND recording_execution_id IS NULL "
+            "AND source_revision_id IS NULL))",
+            name="ck_judgment_revision_source_lineage",
+        ),
+        CheckConstraint(
+            "source_revision_id IS NULL OR source_revision_id <> id",
+            name="ck_judgment_revision_parent_not_self",
+        ),
+        CheckConstraint(
+            "length(trim(payload_schema_version)) > 0",
+            name="ck_judgment_revision_payload_schema_nonblank",
+        ),
+        CheckConstraint(
+            dual(
+                "json_valid(payload_jsonb) AND json_type(payload_jsonb) = 'object'"
+            ),
+            name="ck_judgment_revision_payload_object",
+        ),
+        CheckConstraint(
+            dual(
+                "length(payload_sha256) = 64 "
+                "AND payload_sha256 NOT GLOB '*[^0-9a-f]*'"
+            ),
+            name="ck_judgment_revision_payload_sha256",
+        ),
+        UniqueConstraint(
+            "notice_id", "sequence", name="uq_judgment_revision_notice_sequence"
+        ),
+        UniqueConstraint(
+            "notice_id", "id", name="uq_judgment_revision_notice_id"
+        ),
+        ForeignKeyConstraint(
+            ["notice_id", "run_id"],
+            ["notice_observation.notice_id", "notice_observation.run_id"],
+            name="fk_judgment_revision_observation",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["notice_id", "source_revision_id"],
+            ["judgment_revision.notice_id", "judgment_revision.id"],
+            name="fk_judgment_revision_parent_scope",
+            ondelete="RESTRICT",
+        ),
+        Index(
+            "uq_judgment_revision_execution_notice",
+            "recording_execution_id",
+            "notice_id",
+            unique=True,
+            sqlite_where=text("recording_execution_id IS NOT NULL"),
+            postgresql_where=text("recording_execution_id IS NOT NULL"),
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    notice_id: Mapped[int] = mapped_column(
+        _fk("notice.id", ondelete="RESTRICT"), nullable=False
+    )
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    source_kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    run_id: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    recording_execution_id: Mapped[str | None] = mapped_column(
+        _fk("screening_execution.execution_id", ondelete="RESTRICT"), nullable=True
+    )
+    source_revision_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    payload_schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload_jsonb: Mapped[dict[str, Any]] = mapped_column(JSONB_COMPAT, nullable=False)
+    payload_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    captured_at: Mapped[datetime] = mapped_column(
+        AwareDateTime(), default=utc_now, server_default=text("CURRENT_TIMESTAMP"), nullable=False
+    )
+
+    notice: Mapped["Notice"] = relationship(
+        back_populates="judgment_revisions", foreign_keys=[notice_id]
+    )
+    run: Mapped["Run | None"] = relationship(
+        primaryjoin=lambda: foreign(JudgmentRevision.run_id) == Run.id,
+        back_populates="judgment_revisions",
+        viewonly=True,
+    )
+    recording_execution: Mapped["ScreeningExecution | None"] = relationship(
+        back_populates="recorded_judgment_revisions",
+        foreign_keys=[recording_execution_id],
+    )
+    source_revision: Mapped["JudgmentRevision | None"] = relationship(
+        remote_side=[notice_id, id],
+        foreign_keys=[notice_id, source_revision_id],
+        back_populates="derived_revisions",
+        viewonly=True,
+    )
+    derived_revisions: Mapped[list["JudgmentRevision"]] = relationship(
+        foreign_keys=[notice_id, source_revision_id],
+        back_populates="source_revision",
+        viewonly=True,
+    )
+    review_revisions: Mapped[list["ReviewRevision"]] = relationship(
+        back_populates="judgment_revision", viewonly=True
+    )
 
 
 class Perspective(Base):
@@ -876,6 +1127,84 @@ class Review(Base):
     answers: Mapped[list["VerificationAnswer"]] = relationship(back_populates="review", cascade="all, delete-orphan")
 
 
+class ReviewRevision(Base):
+    """Immutable, notice-scoped snapshot of a human review projection."""
+
+    __tablename__ = "review_revision"
+    __table_args__ = (
+        CheckConstraint("sequence >= 1", name="ck_review_revision_sequence"),
+        CheckConstraint(
+            "source_kind IN ('human', 'legacy_import')",
+            name="ck_review_revision_source_kind",
+        ),
+        CheckConstraint(
+            "source_kind <> 'human' OR run_id IS NOT NULL",
+            name="ck_review_revision_human_run",
+        ),
+        CheckConstraint(
+            "length(trim(payload_schema_version)) > 0",
+            name="ck_review_revision_payload_schema_nonblank",
+        ),
+        CheckConstraint(
+            dual(
+                "json_valid(payload_jsonb) AND json_type(payload_jsonb) = 'object'"
+            ),
+            name="ck_review_revision_payload_object",
+        ),
+        CheckConstraint(
+            dual(
+                "length(payload_sha256) = 64 "
+                "AND payload_sha256 NOT GLOB '*[^0-9a-f]*'"
+            ),
+            name="ck_review_revision_payload_sha256",
+        ),
+        UniqueConstraint(
+            "notice_id", "sequence", name="uq_review_revision_notice_sequence"
+        ),
+        ForeignKeyConstraint(
+            ["notice_id", "run_id"],
+            ["notice_observation.notice_id", "notice_observation.run_id"],
+            name="fk_review_revision_observation",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["notice_id", "judgment_revision_id"],
+            ["judgment_revision.notice_id", "judgment_revision.id"],
+            name="fk_review_revision_judgment_scope",
+            ondelete="RESTRICT",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    notice_id: Mapped[int] = mapped_column(
+        _fk("notice.id", ondelete="RESTRICT"), nullable=False
+    )
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    source_kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    run_id: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    judgment_revision_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    payload_schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload_jsonb: Mapped[dict[str, Any]] = mapped_column(JSONB_COMPAT, nullable=False)
+    payload_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    captured_at: Mapped[datetime] = mapped_column(
+        AwareDateTime(), default=utc_now, server_default=text("CURRENT_TIMESTAMP"), nullable=False
+    )
+
+    notice: Mapped["Notice"] = relationship(
+        back_populates="review_revisions", foreign_keys=[notice_id]
+    )
+    run: Mapped["Run | None"] = relationship(
+        primaryjoin=lambda: foreign(ReviewRevision.run_id) == Run.id,
+        back_populates="review_revisions",
+        viewonly=True,
+    )
+    judgment_revision: Mapped["JudgmentRevision | None"] = relationship(
+        back_populates="review_revisions",
+        foreign_keys=[notice_id, judgment_revision_id],
+        viewonly=True,
+    )
+
+
 class VerificationAnswer(Base):
     __tablename__ = "verification_answer"
 
@@ -948,6 +1277,29 @@ class ContentScan(Base):
 class DocumentVersion(Base):
     __tablename__ = "document_version"
     __table_args__ = (
+        # Composite scope target for immutable overview snapshots.  The UUID
+        # primary key already identifies a row, but PostgreSQL needs a unique
+        # pair to enforce that a snapshot's document belongs to its notice.
+        UniqueConstraint("notice_id", "id", name="uq_document_version_notice_scope"),
+        Index(
+            "uq_document_version_attachment_version",
+            "attachment_id",
+            "version",
+            unique=True,
+            postgresql_where=text("attachment_id IS NOT NULL"),
+            sqlite_where=text("attachment_id IS NOT NULL"),
+        ),
+        Index(
+            "uq_document_version_attachment_current",
+            "attachment_id",
+            unique=True,
+            postgresql_where=text(
+                "attachment_id IS NOT NULL AND is_current IS TRUE"
+            ),
+            sqlite_where=text(
+                "attachment_id IS NOT NULL AND is_current IS TRUE"
+            ),
+        ),
         CheckConstraint("source_kind IN ('provider','manual')", name="ck_document_version_source_kind"),
         CheckConstraint("(source_kind = 'provider' AND source_system IS NOT NULL AND length(trim(source_system)) > 0 AND source_attachment_key IS NOT NULL AND length(trim(source_attachment_key)) > 0) OR (source_kind = 'manual' AND source_system IS NULL AND source_attachment_key IS NULL AND source_url IS NULL)", name="ck_document_version_source_provenance"),
         CheckConstraint("role IN ('공고','정정','제안요청서','과업지시서','내역서','제출서식','부록','기타')", name="ck_document_version_role"),
@@ -978,6 +1330,14 @@ class DocumentStructure(Base):
     __tablename__ = "document_structure"
     __table_args__ = (
         UniqueConstraint("document_version_id", name="uq_document_structure_document_version"),
+        # Composite scope target for snapshots; this prevents a structure
+        # from another document version being attached to an otherwise valid
+        # snapshot row.
+        UniqueConstraint(
+            "document_version_id",
+            "id",
+            name="uq_document_structure_document_version_scope",
+        ),
         CheckConstraint("validation_status IN ('pending','processing','ready','failed','needs_review')", name="ck_document_structure_status"),
     )
 
@@ -1012,6 +1372,651 @@ class DocumentBlock(Base):
     attributes: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
 
 
+class PreSpecOverviewReview(Base):
+    """Mutable current state for the independent pre-spec overview stage.
+
+    The input lineage itself lives in :class:`PreSpecOverviewSnapshot` and is
+    append-only.  This row only owns the current stage/status pointer so a
+    newly prepared document structure can advance the logical review without
+    rewriting a historical input snapshot.
+    """
+
+    __tablename__ = "prespec_overview_review"
+    __table_args__ = (
+        UniqueConstraint("notice_id", name="uq_prespec_overview_review_notice"),
+        UniqueConstraint("id", "notice_id", name="uq_prespec_overview_review_scope"),
+        ForeignKeyConstraint(
+            ["id", "current_snapshot_id"],
+            [
+                _table("prespec_overview_snapshot.review_id"),
+                _table("prespec_overview_snapshot.id"),
+            ],
+            name="fk_prespec_overview_review_current_snapshot_scope",
+            ondelete="RESTRICT",
+            use_alter=True,
+        ),
+        CheckConstraint(
+            "status IN ('awaiting_document','awaiting_structure','preparing',"
+            "'awaiting_model','queued','running','needs_human_review','completed',"
+            "'failed','cancelled')",
+            name="ck_prespec_overview_review_status",
+        ),
+        CheckConstraint(
+            "result IS NULL OR result IN ('추진 검토','조건부 추진 검토','보류','검토 종료')",
+            name="ck_prespec_overview_review_result",
+        ),
+        CheckConstraint(
+            "((status = 'completed' AND result IS NOT NULL AND completed_at IS NOT NULL) "
+            "OR (status <> 'completed' AND result IS NULL AND completed_at IS NULL))",
+            name="ck_prespec_overview_review_completion",
+        ),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    notice_id: Mapped[int] = mapped_column(_fk("notice.id", ondelete="RESTRICT"), nullable=False)
+    current_snapshot_id: Mapped[uuid_module.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), nullable=True
+    )
+    status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="awaiting_document",
+        server_default=text("'awaiting_document'"),
+    )
+    result: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(AwareDateTime(), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(AwareDateTime(), default=utc_now, nullable=False)
+
+    notice: Mapped["Notice"] = relationship(
+        "Notice", back_populates="overview_review", foreign_keys=[notice_id]
+    )
+
+    current_snapshot: Mapped["PreSpecOverviewSnapshot | None"] = relationship(
+        "PreSpecOverviewSnapshot",
+        foreign_keys=[current_snapshot_id],
+        primaryjoin="PreSpecOverviewReview.current_snapshot_id == PreSpecOverviewSnapshot.id",
+        post_update=True,
+    )
+    snapshots: Mapped[list["PreSpecOverviewSnapshot"]] = relationship(
+        "PreSpecOverviewSnapshot",
+        foreign_keys="PreSpecOverviewSnapshot.review_id",
+        primaryjoin="PreSpecOverviewReview.id == PreSpecOverviewSnapshot.review_id",
+        back_populates="review",
+        order_by="PreSpecOverviewSnapshot.created_at",
+    )
+
+
+class PreSpecOverviewSnapshot(Base):
+    """Immutable deterministic input cut for one document structure."""
+
+    __tablename__ = "prespec_overview_snapshot"
+    __table_args__ = (
+        Index(
+            "ix_prespec_overview_snapshot_notice",
+            "notice_id",
+            "created_at",
+        ),
+        UniqueConstraint(
+            "review_id", "document_version_id", "structure_id", "source_sha256", "payload_sha256",
+            name="uq_prespec_overview_snapshot_input",
+        ),
+        UniqueConstraint("review_id", "id", name="uq_prespec_overview_snapshot_review_scope"),
+        ForeignKeyConstraint(
+            ["review_id", "notice_id"],
+            [
+                _table("prespec_overview_review.id"),
+                _table("prespec_overview_review.notice_id"),
+            ],
+            name="fk_prespec_overview_snapshot_review_notice_scope",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["notice_id", "document_version_id"],
+            [
+                _table("document_version.notice_id"),
+                _table("document_version.id"),
+            ],
+            name="fk_prespec_overview_snapshot_document_notice_scope",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["document_version_id", "structure_id"],
+            [
+                _table("document_structure.document_version_id"),
+                _table("document_structure.id"),
+            ],
+            name="fk_prespec_overview_snapshot_structure_document_scope",
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint("cut_status IN ('pending','ready','unknown','failed')", name="ck_prespec_overview_snapshot_cut_status"),
+        CheckConstraint(
+            "strategy IS NULL OR strategy IN ('toc_body_match','topic_heading')",
+            name="ck_prespec_overview_snapshot_strategy",
+        ),
+        CheckConstraint(
+            "((cut_status = 'ready' AND strategy IS NOT NULL AND start_locator IS NOT NULL AND end_locator IS NOT NULL) "
+            "OR (cut_status <> 'ready'))",
+            name="ck_prespec_overview_snapshot_ready_inputs",
+        ),
+        CheckConstraint(
+            "((cut_status = 'unknown' AND unknown_reason_code IS NOT NULL AND length(trim(unknown_reason_code)) > 0) "
+            "OR (cut_status <> 'unknown' AND unknown_reason_code IS NULL))",
+            name="ck_prespec_overview_snapshot_unknown_reason",
+        ),
+        CheckConstraint(
+            dual(
+                "length(source_sha256) = 64 AND source_sha256 NOT GLOB '*[^0-9a-f]*' "
+                "AND length(payload_sha256) = 64 AND payload_sha256 NOT GLOB '*[^0-9a-f]*'"
+            ),
+            name="ck_prespec_overview_snapshot_hashes",
+        ),
+        CheckConstraint(
+            dual(
+                "start_locator IS NULL OR (json_valid(start_locator) AND json_type(start_locator) = 'object')"
+            ),
+            name="ck_prespec_overview_snapshot_start_locator",
+        ),
+        CheckConstraint(
+            dual(
+                "end_locator IS NULL OR (json_valid(end_locator) AND json_type(end_locator) = 'object')"
+            ),
+            name="ck_prespec_overview_snapshot_end_locator",
+        ),
+        CheckConstraint(
+            dual(
+                "input_block_keys IS NULL OR (json_valid(input_block_keys) AND json_type(input_block_keys) = 'array')"
+            ),
+            name="ck_prespec_overview_snapshot_input_block_keys",
+        ),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    review_id: Mapped[uuid_module.UUID] = mapped_column(
+        _fk("prespec_overview_review.id", ondelete="RESTRICT"), nullable=False
+    )
+    notice_id: Mapped[int] = mapped_column(_fk("notice.id", ondelete="RESTRICT"), nullable=False)
+    document_version_id: Mapped[uuid_module.UUID] = mapped_column(
+        _fk("document_version.id", ondelete="RESTRICT"), nullable=False
+    )
+    structure_id: Mapped[uuid_module.UUID] = mapped_column(
+        _fk("document_structure.id", ondelete="RESTRICT"), nullable=False
+    )
+    source_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    cut_status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="pending", server_default=text("'pending'")
+    )
+    strategy: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    start_locator: Mapped[Any] = mapped_column(JSONB_NULL_COMPAT, nullable=True)
+    end_locator: Mapped[Any] = mapped_column(JSONB_NULL_COMPAT, nullable=True)
+    input_block_keys: Mapped[Any] = mapped_column(JSONB_NULL_COMPAT, nullable=True)
+    unknown_reason_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(AwareDateTime(), default=utc_now, nullable=False)
+
+    review: Mapped["PreSpecOverviewReview"] = relationship(
+        "PreSpecOverviewReview",
+        foreign_keys=[review_id],
+        back_populates="snapshots",
+    )
+    attempts: Mapped[list["PreSpecOverviewAttempt"]] = relationship(
+        "PreSpecOverviewAttempt",
+        foreign_keys="PreSpecOverviewAttempt.snapshot_id",
+        back_populates="snapshot",
+        order_by="PreSpecOverviewAttempt.sequence",
+    )
+
+
+class PreSpecOverviewAttempt(Base):
+    """A lifecycle row whose input lineage is immutable after INSERT.
+
+    Phase 1 created this table as fully append-only.  Phase 2 keeps the
+    snapshot/provider binding immutable while allowing only the small set of
+    lifecycle columns needed by a worker to advance an attempt.
+    """
+
+    __tablename__ = "prespec_overview_attempt"
+    __table_args__ = (
+        Index(
+            "ix_prespec_overview_attempt_snapshot",
+            "snapshot_id",
+            "created_at",
+        ),
+        UniqueConstraint("snapshot_id", "sequence", name="uq_prespec_overview_attempt_sequence"),
+        UniqueConstraint("id", "snapshot_id", name="uq_prespec_overview_attempt_snapshot_scope"),
+        UniqueConstraint("id", "review_id", name="uq_prespec_overview_attempt_review_scope"),
+        CheckConstraint("sequence >= 1", name="ck_prespec_overview_attempt_sequence"),
+        CheckConstraint(
+            "status IN ('queued','running','completed','failed','cancelled')",
+            name="ck_prespec_overview_attempt_status",
+        ),
+        CheckConstraint(
+            "(NOT reference_only) OR deployable IS FALSE",
+            name="ck_prespec_overview_attempt_reference_boundary",
+        ),
+        CheckConstraint(
+            "((status = 'queued' AND started_at IS NULL AND completed_at IS NULL AND result_id IS NULL) "
+            "OR (status = 'running' AND started_at IS NOT NULL AND completed_at IS NULL AND result_id IS NULL) "
+            "OR (status IN ('failed','cancelled') AND completed_at IS NOT NULL AND result_id IS NULL) "
+            "OR (status = 'completed' AND started_at IS NOT NULL AND completed_at IS NOT NULL AND result_id IS NOT NULL))",
+            name="ck_prespec_overview_attempt_completion",
+        ),
+        CheckConstraint(
+            "review_id IS NULL OR input_sha256 IS NOT NULL",
+            name="ck_prespec_overview_attempt_review_input",
+        ),
+        CheckConstraint(
+            dual(
+                "input_sha256 IS NULL OR (length(input_sha256) = 64 AND input_sha256 NOT GLOB '*[^0-9a-f]*')"
+            ),
+            name="ck_prespec_overview_attempt_input_sha256",
+        ),
+        CheckConstraint(
+            dual(
+                "binding_digest IS NULL OR (length(binding_digest) = 64 AND binding_digest NOT GLOB '*[^0-9a-f]*')"
+            ),
+            name="ck_prespec_overview_attempt_binding_digest",
+        ),
+        CheckConstraint(
+            "review_id IS NULL OR (binding_digest IS NOT NULL AND provider IS NOT NULL "
+            "AND model_name IS NOT NULL AND model_digest IS NOT NULL AND prompt_version IS NOT NULL)",
+            name="ck_prespec_overview_attempt_binding_pair",
+        ),
+        CheckConstraint(
+            "result_id IS NULL OR status = 'completed'",
+            name="ck_prespec_overview_attempt_result_reference_status",
+        ),
+        CheckConstraint(
+            dual(
+                "result_jsonb IS NULL OR (json_valid(result_jsonb) AND json_type(result_jsonb) = 'object')"
+            ),
+            name="ck_prespec_overview_attempt_result_object",
+        ),
+        CheckConstraint(
+            dual(
+                "result_sha256 IS NULL OR (length(result_sha256) = 64 AND result_sha256 NOT GLOB '*[^0-9a-f]*')"
+            ),
+            name="ck_prespec_overview_attempt_result_sha256",
+        ),
+        ForeignKeyConstraint(
+            ["review_id", "snapshot_id"],
+            [
+                _table("prespec_overview_snapshot.review_id"),
+                _table("prespec_overview_snapshot.id"),
+            ],
+            name="fk_prespec_overview_attempt_review_snapshot_scope",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["result_id"],
+            [_table("prespec_overview_result.id")],
+            name="fk_prespec_overview_attempt_result",
+            ondelete="RESTRICT",
+            use_alter=True,
+        ),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    # Nullable only for legacy phase 1 attempts. New phase 2 attempts always
+    # set this exact review scope and are protected by the composite FK below.
+    review_id: Mapped[uuid_module.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), nullable=True
+    )
+    snapshot_id: Mapped[uuid_module.UUID] = mapped_column(
+        _fk("prespec_overview_snapshot.id", ondelete="RESTRICT"), nullable=False
+    )
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    input_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="queued", server_default=text("'queued'")
+    )
+    reference_only: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    deployable: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    provider: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    model_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    model_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    prompt_version: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    binding_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    result_id: Mapped[uuid_module.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), nullable=True
+    )
+    result_jsonb: Mapped[Any] = mapped_column(JSONB_NULL_COMPAT, nullable=True)
+    result_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(AwareDateTime(), default=utc_now, nullable=False)
+
+    snapshot: Mapped["PreSpecOverviewSnapshot"] = relationship(
+        "PreSpecOverviewSnapshot",
+        foreign_keys=[snapshot_id],
+        back_populates="attempts",
+    )
+    result: Mapped["PreSpecOverviewResult | None"] = relationship(
+        "PreSpecOverviewResult",
+        foreign_keys=[result_id],
+        primaryjoin="PreSpecOverviewAttempt.result_id == PreSpecOverviewResult.id",
+        uselist=False,
+        viewonly=True,
+    )
+
+
+class PreSpecOverviewResult(Base):
+    """One validated, immutable result for one overview attempt."""
+
+    __tablename__ = "prespec_overview_result"
+    __table_args__ = (
+        UniqueConstraint("attempt_id", name="uq_prespec_overview_result_attempt"),
+        UniqueConstraint(
+            "id", "attempt_id", name="uq_prespec_overview_result_attempt_scope"
+        ),
+        CheckConstraint(
+            "schema_version = 'bidops.prespec-overview-result.v1'",
+            name="ck_prespec_overview_result_schema_version",
+        ),
+        CheckConstraint(
+            dual(
+                "json_valid(payload_jsonb) AND json_type(payload_jsonb) = 'object'"
+            ),
+            name="ck_prespec_overview_result_payload_object",
+        ),
+        CheckConstraint(
+            dual(
+                "length(payload_sha256) = 64 AND payload_sha256 NOT GLOB '*[^0-9a-f]*'"
+            ),
+            name="ck_prespec_overview_result_payload_sha256",
+        ),
+        CheckConstraint(
+            dual(
+                "length(source_sha256) = 64 AND source_sha256 NOT GLOB '*[^0-9a-f]*'"
+            ),
+            name="ck_prespec_overview_result_source_sha256",
+        ),
+        CheckConstraint(
+            dual(
+                "length(binding_digest) = 64 AND binding_digest NOT GLOB '*[^0-9a-f]*'"
+            ),
+            name="ck_prespec_overview_result_binding_digest",
+        ),
+        CheckConstraint(
+            "validation_status = 'passed'",
+            name="ck_prespec_overview_result_validation_status",
+        ),
+        ForeignKeyConstraint(
+            ["attempt_id"],
+            [_table("prespec_overview_attempt.id")],
+            name="fk_prespec_overview_result_attempt",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["attempt_id", "snapshot_id"],
+            [
+                _table("prespec_overview_attempt.id"),
+                _table("prespec_overview_attempt.snapshot_id"),
+            ],
+            name="fk_prespec_overview_result_attempt_snapshot_scope",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["attempt_id", "review_id"],
+            [
+                _table("prespec_overview_attempt.id"),
+                _table("prespec_overview_attempt.review_id"),
+            ],
+            name="fk_prespec_overview_result_attempt_review_scope",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["review_id", "snapshot_id"],
+            [
+                _table("prespec_overview_snapshot.review_id"),
+                _table("prespec_overview_snapshot.id"),
+            ],
+            name="fk_prespec_overview_result_review_snapshot_scope",
+            ondelete="RESTRICT",
+        ),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    attempt_id: Mapped[uuid_module.UUID] = mapped_column(nullable=False)
+    review_id: Mapped[uuid_module.UUID] = mapped_column(nullable=False)
+    snapshot_id: Mapped[uuid_module.UUID] = mapped_column(nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload_jsonb: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    payload_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    binding_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    validation_status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="passed", server_default=text("'passed'")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        AwareDateTime(), default=utc_now, nullable=False
+    )
+
+    attempt: Mapped["PreSpecOverviewAttempt"] = relationship(
+        "PreSpecOverviewAttempt",
+        foreign_keys=[attempt_id],
+        uselist=False,
+        viewonly=True,
+    )
+
+
+class PreSpecOverviewAttemptEvent(Base):
+    """Append-only audit row for every attempt status transition."""
+
+    __tablename__ = "prespec_overview_attempt_event"
+    __table_args__ = (
+        UniqueConstraint(
+            "attempt_id", "event_sequence", name="uq_prespec_overview_attempt_event_sequence"
+        ),
+        CheckConstraint("event_sequence >= 1", name="ck_prespec_overview_event_sequence"),
+        CheckConstraint(
+            "from_status <> to_status AND ((from_status = 'queued' AND to_status IN ('running','failed','cancelled')) OR (from_status = 'running' AND to_status IN ('completed','failed','cancelled')))",
+            name="ck_prespec_overview_event_transition",
+        ),
+        CheckConstraint(
+            "actor_kind IN ('worker','human','system') AND length(trim(actor_id)) > 0",
+            name="ck_prespec_overview_event_actor",
+        ),
+        CheckConstraint(
+            "length(trim(reason_code)) > 0",
+            name="ck_prespec_overview_event_reason",
+        ),
+        ForeignKeyConstraint(
+            ["attempt_id"],
+            [_table("prespec_overview_attempt.id")],
+            name="fk_prespec_overview_attempt_event_attempt",
+            ondelete="RESTRICT",
+        ),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    attempt_id: Mapped[uuid_module.UUID] = mapped_column(nullable=False)
+    event_sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    from_status: Mapped[str] = mapped_column(String(16), nullable=False)
+    to_status: Mapped[str] = mapped_column(String(16), nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(
+        AwareDateTime(), default=utc_now, nullable=False
+    )
+    actor_kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    actor_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    request_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    trace_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    reason_code: Mapped[str] = mapped_column(String(64), nullable=False)
+
+
+PRESPEC_OVERVIEW_ATTEMPT_TRANSITIONS = frozenset(
+    {
+        ("queued", "running"),
+        ("queued", "failed"),
+        ("queued", "cancelled"),
+        ("running", "completed"),
+        ("running", "failed"),
+        ("running", "cancelled"),
+    }
+)
+_PRESPEC_OVERVIEW_ATTEMPT_IMMUTABLE_FIELDS = frozenset(
+    {
+        "id",
+        "review_id",
+        "snapshot_id",
+        "sequence",
+        "reference_only",
+        "deployable",
+        "input_sha256",
+        "provider",
+        "model_name",
+        "model_digest",
+        "prompt_version",
+        "binding_digest",
+        "result_jsonb",
+        "result_sha256",
+        "created_at",
+    }
+)
+
+
+@event.listens_for(PreSpecOverviewAttempt, "before_update")
+def _validate_prespec_overview_attempt_update(
+    _mapper: Any, connection: Any, target: PreSpecOverviewAttempt
+) -> None:
+    """Mirror the PostgreSQL lifecycle trigger for isolated ORM tests."""
+
+    state = sa_inspect(target)
+    changed_immutable = sorted(
+        name
+        for name in _PRESPEC_OVERVIEW_ATTEMPT_IMMUTABLE_FIELDS
+        if state.attrs[name].history.has_changes()
+    )
+    if changed_immutable:
+        raise ValueError("pre-spec overview attempt input lineage is immutable")
+
+    status_history = state.attrs.status.history
+    if not status_history.has_changes():
+        lifecycle_fields = ("started_at", "completed_at", "result_id")
+        if any(state.attrs[name].history.has_changes() for name in lifecycle_fields):
+            raise ValueError("attempt lifecycle columns require a status transition")
+        return
+
+    previous = status_history.deleted[-1] if status_history.deleted else connection.execute(
+        select(PreSpecOverviewAttempt.status).where(
+            PreSpecOverviewAttempt.id == target.id
+        )
+    ).scalar_one_or_none()
+    if previous is None or (previous, target.status) not in PRESPEC_OVERVIEW_ATTEMPT_TRANSITIONS:
+        raise ValueError("invalid pre-spec overview attempt status transition")
+    latest_event = connection.execute(
+        select(
+            PreSpecOverviewAttemptEvent.from_status,
+            PreSpecOverviewAttemptEvent.to_status,
+        )
+        .where(PreSpecOverviewAttemptEvent.attempt_id == target.id)
+        .order_by(PreSpecOverviewAttemptEvent.event_sequence.desc())
+        .limit(1)
+    ).one_or_none()
+    if (
+        latest_event is None
+        or latest_event.from_status != previous
+        or latest_event.to_status != target.status
+    ):
+        raise ValueError("attempt transition requires an audit event")
+    if target.status == "running":
+        if target.started_at is None or target.completed_at is not None or target.result_id is not None:
+            raise ValueError("running attempt timestamps are invalid")
+    elif target.status == "completed":
+        if target.started_at is None or target.completed_at is None or target.result_id is None:
+            raise ValueError("completed attempt requires a result reference and timestamps")
+    else:
+        if target.completed_at is None or target.result_id is not None:
+            raise ValueError("terminal failed/cancelled attempt metadata is invalid")
+        if previous == "queued" and target.started_at is not None:
+            raise ValueError("queued attempt cannot finish with a start time")
+        if previous == "running" and state.attrs.started_at.history.has_changes():
+            # A running attempt keeps its original start timestamp.
+            raise ValueError("running attempt start time is immutable")
+
+
+@event.listens_for(PreSpecOverviewAttempt, "before_delete")
+def _reject_prespec_overview_attempt_delete(
+    _mapper: Any, _connection: Any, _target: PreSpecOverviewAttempt
+) -> None:
+    raise ValueError("pre-spec overview attempts are append-only")
+
+
+@event.listens_for(PreSpecOverviewAttemptEvent, "before_insert")
+def _validate_prespec_overview_event_insert(
+    _mapper: Any, connection: Any, target: PreSpecOverviewAttemptEvent
+) -> None:
+    """Mirror the PostgreSQL event trigger for isolated ORM tests."""
+
+    current_status = connection.execute(
+        select(PreSpecOverviewAttempt.status).where(
+            PreSpecOverviewAttempt.id == target.attempt_id
+        )
+    ).scalar_one_or_none()
+    if current_status is None or current_status != target.from_status:
+        raise ValueError("attempt event source status mismatch")
+    latest_sequence = connection.execute(
+        select(PreSpecOverviewAttemptEvent.event_sequence)
+        .where(PreSpecOverviewAttemptEvent.attempt_id == target.attempt_id)
+        .order_by(PreSpecOverviewAttemptEvent.event_sequence.desc())
+        .limit(1)
+    ).scalar_one_or_none()
+    if target.event_sequence != (latest_sequence or 0) + 1:
+        raise ValueError("attempt event sequence is not append-only")
+
+
+@event.listens_for(PreSpecOverviewResult, "before_insert")
+def _validate_prespec_overview_result_insert(
+    _mapper: Any, connection: Any, target: PreSpecOverviewResult
+) -> None:
+    """Mirror the PostgreSQL result scope trigger for isolated ORM tests."""
+
+    attempt = connection.execute(
+        select(
+            PreSpecOverviewAttempt.status,
+            PreSpecOverviewAttempt.review_id,
+            PreSpecOverviewAttempt.snapshot_id,
+            PreSpecOverviewAttempt.binding_digest,
+        ).where(PreSpecOverviewAttempt.id == target.attempt_id)
+    ).one_or_none()
+    snapshot = connection.execute(
+        select(
+            PreSpecOverviewSnapshot.review_id,
+            PreSpecOverviewSnapshot.source_sha256,
+        ).where(PreSpecOverviewSnapshot.id == target.snapshot_id)
+    ).one_or_none()
+    if (
+        attempt is None
+        or snapshot is None
+        or attempt.status != "running"
+        or attempt.review_id is None
+        or attempt.review_id != target.review_id
+        or attempt.snapshot_id != target.snapshot_id
+        or attempt.binding_digest != target.binding_digest
+        or snapshot.review_id != target.review_id
+        or snapshot.source_sha256 != target.source_sha256
+    ):
+        raise ValueError("overview result scope mismatch")
+
+
+@event.listens_for(PreSpecOverviewResult, "before_update")
+@event.listens_for(PreSpecOverviewResult, "before_delete")
+def _reject_prespec_overview_result_mutation(
+    _mapper: Any, _connection: Any, _target: PreSpecOverviewResult
+) -> None:
+    raise ValueError("pre-spec overview results are immutable")
+
+
+@event.listens_for(PreSpecOverviewAttemptEvent, "before_update")
+@event.listens_for(PreSpecOverviewAttemptEvent, "before_delete")
+def _reject_prespec_overview_event_mutation(
+    _mapper: Any, _connection: Any, _target: PreSpecOverviewAttemptEvent
+) -> None:
+    raise ValueError("pre-spec overview attempt events are append-only")
+
+
 class DocumentBundle(Base):
     __tablename__ = "document_bundle"
     __table_args__ = (
@@ -1036,6 +2041,11 @@ class DocumentBundleItem(Base):
     __tablename__ = "document_bundle_item"
     __table_args__ = (
         UniqueConstraint("bundle_id", "document_version_id", "structure_id_at_confirmation", name="uq_bundle_item_scope"),
+        UniqueConstraint(
+            "bundle_id",
+            "ordinal",
+            name="uq_document_bundle_item_bundle_ordinal",
+        ),
         CheckConstraint("source_kind IN ('provider','manual')", name="ck_bundle_item_source_kind"),
         CheckConstraint("(source_kind = 'provider' AND source_system IS NOT NULL AND length(trim(source_system)) > 0 AND source_attachment_key IS NOT NULL AND length(trim(source_attachment_key)) > 0) OR (source_kind = 'manual' AND source_system IS NULL AND source_attachment_key IS NULL AND source_url IS NULL)", name="ck_bundle_item_source_provenance"),
         CheckConstraint("role_at_confirmation IN ('공고','정정','제안요청서','과업지시서','내역서','제출서식','부록','기타')", name="ck_bundle_item_role"),
@@ -1480,6 +2490,9 @@ class ScreeningExecution(Base):
     failure_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     published_run_id: Mapped[str | None] = mapped_column(ForeignKey("run.id", ondelete="RESTRICT"), unique=True, nullable=True)
     error_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    recorded_judgment_revisions: Mapped[list["JudgmentRevision"]] = relationship(
+        back_populates="recording_execution", passive_deletes="all"
+    )
 
 
 class ScreeningAttempt(Base):
@@ -1834,6 +2847,14 @@ NEW_TABLES = (
 # creates the original 25-table model; revision 0008 introduces this table so
 # an existing 0007 database can be upgraded without recreating its baseline.
 ATTACHMENT_FETCH_TABLES = ("attachment_fetch",)
+REVISION_TABLES = ("judgment_revision", "review_revision")
+PRESPEC_OVERVIEW_TABLES = (
+    "prespec_overview_review",
+    "prespec_overview_snapshot",
+    "prespec_overview_attempt",
+    "prespec_overview_result",
+    "prespec_overview_attempt_event",
+)
 
 
 class ScreeningAuditEvent(Base):

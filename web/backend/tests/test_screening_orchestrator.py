@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -14,7 +15,8 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import Settings
 from app.db import Base
-from app.models import Notice, Run, ScreeningAttempt, ScreeningExecution, ScreeningPolicy
+from app.ingest.loader import ingest_run
+from app.models import Judgment, JudgmentRevision, Notice, Run, ScreeningAttempt, ScreeningExecution, ScreeningPolicy
 from app.screening.execution_store import ScreeningExecutionStore
 from app.screening.ollama import OllamaClient
 from app.screening.orchestrator import (
@@ -28,6 +30,11 @@ from app.screening.orchestrator import (
 from app.screening.policy import load_policy_file, policy_content_digest
 from app.screening.quality_gate import _input_matches_fixed_sample
 from app.screening.worker import ScreeningWorker, WorkerError
+from app.services.revisions import (
+    RevisionValidationError,
+    judgment_revision_history,
+    origin_execution_for_judgment_revision,
+)
 from tests.fakes import FakeOllamaTransport
 
 
@@ -420,6 +427,144 @@ def test_full_run_merges_ingests_and_publishes_immutable_derived_directory(tmp_p
     with factory() as session:
         run = session.get(Run, final.published_run_id)
         assert run is not None and run.counts_json["notices"] == 1 and run.counts_json["judgments"] == 1
+        revision = session.scalar(select(JudgmentRevision))
+        assert revision is not None
+        assert revision.source_kind == "runtime"
+        assert revision.run_id == "run-1"
+        assert revision.recording_execution_id == created.execution_id
+        assert revision.source_revision_id is None
+        assert revision.payload_jsonb["schema_version"] == "bidops.decisions.v3"
+        assert revision.payload_jsonb["grade"] == "검토 권장"
+        assert "id" not in revision.payload_jsonb
+        revision_id = revision.id
+        current_judgment_id = session.scalar(select(Judgment.id))
+
+    # Replaying the exact immutable execution validates its revision scope but
+    # must neither append history nor churn the current projection identity.
+    with factory() as session:
+        ingest_run(derived, session)
+        revisions = session.scalars(select(JudgmentRevision)).all()
+        assert len(revisions) == 1 and revisions[0].id == revision_id
+        assert session.scalar(select(Judgment.id)) == current_judgment_id
+
+
+def test_rejudge_execution_appends_next_runtime_revision(tmp_path: Path):
+    root, settings, _engine, factory, body = _fixture(tmp_path)
+    first_client = OllamaClient(
+        settings=settings, transport=FakeOllamaTransport(_script())
+    )
+    first = ScreeningOrchestrator(
+        settings, session_factory=factory, ollama=first_client, clock=lambda: NOW
+    ).create_execution(
+        run_id="run-1",
+        policy_version=body["policy_version"],
+        requested_by="tester",
+        scope="full_run",
+    )
+    assert ScreeningWorker(
+        settings, session_factory=factory, ollama=first_client, clock=lambda: NOW
+    ).run_once().status == "성공"
+
+    second_client = OllamaClient(
+        settings=settings, transport=FakeOllamaTransport(_script())
+    )
+    second = ScreeningOrchestrator(
+        settings, session_factory=factory, ollama=second_client, clock=lambda: NOW
+    ).create_execution(
+        run_id="run-1",
+        policy_version=body["policy_version"],
+        requested_by="tester",
+        scope="full_run",
+    )
+    input_path = root / second.input_artifact_path
+    input_value = json.loads(input_path.read_text(encoding="utf-8"))
+    input_value["notices"][0].update(
+        {"judgment_mode": "재판정", "rejudge_reason": "담당자 요청"}
+    )
+    raw = json.dumps(
+        input_value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    input_path.write_bytes(raw)
+    with factory() as session:
+        row = session.scalar(
+            select(ScreeningExecution).where(
+                ScreeningExecution.execution_id == second.execution_id
+            )
+        )
+        assert row is not None
+        row.input_artifact_digest = hashlib.sha256(raw).hexdigest()
+        session.commit()
+
+    final = ScreeningWorker(
+        settings, session_factory=factory, ollama=second_client, clock=lambda: NOW
+    ).run_once()
+    assert final is not None and final.status == "성공"
+    with factory() as session:
+        notice_row = session.scalar(
+            select(Notice).where(Notice.notice_key == "notice-1")
+        )
+        assert notice_row is not None
+        history = judgment_revision_history(session, notice_row.id)
+        assert [item.sequence for item in history] == [1, 2]
+        assert [item.source_kind for item in history] == ["runtime", "runtime"]
+        assert history[0].recording_execution_id == first.execution_id
+        assert history[1].recording_execution_id == second.execution_id
+
+
+def test_unattached_v3_artifacts_never_gain_runtime_lineage(tmp_path: Path):
+    root, settings, _engine, factory, body = _fixture(tmp_path)
+    client = OllamaClient(
+        settings=settings, transport=FakeOllamaTransport(_script())
+    )
+    ScreeningOrchestrator(
+        settings, session_factory=factory, ollama=client, clock=lambda: NOW
+    ).create_execution(
+        run_id="run-1",
+        policy_version=body["policy_version"],
+        requested_by="tester",
+        scope="full_run",
+    )
+    final = ScreeningWorker(
+        settings, session_factory=factory, ollama=client, clock=lambda: NOW
+    ).run_once()
+    assert final is not None and final.status == "성공"
+    derived = next(
+        path
+        for path in (root / "data/runs").iterdir()
+        if path.name.startswith("run-1--screen-")
+    )
+    unattached = root / "data/runs/unattached-v3"
+    shutil.copytree(derived, unattached)
+    forged_execution_id = "scr-" + "f" * 32
+    for filename in (
+        "screening-input.json",
+        "screening-decisions.json",
+        "screening-results.json",
+    ):
+        path = unattached / filename
+        value = json.loads(path.read_text(encoding="utf-8"))
+        value["execution_id"] = forged_execution_id
+        path.write_bytes(
+            json.dumps(
+                value,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        )
+
+    with factory() as session:
+        result = ingest_run(unattached, session)
+        revisions = session.scalars(select(JudgmentRevision)).all()
+        judgment_rows = session.scalars(select(Judgment)).all()
+
+    assert len(revisions) == 1
+    assert revisions[0].recording_execution_id != forged_execution_id
+    assert len(judgment_rows) == 1
+    assert any(item["code"] == "screening_lineage_invalid" for item in result.warnings)
 
 
 def test_publication_runs_swap_cannot_redirect_current_artifacts_to_external_tree(tmp_path: Path, monkeypatch):
@@ -689,6 +834,53 @@ def test_valid_prior_judgment_is_carried_without_model_calls(tmp_path: Path):
     derived = next(path for path in (root / "data/runs").iterdir() if path.name.startswith("run-3--screen-"))
     assert not (derived / "screening-failures.json").exists()
     assert not (derived / "screening-telemetry.jsonl").exists()
+    with factory() as session:
+        notice_row = session.scalar(select(Notice).where(Notice.notice_key == "notice-1"))
+        assert notice_row is not None
+        history = judgment_revision_history(session, notice_row.id)
+        assert len(history) == 2
+        assert history[0].source_kind == "runtime"
+        assert history[1].source_kind == "carry_over"
+        assert history[1].recording_execution_id == second.execution_id
+        assert history[1].source_revision_id == history[0].id
+        assert history[1].payload_jsonb == history[0].payload_jsonb
+        assert origin_execution_for_judgment_revision(session, history[1]).execution_id == first.execution_id
+
+    tampered = root / "data/runs/tampered-carry"
+    shutil.copytree(derived, tampered)
+    tampered_decisions = json.loads(
+        (tampered / "screening-decisions.json").read_text(encoding="utf-8")
+    )
+    tampered_results = json.loads(
+        (tampered / "screening-results.json").read_text(encoding="utf-8")
+    )
+    tampered_decisions["judgments"][0]["counterargument_resolutions"][0][
+        "reflection"
+    ] = "승계 중 변조된 반론 반영"
+    tampered_results["results"][0]["judgment"][
+        "counterargument_resolutions"
+    ][0]["reflection"] = "승계 중 변조된 반론 반영"
+    for path, value in (
+        (tampered / "screening-decisions.json", tampered_decisions),
+        (tampered / "screening-results.json", tampered_results),
+    ):
+        path.write_bytes(
+            json.dumps(
+                value,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        )
+    with factory() as session:
+        with pytest.raises(
+            RevisionValidationError, match="preserve the parent payload"
+        ):
+            ingest_run(tampered, session)
+    with factory() as session:
+        notice_row = session.scalar(select(Notice).where(Notice.notice_key == "notice-1"))
+        assert notice_row is not None
+        assert len(judgment_revision_history(session, notice_row.id)) == 2
 
 
 def test_run_until_processes_earlier_fifo_execution_before_target(tmp_path: Path):
@@ -774,6 +966,94 @@ def test_full_run_continues_after_one_notice_failure_and_publishes_partial(tmp_p
     failures = json.loads((root / created.artifact_dir / "screening-failures.json").read_text(encoding="utf-8"))
     assert failures["failure_count"] == 1 and failures["failures"][0]["notice_id"] == "notice-1"
     assert len(transport.generate_requests) == 9
+
+
+def test_partial_rejudgment_retains_prior_projection_and_revision(tmp_path: Path):
+    root, settings, _engine, factory, body = _fixture(tmp_path)
+    first_client = OllamaClient(
+        settings=settings, transport=FakeOllamaTransport(_script())
+    )
+    ScreeningOrchestrator(
+        settings, session_factory=factory, ollama=first_client, clock=lambda: NOW
+    ).create_execution(
+        run_id="run-1",
+        policy_version=body["policy_version"],
+        requested_by="tester",
+        scope="full_run",
+    )
+    assert ScreeningWorker(
+        settings, session_factory=factory, ollama=first_client, clock=lambda: NOW
+    ).run_once().status == "성공"
+    with factory() as session:
+        notice_one = session.scalar(
+            select(Notice).where(Notice.notice_key == "notice-1")
+        )
+        assert notice_one is not None and notice_one.judgment is not None
+        prior_judgment_id = notice_one.judgment.id
+        prior_revision_ids = [
+            item.id for item in judgment_revision_history(session, notice_one.id)
+        ]
+
+    second_notice = _notice("notice-2")
+    for filename in ("collected-notices.json", "validation-set.json"):
+        path = root / "data/runs/run-1" / filename
+        value = json.loads(path.read_text(encoding="utf-8"))
+        value["counts"] = {"total": 2, "candidate_pool": 2, "audit_pool": 0}
+        value["notices"].append(second_notice)
+        path.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
+    with factory() as session:
+        session.add(Notice(run_id="run-1", notice_key="notice-2"))
+        session.commit()
+
+    bad = {
+        "model": "qwen3.8:27b",
+        "done": True,
+        "done_reason": "stop",
+        "response": "{invalid",
+    }
+    second_client = OllamaClient(
+        settings=settings,
+        transport=FakeOllamaTransport([bad, bad, *_script("notice-2")]),
+    )
+    second = ScreeningOrchestrator(
+        settings, session_factory=factory, ollama=second_client, clock=lambda: NOW
+    ).create_execution(
+        run_id="run-1",
+        policy_version=body["policy_version"],
+        requested_by="tester",
+        scope="full_run",
+    )
+    final = ScreeningWorker(
+        settings, session_factory=factory, ollama=second_client, clock=lambda: NOW
+    ).run_once()
+
+    assert final is not None and final.status == "부분 성공"
+    with factory() as session:
+        notice_one = session.scalar(
+            select(Notice).where(Notice.notice_key == "notice-1")
+        )
+        notice_two = session.scalar(
+            select(Notice).where(Notice.notice_key == "notice-2")
+        )
+        assert notice_one is not None and notice_one.judgment is not None
+        assert notice_one.judgment.id == prior_judgment_id
+        assert [
+            item.id for item in judgment_revision_history(session, notice_one.id)
+        ] == prior_revision_ids
+        assert notice_two is not None and notice_two.judgment is not None
+        second_revisions = judgment_revision_history(session, notice_two.id)
+        assert len(second_revisions) == 1
+        assert second_revisions[0].recording_execution_id == second.execution_id
+        published = session.get(Run, final.published_run_id)
+        assert published is not None
+        assert published.counts_json["judgments"] == 2
+
+    results = json.loads(
+        (root / second.artifact_dir / "screening-results.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert results["result_count"] == 1 and results["failure_count"] == 1
 
 
 def test_quality_sample_mixed_results_is_partial_without_publication(tmp_path: Path):

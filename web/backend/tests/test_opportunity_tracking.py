@@ -27,6 +27,7 @@ from sqlalchemy.pool import StaticPool
 from app.db import init_db
 from app.ingest.loader import _merge_opportunities, ingest_run
 from app.models import AuditEvent, Notice, Opportunity, OpportunityLink
+from app.services.opportunity_integrity import OpportunityIntegrityError
 from app.services.opportunity_tracking import (
     raise_recheck_signal,
     set_tracking_status,
@@ -511,7 +512,7 @@ def test_recheck_signal_keeps_latest_distinct_official_link_and_deduplicates_sam
         engine.dispose()
 
 
-def test_merge_to_closed_primary_signals_a_targetful_official_link_from_secondary():
+def test_merge_with_human_selected_tracking_status_fails_closed():
     engine = _engine()
     try:
         with Session(engine) as session:
@@ -556,23 +557,31 @@ def test_merge_to_closed_primary_signals_a_targetful_official_link_from_secondar
             session.add(moved_link)
             session.flush()
 
-            merged = _merge_opportunities(session, [primary, secondary])
+            with pytest.raises(
+                OpportunityIntegrityError,
+                match="자동 병합할 수 없습니다",
+            ):
+                _merge_opportunities(session, [primary, secondary])
             session.commit()
 
-            assert merged is not None and merged.id == primary.id
             stored = session.get(Opportunity, primary.id)
+            stored_secondary = session.get(Opportunity, secondary.id)
             assert stored is not None
+            assert stored_secondary is not None
+            assert stored.merged_into_opportunity_id is None
+            assert stored_secondary.merged_into_opportunity_id is None
             assert stored.tracking_status == "종료"
             assert stored.tracking_reason == "현재 추적 종료"
             assert stored.tracking_selected_by == "담당자"
             assert stored.tracking_selected_at == datetime(2026, 8, 29, 7, tzinfo=timezone.utc)
-            assert stored.recheck_signal_link_id == moved_link.id
+            assert stored.recheck_signal_link_id is None
+            assert moved_link.opportunity_id == stored_secondary.id
             assert session.scalar(
                 select(AuditEvent).where(
                     AuditEvent.aggregate_id == str(primary.id),
                     AuditEvent.action == "opportunity.recheck_signal.created",
                 )
-            ) is not None
+            ) is None
     finally:
         engine.dispose()
 

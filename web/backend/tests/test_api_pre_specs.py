@@ -61,7 +61,8 @@ def _add_order_plan_path(
     *,
     tracking_status: str,
     first_registered_stage: str = "order_plan",
-    link_status: str = "후보 확인 대기",
+    link_status: str = "확정",
+    human_decision: str | None = None,
     include_order_plan: bool = True,
 ) -> Opportunity:
     selected = tracking_status != "미선택"
@@ -74,16 +75,25 @@ def _add_order_plan_path(
     )
     session.add(opportunity)
     session.flush()
-    session.add(
-        OpportunityLink(
-            opportunity_id=opportunity.id,
-            notice_id=notice.id,
-            stage="notice",
-            link_type="candidate" if link_status != "확정" else "official",
-            status=link_status,
-            evidence_external_no="PRE-TEST" if link_status == "확정" else None,
+    link_values = {
+        "opportunity_id": opportunity.id,
+        "notice_id": notice.id,
+        "stage": "notice",
+        "link_type": "candidate" if link_status != "확정" else "official",
+        "status": link_status,
+        "evidence_external_no": "PRE-TEST" if link_status == "확정" else None,
+    }
+    decision = human_decision
+    if decision is None and link_status == "사람 확인 완료":
+        decision = "accepted"
+    if decision is not None:
+        link_values.update(
+            human_decision=decision,
+            reviewer_name="테스트 담당자",
+            reviewed_at=datetime(2026, 8, 20, tzinfo=UTC),
+            review_reason="같은 사업 확인",
         )
-    )
+    session.add(OpportunityLink(**link_values))
     if include_order_plan:
         plan = OrderPlan(order_plan_unty_no=f"R26T24{opportunity.id:08d}")
         session.add(plan)
@@ -405,6 +415,48 @@ def test_pre_specs_default_keeps_tracked_sw_n_and_explains_exception(pre_specs_a
     assert item["origin"] == "추적"
 
 
+@pytest.mark.parametrize(
+    ("link_status", "human_decision", "expected"),
+    [
+        ("후보 확인 대기", None, False),
+        ("사람 확인 완료", "rejected", False),
+        ("사람 확인 완료", "accepted", True),
+        ("확정", None, True),
+    ],
+)
+def test_pre_specs_tracking_exception_requires_authoritative_notice_link(
+    pre_specs_api,
+    link_status: str,
+    human_decision: str | None,
+    expected: bool,
+):
+    session, _engine, _refs = pre_specs_api
+    suffix = human_decision or link_status.replace(" ", "-")
+    notice = _add_notice(
+        session,
+        key=f"pre:AUTH-{suffix}",
+        title="authoritative notice link 테스트",
+        agency="테스트 기관",
+        sw_status="N",
+        business_division="기술용역",
+        published_at=datetime(2026, 8, 21, tzinfo=UTC),
+        deadline_at=datetime(2026, 8, 31, tzinfo=UTC),
+    )
+    _add_order_plan_path(
+        session,
+        notice,
+        tracking_status="계속 추적",
+        link_status=link_status,
+        human_decision=human_decision,
+    )
+    session.commit()
+
+    items = _items_by_id(_payload(session))
+    assert (notice.id in items) is expected
+    if expected:
+        assert items[notice.id]["kept_by_tracking"] is True
+
+
 def test_pre_specs_search_unconfirmed_untracked_or_missing_order_plan_do_not_bypass_filter(pre_specs_api):
     session, _engine, refs = pre_specs_api
 
@@ -494,6 +546,56 @@ def test_pre_specs_response_does_not_expose_storage_metadata(pre_specs_api):
 
     for forbidden in ("object_key", "/home/", "internal-test-source", "source_attachment_key", "password"):
         assert forbidden not in body
+
+
+def test_pre_specs_projection_ignores_lower_id_pending_and_rejected_candidates(
+    pre_specs_api,
+):
+    session, _engine, refs = pre_specs_api
+    notice = refs["sw_yes"]
+    pending_owner = Opportunity(first_registered_stage="pre_spec")
+    rejected_owner = Opportunity(first_registered_stage="pre_spec")
+    official_owner = Opportunity(first_registered_stage="order_plan")
+    session.add_all([pending_owner, rejected_owner, official_owner])
+    session.flush()
+    session.add_all(
+        [
+            OpportunityLink(
+                opportunity=pending_owner,
+                notice=notice,
+                stage="notice",
+                link_type="candidate",
+                status="후보 확인 대기",
+            ),
+            OpportunityLink(
+                opportunity=rejected_owner,
+                notice=notice,
+                stage="notice",
+                link_type="candidate",
+                status="사람 확인 완료",
+                human_decision="rejected",
+                reviewer_name="검토자",
+                reviewed_at=datetime(2026, 8, 31, tzinfo=UTC),
+                review_reason="다른 사업",
+            ),
+        ]
+    )
+    session.flush()
+    official = OpportunityLink(
+        opportunity=official_owner,
+        notice=notice,
+        stage="notice",
+        link_type="official",
+        status="확정",
+        evidence_external_no="SW-Y",
+    )
+    session.add(official)
+    session.commit()
+
+    item = _items_by_id(_payload(session, sw_only=False))[notice.id]
+
+    assert item["opportunity_id"] == official_owner.id
+    assert item["origin"] == "추적"
 
 
 def test_pre_specs_list_uses_constant_query_count(pre_specs_api):

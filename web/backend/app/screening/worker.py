@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from ..config import Settings, get_settings
 from ..ingest.loader import ingest_run, parse_run_id
-from ..models import CompanyProfileSnapshot, Judgment, Notice, NoticeObservation, Run, ScreeningAttempt, ScreeningExecution, ScreeningPolicy
+from ..models import CompanyProfileSnapshot, Judgment, JudgmentRevision, Notice, NoticeObservation, Run, ScreeningAttempt, ScreeningExecution, ScreeningPolicy
 from .artifacts import ArtifactError, ArtifactStore, aware_iso, canonical_bytes, sha256_bytes
 from .contracts import (
     MODEL_NAME,
@@ -1173,6 +1173,11 @@ class ScreeningWorker:
                     raise WorkerError("execution_failure")
                 input_ids = {item.get("notice_id") for item in staged_input.get("notices", []) if isinstance(item, Mapping)}
                 result_count = int(staged_results.get("result_count", -1))
+                successful_ids = {
+                    item.get("notice", {}).get("notice_id")
+                    for item in staged_results.get("results", [])
+                    if isinstance(item, Mapping) and isinstance(item.get("notice"), Mapping)
+                }
                 failed_ids = {item.get("notice_id") for item in staged_failures.get("failures", []) if isinstance(item, Mapping)} if isinstance(staged_failures, Mapping) else set()
                 actual_notices = session.scalars(
                     select(Notice)
@@ -1186,9 +1191,29 @@ class ScreeningWorker:
                     .join(NoticeObservation, NoticeObservation.notice_id == Notice.id)
                     .where(NoticeObservation.run_id == derived_id)
                 ).all()
-                if actual_notice_ids != input_ids or len(actual_judgments) != result_count or any(item.notice_key in failed_ids and item.judgment is not None for item in actual_notices):
+                recorded_revisions = session.scalars(
+                    select(JudgmentRevision)
+                    .join(Notice, JudgmentRevision.notice_id == Notice.id)
+                    .where(
+                        JudgmentRevision.recording_execution_id == row.execution_id,
+                        Notice.notice_key.in_(input_ids),
+                    )
+                ).all()
+                recorded_revision_ids = {
+                    revision.notice.notice_key for revision in recorded_revisions
+                }
+                projected_ids = {
+                    item.notice_key for item in actual_notices if item.judgment is not None
+                }
+                if (
+                    actual_notice_ids != input_ids
+                    or len(successful_ids) != result_count
+                    or recorded_revision_ids != successful_ids
+                    or not successful_ids.issubset(projected_ids)
+                    or recorded_revision_ids & failed_ids
+                ):
                     raise WorkerError("execution_failure")
-                if run.counts_json is None or not isinstance(run.counts_json, dict) or run.counts_json.get("notices") != len(input_ids) or run.counts_json.get("judgments") != result_count:
+                if run.counts_json is None or not isinstance(run.counts_json, dict) or run.counts_json.get("notices") != len(input_ids) or run.counts_json.get("judgments") != len(actual_judgments):
                     raise WorkerError("execution_failure")
                 run.counts_json = {**run.counts_json, "replacement_of": row.source_run_id}
                 session.commit()

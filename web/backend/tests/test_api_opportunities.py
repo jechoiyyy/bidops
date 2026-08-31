@@ -10,6 +10,7 @@ from sqlalchemy.pool import StaticPool
 from app.db import get_db, init_db
 from app.main import app
 from app.models import AuditEvent, Notice, Opportunity, OpportunityLink, OrderPlan
+from app.services.opportunity_integrity import merge_opportunities
 from app.services.opportunity_tracking import raise_recheck_signal, set_tracking_status
 
 
@@ -212,3 +213,130 @@ def test_opportunity_api_does_not_expose_paths_or_credentials(opportunity_api):
 
     for forbidden in ("/home/", "password", "secret", "API_KEY", "prompt", "raw_source"):
         assert forbidden not in body
+
+
+@pytest.mark.parametrize("decision", ["accepted", "rejected"])
+def test_candidate_decision_is_audited_and_exact_replay_is_idempotent(
+    opportunity_api,
+    decision,
+):
+    client, session, _ended, plan_opportunity = opportunity_api
+    notice = Notice(
+        notice_key=f"pre:DECISION-{decision}",
+        source_type="pre_spec",
+        title="사람 확인 후보",
+    )
+    session.add(notice)
+    session.flush()
+    candidate = OpportunityLink(
+        opportunity=plan_opportunity,
+        notice=notice,
+        stage="notice",
+        link_type="candidate",
+        status="후보 확인 대기",
+        search_strategy="full",
+    )
+    session.add(candidate)
+    session.commit()
+
+    request = {
+        "decision": decision,
+        "reason": "공식 정보와 기관·사업 범위를 대조함",
+    }
+    headers = {"X-BidOps-Actor-Name": "candidate-reviewer"}
+    first = client.patch(
+        f"/api/opportunities/links/{candidate.id}/decision",
+        json=request,
+        headers=headers,
+    )
+    replay = client.patch(
+        f"/api/opportunities/links/{candidate.id}/decision",
+        json=request,
+        headers=headers,
+    )
+
+    assert first.status_code == replay.status_code == 200
+    assert first.json()["status"] == "사람 확인 완료"
+    assert first.json()["human_decision"] == decision
+    assert replay.json()["reviewed_at"] == first.json()["reviewed_at"]
+    audits = session.scalars(
+        select(AuditEvent).where(
+            AuditEvent.action == "opportunity_link.candidate_decision.recorded",
+            AuditEvent.aggregate_id == str(candidate.id),
+        )
+    ).all()
+    assert len(audits) == 1
+    assert audits[0].claimed_name == "candidate-reviewer"
+    assert audits[0].safe_metadata["decision"] == decision
+
+    conflict = client.patch(
+        f"/api/opportunities/links/{candidate.id}/decision",
+        json={**request, "reason": "다른 판정 근거"},
+        headers=headers,
+    )
+    assert conflict.status_code == 409
+    assert conflict.json()["error"]["code"] == "candidate_decision_conflict"
+
+
+def test_candidate_decision_requires_claimed_reviewer_name(opportunity_api):
+    client, session, _ended, plan_opportunity = opportunity_api
+    notice = Notice(notice_key="pre:ACTOR-REQUIRED", source_type="pre_spec")
+    session.add(notice)
+    session.flush()
+    candidate = OpportunityLink(
+        opportunity=plan_opportunity,
+        notice=notice,
+        stage="notice",
+        link_type="candidate",
+        status="후보 확인 대기",
+    )
+    session.add(candidate)
+    session.commit()
+
+    response = client.patch(
+        f"/api/opportunities/links/{candidate.id}/decision",
+        json={"decision": "accepted", "reason": "사람 확인"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "actor_name_required"
+
+
+def test_active_list_excludes_merged_row_but_direct_detail_keeps_trace(opportunity_api):
+    client, session, _ended, plan_opportunity = opportunity_api
+    secondary_notice = Notice(
+        notice_key="bid:MERGED-TRACE",
+        source_type="bid_notice",
+    )
+    secondary = Opportunity(
+        first_registered_stage="bid_notice",
+        created_at=datetime(2026, 9, 30, tzinfo=timezone.utc),
+    )
+    session.add_all([secondary_notice, secondary])
+    session.flush()
+    session.add(
+        OpportunityLink(
+            opportunity=secondary,
+            notice=secondary_notice,
+            stage="notice",
+            link_type="official",
+            status="확정",
+            evidence_external_no="MERGED-TRACE",
+        )
+    )
+    session.flush()
+    retained = merge_opportunities(
+        session,
+        [plan_opportunity, secondary],
+        merged_at=datetime(2026, 8, 31, tzinfo=timezone.utc),
+    )
+    session.commit()
+    assert retained is not None
+
+    listed = client.get("/api/opportunities").json()
+    traced = client.get(f"/api/opportunities/{secondary.id}")
+
+    assert secondary.id not in {item["id"] for item in listed["items"]}
+    assert traced.status_code == 200
+    assert traced.json()["merged_into_opportunity_id"] == retained.id
+    assert traced.json()["merge_reason"] == "authoritative_lifecycle_link"

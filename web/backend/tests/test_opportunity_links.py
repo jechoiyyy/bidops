@@ -275,7 +275,7 @@ def test_name_search_metadata_does_not_create_an_automatic_link():
         engine.dispose()
 
 
-def test_official_link_merges_independent_opportunities_without_losing_rejection():
+def test_rejected_candidate_does_not_merge_or_own_an_official_target():
     engine, session = _session()
     try:
         run = _run(session, "merge-run")
@@ -335,7 +335,8 @@ def test_official_link_merges_independent_opportunities_without_losing_rejection
         session.commit()
 
         opportunities = session.scalars(select(Opportunity)).all()
-        assert len(opportunities) == 1
+        assert len(opportunities) == 2
+        assert all(item.merged_into_opportunity_id is None for item in opportunities)
         links = session.scalars(select(OpportunityLink)).all()
         assert any(link.human_decision == "rejected" for link in links)
         assert sum(link.status == "확정" for link in links) == 3
@@ -344,7 +345,7 @@ def test_official_link_merges_independent_opportunities_without_losing_rejection
         engine.dispose()
 
 
-def test_official_link_also_merges_an_existing_opportunity_on_the_bid_notice():
+def test_pending_candidate_on_bid_notice_does_not_merge_or_own_it():
     engine, session = _session()
     try:
         run = _run(session, "bid-merge-run")
@@ -379,9 +380,18 @@ def test_official_link_also_merges_an_existing_opportunity_on_the_bid_notice():
         session.commit()
 
         opportunities = session.scalars(select(Opportunity)).all()
-        assert len(opportunities) == 1
-        assert any(link.link_type == "official" for link in opportunities[0].links)
-        assert any(link.link_type == "candidate" for link in opportunities[0].links)
+        assert len(opportunities) == 2
+        assert all(item.merged_into_opportunity_id is None for item in opportunities)
+        assert any(
+            link.link_type == "official"
+            for opportunity in opportunities
+            for link in opportunity.links
+        )
+        assert any(
+            link.link_type == "candidate"
+            for opportunity in opportunities
+            for link in opportunity.links
+        )
     finally:
         session.close()
         engine.dispose()
@@ -637,14 +647,24 @@ def test_same_official_reference_merges_opportunities_and_preserves_rejection():
         plan = OrderPlan(order_plan_unty_no=reference)
         session.add(plan)
         session.flush()
-        assert resolve_order_plan_opportunity_links(session, plan) == 2
+        assert resolve_order_plan_opportunity_links(session, plan) == 1
         session.commit()
 
-        assert session.query(Opportunity).count() == 1
+        assert session.query(Opportunity).count() == 2
+        active = session.scalars(
+            select(Opportunity).where(Opportunity.merged_into_opportunity_id.is_(None))
+        ).all()
+        merged = session.scalars(
+            select(Opportunity).where(Opportunity.merged_into_opportunity_id.is_not(None))
+        ).all()
+        assert len(active) == len(merged) == 1
+        assert merged[0].merged_into_opportunity_id == active[0].id
+        assert merged[0].merged_at is not None
+        assert merged[0].merge_reason == "authoritative_lifecycle_link"
         links = session.scalars(select(OpportunityLink)).all()
         assert any(link.human_decision == "rejected" for link in links)
-        assert sum(link.order_plan_id == plan.id for link in links) == 2
-        assert all(link.opportunity_id == links[0].opportunity_id for link in links)
+        assert sum(link.order_plan_id == plan.id for link in links) == 1
+        assert all(link.opportunity_id == active[0].id for link in links)
     finally:
         session.close()
         engine.dispose()

@@ -81,6 +81,7 @@ def test_review_save_and_update_is_idempotent_and_replaces_answers(reviews_clien
             "system_judgment_review": "근거 부족",
             "corrected_grade": "검토 권장",
             "reason": "수정 기록",
+            "reviewer": "테스트 담당자",
             "verification_answers": [{"item": "과업 범위", "answer": "확인 완료"}],
         },
     )
@@ -108,6 +109,7 @@ def test_review_export_preserves_feedback_v2_shape(reviews_client):
             "run_id": "review-run",
             "disposition": "관찰",
             "reason": "메모",
+            "reviewer": "테스트 담당자",
             "verification_answers": [{"item": "참가자격", "answer": "확인 완료"}],
         },
     )

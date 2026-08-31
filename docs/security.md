@@ -45,6 +45,7 @@ PostgreSQL 17의 `bidops` 스키마와 MinIO 목적별 버킷이 운영 정본�
 - API 키, DB 비밀번호, MinIO access/secret key, 모델 API 키, 모델응답 암호화 키는 외부 secret 관리자가 생성하고 `.env.example`의 자리표시자를 실제 값으로 대체해 주입한다. 애플리케이션이 비밀을 생성하거나 DB에 평문 보관하지 않는다.
 - 실제 비밀은 Git, 이미지, API 응답, 로그, 감사 상세, URL, 프롬프트에 넣지 않는다. Pydantic secret 형식과 로그 마스킹은 노출 방지의 보조 수단이며 저장 허가가 아니다.
 - 목적별 MinIO 자격증명과 PostgreSQL의 `owner`, `migrate`, `app`, `worker`, `ro_backup` 역할을 분리한다. 읽기 전용 namespace가 쓰기 자격증명으로 fallback하면 기동 또는 요청을 실패시킨다.
+- PostgreSQL runtime 권한은 migration 뒤 `scripts/runtime-privileges.sql`의 table·operation allowlist로 다시 적용한다. `app`은 API·수집·orchestration 상태와 append-only 감사·사람 결정 생성만, `worker`는 attachment/deep-review lease·stage·artifact 결과와 append-only 감사·machine revision 생성만 쓴다. 사람 리뷰·최종 의견·revision·감사·불변 source/profile/policy row에는 역할별로 필요한 INSERT 또는 제한된 column UPDATE만 두고 broad UPDATE/DELETE를 주지 않는다. 새 table은 `app`·`worker` DML을 자동 상속하지 않으며 검토 뒤 allowlist에 추가한다.
 - 회전은 외부 secret에서 새 값을 발급하고 대상 서비스의 환경을 교체한 뒤 컨테이너를 재생성하는 방식이다. 새 자격증명으로 health·허용 작업을 확인한 후 이전 값을 폐기한다. 애플리케이션 안에 오래된 값을 계속 허용하는 유예 목록을 두지 않는다.
 - 유출 의심, 담당자 변경, 제공자 키 폐기, 암호화 키 교체가 발생하면 해당 값을 즉시 취소하고 영향을 받은 실행·객체·로그 범위를 감사한다. 고정 주기와 조직별 승인자는 외부 secret 운영 정책이 정하며 이 애플리케이션이 임의의 기간을 만들지 않는다.
 - 암호화 키를 폐기하기 전에는 보존 대상 모델응답의 재암호화 또는 의도된 비가역 폐기를 운영자가 확인해야 한다. 키만 삭제해 보존 정책을 우연히 깨뜨려서는 안 된다.

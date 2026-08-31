@@ -23,11 +23,11 @@ export BIDOPS_OLLAMA_BASE_URL="http://127.0.0.1:9"
 export BIDOPS_SCHEDULER_ENABLED="false"
 export BIDOPS_LIVE_OLLAMA_TEST="false"
 
-# PostgreSQL is the canonical migration store.  Application-level tests still
-# create their own isolated SQLite databases, but migration/constraint tests
-# must run against a real PostgreSQL 17 server.  A caller may provide a
-# disposable maintenance URL; otherwise this script owns a short-lived
-# container and removes it on every exit path.
+# PostgreSQL is the canonical store.  The pytest collection harness creates a
+# fresh migrated application database for every invocation and uses this URL
+# only for maintenance.  A caller may provide a disposable maintenance server;
+# otherwise this script owns a short-lived container and removes it on every
+# exit path.
 TEST_PG_CONTAINER=""
 TEST_PG_ADMIN_URL="${BIDOPS_TEST_POSTGRES_URL:-}"
 if [ -z "$TEST_PG_ADMIN_URL" ]; then
@@ -79,10 +79,7 @@ else
 fi
 
 cd "$WEB_ROOT/backend"
-export BIDOPS_DATABASE_URL="$TEST_PG_ADMIN_URL"
-echo "== backend: alembic upgrade (isolated PostgreSQL 17)"
-"$PYTHON" -m alembic upgrade head
-echo "== backend: pytest (isolated SQLite + PostgreSQL migration contract)"
+echo "== backend: pytest (isolated PostgreSQL 17 harness)"
 "$PYTHON" -m pytest
 
 cd "$WEB_ROOT/frontend"

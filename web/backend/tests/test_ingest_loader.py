@@ -12,12 +12,18 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.db import Base, init_db
-from app.ingest.loader import parse_order_plan_unty_no, ingest_run
+from app.ingest.loader import (
+    ORDER_PLAN_OBSERVATION_SNAPSHOT_SCHEMA,
+    ingest_run,
+    parse_order_plan_unty_no,
+)
+from app.ingest.judgment_revisions import judgment_revision_payload
 from app.screening.generation_config import legacy_generation_config
 from app.models import (
     Counterargument,
     IngestWarning,
     Judgment,
+    JudgmentRevision,
     Notice,
     NoticeObservation,
     Opportunity,
@@ -29,6 +35,7 @@ from app.models import (
     Run,
     VerificationItem,
 )
+from app.services.revisions import RevisionConflictError
 from tests.test_screening_orchestrator import _notice as screening_notice
 
 
@@ -186,6 +193,101 @@ def test_loader_records_contract_gaps_and_keeps_available_rows(tmp_path, db_sess
     assert "perspectives_below_contract" in codes
     assert "counterarguments_missing" in codes
     assert "verification_items_missing" in codes
+
+
+def test_judgment_revision_payload_is_id_free_ordered_and_preserves_unknowns():
+    raw = {
+        "grade": "검토 권장",
+        "readiness": "부분 확인 필요",
+        "primary_focus": None,
+        "exclusion_category": None,
+        "summary": None,
+        "next_action": "확인",
+        "perspectives": [
+            {
+                "name": "기술 적합성",
+                "assessment": "확인 불가",
+                "reason": None,
+                "evidence": [
+                    {"source": "first", "status": "unknown", "fact": None},
+                    {"source": "second", "status": "confirmed", "fact": "사실"},
+                ],
+            },
+            {
+                "position": 9,
+                "name": "실적 정합성",
+                "assessment": None,
+                "reason": "대기",
+                "evidence": [],
+            },
+        ],
+        "counterarguments": ["첫 반론", {"position": 7, "text": None}],
+        "counterargument_resolutions": [
+            {
+                "counterargument": "첫 반론",
+                "status": "추가 확인",
+                "reflection": "첫 반론을 확인 항목에 반영",
+            },
+            {
+                "counterargument": None,
+                "status": "수용",
+                "reflection": "두 번째 반론 값도 그대로 보존",
+            },
+        ],
+        "verification_items": [
+            {"item": "자격", "why": None, "blocking": True, "status": "미확인"}
+        ],
+        "matched_performances": [
+            {
+                "project_name": "과거 사업",
+                "match_reason": None,
+                "mismatch_or_limit": "unknown",
+                "source_page": "p.1",
+                "legal_qualification_status": "unknown",
+            }
+        ],
+    }
+
+    payload = judgment_revision_payload(raw, schema_version="bidops.decisions.v2")
+
+    assert list(payload) == [
+        "schema_version",
+        "grade",
+        "readiness",
+        "primary_focus",
+        "exclusion_category",
+        "summary",
+        "next_action",
+        "perspectives",
+        "counterarguments",
+        "counterargument_resolutions",
+        "verification_items",
+        "matched_performances",
+    ]
+    assert payload["primary_focus"] is None and payload["summary"] is None
+    assert [item["source"] for item in payload["perspectives"][0]["evidence"]] == [
+        "first",
+        "second",
+    ]
+    assert payload["perspectives"][0]["position"] == 1
+    assert payload["perspectives"][1]["position"] == 9
+    assert payload["counterarguments"] == [
+        {"position": 1, "text": "첫 반론"},
+        {"position": 7, "text": None},
+    ]
+    assert payload["counterargument_resolutions"] == raw[
+        "counterargument_resolutions"
+    ]
+    assert payload["matched_performances"][0]["status"] == "unknown"
+
+    def keys(value):
+        if isinstance(value, dict):
+            return set(value) | set().union(*(keys(item) for item in value.values()))
+        if isinstance(value, list):
+            return set().union(*(keys(item) for item in value))
+        return set()
+
+    assert "id" not in keys(payload)
 
 
 def test_optional_order_plan_linkage_does_not_rewrite_old_notice_identity(tmp_path, db_session):
@@ -563,6 +665,13 @@ def test_order_plan_ingest_maps_measured_g2b_fields_without_inference(tmp_path, 
             "rcritRgstNo": "",
         },
     }
+    observation = db_session.scalar(select(OrderPlanObservation))
+    assert observation is not None
+    assert observation.snapshot_schema_version == ORDER_PLAN_OBSERVATION_SNAPSHOT_SCHEMA
+    assert observation.snapshot_jsonb["record"]["order_plan_unty_no"] == reference
+    assert observation.snapshot_jsonb["record"]["raw_source"] == plan.raw_source
+    assert observation.snapshot_jsonb["record"]["unknown_fields_json"] == plan.unknown_fields_json
+    assert len(observation.source_sha256 or "") == 64
     assert any(
         warning["code"] == "unknown_field"
         and warning["context"]["field"] == "order_plan[0].future_field"
@@ -745,23 +854,113 @@ def test_missing_screening_loads_notices_only(tmp_path, db_session):
     assert any(item["code"] == "screening_results_missing" for item in result.warnings)
 
 
-def test_reingest_is_idempotent_and_cleans_old_warnings(tmp_path, db_session):
+@pytest.mark.parametrize(
+    "decisions_schema", ["bidops.decisions.v1", "bidops.decisions.v2"]
+)
+def test_reingest_is_idempotent_and_cleans_old_warnings(
+    tmp_path, db_session, decisions_schema
+):
     validation, screening, decisions = base_artifacts()
+    decisions["schema_version"] = decisions_schema
     run_dir = write_run(tmp_path, validation=validation, screening=screening, decisions=decisions)
     first = ingest_run(run_dir, db_session, reports_root=tmp_path / "reports")
     first_counts = {
         model.__tablename__: db_session.scalar(select(func.count()).select_from(model))
-        for model in (Notice, Judgment, Perspective, Counterargument, VerificationItem, IngestWarning)
+        for model in (Notice, Judgment, JudgmentRevision, Perspective, Counterargument, VerificationItem, IngestWarning)
     }
     second = ingest_run(run_dir, db_session, reports_root=tmp_path / "reports")
     second_counts = {
         model.__tablename__: db_session.scalar(select(func.count()).select_from(model))
-        for model in (Notice, Judgment, Perspective, Counterargument, VerificationItem, IngestWarning)
+        for model in (Notice, Judgment, JudgmentRevision, Perspective, Counterargument, VerificationItem, IngestWarning)
     }
 
     assert first.run_id == second.run_id
     assert first_counts == second_counts
     assert second_counts["ingest_warning"] == len(second.warnings)
+    revision = db_session.scalar(select(JudgmentRevision))
+    assert revision is not None
+    assert revision.source_kind == "legacy_import" and revision.run_id == first.run_id
+
+
+@pytest.mark.parametrize(
+    "decisions_schema", ["bidops.decisions.v1", "bidops.decisions.v2"]
+)
+def test_legacy_replay_conflict_rolls_back_revision_and_current_projection(
+    tmp_path, db_session, decisions_schema
+):
+    validation, screening, decisions = base_artifacts()
+    decisions["schema_version"] = decisions_schema
+    run_dir = write_run(
+        tmp_path, validation=validation, screening=screening, decisions=decisions
+    )
+    first = ingest_run(run_dir, db_session, reports_root=tmp_path / "reports")
+    stored = db_session.scalar(select(Judgment))
+    assert stored is not None and stored.grade == "우선 검토"
+    revision = db_session.scalar(select(JudgmentRevision))
+    assert revision is not None and revision.sequence == 1
+
+    screening["results"][0]["judgment"]["grade"] = "검토 권장"
+    decisions["judgments"][0]["grade"] = "검토 권장"
+    write_run(
+        tmp_path, validation=validation, screening=screening, decisions=decisions
+    )
+
+    with pytest.raises(RevisionConflictError, match="legacy import run"):
+        ingest_run(run_dir, db_session, reports_root=tmp_path / "reports")
+
+    db_session.expire_all()
+    stored = db_session.scalar(select(Judgment))
+    assert stored is not None and stored.grade == "우선 검토"
+    revisions = db_session.scalars(select(JudgmentRevision)).all()
+    assert len(revisions) == 1 and revisions[0].id == revision.id
+    assert db_session.get(Run, first.run_id) is not None
+
+
+def test_projection_failure_after_append_rolls_back_revision_and_projection(
+    tmp_path, db_session, monkeypatch
+):
+    validation, screening, decisions = base_artifacts()
+    first_dir = write_run(
+        tmp_path,
+        directory_name="revision-transaction-one",
+        validation=validation,
+        screening=screening,
+        decisions=decisions,
+    )
+    ingest_run(first_dir, db_session, reports_root=tmp_path / "reports")
+    stored = db_session.scalar(select(Judgment))
+    assert stored is not None
+    original_id = stored.id
+    original_grade = stored.grade
+    original_revision_ids = [
+        item.id for item in db_session.scalars(select(JudgmentRevision)).all()
+    ]
+
+    screening["generated_at"] = "2026-08-24T01:00:00+00:00"
+    screening["results"][0]["judgment"]["grade"] = "검토 권장"
+    decisions["judgments"][0]["grade"] = "검토 권장"
+    second_dir = write_run(
+        tmp_path,
+        directory_name="revision-transaction-two",
+        validation=validation,
+        screening=screening,
+        decisions=decisions,
+    )
+
+    def fail_after_revision_append(*_args, **_kwargs):
+        raise RuntimeError("injected projection failure")
+
+    monkeypatch.setattr("app.ingest.loader._clear_judgment", fail_after_revision_append)
+    with pytest.raises(RuntimeError, match="injected projection failure"):
+        ingest_run(second_dir, db_session, reports_root=tmp_path / "reports")
+
+    db_session.expire_all()
+    stored = db_session.scalar(select(Judgment))
+    assert stored is not None and stored.id == original_id
+    assert stored.grade == original_grade
+    assert [
+        item.id for item in db_session.scalars(select(JudgmentRevision)).all()
+    ] == original_revision_ids
 
 
 def test_feedback_only_creates_nonempty_review_and_does_not_overwrite_it(tmp_path, db_session):

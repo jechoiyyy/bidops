@@ -5,7 +5,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Path as ApiPath, Query
+from fastapi.responses import JSONResponse
 from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Session, aliased
 
@@ -15,10 +16,23 @@ from ..schemas.pre_specs import (
     PreSpecDocumentSummary,
     PreSpecListItem,
     PreSpecListResponse,
+    PreSpecOverviewReviewsResponse,
+    PreSpecOverviewReviewsV2Response,
     PreSpecOrigin,
     PreSpecSort,
 )
+from ..services.opportunity_integrity import (
+    active_opportunity_predicate,
+    authoritative_link_predicate,
+)
 from ..services.prespec_attachments import tracked_order_plan_connection_predicate
+from ..services.prespec_overview import (
+    OverviewPreparationError,
+    OverviewReviewNotFound,
+    OverviewScopeError,
+    get_overview_reviews,
+    get_overview_reviews_v2,
+)
 from .common import decimal_float
 
 
@@ -56,16 +70,22 @@ def _document_counts_subquery():
 
 
 def _connected_link_subquery():
-    """Choose one deterministic notice link for the singular list projection."""
+    """Select the sole authoritative active owner for each notice."""
 
     link = aliased(OpportunityLink)
+    opportunity = aliased(Opportunity)
     return (
         select(
             link.notice_id.label("notice_id"),
-            func.min(link.id).label("link_id"),
+            link.id.label("link_id"),
         )
-        .where(link.stage == "notice", link.notice_id.is_not(None))
-        .group_by(link.notice_id)
+        .join(opportunity, opportunity.id == link.opportunity_id)
+        .where(
+            link.stage == "notice",
+            link.notice_id.is_not(None),
+            authoritative_link_predicate(link),
+            active_opportunity_predicate(opportunity),
+        )
         .subquery("pre_spec_connected_link")
     )
 
@@ -88,6 +108,91 @@ def _pre_spec_number(notice: Notice) -> Any:
 
 def _count(value: Any) -> int:
     return int(value or 0)
+
+
+@router.get("/{notice_id}/overview-reviews", response_model=PreSpecOverviewReviewsResponse)
+def get_pre_spec_overview_reviews(
+    notice_id: int = ApiPath(..., ge=1),
+    session: Session = Depends(get_db),
+) -> PreSpecOverviewReviewsResponse | JSONResponse:
+    """Return safe lineage metadata for the independent overview stage."""
+
+    try:
+        return get_overview_reviews(session, notice_id)
+    except OverviewReviewNotFound:
+        return JSONResponse(
+            status_code=404,
+            content={
+                "error": {
+                    "code": "not_found",
+                    "message": "요청한 사전규격 공고를 찾을 수 없습니다",
+                    "details": None,
+                },
+                "request_id": None,
+            },
+        )
+    except OverviewPreparationError:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": {
+                    "code": "processing_failed",
+                    "message": "사전규격 개요 검토를 준비할 수 없습니다",
+                    "details": None,
+                },
+                "request_id": None,
+            },
+        )
+
+
+@router.get(
+    "/{notice_id}/overview-reviews/v2",
+    response_model=PreSpecOverviewReviewsV2Response,
+)
+def get_pre_spec_overview_reviews_v2(
+    notice_id: int = ApiPath(..., ge=1),
+    session: Session = Depends(get_db),
+) -> PreSpecOverviewReviewsV2Response | JSONResponse:
+    """Return the phase-2 validated result projection without internals."""
+
+    try:
+        return get_overview_reviews_v2(session, notice_id)
+    except OverviewReviewNotFound:
+        return JSONResponse(
+            status_code=404,
+            content={
+                "error": {
+                    "code": "not_found",
+                    "message": "요청한 사전규격 공고를 찾을 수 없습니다",
+                    "details": None,
+                },
+                "request_id": None,
+            },
+        )
+    except OverviewScopeError:
+        return JSONResponse(
+            status_code=409,
+            content={
+                "error": {
+                    "code": "validation_failed",
+                    "message": "사전규격 개요 결과의 입력 범위를 검증할 수 없습니다",
+                    "details": None,
+                },
+                "request_id": None,
+            },
+        )
+    except OverviewPreparationError:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": {
+                    "code": "processing_failed",
+                    "message": "사전규격 개요 검토를 준비할 수 없습니다",
+                    "details": None,
+                },
+                "request_id": None,
+            },
+        )
 
 
 @router.get("", response_model=PreSpecListResponse)

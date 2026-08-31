@@ -1,6 +1,20 @@
 # 미해결 문제
 
-기준일: 2026-08-28
+기준일: 2026-08-31
+
+## 감독 작업 transcript에 G2B API key가 노출됐다
+
+- 확인: 2026-08-31
+- 상태: **키 회전 필요**
+- 재현 조건: T14 하네스 진단을 위임받은 첫 감독 작업자가 환경을 점검하며
+  `BIDOPS_G2B_API_KEY`의 실제 값을 Orca 작업 transcript에 출력했다.
+- 영향: 해당 transcript에 접근할 수 있는 주체가 기존 key를 알 수 있으므로 기존 key를
+  더 이상 안전하다고 간주할 수 없다. key 값은 저장소 파일·테스트 출력에 다시 기록하지
+  않았고, 후속 작업은 외부 호출을 비활성화한 허용 목록 환경에서만 실행했다.
+- 즉시 대응: 영향받은 dispatch를 실패·봉인하고 새 안전 작업으로 교체했다.
+- 남은 조치: 승인된 외부 secret manager에서 해당 key를 폐기·재발급하고, 영향받은
+  transcript·접근 log의 조회 범위를 감사한다. 현재 작업에는 secret manager 권한이 없어 회전을
+  수행하지 못했다.
 
 ## 저장소 `.env`가 host 백엔드 테스트를 깨뜨리고 90배 느리게 만든다
 
@@ -48,9 +62,11 @@
 | 통과 | 484 (느린 3개 제외 측정) | **711** |
 | 실패 | 12 | **6** |
 
-남은 실패 6건은 환경 의존이며 `.env`와 무관하다. `tests/test_integration_t14.py` 4건은
-`BIDOPS_DATABASE_URL`이 PostgreSQL을 가리켜야 하고, `tests/test_profile_snapshot*.py` 2건은
-승인된 git profile blob이 필요하다.
+이 시점에 남았던 실패 6건은 `.env`와 무관했다. 2026-08-31에
+`tests/test_integration_t14.py` 환경 실패는 pytest 수집 전 일회용 PostgreSQL 17·fresh DB·
+필수 환경변수를 구성하는 하네스로 해결했다. profile 2건은 승인 Git blob 부재 시
+snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으며, 승인 객체 부재 자체는
+아래 미해결 항목으로 남아 있다.
 
 **남은 미확인**: 404초 지연의 정확한 원인 키는 특정하지 못했다. object-store와 ClamAV 키만
 넣었을 때는 5.4초에 끝났고 전체 `.env`가 있어야 재현됐으므로, MinIO 자격증명이 관여하는 것으로
@@ -174,8 +190,8 @@
 - 재현 조건: migration 뒤 PostgreSQL에서 `worker` role의 table privilege를 조회한다.
 - 증상: `scripts/migrate.sh`가 현재와 미래의 `bidops` 모든 table에 `SELECT, INSERT, UPDATE, DELETE`를 부여한다.
 - 영향: 분석 worker 자격증명이 탈취되거나 코드가 오동작하면 사람 리뷰·최종 의견·정책·감사 등 worker 책임 밖의 row도 수정할 수 있어 최소 권한과 사람 결정 경계가 DB에서 강제되지 않는다.
-- 지금 해결할 수 없는 이유: worker가 실제로 읽고 쓰는 table·sequence와 stored operation을 확정해 migration grant를 세분화해야 한다.
-- 접근 방법: analysis claim·stage·report 전이에 필요한 table과 operation만 allowlist로 grant하고 사람 의견·review·policy·audit의 직접 DML을 revoke한다. future default 전체 DML을 제거하고 allow/deny matrix를 PostgreSQL 통합 테스트로 고정한다.
+- 상태: **해결** (2026-08-31, MVP DB 보완). `scripts/runtime-privileges.sql`이 migration 뒤 기존 blanket/default grant를 회수하고 app·worker의 table·operation·column allowlist만 다시 부여한다. 미래 table은 두 runtime role에 DML을 자동 상속하지 않고 `ro_backup` 만 `SELECT`를 상속한다.
+- 검증: disposable PostgreSQL 17에서 실제 `has_table_privilege`·`has_column_privilege`를 검사한다. worker는 사람 review·judgment/review revision·quality policy·final opinion을 수정할 수 없고, overview도 실제 deterministic preparation에 필요한 review/snapshot 생성과 review 지정 상태 컬럼 갱신만 허용한다.
 
 ## PostgreSQL과 MinIO 관리 port가 모든 host interface에 publish된다
 
@@ -203,11 +219,20 @@
 
 ## 승인된 프로필 기준선 commit이 현재 저장소 history에 없다
 
-- 재현 조건: 현재 source checkout에서 backend 전체 테스트를 실행하면 `test_baseline_git_snapshot_and_source_validation`과 `test_vendored_baseline_equals_git_show_in_a_source_checkout`가 실패한다.
-- 증상: `git cat-file -e ee621835db934ddac944f7a07a986ed0b73ecc7a`가 해당 commit을 찾지 못한다.
-- 영향: backend 결과가 741 passed, 5 skipped, 2 failed에 머물러 현재 저장소 기준 전체 green을 주장할 수 없다. 운영 profile bytes 검증도 저장소 이력과 vendored 기준선 중 어느 쪽이 권위인지 불명확하다.
+- 재현 조건: `git cat-file -e ee621835db934ddac944f7a07a986ed0b73ecc7a^{commit}`과
+  `git cat-file -e ee621835db934ddac944f7a07a986ed0b73ecc7a:docs/reference/company-profile.md`를
+  현재 checkout에서 실행한다.
+- 증상: 승인 commit과 그 path의 blob이 둘 다 Git object DB에 없다. commit
+  `5541a07f49cc6e417e8a7a4660cdae112df46f59`의 같은 path와 vendored baseline은 승인
+  digest `a231ab54c36031a7e72779bbca550f70561dc0c946dc5544eeb930c7c6149de2`와 일치하지만,
+  이 commit은 현재 계약의 승인 commit이 아니다. working-tree profile digest는 다르다.
+- 영향: backend 테스트는 승인 blob 부재 시 snapshot 행을 만들지 않는 fail-closed 동작을
+  검증하여 통과한다. 그러나 `git:ee621...`을 요구하는 model comparison과 운영 기준선
+  재현은 계속 차단된다. 전체 suite green은 이 승인 blocker 해소를 의미하지 않는다.
 - 지금 해결할 수 없는 이유: 승인 baseline은 선행 저장소 history에서 만들어졌고, 어떤 commit을 현재 저장소에 보존할지 또는 새 기준선을 승인할지는 이력 소유자와 업무 담당자의 확인이 필요하다.
-- 접근 방법: 승인된 profile bytes와 source commit을 다시 확인한 뒤, 현재 저장소가 그 commit을 보유하게 하거나 새 immutable baseline과 digest를 승인한다. source checkout과 container fallback 테스트가 같은 bytes를 확인해야 한다.
+- 접근 방법: 이력 소유자가 정확한 승인 commit/path 객체를 복구하거나, 업무 담당자가
+  새 immutable commit/path/digest를 명시적으로 승인한다. 그 전에는 `5541...`로 자동 대체하지
+  않는다. source checkout과 container fallback 테스트는 승인 이후 같은 bytes를 확인해야 한다.
 
 ## 문서 준비와 실패 심층 검토 재시작을 화면에서 완료할 수 없다
 

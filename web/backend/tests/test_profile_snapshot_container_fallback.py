@@ -52,7 +52,7 @@ def test_other_commit_never_falls_back_to_the_baseline(tmp_path: Path):
         read_git_source(tmp_path, commit="0" * 40)
 
 
-def test_vendored_baseline_equals_git_show_in_a_source_checkout():
+def test_source_checkout_compares_vendored_baseline_or_fails_closed():
     root = Path(__file__).resolve().parents[3]
     git = shutil.which("git")
     if git is None:
@@ -65,14 +65,21 @@ def test_vendored_baseline_equals_git_show_in_a_source_checkout():
     if probe.returncode != 0:
         pytest.skip("the runtime does not contain a source checkout")
 
+    repo_top = Path(probe.stdout.decode().strip()).resolve()
+    git_relative = (root.resolve().relative_to(repo_top) / PROFILE_SOURCE_PATH).as_posix()
+    approved_spec = f"{BASELINE_COMMIT}:{git_relative}"
+    blob_probe = subprocess.run(
+        [git, "-C", str(root), "cat-file", "-t", approved_spec],
+        check=False,
+        capture_output=True,
+    )
+    if blob_probe.returncode != 0 or blob_probe.stdout.strip() != b"blob":
+        with pytest.raises(ProfileSnapshotError, match="approved git profile blob is missing"):
+            read_git_source(root)
+        return
+
     expected = subprocess.run(
-        [
-            git,
-            "-C",
-            str(root),
-            "show",
-            f"{BASELINE_COMMIT}:bidops-agent/{PROFILE_SOURCE_PATH}",
-        ],
+        [git, "-C", str(root), "show", approved_spec],
         check=True,
         capture_output=True,
     ).stdout

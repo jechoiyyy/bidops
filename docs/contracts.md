@@ -30,7 +30,7 @@
 - 공고 식별자는 외부 공고번호와 DB 내부 식별자를 구분한다. API 경로의 `{notice_pk}`와 `{notice_id}` 의미를 endpoint schema 그대로 따른다.
 - 판정 실행 status는 대기, 실행, 부분 성공, 성공, 실패, 중단을 구분한다. terminal status에는 종료 시각이 있어야 한다.
 - 심층 검토 attempt stage는 `requirements_and_evaluation`, `delivery_risk_economics`, `synthesis_and_validation`만 허용한다.
-- `계속 추적`, `보류`, `종료`와 최종 입찰 `Go/No-Go`는 별도 필드·별도 이벤트다. 현재 final opinion 값에 임의 매핑하지 않는다. R-07의 입찰 delta·최종 결정 계약은 [ADR-0034](tracking/decisions/0034-bid-delta-final-decision.md)의 **제안**이며 아직 endpoint·table·migration이 없다.
+- `계속 추적`, `보류`, `종료`와 최종 입찰 `Go/No-Go`는 별도 필드·별도 이벤트다. 현재 final opinion 값에 임의 매핑하지 않는다. R-07의 입찰 delta·최종 결정 계약은 [ADR-0034](tracking/decisions/0034-bid-delta-final-decision.md)로 **채택**했지만 아직 endpoint·table·migration은 없다.
 
 ## JSON wire shape 규칙
 
@@ -75,14 +75,14 @@
 - `ScheduleExecutionSummary`: `run_key`, `run_id?`, `window_from`, `window_to`, `job_kind`, `status=예약|실행 중|성공|부분 성공|실패|건너뜀`, `execution_id`, `trigger=schedule|manual`, `duplicate_of_execution_id?`, `recovery_of_execution_id?`, `skip_reason?`, `failure_reason?`, `requested_by`, `started_at?`, `finished_at?`, `candidate_count?`, `result_count?`, `failure_count?`, `partial_artifact?`, `policy_version?`, `model_name?`, `model_digest?`, `prompt_version?`, `company_profile_version?`, `company_profile_digest?`, `generation_config?`, `generation_config_digest?`다. daily run key는 `YYYYMMDD-YYYYMMDD`, weekly는 `weekly:YYYYMMDD-YYYYMMDD`다. duplicate와 recovery는 동시에 있을 수 없고 duplicate는 `건너뜀`+필수 skip reason, recovery는 manual trigger다. profile·generation binding은 각각 pair다. list는 `items,total,limit,offset`이다.
 - always-on update는 `enabled`, `confirmed_by`, optional nullable `quality_gate_result_id`이며 enabled일 때 gate ID가 필요하다. `AlwaysOnSwitchResponse`는 `configured_enabled`, `effective_enabled`, `environment_enabled`, `quality_gate_status?`, `quality_gate_result_id?`, `policy_version?`, `model_name?`, `model_digest?`, `prompt_version?`, `company_profile_version?`, `company_profile_digest?`, `generation_config?`, `generation_config_digest?`, `updated_at`, `updated_by`, `rejection_reason?`다. profile version·digest와 generation config·digest는 각각 둘 다 있거나 둘 다 null이어야 한다.
 
-## 제안 계약 — 입찰 delta와 최종 결정 (R-07)
+## 채택 목표 계약 — 입찰 delta와 최종 결정 (R-07)
 
 이 절은 [ADR-0034](tracking/decisions/0034-bid-delta-final-decision.md)와
-[OpenAPI·DB 명세](review/bid-delta-contract-spec.md)의 검토용 제안이다. 아래 경로는
-`현재 REST 경로`에 포함되지 않으며 backend에 구현되어 있지 않다. 최종 결정 enum,
-material 범주·임계값, currentness 정책은 사업개발 업무 책임자의 결정 대기다.
+[OpenAPI·DB 명세](review/bid-delta-contract-spec.md)의 채택 목표 계약이다. 아래 경로는
+`현재 REST 경로`에 포함되지 않으며 backend에 구현되어 있지 않다. 이 채택은 R-08 진입
+근거이며 구현 완료나 운영 활성화를 뜻하지 않는다.
 
-제안 경로는 다음과 같다.
+목표 경로는 다음과 같다.
 
 | 호출 | 입력 | 성공 응답 | 주요 실패 |
 |---|---|---|---|
@@ -103,13 +103,26 @@ result는 failed다. completed item 하나라도 unknown/failed면 전체 result
 않는다. `changed|unchanged` item은 기준·비교 양쪽에 exact document/structure/hash와 일치하는
 verified locator가 필요하다.
 
+category enum은 `budget_and_economics`, `contract_period_and_schedule`, `eligibility`,
+`joint_supply_and_subcontracting`, `scope_and_requirements`, `evaluation`, `submission`이다.
+보수적 v1 policy는 공식 값·조건의 실질 변경을 `material`, 양쪽 근거로 의미가 같음이 검증된
+표기·절 번호·서식·오탈자 차이만 `non_material`로 둔다. 근거 부족은 `unknown`, 추출·검증
+실패는 `failed`이며 수치 임계값을 추정하지 않는다.
+
 최종 결정은 comparison version, result digest, 양쪽 document version에 묶인 별도
 append-only row다. actor는 기존 `X-BidOps-Actor-Name` 경계를 따르고 reason·request ID를
 요구한다. 새 결정은 직전 결정을 `supersedes_final_decision_id`로 가리킬 뿐 과거 row를
 수정하지 않는다. `current|stale|unknown`은 이력 row를 바꾸지 않는 projection이며 시스템
 delta·tracking status·심층 검토 final opinion이 사람 결정을 자동 생성하지 않는다.
 
-제안의 domain 오류는 기존 안전 envelope와 stable code를 사용한다. 구조 자체가 FastAPI
+final decision enum은 `go|no_go`다. strict C1에 따라 새 authoritative 입찰공고·정정 또는
+새 ready 비교 문서가 나타나면 기존 decision projection은 즉시 `stale`, 순서나 효력을
+확정할 수 없으면 `unknown`이다. 회사 내부망의 allowlist된 Ollama·사설 vLLM만 사용하며,
+exact pair·policy·binding·payload 범위를 확인한 comparison 생성 요청이 건별 내부 모델 처리
+승인이다. 외부·hosted fallback은 없고 감사 metadata는 안전한 ID·code·count·hash·binding
+digest allowlist만 사용한다.
+
+채택 계약의 domain 오류는 기존 안전 envelope와 stable code를 사용한다. 구조 자체가 FastAPI
 검증을 통과하지 못한 422는 기존 Lean 규칙대로 `detail[]`일 수 있고, parsing 뒤 semantic
 422는 `bid_delta_same_input`, `bid_delta_baseline_type_invalid`,
 `bid_delta_comparison_type_invalid`, `bid_delta_category_policy_invalid`,
@@ -226,6 +239,7 @@ revision-history의 404·409·500은 공통 안전 envelope를 사용하며 `det
 | 호출 | 입력 | 성공 응답 | 주요 실패 |
 |---|---|---|---|
 | `GET /api/pre-specs/{notice_id}/overview-reviews` | integer `notice_id` | 200 `bidops.prespec-overview-reviews.v1` | 404 `not_found`; 500 `processing_failed` |
+| `GET /api/pre-specs/{notice_id}/overview-reviews/v2` | integer `notice_id` | 200 `bidops.prespec-overview-reviews.v2` | 404 `not_found`; 409 `validation_failed`; 500 `processing_failed` |
 
 응답은 정확히 `schema_version`, `notice_id`, `reviews[]`를 갖는다. 각 review는
 `id`, `notice_id`, `status`, nullable `result`, nullable `completed_at`, nullable
@@ -243,7 +257,8 @@ revision-history의 404·409·500은 공통 안전 envelope를 사용하며 `det
 
 DB 소비자는 `prespec_overview_review`의 notice별 현재 상태와 current snapshot 포인터,
 `prespec_overview_snapshot`의 document version·structure·source/payload hash·절단
-전략/locator를 사용한다. snapshot과 `prespec_overview_attempt`는 append-only이며,
+전략/locator를 사용한다. snapshot과 attempt의 입력 계보는 append-only이며,
+attempt의 lifecycle 열은 허용 전이와 audit event가 함께 있을 때만 제한적으로 갱신된다.
 같은 review·document version·structure·hash 입력은 idempotent하게 한 snapshot으로
 유지한다. clean 구조가 없으면 각각 `awaiting_document` 또는 `awaiting_structure`를
 유지하고, 구조 hash/원문 hash 재검증 실패·warning·입력 제한·TOC 불일치·종료 경계
@@ -251,22 +266,38 @@ DB 소비자는 `prespec_overview_review`의 notice별 현재 상태와 current 
 binding 없는 phase 1은 ready snapshot 뒤 `awaiting_model`이고 attempt를 만들지 않는다;
 reference-only attempt는 `deployable=false`여야 한다.
 
-#### Phase 2 목표 계약 — 채택, 미구현
+#### Phase 2 구현 계약 — `bidops.prespec-overview-reviews.v2`
 
 [ADR-0035](tracking/decisions/0035-prespec-overview-attempt-result-lifecycle.md)는 phase 2의
-목표 계약을 채택했다. 이는 현재 `bidops.prespec-overview-reviews.v1` wire나 `0012` DB가
-이미 구현했다는 뜻이 아니다. 구현할 때 attempt의 snapshot·sequence·입력 hash·binding은
-불변으로 유지하고 상태·허용 시각·검증 result 참조만 column-scoped UPDATE한다. 모든 전이는
-별도 append-only event, 검증 결과는 attempt당 최대 하나인 immutable result row로 저장한다.
+목표 계약을 채택했고, phase 2는 현재 v1 wire의 scalar 의미를 바꾸지 않고
+`GET /api/pre-specs/{notice_id}/overview-reviews/v2`에 새 versioned safe projection을
+구현했다. attempt의 snapshot·sequence·입력 hash·binding은 불변으로 유지하고 상태·허용
+시각·검증 result 참조만 column-scoped UPDATE한다. 모든 전이는
+`prespec_overview_attempt_event`에 append-only로 기록하고, 검증 결과는
+`prespec_overview_result`에 attempt당 최대 하나만 immutable insert한다.
 
 결과 payload는 `schema_version=bidops.prespec-overview-result.v1`, 닫힌
 `recommendation`, 비어 있지 않은 `summary`, `conditions[]`, nullable RFC 3339
 `verification_due_at`, 구조화한 `unknowns[]`, 현재 snapshot locator를 가진 `evidence[]`,
 `input_limitations[]`를 strict하게 검증한다. `조건부 추진 검토`에는 non-empty conditions와
-non-null verification due가 모두 필요하다. 안전한 projection은 검증 결과·result digest·
-binding digest만 노출하고 endpoint, prompt, raw response, object path를 제외한다. 현재 v1의
-nullable scalar `result`를 object로 조용히 바꾸지 않고 phase 2 구현과 함께 새 API schema
-version을 발행한다.
+non-null verification due가 모두 필요하고, evidence locator/source hash는 현재 ready
+snapshot의 범위와 일치해야 한다. 안전한 v2 projection은 검증 결과·result digest·binding
+digest만 노출하고 endpoint, prompt, raw response, object path와 내부 오류 detail을
+제외한다. 기존 v1의 nullable scalar `result`는 그대로 유지한다.
+
+현재 승인된 사설 model binding이 없으므로 운영 코드에는 transport/fallback이 없다. binding이
+없는 호출은 `awaiting_model`에 머물며 attempt를 만들지 않고, 테스트 fake는
+`reference_only=true`, `deployable=false`를 명시한 경우에만 사용할 수 있다.
+
+v2 응답은 정확히 `schema_version`, `notice_id`, `reviews[]`를 가지며 review에는
+`id`, `notice_id`, `status`, nullable `result`, nullable `result_digest`, nullable
+`binding_digest`, `validation_status=passed|failed|pending`, nullable `completed_at`,
+`current_snapshot`, `attempts[]`를 둔다. attempt에는 기존 안전 요약에
+`validation_status`, nullable `result_digest`, nullable `binding_digest`를 추가한다.
+result payload 자체에는 provider/model/prompt/storage metadata가 없고, `result_digest`는
+canonical JSON payload의 lowercase SHA-256이다. `result`가 있는 경우에는
+`schema_version`, `recommendation`, `summary`, `conditions`, `verification_due_at`,
+`unknowns`, `evidence`, `input_limitations`만 반환한다.
 
 bundle confirm은 악성코드 clean 결과, document version, structure snapshot과 hash를 고정한다. 심층 attempt와 report materializer는 live 첨부를 다시 읽지 않고 이 snapshot만 사용한다. validation 실패는 report에서 드러나며 자동 통과로 바뀌지 않는다.
 
@@ -377,7 +408,7 @@ snapshot field는 추정 backfill하지 않으며, 같은 과거 회차 재적�
 
 ## DB와 migration 계약
 
-- 현재 Alembic head는 `0013_document_integrity`이다.
+- 현재 Alembic head는 `0014_prespec_overview_attempt_result`이다.
 - `0001_lean_v1_postgresql`은 기존 수집·리뷰와 심층 검토 table, `0002_screening_basis_text`는 긴 판정 설명 보존, `0003_screening_runtime_pg`는 판정 실행·품질·정책·일정·감사와 불변 trigger를 추가한다.
 - `0004_cumulative_external_identity`, `0005_opportunity_links`, `0006_bid_first_opportunity_registration`은 공고·발주계획 누적 관측, opportunity 공식 링크, 입찰공고 최초 등록과 대기 참조 해소를 추가한다.
 - `0007_opportunity_tracking_state`는 사업기회 추적 상태를 추가한다. `tracking_status`는 `미선택`·`계속 추적`·`보류`·`종료`이고 기본값은 `미선택`이다. CHECK가 `미선택`일 때 작성자·이유·시각이 없고 그 밖의 값일 때 작성자와 시각이 반드시 있음을 강제한다. 시스템 재검토 신호(`recheck_signal_at`, `recheck_signal_link_id`)는 사람 선택 컬럼과 분리되어 있고 근거가 된 `opportunity_link`를 가리킨다.
@@ -386,7 +417,8 @@ snapshot field는 추정 backfill하지 않으며, 같은 과거 회차 재적�
 - `0010_opportunity_link_integrity`는 authoritative target별 partial unique index와 non-destructive opportunity merge lineage를 추가한다. migration은 기존 authoritative 중복을 자동 수정하지 않고 충돌 target/link ID를 제시하며 중단한다. 자동 merge는 모든 row가 `미선택`이고 recheck state가 없을 때만 가능하다.
 - `0011_judgment_review_revisions`는 현재 `Judgment`·`Review` projection을 유지하면서 notice별 append-only `judgment_revision`·`review_revision` 이력을 추가한다. 판정 revision은 observation run, 기록 screening execution, 같은 notice의 승계 parent를 분리해 보존하고, 사람 review revision은 선택적으로 정확한 judgment revision을 고정한다. 두 payload는 ID를 넣지 않은 `bidops.judgment-revision-payload.v1`·`bidops.review-revision-payload.v1` JSON object와 canonical lowercase SHA-256을 저장한다. 기존 review의 run이 같은 notice observation이 아니면 migration은 ID를 제시하고 중단하며, legacy review의 과거 judgment alignment는 추정하지 않아 `judgment_revision_id=null`로 남긴다.
 - `0012_prespec_overview_review`는 사전규격 개요 review의 현재 상태와 clean `DocumentVersion`·`DocumentStructure`를 연결한 append-only 절단 snapshot, 향후 모델 attempt 계보를 추가한다. snapshot은 source/payload hash와 deterministic prefix locator를 고정하고, 현재 구조가 갱신되면 과거 snapshot을 덮지 않고 새 row를 만든다. snapshot/attempt update·delete는 DB trigger가 거부하며, review 상태/result/completed_at과 `reference_only => deployable=false`를 CHECK가 강제한다.
-- `0013_document_integrity`는 attachment가 있는 문서의 `(attachment_id, version)`과 attachment별 current 최대 1개를 partial unique index로, bundle 안 ordinal을 UNIQUE로 강제한다. 기존 충돌은 ID와 키를 제시하고 추정 보정 없이 migration을 중단한다. 검토 완료된 `0012` overview 최소 권한은 자동 deterministic preparation을 위해 `app`·`worker`에 review/snapshot `SELECT`·`INSERT`와 review의 `current_snapshot_id`·`status`·`result`·`completed_at`·`updated_at` column `UPDATE`만 허용하고, GET projection을 위해 `app`에만 attempt `SELECT`를 허용한다. attempt `INSERT`, worker attempt `SELECT`, snapshot/attempt `UPDATE`·`DELETE`, review broad `UPDATE`·`DELETE`는 허용하지 않는다.
+- `0013_document_integrity`는 attachment가 있는 문서의 `(attachment_id, version)`과 attachment별 current 최대 1개를 partial unique index로, bundle 안 ordinal을 UNIQUE로 강제한다. 기존 충돌은 ID와 키를 제시하고 추정 보정 없이 migration을 중단한다.
+- `0014_prespec_overview_attempt_result`는 phase-1 attempt의 review/input/binding/result 참조를 추가하고, attempt 입력 계보 불변·허용 상태 전이·timestamp/result 참조를 trigger와 CHECK로 강제한다. 모든 전이는 `prespec_overview_attempt_event`에 append-only로 기록하며, strict 검증을 통과한 `prespec_overview_result`는 attempt당 하나만 저장한다. legacy inline result/completed attempt가 발견되면 추정 보정 없이 upgrade를 중단하고, downgrade도 phase-2 row가 남아 있으면 거부한다. runtime privilege는 app에 안전 조회, worker에 attempt/result/event의 최소 SELECT·INSERT와 attempt의 `status`·`started_at`·`completed_at`·`result_id` column UPDATE만 허용한다.
 - 앱 startup은 revision과 필수 table 존재만 확인한다. migration과 seed를 실행하지 않는다.
 - fresh migration은 schedule과 always-on singleton, migration audit만 만든다. screening policy와 agency portal은 명시적 운영 명령 또는 API로 생성한다.
 - active screening slot과 active policy는 각각 최대 하나다. queue claim은 queue number FIFO와 짧은 transaction으로 처리한다. deep-review job claim은 PostgreSQL row lock과 `SKIP LOCKED`를 사용한다.

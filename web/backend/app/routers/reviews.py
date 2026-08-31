@@ -2,39 +2,34 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from typing import Any
 
 import yaml
-from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import Response
+from fastapi import APIRouter, Depends, Query
+from fastapi.responses import JSONResponse, Response
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from ..config import get_settings
 from ..db import get_db
-from ..models import Notice, NoticeObservation, Review, VerificationAnswer
+from ..models import Notice, NoticeObservation, Review
 from ..schemas import (
     ReviewAnswerResponse,
     ReviewResponse,
     ReviewUpsertRequest,
 )
+from ..schemas.revisions import (
+    JudgmentRevisionHistoryItem,
+    NoticeRevisionHistoryResponse,
+    ReviewRevisionHistoryItem,
+)
+from ..services import reviews as review_service
 from .common import get_run
 
 
 router = APIRouter(prefix="/api/reviews", tags=["reviews"])
 notice_router = APIRouter(prefix="/api/notices", tags=["reviews"])
-
-
-def _nullable_text(value: Any) -> str | None:
-    """Normalize optional form values without persisting empty strings."""
-
-    if value is None:
-        return None
-    if isinstance(value, str):
-        value = value.strip()
-        return value or None
-    return str(value)
 
 
 def _review_response(review: Review) -> ReviewResponse:
@@ -62,15 +57,49 @@ def _review_response(review: Review) -> ReviewResponse:
     )
 
 
-def _load_review(session: Session, review_id: int) -> Review:
-    review = session.scalar(
-        select(Review)
-        .where(Review.id == review_id)
-        .options(selectinload(Review.answers))
+_ERRORS: dict[str, tuple[int, str]] = {
+    "reviewer_required": (422, "리뷰 담당자 이름이 필요합니다"),
+    "review_invalid": (422, "리뷰 요청이 올바르지 않습니다"),
+    "notice_not_found": (404, "공고를 찾을 수 없습니다"),
+    "run_not_found": (404, "회차를 찾을 수 없습니다"),
+    "review_observation_required": (
+        409,
+        "선택한 회차에서 관측된 공고만 리뷰할 수 있습니다",
+    ),
+    "review_conflict": (409, "리뷰 리비전이 현재 상태와 충돌합니다"),
+    "revision_history_conflict": (409, "리비전 계보를 확인할 수 없습니다"),
+}
+
+
+def _error_response(error: review_service.ReviewServiceError) -> JSONResponse:
+    status_code, message = _ERRORS.get(
+        error.code, (500, "리뷰 작업을 완료할 수 없습니다")
     )
-    if review is None:
-        raise HTTPException(status_code=404, detail="리뷰를 저장하지 못했습니다.")
-    return review
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "error": {
+                "code": error.code if error.code in _ERRORS else "processing_failed",
+                "message": message,
+                "details": None,
+            },
+            "request_id": None,
+        },
+    )
+
+
+def _unexpected() -> JSONResponse:
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": {
+                "code": "processing_failed",
+                "message": "리뷰 작업을 완료할 수 없습니다",
+                "details": None,
+            },
+            "request_id": None,
+        },
+    )
 
 
 @router.get("", response_model=list[ReviewResponse])
@@ -97,59 +126,95 @@ def upsert_review(
     notice_pk: int,
     payload: ReviewUpsertRequest,
     session: Session = Depends(get_db),
-) -> ReviewResponse:
+) -> ReviewResponse | JSONResponse:
     """Create or update exactly one canonical review for a notice."""
 
-    run = get_run(session, payload.run_id)
-    notice = session.scalar(select(Notice).where(Notice.id == notice_pk))
-    if notice is None:
-        raise HTTPException(status_code=404, detail=f"공고를 찾을 수 없습니다: {notice_pk}")
-    review = session.scalar(
-        select(Review)
-        .where(Review.notice_pk == notice_pk)
-        .options(selectinload(Review.answers))
-    )
-    reviewer = _nullable_text(payload.reviewer)
-    if reviewer is None:
-        reviewer = _nullable_text(get_settings().reviewer_name)
-
-    if review is None:
-        review = Review(
-            notice_pk=notice_pk,
-            run_id=run.id,
-            created_at=datetime.now(timezone.utc),
+    try:
+        review = review_service.save_human_review(
+            session,
+            notice_id=notice_pk,
+            run_id=payload.run_id,
+            disposition=payload.disposition,
+            system_judgment_review=payload.system_judgment_review,
+            corrected_grade=payload.corrected_grade,
+            corrected_readiness=payload.corrected_readiness,
+            weakest_perspective=payload.weakest_perspective,
+            reason=payload.reason,
+            reviewer=payload.reviewer,
+            reviewer_fallback=get_settings().reviewer_name,
+            verification_answers=(
+                (answer.item, answer.answer)
+                for answer in payload.verification_answers
+            ),
         )
-        session.add(review)
-        session.flush()
-    else:
-        # Keep the observation in which the latest human edit was made as
-        # nullable provenance; it does not change the review's identity.
-        review.run_id = run.id
-
-    review.disposition = _nullable_text(payload.disposition)
-    review.system_judgment_review = _nullable_text(payload.system_judgment_review)
-    review.corrected_grade = _nullable_text(payload.corrected_grade)
-    review.corrected_readiness = _nullable_text(payload.corrected_readiness)
-    review.weakest_perspective = _nullable_text(payload.weakest_perspective)
-    review.reason = _nullable_text(payload.reason)
-    review.reviewer = reviewer
-    review.updated_at = datetime.now(timezone.utc)
-
-    # Answers are intentionally replaced as one set on every save.  This makes
-    # clearing an answer deterministic and prevents stale items surviving a
-    # second review of the same notice.
-    review.answers.clear()
-    for answer in payload.verification_answers:
-        review.answers.append(
-            VerificationAnswer(
-                item=_nullable_text(answer.item),
-                answer=_nullable_text(answer.answer),
+        response = _review_response(review)
+        session.commit()
+        return response
+    except review_service.ReviewServiceError as error:
+        session.rollback()
+        return _error_response(error)
+    except IntegrityError:
+        session.rollback()
+        return _error_response(
+            review_service.ReviewServiceError(
+                "review_conflict", "리뷰 리비전이 현재 상태와 충돌합니다"
             )
         )
+    except Exception:  # pragma: no cover - defensive API boundary
+        session.rollback()
+        return _unexpected()
 
-    session.flush()
-    session.commit()
-    return _review_response(_load_review(session, review.id))
+
+@notice_router.get(
+    "/{notice_pk}/revision-history",
+    response_model=NoticeRevisionHistoryResponse,
+)
+def revision_history(
+    notice_pk: int,
+    session: Session = Depends(get_db),
+) -> NoticeRevisionHistoryResponse | JSONResponse:
+    """Return append-only judgment and human-review history for one notice."""
+
+    try:
+        history = review_service.get_revision_history(session, notice_pk)
+        return NoticeRevisionHistoryResponse(
+            notice_pk=history.notice_id,
+            judgments=[
+                JudgmentRevisionHistoryItem(
+                    id=revision.id,
+                    sequence=revision.sequence,
+                    source_kind=revision.source_kind,
+                    run_id=revision.run_id,
+                    recording_execution_id=revision.recording_execution_id,
+                    source_revision_id=revision.source_revision_id,
+                    origin_execution_id=origin_execution_id,
+                    payload_schema_version=revision.payload_schema_version,
+                    payload=revision.payload_jsonb,
+                    payload_sha256=revision.payload_sha256,
+                    captured_at=revision.captured_at,
+                )
+                for revision, origin_execution_id in history.judgments
+            ],
+            reviews=[
+                ReviewRevisionHistoryItem(
+                    id=revision.id,
+                    sequence=revision.sequence,
+                    source_kind=revision.source_kind,
+                    run_id=revision.run_id,
+                    judgment_revision_id=revision.judgment_revision_id,
+                    origin_execution_id=origin_execution_id,
+                    payload_schema_version=revision.payload_schema_version,
+                    payload=revision.payload_jsonb,
+                    payload_sha256=revision.payload_sha256,
+                    captured_at=revision.captured_at,
+                )
+                for revision, origin_execution_id in history.reviews
+            ],
+        )
+    except review_service.ReviewServiceError as error:
+        return _error_response(error)
+    except Exception:  # pragma: no cover - defensive API boundary
+        return _unexpected()
 
 
 def _export_row(notice: Notice, review: Review | None) -> dict[str, Any]:

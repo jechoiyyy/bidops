@@ -10,21 +10,44 @@ incremental SQLite history.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import json
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import select, text
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
 from app.db import ALEMBIC_HEAD
-from app.models import ATTACHMENT_FETCH_TABLES, IDENTITY_TABLES, LEGACY_TABLES, NEW_TABLES, SCREENING_RUNTIME_TABLES
+from app.ingest.contracts import NoticeContract
+from app.ingest.loader import ObservationSnapshotConflictError, _upsert_notice
+from app.models import (
+    ATTACHMENT_FETCH_TABLES,
+    IDENTITY_TABLES,
+    LEGACY_TABLES,
+    NEW_TABLES,
+    REVISION_TABLES,
+    PRESPEC_OVERVIEW_TABLES,
+    SCREENING_RUNTIME_TABLES,
+    Notice,
+    NoticeObservation,
+    Opportunity,
+    OpportunityLink,
+    OrderPlan,
+    Run,
+)
 from app.screening.generation_config import GenerationConfig, legacy_generation_config
 from tests.postgres import migrated_engine, requires_postgres, run_alembic, temporary_database
 
 pytestmark = requires_postgres
 
 LEAN_V1_HEAD = "0002_screening_basis_text"
+OBSERVATION_SNAPSHOT_BASE = "0008_prespec_attachment_fetch"
+OPPORTUNITY_INTEGRITY_BASE = "0009_observation_snapshot_retention"
 ALL_TABLES = frozenset(
-    LEGACY_TABLES + NEW_TABLES + SCREENING_RUNTIME_TABLES + IDENTITY_TABLES + ATTACHMENT_FETCH_TABLES
+    LEGACY_TABLES + NEW_TABLES + SCREENING_RUNTIME_TABLES + IDENTITY_TABLES
+    + ATTACHMENT_FETCH_TABLES + REVISION_TABLES
+    + PRESPEC_OVERVIEW_TABLES
 )
 
 
@@ -114,6 +137,192 @@ def test_clean_and_upgraded_databases_have_the_same_schema() -> None:
         upgraded_columns = _scalars(engine, column_sql)
         engine.dispose()
     assert clean_columns == upgraded_columns
+
+
+def test_0009_preserves_legacy_observations_without_guessing_snapshots() -> None:
+    with temporary_database(upgrade_to=OBSERVATION_SNAPSHOT_BASE) as database_url:
+        from sqlalchemy import create_engine
+
+        engine = create_engine(database_url, future=True)
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO bidops.run"
+                    " (id, timezone, generated_at, status, counts_json)"
+                    " VALUES ('legacy-observation-run', 'Asia/Seoul', now(), 'active', '{}')"
+                )
+            )
+            connection.execute(
+                text("INSERT INTO bidops.notice (notice_key) VALUES ('legacy-observation')")
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO bidops.notice_observation"
+                    " (notice_id, run_id, observed_at, changed_fields_json)"
+                    " SELECT id, 'legacy-observation-run', now(), '[]'::jsonb"
+                    " FROM bidops.notice WHERE notice_key = 'legacy-observation'"
+                )
+            )
+
+        upgraded = run_alembic(database_url, "upgrade", "head")
+        assert upgraded.returncode == 0, upgraded.stderr + upgraded.stdout
+        with engine.connect() as connection:
+            row = connection.execute(
+                text(
+                    "SELECT snapshot_schema_version, snapshot_jsonb, source_sha256"
+                    " FROM bidops.notice_observation"
+                )
+            ).one()
+        assert row == (None, None, None)
+        engine.dispose()
+
+
+@pytest.mark.parametrize("digest", [None, "A" * 64], ids=["partial", "uppercase"])
+def test_observation_snapshot_constraints_reject_partial_or_invalid_hashes(
+    digest: str | None,
+) -> None:
+    with migrated_engine() as engine:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO bidops.run"
+                    " (id, timezone, generated_at, status, counts_json)"
+                    " VALUES ('snapshot-constraint-run', 'Asia/Seoul', now(), 'active', '{}')"
+                )
+            )
+            connection.execute(
+                text("INSERT INTO bidops.notice (notice_key) VALUES ('snapshot-constraint')")
+            )
+        with pytest.raises(IntegrityError):
+            with engine.begin() as connection:
+                connection.execute(
+                    text(
+                        "INSERT INTO bidops.notice_observation"
+                        " (notice_id, run_id, observed_at, changed_fields_json,"
+                        "  snapshot_schema_version, snapshot_jsonb, source_sha256)"
+                        " SELECT id, 'snapshot-constraint-run', now(), '[]'::jsonb,"
+                        "  'bidops.notice-observation-snapshot.v1', '{}'::jsonb, :digest"
+                        " FROM bidops.notice WHERE notice_key = 'snapshot-constraint'"
+                    ),
+                    {"digest": digest},
+                )
+
+
+def test_postgres_loader_snapshot_replay_is_idempotent_and_conflict_rolls_back() -> None:
+    with migrated_engine() as engine, Session(engine) as session:
+        run = Run(
+            id="postgres-snapshot-replay",
+            generated_at=datetime(2026, 8, 31, tzinfo=timezone.utc),
+        )
+        session.add(run)
+        session.commit()
+        original = NoticeContract(
+            notice_id="bid:POSTGRES:SNAPSHOT",
+            title="고정 입력",
+            unknown_fields=["qualification"],
+            raw_source={"raw_ref": "raw/postgres-snapshot.json"},
+        )
+        first = _upsert_notice(session, run.id, original, {}, "Asia/Seoul")
+        session.commit()
+        assert first is not None
+        observation = session.scalar(select(NoticeObservation))
+        assert observation is not None and observation.source_sha256 is not None
+        digest = observation.source_sha256
+
+        assert _upsert_notice(session, run.id, original, {}, "Asia/Seoul") is first
+        session.commit()
+        assert session.scalar(select(NoticeObservation)).source_sha256 == digest
+
+        with pytest.raises(ObservationSnapshotConflictError):
+            _upsert_notice(
+                session,
+                run.id,
+                NoticeContract(notice_id=original.notice_id, title="충돌 입력"),
+                {},
+                "Asia/Seoul",
+            )
+        session.rollback()
+        stored = session.scalar(select(Notice))
+        assert stored is not None and stored.title == "고정 입력"
+
+
+def test_0010_preflight_rejects_existing_duplicate_authoritative_links() -> None:
+    with temporary_database(upgrade_to=OPPORTUNITY_INTEGRITY_BASE) as database_url:
+        from sqlalchemy import create_engine
+
+        engine = create_engine(database_url, future=True)
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO bidops.order_plan (order_plan_unty_no) "
+                    "VALUES ('R26DD20999999')"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO bidops.opportunity (first_registered_stage) "
+                    "VALUES ('order_plan'), ('bid_notice')"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO bidops.opportunity_link "
+                    "(opportunity_id, order_plan_id, stage, link_type, status, "
+                    " evidence_external_no) "
+                    "SELECT opportunity.id, order_plan.id, 'order_plan', "
+                    "       'official', '확정', order_plan.order_plan_unty_no "
+                    "FROM bidops.opportunity CROSS JOIN bidops.order_plan"
+                )
+            )
+
+        upgraded = run_alembic(database_url, "upgrade", "head")
+
+        assert upgraded.returncode != 0
+        output = upgraded.stderr + upgraded.stdout
+        assert "duplicate authoritative opportunity links" in output
+        assert "order_plan_id=1" in output
+        assert "link_ids=[1, 2]" in output
+        assert _scalar(
+            engine, "SELECT version_num FROM bidops.alembic_version"
+        ) == OPPORTUNITY_INTEGRITY_BASE
+        engine.dispose()
+
+
+def test_authoritative_partial_unique_index_rejects_accepted_candidate_duplicate() -> None:
+    with migrated_engine() as engine, Session(engine) as session:
+        plan = OrderPlan(order_plan_unty_no="R26DD20888888")
+        official_owner = Opportunity(first_registered_stage="order_plan")
+        candidate_owner = Opportunity(first_registered_stage="order_plan")
+        session.add_all([plan, official_owner, candidate_owner])
+        session.flush()
+        session.add(
+            OpportunityLink(
+                opportunity=official_owner,
+                order_plan=plan,
+                stage="order_plan",
+                link_type="official",
+                status="확정",
+                evidence_external_no=plan.order_plan_unty_no,
+            )
+        )
+        session.commit()
+
+        session.add(
+            OpportunityLink(
+                opportunity=candidate_owner,
+                order_plan=plan,
+                stage="order_plan",
+                link_type="candidate",
+                status="사람 확인 완료",
+                human_decision="accepted",
+                reviewer_name="migration-reviewer",
+                reviewed_at=datetime(2026, 8, 31, tzinfo=timezone.utc),
+                review_reason="같은 계획으로 확인",
+            )
+        )
+        with pytest.raises(IntegrityError):
+            session.commit()
+        session.rollback()
 
 
 def test_fresh_database_seeds_only_the_runtime_singletons() -> None:
