@@ -217,22 +217,25 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 - 지금 해결할 수 없는 이유: v3의 partial/failure·execution binding을 HTML과 feedback에 어떻게 표시할지 소비자 계약과 회귀 기준이 필요하다.
 - 접근 방법: v2 의미를 바꾸지 않은 채 renderer에 명시적 v3 adapter를 추가하고 부분 성공·failure artifact·승계 provenance를 표시한다. v2와 v3 fixture의 결정성을 각각 검증한다.
 
-## 승인된 프로필 기준선 commit이 현재 저장소 history에 없다
+## 승인된 프로필 기준선 commit이 현재 저장소 history에 없다 (2026-08-31 결정으로 수용)
 
-- 재현 조건: `git cat-file -e ee621835db934ddac944f7a07a986ed0b73ecc7a^{commit}`과
-  `git cat-file -e ee621835db934ddac944f7a07a986ed0b73ecc7a:docs/reference/company-profile.md`를
+- 재현 조건: `git cat-file -e ee621835db934ddac944f7a07a986ed0b73ecc7a^{commit}`을
   현재 checkout에서 실행한다.
-- 증상: 승인 commit과 그 path의 blob이 둘 다 Git object DB에 없다. commit
-  `5541a07f49cc6e417e8a7a4660cdae112df46f59`의 같은 path와 vendored baseline은 승인
-  digest `a231ab54c36031a7e72779bbca550f70561dc0c946dc5544eeb930c7c6149de2`와 일치하지만,
-  이 commit은 현재 계약의 승인 commit이 아니다. working-tree profile digest는 다르다.
-- 영향: backend 테스트는 승인 blob 부재 시 snapshot 행을 만들지 않는 fail-closed 동작을
-  검증하여 통과한다. 그러나 `git:ee621...`을 요구하는 model comparison과 운영 기준선
-  재현은 계속 차단된다. 전체 suite green은 이 승인 blocker 해소를 의미하지 않는다.
-- 지금 해결할 수 없는 이유: 승인 baseline은 선행 저장소 history에서 만들어졌고, 어떤 commit을 현재 저장소에 보존할지 또는 새 기준선을 승인할지는 이력 소유자와 업무 담당자의 확인이 필요하다.
-- 접근 방법: 이력 소유자가 정확한 승인 commit/path 객체를 복구하거나, 업무 담당자가
-  새 immutable commit/path/digest를 명시적으로 승인한다. 그 전에는 `5541...`로 자동 대체하지
-  않는다. source checkout과 container fallback 테스트는 승인 이후 같은 bytes를 확인해야 한다.
+- 증상: 승인 commit과 그 path의 blob이 둘 다 Git object DB에 없다.
+- 실제 영향: **없다.** byte-identical 파일이
+  `web/backend/app/screening/baseline_company_profile.md`로 벤더링돼 있고
+  `BASELINE_PROFILE_SHA256= a231ab54…`로 검증된다. `read_git_source()`는 git 조회가
+  불가할 때만 이 파일로 fallback하고, git이 있으면 동등성을 교차 확인해 drift를 막는다.
+  `test_profile_snapshot*` 14건은 현재 모두 통과한다.
+- 범위 정정: 이 commit은 `model_comparison` 품질 gate 전용 **역사 anchor**다.
+  `operational_approval`은 `profile_source = "current"`를 요구하고 런타임의
+  `snapshot_current()`는 현재 working tree 프로필(sha256 `96731dd5f77d…`)을 읽는다.
+  운영 판정은 이미 현재 프로필을 쓰고 있으므로 정본이 갈라진 상태가 아니다.
+- 결정: 2026-08-31에 이 상태를 그대로 두기로 했다. 현재 프로필을 역사 anchor에 덮어쓰면
+  `model_comparison`이 현재-대-현재 비교가 되어 "역사 baseline과 설명 가능한 비교"라는
+  목적 자체가 사라지므로 하지 않는다.
+- 남는 제약: `git:ee621…`을 요구하는 model comparison gate는 git 경로로 재현할 수 없고
+  벤더링 파일에만 의존한다. 그 파일이 저장소에서 사라지면 역사 비교가 불가능해진다.
 
 ## 문서 준비와 실패 심층 검토 재시작을 화면에서 완료할 수 없다
 

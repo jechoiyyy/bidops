@@ -1,15 +1,15 @@
-# 입찰 delta·최종 결정 계약 명세 제안
+# 입찰 delta·최종 결정 계약 명세
 
 - 작업: UI/UX 수정 계획 R-07
 - 기준 HEAD: `52469dc`
-- 상태: 제안 — [ADR-0034](../tracking/decisions/0034-bid-delta-final-decision.md)의 업무 결정 대기
+- 상태: 채택 — [ADR-0034](../tracking/decisions/0034-bid-delta-final-decision.md), 구현 전
 - 범위: OpenAPI wire shape, DB 제약, 감사 event, 오류, 테스트 matrix
 - 비범위: production code, migration, frontend 구현, 모델 호출, 운영 활성화
 
-이 문서는 구현 명세 초안이다. 현재 backend에는 아래 endpoint와 table이 없다. 작업 트리의
+이 문서는 채택된 구현 명세다. 현재 backend에는 아래 endpoint와 table이 없다. 작업 트리의
 untracked bid-delta frontend는 존재하지 않는 endpoint를 호출하는 시안이며 이 계약의
-producer나 승인 근거가 아니다. ADR-0034의 enum·material·currentness 결정이 끝나기 전에는
-이 문서를 R-08 또는 R-09 진입 승인으로 사용하지 않는다.
+producer나 구현 완료 근거가 아니다. ADR-0034 채택으로 R-08 진입 gate는 열렸지만 R-09는
+실제 R-08 API와 typed error가 구현·검증된 뒤에만 시작한다.
 
 ## 1. 현재 코드 조사 결과
 
@@ -61,7 +61,7 @@ SHA-256은 64자 lowercase hex다. 열거하지 않은 request field는 거부�
 |---|---|---|---|
 | `pending` | `null` | `null` | attempt가 없거나 queued attempt만 있음 |
 | `running` | `null` | `null` | active attempt 하나 |
-| `completed` | `changed|unchanged|unknown` | non-null | 승인 범주가 정확히 한 번씩 item에 존재 |
+| `completed` | `changed\|unchanged\|unknown` | non-null | 승인 범주가 정확히 한 번씩 item에 존재 |
 | `failed` | `failed` | non-null | `last_error_code` non-null |
 
 완료 비교의 보수적 집계 규칙은 다음과 같다.
@@ -77,10 +77,9 @@ SHA-256은 64자 lowercase hex다. 열거하지 않은 request field는 거부�
 result가 `changed`이면 material item이 하나라도 있을 때 `material`, 그렇지 않고 unknown
 item이 있으면 `unknown`, 나머지는 `non_material`이다.
 
-### 2.3 범주와 materiality 제안
+### 2.3 범주와 materiality 계약
 
-ADR-0034 B1 제안의 `BidDeltaCategory`는 다음 7개다. 업무 책임자 승인 전에는 확정 wire
-enum이 아니다.
+ADR-0034 B1으로 채택한 `BidDeltaCategory` wire enum은 다음 7개다.
 
 - `budget_and_economics`
 - `contract_period_and_schedule`
@@ -92,10 +91,15 @@ enum이 아니다.
 
 각 category는 승인된 `category_policy_version`에 정확히 한 번 존재해야 한다. item의
 `result_status`는 값의 차이 여부, `materiality`는 그 차이가 재검토·최종 결정에 중요한지의
-정책 판정이다. `changed`를 자동으로 `material`로 바꾸지 않는다. 승인된 임계값이 없거나
-근거가 불충분하면 `materiality=unknown`이다.
+정책 판정이다. v1은 수치 임계값을 추정하지 않는다. 금액·가격 방식·지급·보증·위약,
+계약기간·일정·마일스톤·기한, 자격, 공동수급·하도급, 필수 과업·요구사항·산출물·검수·SLA,
+평가·배점·실격, 제출 서류·형식·채널·서명 조건의 실질 변경을 `material`로 판정한다.
+양쪽 verified evidence로 의미가 같음이 확인된 통화·날짜 표기, 절 번호, 서식·오탈자 차이만
+`non_material`이다. 동일 의미를 확정할 수 없거나 근거가 부족하면 `unknown`, 추출·검증
+실패는 `failed`이며 둘 다 `non_material`로 축약하지 않는다. 향후 수치 임계값은 사람 정답을
+근거로 새 category policy version에서만 추가한다.
 
-## 3. OpenAPI 수준 REST 제안
+## 3. OpenAPI 수준 REST 계약
 
 ### 3.1 공통 오류 envelope
 
@@ -381,8 +385,8 @@ actor header와 다음 body를 요구한다.
 POST /api/opportunities/{opportunity_id}/bid-delta/comparisons/{comparison_id}/final-decisions
 ```
 
-actor header와 `BidFinalDecisionCreateRequest`를 요구한다. 아래 `decision` 값은 ADR-0034 A1
-제안 예시이며 아직 확정 enum이 아니다.
+actor header와 `BidFinalDecisionCreateRequest`를 요구한다. `decision`은 ADR-0034 A1로 채택한
+`go | no_go`만 허용하며, 미결정 상태는 decision row가 없는 것으로 표현한다.
 
 ```json
 {
@@ -471,13 +475,14 @@ schema version을 제안한다. v1에서 묵시적으로 여러 문서를 합치
 ### 4.3 새 입력
 
 새 authoritative bid/정정 또는 새 ready document version은 새 comparison 후보다. 기존
-comparison이나 final decision을 수정하지 않는다. currentness 정책이 strict로 채택되면 기존
-결정은 derived `stale`, 정책 판단에 필요한 순서를 확정할 수 없으면 `unknown`이다.
+comparison이나 final decision을 수정하지 않는다. 채택한 strict C1에 따라 기존 결정은
+derived `stale`, 정책 판단에 필요한 순서를 확정할 수 없으면 `unknown`이다.
 
-## 5. DB 설계 제안
+## 5. DB 목표 설계 계약
 
-이 절은 migration이 아니라, 업무 결정과 별도 승인을 받은 backend 작업이 있을 때 적용할
-제약 명세다. 이 문서만으로 R-08이 승인되지 않으며 실제 revision 번호도 배정하지 않는다.
+이 절은 migration 자체가 아니라 R-08 backend 구현에 적용할 제약 명세다. ADR-0034 채택으로
+R-08 진입 gate는 열렸지만, 실제 revision 번호는 구현 세션에서 배정하며 PostgreSQL 검증 전에는
+구현 완료로 보지 않는다.
 
 ### 5.1 `bid_delta_comparison`
 
@@ -564,10 +569,11 @@ item·evidence UPDATE/DELETE를 trigger로 거부한다. 실패 attempt의 부�
   허용한다. final decision에는 쓰기 권한이 없다.
 - 새 table은 runtime DML allowlist에 자동 포함하지 않는다. migration 뒤 명시적으로 검토한다.
 - startup은 migration, seed, policy 활성화, delta 계산을 실행하지 않는다.
-- comparison 생성·retry는 외부 모델 전송 승인이 아니다. 모델 사용 시 승인된 최소 payload를
-  건별로 승인·감사하고 attempt에 exact runtime binding을 고정한다.
-- 승인된 사설 binding이나 건별 전송 승인이 없으면 503으로 실패 닫힘 처리한다. hosted
-  OpenAI로 자동 fallback하지 않는다.
+- 회사 내부망의 allowlist된 Ollama·사설 vLLM만 사용한다. 비교 생성 전에 exact 문서 pair,
+  category policy version, binding과 payload 범위를 표시하고 actor·request ID가 있는 생성
+  요청을 해당 snapshot의 건별 내부 모델 처리 승인으로 감사한다.
+- 내부 binding 또는 건별 처리 승인이 없거나 payload가 승인 범위를 벗어나면 503으로 실패
+  닫힘 처리한다. 외부 endpoint·hosted OpenAI로 자동 fallback하지 않는다.
 
 ## 6. 감사 event
 
@@ -660,7 +666,7 @@ item·evidence UPDATE/DELETE를 trigger로 거부한다. 실패 attempt의 부�
 | 사람 경계 | 이전 decision + unchanged 새 comparison | 자동 승계 0건 |
 | 보안 | 모든 성공·오류·audit | object key/path/signed URL/prompt/model body/원문 없음 |
 | 권한 | worker가 final decision INSERT | DB 권한 거부 |
-| 모델 경계 | 승인된 사설 binding·건별 전송 승인 없음 | 503, 외부 전송 0건, hosted fallback 0건 |
+| 모델 경계 | 내부 binding·건별 처리 승인 없음 또는 payload 범위 위반 | 503, 모델 호출 0건, 외부 전송·hosted fallback 0건 |
 | 재현성 | attempt 완료 뒤 runtime binding 변경 | 기존 attempt 불변, 완료 commit 거부 또는 새 comparison |
 | 404 | opportunity/input/comparison 누락 | endpoint별 안정 code |
 | 409 | merged/stale/version/idempotency | 안전한 envelope와 request ID |
@@ -670,19 +676,20 @@ item·evidence UPDATE/DELETE를 trigger로 거부한다. 실패 attempt의 부�
 | concurrency | worker fence 교체 뒤 이전 worker 완료 | commit 거부, terminal 결과 하나 |
 | 회귀 | opportunity tracking/final opinion | tracking choice·사전규격 FinalOpinion과 값/이력 분리 |
 
-## 9. 채택 전 결정표
+## 9. 채택 결정표
 
-| 항목 | 제안 | 대안 | 영향 | 승인 주체 |
+| 항목 | 채택 | 소거한 대안 | 결과 | 승인 주체 |
 |---|---|---|---|---|
-| final decision enum | `go | no_go` | conditional/hold 포함 | 조건·기한·해소 이력, 기존 보류 용어 혼동 | 사업개발 업무 책임자 |
-| material category | 7개 B1 | 5개 요약 또는 자유 범주 | 누락 위험, UI 밀도, 정책·테스트 안정성 | 사업개발 업무 책임자 |
-| material threshold | category policy version | 모든 변화 material | 과다 재검토 또는 누락 | 사업개발 업무 책임자 |
-| currentness | strict C1 | material-only/manual | 재검토량과 오래된 결정 노출 위험 | 사업개발 업무 책임자 |
-| audit/보안 | safe ID·code allowlist | reason/quote 포함 | 민감 회사 판단·원문 노출 | 보안/운영 책임자 |
+| final decision enum | A1 `go \| no_go` | conditional/hold 포함 | 미결은 row 없음, 기존 보류 용어와 분리 | 사업개발 업무 책임자 |
+| material category | B1 7개 업무 범주 | 5개 요약 또는 자유 범주 | 누락을 줄이고 정책·테스트 enum을 고정 | 사업개발 업무 책임자 |
+| material threshold | 보수적 v1 category policy | 근거 없는 비율·일수 임계값 | 실질 변경은 material, 검증된 표기 차이만 non-material | 사업개발 업무 책임자 |
+| currentness | strict C1 | material-only/manual | 새 authoritative 입력 즉시 stale, 불확실하면 unknown | 사업개발 업무 책임자 |
+| 모델 | 회사 내부망 allowlist binding | 외부·hosted fallback | 비교 생성 요청이 exact snapshot의 건별 처리 승인 | 보안/운영 책임자 |
+| audit/보안 | safe ID·code allowlist | reason/quote 포함 | 민감 회사 판단·원문을 감사 metadata에서 제외 | 보안/운영 책임자 |
 
-결정 전 wire 예시의 enum·category·materiality/currentness 값은 제안 예시다. exact input fence,
-상태 분리, 양쪽 근거, append-only 사람 결정, stable error와 fail-closed 원칙은 기존 채택 규칙을
-구현하기 위한 안전 경계다.
+wire 예시의 enum·category·materiality/currentness 값은 채택 계약이다. exact input fence,
+상태 분리, 양쪽 근거, append-only 사람 결정, stable error와 fail-closed 원칙을 R-08이 그대로
+구현해야 한다.
 
 ## 10. R-07 실행 기록 입력 자료
 
@@ -692,3 +699,4 @@ item·evidence UPDATE/DELETE를 trigger로 거부한다. 실패 attempt의 부�
 | 일자 | 작업 | 기준 HEAD | 결과 | 검증 | 남은 위험·다음 작업 |
 |---|---|---|---|---|---|
 | 2026-08-31 | R-07 | 52469dc | 설계 제안 작성·업무 결정 대기 | 추적 파일 4개의 `git diff --check` 통과; 신규 문서 2개의 `git diff --no-index --check` 공백 진단 0건; 변경 문서 6개의 상대 link·heading 검사 0건 | enum·material 범주/임계값·currentness를 사업개발 업무 책임자가 결정하고 보안/운영 책임자가 감사 경계를 검토해야 함. ADR-0034 채택 전 R-08·R-09 진입 불가 |
+| 2026-08-31 | R-07 결정 | d323781 | A1·B1 보수적 v1·C1 strict·내부망 모델·safe audit allowlist 채택 | ADR·계약·업무 규칙·추적 문서 정합성 및 `git diff --check` 확인 | R-08 진입 가능; R-09는 실제 R-08 API·typed error 검증 뒤 진입 |

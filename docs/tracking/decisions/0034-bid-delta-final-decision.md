@@ -1,6 +1,6 @@
 # 입찰 delta와 최종 사람 결정을 불변 비교와 append-only 기록으로 분리한다
 
-- 상태: 제안 — 업무 책임자 결정 대기
+- 상태: 채택
 - 일자: 2026-08-31
 - 구현 상태: 설계만 존재한다. REST endpoint, DB table, migration, production UI는 없다.
 
@@ -22,11 +22,12 @@ frontend 시안은 존재하지 않는 `GET /api/opportunities/{id}/bid-delta`�
 재현할 수 없다. 또한 계산 실패를 변경 없음으로 보이게 하거나 시스템 delta를 사람의
 최종 결정으로 복사하면 BidOps의 사람 통제 경계를 깨뜨린다.
 
-## 제안
+## 결정
 
-이 절의 불변성·분리 원칙은 기존 채택 ADR에서 직접 이어진다. 다만 아래
-[결정이 필요한 항목](#결정이-필요한-항목)이 확정되지 않았으므로 전체 제안은 채택 상태가
-아니며 구현 진입 근거로 사용할 수 없다.
+이 절의 불변성·분리 원칙은 기존 채택 ADR에서 직접 이어진다. 최종 결정 enum, material
+정책, currentness, 내부망 모델 처리와 감사 경계까지 이 ADR에서 확정한다. 이 채택은 R-08
+구현 진입 근거지만 endpoint·migration·production UI의 구현 완료나 운영 활성화를 뜻하지
+않는다.
 
 ### 1. 비교 입력을 ready bundle의 정확한 snapshot에 고정한다
 
@@ -106,11 +107,11 @@ projection과 reason code로 현재성을 표시한다. 새 입력을 확인할 
 덮어쓰지 않고 재검토 신호만 올릴 수 있다. 새 comparison과 새 최종 결정은 사람이 별도로
 만든다.
 
-## 제안 REST·DB 경계
+## 채택 REST·DB 경계
 
-OpenAPI 수준 wire shape, 상태 불변식, 안정 오류 code, 제안 table·constraint, 감사 event와
+OpenAPI 수준 wire shape, 상태 불변식, 안정 오류 code, 목표 table·constraint, 감사 event와
 테스트 matrix는 [입찰 delta 계약 명세](../../review/bid-delta-contract-spec.md)에 둔다.
-핵심 endpoint 제안은 다음과 같다.
+핵심 endpoint 계약은 다음과 같다.
 
 - `GET /api/opportunities/{opportunity_id}/bid-delta`
 - `POST /api/opportunities/{opportunity_id}/bid-delta/comparisons`
@@ -118,11 +119,11 @@ OpenAPI 수준 wire shape, 상태 불변식, 안정 오류 code, 제안 table·c
 - `POST /api/opportunities/{opportunity_id}/bid-delta/comparisons/{comparison_id}/attempts`
 - `POST /api/opportunities/{opportunity_id}/bid-delta/comparisons/{comparison_id}/final-decisions`
 
-위 경로는 모두 **제안**이며 현재 존재하는 endpoint 목록에 포함되지 않는다.
+위 경로는 채택된 목표 계약이지만 현재 존재하는 endpoint 목록에는 포함되지 않는다.
 
-## 결정이 필요한 항목
+## 채택한 업무·운영 선택
 
-### A. 최종 결정 enum
+### A. 최종 결정 enum — A1 채택
 
 | 대안 | 영향 |
 |---|---|
@@ -130,10 +131,10 @@ OpenAPI 수준 wire shape, 상태 불변식, 안정 오류 code, 제안 table·c
 | A2. `go | conditional_go | no_go` | 조건부 참여를 보존하지만 조건·확인 기한·해소 기록의 추가 계약이 필요하다. |
 | A3. `go | hold | no_go` | 보류를 명시할 수 있지만 tracking `보류`·심층 의견 `보류`와 혼동될 위험이 크다. |
 
-제안은 A1이다. 업무 책임자가 실제 승인 절차에 조건부 결정을 사용한다면 A2를 선택하고,
-조건·확인 기한·해소 이력을 같은 ADR에서 추가로 확정해야 한다.
+A1 `go | no_go`를 채택한다. 미결은 final decision row가 없는 상태로 표현한다. 추적
+`보류`, 사전규격 `조건부 추진 검토`, 심층 의견을 최종 결정 enum으로 복사하지 않는다.
 
-### B. material 범주와 임계 규칙
+### B. material 범주와 임계 규칙 — B1과 보수적 v1 채택
 
 | 대안 | 영향 |
 |---|---|
@@ -141,11 +142,22 @@ OpenAPI 수준 wire shape, 상태 불변식, 안정 오류 code, 제안 table·c
 | B2. 5개 화면 범주 | 금액·기간·자격·평가·제출 조건; 현재 시안과 가깝지만 공동수급·과업 범위·계약 조건이 묻힌다. |
 | B3. 문서별 자유 범주 | 새 공고에 유연하지만 비교·집계·테스트가 결정적이지 않다. |
 
-제안은 B1이다. `changed`와 material 여부는 분리하고, category policy version이 어떤 변화가
-`material`인지 또는 `non_material`인지 정한다. 금액 비율·날짜 일수 같은 임계값은 현재
-근거가 없으므로 추정하지 않는다.
+B1의 7개 업무 범주를 채택한다. `changed`와 material 여부는 분리하고, category policy
+version이 어떤 변화가 `material`인지 또는 `non_material`인지 정한다. v1은 금액 비율이나
+날짜 일수 같은 수치 임계값을 추정하지 않고 다음 보수적 규칙을 쓴다.
 
-### C. 최종 결정 currentness
+- 공식 금액·가격 방식·지급·보증·위약 조건의 실질 변경은 `material`이다.
+- 계약 시작·종료·기간·마일스톤·제출기한의 실질 변경은 `material`이다.
+- 참가자격, 공동수급·하도급, 필수 과업·요구사항·산출물·검수·SLA, 평가·배점·실격,
+  제출 서류·형식·채널·서명 조건의 실질 변경은 `material`이다.
+- 양쪽 verified evidence로 의미가 같음이 확인된 통화·날짜 표기, 절 번호, 서식·오탈자
+  차이만 `non_material`이다.
+- 동일 의미를 확정할 수 없거나 근거가 부족하면 `unknown`, 추출·검증 실패는 `failed`다.
+  둘 다 `non_material`로 축약하지 않는다.
+- 운영 사람 정답이 쌓여 수치 임계값을 도입하더라도 새 category policy version으로만
+  적용하고 과거 결과를 다시 쓰지 않는다.
+
+### C. 최종 결정 currentness — C1 채택
 
 | 대안 | 영향 |
 |---|---|
@@ -153,8 +165,23 @@ OpenAPI 수준 wire shape, 상태 불변식, 안정 오류 code, 제안 table·c
 | C2. material-only | 새 comparison이 material change를 확인한 뒤에만 `stale`; 재검토는 줄지만 계산 전 공백 동안 오래된 결정을 current로 보일 수 있다. |
 | C3. manual | 사람이 무효화할 때까지 current; 단순하지만 새 공고를 놓칠 위험이 가장 크다. |
 
-제안은 C1이다. 새 입력의 authoritative 여부나 version 순서를 확정할 수 없으면 `unknown`이며
-`current`로 남기지 않는다.
+C1 strict를 채택한다. 새 authoritative 입찰공고·정정 또는 새 ready 비교 문서가 나타나면
+기존 결정 row는 그대로 두고 projection을 즉시 `stale`로 표시한다. 새 입력의 authoritative
+여부나 version 순서를 확정할 수 없으면 `unknown`이며 `current`로 남기지 않는다.
+
+### D. 내부망 모델 처리와 safe audit allowlist
+
+- 비교 모델은 회사 내부망의 allowlist된 Ollama 또는 사설 vLLM binding만 사용한다.
+- 비교 생성 전에 exact 문서 pair, category policy version, 내부 모델 binding과 payload
+  범위를 표시한다. actor·request ID가 있는 `비교 시작` 요청은 해당 snapshot의 건별 내부
+  모델 처리 승인이다. 별도 외부 전송 승인이나 outbound egress를 만들지 않는다.
+- 내부 binding이 없거나 payload가 승인 범위를 벗어나면 503으로 실패 닫힘 처리한다.
+  hosted OpenAI 또는 외부 endpoint로 자동 fallback하지 않는다.
+- 감사 metadata는 안전한 ID, 상태·오류 code, 정책 버전, category별 count, input/result hash,
+  runtime binding ID/digest만 허용한다. 원문, evidence quote, 결정 reason 전문, prompt, 모델
+  응답, object key·path와 actor 이름 복제본은 넣지 않는다.
+- 결정 reason과 evidence quote는 접근이 제한된 업무 정본 row에만 보존한다. actor 이름은
+  `AuditEvent.claimed_name`에 두고 인증된 신원으로 표현하지 않는다.
 
 ## 대안
 
@@ -176,12 +203,50 @@ OpenAPI 수준 wire shape, 상태 불변식, 안정 오류 code, 제안 table·c
 
 - 비교와 사람 결정의 재현 가능한 lineage, 실패 상태, 양쪽 근거를 설계 수준에서 고정한다.
 - 다중 공고·정정을 임의로 하나로 축약하지 않는다.
-- enum, material policy, currentness 정책이 정해지기 전에는 구현 가능한 최종 계약이 아니다.
-- 이 ADR과 명세의 작성은 R-08 backend 또는 R-09 frontend 구현·승인을 뜻하지 않는다.
+- 최종 결정은 A1, material은 B1 보수적 v1, currentness는 C1 strict로 고정한다.
+- 회사 내부망 모델과 safe audit allowlist를 사용하고 외부·hosted fallback은 허용하지 않는다.
+- R-08 backend 진입 gate는 열렸지만 구현·migration·운영 활성화가 완료된 것은 아니다.
+- R-09 frontend는 R-08 API와 typed error가 실제로 구현·검증된 뒤에만 시작한다.
 
-## 결정 요청
+## 승인 기록
 
-승인 주체는 **사업개발 업무 책임자**이며, 보안·감사 경계는 **보안/운영 책임자**가 함께
-검토한다. 업무 책임자는 A1~A3, B1~B3, C1~C3을 각각 선택하고 material 임계값·조건부 결정
-필드가 필요한지 명시해야 한다. 그 선택을 이 ADR에 반영해 상태를 `채택`으로 바꾸기 전에는
-R-08과 R-09에 진입하지 않는다.
+2026-08-31 결정 세션에서 A1, B1 보수적 v1, C1 strict를 선택했다. 모델은 회사 내부망에
+있으며 safe audit allowlist와 hosted fallback 금지를 함께 채택했다. 조건부 최종 결정 field와
+근거 없는 수치 임계값은 v1에 넣지 않는다.
+
+## 확정값 (2026-08-31 후속 승인)
+
+R-08·R-09 구현 시점에 보수적 기본값으로 두었던 세 항목을 사업개발 책임자 확인으로
+확정한다.
+
+### 문서 role allowlist
+
+`document_version.role` 어휘 8개(`공고·정정·제안요청서·과업지시서·내역서·제출서식·부록·기타`)
+가운데 다음만 비교 대상으로 선택할 수 있다.
+
+| 측 | 허용 role |
+|---|---|
+| baseline (사전규격) | 제안요청서, 과업지시서, 내역서, 제출서식 |
+| comparison (입찰공고) | 공고, 정정, 제안요청서, 과업지시서, 내역서, 제출서식 |
+
+`내역서`는 `budget_and_economics`, `제출서식`은 `submission` 범주의 근거가 되므로
+포함한다. 두 role이 빠지면 그 두 범주는 근거를 가질 수 없다. `부록`·`기타`는 성격이
+불규칙해 제외한다. allowlist 밖 role의 문서는 선택 자체가 불가능하고 그 문서의 변경은
+감지되지 않는다.
+
+정본은 `web/backend/app/services/bid_delta.py`의 `BASELINE_DOCUMENT_ROLES`와
+`COMPARISON_DOCUMENT_ROLES`이며 API 테스트가 포함·제외를 모두 고정한다.
+
+### 범주 정책
+
+`bid-delta-policy.v1`은 B1의 7개 범주를 그대로 확정한다. 범주 추가는 policy version을
+올려야 하고 v1으로 계산된 결과는 불변으로 남는다. 실제 사람 검토에서 부족한 범주가
+드러나면 v2에서 올린다.
+
+### 내부망 모델 binding
+
+delta 비교는 심층 검토가 쓰는 승인된 사설 vLLM Qwen3.8:27B binding을 재사용한다. 새
+endpoint를 열지 않으므로 보안 경계가 바뀌지 않는다. `resolve_runtime_binding()`은
+네트워크 호출 없이 private·loopback 또는 명시 allowlist와 `/v1` path만 통과시키고,
+없으면 503 `bid_delta_service_unavailable`로 fail-closed한다. 이 결정은 binding 선택일
+뿐이며 delta 계산 worker와 모델 adapter는 여전히 미구현이다.

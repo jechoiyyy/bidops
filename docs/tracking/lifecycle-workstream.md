@@ -20,6 +20,8 @@
 
 | 사실 | 근거 |
 |---|---|
+| 사전규격 첨부 URL은 최소 150일 살아 있다. 나이 3~150일 각 30개 **180/180 HTTP 200**이고 본문도 실제 파일이다 | 2026-08-31 [survival](../validation-runs/20260831-prespec-attachment-survival.md) |
+| 첨부의 **8.3%가 허용 확장자(hwp/hwpx/pdf) 밖**이다. zip 9, xlsx 5, xls 1 | 같은 측정 180건 |
 | 발주계획 갱신은 **원 구간 재조회**로 감지된다. 997건 유지, 22건 갱신, `nticeDt` 불변 | 고정 실험 대비 4일 후 재조회 |
 | 발주계획 → 입찰공고는 `bidNtceNoList`. 16자리 = 공고번호 13 + 차수 3 | 482개 중 326개 조인 확인 |
 | 입찰공고 → 발주계획은 `orderPlanUntyNo` (76.7%), → 사전규격은 `bfSpecRgstNo` (56.3%) | 1,628건 |
@@ -91,30 +93,13 @@
 | 1차 분류는 결정적 mock으로 소비 계층을 먼저 구현한다. 선별 방식은 여전히 실험 승인 대기 | [ADR-0029](decisions/0029-screening-mock-provider.md) |
 | 모든 사업기회가 추적 상태를 갖고 기본값은 `미선택`이다. 사람 선택과 시스템 재검토 신호를 분리한다 | [ADR-0030](decisions/0030-opportunity-tracking-state.md) |
 | 개요 검토 앞부분은 본문과 대응하는 목차, 아니면 의미 있는 주제 소제목으로 자른다. 번호만으로 자르지 않고 모호하면 `unknown`·사람 검토, 전략·`start_locator`·`end_locator`·`source_sha256`를 보존하며 고정 block 수·전체 문서 자동 투입을 금지한다 | [ADR-0032](decisions/0032-prespec-overview-cutting-rule.md) |
+| 입찰 delta는 exact snapshot과 7개 범주로 비교하고 최종 결정은 `go\|no_go` append-only 사람 기록으로 둔다. 실질 변경은 보수적으로 material, 새 authoritative 입력은 strict stale, 내부망 모델과 safe audit allowlist만 사용한다 | [ADR-0034](decisions/0034-bid-delta-final-decision.md) |
 
 ## 결정 대기
 
-### D-5. 1차 분류 모델
-
-[ADR-0021](decisions/0021-filter-experiment-before-implementation.md)의 실험 승인 대기다.
-`status.md:68-69`의 4·5번 항목과 같은 건이다.
-
-### D-13. 입찰 delta·최종 결정 업무 계약 (R-07)
-
-[ADR-0034](decisions/0034-bid-delta-final-decision.md)와
-[계약 명세](../review/bid-delta-contract-spec.md)에 exact document snapshot, 계산/결과 상태
-분리, 양쪽 evidence, 다중 공고·정정 명시 선택, append-only 사람 결정, currentness와
-404/409/422/503을 제안했다. 현재 backend에는 관련 endpoint·table이 없고 작업 트리의
-untracked frontend는 존재하지 않는 endpoint를 호출하는 시안이다.
-
-사업개발 업무 책임자가 다음 세 가지를 정해야 한다.
-
-1. 최종 결정 enum: binary `go|no_go`, conditional 포함, hold 포함 중 하나
-2. material 범주·임계값: 7개 업무 범주, 5개 요약 범주, 자유 범주 중 하나와 수치 기준
-3. currentness: 새 authoritative 문서 즉시 stale, material 확인 뒤 stale, 수동 무효화 중 하나
-
-제안은 binary enum, 7개 업무 범주, strict currentness다. 보안/운영 책임자는 감사 event의
-safe metadata allowlist를 함께 검토한다. ADR 상태가 `제안`인 동안 R-08·R-09에 진입하지 않는다.
+D-5와 D-6은 2026-08-31에 해소했다. 남은 항목은
+[`decisions-pending-20260831.md`](decisions-pending-20260831.md)가 정본이며 D-7·D-8·D-9·D-10·D-11
+다섯 건이다.
 
 ## 해야 할 일
 
@@ -143,18 +128,20 @@ safe metadata allowlist를 함께 검토한다. ADR 상태가 `제안`인 동안
 | T-16c | 추적 상태 REST API | 완료 | `GET /api/opportunities/{opportunity_id}`와 `PATCH /api/opportunities/{opportunity_id}/tracking-status`; actor 헤더·409/404/422·감사 이벤트 계약 반영 |
 | T-17 | 사업기회 조회 API | 완료 | `GET /api/opportunities`; 종료 포함 기본 목록, 추적 상태·최초 등록 단계 필터, 연결 레코드 요약·단건 전체 link 노출 |
 | T-18 | 사업기회 화면 (`추적`/`신규` 구분, 추적 상태 선택) | 완료 | `/opportunities` 새 페이지. `종료` 기본 노출, 재검토 신호와 근거 링크 표시, `검색 미확인`을 "없음"으로 표시하지 않음. `추적`/`신규` 매핑은 `src/lib/opportunity.ts` 한 곳에서만 계약대로 변환 |
-| T-19 | 판정의 모델 계보를 API에 노출 (mock 표시의 선행 조건) | 대기 | **`Judgment`에 모델 계보가 없다.** `ScreeningAttempt.model_digest`는 런타임 쪽에 있고 judgment와 FK로 이어져 있지 않다. 어느 쪽을 정본으로 볼지 결정이 필요하다. [ADR-0030](decisions/0030-opportunity-tracking-state.md)의 부수 결정이 mock 표시를 요구했으나 데이터가 닿지 않아 화면에 넣지 않았다 |
+| T-19 | 판정의 모델 계보를 API에 노출 (mock 표시의 선행 조건) | 결정 완료·구현 대기 | **경로는 이미 있었다.** `Judgment` → `JudgmentRevision.recording_execution_id` → FK → `ScreeningExecution`이 `model_name`·`model_digest`·`prompt_version`을 갖는다. `ck_judgment_revision_source_lineage`가 `runtime`·`carry_over`는 계보 필수, `legacy_import`는 `NULL` 필수로 강제하므로 추정 여지가 없다. `ScreeningAttempt.notice_id`는 `String(255)` 외부 공고번호라 애초에 join 대상이 아니다. [ADR-0036](decisions/0036-judgment-model-lineage-source.md)이 이 경로를 정본으로 채택했다. 스키마 변경 없이 projection과 화면만 남았다 |
 | T-20 | 사전규격 첨부 조건부 취득·적재 (quarantine → ClamAV → content object → bundle 없는 DocumentVersion·structure) | 완료 | 메타데이터는 전량 수집하고 `SW사업대상=Y` 또는 추적 중 발주계획 연결만 재평가 큐에 넣는다. strict G2B provenance, lease worker, 안전한 오류 분류, source 승격 전 스캔, version 멱등성을 구현했다. clean inspect 결과는 document bundle 경로와 같은 canonical helper로 `DocumentStructure`·`DocumentBlock`에 저장한다. 다운로드는 backend `prespec-attachment-worker`가 전담하며 egress는 명시적 overlay로만 연다. **스캔 통과 전에는 변환·파싱·제공하지 않으며**, 구조 저장 실패는 부분 `DocumentVersion`을 남기지 않고 rollback 후 실패 전이한다 (`security.md:56`) |
 | T-21 | 제안요청서 소제목·목차 분포 측정 | 완료 | 실제 문서 120건 수집·추출. 제안요청서·과업지시서 65건에서 **목차 보유 32%**, 첫 주제 소제목이 `사업개요`인 것 58%, **주제 소제목을 하나도 못 찾는 문서 14%**, `과업내용` 절 보유 66%. 번호 체계 최빈이 아라비아 62%. 첫 소제목 위치 p50 32 / p90 49 / 최대 211 block. **단일 규칙으로는 어떤 것을 골라도 최소 3분의 1이 사람에게 간다.** [validation-run](../validation-runs/20260831-prespec-rfp-structure.md) |
 | T-22 | 앞부분 잘라내기 규칙 확정 | 완료 | [ADR-0032](decisions/0032-prespec-overview-cutting-rule.md). 본문과 대응하는 목차 또는 의미 있는 주제 소제목을 쓰고, 모호하면 `unknown`으로 사람에게 보낸다 |
-| T-23 | `사전규격 개요 검토` 구현 | 진행 중 (phase 1 완료, phase 2 계약 확정) | [ADR-0031](decisions/0031-prespec-overview-review-stage.md), [ADR-0032](decisions/0032-prespec-overview-cutting-rule.md), [ADR-0033](decisions/0033-prespec-overview-review-runtime-contract.md), [ADR-0035](decisions/0035-prespec-overview-attempt-result-lifecycle.md). clean RFP 선택·절단 snapshot·자동 준비·조회 API·상세 화면은 완료했다. phase 2의 immutable 입력, 제한된 상태 전이, append-only event, immutable strict result 계약은 확정했고 실제 모델 worker·검증 결과 API와 승인된 사설 binding은 아직 남았다 |
+| T-23 | `사전규격 개요 검토` 구현 | 진행 중 (phase 1 + phase 2 기반 완료, 실제 모델 실행 대기) | [ADR-0031](decisions/0031-prespec-overview-review-stage.md), [ADR-0032](decisions/0032-prespec-overview-cutting-rule.md), [ADR-0033](decisions/0033-prespec-overview-review-runtime-contract.md), [ADR-0035](decisions/0035-prespec-overview-attempt-result-lifecycle.md). clean RFP 선택·절단 snapshot·자동 준비·조회 API·상세 화면과 phase 2 immutable result/event·제한된 lifecycle service·safe v2 projection을 구현했다. DB는 구조 제약·runtime 권한·상태 전이 trigger 하나만 사용한다. 실제 모델 adapter·worker와 승인된 사설 binding은 아직 남았다 |
 | T-24 | 사전규격 화면의 SW사업대상 기본 필터와 `신규` 표시 | 완료 | 누적 `GET /api/pre-specs`와 `/pre-specs` 화면을 구현했다. 기본 SW 필터, 추적 예외(`SW사업대상=N` 포함), `추적`·`신규` 데이터 값, 문서 취득 상태 집계와 안전한 빈 상태를 제공한다. 전용 테스트 11건 |
 
 ## 이번 범위가 아닌 것
 
 - **입찰공고 전체 문서 분석**: 사전규격에서 추적하기로 한 건을 입찰공고까지 추적하고 그 시점에
-  문서 전체를 분석하는 것은 후속 고도화다. R-07은 제안 설계만 작성했고, 분석·DB·API·UI
-  구현은 승인 뒤 별도 작업이다([ADR-0031](decisions/0031-prespec-overview-review-stage.md),
+  문서 전체를 분석하는 것은 후속 고도화다. R-07 계약 채택에 이어 R-08에서 DB·REST를,
+  R-09에서 화면을 구현했으나, **실제 문서를 비교해 delta를 계산하는 worker와 모델 binding
+  실행은 여전히 미구현이다.** 비교 생성은 `pending` 상태만 만들고 계산은 일어나지 않는다
+  ([ADR-0031](decisions/0031-prespec-overview-review-stage.md),
   [ADR-0034](decisions/0034-bid-delta-final-decision.md)).
 
 ## 완료한 일
@@ -195,6 +182,7 @@ safe metadata allowlist를 함께 검토한다. ADR 상태가 `제안`인 동안
 | 2026-08-31 | T-23 실행 계약 확정. 절단 snapshot과 append-only 모델 attempt를 분리하고, 승인된 사설 vLLM binding이 없으면 `awaiting_model`·결과/완료 시각 `null`, 모호한 절단은 모델 호출 없이 사람 검토로 보낸다. mock은 참조 전용이며 hosted fallback을 금지한다 | [ADR-0033](decisions/0033-prespec-overview-review-runtime-contract.md) |
 | 2026-08-31 | T-23 phase 1 완료(Luna Max `/fast` 위임 후 직접 검수). 보수적 RFP 선택, 실제 processor paragraph의 9개 exact topic 절단, immutable snapshot·복합 계보 제약, 자동 준비, safe GET, 상세 화면의 unknown/null·교차 notice ID fail-closed를 구현했다. PostgreSQL 17 집중 회귀 85 passed, Playwright 32 passed, production build 282 modules | `0012_prespec_overview_review`, `prespec_overview.py`, `/api/pre-specs/{notice_id}/overview-reviews`, `PreSpecDetailPage.tsx` |
 | 2026-08-31 | D-14/T-23 phase 2 계약 확정. attempt 입력·binding은 불변, 상태·시각·result 참조만 제한적으로 전이하고 모든 전이는 append-only event로 감사한다. 검증 결과는 strict schema의 immutable row로 한 번만 기록하며 안전한 API에는 검증 결과와 binding digest만 노출한다 | [ADR-0035](decisions/0035-prespec-overview-attempt-result-lifecycle.md) |
+| 2026-08-31 | T-23 phase 2 DB-light 기반 완료(Luna Max `/fast` 위임 후 직접 검수). `0014`의 FK·UNIQUE·CHECK와 단일 상태 간선 trigger, runtime 최소 권한, event·attempt·review를 한 transaction으로 묶는 service, immutable result/event와 safe v2 API를 구현했다. 추가 교차 table trigger와 중복 ORM policy는 두지 않았다. SQLite 46 passed·1 PostgreSQL-only skipped, PostgreSQL 17 집중 9 passed, production build 282 modules | `0014_prespec_overview_attempt_result`, `prespec_overview.py`, `/api/pre-specs/{notice_id}/overview-reviews/v2` |
 | 2026-08-31 | T-24 완료. 누적 사전규격 REST·화면, SW 기본 필터·추적 예외·`추적`/`신규` 표시·첨부 취득 상태 집계와 회귀 테스트 구현 | `/api/pre-specs`, `/pre-specs`, `test_api_pre_specs.py` 11건 |
 | 2026-08-31 | T-2b 3번째 종단 관측점. 횡단면 곡선과 21 포인트 어긋남을 확인하고 ADR-0027 근거를 재검토 대상으로 올림 | [validation-run](../validation-runs/20260831-order-plan-longitudinal.md) |
 | 2026-08-31 | T-2c 완료. 사전규격 채움 곡선 횡단면 6점 측정. 평탄화 시점과 `chgDt` 사용 불가를 확인 | [validation-run](../validation-runs/20260831-prespec-fill-curve.md), `scripts/prespec_fill_curve.py` |

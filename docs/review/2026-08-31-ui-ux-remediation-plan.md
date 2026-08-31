@@ -773,7 +773,8 @@ git diff --check -- <변경 문서와 코드>
 중단 gate:
 
 - 업무 책임자의 선택 없이는 enum·material 범위·최종 결정 현재성을 확정할 수 없으면 대안과 영향을 문서화하고 결정 요청 상태로 끝낸다.
-- 승인 전 R-08·R-09를 시작하지 않는다.
+- ADR-0034 채택 전 R-08·R-09를 시작하지 않는다. 이 gate는 2026-08-31의 R-07 결정으로
+  R-08에 한해 충족됐으며, R-09는 실제 R-08 API와 typed error 검증 뒤에만 시작한다.
 
 완료 증거:
 
@@ -915,8 +916,25 @@ git diff --check -- <변경 문서와 코드>
 | 2026-08-31 | R-06 | 52469dc | 완료 — active 상태 polling, 완료 뒤 report 조회, 실패 attempt append-only 재시작, 의견 live feedback·초안 보호를 구현했다. completed 직후 `409 review_not_ready`는 제한 재시도하고, 지속 409는 명시적 재조회로 넘긴다. | 같은 build 성공; 통합 회귀 208 passed 중 `deep-review.spec.ts` 40 passed. 회차 query를 보존하는 SPA 이동과 작은 화면 drawer 재개방을 포함한 이탈 보호 회귀를 보정했다. | 실제 Qwen/vLLM 품질 승인과 overview phase 2는 완료 근거가 아니다. |
 | 2026-08-31 | R-07 | 52469dc | 설계 제안 완료 — exact snapshot fence, 계산/결과 상태 분리, 양쪽 evidence, append-only 사람 결정, stable error·DB·감사·테스트 matrix를 문서화했다. production route는 제거 상태다. | ADR-0034·계약 명세·정본 문서와 현재 route를 대조했고, 최종 문서 link·heading·표 형식 및 `git diff --check`를 확인했다. 코드·migration·endpoint는 만들지 않았다. | 사업개발 책임자의 enum·material 범주/임계값·currentness 결정과 보안/운영 책임자의 감사 경계 승인이 필요하다. ADR-0034 채택 전 R-08·R-09 진입 금지. |
 | 2026-08-31 | R-10 | 52469dc | 완료 — StatusBadge·EmptyState·MutationFeedback·UnsavedGuard·ActorField·비활성 사유·focus/live feedback을 공통 계약으로 정리했다. | 같은 build 성공; 통합 회귀 208 passed 중 `common-interactions.spec.ts` 24 passed. UC-01~UC-05 keyboard 경로와 기존 queue 초안 보호를 확인했다. | 최종 시각 snapshot 승인과 route 단위 bundle 분할은 R-11 범위로 남는다. |
+| 2026-08-31 | R-07 결정 | d323781 | ADR-0034 채택 — A1 `go\|no_go`, B1 7개 범주와 보수적 material v1, C1 strict, 회사 내부망 모델, safe audit allowlist를 확정했다. | ADR·계약·업무 규칙·결정 index·lifecycle·계획 문서 정합성 및 `git diff --check` 확인 | R-08 backend 진입 가능; R-09는 실제 R-08 API·typed error 검증 뒤에만 진입 |
+| 2026-08-31 | R-08 | 84bbcc5 | 완료 — `bid_delta_comparison`·`bid_delta_attempt`·`bid_delta_item`·`bid_delta_evidence`·`bid_final_decision` 5개 table, revision `0015`, PostgreSQL append-only trigger와 SQLite ORM 미러, 5개 endpoint·schema·service를 구현했다. 비교 계산 worker와 모델 호출은 만들지 않았고, 내부 binding을 확인할 수 없으면 503으로 fail closed한다. | 백엔드 전체 `1032 passed, 5 skipped`(1건 실패는 닫힌 table 집합 assertion으로, `BID_DELTA_TABLES` 추가·`63→68` 갱신 뒤 `test_deep_review_migrations.py` 17 passed). 빈 PostgreSQL 17 `upgrade head`, `0014↔0015` 왕복, trigger 거부, `alembic check` 드리프트 0건, `test_bid_delta_models.py` 8 passed, `test_bid_delta_postgres.py` 5 passed, `test_bid_delta_api.py` 15 passed. | 계산 worker·모델 binding 실행과 운영 활성화는 별도 작업이다. baseline/bid role allowlist는 v1 기본값이며 업무 책임자 확인이 남았다. |
+| 2026-08-31 | R-09 | 84bbcc5 | 완료 — 임시 `same`·단일 계산 상태 시안을 폐기하고 R-08 응답을 그대로 표현하는 type으로 교체했다. 후보 exact fence 선택, 계산/결과 상태 분리 표시, 양쪽 evidence 쌍, attempt 이력, 실패 재시도, append-only Go/No-Go form과 typed 409·503 처리, currentness 문자 표시, 이탈 보호를 구현했고 R-02가 제거한 bid-delta route를 metadata와 함께 복원했다. | `npx tsc -b` 통과, `npm run build` 285 modules 성공; `bid-delta`·`route-context`·`common-interactions`·`opportunities` 4 viewport `192 passed`. | 계산 worker가 없어 `pending`·`running`은 정상 대기로만 표시한다. 시각 snapshot은 R-11 범위다. |
+| 2026-08-31 | R-11 (A) | 84bbcc5 | 완료 — route 단위 `React.lazy`와 `LazyRouteBoundary`(role=status 로딩, 오류 시 재시도 가능한 EmptyState)로 초기 bundle을 분할했다. route metadata는 lazy 경계 밖에 유지해 TopBar 문맥이 chunk 로딩과 무관하다. | `npx tsc -b` 통과; production build 초기 JS **758.53 kB(gzip 217.63) → 358.80 kB(gzip 113.07)**, 500 kB 경고 해소, asset 전량 `/assets/` 유지로 SPA fallback 보존. 기능 spec 9개 4 viewport `306 passed, 10 skipped`. | 시각 기준선은 R-11 (B)에 남았다. |
+| 2026-08-31 | R-11 (B) | 84bbcc5 | 완료 — 사업기회·사전규격·문서 준비·심층 검토·입찰 delta의 17개 상태를 4 viewport 시각 회귀에 추가해 신규 snapshot 68개를 만들었다. 기존 48개 중 44개는 R-03·R-04 sidebar 항목 추가와 R-10 공통 컴포넌트라는 의도된 변경으로 분류해 갱신했고(`reviews`·`runs`의 mobile/tablet 4개는 통과해 갱신하지 않았다), diff를 직접 대조해 수치·상태·`계산 불가` 표현이 보존됐음을 확인했다. 위임 산출물의 제품 CSS 덮어쓰기·`waitForTimeout` flake 우회는 제거했다. | `npm run test:visual` **2회 연속 598 passed, 10 skipped, 0 failed**(10 skip은 `draft.spec.ts`의 wide-screen 전용). snapshot 전용 116개도 mask·restyling 없이 2회 연속 통과해 결정성을 확인했다. `npx tsc -b`·`npm run build` 성공, `./run-tests.sh` OK. | 신규 fixture는 `FIXED_TIME`·고정 UUID/hash를 쓰고 polling 응답을 동일 상태로 고정했다. 실제 모델·worker 산출물의 시각 기준선은 아직 없다. |
+| 2026-08-31 | 회귀 수정 | 84bbcc5 | R-06 심층 검토 화면의 실제 반응형 회귀를 수정했다. `DeepReviewPage`의 단일 컬럼 grid 5곳이 `grid-template-columns` 없이 암묵적 `auto`(max-content) track을 써서, 완료 보고서의 넓은 표가 390px viewport를 754px로 밀어냈다(mobile 382px·tablet 4px 초과). `minmax(0, 1fr)`로 고쳤다. | 4 viewport 116개 overflow 검사 전부 통과. | 같은 패턴의 인라인 grid를 추가할 때 track 미지정을 반복하지 않도록 주의한다. |
 
-미진입 게이트: R-08·R-09는 ADR-0034가 아직 `제안`이므로 시작하거나 완료하지 않았다. R-11도 R-08·R-09 의존성이 남아 있고, 현재 production build의 초기 JS 718.63 kB(gzip 208.50 kB) 500 kB 경고와 시각 snapshot 승인 미완료가 있으므로 진입·완료로 기록하지 않는다. 이번 검증에서는 snapshot을 갱신하지 않았다.
+현재 상태: R-01~R-11을 모두 완료했다. 초기 JS 500 kB 경고는 route 분할로 해소했고
+(758.53 kB → 358.80 kB, gzip 217.63 → 113.07 kB), 시각 기준선은 신규 68개 생성과 기존 44개
+갱신으로 정리했다.
+
+남은 blocker는 코드가 아니라 운영·업무 승인이다.
+
+- **입찰 delta 계산 worker와 내부 모델 binding 실행이 없다.** 비교 생성은 `pending`
+  comparison과 `queued` attempt만 만들고 계산은 일어나지 않는다. 화면도 그 사실을 문자로
+  안내한다. 운영 활성화는 이 worker 구현과 별도 결정 뒤의 일이다.
+- baseline/bid document role allowlist(`제안요청서`·`과업지시서` / `공고`·`정정`·
+  `제안요청서`·`과업지시서`)는 v1 기본값이며 사업개발 책임자 확인이 필요하다.
+- 실제 모델 산출물이 들어간 심층 검토·delta 화면의 시각 기준선은 아직 없다.
 
 ### 10.14 콜드 세션 시작 지시문
 

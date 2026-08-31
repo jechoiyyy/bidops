@@ -1,0 +1,453 @@
+# 세션 인수인계
+
+최종 갱신: 2026-09-01
+
+각 절이 가리키는 문서가 정본이다. 이 파일은 **어디를 봐야 하는지**와
+**지금 어디에 서 있는지**만 적는다.
+
+---
+
+## 1. 먼저 읽을 것
+
+| 순서 | 문서 | 왜 |
+|---|---|---|
+| 1 | [`tracking/decisions-pending-20260831.md`](tracking/decisions-pending-20260831.md) | **결정 대기 0건.** D-5~D-11을 2026-08-31에 전부 결정했다. 결정 내용과 근거가 여기 있다 |
+| 2 | [`tracking/lifecycle-workstream.md`](tracking/lifecycle-workstream.md) | 작업 목록 정본. 확정된 사실·결정·할 일·끝낸 일 |
+| 3 | [`engineering-notes.md`](engineering-notes.md) 마지막 여섯 절 | host 테스트 실행법과 새로 걸린 함정들 |
+| 4 | [`tracking/findings.md`](tracking/findings.md) | 재현 가능한 미해결 문제 |
+| 5 | [`tracking/status.md`](tracking/status.md)의 구현 상태 표 | **운영 배포 blocker 6건.** §7-A가 여기서 나온다 |
+
+바쁘면 **§7(다음 작업 순서)과 §10(콜드 세션 시작 절차)만 읽어도 착수할 수 있다.**
+
+`CLAUDE.md`와 `AGENTS.md`는 내용이 같고 작업 진입점이다. 변경 전에 반드시 읽는다.
+
+---
+
+## 2. 지금 상태
+
+### 테스트 기준선 (2026-08-31 실측)
+
+```
+백엔드 전체 완주       1033 passed, 5 skipped, 0 failed   (연속 2회 확인, 약 10분)
+파이프라인             41 + 13 + 52 + 2 = 108 OK
+프론트엔드 전체        598 passed, 10 skipped, 0 failed   (연속 2회 확인)
+프론트엔드 빌드        tsc -b 통과, 초기 JS 358.80 kB / gzip 113.06 kB (500 kB 경고 없음)
+Alembic                head = 0015_bid_delta_final_decision, alembic check 드리프트 0건
+```
+
+**실패 0건이 현재 기준선이다.** 예전 문서의 "정상 실패 6건"·"profile_snapshot 2건 실패"는
+더 이상 유효하지 않다. `test_profile_snapshot*` 14건은 벤더링 baseline으로 전부 통과한다.
+
+알려진 flake 1건: `test_screening_orchestrator.py::test_retry_attempt_is_persisted_before_success_and_has_no_failed_response`가
+전체 실행에서 드물게 실패한다(2회 중 1회). 단독 재실행은 통과한다. 부하 의존이며 회귀가
+아니다.
+
+전체 suite는 저장소 `.env`를 상속하지 않은 최소 환경에서 일회용 PostgreSQL 17과 임시
+경로를 pytest 수집 전에 구성해 완주했다. skip 5건은 별도 MinIO가 필요한 4건과 target
+container 경로 전용 installed-set 1건이다.
+
+### T-23 phase 1과 phase 2 기반 구현을 완료했다
+
+완료: T-1a, T-1b, T-2, T-2b(3점), T-2c, T-3, T-4, T-5, T-7~T-18, T-20, T-21, T-24.
+T-23은 [ADR-0033](tracking/decisions/0033-prespec-overview-review-runtime-contract.md)의
+phase 1인 clean 문서 선택, 결정적 절단 snapshot, 자동 준비, 안전한 조회 API와 상세 화면을
+구현했다. phase 2는 [ADR-0035](tracking/decisions/0035-prespec-overview-attempt-result-lifecycle.md)에
+따라 immutable result/event 저장, 제한된 attempt lifecycle service와 안전한 v2 결과 API까지
+구현했다. DB는 구조 제약과 상태 전이 trigger 하나만 맡고 audit·scope·review 갱신은 service
+transaction이 맡는다. 실제 사설 모델 transport·worker 실행과 승인 binding은 아직 필요하다.
+T-19와 선별 제품 구현을 막던 D-6·D-5는 2026-08-31에 해소했다.
+
+### R-08·R-09·R-11과 입찰 delta를 구현했다
+
+`docs/review/2026-08-31-ui-ux-remediation-plan.md`의 R-08(DB·REST), R-09(화면),
+R-11(route 분할·시각 기준선)을 완료·검증했다. 입찰 delta 비교와 최종 Go/No-Go의
+스키마·API·화면·불변 기록이 있고 revision `0015_bid_delta_final_decision`이 head다.
+
+**delta 계산 worker와 모델 adapter는 아직 없다.** 비교를 생성하면 `pending` comparison과
+`queued` attempt만 만들어지고 계산은 일어나지 않으며 화면이 그 사실을 안내한다.
+
+### 발주계획 선별 비교 실험을 끝냈다 (2026-09-01)
+
+**사람 gold가 이미 있다.** 997건 전수 판정이
+`data/experiments/order-plan-screening/20260824-20260826-sol200-luna797-xhigh-b100-reference-v1/review/human-gold-full-population.tsv`
+에 있다. 실험의 비싼 부분은 이미 끝나 있으니 **다시 라벨링하지 마라.**
+모집단 sha256 `3a91dab7…`가 interim-v4~v8에서 모두 같고 gold README와 일치한다.
+
+채점 결과(gold v2 기준, 관련 82/997):
+
+```
+검토량      BM25    dense   하이브리드   keyword(기존)   Qwen3.8:27B   Sol·Luna
+   50      47.6%   39.0%    50.0%       12.2%          43.3%*        50.0%*
+  100      72.0%   58.5%    73.2%       29.3%          72.2%*        97.8%*
+  150      81.7%   75.6%    86.6%       48.8%          90.0%*       100.0%*
+  300      95.1%   91.5%    97.6%       67.1%         100.0%*       100.0%*
+전량 회수   663건   839건    764건       983건          294건*        122건*
+                                                        * gold v1 기준
+```
+
+**세 가지가 확인됐다.**
+
+1. **하이브리드 가설은 맞았다.** Top-50에서 BM25만 18건, dense만 11건을 잡는다 —
+   서로 다른 것을 놓치므로 RRF가 두 단독 arm을 이긴다.
+2. **어휘 방식으로는 고recall 운영점을 만들 수 없다.** 중요 누락 0을 원하면 997건 중
+   764건을 봐야 한다. 선별의 의미가 거의 없다. Sol·Luna는 Top-150에서 100%다.
+3. **키워드 확장은 답이 아니다.** 놓친 40건 중 19건은 이미 규칙에 걸렸는데 순위가
+   낮아 잘린 것이라 term을 늘려도 그대로다. 나머지도 절반은 표기 변형
+   (`GISDB구축용역` 붙여쓰기, `대쉬보드`)이라 **키워드가 아니라 정규화** 문제다.
+
+Luna 토큰 실측(997건 1회, batch_size 100): 입력 34,563 + 가시 출력 51,140 = **85,703 tok**.
+단 `xhigh` reasoning 토큰은 저장되지 않아 못 쟀다. **이 값은 하한이다.**
+다음 실행 때 토큰 계측을 켜야 실제 비용을 안다.
+
+### gold 재판정 9건은 아직 제안 상태다
+
+`review/readjudication-20260901.tsv`에 18건을 검토해 9건 변경을 기록하고
+`human-gold-full-population-v2.tsv`를 파생했다. **원본 gold는 건드리지 않았다.**
+reviewer가 `assistant-recommendation`이므로 **사람 확인 전까지 정본이 아니다.**
+
+- 토목 관로 GIS DB 8건 → 비관련 (회사 실적의 GIS는 재난현장 영상 위치 시각화 연계다)
+- AX 디바이스 계열 1건 → `높음`을 `낮음`으로 통일
+- 민간발주 7건 → 유지 (적합성과 참여 결정을 서로 대신하지 않는다)
+
+이 재판정이 키워드 규칙의 절반을 좌우한다. `GIS`·`DB`는 v1에서 precision 100%였으나
+**v2에서 0%·27%**가 된다. v1의 100%는 토목 8건이 만든 착시였다.
+
+---
+
+---
+
+## 3. 결정 대기 0건 — D-5~D-11을 전부 결정했다
+
+정본은 [`tracking/decisions-pending-20260831.md`](tracking/decisions-pending-20260831.md)다.
+**사람 결정을 기다리는 항목은 남아 있지 않다.** 아래는 결정된 내용이고, 이제 남은 것은
+실행이다.
+
+### 2026-08-31에 내린 결정
+
+| 항목 | 결정 | 정본 |
+|---|---|---|
+| D-5 1차 분류 방식 | 실험 승인. arm을 **BM25 · 한국어 dense bi-encoder · RRF 하이브리드** 셋으로 교체하고 ColBERT는 뺀다. LLM arm은 비용 대비 가치로 보류하되 사람 정답은 공유 보존 | [ADR-0021 개정](tracking/decisions/0021-filter-experiment-before-implementation.md) |
+| D-6 판정 모델 계보 | `JudgmentRevision → ScreeningExecution`이 정본. 스키마 변경 없이 projection만 추가 | [ADR-0036](tracking/decisions/0036-judgment-model-lineage-source.md) |
+| 입찰 delta 문서 role allowlist | baseline `제안요청서·과업지시서·내역서·제출서식` / comparison `공고·정정·제안요청서·과업지시서·내역서·제출서식` | [ADR-0034 확정값](tracking/decisions/0034-bid-delta-final-decision.md) |
+| 입찰 delta 범주 정책 | `bid-delta-policy.v1` 7개 확정 | 같은 문서 |
+| delta 모델 binding | 승인된 사설 vLLM Qwen3.8:27B 재사용. 새 endpoint 없음 | 같은 문서 |
+| 프로필 역사 baseline | commit `ee621835`가 history에 없는 상태를 그대로 둔다. 벤더링 파일이 검증되고 운영은 이미 `current`를 쓴다 | [findings.md](tracking/findings.md) |
+| LLM 품질 gate·운영 검증 순서 | LLM 품질 gate 2건은 BM25 실험 뒤로. 운영 검증은 backup·restore만 실험 착수 전에 먼저 | [status.md](tracking/status.md) |
+| D-7 G2B egress 방화벽 | 승인 절차만 먼저 올린다. overlay 적용은 D-9 결과를 보고 결정. 열리는 것은 `prespec-attachment-worker` 하나뿐이고 `analysis-worker`(LLM)와 무관하다 | [decisions-pending](tracking/decisions-pending-20260831.md) |
+| D-8 21일 재조회 범위 | 종단 관측을 계속 쌓는다. 2026-09-08·09-14가 분기점. 범위 변경은 그 뒤에 판단 | 같은 문서 |
+| D-9 첨부 URL 수명 | **측정 완료.** 나이 3~150일 각 30개, 180/180 HTTP 200. 5개월 된 첨부도 그대로 받아진다. 09-13 종단 확인만 남았다 | [validation-run](validation-runs/20260831-prespec-attachment-survival.md) |
+| D-10 원문 보존 정책 | 현행 유지. 별도 보존 기간을 만들지 않는다 | `security.md` |
+| D-11 PostgreSQL 테스트 | 필수로 만든다. `run-web-tests.sh`/CI에서 강제 | 같은 문서 |
+
+---
+
+## 4. 과거에 찾은 결함 (전부 해결, 재발 방지 테스트 있음)
+
+다시 만들지 마라. 네 건 모두 **"테스트는 초록인데 운영에서 깨진다"** 는 같은 부류였다.
+
+1. **Alembic revision 식별자가 version table 컬럼보다 길었다.**
+   `0004`(33자)와 `0006`(39자)이 `VARCHAR(32)`를 넘겨 `alembic upgrade head`가
+   PostgreSQL에서 통째로 롤백됐다. **`0004` 이후 어떤 배포도 불가능한 상태였고
+   T-7·T-8·T-12·T-16a의 스키마가 정본 저장소에 한 번도 적용된 적이 없었다.**
+   → `alembic/env.py`가 version table을 `VARCHAR(64)`로 먼저 만든다.
+   폭은 `app.db.ALEMBIC_VERSION_NUM_WIDTH` 한 곳에 있고
+   `test_every_revision_identifier_fits_the_version_column`이 강제한다.
+
+2. **PostgreSQL 전용 테스트가 스키마 변경 뒤 갱신되지 않은 채 skip됐다.**
+   `test_models_runtime.py`가 `0004`가 없앤 `notice.run_id`에 insert하고 있었다.
+
+3. **legacy 첨부가 객체 식별자를 provenance 자리에 넣었다.**
+   12필드 dataclass에 9개를 위치로 넘겨 `object_key`가 `source_system`에 들어갔다.
+   MinIO에서 격리 원문을 읽지 못한다. → `kw_only=True`로 재발을 구조적으로 차단.
+
+4. **host에 poppler가 없어 정상 PDF를 손상 판정한다.** (결함이 아니라 측정 함정)
+
+---
+
+## 5. 검증 실행법
+
+### 백엔드
+
+```bash
+cd /home/jechoi/projects/bidops/web/backend
+.venv/bin/python -m pytest tests/ -q
+#   → 1033 passed, 5 skipped (약 10~11분)
+```
+
+10분 넘게 걸리고 `TestClient` 구간에서 멈춘 것처럼 보인다. **기다려라.**
+uvloop로 우회할 필요 없다 — 기본 asyncio에서 정상 종료하는 것을 세 번 확인했다.
+
+**개별 파일만 지정하면 PostgreSQL harness가 뜨지 않아 postgres 테스트가 조용히 skip된다.**
+`pytest tests/ -k "<패턴>"`으로 디렉터리 전체를 선택해야 Docker `postgres:17.11`이 뜬다.
+
+알려진 flake 1건: `test_screening_orchestrator.py::test_retry_attempt_is_persisted_before_success_and_has_no_failed_response`.
+전체 실행에서 드물게 실패하고 단독 재실행은 통과한다. 부하 의존이며 회귀가 아니다.
+
+### 파이프라인
+
+```bash
+./run-tests.sh
+```
+
+### 프론트엔드
+
+```bash
+cd /home/jechoi/projects/bidops/web/frontend
+npx tsc -b        # 따로
+npm run build     # 따로
+```
+
+`npm run build`가 rollup native 모듈 누락으로 깨지면
+`npm install @rollup/rollup-linux-x64-gnu --no-save`로 복구한다.
+
+### PostgreSQL (스키마를 바꿨으면 필수)
+
+host에 Docker가 있으면 일회용 서버로 실제 검증할 수 있다.
+
+```bash
+docker run -d --rm --name bidops-pg \
+  -e POSTGRES_DB=bidops -e POSTGRES_USER=owner -e POSTGRES_PASSWORD=local \
+  -p 15499:5432 \
+  postgres:17.11@sha256:051f7b7b3abdd564d5d1bd1e8c4b9c1b6e77087d1dd22020ede611c096a272e0 \
+  postgres -c search_path=bidops,public
+
+docker exec -e PGPASSWORD=local bidops-pg psql -U owner -d bidops \
+  -c "CREATE SCHEMA IF NOT EXISTS bidops;" \
+  -c "CREATE ROLE migrate LOGIN PASSWORD 'migratepw';" \
+  -c "GRANT USAGE, CREATE ON SCHEMA bidops TO migrate;" \
+  -c "GRANT CONNECT, CREATE ON DATABASE bidops TO migrate;" \
+  -c "ALTER SCHEMA bidops OWNER TO migrate;"
+
+cd web/backend
+BIDOPS_DATABASE_URL="postgresql+psycopg://migrate:migratepw@127.0.0.1:15499/bidops" \
+  .venv/bin/python -m alembic upgrade head
+
+# 저장소에 있는 PostgreSQL 테스트 (평소에는 조용히 skip된다)
+BIDOPS_TEST_POSTGRES_URL="postgresql+psycopg://owner:local@127.0.0.1:15499/postgres" \
+  .venv/bin/python -m pytest tests/test_db_migrations.py tests/test_models_runtime.py -q
+
+docker rm -f bidops-pg
+```
+
+`test_integration_t14.py` 8건을 통과시키려면 컨테이너 전용 env가 함께 필요하다.
+
+```bash
+BIDOPS_DATABASE_URL=<위 PostgreSQL URL> BIDOPS_ROOT=/home/jechoi/projects/bidops \
+BIDOPS_DATA_DIR=<임시> BIDOPS_ATTACHMENTS_DIR=<임시> \
+  .venv/bin/python -m pytest tests/test_integration_t14.py -q
+```
+
+### 발주계획 선별 실험
+
+```bash
+cd /home/jechoi/projects/bidops
+python3 experiments/order-plan-screening/scripts/score_arms.py \
+  --run-dir data/experiments/order-plan-screening/20260824-20260826-interim-v8 \
+  --gold data/experiments/order-plan-screening/20260824-20260826-sol200-luna797-xhigh-b100-reference-v1/review/human-gold-full-population.tsv
+#   BM25를 그 자리에서 돌리고, 저장된 dense 결과와 RRF로 합쳐 gold로 채점한다
+#   --gold 를 human-gold-full-population-v2.tsv 로 바꾸면 재판정본 기준이 된다
+
+python3 -m pytest experiments/order-plan-screening/tests/ -q   # 32 passed
+```
+
+**`config/methods.json`에 method를 추가하지 마라.** `common.load_methods_config()`가
+`set(config["methods"]) == set(METHOD_NAMES)` 닫힌 집합을 요구해서 기존 6-method 실행이
+전부 깨진다. BM25 설정을 `config/bm25.json`으로 분리해 둔 이유다. 방식이 선택되면
+그때 `METHOD_NAMES`까지 함께 올린다.
+
+토큰 계측과 PDF 추출에는 `tiktoken`·`pypdf`가 필요하다. `web/backend/.venv`에는 없다.
+
+### 문서 파이프라인 측정
+
+**host가 아니라 런타임 이미지 안에서 한다.** host에는 poppler가 없어 정상 PDF가
+`malformed_pdf`로 거부된다.
+
+```bash
+docker run --rm --network none -u "$(id -u):$(id -g)" \
+  -e PYTHONPATH=/app/web/backend -v "<표본>:/data" -w /app/web/backend \
+  bidops-mock-t7-web:latest python /data/<script>.py /data
+```
+
+HWP 변환기는 반대로 host에서도 동작한다(Node + 벤더링된 `app/document_mcp/vendor/rhwp`).
+
+---
+
+## 6. codex 위임
+
+```bash
+cx exec -m gpt-5.6-luna -c model_reasoning_effort="max" \
+  "$(cat <프롬프트파일>)" < /dev/null > <로그파일> 2>&1
+```
+
+`cx` = `codex --dangerously-bypass-approvals-and-sandbox`.
+**`sandbox_mode="workspace-write"`를 쓰면 안 된다.** Docker를 막아 postgres 테스트가
+조용히 skip되고, port 4173 bind가 `EPERM`으로 죽어 Playwright를 못 돌린다.
+위임한 검증이 통과했다는 보고를 그대로 믿으면 안 되는 이유다.
+
+### 이번 세션에 겪은 실패 세 가지
+
+전부 **성공한 것처럼 보이는** 실패였다.
+
+- **`&`로 배경 실행하면 셸만 즉시 반환한다.** 프로세스는 계속 돈다. 죽은 줄 알고
+  다시 띄우면 **두 codex가 같은 파일을 동시에 고친다.** 실제로 겪었다.
+  재실행 전에 `pgrep -af "codex exec"`로 확인한다.
+- **작업 디렉터리가 sandbox 쓰기 범위를 정한다.** 하위 디렉터리에서 띄우면
+  저장소 루트의 문서와 다른 모듈을 못 고치고 중단한다. 셸 작업 디렉터리는 호출 사이에
+  유지되므로 **실행 직전에 `pwd`로 확인한다.**
+- **전체 스위트를 "환경 문제"로 단정한다.** 세 번의 위임 모두 `TestClient` 정체를
+  보고했지만 직접 돌리면 정상이었다.
+
+### 검수 원칙
+
+**완료 보고를 근거로 쓰지 않는다.** 전체 스위트를 직접 돌리고 바뀐 파일을 직접 읽는다.
+이번 세션에서 codex가 T-24 범위 밖의 fail-closed 가드(worker의 object-store 검증)를
+조용히 삭제한 것을 그렇게 잡았다.
+
+---
+
+## 7. 다음 작업 순서
+
+**결정은 다 끝났다. 남은 것은 실행이다.** 아래는 의존관계 순이며, 각 항목에 착수 조건과
+막는 것을 적었다. 위에서부터 집으면 된다.
+
+### A. 운영 배포 blocker (로드맵 1·2번, 선별 구현보다 앞이다)
+
+`status.md`의 구현 상태 표가 정본이다. 여섯 건 모두 **운영 사용 차단** 상태다.
+
+| | 항목 | 크기 | 상태 |
+|---|---|---|---|
+| A-1 | **runtime image가 회사 프로필을 포함한다** | 작음 | **2026-09-01 확인함. 실재한다** |
+| A-2 | legacy notice 첨부가 scan·quarantine·MinIO를 우회하고 `stored_path`를 API에 노출 | 중간 | 미확인 |
+| A-3 | 프로필 조회 projection이 source path·raw block·parse error를 노출할 수 있음 | 중간 | 미확인 |
+| A-4 | legacy mutation이 actor·audit 없이 변경 가능 | 중간 | 미확인 |
+| A-5 | hosted Codex reference가 허용 payload 정책과 충돌 | 작음 | 미확인 |
+| A-6 | backup·restore script의 target version mapping·manifest 계약 결함 | 중간 | 미확인 |
+
+**A-1은 직접 확인했다.** `web/Dockerfile:63`의 `COPY docs/reference /app/docs/reference`가
+디렉터리 전체를 복사한다. 12줄 뒤 주석은 "company profile/source documents stay out of the
+image"라고 주장하지만 `docs/reference/company-profile.md`(23KB 전문)가 이미 들어간 뒤다.
+`.dockerignore`는 `docs/reference/*.pdf`만 막는다. `security.md`가 "프로필 원문 조회 불가"로
+정한 경계가 이미지 안에서 무의미해진다. 수정은 한 줄이지만 **주석과 코드가 어긋난 것을
+테스트로 고정해야** 재발하지 않는다.
+
+**A-2~A-6은 `status.md` 기록이며 오늘 다시 확인하지 않았다.** A-1처럼 직접 봐야 크기를
+안다. 착수 전에 현재 코드로 재확인하라.
+
+A-6은 [B-5 결정](tracking/decisions-pending-20260831.md)과 물린다. "backup·restore를 실험
+착수 전에 먼저 검증"으로 정했는데 스크립트 자체에 정적 결함이 있어 **검증 이전에 수정이
+필요하다.** 운영 데이터가 비어 있는 지금이 가장 싸다.
+
+### B. 결정이 끝나 바로 착수 가능 (선별 모델과 무관)
+
+| | 항목 | 근거 | 막는 것 |
+|---|---|---|---|
+| B-1 | **D-11 PostgreSQL 테스트 필수화** | `run-web-tests.sh`/CI에서 강제 | 없음 |
+| B-2 | **T-19 판정 모델 계보 projection** | [ADR-0036](tracking/decisions/0036-judgment-model-lineage-source.md) | 없음. 스키마 변경 없이 API·화면만 |
+| B-3 | **입찰 delta 계산 worker와 모델 adapter** | [ADR-0034](tracking/decisions/0034-bid-delta-final-decision.md) | 없음. DB·API·화면 완비, binding도 확정 |
+| B-4 | **T-23 사전규격 개요 model adapter·worker** | [ADR-0033](tracking/decisions/0033-prespec-overview-review-runtime-contract.md)·[0035](tracking/decisions/0035-prespec-overview-attempt-result-lifecycle.md) | 없음 |
+| B-5 | 문서 준비·실패 attempt 재시작 화면 | typed API는 worktree에 있음 | 화면 연결만 |
+
+B-1은 이번 세션에 **같은 부류 결함에 두 번 데였다**(§4의 1·2번). 작고 효과가 크다.
+
+B-3·B-4의 모델 binding은 승인된 사설 vLLM Qwen3.8:27B 재사용으로 확정됐다. 새 endpoint를
+열지 않는다. `resolve_runtime_binding()`이 없으면 503으로 fail-closed한다.
+
+### C. 선별 모델 (실험은 끝났고 방식 선택이 남았다)
+
+```
+C-1  gold 재판정 9건 사람 확인          ← 사람 몫. 이게 있어야 v2가 정본이 된다
+C-2  방식 선택 (아래 셋 중)
+       (a) 하이브리드 상위 300 → LLM 재순위   recall 97.6% 유지, LLM 호출 70% 절감
+       (b) Qwen 단독                        전량 회수 294건, 외부 전송 없음
+       (c) 하이브리드 단독 + 검토량 300      모델 비용 0, 3일마다 300건 사람 검토
+C-3  threshold 확정 → 선별 제품 구현
+C-4  LLM 품질 gate 2건 (1차 판정 40건, 심층 검토 Qwen)
+```
+
+C-2는 **비용 대 누락의 교환**이고 사람이 정할 문제다. 토큰 실측은 §2에 있다.
+
+### D. 사람·절차 (병렬로 진행 가능)
+
+- **D-7 방화벽 승인 상신** — `prespec-attachment-worker` 하나가 `www.g2b.go.kr:443`으로
+  나가는 것이다. `analysis-worker`(LLM)와 무관하며 base stack의 network 넷은 전부
+  `internal: true`다. 승인만 먼저 올리고 overlay 적용은 나중에 한다.
+- overlay 적용 후 T-20 운영 활성화, 그 뒤 나머지 운영 검증(실제 secret, MinIO allow/deny,
+  egress firewall).
+
+### E. 날짜가 정해진 관측 — 놓치면 못 잰다
+
+- **2026-09-08 · 09-14**: T-2b 종단 관측. 나이 15일·21일 지점이 ADR-0027의 21일 재조회
+  범위 판단의 분기점이다. 명령은
+  [validation-run](validation-runs/20260831-order-plan-longitudinal.md) 마지막 절.
+- **2026-09-13**: D-9 종단 확인. 2026-08-30 표본 30건 URL 재호출.
+  횡단면은 이미 쟀다 — 나이 3~150일 **180/180 생존**
+  ([survival](validation-runs/20260831-prespec-attachment-survival.md)). 종단은 **URL 회전**을
+  본다. 횡단면이 답하지 못하는 유일한 질문이다.
+
+---
+
+## 8. 이번 범위가 아닌 것
+
+- 자동 입찰 제출, 발주처 연락, 모델의 최종 참여 결정은 이 제품이 하지 않는다.
+- hosted OpenAI 자동 fallback과 scheduler·always-on 자동 활성화는
+  선별 방식·threshold 승인 전에는 넣지 않는다.
+  (입찰 delta 계산 worker는 더 이상 범위 밖이 아니다. §7-B3으로 착수 가능하다.)
+- SSO·역할 권한·알림은 [`tracking/status.md`](tracking/status.md)의 14번 이후다.
+- 현재 애플리케이션에는 로그인과 역할 기반 권한이 없다. 사내망 접근 제한이 경계이고
+  담당자 이름은 감사 표식일 뿐 인증이 아니다.
+
+---
+
+## 9. 작업 트리 주의
+
+**커밋되지 않은 변경이 많다.** 2026-09-01 기준 `git status --porcelain`이 173개다.
+`main`의 마지막 커밋은 `84bbcc5 feat(db): harden lifecycle persistence and postgres harness`이고,
+그 이후 작업은 전부 작업 트리에만 있다.
+
+커밋 안 된 주요 산출물:
+
+```
+입찰 delta (R-08·R-09)
+  web/backend/app/{services,routers,schemas}/bid_delta.py
+  web/backend/alembic/versions/0015_bid_delta_final_decision.py
+  web/backend/tests/test_bid_delta_{api,models,postgres}.py
+  web/frontend/src/pages/BidDeltaDecisionPage.tsx, components/bid-delta/, styles/bid-delta-decision.css
+  web/frontend/tests/bid-delta.spec.ts + visual 스냅샷
+
+route 분할 (R-11)
+  web/frontend/src/components/common/LazyRouteBoundary.tsx, routes.tsx
+
+T-23 사전규격 overview phase 2
+  web/backend/app/services/prespec_overview.py, schemas/pre_specs.py, models.py
+  alembic/versions/0014_prespec_overview_attempt_result.py
+
+선별 실험 (2026-09-01)
+  experiments/order-plan-screening/scripts/{methods.py 의 BM25Adapter, score_arms.py}
+  experiments/order-plan-screening/config/bm25.json
+  experiments/lifecycle-linkage-survey/scripts/prespec_attachment_survival.py
+  data/experiments/prespec-attachment-survival/20260831/survival.json
+  .../review/{readjudication-20260901.tsv, human-gold-full-population-v2.tsv}
+
+문서
+  docs/Backend_HANDOFF.md(이 파일, 신규), contracts.md, tracking/{status,findings,
+  lifecycle-workstream,decisions-pending-20260831}.md, decisions/{0021,0034,index}.md,
+  decisions/0036-judgment-model-lineage-source.md(신규),
+  validation-runs/20260831-prespec-attachment-survival.md(신규)
+```
+
+`docs/HANDOFF.md`가 삭제로 잡히는 것은 이 파일로 이름을 바꿨기 때문이다. 정상이다.
+
+**`data/experiments/`는 `.gitignore`가 제외하지 않는다.** 원문 API 페이지가 커밋에 들어간다.
+`--from-raw`로 재생성할 수 있으므로 저장소 크기가 문제되면 제외를 검토하라. 다만 실험
+재현성의 근거이므로 지우기 전에 ADR-0021의 보존 요구를 확인해야 한다.
+
+---
+
+## 10. 콜드 세션 시작 절차
+
+1. `CLAUDE.md`와 이 파일을 읽는다.
+2. §7에서 집을 항목을 고른다. **A(보안 blocker)가 다른 무엇보다 앞이다.**
+3. 착수 전에 `status.md`의 해당 행을 현재 코드로 **직접 다시 확인한다.**
+   A-1처럼 기록이 맞을 수도, 이미 고쳐졌을 수도 있다.
+4. 변경 전에 §5로 기준선을 잡는다. **실패 0건이 현재 기준선이다.**
+5. 위임하면 §6의 검수 원칙을 지킨다 — 완료 보고를 근거로 쓰지 않는다.
