@@ -1,15 +1,23 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Badge, type BadgeVariant } from "../components/common/Badge";
+import { ActorField } from "../components/common/ActorField";
 import { DocumentPreparationPanel } from "../components/deep-review/DocumentPreparationPanel";
 import { getDocumentStructurePage } from "../components/deep-review/api";
+import { DisabledReason } from "../components/common/DisabledReason";
 import { EmptyState } from "../components/common/EmptyState";
+import { MutationFeedback } from "../components/common/MutationFeedback";
 import { Panel } from "../components/common/Panel";
 import { api } from "../lib/api";
 import { describeDeadline } from "../lib/deadline";
 import { formatDateTime, formatNumber, present } from "../lib/format";
+import { trackingDescription, trackingVariant } from "../lib/opportunity";
 import type {
+  OpportunityDetailResponse,
+  OpportunityTrackingStatus,
+  PreSpecListItem,
+  PreSpecListResponse,
   PreSpecOverviewAttemptStatus,
   PreSpecOverviewCutStatus,
   PreSpecOverviewEvidence,
@@ -104,6 +112,224 @@ function evidenceKey(evidence: PreSpecOverviewEvidence): string {
   return `${evidence.claim}-${evidence.locator.block_key}-${evidence.locator.page}-${evidence.locator.ordinal}`;
 }
 
+const TRACKING_DECISION_STATUSES: OpportunityTrackingStatus[] = ["계속 추적", "보류", "종료"];
+
+function updateTrackingProjection(
+  response: PreSpecListResponse | undefined,
+  noticeId: number,
+  saved: OpportunityDetailResponse,
+): PreSpecListResponse | undefined {
+  if (!response) return response;
+  return {
+    ...response,
+    items: response.items.map((item) => item.notice_pk === noticeId
+      ? { ...item, opportunity_id: saved.id, tracking_status: saved.tracking_status }
+      : item),
+  };
+}
+
+function PreSpecDocumentSummary({ item }: { item: PreSpecListItem }) {
+  const document = item.document;
+  return (
+    <section className="pre-spec-detail-document-summary" aria-labelledby="pre-spec-detail-document-title">
+      <div className="pre-spec-detail-section-heading">
+        <h4 id="pre-spec-detail-document-title">첨부 원문 취득 집계</h4>
+        <strong>{document.attachments}건</strong>
+      </div>
+      <dl className="pre-spec-detail-document-facts">
+        <div><dt>완료</dt><dd>{document["완료"]}건</dd></div>
+        <div><dt>대기</dt><dd>{document["대기"]}건</dd></div>
+        <div><dt>진행</dt><dd>{document["진행"]}건</dd></div>
+        <div><dt>차단</dt><dd>{document["차단"]}건</dd></div>
+        <div><dt>실패</dt><dd>{document["실패"]}건</dd></div>
+      </dl>
+      <p>첨부 취득 상태는 같은 notice_pk의 누적 사전규격 projection에서 확인했습니다.</p>
+    </section>
+  );
+}
+
+function PreSpecTrackingDecisionBar({
+  item,
+  isPending,
+  isError,
+  onRetry,
+}: {
+  item: PreSpecListItem | undefined;
+  isPending: boolean;
+  isError: boolean;
+  onRetry: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [status, setStatus] = useState<OpportunityTrackingStatus>(item?.tracking_status ?? "미선택");
+  const [reason, setReason] = useState("");
+  const [actorName, setActorName] = useState("");
+  const [feedback, setFeedback] = useState<{ tone: "success" | "error"; message: string } | null>(null);
+
+  useEffect(() => {
+    if (item) setStatus(item.tracking_status ?? "미선택");
+  }, [item?.notice_pk]);
+
+  const mutation = useMutation({
+    mutationFn: () => api.updateOpportunityTrackingStatus(
+      item?.opportunity_id as number,
+      { tracking_status: status, reason: reason.trim() },
+      actorName,
+    ),
+    onSuccess: async (saved) => {
+      if (!item) return;
+      setStatus(saved.tracking_status);
+      setReason("");
+      setActorName("");
+      setFeedback({ tone: "success", message: "심층 검토 추적 상태를 저장했습니다." });
+      queryClient.setQueryData<PreSpecListResponse>(
+        ["pre-spec-detail", item.notice_pk],
+        (current) => updateTrackingProjection(current, item.notice_pk, saved),
+      );
+      queryClient.setQueriesData<PreSpecListResponse>(
+        { queryKey: ["pre-specs"] },
+        (current) => updateTrackingProjection(current, item.notice_pk, saved),
+      );
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["pre-spec-overview-reviews-v2", item.notice_pk] }),
+        queryClient.invalidateQueries({ queryKey: ["pre-spec-detail", item.notice_pk] }),
+        queryClient.invalidateQueries({ queryKey: ["pre-specs"] }),
+        queryClient.invalidateQueries({ queryKey: ["opportunity", saved.id] }),
+      ]);
+    },
+    onError: () => {
+      // Server response bodies can contain unsafe provider or validation detail.
+      // This screen exposes only a stable, user-safe mutation message.
+      setFeedback({ tone: "error", message: "심층 검토 추적 상태를 저장하지 못했습니다." });
+    },
+  });
+
+  if (isPending) {
+    return (
+      <section className="pre-spec-tracking-decision" aria-labelledby="pre-spec-tracking-decision-title">
+        <h3 id="pre-spec-tracking-decision-title">심층 검토 추적 선택</h3>
+        <p role="status">사업기회 연결과 첨부 취득 집계를 불러오는 중입니다.</p>
+      </section>
+    );
+  }
+
+  if (isError || !item) {
+    return (
+      <section className="pre-spec-tracking-decision" aria-labelledby="pre-spec-tracking-decision-title">
+        <h3 id="pre-spec-tracking-decision-title">심층 검토 추적 선택</h3>
+        <EmptyState
+          compact
+          tone="error"
+          title="사업기회 연결 정보를 확인할 수 없습니다."
+          description="추적 상태와 첨부 취득 집계를 불러오지 못해 이 화면에서 결정을 기록하지 않습니다."
+          action={{ label: "다시 시도", onClick: onRetry }}
+        />
+      </section>
+    );
+  }
+
+  const hasOpportunity = item.opportunity_id !== null;
+  const currentStatus = item.tracking_status ?? "미선택";
+  const ready = hasOpportunity && reason.trim().length > 0 && actorName.trim().length > 0;
+  const disabledReason = mutation.isPending
+    ? "추적 상태 저장 요청을 처리하고 있습니다."
+    : !hasOpportunity
+      ? "아직 사업기회에 연결되지 않아 추적 결정을 기록할 수 없습니다."
+      : !reason.trim()
+        ? "추적 결정을 저장하려면 사유를 입력하십시오."
+        : !actorName.trim()
+          ? "추적 결정을 저장하려면 담당자 이름을 입력하십시오."
+          : null;
+
+  return (
+    <section className="pre-spec-tracking-decision" aria-labelledby="pre-spec-tracking-decision-title">
+      <div className="pre-spec-tracking-decision-header">
+        <div>
+          <span className="pre-spec-tracking-kicker">HUMAN TRACKING DECISION</span>
+          <h3 id="pre-spec-tracking-decision-title">심층 검토 추적 선택</h3>
+          <p>개요 검토 권고를 자동 반영하지 않고 사람이 고르는 추적 결정입니다. 최종 입찰 참여 결정(Go/No-Go)이 아닙니다.</p>
+        </div>
+        <div className="pre-spec-tracking-current" aria-label="현재 추적 상태">
+          <span>현재 추적 상태</span>
+          {hasOpportunity
+            ? <Badge label={currentStatus} variant={trackingVariant(currentStatus)} />
+            : <strong>사업기회 미연결</strong>}
+        </div>
+      </div>
+
+      <PreSpecDocumentSummary item={item} />
+
+      {!hasOpportunity ? (
+        <MutationFeedback tone="warning">
+          아직 사업기회에 연결되지 않아 추적 상태를 결정할 수 없습니다. 사업기회 연결이 생긴 뒤 이 화면에서 심층 검토 추적을 선택할 수 있습니다.
+        </MutationFeedback>
+      ) : null}
+
+      <form
+        className="pre-spec-tracking-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (ready) mutation.mutate();
+        }}
+      >
+        <fieldset>
+          <legend>결정할 추적 상태</legend>
+          <div className="pre-spec-tracking-options">
+            {TRACKING_DECISION_STATUSES.map((option, index) => (
+              <button
+                key={option}
+                type="button"
+                className={`pre-spec-tracking-option ${status === option ? "is-selected" : ""}`.trim()}
+                aria-label={option}
+                aria-describedby={`pre-spec-tracking-option-description-${index}`}
+                aria-pressed={status === option}
+                disabled={!hasOpportunity || mutation.isPending}
+                onClick={() => setStatus(option)}
+              >
+                <strong>{option}</strong>
+                <span id={`pre-spec-tracking-option-description-${index}`}>{trackingDescription(option)}</span>
+              </button>
+            ))}
+          </div>
+        </fieldset>
+
+        {hasOpportunity ? (
+          <>
+            <label className="pre-spec-tracking-reason">
+              <span>사유 <em>(필수)</em></span>
+              <textarea
+                required
+                rows={3}
+                value={reason}
+                onChange={(event) => setReason(event.target.value)}
+                placeholder="이 상태를 고른 사유를 남깁니다."
+              />
+            </label>
+            <ActorField
+              label="담당자 이름 (필수)"
+              required
+              value={actorName}
+              onChange={setActorName}
+              placeholder="예: 홍길동"
+              autoComplete="off"
+            />
+          </>
+        ) : null}
+
+        {feedback ? <MutationFeedback tone={feedback.tone}>{feedback.message}</MutationFeedback> : null}
+        <button
+          className="pre-spec-tracking-save interaction-control"
+          type="submit"
+          disabled={!ready || mutation.isPending}
+          aria-describedby={disabledReason ? "pre-spec-tracking-save-disabled" : undefined}
+        >
+          {mutation.isPending ? "저장 중…" : "추적 상태 저장"}
+        </button>
+        {disabledReason ? <DisabledReason id="pre-spec-tracking-save-disabled">{disabledReason}</DisabledReason> : null}
+      </form>
+    </section>
+  );
+}
+
 export function PreSpecDetailPage() {
   const navigate = useNavigate();
   const { noticeId: noticeIdParam } = useParams();
@@ -116,6 +342,12 @@ export function PreSpecDetailPage() {
   const noticeQuery = useQuery({
     queryKey: ["pre-spec-notice", noticeId],
     queryFn: () => api.getNotice(noticeId as number),
+    enabled: noticeId !== null,
+    staleTime: 30_000,
+  });
+  const preSpecProjectionQuery = useQuery({
+    queryKey: ["pre-spec-detail", noticeId],
+    queryFn: ({ signal }) => api.getPreSpecs({ notice_pk: noticeId }, { signal }),
     enabled: noticeId !== null,
     staleTime: 30_000,
   });
@@ -191,6 +423,7 @@ export function PreSpecDetailPage() {
   const displayedSourceBlocks = selectedBlockIndex === -1
     ? sourceBlocks
     : sourceBlocks.slice(Math.max(0, selectedBlockIndex - 1), Math.min(sourceBlocks.length, selectedBlockIndex + 2));
+  const preSpecItem = preSpecProjectionQuery.data?.items.find((item) => item.notice_pk === noticeId);
 
   return (
     <section className="pre-spec-detail-page" aria-labelledby="pre-spec-detail-title">
@@ -522,6 +755,12 @@ export function PreSpecDetailPage() {
               </details>
             </div>
           ) : null}
+          <PreSpecTrackingDecisionBar
+            item={preSpecItem}
+            isPending={preSpecProjectionQuery.isPending}
+            isError={preSpecProjectionQuery.isError}
+            onRetry={() => { void preSpecProjectionQuery.refetch(); }}
+          />
         </Panel>
       </div>
 

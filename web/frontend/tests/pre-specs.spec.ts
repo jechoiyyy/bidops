@@ -200,6 +200,7 @@ interface PreSpecTrace {
   noticeGets: number[];
   overviewGets: number[];
   structurePageGets: Array<{ structureId: string; page: number }>;
+  trackingPatches: Array<{ opportunityId: number; trackingStatus: string; reason: string }>;
 }
 
 interface PreSpecMockOptions {
@@ -211,7 +212,8 @@ interface PreSpecMockOptions {
 }
 
 async function mockPreSpecs(page: Page, options: PreSpecMockOptions = {}): Promise<PreSpecTrace> {
-  const trace: PreSpecTrace = { listQueries: [], noticeGets: [], overviewGets: [], structurePageGets: [] };
+  const trace: PreSpecTrace = { listQueries: [], noticeGets: [], overviewGets: [], structurePageGets: [], trackingPatches: [] };
+  let currentTrackingStatus: string = trackingException.tracking_status;
 
   await page.route("**/api/pre-specs**", async (route) => {
     const request = route.request();
@@ -239,10 +241,18 @@ async function mockPreSpecs(page: Page, options: PreSpecMockOptions = {}): Promi
 
     if (url.pathname === "/api/pre-specs" && request.method() === "GET") {
       trace.listQueries.push(new URLSearchParams(url.search));
+      const noticePk = url.searchParams.has("notice_pk") ? Number(url.searchParams.get("notice_pk")) : null;
       const swOnly = url.searchParams.get("sw_only") !== "false";
-      const items = swOnly
-        ? options.emptyDefault ? [] : [trackingException, newPreSpec]
-        : [trackingException, newPreSpec, allOnlyPreSpec];
+      const allItems = [
+        { ...trackingException, tracking_status: currentTrackingStatus },
+        newPreSpec,
+        allOnlyPreSpec,
+      ];
+      const items = noticePk !== null
+        ? allItems.filter((item) => item.notice_pk === noticePk)
+        : swOnly
+          ? options.emptyDefault ? [] : allItems.slice(0, 2)
+          : allItems;
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -254,6 +264,42 @@ async function mockPreSpecs(page: Page, options: PreSpecMockOptions = {}): Promi
     await route.fallback();
   });
 
+  await page.route("**/api/opportunities/*/tracking-status", async (route) => {
+    const request = route.request();
+    const match = new URL(request.url()).pathname.match(/^\/api\/opportunities\/(\d+)\/tracking-status$/);
+    if (request.method() !== "PATCH" || !match) {
+      await route.fallback();
+      return;
+    }
+    const body = request.postDataJSON() as { tracking_status?: string; reason?: string };
+    if (Number(match[1]) !== trackingException.opportunity_id || !body.tracking_status || !body.reason?.trim()) {
+      await route.fulfill({ status: 422, contentType: "application/json", body: JSON.stringify({ detail: "tracking_reason_required" }) });
+      return;
+    }
+    currentTrackingStatus = body.tracking_status;
+    trace.trackingPatches.push({
+      opportunityId: Number(match[1]),
+      trackingStatus: body.tracking_status,
+      reason: body.reason,
+    });
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        id: trackingException.opportunity_id,
+        tracking_status: currentTrackingStatus,
+        tracking_reason: body.reason,
+        tracking_selected_by: request.headers()["x-bidops-actor-name"] ?? "테스트 담당자",
+        tracking_selected_at: "2026-09-01T00:00:00Z",
+        recheck_signal: false,
+        recheck_signal_at: null,
+        recheck_signal_link_id: null,
+        first_registered_stage: "order_plan",
+        links: [],
+      }),
+    });
+  });
+
   await page.route("**/api/notices/**", async (route) => {
     const request = route.request();
     const match = new URL(request.url()).pathname.match(/^\/api\/notices\/(\d+)$/);
@@ -261,9 +307,13 @@ async function mockPreSpecs(page: Page, options: PreSpecMockOptions = {}): Promi
       const id = Number(match[1]);
       trace.noticeGets.push(id);
       await route.fulfill({
-        status: id === 991 ? 200 : 404,
+        status: id === 991 || id === 993 ? 200 : 404,
         contentType: "application/json",
-        body: JSON.stringify(id === 991 ? notice991 : { detail: "공고 없음" }),
+        body: JSON.stringify(id === 991
+          ? notice991
+          : id === 993
+            ? { ...notice991, id: 993, notice_key: "pre-spec:993", title: allOnlyPreSpec.title, agency: allOnlyPreSpec.agency, attachment_count: 0, url: null, lifecycle: { pre_spec_no: allOnlyPreSpec.pre_spec_no }, qualification_flags: { sw_business_status: null } }
+            : { detail: "공고 없음" }),
       });
       return;
     }
@@ -349,6 +399,56 @@ test("notice 991 정본 상세는 29로 치환되지 않고 unknown을 사람 �
   expect(trace.noticeGets).toEqual([991, 991]);
   expect(trace.overviewGets).toEqual([991, 991]);
   expect(trace.noticeGets).not.toContain(29);
+});
+
+test("사전규격 상세는 notice_pk projection의 현재 추적 상태와 첨부 집계를 보여준다", async ({ page }) => {
+  const trace = await mockPreSpecs(page);
+  await page.goto("/pre-specs/991");
+
+  await expect(page.getByText("현재 추적 상태", { exact: true })).toBeVisible();
+  await expect(page.locator(".pre-spec-tracking-current").getByText("계속 추적", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "첨부 원문 취득 집계", exact: true })).toBeVisible();
+  await expect(page.getByText("완료", { exact: true })).toBeVisible();
+  await expect(page.getByText("차단", { exact: true })).toBeVisible();
+  expect(trace.listQueries.at(-1)?.get("notice_pk")).toBe("991");
+  expect(trace.listQueries.at(-1)?.has("sw_only")).toBe(false);
+});
+
+test("사유 없이 사전규격 추적 상태를 보낼 수 없다", async ({ page }) => {
+  const trace = await mockPreSpecs(page);
+  await page.goto("/pre-specs/991");
+
+  await expect(page.getByRole("button", { name: "추적 상태 저장", exact: true })).toBeDisabled();
+  await expect(page.getByText("추적 결정을 저장하려면 사유를 입력하십시오.", { exact: true })).toBeVisible();
+  expect(trace.trackingPatches).toEqual([]);
+});
+
+test("사전규격 추적 선택에 성공하면 사람 결정 상태가 갱신된다", async ({ page }) => {
+  const trace = await mockPreSpecs(page);
+  await page.goto("/pre-specs/991");
+
+  await page.getByRole("button", { name: "보류", exact: true }).click();
+  await page.getByRole("textbox", { name: "사유 (필수)" }).fill("연계 범위를 확인한 뒤 계속 검토하기로 함");
+  await page.getByRole("textbox", { name: "담당자 이름 (필수)" }).fill("홍길동");
+  await page.getByRole("button", { name: "추적 상태 저장", exact: true }).click();
+
+  await expect.poll(() => trace.trackingPatches).toEqual([{
+    opportunityId: 77,
+    trackingStatus: "보류",
+    reason: "연계 범위를 확인한 뒤 계속 검토하기로 함",
+  }]);
+  await expect(page.getByText("심층 검토 추적 상태를 저장했습니다.", { exact: true })).toBeVisible();
+  await expect(page.locator(".pre-spec-tracking-current").getByText("보류", { exact: true })).toBeVisible();
+});
+
+test("사업기회가 없으면 추적 결정을 기록할 수 없는 이유를 보여준다", async ({ page }) => {
+  await mockPreSpecs(page);
+  await page.goto("/pre-specs/993");
+
+  await expect(page.getByText("사업기회 미연결", { exact: true })).toBeVisible();
+  await expect(page.locator(".mutation-feedback-warning")).toContainText("아직 사업기회에 연결되지 않아 추적 상태를 결정할 수 없습니다.");
+  await expect(page.getByRole("button", { name: "계속 추적", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "추적 상태 저장", exact: true })).toBeDisabled();
 });
 
 test("v2 개요 결과는 평가에 필요한 요약·미확인·근거 위치를 보여준다", async ({ page }) => {

@@ -1132,3 +1132,253 @@
     gap: 4px;
   }
 }
+
+/* 개요를 읽은 자리에서 사람이 심층 검토 추적 범위를 선택한다. */
+.pre-spec-detail-document-summary,
+.pre-spec-tracking-decision {
+  min-width: 0;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.pre-spec-detail-section-heading,
+.pre-spec-tracking-decision-header {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pre-spec-detail-section-heading h4,
+.pre-spec-tracking-decision h3 {
+  margin: 0;
+  color: var(--color-deep);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.pre-spec-detail-section-heading strong {
+  flex: 0 0 auto;
+  color: var(--color-deep);
+  font-size: 14px;
+}
+
+.pre-spec-detail-document-facts {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  margin: 10px 0 0;
+}
+
+.pre-spec-detail-document-facts > div {
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-secondary);
+}
+
+.pre-spec-detail-document-facts dt {
+  color: var(--color-muted);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.pre-spec-detail-document-facts dd {
+  margin: 3px 0 0;
+  color: var(--color-deep);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.pre-spec-detail-document-summary > p,
+.pre-spec-tracking-decision-header p {
+  max-width: 70ch;
+  margin: 8px 0 0;
+  color: var(--color-muted-soft);
+  font-size: 12px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.pre-spec-tracking-decision {
+  padding: 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-selected);
+}
+
+.pre-spec-tracking-kicker {
+  color: var(--color-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+}
+
+.pre-spec-tracking-decision-header h3 {
+  margin-top: 4px;
+  font-size: 17px;
+}
+
+.pre-spec-tracking-current {
+  display: flex;
+  min-width: 132px;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+  color: var(--color-muted);
+  font-size: 11px;
+  font-weight: 650;
+  text-align: right;
+}
+
+.pre-spec-tracking-current strong {
+  color: var(--color-warning);
+  font-size: 13px;
+}
+
+.pre-spec-tracking-decision > .pre-spec-detail-document-summary {
+  margin-top: 16px;
+  padding-top: 14px;
+}
+
+.pre-spec-tracking-decision > .mutation-feedback {
+  margin-top: 14px;
+}
+
+.pre-spec-tracking-form {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.pre-spec-tracking-form fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.pre-spec-tracking-form legend {
+  margin-bottom: 7px;
+  color: var(--color-deep);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pre-spec-tracking-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.pre-spec-tracking-option {
+  display: flex;
+  min-width: 0;
+  min-height: 72px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 9px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--color-deep);
+  background: var(--surface-card);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.pre-spec-tracking-option:hover:not(:disabled),
+.pre-spec-tracking-option.is-selected {
+  border-color: var(--color-primary-strong);
+  background: var(--surface-card);
+  box-shadow: inset 3px 0 0 var(--color-primary-strong);
+}
+
+.pre-spec-tracking-option strong {
+  font-size: 13px;
+}
+
+.pre-spec-tracking-option span {
+  color: var(--color-muted-soft);
+  font-size: 11px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.pre-spec-tracking-reason {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--color-deep);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.pre-spec-tracking-reason em {
+  color: var(--color-warning);
+  font-size: 11px;
+  font-style: normal;
+}
+
+.pre-spec-tracking-reason textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  background: var(--surface-card);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.pre-spec-tracking-save {
+  align-self: flex-start;
+  padding: 8px 14px;
+  border: 1px solid var(--color-deep);
+  border-radius: var(--radius-sm);
+  color: var(--color-white);
+  background: var(--color-deep);
+  cursor: pointer;
+  font-weight: 650;
+}
+
+.pre-spec-tracking-save:hover:not(:disabled) {
+  background: var(--color-primary-strong);
+}
+
+@media (max-width: 900px) {
+  .pre-spec-tracking-decision-header {
+    flex-direction: column;
+  }
+
+  .pre-spec-tracking-current {
+    align-items: flex-start;
+    text-align: left;
+  }
+}
+
+@media (max-width: 640px) {
+  .pre-spec-detail-document-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pre-spec-tracking-options {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pre-spec-tracking-option,
+  .pre-spec-tracking-save {
+    width: 100%;
+  }
+}

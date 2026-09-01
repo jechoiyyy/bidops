@@ -934,14 +934,19 @@ export async function mockDocumentStructurePage(page: Page): Promise<DocumentStr
 
 /** Deterministic pre-spec list/detail fixture, including the unknown overview. */
 export async function mockPreSpecs(page: Page, overviewState: "completed" | "unknown" = "completed"): Promise<void> {
+  let currentTrackingStatus: string = visualPreSpecItems[0].tracking_status;
   await page.route("**/api/pre-specs**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
     if (url.pathname === "/api/pre-specs" && request.method() === "GET") {
+      const requestedNoticePk = Number(url.searchParams.get("notice_pk"));
+      const items = visualPreSpecItems
+        .map((item) => item.notice_pk === 991 ? { ...item, tracking_status: currentTrackingStatus } : item)
+        .filter((item) => !url.searchParams.has("notice_pk") || item.notice_pk === requestedNoticePk);
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ items: visualPreSpecItems, total: visualPreSpecItems.length, limit: 50, offset: 0 }),
+        body: JSON.stringify({ items, total: items.length, limit: 50, offset: 0 }),
       });
       return;
     }
@@ -951,6 +956,36 @@ export async function mockPreSpecs(page: Page, overviewState: "completed" | "unk
       return;
     }
     await route.fallback();
+  });
+  await page.route("**/api/opportunities/*/tracking-status", async (route) => {
+    const request = route.request();
+    if (request.method() !== "PATCH") {
+      await route.fallback();
+      return;
+    }
+    const match = new URL(request.url()).pathname.match(/^\/api\/opportunities\/(\d+)\/tracking-status$/);
+    const body = request.postDataJSON() as { tracking_status?: string; reason?: string };
+    if (!match || Number(match[1]) !== 202 || !body.tracking_status || !body.reason?.trim()) {
+      await route.fulfill({ status: 422, contentType: "application/json", body: JSON.stringify({ detail: "tracking_reason_required" }) });
+      return;
+    }
+    currentTrackingStatus = body.tracking_status;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        id: 202,
+        tracking_status: currentTrackingStatus,
+        tracking_reason: body.reason,
+        tracking_selected_by: request.headers()["x-bidops-actor-name"] ?? "시각 테스트 담당자",
+        tracking_selected_at: "2026-09-01T00:00:00Z",
+        recheck_signal: false,
+        recheck_signal_at: null,
+        recheck_signal_link_id: null,
+        first_registered_stage: "order_plan",
+        links: [],
+      }),
+    });
   });
   await page.route("**/api/notices/991", async (route) => {
     if (route.request().method() === "GET") {
@@ -1026,6 +1061,17 @@ export async function mockDocumentPreparationVisual(page: Page, state: DocumentP
     const pathname = new URL(request.url()).pathname;
     if (pathname === "/api/notices/991" && request.method() === "GET") {
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(visualPreSpecNotice) });
+      return;
+    }
+    if (pathname === "/api/pre-specs" && request.method() === "GET") {
+      const search = new URL(request.url()).searchParams;
+      const requestedNoticePk = search.has("notice_pk") ? Number(search.get("notice_pk")) : null;
+      const items = visualPreSpecItems.filter((item) => requestedNoticePk === null || item.notice_pk === requestedNoticePk);
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ items, total: items.length, limit: 50, offset: 0 }),
+      });
       return;
     }
     if (pathname === "/api/pre-specs/991/overview-reviews/v2" && request.method() === "GET") {

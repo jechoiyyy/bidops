@@ -370,6 +370,7 @@ def _payload(session: Session, **params: object) -> dict:
     """Call the route handler directly; the environment's TestClient is unavailable."""
 
     values: dict[str, object] = {
+        "notice_pk": None,
         "sw_only": True,
         "business_division": None,
         "origin": None,
@@ -394,6 +395,35 @@ def test_pre_specs_default_returns_sw_business_object(pre_specs_api):
     ids = _items_by_id(response)
     assert refs["sw_yes"].id in ids
     assert ids[refs["sw_yes"].id]["kept_by_tracking"] is False
+
+
+def test_pre_specs_notice_pk_returns_only_requested_notice(pre_specs_api):
+    session, _engine, refs = pre_specs_api
+
+    response = _payload(session, notice_pk=refs["sw_no"].id)
+
+    assert response["total"] == 1
+    assert [item["notice_pk"] for item in response["items"]] == [refs["sw_no"].id]
+    assert response["items"][0]["sw_business_status"] == "N"
+
+
+def test_pre_specs_notice_pk_missing_id_returns_empty_list(pre_specs_api):
+    session, _engine, refs = pre_specs_api
+    missing_id = max(notice.id for notice in refs.values() if isinstance(notice, Notice)) + 1
+
+    response = _payload(session, notice_pk=missing_id)
+
+    assert response["total"] == 0
+    assert response["items"] == []
+
+
+def test_pre_specs_notice_pk_bypasses_default_sw_only_filter(pre_specs_api):
+    session, _engine, refs = pre_specs_api
+
+    response = _payload(session, notice_pk=refs["sw_no"].id)
+
+    assert response["items"][0]["notice_pk"] == refs["sw_no"].id
+    assert response["items"][0]["kept_by_tracking"] is False
 
 
 def test_pre_specs_default_excludes_sw_n_without_tracking_link(pre_specs_api):
