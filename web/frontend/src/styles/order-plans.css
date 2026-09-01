@@ -1,0 +1,783 @@
+/* 발주계획 C-2 검토 화면. 기존 RootLab surface·spacing·breakpoint 토큰만 사용한다. */
+
+.c2-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-3);
+}
+
+.c2-page-header,
+.c2-results-heading,
+.c2-execution-heading,
+.c2-history-heading,
+.c2-plan-card-header,
+.c2-plan-card-footer,
+.c2-feedback-history-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.c2-page-header h2,
+.c2-results-heading h3,
+.c2-plan-card h3,
+.c2-history-heading h4 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.c2-page-header h2 {
+  font-size: clamp(1.45rem, 2.2vw, 2rem);
+}
+
+.c2-page-lede,
+.c2-muted,
+.c2-form-note,
+.c2-inline-warning,
+.c2-loading {
+  color: var(--color-muted);
+}
+
+.c2-page-lede {
+  max-width: 78ch;
+  margin: var(--space-1) 0 0;
+}
+
+.c2-semantics-note {
+  max-width: 88ch;
+  margin: 6px 0 0;
+  color: var(--color-muted);
+  font-size: 0.8125rem;
+}
+
+.c2-semantics-note code {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--surface-secondary);
+  color: var(--color-deep);
+  font-family: var(--font-mono);
+}
+
+.c2-kicker,
+.c2-card-eyebrow {
+  margin: 0 0 4px;
+  color: var(--color-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.c2-card-eyebrow {
+  text-transform: none;
+}
+
+.c2-contract-note {
+  flex: 0 1 auto;
+  max-width: 30ch;
+  padding: 8px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-selected);
+  color: var(--color-deep);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-align: right;
+}
+
+.c2-status-cluster {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.c2-status-text {
+  color: var(--color-muted);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.c2-execution-panel,
+.c2-live-panel,
+.c2-results,
+.c2-detail-facts,
+.c2-observation-panel,
+.c2-history-panel,
+.c2-feedback-panel {
+  min-width: 0;
+}
+
+.c2-execution-id {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-weight: 700;
+}
+
+.c2-muted,
+.c2-loading,
+.c2-inline-warning {
+  margin: 8px 0 0;
+}
+
+.c2-inline-warning {
+  padding: 10px 12px;
+  border: 1px solid var(--color-warning-edge);
+  border-radius: var(--radius-sm);
+  background: var(--surface-warning);
+  color: var(--color-warning);
+}
+
+.c2-fact-grid,
+.c2-plan-facts,
+.c2-history-meta,
+.c2-plan-identity {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.c2-fact-grid > div,
+.c2-plan-facts > div,
+.c2-history-meta > div,
+.c2-plan-identity > div {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-secondary);
+}
+
+.c2-fact-grid dt,
+.c2-plan-facts dt,
+.c2-history-meta dt,
+.c2-plan-identity dt,
+.c2-signal dt,
+.c2-feedback-history dt {
+  color: var(--color-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.c2-fact-grid dd,
+.c2-plan-facts dd,
+.c2-history-meta dd,
+.c2-plan-identity dd,
+.c2-signal dd,
+.c2-feedback-history dd {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.c2-fact-grid-compact {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.c2-binding-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: var(--space-2);
+}
+
+.c2-binding-grid > div,
+.c2-contract-table,
+.c2-attempt-summary {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-card);
+}
+
+.c2-binding-grid strong,
+.c2-binding-grid span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.c2-binding-grid strong,
+.c2-contract-table h4,
+.c2-artifact-summary h4,
+.c2-artifact-summary h5,
+.c2-attempt-summary h5,
+.c2-feedback-form h4 {
+  margin: 0 0 6px;
+}
+
+.c2-binding-grid .c2-digest {
+  margin-top: 6px;
+}
+
+.c2-count-grid {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: var(--space-2);
+}
+
+.c2-count-grid > div {
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  text-align: center;
+}
+
+.c2-count-grid span,
+.c2-count-grid strong {
+  display: block;
+}
+
+.c2-count-grid span {
+  color: var(--color-muted);
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+.c2-count-grid strong {
+  margin-top: 2px;
+  font-size: 1.05rem;
+}
+
+.c2-contract-table {
+  margin-top: var(--space-2);
+  background: var(--surface-secondary);
+}
+
+.c2-artifact-summary {
+  margin-top: var(--space-2);
+}
+
+.c2-scroll-table {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.c2-scroll-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.c2-scroll-table th,
+.c2-scroll-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+  text-align: left;
+  vertical-align: top;
+}
+
+.c2-scroll-table th {
+  color: var(--color-muted);
+  font-size: 0.75rem;
+}
+
+.c2-artifact-summary ul,
+.c2-live-list,
+.c2-feedback-history {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.c2-artifact-summary li,
+.c2-live-list li {
+  display: grid;
+  grid-template-columns: minmax(92px, auto) auto minmax(70px, auto) minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-card);
+}
+
+.c2-artifact-summary li > span,
+.c2-live-list li > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.c2-live-list li {
+  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.c2-results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.c2-search-form {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: min(320px, 100%);
+}
+
+.c2-search-form label,
+.c2-feedback-form label {
+  color: var(--color-muted);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.c2-search-form > div {
+  display: flex;
+  gap: 6px;
+}
+
+.c2-search-form input,
+.c2-feedback-form input,
+.c2-feedback-form select,
+.c2-feedback-form textarea {
+  min-width: 0;
+  width: 100%;
+  min-height: var(--control-height);
+  padding: 8px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-card);
+  color: var(--color-text);
+}
+
+.c2-feedback-form textarea {
+  resize: vertical;
+}
+
+.c2-button {
+  min-height: var(--control-height);
+  padding: 8px 14px;
+  border: 1px solid var(--color-deep);
+  border-radius: var(--radius-sm);
+  background: var(--color-deep);
+  color: var(--color-white);
+  cursor: pointer;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.c2-button:hover:not(:disabled) {
+  background: var(--color-primary-strong);
+}
+
+.c2-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.c2-button-secondary {
+  border-color: var(--border-strong);
+  background: var(--surface-card);
+  color: var(--color-deep);
+}
+
+.c2-filter-bar {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.c2-filter {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  color: var(--color-text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.c2-filter span,
+.c2-filter small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.c2-filter span {
+  font-weight: 800;
+}
+
+.c2-filter small {
+  margin-top: 2px;
+  color: var(--color-muted);
+}
+
+.c2-filter.is-active {
+  border-color: var(--color-deep);
+  box-shadow: inset 0 -3px 0 var(--color-deep);
+  background: var(--surface-selected);
+}
+
+.c2-plan-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.c2-plan-card,
+.c2-history-card {
+  min-width: 0;
+  padding: var(--card-padding);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+}
+
+.c2-plan-card h3 {
+  max-width: 75ch;
+  font-size: 1.1rem;
+}
+
+.c2-plan-card h3 a,
+.c2-text-link,
+.c2-back-link {
+  color: var(--color-deep);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.c2-plan-facts {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  margin-top: var(--space-2);
+}
+
+.c2-signal-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: var(--space-2);
+}
+
+.c2-signal {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.c2-signal-bm25 {
+  border-left: 4px solid var(--color-info);
+  background: var(--color-info-bg);
+}
+
+.c2-signal-qwen {
+  border-left: 4px solid var(--color-primary);
+  background: var(--surface-selected);
+}
+
+.c2-signal h4,
+.c2-signal h5 {
+  margin: 0 0 8px;
+}
+
+.c2-signal dl {
+  display: grid;
+  grid-template-columns: minmax(100px, auto) minmax(0, 1fr);
+  gap: 5px 10px;
+  margin: 0;
+}
+
+.c2-signal dl > div {
+  display: contents;
+}
+
+.c2-plan-card-footer {
+  align-items: center;
+  margin-top: var(--space-2);
+  padding-top: var(--space-1);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.c2-plan-card-footer p {
+  margin: 0;
+  color: var(--color-muted);
+  overflow-wrap: anywhere;
+}
+
+.c2-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+}
+
+.c2-pagination > span {
+  min-width: 12ch;
+  color: var(--color-muted);
+  text-align: center;
+}
+
+.c2-back-link {
+  display: inline-block;
+  margin-bottom: var(--space-1);
+  font-weight: 700;
+}
+
+.c2-large-id {
+  margin: 0;
+  color: var(--color-deep);
+  font-size: 1.5rem;
+  font-weight: 800;
+}
+
+.c2-detail-facts .c2-plan-identity {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.c2-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.c2-history-select {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-secondary);
+  color: var(--color-text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.c2-history-select.is-selected {
+  border-color: var(--color-deep);
+  background: var(--surface-selected);
+}
+
+.c2-history-select > span:last-child {
+  margin-left: auto;
+  color: var(--color-muted);
+}
+
+.c2-history-meta {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.c2-history-card {
+  background: var(--surface-secondary);
+}
+
+.c2-attempt-summary {
+  margin-top: var(--space-2);
+}
+
+.c2-attempt-summary p {
+  margin: 4px 0 0;
+}
+
+.c2-attempt-list {
+  display: grid;
+  gap: 10px;
+  margin: 8px 0 0;
+  padding-left: 1.25rem;
+}
+
+.c2-attempt-list > li {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-secondary);
+}
+
+.c2-attempt-list > li > strong {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.c2-attempt-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 10px;
+  margin: 8px 0 0;
+}
+
+.c2-attempt-grid > div {
+  min-width: 0;
+}
+
+.c2-attempt-grid dt {
+  color: var(--color-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.c2-attempt-grid dd {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.c2-feedback-history {
+  margin-bottom: var(--space-2);
+  counter-reset: c2-revision;
+}
+
+.c2-feedback-history > li {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-secondary);
+}
+
+.c2-feedback-history-heading {
+  align-items: center;
+}
+
+.c2-feedback-history-heading .mono {
+  min-width: 0;
+  margin-left: auto;
+  overflow-wrap: anywhere;
+}
+
+.c2-feedback-history dl {
+  display: grid;
+  grid-template-columns: minmax(100px, auto) minmax(0, 1fr);
+  gap: 5px 10px;
+  margin: 8px 0 0;
+}
+
+.c2-feedback-history dl > div {
+  display: contents;
+}
+
+.c2-feedback-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-selected);
+}
+
+.c2-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.c2-feedback-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.c2-digest {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+
+@media (max-width: 1180px) {
+  .c2-count-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .c2-plan-facts {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .c2-page-header,
+  .c2-results-heading,
+  .c2-execution-heading,
+  .c2-history-heading,
+  .c2-plan-card-header,
+  .c2-plan-card-footer {
+    flex-direction: column;
+  }
+
+  .c2-contract-note {
+    max-width: none;
+    text-align: left;
+  }
+
+  .c2-fact-grid,
+  .c2-fact-grid-compact,
+  .c2-history-meta,
+  .c2-attempt-grid,
+  .c2-detail-facts .c2-plan-identity {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .c2-filter-bar {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .c2-search-form {
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .c2-page {
+    padding: var(--space-2);
+  }
+
+  .c2-fact-grid,
+  .c2-fact-grid-compact,
+  .c2-plan-facts,
+  .c2-history-meta,
+  .c2-attempt-grid,
+  .c2-detail-facts .c2-plan-identity,
+  .c2-binding-grid,
+  .c2-signal-grid,
+  .c2-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .c2-count-grid,
+  .c2-filter-bar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .c2-plan-card,
+  .c2-history-card {
+    padding: var(--space-2);
+  }
+
+  .c2-artifact-summary li,
+  .c2-live-list li {
+    grid-template-columns: 1fr;
+    align-items: flex-start;
+  }
+
+  .c2-search-form > div {
+    flex-direction: column;
+  }
+
+  .c2-pagination {
+    flex-wrap: wrap;
+  }
+
+  .c2-feedback-history-heading {
+    align-items: flex-start;
+  }
+
+  .c2-feedback-history-heading .mono {
+    width: 100%;
+    margin-left: 0;
+  }
+}

@@ -5,6 +5,7 @@ import {
   mockDeepReviewLifecycle,
   mockDocumentPreparationVisual,
   mockOpportunity,
+  mockOrderPlans,
   mockPreSpecs,
 } from "./api-mock";
 
@@ -145,6 +146,8 @@ type LifecycleVisualTarget = {
 const lifecycleVisualTargets: LifecycleVisualTarget[] = [
   { name: "opportunities-list", path: "/opportunities", setup: async (page) => { await mockOpportunity(page); } },
   { name: "opportunity-detail", path: "/opportunities/202", setup: async (page) => { await mockOpportunity(page); } },
+  { name: "order-plans-list", path: "/order-plans", setup: async (page) => { await mockOrderPlans(page); } },
+  { name: "order-plan-detail", path: "/order-plans/101", setup: async (page) => { await mockOrderPlans(page); } },
   { name: "pre-specs-list", path: "/pre-specs", setup: async (page) => { await mockPreSpecs(page); } },
   { name: "pre-spec-detail", path: "/pre-specs/991", setup: async (page) => { await mockPreSpecs(page); } },
   { name: "pre-spec-unknown", path: "/pre-specs/991", setup: async (page) => { await mockPreSpecs(page, "unknown"); } },

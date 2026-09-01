@@ -1116,3 +1116,459 @@ export async function mockApi(page: Page): Promise<void> {
     });
   });
 }
+
+export type OrderPlanMockScenario = "default" | "failure" | "no-results" | "live-disabled" | "stopped";
+
+export interface OrderPlanMockTrace {
+  feedbackPosts: Array<{ body: unknown; headers: Record<string, string> }>;
+}
+
+const c2Digest = (letter: string): string => letter.repeat(64);
+
+function c2Execution(overrides: Record<string, unknown> = {}) {
+  return {
+    execution_id: "a2f4d7c1-0a61-4a07-8d2e-7f1d1d010101",
+    request_id: "b2f4d7c1-0a61-4b07-8d2e-7f1d1d010101",
+    source_run_id: "91d8c2e4-3f09-4e6a-9bd9-0c2e4e6d0101",
+    policy_version: "c2-policy.v1",
+    status: "부분 성공",
+    requested_by: "screening-worker",
+    execution_allowed: true,
+    population_count: 625,
+    population_sha256: c2Digest("p"),
+    policy_sha256: c2Digest("a"),
+    binding_sha256: c2Digest("b"),
+    stage1_binding_version: "bm25-binding.v1",
+    stage1_binding_sha256: c2Digest("c"),
+    stage2_binding_version: "qwen-binding.v1",
+    stage2_binding_sha256: c2Digest("d"),
+    counts: {
+      candidate_count: 625,
+      completed_count: 622,
+      failure_count: 3,
+      stage1_selected_count: 300,
+      stage1_filtered_out_count: 322,
+      stage1_failed_count: 3,
+      stage2_relevant_count: 1,
+      stage2_not_relevant_count: 1,
+      stage2_uncertain_count: 1,
+      stage2_failed_count: 3,
+      stage2_rejected_count: 0,
+      human_review_count: 1,
+    },
+    partial_artifact: true,
+    error_code: "batch_schema_violation",
+    queued_at: "2026-09-01T02:00:00Z",
+    started_at: "2026-09-01T02:00:04Z",
+    heartbeat_at: "2026-09-01T02:04:00Z",
+    finished_at: "2026-09-01T02:05:00Z",
+    ...overrides,
+  };
+}
+
+const c2OlderSuccess = c2Execution({
+  execution_id: "a2f4d7c1-0a61-4a07-8d2e-7f1d1d083101",
+  request_id: "b2f4d7c1-0a61-4b07-8d2e-7f1d1d083101",
+  source_run_id: "91d8c2e4-3f09-4e6a-9bd9-0c2e4e6d0831",
+  status: "성공",
+  population_count: 600,
+  population_sha256: c2Digest("q"),
+  policy_sha256: c2Digest("e"),
+  binding_sha256: c2Digest("f"),
+  stage1_binding_sha256: c2Digest("g"),
+  stage2_binding_sha256: c2Digest("h"),
+  counts: {
+    candidate_count: 600,
+    completed_count: 600,
+    failure_count: 0,
+    stage1_selected_count: 300,
+    stage1_filtered_out_count: 300,
+    stage1_failed_count: 0,
+    stage2_relevant_count: 2,
+    stage2_not_relevant_count: 1,
+    stage2_uncertain_count: 1,
+    stage2_failed_count: 0,
+    stage2_rejected_count: 0,
+    human_review_count: 1,
+  },
+  partial_artifact: false,
+  error_code: null,
+  queued_at: "2026-08-31T02:00:00Z",
+  started_at: "2026-08-31T02:00:02Z",
+  heartbeat_at: "2026-08-31T02:03:00Z",
+  finished_at: "2026-08-31T02:04:00Z",
+});
+
+const c2Failed = c2Execution({
+  execution_id: "a2f4d7c1-0a61-4a07-8d2e-7f1d1d010201",
+  request_id: "b2f4d7c1-0a61-4b07-8d2e-7f1d1d010201",
+  status: "실패",
+  execution_allowed: true,
+  error_code: "worker_failed",
+  partial_artifact: false,
+  queued_at: "2026-09-01T03:00:00Z",
+  started_at: "2026-09-01T03:00:02Z",
+  heartbeat_at: null,
+  finished_at: "2026-09-01T03:01:00Z",
+});
+
+const c2Running = c2Execution({
+  execution_id: "a2f4d7c1-0a61-4a07-8d2e-7f1d1d010301",
+  request_id: "b2f4d7c1-0a61-4b07-8d2e-7f1d1d010301",
+  status: "실행 중",
+  execution_allowed: true,
+  queued_at: "2026-09-01T04:00:00Z",
+  started_at: "2026-09-01T04:00:02Z",
+  heartbeat_at: "2026-09-01T04:01:00Z",
+  finished_at: null,
+  error_code: null,
+  partial_artifact: false,
+});
+
+const c2Items = [
+  {
+    order_plan_pk: 101,
+    order_plan_unty_no: "OP-2026-00101",
+    title: "인공지능 기반 공공데이터 통합·분석 플랫폼 구축 및 운영 지원 사업 발주계획(장기계속계약)",
+    agency_name: "서울특별시 디지털정책관",
+    business_division: "정보화",
+    budget_amount: 125000000,
+    planned_order_year: "2026",
+    planned_order_month: "11",
+    source_run_id: "91d8c2e4-3f09-4e6a-9bd9-0c2e4e6d0101",
+    observed_at: "2026-09-01T01:00:00Z",
+    stage1_status: "selected",
+    stage1_rank: 1,
+    stage1_score: 0.92,
+    nearest_capability: "데이터 플랫폼 구축·운영",
+    stage2_status: "success",
+    qwen_relevance: "relevant",
+    qwen_score: 0.96,
+    qwen_reason: "데이터 플랫폼 구축과 운영 범위가 확인됩니다.",
+    human_feedback: {
+      revision: 1,
+      relevance: "relevant",
+      priority: "high",
+      memo: "제안요청서 공개 시 범위와 일정 확인",
+      claimed_name: "김검토",
+      created_at: "2026-09-01T05:00:00Z",
+    },
+  },
+  {
+    order_plan_pk: 102,
+    order_plan_unty_no: "OP-2026-00102",
+    title: "지방공기업 업무혁신 및 데이터 연계 체계 고도화",
+    agency_name: "경기도청",
+    business_division: "행정",
+    budget_amount: null,
+    planned_order_year: "2027",
+    planned_order_month: "03",
+    source_run_id: "91d8c2e4-3f09-4e6a-9bd9-0c2e4e6d0101",
+    observed_at: "2026-09-01T01:01:00Z",
+    stage1_status: "selected",
+    stage1_rank: 7,
+    stage1_score: 0.74,
+    nearest_capability: "데이터 연계",
+    stage2_status: "success",
+    qwen_relevance: "uncertain",
+    qwen_score: 0.55,
+    qwen_reason: "데이터 연계는 확인되지만 당사 역량과의 직접 연결은 불충분합니다.",
+    human_feedback: null,
+  },
+  {
+    order_plan_pk: 103,
+    order_plan_unty_no: "OP-2026-00103",
+    title: "청사 시설관리 용역 발주계획",
+    agency_name: "부산광역시",
+    business_division: "시설관리",
+    budget_amount: 75000000,
+    planned_order_year: "2026",
+    planned_order_month: "12",
+    source_run_id: "91d8c2e4-3f09-4e6a-9bd9-0c2e4e6d0101",
+    observed_at: "2026-09-01T01:02:00Z",
+    stage1_status: "selected",
+    stage1_rank: 9,
+    stage1_score: 0.68,
+    nearest_capability: "시설관리",
+    stage2_status: "success",
+    qwen_relevance: "not_relevant",
+    qwen_score: 0.08,
+    qwen_reason: "시설관리 용역으로 정보화 사업과 다릅니다.",
+    human_feedback: null,
+  },
+  {
+    order_plan_pk: 104,
+    order_plan_unty_no: "OP-2026-00104",
+    title: "복지서비스 운영 지원 발주계획",
+    agency_name: "대전광역시",
+    business_division: "복지",
+    budget_amount: null,
+    planned_order_year: null,
+    planned_order_month: null,
+    source_run_id: "91d8c2e4-3f09-4e6a-9bd9-0c2e4e6d0101",
+    observed_at: "2026-09-01T01:03:00Z",
+    stage1_status: "filtered_out",
+    stage1_rank: null,
+    stage1_score: 0.12,
+    nearest_capability: null,
+    stage2_status: "not_attempted",
+    qwen_relevance: null,
+    qwen_score: null,
+    qwen_reason: null,
+    human_feedback: null,
+  },
+  {
+    order_plan_pk: 105,
+    order_plan_unty_no: "OP-2026-00105",
+    title: "공공기관 업무시스템 개선 검토",
+    agency_name: "인천광역시",
+    business_division: "정보화",
+    budget_amount: 88000000,
+    planned_order_year: "2027",
+    planned_order_month: null,
+    source_run_id: "91d8c2e4-3f09-4e6a-9bd9-0c2e4e6d0101",
+    observed_at: "2026-09-01T01:04:00Z",
+    stage1_status: "selected",
+    stage1_rank: 20,
+    stage1_score: 0.4,
+    nearest_capability: "업무시스템 개선",
+    stage2_status: "failed",
+    qwen_relevance: null,
+    qwen_score: null,
+    qwen_reason: null,
+    human_feedback: null,
+  },
+  {
+    order_plan_pk: 106,
+    order_plan_unty_no: "OP-2026-00106",
+    title: "지역 데이터 활용 사업 사전 조사",
+    agency_name: "충청북도",
+    business_division: "정보화",
+    budget_amount: null,
+    planned_order_year: null,
+    planned_order_month: null,
+    source_run_id: "91d8c2e4-3f09-4e6a-9bd9-0c2e4e6d0101",
+    observed_at: "2026-09-01T01:05:00Z",
+    stage1_status: "failed",
+    stage1_rank: null,
+    stage1_score: null,
+    nearest_capability: null,
+    stage2_status: "not_attempted",
+    qwen_relevance: null,
+    qwen_score: null,
+    qwen_reason: null,
+    human_feedback: null,
+  },
+];
+
+function c2DetailArtifacts(executionId: string) {
+  return [
+    { kind: "screening_input", artifact_schema_version: "screening-input.v1", artifact_producer: "screening-api", artifact_consumer: "screening-worker", sha256: c2Digest("i"), byte_count: 12800, object_version: "v1", validation_status: "valid", created_at: "2026-09-01T02:00:01Z" },
+    { kind: "ranking", artifact_schema_version: "ranking.v1", artifact_producer: "bm25-worker", artifact_consumer: "screening-api", sha256: c2Digest("j"), byte_count: 9600, object_version: "v1", validation_status: "valid", created_at: "2026-09-01T02:03:00Z" },
+    { kind: "decisions", artifact_schema_version: "decisions.v1", artifact_producer: "qwen-worker", artifact_consumer: "screening-api", sha256: c2Digest("k"), byte_count: 7200, object_version: "v1", validation_status: executionId.includes("partial") ? "pending" : "valid", created_at: "2026-09-01T02:04:00Z" },
+    { kind: "failures", artifact_schema_version: "failures.v1", artifact_producer: "screening-worker", artifact_consumer: "screening-api", sha256: c2Digest("l"), byte_count: 410, object_version: null, validation_status: "valid", created_at: "2026-09-01T02:05:00Z" },
+  ];
+}
+
+const c2Detail = {
+  schema_version: "order-plan-detail-response.v1",
+  producer: "screening-api",
+  consumer: "order-plan-review-client",
+  order_plan_pk: 101,
+  order_plan_unty_no: "OP-2026-00101",
+  title: c2Items[0].title,
+  agency_name: c2Items[0].agency_name,
+  business_division: c2Items[0].business_division,
+  business_division_code: "IT",
+  service_type: "구축·운영",
+  budget_amount: 125000000,
+  planned_order_year: "2026",
+  planned_order_month: "11",
+  observations: [
+    { source_run_id: "91d8c2e4-3f09-4e6a-9bd9-0c2e4e6d0101", observed_at: "2026-09-01T01:00:00Z", source_sha256: c2Digest("m") },
+    { source_run_id: "91d8c2e4-3f09-4e6a-9bd9-0c2e4e6d0831", observed_at: "2026-08-31T01:00:00Z", source_sha256: null },
+  ],
+  screening_history: [
+    {
+      execution_id: "a2f4d7c1-0a61-4a07-8d2e-7f1d1d010101", source_run_id: "91d8c2e4-3f09-4e6a-9bd9-0c2e4e6d0101", policy_version: "c2-policy.v1", policy_sha256: c2Digest("a"), binding_sha256: c2Digest("b"), execution_status: "부분 성공", stage1_status: "selected", stage1_rank: 1, stage1_score: 0.92, nearest_capability: "데이터 플랫폼 구축·운영", batch_id: "batch-20260901-01", attempt_no: 2, stage2_status: "success", qwen_relevance: "relevant", qwen_score: 0.96, qwen_reason: "데이터 플랫폼 구축과 운영 범위가 확인됩니다.", feedback_revision_count: 1,
+    },
+    {
+      execution_id: "a2f4d7c1-0a61-4a07-8d2e-7f1d1d083101", source_run_id: "91d8c2e4-3f09-4e6a-9bd9-0c2e4e6d0831", policy_version: "c2-policy.v1", policy_sha256: c2Digest("e"), binding_sha256: c2Digest("f"), execution_status: "성공", stage1_status: "selected", stage1_rank: 4, stage1_score: 0.88, nearest_capability: "데이터 플랫폼 구축", batch_id: "batch-20260831-01", attempt_no: 1, stage2_status: "success", qwen_relevance: "uncertain", qwen_score: 0.62, qwen_reason: "이전 실행에서는 범위 확인이 필요했습니다.", feedback_revision_count: 0,
+    },
+  ],
+  latest_human_feedback: c2Items[0].human_feedback,
+};
+
+function c2ExecutionDetail(execution: Record<string, unknown>) {
+  const executionId = String(execution.execution_id);
+  const attempts = executionId === "a2f4d7c1-0a61-4a07-8d2e-7f1d1d010101"
+    ? [
+      {
+        attempt_id: "c2f4d7c1-0a61-4e07-8d2e-000000000101",
+        batch_id: "batch-20260901-01",
+        sequence: 1,
+        attempt_no: 1,
+        model_name: "qwen3.8-27B",
+        model_digest: c2Digest("q"),
+        prompt_version: "prompt-v3",
+        prompt_sha256: c2Digest("r"),
+        company_profile_version: "profile-v1",
+        company_profile_sha256: c2Digest("s"),
+        generation_config_sha256: c2Digest("t"),
+        attempt_status: "failed",
+        failure_type: "timeout",
+        failure_code: "qwen_timeout",
+        input_tokens: 620,
+        cached_input_tokens: null,
+        output_tokens: null,
+        total_tokens: null,
+        duration_ms: 120000,
+        started_at: "2026-09-01T02:02:00Z",
+        finished_at: "2026-09-01T02:04:00Z",
+      },
+      {
+        attempt_id: "c2f4d7c1-0a61-4e07-8d2e-000000000102",
+        batch_id: "batch-20260901-01",
+        sequence: 1,
+        attempt_no: 2,
+        model_name: "qwen3.8-27B",
+        model_digest: c2Digest("q"),
+        prompt_version: "prompt-v3",
+        prompt_sha256: c2Digest("r"),
+        company_profile_version: "profile-v1",
+        company_profile_sha256: c2Digest("s"),
+        generation_config_sha256: c2Digest("t"),
+        attempt_status: "success",
+        failure_type: null,
+        failure_code: null,
+        input_tokens: 620,
+        cached_input_tokens: 120,
+        output_tokens: 80,
+        total_tokens: 700,
+        duration_ms: 4800,
+        started_at: "2026-09-01T02:04:10Z",
+        finished_at: "2026-09-01T02:04:15Z",
+      },
+    ]
+    : [{
+      attempt_id: "c2f4d7c1-0a61-4e07-8d2e-000000000201",
+      batch_id: "batch-20260831-01",
+      sequence: 1,
+      attempt_no: 1,
+      model_name: "qwen3.8-27B",
+      model_digest: c2Digest("u"),
+      prompt_version: "prompt-v3",
+      prompt_sha256: c2Digest("v"),
+      company_profile_version: "profile-v1",
+      company_profile_sha256: c2Digest("w"),
+      generation_config_sha256: c2Digest("x"),
+      attempt_status: "success",
+      failure_type: null,
+      failure_code: null,
+      input_tokens: 580,
+      cached_input_tokens: 100,
+      output_tokens: 60,
+      total_tokens: 640,
+      duration_ms: 4200,
+      started_at: "2026-08-31T02:02:00Z",
+      finished_at: "2026-08-31T02:02:05Z",
+    }];
+  return {
+    schema_version: "execution-detail-response.v1",
+    producer: "screening-api",
+    consumer: "human-review-client",
+    ...execution,
+    artifacts: c2DetailArtifacts(String(execution.execution_id)),
+    attempts,
+  };
+}
+
+/** Stable Phase 4 C-2 responses. Register after mockApi so this route has precedence. */
+export async function mockOrderPlans(page: Page, scenario: OrderPlanMockScenario = "default"): Promise<OrderPlanMockTrace> {
+  const trace: OrderPlanMockTrace = { feedbackPosts: [] };
+  const partial = scenario === "live-disabled" ? c2Execution({ execution_allowed: false }) : c2Execution();
+  const executions = scenario === "no-results"
+    ? []
+    : scenario === "failure"
+      ? [c2Failed]
+      : scenario === "stopped"
+        ? [c2Execution({ execution_id: "a2f4d7c1-0a61-4a07-8d2e-7f1d1d010401", request_id: "b2f4d7c1-0a61-4b07-8d2e-7f1d1d010401", status: "중단됨", finished_at: "2026-09-01T05:00:00Z", error_code: "user_requested", partial_artifact: true })]
+        : [c2Failed, c2Running, partial, c2OlderSuccess];
+  const feedbackItems = c2Items[0].human_feedback ? [{
+    feedback_id: "c2f4d7c1-0a61-4c07-8d2e-000000000001",
+    execution_id: "a2f4d7c1-0a61-4a07-8d2e-7f1d1d010101",
+    order_plan_pk: 101,
+    revision: 1,
+    relevance: "relevant",
+    priority: "high",
+    memo: "제안요청서 공개 시 범위와 일정 확인",
+    claimed_name: "김검토",
+    created_at: "2026-09-01T05:00:00Z",
+  }] : [];
+
+  await page.route("**/api/**", async (route) => {
+    const request = route.request();
+    const pathname = new URL(request.url()).pathname;
+    const method = request.method();
+
+    if (pathname === "/api/order-plan-screening/executions" && method === "GET") {
+      const search = new URL(request.url()).searchParams;
+      const sourceRunId = search.get("source_run_id");
+      const filtered = sourceRunId ? executions.filter((item) => item.source_run_id === sourceRunId) : executions;
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ schema_version: "execution-list-response.v1", producer: "screening-api", consumer: "human-review-client", items: filtered, total: filtered.length, limit: Number(search.get("limit") ?? 500), offset: Number(search.get("offset") ?? 0) }) });
+      return;
+    }
+
+    if (pathname === "/api/order-plans" && method === "GET") {
+      const search = new URL(request.url()).searchParams;
+      let items = scenario === "no-results" ? [] : c2Items.filter((item) => !search.get("source_run_id") || item.source_run_id === search.get("source_run_id"));
+      if (search.get("stage1_status")) items = items.filter((item) => item.stage1_status === search.get("stage1_status"));
+      if (search.get("qwen_relevance")) items = items.filter((item) => item.qwen_relevance === search.get("qwen_relevance"));
+      const queryText = search.get("q")?.toLocaleLowerCase("ko-KR");
+      if (queryText) items = items.filter((item) => `${item.title} ${item.order_plan_unty_no}`.toLocaleLowerCase("ko-KR").includes(queryText));
+      const offset = Number(search.get("offset") ?? 0);
+      const limit = Number(search.get("limit") ?? 500);
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ schema_version: "order-plan-list-response.v1", producer: "order-plan-review-api", consumer: "order-plan-review-client", items: items.slice(offset, offset + limit), total: items.length, limit, offset }) });
+      return;
+    }
+
+    if (pathname === "/api/order-plans/101" && method === "GET") {
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(c2Detail) });
+      return;
+    }
+
+    if (pathname === "/api/order-plans/101/screening-history" && method === "GET") {
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ schema_version: "order-plan-detail-response.v1", producer: "screening-api", consumer: "order-plan-review-client", order_plan_pk: 101, items: c2Detail.screening_history }) });
+      return;
+    }
+
+    if (pathname === "/api/order-plans/101/screening-feedback" && method === "GET") {
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ schema_version: "feedback-list-response.v1", producer: "screening-api", consumer: "order-plan-review-client", items: feedbackItems }) });
+      return;
+    }
+
+    if (pathname === "/api/order-plans/101/screening-feedback" && method === "POST") {
+      const body = request.postDataJSON() as Record<string, unknown>;
+      trace.feedbackPosts.push({ body, headers: request.headers() });
+      const revision = feedbackItems.reduce((highest, item) => Math.max(highest, item.revision), 0) + 1;
+      const saved = { feedback_id: `c2f4d7c1-0a61-4c07-8d2e-${String(revision).padStart(12, "0")}`, execution_id: body.execution_id, order_plan_pk: 101, revision, relevance: body.relevance, priority: body.priority ?? null, memo: body.memo ?? null, claimed_name: request.headers()["x-bidops-actor-name"] ?? "시각 테스트 담당자", created_at: "2026-09-02T00:00:00Z" };
+      feedbackItems.push(saved);
+      await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify({ schema_version: "feedback-create-response.v1", producer: "human-review-api", consumer: "postgres-history", ...saved }) });
+      return;
+    }
+
+    const executionMatch = pathname.match(/^\/api\/order-plan-screening\/executions\/([^/]+)$/);
+    if (executionMatch && method === "GET") {
+      const execution = executions.find((item) => item.execution_id === decodeURIComponent(executionMatch[1]));
+      if (!execution) {
+        await route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ error: { code: "not_found", message: "execution not found" }, request_id: "d2f4d7c1-0a61-4d07-8d2e-000000000001" }) });
+        return;
+      }
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(c2ExecutionDetail(execution)) });
+      return;
+    }
+
+    await route.fallback();
+  });
+  return trace;
+}

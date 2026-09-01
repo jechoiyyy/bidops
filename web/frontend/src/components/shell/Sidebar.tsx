@@ -1,7 +1,7 @@
 import type { RefObject } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 
-type IconName = "dashboard" | "queue" | "deadline" | "judgment" | "review" | "profile" | "metrics" | "quality" | "policy" | "runs" | "attachments" | "operations" | "audit";
+type IconName = "dashboard" | "queue" | "deadline" | "judgment" | "review" | "profile" | "metrics" | "quality" | "policy" | "runs" | "attachments" | "operations" | "audit" | "order-plan";
 
 interface NavItem {
   label: string;
@@ -25,6 +25,7 @@ const groups: NavGroup[] = [
       { label: "검토 대기열", path: "/queue", icon: "queue" },
       { label: "마감 추적", path: "/deadlines", icon: "deadline", linksTo: "/queue" },
       { label: "사업기회", path: "/opportunities", icon: "queue" },
+      { label: "발주계획 C-2", path: "/order-plans", icon: "order-plan" },
       { label: "사전규격", path: "/pre-specs", icon: "judgment" },
     ],
   },
@@ -62,6 +63,8 @@ function NavIcon({ name }: { name: IconName }) {
       return <svg {...common}><rect x="3" y="3" width="7" height="9" rx="1" /><rect x="14" y="3" width="7" height="5" rx="1" /><rect x="14" y="12" width="7" height="9" rx="1" /><rect x="3" y="16" width="7" height="5" rx="1" /></svg>;
     case "queue":
       return <svg {...common}><path d="M4 6h16M4 12h16M4 18h9" /></svg>;
+    case "order-plan":
+      return <svg {...common}><path d="M5 4h14v16H5z" /><path d="M8 8h8M8 12h8M8 16h5" /><path d="M8 4V2M16 4V2" /></svg>;
     case "deadline":
       return <svg {...common}><circle cx="12" cy="12" r="8" /><path d="M12 8v4l3 2" /></svg>;
     case "judgment":

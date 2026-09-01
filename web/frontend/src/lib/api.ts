@@ -9,6 +9,16 @@ import type {
   NoticeDetailResponse,
   NoticeHistoryResponse,
   NoticeListResponse,
+  OrderPlanDetailResponse,
+  OrderPlanListQuery,
+  OrderPlanListResponse,
+  OrderPlanScreeningExecutionDetailResponse,
+  OrderPlanScreeningExecutionListResponse,
+  OrderPlanScreeningExecutionQuery,
+  OrderPlanScreeningFeedbackCreateRequest,
+  OrderPlanScreeningFeedbackCreateResponse,
+  OrderPlanScreeningFeedbackListResponse,
+  OrderPlanScreeningHistoryResponse,
   PreSpecListQuery,
   PreSpecListResponse,
   PreSpecOverviewReviewsResponse,
@@ -113,10 +123,18 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     : await response.text();
 
   if (!response.ok) {
-    const detail = typeof body === "object" && body !== null && "detail" in body
-      ? body.detail
-      : body;
-    const message = typeof detail === "string" ? detail : `API 요청이 실패했습니다 (${response.status}).`;
+    const detail = typeof body === "object" && body !== null && "error" in body
+      && typeof body.error === "object" && body.error !== null
+      ? body.error
+      : typeof body === "object" && body !== null && "detail" in body
+        ? body.detail
+        : body;
+    const message = typeof detail === "string"
+      ? detail
+      : typeof detail === "object" && detail !== null && "message" in detail
+        && typeof detail.message === "string"
+        ? detail.message
+        : `API 요청이 실패했습니다 (${response.status}).`;
     throw new ApiError(response.status, message, detail);
   }
 
@@ -145,10 +163,18 @@ async function requestBlob(path: string): Promise<Blob> {
     const body: unknown = contentType.includes("application/json")
       ? await response.json()
       : await response.text();
-    const detail = typeof body === "object" && body !== null && "detail" in body
-      ? body.detail
-      : body;
-    const message = typeof detail === "string" ? detail : `API 요청이 실패했습니다 (${response.status}).`;
+    const detail = typeof body === "object" && body !== null && "error" in body
+      && typeof body.error === "object" && body.error !== null
+      ? body.error
+      : typeof body === "object" && body !== null && "detail" in body
+        ? body.detail
+        : body;
+    const message = typeof detail === "string"
+      ? detail
+      : typeof detail === "object" && detail !== null && "message" in detail
+        && typeof detail.message === "string"
+        ? detail.message
+        : `API 요청이 실패했습니다 (${response.status}).`;
     throw new ApiError(response.status, message, detail);
   }
 
@@ -255,6 +281,66 @@ export const api = {
   getScreeningArtifact: (executionId: string, kind: ScreeningArtifactKind) =>
     requestBlob(
       `/screening/executions/${encodeURIComponent(executionId)}/artifacts/${kind}`,
+    ),
+
+  // Order-plan C-2 review endpoints are intentionally separate from the
+  // legacy notice-screening endpoints above.  The frontend only consumes the
+  // projections documented in docs/contracts.md.
+  getOrderPlans: (
+    params: OrderPlanListQuery = {},
+    options?: ReadRequestOptions,
+  ) =>
+    request<OrderPlanListResponse>(
+      `/order-plans${query({ ...params })}`,
+      options,
+    ),
+
+  getOrderPlan: (orderPlanPk: number, options?: ReadRequestOptions) =>
+    request<OrderPlanDetailResponse>(`/order-plans/${orderPlanPk}`, options),
+
+  getOrderPlanScreeningHistory: (orderPlanPk: number, options?: ReadRequestOptions) =>
+    request<OrderPlanScreeningHistoryResponse>(
+      `/order-plans/${orderPlanPk}/screening-history`,
+      options,
+    ),
+
+  getOrderPlanScreeningExecutions: (
+    params: OrderPlanScreeningExecutionQuery = {},
+    options?: ReadRequestOptions,
+  ) =>
+    request<OrderPlanScreeningExecutionListResponse>(
+      `/order-plan-screening/executions${query({ ...params })}`,
+      options,
+    ),
+
+  getOrderPlanScreeningExecution: (executionId: string, options?: ReadRequestOptions) =>
+    request<OrderPlanScreeningExecutionDetailResponse>(
+      `/order-plan-screening/executions/${encodeURIComponent(executionId)}`,
+      options,
+    ),
+
+  getOrderPlanScreeningFeedback: (
+    orderPlanPk: number,
+    executionId?: string | null,
+    options?: ReadRequestOptions,
+  ) =>
+    request<OrderPlanScreeningFeedbackListResponse>(
+      `/order-plans/${orderPlanPk}/screening-feedback${query({ execution_id: executionId })}`,
+      options,
+    ),
+
+  createOrderPlanScreeningFeedback: (
+    orderPlanPk: number,
+    payload: OrderPlanScreeningFeedbackCreateRequest,
+    actorName: string,
+  ) =>
+    request<OrderPlanScreeningFeedbackCreateResponse>(
+      `/order-plans/${orderPlanPk}/screening-feedback`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...actorHeaders(actorName) },
+        body: JSON.stringify(payload),
+      },
     ),
 
   getPipelineLogs: (

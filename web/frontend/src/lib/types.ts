@@ -1148,3 +1148,279 @@ export interface TrackingStatusUpdateRequest {
   tracking_status: OpportunityTrackingStatus;
   reason: string;
 }
+
+// ---------------------------------------------------------------------------
+// Order-plan C-2 review REST contracts
+//
+// These are intentionally separate from the legacy notice screening types
+// above. C-2 relevance is a title-screening signal, not a judgment grade,
+// readiness, tracking decision, or final bid decision.
+
+export type OrderPlanStage1Status = "selected" | "filtered_out" | "failed" | "rejected";
+export type OrderPlanStage2Status = "not_attempted" | "success" | "failed" | "rejected" | "unknown";
+export type OrderPlanRelevance = "relevant" | "not_relevant" | "uncertain";
+export type OrderPlanScreeningStatus = "대기" | "실행 중" | "중지 요청" | "성공" | "부분 성공" | "실패" | "중단됨";
+export type OrderPlanScreeningAttemptStatus = "running" | "success" | "failed" | "rejected";
+export type OrderPlanScreeningFailureType =
+  | "timeout"
+  | "truncated_output"
+  | "schema_violation"
+  | "id_mismatch"
+  | "model_mismatch"
+  | "binding_mismatch"
+  | "payload_not_approved"
+  | "transport"
+  | "policy_rejected"
+  | "unknown";
+export type OrderPlanScreeningArtifactKind =
+  | "screening_input"
+  | "ranking"
+  | "decisions"
+  | "failures"
+  | "telemetry"
+  | "screening_result";
+export type OrderPlanArtifactValidationStatus = "pending" | "valid" | "invalid";
+export type OrderPlanFeedbackPriority = "high" | "medium" | "low";
+
+export interface OrderPlanHumanFeedbackSummary {
+  revision: number;
+  relevance: OrderPlanRelevance;
+  priority: OrderPlanFeedbackPriority | null;
+  memo: string | null;
+  claimed_name: string;
+  created_at: string;
+}
+
+export interface OrderPlanListItem {
+  order_plan_pk: number;
+  order_plan_unty_no: string;
+  title: string | null;
+  agency_name: string | null;
+  business_division: string | null;
+  budget_amount: number | null;
+  planned_order_year: string | null;
+  planned_order_month: string | null;
+  source_run_id: string | null;
+  observed_at: string | null;
+  stage1_status: OrderPlanStage1Status | null;
+  stage1_rank: number | null;
+  stage1_score: number | null;
+  nearest_capability: string | null;
+  stage2_status: OrderPlanStage2Status | null;
+  qwen_relevance: OrderPlanRelevance | null;
+  qwen_score: number | null;
+  qwen_reason: string | null;
+  human_feedback: OrderPlanHumanFeedbackSummary | null;
+}
+
+export interface OrderPlanListResponse {
+  schema_version: "order-plan-list-response.v1";
+  producer: "order-plan-review-api";
+  consumer: "order-plan-review-client";
+  items: OrderPlanListItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface OrderPlanListQuery {
+  source_run_id?: string | null;
+  stage1_status?: OrderPlanStage1Status | null;
+  stage2_status?: OrderPlanStage2Status | null;
+  qwen_relevance?: OrderPlanRelevance | null;
+  human_relevance?: OrderPlanRelevance | null;
+  q?: string | null;
+  limit?: number | null;
+  offset?: number | null;
+}
+
+export interface OrderPlanObservationView {
+  source_run_id: string;
+  observed_at: string;
+  source_sha256: string | null;
+}
+
+export interface OrderPlanScreeningHistoryItem {
+  execution_id: string;
+  source_run_id: string;
+  policy_version: string;
+  policy_sha256: string;
+  binding_sha256: string;
+  execution_status: OrderPlanScreeningStatus;
+  stage1_status: OrderPlanStage1Status;
+  stage1_rank: number | null;
+  stage1_score: number | null;
+  nearest_capability: string | null;
+  batch_id: string | null;
+  attempt_no: number | null;
+  stage2_status: OrderPlanStage2Status;
+  qwen_relevance: OrderPlanRelevance | null;
+  qwen_score: number | null;
+  qwen_reason: string | null;
+  feedback_revision_count: number;
+}
+
+export interface OrderPlanDetailResponse {
+  schema_version: "order-plan-detail-response.v1";
+  producer: "screening-api";
+  consumer: "order-plan-review-client";
+  order_plan_pk: number;
+  order_plan_unty_no: string;
+  title: string | null;
+  agency_name: string | null;
+  business_division: string | null;
+  business_division_code: string | null;
+  service_type: string | null;
+  budget_amount: number | null;
+  planned_order_year: string | null;
+  planned_order_month: string | null;
+  observations: OrderPlanObservationView[];
+  screening_history: OrderPlanScreeningHistoryItem[];
+  latest_human_feedback: OrderPlanHumanFeedbackSummary | null;
+}
+
+export interface OrderPlanScreeningHistoryResponse {
+  schema_version: "order-plan-detail-response.v1";
+  producer: "screening-api";
+  consumer: "order-plan-review-client";
+  order_plan_pk: number;
+  items: OrderPlanScreeningHistoryItem[];
+}
+
+export interface OrderPlanScreeningFeedbackView {
+  feedback_id: string;
+  execution_id: string;
+  order_plan_pk: number;
+  revision: number;
+  relevance: OrderPlanRelevance;
+  priority: OrderPlanFeedbackPriority | null;
+  memo: string | null;
+  claimed_name: string;
+  created_at: string;
+}
+
+export interface OrderPlanScreeningFeedbackListResponse {
+  schema_version: "feedback-list-response.v1";
+  producer: "screening-api";
+  consumer: "order-plan-review-client";
+  items: OrderPlanScreeningFeedbackView[];
+}
+
+export interface OrderPlanScreeningFeedbackCreateRequest {
+  schema_version: "feedback-create-request.v1";
+  producer: "human-review-client";
+  consumer: "review-api";
+  request_id: string;
+  execution_id: string;
+  relevance: OrderPlanRelevance;
+  priority: OrderPlanFeedbackPriority | null;
+  memo: string | null;
+  expected_revision?: number | null;
+}
+
+export interface OrderPlanScreeningFeedbackCreateResponse extends OrderPlanScreeningFeedbackView {
+  schema_version: "feedback-create-response.v1";
+  producer: "human-review-api";
+  consumer: "postgres-history";
+}
+
+export interface OrderPlanScreeningArtifactSummary {
+  kind: OrderPlanScreeningArtifactKind;
+  artifact_schema_version: string;
+  artifact_producer: string;
+  artifact_consumer: string;
+  sha256: string;
+  byte_count: number;
+  object_version: string | null;
+  validation_status: OrderPlanArtifactValidationStatus;
+  created_at: string;
+}
+
+export interface OrderPlanScreeningExecutionCounts {
+  candidate_count: number;
+  completed_count: number;
+  failure_count: number;
+  stage1_selected_count: number;
+  stage1_filtered_out_count: number;
+  stage1_failed_count: number;
+  stage2_relevant_count: number;
+  stage2_not_relevant_count: number;
+  stage2_uncertain_count: number;
+  stage2_failed_count: number;
+  stage2_rejected_count: number;
+  human_review_count: number;
+}
+
+export interface OrderPlanScreeningExecutionSummary {
+  execution_id: string;
+  request_id: string;
+  source_run_id: string;
+  policy_version: string;
+  status: OrderPlanScreeningStatus;
+  requested_by: string;
+  execution_allowed: boolean;
+  population_count: number;
+  population_sha256: string;
+  policy_sha256: string;
+  binding_sha256: string;
+  stage1_binding_version: string;
+  stage1_binding_sha256: string;
+  stage2_binding_version: string;
+  stage2_binding_sha256: string;
+  counts: OrderPlanScreeningExecutionCounts;
+  partial_artifact: boolean;
+  error_code: string | null;
+  queued_at: string;
+  started_at: string | null;
+  heartbeat_at: string | null;
+  finished_at: string | null;
+}
+
+export interface OrderPlanScreeningExecutionListResponse {
+  schema_version: "execution-list-response.v1";
+  producer: "screening-api";
+  consumer: "human-review-client";
+  items: OrderPlanScreeningExecutionSummary[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface OrderPlanScreeningAttemptSummary {
+  attempt_id: string;
+  batch_id: string;
+  sequence: number;
+  attempt_no: number;
+  model_name: string;
+  model_digest: string;
+  prompt_version: string;
+  prompt_sha256: string;
+  company_profile_version: string;
+  company_profile_sha256: string;
+  generation_config_sha256: string;
+  attempt_status: OrderPlanScreeningAttemptStatus;
+  failure_type: OrderPlanScreeningFailureType | null;
+  failure_code: string | null;
+  input_tokens: number | null;
+  cached_input_tokens: number | null;
+  output_tokens: number | null;
+  total_tokens: number | null;
+  duration_ms: number | null;
+  started_at: string | null;
+  finished_at: string | null;
+}
+
+export interface OrderPlanScreeningExecutionDetailResponse extends OrderPlanScreeningExecutionSummary {
+  schema_version: "execution-detail-response.v1";
+  producer: "screening-api";
+  consumer: "human-review-client";
+  artifacts: OrderPlanScreeningArtifactSummary[];
+  attempts: OrderPlanScreeningAttemptSummary[];
+}
+
+export interface OrderPlanScreeningExecutionQuery {
+  source_run_id?: string | null;
+  status?: OrderPlanScreeningStatus | null;
+  limit?: number | null;
+  offset?: number | null;
+}

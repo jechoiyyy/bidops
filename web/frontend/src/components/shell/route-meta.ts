@@ -43,6 +43,18 @@ export const routeMetadata = {
     editScope: "추적 상태 저장 가능",
     runSelectorVisible: false,
   },
+  orderPlans: {
+    title: "발주계획 C-2 검토",
+    dataScope: "cumulative",
+    editScope: "사람 피드백 revision 저장 가능",
+    runSelectorVisible: false,
+  },
+  orderPlanDetail: {
+    title: "발주계획 C-2 상세",
+    dataScope: "cumulative",
+    editScope: "사람 피드백 revision 저장 가능",
+    runSelectorVisible: false,
+  },
   bidDelta: {
     title: "입찰 변경 비교",
     dataScope: "cumulative",
