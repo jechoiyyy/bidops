@@ -180,3 +180,48 @@ HWP 원본은 그대로 보존하고 HWP 분석에는 검증된 HWPX 변환 결�
 피드백은 `1차 판정 품질`, `심층 리포트 품질`, `실제 사업 결과`, `사용자 경험·처리 흐름`으로 구분한다. 등급 수정과 근거 부족은 공고·회차·정책 버전에 연결하고 실제 결과는 참여 여부·제안 결과·실패 원인처럼 사후 확인 가능한 사실을 기록한다.
 
 피드백과 발주계획 선별 실험은 변경 제안을 만들 수 있지만 선정 기준, 회사 프로필, 프롬프트, 모델 설정을 자동 변경하지 않는다. 담당자가 제안을 검토하고 승인하면 새 불변 정책 버전으로 이후 실행에만 적용한다.
+
+## 발주계획 C-2 선별 상태 규칙
+
+C-2는 기존 공고의 적합성·참여 준비 판정과 별도의 relevance 흐름이다. Phase 0의 고정
+정의와 machine-readable schema는 [`docs/contracts.md`의 C-2 계약](contracts.md#c-2-phase-0-fixed-contract)과
+`skills/bidops-screen/contracts/`를 따른다.
+
+- 전체 `bidops.collected-order-plans.v1` 회차를 먼저 검증한다. `metadata.collection.complete=false`,
+  warning, count 불일치, raw record hash 불일치는 실행 거부다. 원본 JSON·raw page·정규화
+  projection은 기존 회차 디렉터리에서 덮어쓰지 않는다.
+- 현재 정책은 전체 제목을 NFKC·casefold·공백 축약 후 BM25로 계산하고 score 내림차순,
+  `order_plan_unty_no` 오름차순으로 tie-break한다. Top 300은 `selected`, 나머지는
+  `filtered_out`이며 탈락을 `not_relevant`라고 기록하지 않는다. 300건 이하 규칙은
+  select-all까지 문서화했지만 탈락 감사 표본은 사람 승인 전까지 비활성이다.
+- Qwen은 Top 300만 25건의 rank-contiguous batch로 순차 전송한다. 승인된 private vLLM,
+  정확한 model/prompt/profile/BM25 digest와 허용 payload를 모두 일치시켜야 하며 hosted
+  fallback은 없다. retryable failure만 최대 2회 재시도하고, binding·model·payload·policy
+  거부는 재시도하지 않는다.
+
+상태의 의미는 다음과 같다. 하나의 상태가 다른 축의 결론을 대신하지 않는다.
+
+| 상태 | 의미 | 보존 규칙 |
+|---|---|---|
+| `filtered_out` | deterministic Top 300 밖 | relevance 음성이나 적합성 제외로 바꾸지 않음 |
+| `relevant` / `not_relevant` | Qwen 또는 사람의 relevance label | 등급·준비·추적·Go/No-Go로 승격하지 않음 |
+| `uncertain` | relevance 확인 보류 | 기본 사람 검토 목록에 남김 |
+| `unknown` | 정보 부족·결과 결정 불가 | 성공·비관련으로 보정하지 않음 |
+| `null` | 해당 field가 미시도 또는 비적용 | unknown·failed의 동의어가 아님 |
+| `failed` | 실행된 단계의 timeout·transport·schema 등 실패 | failure type/code와 사람 검토 필요를 남김 |
+| `rejected` | preflight·binding·payload·policy 검증 거부 | 모델 결과나 `not_relevant`를 만들지 않음 |
+
+실행 상태는 `대기 → 실행 중 → 성공|부분 성공|실패`, `실행 중 → 중지 요청 → 중단됨`,
+`대기 → 중단됨`만 허용한다. terminal 상태는 종료 시각을 갖고, active slot은 1이다. stale
+또는 process interruption은 자동 재개하지 않고 성공 subset·failure artifact를 보존한 뒤
+사람이 새 execution으로 재시작한다. 사람 feedback은 execution·plan별 append-only revision
+이며 `relevance=관련|비관련|판단보류`에 대응하는 machine 값과 `priority=높음|보통|낮음|null`,
+메모를 기록한다. 이 feedback은 `grade`, `readiness`, `tracking_status`, final `go_no_go`를
+변경하지 않는다.
+
+현재 policy와 binding은 `blocked`, validator는 `valid_but_blocked`를 반환한다. C-1 gold
+manifest는 `partially_human_adjudicated`이며 사람 22건, draft 603건, 잔여 확인 87건이다.
+잔여 gold를 사람 완료로 추정하거나 품질 gate를 통과로 표시하지 않는다. 감사 표본 크기·
+주기, 승인 gold 기반 quality threshold, execution별 private vLLM 전송 승인이 채워지기
+전에는 policy를 active로 바꾸지 않는다. `계속 추적|보류|종료`와 사람 최종 Go/No-Go는
+여전히 별도 생애주기·입찰 결정 이벤트다.

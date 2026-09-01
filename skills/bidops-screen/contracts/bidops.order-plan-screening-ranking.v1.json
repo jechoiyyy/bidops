@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bidops.internal/schemas/bidops.order-plan-screening-ranking.v1.json",
+  "title": "BidOps order-plan BM25 ranking v1",
+  "x-bidops-producer": "order-plan-screening-bm25",
+  "x-bidops-consumer": "order-plan-screening-merge",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "producer", "consumer", "execution_id", "source_run_id", "input_artifact_sha256", "policy_version", "policy_sha256", "status", "population_count", "selected_count", "filtered_out_count", "items", "created_at"],
+  "properties": {
+    "schema_version": {"const": "bidops.order-plan-screening-ranking.v1"},
+    "producer": {"const": "order-plan-screening-bm25"},
+    "consumer": {"const": "order-plan-screening-merge"},
+    "execution_id": {"type": "string", "minLength": 1},
+    "source_run_id": {"type": "string", "minLength": 1},
+    "input_artifact_sha256": {"$ref": "#/$defs/sha256"},
+    "policy_version": {"type": "string", "minLength": 1},
+    "policy_sha256": {"$ref": "#/$defs/sha256"},
+    "status": {"enum": ["성공", "실패"]},
+    "population_count": {"type": "integer", "minimum": 1},
+    "selected_count": {"type": "integer", "minimum": 0},
+    "filtered_out_count": {"type": "integer", "minimum": 0},
+    "items": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/item"}},
+    "created_at": {"type": "string", "format": "date-time"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "item": {"type": "object", "additionalProperties": false, "required": ["plan_id", "rank", "score", "nearest_capability", "stage1_status"], "properties": {"plan_id": {"type": "string", "minLength": 1}, "rank": {"type": ["integer", "null"], "minimum": 1}, "score": {"type": ["number", "null"], "minimum": 0}, "nearest_capability": {"type": ["string", "null"]}, "stage1_status": {"enum": ["selected", "filtered_out", "failed", "rejected"]}}}
+  }
+}

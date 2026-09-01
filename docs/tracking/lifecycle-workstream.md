@@ -10,7 +10,7 @@
 - 측정으로 확인한 것만 사실로 적는다. 확인하지 않은 것은 `unknown`으로 남기고 추정하지 않는다.
 - 이 파일은 요약이다. 근거는 `validation-runs/`, 미해결 문제는 `findings.md`, 확정 결정은 `decisions/`가 정본이다.
 
-최종 갱신: 2026-08-31
+최종 갱신: 2026-09-01
 
 ---
 
@@ -72,6 +72,7 @@
 | `longest_fragment`·`prefix12`는 각 1건씩 오탐을 만든다. 기존 "오탐 0"은 더 이상 사다리 전체에 성립하지 않는다 | 같은 측정 |
 | 못 찾은 11건(12.6%)은 사전규격 쪽 이름이 실제로 다르다. 이름 검색으로 더 회수할 방법은 안 보인다 | 같은 측정 |
 | 깨지는 문자에서만 쪼개는 `dot_split`은 충돌이 1·1로 원문 수준이다 (`longest_fragment`는 27·13, `prefix12`는 63·31) | `offline-analysis-v3.md` |
+| C-2 Phase 0 전용 file·REST·DB·상태 계약과 immutable binding을 고정했다. 현재 validator 결과는 `valid_but_blocked`이며 C-1은 human 22·draft 603·잔여 87이다 | [ADR-0038](decisions/0038-order-plan-c2-phase0-contracts.md), `validate_order_plan_phase0.py` |
 
 ## 결정 완료
 
@@ -189,6 +190,7 @@ D-5와 D-6은 2026-08-31에 해소했다. 남은 항목은
 | 2026-08-30 | 사전규격 첨부 응답 30건 실측. 파일명 인코딩·확장자 분포·크기 확보, T-20 취득 경계 설계 근거 | [validation-run](../validation-runs/20260830-prespec-attachment-probe.md), `data/experiments/prespec-attachment-probe/` |
 | 2026-08-31 | T-9 완료. 일회용 PostgreSQL 17에서 배포를 막고 있던 Alembic version 컬럼 결함을 찾아 고치고, `0001`~`0007` upgrade·downgrade·제약조건·trigger를 실행 검증했다. 저장소의 PostgreSQL 테스트를 처음 돌려 `0004` 이후 갱신되지 않은 테스트 seed도 고쳤다 | [validation-run](../validation-runs/20260831-postgresql-migration-verification.md), `alembic/env.py`, `test_db_migrations.py` |
 | 2026-08-29 | T-10/T-11/T-13 완료. 발주계획 독립 artifact 적재·관측, 공고의 `orderPlanUntyNo` 투영, flush 후 대기 링크 해소 연결 | `collected-order-plans.json` / `bidops.collected-order-plans.v1`, `loader.py`, `test_order_plan_ingest_resolves_bid_first_waiting_reference` |
+| 2026-09-01 | C-2 Phase 0 계약 구현. 정책·binding·전용 artifact schema, 불변 입력/raw hash validator, REST·DB 명세와 활성화 blocker를 고정 | [ADR-0038](decisions/0038-order-plan-c2-phase0-contracts.md), `skills/bidops-screen/contracts/`, `validate_order_plan_phase0.py`; focused validator tests 및 skill suite 통과 |
 
 ## 소거한 항목
 
