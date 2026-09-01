@@ -1,6 +1,6 @@
 # Phase 0–2 실행 계획
 
-2026-08-27 코드 리뷰(`docs/review/2026-08-27-web-review.md`)에서 확인한 세 가지 차단 요인을
+2026-08-27 코드 리뷰(`docs/legacy/review/2026-08-27-web-review.md`)에서 확인한 세 가지 차단 요인을
 순서대로 제거한다. 이 문서는 **무엇을 어떤 순서로** 하는지를 정하고,
 각 작업의 정확한 변경 명세는 [spec.md](./spec.md)에 있다.
 
@@ -82,6 +82,6 @@ codex exec -m gpt-5.6-luna -c model_reasoning_effort=max \
   "<작업 지시>"
 ```
 
-작업 지시에는 항상 `docs/review/phase0-2/spec.md`의 해당 절과
+작업 지시에는 항상 `docs/legacy/review/phase0-2/spec.md`의 해당 절과
 `docs/standards.md`, `docs/engineering-notes.md`, 대상 모듈의 `AGENTS.md`를 읽으라는
 요구를 포함한다.

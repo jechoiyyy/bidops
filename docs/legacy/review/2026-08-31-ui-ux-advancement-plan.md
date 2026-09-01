@@ -4,175 +4,19 @@
 - 전제: [UI/UX 수정 계획](./2026-08-31-ui-ux-remediation-plan.md)의 P0·P1 흐름이 실제 계약과 함께 완료되어야 한다.
 - 목표: 화면 수를 늘리는 것이 아니라 담당자가 놓치지 않고, 근거를 빠르게 확인하고, 사람 결정을 감사 가능하게 남기는 의사결정 작업대로 발전시킨다.
 
-## 0. 콜드 세션 실행 계약
+## 0. 보관 문서 안내
 
-이 문서는 고도화 작업의 **실행 진입점**이다. 새 세션은 계획 전체를 한 번에 구현하지 않고 [14절](#14-콜드-세션-작업-명령)의 `A-xx` 하나만 수행한다.
+> **보관본이다. 실행 진입점이 아니다.**
+>
+> A-00~A-20은 착수하지 않았다. 이 문서를 읽고 새로 `A-xx`를 시작하거나, 본문이 제안하는
+> 신규 명세 문서(`work-item-projection-spec`, `opportunity-timeline-spec`,
+> `evidence-workspace-contract-audit`, `document-operations-queue-spec`,
+> `ui-event-dictionary`)를 만들지 않는다. 현재 우선순위는 `docs/PRD.md`와
+> `docs/PLAN.md`의 발주계획 C-2 선별이며, 여기의 화면 확장 항목은 그 뒤에 다시
+> 판단할 아이디어 목록이다.
+>
+> 원래 경로는 `docs/legacy/review/2026-08-31-ui-ux-advancement-plan.md`였다.
 
-- 작업 루트: `/home/jechoi/projects/bidops`
-- `pwd`가 작업 루트와 다르면 파일을 읽거나 수정하기 전에 해당 경로로 이동한다.
-
-### 0.1 진입 조건
-
-고도화 세션은 먼저 다음을 확인한다.
-
-1. [UI/UX 수정 계획](./2026-08-31-ui-ux-remediation-plan.md)의 0절을 읽는다.
-2. 수정 계획 R-01~R-09 중 이번 고도화가 의존하는 흐름의 완료 증거를 확인한다.
-3. 완료 기록이 없거나 현재 코드·테스트와 다르면 A-00만 수행해 기준선을 다시 만든다.
-4. backend 계약이 필요한 기능은 설계 작업이 `채택`되기 전 구현하지 않는다.
-5. 실제 사용자 인터뷰, 운영 데이터, SSO·알림 승인이 필요한 항목은 자료가 없으면 `unknown` 또는 결정 대기로 남긴다.
-
-수정 계획의 P0·P1이 불완전하면 그 결함을 dashboard나 개인화로 가리지 않는다. 해당 R 작업을 먼저 진행하도록 보고한다.
-
-### 0.2 작업 명령 선택
-
-1. 사용자가 `A-xx`를 지정하면 해당 작업의 진입 gate를 확인하고 그 작업만 수행한다.
-2. ID 없이 “고도화 계획을 진행”하라고 하면 A-00으로 현재 기준선을 확인한다.
-3. A-00이 이미 현재 HEAD에서 완료됐으면 14.1 인덱스에서 선행조건을 만족하는 가장 앞의 미완료 작업 하나를 선택한다.
-4. 설계와 구현은 같은 세션에서 합치지 않는다. 설계 ADR이 새로 생긴 세션은 제안 상태로 종료하고 승인 없이 다음 구현으로 넘어가지 않는다.
-5. 코드에 부분 구현이 있으면 diff와 계약을 읽어 이어서 작업하고, 기존 결과를 새 구현으로 덮지 않는다.
-
-### 0.3 변경 전 필수 읽기
-
-모든 고도화 세션:
-
-1. `AGENTS.md`
-2. `docs/standards.md`
-3. `docs/engineering-notes.md`
-4. 이 문서 전체
-5. [UI/UX 수정 계획](./2026-08-31-ui-ux-remediation-plan.md) 전체
-6. `docs/business-rules.md`
-7. `docs/tracking/lifecycle-workstream.md`
-8. `docs/tracking/status.md`
-
-프런트엔드 변경:
-
-1. `web/AGENTS.md`
-2. `web/frontend/AGENTS.md`
-
-REST·DB·projection·event 변경:
-
-1. `web/backend/AGENTS.md`
-2. `docs/contracts.md`
-3. `docs/security.md`
-4. DB·운영 구성이 바뀌면 `docs/operations.md`
-
-첨부·원문 viewer·evidence 변경:
-
-1. `docs/security.md`
-2. `docs/review/phase3/plan.md`
-3. `docs/review/phase3/spec.md`
-4. `web/backend/app/schemas/document_bundles.py`
-5. `web/backend/app/routers/deep_reviews.py`
-
-확정된 결정은 `docs/tracking/decisions/index.md`에서 최신 ADR을 찾아 읽는다. 고도화 계획의 아이디어가 정본 규칙을 대체하지 않는다.
-
-### 0.4 작업 트리 보호
-
-변경 전에 다음을 실행한다.
-
-```bash
-pwd
-git rev-parse --short HEAD
-git status --short
-git diff --stat
-git diff -- <이번 작업의 대상 파일>
-```
-
-- 저장소가 깨끗하다고 가정하지 않는다.
-- 기존 수정·untracked 파일은 사용자 작업으로 보고 보존한다.
-- 대상 파일의 기존 diff를 이해하지 못하면 수정하지 않고 충돌을 보고한다.
-- Git reset, checkout을 통한 복구, 일괄 snapshot 갱신, commit·rebase 등 이력 조작을 하지 않는다.
-- 실행 시점의 코드와 계약이 이 문서의 2026-08-31 관측보다 우선한다.
-
-### 0.5 설계 세션과 구현 세션
-
-설계 세션은 다음만 수행한다.
-
-- 현재 projection·DB·API·UI 소비자 조사
-- 대안과 실패 모드 정리
-- ADR 제안과 `docs/contracts.md` wire shape 초안
-- 정상·오류·권한·불변성 테스트 matrix
-- 결정이 필요한 항목과 승인 주체 표시
-
-설계 세션은 endpoint, migration, production control을 만들지 않는다. 사용자가 명시적으로 승인하거나 기존 채택 ADR이 있을 때만 후속 구현 세션이 진입한다.
-
-구현 세션은 채택된 계약 범위만 구현한다. 더 나은 아이디어가 생겨도 계약을 조용히 바꾸지 않고 별도 제안으로 남긴다.
-
-### 0.6 공통 안전 경계
-
-- 적합성 등급·참여 준비·개요 검토·심층 의견·추적 상태·최종 Go/No-Go를 합치지 않는다.
-- 시스템의 task reason, delta, 재검토 신호는 사람 선택을 자동 변경하지 않는다.
-- 추천·랭킹은 고정 3일 표본 비교와 사람 정답 보고서 승인 전 구현하지 않는다.
-- 담당자 이름은 claimed actor다. SSO 전에는 실제 사용자 identity·권한·개인 소유처럼 표시하지 않는다.
-- analytics나 event에 원문, 회사자료, 검색어·메모 전문, 파일명, signed URL, path, credential을 넣지 않는다.
-- 외부 모델과 알림 채널을 승인 없이 호출하지 않는다.
-- `unknown`, not-run, failed, unchanged를 각각 보존한다.
-- 원문 근거는 document version과 locator에 묶고 검증 실패를 자동 보정하지 않는다.
-
-### 0.7 검증 규칙
-
-프런트 변경:
-
-```bash
-cd web/frontend
-npm run build
-npx playwright test <대상-spec> --project=desktop
-npx playwright test <대상-spec>
-```
-
-공통 shell·시각 기준·반응형 변경:
-
-```bash
-cd web/frontend
-npm run test:visual
-```
-
-백엔드 변경:
-
-```bash
-cd web/backend
-.venv/bin/pytest <대상-test-file>
-```
-
-DB·공통 projection·event 저장을 바꿨으면 전체 backend suite, 빈 PostgreSQL 17 migration, rollback·idempotency·동시성·민감정보 없는 오류를 검증한다. 외부 모델·실제 나라장터·운영 volume을 테스트에 사용하지 않는다.
-
-문서만 바꾼 세션도 실행 가능한 link와 diff를 확인한다.
-
-```bash
-git diff --check -- <변경 파일>
-```
-
-기준선이 없거나 기존 테스트가 실패하면 신규 변경 전·후 결과를 분리해 기록한다. 실행하지 않은 테스트를 통과로 쓰지 않는다.
-
-### 0.8 중단 조건
-
-- 선행 R 작업 또는 채택 ADR이 없음
-- 사용자 선택 없이 상태 enum·우선순위·보존기간·권한을 확정해야 함
-- 실제 사용자 검증을 하지 않고 성공률·시간 개선을 달성했다고 써야 함
-- SSO 없이 실제 담당·승인 권한을 구현해야 함
-- 근거 projection이 객체 key·path·원문 전체를 노출해야만 구현 가능함
-- 기존 사용자 diff를 안전하게 보존할 수 없음
-- 보안 사고 또는 불변 기록 훼손 가능성을 발견함
-
-중단 시 우회 구현을 만들지 않는다. 재현 조건과 필요한 결정 또는 후속 작업 ID를 남긴다.
-
-### 0.9 세션 종료 보고
-
-완료한 세션은 최종 응답과 14.20절 실행 기록에 다음을 남긴다.
-
-```text
-작업 명령: A-xx
-기준 HEAD: <short sha>
-진입 gate: <충족 근거>
-기존 겹침: <없음 | 파일과 보존 방법>
-변경 파일: <목록>
-계약/ADR: <없음 | 제안/채택 상태와 경로>
-완료 기준: <충족/미충족>
-검증: <정확한 명령과 결과>
-측정값: <실측 | unknown, 추정 금지>
-남은 위험: <내용>
-다음 가능 작업: <A-xx | 승인 필요>
-```
 
 ## 1. 고도화 목표
 
@@ -691,7 +535,7 @@ analytics에는 원문, 회사자료, 검색어 전문, 담당자 메모 전문,
 - `docs/business-rules.md`는 새 의미가 합의된 경우만
 - `docs/tracking/decisions/index.md`
 - 신규 `docs/tracking/decisions/<next>-work-item-projection.md`
-- 필요하면 `docs/review/work-item-projection-spec.md`
+- 필요하면 `docs/legacy/review/work-item-projection-spec.md`
 
 필수 결정:
 
@@ -786,7 +630,7 @@ analytics에는 원문, 회사자료, 검색어 전문, 담당자 메모 전문,
 - `docs/contracts.md`
 - `docs/tracking/decisions/index.md`
 - 신규 `docs/tracking/decisions/<next>-opportunity-event-projection.md`
-- 필요하면 `docs/review/opportunity-timeline-spec.md`
+- 필요하면 `docs/legacy/review/opportunity-timeline-spec.md`
 
 필수 결정:
 
@@ -866,7 +710,7 @@ analytics에는 원문, 회사자료, 검색어 전문, 담당자 메모 전문,
 
 기본 쓰기 범위:
 
-- 신규 `docs/review/evidence-workspace-contract-audit.md`
+- 신규 `docs/legacy/review/evidence-workspace-contract-audit.md`
 - 변경이 필요하면 `docs/contracts.md`와 신규 ADR 제안
 - 코드 변경 금지
 
@@ -949,7 +793,7 @@ analytics에는 원문, 회사자료, 검색어 전문, 담당자 메모 전문,
 
 - `docs/contracts.md`
 - `docs/security.md`는 정책 변경이 합의된 경우만
-- 신규 ADR과 `docs/review/document-operations-queue-spec.md`
+- 신규 ADR과 `docs/legacy/review/document-operations-queue-spec.md`
 
 필수 결정:
 
@@ -1028,7 +872,7 @@ analytics에는 원문, 회사자료, 검색어 전문, 담당자 메모 전문,
 - 신규 ADR
 - `docs/contracts.md`
 - `docs/security.md`는 승인된 정책만 반영
-- 신규 `docs/review/ui-event-dictionary.md`
+- 신규 `docs/legacy/review/ui-event-dictionary.md`
 
 필수 결정:
 
@@ -1162,9 +1006,4 @@ analytics에는 원문, 회사자료, 검색어 전문, 담당자 메모 전문,
 | — | — | — | 아직 기록 없음 | — | — |
 
 ### 14.21 콜드 세션 시작 지시문
-
-새 세션에는 다음 한 문장과 작업 ID만 전달해도 된다.
-
-```text
-`docs/review/2026-08-31-ui-ux-advancement-plan.md`를 처음부터 끝까지 읽고 A-xx를 실행하라. 0절의 진입 gate·필수 문서·작업 트리 보호·중단 조건을 지키고, 설계와 구현을 합치지 말며, 검증과 14.20 실행 기록까지 완료하라.
-```
+이 계획을 새 세션에 전달하는 실행 프롬프트가 여기 있었다. 착수 결정 전이므로 제거했다.

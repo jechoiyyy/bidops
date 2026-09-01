@@ -7,152 +7,17 @@
 
 이 문서는 2026-08-31 코드·문서·브라우저 점검과 mock API 기반 사용 시나리오 검증 결과를 구현 가능한 작업 단위로 정리한다. 실제 운영 API를 호출하거나 외부 모델에 자료를 보내지 않았다.
 
-## 0. 콜드 세션 실행 계약
+## 0. 보관 문서 안내
 
-이 문서는 새 세션의 **실행 진입점**이다. 세션은 이 파일을 처음부터 끝까지 읽고, 아래 절차로 한 개 작업 명령만 수행한다. 계획 전체를 한 세션에 구현하지 않는다.
+> **보관본이다. 실행 진입점이 아니다.**
+>
+> R-01~R-11은 2026-08-31에 전부 완료했고 실행 기록은 10.13절에 있다. 이 문서를 읽고
+> 새로 `R-xx`를 시작하지 않는다. 남아 있는 값은 **당시 무엇을 왜 그렇게 정했는지**의
+> 근거이며, 현재 계약은 `docs/business-rules.md`, `docs/contracts.md`,
+> `docs/architecture.md`와 `docs/tracking/`이 정본이다.
+>
+> 원래 경로는 `docs/legacy/review/2026-08-31-ui-ux-remediation-plan.md`였다.
 
-- 작업 루트: `/home/jechoi/projects/bidops`
-- `pwd`가 작업 루트와 다르면 파일을 읽거나 수정하기 전에 해당 경로로 이동한다.
-
-### 0.1 작업 명령 선택
-
-1. 사용자가 `R-xx`를 지정하면 그 작업만 수행한다.
-2. ID를 지정하지 않고 “수정 계획을 진행”하라고 하면 [10절](#10-콜드-세션-작업-명령)의 상태를 현재 코드와 대조한 뒤, 선행조건을 만족하는 가장 앞의 미완료 작업 하나를 선택한다.
-3. 현재 코드에 부분 구현이 있으면 새로 만들지 말고 diff와 테스트를 읽어 이어서 완성한다.
-4. 설계 승인이 필요한 작업은 설계 산출물까지만 만든다. 임시 API나 mock을 운영 계약처럼 연결하지 않는다.
-5. 한 작업의 검증과 인계 기록까지 끝낸 뒤 세션을 종료한다. 다음 작업을 임의로 시작하지 않는다.
-
-### 0.2 변경 전 필수 읽기
-
-모든 세션:
-
-1. `AGENTS.md`
-2. `docs/standards.md`
-3. `docs/engineering-notes.md`
-4. 이 문서 전체
-5. [UI/UX 고도화 계획](./2026-08-31-ui-ux-advancement-plan.md)의 0절과 제품 원칙
-
-프런트엔드 변경:
-
-1. `web/AGENTS.md`
-2. `web/frontend/AGENTS.md`
-3. `docs/business-rules.md`
-
-REST·DB·상태 변경:
-
-1. `web/backend/AGENTS.md`
-2. `docs/contracts.md`
-3. `docs/business-rules.md`
-4. `docs/security.md`
-5. DB·migration·배포가 포함되면 `docs/operations.md`
-
-문서 준비·심층 검토:
-
-1. `docs/review/phase3/plan.md`
-2. `docs/review/phase3/spec.md`
-3. `docs/security.md`
-
-입찰 delta·최종 결정:
-
-1. `docs/tracking/lifecycle-workstream.md`
-2. `docs/tracking/decisions/0030-opportunity-tracking-state.md`
-3. `docs/tracking/decisions/0031-prespec-overview-review-stage.md`
-4. `docs/contracts.md`
-
-링크 문서는 참고 요약이 아니라 실행 제약이다. 계획과 정본 문서가 충돌하면 정본 문서를 따르고, 이 계획의 충돌을 같은 세션에서 수정한다.
-
-### 0.3 작업 트리 사전 점검
-
-저장소가 깨끗하다고 가정하지 않는다. 다음을 변경 전에 실행하고 결과를 인계 기록에 남긴다.
-
-```bash
-pwd
-git rev-parse --short HEAD
-git status --short
-git diff --stat
-git diff -- <이번 작업의 대상 파일>
-```
-
-- 기존 수정과 새 파일은 사용자 작업으로 간주해 보존한다.
-- 대상 파일에 기존 diff가 있으면 그 의도와 현재 테스트 상태를 먼저 파악한다.
-- 기존 변경을 되돌리거나 snapshot을 일괄 갱신하거나 Git 이력을 조작하지 않는다.
-- 겹치는 변경을 안전하게 보존할 수 없으면 코드를 수정하지 말고 충돌 파일과 이유를 보고한다.
-- 문서에 적힌 2026-08-31 파일 상태는 점검 당시 근거일 뿐이다. 실행 시점의 코드와 `git status`가 정본이다.
-
-### 0.4 공통 구현 경계
-
-- 프런트는 서버 응답을 재판정하거나 누락 relation·등급·상태를 추정하지 않는다.
-- `unknown`, `null`, failed, blocked를 없음·성공·변경 없음으로 바꾸지 않는다.
-- 담당자 이름은 claimed actor이며 인증·권한으로 표현하지 않는다.
-- 외부 모델, 실제 나라장터, 실제 첨부 URL을 테스트에서 호출하지 않는다.
-- ready bundle, document version, attempt, report revision, final opinion, 최종 결정 이력을 덮어쓰지 않는다.
-- mutation은 해당 계약의 actor, reason, request ID, expected version을 유지한다.
-- endpoint 오류 문구로 분기하지 않고 typed status와 안정 code를 사용한다.
-- UI 변경을 이유로 백엔드 계약을 조용히 확장하지 않는다. 계약 작업은 별도 작업 명령으로 수행한다.
-
-### 0.5 공통 검증
-
-프런트 변경의 최소 검증:
-
-```bash
-cd web/frontend
-npm run build
-npx playwright test <대상-spec> --project=desktop
-npx playwright test <대상-spec>
-```
-
-공통 shell·반응형·fixture를 바꿨으면 추가로 실행한다.
-
-```bash
-cd web/frontend
-npm run test:visual
-```
-
-백엔드 변경의 최소 검증:
-
-```bash
-cd web/backend
-.venv/bin/pytest <대상-test-file>
-```
-
-DB·공통 API 계약을 바꿨으면 대상 테스트 뒤 전체 backend suite와 빈 PostgreSQL 17 migration 검증을 수행한다. 실행 환경이 없어 전체 검증을 못 하면 통과로 쓰지 않고 정확한 미실행 이유를 남긴다.
-
-문서 검증:
-
-```bash
-git diff --check -- <변경 문서와 코드>
-```
-
-시각 snapshot은 실제 diff를 확인한 뒤 의도된 변경만 갱신한다. 기존 실패를 새 변경의 성공으로 상쇄하지 않는다.
-
-### 0.6 즉시 중단 조건
-
-다음 조건에서는 관련 mutation·외부 호출·구현을 중단하고 재현 근거를 보고한다.
-
-- 첨부 허용 경로 이탈, 비밀·회사자료 노출, 승인 없는 외부 모델 전송
-- 원본 회차·기존 리뷰·불변 document/attempt/decision 덮어쓰기
-- 원문과 다른 근거가 검증을 통과하는 경로
-- 사용자 선택이 필요한 상태 의미를 임의로 정해야만 진행 가능한 경우
-- delta 또는 최종 결정 backend 계약 없이 production UI mutation을 만들어야 하는 경우
-- 기존 사용자 diff를 보존할 수 없는 경우
-
-구조적 미해결 문제는 `docs/tracking/findings.md`의 기록 규칙에 따라 재현 조건, 영향, 지금 해결할 수 없는 이유, 후속 방향을 남긴다.
-
-### 0.7 세션 종료 보고 형식
-
-모든 콜드 세션은 최종 응답과 이 문서 10.13절 실행 기록에 다음을 남긴다.
-
-```text
-작업 명령: R-xx
-기준 HEAD: <short sha>
-기존 겹침: <없음 | 파일과 보존 방법>
-변경 파일: <목록>
-완료 기준: <충족/미충족과 근거>
-검증: <실행한 정확한 명령과 결과>
-미실행 검증: <없음 | 이유>
-남은 위험: <없음 | 내용>
-다음 가능 작업: <R-xx | 결정/승인 필요>
-```
 
 ## 1. 결론
 
@@ -523,14 +388,14 @@ git diff --check -- <변경 문서와 코드>
 
 ## 9. 관련 문서
 
-- [생애주기 작업 기록](../tracking/lifecycle-workstream.md)
-- [사업 규칙](../business-rules.md)
-- [REST·DB 계약](../contracts.md)
-- [보안 정책](../security.md)
+- [생애주기 작업 기록](../../tracking/lifecycle-workstream.md)
+- [사업 규칙](../../business-rules.md)
+- [REST·DB 계약](../../contracts.md)
+- [보안 정책](../../security.md)
 - [Phase 3 문서 준비·심층 검토 계획](./phase3/plan.md)
-- [사전규격 개요 검토 ADR](../tracking/decisions/0031-prespec-overview-review-stage.md)
-- [개요 절단 규칙 ADR](../tracking/decisions/0032-prespec-overview-cutting-rule.md)
-- [사업기회 추적 상태 ADR](../tracking/decisions/0030-opportunity-tracking-state.md)
+- [사전규격 개요 검토 ADR](../../tracking/decisions/0031-prespec-overview-review-stage.md)
+- [개요 절단 규칙 ADR](../../tracking/decisions/0032-prespec-overview-cutting-rule.md)
+- [사업기회 추적 상태 ADR](../../tracking/decisions/0030-opportunity-tracking-state.md)
 
 ## 10. 콜드 세션 작업 명령
 
@@ -675,8 +540,8 @@ git diff --check -- <변경 문서와 코드>
 
 필수 추가 읽기:
 
-- `docs/review/phase3/plan.md`의 T5·T6
-- `docs/review/phase3/spec.md`의 T5·T6
+- `docs/legacy/review/phase3/plan.md`의 T5·T6
+- `docs/legacy/review/phase3/spec.md`의 T5·T6
 - `web/backend/app/routers/document_bundles.py`
 - `web/backend/app/schemas/document_bundles.py`
 
@@ -713,8 +578,8 @@ git diff --check -- <변경 문서와 코드>
 
 필수 추가 읽기:
 
-- `docs/review/phase3/plan.md`의 T7·T8
-- `docs/review/phase3/spec.md`의 T7·T8
+- `docs/legacy/review/phase3/plan.md`의 T7·T8
+- `docs/legacy/review/phase3/spec.md`의 T7·T8
 - `web/backend/app/routers/deep_reviews.py`
 
 기본 쓰기 범위:
@@ -758,7 +623,7 @@ git diff --check -- <변경 문서와 코드>
 - `docs/tracking/lifecycle-workstream.md`
 - `docs/tracking/decisions/index.md`
 - 신규 `docs/tracking/decisions/<next>-bid-delta-final-decision.md`
-- 필요하면 별도 `docs/review/bid-delta-contract-spec.md`
+- 필요하면 별도 `docs/bid-delta-contract-spec.md`
 
 필수 결정:
 
@@ -937,9 +802,4 @@ git diff --check -- <변경 문서와 코드>
 - 실제 모델 산출물이 들어간 심층 검토·delta 화면의 시각 기준선은 아직 없다.
 
 ### 10.14 콜드 세션 시작 지시문
-
-새 세션에는 다음 한 문장과 작업 ID만 전달해도 된다.
-
-```text
-`docs/review/2026-08-31-ui-ux-remediation-plan.md`를 처음부터 끝까지 읽고 R-xx를 실행하라. 0절의 필수 문서·작업 트리 보호·중단 조건을 지키고, 허용 범위를 넓히지 말며, 검증과 10.13 실행 기록까지 완료하라.
-```
+이 계획을 새 세션에 전달하는 실행 프롬프트가 여기 있었다. 작업이 모두 끝났으므로 제거했다.

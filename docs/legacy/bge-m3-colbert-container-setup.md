@@ -1,5 +1,11 @@
 # BGE-M3 ColBERT 완전 컨테이너형 환경 설정
 
+> **보관본이다.** [ADR-0037](../tracking/decisions/0037-order-plan-c2-bm25-top300-qwen.md)이
+> C-2 발주계획 선별을 `BM25 Top 300 + Qwen`으로 확정하면서 ColBERT 경로는 채택되지 않았다.
+> 이 컨테이너 구성을 새로 만들지 않는다. 비교 실험 코드는 `experiments/order-plan-screening/`에 남아 있다.
+> 원래 경로는 `docs/bge-m3-colbert-container-setup.md`였다.
+
+
 작성 기준: 2026-08-28
 
 배경 확인 세션: `01a043d2-9fe2-76f3-98e2-99b498a1e9af`

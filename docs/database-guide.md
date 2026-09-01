@@ -1,7 +1,7 @@
 # BidOps 데이터베이스 이해하기
 
-> 기준일: 2026-08-31
-> 기준 소스: PostgreSQL 17 `bidops` 스키마, Alembic head `0014_prespec_overview_attempt_result`, 현재 업무 계약
+> 기준일: 2026-09-01
+> 기준 소스: PostgreSQL 17 `bidops` 스키마, Alembic head `0015_bid_delta_final_decision`, 현재 업무 계약
 > 대상 독자: 기획·사업개발 담당자, 운영자, 처음 프로젝트를 보는 개발자
 
 ## 한 문장으로 이해하기
@@ -12,7 +12,7 @@ BidOps DB는 공고의 최신값만 모아 둔 목록이 아니라, **어떤 회
 
 ## 먼저 알아둘 현재 기준
 
-현재 ORM과 Alembic head 기준 애플리케이션 테이블은 **63개**다. PostgreSQL 자체의 Alembic 관리 테이블 `alembic_version`은 이 수에 포함하지 않는다.
+현재 ORM과 Alembic head 기준 애플리케이션 테이블은 **68개**다. PostgreSQL 자체의 Alembic 관리 테이블 `alembic_version`은 이 수에 포함하지 않는다.
 
 | 구분 | 테이블 수 | 담당하는 일 |
 |---|---:|---|
@@ -23,9 +23,10 @@ BidOps DB는 공고의 최신값만 모아 둔 목록이 아니라, **어떤 회
 | 사전규격 개요 검토 | 5 | 앞부분 절단 snapshot, 모델 실행·결과·상태 전이 계보 |
 | 심층 검토 | 17 | 고정 입력, 단계별 분석, 주장·근거, 리포트·검증·사람 의견 |
 | 판정 실행·품질·일정 | 12 | 실행 큐, 재시도, 프로필 snapshot, 품질 게이트, 정책·일정·감사 |
-| 합계 | **63** | `alembic_version` 제외 |
+| 입찰 delta·최종 결정 | 5 | 문서 쌍 고정, 비교 시도, 항목·근거, 사람 Go/No-Go |
+| 합계 | **68** | `alembic_version` 제외 |
 
-현재 작업 트리는 전환 중이다. `0014`가 phase 2 저장 기반인 `prespec_overview_result`, `prespec_overview_attempt_event`를 추가해 스키마는 63개가 됐지만, `docs/contracts.md`와 `docs/tracking/status.md`는 아직 `0013`·61개 기준이고 실제 모델 호출·검증 결과 API도 미구현으로 적혀 있다. 따라서 **두 테이블의 존재**와 **phase 2 사용자 워크플로우의 운영 가능 여부**를 같은 뜻으로 해석하면 안 된다.
+테이블이 있다는 사실과 그 업무가 운영 가능하다는 사실은 다르다. `0014`의 `prespec_overview_result`·`prespec_overview_attempt_event`는 phase 2 저장 기반만 만들었고 실제 모델 호출·검증 결과 API는 아직 없다. `0015`의 입찰 delta 5개 테이블도 endpoint까지는 있지만 비교 계산 worker와 모델 binding이 없어 `pending`·`running`에서 더 진행되지 않는다. **스키마의 존재**와 **워크플로우의 운영 가능 여부**를 같은 뜻으로 해석하면 안 된다.
 
 ## 핵심 개념 6가지
 
@@ -237,6 +238,73 @@ document_bundle + profile_version + analysis_policy_version
 
 DB 외래키는 MinIO 객체가 실제로 존재하는지 보장할 수 없다. 복구할 때는 객체를 먼저 복원한 뒤 DB를 복원하고, 활성 객체의 version과 hash를 검증해야 한다.
 
+## 왜 이렇게 복잡한가 — 설계 근거
+
+순진하게 만들면 `deep_report(notice_id, summary, decision, updated_at)` 한 테이블이면 된다.
+그 설계는 다음 다섯 질문에 하나도 답하지 못한다.
+
+| 질문 | 단일 테이블의 답 |
+|---|---|
+| 이 보고서의 "사업 예산 12억"은 어느 파일 몇 페이지에서 나왔나 | 모름 |
+| 3주 전 담당자가 승인할 때 본 보고서 내용이 무엇이었나 | 덮어써서 사라짐 |
+| 그 뒤 첨부가 교체됐는데 판단은 옛날 문서 기준이었나 | 모름 |
+| 같은 입력으로 다시 돌리면 같은 결과가 나오나 | 검증 불가 |
+| 이 결론은 원문 근거인가 모델이 지어낸 것인가 | 구분 불가 |
+
+공공조달은 금액이 크고 판단 근거를 나중에 소명해야 한다. **언제, 무엇을 근거로, 누가
+판단했는지가 사후에 그대로 재구성되어야 한다.** `CLAUDE.md`의 강제 게이트("추정하지 않는다",
+"근거는 원문 위치와 연결한다", "자동 보정하지 않는다")가 스키마 수준으로 내려온 결과가
+이 테이블 수다.
+
+### 설계를 지배하는 3원칙
+
+**1. 불변과 추가(append-only)** — 분석 결과, 보고서, 검증, 최종 의견은 `UPDATE`하지 않는다.
+수정은 새 행으로 표현한다. 수정 이력이 부가 기능이 아니라 저장 방식 그 자체다.
+
+**2. 고정(pinning)과 스냅샷** — 분석을 시작하는 순간 입력(문서 묶음·회사 프로필·분석 정책)을
+그 시점 상태로 박제한다. 이후 원본이 바뀌어도 이미 만들어진 보고서의 근거는 흔들리지 않는다.
+
+**3. 근거 없는 주장 금지(evidence-first)** — 모델이 만든 모든 문장은 `claim` 한 행이 되고,
+각 claim은 `evidence_ref`로 원문 위치를 가리켜야 한다. 근거를 못 대면 그 claim은
+`unsupported`로 남아 사람에게 넘어간다. 빈칸은 지어내지 않고 `unknown`으로 남는다.
+
+### 스키마가 규칙을 강제하는 방법
+
+애플리케이션 코드로 검사하는 규칙은 언젠가 우회된다. 마이그레이션 스크립트, 일회성 수정
+쿼리, 새로 짠 endpoint가 검사를 건너뛴다. 그래서 아래 규칙은 스키마에 넣었다.
+
+| 기법 | 어디에 쓰였나 | 무엇을 막나 |
+|---|---|---|
+| Content-addressed storage | `content_object.sha256`이 정체성 | 같은 파일 중복, "이 파일이 그 파일이 맞나"의 검증 불가 |
+| Snapshot / pinning | `document_bundle_item`의 `_at_confirmation` 컬럼 | 확정 이후의 원본 변경이 과거 판단을 바꾸는 것 |
+| Append-only revision chain | `report_revision`이 parent를 가리킴 | 이력 소실. 델타가 아니라 전체 스냅샷이라 재구성 로직이 없다 |
+| 복합 FK로 범위 강제 | `deep_review`에 `UNIQUE(id, bundle_id)`를 두고 `evidence_ref`가 `(deep_review_id, bundle_id)`로 참조 | 근거가 **다른 분석의 번들**을 가리키는 것. 확정 후 추가된 문서를 근거로 쓰는 것 |
+| 부분 unique index | `work_job`의 `WHERE status IN ('queued','running')` | "진행 중인 작업은 대상당 하나". 완료 이력은 몇 개든 쌓인다 |
+| Fencing token | `lease_fence` 단조 증가 정수 | 락 만료 후 좀비 worker가 옛 결과를 덮어쓰는 것 |
+| Idempotency key | `(claimed_name, operation, aggregate_type, aggregate_id, request_id)` + request 해시 | 재시도가 같은 mutation을 두 번 적용하는 것 |
+
+복합 FK는 이 설계에서 가장 독특한 부분이다. 부모에 불필요해 보이는 unique를 만들고 자식이
+복합 FK로 참조하면, 범위를 벗어난 참조가 DB 수준에서 불가능해진다.
+`FK(validation_run_id, validation_status_at_opinion) → validation_run(id, status)`도 같은
+기법이며, 최종 의견이 기록한 검증 상태가 실제 상태와 다를 수 없게 만든다.
+
+### 삭제 정책 — 왜 대부분 RESTRICT인가
+
+기본값은 `RESTRICT`/`NO ACTION`이고 `CASCADE`는 두 군데뿐이다.
+
+| 관계 | 정책 | 이유 |
+|---|---|---|
+| run/notice → 업무 이력 | RESTRICT | 공고를 지우면 판단 이력이 통째로 사라진다. archive만 허용 |
+| judgment → 판정 detail | CASCADE | "판정 전체 교체"라는 명시적 연산일 때만 |
+| review → verification_answer | CASCADE | review PUT 전체 교체일 때만 |
+| attachment → document_version | SET NULL | `document_version`이 출처 스냅샷을 이미 갖고 있어 고아가 되지 않는다 |
+| content/document/structure/bundle → 계보 | RESTRICT | 정본 계보는 끊지 않는다 |
+| profile/policy → deep_review | RESTRICT | 분석이 참조 중인 기준을 못 지운다 |
+| deep_review → attempt/claim/report | RESTRICT | 분석 산출물은 지우지 않는다 |
+
+일반 CRUD 앱은 `CASCADE`를 편의로 쓴다. 여기서는 반대다. **삭제가 조용히 번지는 것이 가장
+위험**하므로, 지우려면 자식부터 명시적으로 처리하게 만들어 지금 무엇을 지우는지 자각시킨다.
+
 ## DB가 강제하는 중요한 안전장치
 
 ### 중복과 잘못된 관계 방지
@@ -318,7 +386,28 @@ PostgreSQL 전용 trigger·권한·동시성 테스트는 필수 환경이 없�
 
 아니다. 현재 담당자 이름은 감사 표식일 뿐 인증 결과가 아니다. 실제 로그인과 역할 기반 권한은 아직 구현 전이다.
 
-## 전체 63개 테이블 빠른 사전
+### 근거를 페이지 번호 문자열로만 저장하면 안 되나?
+
+`evidence_ref`가 `structure_id`까지 들고 있는 이유는 페이지 번호가 추출기 버전에 따라
+달라지기 때문이다. "어떤 구조화 결과의 몇 페이지"여야 재현된다.
+
+### 같은 공고를 두 번 분석하려는데 unique 제약에 걸린다
+
+`unique(notice_id, bundle_id, profile_version_id, policy_version_id)`다. 입력이 정말 같으면
+기존 분석을 보면 되고, 다시 돌리려면 새 **attempt**를 만든다. 문서 개정으로 새 번들이
+생기거나 정책이 갱신되면 자연히 새 `deep_review`가 된다.
+
+### OCR이 글자를 잘못 읽었는데 DB에서 고치면 안 되나?
+
+v1에는 인앱 OCR 교정이 없다. `미확인`으로 남기거나, 담당자가 정정 파일을 **새 document
+version**으로 다시 등록한다.
+
+### 첨부 파일을 지우고 싶다
+
+일반 업무 흐름에서 attachment를 물리 삭제하지 않는다. `retired_at`, `retired_reason`,
+`retired_by_name`으로 은퇴 처리한다.
+
+## 전체 68개 테이블 빠른 사전
 
 ### A. 수집·사업기회 7개
 
@@ -418,13 +507,25 @@ PostgreSQL 전용 trigger·권한·동시성 테스트는 필수 환경이 없�
 | `always_on_state` | always-on 단일 상태와 중지 이유 |
 | `screening_audit_event` | 판정 runtime·scheduler 전용 append-only 감사 로그 |
 
+### H. 입찰 delta·최종 결정 5개
+
+| 테이블 | 쉬운 설명 |
+|---|---|
+| `bid_delta_comparison` | 비교에 쓸 문서 쌍을 정확히 고정한 불변 스냅샷 |
+| `bid_delta_attempt` | 비교 계산 시도와 실패 사유 |
+| `bid_delta_item` | 사전규격과 입찰공고 사이에서 달라진 항목 |
+| `bid_delta_evidence` | 각 항목의 양쪽 원문 위치 |
+| `bid_final_decision` | 사람의 최종 Go/No-Go, append-only |
+
+계산 worker와 모델 binding은 아직 없다. 내부 binding을 확인할 수 없으면 API가 `503`으로 fail closed한다.
+
 ## 아직 DB에 없거나 완결되지 않은 영역
 
 - 발주계획 선별 실험의 방식별 score·rank·reason·사람 정답을 저장하는 운영 테이블/API
 - 제목·유사도 기반 candidate opportunity 연결 생성의 완결된 앱 경로
 - 사전규격 overview phase 2의 실제 모델 실행·검증 서비스, 승인된 binding, 런타임 권한·새 API 계약 완결
-- 입찰공고 delta 실행·결과·알림 전달 이력
-- 최종 입찰 Go/No-Go의 별도 append-only 이력
+- 입찰공고 delta의 비교 계산 worker와 모델 binding (테이블·endpoint는 `0015`에 있으나 실행 주체가 없다)
+- delta 결과 알림 전달 이력
 - SSO, 웹 사용자, 역할 기반 권한
 
 테이블이 있다는 이유만으로 화면·worker·운영 절차까지 완성됐다고 해석하지 않아야 한다. 반대로 업무 규칙이나 ADR에 목표 구조가 적혀 있다는 이유만으로 현재 DB에 구현됐다고 가정해서도 안 된다.
@@ -440,4 +541,4 @@ PostgreSQL 전용 trigger·권한·동시성 테스트는 필수 환경이 없�
 - [SQLAlchemy 모델](../web/backend/app/models.py)
 - [Alembic migration](../web/backend/alembic/versions/)
 - [런타임 DB 권한 allowlist](../scripts/runtime-privileges.sql)
-- [심층 검토 상세 ERD 가이드](deep-review-erd-guide.md)
+- [심층 검토 ERD 계약](deep-review-erd.md)
