@@ -176,8 +176,9 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 - 재현 조건: MinIO에서 bucket versioning 명령이 권한·호환성 오류로 실패하는 환경에서 `scripts/minio-init.sh`를 실행한다.
 - 증상: `mc version enable` 뒤 `|| true`가 모든 실패를 삼키고 실제 versioning 상태를 다시 확인하지 않는다. init service는 versioning이 꺼져 있어도 성공할 수 있다.
 - 영향: DB가 object version ID를 불변 정본처럼 저장하는 전제가 깨지고 overwrite·backup·restore에서 같은 object key의 역사 bytes를 보장할 수 없다.
-- 지금 해결할 수 없는 이유: bootstrap의 멱등성 처리와 실제 상태 검증, 기존 non-versioned bucket의 전환 정책을 함께 설계하고 MinIO 통합 테스트가 필요하다.
-- 접근 방법: 이미 존재한다는 안전한 결과만 명시적으로 허용하고 그 밖의 오류는 실패시킨다. 각 bucket에서 versioning enabled 상태를 조회·검증한 뒤에만 init service를 성공으로 끝낸다.
+- 상태: **해결** (2026-09-01). `|| true`를 제거하고 bucket마다 `mc version info --json`으로 상태를 되읽어 `"versioning":{"status":"Enabled"`가 아니면 init service를 실패로 끝낸다. `mc version enable`은 이미 versioned인 bucket에서도 성공하므로 멱등성은 유지된다.
+- 되읽기가 필요한 이유: `mc version info`는 **un-versioned bucket에서도 exit 0**을 반환한다(`RELEASE.2025-08-13T08-35-41Z`에서 실측). 종료 상태만으로는 versioning 여부를 구분할 수 없어 status 문자열이 유일한 증거다. mc image에는 `sed`·`awk`가 없어 셸 `case` 매칭으로 판별한다.
+- 검증: disposable MinIO(`RELEASE.2025-09-07T16-13-09Z`)에 실제 스크립트를 실행했다. 정상 기동은 exit 0에 4개 bucket 모두 `versioning is enabled`, 재실행도 exit 0. `mc version enable`이 실패하는 상황을 넣으면 수정 전 스크립트는 **exit 0으로 성공하면서 4개 bucket 전부 `un-versioned`** 였고, 수정 후에는 `bucket versioning is not enabled: bidops-source`와 함께 exit 1로 끝난다.
 
 ## 객체 복구가 원본 version ID와 복구 대상 version ID를 혼동한다
 
@@ -209,8 +210,9 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 - 재현 조건: 기본 `docker-compose.t7.yml`을 기동하고 host의 listen address를 확인한다.
 - 증상: PostgreSQL, MinIO API, MinIO console port mapping에 host IP가 없어 Docker가 기본적으로 모든 host interface에 bind할 수 있다.
 - 영향: Compose internal network와 무관하게 LAN에서 DB·객체 저장소 port에 직접 접근할 수 있어 애플리케이션 API만 사용하는 접근 경계를 우회한다. 실제 노출 범위가 host firewall 상태에 의존한다.
-- 지금 해결할 수 없는 이유: 운영자가 host에서 DB·MinIO 관리 접근을 필요로 하는지와 reverse proxy·방화벽 경계를 확정해야 한다.
-- 접근 방법: 기본 template은 `127.0.0.1`에만 bind하거나 내부 전용으로 port publish를 제거한다. 원격 관리가 필요하면 별도 opt-in overlay와 source allowlist를 사용하고 LAN 외부에서 연결 거부를 검증한다.
+- 상태: **해결** (2026-09-01). 세 mapping 모두 `${BIDOPS_ADMIN_BIND_HOST:-127.0.0.1}:` prefix를 갖는다. 기본 template은 loopback에만 bind하고, 원격 관리는 `.env`에서 이 값을 명시적으로 넓히는 opt-in이다. `test_t7_admin_ports_bind_to_loopback_by_default`가 세 mapping의 host IP field 존재를 계약으로 고정한다.
+- publish를 제거하지 않은 이유: host에서 `psql`·`mc`로 DB·객체를 확인하는 개발 검증 경로가 살아 있어야 한다. loopback bind는 그 경로를 유지하면서 LAN 노출만 없앤다. **애플리케이션 port(`BIDOPS_WEB_PORT`)는 사내망 접근이 설계된 경계이므로 좁히지 않았다.**
+- 남은 위험: 이 stack의 network가 전부 `internal: true`라 현재 Docker 버전에서는 publish 자체가 host에 bind되지 않는다(위 "T7 스택의 publish port가 host에서 열리지 않는다"). 그 항목을 해결해 실제로 bind되기 시작할 때 이 loopback 기본값이 효력을 갖는다. 지금은 선제적 방어다.
 
 ## legacy mutation 일부가 담당자 이름과 감사 기록 없이 실행된다
 

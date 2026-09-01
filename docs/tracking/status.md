@@ -22,7 +22,7 @@
 | 기존 나라장터 공고 수집·정규화·표본 | 구현됨 | 파이프라인 단위·교차 테스트의 과거 64건 통과 기록 있음 |
 | 다섯 관점·반론·종합 1차 판정 | 구현됨 | fake 테스트와 단일 live Qwen 성공·중단 기록 있음; 40건 운영 품질 승인은 없음 |
 | 결정적 HTML·피드백 YAML | 구현됨 | 파이프라인 테스트에 포함됨 |
-| FastAPI 회차·공고·리뷰·프로필·지표 | 구현됨 | 전체 backend suite `1041 passed, 5 skipped, 0 failed` |
+| FastAPI 회차·공고·리뷰·프로필·지표 | 구현됨 | 전체 backend suite `1042 passed, 5 skipped, 0 failed` |
 | 프로필 조회 projection | 세 route가 승인된 불변 snapshot의 version·digest에 고정되고 구조화 항목·unknown만 반환함. filesystem source, raw block·raw text, source line, 가공되지 않은 parse error를 닫힌 안정 오류 코드로 대체하고 snapshot이 없으면 503으로 fail closed함([ADR-0023](decisions/0023-company-profile-minimal-projection.md)) | 해결; 실제 프로필 문자열 sentinel 회귀 테스트, backend `1041 passed, 5 skipped, 0 failed`, visual `598 passed, 10 skipped, 0 failed` |
 | legacy notice 첨부 | quarantine→MIME/구조·ClamAV 검사→source object 승격 후 `safe` 파일만 legacy Attachment로 등록하고, API `stored_path` 제거 및 `/app/web/data` 전체를 덮는 `web-data` named volume 적용 | A-2 회귀 통과; backend `1041 passed, 5 skipped, 0 failed`; Compose `COMPOSE_OK` |
 | legacy mutation actor·감사 | 첨부 upload/delete, 기관 포털 create/update, 정책 create/candidate/activate에 actor header 검증과 append-only `AuditEvent` 적용 | A-4 회귀 통과; backend `1041 passed, 5 skipped, 0 failed`; frontend tsc/build 통과, visual `598 passed, 10 skipped, 0 failed` |
@@ -69,7 +69,7 @@ schema는 68개이며, 별도로 빈 PostgreSQL 17 `upgrade head`와 `0014↔001
 | T7 stack V2 | services healthy, `/api/health` 성공, 구조화 worker log 관측, 승인 Ollama endpoint 도달 | 기동·관측·network 경계 검증; 실제 판정 품질 검증 아님 |
 | static diff check | 당시 통합 UI 변경에서 성공 | 이후 worktree 변경의 전체 검증으로 재사용하지 않음 |
 
-최근 끝까지 완주한 backend 전체 suite는 1041 passed, 5 skipped, 6 warnings이며
+최근 끝까지 완주한 backend 전체 suite는 1042 passed, 5 skipped, 6 warnings이며
 실패 0건이다(2026-09-01).
 저장소 `.env`를 상속하지 않은 최소 환경에서 일회용 PostgreSQL 17 server, random DB,
 Alembic head, 임시 data·attachments 경로를 pytest 수집 전에 구성했고 종료 후 소유
@@ -102,7 +102,7 @@ DB에 없다. 다만 byte-identical 파일이 `web/backend/app/screening/baselin
 우선순위 순이다. 상세와 착수 조건은 [`../Backend_HANDOFF.md`](../Backend_HANDOFF.md) §7이 정본이다.
 
 1. **사람 몫 — 지금 던져두면 병렬로 돈다.** 선별 방식 선택(비용 대 누락의 교환), gold 재판정 9건 확인, D-7 방화벽 승인 상신. 방식 선택 하나가 아래 5번 전체를 막고 있다.
-2. **남은 운영 배포 blocker.** MinIO versioning fail-open과 host-wide DB·MinIO port publish를 수정하고 테스트 harness(`run-web-tests.sh`/CI, PostgreSQL 필수화)를 만든다. 이 둘을 닫으면 운영 배포 blocker가 0이 된다. versioning이 먼저다 — 2026-09-01에 만든 객체 복구 계약이 version 불변성 전제 위에 서 있다.
+2. **테스트 harness.** MinIO versioning fail-open과 host-wide DB·MinIO port publish는 2026-09-01에 닫았고 **알려진 운영 배포 blocker는 0이다.** 남은 것은 `run-web-tests.sh`/CI와 PostgreSQL 필수화다. 개별 파일만 지정하면 postgres 테스트가 조용히 skip되는 함정이 살아 있고, 이 저장소는 같은 부류 결함에 두 번 데였다.
 3. **껍데기를 실제로 도는 기능으로.** 입찰 delta 계산 worker와 모델 adapter, T-23 사전규격 개요 model adapter·worker, 문서 준비·실패 attempt 재시작 화면, T-19 판정 모델 계보 projection. 전부 결정이 끝나 막는 것이 없다.
 4. **판정을 믿을 수 있게.** 실제 model artifact digest·대표 HWP/PDF gold·사람 판정으로 Qwen·vLLM 품질 gate 2건을 측정하고, screening v3를 보고서 renderer에 명시적으로 연결한다.
 5. **선별 제품 — 1번의 방식 선택 뒤에만 착수한다.** threshold 확정 → 전체 발주계획 원본과 방식별 결과를 저장하는 불변 수집 회차·DB 계약 → 내부 opportunity와 plan·pre-spec·bid 공식 관계 및 사람 확인 대기 relation 후보 → 사전규격 독립 일일 수집·저비용 1차선별·사람 승인 gate 연결 → `계속 추적|보류|종료`, 입찰공고 발견, 사전규격 대비 material delta, 최종 사람 Go/No-Go.

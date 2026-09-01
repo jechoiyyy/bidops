@@ -10,7 +10,11 @@ services:
       POSTGRES_PASSWORD: "${BIDOPS_OWNER_PASSWORD:?set an external owner password}"
     command: ["postgres", "-c", "search_path=bidops,public"]
     ports:
-      - "${BIDOPS_POSTGRES_PORT:-15432}:5432"
+      # Admin surfaces bind to loopback by default.  The application API is the
+      # intended access boundary; publishing the database on every host
+      # interface would let the LAN reach it directly.  Remote administration is
+      # an explicit opt-in via BIDOPS_ADMIN_BIND_HOST plus a source allowlist.
+      - "${BIDOPS_ADMIN_BIND_HOST:-127.0.0.1}:${BIDOPS_POSTGRES_PORT:-15432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -53,8 +57,9 @@ services:
       MINIO_ROOT_USER: "${BIDOPS_MINIO_ROOT_USER:?set an external MinIO root user}"
       MINIO_ROOT_PASSWORD: "${BIDOPS_MINIO_ROOT_PASSWORD:?set an external MinIO root password}"
     ports:
-      - "${BIDOPS_MINIO_PORT:-19000}:9000"
-      - "${BIDOPS_MINIO_CONSOLE_PORT:-19001}:9001"
+      # Object store API and console are admin surfaces; see the postgres note.
+      - "${BIDOPS_ADMIN_BIND_HOST:-127.0.0.1}:${BIDOPS_MINIO_PORT:-19000}:9000"
+      - "${BIDOPS_ADMIN_BIND_HOST:-127.0.0.1}:${BIDOPS_MINIO_CONSOLE_PORT:-19001}:9001"
     volumes:
       - minio-data:/data
     healthcheck:

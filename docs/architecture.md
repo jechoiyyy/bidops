@@ -152,7 +152,7 @@ flowchart TB
 
 현재 코드는 입찰공고 수집·다섯 관점 판정·보고 파일 계약, PostgreSQL 기반 관리 API, 문서 묶음·심층검토·리포트, 모델 품질 게이트와 스케줄 대기열을 제공한다. 발주계획 선별에는 동일한 3일 모집단을 동결하고 키워드·BGE-M3 ColBERT·Qwen·Luna 결과와 사람 라벨을 비교하는 일회성 실험 CLI가 생겼지만, 승인되지 않은 설정은 fail closed하고 제품 웹·DB·scheduler와 연결하지 않는다. 사업기회 연결, 사전규격 독립 수집·화면, 문서 준비 화면, 실패 단계 재시작 화면, 입찰공고 변경분 검토는 목표 흐름에 속하지만 아직 완결되지 않았다.
 
-T7 조립은 개발 stack health까지 확인됐지만 운영 배포 경계는 완성되지 않았다. 현재 template와 API에는 runtime image의 회사자료 포함, profile 원문·filesystem source 응답, hosted Codex 심층 prompt, host-wide 관리 port, MinIO versioning fail-open, 불완전 객체 restore가 남아 있으므로 운영 정본으로 승격할 수 없다. legacy 첨부는 quarantine·MIME/구조·ClamAV·source object 검증 경계와 named-volume 호환 보관을 적용했다. broad worker DB 권한은 MVP DB 보완에서 명시적 역할·동작·컬럼 allowlist로 교체했다.
+T7 조립의 **알려진 운영 배포 차단 조건은 2026-09-01에 전부 해소했다.** runtime image의 회사자료 포함, profile 원문·filesystem source 응답, hosted Codex 심층 payload, legacy mutation의 actor·감사 누락, 불완전 객체 restore, host-wide 관리 port, MinIO versioning fail-open이 순서대로 닫혔다. legacy 첨부는 quarantine·MIME/구조·ClamAV·source object 검증 경계와 named-volume 호환 보관을 적용했고, broad worker DB 권한은 명시적 역할·동작·컬럼 allowlist로 교체했다. 남은 것은 경계 결함이 아니라 **운영 환경 훈련**이다 — 실제 secret, MinIO allow/deny, egress firewall, backup·restore를 운영에서 아직 한 번도 검증하지 않았다.
 
 현재 판정 실행은 `screening_execution.queue_no` 오름차순과 활성 슬롯 하나를 사용한다. 심층검토 작업은 PostgreSQL 행 잠금과 lease fence로 claim한다. 두 실행 계열은 서로의 모델 결과를 직접 수정하지 않고 버전 있는 입력·산출물과 API를 통해 연결된다.
 
@@ -271,12 +271,12 @@ ADR의 배경·대안·결과는 아래 원문에만 두며 이 문서에서 반
 | 위험 | 영향 | 현재 대응 |
 |---|---|---|
 | [개발용 Codex 심층 검토의 외부 전송 범위 초과](tracking/findings.md#개발용-codex-심층-검토-경로가-외부-전송-허용-범위를-넘는다) | RFP와 회사 profile slice가 승인 범위를 넘어 hosted provider로 전송될 수 있다. | reference overlay와 provider를 사용 금지 상태로 유지한다. |
-| [런타임 이미지의 회사자료 포함](tracking/findings.md#런타임-이미지에-회사-프로필-자료가-포함된다) | registry·build cache·image export로 회사자료가 확산될 수 있다. | 해당 image를 registry에 push·export하지 않고 runtime 주입 경계로 이전해야 한다. |
-| [프로필 조회 API의 원문·경로 노출](tracking/findings.md#프로필-조회-api가-원문과-서버-경로를-노출한다) | 사내망 조회자에게 필요한 범위를 넘는 회사자료와 서버 배치가 노출된다. | legacy profile route를 운영에서 차단하고 최소 projection으로 교체해야 한다. |
+| [런타임 이미지의 회사자료 포함](tracking/findings.md#런타임-이미지에-회사-프로필-자료가-포함된다) | registry·build cache·image export로 회사자료가 확산될 수 있다. | **해결**(A-1). 세 경로를 build context에서 막고 read-only bind mount로 주입한다. |
+| [프로필 조회 API의 원문·경로 노출](tracking/findings.md#프로필-조회-api가-원문과-서버-경로를-노출한다) | 사내망 조회자에게 필요한 범위를 넘는 회사자료와 서버 배치가 노출된다. | **해결**(A-3). ADR-0023의 최소 projection으로 교체하고 승인 snapshot에 고정해 fail closed한다. |
 | [legacy 첨부의 안전 경계 우회](tracking/findings.md#legacy-첨부-업로드가-악성코드-검사와-객체-격리를-우회한다) | 과거에는 검사하지 않은 파일이 다운로드 가능하고 container 재생성 때 바이트가 유실될 수 있었다. | quarantine·MIME/구조·ClamAV·source 검증 후 legacy row와 named-volume 호환 사본을 만들며, `stored_path`는 wire에서 제거했다. |
-| [MinIO versioning fail-open](tracking/findings.md#minio-versioning-초기화가-실패해도-stack이-계속-기동한다) | DB가 가리키는 object version의 불변성을 보장할 수 없다. | 초기화 후 enabled 상태를 검증하고 실패 시 stack을 중단해야 한다. |
-| [불완전한 객체 복구 계약](tracking/findings.md#객체-복구가-원본-version-id와-복구-대상-version-id를-혼동한다) | 정상 복구 실패와 active object 누락을 구분하지 못할 수 있다. | source→target version mapping과 DB 기준 완전한 active manifest가 필요하다. |
-| [관리 port의 host-wide publish](tracking/findings.md#postgresql과-minio-관리-port가-모든-host-interface에-publish된다) | LAN에서 API 경계를 우회해 DB·객체 저장소에 접근할 수 있다. | 기본 bind를 loopback 또는 내부 전용으로 제한하고 원격 관리는 opt-in overlay로 분리해야 한다. |
+| [MinIO versioning fail-open](tracking/findings.md#minio-versioning-초기화가-실패해도-stack이-계속-기동한다) | DB가 가리키는 object version의 불변성을 보장할 수 없다. | **해결**(2026-09-01). bucket마다 enabled 상태를 되읽어 아니면 init service를 실패로 끝낸다. |
+| [불완전한 객체 복구 계약](tracking/findings.md#객체-복구가-원본-version-id와-복구-대상-version-id를-혼동한다) | 정상 복구 실패와 active object 누락을 구분하지 못할 수 있다. | **해결**(A-6). source→target mapping을 기록하고 DB에서 active manifest를 생성해 일대일 대조한다. |
+| [관리 port의 host-wide publish](tracking/findings.md#postgresql과-minio-관리-port가-모든-host-interface에-publish된다) | LAN에서 API 경계를 우회해 DB·객체 저장소에 접근할 수 있다. | **해결**(2026-09-01). 세 mapping이 `BIDOPS_ADMIN_BIND_HOST` 기본값 `127.0.0.1`로 bind하고 원격 관리는 opt-in이다. |
 | [legacy mutation의 actor·감사 누락](tracking/findings.md#legacy-mutation-일부가-담당자-이름과-감사-기록-없이-실행된다) | 리뷰와 일부 run/subprocess mutation은 아직 변경 주체와 승인 이력을 일관되게 추적할 수 없다. | 첨부·포털·screening policy 7개 mutation은 기존 actor parser와 같은 transaction의 append-only `AuditEvent`로 편입했다. |
 | [screening v3와 report renderer 단절](tracking/findings.md#현재-보고서-renderer가-screening-v3를-처리하지-못한다) | 새 판정 실행이 기존 HTML·feedback 흐름으로 이어지지 않는다. | v2 의미를 유지한 명시적 v3 adapter와 partial/failure 표시가 필요하다. |
 | [모델 artifact 고정 부족](tracking/findings.md#사설-vllm-model-artifact가-불변-digest로-고정되지-않았다)·[실제 사람 gold 부족](tracking/findings.md#실제-심층-검토-품질-corpus와-사람-gold가-부족하다) | 같은 모델명이 다른 bytes를 가리키거나 Mock 결과를 실제 판단 품질로 오인할 수 있다. | image·model digest를 고정하고 승인된 실제 HWP/PDF 사람 gold로 gate를 다시 측정해야 한다. |
