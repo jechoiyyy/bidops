@@ -7,6 +7,7 @@ import { StatusBadge, type StatusTone } from "../components/common/StatusBadge";
 import { api, ApiError } from "../lib/api";
 import type {
   OrderPlanListItem,
+  OrderPlanListResponse,
   OrderPlanScreeningExecutionDetailResponse,
   OrderPlanScreeningExecutionListResponse,
   OrderPlanScreeningExecutionSummary,
@@ -98,6 +99,28 @@ async function fetchAllExecutions(signal: AbortSignal): Promise<OrderPlanScreeni
   const pageSize = first.limit > 0 ? first.limit : PAGE_SIZE;
   while (items.length < first.total) {
     const page = await api.getOrderPlanScreeningExecutions({ limit: pageSize, offset: items.length }, { signal });
+    if (!page.items.length) break;
+    items.push(...page.items);
+  }
+  return { ...first, items, offset: 0 };
+}
+
+async function fetchAllOrderPlans(sourceRunId: string, queryText: string, signal: AbortSignal): Promise<OrderPlanListResponse> {
+  const first = await api.getOrderPlans({
+    source_run_id: sourceRunId,
+    q: queryText || undefined,
+    limit: PAGE_SIZE,
+    offset: 0,
+  }, { signal });
+  const items = [...first.items];
+  const pageSize = first.limit > 0 ? first.limit : PAGE_SIZE;
+  while (items.length < first.total) {
+    const page = await api.getOrderPlans({
+      source_run_id: sourceRunId,
+      q: queryText || undefined,
+      limit: pageSize,
+      offset: items.length,
+    }, { signal });
     if (!page.items.length) break;
     items.push(...page.items);
   }
@@ -341,15 +364,8 @@ export function OrderPlansPage() {
   const latestExecution = useMemo(() => latestCompletedExecution(executions), [executions]);
 
   const listQuery = useQuery({
-    queryKey: ["order-plan-c2", "list", latestExecution?.source_run_id, filter, queryText, offset],
-    queryFn: ({ signal }) => api.getOrderPlans({
-      source_run_id: latestExecution?.source_run_id,
-      stage1_status: filter === "bm25-filtered-out" ? "filtered_out" : undefined,
-      qwen_relevance: filter === "qwen-not-relevant" ? "not_relevant" : undefined,
-      q: queryText || undefined,
-      limit: PAGE_SIZE,
-      offset,
-    }, { signal }),
+    queryKey: ["order-plan-c2", "list", latestExecution?.source_run_id, queryText],
+    queryFn: ({ signal }) => fetchAllOrderPlans(latestExecution?.source_run_id as string, queryText, signal),
     enabled: Boolean(latestExecution?.source_run_id),
     staleTime: 15_000,
   });
@@ -361,12 +377,15 @@ export function OrderPlansPage() {
     staleTime: 15_000,
   });
 
-  const visibleItems = useMemo(() => {
+  const filteredItems = useMemo(() => {
     const items = listQuery.data?.items ?? [];
     if (filter === "review") return items.filter((item) => item.qwen_relevance === "relevant" || item.qwen_relevance === "uncertain");
     if (filter === "failure") return items.filter(isFailure);
+    if (filter === "bm25-filtered-out") return items.filter((item) => item.stage1_status === "filtered_out");
+    if (filter === "qwen-not-relevant") return items.filter((item) => item.qwen_relevance === "not_relevant");
     return items;
   }, [filter, listQuery.data?.items]);
+  const visibleItems = useMemo(() => filteredItems.slice(offset, offset + PAGE_SIZE), [filteredItems, offset]);
 
   const updateListParams = (updates: { filter?: OrderPlanFilter; q?: string; offset?: number }) => {
     const next = new URLSearchParams(searchParams);
@@ -383,9 +402,9 @@ export function OrderPlansPage() {
 
   const listError = listQuery.error instanceof ApiError ? listQuery.error.message : "발주계획 목록을 확인할 수 없습니다.";
   const executionError = executionsQuery.error instanceof ApiError ? executionsQuery.error.message : "C-2 실행 목록을 확인할 수 없습니다.";
-  const total = listQuery.data?.total ?? 0;
+  const total = filteredItems.length;
   const hasPrevious = offset > 0;
-  const hasNext = offset + (listQuery.data?.items.length ?? 0) < total;
+  const hasNext = offset + visibleItems.length < total;
 
   return (
     <section className="c2-page" aria-labelledby="order-plans-title">
@@ -425,7 +444,7 @@ export function OrderPlansPage() {
             <div>
               <p className="c2-kicker">{latestExecution.source_run_id}</p>
               <h3 id="c2-results-title">검토 목록</h3>
-              <p className="c2-muted">기준 실행: {latestExecution.execution_id} · API 응답 {total.toLocaleString("ko-KR")}건 중 현재 페이지 {visibleItems.length.toLocaleString("ko-KR")}건</p>
+              <p className="c2-muted">기준 실행: {latestExecution.execution_id} · 현재 필터 결과 {total.toLocaleString("ko-KR")}건 중 현재 페이지 {visibleItems.length.toLocaleString("ko-KR")}건</p>
             </div>
             <form className="c2-search-form" onSubmit={(event) => { event.preventDefault(); updateListParams({ q: searchValue, offset: 0 }); }}>
               <label htmlFor="order-plan-search">제목·계획번호 검색</label>
@@ -468,7 +487,7 @@ export function OrderPlansPage() {
           {listQuery.data && (hasPrevious || hasNext) ? (
             <nav className="c2-pagination" aria-label="발주계획 목록 페이지">
               <button type="button" className="c2-button c2-button-secondary" disabled={!hasPrevious} onClick={() => updateListParams({ offset: Math.max(0, offset - PAGE_SIZE) })}>이전</button>
-              <span>{(offset + 1).toLocaleString("ko-KR")}–{Math.min(offset + PAGE_SIZE, offset + listQuery.data.items.length).toLocaleString("ko-KR")} / {total.toLocaleString("ko-KR")}</span>
+              <span>{(offset + 1).toLocaleString("ko-KR")}–{Math.min(offset + visibleItems.length, total).toLocaleString("ko-KR")} / {total.toLocaleString("ko-KR")}</span>
               <button type="button" className="c2-button c2-button-secondary" disabled={!hasNext} onClick={() => updateListParams({ offset: offset + PAGE_SIZE })}>다음</button>
             </nav>
           ) : null}

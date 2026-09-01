@@ -29,6 +29,9 @@ from app.schemas.order_plans import ExecutionCreateRequest, ExecutionStopRequest
 from app.services.order_plan_screening import OrderPlanScreeningError, OrderPlanScreeningService
 
 
+REPO_ROOT = Path(__file__).resolve().parents[3]
+
+
 def _canonical(value: object) -> bytes:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
 
@@ -45,17 +48,25 @@ def _fixture(tmp_path: Path, count: int = 2) -> tuple[Settings, Session, str, st
         OrderPlan(order_plan_unty_no=f"P-{index}", title=f"데이터 플랫폼 구축 {index}", agency_name="기관")
         for index in range(1, count + 1)
     ]
+    source_rows = [
+        {
+            "order_plan_unty_no": plan.order_plan_unty_no,
+            "title": plan.title,
+            "source_sha256": _sha(_canonical({"order_plan_unty_no": plan.order_plan_unty_no, "title": plan.title})),
+        }
+        for plan in plans
+    ]
     source = {
         "schema_version": "bidops.collected-order-plans.v1",
         "metadata": {"complete": True},
         "counts": {"total": len(plans)},
-        "order_plans": [{"order_plan_unty_no": plan.order_plan_unty_no, "title": plan.title} for plan in plans],
+        "order_plans": source_rows,
     }
     source_path = source_dir / "collected-order-plans.json"
     source_path.write_bytes(_canonical(source))
 
-    policy = json.loads(Path("experiments/order-plan-screening/config/order-plan-screening-policy.v1.json").read_text())
-    binding = json.loads(Path("experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v1.json").read_text())
+    policy = json.loads((REPO_ROOT / "experiments/order-plan-screening/config/order-plan-screening-policy.v1.json").read_text())
+    binding = json.loads((REPO_ROOT / "experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v1.json").read_text())
     policy["policy_status"] = "active"
     policy["activation"] = {"status": "active", "enabled": True, "approved_by": "approver", "approved_at": "2026-09-02T00:00:00+00:00"}
     binding["external_transport"]["execution_allowed"] = True
@@ -70,8 +81,8 @@ def _fixture(tmp_path: Path, count: int = 2) -> tuple[Settings, Session, str, st
     capabilities_path = root / "capabilities.json"
     prompt_path = root / "prompt.txt"
     capabilities_path.parent.mkdir(parents=True, exist_ok=True)
-    capabilities_path.write_bytes(Path("experiments/order-plan-screening/review-inputs/company/company-capabilities-v1-approved.json").read_bytes())
-    prompt_path.write_bytes(Path("experiments/order-plan-screening/review-inputs/prompts/order-plan-batch-relevance-v3-approved.txt").read_bytes())
+    capabilities_path.write_bytes((REPO_ROOT / "experiments/order-plan-screening/review-inputs/company/company-capabilities-v1-approved.json").read_bytes())
+    prompt_path.write_bytes((REPO_ROOT / "experiments/order-plan-screening/review-inputs/prompts/order-plan-batch-relevance-v3-approved.txt").read_bytes())
     settings = Settings(
         bidops_root=root,
         database_url="sqlite://",
@@ -80,15 +91,16 @@ def _fixture(tmp_path: Path, count: int = 2) -> tuple[Settings, Session, str, st
         c2_binding_path=binding_path,
         c2_capabilities_path=capabilities_path,
         c2_prompt_path=prompt_path,
-        c2_bm25_script=Path("skills/bidops-screen/scripts/rank_order_plans_bm25.py").resolve(),
-        c2_merge_script=Path("skills/bidops-screen/scripts/build_order_plan_screening_results.py").resolve(),
+        c2_bm25_script=(REPO_ROOT / "skills/bidops-screen/scripts/rank_order_plans_bm25.py").resolve(),
+        c2_merge_script=(REPO_ROOT / "skills/bidops-screen/scripts/build_order_plan_screening_results.py").resolve(),
     )
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     Base.metadata.create_all(engine)
     session = Session(engine)
     run = Run(id="run-c2", timezone="Asia/Seoul", generated_at=datetime(2026, 9, 2, tzinfo=UTC))
     session.add(run)
-    for plan in plans:
+    for plan, source_row in zip(plans, source_rows):
+        plan.source_sha256 = source_row["source_sha256"]
         plan.observations.append(OrderPlanObservation(run=run, observed_at=run.generated_at))
         session.add(plan)
     session.add(OrderPlanScreeningPolicy(
@@ -104,7 +116,7 @@ def _fixture(tmp_path: Path, count: int = 2) -> tuple[Settings, Session, str, st
         policy_sha256=_sha(policy_bytes),
         binding_sha256=_sha(binding_bytes),
         activation_metadata_jsonb=policy["activation"],
-        quality_gate_status="not_measured",
+        quality_gate_status="passed",
         active_slot=1,
         created_by="phase0-contracts",
         created_at=run.generated_at,
@@ -191,6 +203,18 @@ def test_create_fails_closed_for_blocked_transport(tmp_path: Path) -> None:
         raise AssertionError("blocked transport must fail closed")
 
 
+def test_create_requires_a_passed_quality_gate(tmp_path: Path) -> None:
+    settings, session, policy_version, _, _ = _fixture(tmp_path)
+    policy = session.scalar(select(OrderPlanScreeningPolicy).where(OrderPlanScreeningPolicy.policy_version == policy_version))
+    assert policy is not None
+    policy.quality_gate_status = "not_measured"
+    session.commit()
+
+    with pytest.raises(OrderPlanScreeningError) as raised:
+        _create(OrderPlanScreeningService(settings), session, policy_version)
+    assert raised.value.code == "policy_not_active"
+
+
 def test_create_rejects_a_second_active_execution(tmp_path: Path) -> None:
     settings, session, policy_version, _, _ = _fixture(tmp_path)
     service = OrderPlanScreeningService(settings)
@@ -217,6 +241,30 @@ def test_create_rejects_incomplete_nested_collection_metadata(tmp_path: Path) ->
         _create(OrderPlanScreeningService(settings), session, policy_version)
 
 
+def test_create_rejects_source_hash_projection_mismatch(tmp_path: Path) -> None:
+    settings, session, policy_version, _, _ = _fixture(tmp_path)
+    source_path = settings.bidops_root / "data" / "runs" / "run-c2" / "collected-order-plans.json"
+    source = json.loads(source_path.read_text())
+    source["order_plans"][0]["source_sha256"] = "f" * 64
+    source_path.write_bytes(_canonical(source))
+
+    with pytest.raises(OrderPlanScreeningError, match="source_run_incomplete"):
+        _create(OrderPlanScreeningService(settings), session, policy_version)
+
+
+def test_create_rejects_source_run_symlink_outside_approved_root(tmp_path: Path) -> None:
+    settings, session, policy_version, _, _ = _fixture(tmp_path)
+    runs_root = settings.bidops_root / "data" / "runs"
+    source_dir = runs_root / "run-c2"
+    outside = tmp_path / "outside-run"
+    outside.mkdir()
+    source_dir.rename(runs_root / "run-c2-real")
+    source_dir.symlink_to(outside, target_is_directory=True)
+
+    with pytest.raises(OrderPlanScreeningError, match="source_run_incomplete"):
+        _create(OrderPlanScreeningService(settings), session, policy_version)
+
+
 def test_read_projections_include_plan_fields_history_and_safe_attempts(tmp_path: Path) -> None:
     settings, session, policy_version, binding_sha, plans = _fixture(tmp_path)
     plans[0].budget_amount = Decimal("123.45")
@@ -226,6 +274,12 @@ def test_read_projections_include_plan_fields_history_and_safe_attempts(tmp_path
     service = OrderPlanScreeningService(settings)
     response, _ = _create(service, session, policy_version)
     execution_id = UUID(str(response["execution_id"]))
+    execution = session.get(OrderPlanScreeningExecution, execution_id)
+    assert execution is not None
+    execution.status = "부분 성공"
+    execution.started_at = datetime(2026, 9, 2, tzinfo=UTC)
+    execution.finished_at = datetime(2026, 9, 2, 0, 1, tzinfo=UTC)
+    session.commit()
 
     session.add(OrderPlanScreeningResult(
         id=uuid4(), execution_id=execution_id, source_run_id="run-c2", order_plan_id=plans[0].id,
@@ -269,3 +323,48 @@ def test_read_projections_include_plan_fields_history_and_safe_attempts(tmp_path
     assert attempt["duration_ms"] is None
     assert "response_object_ref" not in attempt
     assert "plan_ids_jsonb" not in attempt
+
+
+def test_list_ignores_a_newer_failed_execution_for_the_selected_result(tmp_path: Path) -> None:
+    settings, session, policy_version, binding_sha, plans = _fixture(tmp_path, count=1)
+    service = OrderPlanScreeningService(settings)
+    first_response, _ = _create(service, session, policy_version)
+    first_id = UUID(str(first_response["execution_id"]))
+    first = session.get(OrderPlanScreeningExecution, first_id)
+    assert first is not None
+    first.status = "성공"
+    first.started_at = datetime(2026, 9, 2, tzinfo=UTC)
+    first.finished_at = datetime(2026, 9, 2, 0, 1, tzinfo=UTC)
+    session.add(OrderPlanScreeningResult(
+        id=uuid4(), execution_id=first_id, source_run_id="run-c2", order_plan_id=plans[0].id,
+        schema_version="bidops.order-plan-screening-result-row.v1", producer="order-plan-screening-merge",
+        consumer="postgres-loader-and-review-api", input_artifact_sha256="a" * 64, policy_version=policy_version,
+        policy_sha256="b" * 64, binding_sha256=binding_sha, result_sha256="c" * 64, stage1_rank=1,
+        stage1_score=1, nearest_capability="cap", stage1_status="selected", stage2_status="success",
+        qwen_relevance="relevant", qwen_score=.9, qwen_reason="첫 실행 결과", batch_id="batch-first", attempt_no=1,
+        failure_code=None, created_at=datetime(2026, 9, 2, 0, 1, tzinfo=UTC),
+    ))
+    session.commit()
+
+    second_response, _ = _create(service, session, policy_version)
+    second_id = UUID(str(second_response["execution_id"]))
+    second = session.get(OrderPlanScreeningExecution, second_id)
+    assert second is not None
+    second.status = "실패"
+    second.started_at = datetime(2026, 9, 2, 0, 2, tzinfo=UTC)
+    second.finished_at = datetime(2026, 9, 2, 0, 3, tzinfo=UTC)
+    session.add(OrderPlanScreeningResult(
+        id=uuid4(), execution_id=second_id, source_run_id="run-c2", order_plan_id=plans[0].id,
+        schema_version="bidops.order-plan-screening-result-row.v1", producer="order-plan-screening-merge",
+        consumer="postgres-loader-and-review-api", input_artifact_sha256="d" * 64, policy_version=policy_version,
+        policy_sha256="e" * 64, binding_sha256=binding_sha, result_sha256="f" * 64, stage1_rank=1,
+        stage1_score=1, nearest_capability="failed-cap", stage1_status="selected", stage2_status="failed",
+        qwen_relevance=None, qwen_score=None, qwen_reason=None, batch_id="batch-second", attempt_no=1,
+        failure_code="worker_failed", created_at=datetime(2026, 9, 2, 0, 3, tzinfo=UTC),
+    ))
+    session.commit()
+
+    item = service.list_order_plans(session, source_run_id="run-c2")["items"][0]
+    assert item["stage2_status"] == "success"
+    assert item["qwen_relevance"] == "relevant"
+    assert item["nearest_capability"] == "cap"

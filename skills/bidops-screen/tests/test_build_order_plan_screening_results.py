@@ -462,6 +462,34 @@ class BuildOrderPlanScreeningResultsTests(unittest.TestCase):
             self.assertTrue(all(item["qwen_relevance"] is None for item in filtered))
             self.assertNotEqual(325, result["counts"]["stage2_not_relevant"])
 
+    def test_partial_batch_prefix_keeps_unprocessed_selected_items_not_attempted(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            paths = build_fixture(root, 51)
+            decisions = json.loads(paths["decisions"].read_text(encoding="utf-8"))
+            decisions.update({
+                "status": "부분 성공",
+                "success_count": 25,
+                "failure_count": 0,
+                "batch_count": 1,
+                "batches": decisions["batches"][:1],
+                "items": decisions["items"][:25],
+            })
+            write_json(paths["decisions"], decisions)
+            telemetry = json.loads(paths["telemetry"].read_text(encoding="utf-8"))
+            telemetry.update({"status": "partial", "batches": telemetry["batches"][:1]})
+            write_json(paths["telemetry"], telemetry)
+
+            result = merge(paths, root / "partial-prefix-result.json")
+
+            self.assertEqual("부분 성공", result["status"])
+            self.assertEqual(51, len(result["items"]))
+            self.assertEqual(25, result["counts"]["stage2_relevant"] + result["counts"]["stage2_not_relevant"] + result["counts"]["stage2_uncertain"])
+            unprocessed = result["items"][25:]
+            self.assertEqual(26, len(unprocessed))
+            self.assertTrue(all(item["stage2_status"] == "not_attempted" for item in unprocessed))
+            self.assertTrue(all(item["failure_code"] is None for item in unprocessed))
+
     def test_partial_failure_and_unknown_are_honest(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

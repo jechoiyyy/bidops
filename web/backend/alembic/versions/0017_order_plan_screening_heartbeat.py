@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 from alembic import op
 import sqlalchemy as sa
 
@@ -12,6 +14,32 @@ branch_labels = None
 depends_on = None
 
 SCHEMA = "bidops"
+MIGRATION_EVENT_ID = "audit-1d5e9b3c7a4f2e6d8c0b1a9f5e7d3c2b"
+
+
+def _record_migration_marker() -> None:
+    op.get_bind().execute(
+        sa.text(
+            f"""
+            INSERT INTO {SCHEMA}.screening_audit_event
+                (event_id, event_type, actor, target_type, target_id,
+                 occurred_at, details_json)
+            VALUES (:event_id, 'db.migration', 'system:migration', 'database',
+                    :revision, CAST(:occurred_at AS timestamptz),
+                    CAST(:details AS json))
+            ON CONFLICT (event_id) DO NOTHING
+            """
+        ),
+        {
+            "event_id": MIGRATION_EVENT_ID,
+            "revision": revision,
+            "occurred_at": "2026-01-01 00:00:17+00:00",
+            "details": json.dumps(
+                {"migration_revision": revision, "action": "upgrade"},
+                separators=(",", ":"),
+            ),
+        },
+    )
 
 
 def upgrade() -> None:
@@ -41,9 +69,14 @@ def upgrade() -> None:
         EXECUTE FUNCTION {SCHEMA}.tf_order_plan_screening_execution_heartbeat_guard();
         """
     )
+    _record_migration_marker()
 
 
 def downgrade() -> None:
+    op.execute(
+        sa.text(f"DELETE FROM {SCHEMA}.screening_audit_event WHERE event_id = :event_id"),
+        {"event_id": MIGRATION_EVENT_ID},
+    )
     op.execute(
         f"DROP TRIGGER IF EXISTS tr_order_plan_screening_execution_heartbeat_guard "
         f"ON {SCHEMA}.order_plan_screening_execution"

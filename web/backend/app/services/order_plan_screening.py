@@ -98,6 +98,12 @@ def _sha256_json(value: Any) -> str:
     return _sha256_bytes(_canonical(value))
 
 
+def _is_sha256(value: Any) -> bool:
+    return isinstance(value, str) and len(value) == 64 and all(
+        character in "0123456789abcdef" for character in value
+    )
+
+
 def _safe_json_bytes(path: Path) -> tuple[dict[str, Any], bytes]:
     if path.is_symlink() or not path.is_file():
         raise OrderPlanScreeningError("source_run_incomplete", "C-2 source artifact를 읽을 수 없습니다", status_code=409)
@@ -154,7 +160,22 @@ def _safe_id(value: str, label: str) -> str:
 def _source_directory(settings: Settings, run_id: str) -> Path:
     safe_run_id = _safe_id(run_id, "source run")
     base = safe_run_id.split("--", 1)[0]
-    return settings.bidops_root / "data" / "runs" / base
+    approved_root = settings.bidops_root.resolve(strict=False)
+    runs_root = settings.bidops_root / "data" / "runs"
+    candidate = runs_root / base
+    try:
+        resolved_runs_root = runs_root.resolve(strict=False)
+        resolved_candidate = candidate.resolve(strict=False)
+    except OSError:
+        raise OrderPlanScreeningError("source_run_incomplete", "C-2 source run 경로를 확인할 수 없습니다", status_code=409) from None
+    if (
+        runs_root.is_symlink()
+        or candidate.is_symlink()
+        or not resolved_runs_root.is_relative_to(approved_root)
+        or not resolved_candidate.is_relative_to(resolved_runs_root)
+    ):
+        raise OrderPlanScreeningError("source_run_incomplete", "C-2 source run 경로가 허용 범위를 벗어났습니다", status_code=409)
+    return candidate
 
 
 def execution_directory(settings: Settings, source_run_id: str, execution_id: UUID) -> Path:
@@ -193,8 +214,13 @@ def _source_population(raw: dict[str, Any]) -> list[dict[str, str]]:
         title = row.get("title") or row.get("biz_nm") or row.get("business_name")
         if not isinstance(plan_id, str) or not plan_id.strip() or not isinstance(title, str) or not title.strip() or plan_id in seen:
             raise OrderPlanScreeningError("source_run_incomplete", "source run 발주계획 식별자가 유효하지 않습니다", status_code=409)
+        source_hash = row.get("source_sha256")
+        if source_hash is None and isinstance(row.get("source"), Mapping):
+            source_hash = row["source"].get("source_sha256")
+        if not _is_sha256(source_hash):
+            raise OrderPlanScreeningError("source_run_incomplete", "source run 발주계획 원문 hash가 유효하지 않습니다", status_code=409)
         seen.add(plan_id)
-        population.append({"plan_id": plan_id, "title": title})
+        population.append({"plan_id": plan_id, "title": title, "source_sha256": source_hash})
     declared = raw.get("counts")
     if isinstance(declared, Mapping):
         count = declared.get("total", declared.get("order_plans", declared.get("plans")))
@@ -230,7 +256,7 @@ class OrderPlanScreeningService:
         )
         if policy is None:
             raise OrderPlanScreeningError("policy_not_active", "C-2 policy가 활성 상태가 아닙니다", request_id=request_id)
-        if policy.policy_status != "active":
+        if policy.policy_status != "active" or policy.quality_gate_status != "passed":
             raise OrderPlanScreeningError("policy_not_active", "C-2 policy가 활성 상태가 아닙니다", request_id=request_id)
         try:
             policy_model = OrderPlanScreeningPolicyArtifact.model_validate(policy.policy_payload_jsonb)
@@ -326,15 +352,21 @@ class OrderPlanScreeningService:
                 raise OrderPlanScreeningError("source_run_incomplete", "source run에 ingest warning이 있습니다", request_id=request_id)
             source_path = _source_directory(self.settings, run.id) / "collected-order-plans.json"
             source_raw, source_bytes = _safe_json_bytes(source_path)
-            population = _source_population(source_raw)
+            source_population = _source_population(source_raw)
+            population = [
+                {"plan_id": row["plan_id"], "title": row["title"]}
+                for row in source_population
+            ]
             plans = {
                 row.order_plan_unty_no: row
                 for row in session.scalars(
                     select(OrderPlan).join(OrderPlanObservation).where(OrderPlanObservation.run_id == run.id)
                 ).all()
             }
-            if set(plans) != {row["plan_id"] for row in population} or any(
-                plans[row["plan_id"]].title != row["title"] for row in population
+            if set(plans) != {row["plan_id"] for row in source_population} or any(
+                plans[row["plan_id"]].title != row["title"]
+                or plans[row["plan_id"]].source_sha256 != row["source_sha256"]
+                for row in source_population
             ):
                 raise OrderPlanScreeningError("source_run_incomplete", "source run DB projection이 모집단과 다릅니다", request_id=request_id)
             execution_id = uuid4()
@@ -821,19 +853,40 @@ class OrderPlanScreeningService:
         return response
 
     @staticmethod
-    def _latest_result(session: Session, order_plan_id: int, source_run_id: str | None = None) -> OrderPlanScreeningResult | None:
+    def _latest_completed_execution(session: Session, source_run_id: str) -> UUID | None:
+        return session.scalar(
+            select(OrderPlanScreeningExecution.execution_id).where(
+                OrderPlanScreeningExecution.source_run_id == source_run_id,
+                OrderPlanScreeningExecution.status.in_({"성공", "부분 성공"}),
+            ).order_by(
+                OrderPlanScreeningExecution.finished_at.desc(),
+                OrderPlanScreeningExecution.queued_at.desc(),
+                OrderPlanScreeningExecution.execution_id.desc(),
+            )
+        )
+
+    @staticmethod
+    def _latest_result(
+        session: Session,
+        order_plan_id: int,
+        source_run_id: str | None = None,
+        execution_id: UUID | None = None,
+    ) -> OrderPlanScreeningResult | None:
         statement = select(OrderPlanScreeningResult).where(OrderPlanScreeningResult.order_plan_id == order_plan_id)
         if source_run_id is not None:
             statement = statement.where(OrderPlanScreeningResult.source_run_id == source_run_id)
+        if execution_id is not None:
+            statement = statement.where(OrderPlanScreeningResult.execution_id == execution_id)
         return session.scalar(statement.order_by(OrderPlanScreeningResult.created_at.desc(), OrderPlanScreeningResult.id.desc()))
 
     @staticmethod
-    def _latest_feedback(session: Session, order_plan_id: int) -> OrderPlanScreeningFeedback | None:
-        return session.scalar(
-            select(OrderPlanScreeningFeedback).where(OrderPlanScreeningFeedback.order_plan_id == order_plan_id).order_by(
+    def _latest_feedback(session: Session, order_plan_id: int, execution_id: UUID | None = None) -> OrderPlanScreeningFeedback | None:
+        statement = select(OrderPlanScreeningFeedback).where(OrderPlanScreeningFeedback.order_plan_id == order_plan_id)
+        if execution_id is not None:
+            statement = statement.where(OrderPlanScreeningFeedback.execution_id == execution_id)
+        return session.scalar(statement.order_by(
                 OrderPlanScreeningFeedback.created_at.desc(), OrderPlanScreeningFeedback.revision.desc()
-            )
-        )
+            ))
 
     @staticmethod
     def _feedback_summary(row: OrderPlanScreeningFeedback | None) -> dict[str, Any] | None:
@@ -853,8 +906,9 @@ class OrderPlanScreeningService:
         if source_run_id is not None:
             observations = [row for row in observations if row.run_id == source_run_id]
         observation = max(observations, key=lambda row: (row.observed_at, row.id), default=None)
-        result = self._latest_result(session, plan.id, source_run_id)
-        feedback = self._latest_feedback(session, plan.id)
+        selected_execution_id = self._latest_completed_execution(session, source_run_id) if source_run_id is not None else None
+        result = self._latest_result(session, plan.id, source_run_id, selected_execution_id)
+        feedback = self._latest_feedback(session, plan.id, selected_execution_id)
         return {
             "order_plan_pk": plan.id,
             "order_plan_unty_no": plan.order_plan_unty_no,

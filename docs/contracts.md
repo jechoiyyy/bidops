@@ -496,16 +496,16 @@ digest를 확인한 뒤에만 읽는다.
 | `config/order-plan-screening-phase0-binding.v1.json` / `bidops.order-plan-screening-phase0-binding.v1` | `phase0-contracts` → `phase1-screening-pipeline` | 위 provenance, `binding_version`, `status`, `created_at`, `policy`, `selection_decision`, `source_input`(raw-page manifest SHA-256 포함), `selection_evidence_population`, `stage1_binding`, `stage2_binding`, `selection_evidence`, `review_inputs`, `gold`, `external_transport`, `compatibility`, `activation`; current v1 `status=blocked` | 생성 후 immutable. 이 snapshot의 partial gold/current refs와 blocked transport를 바꾸려면 새 binding version을 만든다. 역사적 실험 파일은 read-only이며 binding을 맞추기 위해 소급 수정하지 않는다. |
 | `screening-input.json` / `bidops.order-plan-screening-input.v1` | `order-plan-screening-orchestrator` → `order-plan-screening-worker` | `execution_id`, `source_run_id`, `source_artifact`, `population_count`, `population_sha256`, `policy`, `stage1_binding`, `stage2_binding`, `items`, `status`, `created_at`; `status=frozen` | enqueue 시점 snapshot. `items`는 `plan_id,title`만 가지며 생성 후 변경·재사용하지 않는다. |
 | `screening-ranking.json` / `bidops.order-plan-screening-ranking.v1` | `order-plan-screening-bm25` → `order-plan-screening-merge` | `execution_id`, `source_run_id`, input·policy digest, `status`, `population_count`, `selected_count`, `filtered_out_count`, `items`; `status=성공|실패`, item `stage1_status=selected|filtered_out|failed|rejected` | 전체 모집단 1행/plan. `filtered_out`은 deterministic Top 300 경계이며 결과에서 삭제하지 않는다. |
-| `screening-decisions.json` / `bidops.order-plan-screening-decisions.v1` | `order-plan-screening-qwen-worker` → `order-plan-screening-merge` | binding·input/ranking digest, `status`, candidate/success/failure/batch count, `batches`, `items`; `status=성공|부분 성공|실패`, relevance `relevant|not_relevant|uncertain` | 성공한 Qwen item만 기록하고 실패 batch는 failure artifact와 함께 보존한다. stage1 탈락 item은 이 파일에 넣지 않는다. |
+| `screening-decisions.json` / `bidops.order-plan-screening-decisions.v1` | `order-plan-screening-qwen-worker` → `order-plan-screening-merge` | binding·input/ranking digest, `status`, candidate/success/failure/batch count, `batches`, `items`; `status=성공|부분 성공|실패`, relevance `relevant|not_relevant|uncertain` | 처리된 rank-contiguous batch prefix만 기록한다. 성공한 Qwen item만 기록하고 실패 batch는 failure artifact와 함께 보존하며, 중지·process interruption으로 미처리된 selected item은 이 파일에 넣지 않는다. stage1 탈락 item도 넣지 않는다. |
 | `screening-failures.json` / `bidops.order-plan-screening-failures.v1` | `order-plan-screening-worker` → review·merge | `execution_id`, `source_run_id`, `status`, `failure_count`, `failures`, `created_at`; `status=none|partial|failed|rejected`, outcome `failed|rejected|unknown` | 실패는 `not_relevant`로 보정하지 않는다. `failure_type`과 안전한 `error_code`만 저장하고 prompt·response 본문은 저장하지 않는다. |
 | `screening-telemetry.json` / `bidops.order-plan-screening-telemetry.v1` | `order-plan-screening-worker` → observability·merge | execution/batch/attempt measurement, `status`, `created_at`; `status=complete|partial|not_measured` | 제공되지 않은 duration·token은 `null`; 0으로 보정하지 않는다. attempt metadata만 append-only다. |
 | `screening-results.json` / `bidops.order-plan-screening-result.v1` | `order-plan-screening-merge` → `postgres-loader-and-review-api` | input/policy digest, `status`, `partial_artifact`, `counts`, 전체 `items`, `created_at`; `status=성공|부분 성공|실패|거부됨` | 동일 execution+plan은 한 번만 publish. 부분 결과는 `partial_artifact=true`이고 failure와 함께 보존한다. |
 | `screening-feedback.json` / `bidops.order-plan-screening-feedback.v1` | `human-review-api` → `postgres-review-history` | `feedback_id`, `execution_id`, `plan_id`, `revision`, `actor_kind`, `claimed_name`, `relevance`, `priority`, `memo`, `created_at`; relevance `relevant|not_relevant|uncertain`, priority `high|medium|low|null` | revision append-only. 기존 feedback update/delete 금지; 새 판단은 새 revision과 `supersedes_feedback_id`로 기록한다. |
 
-full-population result item은 상태 조합도 검증한다. `filtered_out|failed|rejected`인 stage1은
-stage2 `not_attempted`와 모든 Qwen·batch·failure field `null`을 사용하고, stage2
-`success`만 relevance/score/reason과 batch/attempt를 가질 수 있다. 실패·거부·unknown은
-Qwen label을 만들지 않고 안전한 failure code로 남긴다.
+full-population result item은 상태 조합도 검증한다. `filtered_out|failed|rejected`인 stage1과
+처리되지 않은 selected item은 stage2 `not_attempted`와 모든 Qwen·batch·failure field
+`null`을 사용한다. stage2 `success`만 relevance/score/reason과 batch/attempt를 가질 수
+있고, 실패·거부·unknown은 Qwen label을 만들지 않고 안전한 failure code로 남긴다.
 
 기존 `bidops.screening-input.v1`, `bidops.decisions.v3`, `bidops.screening.v3`와
 `ScreeningExecution`은 공고 다섯 관점 판정 계약이다. C-2 v1의 relevance를 그 계약에
@@ -586,9 +586,9 @@ schema version을 만들며, 기존 C-2 v1 consumer는 알 수 없는 version을
 
 ### C-2 DB·migration 경계 (Phase 2 구현 입력)
 
-현재 Alembic head는 `0015_bid_delta_final_decision`이다. C-2 migration은 Phase 2 착수 시
-새 head `0016_order_plan_screening`으로 재확인해 생성하며, Phase 0에서는 DB를 변경하지
-않는다. 기존 공고용 `screening_execution`, `screening_attempt`, `screening_policy`를
+현재 Alembic head는 `0017_order_plan_screening_heartbeat`이며, C-2 migration은
+`0016_order_plan_screening`에서 `0017_order_plan_screening_heartbeat`로 이어진다. Phase 0에서는
+DB를 변경하지 않는다. 기존 공고용 `screening_execution`, `screening_attempt`, `screening_policy`를
 C-2 의미로 재사용하지 않는다.
 
 | table | 필수 핵심 column / 상태 | 불변성·제약 |

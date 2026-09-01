@@ -360,7 +360,7 @@ def _validate_decisions(path: Path, frozen: Mapping[str, Any], ranking: Mapping[
     if not isinstance(batches, list) or len(batches) != batch_count:
         _error("batch_mismatch", "decisions batch_count가 batches와 다릅니다")
     expected_batch_plans = _expected_batches(candidate_ids)
-    if len(batches) != len(expected_batch_plans):
+    if len(batches) > len(expected_batch_plans):
         _error("batch_mismatch", "decisions batch 수가 고정 batching policy와 다릅니다")
     batches_by_id: dict[str, dict[str, Any]] = {}
     failed_batches: list[dict[str, Any]] = []
@@ -415,21 +415,21 @@ def _validate_decisions(path: Path, frozen: Mapping[str, Any], ranking: Mapping[
             _error("invalid_field", "decisions reason이 너무 깁니다")
         items_by_id[plan_id] = item
     failed_plan_ids = {plan_id for batch in failed_batches for plan_id in batch["plan_ids"]}
-    if set(items_by_id) | failed_plan_ids != candidate_set:
-        _error("population_mismatch", "candidate 결과가 전체 candidate 모집단을 덮지 않습니다")
+    if not (set(items_by_id) | failed_plan_ids) <= candidate_set:
+        _error("population_mismatch", "candidate 결과에 비대상 plan이 있습니다")
     if set(items_by_id) & failed_plan_ids:
         _error("duplicate_plan_id", "성공·실패 결과에 같은 plan이 있습니다")
     if document["status"] == "성공" and (failed_batches or success_count != candidate_count):
         _error("status_mismatch", "실패 batch가 있는 decisions를 성공으로 표시할 수 없습니다")
-    if document["status"] == "부분 성공" and (not failed_batches or success_count == 0):
-        _error("status_mismatch", "부분 성공 decisions의 성공·실패 구성이 다릅니다")
+    if document["status"] == "부분 성공" and (success_count == 0 or success_count == candidate_count):
+        _error("status_mismatch", "부분 성공 decisions의 성공·미처리 구성이 다릅니다")
     stage1_failed_without_stage2_candidate = (
         document["status"] == "실패"
         and candidate_count == 0
         and ranking["document"]["status"] == "실패"
         and any(item["stage1_status"] in {"failed", "rejected"} for item in ranking["items"])
     )
-    if document["status"] == "실패" and (success_count != 0 or (not failed_batches and not stage1_failed_without_stage2_candidate)):
+    if document["status"] == "실패" and (success_count != 0 or (not failed_batches and candidate_count == 0 and not stage1_failed_without_stage2_candidate)):
         _error("status_mismatch", "실패 decisions의 성공·실패 구성이 다릅니다")
     return {
         "document": document,
@@ -635,6 +635,9 @@ def _result_item(
         stage2_status = failure["outcome"]
         relevance = score = reason = batch_id = attempt_no = None
         failure_code = failure["error_code"]
+    elif stage1_status == "selected":
+        stage2_status = "not_attempted"
+        relevance = score = reason = batch_id = attempt_no = failure_code = None
     else:
         _error("missing_result", "candidate 결과가 누락됐습니다")
     return {

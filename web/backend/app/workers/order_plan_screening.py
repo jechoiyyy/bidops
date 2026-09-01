@@ -50,6 +50,9 @@ from ..services.order_plan_screening import (
 from ..services.vllm_client import OrderPlanVllmAdapter, OrderPlanVllmError
 
 
+BATCH_PROGRESS_SCHEMA = "bidops.order-plan-screening-batch-progress.v1"
+
+
 class C2WorkerError(RuntimeError):
     """Internal worker error with an API-safe terminal code."""
 
@@ -93,6 +96,14 @@ class C2ScreeningWorker:
             ).with_for_update()
         ).all()
         for execution in rows:
+            try:
+                with session.begin_nested():
+                    self._recover_partial_artifacts(session, execution)
+            except Exception:
+                # A damaged optional journal must not keep an abandoned
+                # execution active. The lifecycle/audit transition below is
+                # still committed independently.
+                pass
             if execution.status == "실행 중":
                 execution.status = "중지 요청"
                 session.flush()
@@ -383,6 +394,241 @@ class C2ScreeningWorker:
             raise C2WorkerError("ranking_invalid")
         return model
 
+    def _write_batch_progress(
+        self,
+        directory: Path,
+        execution: OrderPlanScreeningExecution,
+        batch: Mapping[str, Any],
+        decision_batch: Mapping[str, Any],
+        decision_items: list[Mapping[str, Any]],
+        failure: Mapping[str, Any] | None,
+        telemetry_batch: Mapping[str, Any],
+    ) -> None:
+        document = {
+            "schema_version": BATCH_PROGRESS_SCHEMA,
+            "producer": "order-plan-screening-qwen-worker",
+            "consumer": "order-plan-screening-worker-recovery",
+            "execution_id": str(execution.execution_id),
+            "source_run_id": execution.source_run_id,
+            "batch_id": batch["batch_id"],
+            "sequence": batch["sequence"],
+            "plan_ids": [item.plan_id for item in batch["items"]],
+            "decision_batch": dict(decision_batch),
+            "decision_items": [dict(item) for item in decision_items],
+            "failure": dict(failure) if failure is not None else None,
+            "telemetry_batch": dict(telemetry_batch),
+        }
+        self._write_json(
+            directory / f"screening-batch-progress-{int(batch['sequence']):04d}.json",
+            document,
+        )
+
+    @staticmethod
+    def _attempt_measurement(attempt: OrderPlanScreeningBatchAttempt) -> dict[str, Any]:
+        return {
+            "attempt_no": attempt.attempt_no,
+            "status": attempt.attempt_status,
+            "started_at": attempt.started_at.isoformat() if attempt.started_at is not None else None,
+            "finished_at": attempt.finished_at.isoformat() if attempt.finished_at is not None else None,
+            "measurement": {
+                "started_at": attempt.started_at.isoformat() if attempt.started_at is not None else None,
+                "finished_at": attempt.finished_at.isoformat() if attempt.finished_at is not None else None,
+                "duration_ms": attempt.duration_ms,
+                "input_tokens": attempt.input_tokens,
+                "cached_input_tokens": attempt.cached_input_tokens,
+                "output_tokens": attempt.output_tokens,
+                "total_tokens": attempt.total_tokens,
+            },
+        }
+
+    def _load_batch_progress(
+        self,
+        directory: Path,
+        execution: OrderPlanScreeningExecution,
+        batch_specs: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        paths = sorted(directory.glob("screening-batch-progress-*.json"))
+        documents: list[dict[str, Any]] = []
+        required_keys = {
+            "schema_version", "producer", "consumer", "execution_id", "source_run_id",
+            "batch_id", "sequence", "plan_ids", "decision_batch", "decision_items",
+            "failure", "telemetry_batch",
+        }
+        for path in paths:
+            if path.is_symlink() or not path.is_file():
+                raise C2WorkerError("artifact_invalid")
+            document = self._read_json(path)
+            if set(document) != required_keys or document["schema_version"] != BATCH_PROGRESS_SCHEMA or document["producer"] != "order-plan-screening-qwen-worker" or document["consumer"] != "order-plan-screening-worker-recovery":
+                raise C2WorkerError("artifact_invalid")
+            if document["execution_id"] != str(execution.execution_id) or document["source_run_id"] != execution.source_run_id:
+                raise C2WorkerError("binding_mismatch")
+            sequence = document["sequence"]
+            if not isinstance(sequence, int) or sequence != len(documents) + 1 or sequence > len(batch_specs):
+                raise C2WorkerError("artifact_invalid")
+            batch = batch_specs[sequence - 1]
+            expected_ids = [item.plan_id for item in batch["items"]]
+            if document["batch_id"] != batch["batch_id"] or document["plan_ids"] != expected_ids:
+                raise C2WorkerError("binding_mismatch")
+            decision_batch = document["decision_batch"]
+            decision_items = document["decision_items"]
+            telemetry_batch = document["telemetry_batch"]
+            if not isinstance(decision_batch, Mapping) or not isinstance(decision_items, list) or not isinstance(telemetry_batch, Mapping):
+                raise C2WorkerError("artifact_invalid")
+            if (
+                decision_batch.get("batch_id") != batch["batch_id"]
+                or decision_batch.get("sequence") != sequence
+                or decision_batch.get("plan_ids") != expected_ids
+                or telemetry_batch.get("batch_id") != batch["batch_id"]
+                or telemetry_batch.get("sequence") != sequence
+                or not isinstance(telemetry_batch.get("attempts"), list)
+            ):
+                raise C2WorkerError("binding_mismatch")
+            if decision_batch.get("status") == "success":
+                if document["failure"] is not None or sorted(item.get("plan_id") for item in decision_items if isinstance(item, Mapping)) != sorted(expected_ids):
+                    raise C2WorkerError("artifact_invalid")
+            elif document["failure"] is None or decision_items:
+                raise C2WorkerError("artifact_invalid")
+            documents.append(document)
+        return documents
+
+    def _recovery_state(
+        self,
+        session: Session,
+        execution: OrderPlanScreeningExecution,
+        input_model: OrderPlanScreeningInputArtifact,
+        ranking: OrderPlanScreeningRankingArtifact,
+        stage2: Mapping[str, str],
+        batch_specs: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        directory = self._execution_dir(execution)
+        progress = self._load_batch_progress(directory, execution, batch_specs)
+        decision_batches = [dict(document["decision_batch"]) for document in progress]
+        decision_items = [
+            dict(item)
+            for document in progress
+            for item in document["decision_items"]
+        ]
+        failures = [dict(document["failure"]) for document in progress if document["failure"] is not None]
+        telemetry_batches = [dict(document["telemetry_batch"]) for document in progress]
+        progress_ids = {document["batch_id"] for document in progress}
+        attempts = session.scalars(
+            select(OrderPlanScreeningBatchAttempt).where(
+                OrderPlanScreeningBatchAttempt.execution_id == execution.execution_id,
+            ).order_by(OrderPlanScreeningBatchAttempt.sequence, OrderPlanScreeningBatchAttempt.attempt_no)
+        ).all()
+        attempts_by_batch: dict[str, list[OrderPlanScreeningBatchAttempt]] = {}
+        for attempt in attempts:
+            attempts_by_batch.setdefault(attempt.batch_id, []).append(attempt)
+        rejection_types = {"model_mismatch", "binding_mismatch", "payload_not_approved", "policy_rejected"}
+        for batch in batch_specs:
+            batch_id = batch["batch_id"]
+            if batch_id in progress_ids:
+                continue
+            batch_attempts = attempts_by_batch.get(batch_id, [])
+            if not batch_attempts:
+                continue
+            now = self.clock()
+            for attempt in batch_attempts:
+                if attempt.attempt_status != "running":
+                    continue
+                attempt.attempt_status = "failed"
+                attempt.failure_type = "unknown"
+                attempt.failure_code = "stale_execution"
+                attempt.finished_at = now
+                attempt.duration_ms = max(0, int((now - attempt.started_at).total_seconds() * 1000)) if attempt.started_at else 0
+            latest = batch_attempts[-1]
+            failure_type = latest.failure_type if latest.failure_type in {
+                "timeout", "truncated_output", "schema_violation", "id_mismatch", "model_mismatch",
+                "binding_mismatch", "payload_not_approved", "transport", "policy_rejected", "unknown",
+            } else "unknown"
+            failure_code = latest.failure_code or "stale_execution"
+            outcome = "rejected" if latest.attempt_status == "rejected" or failure_type in rejection_types else "unknown" if failure_type == "unknown" else "failed"
+            decision_batches.append({
+                "batch_id": batch_id,
+                "sequence": batch["sequence"],
+                "plan_ids": [item.plan_id for item in batch["items"]],
+                "attempt_count": len(batch_attempts),
+                "status": "rejected" if outcome == "rejected" else "failed",
+            })
+            failures.append({
+                "batch_id": batch_id,
+                "sequence": batch["sequence"],
+                "plan_ids": [item.plan_id for item in batch["items"]],
+                "attempt_count": len(batch_attempts),
+                "max_attempts": 2,
+                "failure_type": failure_type,
+                "outcome": outcome,
+                "status": "human_review_required",
+                "error_code": failure_code,
+            })
+            telemetry_batches.append({
+                "batch_id": batch_id,
+                "sequence": batch["sequence"],
+                "status": "rejected" if outcome == "rejected" else "failed",
+                "attempts": [self._attempt_measurement(attempt) for attempt in batch_attempts],
+            })
+        candidate_count = sum(len(batch["items"]) for batch in batch_specs)
+        success_count = len(decision_items)
+        failure_status = "none" if not failures else "rejected" if all(item["outcome"] == "rejected" for item in failures) else "failed" if all(item["outcome"] == "failed" for item in failures) else "partial"
+        decisions_status = "성공" if not failures and success_count == candidate_count else "부분 성공" if success_count else "실패"
+        return {
+            "binding": {},
+            "stage2": dict(stage2),
+            "batch_specs": batch_specs,
+            "decision_batches": decision_batches,
+            "decision_items": decision_items,
+            "failures": failures,
+            "failure_status": failure_status,
+            "decisions_status": decisions_status,
+            "telemetry_batches": telemetry_batches,
+            "overall_started": execution.started_at or self.clock(),
+            "overall_finished": self.clock(),
+            "candidate_count": candidate_count,
+            "success_count": success_count,
+        }
+
+    def _recover_partial_artifacts(self, session: Session, execution: OrderPlanScreeningExecution) -> None:
+        directory = self._execution_dir(execution)
+        if directory.is_symlink() or not directory.is_dir():
+            return
+        progress_exists = any(directory.glob("screening-batch-progress-*.json"))
+        attempts_exist = session.scalar(
+            select(OrderPlanScreeningBatchAttempt.attempt_id).where(
+                OrderPlanScreeningBatchAttempt.execution_id == execution.execution_id,
+            ).limit(1)
+        ) is not None
+        if not progress_exists and not attempts_exist:
+            return
+        if any((directory / filename).exists() for filename in ("screening-decisions.json", "screening-failures.json", "screening-telemetry.json")):
+            return
+        input_model = self._load_input(directory, execution)
+        binding, stage2, _, _ = self._load_binding_inputs(directory, input_model)
+        ranking_path = directory / "screening-ranking.json"
+        if ranking_path.is_symlink() or not ranking_path.is_file():
+            return
+        ranking = self._load_ranking(directory, input_model)
+        selected = sorted(
+            (item for item in ranking.items if item.stage1_status == "selected"),
+            key=lambda item: (item.rank or 0, item.plan_id),
+        )
+        batches = [selected[index : index + 25] for index in range(0, len(selected), 25)]
+        batch_specs = [
+            {"batch_id": f"batch-{sequence:04d}", "sequence": sequence, "items": batch}
+            for sequence, batch in enumerate(batches, start=1)
+        ]
+        state = self._recovery_state(session, execution, input_model, ranking, stage2, batch_specs)
+        state["binding"] = dict(binding)
+        self._write_worker_artifacts(
+            session,
+            execution,
+            input_model,
+            ranking,
+            stage2,
+            state,
+            require_claim=False,
+            commit=False,
+        )
+
     def _run_execution(self, session: Session, execution: OrderPlanScreeningExecution) -> dict[str, Any]:
         directory = self._execution_dir(execution)
         if directory.is_symlink() or not directory.is_dir():
@@ -477,6 +723,7 @@ class C2ScreeningWorker:
                 "binding_mismatch": "binding_mismatch",
                 "payload_not_approved": "payload_not_approved",
                 "transport": "transport",
+                "policy_rejected": "policy_rejected",
             }
             failure_type = mapping.get(value.code, "unknown")
             return failure_type, value.code
@@ -580,6 +827,7 @@ class C2ScreeningWorker:
         batch_specs: list[dict[str, Any]],
     ) -> dict[str, Any]:
         adapter = self._adapter(stage2)
+        progress_directory = self._execution_dir(execution)
         input_titles = {item.plan_id: item.title for item in input_model.items}
         decision_batches: list[dict[str, Any]] = []
         decision_items: list[dict[str, Any]] = []
@@ -596,15 +844,6 @@ class C2ScreeningWorker:
             current.heartbeat_at = self.clock()
             session.commit()
             if current.status == "중지 요청":
-                attempts = self._stop_batch(session, current, batch, stage2)
-                decision_batches.append({"batch_id": batch["batch_id"], "sequence": batch["sequence"], "plan_ids": [item.plan_id for item in batch["items"]], "attempt_count": 1, "status": "rejected"})
-                failures.append({"batch_id": batch["batch_id"], "sequence": batch["sequence"], "plan_ids": [item.plan_id for item in batch["items"]], "attempt_count": 1, "max_attempts": 2, "failure_type": "policy_rejected", "outcome": "rejected", "status": "human_review_required", "error_code": "stop_requested"})
-                telemetry_batches.append({"batch_id": batch["batch_id"], "sequence": batch["sequence"], "status": "rejected", "attempts": attempts})
-                for remaining in batch_specs[index + 1 :]:
-                    attempts = self._stop_batch(session, current, remaining, stage2)
-                    decision_batches.append({"batch_id": remaining["batch_id"], "sequence": remaining["sequence"], "plan_ids": [item.plan_id for item in remaining["items"]], "attempt_count": 1, "status": "rejected"})
-                    failures.append({"batch_id": remaining["batch_id"], "sequence": remaining["sequence"], "plan_ids": [item.plan_id for item in remaining["items"]], "attempt_count": 1, "max_attempts": 2, "failure_type": "policy_rejected", "outcome": "rejected", "status": "human_review_required", "error_code": "stop_requested"})
-                    telemetry_batches.append({"batch_id": remaining["batch_id"], "sequence": remaining["sequence"], "status": "rejected", "attempts": attempts})
                 break
             expected_ids = [item.plan_id for item in batch["items"]]
             payload = {"items": [{"plan_id": plan_id, "title": input_titles[plan_id]} for plan_id in expected_ids], "company": {"capabilities": capabilities}}
@@ -618,6 +857,9 @@ class C2ScreeningWorker:
                 try:
                     current.heartbeat_at = self.clock()
                     session.commit()
+                    current = self._assert_claim(session, execution.execution_id)
+                    if current.status != "실행 중" or not self.settings.c2_execution_allowed:
+                        raise C2WorkerError("policy_rejected")
                     response = adapter.invoke(prompt=prompt + "\n\n" + _canonical(payload).decode("utf-8"), payload=payload, expected_model=stage2["model_name"])
                     structured = response.structured_output if hasattr(response, "structured_output") else response["structured_output"]
                     output = self._output_items(structured, expected_ids)
@@ -675,10 +917,20 @@ class C2ScreeningWorker:
             current = self._assert_claim(session, execution.execution_id)
             current.heartbeat_at = self.clock()
             session.commit()
+            self._write_batch_progress(
+                progress_directory,
+                execution,
+                batch,
+                decision_batches[-1],
+                [item for item in decision_items if item["batch_id"] == batch["batch_id"]],
+                failures[-1] if failures and failures[-1]["batch_id"] == batch["batch_id"] else None,
+                telemetry_batches[-1],
+            )
         finished = self.clock()
         success_count = len(decision_items)
         failure_status = "none" if not failures else "rejected" if all(item["outcome"] == "rejected" for item in failures) else "failed" if all(item["outcome"] == "failed" for item in failures) else "partial"
-        decisions_status = "성공" if not failures else "부분 성공" if success_count else "실패"
+        candidate_count = sum(len(batch["items"]) for batch in batch_specs)
+        decisions_status = "성공" if not failures and success_count == candidate_count else "부분 성공" if success_count else "실패"
         return {
             "binding": dict(binding),
             "stage2": dict(stage2),
@@ -691,21 +943,9 @@ class C2ScreeningWorker:
             "telemetry_batches": telemetry_batches,
             "overall_started": overall_started,
             "overall_finished": finished,
-            "candidate_count": sum(len(batch["items"]) for batch in batch_specs),
+            "candidate_count": candidate_count,
             "success_count": success_count,
         }
-
-    def _stop_batch(self, session: Session, execution: OrderPlanScreeningExecution, batch: Mapping[str, Any], stage2: Mapping[str, str]) -> list[dict[str, Any]]:
-        attempt, started = self._new_attempt(session, execution, batch, 1, stage2)
-        return [self._finish_attempt(
-            session,
-            attempt,
-            status="rejected",
-            started=started,
-            failure_type="policy_rejected",
-            failure_code="stop_requested",
-            duration_ms=0,
-        )]
 
     def _register_artifact(self, session: Session, execution_id: UUID, kind: str, path: Path, document: Mapping[str, Any]) -> None:
         try:
@@ -733,8 +973,13 @@ class C2ScreeningWorker:
         ranking: OrderPlanScreeningRankingArtifact,
         stage2: Mapping[str, str],
         state: Mapping[str, Any],
+        *,
+        require_claim: bool = True,
+        commit: bool = True,
     ) -> None:
-        claimed = self._assert_claim(session, execution.execution_id)
+        claimed = self._assert_claim(session, execution.execution_id) if require_claim else session.get(OrderPlanScreeningExecution, execution.execution_id)
+        if claimed is None:
+            raise C2WorkerError("execution_not_found")
         directory = self._execution_dir(execution)
         input_digest = _sha256_bytes((directory / "screening-input.json").read_bytes())
         ranking_digest = _sha256_bytes((directory / "screening-ranking.json").read_bytes())
@@ -790,7 +1035,7 @@ class C2ScreeningWorker:
             "consumer": "observability-and-merge",
             "execution_id": str(execution.execution_id),
             "source_run_id": execution.source_run_id,
-            "status": "complete" if not state["failures"] else "partial",
+            "status": "complete" if not state["failures"] and len(state["decision_batches"]) == len(state["batch_specs"]) else "partial",
             "execution": {
                 "started_at": started.isoformat(),
                 "finished_at": finished.isoformat(),
@@ -813,8 +1058,10 @@ class C2ScreeningWorker:
             self._write_json(directory / filename, document)
             self._register_artifact(session, execution.execution_id, kind, directory / filename, document)
         self._register_artifact(session, execution.execution_id, "ranking", directory / "screening-ranking.json", ranking.model_dump(mode="json"))
-        claimed.heartbeat_at = self.clock()
-        session.commit()
+        if require_claim:
+            claimed.heartbeat_at = self.clock()
+        if commit:
+            session.commit()
 
     def _publish(
         self,
