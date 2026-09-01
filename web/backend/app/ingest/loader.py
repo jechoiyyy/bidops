@@ -129,6 +129,7 @@ C2_RESULT_SCHEMA = "bidops.order-plan-screening-result.v1"
 C2_POLICY_SCHEMA = "bidops.order-plan-screening-policy.v1"
 C2_BINDING_SCHEMA = "bidops.order-plan-screening-phase0-binding.v1"
 C2_IMPORT_ACTOR = "system:order-plan-screening-artifact-import"
+C2_BATCH_SIZE = 25
 C2_ARTIFACTS = (
     ("input", "screening-input.json", OrderPlanScreeningInputArtifact),
     ("ranking", "screening-ranking.json", OrderPlanScreeningRankingArtifact),
@@ -4059,22 +4060,26 @@ def _c2_check_siblings(
     batches = {batch["batch_id"]: batch for batch in decisions_raw["batches"]}
     if len(batches) != len(decisions_raw["batches"]):
         raise OrderPlanScreeningContractError("C-2 decision batch identity is duplicated")
-    candidate_ids = {
+    candidate_ids = [
         item["plan_id"] for item in ranking_raw["items"] if item["stage1_status"] == "selected"
-    }
+    ]
+    candidate_set = set(candidate_ids)
     batch_ids: list[str] = []
     batched_candidates: set[str] = set()
     for batch in decisions_raw["batches"]:
         if batch["batch_id"] in batch_ids or len(batch["plan_ids"]) == 0:
             raise OrderPlanScreeningContractError("C-2 batch identity is invalid")
         batch_ids.append(batch["batch_id"])
-        if set(batch["plan_ids"]) & batched_candidates:
+        expected_plan_ids = candidate_ids[(len(batch_ids) - 1) * C2_BATCH_SIZE : len(batch_ids) * C2_BATCH_SIZE]
+        if batch["plan_ids"] != expected_plan_ids:
+            raise OrderPlanScreeningContractError("C-2 batch order or population is invalid")
+        if set(batch["plan_ids"]) - candidate_set or set(batch["plan_ids"]) & batched_candidates:
             raise OrderPlanScreeningContractError("C-2 batch plan identities overlap")
         batched_candidates.update(batch["plan_ids"])
         if batch["attempt_count"] > 2:
             raise OrderPlanScreeningContractError("C-2 attempt count exceeds policy")
-    if batched_candidates != candidate_ids:
-        raise OrderPlanScreeningContractError("C-2 batches do not cover the selected population")
+    if not batched_candidates <= candidate_set:
+        raise OrderPlanScreeningContractError("C-2 batches contain a non-selected population")
 
     decision_items = {item["plan_id"]: item for item in decisions_raw["items"]}
     if len(decision_items) != len(decisions_raw["items"]):
@@ -4139,6 +4144,9 @@ def _c2_check_siblings(
             decision = decision_items.get(plan_id)
             if decision is None or item["batch_id"] != decision["batch_id"] or item["attempt_no"] != decision["attempt_no"]:
                 raise OrderPlanScreeningContractError("C-2 successful result does not match decision")
+        elif item["stage2_status"] == "not_attempted":
+            if plan_id in decision_items or plan_id in failure_by_plan:
+                raise OrderPlanScreeningContractError("C-2 not_attempted result has a decision or failure")
         else:
             failure = failure_by_plan.get(plan_id)
             if failure is None or item["failure_code"] != failure["error_code"] or item["stage2_status"] != failure["outcome"]:

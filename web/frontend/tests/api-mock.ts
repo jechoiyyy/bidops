@@ -1117,7 +1117,7 @@ export async function mockApi(page: Page): Promise<void> {
   });
 }
 
-export type OrderPlanMockScenario = "default" | "failure" | "no-results" | "live-disabled" | "stopped";
+export type OrderPlanMockScenario = "default" | "failure" | "no-results" | "live-disabled" | "stopped" | "large";
 
 export interface OrderPlanMockTrace {
   feedbackPosts: Array<{ body: unknown; headers: Record<string, string> }>;
@@ -1361,6 +1361,43 @@ const c2Items = [
   },
 ];
 
+const c2LargeItems = Array.from({ length: 1200 }, (_, index) => {
+  const failed = index >= 900;
+  return {
+    ...c2Items[0],
+    order_plan_pk: 1000 + index,
+    order_plan_unty_no: `OP-2026-${String(20000 + index).padStart(5, "0")}`,
+    title: `대규모 페이지네이션 회귀 발주계획 ${index + 1}`,
+    observed_at: `2026-09-01T01:${String(Math.floor(index / 60)).padStart(2, "0")}:${String(index % 60).padStart(2, "0")}Z`,
+    stage1_rank: index + 1,
+    stage2_status: failed ? "failed" : "success",
+    qwen_relevance: failed ? null : "relevant",
+    qwen_score: failed ? null : 0.9,
+    qwen_reason: failed ? null : "대규모 페이지네이션 회귀용 결과입니다.",
+    human_feedback: null,
+  };
+});
+
+const c2LargeExecution = c2Execution({
+  population_count: 1200,
+  status: "부분 성공",
+  partial_artifact: true,
+  counts: {
+    candidate_count: 1200,
+    completed_count: 900,
+    failure_count: 300,
+    stage1_selected_count: 1200,
+    stage1_filtered_out_count: 0,
+    stage1_failed_count: 0,
+    stage2_relevant_count: 900,
+    stage2_not_relevant_count: 0,
+    stage2_uncertain_count: 0,
+    stage2_failed_count: 300,
+    stage2_rejected_count: 0,
+    human_review_count: 900,
+  },
+});
+
 function c2DetailArtifacts(executionId: string) {
   return [
     { kind: "screening_input", artifact_schema_version: "screening-input.v1", artifact_producer: "screening-api", artifact_consumer: "screening-worker", sha256: c2Digest("i"), byte_count: 12800, object_version: "v1", validation_status: "valid", created_at: "2026-09-01T02:00:01Z" },
@@ -1493,7 +1530,10 @@ export async function mockOrderPlans(page: Page, scenario: OrderPlanMockScenario
       ? [c2Failed]
       : scenario === "stopped"
         ? [c2Execution({ execution_id: "a2f4d7c1-0a61-4a07-8d2e-7f1d1d010401", request_id: "b2f4d7c1-0a61-4b07-8d2e-7f1d1d010401", status: "중단됨", finished_at: "2026-09-01T05:00:00Z", error_code: "user_requested", partial_artifact: true })]
-        : [c2Failed, c2Running, partial, c2OlderSuccess];
+        : scenario === "large"
+          ? [c2LargeExecution]
+          : [c2Failed, c2Running, partial, c2OlderSuccess];
+  const planItems = scenario === "large" ? c2LargeItems : c2Items;
   const feedbackItems = c2Items[0].human_feedback ? [{
     feedback_id: "c2f4d7c1-0a61-4c07-8d2e-000000000001",
     execution_id: "a2f4d7c1-0a61-4a07-8d2e-7f1d1d010101",
@@ -1515,13 +1555,15 @@ export async function mockOrderPlans(page: Page, scenario: OrderPlanMockScenario
       const search = new URL(request.url()).searchParams;
       const sourceRunId = search.get("source_run_id");
       const filtered = sourceRunId ? executions.filter((item) => item.source_run_id === sourceRunId) : executions;
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ schema_version: "execution-list-response.v1", producer: "screening-api", consumer: "human-review-client", items: filtered, total: filtered.length, limit: Number(search.get("limit") ?? 500), offset: Number(search.get("offset") ?? 0) }) });
+      const offset = Number(search.get("offset") ?? 0);
+      const limit = Number(search.get("limit") ?? 500);
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ schema_version: "execution-list-response.v1", producer: "screening-api", consumer: "human-review-client", items: filtered.slice(offset, offset + limit), total: filtered.length, limit, offset }) });
       return;
     }
 
     if (pathname === "/api/order-plans" && method === "GET") {
       const search = new URL(request.url()).searchParams;
-      let items = scenario === "no-results" ? [] : c2Items.filter((item) => !search.get("source_run_id") || item.source_run_id === search.get("source_run_id"));
+      let items = scenario === "no-results" ? [] : planItems.filter((item) => !search.get("source_run_id") || item.source_run_id === search.get("source_run_id"));
       if (search.get("stage1_status")) items = items.filter((item) => item.stage1_status === search.get("stage1_status"));
       if (search.get("qwen_relevance")) items = items.filter((item) => item.qwen_relevance === search.get("qwen_relevance"));
       const queryText = search.get("q")?.toLocaleLowerCase("ko-KR");

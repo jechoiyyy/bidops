@@ -49,6 +49,23 @@ test("C-2의 네 가지 결과 필터는 계약 상태를 섞지 않는다", asy
   await expect(page.locator(".c2-plan-card").first()).toContainText("실패");
 });
 
+test("1200건 결과에서 review·failure 필터와 페이지 경계를 전체 모집단 기준으로 계산한다", async ({ page }) => {
+  await mockOrderPlans(page, "large");
+  await page.goto("/order-plans");
+
+  await expect(page.locator(".c2-plan-card")).toHaveCount(500);
+  await expect(page.locator(".c2-results-heading")).toContainText("현재 필터 결과 900건");
+  await expect(page.locator(".c2-pagination")).toContainText("1–500 / 900");
+  await page.getByRole("button", { name: "다음" }).click();
+  await expect(page.locator(".c2-plan-card")).toHaveCount(400);
+  await expect(page.locator(".c2-pagination")).toContainText("501–900 / 900");
+
+  await page.getByRole("button", { name: /실패/ }).click();
+  await expect(page.locator(".c2-plan-card")).toHaveCount(300);
+  await expect(page.locator(".c2-plan-card").first()).toContainText("OP-2026-20900");
+  await expect(page.locator(".c2-pagination")).toHaveCount(0);
+});
+
 test("상세는 관측·실행·실패 투영·artifact와 append-only 사람 feedback을 보여준다", async ({ page }) => {
   const trace = await mockOrderPlans(page);
   await page.goto("/order-plans/101");

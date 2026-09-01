@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+import json
 from pathlib import Path
 from uuid import UUID
 
@@ -45,6 +46,13 @@ class FakeAdapter:
             total_tokens=30,
             duration_ms=4,
         )
+
+
+class CrashAfterFirstAdapter(FakeAdapter):
+    def invoke(self, *, prompt: str, payload: dict[str, object], expected_model: str) -> OrderPlanVllmResponse:
+        if self.calls:
+            raise KeyboardInterrupt
+        return super().invoke(prompt=prompt, payload=payload, expected_model=expected_model)
 
 
 def test_worker_batches_top300_in_contiguous_groups_and_publishes(tmp_path: Path) -> None:
@@ -131,7 +139,73 @@ def test_worker_keeps_an_execution_with_a_recent_heartbeat(tmp_path: Path) -> No
     assert execution.heartbeat_at == now - timedelta(seconds=1)
 
 
-def test_stop_batches_are_policy_rejections_required_by_merge_contract(tmp_path: Path) -> None:
+def test_worker_rechecks_live_execution_switch_before_model_invocation(tmp_path: Path) -> None:
+    settings, session, policy_version, _, _ = _fixture(tmp_path, count=51)
+    service_response, _ = _create(
+        __import__("app.services.order_plan_screening", fromlist=["OrderPlanScreeningService"]).OrderPlanScreeningService(settings),
+        session,
+        policy_version,
+    )
+    settings.c2_execution_allowed = False
+    adapter = FakeAdapter()
+    worker = C2ScreeningWorker(settings=settings, adapter=adapter, raw_response_store=MemoryResponseStore())
+
+    result = worker.run_once(session)
+
+    assert result and result["status"] == "실패"
+    assert adapter.calls == []
+    execution = session.get(OrderPlanScreeningExecution, UUID(str(service_response["execution_id"])))
+    assert execution is not None and execution.status == "실패"
+
+
+def test_stale_recovery_materializes_completed_prefix_and_interrupted_failure(tmp_path: Path) -> None:
+    settings, session, policy_version, _, _ = _fixture(tmp_path, count=51)
+    service_response, _ = _create(
+        __import__("app.services.order_plan_screening", fromlist=["OrderPlanScreeningService"]).OrderPlanScreeningService(settings),
+        session,
+        policy_version,
+    )
+    execution_id = UUID(str(service_response["execution_id"]))
+    now = datetime(2026, 9, 2, tzinfo=UTC)
+    execution = session.get(OrderPlanScreeningExecution, execution_id)
+    assert execution is not None
+    execution.status = "실행 중"
+    execution.active_slot = 1
+    execution.started_at = now
+    execution.heartbeat_at = now
+    session.commit()
+
+    crashed_worker = C2ScreeningWorker(
+        settings=settings,
+        adapter=CrashAfterFirstAdapter(),
+        raw_response_store=MemoryResponseStore(),
+        clock=lambda: now,
+    )
+    with pytest.raises(KeyboardInterrupt):
+        crashed_worker._run_execution(session, execution)
+
+    recovery_now = now + timedelta(seconds=settings.c2_worker_stale_seconds + 1)
+    recovery_worker = C2ScreeningWorker(settings=settings, clock=lambda: recovery_now)
+    assert recovery_worker.run_once(session) is None
+
+    execution = session.get(OrderPlanScreeningExecution, execution_id)
+    assert execution is not None and execution.status == "중단됨"
+    attempts = session.scalars(
+        select(OrderPlanScreeningBatchAttempt).where(OrderPlanScreeningBatchAttempt.execution_id == execution_id).order_by(OrderPlanScreeningBatchAttempt.sequence)
+    ).all()
+    assert attempts[-1].attempt_status == "failed"
+    assert attempts[-1].failure_code == "stale_execution"
+    decisions_path = next((settings.bidops_root / "data" / "runs").glob("run-c2--c2-*/screening-decisions.json"))
+    failures_path = decisions_path.with_name("screening-failures.json")
+    decisions = json.loads(decisions_path.read_text())
+    failures = json.loads(failures_path.read_text())
+    assert decisions["success_count"] == 25
+    assert decisions["batch_count"] == 2
+    assert failures["failure_count"] == 1
+    assert failures["failures"][0]["error_code"] == "stale_execution"
+
+
+def test_stop_leaves_unprocessed_batches_not_attempted(tmp_path: Path) -> None:
     settings, session, policy_version, _, _ = _fixture(tmp_path, count=51)
     service_response, _ = _create(
         __import__("app.services.order_plan_screening", fromlist=["OrderPlanScreeningService"]).OrderPlanScreeningService(settings),
@@ -157,8 +231,12 @@ def test_stop_batches_are_policy_rejections_required_by_merge_contract(tmp_path:
     attempts = session.scalars(
         select(OrderPlanScreeningBatchAttempt).where(OrderPlanScreeningBatchAttempt.execution_id == execution_id)
     ).all()
-    assert len(attempts) == 3
-    assert all(attempt.attempt_status == "rejected" and attempt.failure_type == "policy_rejected" for attempt in attempts)
+    assert attempts == []
+    results = session.scalars(
+        select(OrderPlanScreeningResult).where(OrderPlanScreeningResult.execution_id == execution_id)
+    ).all()
+    assert len(results) == 51
+    assert all(result.stage2_status == "not_attempted" for result in results)
 
 
 @requires_postgres

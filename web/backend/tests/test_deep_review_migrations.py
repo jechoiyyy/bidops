@@ -314,16 +314,16 @@ def test_apply_requires_postgresql_destination(tmp_path: Path, target_engine):
 
 
 def test_model_has_exact_closed_table_set():
-    from app.models import ATTACHMENT_FETCH_TABLES, BID_DELTA_TABLES, Base, IDENTITY_TABLES, LEGACY_TABLES, NEW_TABLES, PRESPEC_OVERVIEW_TABLES, REVISION_TABLES, SCREENING_RUNTIME_TABLES
+    from app.models import ATTACHMENT_FETCH_TABLES, BID_DELTA_TABLES, Base, IDENTITY_TABLES, LEGACY_TABLES, NEW_TABLES, ORDER_PLAN_SCREENING_TABLES, PRESPEC_OVERVIEW_TABLES, REVISION_TABLES, SCREENING_RUNTIME_TABLES
 
     assert len(LEGACY_TABLES) == 13
     assert len(NEW_TABLES) == 25
     assert "actor" not in LEGACY_TABLES + NEW_TABLES
-    assert len(Base.metadata.tables) == 68
+    assert len(Base.metadata.tables) == 74
     assert set(Base.metadata.tables) == set(
         LEGACY_TABLES + NEW_TABLES + SCREENING_RUNTIME_TABLES + IDENTITY_TABLES
         + ATTACHMENT_FETCH_TABLES + REVISION_TABLES
-        + PRESPEC_OVERVIEW_TABLES + BID_DELTA_TABLES
+        + PRESPEC_OVERVIEW_TABLES + BID_DELTA_TABLES + ORDER_PLAN_SCREENING_TABLES
     )
     assert isinstance(Base.metadata.tables["run"].c.screening_basis.type, Text)
     assert "fk_evidence_document_bundle_scope" in {
