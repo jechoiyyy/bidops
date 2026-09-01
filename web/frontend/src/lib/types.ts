@@ -235,6 +235,7 @@ export interface PreSpecListResponse {
 }
 
 export interface PreSpecListQuery {
+  notice_pk?: number | null;
   sw_only?: boolean | null;
   business_division?: string | null;
   origin?: PreSpecOrigin | null;

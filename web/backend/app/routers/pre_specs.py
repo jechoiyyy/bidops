@@ -197,6 +197,7 @@ def get_pre_spec_overview_reviews_v2(
 
 @router.get("", response_model=PreSpecListResponse)
 def list_pre_specs(
+    notice_pk: int | None = Query(default=None, ge=1),
     sw_only: bool = Query(default=True),
     business_division: str | None = Query(default=None),
     origin: PreSpecOrigin | None = Query(default=None),
@@ -218,7 +219,9 @@ def list_pre_specs(
     kept_by_tracking = and_(or_(sw_status.is_(None), sw_status != "Y"), tracked_exception)
 
     conditions: list[Any] = [Notice.source_type == "pre_spec"]
-    if sw_only:
+    if notice_pk is not None:
+        conditions.append(Notice.id == notice_pk)
+    if sw_only and notice_pk is None:
         # The tracked exception is the same domain predicate used by
         # attachment eligibility; it is not a second router-owned rule.
         conditions.append(or_(sw_status == "Y", tracked_exception))
