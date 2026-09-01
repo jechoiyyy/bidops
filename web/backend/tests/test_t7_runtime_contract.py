@@ -264,3 +264,26 @@ def test_t7_minio_versioning_and_object_first_recovery_contract():
     assert "duplicate target object" in verify
     assert "comm -23" in verify and "comm -13" in verify
     assert "SELECT 1 FROM bidops.document_bundle LIMIT 1" not in verify
+
+
+def test_web_test_entry_point_runs_every_declared_gate():
+    """The named entry point is the gate; a check outside it is optional.
+
+    `docs/standards.md` requires backend tests, a production build, and screen
+    regression for web changes.  Each of those lived in prose or in a separate
+    command at some point, and a gate that has to be remembered separately is
+    the one that gets skipped.  Pin all three to this script so dropping one is
+    a test failure rather than a quiet loss of coverage.
+    """
+
+    harness = (ROOT / "web/run-web-tests.sh").read_text(encoding="utf-8")
+
+    assert '"$PYTHON" -m pytest' in harness
+    assert "npm run build" in harness
+    assert "npm run test:visual" in harness
+
+    # PostgreSQL is not optional here.  Without a maintenance URL the backend
+    # suite skips every `requires_postgres` test and still exits 0, so the
+    # script must supply one or refuse to run.
+    assert 'export BIDOPS_TEST_POSTGRES_URL="$TEST_PG_ADMIN_URL"' in harness
+    assert "set -euo pipefail" in harness

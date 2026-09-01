@@ -85,3 +85,13 @@ echo "== backend: pytest (isolated PostgreSQL 17 harness)"
 cd "$WEB_ROOT/frontend"
 echo "== frontend: production build"
 npm run build
+
+# Screen regression is the only check that exercises the built screens against
+# a real browser.  `docs/standards.md` already requires it for UI changes, but
+# a gate that lives only in prose is the gate that gets skipped -- this entry
+# point is what CI and the handoff actually name.  Playwright starts its own
+# preview server and needs the browser bundle to be present; downloading one
+# here would be an unannounced network fetch, so a missing bundle fails with
+# Playwright's own install instructions rather than being worked around.
+echo "== frontend: visual regression (Playwright, 4 viewports)"
+npm run test:visual

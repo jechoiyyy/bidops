@@ -125,8 +125,10 @@ PostgreSQL/object-store 자격 증명은 [운영 절차](../docs/operations.md)�
 ./web/run-web-tests.sh
 ```
 
-화면 스냅샷 검증은 `cd web/frontend && npm run test:visual`을 사용합니다. `web/run-web-tests.sh`는
-임시 PostgreSQL을 준비해 migration과 backend pytest, frontend build를 함께 수행합니다.
+`web/run-web-tests.sh`는 임시 PostgreSQL을 준비해 migration과 backend pytest, frontend production
+build, 네 폭의 Playwright 화면 스냅샷 회귀를 차례로 수행합니다. 화면만 따로 볼 때는
+`cd web/frontend && npm run test:visual`을 사용합니다. Playwright는 브라우저 번들이 이미 설치되어
+있어야 하며, 없으면 자체 안내 문구와 함께 실패합니다.
 
 ## 문제가 생기면
 
