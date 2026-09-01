@@ -78,7 +78,7 @@
 ## 구현된 계약 — 입찰 delta와 최종 결정 (R-07 채택, R-08 구현)
 
 이 절은 [ADR-0034](tracking/decisions/0034-bid-delta-final-decision.md)와
-[OpenAPI·DB 명세](review/bid-delta-contract-spec.md)로 채택하고 R-08에서 구현한 계약이다.
+[OpenAPI·DB 명세](bid-delta-contract-spec.md)로 채택하고 R-08에서 구현한 계약이다.
 아래 경로는 `web/backend/app/routers/bid_delta.py`에 존재하며 `app/main.py`에 등록되어 있다.
 저장은 `bid_delta_comparison`, `bid_delta_attempt`, `bid_delta_item`, `bid_delta_evidence`,
 `bid_final_decision` 5개 table과 revision `0015_bid_delta_final_decision`이 소유한다.

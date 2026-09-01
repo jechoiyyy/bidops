@@ -1,5 +1,12 @@
 # 심층 검토 DB 읽기 안내서 — `deep-review-erd.md` 해설
 
+> **보관본이다.** 설계 근거·3원칙·복합 FK·삭제 정책·FAQ의 핵심은
+> [`docs/database-guide.md`](../database-guide.md)로 통합했다. 계약은
+> [`docs/deep-review-erd.md`](../deep-review-erd.md)와 `web/backend/app/models.py`가 정본이다.
+> 여기 적힌 테이블 수(38·50)는 2026-08-25 시점 값이며 현재는 68개다.
+> 원래 경로는 `docs/deep-review-erd-guide.md`였다.
+
+
 > 대상 독자: 이 저장소에 처음 들어온 개발자
 > 성격: 해설 문서. 계약은 `docs/deep-review-erd.md`이고 이 문서는 그 계약을 **왜 그렇게 썼는지** 설명한다.
 > 충돌 시 항상 `deep-review-erd.md`와 `web/backend/app/models.py`가 우선한다.

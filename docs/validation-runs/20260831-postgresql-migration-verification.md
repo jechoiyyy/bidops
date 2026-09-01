@@ -124,7 +124,7 @@ BIDOPS_TEST_POSTGRES_URL="postgresql+psycopg://owner:<local>@127.0.0.1:15499/pos
 
 ## 기준선 실패 6건의 성격이 바뀌었다
 
-`handoff-20260830.md`는 `6 failed`를 "이 작업과 무관한 환경 요구"로 기록했다.
+2026-08-30 인수인계 기록(현재는 `docs/Backend_HANDOFF.md`가 대체)은 `6 failed`를 "이 작업과 무관한 환경 요구"로 기록했다.
 그중 `test_integration_t14.py` 4건은 **영구적 제약이 아니었다.** PostgreSQL과
 컨테이너 env를 주면 통과한다.
 

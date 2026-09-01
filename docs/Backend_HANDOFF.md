@@ -80,7 +80,7 @@ T-19와 선별 제품 구현을 막던 D-6·D-5는 2026-08-31에 해소했다.
 
 ### R-08·R-09·R-11과 입찰 delta를 구현했다
 
-`docs/review/2026-08-31-ui-ux-remediation-plan.md`의 R-08(DB·REST), R-09(화면),
+`docs/legacy/review/2026-08-31-ui-ux-remediation-plan.md`의 R-08(DB·REST), R-09(화면),
 R-11(route 분할·시각 기준선)을 완료·검증했다. 입찰 delta 비교와 최종 Go/No-Go의
 스키마·API·화면·불변 기록이 있고 revision `0015_bid_delta_final_decision`이 head다.
 

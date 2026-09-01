@@ -85,7 +85,7 @@ SQLite migration 입력 스냅숏을 다루는 `ops` profile 전용 도구로 �
 
 ## T1 — 구조화 로깅 기반
 
-설계 근거는 `docs/review/logging-plan.md` 2절과 3-1절이다. 이 절이 그 설계의 구현 명세다.
+설계 근거는 `docs/legacy/review/logging-plan.md` 2절과 3-1절이다. 이 절이 그 설계의 구현 명세다.
 
 ### T1-1 `web/backend/app/redaction.py` 신설
 
@@ -180,7 +180,7 @@ BIDOPS_LOG_TRACEBACK=false
 
 ## T2 — 침묵 지점 계측
 
-`docs/review/logging-plan.md` 3-2절의 5곳. 각 모듈 상단에
+`docs/legacy/review/logging-plan.md` 3-2절의 5곳. 각 모듈 상단에
 `logger = logging.getLogger(__name__)`만 두고, `configure()`는 부르지 않는다.
 
 레벨 정책: 재시도·부분 실패·stale 회수는 `WARNING`, 실행 실패 확정은 `ERROR`,

@@ -22,6 +22,10 @@ bidops/
 │   ├── engineering-notes.md          증상별 재발 방지 지식
 │   ├── operations.md                 설치·실행·백업·복구 절차
 │   ├── contracts.md                  REST·파일·DB 소비자 계약
+│   ├── PRD.md, PLAN.md               현재 착수 범위(발주계획 C-2 선별)의 요구와 순서
+│   ├── database-guide.md             DB 전체 해설과 설계 근거
+│   ├── deep-review-erd.md            심층 검토 DB 권위 계약
+│   ├── bid-delta-contract-spec.md    입찰 delta·최종 결정 OpenAPI·DB 명세
 │   └── tracking/
 │       ├── status.md                 구현과 검증의 현재 상태
 │       ├── lifecycle-workstream.md 생애주기 구현의 결정 대기·할 일 기록
@@ -37,7 +41,7 @@ bidops/
     └── frontend/AGENTS.md             React 검토 화면
 ```
 
-`docs/legacy`는 과거 계획과 목업, `docs/review`와 `docs/validation-runs`는 시점별 검토·실행 증거다. 이 자료가 현재 코드와 위 핵심 문서의 계약을 대체하지 않는다. 외부 의존성은 나라장터 OpenAPI, PostgreSQL 17, MinIO, ClamAV, Ollama Qwen3.8:27B, 승인된 사설 OpenAI-compatible vLLM, 문서 변환기, 승인 프로필 기준선 검증용 Git이다.
+`docs/legacy`는 완료·미채택 계획과 과거 리뷰·목업의 보관소이고, `docs/validation-runs`는 시점별 실행 증거다. 이 자료가 현재 코드와 위 핵심 문서의 계약을 대체하지 않으며, **보관본을 실행 진입점으로 삼지 않는다.** `docs/legacy` 안의 `R-xx`·`A-xx`·phase 작업 번호는 종료된 체계다. 외부 의존성은 나라장터 OpenAPI, PostgreSQL 17, MinIO, ClamAV, Ollama Qwen3.8:27B, 승인된 사설 OpenAI-compatible vLLM, 문서 변환기, 승인 프로필 기준선 검증용 Git이다.
 
 ## 작업 전 확인
 

@@ -110,7 +110,7 @@ projection과 reason code로 현재성을 표시한다. 새 입력을 확인할 
 ## 채택 REST·DB 경계
 
 OpenAPI 수준 wire shape, 상태 불변식, 안정 오류 code, 목표 table·constraint, 감사 event와
-테스트 matrix는 [입찰 delta 계약 명세](../../review/bid-delta-contract-spec.md)에 둔다.
+테스트 matrix는 [입찰 delta 계약 명세](../../bid-delta-contract-spec.md)에 둔다.
 핵심 endpoint 계약은 다음과 같다.
 
 - `GET /api/opportunities/{opportunity_id}/bid-delta`
