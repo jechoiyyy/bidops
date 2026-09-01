@@ -69,6 +69,25 @@ PostgreSQL 17의 `bidops` 스키마와 MinIO 목적별 버킷이 운영 정본�
 
 향후 선택형 외부 재분석을 도입하더라도 자동 fallback으로 구현하지 않는다. 조직의 보존 지역·학습 사용·삭제·계약 정책을 먼저 확정하고 공고별 전송 미리보기와 건별 승인을 거쳐야 한다.
 
+## 발주계획 C-2 전송·artifact 경계
+
+C-2 Phase 0 binding은 prompt·회사 역량 본문 대신 승인 입력의 version·SHA-256만 고정한다.
+모델 payload에는 `plan_id`, `title`, `capabilities`만 허용하며 기관·예산·업무구분·원문 URL·
+raw reference·첨부·리뷰·credential은 넣지 않는다. 이 allowlist를 벗어나거나 model/prompt/
+profile digest가 다르면 전송하지 않고 `rejected`로 남긴다.
+
+현재 `external_transport.execution_allowed=false`다. private vLLM endpoint의 literal host,
+`/v1` path, no redirect·proxy, 실행별 승인 없이는 모델 호출을 시작하지 않는다. 장애 시 다른
+모델·hosted provider로 fallback하지 않는다. 이 정책은 C-1 gold 완료·감사 표본 승인·측정된
+quality gate와 별개로 적용된다.
+
+`screening-input`, ranking, decisions, failures, telemetry, merged result는 versioned object로
+생성하고 기존 회차를 덮어쓰지 않는다. 원본 모델 응답은 암호화된 model-response namespace에
+최소 권한으로만 보존할 수 있고, DB·로그·API·감사에는 본문을 넣지 않는다. 일반 API에는
+artifact schema·producer/consumer·digest·상태 같은 안전한 metadata만 투영한다. 사람 feedback
+memo는 모델 payload와 별도 append-only revision이며, 적합성 등급·준비·추적·최종 Go/No-Go를
+변경하는 권한이나 FK를 갖지 않는다.
+
 ## 네트워크와 HTTP
 
 - PostgreSQL, MinIO, ClamAV, scratch worker 네트워크는 Compose 내부망으로 분리한다. 문서 worker는 네트워크를 갖지 않는다.

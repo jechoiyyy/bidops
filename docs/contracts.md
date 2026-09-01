@@ -459,3 +459,170 @@ snapshot field는 추정 backfill하지 않으며, 같은 과거 회차 재적�
 - 추적: `계속 추적|보류|종료`, 변경 이력, bid 발견, 사전규격 대비 delta, 알림 delivery 상태.
 - 실행: 자동 연결과 수동 단독 실행이 같은 execution, attempt, artifact, idempotency, audit 계약을 공유한다.
 - 최종 결정: 입찰공고 시점의 사람 `Go/No-Go`를 추적 선택이나 모델 권고와 분리한다.
+
+## C-2 Phase 0 fixed contract
+
+Phase 0에서 고정한 C-2 계약의 machine-readable index는
+[`skills/bidops-screen/contracts/contract-index.v1.json`](../skills/bidops-screen/contracts/contract-index.v1.json)이다.
+정책과 현재 worktree의 실제 입력·증거를 묶은 binding은
+`experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v1.json`이며,
+읽기 전용 검증기는 `skills/bidops-screen/scripts/validate_order_plan_phase0.py`다. 이 문서와
+schema 파일의 `schema_version`, `producer`, `consumer`, 필수 key, status enum이 다르면
+새 schema version 없이는 소비하지 않는다. index는 각 schema 파일의 SHA-256과 고정된 파일
+집합도 보존하며, 검증기는 index·schema digest가 바뀌면 fail closed한다.
+
+현재 binding은 계약상 유효하지만 `blocked`다. 수집 원본은 625건이고 C-1 gold는 사람 판정
+22건·draft 603건·잔여 확인 87건이다. 따라서 validator의 `valid_but_blocked`는 검증 성공이지
+운영 실행·정책 활성화 승인이 아니다. 현재 고정 digest는 policy
+`3010c7bfb569e062fc8e94b052df0325caccad7e23a34cf1e15dad6a6358e196`, binding
+`e0367de6155e362539a867d3b6820e204ba1238a2a613c6b973780c8348c86ef`, source
+`d608e1ad71dd03467278ad06a8c3290b5a5db47a118b3f1fcda5c7e90d122faf`, population
+`7846e7ff51002dac613f85cc1a3e8a358430c9519ed96c6501e8e41c9f3d1c5a`, BM25
+`e026b2bdd2f99ddc09ae17bc83b1cd9cc40ef413f3b72372a35db32918d696da`, Qwen model
+`6ae70ca30563209f09ec0114ce5813f7a232b38e5bb409f2adbd0e9bbe318b11`, prompt
+`639f7332e1120a41b2e8d8306126f121ae1ed37068a81b1687aff9ce66ab9d12`, 회사 역량 파일
+`8f60dfece1934bdf857cd7e57d0fdd1860d01871131d98c3f2e8f9d71f271eae`, generation config
+`1fd2f511a0b1c99f5a57125ebd9e1d67314d98202d42327394daa540abd27754`다.
+
+### C-2 파일·schema 경계
+
+모든 신규 C-2 JSON은 UTF-8·중복 key 금지·유한 숫자·timezone timestamp를 사용한다. 아래
+파일은 생성 후 덮어쓰지 않으며, `producer`가 만든 파일은 `consumer`가 같은 v1 binding과
+digest를 확인한 뒤에만 읽는다.
+
+| 파일 / schema | producer → consumer | 필수 top-level key와 status | 호환·불변 경계 |
+|---|---|---|---|
+| `config/order-plan-screening-policy.v1.json` / `bidops.order-plan-screening-policy.v1` | `phase0-contracts` → `phase1-screening-pipeline` | `schema_version`, `producer`, `consumer`, `policy_version`, `policy_status`, `decision_scope`, `created_at`, `stage1`, `stage2`, `audit_sample`, `execution`, `feedback`, `quality_gate`, `bindings`, `activation`; stage2에 model·generation config·prompt·profile SHA-256; `policy_status=draft|activation_candidate|active|retired` | policy payload·binding은 immutable. 활성화는 별도 사람 승인과 audit 없이는 불가하며 현재 `draft`, `activation=blocked`다. |
+| `config/order-plan-screening-phase0-binding.v1.json` / `bidops.order-plan-screening-phase0-binding.v1` | `phase0-contracts` → `phase1-screening-pipeline` | 위 provenance, `binding_version`, `status`, `created_at`, `policy`, `selection_decision`, `source_input`(raw-page manifest SHA-256 포함), `selection_evidence_population`, `stage1_binding`, `stage2_binding`, `selection_evidence`, `review_inputs`, `gold`, `external_transport`, `compatibility`, `activation`; current v1 `status=blocked` | 생성 후 immutable. 이 snapshot의 partial gold/current refs와 blocked transport를 바꾸려면 새 binding version을 만든다. 역사적 실험 파일은 read-only이며 binding을 맞추기 위해 소급 수정하지 않는다. |
+| `screening-input.json` / `bidops.order-plan-screening-input.v1` | `order-plan-screening-orchestrator` → `order-plan-screening-worker` | `execution_id`, `source_run_id`, `source_artifact`, `population_count`, `population_sha256`, `policy`, `stage1_binding`, `stage2_binding`, `items`, `status`, `created_at`; `status=frozen` | enqueue 시점 snapshot. `items`는 `plan_id,title`만 가지며 생성 후 변경·재사용하지 않는다. |
+| `screening-ranking.json` / `bidops.order-plan-screening-ranking.v1` | `order-plan-screening-bm25` → `order-plan-screening-merge` | `execution_id`, `source_run_id`, input·policy digest, `status`, `population_count`, `selected_count`, `filtered_out_count`, `items`; `status=성공|실패`, item `stage1_status=selected|filtered_out|failed|rejected` | 전체 모집단 1행/plan. `filtered_out`은 deterministic Top 300 경계이며 결과에서 삭제하지 않는다. |
+| `screening-decisions.json` / `bidops.order-plan-screening-decisions.v1` | `order-plan-screening-qwen-worker` → `order-plan-screening-merge` | binding·input/ranking digest, `status`, candidate/success/failure/batch count, `batches`, `items`; `status=성공|부분 성공|실패`, relevance `relevant|not_relevant|uncertain` | 성공한 Qwen item만 기록하고 실패 batch는 failure artifact와 함께 보존한다. stage1 탈락 item은 이 파일에 넣지 않는다. |
+| `screening-failures.json` / `bidops.order-plan-screening-failures.v1` | `order-plan-screening-worker` → review·merge | `execution_id`, `source_run_id`, `status`, `failure_count`, `failures`, `created_at`; `status=none|partial|failed|rejected`, outcome `failed|rejected|unknown` | 실패는 `not_relevant`로 보정하지 않는다. `failure_type`과 안전한 `error_code`만 저장하고 prompt·response 본문은 저장하지 않는다. |
+| `screening-telemetry.json` / `bidops.order-plan-screening-telemetry.v1` | `order-plan-screening-worker` → observability·merge | execution/batch/attempt measurement, `status`, `created_at`; `status=complete|partial|not_measured` | 제공되지 않은 duration·token은 `null`; 0으로 보정하지 않는다. attempt metadata만 append-only다. |
+| `screening-results.json` / `bidops.order-plan-screening-result.v1` | `order-plan-screening-merge` → `postgres-loader-and-review-api` | input/policy digest, `status`, `partial_artifact`, `counts`, 전체 `items`, `created_at`; `status=성공|부분 성공|실패|거부됨` | 동일 execution+plan은 한 번만 publish. 부분 결과는 `partial_artifact=true`이고 failure와 함께 보존한다. |
+| `screening-feedback.json` / `bidops.order-plan-screening-feedback.v1` | `human-review-api` → `postgres-review-history` | `feedback_id`, `execution_id`, `plan_id`, `revision`, `actor_kind`, `claimed_name`, `relevance`, `priority`, `memo`, `created_at`; relevance `relevant|not_relevant|uncertain`, priority `high|medium|low|null` | revision append-only. 기존 feedback update/delete 금지; 새 판단은 새 revision과 `supersedes_feedback_id`로 기록한다. |
+
+full-population result item은 상태 조합도 검증한다. `filtered_out|failed|rejected`인 stage1은
+stage2 `not_attempted`와 모든 Qwen·batch·failure field `null`을 사용하고, stage2
+`success`만 relevance/score/reason과 batch/attempt를 가질 수 있다. 실패·거부·unknown은
+Qwen label을 만들지 않고 안전한 failure code로 남긴다.
+
+기존 `bidops.screening-input.v1`, `bidops.decisions.v3`, `bidops.screening.v3`와
+`ScreeningExecution`은 공고 다섯 관점 판정 계약이다. C-2 v1의 relevance를 그 계약에
+추가하거나 동일한 table의 의미를 재해석하지 않는다. 구 실험의 `population.json`과
+선정·Qwen·gold evidence는 호환 입력·증거로만 읽는다.
+
+`source_input.raw_manifest_sha256`는 source run의 연속된 raw page 파일명과 각 파일 byte
+SHA-256의 canonical manifest digest다. validator는 이 digest와 함께 각 page의 endpoint,
+query window, order-month 범위, page 번호·개수도 대조한다. raw page나 query metadata를
+바꾸면 기존 binding으로는 통과하지 않으며 새 binding version과 사람 검토가 필요하다.
+
+### C-2 상태 의미와 전이
+
+| 값 | 의미 | 다른 값으로 자동 변환하지 않는 것 |
+|---|---|---|
+| `filtered_out` | BM25가 deterministic Top 300 밖으로 배치한 상태 | Qwen `not_relevant`, 적합성 등급, 추적 종료 |
+| `not_relevant` | Qwen 또는 사람의 relevance label | BM25 탈락, 참여 불가, 최종 `no_go` |
+| `uncertain` | relevance는 판정했지만 사람 확인이 필요한 label | `relevant`, `unknown`, 준비 완료 |
+| `unknown` | 입력·응답·연결의 정보가 부족하거나 결과를 결정할 수 없음 | `not_relevant`, 성공, `null` |
+| `null` | 그 field가 아직 시도되지 않았거나 해당되지 않아 값 자체가 없음 | unknown·실패·음성 relevance |
+| `failed` | 시도된 단계가 timeout·transport·검증 실패 등으로 종료됨 | `not_relevant`, 성공 |
+| `rejected` | preflight·binding·payload·policy 검증에서 실행을 거부함 | 모델 실패, 음성 relevance |
+| `relevant` | 발주계획 제목의 선별 relevance만 의미함 | 적합성·참여 준비·`계속 추적`·최종 Go |
+
+실행의 허용 전이는 `대기 → 실행 중 → 성공|부분 성공|실패`, `실행 중 → 중지 요청 →
+중단됨`, `대기 → 중단됨`이다. `성공|부분 성공|실패|중단됨`은 terminal이며 종료 시각이
+필수다. active slot은 1, queue는 FIFO, stale/process interruption은 자동 resume하지
+않고 사람이 새 execution을 만든다. retryable batch failure는 `timeout`, `truncated_output`,
+`schema_violation`, `id_mismatch`, `transport`에 한해 최대 2회까지며, binding·model·payload·
+policy rejection은 retry하지 않는다. 재시도 후에도 결과가 없으면 failure artifact와
+`human_review_required`를 남긴다. hosted provider fallback은 없다.
+
+`relevant|not_relevant|uncertain`은 발주계획 relevance 축이다. 기존 공고의 적합성 등급·
+참여 준비 상태, 사업기회의 `계속 추적|보류|종료`, 입찰 시점 사람 `go|no_go`는 서로 다른
+필드와 이벤트이며 C-2 feedback이 변경하지 않는다.
+
+### C-2 수동 REST 계약 (Phase 3 구현 입력)
+
+새 endpoint는 기존 `/api/screening`을 확장하지 않고 아래 경로를 사용한다. 현재 Phase 0
+binding이 blocked이므로 실행·활성화 endpoint는 성공을 반환하지 않는다.
+
+| method / path | 요청 | 성공 응답의 필수 field | 안정 오류 |
+|---|---|---|---|
+| `GET /api/order-plans` | `source_run_id?`, `stage1_status?`, `stage2_status?`, `qwen_relevance?`, `human_relevance?`, `q?`, `limit=1..500`, `offset>=0` | `items`, `total`, `limit`, `offset`; item은 `order_plan_pk`, `order_plan_unty_no`, title, source run/observation, stage1·stage2 status와 nullable score/label, latest human feedback summary | `invalid_request(422)` |
+| `GET /api/order-plans/{order_plan_pk}` | path PK | 누적 plan metadata와 `screening_history`, latest result/feedback; source·internal path는 반환하지 않음 | `not_found(404)` |
+| `GET /api/order-plans/{order_plan_pk}/screening-history` | path PK | `order_plan_pk`, `items[]`; item은 execution/binding digest, status, stage result, feedback revision count | `not_found(404)` |
+| `POST /api/order-plan-screening/executions` | actor header 필수, `execution-create-request.v1`의 `{schema_version, producer, consumer, request_id, source_run_id, policy_version}` | first request `202`: `execution-create-response.v1`의 provenance와 `execution_id`, `request_id`, `source_run_id`, `policy_version`, `status=대기`, binding digest, `execution_allowed`; 같은 request ID와 같은 payload는 원래 `202` body를 replay | `actor_name_required`, `invalid_request`, `source_run_incomplete`, `policy_not_active`, `binding_mismatch`, `idempotency_conflict`, `active_execution_exists` (`409`), transport unavailable (`503`) |
+| `GET /api/order-plan-screening/executions` | `source_run_id?`, `status?`, pagination | `items`, `total`, `limit`, `offset`; 내부 object key·prompt·profile 본문 없음 | `invalid_request(422)` |
+| `GET /api/order-plan-screening/executions/{execution_id}` | path ID | execution status, counts, binding digests, timestamps, artifact summaries, blockers | `not_found(404)` |
+| `POST /api/order-plan-screening/executions/{execution_id}/stop` | actor header, `execution-stop-request.v1`의 `{schema_version, producer, consumer, request_id, reason}` | `202`: `execution-stop-response.v1`의 provenance와 execution ID, `status=중지 요청`, request ID | terminal 또는 중복 다른 request (`409`), `actor_name_required` |
+| `GET /api/order-plan-screening/executions/{execution_id}/artifacts/{kind}` | `kind=screening_input|ranking|decisions|failures|telemetry|screening_result` | artifact schema, producer/consumer, digest, safe metadata와 검증 상태; 본문은 승인된 다운로드 경계에서만 | `artifact_kind_invalid`, `artifact_not_ready`, `not_found` |
+| `GET /api/order-plans/{order_plan_pk}/screening-feedback` | path PK, `execution_id?` | `items[]`; revision, relevance, nullable priority/memo, claimed actor, created_at | `not_found(404)` |
+| `POST /api/order-plans/{order_plan_pk}/screening-feedback` | actor header, `feedback-create-request.v1`의 `{schema_version, producer, consumer, request_id, execution_id, relevance, priority, memo, expected_revision?}` | `201`: `feedback-create-response.v1`의 provenance와 feedback ID, plan/execution, revision, labels, actor 표식, created_at | `feedback_conflict`, `idempotency_conflict`, `not_found`, `actor_name_required` |
+| `GET /api/order-plan-screening/policies/{policy_version}` | path version | policy version/status, policy·binding digest, `activation_allowed`, blockers; prompt·profile 본문 없음 | `not_found(404)` |
+| `POST /api/order-plan-screening/policies/candidate` | actor header, `policy-candidate-request.v1`의 `{schema_version, producer, consumer, request_id, policy_version, base_policy_sha256, candidate_sha256, reason}` | `201`: `policy-candidate-response.v1`의 provenance와 `activation_candidate` version/status/digest | `invalid_request`, `idempotency_conflict`, `immutable_conflict` |
+| `POST /api/order-plan-screening/policies/{policy_version}/activate` | actor header, `policy-activate-request.v1`의 `{schema_version, producer, consumer, request_id, policy_sha256, quality_gate_artifact_sha256, explicit_confirmation:true}` | 승인 후에만 `200`: `policy-activate-response.v1`의 provenance와 active status·audit ID | 현재는 `activation_blocked(409)`, digest mismatch (`409`) |
+
+actor header `X-BidOps-Actor-Name`은 인증이 아닌 감사 표식이다. request body에 actor를
+중복해서 받지 않으며, API 응답·error details에는 prompt/profile/model response 본문,
+secret, 로컬 경로, object key를 넣지 않는다. `request_id`가 다른 동일 execution mutation은
+idempotency conflict로 거부한다.
+
+REST body와 JSON response의 wire schema도 v1로 고정한다. GET query 자체에는 body
+provenance를 요구하지 않지만 response envelope에는 항상 `schema_version`, `producer`,
+`consumer`가 포함된다. 아래 schema family 외의 field 추가나 status 의미 변경은 새 wire
+schema version을 만들며, 기존 C-2 v1 consumer는 알 수 없는 version을 거부한다.
+
+| wire schema | producer → consumer | endpoint | 필수 key / status enum | 호환·불변 경계 |
+|---|---|---|---|---|
+| `order-plan-list-response.v1` | `order-plan-review-api` → `order-plan-review-client` | `GET /api/order-plans` | provenance, `items`, `total`, `limit`, `offset`; item stage status와 nullable label/score | response projection only; 내부 경로·본문 금지 |
+| `order-plan-detail-response.v1` | API → client | `GET /api/order-plans/{id}`, `/screening-history` | provenance, `order_plan_pk`, `screening_history` 또는 `items` | read-only projection; 기존 notice response와 혼용 금지 |
+| `execution-create-request.v1` / `execution-create-response.v1` | `human-review-client` → `screening-api` → client | execution POST | request provenance, `request_id`, source/policy; response provenance, `execution_id`, `status=대기` | exact replay만 허용; request payload·binding snapshot immutable |
+| `execution-list-response.v1` / `execution-detail-response.v1` | `screening-api` → client | execution GET | provenance, `items`/execution, counts, timestamps, safe artifact summaries; status `대기|실행 중|중지 요청|성공|부분 성공|실패|중단됨` | v1 status meaning fixed; prompt/profile/model response body 없음 |
+| `execution-stop-request.v1` / `execution-stop-response.v1` | `human-review-client` → `screening-api` → client | stop POST | request provenance, `request_id`, `reason`; response provenance, execution ID, `status=중지 요청` | terminal transition and idempotency rules fixed |
+| `artifact-summary-response.v1` | `screening-api` → client | artifact GET | provenance, `kind`, `schema_version`, `producer`, `consumer`, digest, validation status | safe metadata only; bytes download is separately authorized |
+| `feedback-list-response.v1` / `feedback-create-request.v1` / `feedback-create-response.v1` | `review-api` ↔ client / `postgres-history` | feedback GET/POST | request provenance plus `request_id`, execution, relevance `relevant|not_relevant|uncertain`, priority `high|medium|low|null`; response feedback ID/revision | append-only revision; no grade/readiness/tracking/go-no-go mutation |
+| `policy-inspect-response.v1` / `policy-candidate-request.v1` / `policy-candidate-response.v1` / `policy-activate-request.v1` / `policy-activate-response.v1` | `policy-api` ↔ client | policy GET/POST | provenance, policy/binding digest, `activation_allowed`; policy status `draft|activation_candidate|active|retired`, activation status `blocked|activation_candidate|active|retired` | current candidate/activate calls fail closed; activation requires explicit audit approval |
+
+### C-2 DB·migration 경계 (Phase 2 구현 입력)
+
+현재 Alembic head는 `0015_bid_delta_final_decision`이다. C-2 migration은 Phase 2 착수 시
+새 head `0016_order_plan_screening`으로 재확인해 생성하며, Phase 0에서는 DB를 변경하지
+않는다. 기존 공고용 `screening_execution`, `screening_attempt`, `screening_policy`를
+C-2 의미로 재사용하지 않는다.
+
+| table | 필수 핵심 column / 상태 | 불변성·제약 |
+|---|---|---|
+| `order_plan_screening_policy` | `id`, `policy_version UNIQUE`, `schema_version`, `producer`, `consumer`, `policy_status=draft|activation_candidate|active|retired`, policy/binding SHA-256, safe activation metadata, created/activated timestamps | payload·digest immutable. status는 `draft→activation_candidate→active→retired` 단방향만 audit와 함께 허용, active partial unique 1개 |
+| `order_plan_screening_execution` | `execution_id UUID PK`, `request_id UNIQUE`, `schema_version`, `producer`, `consumer`, source run/artifact/population digest·count, policy version/SHA, binding SHA, `status=대기|실행 중|중지 요청|성공|부분 성공|실패|중단됨`, actor 표식, counts, timestamps | source/policy binding snapshot immutable. status transition trigger, terminal timestamp CHECK, active execution partial unique 1개 |
+| `order_plan_screening_batch_attempt` | execution FK, `batch_id`, sequence, attempt no, `schema_version`, `producer`, `consumer`, plan count/IDs digest, model/prompt/profile/generation digests, attempt status, failure type/code, token/duration nullable, timestamps | `(execution_id,batch_id,attempt_no) UNIQUE`; max attempt 2; identity·입력·binding payload는 immutable, `running→success|failed|rejected`만 fenced status/timestamp/measurement 전이 허용, 모든 전이는 append-only audit event로 기록, model response는 encrypted object reference only |
+| `order_plan_screening_result` | execution FK, `order_plan_id` FK, `schema_version`, `producer`, `consumer`, stage1 rank/score/status, stage2 status, nullable Qwen label/score/reason, batch/attempt, failure code, binding digest | `(execution_id,order_plan_id) UNIQUE`; 전체 모집단 1행/plan; stage1 `filtered_out`이면 stage2 `not_attempted`와 Qwen fields null; result update/delete 금지 |
+| `order_plan_screening_artifact` | execution FK, kind/schema/producer/consumer, SHA-256, byte count, object version reference, validation status, created_at | `(execution_id,kind) UNIQUE`; object bytes와 metadata overwrite 금지; API에는 safe summary만 projection |
+| `order_plan_screening_feedback` | execution/plan FK, feedback UUID, revision, actor 표식, relevance, nullable priority/memo, optional supersedes ID, created_at | `(execution_id,order_plan_id,revision) UNIQUE`; append-only trigger, update/delete 금지; grade/readiness/tracking/final decision FK 없음 |
+
+DB row contract의 provenance와 required key/status enum은 아래와 같이 고정한다. `schema_version`,
+`producer`, `consumer`는 단순 설명용 컬럼이 아니라 각 row에 저장하고, 같은 row schema의
+consumer가 모르는 version은 적재하지 않는다.
+
+| DB row schema_version | producer → consumer | required key | status / enum | 호환·불변 경계 |
+|---|---|---|---|---|
+| `bidops.order-plan-screening-policy.v1` | `phase0-contracts` → `policy-api` | `id`, `policy_version`, `schema_version`, `producer`, `consumer`, policy/binding digest, safe activation metadata, timestamps | `policy_status=draft|activation_candidate|active|retired` | file policy와 동일 digest만 적재; payload·digest immutable |
+| `bidops.order-plan-screening-execution-row.v1` | `screening-api` → `screening-worker-and-review-api` | `execution_id`, `request_id`, provenance, source run/artifact/population digest·count, policy/binding snapshot, actor 표식, counts, timestamps | `status=대기|실행 중|중지 요청|성공|부분 성공|실패|중단됨` | 새 row schema 없이 field/status 의미 변경 금지; snapshot immutable |
+| `bidops.order-plan-screening-batch-attempt-row.v1` | `screening-worker` → `screening-merge-and-observability` | execution/batch/sequence/attempt, provenance, plan IDs digest, model/prompt/profile/generation digests, attempt status, safe failure code, nullable measurements, timestamps | `attempt_status=running|success|failed|rejected` | identity·입력·binding payload는 append-only. `running→success|failed|rejected`만 fenced status/timestamp/measurement 전이로 허용하고 모든 전이를 append-only audit event로 남긴다. max attempt 2; response body는 encrypted object reference only |
+| `bidops.order-plan-screening-result-row.v1` | `order-plan-screening-merge` → `postgres-loader-and-review-api` | execution/plan identity, provenance, input/policy/binding digest, stage1/stage2 fields, nullable Qwen fields, failure code, timestamps | `status=성공|부분 성공|실패|거부됨`; relevance `relevant|not_relevant|uncertain` | file envelope `bidops.order-plan-screening-result.v1`과 구별되는 per-plan row schema; execution+plan one row; result update/delete 금지 |
+| `bidops.order-plan-screening-artifact-row.v1` | `screening-artifact-writer` → `screening-api` | execution, kind, provenance, SHA-256, byte count, object version reference, validation status, created_at | `validation_status=pending|valid|invalid` | `(execution_id,kind)` immutable; object overwrite 금지; safe summary만 API에 투영 |
+| `bidops.order-plan-screening-feedback.v1` | `human-review-api` → `postgres-review-history` | feedback/plan/execution identity, revision, provenance, actor 표식, relevance, nullable priority/memo, supersedes ID, created_at | `relevance=relevant|not_relevant|uncertain`, `priority=high|medium|low|null`; record is append-only | revision insert only; 기존 row update/delete 및 다른 상태축 변경 금지 |
+
+모든 C-2 table row의 `schema_version`, `producer`, `consumer`는 해당 v1 file/wire contract와
+일치해야 한다. file과 직접 대응하지 않는 row는 위 row schema를 사용한다. 모든 table은
+`OrderPlan`·`OrderPlanObservation`와 source run FK/identity를 확인하고, hash가
+같은 재적재만 no-op으로 허용한다. 같은 execution·plan에 다른 input/binding/result hash가
+들어오면 전체 transaction을 rollback한다. CHECK는 음수 count·score 범위·상태와 nullable
+조합을 거부한다. `audit_event`와 `idempotency_record`는 기존 공통 table을 재사용하되
+각 mutation의 endpoint·request ID·safe code·binding digest를 남긴다.
+
+DB role은 migration owner가 DDL을 수행하고, app은 검증된 목록·execution 생성·feedback·
+audit/idempotency와 제한된 status mutation만 수행하며, worker는 frozen input을 읽고
+batch/attempt/artifact/result/telemetry를 삽입한다. worker는 사람 feedback을 쓰지 않고
+app은 raw model response object를 읽지 않는다. `ro_backup`은 SELECT만 갖는다. runtime
+privilege allowlist와 실제 PostgreSQL 17 제약·trigger 검증은 Phase 2의 `0016`에서 수행한다.

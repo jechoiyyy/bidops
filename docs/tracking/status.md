@@ -21,7 +21,7 @@
 | 영역 | 구현 상태 | 검증 상태 |
 |---|---|---|
 | 기존 나라장터 공고 수집·정규화·표본 | 구현됨 | 파이프라인 단위·교차 테스트의 과거 64건 통과 기록 있음 |
-| 발주계획 C-2 선별 방식 | `BM25 Top 300 + Qwen`으로 선택 완료; 제품 adapter·정책 연결은 미구현 | 625건 중 300건 Qwen 12 batch 전부 성공, 검토 유지 recall 96.61%, 알려진 낮은 우선순위 누락 2건 수용([ADR-0037](decisions/0037-order-plan-c2-bm25-top300-qwen.md)) |
+| 발주계획 C-2 선별 방식 | `BM25 Top 300 + Qwen`으로 선택 완료; Phase 0 policy·binding·전용 schema·read-only validator 구현, 제품 adapter·DB·API는 미구현 | validator가 source 625건, approved input digest, historical evidence와 C-1 partial gold(22 human / 603 draft / 87 remaining)를 대조하고 `valid_but_blocked` 반환; 실행·활성화는 불가([ADR-0038](decisions/0038-order-plan-c2-phase0-contracts.md)) |
 | 다섯 관점·반론·종합 1차 판정 | 구현됨 | fake 테스트와 단일 live Qwen 성공·중단 기록 있음; 40건 운영 품질 승인은 없음 |
 | 결정적 HTML·피드백 YAML | 구현됨 | 파이프라인 테스트에 포함됨 |
 | FastAPI 회차·공고·리뷰·프로필·지표 | 구현됨 | 전체 backend suite `1046 passed, 5 skipped, 0 failed` |
@@ -105,14 +105,14 @@ DB에 없다. 다만 byte-identical 파일이 `web/backend/app/screening/baselin
 
 우선순위 순이다. 상세와 착수 조건은 [`../Backend_HANDOFF.md`](../Backend_HANDOFF.md) §7이 정본이다.
 
-1. **사람 몫 — 지금 던져두면 병렬로 돈다.** C-2 방식 선택은 완료했다. gold 재판정 9건 확인과 D-7 방화벽 승인 상신이 남아 있다.
+1. **사람 몫 — 지금 던져두면 병렬로 돈다.** C-2 방식 선택은 완료했다. 기존 997건 실험의 gold 재판정 9건 확인, 별도 C-2 625건 gold의 잔여 87건 확인, D-7 방화벽 승인 상신이 남아 있다.
 2. **테스트 harness.** MinIO versioning fail-open과 host-wide DB·MinIO port publish는 2026-09-01에 닫았고 **알려진 운영 배포 blocker는 0이다.** `web/run-web-tests.sh`는 2026-08-31부터 있고(`84bbcc5`) 임시 PostgreSQL 17에서 backend pytest와 frontend build를 돌린다. 2026-09-01에 Playwright visual 회귀를 같은 진입점에 넣어 화면 검증이 문서에만 있는 게이트로 남지 않게 했다. **남은 것은 CI다.** 개별 파일만 지정해 pytest를 직접 치면 postgres 테스트가 여전히 조용히 skip되며, 이 저장소는 같은 부류 결함에 두 번 데였다.
 3. **껍데기를 실제로 도는 기능으로.** 입찰 delta 계산 worker와 모델 adapter, T-23 사전규격 개요 model adapter·worker, 문서 준비·실패 attempt 재시작 화면, T-19 판정 모델 계보 projection. 전부 결정이 끝나 막는 것이 없다. **사전규격 개요는 2026-09-01에 화면 몫을 끝냈으므로 남은 것은 worker다.** worker가 없는 동안 실데이터는 대부분 `awaiting_model`에 머물며, 화면은 승인된 모델 binding이 없어 실행되지 않는 상태임을 알린다.
 4. **판정을 믿을 수 있게.** 실제 model artifact digest·대표 HWP/PDF gold·사람 판정으로 Qwen·vLLM 품질 gate 2건을 측정하고, screening v3를 보고서 renderer에 명시적으로 연결한다.
 5. **선별 제품 — C-2 선택 완료.** BM25 Top 300→Qwen threshold·감사 표본 정책 확정 → 전체 발주계획 원본과 방식별 결과를 저장하는 불변 수집 회차·DB 계약 → 내부 opportunity와 plan·pre-spec·bid 공식 관계 및 사람 확인 대기 relation 후보 → 사전규격 독립 일일 수집·저비용 1차선별·사람 승인 gate 연결 → `계속 추적|보류|종료`, 입찰공고 발견, 사전규격 대비 material delta, 최종 사람 Go/No-Go.
 6. **이후 범위.** 실제 secret·MinIO allow/deny·egress firewall·backup/restore를 운영 환경에서 검증하고, 개발계정 API 요청 수를 실측해 증액 근거를 준비하며, SSO·역할 권한과 dashboard·외부 알림을 설계한다.
 
-2026-09-01에 C-2 방식 선택을 완료했다. 사람 확인이 남은 항목은 C-1 gold 재판정과 D-7 방화벽 승인이다.
+2026-09-01에 C-2 방식 선택을 완료했다. 사람 확인이 남은 항목은 기존 997건 실험의 gold 재판정 9건, 별도 C-2 625건 gold의 잔여 87건, D-7 방화벽 승인이다.
 2026-09-01에 운영 배포 blocker A-1~A-6 여섯 건을 전부 해소했다.
 D-8 종단 관측은 2026-09-08·09-13·09-14에 계속 받는다.
 

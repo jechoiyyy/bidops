@@ -230,6 +230,23 @@ python3 skills/bidops-collect/scripts/collect_order_plans.py \
 
 소스와 fake 모델 검증은 live API key나 model endpoint 없이 실행한다.
 
+### C-2 Phase 0 계약 검증
+
+발주계획 C-2를 구현하거나 실행하기 전에 다음 read-only 검증을 수행한다. 이 명령은 raw
+입력·approved manifest·정책·선정 증거·부분 gold·binding의 SHA-256과 구조를 대조하지만,
+prompt/profile 본문을 출력하지 않고 모델 endpoint·외부 API를 호출하지 않는다.
+
+```bash
+python3 skills/bidops-screen/scripts/validate_order_plan_phase0.py --json
+```
+
+정상 결과도 현재는 `status=valid_but_blocked`, `execution_allowed=false`,
+`activation_allowed=false`다. `c1_gold_incomplete`, `audit_sample_policy_unapproved`,
+`quality_gate_not_measured`, `private_vllm_transport_requires_per_execution_approval`를
+사람 승인 없이 제거하거나 policy·binding을 직접 수정하지 않는다. hash가 다르거나 수집
+회차가 incomplete·warning 상태이면 exit 2로 종료하며 재생성·보정하지 않는다. scheduler는
+이 검증의 대상도 아니고 blocker도 아니다.
+
 ```bash
 ./run-tests.sh
 ./web/run-web-tests.sh
