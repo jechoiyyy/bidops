@@ -92,13 +92,16 @@ const notice991 = {
 };
 
 const unknownOverview = {
-  schema_version: "bidops.prespec-overview-reviews.v1",
+  schema_version: "bidops.prespec-overview-reviews.v2",
   notice_id: 991,
   reviews: [{
     id: "00000000-0000-0000-0000-000000000991",
     notice_id: 991,
     status: "needs_human_review",
     result: null,
+    result_digest: null,
+    binding_digest: null,
+    validation_status: "pending",
     completed_at: null,
     current_snapshot: {
       id: "10000000-0000-0000-0000-000000000991",
@@ -113,6 +116,65 @@ const unknownOverview = {
       created_at: "2026-08-31T01:00:00Z",
     },
     attempts: [],
+  }],
+};
+
+const completedOverview = {
+  ...unknownOverview,
+  reviews: [{
+    ...unknownOverview.reviews[0],
+    status: "completed",
+    result: {
+      schema_version: "bidops.prespec-overview-result.v1",
+      recommendation: "조건부 추진 검토",
+      summary: "민원·행정 데이터를 통합해 담당자가 업무 현황을 조회하는 행정 지원 플랫폼 구축 사업입니다.",
+      conditions: ["기존 시스템 연계 범위와 기관별 데이터 제공 책임을 확인해야 합니다."],
+      verification_due_at: "2026-09-02T00:00:00Z",
+      unknowns: [
+        {
+          topic: "기존 시스템 연계 범위",
+          reason: "개요 입력에는 연계 대상과 제공 API 목록이 없습니다.",
+          verification_action: "심층 검토에서 연계 대상별 인터페이스 명세를 확인합니다.",
+        },
+        {
+          topic: "개인정보 처리 책임",
+          reason: "운영 주체와 개인정보 처리 역할이 확정되지 않았습니다.",
+          verification_action: null,
+        },
+      ],
+      evidence: [{
+        claim: "사업은 행정 지원 플랫폼 구축과 기존 업무 데이터 연계를 포함합니다.",
+        locator: { block_key: "overview-intro", page: 2, ordinal: 7 },
+      }],
+      input_limitations: ["제안요청서 앞부분의 개요 입력만 검토했습니다."],
+    },
+    result_digest: "c".repeat(64),
+    binding_digest: "d".repeat(64),
+    validation_status: "passed",
+    completed_at: "2026-08-31T02:00:00Z",
+    current_snapshot: { ...unknownOverview.reviews[0].current_snapshot, cut_status: "ready", strategy: "topic_heading" },
+    attempts: [{
+      id: "00000000-0000-0000-0000-000000000992",
+      snapshot_id: "10000000-0000-0000-0000-000000000991",
+      sequence: 1,
+      status: "completed",
+      reference_only: false,
+      deployable: true,
+      validation_status: "passed",
+      result_digest: "c".repeat(64),
+      binding_digest: "d".repeat(64),
+      created_at: "2026-08-31T01:30:00Z",
+      started_at: "2026-08-31T01:35:00Z",
+      completed_at: "2026-08-31T02:00:00Z",
+    }],
+  }],
+};
+
+const awaitingModelOverview = {
+  ...unknownOverview,
+  reviews: [{
+    ...unknownOverview.reviews[0],
+    status: "awaiting_model",
   }],
 };
 
@@ -136,7 +198,7 @@ async function mockPreSpecs(page: Page, options: PreSpecMockOptions = {}): Promi
   await page.route("**/api/pre-specs**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
-    const overviewMatch = url.pathname.match(/^\/api\/pre-specs\/(\d+)\/overview-reviews$/);
+    const overviewMatch = url.pathname.match(/^\/api\/pre-specs\/(\d+)\/overview-reviews\/v2$/);
 
     if (overviewMatch && request.method() === "GET") {
       const id = Number(overviewMatch[1]);
@@ -266,6 +328,45 @@ test("notice 991 정본 상세는 29로 치환되지 않고 unknown을 사람 �
   expect(trace.noticeGets).toEqual([991, 991]);
   expect(trace.overviewGets).toEqual([991, 991]);
   expect(trace.noticeGets).not.toContain(29);
+});
+
+test("v2 개요 결과는 평가에 필요한 요약·미확인·근거 위치를 보여준다", async ({ page }) => {
+  await mockPreSpecs(page, { overviewBody: completedOverview });
+  await page.goto("/pre-specs/991");
+
+  await expect(page.getByRole("heading", { name: "요약", exact: true })).toBeVisible();
+  await expect(page.getByText("민원·행정 데이터를 통합해 담당자가 업무 현황을 조회하는 행정 지원 플랫폼 구축 사업입니다.", { exact: true })).toBeVisible();
+  await expect(page.getByText("기존 시스템 연계 범위", { exact: true })).toBeVisible();
+  await expect(page.getByText("개요 입력에는 연계 대상과 제공 API 목록이 없습니다.", { exact: true })).toBeVisible();
+  await expect(page.getByText("심층 검토에서 연계 대상별 인터페이스 명세를 확인합니다.", { exact: true })).toBeVisible();
+  await expect(page.getByText("개인정보 처리 책임", { exact: true })).toBeVisible();
+  await expect(page.getByText("운영 주체와 개인정보 처리 역할이 확정되지 않았습니다.", { exact: true })).toBeVisible();
+  await expect(page.getByText("확인 방법 미지정", { exact: true })).toBeVisible();
+  await expect(page.getByText("2쪽", { exact: true })).toBeVisible();
+  await expect(page.getByText("overview-intro", { exact: true })).toBeVisible();
+  await expect(page.getByText("ordinal 7", { exact: true })).toBeVisible();
+  await expect(page.getByText("검증 통과 · passed", { exact: true })).toBeVisible();
+  await expect(page.getByText(/판정으로 읽지 마세요/)).not.toBeVisible();
+});
+
+test("v2 검증 실패는 결과를 판정으로 읽지 않도록 경고한다", async ({ page }) => {
+  const failedOverview = {
+    ...completedOverview,
+    reviews: [{ ...completedOverview.reviews[0], validation_status: "failed" }],
+  };
+  await mockPreSpecs(page, { overviewBody: failedOverview });
+  await page.goto("/pre-specs/991");
+
+  await expect(page.getByText("검증 실패 · failed", { exact: true })).toBeVisible();
+  await expect(page.getByText("검증에 실패한 결과입니다. 이 내용을 판정으로 읽지 마세요.", { exact: true })).toBeVisible();
+});
+
+test("result가 없고 awaiting_model이면 승인된 binding 대기 상태를 설명한다", async ({ page }) => {
+  await mockPreSpecs(page, { overviewBody: awaitingModelOverview });
+  await page.goto("/pre-specs/991");
+
+  await expect(page.getByText("검토 결과 미확정", { exact: true })).toBeVisible();
+  await expect(page.getByText("승인된 모델 binding이 없어 아직 실행되지 않은 상태입니다. 승인된 사설 모델 binding이 준비되기 전에는 모델을 호출하지 않습니다.", { exact: true })).toBeVisible();
 });
 
 test("overview envelope notice ID가 어긋나면 교차 정본을 렌더링하지 않는다", async ({ page }) => {

@@ -11,6 +11,7 @@ import type {
   PreSpecOverviewAttemptStatus,
   PreSpecOverviewCutStatus,
   PreSpecOverviewReviewStatus,
+  PreSpecOverviewValidationStatus,
 } from "../lib/types";
 import "../styles/pre-specs-relaxed.css";
 
@@ -33,6 +34,25 @@ const ATTEMPT_STATUS: Record<PreSpecOverviewAttemptStatus, string> = {
   completed: "완료",
   failed: "실패",
   cancelled: "취소",
+};
+
+const VALIDATION_STATUS: Record<PreSpecOverviewValidationStatus, { label: string; variant: BadgeVariant; warning: string | null }> = {
+  passed: { label: "검증 통과 · passed", variant: "evidence-confirmed", warning: null },
+  failed: { label: "검증 실패 · failed", variant: "alert", warning: "검증에 실패한 결과입니다. 이 내용을 판정으로 읽지 마세요." },
+  pending: { label: "검증 대기 · pending", variant: "neutral", warning: "아직 결정적 검증을 통과하지 않은 결과입니다. 이 내용을 판정으로 읽지 마세요." },
+};
+
+const REVIEW_WAITING_DESCRIPTION: Record<PreSpecOverviewReviewStatus, string> = {
+  awaiting_document: "검토할 문서가 아직 준비되지 않아 개요 입력을 만들지 못했습니다.",
+  awaiting_structure: "문서 구조화가 끝나고 개요 입력 범위가 확정되기를 기다리고 있습니다.",
+  preparing: "서버가 개요 검토용 입력 snapshot을 준비하고 있습니다.",
+  awaiting_model: "승인된 모델 binding이 없어 아직 실행되지 않은 상태입니다. 승인된 사설 모델 binding이 준비되기 전에는 모델을 호출하지 않습니다.",
+  queued: "승인된 모델 실행이 큐에서 차례를 기다리고 있습니다.",
+  running: "승인된 모델 실행이 진행 중이며 검증된 결과를 기다리고 있습니다.",
+  needs_human_review: "입력 범위 또는 실행 결과를 사람이 확인해야 하므로 검증된 권고로 확정할 수 없습니다.",
+  completed: "처리 상태는 완료지만 검증된 결과 payload가 없어 권고를 표시할 수 없습니다.",
+  failed: "모델 실행 또는 결과 검증이 실패했습니다. 실패 결과를 권고로 보정하지 않습니다.",
+  cancelled: "실행이 취소되어 검증된 권고 결과가 없습니다.",
 };
 
 function statusVariant(status: PreSpecOverviewReviewStatus): BadgeVariant {
@@ -93,8 +113,8 @@ export function PreSpecDetailPage() {
     staleTime: 30_000,
   });
   const overviewQuery = useQuery({
-    queryKey: ["pre-spec-overview-reviews", noticeId],
-    queryFn: ({ signal }) => api.getPreSpecOverviewReviews(noticeId as number, { signal }),
+    queryKey: ["pre-spec-overview-reviews-v2", noticeId],
+    queryFn: ({ signal }) => api.getPreSpecOverviewReviewsV2(noticeId as number, { signal }),
     enabled: noticeId !== null,
     staleTime: 30_000,
   });
@@ -207,49 +227,182 @@ export function PreSpecDetailPage() {
           ) : null}
           {overview ? (
             <div className="pre-spec-overview-content">
-              <div className="pre-spec-overview-statuses">
-                <Badge label={REVIEW_STATUS[overview.status]} variant={statusVariant(overview.status)} />
-                {overview.result ? <Badge label={overview.result} variant="focus" /> : <Badge label="검토 결과 미확정" variant="neutral" />}
-              </div>
-              {cut ? (
-                <div className={`pre-spec-cut-state is-${snapshot?.cut_status}`}>
-                  <Badge label={cut.label} variant={cut.variant} />
-                  <p>{cut.description}</p>
-                </div>
+              {overview.result ? (
+                <>
+                  <div className={`pre-spec-overview-decision ${overview.validation_status === "passed" ? "" : "is-unverified"}`}>
+                    <div className="pre-spec-overview-recommendation">
+                      <span>권고</span>
+                      <strong>{overview.result.recommendation}</strong>
+                    </div>
+                    <div className="pre-spec-overview-validation">
+                      <span>신뢰도 · 검증 상태</span>
+                      <Badge
+                        label={VALIDATION_STATUS[overview.validation_status].label}
+                        variant={VALIDATION_STATUS[overview.validation_status].variant}
+                      />
+                    </div>
+                  </div>
+                  {VALIDATION_STATUS[overview.validation_status].warning ? (
+                    <p className="pre-spec-overview-validation-warning" role="alert">
+                      {VALIDATION_STATUS[overview.validation_status].warning}
+                    </p>
+                  ) : null}
+                  <div className="pre-spec-overview-statuses">
+                    <span>처리 상태</span>
+                    <Badge label={REVIEW_STATUS[overview.status]} variant={statusVariant(overview.status)} />
+                  </div>
+
+                  <section className="pre-spec-overview-section" aria-labelledby="pre-spec-overview-summary-title">
+                    <h4 id="pre-spec-overview-summary-title">요약</h4>
+                    <p className="pre-spec-overview-summary">{overview.result.summary}</p>
+                  </section>
+
+                  <section className="pre-spec-overview-section" aria-labelledby="pre-spec-overview-conditions-title">
+                    <h4 id="pre-spec-overview-conditions-title">조건과 기한</h4>
+                    <div className="pre-spec-overview-due">
+                      <span>확인 기한</span>
+                      {overview.result.verification_due_at ? (
+                        <span className="pre-spec-overview-due-value">
+                          <span className={`pre-specs-deadline is-${describeDeadline(overview.result.verification_due_at).urgency} mono tabular-nums`}>
+                            {describeDeadline(overview.result.verification_due_at).label}
+                          </span>
+                          <span>{formatDateTime(overview.result.verification_due_at)}</span>
+                        </span>
+                      ) : <strong>확인 기한 미지정</strong>}
+                    </div>
+                    {overview.result.conditions.length > 0 ? (
+                      <ul className="pre-spec-overview-list">
+                        {overview.result.conditions.map((condition) => <li key={condition}>{condition}</li>)}
+                      </ul>
+                    ) : <p className="pre-spec-overview-empty">추가 조건 없음</p>}
+                  </section>
+
+                  <section className="pre-spec-overview-section" aria-labelledby="pre-spec-overview-unknowns-title">
+                    <h4 id="pre-spec-overview-unknowns-title">미확인</h4>
+                    {overview.result.unknowns.length > 0 ? (
+                      <ul className="pre-spec-overview-unknowns">
+                        {overview.result.unknowns.map((unknown) => (
+                          <li key={`${unknown.topic}-${unknown.reason}`}>
+                            <dl>
+                              <div><dt>항목</dt><dd>{unknown.topic}</dd></div>
+                              <div><dt>이유</dt><dd>{unknown.reason}</dd></div>
+                              <div>
+                                <dt>확인 방법</dt>
+                                {/* 확인 방법이 없는 unknown은 아무도 착수할 수 없는 항목이다.
+                                    문구만으로는 다른 값과 섞여 읽히므로 표식을 붙인다. */}
+                                <dd className={unknown.verification_action === null ? "pre-spec-overview-unverifiable" : undefined}>
+                                  {unknown.verification_action ?? "확인 방법 미지정"}
+                                </dd>
+                              </div>
+                            </dl>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : <p className="pre-spec-overview-empty">미확인 항목 없음</p>}
+                  </section>
+
+                  <section className="pre-spec-overview-section" aria-labelledby="pre-spec-overview-evidence-title">
+                    <h4 id="pre-spec-overview-evidence-title">근거</h4>
+                    <ul className="pre-spec-overview-evidence">
+                      {overview.result.evidence.map((evidence) => (
+                        <li key={`${evidence.claim}-${evidence.locator.block_key}-${evidence.locator.ordinal}`}>
+                          <p>{evidence.claim}</p>
+                          <div className="pre-spec-overview-evidence-locator" aria-label="근거 위치">
+                            <span>위치</span>
+                            <span>{evidence.locator.page}쪽</span>
+                            <code className="mono">{evidence.locator.block_key}</code>
+                            <code className="mono">ordinal {evidence.locator.ordinal}</code>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+
+                  <section className="pre-spec-overview-section pre-spec-overview-limitations" aria-labelledby="pre-spec-overview-limitations-title">
+                    <h4 id="pre-spec-overview-limitations-title">이 판단의 한계</h4>
+                    <ul className="pre-spec-overview-list">
+                      {overview.result.input_limitations.map((limitation) => <li key={limitation}>{limitation}</li>)}
+                    </ul>
+                  </section>
+                </>
               ) : (
-                <div className="pre-spec-cut-state is-pending">
-                  <Badge label="입력 snapshot 없음" variant="neutral" />
-                  <p>서버 projection에 현재 입력 snapshot이 없습니다.</p>
-                </div>
+                <>
+                  <div className="pre-spec-overview-decision is-unconfirmed">
+                    <div className="pre-spec-overview-recommendation">
+                      <span>권고</span>
+                      <strong>검토 결과 미확정</strong>
+                    </div>
+                    <div className="pre-spec-overview-validation">
+                      <span>신뢰도 · 검증 상태</span>
+                      <Badge
+                        label={VALIDATION_STATUS[overview.validation_status].label}
+                        variant={VALIDATION_STATUS[overview.validation_status].variant}
+                      />
+                    </div>
+                  </div>
+                  <div className="pre-spec-overview-statuses">
+                    <span>처리 상태</span>
+                    <Badge label={REVIEW_STATUS[overview.status]} variant={statusVariant(overview.status)} />
+                  </div>
+                  <div className="pre-spec-overview-waiting">
+                    <strong>{REVIEW_STATUS[overview.status]} · 검증된 결과를 기다리는 중</strong>
+                    <p>{REVIEW_WAITING_DESCRIPTION[overview.status]}</p>
+                  </div>
+                </>
               )}
-              {snapshot ? (
-                <dl className="pre-spec-overview-lineage">
-                  <div><dt>절단 전략</dt><dd>{snapshot.strategy ?? "전략 미확정"}</dd></div>
-                  <div><dt>문서 버전</dt><dd className="mono">{snapshot.document_version_id}</dd></div>
-                  <div><dt>구조 버전</dt><dd className="mono">{snapshot.structure_id}</dd></div>
-                  <div><dt>입력 생성</dt><dd>{formatDateTime(snapshot.created_at)}</dd></div>
-                </dl>
-              ) : null}
-              <div className="pre-spec-overview-attempts">
-                <strong>실행 이력</strong>
-                {overview.attempts.length === 0 ? <span>모델 실행 이력 없음</span> : (
-                  <ul>
-                    {overview.attempts.map((attempt) => (
-                      <li key={attempt.id}>
-                        <span className="mono tabular-nums">#{attempt.sequence}</span>
-                        <Badge
-                          label={ATTEMPT_STATUS[attempt.status]}
-                          variant={attempt.status === "completed" ? "evidence-confirmed" : attempt.status === "failed" ? "alert" : "neutral"}
-                        />
-                        <span>{attempt.reference_only ? "참고 전용" : attempt.deployable ? "배포 가능" : "배포 불가"}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
+
               <p className="pre-spec-overview-limit">
                 이 개요 검토는 서버가 고정한 구조 절단 입력만 다룹니다. 개요 결과는 추적 상태·참여 준비·최종 Go/No-Go를 대신하지 않습니다.
               </p>
+
+              <details className="pre-spec-overview-lineage-details" open={overview.status === "needs_human_review" && !overview.result}>
+                <summary>계보 · 입력 범위와 실행 이력</summary>
+                <div className="pre-spec-overview-lineage-body">
+                  {cut ? (
+                    <div className={`pre-spec-cut-state is-${snapshot?.cut_status}`}>
+                      <Badge label={cut.label} variant={cut.variant} />
+                      <p>{cut.description}</p>
+                    </div>
+                  ) : (
+                    <div className="pre-spec-cut-state is-pending">
+                      <Badge label="입력 snapshot 없음" variant="neutral" />
+                      <p>서버 projection에 현재 입력 snapshot이 없습니다.</p>
+                    </div>
+                  )}
+                  {snapshot ? (
+                    <dl className="pre-spec-overview-lineage">
+                      <div><dt>절단 전략</dt><dd>{snapshot.strategy ?? "전략 미확정"}</dd></div>
+                      <div><dt>문서 버전</dt><dd className="mono">{snapshot.document_version_id}</dd></div>
+                      <div><dt>구조 버전</dt><dd className="mono">{snapshot.structure_id}</dd></div>
+                      <div><dt>입력 생성</dt><dd>{formatDateTime(snapshot.created_at)}</dd></div>
+                    </dl>
+                  ) : null}
+                  <div className="pre-spec-overview-attempts">
+                    <strong>실행 이력</strong>
+                    {overview.attempts.length === 0 ? <span>모델 실행 이력 없음</span> : (
+                      <ul>
+                        {overview.attempts.map((attempt) => (
+                          <li key={attempt.id}>
+                            <span className="mono tabular-nums">#{attempt.sequence}</span>
+                            <Badge
+                              label={ATTEMPT_STATUS[attempt.status]}
+                              variant={attempt.status === "completed" ? "evidence-confirmed" : attempt.status === "failed" ? "alert" : "neutral"}
+                            />
+                            <span>{attempt.reference_only ? "참고 전용" : attempt.deployable ? "배포 가능" : "배포 불가"}</span>
+                            <span>검증 {attempt.validation_status}</span>
+                            <span className="pre-spec-overview-digest mono">result {attempt.result_digest ?? "없음"}</span>
+                            <span className="pre-spec-overview-digest mono">binding {attempt.binding_digest ?? "없음"}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  <dl className="pre-spec-overview-digests">
+                    <div><dt>결과 digest</dt><dd className="mono">{overview.result_digest ?? "없음"}</dd></div>
+                    <div><dt>binding digest</dt><dd className="mono">{overview.binding_digest ?? "없음"}</dd></div>
+                  </dl>
+                </div>
+              </details>
             </div>
           ) : null}
         </Panel>

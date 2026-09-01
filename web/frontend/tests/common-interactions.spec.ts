@@ -76,13 +76,16 @@ const preSpecNotice = {
 };
 
 const unknownOverview = {
-  schema_version: "bidops.prespec-overview-reviews.v1",
+  schema_version: "bidops.prespec-overview-reviews.v2",
   notice_id: 991,
   reviews: [{
     id: "00000000-0000-0000-0000-000000000991",
     notice_id: 991,
     status: "needs_human_review",
     result: null,
+    result_digest: null,
+    binding_digest: null,
+    validation_status: "pending",
     completed_at: null,
     current_snapshot: {
       id: "10000000-0000-0000-0000-000000000991",
@@ -152,7 +155,7 @@ async function mockPreSpecWorkbench(page: Page): Promise<{ createCount: () => nu
     if (pathname === "/api/notices/991/document-bundles" && request.method() === "POST") creates += 1;
     await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ detail: "mutation must not run" }) });
   });
-  await page.route("**/api/pre-specs/991/overview-reviews", async (route) => {
+  await page.route("**/api/pre-specs/991/overview-reviews/v2", async (route) => {
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(unknownOverview) });
   });
   return { createCount: () => creates };

@@ -299,6 +299,64 @@ export interface PreSpecOverviewReviewsResponse {
   reviews: PreSpecOverviewReviewView[];
 }
 
+export type PreSpecOverviewRecommendation = "추진 검토" | "조건부 추진 검토" | "보류" | "검토 종료";
+export type PreSpecOverviewValidationStatus = "passed" | "failed" | "pending";
+
+export interface PreSpecOverviewResultLocator {
+  block_key: string;
+  page: number;
+  ordinal: number;
+}
+
+export interface PreSpecOverviewUnknown {
+  topic: string;
+  reason: string;
+  verification_action: string | null;
+}
+
+export interface PreSpecOverviewEvidence {
+  claim: string;
+  locator: PreSpecOverviewResultLocator;
+}
+
+export interface PreSpecOverviewResultPayload {
+  schema_version: "bidops.prespec-overview-result.v1";
+  recommendation: PreSpecOverviewRecommendation;
+  summary: string;
+  conditions: string[];
+  verification_due_at: string | null;
+  unknowns: PreSpecOverviewUnknown[];
+  evidence: PreSpecOverviewEvidence[];
+  input_limitations: string[];
+}
+
+export interface PreSpecOverviewResultView extends PreSpecOverviewResultPayload {}
+
+export interface PreSpecOverviewAttemptV2View extends PreSpecOverviewAttemptView {
+  validation_status: PreSpecOverviewValidationStatus;
+  result_digest: string | null;
+  binding_digest: string | null;
+}
+
+export interface PreSpecOverviewReviewV2View {
+  id: string;
+  notice_id: number;
+  status: PreSpecOverviewReviewStatus;
+  result: PreSpecOverviewResultView | null;
+  result_digest: string | null;
+  binding_digest: string | null;
+  validation_status: PreSpecOverviewValidationStatus;
+  completed_at: string | null;
+  current_snapshot: PreSpecOverviewSnapshotView | null;
+  attempts: PreSpecOverviewAttemptV2View[];
+}
+
+export interface PreSpecOverviewReviewsV2Response {
+  schema_version: "bidops.prespec-overview-reviews.v2";
+  notice_id: number;
+  reviews: PreSpecOverviewReviewV2View[];
+}
+
 export interface HistoryItemResponse {
   notice_pk: number;
   run_id: string;

@@ -12,6 +12,7 @@ import type {
   PreSpecListQuery,
   PreSpecListResponse,
   PreSpecOverviewReviewsResponse,
+  PreSpecOverviewReviewsV2Response,
   OpportunityDetailResponse,
   OpportunityListQuery,
   OpportunityListResponse,
@@ -457,6 +458,9 @@ export const api = {
 
   getPreSpecOverviewReviews: (noticeId: number, options?: ReadRequestOptions) =>
     request<PreSpecOverviewReviewsResponse>(`/pre-specs/${noticeId}/overview-reviews`, options),
+
+  getPreSpecOverviewReviewsV2: (noticeId: number, options?: ReadRequestOptions) =>
+    request<PreSpecOverviewReviewsV2Response>(`/pre-specs/${noticeId}/overview-reviews/v2`, options),
 
   getNotice: (noticePk: number) => request<NoticeDetailResponse>(`/notices/${noticePk}`),
 
