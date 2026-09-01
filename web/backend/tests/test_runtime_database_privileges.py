@@ -211,6 +211,7 @@ def test_c2_runtime_grants_are_role_specific_and_column_scoped() -> None:
 
     assert {
         "order_plan",
+        "order_plan_observation",
         "order_plan_screening_policy",
         "order_plan_screening_execution",
         "order_plan_screening_batch_attempt",
@@ -250,6 +251,14 @@ def test_c2_runtime_grants_are_role_specific_and_column_scoped() -> None:
         "attempt_status", "failure_type", "failure_code", "response_object_ref",
         "input_tokens", "cached_input_tokens", "output_tokens", "total_tokens",
         "duration_ms", "started_at", "finished_at",
+    }
+    assert _column_update_grant("worker", "order_plan_screening_execution") == {
+        "status", "active_slot", "partial_artifact", "candidate_count",
+        "completed_count", "failure_count", "stage1_selected_count",
+        "stage1_filtered_out_count", "stage1_failed_count", "stage2_relevant_count",
+        "stage2_not_relevant_count", "stage2_uncertain_count", "stage2_failed_count",
+        "stage2_rejected_count", "human_review_count", "error_code",
+        "started_at", "finished_at", "heartbeat_at",
     }
 
 

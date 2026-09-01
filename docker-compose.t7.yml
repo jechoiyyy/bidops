@@ -106,6 +106,7 @@ services:
       BIDOPS_ROOT: /app
       BIDOPS_DATABASE_URL: "postgresql+psycopg://app:${BIDOPS_APP_PASSWORD:?set an external app password}@postgres:5432/bidops"
       BIDOPS_OPENAI_ENABLED: "false"
+      BIDOPS_C2_EXECUTION_ALLOWED: "false"
       BIDOPS_DOCUMENT_WORKER_CONCURRENCY: "2"
       BIDOPS_DOCUMENT_CONVERTER_WAIT_SECONDS: "45"
       BIDOPS_CLAMAV_HOST: clamav
@@ -141,6 +142,11 @@ services:
       # Persist the whole directory: a container recreate that keeps the DB rows
       # but drops the artifacts leaves the profile API permanently fail-closed.
       - web-data:/app/web/data
+      # Only the tracked policy and binding are supplied to the default image;
+      # company capabilities and the prompt require the remote overlay's
+      # explicit operator paths below.
+      - ./experiments/order-plan-screening/config/order-plan-screening-policy.v1.json:/app/experiments/order-plan-screening/config/order-plan-screening-policy.v1.json:ro
+      - ./experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v1.json:/app/experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v1.json:ro
       # Profile-related inputs are deployment data, not image layers. The web
       # process owns both the profile snapshot boundary and the collection
       # subprocess that consumes the performance-title reference.
@@ -174,6 +180,9 @@ services:
       BIDOPS_VLLM_ALLOWED_HOSTS: "${BIDOPS_VLLM_ALLOWED_HOSTS:-}"
       BIDOPS_VLLM_MODEL: qwen3.8-27B
       BIDOPS_VLLM_API_KEY: "${BIDOPS_VLLM_API_KEY:-EMPTY}"
+      # C-2 remains fail-closed until an operator approves transport for the
+      # deployment and the persisted Phase 0 binding also allows it.
+      BIDOPS_C2_EXECUTION_ALLOWED: "false"
       BIDOPS_OPENAI_ENABLED: "false"
       BIDOPS_ANALYSIS_WORKER_CONCURRENCY: "1"
       BIDOPS_OBJECT_STORE_BACKEND: minio
@@ -189,6 +198,10 @@ services:
     # Worker liveness is observed through its process/job lease; it does not
     # expose the web image's 8787 health endpoint.
     healthcheck: { disable: true }
+    volumes:
+      - pipeline-data:/app/data
+      - ./experiments/order-plan-screening/config/order-plan-screening-policy.v1.json:/app/experiments/order-plan-screening/config/order-plan-screening-policy.v1.json:ro
+      - ./experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v1.json:/app/experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v1.json:ro
     networks: [database, analysis]
 
   ro-backup:

@@ -2887,6 +2887,7 @@ class OrderPlanScreeningExecution(Base):
     error_code: Mapped[str | None] = mapped_column(String(128), nullable=True)
     queued_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False)
     started_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
+    heartbeat_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
     created_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False)
 

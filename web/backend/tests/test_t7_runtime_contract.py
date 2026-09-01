@@ -101,6 +101,17 @@ def test_t7_worker_network_and_command_boundaries_are_explicit():
     assert "storage" not in analysis["networks"]
     assert "scanning" not in analysis["networks"]
     assert "vllm" not in analysis["depends_on"]
+    assert "pipeline-data:/app/data" in analysis["volumes"]
+    assert all("./experiments/order-plan-screening:" not in volume for volume in web["volumes"] + analysis["volumes"])
+    for service in (web, analysis):
+        assert any(
+            volume.startswith("./experiments/order-plan-screening/config/order-plan-screening-policy.v1.json:")
+            for volume in service["volumes"]
+        )
+        assert any(
+            volume.startswith("./experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v1.json:")
+            for volume in service["volumes"]
+        )
     analysis_worker = (ROOT / "web/backend/app/workers/analysis.py").read_text(encoding="utf-8")
     assert "SessionLocal" in analysis_worker and "run_once" in analysis_worker and "rollback" in analysis_worker
     minio = services["minio"]
@@ -156,6 +167,12 @@ def test_remote_vllm_egress_is_an_explicit_override():
     override = yaml.safe_load((ROOT / "docker-compose.t7.remote-vllm.yml").read_text(encoding="utf-8"))
     assert set(override["services"]["analysis-worker"]["networks"]) == {"database", "analysis", "model-egress"}
     assert override["networks"] == {"model-egress": None}
+    for service in override["services"].values():
+        assert service["environment"]["BIDOPS_C2_CAPABILITIES_PATH"] == "/run/c2/company-capabilities.json"
+        assert service["environment"]["BIDOPS_C2_PROMPT_PATH"] == "/run/c2/order-plan-prompt.txt"
+        assert all("./experiments/order-plan-screening:" not in volume for volume in service["volumes"])
+        assert any(":/run/c2/company-capabilities.json:ro" in volume for volume in service["volumes"])
+        assert any(":/run/c2/order-plan-prompt.txt:ro" in volume for volume in service["volumes"])
 
 
 def test_screening_egress_is_an_explicit_override():

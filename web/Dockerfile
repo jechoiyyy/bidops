@@ -84,6 +84,8 @@ RUN install -d -o bidops -g bidops -m 0770 \
         /app/data /app/reports /app/backups /app/web/data \
         /app/web/data/attachments /app/web/data/profile-snapshots \
         /app/docs/reference /scratch \
+    && install -d -o root -g root -m 0555 \
+        /app/experiments/order-plan-screening/config /run/c2 \
     && chmod 0555 /usr/local/bin/bidops-entrypoint /usr/local/bin/bidops-ops /usr/local/bin/git \
     && chown -R root:root /app/skills /app/docs \
     && find /app/skills /app/docs -type d -exec chmod 0555 {} + \

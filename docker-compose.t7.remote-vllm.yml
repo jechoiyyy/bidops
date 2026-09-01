@@ -10,11 +10,25 @@
 # Opening this network is not sufficient: restrict egress to that IP/port at
 # the host firewall and keep the allowlist identical to the endpoint IP.
 services:
+  web:
+    environment:
+      BIDOPS_C2_EXECUTION_ALLOWED: "${BIDOPS_C2_EXECUTION_ALLOWED:-false}"
+      BIDOPS_C2_CAPABILITIES_PATH: /run/c2/company-capabilities.json
+      BIDOPS_C2_PROMPT_PATH: /run/c2/order-plan-prompt.txt
+    volumes:
+      - "${BIDOPS_C2_CAPABILITIES_HOST_PATH:?set an explicit approved capabilities file path}:/run/c2/company-capabilities.json:ro"
+      - "${BIDOPS_C2_PROMPT_HOST_PATH:?set an explicit approved prompt file path}:/run/c2/order-plan-prompt.txt:ro"
   analysis-worker:
     environment:
       BIDOPS_VLLM_BASE_URL: "${BIDOPS_VLLM_BASE_URL:?set an approved vLLM endpoint in env/vllm.env}"
       BIDOPS_VLLM_ALLOWED_HOSTS: "${BIDOPS_VLLM_ALLOWED_HOSTS:?set the literal allowed host in env/vllm.env}"
       BIDOPS_VLLM_API_KEY: "${BIDOPS_VLLM_API_KEY:-EMPTY}"
+      BIDOPS_C2_EXECUTION_ALLOWED: "${BIDOPS_C2_EXECUTION_ALLOWED:-false}"
+      BIDOPS_C2_CAPABILITIES_PATH: /run/c2/company-capabilities.json
+      BIDOPS_C2_PROMPT_PATH: /run/c2/order-plan-prompt.txt
+    volumes:
+      - "${BIDOPS_C2_CAPABILITIES_HOST_PATH:?set an explicit approved capabilities file path}:/run/c2/company-capabilities.json:ro"
+      - "${BIDOPS_C2_PROMPT_HOST_PATH:?set an explicit approved prompt file path}:/run/c2/order-plan-prompt.txt:ro"
     networks: [database, analysis, model-egress]
 
 networks:

@@ -12,6 +12,7 @@ from ..db import SessionLocal
 from ..logging_setup import configure
 from ..services.object_store import ObjectStoreError, assert_object_store_runtime
 from .deep_review import run_once
+from .order_plan_screening import C2ScreeningWorker
 
 
 logger = logging.getLogger(__name__)
@@ -30,6 +31,7 @@ def main() -> None:
     except ObjectStoreError as error:
         raise RuntimeError("analysis worker requires configured MinIO model-response storage") from error
     worker_id = settings.worker_id
+    c2_worker = C2ScreeningWorker(settings=settings)
     stopping = False
 
     def stop(_signum: int, _frame: object) -> None:
@@ -42,7 +44,13 @@ def main() -> None:
         try:
             with SessionLocal() as session:
                 try:
-                    run_once(session, worker_id)
+                    # The manual C-2 queue has the same process-level one-slot
+                    # guarantee as deep review.  A C-2 claim wins this poll;
+                    # the legacy deep-review job is considered only when no
+                    # C-2 execution is queued.
+                    c2_result = c2_worker.run_once(session)
+                    if c2_result is None:
+                        run_once(session, worker_id)
                 except Exception:
                     # run_claim commits its own fenced transitions. Any
                     # provider/materializer error not converted there must not
