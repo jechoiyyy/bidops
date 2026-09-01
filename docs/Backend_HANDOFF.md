@@ -28,15 +28,27 @@
 ### 테스트 기준선 (2026-09-01 실측)
 
 ```
-백엔드 전체 완주       1045 passed, 5 skipped, 0 failed   (약 10분)
+백엔드 전체 완주       1046 passed, 5 skipped, 0 failed   (약 10분)
 파이프라인             41 + 13 + 52 + 2 = 108 OK
 프론트엔드 전체        646 passed, 10 skipped, 0 failed   (독립 실행 확인)
+한 번에 (권장)         ./web/run-web-tests.sh → exit 0            (약 20분)
 프론트엔드 빌드        tsc -b 통과, 초기 JS 358.94 kB / gzip 113.10 kB (500 kB 경고 없음)
 Alembic                head = 0015_bid_delta_final_decision, alembic check 드리프트 0건
 ```
 
 **실패 0건이 현재 기준선이다.** 백엔드·프론트엔드 모두 위임과 독립적으로 직접 실행해
 확인했다. 예전 문서의 "정상 실패 6건"·"profile_snapshot 2건 실패"는 더 이상 유효하지 않다.
+`./web/run-web-tests.sh` 하나가 세 가지를 순서대로 다 돌고 exit code로 결과를 낸다.
+
+> **파이프로 넘기면 exit code가 사라진다.** `./web/run-web-tests.sh | tail -40`의 종료 코드는
+> `tail`의 것이라 테스트가 깨져도 0이 나온다. 로그를 남길 때는 파이프 대신 리다이렉트를 쓴다.
+
+> **정정 (2026-09-01).** `document-preparation.spec.ts:349`와 `route-context.spec.ts:77`을
+> 이날 여러 번 부하 flake로 판정했으나 **틀렸다.** 둘 다 `strict mode violation`이었고
+> 단독 실행에서 결정적으로 재현됐다. 원인은 커밋 `26cdab4`가 사전규격 화면에 추적 결정
+> 구역을 붙이면서 같은 role·이름을 가진 요소가 하나씩 늘어난 것이다. 통과하던 실행은
+> 화면이 아직 안 그려진 순간을 눌렀던 것이므로, 그동안 그 두 테스트는 자기가 검사한다고
+> 적어 둔 상태를 검사하지 않고 있었다. 자세한 것은 `engineering-notes.md`에 있다.
 
 **Playwright 전체 실행에도 부하 의존 flake가 있다.** 2026-09-01 위임 실행이
 `route-context.spec.ts` 2건 실패를 보고했으나 같은 트리에서 단독 실행은 84/84, 전체
@@ -180,7 +192,7 @@ reviewer가 `assistant-recommendation`이므로 **사람 확인 전까지 정본
 ```bash
 cd /home/jechoi/projects/bidops/web/backend
 .venv/bin/python -m pytest tests/ -q
-#   → 1045 passed, 5 skipped (약 10분)
+#   → 1046 passed, 5 skipped (약 10분)
 ```
 
 10분 넘게 걸리고 `TestClient` 구간에서 멈춘 것처럼 보인다. **기다려라.**
@@ -213,6 +225,7 @@ npm run test:visual
 `npm install @rollup/rollup-linux-x64-gnu --no-save`로 복구한다.
 
 **`npm run test:visual`은 visual spec만 돌지 않는다. 전체 Playwright spec을 돈다.**
+2026-09-01부터 `./web/run-web-tests.sh`가 이 명령까지 포함하므로 보통은 따로 칠 필요가 없다.
 이름에 속기 쉽다. 스냅샷을 바꿨으면 `npm run test:visual:update`로 갱신한 뒤
 **반드시 전체를 다시 돌려** 통과를 확인한다.
 
@@ -335,7 +348,7 @@ cx exec -m gpt-5.6-luna -c model_reasoning_effort="max" \
 | 순위 | 항목 | 크기 | 성격 |
 |---|---|---|---|
 | 1 | C-1 gold 재판정 확인 · D-7 방화벽 승인 상신 | — | **사람 몫.** C-2는 완료 |
-| 2 | 테스트 harness (`run-web-tests.sh`/CI) | 작음~중간 | 배포 blocker는 0이 됐고 이것만 남았다 |
+| 2 | 테스트 harness (CI) | 작음~중간 | 배포 blocker는 0이 됐고 이것만 남았다 |
 | 3 | 입찰 delta worker · T-23 worker · 재시작 화면 · T-19 projection | 중간 | 껍데기를 도는 기능으로. **사전규격 개요는 화면 몫이 끝나 worker만 남았다** |
 | 4 | LLM 품질 gate 2건 · screening v3 renderer 연결 | 중간 | 판정을 믿을 수 있게 |
 | 5 | 선별 제품 구현 (수집 회차·관계·일일 수집·delta 추적) | 큼 | **C-2 완료; threshold부터 착수 가능** |
@@ -367,7 +380,7 @@ D-7 overlay 적용은 승인 뒤에 하고, 그 다음이 T-20 운영 활성화�
 |---|---|---|
 | 2-1 | MinIO versioning fail-open | **해결.** `\|\| true`를 없애고 bucket마다 `mc version info --json`으로 상태를 되읽어 `Enabled`가 아니면 init을 실패시킨다. `mc version info`가 un-versioned에서도 exit 0을 내므로 되읽기가 유일한 증거다 |
 | 2-2 | host-wide port publish | **해결.** PostgreSQL·MinIO API·console 세 mapping이 `${BIDOPS_ADMIN_BIND_HOST:-127.0.0.1}:` prefix를 갖는다. 원격 관리는 `.env` opt-in. 애플리케이션 port는 사내망 접근이 설계된 경계라 그대로 둔다 |
-| 2-3 | **테스트 harness 고정** (D-11) | **남음.** `run-web-tests.sh`도 CI도 아직 없다. 개별 파일만 지정하면 postgres 테스트가 조용히 skip되는 함정이 살아 있고, 이 저장소는 같은 부류 결함에 두 번 데였다(§4의 1·2번) |
+| 2-3 | **테스트 harness 고정** (D-11) | **일부 남음.** `web/run-web-tests.sh`는 2026-08-31부터 있었다(`84bbcc5`). 임시 PostgreSQL 17을 띄워 backend pytest와 frontend build를 돌리고, 2026-09-01에 Playwright visual까지 이 진입점에 넣었다. **남은 것은 CI 하나뿐이다.** 개별 파일만 지정하면 postgres 테스트가 조용히 skip되는 함정은 그대로다 — 이 진입점을 쓰면 harness가 항상 서므로 걸리지 않지만, `pytest tests/test_foo.py`를 직접 치면 여전히 skip된다(`addopts = "-ra"` 덕에 사유는 출력된다). 이 저장소는 같은 부류 결함에 두 번 데였다(§4의 1·2번) |
 
 2-1의 검증은 disposable MinIO에 실제 스크립트를 돌린 것이다. 수정 전 스크립트는 versioning
 enable이 실패해도 **exit 0으로 성공하면서 4개 bucket 전부 `un-versioned`** 로 남았고, 수정 후에는

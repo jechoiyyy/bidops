@@ -76,7 +76,14 @@ test("직접 진입한 lazy route가 metadata와 실제 화면을 함께 렌더�
 
 test("SPA 내부 link click으로 lazy route에 들어가도 metadata와 화면이 유지된다", async ({ page }) => {
   await page.goto(`/judgments/29?run=${RUN_ID}`);
-  await page.getByRole("link", { name: "검토 대기열" }).click();
+  // 판정 화면과 사이드바가 같은 이름의 링크를 갖는다. 이름만으로 고르면 lazy
+  // chunk가 그려지기 전에는 하나, 그려진 뒤에는 둘이 잡혀 strict mode를 어긴다.
+  // 통과하던 실행은 출발 화면이 아직 안 그려진 상태를 눌렀다는 뜻이므로,
+  // 화면이 그려진 것을 확인한 뒤 그 화면의 링크로 이동한다. 사이드바는 좁은
+  // 폭에서 접히므로 네 폭에서 같은 동작을 하는 쪽은 화면 안의 링크다.
+  const toQueue = page.locator(".judgment-page-actions").getByRole("link", { name: "검토 대기열" });
+  await expect(toQueue).toBeVisible();
+  await toQueue.click();
 
   const topbar = page.locator("header.topbar");
   await expect(topbar.locator("h1")).toHaveText("검토 대기열");
