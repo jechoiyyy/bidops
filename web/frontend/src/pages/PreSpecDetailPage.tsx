@@ -1,7 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Badge, type BadgeVariant } from "../components/common/Badge";
 import { DocumentPreparationPanel } from "../components/deep-review/DocumentPreparationPanel";
+import { getDocumentStructurePage } from "../components/deep-review/api";
 import { EmptyState } from "../components/common/EmptyState";
 import { Panel } from "../components/common/Panel";
 import { api } from "../lib/api";
@@ -10,6 +12,7 @@ import { formatDateTime, formatNumber, present } from "../lib/format";
 import type {
   PreSpecOverviewAttemptStatus,
   PreSpecOverviewCutStatus,
+  PreSpecOverviewEvidence,
   PreSpecOverviewReviewStatus,
   PreSpecOverviewValidationStatus,
 } from "../lib/types";
@@ -97,6 +100,10 @@ function hasCanonicalOverviewNoticeId(
     ));
 }
 
+function evidenceKey(evidence: PreSpecOverviewEvidence): string {
+  return `${evidence.claim}-${evidence.locator.block_key}-${evidence.locator.page}-${evidence.locator.ordinal}`;
+}
+
 export function PreSpecDetailPage() {
   const navigate = useNavigate();
   const { noticeId: noticeIdParam } = useParams();
@@ -118,6 +125,23 @@ export function PreSpecDetailPage() {
     enabled: noticeId !== null,
     staleTime: 30_000,
   });
+  const overviewResponseInvalid = overviewQuery.isSuccess
+    && !hasCanonicalOverviewNoticeId(overviewQuery.data, noticeId ?? 0);
+  const overview = overviewResponseInvalid ? undefined : overviewQuery.data?.reviews[0];
+  const snapshot = overview?.current_snapshot;
+  const [selectedEvidence, setSelectedEvidence] = useState<PreSpecOverviewEvidence | null>(null);
+  const sourceStructureId = snapshot?.structure_id;
+  const sourcePageNumber = selectedEvidence?.locator.page;
+  const sourcePageQuery = useQuery({
+    queryKey: ["pre-spec-document-structure-page", sourceStructureId, sourcePageNumber],
+    queryFn: () => getDocumentStructurePage(sourceStructureId as string, sourcePageNumber as number),
+    enabled: Boolean(sourceStructureId && sourcePageNumber),
+    staleTime: 30_000,
+  });
+
+  useEffect(() => {
+    setSelectedEvidence(null);
+  }, [noticeId]);
 
   if (noticeId === null) {
     return (
@@ -159,11 +183,14 @@ export function PreSpecDetailPage() {
   }
 
   const deadline = describeDeadline(notice.deadline_at);
-  const overviewResponseInvalid = overviewQuery.isSuccess
-    && !hasCanonicalOverviewNoticeId(overviewQuery.data, noticeId);
-  const overview = overviewResponseInvalid ? undefined : overviewQuery.data?.reviews[0];
-  const snapshot = overview?.current_snapshot;
   const cut = snapshot ? cutStatus(snapshot.cut_status) : null;
+  const sourceBlocks = sourcePageQuery.data?.blocks ?? [];
+  const selectedBlockIndex = selectedEvidence
+    ? sourceBlocks.findIndex((block) => block.block_key === selectedEvidence.locator.block_key)
+    : -1;
+  const displayedSourceBlocks = selectedBlockIndex === -1
+    ? sourceBlocks
+    : sourceBlocks.slice(Math.max(0, selectedBlockIndex - 1), Math.min(sourceBlocks.length, selectedBlockIndex + 2));
 
   return (
     <section className="pre-spec-detail-page" aria-labelledby="pre-spec-detail-title">
@@ -304,18 +331,108 @@ export function PreSpecDetailPage() {
                   <section className="pre-spec-overview-section" aria-labelledby="pre-spec-overview-evidence-title">
                     <h4 id="pre-spec-overview-evidence-title">근거</h4>
                     <ul className="pre-spec-overview-evidence">
-                      {overview.result.evidence.map((evidence) => (
-                        <li key={`${evidence.claim}-${evidence.locator.block_key}-${evidence.locator.ordinal}`}>
+                      {overview.result.evidence.map((evidence) => {
+                        const itemKey = evidenceKey(evidence);
+                        return (
+                        <li key={itemKey}>
                           <p>{evidence.claim}</p>
-                          <div className="pre-spec-overview-evidence-locator" aria-label="근거 위치">
-                            <span>위치</span>
-                            <span>{evidence.locator.page}쪽</span>
-                            <code className="mono">{evidence.locator.block_key}</code>
-                            <code className="mono">ordinal {evidence.locator.ordinal}</code>
+                          <div className="pre-spec-overview-evidence-footer">
+                            <div className="pre-spec-overview-evidence-locator" aria-label="근거 위치">
+                              <span>위치</span>
+                              <span>{evidence.locator.page}쪽</span>
+                              <code className="mono">{evidence.locator.block_key}</code>
+                              <code className="mono">ordinal {evidence.locator.ordinal}</code>
+                            </div>
+                            <button
+                              type="button"
+                              className="pre-spec-overview-evidence-open"
+                              aria-controls="pre-spec-overview-source"
+                              aria-expanded={selectedEvidence !== null && evidenceKey(selectedEvidence) === itemKey}
+                              onClick={() => setSelectedEvidence(evidence)}
+                            >
+                              원문 열기
+                            </button>
                           </div>
                         </li>
-                      ))}
+                        );
+                      })}
                     </ul>
+                    {selectedEvidence ? (
+                      <section
+                        id="pre-spec-overview-source"
+                        className="pre-spec-overview-source"
+                        aria-labelledby="pre-spec-overview-source-title"
+                      >
+                        <header className="pre-spec-overview-source-header">
+                          <div>
+                            <span className="pre-spec-overview-source-eyebrow">근거 원문</span>
+                            <h5 id="pre-spec-overview-source-title">페이지 {selectedEvidence.locator.page} · 원문 블록 확인</h5>
+                          </div>
+                          <button
+                            type="button"
+                            className="pre-spec-overview-source-close"
+                            aria-label="원문 닫기"
+                            onClick={() => setSelectedEvidence(null)}
+                          >
+                            닫기
+                          </button>
+                        </header>
+
+                        {!sourceStructureId || !sourcePageNumber ? (
+                          <EmptyState
+                            compact
+                            tone="warning"
+                            title="원문 위치를 확인할 수 없습니다."
+                            description="현재 snapshot의 구조 ID 또는 페이지가 없어 원문을 열지 않았습니다."
+                          />
+                        ) : null}
+                        {sourceStructureId && sourcePageNumber && sourcePageQuery.isPending ? (
+                          <p className="pre-spec-overview-source-loading" role="status" aria-live="polite">
+                            페이지 {sourcePageNumber}의 원문을 불러오는 중입니다.
+                          </p>
+                        ) : null}
+                        {sourceStructureId && sourcePageNumber && sourcePageQuery.isError ? (
+                          <EmptyState
+                            compact
+                            tone="error"
+                            title="원문을 불러오지 못했습니다."
+                            description={errorMessage(sourcePageQuery.error, "선택한 문서 페이지를 확인할 수 없습니다.")}
+                            action={{ label: "다시 시도", onClick: () => { void sourcePageQuery.refetch(); } }}
+                          />
+                        ) : null}
+                        {sourcePageQuery.isSuccess ? (
+                          <>
+                            {selectedBlockIndex === -1 ? (
+                              <div className="pre-spec-overview-source-mismatch" role="alert">
+                                <strong>근거 위치와 원문이 어긋났습니다.</strong>
+                                <p>
+                                  locator의 block_key를 이 페이지 원문에서 찾지 못해 어떤 블록도 강조하지 않았습니다. 근거를 사람 검토로 확인해야 합니다.
+                                </p>
+                              </div>
+                            ) : null}
+                            <div className="pre-spec-overview-source-page">페이지 {sourcePageQuery.data.page}</div>
+                            <ol className="pre-spec-overview-source-blocks">
+                              {displayedSourceBlocks.map((block) => (
+                                <li
+                                  key={`${block.page}-${block.block_key}`}
+                                  className={`pre-spec-overview-source-block ${block.block_key === selectedEvidence.locator.block_key ? "is-target" : ""}`.trim()}
+                                  data-block-key={block.block_key}
+                                >
+                                  <div className="pre-spec-overview-source-block-header">
+                                    <span>페이지 {block.page}</span>
+                                    <code className="mono">{block.block_key}</code>
+                                    {block.block_key === selectedEvidence.locator.block_key ? (
+                                      <span className="pre-spec-overview-source-highlight-label">강조된 근거 위치</span>
+                                    ) : null}
+                                  </div>
+                                  <p>{block.text}</p>
+                                </li>
+                              ))}
+                            </ol>
+                          </>
+                        ) : null}
+                      </section>
+                    ) : null}
                   </section>
 
                   <section className="pre-spec-overview-section pre-spec-overview-limitations" aria-labelledby="pre-spec-overview-limitations-title">

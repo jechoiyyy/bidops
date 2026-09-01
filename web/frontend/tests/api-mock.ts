@@ -857,6 +857,81 @@ function visualCompletedOverview() {
   };
 }
 
+export interface DocumentStructurePageMockTrace {
+  pageGets: Array<{ structureId: string; page: number }>;
+}
+
+const PRE_SPEC_STRUCTURE_ID = "30000000-0000-0000-0000-000000000991";
+
+function preSpecStructurePage() {
+  return {
+    structure_id: PRE_SPEC_STRUCTURE_ID,
+    page: 2,
+    metadata: {
+      number: 2,
+      width: 1200,
+      height: 1700,
+      image_content_object_id: "image-content-do-not-render",
+    },
+    blocks: [
+      {
+        block_key: "overview-heading",
+        parent_block_key: null,
+        type: "heading",
+        page: 2,
+        bbox: [910, 920, 930, 940],
+        text: "1. 사업 개요와 추진 배경",
+        confidence: 0.42,
+        attributes: { internal_marker: "do-not-render-attributes" },
+      },
+      {
+        block_key: "overview-intro",
+        parent_block_key: "overview-heading",
+        type: "paragraph",
+        page: 2,
+        bbox: [1010, 1020, 1030, 1040],
+        text: "공공기관의 민원·행정 데이터를 통합해 현황을 분석하고 담당자가 업무 현황을 조회하는 행정 지원 플랫폼 구축 사업입니다.",
+        confidence: 0.84,
+        attributes: { internal_marker: "do-not-render-target-attributes" },
+      },
+      {
+        block_key: "overview-scope",
+        parent_block_key: "overview-heading",
+        type: "paragraph",
+        page: 2,
+        bbox: [1110, 1120, 1130, 1140],
+        text: "주요 수행 범위는 기존 업무 데이터 연계와 운영 화면 구축입니다.",
+        confidence: 0.77,
+        attributes: { internal_marker: "do-not-render-following-attributes" },
+      },
+    ],
+  };
+}
+
+export async function mockDocumentStructurePage(page: Page): Promise<DocumentStructurePageMockTrace> {
+  const trace: DocumentStructurePageMockTrace = { pageGets: [] };
+  await page.route("**/api/document-structures/**", async (route) => {
+    const request = route.request();
+    const pathname = new URL(request.url()).pathname;
+    const match = pathname.match(/^\/api\/document-structures\/([^/]+)\/pages\/(\d+)$/);
+    if (!match || request.method() !== "GET") {
+      await route.fallback();
+      return;
+    }
+
+    const structureId = decodeURIComponent(match[1]);
+    const pageNumber = Number(match[2]);
+    trace.pageGets.push({ structureId, page: pageNumber });
+    const validPage = structureId === PRE_SPEC_STRUCTURE_ID && pageNumber === 2;
+    await route.fulfill({
+      status: validPage ? 200 : 404,
+      contentType: "application/json",
+      body: JSON.stringify(validPage ? preSpecStructurePage() : { detail: "document page not found" }),
+    });
+  });
+  return trace;
+}
+
 /** Deterministic pre-spec list/detail fixture, including the unknown overview. */
 export async function mockPreSpecs(page: Page, overviewState: "completed" | "unknown" = "completed"): Promise<void> {
   await page.route("**/api/pre-specs**", async (route) => {
