@@ -29,6 +29,7 @@ from ..models import (
     OrderPlan,
     OrderPlanObservation,
     OrderPlanScreeningArtifact,
+    OrderPlanScreeningBatchAttempt,
     OrderPlanScreeningExecution,
     OrderPlanScreeningFeedback,
     OrderPlanScreeningPolicy,
@@ -540,13 +541,46 @@ class OrderPlanScreeningService:
         artifacts = session.scalars(
             select(OrderPlanScreeningArtifact).where(OrderPlanScreeningArtifact.execution_id == execution_id).order_by(OrderPlanScreeningArtifact.created_at, OrderPlanScreeningArtifact.kind)
         ).all()
+        attempts = session.scalars(
+            select(OrderPlanScreeningBatchAttempt)
+            .where(OrderPlanScreeningBatchAttempt.execution_id == execution_id)
+            .order_by(OrderPlanScreeningBatchAttempt.sequence, OrderPlanScreeningBatchAttempt.attempt_no)
+        ).all()
         response.update({
             "schema_version": "execution-detail-response.v1",
             "producer": "screening-api",
             "consumer": "human-review-client",
             "artifacts": [self.artifact_view(row) for row in artifacts],
+            "attempts": [self.attempt_view(row) for row in attempts],
         })
         return response
+
+    @staticmethod
+    def attempt_view(row: OrderPlanScreeningBatchAttempt) -> dict[str, Any]:
+        """Expose binding and measurements without plan IDs or response refs."""
+        return {
+            "attempt_id": row.attempt_id,
+            "batch_id": row.batch_id,
+            "sequence": row.sequence,
+            "attempt_no": row.attempt_no,
+            "model_name": row.model_name,
+            "model_digest": row.model_digest,
+            "prompt_version": row.prompt_version,
+            "prompt_sha256": row.prompt_sha256,
+            "company_profile_version": row.company_profile_version,
+            "company_profile_sha256": row.company_profile_sha256,
+            "generation_config_sha256": row.generation_config_sha256,
+            "attempt_status": row.attempt_status,
+            "failure_type": row.failure_type,
+            "failure_code": row.failure_code,
+            "input_tokens": row.input_tokens,
+            "cached_input_tokens": row.cached_input_tokens,
+            "output_tokens": row.output_tokens,
+            "total_tokens": row.total_tokens,
+            "duration_ms": row.duration_ms,
+            "started_at": row.started_at,
+            "finished_at": row.finished_at,
+        }
 
     @staticmethod
     def artifact_view(row: OrderPlanScreeningArtifact) -> dict[str, Any]:
@@ -827,11 +861,15 @@ class OrderPlanScreeningService:
             "title": plan.title,
             "agency_name": plan.agency_name,
             "business_division": plan.business_division,
+            "budget_amount": float(plan.budget_amount) if plan.budget_amount is not None else None,
+            "planned_order_year": plan.planned_order_year,
+            "planned_order_month": plan.planned_order_month,
             "source_run_id": result.source_run_id if result is not None else (observation.run_id if observation is not None else None),
             "observed_at": observation.observed_at if observation is not None else None,
             "stage1_status": result.stage1_status if result is not None else None,
             "stage1_rank": result.stage1_rank if result is not None else None,
             "stage1_score": float(result.stage1_score) if result is not None and result.stage1_score is not None else None,
+            "nearest_capability": result.nearest_capability if result is not None else None,
             "stage2_status": result.stage2_status if result is not None else None,
             "qwen_relevance": result.qwen_relevance if result is not None else None,
             "qwen_score": float(result.qwen_score) if result is not None and result.qwen_score is not None else None,
@@ -908,6 +946,9 @@ class OrderPlanScreeningService:
                 "stage1_status": result.stage1_status,
                 "stage1_rank": result.stage1_rank,
                 "stage1_score": float(result.stage1_score) if result.stage1_score is not None else None,
+                "nearest_capability": result.nearest_capability,
+                "batch_id": result.batch_id,
+                "attempt_no": result.attempt_no,
                 "stage2_status": result.stage2_status,
                 "qwen_relevance": result.qwen_relevance,
                 "qwen_score": float(result.qwen_score) if result.qwen_score is not None else None,
@@ -932,6 +973,7 @@ class OrderPlanScreeningService:
             "business_division": plan.business_division,
             "business_division_code": plan.business_division_code,
             "service_type": plan.service_type,
+            "budget_amount": float(plan.budget_amount) if plan.budget_amount is not None else None,
             "planned_order_year": plan.planned_order_year,
             "planned_order_month": plan.planned_order_month,
             "observations": [

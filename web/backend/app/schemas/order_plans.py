@@ -109,6 +109,41 @@ class ExecutionSummary(_Strict):
     finished_at: datetime | None
 
 
+class ExecutionAttemptSummary(_Strict):
+    attempt_id: UUID
+    batch_id: str
+    sequence: int
+    attempt_no: int
+    model_name: str
+    model_digest: str
+    prompt_version: str
+    prompt_sha256: str
+    company_profile_version: str
+    company_profile_sha256: str
+    generation_config_sha256: str
+    attempt_status: Literal["running", "success", "failed", "rejected"]
+    failure_type: Literal[
+        "timeout",
+        "truncated_output",
+        "schema_violation",
+        "id_mismatch",
+        "model_mismatch",
+        "binding_mismatch",
+        "payload_not_approved",
+        "transport",
+        "policy_rejected",
+        "unknown",
+    ] | None
+    failure_code: str | None
+    input_tokens: int | None
+    cached_input_tokens: int | None
+    output_tokens: int | None
+    total_tokens: int | None
+    duration_ms: int | None
+    started_at: datetime | None
+    finished_at: datetime | None
+
+
 class ExecutionCreateResponse(_Strict):
     schema_version: Literal["execution-create-response.v1"]
     producer: Literal["screening-api"]
@@ -139,6 +174,7 @@ class ExecutionDetailResponse(ExecutionSummary):
     producer: Literal["screening-api"]
     consumer: Literal["human-review-client"]
     artifacts: list[ArtifactSummary]
+    attempts: list[ExecutionAttemptSummary]
 
 
 class ExecutionStopResponse(_Strict):
@@ -165,11 +201,15 @@ class OrderPlanListItem(_Strict):
     title: str | None
     agency_name: str | None
     business_division: str | None
+    budget_amount: float | None
+    planned_order_year: str | None
+    planned_order_month: str | None
     source_run_id: str | None
     observed_at: datetime | None
     stage1_status: Literal["selected", "filtered_out", "failed", "rejected"] | None
     stage1_rank: int | None
     stage1_score: float | None
+    nearest_capability: str | None
     stage2_status: Literal["not_attempted", "success", "failed", "rejected", "unknown"] | None
     qwen_relevance: Literal["relevant", "not_relevant", "uncertain"] | None
     qwen_score: float | None
@@ -203,6 +243,9 @@ class ScreeningHistoryItem(_Strict):
     stage1_status: Literal["selected", "filtered_out", "failed", "rejected"]
     stage1_rank: int | None
     stage1_score: float | None
+    nearest_capability: str | None
+    batch_id: str | None
+    attempt_no: int | None
     stage2_status: Literal["not_attempted", "success", "failed", "rejected", "unknown"]
     qwen_relevance: Literal["relevant", "not_relevant", "uncertain"] | None
     qwen_score: float | None
@@ -221,6 +264,7 @@ class OrderPlanDetailResponse(_Strict):
     business_division: str | None
     business_division_code: str | None
     service_type: str | None
+    budget_amount: float | None
     planned_order_year: str | None
     planned_order_month: str | None
     observations: list[OrderPlanObservationView]

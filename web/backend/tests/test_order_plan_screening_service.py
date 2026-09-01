@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from decimal import Decimal
 import hashlib
 import json
 from pathlib import Path
@@ -17,6 +18,7 @@ from app.models import (
     Base,
     OrderPlan,
     OrderPlanObservation,
+    OrderPlanScreeningBatchAttempt,
     OrderPlanScreeningExecution,
     OrderPlanScreeningFeedback,
     OrderPlanScreeningPolicy,
@@ -213,3 +215,57 @@ def test_create_rejects_incomplete_nested_collection_metadata(tmp_path: Path) ->
 
     with pytest.raises(OrderPlanScreeningError, match="source_run_incomplete"):
         _create(OrderPlanScreeningService(settings), session, policy_version)
+
+
+def test_read_projections_include_plan_fields_history_and_safe_attempts(tmp_path: Path) -> None:
+    settings, session, policy_version, binding_sha, plans = _fixture(tmp_path)
+    plans[0].budget_amount = Decimal("123.45")
+    plans[0].planned_order_year = "2027"
+    plans[0].planned_order_month = "09"
+    session.commit()
+    service = OrderPlanScreeningService(settings)
+    response, _ = _create(service, session, policy_version)
+    execution_id = UUID(str(response["execution_id"]))
+
+    session.add(OrderPlanScreeningResult(
+        id=uuid4(), execution_id=execution_id, source_run_id="run-c2", order_plan_id=plans[0].id,
+        schema_version="bidops.order-plan-screening-result-row.v1", producer="order-plan-screening-merge",
+        consumer="postgres-loader-and-review-api", input_artifact_sha256="a" * 64, policy_version=policy_version,
+        policy_sha256="b" * 64, binding_sha256=binding_sha, result_sha256="c" * 64, stage1_rank=3,
+        stage1_score=.7, nearest_capability="데이터 연계", stage1_status="selected", stage2_status="failed",
+        qwen_relevance=None, qwen_score=None, qwen_reason=None, batch_id="batch-read-01", attempt_no=1,
+        failure_code="qwen_timeout", created_at=datetime(2026, 9, 2, tzinfo=UTC),
+    ))
+    session.add(OrderPlanScreeningBatchAttempt(
+        attempt_id=uuid4(), execution_id=execution_id, batch_id="batch-read-01", sequence=1, attempt_no=1,
+        schema_version="bidops.order-plan-screening-batch-attempt-row.v1", producer="screening-worker",
+        consumer="screening-merge-and-observability", plan_count=1, plan_ids_jsonb=[plans[0].id],
+        plan_ids_sha256="d" * 64, model_name="qwen3.8-27B", model_digest="e" * 64,
+        prompt_version="prompt-v3", prompt_sha256="f" * 64, company_profile_version="profile-v1",
+        company_profile_sha256="a" * 64, generation_config_sha256="b" * 64, attempt_status="failed",
+        failure_type="timeout", failure_code="qwen_timeout", response_object_ref="opaque-ref",
+        input_tokens=100, cached_input_tokens=None, output_tokens=None, total_tokens=None, duration_ms=None,
+        started_at=datetime(2026, 9, 2, 0, 0, tzinfo=UTC), finished_at=datetime(2026, 9, 2, 0, 1, tzinfo=UTC),
+        created_at=datetime(2026, 9, 2, 0, 1, tzinfo=UTC),
+    ))
+    session.commit()
+
+    item = service.list_order_plans(session, source_run_id="run-c2")["items"][0]
+    assert item["budget_amount"] == 123.45
+    assert item["planned_order_year"] == "2027"
+    assert item["planned_order_month"] == "09"
+    assert item["nearest_capability"] == "데이터 연계"
+
+    history = service.screening_history(session, plans[0].id)["items"][0]
+    assert history["nearest_capability"] == "데이터 연계"
+    assert history["batch_id"] == "batch-read-01"
+    assert history["attempt_no"] == 1
+
+    detail = service.execution_detail(session, execution_id)
+    attempt = detail["attempts"][0]
+    assert attempt["model_name"] == "qwen3.8-27B"
+    assert attempt["failure_code"] == "qwen_timeout"
+    assert attempt["input_tokens"] == 100
+    assert attempt["duration_ms"] is None
+    assert "response_object_ref" not in attempt
+    assert "plan_ids_jsonb" not in attempt

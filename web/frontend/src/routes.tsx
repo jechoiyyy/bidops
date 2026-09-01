@@ -21,6 +21,8 @@ const PoliciesPage = lazy(() => import("./pages/PoliciesPage").then(({ PoliciesP
 const OperationsPage = lazy(() => import("./pages/OperationsPage").then(({ OperationsPage }) => ({ default: OperationsPage })));
 const DeepReviewPage = lazy(() => import("./pages/DeepReviewPage").then(({ DeepReviewPage }) => ({ default: DeepReviewPage })));
 const BidDeltaDecisionPage = lazy(() => import("./pages/BidDeltaDecisionPage").then(({ BidDeltaDecisionPage }) => ({ default: BidDeltaDecisionPage })));
+const OrderPlansPage = lazy(() => import("./pages/OrderPlansPage").then(({ OrderPlansPage }) => ({ default: OrderPlansPage })));
+const OrderPlanDetailPage = lazy(() => import("./pages/OrderPlanDetailPage").then(({ OrderPlanDetailPage }) => ({ default: OrderPlanDetailPage })));
 
 // 회차 선택은 주소의 run 파라미터에만 남아 있으므로 옮길 때 그대로 넘긴다.
 function RedirectWithSearch({ to, extraParams }: { to: string; extraParams?: Record<string, string> }) {
@@ -61,6 +63,8 @@ export const routes: RouteObject[] = [
           { path: "opportunities", element: <OpportunitiesPage />, handle: routeHandle(routeMetadata.opportunities) },
           { path: "opportunities/:opportunityId", element: <OpportunityDetailPage />, handle: routeHandle(routeMetadata.opportunities) },
           { path: "opportunities/:opportunityId/bid-delta", element: <BidDeltaDecisionPage />, handle: routeHandle(routeMetadata.bidDelta) },
+          { path: "order-plans", element: <OrderPlansPage />, handle: routeHandle(routeMetadata.orderPlans) },
+          { path: "order-plans/:orderPlanPk", element: <OrderPlanDetailPage />, handle: routeHandle(routeMetadata.orderPlanDetail) },
           { path: "pre-specs", element: <PreSpecsPage />, handle: routeHandle(routeMetadata.preSpecs) },
           { path: "pre-specs/:noticeId", element: <PreSpecDetailPage />, handle: routeHandle(routeMetadata.preSpecs) },
           { path: "judgments", element: <NoticeDetailPage />, handle: routeHandle(routeMetadata.judgments) },
