@@ -2682,6 +2682,417 @@ class AuditEvent(Base):
     created_at: Mapped[datetime] = mapped_column(AwareDateTime(), default=utc_now, nullable=False)
 
 
+# C-2 order-plan screening -------------------------------------------------
+#
+# These tables deliberately do not reuse the notice-screening runtime tables
+# above.  The C-2 file contract has a different result vocabulary and its
+# source/binding snapshot must remain independent of the older workflow.
+
+
+class OrderPlanScreeningPolicy(Base):
+    __tablename__ = "order_plan_screening_policy"
+    __table_args__ = (
+        UniqueConstraint("policy_version", name="uq_order_plan_screening_policy_version"),
+        Index(
+            "uq_order_plan_screening_policy_active",
+            "active_slot",
+            unique=True,
+            sqlite_where=text("active_slot IS NOT NULL"),
+            postgresql_where=text("active_slot IS NOT NULL"),
+        ),
+        CheckConstraint(
+            "schema_version = 'bidops.order-plan-screening-policy.v1'",
+            name="ck_order_plan_screening_policy_schema_version",
+        ),
+        CheckConstraint(
+            "producer = 'phase0-contracts' AND consumer = 'phase1-screening-pipeline'",
+            name="ck_order_plan_screening_policy_provenance",
+        ),
+        CheckConstraint(
+            "policy_status IN ('draft','activation_candidate','active','retired')",
+            name="ck_order_plan_screening_policy_status",
+        ),
+        CheckConstraint(
+            "decision_scope = 'c2_order_plan_first_pass'",
+            name="ck_order_plan_screening_policy_scope",
+        ),
+        CheckConstraint(
+            dual("length(policy_sha256) = 64 AND policy_sha256 NOT GLOB '*[^0-9a-f]*'"),
+            name="ck_order_plan_screening_policy_sha256",
+        ),
+        CheckConstraint(
+            dual("length(binding_sha256) = 64 AND binding_sha256 NOT GLOB '*[^0-9a-f]*'"),
+            name="ck_order_plan_screening_policy_binding_sha256",
+        ),
+        CheckConstraint(
+            DualSQL(
+                "json_valid(policy_payload_jsonb) AND json_type(policy_payload_jsonb) = 'object'",
+                "jsonb_typeof(policy_payload_jsonb) = 'object'",
+            ),
+            name="ck_order_plan_screening_policy_payload_object",
+        ),
+        CheckConstraint(
+            DualSQL(
+                "json_valid(binding_payload_jsonb) AND json_type(binding_payload_jsonb) = 'object'",
+                "jsonb_typeof(binding_payload_jsonb) = 'object'",
+            ),
+            name="ck_order_plan_screening_policy_binding_object",
+        ),
+        CheckConstraint(
+            "((policy_status = 'active' AND active_slot = 1 AND activated_at IS NOT NULL AND activated_by IS NOT NULL AND length(trim(activated_by)) > 0) OR (policy_status <> 'active' AND active_slot IS NULL))",
+            name="ck_order_plan_screening_policy_active_metadata",
+        ),
+        CheckConstraint(
+            "quality_gate_status IS NULL OR quality_gate_status IN ('not_measured','measured','passed','failed')",
+            name="ck_order_plan_screening_policy_quality_gate_status",
+        ),
+        CheckConstraint(
+            "length(trim(policy_version)) > 0 AND length(trim(created_by)) > 0",
+            name="ck_order_plan_screening_policy_strings",
+        ),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    policy_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    producer: Mapped[str] = mapped_column(String(128), nullable=False)
+    consumer: Mapped[str] = mapped_column(String(128), nullable=False)
+    policy_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    decision_scope: Mapped[str] = mapped_column(String(64), nullable=False)
+    policy_payload_jsonb: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    binding_payload_jsonb: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    policy_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    binding_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    activation_metadata_jsonb: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    quality_gate_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    active_slot: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_by: Mapped[str] = mapped_column(String(128), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False)
+    activated_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    activated_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
+
+    # Small naming aliases keep the storage vocabulary close to the contract
+    # wording without creating duplicate columns.
+    policy_jsonb = synonym("policy_payload_jsonb")
+    binding_jsonb = synonym("binding_payload_jsonb")
+
+
+class OrderPlanScreeningExecution(Base):
+    __tablename__ = "order_plan_screening_execution"
+    __table_args__ = (
+        UniqueConstraint("request_id", name="uq_order_plan_screening_execution_request"),
+        Index(
+            "uq_order_plan_screening_execution_active",
+            "active_slot",
+            unique=True,
+            sqlite_where=text("active_slot IS NOT NULL"),
+            postgresql_where=text("status IN ('실행 중', '중지 요청')"),
+        ),
+        CheckConstraint(
+            "schema_version = 'bidops.order-plan-screening-execution-row.v1'",
+            name="ck_order_plan_screening_execution_schema_version",
+        ),
+        CheckConstraint(
+            "producer = 'screening-api' AND consumer = 'screening-worker-and-review-api'",
+            name="ck_order_plan_screening_execution_provenance",
+        ),
+        CheckConstraint(
+            "status IN ('대기','실행 중','중지 요청','성공','부분 성공','실패','중단됨')",
+            name="ck_order_plan_screening_execution_status",
+        ),
+        CheckConstraint(
+            "((status IN ('실행 중','중지 요청') AND active_slot = 1) OR (status NOT IN ('실행 중','중지 요청') AND active_slot IS NULL))",
+            name="ck_order_plan_screening_execution_active_slot",
+        ),
+        CheckConstraint(
+            "((status IN ('성공','부분 성공','실패','중단됨') AND started_at IS NOT NULL AND finished_at IS NOT NULL) OR (status IN ('실행 중','중지 요청') AND started_at IS NOT NULL AND finished_at IS NULL) OR (status = '대기' AND started_at IS NULL AND finished_at IS NULL))",
+            name="ck_order_plan_screening_execution_lifecycle",
+        ),
+        CheckConstraint(
+            "population_count >= 1 AND population_sha256 IS NOT NULL",
+            name="ck_order_plan_screening_execution_population",
+        ),
+        CheckConstraint(
+            "candidate_count >= 0 AND completed_count >= 0 AND failure_count >= 0 AND stage1_selected_count >= 0 AND stage1_filtered_out_count >= 0 AND stage1_failed_count >= 0 AND stage2_relevant_count >= 0 AND stage2_not_relevant_count >= 0 AND stage2_uncertain_count >= 0 AND stage2_failed_count >= 0 AND stage2_rejected_count >= 0 AND human_review_count >= 0",
+            name="ck_order_plan_screening_execution_counts",
+        ),
+        CheckConstraint(
+            dual("length(source_artifact_sha256) = 64 AND source_artifact_sha256 NOT GLOB '*[^0-9a-f]*'"),
+            name="ck_order_plan_screening_execution_source_sha256",
+        ),
+        CheckConstraint(
+            dual("length(input_artifact_sha256) = 64 AND input_artifact_sha256 NOT GLOB '*[^0-9a-f]*'"),
+            name="ck_order_plan_screening_execution_input_sha256",
+        ),
+        CheckConstraint(
+            dual("length(population_sha256) = 64 AND population_sha256 NOT GLOB '*[^0-9a-f]*'"),
+            name="ck_order_plan_screening_execution_population_sha256",
+        ),
+        CheckConstraint(
+            dual("length(policy_sha256) = 64 AND policy_sha256 NOT GLOB '*[^0-9a-f]*'"),
+            name="ck_order_plan_screening_execution_policy_sha256",
+        ),
+        CheckConstraint(
+            dual("length(binding_sha256) = 64 AND binding_sha256 NOT GLOB '*[^0-9a-f]*'"),
+            name="ck_order_plan_screening_execution_binding_sha256",
+        ),
+        CheckConstraint(
+            DualSQL(
+                "length(trim(source_artifact_name)) > 0 AND source_artifact_name NOT LIKE '/%' AND source_artifact_name NOT LIKE '%\\%' AND source_artifact_name <> '..' AND source_artifact_name NOT LIKE '../%' AND source_artifact_name NOT LIKE '%/../%' AND source_artifact_name NOT LIKE '%/..'",
+                "length(trim(source_artifact_name)) > 0 AND source_artifact_name NOT LIKE '/%' AND position(chr(92) in source_artifact_name) = 0 AND source_artifact_name <> '..' AND source_artifact_name NOT LIKE '../%' AND source_artifact_name NOT LIKE '%/../%' AND source_artifact_name NOT LIKE '%/..'",
+            ),
+            name="ck_order_plan_screening_execution_source_artifact_name",
+        ),
+        CheckConstraint(
+            "length(trim(requested_by)) > 0 AND length(trim(policy_version)) > 0 AND length(trim(stage1_binding_version)) > 0 AND length(trim(stage2_binding_version)) > 0",
+            name="ck_order_plan_screening_execution_strings",
+        ),
+    )
+
+    execution_id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    request_id: Mapped[uuid_module.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    producer: Mapped[str] = mapped_column(String(128), nullable=False)
+    consumer: Mapped[str] = mapped_column(String(128), nullable=False)
+    source_run_id: Mapped[str] = mapped_column(_fk("run.id", ondelete="RESTRICT"), nullable=False)
+    source_artifact_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    source_artifact_schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_artifact_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    input_artifact_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    population_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    population_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    policy_version: Mapped[str] = mapped_column(_fk("order_plan_screening_policy.policy_version", ondelete="RESTRICT"), nullable=False)
+    policy_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    binding_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    stage1_binding_version: Mapped[str] = mapped_column(String(128), nullable=False)
+    stage1_binding_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    stage2_binding_version: Mapped[str] = mapped_column(String(128), nullable=False)
+    stage2_binding_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    active_slot: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    requested_by: Mapped[str] = mapped_column(String(128), nullable=False)
+    partial_artifact: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    candidate_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    completed_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    failure_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    stage1_selected_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    stage1_filtered_out_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    stage1_failed_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    stage2_relevant_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    stage2_not_relevant_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    stage2_uncertain_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    stage2_failed_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    stage2_rejected_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    human_review_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    error_code: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    queued_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False)
+
+
+class OrderPlanScreeningBatchAttempt(Base):
+    __tablename__ = "order_plan_screening_batch_attempt"
+    __table_args__ = (
+        UniqueConstraint(
+            "execution_id", "batch_id", "attempt_no",
+            name="uq_order_plan_screening_batch_attempt_scope",
+        ),
+        CheckConstraint(
+            "schema_version = 'bidops.order-plan-screening-batch-attempt-row.v1'",
+            name="ck_order_plan_screening_batch_attempt_schema_version",
+        ),
+        CheckConstraint(
+            "producer = 'screening-worker' AND consumer = 'screening-merge-and-observability'",
+            name="ck_order_plan_screening_batch_attempt_provenance",
+        ),
+        CheckConstraint("sequence >= 1 AND attempt_no BETWEEN 1 AND 2 AND plan_count >= 1", name="ck_order_plan_screening_batch_attempt_numbers"),
+        CheckConstraint("attempt_status IN ('running','success','failed','rejected')", name="ck_order_plan_screening_batch_attempt_status"),
+        CheckConstraint(
+            "((attempt_status = 'running' AND started_at IS NOT NULL AND finished_at IS NULL) OR (attempt_status IN ('success','failed','rejected') AND finished_at IS NOT NULL))",
+            name="ck_order_plan_screening_batch_attempt_lifecycle",
+        ),
+        CheckConstraint(
+            "failure_type IS NULL OR failure_type IN ('timeout','truncated_output','schema_violation','id_mismatch','model_mismatch','binding_mismatch','payload_not_approved','transport','policy_rejected','unknown')",
+            name="ck_order_plan_screening_batch_attempt_failure_type",
+        ),
+        CheckConstraint(
+            "((attempt_status = 'success' AND failure_type IS NULL AND failure_code IS NULL) OR (attempt_status IN ('failed','rejected') AND failure_type IS NOT NULL AND failure_code IS NOT NULL AND length(trim(failure_code)) > 0) OR attempt_status = 'running')",
+            name="ck_order_plan_screening_batch_attempt_failure_pair",
+        ),
+        CheckConstraint("plan_ids_jsonb IS NOT NULL", name="ck_order_plan_screening_batch_attempt_plan_ids_present"),
+        CheckConstraint(
+            DualSQL(
+                "json_valid(plan_ids_jsonb) AND json_type(plan_ids_jsonb) = 'array'",
+                "jsonb_typeof(plan_ids_jsonb) = 'array'",
+            ),
+            name="ck_order_plan_screening_batch_attempt_plan_ids_array",
+        ),
+        CheckConstraint(
+            dual("length(plan_ids_sha256) = 64 AND plan_ids_sha256 NOT GLOB '*[^0-9a-f]*'"),
+            name="ck_order_plan_screening_batch_attempt_plan_ids_sha256",
+        ),
+        CheckConstraint(
+            dual("length(model_digest) = 64 AND model_digest NOT GLOB '*[^0-9a-f]*' AND length(prompt_sha256) = 64 AND prompt_sha256 NOT GLOB '*[^0-9a-f]*' AND length(company_profile_sha256) = 64 AND company_profile_sha256 NOT GLOB '*[^0-9a-f]*' AND length(generation_config_sha256) = 64 AND generation_config_sha256 NOT GLOB '*[^0-9a-f]*'"),
+            name="ck_order_plan_screening_batch_attempt_binding_sha256",
+        ),
+        CheckConstraint("input_tokens IS NULL OR input_tokens >= 0", name="ck_order_plan_screening_batch_attempt_input_tokens"),
+        CheckConstraint("cached_input_tokens IS NULL OR cached_input_tokens >= 0", name="ck_order_plan_screening_batch_attempt_cached_input_tokens"),
+        CheckConstraint("output_tokens IS NULL OR output_tokens >= 0", name="ck_order_plan_screening_batch_attempt_output_tokens"),
+        CheckConstraint("total_tokens IS NULL OR total_tokens >= 0", name="ck_order_plan_screening_batch_attempt_total_tokens"),
+        CheckConstraint("duration_ms IS NULL OR duration_ms >= 0", name="ck_order_plan_screening_batch_attempt_duration"),
+        CheckConstraint("length(trim(batch_id)) > 0 AND length(trim(model_name)) > 0 AND length(trim(prompt_version)) > 0 AND length(trim(company_profile_version)) > 0", name="ck_order_plan_screening_batch_attempt_strings"),
+    )
+
+    attempt_id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    execution_id: Mapped[uuid_module.UUID] = mapped_column(_fk("order_plan_screening_execution.execution_id", ondelete="RESTRICT"), nullable=False)
+    batch_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    attempt_no: Mapped[int] = mapped_column(Integer, nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    producer: Mapped[str] = mapped_column(String(128), nullable=False)
+    consumer: Mapped[str] = mapped_column(String(128), nullable=False)
+    plan_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    plan_ids_jsonb: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    plan_ids_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    model_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    model_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    prompt_version: Mapped[str] = mapped_column(String(128), nullable=False)
+    prompt_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    company_profile_version: Mapped[str] = mapped_column(String(128), nullable=False)
+    company_profile_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    generation_config_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    attempt_status: Mapped[str] = mapped_column(String(16), nullable=False)
+    failure_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    failure_code: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    response_object_ref: Mapped[str | None] = mapped_column(Text, nullable=True)
+    input_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cached_input_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    output_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    total_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False)
+
+
+class OrderPlanScreeningResult(Base):
+    __tablename__ = "order_plan_screening_result"
+    __table_args__ = (
+        UniqueConstraint("execution_id", "order_plan_id", name="uq_order_plan_screening_result_plan"),
+        CheckConstraint("schema_version = 'bidops.order-plan-screening-result-row.v1'", name="ck_order_plan_screening_result_schema_version"),
+        CheckConstraint("producer = 'order-plan-screening-merge' AND consumer = 'postgres-loader-and-review-api'", name="ck_order_plan_screening_result_provenance"),
+        CheckConstraint("stage1_status IN ('selected','filtered_out','failed','rejected')", name="ck_order_plan_screening_result_stage1_status"),
+        CheckConstraint("stage2_status IN ('not_attempted','success','failed','rejected','unknown')", name="ck_order_plan_screening_result_stage2_status"),
+        CheckConstraint("stage1_rank IS NULL OR stage1_rank >= 1", name="ck_order_plan_screening_result_stage1_rank"),
+        CheckConstraint("stage1_score IS NULL OR stage1_score >= 0", name="ck_order_plan_screening_result_stage1_score"),
+        CheckConstraint("qwen_score IS NULL OR (qwen_score >= 0 AND qwen_score <= 1)", name="ck_order_plan_screening_result_qwen_score"),
+        CheckConstraint("attempt_no IS NULL OR attempt_no BETWEEN 1 AND 2", name="ck_order_plan_screening_result_attempt_no"),
+        CheckConstraint("(batch_id IS NULL) = (attempt_no IS NULL)", name="ck_order_plan_screening_result_batch_attempt_pair"),
+        CheckConstraint(
+            "((stage1_status IN ('failed','rejected') AND stage1_rank IS NULL AND stage1_score IS NULL AND nearest_capability IS NULL AND stage2_status = 'not_attempted') OR (stage1_status = 'filtered_out' AND stage1_rank IS NOT NULL AND stage1_score IS NOT NULL AND stage2_status = 'not_attempted') OR (stage1_status = 'selected' AND stage1_rank IS NOT NULL AND stage1_score IS NOT NULL))",
+            name="ck_order_plan_screening_result_stage1_fields",
+        ),
+        CheckConstraint(
+            "((stage2_status = 'not_attempted' AND qwen_relevance IS NULL AND qwen_score IS NULL AND qwen_reason IS NULL AND batch_id IS NULL AND attempt_no IS NULL AND failure_code IS NULL) OR (stage2_status = 'success' AND qwen_relevance IN ('relevant','not_relevant','uncertain') AND qwen_score IS NOT NULL AND qwen_reason IS NOT NULL AND length(trim(qwen_reason)) > 0 AND length(qwen_reason) <= 500 AND batch_id IS NOT NULL AND attempt_no IS NOT NULL AND failure_code IS NULL) OR (stage2_status IN ('failed','rejected','unknown') AND qwen_relevance IS NULL AND qwen_score IS NULL AND qwen_reason IS NULL AND failure_code IS NOT NULL AND length(trim(failure_code)) > 0))",
+            name="ck_order_plan_screening_result_stage2_fields",
+        ),
+        CheckConstraint(
+            dual("length(input_artifact_sha256) = 64 AND input_artifact_sha256 NOT GLOB '*[^0-9a-f]*' AND length(policy_sha256) = 64 AND policy_sha256 NOT GLOB '*[^0-9a-f]*' AND length(binding_sha256) = 64 AND binding_sha256 NOT GLOB '*[^0-9a-f]*' AND length(result_sha256) = 64 AND result_sha256 NOT GLOB '*[^0-9a-f]*'"),
+            name="ck_order_plan_screening_result_hashes",
+        ),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    execution_id: Mapped[uuid_module.UUID] = mapped_column(_fk("order_plan_screening_execution.execution_id", ondelete="RESTRICT"), nullable=False)
+    source_run_id: Mapped[str] = mapped_column(_fk("run.id", ondelete="RESTRICT"), nullable=False)
+    order_plan_id: Mapped[int] = mapped_column(_fk("order_plan.id", ondelete="RESTRICT"), nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    producer: Mapped[str] = mapped_column(String(128), nullable=False)
+    consumer: Mapped[str] = mapped_column(String(128), nullable=False)
+    input_artifact_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    policy_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    policy_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    binding_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    result_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    stage1_rank: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    stage1_score: Mapped[Decimal | None] = mapped_column(Numeric(20, 10), nullable=True)
+    nearest_capability: Mapped[str | None] = mapped_column(Text, nullable=True)
+    stage1_status: Mapped[str] = mapped_column(String(16), nullable=False)
+    stage2_status: Mapped[str] = mapped_column(String(16), nullable=False)
+    qwen_relevance: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    qwen_score: Mapped[Decimal | None] = mapped_column(Numeric(20, 10), nullable=True)
+    qwen_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    batch_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    attempt_no: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    failure_code: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False)
+
+
+class OrderPlanScreeningArtifact(Base):
+    __tablename__ = "order_plan_screening_artifact"
+    __table_args__ = (
+        UniqueConstraint("execution_id", "kind", name="uq_order_plan_screening_artifact_kind"),
+        CheckConstraint("kind IN ('input','ranking','decisions','failures','telemetry','result','feedback')", name="ck_order_plan_screening_artifact_kind"),
+        CheckConstraint("validation_status IN ('pending','valid','invalid')", name="ck_order_plan_screening_artifact_validation_status"),
+        CheckConstraint("byte_count >= 0", name="ck_order_plan_screening_artifact_byte_count"),
+        CheckConstraint("schema_version IS NOT NULL AND length(trim(schema_version)) > 0 AND length(trim(producer)) > 0 AND length(trim(consumer)) > 0", name="ck_order_plan_screening_artifact_provenance"),
+        CheckConstraint(dual("length(sha256) = 64 AND sha256 NOT GLOB '*[^0-9a-f]*'"), name="ck_order_plan_screening_artifact_sha256"),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    execution_id: Mapped[uuid_module.UUID] = mapped_column(_fk("order_plan_screening_execution.execution_id", ondelete="RESTRICT"), nullable=False)
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    producer: Mapped[str] = mapped_column(String(128), nullable=False)
+    consumer: Mapped[str] = mapped_column(String(128), nullable=False)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    byte_count: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    object_version: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    validation_status: Mapped[str] = mapped_column(String(16), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False)
+    object_version_ref = synonym("object_version")
+
+
+class OrderPlanScreeningFeedback(Base):
+    __tablename__ = "order_plan_screening_feedback"
+    __table_args__ = (
+        UniqueConstraint("execution_id", "order_plan_id", "revision", name="uq_order_plan_screening_feedback_revision"),
+        CheckConstraint("schema_version = 'bidops.order-plan-screening-feedback.v1'", name="ck_order_plan_screening_feedback_schema_version"),
+        CheckConstraint("producer = 'human-review-api' AND consumer = 'postgres-review-history'", name="ck_order_plan_screening_feedback_provenance"),
+        CheckConstraint("actor_kind = 'human'", name="ck_order_plan_screening_feedback_actor_kind"),
+        CheckConstraint("relevance IN ('relevant','not_relevant','uncertain')", name="ck_order_plan_screening_feedback_relevance"),
+        CheckConstraint("priority IS NULL OR priority IN ('high','medium','low')", name="ck_order_plan_screening_feedback_priority"),
+        CheckConstraint("revision >= 1", name="ck_order_plan_screening_feedback_revision"),
+        CheckConstraint("length(trim(claimed_name)) > 0 AND (memo IS NULL OR length(trim(memo)) > 0)", name="ck_order_plan_screening_feedback_strings"),
+    )
+
+    feedback_id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    execution_id: Mapped[uuid_module.UUID] = mapped_column(_fk("order_plan_screening_execution.execution_id", ondelete="RESTRICT"), nullable=False)
+    order_plan_id: Mapped[int] = mapped_column(_fk("order_plan.id", ondelete="RESTRICT"), nullable=False)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    producer: Mapped[str] = mapped_column(String(128), nullable=False)
+    consumer: Mapped[str] = mapped_column(String(128), nullable=False)
+    actor_kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    claimed_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    relevance: Mapped[str] = mapped_column(String(16), nullable=False)
+    priority: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    memo: Mapped[str | None] = mapped_column(Text, nullable=True)
+    supersedes_feedback_id: Mapped[uuid_module.UUID | None] = mapped_column(_fk("order_plan_screening_feedback.feedback_id", ondelete="RESTRICT"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False)
+
+
+ORDER_PLAN_SCREENING_TABLES = (
+    "order_plan_screening_policy",
+    "order_plan_screening_execution",
+    "order_plan_screening_batch_attempt",
+    "order_plan_screening_result",
+    "order_plan_screening_artifact",
+    "order_plan_screening_feedback",
+)
+
+
 LEGACY_TABLES = (
     "run", "notice", "judgment", "perspective", "screening_evidence", "counterargument",
     "verification_item", "matched_performance", "attachment", "agency_portal", "review",
