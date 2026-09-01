@@ -770,13 +770,16 @@ const visualPreSpecItems = [
 ] as const;
 
 const visualUnknownOverview = {
-  schema_version: "bidops.prespec-overview-reviews.v1",
+  schema_version: "bidops.prespec-overview-reviews.v2",
   notice_id: 991,
   reviews: [{
     id: "00000000-0000-0000-0000-000000000991",
     notice_id: 991,
     status: "needs_human_review",
     result: null,
+    result_digest: null,
+    binding_digest: null,
+    validation_status: "pending",
     completed_at: null,
     current_snapshot: {
       id: "10000000-0000-0000-0000-000000000991",
@@ -801,10 +804,55 @@ function visualCompletedOverview() {
     reviews: [{
       ...review,
       status: "completed",
-      result: "조건부 추진 검토",
+      result: {
+        schema_version: "bidops.prespec-overview-result.v1",
+        recommendation: "조건부 추진 검토",
+        summary: "공공기관의 민원·행정 데이터를 통합해 현황을 분석하고, 담당자가 업무 현황을 조회하는 행정 지원 플랫폼 구축 사업입니다.",
+        conditions: [
+          "기존 시스템 연계 범위와 기관별 데이터 제공 책임을 착수 전에 확인해야 합니다.",
+          "운영 전환과 개인정보 처리 범위에 대한 발주기관의 확정 답변이 필요합니다.",
+        ],
+        verification_due_at: "2026-09-01T00:00:00Z",
+        unknowns: [
+          {
+            topic: "기존 시스템 연계 범위",
+            reason: "개요 입력에는 연계 대상과 제공 API의 목록이 없습니다.",
+            verification_action: "심층 검토에서 연계 대상별 인터페이스 명세를 확인합니다.",
+          },
+          {
+            topic: "개인정보 처리 책임",
+            reason: "운영 주체와 개인정보 처리 역할이 개요에서 확정되지 않았습니다.",
+            verification_action: null,
+          },
+        ],
+        evidence: [{
+          claim: "사업은 행정 지원 플랫폼 구축과 기존 업무 데이터 연계를 포함합니다.",
+          locator: { block_key: "overview-intro", page: 2, ordinal: 7 },
+        }],
+        input_limitations: [
+          "제안요청서 앞부분의 개요 입력만 검토했으며 상세 요구사항은 확인하지 않았습니다.",
+          "참가자격, 실적요건, 평가 배점과 제출물은 이 결과에 포함하지 않습니다.",
+        ],
+      },
+      result_digest: "c".repeat(64),
+      binding_digest: "d".repeat(64),
+      validation_status: "passed",
       completed_at: "2026-08-31T02:00:00Z",
-      current_snapshot: { ...review.current_snapshot, cut_status: "ready", strategy: "overview-intro-v1" },
-      attempts: [{ id: "00000000-0000-0000-0000-000000000992", sequence: 1, status: "completed", reference_only: false, deployable: true }],
+      current_snapshot: { ...review.current_snapshot, cut_status: "ready", strategy: "topic_heading" },
+      attempts: [{
+        id: "00000000-0000-0000-0000-000000000992",
+        snapshot_id: "10000000-0000-0000-0000-000000000991",
+        sequence: 1,
+        status: "completed",
+        reference_only: false,
+        deployable: true,
+        validation_status: "passed",
+        result_digest: "c".repeat(64),
+        binding_digest: "d".repeat(64),
+        created_at: "2026-08-31T01:30:00Z",
+        started_at: "2026-08-31T01:35:00Z",
+        completed_at: "2026-08-31T02:00:00Z",
+      }],
     }],
   };
 }
@@ -822,7 +870,7 @@ export async function mockPreSpecs(page: Page, overviewState: "completed" | "unk
       });
       return;
     }
-    if (url.pathname === "/api/pre-specs/991/overview-reviews" && request.method() === "GET") {
+    if (url.pathname === "/api/pre-specs/991/overview-reviews/v2" && request.method() === "GET") {
       const overview = overviewState === "unknown" ? visualUnknownOverview : visualCompletedOverview();
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(overview) });
       return;
@@ -905,7 +953,7 @@ export async function mockDocumentPreparationVisual(page: Page, state: DocumentP
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(visualPreSpecNotice) });
       return;
     }
-    if (pathname === "/api/pre-specs/991/overview-reviews" && request.method() === "GET") {
+    if (pathname === "/api/pre-specs/991/overview-reviews/v2" && request.method() === "GET") {
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(visualUnknownOverview) });
       return;
     }

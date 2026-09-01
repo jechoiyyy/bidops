@@ -612,3 +612,349 @@
     gap: 4px;
   }
 }
+
+/* v2 개요 결과는 상태보다 판단 내용을 먼저 읽도록 계층을 나눈다. */
+.pre-spec-overview-decision {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-selected);
+}
+
+.pre-spec-overview-decision.is-unverified,
+.pre-spec-overview-decision.is-unconfirmed {
+  border-color: var(--color-warning-edge);
+  background: var(--color-warning-bg);
+}
+
+.pre-spec-overview-recommendation,
+.pre-spec-overview-validation {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+}
+
+.pre-spec-overview-recommendation > span,
+.pre-spec-overview-validation > span,
+.pre-spec-overview-due > span,
+.pre-spec-overview-evidence-locator > span:first-child {
+  color: var(--color-muted);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.pre-spec-overview-recommendation strong {
+  color: var(--color-deep);
+  font-size: 25px;
+  letter-spacing: -0.035em;
+  line-height: 1.25;
+}
+
+.pre-spec-overview-validation {
+  min-width: 156px;
+  padding-left: 14px;
+  border-left: 1px solid var(--border-subtle);
+}
+
+.pre-spec-overview-validation-warning {
+  margin: -4px 0 0;
+  padding: 10px 12px;
+  border: 1px solid var(--color-warning-edge);
+  border-radius: var(--radius-sm);
+  color: var(--color-warning);
+  background: var(--color-warning-bg);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.5;
+}
+
+.pre-spec-overview-statuses {
+  align-items: center;
+}
+
+.pre-spec-overview-statuses > span {
+  color: var(--color-muted);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.pre-spec-overview-section {
+  min-width: 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.pre-spec-overview-section h4 {
+  margin: 0 0 8px;
+  color: var(--color-deep);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.pre-spec-overview-summary {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 14px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.pre-spec-overview-due {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.pre-spec-overview-due-value {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-deep);
+  font-size: 12px;
+}
+
+.pre-spec-overview-due strong {
+  color: var(--color-muted-soft);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pre-spec-overview-list,
+.pre-spec-overview-evidence,
+.pre-spec-overview-unknowns {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 확인 방법이 지정되지 않은 unknown은 후속 조치가 없다는 뜻이므로
+   나머지 값과 구분해서 읽히게 한다. */
+.pre-spec-overview-unverifiable {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+.pre-spec-overview-list li {
+  position: relative;
+  padding-left: 16px;
+  color: var(--color-text);
+  font-size: 13px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.pre-spec-overview-list li::before {
+  position: absolute;
+  top: 0.65em;
+  left: 3px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  content: "";
+}
+
+.pre-spec-overview-empty {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.pre-spec-overview-unknowns > li,
+.pre-spec-overview-evidence > li {
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-secondary);
+}
+
+.pre-spec-overview-unknowns > li {
+  border-left: 3px solid var(--color-warning);
+}
+
+.pre-spec-overview-unknowns dl,
+.pre-spec-overview-digests {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+}
+
+.pre-spec-overview-unknowns dl > div,
+.pre-spec-overview-digests > div {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 10px;
+  min-width: 0;
+}
+
+.pre-spec-overview-unknowns dt,
+.pre-spec-overview-digests dt {
+  color: var(--color-muted);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.pre-spec-overview-unknowns dd,
+.pre-spec-overview-digests dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--color-text);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.pre-spec-overview-evidence > li > p {
+  margin: 0 0 8px;
+  color: var(--color-text);
+  font-size: 13px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.pre-spec-overview-evidence-locator {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  color: var(--color-muted-soft);
+  font-size: 11px;
+}
+
+.pre-spec-overview-evidence-locator code {
+  max-width: 100%;
+  padding: 2px 5px;
+  border-radius: 3px;
+  color: var(--color-deep);
+  background: var(--surface-card);
+  overflow-wrap: anywhere;
+}
+
+.pre-spec-overview-limitations {
+  padding: 12px;
+  border: 1px solid var(--color-warning-edge);
+  border-radius: var(--radius-sm);
+  background: var(--color-warning-bg);
+}
+
+.pre-spec-overview-limitations h4 {
+  color: var(--color-warning);
+}
+
+.pre-spec-overview-waiting {
+  padding: 13px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-secondary);
+}
+
+.pre-spec-overview-waiting strong {
+  color: var(--color-deep);
+  font-size: 13px;
+}
+
+.pre-spec-overview-waiting p {
+  margin: 6px 0 0;
+  color: var(--color-muted-soft);
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.pre-spec-overview-lineage-details {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.pre-spec-overview-lineage-details > summary {
+  padding: 12px 0 2px;
+  color: var(--color-muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 650;
+  list-style-position: inside;
+}
+
+.pre-spec-overview-lineage-body {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 10px;
+}
+
+.pre-spec-overview-lineage-body .pre-spec-cut-state {
+  margin: 0;
+}
+
+.pre-spec-overview-lineage-body .pre-spec-overview-lineage {
+  padding: 0;
+}
+
+.pre-spec-overview-lineage-body .pre-spec-overview-attempts {
+  gap: 8px;
+}
+
+.pre-spec-overview-attempts li {
+  display: flex;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.pre-spec-overview-attempts li > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pre-spec-overview-digest {
+  flex: 1 1 220px;
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+.pre-spec-overview-digests {
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+@media (max-width: 640px) {
+  .pre-spec-overview-decision {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pre-spec-overview-recommendation strong {
+    font-size: 21px;
+  }
+
+  .pre-spec-overview-validation {
+    min-width: 0;
+    align-items: flex-start;
+    padding-top: 10px;
+    padding-left: 0;
+    border-top: 1px solid var(--border-subtle);
+    border-left: 0;
+  }
+
+  .pre-spec-overview-unknowns dl > div,
+  .pre-spec-overview-digests > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+
+  .pre-spec-overview-evidence-locator {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+}

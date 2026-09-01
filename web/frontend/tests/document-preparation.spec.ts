@@ -60,7 +60,7 @@ const notice = {
 };
 
 const overview = {
-  schema_version: "bidops.prespec-overview-reviews.v1",
+  schema_version: "bidops.prespec-overview-reviews.v2",
   notice_id: NOTICE_ID,
   reviews: [],
 };
@@ -130,7 +130,7 @@ async function mockDocumentPreparation(page: Page, scenario: Scenario): Promise<
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(notice) });
       return;
     }
-    if (pathname === `/api/pre-specs/${NOTICE_ID}/overview-reviews` && method === "GET") {
+    if (pathname === `/api/pre-specs/${NOTICE_ID}/overview-reviews/v2` && method === "GET") {
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(overview) });
       return;
     }
