@@ -28,9 +28,9 @@
 ### 테스트 기준선 (2026-09-01 실측)
 
 ```
-백엔드 전체 완주       1042 passed, 5 skipped, 0 failed   (약 10분)
+백엔드 전체 완주       1045 passed, 5 skipped, 0 failed   (약 10분)
 파이프라인             41 + 13 + 52 + 2 = 108 OK
-프론트엔드 전체        598 passed, 10 skipped, 0 failed   (독립 실행 확인)
+프론트엔드 전체        646 passed, 10 skipped, 0 failed   (독립 실행 확인)
 프론트엔드 빌드        tsc -b 통과, 초기 JS 358.94 kB / gzip 113.10 kB (500 kB 경고 없음)
 Alembic                head = 0015_bid_delta_final_decision, alembic check 드리프트 0건
 ```
@@ -59,7 +59,11 @@ phase 1인 clean 문서 선택, 결정적 절단 snapshot, 자동 준비, 안전
 구현했다. phase 2는 [ADR-0035](tracking/decisions/0035-prespec-overview-attempt-result-lifecycle.md)에
 따라 immutable result/event 저장, 제한된 attempt lifecycle service와 안전한 v2 결과 API까지
 구현했다. DB는 구조 제약과 상태 전이 trigger 하나만 맡고 audit·scope·review 갱신은 service
-transaction이 맡는다. 실제 사설 모델 transport·worker 실행과 승인 binding은 아직 필요하다.
+transaction이 맡는다. **2026-09-01에 그 v2 projection을 화면에 연결했다** — 개요 검토가
+권고·검증 상태·요약·조건과 기한·미확인·근거·입력 한계를 판단 순서로 내고, 근거를 원문
+페이지로 열어 앞뒤 블록과 함께 짚으며, 같은 화면에서 심층 추적을 결정한다(§7의 "끝낸 것" 참고).
+**실제 사설 모델 transport·worker 실행과 승인 binding은 아직 필요하다.** worker가 없는 동안
+실데이터는 대부분 `awaiting_model`에 머문다.
 T-19와 선별 제품 구현을 막던 D-6·D-5는 2026-08-31에 해소했다.
 
 ### R-08·R-09·R-11과 입찰 delta를 구현했다
@@ -176,7 +180,7 @@ reviewer가 `assistant-recommendation`이므로 **사람 확인 전까지 정본
 ```bash
 cd /home/jechoi/projects/bidops/web/backend
 .venv/bin/python -m pytest tests/ -q
-#   → 1042 passed, 5 skipped (약 10분)
+#   → 1045 passed, 5 skipped (약 10분)
 ```
 
 10분 넘게 걸리고 `TestClient` 구간에서 멈춘 것처럼 보인다. **기다려라.**
@@ -200,10 +204,23 @@ uvloop로 우회할 필요 없다 — 기본 asyncio에서 정상 종료하는 �
 cd /home/jechoi/projects/bidops/web/frontend
 npx tsc -b        # 따로
 npm run build     # 따로
+
+npm run test:visual
+#   → 646 passed, 10 skipped, 0 failed (약 6~9분)
 ```
 
 `npm run build`가 rollup native 모듈 누락으로 깨지면
 `npm install @rollup/rollup-linux-x64-gnu --no-save`로 복구한다.
+
+**`npm run test:visual`은 visual spec만 돌지 않는다. 전체 Playwright spec을 돈다.**
+이름에 속기 쉽다. 스냅샷을 바꿨으면 `npm run test:visual:update`로 갱신한 뒤
+**반드시 전체를 다시 돌려** 통과를 확인한다.
+
+**부하 의존 flake가 있고 실패 지점이 실행마다 옮겨 다닌다.** 2026-09-01에 load average
+7~10에서 `route-context`·`document-preparation`·`draft`·`opportunities`가 번갈아 실패했고
+단독 실행과 전체 재실행에서는 모두 통과했다. **전체 실행의 실패는 단독 실행과 전체
+재실행으로 확인하기 전까지 회귀가 아니다.** 무거운 작업(pytest 전체, Docker, 다른 실험)과
+겹쳐 돌리지 않는 것이 가장 확실한 예방이다.
 
 ### PostgreSQL (스키마를 바꿨으면 필수)
 
@@ -317,11 +334,11 @@ cx exec -m gpt-5.6-luna -c model_reasoning_effort="max" \
 
 | 순위 | 항목 | 크기 | 성격 |
 |---|---|---|---|
-| 1 | C-2 선별 방식 선택 · C-1 gold 재판정 확인 · D-7 방화벽 승인 상신 | — | **사람 몫.** 지금 던져두면 병렬로 돈다 |
+| 1 | C-1 gold 재판정 확인 · D-7 방화벽 승인 상신 | — | **사람 몫.** C-2는 완료 |
 | 2 | 테스트 harness (`run-web-tests.sh`/CI) | 작음~중간 | 배포 blocker는 0이 됐고 이것만 남았다 |
-| 3 | 입찰 delta worker · T-23 worker · 재시작 화면 · T-19 projection | 중간 | 껍데기를 도는 기능으로 |
+| 3 | 입찰 delta worker · T-23 worker · 재시작 화면 · T-19 projection | 중간 | 껍데기를 도는 기능으로. **사전규격 개요는 화면 몫이 끝나 worker만 남았다** |
 | 4 | LLM 품질 gate 2건 · screening v3 renderer 연결 | 중간 | 판정을 믿을 수 있게 |
-| 5 | 선별 제품 구현 (수집 회차·관계·일일 수집·delta 추적) | 큼 | **C-2 결정 뒤에만** |
+| 5 | 선별 제품 구현 (수집 회차·관계·일일 수집·delta 추적) | 큼 | **C-2 완료; threshold부터 착수 가능** |
 | 6 | 실제 운영 검증 · API 증액 근거 · SSO·권한·알림 | 큼 | 이후 범위 |
 
 **어디부터 집을지 갈리면 이 기준을 쓴다.** 당장 운영 배포 계획이 있으면 2번이 먼저다
@@ -330,13 +347,11 @@ cx exec -m gpt-5.6-luna -c model_reasoning_effort="max" \
 
 ### 1. 사람 몫 — 지금 던져두면 병렬로 돈다
 
-리드타임이 있으므로 다른 무엇보다 먼저 시작한다. **C-2 하나가 5번 전체를 막고 있다.**
+리드타임이 있으므로 다른 무엇보다 먼저 시작한다. C-2는 2026-09-01에
+`BM25 Top 300 + Qwen`으로 선택했고 [ADR-0037](tracking/decisions/0037-order-plan-c2-bm25-top300-qwen.md)에 기록했다.
 
 ```
-C-2  방식 선택 (아래 셋 중)                ← 비용 대 누락의 교환. 토큰 실측은 §2에 있다
-       (a) 하이브리드 상위 300 → LLM 재순위   recall 97.6% 유지, LLM 호출 70% 절감
-       (b) Qwen 단독                        전량 회수 294건, 외부 전송 없음
-       (c) 하이브리드 단독 + 검토량 300      모델 비용 0, 3일마다 300건 사람 검토
+C-2  완료: BM25 상위 300 → Qwen            ← recall 96.61%, 알려진 낮은 우선순위 누락 2건 수용
 C-1  gold 재판정 9건 확인                  ← 이게 있어야 v2가 정본이 된다
 D-7  방화벽 승인 상신                      ← prespec-attachment-worker 하나가 g2b:443으로
                                              나가는 것. analysis-worker(LLM)와 무관하다
@@ -367,7 +382,7 @@ exit 1로 끝난다. 재현·검증 절차는 `findings.md`에 있다.
 | | 항목 | 근거 | 지금 상태 |
 |---|---|---|---|
 | B-3 | **입찰 delta 계산 worker와 모델 adapter** | [ADR-0034](tracking/decisions/0034-bid-delta-final-decision.md) | 스키마·API·화면·불변기록이 전부 있는데 계산만 안 일어난다. 비교를 만들면 `pending` comparison과 `queued` attempt만 생긴다 |
-| B-4 | **T-23 사전규격 개요 model adapter·worker** | [ADR-0033](tracking/decisions/0033-prespec-overview-review-runtime-contract.md)·[0035](tracking/decisions/0035-prespec-overview-attempt-result-lifecycle.md) | 같은 구조. 이것으로 사전규격 검토가 Mock이 아닌 실제 모델로 돈다 |
+| B-4 | **T-23 사전규격 개요 model adapter·worker** | [ADR-0033](tracking/decisions/0033-prespec-overview-review-runtime-contract.md)·[0035](tracking/decisions/0035-prespec-overview-attempt-result-lifecycle.md) | 같은 구조. **화면은 2026-09-01에 끝냈으므로 남은 것은 worker뿐이다.** 지금 실데이터는 대부분 `awaiting_model`에 머물고, 요약·근거·조건이 채워진 화면은 Mock과 Playwright로만 확인된다 |
 | B-5 | 문서 준비·실패 attempt 재시작 화면 | typed API는 있음 | 화면 연결만 |
 | B-2 | T-19 판정 모델 계보 projection | [ADR-0036](tracking/decisions/0036-judgment-model-lineage-source.md) | 스키마 변경 없이 API·화면만 |
 
@@ -382,9 +397,10 @@ provider로만 검증됐고 1차 판정도 40건 운영 품질 승인이 없다.
   대표 HWP/PDF gold, 사람 판정이 필요하다.
 - screening v3를 보고서 renderer에 명시적으로 연결한다.
 
-### 5. 선별 제품 — C-2 결정 뒤에만 착수
+### 5. 선별 제품 — C-2 완료, threshold부터 착수
 
-C-2가 정해지기 전에 시작하면 버리는 작업이 된다. 의존 순서대로다.
+C-2는 [ADR-0037](tracking/decisions/0037-order-plan-c2-bm25-top300-qwen.md)로 정했다.
+아래 의존 순서대로 구현한다.
 
 ```
 5-1  threshold 확정
@@ -402,6 +418,33 @@ C-2가 정해지기 전에 시작하면 버리는 작업이 된다. 의존 순�
 - 개발계정 API 요청 수를 실측하고 운영계정 활용사례·증액 근거를 준비한다.
 - SSO·역할 권한과 dashboard·외부 알림을 설계한다. **현재 애플리케이션에는 로그인과 역할
   기반 권한이 없고 사내망 접근 제한이 유일한 경계다.**
+
+### 2026-09-01에 끝낸 것 — 사전규격 개요 검토 워크스페이스
+
+개요 검토 화면은 파이프라인이 어디까지 갔는지만 보여 줬다. 상태 배지, 절단 상태, UUID 둘,
+실행 번호가 전부였고 **이 사업이 무엇인지가 화면에 없었다.** 필요한 정보는 백엔드의 v2
+projection에 이미 다 있었고 화면이 v1을 부르고 있었을 뿐이다.
+
+| | 항목 | 결과 | 커밋 |
+|---|---|---|---|
+| A | v2 계약 연결과 결과 렌더링 | 권고와 `validation_status`를 같은 줄에, 그다음 요약·조건과 기한·미확인·근거·입력 한계 순으로 낸다. 계보 UUID와 digest는 접어서 맨 아래로 내렸다. `verification_action`이 없는 unknown은 표식으로 구분하고, `validation_status`가 `passed`가 아니면 판정으로 읽지 말라고 알린다 | `56aeb0d` |
+| B | 근거를 원문으로 연결 | `GET /document-structures/{id}/pages/{page}`를 실제로 부른다(typed client는 있었으나 호출자가 없었다). 인용 블록을 **앞뒤 블록과 함께** 보여 맥락 없이 판단하지 않게 한다. `block_key`가 원문에 없으면 가장 가까운 블록으로 보정하지 않고 강조를 포기한 뒤 사람 검토로 보낸다 | `77700a5` |
+| C | 심층 추적 결정 동선 | 읽은 화면에서 계속 추적·보류·종료를 기록한다. `GET /pre-specs`에 `notice_pk` 필터를 더해 `opportunity_id`·`tracking_status`·첨부 집계를 한 응답으로 읽는다 | `26cdab4` |
+
+**알아야 할 것 셋.**
+
+1. **worker가 없어 실데이터는 대부분 `awaiting_model`에 머문다.** 요약·근거·조건이 채워진
+   화면은 Mock과 Playwright로만 확인됐다. 그래서 "결과가 없을 때"의 표시가 장식이 아니라
+   실질적으로 가장 자주 보게 될 화면이다. 이걸 채우는 것이 B-4다.
+2. **`notice_pk`가 주어지면 `sw_only`를 적용하지 않는다.** 사전규격 상세는 SW사업대상이 아닌
+   건도 열기 때문이다. 기본값을 그대로 적용하면 그런 건에서 추적 결정이 조용히 사라진다.
+   `source_type = 'pre_spec'`은 항상 적용되므로 `notice_pk`로 다른 유형 공고에 닿을 수 없다.
+3. **`document-preparation-*` 스냅샷 16장은 이 화면과 함께 움직인다.** 그 시각 테스트들이
+   같은 `/pre-specs/991`을 찍는다. 이 페이지를 고치면 24장이 함께 바뀌는 것이 정상이고
+   다른 화면으로 번진 것이 아니다.
+
+부하가 높을 때 Playwright 실패가 spec을 옮겨 다니며 나타났다(load average 7~10). 세 번 모두
+단독 실행과 전체 재실행으로 flake임을 확인한 뒤에만 진행했다. §4의 함정과 같은 종류다.
 
 ### 2026-09-01에 끝낸 것 — 운영 배포 blocker A-1~A-6
 
@@ -447,7 +490,7 @@ C-2가 정해지기 전에 시작하면 버리는 작업이 된다. 의존 순�
 
 - 자동 입찰 제출, 발주처 연락, 모델의 최종 참여 결정은 이 제품이 하지 않는다.
 - hosted OpenAI 자동 fallback과 scheduler·always-on 자동 활성화는
-  선별 방식·threshold 승인 전에는 넣지 않는다.
+  threshold·품질 gate 승인 전에는 넣지 않는다.
   (입찰 delta 계산 worker는 더 이상 범위 밖이 아니다. §7의 3번으로 착수 가능하다.)
 - SSO·역할 권한·알림은 [`tracking/status.md`](tracking/status.md)의 14번 이후다.
 - 현재 애플리케이션에는 로그인과 역할 기반 권한이 없다. 사내망 접근 제한이 경계이고
