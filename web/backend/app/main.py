@@ -37,6 +37,7 @@ from .routers.document_bundles import router as document_bundles_router
 from .routers.deep_reviews import router as deep_reviews_router
 from .routers.bid_delta import router as bid_delta_router
 from .routers.reports import router as reports_router
+from .routers.order_plans import router as order_plans_router
 from .runtime import ApplicationRuntime
 from .services.object_store import ObjectStoreError, assert_object_store_runtime
 
@@ -178,6 +179,7 @@ app.include_router(document_bundles_router)
 app.include_router(deep_reviews_router)
 app.include_router(bid_delta_router)
 app.include_router(reports_router)
+app.include_router(order_plans_router)
 
 
 class SPAStaticFiles(StaticFiles):

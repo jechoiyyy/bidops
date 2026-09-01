@@ -389,7 +389,224 @@ class VllmClient:
         raise VllmInvocationError(str(observations[-1].get("error_code", "provider_error")), observations)
 
 
+# C-2 uses a deliberately separate adapter contract.  The deep-review client
+# above remains compatible with its existing provider surface; this adapter
+# only accepts the fixed order-plan batch payload and never has a fallback
+# provider.
+
+
+class OrderPlanVllmError(RuntimeError):
+    """Safe, classified error from the C-2 private model boundary."""
+
+    def __init__(self, failure_type: str, code: str) -> None:
+        self.failure_type = failure_type
+        self.code = code
+        super().__init__(code)
+
+
+@dataclass(frozen=True)
+class OrderPlanVllmResponse:
+    structured_output: Mapping[str, Any]
+    approved_raw_response: bytes
+    input_tokens: int | None
+    cached_input_tokens: int | None
+    output_tokens: int | None
+    total_tokens: int | None
+    duration_ms: int
+
+
+def _validated_order_plan_base_url(base_url: str, allowed_hosts: str | Sequence[str]) -> str:
+    """Validate an exact private vLLM ``/v1`` boundary."""
+
+    entries = allowed_hosts.split(",") if isinstance(allowed_hosts, str) else list(allowed_hosts)
+    literal_hosts = [entry.strip() for entry in entries if entry.strip()]
+    if not literal_hosts or any(any(character.isspace() for character in entry) for entry in literal_hosts):
+        raise ValueError("C-2 vLLM literal host allowlist is required")
+    try:
+        for entry in literal_hosts:
+            ipaddress.ip_address(entry)
+    except ValueError as exc:
+        raise ValueError("C-2 vLLM allowlist must contain literal IPs") from exc
+    try:
+        parsed = urlsplit(base_url)
+        hostname = parsed.hostname
+        port = parsed.port
+    except (TypeError, ValueError) as exc:
+        raise ValueError("C-2 vLLM endpoint is invalid") from exc
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.netloc
+        or hostname is None
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.query
+        or parsed.fragment
+        or parsed.path != "/v1"
+        or port is None
+        or not 1 <= port <= 65535
+    ):
+        raise ValueError("C-2 vLLM endpoint must be an exact /v1 URL")
+    if hostname not in literal_hosts:
+        raise ValueError("C-2 vLLM endpoint host is not allowlisted")
+    try:
+        ipaddress.ip_address(hostname)
+    except ValueError as exc:
+        raise ValueError("C-2 vLLM endpoint host must be a literal IP") from exc
+    return base_url
+
+
+def _nonnegative_int(value: Any) -> int | None:
+    return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else None
+
+
+class OrderPlanVllmAdapter:
+    """Strict OpenAI-compatible adapter for one approved private vLLM."""
+
+    def __init__(
+        self,
+        *,
+        base_url: str,
+        allowed_hosts: str | Sequence[str],
+        api_key: str,
+        model: str,
+        model_digest: str,
+        timeout_seconds: float = 300.0,
+        http_client: httpx.Client | None = None,
+    ) -> None:
+        if model != "qwen3.8-27B" or not re.fullmatch(r"[0-9a-f]{64}", model_digest):
+            raise ValueError("only the approved C-2 Qwen model binding is permitted")
+        self.base_url = _validated_order_plan_base_url(base_url, allowed_hosts)
+        self.model = model
+        self.model_digest = model_digest
+        self.timeout_seconds = timeout_seconds
+        self._owned_client = http_client is None
+        self._client = http_client or httpx.Client(
+            trust_env=False,
+            follow_redirects=False,
+            timeout=timeout_seconds,
+        )
+        self._api_key = api_key
+
+    def close(self) -> None:
+        if self._owned_client:
+            self._client.close()
+
+    def invoke(
+        self,
+        *,
+        prompt: str,
+        payload: Mapping[str, Any],
+        expected_model: str,
+    ) -> OrderPlanVllmResponse:
+        if expected_model != self.model:
+            raise OrderPlanVllmError("model_mismatch", "model_mismatch")
+        request_payload = {
+            "model": self.model,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "Return only the required JSON object. Do not include reasoning or Markdown.",
+                },
+                {"role": "user", "content": prompt},
+            ],
+            "temperature": 0.0,
+            "top_p": 1.0,
+            "seed": 0,
+            "max_tokens": 8192,
+            "response_format": {"type": "json_object"},
+            "extra_body": {"chat_template_kwargs": {"enable_thinking": False}},
+        }
+        # Keep the argument explicit in the adapter contract.  The worker has
+        # already restricted this value to the approved plan/company fields.
+        request_payload["messages"][1]["content"] = prompt
+        _ = payload
+        headers = {"Content-Type": "application/json"}
+        if self._api_key and self._api_key != "EMPTY":
+            headers["Authorization"] = f"Bearer {self._api_key}"
+        started = time.monotonic()
+        try:
+            response = self._client.post(
+                f"{self.base_url}/chat/completions",
+                headers=headers,
+                json=request_payload,
+            )
+            if response.is_redirect or response.status_code in {301, 302, 303, 307, 308}:
+                raise OrderPlanVllmError("transport", "redirect_rejected")
+            if response.status_code >= 400:
+                raise OrderPlanVllmError("transport", "provider_http_error")
+            raw_bytes = response.content
+            if len(raw_bytes) > MAX_RESPONSE_BYTES:
+                raise OrderPlanVllmError("truncated_output", "response_too_large")
+            document = response.json()
+        except OrderPlanVllmError:
+            raise
+        except (httpx.TimeoutException, TimeoutError):
+            raise OrderPlanVllmError("timeout", "timeout") from None
+        except json.JSONDecodeError:
+            raise OrderPlanVllmError("schema_violation", "response_json_invalid") from None
+        except (httpx.HTTPError, ValueError, OSError):
+            raise OrderPlanVllmError("transport", "transport_error") from None
+        if not isinstance(document, Mapping):
+            raise OrderPlanVllmError("schema_violation", "response_schema_invalid")
+        if document.get("model") != self.model:
+            raise OrderPlanVllmError("model_mismatch", "model_mismatch")
+        revision = document.get("model_revision", document.get("revision"))
+        if not isinstance(revision, str) or revision != self.model_digest:
+            raise OrderPlanVllmError("model_mismatch", "model_revision_invalid")
+        choices = document.get("choices")
+        if not isinstance(choices, list) or len(choices) != 1 or not isinstance(choices[0], Mapping):
+            raise OrderPlanVllmError("schema_violation", "response_schema_invalid")
+        choice = choices[0]
+        if choice.get("finish_reason") == "length":
+            raise OrderPlanVllmError("truncated_output", "truncated_output")
+        if choice.get("finish_reason") != "stop":
+            raise OrderPlanVllmError("schema_violation", "finish_reason_invalid")
+        message = choice.get("message")
+        if not isinstance(message, Mapping) or not isinstance(message.get("content"), str):
+            raise OrderPlanVllmError("schema_violation", "response_schema_invalid")
+        content = message["content"]
+        try:
+            structured = json.loads(content)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            raise OrderPlanVllmError("schema_violation", "response_json_invalid") from None
+        if not isinstance(structured, Mapping):
+            raise OrderPlanVllmError("schema_violation", "response_json_invalid")
+        response_id = document.get("id")
+        if not isinstance(response_id, str) or not response_id.strip():
+            raise OrderPlanVllmError("schema_violation", "response_id_invalid")
+        usage = document.get("usage") if isinstance(document.get("usage"), Mapping) else {}
+        details = usage.get("prompt_tokens_details")
+        cached_tokens = _nonnegative_int(details.get("cached_tokens")) if isinstance(details, Mapping) else None
+        prompt_tokens = _nonnegative_int(usage.get("prompt_tokens"))
+        completion_tokens = _nonnegative_int(usage.get("completion_tokens"))
+        total_tokens = _nonnegative_int(usage.get("total_tokens"))
+        approved = {
+            "id": response_id,
+            "model": self.model,
+            "choices": [{
+                "index": choice.get("index", 0),
+                "finish_reason": "stop",
+                "message": {"role": "assistant", "content": content},
+            }],
+            "usage": {
+                "prompt_tokens": prompt_tokens,
+                "cached_tokens": cached_tokens,
+                "completion_tokens": completion_tokens,
+                "total_tokens": total_tokens,
+            },
+        }
+        return OrderPlanVllmResponse(
+            structured_output=dict(structured),
+            approved_raw_response=json.dumps(approved, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8"),
+            input_tokens=prompt_tokens,
+            cached_input_tokens=cached_tokens,
+            output_tokens=completion_tokens,
+            total_tokens=total_tokens,
+            duration_ms=max(0, int((time.monotonic() - started) * 1000)),
+        )
+
+
 __all__ = [
-    "EncryptedObjectStore", "InvocationResult", "VllmClient", "VllmInvocationError",
-    "build_prompt", "sanitize_for_prompt",
+    "EncryptedObjectStore", "InvocationResult", "OrderPlanVllmAdapter", "OrderPlanVllmError",
+    "OrderPlanVllmResponse", "VllmClient", "VllmInvocationError", "build_prompt", "sanitize_for_prompt",
 ]
