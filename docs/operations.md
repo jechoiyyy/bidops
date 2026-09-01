@@ -11,10 +11,12 @@
 
 ## 현재 배포 차단 조건
 
-현재 T7 stack은 개발·검증에는 사용할 수 있지만 다음 문제가 해결되기 전에는 운영 배포 후보가 아니다.
+**알려진 운영 배포 차단 조건은 2026-09-01에 전부 해소했다.** MinIO versioning은 bootstrap에서
+fail-closed로 검증하고, PostgreSQL·MinIO API·console port는 `BIDOPS_ADMIN_BIND_HOST`
+기본값 `127.0.0.1`로 loopback에만 publish한다.
 
-- PostgreSQL과 MinIO port가 host 전체 interface에 publish될 수 있다.
-- MinIO versioning 활성화 실패를 bootstrap이 무시한다.
+아직 남은 것은 차단 조건이 아니라 운영 훈련이다. 실제 secret, MinIO allow/deny,
+egress firewall, backup·restore를 **운영 환경에서** 한 번도 검증하지 않았다.
 
 개발 검증에서도 hosted Codex reference overlay를 사용하지 않는다. 회사자료 host 입력을 registry에 push·export하지 않으며 로컬 build cache의 접근 범위를 제한한다. legacy notice attachment upload는 quarantine·ClamAV·MinIO 경계를 통과한 파일만 사용한다. 나머지 stack 기동은 폐기 가능한 데이터와 host firewall로 격리한 환경에서만 수행한다.
 

@@ -107,6 +107,22 @@ def test_t7_worker_network_and_command_boundaries_are_explicit():
     assert set(minio["networks"]) == {"storage", "analysis"}
 
 
+def test_t7_admin_ports_bind_to_loopback_by_default():
+    """The application API is the access boundary; admin surfaces are not."""
+    compose = yaml.safe_load((ROOT / "docker-compose.t7.yml").read_text(encoding="utf-8"))
+    services = compose["services"]
+    admin_ports = services["postgres"]["ports"] + services["minio"]["ports"]
+    assert admin_ports == [
+        "${BIDOPS_ADMIN_BIND_HOST:-127.0.0.1}:${BIDOPS_POSTGRES_PORT:-15432}:5432",
+        "${BIDOPS_ADMIN_BIND_HOST:-127.0.0.1}:${BIDOPS_MINIO_PORT:-19000}:9000",
+        "${BIDOPS_ADMIN_BIND_HOST:-127.0.0.1}:${BIDOPS_MINIO_CONSOLE_PORT:-19001}:9001",
+    ]
+    # Every published admin port carries an explicit host-IP field.  A mapping
+    # written as "<host>:<container>" lets Docker bind every host interface.
+    for mapping in admin_ports:
+        assert mapping.count(":") >= 2 and mapping.startswith("${BIDOPS_ADMIN_BIND_HOST:-127.0.0.1}:")
+
+
 def test_t7_compose_commands_and_recovery_scripts_exist():
     compose = yaml.safe_load((ROOT / "docker-compose.t7.yml").read_text(encoding="utf-8"))
     for service in compose["services"].values():
@@ -214,6 +230,12 @@ def test_t7_minio_versioning_and_object_first_recovery_contract():
     generate_active = (ROOT / "scripts/generate-active-hash-manifest.sh").read_text(encoding="utf-8")
     verify = (ROOT / "scripts/verify-active-hashes.sh").read_text(encoding="utf-8")
     assert bootstrap.count("mc version enable") == 1
+    # Versioning must fail closed: no swallowed failure, and the enabled state is
+    # read back because `mc version info` exits 0 for an un-versioned bucket too.
+    assert "|| true" not in bootstrap.split("mc version enable")[1].splitlines()[0]
+    assert 'mc version info --json "local/$bucket"' in bootstrap
+    assert '*\'"versioning":{"status":"Enabled"\'*)' in bootstrap
+    assert '"bucket versioning is not enabled: $bucket" >&2' in bootstrap
     assert "for bucket in bidops-source bidops-structure bidops-quarantine bidops-model-response" in bootstrap
     assert "mc ilm add --expire-days 90 local/bidops-model-response" in bootstrap
     assert "mc find --versions" in backup and "object-versions.tsv" in backup

@@ -15,7 +15,7 @@
 | 2 | [`tracking/lifecycle-workstream.md`](tracking/lifecycle-workstream.md) | 작업 목록 정본. 확정된 사실·결정·할 일·끝낸 일 |
 | 3 | [`engineering-notes.md`](engineering-notes.md) 마지막 여섯 절 | host 테스트 실행법과 새로 걸린 함정들 |
 | 4 | [`tracking/findings.md`](tracking/findings.md) | 재현 가능한 미해결 문제 |
-| 5 | [`tracking/status.md`](tracking/status.md)의 구현 상태 표 | **A-1~A-6 여섯 건을 2026-09-01에 전부 해소했다.** 남은 운영 배포 blocker는 MinIO versioning fail-open과 host-wide port publish다. §7의 우선순위가 여기서 나온다 |
+| 5 | [`tracking/status.md`](tracking/status.md)의 구현 상태 표 | **A-1~A-6에 이어 MinIO versioning fail-open과 host-wide port publish까지 2026-09-01에 닫았다. 알려진 운영 배포 blocker는 0이다.** §7의 우선순위가 여기서 나온다 |
 
 바쁘면 **§7(다음 작업 순서)과 §10(콜드 세션 시작 절차)만 읽어도 착수할 수 있다.**
 
@@ -28,7 +28,7 @@
 ### 테스트 기준선 (2026-09-01 실측)
 
 ```
-백엔드 전체 완주       1041 passed, 5 skipped, 0 failed   (약 9분)
+백엔드 전체 완주       1042 passed, 5 skipped, 0 failed   (약 10분)
 파이프라인             41 + 13 + 52 + 2 = 108 OK
 프론트엔드 전체        598 passed, 10 skipped, 0 failed   (독립 실행 확인)
 프론트엔드 빌드        tsc -b 통과, 초기 JS 358.94 kB / gzip 113.10 kB (500 kB 경고 없음)
@@ -176,7 +176,7 @@ reviewer가 `assistant-recommendation`이므로 **사람 확인 전까지 정본
 ```bash
 cd /home/jechoi/projects/bidops/web/backend
 .venv/bin/python -m pytest tests/ -q
-#   → 1041 passed, 5 skipped (약 9분)
+#   → 1042 passed, 5 skipped (약 10분)
 ```
 
 10분 넘게 걸리고 `TestClient` 구간에서 멈춘 것처럼 보인다. **기다려라.**
@@ -318,7 +318,7 @@ cx exec -m gpt-5.6-luna -c model_reasoning_effort="max" \
 | 순위 | 항목 | 크기 | 성격 |
 |---|---|---|---|
 | 1 | C-2 선별 방식 선택 · C-1 gold 재판정 확인 · D-7 방화벽 승인 상신 | — | **사람 몫.** 지금 던져두면 병렬로 돈다 |
-| 2 | MinIO versioning fail-open · host-wide port publish · 테스트 harness | 작음 | 운영 배포 blocker의 마지막 |
+| 2 | 테스트 harness (`run-web-tests.sh`/CI) | 작음~중간 | 배포 blocker는 0이 됐고 이것만 남았다 |
 | 3 | 입찰 delta worker · T-23 worker · 재시작 화면 · T-19 projection | 중간 | 껍데기를 도는 기능으로 |
 | 4 | LLM 품질 gate 2건 · screening v3 renderer 연결 | 중간 | 판정을 믿을 수 있게 |
 | 5 | 선별 제품 구현 (수집 회차·관계·일일 수집·delta 추적) | 큼 | **C-2 결정 뒤에만** |
@@ -344,15 +344,19 @@ D-7  방화벽 승인 상신                      ← prespec-attachment-worker 
 
 D-7 overlay 적용은 승인 뒤에 하고, 그 다음이 T-20 운영 활성화다.
 
-### 2. 남은 운영 배포 blocker — 작고 기반이다
+### 2. 테스트 harness — 남은 마지막 작은 것
 
-`findings.md`에 재현 조건이 있다. **이 둘을 닫으면 운영 배포 blocker가 0이 된다.**
+**2-1·2-2를 2026-09-01에 닫아 알려진 운영 배포 blocker는 0이 됐다.**
 
-| | 항목 | 크기 | 왜 지금 |
-|---|---|---|---|
-| 2-1 | **MinIO versioning fail-open** | 작음 | `scripts/minio-init.sh:22`의 `mc version enable ... \|\| true`가 모든 실패를 삼킨다. versioning이 꺼져 있어도 init이 성공한다. **2026-09-01에 만든 A-6 복구 계약이 version 불변성 전제 위에 서 있으므로 이것이 먼저다** |
-| 2-2 | **host-wide port publish** | 작음 | `docker-compose.t7.yml`의 PostgreSQL·MinIO API·console port mapping에 host IP가 없어 LAN에서 직접 접근할 수 있다. 애플리케이션 API만 쓰는 접근 경계를 우회한다 |
-| 2-3 | **테스트 harness 고정** (D-11) | 작음~중간 | **`run-web-tests.sh`도 CI도 아직 없다.** 개별 파일만 지정하면 postgres 테스트가 조용히 skip되는 함정이 살아 있고, 이 저장소는 같은 부류 결함에 두 번 데였다(§4의 1·2번) |
+| | 항목 | 상태 |
+|---|---|---|
+| 2-1 | MinIO versioning fail-open | **해결.** `\|\| true`를 없애고 bucket마다 `mc version info --json`으로 상태를 되읽어 `Enabled`가 아니면 init을 실패시킨다. `mc version info`가 un-versioned에서도 exit 0을 내므로 되읽기가 유일한 증거다 |
+| 2-2 | host-wide port publish | **해결.** PostgreSQL·MinIO API·console 세 mapping이 `${BIDOPS_ADMIN_BIND_HOST:-127.0.0.1}:` prefix를 갖는다. 원격 관리는 `.env` opt-in. 애플리케이션 port는 사내망 접근이 설계된 경계라 그대로 둔다 |
+| 2-3 | **테스트 harness 고정** (D-11) | **남음.** `run-web-tests.sh`도 CI도 아직 없다. 개별 파일만 지정하면 postgres 테스트가 조용히 skip되는 함정이 살아 있고, 이 저장소는 같은 부류 결함에 두 번 데였다(§4의 1·2번) |
+
+2-1의 검증은 disposable MinIO에 실제 스크립트를 돌린 것이다. 수정 전 스크립트는 versioning
+enable이 실패해도 **exit 0으로 성공하면서 4개 bucket 전부 `un-versioned`** 로 남았고, 수정 후에는
+exit 1로 끝난다. 재현·검증 절차는 `findings.md`에 있다.
 
 ### 3. 껍데기를 실제로 도는 기능으로
 
