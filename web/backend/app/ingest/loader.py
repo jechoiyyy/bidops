@@ -6,6 +6,7 @@ import hashlib
 import json
 import math
 import re
+import uuid as uuid_module
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
@@ -32,6 +33,12 @@ from ..models import (
     OpportunityLink,
     OrderPlan,
     OrderPlanObservation,
+    OrderPlanScreeningArtifact,
+    OrderPlanScreeningBatchAttempt,
+    OrderPlanScreeningExecution,
+    OrderPlanScreeningFeedback,
+    OrderPlanScreeningPolicy,
+    OrderPlanScreeningResult,
     Perspective,
     Review,
     Run,
@@ -45,6 +52,14 @@ from .contracts import (
     NoticeContract,
     OrderPlanArtifact,
     OrderPlanContract,
+    OrderPlanScreeningDecisionsArtifact,
+    OrderPlanScreeningFailuresArtifact,
+    OrderPlanScreeningFeedbackArtifact,
+    OrderPlanScreeningInputArtifact,
+    OrderPlanScreeningPolicyArtifact,
+    OrderPlanScreeningRankingArtifact,
+    OrderPlanScreeningResultArtifact,
+    OrderPlanScreeningTelemetryArtifact,
     ScreeningArtifact,
     ScreeningResultContract,
     ValidationArtifact,
@@ -109,10 +124,31 @@ ORDER_PLAN_ARTIFACT_SCHEMAS = {
 ORDER_PLAN_FILE = "collected-order-plans.json"
 NOTICE_OBSERVATION_SNAPSHOT_SCHEMA = "bidops.notice-observation-snapshot.v1"
 ORDER_PLAN_OBSERVATION_SNAPSHOT_SCHEMA = "bidops.order-plan-observation-snapshot.v1"
+C2_INPUT_SCHEMA = "bidops.order-plan-screening-input.v1"
+C2_RESULT_SCHEMA = "bidops.order-plan-screening-result.v1"
+C2_POLICY_SCHEMA = "bidops.order-plan-screening-policy.v1"
+C2_BINDING_SCHEMA = "bidops.order-plan-screening-phase0-binding.v1"
+C2_IMPORT_ACTOR = "system:order-plan-screening-artifact-import"
+C2_ARTIFACTS = (
+    ("input", "screening-input.json", OrderPlanScreeningInputArtifact),
+    ("ranking", "screening-ranking.json", OrderPlanScreeningRankingArtifact),
+    ("decisions", "screening-decisions.json", OrderPlanScreeningDecisionsArtifact),
+    ("failures", "screening-failures.json", OrderPlanScreeningFailuresArtifact),
+    ("telemetry", "screening-telemetry.json", OrderPlanScreeningTelemetryArtifact),
+    ("result", "screening-results.json", OrderPlanScreeningResultArtifact),
+)
 
 
 class ObservationSnapshotConflictError(ValueError):
     """The same external identity/run pair was presented with different bytes."""
+
+
+class OrderPlanScreeningContractError(ValueError):
+    """A C-2 artifact is absent, malformed, or has broken lineage."""
+
+
+class OrderPlanScreeningConflictError(ValueError):
+    """The same C-2 identity was presented with different immutable bytes."""
 
 
 def _is_aware_iso(value: Any) -> bool:
@@ -149,6 +185,11 @@ class IngestResult:
     # after legacy normalization.  It is intentionally absent for v2 runs.
     generation_config: dict[str, Any] | None = None
     generation_config_digest: str | None = None
+    screening_executions: int = 0
+    screening_attempts: int = 0
+    screening_results: int = 0
+    screening_artifacts: int = 0
+    screening_feedback: int = 0
 
     @property
     def warning_counts(self) -> dict[str, int]:
@@ -161,6 +202,11 @@ class IngestResult:
             "order_plans": self.order_plans,
             "judgments": self.judgments,
             "reviews": self.reviews,
+            "screening_executions": self.screening_executions,
+            "screening_attempts": self.screening_attempts,
+            "screening_results": self.screening_results,
+            "screening_artifacts": self.screening_artifacts,
+            "screening_feedback": self.screening_feedback,
             "warnings": self.warnings,
             "warning_counts": self.warning_counts,
         }
@@ -3839,11 +3885,771 @@ def _clear_generation_metadata(run: Run) -> None:
         }
 
 
+def _c2_canonical_json(value: Any) -> bytes:
+    try:
+        return json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    except (TypeError, ValueError, UnicodeError) as exc:
+        raise OrderPlanScreeningContractError("C-2 JSON is not canonicalizable") from exc
+
+
+def _c2_digest_json(value: Any) -> str:
+    return hashlib.sha256(_c2_canonical_json(value)).hexdigest()
+
+
+def _c2_no_duplicate_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate JSON object key")
+        result[key] = value
+    return result
+
+
+def _c2_read_json(path: Path, model: type[BaseModel], label: str) -> tuple[dict[str, Any], BaseModel, str]:
+    if path.is_symlink() or not path.is_file():
+        raise OrderPlanScreeningContractError(f"{label} is absent or unsafe")
+    try:
+        raw_bytes = path.read_bytes()
+        raw_value = json.loads(
+            raw_bytes.decode("utf-8"),
+            object_pairs_hook=_c2_no_duplicate_pairs,
+            parse_constant=lambda value: (_ for _ in ()).throw(
+                ValueError(f"non-finite JSON constant: {value}")
+            ),
+        )
+        parsed = model.model_validate(raw_value)
+    except (OSError, UnicodeError, json.JSONDecodeError, ValueError, ValidationError) as exc:
+        raise OrderPlanScreeningContractError(f"{label} failed strict validation") from exc
+    if not isinstance(raw_value, dict):
+        raise OrderPlanScreeningContractError(f"{label} must be a JSON object")
+    return raw_value, parsed, hashlib.sha256(raw_bytes).hexdigest()
+
+
+def _c2_safe_run_file(directory: Path, name: str) -> Path:
+    if name.startswith(("/", "\\")) or "/" in name or "\\" in name or name in {".", ".."}:
+        raise OrderPlanScreeningContractError("C-2 artifact name is unsafe")
+    candidate = directory / name
+    try:
+        if candidate.is_symlink() or candidate.resolve().parent != directory.resolve():
+            raise OrderPlanScreeningContractError("C-2 artifact path is outside its run")
+    except OSError as exc:
+        raise OrderPlanScreeningContractError("C-2 artifact path cannot be checked") from exc
+    return candidate
+
+
+def _c2_reference_file(
+    directory: Path,
+    explicit: str | Path | None,
+    names: tuple[str, ...],
+    repository_name: str,
+) -> Path:
+    if explicit is not None:
+        candidate = Path(explicit).resolve()
+        if candidate.is_symlink() or not candidate.is_file():
+            raise OrderPlanScreeningContractError("C-2 binding reference is absent or unsafe")
+        return candidate
+    candidates = [directory / name for name in names]
+    candidates.append(Path(__file__).resolve().parents[4] / repository_name)
+    for candidate in candidates:
+        if candidate.is_file() and not candidate.is_symlink():
+            return candidate.resolve()
+    raise OrderPlanScreeningContractError("C-2 binding reference is absent")
+
+
+def _c2_timestamp(value: Any, label: str) -> datetime:
+    if isinstance(value, datetime):
+        parsed = value
+    elif isinstance(value, str):
+        try:
+            parsed = datetime.fromisoformat(value[:-1] + "+00:00" if value.endswith("Z") else value)
+        except ValueError as exc:
+            raise OrderPlanScreeningContractError(f"{label} timestamp is invalid") from exc
+    else:
+        raise OrderPlanScreeningContractError(f"{label} timestamp is invalid")
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise OrderPlanScreeningContractError(f"{label} timestamp has no timezone")
+    return parsed
+
+
+def _c2_sha256_file(path: Path) -> str:
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError as exc:
+        raise OrderPlanScreeningContractError("C-2 binding file is unreadable") from exc
+
+
+def _c2_same_lineage(*documents: dict[str, Any]) -> tuple[str, str]:
+    execution_ids = {document.get("execution_id") for document in documents}
+    source_run_ids = {document.get("source_run_id") for document in documents}
+    if len(execution_ids) != 1 or len(source_run_ids) != 1:
+        raise OrderPlanScreeningContractError("C-2 sibling execution lineage differs")
+    execution_id = next(iter(execution_ids))
+    source_run_id = next(iter(source_run_ids))
+    if not isinstance(execution_id, str) or not isinstance(source_run_id, str):
+        raise OrderPlanScreeningContractError("C-2 lineage identifiers are invalid")
+    return execution_id, source_run_id
+
+
+def _c2_source_population(raw: dict[str, Any]) -> list[dict[str, str]]:
+    rows, _ = _order_plan_items(raw)
+    if rows is None:
+        raise OrderPlanScreeningContractError("source order-plan artifact has no population")
+    population: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            raise OrderPlanScreeningContractError("source order-plan population contains a non-object")
+        try:
+            OrderPlanContract.model_validate(row)
+        except ValidationError as exc:
+            raise OrderPlanScreeningContractError("source order-plan population is invalid") from exc
+        plan_id = _plan_text(row, *_ORDER_PLAN_FIELD_ALIASES["order_plan_unty_no"])
+        title = _plan_text(row, "title", "biz_nm", "business_name")
+        if plan_id is None or title is None or plan_id in seen:
+            raise OrderPlanScreeningContractError("source order-plan population identity is invalid")
+        seen.add(plan_id)
+        population.append({"plan_id": plan_id, "title": title})
+    return population
+
+
+def _c2_check_siblings(
+    input_raw: dict[str, Any],
+    ranking_raw: dict[str, Any],
+    decisions_raw: dict[str, Any],
+    failures_raw: dict[str, Any],
+    telemetry_raw: dict[str, Any],
+    result_raw: dict[str, Any],
+    input_digest: str,
+    ranking_digest: str,
+) -> None:
+    execution_id, source_run_id = _c2_same_lineage(
+        input_raw, ranking_raw, decisions_raw, failures_raw, telemetry_raw, result_raw
+    )
+    try:
+        uuid_module.UUID(execution_id)
+    except (ValueError, AttributeError, TypeError) as exc:
+        raise OrderPlanScreeningContractError("execution_id must be a UUID") from exc
+    if input_raw["schema_version"] != C2_INPUT_SCHEMA or result_raw["schema_version"] != C2_RESULT_SCHEMA:
+        raise OrderPlanScreeningContractError("C-2 input/result schema is unsupported")
+    if ranking_raw["input_artifact_sha256"] != input_digest or decisions_raw["input_artifact_sha256"] != input_digest or result_raw["input_artifact_sha256"] != input_digest:
+        raise OrderPlanScreeningContractError("C-2 input artifact digest does not match siblings")
+    if decisions_raw["ranking_artifact_sha256"] != ranking_digest:
+        raise OrderPlanScreeningContractError("C-2 ranking artifact digest does not match")
+    if ranking_raw["policy_version"] != input_raw["policy"]["version"] or ranking_raw["policy_sha256"] != input_raw["policy"]["sha256"]:
+        raise OrderPlanScreeningContractError("C-2 ranking policy binding differs")
+    if result_raw["policy_version"] != input_raw["policy"]["version"] or result_raw["policy_sha256"] != input_raw["policy"]["sha256"]:
+        raise OrderPlanScreeningContractError("C-2 result policy binding differs")
+
+    input_ids = [item["plan_id"] for item in input_raw["items"]]
+    ranking_ids = [item["plan_id"] for item in ranking_raw["items"]]
+    result_ids = [item["plan_id"] for item in result_raw["items"]]
+    if ranking_ids != input_ids or result_ids != input_ids:
+        raise OrderPlanScreeningContractError("C-2 artifacts do not contain the same full population")
+    if ranking_raw["population_count"] != input_raw["population_count"]:
+        raise OrderPlanScreeningContractError("C-2 ranking population count differs")
+    if decisions_raw["candidate_count"] != ranking_raw["selected_count"]:
+        raise OrderPlanScreeningContractError("C-2 candidate count differs from ranking")
+
+    batches = {batch["batch_id"]: batch for batch in decisions_raw["batches"]}
+    if len(batches) != len(decisions_raw["batches"]):
+        raise OrderPlanScreeningContractError("C-2 decision batch identity is duplicated")
+    candidate_ids = {
+        item["plan_id"] for item in ranking_raw["items"] if item["stage1_status"] == "selected"
+    }
+    batch_ids: list[str] = []
+    batched_candidates: set[str] = set()
+    for batch in decisions_raw["batches"]:
+        if batch["batch_id"] in batch_ids or len(batch["plan_ids"]) == 0:
+            raise OrderPlanScreeningContractError("C-2 batch identity is invalid")
+        batch_ids.append(batch["batch_id"])
+        if set(batch["plan_ids"]) & batched_candidates:
+            raise OrderPlanScreeningContractError("C-2 batch plan identities overlap")
+        batched_candidates.update(batch["plan_ids"])
+        if batch["attempt_count"] > 2:
+            raise OrderPlanScreeningContractError("C-2 attempt count exceeds policy")
+    if batched_candidates != candidate_ids:
+        raise OrderPlanScreeningContractError("C-2 batches do not cover the selected population")
+
+    decision_items = {item["plan_id"]: item for item in decisions_raw["items"]}
+    if len(decision_items) != len(decisions_raw["items"]):
+        raise OrderPlanScreeningContractError("C-2 decision item identity is duplicated")
+    for plan_id, item in decision_items.items():
+        batch = batches.get(item["batch_id"])
+        if batch is None or batch["status"] != "success" or item["attempt_no"] != batch["attempt_count"]:
+            raise OrderPlanScreeningContractError("C-2 decision item is not the final successful attempt")
+    successful_batch_plan_ids = {
+        plan_id
+        for batch in decisions_raw["batches"]
+        if batch["status"] == "success"
+        for plan_id in batch["plan_ids"]
+    }
+    if set(decision_items) != successful_batch_plan_ids:
+        raise OrderPlanScreeningContractError("C-2 decision items do not match successful candidates")
+
+    failures_by_batch = {failure["batch_id"]: failure for failure in failures_raw["failures"]}
+    if len(failures_by_batch) != len(failures_raw["failures"]):
+        raise OrderPlanScreeningContractError("C-2 failure batch identity is duplicated")
+    failed_batches = {batch_id for batch_id, batch in batches.items() if batch["status"] != "success"}
+    if set(failures_by_batch) != failed_batches:
+        raise OrderPlanScreeningContractError("C-2 failure artifact does not cover failed batches")
+    for batch_id, failure in failures_by_batch.items():
+        batch = batches[batch_id]
+        if failure["plan_ids"] != batch["plan_ids"] or failure["sequence"] != batch["sequence"] or failure["attempt_count"] != batch["attempt_count"]:
+            raise OrderPlanScreeningContractError("C-2 failure batch binding differs")
+
+    telemetry_batches = {batch["batch_id"]: batch for batch in telemetry_raw["batches"]}
+    if len(telemetry_batches) != len(telemetry_raw["batches"]):
+        raise OrderPlanScreeningContractError("C-2 telemetry batch identity is duplicated")
+    if set(telemetry_batches) != set(batches):
+        raise OrderPlanScreeningContractError("C-2 telemetry batch set differs")
+    for batch_id, telemetry_batch in telemetry_batches.items():
+        batch = batches[batch_id]
+        if telemetry_batch["sequence"] != batch["sequence"] or len(telemetry_batch["attempts"]) != batch["attempt_count"]:
+            raise OrderPlanScreeningContractError("C-2 telemetry attempt binding differs")
+        attempt_numbers = [attempt["attempt_no"] for attempt in telemetry_batch["attempts"]]
+        if attempt_numbers != list(range(1, batch["attempt_count"] + 1)):
+            raise OrderPlanScreeningContractError("C-2 telemetry attempts are not contiguous")
+        expected_status = batch["status"]
+        allowed_telemetry_statuses = {expected_status}
+        if expected_status != "success":
+            allowed_telemetry_statuses.add("unknown")
+        if telemetry_batch["status"] not in allowed_telemetry_statuses:
+            raise OrderPlanScreeningContractError("C-2 telemetry batch status differs")
+        if telemetry_batch["attempts"][-1]["status"] != expected_status:
+            raise OrderPlanScreeningContractError("C-2 telemetry final attempt status differs")
+
+    failure_by_plan = {
+        plan_id: failure
+        for failure in failures_raw["failures"]
+        for plan_id in failure["plan_ids"]
+    }
+    for item in result_raw["items"]:
+        plan_id = item["plan_id"]
+        if item["stage1_status"] != "selected":
+            if item["stage2_status"] != "not_attempted":
+                raise OrderPlanScreeningContractError("C-2 non-selected item was attempted")
+            continue
+        if item["stage2_status"] == "success":
+            decision = decision_items.get(plan_id)
+            if decision is None or item["batch_id"] != decision["batch_id"] or item["attempt_no"] != decision["attempt_no"]:
+                raise OrderPlanScreeningContractError("C-2 successful result does not match decision")
+        else:
+            failure = failure_by_plan.get(plan_id)
+            if failure is None or item["failure_code"] != failure["error_code"] or item["stage2_status"] != failure["outcome"]:
+                raise OrderPlanScreeningContractError("C-2 failed result does not match failure artifact")
+
+
+def _c2_compare_or_add(
+    session: Session,
+    existing: Any,
+    values: dict[str, Any],
+    *,
+    label: str,
+    identity: str,
+    model: type[Any],
+) -> Any:
+    if existing is not None:
+        def equal(stored: Any, incoming: Any) -> bool:
+            if isinstance(stored, Decimal) or isinstance(incoming, Decimal):
+                try:
+                    return Decimal(str(stored)) == Decimal(str(incoming))
+                except (InvalidOperation, ValueError):
+                    return False
+            return stored == incoming
+
+        if any(
+            not equal(getattr(existing, field_name), value)
+            for field_name, value in values.items()
+        ):
+            raise OrderPlanScreeningConflictError(f"C-2 immutable conflict: {label}={identity}")
+        return existing
+    row = model(**values)
+    session.add(row)
+    session.flush()
+    return row
+
+
+def _c2_policy_row(
+    session: Session,
+    directory: Path,
+    input_model: OrderPlanScreeningInputArtifact,
+    result_model: OrderPlanScreeningResultArtifact,
+    *,
+    policy_path: str | Path | None,
+    binding_path: str | Path | None,
+) -> tuple[OrderPlanScreeningPolicy, str]:
+    policy_file = _c2_reference_file(
+        directory,
+        policy_path,
+        ("order-plan-screening-policy.v1.json", "policy.json"),
+        "experiments/order-plan-screening/config/order-plan-screening-policy.v1.json",
+    )
+    policy_raw, policy_model, policy_digest = _c2_read_json(
+        policy_file, OrderPlanScreeningPolicyArtifact, "C-2 policy"
+    )
+    binding_file = _c2_reference_file(
+        directory,
+        binding_path,
+        ("order-plan-screening-phase0-binding.v1.json", "binding.json"),
+        "experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v1.json",
+    )
+    try:
+        binding_raw = json.loads(
+            binding_file.read_bytes().decode("utf-8"),
+            object_pairs_hook=_c2_no_duplicate_pairs,
+            parse_constant=lambda value: (_ for _ in ()).throw(ValueError(value)),
+        )
+    except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
+        raise OrderPlanScreeningContractError("C-2 phase0 binding failed strict validation") from exc
+    if not isinstance(binding_raw, dict) or binding_raw.get("schema_version") != C2_BINDING_SCHEMA:
+        raise OrderPlanScreeningContractError("C-2 phase0 binding schema is unsupported")
+    binding_digest = _c2_sha256_file(binding_file)
+    if policy_digest != input_model.policy.sha256 or policy_digest != result_model.policy_sha256:
+        raise OrderPlanScreeningContractError("C-2 policy digest does not match the frozen artifacts")
+    if policy_model.policy_version != input_model.policy.version or policy_model.policy_version != result_model.policy_version:
+        raise OrderPlanScreeningContractError("C-2 policy version does not match the frozen artifacts")
+    if binding_digest != input_model.stage2_binding.sha256:
+        raise OrderPlanScreeningContractError("C-2 phase0 binding digest does not match the frozen input")
+    if binding_raw.get("policy", {}).get("policy_version") != policy_model.policy_version or binding_raw.get("policy", {}).get("sha256") != policy_digest:
+        raise OrderPlanScreeningContractError("C-2 phase0 policy reference differs")
+    if binding_raw.get("status") != "blocked":
+        raise OrderPlanScreeningContractError("C-2 phase0 binding is not blocked as required")
+    activation = policy_raw.get("activation")
+    quality_gate = policy_raw.get("quality_gate")
+    if not isinstance(activation, dict) or not isinstance(quality_gate, dict):
+        raise OrderPlanScreeningContractError("C-2 policy activation metadata is missing")
+    activated_by = activation.get("approved_by")
+    activated_at = activation.get("approved_at")
+    activated_at_value = _c2_timestamp(activated_at, "policy.activation.approved_at") if activated_at is not None else None
+    values = {
+        "policy_version": policy_model.policy_version,
+        "schema_version": policy_model.schema_version,
+        "producer": policy_model.producer,
+        "consumer": policy_model.consumer,
+        "policy_status": policy_model.policy_status,
+        "decision_scope": policy_model.decision_scope,
+        "policy_payload_jsonb": policy_raw,
+        "binding_payload_jsonb": binding_raw,
+        "policy_sha256": policy_digest,
+        "binding_sha256": binding_digest,
+        "activation_metadata_jsonb": activation,
+        "quality_gate_status": quality_gate.get("status"),
+        "active_slot": 1 if policy_model.policy_status == "active" else None,
+        "created_by": policy_model.producer,
+        "created_at": policy_model.created_at,
+        "activated_by": activated_by,
+        "activated_at": activated_at_value,
+    }
+    existing = session.scalar(
+        select(OrderPlanScreeningPolicy).where(
+            OrderPlanScreeningPolicy.policy_version == policy_model.policy_version
+        )
+    )
+    row = _c2_compare_or_add(
+        session, existing, values, label="policy", identity=policy_model.policy_version,
+        model=OrderPlanScreeningPolicy,
+    )
+    return row, binding_digest
+
+
+def _c2_execution_row(
+    session: Session,
+    input_model: OrderPlanScreeningInputArtifact,
+    result_model: OrderPlanScreeningResultArtifact,
+    source_run_id: str,
+    source_artifact_raw: dict[str, Any],
+    source_artifact_sha256: str,
+    input_digest: str,
+    binding_digest: str,
+    policy: OrderPlanScreeningPolicy,
+) -> OrderPlanScreeningExecution:
+    execution_id = uuid_module.UUID(input_model.execution_id)
+    counts = result_model.counts
+    successful = counts.stage2_relevant + counts.stage2_not_relevant + counts.stage2_uncertain
+    failures = counts.stage1_failed + counts.stage2_failed + counts.stage2_rejected + sum(
+        item.stage2_status == "unknown" for item in result_model.items
+    )
+    status = "성공" if result_model.status == "성공" else "부분 성공" if result_model.status == "부분 성공" else "실패"
+    values = {
+        "execution_id": execution_id,
+        "request_id": execution_id,
+        "schema_version": "bidops.order-plan-screening-execution-row.v1",
+        "producer": "screening-api",
+        "consumer": "screening-worker-and-review-api",
+        "source_run_id": source_run_id,
+        "source_artifact_name": input_model.source_artifact.name,
+        "source_artifact_schema_version": input_model.source_artifact.schema_version,
+        "source_artifact_sha256": source_artifact_sha256,
+        "input_artifact_sha256": input_digest,
+        "population_count": input_model.population_count,
+        "population_sha256": input_model.population_sha256,
+        "policy_version": policy.policy_version,
+        "policy_sha256": result_model.policy_sha256,
+        "binding_sha256": binding_digest,
+        "stage1_binding_version": input_model.stage1_binding.version,
+        "stage1_binding_sha256": input_model.stage1_binding.sha256,
+        "stage2_binding_version": input_model.stage2_binding.version,
+        "stage2_binding_sha256": input_model.stage2_binding.sha256,
+        "status": status,
+        "active_slot": None,
+        "requested_by": C2_IMPORT_ACTOR,
+        "partial_artifact": result_model.partial_artifact,
+        "candidate_count": counts.stage1_selected,
+        "completed_count": successful,
+        "failure_count": failures,
+        "stage1_selected_count": counts.stage1_selected,
+        "stage1_filtered_out_count": counts.stage1_filtered_out,
+        "stage1_failed_count": counts.stage1_failed,
+        "stage2_relevant_count": counts.stage2_relevant,
+        "stage2_not_relevant_count": counts.stage2_not_relevant,
+        "stage2_uncertain_count": counts.stage2_uncertain,
+        "stage2_failed_count": counts.stage2_failed,
+        "stage2_rejected_count": counts.stage2_rejected,
+        "human_review_count": counts.human_review_count,
+        "error_code": "policy_rejected" if result_model.status == "거부됨" else None,
+        "queued_at": input_model.created_at,
+        "started_at": result_model.created_at,
+        "finished_at": result_model.created_at,
+        "created_at": result_model.created_at,
+    }
+    existing = session.get(OrderPlanScreeningExecution, execution_id)
+    return _c2_compare_or_add(
+        session, existing, values, label="execution", identity=input_model.execution_id,
+        model=OrderPlanScreeningExecution,
+    )
+
+
+def _c2_artifact_rows(
+    session: Session,
+    execution_id: uuid_module.UUID,
+    artifacts: dict[str, tuple[dict[str, Any], BaseModel, str, Path]],
+) -> int:
+    count = 0
+    for kind, (raw, model, digest, path) in artifacts.items():
+        values = {
+            "execution_id": execution_id,
+            "kind": kind,
+            "schema_version": raw["schema_version"],
+            "producer": raw["producer"],
+            "consumer": raw["consumer"],
+            "sha256": digest,
+            "byte_count": path.stat().st_size,
+            "object_version": None,
+            "validation_status": "valid",
+            "created_at": getattr(model, "created_at"),
+        }
+        existing = session.scalar(
+            select(OrderPlanScreeningArtifact).where(
+                OrderPlanScreeningArtifact.execution_id == execution_id,
+                OrderPlanScreeningArtifact.kind == kind,
+            )
+        )
+        _c2_compare_or_add(
+            session, existing, values, label="artifact", identity=kind,
+            model=OrderPlanScreeningArtifact,
+        )
+        count += 0 if existing is not None else 1
+    return count
+
+
+def _c2_attempt_rows(
+    session: Session,
+    execution_id: uuid_module.UUID,
+    decisions: OrderPlanScreeningDecisionsArtifact,
+    failures: OrderPlanScreeningFailuresArtifact,
+    telemetry: OrderPlanScreeningTelemetryArtifact,
+    created_at: datetime,
+) -> int:
+    failures_by_batch = {failure.batch_id: failure for failure in failures.failures}
+    telemetry_by_batch = {batch.batch_id: batch for batch in telemetry.batches}
+    expected_keys: set[tuple[str, int]] = set()
+    count = 0
+    for batch in decisions.batches:
+        telemetry_batch = telemetry_by_batch[batch.batch_id]
+        failure = failures_by_batch.get(batch.batch_id)
+        for telemetry_attempt in telemetry_batch.attempts:
+            key = (batch.batch_id, telemetry_attempt.attempt_no)
+            expected_keys.add(key)
+            attempt_status = telemetry_attempt.status
+            failure_type = failure.failure_type if failure is not None and attempt_status in {"failed", "rejected"} else None
+            failure_code = failure.error_code if failure is not None and attempt_status in {"failed", "rejected"} else None
+            if attempt_status == "failed" and failure is None:
+                failure_type, failure_code = "unknown", "retry_attempt_failed"
+            started_at = telemetry_attempt.started_at
+            finished_at = telemetry_attempt.finished_at or created_at
+            measurement = telemetry_attempt.measurement
+            plan_ids = list(batch.plan_ids)
+            values = {
+                "execution_id": execution_id,
+                "batch_id": batch.batch_id,
+                "sequence": batch.sequence,
+                "attempt_no": telemetry_attempt.attempt_no,
+                "schema_version": "bidops.order-plan-screening-batch-attempt-row.v1",
+                "producer": "screening-worker",
+                "consumer": "screening-merge-and-observability",
+                "plan_count": len(plan_ids),
+                "plan_ids_jsonb": plan_ids,
+                "plan_ids_sha256": _c2_digest_json(plan_ids),
+                "model_name": decisions.binding.model_name,
+                "model_digest": decisions.binding.model_digest,
+                "prompt_version": decisions.binding.prompt_version,
+                "prompt_sha256": decisions.binding.prompt_sha256,
+                "company_profile_version": decisions.binding.company_profile_version,
+                "company_profile_sha256": decisions.binding.company_profile_sha256,
+                "generation_config_sha256": decisions.binding.generation_config_sha256,
+                "attempt_status": attempt_status,
+                "failure_type": failure_type,
+                "failure_code": failure_code,
+                "response_object_ref": None,
+                "input_tokens": measurement.input_tokens,
+                "cached_input_tokens": measurement.cached_input_tokens,
+                "output_tokens": measurement.output_tokens,
+                "total_tokens": measurement.total_tokens,
+                "duration_ms": measurement.duration_ms,
+                "started_at": started_at,
+                "finished_at": finished_at,
+                "created_at": created_at,
+            }
+            existing = session.scalar(
+                select(OrderPlanScreeningBatchAttempt).where(
+                    OrderPlanScreeningBatchAttempt.execution_id == execution_id,
+                    OrderPlanScreeningBatchAttempt.batch_id == batch.batch_id,
+                    OrderPlanScreeningBatchAttempt.attempt_no == telemetry_attempt.attempt_no,
+                )
+            )
+            _c2_compare_or_add(
+                session, existing, values, label="batch attempt",
+                identity=f"{batch.batch_id}/{telemetry_attempt.attempt_no}",
+                model=OrderPlanScreeningBatchAttempt,
+            )
+            count += 0 if existing is not None else 1
+    existing_keys = set(
+        session.execute(
+            select(
+                OrderPlanScreeningBatchAttempt.batch_id,
+                OrderPlanScreeningBatchAttempt.attempt_no,
+            ).where(OrderPlanScreeningBatchAttempt.execution_id == execution_id)
+        ).all()
+    )
+    if set(existing_keys) != expected_keys:
+        raise OrderPlanScreeningConflictError("C-2 batch attempt population differs")
+    return count
+
+
+def _c2_result_rows(
+    session: Session,
+    execution_id: uuid_module.UUID,
+    source_run_id: str,
+    input_digest: str,
+    result: OrderPlanScreeningResultArtifact,
+    plans: dict[str, OrderPlan],
+    binding_digest: str,
+) -> int:
+    count = 0
+    expected_plan_ids = set(plans)
+    if {item.plan_id for item in result.items} != expected_plan_ids:
+        raise OrderPlanScreeningContractError("C-2 result does not cover source plans")
+    for item in result.items:
+        plan = plans.get(item.plan_id)
+        if plan is None:
+            raise OrderPlanScreeningContractError("C-2 result references an unknown order plan")
+        item_payload = item.model_dump(mode="json", exclude_none=False)
+        values = {
+            "execution_id": execution_id,
+            "source_run_id": source_run_id,
+            "order_plan_id": plan.id,
+            "schema_version": "bidops.order-plan-screening-result-row.v1",
+            "producer": "order-plan-screening-merge",
+            "consumer": "postgres-loader-and-review-api",
+            "input_artifact_sha256": input_digest,
+            "policy_version": result.policy_version,
+            "policy_sha256": result.policy_sha256,
+            "binding_sha256": binding_digest,
+            "result_sha256": _c2_digest_json(item_payload),
+            "stage1_rank": item.stage1_rank,
+            "stage1_score": item.stage1_score,
+            "nearest_capability": item.nearest_capability,
+            "stage1_status": item.stage1_status,
+            "stage2_status": item.stage2_status,
+            "qwen_relevance": item.qwen_relevance,
+            "qwen_score": item.qwen_score,
+            "qwen_reason": item.qwen_reason,
+            "batch_id": item.batch_id,
+            "attempt_no": item.attempt_no,
+            "failure_code": item.failure_code,
+            "created_at": result.created_at,
+        }
+        existing = session.scalar(
+            select(OrderPlanScreeningResult).where(
+                OrderPlanScreeningResult.execution_id == execution_id,
+                OrderPlanScreeningResult.order_plan_id == plan.id,
+            )
+        )
+        _c2_compare_or_add(
+            session, existing, values, label="result", identity=item.plan_id,
+            model=OrderPlanScreeningResult,
+        )
+        count += 0 if existing is not None else 1
+    existing_ids = set(
+        session.scalars(
+            select(OrderPlanScreeningResult.order_plan_id).where(
+                OrderPlanScreeningResult.execution_id == execution_id
+            )
+        )
+    )
+    if existing_ids != {plans[item.plan_id].id for item in result.items}:
+        raise OrderPlanScreeningConflictError("C-2 result population differs")
+    return count
+
+
+def _c2_feedback_row(
+    session: Session,
+    path: Path,
+    execution_id: uuid_module.UUID,
+    plans: dict[str, OrderPlan],
+) -> int:
+    if not path.exists():
+        return 0
+    raw, model, _digest = _c2_read_json(
+        path, OrderPlanScreeningFeedbackArtifact, "C-2 feedback"
+    )
+    assert isinstance(model, OrderPlanScreeningFeedbackArtifact)
+    if model.execution_id != str(execution_id) or model.plan_id not in plans:
+        raise OrderPlanScreeningContractError("C-2 feedback lineage is invalid")
+    feedback_id = uuid_module.UUID(model.feedback_id)
+    values = {
+        "feedback_id": feedback_id,
+        "execution_id": execution_id,
+        "order_plan_id": plans[model.plan_id].id,
+        "revision": model.revision,
+        "schema_version": model.schema_version,
+        "producer": model.producer,
+        "consumer": model.consumer,
+        "actor_kind": model.actor_kind,
+        "claimed_name": model.claimed_name,
+        "relevance": model.relevance,
+        "priority": model.priority,
+        "memo": model.memo,
+        "supersedes_feedback_id": uuid_module.UUID(model.supersedes_feedback_id) if model.supersedes_feedback_id else None,
+        "created_at": model.created_at,
+    }
+    existing = session.get(OrderPlanScreeningFeedback, feedback_id)
+    _c2_compare_or_add(
+        session, existing, values, label="feedback", identity=model.feedback_id,
+        model=OrderPlanScreeningFeedback,
+    )
+    return 0 if existing is not None else 1
+
+
+def load_order_plan_screening(
+    run_directory: str | Path,
+    session: Session,
+    *,
+    policy_path: str | Path | None = None,
+    binding_path: str | Path | None = None,
+) -> dict[str, int]:
+    """Strictly load one C-2 artifact set into one caller-owned transaction."""
+
+    directory = Path(run_directory).resolve()
+    artifacts: dict[str, tuple[dict[str, Any], BaseModel, str, Path]] = {}
+    for kind, filename, model in C2_ARTIFACTS:
+        path = _c2_safe_run_file(directory, filename)
+        raw, parsed, digest = _c2_read_json(path, model, filename)
+        artifacts[kind] = (raw, parsed, digest, path)
+    input_raw, input_model, input_digest, _ = artifacts["input"]
+    ranking_raw, ranking_model, ranking_digest, _ = artifacts["ranking"]
+    decisions_raw, decisions_model, _decisions_digest, _ = artifacts["decisions"]
+    failures_raw, failures_model, _failures_digest, _ = artifacts["failures"]
+    telemetry_raw, telemetry_model, _telemetry_digest, _ = artifacts["telemetry"]
+    result_raw, result_model, _result_digest, _ = artifacts["result"]
+    assert isinstance(input_model, OrderPlanScreeningInputArtifact)
+    assert isinstance(ranking_model, OrderPlanScreeningRankingArtifact)
+    assert isinstance(decisions_model, OrderPlanScreeningDecisionsArtifact)
+    assert isinstance(failures_model, OrderPlanScreeningFailuresArtifact)
+    assert isinstance(telemetry_model, OrderPlanScreeningTelemetryArtifact)
+    assert isinstance(result_model, OrderPlanScreeningResultArtifact)
+    _c2_check_siblings(
+        input_raw, ranking_raw, decisions_raw, failures_raw, telemetry_raw, result_raw,
+        input_digest, ranking_digest,
+    )
+    if input_model.source_artifact.name != "collected-order-plans.json":
+        source_path = _c2_safe_run_file(directory, input_model.source_artifact.name)
+    else:
+        source_path = _c2_safe_run_file(directory, "collected-order-plans.json")
+    source_raw, source_model, source_digest = _c2_read_json(
+        source_path, OrderPlanArtifact, input_model.source_artifact.name
+    )
+    if source_digest != input_model.source_artifact.sha256:
+        raise OrderPlanScreeningContractError("source order-plan artifact digest differs")
+    source_population = _c2_source_population(source_raw)
+    input_population = [item.model_dump(mode="json") for item in input_model.items]
+    if source_population != input_population or _c2_digest_json(input_population) != input_model.population_sha256:
+        raise OrderPlanScreeningContractError("C-2 input is not the complete source population")
+
+    source_run_id = input_model.source_run_id
+    source_run = session.get(Run, source_run_id)
+    if source_run is None:
+        raise OrderPlanScreeningContractError("C-2 source run does not exist")
+    _load_order_plans(
+        session, source_run_id, source_raw, source_run.timezone, str(source_path)
+    )
+    policy, binding_digest = _c2_policy_row(
+        session, directory, input_model, result_model,
+        policy_path=policy_path, binding_path=binding_path,
+    )
+    existing_execution = session.get(
+        OrderPlanScreeningExecution, uuid_module.UUID(input_model.execution_id)
+    )
+    execution = _c2_execution_row(
+        session, input_model, result_model, source_run_id, source_raw,
+        input_model.source_artifact.sha256, input_digest, binding_digest, policy,
+    )
+    execution_id = execution.execution_id
+    artifact_count = _c2_artifact_rows(session, execution_id, artifacts)
+    attempt_count = _c2_attempt_rows(
+        session, execution_id, decisions_model, failures_model, telemetry_model,
+        result_model.created_at,
+    )
+    plans = {
+        plan.order_plan_unty_no: plan
+        for plan in session.scalars(select(OrderPlan)).all()
+        if plan.order_plan_unty_no in {item.plan_id for item in result_model.items}
+    }
+    result_count = _c2_result_rows(
+        session, execution_id, source_run_id, input_digest, result_model,
+        plans, binding_digest,
+    )
+    feedback_count = _c2_feedback_row(
+        session, _c2_safe_run_file(directory, "screening-feedback.json"),
+        execution_id, plans,
+    )
+    return {
+        "screening_executions": 0 if existing_execution is not None else 1,
+        "screening_attempts": attempt_count,
+        "screening_results": result_count,
+        "screening_artifacts": artifact_count,
+        "screening_feedback": feedback_count,
+    }
+
+
+# A descriptive alias keeps the loader API discoverable to callers that use
+# the C-2 noun from the contract.
+load_c2_artifacts = load_order_plan_screening
+
+
 def ingest_run(
     run_directory: str | Path,
     session: Session | None = None,
     *,
     reports_root: str | Path | None = None,
+    policy_path: str | Path | None = None,
+    binding_path: str | Path | None = None,
 ) -> IngestResult:
     """Ingest one run directory.
 
@@ -3868,6 +4674,7 @@ def ingest_run(
     order_plan_path = directory / ORDER_PLAN_FILE
 
     validation_raw = _read_optional_json(validation_path)
+    screening_input_candidate = _read_optional_json(screening_input_path)
     screening_input_present, screening_input_raw, screening_input_invalid = _read_screening_input(screening_input_path)
     screening_input_digest = None
     if screening_input_raw is not None and screening_input_invalid is None:
@@ -3901,6 +4708,65 @@ def ingest_run(
     run_id = deterministic_run_id(directory.name, generated_at)
 
     try:
+        c2_specific_sibling_present = any(
+            (directory / name).is_file()
+            for name in (
+                "screening-ranking.json",
+                "screening-failures.json",
+                "screening-telemetry.json",
+                "screening-feedback.json",
+            )
+        )
+        c2_decisions_present = (
+            isinstance(decisions_raw, dict)
+            and decisions_raw.get("schema_version")
+            == "bidops.order-plan-screening-decisions.v1"
+        )
+        c2_present = (
+            isinstance(screening_input_candidate, dict)
+            and screening_input_candidate.get("schema_version") == C2_INPUT_SCHEMA
+        ) or (
+            isinstance(screening_raw, dict)
+            and screening_raw.get("schema_version") == C2_RESULT_SCHEMA
+        ) or c2_specific_sibling_present or c2_decisions_present
+        if c2_present:
+            c2_source_run_id = (
+                screening_input_candidate.get("source_run_id")
+                if isinstance(screening_input_candidate, dict)
+                else None
+            )
+            if not isinstance(c2_source_run_id, str) or not c2_source_run_id.strip():
+                raise OrderPlanScreeningContractError("C-2 source_run_id is missing")
+            run = session.get(Run, c2_source_run_id)
+            if run is None:
+                if c2_source_run_id != run_id:
+                    raise OrderPlanScreeningContractError("C-2 source run does not exist")
+                run = _upsert_run(
+                    session,
+                    run_id,
+                    directory,
+                    window_from,
+                    window_to,
+                    timezone_name,
+                    generated_at,
+                    screening_basis,
+                )
+            c2_counts = load_order_plan_screening(
+                directory,
+                session,
+                policy_path=policy_path,
+                binding_path=binding_path,
+            )
+            session.commit()
+            return IngestResult(
+                run_id=c2_source_run_id,
+                order_plans=c2_counts["screening_results"],
+                screening_executions=c2_counts["screening_executions"],
+                screening_attempts=c2_counts["screening_attempts"],
+                screening_results=c2_counts["screening_results"],
+                screening_artifacts=c2_counts["screening_artifacts"],
+                screening_feedback=c2_counts["screening_feedback"],
+            )
         run = _upsert_run(
             session,
             run_id,

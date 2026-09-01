@@ -80,13 +80,20 @@ GRANT SELECT ON TABLE
     bidops.prespec_overview_review,
     bidops.prespec_overview_snapshot,
     bidops.prespec_overview_attempt,
-    bidops.prespec_overview_result
+    bidops.prespec_overview_result,
+    bidops.order_plan_screening_policy,
+    bidops.order_plan_screening_execution,
+    bidops.order_plan_screening_batch_attempt,
+    bidops.order_plan_screening_result,
+    bidops.order_plan_screening_artifact,
+    bidops.order_plan_screening_feedback
 TO app;
 
 -- App-owned create paths include ingestion, UI mutations, orchestration, and
--- append-only audit/result/history rows. Deterministic pre-spec overview
--- preparation creates reviews and snapshots, but no runtime app path creates
--- model attempts. UPDATE and DELETE are narrower lists below.
+-- append-only audit/result/history rows. C-2 import is an app transaction:
+-- worker-owned attempt/artifact/result rows are appendable here, while only
+-- the worker receives their later mutable attempt-state UPDATE grant below.
+-- UPDATE and DELETE are narrower lists below.
 GRANT INSERT ON TABLE
     bidops.run,
     bidops.notice,
@@ -147,7 +154,13 @@ GRANT INSERT ON TABLE
     bidops.always_on_state,
     bidops.screening_audit_event,
     bidops.prespec_overview_review,
-    bidops.prespec_overview_snapshot
+    bidops.prespec_overview_snapshot,
+    bidops.order_plan_screening_policy,
+    bidops.order_plan_screening_execution,
+    bidops.order_plan_screening_batch_attempt,
+    bidops.order_plan_screening_artifact,
+    bidops.order_plan_screening_result,
+    bidops.order_plan_screening_feedback
 TO app;
 
 -- Mutable source projections expose only their refreshable columns.  Their
@@ -201,6 +214,16 @@ GRANT UPDATE (
 GRANT UPDATE (
     status, active_slot, activated_at, activated_by, quality_gate_result_id
 ) ON bidops.screening_policy TO app;
+GRANT UPDATE (
+    policy_status, active_slot, activated_at, activated_by
+) ON bidops.order_plan_screening_policy TO app;
+GRANT UPDATE (
+    status, active_slot, partial_artifact, candidate_count, completed_count,
+    failure_count, stage1_selected_count, stage1_filtered_out_count,
+    stage1_failed_count, stage2_relevant_count, stage2_not_relevant_count,
+    stage2_uncertain_count, stage2_failed_count, stage2_rejected_count,
+    human_review_count, error_code, started_at, finished_at
+) ON bidops.order_plan_screening_execution TO app;
 
 -- Service-owned mutable state.  Append-only profile/policy inputs, source
 -- observations, claims, revision/opinion history, and audit rows are absent.
@@ -285,7 +308,12 @@ GRANT SELECT ON TABLE
     bidops.prespec_overview_snapshot,
     bidops.prespec_overview_attempt,
     bidops.prespec_overview_result,
-    bidops.prespec_overview_attempt_event
+    bidops.prespec_overview_attempt_event,
+    bidops.order_plan,
+    bidops.order_plan_screening_policy,
+    bidops.order_plan_screening_execution,
+    bidops.order_plan_screening_batch_attempt,
+    bidops.order_plan_screening_artifact
 TO worker;
 
 GRANT INSERT ON TABLE
@@ -307,7 +335,10 @@ GRANT INSERT ON TABLE
     bidops.prespec_overview_snapshot,
     bidops.prespec_overview_attempt,
     bidops.prespec_overview_result,
-    bidops.prespec_overview_attempt_event
+    bidops.prespec_overview_attempt_event,
+    bidops.order_plan_screening_batch_attempt,
+    bidops.order_plan_screening_artifact,
+    bidops.order_plan_screening_result
 TO worker;
 
 GRANT UPDATE ON TABLE
@@ -320,6 +351,11 @@ TO worker;
 GRANT UPDATE (
     current_snapshot_id, status, result, completed_at, updated_at
 ) ON bidops.prespec_overview_review TO worker;
+GRANT UPDATE (
+    attempt_status, failure_type, failure_code, response_object_ref,
+    input_tokens, cached_input_tokens, output_tokens, total_tokens,
+    duration_ms, started_at, finished_at
+) ON bidops.order_plan_screening_batch_attempt TO worker;
 GRANT UPDATE (
     status, started_at, completed_at, result_id
 ) ON bidops.prespec_overview_attempt TO worker;
