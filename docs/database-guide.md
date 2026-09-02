@@ -534,7 +534,7 @@ version**으로 다시 등록한다.
 
 - [업무 상태와 의사결정 규칙](business-rules.md)
 - [REST·파일·DB 소비자 계약](contracts.md)
-- [현재 구조와 목표 데이터 흐름](architecture.md)
+- [현재 구조와 목표 데이터 흐름](ARCHITECTURE.md)
 - [보안과 PostgreSQL·MinIO 경계](security.md)
 - [운영·백업·복구 절차](operations.md)
 - [현재 구현 상태](tracking/status.md)

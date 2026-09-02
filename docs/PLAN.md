@@ -3,8 +3,8 @@
 | 항목 | 내용 |
 |---|---|
 | 문서 상태 | 초안 — 착수 순서와 검증 게이트 |
-| 문서 버전 | v0.1 |
-| 기준일 | 2026-09-01 |
+| 문서 버전 | v0.2 |
+| 기준일 | 2026-09-02 |
 | 요구사항 | [PRD.md](PRD.md) |
 | 채택 결정 | [ADR-0037](tracking/decisions/0037-order-plan-c2-bm25-top300-qwen.md) |
 
@@ -28,16 +28,19 @@
 
 ## 2. 단계 요약
 
-| 단계 | 목표 | 주요 산출물 | 완료 게이트 |
-|---|---|---|---|
-| Phase 0 | 미확정 정책과 계약 고정 | ADR, 파일·REST·DB 명세, 승인 입력 manifest | 사람 승인과 hash 확정 |
-| Phase 1 | 결정적 BM25와 결과 병합 생산자 | `skills/bidops-screen` CLI·schema validator | skill·루트 파이프라인 테스트 |
-| Phase 2 | 불변 DB 저장과 적재 | SQLAlchemy model, Alembic, loader, runtime privilege | 임시 PostgreSQL 17 검증 |
-| Phase 3 | 수동 실행 API와 Qwen worker | execution service, queue, vLLM adapter, telemetry | fake E2E와 명시적 live smoke |
-| Phase 4 | 발주계획 검토 화면 | 누적 목록, 실행 상세, 필터, 사람 피드백 | TypeScript build·visual 회귀 |
-| Phase 5 | 품질 gate와 수동 운영 승인 | human gold 평가, policy candidate·activation | 명시적 운영 승인, 자동 실행 없음 |
-| Phase 6 | 고도화: scheduler | 일일 수집·선별 예약, catch-up, 월·목 검토 흐름 | 별도 ADR·운영 검증 뒤 opt-in |
-| Phase 7 | 생애주기 확장 | 사전규격 독립 수집·연결·delta 추적 | 단계별 별도 계약과 사람 결정 |
+| 단계 | 목표 | 주요 산출물 | 완료 게이트 | 현재 |
+|---|---|---|---|---|
+| Phase 0 | 미확정 정책과 계약 고정 | ADR, 파일·REST·DB 명세, 승인 입력 manifest | 사람 승인과 hash 확정 | 완료 — ADR-0038 |
+| Phase 1 | 결정적 BM25와 결과 병합 생산자 | `skills/bidops-screen` CLI·schema validator | skill·루트 파이프라인 테스트 | 완료 — `c55fca8` |
+| Phase 2 | 불변 DB 저장과 적재 | SQLAlchemy model, Alembic, loader, runtime privilege | 임시 PostgreSQL 17 검증 | 구현 완료 — `c136dfd`; loader 회귀 1건이 P5-0에 남음 |
+| Phase 3 | 수동 실행 API와 Qwen worker | execution service, queue, vLLM adapter, telemetry | fake E2E와 명시적 live smoke | 구현 완료 — `aaaef22`; live smoke 미실행 |
+| Phase 4 | 발주계획 검토 화면 | 누적 목록, 실행 상세, 필터, 사람 피드백 | TypeScript build·visual 회귀 | 완료 — `da508e0` |
+| Phase 5 | 품질 gate와 수동 운영 승인 | human gold 평가, policy candidate·activation | 명시적 운영 승인, 자동 실행 없음 | 착수 대상 |
+| Phase 6 | 고도화: scheduler | 일일 수집·선별 예약, catch-up, 월·목 검토 흐름 | 별도 ADR·운영 검증 뒤 opt-in | 대기 |
+| Phase 7 | 생애주기 확장 | 사전규격 독립 수집·연결·delta 추적 | 단계별 별도 계약과 사람 결정 | 대기 |
+
+Phase 2~4의 통합 보정 커밋은 `5e58f20`, `3ce0dcf`이며 `5e58f20`이 만든 migration 회귀 1건도
+P5-0에 남아 있다. 구현 완료는 게이트 통과와 같은 뜻이 아니다.
 
 ## 3. Phase 0 · 정책과 계약 고정
 
@@ -332,14 +335,105 @@ API mock은 성공, 부분 성공, 전체 실패, 결과 없음, `null` 계측, 
 
 코드가 동작한다는 사실과 C-2를 실제 업무에 사용하는 결정을 분리한다.
 
-### 작업
+### 착수 시점 사실 (2026-09-02)
+
+- Phase 1~4는 커밋됐다. 구현 경로는 존재하지만 아래 세 가지 때문에 실데이터 실행과 품질 측정이
+  아직 성립하지 않는다.
+- 백엔드 전체 스위트 기준선은 **1076 passed, 5 skipped, 6 failed**다. 6건은 전체 2회 실행과
+  건별 단독 재실행에서 동일하게 재현된 결정적 실패이며 부하 의존 flake가 아니다. 측정 시점에
+  `web/`·`skills/`에 미커밋 변경은 없었다.
+- Phase 0 validator는 여전히 `valid_but_blocked`이고 blocker는 `c1_gold_incomplete`,
+  `audit_sample_policy_unapproved`, `quality_gate_not_measured`,
+  `private_vllm_transport_requires_per_execution_approval` 넷이다.
+- `order_plan_screening_policy` row를 만드는 운영 경로가 없다. 실행 API는
+  `policy_status='active'`와 `quality_gate_status='passed'`를 함께 요구하므로 현재는 어떤
+  실행도 성립하지 않는다. `docs/contracts.md`의 C-2 policy REST 3개는 계약만 있고 미구현이다.
+- C-2 quality gate 결과를 저장할 자리가 없다. policy table에는 `quality_gate_status` 문자열
+  한 칸뿐이고, 기존 `quality_gate`·`quality_gate_evaluation` table은 legacy 공고 screening
+  전용(`purpose = model_comparison|operational_approval`)이다. 반면 활성화 요청 계약은
+  `quality_gate_artifact_sha256`을 요구한다.
+
+### P5-0 · 착수 전 정리
+
+회귀를 안고 측정하면 측정 대상이 제품이 아니게 된다. 품질 측정 전에 닫는다.
+
+1. **`0017` downgrade 호출 교정.**
+   `web/backend/alembic/versions/0017_order_plan_screening_heartbeat.py:76`이
+   `op.execute(sa.text(...), {params})`를 positional로 호출한다. Alembic 1.19.1의
+   `Operations.execute(sqltext, *, execution_options=None)`는 두 번째 positional 인자를 받지
+   않아 `TypeError`가 나고, 그 결과 **현재 head에서 downgrade가 한 단계도 진행되지 않는다.**
+   같은 파일 upgrade 경로의 `op.get_bind().execute(...)`는 정상이므로 호출 형태만 맞춘다.
+   이 한 건이 migration 회귀 4건의 공통 원인이다.
+2. **legacy v3 회차를 C-2로 오인하는 분기 교정.**
+   `web/backend/app/ingest/loader.py:4725`가 `screening-ranking|failures|telemetry|feedback.json`의
+   **존재만으로** C-2로 분기한다. legacy v3 worker(`web/backend/app/screening/worker.py:580`)가
+   같은 이름의 `screening-failures.json`을 쓰므로, 부분 실패한 기존 v3 회차가
+   `C-2 source_run_id is missing`으로 적재에 실패한다. 판별을 같은 함수의
+   `c2_decisions_present`처럼 `schema_version` 기준으로 통일한다. 이것이 screening
+   orchestrator 회귀 2건의 원인이다.
+3. **재발 방지 회귀 테스트.** head→`0016` downgrade 왕복과, legacy v3 부분 실패 회차의 적재를
+   각각 고정한다.
+4. **기록 정정.** `docs/validation-runs/20260902-order-plan-c2-phases2-4.md`는 남은 실패를
+   "8건이며 Phase 2~4 변경 경로가 아니다"라고 적었으나 그 구성은 재현되지 않았다. 실제는 6건이고
+   전부 이번 변경이 원인이다. 실행 수치와 귀속을 사실대로 정정한다.
+5. **상태 갱신.** `docs/tracking/status.md`의 C-2 행, Alembic head(`0017`), 백엔드 기준선
+   수치를 현재 사실로 맞춘다.
+
+완료 조건: `./run-tests.sh`와 `web/run-web-tests.sh`의 백엔드 구간이 실패 0건이고, downgrade
+왕복이 임시 PostgreSQL 17에서 실측으로 통과한다.
+
+### P5-1 · 사람 결정
+
+측정 자체가 이 결정들에 종속된다. 정해지기 전까지 값은 `null`로 두고 추정하지 않는다.
+
+| ID | 결정 | 현재 값 | 없으면 막히는 것 |
+|---|---|---|---|
+| D-a | gold를 언제 "승인된 사람 gold"로 볼 것인가 | 사람 22 / draft 603 / 잔여 확인 87 | P5-3의 채점 입력 |
+| D-b | quality gate 임계값 `recall`·`precision`·`important_missed_max`·`review_load_max` | 넷 다 `null` | 통과·미달 판정 자체 |
+| D-c | 감사 표본 `sample_size`·`review_cadence`·`enabled` | `null`, `pending_human_approval` | BM25 탈락 감사 |
+| D-d | 사설 vLLM 전송 승인(D-7 방화벽)과 model artifact digest 고정 | `not_allowed_for_product_runtime` | 반복 실행 측정, live smoke |
+| D-e | 활성화 승인 주체·절차와 audit 기록 범위 | 미정 | P5-4 |
+| D-f | 채점 대상을 기존 실험 산출물로 할 것인가, 제품 파이프라인 재실행 결과로 할 것인가 | 미정 | P5-3 전체의 성격 |
+
+참고 실측(625건, 방식 선택 근거이며 목표치가 아니다): 검토 유지 recall 96.61%,
+precision 44.88%, 사람 검토 후보 127건, BM25 누락 2건.
+
+D-f를 "제품 재실행"으로 정하면 P5-3 전체가 D-d에 종속된다. "기존 산출물 재채점"으로 정하면
+지금 측정할 수 있지만 그 결과는 제품이 낸 결과가 아니므로 gate artifact에 그 사실을 남긴다.
+
+### P5-2 · 구현
+
+임계값이 없어도 구조는 fail-closed로 만들 수 있다. P5-1과 병행한다.
+
+1. **policy 등록 경로.** 승인된 policy 파일을 digest 그대로 `draft`로 적재하는 명시적 경로를
+   만든다. 앱 startup, image build, migration은 이 일을 하지 않는다.
+2. **policy REST 3개 구현.** `GET /api/order-plan-screening/policies/{policy_version}`,
+   `POST .../policies/candidate`, `POST .../policies/{policy_version}/activate`.
+   `activation_allowed=false`인 동안 활성화는 `activation_blocked(409)`로 닫혀 있어야 한다.
+3. **quality gate 산출물의 저장 계약 확정.** artifact와 digest를 어디에 두는지 정하고
+   `policy_status`·`quality_gate_status` 전이와 append-only audit을 함께 고정한다. legacy
+   `quality_gate` table을 재사용하지 않는다면 그 이유를 계약에 남긴다. migration `0018`의
+   필요 여부는 이 결정에서 나온다.
+4. **감사 표본 선정기.** policy의 strata, 선정 순서, 무복원 규칙을 결정적으로 구현한다. 현재
+   규칙은 문서와 policy 파일에만 있고 실행 코드가 없다.
+5. **활성화 화면.** 후보 policy, exact binding, gate 결과, 남은 blocker를 사람이 확인하고
+   명시적으로 승인하는 동선. `미측정`과 `미달`을 다른 표면으로 구분하고, 승인 전에는 활성
+   정책처럼 보이지 않게 한다.
+
+### P5-3 · 측정
 
 1. 승인된 사람 gold로 고정 모집단을 다시 채점한다.
 2. recall, precision, review load, 중요 누락, BM25 rank 분포, 시간·token을 계산한다.
 3. accepted-stage1-misses와 새 중요 누락을 함께 검토한다.
 4. 같은 binding 반복 실행으로 batch 안정성과 판정 변동을 측정한다.
 5. 감사 표본에서 BM25 탈락의 관련 건수를 사람 판정으로 확인한다.
-6. 결과가 Phase 0의 기준을 통과하면 policy를 activation candidate로 지정한다.
+
+산출물은 임계값 대비 `통과`·`미달`·`미측정`을 구분한 gate artifact 하나다. 실패와 미측정을
+0이나 `not_relevant`로 보정하지 않는다.
+
+### P5-4 · 활성화
+
+6. 결과가 D-b 기준을 통과하면 policy를 activation candidate로 지정한다.
 7. 운영자가 exact gate·policy·prompt·model·profile binding을 확인하고 수동 활성화한다.
 
 ### 활성화 뒤에도 유지할 경계
@@ -352,8 +446,10 @@ API mock은 성공, 부분 성공, 전체 실패, 결과 없음, `null` 계측, 
 
 ### 완료 조건
 
-품질 평가 artifact, 사람 review, activation audit가 정확한 binding에 연결되고 scheduler 없이
-대표 회차를 수동으로 실행·검토할 수 있어야 한다.
+- P5-0의 회귀가 0건이고 downgrade 왕복이 실측으로 통과한다.
+- 품질 평가 artifact, 사람 review, activation audit가 정확한 binding에 연결된다.
+- 임계값 미달과 미측정이 활성화를 자동으로 막는다.
+- scheduler 없이 대표 회차를 수동으로 실행·검토할 수 있다.
 
 ## 9. Phase 6 · 고도화: scheduler
 
@@ -429,18 +525,28 @@ live endpoint 호출은 이 목록에 포함하지 않는다. 별도 승인된 s
 
 ## 12. 현재 상태
 
+기준일 2026-09-02. `구현됨`은 코드와 계약이 있다는 뜻이고 게이트 통과와 같은 뜻이 아니다.
+
 | 항목 | 상태 |
 |---|---|
 | C-2 방식 선택 | 완료 — ADR-0037 |
 | 기준 실험 | 완료 — 625건, Qwen 300건, batch 12개 |
 | 알려진 BM25 누락 기록 | 완료 — 2건 수용 기록 |
 | 승인 prompt v3·회사 역량 v1 관리 | 완료 — review-input manifest와 hash |
+| 제품 파일 계약과 생산 pipeline | 구현됨 — Phase 0 schema·validator, Phase 1 생산자 |
+| DB execution·result 계약과 적재 | 구현됨 — `0016`·`0017`, loader, runtime privilege |
+| 수동 API·worker | 구현됨 — 실행·중지·artifact·telemetry, live smoke 미실행 |
+| 검토 화면 | 구현됨 — 누적 목록, 실행 상세, 필터, 사람 feedback |
+| 백엔드 전체 스위트 | 1076 passed, 5 skipped, **6 failed**; 6건 모두 Phase 2~4 경로의 결정적 회귀 |
+| head에서의 downgrade | 불가 — `0017` downgrade가 `TypeError`로 즉시 실패 |
+| C-2 policy 등록·candidate·활성화 | 미구현 — 운영 경로 없음. 현재 실데이터 실행은 성립하지 않음 |
+| quality gate 산출물 저장 자리 | 미정 — C-2 전용 저장 계약 없음 |
+| 감사 표본 선정기 | 미구현 — 규칙만 문서·policy에 존재 |
 | C-1 사람 gold 잔여 확인 | 사람 결정 대기 — 22 human / 603 draft / 87 remaining |
 | threshold·감사 표본 정책 | 계약 초안 고정 — 사람 승인 대기 |
-| 제품 파일 계약 | Phase 0 schema·검증기 구현, 생산 pipeline은 Phase 1 미구현 |
-| DB execution·result 계약 | Phase 0 명세 고정, migration·loader는 Phase 2 미구현 |
-| 수동 API·worker·화면 | 미구현 |
+| 사설 vLLM 전송 | 승인 대기 — `not_allowed_for_product_runtime` |
 | scheduler 연결 | 고도화 단계로 보류 |
 
-다음 착수점은 Phase 0 validator를 통과한 binding을 읽는 Phase 1 제품 파일 생산이다. scheduler
-설계는 이 착수점에 포함하지 않는다.
+다음 착수점은 P5-0이다. 회귀 6건과 downgrade 불가를 닫고 잘못 기록된 기준선을 정정한 뒤,
+P5-1의 사람 결정과 P5-2의 구현을 병행한다. 측정(P5-3)은 D-a~D-d가 정해진 뒤에 시작한다.
+scheduler 설계는 이 착수점에 포함하지 않는다.

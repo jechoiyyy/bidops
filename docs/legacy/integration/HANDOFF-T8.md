@@ -66,8 +66,9 @@ git diff -- docs/agent-workflow-design.md \
 
 ## 3. T7 증적의 해석
 
-상세 증적은 [`docs/mock-workflow-e2e-result.md`](docs/mock-workflow-e2e-result.md)에 보존돼 있다.
-2026-08-26 기존 B→C 증적과 2026-08-27 Agent 연속 E2E 증적을 삭제·교체·재명명하지 않는다.
+당시 상세 증적은 현재 삭제된 `docs/mock-workflow-e2e-result.md`에 기록되었고, 현재 재현 절차는
+[`e2e-bc-acceptance.md`](../../e2e-bc-acceptance.md)를 따른다. 아래 사실은 당시 T8의 역사 기록으로
+보존하며, 현재 운영 품질이나 실행 결과의 정본으로 사용하지 않는다.
 
 2026-08-27 실행의 사실은 다음과 같다.
 

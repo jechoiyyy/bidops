@@ -215,8 +215,8 @@ business_domains:
 ### 수행실적 데이터 유의사항
 
 - 회사소개서 PDF 41–46페이지의 사업명 130건은 [검색용 수행실적 레퍼런스](company-performance-titles.tsv)에 별도로 구조화했다.
-- 소개서 수록 순서 상위 30건은 [최근 수행사업 30건 분석](company-performance-latest-30-analysis.tsv)에 사업유형·도메인·증거 성격을 분리하여 정리했다.
-- 최신 30건의 조달청 API 대조 결과는 [입찰공고 매칭 데이터](company-performance-latest-30-g2b.json)에, 자동 연결하지 못한 항목은 [공고번호 수동 확인 목록](company-performance-g2b-manual-check.md)에 정리했다.
+- 소개서 수록 순서 상위 30건의 별도 분석 산출물은 현재 저장소에 존재하지 않으므로 이 문서의 확인 근거로 사용하지 않는다.
+- 최신 30건의 조달청 API 대조 및 수동 확인 산출물도 현재 저장소에 존재하지 않으며, 연결되지 않은 내용은 unknown으로 보존한다.
 - 해당 사업명은 유사 공고를 후보군으로 회수하는 탐색 근거이며, 사업 범위의 동일성이나 입찰 자격 충족을 자동으로 증명하지 않는다.
 - 최신 30건의 순서는 실제 계약일이 아니라 회사소개서 수록 순서를 최신순 대용치로 사용한 것이다.
 - 회사 설립일은 2022-09-23임.
@@ -630,7 +630,9 @@ procurement_qualifications:
         evidence_source: "담당자 확인 및 최신 수행사업 중 조달청 공고가 연결된 13개 사업의 면허 제한정보"
         supporting_project_count: 13
         supporting_notice_count: 22
-        supporting_data: "company-performance-latest-30-g2b.json"
+        supporting_data: null
+        supporting_data_status: unknown
+        supporting_data_note: "참조하던 파생 산출물이 현재 저장소에 없어 원본·담당자 확인 없이는 재검증하지 않음"
         verified_as_of: "2026-08-25"
         note: "업종 등록 사실은 확인됨. 실제 입찰 제출용으로는 현재 나라장터 등록상태를 보여주는 원본 증빙을 별도 보관할 필요가 있음"
 ```
