@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+import http.client
 import math
 import os
 import re
+import socket
 import time
 import unicodedata
 import urllib.error
@@ -594,12 +596,72 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
+class BoundHTTPConnection(http.client.HTTPConnection):
+    """HTTP connection bound to one approved interface before connect()."""
+
+    def __init__(self, host: str, interface: str, **kwargs: Any):
+        super().__init__(host, **kwargs)
+        self.interface = interface
+        self._create_connection = self._create_bound_connection
+
+    def _create_bound_connection(
+        self,
+        address: tuple[str, int],
+        timeout: float | object = socket._GLOBAL_DEFAULT_TIMEOUT,
+        source_address: tuple[str, int] | None = None,
+    ) -> socket.socket:
+        if not hasattr(socket, "SO_BINDTODEVICE"):
+            raise OSError("SO_BINDTODEVICE is unavailable")
+        last_error: OSError | None = None
+        for family, socktype, protocol, _canonname, sockaddr in socket.getaddrinfo(
+            address[0], address[1], 0, socket.SOCK_STREAM
+        ):
+            sock: socket.socket | None = None
+            try:
+                sock = socket.socket(family, socktype, protocol)
+                if timeout is not socket._GLOBAL_DEFAULT_TIMEOUT:
+                    sock.settimeout(timeout)
+                sock.setsockopt(
+                    socket.SOL_SOCKET,
+                    socket.SO_BINDTODEVICE,
+                    self.interface.encode("ascii") + b"\0",
+                )
+                if source_address:
+                    sock.bind(source_address)
+                sock.connect(sockaddr)
+                return sock
+            except OSError as exc:
+                last_error = exc
+                if sock is not None:
+                    sock.close()
+        if last_error is not None:
+            raise last_error
+        raise OSError("no address available")
+
+
+class BoundHTTPHandler(urllib.request.HTTPHandler):
+    def __init__(self, interface: str):
+        super().__init__()
+        self.interface = interface
+
+    def http_open(self, request):  # type: ignore[no-untyped-def]
+        return self.do_open(
+            lambda host, **kwargs: BoundHTTPConnection(
+                host, interface=self.interface, **kwargs
+            ),
+            request,
+        )
+
+
 class SafeJsonHttpClient:
-    def __init__(self, timeout: int):
+    def __init__(self, timeout: int, bind_interface: str | None = None):
         if timeout < 1:
             raise ExperimentError("invalid_http_config", "model timeout은 1 이상이어야 합니다")
         self.timeout = timeout
-        self.opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
+        handlers: list[Any] = [urllib.request.ProxyHandler({}), NoRedirect()]
+        if bind_interface:
+            handlers.append(BoundHTTPHandler(bind_interface))
+        self.opener = urllib.request.build_opener(*handlers)
 
     def post(self, url: str, body: dict[str, Any], headers: dict[str, str]) -> tuple[dict[str, Any], int]:
         started = time.monotonic()
@@ -858,10 +920,30 @@ class QwenAdapter:
         self.model_name = config["model_name"]
         self.model_revision = config["model_revision"]
         self.prompt = prompt
-        self.client = SafeJsonHttpClient(int(config.get("timeout_seconds", 120)))
+        bind_interface = None
+        bind_interface_env = config.get("bind_interface_env")
+        if bind_interface_env is not None:
+            if not isinstance(bind_interface_env, str) or not bind_interface_env:
+                raise ExperimentError("model_interface_invalid", "interface 환경변수 이름이 잘못됐습니다")
+            bind_interface = os.environ.get(bind_interface_env, "").strip() or None
+            if bind_interface not in set(config.get("allowed_bind_interfaces") or []):
+                raise ExperimentError("model_interface_rejected", "승인되지 않은 model interface입니다")
+        self.client = SafeJsonHttpClient(
+            int(config.get("timeout_seconds", 120)), bind_interface=bind_interface
+        )
         self.batch_size = int(config["batch_size"])
         self.max_output_tokens = int(config.get("max_output_tokens", 4096))
         self.think = config.get("think", "high")
+        self.chat_template_kwargs = config.get("chat_template_kwargs")
+        if self.chat_template_kwargs is not None and (
+            not isinstance(self.chat_template_kwargs, dict)
+            or set(self.chat_template_kwargs) != {"enable_thinking"}
+            or not isinstance(self.chat_template_kwargs["enable_thinking"], bool)
+        ):
+            raise ExperimentError(
+                "chat_template_kwargs_invalid",
+                "vLLM chat_template_kwargs는 enable_thinking boolean만 허용합니다",
+            )
         self.revision_env = config.get("revision_env")
         self._revision_verified = False
 
@@ -931,6 +1013,8 @@ class QwenAdapter:
                     },
                 },
             }
+            if self.chat_template_kwargs is not None:
+                body["chat_template_kwargs"] = self.chat_template_kwargs
         headers: dict[str, str] = {}
         key = os.environ.get("BIDOPS_QWEN_API_KEY", "").strip()
         if key:
@@ -948,6 +1032,8 @@ class QwenAdapter:
                     "output_tokens": response.get("eval_count"),
                 }
             else:
+                if response.get("model") != self.model_name:
+                    raise AdapterFailure("served_model_mismatch", latency)
                 choice = response["choices"][0]
                 if choice.get("finish_reason") == "length":
                     raise AdapterFailure("truncated_output", latency)

@@ -1,6 +1,6 @@
-"""BM25 · dense · RRF 하이브리드를 사람 gold로 채점한다 (ADR-0021 개정).
+"""BM25 · dense · RRF 하이브리드를 고정 reference로 채점한다 (ADR-0021 개정).
 
-세 arm을 고정 3일 모집단 997건에 돌리고 전수 사람 gold로 recall을 잰다.
+세 arm을 고정 모집단에 돌리고 전수 reference label로 recall을 잰다.
 채택 근거는 평균 순위 품질이 아니라 **단독 arm이 놓친 건을 하이브리드가 복구하는가**다.
 그래서 BM25 단독과 dense 단독을 함께 내고 서로 다른 실패를 대조한다.
 
@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import csv
 from dataclasses import dataclass
+from collections import Counter
 import hashlib
 import json
 from pathlib import Path
@@ -29,6 +30,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from methods import BM25Adapter  # noqa: E402
 
 SCHEMA_VERSION = "bidops.order-plan-arm-scoring.v1"
+PARTIAL_SCHEMA_VERSION = "bidops.order-plan-arm-scoring-partial.v1"
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
 # 사람 gold의 `관련`만 정답으로 센다. `판단보류`는 놓쳐도 실패로 세지 않고
 # 잡아도 성공으로 세지 않는다. 검토량에는 포함된다.
@@ -44,21 +46,42 @@ CUTOFFS = (20, 30, 50, 75, 100, 150, 200, 300)
 class Gold:
     relevance: dict[str, str]
     priority: dict[str, str]
+    label_source_counts: dict[str, int]
 
 
 def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _load_gold(path: Path) -> Gold:
+def _load_gold(
+    path: Path,
+    relevance_column: str = "human_relevance",
+    priority_column: str = "human_priority",
+    label_source_column: str | None = None,
+) -> Gold:
     relevance: dict[str, str] = {}
     priority: dict[str, str] = {}
+    source_counts: Counter[str] = Counter()
     with path.open(encoding="utf-8", newline="") as handle:
-        for row in csv.DictReader(handle, delimiter="\t"):
+        reader = csv.DictReader(handle, delimiter="\t")
+        required = {"plan_id", relevance_column, priority_column}
+        if label_source_column:
+            required.add(label_source_column)
+        if not reader.fieldnames or not required <= set(reader.fieldnames):
+            raise ValueError(f"reference 필드가 없습니다: {', '.join(sorted(required))}")
+        for row in reader:
             plan_id = row["plan_id"].strip()
-            relevance[plan_id] = row["human_relevance"].strip()
-            priority[plan_id] = row["human_priority"].strip()
-    return Gold(relevance=relevance, priority=priority)
+            if not plan_id or plan_id in relevance:
+                raise ValueError("reference plan_id가 비었거나 중복됐습니다")
+            relevance[plan_id] = row[relevance_column].strip()
+            priority[plan_id] = row[priority_column].strip()
+            if label_source_column:
+                source_counts[row[label_source_column].strip() or "unknown"] += 1
+    return Gold(
+        relevance=relevance,
+        priority=priority,
+        label_source_counts=dict(sorted(source_counts.items())),
+    )
 
 
 def _ranked(scores: dict[str, float]) -> list[str]:
@@ -118,15 +141,38 @@ def _high_priority_misses(order: list[str], gold: Gold, cutoff: int) -> list[dic
     return sorted(misses, key=lambda row: (weight.get(row["priority"], 3), row["plan_id"]))
 
 
+def _write_new(destination: Path, document: dict[str, Any]) -> bool:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with destination.open("x", encoding="utf-8", newline="\n") as handle:
+            json.dump(document, handle, ensure_ascii=False, indent=1)
+            handle.write("\n")
+    except FileExistsError:
+        print(f"기존 산출물을 덮어쓸 수 없다: {destination}", file=sys.stderr)
+        return False
+    return True
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-dir", required=True, type=Path)
     parser.add_argument("--gold", required=True, type=Path)
     parser.add_argument("--dense-result", default="bge_m3_dense.json")
+    parser.add_argument("--relevance-column", default="human_relevance")
+    parser.add_argument("--priority-column", default="human_priority")
+    parser.add_argument("--label-source-column")
+    parser.add_argument(
+        "--allow-dense-failure",
+        action="store_true",
+        help="dense가 실패한 경우 BM25만 채점하고 partial 산출물을 기록합니다.",
+    )
     parser.add_argument(
         "--company-capabilities",
         type=Path,
-        default=EXPERIMENT_ROOT / "config/company-capabilities.json",
+        default=(
+            EXPERIMENT_ROOT
+            / "review-inputs/company/company-capabilities-v1-approved.json"
+        ),
     )
     parser.add_argument("--bm25-config", type=Path, default=EXPERIMENT_ROOT / "config/bm25.json")
     parser.add_argument("--out", type=Path, default=None)
@@ -136,11 +182,25 @@ def main() -> int:
     population = json.loads((args.run_dir / "population.json").read_text(encoding="utf-8"))
     plans = population["items"]
     capabilities = json.loads(args.company_capabilities.read_text(encoding="utf-8"))
-    gold = _load_gold(args.gold)
+    try:
+        gold = _load_gold(
+            args.gold,
+            args.relevance_column,
+            args.priority_column,
+            args.label_source_column,
+        )
+    except (OSError, UnicodeError, ValueError, KeyError) as exc:
+        print(f"reference를 읽을 수 없다: {exc}", file=sys.stderr)
+        return 1
 
     missing = [plan["plan_id"] for plan in plans if plan["plan_id"] not in gold.relevance]
     if missing:
         print(f"gold에 없는 모집단 {len(missing)}건이 있어 중단한다: {missing[:5]}", file=sys.stderr)
+        return 1
+    population_ids = {plan["plan_id"] for plan in plans}
+    extra = sorted(set(gold.relevance) - population_ids)
+    if extra:
+        print(f"모집단에 없는 reference {len(extra)}건이 있어 중단한다: {extra[:5]}", file=sys.stderr)
         return 1
 
     # methods.json은 기존 6-method 닫힌 집합 계약이라 건드리지 않는다.
@@ -153,8 +213,70 @@ def main() -> int:
         (args.run_dir / "results" / args.dense_result).read_text(encoding="utf-8")
     )
     if dense_document["status"] != "success":
-        print("dense 결과가 success가 아니다", file=sys.stderr)
-        return 1
+        if not args.allow_dense_failure:
+            print("dense 결과가 success가 아니다", file=sys.stderr)
+            return 1
+        bm25_order = _ranked(bm25_scores)
+        evaluation = _evaluate(bm25_order, gold)
+        relevant_ids = {
+            plan_id for plan_id, value in gold.relevance.items() if value == RELEVANT
+        }
+        error_counts = dict(
+            sorted(
+                Counter(
+                    item.get("error_code") or "unknown"
+                    for item in dense_document.get("items", [])
+                    if item.get("status") != "success"
+                ).items()
+            )
+        )
+        destination = args.out or (args.run_dir / "arm-scoring-partial.json")
+        document = {
+            "schema_version": PARTIAL_SCHEMA_VERSION,
+            "status": "partial",
+            "run_dir": str(args.run_dir),
+            "population_count": len(plans),
+            "population_sha256": population.get("population_sha256"),
+            "gold": {
+                "path": str(args.gold),
+                "sha256": _sha256(args.gold),
+                "relevance_column": args.relevance_column,
+                "priority_column": args.priority_column,
+                "label_source_column": args.label_source_column,
+                "label_source_counts": gold.label_source_counts,
+                "relevant": len(relevant_ids),
+                "uncertain": sum(
+                    1 for value in gold.relevance.values() if value == UNCERTAIN
+                ),
+            },
+            "arms": {"bm25": {"config": bm25_config}},
+            "blocked_arms": {
+                "dense": {
+                    "status": dense_document["status"],
+                    "model": dense_document.get("model"),
+                    "method_version": dense_document.get("method_version"),
+                    "error_counts": error_counts,
+                },
+                "hybrid_rrf": {
+                    "status": "blocked",
+                    "reason": "dense_arm_failed",
+                    "k": RRF_K,
+                    "inputs": ["bm25", "dense"],
+                },
+            },
+            "evaluations": {"bm25": evaluation},
+            "high_priority_misses_at_cutoff": {
+                "bm25": _high_priority_misses(bm25_order, gold, args.report_cutoff)
+            },
+        }
+        if not _write_new(destination, document):
+            return 1
+        print(
+            f"dense 실패로 partial 채점: BM25 Top {args.report_cutoff} "
+            f"recall={next(row['recall'] for row in evaluation['at_cutoff'] if row['cutoff'] == args.report_cutoff)}"
+        )
+        print(f"기록: {destination}")
+        return 0
     dense_scores = {
         item["plan_id"]: item["score"]
         for item in dense_document["items"]
@@ -192,6 +314,10 @@ def main() -> int:
         "gold": {
             "path": str(args.gold),
             "sha256": _sha256(args.gold),
+            "relevance_column": args.relevance_column,
+            "priority_column": args.priority_column,
+            "label_source_column": args.label_source_column,
+            "label_source_counts": gold.label_source_counts,
             "relevant": len(relevant_ids),
             "uncertain": sum(1 for value in gold.relevance.values() if value == UNCERTAIN),
         },
@@ -211,9 +337,13 @@ def main() -> int:
     }
 
     destination = args.out or (args.run_dir / "arm-scoring.json")
-    destination.write_text(json.dumps(document, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    if not _write_new(destination, document):
+        return 1
 
-    print(f"\n사람 gold: 관련 {len(relevant_ids)}건 / 모집단 {len(plans)}건\n")
+    print(f"\n평가 reference: 관련 {len(relevant_ids)}건 / 모집단 {len(plans)}건")
+    if gold.label_source_counts:
+        print("라벨 출처: " + ", ".join(f"{key} {value}건" for key, value in gold.label_source_counts.items()))
+    print()
     header = f"{'검토량':>6} " + " ".join(f"{name:>14}" for name in orders)
     print(header)
     print("-" * len(header))

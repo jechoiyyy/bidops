@@ -19,6 +19,7 @@ from methods import (  # noqa: E402
     run_fixed_model_batches,
     validate_local_base_url,
     validate_model_batch_output,
+    SafeJsonHttpClient,
 )
 from run_methods import (  # noqa: E402
     build_result,
@@ -213,6 +214,59 @@ class MethodExecutionTests(unittest.TestCase):
         self.assertEqual([result.evidence_fields for result in qwen_results], [["title"]] * 2)
         self.assertEqual([result.evidence_fields for result in luna_results], [["title"]] * 2)
 
+    def test_vllm_qwen_rejects_unexpected_served_model(self) -> None:
+        qwen = QwenAdapter.__new__(QwenAdapter)
+        qwen.api_style = "openai_compatible"
+        qwen.url = "http://192.168.0.139:58765/v1/chat/completions"
+        qwen.model_name = "qwen3.8:27b"
+        qwen.prompt = "batch prompt"
+        qwen.max_output_tokens = 8192
+        qwen.chat_template_kwargs = {"enable_thinking": False}
+        qwen.client = RecordingClient(
+            {
+                "model": "unexpected-model",
+                "choices": [{"finish_reason": "stop", "message": {"content": "{}"}}],
+            }
+        )
+        with self.assertRaisesRegex(AdapterFailure, "served_model_mismatch"):
+            qwen._score_batch(make_population(1)["items"], CAPABILITIES)
+
+    def test_vllm_qwen_sends_explicit_nonthinking_option(self) -> None:
+        output = {
+            "items": [
+                {
+                    "item_id": 0,
+                    "relevance": "relevant",
+                    "score": 0.9,
+                    "reason": "fixture",
+                }
+            ]
+        }
+        qwen = QwenAdapter.__new__(QwenAdapter)
+        qwen.api_style = "openai_compatible"
+        qwen.url = "http://192.168.0.139:58765/v1/chat/completions"
+        qwen.model_name = "qwen3.8-27B"
+        qwen.prompt = "batch prompt"
+        qwen.max_output_tokens = 8192
+        qwen.chat_template_kwargs = {"enable_thinking": False}
+        qwen.client = RecordingClient(
+            {
+                "model": "qwen3.8-27B",
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {"content": json.dumps(output)},
+                    }
+                ],
+                "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+            }
+        )
+        qwen._score_batch(make_population(1)["items"], CAPABILITIES)
+        self.assertEqual(
+            {"enable_thinking": False},
+            qwen.client.calls[0][1]["chat_template_kwargs"],
+        )
+
     def test_keyword_and_bge_plan_side_are_title_only(self) -> None:
         config = {
             "positive_rules": [
@@ -340,6 +394,12 @@ class MethodExecutionTests(unittest.TestCase):
         ):
             with self.assertRaises(ExperimentError):
                 validate_local_base_url(value, ["127.0.0.1"])
+
+    def test_http_client_can_install_an_explicit_interface_handler(self) -> None:
+        client = SafeJsonHttpClient(5, bind_interface="eth1")
+        self.assertTrue(
+            any(type(handler).__name__ == "BoundHTTPHandler" for handler in client.opener.handlers)
+        )
         self.assertEqual(
             validate_local_base_url(
                 "http://127.0.0.1:11434", ["127.0.0.1"], "ollama_native"
