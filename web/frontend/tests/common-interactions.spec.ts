@@ -384,3 +384,82 @@ test("심층 검토 보고서 진입점이 사업기회 화면에 명시된다",
   await entry.getByRole("link", { name: "보고서 열기 →" }).click();
   await expect(page).toHaveURL(/\/deep-reviews\/fixture-review/);
 });
+
+// docs/design/PLAN.md 3단계 게이트: 대시보드 "지금 처리할 일" 스트립에서
+// 네 결정(발주계획 C-2·심층 추적 승인·공고 1차 판정·최종 Go/No-Go) 화면
+// 각각으로 이동할 수 있다. 건수가 0이거나 확인 불가여도 이동 경로 자체는
+// 항상 있어야 한다(actionItems가 count>0일 때만 항목을 내보내던 이전 규칙과
+// 이 게이트가 충돌하므로, 네 결정에 속한 항목은 항상 내보내도록 바꿨다).
+const DECISION_STRIP_TARGETS = [
+  { title: /C-2 검토 대상/, pathname: "/order-plans" },
+  { title: /사전규격 의견등록 마감/, pathname: "/pre-specs" },
+  { title: /공고 1차 판정 대기 확인|우선 검토로 판정된 공고/, pathname: "/queue" },
+  { title: /최종 Go\/No-Go 결정/, pathname: "/go-no-go" },
+];
+
+test("대시보드 할 일 스트립에서 네 결정 화면 각각으로 이동할 수 있다(회차 선택 상태)", async ({ page }) => {
+  await mockApi(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  const strip = page.locator(".dashboard-action-strip");
+  await expect(strip).toContainText("지금 처리할 일");
+  for (const target of DECISION_STRIP_TARGETS) {
+    await page.goto("/");
+    const link = strip.getByRole("link", { name: target.title });
+    await expect(link).toBeVisible();
+    await link.click();
+    await expect.poll(() => new URL(page.url()).pathname).toMatch(new RegExp(`^${target.pathname}`));
+  }
+});
+
+// 사전규격 마감 임박 건수는 클라이언트에서 구할 수 없다. `GET /api/pre-specs`에
+// 마감 구간 필터도 집계도 없고 `sort=deadline`이 마감 오름차순이라 첫 페이지가
+// 이미 지난 마감으로 채워진다 — 한 페이지를 세면 지난 마감을 임박으로 세고,
+// 임박 구간에는 도달하지도 못한다(docs/tracking/findings.md). 그럴듯한 숫자
+// 대신 "확인 불가"가 표시되는 것을 고정한다.
+test("사전규격 마감 임박 건수는 서버 집계가 없어 확인 불가로 표시되고, 이동은 항상 가능하다", async ({ page }) => {
+  await mockApi(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+
+  const deadlineItem = page.locator(".dashboard-action-strip").getByRole("link", { name: /사전규격 의견등록 마감/ });
+  await expect(deadlineItem.locator("strong")).toHaveText("확인 불가");
+  await deadlineItem.click();
+  await expect.poll(() => new URL(page.url()).pathname).toBe("/pre-specs");
+  await expect.poll(() => new URL(page.url()).searchParams.get("sort")).toBe("deadline");
+});
+
+test("Go/No-Go 대기 건수는 서버 집계가 없어 확인 불가로 표시되고, 이동은 항상 가능하다", async ({ page }) => {
+  await mockApi(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+
+  const goNoGoItem = page.locator(".dashboard-action-strip").getByRole("link", { name: /최종 Go\/No-Go 결정/ });
+  await expect(goNoGoItem.locator("strong")).toHaveText("확인 불가");
+  await expect(goNoGoItem).toContainText("건수 확인 불가");
+});
+
+test("회차를 선택하지 않아도 누적 추적 세 항목은 할 일 스트립에서 확인·이동할 수 있다", async ({ page }) => {
+  // /api/runs를 빈 목록으로 덮어써 AppShell이 회차를 자동 선택하지 못하게 한다.
+  await mockApi(page);
+  await page.route("**/api/runs", async (route) => {
+    if (route.request().method() !== "GET") { await route.fallback(); return; }
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ items: [] }) });
+  });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+
+  await expect(page.getByText("선택된 회차가 없습니다.", { exact: true })).toBeVisible();
+  const strip = page.locator(".dashboard-action-strip");
+  // 누적 추적 항목(C-2·사전규격·Go/No-Go)은 회차와 무관하므로 여전히 보인다.
+  await expect(strip.getByRole("link", { name: /C-2 검토 대상/ })).toBeVisible();
+  await expect(strip.getByRole("link", { name: /사전규격 의견등록 마감/ })).toBeVisible();
+  await expect(strip.getByRole("link", { name: /최종 Go\/No-Go 결정/ })).toBeVisible();
+  // 결정 3(공고 1차 판정)은 회차가 있어야 건수를 알 수 있지만, 이동 경로
+  // 자체는 회차 없이도 남는다.
+  const queueItem = strip.getByRole("link", { name: /공고 1차 판정 대기 확인/ });
+  await expect(queueItem).toBeVisible();
+  await expect(queueItem.locator("strong")).toHaveText("확인 불가");
+  await queueItem.click();
+  await expect.poll(() => new URL(page.url()).pathname).toBe("/queue");
+});

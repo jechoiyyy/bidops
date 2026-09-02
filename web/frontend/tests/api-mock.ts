@@ -750,6 +750,7 @@ const visualPreSpecItems = [
     tracking_status: "종료",
     kept_by_tracking: true,
     document: { attachments: 2, "완료": 0, "대기": 0, "진행": 0, "차단": 1, "실패": 1 },
+    overview_review_status: "needs_human_review",
   },
   {
     notice_pk: 992,
@@ -766,8 +767,32 @@ const visualPreSpecItems = [
     tracking_status: "미선택",
     kept_by_tracking: false,
     document: { attachments: 1, "완료": 1, "대기": 0, "진행": 0, "차단": 0, "실패": 0 },
+    overview_review_status: "failed",
   },
 ] as const;
+
+// 사전규격 개요 검토 상태 10값 + null(개요 검토 미시작) — PLAN.md 3단계
+// 게이트("10값이 모두 그룹으로 표현됨")를 목업에서도 항상 채운다.
+const ALL_OVERVIEW_STATUSES: (string | null)[] = [
+  "awaiting_document",
+  "awaiting_structure",
+  "preparing",
+  "awaiting_model",
+  "queued",
+  "running",
+  "needs_human_review",
+  "completed",
+  "failed",
+  "cancelled",
+  null,
+];
+
+function overviewStatusCounts(items: readonly { overview_review_status: string | null }[]) {
+  return ALL_OVERVIEW_STATUSES.map((status) => ({
+    status,
+    count: items.filter((item) => item.overview_review_status === status).length,
+  }));
+}
 
 const visualUnknownOverview = {
   schema_version: "bidops.prespec-overview-reviews.v2",
@@ -946,7 +971,7 @@ export async function mockPreSpecs(page: Page, overviewState: "completed" | "unk
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ items, total: items.length, limit: 50, offset: 0 }),
+        body: JSON.stringify({ items, total: items.length, limit: 50, offset: 0, overview_status_counts: overviewStatusCounts(items) }),
       });
       return;
     }
@@ -1070,7 +1095,7 @@ export async function mockDocumentPreparationVisual(page: Page, state: DocumentP
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ items, total: items.length, limit: 50, offset: 0 }),
+        body: JSON.stringify({ items, total: items.length, limit: 50, offset: 0, overview_status_counts: overviewStatusCounts(items) }),
       });
       return;
     }

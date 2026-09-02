@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, Literal
+from typing import Any, Literal, get_args
 
 from fastapi import APIRouter, Depends, Path as ApiPath, Query
 from fastapi.responses import JSONResponse
@@ -11,13 +11,22 @@ from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Session, aliased
 
 from ..db import get_db
-from ..models import Attachment, AttachmentFetch, Notice, Opportunity, OpportunityLink
+from ..models import (
+    Attachment,
+    AttachmentFetch,
+    Notice,
+    Opportunity,
+    OpportunityLink,
+    PreSpecOverviewReview,
+)
 from ..schemas.pre_specs import (
     PreSpecDocumentSummary,
     PreSpecListItem,
     PreSpecListResponse,
     PreSpecOverviewReviewsResponse,
     PreSpecOverviewReviewsV2Response,
+    PreSpecOverviewStatusCount,
+    PreSpecOverviewReviewStatus,
     PreSpecOrigin,
     PreSpecSort,
 )
@@ -235,6 +244,8 @@ def list_pre_specs(
         needle = f"%{q.strip()}%"
         conditions.append(or_(Notice.title.ilike(needle), Notice.agency.ilike(needle)))
 
+    overview_review = aliased(PreSpecOverviewReview, name="pre_spec_overview_review")
+
     query = (
         select(
             Notice,
@@ -248,12 +259,18 @@ def list_pre_specs(
             document_counts.c.running,
             document_counts.c.blocked,
             document_counts.c.failed,
+            overview_review.status.label("overview_review_status"),
         )
         .select_from(Notice)
         .outerjoin(connected_link, connected_link.c.notice_id == Notice.id)
         .outerjoin(selected_link, selected_link.id == connected_link.c.link_id)
         .outerjoin(selected_opportunity, selected_opportunity.id == selected_link.opportunity_id)
         .outerjoin(document_counts, document_counts.c.notice_id == Notice.id)
+        # prespec_overview_review has a UNIQUE(notice_id) row per notice, so
+        # this outer join can only add or drop columns — it never multiplies
+        # or drops a Notice row, and the existing distinct-notice count/total
+        # below stays correct.
+        .outerjoin(overview_review, overview_review.notice_id == Notice.id)
         .where(*conditions)
     )
     count_query = query.with_only_columns(
@@ -261,6 +278,27 @@ def list_pre_specs(
         maintain_column_froms=True,
     ).order_by(None)
     total = int(session.scalar(count_query) or 0)
+
+    # Group counts over the *entire* filtered set (not the returned page) so
+    # the list screen can show all-groups-always-visible collapsible sections
+    # with correct counts without an N+1 per-row lookup (docs/design/PLAN.md
+    # 3단계 결정 (a)/(b); see docs/tracking/decisions and the PreSpecsPage
+    # test suite for the rendered contract).
+    status_count_query = query.with_only_columns(
+        overview_review.status,
+        func.count(func.distinct(Notice.id)),
+        maintain_column_froms=True,
+    ).group_by(overview_review.status).order_by(None)
+    status_counts_by_value: dict[str | None, int] = {
+        row[0]: int(row[1] or 0) for row in session.execute(status_count_query).all()
+    }
+    overview_status_counts = [
+        PreSpecOverviewStatusCount(status=status, count=status_counts_by_value.get(status, 0))
+        for status in get_args(PreSpecOverviewReviewStatus)
+    ]
+    overview_status_counts.append(
+        PreSpecOverviewStatusCount(status=None, count=status_counts_by_value.get(None, 0))
+    )
 
     if sort == "deadline":
         query = query.order_by(Notice.deadline_at.asc().nulls_last(), Notice.id.asc())
@@ -294,6 +332,7 @@ def list_pre_specs(
                 opportunity_id=mapping["opportunity_id"],
                 tracking_status=mapping["tracking_status"],
                 kept_by_tracking=bool(mapping["kept_by_tracking"]),
+                overview_review_status=mapping["overview_review_status"],
                 document=PreSpecDocumentSummary(
                     attachments=_count(mapping["attachments"]),
                     completed=_count(mapping["completed"]),
@@ -304,7 +343,13 @@ def list_pre_specs(
                 ),
             )
         )
-    return PreSpecListResponse(items=items, total=total, limit=limit, offset=offset)
+    return PreSpecListResponse(
+        items=items,
+        total=total,
+        limit=limit,
+        offset=offset,
+        overview_status_counts=overview_status_counts,
+    )
 
 
 __all__ = ["router"]

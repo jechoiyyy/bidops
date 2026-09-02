@@ -225,6 +225,17 @@ export interface PreSpecListItem {
   tracking_status: OpportunityTrackingStatus | null;
   kept_by_tracking: boolean;
   document: PreSpecDocumentSummary;
+  /** null이면 이 notice에 아직 prespec_overview_review 행이 없다(개요 검토
+   * 미시작). 10개 계약값 중 어느 것도 아니므로 awaiting_document로 접어
+   * 넣지 않는다. */
+  overview_review_status: PreSpecOverviewReviewStatus | null;
+}
+
+/** 개요 검토 상태 그룹 하나의 전체 건수. `limit`/`offset`과 무관하게 현재
+ * 필터에 일치하는 전체 집합을 센다 — 반환된 페이지(`items`)만 세지 않는다. */
+export interface PreSpecOverviewStatusCount {
+  status: PreSpecOverviewReviewStatus | null;
+  count: number;
 }
 
 export interface PreSpecListResponse {
@@ -232,6 +243,7 @@ export interface PreSpecListResponse {
   total: number;
   limit: number;
   offset: number;
+  overview_status_counts: PreSpecOverviewStatusCount[];
 }
 
 export interface PreSpecListQuery {

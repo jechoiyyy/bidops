@@ -8166,5 +8166,91 @@
  "/api/notices/3/related": {
   "notice_pk": 3,
   "items": []
+ },
+ "/api/order-plans": {
+  "schema_version": "order-plan-list-response.v1",
+  "producer": "order-plan-review-api",
+  "consumer": "order-plan-review-client",
+  "items": [],
+  "total": 2,
+  "limit": 1,
+  "offset": 0
+ },
+ "/api/pre-specs": {
+  "items": [
+   {
+    "notice_pk": 991,
+    "pre_spec_no": "PRE-991",
+    "title": "고정 사전규격 마감 임박 표본",
+    "agency": "고정 발주기관",
+    "published_at": "2026-08-20T00:00:00Z",
+    "deadline_at": "2026-08-26T00:00:00Z",
+    "budget": 100000000,
+    "sw_business_status": "Y",
+    "business_division": "일반용역",
+    "origin": "신규",
+    "opportunity_id": null,
+    "tracking_status": null,
+    "kept_by_tracking": false,
+    "document": {
+     "attachments": 0,
+     "완료": 0,
+     "대기": 0,
+     "진행": 0,
+     "차단": 0,
+     "실패": 0
+    },
+    "overview_review_status": null
+   }
+  ],
+  "total": 1,
+  "limit": 50,
+  "offset": 0,
+  "overview_status_counts": [
+   {
+    "status": "awaiting_document",
+    "count": 0
+   },
+   {
+    "status": "awaiting_structure",
+    "count": 0
+   },
+   {
+    "status": "preparing",
+    "count": 0
+   },
+   {
+    "status": "awaiting_model",
+    "count": 0
+   },
+   {
+    "status": "queued",
+    "count": 0
+   },
+   {
+    "status": "running",
+    "count": 0
+   },
+   {
+    "status": "needs_human_review",
+    "count": 0
+   },
+   {
+    "status": "completed",
+    "count": 0
+   },
+   {
+    "status": "failed",
+    "count": 0
+   },
+   {
+    "status": "cancelled",
+    "count": 0
+   },
+   {
+    "status": null,
+    "count": 1
+   }
+  ]
  }
 }

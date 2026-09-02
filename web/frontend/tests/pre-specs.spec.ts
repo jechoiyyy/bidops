@@ -18,6 +18,7 @@ const trackingException = {
   tracking_status: "계속 추적",
   kept_by_tracking: true,
   document: { attachments: 6, "완료": 2, "대기": 1, "진행": 0, "차단": 2, "실패": 1 },
+  overview_review_status: "needs_human_review",
 };
 
 const newPreSpec = {
@@ -35,6 +36,7 @@ const newPreSpec = {
   tracking_status: "미선택",
   kept_by_tracking: false,
   document: { attachments: 1, "완료": 1, "대기": 0, "진행": 0, "차단": 0, "실패": 0 },
+  overview_review_status: "failed",
 };
 
 const allOnlyPreSpec = {
@@ -52,7 +54,31 @@ const allOnlyPreSpec = {
   tracking_status: null,
   kept_by_tracking: false,
   document: { attachments: 0, "완료": 0, "대기": 0, "진행": 0, "차단": 0, "실패": 0 },
+  // notice에 prespec_overview_review 행이 아직 없다(개요 검토 미시작). 10값
+  // 중 어느 것도 아니며, awaiting_document로 접어 넣지 않는다.
+  overview_review_status: null,
 };
+
+const ALL_OVERVIEW_STATUSES: (string | null)[] = [
+  "awaiting_document",
+  "awaiting_structure",
+  "preparing",
+  "awaiting_model",
+  "queued",
+  "running",
+  "needs_human_review",
+  "completed",
+  "failed",
+  "cancelled",
+  null,
+];
+
+function overviewStatusCounts(items: readonly { overview_review_status: string | null }[]) {
+  return ALL_OVERVIEW_STATUSES.map((status) => ({
+    status,
+    count: items.filter((item) => item.overview_review_status === status).length,
+  }));
+}
 
 const notice991 = {
   id: 991,
@@ -256,7 +282,13 @@ async function mockPreSpecs(page: Page, options: PreSpecMockOptions = {}): Promi
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ items, total: items.length, limit: 50, offset: 0 }),
+        body: JSON.stringify({
+          items,
+          total: items.length,
+          limit: 50,
+          offset: 0,
+          overview_status_counts: overviewStatusCounts(items),
+        }),
       });
       return;
     }
@@ -360,6 +392,10 @@ test("기본 보기 빈 상태의 전체 사전규격 보기는 sw_only=false를
   await expect(page.getByRole("button", { name: "전체 사전규격 보기" })).toBeVisible();
   await page.getByRole("button", { name: "전체 사전규격 보기" }).click();
   await expect.poll(() => trace.listQueries.at(-1)?.get("sw_only")).toBe("false");
+  // allOnlyPreSpec은 개요 검토 미시작(null) 그룹에 있고 이 그룹은 기본
+  // 접힘이므로, 펼치기 전에는 행이 접근성 트리에도 없다.
+  await expect(page.getByRole("link", { name: allOnlyPreSpec.title })).toHaveCount(0);
+  await page.getByRole("button", { name: /개요 검토 미시작/ }).click();
   await expect(page.getByRole("link", { name: allOnlyPreSpec.title })).toBeVisible();
 });
 
@@ -377,6 +413,108 @@ test("추적 예외, 신규, D-day, 문서 차단과 실패를 별도 상태로 
 
   const newRow = page.getByRole("row").filter({ has: page.getByRole("link", { name: newPreSpec.title }) });
   await expect(newRow.getByText("신규", { exact: true })).toBeVisible();
+});
+
+test("개요 검토 상태 10값과 미시작(null)이 모두 그룹으로 표현된다", async ({ page }) => {
+  await mockPreSpecs(page);
+  await page.goto("/pre-specs?sw_only=false");
+
+  const groupLabels: Record<string, string> = {
+    awaiting_document: "문서 대기",
+    awaiting_structure: "구조화 대기",
+    preparing: "입력 준비 중",
+    awaiting_model: "모델 실행 대기",
+    queued: "실행 대기",
+    running: "실행 중",
+    needs_human_review: "사람 검토 필요",
+    completed: "완료",
+    failed: "실패",
+    cancelled: "취소",
+  };
+  // 10값 전부가 화면에 존재한다 — 이 fixture에는 needs_human_review·failed
+  // 만 실제 건수(1건씩)가 있고 나머지는 0건이지만, 0건 그룹도 숨기지 않는다.
+  for (const [status, label] of Object.entries(groupLabels)) {
+    // "실행 대기"(queued)가 "모델 실행 대기"(awaiting_model)의 부분 문자열이라
+    // 앵커 없이 찾으면 strict mode violation이 난다 — 결정적 DOM 문제이지
+    // flake가 아니다(docs/engineering-notes.md). 그룹 트리거 접근성 이름은
+    // 라벨로 시작하므로 시작 앵커로 좁힌다.
+    const trigger = page.getByRole("button", { name: new RegExp(`^${label}`) });
+    await expect(trigger).toBeVisible();
+    const expectedCount = status === "needs_human_review" || status === "failed" ? "1건" : "0건";
+    await expect(trigger).toContainText(expectedCount);
+  }
+  // 개요 검토 미시작(null, prespec_overview_review 행 없음)은 10값과 다른
+  // 별도의 열한 번째 그룹이며 awaiting_document로 접히지 않는다.
+  const notStarted = page.getByRole("button", { name: /개요 검토 미시작/ });
+  await expect(notStarted).toBeVisible();
+  await expect(notStarted).toContainText("1건");
+});
+
+test("사람 검토 필요·실패는 기본 펼침, 그 외 그룹은 기본 접힘이다", async ({ page }) => {
+  await mockPreSpecs(page);
+  await page.goto("/pre-specs?sw_only=false");
+
+  const needsHumanReview = page.getByRole("button", { name: /사람 검토 필요/ });
+  const failed = page.getByRole("button", { name: /^실패/ });
+  const notStarted = page.getByRole("button", { name: /개요 검토 미시작/ });
+  const completed = page.getByRole("button", { name: /^완료/ });
+
+  await expect(needsHumanReview).toHaveAttribute("aria-expanded", "true");
+  await expect(failed).toHaveAttribute("aria-expanded", "true");
+  await expect(notStarted).toHaveAttribute("aria-expanded", "false");
+  await expect(completed).toHaveAttribute("aria-expanded", "false");
+
+  // 기본 펼침 그룹의 행은 클릭 없이 바로 보인다.
+  await expect(page.getByRole("link", { name: trackingException.title })).toBeVisible();
+  await expect(page.getByRole("link", { name: newPreSpec.title })).toBeVisible();
+  // 기본 접힘 그룹의 행은 펼치기 전에는 접근성 트리에 없다.
+  await expect(page.getByRole("link", { name: allOnlyPreSpec.title })).toHaveCount(0);
+
+  await notStarted.click();
+  await expect(notStarted).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByRole("link", { name: allOnlyPreSpec.title })).toBeVisible();
+
+  // 키보드로도 접고 펼 수 있다 — Enter로 다시 접는다.
+  await notStarted.focus();
+  await page.keyboard.press("Enter");
+  await expect(notStarted).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByRole("link", { name: allOnlyPreSpec.title })).toHaveCount(0);
+});
+
+test("목록 화면에서 심층 추적 승인을 내릴 수 있다", async ({ page }) => {
+  const trace = await mockPreSpecs(page);
+  await page.goto("/pre-specs");
+
+  const trackedRow = page.getByRole("row").filter({ has: page.getByRole("link", { name: trackingException.title }) });
+  await trackedRow.getByRole("button", { name: "추적 결정" }).click();
+
+  const decisionPanel = page.locator("#pre-specs-tracking-target");
+  await expect(decisionPanel.getByRole("heading", { name: "심층 검토 추적 선택" })).toBeVisible();
+
+  await decisionPanel.getByRole("button", { name: "보류", exact: true }).click();
+  await decisionPanel.getByRole("textbox", { name: "사유 (필수)" }).fill("목록 화면에서 승인");
+  await decisionPanel.getByRole("textbox", { name: "담당자 이름 (필수)" }).fill("홍길동");
+  await decisionPanel.getByRole("button", { name: "추적 상태 저장", exact: true }).click();
+
+  await expect.poll(() => trace.trackingPatches).toEqual([{
+    opportunityId: 77,
+    trackingStatus: "보류",
+    reason: "목록 화면에서 승인",
+  }]);
+  await expect(decisionPanel.getByText("심층 검토 추적 상태를 저장했습니다.", { exact: true })).toBeVisible();
+  // 저장 뒤 목록 행의 추적 상태 배지도 같은 캐시 갱신으로 새 상태를 보여준다.
+  await expect(trackedRow.getByText("보류", { exact: true })).toBeVisible();
+});
+
+test("사업기회가 없는 행은 목록에서도 추적 결정 비활성 사유를 보여준다", async ({ page }) => {
+  await mockPreSpecs(page);
+  await page.goto("/pre-specs?sw_only=false");
+  await page.getByRole("button", { name: /개요 검토 미시작/ }).click();
+
+  const untrackedRow = page.getByRole("row").filter({ has: page.getByRole("link", { name: allOnlyPreSpec.title }) });
+  const disabledButton = untrackedRow.getByRole("button", { name: "추적 결정" });
+  await expect(disabledButton).toBeDisabled();
+  await expect(page.getByText("아직 사업기회에 연결되지 않아 추적 결정을 기록할 수 없습니다.", { exact: true })).toBeVisible();
 });
 
 test("notice 991 정본 상세는 29로 치환되지 않고 unknown을 사람 확인 상태로 보존한다", async ({ page }) => {

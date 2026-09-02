@@ -1,20 +1,66 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
+import { Collapsible } from "@astryxdesign/core/Collapsible";
 import { Badge } from "../components/common/Badge";
 import { DataTable, type DataTableColumn } from "../components/common/DataTable";
+import { DisabledReason } from "../components/common/DisabledReason";
 import { EmptyState } from "../components/common/EmptyState";
 import { Panel } from "../components/common/Panel";
+import { TrackingDecisionControl, updateTrackingProjection } from "../components/pre-specs/TrackingDecisionControl";
 import { api } from "../lib/api";
 import { describeDeadline } from "../lib/deadline";
 import { formatDateTime, formatNumber } from "../lib/format";
 import { originOf, trackingVariant } from "../lib/opportunity";
-import type { PreSpecListItem, PreSpecOrigin, PreSpecSort } from "../lib/types";
+import {
+  PRE_SPEC_OVERVIEW_NOT_STARTED_LABEL,
+  PRE_SPEC_OVERVIEW_STATUS_LABEL,
+  preSpecOverviewStatusVariant,
+} from "../lib/preSpecOverviewStatus";
+import type { PreSpecListItem, PreSpecListResponse, PreSpecOrigin, PreSpecOverviewReviewStatus, PreSpecSort } from "../lib/types";
 import "../styles/pre-specs-relaxed.css";
 
-const PAGE_SIZE = 50;
+// docs/design/PLAN.md 3단계: 목록을 개요 검토 상태별 접이식 그룹으로 바꾼다.
+// 페이지 크기를 200으로 올려 (서버 한도 500 이내) 한 페이지 안에서 그룹이
+// 실제로 채워지는 경우를 늘린다. 그래도 총 건수가 페이지 크기를 넘으면
+// 그룹 헤더의 건수(overview_status_counts, 필터 전체 기준)와 그 그룹 안에
+// 실제로 보이는 행 수가 달라질 수 있어, 그 경우를 각주로 명시한다 — 조용히
+// 숨기지 않는다(CLAUDE.md unknown/null 보존 게이트와 같은 원칙).
+const PAGE_SIZE = 200;
 const BUSINESS_DIVISIONS = ["일반용역", "기술용역"] as const;
 const ORIGINS: PreSpecOrigin[] = ["추적", "신규"];
+
+// 그룹 표시 순서. 사람 검토 필요·실패를 맨 앞에 두고, 개요 검토 미시작(행
+// 없음)을 그 다음에 두어 "아직 시작하지 않음 → 진행 중 → 종료"의 자연스러운
+// 순서를 만든다. 완료·취소는 맨 뒤에 둔다.
+const GROUP_ORDER: (PreSpecOverviewReviewStatus | null)[] = [
+  "needs_human_review",
+  "failed",
+  null,
+  "awaiting_document",
+  "awaiting_structure",
+  "preparing",
+  "awaiting_model",
+  "queued",
+  "running",
+  "completed",
+  "cancelled",
+];
+
+// 사람 검토 필요·실패는 기본 펼침, 완료는 기본 접힘 — PLAN.md 3단계 원문
+// 그대로다. 나머지(미시작 포함 8개 상태)는 실행 중이거나 아직 조치할 일이
+// 없는 상태이므로 기본 접힘으로 둔다. 이 결정으로 10값 + null 11개 그룹
+// 전부가 화면에 존재하되(0건이어도 표시), 기본 화면은 조치가 필요한
+// 항목에 집중된다.
+const DEFAULT_EXPANDED_GROUPS: (PreSpecOverviewReviewStatus | null)[] = ["needs_human_review", "failed"];
+
+function groupLabel(status: PreSpecOverviewReviewStatus | null): string {
+  return status === null ? PRE_SPEC_OVERVIEW_NOT_STARTED_LABEL : PRE_SPEC_OVERVIEW_STATUS_LABEL[status];
+}
+
+function groupBadgeVariant(status: PreSpecOverviewReviewStatus | null) {
+  return status === null ? "neutral" : preSpecOverviewStatusVariant(status);
+}
 
 function validDivision(value: string | null): string {
   return value && BUSINESS_DIVISIONS.includes(value as (typeof BUSINESS_DIVISIONS)[number]) ? value : "";
@@ -82,7 +128,40 @@ function deadlineCell(value: string | null): ReactNode {
   );
 }
 
-function columns(listSearch: string): DataTableColumn<PreSpecListItem>[] {
+/** 목록 화면에서 심층 추적 승인을 내리는 동선(PLAN.md 3단계 3). 사업기회가
+ * 없으면 조용히 숨기지 않고 비활성 사유를 aria-describedby로 노출한다. */
+function trackingActionCell(item: PreSpecListItem, selectedPk: number | null, onSelect: (pk: number) => void): ReactNode {
+  if (item.opportunity_id === null) {
+    const reasonId = `pre-specs-tracking-disabled-${item.notice_pk}`;
+    return (
+      <div className="pre-specs-tracking-action">
+        <button type="button" className="pre-specs-tracking-action-button" disabled aria-describedby={reasonId}>
+          추적 결정
+        </button>
+        <DisabledReason id={reasonId}>아직 사업기회에 연결되지 않아 추적 결정을 기록할 수 없습니다.</DisabledReason>
+      </div>
+    );
+  }
+  const isSelected = selectedPk === item.notice_pk;
+  return (
+    <button
+      type="button"
+      className="pre-specs-tracking-action-button"
+      aria-pressed={isSelected}
+      aria-expanded={isSelected}
+      aria-controls={isSelected ? "pre-specs-tracking-target" : undefined}
+      onClick={() => onSelect(item.notice_pk)}
+    >
+      {isSelected ? "선택됨 · 결정 패널 열림" : "추적 결정"}
+    </button>
+  );
+}
+
+function columns(
+  listSearch: string,
+  selectedPk: number | null,
+  onSelectTracking: (pk: number) => void,
+): DataTableColumn<PreSpecListItem>[] {
   return [
   {
     key: "origin",
@@ -153,6 +232,12 @@ function columns(listSearch: string): DataTableColumn<PreSpecListItem>[] {
     render: (item) => trackingCell(item),
   },
   {
+    key: "tracking_action",
+    header: "심층 추적 승인",
+    className: "pre-specs-tracking-action-cell",
+    render: (item) => trackingActionCell(item, selectedPk, onSelectTracking),
+  },
+  {
     key: "document",
     header: "문서",
     className: "pre-specs-document-cell",
@@ -163,6 +248,7 @@ function columns(listSearch: string): DataTableColumn<PreSpecListItem>[] {
 
 export function PreSpecsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const queryClient = useQueryClient();
   const swOnly = searchParams.get("sw_only") !== "false";
   const businessDivision = validDivision(searchParams.get("business_division"));
   const origin = validOrigin(searchParams.get("origin"));
@@ -170,6 +256,10 @@ export function PreSpecsPage() {
   const sort = validSort(searchParams.get("sort"));
   const offset = readOffset(searchParams.get("offset"));
   const [searchText, setSearchText] = useState(queryText);
+  const [expandedGroups, setExpandedGroups] = useState<Set<PreSpecOverviewReviewStatus | null>>(
+    () => new Set(DEFAULT_EXPANDED_GROUPS),
+  );
+  const [selectedTrackingPk, setSelectedTrackingPk] = useState<number | null>(null);
 
   useEffect(() => setSearchText(queryText), [queryText]);
 
@@ -194,8 +284,38 @@ export function PreSpecsPage() {
   });
   const items = result.data?.items ?? [];
   const total = result.data?.total ?? 0;
+  const overviewStatusCounts = result.data?.overview_status_counts ?? [];
   const isDefaultView = swOnly && !businessDivision && !origin && !queryText && sort === "published" && offset === 0;
-  const tableColumns = useMemo(() => columns(searchParams.toString()), [searchParams]);
+  const tableColumns = useMemo(
+    () => columns(searchParams.toString(), selectedTrackingPk, (pk) => setSelectedTrackingPk((current) => (current === pk ? null : pk))),
+    [searchParams, selectedTrackingPk],
+  );
+
+  const countByStatus = useMemo(() => {
+    const map = new Map<PreSpecOverviewReviewStatus | null, number>();
+    for (const row of overviewStatusCounts) map.set(row.status, row.count);
+    return map;
+  }, [overviewStatusCounts]);
+  const itemsByStatus = useMemo(() => {
+    const map = new Map<PreSpecOverviewReviewStatus | null, PreSpecListItem[]>();
+    for (const item of items) {
+      const key = item.overview_review_status;
+      const bucket = map.get(key);
+      if (bucket) bucket.push(item);
+      else map.set(key, [item]);
+    }
+    return map;
+  }, [items]);
+  const selectedTrackingItem = items.find((item) => item.notice_pk === selectedTrackingPk);
+
+  function toggleGroup(status: PreSpecOverviewReviewStatus | null) {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(status)) next.delete(status);
+      else next.add(status);
+      return next;
+    });
+  }
 
   function updateSearchParams(changes: Record<string, string | null>) {
     const next = new URLSearchParams(searchParams);
@@ -224,7 +344,7 @@ export function PreSpecsPage() {
   }
 
   return (
-    <section className="pre-specs-page" aria-labelledby="page-title">
+    <section className="pre-specs-page" data-astryx-theme="neutral" aria-labelledby="page-title">
       <header className="pre-specs-page-header">
         <div>
           <span className="pre-specs-eyebrow">모니터링 · 누적 조회</span>
@@ -312,7 +432,7 @@ export function PreSpecsPage() {
       {result.isSuccess ? (
         <Panel
           className="pre-specs-table-panel"
-          title="누적 사전규격 목록"
+          title="누적 사전규격 목록 · 개요 검토 상태별"
           action={total > 0 ? <span className="panel-meta">{total}건 · {offset + 1}–{Math.min(offset + items.length, total)}</span> : undefined}
         >
           {items.length === 0 ? (
@@ -325,14 +445,88 @@ export function PreSpecsPage() {
                 : { label: "기본값으로", onClick: restoreDefaults }}
             />
           ) : (
-            <DataTable
-              className="pre-specs-table"
-              columns={tableColumns}
-              rows={items}
-              rowKey="notice_pk"
-            />
+            <div className="pre-specs-groups" role="list" aria-label="개요 검토 상태 그룹">
+              {GROUP_ORDER.map((status) => {
+                const count = countByStatus.get(status) ?? 0;
+                const groupItems = itemsByStatus.get(status) ?? [];
+                const isOpen = expandedGroups.has(status);
+                const groupKeyText = status ?? "null";
+                const isPartial = count > 0 && groupItems.length !== count;
+                return (
+                  <div className="pre-specs-group" role="listitem" key={groupKeyText}>
+                    <Collapsible
+                      isOpen={isOpen}
+                      onOpenChange={() => toggleGroup(status)}
+                      trigger={
+                        <div className="pre-specs-group-trigger">
+                          <Badge label={groupLabel(status)} variant={groupBadgeVariant(status)} />
+                          <span className="pre-specs-group-count mono tabular-nums">{count}건</span>
+                        </div>
+                      }
+                    >
+                      {count === 0 ? (
+                        <p className="pre-specs-group-empty">이 상태의 사전규격이 현재 필터에 없습니다.</p>
+                      ) : (
+                        <>
+                          {isPartial ? (
+                            <p className="pre-specs-group-partial">
+                              전체 {count}건 중 현재 페이지에 표시된 {groupItems.length}건만 보입니다. 페이지를 이동하거나 검색 조건을 좁혀 나머지를 확인하십시오.
+                            </p>
+                          ) : null}
+                          {groupItems.length === 0 ? (
+                            <p className="pre-specs-group-empty">
+                              전체 {count}건이 있지만 현재 불러온 페이지에는 없습니다. 페이지를 이동하거나 검색 조건을 좁혀 보십시오.
+                            </p>
+                          ) : (
+                            <DataTable
+                              className="pre-specs-table"
+                              columns={tableColumns}
+                              rows={groupItems}
+                              rowKey="notice_pk"
+                            />
+                          )}
+                        </>
+                      )}
+                    </Collapsible>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </Panel>
+      ) : null}
+
+      {selectedTrackingItem ? (
+        <div id="pre-specs-tracking-target">
+          <Panel
+            className="pre-specs-tracking-target-panel"
+            title={`심층 추적 승인 · ${selectedTrackingItem.title?.trim() || "사업명 미확인"}`}
+            action={<button type="button" onClick={() => setSelectedTrackingPk(null)}>닫기</button>}
+          >
+            <TrackingDecisionControl
+              item={selectedTrackingItem}
+              isPending={result.isPending}
+              isError={result.isError}
+              onRetry={() => { void result.refetch(); }}
+              headingLevel="h4"
+              onSaved={(saved) => {
+                const noticePk = selectedTrackingItem.notice_pk;
+                queryClient.setQueryData<PreSpecListResponse>(
+                  ["pre-spec-detail", noticePk],
+                  (current) => updateTrackingProjection(current, noticePk, saved),
+                );
+                queryClient.setQueriesData<PreSpecListResponse>(
+                  { queryKey: ["pre-specs"] },
+                  (current) => updateTrackingProjection(current, noticePk, saved),
+                );
+                void queryClient.invalidateQueries({ queryKey: ["pre-spec-overview-reviews-v2", noticePk] });
+                void queryClient.invalidateQueries({ queryKey: ["pre-spec-detail", noticePk] });
+                void queryClient.invalidateQueries({ queryKey: ["pre-specs"] });
+                void queryClient.invalidateQueries({ queryKey: ["opportunity", saved.id] });
+              }}
+            />
+          </Panel>
+        </div>
       ) : null}
 
       {result.isSuccess && total > PAGE_SIZE ? (
