@@ -103,7 +103,9 @@ DB에 없다. 다만 byte-identical 파일이 `web/backend/app/screening/baselin
 
 ## 다음 작업 순서
 
-우선순위 순이다. 상세와 착수 조건은 [`../Backend_HANDOFF.md`](../Backend_HANDOFF.md) §7이 정본이다.
+우선순위 순이다. 상세와 착수 조건은 [`../PLAN.md`](../PLAN.md)의 C-2 단계와
+[`lifecycle-workstream.md`](lifecycle-workstream.md), 현재 상태는 이 파일과
+[`findings.md`](findings.md)가 정본이다.
 
 1. **사람 몫 — 지금 던져두면 병렬로 돈다.** C-2 방식 선택은 완료했다. 기존 997건 실험의 gold 재판정 9건 확인, 별도 C-2 625건 gold의 잔여 87건 확인, D-7 방화벽 승인 상신이 남아 있다.
 2. **테스트 harness.** MinIO versioning fail-open과 host-wide DB·MinIO port publish는 2026-09-01에 닫았고 **알려진 운영 배포 blocker는 0이다.** `web/run-web-tests.sh`는 2026-08-31부터 있고(`84bbcc5`) 임시 PostgreSQL 17에서 backend pytest와 frontend build를 돌린다. 2026-09-01에 Playwright visual 회귀를 같은 진입점에 넣어 화면 검증이 문서에만 있는 게이트로 남지 않게 했다. **남은 것은 CI다.** 개별 파일만 지정해 pytest를 직접 치면 postgres 테스트가 여전히 조용히 skip되며, 이 저장소는 같은 부류 결함에 두 번 데였다.

@@ -82,6 +82,7 @@
 | 사전규격은 발주계획 선택 여부와 무관하게 **전량 독립 수집**한다 | [ADR-0022](decisions/0022-plan-prespec-centered-lifecycle.md) 대안 절 |
 | 공식 통합번호 관계만 자동 확정하고 유사도 관계는 사람 확인 대기 후보로 남긴다 | [ADR-0022](decisions/0022-plan-prespec-centered-lifecycle.md) |
 | 발주계획 선별 방식은 비교 실험 승인 후 구현한다 | [ADR-0021](decisions/0021-filter-experiment-before-implementation.md) |
+| C-2 발주계획 1차 선별은 BM25 상위 300건을 Qwen으로 판정하고 `relevant|uncertain`을 검토 후보로 유지한다 | [ADR-0037](decisions/0037-order-plan-c2-bm25-top300-qwen.md) |
 | 화면은 회차 종속이 아니라 **누적**으로 간다 | 2026-08-28 합의. ADR 미작성 |
 | 사전규격 목록에서 `추적`(발주계획부터 추적하던 건)과 `신규`(사전규격에서 처음 등장)를 구분하고, 화면 라벨이 아니라 데이터에 남는 값으로 둔다 | 2026-08-28 합의. ADR 미작성 |
 | 캘린더·입찰일정·알림은 후속 아이디어로만 유지한다 | 2026-08-28 합의 |
@@ -91,16 +92,17 @@
 | 공고를 외부 식별자로 누적하고 회차를 관측 이력으로 강등한다. 발주계획은 `notice`가 아니라 별도 테이블 | [ADR-0026](decisions/0026-cumulative-external-identity-schema.md) |
 | 발주계획은 최근 21일 구간을 매일 재조회한다. `chgDt`는 갱신 신호로 쓰지 않는다 | [ADR-0027](decisions/0027-order-plan-requery-window.md) |
 | 입찰공고에서 처음 등장한 사업도 기회로 등록한다. 해소 안 된 공식 참조번호는 링크에 보존한다 | [ADR-0028](decisions/0028-bid-first-opportunity-registration.md) |
-| 1차 분류는 결정적 mock으로 소비 계층을 먼저 구현한다. 선별 방식은 여전히 실험 승인 대기 | [ADR-0029](decisions/0029-screening-mock-provider.md) |
+| 1차 분류 소비 계층의 결정적 mock은 실제 C-2 adapter가 연결될 때까지 유지하며 운영 결과로 보지 않는다 | [ADR-0029](decisions/0029-screening-mock-provider.md), [ADR-0037](decisions/0037-order-plan-c2-bm25-top300-qwen.md) |
 | 모든 사업기회가 추적 상태를 갖고 기본값은 `미선택`이다. 사람 선택과 시스템 재검토 신호를 분리한다 | [ADR-0030](decisions/0030-opportunity-tracking-state.md) |
 | 개요 검토 앞부분은 본문과 대응하는 목차, 아니면 의미 있는 주제 소제목으로 자른다. 번호만으로 자르지 않고 모호하면 `unknown`·사람 검토, 전략·`start_locator`·`end_locator`·`source_sha256`를 보존하며 고정 block 수·전체 문서 자동 투입을 금지한다 | [ADR-0032](decisions/0032-prespec-overview-cutting-rule.md) |
 | 입찰 delta는 exact snapshot과 7개 범주로 비교하고 최종 결정은 `go\|no_go` append-only 사람 기록으로 둔다. 실질 변경은 보수적으로 material, 새 authoritative 입력은 strict stale, 내부망 모델과 safe audit allowlist만 사용한다 | [ADR-0034](decisions/0034-bid-delta-final-decision.md) |
 
 ## 결정 대기
 
-D-5와 D-6은 2026-08-31에 해소했다. 남은 항목은
-[`decisions-pending-20260831.md`](decisions-pending-20260831.md)가 정본이며 D-7·D-8·D-9·D-10·D-11
-다섯 건이다.
+현재 신규 아키텍처 결정 대기는 없다. 2026-08-31의 역사적 결정 대기 목록은
+[`docs/legacy/tracking/decisions-pending-20260831.md`](../legacy/tracking/decisions-pending-20260831.md)에
+보관했다. 확정 결정은 [`../ADR.md`](../ADR.md)와 `decisions/`의 상세 ADR을 따른다.
+D-7·D-8·D-9 등 실행·관측·운영 승인 항목은 이 문서, `status.md`, `findings.md`에서 관리한다.
 
 ## 해야 할 일
 
@@ -155,7 +157,7 @@ D-5와 D-6은 2026-08-31에 해소했다. 남은 항목은
 | 2026-08-28 | 규격서 첨부 URL 실제 다운로드 확인 (과업지시서 hwp) | validation-run |
 | 2026-08-28 | 사전규격 정규화기 결함 기록 | [findings.md](findings.md) |
 | 2026-08-28 | 이름 매칭 실패 29건 오프라인 대조. 동일 이름 실패 사례와 가운뎃점 4종 확인 | 이 파일 확정된 사실 절 |
-| 2026-08-28 | D-1 확정. 문서 3곳(`architecture.md:129`, `status.md:14`, `business-rules.md:36`)을 결정에 맞춰 정정 | [ADR-0024](decisions/0024-prespec-collect-all-flag-sw.md) |
+| 2026-08-28 | D-1 확정. 문서 3곳(ARCHITECTURE.md의 사전규격·문서 준비 절, status.md, business-rules.md)을 결정에 맞춰 정정 | [ADR-0024](decisions/0024-prespec-collect-all-flag-sw.md) |
 | 2026-08-28 | T-1a 완료. 정규화기·전략 사다리·오프라인 분석 구현 (codex `gpt-5.6-luna` 위임, 검수 후 대조군 보강) | `experiments/lifecycle-linkage-survey/scripts/name_normalize.py` 등, 테스트 36개 |
 | 2026-08-28 | 이름 검색 실패 원인 격리 6회. 가운뎃점 확정, 공백·괄호·인코딩 배제 | [validation-run](../validation-runs/20260828-lifecycle-linkage-survey.md) 실패 원인 격리 절, `search-isolation/` |
 | 2026-08-28 | `dot_split` 전략과 문자 관용도 probe 구현 (codex 위임). 테스트 46개 | `offline-analysis-v3.md`, `search_isolation_probe.py --char-tolerance` |

@@ -11,7 +11,7 @@
 - `run_id`, single scope의 `notice_id`, requested actor, 정책·프롬프트 version, 모델명·모델 digest, profile source/version/digest, input/artifact 경로·digest가 필수다.
 - 입력은 `bidops.screening-input.v1`, run/window/timezone, candidate count, 정규화 공고, 판정 모드, 정책/prompt/profile identity를 포함한다. profile 전문을 입력 계약에 복사하지 않는다.
 
-프로필 `current`는 working tree snapshot이고 `git:<40hex>`는 승인된 역사 commit only다. 현재 문서의 경로와 digest 검사는 [아키텍처](../architecture.md)의 프로필 절차와 동일하다. fresh migrated DB에는 policy row가 없으므로 명시적 seed 이후에만 실행을 만들 수 있다. 정책 body·prompt·모델 설정이 생성 후 바뀌면 실행과 섞지 않고 새 version을 만든다.
+프로필 `current`는 working tree snapshot이고 `git:<40hex>`는 승인된 역사 commit only다. 현재 문서의 경로와 digest 검사는 [아키텍처](../ARCHITECTURE.md)의 프로필 절차와 동일하다. fresh migrated DB에는 policy row가 없으므로 명시적 seed 이후에만 실행을 만들 수 있다. 정책 body·prompt·모델 설정이 생성 후 바뀌면 실행과 섞지 않고 새 version을 만든다.
 
 워커는 queue claim 후 input bytes, path hardening, DB binding, Ollama `/api/tags`의 정확한 `qwen3.8:27b`와 64-hex digest를 다시 확인한다. mismatch, missing input, invalid profile/policy는 모델 호출 전에 실패한다.
 
