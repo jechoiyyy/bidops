@@ -1,0 +1,121 @@
+/*
+ * 판정 기준 · 실행 상태 · 최종 Go/No-Go 화면 골격.
+ * docs/design/PLAN.md 2단계. ADR-0040에 따라 레이아웃은 프로젝트가 소유하고,
+ * 값은 새로 정하지 않고 Astryx neutral 토큰만 읽는다. 화면 루트에
+ * data-astryx-theme="neutral"을 세우는 범위 안에서만 유효하다.
+ */
+
+.ws-page {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--color-background-body);
+}
+
+/* 탭 바는 화면 위쪽에 고정한다. 흡수한 화면들이 각자 긴 본문을 가지므로
+ * 탭을 함께 스크롤시키면 다른 탭으로 옮기려고 맨 위까지 되돌아가야 한다. */
+.ws-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: var(--spacing-3) var(--spacing-5) 0;
+  background: var(--color-background-body);
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.ws-body {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* 흡수한 페이지 컴포넌트는 각자 자기 padding을 갖고 있으므로 여기서 더하지
+ * 않는다. 숨긴 탭은 hidden 속성으로 접근성 트리에서도 빠진다. */
+.ws-panel {
+  min-width: 0;
+}
+
+/* 첨부 확보 탭만 회차가 필요하다. 상단 전역 회차 선택기는 기준과 운영 묶음에서
+ * 보이지 않으므로(PRD §2.1) 이 화면이 회차 상태를 직접 소유한다. */
+.ws-run-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--spacing-3);
+  padding: var(--spacing-4) var(--spacing-5) 0;
+}
+
+.ws-run-picker-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  min-width: 280px;
+}
+
+/* ── 최종 Go/No-Go 대기 목록 ─────────────────────────────────────── */
+
+.gng-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  min-width: 0;
+  padding: var(--spacing-5);
+  background: var(--color-background-body);
+}
+
+.gng-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.gng-list {
+  display: flex;
+  flex-direction: column;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-container);
+  background: var(--color-background-card);
+  overflow: hidden;
+}
+
+.gng-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  padding: var(--spacing-3) var(--spacing-4);
+  border-bottom: var(--border-width) solid var(--color-border);
+  text-decoration: none;
+}
+
+.gng-row:last-child {
+  border-bottom: 0;
+}
+
+.gng-row:hover {
+  background: var(--color-overlay-hover);
+}
+
+.gng-row:focus-visible {
+  outline: var(--focus-outline-width) var(--focus-outline-style) var(--focus-outline-color);
+  outline-offset: calc(-1 * var(--focus-outline-width));
+}
+
+.gng-row-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.gng-row-badges {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.gng-empty {
+  padding: var(--spacing-5);
+}

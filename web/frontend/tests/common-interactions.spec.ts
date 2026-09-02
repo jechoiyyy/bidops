@@ -267,3 +267,120 @@ test("공통 unsaved guard가 기존 queue 임시 초안 보호를 유지한다"
   expect(blocked).toBe(true);
   await expect(page.getByLabel("리뷰 사유")).toHaveValue("공통 guard 회귀 검증 초안");
 });
+
+// ─────────────────────────────────────────────────────────────────────────
+// docs/design/PLAN.md 2단계 완료 게이트 (ADR-0041)
+// ─────────────────────────────────────────────────────────────────────────
+
+const SIDEBAR_ITEMS = [
+  { group: "회차 검토", label: "대시보드", path: "/" },
+  { group: "회차 검토", label: "검토 대기열", path: "/queue" },
+  { group: "누적 추적", label: "발주계획 C-2", path: "/order-plans" },
+  { group: "누적 추적", label: "사전규격", path: "/pre-specs" },
+  { group: "누적 추적", label: "사업기회", path: "/opportunities" },
+  { group: "누적 추적", label: "최종 Go/No-Go", path: "/go-no-go" },
+  { group: "기준과 운영", label: "판정 기준", path: "/criteria" },
+  { group: "기준과 운영", label: "실행 상태", path: "/run-status" },
+];
+
+test("사이드바는 8항목이고 1차 분류가 회차 검토 · 누적 추적 · 기준과 운영이다", async ({ page }) => {
+  await mockApi(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+
+  const sidebar = page.locator("aside.sidebar");
+  await expect(sidebar.locator(".sidebar-item")).toHaveCount(SIDEBAR_ITEMS.length);
+  await expect(sidebar.locator(".sidebar-group-label")).toHaveText(["회차 검토", "누적 추적", "기준과 운영"]);
+
+  for (const item of SIDEBAR_ITEMS) {
+    const group = sidebar.locator(".sidebar-group", { hasText: item.group });
+    await expect(group.getByRole("link", { name: item.label, exact: true })).toHaveCount(1);
+  }
+
+  // 리다이렉트 항목과 미구현 안내 항목을 최상위에 두지 않는다.
+  await expect(sidebar.getByText("준비 중")).toHaveCount(0);
+  await expect(sidebar.getByRole("link", { name: "마감 추적" })).toHaveCount(0);
+  await expect(sidebar.getByRole("link", { name: "산출물 감사 로그" })).toHaveCount(0);
+});
+
+test("사이드바 8항목이 모두 실제 화면으로 연결되고 최종 Go/No-Go에 한 번에 도달한다", async ({ page }) => {
+  await mockApi(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+
+  for (const item of SIDEBAR_ITEMS) {
+    await page.goto("/");
+    await page.locator("aside.sidebar").getByRole("link", { name: item.label, exact: true }).click();
+    // 실제 화면이 그려진다: 빈 라우트나 오류 경계가 아니라 상단바 제목이 채워진다.
+    await expect(page.locator("header.topbar h1")).not.toHaveText("BidOps Admin");
+    await expect(page.locator(".lazy-route-error")).toHaveCount(0);
+  }
+
+  // 최종 Go/No-Go는 사이드바에서 한 번에 도달한다(중간 화면을 거치지 않는다).
+  await page.goto("/");
+  await page.locator("aside.sidebar").getByRole("link", { name: "최종 Go/No-Go", exact: true }).click();
+  await expect(page.locator("header.topbar h1")).toHaveText("최종 Go/No-Go");
+  await expect(page.getByRole("heading", { name: "최종 Go/No-Go", level: 2 })).toBeVisible();
+});
+
+test("회차 선택기 표시 여부가 1차 분류와 일치한다", async ({ page }) => {
+  await mockApi(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+
+  for (const item of SIDEBAR_ITEMS) {
+    await page.goto(item.path);
+    const runSelector = page.getByLabel("실행 회차", { exact: true });
+    if (item.group === "회차 검토") await expect(runSelector).toBeVisible();
+    else await expect(runSelector).toHaveCount(0);
+  }
+});
+
+test("흡수한 옛 경로는 404를 내지 않고 목적지 화면의 해당 탭으로 열린다", async ({ page }) => {
+  await mockApi(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+
+  const absorbed = [
+    { path: "/judgments", title: "검토 대기열", tab: "공고 판정 이력" },
+    { path: "/reviews", title: "검토 대기열", tab: "담당자 리뷰 기록" },
+    { path: "/profile", title: "판정 기준", tab: "회사 프로필" },
+    { path: "/policies", title: "판정 기준", tab: "판정 정책" },
+    { path: "/quality-gates", title: "판정 기준", tab: "품질 게이트" },
+    { path: "/metrics", title: "판정 기준", tab: "검증 지표" },
+    { path: "/runs", title: "실행 상태", tab: "수집 실행" },
+    { path: "/attachments", title: "실행 상태", tab: "첨부 확보" },
+    { path: "/operations", title: "실행 상태", tab: "상시 운영" },
+    { path: "/audit", title: "실행 상태", tab: "산출물 감사 로그" },
+  ];
+
+  for (const entry of absorbed) {
+    await page.goto(entry.path);
+    await expect(page.locator("header.topbar h1")).toHaveText(entry.title);
+    await expect(page.getByRole("tab", { name: entry.tab, exact: true })).toHaveAttribute("aria-selected", "true");
+    await expect(page.locator(".lazy-route-error")).toHaveCount(0);
+  }
+
+  // 마감 추적은 검토 대기열의 저장된 뷰다. 리다이렉트가 아니라 그 뷰의 주소이므로
+  // 경로가 그대로 남고, 정렬이 마감 임박순으로 열린다. 리다이렉트로 sort를 실어
+  // 보내던 방식은 AppShell의 회차 동기화와 경쟁해 파라미터를 잃었다.
+  await page.goto("/deadlines");
+  await expect(page.locator("header.topbar h1")).toHaveText("검토 대기열");
+  await expect(page.getByRole("tab", { name: "검토 대기열", exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByLabel("정렬", { exact: true })).toHaveValue("deadline");
+
+  // 같은 화면의 기본 주소는 등급순 그대로다: 저장된 뷰가 기본값을 바꾸지 않는다.
+  await page.goto("/queue");
+  await expect(page.getByLabel("정렬", { exact: true })).toHaveValue("grade");
+});
+
+test("심층 검토 보고서 진입점이 사업기회 화면에 명시된다", async ({ page }) => {
+  await mockApi(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/opportunities/501");
+
+  const entry = page.locator(".opportunity-deep-review");
+  await expect(entry.getByRole("heading", { name: "심층 검토 보고서" })).toBeVisible();
+  // 서버가 사업기회별 보고서 목록을 주지 않는다는 사실을 감추지 않는다.
+  await expect(entry).toContainText("서버가 사업기회별 보고서 목록을 제공하지 않아");
+  await entry.getByLabel("심층 검토 보고서 ID").fill("fixture-review");
+  await entry.getByRole("link", { name: "보고서 열기 →" }).click();
+  await expect(page).toHaveURL(/\/deep-reviews\/fixture-review/);
+});

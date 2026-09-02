@@ -2,7 +2,11 @@
    기존 API 상태와 조작부의 계약은 유지하고, 이 파일에서는 화면의 우선순위,
    카드 안쪽 여백, 반응형 폭과 내부 스크롤 경계만 조정한다. */
 
-.page-canvas > .runs-page,
+/* 직계 자식 선택자였으나 실행 상태 화면이 탭 래퍼(.ws-panel) 안에 이 화면을
+ * 넣으면서 선택자가 빗나갔다. 빗나가면 theme.css의 .runs-page { min-width: 980px }가
+ * 살아나 노트북 폭에서 가로로 190px 넘친다. 자손 선택자로 넓혀 래퍼 유무와
+ * 무관하게 적용되게 한다. */
+.page-canvas .runs-page,
 .attachments-page {
   width: 100%;
   max-width: 1680px;

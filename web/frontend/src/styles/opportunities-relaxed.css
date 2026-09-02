@@ -422,3 +422,54 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* 심층 검토 보고서·최종 Go/No-Go 진입점 (docs/design/PRD.md §2.2).
+ * 이 화면은 아직 Astryx로 이행하지 않았으므로 한 화면 안에서 두 체계를 섞지
+ * 않는다는 ADR-0040 결정에 따라 기존 프로젝트 토큰만 쓴다. */
+.opportunity-deep-review,
+.opportunity-linked-screens {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-secondary);
+}
+
+.opportunity-deep-review h3,
+.opportunity-linked-screens h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.opportunity-deep-review p,
+.opportunity-linked-screens p {
+  margin: 0;
+  color: var(--color-muted);
+}
+
+.opportunity-deep-review-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.opportunity-deep-review-form input {
+  min-width: 260px;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+
+.opportunity-deep-review-hint {
+  color: var(--color-muted);
+}
+
+.opportunity-linked-link {
+  align-self: flex-start;
+  color: var(--color-primary-strong);
+  font-weight: 600;
+}

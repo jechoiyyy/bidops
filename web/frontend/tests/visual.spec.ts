@@ -32,6 +32,13 @@ const pages = [
   { name: "quality-gates-comparison", path: "/quality-gates?gate=gate-model-comparison" },
   { name: "policies", path: "/policies" },
   { name: "operations", path: "/operations" },
+  // docs/design/PLAN.md 2단계에서 새로 생긴 사이드바 항목과, 흡수한 탭 중
+  // 이전에 리다이렉트라 기준선이 없던 산출물 감사 로그를 덮는다. 위 타깃들은
+  // 이제 합친 화면의 각 탭을 찍는다(경로가 그대로 각 탭의 주소다).
+  { name: "audit", path: "/audit" },
+  { name: "criteria", path: "/criteria" },
+  { name: "run-status", path: "/run-status" },
+  { name: "go-no-go", path: "/go-no-go" },
 ];
 
 test.beforeEach(async ({ page }) => {
@@ -247,16 +254,20 @@ test("대시보드 퍼널은 단계별 건수와 직전 단계 잔존율을 함�
   await expect(page.locator(".dashboard-funnel-axis")).toContainText("0%25%50%75%100%");
 });
 
-test("마감과 감사 redirect가 기존 쿼리를 보존한다", async ({ page }) => {
+test("흡수한 마감·감사 경로가 기존 쿼리를 보존한다", async ({ page }) => {
+  // docs/design/PLAN.md 2단계: 마감 추적은 검토 대기열의 저장된 뷰, 산출물 감사
+  // 로그는 실행 상태의 탭으로 흡수됐다. 리다이렉트가 아니라 각 뷰의 주소이므로
+  // 경로가 그대로 남고, 담당자가 들고 온 쿼리를 잃지 않아야 한다.
   await page.goto(`/deadlines?run=${encodeURIComponent(RUN_ID)}&from=dashboard`);
-  await expect.poll(() => new URL(page.url()).pathname).toMatch(/^\/queue(?:\/\d+)?$/);
+  await expect.poll(() => new URL(page.url()).searchParams.get("sort")).toBe("deadline");
   let params = new URL(page.url()).searchParams;
   expect(params.get("run")).toBe(RUN_ID);
   expect(params.get("from")).toBe("dashboard");
-  expect(params.get("sort")).toBe("deadline");
+  await expect(page.locator("header.topbar h1")).toHaveText("검토 대기열");
 
   await page.goto(`/audit?run=${encodeURIComponent(RUN_ID)}&from=review`);
-  await expect.poll(() => new URL(page.url()).pathname).toBe("/runs");
+  await expect(page.locator("header.topbar h1")).toHaveText("실행 상태");
+  await expect(page.getByRole("tab", { name: "산출물 감사 로그", exact: true })).toHaveAttribute("aria-selected", "true");
   params = new URL(page.url()).searchParams;
   expect(params.get("run")).toBe(RUN_ID);
   expect(params.get("from")).toBe("review");

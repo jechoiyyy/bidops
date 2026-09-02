@@ -31,12 +31,6 @@ export const routeMetadata = {
     editScope: "리뷰 저장 가능",
     runSelectorVisible: true,
   },
-  deadlines: {
-    title: "마감 추적",
-    dataScope: "run",
-    editScope: null,
-    runSelectorVisible: true,
-  },
   opportunities: {
     title: "사업기회",
     dataScope: "cumulative",
@@ -67,65 +61,32 @@ export const routeMetadata = {
     editScope: null,
     runSelectorVisible: false,
   },
-  judgments: {
-    title: "공고 판정 이력",
-    dataScope: "run",
-    editScope: "판정 원문 읽기 전용",
-    runSelectorVisible: true,
-  },
-  reviews: {
-    title: "담당자 리뷰 기록",
-    dataScope: "run",
-    editScope: null,
-    runSelectorVisible: true,
-  },
-  profile: {
-    title: "회사 프로필",
+  goNoGo: {
+    title: "최종 Go/No-Go",
     dataScope: "cumulative",
-    editScope: "원본 문서에서 관리",
+    editScope: "최종 Go/No-Go 저장 가능",
     runSelectorVisible: false,
   },
-  metrics: {
-    title: "검증 지표",
-    dataScope: "run",
-    editScope: null,
-    runSelectorVisible: true,
-  },
-  qualityGates: {
-    title: "품질 게이트",
+  // 기준 4화면(회사 프로필·판정 정책·품질 게이트·검증 지표)을 합친 화면이다.
+  // 흡수 대상 화면은 모두 누적 자료를 다루므로(회사 프로필·정책·게이트는 원래도
+  // 누적이었고, 검증 지표는 화면 자체가 회차별 추이를 비교하는 자기 완결
+  // 회차 선택기를 갖고 있어 상단 회차 맥락이 필요 없다) 합친 화면 전체를
+  // cumulative로 통일한다.
+  criteria: {
+    title: "판정 기준",
     dataScope: "cumulative",
     editScope: null,
     runSelectorVisible: false,
   },
-  policies: {
-    title: "판정 정책",
+  // 운영 3화면(수집 실행·첨부 확보·상시 운영)과 산출물 감사 로그를 합친
+  // 화면이다. 수집 실행·검증 지표와 마찬가지로 실행 목록 자체가 회차를
+  // 넘나드는 표이므로(실행 상태 시안의 표는 여러 run_id를 한 표에 보여준다)
+  // 상단 회차 선택기에 기대지 않는다.
+  runStatus: {
+    title: "실행 상태",
     dataScope: "cumulative",
     editScope: null,
     runSelectorVisible: false,
-  },
-  runs: {
-    title: "수집 실행",
-    dataScope: "run",
-    editScope: null,
-    runSelectorVisible: true,
-  },
-  attachments: {
-    title: "첨부 확보",
-    dataScope: "run",
-    editScope: null,
-    runSelectorVisible: true,
-  },
-  operations: {
-    title: "상시 운영",
-    dataScope: "cumulative",
-    editScope: null,
-    runSelectorVisible: false,
-  },
-  audit: {
-    title: "산출물 감사 로그",
-    dataScope: "run",
-    editScope: null,
-    runSelectorVisible: true,
   },
   deepReview: {
     title: "심층 검토 보고서",
