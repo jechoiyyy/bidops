@@ -4,9 +4,9 @@
  "population_count": 997,
  "population_sha256": "3a91dab71cd483faa45de393f1cbea990f7b543cc7a7b686e6fae5b18ab4d28f",
  "gold": {
-  "path": "data/experiments/order-plan-screening/20260824-20260826-sol200-luna797-xhigh-b100-reference-v1/review/human-gold-full-population.tsv",
-  "sha256": "cd3b9bc04bbbf37c9a2b5df5c3caac8de3a6a1f0a15cc609e8b4062356654cbd",
-  "relevant": 90,
+  "path": "data/experiments/order-plan-screening/20260824-20260826-sol200-luna797-xhigh-b100-reference-v1/review/human-gold-full-population-v2.tsv",
+  "sha256": "d1a3adbd152c0e79e2d543d8d6340f48c4836c1300dccb5497a5da922824149c",
+  "relevant": 82,
   "uncertain": 6
  },
  "arms": {
@@ -45,76 +45,76 @@
  },
  "evaluations": {
   "bm25": {
-   "total_relevant": 90,
+   "total_relevant": 82,
    "at_cutoff": [
     {
      "cutoff": 20,
      "review_load": 20,
      "found": 16,
-     "missed": 74,
-     "recall": 0.1778,
+     "missed": 66,
+     "recall": 0.1951,
      "precision": 0.8
     },
     {
      "cutoff": 30,
      "review_load": 30,
      "found": 22,
-     "missed": 68,
-     "recall": 0.2444,
+     "missed": 60,
+     "recall": 0.2683,
      "precision": 0.7333
     },
     {
      "cutoff": 50,
      "review_load": 50,
      "found": 39,
-     "missed": 51,
-     "recall": 0.4333,
+     "missed": 43,
+     "recall": 0.4756,
      "precision": 0.78
     },
     {
      "cutoff": 75,
      "review_load": 75,
      "found": 53,
-     "missed": 37,
-     "recall": 0.5889,
+     "missed": 29,
+     "recall": 0.6463,
      "precision": 0.7067
     },
     {
      "cutoff": 100,
      "review_load": 100,
      "found": 59,
-     "missed": 31,
-     "recall": 0.6556,
+     "missed": 23,
+     "recall": 0.7195,
      "precision": 0.59
     },
     {
      "cutoff": 150,
      "review_load": 150,
      "found": 67,
-     "missed": 23,
-     "recall": 0.7444,
+     "missed": 15,
+     "recall": 0.8171,
      "precision": 0.4467
     },
     {
      "cutoff": 200,
      "review_load": 200,
-     "found": 79,
-     "missed": 11,
-     "recall": 0.8778,
-     "precision": 0.395
+     "found": 76,
+     "missed": 6,
+     "recall": 0.9268,
+     "precision": 0.38
     },
     {
      "cutoff": 300,
      "review_load": 300,
-     "found": 83,
-     "missed": 7,
-     "recall": 0.9222,
-     "precision": 0.2767
+     "found": 78,
+     "missed": 4,
+     "recall": 0.9512,
+     "precision": 0.26
     }
    ],
    "rank_for_full_recall": 663,
-   "rank_p50": 65,
-   "rank_p90": 243,
+   "rank_p50": 58,
+   "rank_p90": 192,
    "relevant_ranks": [
     1,
     2,
@@ -187,97 +187,89 @@
     158,
     160,
     170,
-    177,
     180,
-    182,
     185,
-    189,
     192,
     198,
     200,
     215,
-    231,
-    243,
     266,
     306,
-    314,
     323,
-    480,
-    481,
     550,
     663
    ]
   },
   "dense": {
-   "total_relevant": 90,
+   "total_relevant": 82,
    "at_cutoff": [
     {
      "cutoff": 20,
      "review_load": 20,
      "found": 15,
-     "missed": 75,
-     "recall": 0.1667,
+     "missed": 67,
+     "recall": 0.1829,
      "precision": 0.75
     },
     {
      "cutoff": 30,
      "review_load": 30,
      "found": 20,
-     "missed": 70,
-     "recall": 0.2222,
+     "missed": 62,
+     "recall": 0.2439,
      "precision": 0.6667
     },
     {
      "cutoff": 50,
      "review_load": 50,
      "found": 32,
-     "missed": 58,
-     "recall": 0.3556,
+     "missed": 50,
+     "recall": 0.3902,
      "precision": 0.64
     },
     {
      "cutoff": 75,
      "review_load": 75,
-     "found": 42,
-     "missed": 48,
-     "recall": 0.4667,
-     "precision": 0.56
+     "found": 41,
+     "missed": 41,
+     "recall": 0.5,
+     "precision": 0.5467
     },
     {
      "cutoff": 100,
      "review_load": 100,
-     "found": 54,
-     "missed": 36,
-     "recall": 0.6,
-     "precision": 0.54
+     "found": 48,
+     "missed": 34,
+     "recall": 0.5854,
+     "precision": 0.48
     },
     {
      "cutoff": 150,
      "review_load": 150,
-     "found": 68,
-     "missed": 22,
-     "recall": 0.7556,
-     "precision": 0.4533
+     "found": 62,
+     "missed": 20,
+     "recall": 0.7561,
+     "precision": 0.4133
     },
     {
      "cutoff": 200,
      "review_load": 200,
-     "found": 77,
+     "found": 69,
      "missed": 13,
-     "recall": 0.8556,
-     "precision": 0.385
+     "recall": 0.8415,
+     "precision": 0.345
     },
     {
      "cutoff": 300,
      "review_load": 300,
-     "found": 83,
+     "found": 75,
      "missed": 7,
-     "recall": 0.9222,
-     "precision": 0.2767
+     "recall": 0.9146,
+     "precision": 0.25
     }
    ],
    "rank_for_full_recall": 839,
-   "rank_p50": 83,
+   "rank_p50": 80,
    "rank_p90": 236,
    "relevant_ranks": [
     1,
@@ -321,17 +313,11 @@
     61,
     64,
     67,
-    73,
-    77,
     80,
     81,
     83,
     85,
     93,
-    94,
-    95,
-    96,
-    97,
     99,
     100,
     101,
@@ -351,11 +337,9 @@
     152,
     158,
     162,
-    164,
     166,
     173,
     178,
-    182,
     195,
     202,
     203,
@@ -373,76 +357,76 @@
    ]
   },
   "hybrid_rrf": {
-   "total_relevant": 90,
+   "total_relevant": 82,
    "at_cutoff": [
     {
      "cutoff": 20,
      "review_load": 20,
      "found": 14,
-     "missed": 76,
-     "recall": 0.1556,
+     "missed": 68,
+     "recall": 0.1707,
      "precision": 0.7
     },
     {
      "cutoff": 30,
      "review_load": 30,
      "found": 22,
-     "missed": 68,
-     "recall": 0.2444,
+     "missed": 60,
+     "recall": 0.2683,
      "precision": 0.7333
     },
     {
      "cutoff": 50,
      "review_load": 50,
      "found": 41,
-     "missed": 49,
-     "recall": 0.4556,
+     "missed": 41,
+     "recall": 0.5,
      "precision": 0.82
     },
     {
      "cutoff": 75,
      "review_load": 75,
      "found": 50,
-     "missed": 40,
-     "recall": 0.5556,
+     "missed": 32,
+     "recall": 0.6098,
      "precision": 0.6667
     },
     {
      "cutoff": 100,
      "review_load": 100,
      "found": 60,
-     "missed": 30,
-     "recall": 0.6667,
+     "missed": 22,
+     "recall": 0.7317,
      "precision": 0.6
     },
     {
      "cutoff": 150,
      "review_load": 150,
-     "found": 75,
-     "missed": 15,
-     "recall": 0.8333,
-     "precision": 0.5
+     "found": 71,
+     "missed": 11,
+     "recall": 0.8659,
+     "precision": 0.4733
     },
     {
      "cutoff": 200,
      "review_load": 200,
-     "found": 81,
-     "missed": 9,
-     "recall": 0.9,
-     "precision": 0.405
+     "found": 75,
+     "missed": 7,
+     "recall": 0.9146,
+     "precision": 0.375
     },
     {
      "cutoff": 300,
      "review_load": 300,
-     "found": 88,
+     "found": 80,
      "missed": 2,
-     "recall": 0.9778,
-     "precision": 0.2933
+     "recall": 0.9756,
+     "precision": 0.2667
     }
    ],
    "rank_for_full_recall": 764,
-   "rank_p50": 62,
-   "rank_p90": 215,
+   "rank_p50": 51,
+   "rank_p90": 164,
    "relevant_ranks": [
     1,
     2,
@@ -507,12 +491,8 @@
     103,
     105,
     107,
-    108,
     113,
-    114,
     118,
-    119,
-    120,
     124,
     126,
     135,
@@ -522,12 +502,8 @@
     151,
     161,
     164,
-    179,
-    183,
     199,
     215,
-    216,
-    225,
     231,
     236,
     240,
@@ -603,26 +579,18 @@
    "R26DD20852595",
    "R26DD20852619",
    "R26DD20852774",
-   "R26DD20852880",
    "R26DD20852883",
    "R26DD20853269",
-   "R26DD20853370",
    "R26DD20853397",
    "R26DD20853524",
    "R26DD20853537",
    "R26DD20853581",
-   "R26DD20853666",
-   "R26DD20853674",
-   "R26DD20853731",
    "R26DD20853736",
    "R26DD20853821",
    "R26DD20853893",
    "R26DD20853902",
-   "R26DD20854028",
    "R26DD20854037",
-   "R26DD20854038",
    "R26DD20854225",
-   "R26DD20854546",
    "R26DD20854569",
    "R26DD20854594",
    "R26DD20854595",
@@ -755,10 +723,6 @@
     "priority": "보통"
    },
    {
-    "plan_id": "R26DD20854028",
-    "priority": "보통"
-   },
-   {
     "plan_id": "R26DD20854037",
     "priority": "보통"
    },
@@ -811,27 +775,7 @@
     "priority": "낮음"
    },
    {
-    "plan_id": "R26DD20852880",
-    "priority": "낮음"
-   },
-   {
-    "plan_id": "R26DD20853370",
-    "priority": "낮음"
-   },
-   {
     "plan_id": "R26DD20853397",
-    "priority": "낮음"
-   },
-   {
-    "plan_id": "R26DD20853666",
-    "priority": "낮음"
-   },
-   {
-    "plan_id": "R26DD20853674",
-    "priority": "낮음"
-   },
-   {
-    "plan_id": "R26DD20853731",
     "priority": "낮음"
    },
    {
@@ -839,15 +783,7 @@
     "priority": "낮음"
    },
    {
-    "plan_id": "R26DD20854038",
-    "priority": "낮음"
-   },
-   {
     "plan_id": "R26DD20854285",
-    "priority": "낮음"
-   },
-   {
-    "plan_id": "R26DD20854546",
     "priority": "낮음"
    },
    {
@@ -989,10 +925,6 @@
     "priority": "보통"
    },
    {
-    "plan_id": "R26DD20854028",
-    "priority": "보통"
-   },
-   {
     "plan_id": "R26DD20854037",
     "priority": "보통"
    },
@@ -1045,27 +977,7 @@
     "priority": "낮음"
    },
    {
-    "plan_id": "R26DD20852880",
-    "priority": "낮음"
-   },
-   {
-    "plan_id": "R26DD20853370",
-    "priority": "낮음"
-   },
-   {
     "plan_id": "R26DD20853397",
-    "priority": "낮음"
-   },
-   {
-    "plan_id": "R26DD20853666",
-    "priority": "낮음"
-   },
-   {
-    "plan_id": "R26DD20853674",
-    "priority": "낮음"
-   },
-   {
-    "plan_id": "R26DD20853731",
     "priority": "낮음"
    },
    {
@@ -1073,15 +985,7 @@
     "priority": "낮음"
    },
    {
-    "plan_id": "R26DD20854038",
-    "priority": "낮음"
-   },
-   {
     "plan_id": "R26DD20854407",
-    "priority": "낮음"
-   },
-   {
-    "plan_id": "R26DD20854546",
     "priority": "낮음"
    },
    {
@@ -1195,10 +1099,6 @@
     "priority": "보통"
    },
    {
-    "plan_id": "R26DD20854028",
-    "priority": "보통"
-   },
-   {
     "plan_id": "R26DD20854037",
     "priority": "보통"
    },
@@ -1247,39 +1147,11 @@
     "priority": "낮음"
    },
    {
-    "plan_id": "R26DD20852880",
-    "priority": "낮음"
-   },
-   {
-    "plan_id": "R26DD20853370",
-    "priority": "낮음"
-   },
-   {
     "plan_id": "R26DD20853397",
     "priority": "낮음"
    },
    {
-    "plan_id": "R26DD20853666",
-    "priority": "낮음"
-   },
-   {
-    "plan_id": "R26DD20853674",
-    "priority": "낮음"
-   },
-   {
-    "plan_id": "R26DD20853731",
-    "priority": "낮음"
-   },
-   {
     "plan_id": "R26DD20853736",
-    "priority": "낮음"
-   },
-   {
-    "plan_id": "R26DD20854038",
-    "priority": "낮음"
-   },
-   {
-    "plan_id": "R26DD20854546",
     "priority": "낮음"
    },
    {

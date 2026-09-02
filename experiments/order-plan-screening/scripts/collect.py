@@ -70,7 +70,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--company-capabilities",
         type=Path,
-        default=EXPERIMENT_ROOT / "config/company-capabilities.json",
+        default=(
+            EXPERIMENT_ROOT
+            / "review-inputs/company/company-capabilities-v1-approved.json"
+        ),
     )
     parser.add_argument(
         "--methods-config",

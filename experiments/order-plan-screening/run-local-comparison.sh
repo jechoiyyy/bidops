@@ -14,7 +14,7 @@ GPT Luna remain deferred, separately controlled executions.
 Required:
   --approved-by NAME       Human audit marker approving company capabilities
   --approve-capabilities   Confirm the reviewed capability projection
-  --prompt-file PATH       Approved batch prompt stored outside tracked files
+  --prompt-file PATH       Approved prompt from review-inputs/prompts
   --execute-dense          Explicitly allow local BGE-M3 embedding calls
   --execute-qwen           Explicitly allow local Qwen inference calls
 
@@ -140,6 +140,10 @@ REPORT_DIR="$PROJECT_ROOT/reports/order-plan-screening/$RUN_ID"
 
 umask 077
 
+printf '%s\n' '[0/8] validate review-input manifest and active hashes'
+PYTHONDONTWRITEBYTECODE=1 python3 \
+  "$EXPERIMENT_ROOT/scripts/validate_review_inputs.py"
+
 if [[ "$RUN_TESTS" == true ]]; then
   printf '%s\n' '[1/8] fake/unit tests'
   PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \
@@ -178,7 +182,9 @@ from common import (
 )
 
 root = Path(os.environ["EXPERIMENT_ROOT_VALUE"])
-capabilities = load_json(root / "config/company-capabilities.json")
+capabilities = load_json(
+    root / "review-inputs/company/company-capabilities-v1-approved.json"
+)
 projection = capabilities_projection(capabilities, require_approved=False)
 if capabilities.get("summary_sha256") != digest_json(projection):
     raise SystemExit("company capability projection hash mismatch")

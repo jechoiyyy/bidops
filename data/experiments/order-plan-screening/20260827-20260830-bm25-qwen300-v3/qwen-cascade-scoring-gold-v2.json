@@ -1,0 +1,188 @@
+{
+  "schema_version": "bidops.order-plan-qwen-cascade-scoring.v1",
+  "created_at": "2026-09-01T12:02:21.615978+09:00",
+  "source_run_id": "20260827-20260830-qwen-direct-v3",
+  "cascade_run_id": "20260827-20260830-bm25-qwen300-v3",
+  "source_population_count": 625,
+  "selected_count": 300,
+  "filtered_out_count": 325,
+  "prefilter": "bm25",
+  "prefilter_top_k": 300,
+  "bindings": {
+    "cascade_sha256": "06fd0cdf122f0ffec6cf6480e50b6dd50d98d019acdc40fe1a14c01f3dfb9a7a",
+    "qwen_result_sha256": "a150cf845271b591d4144d76b9d7f9931fe87389eca894fc6e6e2fa0611f44e4",
+    "reference_sha256": "07d1986ab9d8abc7ef8ce12466e65998044928127682b9b7f743b08f4aacc4cd"
+  },
+  "qwen": {
+    "status": "success",
+    "success": 300,
+    "failed": 0,
+    "batching": {
+      "mode": "fixed",
+      "batch_size": 25,
+      "batch_count": 12
+    },
+    "input_tokens": 23725,
+    "output_tokens": 20458,
+    "execution": {
+      "batching": {
+        "mode": "fixed",
+        "batch_size": 25,
+        "batch_count": 12
+      },
+      "elapsed_ms": 598947,
+      "total_latency_ms": 598883,
+      "average_latency_ms": 1996.277,
+      "input_tokens": 23725,
+      "cached_input_tokens": null,
+      "output_tokens": 20458,
+      "total_tokens": 44183,
+      "records_per_second": 0.5009,
+      "output_tokens_per_second": 34.1566,
+      "device": null
+    },
+    "failure_error_counts": {}
+  },
+  "metrics": {
+    "review_retained_recall_full_population": 0.9661,
+    "review_retained_precision": 0.4488,
+    "review_load": 127,
+    "qwen_input_reduction": 0.52,
+    "stage1_relevant_missed": 2,
+    "qwen_relevant_missed": 0,
+    "qwen_relevant_uncertain": 14
+  },
+  "stage1_false_negatives": [
+    {
+      "plan_id": "R26DD20855622",
+      "title": "춘의동 일원(K26) 노후 상수도관 교체공사 GIS DB 갱신 용역",
+      "priority": "낮음",
+      "label_source": "draft",
+      "qwen_prediction": null,
+      "qwen_reason": null
+    },
+    {
+      "plan_id": "R26DD20857501",
+      "title": "화생방 제독작전모의 SW 구현 용역",
+      "priority": "낮음",
+      "label_source": "draft",
+      "qwen_prediction": null,
+      "qwen_reason": null
+    }
+  ],
+  "qwen_false_negatives": [],
+  "qwen_uncertain_relevant": [
+    {
+      "plan_id": "R26DD20855662",
+      "title": "[긴급]2026년 어디Go 실시간 위치 공유 서비스 운영 용역",
+      "priority": "보통",
+      "label_source": "draft",
+      "qwen_prediction": "uncertain",
+      "qwen_reason": "실시간 위치 공유 서비스 운영으로 플랫폼 연계 가능성 있으나 운영 용역 범위가 불명확함."
+    },
+    {
+      "plan_id": "R26DD20855717",
+      "title": "2026년 산업계 에너지관리시스템 보급 지원사업_유니크_시스템",
+      "priority": "보통",
+      "label_source": "draft",
+      "qwen_prediction": "uncertain",
+      "qwen_reason": "에너지관리시스템 보급 지원으로 시스템 연계 가능성 있으나 보급 지원 범위가 불명확함."
+    },
+    {
+      "plan_id": "R26DD20855832",
+      "title": "신용보증리스크 측정시스템 유지보수 용역",
+      "priority": "보통",
+      "label_source": "draft",
+      "qwen_prediction": "uncertain",
+      "qwen_reason": "신용보증리스크 측정시스템 유지보수는 데이터 분석·시스템 운영과 관련될 수 있으나, 사업명만으로는 AI·데이터 역량과의 직접적 연결이 불분명함."
+    },
+    {
+      "plan_id": "R26DD20855935",
+      "title": "임실군 오수면 읍면단위 LPG배관망 GIS DB구축 용역",
+      "priority": "낮음",
+      "label_source": "draft",
+      "qwen_prediction": "uncertain",
+      "qwen_reason": "GIS DB 구축은 데이터 플랫폼 역량과 관련 있으나 구체성이 부족함."
+    },
+    {
+      "plan_id": "R26DD20856029",
+      "title": "「신용평가·상시모니터링 모형 검증 및 고도화」 컨설팅 용역",
+      "priority": "낮음",
+      "label_source": "draft",
+      "qwen_prediction": "uncertain",
+      "qwen_reason": "모형 검증·고도화는 AI·빅데이터 분석 역량과 관련 있으나 신용평가 도메인 구체성이 부족함."
+    },
+    {
+      "plan_id": "R26DD20856112",
+      "title": "K-디지털헬스케어의 새로운 수출 모델 개발",
+      "priority": "낮음",
+      "label_source": "draft",
+      "qwen_prediction": "uncertain",
+      "qwen_reason": "수출 모델 개발은 AI·데이터 역량과 관련 있으나 사업 범위와 구체성이 부족함."
+    },
+    {
+      "plan_id": "R26DD20856186",
+      "title": "금융결제원 스테이블코인 테스트베드 기반 기술 검증 추진 관련 외주용역 업체 선정",
+      "priority": "높음",
+      "label_source": "draft",
+      "qwen_prediction": "uncertain",
+      "qwen_reason": "스테이블코인 기술 검증은 블록체인 역량과 관련 있으나, 테스트베드 기반 검증의 구체적 기술 범위가 title로 불명확함."
+    },
+    {
+      "plan_id": "R26DD20856388",
+      "title": "국가통합바이오빅데이터구축사업 전장유전체 기반 희귀질환 변이 추출 지원",
+      "priority": "낮음",
+      "label_source": "draft",
+      "qwen_prediction": "uncertain",
+      "qwen_reason": "빅데이터 기반 변이 추출로 데이터 분석 역량과 관련 있으나, 바이오 도메인 전문성 및 AI 활용 구체성이 title에서 불명확함."
+    },
+    {
+      "plan_id": "R26DD20856391",
+      "title": "표준 개발을 위한 자동차 환경 데이터 모니터링 실증 용역",
+      "priority": "낮음",
+      "label_source": "draft",
+      "qwen_prediction": "uncertain",
+      "qwen_reason": "데이터 모니터링 실증으로 데이터 수집·통합 역량과 관련 있으나, 표준 개발 목적의 구체적 기술 범위가 title에서 불명확함."
+    },
+    {
+      "plan_id": "R26DD20856667",
+      "title": "필리핀 사법 효율성 및 접근성 개선을 위한 사법정보 디지털화 및 역량강화 사업 PMC 용역",
+      "priority": "낮음",
+      "label_source": "draft",
+      "qwen_prediction": "uncertain",
+      "qwen_reason": "사법정보 디지털화 관련성은 있으나 PMC(프로젝트 관리) 중심인지 시스템 구축인지 불명확."
+    },
+    {
+      "plan_id": "R26DD20856753",
+      "title": "전자문서 기반 디지털 전환 확산을 위한 국가 간 상호 인정 체계 수립",
+      "priority": "낮음",
+      "label_source": "draft",
+      "qwen_prediction": "uncertain",
+      "qwen_reason": "전자문서 디지털 전환 관련성은 있으나 정책·제도 수립인지 시스템 구축인지 title만으로 불명확."
+    },
+    {
+      "plan_id": "R26DD20857517",
+      "title": "2026년 상표권 침해 및 부정경쟁행위 방지 교육 시스템 기능개선 및 유지보수 사업",
+      "priority": "보통",
+      "label_source": "draft",
+      "qwen_prediction": "uncertain",
+      "qwen_reason": "교육 시스템 기능개선 및 유지보수로, public-si-lifecycle과 관련 있으나 교육 특화 여부 불명확."
+    },
+    {
+      "plan_id": "R26DD20857660",
+      "title": "109 자살예방 상담시스템 헬프데스크 운영",
+      "priority": "낮음",
+      "label_source": "draft",
+      "qwen_prediction": "uncertain",
+      "qwen_reason": "상담시스템 운영으로, 시스템 운영 역량과 관련 가능성이 있으나 상담 특화 서비스인지 불명확함."
+    },
+    {
+      "plan_id": "R26DD20857691",
+      "title": "무주 신규마을 에코빌리지(2차) 조성사업 GIS DB 구축 용역",
+      "priority": "낮음",
+      "label_source": "draft",
+      "qwen_prediction": "uncertain",
+      "qwen_reason": "GIS DB 구축으로, 데이터 플랫폼 역량과 관련 있으나 GIS 특화 기술이 역량에 명시되지 않음."
+    }
+  ]
+}

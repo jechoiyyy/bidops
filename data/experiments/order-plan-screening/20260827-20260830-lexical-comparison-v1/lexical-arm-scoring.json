@@ -1,0 +1,810 @@
+{
+  "schema_version": "bidops.order-plan-lexical-arm-scoring.v1",
+  "created_at": "2026-09-01T10:20:29.954124+09:00",
+  "run_id": "20260827-20260830-c2-rerun-v1",
+  "population_count": 625,
+  "population_sha256": "7846e7ff51002dac613f85cc1a3e8a358430c9519ed96c6501e8e41c9f3d1c5a",
+  "reference": {
+    "path": "/home/jechoi/projects/bidops/data/experiments/order-plan-screening/20260827-20260830-gold-adjudicated-v1/review/gold-adjudicated-full-population.tsv",
+    "sha256": "1ac9a0c97a4c512ae4a8ba5037734734970033ad7b39a8680437eebbe4c306f0",
+    "relevant": 61,
+    "label_source_counts": {
+      "draft": 608,
+      "human": 17
+    }
+  },
+  "configs": {
+    "company_capabilities_sha256": "8f60dfece1934bdf857cd7e57d0fdd1860d01871131d98c3f2e8f9d71f271eae",
+    "bm25_sha256": "e026b2bdd2f99ddc09ae17bc83b1cd9cc40ef413f3b72372a35db32918d696da",
+    "methods_sha256": "240fce42c3dd3f64203474fdb05f66ef2e73f059538ff8769f5932a705b3f4c5",
+    "bm25": {
+      "schema_version": "bidops.order-plan-bm25.v1",
+      "note": "ADR-0021 개정이 채택한 BM25 arm 설정이다. 기존 6-method 계약(methods.json)은 닫힌 집합이라 여기에 분리해 둔다. 방식이 선택되면 그때 제품 경로에 통합한다.",
+      "method_version": "bm25-char-title-capability-v1",
+      "model_name": null,
+      "model_revision": null,
+      "prompt_id": null,
+      "prompt_sha256": null,
+      "analyzer": "char",
+      "ngram_min": 2,
+      "ngram_max": 5,
+      "k1": 1.2,
+      "b": 0.75,
+      "query_term_frequency": "binary",
+      "capability_aggregation": "max_bm25"
+    },
+    "tfidf": {
+      "method_version": "tfidf-char-title-capability-v1",
+      "model_name": null,
+      "model_revision": null,
+      "prompt_id": null,
+      "prompt_sha256": null,
+      "analyzer": "char",
+      "ngram_min": 2,
+      "ngram_max": 5,
+      "tf": "sublinear",
+      "idf": "smooth",
+      "normalization": "l2",
+      "capability_aggregation": "max_cosine"
+    }
+  },
+  "elapsed_ms": {
+    "bm25": 121,
+    "tfidf": 180
+  },
+  "evaluations": {
+    "bm25": {
+      "total_relevant": 61,
+      "at_cutoff": [
+        {
+          "cutoff": 20,
+          "review_load": 20,
+          "found": 14,
+          "missed": 47,
+          "recall": 0.2295,
+          "precision": 0.7
+        },
+        {
+          "cutoff": 30,
+          "review_load": 30,
+          "found": 21,
+          "missed": 40,
+          "recall": 0.3443,
+          "precision": 0.7
+        },
+        {
+          "cutoff": 50,
+          "review_load": 50,
+          "found": 33,
+          "missed": 28,
+          "recall": 0.541,
+          "precision": 0.66
+        },
+        {
+          "cutoff": 75,
+          "review_load": 75,
+          "found": 45,
+          "missed": 16,
+          "recall": 0.7377,
+          "precision": 0.6
+        },
+        {
+          "cutoff": 100,
+          "review_load": 100,
+          "found": 49,
+          "missed": 12,
+          "recall": 0.8033,
+          "precision": 0.49
+        },
+        {
+          "cutoff": 150,
+          "review_load": 150,
+          "found": 56,
+          "missed": 5,
+          "recall": 0.918,
+          "precision": 0.3733
+        },
+        {
+          "cutoff": 200,
+          "review_load": 200,
+          "found": 57,
+          "missed": 4,
+          "recall": 0.9344,
+          "precision": 0.285
+        },
+        {
+          "cutoff": 300,
+          "review_load": 300,
+          "found": 59,
+          "missed": 2,
+          "recall": 0.9672,
+          "precision": 0.1967
+        }
+      ],
+      "rank_for_full_recall": 538,
+      "rank_p50": 44,
+      "rank_p90": 146,
+      "relevant_ranks": [
+        1,
+        4,
+        6,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        22,
+        23,
+        24,
+        25,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        37,
+        38,
+        41,
+        43,
+        44,
+        45,
+        49,
+        51,
+        53,
+        54,
+        56,
+        59,
+        60,
+        62,
+        64,
+        69,
+        70,
+        71,
+        74,
+        81,
+        83,
+        85,
+        89,
+        103,
+        112,
+        114,
+        116,
+        134,
+        146,
+        150,
+        162,
+        201,
+        294,
+        447,
+        538
+      ]
+    },
+    "tfidf": {
+      "total_relevant": 61,
+      "at_cutoff": [
+        {
+          "cutoff": 20,
+          "review_load": 20,
+          "found": 14,
+          "missed": 47,
+          "recall": 0.2295,
+          "precision": 0.7
+        },
+        {
+          "cutoff": 30,
+          "review_load": 30,
+          "found": 22,
+          "missed": 39,
+          "recall": 0.3607,
+          "precision": 0.7333
+        },
+        {
+          "cutoff": 50,
+          "review_load": 50,
+          "found": 33,
+          "missed": 28,
+          "recall": 0.541,
+          "precision": 0.66
+        },
+        {
+          "cutoff": 75,
+          "review_load": 75,
+          "found": 41,
+          "missed": 20,
+          "recall": 0.6721,
+          "precision": 0.5467
+        },
+        {
+          "cutoff": 100,
+          "review_load": 100,
+          "found": 47,
+          "missed": 14,
+          "recall": 0.7705,
+          "precision": 0.47
+        },
+        {
+          "cutoff": 150,
+          "review_load": 150,
+          "found": 54,
+          "missed": 7,
+          "recall": 0.8852,
+          "precision": 0.36
+        },
+        {
+          "cutoff": 200,
+          "review_load": 200,
+          "found": 57,
+          "missed": 4,
+          "recall": 0.9344,
+          "precision": 0.285
+        },
+        {
+          "cutoff": 300,
+          "review_load": 300,
+          "found": 58,
+          "missed": 3,
+          "recall": 0.9508,
+          "precision": 0.1933
+        }
+      ],
+      "rank_for_full_recall": 547,
+      "rank_p50": 46,
+      "rank_p90": 155,
+      "relevant_ranks": [
+        1,
+        2,
+        5,
+        6,
+        8,
+        9,
+        10,
+        11,
+        12,
+        15,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        25,
+        26,
+        27,
+        28,
+        30,
+        31,
+        33,
+        35,
+        37,
+        38,
+        41,
+        42,
+        45,
+        46,
+        48,
+        50,
+        51,
+        54,
+        59,
+        62,
+        63,
+        66,
+        68,
+        72,
+        77,
+        80,
+        89,
+        90,
+        97,
+        98,
+        104,
+        105,
+        110,
+        116,
+        124,
+        134,
+        145,
+        155,
+        157,
+        158,
+        204,
+        334,
+        460,
+        547
+      ]
+    }
+  },
+  "comparison_at_cutoff": {
+    "cutoff": 300,
+    "selected_overlap_count": 280,
+    "selected_union_count": 320,
+    "selected_jaccard": 0.875,
+    "relevant_groups": {
+      "both": [
+        {
+          "plan_id": "R26DD20855581",
+          "title": "2026 어린이집 자율관리 시스템 기능개선",
+          "priority": "보통",
+          "bm25_rank": 38,
+          "tfidf_rank": 30
+        },
+        {
+          "plan_id": "R26DD20855651",
+          "title": "화성시인재육성재단 다올이음터 통합운영관리시스템 구축 용역",
+          "priority": "보통",
+          "bm25_rank": 25,
+          "tfidf_rank": 38
+        },
+        {
+          "plan_id": "R26DD20855662",
+          "title": "[긴급]2026년 어디Go 실시간 위치 공유 서비스 운영 용역",
+          "priority": "보통",
+          "bm25_rank": 56,
+          "tfidf_rank": 54
+        },
+        {
+          "plan_id": "R26DD20855717",
+          "title": "2026년 산업계 에너지관리시스템 보급 지원사업_유니크_시스템",
+          "priority": "보통",
+          "bm25_rank": 83,
+          "tfidf_rank": 72
+        },
+        {
+          "plan_id": "R26DD20855832",
+          "title": "신용보증리스크 측정시스템 유지보수 용역",
+          "priority": "보통",
+          "bm25_rank": 116,
+          "tfidf_rank": 110
+        },
+        {
+          "plan_id": "R26DD20855845",
+          "title": "2026년 AI 기반 지역현황 진단시스템 구축 사업 용역",
+          "priority": "높음",
+          "bm25_rank": 43,
+          "tfidf_rank": 19
+        },
+        {
+          "plan_id": "R26DD20855935",
+          "title": "임실군 오수면 읍면단위 LPG배관망 GIS DB구축 용역",
+          "priority": "낮음",
+          "bm25_rank": 201,
+          "tfidf_rank": 204
+        },
+        {
+          "plan_id": "R26DD20855944",
+          "title": "세종특별자치시교육청평생교육원 통합정보시스템 고도화를 위한 ISMP 수립 용역",
+          "priority": "높음",
+          "bm25_rank": 31,
+          "tfidf_rank": 45
+        },
+        {
+          "plan_id": "R26DD20855983",
+          "title": "탄소중립 지원사업 운영을 위한 통합플랫폼 고도화 용역",
+          "priority": "높음",
+          "bm25_rank": 54,
+          "tfidf_rank": 77
+        },
+        {
+          "plan_id": "R26DD20855995",
+          "title": "수용자 교정사고 이력관리 연계 정비 및 기능개선",
+          "priority": "보통",
+          "bm25_rank": 85,
+          "tfidf_rank": 104
+        },
+        {
+          "plan_id": "R26DD20856000",
+          "title": "2026년 지역보건의료정보시스템 기능개선(어르신건강관리, 난임극복지원)",
+          "priority": "높음",
+          "bm25_rank": 33,
+          "tfidf_rank": 37
+        },
+        {
+          "plan_id": "R26DD20856029",
+          "title": "「신용평가·상시모니터링 모형 검증 및 고도화」 컨설팅 용역",
+          "priority": "낮음",
+          "bm25_rank": 69,
+          "tfidf_rank": 97
+        },
+        {
+          "plan_id": "R26DD20856112",
+          "title": "K-디지털헬스케어의 새로운 수출 모델 개발",
+          "priority": "낮음",
+          "bm25_rank": 146,
+          "tfidf_rank": 158
+        },
+        {
+          "plan_id": "R26DD20856170",
+          "title": "한국투자공사 재해복구시스템 운영",
+          "priority": "보통",
+          "bm25_rank": 81,
+          "tfidf_rank": 89
+        },
+        {
+          "plan_id": "R26DD20856186",
+          "title": "금융결제원 스테이블코인 테스트베드 기반 기술 검증 추진 관련 외주용역 업체 선정",
+          "priority": "높음",
+          "bm25_rank": 60,
+          "tfidf_rank": 21
+        },
+        {
+          "plan_id": "R26DD20856192",
+          "title": "학교급식 통합플랫폼 및 사이버박물관 유지·보수",
+          "priority": "보통",
+          "bm25_rank": 70,
+          "tfidf_rank": 90
+        },
+        {
+          "plan_id": "R26DD20856299",
+          "title": "스포츠전문물리치료 교육콘텐츠 플랫폼 개발",
+          "priority": "보통",
+          "bm25_rank": 37,
+          "tfidf_rank": 46
+        },
+        {
+          "plan_id": "R26DD20856312",
+          "title": "[52313]DX·AX 교육 플랫폼 구축",
+          "priority": "높음",
+          "bm25_rank": 6,
+          "tfidf_rank": 11
+        },
+        {
+          "plan_id": "R26DD20856336",
+          "title": "리스크관리 고도화를 위한 자체 BIS비율 산출시스템 개발",
+          "priority": "보통",
+          "bm25_rank": 49,
+          "tfidf_rank": 63
+        },
+        {
+          "plan_id": "R26DD20856347",
+          "title": "2026년 안전신문고 시스템 기능 보강 사업",
+          "priority": "높음",
+          "bm25_rank": 22,
+          "tfidf_rank": 17
+        },
+        {
+          "plan_id": "R26DD20856372",
+          "title": "AI 디지털노동위원회 구축 2차",
+          "priority": "높음",
+          "bm25_rank": 45,
+          "tfidf_rank": 50
+        },
+        {
+          "plan_id": "R26DD20856388",
+          "title": "국가통합바이오빅데이터구축사업 전장유전체 기반 희귀질환 변이 추출 지원",
+          "priority": "낮음",
+          "bm25_rank": 30,
+          "tfidf_rank": 42
+        },
+        {
+          "plan_id": "R26DD20856391",
+          "title": "표준 개발을 위한 자동차 환경 데이터 모니터링 실증 용역",
+          "priority": "낮음",
+          "bm25_rank": 14,
+          "tfidf_rank": 10
+        },
+        {
+          "plan_id": "R26DD20856444",
+          "title": "가톨릭대학교 대표홈페이지(국문·영문) 메인 개편 및 웹매거진 구축 용역",
+          "priority": "보통",
+          "bm25_rank": 64,
+          "tfidf_rank": 80
+        },
+        {
+          "plan_id": "R26DD20856471",
+          "title": "디지털트윈 기반 전력계통 시각화 및 OpenDSS 연동 플랫폼 개발 용역",
+          "priority": "높음",
+          "bm25_rank": 35,
+          "tfidf_rank": 27
+        },
+        {
+          "plan_id": "R26DD20856491",
+          "title": "기후변화 대응 과학영농 통합관제체계 프로그램 개발 및 플랫폼 구축용역",
+          "priority": "높음",
+          "bm25_rank": 13,
+          "tfidf_rank": 20
+        },
+        {
+          "plan_id": "R26DD20856536",
+          "title": "2026년 민간 내비게이션 데이터를 활용한 돌발상황 데이터 수집 및 영상배포 개발 용역",
+          "priority": "높음",
+          "bm25_rank": 9,
+          "tfidf_rank": 2
+        },
+        {
+          "plan_id": "R26DD20856588",
+          "title": "AI 기반 지능형 업무처리 시스템 구축 사업",
+          "priority": "높음",
+          "bm25_rank": 15,
+          "tfidf_rank": 8
+        },
+        {
+          "plan_id": "R26DD20856593",
+          "title": "자산형성 상품 정보시스템 구축 ISP 수립 용역",
+          "priority": "높음",
+          "bm25_rank": 4,
+          "tfidf_rank": 9
+        },
+        {
+          "plan_id": "R26DD20856665",
+          "title": "AI 기반 학교 현장 플랫폼 통합 구축 및 운영",
+          "priority": "높음",
+          "bm25_rank": 11,
+          "tfidf_rank": 5
+        },
+        {
+          "plan_id": "R26DD20856667",
+          "title": "필리핀 사법 효율성 및 접근성 개선을 위한 사법정보 디지털화 및 역량강화 사업 PMC 용역",
+          "priority": "낮음",
+          "bm25_rank": 71,
+          "tfidf_rank": 98
+        },
+        {
+          "plan_id": "R26DD20856748",
+          "title": "부산경찰청 정보화시스템 통합유지보수 용역",
+          "priority": "보통",
+          "bm25_rank": 17,
+          "tfidf_rank": 22
+        },
+        {
+          "plan_id": "R26DD20856753",
+          "title": "전자문서 기반 디지털 전환 확산을 위한 국가 간 상호 인정 체계 수립",
+          "priority": "낮음",
+          "bm25_rank": 59,
+          "tfidf_rank": 66
+        },
+        {
+          "plan_id": "R26DD20856777",
+          "title": "KUSF 체육특기자 경기기록 관리시스템 고도화",
+          "priority": "보통",
+          "bm25_rank": 51,
+          "tfidf_rank": 62
+        },
+        {
+          "plan_id": "R26DD20856850",
+          "title": "신한대학교 2026학년도 학사팀 교육과정 고도화 시스템 개발 업체 선정",
+          "priority": "보통",
+          "bm25_rank": 41,
+          "tfidf_rank": 41
+        },
+        {
+          "plan_id": "R26DD20856874",
+          "title": "한국전통문화대학교 홈페이지 콘텐츠관리시스템 고도화 사업",
+          "priority": "보통",
+          "bm25_rank": 12,
+          "tfidf_rank": 15
+        },
+        {
+          "plan_id": "R26DD20856875",
+          "title": "한국전통문화대학교 학사정보시스템 고도화 사업",
+          "priority": "보통",
+          "bm25_rank": 44,
+          "tfidf_rank": 48
+        },
+        {
+          "plan_id": "R26DD20856935",
+          "title": "G-클라우드 기반 화학물질안전원 교육시스템 고도화",
+          "priority": "높음",
+          "bm25_rank": 1,
+          "tfidf_rank": 1
+        },
+        {
+          "plan_id": "R26DD20856956",
+          "title": "충남대학교병원 의생명연구원 CDW 연구검색 고도화",
+          "priority": "높음",
+          "bm25_rank": 112,
+          "tfidf_rank": 134
+        },
+        {
+          "plan_id": "R26DD20857034",
+          "title": "2026년 공공도서관 정보화시스템 유지보수 용역",
+          "priority": "보통",
+          "bm25_rank": 32,
+          "tfidf_rank": 28
+        },
+        {
+          "plan_id": "R26DD20857181",
+          "title": "2026년 국악방송 아카이브 시스템 구축 사업자 선정",
+          "priority": "보통",
+          "bm25_rank": 23,
+          "tfidf_rank": 23
+        },
+        {
+          "plan_id": "R26DD20857247",
+          "title": "지능형 생활안정지원시스템 구축 사업",
+          "priority": "높음",
+          "bm25_rank": 34,
+          "tfidf_rank": 33
+        },
+        {
+          "plan_id": "R26DD20857250",
+          "title": "AI 적용 비축사업 통합정보시스템 고도화",
+          "priority": "높음",
+          "bm25_rank": 28,
+          "tfidf_rank": 31
+        },
+        {
+          "plan_id": "R26DD20857281",
+          "title": "OnDevice STT 모듈 및 성폭력 KeyWord 도출 NER(Name Entity Recognition) 모듈 개발",
+          "priority": "높음",
+          "bm25_rank": 134,
+          "tfidf_rank": 155
+        },
+        {
+          "plan_id": "R26DD20857340",
+          "title": "건설e음 기능 개발 사업",
+          "priority": "보통",
+          "bm25_rank": 74,
+          "tfidf_rank": 68
+        },
+        {
+          "plan_id": "R26DD20857361",
+          "title": "제주형 차세대 응급의료 정보시스템 구축",
+          "priority": "높음",
+          "bm25_rank": 18,
+          "tfidf_rank": 26
+        },
+        {
+          "plan_id": "R26DD20857362",
+          "title": "부적합지역 우선배제를 위한 공간분석 시각화 결과물 품질확보 방안 마련",
+          "priority": "낮음",
+          "bm25_rank": 89,
+          "tfidf_rank": 105
+        },
+        {
+          "plan_id": "R26DD20857388",
+          "title": "이차전지특성화대학사업단 취업 마일리지 시스템 구축",
+          "priority": "보통",
+          "bm25_rank": 19,
+          "tfidf_rank": 25
+        },
+        {
+          "plan_id": "R26DD20857491",
+          "title": "국가자격검정 시험문제 AI 검토 시스템 구축",
+          "priority": "높음",
+          "bm25_rank": 16,
+          "tfidf_rank": 18
+        },
+        {
+          "plan_id": "R26DD20857517",
+          "title": "2026년 상표권 침해 및 부정경쟁행위 방지 교육 시스템 기능개선 및 유지보수 사업",
+          "priority": "보통",
+          "bm25_rank": 62,
+          "tfidf_rank": 59
+        },
+        {
+          "plan_id": "R26DD20857588",
+          "title": "AX전환을 위한 GSDC 포털 서비스 고도화 사업",
+          "priority": "높음",
+          "bm25_rank": 53,
+          "tfidf_rank": 51
+        },
+        {
+          "plan_id": "R26DD20857607",
+          "title": "디자인 산업 특화 멀티모달 AI 데이터 구축 및 품질관리 가이드라인 조사·검증 및 개발",
+          "priority": "높음",
+          "bm25_rank": 10,
+          "tfidf_rank": 6
+        },
+        {
+          "plan_id": "R26DD20857660",
+          "title": "109 자살예방 상담시스템 헬프데스크 운영",
+          "priority": "낮음",
+          "bm25_rank": 103,
+          "tfidf_rank": 116
+        },
+        {
+          "plan_id": "R26DD20857691",
+          "title": "무주 신규마을 에코빌리지(2차) 조성사업 GIS DB 구축 용역",
+          "priority": "낮음",
+          "bm25_rank": 114,
+          "tfidf_rank": 124
+        },
+        {
+          "plan_id": "R26DD20857694",
+          "title": "응급실 특화 AI 기반 CDM 데이터셋 구축 컨설팅 및 FHIR 연동 컨설팅-",
+          "priority": "높음",
+          "bm25_rank": 24,
+          "tfidf_rank": 35
+        },
+        {
+          "plan_id": "R26DD20857828",
+          "title": "AI 공유재산 관리 시스템 기반 구축 사업",
+          "priority": "높음",
+          "bm25_rank": 29,
+          "tfidf_rank": 12
+        },
+        {
+          "plan_id": "R26DD20857841",
+          "title": "노후불량 하수관로 정비공사 맨홀 라이다 측량 및 DB 구축 용역",
+          "priority": "낮음",
+          "bm25_rank": 162,
+          "tfidf_rank": 157
+        },
+        {
+          "plan_id": "R26DD20857842",
+          "title": "2026년 하수사업 맨홀 라이다 측량 및 DB 구축 용역",
+          "priority": "낮음",
+          "bm25_rank": 150,
+          "tfidf_rank": 145
+        }
+      ],
+      "bm25_only": [
+        {
+          "plan_id": "R26DD20856894",
+          "title": "세이브더칠드런 북적북적 프로젝트 아카이빙 사이트 구축",
+          "priority": "보통",
+          "bm25_rank": 294,
+          "tfidf_rank": 334
+        }
+      ],
+      "tfidf_only": [],
+      "neither": [
+        {
+          "plan_id": "R26DD20855622",
+          "title": "춘의동 일원(K26) 노후 상수도관 교체공사 GIS DB 갱신 용역",
+          "priority": "낮음",
+          "bm25_rank": 447,
+          "tfidf_rank": 460
+        },
+        {
+          "plan_id": "R26DD20857501",
+          "title": "화생방 제독작전모의 SW 구현 용역",
+          "priority": "낮음",
+          "bm25_rank": 538,
+          "tfidf_rank": 547
+        }
+      ]
+    }
+  },
+  "relevant_misses_at_cutoff": {
+    "bm25": [
+      {
+        "plan_id": "R26DD20855622",
+        "title": "춘의동 일원(K26) 노후 상수도관 교체공사 GIS DB 갱신 용역",
+        "priority": "낮음",
+        "bm25_rank": 447,
+        "tfidf_rank": 460
+      },
+      {
+        "plan_id": "R26DD20857501",
+        "title": "화생방 제독작전모의 SW 구현 용역",
+        "priority": "낮음",
+        "bm25_rank": 538,
+        "tfidf_rank": 547
+      }
+    ],
+    "tfidf": [
+      {
+        "plan_id": "R26DD20856894",
+        "title": "세이브더칠드런 북적북적 프로젝트 아카이빙 사이트 구축",
+        "priority": "보통",
+        "bm25_rank": 294,
+        "tfidf_rank": 334
+      },
+      {
+        "plan_id": "R26DD20855622",
+        "title": "춘의동 일원(K26) 노후 상수도관 교체공사 GIS DB 갱신 용역",
+        "priority": "낮음",
+        "bm25_rank": 447,
+        "tfidf_rank": 460
+      },
+      {
+        "plan_id": "R26DD20857501",
+        "title": "화생방 제독작전모의 SW 구현 용역",
+        "priority": "낮음",
+        "bm25_rank": 538,
+        "tfidf_rank": 547
+      }
+    ]
+  }
+}

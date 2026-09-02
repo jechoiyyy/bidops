@@ -3,6 +3,9 @@
 env/*.env
 !env/*.env.example
 .dryforge/
+# 사람이 검토하는 모델 입력 본문은 저장소 안에 두되 Git에는 넣지 않는다.
+experiments/order-plan-screening/review-inputs/company/*.json
+experiments/order-plan-screening/review-inputs/prompts/*.txt
 __pycache__/
 *.pyc
 
@@ -27,3 +30,6 @@ web/frontend/dist/
 #   data/runs/*/screening-decisions.json 에이전트가 작성한 판정
 #   data/runs/*/screening-results.json   2국면 모델 비교의 기준선
 #   reports/*/review-feedback.yaml       담당자 리뷰 기록
+
+# Claude Code 개인 설정 (커밋하지 않는다)
+.claude/settings.local.json

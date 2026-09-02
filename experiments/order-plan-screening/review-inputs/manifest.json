@@ -1,0 +1,44 @@
+{
+  "schema_version": "bidops.order-plan-review-inputs-manifest.v1",
+  "updated_at": "2026-09-01T11:39:31+09:00",
+  "active_company_capabilities": "company/company-capabilities-v1-approved.json",
+  "active_prompt": "prompts/order-plan-batch-relevance-v3-approved.txt",
+  "documents": [
+    {
+      "kind": "company_capabilities",
+      "path": "company/company-capabilities-v1-approved.json",
+      "version": "rootlab-company-profile-2026-08-96731dd5f77d",
+      "status": "approved",
+      "execution_allowed": true,
+      "sha256": "8f60dfece1934bdf857cd7e57d0fdd1860d01871131d98c3f2e8f9d71f271eae",
+      "source_path": "experiments/order-plan-screening/config/company-capabilities.json"
+    },
+    {
+      "kind": "company_capabilities",
+      "path": "company/company-capabilities-v2-draft.json",
+      "version": "rootlab-company-profile-2026-09-v2-draft",
+      "status": "draft",
+      "execution_allowed": false,
+      "sha256": "bae758dce3bca9324f106a7875cf2f7771d79054d6b81e0c7d7485501dae552c",
+      "source_path": "experiments/order-plan-screening/config/company-capabilities_v2.json"
+    },
+    {
+      "kind": "prompt",
+      "path": "prompts/order-plan-batch-relevance-v3-approved.txt",
+      "version": "order-plan-batch-relevance-v3",
+      "status": "approved",
+      "execution_allowed": true,
+      "sha256": "639f7332e1120a41b2e8d8306126f121ae1ed37068a81b1687aff9ce66ab9d12",
+      "source_path": ".dryforge/approved/order-plan-batch-relevance-v3.txt"
+    },
+    {
+      "kind": "prompt",
+      "path": "prompts/order-plan-batch-relevance-v4-negative-draft.txt",
+      "version": "order-plan-batch-relevance-v4-negative",
+      "status": "draft",
+      "execution_allowed": false,
+      "sha256": "ffcee511645aef74df6b1bcfbdf4269d1c9ad54cbb72103f2b508af1765baa60",
+      "source_path": ".dryforge/drafts/order-plan-batch-relevance-v4-negative.txt"
+    }
+  ]
+}
