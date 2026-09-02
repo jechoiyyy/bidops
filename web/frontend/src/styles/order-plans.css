@@ -781,3 +781,546 @@
     margin-left: 0;
   }
 }
+
+/* ============================================================================
+ * 발주계획 C-2 목록+판정 통합 화면 (PLAN 1단계, docs/design/PLAN.md §3).
+ * 이 블록의 클래스는 전부 `c2l-` 접두사를 쓴다. 위의 `.c2-*` 클래스는
+ * OrderPlanDetailPage(/order-plans/:pk, 4단계 대상)가 그대로 쓰므로 건드리지
+ * 않는다. 이 블록은 OrderPlansPage 루트(`data-astryx-theme="neutral"`)
+ * 안에서만 렌더링되며, 값은 전부 Astryx neutral 테마 토큰에서 읽는다
+ * (raw hex, raw px 없음; ADR-0040).
+ * ==========================================================================*/
+
+.c2l-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  min-width: 0;
+  padding: var(--spacing-5);
+  font-family: var(--font-family-body);
+  color: var(--color-text-primary);
+  background: var(--color-background-body);
+}
+
+.c2l-description {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding-top: var(--spacing-2);
+}
+
+.c2l-execution-empty {
+  display: flex;
+  flex-direction: column;
+}
+
+.c2l-workspace-shell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  min-height: 0;
+}
+
+/* --- 필터 --- */
+.c2l-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--spacing-4);
+  padding: var(--spacing-4);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-container);
+  background: var(--color-background-card);
+}
+
+.c2l-presets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.c2l-filter-axis {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.c2l-saved-views {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--spacing-2);
+}
+
+.c2l-saved-view-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+}
+
+.c2l-saved-view-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-0-5) var(--spacing-2);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-background-muted);
+}
+
+/* --- 목록/상세 workspace --- */
+.c2l-workspace {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  min-height: 560px;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-container);
+  background: var(--color-background-card);
+  overflow: hidden;
+}
+
+.c2l-list-pane {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 var(--c2l-list-width, 380px);
+  width: var(--c2l-list-width, 380px);
+  min-width: 0;
+  border-right: var(--border-width) solid var(--color-border);
+  min-height: 0;
+}
+
+.c2l-list-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  padding: var(--spacing-4);
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.c2l-list-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.c2l-list-empty {
+  padding: var(--spacing-5);
+}
+
+.c2l-row-wrap {
+  display: flex;
+  flex-direction: column;
+  border-bottom: var(--border-width) solid var(--color-border);
+  border-left: 3px solid transparent;
+}
+
+.c2l-row-wrap.is-selected {
+  background: var(--color-background-muted);
+  border-left-color: var(--color-accent);
+}
+
+.c2l-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1-5);
+  width: 100%;
+  padding: var(--spacing-4);
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.c2l-row:hover {
+  background: var(--color-overlay-hover);
+}
+
+.c2l-row:focus-visible {
+  outline: var(--focus-outline-width) var(--focus-outline-style) var(--focus-outline-color);
+  outline-offset: calc(-1 * var(--focus-outline-width));
+}
+
+.c2l-row-line {
+  display: flex;
+  min-width: 0;
+}
+
+.c2l-row-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1-5);
+}
+
+.c2l-row-detail-link {
+  padding: 0 var(--spacing-4) var(--spacing-2);
+  color: var(--color-text-accent);
+  font-size: var(--font-size-sm);
+  text-decoration: none;
+}
+
+.c2l-row-detail-link:hover {
+  text-decoration: underline;
+}
+
+.c2l-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3);
+  border-top: var(--border-width) solid var(--color-border);
+}
+
+/* --- 크기 조절 separator --- */
+.c2l-resizer {
+  flex: 0 0 6px;
+  width: 6px;
+  min-height: 0;
+  cursor: col-resize;
+  background: var(--color-border);
+  border: 0;
+}
+
+.c2l-resizer:hover,
+.c2l-resizer:focus-visible {
+  background: var(--color-accent);
+}
+
+.c2l-resizer:focus-visible {
+  outline: var(--focus-outline-width) var(--focus-outline-style) var(--focus-outline-color);
+  outline-offset: 1px;
+}
+
+/* --- 상세 pane --- */
+.c2l-detail-pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.c2l-detail-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding: var(--spacing-4);
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.c2l-detail-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-5);
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--spacing-4);
+}
+
+.c2l-detail-empty {
+  padding: var(--spacing-5);
+}
+
+.c2l-detail-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3) var(--spacing-4);
+  border-top: var(--border-width) solid var(--color-border);
+  background: var(--color-background-card);
+}
+
+.c2l-detail-position {
+  margin-left: auto;
+}
+
+/* --- 판정 탭 --- */
+.c2l-verdict {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+.c2l-facts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.c2l-facts li {
+  display: flex;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) 0;
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.c2l-facts li:last-child {
+  border-bottom: 0;
+}
+
+.c2l-facts dt {
+  flex: 0 0 132px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.c2l-facts dd {
+  margin: 0;
+  min-width: 0;
+}
+
+.c2l-feedback-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  padding: var(--spacing-4);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-element);
+  background: var(--color-background-muted);
+}
+
+.c2l-feedback-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+/* --- 신호 세부 탭 --- */
+.c2l-signal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--spacing-4);
+}
+
+.c2l-signal {
+  padding: var(--spacing-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-element);
+}
+
+.c2l-signal-facts {
+  margin: var(--spacing-2) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.c2l-signal-facts div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+}
+
+.c2l-signal-facts dt {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.c2l-signal-facts dd {
+  margin: 0;
+  text-align: right;
+  min-width: 0;
+}
+
+/* --- 운영 텔레메트리 탭 --- */
+.c2l-telemetry {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+.c2l-telemetry-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  flex-wrap: wrap;
+}
+
+.c2l-fact-grid,
+.c2l-count-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--spacing-2) var(--spacing-4);
+  margin: 0;
+  padding: var(--spacing-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-element);
+}
+
+.c2l-fact-grid div,
+.c2l-count-grid div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+}
+
+.c2l-fact-grid dt,
+.c2l-count-grid dt {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.c2l-fact-grid dd,
+.c2l-count-grid dd {
+  margin: 0;
+  text-align: right;
+  min-width: 0;
+}
+
+.c2l-attempt-list {
+  list-style: none;
+  margin: var(--spacing-2) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.c2l-attempt-list > li {
+  padding: var(--spacing-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-element);
+}
+
+.c2l-attempt-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--spacing-1) var(--spacing-4);
+  margin: var(--spacing-2) 0 0;
+  padding: 0;
+}
+
+.c2l-attempt-grid div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+}
+
+.c2l-attempt-grid dt {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.c2l-attempt-grid dd {
+  margin: 0;
+  text-align: right;
+  min-width: 0;
+}
+
+.c2l-artifact-summary ul {
+  list-style: none;
+  margin: var(--spacing-2) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.c2l-artifact-summary li {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-1) 0;
+}
+
+.c2l-digest {
+  font-family: var(--font-family-code);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  word-break: break-all;
+}
+
+/* ===== 등급 전용 4단 스케일 (docs/design/PLAN.md 6절 "열린 항목" 결정) =====
+ * 적합성 등급 4값은 심각도가 아니라 우선순위 순서다. Astryx 의미색
+ * (error/warning/success)에 실으면 순서가 아니라 위험도로 읽힌다. accent
+ * 한 색의 농도 4단으로 순서만 나타내고 unknown은 점선 무채색으로 따로 둔다.
+ * 이 화면은 등급을 편집하지 않지만 스케일은 이 단계에서 정의해 둔다. */
+.c2l-grade-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-0-5) var(--spacing-2);
+  border-radius: var(--radius-full);
+  border: var(--border-width) solid var(--color-border);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.c2l-grade-tag.is-g1 {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  border-color: var(--color-accent);
+}
+
+.c2l-grade-tag.is-g2 {
+  background: color-mix(in srgb, var(--color-accent) 72%, var(--color-background-card));
+  color: var(--color-on-accent);
+}
+
+.c2l-grade-tag.is-g3 {
+  background: color-mix(in srgb, var(--color-accent) 44%, var(--color-background-card));
+  color: var(--color-text-primary);
+}
+
+.c2l-grade-tag.is-g4 {
+  background: color-mix(in srgb, var(--color-accent) 18%, var(--color-background-card));
+  color: var(--color-text-primary);
+}
+
+.c2l-grade-tag.is-unknown {
+  background: var(--color-background-muted);
+  color: var(--color-text-secondary);
+  border-style: dashed;
+}
+
+.c2l-mobile-back {
+  display: none;
+}
+
+/* 960px 미만: 상세가 목록을 덮는다(PRD §5 반응형). 행을 고르면 detail-pane이
+ * list-pane을 대체해 보이고, "← 목록으로"로 되돌아간다. 폭이 넓을 때는
+ * data-mobile-view을 무시하고 목록·상세를 나란히 보여준다. */
+@media (max-width: 960px) {
+  .c2l-workspace {
+    flex-direction: column;
+  }
+
+  .c2l-list-pane {
+    width: 100%;
+    flex: 1 1 auto;
+    border-right: 0;
+  }
+
+  .c2l-resizer {
+    display: none;
+  }
+
+  .c2l-detail-pane {
+    min-height: 420px;
+  }
+
+  .c2l-mobile-back {
+    display: inline-flex;
+  }
+
+  .c2l-workspace[data-mobile-view="list"] .c2l-detail-pane {
+    display: none;
+  }
+
+  .c2l-workspace[data-mobile-view="detail"] .c2l-list-pane {
+    display: none;
+  }
+}
