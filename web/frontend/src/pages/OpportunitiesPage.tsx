@@ -498,6 +498,53 @@ export function OpportunitiesPage() {
   );
 }
 
+/**
+ * 심층 검토 보고서 진입점 (docs/design/PRD.md §2.2).
+ *
+ * 보고서를 만든 뒤 다시 찾아갈 길이 없던 문제를 사업기회 화면에서 연다.
+ * 다만 서버 계약이 `GET /deep-reviews/{id}` 단건 조회뿐이고 사업기회·공고로
+ * 목록을 받을 엔드포인트가 없어(routers/deep_reviews.py) 만들어진 보고서를
+ * 자동으로 나열할 수 없다. 2단계는 API 계약을 바꾸지 않으므로 보고서 식별자로
+ * 여는 길을 열어 두고, 나열할 수 없다는 사실을 감추지 않고 그대로 알린다.
+ * 구조 문제는 docs/tracking/findings.md에 기록했다.
+ */
+function DeepReviewEntry() {
+  const [deepReviewId, setDeepReviewId] = useState("");
+  const trimmed = deepReviewId.trim();
+
+  return (
+    <section className="opportunity-deep-review" aria-labelledby="opportunity-deep-review-title">
+      <h3 id="opportunity-deep-review-title">심층 검토 보고서</h3>
+      <p>
+        이 사업기회에 연결된 심층 검토 보고서는 공고 판정 이력에서 만들어집니다. 서버가 사업기회별 보고서
+        목록을 제공하지 않아 여기에 자동으로 나열할 수 없습니다. 목록이 없다는 것을 보고서가 없다는 뜻으로
+        해석하지 마십시오.
+      </p>
+      <form
+        className="opportunity-deep-review-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+        }}
+      >
+        <label htmlFor="deep-review-id">심층 검토 보고서 ID</label>
+        <input
+          id="deep-review-id"
+          value={deepReviewId}
+          onChange={(event) => setDeepReviewId(event.target.value)}
+          placeholder="보고서 식별자"
+        />
+        {trimmed ? (
+          <Link className="opportunity-linked-link" to={`/deep-reviews/${encodeURIComponent(trimmed)}`}>
+            보고서 열기 →
+          </Link>
+        ) : (
+          <span className="opportunity-deep-review-hint">식별자를 입력하면 보고서로 이동할 수 있습니다.</span>
+        )}
+      </form>
+    </section>
+  );
+}
+
 export function OpportunityDetailPage() {
   const { opportunityId: opportunityIdParam } = useParams();
   const [searchParams] = useSearchParams();
@@ -526,6 +573,10 @@ export function OpportunityDetailPage() {
       ) : (
         <EmptyState tone="error" title="사업기회 식별자가 올바르지 않습니다." />
       )}
+
+      {/* 최종 Go/No-Go로 가는 링크는 OpportunityDetail이 이미 하나 갖고 있다.
+        * 되돌릴 수 없는 결정으로 가는 길을 둘로 늘리지 않는다. */}
+      {validOpportunityId ? <DeepReviewEntry /> : null}
 
       {toast ? <Toast message={toast} onDismiss={() => setToast(null)} /> : null}
     </section>
