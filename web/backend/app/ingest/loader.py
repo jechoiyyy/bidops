@@ -4694,6 +4694,12 @@ def ingest_run(
     decisions_raw = _read_optional_json(decisions_path)
     collection_raw = _read_optional_json(collection_path)
     order_plan_raw = _read_optional_json(order_plan_path)
+    order_plan_only = (
+        order_plan_raw is not None
+        and validation_raw is None
+        and screening_input_raw is None
+        and collection_raw is None
+    )
     metadata_raws = [
         screening_raw,
         decisions_raw,
@@ -4859,7 +4865,11 @@ def ingest_run(
             # A present-but-invalid v3 input is a hard projection boundary;
             # do not let validation-set data repopulate its candidate rows.
             notices: dict[str, Notice] = {}
-        elif validation_raw is None and not screening_input_present:
+        elif (
+            validation_raw is None
+            and not screening_input_present
+            and not order_plan_only
+        ):
             _record_warning(
                 session,
                 run_id,
@@ -4905,6 +4915,8 @@ def ingest_run(
             notices = _load_validation_notices(
                 session, run_id, validation_raw, timezone_name, str(validation_path)
             )
+        else:
+            notices = {}
         if not notices and validation_raw is not None and not isinstance(validation_raw.get("notices"), list) and not isinstance(screening_input_raw, dict):
             # The detailed warning was recorded above; this branch only keeps
             # the stop behavior explicit for callers reading the code.
@@ -4984,14 +4996,15 @@ def ingest_run(
                 {"actual": decisions_schema, "expected": "bidops.decisions.v2"},
             )
         if screening_raw is None:
-            _record_warning(
-                session,
-                run_id,
-                "warning",
-                "screening_results_missing",
-                "screening-results.json이 없어 공고만 적재했습니다.",
-                {"file": str(screening_path)},
-            )
+            if not order_plan_only:
+                _record_warning(
+                    session,
+                    run_id,
+                    "warning",
+                    "screening_results_missing",
+                    "screening-results.json이 없어 공고만 적재했습니다.",
+                    {"file": str(screening_path)},
+                )
             _remove_judgments_without_screening(session, notices)
             judgments_count = 0
         else:

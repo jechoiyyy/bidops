@@ -1021,6 +1021,9 @@ def test_collector_artifact_round_trips_through_ingest_run(tmp_path, db_session)
     result = ingest_run(run_dir, db_session, reports_root=tmp_path / "reports")
 
     assert result.order_plans == 1
+    assert not {
+        warning["code"] for warning in result.warnings
+    } & {"validation_missing", "screening_results_missing"}
     plan = db_session.scalar(
         select(OrderPlan).where(OrderPlan.order_plan_unty_no == "R26DD20999999")
     )
