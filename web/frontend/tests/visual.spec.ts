@@ -456,3 +456,33 @@ test("평가 수치 누락은 0/10이 아니라 계산 불가로 남는다", asy
   await expect(review.getByText("계산 불가/10 유효 리뷰", { exact: true })).toBeVisible();
   await expect(review.getByText("계산 불가/10 서로 다른 공고", { exact: true })).toBeVisible();
 });
+
+// docs/design/PLAN.md 3단계: 사전규격 목록에서 심층 추적 승인 패널을 연 상태는
+// lifecycleVisualTargets의 단순 goto만으로 도달할 수 없는 새 상호작용이라
+// 별도 타깃으로 기준선을 남긴다(기존 pre-specs-list 타깃은 패널이 닫힌
+// 기본 상태만 찍는다).
+test("pre-specs-tracking-panel 화면이 가로로 넘치지 않는다", async ({ page }) => {
+  await mockPreSpecs(page);
+  await page.goto("/pre-specs");
+  await expect(page.locator("h1").first()).toBeVisible();
+  const trackedRow = page.getByRole("row").filter({ has: page.getByRole("link", { name: "안전한 문서 준비 사전규격" }) });
+  await trackedRow.getByRole("button", { name: "추적 결정" }).click();
+  await expect(page.locator("#pre-specs-tracking-target")).toBeVisible();
+  await page.waitForLoadState("networkidle");
+  await expectNoHorizontalOverflow(page);
+});
+
+test("pre-specs-tracking-panel 화면 스냅샷", async ({ page }) => {
+  await mockPreSpecs(page);
+  await page.goto("/pre-specs");
+  await expect(page.locator("h1").first()).toBeVisible();
+  const trackedRow = page.getByRole("row").filter({ has: page.getByRole("link", { name: "안전한 문서 준비 사전규격" }) });
+  await trackedRow.getByRole("button", { name: "추적 결정" }).click();
+  await expect(page.locator("#pre-specs-tracking-target")).toBeVisible();
+  await page.waitForLoadState("networkidle");
+  await settleFonts(page);
+  await expect(page).toHaveScreenshot("pre-specs-tracking-panel.png", {
+    fullPage: true,
+    animations: "disabled",
+  });
+});

@@ -122,6 +122,7 @@ const preSpecItem = {
   tracking_status: "계속 추적",
   kept_by_tracking: true,
   document: { attachments: 2, "완료": 1, "대기": 1, "진행": 0, "차단": 0, "실패": 0 },
+  overview_review_status: null,
 };
 
 async function mockDocumentPreparation(page: Page, scenario: Scenario): Promise<PreparationTrace> {

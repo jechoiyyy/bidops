@@ -63,6 +63,24 @@ class PreSpecListItem(RuntimeContractModel):
     tracking_status: OpportunityTrackingStatus | None = None
     kept_by_tracking: bool
     document: PreSpecDocumentSummary
+    # Additive projection (docs/design/PLAN.md 3단계): current overview review
+    # status for this notice, from ``prespec_overview_review.status``.  A
+    # notice with no overview review row yet (개요 검토 미시작) projects
+    # ``None`` here; it is a distinct, eleventh bucket and must never be
+    # folded into ``awaiting_document`` (CLAUDE.md unknown/null 보존 게이트).
+    overview_review_status: PreSpecOverviewReviewStatus | None = None
+
+
+class PreSpecOverviewStatusCount(RuntimeContractModel):
+    """One grouping bucket's total, independent of the page ``limit``/``offset``.
+
+    ``status`` is ``None`` for notices with no ``prespec_overview_review`` row
+    (개요 검토 미시작) — this is the eleventh bucket alongside the ten
+    ``PreSpecOverviewReviewStatus`` values, never merged into one of them.
+    """
+
+    status: PreSpecOverviewReviewStatus | None = None
+    count: int = Field(ge=0)
 
 
 class PreSpecListResponse(RuntimeContractModel):
@@ -70,6 +88,13 @@ class PreSpecListResponse(RuntimeContractModel):
     total: int = Field(ge=0)
     limit: int = Field(ge=1, le=500)
     offset: int = Field(ge=0)
+    # Counts for every overview-review status bucket (the ten contract values
+    # plus the ``None``/미시작 bucket) matching the current filter, computed
+    # over the full filtered set rather than the returned page. This lets the
+    # list screen render all-groups-always-visible collapsible sections with
+    # correct counts while ``items``/``total``/``limit``/``offset`` keep their
+    # existing pagination meaning (docs/design/PLAN.md 3단계 결정 (a)/(b)).
+    overview_status_counts: list[PreSpecOverviewStatusCount] = Field(default_factory=list)
 
 
 class PreSpecOverviewSnapshotView(RuntimeContractModel):
@@ -212,6 +237,7 @@ __all__ = [
     "PreSpecDocumentSummary",
     "PreSpecListItem",
     "PreSpecListResponse",
+    "PreSpecOverviewStatusCount",
     "PreSpecOrigin",
     "PreSpecSort",
     "PreSpecOverviewAttemptStatus",

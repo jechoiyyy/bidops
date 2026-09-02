@@ -34,6 +34,12 @@
   font-size: 26px;
 }
 
+.dashboard-action-item > strong.is-unavailable {
+  color: var(--color-muted);
+  font-size: 14px;
+  font-weight: 650;
+}
+
 .dashboard-action-item-title,
 .dashboard-action-item-description {
   font-size: 12px;

@@ -306,3 +306,27 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 - 영향: `docs/design/PRD.md` §2.2가 요구한 "사업기회 화면의 명시적 진입점"을 데이터로 채울 수 없다. 2026-09-02 화면 개선 2단계는 사업기회 상세에 식별자로 여는 진입점을 두고 목록을 제공할 수 없다는 사실을 화면에 명시하는 선에서 멈췄다. 목록이 비어 보이는 것을 보고서가 없다는 뜻으로 오해할 위험은 문구로만 막고 있다.
 - 지금 해결할 수 없는 이유: 해결에는 REST 계약 추가(사업기회 또는 공고별 심층 검토 목록)나 기존 응답에 식별자 노출이 필요하다. 화면 개선 2단계의 범위는 프론트엔드이며 `docs/contracts.md`의 소비자 계약과 백엔드를 바꾸지 않기로 했다.
 - 접근 방법: `GET /opportunities/{id}/deep-reviews` 또는 `GET /notices/{notice_id}/deep-reviews`를 추가해 보고서 식별자·생성 시각·현재 상태를 돌려주고, `docs/contracts.md`와 `docs/deep-review-erd.md`에 소비자 계약으로 등록한다. 그 뒤 사업기회 화면의 진입점을 식별자 입력이 아니라 목록으로 바꾼다.
+
+## Go/No-Go 결정 대기 사업기회를 N+1 없이 집계할 endpoint가 없다
+
+- 재현 조건: 대시보드 "지금 처리할 일"이나 `GoNoGoPage.tsx`에서 "최종 Go/No-Go 결정 대기" 건수를 구하려 한다.
+- 증상: `app/routers/bid_delta.py`는 사업기회 하나의 workspace만 반환하고(`GET /opportunities/{id}/bid-delta` 계열), "계속 추적 중이며 아직 최종 결정이 없는 사업기회 수" 같은 집계 endpoint가 없다. `GoNoGoPage.tsx`는 이를 우회하려고 추적 중 사업기회 목록을 받은 뒤 사업기회마다 bid-delta workspace를 조회하는 N+1을 이미 쓰고 있다(2026-09-02 화면 개선 2단계, 코드 머리 주석에 기록).
+- 영향: 대시보드처럼 N+1을 반복할 수 없는 화면(`web/backend/AGENTS.md`·`CLAUDE.md`의 N+1 금지 게이트)은 이 건수를 전혀 계산할 수 없다. 2026-09-03 3단계는 대시보드 항목의 건수를 `null`(확인 불가)로 표시하고 이동 경로만 제공하는 선에서 멈췄다 — 페이지 자체(`GoNoGoPage.tsx`)의 기존 N+1도 아직 걷어내지 못했다.
+- 지금 해결할 수 없는 이유: 해결에는 새 집계 REST 계약(예: 사업기회당 최신 `latest_final_decision` 유무를 서버가 먼저 걸러 세는 endpoint)이 필요하며, 이는 백엔드 스키마·서비스 변경이라 이번 프론트엔드 범위를 벗어난다.
+- 접근 방법: `GET /opportunities?tracking_status=계속 추적&decision_status=pending` 같은 서버 필터 또는 `GET /bid-delta/pending-count` 집계 endpoint를 추가해 `docs/contracts.md`와 `docs/bid-delta-contract-spec.md`에 등록한다. 그 뒤 `GoNoGoPage.tsx`의 기존 N+1과 대시보드의 `null` 표시를 실제 건수로 교체한다.
+
+## 발주계획 목록 API에 "사람 피드백 미기록" 필터가 없다
+
+- 재현 조건: 대시보드 "지금 처리할 일"에서 "C-2 검토 대기" 건수를 사람이 아직 판정하지 않은 발주계획 수로 정의하려 한다.
+- 증상: `GET /api/order-plans`(`web/backend/app/routers/order_plans.py:78`)는 `qwen_relevance`·`human_relevance`를 필터로 받지만, `human_relevance`는 특정 relevance 값(`relevant`|`not_relevant`|`uncertain`)만 받고 "사람 피드백 행 자체가 없음"을 나타내는 값(`missing`/`null`)을 받지 않는다.
+- 영향: 2026-09-03 3단계는 이 항목을 "Qwen 신호가 relevant 또는 uncertain인 발주계획" 건수(사람 피드백 여부와 무관)로 근사했다. 실제 "검토 대기"(아직 아무도 보지 않은 건)보다 넓은 집합이라 과대 계상될 수 있고, 화면 설명 문구로만 그 차이를 알린다.
+- 지금 해결할 수 없는 이유: `human_relevance=missing` 같은 값을 추가하려면 서비스 쿼리(`OrderPlanScreeningService.list_order_plans`)와 라우터 계약을 함께 바꿔야 하며, 이번 프론트엔드 범위의 대시보드 작업만으로는 안전하게 변경할 수 없다.
+- 접근 방법: `human_relevance`에 `missing` 같은 sentinel 값을 추가해 "사람 피드백 행 없음"을 서버에서 걸러주고, `docs/contracts.md`의 `GET /api/order-plans` 항목에 등록한다. 그 뒤 대시보드와 `OrderPlansPage.tsx`의 "검토 대상" 프리셋이 이 필터를 실제 "미판정" 의미로 좁힐 수 있다.
+
+## 사전규격 목록 API에 마감 구간 필터도 임박 집계도 없다
+
+- 재현 조건: 대시보드 "지금 처리할 일"에서 "사전규격 의견등록 마감 임박" 건수를 구하려 한다.
+- 증상: `GET /api/pre-specs`(`web/backend/app/routers/pre_specs.py:198`)는 `sw_only`·`business_division`·`origin`·`q`·`sort`·`limit`·`offset`만 받는다. 마감 구간 필터가 없고 집계 응답도 없다. `sort=deadline`은 `deadline_at ASC NULLS LAST`(`pre_specs.py:304`)라 **첫 페이지가 이미 지난 마감으로 채워진다.** 따라서 한 페이지를 받아 클라이언트에서 세면 두 가지가 동시에 틀린다. (1) 지난 마감을 임박으로 센다 — 회차 산출물 `stats.imminent_deadlines`와 달리 서버가 좁혀 준 창이 없는데 `criticalDeadlineCount`에는 하한이 없다. (2) 임박 구간이 페이지 창 밖이라 애초에 도달하지 못한다.
+- 영향: 2026-09-03 3단계는 이 항목의 건수를 `null`(확인 불가)로 두고 이동 경로만 제공하는 선에서 멈췄다. 구현 위임 초안은 `limit=50` 한 페이지를 세어 숫자를 표시했는데, 누적 데이터에서는 거의 항상 "만료된 사전규격 수"를 "마감 3일 이내"로 보여주는 값이라 검수에서 되돌렸다.
+- 지금 해결할 수 없는 이유: 해결에는 목록 계약에 마감 구간 필터(`deadline_from`·`deadline_to`)나 임박 집계를 추가해야 하며, 이는 백엔드 라우터·스키마 변경이라 이번 대시보드 작업 범위를 벗어난다.
+- 접근 방법: `GET /api/pre-specs`에 `deadline_within_days` 또는 `deadline_from`·`deadline_to`를 추가하고 `docs/contracts.md`의 `PreSpecList` 항목에 등록한다. 그 뒤 대시보드의 `null` 표시를 실제 건수로 바꾸고, `criticalDeadlineCount`의 하한 없음이 회차 산출물 전용 전제임을 호출부에서 다시 확인한다.
