@@ -11,7 +11,7 @@
 
 이 문서는 화면 작업의 결정 정본이다. 저장소의 통합 색인은 [`docs/ADR.md`](../ADR.md)이고 상세
 ADR은 [`docs/tracking/decisions/`](../tracking/decisions/)에 ADR-0001~0038이 있다. 아래 세
-결정은 그 번호를 이어받으며, 통합 색인에 항목을 추가하는 일은 별도 작업으로 남는다.
+결정은 그 번호를 이어받고, 통합 색인과 `tracking/decisions/index.md`가 이 문서를 가리킨다.
 
 ---
 
@@ -57,6 +57,9 @@ ADR은 [`docs/tracking/decisions/`](../tracking/decisions/)에 ADR-0001~0038이 
    `--font-family-*` 토큰은 Pretendard를 앞에 둔 스택으로 덮어쓴다.
 6. 외부 통신은 **빌드 타임 npm 레지스트리 접근에 한정**한다. 런타임에 Astryx가 외부로 나가는
    경로를 만들지 않는다.
+7. `astryx theme add neutral`이 만드는 아이콘 레지스트리(`icons.tsx`)가 `lucide-react`를
+   import하므로 `lucide-react@1.39.0`도 dependency로 고정해 함께 승인한다. 0단계에서는
+   테마 CSS만 import하므로 번들에 들어가지 않고, 화면 이행이 아이콘을 쓸 때부터 사용된다.
 
 ### 대안
 

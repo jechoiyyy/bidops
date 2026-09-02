@@ -41,7 +41,8 @@ bidops/
     └── frontend/AGENTS.md             React 검토 화면
 ```
 
-`docs/legacy`는 완료·미채택 계획과 과거 리뷰·목업의 보관소이고, `docs/validation-runs`는 시점별 실행 증거다. 이 자료가 현재 코드와 위 핵심 문서의 계약을 대체하지 않으며, **보관본을 실행 진입점으로 삼지 않는다.** `docs/legacy` 안의 `R-xx`·`A-xx`·phase 작업 번호는 종료된 체계다. 외부 의존성은 나라장터 OpenAPI, PostgreSQL 17, MinIO, ClamAV, Ollama Qwen3.8:27B, 승인된 사설 OpenAI-compatible vLLM, 문서 변환기, 승인 프로필 기준선 검증용 Git이다.
+`docs/legacy`는 완료·미채택 계획과 과거 리뷰·목업의 보관소이고, `docs/validation-runs`는 시점별 실행 증거다. 이 자료가 현재 코드와 위 핵심 문서의 계약을 대체하지 않으며, **보관본을 실행 진입점으로 삼지 않는다.** `docs/legacy` 안의 `R-xx`·`A-xx`·phase 작업 번호는 종료된 체계다. 외부 의존성은 나라장터 OpenAPI, PostgreSQL 17, MinIO, ClamAV, Ollama Qwen3.8:27B, 승인된 사설 OpenAI-compatible vLLM, 문서 변환기, 승인 프로필 기준선 검증용 Git, Astryx 디자인 시스템(`@astryxdesign/core@0.5.2`, `@astryxdesign/cli@0.5.2`, 테마 아이콘 레지스트리가 요구하는 `lucide-react@1.39.0`)이다.
+Astryx의 "레이아웃도 컴포넌트로만, `<div>` 금지" 규칙은 ADR-0040에 따라 이 저장소에 적용하지 않으며 레이아웃은 프로젝트가 소유한다.
 
 ## 작업 전 확인
 

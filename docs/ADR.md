@@ -5,7 +5,7 @@
 | 문서 상태 | 현재 결정 기준선·통합 색인 |
 | 기준일 | 2026-09-01 |
 | 범위 | 수집, 선별, 사전규격 검토, 심층 검토, 입찰공고 추적, 운영·보안 |
-| 상세 결정 정본 | [`docs/tracking/decisions/`](tracking/decisions/)의 ADR-0001~0038 |
+| 상세 결정 정본 | [`docs/tracking/decisions/`](tracking/decisions/)의 ADR-0001~0038, [`docs/design/ADR.md`](design/ADR.md)의 ADR-0039~0041 |
 | 함께 읽을 문서 | [`PRD.md`](PRD.md), [`ARCHITECTURE.md`](ARCHITECTURE.md), [`contracts.md`](contracts.md) |
 
 이 문서는 여러 시점에 작성된 결정 기록을 현재 관점에서 읽기 위한 통합 ADR이다. 각 결정의
@@ -121,6 +121,9 @@ R-xx/A-xx 작업 지시, 과거 API 경로는 현재 실행 진입점이 아니�
 | [0036](tracking/decisions/0036-judgment-model-lineage-source.md) | 판정의 모델 계보는 revision→execution 경로를 정본으로 함 | 채택 | legacy 계보는 `unknown` |
 | [0037](tracking/decisions/0037-order-plan-c2-bm25-top300-qwen.md) | C-2 발주계획 선별은 BM25 Top 300 뒤 Qwen으로 확정 | 채택 | 현재 선택; 운영 활성화와 별개 |
 | [0038](tracking/decisions/0038-order-plan-c2-phase0-contracts.md) | C-2 Phase 0 전용 파일·REST·DB 계약과 상태 경계 고정 | 채택 — 계약만 | 제품 adapter·DB·실행은 후속 phase |
+| [0039](design/ADR.md#adr-0039-astryx-디자인-시스템-채택과-승인-범위) | Astryx 디자인 시스템 채택과 승인 범위 | 채택 | `neutral` 테마·고정 산출물; 화면 이행은 후속 단계 |
+| [0040](design/ADR.md#adr-0040-레이아웃-소유권과-화면-단위-이행) | 레이아웃 소유권과 화면 단위 이행 | 채택 | 레이아웃은 프로젝트 소유; 화면별 이행 |
+| [0041](design/ADR.md#adr-0041-정보구조와-판정-동선) | 정보구조와 판정 동선 | 채택 | 회차·누적 축과 같은 화면 판정 입력을 유지 |
 
 ## 4. 주제별 결정 요약
 
