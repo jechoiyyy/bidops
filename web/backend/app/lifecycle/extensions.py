@@ -41,7 +41,9 @@ class JudgmentProjection(Protocol):
     """공고 판정 결과를 lifecycle 화면에 실어 주는 확장점 (§6.1 첫째 행).
 
     회차 하나가 최대 약 2,000건이므로 구현은 **회차 단위로 한 번에** 읽어
-    메모리에서 결합한다. 공고당 조회(N+1)를 만들지 않는다.
+    메모리에서 결합한다. 공고당 조회(N+1)를 만들지 않는다. 회차 경계가 없는
+    사용처(누적 목록)에서는 그 상한이 성립하지 않으므로, 호출부가 넘긴
+    `notice_ids` 만큼을 상수 회 조회로 처리한다.
     """
 
     def notice_fields(self, session: Any, notice_ids: Sequence[int]) -> Mapping[int, Mapping[str, Any]]:
@@ -55,12 +57,18 @@ class JudgmentProjection(Protocol):
         grade: str | None = None,
         readiness: str | None = None,
         focus: str | None = None,
-    ) -> Sequence[int]:
-        """등급·준비·focus 필터를 통과하는 공고 id. 순서는 무의미하다.
+    ) -> Sequence[int] | None:
+        """공고 집합을 이 projection이 어떻게 제한하는가. 순서는 무의미하다.
 
-        필터가 모두 `None`이면 기본 조건(현재 `Judgment.grade != "제외"`)을
-        적용한 집합을 돌려준다. 그 기본 조건은 projection의 일부이므로 제공자가
-        없을 때는 적용되지 않는다(§6.1).
+        **`None`은 "제한하지 않음"이고 빈 sequence는 "0건 일치"다.** 둘을 같은
+        값으로 표현하면 §6.1이 경고한 실패 모드가 그대로 난다 — 제공자가 없을 때
+        전체 공고가 보여야 하는데 아무것도 보이지 않게 되거나 그 반대가 된다.
+        호출부는 `None`이면 공고 집합에 조건을 걸지 않고, sequence면 그 id로만
+        제한한다.
+
+        필터가 모두 `None`이면 기본 조건(현재 `Judgment.grade != "제외"`)을 적용한
+        집합을 돌려준다. 그 기본 조건은 projection의 일부이므로 제공자가 없을 때는
+        적용되지 않아야 하고, 그것이 곧 `None`(제한 없음)이다(§6.1).
         """
 
     def grade_rank(self, session: Any, notice_ids: Sequence[int]) -> Mapping[int, int]:
@@ -70,10 +78,35 @@ class JudgmentProjection(Protocol):
         """상세의 `judgment`·`reviews`. 없으면 빈 mapping."""
 
     def run_stats(self, session: Any, run_id: str) -> Mapping[str, Any]:
-        """회차 통계의 grade/readiness/focus 분포와 `verification_requests`."""
+        """`GET /api/runs/{id}/stats`에서 판정이 채우는 부분 전부.
+
+        `RunStatsResponse`에서 판정에 기대는 필드는 분포 셋만이 아니다. 구현은
+        아래를 모두 채운다 — 빠뜨리면 응답의 그 필드가 조용히 0/빈 목록이 된다.
+
+        - `grade_distribution`·`readiness_distribution`·`focus_distribution`
+        - `verification_requests`
+        - `priority_review_count`·`audit_missed_count`
+        - `funnel`의 판정 단계 항목
+        - `imminent_deadlines` 각 항목의 `blocking_verification_items`
+
+        회차에 속하지 않는 값(`timezone`, `generated_at`, `sample_count`,
+        `collected_count`, `candidate_count`, 마감 임박 공고 자체)은 lifecycle이
+        자기 데이터로 채운다. 제공자가 없으면 위 목록은 빈 목록·0이다(§6.1).
+        """
 
     def metrics_input(self, session: Any, run_ids: Sequence[str]) -> Mapping[str, Any]:
-        """검증 지표 집계 입력."""
+        """`GET /api/metrics/*`의 검증 지표가 판정에 기대는 입력.
+
+        지표 다섯 개(재현성·판별력·근거 타당성·정보 충분성·관점 분리) 전부가
+        판정·리뷰 데이터에서 나온다. **재현성만 회차 범위를 벗어나 전체를 훑는다**
+        (`services/metrics.py`의 `_reproducibility`) — 그래서 `run_ids`를 받고,
+        구현이 그 지표에 한해 범위를 넓힌다.
+
+        임계값 판단과 "측정 불가" 사유 라벨은 지표 정의의 일부이므로 **구현이**
+        조립해 돌려준다. lifecycle은 그것을 응답 모델에 옮기기만 하고 지표의
+        의미를 알지 못한다. 제공자가 없으면 빈 mapping이고, 호출부는 지표를
+        "측정 불가"로 낸다(§6.1).
+        """
 
 
 @dataclass(frozen=True)
@@ -94,7 +127,13 @@ class PreSpecDocumentCounts:
 
 @runtime_checkable
 class OverviewDocumentProjection(Protocol):
-    """사전규격 개요·문서 준비 상태를 lifecycle 목록에 실어 주는 확장점."""
+    """사전규격 개요·문서 준비 상태를 lifecycle 목록에 실어 주는 확장점.
+
+    `GET /api/pre-specs`는 회차 범위가 아니라 누적 목록이다. 따라서 "회차당 약
+    2,000건"이라는 상한이 여기에는 적용되지 않는다 — 구현은 호출부가 넘긴
+    `notice_ids` 만큼을 상수 회 조회로 처리해야 하고, 목록이 길어져도 공고당
+    조회를 만들지 않는다.
+    """
 
     def overview_status(self, session: Any, notice_ids: Sequence[int]) -> Mapping[int, str]:
         """공고별 개요 검토 상태. 없는 공고는 빠뜨린다(호출부가 `None`으로 채운다)."""
@@ -109,6 +148,26 @@ class OverviewDocumentProjection(Protocol):
 # --- 6.2 이벤트 hook --------------------------------------------------------
 
 
+@runtime_checkable
+class ClaimedDirectoryLoad(Protocol):
+    """주장한 hook이 그 디렉터리를 직접 적재하는 단계 (§6.2).
+
+    인자 순서와 이름을 여기서 못박는다. 대체 대상인
+    `load_order_plan_screening(run_directory, session, *, policy_path, binding_path)`
+    과 순서가 다르므로, 구현하는 쪽이 어댑터에서 맞춰 넘겨야 한다 — `Any`로
+    두면 그 불일치가 런타임까지 숨는다.
+    """
+
+    def __call__(
+        self,
+        session: Any,
+        directory: Path,
+        *,
+        policy_path: Path | None = None,
+        binding_path: Path | None = None,
+    ) -> RunIngestCounts: ...
+
+
 @dataclass(frozen=True)
 class RunDirectoryClaim:
     """"이 회차 디렉터리는 내 전용 결과다"라는 hook의 응답 (§6.2).
@@ -120,8 +179,7 @@ class RunDirectoryClaim:
     """
 
     source_run_id: str
-    load: Any
-    """`(session, directory, **options) -> RunIngestCounts` 를 만족하는 호출 가능 객체."""
+    load: ClaimedDirectoryLoad
 
 
 @dataclass(frozen=True)
@@ -143,6 +201,11 @@ class RunIngestCounts:
     screening_artifacts: int = 0
     screening_feedback: int = 0
     warnings: tuple[Mapping[str, Any], ...] = ()
+    # `IngestResult`가 `judgments`·`reviews`와 나란히 노출하는 v3 binding 계보다.
+    # hook 경로로 옮기면서 이것을 실어 나를 수단이 없으면 조용한 기능 퇴행이 된다.
+    # v2 회차에는 의도적으로 없으므로 `None`이 정상이다.
+    generation_config: Mapping[str, Any] | None = None
+    generation_config_digest: str | None = None
 
     def merged_with(self, other: RunIngestCounts) -> RunIngestCounts:
         """여러 hook의 건수를 합친다. 등록 순서대로 누적된다."""
@@ -157,6 +220,16 @@ class RunIngestCounts:
             screening_artifacts=self.screening_artifacts + other.screening_artifacts,
             screening_feedback=self.screening_feedback + other.screening_feedback,
             warnings=self.warnings + other.warnings,
+            # 회차 하나의 binding은 하나다. 뒤에 등록된 hook이 값을 갖고 있으면
+            # 그것이 이기고, 없으면 앞의 값을 지킨다.
+            generation_config=(
+                other.generation_config if other.generation_config is not None else self.generation_config
+            ),
+            generation_config_digest=(
+                other.generation_config_digest
+                if other.generation_config_digest is not None
+                else self.generation_config_digest
+            ),
         )
 
 
@@ -187,9 +260,11 @@ class _AbsentJudgmentProjection:
 
     필드는 `null`, 분포는 빈 목록이다. 필터·정렬이 422가 되어야 하는 자리는 값이
     아니라 "지원하지 않는다"는 사실이어야 하므로 registry의
-    `judgment_filters_supported`가 판단한다 — 여기서는 필터 없는 전체 집합만
-    돌려준다(기본 조건 `Judgment.grade != "제외"`도 projection의 일부이므로
-    적용되지 않는다).
+    `judgment_filters_supported`가 판단한다.
+
+    `notice_ids_for_filters`는 `None`(= 공고 집합을 제한하지 않음)을 돌려준다.
+    기본 조건 `Judgment.grade != "제외"`도 projection의 일부라 적용되지 않으므로,
+    제공자가 없으면 **전체 공고가 보인다**(§6.1).
     """
 
     def notice_fields(self, session: Any, notice_ids: Sequence[int]) -> Mapping[int, Mapping[str, Any]]:
@@ -203,8 +278,8 @@ class _AbsentJudgmentProjection:
         grade: str | None = None,
         readiness: str | None = None,
         focus: str | None = None,
-    ) -> Sequence[int]:
-        return ()
+    ) -> Sequence[int] | None:
+        return None
 
     def grade_rank(self, session: Any, notice_ids: Sequence[int]) -> Mapping[int, int]:
         return {}

@@ -42,15 +42,35 @@ def test_absent_judgment_projection_yields_null_fields_and_empty_distributions(r
     assert projection.metrics_input(None, ["r1"]) == {}
 
 
-def test_absent_judgment_projection_does_not_apply_the_default_exclusion(registry):
-    """기본 조건 `Judgment.grade != "제외"`도 projection의 일부다 (§6.1).
+def test_absent_judgment_projection_does_not_restrict_the_notice_set(registry):
+    """제공자가 없으면 전체 공고가 보인다 (§6.1).
 
-    제공자가 없으면 그 조건이 적용되지 않아야 하므로, 필터 없는 호출이 "걸러진
-    집합"을 돌려주면 안 된다. registry는 빈 집합을 돌려주고 호출부가 필터를
-    적용하지 않는 쪽으로 해석한다.
+    기본 조건 `Judgment.grade != "제외"`도 projection의 일부이므로 제공자가 없을
+    때는 적용되지 않는다. 그것을 빈 집합으로 표현하면 호출부가 "공고가 하나도
+    없다"로 읽어 명세와 **정반대**가 되므로, 제한하지 않음은 반드시 `None`이다.
     """
 
-    assert tuple(registry.judgment_projection.notice_ids_for_filters(None)) == ()
+    assert registry.judgment_projection.notice_ids_for_filters(None) is None
+
+
+def test_no_restriction_and_zero_matches_are_different_values(registry):
+    """`None`(제한 없음)과 빈 sequence(0건 일치)는 섞이면 안 된다.
+
+    이 둘이 같은 값이면 "선별 모듈이 없어서 전체가 보인다"와 "필터에 걸린 것이
+    없어서 아무것도 안 보인다"가 구분되지 않는다.
+    """
+
+    class _ZeroMatch(_Judgment):
+        def notice_ids_for_filters(self, session, *, run_id=None, grade=None, readiness=None, focus=None):
+            return ()
+
+    assert registry.judgment_projection.notice_ids_for_filters(None) is None
+
+    registry.register_judgment_projection(_ZeroMatch())
+    result = registry.judgment_projection.notice_ids_for_filters(None, grade="우선 검토")
+
+    assert result is not None
+    assert tuple(result) == ()
 
 
 def test_judgment_filters_are_unsupported_without_a_provider(registry):
@@ -105,6 +125,34 @@ def test_registered_judgment_projection_replaces_the_absent_default(registry):
     assert registry.judgment_filters_supported is True
     assert registry.judgment_projection.notice_fields(None, [4])[4]["grade"] == "우선 검토"
     assert tuple(registry.judgment_projection.notice_ids_for_filters(None, grade="우선 검토")) == (7,)
+
+
+def test_run_ingest_counts_carry_the_v3_binding_lineage(registry):
+    """`IngestResult`가 노출하는 v3 binding을 hook 경로가 실어 나른다 (§6.2).
+
+    v2 회차에는 없으므로 `None`이 정상이고, 값을 가진 hook이 이긴다.
+    """
+
+    order: list[str] = []
+    registry.register_run_ingest_hook(_RunHook("v2", order, counts=RunIngestCounts(judgments=1)))
+    registry.register_run_ingest_hook(
+        _RunHook(
+            "v3",
+            order,
+            counts=RunIngestCounts(
+                judgments=2,
+                generation_config={"num_ctx": 8192},
+                generation_config_digest="a" * 64,
+            ),
+        )
+    )
+
+    counts = registry.run_ingested(None, "r1", Path("/tmp/r1"))
+
+    assert counts.judgments == 3
+    assert counts.generation_config == {"num_ctx": 8192}
+    assert counts.generation_config_digest == "a" * 64
+    assert RunIngestCounts().generation_config is None
 
 
 def test_a_second_judgment_provider_is_refused(registry):
