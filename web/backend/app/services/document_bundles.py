@@ -49,6 +49,7 @@ from ..schemas.document_bundles import (
     DocumentVersionView,
     PatchDocumentVersionRequest,
 )
+from ..lifecycle import register_attachment
 from . import assets
 from .document_converter import ScratchDocumentProcessor
 from .document_structures import materialize_structure
@@ -852,17 +853,19 @@ class DocumentBundleService:
                 # the demotion before adding its replacement.
                 session.flush()
             else:
-                attachment = Attachment(
+                # 첨부 메타는 lifecycle 테이블이다(명세 §6.3). 출처 메타와 함께
+                # lifecycle 공개 함수로 기록한다.
+                attachment = register_attachment(
+                    session,
                     notice_id=bundle.notice_id,
                     name=asset.filename,
-                    source_url=asset.source_url,
-                    origin="manual" if asset.source_kind == "manual" else "g2b",
                     file_ext=Path(asset.filename).suffix.upper().lstrip("."),
                     size_bytes=asset.size_bytes,
+                    origin="manual" if asset.source_kind == "manual" else "g2b",
+                    source_url=asset.source_url,
                     source_system=asset.source_system,
                     source_attachment_key=asset.source_attachment_key,
                 )
-                session.add(attachment)
                 session.flush()
             version = (session.scalar(select(func.max(DocumentVersion.version)).where(DocumentVersion.attachment_id == attachment.id)) or 0) + 1
             document = DocumentVersion(

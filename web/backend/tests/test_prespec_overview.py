@@ -33,7 +33,7 @@ from app.models import (
     PreSpecOverviewReview,
     PreSpecOverviewSnapshot,
 )
-from app.routers.pre_specs import get_pre_spec_overview_reviews
+from app.routers.deep_reviews import get_pre_spec_overview_reviews
 from app.services import assets, prespec_overview
 from app.services.prespec_overview import (
     deterministic_prefix_cut,

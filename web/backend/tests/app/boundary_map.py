@@ -133,13 +133,16 @@ FILE_MODULES: dict[str, str] = {
     "app/routers/notices.py": LIFECYCLE,
     "app/routers/opportunities.py": LIFECYCLE,
     "app/routers/portals.py": LIFECYCLE,
-    # pre_specs router는 개요 리뷰 endpoint가 deep_review로, runs router는 판정
-    # pipeline endpoint가 screening으로 갈라진다. 본체는 lifecycle이다.
+    # runs router는 판정 pipeline endpoint가 screening으로 갈라진다. pre_specs
+    # router의 개요 리뷰 endpoint는 T5b가 routers/deep_reviews.py로 옮겼다.
     "app/routers/pre_specs.py": LIFECYCLE,
     "app/routers/runs.py": LIFECYCLE,
     "app/schemas/opportunities.py": LIFECYCLE,
     # schemas/pre_specs는 목록·추적 부분이 lifecycle, 개요 부분이 deep_review다.
     "app/schemas/pre_specs.py": LIFECYCLE,
+    # T5b가 services/prespec_attachments.py에서 갈라낸 lifecycle 몫
+    # (parse_attachment_key, tracked_order_plan_connection*).
+    "app/services/opportunity_connections.py": LIFECYCLE,
     # screening
     "app/ingest/feedback.py": SCREENING,
     "app/ingest/judgment_revisions.py": SCREENING,
@@ -166,7 +169,7 @@ FILE_MODULES: dict[str, str] = {
     # deep_review
     "app/services/agent_e2e.py": DEEP_REVIEW,
     "app/services/assets.py": DEEP_REVIEW,
-    # attachments/prespec_attachments는 각각 lifecycle로 갈 함수를 하나씩 갖는다.
+    # attachments는 lifecycle로 갈 함수(attachment_download_url)를 하나 갖는다.
     "app/services/attachments.py": DEEP_REVIEW,
     "app/services/prespec_attachments.py": DEEP_REVIEW,
     "app/services/bc_e2e.py": DEEP_REVIEW,
@@ -196,6 +199,11 @@ FILE_MODULES: dict[str, str] = {
     "app/workers/prespec_attachment.py": DEEP_REVIEW,
     "app/cli/import_profile_policy.py": DEEP_REVIEW,
     "app/cli/run_bc_e2e.py": DEEP_REVIEW,
+    # T5b: lifecycle 확장점(§6.1 개요·문서 projection, §6.2 hook)의 deep_review 구현과
+    # router·agent가 함께 쓰는 심층 검토 view.
+    "app/services/prespec_projection.py": DEEP_REVIEW,
+    "app/services/deep_review_hooks.py": DEEP_REVIEW,
+    "app/schemas/deep_reviews.py": DEEP_REVIEW,
 }
 
 # 디렉터리 단위로 통째로 한 모듈에 속하는 경로 (§5.2).
@@ -230,17 +238,9 @@ SPLIT_FILE_NAME_MODULES: dict[str, tuple[dict[str, str], str]] = {
         },
         DEEP_REVIEW,
     ),
-    # §5.2 lifecycle: "services/prespec_attachments.py의 parse_attachment_key와
-    # tracked_order_plan_connection*"
-    "app/services/prespec_attachments.py": (
-        {
-            "parse_attachment_key": LIFECYCLE,
-            "tracked_order_plan_connection": LIFECYCLE,
-            "tracked_order_plan_connection_predicate": LIFECYCLE,
-            "tracked_order_plan_connections": LIFECYCLE,
-        },
-        DEEP_REVIEW,
-    ),
+    # §5.2 lifecycle의 "services/prespec_attachments.py의 parse_attachment_key와
+    # tracked_order_plan_connection*"은 T5b가 services/opportunity_connections.py로
+    # 옮겨 파일 단위로 lifecycle이 됐다.
 }
 
 

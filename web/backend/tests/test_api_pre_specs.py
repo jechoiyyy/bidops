@@ -1,11 +1,16 @@
-"""T-24 cumulative pre-specification list API tests."""
+"""T-24 cumulative pre-specification list API tests.
+
+개요 검토 상태·첨부 취득 건수처럼 deep_review projection에 기대는 검사는
+`tests/app/test_api_pre_specs_projection.py`(두 모듈 조합)에 있다. 여기는
+lifecycle 몫인 필터·추적 예외·정렬·페이지네이션만 본다.
+"""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
@@ -19,7 +24,6 @@ from app.models import (
     Opportunity,
     OpportunityLink,
     OrderPlan,
-    PreSpecOverviewReview,
 )
 from app.routers.pre_specs import list_pre_specs
 
@@ -555,21 +559,6 @@ def test_pre_specs_business_division_q_sort_and_pagination(pre_specs_api):
     assert len(paged["items"]) == 2
 
 
-def test_pre_specs_document_counts_fetch_statuses_and_unqueued_attachments(pre_specs_api):
-    session, _engine, refs = pre_specs_api
-
-    item = _items_by_id(_payload(session))[refs["sw_yes"].id]
-
-    assert item["document"] == {
-        "attachments": 6,
-        "완료": 1,
-        "대기": 1,
-        "진행": 1,
-        "차단": 1,
-        "실패": 1,
-    }
-
-
 def test_pre_specs_response_does_not_expose_storage_metadata(pre_specs_api):
     session, _engine, _refs = pre_specs_api
 
@@ -627,97 +616,3 @@ def test_pre_specs_projection_ignores_lower_id_pending_and_rejected_candidates(
 
     assert item["opportunity_id"] == official_owner.id
     assert item["origin"] == "추적"
-
-
-def test_pre_specs_list_uses_constant_query_count(pre_specs_api):
-    session, engine, _refs = pre_specs_api
-    statements: list[str] = []
-
-    def count_statement(_conn, _cursor, statement, _parameters, _context, _executemany):
-        statements.append(statement)
-
-    event.listen(engine, "before_cursor_execute", count_statement)
-    try:
-        response = _payload(session, sw_only=False)
-    finally:
-        event.remove(engine, "before_cursor_execute", count_statement)
-
-    # docs/design/PLAN.md 3단계: one more query than before (items, total,
-    # and now the overview-review status GROUP BY aggregate) — still O(1)
-    # regardless of row count, never one query per notice.
-    assert len(statements) <= 3
-
-
-_ALL_OVERVIEW_STATUSES = (
-    "awaiting_document",
-    "awaiting_structure",
-    "preparing",
-    "awaiting_model",
-    "queued",
-    "running",
-    "needs_human_review",
-    "completed",
-    "failed",
-    "cancelled",
-)
-
-
-def test_pre_specs_overview_review_status_projects_from_review_row(pre_specs_api):
-    session, _engine, refs = pre_specs_api
-    session.add(
-        PreSpecOverviewReview(notice_id=refs["sw_yes"].id, status="needs_human_review")
-    )
-    session.commit()
-
-    items = _items_by_id(_payload(session, sw_only=False))
-    assert items[refs["sw_yes"].id]["overview_review_status"] == "needs_human_review"
-    # No prespec_overview_review row for this notice: null, never folded into
-    # awaiting_document (CLAUDE.md unknown/null 보존 게이트).
-    assert items[refs["sw_no"].id]["overview_review_status"] is None
-
-
-def test_pre_specs_overview_status_counts_always_lists_all_ten_values_plus_null(pre_specs_api):
-    session, _engine, refs = pre_specs_api
-    session.add(
-        PreSpecOverviewReview(notice_id=refs["sw_yes"].id, status="needs_human_review")
-    )
-    session.add(
-        PreSpecOverviewReview(
-            notice_id=refs["sw_no"].id,
-            status="completed",
-            result="추진 검토",
-            completed_at=datetime(2026, 8, 25, tzinfo=UTC),
-        )
-    )
-    session.commit()
-
-    payload = _payload(session, sw_only=False)
-    counts = {row["status"]: row["count"] for row in payload["overview_status_counts"]}
-
-    # All ten contract statuses appear even at zero, plus the distinct
-    # null/미시작 bucket for notices without a review row yet.
-    assert set(counts) == set(_ALL_OVERVIEW_STATUSES) | {None}
-    assert counts["needs_human_review"] == 1
-    assert counts["completed"] == 1
-    assert counts["failed"] == 0
-    # 9 pre_spec notices in this fixture, 2 now have a review row.
-    assert counts[None] == payload["total"] - 2
-    assert sum(counts.values()) == payload["total"]
-
-
-def test_pre_specs_overview_status_counts_reflect_full_filtered_set_not_just_the_page(
-    pre_specs_api,
-):
-    session, _engine, refs = pre_specs_api
-    session.add(
-        PreSpecOverviewReview(notice_id=refs["sw_yes"].id, status="needs_human_review")
-    )
-    session.commit()
-
-    payload = _payload(session, sw_only=False, limit=1)
-    assert len(payload["items"]) == 1
-    counts = {row["status"]: row["count"] for row in payload["overview_status_counts"]}
-    # The returned page is truncated to one row, but the group counts still
-    # describe every notice matching the filter, not just the page.
-    assert counts["needs_human_review"] == 1
-    assert sum(counts.values()) == payload["total"]
