@@ -46,6 +46,24 @@ class Violation:
 
 
 @dataclass(frozen=True)
+class NameOwnership:
+    """한 파일 안에서 이름마다 소유 모듈이 갈리는 경우의 매핑.
+
+    `default`가 ``None``이면 매핑에 없는 이름은 실패한다(`app/models.py`처럼
+    모든 이름의 소유가 정해져 있어야 하는 파일). `default`가 있으면 열거되지
+    않은 이름은 파일 본체의 모듈로 본다(§5.2가 옮길 이름만 열거한 파일).
+    """
+
+    names: Mapping[str, str]
+    default: str | None = None
+
+    def resolve(self, name: str) -> str | None:
+        if name in self.names:
+            return self.names[name]
+        return self.default
+
+
+@dataclass(frozen=True)
 class Layout:
     """검사 대상 트리와 그 경로 → 모듈 매핑."""
 
@@ -57,10 +75,12 @@ class Layout:
     folder_exceptions: Mapping[str, str] = field(default_factory=dict)
     mixed_files: frozenset[str] = frozenset()
     excluded_files: frozenset[str] = frozenset()
-    # 섞인 파일의 이름 단위 소유: {"app/models.py": {"Judgment": "screening", ...}}
-    name_modules: Mapping[str, Mapping[str, str]] = field(default_factory=dict)
+    # 이름 단위로 소유가 갈리는 파일: {"app/models.py": NameOwnership(...)}
+    name_modules: Mapping[str, NameOwnership] = field(default_factory=dict)
     test_folder_modules: Mapping[str, str] = field(default_factory=dict)
     allowed_imports: Mapping[str, frozenset[str]] = field(default_factory=dict)
+    # 방향은 금지지만 지정된 이름만 허용하는 seam: {(source, target): {name, ...}}
+    seam_imports: Mapping[tuple[str, str], frozenset[str]] = field(default_factory=dict)
     default_module: str | None = bmap.ASSEMBLY
 
     # --- 경로 헬퍼 -------------------------------------------------------
@@ -124,13 +144,28 @@ def repository_layout(root: Path) -> Layout:
         folder_exceptions=bmap.FOLDER_EXCEPTIONS,
         mixed_files=bmap.MIXED_FILES,
         excluded_files=bmap.EXCLUDED_FILES,
-        name_modules={
-            "app/models.py": model_name_modules(root / "app" / "models.py"),
-            "app/schemas/__init__.py": bmap.SCHEMAS_NAME_MODULE,
-        },
+        name_modules=_repository_name_modules(root),
         test_folder_modules=bmap.TEST_FOLDER_MODULES,
         allowed_imports=bmap.ALLOWED_IMPORTS,
+        seam_imports=bmap.SEAM_IMPORTS,
     )
+
+
+def _repository_name_modules(root: Path) -> dict[str, NameOwnership]:
+    """이름 단위 소유가 필요한 파일들의 매핑.
+
+    `models.py`·`schemas/__init__.py`는 네 모듈이 섞여 있어 모든 이름의 소유가
+    정해져야 하고(default 없음), §5.2가 옮길 이름만 열거한 service 파일들은
+    그 이름만 따로 소유를 준다(default = 파일 본체의 모듈).
+    """
+
+    mapping: dict[str, NameOwnership] = {
+        "app/models.py": NameOwnership(model_name_modules(root / "app" / "models.py")),
+        "app/schemas/__init__.py": NameOwnership(bmap.SCHEMAS_NAME_MODULE),
+    }
+    for rel, (names, default) in bmap.SPLIT_FILE_NAME_MODULES.items():
+        mapping[rel] = NameOwnership(names, default)
+    return mapping
 
 
 def parse(path: Path) -> ast.Module:
@@ -184,15 +219,15 @@ def collect_model_classes(layout: Layout) -> dict[str, str]:
     owners: dict[str, str] = {}
     for path in layout.source_files():
         rel = layout.rel(path)
-        names = layout.name_modules.get(rel)
+        ownership = layout.name_modules.get(rel)
         for node in parse(path).body:
             if not isinstance(node, ast.ClassDef):
                 continue
             table = _tablename(node)
             if table is None:
                 continue
-            if names is not None and node.name in names:
-                owners[node.name] = names[node.name]
+            if ownership is not None and node.name in ownership.names:
+                owners[node.name] = ownership.names[node.name]
             else:
                 owner = bmap.TABLE_OWNER.get(table) or layout.module_for(rel)
                 if owner is not None:
@@ -268,18 +303,25 @@ def check_cross_module_imports(layout: Layout) -> set[Violation]:
             target_rel = layout.path_for_dotted(target.dotted)
             if target_rel is None or target_rel in layout.excluded_files:
                 continue
-            names = layout.name_modules.get(target_rel)
-            if names is not None:
+            ownership = layout.name_modules.get(target_rel)
+            if ownership is not None:
                 if target.name is None:
-                    continue  # 모듈 전체 import는 이름을 특정할 수 없다.
-                owner = names.get(target.name)
-                if owner is None:
-                    raise AssertionError(
-                        f"{target_rel}의 '{target.name}' 소유 모듈이 매핑표에 없다 ({rel}:{target.lineno})"
-                    )
+                    # 모듈 전체 import는 이름을 특정할 수 없다. 파일 본체의
+                    # 모듈이 정해져 있으면 그것으로 보고, 아니면 넘어간다.
+                    owner = ownership.default
+                else:
+                    owner = ownership.resolve(target.name)
+                    if owner is None:
+                        raise AssertionError(
+                            f"{target_rel}의 '{target.name}' 소유 모듈이 매핑표에 없다 "
+                            f"({rel}:{target.lineno})"
+                        )
             else:
                 owner = layout.module_for(target_rel)
             if owner is None or owner in allowed:
+                continue
+            seam = layout.seam_imports.get((source, owner))
+            if seam is not None and target.name is not None and target.name in seam:
                 continue
             violations.add(Violation(rel, CROSS_MODULE_IMPORT, target.label))
     return violations
@@ -508,6 +550,37 @@ def test_declared_tables_match_the_ownership_table(layout: Layout) -> None:
     assert not extra, f"§5.1 소유표에만 있고 선언되지 않은 테이블: {extra}"
 
 
+def test_excluded_files_still_exist() -> None:
+    """실재하지 않는 경로가 EXCLUDED_FILES에 남아 있으면 실패한다.
+
+    허용 목록의 stale 항목을 막는 것과 같은 취지다. 사라진 파일의 제외가
+    남아 있으면 그 제외는 아무 일도 하지 않으면서 다음 사람을 헷갈리게 한다.
+    """
+
+    stale = sorted(rel for rel in bmap.EXCLUDED_FILES if not (BACKEND_ROOT / rel).is_file())
+    assert not stale, (
+        "EXCLUDED_FILES에 실재하지 않는 경로가 있다. 지워야 한다:\n"
+        + "\n".join(f"  {rel}" for rel in stale)
+    )
+
+
+def test_public_name_rules_are_enabled_once_module_packages_exist() -> None:
+    """모듈 폴더가 생기면 §8-1의 미구현 절을 켜라고 실패한다.
+
+    §4의 허용 표는 방향뿐 아니라 "공개 이름 대 모듈 내부"도 가른다. 그 절은
+    각 모듈의 `__init__.py`가 공개 표면을 정하기 전에는 판정할 수 없어 아직
+    검사에 없다. 폴더가 생기는 순간 이 테스트가 그 부채를 상기시킨다.
+    """
+
+    existing = [rel for rel in bmap.MODULE_PACKAGE_INITS if (BACKEND_ROOT / rel).is_file()]
+    assert not existing, (
+        "모듈 패키지가 생겼다: " + ", ".join(existing) + ".\n"
+        "이제 공개 이름 판정이 가능하니 §8-1의 아래 절을 검사 1에 넣고, "
+        "이 테스트를 그 검사로 교체한다:\n"
+        + "\n".join(f"  - {rule}" for rule in bmap.UNIMPLEMENTED_PUBLIC_NAME_RULES)
+    )
+
+
 def test_allowlists_have_no_duplicate_or_foreign_kinds() -> None:
     for kind, entries in ALLOWLISTS.items():
         assert all(entry[1] == kind for entry in entries), f"{kind} 목록에 다른 종류가 섞여 있다"
@@ -571,13 +644,19 @@ def _synthetic_layout(root: Path) -> Layout:
         file_modules={"app/main.py": bmap.ASSEMBLY},
         mixed_files=frozenset({"app/models.py"}),
         name_modules={
-            "app/models.py": {
-                "Notice": bmap.LIFECYCLE,
-                "Judgment": bmap.SCREENING,
-                "DeepReview": bmap.DEEP_REVIEW,
-            }
+            "app/models.py": NameOwnership(
+                {
+                    "Notice": bmap.LIFECYCLE,
+                    "Judgment": bmap.SCREENING,
+                    "DeepReview": bmap.DEEP_REVIEW,
+                }
+            ),
+            "app/services.py": NameOwnership(
+                {"shared_helper": bmap.CORE}, bmap.SCREENING
+            ),
         },
         allowed_imports=bmap.ALLOWED_IMPORTS,
+        seam_imports=bmap.SEAM_IMPORTS,
     )
 
 
@@ -613,6 +692,55 @@ def test_checker_resolves_mixed_model_imports_by_name(synthetic: Layout) -> None
     found = as_tuples(check_cross_module_imports(synthetic))
     assert ("app/lifecycle/service.py", CROSS_MODULE_IMPORT, "app.models:Judgment") in found
     assert ("app/lifecycle/service.py", CROSS_MODULE_IMPORT, "app.models:Notice") not in found
+
+
+def test_checker_flags_deep_review_reaching_into_screening(synthetic: Layout) -> None:
+    """§4: deep_review는 screening 내부 ORM·service를 쓰지 못한다."""
+
+    _write(
+        synthetic.root,
+        "app/deep_review/versions.py",
+        "from ..models import Judgment\nfrom ..screening.store import JudgmentStore\n",
+    )
+    _write(synthetic.root, "app/screening/store.py", "JudgmentStore = None\n")
+    found = as_tuples(check_cross_module_imports(synthetic))
+    assert ("app/deep_review/versions.py", CROSS_MODULE_IMPORT, "app.models:Judgment") in found
+    assert (
+        "app/deep_review/versions.py",
+        CROSS_MODULE_IMPORT,
+        "app.screening.store:JudgmentStore",
+    ) in found
+
+
+def test_checker_allows_the_deep_review_to_screening_seam(synthetic: Layout) -> None:
+    """§6.3의 읽기 전용 seam 함수 두 개만은 허용이다."""
+
+    _write(
+        synthetic.root,
+        "app/deep_review/versions.py",
+        "from ..screening import current_judgment, latest_corrected_grade\n",
+    )
+    assert check_cross_module_imports(synthetic) == set()
+
+
+def test_checker_resolves_split_service_names_by_owner(synthetic: Layout) -> None:
+    """§5.2가 다른 모듈로 옮기기로 열거한 이름은 그 모듈 것으로 본다."""
+
+    _write(
+        synthetic.root,
+        "app/services.py",
+        "shared_helper = None\nscreening_only = None\n",
+    )
+    _write(
+        synthetic.root,
+        "app/lifecycle/service.py",
+        "from ..services import shared_helper, screening_only\n",
+    )
+    found = as_tuples(check_cross_module_imports(synthetic))
+    # core로 옮기기로 열거된 이름은 위반이 아니다.
+    assert ("app/lifecycle/service.py", CROSS_MODULE_IMPORT, "app.services:shared_helper") not in found
+    # 열거되지 않은 이름은 파일 본체(screening)의 것으로 본다.
+    assert ("app/lifecycle/service.py", CROSS_MODULE_IMPORT, "app.services:screening_only") in found
 
 
 def test_checker_ignores_absolute_imports_of_external_packages(synthetic: Layout) -> None:
@@ -692,7 +820,9 @@ def test_checker_flags_lifecycle_relationship_to_another_module(tmp_path: Path) 
         root=tmp_path,
         package_roots=("app",),
         mixed_files=frozenset({"app/models.py"}),
-        name_modules={"app/models.py": model_name_modules(tmp_path / "app" / "models.py")},
+        name_modules={
+            "app/models.py": NameOwnership(model_name_modules(tmp_path / "app" / "models.py"))
+        },
         allowed_imports=bmap.ALLOWED_IMPORTS,
     )
     found = as_tuples(check_lifecycle_relationships(layout))

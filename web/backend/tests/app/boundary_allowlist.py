@@ -34,7 +34,6 @@ CROSS_MODULE_IMPORT_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset(
         ("app/ingest/loader.py", "cross_module_import", "app.screening.contracts:ContractViolation"),
         ("app/ingest/loader.py", "cross_module_import", "app.screening.contracts:add_two_axis_metadata"),
         ("app/ingest/loader.py", "cross_module_import", "app.screening.contracts:validate_judgment"),
-        ("app/ingest/loader.py", "cross_module_import", "app.services.prespec_attachments:parse_attachment_key"),
         ("app/ingest/loader.py", "cross_module_import", "app.services.prespec_attachments:refresh_fetch_eligibility"),
         ("app/ingest/loader.py", "cross_module_import", "app.services.revisions:RevisionValidationError"),
         ("app/ingest/loader.py", "cross_module_import", "app.services.revisions:append_judgment_revision"),
@@ -44,19 +43,12 @@ CROSS_MODULE_IMPORT_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset(
         ("app/routers/notices.py", "cross_module_import", "app.models:Judgment"),
         ("app/routers/notices.py", "cross_module_import", "app.models:Perspective"),
         ("app/routers/notices.py", "cross_module_import", "app.models:Review"),
-        ("app/routers/notices.py", "cross_module_import", "app.services.attachments:attachment_download_url"),
         ("app/routers/opportunities.py", "cross_module_import", "app.services.document_bundles:BundleServiceError"),
-        ("app/routers/opportunities.py", "cross_module_import", "app.services.document_bundles:validate_actor"),
         ("app/routers/opportunities.py", "cross_module_import", "app.services.prespec_attachments:refresh_fetch_eligibility"),
         ("app/routers/policies.py", "cross_module_import", "app.services.document_bundles:BundleServiceError"),
-        ("app/routers/policies.py", "cross_module_import", "app.services.document_bundles:stable_api_error"),
-        ("app/routers/policies.py", "cross_module_import", "app.services.document_bundles:validate_actor"),
         ("app/routers/portals.py", "cross_module_import", "app.services.document_bundles:BundleServiceError"),
-        ("app/routers/portals.py", "cross_module_import", "app.services.document_bundles:stable_api_error"),
-        ("app/routers/portals.py", "cross_module_import", "app.services.document_bundles:validate_actor"),
         ("app/routers/pre_specs.py", "cross_module_import", "app.models:AttachmentFetch"),
         ("app/routers/pre_specs.py", "cross_module_import", "app.models:PreSpecOverviewReview"),
-        ("app/routers/pre_specs.py", "cross_module_import", "app.services.prespec_attachments:tracked_order_plan_connection_predicate"),
         ("app/routers/pre_specs.py", "cross_module_import", "app.services.prespec_overview:OverviewPreparationError"),
         ("app/routers/pre_specs.py", "cross_module_import", "app.services.prespec_overview:OverviewReviewNotFound"),
         ("app/routers/pre_specs.py", "cross_module_import", "app.services.prespec_overview:OverviewScopeError"),
@@ -71,15 +63,14 @@ CROSS_MODULE_IMPORT_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset(
         ("app/routers/runs.py", "cross_module_import", "app.screening.ollama:ModelInspectionError"),
         ("app/routers/runs.py", "cross_module_import", "app.screening.orchestrator:ScreeningCreationError"),
         ("app/routers/runs.py", "cross_module_import", "app.screening.orchestrator:ScreeningOrchestrator"),
-        ("app/services/candidate_quality.py", "cross_module_import", "app.services.input_versions:canonical_json_bytes"),
+        ("app/services/document_bundles.py", "cross_module_import", "app.models:Judgment"),
+        ("app/services/document_bundles.py", "cross_module_import", "app.models:Review"),
+        ("app/services/input_versions.py", "cross_module_import", "app.models:Review"),
         ("app/services/metrics.py", "cross_module_import", "app.models:Judgment"),
         ("app/services/metrics.py", "cross_module_import", "app.models:Review"),
         ("app/services/order_plan_screening.py", "cross_module_import", "app.services.document_bundles:BundleServiceError"),
-        ("app/services/order_plan_screening.py", "cross_module_import", "app.services.document_bundles:validate_actor"),
         ("app/services/vllm_client.py", "cross_module_import", "app.contracts.deep_review:DEEP_REVIEW_STAGE_SCHEMA"),
         ("app/services/vllm_client.py", "cross_module_import", "app.contracts.deep_review:load_schema"),
-        ("app/services/vllm_client.py", "cross_module_import", "app.services.input_versions:MODEL_ENDPOINT_REF"),
-        ("app/services/vllm_client.py", "cross_module_import", "app.services.input_versions:MODEL_NAME"),
     }
 )
 
@@ -133,11 +124,15 @@ LIFECYCLE_RELATIONSHIP_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset(
 )
 
 
-#: 도입 시점(T2)의 허용 목록 크기. 이주 task는 이 값을 **내리기만** 한다.
+#: 허용 목록 크기의 상한. 이주 task는 이 값을 **내리기만** 한다.
+#: T2 검토에서 한 번 다시 세웠다: deep_review → screening을 seam 이름만 허용하도록
+#: 조이면서 §4 위반 3건이 새로 잡혔고(document_bundles→Judgment·Review,
+#: input_versions→Review), 동시에 §5.2가 다른 모듈로 옮기기로 열거한 이름들을
+#: 이름 단위로 풀면서 거짓 위반 12건이 빠져 66 → 57이 됐다.
 #: 위 목록은 실제 위반과 정확히 같아야 하므로(stale 항목도 실패), 이 상한은
 #: "새 위반을 허용 목록에 추가해 정당화하는" 경로를 추가로 막는다.
 BASELINE_SIZES: dict[str, int] = {
-    "cross_module_import": 66,
+    "cross_module_import": 57,
     "router_orm_access": 18,
     "schema_imports_model_or_service": 1,
     "lifecycle_relationship": 9,
