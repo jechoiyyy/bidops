@@ -10,8 +10,8 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import aliased
 from sqlalchemy.orm import Session
 
-from ..config import get_settings
-from ..db import get_db
+from ..core.config import get_settings
+from ..core.db import get_db
 from ..models import (
     QualityGate,
     QualityGateEvaluation,
@@ -28,7 +28,7 @@ from ..schemas import (
     QualityGateReviewUpsertRequest,
 )
 from ..screening.artifacts import ArtifactError, ArtifactStore
-from ..screening.generation_config import GenerationConfigError, config_from_value, validate_digest
+from ..core.generation_config import GenerationConfigError, config_from_value, validate_digest
 from ..screening.quality_gate import (
     QualityGateConflict,
     QualityGateError,

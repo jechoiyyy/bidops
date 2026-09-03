@@ -68,7 +68,7 @@ from .contracts import (
     missing_judgment_fields,
     model_extra_fields,
 )
-from ..screening.generation_config import (
+from ..core.generation_config import (
     GenerationConfigError,
     config_from_value,
     legacy_generation_config,
@@ -95,9 +95,15 @@ from ..services.revisions import (
     require_carry_origin_run,
 )
 from .judgment_revisions import judgment_revision_payload
+from ..core.run_id import (
+    DEFAULT_TIMEZONE,
+    RUN_ID_RE,
+    deterministic_run_id,
+    ensure_aware as _ensure_aware,
+    parse_run_id,
+)
 
 
-RUN_ID_RE = re.compile(r"^(?P<directory>.+)--(?P<generated>\d{8}T\d{6}(?:\.\d{1,6})?Z)$")
 EXECUTION_ID_RE = re.compile(r"^scr-[0-9a-f]{32}$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 DECIMAL_RE = re.compile(r"^[+-]?\d+(?:\.\d+)?$")
@@ -160,7 +166,6 @@ def _is_aware_iso(value: Any) -> bool:
     except ValueError:
         return False
     return parsed.tzinfo is not None and parsed.utcoffset() is not None
-DEFAULT_TIMEZONE = "Asia/Seoul"
 
 
 @dataclass(frozen=True)
@@ -229,38 +234,7 @@ def discover_run_dirs(data_root: Path, run_id: str | None = None) -> list[Path]:
     return sorted((path for path in runs_root.iterdir() if path.is_dir()), key=lambda p: p.name)
 
 
-def deterministic_run_id(directory_name: str, generated_at: datetime) -> str:
-    """Build the ADR-009 run identity from the directory and generated time."""
 
-    aware = _ensure_aware(generated_at, DEFAULT_TIMEZONE).astimezone(timezone.utc)
-    stamp = aware.strftime("%Y%m%dT%H%M%S")
-    if aware.microsecond:
-        stamp += f".{aware.microsecond:06d}".rstrip("0")
-    return f"{directory_name}--{stamp}Z"
-
-
-def parse_run_id(run_id: str) -> tuple[str, datetime] | None:
-    """Parse a generated run id; useful to callers inspecting old snapshots."""
-
-    match = RUN_ID_RE.match(run_id)
-    if not match:
-        return None
-    value = match.group("generated").removesuffix("Z")
-    try:
-        generated = datetime.strptime(value, "%Y%m%dT%H%M%S.%f" if "." in value else "%Y%m%dT%H%M%S")
-    except ValueError:
-        return None
-    return match.group("directory"), generated.replace(tzinfo=timezone.utc)
-
-
-def _ensure_aware(value: datetime, timezone_name: str = DEFAULT_TIMEZONE) -> datetime:
-    if value.tzinfo is not None and value.utcoffset() is not None:
-        return value
-    try:
-        zone = ZoneInfo(timezone_name)
-    except ZoneInfoNotFoundError:
-        zone = ZoneInfo(DEFAULT_TIMEZONE)
-    return value.replace(tzinfo=zone)
 
 
 def _parse_datetime(value: Any, timezone_name: str, *, field_name: str = "datetime") -> datetime | None:
@@ -4668,7 +4642,7 @@ def ingest_run(
 
     owns_session = session is None
     if owns_session:
-        from ..db import SessionFactory
+        from ..core.db import SessionFactory
 
         session = SessionFactory()
     assert session is not None

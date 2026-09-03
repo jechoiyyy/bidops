@@ -4,10 +4,10 @@ from pathlib import Path
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.config import Settings
+from app.core.config import Settings
 import pytest
 
-from app.db import _json_serializer, schema_bound
+from app.core.db import _json_serializer, schema_bound
 from app.models import AlwaysOnState, ScreeningAuditEvent, Base, ScheduleExecution, ScheduleReservation
 from app.services.scheduler import (
     EnvironmentDisabledError,

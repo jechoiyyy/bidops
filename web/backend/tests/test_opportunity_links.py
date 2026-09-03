@@ -6,7 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
-from app.db import init_db
+from app.core.db import init_db
 from app.ingest.contracts import NoticeContract
 from app.ingest.loader import _upsert_notice, resolve_order_plan_opportunity_links
 from app.models import (

@@ -9,9 +9,9 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.exc import IntegrityError as SQLAlchemyIntegrityError
 
-from app.config import Settings
-from app.db import _json_serializer, schema_bound
-from app.screening.generation_config import GenerationConfig
+from app.core.config import Settings
+from app.core.db import _json_serializer, schema_bound
+from app.core.generation_config import GenerationConfig
 from tests.postgres import requires_postgres, run_alembic, temporary_database
 
 pytestmark = requires_postgres

@@ -21,7 +21,7 @@ from sqlalchemy import Engine, select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session, sessionmaker
 
-from ..config import Settings, get_settings
+from ..core.config import Settings, get_settings
 from ..models import (
     AlwaysOnState,
     ScreeningAuditEvent,
@@ -35,7 +35,7 @@ from ..models import (
     utc_now,
 )
 from ..screening.ollama import OllamaClient
-from ..screening.generation_config import (
+from ..core.generation_config import (
     GenerationConfigError,
     config_from_value,
     generation_config_from_settings,
@@ -105,7 +105,7 @@ class EnableResult:
 
 def _factory(value: Any | None) -> sessionmaker[Session]:
     if value is None:
-        from ..db import SessionLocal
+        from ..core.db import SessionLocal
 
         return SessionLocal
     if isinstance(value, Engine):

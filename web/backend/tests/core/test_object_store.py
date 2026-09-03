@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from app.services import object_store as storage
+from app.core import object_store as storage
 
 
 class FakeMinio:

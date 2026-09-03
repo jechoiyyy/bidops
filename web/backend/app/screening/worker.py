@@ -20,7 +20,7 @@ from uuid import uuid4
 from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session, sessionmaker
 
-from ..config import Settings, get_settings
+from ..core.config import Settings, get_settings
 from ..ingest.loader import ingest_run, parse_run_id
 from ..models import CompanyProfileSnapshot, Judgment, JudgmentRevision, Notice, NoticeObservation, Run, ScreeningAttempt, ScreeningExecution, ScreeningPolicy
 from .artifacts import ArtifactError, ArtifactStore, aware_iso, canonical_bytes, sha256_bytes
@@ -33,7 +33,7 @@ from .contracts import (
     validate_judgment,
     validate_perspective,
 )
-from .generation_config import GenerationConfigError, config_from_value, validate_digest
+from ..core.generation_config import GenerationConfigError, config_from_value, validate_digest
 from .execution_store import ScreeningExecutionStore
 from .ollama import OllamaCallError, OllamaClient
 from .orchestrator import ScreeningCreationError, _notice_common
@@ -315,7 +315,7 @@ class ScreeningWorker:
 
     def _session(self) -> Session:
         if self.session_factory is None:
-            from ..db import SessionLocal
+            from ..core.db import SessionLocal
             return SessionLocal()
         value = self.session_factory()
         if not isinstance(value, Session):

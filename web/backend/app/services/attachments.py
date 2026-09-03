@@ -11,11 +11,11 @@ from fastapi import UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..config import get_settings
+from ..core.config import get_settings
 from ..document_mcp.processor import ClamAVChecker
 from ..models import AgencyPortal, Attachment
 from . import assets
-from .clamav import ClamAVScanner
+from ..core.clamav import ClamAVScanner
 
 ALLOWED_EXTENSIONS = frozenset({"hwp", "hwpx", "pdf"})
 MAX_ATTACHMENT_SIZE = 50 * 1024 * 1024

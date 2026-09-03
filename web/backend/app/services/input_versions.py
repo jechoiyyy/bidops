@@ -26,6 +26,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from ..core.model_binding import MODEL_ENDPOINT_REF, MODEL_NAME, canonical_json_bytes
 from ..models import (
     AnalysisPolicyVersion,
     ContentObject,
@@ -41,14 +42,12 @@ from ..models import (
 )
 from . import assets
 from .deep_review_validation import validate_structure
-from .profile import ParsedItem, parse_profile, profile_path, walk_sections
+from ..core.company_profile import ParsedItem, parse_profile, profile_path, walk_sections
 
 
 CANONICAL_POLICY_FILE = Path(__file__).resolve().parents[1] / "policies" / "analysis-policy-lean-v1.json"
 PROFILE_SOURCE_FILE = "docs/reference/company-profile.md"
 POLICY_SCHEMA = "bidops.analysis-policy.v1"
-MODEL_ENDPOINT_REF = "vllm-openai-compatible"
-MODEL_NAME = "qwen3.8-27B"
 STAGES = (
     "requirements_and_evaluation",
     "delivery_risk_economics",
@@ -64,12 +63,6 @@ class InputVersionError(ValueError):
     def __init__(self, code: str, message: str) -> None:
         self.code = code
         super().__init__(message)
-
-
-def canonical_json_bytes(value: Mapping[str, Any]) -> bytes:
-    """Encode JSON exactly as the approved policy requires."""
-
-    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 
 def canonical_json_hash(value: Mapping[str, Any]) -> str:

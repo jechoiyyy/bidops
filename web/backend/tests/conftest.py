@@ -2,7 +2,7 @@
 
 For the full suite, T14, and runs with an explicit PostgreSQL maintenance URL,
 this hook runs before test-module collection.  That timing is intentional:
-``app.db`` creates its process-wide engine at import time, so an ordinary
+``app.core.db`` creates its process-wide engine at import time, so an ordinary
 fixture would be too late to prevent an inherited operator URL or the default
 persistent SQLite path from being selected.  Pure unit targets do not enter
 the harness, and other targeted ``requires_postgres`` tests skip explicitly

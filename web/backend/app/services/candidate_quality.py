@@ -16,7 +16,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from .input_versions import canonical_json_bytes
+from ..core.model_binding import canonical_json_bytes
 
 
 QUALITY_MANIFEST_SCHEMA = "bidops.qwen-quality-evaluation.v1"

@@ -9,7 +9,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from app.db import _json_serializer, schema_bound
+from app.core.db import _json_serializer, schema_bound
 from app.models import AuditEvent, OrderPlanScreeningArtifact, OrderPlanScreeningBatchAttempt, OrderPlanScreeningExecution, OrderPlanScreeningPolicy, OrderPlanScreeningResult, Run
 from app.services.vllm_client import OrderPlanVllmError, OrderPlanVllmResponse
 from app.workers.order_plan_screening import C2ScreeningWorker, C2WorkerError

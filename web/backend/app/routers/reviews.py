@@ -11,8 +11,8 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
-from ..config import get_settings
-from ..db import get_db
+from ..core.config import get_settings
+from ..core.db import get_db
 from ..models import Notice, NoticeObservation, Review
 from ..schemas import (
     ReviewAnswerResponse,

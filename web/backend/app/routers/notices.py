@@ -9,8 +9,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session, selectinload
 
-from ..constants import GRADE_ORDER
-from ..db import get_db
+from ..core.constants import GRADE_ORDER
+from ..core.db import get_db
 from ..models import Attachment, Judgment, Notice, NoticeObservation, Perspective, Review
 from ..services.attachments import attachment_download_url
 from ..schemas import (

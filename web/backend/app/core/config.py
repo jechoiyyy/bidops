@@ -18,7 +18,7 @@ from pydantic import AliasChoices, Field, SecretStr, field_validator, model_vali
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-DEFAULT_BIDOPS_ROOT = Path(__file__).resolve().parents[3]
+DEFAULT_BIDOPS_ROOT = Path(__file__).resolve().parents[4]
 _OLLAMA_DURATION = re.compile(
     r"(?:-1|0|(?:\d+(?:\.\d+)?(?:ns|us|µs|ms|s|m|h))+)$"
 )

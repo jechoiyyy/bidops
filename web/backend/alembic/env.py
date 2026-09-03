@@ -14,7 +14,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import MetaData, engine_from_config, pool, text
 
-from app.db import ALEMBIC_VERSION_NUM_WIDTH, Base, settings
+from app.core import ALEMBIC_VERSION_NUM_WIDTH, Base, settings
 from app import models  # noqa: F401 - register every declarative table
 
 
@@ -70,7 +70,7 @@ def _include_name(
 # Alembic looks for it; ``Table.create(checkfirst=True)`` then leaves the
 # existing table alone.  Both statements are idempotent.
 #
-# The width lives in ``app.db`` so ``tests/test_db_migrations.py`` can hold
+# The width lives in ``app.core.db`` so ``tests/test_db_migrations.py`` can hold
 # every revision identifier to it without importing this Alembic script.
 VERSION_NUM_WIDTH = ALEMBIC_VERSION_NUM_WIDTH
 CREATE_VERSION_TABLE = (

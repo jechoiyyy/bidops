@@ -14,7 +14,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from ..db import SessionLocal, init_db
+from ..core.db import SessionLocal, init_db
 from ..services.input_versions import (
     CANONICAL_POLICY_FILE,
     PROFILE_SOURCE_FILE,

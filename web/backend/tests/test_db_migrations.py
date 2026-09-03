@@ -19,7 +19,7 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.db import ALEMBIC_HEAD
+from app.core.db import ALEMBIC_HEAD
 from app.ingest.contracts import NoticeContract
 from app.ingest.loader import ObservationSnapshotConflictError, _upsert_notice
 from app.models import (
@@ -42,7 +42,7 @@ from app.models import (
     OrderPlanScreeningPolicy,
     Run,
 )
-from app.screening.generation_config import GenerationConfig, legacy_generation_config
+from app.core.generation_config import GenerationConfig, legacy_generation_config
 from tests.postgres import migrated_engine, requires_postgres, run_alembic, temporary_database
 
 pytestmark = requires_postgres
@@ -583,7 +583,7 @@ def test_every_revision_identifier_fits_the_version_column() -> None:
     import re
     from pathlib import Path
 
-    from app.db import ALEMBIC_VERSION_NUM_WIDTH as VERSION_NUM_WIDTH
+    from app.core.db import ALEMBIC_VERSION_NUM_WIDTH as VERSION_NUM_WIDTH
 
     versions = Path(__file__).resolve().parents[1] / "alembic" / "versions"
     pattern = re.compile(r"^revision(?::\s*str)?\s*=\s*[\"']([^\"']+)[\"']", re.MULTILINE)

@@ -15,7 +15,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from ..config import Settings, get_settings
+from ..core.config import Settings, get_settings
 from ..ingest.contracts import (
     OrderPlanArtifact,
     OrderPlanContract,
@@ -36,7 +36,7 @@ from ..models import (
     OrderPlanScreeningResult,
     Run,
 )
-from .document_bundles import BundleServiceError, validate_actor
+from ..core.api_errors import BundleServiceError, validate_actor
 
 
 INPUT_SCHEMA = "bidops.order-plan-screening-input.v1"

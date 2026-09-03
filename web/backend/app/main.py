@@ -11,14 +11,17 @@ from fastapi.responses import JSONResponse, Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.staticfiles import StaticFiles
 
-from .config import get_settings
-from .db import (
+from .core import (
+    ObjectStoreError,
+    assert_object_store_runtime,
     assert_postgresql_runtime,
+    configure,
     get_db,
+    get_settings,
+    health_router,
     init_db,
     isolated_test_boundary_active,
 )
-from .logging_setup import configure
 from .routers.attachments import router as attachments_router
 from .routers.metrics import router as metrics_router
 from .routers.notices import router as notices_router
@@ -39,7 +42,6 @@ from .routers.bid_delta import router as bid_delta_router
 from .routers.reports import router as reports_router
 from .routers.order_plans import router as order_plans_router
 from .runtime import ApplicationRuntime
-from .services.object_store import ObjectStoreError, assert_object_store_runtime
 
 
 @asynccontextmanager
@@ -154,13 +156,7 @@ async def security_headers(request, call_next):  # type: ignore[no-untyped-def]
     return response
 
 
-@app.get("/api/health")
-def health() -> dict[str, str]:
-    """Return a lightweight liveness response."""
-
-    return {"status": "ok"}
-
-
+app.include_router(health_router)
 app.include_router(runs_router)
 app.include_router(notices_router)
 app.include_router(pre_specs_router)

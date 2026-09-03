@@ -5,7 +5,7 @@ from threading import Barrier, Event, Lock, Thread
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.config import Settings
+from app.core.config import Settings
 from app.models import Base, Run, ScheduleExecution, ScheduleReservation, ScreeningExecution
 from app.services.scheduler import SchedulerService
 from app.services.scheduled_pipeline import ScheduledPipeline

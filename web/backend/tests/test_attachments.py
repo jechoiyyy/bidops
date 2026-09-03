@@ -7,12 +7,12 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
-from app.config import get_settings
-from app.db import Base, get_db, init_db
+from app.core.config import get_settings
+from app.core.db import Base, get_db, init_db
 from app.main import app
 from app.models import AgencyPortal, Attachment, AuditEvent, Notice, Run
 from app.services.attachments import MAX_ATTACHMENT_SIZE
-from app.services.clamav import ClamAVUnavailable
+from app.core.clamav import ClamAVUnavailable
 from app.screening.policy import load_policy_file
 
 

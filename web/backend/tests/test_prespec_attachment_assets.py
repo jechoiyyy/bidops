@@ -9,7 +9,7 @@ from urllib.request import HTTPCookieProcessor
 
 import pytest
 
-from app.config import Settings
+from app.core.config import Settings
 from app.services import assets
 from app.services.document_bundles import API_ERROR_CODES, stable_api_error
 

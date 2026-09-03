@@ -23,9 +23,9 @@ from sqlalchemy.engine import make_url
 
 from .config import get_settings
 from .db import ALEMBIC_HEAD, MIGRATION_COMMAND
-from .screening.generation_config import register_sqlite_functions
+from .generation_config import register_sqlite_functions
 
-BACKEND = Path(__file__).resolve().parents[1]
+BACKEND = Path(__file__).resolve().parents[2]
 BASELINE_REVISION = "0001_existing_schema"
 KNOWN_MIGRATION_REVISIONS = frozenset(
     {
@@ -373,7 +373,7 @@ def verify() -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="python -m app.db_admin")
+    parser = argparse.ArgumentParser(prog="python -m app.core.db_admin")
     commands = parser.add_subparsers(dest="command", required=True)
     backup_parser = commands.add_parser("backup")
     backup_parser.add_argument("--output", required=True, type=Path)

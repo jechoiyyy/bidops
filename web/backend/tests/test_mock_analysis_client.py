@@ -7,7 +7,7 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from app.config import Settings, get_settings
+from app.core.config import Settings, get_settings
 from app.services.deep_review_validation import validate_deep_review_stage
 from app.services.deep_reviews import DeepReviewService
 from app.services.mock_analysis_client import MOCK_MODEL_NAME, MockAnalysisClient

@@ -6,7 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
-from app.db import Base, get_db
+from app.core.db import Base, get_db
 from app.routers.schedule import router
 
 

@@ -23,7 +23,7 @@ from app.agents.deep_review import (
     bundle_snapshot_sha256,
     project_deep_review,
 )
-from app.db import init_db
+from app.core.db import init_db
 from app.models import (
     AnalysisPolicyVersion,
     AuditEvent,

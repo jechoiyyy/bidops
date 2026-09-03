@@ -7,7 +7,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
-from app.db import get_db, init_db
+from app.core.db import get_db, init_db
 from app.main import app
 from app.models import AuditEvent, Notice, Opportunity, OpportunityLink, OrderPlan
 from app.services.opportunity_integrity import merge_opportunities

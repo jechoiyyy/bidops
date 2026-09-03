@@ -8,7 +8,7 @@ from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
-from app.db import get_db, init_db
+from app.core.db import get_db, init_db
 from app.main import app
 from app.models import Judgment, Notice, Review, Run, VerificationAnswer
 

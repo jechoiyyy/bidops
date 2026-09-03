@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Header, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
-from ..db import get_db
+from ..core.db import get_db
 from ..schemas.order_plans import (
     ArtifactSummaryResponse,
     ExecutionCreateRequest,

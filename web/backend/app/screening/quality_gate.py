@@ -26,7 +26,7 @@ import weakref
 from sqlalchemy import Engine, func, select, update
 from sqlalchemy.orm import Session, selectinload, sessionmaker
 
-from ..config import Settings, get_settings
+from ..core.config import Settings, get_settings
 from ..models import (
     ScreeningAuditEvent,
     CompanyProfileSnapshot,
@@ -42,7 +42,7 @@ from ..models import (
 )
 from .artifacts import ArtifactError, ArtifactStore, ExecutionWorkspace, sha256_bytes
 from ..ingest.loader import deterministic_run_id
-from .generation_config import GenerationConfigError, config_from_value, legacy_generation_config, validate_digest
+from ..core.generation_config import GenerationConfigError, config_from_value, legacy_generation_config, validate_digest
 from .execution_store import ScreeningExecutionStore
 from .orchestrator import (
     ScreeningCreationError,
@@ -99,7 +99,7 @@ class QualityGateActivationError(QualityGateConflict):
 
 def _factory(value: Any | None) -> sessionmaker[Session]:
     if value is None:
-        from ..db import SessionLocal
+        from ..core.db import SessionLocal
 
         return SessionLocal
     if isinstance(value, Session):

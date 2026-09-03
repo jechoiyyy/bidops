@@ -10,7 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
-from app.db import ALEMBIC_HEAD, init_db, schema_bound
+from app.core.db import ALEMBIC_HEAD, init_db, schema_bound
 from app.models import (
     Attachment,
     ContentObject,

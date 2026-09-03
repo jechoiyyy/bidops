@@ -33,7 +33,7 @@ from app.agents.document_preparation import (
     UpdateDocumentMetadataPayload,
     project_document_preparation,
 )
-from app.db import init_db
+from app.core.db import init_db
 from app.document_mcp.processor import DocumentProcessor
 from app.models import AuditEvent, DocumentBundle, DocumentBundleItem, DocumentVersion, Judgment, Notice, Run
 from app.schemas.document_bundles import BundleView, DocumentVersionView

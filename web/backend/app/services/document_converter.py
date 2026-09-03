@@ -10,12 +10,12 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from ..config import get_settings
+from ..core.config import get_settings
 from ..document_mcp.contracts import validate_structure
 from ..document_mcp.errors import DocumentProcessingError
 from ..document_mcp.processor import ProcessedDocument
 from ..document_mcp.safety import MAX_INPUT_BYTES, ProcessorOptions
-from .clamav import ClamAVScanner
+from ..core.clamav import ClamAVScanner
 from ..workers.document_protocol import (
     MAX_RESULT_BYTES,
     RESULT_SCHEMA,

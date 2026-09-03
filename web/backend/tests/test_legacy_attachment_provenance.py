@@ -21,7 +21,7 @@ from pathlib import Path
 import pytest
 
 from app.services import assets
-from app.services.object_store import FilesystemObjectStore, ObjectMetadata
+from app.core.object_store import FilesystemObjectStore, ObjectMetadata
 
 
 PDF = b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n"

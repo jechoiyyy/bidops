@@ -6,7 +6,7 @@ from uuid import UUID, uuid4
 
 from fastapi.testclient import TestClient
 
-from app.db import get_db
+from app.core.db import get_db
 from app.main import app
 from app.models import OrderPlanScreeningBatchAttempt, OrderPlanScreeningExecution, OrderPlanScreeningResult
 from app.routers import order_plans as order_plans_router

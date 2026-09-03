@@ -38,7 +38,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.engine import Engine
 
-from ..db import Base, schema_bound, settings
+from ..core import Base, schema_bound, settings
 from .. import models  # noqa: F401 - register legacy and new target tables
 from ..services.revisions import (
     JUDGMENT_PAYLOAD_SCHEMA,
@@ -1032,7 +1032,7 @@ def run_import(*, sqlite_backup: Path, file_manifest: Path, mode: str, destinati
                 _sequence_reconciliation(None, target, source_tables[source_table], report, apply=False)
         else:
             if destination is None:
-                from ..db import engine as application_engine
+                from ..core import engine as application_engine
 
                 destination = application_engine
             if destination.dialect.name != "postgresql":

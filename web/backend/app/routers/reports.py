@@ -28,7 +28,7 @@ from ..agents import (
     report_revision_artifact_ref,
     validation_artifact_ref,
 )
-from ..db import get_db
+from ..core.db import get_db
 from ..models import AuditEvent, DeepReview, IdempotencyRecord, ReportRevision, ValidationCheck, ValidationRun
 from ..schemas.reports import EvidenceView, FinalOpinionRequest, FinalOpinionView, ReportRevisionRequest, ReportView
 from ..services.evidence import EvidenceService, EvidenceServiceError
