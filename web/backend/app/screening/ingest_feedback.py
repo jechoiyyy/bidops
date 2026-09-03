@@ -1,4 +1,8 @@
-"""Initial review import from the report YAML file."""
+"""보고서 YAML에서 가져오는 초기 리뷰 적재.
+
+리뷰는 판정에 대한 사람의 결정이므로 screening이 소유한다(명세 §5.1). 회차 적재
+hook이 공고 적재를 마친 뒤 같은 transaction에서 부른다.
+"""
 
 from __future__ import annotations
 
@@ -10,10 +14,16 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..models import IngestWarning, Review, Run, VerificationAnswer
+from ..ingest.contracts import (
+    FeedbackArtifact,
+    FeedbackReviewContract,
+    is_blank,
+    model_extra_fields,
+)
+from ..lifecycle import record_ingest_warning
+from ..models import Review, Run, VerificationAnswer
 from ..services.revisions import append_review_revision
 from ..services.reviews import review_revision_payload
-from .contracts import FeedbackArtifact, FeedbackReviewContract, is_blank, model_extra_fields
 
 
 def _has_value(value: Any) -> bool:
@@ -32,14 +42,9 @@ def _warning(
     message: str,
     context: dict[str, Any] | None = None,
 ) -> None:
-    session.add(
-        IngestWarning(
-            run_id=run_id,
-            level=level,
-            code=code,
-            message=message,
-            context_json=context,
-        )
+    # 회차 경고는 lifecycle 테이블이므로 lifecycle 공개 함수로만 쓴다(§4).
+    record_ingest_warning(
+        session, run_id=run_id, level=level, code=code, message=message, context=context
     )
 
 

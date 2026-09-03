@@ -1202,8 +1202,17 @@ class ScreeningWorker:
                 recorded_revision_ids = {
                     revision.notice.notice_key for revision in recorded_revisions
                 }
+                # 공고는 판정으로 향하는 relationship 을 갖지 않는다(§4).
+                # 판정 테이블의 소유 모듈이므로 여기서 직접 한 번에 읽는다.
+                judged_notice_ids = set(
+                    session.scalars(
+                        select(Judgment.notice_id).where(
+                            Judgment.notice_id.in_([item.id for item in actual_notices])
+                        )
+                    ).all()
+                )
                 projected_ids = {
-                    item.notice_key for item in actual_notices if item.judgment is not None
+                    item.notice_key for item in actual_notices if item.id in judged_notice_ids
                 }
                 if (
                     actual_notice_ids != input_ids

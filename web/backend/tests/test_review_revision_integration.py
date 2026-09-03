@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.core.db import get_db, init_db
-from app.ingest import feedback as feedback_loader
+from app.screening import ingest_feedback as feedback_loader
 from app.main import app
 from app.models import (
     AuditEvent,

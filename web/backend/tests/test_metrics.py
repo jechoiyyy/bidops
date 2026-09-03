@@ -34,9 +34,9 @@ def test_validation_metrics_keep_unmeasurable_values_as_null():
             notice_key="bid:SAME:000",
             sample_role="analysis",
         )
-        first_notice.judgment = Judgment(grade="검토 권장", readiness="부분 확인 필요")
+        first_judgment = Judgment(notice=first_notice, grade="검토 권장", readiness="부분 확인 필요")
         second_notice = first_notice
-        second_judgment = first_notice.judgment
+        second_judgment = first_judgment
         second_run.notice_observations.append(
             NoticeObservation(notice=first_notice, changed_fields_json=[])
         )
@@ -46,7 +46,7 @@ def test_validation_metrics_keep_unmeasurable_values_as_null():
                 Perspective(name="사업성", assessment="확인 불가"),
             ]
         )
-        session.add_all([first_run, second_run])
+        session.add_all([first_run, second_run, first_judgment])
         session.commit()
 
         metrics = {item.key: item for item in calculate_validation_metrics(session, second_run.id)}

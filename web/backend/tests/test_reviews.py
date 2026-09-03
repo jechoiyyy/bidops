@@ -34,7 +34,7 @@ def reviews_client():
             title="리뷰 테스트 공고",
             sample_role="analysis",
         )
-        notice.judgment = Judgment(grade="우선 검토", readiness="부분 확인 필요")
+        session.add(Judgment(notice=notice, grade="우선 검토", readiness="부분 확인 필요"))
         session.add(run)
         session.commit()
 

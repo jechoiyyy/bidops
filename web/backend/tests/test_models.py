@@ -120,13 +120,15 @@ def test_basic_model_relationships_and_json_columns_work():
     )
 
     with Session(test_engine) as session:
-        session.add(run)
+        # 공고는 판정으로 향하는 relationship 을 갖지 않으므로(명세 §4) 판정을
+        # 따로 세션에 넣고, 연결은 판정 쪽 외래키로 확인한다.
+        session.add_all([run, judgment])
         session.commit()
         session.refresh(notice)
 
         assert notice.id is not None
         assert notice.run.id == run.id
-        assert notice.judgment is judgment
+        assert judgment.notice_id == notice.id
         assert judgment.perspectives[0].evidence[0].status == "confirmed"
         assert run.generated_at.tzinfo is not None
         assert notice.raw_source == {"notice_id": "bid:R26BK01689645:000"}

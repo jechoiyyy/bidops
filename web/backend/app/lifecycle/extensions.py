@@ -241,8 +241,21 @@ class RunIngestHook(Protocol):
     def inspect_run_directory(self, directory: Path) -> RunDirectoryClaim | None:
         """공고를 읽기 전에 이 디렉터리가 자기 전용 결과인지 답한다. 아니면 `None`."""
 
-    def run_ingested(self, session: Any, run_id: str, directory: Path) -> RunIngestCounts:
-        """공고·발주계획·첨부 메타 적재가 끝난 뒤, 같은 session에서 불린다."""
+    def run_ingested(
+        self,
+        session: Any,
+        run_id: str,
+        directory: Path,
+        *,
+        reports_root: Path | None = None,
+    ) -> RunIngestCounts:
+        """공고·발주계획·첨부 메타 적재가 끝난 뒤, 같은 session에서 불린다.
+
+        `reports_root`는 `ingest_run(reports_root=...)`이 받은 값 그대로다. 회차
+        디렉터리 옆이 아니라 보고서 트리에 놓이는 산출물(초기 리뷰 가져오기의
+        `review-feedback.yaml`)을 hook이 찾을 수 있게 넘긴다. `None`이면 hook이
+        `ingest_run`과 같은 기본 위치(`<runs>/../reports`)를 쓴다.
+        """
 
 
 @runtime_checkable
@@ -377,12 +390,21 @@ class ExtensionRegistry:
                 return claim
         return None
 
-    def run_ingested(self, session: Any, run_id: str, directory: Path) -> RunIngestCounts:
+    def run_ingested(
+        self,
+        session: Any,
+        run_id: str,
+        directory: Path,
+        *,
+        reports_root: Path | None = None,
+    ) -> RunIngestCounts:
         """등록 순서대로 실행하고 건수를 합친다. hook이 없으면 모두 0이다."""
 
         counts = RunIngestCounts()
         for hook in self._run_ingest_hooks:
-            counts = counts.merged_with(hook.run_ingested(session, run_id, directory))
+            counts = counts.merged_with(
+                hook.run_ingested(session, run_id, directory, reports_root=reports_root)
+            )
         return counts
 
     def tracking_decision_changed(self, session: Any, opportunity_id: Any) -> None:

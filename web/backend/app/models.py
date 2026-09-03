@@ -169,19 +169,10 @@ class Run(Base):
     warnings: Mapped[list["IngestWarning"]] = relationship(
         back_populates="run", cascade="all, delete-orphan"
     )
-    reviews: Mapped[list["Review"]] = relationship(
-        back_populates="run"
-    )
-    judgment_revisions: Mapped[list["JudgmentRevision"]] = relationship(
-        primaryjoin=lambda: Run.id == foreign(JudgmentRevision.run_id),
-        back_populates="run",
-        viewonly=True,
-    )
-    review_revisions: Mapped[list["ReviewRevision"]] = relationship(
-        primaryjoin=lambda: Run.id == foreign(ReviewRevision.run_id),
-        back_populates="run",
-        viewonly=True,
-    )
+    # 판정·리뷰·revision 은 선별 모듈의 테이블이다. lifecycle 모델은 다른 모듈의
+    # 모델로 향하는 relationship 을 갖지 않으며, 관계는 소유 모듈이 자기 모델에서
+    # 단방향으로 선언한다(명세 §4). 회차 범위의 판정·리뷰는 선별이 공개하는
+    # projection·seam 으로 읽는다.
 
 
 class Notice(Base):
@@ -270,21 +261,12 @@ class Notice(Base):
     def last_observed_at(self) -> datetime | None:
         return max((item.observed_at for item in self.observations), default=None)
 
-    judgment: Mapped["Judgment | None"] = relationship(
-        back_populates="notice", uselist=False, cascade="all, delete-orphan"
-    )
     attachments: Mapped[list["Attachment"]] = relationship(
         back_populates="notice", cascade="all, delete-orphan"
     )
-    reviews: Mapped[list["Review"]] = relationship(
-        back_populates="notice", cascade="all, delete-orphan"
-    )
-    judgment_revisions: Mapped[list["JudgmentRevision"]] = relationship(
-        back_populates="notice", passive_deletes="all"
-    )
-    review_revisions: Mapped[list["ReviewRevision"]] = relationship(
-        back_populates="notice", passive_deletes="all"
-    )
+    # 판정·리뷰·revision(선별)과 개요 검토(심층 검토)는 각각 그 모듈이 소유하므로
+    # 여기서 역방향 relationship 을 갖지 않는다(§4). 공고가 지워질 때의 정리는 ORM
+    # cascade 가 아니라 각 테이블의 FK ``ondelete="CASCADE"`` 가 맡는다.
     opportunity_links: Mapped[list["OpportunityLink"]] = relationship(
         back_populates="notice", passive_deletes=True
     )
@@ -790,7 +772,7 @@ class Judgment(Base):
     next_action: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     notice_pk = synonym("notice_id")
-    notice: Mapped["Notice"] = relationship(back_populates="judgment")
+    notice: Mapped["Notice"] = relationship()
     perspectives: Mapped[list["Perspective"]] = relationship(back_populates="judgment", cascade="all, delete-orphan")
     counterarguments: Mapped[list["Counterargument"]] = relationship(back_populates="judgment", cascade="all, delete-orphan")
     verification_items: Mapped[list["VerificationItem"]] = relationship(back_populates="judgment", cascade="all, delete-orphan")
@@ -883,12 +865,9 @@ class JudgmentRevision(Base):
         AwareDateTime(), default=utc_now, server_default=text("CURRENT_TIMESTAMP"), nullable=False
     )
 
-    notice: Mapped["Notice"] = relationship(
-        back_populates="judgment_revisions", foreign_keys=[notice_id]
-    )
+    notice: Mapped["Notice"] = relationship(foreign_keys=[notice_id])
     run: Mapped["Run | None"] = relationship(
         primaryjoin=lambda: foreign(JudgmentRevision.run_id) == Run.id,
-        back_populates="judgment_revisions",
         viewonly=True,
     )
     recording_execution: Mapped["ScreeningExecution | None"] = relationship(
@@ -1114,8 +1093,8 @@ class Review(Base):
 
     notice_pk = synonym("notice_id")
     reviewer = synonym("reviewer_snapshot")
-    notice: Mapped["Notice"] = relationship(back_populates="reviews")
-    run: Mapped["Run"] = relationship(back_populates="reviews")
+    notice: Mapped["Notice"] = relationship()
+    run: Mapped["Run"] = relationship()
     answers: Mapped[list["VerificationAnswer"]] = relationship(back_populates="review", cascade="all, delete-orphan")
 
 
@@ -1182,12 +1161,9 @@ class ReviewRevision(Base):
         AwareDateTime(), default=utc_now, server_default=text("CURRENT_TIMESTAMP"), nullable=False
     )
 
-    notice: Mapped["Notice"] = relationship(
-        back_populates="review_revisions", foreign_keys=[notice_id]
-    )
+    notice: Mapped["Notice"] = relationship(foreign_keys=[notice_id])
     run: Mapped["Run | None"] = relationship(
         primaryjoin=lambda: foreign(ReviewRevision.run_id) == Run.id,
-        back_populates="review_revisions",
         viewonly=True,
     )
     judgment_revision: Mapped["JudgmentRevision | None"] = relationship(

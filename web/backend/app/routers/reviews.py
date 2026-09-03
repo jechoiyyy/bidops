@@ -248,13 +248,17 @@ def export_reviews(
         select(Notice)
         .join(NoticeObservation, NoticeObservation.notice_id == Notice.id)
         .where(NoticeObservation.run_id == run.id)
-        .options(selectinload(Notice.reviews).selectinload(Review.answers))
         .order_by(Notice.id.asc())
     ).all()
+    # 공고는 리뷰로 향하는 relationship 을 갖지 않는다(§4). 리뷰의 소유 모듈이므로
+    # 여기서 회차 범위를 한 번에 읽어 공고별로 묶는다.
     reviews_by_notice = {
         review.notice_pk: review
-        for notice in notices
-        for review in notice.reviews
+        for review in session.scalars(
+            select(Review)
+            .where(Review.notice_id.in_([notice.id for notice in notices]))
+            .options(selectinload(Review.answers))
+        ).all()
     }
     document = {
         "schema_version": "bidops.feedback.v2",

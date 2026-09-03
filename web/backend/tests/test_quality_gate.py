@@ -61,6 +61,12 @@ PROFILE_VERSION = "company-profile.sha256:" + DIGEST
 NOW = datetime(2026, 8, 26, tzinfo=timezone.utc)
 
 
+
+@pytest.fixture(autouse=True)
+def _screening_registered(screening_extensions):
+    """이 파일의 고정 회차는 판정까지 적재돼야 한다. 판정 적재는 screening이 등록한 회차 적재 hook의 몫이므로(명세 §6.2) 여기서 명시적으로 요구한다."""
+
+
 def _fixed_fixture(root: Path, *, sample_count: int = 40, baseline_ids: list[str] | None = None) -> None:
     sample_path = root / FIXED_SAMPLE_RELATIVE
     baseline_path = root / FIXED_BASELINE_RELATIVE
@@ -1635,12 +1641,14 @@ def test_fixed_run_projection_mismatches_are_rejected_before_gate_side_effects(
             notices[0].notice_key = "bid:tampered:000"
         elif mutation == "normalized_field":
             notices[0].title = "tampered normalized title"
-        elif mutation == "judgment":
-            assert notices[0].judgment is not None
-            notices[0].judgment.grade = "제외"
-        else:
-            assert notices[0].judgment is not None
-            notices[0].judgment.schema_version = "bidops.decisions.v1"
+        elif mutation in {"judgment", "provenance"}:
+            # 공고는 판정으로 향하는 relationship 을 갖지 않는다(명세 §4).
+            judgment = session.scalar(select(Judgment).where(Judgment.notice_id == notices[0].id))
+            assert judgment is not None
+            if mutation == "judgment":
+                judgment.grade = "제외"
+            else:
+                judgment.schema_version = "bidops.decisions.v1"
         session.commit()
     with pytest.raises(QualityGateValidationError):
         QualityGateService(settings, session_factory=factory, orchestrator=SimpleNamespace()).create_gate(
@@ -1660,8 +1668,9 @@ def test_fixed_run_child_position_contract_mismatches_are_rejected(tmp_path: Pat
     settings, engine, factory, _run_dir, _canonical_run_id = _canonical_service_fixture(tmp_path)
     with factory() as session:
         notices = session.scalars(select(Notice).order_by(Notice.id)).all()
-        assert notices and notices[0].judgment is not None
-        judgment = notices[0].judgment
+        assert notices
+        judgment = session.scalar(select(Judgment).where(Judgment.notice_id == notices[0].id))
+        assert judgment is not None
         if mutation.startswith("perspective"):
             children = sorted(judgment.perspectives, key=lambda row: row.position or 0)
         else:

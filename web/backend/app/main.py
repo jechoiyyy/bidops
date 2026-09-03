@@ -24,6 +24,7 @@ from .core import (
 )
 from .lifecycle import extension_registry
 from .routers.deep_reviews import pre_spec_overview_router
+from .screening import register_lifecycle_extensions
 from .services.deep_review_hooks import PreSpecAttachmentEligibilityHook
 from .services.prespec_projection import PreSpecOverviewDocumentProjection
 from .routers.attachments import router as attachments_router
@@ -40,6 +41,7 @@ from .routers.reviews import router as reviews_router
 from .routers.runs import router as runs_router
 from .routers.schedule import router as schedule_router
 from .routers.screening import router as screening_router
+from .routers.screening import run_router as screening_run_router
 from .routers.document_bundles import router as document_bundles_router
 from .routers.deep_reviews import router as deep_reviews_router
 from .routers.bid_delta import router as bid_delta_router
@@ -161,6 +163,10 @@ async def security_headers(request, call_next):  # type: ignore[no-untyped-def]
 
 
 app.include_router(health_router)
+# 판정 실행 endpoint 는 회차 경로 아래 있지만 제공 모듈이 screening 이다(§5.3).
+# 회차 router 의 일반 단계 경로(`/pipeline/{stage}`)보다 먼저 등록해야 더 구체적인
+# 이 경로가 선택된다.
+app.include_router(screening_run_router)
 app.include_router(runs_router)
 app.include_router(notices_router)
 app.include_router(pre_specs_router)
@@ -196,6 +202,11 @@ app.include_router(pre_spec_overview_router)
 # 않는다. T8이 `BIDOPS_MODULES` 조건을 붙일 때까지는 무조건 등록이다.
 _extensions = extension_registry()
 # (여기에 모듈별 등록을 덧붙인다)
+# 등록 순서는 `BIDOPS_MODULES`의 기본 순서(lifecycle,screening,deep_review)를 따른다.
+# 같은 hook을 여러 모듈이 등록하면 이 순서대로 실행된다(§6.2).
+#
+# screening: 공고 판정 projection(§6.1)과 판정·리뷰·C-2 회차 적재 hook(§6.2)
+register_lifecycle_extensions(_extensions)
 # deep_review: 사전규격 개요·문서 projection(§6.1)과 첨부 fetch 자격 갱신 hook(§6.2)
 _extensions.register_overview_document_projection(PreSpecOverviewDocumentProjection())
 _prespec_attachment_hook = PreSpecAttachmentEligibilityHook()

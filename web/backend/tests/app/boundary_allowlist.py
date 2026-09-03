@@ -14,6 +14,11 @@ from __future__ import annotations
 #: 그 밖에는 대상 모듈 경로로 적는다. 이주 task마다 이 목록은 줄어들기만 한다.
 CROSS_MODULE_IMPORT_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset(
     {
+        # T5a가 판정 projection·회차 적재 hook·seam으로 lifecycle → screening 접근을
+        # 모두 끊었다. ingest/loader.py, routers/{common,notices,runs}.py,
+        # services/metrics.py의 판정·리뷰 참조와 lifecycle 모델의 판정 방향
+        # relationship 일곱 개가 함께 사라졌다.
+        #
         # T4가 "조립 계층 → lifecycle은 공개 이름만"을 켜면서 새로 드러난 자리다
         # (규칙을 켜기 전에는 검사 대상이 아니었으므로 목록이 늘었다). lifecycle
         # router 파일들은 T7이 app/lifecycle/routers/로 옮기고 T8이 BIDOPS_MODULES에
@@ -28,48 +33,9 @@ CROSS_MODULE_IMPORT_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset(
         ("app/main.py", "cross_module_import", "app.routers.pre_specs:router"),
         ("app/main.py", "cross_module_import", "app.routers.runs:router"),
         ("app/runtime.py", "cross_module_import", "app.services.pipeline:PipelineService"),
-        ("app/ingest/loader.py", "cross_module_import", "app.ingest.feedback:load_feedback"),
-        ("app/ingest/loader.py", "cross_module_import", "app.ingest.judgment_revisions:judgment_revision_payload"),
-        ("app/ingest/loader.py", "cross_module_import", "app.models:Counterargument"),
-        ("app/ingest/loader.py", "cross_module_import", "app.models:Evidence"),
-        ("app/ingest/loader.py", "cross_module_import", "app.models:Judgment"),
-        ("app/ingest/loader.py", "cross_module_import", "app.models:JudgmentRevision"),
-        ("app/ingest/loader.py", "cross_module_import", "app.models:MatchedPerformance"),
-        ("app/ingest/loader.py", "cross_module_import", "app.models:OrderPlanScreeningArtifact"),
-        ("app/ingest/loader.py", "cross_module_import", "app.models:OrderPlanScreeningBatchAttempt"),
-        ("app/ingest/loader.py", "cross_module_import", "app.models:OrderPlanScreeningExecution"),
-        ("app/ingest/loader.py", "cross_module_import", "app.models:OrderPlanScreeningFeedback"),
-        ("app/ingest/loader.py", "cross_module_import", "app.models:OrderPlanScreeningPolicy"),
-        ("app/ingest/loader.py", "cross_module_import", "app.models:OrderPlanScreeningResult"),
-        ("app/ingest/loader.py", "cross_module_import", "app.models:Perspective"),
-        ("app/ingest/loader.py", "cross_module_import", "app.models:Review"),
-        ("app/ingest/loader.py", "cross_module_import", "app.models:ScreeningExecution"),
-        ("app/ingest/loader.py", "cross_module_import", "app.models:VerificationItem"),
-        ("app/ingest/loader.py", "cross_module_import", "app.screening.contracts:ContractViolation"),
-        ("app/ingest/loader.py", "cross_module_import", "app.screening.contracts:add_two_axis_metadata"),
-        ("app/ingest/loader.py", "cross_module_import", "app.screening.contracts:validate_judgment"),
-        ("app/ingest/loader.py", "cross_module_import", "app.services.revisions:RevisionValidationError"),
-        ("app/ingest/loader.py", "cross_module_import", "app.services.revisions:append_judgment_revision"),
-        ("app/ingest/loader.py", "cross_module_import", "app.services.revisions:current_judgment_revision"),
-        ("app/ingest/loader.py", "cross_module_import", "app.services.revisions:require_carry_origin_run"),
-        ("app/routers/common.py", "cross_module_import", "app.models:Judgment"),
-        ("app/routers/notices.py", "cross_module_import", "app.models:Judgment"),
-        ("app/routers/notices.py", "cross_module_import", "app.models:Perspective"),
-        ("app/routers/notices.py", "cross_module_import", "app.models:Review"),
-        ("app/routers/runs.py", "cross_module_import", "app.models:Judgment"),
-        ("app/routers/runs.py", "cross_module_import", "app.models:ScreeningExecution"),
-        ("app/routers/runs.py", "cross_module_import", "app.models:ScreeningPolicy"),
-        ("app/routers/runs.py", "cross_module_import", "app.routers.screening:execution_response"),
-        ("app/routers/runs.py", "cross_module_import", "app.schemas:JudgmentExecutionCreateRequest"),
-        ("app/routers/runs.py", "cross_module_import", "app.schemas:ScreeningExecutionResponse"),
-        ("app/routers/runs.py", "cross_module_import", "app.screening.ollama:ModelInspectionError"),
-        ("app/routers/runs.py", "cross_module_import", "app.screening.orchestrator:ScreeningCreationError"),
-        ("app/routers/runs.py", "cross_module_import", "app.screening.orchestrator:ScreeningOrchestrator"),
         ("app/services/document_bundles.py", "cross_module_import", "app.models:Judgment"),
         ("app/services/document_bundles.py", "cross_module_import", "app.models:Review"),
         ("app/services/input_versions.py", "cross_module_import", "app.models:Review"),
-        ("app/services/metrics.py", "cross_module_import", "app.models:Judgment"),
-        ("app/services/metrics.py", "cross_module_import", "app.models:Review"),
     }
 )
 
@@ -108,17 +74,7 @@ SCHEMA_IMPORT_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset(
 )
 
 #: 검사 4 — 다른 모듈 모델로 향하는 lifecycle 모델의 `relationship`.
-LIFECYCLE_RELATIONSHIP_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset(
-    {
-        ("app/models.py", "lifecycle_relationship", "Notice.judgment"),
-        ("app/models.py", "lifecycle_relationship", "Notice.judgment_revisions"),
-        ("app/models.py", "lifecycle_relationship", "Notice.review_revisions"),
-        ("app/models.py", "lifecycle_relationship", "Notice.reviews"),
-        ("app/models.py", "lifecycle_relationship", "Run.judgment_revisions"),
-        ("app/models.py", "lifecycle_relationship", "Run.review_revisions"),
-        ("app/models.py", "lifecycle_relationship", "Run.reviews"),
-    }
-)
+LIFECYCLE_RELATIONSHIP_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset()
 
 
 #: 허용 목록 크기의 상한. 이주 task는 이 값을 **내리기만** 한다.
@@ -128,11 +84,12 @@ LIFECYCLE_RELATIONSHIP_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset(
 #: 이름 단위로 풀면서 거짓 위반 12건이 빠져 66 → 57이 됐다.
 #: 위 목록은 실제 위반과 정확히 같아야 하므로(stale 항목도 실패), 이 상한은
 #: "새 위반을 허용 목록에 추가해 정당화하는" 경로를 추가로 막는다.
-#: T5b가 lifecycle ↔ deep_review 접근을 확장점·공개 함수로 바꾸면서 import 9건
-#: (58 → 49)과 relationship 2건(9 → 7)이 빠졌다.
+#: T5a와 T5b가 각각 판정 접근 39건과 심층 검토 접근 9건을 확장점·seam·공개 함수로
+#: 뒤집으면서 58 → 10이 됐고, lifecycle relationship 9건은 전부 사라졌다.
+#: 남은 10건은 조립 계층이 아직 모듈 내부를 직접 들고 있는 자리(T7·T8이 없앤다)다.
 BASELINE_SIZES: dict[str, int] = {
-    "cross_module_import": 49,
+    "cross_module_import": 10,
     "router_orm_access": 18,
     "schema_imports_model_or_service": 1,
-    "lifecycle_relationship": 7,
+    "lifecycle_relationship": 0,
 }
