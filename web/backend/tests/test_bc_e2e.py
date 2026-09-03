@@ -312,7 +312,7 @@ class T7FakeProjectionReader:
             "policy_model": "bidops-deterministic-mock-v1",
             "reference_workflow_mode": True,
             "external_provider_approved": False,
-            "external_calls": {"openai": 0, "codex": 0, "qwen": 0, "total": 0},
+            "external_calls": {"openai": 0, "qwen": 0, "total": 0},
         } for review_id in review_ids]
 
 

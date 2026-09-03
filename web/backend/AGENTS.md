@@ -37,7 +37,7 @@
 - 현재 접근 경계는 사내망이며 로그인·role authorization은 없다. 담당자 이름은 mutation 감사 표식이고 인증 성공으로 표현하지 않는다.
 - 담당자 이름, prompt, 모델 응답, 공고·회사자료 원문, upload 파일명, credential, DB URL, 쿼리 문자열을 로그에 남기지 않는다.
 - 로그 field는 allowlist를 사용하고 외부 예외·subprocess stderr는 저장 전에 redaction한다.
-- hosted OpenAI는 운영 기본 비활성이다. 현재 Codex deep-review provider는 개발에서도 사용하지 않는다. 외부 실험은 향후 발주계획 전용 projection에서만 공개 plan metadata와 별도 승인된 최소 회사 역량 요약을 보낼 수 있다. RFP·첨부, profile 전문, evidence, 내부 review·실적은 건별 승인으로도 허용되지 않는다. 허용 projection도 개발 mode, 대상 allowlist, payload preview·승인 중 하나라도 없으면 fail closed한다.
+- hosted OpenAI는 운영 기본 비활성이다. 심층 검토 provider는 `vllm`과 `mock`뿐이며 hosted 외부 provider 경로는 제거됐다. 외부 실험은 향후 발주계획 전용 projection에서만 공개 plan metadata와 별도 승인된 최소 회사 역량 요약을 보낼 수 있다. RFP·첨부, profile 전문, evidence, 내부 review·실적은 건별 승인으로도 허용되지 않는다. 허용 projection도 개발 mode, 대상 allowlist, payload preview·승인 중 하나라도 없으면 fail closed한다.
 - 사설 vLLM과 Ollama endpoint는 목적별 allowlist와 실행 binding을 사용한다. 하나의 장애를 다른 provider 자동 fallback으로 처리하지 않는다.
 
 ## API와 서비스 구현
