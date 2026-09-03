@@ -1,7 +1,7 @@
 """Deterministic, non-production analysis provider for workflow acceptance tests.
 
-The mock implements the same bounded ``invoke`` boundary as the vLLM and
-Codex adapters.  It never calls a model or network service.  Its output is
+The mock implements the same bounded ``invoke`` boundary as the vLLM
+adapter.  It never calls a model or network service.  Its output is
 deliberately simple: exact source quotes become supported facts, while stage 3
 adds one fixed recommendation.  The normal authoritative validator, report
 materializer, persistence, and audit paths remain unchanged.

@@ -55,7 +55,6 @@ from .vllm_client import (
     VllmClient,
     VllmInvocationError,
 )
-from .codex_exec_client import CodexExecClient
 from .mock_analysis_client import MockAnalysisClient
 from .object_store import EncryptedModelResponseStore
 
@@ -293,14 +292,6 @@ class DeepReviewService:
             self.client = client
         elif settings.analysis_provider == "mock":
             self.client = MockAnalysisClient()
-        elif settings.analysis_provider == "codex-exec":
-            self.client = CodexExecClient(
-                enabled=settings.openai_enabled and settings.codex_exec_enabled,
-                binary=settings.codex_exec_binary,
-                model=settings.codex_exec_model,
-                reasoning_effort=settings.codex_exec_reasoning_effort,
-                approved_notice_ids=settings.approved_codex_notice_ids,
-            )
         else:
             self.client = VllmClient(
                 base_url=settings.vllm_base_url,
@@ -308,18 +299,11 @@ class DeepReviewService:
                 allowed_hosts=settings.vllm_allowed_hosts,
                 model=settings.vllm_model,
             )
-        self.reference_workflow_mode = bool(settings.reference_workflow_mode and (
-            (
-                settings.analysis_provider == "mock"
-                and getattr(self.client, "provider_name", None) == "mock-analysis"
-            )
-            or (
-                settings.analysis_provider == "codex-exec"
-                and settings.openai_enabled
-                and settings.codex_exec_enabled
-                and getattr(self.client, "provider_name", None) == "codex-exec-reference"
-            )
-        ))
+        self.reference_workflow_mode = bool(
+            settings.reference_workflow_mode
+            and settings.analysis_provider == "mock"
+            and getattr(self.client, "provider_name", None) == "mock-analysis"
+        )
         # The configured store is lazy so module import remains usable for
         # isolated unit tests; production lifespan/worker startup validates
         # MinIO credentials and encryption key configuration before serving.
@@ -493,7 +477,10 @@ class DeepReviewService:
                 "notice_id": notice_id, "bundle_id": str(bundle_id), "profile_version_id": str(profile.id), "profile_sha256": profile.profile_sha256,
                 "policy_version_id": str(policy.id), "policy_sha256": policy.policy_sha256, "policy_model_name": policy.model_name,
                 "analysis_provider": runtime_provider, "runtime_model": runtime_model,
-                "external_provider_approved": runtime_provider == "codex-exec-reference",
+                # No approved external analysis provider exists in this
+                # deployment; the remaining providers are vLLM and the local
+                # mock, so this audit flag is always false.
+                "external_provider_approved": False,
                 "policy_quality": quality_snapshot,
                 "reference_workflow_mode": self.reference_workflow_mode,
                 "effective_grade": basis.grade,

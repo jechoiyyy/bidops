@@ -206,13 +206,8 @@ class Settings(BaseSettings):
     vllm_model_revision: str = Field(default="", validation_alias="BIDOPS_VLLM_MODEL_REVISION")
     vllm_api_key: SecretStr = Field(default_factory=lambda: SecretStr("EMPTY"), validation_alias="BIDOPS_VLLM_API_KEY")
     vllm_allowed_hosts: str = Field(default="", validation_alias="BIDOPS_VLLM_ALLOWED_HOSTS")
-    analysis_provider: Literal["vllm", "codex-exec", "mock"] = Field(default="vllm", validation_alias="BIDOPS_ANALYSIS_PROVIDER")
+    analysis_provider: Literal["vllm", "mock"] = Field(default="vllm", validation_alias="BIDOPS_ANALYSIS_PROVIDER")
     openai_enabled: bool = Field(default=False, validation_alias="BIDOPS_OPENAI_ENABLED")
-    codex_exec_enabled: bool = Field(default=False, validation_alias="BIDOPS_CODEX_EXEC_ENABLED")
-    codex_exec_binary: str = Field(default="codex", validation_alias="BIDOPS_CODEX_EXEC_BIN")
-    codex_exec_model: str = Field(default="gpt-5.6-sol", validation_alias="BIDOPS_CODEX_EXEC_MODEL")
-    codex_exec_reasoning_effort: Literal["low", "medium", "high", "xhigh"] = Field(default="low", validation_alias="BIDOPS_CODEX_EXEC_REASONING_EFFORT")
-    codex_exec_approved_notice_ids: str = Field(default="", validation_alias="BIDOPS_CODEX_EXEC_APPROVED_NOTICE_IDS")
     reference_workflow_mode: bool = Field(default=False, validation_alias="BIDOPS_REFERENCE_WORKFLOW_MODE")
     document_worker_concurrency: int = Field(default=2, validation_alias="BIDOPS_DOCUMENT_WORKER_CONCURRENCY")
     analysis_worker_concurrency: int = Field(default=1, validation_alias="BIDOPS_ANALYSIS_WORKER_CONCURRENCY")
@@ -349,22 +344,6 @@ class Settings(BaseSettings):
             return values[namespace]
         except KeyError as error:
             raise ValueError("unknown object namespace") from error
-
-    @property
-    def approved_codex_notice_ids(self) -> tuple[int, ...]:
-        """Parse the explicit per-notice external transmission allowlist."""
-
-        if not self.codex_exec_approved_notice_ids.strip():
-            return ()
-        values: list[int] = []
-        for item in self.codex_exec_approved_notice_ids.split(","):
-            value = item.strip()
-            if not value or not value.isdecimal() or int(value) <= 0:
-                raise ValueError("BIDOPS_CODEX_EXEC_APPROVED_NOTICE_IDS must contain positive integer IDs")
-            values.append(int(value))
-        if len(set(values)) != len(values):
-            raise ValueError("BIDOPS_CODEX_EXEC_APPROVED_NOTICE_IDS must not contain duplicates")
-        return tuple(values)
 
     @property
     def ollama_endpoint(self) -> str:

@@ -199,11 +199,12 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 
 ## 개발용 Codex 심층 검토 경로가 외부 전송 허용 범위를 넘는다
 
-- 재현 조건: `docker-compose.t7.codex-reference.yml`로 `BIDOPS_ANALYSIS_PROVIDER=codex-exec`, reference mode, 승인 notice ID를 설정하고 심층 검토 stage를 실행한다.
+- 재현 조건: (제거 전) `docker-compose.t7.codex-reference.yml`로 `BIDOPS_ANALYSIS_PROVIDER=codex-exec`, reference mode, 승인 notice ID를 설정하고 심층 검토 stage를 실행한다.
 - 증상: `CodexExecClient.invoke()`가 일반 vLLM과 같은 `build_prompt()`를 사용한다. stage 입력에는 구조화된 RFP 요구사항 excerpt가 들어가고 delivery stage에는 회사 profile facts·evidence가 들어가므로 hosted Codex에 전송될 수 있다.
 - 영향: 공개 발주계획 메타데이터와 별도 승인된 최소 회사 역량 요약만 외부 모델에 보낸다는 확정 정책을 위반한다. 공고 allowlist와 기본 비활성은 실행 승인만 제한할 뿐 금지된 payload 종류를 제거하지 않는다.
-- 지금 해결할 수 없는 이유: provider code와 Compose overlay의 삭제·재설계는 실행 경로와 기존 reference 검증을 함께 바꾸므로 별도 구현·회귀 검증이 필요하다.
-- 접근 방법: 이 overlay와 `codex-exec` deep-review provider를 사용 금지 상태로 유지하고, 외부 비교 실험이 필요하면 발주계획 전용 projection·payload preview·사람 승인 경계를 별도로 구현한다. 테스트는 RFP, 첨부, profile 전문·evidence, 내부 review 필드가 payload에 들어가면 호출 전에 실패하는지 확인해야 한다.
+- 상태: **해결** (2026-09-03, provider 제거). hosted 외부 deep-review provider와 그 Compose overlay·env 예시·설정·문서를 저장소에서 삭제했다. 남는 심층 검토 provider는 `vllm`과 `mock`뿐이며, 이 경로로 RFP·첨부·profile 전문·evidence가 외부로 나갈 수 있는 코드는 존재하지 않는다.
+- 검증: `Settings.analysis_provider`의 선택지가 `{"vllm", "mock"}`뿐이고 `codex` 이름의 설정·속성이 남지 않았음을 `web/backend/tests/test_config_t9.py`가 고정한다. backend 전체 suite는 `2 failed, 1091 passed, 5 skipped`였고 실패 2건은 이 변경과 무관한 `tests/test_screening_orchestrator.py`의 기존 결함이다(기준선 `1097 passed`에서 삭제한 테스트 7건을 빼고 새 테스트 1건을 더한 값).
+- 후속: 외부 비교 실험이 다시 필요하면 발주계획 전용 projection·payload preview·사람 승인 경계를 새로 설계한다. 그 구현의 테스트는 RFP, 첨부, profile 전문·evidence, 내부 review 필드가 payload에 들어가면 호출 전에 실패하는지 확인해야 한다.
 
 ## 런타임 이미지에 회사 프로필 자료가 포함된다
 
