@@ -76,7 +76,7 @@ def context(tmp_path: Path) -> Context:
     with Session(engine) as session:
         run = Run(id=f"t3-{uuid4()}")
         notice = Notice(run=run, notice_key=f"t3-notice-{uuid4()}", title="T3", sample_role="analysis")
-        notice.judgment = Judgment(grade="우선 검토", readiness="확인")
+        session.add(Judgment(notice=notice, grade="우선 검토", readiness="확인"))
         session.add(run)
         session.commit()
         notice_id = notice.id

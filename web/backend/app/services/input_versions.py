@@ -40,6 +40,7 @@ from ..models import (
     Notice,
     NoticeObservation,
 )
+from ..screening import current_judgment
 from . import assets
 from .deep_review_validation import validate_structure
 from ..core.company_profile import ParsedItem, parse_profile, profile_path, walk_sections
@@ -334,8 +335,10 @@ def effective_grade_basis(session: Session, notice_id: int) -> GradeBasis:
         .limit(1)
     )
     observed_run_id = latest_observation.run_id if latest_observation is not None else None
-    if notice.judgment is not None:
-        return GradeBasis(notice.judgment.grade, observed_run_id, None, "screening_judgment")
+    # 판정은 선별 소유이므로 공개 seam 함수로만 읽는다(명세 §6.3).
+    judgment = current_judgment(session, notice_id)
+    if judgment is not None:
+        return GradeBasis(judgment.grade, observed_run_id, None, "screening_judgment")
     return GradeBasis(None, observed_run_id, None, "unknown")
 
 

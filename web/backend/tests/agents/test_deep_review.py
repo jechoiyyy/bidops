@@ -340,7 +340,7 @@ def agent_context(monkeypatch: pytest.MonkeyPatch):
     with Session(engine) as session:
         run = Run(id=f"agent-{uuid4()}")
         notice = Notice(run=run, notice_key=f"agent-notice-{uuid4()}")
-        notice.judgment = Judgment(grade="우선 검토", readiness="확인 완료")
+        session.add(Judgment(notice=notice, grade="우선 검토", readiness="확인 완료"))
         session.add_all([run, notice])
         session.flush()
         content = ContentObject(id=uuid4(), sha256="f" * 64, size_bytes=0, detected_mime="application/json", retention_class="fixture")

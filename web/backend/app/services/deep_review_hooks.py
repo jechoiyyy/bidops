@@ -46,7 +46,20 @@ class PreSpecAttachmentEligibilityHook:
 
         return None
 
-    def run_ingested(self, session: Any, run_id: str, directory: Path) -> RunIngestCounts:
+    def run_ingested(
+        self,
+        session: Any,
+        run_id: str,
+        directory: Path,
+        *,
+        reports_root: Path | None = None,
+    ) -> RunIngestCounts:
+        """회차의 사전규격 공고에 대해 첨부 취득 자격을 다시 계산한다.
+
+        `reports_root`는 판정 계약 산출물을 보고서 트리에서 찾는 hook을 위한
+        것이라 여기서는 쓰지 않는다. 확장점 서명의 일부이므로 받기만 한다.
+        """
+
         notice_ids = [
             int(value)
             for value in session.scalars(

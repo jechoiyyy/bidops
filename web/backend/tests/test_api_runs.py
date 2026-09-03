@@ -43,7 +43,7 @@ def runs_client():
                 sample_role=role,
                 deadline_at=datetime(2026, 8, 25, tzinfo=timezone.utc),
             )
-            notice.judgment = Judgment(grade=grade, readiness="부분 확인 필요")
+            session.add(Judgment(notice=notice, grade=grade, readiness="부분 확인 필요"))
         session.add(run)
         session.flush()
         session.add(

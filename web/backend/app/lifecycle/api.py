@@ -14,8 +14,18 @@ from collections.abc import Sequence
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..ingest.loader import IngestResult, ingest_run
-from ..models import AgencyPortal, Attachment, Notice, OrderPlan, Opportunity, Run
+from ..core.run_id import ensure_aware as _ensure_aware
+from ..ingest.loader import IngestResult, _load_order_plans, ingest_run
+from ..models import (
+    AgencyPortal,
+    Attachment,
+    IngestWarning,
+    Notice,
+    NoticeObservation,
+    OrderPlan,
+    Opportunity,
+    Run,
+)
 
 __all__ = [
     "ATTACHMENT_ORIGINS",
@@ -27,9 +37,12 @@ __all__ = [
     "list_agency_portals",
     "list_attachments_for_notice",
     "list_order_plans_for_run",
+    "load_order_plan_artifact",
     "lock_notice",
     "lock_opportunity",
     "match_agency_portal",
+    "mirror_notice_observation",
+    "record_ingest_warning",
     "register_attachment",
     "register_manual_attachment",
 ]
@@ -213,6 +226,99 @@ def delete_manual_attachment(session: Session, attachment: Attachment) -> None:
         raise ValueError("나라장터 제공 첨부는 삭제할 수 없다")
     session.delete(attachment)
 
+
+# --- 회차 적재 부수 쓰기 ------------------------------------------------------
+# 회차 경고·발주계획·공고 관측은 lifecycle 테이블이다. 회차 적재 hook을 등록한
+# 모듈이 같은 transaction 안에서 이 세 가지를 남겨야 하므로, 그 쓰기를 여기서만
+# 열어 준다(§4: lifecycle 테이블 쓰기는 lifecycle 공개 함수로만).
+
+
+def record_ingest_warning(
+    session: Session,
+    *,
+    run_id: str,
+    level: str,
+    code: str,
+    message: str,
+    context: dict | None = None,
+) -> IngestWarning:
+    """회차 경고 한 줄. 적재 순서가 곧 응답의 순서이므로 즉시 기록한다."""
+
+    warning = IngestWarning(
+        run_id=run_id,
+        level=level,
+        code=code,
+        message=message,
+        context_json=context,
+    )
+    session.add(warning)
+    return warning
+
+
+def load_order_plan_artifact(
+    session: Session,
+    *,
+    run_id: str,
+    raw: dict,
+    timezone_name: str,
+    source_file: str,
+) -> int:
+    """발주계획 산출물을 회차에 적재한다.
+
+    C-2 선별 결과 적재는 자기 모집단이 그 회차의 발주계획 전체와 같은지 확인해야
+    하므로 같은 transaction에서 이 함수를 부른다. 적재 규칙과 경고는 lifecycle의
+    회차 적재와 완전히 같다.
+    """
+
+    return _load_order_plans(session, run_id, raw, timezone_name, source_file)
+
+
+def mirror_notice_observation(
+    session: Session,
+    *,
+    notice_id: int,
+    from_run_id: str,
+    to_run_id: str,
+) -> NoticeObservation | None:
+    """이미 있는 관측의 불변 snapshot을 다른 회차로 복제한다.
+
+    파생 회차로 발행된 판정은 자기 source 회차의 관측을 참조한다. 그 후보가
+    과거 표본 밖이면 source 회차 관측이 아직 없을 수 있으므로, 동결 입력이
+    가리키는 회차에 같은 snapshot을 세운 뒤에야 revision을 붙일 수 있다.
+    이미 있으면 아무것도 하지 않는다.
+    """
+
+    if from_run_id == to_run_id:
+        return None
+    existing = session.scalar(
+        select(NoticeObservation).where(
+            NoticeObservation.notice_id == notice_id,
+            NoticeObservation.run_id == to_run_id,
+        )
+    )
+    if existing is not None:
+        return existing
+    target_run = session.get(Run, to_run_id)
+    source_observation = session.scalar(
+        select(NoticeObservation).where(
+            NoticeObservation.notice_id == notice_id,
+            NoticeObservation.run_id == from_run_id,
+        )
+    )
+    if target_run is None or source_observation is None:
+        raise ValueError("verified v3 source observation cannot be materialized")
+    observation = NoticeObservation(
+        notice_id=notice_id,
+        run_id=to_run_id,
+        observed_at=_ensure_aware(target_run.generated_at, target_run.timezone),
+        changed_fields_json=[],
+        snapshot_schema_version=source_observation.snapshot_schema_version,
+        snapshot_jsonb=source_observation.snapshot_jsonb,
+        source_sha256=source_observation.source_sha256,
+    )
+    session.add(observation)
+    session.flush()
+    return observation
 
 # --- 회차 적재 --------------------------------------------------------------
 # `ingest_run`은 `..ingest.loader`에서 그대로 재공개한다(위 import). 선별 worker가

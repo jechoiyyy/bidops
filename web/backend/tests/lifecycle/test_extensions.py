@@ -188,8 +188,9 @@ class _RunHook:
             return RunDirectoryClaim(source_run_id=f"src-{self.label}", load=lambda *a, **k: self.counts)
         return None
 
-    def run_ingested(self, session, run_id: str, directory: Path) -> RunIngestCounts:
+    def run_ingested(self, session, run_id: str, directory: Path, *, reports_root: Path | None = None) -> RunIngestCounts:
         self.order.append(self.label)
+        self.reports_root = reports_root
         return self.counts
 
 

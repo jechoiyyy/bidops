@@ -780,7 +780,7 @@ def _seed_review_context(engine, monkeypatch):
     with Session(engine) as session:
         run = Run(id=f"t5-{uuid4()}")
         notice = Notice(run=run, notice_key=f"t5-notice-{uuid4()}")
-        notice.judgment = Judgment(grade="우선 검토", readiness="확인 완료")
+        session.add(Judgment(notice=notice, grade="우선 검토", readiness="확인 완료"))
         session.add_all([run, notice])
         session.flush()
         bundle = DocumentBundle(id=uuid4(), notice_id=notice.id, revision=1, version=1, status="ready", issues_snapshot=[], confirmed_by_name="담당자")

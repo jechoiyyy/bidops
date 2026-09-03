@@ -72,7 +72,7 @@ def agent_context(tmp_path: Path) -> tuple[object, DocumentBundleService, int]:
     with Session(engine) as session:
         run = Run(id=f"agent-{uuid4()}")
         notice = Notice(run=run, notice_key=f"notice-{uuid4()}", title="agent", sample_role="analysis")
-        notice.judgment = Judgment(grade="우선 검토", readiness="확인")
+        session.add(Judgment(notice=notice, grade="우선 검토", readiness="확인"))
         session.add(run)
         session.commit()
         notice_id = notice.id

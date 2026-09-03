@@ -63,7 +63,8 @@ def api_client():
             agency="테스트 기관",
             sample_role="analysis",
         )
-        excluded.judgment = Judgment(
+        excluded_judgment = Judgment(
+            notice=excluded,
             schema_version="bidops.decisions.v2",
             grade="제외",
             readiness="해당 없음",
@@ -75,12 +76,15 @@ def api_client():
             agency="다른 기관",
             sample_role="audit",
         )
-        audit.judgment = Judgment(
+        audit_judgment = Judgment(
+            notice=audit,
             schema_version="bidops.decisions.v2",
             grade="우선 검토",
             readiness="부분 확인 필요",
         )
-        session.add(run)
+        # 판정은 공고 relationship 을 통해 저장되지 않으므로(명세 §4) 함께 넣는다.
+        # 회차를 먼저 넣어 공고 식별자 순서를 이전과 같게 유지한다.
+        session.add_all([run, judgment, excluded_judgment, audit_judgment])
         session.commit()
 
         def override_db():
@@ -161,7 +165,7 @@ def related_api_client():
             ),
         ]
         for notice in notices:
-            notice.judgment = Judgment(grade="관찰 대상", readiness="확인 완료")
+            session.add(Judgment(notice=notice, grade="관찰 대상", readiness="확인 완료"))
         session.add(run)
         session.commit()
 

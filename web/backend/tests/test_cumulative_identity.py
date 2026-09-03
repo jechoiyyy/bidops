@@ -10,9 +10,9 @@ from app.ingest.contracts import NoticeContract
 from app.ingest.loader import (
     NOTICE_OBSERVATION_SNAPSHOT_SCHEMA,
     ObservationSnapshotConflictError,
-    _remove_judgments_without_screening,
     _upsert_notice,
 )
+from app.screening.ingest import _remove_judgments_without_screening
 from app.models import (
     Judgment,
     Notice,
@@ -36,7 +36,9 @@ def test_notice_identity_is_global_and_run_relationship_is_observation_backed():
     assert "run_id" not in Notice.__table__.c
     assert "uq_notice_key" in {item.name for item in Notice.__table__.constraints}
     assert "delete-orphan" not in str(Run.notices.property.cascade)
-    assert "delete-orphan" not in str(Run.reviews.property.cascade)
+    # 회차는 더 이상 리뷰로 향하는 relationship 을 갖지 않는다(명세 §4). 리뷰가
+    # 회차 삭제로 사라지지 않는다는 불변 조건은 아래의 FK ondelete 가 지킨다.
+    assert not hasattr(Run, "reviews")
     assert NoticeObservation.__table__.c.run_id.nullable is False
     assert Review.__table__.c.run_id.nullable is True
     assert next(iter(Review.__table__.c.run_id.foreign_keys)).ondelete == "SET NULL"
@@ -192,7 +194,7 @@ def test_deleting_run_preserves_notice_and_review_but_removes_observation():
         )
         notice = Notice(run=run, notice_key="bid:IDENTITY:DELETE")
         review = Review(notice=notice, run=run, disposition="보류")
-        session.add(run)
+        session.add_all([run, review])
         session.commit()
 
         session.delete(run)
@@ -216,8 +218,8 @@ def test_incomplete_new_observation_does_not_delete_canonical_judgment():
         )
         notice = Notice(notice_key="bid:IDENTITY:INCOMPLETE")
         notice.observations.append(NoticeObservation(run=run, changed_fields_json=[]))
-        notice.judgment = Judgment(grade="검토 권장", readiness="확인 완료")
-        session.add(run)
+        judgment = Judgment(notice=notice, grade="검토 권장", readiness="확인 완료")
+        session.add_all([run, judgment])
         session.commit()
 
         _remove_judgments_without_screening(session, {notice.notice_key: notice})

@@ -2,31 +2,26 @@
 
 from __future__ import annotations
 
-import re
-from collections import Counter
 from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
-from sqlalchemy import case, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from ..core.config import get_settings
-from ..core.constants import GRADE_ORDER, READINESS_ORDER
 from ..core.db import get_db
 from ..ingest.loader import discover_run_dirs, ingest_run
-from ..models import IngestWarning, Judgment, Notice, NoticeObservation, Run, ScreeningExecution, ScreeningPolicy
+from ..lifecycle import extension_registry
+from ..models import IngestWarning, Notice, NoticeObservation, Run
 from ..schemas import (
     ArtifactValidationResponse,
     CollectionScopeResponse,
     DeadlineNotice,
-    DistributionItem,
     FunnelItem,
     IngestRequest,
     IngestResponse,
-    JudgmentExecutionCreateRequest,
-    ScreeningExecutionResponse,
     PipelineExecutionResponse,
     PipelineLogResponse,
     PipelineLogLineResponse,
@@ -35,7 +30,6 @@ from ..schemas import (
     RunListResponse,
     RunStatsResponse,
     PipelineStageResponse,
-    VerificationRequest,
     WarningListResponse,
     WarningResponse,
 )
@@ -46,9 +40,6 @@ from ..services.pipeline import (
     execution_response,
     log_response,
 )
-from ..screening.ollama import ModelInspectionError
-from ..screening.orchestrator import ScreeningCreationError, ScreeningOrchestrator
-from .screening import execution_response as screening_execution_response
 from .common import (
     get_run,
     load_json_file,
@@ -61,7 +52,6 @@ from .common import (
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
 
-FOCUS_ORDER = ["AI/데이터", "블록체인·DID", "공공 SI·통합관리", "해당 없음"]
 pipeline_service = PipelineService()
 
 
@@ -79,13 +69,6 @@ def _pipeline_service(request: Request) -> PipelineService:
         value = pipeline_service
         state.pipeline_service = value
     return value
-
-
-def _screening_orchestrator(request: Request, session: Session) -> ScreeningOrchestrator:
-    value = getattr(request.app.state, "screening_orchestrator", None)
-    if callable(getattr(value, "create_execution", None)):
-        return value
-    return ScreeningOrchestrator(session_factory=session)
 
 
 def _run_warnings(session: Session, run_id: str) -> list[IngestWarning]:
@@ -293,57 +276,6 @@ def ingest_selected_run(
     )
 
 
-@router.post("/{run_id}/pipeline/judgment", response_model=ScreeningExecutionResponse, status_code=202)
-def start_judgment_pipeline(
-    run_id: str,
-    payload: JudgmentExecutionCreateRequest,
-    request: Request,
-    session: Session = Depends(get_db),
-) -> ScreeningExecutionResponse:
-    """Enqueue one immutable full-run judgment and return immediately."""
-
-    run = get_run(session, run_id)
-    orchestrator = _screening_orchestrator(request, session)
-    try:
-        # A fresh tags inspection is deliberately done before any artifact or
-        # queue write.  The orchestrator repeats the binding while preparing
-        # the frozen input, so a changed model cannot be silently accepted.
-        ollama = getattr(orchestrator, "ollama", None)
-        if ollama is not None:
-            ollama.inspect_model(refresh=True)
-        created = orchestrator.create_execution(
-            run_id=run.id,
-            policy_version=payload.policy_version,
-            profile_source=payload.profile_source,
-            requested_by=payload.requested_by,
-            scope="full_run",
-            trigger="manual_run",
-        )
-    except ModelInspectionError as exc:
-        raise HTTPException(status_code=503, detail="모델 사전 확인을 완료할 수 없습니다.") from exc
-    except ScreeningCreationError as exc:
-        if exc.code in {"precondition_failed", "model_inspection", "ollama_unavailable"}:
-            raise HTTPException(status_code=503, detail="모델 사전 확인을 완료할 수 없습니다.") from exc
-        if exc.code == "profile_snapshot":
-            raise HTTPException(status_code=400, detail="회사 프로필 스냅샷을 준비할 수 없습니다.") from exc
-        if exc.code in {"policy_mismatch", "input_error"}:
-            # Missing policy/profile and malformed frozen input are reported
-            # without exposing filesystem paths or policy/profile contents.
-            if exc.code == "policy_mismatch" and session.get(ScreeningPolicy, payload.policy_version) is None:
-                raise HTTPException(status_code=404, detail="정책 버전을 찾을 수 없습니다.") from exc
-            raise HTTPException(status_code=400, detail="판정 입력을 준비할 수 없습니다.") from exc
-        raise HTTPException(status_code=400, detail="판정 실행을 준비할 수 없습니다.") from exc
-    except (OSError, ConnectionError, TimeoutError) as exc:
-        raise HTTPException(status_code=503, detail="모델 사전 확인을 완료할 수 없습니다.") from exc
-    session.rollback()
-    row = session.scalar(
-        select(ScreeningExecution).where(ScreeningExecution.execution_id == created.execution_id)
-    )
-    if row is None:
-        raise HTTPException(status_code=500, detail="판정 실행을 읽을 수 없습니다.")
-    return screening_execution_response(session, row)
-
-
 @router.post(
     "/{run_id}/pipeline/{stage}",
     response_model=PipelineExecutionResponse,
@@ -434,13 +366,8 @@ def run_stats(run_id: str, session: Session = Depends(get_db)) -> RunStatsRespon
         select(Notice)
         .join(NoticeObservation, NoticeObservation.notice_id == Notice.id)
         .where(NoticeObservation.run_id == run.id)
-        .options(
-            selectinload(Notice.judgment).selectinload(Judgment.verification_items),
-            selectinload(Notice.attachments),
-        )
+        .options(selectinload(Notice.attachments))
     ).all()
-    analysis = [notice for notice in notices if notice.sample_role == "analysis"]
-    analysis_judgments = [notice.judgment for notice in analysis if notice.judgment is not None]
     counts = run.counts_json if isinstance(run.counts_json, dict) else {}
     collection = counts.get("collection") if isinstance(counts.get("collection"), dict) else {}
     # collected-notices.json 은 .gitignore 대상이라 없을 수 있다. 파일이 없어
@@ -448,58 +375,32 @@ def run_stats(run_id: str, session: Session = Depends(get_db)) -> RunStatsRespon
     # 모르는 경우에는 0으로 채우지 않고 None 으로 남긴다.
     collected = _optional_count(collection.get("total"))
     candidate = _optional_count(collection.get("candidate_pool"))
-    priority = sum(judgment.grade == "우선 검토" for judgment in analysis_judgments)
-    audit_missed = sum(
-        notice.sample_role == "audit" and notice.judgment is not None and notice.judgment.grade != "제외"
-        for notice in notices
-    )
-    queue_count = sum(
-        notice.sample_role == "analysis"
-        and notice.judgment is not None
-        and notice.judgment.grade != "제외"
-        for notice in notices
-    )
 
-    def distribution(values: list[str | None], order: list[str]) -> list[DistributionItem]:
-        counter = Counter(value or "값 없음" for value in values)
-        keys = order + sorted(key for key in counter if key not in order)
-        return [DistributionItem(key=key, label=key, count=counter[key]) for key in keys if counter[key]]
-
-    verification: dict[str, dict[str, Any]] = {}
-    for notice in notices:
-        if notice.sample_role != "analysis" or not notice.judgment:
-            continue
-        for item in notice.judgment.verification_items:
-            if not item.blocking or not item.item:
-                continue
-            record = verification.setdefault(
-                item.item,
-                {"count": 0, "notice_pks": [], "profile_sections": []},
-            )
-            record["count"] += 1
-            record["notice_pks"].append(notice.id)
-            # 근거 문장은 "회사 프로필 5.2의 조달 자격 항목이" 처럼 절 번호 뒤에
-            # 조사가 붙어 나오므로, 절 번호만 잘라낸다.
-            match = re.search(r"회사 프로필\s+(\d+(?:\.\d+)*)", item.why or "")
-            if match and match.group(1) not in record["profile_sections"]:
-                record["profile_sections"].append(match.group(1))
+    # 판정이 채우는 부분은 전부 projection이 회차 단위로 한 번에 돌려준다.
+    # 제공자가 없으면 빈 mapping이므로 분포는 빈 목록, 건수는 0이 된다(§6.1).
+    projection = extension_registry().judgment_projection
+    judgment_stats = projection.run_stats(session, run.id)
+    fields = projection.notice_fields(session, [notice.id for notice in notices])
+    blocking = judgment_stats.get("blocking_verification_items", {})
 
     imminent: list[DeadlineNotice] = []
     start = run.generated_at
     end = start + timedelta(days=7)
     for notice in sorted(
         (item for item in notices if item.deadline_at is not None),
-        key=lambda item: item.deadline_at,
+        # 마감이 같은 공고의 순서는 이전에 조회 반환 순서에 맡겨져 있어 실행마다
+        # 달라질 수 있었다. 목록 endpoint 와 같은 기준(마감 → 식별자)으로 고정한다.
+        key=lambda item: (item.deadline_at, item.id),
     ):
         if not (start <= notice.deadline_at <= end):
             continue
-        item = notice_list_item(notice, run.id)
-        blocking = [
-            verification_item.item
-            for verification_item in (notice.judgment.verification_items if notice.judgment else [])
-            if verification_item.blocking and verification_item.item
-        ]
-        imminent.append(DeadlineNotice(**item.model_dump(), blocking_verification_items=blocking))
+        item = notice_list_item(notice, run.id, fields.get(notice.id, {}))
+        imminent.append(
+            DeadlineNotice(
+                **item.model_dump(),
+                blocking_verification_items=list(blocking.get(notice.id, [])),
+            )
+        )
 
     return RunStatsResponse(
         run_id=run.id,
@@ -508,27 +409,18 @@ def run_stats(run_id: str, session: Session = Depends(get_db)) -> RunStatsRespon
         collected_count=collected,
         candidate_count=candidate,
         sample_count=len(notices),
-        priority_review_count=priority,
-        audit_missed_count=audit_missed,
+        priority_review_count=int(judgment_stats.get("priority_review_count", 0)),
+        audit_missed_count=int(judgment_stats.get("audit_missed_count", 0)),
         funnel=[
             FunnelItem(key="collected", label="수집", count=collected),
             FunnelItem(key="candidate_pool", label="후보", count=candidate),
             FunnelItem(key="sample", label="표본", count=len(notices)),
-            FunnelItem(key="review_queue", label="검토 대기", count=queue_count),
+            *judgment_stats.get("funnel", []),
         ],
-        grade_distribution=distribution([judgment.grade for judgment in analysis_judgments], GRADE_ORDER),
-        readiness_distribution=distribution([judgment.readiness for judgment in analysis_judgments], READINESS_ORDER),
-        focus_distribution=distribution([judgment.primary_focus for judgment in analysis_judgments], FOCUS_ORDER),
-        verification_requests=[
-            # Sort by volume first so the dashboard can render directly.
-            VerificationRequest(
-                item=item,
-                count=record["count"],
-                notice_pks=record["notice_pks"],
-                profile_sections=record["profile_sections"],
-            )
-            for item, record in sorted(verification.items(), key=lambda pair: (-pair[1]["count"], pair[0]))
-        ],
+        grade_distribution=list(judgment_stats.get("grade_distribution", [])),
+        readiness_distribution=list(judgment_stats.get("readiness_distribution", [])),
+        focus_distribution=list(judgment_stats.get("focus_distribution", [])),
+        verification_requests=list(judgment_stats.get("verification_requests", [])),
         imminent_deadlines=imminent,
     )
 

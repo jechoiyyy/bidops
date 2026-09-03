@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Mapping
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -13,7 +14,8 @@ from sqlalchemy.orm import Session
 
 from ..core.config import get_settings
 from ..ingest.loader import parse_run_id
-from ..models import Judgment, Notice, NoticeObservation, Run
+from ..lifecycle import extension_registry
+from ..models import Notice, NoticeObservation, Run
 from ..schemas import NoticeListItem, RunCounts, RunSummary
 
 
@@ -59,6 +61,15 @@ def run_summary(run: Run) -> RunSummary:
     )
 
 
+def _session_of(notice: Notice) -> Session:
+    """이 인스턴스를 들고 있는 session. 목록 밖에서 한 건만 그릴 때 쓴다."""
+
+    session = Session.object_session(notice)
+    if session is None:  # pragma: no cover - 라우터는 항상 session 안에서 부른다.
+        raise HTTPException(status_code=500, detail="공고 판정을 읽을 수 없습니다.")
+    return session
+
+
 def attachment_status(notice: Notice) -> str:
     if not notice.attachments:
         return "none"
@@ -81,8 +92,23 @@ def latest_notice_observation(notice: Notice) -> NoticeObservation | None:
     )
 
 
-def notice_list_item(notice: Notice, run_id: str | None = None) -> NoticeListItem:
-    judgment = notice.judgment
+def notice_list_item(
+    notice: Notice,
+    run_id: str | None = None,
+    judgment_fields: Mapping[str, Any] | None = None,
+) -> NoticeListItem:
+    """목록 한 줄.
+
+    등급·준비 상태·focus는 lifecycle이 아니라 판정 projection이 채운다(§6.1).
+    호출부가 회차 단위로 한 번에 읽은 값을 `judgment_fields`로 넘기며, 넘기지
+    않으면 이 공고 하나만 다시 읽는다. 제공자가 없으면 세 값은 `None`이다.
+    """
+
+    fields = judgment_fields
+    if fields is None:
+        fields = extension_registry().judgment_projection.notice_fields(
+            _session_of(notice), [notice.id]
+        ).get(notice.id, {})
     observation = latest_notice_observation(notice)
     effective_run_id = run_id or (observation.run_id if observation is not None else None)
     if effective_run_id is None:
@@ -101,9 +127,9 @@ def notice_list_item(notice: Notice, run_id: str | None = None) -> NoticeListIte
         sample_role=notice.sample_role,
         sample_stratum=notice.sample_stratum,
         collection_bucket=notice.collection_bucket,
-        grade=judgment.grade if judgment else None,
-        readiness=judgment.readiness if judgment else None,
-        focus=judgment.primary_focus if judgment else None,
+        grade=fields.get("grade"),
+        readiness=fields.get("readiness"),
+        focus=fields.get("focus"),
         attachment_count=len(notice.attachments),
         attachment_status=attachment_status(notice),
     )
