@@ -20,6 +20,7 @@ from ..common import (
     AgentName,
     AgentRunView,
 )
+from ...schemas.deep_reviews import AttemptView, DeepReviewView
 from ...models import (
     AuditEvent,
     DeepReview,
@@ -49,7 +50,6 @@ from .projection import (
 
 if TYPE_CHECKING:
     from ...services.deep_reviews import DeepReviewService, DeepReviewServiceError
-    from ...routers.deep_reviews import AttemptView, DeepReviewView
 
 
 CommandT = TypeVar("CommandT", bound=BaseModel)
@@ -351,8 +351,6 @@ class DeepReviewAgent:
             self._actor(typed),
             typed.request_id,  # type: ignore[arg-type]
         )
-        from ...routers.deep_reviews import DeepReviewView
-
         domain = result if isinstance(result, DeepReviewView) else DeepReviewView.model_validate(result)
         run = self._project(current_session, domain.id)
         return AgentActionResult[DeepReviewView](run=run, result=domain)
@@ -370,8 +368,6 @@ class DeepReviewAgent:
             self._actor(typed),
             typed.request_id,  # type: ignore[arg-type]
         )
-        from ...routers.deep_reviews import AttemptView
-
         domain = result if isinstance(result, AttemptView) else AttemptView.model_validate(result)
         run = self._project(session, review_id, attempt_id=domain.id)
         return AgentActionResult[AttemptView](run=run, result=domain)

@@ -3,78 +3,50 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, Literal, get_args
+from typing import Any, get_args
 
-from fastapi import APIRouter, Depends, Path as ApiPath, Query
-from fastapi.responses import JSONResponse
-from sqlalchemy import and_, case, func, or_, select
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, aliased
 
 from ..core.db import get_db
-from ..models import (
-    Attachment,
-    AttachmentFetch,
-    Notice,
-    Opportunity,
-    OpportunityLink,
-    PreSpecOverviewReview,
-)
+from ..lifecycle import PreSpecDocumentCounts, extension_registry
+from ..models import Attachment, Notice, Opportunity, OpportunityLink
 from ..schemas.pre_specs import (
     PreSpecDocumentSummary,
     PreSpecListItem,
     PreSpecListResponse,
-    PreSpecOverviewReviewsResponse,
-    PreSpecOverviewReviewsV2Response,
     PreSpecOverviewStatusCount,
     PreSpecOverviewReviewStatus,
     PreSpecOrigin,
     PreSpecSort,
 )
+from ..services.opportunity_connections import tracked_order_plan_connection_predicate
 from ..services.opportunity_integrity import (
     active_opportunity_predicate,
     authoritative_link_predicate,
-)
-from ..services.prespec_attachments import tracked_order_plan_connection_predicate
-from ..services.prespec_overview import (
-    OverviewPreparationError,
-    OverviewReviewNotFound,
-    OverviewScopeError,
-    get_overview_reviews,
-    get_overview_reviews_v2,
 )
 from .common import decimal_float
 
 
 router = APIRouter(prefix="/api/pre-specs", tags=["pre-specs"])
 
-_FETCH_STATUSES = {
-    "완료": "completed",
-    "대기": "pending",
-    "진행": "running",
-    "차단": "blocked",
-    "실패": "failed",
-}
 
+def _attachment_counts_subquery():
+    """공고별 현재 첨부 수. lifecycle이 자기 `attachment` 테이블에서 직접 센다.
 
-def _document_counts_subquery():
-    count_columns = [
-        Attachment.notice_id.label("notice_id"),
-        func.count(Attachment.id).label("attachments"),
-    ]
-    for status, label in _FETCH_STATUSES.items():
-        count_columns.append(
-            func.coalesce(
-                func.sum(case((AttachmentFetch.status == status, 1), else_=0)),
-                0,
-            ).label(label)
-        )
+    취득 상태 건수(완료·대기·진행·차단·실패)는 개요·문서 projection(명세 §6.1)이
+    공고 id 집합을 받아 채운다.
+    """
+
     return (
-        select(*count_columns)
-        .select_from(Attachment)
-        .outerjoin(AttachmentFetch, AttachmentFetch.attachment_id == Attachment.id)
+        select(
+            Attachment.notice_id.label("notice_id"),
+            func.count(Attachment.id).label("attachments"),
+        )
         .where(Attachment.retired_at.is_(None))
         .group_by(Attachment.notice_id)
-        .subquery("pre_spec_document_counts")
+        .subquery("pre_spec_attachment_counts")
     )
 
 
@@ -119,91 +91,6 @@ def _count(value: Any) -> int:
     return int(value or 0)
 
 
-@router.get("/{notice_id}/overview-reviews", response_model=PreSpecOverviewReviewsResponse)
-def get_pre_spec_overview_reviews(
-    notice_id: int = ApiPath(..., ge=1),
-    session: Session = Depends(get_db),
-) -> PreSpecOverviewReviewsResponse | JSONResponse:
-    """Return safe lineage metadata for the independent overview stage."""
-
-    try:
-        return get_overview_reviews(session, notice_id)
-    except OverviewReviewNotFound:
-        return JSONResponse(
-            status_code=404,
-            content={
-                "error": {
-                    "code": "not_found",
-                    "message": "요청한 사전규격 공고를 찾을 수 없습니다",
-                    "details": None,
-                },
-                "request_id": None,
-            },
-        )
-    except OverviewPreparationError:
-        return JSONResponse(
-            status_code=500,
-            content={
-                "error": {
-                    "code": "processing_failed",
-                    "message": "사전규격 개요 검토를 준비할 수 없습니다",
-                    "details": None,
-                },
-                "request_id": None,
-            },
-        )
-
-
-@router.get(
-    "/{notice_id}/overview-reviews/v2",
-    response_model=PreSpecOverviewReviewsV2Response,
-)
-def get_pre_spec_overview_reviews_v2(
-    notice_id: int = ApiPath(..., ge=1),
-    session: Session = Depends(get_db),
-) -> PreSpecOverviewReviewsV2Response | JSONResponse:
-    """Return the phase-2 validated result projection without internals."""
-
-    try:
-        return get_overview_reviews_v2(session, notice_id)
-    except OverviewReviewNotFound:
-        return JSONResponse(
-            status_code=404,
-            content={
-                "error": {
-                    "code": "not_found",
-                    "message": "요청한 사전규격 공고를 찾을 수 없습니다",
-                    "details": None,
-                },
-                "request_id": None,
-            },
-        )
-    except OverviewScopeError:
-        return JSONResponse(
-            status_code=409,
-            content={
-                "error": {
-                    "code": "validation_failed",
-                    "message": "사전규격 개요 결과의 입력 범위를 검증할 수 없습니다",
-                    "details": None,
-                },
-                "request_id": None,
-            },
-        )
-    except OverviewPreparationError:
-        return JSONResponse(
-            status_code=500,
-            content={
-                "error": {
-                    "code": "processing_failed",
-                    "message": "사전규격 개요 검토를 준비할 수 없습니다",
-                    "details": None,
-                },
-                "request_id": None,
-            },
-        )
-
-
 @router.get("", response_model=PreSpecListResponse)
 def list_pre_specs(
     notice_pk: int | None = Query(default=None, ge=1),
@@ -218,10 +105,11 @@ def list_pre_specs(
 ) -> PreSpecListResponse:
     """List all cumulative pre-spec notices with safe attachment summaries."""
 
+    projection = extension_registry().overview_document_projection
     connected_link = _connected_link_subquery()
     selected_link = aliased(OpportunityLink, name="pre_spec_selected_link")
     selected_opportunity = aliased(Opportunity, name="pre_spec_selected_opportunity")
-    document_counts = _document_counts_subquery()
+    attachment_counts = _attachment_counts_subquery()
     tracked_exception = tracked_order_plan_connection_predicate(Notice.id)
     sw_status = Notice.qualification_flags_json["sw_business_status"].as_string()
     division_value = Notice.qualification_flags_json["business_division"].as_string()
@@ -244,8 +132,6 @@ def list_pre_specs(
         needle = f"%{q.strip()}%"
         conditions.append(or_(Notice.title.ilike(needle), Notice.agency.ilike(needle)))
 
-    overview_review = aliased(PreSpecOverviewReview, name="pre_spec_overview_review")
-
     query = (
         select(
             Notice,
@@ -253,51 +139,41 @@ def list_pre_specs(
             selected_opportunity.tracking_status.label("tracking_status"),
             selected_opportunity.first_registered_stage.label("first_registered_stage"),
             kept_by_tracking.label("kept_by_tracking"),
-            document_counts.c.attachments,
-            document_counts.c.completed,
-            document_counts.c.pending,
-            document_counts.c.running,
-            document_counts.c.blocked,
-            document_counts.c.failed,
-            overview_review.status.label("overview_review_status"),
+            attachment_counts.c.attachments,
         )
         .select_from(Notice)
         .outerjoin(connected_link, connected_link.c.notice_id == Notice.id)
         .outerjoin(selected_link, selected_link.id == connected_link.c.link_id)
         .outerjoin(selected_opportunity, selected_opportunity.id == selected_link.opportunity_id)
-        .outerjoin(document_counts, document_counts.c.notice_id == Notice.id)
-        # prespec_overview_review has a UNIQUE(notice_id) row per notice, so
-        # this outer join can only add or drop columns — it never multiplies
-        # or drops a Notice row, and the existing distinct-notice count/total
-        # below stays correct.
-        .outerjoin(overview_review, overview_review.notice_id == Notice.id)
+        .outerjoin(attachment_counts, attachment_counts.c.notice_id == Notice.id)
         .where(*conditions)
     )
-    count_query = query.with_only_columns(
-        func.count(func.distinct(Notice.id)),
-        maintain_column_froms=True,
-    ).order_by(None)
-    total = int(session.scalar(count_query) or 0)
 
-    # Group counts over the *entire* filtered set (not the returned page) so
-    # the list screen can show all-groups-always-visible collapsible sections
-    # with correct counts without an N+1 per-row lookup (docs/design/PLAN.md
-    # 3단계 결정 (a)/(b); see docs/tracking/decisions and the PreSpecsPage
-    # test suite for the rendered contract).
-    status_count_query = query.with_only_columns(
-        overview_review.status,
-        func.count(func.distinct(Notice.id)),
-        maintain_column_froms=True,
-    ).group_by(overview_review.status).order_by(None)
-    status_counts_by_value: dict[str | None, int] = {
-        row[0]: int(row[1] or 0) for row in session.execute(status_count_query).all()
-    }
-    overview_status_counts = [
-        PreSpecOverviewStatusCount(status=status, count=status_counts_by_value.get(status, 0))
-        for status in get_args(PreSpecOverviewReviewStatus)
+    # 필터 전체의 공고 id 집합 하나로 `total`과 그룹 건수를 모두 낸다. 그룹
+    # 건수는 반환 페이지가 아니라 필터 전체를 설명해야 하므로(docs/design/PLAN.md
+    # 3단계 결정 (a)/(b)) projection에 전체 집합을 넘긴다. 공고당 조회는 없다.
+    filtered_ids = [
+        int(value)
+        for value in session.scalars(
+            query.with_only_columns(Notice.id, maintain_column_froms=True)
+            .distinct()
+            .order_by(None)
+        ).all()
     ]
+    total = len(filtered_ids)
+
+    status_counts = projection.overview_status_counts(session, filtered_ids)
+    overview_status_counts: list[PreSpecOverviewStatusCount] = []
+    counted = 0
+    for status in get_args(PreSpecOverviewReviewStatus):
+        count = int(status_counts.get(status, 0))
+        counted += count
+        overview_status_counts.append(PreSpecOverviewStatusCount(status=status, count=count))
+    # 개요 검토 행이 없는 공고(미시작)는 열한 번째 bucket이다. 제공자가 없으면
+    # 전체가 여기 들어간다. 제공자가 전체보다 많이 세면 응답 계약(ge=0)을 지키려
+    # 0으로 막는다 — 그런 제공자는 자기 테스트에서 잡혀야 한다.
     overview_status_counts.append(
-        PreSpecOverviewStatusCount(status=None, count=status_counts_by_value.get(None, 0))
+        PreSpecOverviewStatusCount(status=None, count=max(total - counted, 0))
     )
 
     if sort == "deadline":
@@ -305,6 +181,11 @@ def list_pre_specs(
     else:
         query = query.order_by(Notice.published_at.desc().nulls_last(), Notice.id.desc())
     rows = session.execute(query.offset(offset).limit(limit)).all()
+
+    page_ids = [int(row._mapping[Notice].id) for row in rows]
+    overview_status = projection.overview_status(session, page_ids)
+    document_counts = projection.document_counts(session, page_ids)
+    absent_counts = PreSpecDocumentCounts()
 
     items: list[PreSpecListItem] = []
     for row in rows:
@@ -317,6 +198,7 @@ def list_pre_specs(
             origin_value = "신규"
         else:
             origin_value = None
+        counts = document_counts.get(notice.id, absent_counts)
         items.append(
             PreSpecListItem(
                 notice_pk=notice.id,
@@ -332,14 +214,14 @@ def list_pre_specs(
                 opportunity_id=mapping["opportunity_id"],
                 tracking_status=mapping["tracking_status"],
                 kept_by_tracking=bool(mapping["kept_by_tracking"]),
-                overview_review_status=mapping["overview_review_status"],
+                overview_review_status=overview_status.get(notice.id),
                 document=PreSpecDocumentSummary(
                     attachments=_count(mapping["attachments"]),
-                    completed=_count(mapping["completed"]),
-                    pending=_count(mapping["pending"]),
-                    running=_count(mapping["running"]),
-                    blocked=_count(mapping["blocked"]),
-                    failed=_count(mapping["failed"]),
+                    completed=counts.completed,
+                    pending=counts.pending,
+                    running=counts.running,
+                    blocked=counts.blocked,
+                    failed=counts.failed,
                 ),
             )
         )

@@ -12,7 +12,8 @@ from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session, selectinload
 
 from ..core.db import get_db
-from ..models import Notice, Opportunity, OpportunityLink
+from ..lifecycle import extension_registry
+from ..models import Opportunity, OpportunityLink
 from ..schemas.opportunities import (
     CandidateDecisionRequest,
     OpportunityDetailResponse,
@@ -26,7 +27,6 @@ from ..schemas.opportunities import (
 )
 from ..services import opportunity_integrity, opportunity_tracking
 from ..core.api_errors import BundleServiceError, validate_actor
-from ..services.prespec_attachments import refresh_fetch_eligibility
 
 
 router = APIRouter(prefix="/api/opportunities", tags=["opportunities"])
@@ -343,20 +343,13 @@ def update_tracking_status(
         )
         session.commit()
         try:
-            prespec_notice_ids = session.scalars(
-                select(Notice.id)
-                .join(OpportunityLink, OpportunityLink.notice_id == Notice.id)
-                .where(
-                    OpportunityLink.opportunity_id == opportunity_id,
-                    OpportunityLink.stage == "notice",
-                    Notice.source_type == "pre_spec",
-                )
-            ).all()
-            refresh_fetch_eligibility(session, notice_ids=prespec_notice_ids)
+            # 추적 결정 변경됨 hook(명세 §6.2). 어느 모듈이 무엇을 하는지는 모르고,
+            # 사람 결정이 commit된 뒤 별도 transaction에서 부른다.
+            extension_registry().tracking_decision_changed(session, opportunity_id)
             session.commit()
         except Exception:
-            # The human tracking decision is already durable.  Eligibility is
-            # a retryable side effect and must never rewrite the four human
+            # The human tracking decision is already durable.  The hook is a
+            # retryable side effect and must never rewrite the four human
             # choice fields or turn a successful PATCH into a 500 response.
             session.rollback()
             logger.warning(

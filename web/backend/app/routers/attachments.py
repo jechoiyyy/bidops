@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..core.constants import GRADE_ORDER, GRADE_RANK
 from ..core.db import get_db
+from ..lifecycle import delete_manual_attachment, register_manual_attachment
 from ..models import AgencyPortal, Attachment, AuditEvent, Notice, NoticeObservation
 from ..schemas import (
     AttachmentProcedureResponse,
@@ -186,16 +187,15 @@ async def upload_notice_attachments(
         for upload in uploads:
             stored = await store_upload(upload, notice.id)
             stored_uploads.append(stored)
-            attachment = Attachment(
+            # 첨부 메타는 lifecycle 테이블이다. 쓰기는 lifecycle 공개 함수로만 한다.
+            attachment = register_manual_attachment(
+                session,
+                notice,
                 name=stored.original_name,
-                url=None,
-                origin="manual",
                 file_ext=stored.extension.upper(),
                 size_bytes=stored.size_bytes,
                 stored_path=stored.stored_path,
-                extract_status="pending",
             )
-            notice.attachments.append(attachment)
             created_attachments.append(attachment)
         session.flush()
         for attachment in created_attachments:
@@ -262,7 +262,7 @@ def delete_attachment(
         remove_stored_file(attachment)
     except AttachmentPathError as exc:
         raise HTTPException(status_code=500, detail="첨부 저장 경로가 올바르지 않습니다.") from exc
-    session.delete(attachment)
+    delete_manual_attachment(session, attachment)
     session.add(
         AuditEvent(
             actor_kind="human",

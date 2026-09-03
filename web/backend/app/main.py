@@ -23,6 +23,9 @@ from .core import (
     isolated_test_boundary_active,
 )
 from .lifecycle import extension_registry
+from .routers.deep_reviews import pre_spec_overview_router
+from .services.deep_review_hooks import PreSpecAttachmentEligibilityHook
+from .services.prespec_projection import PreSpecOverviewDocumentProjection
 from .routers.attachments import router as attachments_router
 from .routers.metrics import router as metrics_router
 from .routers.notices import router as notices_router
@@ -177,6 +180,8 @@ app.include_router(deep_reviews_router)
 app.include_router(bid_delta_router)
 app.include_router(reports_router)
 app.include_router(order_plans_router)
+# deep_review가 제공하는 사전규격 개요 검토 조회 (명세 §5.3). 경로는 pre_specs다.
+app.include_router(pre_spec_overview_router)
 
 
 # --- lifecycle 확장점 등록 구역 (명세 §6) ------------------------------------
@@ -191,6 +196,11 @@ app.include_router(order_plans_router)
 # 않는다. T8이 `BIDOPS_MODULES` 조건을 붙일 때까지는 무조건 등록이다.
 _extensions = extension_registry()
 # (여기에 모듈별 등록을 덧붙인다)
+# deep_review: 사전규격 개요·문서 projection(§6.1)과 첨부 fetch 자격 갱신 hook(§6.2)
+_extensions.register_overview_document_projection(PreSpecOverviewDocumentProjection())
+_prespec_attachment_hook = PreSpecAttachmentEligibilityHook()
+_extensions.register_run_ingest_hook(_prespec_attachment_hook)
+_extensions.register_tracking_decision_hook(_prespec_attachment_hook)
 
 
 class SPAStaticFiles(StaticFiles):
