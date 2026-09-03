@@ -165,7 +165,7 @@ python3 -m unittest discover -s skills/bidops-screen/tests -p 'test_*.py' -v
 
 ### 예상 변경 파일
 
-- `web/backend/app/models.py`
+- `web/backend/app/screening/models.py`
 - `web/backend/alembic/versions/0016_order_plan_screening.py`
 - `web/backend/app/ingest/contracts.py`
 - `web/backend/app/ingest/loader.py`

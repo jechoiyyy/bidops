@@ -538,7 +538,7 @@ version**으로 다시 등록한다.
 - [보안과 PostgreSQL·MinIO 경계](security.md)
 - [운영·백업·복구 절차](operations.md)
 - [현재 구현 상태](tracking/status.md)
-- [SQLAlchemy 모델](../web/backend/app/models.py)
+- SQLAlchemy 모델: [core](../web/backend/app/core/models.py) · [lifecycle](../web/backend/app/lifecycle/models.py) · [screening](../web/backend/app/screening/models.py) · [deep_review](../web/backend/app/deep_review/models.py)
 - [Alembic migration](../web/backend/alembic/versions/)
 - [런타임 DB 권한 allowlist](../scripts/runtime-privileges.sql)
 - [심층 검토 ERD 계약](deep-review-erd.md)
