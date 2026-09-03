@@ -87,7 +87,7 @@ from ..services.opportunity_integrity import (
     authoritative_link_predicate,
     merge_opportunities,
 )
-from ..services.prespec_attachments import parse_attachment_key, refresh_fetch_eligibility
+from ..services.opportunity_connections import parse_attachment_key
 from ..services.revisions import (
     RevisionValidationError,
     append_judgment_revision,
@@ -3722,35 +3722,27 @@ def _warning_dicts(session: Session, run_id: str) -> list[dict[str, Any]]:
     ]
 
 
-def _refresh_prespec_attachment_eligibility(session: Session, run_id: str) -> None:
-    """Re-evaluate this run's pre-spec attachments without breaking ingest."""
+def _refresh_prespec_attachment_eligibility(session: Session, run_id: str, directory: Path) -> None:
+    """회차 적재됨 hook을 부르고, hook이 돌려준 경고를 회차 경고로 남긴다 (명세 §6.2).
 
-    notice_ids = list(
-        session.scalars(
-            select(Notice.id)
-            .join(NoticeObservation, NoticeObservation.notice_id == Notice.id)
-            .where(
-                NoticeObservation.run_id == run_id,
-                Notice.source_type == "pre_spec",
-            )
-            .distinct()
-        ).all()
-    )
-    if not notice_ids:
-        return
-    try:
-        # Keep a failed refresh inside a savepoint so an IntegrityError or
-        # dialect issue cannot roll back the surrounding ingest transaction.
-        with session.begin_nested():
-            refresh_fetch_eligibility(session, notice_ids=notice_ids)
-    except Exception:
+    어느 모듈이 무엇을 하는지는 모른다. hook은 같은 session에서 동기적으로 돌고
+    자기 실패를 savepoint 안에 가둔 뒤 경고로 돌려주므로, 회차 적재 transaction은
+    영향을 받지 않는다.
+    """
+
+    # `app.lifecycle`은 `api`를 거쳐 이 파일을 import하므로 registry는 호출
+    # 시점에 가져온다(순환 import 회피). 같은 모듈 안의 import다.
+    from ..lifecycle.extensions import extension_registry
+
+    counts = extension_registry().run_ingested(session, run_id, directory)
+    for warning in counts.warnings:
         _record_warning(
             session,
             run_id,
-            "warning",
-            "attachment_eligibility_refresh_failed",
-            "사전규격 첨부 자격 재평가를 완료하지 못했습니다.",
-            {"notice_count": len(notice_ids)},
+            str(warning.get("level", "warning")),
+            str(warning["code"]),
+            str(warning["message"]),
+            warning.get("context"),
         )
 
 
@@ -4857,7 +4849,7 @@ def ingest_run(
             # snapshot cannot be loaded until the sample stage runs.
             if collection_raw is not None:
                 _load_collection_stats(session, run_id, collection_raw, str(collection_path), run)
-            _refresh_prespec_attachment_eligibility(session, run_id)
+            _refresh_prespec_attachment_eligibility(session, run_id, directory)
             _update_counts(session, run)
             session.commit()
             warnings = _warning_dicts(session, run_id)
@@ -4895,7 +4887,7 @@ def ingest_run(
             # The detailed warning was recorded above; this branch only keeps
             # the stop behavior explicit for callers reading the code.
             _update_counts(session, run)
-            _refresh_prespec_attachment_eligibility(session, run_id)
+            _refresh_prespec_attachment_eligibility(session, run_id, directory)
             session.commit()
             warnings = _warning_dicts(session, run_id)
             return IngestResult(
@@ -5032,7 +5024,7 @@ def ingest_run(
                 run, screening_input_raw, decisions_raw, screening_raw
             )
         review_count = _load_feedback(session, run, notices, directory, reports_path)
-        _refresh_prespec_attachment_eligibility(session, run_id)
+        _refresh_prespec_attachment_eligibility(session, run_id, directory)
         notices_count, judgments_count, review_count = _update_counts(session, run)
         session.commit()
         warnings = _warning_dicts(session, run_id)

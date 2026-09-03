@@ -403,7 +403,7 @@ def test_agent_adapter_passes_existing_views_and_audit_lineage(agent_context) ->
             "confirmed_at": bundle.confirmed_at, "created_at": bundle.created_at,
             "sha256": bundle_snapshot_sha256(bundle, items),
         }, notice_id=notice_id, correlation_id=correlation))
-        from app.routers.deep_reviews import DeepReviewView
+        from app.schemas.deep_reviews import DeepReviewView
 
         assert isinstance(started.result, DeepReviewView)
         assert started.run.status is AgentRunStatus.queued

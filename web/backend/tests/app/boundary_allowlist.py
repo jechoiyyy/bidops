@@ -48,7 +48,6 @@ CROSS_MODULE_IMPORT_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset(
         ("app/ingest/loader.py", "cross_module_import", "app.screening.contracts:ContractViolation"),
         ("app/ingest/loader.py", "cross_module_import", "app.screening.contracts:add_two_axis_metadata"),
         ("app/ingest/loader.py", "cross_module_import", "app.screening.contracts:validate_judgment"),
-        ("app/ingest/loader.py", "cross_module_import", "app.services.prespec_attachments:refresh_fetch_eligibility"),
         ("app/ingest/loader.py", "cross_module_import", "app.services.revisions:RevisionValidationError"),
         ("app/ingest/loader.py", "cross_module_import", "app.services.revisions:append_judgment_revision"),
         ("app/ingest/loader.py", "cross_module_import", "app.services.revisions:current_judgment_revision"),
@@ -57,14 +56,6 @@ CROSS_MODULE_IMPORT_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset(
         ("app/routers/notices.py", "cross_module_import", "app.models:Judgment"),
         ("app/routers/notices.py", "cross_module_import", "app.models:Perspective"),
         ("app/routers/notices.py", "cross_module_import", "app.models:Review"),
-        ("app/routers/opportunities.py", "cross_module_import", "app.services.prespec_attachments:refresh_fetch_eligibility"),
-        ("app/routers/pre_specs.py", "cross_module_import", "app.models:AttachmentFetch"),
-        ("app/routers/pre_specs.py", "cross_module_import", "app.models:PreSpecOverviewReview"),
-        ("app/routers/pre_specs.py", "cross_module_import", "app.services.prespec_overview:OverviewPreparationError"),
-        ("app/routers/pre_specs.py", "cross_module_import", "app.services.prespec_overview:OverviewReviewNotFound"),
-        ("app/routers/pre_specs.py", "cross_module_import", "app.services.prespec_overview:OverviewScopeError"),
-        ("app/routers/pre_specs.py", "cross_module_import", "app.services.prespec_overview:get_overview_reviews"),
-        ("app/routers/pre_specs.py", "cross_module_import", "app.services.prespec_overview:get_overview_reviews_v2"),
         ("app/routers/runs.py", "cross_module_import", "app.models:Judgment"),
         ("app/routers/runs.py", "cross_module_import", "app.models:ScreeningExecution"),
         ("app/routers/runs.py", "cross_module_import", "app.models:ScreeningPolicy"),
@@ -119,10 +110,8 @@ SCHEMA_IMPORT_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset(
 #: 검사 4 — 다른 모듈 모델로 향하는 lifecycle 모델의 `relationship`.
 LIFECYCLE_RELATIONSHIP_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset(
     {
-        ("app/models.py", "lifecycle_relationship", "Attachment.fetch"),
         ("app/models.py", "lifecycle_relationship", "Notice.judgment"),
         ("app/models.py", "lifecycle_relationship", "Notice.judgment_revisions"),
-        ("app/models.py", "lifecycle_relationship", "Notice.overview_review"),
         ("app/models.py", "lifecycle_relationship", "Notice.review_revisions"),
         ("app/models.py", "lifecycle_relationship", "Notice.reviews"),
         ("app/models.py", "lifecycle_relationship", "Run.judgment_revisions"),
@@ -139,9 +128,11 @@ LIFECYCLE_RELATIONSHIP_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset(
 #: 이름 단위로 풀면서 거짓 위반 12건이 빠져 66 → 57이 됐다.
 #: 위 목록은 실제 위반과 정확히 같아야 하므로(stale 항목도 실패), 이 상한은
 #: "새 위반을 허용 목록에 추가해 정당화하는" 경로를 추가로 막는다.
+#: T5b가 lifecycle ↔ deep_review 접근을 확장점·공개 함수로 바꾸면서 import 9건
+#: (58 → 49)과 relationship 2건(9 → 7)이 빠졌다.
 BASELINE_SIZES: dict[str, int] = {
-    "cross_module_import": 58,
+    "cross_module_import": 49,
     "router_orm_access": 18,
     "schema_imports_model_or_service": 1,
-    "lifecycle_relationship": 9,
+    "lifecycle_relationship": 7,
 }

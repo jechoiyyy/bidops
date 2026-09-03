@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Annotated
-from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends, Header, Path as ApiPath
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -31,9 +29,21 @@ from ..agents import (
 )
 from ..core.db import get_db
 from ..models import DeepReview, DeepReviewAttempt, DeepReviewStage, DocumentBundle, DocumentBundleItem
+from ..schemas.deep_reviews import AttemptView, DeepReviewView
+from ..schemas.pre_specs import (
+    PreSpecOverviewReviewsResponse,
+    PreSpecOverviewReviewsV2Response,
+)
 from ..services.deep_reviews import DeepReviewService, DeepReviewServiceError
 from ..services.document_bundles import BundleServiceError, validate_actor
 from ..services.input_versions import InputVersionError
+from ..services.prespec_overview import (
+    OverviewPreparationError,
+    OverviewReviewNotFound,
+    OverviewScopeError,
+    get_overview_reviews,
+    get_overview_reviews_v2,
+)
 
 
 class _Strict(BaseModel):
@@ -47,42 +57,6 @@ class DeepReviewCreateRequest(_Strict):
 
 class DeepReviewAttemptRequest(_Strict):
     request_id: UUID
-
-
-StageName = Literal["requirements_and_evaluation", "delivery_risk_economics", "synthesis_and_validation"]
-StageStatus = Literal["queued", "running", "completed", "failed"]
-AttemptStatus = Literal["queued", "running", "completed", "failed", "superseded"]
-ReviewStatus = Literal["queued", "running", "completed", "failed"]
-
-
-class StageView(_Strict):
-    stage: StageName
-    sequence: int = Field(ge=1)
-    status: StageStatus
-    started_at: datetime | None
-    completed_at: datetime | None
-    last_error_code: str | None
-
-
-class AttemptView(_Strict):
-    id: UUID
-    sequence: int = Field(ge=1)
-    status: AttemptStatus
-    stages: list[StageView]
-    started_at: datetime | None
-    completed_at: datetime | None
-    last_error_code: str | None
-
-
-class DeepReviewView(_Strict):
-    id: UUID
-    notice_id: int
-    bundle_id: UUID
-    status: ReviewStatus
-    current_attempt: AttemptView | None
-    attempts: list[AttemptView]
-    created_at: datetime
-    completed_at: datetime | None
 
 
 router = APIRouter(prefix="/api", tags=["deep-reviews"])
@@ -243,4 +217,104 @@ def create_deep_review_attempt(
         return _error_response(DeepReviewServiceError("processing_failed", "processing failed", status_code=500), request_id=payload.request_id)
 
 
-__all__ = ["DeepReviewAttemptRequest", "DeepReviewCreateRequest", "DeepReviewView", "router", "service"]
+# --- 사전규격 개요 검토 조회 (명세 §5.3: 경로는 pre_specs, 제공 모듈은 deep_review) ---
+# 경로·응답·OpenAPI tag를 옮기기 전과 똑같이 두려고 별도 router로 둔다. 조립
+# 계층(main.py)이 `router`와 나란히 등록한다.
+pre_spec_overview_router = APIRouter(prefix="/api/pre-specs", tags=["pre-specs"])
+
+
+@pre_spec_overview_router.get(
+    "/{notice_id}/overview-reviews",
+    response_model=PreSpecOverviewReviewsResponse,
+)
+def get_pre_spec_overview_reviews(
+    notice_id: int = ApiPath(..., ge=1),
+    session: Session = Depends(get_db),
+) -> PreSpecOverviewReviewsResponse | JSONResponse:
+    """Return safe lineage metadata for the independent overview stage."""
+
+    try:
+        return get_overview_reviews(session, notice_id)
+    except OverviewReviewNotFound:
+        return JSONResponse(
+            status_code=404,
+            content={
+                "error": {
+                    "code": "not_found",
+                    "message": "요청한 사전규격 공고를 찾을 수 없습니다",
+                    "details": None,
+                },
+                "request_id": None,
+            },
+        )
+    except OverviewPreparationError:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": {
+                    "code": "processing_failed",
+                    "message": "사전규격 개요 검토를 준비할 수 없습니다",
+                    "details": None,
+                },
+                "request_id": None,
+            },
+        )
+
+
+@pre_spec_overview_router.get(
+    "/{notice_id}/overview-reviews/v2",
+    response_model=PreSpecOverviewReviewsV2Response,
+)
+def get_pre_spec_overview_reviews_v2(
+    notice_id: int = ApiPath(..., ge=1),
+    session: Session = Depends(get_db),
+) -> PreSpecOverviewReviewsV2Response | JSONResponse:
+    """Return the phase-2 validated result projection without internals."""
+
+    try:
+        return get_overview_reviews_v2(session, notice_id)
+    except OverviewReviewNotFound:
+        return JSONResponse(
+            status_code=404,
+            content={
+                "error": {
+                    "code": "not_found",
+                    "message": "요청한 사전규격 공고를 찾을 수 없습니다",
+                    "details": None,
+                },
+                "request_id": None,
+            },
+        )
+    except OverviewScopeError:
+        return JSONResponse(
+            status_code=409,
+            content={
+                "error": {
+                    "code": "validation_failed",
+                    "message": "사전규격 개요 결과의 입력 범위를 검증할 수 없습니다",
+                    "details": None,
+                },
+                "request_id": None,
+            },
+        )
+    except OverviewPreparationError:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": {
+                    "code": "processing_failed",
+                    "message": "사전규격 개요 검토를 준비할 수 없습니다",
+                    "details": None,
+                },
+                "request_id": None,
+            },
+        )
+
+
+__all__ = [
+    "DeepReviewAttemptRequest",
+    "DeepReviewCreateRequest",
+    "pre_spec_overview_router",
+    "router",
+    "service",
+]

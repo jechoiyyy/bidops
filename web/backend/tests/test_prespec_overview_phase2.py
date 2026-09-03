@@ -16,7 +16,7 @@ from app.models import (
     PreSpecOverviewAttemptEvent,
     PreSpecOverviewResult,
 )
-from app.routers.pre_specs import get_pre_spec_overview_reviews_v2
+from app.routers.deep_reviews import get_pre_spec_overview_reviews_v2
 from app.services.prespec_overview import (
     OverviewAttemptError,
     OverviewModelBinding,

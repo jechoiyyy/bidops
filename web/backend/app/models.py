@@ -279,12 +279,6 @@ class Notice(Base):
     reviews: Mapped[list["Review"]] = relationship(
         back_populates="notice", cascade="all, delete-orphan"
     )
-    overview_review: Mapped["PreSpecOverviewReview | None"] = relationship(
-        "PreSpecOverviewReview",
-        back_populates="notice",
-        uselist=False,
-        passive_deletes=True,
-    )
     judgment_revisions: Mapped[list["JudgmentRevision"]] = relationship(
         back_populates="notice", passive_deletes="all"
     )
@@ -1017,9 +1011,6 @@ class Attachment(Base):
     url = synonym("source_url")
     stored_path = synonym("legacy_stored_path")
     notice: Mapped["Notice"] = relationship(back_populates="attachments")
-    fetch: Mapped["AttachmentFetch | None"] = relationship(
-        back_populates="attachment", uselist=False, cascade="all, delete-orphan"
-    )
 
 
 class AttachmentFetch(Base):
@@ -1078,7 +1069,8 @@ class AttachmentFetch(Base):
     )
     completed_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
 
-    attachment: Mapped["Attachment"] = relationship(back_populates="fetch")
+    # 단방향(명세 §4). 첨부 삭제 시 이 행의 제거는 FK ondelete=CASCADE가 맡는다.
+    attachment: Mapped["Attachment"] = relationship()
     document_version: Mapped["DocumentVersion | None"] = relationship(
         foreign_keys=[document_version_id]
     )
@@ -1426,9 +1418,8 @@ class PreSpecOverviewReview(Base):
     created_at: Mapped[datetime] = mapped_column(AwareDateTime(), default=utc_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(AwareDateTime(), default=utc_now, nullable=False)
 
-    notice: Mapped["Notice"] = relationship(
-        "Notice", back_populates="overview_review", foreign_keys=[notice_id]
-    )
+    # 단방향(명세 §4). lifecycle의 Notice는 deep_review 모델을 가리키지 않는다.
+    notice: Mapped["Notice"] = relationship("Notice", foreign_keys=[notice_id])
 
     current_snapshot: Mapped["PreSpecOverviewSnapshot | None"] = relationship(
         "PreSpecOverviewSnapshot",
