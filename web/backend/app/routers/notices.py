@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session, selectinload
 from ..core.db import get_db
 from ..lifecycle import extension_registry
 from ..lifecycle.models import Attachment, Notice, NoticeObservation
-from ..services.attachments import attachment_download_url
+from ..deep_review.services.attachments import attachment_download_url
 from ..schemas import (
     AttachmentResponse,
     HistoryItemResponse,

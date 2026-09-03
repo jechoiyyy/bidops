@@ -26,7 +26,7 @@ from app.deep_review.models import (
     DocumentVersion,
 )
 from app.lifecycle.models import Notice, Opportunity, OpportunityLink
-from app.services.bid_delta import BID_DELTA_CATEGORIES, BidDeltaService, BidDeltaServiceError
+from app.deep_review.services.bid_delta import BID_DELTA_CATEGORIES, BidDeltaService, BidDeltaServiceError
 
 
 def _sha(value: str) -> str:
@@ -396,7 +396,7 @@ def test_create_fails_closed_without_internal_binding(bid_delta_api, monkeypatch
             status_code=503,
         )
 
-    monkeypatch.setattr("app.services.bid_delta.resolve_runtime_binding", unavailable)
+    monkeypatch.setattr("app.deep_review.services.bid_delta.resolve_runtime_binding", unavailable)
     response = client.post(
         f"/api/opportunities/{opportunity.id}/bid-delta/comparisons",
         json=_create_payload(workspace),

@@ -214,52 +214,16 @@ FILE_MODULES: dict[str, str] = {
     # 항목은 폴더 규칙이 이미 처리하므로 여기 없어도 되지만, 남은 lifecycle
     # 파일과의 대비를 위해 이 블록의 끝을 표시해 둔다.
     # deep_review
-    "app/services/agent_e2e.py": DEEP_REVIEW,
-    "app/services/assets.py": DEEP_REVIEW,
-    # attachments는 lifecycle로 갈 함수(attachment_download_url)를 하나 갖는다.
-    "app/services/attachments.py": DEEP_REVIEW,
-    "app/services/prespec_attachments.py": DEEP_REVIEW,
-    "app/services/bc_e2e.py": DEEP_REVIEW,
-    "app/services/bid_delta.py": DEEP_REVIEW,
-    "app/services/deep_review_validation.py": DEEP_REVIEW,
-    "app/services/deep_review_vllm.py": DEEP_REVIEW,
-    "app/services/deep_reviews.py": DEEP_REVIEW,
-    "app/services/document_bundles.py": DEEP_REVIEW,
-    "app/services/document_converter.py": DEEP_REVIEW,
-    "app/services/document_structures.py": DEEP_REVIEW,
-    "app/services/evidence.py": DEEP_REVIEW,
-    "app/services/input_versions.py": DEEP_REVIEW,
-    "app/services/mock_analysis_client.py": DEEP_REVIEW,
-    "app/services/prespec_overview.py": DEEP_REVIEW,
-    "app/services/reports.py": DEEP_REVIEW,
-    "app/routers/attachments.py": DEEP_REVIEW,
-    "app/routers/bid_delta.py": DEEP_REVIEW,
-    "app/routers/deep_reviews.py": DEEP_REVIEW,
-    "app/routers/document_bundles.py": DEEP_REVIEW,
-    "app/routers/reports.py": DEEP_REVIEW,
-    "app/schemas/bid_delta.py": DEEP_REVIEW,
-    "app/schemas/document_bundles.py": DEEP_REVIEW,
-    "app/schemas/reports.py": DEEP_REVIEW,
-    "app/workers/deep_review.py": DEEP_REVIEW,
-    "app/workers/document.py": DEEP_REVIEW,
-    "app/workers/document_protocol.py": DEEP_REVIEW,
-    "app/workers/prespec_attachment.py": DEEP_REVIEW,
-    "app/cli/import_profile_policy.py": DEEP_REVIEW,
-    "app/cli/run_bc_e2e.py": DEEP_REVIEW,
-    # T5b: lifecycle 확장점(§6.1 개요·문서 projection, §6.2 hook)의 deep_review 구현과
-    # router·agent가 함께 쓰는 심층 검토 view.
-    "app/services/prespec_projection.py": DEEP_REVIEW,
-    "app/services/deep_review_hooks.py": DEEP_REVIEW,
-    "app/schemas/deep_reviews.py": DEEP_REVIEW,
+    # T7 1단계가 deep_review 소유 service·router·worker·agent·document_mcp·
+    # contracts·policies·cli·schemas를 모두 app/deep_review/로 옮겼다. 이제
+    # 폴더 규칙(MODULE_FOLDERS)이 판정하므로 여기 남은 항목이 없다. 이름 하나만
+    # 예외로 남았고 그것은 SPLIT_FILE_NAME_MODULES가 든다.
 }
 
 # 디렉터리 단위로 통째로 한 모듈에 속하는 경로 (§5.2).
 DIRECTORY_MODULES: dict[str, str] = {
     # 조립 계층. alembic은 §4에 따라 models까지 import해도 된다.
     "alembic": ASSEMBLY,
-    "app/agents": DEEP_REVIEW,
-    "app/contracts/deep_review": DEEP_REVIEW,
-    "app/document_mcp": DEEP_REVIEW,
 }
 
 # 한 파일에 네 모듈이 섞여 있어 파일 단위로 배정할 수 없는 파일 (T7이 나눈다).
@@ -278,8 +242,10 @@ MIXED_FILES: frozenset[str] = frozenset(
 # "이미 다른 모듈로 가기로 정해진 이름"을 참조한 것이 거짓 위반이 된다.
 # 열거되지 않은 이름은 파일 본체의 모듈(각 항목의 두 번째 값)로 본다.
 SPLIT_FILE_NAME_MODULES: dict[str, tuple[dict[str, str], str]] = {
-    # §5.2 lifecycle: "services/attachments.py의 attachment_download_url"
-    "app/services/attachments.py": (
+    # §5.2 lifecycle: "services/attachments.py의 attachment_download_url".
+    # T7 1단계가 파일을 app/deep_review/services/로 옮겼고, 이 이름 하나만은
+    # 아직 lifecycle 몫이다 (lifecycle 폴더 이주 때 실제로 옮긴다).
+    "app/deep_review/services/attachments.py": (
         {
             "attachment_download_url": LIFECYCLE,
         },

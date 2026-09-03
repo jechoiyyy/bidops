@@ -17,7 +17,7 @@ from app.core.db import init_db
 from app.lifecycle import OverviewDocumentProjection, PreSpecDocumentCounts
 from app.deep_review.models import AttachmentFetch, PreSpecOverviewReview
 from app.lifecycle.models import Attachment, Notice
-from app.services.prespec_projection import PreSpecOverviewDocumentProjection
+from app.deep_review.services.prespec_projection import PreSpecOverviewDocumentProjection
 
 
 def _notice(session: Session, key: str) -> Notice:

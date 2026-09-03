@@ -12,7 +12,7 @@ from app.core.db import Base, get_db, init_db
 from app.main import app
 from app.core.models import AuditEvent
 from app.lifecycle.models import AgencyPortal, Attachment, Notice, Run
-from app.services.attachments import MAX_ATTACHMENT_SIZE
+from app.deep_review.services.attachments import MAX_ATTACHMENT_SIZE
 from app.core.clamav import ClamAVUnavailable
 from app.screening.policy import load_policy_file
 
@@ -107,7 +107,7 @@ def test_attachment_upload_rejects_extension_and_too_large_file(attachments_clie
 def test_attachment_upload_uses_server_path_and_matching_portal_url(attachments_client, monkeypatch):
     client, session, root = attachments_client
     content = SAFE_PDF.read_bytes()
-    monkeypatch.setattr("app.services.attachments.ClamAVScanner.scan", lambda _self, _content: True)
+    monkeypatch.setattr("app.deep_review.services.attachments.ClamAVScanner.scan", lambda _self, _content: True)
 
     response = client.post(
         "/api/notices/1/attachments",
@@ -162,7 +162,7 @@ def test_attachment_upload_rejects_when_clamav_is_unavailable(attachments_client
     def unavailable(_self, _content):
         raise ClamAVUnavailable
 
-    monkeypatch.setattr("app.services.attachments.ClamAVScanner.scan", unavailable)
+    monkeypatch.setattr("app.deep_review.services.attachments.ClamAVScanner.scan", unavailable)
     response = client.post(
         "/api/notices/1/attachments",
         files={"files": ("unscanned.pdf", SAFE_PDF.read_bytes(), "application/pdf")},
@@ -252,7 +252,7 @@ def test_legacy_mutations_require_actor_and_append_audit_events(attachments_clie
     )
     assert updated_portal.status_code == 200
 
-    monkeypatch.setattr("app.services.attachments.ClamAVScanner.scan", lambda _self, _content: True)
+    monkeypatch.setattr("app.deep_review.services.attachments.ClamAVScanner.scan", lambda _self, _content: True)
     uploaded = client.post(
         "/api/notices/1/attachments",
         headers=actor_headers,
