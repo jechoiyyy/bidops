@@ -17,17 +17,54 @@ ASSEMBLY = "assembly"
 DOMAIN_MODULES = (CORE, LIFECYCLE, SCREENING, DEEP_REVIEW)
 
 # --- 명세 §4 의존 규칙: 허용 방향은 왼쪽으로만 ---------------------------------
-# 값은 "이 모듈이 import해도 되는 다른 모듈"이다. 자기 모듈은 항상 허용한다.
-# §8-1은 문면대로 "허용 표에 없는 방향의 import"만 본다. 공개 이름 대 내부
-# 이름의 구분(조립 계층·deep_review→screening seam)은 모듈 폴더와 `__init__`이
-# 생긴 뒤(T3~T7)에야 표현할 수 있으므로 이 검사에는 아직 들어 있지 않다.
+# 값은 "이 모듈이 모듈 전체를 import해도 되는 다른 모듈"이다. 자기 모듈은 항상
+# 허용한다. 이름을 가려 받는 방향(deep_review → screening)은 여기 넣지 않고
+# `SEAM_IMPORTS`가 맡는다.
 ALLOWED_IMPORTS: dict[str, frozenset[str]] = {
     CORE: frozenset(),
     LIFECYCLE: frozenset({CORE}),
     SCREENING: frozenset({CORE, LIFECYCLE}),
-    DEEP_REVIEW: frozenset({CORE, LIFECYCLE, SCREENING}),
+    # deep_review는 screening을 통째로 쓰지 못한다. §4는 "screening 공개 이름 중
+    # 읽기 전용 seam 함수"만 허용하고 "screening 내부 ORM·service"를 금지한다.
+    DEEP_REVIEW: frozenset({CORE, LIFECYCLE}),
     ASSEMBLY: frozenset({CORE, LIFECYCLE, SCREENING, DEEP_REVIEW}),
 }
+
+# 방향 자체는 금지지만 지정된 이름만은 허용하는 seam (§6.3).
+# deep_review → screening은 읽기 전용 seam 함수 두 개뿐이다. 두 함수는 T5a가
+# 만들기 전까지 존재하지 않으므로, 지금 이 seam은 사실상 비어 있는 상태로
+# 동작한다 — 즉 오늘의 deep_review → screening 접근은 모두 위반으로 잡힌다.
+SEAM_IMPORTS: dict[tuple[str, str], frozenset[str]] = {
+    (DEEP_REVIEW, SCREENING): frozenset(
+        {
+            "current_judgment",
+            "latest_corrected_grade",
+        }
+    ),
+}
+
+# --- 아직 구현하지 않은 §8-1의 절 (부채) --------------------------------------
+# §4의 허용 표는 방향뿐 아니라 "공개 이름 대 모듈 내부"도 가른다. 그 절은 각
+# 모듈의 `__init__.py`가 공개 표면을 정하기 전에는 판정할 수 없어 아직 검사에
+# 들어 있지 않다. 잊히지 않도록 `MODULE_PACKAGE_INITS` 중 하나라도 생기면
+# 실패하는 테스트를 두었다(test_module_boundaries.py).
+UNIMPLEMENTED_PUBLIC_NAME_RULES: tuple[str, ...] = (
+    "조립 계층 → 네 모듈: 모듈 공개 이름만 (지금은 모듈 전체를 허용). "
+    "실제로 app/runtime.py가 app.screening.{execution_store,mock_transport,ollama,"
+    "orchestrator,worker}·app.services.{pipeline,scheduled_pipeline}·app.ingest.loader "
+    "같은 모듈 내부를 직접 들고 있다.",
+    "screening → lifecycle: lifecycle 공개 이름만 (지금은 모듈 전체를 허용).",
+    "deep_review → lifecycle: lifecycle 공개 이름만 (지금은 모듈 전체를 허용). "
+    "방향이 아니라 이름으로 갈리는 deep_review → screening seam만 SEAM_IMPORTS로 강제한다.",
+)
+
+# 이 중 하나라도 생기면 공개 표면이 존재한다는 뜻이므로 위 규칙을 켜야 한다.
+# app/screening/__init__.py는 이주 전부터 있으므로 신호가 아니다.
+MODULE_PACKAGE_INITS: tuple[str, ...] = (
+    "app/core/__init__.py",
+    "app/lifecycle/__init__.py",
+    "app/deep_review/__init__.py",
+)
 
 # --- 폴더 규칙 (경로 판정에서 가장 먼저 본다) ----------------------------------
 MODULE_FOLDERS: dict[str, str] = {
@@ -42,13 +79,10 @@ FOLDER_EXCEPTIONS: dict[str, str] = {
     "app/screening/generation_config.py": CORE,
 }
 
-# 검사 대상에서 제외한다. codex-exec provider는 병행 task가 삭제 중이므로
-# 허용 목록에 넣으면 merge 뒤 stale 항목이 된다.
-EXCLUDED_FILES: frozenset[str] = frozenset(
-    {
-        "app/services/codex_exec_client.py",
-    }
-)
+# 검사 대상에서 제외하는 파일. 여기 적힌 경로가 실제로 없으면 실패한다
+# (허용 목록의 stale 항목을 막는 것과 같은 취지). codex-exec provider는 T1이
+# 실제로 삭제했으므로 더 이상 제외할 것이 없다.
+EXCLUDED_FILES: frozenset[str] = frozenset()
 
 # --- 명세 §5.2 "현재 위치 → 이주" 대응표 ---------------------------------------
 FILE_MODULES: dict[str, str] = {
@@ -173,6 +207,78 @@ MIXED_FILES: frozenset[str] = frozenset(
         "app/schemas/__init__.py",
     }
 )
+
+# --- 명세 §5.2가 이름 단위로 쪼갠 service 파일 --------------------------------
+# 파일은 본체가 가는 모듈에 배정하되(FILE_MODULES), §5.2가 다른 모듈로 옮길
+# 이름을 명시적으로 열거한 곳은 그 이름만 따로 소유를 준다. 그러지 않으면
+# "이미 다른 모듈로 가기로 정해진 이름"을 참조한 것이 거짓 위반이 된다.
+# 열거되지 않은 이름은 파일 본체의 모듈(각 항목의 두 번째 값)로 본다.
+SPLIT_FILE_NAME_MODULES: dict[str, tuple[dict[str, str], str]] = {
+    # §5.2 core: "services/profile.py의 회사 프로필 파서(parse_profile,
+    # walk_sections, profile_path, ParsedItem, PROFILE_PARSE_ERROR_CODES)"
+    "app/services/profile.py": (
+        {
+            "PROFILE_PARSE_ERROR_CODES": CORE,
+            "ParsedItem": CORE,
+            "parse_profile": CORE,
+            "profile_path": CORE,
+            "walk_sections": CORE,
+        },
+        SCREENING,
+    ),
+    # §5.2 core: "services/input_versions.py의 canonical_json_bytes, MODEL_NAME,
+    # MODEL_ENDPOINT_REF"
+    "app/services/input_versions.py": (
+        {
+            "MODEL_ENDPOINT_REF": CORE,
+            "MODEL_NAME": CORE,
+            "canonical_json_bytes": CORE,
+        },
+        DEEP_REVIEW,
+    ),
+    # §5.2 core: "services/document_bundles.py의 validate_actor·stable_api_error와
+    # 공용 오류 타입". "공용 오류 타입"은 열거돼 있지 않으므로 이름을 특정할 수
+    # 있는 둘만 옮긴다. BundleServiceError 등은 deep_review로 남겨 과대 계상
+    # 쪽으로 둔다(위반을 숨기지 않는 방향).
+    "app/services/document_bundles.py": (
+        {
+            "stable_api_error": CORE,
+            "validate_actor": CORE,
+        },
+        DEEP_REVIEW,
+    ),
+    # §5.2 lifecycle: "services/attachments.py의 attachment_download_url"
+    "app/services/attachments.py": (
+        {
+            "attachment_download_url": LIFECYCLE,
+        },
+        DEEP_REVIEW,
+    ),
+    # §5.2 lifecycle: "services/prespec_attachments.py의 parse_attachment_key와
+    # tracked_order_plan_connection*"
+    "app/services/prespec_attachments.py": (
+        {
+            "parse_attachment_key": LIFECYCLE,
+            "tracked_order_plan_connection": LIFECYCLE,
+            "tracked_order_plan_connection_predicate": LIFECYCLE,
+            "tracked_order_plan_connections": LIFECYCLE,
+        },
+        DEEP_REVIEW,
+    ),
+    # §5.2 screening: "services/vllm_client.py의 OrderPlanVllmAdapter·
+    # OrderPlanVllmError·order_plan_batch_output_schema·OrderPlanVllmResponse"
+    # (나머지 범용 부분은 core이며 파일 본체가 core다)
+    "app/services/vllm_client.py": (
+        {
+            "OrderPlanVllmAdapter": SCREENING,
+            "OrderPlanVllmError": SCREENING,
+            "OrderPlanVllmResponse": SCREENING,
+            "order_plan_batch_output_schema": SCREENING,
+        },
+        CORE,
+    ),
+}
+
 
 # --- 명세 §5.1 테이블 소유 -----------------------------------------------------
 TABLE_OWNER: dict[str, str] = {
