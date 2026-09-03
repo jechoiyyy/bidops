@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import get_args
+
 import pytest
 
 from app.config import Settings
@@ -25,3 +27,14 @@ def test_ollama_keep_alive_preserves_supported_duration_forms(value) -> None:
 def test_ollama_keep_alive_rejects_invalid_duration_forms(value) -> None:
     with pytest.raises(ValueError):
         Settings(model_keep_alive=value)
+
+
+def test_analysis_provider_is_limited_to_vllm_and_mock() -> None:
+    """Deep review keeps exactly two providers; the removed external adapter must not return."""
+
+    field = Settings.model_fields["analysis_provider"]
+    assert set(get_args(field.annotation)) == {"vllm", "mock"}
+    with pytest.raises(ValueError):
+        Settings(analysis_provider="external-reference")
+    assert not [name for name in Settings.model_fields if "codex" in name.lower()]
+    assert not [name for name in dir(Settings) if "codex" in name.lower()]

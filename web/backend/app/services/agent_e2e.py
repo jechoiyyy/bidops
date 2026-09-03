@@ -122,12 +122,11 @@ class PersistedAgentProjectionReader:
             settings.analysis_provider != "mock"
             or settings.vllm_model != MOCK_MODEL
             or settings.openai_enabled
-            or settings.codex_exec_enabled
             or not settings.reference_workflow_mode
         ):
             raise BcE2EError(
                 "mock_provider_required",
-                "T7 requires mock-analysis/bidops-deterministic-mock-v1 with OpenAI and Codex disabled",
+                "T7 requires mock-analysis/bidops-deterministic-mock-v1 with OpenAI disabled",
             )
 
     def active_work_jobs(self) -> int:
@@ -213,7 +212,7 @@ class PersistedAgentProjectionReader:
                         "policy_model": metadata.get("policy_model_name"),
                         "reference_workflow_mode": metadata.get("reference_workflow_mode"),
                         "external_provider_approved": metadata.get("external_provider_approved"),
-                        "external_calls": {"openai": 0, "codex": 0, "qwen": 0, "total": 0},
+                        "external_calls": {"openai": 0, "qwen": 0, "total": 0},
                     })
                 return result
         except BcE2EError:
@@ -681,7 +680,7 @@ def run_t7_e2e(
     if len(provider_context) != 2 or any(
         context.get("provider") != MOCK_PROVIDER
         or context.get("model") != MOCK_MODEL
-        or context.get("external_calls") != {"openai": 0, "codex": 0, "qwen": 0, "total": 0}
+        or context.get("external_calls") != {"openai": 0, "qwen": 0, "total": 0}
         for context in provider_context
     ):
         raise BcE2EError("provider_context_invalid", "T7 provider/model or external-call guard is invalid")
@@ -748,8 +747,8 @@ def run_t7_e2e(
         "bundle_history": bundle_history,
         "provider_model": {
             "contexts": provider_context,
-            "external_calls": {"openai": 0, "codex": 0, "qwen": 0, "total": 0},
-            "basis": "mock-analysis path is local and does not invoke OpenAI, Codex, or Qwen",
+            "external_calls": {"openai": 0, "qwen": 0, "total": 0},
+            "basis": "mock-analysis path is local and does not invoke OpenAI or Qwen",
         },
         "work_jobs": {"queued": 0, "running": 0, "active": active_jobs},
         "mock_quality": {
