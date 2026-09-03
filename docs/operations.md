@@ -18,7 +18,7 @@ fail-closed로 검증하고, PostgreSQL·MinIO API·console port는 `BIDOPS_ADMI
 아직 남은 것은 차단 조건이 아니라 운영 훈련이다. 실제 secret, MinIO allow/deny,
 egress firewall, backup·restore를 **운영 환경에서** 한 번도 검증하지 않았다.
 
-개발 검증에서도 hosted Codex reference overlay를 사용하지 않는다. 회사자료 host 입력을 registry에 push·export하지 않으며 로컬 build cache의 접근 범위를 제한한다. legacy notice attachment upload는 quarantine·ClamAV·MinIO 경계를 통과한 파일만 사용한다. 나머지 stack 기동은 폐기 가능한 데이터와 host firewall로 격리한 환경에서만 수행한다.
+hosted 외부 모델 reference overlay는 제거됐고 개발 검증에서도 사용하지 않는다. 회사자료 host 입력을 registry에 push·export하지 않으며 로컬 build cache의 접근 범위를 제한한다. legacy notice attachment upload는 quarantine·ClamAV·MinIO 경계를 통과한 파일만 사용한다. 나머지 stack 기동은 폐기 가능한 데이터와 host firewall로 격리한 환경에서만 수행한다.
 
 ## 사전 조건
 
@@ -156,7 +156,6 @@ revision을 응답에도 `/v1/models`에도 싣지 않으므로 이 값이 배�
 | `.env` | `docker-compose.t7.yml`, `docker-compose.yml` | 프로세스 정체성, 로그, DB·MinIO 자격증명, 암호화 키, port, 승인 profile/policy 참조 |
 | `env/vllm.env` | `docker-compose.t7.remote-vllm.yml` | `BIDOPS_VLLM_BASE_URL`, `BIDOPS_VLLM_ALLOWED_HOSTS`, `BIDOPS_VLLM_API_KEY`, `BIDOPS_VLLM_MODEL_REVISION` |
 | `env/screening.env` | `docker-compose.t7.screening.yml` | `BIDOPS_OLLAMA_BASE_URL`, `BIDOPS_OLLAMA_MODEL` |
-| `env/codex.env` | `docker-compose.t7.codex-reference.yml` | 승인 notice ID, host Codex 바이너리·auth 경로 (개발 검증 한정) |
 | 없음 | `docker-compose.t7.mock-reference.yml` | 전용 값을 override 파일 안에 리터럴로 선언한다 |
 
 overlay 전용 값을 `.env`에 두지 않는다. `.env`에 두면 overlay를 붙이지 않은 기동에서도 endpoint가 주입되어 fail-closed 기본값이 흐려진다.
@@ -185,7 +184,7 @@ COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose -f docker-compose.t7.y
 | 문서 검사 | ClamAV host/port/timeout | clean scan envelope 없이는 준비 단계 진행 금지 |
 | 심층 모델 | vLLM base URL, allowed hosts, model, API key, response encryption key/ref | 승인된 사설 endpoint만, 응답 암호화 |
 | 활성 버전 | active profile version, active analysis policy version | 불변 ID, 빈 값이면 fail closed |
-| 외부 참조 | OpenAI·Codex exec enabled, approved notice IDs, reference workflow mode | 현재 Codex deep-review 경로는 사용 금지. 향후 발주계획 전용 projection에서만 공개 plan metadata+최소 승인 요약을 preview·건별 승인 후 전송 |
+| 외부 참조 | `BIDOPS_OPENAI_ENABLED`, reference workflow mode | hosted 외부 deep-review provider는 제거됐다. 향후 발주계획 전용 projection에서만 공개 plan metadata+최소 승인 요약을 preview·건별 승인 후 전송 |
 
 ## 발주계획 선별 실험 운영
 

@@ -128,7 +128,6 @@ def _alembic_environment(database_url: str) -> dict[str, str]:
         "BIDOPS_VLLM_BASE_URL": "http://127.0.0.1:9/v1",
         "BIDOPS_VLLM_API_KEY": "EMPTY",
         "BIDOPS_OPENAI_ENABLED": "false",
-        "BIDOPS_CODEX_EXEC_ENABLED": "false",
         "BIDOPS_REFERENCE_WORKFLOW_MODE": "false",
     }
     for name in ("PATH", "LANG", "LC_ALL", "TZ"):
