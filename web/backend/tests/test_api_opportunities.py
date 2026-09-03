@@ -9,7 +9,8 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.db import get_db, init_db
 from app.main import app
-from app.models import AuditEvent, Notice, Opportunity, OpportunityLink, OrderPlan
+from app.core.models import AuditEvent
+from app.lifecycle.models import Notice, Opportunity, OpportunityLink, OrderPlan
 from app.services.opportunity_integrity import merge_opportunities
 from app.services.opportunity_tracking import raise_recheck_signal, set_tracking_status
 

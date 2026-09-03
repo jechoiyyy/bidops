@@ -14,7 +14,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.core.db import Base, get_db
-from app.models import CompanyProfileSnapshot, Run, ScreeningExecution, ScreeningPolicy
+from app.lifecycle.models import Run
+from app.screening.models import CompanyProfileSnapshot, ScreeningExecution, ScreeningPolicy
 from app.routers.profile import router as profile_router
 from app.routers.screening import router as screening_router
 from app.core.generation_config import GenerationConfig

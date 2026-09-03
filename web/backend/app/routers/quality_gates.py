@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from ..core.config import get_settings
 from ..core.db import get_db
-from ..models import (
+from ..screening.models import (
     QualityGate,
     QualityGateEvaluation,
     QualityGateReview,

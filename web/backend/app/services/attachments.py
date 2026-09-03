@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from ..core.config import get_settings
 from ..document_mcp.processor import ClamAVChecker
-from ..models import AgencyPortal, Attachment
+from ..lifecycle.models import AgencyPortal, Attachment
 from . import assets
 from ..core.clamav import ClamAVScanner
 

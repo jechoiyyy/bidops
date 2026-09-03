@@ -27,10 +27,9 @@ from ..screening.c2_contracts import (
     OrderPlanScreeningResultArtifact,
     OrderPlanScreeningTelemetryArtifact,
 )
-from ..models import (
-    AuditEvent,
-    OrderPlan,
-    OrderPlanObservation,
+from ..core.models import AuditEvent
+from ..lifecycle.models import OrderPlan, OrderPlanObservation
+from ..screening.models import (
     OrderPlanScreeningArtifact,
     OrderPlanScreeningBatchAttempt,
     OrderPlanScreeningExecution,

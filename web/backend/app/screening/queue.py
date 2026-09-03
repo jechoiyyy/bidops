@@ -22,14 +22,13 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session, sessionmaker
 
 from ..core.config import Settings, get_settings
-from ..models import (
-    ScreeningAuditEvent,
+from ..core.models import utc_now
+from ..lifecycle.models import Notice, Run
+from .models import (
     CompanyProfileSnapshot,
-    Notice,
-    Run,
+    ScreeningAuditEvent,
     ScreeningExecution,
     ScreeningPolicy,
-    utc_now,
 )
 from ..core.generation_config import GenerationConfigError, ensure_generation_config
 

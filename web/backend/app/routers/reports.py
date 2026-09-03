@@ -29,7 +29,8 @@ from ..agents import (
     validation_artifact_ref,
 )
 from ..core.db import get_db
-from ..models import AuditEvent, DeepReview, IdempotencyRecord, ReportRevision, ValidationCheck, ValidationRun
+from ..core.models import AuditEvent, IdempotencyRecord
+from ..deep_review.models import DeepReview, ReportRevision, ValidationCheck, ValidationRun
 from ..schemas.reports import EvidenceView, FinalOpinionRequest, FinalOpinionView, ReportRevisionRequest, ReportView
 from ..services.evidence import EvidenceService, EvidenceServiceError
 from ..services.document_bundles import BundleServiceError, validate_actor

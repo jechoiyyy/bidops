@@ -13,15 +13,8 @@ from app.ingest.loader import (
     _upsert_notice,
 )
 from app.screening.ingest import _remove_judgments_without_screening
-from app.models import (
-    Judgment,
-    Notice,
-    NoticeObservation,
-    OrderPlan,
-    OrderPlanObservation,
-    Review,
-    Run,
-)
+from app.lifecycle.models import Notice, NoticeObservation, OrderPlan, OrderPlanObservation, Run
+from app.screening.models import Judgment, Review
 
 
 def _engine():

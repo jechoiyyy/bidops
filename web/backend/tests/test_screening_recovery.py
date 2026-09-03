@@ -8,7 +8,13 @@ from sqlalchemy import create_engine, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models import ScreeningAuditEvent, CompanyProfileSnapshot, Run, ScreeningExecution, ScreeningPolicy
+from app.lifecycle.models import Run
+from app.screening.models import (
+    CompanyProfileSnapshot,
+    ScreeningAuditEvent,
+    ScreeningExecution,
+    ScreeningPolicy,
+)
 from app.core.db import _json_serializer, schema_bound
 from app.screening.execution_store import ScreeningExecutionStore
 from app.screening.queue import INTERRUPTED

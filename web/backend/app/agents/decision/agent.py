@@ -18,12 +18,11 @@ from ..common import (
     AgentName,
     AgentRunStatus,
 )
-from ...models import (
-    AuditEvent,
+from ...core.models import AuditEvent, IdempotencyRecord
+from ...deep_review.models import (
     DeepReview,
     EvidenceRef,
     FinalOpinion,
-    IdempotencyRecord,
     ReportRevision,
     ReportRevisionEvidence,
     ValidationCheck,

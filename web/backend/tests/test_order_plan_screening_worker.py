@@ -10,7 +10,15 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app.core.db import _json_serializer, schema_bound
-from app.models import AuditEvent, OrderPlanScreeningArtifact, OrderPlanScreeningBatchAttempt, OrderPlanScreeningExecution, OrderPlanScreeningPolicy, OrderPlanScreeningResult, Run
+from app.core.models import AuditEvent
+from app.lifecycle.models import Run
+from app.screening.models import (
+    OrderPlanScreeningArtifact,
+    OrderPlanScreeningBatchAttempt,
+    OrderPlanScreeningExecution,
+    OrderPlanScreeningPolicy,
+    OrderPlanScreeningResult,
+)
 from app.services.vllm_client import OrderPlanVllmError, OrderPlanVllmResponse
 from app.workers.order_plan_screening import C2ScreeningWorker, C2WorkerError
 from tests.test_order_plan_screening_service import REPO_ROOT, _fixture, _create

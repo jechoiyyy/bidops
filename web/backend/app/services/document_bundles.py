@@ -24,9 +24,8 @@ from sqlalchemy.orm import Session
 
 from ..document_mcp.contracts import validate_structure
 from ..document_mcp.processor import ClamAVChecker, DocumentProcessor
-from ..models import (
-    Attachment,
-    AuditEvent,
+from ..core.models import AuditEvent, IdempotencyRecord
+from ..deep_review.models import (
     ContentObject,
     ContentObjectLocation,
     ContentScan,
@@ -34,9 +33,8 @@ from ..models import (
     DocumentBundleItem,
     DocumentStructure,
     DocumentVersion,
-    IdempotencyRecord,
-    Notice,
 )
+from ..lifecycle.models import Attachment, Notice
 from ..schemas.document_bundles import (
     BundleIssue,
     BundleListResponse,

@@ -191,12 +191,15 @@ def init_db(bind: Engine | None = None) -> None:
     """Create isolated-test tables or verify the migrated PostgreSQL schema.
 
     An explicit ``bind`` is the isolated-test path: the caller owns a private
-    SQLite engine and the full declarative table set is created directly.  The
+    SQLite engine and the declarative table set is created directly.  The
     no-argument application path never creates or migrates anything; it only
     verifies that the configured PostgreSQL database is at the expected head.
-    """
 
-    from .. import models  # noqa: F401 - register every declarative table
+    core는 도메인 모듈을 import하지 않는다(명세 §4). 따라서 여기서 만드는 것은
+    호출 시점에 ``Base``에 등록돼 있는 table뿐이고, 등록은 각 모듈의 ``models``를
+    import한 쪽이 한다. 전체 집합이 필요한 조립 계층은 ``alembic/env.py``와
+    ``app/migrations/import_sqlite.py``처럼 네 모듈의 ``models``를 직접 들인다.
+    """
 
     # pytest's application tests use dependency-overridden isolated SQLite
     # engines. That test-only path is explicit; every non-test process still

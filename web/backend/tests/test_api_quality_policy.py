@@ -9,11 +9,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.core.db import Base, get_db
-from app.models import (
+from app.lifecycle.models import Run
+from app.screening.models import (
     CompanyProfileSnapshot,
     QualityGate,
     QualityGateEvaluation,
-    Run,
     ScreeningExecution,
     ScreeningPolicy,
 )

@@ -24,14 +24,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from ..core.constants import GRADE_ORDER, READINESS_ORDER
-from ..models import (
-    Judgment,
-    JudgmentRevision,
-    Notice,
-    NoticeObservation,
-    Perspective,
-    Review,
-)
+from ..lifecycle.models import Notice, NoticeObservation
+from .models import Judgment, JudgmentRevision, Perspective, Review
 from ..schemas import (
     CounterargumentResponse,
     DistributionItem,

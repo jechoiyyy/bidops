@@ -16,19 +16,15 @@ from app.core.db import init_db
 from app.document_mcp.errors import DocumentProcessingError
 from app.document_mcp.processor import DocumentProcessor
 from app.ingest.loader import ObservationSnapshotConflictError, _upsert_attachments
-from app.models import (
-    Attachment,
+from app.deep_review.models import (
     AttachmentFetch,
     ContentObject,
     ContentObjectLocation,
     DocumentBlock,
     DocumentStructure,
     DocumentVersion,
-    Notice,
-    Opportunity,
-    OpportunityLink,
-    OrderPlan,
 )
+from app.lifecycle.models import Attachment, Notice, Opportunity, OpportunityLink, OrderPlan
 from app.services import assets, prespec_attachments
 from app.services.opportunity_connections import (
     parse_attachment_key,

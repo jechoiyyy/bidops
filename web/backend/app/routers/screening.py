@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from ..core.config import get_settings
 from ..core.db import get_db
-from ..models import ScreeningAttempt, ScreeningExecution, ScreeningPolicy
+from ..screening.models import ScreeningAttempt, ScreeningExecution, ScreeningPolicy
 from ..schemas import (
     JudgmentExecutionCreateRequest,
     ScreeningArtifactUrls,

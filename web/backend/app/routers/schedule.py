@@ -11,7 +11,13 @@ from sqlalchemy.orm import Session
 
 from ..core.config import get_settings
 from ..core.db import get_db
-from ..models import AlwaysOnState, QualityGate, QualityGateEvaluation, ScheduleExecution, ScheduleReservation
+from ..screening.models import (
+    AlwaysOnState,
+    QualityGate,
+    QualityGateEvaluation,
+    ScheduleExecution,
+    ScheduleReservation,
+)
 from ..schemas import (
     AlwaysOnSwitchResponse,
     AlwaysOnSwitchUpdateRequest,

@@ -29,7 +29,8 @@ from ..agents import (
 )
 from ..core.config import get_settings
 from ..core.db import SessionLocal
-from ..models import AuditEvent, DeepReviewAttempt, DeepReviewStage, WorkJob
+from ..core.models import AuditEvent
+from ..deep_review.models import DeepReviewAttempt, DeepReviewStage, WorkJob
 from .bc_e2e import AcceptanceApi, BcE2EError, BcE2EManifest, run_bc_e2e
 from .document_bundles import DocumentBundleService
 

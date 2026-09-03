@@ -18,7 +18,8 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.db import init_db
 from app.lifecycle import RunDirectoryClaim, RunIngestCounts, ingest_run
-from app.models import IngestWarning, Judgment, JudgmentRevision, Notice, Review, Run
+from app.lifecycle.models import IngestWarning, Notice, Run
+from app.screening.models import Judgment, JudgmentRevision, Review
 from app.screening import ScreeningRunIngestHook
 from app.screening.ingest import (
     C2_INPUT_SCHEMA,

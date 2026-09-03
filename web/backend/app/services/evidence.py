@@ -12,7 +12,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..models import (
+from ..deep_review.models import (
     ContentObject,
     ContentScan,
     DeepReview,

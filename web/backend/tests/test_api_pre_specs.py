@@ -15,16 +15,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.core.db import init_db
-from app.models import (
-    Attachment,
-    AttachmentFetch,
-    ContentObject,
-    DocumentVersion,
-    Notice,
-    Opportunity,
-    OpportunityLink,
-    OrderPlan,
-)
+from app.deep_review.models import AttachmentFetch, ContentObject, DocumentVersion
+from app.lifecycle.models import Attachment, Notice, Opportunity, OpportunityLink, OrderPlan
 from app.routers.pre_specs import list_pre_specs
 
 
