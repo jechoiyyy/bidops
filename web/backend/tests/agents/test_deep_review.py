@@ -24,9 +24,9 @@ from app.agents.deep_review import (
     project_deep_review,
 )
 from app.core.db import init_db
-from app.models import (
+from app.core.models import AuditEvent
+from app.deep_review.models import (
     AnalysisPolicyVersion,
-    AuditEvent,
     ContentObject,
     DeepReview,
     DeepReviewAttempt,
@@ -34,12 +34,11 @@ from app.models import (
     DocumentBundleItem,
     DocumentStructure,
     DocumentVersion,
-    Judgment,
-    Notice,
     ProfileVersion,
-    Run,
     WorkJob,
 )
+from app.lifecycle.models import Notice, Run
+from app.screening.models import Judgment
 from app.services.deep_reviews import DeepReviewService
 from app.services.input_versions import load_canonical_policy
 

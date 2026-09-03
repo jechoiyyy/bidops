@@ -16,27 +16,26 @@ from sqlalchemy.pool import StaticPool
 
 from app.cli.import_profile_policy import import_profile_policy
 from app.core.db import init_db
-from app.models import (
+from app.core.models import AuditEvent
+from app.deep_review.models import (
     AnalysisPolicyVersion,
-    AuditEvent,
     Claim,
     ContentObject,
     ContentObjectLocation,
+    DeepReview,
+    DeepReviewAttempt,
+    DeepReviewStage,
     DocumentBundle,
     DocumentBundleItem,
     DocumentStructure,
     DocumentVersion,
-    DeepReview,
-    DeepReviewAttempt,
-    DeepReviewStage,
     EvidenceRef,
-    Judgment,
-    Notice,
     ProfileEvidence,
     ProfileVersion,
-    Run,
     WorkJob,
 )
+from app.lifecycle.models import Notice, Run
+from app.screening.models import Judgment
 from app.services import input_versions
 from app.services.deep_review_validation import DeepReviewValidationError, merge_stage_chunks
 from app.services.deep_reviews import DeepReviewService, DeepReviewServiceError, JobClaim, StaleFenceError
@@ -788,7 +787,7 @@ def _seed_review_context(engine, monkeypatch):
         policy_payload, _canonical, policy_hash = load_canonical_policy()
         policy = AnalysisPolicyVersion(id=uuid4(), version=1, label="policy", model_endpoint_ref="vllm-openai-compatible", model_name=MODEL_NAME, prompts=policy_payload["stages"], validation_rules={**policy_payload["validation"], "generation": policy_payload["generation"], "sample_hash": "b" * 64, "required_item_recall": .8, "human_agreement": .7, "unsupported_false_positive_rate": .1}, policy_sha256=policy_hash)
         content_id = uuid4()
-        from app.models import ContentObject
+        from app.deep_review.models import ContentObject
         content = ContentObject(id=content_id, sha256="d" * 64, size_bytes=0, detected_mime="application/json", retention_class="fixture")
         document = DocumentVersion(id=uuid4(), notice_id=notice.id, content_object_id=content_id, version=1, source_kind="manual", original_filename="fixture.pdf", role="기타", is_current=True, safety_status="safe")
         structure = DocumentStructure(id=uuid4(), document_version_id=document.id, source_sha256="d" * 64, media_type="application/pdf", extractor_name="fixture", extractor_version="1", payload_content_object_id=content_id, payload_sha256="e" * 64, page_count=1, block_count=0, validation_status="ready")

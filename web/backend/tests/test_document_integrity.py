@@ -11,15 +11,14 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.core.db import ALEMBIC_HEAD, init_db, schema_bound
-from app.models import (
-    Attachment,
+from app.deep_review.models import (
     ContentObject,
     DocumentBundle,
     DocumentBundleItem,
     DocumentStructure,
     DocumentVersion,
-    Notice,
 )
+from app.lifecycle.models import Attachment, Notice
 from tests.postgres import requires_postgres, run_alembic, temporary_database
 
 

@@ -15,7 +15,8 @@ from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import ColumnElement
 
-from ..models import AuditEvent, Opportunity, OpportunityLink, utc_now
+from ..core.models import AuditEvent, utc_now
+from ..lifecycle.models import Opportunity, OpportunityLink
 from .opportunity_tracking import _validate_human_name
 
 

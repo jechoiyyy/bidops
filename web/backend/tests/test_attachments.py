@@ -10,7 +10,8 @@ from sqlalchemy.pool import StaticPool
 from app.core.config import get_settings
 from app.core.db import Base, get_db, init_db
 from app.main import app
-from app.models import AgencyPortal, Attachment, AuditEvent, Notice, Run
+from app.core.models import AuditEvent
+from app.lifecycle.models import AgencyPortal, Attachment, Notice, Run
 from app.services.attachments import MAX_ATTACHMENT_SIZE
 from app.core.clamav import ClamAVUnavailable
 from app.screening.policy import load_policy_file

@@ -17,9 +17,9 @@ from sqlalchemy import and_, exists, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from ..models import (
+from ..core.models import AuditEvent, IdempotencyRecord
+from ..deep_review.models import (
     AnalysisPolicyVersion,
-    AuditEvent,
     Claim,
     ClaimEvidence,
     ContentObject,
@@ -28,11 +28,10 @@ from ..models import (
     DeepReviewAttempt,
     DeepReviewStage,
     EvidenceRef,
-    IdempotencyRecord,
-    Notice,
     ProfileVersion,
     WorkJob,
 )
+from ..lifecycle.models import Notice
 from ..core.config import get_settings
 from .deep_review_validation import DeepReviewValidationError, merge_stage_chunks, validate_deep_review_stage
 from ..core.model_binding import canonical_json_bytes

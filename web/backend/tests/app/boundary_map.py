@@ -1,8 +1,9 @@
 """모듈 경계 검사가 쓰는 매핑 데이터 (명세 §4·§5.1·§5.2·§6.1).
 
-`app/core`·`app/lifecycle`·`app/deep_review` 폴더가 아직 없는 이주 초기에는
-이 파일의 명시적 매핑표가 각 파일의 *목표* 모듈을 결정한다. 폴더가 생기는
-task마다 `FILE_MODULES`·`MIXED_FILES`의 해당 항목을 지우면 되고, 마지막에는
+네 모듈 폴더(`app/core`·`app/lifecycle`·`app/screening`·`app/deep_review`)는
+모두 생겼지만 아직 대부분의 service·router·worker가 폴더 밖에 있다. 그 파일들의
+*목표* 모듈은 이 파일의 명시적 매핑표가 결정한다. 폴더 이주 task마다
+`FILE_MODULES`·`MIXED_FILES`의 해당 항목을 지우면 되고, 마지막에는
 `MODULE_FOLDERS`(폴더 규칙)만 남는다.
 """
 
@@ -47,48 +48,89 @@ SEAM_IMPORTS: dict[tuple[str, str], frozenset[str]] = {
 }
 
 # 방향은 허용이지만 **모듈 공개 이름으로만** 받아야 하는 조합 (§3·§4).
-# 값은 그 모듈의 공개 표면 파일이다. 조립 계층은 모듈 내부 경로를 import하지
-# 못하고 `__init__.py`에 올린 이름만 쓴다. T3가 app/core/__init__.py를 만들어
-# core에 대해서만 켠 상태이며, lifecycle·deep_review는 폴더가 생기는 task가
-# 같은 방식으로 켠다.
-PUBLIC_NAME_IMPORTS: dict[tuple[str, str], str] = {
-    ("assembly", "core"): "app/core/__init__.py",
-    # T4가 app/lifecycle/__init__.py를 만들면서 조립 계층 몫을 켰다. screening·
-    # deep_review 몫은 켤 수 없다 — §4 세부 규칙이 "lifecycle의 모델 클래스는
-    # 공개 이름이다"라고 못박았고, 그 모델은 T6이 app/lifecycle/models.py를
-    # 만들 때 비로소 공개 표면과 구분된다. 지금 켜면 §4가 허용한 읽기·join
-    # 100여 곳이 모두 거짓 위반이 된다.
-    ("assembly", "lifecycle"): "app/lifecycle/__init__.py",
+# 값은 그 모듈의 공개 표면 파일들이다. 이 조합에서는 여기 적힌 파일에서 받은
+# 이름만 허용하고 그 밖의 모듈 내부 경로는 위반으로 잡는다.
+#
+# lifecycle의 공개 표면은 두 파일이다. `__init__.py`가 올린 함수·타입과,
+# **모델 클래스**다 — §4 세부 규칙이 "lifecycle의 모델 클래스는 공개 이름이다.
+# screening·deep_review는 `lifecycle.models`의 `Notice`·`Run`... 을 import해
+# ORM으로 읽고 join해도 된다"고 못박았다. 쓰기와 잠금만 `__init__.py`의 함수로
+# 제한된다(그 제한은 이 검사가 아니라 `api.py`의 공개 함수 설계가 진다).
+# T6이 `app/lifecycle/models.py`를 만들면서 screening·deep_review 몫을 켰다.
+PUBLIC_NAME_IMPORTS: dict[tuple[str, str], tuple[str, ...]] = {
+    ("assembly", "core"): ("app/core/__init__.py",),
+    # T4가 app/lifecycle/__init__.py를 만들면서 조립 계층 몫을 켰다.
+    ("assembly", "lifecycle"): ("app/lifecycle/__init__.py",),
+    ("screening", "lifecycle"): (
+        "app/lifecycle/__init__.py",
+        "app/lifecycle/models.py",
+    ),
+    ("deep_review", "lifecycle"): (
+        "app/lifecycle/__init__.py",
+        "app/lifecycle/models.py",
+    ),
 }
 
-# --- 아직 구현하지 않은 §8-1의 절 (부채) --------------------------------------
-# §4의 허용 표는 방향뿐 아니라 "공개 이름 대 모듈 내부"도 가른다. 그 절은 각
-# 모듈의 `__init__.py`가 공개 표면을 정하기 전에는 판정할 수 없어 아직 검사에
-# 들어 있지 않다. 잊히지 않도록 `MODULE_PACKAGE_INITS` 중 하나라도 생기면
-# 실패하는 테스트를 두었다(test_module_boundaries.py).
-UNIMPLEMENTED_PUBLIC_NAME_RULES: tuple[str, ...] = (
-    "조립 계층 → screening·deep_review: 모듈 공개 이름만 (지금은 모듈 전체를 "
-    "허용). core는 T3가, lifecycle은 T4가 PUBLIC_NAME_IMPORTS로 켰다. 남은 것은 "
-    "app/runtime.py가 app.screening.{execution_store,mock_transport,ollama,"
-    "orchestrator,worker}·app.services.scheduled_pipeline 같은 모듈 내부를 직접 "
-    "들고 있는 자리다. 두 모듈의 공개 표면(app/screening/__init__.py의 정리, "
-    "app/deep_review/__init__.py)이 생기는 T7·T8에서 켠다.",
-    "screening → lifecycle: lifecycle 공개 이름만 (지금은 모듈 전체를 허용). "
-    "§4 세부 규칙이 lifecycle 모델 클래스를 공개 이름으로 인정하므로, "
-    "app/lifecycle/models.py가 생겨 모델과 내부 service가 구분되는 T6에서 켠다.",
-    "deep_review → lifecycle: 위와 같은 이유로 T6에서 켠다. 방향이 아니라 "
-    "이름으로 갈리는 deep_review → screening seam만 SEAM_IMPORTS로 강제한다.",
+# 규칙을 적용할 대상 경로 범위. `None`이면 그 모듈이 소유한 파일 전부다.
+#
+# screening·deep_review → lifecycle은 **lifecycle 패키지 안**으로 한정해 켠다.
+# lifecycle 소유 파일 상당수(app/ingest, app/services, app/routers, app/schemas)가
+# 아직 `app/lifecycle/` 밖에 있고, 그 파일들의 공개 표면은 T7의 폴더 이주가
+# 정한다. 지금 전 범위로 켜면 아직 설계되지 않은 표면에 대한 위반 수십 건이
+# 한꺼번에 허용 목록으로 들어가야 하고, 허용 목록은 줄어드는 방향만 허용한다.
+# 파일이 `app/lifecycle/`로 들어오는 순간 이 규칙이 자동으로 그 파일까지
+# 강제하므로 부채는 사라지지 않는다. 남은 범위는
+# `UNIMPLEMENTED_PUBLIC_NAME_RULES`와 `REMAINING_PUBLIC_NAME_DEBT`가 센다.
+PUBLIC_NAME_SCOPES: dict[tuple[str, str], str | None] = {
+    ("assembly", "core"): None,
+    ("assembly", "lifecycle"): None,
+    ("screening", "lifecycle"): "app/lifecycle/",
+    ("deep_review", "lifecycle"): "app/lifecycle/",
+}
+
+# §3의 유일한 예외: "`alembic/env.py`와 migration revision 파일이 각 모듈의
+# `models` 하위 모듈을 import하는 것". 이 파일들은 선언 테이블을 모두 등록해야
+# `Base.metadata`가 완전해지므로 공개 표면 제한을 받지 않는다.
+MODELS_SUBMODULE_IMPORTERS: tuple[str, ...] = (
+    "alembic/env.py",
+    "alembic/versions/",
+    # 같은 성격의 조립 계층 migration 도구다. 일회성 SQLite 이전 입력이
+    # legacy·Lean v1 대상 테이블을 모두 만들려면 네 모듈의 models가 필요하다.
+    "app/migrations/import_sqlite.py",
 )
 
-# 이 중 하나라도 생기면 위 규칙을 켤 수 있다는 신호다. app/screening/__init__.py는
-# 이주 전부터 있으므로 신호가 아니다. app/core/__init__.py(T3)와
-# app/lifecycle/__init__.py(T4)는 만들면서 규칙을 켰으므로 뺐다.
-# app/lifecycle/models.py는 남은 두 규칙(screening·deep_review → lifecycle)의
-# 전제이므로 신호로 둔다 — T6이 만들 때 켜야 한다.
-MODULE_PACKAGE_INITS: tuple[str, ...] = (
-    "app/lifecycle/models.py",
-    "app/deep_review/__init__.py",
+# --- 아직 구현하지 않은 §8-1의 절 (부채) --------------------------------------
+# §4의 허용 표는 방향뿐 아니라 "공개 이름 대 모듈 내부"도 가른다. T3가 core를,
+# T4가 조립 계층 → lifecycle을, T6이 screening·deep_review → lifecycle(패키지
+# 범위)을 켰다. 남은 두 절은 아래와 같고, 각 절이 아직 필요한 이유는
+# `REMAINING_PUBLIC_NAME_DEBT`가 실제 코드에서 센다.
+UNIMPLEMENTED_PUBLIC_NAME_RULES: tuple[str, ...] = (
+    "조립 계층 → screening·deep_review: 모듈 공개 이름만 (지금은 모듈 전체를 "
+    "허용). app/runtime.py가 app.screening.{execution_store,mock_transport,"
+    "ollama,orchestrator,worker}·app.services.scheduled_pipeline 같은 모듈 "
+    "내부를 직접 들고 있고, 두 모듈의 service·router·worker가 아직 app/services·"
+    "app/routers·app/workers에 남아 있다. 폴더 이주와 모듈 진입점이 끝나는 "
+    "T7·T8에서 켠다.",
+    "screening·deep_review → lifecycle: `app/lifecycle/` **밖에** 남은 lifecycle "
+    "소유 파일(app/ingest/{loader,contracts}.py, app/services의 lifecycle 파일, "
+    "app/routers/common.py, app/schemas의 lifecycle 이름)까지 공개 이름으로 "
+    "제한하는 부분. T6은 lifecycle 패키지 안(PUBLIC_NAME_SCOPES)만 켰다. "
+    "T7이 그 파일들을 app/lifecycle/로 옮기면 같은 규칙이 그대로 적용되므로, "
+    "그때 각 파일의 공개 표면을 정하면서 이 절이 닫힌다.",
 )
+
+# 위 두 절이 아직 필요한 이유를 실제 코드에서 센 것이다. 값은 "그 절이 켜져
+# 있었다면 위반이었을 import"의 개수이며, 허용 목록과 같은 계약을 따른다:
+# 정확히 일치해야 하고 이주 task는 **줄이기만** 한다. 0이 되면 그 절을 검사 1에
+# 넣을 수 있다는 신호이므로 테스트가 실패한다.
+#
+# 모듈 패키지 존재 여부는 더 이상 신호가 아니다. 네 패키지가 모두 생겼고
+# (app/core·app/lifecycle·app/screening·app/deep_review), 남은 조건은 파일이
+# 있느냐가 아니라 조립 계층·형제 모듈이 아직 모듈 밖 경로를 들고 있느냐다.
+REMAINING_PUBLIC_NAME_DEBT: dict[str, int] = {
+    "assembly->screening|deep_review": 33,
+    "screening|deep_review->lifecycle(패키지 밖)": 77,
+}
 
 # --- 폴더 규칙 (경로 판정에서 가장 먼저 본다) ----------------------------------
 MODULE_FOLDERS: dict[str, str] = {
@@ -220,12 +262,12 @@ DIRECTORY_MODULES: dict[str, str] = {
     "app/document_mcp": DEEP_REVIEW,
 }
 
-# 한 파일에 네 모듈이 섞여 있어 파일 단위로 배정할 수 없는 파일 (T6·T7이 나눈다).
+# 한 파일에 네 모듈이 섞여 있어 파일 단위로 배정할 수 없는 파일 (T7이 나눈다).
 # import 하는 쪽(출발지)으로는 검사하지 않고, import 되는 쪽(도착지)일 때만
-# 이름 단위로 소유 모듈을 판정한다.
+# 이름 단위로 소유 모듈을 판정한다. T6이 `app/models.py`를 네 모듈의
+# `models.py`로 나눠 없앴으므로 남은 것은 schemas뿐이다.
 MIXED_FILES: frozenset[str] = frozenset(
     {
-        "app/models.py",
         "app/schemas/__init__.py",
     }
 )
@@ -329,29 +371,6 @@ TABLE_OWNER: dict[str, str] = {
     "bid_delta_item": DEEP_REVIEW,
     "bid_delta_evidence": DEEP_REVIEW,
     "bid_final_decision": DEEP_REVIEW,
-}
-
-# `app/models.py`의 테이블이 아닌 공개 이름. 테이블 클래스는 `__tablename__`에서
-# 자동으로 유도하므로 여기 적지 않는다.
-MODELS_EXTRA_NAMES: dict[str, str] = {
-    "AwareDateTime": CORE,
-    "Base": CORE,
-    "JSONB_COMPAT": CORE,
-    "JSONB_NULL_COMPAT": CORE,
-    "app_uuid": CORE,
-    "utc_now": CORE,
-    "ScreeningEvidence": SCREENING,  # Evidence(screening_evidence)의 별칭
-    "ATTACHMENT_FETCH_TABLES": ASSEMBLY,
-    "BID_DELTA_TABLES": ASSEMBLY,
-    "IDENTITY_TABLES": ASSEMBLY,
-    "LEGACY_TABLES": ASSEMBLY,
-    "NEW_TABLES": ASSEMBLY,
-    "OPPORTUNITY_TABLES": ASSEMBLY,
-    "ORDER_PLAN_SCREENING_TABLES": ASSEMBLY,
-    "PRESPEC_OVERVIEW_TABLES": ASSEMBLY,
-    "REVISION_TABLES": ASSEMBLY,
-    "SCREENING_RUNTIME_TABLES": ASSEMBLY,
-    "PRESPEC_OVERVIEW_ATTEMPT_TRANSITIONS": DEEP_REVIEW,
 }
 
 # --- 명세 §6.1 DTO 소유: `app/schemas/__init__.py`의 이름 단위 매핑 -------------

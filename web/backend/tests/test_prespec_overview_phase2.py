@@ -11,7 +11,7 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import (
+from app.deep_review.models import (
     PreSpecOverviewAttempt,
     PreSpecOverviewAttemptEvent,
     PreSpecOverviewResult,

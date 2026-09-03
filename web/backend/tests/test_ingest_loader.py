@@ -22,24 +22,26 @@ from app.ingest.loader import (
 )
 from app.screening.judgment_revisions import judgment_revision_payload
 from app.core.generation_config import legacy_generation_config
-from app.models import (
-    Counterargument,
+from app.lifecycle.models import (
     IngestWarning,
-    Judgment,
-    JudgmentRevision,
     Notice,
     NoticeObservation,
     Opportunity,
     OpportunityLink,
     OrderPlan,
     OrderPlanObservation,
+    Run,
+)
+from app.screening.models import (
+    Counterargument,
+    Judgment,
+    JudgmentRevision,
     OrderPlanScreeningArtifact,
     OrderPlanScreeningBatchAttempt,
     OrderPlanScreeningExecution,
     OrderPlanScreeningResult,
     Perspective,
     Review,
-    Run,
     VerificationItem,
 )
 from app.services.revisions import RevisionConflictError

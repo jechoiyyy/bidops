@@ -35,7 +35,10 @@ from app.agents.document_preparation import (
 )
 from app.core.db import init_db
 from app.document_mcp.processor import DocumentProcessor
-from app.models import AuditEvent, DocumentBundle, DocumentBundleItem, DocumentVersion, Judgment, Notice, Run
+from app.core.models import AuditEvent
+from app.deep_review.models import DocumentBundle, DocumentBundleItem, DocumentVersion
+from app.lifecycle.models import Notice, Run
+from app.screening.models import Judgment
 from app.schemas.document_bundles import BundleView, DocumentVersionView
 from app.services.document_bundles import BundleServiceError, DocumentBundleService
 

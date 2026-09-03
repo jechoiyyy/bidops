@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from ..core.config import get_settings
 from ..ingest.loader import parse_run_id
 from ..lifecycle import extension_registry
-from ..models import Notice, NoticeObservation, Run
+from ..lifecycle.models import Notice, NoticeObservation, Run
 from ..schemas import NoticeListItem, RunCounts, RunSummary
 
 

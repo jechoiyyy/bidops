@@ -8,7 +8,8 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.db import Base, get_db, init_db
 from app.main import app
-from app.models import Attachment, Evidence, Judgment, Notice, Perspective, Run
+from app.lifecycle.models import Attachment, Notice, Run
+from app.screening.models import Evidence, Judgment, Perspective
 
 
 @pytest.fixture

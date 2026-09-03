@@ -17,7 +17,15 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, sessionmaker
 
 from ..core.config import Settings, get_settings
-from ..models import AlwaysOnState, CompanyProfileSnapshot, Run, ScheduleExecution, ScheduleReservation, ScreeningPolicy, utc_now
+from ..core.models import utc_now
+from ..lifecycle.models import Run
+from ..screening.models import (
+    AlwaysOnState,
+    CompanyProfileSnapshot,
+    ScheduleExecution,
+    ScheduleReservation,
+    ScreeningPolicy,
+)
 from ..core.generation_config import (
     GenerationConfigError,
     config_from_value,
@@ -288,7 +296,7 @@ class ScheduledPipeline:
             if run_id and session.get(Run, run_id) is not None:
                 row.run_id = run_id
             if screening_execution_id:
-                from ..models import ScreeningExecution
+                from ..screening.models import ScreeningExecution
 
                 if session.scalar(select(ScreeningExecution).where(ScreeningExecution.execution_id == screening_execution_id)) is not None:
                     row.screening_execution_id = screening_execution_id

@@ -7,22 +7,33 @@ from sqlalchemy.pool import StaticPool
 
 import app.core.db as db
 from app.core.db import Base, init_db
-from app.models import (
-    Evidence,
+from app.core.models import CORE_LEAN_V1_TABLES
+from app.deep_review.models import (
     ATTACHMENT_FETCH_TABLES,
-    Judgment,
-    LEGACY_TABLES,
-    NEW_TABLES,
-    SCREENING_RUNTIME_TABLES,
-    IDENTITY_TABLES,
-    REVISION_TABLES,
-    PRESPEC_OVERVIEW_TABLES,
     BID_DELTA_TABLES,
-    ORDER_PLAN_SCREENING_TABLES,
+    DEEP_REVIEW_LEAN_V1_TABLES,
+    PRESPEC_OVERVIEW_TABLES,
+)
+from app.lifecycle.models import (
+    IDENTITY_TABLES,
+    LIFECYCLE_LEGACY_TABLES,
     Notice,
-    Perspective,
     Run,
 )
+from app.screening.models import (
+    Evidence,
+    Judgment,
+    ORDER_PLAN_SCREENING_TABLES,
+    Perspective,
+    REVISION_TABLES,
+    SCREENING_LEGACY_TABLES,
+    SCREENING_RUNTIME_TABLES,
+)
+
+# 이주 전 `app/models.py`가 갖고 있던 Lean v1 두 tuple을 소유 모듈의 조각에서
+# 다시 만든다 (명세 §5.1). 집합은 그대로이고 순서만 모듈별로 묶인다.
+LEGACY_TABLES = LIFECYCLE_LEGACY_TABLES + SCREENING_LEGACY_TABLES
+NEW_TABLES = DEEP_REVIEW_LEAN_V1_TABLES + CORE_LEAN_V1_TABLES
 
 
 EXPECTED_TABLES = set(

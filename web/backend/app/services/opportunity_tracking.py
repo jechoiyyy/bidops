@@ -14,7 +14,8 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from ..models import AuditEvent, Opportunity, OpportunityLink, utc_now
+from ..core.models import AuditEvent, utc_now
+from ..lifecycle.models import Opportunity, OpportunityLink
 
 
 TRACKING_STATUSES = ("미선택", "계속 추적", "보류", "종료")

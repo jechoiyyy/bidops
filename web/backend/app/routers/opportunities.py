@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..core.db import get_db
 from ..lifecycle import extension_registry
-from ..models import Opportunity, OpportunityLink
+from ..lifecycle.models import Opportunity, OpportunityLink
 from ..schemas.opportunities import (
     CandidateDecisionRequest,
     OpportunityDetailResponse,

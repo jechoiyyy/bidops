@@ -17,13 +17,13 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
-from ..models import (
-    ScreeningAuditEvent,
+from ..core.models import utc_now
+from .models import (
     QualityGate,
     QualityGateEvaluation,
+    ScreeningAuditEvent,
     ScreeningExecution,
     ScreeningPolicy,
-    utc_now,
 )
 
 

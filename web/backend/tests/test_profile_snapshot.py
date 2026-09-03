@@ -9,7 +9,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from app.core.db import Base
-from app.models import CompanyProfileSnapshot
+from app.screening.models import CompanyProfileSnapshot
 from app.screening.profile_snapshot import (
     BASELINE_COMMIT,
     PROFILE_SOURCE_PATH,

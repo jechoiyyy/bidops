@@ -10,7 +10,8 @@ from typing import Any
 from sqlalchemy import case, select, update
 from sqlalchemy.orm import Session
 
-from ..models import Run, ScreeningExecution
+from ..lifecycle.models import Run
+from .models import ScreeningExecution
 from .queue import (
     ACTIVE,
     INTERRUPTED,

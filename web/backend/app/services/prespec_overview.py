@@ -25,20 +25,20 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..document_mcp.contracts import validate_structure
-from ..models import (
+from ..deep_review.models import (
     ContentObject,
     ContentObjectLocation,
     ContentScan,
     DocumentStructure,
     DocumentVersion,
-    Notice,
+    PRESPEC_OVERVIEW_ATTEMPT_TRANSITIONS,
     PreSpecOverviewAttempt,
     PreSpecOverviewAttemptEvent,
     PreSpecOverviewResult,
     PreSpecOverviewReview,
     PreSpecOverviewSnapshot,
-    PRESPEC_OVERVIEW_ATTEMPT_TRANSITIONS,
 )
+from ..lifecycle.models import Notice
 from ..schemas.pre_specs import (
     PreSpecOverviewAttemptView,
     PreSpecOverviewAttemptV2View,

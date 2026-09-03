@@ -8,7 +8,13 @@ from app.core.config import Settings
 import pytest
 
 from app.core.db import _json_serializer, schema_bound
-from app.models import AlwaysOnState, ScreeningAuditEvent, Base, ScheduleExecution, ScheduleReservation
+from app.core.db import Base
+from app.screening.models import (
+    AlwaysOnState,
+    ScheduleExecution,
+    ScheduleReservation,
+    ScreeningAuditEvent,
+)
 from app.services.scheduler import (
     EnvironmentDisabledError,
     ScheduleGateError,

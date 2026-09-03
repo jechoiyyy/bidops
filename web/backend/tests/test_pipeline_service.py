@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from app.core.config import Settings
-from app.models import Run
+from app.lifecycle.models import Run
 from app.services.pipeline import PipelineBusyError, PipelineService
 
 

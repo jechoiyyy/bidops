@@ -12,16 +12,8 @@ from sqlalchemy.pool import StaticPool
 from app.core.constants import GRADE_ORDER
 from app.core.db import init_db
 from app.lifecycle import JudgmentProjection, RunIngestHook
-from app.models import (
-    Judgment,
-    JudgmentRevision,
-    Notice,
-    NoticeObservation,
-    Perspective,
-    Review,
-    Run,
-    VerificationItem,
-)
+from app.lifecycle.models import Notice, NoticeObservation, Run
+from app.screening.models import Judgment, JudgmentRevision, Perspective, Review, VerificationItem
 from app.screening import (
     CorrectedGrade,
     JudgmentSummary,

@@ -20,7 +20,7 @@ from typing import Any
 from sqlalchemy import select
 
 from ..lifecycle import RunDirectoryClaim, RunIngestCounts
-from ..models import Notice, NoticeObservation, OpportunityLink
+from ..lifecycle.models import Notice, NoticeObservation, OpportunityLink
 from .prespec_attachments import refresh_fetch_eligibility
 
 #: loader가 `_record_warning`으로 남기던 경고와 같은 code·message.

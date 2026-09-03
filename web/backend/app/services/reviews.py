@@ -10,16 +10,9 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.models import (
-    AuditEvent,
-    JudgmentRevision,
-    Notice,
-    NoticeObservation,
-    Review,
-    ReviewRevision,
-    Run,
-    VerificationAnswer,
-)
+from app.core.models import AuditEvent
+from app.lifecycle.models import Notice, NoticeObservation, Run
+from app.screening.models import JudgmentRevision, Review, ReviewRevision, VerificationAnswer
 from app.services.revisions import (
     RevisionConflictError,
     RevisionValidationError,

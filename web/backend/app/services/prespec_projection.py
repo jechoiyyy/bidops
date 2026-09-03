@@ -14,7 +14,8 @@ from typing import Any
 from sqlalchemy import func, select
 
 from ..lifecycle import PreSpecDocumentCounts
-from ..models import Attachment, AttachmentFetch, PreSpecOverviewReview
+from ..deep_review.models import AttachmentFetch, PreSpecOverviewReview
+from ..lifecycle.models import Attachment
 
 # attachment_fetch.status 값 → PreSpecDocumentCounts 필드. 응답 별칭(완료·대기·
 # 진행·차단·실패)은 lifecycle의 응답 모델이 붙인다.

@@ -23,7 +23,18 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.db import init_db
 from app.document_mcp.processor import DocumentProcessor
-from app.models import AuditEvent, Attachment, ContentObject, ContentObjectLocation, ContentScan, DocumentBundle, DocumentBundleItem, DocumentStructure, DocumentVersion, IdempotencyRecord, Judgment, Notice, Run
+from app.core.models import AuditEvent, IdempotencyRecord
+from app.deep_review.models import (
+    ContentObject,
+    ContentObjectLocation,
+    ContentScan,
+    DocumentBundle,
+    DocumentBundleItem,
+    DocumentStructure,
+    DocumentVersion,
+)
+from app.lifecycle.models import Attachment, Notice, Run
+from app.screening.models import Judgment
 from app.schemas.document_bundles import ConfirmRequest, PatchDocumentVersionRequest
 from app.services import assets
 from app.services import document_converter

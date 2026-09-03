@@ -22,30 +22,41 @@ from sqlalchemy.orm import Session
 from app.core.db import ALEMBIC_HEAD
 from app.ingest.contracts import NoticeContract
 from app.ingest.loader import ObservationSnapshotConflictError, _upsert_notice
-from app.models import (
+from app.core.models import CORE_LEAN_V1_TABLES
+from app.deep_review.models import (
     ATTACHMENT_FETCH_TABLES,
     BID_DELTA_TABLES,
-    IDENTITY_TABLES,
-    LEGACY_TABLES,
-    NEW_TABLES,
-    ORDER_PLAN_SCREENING_TABLES,
-    REVISION_TABLES,
+    DEEP_REVIEW_LEAN_V1_TABLES,
     PRESPEC_OVERVIEW_TABLES,
-    SCREENING_RUNTIME_TABLES,
+)
+from app.lifecycle.models import (
+    IDENTITY_TABLES,
+    LIFECYCLE_LEGACY_TABLES,
     Notice,
     NoticeObservation,
     Opportunity,
     OpportunityLink,
     OrderPlan,
+    Run,
+)
+from app.screening.models import (
+    ORDER_PLAN_SCREENING_TABLES,
     OrderPlanScreeningArtifact,
     OrderPlanScreeningExecution,
     OrderPlanScreeningPolicy,
-    Run,
+    REVISION_TABLES,
+    SCREENING_LEGACY_TABLES,
+    SCREENING_RUNTIME_TABLES,
 )
 from app.core.generation_config import GenerationConfig, legacy_generation_config
 from tests.postgres import migrated_engine, requires_postgres, run_alembic, temporary_database
 
 pytestmark = requires_postgres
+
+# 이주 전 `app/models.py`가 갖고 있던 Lean v1 두 tuple을 소유 모듈의 조각에서
+# 다시 만든다 (명세 §5.1). 집합은 그대로이고 순서만 모듈별로 묶인다.
+LEGACY_TABLES = LIFECYCLE_LEGACY_TABLES + SCREENING_LEGACY_TABLES
+NEW_TABLES = DEEP_REVIEW_LEAN_V1_TABLES + CORE_LEAN_V1_TABLES
 
 LEAN_V1_HEAD = "0002_screening_basis_text"
 OBSERVATION_SNAPSHOT_BASE = "0008_prespec_attachment_fetch"

@@ -10,7 +10,8 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..core.db import get_db
-from ..models import AuditEvent, ScreeningPolicy
+from ..core.models import AuditEvent
+from ..screening.models import ScreeningPolicy
 from ..schemas import (
     PolicyActivationRequest,
     PolicyActivationResponse,
