@@ -1444,6 +1444,76 @@
   background: var(--color-primary-strong);
 }
 
+/* PreSpecDetailPage(4단계)가 고정 헤더 안에 이 컨트롤을 둘 때 쓰는 compact
+ * 표시 변형이다. 업무 규칙·접근 가능한 이름·설명 문구는 그대로 두고 밀도만
+ * 낮춘다 — 텍스트를 display:none으로 지우면 스크린 리더가 aria-describedby로
+ * 읽지 못하게 되므로 숨기지 않고 줄인다. 새로 추가하는 규칙이라 ADR-0040에
+ * 따라 Astryx 토큰만 읽는다. */
+.pre-spec-tracking-decision.is-compact {
+  margin-top: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.pre-spec-tracking-decision.is-compact .pre-spec-tracking-decision-header {
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.pre-spec-tracking-decision.is-compact .pre-spec-tracking-decision-header h3 {
+  margin-top: 0;
+  font-size: var(--font-size-sm);
+}
+
+.pre-spec-tracking-decision.is-compact .pre-spec-tracking-current {
+  min-width: 0;
+  gap: 2px;
+}
+
+.pre-spec-tracking-form.is-compact {
+  margin-top: var(--spacing-2);
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--spacing-2);
+}
+
+.pre-spec-tracking-form.is-compact fieldset {
+  flex: 1 1 260px;
+  min-width: 220px;
+}
+
+.pre-spec-tracking-form.is-compact .pre-spec-tracking-options {
+  gap: var(--spacing-1);
+}
+
+.pre-spec-tracking-form.is-compact .pre-spec-tracking-option {
+  min-height: 0;
+  padding: var(--spacing-1) var(--spacing-2);
+}
+
+.pre-spec-tracking-form.is-compact .pre-spec-tracking-option span {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+}
+
+.pre-spec-tracking-form.is-compact .pre-spec-tracking-reason {
+  flex: 1 1 220px;
+  min-width: 200px;
+}
+
+.pre-spec-tracking-form.is-compact .pre-spec-tracking-reason textarea {
+  min-height: 0;
+  height: 38px;
+}
+
+.pre-spec-tracking-form.is-compact .pre-spec-tracking-save {
+  align-self: center;
+}
+
 @media (max-width: 900px) {
   .pre-spec-tracking-decision-header {
     flex-direction: column;
@@ -1452,6 +1522,17 @@
   .pre-spec-tracking-current {
     align-items: flex-start;
     text-align: left;
+  }
+
+  .pre-spec-tracking-form.is-compact {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .pre-spec-tracking-form.is-compact fieldset,
+  .pre-spec-tracking-form.is-compact .pre-spec-tracking-reason {
+    flex-basis: auto;
+    min-width: 0;
   }
 }
 

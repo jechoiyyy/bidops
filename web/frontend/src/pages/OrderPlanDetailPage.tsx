@@ -15,6 +15,7 @@ import type {
   OrderPlanScreeningHistoryItem,
 } from "../lib/types";
 import "../styles/order-plans.css";
+import "../styles/detail-skeleton.css";
 
 const EMPTY_HISTORY: OrderPlanScreeningHistoryItem[] = [];
 const EMPTY_FEEDBACK: OrderPlanScreeningFeedbackView[] = [];
@@ -170,11 +171,17 @@ function FeedbackForm({
   executionId,
   expectedRevision,
   onSaved,
+  compact = false,
 }: {
   orderPlanPk: number;
   executionId: string;
   expectedRevision: number;
   onSaved: () => void;
+  /** 발주계획 상세(4단계)가 고정 헤더 안에 이 폼을 둘 때 쓰는 밀도 전용
+   * 표시 변형이다. 이 화면에 이 결정(사람 relevance·priority·memo 입력,
+   * PRD 결정 1)을 소유·저장하는 곳은 여기 하나뿐이므로 compact는 설명
+   * 문구만 생략하고 필드·저장 동작은 그대로 둔다. */
+  compact?: boolean;
 }) {
   const queryClient = useQueryClient();
   const [relevance, setRelevance] = useState<OrderPlanRelevance>("uncertain");
@@ -209,14 +216,18 @@ function FeedbackForm({
   const ready = actorName.trim().length > 0 && executionId.length > 0;
   return (
     <form
-      className="c2-feedback-form"
+      className={`c2-feedback-form${compact ? " is-compact" : ""}`}
       onSubmit={(event) => {
         event.preventDefault();
         if (ready) mutation.mutate();
       }}
     >
-      <h4>사람 relevance / priority / note 기록</h4>
-      <p className="c2-form-note">새 revision을 append-only로 추가합니다. tracking 상태·fitness grade·readiness·최종 Go/No-Go를 변경하지 않습니다.</p>
+      {!compact ? (
+        <>
+          <h4>사람 relevance / priority / note 기록</h4>
+          <p className="c2-form-note">새 revision을 append-only로 추가합니다. tracking 상태·fitness grade·readiness·최종 Go/No-Go를 변경하지 않습니다.</p>
+        </>
+      ) : null}
       <div className="c2-form-grid">
         <label>
           <span>relevance</span>
@@ -302,18 +313,48 @@ export function OrderPlanDetailPage() {
     return <EmptyState tone="error" title="올바른 발주계획 식별자가 필요합니다." action={{ label: "목록으로", to: "/order-plans" }} />;
   }
 
+  const latestFeedback = detailQuery.data?.latest_human_feedback ?? null;
+  const latestExecution = history.length > 0 ? history[0] : null;
+
   return (
-    <section className="c2-page c2-detail-page" aria-labelledby="order-plan-detail-title">
-      <header className="c2-page-header">
-        <div>
-          <Link className="c2-back-link" to={returnPath}>← 발주계획 목록</Link>
-          <p className="c2-kicker">발주계획 C-2 상세</p>
-          <h2 id="order-plan-detail-title">{detailQuery.data ? textOrUnknown(detailQuery.data.title) : "발주계획 상세"}</h2>
-          <p className="c2-page-lede">관측·단계 결과·시도/실패 투영·안전한 artifact·사람 피드백 revision을 한 건 단위로 확인합니다.</p>
-          <p className="c2-semantics-note"><code>filtered_out</code>·<code>not_relevant</code>·<code>unknown</code>·<code>null</code>은 각각 BM25 탈락·relevance 음성·정보 부족·값 없음/미적용을 뜻하며 서로 대체하지 않습니다.</p>
+    <section className="c2-page c2-detail-page detail-skeleton" data-astryx-theme="neutral" aria-labelledby="order-plan-detail-title">
+      {/* 상세 3종 공통 골격(4단계): 요약 헤더는 position:sticky로 스크롤
+          위치와 무관하게 첫 화면에 남는다. 결정 액션(사람 relevance·priority·
+          memo 저장, PRD 결정 1)은 상태 배지 줄 오른쪽 끝에만 있고 레일에는
+          복제하지 않는다. */}
+      <header className="c2-page-header detail-skeleton-head">
+        <div className="detail-skeleton-head-top">
+          <div>
+            <Link className="c2-back-link" to={returnPath}>← 발주계획 목록</Link>
+            <p className="c2-kicker">발주계획 C-2 상세</p>
+            <h2 id="order-plan-detail-title">{detailQuery.data ? textOrUnknown(detailQuery.data.title) : "발주계획 상세"}</h2>
+          </div>
+          <div className="c2-contract-note">relevance는 tracking/등급/준비/최종 결정과 다른 상태축</div>
         </div>
-        <div className="c2-contract-note">relevance는 tracking/등급/준비/최종 결정과 다른 상태축</div>
+
+        <div className="detail-skeleton-status-row">
+          {latestExecution ? <StatusBadge label={`최근 실행 ${latestExecution.execution_status}`} tone={statusTone(latestExecution.execution_status)} /> : null}
+          <StatusBadge
+            label={latestFeedback ? `최근 피드백 rev ${latestFeedback.revision}` : "피드백 없음"}
+            tone={latestFeedback ? statusTone(latestFeedback.relevance) : "neutral"}
+          />
+          <div className="detail-skeleton-actions">
+            {selectedExecutionId ? (
+              <FeedbackForm
+                compact
+                orderPlanPk={orderPlanPk}
+                executionId={selectedExecutionId}
+                expectedRevision={expectedRevision}
+                onSaved={() => setSavedMessage("사람 피드백 revision을 추가했습니다.")}
+              />
+            ) : <p className="c2-muted">피드백을 기록할 execution history가 없습니다.</p>}
+          </div>
+        </div>
+        {savedMessage ? <MutationFeedback tone="success">{savedMessage}</MutationFeedback> : null}
       </header>
+
+      <p className="c2-page-lede">관측·단계 결과·시도/실패 투영·안전한 artifact·사람 피드백 revision을 한 건 단위로 확인합니다.</p>
+      <p className="c2-semantics-note"><code>filtered_out</code>·<code>not_relevant</code>·<code>unknown</code>·<code>null</code>은 각각 BM25 탈락·relevance 음성·정보 부족·값 없음/미적용을 뜻하며 서로 대체하지 않습니다.</p>
 
       {detailQuery.isPending ? <p className="c2-loading" role="status">발주계획 상세를 불러오는 중…</p> : null}
       {detailQuery.isError || !detailQuery.data ? (
@@ -326,107 +367,110 @@ export function OrderPlanDetailPage() {
       ) : null}
 
       {detailQuery.data ? (
-        <>
-          <Panel className="c2-detail-facts" title="발주계획 사실">
-            <div className="c2-plan-identity">
-              <div>
-                <p className="c2-card-eyebrow">계획 ID</p>
-                <p className="c2-large-id mono">{detailQuery.data.order_plan_pk}</p>
+        <div className="detail-skeleton-grid">
+          <div className="detail-skeleton-main">
+            <Panel className="c2-detail-facts" title="발주계획 사실">
+              <div className="c2-plan-identity">
+                <div>
+                  <p className="c2-card-eyebrow">계획 ID</p>
+                  <p className="c2-large-id mono">{detailQuery.data.order_plan_pk}</p>
+                </div>
+                <div><dt>발주계획 번호</dt><dd className="mono">{detailQuery.data.order_plan_unty_no}</dd></div>
+                <div><dt>기관</dt><dd>{textOrUnknown(detailQuery.data.agency_name)}</dd></div>
+                <div><dt>사업 분야</dt><dd>{textOrUnknown(detailQuery.data.business_division)}</dd></div>
+                <div><dt>분야 코드</dt><dd className="mono">{detailQuery.data.business_division_code ?? "null (미제공)"}</dd></div>
+                <div><dt>서비스 유형</dt><dd>{detailQuery.data.service_type ?? "null (미제공)"}</dd></div>
+                <div><dt>예산</dt><dd>{detailQuery.data.budget_amount === null ? "null (미제공)" : detailQuery.data.budget_amount.toLocaleString("ko-KR")}</dd></div>
+                <div><dt>계획 시기</dt><dd>{plannedTiming(detailQuery.data.planned_order_year, detailQuery.data.planned_order_month)}</dd></div>
               </div>
-              <div><dt>발주계획 번호</dt><dd className="mono">{detailQuery.data.order_plan_unty_no}</dd></div>
-              <div><dt>기관</dt><dd>{textOrUnknown(detailQuery.data.agency_name)}</dd></div>
-              <div><dt>사업 분야</dt><dd>{textOrUnknown(detailQuery.data.business_division)}</dd></div>
-              <div><dt>분야 코드</dt><dd className="mono">{detailQuery.data.business_division_code ?? "null (미제공)"}</dd></div>
-              <div><dt>서비스 유형</dt><dd>{detailQuery.data.service_type ?? "null (미제공)"}</dd></div>
-              <div><dt>예산</dt><dd>{detailQuery.data.budget_amount === null ? "null (미제공)" : detailQuery.data.budget_amount.toLocaleString("ko-KR")}</dd></div>
-              <div><dt>계획 시기</dt><dd>{plannedTiming(detailQuery.data.planned_order_year, detailQuery.data.planned_order_month)}</dd></div>
-            </div>
-          </Panel>
+            </Panel>
 
-          <Panel title="관측 history" className="c2-observation-panel">
-            {detailQuery.data.observations.length ? (
-              <div className="c2-scroll-table">
-                <table>
-                  <caption className="visually-hidden">발주계획 관측 history</caption>
-                  <thead><tr><th scope="col">source run</th><th scope="col">observed at</th><th scope="col">source sha256</th></tr></thead>
-                  <tbody>
-                    {detailQuery.data.observations.map((observation) => (
-                      <tr key={`${observation.source_run_id}-${observation.observed_at}`}>
-                        <td className="mono">{observation.source_run_id}</td>
-                        <td>{formatMoment(observation.observed_at)}</td>
-                        <td className="c2-digest">{observation.source_sha256 ?? "null (미제공)"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : <EmptyState compact title="관측 history가 없습니다." description="서버가 제공한 관측 기록이 없어 변경 여부를 판단하지 않습니다." />}
-          </Panel>
-
-          <Panel title="screening execution history" className="c2-history-panel">
-            {historyQuery.isError && detailQuery.data.screening_history.length === 0 ? <p className="c2-inline-warning" role="alert">screening history endpoint를 확인하지 못했습니다. 결과 없음과 실패를 구분할 수 없습니다.</p> : null}
-            {history.length === 0 ? (
-              <EmptyState compact title="screening execution history가 없습니다." description="실행 기록이 없으므로 단계 결과를 추정하지 않습니다." />
-            ) : (
-              <div className="c2-history-list">
-                {history.map((item, index) => (
-                  <div key={`${item.execution_id}-${index}`}>
-                    <button
-                      type="button"
-                      className={`c2-history-select ${selectedExecutionId === item.execution_id ? "is-selected" : ""}`.trim()}
-                      aria-pressed={selectedExecutionId === item.execution_id}
-                      onClick={() => setSelectedExecutionId(item.execution_id)}
-                    >
-                      <span className="mono">{item.execution_id}</span>
-                      <StatusBadge label={item.execution_status} tone={statusTone(item.execution_status)} />
-                      <span>source run {item.source_run_id}</span>
-                    </button>
-                    <ExecutionHistoryCard
-                      item={item}
-                      detail={executionDetails[index]?.data}
-                      pending={executionDetails[index]?.isPending ?? false}
-                      error={executionDetails[index]?.error}
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
-          </Panel>
-
-          <Panel title="사람 피드백 revision history" className="c2-feedback-panel">
-            <p className="c2-form-note">모든 feedback은 append-only revision입니다. 이 기록은 자동 relevance를 덮어쓰지 않으며 사람 판단의 별도 이력입니다.</p>
-            {feedbackQuery.isError ? <p className="c2-inline-warning" role="alert">사람 피드백 history를 불러오지 못했습니다. 저장 전 현재 revision을 확인할 수 없습니다.</p> : null}
-            {feedback.length ? (
-              <ol className="c2-feedback-history">
-                {feedback.map((item) => (
-                  <li key={item.feedback_id}>
-                    <div className="c2-feedback-history-heading">
-                      <strong>revision {item.revision}</strong>
-                      <StatusBadge label={item.relevance} tone={statusTone(item.relevance)} />
-                      <span className="mono">{item.execution_id}</span>
+            <Panel title="screening execution history" className="c2-history-panel">
+              {historyQuery.isError && detailQuery.data.screening_history.length === 0 ? <p className="c2-inline-warning" role="alert">screening history endpoint를 확인하지 못했습니다. 결과 없음과 실패를 구분할 수 없습니다.</p> : null}
+              {history.length === 0 ? (
+                <EmptyState compact title="screening execution history가 없습니다." description="실행 기록이 없으므로 단계 결과를 추정하지 않습니다." />
+              ) : (
+                <div className="c2-history-list">
+                  {history.map((item, index) => (
+                    <div key={`${item.execution_id}-${index}`}>
+                      <button
+                        type="button"
+                        className={`c2-history-select ${selectedExecutionId === item.execution_id ? "is-selected" : ""}`.trim()}
+                        aria-pressed={selectedExecutionId === item.execution_id}
+                        onClick={() => setSelectedExecutionId(item.execution_id)}
+                      >
+                        <span className="mono">{item.execution_id}</span>
+                        <StatusBadge label={item.execution_status} tone={statusTone(item.execution_status)} />
+                        <span>source run {item.source_run_id}</span>
+                      </button>
+                      <ExecutionHistoryCard
+                        item={item}
+                        detail={executionDetails[index]?.data}
+                        pending={executionDetails[index]?.isPending ?? false}
+                        error={executionDetails[index]?.error}
+                      />
                     </div>
-                    <dl>
-                      <div><dt>priority</dt><dd>{item.priority ?? "null (미지정)"}</dd></div>
-                      <div><dt>note</dt><dd>{item.memo ?? "null (메모 미제공)"}</dd></div>
-                      <div><dt>claimed name</dt><dd>{item.claimed_name}</dd></div>
-                      <div><dt>created at</dt><dd>{formatMoment(item.created_at)}</dd></div>
-                    </dl>
-                  </li>
-                ))}
-              </ol>
-            ) : <EmptyState compact title="사람 피드백이 없습니다." description="사람 relevance·priority·note를 새 revision으로 기록할 수 있습니다." />}
+                  ))}
+                </div>
+              )}
+            </Panel>
+          </div>
 
-            {selectedExecutionId ? (
-              <FeedbackForm
-                orderPlanPk={orderPlanPk}
-                executionId={selectedExecutionId}
-                expectedRevision={expectedRevision}
-                onSaved={() => setSavedMessage("사람 피드백 revision을 추가했습니다.")}
-              />
-            ) : <p className="c2-muted">피드백을 기록할 execution history가 없습니다.</p>}
-            {savedMessage ? <MutationFeedback tone="success">{savedMessage}</MutationFeedback> : null}
-          </Panel>
-        </>
+          {/* 우측 레일은 이력과 연결만 담는다(시안 주석 원문). 결정 액션은
+              헤더에만 있고 여기서 복제하지 않는다. */}
+          <aside className="detail-skeleton-rail">
+            <div className="detail-skeleton-rail-panel">
+              <h3 className="detail-skeleton-rail-title">관측 history</h3>
+              {detailQuery.data.observations.length ? (
+                <div className="c2-scroll-table">
+                  <table>
+                    <caption className="visually-hidden">발주계획 관측 history</caption>
+                    <thead><tr><th scope="col">source run</th><th scope="col">observed at</th><th scope="col">source sha256</th></tr></thead>
+                    <tbody>
+                      {detailQuery.data.observations.map((observation) => (
+                        <tr key={`${observation.source_run_id}-${observation.observed_at}`}>
+                          <td className="mono">{observation.source_run_id}</td>
+                          <td>{formatMoment(observation.observed_at)}</td>
+                          <td className="c2-digest">{observation.source_sha256 ?? "null (미제공)"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : <EmptyState compact title="관측 history가 없습니다." description="서버가 제공한 관측 기록이 없어 변경 여부를 판단하지 않습니다." />}
+            </div>
+
+            <div className="detail-skeleton-rail-panel">
+              <h3 className="detail-skeleton-rail-title">사람 피드백 revision 이력</h3>
+              <p className="c2-form-note">모든 feedback은 append-only revision입니다. 이 기록은 자동 relevance를 덮어쓰지 않으며 사람 판단의 별도 이력입니다.</p>
+              {feedbackQuery.isError ? <p className="c2-inline-warning" role="alert">사람 피드백 history를 불러오지 못했습니다. 저장 전 현재 revision을 확인할 수 없습니다.</p> : null}
+              {feedback.length ? (
+                <ol className="c2-feedback-history">
+                  {feedback.map((item) => (
+                    <li key={item.feedback_id}>
+                      <div className="c2-feedback-history-heading">
+                        <strong>revision {item.revision}</strong>
+                        <StatusBadge label={item.relevance} tone={statusTone(item.relevance)} />
+                        <span className="mono">{item.execution_id}</span>
+                      </div>
+                      <dl>
+                        <div><dt>priority</dt><dd>{item.priority ?? "null (미지정)"}</dd></div>
+                        <div><dt>note</dt><dd>{item.memo ?? "null (메모 미제공)"}</dd></div>
+                        <div><dt>claimed name</dt><dd>{item.claimed_name}</dd></div>
+                        <div><dt>created at</dt><dd>{formatMoment(item.created_at)}</dd></div>
+                      </dl>
+                    </li>
+                  ))}
+                </ol>
+              ) : <EmptyState compact title="사람 피드백이 없습니다." description="사람 relevance·priority·note를 새 revision으로 기록할 수 있습니다." />}
+              <div className="detail-skeleton-rail-links">
+                <span className="detail-skeleton-rail-title">연결된 화면</span>
+                <Link to={returnPath}>발주계획 목록 →</Link>
+              </div>
+              <p className="detail-skeleton-rail-note">우측 레일은 이력과 연결만 담습니다. 결정 액션은 헤더에만 있습니다.</p>
+            </div>
+          </aside>
+        </div>
       ) : null}
     </section>
   );

@@ -70,6 +70,14 @@ export interface TrackingDecisionControlProps {
   onSaved: (saved: OpportunityDetailResponse) => void;
   /** 상세 화면과 목록 화면에서 heading level이 다를 수 있어 호출자가 정한다. */
   headingLevel?: "h3" | "h4";
+  /** PreSpecDetailPage(4단계)가 이 컨트롤을 고정 헤더 안에 둘 때 쓰는 밀도
+   * 전용 표시 변형이다. 선택 가능한 상태값·사유 필수·비활성 사유 같은
+   * 업무 규칙은 그대로 이 컴포넌트가 소유하며, compact는 설명 문구와
+   * 첨부 취득 집계(PreSpecDocumentSummary)만 생략한다 — 호출자가 그 집계를
+   * 본문에서 별도로 렌더링한다고 가정한다(CLAUDE.md "같은 업무 규칙을
+   * 복제하지 않는다"). 접근 가능한 이름·문구는 full과 동일하게 유지해
+   * 기존 테스트 선택자를 그대로 만족시킨다. */
+  compact?: boolean;
 }
 
 export function TrackingDecisionControl({
@@ -79,6 +87,7 @@ export function TrackingDecisionControl({
   onRetry,
   onSaved,
   headingLevel = "h3",
+  compact = false,
 }: TrackingDecisionControlProps) {
   const Heading = headingLevel;
   const [status, setStatus] = useState<OpportunityTrackingStatus>(item?.tracking_status ?? "미선택");
@@ -149,12 +158,22 @@ export function TrackingDecisionControl({
           : null;
 
   return (
-    <section className="pre-spec-tracking-decision" aria-labelledby="pre-spec-tracking-decision-title">
+    <section
+      className={`pre-spec-tracking-decision${compact ? " is-compact" : ""}`}
+      aria-labelledby="pre-spec-tracking-decision-title"
+    >
       <div className="pre-spec-tracking-decision-header">
         <div>
-          <span className="pre-spec-tracking-kicker">HUMAN TRACKING DECISION</span>
+          {!compact ? <span className="pre-spec-tracking-kicker">HUMAN TRACKING DECISION</span> : null}
           <Heading id="pre-spec-tracking-decision-title">심층 검토 추적 선택</Heading>
-          <p>개요 검토 권고를 자동 반영하지 않고 사람이 고르는 추적 결정입니다. 최종 입찰 참여 결정(Go/No-Go)이 아닙니다.</p>
+          {/* 이 결정이 최종 Go/No-Go가 아니라는 사실은 CLAUDE.md 강제 게이트
+              (네 결정은 서로를 대신하지 않는다)라, 밀도를 낮추더라도 액션 옆에서
+              지우지 않는다. compact는 설명을 줄일 뿐 이 구분은 남긴다. */}
+          <p>
+            {compact
+              ? "개요 검토 권고를 자동 반영하지 않습니다. 최종 입찰 참여 결정(Go/No-Go)이 아닙니다."
+              : "개요 검토 권고를 자동 반영하지 않고 사람이 고르는 추적 결정입니다. 최종 입찰 참여 결정(Go/No-Go)이 아닙니다."}
+          </p>
         </div>
         <div className="pre-spec-tracking-current" aria-label="현재 추적 상태">
           <span>현재 추적 상태</span>
@@ -164,7 +183,7 @@ export function TrackingDecisionControl({
         </div>
       </div>
 
-      <PreSpecDocumentSummary item={item} />
+      {!compact ? <PreSpecDocumentSummary item={item} /> : null}
 
       {!hasOpportunity ? (
         <MutationFeedback tone="warning">
@@ -173,7 +192,7 @@ export function TrackingDecisionControl({
       ) : null}
 
       <form
-        className="pre-spec-tracking-form"
+        className={`pre-spec-tracking-form${compact ? " is-compact" : ""}`}
         onSubmit={(event) => {
           event.preventDefault();
           if (ready) mutation.mutate();
