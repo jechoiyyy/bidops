@@ -2,34 +2,27 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import datetime, timezone
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import case, func, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
-from ..core.constants import GRADE_ORDER
 from ..core.db import get_db
-from ..models import Attachment, Judgment, Notice, NoticeObservation, Perspective, Review
+from ..lifecycle import extension_registry
+from ..models import Attachment, Notice, NoticeObservation
 from ..services.attachments import attachment_download_url
 from ..schemas import (
     AttachmentResponse,
-    CounterargumentResponse,
-    EvidenceResponse,
     HistoryItemResponse,
-    JudgmentResponse,
-    MatchedPerformanceResponse,
     NoticeDetailResponse,
     NoticeHistoryResponse,
     NoticeListResponse,
     RelatedNoticeListResponse,
     RelatedNoticeResponse,
     PageFilters,
-    PerspectiveResponse,
-    ReviewAnswerResponse,
-    ReviewResponse,
-    VerificationItemResponse,
 )
 from .common import decimal_float, get_run, latest_notice_observation, notice_list_item
 
@@ -38,10 +31,35 @@ router = APIRouter(prefix="/api/notices", tags=["notices"])
 
 
 def _list_options():
-    return (
-        selectinload(Notice.judgment),
-        selectinload(Notice.attachments),
-    )
+    return (selectinload(Notice.attachments),)
+
+
+def _reject_unsupported_judgment_query(
+    *,
+    grade: str | None,
+    readiness: str | None,
+    focus: str | None,
+    sort: str,
+) -> None:
+    """판정 제공자가 없으면 등급·준비·focus 필터와 `sort=grade`는 422다(§6.1).
+
+    값이 아니라 "지원하지 않는다"는 사실이므로 registry의 능력 술어로 판단한다.
+    """
+
+    if extension_registry().judgment_filters_supported:
+        return
+    unsupported = [
+        name
+        for name, value in (("grade", grade), ("readiness", readiness), ("focus", focus))
+        if value is not None
+    ]
+    if sort == "grade":
+        unsupported.append("sort=grade")
+    if unsupported:
+        raise HTTPException(
+            status_code=422,
+            detail=f"판정 결과를 제공하는 모듈이 없어 사용할 수 없는 조건입니다: {', '.join(unsupported)}",
+        )
 
 
 def _list_filters(
@@ -85,18 +103,19 @@ def list_notices(
     offset: int = Query(default=0, ge=0),
     session: Session = Depends(get_db),
 ) -> NoticeListResponse:
+    _reject_unsupported_judgment_query(grade=grade, readiness=readiness, focus=focus, sort=sort)
     run = get_run(session, run_id)
+    projection = extension_registry().judgment_projection
     conditions: list[Any] = [NoticeObservation.run_id == run.id]
     if sample_role and sample_role != "all":
         conditions.append(Notice.sample_role == sample_role)
-    if grade and grade != "all":
-        conditions.append(Judgment.grade == grade)
-    elif grade != "all":
-        conditions.append(Judgment.grade != "제외")
-    if readiness:
-        conditions.append(Judgment.readiness == readiness)
-    if focus:
-        conditions.append(Judgment.primary_focus == focus)
+    # 등급·준비·focus 조건은 판정 projection이 공고 집합으로 돌려준다. `None`은
+    # "제한하지 않음", 빈 sequence는 "0건 일치"이며 둘을 섞으면 안 된다(§6.1).
+    judgment_ids = projection.notice_ids_for_filters(
+        session, run_id=run.id, grade=grade, readiness=readiness, focus=focus
+    )
+    if judgment_ids is not None:
+        conditions.append(Notice.id.in_(list(judgment_ids)))
     if attachment == "none":
         conditions.append(~Notice.attachments.any())
     elif attachment == "any":
@@ -114,7 +133,6 @@ def list_notices(
         select(func.count(func.distinct(Notice.id)))
         .select_from(Notice)
         .join(NoticeObservation, NoticeObservation.notice_id == Notice.id)
-        .outerjoin(Judgment, Judgment.notice_pk == Notice.id)
         .where(*conditions)
     )
     total = int(session.scalar(count_query) or 0)
@@ -122,21 +140,26 @@ def list_notices(
     query = (
         select(Notice)
         .join(NoticeObservation, NoticeObservation.notice_id == Notice.id)
-        .outerjoin(Judgment, Judgment.notice_pk == Notice.id)
         .where(*conditions)
         .options(*_list_options())
     )
-    if sort == "grade":
-        grade_rank = case(
-            *[(Judgment.grade == value, index) for index, value in enumerate(GRADE_ORDER)],
-            else_=len(GRADE_ORDER),
-        )
-        query = query.order_by(grade_rank.asc(), Notice.deadline_at.asc().nulls_last(), Notice.id.asc())
-    elif sort == "published":
+    if sort == "published":
         query = query.order_by(Notice.published_at.desc().nulls_last(), Notice.id.desc())
     else:
         query = query.order_by(Notice.deadline_at.asc().nulls_last(), Notice.id.asc())
-    rows = session.scalars(query.offset(offset).limit(limit)).all()
+    if sort == "grade":
+        # 등급 순위는 판정이 정한다. 회차 전체를 한 번에 읽어 메모리에서 정렬한
+        # 뒤 잘라내며, 같은 순위 안의 순서는 기존 SQL과 같은 마감·식별자 순이다.
+        rows = session.scalars(query).all()
+        ranks = projection.grade_rank(session, [notice.id for notice in rows])
+        ordered = sorted(
+            enumerate(rows),
+            key=lambda pair: (ranks.get(pair[1].id, 0), pair[0]),
+        )
+        rows = [notice for _, notice in ordered][offset : offset + limit]
+    else:
+        rows = session.scalars(query.offset(offset).limit(limit)).all()
+    fields = projection.notice_fields(session, [notice.id for notice in rows])
     filters = _list_filters(
         run_id=run.id,
         grade=grade,
@@ -150,7 +173,10 @@ def list_notices(
         offset=offset,
     )
     return NoticeListResponse(
-        items=[notice_list_item(notice, run.id) for notice in rows],
+        items=[
+            notice_list_item(notice, run.id, fields.get(notice.id, {}))
+            for notice in rows
+        ],
         total=total,
         filters=filters,
     )
@@ -160,90 +186,19 @@ def _json_list(value: Any) -> list[Any]:
     return value if isinstance(value, list) else []
 
 
-def _review_response(review: Review) -> ReviewResponse:
-    return ReviewResponse(
-        id=review.id,
-        run_id=review.run_id,
-        notice_pk=review.notice_pk,
-        disposition=review.disposition,
-        system_judgment_review=review.system_judgment_review,
-        corrected_grade=review.corrected_grade,
-        corrected_readiness=review.corrected_readiness,
-        weakest_perspective=review.weakest_perspective,
-        reason=review.reason,
-        reviewer=review.reviewer,
-        created_at=review.created_at,
-        updated_at=review.updated_at,
-        answers=[
-            ReviewAnswerResponse(id=answer.id, item=answer.item, answer=answer.answer)
-            for answer in review.answers
-        ],
-    )
-
-
-def _judgment_response(judgment: Judgment | None) -> JudgmentResponse | None:
-    if judgment is None:
-        return None
-    return JudgmentResponse(
-        id=judgment.id,
-        schema_version=judgment.schema_version,
-        grade=judgment.grade,
-        readiness=judgment.readiness,
-        primary_focus=judgment.primary_focus,
-        exclusion_category=judgment.exclusion_category,
-        summary=judgment.summary,
-        next_action=judgment.next_action,
-        perspectives=[
-            PerspectiveResponse(
-                id=perspective.id,
-                position=perspective.position,
-                name=perspective.name,
-                assessment=perspective.assessment,
-                reason=perspective.reason,
-                evidence=[
-                    EvidenceResponse(
-                        id=evidence.id,
-                        source=evidence.source,
-                        status=evidence.status,
-                        fact=evidence.fact,
-                    )
-                    for evidence in perspective.evidence
-                ],
-            )
-            for perspective in judgment.perspectives
-        ],
-        counterarguments=[
-            CounterargumentResponse(id=item.id, position=item.position, text=item.text)
-            for item in judgment.counterarguments
-        ],
-        verification_items=[
-            VerificationItemResponse(
-                id=item.id,
-                item=item.item,
-                why=item.why,
-                blocking=item.blocking,
-                status=item.status,
-            )
-            for item in judgment.verification_items
-        ],
-        matched_performances=[
-            MatchedPerformanceResponse(
-                id=item.id,
-                name=item.name,
-                match_reason=item.match_reason,
-                mismatch_or_limit=item.mismatch_or_limit,
-                source=item.source,
-                status=item.status,
-            )
-            for item in judgment.matched_performances
-        ],
-    )
-
-
-def _detail_response(notice: Notice) -> NoticeDetailResponse:
+def _detail_response(notice: Notice, detail: Mapping[str, Any]) -> NoticeDetailResponse:
     observation = latest_notice_observation(notice)
     run = observation.run if observation is not None else None
-    base = notice_list_item(notice, run.id if run is not None else None)
+    judgment = detail.get("judgment")
+    base = notice_list_item(
+        notice,
+        run.id if run is not None else None,
+        {
+            "grade": getattr(judgment, "grade", None),
+            "readiness": getattr(judgment, "readiness", None),
+            "focus": getattr(judgment, "primary_focus", None),
+        },
+    )
     return NoticeDetailResponse(
         **base.model_dump(),
         bid_no=notice.bid_no,
@@ -261,7 +216,7 @@ def _detail_response(notice: Notice) -> NoticeDetailResponse:
         performance_matches=_json_list(notice.performance_matches_json),
         performance_top_score=notice.performance_top_score,
         candidate_sources=_json_list(notice.candidate_sources_json),
-        judgment=_judgment_response(notice.judgment),
+        judgment=judgment,
         attachments=[
             AttachmentResponse(
                 id=attachment.id,
@@ -275,18 +230,13 @@ def _detail_response(notice: Notice) -> NoticeDetailResponse:
             )
             for attachment in notice.attachments
         ],
-        reviews=[_review_response(review) for review in notice.reviews],
+        reviews=list(detail.get("reviews", [])),
     )
 
 
 DETAIL_OPTIONS = (
     selectinload(Notice.observations).selectinload(NoticeObservation.run),
     selectinload(Notice.attachments),
-    selectinload(Notice.reviews).selectinload(Review.answers),
-    selectinload(Notice.judgment).selectinload(Judgment.perspectives).selectinload(Perspective.evidence),
-    selectinload(Notice.judgment).selectinload(Judgment.counterarguments),
-    selectinload(Notice.judgment).selectinload(Judgment.verification_items),
-    selectinload(Notice.judgment).selectinload(Judgment.matched_performances),
 )
 
 
@@ -295,7 +245,8 @@ def notice_detail(notice_pk: int, session: Session = Depends(get_db)) -> NoticeD
     notice = session.scalar(select(Notice).where(Notice.id == notice_pk).options(*DETAIL_OPTIONS))
     if notice is None:
         raise HTTPException(status_code=404, detail=f"공고를 찾을 수 없습니다: {notice_pk}")
-    return _detail_response(notice)
+    detail = extension_registry().judgment_projection.notice_detail(session, notice.id)
+    return _detail_response(notice, detail)
 
 
 def _lifecycle_value(notice: Notice, key: str) -> Any:
@@ -349,7 +300,6 @@ def related_notices(notice_pk: int, session: Session = Depends(get_db)) -> Relat
             Notice.id != current.id,
         )
         .distinct()
-        .options(selectinload(Notice.judgment))
         .order_by(Notice.published_at.asc().nulls_last(), Notice.id.asc())
     ).all()
     relation_order = {"ordinal": 0, "unified": 1, "pre_spec": 2}
@@ -370,6 +320,9 @@ def related_notices(notice_pk: int, session: Session = Depends(get_db)) -> Relat
         )
     )
 
+    fields = extension_registry().judgment_projection.notice_fields(
+        session, [candidate.id for _, candidate, _ in related]
+    )
     return RelatedNoticeListResponse(
         notice_pk=current.id,
         items=[
@@ -378,7 +331,7 @@ def related_notices(notice_pk: int, session: Session = Depends(get_db)) -> Relat
                 notice_pk=candidate.id,
                 notice_key=candidate.notice_key,
                 title=candidate.title,
-                grade=candidate.judgment.grade if candidate.judgment else None,
+                grade=fields.get(candidate.id, {}).get("grade"),
                 published_at=candidate.published_at,
                 change_reason=_lifecycle_value(candidate, "change_reason"),
             )
@@ -396,18 +349,25 @@ def notice_history(notice_pk: int, session: Session = Depends(get_db)) -> Notice
         select(NoticeObservation)
         .join(Notice, NoticeObservation.notice_id == Notice.id)
         .where(Notice.notice_key == current.notice_key)
-        .options(
-            selectinload(NoticeObservation.run),
-            selectinload(NoticeObservation.notice).selectinload(Notice.judgment),
-            selectinload(NoticeObservation.notice).selectinload(Notice.reviews),
-        )
+        .options(selectinload(NoticeObservation.run))
         .order_by(NoticeObservation.observed_at.asc(), NoticeObservation.id.asc())
     ).all()
+    # 이력의 등급·요약과 리뷰 정정값은 판정 projection이 공고별로 돌려준다.
+    # 같은 공고가 여러 회차에 관측되므로 공고 단위로 한 번씩만 읽는다(§6.1).
+    projection = extension_registry().judgment_projection
+    details = {
+        notice_id: projection.notice_detail(session, notice_id)
+        for notice_id in dict.fromkeys(observation.notice_id for observation in rows)
+    }
     history: list[HistoryItemResponse] = []
     for observation in rows:
         row = observation.notice
         run = observation.run
-        review = next((item for item in row.reviews if item.run_id == run.id), None)
+        detail = details.get(row.id, {})
+        judgment = detail.get("judgment")
+        review = next(
+            (item for item in detail.get("reviews", []) if item.run_id == run.id), None
+        )
         history.append(
             HistoryItemResponse(
                 notice_pk=row.id,
@@ -416,10 +376,10 @@ def notice_history(notice_pk: int, session: Session = Depends(get_db)) -> Notice
                 window_to=run.window_to,
                 timezone=run.timezone,
                 generated_at=run.generated_at,
-                grade=row.judgment.grade if row.judgment else None,
-                readiness=row.judgment.readiness if row.judgment else None,
-                focus=row.judgment.primary_focus if row.judgment else None,
-                summary=row.judgment.summary if row.judgment else None,
+                grade=judgment.grade if judgment else None,
+                readiness=judgment.readiness if judgment else None,
+                focus=judgment.primary_focus if judgment else None,
+                summary=judgment.summary if judgment else None,
                 corrected_grade=review.corrected_grade if review else None,
                 corrected_readiness=review.corrected_readiness if review else None,
                 review_reason=review.reason if review else None,

@@ -23,6 +23,7 @@ from .core import (
     isolated_test_boundary_active,
 )
 from .lifecycle import extension_registry
+from .screening import register_lifecycle_extensions
 from .routers.attachments import router as attachments_router
 from .routers.metrics import router as metrics_router
 from .routers.notices import router as notices_router
@@ -37,6 +38,7 @@ from .routers.reviews import router as reviews_router
 from .routers.runs import router as runs_router
 from .routers.schedule import router as schedule_router
 from .routers.screening import router as screening_router
+from .routers.screening import run_router as screening_run_router
 from .routers.document_bundles import router as document_bundles_router
 from .routers.deep_reviews import router as deep_reviews_router
 from .routers.bid_delta import router as bid_delta_router
@@ -158,6 +160,10 @@ async def security_headers(request, call_next):  # type: ignore[no-untyped-def]
 
 
 app.include_router(health_router)
+# 판정 실행 endpoint 는 회차 경로 아래 있지만 제공 모듈이 screening 이다(§5.3).
+# 회차 router 의 일반 단계 경로(`/pipeline/{stage}`)보다 먼저 등록해야 더 구체적인
+# 이 경로가 선택된다.
+app.include_router(screening_run_router)
 app.include_router(runs_router)
 app.include_router(notices_router)
 app.include_router(pre_specs_router)
@@ -191,6 +197,7 @@ app.include_router(order_plans_router)
 # 않는다. T8이 `BIDOPS_MODULES` 조건을 붙일 때까지는 무조건 등록이다.
 _extensions = extension_registry()
 # (여기에 모듈별 등록을 덧붙인다)
+register_lifecycle_extensions(_extensions)
 
 
 class SPAStaticFiles(StaticFiles):

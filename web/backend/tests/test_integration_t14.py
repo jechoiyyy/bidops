@@ -35,6 +35,7 @@ from app.models import (
 )
 from app.routers.runs import router as runs_router
 from app.routers.screening import router as screening_router
+from app.routers.screening import run_router as screening_run_router
 from app.runtime import ApplicationRuntime
 from app.screening.ollama import OllamaClient
 from app.services.scheduler import SchedulerService
@@ -47,6 +48,9 @@ PROFILE_VERSION = f"company-profile.sha256:{DIGEST}"
 
 def _application() -> FastAPI:
     application = FastAPI(lifespan=main.lifespan)
+    # 판정 실행 endpoint 는 회차 경로 아래 있지만 제공 모듈이 screening 이다(§5.3).
+    # 회차 router 의 일반 단계 경로보다 먼저 등록해야 이 경로가 선택된다.
+    application.include_router(screening_run_router)
     application.include_router(runs_router)
     application.include_router(screening_router)
     return application

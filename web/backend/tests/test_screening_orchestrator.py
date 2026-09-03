@@ -86,6 +86,12 @@ def _notice(notice_id: str = "notice-1") -> dict[str, object]:
     }
 
 
+
+@pytest.fixture(autouse=True)
+def _screening_registered(screening_extensions):
+    """발행된 파생 회차를 다시 적재해 판정 projection과 revision을 확인한다. 그 적재는 screening 회차 적재 hook이 한다(명세 §6.2)."""
+
+
 def _fixture(tmp_path: Path, *, notice_id: str = "notice-1"):
     root = tmp_path
     script_source = Path(__file__).resolve().parents[3] / "skills/bidops-screen/scripts/build_screening_results.py"
@@ -988,8 +994,14 @@ def test_partial_rejudgment_retains_prior_projection_and_revision(tmp_path: Path
         notice_one = session.scalar(
             select(Notice).where(Notice.notice_key == "notice-1")
         )
-        assert notice_one is not None and notice_one.judgment is not None
-        prior_judgment_id = notice_one.judgment.id
+        assert notice_one is not None
+        # 공고는 판정으로 향하는 relationship 을 갖지 않는다(명세 §4). 판정은
+        # 소유 테이블에서 직접 읽는다.
+        prior_judgment = session.scalar(
+            select(Judgment).where(Judgment.notice_id == notice_one.id)
+        )
+        assert prior_judgment is not None
+        prior_judgment_id = prior_judgment.id
         prior_revision_ids = [
             item.id for item in judgment_revision_history(session, notice_one.id)
         ]
@@ -1035,12 +1047,17 @@ def test_partial_rejudgment_retains_prior_projection_and_revision(tmp_path: Path
         notice_two = session.scalar(
             select(Notice).where(Notice.notice_key == "notice-2")
         )
-        assert notice_one is not None and notice_one.judgment is not None
-        assert notice_one.judgment.id == prior_judgment_id
+        assert notice_one is not None
+        current_judgment_row = session.scalar(
+            select(Judgment).where(Judgment.notice_id == notice_one.id)
+        )
+        assert current_judgment_row is not None
+        assert current_judgment_row.id == prior_judgment_id
         assert [
             item.id for item in judgment_revision_history(session, notice_one.id)
         ] == prior_revision_ids
-        assert notice_two is not None and notice_two.judgment is not None
+        assert notice_two is not None
+        assert session.scalar(select(Judgment).where(Judgment.notice_id == notice_two.id)) is not None
         second_revisions = judgment_revision_history(session, notice_two.id)
         assert len(second_revisions) == 1
         assert second_revisions[0].recording_execution_id == second.execution_id
