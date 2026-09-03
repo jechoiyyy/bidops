@@ -1,0 +1,1718 @@
+{
+  "all": {
+    "items": [
+      {
+        "agency": "가나다 기관",
+        "budget": 1234567.0,
+        "business_division": "일반용역",
+        "deadline_at": "2026-08-28T00:00:00Z",
+        "document": {
+          "attachments": 6,
+          "대기": 1,
+          "실패": 1,
+          "완료": 1,
+          "진행": 1,
+          "차단": 1
+        },
+        "kept_by_tracking": false,
+        "notice_pk": 1,
+        "opportunity_id": null,
+        "origin": null,
+        "overview_review_status": null,
+        "pre_spec_no": "SW-Y",
+        "published_at": "2026-08-23T00:00:00Z",
+        "sw_business_status": "Y",
+        "title": "AI 플랫폼 제안요청서",
+        "tracking_status": null
+      },
+      {
+        "agency": "마바사 기관",
+        "budget": 1234567.0,
+        "business_division": "일반용역",
+        "deadline_at": "2026-08-27T00:00:00Z",
+        "document": {
+          "attachments": 0,
+          "대기": 0,
+          "실패": 0,
+          "완료": 0,
+          "진행": 0,
+          "차단": 0
+        },
+        "kept_by_tracking": false,
+        "notice_pk": 2,
+        "opportunity_id": null,
+        "origin": null,
+        "overview_review_status": null,
+        "pre_spec_no": "SW-N",
+        "published_at": "2026-08-22T00:00:00Z",
+        "sw_business_status": "N",
+        "title": "행사 운영 제안요청서",
+        "tracking_status": null
+      },
+      {
+        "agency": "다라마 기관",
+        "budget": 1234567.0,
+        "business_division": "기술용역",
+        "deadline_at": "2026-08-22T00:00:00Z",
+        "document": {
+          "attachments": 0,
+          "대기": 0,
+          "실패": 0,
+          "완료": 0,
+          "진행": 0,
+          "차단": 0
+        },
+        "kept_by_tracking": true,
+        "notice_pk": 3,
+        "opportunity_id": 1,
+        "origin": "추적",
+        "overview_review_status": null,
+        "pre_spec_no": "TRACKED-N",
+        "published_at": "2026-08-21T00:00:00Z",
+        "sw_business_status": "N",
+        "title": "데이터 연계 제안요청서",
+        "tracking_status": "계속 추적"
+      },
+      {
+        "agency": "라바 기관",
+        "budget": 1234567.0,
+        "business_division": "기술용역",
+        "deadline_at": "2026-09-09T00:00:00Z",
+        "document": {
+          "attachments": 0,
+          "대기": 0,
+          "실패": 0,
+          "완료": 0,
+          "진행": 0,
+          "차단": 0
+        },
+        "kept_by_tracking": false,
+        "notice_pk": 4,
+        "opportunity_id": null,
+        "origin": null,
+        "overview_review_status": null,
+        "pre_spec_no": "NULL",
+        "published_at": "2026-08-20T00:00:00Z",
+        "sw_business_status": null,
+        "title": "상태 미확인 제안요청서",
+        "tracking_status": null
+      },
+      {
+        "agency": "사아 기관",
+        "budget": 1234567.0,
+        "business_division": "일반용역",
+        "deadline_at": "2026-09-04T00:00:00Z",
+        "document": {
+          "attachments": 0,
+          "대기": 0,
+          "실패": 0,
+          "완료": 0,
+          "진행": 0,
+          "차단": 0
+        },
+        "kept_by_tracking": false,
+        "notice_pk": 5,
+        "opportunity_id": 2,
+        "origin": "신규",
+        "overview_review_status": null,
+        "pre_spec_no": "NEW",
+        "published_at": "2026-08-19T00:00:00Z",
+        "sw_business_status": "Y",
+        "title": "신규 사업 제안요청서",
+        "tracking_status": "미선택"
+      },
+      {
+        "agency": "차카 기관",
+        "budget": 1234567.0,
+        "business_division": "일반용역",
+        "deadline_at": "2026-09-07T00:00:00Z",
+        "document": {
+          "attachments": 0,
+          "대기": 0,
+          "실패": 0,
+          "완료": 0,
+          "진행": 0,
+          "차단": 0
+        },
+        "kept_by_tracking": false,
+        "notice_pk": 6,
+        "opportunity_id": null,
+        "origin": null,
+        "overview_review_status": null,
+        "pre_spec_no": "UNCONFIRMED",
+        "published_at": "2026-08-18T00:00:00Z",
+        "sw_business_status": "N",
+        "title": "검색 미확인 제안요청서",
+        "tracking_status": null
+      },
+      {
+        "agency": "타파 기관",
+        "budget": 1234567.0,
+        "business_division": "일반용역",
+        "deadline_at": "2026-09-06T00:00:00Z",
+        "document": {
+          "attachments": 0,
+          "대기": 0,
+          "실패": 0,
+          "완료": 0,
+          "진행": 0,
+          "차단": 0
+        },
+        "kept_by_tracking": false,
+        "notice_pk": 7,
+        "opportunity_id": 4,
+        "origin": "추적",
+        "overview_review_status": null,
+        "pre_spec_no": "UNSELECTED",
+        "published_at": "2026-08-17T00:00:00Z",
+        "sw_business_status": "N",
+        "title": "미선택 제안요청서",
+        "tracking_status": "미선택"
+      },
+      {
+        "agency": "하마 기관",
+        "budget": 1234567.0,
+        "business_division": "일반용역",
+        "deadline_at": "2026-09-05T00:00:00Z",
+        "document": {
+          "attachments": 0,
+          "대기": 0,
+          "실패": 0,
+          "완료": 0,
+          "진행": 0,
+          "차단": 0
+        },
+        "kept_by_tracking": false,
+        "notice_pk": 8,
+        "opportunity_id": 5,
+        "origin": "추적",
+        "overview_review_status": null,
+        "pre_spec_no": "CLOSED",
+        "published_at": "2026-08-16T00:00:00Z",
+        "sw_business_status": "N",
+        "title": "종료 제안요청서",
+        "tracking_status": "종료"
+      },
+      {
+        "agency": "거너 기관",
+        "budget": 1234567.0,
+        "business_division": "일반용역",
+        "deadline_at": "2026-09-03T00:00:00Z",
+        "document": {
+          "attachments": 0,
+          "대기": 0,
+          "실패": 0,
+          "완료": 0,
+          "진행": 0,
+          "차단": 0
+        },
+        "kept_by_tracking": false,
+        "notice_pk": 9,
+        "opportunity_id": 6,
+        "origin": "추적",
+        "overview_review_status": null,
+        "pre_spec_no": "NO-PLAN",
+        "published_at": "2026-08-15T00:00:00Z",
+        "sw_business_status": "N",
+        "title": "발주계획 미연결 제안요청서",
+        "tracking_status": "보류"
+      }
+    ],
+    "limit": 50,
+    "offset": 0,
+    "overview_status_counts": [
+      {
+        "count": 0,
+        "status": "awaiting_document"
+      },
+      {
+        "count": 0,
+        "status": "awaiting_structure"
+      },
+      {
+        "count": 0,
+        "status": "preparing"
+      },
+      {
+        "count": 0,
+        "status": "awaiting_model"
+      },
+      {
+        "count": 0,
+        "status": "queued"
+      },
+      {
+        "count": 0,
+        "status": "running"
+      },
+      {
+        "count": 0,
+        "status": "needs_human_review"
+      },
+      {
+        "count": 0,
+        "status": "completed"
+      },
+      {
+        "count": 0,
+        "status": "failed"
+      },
+      {
+        "count": 0,
+        "status": "cancelled"
+      },
+      {
+        "count": 9,
+        "status": null
+      }
+    ],
+    "total": 9
+  },
+  "deadline": {
+    "items": [
+      {
+        "agency": "다라마 기관",
+        "budget": 1234567.0,
+        "business_division": "기술용역",
+        "deadline_at": "2026-08-22T00:00:00Z",
+        "document": {
+          "attachments": 0,
+          "대기": 0,
+          "실패": 0,
+          "완료": 0,
+          "진행": 0,
+          "차단": 0
+        },
+        "kept_by_tracking": true,
+        "notice_pk": 3,
+        "opportunity_id": 1,
+        "origin": "추적",
+        "overview_review_status": null,
+        "pre_spec_no": "TRACKED-N",
+        "published_at": "2026-08-21T00:00:00Z",
+        "sw_business_status": "N",
+        "title": "데이터 연계 제안요청서",
+        "tracking_status": "계속 추적"
+      },
+      {
+        "agency": "마바사 기관",
+        "budget": 1234567.0,
+        "business_division": "일반용역",
+        "deadline_at": "2026-08-27T00:00:00Z",
+        "document": {
+          "attachments": 0,
+          "대기": 0,
+          "실패": 0,
+          "완료": 0,
+          "진행": 0,
+          "차단": 0
+        },
+        "kept_by_tracking": false,
+        "notice_pk": 2,
+        "opportunity_id": null,
+        "origin": null,
+        "overview_review_status": null,
+        "pre_spec_no": "SW-N",
+        "published_at": "2026-08-22T00:00:00Z",
+        "sw_business_status": "N",
+        "title": "행사 운영 제안요청서",
+        "tracking_status": null
+      },
+      {
+        "agency": "가나다 기관",
+        "budget": 1234567.0,
+        "business_division": "일반용역",
+        "deadline_at": "2026-08-28T00:00:00Z",
+        "document": {
+          "attachments": 6,
+          "대기": 1,
+          "실패": 1,
+          "완료": 1,
+          "진행": 1,
+          "차단": 1
+        },
+        "kept_by_tracking": false,
+        "notice_pk": 1,
+        "opportunity_id": null,
+        "origin": null,
+        "overview_review_status": null,
+        "pre_spec_no": "SW-Y",
+        "published_at": "2026-08-23T00:00:00Z",
+        "sw_business_status": "Y",
+        "title": "AI 플랫폼 제안요청서",
+        "tracking_status": null
+      },
+      {
+        "agency": "거너 기관",
+        "budget": 1234567.0,
+        "business_division": "일반용역",
+        "deadline_at": "2026-09-03T00:00:00Z",
+        "document": {
+          "attachments": 0,
+          "대기": 0,
+          "실패": 0,
+          "완료": 0,
+          "진행": 0,
+          "차단": 0
+        },
+        "kept_by_tracking": false,
+        "notice_pk": 9,
+        "opportunity_id": 6,
+        "origin": "추적",
+        "overview_review_status": null,
+        "pre_spec_no": "NO-PLAN",
+        "published_at": "2026-08-15T00:00:00Z",
+        "sw_business_status": "N",
+        "title": "발주계획 미연결 제안요청서",
+        "tracking_status": "보류"
+      },
+      {
+        "agency": "사아 기관",
+        "budget": 1234567.0,
+        "business_division": "일반용역",
+        "deadline_at": "2026-09-04T00:00:00Z",
+        "document": {
+          "attachments": 0,
+          "대기": 0,
+          "실패": 0,
+          "완료": 0,
+          "진행": 0,
+          "차단": 0
+        },
+        "kept_by_tracking": false,
+        "notice_pk": 5,
+        "opportunity_id": 2,
+        "origin": "신규",
+        "overview_review_status": null,
+        "pre_spec_no": "NEW",
+        "published_at": "2026-08-19T00:00:00Z",
+        "sw_business_status": "Y",
+        "title": "신규 사업 제안요청서",
+        "tracking_status": "미선택"
+      },
+      {
+        "agency": "하마 기관",
+        "budget": 1234567.0,
+        "business_division": "일반용역",
+        "deadline_at": "2026-09-05T00:00:00Z",
+        "document": {
+          "attachments": 0,
+          "대기": 0,
+          "실패": 0,
+          "완료": 0,
+          "진행": 0,
+          "차단": 0
+        },
+        "kept_by_tracking": false,
+        "notice_pk": 8,
+        "opportunity_id": 5,
+        "origin": "추적",
+        "overview_review_status": null,
+        "pre_spec_no": "CLOSED",
+        "published_at": "2026-08-16T00:00:00Z",
+        "sw_business_status": "N",
+        "title": "종료 제안요청서",
+        "tracking_status": "종료"
+      },
+      {
+        "agency": "타파 기관",
+        "budget": 1234567.0,
+        "business_division": "일반용역",
+        "deadline_at": "2026-09-06T00:00:00Z",
+        "document": {
+          "attachments": 0,
+          "대기": 0,
+          "실패": 0,
+          "완료": 0,
+          "진행": 0,
+          "차단": 0
+        },
+        "kept_by_tracking": false,
+        "notice_pk": 7,
+        "opportunity_id": 4,
+        "origin": "추적",
+        "overview_review_status": null,
+        "pre_spec_no": "UNSELECTED",
+        "published_at": "2026-08-17T00:00:00Z",
+        "sw_business_status": "N",
+        "title": "미선택 제안요청서",
+        "tracking_status": "미선택"
+      },
+      {
+        "agency": "차카 기관",
+        "budget": 1234567.0,
+        "business_division": "일반용역",
+        "deadline_at": "2026-09-07T00:00:00Z",
+        "document": {
+          "attachments": 0,
+          "대기": 0,
+          "실패": 0,
+          "완료": 0,
+          "진행": 0,
+          "차단": 0
+        },
+        "kept_by_tracking": false,
+        "notice_pk": 6,
+        "opportunity_id": null,
+        "origin": null,
+        "overview_review_status": null,
+        "pre_spec_no": "UNCONFIRMED",
+        "published_at": "2026-08-18T00:00:00Z",
+        "sw_business_status": "N",
+        "title": "검색 미확인 제안요청서",
+        "tracking_status": null
+      },
+      {
+        "agency": "라바 기관",
+        "budget": 1234567.0,
+        "business_division": "기술용역",
+        "deadline_at": "2026-09-09T00:00:00Z",
+        "document": {
+          "attachments": 0,
+          "대기": 0,
+          "실패": 0,
+          "완료": 0,
+          "진행": 0,
+          "차단": 0
+        },
+        "kept_by_tracking": false,
+        "notice_pk": 4,
+        "opportunity_id": null,
+        "origin": null,
+        "overview_review_status": null,
+        "pre_spec_no": "NULL",
+        "published_at": "2026-08-20T00:00:00Z",
+        "sw_business_status": null,
+        "title": "상태 미확인 제안요청서",
+        "tracking_status": null
+      }
+    ],
+    "limit": 50,
+    "offset": 0,
+    "overview_status_counts": [
+      {
+        "count": 0,
+        "status": "awaiting_document"
+      },
+      {
+        "count": 0,
+        "status": "awaiting_structure"
+      },
+      {
+        "count": 0,
+        "status": "preparing"
+      },
+      {
+        "count": 0,
+        "status": "awaiting_model"
+      },
+      {
+        "count": 0,
+        "status": "queued"
+      },
+      {
+        "count": 0,
+        "status": "running"
+      },
+      {
+        "count": 0,
+        "status": "needs_human_review"
+      },
+      {
+        "count": 0,
+        "status": "completed"
+      },
+      {
+        "count": 0,
+        "status": "failed"
+      },
+      {
+        "count": 0,
+        "status": "cancelled"
+      },
+      {
+        "count": 9,
+        "status": null
+      }
+    ],
+    "total": 9
+  },
+  "default": {
+    "items": [
+      {
+        "agency": "가나다 기관",
+        "budget": 1234567.0,
+        "business_division": "일반용역",
+        "deadline_at": "2026-08-28T00:00:00Z",
+        "document": {
+          "attachments": 6,
+          "대기": 1,
+          "실패": 1,
+          "완료": 1,
+          "진행": 1,
+          "차단": 1
+        },
+        "kept_by_tracking": false,
+        "notice_pk": 1,
+        "opportunity_id": null,
+        "origin": null,
+        "overview_review_status": null,
+        "pre_spec_no": "SW-Y",
+        "published_at": "2026-08-23T00:00:00Z",
+        "sw_business_status": "Y",
+        "title": "AI 플랫폼 제안요청서",
+        "tracking_status": null
+      },
+      {
+        "agency": "다라마 기관",
+        "budget": 1234567.0,
+        "business_division": "기술용역",
+        "deadline_at": "2026-08-22T00:00:00Z",
+        "document": {
+          "attachments": 0,
+          "대기": 0,
+          "실패": 0,
+          "완료": 0,
+          "진행": 0,
+          "차단": 0
+        },
+        "kept_by_tracking": true,
+        "notice_pk": 3,
+        "opportunity_id": 1,
+        "origin": "추적",
+        "overview_review_status": null,
+        "pre_spec_no": "TRACKED-N",
+        "published_at": "2026-08-21T00:00:00Z",
+        "sw_business_status": "N",
+        "title": "데이터 연계 제안요청서",
+        "tracking_status": "계속 추적"
+      },
+      {
+        "agency": "사아 기관",
+        "budget": 1234567.0,
+        "business_division": "일반용역",
+        "deadline_at": "2026-09-04T00:00:00Z",
+        "document": {
+          "attachments": 0,
+          "대기": 0,
+          "실패": 0,
+          "완료": 0,
+          "진행": 0,
+          "차단": 0
+        },
+        "kept_by_tracking": false,
+        "notice_pk": 5,
+        "opportunity_id": 2,
+        "origin": "신규",
+        "overview_review_status": null,
+        "pre_spec_no": "NEW",
+        "published_at": "2026-08-19T00:00:00Z",
+        "sw_business_status": "Y",
+        "title": "신규 사업 제안요청서",
+        "tracking_status": "미선택"
+      }
+    ],
+    "limit": 50,
+    "offset": 0,
+    "overview_status_counts": [
+      {
+        "count": 0,
+        "status": "awaiting_document"
+      },
+      {
+        "count": 0,
+        "status": "awaiting_structure"
+      },
+      {
+        "count": 0,
+        "status": "preparing"
+      },
+      {
+        "count": 0,
+        "status": "awaiting_model"
+      },
+      {
+        "count": 0,
+        "status": "queued"
+      },
+      {
+        "count": 0,
+        "status": "running"
+      },
+      {
+        "count": 0,
+        "status": "needs_human_review"
+      },
+      {
+        "count": 0,
+        "status": "completed"
+      },
+      {
+        "count": 0,
+        "status": "failed"
+      },
+      {
+        "count": 0,
+        "status": "cancelled"
+      },
+      {
+        "count": 3,
+        "status": null
+      }
+    ],
+    "total": 3
+  },
+  "division": {
+    "items": [
+      {
+        "agency": "다라마 기관",
+        "budget": 1234567.0,
+        "business_division": "기술용역",
+        "deadline_at": "2026-08-22T00:00:00Z",
+        "document": {
+          "attachments": 0,
+          "대기": 0,
+          "실패": 0,
+          "완료": 0,
+          "진행": 0,
+          "차단": 0
+        },
+        "kept_by_tracking": true,
+        "notice_pk": 3,
+        "opportunity_id": 1,
+        "origin": "추적",
+        "overview_review_status": null,
+        "pre_spec_no": "TRACKED-N",
+        "published_at": "2026-08-21T00:00:00Z",
+        "sw_business_status": "N",
+        "title": "데이터 연계 제안요청서",
+        "tracking_status": "계속 추적"
+      },
+      {
+        "agency": "라바 기관",
+        "budget": 1234567.0,
+        "business_division": "기술용역",
+        "deadline_at": "2026-09-09T00:00:00Z",
+        "document": {
+          "attachments": 0,
+          "대기": 0,
+          "실패": 0,
+          "완료": 0,
+          "진행": 0,
+          "차단": 0
+        },
+        "kept_by_tracking": false,
+        "notice_pk": 4,
+        "opportunity_id": null,
+        "origin": null,
+        "overview_review_status": null,
+        "pre_spec_no": "NULL",
+        "published_at": "2026-08-20T00:00:00Z",
+        "sw_business_status": null,
+        "title": "상태 미확인 제안요청서",
+        "tracking_status": null
+      }
+    ],
+    "limit": 50,
+    "offset": 0,
+    "overview_status_counts": [
+      {
+        "count": 0,
+        "status": "awaiting_document"
+      },
+      {
+        "count": 0,
+        "status": "awaiting_structure"
+      },
+      {
+        "count": 0,
+        "status": "preparing"
+      },
+      {
+        "count": 0,
+        "status": "awaiting_model"
+      },
+      {
+        "count": 0,
+        "status": "queued"
+      },
+      {
+        "count": 0,
+        "status": "running"
+      },
+      {
+        "count": 0,
+        "status": "needs_human_review"
+      },
+      {
+        "count": 0,
+        "status": "completed"
+      },
+      {
+        "count": 0,
+        "status": "failed"
+      },
+      {
+        "count": 0,
+        "status": "cancelled"
+      },
+      {
+        "count": 2,
+        "status": null
+      }
+    ],
+    "total": 2
+  },
+  "notice_pk": {
+    "items": [
+      {
+        "agency": "마바사 기관",
+        "budget": 1234567.0,
+        "business_division": "일반용역",
+        "deadline_at": "2026-08-27T00:00:00Z",
+        "document": {
+          "attachments": 0,
+          "대기": 0,
+          "실패": 0,
+          "완료": 0,
+          "진행": 0,
+          "차단": 0
+        },
+        "kept_by_tracking": false,
+        "notice_pk": 2,
+        "opportunity_id": null,
+        "origin": null,
+        "overview_review_status": null,
+        "pre_spec_no": "SW-N",
+        "published_at": "2026-08-22T00:00:00Z",
+        "sw_business_status": "N",
+        "title": "행사 운영 제안요청서",
+        "tracking_status": null
+      }
+    ],
+    "limit": 50,
+    "offset": 0,
+    "overview_status_counts": [
+      {
+        "count": 0,
+        "status": "awaiting_document"
+      },
+      {
+        "count": 0,
+        "status": "awaiting_structure"
+      },
+      {
+        "count": 0,
+        "status": "preparing"
+      },
+      {
+        "count": 0,
+        "status": "awaiting_model"
+      },
+      {
+        "count": 0,
+        "status": "queued"
+      },
+      {
+        "count": 0,
+        "status": "running"
+      },
+      {
+        "count": 0,
+        "status": "needs_human_review"
+      },
+      {
+        "count": 0,
+        "status": "completed"
+      },
+      {
+        "count": 0,
+        "status": "failed"
+      },
+      {
+        "count": 0,
+        "status": "cancelled"
+      },
+      {
+        "count": 1,
+        "status": null
+      }
+    ],
+    "total": 1
+  },
+  "origin_new": {
+    "items": [
+      {
+        "agency": "사아 기관",
+        "budget": 1234567.0,
+        "business_division": "일반용역",
+        "deadline_at": "2026-09-04T00:00:00Z",
+        "document": {
+          "attachments": 0,
+          "대기": 0,
+          "실패": 0,
+          "완료": 0,
+          "진행": 0,
+          "차단": 0
+        },
+        "kept_by_tracking": false,
+        "notice_pk": 5,
+        "opportunity_id": 2,
+        "origin": "신규",
+        "overview_review_status": null,
+        "pre_spec_no": "NEW",
+        "published_at": "2026-08-19T00:00:00Z",
+        "sw_business_status": "Y",
+        "title": "신규 사업 제안요청서",
+        "tracking_status": "미선택"
+      }
+    ],
+    "limit": 50,
+    "offset": 0,
+    "overview_status_counts": [
+      {
+        "count": 0,
+        "status": "awaiting_document"
+      },
+      {
+        "count": 0,
+        "status": "awaiting_structure"
+      },
+      {
+        "count": 0,
+        "status": "preparing"
+      },
+      {
+        "count": 0,
+        "status": "awaiting_model"
+      },
+      {
+        "count": 0,
+        "status": "queued"
+      },
+      {
+        "count": 0,
+        "status": "running"
+      },
+      {
+        "count": 0,
+        "status": "needs_human_review"
+      },
+      {
+        "count": 0,
+        "status": "completed"
+      },
+      {
+        "count": 0,
+        "status": "failed"
+      },
+      {
+        "count": 0,
+        "status": "cancelled"
+      },
+      {
+        "count": 1,
+        "status": null
+      }
+    ],
+    "total": 1
+  },
+  "origin_tracked": {
+    "items": [
+      {
+        "agency": "다라마 기관",
+        "budget": 1234567.0,
+        "business_division": "기술용역",
+        "deadline_at": "2026-08-22T00:00:00Z",
+        "document": {
+          "attachments": 0,
+          "대기": 0,
+          "실패": 0,
+          "완료": 0,
+          "진행": 0,
+          "차단": 0
+        },
+        "kept_by_tracking": true,
+        "notice_pk": 3,
+        "opportunity_id": 1,
+        "origin": "추적",
+        "overview_review_status": null,
+        "pre_spec_no": "TRACKED-N",
+        "published_at": "2026-08-21T00:00:00Z",
+        "sw_business_status": "N",
+        "title": "데이터 연계 제안요청서",
+        "tracking_status": "계속 추적"
+      },
+      {
+        "agency": "타파 기관",
+        "budget": 1234567.0,
+        "business_division": "일반용역",
+        "deadline_at": "2026-09-06T00:00:00Z",
+        "document": {
+          "attachments": 0,
+          "대기": 0,
+          "실패": 0,
+          "완료": 0,
+          "진행": 0,
+          "차단": 0
+        },
+        "kept_by_tracking": false,
+        "notice_pk": 7,
+        "opportunity_id": 4,
+        "origin": "추적",
+        "overview_review_status": null,
+        "pre_spec_no": "UNSELECTED",
+        "published_at": "2026-08-17T00:00:00Z",
+        "sw_business_status": "N",
+        "title": "미선택 제안요청서",
+        "tracking_status": "미선택"
+      },
+      {
+        "agency": "하마 기관",
+        "budget": 1234567.0,
+        "business_division": "일반용역",
+        "deadline_at": "2026-09-05T00:00:00Z",
+        "document": {
+          "attachments": 0,
+          "대기": 0,
+          "실패": 0,
+          "완료": 0,
+          "진행": 0,
+          "차단": 0
+        },
+        "kept_by_tracking": false,
+        "notice_pk": 8,
+        "opportunity_id": 5,
+        "origin": "추적",
+        "overview_review_status": null,
+        "pre_spec_no": "CLOSED",
+        "published_at": "2026-08-16T00:00:00Z",
+        "sw_business_status": "N",
+        "title": "종료 제안요청서",
+        "tracking_status": "종료"
+      },
+      {
+        "agency": "거너 기관",
+        "budget": 1234567.0,
+        "business_division": "일반용역",
+        "deadline_at": "2026-09-03T00:00:00Z",
+        "document": {
+          "attachments": 0,
+          "대기": 0,
+          "실패": 0,
+          "완료": 0,
+          "진행": 0,
+          "차단": 0
+        },
+        "kept_by_tracking": false,
+        "notice_pk": 9,
+        "opportunity_id": 6,
+        "origin": "추적",
+        "overview_review_status": null,
+        "pre_spec_no": "NO-PLAN",
+        "published_at": "2026-08-15T00:00:00Z",
+        "sw_business_status": "N",
+        "title": "발주계획 미연결 제안요청서",
+        "tracking_status": "보류"
+      }
+    ],
+    "limit": 50,
+    "offset": 0,
+    "overview_status_counts": [
+      {
+        "count": 0,
+        "status": "awaiting_document"
+      },
+      {
+        "count": 0,
+        "status": "awaiting_structure"
+      },
+      {
+        "count": 0,
+        "status": "preparing"
+      },
+      {
+        "count": 0,
+        "status": "awaiting_model"
+      },
+      {
+        "count": 0,
+        "status": "queued"
+      },
+      {
+        "count": 0,
+        "status": "running"
+      },
+      {
+        "count": 0,
+        "status": "needs_human_review"
+      },
+      {
+        "count": 0,
+        "status": "completed"
+      },
+      {
+        "count": 0,
+        "status": "failed"
+      },
+      {
+        "count": 0,
+        "status": "cancelled"
+      },
+      {
+        "count": 4,
+        "status": null
+      }
+    ],
+    "total": 4
+  },
+  "page": {
+    "items": [
+      {
+        "agency": "다라마 기관",
+        "budget": 1234567.0,
+        "business_division": "기술용역",
+        "deadline_at": "2026-08-22T00:00:00Z",
+        "document": {
+          "attachments": 0,
+          "대기": 0,
+          "실패": 0,
+          "완료": 0,
+          "진행": 0,
+          "차단": 0
+        },
+        "kept_by_tracking": true,
+        "notice_pk": 3,
+        "opportunity_id": 1,
+        "origin": "추적",
+        "overview_review_status": null,
+        "pre_spec_no": "TRACKED-N",
+        "published_at": "2026-08-21T00:00:00Z",
+        "sw_business_status": "N",
+        "title": "데이터 연계 제안요청서",
+        "tracking_status": "계속 추적"
+      },
+      {
+        "agency": "라바 기관",
+        "budget": 1234567.0,
+        "business_division": "기술용역",
+        "deadline_at": "2026-09-09T00:00:00Z",
+        "document": {
+          "attachments": 0,
+          "대기": 0,
+          "실패": 0,
+          "완료": 0,
+          "진행": 0,
+          "차단": 0
+        },
+        "kept_by_tracking": false,
+        "notice_pk": 4,
+        "opportunity_id": null,
+        "origin": null,
+        "overview_review_status": null,
+        "pre_spec_no": "NULL",
+        "published_at": "2026-08-20T00:00:00Z",
+        "sw_business_status": null,
+        "title": "상태 미확인 제안요청서",
+        "tracking_status": null
+      }
+    ],
+    "limit": 2,
+    "offset": 2,
+    "overview_status_counts": [
+      {
+        "count": 0,
+        "status": "awaiting_document"
+      },
+      {
+        "count": 0,
+        "status": "awaiting_structure"
+      },
+      {
+        "count": 0,
+        "status": "preparing"
+      },
+      {
+        "count": 0,
+        "status": "awaiting_model"
+      },
+      {
+        "count": 0,
+        "status": "queued"
+      },
+      {
+        "count": 0,
+        "status": "running"
+      },
+      {
+        "count": 0,
+        "status": "needs_human_review"
+      },
+      {
+        "count": 0,
+        "status": "completed"
+      },
+      {
+        "count": 0,
+        "status": "failed"
+      },
+      {
+        "count": 0,
+        "status": "cancelled"
+      },
+      {
+        "count": 9,
+        "status": null
+      }
+    ],
+    "total": 9
+  },
+  "reviewed_all": {
+    "items": [
+      {
+        "agency": "가나다 기관",
+        "budget": 1234567.0,
+        "business_division": "일반용역",
+        "deadline_at": "2026-08-28T00:00:00Z",
+        "document": {
+          "attachments": 6,
+          "대기": 1,
+          "실패": 1,
+          "완료": 1,
+          "진행": 1,
+          "차단": 1
+        },
+        "kept_by_tracking": false,
+        "notice_pk": 1,
+        "opportunity_id": null,
+        "origin": null,
+        "overview_review_status": "needs_human_review",
+        "pre_spec_no": "SW-Y",
+        "published_at": "2026-08-23T00:00:00Z",
+        "sw_business_status": "Y",
+        "title": "AI 플랫폼 제안요청서",
+        "tracking_status": null
+      },
+      {
+        "agency": "마바사 기관",
+        "budget": 1234567.0,
+        "business_division": "일반용역",
+        "deadline_at": "2026-08-27T00:00:00Z",
+        "document": {
+          "attachments": 0,
+          "대기": 0,
+          "실패": 0,
+          "완료": 0,
+          "진행": 0,
+          "차단": 0
+        },
+        "kept_by_tracking": false,
+        "notice_pk": 2,
+        "opportunity_id": null,
+        "origin": null,
+        "overview_review_status": "completed",
+        "pre_spec_no": "SW-N",
+        "published_at": "2026-08-22T00:00:00Z",
+        "sw_business_status": "N",
+        "title": "행사 운영 제안요청서",
+        "tracking_status": null
+      },
+      {
+        "agency": "다라마 기관",
+        "budget": 1234567.0,
+        "business_division": "기술용역",
+        "deadline_at": "2026-08-22T00:00:00Z",
+        "document": {
+          "attachments": 0,
+          "대기": 0,
+          "실패": 0,
+          "완료": 0,
+          "진행": 0,
+          "차단": 0
+        },
+        "kept_by_tracking": true,
+        "notice_pk": 3,
+        "opportunity_id": 1,
+        "origin": "추적",
+        "overview_review_status": null,
+        "pre_spec_no": "TRACKED-N",
+        "published_at": "2026-08-21T00:00:00Z",
+        "sw_business_status": "N",
+        "title": "데이터 연계 제안요청서",
+        "tracking_status": "계속 추적"
+      },
+      {
+        "agency": "라바 기관",
+        "budget": 1234567.0,
+        "business_division": "기술용역",
+        "deadline_at": "2026-09-09T00:00:00Z",
+        "document": {
+          "attachments": 0,
+          "대기": 0,
+          "실패": 0,
+          "완료": 0,
+          "진행": 0,
+          "차단": 0
+        },
+        "kept_by_tracking": false,
+        "notice_pk": 4,
+        "opportunity_id": null,
+        "origin": null,
+        "overview_review_status": null,
+        "pre_spec_no": "NULL",
+        "published_at": "2026-08-20T00:00:00Z",
+        "sw_business_status": null,
+        "title": "상태 미확인 제안요청서",
+        "tracking_status": null
+      },
+      {
+        "agency": "사아 기관",
+        "budget": 1234567.0,
+        "business_division": "일반용역",
+        "deadline_at": "2026-09-04T00:00:00Z",
+        "document": {
+          "attachments": 0,
+          "대기": 0,
+          "실패": 0,
+          "완료": 0,
+          "진행": 0,
+          "차단": 0
+        },
+        "kept_by_tracking": false,
+        "notice_pk": 5,
+        "opportunity_id": 2,
+        "origin": "신규",
+        "overview_review_status": null,
+        "pre_spec_no": "NEW",
+        "published_at": "2026-08-19T00:00:00Z",
+        "sw_business_status": "Y",
+        "title": "신규 사업 제안요청서",
+        "tracking_status": "미선택"
+      },
+      {
+        "agency": "차카 기관",
+        "budget": 1234567.0,
+        "business_division": "일반용역",
+        "deadline_at": "2026-09-07T00:00:00Z",
+        "document": {
+          "attachments": 0,
+          "대기": 0,
+          "실패": 0,
+          "완료": 0,
+          "진행": 0,
+          "차단": 0
+        },
+        "kept_by_tracking": false,
+        "notice_pk": 6,
+        "opportunity_id": null,
+        "origin": null,
+        "overview_review_status": null,
+        "pre_spec_no": "UNCONFIRMED",
+        "published_at": "2026-08-18T00:00:00Z",
+        "sw_business_status": "N",
+        "title": "검색 미확인 제안요청서",
+        "tracking_status": null
+      },
+      {
+        "agency": "타파 기관",
+        "budget": 1234567.0,
+        "business_division": "일반용역",
+        "deadline_at": "2026-09-06T00:00:00Z",
+        "document": {
+          "attachments": 0,
+          "대기": 0,
+          "실패": 0,
+          "완료": 0,
+          "진행": 0,
+          "차단": 0
+        },
+        "kept_by_tracking": false,
+        "notice_pk": 7,
+        "opportunity_id": 4,
+        "origin": "추적",
+        "overview_review_status": null,
+        "pre_spec_no": "UNSELECTED",
+        "published_at": "2026-08-17T00:00:00Z",
+        "sw_business_status": "N",
+        "title": "미선택 제안요청서",
+        "tracking_status": "미선택"
+      },
+      {
+        "agency": "하마 기관",
+        "budget": 1234567.0,
+        "business_division": "일반용역",
+        "deadline_at": "2026-09-05T00:00:00Z",
+        "document": {
+          "attachments": 0,
+          "대기": 0,
+          "실패": 0,
+          "완료": 0,
+          "진행": 0,
+          "차단": 0
+        },
+        "kept_by_tracking": false,
+        "notice_pk": 8,
+        "opportunity_id": 5,
+        "origin": "추적",
+        "overview_review_status": null,
+        "pre_spec_no": "CLOSED",
+        "published_at": "2026-08-16T00:00:00Z",
+        "sw_business_status": "N",
+        "title": "종료 제안요청서",
+        "tracking_status": "종료"
+      },
+      {
+        "agency": "거너 기관",
+        "budget": 1234567.0,
+        "business_division": "일반용역",
+        "deadline_at": "2026-09-03T00:00:00Z",
+        "document": {
+          "attachments": 0,
+          "대기": 0,
+          "실패": 0,
+          "완료": 0,
+          "진행": 0,
+          "차단": 0
+        },
+        "kept_by_tracking": false,
+        "notice_pk": 9,
+        "opportunity_id": 6,
+        "origin": "추적",
+        "overview_review_status": null,
+        "pre_spec_no": "NO-PLAN",
+        "published_at": "2026-08-15T00:00:00Z",
+        "sw_business_status": "N",
+        "title": "발주계획 미연결 제안요청서",
+        "tracking_status": "보류"
+      }
+    ],
+    "limit": 50,
+    "offset": 0,
+    "overview_status_counts": [
+      {
+        "count": 0,
+        "status": "awaiting_document"
+      },
+      {
+        "count": 0,
+        "status": "awaiting_structure"
+      },
+      {
+        "count": 0,
+        "status": "preparing"
+      },
+      {
+        "count": 0,
+        "status": "awaiting_model"
+      },
+      {
+        "count": 0,
+        "status": "queued"
+      },
+      {
+        "count": 0,
+        "status": "running"
+      },
+      {
+        "count": 1,
+        "status": "needs_human_review"
+      },
+      {
+        "count": 1,
+        "status": "completed"
+      },
+      {
+        "count": 0,
+        "status": "failed"
+      },
+      {
+        "count": 0,
+        "status": "cancelled"
+      },
+      {
+        "count": 7,
+        "status": null
+      }
+    ],
+    "total": 9
+  },
+  "reviewed_default": {
+    "items": [
+      {
+        "agency": "가나다 기관",
+        "budget": 1234567.0,
+        "business_division": "일반용역",
+        "deadline_at": "2026-08-28T00:00:00Z",
+        "document": {
+          "attachments": 6,
+          "대기": 1,
+          "실패": 1,
+          "완료": 1,
+          "진행": 1,
+          "차단": 1
+        },
+        "kept_by_tracking": false,
+        "notice_pk": 1,
+        "opportunity_id": null,
+        "origin": null,
+        "overview_review_status": "needs_human_review",
+        "pre_spec_no": "SW-Y",
+        "published_at": "2026-08-23T00:00:00Z",
+        "sw_business_status": "Y",
+        "title": "AI 플랫폼 제안요청서",
+        "tracking_status": null
+      },
+      {
+        "agency": "다라마 기관",
+        "budget": 1234567.0,
+        "business_division": "기술용역",
+        "deadline_at": "2026-08-22T00:00:00Z",
+        "document": {
+          "attachments": 0,
+          "대기": 0,
+          "실패": 0,
+          "완료": 0,
+          "진행": 0,
+          "차단": 0
+        },
+        "kept_by_tracking": true,
+        "notice_pk": 3,
+        "opportunity_id": 1,
+        "origin": "추적",
+        "overview_review_status": null,
+        "pre_spec_no": "TRACKED-N",
+        "published_at": "2026-08-21T00:00:00Z",
+        "sw_business_status": "N",
+        "title": "데이터 연계 제안요청서",
+        "tracking_status": "계속 추적"
+      },
+      {
+        "agency": "사아 기관",
+        "budget": 1234567.0,
+        "business_division": "일반용역",
+        "deadline_at": "2026-09-04T00:00:00Z",
+        "document": {
+          "attachments": 0,
+          "대기": 0,
+          "실패": 0,
+          "완료": 0,
+          "진행": 0,
+          "차단": 0
+        },
+        "kept_by_tracking": false,
+        "notice_pk": 5,
+        "opportunity_id": 2,
+        "origin": "신규",
+        "overview_review_status": null,
+        "pre_spec_no": "NEW",
+        "published_at": "2026-08-19T00:00:00Z",
+        "sw_business_status": "Y",
+        "title": "신규 사업 제안요청서",
+        "tracking_status": "미선택"
+      }
+    ],
+    "limit": 50,
+    "offset": 0,
+    "overview_status_counts": [
+      {
+        "count": 0,
+        "status": "awaiting_document"
+      },
+      {
+        "count": 0,
+        "status": "awaiting_structure"
+      },
+      {
+        "count": 0,
+        "status": "preparing"
+      },
+      {
+        "count": 0,
+        "status": "awaiting_model"
+      },
+      {
+        "count": 0,
+        "status": "queued"
+      },
+      {
+        "count": 0,
+        "status": "running"
+      },
+      {
+        "count": 1,
+        "status": "needs_human_review"
+      },
+      {
+        "count": 0,
+        "status": "completed"
+      },
+      {
+        "count": 0,
+        "status": "failed"
+      },
+      {
+        "count": 0,
+        "status": "cancelled"
+      },
+      {
+        "count": 2,
+        "status": null
+      }
+    ],
+    "total": 3
+  },
+  "reviewed_page": {
+    "items": [
+      {
+        "agency": "가나다 기관",
+        "budget": 1234567.0,
+        "business_division": "일반용역",
+        "deadline_at": "2026-08-28T00:00:00Z",
+        "document": {
+          "attachments": 6,
+          "대기": 1,
+          "실패": 1,
+          "완료": 1,
+          "진행": 1,
+          "차단": 1
+        },
+        "kept_by_tracking": false,
+        "notice_pk": 1,
+        "opportunity_id": null,
+        "origin": null,
+        "overview_review_status": "needs_human_review",
+        "pre_spec_no": "SW-Y",
+        "published_at": "2026-08-23T00:00:00Z",
+        "sw_business_status": "Y",
+        "title": "AI 플랫폼 제안요청서",
+        "tracking_status": null
+      }
+    ],
+    "limit": 1,
+    "offset": 0,
+    "overview_status_counts": [
+      {
+        "count": 0,
+        "status": "awaiting_document"
+      },
+      {
+        "count": 0,
+        "status": "awaiting_structure"
+      },
+      {
+        "count": 0,
+        "status": "preparing"
+      },
+      {
+        "count": 0,
+        "status": "awaiting_model"
+      },
+      {
+        "count": 0,
+        "status": "queued"
+      },
+      {
+        "count": 0,
+        "status": "running"
+      },
+      {
+        "count": 1,
+        "status": "needs_human_review"
+      },
+      {
+        "count": 1,
+        "status": "completed"
+      },
+      {
+        "count": 0,
+        "status": "failed"
+      },
+      {
+        "count": 0,
+        "status": "cancelled"
+      },
+      {
+        "count": 7,
+        "status": null
+      }
+    ],
+    "total": 9
+  },
+  "search": {
+    "items": [
+      {
+        "agency": "다라마 기관",
+        "budget": 1234567.0,
+        "business_division": "기술용역",
+        "deadline_at": "2026-08-22T00:00:00Z",
+        "document": {
+          "attachments": 0,
+          "대기": 0,
+          "실패": 0,
+          "완료": 0,
+          "진행": 0,
+          "차단": 0
+        },
+        "kept_by_tracking": true,
+        "notice_pk": 3,
+        "opportunity_id": 1,
+        "origin": "추적",
+        "overview_review_status": null,
+        "pre_spec_no": "TRACKED-N",
+        "published_at": "2026-08-21T00:00:00Z",
+        "sw_business_status": "N",
+        "title": "데이터 연계 제안요청서",
+        "tracking_status": "계속 추적"
+      }
+    ],
+    "limit": 50,
+    "offset": 0,
+    "overview_status_counts": [
+      {
+        "count": 0,
+        "status": "awaiting_document"
+      },
+      {
+        "count": 0,
+        "status": "awaiting_structure"
+      },
+      {
+        "count": 0,
+        "status": "preparing"
+      },
+      {
+        "count": 0,
+        "status": "awaiting_model"
+      },
+      {
+        "count": 0,
+        "status": "queued"
+      },
+      {
+        "count": 0,
+        "status": "running"
+      },
+      {
+        "count": 0,
+        "status": "needs_human_review"
+      },
+      {
+        "count": 0,
+        "status": "completed"
+      },
+      {
+        "count": 0,
+        "status": "failed"
+      },
+      {
+        "count": 0,
+        "status": "cancelled"
+      },
+      {
+        "count": 1,
+        "status": null
+      }
+    ],
+    "total": 1
+  }
+}

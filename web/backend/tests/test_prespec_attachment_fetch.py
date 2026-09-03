@@ -30,13 +30,15 @@ from app.models import (
     OrderPlan,
 )
 from app.services import assets, prespec_attachments
+from app.services.opportunity_connections import (
+    parse_attachment_key,
+    tracked_order_plan_connection,
+)
 from app.services.prespec_attachments import (
     SOURCE_SYSTEM,
     claim_next,
     fetch_claimed,
-    parse_attachment_key,
     refresh_fetch_eligibility,
-    tracked_order_plan_connection,
 )
 from app.workers.prespec_attachment import run_once
 
