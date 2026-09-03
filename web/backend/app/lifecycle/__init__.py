@@ -12,6 +12,7 @@ lifecycle은 core만 import하고 screening·deep_review의 존재를 알지 못
 from __future__ import annotations
 
 from .api import (
+    ATTACHMENT_ORIGINS,
     IngestResult,
     delete_manual_attachment,
     get_notice,
@@ -22,9 +23,12 @@ from .api import (
     list_order_plans_for_run,
     lock_notice,
     lock_opportunity,
+    match_agency_portal,
+    register_attachment,
     register_manual_attachment,
 )
 from .extensions import (
+    ClaimedDirectoryLoad,
     ExtensionRegistry,
     JudgmentProjection,
     OverviewDocumentProjection,
@@ -38,6 +42,8 @@ from .extensions import (
 )
 
 __all__ = [
+    "ATTACHMENT_ORIGINS",
+    "ClaimedDirectoryLoad",
     "ExtensionRegistry",
     "IngestResult",
     "JudgmentProjection",
@@ -57,6 +63,8 @@ __all__ = [
     "list_order_plans_for_run",
     "lock_notice",
     "lock_opportunity",
+    "match_agency_portal",
+    "register_attachment",
     "register_manual_attachment",
     "reset_extension_registry",
 ]
