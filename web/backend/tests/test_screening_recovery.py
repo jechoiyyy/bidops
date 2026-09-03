@@ -12,7 +12,7 @@ from app.models import ScreeningAuditEvent, CompanyProfileSnapshot, Run, Screeni
 from app.db import _json_serializer, schema_bound
 from app.screening.execution_store import ScreeningExecutionStore
 from app.screening.queue import INTERRUPTED
-from test_screening_queue import DIGEST, NOW, PROFILE_VERSION, enqueue, make_store
+from tests.test_screening_queue import DIGEST, NOW, PROFILE_VERSION, enqueue, make_store
 from tests.postgres import requires_postgres, temporary_database
 
 
