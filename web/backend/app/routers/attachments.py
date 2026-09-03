@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
@@ -12,7 +13,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..core.constants import GRADE_ORDER, GRADE_RANK
 from ..core.db import get_db
-from ..lifecycle import delete_manual_attachment, register_manual_attachment
+from ..lifecycle import delete_manual_attachment, extension_registry, register_manual_attachment
 from ..models import AgencyPortal, Attachment, AuditEvent, Notice, NoticeObservation
 from ..schemas import (
     AttachmentProcedureResponse,
@@ -108,8 +109,13 @@ def _procedure_response(session: Session, notice: Notice) -> AttachmentProcedure
     )
 
 
-def _queue_item(session: Session, notice: Notice, run_id: str | None = None) -> AttachmentQueueItem:
-    base = notice_list_item(notice, run_id)
+def _queue_item(
+    session: Session,
+    notice: Notice,
+    run_id: str | None = None,
+    judgment_fields: Mapping[str, Any] | None = None,
+) -> AttachmentQueueItem:
+    base = notice_list_item(notice, run_id, judgment_fields)
     portal, search_url, portal_message = _portal_context(session, notice)
     return AttachmentQueueItem(
         **base.model_dump(),
@@ -290,13 +296,20 @@ def attachment_queue(
         select(Notice)
         .join(NoticeObservation, NoticeObservation.notice_id == Notice.id)
         .where(NoticeObservation.run_id == run.id, ~Notice.attachments.any())
-        .options(selectinload(Notice.judgment), selectinload(Notice.attachments))
+        .options(selectinload(Notice.attachments))
         .order_by(Notice.agency.asc().nulls_last(), Notice.deadline_at.asc().nulls_last(), Notice.id.asc())
     ).all()
+    # 등급은 판정 projection의 몫이다(§6.1). 목록 전체를 한 번에 읽어 정렬과 응답이
+    # 같은 값을 쓰게 하고, 공고당 조회를 만들지 않는다. 제공자가 없으면 빈 map이라
+    # 모든 공고가 같은 순위를 받아 나머지 정렬 키로만 갈린다.
+    projection = extension_registry().judgment_projection
+    judgment_fields = projection.notice_fields(session, [notice.id for notice in notices])
     notices.sort(
         key=lambda notice: (
             notice.agency or "",
-            GRADE_RANK.get(notice.judgment.grade if notice.judgment else "", len(GRADE_ORDER)),
+            GRADE_RANK.get(
+                judgment_fields.get(notice.id, {}).get("grade") or "", len(GRADE_ORDER)
+            ),
             notice.deadline_at is None,
             notice.deadline_at,
             notice.id,
@@ -305,7 +318,10 @@ def attachment_queue(
     return AttachmentQueueResponse(
         run_id=run.id,
         total=len(notices),
-        items=[_queue_item(session, notice, run.id) for notice in notices],
+        items=[
+            _queue_item(session, notice, run.id, judgment_fields.get(notice.id, {}))
+            for notice in notices
+        ],
     )
 
 
