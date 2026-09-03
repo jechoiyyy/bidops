@@ -218,20 +218,6 @@ def test_non_http_workers_disable_the_shared_web_image_healthcheck():
         assert compose["services"][name]["healthcheck"] == {"disable": True}
 
 
-def test_codex_reference_override_is_explicitly_gated_and_worker_scoped():
-    override = yaml.safe_load((ROOT / "docker-compose.t7.codex-reference.yml").read_text(encoding="utf-8"))
-    web = override["services"]["web"]
-    worker = override["services"]["analysis-worker"]
-    assert web["environment"]["BIDOPS_ANALYSIS_PROVIDER"] == "codex-exec"
-    assert web["environment"]["BIDOPS_OPENAI_ENABLED"] == "true"
-    assert "BIDOPS_CODEX_EXEC_APPROVED_NOTICE_IDS" in web["environment"]
-    assert worker["environment"]["BIDOPS_CODEX_EXEC_BIN"] == "/usr/local/bin/codex"
-    assert worker["environment"]["CODEX_HOME"] == "/codex-home"
-    assert "codex-egress" in worker["networks"]
-    assert all(volume["read_only"] is True for volume in worker["volumes"])
-    assert "volumes" not in web
-
-
 def test_mock_reference_override_has_no_model_egress_or_external_provider_gate():
     override = yaml.safe_load((ROOT / "docker-compose.t7.mock-reference.yml").read_text(encoding="utf-8"))
     assert set(override["services"]) == {"web", "analysis-worker"}
@@ -240,7 +226,6 @@ def test_mock_reference_override_has_no_model_egress_or_external_provider_gate()
         assert environment["BIDOPS_ANALYSIS_PROVIDER"] == "mock"
         assert environment["BIDOPS_REFERENCE_WORKFLOW_MODE"] == "true"
         assert environment["BIDOPS_OPENAI_ENABLED"] == "false"
-        assert environment["BIDOPS_CODEX_EXEC_ENABLED"] == "false"
         assert "networks" not in service and "volumes" not in service
 
 

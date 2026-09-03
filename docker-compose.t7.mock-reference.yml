@@ -1,5 +1,5 @@
-# Test-only override for exercising the complete workflow without Qwen or
-# Codex. It covers both stages: 1차 분류 uses the deterministic screening
+# Test-only override for exercising the complete workflow without Qwen.
+# It covers both stages: 1차 분류 uses the deterministic screening
 # transport and 심층 검토 uses the mock analysis provider. The analysis worker
 # remains on the internal database/analysis networks and the provider/model
 # lineage is persisted as mock-analysis.
@@ -16,7 +16,6 @@ services:
       BIDOPS_SCREENING_PROVIDER: mock
       BIDOPS_VLLM_MODEL: bidops-deterministic-mock-v1
       BIDOPS_OPENAI_ENABLED: "false"
-      BIDOPS_CODEX_EXEC_ENABLED: "false"
       BIDOPS_REFERENCE_WORKFLOW_MODE: "true"
   analysis-worker:
     environment:
@@ -24,5 +23,4 @@ services:
       BIDOPS_SCREENING_PROVIDER: mock
       BIDOPS_VLLM_MODEL: bidops-deterministic-mock-v1
       BIDOPS_OPENAI_ENABLED: "false"
-      BIDOPS_CODEX_EXEC_ENABLED: "false"
       BIDOPS_REFERENCE_WORKFLOW_MODE: "true"
