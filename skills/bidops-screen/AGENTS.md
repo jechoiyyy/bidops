@@ -47,3 +47,19 @@ python3 -m unittest discover -s skills/bidops-screen/tests -p 'test_*.py' -t ski
 ```
 
 다섯 관점 누락·중복, enum, 등급·준비 상태 조합, 차단 확인 항목, 반론 반복 40% 경계, 수행실적 근거, 표본 ID 누락·중복, v2/v3 혼합 거부, 부분 실패와 승계 provenance를 검사한다. 계약 변경은 루트 `./run-tests.sh`도 실행한다.
+
+## 발주계획 C-2 Phase 0 경계
+
+발주계획 `relevant|not_relevant|uncertain` 선별은 공고 다섯 관점 판정과 다른 제품 계약이다.
+전용 schema는 `contracts/`에 있고, 현재 고정 입력·raw record source hash·review-input manifest·
+선정 증거·부분 C-1 gold·정책·binding은 다음 read-only validator로 확인한다.
+
+```bash
+python3 skills/bidops-screen/scripts/validate_order_plan_phase0.py --json
+```
+
+validator의 `valid_but_blocked`는 구조·digest 검증 성공일 뿐 실행·활성화 승인이 아니다. 현재
+C-1은 human 22건, draft 603건, 잔여 확인 87건이며 이를 자동으로 human gold로 승격하지 않는다.
+이 모듈은 C-2 수집·모델 호출·DB 적재·REST·최종 추적/Go-No-Go를 수행하지 않는다. Phase 1
+생산자는 input/ranking/decisions/failures/telemetry/result v1의 producer·consumer와 binding을
+그대로 소비하고, 기존 `screening.v3` 또는 `ScreeningExecution` 의미를 확장하지 않는다.

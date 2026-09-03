@@ -22,6 +22,10 @@ bidops/
 │   ├── engineering-notes.md          증상별 재발 방지 지식
 │   ├── operations.md                 설치·실행·백업·복구 절차
 │   ├── contracts.md                  REST·파일·DB 소비자 계약
+│   ├── PRD.md, PLAN.md               현재 착수 범위(발주계획 C-2 선별)의 요구와 순서
+│   ├── database-guide.md             DB 전체 해설과 설계 근거
+│   ├── deep-review-erd.md            심층 검토 DB 권위 계약
+│   ├── bid-delta-contract-spec.md    입찰 delta·최종 결정 OpenAPI·DB 명세
 │   └── tracking/
 │       ├── status.md                 구현과 검증의 현재 상태
 │       ├── lifecycle-workstream.md 생애주기 구현의 결정 대기·할 일 기록
@@ -37,7 +41,8 @@ bidops/
     └── frontend/AGENTS.md             React 검토 화면
 ```
 
-`docs/legacy`는 과거 계획과 목업, `docs/review`와 `docs/validation-runs`는 시점별 검토·실행 증거다. 이 자료가 현재 코드와 위 핵심 문서의 계약을 대체하지 않는다. 외부 의존성은 나라장터 OpenAPI, PostgreSQL 17, MinIO, ClamAV, Ollama Qwen3.8:27B, 승인된 사설 OpenAI-compatible vLLM, 문서 변환기, 승인 프로필 기준선 검증용 Git이다.
+`docs/legacy`는 완료·미채택 계획과 과거 리뷰·목업의 보관소이고, `docs/validation-runs`는 시점별 실행 증거다. 이 자료가 현재 코드와 위 핵심 문서의 계약을 대체하지 않으며, **보관본을 실행 진입점으로 삼지 않는다.** `docs/legacy` 안의 `R-xx`·`A-xx`·phase 작업 번호는 종료된 체계다. 외부 의존성은 나라장터 OpenAPI, PostgreSQL 17, MinIO, ClamAV, Ollama Qwen3.8:27B, 승인된 사설 OpenAI-compatible vLLM, 문서 변환기, 승인 프로필 기준선 검증용 Git, Astryx 디자인 시스템(`@astryxdesign/core@0.5.2`, `@astryxdesign/cli@0.5.2`, 테마 아이콘 레지스트리가 요구하는 `lucide-react@1.39.0`)이다.
+Astryx의 "레이아웃도 컴포넌트로만, `<div>` 금지" 규칙은 ADR-0040에 따라 이 저장소에 적용하지 않으며 레이아웃은 프로젝트가 소유한다.
 
 ## 작업 전 확인
 
@@ -67,3 +72,33 @@ bidops/
 ## 문제 보고
 
 첨부 원문의 허용 경로 이탈, API 키·회사자료의 로그나 응답 노출, 승인 없는 외부 모델 전송, 회차 원본 또는 기존 리뷰 덮어쓰기, 원문과 다른 모델 근거의 검증 통과를 발견하면 관련 실행을 중지하고 즉시 보고한다. 현재 범위에서 해결할 수 없는 구조 문제는 재현 조건, 영향, 지금 해결할 수 없는 이유, 후속 방향을 `docs/tracking/findings.md`에 기록한다.
+
+<!-- ASTRYX:START -->
+Astryx v0.5.2 · 90+ components
+CLI: run every command as `npx @astryxdesign/cli <cmd>` (shown below as `astryx ...`).
+
+SETUP (once, in your app entry e.g. main.tsx) — without these, components render unstyled:
+  import "@astryxdesign/core/reset.css";
+  import "@astryxdesign/core/astryx.css";
+
+WORKFLOW — discover, don't guess. Before writing UI:
+1. `astryx build "<idea>"` — START HERE: returns a kit (closest [page] + [block]s + [component]s). No args = full playbook.
+2. `astryx template <name> [--skeleton]` — scaffold the [page]/[block]s it named, or study their layout. Templates are reference code.
+3. `astryx component <Name>` — props + examples for every component you use.
+
+RULES:
+- No <div> — components do all layout/spacing, page frame included.
+- Frame first: read `astryx docs layout` before writing any page or screen — page frame, region widths, breakpoint behavior.
+- Dense data = rows (Table, List/Item), never Card-wrapped list items; Card is for standalone widgets. Status = StatusDot/Token; Badge = counts only.
+- Custom styling: component props first; else style/className with tokens — var(--color-*|--spacing-*|--radius-*). No raw hex/px. (No StyleX/Tailwind compiler here — don't use xstyle/utility classes.)
+- Tokens for every value (`astryx docs tokens`). Brand/accent belongs in the theme (`astryx theme list` / `theme add <slug>`, or `astryx theme template` for a custom one) — never override --color-* in :root.
+- SELF-CHECK before you finish: re-read the file and replace any raw <div>/<span> layout, imported .css/@apply, or hardcoded value (#hex, 16px) with the component or a token (var(--color-*|--spacing-*|…)). If unsure a component/prop exists, run `astryx component <Name>` / `astryx search "<thing>"`; don't hand-roll CSS.
+
+MORE CLI:
+  search "<query>"   find any component / hook / doc / template / block
+  component --list   90+ components by category
+  template --list    page + block recipes
+  docs <topic>       browser-support, cli-integrations, color, elevation, getting-started, icons, illustrations, internationalization, layout, migration, motion, principles, shape, spacing, styling-libraries, styling, theme, tokens, typography, working-with-ai
+  swizzle <Name>     eject component source for deep customization
+  upgrade --apply    run after any @astryxdesign/core bump
+<!-- ASTRYX:END -->

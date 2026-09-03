@@ -19,6 +19,7 @@ from app.models import (
     Opportunity,
     OpportunityLink,
     OrderPlan,
+    PreSpecOverviewReview,
 )
 from app.routers.pre_specs import list_pre_specs
 
@@ -370,6 +371,7 @@ def _payload(session: Session, **params: object) -> dict:
     """Call the route handler directly; the environment's TestClient is unavailable."""
 
     values: dict[str, object] = {
+        "notice_pk": None,
         "sw_only": True,
         "business_division": None,
         "origin": None,
@@ -394,6 +396,35 @@ def test_pre_specs_default_returns_sw_business_object(pre_specs_api):
     ids = _items_by_id(response)
     assert refs["sw_yes"].id in ids
     assert ids[refs["sw_yes"].id]["kept_by_tracking"] is False
+
+
+def test_pre_specs_notice_pk_returns_only_requested_notice(pre_specs_api):
+    session, _engine, refs = pre_specs_api
+
+    response = _payload(session, notice_pk=refs["sw_no"].id)
+
+    assert response["total"] == 1
+    assert [item["notice_pk"] for item in response["items"]] == [refs["sw_no"].id]
+    assert response["items"][0]["sw_business_status"] == "N"
+
+
+def test_pre_specs_notice_pk_missing_id_returns_empty_list(pre_specs_api):
+    session, _engine, refs = pre_specs_api
+    missing_id = max(notice.id for notice in refs.values() if isinstance(notice, Notice)) + 1
+
+    response = _payload(session, notice_pk=missing_id)
+
+    assert response["total"] == 0
+    assert response["items"] == []
+
+
+def test_pre_specs_notice_pk_bypasses_default_sw_only_filter(pre_specs_api):
+    session, _engine, refs = pre_specs_api
+
+    response = _payload(session, notice_pk=refs["sw_no"].id)
+
+    assert response["items"][0]["notice_pk"] == refs["sw_no"].id
+    assert response["items"][0]["kept_by_tracking"] is False
 
 
 def test_pre_specs_default_excludes_sw_n_without_tracking_link(pre_specs_api):
@@ -611,4 +642,82 @@ def test_pre_specs_list_uses_constant_query_count(pre_specs_api):
     finally:
         event.remove(engine, "before_cursor_execute", count_statement)
 
-    assert len(statements) <= 2
+    # docs/design/PLAN.md 3단계: one more query than before (items, total,
+    # and now the overview-review status GROUP BY aggregate) — still O(1)
+    # regardless of row count, never one query per notice.
+    assert len(statements) <= 3
+
+
+_ALL_OVERVIEW_STATUSES = (
+    "awaiting_document",
+    "awaiting_structure",
+    "preparing",
+    "awaiting_model",
+    "queued",
+    "running",
+    "needs_human_review",
+    "completed",
+    "failed",
+    "cancelled",
+)
+
+
+def test_pre_specs_overview_review_status_projects_from_review_row(pre_specs_api):
+    session, _engine, refs = pre_specs_api
+    session.add(
+        PreSpecOverviewReview(notice_id=refs["sw_yes"].id, status="needs_human_review")
+    )
+    session.commit()
+
+    items = _items_by_id(_payload(session, sw_only=False))
+    assert items[refs["sw_yes"].id]["overview_review_status"] == "needs_human_review"
+    # No prespec_overview_review row for this notice: null, never folded into
+    # awaiting_document (CLAUDE.md unknown/null 보존 게이트).
+    assert items[refs["sw_no"].id]["overview_review_status"] is None
+
+
+def test_pre_specs_overview_status_counts_always_lists_all_ten_values_plus_null(pre_specs_api):
+    session, _engine, refs = pre_specs_api
+    session.add(
+        PreSpecOverviewReview(notice_id=refs["sw_yes"].id, status="needs_human_review")
+    )
+    session.add(
+        PreSpecOverviewReview(
+            notice_id=refs["sw_no"].id,
+            status="completed",
+            result="추진 검토",
+            completed_at=datetime(2026, 8, 25, tzinfo=UTC),
+        )
+    )
+    session.commit()
+
+    payload = _payload(session, sw_only=False)
+    counts = {row["status"]: row["count"] for row in payload["overview_status_counts"]}
+
+    # All ten contract statuses appear even at zero, plus the distinct
+    # null/미시작 bucket for notices without a review row yet.
+    assert set(counts) == set(_ALL_OVERVIEW_STATUSES) | {None}
+    assert counts["needs_human_review"] == 1
+    assert counts["completed"] == 1
+    assert counts["failed"] == 0
+    # 9 pre_spec notices in this fixture, 2 now have a review row.
+    assert counts[None] == payload["total"] - 2
+    assert sum(counts.values()) == payload["total"]
+
+
+def test_pre_specs_overview_status_counts_reflect_full_filtered_set_not_just_the_page(
+    pre_specs_api,
+):
+    session, _engine, refs = pre_specs_api
+    session.add(
+        PreSpecOverviewReview(notice_id=refs["sw_yes"].id, status="needs_human_review")
+    )
+    session.commit()
+
+    payload = _payload(session, sw_only=False, limit=1)
+    assert len(payload["items"]) == 1
+    counts = {row["status"]: row["count"] for row in payload["overview_status_counts"]}
+    # The returned page is truncated to one row, but the group counts still
+    # describe every notice matching the filter, not just the page.
+    assert counts["needs_human_review"] == 1
+    assert sum(counts.values()) == payload["total"]

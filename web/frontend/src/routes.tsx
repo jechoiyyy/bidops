@@ -1,21 +1,22 @@
+import { lazy } from "react";
 import { Navigate, useSearchParams, type RouteObject } from "react-router-dom";
-import { EmptyState } from "./components/common/EmptyState";
+import { LazyRouteBoundary } from "./components/common/LazyRouteBoundary";
 import { AppShell } from "./components/shell/AppShell";
 import { routeHandle, routeMetadata } from "./components/shell/route-meta";
-import { DashboardPage } from "./pages/DashboardPage";
-import { QueuePage } from "./pages/QueuePage";
-import { OpportunitiesPage, OpportunityDetailPage } from "./pages/OpportunitiesPage";
-import { PreSpecsPage } from "./pages/PreSpecsPage";
-import { PreSpecDetailPage } from "./pages/PreSpecDetailPage";
-import { NoticeDetailPage } from "./pages/NoticeDetailPage";
-import { RunsPage } from "./pages/RunsPage";
-import { AttachmentsPage } from "./pages/AttachmentsPage";
-import { MetricsPage } from "./pages/MetricsPage";
-import { ProfilePage } from "./pages/ProfilePage";
-import { QualityGatesPage } from "./pages/QualityGatesPage";
-import { PoliciesPage } from "./pages/PoliciesPage";
-import { OperationsPage } from "./pages/OperationsPage";
-import { DeepReviewPage } from "./pages/DeepReviewPage";
+
+const DashboardPage = lazy(() => import("./pages/DashboardPage").then(({ DashboardPage }) => ({ default: DashboardPage })));
+const OpportunitiesPage = lazy(() => import("./pages/OpportunitiesPage").then(({ OpportunitiesPage }) => ({ default: OpportunitiesPage })));
+const OpportunityDetailPage = lazy(() => import("./pages/OpportunitiesPage").then(({ OpportunityDetailPage }) => ({ default: OpportunityDetailPage })));
+const PreSpecsPage = lazy(() => import("./pages/PreSpecsPage").then(({ PreSpecsPage }) => ({ default: PreSpecsPage })));
+const PreSpecDetailPage = lazy(() => import("./pages/PreSpecDetailPage").then(({ PreSpecDetailPage }) => ({ default: PreSpecDetailPage })));
+const DeepReviewPage = lazy(() => import("./pages/DeepReviewPage").then(({ DeepReviewPage }) => ({ default: DeepReviewPage })));
+const BidDeltaDecisionPage = lazy(() => import("./pages/BidDeltaDecisionPage").then(({ BidDeltaDecisionPage }) => ({ default: BidDeltaDecisionPage })));
+const OrderPlansPage = lazy(() => import("./pages/OrderPlansPage").then(({ OrderPlansPage }) => ({ default: OrderPlansPage })));
+const OrderPlanDetailPage = lazy(() => import("./pages/OrderPlanDetailPage").then(({ OrderPlanDetailPage }) => ({ default: OrderPlanDetailPage })));
+const CriteriaPage = lazy(() => import("./pages/CriteriaPage").then(({ CriteriaPage }) => ({ default: CriteriaPage })));
+const RunStatusPage = lazy(() => import("./pages/RunStatusPage").then(({ RunStatusPage }) => ({ default: RunStatusPage })));
+const ReviewWorkspacePage = lazy(() => import("./pages/ReviewWorkspacePage").then(({ ReviewWorkspacePage }) => ({ default: ReviewWorkspacePage })));
+const GoNoGoPage = lazy(() => import("./pages/GoNoGoPage").then(({ GoNoGoPage }) => ({ default: GoNoGoPage })));
 
 // 회차 선택은 주소의 run 파라미터에만 남아 있으므로 옮길 때 그대로 넘긴다.
 function RedirectWithSearch({ to, extraParams }: { to: string; extraParams?: Record<string, string> }) {
@@ -25,47 +26,50 @@ function RedirectWithSearch({ to, extraParams }: { to: string; extraParams?: Rec
   return <Navigate replace to={{ pathname: to, search: next.toString() }} />;
 }
 
-// 담당자 리뷰 기록은 아직 구현 전이다. 빈 제목 대신 무엇이 준비 중이고
-// 지금은 어디에서 같은 일을 할 수 있는지 알려 준다.
-function ReviewLogPage() {
-  const [searchParams] = useSearchParams();
-  return (
-    <section className="placeholder-page" aria-labelledby="page-title">
-      <h2 className="visually-hidden" id="page-title">담당자 리뷰 기록</h2>
-      <EmptyState
-        title="담당자 리뷰 기록은 준비 중입니다."
-        description="회차별 리뷰 이력과 담당자별 처리량을 모아 보여 줄 화면입니다. 지금은 검토 대기열에서 공고를 열면 그 공고의 리뷰를 확인하고 저장할 수 있습니다."
-        action={{ label: "검토 대기열로 이동", to: `/queue?${searchParams.toString()}` }}
-      />
-    </section>
-  );
-}
-
 export const routes: RouteObject[] = [
   {
     path: "/",
     element: <AppShell />,
     children: [
-      { index: true, element: <DashboardPage />, handle: routeHandle(routeMetadata.dashboard) },
-      { path: "queue", element: <QueuePage />, handle: routeHandle(routeMetadata.queue) },
-      { path: "queue/:noticePk", element: <QueuePage />, handle: routeHandle(routeMetadata.queue) },
-      { path: "deadlines", element: <RedirectWithSearch to="/queue" extraParams={{ sort: "deadline" }} />, handle: routeHandle(routeMetadata.deadlines) },
-      { path: "opportunities", element: <OpportunitiesPage />, handle: routeHandle(routeMetadata.opportunities) },
-      { path: "opportunities/:opportunityId", element: <OpportunityDetailPage />, handle: routeHandle(routeMetadata.opportunities) },
-      { path: "pre-specs", element: <PreSpecsPage />, handle: routeHandle(routeMetadata.preSpecs) },
-      { path: "pre-specs/:noticeId", element: <PreSpecDetailPage />, handle: routeHandle(routeMetadata.preSpecs) },
-      { path: "judgments", element: <NoticeDetailPage />, handle: routeHandle(routeMetadata.judgments) },
-      { path: "judgments/:noticePk", element: <NoticeDetailPage />, handle: routeHandle(routeMetadata.judgments) },
-      { path: "reviews", element: <ReviewLogPage />, handle: routeHandle(routeMetadata.reviews) },
-      { path: "profile", element: <ProfilePage />, handle: routeHandle(routeMetadata.profile) },
-      { path: "metrics", element: <MetricsPage />, handle: routeHandle(routeMetadata.metrics) },
-      { path: "quality-gates", element: <QualityGatesPage />, handle: routeHandle(routeMetadata.qualityGates) },
-      { path: "policies", element: <PoliciesPage />, handle: routeHandle(routeMetadata.policies) },
-      { path: "runs", element: <RunsPage />, handle: routeHandle(routeMetadata.runs) },
-      { path: "attachments", element: <AttachmentsPage />, handle: routeHandle(routeMetadata.attachments) },
-      { path: "operations", element: <OperationsPage />, handle: routeHandle(routeMetadata.operations) },
-      { path: "audit", element: <RedirectWithSearch to="/runs" />, handle: routeHandle(routeMetadata.audit) },
-      { path: "deep-reviews/:deepReviewId", element: <DeepReviewPage />, handle: routeHandle(routeMetadata.deepReview) },
+      {
+        element: <LazyRouteBoundary />,
+        children: [
+          { index: true, element: <DashboardPage />, handle: routeHandle(routeMetadata.dashboard) },
+          // 검토 대기열 · 공고 판정 이력 · 담당자 리뷰 기록은 한 화면의 세 탭이다.
+          // 옛 경로를 리다이렉트하지 않고 각 탭의 정식 주소로 남겨 404를 막는다.
+          { path: "queue", element: <ReviewWorkspacePage />, handle: routeHandle(routeMetadata.queue) },
+          { path: "queue/:noticePk", element: <ReviewWorkspacePage />, handle: routeHandle(routeMetadata.queue) },
+          { path: "judgments", element: <ReviewWorkspacePage />, handle: routeHandle(routeMetadata.queue) },
+          { path: "judgments/:noticePk", element: <ReviewWorkspacePage />, handle: routeHandle(routeMetadata.queue) },
+          { path: "reviews", element: <ReviewWorkspacePage />, handle: routeHandle(routeMetadata.queue) },
+          // 마감 추적은 검토 대기열의 저장된 뷰다(정렬 하나가 메뉴 한 칸을 쓰고 있었다).
+          // 리다이렉트가 아니라 그 뷰의 주소다: 리다이렉트는 AppShell의 회차 동기화와
+          // 경쟁해 sort 파라미터를 잃었고, 그러면 저장된 뷰가 저장되지 않는다.
+          { path: "deadlines", element: <ReviewWorkspacePage />, handle: routeHandle(routeMetadata.queue) },
+          { path: "opportunities", element: <OpportunitiesPage />, handle: routeHandle(routeMetadata.opportunities) },
+          { path: "opportunities/:opportunityId", element: <OpportunityDetailPage />, handle: routeHandle(routeMetadata.opportunities) },
+          { path: "opportunities/:opportunityId/bid-delta", element: <BidDeltaDecisionPage />, handle: routeHandle(routeMetadata.bidDelta) },
+          // 최종 Go/No-Go는 되돌릴 수 없는 결정인데 지금까지 사이드바 진입점이 없었다.
+          { path: "go-no-go", element: <GoNoGoPage />, handle: routeHandle(routeMetadata.goNoGo) },
+          { path: "order-plans", element: <OrderPlansPage />, handle: routeHandle(routeMetadata.orderPlans) },
+          { path: "order-plans/:orderPlanPk", element: <OrderPlanDetailPage />, handle: routeHandle(routeMetadata.orderPlanDetail) },
+          { path: "pre-specs", element: <PreSpecsPage />, handle: routeHandle(routeMetadata.preSpecs) },
+          { path: "pre-specs/:noticeId", element: <PreSpecDetailPage />, handle: routeHandle(routeMetadata.preSpecs) },
+          // 기준 4화면은 판정 기준 한 화면의 탭이다. 옛 경로가 각 탭의 주소다.
+          { path: "criteria", element: <CriteriaPage />, handle: routeHandle(routeMetadata.criteria) },
+          { path: "profile", element: <CriteriaPage />, handle: routeHandle(routeMetadata.criteria) },
+          { path: "metrics", element: <CriteriaPage />, handle: routeHandle(routeMetadata.criteria) },
+          { path: "quality-gates", element: <CriteriaPage />, handle: routeHandle(routeMetadata.criteria) },
+          { path: "policies", element: <CriteriaPage />, handle: routeHandle(routeMetadata.criteria) },
+          // 운영 3화면과 산출물 감사 로그는 실행 상태 한 화면의 탭이다.
+          { path: "run-status", element: <RunStatusPage />, handle: routeHandle(routeMetadata.runStatus) },
+          { path: "runs", element: <RunStatusPage />, handle: routeHandle(routeMetadata.runStatus) },
+          { path: "attachments", element: <RunStatusPage />, handle: routeHandle(routeMetadata.runStatus) },
+          { path: "operations", element: <RunStatusPage />, handle: routeHandle(routeMetadata.runStatus) },
+          { path: "audit", element: <RunStatusPage />, handle: routeHandle(routeMetadata.runStatus) },
+          { path: "deep-reviews/:deepReviewId", element: <DeepReviewPage />, handle: routeHandle(routeMetadata.deepReview) },
+        ],
+      },
     ],
   },
 ];

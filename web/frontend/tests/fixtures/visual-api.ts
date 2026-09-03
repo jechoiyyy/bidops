@@ -495,7 +495,7 @@ const scheduleExecutions = [
 export const visualResponses: Record<string, unknown> = {
   "/api/profile/snapshots": {
     items: [
-      { version: PROFILE_CURRENT, digest: PROFILE_CURRENT.slice("company-profile.sha256:".length), source_kind: "working_tree", source_ref: "docs/reference/company-profile.md", created_at: "2026-08-25T08:00:00+09:00" },
+      { version: PROFILE_CURRENT, digest: PROFILE_CURRENT.slice("company-profile.sha256:".length), source_kind: "working_tree", created_at: "2026-08-25T08:00:00+09:00" },
       { version: PROFILE_BASELINE, digest: PROFILE_BASELINE.slice("company-profile.sha256:".length), source_kind: "git_blob", source_ref: "ee621835db934ddac944f7a07a986ed0b73ecc7a", created_at: "2026-08-25T08:00:00+09:00" },
     ],
     total: 2,

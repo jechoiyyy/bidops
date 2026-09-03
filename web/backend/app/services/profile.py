@@ -6,7 +6,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, Final
 
 import yaml
 from sqlalchemy import select
@@ -18,6 +18,20 @@ from ..models import Evidence, VerificationItem
 
 PROFILE_REFERENCE_FIELDS = ["evidence.source", "evidence.fact", "verification_item.why"]
 PROFILE_STATUSES = ("confirmed", "inferred", "unknown")
+PROFILE_PROJECTION_SCHEMA: Final[str] = "bidops.profile-projection.v1"
+# Keep every profile-read failure on a closed, path-free vocabulary.  The
+# parser may retain source bytes internally for immutable input processing,
+# but callers must never receive the exception or source text itself.
+PROFILE_PARSE_ERROR_CODES: Final[frozenset[str]] = frozenset(
+    {
+        "profile_snapshot_unavailable",
+        "profile_source_unavailable",
+        "profile_yaml_unclosed",
+        "profile_yaml_invalid",
+        "profile_section_unstructured",
+        "profile_references_unavailable",
+    }
+)
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
 _NUMBERED_HEADING_RE = re.compile(r"^(\d+(?:\.\d+)*)(?:\.)?\s+(.+?)\s*$")
 _FENCE_RE = re.compile(r"^\s*```\s*(yaml|yml)\s*$", re.IGNORECASE)
@@ -39,7 +53,7 @@ class ParsedItem:
 class RawBlock:
     line_start: int
     raw: str
-    error: str
+    error_code: str
 
 
 @dataclass
@@ -55,6 +69,7 @@ class ParsedSection:
     children: list["ParsedSection"] = field(default_factory=list)
     items: list[ParsedItem] = field(default_factory=list)
     raw_blocks: list[RawBlock] = field(default_factory=list)
+    error_codes: list[str] = field(default_factory=list)
     raw: str = ""
     # 하위 절을 뺀 이 절 자체의 본문. 상태 항목으로 구조화되지 않은 내용도
     # 화면에서 볼 수 있어야 하므로 별도로 보관한다.
@@ -226,25 +241,20 @@ def _refresh_status_counts(section: ParsedSection) -> Counter[str]:
     return counts
 
 
-def parse_profile(path: Path | None = None) -> ParsedProfile:
-    """Parse the profile without changing the source file.
+def _append_error_code(codes: list[str], code: str) -> None:
+    if code not in PROFILE_PARSE_ERROR_CODES:
+        raise ValueError("profile error code is not registered")
+    if code not in codes:
+        codes.append(code)
 
-    A malformed YAML block remains attached to its section as ``RawBlock``.
-    This is intentional: the UI must be able to show the source rather than
-    silently making a broken section disappear.
-    """
 
-    source_path = path or profile_path()
-    source_name = str(source_path)
-    try:
-        text = source_path.read_text(encoding="utf-8")
-    except (OSError, UnicodeError) as error:
-        return ParsedProfile(
-            source=source_name,
-            sections=[],
-            status_counts=Counter(),
-            parse_errors=[f"프로필 원문을 읽지 못했습니다: {error}"],
-        )
+def _mark_section_error(section: ParsedSection, errors: list[str], code: str) -> None:
+    _append_error_code(section.error_codes, code)
+    _append_error_code(errors, code)
+
+
+def parse_profile_text(text: str, *, source_name: str = "profile") -> ParsedProfile:
+    """Parse one already-selected profile snapshot without exposing its body."""
 
     lines = text.splitlines(keepends=True)
     sections = _new_sections(lines)
@@ -269,16 +279,16 @@ def parse_profile(path: Path | None = None) -> ParsedProfile:
         if owner is None:
             continue
         if not closed:
-            error_text = "YAML 코드 블록의 닫는 펜스가 없습니다."
-            owner.raw_blocks.append(RawBlock(block_start + 1, raw, error_text))
-            errors.append(f"{owner.heading} {block_start + 1}행: {error_text}")
+            error_code = "profile_yaml_unclosed"
+            owner.raw_blocks.append(RawBlock(block_start + 1, raw, error_code))
+            _mark_section_error(owner, errors, error_code)
             continue
         try:
             value = yaml.safe_load(body)
-        except yaml.YAMLError as error:
-            error_text = f"YAML 파싱에 실패했습니다: {error}"
-            owner.raw_blocks.append(RawBlock(block_start + 1, raw, error_text))
-            errors.append(f"{owner.heading} {block_start + 1}행: {error_text}")
+        except yaml.YAMLError:
+            error_code = "profile_yaml_invalid"
+            owner.raw_blocks.append(RawBlock(block_start + 1, raw, error_code))
+            _mark_section_error(owner, errors, error_code)
             continue
         owner.items.extend(
             _status_items(
@@ -295,8 +305,27 @@ def parse_profile(path: Path | None = None) -> ParsedProfile:
             [child.start_line for child in section.children] or [section.end_line]
         )
         section.body = "".join(lines[section.start_line + 1:body_end]).strip()
+        if section.body and not section.items and not section.raw_blocks:
+            _mark_section_error(section, errors, "profile_section_unstructured")
     counts = _refresh_status_counts_for_roots(sections)
     return ParsedProfile(source=source_name, sections=sections, status_counts=counts, parse_errors=errors)
+
+
+def parse_profile(path: Path | None = None) -> ParsedProfile:
+    """Parse the profile from a local source for internal pipeline use."""
+
+    source_path = path or profile_path()
+    source_name = str(source_path)
+    try:
+        text = source_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        return ParsedProfile(
+            source=source_name,
+            sections=[],
+            status_counts=Counter(),
+            parse_errors=["profile_source_unavailable"],
+        )
+    return parse_profile_text(text, source_name=source_name)
 
 
 def _refresh_status_counts_for_roots(sections: list[ParsedSection]) -> Counter[str]:

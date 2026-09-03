@@ -2,7 +2,7 @@
 
 실행일: 2026-08-28 · run: `20260828-lifecycle-v2` · 산출물: `data/experiments/lifecycle-linkage-survey/20260828-lifecycle-v2/`
 
-발주계획 조기 탐색부터 입찰공고 추적까지의 목표 흐름(`docs/architecture.md:119-136`)을 구현하려면 세 API가
+발주계획 조기 탐색부터 입찰공고 추적까지의 목표 흐름([docs/ARCHITECTURE.md의 주요 데이터 흐름](../ARCHITECTURE.md#5-주요-데이터-흐름))을 구현하려면 세 API가
 서로를 어떤 필드로 가리키는지와, 한 번 수집한 레코드가 갱신될 때 다시 관측되는지를 알아야 한다.
 이 문서는 그 두 가지를 실제 호출로 측정한 결과다. 확인되지 않은 것은 `unknown`으로 남겼다.
 

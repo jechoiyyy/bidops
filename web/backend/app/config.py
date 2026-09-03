@@ -219,6 +219,17 @@ class Settings(BaseSettings):
     clamav_port: int = Field(default=3310, validation_alias="BIDOPS_CLAMAV_PORT")
     clamav_timeout_seconds: float = Field(default=15.0, validation_alias="BIDOPS_CLAMAV_TIMEOUT_SECONDS")
     analysis_worker_poll_seconds: float = Field(default=1.0, validation_alias="BIDOPS_ANALYSIS_WORKER_POLL_SECONDS")
+    # Manual C-2 execution references.  These are read-only inputs copied into
+    # an execution snapshot; startup never validates, activates, or calls them.
+    c2_policy_path: Path | None = Field(default=None, validation_alias="BIDOPS_C2_POLICY_PATH")
+    c2_binding_path: Path | None = Field(default=None, validation_alias="BIDOPS_C2_BINDING_PATH")
+    c2_capabilities_path: Path | None = Field(default=None, validation_alias="BIDOPS_C2_CAPABILITIES_PATH")
+    c2_prompt_path: Path | None = Field(default=None, validation_alias="BIDOPS_C2_PROMPT_PATH")
+    c2_bm25_script: Path | None = Field(default=None, validation_alias="BIDOPS_C2_BM25_SCRIPT")
+    c2_merge_script: Path | None = Field(default=None, validation_alias="BIDOPS_C2_MERGE_SCRIPT")
+    c2_execution_allowed: bool = Field(default=False, validation_alias="BIDOPS_C2_EXECUTION_ALLOWED")
+    c2_worker_stale_seconds: int = Field(default=900, validation_alias="BIDOPS_C2_WORKER_STALE_SECONDS")
+    c2_response_retention_days: int = Field(default=30, validation_alias="BIDOPS_C2_RESPONSE_RETENTION_DAYS")
     prespec_attachment_worker_concurrency: int = Field(
         default=1, validation_alias="BIDOPS_PRESPEC_ATTACHMENT_WORKER_CONCURRENCY"
     )
@@ -268,6 +279,19 @@ class Settings(BaseSettings):
             self.data_dir = self.bidops_root / "web" / "data"
         if self.attachments_dir is None:
             self.attachments_dir = self.data_dir / "attachments"
+        if self.c2_policy_path is None:
+            self.c2_policy_path = self.bidops_root / "experiments/order-plan-screening/config/order-plan-screening-policy.v1.json"
+        if self.c2_binding_path is None:
+            self.c2_binding_path = self.bidops_root / "experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v1.json"
+        # Capabilities and prompt are deployment/company inputs.  They are
+        # intentionally never inferred from the repository: an operator must
+        # supply explicit paths before a C-2 execution can be created.
+        if self.c2_bm25_script is None:
+            self.c2_bm25_script = self.bidops_root / "skills/bidops-screen/scripts/rank_order_plans_bm25.py"
+        if self.c2_merge_script is None:
+            self.c2_merge_script = self.bidops_root / "skills/bidops-screen/scripts/build_order_plan_screening_results.py"
+        if self.c2_worker_stale_seconds < 1 or self.c2_response_retention_days < 1:
+            raise ValueError("C-2 worker limits must be positive")
         if self.heartbeat_seconds >= self.stale_seconds:
             raise ValueError(
                 "BIDOPS_SCREEN_HEARTBEAT_SECONDS must be less than "

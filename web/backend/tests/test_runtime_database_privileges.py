@@ -7,11 +7,16 @@ privileges rather than trusting the grant text alone.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import re
 from pathlib import Path
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, func, select, text
+from sqlalchemy.orm import Session
 
+from app.db import schema_bound
+from app.ingest.loader import ingest_run
+from app.models import OrderPlanScreeningExecution, Run
 from tests.postgres import maintenance_url, requires_postgres, temporary_database
 
 
@@ -171,6 +176,92 @@ def test_overview_worker_update_stays_column_scoped_and_snapshot_immutable() -> 
     assert _column_update_grant("worker", "prespec_overview_review") == allowed_review_updates
 
 
+def test_c2_runtime_grants_are_role_specific_and_column_scoped() -> None:
+    app_selects = _table_grants("app", "SELECT")
+    app_inserts = _table_grants("app", "INSERT")
+    app_deletes = _table_grants("app", "DELETE")
+    worker_selects = _table_grants("worker", "SELECT")
+    worker_inserts = _table_grants("worker", "INSERT")
+    worker_deletes = _table_grants("worker", "DELETE")
+
+    assert {
+        "order_plan_screening_policy",
+        "order_plan_screening_execution",
+        "order_plan_screening_batch_attempt",
+        "order_plan_screening_result",
+        "order_plan_screening_artifact",
+        "order_plan_screening_feedback",
+    } <= app_selects
+    assert {
+        "order_plan_screening_policy",
+        "order_plan_screening_execution",
+        "order_plan_screening_batch_attempt",
+        "order_plan_screening_result",
+        "order_plan_screening_artifact",
+        "order_plan_screening_feedback",
+    } <= app_inserts
+    assert not {
+        "order_plan_screening_policy",
+        "order_plan_screening_execution",
+        "order_plan_screening_batch_attempt",
+        "order_plan_screening_result",
+        "order_plan_screening_artifact",
+        "order_plan_screening_feedback",
+    } & app_deletes
+
+    assert {
+        "order_plan",
+        "order_plan_observation",
+        "order_plan_screening_policy",
+        "order_plan_screening_execution",
+        "order_plan_screening_batch_attempt",
+        "order_plan_screening_artifact",
+    } <= worker_selects
+    assert {
+        "order_plan_screening_batch_attempt",
+        "order_plan_screening_artifact",
+        "order_plan_screening_result",
+    } <= worker_inserts
+    assert not {
+        "order_plan_screening_policy",
+        "order_plan_screening_execution",
+        "order_plan_screening_feedback",
+    } & worker_inserts
+    assert not {
+        "order_plan_screening_policy",
+        "order_plan_screening_execution",
+        "order_plan_screening_batch_attempt",
+        "order_plan_screening_result",
+        "order_plan_screening_artifact",
+        "order_plan_screening_feedback",
+    } & worker_deletes
+
+    assert _column_update_grant("app", "order_plan_screening_policy") == {
+        "policy_status", "active_slot", "activated_at", "activated_by"
+    }
+    assert _column_update_grant("app", "order_plan_screening_execution") == {
+        "status", "active_slot", "partial_artifact", "candidate_count",
+        "completed_count", "failure_count", "stage1_selected_count",
+        "stage1_filtered_out_count", "stage1_failed_count", "stage2_relevant_count",
+        "stage2_not_relevant_count", "stage2_uncertain_count", "stage2_failed_count",
+        "stage2_rejected_count", "human_review_count", "error_code",
+        "started_at", "finished_at",
+    }
+    assert _column_update_grant("worker", "order_plan_screening_batch_attempt") == {
+        "attempt_status", "failure_type", "failure_code", "response_object_ref",
+        "input_tokens", "cached_input_tokens", "output_tokens", "total_tokens",
+        "duration_ms", "started_at", "finished_at",
+    }
+    assert _column_update_grant("worker", "order_plan_screening_execution") == {
+        "status", "active_slot", "partial_artifact", "candidate_count",
+        "completed_count", "failure_count", "stage1_selected_count",
+        "stage1_filtered_out_count", "stage1_failed_count", "stage2_relevant_count",
+        "stage2_not_relevant_count", "stage2_uncertain_count", "stage2_failed_count",
+        "stage2_rejected_count", "human_review_count", "error_code",
+        "started_at", "finished_at", "heartbeat_at",
+    }
+
+
 def _ensure_roles() -> None:
     url = maintenance_url()
     assert url is not None
@@ -285,6 +376,33 @@ def test_effective_runtime_role_matrix_and_future_defaults() -> None:
                 assert not _table_privilege(
                     connection, "app", "prespec_overview_attempt", "INSERT"
                 )
+                for table in (
+                    "order_plan_screening_policy",
+                    "order_plan_screening_execution",
+                    "order_plan_screening_batch_attempt",
+                    "order_plan_screening_result",
+                    "order_plan_screening_artifact",
+                    "order_plan_screening_feedback",
+                ):
+                    assert _table_privilege(connection, "app", table, "SELECT")
+                for table in (
+                    "order_plan_screening_policy",
+                    "order_plan_screening_execution",
+                    "order_plan_screening_batch_attempt",
+                    "order_plan_screening_result",
+                    "order_plan_screening_artifact",
+                    "order_plan_screening_feedback",
+                ):
+                    assert _table_privilege(connection, "app", table, "INSERT")
+                for table in (
+                    "order_plan_screening_policy",
+                    "order_plan_screening_execution",
+                    "order_plan_screening_batch_attempt",
+                    "order_plan_screening_result",
+                    "order_plan_screening_artifact",
+                    "order_plan_screening_feedback",
+                ):
+                    assert not _table_privilege(connection, "app", table, "DELETE")
                 assert not _table_privilege(
                     connection, "app", "prespec_overview_review", "UPDATE"
                 )
@@ -379,6 +497,38 @@ def test_effective_runtime_role_matrix_and_future_defaults() -> None:
                     "prespec_overview_attempt_event",
                 ):
                     assert _table_privilege(connection, "worker", table, "INSERT")
+                for table in (
+                    "order_plan",
+                    "order_plan_screening_policy",
+                    "order_plan_screening_execution",
+                    "order_plan_screening_batch_attempt",
+                    "order_plan_screening_artifact",
+                ):
+                    assert _table_privilege(connection, "worker", table, "SELECT")
+                for table in (
+                    "order_plan_screening_batch_attempt",
+                    "order_plan_screening_artifact",
+                    "order_plan_screening_result",
+                ):
+                    assert _table_privilege(connection, "worker", table, "INSERT")
+                for table in (
+                    "order_plan_screening_policy",
+                    "order_plan_screening_execution",
+                    "order_plan_screening_feedback",
+                ):
+                    assert not _table_privilege(connection, "worker", table, "INSERT")
+                assert not _table_privilege(
+                    connection, "worker", "order_plan_screening_feedback", "SELECT"
+                )
+                for table in (
+                    "order_plan_screening_policy",
+                    "order_plan_screening_execution",
+                    "order_plan_screening_batch_attempt",
+                    "order_plan_screening_result",
+                    "order_plan_screening_artifact",
+                    "order_plan_screening_feedback",
+                ):
+                    assert not _table_privilege(connection, "worker", table, "DELETE")
                 assert not _table_privilege(
                     connection, "worker", "prespec_overview_review", "UPDATE"
                 )
@@ -503,3 +653,46 @@ def test_effective_runtime_role_matrix_and_future_defaults() -> None:
                     )
         finally:
             engine.dispose()
+
+
+@requires_postgres
+def test_c2_ingest_completes_with_the_app_runtime_role(tmp_path) -> None:
+    """The credential used by the ingest path can append the complete C-2 set."""
+
+    from tests.test_ingest_loader import _write_c2_fixture
+
+    _ensure_roles()
+    with temporary_database() as database_url:
+        owner_engine = schema_bound(create_engine(database_url, future=True))
+        policy_engine = _apply_policy(database_url)
+        try:
+            run_dir, source_run_id = _write_c2_fixture(tmp_path)
+            with Session(owner_engine) as session:
+                session.add(
+                    Run(
+                        id=source_run_id,
+                        timezone="Asia/Seoul",
+                        generated_at=datetime(2026, 9, 1, tzinfo=timezone.utc),
+                    )
+                )
+                session.commit()
+
+            app_engine = schema_bound(create_engine(database_url, future=True))
+            try:
+                with Session(app_engine) as session:
+                    session.connection().exec_driver_sql("SET ROLE app")
+                    result = ingest_run(run_dir, session)
+                assert result.screening_executions == 1
+                assert result.screening_attempts == 1
+                assert result.screening_results == 1
+                assert result.screening_artifacts == 6
+            finally:
+                app_engine.dispose()
+
+            with Session(owner_engine) as session:
+                assert session.scalar(
+                    select(func.count()).select_from(OrderPlanScreeningExecution)
+                ) == 1
+        finally:
+            policy_engine.dispose()
+            owner_engine.dispose()

@@ -17,18 +17,30 @@ const routeContexts: RouteContextCase[] = [
   { name: "queue list", path: `/queue?run=${RUN_ID}`, title: "검토 대기열", dataScope: "run", editScope: "리뷰 저장 가능", runSelectorVisible: true },
   { name: "queue detail", path: `/queue/29?run=${RUN_ID}`, title: "검토 대기열", dataScope: "run", editScope: "리뷰 저장 가능", runSelectorVisible: true },
   { name: "opportunities", path: `/opportunities?run=${RUN_ID}`, title: "사업기회", dataScope: "cumulative", editScope: "추적 상태 저장 가능", runSelectorVisible: false },
+  { name: "bid delta", path: `/opportunities/501/bid-delta?run=${RUN_ID}`, title: "입찰 변경 비교", dataScope: "cumulative", editScope: "최종 Go/No-Go 저장 가능", runSelectorVisible: false },
   { name: "pre-specs", path: `/pre-specs?run=${RUN_ID}`, title: "사전규격", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
   { name: "pre-spec detail", path: `/pre-specs/991?run=${RUN_ID}`, title: "사전규격", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
-  { name: "judgments list", path: `/judgments?run=${RUN_ID}`, title: "공고 판정 이력", dataScope: "run", editScope: "판정 원문 읽기 전용", runSelectorVisible: true },
-  { name: "judgments detail", path: `/judgments/29?run=${RUN_ID}`, title: "공고 판정 이력", dataScope: "run", editScope: "판정 원문 읽기 전용", runSelectorVisible: true },
-  { name: "reviews", path: `/reviews?run=${RUN_ID}`, title: "담당자 리뷰 기록", dataScope: "run", editScope: null, runSelectorVisible: true },
-  { name: "profile", path: `/profile?run=${RUN_ID}`, title: "회사 프로필", dataScope: "cumulative", editScope: "원본 문서에서 관리", runSelectorVisible: false },
-  { name: "metrics", path: `/metrics?run=${RUN_ID}`, title: "검증 지표", dataScope: "run", editScope: null, runSelectorVisible: true },
-  { name: "quality gates", path: `/quality-gates?run=${RUN_ID}`, title: "품질 게이트", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
-  { name: "policies", path: `/policies?run=${RUN_ID}`, title: "판정 정책", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
-  { name: "runs", path: `/runs?run=${RUN_ID}`, title: "수집 실행", dataScope: "run", editScope: null, runSelectorVisible: true },
-  { name: "attachments", path: `/attachments?run=${RUN_ID}`, title: "첨부 확보", dataScope: "run", editScope: null, runSelectorVisible: true },
-  { name: "operations", path: `/operations?run=${RUN_ID}`, title: "상시 운영", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
+  // 공고 판정 이력·담당자 리뷰 기록은 검토 대기열의 탭으로 흡수됐다(ADR-0041 결정 2).
+  // 옛 경로가 리다이렉트가 아니라 각 탭의 정식 주소로 남아 있으므로 화면 맥락도
+  // 흡수한 화면(검토 대기열)의 것을 쓴다.
+  { name: "judgments list", path: `/judgments?run=${RUN_ID}`, title: "검토 대기열", dataScope: "run", editScope: "리뷰 저장 가능", runSelectorVisible: true },
+  { name: "judgments detail", path: `/judgments/29?run=${RUN_ID}`, title: "검토 대기열", dataScope: "run", editScope: "리뷰 저장 가능", runSelectorVisible: true },
+  { name: "reviews", path: `/reviews?run=${RUN_ID}`, title: "검토 대기열", dataScope: "run", editScope: "리뷰 저장 가능", runSelectorVisible: true },
+  // 최종 Go/No-Go는 사이드바 최상위 항목이 됐다(ADR-0041 결정 3).
+  { name: "go-no-go", path: `/go-no-go?run=${RUN_ID}`, title: "최종 Go/No-Go", dataScope: "cumulative", editScope: "최종 Go/No-Go 저장 가능", runSelectorVisible: false },
+  // 기준 4화면은 판정 기준 한 화면의 탭이다. 넷 다 누적 자료이므로 회차 선택기가
+  // 보이지 않고, 그 사실이 1차 분류(기준과 운영)만 보고 예측된다(PRD §2.1).
+  { name: "criteria", path: `/criteria?run=${RUN_ID}`, title: "판정 기준", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
+  { name: "profile", path: `/profile?run=${RUN_ID}`, title: "판정 기준", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
+  { name: "metrics", path: `/metrics?run=${RUN_ID}`, title: "판정 기준", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
+  { name: "quality gates", path: `/quality-gates?run=${RUN_ID}`, title: "판정 기준", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
+  { name: "policies", path: `/policies?run=${RUN_ID}`, title: "판정 기준", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
+  // 운영 3화면과 산출물 감사 로그는 실행 상태 한 화면의 탭이다.
+  { name: "run-status", path: `/run-status?run=${RUN_ID}`, title: "실행 상태", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
+  { name: "runs", path: `/runs?run=${RUN_ID}`, title: "실행 상태", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
+  { name: "attachments", path: `/attachments?run=${RUN_ID}`, title: "실행 상태", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
+  { name: "operations", path: `/operations?run=${RUN_ID}`, title: "실행 상태", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
+  { name: "audit", path: `/audit?run=${RUN_ID}`, title: "실행 상태", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
   { name: "deep review", path: `/deep-reviews/fixture-review?run=${RUN_ID}`, title: "심층 검토 보고서", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
 ];
 
@@ -61,6 +73,37 @@ for (const context of routeContexts) {
     }
   });
 }
+
+test("직접 진입한 lazy route가 metadata와 실제 화면을 함께 렌더링한다", async ({ page }) => {
+  await page.goto(`/opportunities?run=${RUN_ID}`);
+
+  const topbar = page.locator("header.topbar");
+  await expect(topbar.locator("h1")).toHaveText("사업기회");
+  await expect(topbar).toHaveAttribute("data-route-data-scope", "cumulative");
+  await expect(topbar.locator(".topbar-status")).toHaveText("추적 상태 저장 가능");
+  await expect(page.getByLabel("실행 회차", { exact: true })).toHaveCount(0);
+  await expect(page.locator(".opportunities-page")).toBeVisible();
+});
+
+test("SPA 내부 link click으로 lazy route에 들어가도 metadata와 화면이 유지된다", async ({ page }) => {
+  await page.goto(`/judgments/29?run=${RUN_ID}`);
+  // 판정 화면과 사이드바가 같은 이름의 링크를 갖는다. 이름만으로 고르면 lazy
+  // chunk가 그려지기 전에는 하나, 그려진 뒤에는 둘이 잡혀 strict mode를 어긴다.
+  // 통과하던 실행은 출발 화면이 아직 안 그려진 상태를 눌렀다는 뜻이므로,
+  // 화면이 그려진 것을 확인한 뒤 그 화면의 링크로 이동한다. 사이드바는 좁은
+  // 폭에서 접히므로 네 폭에서 같은 동작을 하는 쪽은 화면 안의 링크다.
+  const toQueue = page.locator(".judgment-page-actions").getByRole("link", { name: "검토 대기열" });
+  await expect(toQueue).toBeVisible();
+  await toQueue.click();
+
+  const topbar = page.locator("header.topbar");
+  await expect(topbar.locator("h1")).toHaveText("검토 대기열");
+  await expect(topbar).toHaveAttribute("data-route-data-scope", "run");
+  await expect(topbar.locator(".topbar-status")).toHaveText("리뷰 저장 가능");
+  await expect(page.getByLabel("실행 회차", { exact: true })).toHaveValue(RUN_ID);
+  await expect(page.locator(".queue-page")).toBeVisible();
+  expect(new URL(page.url()).searchParams.get("run")).toBe(RUN_ID);
+});
 
 test("누적 화면은 회차 API 실패와 무관하게 열린다", async ({ page }) => {
   let runRequestCount = 0;

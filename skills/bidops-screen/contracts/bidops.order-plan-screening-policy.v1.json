@@ -1,0 +1,223 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bidops.internal/schemas/bidops.order-plan-screening-policy.v1.json",
+  "title": "BidOps order-plan C-2 screening policy v1",
+  "x-bidops-producer": "phase0-contracts",
+  "x-bidops-consumer": "phase1-screening-pipeline",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "producer",
+    "consumer",
+    "policy_version",
+    "policy_status",
+    "decision_scope",
+    "created_at",
+    "stage1",
+    "stage2",
+    "audit_sample",
+    "execution",
+    "feedback",
+    "quality_gate",
+    "bindings",
+    "activation"
+  ],
+  "properties": {
+    "schema_version": {"const": "bidops.order-plan-screening-policy.v1"},
+    "producer": {"const": "phase0-contracts"},
+    "consumer": {"const": "phase1-screening-pipeline"},
+    "policy_version": {"type": "string", "minLength": 1, "maxLength": 64},
+    "policy_status": {"enum": ["draft", "activation_candidate", "active", "retired"]},
+    "decision_scope": {"const": "c2_order_plan_first_pass"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "stage1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["method", "config", "top_k", "population"],
+      "properties": {
+        "method": {"const": "bm25"},
+        "config": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path", "schema_version", "sha256", "method_version", "normalization", "tokenization", "scoring", "tie_break"],
+          "properties": {
+            "path": {"type": "string", "pattern": "^[^/].*"},
+            "schema_version": {"const": "bidops.order-plan-bm25.v1"},
+            "sha256": {"$ref": "#/$defs/sha256"},
+            "method_version": {"type": "string", "minLength": 1},
+            "normalization": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["unicode", "case", "whitespace", "fields"],
+              "properties": {
+                "unicode": {"const": "NFKC"},
+                "case": {"const": "casefold"},
+                "whitespace": {"const": "collapse_runs_and_trim"},
+                "fields": {"const": ["title"]}
+              }
+            },
+            "tokenization": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["type", "min_n", "max_n", "boundary"],
+              "properties": {
+                "type": {"const": "character_ngram"},
+                "min_n": {"const": 2},
+                "max_n": {"const": 5},
+                "boundary": {"const": "within_field"}
+              }
+            },
+            "scoring": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["k1", "b", "query_term_frequency", "capability_aggregation", "idf_corpus"],
+              "properties": {
+                "k1": {"const": 1.2},
+                "b": {"const": 0.75},
+                "query_term_frequency": {"const": "binary"},
+                "capability_aggregation": {"const": "max_bm25"},
+                "idf_corpus": {"const": "full_population_titles"}
+              }
+            },
+            "tie_break": {"const": ["score_desc", "order_plan_unty_no_asc"]}
+          }
+        },
+        "top_k": {"const": 300},
+        "population": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["source_schema_version", "business_divisions", "complete_required", "empty_population", "at_or_below_top_k", "above_top_k"],
+          "properties": {
+            "source_schema_version": {"const": "bidops.collected-order-plans.v1"},
+            "business_divisions": {"const": ["기술용역", "일반용역"]},
+            "complete_required": {"const": true},
+            "empty_population": {"const": "reject"},
+            "at_or_below_top_k": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["action", "audit_sample"],
+              "properties": {"action": {"const": "select_all"}, "audit_sample": {"const": "not_applicable"}}
+            },
+            "above_top_k": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["action"],
+              "properties": {"action": {"const": "select_exact_top_k"}}
+            }
+          }
+        }
+      }
+    },
+    "stage2": {"$ref": "#/$defs/stage2"},
+    "audit_sample": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "enabled", "population", "strata", "selection_order", "replacement", "sample_size", "review_cadence", "allowed_review_labels", "pending_decision"],
+      "properties": {
+        "status": {"enum": ["pending_human_approval", "approved"]},
+        "enabled": {"type": "boolean"},
+        "population": {"const": "stage1_filtered_out"},
+        "strata": {"const": ["classification_proximity", "performance_similarity_proximity", "uniform_hash"]},
+        "selection_order": {"const": "stratum_priority_then_sha256_plan_id"},
+        "replacement": {"const": "none"},
+        "sample_size": {"type": ["integer", "null"], "minimum": 1},
+        "review_cadence": {"type": ["string", "null"], "minLength": 1},
+        "allowed_review_labels": {"const": ["relevant", "not_relevant", "uncertain"]},
+        "pending_decision": {"type": ["string", "null"]}
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["active_slot", "queue_order", "stale_recovery", "automatic_resume", "statuses", "terminal_statuses", "status_rules"],
+      "properties": {
+        "active_slot": {"const": 1},
+        "queue_order": {"const": "fifo"},
+        "stale_recovery": {"const": "manual_new_execution"},
+        "automatic_resume": {"const": false},
+        "statuses": {"const": ["대기", "실행 중", "중지 요청", "성공", "부분 성공", "실패", "중단됨"]},
+        "terminal_statuses": {"const": ["성공", "부분 성공", "실패", "중단됨"]},
+        "status_rules": {"type": "object", "minProperties": 4, "additionalProperties": {"type": "string", "minLength": 1}}
+      }
+    },
+    "feedback": {"$ref": "#/$defs/feedback"},
+    "quality_gate": {"$ref": "#/$defs/quality_gate"},
+    "bindings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bm25_config_sha256", "prompt_sha256", "company_profile_sha256", "model_digest", "generation_config_sha256"],
+      "properties": {
+        "bm25_config_sha256": {"$ref": "#/$defs/sha256"},
+        "prompt_sha256": {"$ref": "#/$defs/sha256"},
+        "company_profile_sha256": {"$ref": "#/$defs/sha256"},
+        "model_digest": {"$ref": "#/$defs/sha256"},
+        "generation_config_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "activation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "enabled", "approved_by", "approved_at", "required_conditions", "blockers"],
+      "properties": {
+        "status": {"enum": ["blocked", "activation_candidate", "active", "retired"]},
+        "enabled": {"type": "boolean"},
+        "approved_by": {"type": ["string", "null"]},
+        "approved_at": {"type": ["string", "null"], "format": "date-time"},
+        "required_conditions": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "blockers": {"type": "array", "items": {"type": "string", "minLength": 1}}
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "stage2": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "model_name", "model_digest", "generation_config", "prompt", "company_profile", "payload", "batching", "response", "retry"],
+      "properties": {
+        "provider": {"const": "approved_private_vllm"},
+        "model_name": {"const": "qwen3.8-27B"},
+        "model_digest": {"$ref": "#/$defs/sha256"},
+        "generation_config": {"type": "object", "additionalProperties": false, "required": ["version", "sha256"], "properties": {"version": {"const": "vllm-qwen-order-plan-batch-nonthinking-v4"}, "sha256": {"$ref": "#/$defs/sha256"}}},
+        "prompt": {"type": "object", "additionalProperties": false, "required": ["version", "sha256"], "properties": {"version": {"const": "order-plan-batch-relevance-v3"}, "sha256": {"$ref": "#/$defs/sha256"}}},
+        "company_profile": {"type": "object", "additionalProperties": false, "required": ["version", "sha256", "allowed_fields"], "properties": {"version": {"type": "string", "minLength": 1}, "sha256": {"$ref": "#/$defs/sha256"}, "allowed_fields": {"const": ["capabilities"]}}},
+        "payload": {"type": "object", "additionalProperties": false, "required": ["allowed_plan_fields", "allowed_company_fields", "forbidden_fields"], "properties": {"allowed_plan_fields": {"const": ["plan_id", "title"]}, "allowed_company_fields": {"const": ["capabilities"]}, "forbidden_fields": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}}},
+        "batching": {"type": "object", "additionalProperties": false, "required": ["mode", "size", "last_batch", "concurrency", "order"], "properties": {"mode": {"const": "fixed_rank_contiguous"}, "size": {"const": 25}, "last_batch": {"const": "shorter_allowed"}, "concurrency": {"const": 1}, "order": {"const": "stage1_rank_ascending"}}},
+        "response": {"type": "object", "additionalProperties": false, "required": ["format", "required_item_cardinality", "labels", "review_retained_labels", "score", "reason"], "properties": {"format": {"const": "strict_json"}, "required_item_cardinality": {"const": "exactly_once"}, "labels": {"const": ["relevant", "not_relevant", "uncertain"]}, "review_retained_labels": {"const": ["relevant", "uncertain"]}, "score": {"type": "object", "additionalProperties": false, "required": ["finite", "minimum", "maximum"], "properties": {"finite": {"const": true}, "minimum": {"const": 0.0}, "maximum": {"const": 1.0}}}, "reason": {"type": "object", "additionalProperties": false, "required": ["min_length", "max_length"], "properties": {"min_length": {"const": 1}, "max_length": {"const": 500}}}}},
+        "retry": {"type": "object", "additionalProperties": false, "required": ["max_attempts", "retryable_failure_types", "non_retryable_failure_types", "after_exhaustion"], "properties": {"max_attempts": {"const": 2}, "retryable_failure_types": {"const": ["timeout", "truncated_output", "schema_violation", "id_mismatch", "transport"]}, "non_retryable_failure_types": {"const": ["model_mismatch", "binding_mismatch", "payload_not_approved", "policy_rejected"]}, "after_exhaustion": {"const": "human_review_required"}}}
+      }
+    },
+    "feedback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "relevance", "priority", "priority_unspecified", "memo_unspecified", "revision", "update_policy", "does_not_update"],
+      "properties": {
+        "schema_version": {"const": "bidops.order-plan-screening-feedback.v1"},
+        "relevance": {"const": ["relevant", "not_relevant", "uncertain"]},
+        "priority": {"const": ["high", "medium", "low"]},
+        "priority_unspecified": {"const": null},
+        "memo_unspecified": {"const": null},
+        "revision": {"const": "append_only_sequence_per_execution_plan"},
+        "update_policy": {"const": "new_revision_only"},
+        "does_not_update": {"const": ["grade", "readiness", "tracking_status", "final_go_no_go"]}
+      }
+    },
+    "quality_gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "gold_status", "gold_manifest_sha256", "gold_artifact_sha256", "human_adjudication_count", "draft_label_count", "remaining_confirmation_count", "targets", "activation_eligible"],
+      "properties": {
+        "status": {"enum": ["not_measured", "measured", "passed", "failed"]},
+        "gold_status": {"enum": ["draft", "partially_human_adjudicated", "human_adjudicated"]},
+        "gold_manifest_sha256": {"$ref": "#/$defs/sha256"},
+        "gold_artifact_sha256": {"$ref": "#/$defs/sha256"},
+        "human_adjudication_count": {"type": "integer", "minimum": 0},
+        "draft_label_count": {"type": "integer", "minimum": 0},
+        "remaining_confirmation_count": {"type": "integer", "minimum": 0},
+        "targets": {"type": "object", "additionalProperties": false, "required": ["recall", "precision", "important_missed_max", "review_load_max"], "properties": {"recall": {"type": ["number", "null"], "minimum": 0, "maximum": 1}, "precision": {"type": ["number", "null"], "minimum": 0, "maximum": 1}, "important_missed_max": {"type": ["integer", "null"], "minimum": 0}, "review_load_max": {"type": ["integer", "null"], "minimum": 0}}},
+        "activation_eligible": {"type": "boolean"}
+      }
+    }
+  }
+}

@@ -1,5 +1,13 @@
 import { expect, test, type Page } from "@playwright/test";
-import { mockApi } from "./api-mock";
+import {
+  mockApi,
+  mockBidDelta,
+  mockDeepReviewLifecycle,
+  mockDocumentPreparationVisual,
+  mockOpportunity,
+  mockOrderPlans,
+  mockPreSpecs,
+} from "./api-mock";
 
 // 마감까지 남은 날짜가 화면에 그려지므로, 시각을 고정하지 않으면 매일 스냅샷이 달라진다.
 const FIXED_TIME = new Date("2026-08-25T09:00:00+09:00");
@@ -24,6 +32,13 @@ const pages = [
   { name: "quality-gates-comparison", path: "/quality-gates?gate=gate-model-comparison" },
   { name: "policies", path: "/policies" },
   { name: "operations", path: "/operations" },
+  // docs/design/PLAN.md 2단계에서 새로 생긴 사이드바 항목과, 흡수한 탭 중
+  // 이전에 리다이렉트라 기준선이 없던 산출물 감사 로그를 덮는다. 위 타깃들은
+  // 이제 합친 화면의 각 탭을 찍는다(경로가 그대로 각 탭의 주소다).
+  { name: "audit", path: "/audit" },
+  { name: "criteria", path: "/criteria" },
+  { name: "run-status", path: "/run-status" },
+  { name: "go-no-go", path: "/go-no-go" },
 ];
 
 test.beforeEach(async ({ page }) => {
@@ -61,52 +76,58 @@ async function settleFonts(page: Page): Promise<void> {
   expect(fontState.pretendardLoaded).toBe(true);
 }
 
+/** Existing responsive regression contract, shared by legacy and lifecycle screens. */
+async function expectNoHorizontalOverflow(page: Page): Promise<void> {
+  const overflow = await page.evaluate(() => {
+    const root = document.documentElement;
+    const canvas = document.querySelector<HTMLElement>(".page-canvas");
+    const widthOverflow = (element: HTMLElement): number => Math.max(0, element.scrollWidth - element.clientWidth);
+    const actualLocalScrollers = new Set(
+      [...document.querySelectorAll<HTMLElement>("body *")].filter((element) => {
+        if (element === canvas) return false;
+        const style = getComputedStyle(element);
+        return (style.overflowX === "auto" || style.overflowX === "scroll")
+          && element.scrollWidth > element.clientWidth;
+      }),
+    );
+    const allowedScrollers = actualLocalScrollers;
+    const isContainedByAllowedScroller = (element: Element): boolean => {
+      let parent = element.parentElement;
+      while (parent) {
+        if (allowedScrollers.has(parent)) return true;
+        parent = parent.parentElement;
+      }
+      return false;
+    };
+    const viewport = root.clientWidth;
+    // Descendant exclusions require a real local horizontal scroller with
+    // overflow-x auto/scroll and measurable scrollWidth excess; page-canvas
+    // itself is never an exclusion.
+    const overflowingDescendants = [...document.querySelectorAll<HTMLElement>("body *")]
+      .filter((element) => !isContainedByAllowedScroller(element))
+      .map((element) => {
+        const rect = element.getBoundingClientRect();
+        if (rect.right <= 0 || rect.left >= viewport) return 0;
+        return Math.max(rect.right - viewport, -rect.left);
+      });
+    const descendantOverflow = Math.max(0, ...overflowingDescendants);
+    return {
+      documentElement: widthOverflow(root),
+      pageCanvas: canvas ? widthOverflow(canvas) : 0,
+      descendants: descendantOverflow,
+    };
+  });
+  expect(overflow.documentElement).toBeLessThanOrEqual(1);
+  expect(overflow.pageCanvas, JSON.stringify(overflow)).toBeLessThanOrEqual(1);
+  expect(overflow.descendants, JSON.stringify(overflow)).toBeLessThanOrEqual(1);
+}
+
 for (const target of pages) {
   test(`${target.name} 화면이 가로로 넘치지 않는다`, async ({ page }) => {
     await page.goto(target.path);
     await expect(page.locator("h1").first()).toBeVisible();
     await page.waitForLoadState("networkidle");
-    const overflow = await page.evaluate(() => {
-      const root = document.documentElement;
-      const canvas = document.querySelector<HTMLElement>(".page-canvas");
-      const widthOverflow = (element: HTMLElement): number => Math.max(0, element.scrollWidth - element.clientWidth);
-      const actualLocalScrollers = new Set(
-        [...document.querySelectorAll<HTMLElement>("body *")].filter((element) => {
-          if (element === canvas) return false;
-          const style = getComputedStyle(element);
-          return (style.overflowX === "auto" || style.overflowX === "scroll")
-            && element.scrollWidth > element.clientWidth;
-        }),
-      );
-      const allowedScrollers = actualLocalScrollers;
-      const isContainedByAllowedScroller = (element: Element): boolean => {
-        let parent = element.parentElement;
-        while (parent) {
-          if (allowedScrollers.has(parent)) return true;
-          parent = parent.parentElement;
-        }
-        return false;
-      };
-      const viewport = root.clientWidth;
-      // Descendant exclusions require a real local horizontal scroller with
-      // overflow-x auto/scroll and measurable scrollWidth excess; page-canvas
-      // itself is never an exclusion.
-      const descendantOverflow = Math.max(0, ...[...document.querySelectorAll<HTMLElement>("body *")]
-        .filter((element) => !isContainedByAllowedScroller(element))
-        .map((element) => {
-          const rect = element.getBoundingClientRect();
-          if (rect.right <= 0 || rect.left >= viewport) return 0;
-          return Math.max(rect.right - viewport, -rect.left);
-        }));
-      return {
-        documentElement: widthOverflow(root),
-        pageCanvas: canvas ? widthOverflow(canvas) : 0,
-        descendants: descendantOverflow,
-      };
-    });
-    expect(overflow.documentElement).toBeLessThanOrEqual(1);
-    expect(overflow.pageCanvas, JSON.stringify(overflow)).toBeLessThanOrEqual(1);
-    expect(overflow.descendants, JSON.stringify(overflow)).toBeLessThanOrEqual(1);
+    await expectNoHorizontalOverflow(page);
   });
 
   test(`${target.name} 화면 스냅샷`, async ({ page }) => {
@@ -114,6 +135,64 @@ for (const target of pages) {
     await expect(page.locator("h1").first()).toBeVisible();
     await page.waitForLoadState("networkidle");
     await settleFonts(page);
+    await expect(page).toHaveScreenshot(`${target.name}.png`, {
+      fullPage: true,
+      animations: "disabled",
+    });
+  });
+}
+
+const VISUAL_COMPARISON_ID = "77777777-7777-4777-8777-777777777777";
+
+type LifecycleVisualTarget = {
+  name: string;
+  path: string;
+  setup: (page: Page) => Promise<void>;
+};
+
+const lifecycleVisualTargets: LifecycleVisualTarget[] = [
+  { name: "opportunities-list", path: "/opportunities", setup: async (page) => { await mockOpportunity(page); } },
+  { name: "opportunity-detail", path: "/opportunities/202", setup: async (page) => { await mockOpportunity(page); } },
+  { name: "order-plans-list", path: "/order-plans", setup: async (page) => { await mockOrderPlans(page); } },
+  { name: "order-plan-detail", path: "/order-plans/101", setup: async (page) => { await mockOrderPlans(page); } },
+  { name: "pre-specs-list", path: "/pre-specs", setup: async (page) => { await mockPreSpecs(page); } },
+  { name: "pre-spec-detail", path: "/pre-specs/991", setup: async (page) => { await mockPreSpecs(page); } },
+  { name: "pre-spec-unknown", path: "/pre-specs/991", setup: async (page) => { await mockPreSpecs(page, "unknown"); } },
+  ...(["draft", "processing", "blocked", "ready"] as const).map((state) => ({
+    name: `document-preparation-${state}`,
+    path: "/pre-specs/991",
+    setup: async (page: Page) => { await mockDocumentPreparationVisual(page, state); },
+  })),
+  ...(["queued", "running", "failed", "completed"] as const).map((state) => ({
+    name: `deep-review-${state === "completed" ? "complete" : state}`,
+    path: "/deep-reviews/fixture-review",
+    setup: async (page: Page) => { await mockDeepReviewLifecycle(page, state); },
+  })),
+  ...(["unchanged", "changed", "unknown", "failed"] as const).map((state) => ({
+    name: `bid-delta-${state}`,
+    path: `/opportunities/501/bid-delta?comparison=${VISUAL_COMPARISON_ID}`,
+    setup: async (page: Page) => { await mockBidDelta(page, { calculationStatus: "completed", resultStatus: state }); },
+  })),
+];
+
+for (const target of lifecycleVisualTargets) {
+  test(`${target.name} 화면이 가로로 넘치지 않는다`, async ({ page }) => {
+    await target.setup(page);
+    await page.goto(target.path);
+    await expect(page.locator("h1").first()).toBeVisible();
+    await page.waitForLoadState("networkidle");
+    await expectNoHorizontalOverflow(page);
+  });
+
+  test(`${target.name} 화면 스냅샷`, async ({ page }) => {
+    await target.setup(page);
+    await page.goto(target.path);
+    await expect(page.locator("h1").first()).toBeVisible();
+    await page.waitForLoadState("networkidle");
+    await settleFonts(page);
+    if (target.name === "opportunities-list") {
+      await expect(page.locator(".opportunity-list > .opportunity-card")).toHaveCount(3);
+    }
     await expect(page).toHaveScreenshot(`${target.name}.png`, {
       fullPage: true,
       animations: "disabled",
@@ -175,16 +254,20 @@ test("대시보드 퍼널은 단계별 건수와 직전 단계 잔존율을 함�
   await expect(page.locator(".dashboard-funnel-axis")).toContainText("0%25%50%75%100%");
 });
 
-test("마감과 감사 redirect가 기존 쿼리를 보존한다", async ({ page }) => {
+test("흡수한 마감·감사 경로가 기존 쿼리를 보존한다", async ({ page }) => {
+  // docs/design/PLAN.md 2단계: 마감 추적은 검토 대기열의 저장된 뷰, 산출물 감사
+  // 로그는 실행 상태의 탭으로 흡수됐다. 리다이렉트가 아니라 각 뷰의 주소이므로
+  // 경로가 그대로 남고, 담당자가 들고 온 쿼리를 잃지 않아야 한다.
   await page.goto(`/deadlines?run=${encodeURIComponent(RUN_ID)}&from=dashboard`);
-  await expect.poll(() => new URL(page.url()).pathname).toMatch(/^\/queue(?:\/\d+)?$/);
+  await expect.poll(() => new URL(page.url()).searchParams.get("sort")).toBe("deadline");
   let params = new URL(page.url()).searchParams;
   expect(params.get("run")).toBe(RUN_ID);
   expect(params.get("from")).toBe("dashboard");
-  expect(params.get("sort")).toBe("deadline");
+  await expect(page.locator("header.topbar h1")).toHaveText("검토 대기열");
 
   await page.goto(`/audit?run=${encodeURIComponent(RUN_ID)}&from=review`);
-  await expect.poll(() => new URL(page.url()).pathname).toBe("/runs");
+  await expect(page.locator("header.topbar h1")).toHaveText("실행 상태");
+  await expect(page.getByRole("tab", { name: "산출물 감사 로그", exact: true })).toHaveAttribute("aria-selected", "true");
   params = new URL(page.url()).searchParams;
   expect(params.get("run")).toBe(RUN_ID);
   expect(params.get("from")).toBe("review");
@@ -223,14 +306,29 @@ test("프로필의 불완전한 응답은 상태와 미확인을 0으로 확정�
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ source: "profile.md", sections: [], status_counts: {}, parse_errors: ["프로필 원문 일부를 읽지 못했습니다."] }),
+      body: JSON.stringify({
+        schema_version: "bidops.profile-projection.v1",
+        profile_version: "company-profile.sha256:" + "a".repeat(64),
+        profile_digest: "a".repeat(64),
+        sections: [],
+        status_counts: {},
+        error_codes: ["profile_yaml_invalid"],
+      }),
     });
   });
   await page.route("**/api/profile/unknowns", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ source: "profile.md", items: [], total: 0, reference_fields: [], parse_errors: [] }),
+      body: JSON.stringify({
+        schema_version: "bidops.profile-projection.v1",
+        profile_version: "company-profile.sha256:" + "a".repeat(64),
+        profile_digest: "a".repeat(64),
+        items: [],
+        total: 0,
+        reference_fields: [],
+        error_codes: [],
+      }),
     });
   });
 
@@ -253,7 +351,7 @@ test("프로필 읽기 실패는 빈 정상 상태가 아니라 오류 상태로
 
   await page.goto("/profile");
   await expect(page.getByText("회사 프로필을 불러오지 못했습니다.", { exact: true })).toBeVisible();
-  await expect(page.getByText("프로필 원문을 읽을 수 없습니다.", { exact: true })).toBeVisible();
+  await expect(page.getByText("승인된 프로필 snapshot과 구조화 상태를 확인할 수 없습니다.", { exact: true })).toBeVisible();
 });
 
 test("진행 중인 전량 판정은 중복 실행할 수 없다", async ({ page }) => {
@@ -357,4 +455,34 @@ test("평가 수치 누락은 0/10이 아니라 계산 불가로 남는다", asy
   const review = page.locator("section[aria-labelledby='quality-review-heading']");
   await expect(review.getByText("계산 불가/10 유효 리뷰", { exact: true })).toBeVisible();
   await expect(review.getByText("계산 불가/10 서로 다른 공고", { exact: true })).toBeVisible();
+});
+
+// docs/design/PLAN.md 3단계: 사전규격 목록에서 심층 추적 승인 패널을 연 상태는
+// lifecycleVisualTargets의 단순 goto만으로 도달할 수 없는 새 상호작용이라
+// 별도 타깃으로 기준선을 남긴다(기존 pre-specs-list 타깃은 패널이 닫힌
+// 기본 상태만 찍는다).
+test("pre-specs-tracking-panel 화면이 가로로 넘치지 않는다", async ({ page }) => {
+  await mockPreSpecs(page);
+  await page.goto("/pre-specs");
+  await expect(page.locator("h1").first()).toBeVisible();
+  const trackedRow = page.getByRole("row").filter({ has: page.getByRole("link", { name: "안전한 문서 준비 사전규격" }) });
+  await trackedRow.getByRole("button", { name: "추적 결정" }).click();
+  await expect(page.locator("#pre-specs-tracking-target")).toBeVisible();
+  await page.waitForLoadState("networkidle");
+  await expectNoHorizontalOverflow(page);
+});
+
+test("pre-specs-tracking-panel 화면 스냅샷", async ({ page }) => {
+  await mockPreSpecs(page);
+  await page.goto("/pre-specs");
+  await expect(page.locator("h1").first()).toBeVisible();
+  const trackedRow = page.getByRole("row").filter({ has: page.getByRole("link", { name: "안전한 문서 준비 사전규격" }) });
+  await trackedRow.getByRole("button", { name: "추적 결정" }).click();
+  await expect(page.locator("#pre-specs-tracking-target")).toBeVisible();
+  await page.waitForLoadState("networkidle");
+  await settleFonts(page);
+  await expect(page).toHaveScreenshot("pre-specs-tracking-panel.png", {
+    fullPage: true,
+    animations: "disabled",
+  });
 });

@@ -46,21 +46,24 @@ def test_policy_create_candidate_and_duplicate_are_deterministic() -> None:
     body = {**body, "policy_version": "api-policy-1"}
     body.pop("schema_version")
     payload = {**body, "created_by": " operator "}
+    headers = {"X-BidOps-Actor-Name": "operator"}
     with _client() as client:
-        created = client.post("/api/policies", json=payload)
+        created = client.post("/api/policies", json=payload, headers=headers)
         assert created.status_code == 201
         assert created.json()["status"] == "draft"
-        duplicate = client.post("/api/policies", json=payload)
+        duplicate = client.post("/api/policies", json=payload, headers=headers)
         assert duplicate.status_code == 409
         candidate = client.post(
             "/api/policies/api-policy-1/candidate",
             json={"confirmed_by": " operator "},
+            headers=headers,
         )
         assert candidate.status_code == 200
         assert candidate.json()["status"] == "activation_candidate"
         again = client.post(
             "/api/policies/api-policy-1/candidate",
             json={"confirmed_by": "operator"},
+            headers=headers,
         )
         assert again.status_code == 409
 

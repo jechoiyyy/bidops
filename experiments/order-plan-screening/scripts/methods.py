@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+import http.client
 import math
 import os
 import re
+import socket
 import time
 import unicodedata
 import urllib.error
@@ -370,6 +372,149 @@ class TfidfAdapter:
         ]
 
 
+class BM25Adapter:
+    """Deterministic character n-gram BM25 over capabilities and plan titles.
+
+    ADR-0021 개정이 채택한 arm이다. 제목은 중앙값 30자라 term frequency 포화(k1)와
+    문서 길이 정규화(b)가 거의 작동하지 않는다. 그래서 이 arm은 사실상 IDF 가중
+    단어 겹침이며, 지배적 실패는 어휘 불일치다. 그 실패를 dense arm이 복구하는지가
+    이 실험의 측정 대상이다.
+
+    토큰화는 문자 n-gram으로 고정했다. TfidfAdapter와 같은 토큰화를 써야 두 arm의
+    차이가 순수하게 가중 방식 차이로 드러나고, 외부 사전 의존성과 `데이터플랫폼`
+    대 `데이터 플랫폼` 띄어쓰기 문제를 함께 피한다.
+
+    질의는 capability summary, 문서는 발주계획 제목이다. capability를 하나로 합치면
+    신호가 희석되므로 각각 조회하고 max를 취한다(ADR-0021 개정의 제약).
+    """
+
+    def __init__(self, config: dict[str, Any]):
+        if config.get("analyzer") != "char":
+            raise ExperimentError("invalid_bm25_config", "BM25 analyzer는 char로 고정됩니다")
+        self.ngram_min = config.get("ngram_min")
+        self.ngram_max = config.get("ngram_max")
+        if (
+            not isinstance(self.ngram_min, int)
+            or isinstance(self.ngram_min, bool)
+            or not isinstance(self.ngram_max, int)
+            or isinstance(self.ngram_max, bool)
+            or not 1 <= self.ngram_min <= self.ngram_max <= 8
+        ):
+            raise ExperimentError("invalid_bm25_config", "BM25 n-gram 범위가 잘못됐습니다")
+        self.k1 = config.get("k1")
+        self.b = config.get("b")
+        if (
+            not isinstance(self.k1, (int, float))
+            or isinstance(self.k1, bool)
+            or not isinstance(self.b, (int, float))
+            or isinstance(self.b, bool)
+            or not 0.0 <= float(self.k1) <= 5.0
+            or not 0.0 <= float(self.b) <= 1.0
+        ):
+            raise ExperimentError("invalid_bm25_config", "BM25 k1/b 범위가 잘못됐습니다")
+        self.k1 = float(self.k1)
+        self.b = float(self.b)
+        if config.get("query_term_frequency") != "binary":
+            raise ExperimentError("invalid_bm25_config", "BM25 질의 term 계약이 잘못됐습니다")
+        if config.get("capability_aggregation") != "max_bm25":
+            raise ExperimentError("invalid_bm25_config", "BM25 집계 계약이 잘못됐습니다")
+
+    def _features(self, value: str) -> Counter[str]:
+        text = unicodedata.normalize("NFKC", _normalize_text(value))
+        if not text:
+            raise AdapterFailure("text_missing")
+        features: Counter[str] = Counter()
+        for size in range(self.ngram_min, self.ngram_max + 1):
+            for index in range(max(0, len(text) - size + 1)):
+                features[text[index : index + size]] += 1
+        if not features:
+            features[text] = 1
+        return features
+
+    def _score(
+        self,
+        query_terms: Sequence[str],
+        document: Counter[str],
+        document_length: int,
+        average_length: float,
+        idf: dict[str, float],
+    ) -> float:
+        if average_length <= 0:
+            raise AdapterFailure("adapter_execution_failed")
+        denominator_length = self.k1 * (1.0 - self.b + self.b * (document_length / average_length))
+        total = 0.0
+        for term in query_terms:
+            frequency = document.get(term)
+            if not frequency:
+                continue
+            total += idf[term] * (frequency * (self.k1 + 1.0)) / (frequency + denominator_length)
+        if not math.isfinite(total):
+            raise AdapterFailure("adapter_execution_failed")
+        return total
+
+    def score_all(
+        self,
+        plans: Sequence[dict[str, Any]],
+        capabilities: dict[str, Any],
+    ) -> list[AdapterResult]:
+        started = time.monotonic()
+        capability_rows = capabilities.get("capabilities") or []
+        if not capability_rows:
+            raise AdapterFailure("capabilities_empty")
+        try:
+            # 문서 모음은 발주계획 제목이다. IDF도 이 모음에서만 계산한다.
+            title_counts = [self._features(plan_text(plan)) for plan in plans]
+            lengths = [sum(counts.values()) for counts in title_counts]
+            average_length = sum(lengths) / len(lengths) if lengths else 0.0
+            document_frequency: Counter[str] = Counter()
+            for counts in title_counts:
+                document_frequency.update(counts.keys())
+            document_count = len(title_counts)
+            idf = {
+                feature: math.log(
+                    1.0 + (document_count - frequency + 0.5) / (frequency + 0.5)
+                )
+                for feature, frequency in document_frequency.items()
+            }
+            # 질의 term은 중복을 세지 않는다. capability summary가 제목보다 훨씬
+            # 길어 질의 TF를 그대로 쓰면 긴 요약이 일방적으로 유리해진다.
+            capability_terms = [
+                sorted(term for term in self._features(row["summary"]) if term in idf)
+                for row in capability_rows
+            ]
+            scored: list[tuple[float, str]] = []
+            for index, counts in enumerate(title_counts):
+                candidates = [
+                    (
+                        self._score(
+                            capability_terms[position],
+                            counts,
+                            lengths[index],
+                            average_length,
+                            idf,
+                        ),
+                        capability_rows[position]["id"],
+                    )
+                    for position in range(len(capability_rows))
+                ]
+                scored.append(max(candidates, key=lambda item: (item[0], item[1])))
+        except AdapterFailure:
+            raise
+        except (KeyError, TypeError, ValueError, OverflowError, ZeroDivisionError) as exc:
+            raise AdapterFailure("adapter_execution_failed") from exc
+        total_latency = max(0, round((time.monotonic() - started) * 1000))
+        latency_parts = _split_measurement(total_latency, len(plans))
+        return [
+            AdapterResult(
+                score=score,
+                reason=f"nearest_capability:{capability_id}",
+                latency_ms=int(latency_parts[index]),
+                device="cpu",
+            )
+            for index, (score, capability_id) in enumerate(scored)
+        ]
+
+
 class BGEM3ColBERTAdapter:
     """Use the official FlagEmbedding late-interaction score at a fixed model revision."""
 
@@ -451,12 +596,72 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
+class BoundHTTPConnection(http.client.HTTPConnection):
+    """HTTP connection bound to one approved interface before connect()."""
+
+    def __init__(self, host: str, interface: str, **kwargs: Any):
+        super().__init__(host, **kwargs)
+        self.interface = interface
+        self._create_connection = self._create_bound_connection
+
+    def _create_bound_connection(
+        self,
+        address: tuple[str, int],
+        timeout: float | object = socket._GLOBAL_DEFAULT_TIMEOUT,
+        source_address: tuple[str, int] | None = None,
+    ) -> socket.socket:
+        if not hasattr(socket, "SO_BINDTODEVICE"):
+            raise OSError("SO_BINDTODEVICE is unavailable")
+        last_error: OSError | None = None
+        for family, socktype, protocol, _canonname, sockaddr in socket.getaddrinfo(
+            address[0], address[1], 0, socket.SOCK_STREAM
+        ):
+            sock: socket.socket | None = None
+            try:
+                sock = socket.socket(family, socktype, protocol)
+                if timeout is not socket._GLOBAL_DEFAULT_TIMEOUT:
+                    sock.settimeout(timeout)
+                sock.setsockopt(
+                    socket.SOL_SOCKET,
+                    socket.SO_BINDTODEVICE,
+                    self.interface.encode("ascii") + b"\0",
+                )
+                if source_address:
+                    sock.bind(source_address)
+                sock.connect(sockaddr)
+                return sock
+            except OSError as exc:
+                last_error = exc
+                if sock is not None:
+                    sock.close()
+        if last_error is not None:
+            raise last_error
+        raise OSError("no address available")
+
+
+class BoundHTTPHandler(urllib.request.HTTPHandler):
+    def __init__(self, interface: str):
+        super().__init__()
+        self.interface = interface
+
+    def http_open(self, request):  # type: ignore[no-untyped-def]
+        return self.do_open(
+            lambda host, **kwargs: BoundHTTPConnection(
+                host, interface=self.interface, **kwargs
+            ),
+            request,
+        )
+
+
 class SafeJsonHttpClient:
-    def __init__(self, timeout: int):
+    def __init__(self, timeout: int, bind_interface: str | None = None):
         if timeout < 1:
             raise ExperimentError("invalid_http_config", "model timeout은 1 이상이어야 합니다")
         self.timeout = timeout
-        self.opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
+        handlers: list[Any] = [urllib.request.ProxyHandler({}), NoRedirect()]
+        if bind_interface:
+            handlers.append(BoundHTTPHandler(bind_interface))
+        self.opener = urllib.request.build_opener(*handlers)
 
     def post(self, url: str, body: dict[str, Any], headers: dict[str, str]) -> tuple[dict[str, Any], int]:
         started = time.monotonic()
@@ -715,10 +920,30 @@ class QwenAdapter:
         self.model_name = config["model_name"]
         self.model_revision = config["model_revision"]
         self.prompt = prompt
-        self.client = SafeJsonHttpClient(int(config.get("timeout_seconds", 120)))
+        bind_interface = None
+        bind_interface_env = config.get("bind_interface_env")
+        if bind_interface_env is not None:
+            if not isinstance(bind_interface_env, str) or not bind_interface_env:
+                raise ExperimentError("model_interface_invalid", "interface 환경변수 이름이 잘못됐습니다")
+            bind_interface = os.environ.get(bind_interface_env, "").strip() or None
+            if bind_interface not in set(config.get("allowed_bind_interfaces") or []):
+                raise ExperimentError("model_interface_rejected", "승인되지 않은 model interface입니다")
+        self.client = SafeJsonHttpClient(
+            int(config.get("timeout_seconds", 120)), bind_interface=bind_interface
+        )
         self.batch_size = int(config["batch_size"])
         self.max_output_tokens = int(config.get("max_output_tokens", 4096))
         self.think = config.get("think", "high")
+        self.chat_template_kwargs = config.get("chat_template_kwargs")
+        if self.chat_template_kwargs is not None and (
+            not isinstance(self.chat_template_kwargs, dict)
+            or set(self.chat_template_kwargs) != {"enable_thinking"}
+            or not isinstance(self.chat_template_kwargs["enable_thinking"], bool)
+        ):
+            raise ExperimentError(
+                "chat_template_kwargs_invalid",
+                "vLLM chat_template_kwargs는 enable_thinking boolean만 허용합니다",
+            )
         self.revision_env = config.get("revision_env")
         self._revision_verified = False
 
@@ -788,6 +1013,8 @@ class QwenAdapter:
                     },
                 },
             }
+            if self.chat_template_kwargs is not None:
+                body["chat_template_kwargs"] = self.chat_template_kwargs
         headers: dict[str, str] = {}
         key = os.environ.get("BIDOPS_QWEN_API_KEY", "").strip()
         if key:
@@ -805,6 +1032,8 @@ class QwenAdapter:
                     "output_tokens": response.get("eval_count"),
                 }
             else:
+                if response.get("model") != self.model_name:
+                    raise AdapterFailure("served_model_mismatch", latency)
                 choice = response["choices"][0]
                 if choice.get("finish_reason") == "length":
                     raise AdapterFailure("truncated_output", latency)

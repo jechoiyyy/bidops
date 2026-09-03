@@ -18,8 +18,20 @@ mc alias set local http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >
 for bucket in bidops-source bidops-structure bidops-quarantine bidops-model-response; do
   mc mb --ignore-existing "local/$bucket" >/dev/null
   # Keep immutable content addressable by its persisted version id.  Re-running
-  # this bootstrap is idempotent and never removes prior versions.
-  mc version enable "local/$bucket" >/dev/null 2>&1 || true
+  # this bootstrap is idempotent and never removes prior versions: enabling an
+  # already-versioned bucket succeeds, so no failure here is safe to swallow.
+  # Read the state back rather than trusting the exit status -- `mc version
+  # info` exits 0 for an un-versioned bucket too, so the enabled state is the
+  # only evidence that the DB's object-version-as-identity premise holds.
+  mc version enable "local/$bucket" >/dev/null
+  bucket_versioning="$(mc version info --json "local/$bucket")"
+  case "$bucket_versioning" in
+    *'"versioning":{"status":"Enabled"'*) ;;
+    *)
+      printf '%s\n' "bucket versioning is not enabled: $bucket" >&2
+      exit 1
+      ;;
+  esac
 done
 
 create_user() {

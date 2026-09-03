@@ -5,7 +5,7 @@ import { EmptyState } from "../components/common/EmptyState";
 import { Panel } from "../components/common/Panel";
 import { api } from "../lib/api";
 import { formatNumber } from "../lib/format";
-import type { ProfileSection, ProfileSectionState, ProfileSectionsResponse, ProfileStatus, ProfileUnknownsResponse } from "../lib/types";
+import type { ProfileErrorCode, ProfileSection, ProfileSectionState, ProfileSectionsResponse, ProfileStatus, ProfileUnknownsResponse } from "../lib/types";
 import "../styles/reference-relaxed.css";
 
 type ProfileFilter = "all" | ProfileStatus;
@@ -55,29 +55,50 @@ function isStringArray(value: unknown): value is string[] {
 function hasSectionsPayload(data: ProfileSectionsResponse | undefined): boolean {
   return Boolean(
     data
+      && data.schema_version === "bidops.profile-projection.v1"
+      && typeof data.profile_version === "string"
+      && typeof data.profile_digest === "string"
       && Array.isArray(data.sections)
       && isRecord(data.status_counts)
-      && isStringArray(data.parse_errors),
+      && isStringArray(data.error_codes),
   );
 }
 
-function hasParseFreeSectionsPayload(data: ProfileSectionsResponse | undefined): boolean {
-  return Boolean(data && hasSectionsPayload(data) && data.parse_errors.length === 0);
+function hasUsableSummary(data: ProfileSectionsResponse | undefined): boolean {
+  if (!data || !hasSectionsPayload(data)) return false;
+  return data.error_codes.every((code) => code === "profile_section_unstructured");
 }
 
 function hasUnknownsPayload(data: ProfileUnknownsResponse | undefined): boolean {
   return Boolean(
     data
+      && data.schema_version === "bidops.profile-projection.v1"
+      && typeof data.profile_version === "string"
+      && typeof data.profile_digest === "string"
       && Array.isArray(data.items)
       && typeof data.total === "number"
       && Array.isArray(data.reference_fields)
-      && isStringArray(data.parse_errors),
+      && isStringArray(data.error_codes),
   );
 }
 
-function parseErrorMessages(value: unknown, label: string): string[] {
-  if (!isStringArray(value)) return [`${label} 응답의 파싱 상태를 확인할 수 없습니다.`];
-  return value;
+const profileErrorLabels: Record<ProfileErrorCode, string> = {
+  profile_snapshot_unavailable: "승인된 프로필 snapshot을 읽지 못했습니다.",
+  profile_source_unavailable: "프로필 원본을 읽지 못했습니다.",
+  profile_yaml_unclosed: "YAML 블록이 닫히지 않아 해당 절을 구조화하지 못했습니다.",
+  profile_yaml_invalid: "YAML 형식이 올바르지 않아 해당 절을 구조화하지 못했습니다.",
+  profile_section_unstructured: "해당 절에 구조화되지 않은 내용이 있습니다.",
+  profile_references_unavailable: "판정 참조 횟수를 집계할 수 없습니다.",
+};
+
+function profileErrorMessages(value: unknown, label: string): string[] {
+  if (!isStringArray(value)) return [`${label} 응답의 오류 코드를 확인할 수 없습니다.`];
+  return value.map((code) => {
+    if (!Object.prototype.hasOwnProperty.call(profileErrorLabels, code)) {
+      return "확인되지 않은 프로필 오류 코드입니다.";
+    }
+    return `${profileErrorLabels[code as ProfileErrorCode]} (코드: ${code})`;
+  });
 }
 
 function summaryCount(summary: Record<string, number>, status: ProfileStatus, available: boolean): string {
@@ -89,12 +110,14 @@ function summaryCount(summary: Record<string, number>, status: ProfileStatus, av
 
 function hasMatchingContent(section: ProfileSection, filter: ProfileFilter): boolean {
   if (filter === "all") return true;
+  if (section.error_codes.length > 0) return true;
   return section.items.some((item) => item.status === filter)
     || section.children.some((child) => hasMatchingContent(child, filter));
 }
 
 function ProfileTree({ section, filter }: { section: ProfileSection; filter: ProfileFilter }) {
   if (!hasMatchingContent(section, filter)) return null;
+  const errorCodes = section.error_codes ?? [];
   const items = filter === "all" ? section.items : section.items.filter((item) => item.status === filter);
   const children = section.children
     .map((child) => <ProfileTree key={child.id} section={child} filter={filter} />)
@@ -131,21 +154,13 @@ function ProfileTree({ section, filter }: { section: ProfileSection; filter: Pro
           ))}
         </ul>
       ) : null}
-      {section.raw_blocks.length > 0 ? (
+      {errorCodes.length > 0 ? (
         <div className="profile-parse-warning" role="alert">
-          <strong>이 절의 YAML을 구조화하지 못했습니다.</strong>
-          {section.raw_blocks.map((block) => (
-            <div className="profile-raw-block" key={`${section.id}:${block.line_start}`}>
-              <p>{block.error} · {block.line_start}행</p>
-              <pre>{block.raw || "원문이 비어 있습니다."}</pre>
-            </div>
-          ))}
-        </div>
-      ) : null}
-      {section.raw_blocks.length === 0 && items.length === 0 && section.raw ? (
-        <div className="profile-raw-body">
-          <p>이 절은 상태 항목으로 구조화되지 않았습니다. 원문을 그대로 표시합니다.</p>
-          <pre>{section.raw}</pre>
+          <strong>이 절의 일부 내용을 구조화하지 못했습니다.</strong>
+          <p>위치: <code>{section.id}</code>{section.number ? ` · ${section.number}` : ""} · {section.title}</p>
+          <ul>
+            {profileErrorMessages(errorCodes, "이 절").map((message) => <li key={message}>{message}</li>)}
+          </ul>
         </div>
       ) : null}
       {children.length > 0 ? <ul className="profile-tree-children">{children}</ul> : null}
@@ -166,7 +181,7 @@ export function ProfilePage() {
   const sectionsResponse = sectionsQuery.data;
   const unknownsResponse = unknownsQuery.data;
   const sectionsPayloadAvailable = hasSectionsPayload(sectionsResponse);
-  const sectionsSummaryAvailable = hasParseFreeSectionsPayload(sectionsResponse);
+  const sectionsSummaryAvailable = hasUsableSummary(sectionsResponse);
   const unknownsPayloadAvailable = hasUnknownsPayload(unknownsResponse);
   const sections = Array.isArray(sectionsResponse?.sections) ? sectionsResponse.sections : [];
   const unknowns = Array.isArray(unknownsResponse?.items) ? unknownsResponse.items : [];
@@ -177,19 +192,26 @@ export function ProfilePage() {
 
   if (sectionsQuery.isLoading || unknownsQuery.isLoading) return <div className="profile-loading" role="status" aria-live="polite">회사 프로필을 읽는 중입니다.</div>;
   if (sectionsQuery.error || unknownsQuery.error) {
-    const error = sectionsQuery.error ?? unknownsQuery.error;
-    return <EmptyState title="회사 프로필을 불러오지 못했습니다." description={error instanceof Error ? error.message : "프로필 API 응답을 확인할 수 없습니다."} action={{ label: "다시 시도", onClick: () => { void sectionsQuery.refetch(); void unknownsQuery.refetch(); } }} />;
+    return <EmptyState title="회사 프로필을 불러오지 못했습니다." description="승인된 프로필 snapshot과 구조화 상태를 확인할 수 없습니다." action={{ label: "다시 시도", onClick: () => { void sectionsQuery.refetch(); void unknownsQuery.refetch(); } }} />;
   }
 
   const summary = sectionsPayloadAvailable && isRecord(sectionsResponse?.status_counts)
     ? sectionsResponse.status_counts as Record<string, number>
     : {};
-  const parseErrors = [
-    ...parseErrorMessages(sectionsResponse?.parse_errors, "프로필 절"),
-    ...parseErrorMessages(unknownsResponse?.parse_errors, "미확인 항목"),
+  const errorMessages = [
+    ...profileErrorMessages(sectionsResponse?.error_codes, "프로필 절"),
+    ...profileErrorMessages(unknownsResponse?.error_codes, "미확인 항목"),
   ];
-  const profileReadError = !sectionsPayloadAvailable || !unknownsPayloadAvailable || parseErrors.length > 0;
-  const source = sectionsResponse?.source ?? unknownsResponse?.source ?? null;
+  const profileReadError = !sectionsPayloadAvailable
+    || !unknownsPayloadAvailable
+    || [...(sectionsResponse?.error_codes ?? []), ...(unknownsResponse?.error_codes ?? [])].some((code) => (
+      code === "profile_snapshot_unavailable"
+      || code === "profile_source_unavailable"
+      || code === "profile_yaml_unclosed"
+      || code === "profile_yaml_invalid"
+    ));
+  const profileVersion = sectionsResponse?.profile_version ?? unknownsResponse?.profile_version ?? null;
+  const profileDigest = sectionsResponse?.profile_digest ?? unknownsResponse?.profile_digest ?? null;
   const referenceFields = Array.isArray(unknownsResponse?.reference_fields) ? unknownsResponse.reference_fields : [];
   const unknownTotal = !profileReadError && unknownsPayloadAvailable ? unknownsResponse?.total : undefined;
   return (
@@ -198,15 +220,15 @@ export function ProfilePage() {
         <div className="profile-header-copy">
           <span className="profile-eyebrow">기준 · 읽기 전용</span>
           <h2>회사 프로필</h2>
-          <p>회사소개서의 절 구조와 정보 상태를 원문 기준으로 표시합니다. 이 화면에서 프로필을 편집할 수 없습니다.</p>
+          <p>승인된 프로필 snapshot의 구조화 항목과 확인 상태를 표시합니다. 이 화면에서 프로필을 편집할 수 없습니다.</p>
           <dl className="profile-reference-meta">
             <div>
               <dt>관리 범위</dt>
-              <dd>원문 기준 · 읽기 전용</dd>
+              <dd>승인 snapshot · 읽기 전용</dd>
             </div>
             <div className="profile-reference-source">
-              <dt>기준 원문</dt>
-              <dd><code>{source ?? "원문 미확인"}</code></dd>
+              <dt>프로필 snapshot</dt>
+              <dd><code>{profileVersion ?? "snapshot 미확인"}</code><span>digest {profileDigest ? `${profileDigest.slice(0, 10)}…${profileDigest.slice(-6)}` : "미확인"}</span></dd>
             </div>
           </dl>
         </div>
@@ -222,7 +244,7 @@ export function ProfilePage() {
       {profileReadError ? (
         <div className="profile-page-warning" role="alert">
           <strong>프로필 응답 확인 필요</strong>
-          <span>{parseErrors.length > 0 ? parseErrors.join(" ") : "응답 형식이 불완전하여 일부 상태를 미확인으로 표시합니다."}</span>
+          <span>{errorMessages.length > 0 ? errorMessages.join(" ") : "응답 형식이 불완전하여 일부 상태를 미확인으로 표시합니다."}</span>
         </div>
       ) : null}
       <div className="profile-filter-bar" role="group" aria-label="정보 상태 필터">
@@ -268,7 +290,7 @@ export function ProfilePage() {
           ) : (
             <p className="profile-empty-value">
               {profileReadError
-                ? "미확인 항목을 표시할 수 없습니다. 프로필 원문 읽기 오류가 있습니다."
+                ? "미확인 항목을 표시할 수 없습니다. 프로필 snapshot 읽기 오류가 있습니다."
                 : filter !== "all" && filter !== "unknown"
                 ? `현재 ${filterLabels[filter]} 필터에서는 미확인 항목을 숨겼습니다.`
                 : unknownTotal === 0

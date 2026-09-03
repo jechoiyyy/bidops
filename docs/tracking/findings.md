@@ -76,7 +76,7 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 
 - 재현 조건: `skills/bidops-collect/scripts/collect_notices.py`의 `normalize_prespec`을 `HrcspSsstndrdInfoService/getPublicPrcureThngInfoServc` 응답에 적용하고 결과의 `url`과 `attachments`를 확인한다. 실측은 [`20260828-lifecycle-linkage-survey.md`](../validation-runs/20260828-lifecycle-linkage-survey.md)에 있다.
 - 증상: `url`이 읽는 `specDocFileUrl`과 `bfSpecDtlUrl`이 응답에 존재하지 않아 항상 `None`이 된다. 실제 규격서 URL은 `specDocFileUrl1`~`specDocFileUrl5`이며 650건 중 586건이 최소 하나를 갖는다. `attachments`는 빈 배열로 고정돼 있어 과업지시서·제안요청서를 한 건도 확보하지 못한다. `swBizObjYn`(650/650), `bsnsDivNm`(650/650), `bidNtceNoList`(29/650)도 정규화에 담기지 않는다.
-- 영향: 사전규격 심층 검토의 입력원이 성립하지 않는다. 문서 묶음을 만들 원문이 없으므로 `docs/architecture.md:127`의 사전규격 중심 검토가 현재 수집 결과만으로는 시작될 수 없다. SW사업대상과 업무구분이 저장되지 않아 수집 대상 선별의 근거도 남지 않고, 공고 전환 감지에 쓸 `bidNtceNoList`도 유실된다.
+- 영향: 사전규격 심층 검토의 입력원이 성립하지 않는다. 문서 묶음을 만들 원문이 없으므로 [ARCHITECTURE.md의 사전규격·문서 준비 흐름](../ARCHITECTURE.md#53-첨부와-문서-준비)이 현재 수집 결과만으로는 시작될 수 없다. SW사업대상과 업무구분이 저장되지 않아 수집 대상 선별의 근거도 남지 않고, 공고 전환 감지에 쓸 `bidNtceNoList`도 유실된다.
 - 상태: **해결** (2026-08-30, T-4). `PPSSrch`로 전환하고 `specDocFileUrl1~5`를 `attachments`로, `swBizObjYn`·`bsnsDivNm`을 `qualification_flags`로, `bidNtceNoList`를 `lifecycle`로 옮겼다. 응답에 없는 필드를 읽던 `url` 경로는 제거했다. 원문에 URL이 없는 건은 `unknown_fields`에 `attachments`로 남는다. **첨부를 실제로 내려받는 경로는 여전히 미구현이며 별도 작업이다.** `bidops.collected.v2`는 유지했다 — 기존 필드의 값이 채워지는 변화이고 병합기에 optional로 등록했다.
 - (해결 전 기록) 지금 해결할 수 없는 이유: 정규화 계약을 바꾸면 `collected-notices.json` 소비자와 적재 경로의 계약이 함께 바뀐다. 첨부 URL을 실제로 내려받는 경로는 허용 형식·크기, 서버 생성 key, 악성코드 검사, quarantine, 객체 version 검증을 함께 갖춰야 하므로 정규화 필드 추가만으로 끝나지 않는다.
 - 접근 방법: 수집 endpoint를 `getPublicPrcureThngInfoServcPPSSrch`로 바꾸고 `inqryDiv=1`(접수일시)로 구간 조회한다. **`swBizObjYn`을 서버 조건으로 얹지 않는다.** 이 문단의 이전 판은 `swBizObjYn=Y` 필터를 지시했으나 [ADR-0024](decisions/0024-prespec-collect-all-flag-sw.md)가 그 반대를 결정했다. 650건 중 `Y`는 55건(8.5%)뿐이고 필터를 켜면 91.5%가 사라진다. 업무구분(일반용역·기술용역)으로만 좁히고 `swBizObjYn`은 저장 후 표시·필터 값으로만 쓴다. 이미 아는 등록번호를 다시 읽을 때는 `inqryDiv=2`가 날짜 구간 없이 단건을 반환한다. 두 endpoint의 응답은 650건에서 필드·값이 완전히 동일하므로 정규화 계약은 그대로 쓸 수 있다. 그 위에서 `specDocFileUrl1`~`5`를 `attachments`로, `swBizObjYn`·`bsnsDivNm`·`bidNtceNoList`를 구조화 필드로 옮긴다. 응답에 없는 필드를 읽는 현재 `url` 경로는 제거한다. 다운로드는 기존 첨부 파이프라인의 검사·격리 경계를 그대로 통과시키고, 원문에 URL이 없는 건은 추정 없이 `unknown`으로 남긴다. 회귀 테스트는 실제 응답 형태의 fixture로 첨부 개수와 SW대상 값이 보존되는지 고정한다.
@@ -119,7 +119,7 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 - 증상: 9건이 `column "run_id" of relation "notice" does not exist`로 실패한다. `seed_base()`가 `insert into notice(run_id, notice_key)`를 실행하는데 `run_id`는 `0004_cumulative_external_identity`가 ADR-0026에 따라 `notice`에서 없애고 `notice_observation`으로 옮긴 컬럼이다.
 - 영향: T-7이 공고 정체성 모델을 바꿀 때 이 테스트가 함께 갱신되지 않았다. `BIDOPS_TEST_POSTGRES_URL`이 없으면 `requires_postgres`가 조용히 skip하므로 스위트는 계속 초록이었다. **정본 저장소의 불변식을 검증하라고 만든 테스트가 검증하지 않는 상태로 남아 있었다.**
 - 상태: **해결** (2026-08-31, T-9). `seed_base()`가 `notice`를 누적 행으로 넣고 `notice_observation(notice_id, run_id, ...)`을 따로 넣는다. 13건 전부 통과한다.
-- 남은 위험: skip이 기본값이라는 구조는 그대로다. PostgreSQL 없이 도는 개발 환경에서는 같은 종류의 결함이 또 잠복할 수 있다. CI나 `web/run-web-tests.sh`에서 PostgreSQL 실행을 필수로 만드는 것은 별도 결정이다.
+- 남은 위험: skip이 기본값이라는 구조는 그대로다. `web/run-web-tests.sh`를 거치면 임시 PostgreSQL 17이 항상 서므로 이 경로에서는 잠복하지 않는다. 그러나 `pytest tests/test_foo.py`처럼 개별 파일을 직접 지정하면 여전히 조용히 skip하고 exit 0이다(`addopts = "-ra"`가 사유는 출력한다). 이 경로까지 막을지, CI로 대신할지는 D-11의 남은 결정이다.
 
 ## T7 스택의 publish port가 host에서 열리지 않는다
 
@@ -150,40 +150,52 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 - 재현 조건: 현재 `web/Dockerfile`로 runtime image를 build한 뒤 `/app/docs/reference`와 `/app/web/backend/app/screening` 내용을 검사한다.
 - 증상: `COPY docs/reference /app/docs/reference`가 `company-profile.md`와 회사 실적 제목 TSV를 복사하고, 별도 TSV copy가 이를 반복한다. `COPY web/backend/ ./`는 `baseline_company_profile.md`도 복사한다. `.dockerignore`는 reference PDF만 제외한다. Dockerfile의 회사자료 제외 주석과 실제 image 내용이 다르다.
 - 영향: image registry, build cache, image export에 회사 프로필·실적 근거가 포함될 수 있어 회사자료를 image에 넣지 않는 보안 경계를 위반한다.
-- 지금 해결할 수 없는 이유: baseline fallback과 profile snapshot 검증이 해당 파일에 의존하므로 단순 ignore만 추가하면 runtime·test 계약이 깨진다. profile 주입과 검증 경계를 함께 바꿔야 한다.
-- 접근 방법: 일반 `docs/reference`와 backend baseline의 bulk copy를 제거하고, 허용된 공개 runtime reference만 명시적으로 복사한다. 필요한 회사 프로필 snapshot은 승인된 read-only volume·객체·secret 경계로 실행 시 주입하고 digest를 검증한다. image filesystem과 build context에 `company-profile.md`, 회사 실적 제목 TSV, `baseline_company_profile.md`가 없음을 회귀 테스트로 고정한다.
+- 상태: **해결** (2026-09-01, runtime image 경계 보완). `docs/reference`의 build-context 예외를 제거하고 backend baseline을 `.dockerignore`로 제외했다. `COPY web/backend/ ./`는 유지하되 세 회사자료는 image에 복사하지 않으며, current profile·회사 실적 제목 TSV·승인 baseline은 `web` 서비스에만 read-only bind mount로 실행 시 주입한다. 기존 baseline digest 검증은 그대로 사용한다.
+- 검증: 기존 runtime contract test는 Dockerfile의 세 파일 copy 부재, `.dockerignore`의 세 파일 제외, `web`의 세 read-only mount를 함께 확인했고 `11 passed`였다. 2026-09-01 실제 image build/run에서 `/app/docs/reference/`에는 `.`·`..`만 있었고 profile·실적·baseline 이름을 찾는 `find`는 무출력이었다. `docker compose -f docker-compose.t7.yml config`는 `COMPOSE_OK`, backend 전체 suite는 `1037 passed, 5 skipped, 6 warnings`로 실패 0건이었다.
+- 접근 방법: 일반 `docs/reference`와 backend baseline의 bulk copy를 build context 단계에서 차단하고, `skills/`와 그 공개 workflow contract만 image에 둔다. 프로필·실적 reference·baseline은 승인된 read-only host checkout 경계로 실행 시 주입하고, baseline은 기존 digest 검증으로 무결성을 확인한다.
 
 ## 프로필 조회 API가 원문과 서버 경로를 노출한다
 
 - 재현 조건: `GET /api/profile/snapshots`, `GET /api/profile/sections`, `GET /api/profile/unknowns`를 호출하거나 프로필 파일 읽기 오류를 유발한다.
 - 증상: snapshots item의 working-tree `source_ref`는 내부 상대 파일 경로다. sections 응답은 filesystem `source`, `raw_blocks[].raw`, section `raw`, `source_line`을 포함한다. unknowns도 filesystem `source`를 반환하며 `parse_errors` 문자열에 원본 `OSError`의 절대 경로가 들어갈 수 있다. sections·unknowns는 현재 working tree parser 결과에 묶이고 승인된 불변 profile version·digest를 응답에 고정하지 않는다.
 - 영향: 사내망 사용자 모두에게 UI에 필요한 범위를 넘는 회사 프로필 원문과 서버 배치 구조가 노출된다. 실행 중 working tree가 변하면 같은 조회 route가 다른 프로필을 반환할 수 있어 승인 snapshot 경계도 흐려진다.
-- 지금 해결할 수 없는 이유: Pydantic schema, parser presenter, profile snapshot 선택, frontend type·화면을 원자적으로 전환하고 기존 client 호환성과 노출 방지 회귀를 같이 검증해야 하므로 아직 구현되지 않았다.
-- 접근 방법: 기존 세 route를 운영에서 비활성화하고 `bidops.profile-projection.v1`로 교체한다. snapshots에서 `source_ref`를 제거하고, sections·unknowns는 승인 profile version·digest, 구조화 항목, `unknown`, 안정 error code만 반환한다. filesystem source, source line, raw block·text, 원문 예외를 schema·serializer·frontend type에서 제거한다. 파일 경로·원문 sentinel이 response에 없음을 통합 테스트로 고정한다.
+- 상태: **해결** (2026-09-01, A-3 최소 projection 전환). 세 route는 승인된 snapshot version·digest와 구조화 projection만 반환하고, working-tree `source_ref`·filesystem source·source line·raw block/text·원문 예외를 wire에서 제외한다. Git blob은 40자 SHA만 계보 식별자로 유지하며 파싱·읽기 실패는 닫힌 `error_codes`로 표현한다.
+- 검증: 실제 `docs/reference/company-profile.md`의 특징적 문자열과 임시 snapshot artifact 누락 경로를 포함한 `test_profile_projection.py`가 snapshots·sections·unknowns 응답에 원문·절대 경로·원문 parse error가 없음을 확인했다. 백엔드는 `1038 passed, 5 skipped, 6 warnings in 566.02s (0:09:26)`, 프론트엔드는 `598 passed, 10 skipped (5.5m)`으로 완료했고 `tsc`·production build도 통과했다.
 
 ## legacy 첨부 업로드가 악성코드 검사와 객체 격리를 우회한다
 
 - 재현 조건: `POST /api/notices/{notice_pk}/attachments`로 허용 확장자·크기의 파일을 등록한 뒤 download endpoint를 호출한다.
 - 증상: legacy attachment service는 확장자와 50MiB 한도만 확인하고 `/app/web/data/attachments`로 rename한 뒤 DB를 commit한다. MIME 판별, quarantine, ClamAV, MinIO object version·hash 없이 바로 다운로드할 수 있다. T7은 `/app/data`와 `/app/reports`만 volume으로 연결하므로 이 attachment 경로는 container 재생성 때 유실될 수도 있다. `AttachmentResponse.stored_path`는 DB 값을 그대로 내보내 notice directory와 로컬 저장 layout을 client 계약에 노출한다.
 - 영향: 파일 내용이 확장자와 다르거나 악성인 첨부가 웹 process의 로컬 저장소와 사용자 download 경로로 들어가 Lean document upload의 안전 경계를 우회한다. DB row는 남고 파일만 사라지는 불일치도 생길 수 있고, path 노출은 서버 배치 구조를 외부 wire에 고정한다.
-- 지금 해결할 수 없는 이유: 기존 attachment 화면·다운로드·DB row를 Lean document object lifecycle로 이전하고 기존 manual attachment 호환 정책을 정해야 한다.
-- 접근 방법: 운영에서는 legacy mutation·path 조회를 비활성화한다. 장기적으로 모든 upload를 quarantine → MIME·size → ClamAV → versioned object → ready projection으로 통합하고 clean 전 download를 거부한다. `stored_path`를 response schema와 serializer에서 제거하고 우회 endpoint가 없는지 API 통합 테스트로 고정한다.
+- 상태: **해결** (2026-09-01, A-2 legacy upload 안전 경계·응답 projection·보관 volume 보완). 기존 `Attachment` schema와 id 기반 legacy download 호환성은 유지한다.
+- 검증: 감염 표식·ClamAV 사용 불가 파일은 4xx로 등록되지 않고 filesystem 산출물이 남지 않으며, safe PDF만 등록된다. 첨부 처리·notice detail 응답에는 `stored_path`가 없고 `docker compose -f docker-compose.t7.yml config`가 통과한다.
+- 접근 방법: 업로드 바이트를 quarantine object에 저장하고 MIME·구조·ClamAV 검사를 통과한 경우에만 source object로 승격한 뒤 legacy `Attachment`와 named-volume의 로컬 호환 사본을 만든다. `stored_path`는 내부 metadata로만 유지하고 response schema·serializer에서 제거했다. 기존 attachment object metadata schema 이전은 별도 범위다.
 
 ## MinIO versioning 초기화가 실패해도 stack이 계속 기동한다
 
 - 재현 조건: MinIO에서 bucket versioning 명령이 권한·호환성 오류로 실패하는 환경에서 `scripts/minio-init.sh`를 실행한다.
 - 증상: `mc version enable` 뒤 `|| true`가 모든 실패를 삼키고 실제 versioning 상태를 다시 확인하지 않는다. init service는 versioning이 꺼져 있어도 성공할 수 있다.
 - 영향: DB가 object version ID를 불변 정본처럼 저장하는 전제가 깨지고 overwrite·backup·restore에서 같은 object key의 역사 bytes를 보장할 수 없다.
-- 지금 해결할 수 없는 이유: bootstrap의 멱등성 처리와 실제 상태 검증, 기존 non-versioned bucket의 전환 정책을 함께 설계하고 MinIO 통합 테스트가 필요하다.
-- 접근 방법: 이미 존재한다는 안전한 결과만 명시적으로 허용하고 그 밖의 오류는 실패시킨다. 각 bucket에서 versioning enabled 상태를 조회·검증한 뒤에만 init service를 성공으로 끝낸다.
+- 상태: **해결** (2026-09-01). `|| true`를 제거하고 bucket마다 `mc version info --json`으로 상태를 되읽어 `"versioning":{"status":"Enabled"`가 아니면 init service를 실패로 끝낸다. `mc version enable`은 이미 versioned인 bucket에서도 성공하므로 멱등성은 유지된다.
+- 되읽기가 필요한 이유: `mc version info`는 **un-versioned bucket에서도 exit 0**을 반환한다(`RELEASE.2025-08-13T08-35-41Z`에서 실측). 종료 상태만으로는 versioning 여부를 구분할 수 없어 status 문자열이 유일한 증거다. mc image에는 `sed`·`awk`가 없어 셸 `case` 매칭으로 판별한다.
+- 검증: disposable MinIO(`RELEASE.2025-09-07T16-13-09Z`)에 실제 스크립트를 실행했다. 정상 기동은 exit 0에 4개 bucket 모두 `versioning is enabled`, 재실행도 exit 0. `mc version enable`이 실패하는 상황을 넣으면 수정 전 스크립트는 **exit 0으로 성공하면서 4개 bucket 전부 `un-versioned`** 였고, 수정 후에는 `bucket versioning is not enabled: bidops-source`와 함께 exit 1로 끝난다.
 
 ## 객체 복구가 원본 version ID와 복구 대상 version ID를 혼동한다
 
 - 재현 조건: `backup-objects.sh`로 version별 backup을 만든 뒤 빈 MinIO에 `restore.sh`를 실행하고 `verify-active-hashes.sh`로 검사한다.
 - 증상: backup manifest는 source version ID를 기록하지만 local file을 target에 `mc cp`하면 새 target version ID가 생긴다. restore는 새 ID를 기록하지 않고 verifier는 source version ID로 target object를 조회한다. `ACTIVE_HASH_MANIFEST`를 DB active reference에서 생성·완전성 검사하는 경로도 없다.
 - 영향: 정상 복구도 version lookup에서 실패하거나, 수동 manifest가 일부 active object를 빠뜨려도 DB 연결만 확인한 채 복구 검증이 끝날 수 있다. object-first 복구 완료를 주장할 수 없다.
-- 지금 해결할 수 없는 이유: target version mapping, DB object reference 재결합 여부, active manifest 생성 계약을 함께 결정해야 한다.
-- 접근 방법: restore 때 source version → target version mapping과 stored-byte hash를 기록하고 DB가 가리키는 모든 active object를 query해 manifest와 일대일 대조한다. verifier는 target version ID와 hash를 검사하며 누락·추가·중복을 모두 실패시킨다.
+- 상태: **해결** (2026-09-01, A-6 object-first restore MVP).
+- 검증: `backup-objects.sh`가 source stored-byte hash를 확인하고, `restore.sh`가 매 object의 target version ID를 `object-version-mapping.tsv`에 기록한다. 복구 뒤 DB에서 `content_object_location`과 `content_object`를 query해 active manifest를 생성하고, verifier가 일반 namespace의 target ID·stored-byte hash와 model-response의 target ID·존재를 확인하며 DB active 집합 및 복구된 모든 version 집합의 누락·추가·중복을 실패시킨다. disposable MinIO 원본·case별 빈 복구 대상과 PostgreSQL 17에서 정상 복구, 손상 backup, 누락 active object 세 경우를 실행해 확인했다.
+- 접근 방법: restore 때 source version → target version mapping과 stored-byte hash를 기록하고 DB가 가리키는 모든 active object를 query해 manifest와 일대일 대조한다. verifier는 일반 namespace에 target version ID와 stored-byte hash를, model-response에는 target version ID와 존재를 검사하며 누락·추가·중복을 모두 실패시킨다.
+
+## 암호화된 model-response active object는 stored-byte hash로 검증할 수 없다
+
+- 재현 조건: 암호화된 model-response를 생성해 `ContentObjectLocation(namespace_key='model-response', status='verified')`로 active manifest에 포함한 뒤 복구 검증을 실행한다. `ContentObject.sha256`는 plaintext aggregate의 SHA-256이고 MinIO object bytes는 `BIDOPS-AESGCM-V1\0` envelope와 nonce·ciphertext다.
+- 영향: manifest의 model-response hash를 MinIO stored bytes의 SHA-256과 비교하면 정상 복구도 항상 불일치해 검증이 실패한다. 암호화된 payload의 stored-byte 무결성은 현재 DB hash로 입증할 수 없다.
+- 남은 제약: verifier는 model-response의 stored-byte hash 비교를 하지 않고 target version에서 object 존재와 version만 확인한다. 다만 DB active 집합 일치, 누락·추가·중복 실패, source→target version mapping 및 target version 존재 검사는 다른 namespace와 동일하게 유지한다.
+- 지금 이렇게 두는 이유: 이번 A-6의 목적은 정상 복구를 검증 가능하게 만드는 것이며, 기존 `ContentObject.sha256`의 plaintext 의미와 암호화 저장 경계를 보존해야 한다. 스키마 변경 없이 이 namespace만 예외 처리하는 것이 현재 복구 계약과 fail-closed 집합 검사를 모두 유지하는 방법이다.
+- 후속 방향: stored-byte hash를 별도 필드로 기록하는 스키마 보완을 설계·적용해 암호화 envelope도 내용 무결성까지 검증한다. 이는 이번 범위가 아니다.
 
 ## 분석 worker DB 역할이 모든 업무 table을 수정할 수 있다
 
@@ -198,16 +210,18 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 - 재현 조건: 기본 `docker-compose.t7.yml`을 기동하고 host의 listen address를 확인한다.
 - 증상: PostgreSQL, MinIO API, MinIO console port mapping에 host IP가 없어 Docker가 기본적으로 모든 host interface에 bind할 수 있다.
 - 영향: Compose internal network와 무관하게 LAN에서 DB·객체 저장소 port에 직접 접근할 수 있어 애플리케이션 API만 사용하는 접근 경계를 우회한다. 실제 노출 범위가 host firewall 상태에 의존한다.
-- 지금 해결할 수 없는 이유: 운영자가 host에서 DB·MinIO 관리 접근을 필요로 하는지와 reverse proxy·방화벽 경계를 확정해야 한다.
-- 접근 방법: 기본 template은 `127.0.0.1`에만 bind하거나 내부 전용으로 port publish를 제거한다. 원격 관리가 필요하면 별도 opt-in overlay와 source allowlist를 사용하고 LAN 외부에서 연결 거부를 검증한다.
+- 상태: **해결** (2026-09-01). 세 mapping 모두 `${BIDOPS_ADMIN_BIND_HOST:-127.0.0.1}:` prefix를 갖는다. 기본 template은 loopback에만 bind하고, 원격 관리는 `.env`에서 이 값을 명시적으로 넓히는 opt-in이다. `test_t7_admin_ports_bind_to_loopback_by_default`가 세 mapping의 host IP field 존재를 계약으로 고정한다.
+- publish를 제거하지 않은 이유: host에서 `psql`·`mc`로 DB·객체를 확인하는 개발 검증 경로가 살아 있어야 한다. loopback bind는 그 경로를 유지하면서 LAN 노출만 없앤다. **애플리케이션 port(`BIDOPS_WEB_PORT`)는 사내망 접근이 설계된 경계이므로 좁히지 않았다.**
+- 남은 위험: 이 stack의 network가 전부 `internal: true`라 현재 Docker 버전에서는 publish 자체가 host에 bind되지 않는다(위 "T7 스택의 publish port가 host에서 열리지 않는다"). 그 항목을 해결해 실제로 bind되기 시작할 때 이 loopback 기본값이 효력을 갖는다. 지금은 선제적 방어다.
 
 ## legacy mutation 일부가 담당자 이름과 감사 기록 없이 실행된다
 
 - 재현 조건: legacy review upsert, attachment upload·delete, agency portal create·patch, run ingest·subprocess 실행 endpoint를 호출한다.
 - 증상: 해당 경로는 `X-BidOps-Actor-Name`을 요구하지 않거나 reviewer가 optional이고, 작업별 `AuditEvent`를 같은 transaction에 남기지 않는다. Lean 문서·심층 검토와 screening control 계열만 별도 actor·audit 경계를 가진다.
 - 영향: 사내 사용자가 변경·승인할 때 이름을 남긴다는 채택 결정이 API 전체에서 성립하지 않으며 누가 첨부를 지우거나 포털·리뷰·회차를 바꿨는지 일관되게 추적할 수 없다.
-- 지금 해결할 수 없는 이유: 기존 frontend와 pipeline client의 request 계약을 함께 바꾸고 과거 actor 없는 기록의 표시 정책을 정해야 한다.
-- 접근 방법: 모든 사람 mutation에 공통 actor parser와 safe audit service를 적용하고 mutation 결과와 같은 transaction에서 event를 기록한다. 과거 row는 actor를 추정하지 않고 `unknown`으로 남기며 기존 client를 명시적 계약 version으로 전환한다.
+- 상태: **부분 해결** (2026-09-01, A-4). 첨부 upload/delete, agency portal create/patch, screening policy create/candidate/activate에 기존 actor parser와 append-only `AuditEvent`를 적용했다. legacy review와 일부 run/subprocess mutation은 여전히 별도 작업이다.
+- 검증: 세 router의 7개 mutation이 actor 없는 요청을 400으로 거부하고, actor가 있으면 같은 transaction에 `AuditEvent`를 남기는 회귀가 통과했다. frontend API 호출부와 포털·정책 화면도 actor header를 전송한다.
+- 접근 방법: 새 감사 테이블이나 helper layer를 만들지 않고 기존 `validate_actor`와 `AuditEvent`를 각 mutation transaction에 연결했다. 과거 actor 없는 row는 추정하지 않는다.
 
 ## 현재 보고서 renderer가 screening v3를 처리하지 못한다
 
@@ -217,22 +231,25 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 - 지금 해결할 수 없는 이유: v3의 partial/failure·execution binding을 HTML과 feedback에 어떻게 표시할지 소비자 계약과 회귀 기준이 필요하다.
 - 접근 방법: v2 의미를 바꾸지 않은 채 renderer에 명시적 v3 adapter를 추가하고 부분 성공·failure artifact·승계 provenance를 표시한다. v2와 v3 fixture의 결정성을 각각 검증한다.
 
-## 승인된 프로필 기준선 commit이 현재 저장소 history에 없다
+## 승인된 프로필 기준선 commit이 현재 저장소 history에 없다 (2026-08-31 결정으로 수용)
 
-- 재현 조건: `git cat-file -e ee621835db934ddac944f7a07a986ed0b73ecc7a^{commit}`과
-  `git cat-file -e ee621835db934ddac944f7a07a986ed0b73ecc7a:docs/reference/company-profile.md`를
+- 재현 조건: `git cat-file -e ee621835db934ddac944f7a07a986ed0b73ecc7a^{commit}`을
   현재 checkout에서 실행한다.
-- 증상: 승인 commit과 그 path의 blob이 둘 다 Git object DB에 없다. commit
-  `5541a07f49cc6e417e8a7a4660cdae112df46f59`의 같은 path와 vendored baseline은 승인
-  digest `a231ab54c36031a7e72779bbca550f70561dc0c946dc5544eeb930c7c6149de2`와 일치하지만,
-  이 commit은 현재 계약의 승인 commit이 아니다. working-tree profile digest는 다르다.
-- 영향: backend 테스트는 승인 blob 부재 시 snapshot 행을 만들지 않는 fail-closed 동작을
-  검증하여 통과한다. 그러나 `git:ee621...`을 요구하는 model comparison과 운영 기준선
-  재현은 계속 차단된다. 전체 suite green은 이 승인 blocker 해소를 의미하지 않는다.
-- 지금 해결할 수 없는 이유: 승인 baseline은 선행 저장소 history에서 만들어졌고, 어떤 commit을 현재 저장소에 보존할지 또는 새 기준선을 승인할지는 이력 소유자와 업무 담당자의 확인이 필요하다.
-- 접근 방법: 이력 소유자가 정확한 승인 commit/path 객체를 복구하거나, 업무 담당자가
-  새 immutable commit/path/digest를 명시적으로 승인한다. 그 전에는 `5541...`로 자동 대체하지
-  않는다. source checkout과 container fallback 테스트는 승인 이후 같은 bytes를 확인해야 한다.
+- 증상: 승인 commit과 그 path의 blob이 둘 다 Git object DB에 없다.
+- 실제 영향: **없다.** byte-identical 파일이
+  `web/backend/app/screening/baseline_company_profile.md`로 벤더링돼 있고
+  `BASELINE_PROFILE_SHA256= a231ab54…`로 검증된다. `read_git_source()`는 git 조회가
+  불가할 때만 이 파일로 fallback하고, git이 있으면 동등성을 교차 확인해 drift를 막는다.
+  `test_profile_snapshot*` 14건은 현재 모두 통과한다.
+- 범위 정정: 이 commit은 `model_comparison` 품질 gate 전용 **역사 anchor**다.
+  `operational_approval`은 `profile_source = "current"`를 요구하고 런타임의
+  `snapshot_current()`는 현재 working tree 프로필(sha256 `96731dd5f77d…`)을 읽는다.
+  운영 판정은 이미 현재 프로필을 쓰고 있으므로 정본이 갈라진 상태가 아니다.
+- 결정: 2026-08-31에 이 상태를 그대로 두기로 했다. 현재 프로필을 역사 anchor에 덮어쓰면
+  `model_comparison`이 현재-대-현재 비교가 되어 "역사 baseline과 설명 가능한 비교"라는
+  목적 자체가 사라지므로 하지 않는다.
+- 남는 제약: `git:ee621…`을 요구하는 model comparison gate는 git 경로로 재현할 수 없고
+  벤더링 파일에만 의존한다. 그 파일이 저장소에서 사라지면 역사 비교가 불가능해진다.
 
 ## 문서 준비와 실패 심층 검토 재시작을 화면에서 완료할 수 없다
 
@@ -281,3 +298,35 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 - 영향: 리뷰, 정책 활성화, 외부 모델 전송 승인 기록의 작성자 신뢰도가 사내망 접근 통제 수준에 머문다.
 - 지금 해결할 수 없는 이유: 현재는 사내망과 claimed name만 사용하기로 했고 SSO·계정·역할 정보가 연결되지 않았다.
 - 접근 방법: 향후 SSO subject를 내부 계정에 매핑하고 세션 만료, 역할, 권한 회수, 기존 claimed-name 감사와의 연결 정책을 도입한다.
+
+## 심층 검토 보고서를 사업기회·공고로 되찾을 목록 계약이 없다
+
+- 재현 조건: 공고 판정 이력에서 심층 검토를 생성해 `/deep-reviews/{id}`로 이동한 뒤 화면을 벗어난다. 사업기회 화면이나 공고 화면에서 그 보고서를 다시 연다.
+- 증상: `app/routers/deep_reviews.py`가 제공하는 읽기 계약은 `GET /deep-reviews/{deep_review_id}` 단건뿐이다. 사업기회·공고로 보고서를 나열하는 endpoint가 없고, 사업기회 목록·상세 응답과 공고 응답에도 `deep_review_id`가 없다. 보고서 식별자를 따로 적어 두지 않으면 만든 보고서로 돌아갈 길이 없다.
+- 영향: `docs/design/PRD.md` §2.2가 요구한 "사업기회 화면의 명시적 진입점"을 데이터로 채울 수 없다. 2026-09-02 화면 개선 2단계는 사업기회 상세에 식별자로 여는 진입점을 두고 목록을 제공할 수 없다는 사실을 화면에 명시하는 선에서 멈췄다. 목록이 비어 보이는 것을 보고서가 없다는 뜻으로 오해할 위험은 문구로만 막고 있다.
+- 지금 해결할 수 없는 이유: 해결에는 REST 계약 추가(사업기회 또는 공고별 심층 검토 목록)나 기존 응답에 식별자 노출이 필요하다. 화면 개선 2단계의 범위는 프론트엔드이며 `docs/contracts.md`의 소비자 계약과 백엔드를 바꾸지 않기로 했다.
+- 접근 방법: `GET /opportunities/{id}/deep-reviews` 또는 `GET /notices/{notice_id}/deep-reviews`를 추가해 보고서 식별자·생성 시각·현재 상태를 돌려주고, `docs/contracts.md`와 `docs/deep-review-erd.md`에 소비자 계약으로 등록한다. 그 뒤 사업기회 화면의 진입점을 식별자 입력이 아니라 목록으로 바꾼다.
+
+## Go/No-Go 결정 대기 사업기회를 N+1 없이 집계할 endpoint가 없다
+
+- 재현 조건: 대시보드 "지금 처리할 일"이나 `GoNoGoPage.tsx`에서 "최종 Go/No-Go 결정 대기" 건수를 구하려 한다.
+- 증상: `app/routers/bid_delta.py`는 사업기회 하나의 workspace만 반환하고(`GET /opportunities/{id}/bid-delta` 계열), "계속 추적 중이며 아직 최종 결정이 없는 사업기회 수" 같은 집계 endpoint가 없다. `GoNoGoPage.tsx`는 이를 우회하려고 추적 중 사업기회 목록을 받은 뒤 사업기회마다 bid-delta workspace를 조회하는 N+1을 이미 쓰고 있다(2026-09-02 화면 개선 2단계, 코드 머리 주석에 기록).
+- 영향: 대시보드처럼 N+1을 반복할 수 없는 화면(`web/backend/AGENTS.md`·`CLAUDE.md`의 N+1 금지 게이트)은 이 건수를 전혀 계산할 수 없다. 2026-09-03 3단계는 대시보드 항목의 건수를 `null`(확인 불가)로 표시하고 이동 경로만 제공하는 선에서 멈췄다 — 페이지 자체(`GoNoGoPage.tsx`)의 기존 N+1도 아직 걷어내지 못했다.
+- 지금 해결할 수 없는 이유: 해결에는 새 집계 REST 계약(예: 사업기회당 최신 `latest_final_decision` 유무를 서버가 먼저 걸러 세는 endpoint)이 필요하며, 이는 백엔드 스키마·서비스 변경이라 이번 프론트엔드 범위를 벗어난다.
+- 접근 방법: `GET /opportunities?tracking_status=계속 추적&decision_status=pending` 같은 서버 필터 또는 `GET /bid-delta/pending-count` 집계 endpoint를 추가해 `docs/contracts.md`와 `docs/bid-delta-contract-spec.md`에 등록한다. 그 뒤 `GoNoGoPage.tsx`의 기존 N+1과 대시보드의 `null` 표시를 실제 건수로 교체한다.
+
+## 발주계획 목록 API에 "사람 피드백 미기록" 필터가 없다
+
+- 재현 조건: 대시보드 "지금 처리할 일"에서 "C-2 검토 대기" 건수를 사람이 아직 판정하지 않은 발주계획 수로 정의하려 한다.
+- 증상: `GET /api/order-plans`(`web/backend/app/routers/order_plans.py:78`)는 `qwen_relevance`·`human_relevance`를 필터로 받지만, `human_relevance`는 특정 relevance 값(`relevant`|`not_relevant`|`uncertain`)만 받고 "사람 피드백 행 자체가 없음"을 나타내는 값(`missing`/`null`)을 받지 않는다.
+- 영향: 2026-09-03 3단계는 이 항목을 "Qwen 신호가 relevant 또는 uncertain인 발주계획" 건수(사람 피드백 여부와 무관)로 근사했다. 실제 "검토 대기"(아직 아무도 보지 않은 건)보다 넓은 집합이라 과대 계상될 수 있고, 화면 설명 문구로만 그 차이를 알린다.
+- 지금 해결할 수 없는 이유: `human_relevance=missing` 같은 값을 추가하려면 서비스 쿼리(`OrderPlanScreeningService.list_order_plans`)와 라우터 계약을 함께 바꿔야 하며, 이번 프론트엔드 범위의 대시보드 작업만으로는 안전하게 변경할 수 없다.
+- 접근 방법: `human_relevance`에 `missing` 같은 sentinel 값을 추가해 "사람 피드백 행 없음"을 서버에서 걸러주고, `docs/contracts.md`의 `GET /api/order-plans` 항목에 등록한다. 그 뒤 대시보드와 `OrderPlansPage.tsx`의 "검토 대상" 프리셋이 이 필터를 실제 "미판정" 의미로 좁힐 수 있다.
+
+## 사전규격 목록 API에 마감 구간 필터도 임박 집계도 없다
+
+- 재현 조건: 대시보드 "지금 처리할 일"에서 "사전규격 의견등록 마감 임박" 건수를 구하려 한다.
+- 증상: `GET /api/pre-specs`(`web/backend/app/routers/pre_specs.py:198`)는 `sw_only`·`business_division`·`origin`·`q`·`sort`·`limit`·`offset`만 받는다. 마감 구간 필터가 없고 집계 응답도 없다. `sort=deadline`은 `deadline_at ASC NULLS LAST`(`pre_specs.py:304`)라 **첫 페이지가 이미 지난 마감으로 채워진다.** 따라서 한 페이지를 받아 클라이언트에서 세면 두 가지가 동시에 틀린다. (1) 지난 마감을 임박으로 센다 — 회차 산출물 `stats.imminent_deadlines`와 달리 서버가 좁혀 준 창이 없는데 `criticalDeadlineCount`에는 하한이 없다. (2) 임박 구간이 페이지 창 밖이라 애초에 도달하지 못한다.
+- 영향: 2026-09-03 3단계는 이 항목의 건수를 `null`(확인 불가)로 두고 이동 경로만 제공하는 선에서 멈췄다. 구현 위임 초안은 `limit=50` 한 페이지를 세어 숫자를 표시했는데, 누적 데이터에서는 거의 항상 "만료된 사전규격 수"를 "마감 3일 이내"로 보여주는 값이라 검수에서 되돌렸다.
+- 지금 해결할 수 없는 이유: 해결에는 목록 계약에 마감 구간 필터(`deadline_from`·`deadline_to`)나 임박 집계를 추가해야 하며, 이는 백엔드 라우터·스키마 변경이라 이번 대시보드 작업 범위를 벗어난다.
+- 접근 방법: `GET /api/pre-specs`에 `deadline_within_days` 또는 `deadline_from`·`deadline_to`를 추가하고 `docs/contracts.md`의 `PreSpecList` 항목에 등록한다. 그 뒤 대시보드의 `null` 표시를 실제 건수로 바꾸고, `criticalDeadlineCount`의 하한 없음이 회차 산출물 전용 전제임을 호출부에서 다시 확인한다.

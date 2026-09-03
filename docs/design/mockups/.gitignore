@@ -1,0 +1,11 @@
+*.dc.html
+_preview/
+_shots/
+bidops-screen-mockups.html
+
+# 참고 artifact를 분석할 때만 쓰는 중간 추출물
+astryx-inline.css
+astryx-neutral.css
+astryx-vocab.txt
+ref-markup.html
+ref-screen*.html

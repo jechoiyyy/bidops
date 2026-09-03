@@ -60,17 +60,16 @@ RUN case "$BIDOPS_UID:$BIDOPS_GID" in \
 COPY web/backend/ ./
 COPY --from=frontend /build/dist /app/web/frontend/dist
 COPY --from=node-runtime /usr/local/bin/node /usr/local/bin/node
-COPY docs/reference /app/docs/reference
 COPY scripts /app/scripts
 COPY docker-compose.t7.yml /app/docker-compose.t7.yml
 RUN chmod +x /app/scripts/*.sh
 
-# Bundle the immutable execution contract as a fallback for docker run.
-# Compose overlays these directories read-only from the checked-out project.
-# Only runtime reference material is copied; company profile/source documents
-# stay out of the image.
+# Bundle the immutable execution contract as a fallback for docker run. The
+# T7 web service supplies the current profile, performance-title reference,
+# and approved baseline as read-only bind mounts; those profile-related inputs
+# are intentionally not copied. A docker run without these mounts cannot use
+# the profile or collection paths, which is the deliberate image boundary.
 COPY skills/ /app/skills/
-COPY docs/reference/company-performance-titles.tsv /app/docs/reference/company-performance-titles.tsv
 COPY skills/references/ /app/skills/references/
 COPY web/container-entrypoint.sh /usr/local/bin/bidops-entrypoint
 COPY web/container-ops.sh /usr/local/bin/bidops-ops
@@ -83,7 +82,10 @@ COPY web/container-git-wrapper.sh /usr/local/bin/git
 # /scratch is the document-converter handoff shared by web and document-worker.
 RUN install -d -o bidops -g bidops -m 0770 \
         /app/data /app/reports /app/backups /app/web/data \
-        /app/web/data/attachments /app/web/data/profile-snapshots /scratch \
+        /app/web/data/attachments /app/web/data/profile-snapshots \
+        /app/docs/reference /scratch \
+    && install -d -o root -g root -m 0555 \
+        /app/experiments/order-plan-screening/config /run/c2 \
     && chmod 0555 /usr/local/bin/bidops-entrypoint /usr/local/bin/bidops-ops /usr/local/bin/git \
     && chown -R root:root /app/skills /app/docs \
     && find /app/skills /app/docs -type d -exec chmod 0555 {} + \

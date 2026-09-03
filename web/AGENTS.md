@@ -32,7 +32,7 @@
 ## 검증
 
 ```bash
-./web/run-web-tests.sh
+./web/run-web-tests.sh            # backend pytest + frontend build + Playwright 화면 회귀
 COMPOSE_PROJECT_NAME=bidops-verify docker compose -f docker-compose.t7.yml build
 COMPOSE_PROJECT_NAME=bidops-verify docker compose -f docker-compose.t7.yml config
 ```

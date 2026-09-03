@@ -1,0 +1,91 @@
+{
+  "schema_version": "bidops.order-plan-screening-contract-index.v1",
+  "producer": "phase0-contracts",
+  "consumer": "phase1-to-phase5-implementations",
+  "contract_status": "fixed_for_implementation",
+  "contracts": [
+    {
+      "file": "bidops.order-plan-screening-policy.v1.json",
+      "schema_version": "bidops.order-plan-screening-policy.v1",
+      "producer": "phase0-contracts",
+      "consumer": "phase1-screening-pipeline",
+      "sha256": "d6b66094d4273c8159594de5ba1dd188e0058d38391b21dd268839623a73e3ab",
+      "compatibility": "new_v1_only",
+      "immutable_after_activation": true
+    },
+    {
+      "file": "bidops.order-plan-screening-phase0-binding.v1.json",
+      "schema_version": "bidops.order-plan-screening-phase0-binding.v1",
+      "producer": "phase0-contracts",
+      "consumer": "phase1-screening-pipeline",
+      "sha256": "3fb670bba9cbf24bcd15e857bc2e4192f8b969b61db609483a6ab6305b12253a",
+      "compatibility": "new_v1_only",
+      "immutable_after_creation": true
+    },
+    {
+      "file": "bidops.order-plan-screening-input.v1.json",
+      "schema_version": "bidops.order-plan-screening-input.v1",
+      "producer": "order-plan-screening-orchestrator",
+      "consumer": "order-plan-screening-worker",
+      "sha256": "aad7e23829d68cad0d93225619427d914a3c6144ebe30f90086f8bddd13ced71",
+      "compatibility": "new_v1_only",
+      "immutable_after_creation": true
+    },
+    {
+      "file": "bidops.order-plan-screening-ranking.v1.json",
+      "schema_version": "bidops.order-plan-screening-ranking.v1",
+      "producer": "order-plan-screening-bm25",
+      "consumer": "order-plan-screening-merge",
+      "sha256": "514e9b6ac744c9b1b783b3fdee66c7f9a7e1a938f0e426b6324ffa69d560a3f5",
+      "compatibility": "new_v1_only",
+      "immutable_after_creation": true
+    },
+    {
+      "file": "bidops.order-plan-screening-decisions.v1.json",
+      "schema_version": "bidops.order-plan-screening-decisions.v1",
+      "producer": "order-plan-screening-qwen-worker",
+      "consumer": "order-plan-screening-merge",
+      "sha256": "bd8eb46ed2b4139a0d83a19481938a91ed1e215c803804daf36b3b40235db036",
+      "compatibility": "new_v1_only",
+      "immutable_after_creation": true
+    },
+    {
+      "file": "bidops.order-plan-screening-failures.v1.json",
+      "schema_version": "bidops.order-plan-screening-failures.v1",
+      "producer": "order-plan-screening-worker",
+      "consumer": "order-plan-screening-review-and-merge",
+      "sha256": "a11d7719f9100d0428bcf9f97e330ce806b4bf74c40804c00bbc7cada82fc5b5",
+      "compatibility": "new_v1_only",
+      "immutable_after_creation": true
+    },
+    {
+      "file": "bidops.order-plan-screening-telemetry.v1.json",
+      "schema_version": "bidops.order-plan-screening-telemetry.v1",
+      "producer": "order-plan-screening-worker",
+      "consumer": "observability-and-merge",
+      "sha256": "69d994853ebdec3e81b07abd61c3182ccc7c2ce523d1f39c0e84b8ce97fe98ae",
+      "compatibility": "new_v1_only",
+      "immutable_after_creation": true
+    },
+    {
+      "file": "bidops.order-plan-screening-result.v1.json",
+      "schema_version": "bidops.order-plan-screening-result.v1",
+      "producer": "order-plan-screening-merge",
+      "consumer": "postgres-loader-and-review-api",
+      "sha256": "6be7121f6b9a321ee3ff5b7ea9acaf34d6222c379dd9d6f46350e880e273e1ff",
+      "compatibility": "new_v1_only",
+      "immutable_after_creation": true
+    },
+    {
+      "file": "bidops.order-plan-screening-feedback.v1.json",
+      "schema_version": "bidops.order-plan-screening-feedback.v1",
+      "producer": "human-review-api",
+      "consumer": "postgres-review-history",
+      "sha256": "e3d839ca4a46a3c6023c0c78f7596dbf328ae9964d08e20cab19e90806376c09",
+      "compatibility": "append_only_revision",
+      "immutable_after_creation": true
+    }
+  ],
+  "rest_contract": "docs/contracts.md#c-2-phase-0-fixed-contract",
+  "db_contract": "docs/tracking/decisions/0038-order-plan-c2-phase0-contracts.md"
+}

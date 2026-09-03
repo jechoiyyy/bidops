@@ -11,7 +11,7 @@
 
 사내 프로필 조회 API는 승인된 불변 profile version·digest에 묶인 구조화 항목과 `unknown`만 반환한다. 응답 schema는 `bidops.profile-projection.v1`로 명시한다.
 
-filesystem source·source reference, source line, raw block, raw text, 원문 파싱 예외 문자열은 제외한다. 파싱·snapshot 실패는 내부 경로가 없는 안정 오류 코드로 바꾸고 fail closed한다. snapshot 목록에서도 `source_ref`를 제거하고 version, digest, source kind, created time만 제공한다. UI는 이 projection 외의 프로필 원문을 조회하거나 재구성하지 않는다.
+filesystem source·working-tree source reference, source line, raw block, raw text, 원문 파싱 예외 문자열은 제외한다. 파싱·snapshot 실패는 내부 경로가 없는 안정 오류 코드로 바꾸고 fail closed한다. snapshot 목록은 version, digest, source kind, created time을 제공하고 `git_blob`일 때만 40자 commit SHA를 `source_ref`로 유지한다. UI는 이 projection 외의 프로필 원문을 조회하거나 재구성하지 않는다.
 
 ## 대안
 
@@ -21,4 +21,4 @@ filesystem source·source reference, source line, raw block, raw text, 원문 �
 
 ## 결과
 
-기존 sections·unknowns route는 신규 projection contract로 교체하고 client를 함께 전환해야 한다. 전환 전에는 운영 조회에 사용하지 않는다. 회귀 검증은 response에 절대·상대 파일 경로, raw 프로필 일부, 원문 예외 문자열이 없고 version·digest·구조화 항목·`unknown`만 있는지 확인해야 한다.
+기존 세 route는 신규 projection contract로 교체했고 client도 함께 전환했다. snapshots의 working-tree path는 wire에서 생략하고 Git blob SHA만 유지한다. sections·unknowns는 승인 snapshot에 고정되며 절 구조화 실패는 section 위치 요약과 안정 `error_codes`로 표시한다. 회귀 검증은 response에 절대·상대 파일 경로, raw 프로필 일부, 원문 예외 문자열이 없고 version·digest·구조화 항목·`unknown`만 있는지 확인한다.

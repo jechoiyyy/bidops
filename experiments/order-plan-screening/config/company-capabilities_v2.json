@@ -1,0 +1,58 @@
+{
+  "schema_version": "bidops.order-plan-capabilities.v1",
+  "approval_status": "pending",
+  "profile_version": "rootlab-company-profile-2026-09-v2-draft",
+  "summary_sha256": "a915de7b3cf2dbd2d7d6f36e639afaf69326316c6c90c5b1b9e37ef735dccdb4",
+  "approved_by": null,
+  "approved_at": null,
+  "capabilities": [
+    {
+      "id": "ai-data-analytics",
+      "summary": "생성형 AI·LLM 기반 정보분석·검색·추천·보고서 생성, AI Agent 업무자동화·의사결정 지원, 빅데이터 분석·예측·시각화, AI 학습모델·영상분석 시스템 개발, 공공AI 영향평가 연구."
+    },
+    {
+      "id": "data-platform-integration",
+      "summary": "공공·행정·산업 데이터 수집·정제·통합, 데이터 표준화·품질관리, DB·API·기관 시스템 연계, 공공 마이데이터·데이터 플랫폼·대시보드 구축 및 운영."
+    },
+    {
+      "id": "blockchain-did-credentials",
+      "summary": "블록체인 메인넷 구축·이전·운영·유지보수, DID 신원·출입 인증, 전자지갑·전자증명·디지털배지, 스마트컨트랙트·NFT·위변조 방지·공급망 플랫폼."
+    },
+    {
+      "id": "public-si-lifecycle",
+      "summary": "공공 정보화 ISP·BPR, 정보화시스템·통합관리시스템·온라인 플랫폼·응용 소프트웨어·모듈의 신규 구축·개발, 기능개선·고도화, 시스템 연계, 통합유지보수·운영."
+    },
+    {
+      "id": "public-business-systems",
+      "summary": "행정·민원·사업관리·평가·접수·심사·성과관리·연구장비·일자리·이력관리 업무시스템과 온라인 서비스 구축·운영."
+    },
+    {
+      "id": "saas-cloud",
+      "summary": "SaaS·클라우드 기반 업무·평가·의료데이터·공용 소프트웨어 관리 플랫폼 구축·운영, 클라우드 서비스 UI·유통관리 기능 개발."
+    },
+    {
+      "id": "ontology-knowledge-graph",
+      "summary": "이기종 데이터 모델링·상호운용·표준화, 산업 도메인 지식베이스·지식그래프, 지식 기반 추론 및 AI 연계 검색·추천."
+    },
+    {
+      "id": "disaster-safety-systems",
+      "summary": "소방·재난안전 분야 빅데이터 플랫폼, 예방정보시스템, GIS 연계 재난현장 영상정보 공유, 안전 모니터링·위험예측 시스템 구축·고도화·운영."
+    },
+    {
+      "id": "education-learning-credentials",
+      "summary": "교육·평생학습 분야 LMS 연계, 학습이력·맞춤형 학습추천, 디지털배지·전자지갑, 교육지원·학습관리·교육포털 시스템 구축·운영."
+    },
+    {
+      "id": "healthcare-dental-platforms",
+      "summary": "헬스케어·의료·치과 분야 데이터 표준화·연계·통합관리, SaaS 의료데이터 플랫폼, 비대면 진료 플랫폼, AI 영상변환·모션인식 서비스 구축."
+    },
+    {
+      "id": "web-portal-cms",
+      "summary": "공공·교육·문화기관 홈페이지·누리집·웹사이트·연구포털·정보망·CMS·온라인 서비스의 반응형·다국어 구축, 통합·개편·고도화·호스팅·유지관리."
+    },
+    {
+      "id": "industrial-rnd-platforms",
+      "summary": "R&D·산업지원 분야 사업데이터 분석·시각화, 연구장비 정보·예약·이력, 소재부품 정보·제조·3D 프린팅 데이터 플랫폼 구축·고도화."
+    }
+  ]
+}

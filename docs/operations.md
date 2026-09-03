@@ -7,20 +7,18 @@
 - 루트 `docker-compose.yml`은 SQLite 이전 입력 스냅숏을 백업·검증하는 명시적 `ops` 명령만 제공한다. 애플리케이션 런타임으로 사용하지 않는다.
 - 모든 T7 명령에는 전용 `COMPOSE_PROJECT_NAME`을 사용한다. 다른 worktree의 컨테이너와 volume을 중지하거나 삭제하지 않는다.
 - 일상 운영에서 `docker compose down -v`, volume 삭제, 원본 객체 삭제를 사용하지 않는다.
+- legacy notice attachment의 id 기반 다운로드 호환 사본은 `/app/web/data/attachments`에 있다. 같은 부모의 `/app/web/data/profile-snapshots`는 승인 프로필 projection이 읽는 artifact이므로 Compose named volume `web-data`가 `/app/web/data` 전체를 보존한다. 업로드는 quarantine·ClamAV 검사 후에만 등록된다.
 
 ## 현재 배포 차단 조건
 
-현재 T7 stack은 개발·검증에는 사용할 수 있지만 다음 문제가 해결되기 전에는 운영 배포 후보가 아니다.
+**알려진 운영 배포 차단 조건은 2026-09-01에 전부 해소했다.** MinIO versioning은 bootstrap에서
+fail-closed로 검증하고, PostgreSQL·MinIO API·console port는 `BIDOPS_ADMIN_BIND_HOST`
+기본값 `127.0.0.1`로 loopback에만 publish한다.
 
-- runtime image에 회사 profile 자료가 포함된다.
-- profile snapshots·sections·unknowns API가 filesystem source/reference, raw profile block, 가공되지 않은 parse error를 반환할 수 있다.
-- 개발용 hosted Codex 심층 검토 경로가 RFP와 회사 profile slice를 외부로 보낼 수 있다.
-- PostgreSQL과 MinIO port가 host 전체 interface에 publish될 수 있다.
-- MinIO versioning 활성화 실패를 bootstrap이 무시한다.
-- 객체 restore가 source와 target version ID를 연결하지 못하고 active manifest 생성·완전성 검사가 없다.
-- legacy notice attachment upload가 quarantine·ClamAV·MinIO를 우회하고 응답에 로컬 `stored_path`를 노출한다.
+아직 남은 것은 차단 조건이 아니라 운영 훈련이다. 실제 secret, MinIO allow/deny,
+egress firewall, backup·restore를 **운영 환경에서** 한 번도 검증하지 않았다.
 
-개발 검증에서도 hosted Codex reference overlay, legacy notice attachment upload, profile snapshots·sections·unknowns route를 사용하지 않는다. 회사 profile이 들어간 image를 registry에 push·export하지 않으며 로컬 build cache의 접근 범위를 제한한다. 나머지 stack 기동은 폐기 가능한 데이터와 host firewall로 격리한 환경에서만 수행한다.
+개발 검증에서도 hosted Codex reference overlay를 사용하지 않는다. 회사자료 host 입력을 registry에 push·export하지 않으며 로컬 build cache의 접근 범위를 제한한다. legacy notice attachment upload는 quarantine·ClamAV·MinIO 경계를 통과한 파일만 사용한다. 나머지 stack 기동은 폐기 가능한 데이터와 host firewall로 격리한 환경에서만 수행한다.
 
 ## 사전 조건
 
@@ -31,7 +29,28 @@
 - PostgreSQL owner, migrate, app, worker, read-only backup 계정의 비밀번호를 서로 다르게 설정한다.
 - MinIO root와 source, structure write/read, quarantine, model-response 자격증명을 용도별로 분리한다.
 - 심층 검토 전에 승인된 profile version과 analysis policy version을 채운다. 빈 값이면 deep-review 생성이 fail closed하는 것이 정상이다.
+- 프로필 조회 화면은 승인된 profile snapshot에 고정된다. snapshot이 하나도 없으면 `/api/profile/sections`와 `/api/profile/unknowns`가 `503 profile_snapshot_unavailable`로 fail closed하는 것이 정상이다([ADR-0023](tracking/decisions/0023-company-profile-minimal-projection.md)). snapshot은 판정 실행이 만들므로 신규 배포에서는 회차 판정을 한 번 실행한 뒤에 프로필 화면을 사용한다.
 - 사설 vLLM을 사용할 때 endpoint의 literal IP와 allowlist를 일치시키고 host firewall에서 해당 IP와 port 외 egress를 차단한다.
+
+### T7 웹의 회사자료 입력 전제
+
+`docker-compose.t7.yml`의 `web` 서비스는 다음 세 파일을 host checkout에서 read-only로 주입한다. 세 파일은 build context와 runtime image에 없으므로 Compose로 웹 서비스를 실행할 때 반드시 현재 checkout에 regular file로 존재하고 읽을 수 있어야 한다.
+
+```text
+docs/reference/company-profile.md
+docs/reference/company-performance-titles.tsv
+web/backend/app/screening/baseline_company_profile.md
+```
+
+Docker/Compose는 bind source가 없는 경우 그 자리에 디렉터리를 만들 수 있다. 그러면 파일을 읽어야 하는 프로필 경계와 수집 subprocess가 regular file 대신 디렉터리를 받아 비정상적으로 실패한다. 기동 전에 다음을 확인한다.
+
+```bash
+test -f docs/reference/company-profile.md && test -r docs/reference/company-profile.md
+test -f docs/reference/company-performance-titles.tsv && test -r docs/reference/company-performance-titles.tsv
+test -f web/backend/app/screening/baseline_company_profile.md && test -r web/backend/app/screening/baseline_company_profile.md
+```
+
+프로필 baseline은 실행 시 주입된 파일을 기존 SHA-256 검증으로 확인한다. `skills/` 스크립트는 image에 남아 있어 계약상 fallback으로 제공되지만, 위 세 mount 없이 `docker run`만 실행하면 프로필 관련 경로와 수집 subprocess를 사용할 수 없다. 이 경로는 의도된 보안 경계이므로 T7 Compose를 사용한다.
 
 ## 최초 기동
 
@@ -211,6 +230,23 @@ python3 skills/bidops-collect/scripts/collect_order_plans.py \
 
 소스와 fake 모델 검증은 live API key나 model endpoint 없이 실행한다.
 
+### C-2 Phase 0 계약 검증
+
+발주계획 C-2를 구현하거나 실행하기 전에 다음 read-only 검증을 수행한다. 이 명령은 raw
+입력·approved manifest·정책·선정 증거·부분 gold·binding의 SHA-256과 구조를 대조하지만,
+prompt/profile 본문을 출력하지 않고 모델 endpoint·외부 API를 호출하지 않는다.
+
+```bash
+python3 skills/bidops-screen/scripts/validate_order_plan_phase0.py --json
+```
+
+정상 결과도 현재는 `status=valid_but_blocked`, `execution_allowed=false`,
+`activation_allowed=false`다. `c1_gold_incomplete`, `audit_sample_policy_unapproved`,
+`quality_gate_not_measured`, `private_vllm_transport_requires_per_execution_approval`를
+사람 승인 없이 제거하거나 policy·binding을 직접 수정하지 않는다. hash가 다르거나 수집
+회차가 incomplete·warning 상태이면 exit 2로 종료하며 재생성·보정하지 않는다. scheduler는
+이 검증의 대상도 아니고 blocker도 아니다.
+
 ```bash
 ./run-tests.sh
 ./web/run-web-tests.sh
@@ -218,7 +254,7 @@ cd web/frontend && npm run test:visual
 COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose -f docker-compose.t7.yml build
 ```
 
-`web/run-web-tests.sh`는 임시 PostgreSQL 17에서 migration을 수행하고, 격리 DB의 backend 테스트와 frontend production build를 실행한다. Docker가 없으면 `BIDOPS_TEST_POSTGRES_URL`에 폐기 가능한 PostgreSQL 관리 URL을 제공한다. 운영 DB URL을 사용하지 않는다.
+`web/run-web-tests.sh`는 임시 PostgreSQL 17에서 migration을 수행하고, 격리 DB의 backend 테스트와 frontend production build, 네 폭의 Playwright 화면 스냅샷 회귀를 실행한다. Docker가 없으면 `BIDOPS_TEST_POSTGRES_URL`에 폐기 가능한 PostgreSQL 관리 URL을 제공한다. 운영 DB URL을 사용하지 않는다. Playwright는 브라우저 번들을 자동으로 내려받지 않으므로 없으면 실패한다.
 
 live Ollama 또는 vLLM smoke는 운영자가 명시한 한 번의 명령과 대상에서만 수행한다. safety 환경변수가 true라는 사실만으로 실행하지 않는다. 결과에는 모델명, digest 또는 승인된 immutable reference, 정책·프로필 버전, 입력 hash, 시작·종료 시각을 남긴다.
 
@@ -233,7 +269,12 @@ COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose \
 
 `scripts/backup-postgres.sh`는 timestamp가 붙은 custom-format dump를 만들고 기존 백업을 삭제하지 않는다. 4시간 RPO가 필요하면 이 스크립트와 별도로 WAL 보관을 구성하고 복구 시험으로 확인한다.
 
-객체 백업은 버전별 파일과 `object-versions.tsv`를 만든다. 실행 환경에 `mc`, `MINIO_ALIAS`, `OBJECT_BACKUP_DIR`를 제공한다.
+객체 백업은 네 개의 MinIO 버킷에서 모든 version을 버전별 파일로 복사하고
+`OBJECT_BACKUP_DIR/object-versions.tsv`를 만든다. manifest의 각 행은 헤더 없이
+`namespace/object_name<TAB>source_version_id<TAB>sha256` 형식이다. `sha256`은 source와
+백업 파일의 stored bytes가 같은지 복사 직후 다시 확인한 값이다. 실행 환경에 `mc`,
+`MINIO_ALIAS`, `OBJECT_BACKUP_DIR`를 제공한다. object key에 공백과 괄호가 있어도 TSV
+필드와 version-qualified 파일명으로 보존한다.
 
 ```bash
 ./scripts/backup-objects.sh
@@ -243,16 +284,36 @@ DB dump와 객체 manifest는 같은 복구 지점을 식별할 수 있게 함�
 
 ## 복구
 
-현재 restore script는 source version ID와 target version ID를 연결하지 못하고 DB active reference에서 완전한 manifest를 만들지 않으므로 복구 가능한 운영 도구가 아니다. 아래 순서와 환경변수는 수정 후 지켜야 할 목표 계약이며, 현재 script를 가치 있는 snapshot이나 운영 전환에 사용하지 않는다.
+복구는 기존 운영 대상 위가 아니라 빈 PostgreSQL과 빈 MinIO 대상에서 수행한다. 네 개 대상
+버킷은 versioning이 켜져 있어야 한다. restore는 source version ID를 target에 그대로
+재사용한다고 가정하지 않고, 각 `mc cp` 직후 target version ID를 조회한다. 복사 전 백업
+파일의 stored-byte hash도 manifest와 대조한다.
 
-복구는 기존 운영 대상 위가 아니라 빈 PostgreSQL과 빈 MinIO 대상에서 수행한다.
+`restore.sh`가 만드는 산출물은 다음과 같다.
+
+- `OBJECT_BACKUP_DIR/object-version-mapping.tsv`: 헤더 없는
+  `namespace/object_name<TAB>source_version_id<TAB>target_version_id<TAB>sha256` mapping.
+  백업 manifest의 source ID와 복구 대상에서 새로 발급된 target ID를 함께 보존한다.
+- `ACTIVE_HASH_MANIFEST`: `pg_restore` 뒤
+  `scripts/generate-active-hash-manifest.sh`가 복구 DB의 active object reference에서
+  원자적으로 다시 만든 manifest다. 수동으로 일부 object를 적은 파일을 준비하지 않는다.
+
+복구 순서는 객체 복사·백업 hash 확인 → DB restore → DB active manifest 생성 → target
+version ID·namespace별 무결성 및 active 집합 일대일 검증이다. source·structure·quarantine는
+target version의 stored-byte hash까지 대조한다. model-response는 암호화된 응답 envelope를
+저장하고 DB의 `ContentObject.sha256`에는 plaintext hash만 기록하므로, 내용 hash는 대조하지
+않고 target version에서 object 존재와 version만 확인한다. verifier는 mapping과 target의
+모든 복구 version을 대조하며, DB active object의 누락·추가·중복과 target object의
+누락·추가·중복을 실패시킨다.
 
 1. 복구 대상과 네트워크를 격리한다.
-2. `OBJECT_BACKUP_DIR`, `RESTORE_MINIO_ALIAS`로 버전별 객체를 먼저 복사한다.
+2. `OBJECT_BACKUP_DIR`, `RESTORE_MINIO_ALIAS`로 버전별 객체를 먼저 복사하고 target ID mapping을 남긴다.
 3. `DUMP_FILE`을 빈 PostgreSQL에 `pg_restore`한다.
-4. `ACTIVE_HASH_MANIFEST`와 복구 객체의 hash를 대조한다.
-5. FK, Alembic head, 핵심 row 수, active document·model response 참조를 검사한다.
-6. API read-only smoke와 대표 보고서 재현을 확인한 뒤에만 전환 여부를 사람이 결정한다.
+4. `ACTIVE_HASH_MANIFEST`를 복구 DB의 `bidops.content_object_location`과
+   `bidops.content_object`에서 생성한다.
+5. mapping의 target version ID로 active object의 hash와 DB active 집합을 대조한다.
+6. FK, Alembic head, 핵심 row 수, active document·model response 참조를 검사한다.
+7. API read-only smoke와 대표 보고서 재현을 확인한 뒤에만 전환 여부를 사람이 결정한다.
 
 ```bash
 OBJECT_BACKUP_DIR=/approved/objects \
@@ -261,12 +322,19 @@ ACTIVE_HASH_MANIFEST=/approved/active-hashes.tsv \
 RESTORE_MINIO_ALIAS=restore \
 BIDOPS_DATABASE_URL='postgresql+psycopg://...' \
 BIDOPS_DATABASE_HOST=restore-db \
+BIDOPS_DATABASE_PORT=5432 \
+BIDOPS_DATABASE_NAME=bidops \
 BIDOPS_DATABASE_USER=restore-user \
 BIDOPS_DATABASE_PASSWORD='injected-secret' \
 ./scripts/restore.sh
 ```
 
-현재 명령은 source volume 삭제나 `dropdb`는 수행하지 않지만 target version mapping과 active manifest 검증이 보완되기 전에는 성공적인 복구를 보장하지 않는다.
+host에 `mc`·`pg_restore`·`psql`이 없으면 동일한 변수를 주입한 승인된 ops image에서
+`bash /opt/bidops/scripts/restore.sh`를 실행한다. `BIDOPS_DATABASE_URL`은 실행 계약 식별자로
+함께 주입하고, 실제 명령은 `BIDOPS_DATABASE_HOST`·`PORT`·`NAME`·`USER`와
+`BIDOPS_DATABASE_PASSWORD`를 사용한다. `RESTORE_MINIO_ALIAS`는 네 개 target bucket에
+접근할 수 있는 `mc` alias여야 한다. 복구 중 source object, 기존 백업 파일, DB row를
+삭제하지 않으며, target이 비어 있지 않거나 versioning이 꺼져 있으면 검증 실패로 끝난다.
 
 ## 장애 대응
 

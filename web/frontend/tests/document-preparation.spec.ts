@@ -60,7 +60,7 @@ const notice = {
 };
 
 const overview = {
-  schema_version: "bidops.prespec-overview-reviews.v1",
+  schema_version: "bidops.prespec-overview-reviews.v2",
   notice_id: NOTICE_ID,
   reviews: [],
 };
@@ -105,6 +105,26 @@ function requestIdFromMultipart(body: string): string | null {
   return body.match(/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i)?.[0] ?? null;
 }
 
+// 문서 준비 화면이 추적 결정 구역을 그리는 데 필요한 최소 목록 항목이다.
+// `opportunity_id`가 있어야 결정 동선이 오류가 아닌 정상 상태로 렌더링된다.
+const preSpecItem = {
+  notice_pk: NOTICE_ID,
+  pre_spec_no: "PRE-991",
+  title: notice.title,
+  agency: notice.agency,
+  published_at: notice.published_at,
+  deadline_at: notice.deadline_at,
+  budget: notice.budget,
+  sw_business_status: "N",
+  business_division: "일반용역",
+  origin: "추적",
+  opportunity_id: 202,
+  tracking_status: "계속 추적",
+  kept_by_tracking: true,
+  document: { attachments: 2, "완료": 1, "대기": 1, "진행": 0, "차단": 0, "실패": 0 },
+  overview_review_status: null,
+};
+
 async function mockDocumentPreparation(page: Page, scenario: Scenario): Promise<PreparationTrace> {
   const trace: PreparationTrace = { creates: [], uploads: [], patches: [], confirms: [], deepReviews: [] };
   let bundle = scenario === "unavailable"
@@ -130,8 +150,22 @@ async function mockDocumentPreparation(page: Page, scenario: Scenario): Promise<
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(notice) });
       return;
     }
-    if (pathname === `/api/pre-specs/${NOTICE_ID}/overview-reviews` && method === "GET") {
+    if (pathname === `/api/pre-specs/${NOTICE_ID}/overview-reviews/v2` && method === "GET") {
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(overview) });
+      return;
+    }
+    // 이 화면은 추적 결정 구역에서 사업기회 연결과 첨부 집계를 함께 조회한다.
+    // 이 경로를 두지 않으면 갈무리 fixture가 404를 주고 구역 전체가 오류
+    // 상태로 남는다. 문서 준비를 보려는 테스트가 관계 없는 오류 화면 위에서
+    // 도는 셈이므로 여기서 정의된 상태를 준다.
+    if (pathname === "/api/pre-specs" && method === "GET") {
+      const requested = new URL(request.url()).searchParams.get("notice_pk");
+      const items = requested === null || Number(requested) === NOTICE_ID ? [preSpecItem] : [];
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ items, total: items.length, limit: 50, offset: 0 }),
+      });
       return;
     }
     if (pathname === `/api/notices/${NOTICE_ID}/document-bundles` && method === "GET") {
@@ -340,8 +374,9 @@ test("403 effective grade gate를 우회하지 않고 안정 사유를 표시한
   await page.getByLabel("담당자 claimed name").fill("홍길동");
   await page.getByRole("button", { name: "새 문서 bundle 만들기" }).click();
 
-  await expect(page.getByRole("alert")).toContainText("우선 검토 effective grade가 필요합니다");
-  await expect(page.getByRole("alert")).toContainText("서버 gate를 우회할 수 없습니다");
+  const gateFeedback = page.locator(".mutation-feedback");
+  await expect(gateFeedback).toContainText("우선 검토 effective grade가 필요합니다");
+  await expect(gateFeedback).toContainText("서버 gate를 우회할 수 없습니다");
   expect(trace.creates).toHaveLength(1);
   expect(trace.creates[0].body).toEqual({});
 });
@@ -359,7 +394,9 @@ test("ready·superseded 이력은 불변이고 503 profile/policy를 fail-closed
   await page.getByRole("button", { name: /Revision 2/ }).click();
   await expect(page.getByLabel("문서 역할 · ready.pdf")).toBeDisabled();
   await page.getByRole("button", { name: "이 ready bundle로 심층 검토 시작" }).click();
-  await expect(page.getByRole("alert")).toContainText("활성 profile version과 analysis policy version이 모두 필요합니다");
-  await expect(page.getByRole("alert")).toContainText("hosted OpenAI로 자동 전환하지 않습니다");
+  // 이 화면의 alert는 하나가 아니다. 심층 검토 요청 결과만 본다.
+  const deepReviewFeedback = page.locator(".mutation-feedback");
+  await expect(deepReviewFeedback).toContainText("활성 profile version과 analysis policy version이 모두 필요합니다");
+  await expect(deepReviewFeedback).toContainText("hosted OpenAI로 자동 전환하지 않습니다");
   expect(trace.deepReviews).toHaveLength(1);
 });

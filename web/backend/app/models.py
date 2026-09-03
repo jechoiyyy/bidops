@@ -41,7 +41,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, Session as OrmSession, foreign, mapped_column, relationship, synonym
 
 from .db import Base
-from .sql_dialect import dual
+from .sql_dialect import DualSQL, dual
 from .screening.generation_config import GenerationConfig, legacy_generation_config
 
 
@@ -1566,7 +1566,7 @@ class PreSpecOverviewSnapshot(Base):
 
 
 class PreSpecOverviewAttempt(Base):
-    """A lifecycle row whose input lineage is immutable after INSERT.
+    """A lifecycle row whose input lineage is immutable to runtime roles.
 
     Phase 1 created this table as fully append-only.  Phase 2 keeps the
     snapshot/provider binding immutable while allowing only the small set of
@@ -1591,6 +1591,10 @@ class PreSpecOverviewAttempt(Base):
         CheckConstraint(
             "(NOT reference_only) OR deployable IS FALSE",
             name="ck_prespec_overview_attempt_reference_boundary",
+        ),
+        CheckConstraint(
+            "status <> 'completed' OR (reference_only IS FALSE AND deployable IS TRUE)",
+            name="ck_prespec_overview_attempt_completed_binding",
         ),
         CheckConstraint(
             "((status = 'queued' AND started_at IS NULL AND completed_at IS NULL AND result_id IS NULL) "
@@ -1720,6 +1724,14 @@ class PreSpecOverviewResult(Base):
                 "json_valid(payload_jsonb) AND json_type(payload_jsonb) = 'object'"
             ),
             name="ck_prespec_overview_result_payload_object",
+        ),
+        CheckConstraint(
+            DualSQL(
+                "coalesce(json_array_length(json_extract(payload_jsonb, '$.evidence')), 0) >= 1",
+                "CASE WHEN jsonb_typeof(payload_jsonb -> 'evidence') = 'array' "
+                "THEN jsonb_array_length(payload_jsonb -> 'evidence') >= 1 ELSE FALSE END",
+            ),
+            name="ck_prespec_overview_result_evidence_nonempty",
         ),
         CheckConstraint(
             dual(
@@ -1856,166 +1868,6 @@ PRESPEC_OVERVIEW_ATTEMPT_TRANSITIONS = frozenset(
         ("running", "cancelled"),
     }
 )
-_PRESPEC_OVERVIEW_ATTEMPT_IMMUTABLE_FIELDS = frozenset(
-    {
-        "id",
-        "review_id",
-        "snapshot_id",
-        "sequence",
-        "reference_only",
-        "deployable",
-        "input_sha256",
-        "provider",
-        "model_name",
-        "model_digest",
-        "prompt_version",
-        "binding_digest",
-        "result_jsonb",
-        "result_sha256",
-        "created_at",
-    }
-)
-
-
-@event.listens_for(PreSpecOverviewAttempt, "before_update")
-def _validate_prespec_overview_attempt_update(
-    _mapper: Any, connection: Any, target: PreSpecOverviewAttempt
-) -> None:
-    """Mirror the PostgreSQL lifecycle trigger for isolated ORM tests."""
-
-    state = sa_inspect(target)
-    changed_immutable = sorted(
-        name
-        for name in _PRESPEC_OVERVIEW_ATTEMPT_IMMUTABLE_FIELDS
-        if state.attrs[name].history.has_changes()
-    )
-    if changed_immutable:
-        raise ValueError("pre-spec overview attempt input lineage is immutable")
-
-    status_history = state.attrs.status.history
-    if not status_history.has_changes():
-        lifecycle_fields = ("started_at", "completed_at", "result_id")
-        if any(state.attrs[name].history.has_changes() for name in lifecycle_fields):
-            raise ValueError("attempt lifecycle columns require a status transition")
-        return
-
-    previous = status_history.deleted[-1] if status_history.deleted else connection.execute(
-        select(PreSpecOverviewAttempt.status).where(
-            PreSpecOverviewAttempt.id == target.id
-        )
-    ).scalar_one_or_none()
-    if previous is None or (previous, target.status) not in PRESPEC_OVERVIEW_ATTEMPT_TRANSITIONS:
-        raise ValueError("invalid pre-spec overview attempt status transition")
-    latest_event = connection.execute(
-        select(
-            PreSpecOverviewAttemptEvent.from_status,
-            PreSpecOverviewAttemptEvent.to_status,
-        )
-        .where(PreSpecOverviewAttemptEvent.attempt_id == target.id)
-        .order_by(PreSpecOverviewAttemptEvent.event_sequence.desc())
-        .limit(1)
-    ).one_or_none()
-    if (
-        latest_event is None
-        or latest_event.from_status != previous
-        or latest_event.to_status != target.status
-    ):
-        raise ValueError("attempt transition requires an audit event")
-    if target.status == "running":
-        if target.started_at is None or target.completed_at is not None or target.result_id is not None:
-            raise ValueError("running attempt timestamps are invalid")
-    elif target.status == "completed":
-        if target.started_at is None or target.completed_at is None or target.result_id is None:
-            raise ValueError("completed attempt requires a result reference and timestamps")
-    else:
-        if target.completed_at is None or target.result_id is not None:
-            raise ValueError("terminal failed/cancelled attempt metadata is invalid")
-        if previous == "queued" and target.started_at is not None:
-            raise ValueError("queued attempt cannot finish with a start time")
-        if previous == "running" and state.attrs.started_at.history.has_changes():
-            # A running attempt keeps its original start timestamp.
-            raise ValueError("running attempt start time is immutable")
-
-
-@event.listens_for(PreSpecOverviewAttempt, "before_delete")
-def _reject_prespec_overview_attempt_delete(
-    _mapper: Any, _connection: Any, _target: PreSpecOverviewAttempt
-) -> None:
-    raise ValueError("pre-spec overview attempts are append-only")
-
-
-@event.listens_for(PreSpecOverviewAttemptEvent, "before_insert")
-def _validate_prespec_overview_event_insert(
-    _mapper: Any, connection: Any, target: PreSpecOverviewAttemptEvent
-) -> None:
-    """Mirror the PostgreSQL event trigger for isolated ORM tests."""
-
-    current_status = connection.execute(
-        select(PreSpecOverviewAttempt.status).where(
-            PreSpecOverviewAttempt.id == target.attempt_id
-        )
-    ).scalar_one_or_none()
-    if current_status is None or current_status != target.from_status:
-        raise ValueError("attempt event source status mismatch")
-    latest_sequence = connection.execute(
-        select(PreSpecOverviewAttemptEvent.event_sequence)
-        .where(PreSpecOverviewAttemptEvent.attempt_id == target.attempt_id)
-        .order_by(PreSpecOverviewAttemptEvent.event_sequence.desc())
-        .limit(1)
-    ).scalar_one_or_none()
-    if target.event_sequence != (latest_sequence or 0) + 1:
-        raise ValueError("attempt event sequence is not append-only")
-
-
-@event.listens_for(PreSpecOverviewResult, "before_insert")
-def _validate_prespec_overview_result_insert(
-    _mapper: Any, connection: Any, target: PreSpecOverviewResult
-) -> None:
-    """Mirror the PostgreSQL result scope trigger for isolated ORM tests."""
-
-    attempt = connection.execute(
-        select(
-            PreSpecOverviewAttempt.status,
-            PreSpecOverviewAttempt.review_id,
-            PreSpecOverviewAttempt.snapshot_id,
-            PreSpecOverviewAttempt.binding_digest,
-        ).where(PreSpecOverviewAttempt.id == target.attempt_id)
-    ).one_or_none()
-    snapshot = connection.execute(
-        select(
-            PreSpecOverviewSnapshot.review_id,
-            PreSpecOverviewSnapshot.source_sha256,
-        ).where(PreSpecOverviewSnapshot.id == target.snapshot_id)
-    ).one_or_none()
-    if (
-        attempt is None
-        or snapshot is None
-        or attempt.status != "running"
-        or attempt.review_id is None
-        or attempt.review_id != target.review_id
-        or attempt.snapshot_id != target.snapshot_id
-        or attempt.binding_digest != target.binding_digest
-        or snapshot.review_id != target.review_id
-        or snapshot.source_sha256 != target.source_sha256
-    ):
-        raise ValueError("overview result scope mismatch")
-
-
-@event.listens_for(PreSpecOverviewResult, "before_update")
-@event.listens_for(PreSpecOverviewResult, "before_delete")
-def _reject_prespec_overview_result_mutation(
-    _mapper: Any, _connection: Any, _target: PreSpecOverviewResult
-) -> None:
-    raise ValueError("pre-spec overview results are immutable")
-
-
-@event.listens_for(PreSpecOverviewAttemptEvent, "before_update")
-@event.listens_for(PreSpecOverviewAttemptEvent, "before_delete")
-def _reject_prespec_overview_event_mutation(
-    _mapper: Any, _connection: Any, _target: PreSpecOverviewAttemptEvent
-) -> None:
-    raise ValueError("pre-spec overview attempt events are append-only")
-
 
 class DocumentBundle(Base):
     __tablename__ = "document_bundle"
@@ -2830,6 +2682,418 @@ class AuditEvent(Base):
     created_at: Mapped[datetime] = mapped_column(AwareDateTime(), default=utc_now, nullable=False)
 
 
+# C-2 order-plan screening -------------------------------------------------
+#
+# These tables deliberately do not reuse the notice-screening runtime tables
+# above.  The C-2 file contract has a different result vocabulary and its
+# source/binding snapshot must remain independent of the older workflow.
+
+
+class OrderPlanScreeningPolicy(Base):
+    __tablename__ = "order_plan_screening_policy"
+    __table_args__ = (
+        UniqueConstraint("policy_version", name="uq_order_plan_screening_policy_version"),
+        Index(
+            "uq_order_plan_screening_policy_active",
+            "active_slot",
+            unique=True,
+            sqlite_where=text("active_slot IS NOT NULL"),
+            postgresql_where=text("active_slot IS NOT NULL"),
+        ),
+        CheckConstraint(
+            "schema_version = 'bidops.order-plan-screening-policy.v1'",
+            name="ck_order_plan_screening_policy_schema_version",
+        ),
+        CheckConstraint(
+            "producer = 'phase0-contracts' AND consumer = 'phase1-screening-pipeline'",
+            name="ck_order_plan_screening_policy_provenance",
+        ),
+        CheckConstraint(
+            "policy_status IN ('draft','activation_candidate','active','retired')",
+            name="ck_order_plan_screening_policy_status",
+        ),
+        CheckConstraint(
+            "decision_scope = 'c2_order_plan_first_pass'",
+            name="ck_order_plan_screening_policy_scope",
+        ),
+        CheckConstraint(
+            dual("length(policy_sha256) = 64 AND policy_sha256 NOT GLOB '*[^0-9a-f]*'"),
+            name="ck_order_plan_screening_policy_sha256",
+        ),
+        CheckConstraint(
+            dual("length(binding_sha256) = 64 AND binding_sha256 NOT GLOB '*[^0-9a-f]*'"),
+            name="ck_order_plan_screening_policy_binding_sha256",
+        ),
+        CheckConstraint(
+            DualSQL(
+                "json_valid(policy_payload_jsonb) AND json_type(policy_payload_jsonb) = 'object'",
+                "jsonb_typeof(policy_payload_jsonb) = 'object'",
+            ),
+            name="ck_order_plan_screening_policy_payload_object",
+        ),
+        CheckConstraint(
+            DualSQL(
+                "json_valid(binding_payload_jsonb) AND json_type(binding_payload_jsonb) = 'object'",
+                "jsonb_typeof(binding_payload_jsonb) = 'object'",
+            ),
+            name="ck_order_plan_screening_policy_binding_object",
+        ),
+        CheckConstraint(
+            "((policy_status = 'active' AND active_slot = 1 AND activated_at IS NOT NULL AND activated_by IS NOT NULL AND length(trim(activated_by)) > 0) OR (policy_status <> 'active' AND active_slot IS NULL))",
+            name="ck_order_plan_screening_policy_active_metadata",
+        ),
+        CheckConstraint(
+            "quality_gate_status IS NULL OR quality_gate_status IN ('not_measured','measured','passed','failed')",
+            name="ck_order_plan_screening_policy_quality_gate_status",
+        ),
+        CheckConstraint(
+            "length(trim(policy_version)) > 0 AND length(trim(created_by)) > 0",
+            name="ck_order_plan_screening_policy_strings",
+        ),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    policy_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    producer: Mapped[str] = mapped_column(String(128), nullable=False)
+    consumer: Mapped[str] = mapped_column(String(128), nullable=False)
+    policy_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    decision_scope: Mapped[str] = mapped_column(String(64), nullable=False)
+    policy_payload_jsonb: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    binding_payload_jsonb: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    policy_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    binding_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    activation_metadata_jsonb: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    quality_gate_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    active_slot: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_by: Mapped[str] = mapped_column(String(128), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False)
+    activated_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    activated_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
+
+    # Small naming aliases keep the storage vocabulary close to the contract
+    # wording without creating duplicate columns.
+    policy_jsonb = synonym("policy_payload_jsonb")
+    binding_jsonb = synonym("binding_payload_jsonb")
+
+
+class OrderPlanScreeningExecution(Base):
+    __tablename__ = "order_plan_screening_execution"
+    __table_args__ = (
+        UniqueConstraint("request_id", name="uq_order_plan_screening_execution_request"),
+        Index(
+            "uq_order_plan_screening_execution_active",
+            "active_slot",
+            unique=True,
+            sqlite_where=text("active_slot IS NOT NULL"),
+            postgresql_where=text("status IN ('실행 중', '중지 요청')"),
+        ),
+        CheckConstraint(
+            "schema_version = 'bidops.order-plan-screening-execution-row.v1'",
+            name="ck_order_plan_screening_execution_schema_version",
+        ),
+        CheckConstraint(
+            "producer = 'screening-api' AND consumer = 'screening-worker-and-review-api'",
+            name="ck_order_plan_screening_execution_provenance",
+        ),
+        CheckConstraint(
+            "status IN ('대기','실행 중','중지 요청','성공','부분 성공','실패','중단됨')",
+            name="ck_order_plan_screening_execution_status",
+        ),
+        CheckConstraint(
+            "((status IN ('실행 중','중지 요청') AND active_slot = 1) OR (status NOT IN ('실행 중','중지 요청') AND active_slot IS NULL))",
+            name="ck_order_plan_screening_execution_active_slot",
+        ),
+        CheckConstraint(
+            "((status IN ('성공','부분 성공','실패','중단됨') AND started_at IS NOT NULL AND finished_at IS NOT NULL) OR (status IN ('실행 중','중지 요청') AND started_at IS NOT NULL AND finished_at IS NULL) OR (status = '대기' AND started_at IS NULL AND finished_at IS NULL))",
+            name="ck_order_plan_screening_execution_lifecycle",
+        ),
+        CheckConstraint(
+            "population_count >= 1 AND population_sha256 IS NOT NULL",
+            name="ck_order_plan_screening_execution_population",
+        ),
+        CheckConstraint(
+            "candidate_count >= 0 AND completed_count >= 0 AND failure_count >= 0 AND stage1_selected_count >= 0 AND stage1_filtered_out_count >= 0 AND stage1_failed_count >= 0 AND stage2_relevant_count >= 0 AND stage2_not_relevant_count >= 0 AND stage2_uncertain_count >= 0 AND stage2_failed_count >= 0 AND stage2_rejected_count >= 0 AND human_review_count >= 0",
+            name="ck_order_plan_screening_execution_counts",
+        ),
+        CheckConstraint(
+            dual("length(source_artifact_sha256) = 64 AND source_artifact_sha256 NOT GLOB '*[^0-9a-f]*'"),
+            name="ck_order_plan_screening_execution_source_sha256",
+        ),
+        CheckConstraint(
+            dual("length(input_artifact_sha256) = 64 AND input_artifact_sha256 NOT GLOB '*[^0-9a-f]*'"),
+            name="ck_order_plan_screening_execution_input_sha256",
+        ),
+        CheckConstraint(
+            dual("length(population_sha256) = 64 AND population_sha256 NOT GLOB '*[^0-9a-f]*'"),
+            name="ck_order_plan_screening_execution_population_sha256",
+        ),
+        CheckConstraint(
+            dual("length(policy_sha256) = 64 AND policy_sha256 NOT GLOB '*[^0-9a-f]*'"),
+            name="ck_order_plan_screening_execution_policy_sha256",
+        ),
+        CheckConstraint(
+            dual("length(binding_sha256) = 64 AND binding_sha256 NOT GLOB '*[^0-9a-f]*'"),
+            name="ck_order_plan_screening_execution_binding_sha256",
+        ),
+        CheckConstraint(
+            DualSQL(
+                "length(trim(source_artifact_name)) > 0 AND source_artifact_name NOT LIKE '/%' AND source_artifact_name NOT LIKE '%\\%' AND source_artifact_name <> '..' AND source_artifact_name NOT LIKE '../%' AND source_artifact_name NOT LIKE '%/../%' AND source_artifact_name NOT LIKE '%/..'",
+                "length(trim(source_artifact_name)) > 0 AND source_artifact_name NOT LIKE '/%' AND position(chr(92) in source_artifact_name) = 0 AND source_artifact_name <> '..' AND source_artifact_name NOT LIKE '../%' AND source_artifact_name NOT LIKE '%/../%' AND source_artifact_name NOT LIKE '%/..'",
+            ),
+            name="ck_order_plan_screening_execution_source_artifact_name",
+        ),
+        CheckConstraint(
+            "length(trim(requested_by)) > 0 AND length(trim(policy_version)) > 0 AND length(trim(stage1_binding_version)) > 0 AND length(trim(stage2_binding_version)) > 0",
+            name="ck_order_plan_screening_execution_strings",
+        ),
+    )
+
+    execution_id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    request_id: Mapped[uuid_module.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    producer: Mapped[str] = mapped_column(String(128), nullable=False)
+    consumer: Mapped[str] = mapped_column(String(128), nullable=False)
+    source_run_id: Mapped[str] = mapped_column(_fk("run.id", ondelete="RESTRICT"), nullable=False)
+    source_artifact_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    source_artifact_schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_artifact_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    input_artifact_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    population_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    population_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    policy_version: Mapped[str] = mapped_column(_fk("order_plan_screening_policy.policy_version", ondelete="RESTRICT"), nullable=False)
+    policy_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    binding_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    stage1_binding_version: Mapped[str] = mapped_column(String(128), nullable=False)
+    stage1_binding_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    stage2_binding_version: Mapped[str] = mapped_column(String(128), nullable=False)
+    stage2_binding_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    active_slot: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    requested_by: Mapped[str] = mapped_column(String(128), nullable=False)
+    partial_artifact: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    candidate_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    completed_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    failure_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    stage1_selected_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    stage1_filtered_out_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    stage1_failed_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    stage2_relevant_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    stage2_not_relevant_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    stage2_uncertain_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    stage2_failed_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    stage2_rejected_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    human_review_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    error_code: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    queued_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
+    heartbeat_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False)
+
+
+class OrderPlanScreeningBatchAttempt(Base):
+    __tablename__ = "order_plan_screening_batch_attempt"
+    __table_args__ = (
+        UniqueConstraint(
+            "execution_id", "batch_id", "attempt_no",
+            name="uq_order_plan_screening_batch_attempt_scope",
+        ),
+        CheckConstraint(
+            "schema_version = 'bidops.order-plan-screening-batch-attempt-row.v1'",
+            name="ck_order_plan_screening_batch_attempt_schema_version",
+        ),
+        CheckConstraint(
+            "producer = 'screening-worker' AND consumer = 'screening-merge-and-observability'",
+            name="ck_order_plan_screening_batch_attempt_provenance",
+        ),
+        CheckConstraint("sequence >= 1 AND attempt_no BETWEEN 1 AND 2 AND plan_count >= 1", name="ck_order_plan_screening_batch_attempt_numbers"),
+        CheckConstraint("attempt_status IN ('running','success','failed','rejected')", name="ck_order_plan_screening_batch_attempt_status"),
+        CheckConstraint(
+            "((attempt_status = 'running' AND started_at IS NOT NULL AND finished_at IS NULL) OR (attempt_status IN ('success','failed','rejected') AND finished_at IS NOT NULL))",
+            name="ck_order_plan_screening_batch_attempt_lifecycle",
+        ),
+        CheckConstraint(
+            "failure_type IS NULL OR failure_type IN ('timeout','truncated_output','schema_violation','id_mismatch','model_mismatch','binding_mismatch','payload_not_approved','transport','policy_rejected','unknown')",
+            name="ck_order_plan_screening_batch_attempt_failure_type",
+        ),
+        CheckConstraint(
+            "((attempt_status = 'success' AND failure_type IS NULL AND failure_code IS NULL) OR (attempt_status IN ('failed','rejected') AND failure_type IS NOT NULL AND failure_code IS NOT NULL AND length(trim(failure_code)) > 0) OR attempt_status = 'running')",
+            name="ck_order_plan_screening_batch_attempt_failure_pair",
+        ),
+        CheckConstraint("plan_ids_jsonb IS NOT NULL", name="ck_order_plan_screening_batch_attempt_plan_ids_present"),
+        CheckConstraint(
+            DualSQL(
+                "json_valid(plan_ids_jsonb) AND json_type(plan_ids_jsonb) = 'array'",
+                "jsonb_typeof(plan_ids_jsonb) = 'array'",
+            ),
+            name="ck_order_plan_screening_batch_attempt_plan_ids_array",
+        ),
+        CheckConstraint(
+            dual("length(plan_ids_sha256) = 64 AND plan_ids_sha256 NOT GLOB '*[^0-9a-f]*'"),
+            name="ck_order_plan_screening_batch_attempt_plan_ids_sha256",
+        ),
+        CheckConstraint(
+            dual("length(model_digest) = 64 AND model_digest NOT GLOB '*[^0-9a-f]*' AND length(prompt_sha256) = 64 AND prompt_sha256 NOT GLOB '*[^0-9a-f]*' AND length(company_profile_sha256) = 64 AND company_profile_sha256 NOT GLOB '*[^0-9a-f]*' AND length(generation_config_sha256) = 64 AND generation_config_sha256 NOT GLOB '*[^0-9a-f]*'"),
+            name="ck_order_plan_screening_batch_attempt_binding_sha256",
+        ),
+        CheckConstraint("input_tokens IS NULL OR input_tokens >= 0", name="ck_order_plan_screening_batch_attempt_input_tokens"),
+        CheckConstraint("cached_input_tokens IS NULL OR cached_input_tokens >= 0", name="ck_order_plan_screening_batch_attempt_cached_input_tokens"),
+        CheckConstraint("output_tokens IS NULL OR output_tokens >= 0", name="ck_order_plan_screening_batch_attempt_output_tokens"),
+        CheckConstraint("total_tokens IS NULL OR total_tokens >= 0", name="ck_order_plan_screening_batch_attempt_total_tokens"),
+        CheckConstraint("duration_ms IS NULL OR duration_ms >= 0", name="ck_order_plan_screening_batch_attempt_duration"),
+        CheckConstraint("length(trim(batch_id)) > 0 AND length(trim(model_name)) > 0 AND length(trim(prompt_version)) > 0 AND length(trim(company_profile_version)) > 0", name="ck_order_plan_screening_batch_attempt_strings"),
+    )
+
+    attempt_id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    execution_id: Mapped[uuid_module.UUID] = mapped_column(_fk("order_plan_screening_execution.execution_id", ondelete="RESTRICT"), nullable=False)
+    batch_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    attempt_no: Mapped[int] = mapped_column(Integer, nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    producer: Mapped[str] = mapped_column(String(128), nullable=False)
+    consumer: Mapped[str] = mapped_column(String(128), nullable=False)
+    plan_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    plan_ids_jsonb: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    plan_ids_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    model_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    model_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    prompt_version: Mapped[str] = mapped_column(String(128), nullable=False)
+    prompt_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    company_profile_version: Mapped[str] = mapped_column(String(128), nullable=False)
+    company_profile_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    generation_config_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    attempt_status: Mapped[str] = mapped_column(String(16), nullable=False)
+    failure_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    failure_code: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    response_object_ref: Mapped[str | None] = mapped_column(Text, nullable=True)
+    input_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cached_input_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    output_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    total_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False)
+
+
+class OrderPlanScreeningResult(Base):
+    __tablename__ = "order_plan_screening_result"
+    __table_args__ = (
+        UniqueConstraint("execution_id", "order_plan_id", name="uq_order_plan_screening_result_plan"),
+        CheckConstraint("schema_version = 'bidops.order-plan-screening-result-row.v1'", name="ck_order_plan_screening_result_schema_version"),
+        CheckConstraint("producer = 'order-plan-screening-merge' AND consumer = 'postgres-loader-and-review-api'", name="ck_order_plan_screening_result_provenance"),
+        CheckConstraint("stage1_status IN ('selected','filtered_out','failed','rejected')", name="ck_order_plan_screening_result_stage1_status"),
+        CheckConstraint("stage2_status IN ('not_attempted','success','failed','rejected','unknown')", name="ck_order_plan_screening_result_stage2_status"),
+        CheckConstraint("stage1_rank IS NULL OR stage1_rank >= 1", name="ck_order_plan_screening_result_stage1_rank"),
+        CheckConstraint("stage1_score IS NULL OR stage1_score >= 0", name="ck_order_plan_screening_result_stage1_score"),
+        CheckConstraint("qwen_score IS NULL OR (qwen_score >= 0 AND qwen_score <= 1)", name="ck_order_plan_screening_result_qwen_score"),
+        CheckConstraint("attempt_no IS NULL OR attempt_no BETWEEN 1 AND 2", name="ck_order_plan_screening_result_attempt_no"),
+        CheckConstraint("(batch_id IS NULL) = (attempt_no IS NULL)", name="ck_order_plan_screening_result_batch_attempt_pair"),
+        CheckConstraint(
+            "((stage1_status IN ('failed','rejected') AND stage1_rank IS NULL AND stage1_score IS NULL AND nearest_capability IS NULL AND stage2_status = 'not_attempted') OR (stage1_status = 'filtered_out' AND stage1_rank IS NOT NULL AND stage1_score IS NOT NULL AND stage2_status = 'not_attempted') OR (stage1_status = 'selected' AND stage1_rank IS NOT NULL AND stage1_score IS NOT NULL))",
+            name="ck_order_plan_screening_result_stage1_fields",
+        ),
+        CheckConstraint(
+            "((stage2_status = 'not_attempted' AND qwen_relevance IS NULL AND qwen_score IS NULL AND qwen_reason IS NULL AND batch_id IS NULL AND attempt_no IS NULL AND failure_code IS NULL) OR (stage2_status = 'success' AND qwen_relevance IN ('relevant','not_relevant','uncertain') AND qwen_score IS NOT NULL AND qwen_reason IS NOT NULL AND length(trim(qwen_reason)) > 0 AND length(qwen_reason) <= 500 AND batch_id IS NOT NULL AND attempt_no IS NOT NULL AND failure_code IS NULL) OR (stage2_status IN ('failed','rejected','unknown') AND qwen_relevance IS NULL AND qwen_score IS NULL AND qwen_reason IS NULL AND failure_code IS NOT NULL AND length(trim(failure_code)) > 0))",
+            name="ck_order_plan_screening_result_stage2_fields",
+        ),
+        CheckConstraint(
+            dual("length(input_artifact_sha256) = 64 AND input_artifact_sha256 NOT GLOB '*[^0-9a-f]*' AND length(policy_sha256) = 64 AND policy_sha256 NOT GLOB '*[^0-9a-f]*' AND length(binding_sha256) = 64 AND binding_sha256 NOT GLOB '*[^0-9a-f]*' AND length(result_sha256) = 64 AND result_sha256 NOT GLOB '*[^0-9a-f]*'"),
+            name="ck_order_plan_screening_result_hashes",
+        ),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    execution_id: Mapped[uuid_module.UUID] = mapped_column(_fk("order_plan_screening_execution.execution_id", ondelete="RESTRICT"), nullable=False)
+    source_run_id: Mapped[str] = mapped_column(_fk("run.id", ondelete="RESTRICT"), nullable=False)
+    order_plan_id: Mapped[int] = mapped_column(_fk("order_plan.id", ondelete="RESTRICT"), nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    producer: Mapped[str] = mapped_column(String(128), nullable=False)
+    consumer: Mapped[str] = mapped_column(String(128), nullable=False)
+    input_artifact_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    policy_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    policy_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    binding_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    result_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    stage1_rank: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    stage1_score: Mapped[Decimal | None] = mapped_column(Numeric(20, 10), nullable=True)
+    nearest_capability: Mapped[str | None] = mapped_column(Text, nullable=True)
+    stage1_status: Mapped[str] = mapped_column(String(16), nullable=False)
+    stage2_status: Mapped[str] = mapped_column(String(16), nullable=False)
+    qwen_relevance: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    qwen_score: Mapped[Decimal | None] = mapped_column(Numeric(20, 10), nullable=True)
+    qwen_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    batch_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    attempt_no: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    failure_code: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False)
+
+
+class OrderPlanScreeningArtifact(Base):
+    __tablename__ = "order_plan_screening_artifact"
+    __table_args__ = (
+        UniqueConstraint("execution_id", "kind", name="uq_order_plan_screening_artifact_kind"),
+        CheckConstraint("kind IN ('input','ranking','decisions','failures','telemetry','result','feedback')", name="ck_order_plan_screening_artifact_kind"),
+        CheckConstraint("validation_status IN ('pending','valid','invalid')", name="ck_order_plan_screening_artifact_validation_status"),
+        CheckConstraint("byte_count >= 0", name="ck_order_plan_screening_artifact_byte_count"),
+        CheckConstraint("schema_version IS NOT NULL AND length(trim(schema_version)) > 0 AND length(trim(producer)) > 0 AND length(trim(consumer)) > 0", name="ck_order_plan_screening_artifact_provenance"),
+        CheckConstraint(dual("length(sha256) = 64 AND sha256 NOT GLOB '*[^0-9a-f]*'"), name="ck_order_plan_screening_artifact_sha256"),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    execution_id: Mapped[uuid_module.UUID] = mapped_column(_fk("order_plan_screening_execution.execution_id", ondelete="RESTRICT"), nullable=False)
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    producer: Mapped[str] = mapped_column(String(128), nullable=False)
+    consumer: Mapped[str] = mapped_column(String(128), nullable=False)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    byte_count: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    object_version: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    validation_status: Mapped[str] = mapped_column(String(16), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False)
+    object_version_ref = synonym("object_version")
+
+
+class OrderPlanScreeningFeedback(Base):
+    __tablename__ = "order_plan_screening_feedback"
+    __table_args__ = (
+        UniqueConstraint("execution_id", "order_plan_id", "revision", name="uq_order_plan_screening_feedback_revision"),
+        CheckConstraint("schema_version = 'bidops.order-plan-screening-feedback.v1'", name="ck_order_plan_screening_feedback_schema_version"),
+        CheckConstraint("producer = 'human-review-api' AND consumer = 'postgres-review-history'", name="ck_order_plan_screening_feedback_provenance"),
+        CheckConstraint("actor_kind = 'human'", name="ck_order_plan_screening_feedback_actor_kind"),
+        CheckConstraint("relevance IN ('relevant','not_relevant','uncertain')", name="ck_order_plan_screening_feedback_relevance"),
+        CheckConstraint("priority IS NULL OR priority IN ('high','medium','low')", name="ck_order_plan_screening_feedback_priority"),
+        CheckConstraint("revision >= 1", name="ck_order_plan_screening_feedback_revision"),
+        CheckConstraint("length(trim(claimed_name)) > 0 AND (memo IS NULL OR length(trim(memo)) > 0)", name="ck_order_plan_screening_feedback_strings"),
+    )
+
+    feedback_id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    execution_id: Mapped[uuid_module.UUID] = mapped_column(_fk("order_plan_screening_execution.execution_id", ondelete="RESTRICT"), nullable=False)
+    order_plan_id: Mapped[int] = mapped_column(_fk("order_plan.id", ondelete="RESTRICT"), nullable=False)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    producer: Mapped[str] = mapped_column(String(128), nullable=False)
+    consumer: Mapped[str] = mapped_column(String(128), nullable=False)
+    actor_kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    claimed_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    relevance: Mapped[str] = mapped_column(String(16), nullable=False)
+    priority: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    memo: Mapped[str | None] = mapped_column(Text, nullable=True)
+    supersedes_feedback_id: Mapped[uuid_module.UUID | None] = mapped_column(_fk("order_plan_screening_feedback.feedback_id", ondelete="RESTRICT"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False)
+
+
+ORDER_PLAN_SCREENING_TABLES = (
+    "order_plan_screening_policy",
+    "order_plan_screening_execution",
+    "order_plan_screening_batch_attempt",
+    "order_plan_screening_result",
+    "order_plan_screening_artifact",
+    "order_plan_screening_feedback",
+)
+
+
 LEGACY_TABLES = (
     "run", "notice", "judgment", "perspective", "screening_evidence", "counterargument",
     "verification_item", "matched_performance", "attachment", "agency_portal", "review",
@@ -2900,3 +3164,556 @@ IDENTITY_TABLES = (
     "notice_observation", "order_plan", "order_plan_observation",
     *OPPORTUNITY_TABLES,
 )
+
+
+# R-08 composite foreign keys need these exact target scopes.  They are
+# appended here so the existing lifecycle model declarations remain untouched.
+OpportunityLink.__table__.append_constraint(
+    UniqueConstraint("id", "opportunity_id", name="uq_opportunity_link_opportunity_scope")
+)
+OpportunityLink.__table__.append_constraint(
+    UniqueConstraint("id", "notice_id", name="uq_opportunity_link_notice_scope")
+)
+DocumentBundle.__table__.append_constraint(
+    UniqueConstraint("id", "notice_id", name="uq_document_bundle_notice_scope")
+)
+
+
+BID_DELTA_TABLES = (
+    "bid_delta_comparison", "bid_delta_attempt", "bid_delta_item",
+    "bid_delta_evidence", "bid_final_decision",
+)
+
+
+
+class BidDeltaComparison(Base):
+    """An immutable exact document pair used for a bid delta calculation."""
+
+    __tablename__ = "bid_delta_comparison"
+    __table_args__ = (
+        UniqueConstraint(
+            "opportunity_id", "sequence", name="uq_bid_delta_comparison_sequence"
+        ),
+        UniqueConstraint(
+            "id", "opportunity_id", name="uq_bid_delta_comparison_opportunity_scope"
+        ),
+        UniqueConstraint(
+            "opportunity_id",
+            "baseline_document_version_id",
+            "comparison_document_version_id",
+            "category_policy_version",
+            name="uq_bid_delta_comparison_inputs",
+        ),
+        ForeignKeyConstraint(
+            ["id", "current_attempt_id"],
+            ["bid_delta_attempt.comparison_id", "bid_delta_attempt.id"],
+            name="fk_bid_delta_comparison_current_attempt_scope",
+            ondelete="RESTRICT",
+            use_alter=True,
+        ),
+        ForeignKeyConstraint(
+            ["baseline_link_id", "opportunity_id"],
+            ["opportunity_link.id", "opportunity_link.opportunity_id"],
+            name="fk_bid_delta_comparison_baseline_link_opportunity",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["comparison_link_id", "opportunity_id"],
+            ["opportunity_link.id", "opportunity_link.opportunity_id"],
+            name="fk_bid_delta_comparison_comparison_link_opportunity",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["baseline_link_id", "baseline_notice_id"],
+            ["opportunity_link.id", "opportunity_link.notice_id"],
+            name="fk_bid_delta_comparison_baseline_link_notice",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["comparison_link_id", "comparison_notice_id"],
+            ["opportunity_link.id", "opportunity_link.notice_id"],
+            name="fk_bid_delta_comparison_comparison_link_notice",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["baseline_bundle_id", "baseline_notice_id"],
+            ["document_bundle.id", "document_bundle.notice_id"],
+            name="fk_bid_delta_comparison_baseline_bundle_notice",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["comparison_bundle_id", "comparison_notice_id"],
+            ["document_bundle.id", "document_bundle.notice_id"],
+            name="fk_bid_delta_comparison_comparison_bundle_notice",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            [
+                "baseline_bundle_id",
+                "baseline_document_version_id",
+                "baseline_structure_id",
+            ],
+            [
+                "document_bundle_item.bundle_id",
+                "document_bundle_item.document_version_id",
+                "document_bundle_item.structure_id_at_confirmation",
+            ],
+            name="fk_bid_delta_comparison_baseline_bundle_item_scope",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            [
+                "comparison_bundle_id",
+                "comparison_document_version_id",
+                "comparison_structure_id",
+            ],
+            [
+                "document_bundle_item.bundle_id",
+                "document_bundle_item.document_version_id",
+                "document_bundle_item.structure_id_at_confirmation",
+            ],
+            name="fk_bid_delta_comparison_comparison_bundle_item_scope",
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint(
+            "baseline_document_version_id <> comparison_document_version_id",
+            name="ck_bid_delta_comparison_different_documents",
+        ),
+        CheckConstraint(
+            "calculation_status IN ('pending','running','completed','failed')",
+            name="ck_bid_delta_comparison_calculation_status",
+        ),
+        CheckConstraint(
+            "result_status IS NULL OR result_status IN "
+            "('changed','unchanged','unknown','failed')",
+            name="ck_bid_delta_comparison_result_status",
+        ),
+        CheckConstraint(
+            "materiality IN ('material','non_material','unknown')",
+            name="ck_bid_delta_comparison_materiality",
+        ),
+        CheckConstraint(
+            "((calculation_status = 'pending' AND result_status IS NULL "
+            "AND started_at IS NULL AND completed_at IS NULL AND result_sha256 IS NULL) "
+            "OR (calculation_status = 'running' AND result_status IS NULL "
+            "AND started_at IS NOT NULL AND completed_at IS NULL AND result_sha256 IS NULL) "
+            "OR (calculation_status = 'completed' "
+            "AND result_status IN ('changed','unchanged','unknown') "
+            "AND started_at IS NOT NULL AND completed_at IS NOT NULL "
+            "AND result_sha256 IS NOT NULL AND last_error_code IS NULL) "
+            "OR (calculation_status = 'failed' AND result_status = 'failed' "
+            "AND completed_at IS NOT NULL AND last_error_code IS NOT NULL "
+            "AND result_sha256 IS NULL))",
+            name="ck_bid_delta_comparison_lifecycle",
+        ),
+        CheckConstraint(
+            "((result_status = 'unchanged' AND materiality = 'non_material') "
+            "OR (result_status IN ('unknown','failed') AND materiality = 'unknown') "
+            "OR (result_status = 'changed' AND materiality IN "
+            "('material','non_material','unknown')) "
+            "OR (result_status IS NULL AND materiality = 'unknown'))",
+            name="ck_bid_delta_comparison_result_materiality",
+        ),
+        CheckConstraint(
+            DualSQL(
+                "length(baseline_source_sha256) = 64 AND "
+                "baseline_source_sha256 NOT GLOB '*[^0-9a-f]*' AND "
+                "length(baseline_structure_payload_sha256) = 64 AND "
+                "baseline_structure_payload_sha256 NOT GLOB '*[^0-9a-f]*' AND "
+                "length(comparison_source_sha256) = 64 AND "
+                "comparison_source_sha256 NOT GLOB '*[^0-9a-f]*' AND "
+                "length(comparison_structure_payload_sha256) = 64 AND "
+                "comparison_structure_payload_sha256 NOT GLOB '*[^0-9a-f]*'",
+                "baseline_source_sha256 ~ '^[0-9a-f]{64}$' AND "
+                "baseline_structure_payload_sha256 ~ '^[0-9a-f]{64}$' AND "
+                "comparison_source_sha256 ~ '^[0-9a-f]{64}$' AND "
+                "comparison_structure_payload_sha256 ~ '^[0-9a-f]{64}$'",
+            ),
+            name="ck_bid_delta_comparison_input_sha256",
+        ),
+        CheckConstraint(
+            DualSQL(
+                "result_sha256 IS NULL OR "
+                "(length(result_sha256) = 64 AND "
+                "result_sha256 NOT GLOB '*[^0-9a-f]*')",
+                "result_sha256 IS NULL OR result_sha256 ~ '^[0-9a-f]{64}$'",
+            ),
+            name="ck_bid_delta_comparison_result_sha256",
+        ),
+        CheckConstraint(
+            "length(trim(created_by_name)) > 0",
+            name="ck_bid_delta_comparison_created_by_name",
+        ),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    opportunity_id: Mapped[int] = mapped_column(_fk("opportunity.id", ondelete="RESTRICT"), nullable=False)
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    version: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default=text("1")
+    )
+    category_policy_version: Mapped[str] = mapped_column(String(64), nullable=False)
+
+    baseline_link_id: Mapped[int] = mapped_column(_fk("opportunity_link.id", ondelete="RESTRICT"), nullable=False)
+    baseline_notice_id: Mapped[int] = mapped_column(_fk("notice.id", ondelete="RESTRICT"), nullable=False)
+    baseline_bundle_id: Mapped[uuid_module.UUID] = mapped_column(_fk("document_bundle.id", ondelete="RESTRICT"), nullable=False)
+    baseline_bundle_revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    baseline_bundle_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    baseline_document_version_id: Mapped[uuid_module.UUID] = mapped_column(_fk("document_version.id", ondelete="RESTRICT"), nullable=False)
+    baseline_document_version_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    baseline_structure_id: Mapped[uuid_module.UUID] = mapped_column(_fk("document_structure.id", ondelete="RESTRICT"), nullable=False)
+    baseline_source_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    baseline_structure_payload_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+
+    comparison_link_id: Mapped[int] = mapped_column(_fk("opportunity_link.id", ondelete="RESTRICT"), nullable=False)
+    comparison_notice_id: Mapped[int] = mapped_column(_fk("notice.id", ondelete="RESTRICT"), nullable=False)
+    comparison_bundle_id: Mapped[uuid_module.UUID] = mapped_column(_fk("document_bundle.id", ondelete="RESTRICT"), nullable=False)
+    comparison_bundle_revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    comparison_bundle_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    comparison_document_version_id: Mapped[uuid_module.UUID] = mapped_column(_fk("document_version.id", ondelete="RESTRICT"), nullable=False)
+    comparison_document_version_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    comparison_structure_id: Mapped[uuid_module.UUID] = mapped_column(_fk("document_structure.id", ondelete="RESTRICT"), nullable=False)
+    comparison_source_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    comparison_structure_payload_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+
+    calculation_status: Mapped[str] = mapped_column(String(16), nullable=False)
+    result_status: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    materiality: Mapped[str] = mapped_column(String(16), nullable=False)
+    current_attempt_id: Mapped[uuid_module.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), nullable=True
+    )
+    result_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    last_error_code: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    created_by_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(AwareDateTime(), default=utc_now, nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
+
+
+class BidDeltaAttempt(Base):
+    """One append-only calculation attempt for a comparison."""
+
+    __tablename__ = "bid_delta_attempt"
+    __table_args__ = (
+        UniqueConstraint("comparison_id", "sequence", name="uq_bid_delta_attempt_sequence"),
+        UniqueConstraint("comparison_id", "id", name="uq_bid_delta_attempt_scope"),
+        Index(
+            "uq_bid_delta_attempt_active",
+            "comparison_id",
+            unique=True,
+            postgresql_where=column("status").in_(["queued", "running"]),
+            sqlite_where=column("status").in_(["queued", "running"]),
+        ),
+        CheckConstraint(
+            "status IN ('queued','running','completed','failed')",
+            name="ck_bid_delta_attempt_status",
+        ),
+        CheckConstraint(
+            "((status = 'queued' AND started_at IS NULL AND completed_at IS NULL "
+            "AND last_error_code IS NULL) "
+            "OR (status = 'running' AND started_at IS NOT NULL AND completed_at IS NULL) "
+            "OR (status = 'completed' AND started_at IS NOT NULL "
+            "AND completed_at IS NOT NULL AND last_error_code IS NULL) "
+            "OR (status = 'failed' AND completed_at IS NOT NULL "
+            "AND last_error_code IS NOT NULL))",
+            name="ck_bid_delta_attempt_lifecycle",
+        ),
+        CheckConstraint(
+            DualSQL(
+                "runtime_binding_digest IS NULL OR "
+                "(length(runtime_binding_digest) = 64 AND "
+                "runtime_binding_digest NOT GLOB '*[^0-9a-f]*')",
+                "runtime_binding_digest IS NULL OR runtime_binding_digest ~ '^[0-9a-f]{64}$'",
+            ),
+            name="ck_bid_delta_attempt_runtime_binding_digest",
+        ),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    comparison_id: Mapped[uuid_module.UUID] = mapped_column(_fk("bid_delta_comparison.id", ondelete="RESTRICT"), nullable=False)
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    work_job_id: Mapped[uuid_module.UUID | None] = mapped_column(_fk("work_job.id", ondelete="RESTRICT"), nullable=True)
+    lease_fence: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0, server_default=text("0")
+    )
+    requested_by_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    runtime_binding_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    runtime_binding_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
+    last_error_code: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(AwareDateTime(), default=utc_now, nullable=False)
+
+
+class BidDeltaItem(Base):
+    """One category result belonging to an immutable attempt."""
+
+    __tablename__ = "bid_delta_item"
+    __table_args__ = (
+        UniqueConstraint("attempt_id", "category", name="uq_bid_delta_item_category"),
+        Index("ix_bid_delta_item_comparison", "comparison_id"),
+        UniqueConstraint("attempt_id", "ordinal", name="uq_bid_delta_item_ordinal"),
+        UniqueConstraint("id", "attempt_id", name="uq_bid_delta_item_attempt_scope"),
+        ForeignKeyConstraint(
+            ["attempt_id", "comparison_id"],
+            ["bid_delta_attempt.id", "bid_delta_attempt.comparison_id"],
+            name="fk_bid_delta_item_attempt_comparison_scope",
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint(
+            "category IN ('budget_and_economics','contract_period_and_schedule',"
+            "'eligibility','joint_supply_and_subcontracting','scope_and_requirements',"
+            "'evaluation','submission')",
+            name="ck_bid_delta_item_category",
+        ),
+        CheckConstraint(
+            "result_status IN ('changed','unchanged','unknown','failed')",
+            name="ck_bid_delta_item_result_status",
+        ),
+        CheckConstraint(
+            "materiality IN ('material','non_material','unknown')",
+            name="ck_bid_delta_item_materiality",
+        ),
+        CheckConstraint(
+            "((result_status = 'unchanged' AND materiality = 'non_material') "
+            "OR (result_status IN ('unknown','failed') AND materiality = 'unknown') "
+            "OR (result_status = 'changed' AND materiality IN "
+            "('material','non_material','unknown'))) ",
+            name="ck_bid_delta_item_result_materiality",
+        ),
+        CheckConstraint(
+            "((result_status IN ('unknown','failed') AND error_code IS NOT NULL "
+            "AND length(trim(error_code)) > 0) "
+            "OR (result_status IN ('changed','unchanged') AND error_code IS NULL))",
+            name="ck_bid_delta_item_error_code",
+        ),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    comparison_id: Mapped[uuid_module.UUID] = mapped_column(_fk("bid_delta_comparison.id", ondelete="RESTRICT"), nullable=False)
+    attempt_id: Mapped[uuid_module.UUID] = mapped_column(_fk("bid_delta_attempt.id", ondelete="RESTRICT"), nullable=False)
+    category: Mapped[str] = mapped_column(String(64), nullable=False)
+    ordinal: Mapped[int] = mapped_column(Integer, nullable=False)
+    result_status: Mapped[str] = mapped_column(String(16), nullable=False)
+    materiality: Mapped[str] = mapped_column(String(16), nullable=False)
+    before_value: Mapped[str | None] = mapped_column(Text, nullable=True)
+    after_value: Mapped[str | None] = mapped_column(Text, nullable=True)
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(AwareDateTime(), default=utc_now, nullable=False)
+
+
+class BidDeltaEvidence(Base):
+    """A verified or failed locator for one side of a delta item."""
+
+    __tablename__ = "bid_delta_evidence"
+    __table_args__ = (
+        UniqueConstraint("item_id", "side", "ordinal", name="uq_bid_delta_evidence_scope"),
+        CheckConstraint("side IN ('baseline','comparison')", name="ck_bid_delta_evidence_side"),
+        CheckConstraint(
+            "locator_type IN ('page','paragraph','table_cell','bbox')",
+            name="ck_bid_delta_evidence_locator_type",
+        ),
+        CheckConstraint(
+            "verification_status IN ('verified','missing','mismatch')",
+            name="ck_bid_delta_evidence_verification_status",
+        ),
+        CheckConstraint(
+            DualSQL(
+                "length(source_sha256) = 64 AND source_sha256 NOT GLOB '*[^0-9a-f]*'",
+                "source_sha256 ~ '^[0-9a-f]{64}$'",
+            ),
+            name="ck_bid_delta_evidence_source_sha256",
+        ),
+        CheckConstraint(
+            dual("json_valid(locator) AND json_type(locator) = 'object'"),
+            name="ck_bid_delta_evidence_locator_object",
+        ),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    item_id: Mapped[uuid_module.UUID] = mapped_column(_fk("bid_delta_item.id", ondelete="RESTRICT"), nullable=False)
+    side: Mapped[str] = mapped_column(String(16), nullable=False)
+    ordinal: Mapped[int] = mapped_column(Integer, nullable=False)
+    document_version_id: Mapped[uuid_module.UUID] = mapped_column(_fk("document_version.id", ondelete="RESTRICT"), nullable=False)
+    structure_id: Mapped[uuid_module.UUID] = mapped_column(_fk("document_structure.id", ondelete="RESTRICT"), nullable=False)
+    source_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    locator_type: Mapped[str] = mapped_column(String(16), nullable=False)
+    locator: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    quote: Mapped[str | None] = mapped_column(Text, nullable=True)
+    verification_status: Mapped[str] = mapped_column(String(16), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(AwareDateTime(), default=utc_now, nullable=False)
+
+
+class BidFinalDecision(Base):
+    """An append-only human Go/No-Go decision for a completed comparison."""
+
+    __tablename__ = "bid_final_decision"
+    __table_args__ = (
+        UniqueConstraint("opportunity_id", "sequence", name="uq_bid_final_decision_sequence"),
+        Index("ix_bid_final_decision_comparison", "comparison_id"),
+        UniqueConstraint("opportunity_id", "id", name="uq_bid_final_decision_opportunity_scope"),
+        UniqueConstraint(
+            "opportunity_id",
+            "supersedes_final_decision_id",
+            name="uq_bid_final_decision_supersession",
+        ),
+        UniqueConstraint(
+            "claimed_name", "opportunity_id", "request_id",
+            name="uq_bid_final_decision_idempotency",
+        ),
+        ForeignKeyConstraint(
+            ["opportunity_id", "supersedes_final_decision_id"],
+            ["bid_final_decision.opportunity_id", "bid_final_decision.id"],
+            name="fk_bid_final_decision_supersedes_scope",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["comparison_id", "opportunity_id"],
+            ["bid_delta_comparison.id", "bid_delta_comparison.opportunity_id"],
+            name="fk_bid_final_decision_comparison_scope",
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint("decision IN ('go','no_go')", name="ck_bid_final_decision_value"),
+        CheckConstraint(
+            "length(trim(reason)) > 0", name="ck_bid_final_decision_reason"
+        ),
+        CheckConstraint(
+            "length(trim(claimed_name)) > 0", name="ck_bid_final_decision_claimed_name"
+        ),
+        CheckConstraint(
+            DualSQL(
+                "length(result_sha256) = 64 AND result_sha256 NOT GLOB '*[^0-9a-f]*'",
+                "result_sha256 ~ '^[0-9a-f]{64}$'",
+            ),
+            name="ck_bid_final_decision_result_sha256",
+        ),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    opportunity_id: Mapped[int] = mapped_column(_fk("opportunity.id", ondelete="RESTRICT"), nullable=False)
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    comparison_id: Mapped[uuid_module.UUID] = mapped_column(_fk("bid_delta_comparison.id", ondelete="RESTRICT"), nullable=False)
+    comparison_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    result_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    baseline_document_version_id: Mapped[uuid_module.UUID] = mapped_column(_fk("document_version.id", ondelete="RESTRICT"), nullable=False)
+    comparison_document_version_id: Mapped[uuid_module.UUID] = mapped_column(_fk("document_version.id", ondelete="RESTRICT"), nullable=False)
+    supersedes_final_decision_id: Mapped[uuid_module.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), nullable=True
+    )
+    decision: Mapped[str] = mapped_column(String(16), nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    claimed_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    request_id: Mapped[uuid_module.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(AwareDateTime(), default=utc_now, nullable=False)
+
+
+_BID_DELTA_COMPARISON_INPUT_FENCE_FIELDS = frozenset(
+    {
+        "baseline_link_id",
+        "baseline_notice_id",
+        "baseline_bundle_id",
+        "baseline_bundle_revision",
+        "baseline_bundle_version",
+        "baseline_document_version_id",
+        "baseline_document_version_version",
+        "baseline_structure_id",
+        "baseline_source_sha256",
+        "baseline_structure_payload_sha256",
+        "comparison_link_id",
+        "comparison_notice_id",
+        "comparison_bundle_id",
+        "comparison_bundle_revision",
+        "comparison_bundle_version",
+        "comparison_document_version_id",
+        "comparison_document_version_version",
+        "comparison_structure_id",
+        "comparison_source_sha256",
+        "comparison_structure_payload_sha256",
+        "category_policy_version",
+        "opportunity_id",
+        "sequence",
+        "created_by_name",
+        "created_at",
+    }
+)
+
+
+@event.listens_for(BidFinalDecision, "before_update")
+@event.listens_for(BidFinalDecision, "before_delete")
+def _reject_bid_final_decision_mutation(
+    _mapper: Any, _connection: Any, _target: BidFinalDecision
+) -> None:
+    raise ValueError("bid final decisions are append-only")
+
+
+@event.listens_for(BidDeltaItem, "before_update")
+@event.listens_for(BidDeltaItem, "before_delete")
+def _reject_bid_delta_item_mutation(
+    _mapper: Any, _connection: Any, _target: BidDeltaItem
+) -> None:
+    raise ValueError("bid delta items are append-only")
+
+
+@event.listens_for(BidDeltaEvidence, "before_update")
+@event.listens_for(BidDeltaEvidence, "before_delete")
+def _reject_bid_delta_evidence_mutation(
+    _mapper: Any, _connection: Any, _target: BidDeltaEvidence
+) -> None:
+    raise ValueError("bid delta evidence is append-only")
+
+
+@event.listens_for(BidDeltaAttempt, "before_update")
+def _validate_bid_delta_attempt_update(
+    _mapper: Any, connection: Any, target: BidDeltaAttempt
+) -> None:
+    state = sa_inspect(target)
+    status_history = state.attrs.status.history
+    previous = status_history.deleted[-1] if status_history.deleted else connection.execute(
+        select(BidDeltaAttempt.status).where(BidDeltaAttempt.id == target.id)
+    ).scalar_one_or_none()
+    if previous in {"completed", "failed"}:
+        raise ValueError("terminal bid delta attempts are immutable")
+
+
+@event.listens_for(BidDeltaAttempt, "before_delete")
+def _reject_bid_delta_attempt_delete(
+    _mapper: Any, connection: Any, target: BidDeltaAttempt
+) -> None:
+    previous = connection.execute(
+        select(BidDeltaAttempt.status).where(BidDeltaAttempt.id == target.id)
+    ).scalar_one_or_none()
+    if previous in {"completed", "failed"}:
+        raise ValueError("terminal bid delta attempts are immutable")
+
+
+@event.listens_for(BidDeltaComparison, "before_update")
+def _validate_bid_delta_comparison_update(
+    _mapper: Any, connection: Any, target: BidDeltaComparison
+) -> None:
+    state = sa_inspect(target)
+    changed_fence = sorted(
+        name
+        for name in _BID_DELTA_COMPARISON_INPUT_FENCE_FIELDS
+        if state.attrs[name].history.has_changes()
+    )
+    if changed_fence:
+        raise ValueError("bid delta comparison input fence is immutable")
+
+    status_history = state.attrs.calculation_status.history
+    previous = status_history.deleted[-1] if status_history.deleted else connection.execute(
+        select(BidDeltaComparison.calculation_status).where(
+            BidDeltaComparison.id == target.id
+        )
+    ).scalar_one_or_none()
+    if previous == "completed" and any(
+        state.attrs[name].history.has_changes()
+        for name in (
+            "result_status",
+            "result_sha256",
+            "materiality",
+            "calculation_status",
+        )
+    ):
+        raise ValueError("completed bid delta comparison result is immutable")

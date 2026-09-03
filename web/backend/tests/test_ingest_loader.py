@@ -4,7 +4,10 @@ import hashlib
 import json
 import subprocess
 import sys
+from datetime import datetime, timezone
+from decimal import Decimal
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 from sqlalchemy import create_engine, func, select
@@ -14,6 +17,8 @@ from sqlalchemy.pool import StaticPool
 from app.db import Base, init_db
 from app.ingest.loader import (
     ORDER_PLAN_OBSERVATION_SNAPSHOT_SCHEMA,
+    OrderPlanScreeningContractError,
+    OrderPlanScreeningConflictError,
     ingest_run,
     parse_order_plan_unty_no,
 )
@@ -30,12 +35,17 @@ from app.models import (
     OpportunityLink,
     OrderPlan,
     OrderPlanObservation,
+    OrderPlanScreeningArtifact,
+    OrderPlanScreeningBatchAttempt,
+    OrderPlanScreeningExecution,
+    OrderPlanScreeningResult,
     Perspective,
     Review,
     Run,
     VerificationItem,
 )
 from app.services.revisions import RevisionConflictError
+from tests.postgres import migrated_engine, requires_postgres
 from tests.test_screening_orchestrator import _notice as screening_notice
 
 
@@ -173,6 +183,230 @@ def db_session():
     init_db(engine)
     with Session(engine) as session:
         yield session
+
+
+def _write_c2_json(path: Path, value: dict) -> str:
+    raw = json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")
+    path.write_bytes(raw)
+    return hashlib.sha256(raw).hexdigest()
+
+
+def _write_c2_fixture(root: Path, *, failed: bool = False) -> tuple[Path, str]:
+    run_dir = root / "runs" / ("c2-failed" if failed else "c2-success")
+    run_dir.mkdir(parents=True)
+    plan_id = "R26DD20999999"
+    source_run_id = "c2-loader-source-" + ("failed" if failed else "success")
+    execution_id = str(uuid4())
+    created_at = "2026-09-01T00:00:00+00:00"
+    repository_root = Path(__file__).resolve().parents[3]
+    policy_path = repository_root / "experiments/order-plan-screening/config/order-plan-screening-policy.v1.json"
+    binding_path = repository_root / "experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v1.json"
+    policy = json.loads(policy_path.read_text(encoding="utf-8"))
+    binding = json.loads(binding_path.read_text(encoding="utf-8"))
+    policy_sha256 = hashlib.sha256(policy_path.read_bytes()).hexdigest()
+    binding_sha256 = hashlib.sha256(binding_path.read_bytes()).hexdigest()
+    population = [{"plan_id": plan_id, "title": "AI 데이터 플랫폼"}]
+    population_sha256 = hashlib.sha256(
+        json.dumps(population, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    source = {
+        "schema_version": "bidops.collected-order-plans.v1",
+        "generated_at": created_at,
+        "source_window": {"from": "2026-08-25", "to": "2026-08-26", "timezone": "Asia/Seoul"},
+        "counts": {"total": 1},
+        "warnings": [],
+        "order_plans": [{"order_plan_unty_no": plan_id, "title": "AI 데이터 플랫폼"}],
+    }
+    source_sha256 = _write_c2_json(run_dir / "collected-order-plans.json", source)
+    input_value = {
+        "schema_version": "bidops.order-plan-screening-input.v1",
+        "producer": "order-plan-screening-orchestrator",
+        "consumer": "order-plan-screening-worker",
+        "execution_id": execution_id,
+        "source_run_id": source_run_id,
+        "source_artifact": {
+            "name": "collected-order-plans.json",
+            "schema_version": "bidops.collected-order-plans.v1",
+            "sha256": source_sha256,
+        },
+        "population_count": 1,
+        "population_sha256": population_sha256,
+        "policy": {"version": policy["policy_version"], "sha256": policy_sha256},
+        "stage1_binding": {
+            "version": "bm25-char-title-capability-v1",
+            "sha256": binding["stage1_binding"]["sha256"],
+        },
+        "stage2_binding": {"version": binding["binding_version"], "sha256": binding_sha256},
+        "items": population,
+        "status": "frozen",
+        "created_at": created_at,
+    }
+    input_sha256 = _write_c2_json(run_dir / "screening-input.json", input_value)
+    ranking_value = {
+        "schema_version": "bidops.order-plan-screening-ranking.v1",
+        "producer": "order-plan-screening-bm25",
+        "consumer": "order-plan-screening-merge",
+        "execution_id": execution_id,
+        "source_run_id": source_run_id,
+        "input_artifact_sha256": input_sha256,
+        "policy_version": policy["policy_version"],
+        "policy_sha256": policy_sha256,
+        "status": "성공",
+        "population_count": 1,
+        "selected_count": 1,
+        "filtered_out_count": 0,
+        "items": [{
+            "plan_id": plan_id,
+            "rank": 1,
+            "score": 1.0,
+            "nearest_capability": "cap-ai",
+            "stage1_status": "selected",
+        }],
+        "created_at": created_at,
+    }
+    ranking_sha256 = _write_c2_json(run_dir / "screening-ranking.json", ranking_value)
+    binding_value = {
+        "model_name": binding["stage2_binding"]["model_name"],
+        "model_digest": binding["stage2_binding"]["model_digest"],
+        "prompt_version": binding["stage2_binding"]["prompt_version"],
+        "prompt_sha256": binding["stage2_binding"]["prompt_sha256"],
+        "company_profile_version": binding["stage2_binding"]["company_profile_version"],
+        "company_profile_sha256": binding["stage2_binding"]["company_profile_sha256"],
+        "generation_config_sha256": binding["stage2_binding"]["generation_config_sha256"],
+    }
+    decisions_value = {
+        "schema_version": "bidops.order-plan-screening-decisions.v1",
+        "producer": "order-plan-screening-qwen-worker",
+        "consumer": "order-plan-screening-merge",
+        "execution_id": execution_id,
+        "source_run_id": source_run_id,
+        "input_artifact_sha256": input_sha256,
+        "ranking_artifact_sha256": ranking_sha256,
+        "binding": binding_value,
+        "status": "실패" if failed else "성공",
+        "candidate_count": 1,
+        "success_count": 0 if failed else 1,
+        "failure_count": 1 if failed else 0,
+        "batch_count": 1,
+        "batches": [{
+            "batch_id": "batch-001",
+            "sequence": 1,
+            "plan_ids": [plan_id],
+            "attempt_count": 1,
+            "status": "failed" if failed else "success",
+        }],
+        "items": [] if failed else [{
+            "plan_id": plan_id,
+            "batch_id": "batch-001",
+            "attempt_no": 1,
+            "relevance": "relevant",
+            "score": 0.1,
+            "reason": "bounded fixture decision",
+        }],
+        "created_at": created_at,
+    }
+    _write_c2_json(run_dir / "screening-decisions.json", decisions_value)
+    failures_value = {
+        "schema_version": "bidops.order-plan-screening-failures.v1",
+        "producer": "order-plan-screening-worker",
+        "consumer": "order-plan-screening-review-and-merge",
+        "execution_id": execution_id,
+        "source_run_id": source_run_id,
+        "status": "failed" if failed else "none",
+        "failure_count": 1 if failed else 0,
+        "failures": [] if not failed else [{
+            "batch_id": "batch-001",
+            "sequence": 1,
+            "plan_ids": [plan_id],
+            "attempt_count": 1,
+            "max_attempts": 2,
+            "failure_type": "timeout",
+            "outcome": "failed",
+            "status": "human_review_required",
+            "error_code": "fixture_timeout",
+        }],
+        "created_at": created_at,
+    }
+    _write_c2_json(run_dir / "screening-failures.json", failures_value)
+    measurement = {
+        "started_at": created_at,
+        "finished_at": "2026-09-01T00:00:00.001000+00:00",
+        "duration_ms": 1,
+        "input_tokens": 1,
+        "cached_input_tokens": 0,
+        "output_tokens": 1,
+        "total_tokens": 2,
+    }
+    telemetry_value = {
+        "schema_version": "bidops.order-plan-screening-telemetry.v1",
+        "producer": "order-plan-screening-worker",
+        "consumer": "observability-and-merge",
+        "execution_id": execution_id,
+        "source_run_id": source_run_id,
+        "status": "partial" if failed else "complete",
+        "execution": measurement,
+        "batches": [{
+            "batch_id": "batch-001",
+            "sequence": 1,
+            "status": "failed" if failed else "success",
+            "attempts": [{
+                "attempt_no": 1,
+                "status": "failed" if failed else "success",
+                "started_at": created_at,
+                "finished_at": "2026-09-01T00:00:00.001000+00:00",
+                "measurement": measurement,
+            }],
+        }],
+        "created_at": created_at,
+    }
+    _write_c2_json(run_dir / "screening-telemetry.json", telemetry_value)
+    result_value = {
+        "schema_version": "bidops.order-plan-screening-result.v1",
+        "producer": "order-plan-screening-merge",
+        "consumer": "postgres-loader-and-review-api",
+        "execution_id": execution_id,
+        "source_run_id": source_run_id,
+        "input_artifact_sha256": input_sha256,
+        "policy_version": policy["policy_version"],
+        "policy_sha256": policy_sha256,
+        "status": "실패" if failed else "성공",
+        "partial_artifact": failed,
+        "counts": {
+            "population": 1,
+            "stage1_selected": 1,
+            "stage1_filtered_out": 0,
+            "stage1_failed": 0,
+            "stage2_relevant": 0 if failed else 1,
+            "stage2_not_relevant": 0,
+            "stage2_uncertain": 0,
+            "stage2_failed": 1 if failed else 0,
+            "stage2_rejected": 0,
+            "human_review_count": 1,
+        },
+        "items": [{
+            "plan_id": plan_id,
+            "stage1_status": "selected",
+            "stage1_rank": 1,
+            "stage1_score": 1.0,
+            "nearest_capability": "cap-ai",
+            "stage2_status": "failed" if failed else "success",
+            "qwen_relevance": None if failed else "relevant",
+            "qwen_score": None if failed else 0.1,
+            "qwen_reason": None if failed else "bounded fixture decision",
+            "batch_id": "batch-001",
+            "attempt_no": 1,
+            "failure_code": "fixture_timeout" if failed else None,
+        }],
+        "created_at": created_at,
+    }
+    _write_c2_json(run_dir / "screening-results.json", result_value)
+    return run_dir, source_run_id
 
 
 def test_loader_records_contract_gaps_and_keeps_available_rows(tmp_path, db_session):
@@ -787,6 +1021,9 @@ def test_collector_artifact_round_trips_through_ingest_run(tmp_path, db_session)
     result = ingest_run(run_dir, db_session, reports_root=tmp_path / "reports")
 
     assert result.order_plans == 1
+    assert not {
+        warning["code"] for warning in result.warnings
+    } & {"validation_missing", "screening_results_missing"}
     plan = db_session.scalar(
         select(OrderPlan).where(OrderPlan.order_plan_unty_no == "R26DD20999999")
     )
@@ -1019,6 +1256,145 @@ def test_new_generated_at_creates_snapshot_and_supersedes_previous(tmp_path, db_
     assert runs[0].superseded_by == runs[1].id
     assert db_session.scalar(select(func.count()).select_from(Notice)) == 1
     assert db_session.scalar(select(func.count()).select_from(NoticeObservation)) == 2
+
+
+@requires_postgres
+def test_c2_loader_is_full_population_idempotent_and_rolls_back_hash_conflicts(tmp_path):
+    with migrated_engine() as engine, Session(engine) as session:
+        run_dir, source_run_id = _write_c2_fixture(tmp_path)
+        session.add(
+            Run(
+                id=source_run_id,
+                timezone="Asia/Seoul",
+                generated_at=datetime(2026, 9, 1, tzinfo=timezone.utc),
+            )
+        )
+        session.commit()
+
+        first = ingest_run(run_dir, session)
+        assert first.screening_executions == 1
+        assert first.screening_attempts == 1
+        assert first.screening_results == 1
+        assert first.screening_artifacts == 6
+        assert first.screening_feedback == 0
+        assert session.scalar(select(func.count()).select_from(OrderPlan)) == 1
+
+        second = ingest_run(run_dir, session)
+        assert second.screening_executions == 0
+        assert second.screening_attempts == 0
+        assert second.screening_results == 0
+        assert second.screening_artifacts == 0
+        assert second.screening_feedback == 0
+        assert session.scalar(select(func.count()).select_from(OrderPlanScreeningExecution)) == 1
+        assert session.scalar(select(func.count()).select_from(OrderPlanScreeningBatchAttempt)) == 1
+        assert session.scalar(select(func.count()).select_from(OrderPlanScreeningResult)) == 1
+        assert session.scalar(select(func.count()).select_from(OrderPlanScreeningArtifact)) == 6
+
+        result_path = run_dir / "screening-results.json"
+        result_value = json.loads(result_path.read_text(encoding="utf-8"))
+        result_value["items"][0]["qwen_score"] = 0.74
+        _write_c2_json(result_path, result_value)
+        with pytest.raises(OrderPlanScreeningConflictError):
+            ingest_run(run_dir, session)
+
+        assert session.scalar(select(func.count()).select_from(OrderPlanScreeningExecution)) == 1
+        stored_result = session.scalar(select(OrderPlanScreeningResult))
+        assert stored_result is not None and stored_result.qwen_score == Decimal("0.1")
+
+
+@requires_postgres
+def test_c2_loader_keeps_failed_selected_plans_in_the_full_population(tmp_path):
+    with migrated_engine() as engine, Session(engine) as session:
+        run_dir, source_run_id = _write_c2_fixture(tmp_path, failed=True)
+        session.add(
+            Run(
+                id=source_run_id,
+                timezone="Asia/Seoul",
+                generated_at=datetime(2026, 9, 1, tzinfo=timezone.utc),
+            )
+        )
+        session.commit()
+
+        result = ingest_run(run_dir, session)
+
+        assert result.screening_results == 1
+        stored_execution = session.scalar(select(OrderPlanScreeningExecution))
+        stored_attempt = session.scalar(select(OrderPlanScreeningBatchAttempt))
+        stored_result = session.scalar(select(OrderPlanScreeningResult))
+        assert stored_execution is not None and stored_execution.status == "실패"
+        assert stored_attempt is not None and stored_attempt.attempt_status == "failed"
+        assert stored_result is not None and stored_result.stage2_status == "failed"
+        assert stored_result.failure_code == "fixture_timeout"
+
+
+@requires_postgres
+def test_c2_loader_rejects_a_telemetry_final_attempt_status_mismatch(tmp_path):
+    with migrated_engine() as engine, Session(engine) as session:
+        run_dir, source_run_id = _write_c2_fixture(tmp_path)
+        session.add(
+            Run(
+                id=source_run_id,
+                timezone="Asia/Seoul",
+                generated_at=datetime(2026, 9, 1, tzinfo=timezone.utc),
+            )
+        )
+        session.commit()
+
+        telemetry_path = run_dir / "screening-telemetry.json"
+        telemetry = json.loads(telemetry_path.read_text(encoding="utf-8"))
+        telemetry["batches"][0]["attempts"][0]["status"] = "failed"
+        _write_c2_json(telemetry_path, telemetry)
+
+        with pytest.raises(OrderPlanScreeningContractError):
+            ingest_run(run_dir, session)
+        assert session.scalar(select(func.count()).select_from(OrderPlanScreeningExecution)) == 0
+
+
+@requires_postgres
+def test_c2_loader_rejects_duplicate_telemetry_batches(tmp_path):
+    with migrated_engine() as engine, Session(engine) as session:
+        run_dir, source_run_id = _write_c2_fixture(tmp_path)
+        session.add(
+            Run(
+                id=source_run_id,
+                timezone="Asia/Seoul",
+                generated_at=datetime(2026, 9, 1, tzinfo=timezone.utc),
+            )
+        )
+        session.commit()
+
+        telemetry_path = run_dir / "screening-telemetry.json"
+        telemetry = json.loads(telemetry_path.read_text(encoding="utf-8"))
+        telemetry["batches"].append(telemetry["batches"][0])
+        _write_c2_json(telemetry_path, telemetry)
+
+        with pytest.raises(OrderPlanScreeningContractError):
+            ingest_run(run_dir, session)
+        assert session.scalar(select(func.count()).select_from(OrderPlanScreeningExecution)) == 0
+
+
+@requires_postgres
+def test_c2_siblings_do_not_fall_back_to_legacy_ingest_when_schemas_are_corrupt(tmp_path):
+    with migrated_engine() as engine, Session(engine) as session:
+        run_dir, source_run_id = _write_c2_fixture(tmp_path)
+        session.add(
+            Run(
+                id=source_run_id,
+                timezone="Asia/Seoul",
+                generated_at=datetime(2026, 9, 1, tzinfo=timezone.utc),
+            )
+        )
+        session.commit()
+
+        for filename in ("screening-input.json", "screening-results.json"):
+            path = run_dir / filename
+            value = json.loads(path.read_text(encoding="utf-8"))
+            value["schema_version"] = "corrupted.c2"
+            _write_c2_json(path, value)
+
+        with pytest.raises(OrderPlanScreeningContractError):
+            ingest_run(run_dir, session)
+        assert session.scalar(select(func.count()).select_from(OrderPlanScreeningExecution)) == 0
 
 
 def test_real_run_integration_if_artifacts_are_available(tmp_path, db_session):
