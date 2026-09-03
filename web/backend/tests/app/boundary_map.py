@@ -38,6 +38,9 @@ SEAM_IMPORTS: dict[tuple[str, str], frozenset[str]] = {
     (DEEP_REVIEW, SCREENING): frozenset(
         {
             "current_judgment",
+            # 목록 화면이 공고마다 조회를 내지 않도록 T5a가 더한 batch 판이다.
+            # 방향은 §4 그대로이며 이름만 하나 늘었다.
+            "current_judgments",
             "latest_corrected_grade",
         }
     ),
@@ -120,8 +123,8 @@ FILE_MODULES: dict[str, str] = {
     # lifecycle
     "app/ingest/__init__.py": LIFECYCLE,
     "app/ingest/cli.py": LIFECYCLE,
-    # loader/contracts는 판정·리뷰·C-2 적재 부분이 screening으로 갈라지지만
-    # 본체는 회차 적재이므로 lifecycle로 본다 (T5b에서 분리).
+    # T5a가 판정·리뷰·C-2 적재와 C-2 계약을 screening으로 옮겼다. 남은 본체는
+    # 회차 적재와 회차 산출물 계약이므로 lifecycle이다.
     "app/ingest/contracts.py": LIFECYCLE,
     "app/ingest/loader.py": LIFECYCLE,
     "app/services/metrics.py": LIFECYCLE,
@@ -133,16 +136,14 @@ FILE_MODULES: dict[str, str] = {
     "app/routers/notices.py": LIFECYCLE,
     "app/routers/opportunities.py": LIFECYCLE,
     "app/routers/portals.py": LIFECYCLE,
-    # pre_specs router는 개요 리뷰 endpoint가 deep_review로, runs router는 판정
-    # pipeline endpoint가 screening으로 갈라진다. 본체는 lifecycle이다.
+    # pre_specs router는 개요 리뷰 endpoint가 deep_review로 갈라진다. runs router의
+    # 판정 pipeline endpoint는 T5a가 screening router로 옮겼다. 본체는 lifecycle이다.
     "app/routers/pre_specs.py": LIFECYCLE,
     "app/routers/runs.py": LIFECYCLE,
     "app/schemas/opportunities.py": LIFECYCLE,
     # schemas/pre_specs는 목록·추적 부분이 lifecycle, 개요 부분이 deep_review다.
     "app/schemas/pre_specs.py": LIFECYCLE,
     # screening
-    "app/ingest/feedback.py": SCREENING,
-    "app/ingest/judgment_revisions.py": SCREENING,
     "app/services/candidate_quality.py": SCREENING,
     "app/services/order_plan_screening.py": SCREENING,
     "app/services/profile.py": SCREENING,
@@ -163,6 +164,9 @@ FILE_MODULES: dict[str, str] = {
     "app/schemas/revisions.py": SCREENING,
     "app/workers/order_plan_screening.py": SCREENING,
     "app/cli/score_candidate_quality.py": SCREENING,
+    # T5a가 판정·리뷰·C-2 적재와 그 계약을 screening 폴더로 옮겼다. 아래 두
+    # 항목은 폴더 규칙이 이미 처리하므로 여기 없어도 되지만, 남은 lifecycle
+    # 파일과의 대비를 위해 이 블록의 끝을 표시해 둔다.
     # deep_review
     "app/services/agent_e2e.py": DEEP_REVIEW,
     "app/services/assets.py": DEEP_REVIEW,
@@ -479,6 +483,13 @@ SCHEMAS_NAME_MODULE: dict[str, str] = {
     "AlwaysOnSwitchUpdateRequest": SCREENING,
     "AlwaysOnSwitchResponse": SCREENING,
 }
+
+# `tests/` 루트에 두는 공용 helper. conftest·postgres 처럼 어느 모듈의 테스트든
+# 쓸 수 있어야 하므로 core로 본다. 여기 없으면 기본값(조립 계층)이 되어 모듈
+# 테스트가 helper를 쓰는 것 자체가 위반으로 잡힌다.
+FILE_MODULES["tests/c2_fixtures.py"] = CORE
+FILE_MODULES["tests/postgres.py"] = CORE
+
 
 # --- 테스트 폴더 (§5.4) --------------------------------------------------------
 TEST_FOLDER_MODULES: dict[str, str] = {

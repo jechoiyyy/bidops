@@ -138,3 +138,53 @@ def pytest_collection_modifyitems(
 
 
 atexit.register(_close_harness)
+
+
+# --- lifecycle 확장점 registry 픽스처 (명세 §6) ------------------------------
+# registry는 프로세스 전역 단일 객체이고 조립 계층(`app.main`)이 import 시점에
+# 등록한다. 모듈 폴더별 테스트는 그 전역 상태에 기대지 않고 자기 상태를 명시한다:
+# lifecycle 테스트는 **빈** registry(제공자 부재), screening 테스트와 두 모듈
+# 조합 테스트는 screening만 등록된 registry. 둘 다 끝나면 원래 객체를 되돌려
+# 같은 프로세스에서 뒤에 도는 API 테스트가 조립 상태를 잃지 않게 한다.
+
+
+@pytest.fixture
+def empty_extensions():
+    """제공자가 하나도 없는 registry. lifecycle 단독 동작을 검사할 때 쓴다."""
+
+    from app.lifecycle import (
+        extension_registry,
+        reset_extension_registry,
+        restore_extension_registry,
+    )
+
+    previous = extension_registry()
+    try:
+        yield reset_extension_registry()
+    finally:
+        restore_extension_registry(previous)
+
+
+@pytest.fixture
+def screening_extensions():
+    """screening의 projection과 회차 적재 hook만 등록된 registry.
+
+    `ingest_run`으로 판정·리뷰·C-2 결과를 적재하거나 판정이 실린 목록·통계를
+    읽는 테스트는 이 픽스처를 요구해야 한다. `app.main`을 import한 적이 있는지에
+    따라 결과가 달라지는 순서 의존을 여기서 끊는다.
+    """
+
+    from app.lifecycle import (
+        extension_registry,
+        reset_extension_registry,
+        restore_extension_registry,
+    )
+    from app.screening import register_lifecycle_extensions
+
+    previous = extension_registry()
+    registry = reset_extension_registry()
+    register_lifecycle_extensions(registry)
+    try:
+        yield registry
+    finally:
+        restore_extension_registry(previous)

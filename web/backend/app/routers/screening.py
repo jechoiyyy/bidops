@@ -9,15 +9,16 @@ import stat
 import threading
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..core.config import get_settings
 from ..core.db import get_db
-from ..models import ScreeningAttempt, ScreeningExecution
+from ..models import ScreeningAttempt, ScreeningExecution, ScreeningPolicy
 from ..schemas import (
+    JudgmentExecutionCreateRequest,
     ScreeningArtifactUrls,
     ScreeningAttemptResponse,
     ScreeningExecutionDetailResponse,
@@ -29,14 +30,23 @@ from ..schemas import (
 )
 from ..screening.execution_store import ScreeningExecutionStore
 from ..core.generation_config import GenerationConfigError, config_from_value, validate_digest
+from ..screening.ollama import ModelInspectionError
+from ..screening.orchestrator import ScreeningCreationError, ScreeningOrchestrator
 from ..screening.queue import (
     ExecutionConflict,
     ExecutionNotFound,
     QueueValidationError,
 )
+# 회차 조회 규칙(사람이 읽는 디렉터리 이름 허용, 없으면 404)은 lifecycle의 것이다.
+# 같은 규칙을 다시 구현하지 않고 그 helper를 쓴다(§4의 허용 방향).
+from .common import get_run
 
 
 router = APIRouter(prefix="/api/screening", tags=["screening"])
+# 판정 실행은 회차 경로 아래에 있지만 제공 모듈은 screening이다(명세 §5.3).
+# 경로와 응답은 그대로 두고 소유 모듈만 옮겼으므로 prefix가 다른 router를 하나 더
+# 둔다. 조립 계층이 두 router를 함께 등록한다.
+run_router = APIRouter(prefix="/api/runs", tags=["screening"])
 
 _ARTIFACTS: dict[str, tuple[str, str]] = {
     "decisions": ("screening-decisions.json", "application/json"),
@@ -463,3 +473,65 @@ def get_artifact(
 
 
 __all__ = ["execution_detail", "execution_response", "router"]
+
+
+def _screening_orchestrator(request: Request, session: Session) -> ScreeningOrchestrator:
+    value = getattr(request.app.state, "screening_orchestrator", None)
+    if callable(getattr(value, "create_execution", None)):
+        return value
+    return ScreeningOrchestrator(session_factory=session)
+
+
+@run_router.post(
+    "/{run_id}/pipeline/judgment",
+    response_model=ScreeningExecutionResponse,
+    status_code=202,
+)
+def start_judgment_pipeline(
+    run_id: str,
+    payload: JudgmentExecutionCreateRequest,
+    request: Request,
+    session: Session = Depends(get_db),
+) -> ScreeningExecutionResponse:
+    """Enqueue one immutable full-run judgment and return immediately."""
+
+    run = get_run(session, run_id)
+    orchestrator = _screening_orchestrator(request, session)
+    try:
+        # A fresh tags inspection is deliberately done before any artifact or
+        # queue write.  The orchestrator repeats the binding while preparing
+        # the frozen input, so a changed model cannot be silently accepted.
+        ollama = getattr(orchestrator, "ollama", None)
+        if ollama is not None:
+            ollama.inspect_model(refresh=True)
+        created = orchestrator.create_execution(
+            run_id=run.id,
+            policy_version=payload.policy_version,
+            profile_source=payload.profile_source,
+            requested_by=payload.requested_by,
+            scope="full_run",
+            trigger="manual_run",
+        )
+    except ModelInspectionError as exc:
+        raise HTTPException(status_code=503, detail="모델 사전 확인을 완료할 수 없습니다.") from exc
+    except ScreeningCreationError as exc:
+        if exc.code in {"precondition_failed", "model_inspection", "ollama_unavailable"}:
+            raise HTTPException(status_code=503, detail="모델 사전 확인을 완료할 수 없습니다.") from exc
+        if exc.code == "profile_snapshot":
+            raise HTTPException(status_code=400, detail="회사 프로필 스냅샷을 준비할 수 없습니다.") from exc
+        if exc.code in {"policy_mismatch", "input_error"}:
+            # Missing policy/profile and malformed frozen input are reported
+            # without exposing filesystem paths or policy/profile contents.
+            if exc.code == "policy_mismatch" and session.get(ScreeningPolicy, payload.policy_version) is None:
+                raise HTTPException(status_code=404, detail="정책 버전을 찾을 수 없습니다.") from exc
+            raise HTTPException(status_code=400, detail="판정 입력을 준비할 수 없습니다.") from exc
+        raise HTTPException(status_code=400, detail="판정 실행을 준비할 수 없습니다.") from exc
+    except (OSError, ConnectionError, TimeoutError) as exc:
+        raise HTTPException(status_code=503, detail="모델 사전 확인을 완료할 수 없습니다.") from exc
+    session.rollback()
+    row = session.scalar(
+        select(ScreeningExecution).where(ScreeningExecution.execution_id == created.execution_id)
+    )
+    if row is None:
+        raise HTTPException(status_code=500, detail="판정 실행을 읽을 수 없습니다.")
+    return execution_response(session, row)

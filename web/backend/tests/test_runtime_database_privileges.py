@@ -11,11 +11,12 @@ from datetime import datetime, timezone
 import re
 from pathlib import Path
 
+import pytest
 from sqlalchemy import create_engine, func, select, text
 from sqlalchemy.orm import Session
 
 from app.core.db import schema_bound
-from app.ingest.loader import ingest_run
+from app.lifecycle import ingest_run
 from app.models import OrderPlanScreeningExecution, Run
 from tests.postgres import maintenance_url, requires_postgres, temporary_database
 
@@ -260,6 +261,12 @@ def test_c2_runtime_grants_are_role_specific_and_column_scoped() -> None:
         "stage2_rejected_count", "human_review_count", "error_code",
         "started_at", "finished_at", "heartbeat_at",
     }
+
+
+
+@pytest.fixture(autouse=True)
+def _screening_registered(screening_extensions):
+    """C-2 전용 디렉터리 인식과 적재는 screening hook이 등록돼 있을 때만 일어난다(명세 §6.2)."""
 
 
 def _ensure_roles() -> None:
@@ -659,7 +666,7 @@ def test_effective_runtime_role_matrix_and_future_defaults() -> None:
 def test_c2_ingest_completes_with_the_app_runtime_role(tmp_path) -> None:
     """The credential used by the ingest path can append the complete C-2 set."""
 
-    from tests.test_ingest_loader import _write_c2_fixture
+    from tests.c2_fixtures import write_c2_fixture as _write_c2_fixture
 
     _ensure_roles()
     with temporary_database() as database_url:

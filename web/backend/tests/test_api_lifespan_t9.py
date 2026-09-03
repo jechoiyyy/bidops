@@ -14,6 +14,7 @@ from app.core.config import Settings
 from app.core.db import Base, get_db
 from app.models import CompanyProfileSnapshot, Run, ScreeningExecution, ScreeningPolicy
 from app.routers.runs import router as runs_router
+from app.routers.screening import run_router as screening_run_router
 from app.runtime import ApplicationRuntime
 
 
@@ -67,6 +68,9 @@ def test_judgment_endpoint_enqueues_full_manual_run_without_waiting(tmp_path: Pa
             return SimpleNamespace(execution_id=execution_id)
 
     application = FastAPI()
+    # 판정 실행 endpoint 의 제공 모듈은 screening 이다(명세 §5.3). 경로가 그대로
+    # `/api/runs/...` 이므로, 회차 router 의 일반 단계 경로보다 먼저 등록한다.
+    application.include_router(screening_run_router)
     application.include_router(runs_router)
     application.state.screening_orchestrator = FakeOrchestrator()
 

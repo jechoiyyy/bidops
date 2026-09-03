@@ -1,271 +1,51 @@
-"""Validation metric calculations for the BidOps workflow."""
+"""검증 지표 응답 조립 (명세 §6.1).
+
+다섯 지표는 전부 판정·리뷰 데이터에서 나온다. lifecycle은 지표의 의미를 알지
+못하므로, 임계값 판단과 "측정 불가" 사유 라벨까지 판정 projection이 조립한 것을
+응답 모델로 옮기기만 한다. 제공자가 없으면 다섯 지표 모두 측정 불가다.
+"""
 
 from __future__ import annotations
 
-from collections import defaultdict
-from itertools import combinations
-from typing import Any
-
-from sqlalchemy import select
-from sqlalchemy.orm import Session, selectinload
-
-from ..models import Judgment, Notice, NoticeObservation, Review
+from ..lifecycle import extension_registry
 from ..schemas import MetricBasis, ValidationMetric
 
+#: 제공자가 없을 때 내보내는 지표의 키와 이름. 순서는 응답 계약의 일부다.
+ABSENT_METRICS: tuple[tuple[str, str], ...] = (
+    ("reproducibility", "재현성"),
+    ("discriminative_power", "변별력"),
+    ("evidence_validity", "근거 타당성"),
+    ("information_sufficiency", "정보 충분성"),
+    ("perspective_split", "관점 분할"),
+)
 
-GRADE_REPRODUCIBILITY_THRESHOLD = 0.80
-DISCRIMINATIVE_POWER_RANGE = (0.10, 0.25)
-EVIDENCE_VALIDITY_THRESHOLD = 0.70
-PERSPECTIVE_SPLIT_THRESHOLD = 0.40
+ABSENT_REASON = "판정 결과를 제공하는 모듈이 없어 지표를 계산할 수 없습니다."
 
 
-def _basis(numerator: int | float, denominator: int | float, **detail: Any) -> MetricBasis:
-    return MetricBasis(numerator=numerator, denominator=denominator, detail=detail)
+def _absent(key: str, label: str) -> ValidationMetric:
+    """값이 아니라 측정 불가다. 0이나 빈 값으로 바꾸지 않는다."""
 
-
-def _not_measurable(
-    key: str,
-    label: str,
-    reason: str,
-    *,
-    detail: dict[str, Any] | None = None,
-    denominator: int = 0,
-    threshold: Any = None,
-) -> ValidationMetric:
     return ValidationMetric(
         key=key,
         label=label,
         value=None,
         percentage=None,
-        threshold=threshold,
-        meets_threshold=None,
-        status="not_measurable",
-        basis=_basis(0, denominator, **(detail or {})),
-        reason=reason,
-    )
-
-
-def _measured(
-    key: str,
-    label: str,
-    numerator: int,
-    denominator: int,
-    *,
-    threshold: Any,
-    meets_threshold: bool | None,
-    status: str,
-    detail: dict[str, Any] | None = None,
-    reason: str | None = None,
-) -> ValidationMetric:
-    value = numerator / denominator if denominator else None
-    return ValidationMetric(
-        key=key,
-        label=label,
-        value=value,
-        percentage=value * 100 if value is not None else None,
-        threshold=threshold,
-        meets_threshold=meets_threshold,
-        status=status,  # type: ignore[arg-type]
-        basis=_basis(numerator, denominator, **(detail or {})),
-        reason=reason,
-    )
-
-
-def _reproducibility(session: Session) -> ValidationMetric:
-    rows = session.execute(
-        select(Notice.notice_key, Judgment.grade)
-        .join(Judgment, Judgment.notice_pk == Notice.id)
-        .where(Judgment.grade.is_not(None))
-    ).all()
-    grades_by_key: dict[str, list[str]] = defaultdict(list)
-    for notice_key, grade in rows:
-        if notice_key and grade:
-            grades_by_key[notice_key].append(grade)
-
-    repeated = {key: grades for key, grades in grades_by_key.items() if len(grades) >= 2}
-    comparison_count = sum(len(grades) * (len(grades) - 1) // 2 for grades in repeated.values())
-    if comparison_count == 0:
-        return _not_measurable(
-            "reproducibility",
-            "재현성",
-            "둘 이상의 회차에서 같은 공고를 판정한 기록이 없습니다.",
-            detail={"repeated_notice_keys": 0},
-            threshold=GRADE_REPRODUCIBILITY_THRESHOLD,
-        )
-
-    matching = sum(
-        sum(left == right for left, right in combinations(grades, 2))
-        for grades in repeated.values()
-    )
-    return _measured(
-        "reproducibility",
-        "재현성",
-        matching,
-        comparison_count,
-        threshold=GRADE_REPRODUCIBILITY_THRESHOLD,
-        meets_threshold=matching / comparison_count >= GRADE_REPRODUCIBILITY_THRESHOLD,
-        status="pass" if matching / comparison_count >= GRADE_REPRODUCIBILITY_THRESHOLD else "fail",
-        detail={
-            "matching_comparisons": matching,
-            "comparison_groups": len(repeated),
-        },
-    )
-
-
-def _discriminative_power(session: Session, run_id: str) -> ValidationMetric:
-    rows = session.execute(
-        select(Judgment.grade)
-        .join(Notice, Judgment.notice_pk == Notice.id)
-        .join(NoticeObservation, NoticeObservation.notice_id == Notice.id)
-        .where(NoticeObservation.run_id == run_id, Notice.sample_role == "analysis")
-    ).all()
-    grades = [grade for (grade,) in rows if grade]
-    denominator = len(grades)
-    numerator = sum(grade == "우선 검토" for grade in grades)
-    if denominator == 0:
-        return _not_measurable(
-            "discriminative_power",
-            "변별력",
-            "선택한 회차에 분석 표본 판정이 없습니다.",
-            threshold={"min": DISCRIMINATIVE_POWER_RANGE[0], "max": DISCRIMINATIVE_POWER_RANGE[1]},
-        )
-    lower, upper = DISCRIMINATIVE_POWER_RANGE
-    value = numerator / denominator
-    return _measured(
-        "discriminative_power",
-        "변별력",
-        numerator,
-        denominator,
-        threshold={"min": lower, "max": upper},
-        meets_threshold=lower <= value <= upper,
-        status="pass" if lower <= value <= upper else "fail",
-        detail={"grade": "우선 검토", "sample_role": "analysis"},
-    )
-
-
-def _evidence_validity(session: Session, run_id: str) -> ValidationMetric:
-    values = session.scalars(
-        select(Review.system_judgment_review)
-        .join(Notice, Review.notice_pk == Notice.id)
-        .join(NoticeObservation, NoticeObservation.notice_id == Notice.id)
-        .where(
-            NoticeObservation.run_id == run_id,
-            Review.system_judgment_review.is_not(None),
-        )
-    ).all()
-    values = [value for value in values if value and value.strip()]
-    denominator = len(values)
-    numerator = sum(value == "동의" for value in values)
-    if denominator == 0:
-        return _not_measurable(
-            "evidence_validity",
-            "근거 타당성",
-            "선택한 회차에 시스템 판정 평가가 기록된 리뷰가 없습니다.",
-            threshold=EVIDENCE_VALIDITY_THRESHOLD,
-        )
-    value = numerator / denominator
-    return _measured(
-        "evidence_validity",
-        "근거 타당성",
-        numerator,
-        denominator,
-        threshold=EVIDENCE_VALIDITY_THRESHOLD,
-        meets_threshold=value >= EVIDENCE_VALIDITY_THRESHOLD,
-        status="pass" if value >= EVIDENCE_VALIDITY_THRESHOLD else "fail",
-        detail={"agreement": numerator, "distribution": dict(defaultdict(int, ((v, values.count(v)) for v in set(values))))},
-    )
-
-
-def _information_sufficiency(session: Session, run_id: str) -> ValidationMetric:
-    judgments = session.scalars(
-        select(Judgment)
-        .join(Notice, Judgment.notice_pk == Notice.id)
-        .join(NoticeObservation, NoticeObservation.notice_id == Notice.id)
-        .where(NoticeObservation.run_id == run_id)
-        .options(
-            # notice.attachments 까지 함께 읽지 않으면 판정 수만큼 조회가 늘어난다.
-            selectinload(Judgment.notice).selectinload(Notice.attachments),
-            selectinload(Judgment.verification_items),
-        )
-    ).all()
-    items = [item for judgment in judgments for item in judgment.verification_items]
-    if not items:
-        return _not_measurable(
-            "information_sufficiency",
-            "정보 충분성",
-            "선택한 회차에 확인 항목이 없습니다.",
-        )
-
-    # Step 1/2 intentionally keep the artifact contract unchanged.  The
-    # model has no separate attachment-required flag, so the observable,
-    # reproducible interpretation is an unresolved item on a notice with no
-    # attached document.  This avoids inferring attachment dependence from
-    # prose or turning a missing field into a zero.
-    unresolved_without_attachment = sum(
-        item.status != "확인 완료"
-        and not judgment.notice.attachments
-        for judgment in judgments
-        for item in judgment.verification_items
-    )
-    return _measured(
-        "information_sufficiency",
-        "정보 충분성",
-        unresolved_without_attachment,
-        len(items),
         threshold=None,
         meets_threshold=None,
-        status="measured",
-        detail={
-            "verification_items": len(items),
-            "unresolved_without_attachment": unresolved_without_attachment,
-        },
-        reason="이 항목은 사전 확정된 합격 임계값 없이 비율을 정량화합니다.",
+        status="not_measurable",
+        basis=MetricBasis(numerator=0, denominator=0, detail={}),
+        reason=ABSENT_REASON,
     )
 
 
-def _perspective_split(session: Session, run_id: str) -> ValidationMetric:
-    judgments = session.scalars(
-        select(Judgment)
-        .join(Notice, Judgment.notice_pk == Notice.id)
-        .join(NoticeObservation, NoticeObservation.notice_id == Notice.id)
-        .where(NoticeObservation.run_id == run_id)
-        .options(selectinload(Judgment.perspectives))
-    ).all()
-    eligible = [judgment for judgment in judgments if len(judgment.perspectives) >= 2]
-    if not eligible:
-        return _not_measurable(
-            "perspective_split",
-            "관점 분할",
-            "관점이 둘 이상인 판정이 없어 관점 간 차이를 계산할 수 없습니다.",
-            threshold=PERSPECTIVE_SPLIT_THRESHOLD,
-        )
-    split = sum(
-        len({p.assessment for p in judgment.perspectives if p.assessment is not None}) >= 2
-        for judgment in eligible
-    )
-    value = split / len(eligible)
-    return _measured(
-        "perspective_split",
-        "관점 분할",
-        split,
-        len(eligible),
-        threshold=PERSPECTIVE_SPLIT_THRESHOLD,
-        meets_threshold=value >= PERSPECTIVE_SPLIT_THRESHOLD,
-        status="pass" if value >= PERSPECTIVE_SPLIT_THRESHOLD else "fail",
-        detail={"multi_perspective_judgments": len(eligible)},
-    )
+def calculate_validation_metrics(session, run_id: str) -> list[ValidationMetric]:
+    """회차 하나의 검증 지표 다섯 개. DB 상태를 바꾸지 않는다."""
 
-
-def calculate_validation_metrics(session: Session, run_id: str) -> list[ValidationMetric]:
-    """Calculate all five validation metrics without mutating database state."""
-
-    return [
-        _reproducibility(session),
-        _discriminative_power(session, run_id),
-        _evidence_validity(session, run_id),
-        _information_sufficiency(session, run_id),
-        _perspective_split(session, run_id),
-    ]
+    metrics = extension_registry().judgment_projection.metrics_input(session, [run_id])
+    values = metrics.get(run_id) if isinstance(metrics, dict) else None
+    if not values:
+        return [_absent(key, label) for key, label in ABSENT_METRICS]
+    return list(values)
 
 
 # Small aliases make the service convenient for callers and tests while the

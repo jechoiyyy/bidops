@@ -16,9 +16,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..core.config import Settings, get_settings
-from ..ingest.contracts import (
-    OrderPlanArtifact,
-    OrderPlanContract,
+from ..ingest.contracts import OrderPlanArtifact, OrderPlanContract
+from ..screening.c2_contracts import (
     OrderPlanScreeningInputArtifact,
     OrderPlanScreeningPolicyArtifact,
 )
