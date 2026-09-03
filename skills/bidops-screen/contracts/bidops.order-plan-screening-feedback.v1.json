@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bidops.internal/schemas/bidops.order-plan-screening-feedback.v1.json",
+  "title": "BidOps human order-plan screening feedback revision v1",
+  "x-bidops-producer": "human-review-api",
+  "x-bidops-consumer": "postgres-review-history",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "producer", "consumer", "feedback_id", "execution_id", "plan_id", "revision", "actor_kind", "claimed_name", "relevance", "priority", "memo", "created_at"],
+  "properties": {
+    "schema_version": {"const": "bidops.order-plan-screening-feedback.v1"},
+    "producer": {"const": "human-review-api"},
+    "consumer": {"const": "postgres-review-history"},
+    "feedback_id": {"type": "string", "minLength": 1},
+    "execution_id": {"type": "string", "minLength": 1},
+    "plan_id": {"type": "string", "minLength": 1},
+    "revision": {"type": "integer", "minimum": 1},
+    "actor_kind": {"const": "human"},
+    "claimed_name": {"type": "string", "minLength": 1},
+    "relevance": {"enum": ["relevant", "not_relevant", "uncertain"]},
+    "priority": {"type": ["string", "null"], "enum": ["high", "medium", "low", null]},
+    "memo": {"type": ["string", "null"], "minLength": 1},
+    "supersedes_feedback_id": {"type": ["string", "null"]},
+    "created_at": {"type": "string", "format": "date-time"}
+  }
+}

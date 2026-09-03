@@ -1,0 +1,78 @@
+{
+  "schema_version": "bidops.order-plan-screening-selection-decision.v1",
+  "decision_id": "c2-bm25-top300-qwen-20260901",
+  "decision_status": "selected",
+  "decision_scope": "c2_order_plan_first_pass_method",
+  "decided_at": "2026-09-01T12:32:45+09:00",
+  "decision_authority": {
+    "kind": "human",
+    "source": "interactive_user_instruction",
+    "claimed_name": null,
+    "authenticated": false
+  },
+  "selected_method": {
+    "name": "BM25 Top 300 + Qwen",
+    "stage1": {
+      "method": "bm25",
+      "top_k": 300,
+      "config_sha256": "e026b2bdd2f99ddc09ae17bc83b1cd9cc40ef413f3b72372a35db32918d696da"
+    },
+    "stage2": {
+      "method": "qwen",
+      "model_name": "qwen3.8-27B",
+      "model_revision": "6ae70ca30563209f09ec0114ce5813f7a232b38e5bb409f2adbd0e9bbe318b11",
+      "prompt_id": "order-plan-batch-relevance-v3",
+      "prompt_sha256": "639f7332e1120a41b2e8d8306126f121ae1ed37068a81b1687aff9ce66ab9d12",
+      "company_capabilities_sha256": "8f60dfece1934bdf857cd7e57d0fdd1860d01871131d98c3f2e8f9d71f271eae",
+      "batch_size": 25,
+      "candidate_labels": [
+        "relevant",
+        "uncertain"
+      ]
+    }
+  },
+  "evidence": {
+    "run_id": "20260827-20260830-bm25-qwen300-v3",
+    "source_population_count": 625,
+    "source_population_sha256": "7846e7ff51002dac613f85cc1a3e8a358430c9519ed96c6501e8e41c9f3d1c5a",
+    "cascade_path": "cascade.json",
+    "cascade_sha256": "06fd0cdf122f0ffec6cf6480e50b6dd50d98d019acdc40fe1a14c01f3dfb9a7a",
+    "qwen_result_path": "results/qwen.json",
+    "qwen_result_sha256": "a150cf845271b591d4144d76b9d7f9931fe87389eca894fc6e6e2fa0611f44e4",
+    "scoring_path": "qwen-cascade-scoring-gold-v2.json",
+    "scoring_sha256": "36040cbf68796129fd8d67ebc817c9f41b3ac2b667ba4d78eaffe8d422ae11a3",
+    "reference_sha256": "07d1986ab9d8abc7ef8ce12466e65998044928127682b9b7f743b08f4aacc4cd",
+    "accepted_misses_path": "review/accepted-stage1-misses.tsv",
+    "accepted_misses_sha256": "ba8aea251e39e0b83cf2ecb85c220fa62213d72635471a6579a21ba7a741d13c"
+  },
+  "measured_metrics": {
+    "stage1_selected_count": 300,
+    "stage1_filtered_out_count": 325,
+    "stage1_relevant_missed": 2,
+    "qwen_success_count": 300,
+    "qwen_failure_count": 0,
+    "qwen_relevant_missed_after_stage1": 0,
+    "review_retained_recall_full_population": 0.9661,
+    "review_retained_precision": 0.4488,
+    "review_load": 127,
+    "qwen_elapsed_ms": 598947,
+    "qwen_input_tokens": 23725,
+    "qwen_output_tokens": 20458,
+    "qwen_total_tokens": 44183
+  },
+  "accepted_tradeoff": {
+    "known_stage1_miss_count": 2,
+    "known_stage1_miss_priority": "낮음",
+    "known_stage1_miss_label_source": "draft",
+    "reason": "Qwen direct 대비 관련+불확실 검토 recall 3.39%p 감소를 수용하고 Qwen 시간과 토큰 약 52% 절감을 선택함"
+  },
+  "runtime_rules": {
+    "stage1_filtered_out_is_not_qwen_not_relevant": true,
+    "qwen_failure_has_no_model_fallback": true,
+    "final_go_no_go_remains_human": true
+  },
+  "operational_activation": {
+    "active": false,
+    "reason": "C-2 방식 선택 기록이며 threshold 정책 버전, 사람 정답 승인, 품질 게이트와 별도 운영 활성화가 남아 있음"
+  }
+}

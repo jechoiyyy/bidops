@@ -65,9 +65,10 @@ BidOps의 코드, 데이터, 모델 호출, 운영 변경은 아래 기준을 �
 
 ```bash
 ./run-tests.sh
-./web/run-web-tests.sh
-cd web/frontend && npm run test:visual
+./web/run-web-tests.sh            # backend pytest + frontend build + Playwright 화면 회귀
 docker compose -f docker-compose.t7.yml build
+
+cd web/frontend && npm run test:visual   # 화면만 따로 돌릴 때
 ```
 
 - 파이프라인 계약 변경은 관련 skill 단위 테스트와 교차 파이프라인 테스트를 모두 통과해야 한다.

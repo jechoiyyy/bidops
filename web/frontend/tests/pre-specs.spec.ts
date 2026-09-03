@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { mockApi } from "./api-mock";
+import { mockApi, mockDocumentStructurePage } from "./api-mock";
 
 const FIXED_TIME = new Date("2026-08-31T09:00:00+09:00");
 
@@ -18,6 +18,7 @@ const trackingException = {
   tracking_status: "계속 추적",
   kept_by_tracking: true,
   document: { attachments: 6, "완료": 2, "대기": 1, "진행": 0, "차단": 2, "실패": 1 },
+  overview_review_status: "needs_human_review",
 };
 
 const newPreSpec = {
@@ -35,6 +36,7 @@ const newPreSpec = {
   tracking_status: "미선택",
   kept_by_tracking: false,
   document: { attachments: 1, "완료": 1, "대기": 0, "진행": 0, "차단": 0, "실패": 0 },
+  overview_review_status: "failed",
 };
 
 const allOnlyPreSpec = {
@@ -52,7 +54,31 @@ const allOnlyPreSpec = {
   tracking_status: null,
   kept_by_tracking: false,
   document: { attachments: 0, "완료": 0, "대기": 0, "진행": 0, "차단": 0, "실패": 0 },
+  // notice에 prespec_overview_review 행이 아직 없다(개요 검토 미시작). 10값
+  // 중 어느 것도 아니며, awaiting_document로 접어 넣지 않는다.
+  overview_review_status: null,
 };
+
+const ALL_OVERVIEW_STATUSES: (string | null)[] = [
+  "awaiting_document",
+  "awaiting_structure",
+  "preparing",
+  "awaiting_model",
+  "queued",
+  "running",
+  "needs_human_review",
+  "completed",
+  "failed",
+  "cancelled",
+  null,
+];
+
+function overviewStatusCounts(items: readonly { overview_review_status: string | null }[]) {
+  return ALL_OVERVIEW_STATUSES.map((status) => ({
+    status,
+    count: items.filter((item) => item.overview_review_status === status).length,
+  }));
+}
 
 const notice991 = {
   id: 991,
@@ -92,13 +118,16 @@ const notice991 = {
 };
 
 const unknownOverview = {
-  schema_version: "bidops.prespec-overview-reviews.v1",
+  schema_version: "bidops.prespec-overview-reviews.v2",
   notice_id: 991,
   reviews: [{
     id: "00000000-0000-0000-0000-000000000991",
     notice_id: 991,
     status: "needs_human_review",
     result: null,
+    result_digest: null,
+    binding_digest: null,
+    validation_status: "pending",
     completed_at: null,
     current_snapshot: {
       id: "10000000-0000-0000-0000-000000000991",
@@ -116,10 +145,88 @@ const unknownOverview = {
   }],
 };
 
+const completedOverview = {
+  ...unknownOverview,
+  reviews: [{
+    ...unknownOverview.reviews[0],
+    status: "completed",
+    result: {
+      schema_version: "bidops.prespec-overview-result.v1",
+      recommendation: "조건부 추진 검토",
+      summary: "민원·행정 데이터를 통합해 담당자가 업무 현황을 조회하는 행정 지원 플랫폼 구축 사업입니다.",
+      conditions: ["기존 시스템 연계 범위와 기관별 데이터 제공 책임을 확인해야 합니다."],
+      verification_due_at: "2026-09-02T00:00:00Z",
+      unknowns: [
+        {
+          topic: "기존 시스템 연계 범위",
+          reason: "개요 입력에는 연계 대상과 제공 API 목록이 없습니다.",
+          verification_action: "심층 검토에서 연계 대상별 인터페이스 명세를 확인합니다.",
+        },
+        {
+          topic: "개인정보 처리 책임",
+          reason: "운영 주체와 개인정보 처리 역할이 확정되지 않았습니다.",
+          verification_action: null,
+        },
+      ],
+      evidence: [{
+        claim: "사업은 행정 지원 플랫폼 구축과 기존 업무 데이터 연계를 포함합니다.",
+        locator: { block_key: "overview-intro", page: 2, ordinal: 7 },
+      }],
+      input_limitations: ["제안요청서 앞부분의 개요 입력만 검토했습니다."],
+    },
+    result_digest: "c".repeat(64),
+    binding_digest: "d".repeat(64),
+    validation_status: "passed",
+    completed_at: "2026-08-31T02:00:00Z",
+    current_snapshot: { ...unknownOverview.reviews[0].current_snapshot, cut_status: "ready", strategy: "topic_heading" },
+    attempts: [{
+      id: "00000000-0000-0000-0000-000000000992",
+      snapshot_id: "10000000-0000-0000-0000-000000000991",
+      sequence: 1,
+      status: "completed",
+      reference_only: false,
+      deployable: true,
+      validation_status: "passed",
+      result_digest: "c".repeat(64),
+      binding_digest: "d".repeat(64),
+      created_at: "2026-08-31T01:30:00Z",
+      started_at: "2026-08-31T01:35:00Z",
+      completed_at: "2026-08-31T02:00:00Z",
+    }],
+  }],
+};
+
+function completedOverviewWithEvidenceBlock(blockKey: string) {
+  const review = completedOverview.reviews[0];
+  return {
+    ...completedOverview,
+    reviews: [{
+      ...review,
+      result: {
+        ...review.result,
+        evidence: review.result.evidence.map((evidence) => ({
+          ...evidence,
+          locator: { ...evidence.locator, block_key: blockKey },
+        })),
+      },
+    }],
+  };
+}
+
+const awaitingModelOverview = {
+  ...unknownOverview,
+  reviews: [{
+    ...unknownOverview.reviews[0],
+    status: "awaiting_model",
+  }],
+};
+
 interface PreSpecTrace {
   listQueries: URLSearchParams[];
   noticeGets: number[];
   overviewGets: number[];
+  structurePageGets: Array<{ structureId: string; page: number }>;
+  trackingPatches: Array<{ opportunityId: number; trackingStatus: string; reason: string }>;
 }
 
 interface PreSpecMockOptions {
@@ -131,12 +238,13 @@ interface PreSpecMockOptions {
 }
 
 async function mockPreSpecs(page: Page, options: PreSpecMockOptions = {}): Promise<PreSpecTrace> {
-  const trace: PreSpecTrace = { listQueries: [], noticeGets: [], overviewGets: [] };
+  const trace: PreSpecTrace = { listQueries: [], noticeGets: [], overviewGets: [], structurePageGets: [], trackingPatches: [] };
+  let currentTrackingStatus: string = trackingException.tracking_status;
 
   await page.route("**/api/pre-specs**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
-    const overviewMatch = url.pathname.match(/^\/api\/pre-specs\/(\d+)\/overview-reviews$/);
+    const overviewMatch = url.pathname.match(/^\/api\/pre-specs\/(\d+)\/overview-reviews\/v2$/);
 
     if (overviewMatch && request.method() === "GET") {
       const id = Number(overviewMatch[1]);
@@ -159,19 +267,69 @@ async function mockPreSpecs(page: Page, options: PreSpecMockOptions = {}): Promi
 
     if (url.pathname === "/api/pre-specs" && request.method() === "GET") {
       trace.listQueries.push(new URLSearchParams(url.search));
+      const noticePk = url.searchParams.has("notice_pk") ? Number(url.searchParams.get("notice_pk")) : null;
       const swOnly = url.searchParams.get("sw_only") !== "false";
-      const items = swOnly
-        ? options.emptyDefault ? [] : [trackingException, newPreSpec]
-        : [trackingException, newPreSpec, allOnlyPreSpec];
+      const allItems = [
+        { ...trackingException, tracking_status: currentTrackingStatus },
+        newPreSpec,
+        allOnlyPreSpec,
+      ];
+      const items = noticePk !== null
+        ? allItems.filter((item) => item.notice_pk === noticePk)
+        : swOnly
+          ? options.emptyDefault ? [] : allItems.slice(0, 2)
+          : allItems;
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ items, total: items.length, limit: 50, offset: 0 }),
+        body: JSON.stringify({
+          items,
+          total: items.length,
+          limit: 50,
+          offset: 0,
+          overview_status_counts: overviewStatusCounts(items),
+        }),
       });
       return;
     }
 
     await route.fallback();
+  });
+
+  await page.route("**/api/opportunities/*/tracking-status", async (route) => {
+    const request = route.request();
+    const match = new URL(request.url()).pathname.match(/^\/api\/opportunities\/(\d+)\/tracking-status$/);
+    if (request.method() !== "PATCH" || !match) {
+      await route.fallback();
+      return;
+    }
+    const body = request.postDataJSON() as { tracking_status?: string; reason?: string };
+    if (Number(match[1]) !== trackingException.opportunity_id || !body.tracking_status || !body.reason?.trim()) {
+      await route.fulfill({ status: 422, contentType: "application/json", body: JSON.stringify({ detail: "tracking_reason_required" }) });
+      return;
+    }
+    currentTrackingStatus = body.tracking_status;
+    trace.trackingPatches.push({
+      opportunityId: Number(match[1]),
+      trackingStatus: body.tracking_status,
+      reason: body.reason,
+    });
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        id: trackingException.opportunity_id,
+        tracking_status: currentTrackingStatus,
+        tracking_reason: body.reason,
+        tracking_selected_by: request.headers()["x-bidops-actor-name"] ?? "테스트 담당자",
+        tracking_selected_at: "2026-09-01T00:00:00Z",
+        recheck_signal: false,
+        recheck_signal_at: null,
+        recheck_signal_link_id: null,
+        first_registered_stage: "order_plan",
+        links: [],
+      }),
+    });
   });
 
   await page.route("**/api/notices/**", async (route) => {
@@ -181,14 +339,21 @@ async function mockPreSpecs(page: Page, options: PreSpecMockOptions = {}): Promi
       const id = Number(match[1]);
       trace.noticeGets.push(id);
       await route.fulfill({
-        status: id === 991 ? 200 : 404,
+        status: id === 991 || id === 993 ? 200 : 404,
         contentType: "application/json",
-        body: JSON.stringify(id === 991 ? notice991 : { detail: "공고 없음" }),
+        body: JSON.stringify(id === 991
+          ? notice991
+          : id === 993
+            ? { ...notice991, id: 993, notice_key: "pre-spec:993", title: allOnlyPreSpec.title, agency: allOnlyPreSpec.agency, attachment_count: 0, url: null, lifecycle: { pre_spec_no: allOnlyPreSpec.pre_spec_no }, qualification_flags: { sw_business_status: null } }
+            : { detail: "공고 없음" }),
       });
       return;
     }
     await route.fallback();
   });
+
+  const structurePageTrace = await mockDocumentStructurePage(page);
+  trace.structurePageGets = structurePageTrace.pageGets;
 
   return trace;
 }
@@ -227,6 +392,10 @@ test("기본 보기 빈 상태의 전체 사전규격 보기는 sw_only=false를
   await expect(page.getByRole("button", { name: "전체 사전규격 보기" })).toBeVisible();
   await page.getByRole("button", { name: "전체 사전규격 보기" }).click();
   await expect.poll(() => trace.listQueries.at(-1)?.get("sw_only")).toBe("false");
+  // allOnlyPreSpec은 개요 검토 미시작(null) 그룹에 있고 이 그룹은 기본
+  // 접힘이므로, 펼치기 전에는 행이 접근성 트리에도 없다.
+  await expect(page.getByRole("link", { name: allOnlyPreSpec.title })).toHaveCount(0);
+  await page.getByRole("button", { name: /개요 검토 미시작/ }).click();
   await expect(page.getByRole("link", { name: allOnlyPreSpec.title })).toBeVisible();
 });
 
@@ -244,6 +413,108 @@ test("추적 예외, 신규, D-day, 문서 차단과 실패를 별도 상태로 
 
   const newRow = page.getByRole("row").filter({ has: page.getByRole("link", { name: newPreSpec.title }) });
   await expect(newRow.getByText("신규", { exact: true })).toBeVisible();
+});
+
+test("개요 검토 상태 10값과 미시작(null)이 모두 그룹으로 표현된다", async ({ page }) => {
+  await mockPreSpecs(page);
+  await page.goto("/pre-specs?sw_only=false");
+
+  const groupLabels: Record<string, string> = {
+    awaiting_document: "문서 대기",
+    awaiting_structure: "구조화 대기",
+    preparing: "입력 준비 중",
+    awaiting_model: "모델 실행 대기",
+    queued: "실행 대기",
+    running: "실행 중",
+    needs_human_review: "사람 검토 필요",
+    completed: "완료",
+    failed: "실패",
+    cancelled: "취소",
+  };
+  // 10값 전부가 화면에 존재한다 — 이 fixture에는 needs_human_review·failed
+  // 만 실제 건수(1건씩)가 있고 나머지는 0건이지만, 0건 그룹도 숨기지 않는다.
+  for (const [status, label] of Object.entries(groupLabels)) {
+    // "실행 대기"(queued)가 "모델 실행 대기"(awaiting_model)의 부분 문자열이라
+    // 앵커 없이 찾으면 strict mode violation이 난다 — 결정적 DOM 문제이지
+    // flake가 아니다(docs/engineering-notes.md). 그룹 트리거 접근성 이름은
+    // 라벨로 시작하므로 시작 앵커로 좁힌다.
+    const trigger = page.getByRole("button", { name: new RegExp(`^${label}`) });
+    await expect(trigger).toBeVisible();
+    const expectedCount = status === "needs_human_review" || status === "failed" ? "1건" : "0건";
+    await expect(trigger).toContainText(expectedCount);
+  }
+  // 개요 검토 미시작(null, prespec_overview_review 행 없음)은 10값과 다른
+  // 별도의 열한 번째 그룹이며 awaiting_document로 접히지 않는다.
+  const notStarted = page.getByRole("button", { name: /개요 검토 미시작/ });
+  await expect(notStarted).toBeVisible();
+  await expect(notStarted).toContainText("1건");
+});
+
+test("사람 검토 필요·실패는 기본 펼침, 그 외 그룹은 기본 접힘이다", async ({ page }) => {
+  await mockPreSpecs(page);
+  await page.goto("/pre-specs?sw_only=false");
+
+  const needsHumanReview = page.getByRole("button", { name: /사람 검토 필요/ });
+  const failed = page.getByRole("button", { name: /^실패/ });
+  const notStarted = page.getByRole("button", { name: /개요 검토 미시작/ });
+  const completed = page.getByRole("button", { name: /^완료/ });
+
+  await expect(needsHumanReview).toHaveAttribute("aria-expanded", "true");
+  await expect(failed).toHaveAttribute("aria-expanded", "true");
+  await expect(notStarted).toHaveAttribute("aria-expanded", "false");
+  await expect(completed).toHaveAttribute("aria-expanded", "false");
+
+  // 기본 펼침 그룹의 행은 클릭 없이 바로 보인다.
+  await expect(page.getByRole("link", { name: trackingException.title })).toBeVisible();
+  await expect(page.getByRole("link", { name: newPreSpec.title })).toBeVisible();
+  // 기본 접힘 그룹의 행은 펼치기 전에는 접근성 트리에 없다.
+  await expect(page.getByRole("link", { name: allOnlyPreSpec.title })).toHaveCount(0);
+
+  await notStarted.click();
+  await expect(notStarted).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByRole("link", { name: allOnlyPreSpec.title })).toBeVisible();
+
+  // 키보드로도 접고 펼 수 있다 — Enter로 다시 접는다.
+  await notStarted.focus();
+  await page.keyboard.press("Enter");
+  await expect(notStarted).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByRole("link", { name: allOnlyPreSpec.title })).toHaveCount(0);
+});
+
+test("목록 화면에서 심층 추적 승인을 내릴 수 있다", async ({ page }) => {
+  const trace = await mockPreSpecs(page);
+  await page.goto("/pre-specs");
+
+  const trackedRow = page.getByRole("row").filter({ has: page.getByRole("link", { name: trackingException.title }) });
+  await trackedRow.getByRole("button", { name: "추적 결정" }).click();
+
+  const decisionPanel = page.locator("#pre-specs-tracking-target");
+  await expect(decisionPanel.getByRole("heading", { name: "심층 검토 추적 선택" })).toBeVisible();
+
+  await decisionPanel.getByRole("button", { name: "보류", exact: true }).click();
+  await decisionPanel.getByRole("textbox", { name: "사유 (필수)" }).fill("목록 화면에서 승인");
+  await decisionPanel.getByRole("textbox", { name: "담당자 이름 (필수)" }).fill("홍길동");
+  await decisionPanel.getByRole("button", { name: "추적 상태 저장", exact: true }).click();
+
+  await expect.poll(() => trace.trackingPatches).toEqual([{
+    opportunityId: 77,
+    trackingStatus: "보류",
+    reason: "목록 화면에서 승인",
+  }]);
+  await expect(decisionPanel.getByText("심층 검토 추적 상태를 저장했습니다.", { exact: true })).toBeVisible();
+  // 저장 뒤 목록 행의 추적 상태 배지도 같은 캐시 갱신으로 새 상태를 보여준다.
+  await expect(trackedRow.getByText("보류", { exact: true })).toBeVisible();
+});
+
+test("사업기회가 없는 행은 목록에서도 추적 결정 비활성 사유를 보여준다", async ({ page }) => {
+  await mockPreSpecs(page);
+  await page.goto("/pre-specs?sw_only=false");
+  await page.getByRole("button", { name: /개요 검토 미시작/ }).click();
+
+  const untrackedRow = page.getByRole("row").filter({ has: page.getByRole("link", { name: allOnlyPreSpec.title }) });
+  const disabledButton = untrackedRow.getByRole("button", { name: "추적 결정" });
+  await expect(disabledButton).toBeDisabled();
+  await expect(page.getByText("아직 사업기회에 연결되지 않아 추적 결정을 기록할 수 없습니다.", { exact: true })).toBeVisible();
 });
 
 test("notice 991 정본 상세는 29로 치환되지 않고 unknown을 사람 확인 상태로 보존한다", async ({ page }) => {
@@ -266,6 +537,163 @@ test("notice 991 정본 상세는 29로 치환되지 않고 unknown을 사람 �
   expect(trace.noticeGets).toEqual([991, 991]);
   expect(trace.overviewGets).toEqual([991, 991]);
   expect(trace.noticeGets).not.toContain(29);
+});
+
+test("사전규격 상세는 notice_pk projection의 현재 추적 상태와 첨부 집계를 보여준다", async ({ page }) => {
+  const trace = await mockPreSpecs(page);
+  await page.goto("/pre-specs/991");
+
+  await expect(page.getByText("현재 추적 상태", { exact: true })).toBeVisible();
+  await expect(page.locator(".pre-spec-tracking-current").getByText("계속 추적", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "첨부 원문 취득 집계", exact: true })).toBeVisible();
+  await expect(page.getByText("완료", { exact: true })).toBeVisible();
+  await expect(page.getByText("차단", { exact: true })).toBeVisible();
+  expect(trace.listQueries.at(-1)?.get("notice_pk")).toBe("991");
+  expect(trace.listQueries.at(-1)?.has("sw_only")).toBe(false);
+});
+
+test("사유 없이 사전규격 추적 상태를 보낼 수 없다", async ({ page }) => {
+  const trace = await mockPreSpecs(page);
+  await page.goto("/pre-specs/991");
+
+  await expect(page.getByRole("button", { name: "추적 상태 저장", exact: true })).toBeDisabled();
+  await expect(page.getByText("추적 결정을 저장하려면 사유를 입력하십시오.", { exact: true })).toBeVisible();
+  expect(trace.trackingPatches).toEqual([]);
+});
+
+test("사전규격 추적 선택에 성공하면 사람 결정 상태가 갱신된다", async ({ page }) => {
+  const trace = await mockPreSpecs(page);
+  await page.goto("/pre-specs/991");
+
+  await page.getByRole("button", { name: "보류", exact: true }).click();
+  await page.getByRole("textbox", { name: "사유 (필수)" }).fill("연계 범위를 확인한 뒤 계속 검토하기로 함");
+  await page.getByRole("textbox", { name: "담당자 이름 (필수)" }).fill("홍길동");
+  await page.getByRole("button", { name: "추적 상태 저장", exact: true }).click();
+
+  await expect.poll(() => trace.trackingPatches).toEqual([{
+    opportunityId: 77,
+    trackingStatus: "보류",
+    reason: "연계 범위를 확인한 뒤 계속 검토하기로 함",
+  }]);
+  await expect(page.getByText("심층 검토 추적 상태를 저장했습니다.", { exact: true })).toBeVisible();
+  await expect(page.locator(".pre-spec-tracking-current").getByText("보류", { exact: true })).toBeVisible();
+});
+
+test("사업기회가 없으면 추적 결정을 기록할 수 없는 이유를 보여준다", async ({ page }) => {
+  await mockPreSpecs(page);
+  await page.goto("/pre-specs/993");
+
+  await expect(page.getByText("사업기회 미연결", { exact: true })).toBeVisible();
+  await expect(page.locator(".mutation-feedback-warning")).toContainText("아직 사업기회에 연결되지 않아 추적 상태를 결정할 수 없습니다.");
+  await expect(page.getByRole("button", { name: "계속 추적", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "추적 상태 저장", exact: true })).toBeDisabled();
+});
+
+test("v2 개요 결과는 평가에 필요한 요약·미확인·근거 위치를 보여준다", async ({ page }) => {
+  await mockPreSpecs(page, { overviewBody: completedOverview });
+  await page.goto("/pre-specs/991");
+
+  await expect(page.getByRole("heading", { name: "요약", exact: true })).toBeVisible();
+  await expect(page.getByText("민원·행정 데이터를 통합해 담당자가 업무 현황을 조회하는 행정 지원 플랫폼 구축 사업입니다.", { exact: true })).toBeVisible();
+  await expect(page.getByText("기존 시스템 연계 범위", { exact: true })).toBeVisible();
+  await expect(page.getByText("개요 입력에는 연계 대상과 제공 API 목록이 없습니다.", { exact: true })).toBeVisible();
+  await expect(page.getByText("심층 검토에서 연계 대상별 인터페이스 명세를 확인합니다.", { exact: true })).toBeVisible();
+  await expect(page.getByText("개인정보 처리 책임", { exact: true })).toBeVisible();
+  await expect(page.getByText("운영 주체와 개인정보 처리 역할이 확정되지 않았습니다.", { exact: true })).toBeVisible();
+  await expect(page.getByText("확인 방법 미지정", { exact: true })).toBeVisible();
+  await expect(page.getByText("2쪽", { exact: true })).toBeVisible();
+  await expect(page.getByText("overview-intro", { exact: true })).toBeVisible();
+  await expect(page.getByText("ordinal 7", { exact: true })).toBeVisible();
+  await expect(page.getByText("검증 통과 · passed", { exact: true })).toBeVisible();
+  await expect(page.getByText(/판정으로 읽지 마세요/)).not.toBeVisible();
+});
+
+test("근거의 원문 열기는 locator 페이지의 블록을 불러온다", async ({ page }) => {
+  const trace = await mockPreSpecs(page, { overviewBody: completedOverview });
+  await page.goto("/pre-specs/991");
+
+  await page.getByRole("button", { name: "원문 열기" }).click();
+
+  await expect(page.getByRole("heading", { name: "페이지 2 · 원문 블록 확인", exact: true })).toBeVisible();
+  await expect(page.getByText("페이지 2", { exact: true }).last()).toBeVisible();
+  await expect(page.getByText("1. 사업 개요와 추진 배경", { exact: true })).toBeVisible();
+  await expect(page.getByText("공공기관의 민원·행정 데이터를 통합해 현황을 분석하고 담당자가 업무 현황을 조회하는 행정 지원 플랫폼 구축 사업입니다.", { exact: true })).toBeVisible();
+  await expect(page.getByText("주요 수행 범위는 기존 업무 데이터 연계와 운영 화면 구축입니다.", { exact: true })).toBeVisible();
+
+  expect(trace.structurePageGets).toEqual([{
+    structureId: "30000000-0000-0000-0000-000000000991",
+    page: 2,
+  }]);
+
+  await page.getByRole("button", { name: "원문 닫기" }).click();
+  await page.getByRole("button", { name: "원문 열기" }).click();
+  expect(trace.structurePageGets).toHaveLength(1);
+});
+
+test("원문은 강조 블록과 앞뒤 맥락 블록을 함께 보여준다", async ({ page }) => {
+  await mockPreSpecs(page, { overviewBody: completedOverview });
+  await page.goto("/pre-specs/991");
+  await page.getByRole("button", { name: "원문 열기" }).click();
+
+  const sourceBlocks = page.locator(".pre-spec-overview-source-block");
+  await expect(sourceBlocks).toHaveCount(3);
+  await expect(page.locator(".pre-spec-overview-source-block.is-target")).toHaveCount(1);
+  await expect(page.locator(".pre-spec-overview-source-block.is-target")).toContainText("overview-intro");
+  await expect(sourceBlocks.nth(0)).toContainText("overview-heading");
+  await expect(sourceBlocks.nth(2)).toContainText("overview-scope");
+});
+
+test("원문 닫기는 열린 페이지와 블록을 화면에서 제거한다", async ({ page }) => {
+  await mockPreSpecs(page, { overviewBody: completedOverview });
+  await page.goto("/pre-specs/991");
+  await page.getByRole("button", { name: "원문 열기" }).click();
+  await expect(page.locator("#pre-spec-overview-source")).toBeVisible();
+
+  await page.getByRole("button", { name: "원문 닫기" }).click();
+  await expect(page.locator("#pre-spec-overview-source")).not.toBeVisible();
+  await expect(page.getByText("공공기관의 민원·행정 데이터를 통합해 현황을 분석하고 담당자가 업무 현황을 조회하는 행정 지원 플랫폼 구축 사업입니다.", { exact: true })).not.toBeVisible();
+});
+
+test("페이지에 locator 블록이 없으면 어긋남을 표시하고 강조하지 않는다", async ({ page }) => {
+  await mockPreSpecs(page, { overviewBody: completedOverviewWithEvidenceBlock("missing-block") });
+  await page.goto("/pre-specs/991");
+  await page.getByRole("button", { name: "원문 열기" }).click();
+
+  await expect(page.getByText("근거 위치와 원문이 어긋났습니다.", { exact: true })).toBeVisible();
+  await expect(page.getByText("1. 사업 개요와 추진 배경", { exact: true })).toBeVisible();
+  await expect(page.locator(".pre-spec-overview-source-block.is-target")).toHaveCount(0);
+});
+
+test("원문은 내부 bbox·confidence·attributes와 객체 식별자를 화면에 내지 않는다", async ({ page }) => {
+  await mockPreSpecs(page, { overviewBody: completedOverview });
+  await page.goto("/pre-specs/991");
+  await page.getByRole("button", { name: "원문 열기" }).click();
+
+  const body = page.locator("body");
+  await expect(body).not.toContainText("910");
+  await expect(body).not.toContainText("0.42");
+  await expect(body).not.toContainText("do-not-render-attributes");
+  await expect(body).not.toContainText("image-content-do-not-render");
+});
+
+test("v2 검증 실패는 결과를 판정으로 읽지 않도록 경고한다", async ({ page }) => {
+  const failedOverview = {
+    ...completedOverview,
+    reviews: [{ ...completedOverview.reviews[0], validation_status: "failed" }],
+  };
+  await mockPreSpecs(page, { overviewBody: failedOverview });
+  await page.goto("/pre-specs/991");
+
+  await expect(page.getByText("검증 실패 · failed", { exact: true })).toBeVisible();
+  await expect(page.getByText("검증에 실패한 결과입니다. 이 내용을 판정으로 읽지 마세요.", { exact: true })).toBeVisible();
+});
+
+test("result가 없고 awaiting_model이면 승인된 binding 대기 상태를 설명한다", async ({ page }) => {
+  await mockPreSpecs(page, { overviewBody: awaitingModelOverview });
+  await page.goto("/pre-specs/991");
+
+  await expect(page.getByText("검토 결과 미확정", { exact: true })).toBeVisible();
+  await expect(page.getByText("승인된 모델 binding이 없어 아직 실행되지 않은 상태입니다. 승인된 사설 모델 binding이 준비되기 전에는 모델을 호출하지 않습니다.", { exact: true })).toBeVisible();
 });
 
 test("overview envelope notice ID가 어긋나면 교차 정본을 렌더링하지 않는다", async ({ page }) => {
@@ -311,4 +739,28 @@ test("사전규격 목록과 상세는 viewport 바깥으로 넘치지 않는다
       })(),
     }))).toEqual({ root: 0, canvas: 0 });
   }
+});
+
+// docs/design/PLAN.md 4단계 완료 게이트: 상세 3종 공통 골격에서 결정 액션은
+// 요약 헤더에 고정되어 스크롤 위치와 무관하게 첫 화면에서 보여야 한다.
+test("사전규격 상세는 본문을 끝까지 스크롤해도 추적 결정 액션이 뷰포트 안에 남는다", async ({ page }) => {
+  await mockPreSpecs(page);
+  await page.goto("/pre-specs/991");
+  const saveButton = page.getByRole("button", { name: "추적 상태 저장", exact: true });
+  await expect(saveButton).toBeInViewport();
+  await page.evaluate(() => document.querySelector(".page-canvas")?.scrollTo(0, 999_999));
+  await expect(saveButton).toBeInViewport();
+});
+
+// 사업기회에 아직 연결되지 않은 사전규격도 비활성 결정 액션과 그 사유가
+// 스크롤 없이 함께 보여야 한다 — 버튼만 헤더에 보이고 이유는 본문 깊숙이
+// 남기지 않는다.
+test("사업기회 미연결 사전규격은 비활성 추적 결정 액션과 사유가 스크롤 없이 함께 보인다", async ({ page }) => {
+  await mockPreSpecs(page);
+  await page.goto("/pre-specs/993");
+  const saveButton = page.getByRole("button", { name: "추적 상태 저장", exact: true });
+  await expect(saveButton).toBeInViewport();
+  await expect(saveButton).toBeDisabled();
+  await expect(page.locator("#pre-spec-tracking-save-disabled")).toBeInViewport();
+  await expect(page.locator("#pre-spec-tracking-save-disabled")).toContainText("아직 사업기회에 연결되지 않아");
 });

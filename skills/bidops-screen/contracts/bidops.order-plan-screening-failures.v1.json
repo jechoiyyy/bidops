@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bidops.internal/schemas/bidops.order-plan-screening-failures.v1.json",
+  "title": "BidOps order-plan screening failures v1",
+  "x-bidops-producer": "order-plan-screening-worker",
+  "x-bidops-consumer": "order-plan-screening-review-and-merge",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "producer", "consumer", "execution_id", "source_run_id", "status", "failure_count", "failures", "created_at"],
+  "properties": {
+    "schema_version": {"const": "bidops.order-plan-screening-failures.v1"},
+    "producer": {"const": "order-plan-screening-worker"},
+    "consumer": {"const": "order-plan-screening-review-and-merge"},
+    "execution_id": {"type": "string", "minLength": 1},
+    "source_run_id": {"type": "string", "minLength": 1},
+    "status": {"enum": ["none", "partial", "failed", "rejected"]},
+    "failure_count": {"type": "integer", "minimum": 0},
+    "failures": {"type": "array", "items": {"$ref": "#/$defs/failure"}},
+    "created_at": {"type": "string", "format": "date-time"}
+  },
+  "$defs": {
+    "failure": {"type": "object", "additionalProperties": false, "required": ["batch_id", "sequence", "plan_ids", "attempt_count", "max_attempts", "failure_type", "outcome", "status", "error_code"], "properties": {"batch_id": {"type": "string", "minLength": 1}, "sequence": {"type": "integer", "minimum": 1}, "plan_ids": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}, "attempt_count": {"type": "integer", "minimum": 1}, "max_attempts": {"const": 2}, "failure_type": {"enum": ["timeout", "truncated_output", "schema_violation", "id_mismatch", "model_mismatch", "binding_mismatch", "payload_not_approved", "transport", "policy_rejected", "unknown"]}, "outcome": {"enum": ["failed", "rejected", "unknown"]}, "status": {"const": "human_review_required"}, "error_code": {"type": "string", "minLength": 1, "maxLength": 128}}}
+  }
+}

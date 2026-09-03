@@ -13,18 +13,18 @@ PostgreSQL 17의 `bidops` 스키마와 MinIO 목적별 버킷이 운영 정본�
 1. 사내망 밖의 요청은 네트워크 경계에서 차단되어 애플리케이션에 도달하지 않아야 한다.
 2. 사내망 안의 요청은 별도 로그인 없이 API와 화면에 도달한다. 비밀번호 오류, 세션 만료, 계정 잠금은 애플리케이션에 해당하지 않는다.
 3. 조회 요청은 사용자 이름 없이 허용한다.
-4. Lean 문서·심층 검토·리포트 변경 API는 비어 있지 않은 `X-BidOps-Actor-Name`을 요구한다. screening 정책·품질·일정 API는 body의 명시적 actor를 감사에 연결한다. 제어문자, 예약된 `system`, 잘못된 비ASCII 인코딩은 요청 계약 오류로 거부한다.
+4. Lean 문서·심층 검토·리포트 변경 API와 legacy 첨부·기관 포털·screening 정책 mutation은 비어 있지 않은 `X-BidOps-Actor-Name`을 요구한다. 정책 request body의 actor field는 호환 입력으로 남아 있지만 header claimed name이 감사의 기준이다. 제어문자, 예약된 `system`, 잘못된 비ASCII 인코딩은 요청 계약 오류로 거부한다.
 5. 이름이 유효해도 사용자 신원을 증명하거나 더 높은 권한을 부여하지 않는다. 사칭 방지가 필요한 시점에는 사내 계정 연동을 별도 도입해야 하며 이름 헤더를 인증으로 승격하지 않는다.
 
 사내망 경계를 통과한 모든 사람에게 같은 읽기 권한이 있다는 점이 현재 정책의 한계다. 외부망 공개, 사용자별 파일 제한, 이름만으로 관리자 행위 허용을 주장하는 배포는 금지한다.
 
-현재 legacy 리뷰, 첨부, 기관 포털, subprocess 실행 mutation 일부는 actor를 요구하지 않거나 별도 audit event를 만들지 않는다. 이는 허용된 예외가 아니라 구현 격차다. 해당 경로를 이름·감사 경계에 편입하고 기존 client를 전환하기 전에는 변경 행위 전체의 작성자 추적이 완전하다고 주장하지 않는다.
+현재 legacy 리뷰와 일부 run/subprocess 실행 mutation은 actor를 요구하지 않거나 별도 `AuditEvent`를 만들지 않는다. 이는 허용된 예외가 아니라 구현 격차다. 해당 경로를 이름·감사 경계에 편입하기 전에는 변경 행위 전체의 작성자 추적이 완전하다고 주장하지 않는다.
 
 ## 회사 프로필 조회 경계
 
 사내망 조회자에게는 승인된 불변 프로필 snapshot의 구조화 항목과 `unknown`만 제공한다. 응답은 profile version·digest를 고정하고 승인 projection에 없는 항목을 현재 working tree에서 추가로 읽지 않는다.
 
-프로필 원문 block, parser의 raw text, 원본 파일·filesystem `source`/`source_ref`, source line과 로컬 경로가 들어갈 수 있는 예외 문자열은 API에서 제공하지 않는다. 파싱 실패는 안정적인 오류 코드로만 표현한다. 현재 `/api/profile/snapshots`는 working-tree `source_ref`를, `/api/profile/sections`와 `/api/profile/unknowns`는 `source`, raw block·raw text, 가공되지 않은 parse error를 반환할 수 있어 이 경계를 만족하지 않는다. 최소 projection 계약으로 교체하기 전에는 세 route를 운영 조회에 사용하지 않는다.
+프로필 원문 block, parser의 raw text, 원본 파일·filesystem `source`, working-tree `source_ref`, source line과 로컬 경로가 들어갈 수 있는 예외 문자열은 API에서 제공하지 않는다. 파싱 실패는 닫힌 안정 오류 코드 집합으로만 표현한다. `/api/profile/snapshots`는 `working_tree`의 내부 `source_ref`를 생략하고 `git_blob`일 때만 40자 commit SHA를 계보 식별자로 유지한다. `/api/profile/sections`와 `/api/profile/unknowns`는 승인된 snapshot의 version·digest와 구조화 projection, 위치 요약, 안정 오류 코드만 반환한다.
 
 ## 행위 권한
 
@@ -59,7 +59,7 @@ PostgreSQL 17의 `bidops` 스키마와 MinIO 목적별 버킷이 운영 정본�
 - 모델에는 근거 연결에 필요한 불변 문서·구조 식별자와 source SHA만 전달한다. object key, 로컬 경로, 자격증명, 원문 저장 위치는 전달하지 않는다.
 - 모델 원응답은 application encryption을 적용해 model-response 버킷에 쓰며 별도 reasoning 필드는 보존하지 않는다. 검증된 구조 결과만 업무 API가 소비한다.
 
-현재 Lean document-bundle upload는 위 경계를 구현한다. 반면 legacy notice attachment upload는 확장자·크기만 확인한 뒤 로컬 파일을 즉시 다운로드 가능 상태로 저장하며 MIME 판별, quarantine, ClamAV, 객체 version·hash를 적용하지 않는다. 또한 `AttachmentResponse.stored_path`로 로컬 저장 layout과 notice 디렉터리를 노출한다. 이 경로는 승인된 운영 upload·조회가 아니며 비활성화하거나 Lean 안전 경계로 통합하고 내부 path field를 제거하기 전에는 운영에서 사용하지 않는다.
+현재 Lean document-bundle upload와 legacy notice attachment upload는 모두 quarantine에 먼저 저장하고 MIME/구조·ClamAV 검사를 통과한 `safe` 바이트만 수용한다. legacy 경로는 기존 `Attachment` 스키마를 바꾸지 않는 범위에서 source object 승격·hash/size 재검증 뒤 레거시 다운로드 호환 사본도 `attachments_dir`에 저장하며, 차단·검사 불가 파일은 등록하지 않는다. `AttachmentResponse.stored_path`는 wire에서 제거했고, 컨테이너의 호환 사본은 named volume으로 보존한다. legacy object metadata schema 이전은 별도 범위다.
 
 ## 외부 모델 전송
 
@@ -68,6 +68,25 @@ PostgreSQL 17의 `bidops` 스키마와 MinIO 목적별 버킷이 운영 정본�
 발주계획 선별 실험에서 Luna·Sol을 사용할 때는 공개 발주계획 필드와 사람이 승인한 회사 역량 요약만 전송한다. 실행마다 모델·목적·전송 필드·건수·승인자·시각을 미리 보여 주고 승인 뒤 호출한다. 승인되지 않은 추가 필드가 있거나 회사 프로필 원문·제안요청서·첨부·리뷰가 포함되면 전체 실행을 중단한다.
 
 향후 선택형 외부 재분석을 도입하더라도 자동 fallback으로 구현하지 않는다. 조직의 보존 지역·학습 사용·삭제·계약 정책을 먼저 확정하고 공고별 전송 미리보기와 건별 승인을 거쳐야 한다.
+
+## 발주계획 C-2 전송·artifact 경계
+
+C-2 Phase 0 binding은 prompt·회사 역량 본문 대신 승인 입력의 version·SHA-256만 고정한다.
+모델 payload에는 `plan_id`, `title`, `capabilities`만 허용하며 기관·예산·업무구분·원문 URL·
+raw reference·첨부·리뷰·credential은 넣지 않는다. 이 allowlist를 벗어나거나 model/prompt/
+profile digest가 다르면 전송하지 않고 `rejected`로 남긴다.
+
+현재 `external_transport.execution_allowed=false`다. private vLLM endpoint의 literal host,
+`/v1` path, no redirect·proxy, 실행별 승인 없이는 모델 호출을 시작하지 않는다. 장애 시 다른
+모델·hosted provider로 fallback하지 않는다. 이 정책은 C-1 gold 완료·감사 표본 승인·측정된
+quality gate와 별개로 적용된다.
+
+`screening-input`, ranking, decisions, failures, telemetry, merged result는 versioned object로
+생성하고 기존 회차를 덮어쓰지 않는다. 원본 모델 응답은 암호화된 model-response namespace에
+최소 권한으로만 보존할 수 있고, DB·로그·API·감사에는 본문을 넣지 않는다. 일반 API에는
+artifact schema·producer/consumer·digest·상태 같은 안전한 metadata만 투영한다. 사람 feedback
+memo는 모델 payload와 별도 append-only revision이며, 적합성 등급·준비·추적·최종 Go/No-Go를
+변경하는 권한이나 FK를 갖지 않는다.
 
 ## 네트워크와 HTTP
 

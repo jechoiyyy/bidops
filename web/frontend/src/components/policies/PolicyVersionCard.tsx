@@ -38,7 +38,7 @@ export function PolicyVersionCard({ policy, operationalGates, onChanged, onActiv
     if (!window.confirm(`${policy.policy_version}을(를) 운영 활성화 후보로 지정하시겠습니까?`)) return;
     setBusy("candidate");
     setError(null);
-    void api.designatePolicyCandidate(policy.policy_version, { confirmed_by: candidateActor.trim() })
+    void api.designatePolicyCandidate(policy.policy_version, { confirmed_by: candidateActor.trim() }, candidateActor.trim())
       .then(onChanged)
       .catch((reason: unknown) => setError(safeError(reason, "후보 지정")))
       .finally(() => setBusy(null));
@@ -56,7 +56,7 @@ export function PolicyVersionCard({ policy, operationalGates, onChanged, onActiv
     if (!window.confirm(`${policy.policy_version}을(를) ${selectedResultId} 근거로 활성화하시겠습니까?`)) return;
     setBusy("activate");
     setError(null);
-    void api.activatePolicy(policy.policy_version, { quality_gate_result_id: selectedResultId, confirmed_by: activationActor.trim() })
+    void api.activatePolicy(policy.policy_version, { quality_gate_result_id: selectedResultId, confirmed_by: activationActor.trim() }, activationActor.trim())
       .then((response) => {
         onActivated(response);
         onChanged();

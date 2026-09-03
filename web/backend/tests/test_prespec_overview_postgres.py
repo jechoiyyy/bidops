@@ -1,8 +1,8 @@
-"""PostgreSQL-only T-23 lineage constraints and append-only guards.
+"""PostgreSQL-only T-23 structural constraints.
 
 The service/cutter tests use isolated SQLite because they do not claim to
 exercise PostgreSQL DDL.  These opt-in checks cover the canonical database
-constraints and triggers when ``BIDOPS_TEST_POSTGRES_URL`` is configured.
+constraints when ``BIDOPS_TEST_POSTGRES_URL`` is configured.
 """
 
 from __future__ import annotations
@@ -126,7 +126,7 @@ def _seed_lineage(engine):  # type: ignore[no-untyped-def]
     return notice_id, review_id, snapshot_id
 
 
-def test_t23_postgres_checks_and_append_only_guards() -> None:
+def test_t23_postgres_structural_constraints() -> None:
     with migrated_engine() as engine:
         _notice_id, review_id, snapshot_id = _seed_lineage(engine)
 
@@ -188,16 +188,6 @@ def test_t23_postgres_checks_and_append_only_guards() -> None:
                         "snapshot_id": snapshot_id,
                         "created_at": datetime(2026, 8, 31, tzinfo=UTC),
                     },
-                )
-
-        with pytest.raises(IntegrityError):
-            with engine.begin() as connection:
-                connection.execute(
-                    text(
-                        "DELETE FROM bidops.prespec_overview_attempt "
-                        "WHERE id = :attempt_id"
-                    ),
-                    {"attempt_id": attempt_id},
                 )
 
 

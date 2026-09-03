@@ -209,3 +209,21 @@
 
 공통 대응은 하나다. 완료 보고를 근거로 쓰지 말고 전체 스위트와 바뀐 파일을 직접 본다.
 
+
+## 이름만으로 고른 locator는 화면이 자라면 조용히 다른 것을 누른다
+
+- 증상: Playwright가 `strict mode violation: getByRole('alert') resolved to 2 elements`로
+  실패한다. 부하가 높을 때만 나오는 것처럼 보여 flake로 넘기기 쉽다.
+- 원인: 두 가지가 겹친다. (1) 화면에 같은 이름·같은 role의 요소가 하나 더 생겼다.
+  `getByRole("alert")`는 화면에 alert가 하나뿐이라는 가정이고, `getByRole("link", {name})`도
+  사이드바와 본문이 같은 이름을 쓰면 깨진다. (2) **통과하던 실행이 오히려 잘못된 것이다.**
+  lazy chunk가 아직 안 그려졌거나 query가 아직 안 끝난 순간을 눌러 요소가 하나뿐이었을 뿐이다.
+  즉 초록이던 동안 그 테스트는 자기가 검사한다고 적어 둔 상태를 검사하지 않고 있었다.
+- 대응: 부하 탓으로 넘기기 전에 **단독으로 그 파일만 돌려 본다.** 2026-09-01에 이 방식으로
+  `document-preparation.spec.ts:349`가 flake가 아니라 결정적 실패임을 확인했다. 원인은
+  `mockDocumentPreparation`에 `/api/pre-specs`가 없어 추적 결정 구역이 늘 오류 alert를
+  띄우고 있던 것이었다. 고칠 때는 둘 다 한다 — locator를 의미 있는 컨테이너로 좁히고
+  (`page.locator(".mutation-feedback")`), 화면이 조회하는 경로를 fixture에 빠짐없이 넣어
+  검사 대상이 정의된 상태에서 돌게 한다.
+- 재발 방지: 화면에 새 구역을 붙이면 그 구역이 부르는 API를 **기존 spec의 fixture에도**
+  넣는다. 새 구역만 보는 fixture(`mockDocumentPreparationVisual`)에 넣는 것으로는 부족하다.

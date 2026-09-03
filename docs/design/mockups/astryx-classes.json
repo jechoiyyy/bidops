@@ -1,0 +1,314 @@
+{
+ "astryx-heading": [
+  [
+   "h1",
+   "astryx-heading level-1 primary x1tgivj0 xcg7oai xfmsba7 x1v68xuy x1lliihq"
+  ],
+  [
+   "h2",
+   "astryx-heading level-2 primary x1tgivj0 x1xvnhcw x1cpk1wn x12yy4cs x1lliihq"
+  ],
+  [
+   "h3",
+   "astryx-heading level-3 primary x1tgivj0 xii13ha xwjzt0u x1jcxfy8 x1lliihq"
+  ],
+  [
+   "h4",
+   "astryx-heading level-4 primary x1tgivj0 x8tkxat xqerer x2hcmsi x1lliihq"
+  ],
+  [
+   "h5",
+   "astryx-heading level-5 primary x1tgivj0 xsgqta0 xo3gurs xno150v x1lliihq"
+  ]
+ ],
+ "astryx-field": [
+  [
+   "div",
+   "astryx-field x78zum5 xdt5ytf"
+  ],
+  [
+   "div",
+   "astryx-field x78zum5 xdt5ytf xzye2dw"
+  ]
+ ],
+ "astryx-field-label": [
+  [
+   "label",
+   "astryx-field-label x78zum5 x6s0dn4 xzye2dw x9ynric xcr08ib x1kq96og x1e4wzip xv1l7n4 x1ypdohk x16khyan"
+  ],
+  [
+   "label",
+   "astryx-field-label x78zum5 x6s0dn4 xzye2dw x9ynric xcr08ib x1kq96og x1e4wzip xv1l7n4 x1ypdohk x16khyan astryx-checkbox-label"
+  ],
+  [
+   "label",
+   "astryx-field-label x78zum5 x6s0dn4 xzye2dw x9ynric xcr08ib x1kq96og x1e4wzip xv1l7n4 x1ypdohk x16khyan xng3xce xzpqnlu xjm9jq1 x1o0tod xkdpibf xb3r6kr x1717udv x47corl x10l6tqk x13vifvy x87ps6o xuxw1ft x1i1rx1s"
+  ]
+ ],
+ "astryx-selector": [
+  [
+   "div",
+   "astryx-selector input sm x9f619 x1vjfegm x1litavf x1y0btm7 xvy26l8 x6q1khz x1832zxr xvdfih8 x10xzikg x12zzom9 xuedmi6 x12w9bfk xlr8y92 x1gnnqk1 x1xqjsvb xuihb5h x1a2a7pz x1n2onr6 x78zum5 x6s0dn4 x1qughib x1txdalj xh8yej3 xrrkdod x9ynric xcr08ib xdk3u5w x7acx1w x1tgivj0 x1ypdohk x16khyan x1gdqauq x1ecmfrv"
+  ]
+ ],
+ "astryx-icon": [
+  [
+   "span",
+   "astryx-icon sm secondary x3nfvp2 x6s0dn4 xl56j7k xv9yike xcdlrvm x1l36t39 x1jchvi3 x2lah0s x11xpdln xuedmi6 xlr8y92 x1g0ag68 astryx-selector-indicator-icon collapsed"
+  ]
+ ],
+ "astryx-button": [
+  [
+   "button",
+   "astryx-button primary sm none x1k57tk5 x1vidyx5 x1t137rt x1jhp3zv xx47ajj x16bblx1 x1wfwxd8 x13aywxo x1n2onr6 x3nfvp2 x6s0dn4 xl56j7k x1txdalj xce4md1 xrrkdod xc342km xng3xce x1jxw6zd xjb2p0i xcr08ib x1kq96og x1e4wzip xuxw1ft x1ypdohk x16khyan xrafxwg xuedmi6 x12w9bfk xlr8y92 x6k0iem x7uyq82 xmvprkv xetgvay x3oybdh xk4oym4 x1gnnqk1 x1ewilqj x17wrial"
+  ],
+  [
+   "button",
+   "astryx-button secondary sm none x1k57tk5 x1vidyx5 x1t137rt x1jhp3zv xx47ajj x16bblx1 x1wfwxd8 x13aywxo x1n2onr6 x3nfvp2 x6s0dn4 xl56j7k x1txdalj xce4md1 xrrkdod xc342km xng3xce x1jxw6zd xjb2p0i xcr08ib x1kq96og x1e4wzip xuxw1ft x1ypdohk x16khyan xrafxwg xuedmi6 x12w9bfk xlr8y92 x6k0iem x7uyq82 xmvprkv xetgvay x3oybdh xk4oym4 x1gnnqk1 x17x4s8c x1tgivj0"
+  ],
+  [
+   "button",
+   "astryx-button secondary sm none x1k57tk5 x1vidyx5 x1t137rt x1jhp3zv xx47ajj x16bblx1 x1wfwxd8 x13aywxo x1n2onr6 x3nfvp2 x6s0dn4 xl56j7k x1txdalj xce4md1 xrrkdod xc342km xng3xce x1jxw6zd xjb2p0i xcr08ib x1kq96og x1e4wzip xuxw1ft xrafxwg xuedmi6 x12w9bfk xlr8y92 x6k0iem xt0e3qv xbyyjgo x18o3ruo x3oybdh xk4oym4 x1gnnqk1 x17x4s8c x1tgivj0"
+  ]
+ ],
+ "astryx-status-dot": [
+  [
+   "span",
+   "astryx-status-dot warning astryx-statusdot x3nfvp2 x6s0dn4 xl56j7k x16rqkct x2lah0s x1xc55vz xdk7pt x1q8g9m5 xrebv38"
+  ]
+ ],
+ "astryx-text": [
+  [
+   "span",
+   "astryx-text body accent xjse4m1 xjm74w1 xw6l6zx xxovm9e xt0psk2"
+  ],
+  [
+   "span",
+   "astryx-text body primary x1tgivj0 xjm74w1 xw6l6zx x2mo6ok xb3r6kr xlyipyv xuxw1ft x1lliihq x1yn0g08"
+  ],
+  [
+   "span",
+   "astryx-text body primary x1tgivj0 xjm74w1 xw6l6zx x2mo6ok xt0psk2"
+  ],
+  [
+   "span",
+   "astryx-text body primary x1tgivj0 xjm74w1 xw6l6zx x2mo6ok xt0psk2 xss6m8b"
+  ],
+  [
+   "span",
+   "astryx-text body primary x1tgivj0 xjm74w1 xw6l6zx xxovm9e xt0psk2"
+  ],
+  [
+   "span",
+   "astryx-text body primary x1tgivj0 xjm74w1 xw6l6zx xxovm9e xt0psk2 xss6m8b"
+  ],
+  [
+   "span",
+   "astryx-text body secondary xv1l7n4 xjm74w1 xw6l6zx xxovm9e xt0psk2"
+  ],
+  [
+   "span",
+   "astryx-text body secondary xv1l7n4 xjm74w1 xw6l6zx xxovm9e xt0psk2 xss6m8b"
+  ],
+  [
+   "span",
+   "astryx-text label primary x1tgivj0 xcr08ib x1kq96og x2mo6ok xt0psk2"
+  ],
+  [
+   "span",
+   "astryx-text label secondary xv1l7n4 xcr08ib x1kq96og xmhvcl5 xt0psk2"
+  ],
+  [
+   "span",
+   "astryx-text supporting secondary xv1l7n4 x141an7d x1ltkj2j x2mo6ok xt0psk2"
+  ],
+  [
+   "span",
+   "astryx-text supporting secondary xv1l7n4 x141an7d x1ltkj2j x2mo6ok xt0psk2 xss6m8b"
+  ],
+  [
+   "span",
+   "astryx-text supporting secondary xv1l7n4 x141an7d x1ltkj2j xv8on6e xt0psk2"
+  ],
+  [
+   "span",
+   "astryx-text supporting secondary xv1l7n4 x141an7d x1ltkj2j xv8on6e xt0psk2 xss6m8b"
+  ]
+ ],
+ "astryx-stack": [
+  [
+   "div",
+   "astryx-stack horizontal gap-2 x78zum5 x1q0g3np xak3so x1x7z4sm"
+  ],
+  [
+   "div",
+   "astryx-stack horizontal gap-2 x78zum5 x1q0g3np xak3so x1x7z4sm x6s0dn4"
+  ],
+  [
+   "div",
+   "astryx-stack horizontal x78zum5 x1q0g3np x1qughib"
+  ],
+  [
+   "div",
+   "astryx-stack horizontal x78zum5 x1q0g3np x6s0dn4 x1qughib"
+  ],
+  [
+   "div",
+   "astryx-stack vertical gap-0 x78zum5 xdt5ytf x1o57wo1 x6yxi7o"
+  ],
+  [
+   "div",
+   "astryx-stack vertical gap-1 x78zum5 xdt5ytf x1lfs0n9 x1ngg2t4"
+  ],
+  [
+   "div",
+   "astryx-stack vertical gap-2 x78zum5 xdt5ytf xak3so x1x7z4sm"
+  ],
+  [
+   "div",
+   "astryx-stack vertical gap-3 x78zum5 xdt5ytf xewh9hi x4olc9o"
+  ],
+  [
+   "div",
+   "astryx-stack vertical gap-4 x78zum5 xdt5ytf xty4p9g xtx9w7w"
+  ]
+ ],
+ "astryx-badge": [
+  [
+   "span",
+   "astryx-badge error x3nfvp2 x6s0dn4 xl56j7k xzye2dw x1grt7ep xt970qd xf314gf xjspbzw xjb2p0i x141an7d x1ltkj2j x1e4wzip xuxw1ft x193iq5w xeuugli x1pjz0fi x1m024r3"
+  ],
+  [
+   "span",
+   "astryx-badge info x3nfvp2 x6s0dn4 xl56j7k xzye2dw x1grt7ep xt970qd xf314gf xjspbzw xjb2p0i x141an7d x1ltkj2j x1e4wzip xuxw1ft x193iq5w xeuugli x1ewilqj x17wrial"
+  ],
+  [
+   "span",
+   "astryx-badge neutral x3nfvp2 x6s0dn4 xl56j7k xzye2dw x1grt7ep xt970qd xf314gf xjspbzw xjb2p0i x141an7d x1ltkj2j x1e4wzip xuxw1ft x193iq5w xeuugli x17x4s8c x1tgivj0"
+  ],
+  [
+   "span",
+   "astryx-badge success x3nfvp2 x6s0dn4 xl56j7k xzye2dw x1grt7ep xt970qd xf314gf xjspbzw xjb2p0i x141an7d x1ltkj2j x1e4wzip xuxw1ft x193iq5w xeuugli xdsz4j9 xri61p4"
+  ],
+  [
+   "span",
+   "astryx-badge warning x3nfvp2 x6s0dn4 xl56j7k xzye2dw x1grt7ep xt970qd xf314gf xjspbzw xjb2p0i x141an7d x1ltkj2j x1e4wzip xuxw1ft x193iq5w xeuugli x1q8g9m5 xrebv38"
+  ]
+ ],
+ "astryx-divider": [
+  [
+   "div",
+   "astryx-divider subtle horizontal x78zum5 x6s0dn4 xh8yej3"
+  ]
+ ],
+ "astryx-link": [
+  [
+   "a",
+   "astryx-link accent x1k57tk5 x1vidyx5 x1t137rt x1jhp3zv xx47ajj x1wfwxd8 x1vwwbsn x3nfvp2 x6s0dn4 x1lsbc85 xjb2p0i x1qlqyl8 x15bjb6t x1pd3egz x1hl2dhg x13nosk6 x1ypdohk x16khyan x1mpt4pi xuedmi6 xlr8y92 xjse4m1 x1rfoswn"
+  ]
+ ],
+ "astryx-table-scroll-wrapper": [
+  [
+   "div",
+   "astryx-table-scroll-wrapper xw2csxc x5lxg6s xojxgvx x1fcf3bl xx6qvi6 xkibk3 xlayyun"
+  ]
+ ],
+ "astryx-table": [
+  [
+   "table",
+   "astryx-table astryx-base-table xh8yej3 x1mwwwfo x1gukg7c x140o2bo xjb2p0i x1tgivj0"
+  ]
+ ],
+ "astryx-table-header": [
+  [
+   "thead",
+   "astryx-table-header"
+  ]
+ ],
+ "astryx-table-row": [
+  [
+   "tr",
+   "astryx-table-row x139im0d"
+  ],
+  [
+   "tr",
+   "astryx-table-row x139im0d xoevpu5 xc01ov8 x15406qy xuedmi6 xlr8y92"
+  ]
+ ],
+ "astryx-table-header-cell": [
+  [
+   "th",
+   "astryx-table-header-cell balanced x2mo6ok xv1l7n4 x1yc453h xce4md1 xrrkdod xcr08ib x9f619 x92x3c3 x1q0q8m5 xw8gpjh xb3r6kr xlyipyv xuxw1ft x1m189uc x9bi00s xpilulx"
+  ]
+ ],
+ "astryx-table-body": [
+  [
+   "tbody",
+   "astryx-table-body"
+  ]
+ ],
+ "astryx-table-cell": [
+  [
+   "td",
+   "astryx-table-cell balanced xce4md1 xrrkdod xjm74w1 x9f619 xb3r6kr x1mzt3pk x13faqbe x1m189uc x9bi00s xpilulx xxymvpz x92x3c3 x1wp2rvj x1q0q8m5 xw8gpjh"
+  ]
+ ],
+ "astryx-text-input": [
+  [
+   "div",
+   "astryx-text-input sm x9f619 x1n2onr6 x1vjfegm x78zum5 x6s0dn4 x1txdalj xu0wf1k xf314gf x1litavf x1y0btm7 xvy26l8 x6q1khz x1832zxr xvdfih8 x10xzikg x12zzom9 xuedmi6 x12w9bfk xlr8y92 x1gnnqk1 x1xqjsvb xuihb5h x1a2a7pz x6k0iem"
+  ]
+ ],
+ "astryx-segmented-control": [
+  [
+   "div",
+   "astryx-segmented-control md x3nfvp2 x6s0dn4 x1lsbc85 x18jk3ff xpoxszi x17x4s8c x9icjy1 x1hapoqb"
+  ]
+ ],
+ "astryx-segmented-control-item": [
+  [
+   "button",
+   "astryx-segmented-control-item md selected x1k57tk5 x1vidyx5 x1t137rt x1jhp3zv xx47ajj x1wfwxd8 x1vwwbsn x1n2onr6 x3nfvp2 x6s0dn4 xl56j7k xzye2dw xc342km xng3xce xjb2p0i xcr08ib x1kq96og x1ypdohk x16khyan xuxw1ft x1vix5yk xuedmi6 xlr8y92 x184gfjb xc910v0 xrrkdod x1kzknox x1tgivj0 x1k5gbb1 x2mo6ok x10xzikg x1jzqe4 x1i5ehqx"
+  ],
+  [
+   "button",
+   "astryx-segmented-control-item md x1k57tk5 x1vidyx5 x1t137rt x1jhp3zv xx47ajj x1wfwxd8 x1vwwbsn x1n2onr6 x3nfvp2 x6s0dn4 xl56j7k xzye2dw xc342km xng3xce xjb2p0i xcr08ib x1kq96og x1e4wzip xv1l7n4 x1ypdohk x16khyan xuxw1ft x1vix5yk xuedmi6 xlr8y92 x184gfjb xc910v0 xrrkdod xoevpu5"
+  ]
+ ],
+ "astryx-text-area": [
+  [
+   "div",
+   "astryx-text-area md astryx-textarea x9f619 x1n2onr6 x6s0dn4 x1txdalj x1litavf x1y0btm7 xvy26l8 x6q1khz x1832zxr xvdfih8 x10xzikg x12zzom9 xuedmi6 x12w9bfk xlr8y92 x1gnnqk1 x1xqjsvb xuihb5h x1a2a7pz x1vjfegm x1lliihq xt970qd xnjsko4 x1kdpo6e"
+  ]
+ ],
+ "astryx-text-area-control": [
+  [
+   "textarea",
+   "astryx-text-area-control x1lliihq xh8yej3 x9f619 xeuugli xc342km xng3xce xu0wf1k x1w6f3ag x9ynric xjm74w1 x6pjikd xw6l6zx x1tgivj0 xjbqb8w x1a2a7pz xeyghm5 x288g5"
+  ]
+ ],
+ "astryx-checkbox-input": [
+  [
+   "div",
+   "astryx-checkbox-input md"
+  ]
+ ],
+ "astryx-checkbox-indicator": [
+  [
+   "span",
+   "astryx-checkbox-indicator md checked astryx-checkbox x9f619 x78zum5 x6s0dn4 xl56j7k x2lah0s x1litavf x1y0btm7 xx3sua9 xts7igz xuedmi6 x12w9bfk xlr8y92 xvy4d1p xxk0z11 x17wrial xad5do x1ozl1p1 x1ewilqj x17srpfb"
+  ]
+ ],
+ "astryx-checkbox-indicator-check": [
+  [
+   "svg",
+   "astryx-checkbox-indicator-check md x17wrial xs5hli x6jxa94 x1v9usgg x1lliihq"
+  ]
+ ],
+ "astryx-checkbox-indicator-dash": [
+  [
+   "span",
+   "astryx-checkbox-indicator-dash md x1s85apg x1azo05 xwvh9j7 xjspbzw xsmyaan x36qwtl"
+  ]
+ ]
+}

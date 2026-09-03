@@ -11,9 +11,11 @@
     "test:visual:update": "playwright test --update-snapshots"
   },
   "dependencies": {
+    "@astryxdesign/core": "0.5.2",
     "@tanstack/react-query": "^5.81.5",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "lucide-react": "1.39.0",
     "radix-ui": "^1.6.7",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
@@ -21,6 +23,7 @@
     "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {
+    "@astryxdesign/cli": "0.5.2",
     "@playwright/test": "^1.62.1",
     "@tailwindcss/vite": "^4.1.11",
     "@types/node": "^26.4.0",

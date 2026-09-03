@@ -267,7 +267,7 @@ export function DeepReviewPage() {
   const decisionBlocks = decisionCard?.blocks ?? [];
 
   return (
-    <section aria-labelledby="deep-review-title" style={{ display: "grid", gap: 18, maxWidth: 1500 }}>
+    <section aria-labelledby="deep-review-title" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 18, maxWidth: 1500 }}>
       <header style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 12, alignItems: "end" }}>
         <div>
           <p style={{ color: "#527078", fontSize: 12, letterSpacing: ".08em", margin: 0 }}>DEEP REVIEW · {reviewId.slice(0, 8)}</p>
@@ -377,7 +377,7 @@ export function DeepReviewPage() {
               <h3 id="decision-title" style={{ marginTop: 0 }}>시스템 권고</h3>
               <p style={{ fontSize: 24, fontWeight: 600, margin: "7px 0" }}>{reportView.report.system_recommendation}</p>
               <p style={{ marginBottom: 0 }}>자동 권고는 사람의 사전규격 심층검토 의견과 별도이며, 서버가 저장한 claim·validation을 재판정하지 않습니다.</p>
-              <div aria-label="결정 카드 요약" style={{ display: "grid", gap: 9, marginTop: 14 }}>
+              <div aria-label="결정 카드 요약" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 9, marginTop: 14 }}>
                 {decisionBlocks.flatMap((block) => block.rows).map((row) => (
                   <div key={row.row_key} style={{ borderTop: "1px solid #b8d0d4", paddingTop: 8 }}>
                     <strong>{decisionRowHeading(row.label)}</strong>
@@ -405,7 +405,7 @@ export function DeepReviewPage() {
             <ul>{reportView.validation.checks.map((check) => <li key={`${check.check_type}-${check.message}`}>{check.status} · {check.message}</li>)}</ul>
           </section>
 
-          <div style={{ display: "grid", gap: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 16 }}>
             {reportView.report.sections.map((section) => (
               <section key={section.section_key} aria-labelledby={`section-${section.section_key}`} style={{ border: "1px solid #d4e0e2", borderRadius: 8, padding: 16 }}>
                 <h3 id={`section-${section.section_key}`} style={{ marginTop: 0 }}>{section.title}</h3>
@@ -497,7 +497,7 @@ export function DeepReviewPage() {
           <section aria-labelledby="editor-title" style={{ border: "1px solid #d4e0e2", borderRadius: 8, padding: 16 }}>
             <h3 id="editor-title" style={{ marginTop: 0 }}>보고서 수정본 편집</h3>
             <p>저장은 전체 report snapshot을 새 immutable 수정본으로 추가합니다. 담당자 이름은 인증이 아닌 입력된 claimed name입니다.</p>
-            <div style={{ display: "grid", gap: 10, maxWidth: 900 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 10, maxWidth: 900 }}>
               <ActorField value={actorName} onChange={setActorName} autoComplete="off" />
               <label>수정할 절<select className="interaction-control" aria-label="수정 절 선택" value={editSection} onChange={(event) => setEditSection(event.target.value as ReportSectionKey)} style={{ display: "block", maxWidth: 420, padding: 8, marginTop: 4 }}>{(currentReport?.sections ?? []).map((section) => <option key={section.section_key} value={section.section_key}>{section.title}</option>)}</select></label>
               <label>절 내용<textarea aria-label="절 내용" rows={5} value={currentSection?.blocks[0]?.body ?? ""} onChange={(event) => { setReportDraftDirty(true); setDraft((value) => value ? updateFirstBlock(value, editSection, event.target.value) : value); }} style={{ width: "100%", padding: 8 }} /></label>
@@ -512,7 +512,7 @@ export function DeepReviewPage() {
           <section aria-labelledby="opinion-title" style={{ border: "1px solid #d4e0e2", borderRadius: 8, padding: 16 }}>
             <h3 id="opinion-title" style={{ marginTop: 0 }}>사전규격 심층검토 의견 추가</h3>
             <p>이 의견은 현재 보고서 수정본에 append-only로 남으며 최종 입찰 Go/No-Go가 아닙니다.</p>
-            <div style={{ display: "grid", gap: 10, maxWidth: 900 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 10, maxWidth: 900 }}>
               <label>심층검토 의견<select className="interaction-control" value={opinionValue} onChange={(event) => setOpinionValue(event.target.value as FinalOpinionValue)} style={{ display: "block", padding: 8, marginTop: 4 }}>{FINAL_VALUES.map((value) => <option key={value}>{value}</option>)}</select></label>
               <label>심층검토 의견 사유<textarea aria-label="심층검토 의견 사유" rows={3} value={opinionReason} onChange={(event) => setOpinionReason(event.target.value)} style={{ width: "100%", padding: 8 }} /></label>
               {validationFailed ? <label className="interaction-check"><input type="checkbox" checked={acknowledged} onChange={(event) => setAcknowledged(event.target.checked)} /> validation 실패를 확인했으며 실패 label을 유지합니다.</label> : null}

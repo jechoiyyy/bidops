@@ -93,7 +93,7 @@ function clearStoredDraft(runId: string, noticePk: number): void {
   }
 }
 
-function filterFromParams(params: URLSearchParams): QueueFilterValues {
+function filterFromParams(params: URLSearchParams, defaultSort: QueueFilterValues["sort"] = "grade"): QueueFilterValues {
   const attachment = params.get("attachment");
   const sort = params.get("sort");
   return {
@@ -103,8 +103,9 @@ function filterFromParams(params: URLSearchParams): QueueFilterValues {
     sampleRole: params.get("sample_role") ?? "analysis",
     attachment: attachment === "none" || attachment === "manual" ? attachment : "any",
     q: params.get("q") ?? "",
-    // 담당자는 등급이 높은 공고부터 처리하므로 등급순이 기본이다.
-    sort: sort === "deadline" || sort === "published" ? sort : "grade",
+    // 담당자는 등급이 높은 공고부터 처리하므로 등급순이 기본이다. 마감 추적
+    // 저장된 뷰(/deadlines)로 들어오면 그 뷰의 기본 정렬을 쓴다.
+    sort: sort === "deadline" || sort === "published" ? sort : defaultSort,
   };
 }
 
@@ -145,13 +146,19 @@ function useSplitLayout(): boolean {
   return split;
 }
 
-export function QueuePage() {
+/**
+ * @param defaultSort 주소에 sort가 없을 때 쓸 정렬. 마감 추적(/deadlines)은
+ *   리다이렉트가 아니라 이 화면의 저장된 뷰이므로(docs/design/PLAN.md 2단계)
+ *   그 경로로 들어오면 마감순을 기본으로 삼는다. 리다이렉트로 sort 파라미터를
+ *   실어 보내던 방식은 AppShell의 회차 동기화와 경쟁해 파라미터를 잃었다.
+ */
+export function QueuePage({ defaultSort = "grade" }: { defaultSort?: QueueFilterValues["sort"] } = {}) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { noticePk: noticePkParam } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const runId = searchParams.get("run");
-  const filters = useMemo(() => filterFromParams(searchParams), [searchParams]);
+  const filters = useMemo(() => filterFromParams(searchParams, defaultSort), [searchParams, defaultSort]);
   const noticePk = noticePkParam ? Number(noticePkParam) : null;
   const selectedId = noticePk !== null && Number.isInteger(noticePk) ? noticePk : null;
   const [draft, setDraft] = useState<ReviewDraft>(emptyDraft);

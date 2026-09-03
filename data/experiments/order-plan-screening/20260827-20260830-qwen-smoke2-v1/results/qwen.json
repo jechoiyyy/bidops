@@ -1,0 +1,77 @@
+{
+  "schema_version": "bidops.order-plan-method-result.v3",
+  "run_id": "20260827-20260830-qwen-smoke2-v1",
+  "created_at": "2026-09-01T11:01:55.895401+09:00",
+  "input_sha256": "2e3165e5b1d1ca9d8e7991960147695d5f8244ec67f23c883caeefcb91cf4969",
+  "method": "qwen",
+  "method_version": "vllm-qwen-order-plan-batch-v3",
+  "top_k": 50,
+  "config_sha256": "46d4e661b31edb449585529c4f1d1105b009cc1d73030cd12456113013271cc0",
+  "model": {
+    "name": "qwen3.8-27B",
+    "revision": "6ae70ca30563209f09ec0114ce5813f7a232b38e5bb409f2adbd0e9bbe318b11"
+  },
+  "prompt": {
+    "id": "order-plan-batch-relevance-v3",
+    "sha256": "639f7332e1120a41b2e8d8306126f121ae1ed37068a81b1687aff9ce66ab9d12"
+  },
+  "batching": {
+    "mode": "fixed",
+    "batch_size": 25,
+    "batch_count": 1
+  },
+  "status": "success",
+  "metrics": {
+    "population_count": 2,
+    "success_count": 2,
+    "failure_count": 0,
+    "selected_count": 2,
+    "elapsed_ms": 83225,
+    "total_latency_ms": 83185,
+    "average_latency_ms": 41592.5,
+    "input_tokens": 1377,
+    "cached_input_tokens": null,
+    "output_tokens": 2653,
+    "cost_usd": null,
+    "device": null
+  },
+  "external_approval": null,
+  "items": [
+    {
+      "plan_id": "R26DD20855865",
+      "status": "success",
+      "score": 0.45,
+      "rank": 2,
+      "selected": true,
+      "reason": "title에서 AI 규제정보 분석 시스템 구축과 관련이 보이나, 위탁감리 업무가 company_capabilities에 명시되지 않아 근거가 부족하다.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 41593,
+      "error_code": null,
+      "input_tokens": 689,
+      "cached_input_tokens": null,
+      "output_tokens": 1327,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20856935",
+      "status": "success",
+      "score": 0.85,
+      "rank": 1,
+      "selected": true,
+      "reason": "title의 클라우드 기반 교육시스템 고도화가 public-si-lifecycle의 기능 고도화·공공 정보화 수행 역량과 직접 연결된다.",
+      "relevance": "relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 41592,
+      "error_code": null,
+      "input_tokens": 688,
+      "cached_input_tokens": null,
+      "output_tokens": 1326,
+      "device": null
+    }
+  ]
+}

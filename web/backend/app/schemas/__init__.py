@@ -15,6 +15,8 @@ from pydantic import (
     model_validator,
 )
 
+from ..services.profile import PROFILE_PARSE_ERROR_CODES
+
 
 class APIModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -40,7 +42,6 @@ class AttachmentResponse(APIModel):
     origin: str | None = None
     file_ext: str | None = None
     size_bytes: int | None = None
-    stored_path: str | None = None
     extract_status: str | None = None
     created_at: datetime | None = None
 
@@ -467,23 +468,37 @@ ProfileStatus = Literal["confirmed", "inferred", "unknown"]
 ProfileSectionState = Literal["confirmed", "inferred", "unknown", "mixed", "unrecorded"]
 
 
-class ProfileRawBlockResponse(APIModel):
-    line_start: int
-    raw: str
-    error: str
+def _validate_profile_projection_binding_values(version: str, digest: str) -> None:
+    prefix = "company-profile.sha256:"
+    if (
+        not version.startswith(prefix)
+        or len(digest) != 64
+        or any(character not in "0123456789abcdef" for character in digest)
+        or version.removeprefix(prefix) != digest
+    ):
+        raise ValueError("profile projection version and digest must match")
+
+
+def _validate_profile_error_codes(value: list[str]) -> list[str]:
+    if any(code not in PROFILE_PARSE_ERROR_CODES for code in value):
+        raise ValueError("profile error code is not registered")
+    return value
 
 
 class ProfileItemResponse(APIModel):
+    model_config = ConfigDict(extra="forbid", from_attributes=True)
+
     key: str
     label: str
     section_id: str
     section_number: str | None = None
     status: ProfileStatus
     value: Any = None
-    source_line: int | None = None
 
 
 class ProfileSectionResponse(APIModel):
+    model_config = ConfigDict(extra="forbid", from_attributes=True)
+
     id: str
     number: str | None = None
     title: str
@@ -492,19 +507,33 @@ class ProfileSectionResponse(APIModel):
     state: ProfileSectionState
     status_counts: dict[str, int] = Field(default_factory=dict)
     items: list[ProfileItemResponse] = Field(default_factory=list)
-    raw_blocks: list[ProfileRawBlockResponse] = Field(default_factory=list)
-    raw: str | None = None
+    error_codes: list[str] = Field(default_factory=list)
     children: list["ProfileSectionResponse"] = Field(default_factory=list)
+
+    _validate_error_codes = field_validator("error_codes")(_validate_profile_error_codes)
 
 
 class ProfileSectionsResponse(APIModel):
-    source: str
+    model_config = ConfigDict(extra="forbid", from_attributes=True)
+
+    schema_version: Literal["bidops.profile-projection.v1"] = "bidops.profile-projection.v1"
+    profile_version: str
+    profile_digest: str
     sections: list[ProfileSectionResponse] = Field(default_factory=list)
     status_counts: dict[str, int] = Field(default_factory=dict)
-    parse_errors: list[str] = Field(default_factory=list)
+    error_codes: list[str] = Field(default_factory=list)
+
+    _validate_error_codes = field_validator("error_codes")(_validate_profile_error_codes)
+
+    @model_validator(mode="after")
+    def validate_profile_binding(self) -> "ProfileSectionsResponse":
+        _validate_profile_projection_binding_values(self.profile_version, self.profile_digest)
+        return self
 
 
 class ProfileUnknownResponse(APIModel):
+    model_config = ConfigDict(extra="forbid", from_attributes=True)
+
     key: str
     label: str
     section_id: str
@@ -517,11 +546,22 @@ class ProfileUnknownResponse(APIModel):
 
 
 class ProfileUnknownsResponse(APIModel):
-    source: str
+    model_config = ConfigDict(extra="forbid", from_attributes=True)
+
+    schema_version: Literal["bidops.profile-projection.v1"] = "bidops.profile-projection.v1"
+    profile_version: str
+    profile_digest: str
     items: list[ProfileUnknownResponse] = Field(default_factory=list)
     total: int
     reference_fields: list[str] = Field(default_factory=list)
-    parse_errors: list[str] = Field(default_factory=list)
+    error_codes: list[str] = Field(default_factory=list)
+
+    _validate_error_codes = field_validator("error_codes")(_validate_profile_error_codes)
+
+    @model_validator(mode="after")
+    def validate_profile_binding(self) -> "ProfileUnknownsResponse":
+        _validate_profile_projection_binding_values(self.profile_version, self.profile_digest)
+        return self
 
 
 # ---------------------------------------------------------------------------
@@ -843,17 +883,20 @@ class CompanyProfileSnapshotResponse(RuntimeContractModel):
     version: CompanyProfileVersion
     digest: Digest
     source_kind: Literal["working_tree", "git_blob"]
-    source_ref: NonEmpty
+    # A working-tree source reference is an internal repository path and is
+    # intentionally omitted from the public projection.  Historical git blob
+    # SHA values remain useful lineage identifiers.
+    source_ref: NonEmpty | None = None
     created_at: AwareDateTime
 
     @model_validator(mode="after")
     def validate_source_ref(self) -> "CompanyProfileSnapshotResponse":
         _validate_profile_binding(self.version, self.digest)
         if self.source_kind == "git_blob":
-            if len(self.source_ref) != 40 or any(c not in "0123456789abcdef" for c in self.source_ref):
+            if self.source_ref is None or len(self.source_ref) != 40 or any(c not in "0123456789abcdef" for c in self.source_ref):
                 raise ValueError("git_blob source_ref must be a 40-character lowercase commit")
-        else:
-            _validate_relative_source_ref(self.source_ref)
+        elif self.source_ref is not None:
+            raise ValueError("working-tree source_ref is not public")
         return self
 
 

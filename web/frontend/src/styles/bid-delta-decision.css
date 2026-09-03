@@ -1,0 +1,919 @@
+.bid-delta-page {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  max-width: 1500px;
+  padding: var(--space-2);
+}
+
+.bid-delta-page-header,
+.bid-delta-panel-heading,
+.bid-delta-detail-header,
+.bid-delta-evidence-heading,
+.bid-delta-item-heading,
+.bid-delta-decision-history-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.bid-delta-page-header {
+  align-items: flex-end;
+}
+
+.bid-delta-page-header h2,
+.bid-delta-detail-header h3,
+.bid-delta-panel-heading h3,
+.bid-delta-panel-heading h4,
+.bid-delta-status-panel h3,
+.bid-delta-input-ref-section h4,
+.bid-delta-retry-panel h4,
+.bid-delta-items-section h4,
+.bid-delta-final-decision-panel h4 {
+  margin: 3px 0 0;
+}
+
+.bid-delta-page-header p:not(.bid-delta-kicker),
+.bid-delta-detail-header p,
+.bid-delta-help {
+  margin: 5px 0 0;
+  color: var(--color-muted);
+  line-height: 1.55;
+}
+
+.bid-delta-kicker {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+}
+
+.bid-delta-back-link {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  color: var(--color-primary-strong);
+  font-weight: 700;
+}
+
+.bid-delta-page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.bid-delta-secondary-action,
+.bid-delta-primary-action {
+  display: inline-flex;
+  min-height: var(--control-height);
+  align-items: center;
+  justify-content: center;
+  padding: 7px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.bid-delta-secondary-action {
+  background: var(--color-paper);
+  color: var(--color-text);
+}
+
+.bid-delta-primary-action {
+  border-color: var(--color-primary-strong);
+  background: var(--color-primary);
+  color: var(--color-white);
+  cursor: pointer;
+}
+
+.bid-delta-page button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.bid-delta-page button:focus-visible,
+.bid-delta-page a:focus-visible,
+.bid-delta-page select:focus-visible,
+.bid-delta-page input:focus-visible,
+.bid-delta-page textarea:focus-visible,
+.bid-delta-page summary:focus-visible {
+  outline: 3px solid var(--color-focus, #176b7a);
+  outline-offset: 2px;
+}
+
+.bid-delta-workspace-panel,
+.bid-delta-create-panel,
+.bid-delta-comparison-list-panel,
+.bid-delta-currentness,
+.bid-delta-detail,
+.bid-delta-attempt-panel,
+.bid-delta-decision-history,
+.bid-delta-final-decision-panel,
+.bid-delta-input-ref-section,
+.bid-delta-items-section {
+  min-width: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--color-paper);
+  padding: 16px;
+}
+
+.bid-delta-muted {
+  color: var(--color-muted);
+  font-size: 0.8rem;
+}
+
+.bid-delta-candidate-columns,
+.bid-delta-input-ref-grid,
+.bid-delta-status-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.bid-delta-candidate-columns h4,
+.bid-delta-input-ref-grid h5 {
+  margin: 0 0 8px;
+}
+
+.bid-delta-candidate-list {
+  display: grid;
+  gap: 8px;
+}
+
+.bid-delta-candidate {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-secondary);
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.bid-delta-candidate:hover,
+.bid-delta-candidate-selected {
+  border-color: var(--color-primary-strong);
+  background: var(--surface-selected);
+}
+
+.bid-delta-candidate > strong {
+  display: block;
+  padding-right: 66px;
+}
+
+.bid-delta-candidate-check {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  color: var(--color-muted);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.bid-delta-candidate-selected .bid-delta-candidate-check {
+  color: var(--color-primary-strong);
+}
+
+.bid-delta-input-facts,
+.bid-delta-status-facts {
+  display: grid;
+  gap: 7px;
+  margin: 12px 0 0;
+}
+
+.bid-delta-input-facts > div,
+.bid-delta-status-facts > div {
+  min-width: 0;
+}
+
+.bid-delta-input-facts dt,
+.bid-delta-status-facts dt {
+  color: var(--color-muted);
+  font-size: 0.72rem;
+}
+
+.bid-delta-input-facts dd,
+.bid-delta-status-facts dd {
+  margin: 1px 0 0;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+}
+
+.bid-delta-input-facts-compact {
+  gap: 4px;
+  margin-top: 10px;
+  font-size: 0.8rem;
+}
+
+.bid-delta-selection-note {
+  margin: 7px 0 0;
+  color: var(--color-info);
+  font-size: 0.78rem;
+}
+
+.bid-delta-request-preview {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 12px;
+  border-left: 4px solid var(--color-primary);
+  border-radius: var(--radius-md);
+  background: var(--surface-selected);
+}
+
+.bid-delta-request-preview > div {
+  display: grid;
+  grid-template-columns: minmax(145px, 0.35fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.bid-delta-request-preview span,
+.bid-delta-item-values span,
+.bid-delta-form-fence span {
+  color: var(--color-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.bid-delta-request-preview strong {
+  overflow-wrap: anywhere;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.bid-delta-create-controls,
+.bid-delta-retry-controls,
+.bid-delta-final-form {
+  display: grid;
+  gap: 10px;
+  max-width: 900px;
+  margin-top: 14px;
+}
+
+.bid-delta-create-controls {
+  grid-template-columns: minmax(220px, 1fr) auto;
+  align-items: end;
+}
+
+.bid-delta-create-controls .disabled-reason {
+  grid-column: 1 / -1;
+}
+
+.bid-delta-page .actor-field,
+.bid-delta-form-field {
+  display: grid;
+  gap: 5px;
+}
+
+.bid-delta-page .actor-field label,
+.bid-delta-form-field > span {
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.bid-delta-page .actor-field input,
+.bid-delta-form-field select,
+.bid-delta-form-field textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--control-height);
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-paper);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.bid-delta-form-field textarea {
+  min-height: 108px;
+  resize: vertical;
+}
+
+.bid-delta-comparison-list {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bid-delta-comparison-list > li {
+  min-width: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-secondary);
+}
+
+.bid-delta-comparison-link {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.bid-delta-comparison-link > span:first-child {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.bid-delta-comparison-link small,
+.bid-delta-comparison-summary,
+.bid-delta-decision-history-list small {
+  color: var(--color-muted);
+  font-size: 0.75rem;
+}
+
+.bid-delta-comparison-link-status {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 5px;
+}
+
+.bid-delta-comparison-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  padding: 0 12px 10px;
+  overflow-wrap: anywhere;
+}
+
+.bid-delta-currentness {
+  border-left: 4px solid var(--color-primary);
+}
+
+.bid-delta-latest-decision {
+  display: grid;
+  gap: 4px;
+  margin-top: 12px;
+}
+
+.bid-delta-latest-decision span,
+.bid-delta-currentness-reasons,
+.bid-delta-interpretation {
+  color: var(--color-muted);
+  font-size: 0.8rem;
+}
+
+.bid-delta-latest-decision p {
+  margin: 3px 0 0;
+  white-space: pre-wrap;
+}
+
+.bid-delta-currentness-reasons {
+  margin: 12px 0 0;
+}
+
+.bid-delta-currentness-reasons span {
+  color: var(--color-text);
+  font-weight: 700;
+}
+
+.bid-delta-detail {
+  display: grid;
+  gap: 14px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.bid-delta-detail-header,
+.bid-delta-status-panel,
+.bid-delta-input-ref-section,
+.bid-delta-attempt-panel,
+.bid-delta-items-section,
+.bid-delta-decision-history,
+.bid-delta-final-decision-panel,
+.bid-delta-retry-panel {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--color-paper);
+  padding: 16px;
+}
+
+.bid-delta-detail-header {
+  align-items: flex-start;
+}
+
+.bid-delta-detail-status {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.bid-delta-status-grid {
+  margin-top: 0;
+}
+
+.bid-delta-status-panel {
+  min-width: 0;
+}
+
+.bid-delta-status-panel > .status-badge {
+  display: inline-flex;
+  margin-top: 11px;
+  min-height: 30px;
+  align-items: center;
+}
+
+.bid-delta-status-facts {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.bid-delta-worker-note,
+.bid-delta-analysis-separation {
+  margin-top: 13px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-info);
+  border-radius: var(--radius-md);
+  background: var(--color-info-bg);
+  color: var(--color-info);
+}
+
+.bid-delta-worker-note p,
+.bid-delta-analysis-separation p {
+  margin: 4px 0 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.bid-delta-worker-note small {
+  display: block;
+  margin-top: 4px;
+}
+
+.bid-delta-input-ref-grid {
+  margin-top: 12px;
+}
+
+.bid-delta-input-ref-grid > article {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-secondary);
+}
+
+.bid-delta-attempt-list,
+.bid-delta-decision-history-list {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bid-delta-attempt-list > li,
+.bid-delta-decision-history-list > li {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-secondary);
+}
+
+.bid-delta-attempt-list > li {
+  grid-template-columns: minmax(100px, 0.4fr) auto minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.bid-delta-attempt-current {
+  border-left: 4px solid var(--color-primary) !important;
+  background: var(--surface-selected) !important;
+}
+
+.bid-delta-current-label,
+.bid-delta-human-label {
+  display: inline-flex;
+  margin-left: 7px;
+  color: var(--color-primary-strong);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.bid-delta-attempt-list > li > span {
+  min-width: 0;
+  max-width: 100%;
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.bid-delta-attempt-list code,
+.bid-delta-decision-history-list code {
+  overflow-wrap: anywhere;
+}
+
+.bid-delta-retry-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 0.7fr);
+  gap: 18px;
+  border-left: 4px solid var(--color-danger);
+}
+
+.bid-delta-retry-panel p {
+  margin: 6px 0 0;
+  color: var(--color-muted);
+  line-height: 1.5;
+}
+
+.bid-delta-retry-controls {
+  margin-top: 0;
+  align-content: start;
+}
+
+.bid-delta-retry-controls > button,
+.bid-delta-final-blocked > button {
+  justify-self: start;
+  min-width: 100px;
+  padding: 7px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-paper);
+  color: var(--color-text);
+  font: inherit;
+  font-weight: 700;
+}
+
+.bid-delta-items-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.bid-delta-item {
+  min-width: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-secondary);
+  padding: 13px;
+}
+
+.bid-delta-item-heading {
+  align-items: flex-start;
+}
+
+.bid-delta-item-heading > div:first-child {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.bid-delta-item-heading h4 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.bid-delta-item-ordinal {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--color-deep);
+  color: var(--color-white);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.bid-delta-item-statuses {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 5px;
+}
+
+.bid-delta-item-values {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+  margin-top: 12px;
+}
+
+.bid-delta-item-values > div {
+  min-width: 0;
+  padding: 9px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--color-paper);
+}
+
+.bid-delta-item-values p {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.bid-delta-item-error {
+  margin: 10px 0 0;
+  color: var(--color-danger);
+  font-size: 0.82rem;
+}
+
+.bid-delta-evidence-pairs {
+  margin-top: 14px;
+}
+
+.bid-delta-evidence-pairs h5 {
+  margin: 0 0 8px;
+}
+
+.bid-delta-evidence-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  min-width: 0;
+}
+
+.bid-delta-evidence-pair + .bid-delta-evidence-pair {
+  margin-top: 9px;
+}
+
+.bid-delta-evidence-card {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--color-paper);
+}
+
+.bid-delta-evidence-heading {
+  align-items: center;
+}
+
+.bid-delta-evidence-heading .status-badge {
+  flex: 0 0 auto;
+}
+
+.bid-delta-evidence-locator {
+  margin: 7px 0 0;
+  color: var(--color-muted);
+  font-size: 0.76rem;
+  overflow-wrap: anywhere;
+}
+
+.bid-delta-evidence-locator span {
+  color: var(--color-text);
+  font-weight: 700;
+}
+
+.bid-delta-evidence-card blockquote {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-left: 3px solid var(--color-primary);
+  background: var(--surface-secondary);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.bid-delta-evidence-missing p,
+.bid-delta-evidence-missing > span {
+  color: var(--color-muted);
+  font-size: 0.8rem;
+}
+
+.bid-delta-evidence-missing p {
+  margin: 8px 0 3px;
+}
+
+.bid-delta-technical-details {
+  margin-top: 8px;
+  color: var(--color-muted);
+  font-size: 0.72rem;
+}
+
+.bid-delta-technical-details summary {
+  min-height: 32px;
+  cursor: pointer;
+}
+
+.bid-delta-technical-details dl {
+  display: grid;
+  gap: 4px;
+  margin: 7px 0 0;
+}
+
+.bid-delta-technical-details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.bid-delta-technical-details dt {
+  font-weight: 700;
+}
+
+.bid-delta-decision-history-heading {
+  align-items: center;
+}
+
+.bid-delta-decision-history-heading > span:not(.status-badge) {
+  flex: 1;
+  color: var(--color-muted);
+  font-size: 0.78rem;
+}
+
+.bid-delta-decision-history-list p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.bid-delta-final-decision-panel {
+  border-top: 4px solid var(--color-primary);
+}
+
+.bid-delta-analysis-separation {
+  margin-top: 12px;
+}
+
+.bid-delta-form-fence {
+  display: grid;
+  gap: 7px;
+  padding: 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-secondary);
+}
+
+.bid-delta-form-fence > div {
+  display: grid;
+  grid-template-columns: minmax(170px, 0.4fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.bid-delta-form-fence code {
+  overflow-wrap: anywhere;
+}
+
+.bid-delta-final-form > button,
+.bid-delta-final-blocked > button {
+  justify-self: start;
+}
+
+.bid-delta-final-blocked {
+  display: grid;
+  gap: 9px;
+  margin-top: 12px;
+}
+
+.bid-delta-final-blocked .disabled-reason {
+  margin: 0;
+}
+
+.bid-delta-unsaved {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--color-warning-edge);
+  border-radius: var(--radius-md);
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+  font-weight: 700;
+}
+
+.bid-delta-page-status {
+  margin: 0;
+  color: var(--color-muted);
+}
+
+.bid-delta-page .mutation-feedback {
+  display: grid;
+  gap: 8px;
+}
+
+.bid-delta-page .mutation-feedback p {
+  margin: 0;
+}
+
+.bid-delta-page .mutation-feedback .interaction-control {
+  justify-self: start;
+  padding: 7px 12px;
+}
+
+@media (max-width: 1180px) {
+  .bid-delta-retry-panel {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .bid-delta-page-header,
+  .bid-delta-detail-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .bid-delta-candidate-columns,
+  .bid-delta-input-ref-grid,
+  .bid-delta-status-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .bid-delta-attempt-list > li {
+    grid-template-columns: minmax(110px, 1fr) auto;
+  }
+
+  .bid-delta-attempt-list > li > span,
+  .bid-delta-attempt-list > li > code {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 640px) {
+  .bid-delta-page {
+    padding: var(--space-1);
+  }
+
+  .bid-delta-workspace-panel,
+  .bid-delta-create-panel,
+  .bid-delta-comparison-list-panel,
+  .bid-delta-currentness,
+  .bid-delta-detail-header,
+  .bid-delta-status-panel,
+  .bid-delta-input-ref-section,
+  .bid-delta-attempt-panel,
+  .bid-delta-items-section,
+  .bid-delta-decision-history,
+  .bid-delta-final-decision-panel,
+  .bid-delta-retry-panel {
+    padding: 12px;
+  }
+
+  .bid-delta-create-controls,
+  .bid-delta-item-values,
+  .bid-delta-evidence-pair {
+    grid-template-columns: 1fr;
+  }
+
+  .bid-delta-request-preview > div,
+  .bid-delta-form-fence > div {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+
+  .bid-delta-comparison-link {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .bid-delta-comparison-link-status {
+    justify-content: flex-start;
+  }
+
+  .bid-delta-detail-status {
+    justify-content: flex-start;
+  }
+
+  .bid-delta-item-heading,
+  .bid-delta-panel-heading,
+  .bid-delta-decision-history-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .bid-delta-item-statuses {
+    justify-content: flex-start;
+  }
+
+  .bid-delta-status-facts {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ============================================================================
+ * 상세 3종 공통 골격(4단계, docs/design/PLAN.md). 시안 정본
+ * docs/design/mockups/screens_more.py의 biddelta_screen은 요약 헤더에
+ * 저장·결정 입력으로 이동 액션과 비활성 사유만 두고, 입력 폼(fence·담당자·
+ * 결정·이유)은 본문에 둔다. 폼째로 sticky 헤더에 올리면 노트북 폭
+ * (1024x768)에서 헤더가 뷰포트의 70%를 차지해 정작 판단 근거인 범주별
+ * 분석을 가린다. 헤더 저장 버튼은 form 속성으로 본문 폼을 submit한다.
+ * 새로 추가하는 규칙이므로 ADR-0040에 따라 Astryx neutral 토큰만 읽는다.
+ * ==========================================================================*/
+
+.bid-delta-page-header.detail-skeleton-head {
+  align-items: stretch;
+  justify-content: flex-start;
+}

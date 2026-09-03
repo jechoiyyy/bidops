@@ -65,7 +65,7 @@ export function PolicyCreateForm({ onCreated }: PolicyCreateFormProps) {
     };
     setSubmitting(true);
     setError(null);
-    void api.createPolicy(payload).then(() => {
+    void api.createPolicy(payload, createdBy.trim()).then(() => {
       setPolicyVersion("");
       setPromptVersion("");
       setCreatedBy("");

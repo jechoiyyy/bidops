@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bidops.internal/schemas/bidops.order-plan-screening-result.v1.json",
+  "title": "BidOps order-plan full-population screening result v1",
+  "x-bidops-producer": "order-plan-screening-merge",
+  "x-bidops-consumer": "postgres-loader-and-review-api",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "producer", "consumer", "execution_id", "source_run_id", "input_artifact_sha256", "policy_version", "policy_sha256", "status", "partial_artifact", "counts", "items", "created_at"],
+  "properties": {
+    "schema_version": {"const": "bidops.order-plan-screening-result.v1"},
+    "producer": {"const": "order-plan-screening-merge"},
+    "consumer": {"const": "postgres-loader-and-review-api"},
+    "execution_id": {"type": "string", "minLength": 1},
+    "source_run_id": {"type": "string", "minLength": 1},
+    "input_artifact_sha256": {"$ref": "#/$defs/sha256"},
+    "policy_version": {"type": "string", "minLength": 1},
+    "policy_sha256": {"$ref": "#/$defs/sha256"},
+    "status": {"enum": ["성공", "부분 성공", "실패", "거부됨"]},
+    "partial_artifact": {"type": "boolean"},
+    "counts": {"$ref": "#/$defs/counts"},
+    "items": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/item"}},
+    "created_at": {"type": "string", "format": "date-time"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "counts": {"type": "object", "additionalProperties": false, "required": ["population", "stage1_selected", "stage1_filtered_out", "stage1_failed", "stage2_relevant", "stage2_not_relevant", "stage2_uncertain", "stage2_failed", "stage2_rejected", "human_review_count"], "properties": {"population": {"type": "integer", "minimum": 0}, "stage1_selected": {"type": "integer", "minimum": 0}, "stage1_filtered_out": {"type": "integer", "minimum": 0}, "stage1_failed": {"type": "integer", "minimum": 0}, "stage2_relevant": {"type": "integer", "minimum": 0}, "stage2_not_relevant": {"type": "integer", "minimum": 0}, "stage2_uncertain": {"type": "integer", "minimum": 0}, "stage2_failed": {"type": "integer", "minimum": 0}, "stage2_rejected": {"type": "integer", "minimum": 0}, "human_review_count": {"type": "integer", "minimum": 0}}},
+    "item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plan_id", "stage1_status", "stage1_rank", "stage1_score", "nearest_capability", "stage2_status", "qwen_relevance", "qwen_score", "qwen_reason", "batch_id", "attempt_no", "failure_code"],
+      "properties": {
+        "plan_id": {"type": "string", "minLength": 1},
+        "stage1_status": {"enum": ["selected", "filtered_out", "failed", "rejected"]},
+        "stage1_rank": {"type": ["integer", "null"], "minimum": 1},
+        "stage1_score": {"type": ["number", "null"], "minimum": 0},
+        "nearest_capability": {"type": ["string", "null"]},
+        "stage2_status": {"enum": ["not_attempted", "success", "failed", "rejected", "unknown"]},
+        "qwen_relevance": {"type": ["string", "null"], "enum": ["relevant", "not_relevant", "uncertain", null]},
+        "qwen_score": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "qwen_reason": {"type": ["string", "null"]},
+        "batch_id": {"type": ["string", "null"]},
+        "attempt_no": {"type": ["integer", "null"], "minimum": 1},
+        "failure_code": {"type": ["string", "null"]}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"stage1_status": {"enum": ["failed", "rejected"]}}},
+          "then": {"properties": {
+            "stage1_rank": {"const": null},
+            "stage1_score": {"const": null},
+            "nearest_capability": {"const": null},
+            "stage2_status": {"const": "not_attempted"},
+            "qwen_relevance": {"const": null},
+            "qwen_score": {"const": null},
+            "qwen_reason": {"const": null},
+            "batch_id": {"const": null},
+            "attempt_no": {"const": null},
+            "failure_code": {"const": null}
+          }}
+        },
+        {
+          "if": {"properties": {"stage1_status": {"const": "filtered_out"}}},
+          "then": {"properties": {
+            "stage1_rank": {"type": "integer", "minimum": 1},
+            "stage1_score": {"type": "number", "minimum": 0},
+            "stage2_status": {"const": "not_attempted"},
+            "qwen_relevance": {"const": null},
+            "qwen_score": {"const": null},
+            "qwen_reason": {"const": null},
+            "batch_id": {"const": null},
+            "attempt_no": {"const": null},
+            "failure_code": {"const": null}
+          }}
+        },
+        {
+          "if": {"properties": {"stage1_status": {"const": "selected"}}},
+          "then": {"properties": {
+            "stage1_rank": {"type": "integer", "minimum": 1},
+            "stage1_score": {"type": "number", "minimum": 0}
+          }}
+        },
+        {
+          "if": {"properties": {"stage2_status": {"const": "not_attempted"}}},
+          "then": {"properties": {
+            "qwen_relevance": {"const": null},
+            "qwen_score": {"const": null},
+            "qwen_reason": {"const": null},
+            "batch_id": {"const": null},
+            "attempt_no": {"const": null},
+            "failure_code": {"const": null}
+          }}
+        },
+        {
+          "if": {"properties": {"stage2_status": {"const": "success"}}},
+          "then": {"properties": {
+            "qwen_relevance": {"enum": ["relevant", "not_relevant", "uncertain"]},
+            "qwen_score": {"type": "number", "minimum": 0, "maximum": 1},
+            "qwen_reason": {"type": "string", "minLength": 1, "maxLength": 500},
+            "batch_id": {"type": "string", "minLength": 1},
+            "attempt_no": {"type": "integer", "minimum": 1},
+            "failure_code": {"const": null}
+          }}
+        },
+        {
+          "if": {"properties": {"stage2_status": {"enum": ["failed", "rejected", "unknown"]}}},
+          "then": {"properties": {
+            "qwen_relevance": {"const": null},
+            "qwen_score": {"const": null},
+            "qwen_reason": {"const": null},
+            "failure_code": {"type": "string", "minLength": 1}
+          }}
+        }
+      ]
+    }
+  }
+}

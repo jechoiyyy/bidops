@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..db import get_db
-from ..models import ScreeningPolicy
+from ..models import AuditEvent, ScreeningPolicy
 from ..schemas import (
     PolicyActivationRequest,
     PolicyActivationResponse,
@@ -24,6 +25,7 @@ from ..screening.policy import (
     PolicyError,
     PolicyRepository,
 )
+from ..services.document_bundles import BundleServiceError, stable_api_error, validate_actor
 
 
 router = APIRouter(prefix="/api/policies", tags=["policies"])
@@ -53,6 +55,17 @@ def _policy_response(row: ScreeningPolicy) -> PolicyVersionResponse:
 
 def _not_found(message: str = "정책 버전을 찾을 수 없습니다.") -> HTTPException:
     return HTTPException(status_code=404, detail=message)
+
+
+def _actor_error_response(error: BundleServiceError) -> JSONResponse:
+    code, message = stable_api_error(error.code)
+    return JSONResponse(
+        status_code=error.status_code,
+        content={
+            "error": {"code": code, "message": message, "details": None},
+            "request_id": None,
+        },
+    )
 
 
 @router.get("", response_model=PolicyVersionListResponse)
@@ -95,8 +108,15 @@ def get_policy(
 @router.post("", response_model=PolicyVersionResponse, status_code=status.HTTP_201_CREATED)
 def create_policy(
     request: PolicyVersionCreateRequest,
+    actor: Annotated[str | None, Header(alias="X-BidOps-Actor-Name")] = None,
+    actor_format: Annotated[str | None, Header(alias="X-BidOps-Actor-Name-Format")] = None,
     session: Session = Depends(get_db),
-) -> PolicyVersionResponse:
+) -> PolicyVersionResponse | JSONResponse:
+    try:
+        actor_name = validate_actor(actor, actor_format)
+    except BundleServiceError as error:
+        return _actor_error_response(error)
+
     # PolicyRepository intentionally supports idempotent seed/retry calls.  A
     # REST create is different: an existing version is an immutable conflict,
     # even if the submitted body happens to be byte-identical.
@@ -107,7 +127,17 @@ def create_policy(
         **request.model_dump(exclude={"created_by"}),
     }
     try:
-        row = PolicyRepository(session).create(body, created_by=request.created_by)
+        row = PolicyRepository(session).create(body, created_by=actor_name, actor=actor_name)
+        session.add(
+            AuditEvent(
+                actor_kind="human",
+                claimed_name=actor_name,
+                action="screening_policy.create",
+                aggregate_type="screening_policy",
+                aggregate_id=row.policy_version,
+                safe_metadata={"status": row.status, "prompt_version": row.prompt_version},
+            )
+        )
         session.commit()
     except PolicyConflict as exc:
         session.rollback()
@@ -122,13 +152,30 @@ def create_policy(
 def designate_candidate(
     policy_version: str,
     request: PolicyCandidateRequest,
+    actor: Annotated[str | None, Header(alias="X-BidOps-Actor-Name")] = None,
+    actor_format: Annotated[str | None, Header(alias="X-BidOps-Actor-Name-Format")] = None,
     session: Session = Depends(get_db),
-) -> PolicyVersionResponse:
+) -> PolicyVersionResponse | JSONResponse:
+    try:
+        actor_name = validate_actor(actor, actor_format)
+    except BundleServiceError as error:
+        return _actor_error_response(error)
+
     if session.get(ScreeningPolicy, policy_version) is None:
         raise _not_found()
     try:
         row = PolicyRepository(session).designate_candidate(
-            policy_version, confirmed_by=request.confirmed_by
+            policy_version, actor=actor_name, confirmed_by=request.confirmed_by
+        )
+        session.add(
+            AuditEvent(
+                actor_kind="human",
+                claimed_name=actor_name,
+                action="screening_policy.activation_candidate",
+                aggregate_type="screening_policy",
+                aggregate_id=row.policy_version,
+                safe_metadata={"from_status": "draft", "to_status": row.status},
+            )
         )
         session.commit()
     except PolicyConflict as exc:
@@ -141,8 +188,15 @@ def designate_candidate(
 def activate_policy(
     policy_version: str,
     request: PolicyActivationRequest,
+    actor: Annotated[str | None, Header(alias="X-BidOps-Actor-Name")] = None,
+    actor_format: Annotated[str | None, Header(alias="X-BidOps-Actor-Name-Format")] = None,
     session: Session = Depends(get_db),
-) -> PolicyActivationResponse:
+) -> PolicyActivationResponse | JSONResponse:
+    try:
+        actor_name = validate_actor(actor, actor_format)
+    except BundleServiceError as error:
+        return _actor_error_response(error)
+
     target = session.get(ScreeningPolicy, policy_version)
     if target is None:
         raise _not_found()
@@ -156,7 +210,23 @@ def activate_policy(
         row = PolicyRepository(session).activate(
             policy_version,
             quality_gate_result_id=request.quality_gate_result_id,
+            actor=actor_name,
             confirmed_by=request.confirmed_by,
+        )
+        session.add(
+            AuditEvent(
+                actor_kind="human",
+                claimed_name=actor_name,
+                action="screening_policy.activate",
+                aggregate_type="screening_policy",
+                aggregate_id=row.policy_version,
+                safe_metadata={
+                    "from_status": "activation_candidate",
+                    "to_status": row.status,
+                    "quality_gate_result_id": request.quality_gate_result_id,
+                    "previous_active_policy_version": previous,
+                },
+            )
         )
         session.commit()
     except (PolicyActivationError, PolicyConflict) as exc:

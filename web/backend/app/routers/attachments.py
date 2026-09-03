@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 from pathlib import Path
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
-from fastapi.responses import FileResponse
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, UploadFile
+from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from ..constants import GRADE_ORDER, GRADE_RANK
 from ..db import get_db
-from ..models import AgencyPortal, Attachment, Notice, NoticeObservation
+from ..models import AgencyPortal, Attachment, AuditEvent, Notice, NoticeObservation
 from ..schemas import (
     AttachmentProcedureResponse,
     AttachmentQueueItem,
@@ -26,8 +28,11 @@ from ..services.attachments import (
     build_search_url,
     match_portal,
     remove_stored_file,
+    StoredUpload,
     store_upload,
 )
+from ..services import assets
+from ..services.document_bundles import BundleServiceError, stable_api_error, validate_actor
 from .common import get_run, notice_list_item
 
 
@@ -61,7 +66,6 @@ def _attachment_response(attachment: Attachment) -> AttachmentResponse:
         origin=attachment.origin,
         file_ext=attachment.file_ext,
         size_bytes=attachment.size_bytes,
-        stored_path=attachment.stored_path,
         extract_status=attachment.extract_status,
         created_at=attachment.created_at,
     )
@@ -115,9 +119,22 @@ def _queue_item(session: Session, notice: Notice, run_id: str | None = None) -> 
     )
 
 
-def _cleanup_uploads(paths: list[Path]) -> None:
-    for path in paths:
-        path.unlink(missing_ok=True)
+def _cleanup_uploads(uploads: list[StoredUpload]) -> None:
+    for upload in uploads:
+        upload.absolute_path.unlink(missing_ok=True)
+        upload.source_path.unlink(missing_ok=True)
+        assets.cleanup_asset(upload.asset)
+
+
+def _actor_error_response(error: BundleServiceError) -> JSONResponse:
+    code, message = stable_api_error(error.code)
+    return JSONResponse(
+        status_code=error.status_code,
+        content={
+            "error": {"code": code, "message": message, "details": None},
+            "request_id": None,
+        },
+    )
 
 
 @router.get("/notices/{notice_pk}/attachments", response_model=AttachmentProcedureResponse)
@@ -140,8 +157,15 @@ async def upload_notice_attachments(
     notice_pk: int,
     files: list[UploadFile] | None = File(default=None),
     file: UploadFile | None = File(default=None),
+    actor: Annotated[str | None, Header(alias="X-BidOps-Actor-Name")] = None,
+    actor_format: Annotated[str | None, Header(alias="X-BidOps-Actor-Name-Format")] = None,
     session: Session = Depends(get_db),
-) -> AttachmentProcedureResponse:
+) -> AttachmentProcedureResponse | JSONResponse:
+    try:
+        actor_name = validate_actor(actor, actor_format)
+    except BundleServiceError as error:
+        return _actor_error_response(error)
+
     notice = session.scalar(
         select(Notice)
         .where(Notice.id == notice_pk)
@@ -156,30 +180,55 @@ async def upload_notice_attachments(
     if not uploads:
         raise HTTPException(status_code=400, detail="등록할 파일을 선택하십시오.")
 
-    stored_paths: list[Path] = []
+    stored_uploads: list[StoredUpload] = []
+    created_attachments: list[Attachment] = []
     try:
         for upload in uploads:
             stored = await store_upload(upload, notice.id)
-            stored_paths.append(stored.absolute_path)
-            notice.attachments.append(
-                Attachment(
-                    name=stored.original_name,
-                    url=None,
-                    origin="manual",
-                    file_ext=stored.extension.upper(),
-                    size_bytes=stored.size_bytes,
-                    stored_path=stored.stored_path,
-                    extract_status="pending",
+            stored_uploads.append(stored)
+            attachment = Attachment(
+                name=stored.original_name,
+                url=None,
+                origin="manual",
+                file_ext=stored.extension.upper(),
+                size_bytes=stored.size_bytes,
+                stored_path=stored.stored_path,
+                extract_status="pending",
+            )
+            notice.attachments.append(attachment)
+            created_attachments.append(attachment)
+        session.flush()
+        for attachment in created_attachments:
+            session.add(
+                AuditEvent(
+                    actor_kind="human",
+                    claimed_name=actor_name,
+                    action="attachment.upload",
+                    aggregate_type="attachment",
+                    aggregate_id=str(attachment.id),
+                    safe_metadata={
+                        "notice_id": int(notice.id),
+                        "origin": "manual",
+                        "file_ext": attachment.file_ext,
+                        "size_bytes": int(attachment.size_bytes or 0),
+                        "safety_status": "safe",
+                    },
                 )
             )
         session.commit()
     except AttachmentValidationError as exc:
         session.rollback()
-        _cleanup_uploads(stored_paths)
+        _cleanup_uploads(stored_uploads)
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except assets.AssetError as exc:
+        session.rollback()
+        _cleanup_uploads(stored_uploads)
+        code, message = stable_api_error(exc.code)
+        status_code = 503 if code == "service_unavailable" else 500 if code == "processing_failed" else 400
+        raise HTTPException(status_code=status_code, detail=message) from exc
     except Exception:
         session.rollback()
-        _cleanup_uploads(stored_paths)
+        _cleanup_uploads(stored_uploads)
         raise
 
     refreshed = session.scalar(
@@ -192,11 +241,18 @@ async def upload_notice_attachments(
     return _procedure_response(session, refreshed)
 
 
-@router.delete("/attachments/{attachment_id}", status_code=204)
+@router.delete("/attachments/{attachment_id}", response_model=None, status_code=204)
 def delete_attachment(
     attachment_id: int,
+    actor: Annotated[str | None, Header(alias="X-BidOps-Actor-Name")] = None,
+    actor_format: Annotated[str | None, Header(alias="X-BidOps-Actor-Name-Format")] = None,
     session: Session = Depends(get_db),
-) -> None:
+) -> None | JSONResponse:
+    try:
+        actor_name = validate_actor(actor, actor_format)
+    except BundleServiceError as error:
+        return _actor_error_response(error)
+
     attachment = session.get(Attachment, attachment_id)
     if attachment is None:
         raise HTTPException(status_code=404, detail=f"첨부를 찾을 수 없습니다: {attachment_id}")
@@ -207,6 +263,20 @@ def delete_attachment(
     except AttachmentPathError as exc:
         raise HTTPException(status_code=500, detail="첨부 저장 경로가 올바르지 않습니다.") from exc
     session.delete(attachment)
+    session.add(
+        AuditEvent(
+            actor_kind="human",
+            claimed_name=actor_name,
+            action="attachment.delete",
+            aggregate_type="attachment",
+            aggregate_id=str(attachment.id),
+            safe_metadata={
+                "notice_id": int(attachment.notice_pk),
+                "origin": attachment.origin,
+                "status": "deleted",
+            },
+        )
+    )
     session.commit()
 
 

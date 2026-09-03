@@ -86,7 +86,9 @@ function statusFor(status: ScreeningStatus | undefined): { label: string; tone: 
 }
 
 function profileLabel(snapshot: CompanyProfileSnapshotResponse): string {
-  const source = snapshot.source_kind === "working_tree" ? "현재 프로필" : `Git ${snapshot.source_ref}`;
+  const source = snapshot.source_kind === "working_tree"
+    ? "현재 프로필"
+    : `Git ${snapshot.source_ref ?? "SHA 미확인"}`;
   return `${source} · ${snapshot.version}`;
 }
 
@@ -307,7 +309,7 @@ export function ScreeningRunPanel({
         {selectedPolicy && selectedProfile ? (
           <dl className="runs-screening-selection" aria-label="판정 실행에 사용할 고정 입력">
             <div><dt>정책</dt><dd><strong>{selectedPolicy.policy_version}</strong><span>{selectedPolicy.status === "active" ? "active" : "activation candidate"} · digest {digestLabel(selectedPolicy.content_digest)}</span></dd></div>
-            <div><dt>프로필 출처</dt><dd><strong>{selectedProfile.source_kind === "working_tree" ? "현재 working tree" : "Git blob"}</strong><span>{selectedProfile.source_ref} · version {selectedProfile.version}</span></dd></div>
+            <div><dt>프로필 출처</dt><dd><strong>{selectedProfile.source_kind === "working_tree" ? "현재 프로필" : "Git blob"}</strong><span>{selectedProfile.source_kind === "git_blob" && selectedProfile.source_ref ? `${selectedProfile.source_ref} · ` : ""}version {selectedProfile.version}</span></dd></div>
             <div><dt>프로필 digest</dt><dd><code>{digestLabel(selectedProfile.digest)}</code><span>생성 {formatDateTime(selectedProfile.created_at)}</span></dd></div>
           </dl>
         ) : null}

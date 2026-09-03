@@ -1,15 +1,16 @@
 import type { RefObject } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 
-type IconName = "dashboard" | "queue" | "deadline" | "judgment" | "review" | "profile" | "metrics" | "quality" | "policy" | "runs" | "attachments" | "operations" | "audit";
+type IconName = "dashboard" | "queue" | "deadline" | "judgment" | "review" | "profile" | "metrics" | "quality" | "policy" | "runs" | "attachments" | "operations" | "audit" | "order-plan";
 
 interface NavItem {
   label: string;
   path: string;
   icon: IconName;
-  // 누르면 다른 화면으로 이어지는 항목이다. 목적지 메뉴가 대신 활성 표시된다.
-  linksTo?: string;
-  pending?: boolean;
+  // 이 항목의 화면이 탭으로 흡수한 옛 경로들이다. 옛 경로는 리다이렉트가 아니라
+  // 그 탭의 정식 주소로 남아 있으므로(ADR-0041 결정 2), 그 주소에 있을 때도
+  // 이 항목이 활성으로 보여야 한다.
+  absorbs?: string[];
 }
 
 interface NavGroup {
@@ -17,40 +18,36 @@ interface NavGroup {
   items: NavItem[];
 }
 
+// ADR-0041 결정 1·2·3: 1차 분류를 회차 검토 / 누적 추적으로 나누고 기준·운영을
+// 그 아래 별도 묶음으로 둔다. 16항목을 8항목으로 줄이며, 리다이렉트 항목과
+// 미구현 안내 항목을 최상위에 두지 않는다. 회차 선택기 표시 여부가 1차 분류만
+// 보고 예측 가능해야 하므로(PRD §2.1) route-meta의 runSelectorVisible이
+// 회차 검토 묶음에서만 true다.
 const groups: NavGroup[] = [
   {
-    label: "모니터링",
+    label: "회차 검토",
     items: [
       { label: "대시보드", path: "/", icon: "dashboard" },
-      { label: "검토 대기열", path: "/queue", icon: "queue" },
-      { label: "마감 추적", path: "/deadlines", icon: "deadline", linksTo: "/queue" },
-      { label: "사업기회", path: "/opportunities", icon: "queue" },
+      // 마감 추적(/deadlines)은 sort=deadline 저장된 뷰로, 공고 판정 이력
+      // (/judgments)과 담당자 리뷰 기록(/reviews)은 탭으로 흡수했다.
+      { label: "검토 대기열", path: "/queue", icon: "queue", absorbs: ["/deadlines", "/judgments", "/reviews"] },
+    ],
+  },
+  {
+    label: "누적 추적",
+    items: [
+      { label: "발주계획 C-2", path: "/order-plans", icon: "order-plan" },
       { label: "사전규격", path: "/pre-specs", icon: "judgment" },
+      // 심층 검토 보고서(/deep-reviews/:id)는 사업기회 화면이 진입점을 갖는다.
+      { label: "사업기회", path: "/opportunities", icon: "queue", absorbs: ["/deep-reviews"] },
+      { label: "최종 Go/No-Go", path: "/go-no-go", icon: "judgment" },
     ],
   },
   {
-    label: "판정",
+    label: "기준과 운영",
     items: [
-      { label: "공고 판정 이력", path: "/judgments", icon: "judgment" },
-      { label: "담당자 리뷰 기록", path: "/reviews", icon: "review", pending: true },
-    ],
-  },
-  {
-    label: "기준",
-    items: [
-      { label: "회사 프로필", path: "/profile", icon: "profile" },
-      { label: "판정 정책", path: "/policies", icon: "policy" },
-      { label: "품질 게이트", path: "/quality-gates", icon: "quality" },
-      { label: "검증 지표", path: "/metrics", icon: "metrics" },
-    ],
-  },
-  {
-    label: "운영",
-    items: [
-      { label: "수집 실행", path: "/runs", icon: "runs" },
-      { label: "첨부 확보", path: "/attachments", icon: "attachments" },
-      { label: "상시 운영", path: "/operations", icon: "operations" },
-      { label: "산출물 감사 로그", path: "/audit", icon: "audit", linksTo: "/runs" },
+      { label: "판정 기준", path: "/criteria", icon: "policy", absorbs: ["/profile", "/policies", "/quality-gates", "/metrics"] },
+      { label: "실행 상태", path: "/run-status", icon: "operations", absorbs: ["/runs", "/attachments", "/operations", "/audit"] },
     ],
   },
 ];
@@ -62,6 +59,8 @@ function NavIcon({ name }: { name: IconName }) {
       return <svg {...common}><rect x="3" y="3" width="7" height="9" rx="1" /><rect x="14" y="3" width="7" height="5" rx="1" /><rect x="14" y="12" width="7" height="9" rx="1" /><rect x="3" y="16" width="7" height="5" rx="1" /></svg>;
     case "queue":
       return <svg {...common}><path d="M4 6h16M4 12h16M4 18h9" /></svg>;
+    case "order-plan":
+      return <svg {...common}><path d="M5 4h14v16H5z" /><path d="M8 8h8M8 12h8M8 16h5" /><path d="M8 4V2M16 4V2" /></svg>;
     case "deadline":
       return <svg {...common}><circle cx="12" cy="12" r="8" /><path d="M12 8v4l3 2" /></svg>;
     case "judgment":
@@ -89,6 +88,11 @@ function NavIcon({ name }: { name: IconName }) {
 
 function isCurrentPath(pathname: string, path: string): boolean {
   return path === "/" ? pathname === "/" : pathname === path || pathname.startsWith(`${path}/`);
+}
+
+function isActiveItem(pathname: string, item: NavItem): boolean {
+  if (isCurrentPath(pathname, item.path)) return true;
+  return (item.absorbs ?? []).some((absorbed) => isCurrentPath(pathname, absorbed));
 }
 
 export function Sidebar({ navRef, open, onClose }: { navRef: RefObject<HTMLElement | null>; open: boolean; onClose: () => void }) {
@@ -133,7 +137,7 @@ export function Sidebar({ navRef, open, onClose }: { navRef: RefObject<HTMLEleme
               <div className="sidebar-items">
                 {group.items.map((item) => (
                   <NavLinkItem
-                    active={item.linksTo ? false : isCurrentPath(pathname, item.path)}
+                    active={isActiveItem(pathname, item)}
                     item={item}
                     key={item.path}
                     onNavigate={onClose}
@@ -163,7 +167,6 @@ function NavLinkItem({ item, active, onNavigate, runSearch }: { item: NavItem; a
     >
       <NavIcon name={item.icon} />
       <span>{item.label}</span>
-      {item.pending ? <span className="sidebar-item-pending">준비 중</span> : null}
     </Link>
   );
 }

@@ -1,0 +1,3 @@
+plan_id	title	effective_relevance	effective_priority	label_source	miss_stage	bm25_rank	accepted_for_c2	accepted_at	decision_note
+R26DD20855622	춘의동 일원(K26) 노후 상수도관 교체공사 GIS DB 갱신 용역	관련	낮음	draft	bm25_top300_filtered_out	447	true	2026-09-01T12:32:45+09:00	C-2에서 알려진 낮은 우선순위 누락으로 기록하고 BM25 Top 300 + Qwen 선택 시 수용함
+R26DD20857501	화생방 제독작전모의 SW 구현 용역	관련	낮음	draft	bm25_top300_filtered_out	538	true	2026-09-01T12:32:45+09:00	C-2에서 알려진 낮은 우선순위 누락으로 기록하고 BM25 Top 300 + Qwen 선택 시 수용함

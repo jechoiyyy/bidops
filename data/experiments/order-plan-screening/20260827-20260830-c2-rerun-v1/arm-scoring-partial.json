@@ -1,0 +1,315 @@
+{
+ "schema_version": "bidops.order-plan-arm-scoring-partial.v1",
+ "status": "partial",
+ "run_dir": "data/experiments/order-plan-screening/20260827-20260830-c2-rerun-v1",
+ "population_count": 625,
+ "population_sha256": "7846e7ff51002dac613f85cc1a3e8a358430c9519ed96c6501e8e41c9f3d1c5a",
+ "gold": {
+  "path": "data/experiments/order-plan-screening/20260827-20260830-gold-adjudicated-v1/review/gold-adjudicated-full-population.tsv",
+  "sha256": "1ac9a0c97a4c512ae4a8ba5037734734970033ad7b39a8680437eebbe4c306f0",
+  "relevance_column": "effective_relevance",
+  "priority_column": "effective_priority",
+  "label_source_column": "label_source",
+  "label_source_counts": {
+   "draft": 608,
+   "human": 17
+  },
+  "relevant": 61,
+  "uncertain": 0
+ },
+ "arms": {
+  "bm25": {
+   "config": {
+    "schema_version": "bidops.order-plan-bm25.v1",
+    "note": "ADR-0021 개정이 채택한 BM25 arm 설정이다. 기존 6-method 계약(methods.json)은 닫힌 집합이라 여기에 분리해 둔다. 방식이 선택되면 그때 제품 경로에 통합한다.",
+    "method_version": "bm25-char-title-capability-v1",
+    "model_name": null,
+    "model_revision": null,
+    "prompt_id": null,
+    "prompt_sha256": null,
+    "analyzer": "char",
+    "ngram_min": 2,
+    "ngram_max": 5,
+    "k1": 1.2,
+    "b": 0.75,
+    "query_term_frequency": "binary",
+    "capability_aggregation": "max_bm25"
+   }
+  }
+ },
+ "blocked_arms": {
+  "dense": {
+   "status": "failed",
+   "model": {
+    "name": "bge-m3:latest",
+    "revision": "7907646426070047a77226ac3e684fbbe8410524f7b4a74d02837e43f2146bab"
+   },
+   "method_version": "ollama-bge-m3-dense-title-v1",
+   "error_counts": {
+    "model_unavailable": 625
+   }
+  },
+  "hybrid_rrf": {
+   "status": "blocked",
+   "reason": "dense_arm_failed",
+   "k": 60,
+   "inputs": [
+    "bm25",
+    "dense"
+   ]
+  }
+ },
+ "evaluations": {
+  "bm25": {
+   "total_relevant": 61,
+   "at_cutoff": [
+    {
+     "cutoff": 20,
+     "review_load": 20,
+     "found": 14,
+     "missed": 47,
+     "recall": 0.2295,
+     "precision": 0.7
+    },
+    {
+     "cutoff": 30,
+     "review_load": 30,
+     "found": 21,
+     "missed": 40,
+     "recall": 0.3443,
+     "precision": 0.7
+    },
+    {
+     "cutoff": 50,
+     "review_load": 50,
+     "found": 33,
+     "missed": 28,
+     "recall": 0.541,
+     "precision": 0.66
+    },
+    {
+     "cutoff": 75,
+     "review_load": 75,
+     "found": 45,
+     "missed": 16,
+     "recall": 0.7377,
+     "precision": 0.6
+    },
+    {
+     "cutoff": 100,
+     "review_load": 100,
+     "found": 49,
+     "missed": 12,
+     "recall": 0.8033,
+     "precision": 0.49
+    },
+    {
+     "cutoff": 150,
+     "review_load": 150,
+     "found": 56,
+     "missed": 5,
+     "recall": 0.918,
+     "precision": 0.3733
+    },
+    {
+     "cutoff": 200,
+     "review_load": 200,
+     "found": 57,
+     "missed": 4,
+     "recall": 0.9344,
+     "precision": 0.285
+    },
+    {
+     "cutoff": 300,
+     "review_load": 300,
+     "found": 59,
+     "missed": 2,
+     "recall": 0.9672,
+     "precision": 0.1967
+    }
+   ],
+   "rank_for_full_recall": 538,
+   "rank_p50": 44,
+   "rank_p90": 146,
+   "relevant_ranks": [
+    1,
+    4,
+    6,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    22,
+    23,
+    24,
+    25,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    37,
+    38,
+    41,
+    43,
+    44,
+    45,
+    49,
+    51,
+    53,
+    54,
+    56,
+    59,
+    60,
+    62,
+    64,
+    69,
+    70,
+    71,
+    74,
+    81,
+    83,
+    85,
+    89,
+    103,
+    112,
+    114,
+    116,
+    134,
+    146,
+    150,
+    162,
+    201,
+    294,
+    447,
+    538
+   ]
+  }
+ },
+ "high_priority_misses_at_cutoff": {
+  "bm25": [
+   {
+    "plan_id": "R26DD20855983",
+    "priority": "높음"
+   },
+   {
+    "plan_id": "R26DD20856186",
+    "priority": "높음"
+   },
+   {
+    "plan_id": "R26DD20856956",
+    "priority": "높음"
+   },
+   {
+    "plan_id": "R26DD20857281",
+    "priority": "높음"
+   },
+   {
+    "plan_id": "R26DD20857588",
+    "priority": "높음"
+   },
+   {
+    "plan_id": "R26DD20855662",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20855717",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20855832",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20855995",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20856170",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20856192",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20856444",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20856777",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20856894",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20857340",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20857517",
+    "priority": "보통"
+   },
+   {
+    "plan_id": "R26DD20855622",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20855935",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20856029",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20856112",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20856667",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20856753",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20857362",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20857501",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20857660",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20857691",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20857841",
+    "priority": "낮음"
+   },
+   {
+    "plan_id": "R26DD20857842",
+    "priority": "낮음"
+   }
+  ]
+ }
+}

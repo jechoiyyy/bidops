@@ -11,7 +11,7 @@
 - `run_id`, single scope의 `notice_id`, requested actor, 정책·프롬프트 version, 모델명·모델 digest, profile source/version/digest, input/artifact 경로·digest가 필수다.
 - 입력은 `bidops.screening-input.v1`, run/window/timezone, candidate count, 정규화 공고, 판정 모드, 정책/prompt/profile identity를 포함한다. profile 전문을 입력 계약에 복사하지 않는다.
 
-프로필 `current`는 working tree snapshot이고 `git:<40hex>`는 승인된 역사 commit only다. 현재 문서의 경로와 digest 검사는 [아키텍처](./architecture.md)의 프로필 절차와 동일하다. fresh migrated DB에는 policy row가 없으므로 명시적 seed 이후에만 실행을 만들 수 있다. 정책 body·prompt·모델 설정이 생성 후 바뀌면 실행과 섞지 않고 새 version을 만든다.
+프로필 `current`는 working tree snapshot이고 `git:<40hex>`는 승인된 역사 commit only다. 현재 문서의 경로와 digest 검사는 [아키텍처](../ARCHITECTURE.md)의 프로필 절차와 동일하다. fresh migrated DB에는 policy row가 없으므로 명시적 seed 이후에만 실행을 만들 수 있다. 정책 body·prompt·모델 설정이 생성 후 바뀌면 실행과 섞지 않고 새 version을 만든다.
 
 워커는 queue claim 후 input bytes, path hardening, DB binding, Ollama `/api/tags`의 정확한 `qwen3.8:27b`와 64-hex digest를 다시 확인한다. mismatch, missing input, invalid profile/policy는 모델 호출 전에 실패한다.
 
@@ -138,7 +138,7 @@ CLI는 profile/model/digest와 artifact 경로·상태 메타데이터만 출력
 
 `POST /api/runs/{run_id}/pipeline/judgment`는 동일한 queue로 enqueue하고 202를 반환한다. Ollama preflight 실패는 queue row를 만들기 전에 503이다. `POST /api/screening/executions/{execution_id}/stop`은 actor를 audit attribution으로 저장하며 인증을 제공하지 않는다. queued stop은 즉시 terminal `중단됨`, running stop은 `중지 요청`, terminal stop은 409다.
 
-Quality gate가 만드는 두 pass도 각각 독립적인 `quality_sample` execution이며 같은 fixed input/identity를 사용한다. A/B와 review/evaluation revision은 [모델 품질 게이트](./model-quality-gate.md)를 참조한다.
+Quality gate가 만드는 두 pass도 각각 독립적인 `quality_sample` execution이며 같은 fixed input/identity를 사용한다. A/B와 review/evaluation revision은 [모델 품질 게이트](../model-quality-gate.md)를 참조한다.
 
 ## 운영 불변식
 
@@ -146,7 +146,7 @@ Quality gate가 만드는 두 pass도 각각 독립적인 `quality_sample` execu
 2. 정책·prompt·model·profile·input/artifact digest는 실행 생성 후 바뀌지 않는다.
 3. FIFO, active slot 1, bounded retry, heartbeat recovery는 수동·스케줄·quality trigger에 공통이다.
 4. 실패·부분 성공·중단의 사실과 성공 subset을 보존하며 자동 재개·자동 등급 보정·자동 발행을 하지 않는다.
-5. 스케줄 catch-up/recovery와 DB migration/seed는 별도 운영 계약이다. 정확한 명령은 [운영 절차](./operations.md), REST·파일·DB status/error는 [외부 인터페이스 계약](./contracts.md)에 있다.
+5. 스케줄 catch-up/recovery와 DB migration/seed는 별도 운영 계약이다. 정확한 명령은 [운영 절차](../operations.md), REST·파일·DB status/error는 [외부 인터페이스 계약](../contracts.md)에 있다.
 
 모델 실행의 `generation_config` JSON과 digest는 execution artifact, DB
 projection, quality gate/evaluation, schedule/always-on response에서 동일한

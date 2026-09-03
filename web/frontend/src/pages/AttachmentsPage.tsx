@@ -1,6 +1,7 @@
 import { FormEvent, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
+import { ActorField } from "../components/common/ActorField";
 import { Badge } from "../components/common/Badge";
 import { EmptyState } from "../components/common/EmptyState";
 import { Panel } from "../components/common/Panel";
@@ -49,13 +50,17 @@ function isDeadlineAlert(value: string | null): boolean {
 function PortalForm({
   draft,
   saving,
+  actorName,
   onChange,
+  onActorChange,
   onSubmit,
   onCancel,
 }: {
   draft: PortalDraft;
   saving: boolean;
+  actorName: string;
   onChange: (draft: PortalDraft) => void;
+  onActorChange: (value: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onCancel: () => void;
 }) {
@@ -79,6 +84,14 @@ function PortalForm({
         비고
         <textarea value={draft.note} onChange={(event) => onChange({ ...draft, note: event.target.value })} rows={2} placeholder="담당자가 참고할 내용을 입력합니다." />
       </label>
+      <ActorField
+        label="담당자 이름"
+        required
+        value={actorName}
+        onChange={onActorChange}
+        autoComplete="off"
+        placeholder="예: 홍길동"
+      />
       <label className="portal-enabled-control">
         <input type="checkbox" checked={draft.enabled} onChange={(event) => onChange({ ...draft, enabled: event.target.checked })} />
         검색 주소 자동 생성에 사용
@@ -158,6 +171,7 @@ export function AttachmentsPage() {
     ...emptyDraft,
     agency_pattern: searchParams.get("agency") ?? "",
   }));
+  const [actorName, setActorName] = useState("");
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -179,8 +193,8 @@ export function AttachmentsPage() {
       note: draft.note.trim() || null,
     };
     try {
-      if (draft.id === null) await api.createPortal(payload);
-      else await api.updatePortal(draft.id, payload);
+      if (draft.id === null) await api.createPortal(payload, actorName.trim());
+      else await api.updatePortal(draft.id, payload, actorName.trim());
       setDraft(emptyDraft);
       await queryClient.invalidateQueries({ queryKey: ["portals"] });
       await queryClient.invalidateQueries({ queryKey: ["attachment-queue", runId] });
@@ -223,7 +237,7 @@ export function AttachmentsPage() {
             {portalsQuery.error ? <p className="attachment-upload-error">{errorMessage(portalsQuery.error, "기관 목록을 확인할 수 없습니다.")}</p> : null}
             <div className="portal-list">{(portalsQuery.data ?? []).map((portal) => <PortalRow key={portal.id} portal={portal} onEdit={editPortal} />)}</div>
             {!portalsQuery.isLoading && !portalsQuery.error && (portalsQuery.data ?? []).length === 0 ? <p className="attachment-empty">등록된 조달시스템이 없습니다.</p> : null}
-            <PortalForm draft={draft} saving={saving} onChange={setDraft} onSubmit={(event) => void savePortal(event)} onCancel={() => setDraft(emptyDraft)} />
+            <PortalForm draft={draft} saving={saving} actorName={actorName} onChange={setDraft} onActorChange={setActorName} onSubmit={(event) => void savePortal(event)} onCancel={() => setDraft(emptyDraft)} />
             {formError ? <p className="attachment-upload-error" role="alert">{formError}</p> : null}
           </Panel>
           <Panel title="확보 기준">

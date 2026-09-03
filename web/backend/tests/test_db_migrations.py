@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import json
+from uuid import uuid4
 
 import pytest
 from sqlalchemy import select, text
@@ -23,9 +24,11 @@ from app.ingest.contracts import NoticeContract
 from app.ingest.loader import ObservationSnapshotConflictError, _upsert_notice
 from app.models import (
     ATTACHMENT_FETCH_TABLES,
+    BID_DELTA_TABLES,
     IDENTITY_TABLES,
     LEGACY_TABLES,
     NEW_TABLES,
+    ORDER_PLAN_SCREENING_TABLES,
     REVISION_TABLES,
     PRESPEC_OVERVIEW_TABLES,
     SCREENING_RUNTIME_TABLES,
@@ -34,6 +37,9 @@ from app.models import (
     Opportunity,
     OpportunityLink,
     OrderPlan,
+    OrderPlanScreeningArtifact,
+    OrderPlanScreeningExecution,
+    OrderPlanScreeningPolicy,
     Run,
 )
 from app.screening.generation_config import GenerationConfig, legacy_generation_config
@@ -48,6 +54,8 @@ ALL_TABLES = frozenset(
     LEGACY_TABLES + NEW_TABLES + SCREENING_RUNTIME_TABLES + IDENTITY_TABLES
     + ATTACHMENT_FETCH_TABLES + REVISION_TABLES
     + PRESPEC_OVERVIEW_TABLES
+    + BID_DELTA_TABLES
+    + ORDER_PLAN_SCREENING_TABLES
 )
 
 
@@ -439,6 +447,125 @@ def test_downgrade_removes_only_the_screening_runtime() -> None:
         assert remaining == set(LEGACY_TABLES + NEW_TABLES) | {"alembic_version"}
         assert not remaining & set(SCREENING_RUNTIME_TABLES)
         engine.dispose()
+
+
+def test_c2_artifact_rows_are_append_only_in_postgresql() -> None:
+    with migrated_engine() as engine, Session(engine) as session:
+        now = datetime(2026, 9, 1, tzinfo=timezone.utc)
+        execution_id = uuid4()
+        session.add_all(
+            [
+                Run(id="c2-migration-run", generated_at=now),
+                OrderPlan(order_plan_unty_no="R26DD20999999", title="계획"),
+                OrderPlanScreeningPolicy(
+                    id=uuid4(),
+                    policy_version="c2-migration-policy",
+                    schema_version="bidops.order-plan-screening-policy.v1",
+                    producer="phase0-contracts",
+                    consumer="phase1-screening-pipeline",
+                    policy_status="draft",
+                    decision_scope="c2_order_plan_first_pass",
+                    policy_payload_jsonb={},
+                    binding_payload_jsonb={},
+                    policy_sha256="a" * 64,
+                    binding_sha256="b" * 64,
+                    activation_metadata_jsonb={},
+                    quality_gate_status="not_measured",
+                    active_slot=None,
+                    created_by="migration-test",
+                    created_at=now,
+                ),
+            ]
+        )
+        session.flush()
+        session.add(
+            OrderPlanScreeningExecution(
+                execution_id=execution_id,
+                request_id=execution_id,
+                schema_version="bidops.order-plan-screening-execution-row.v1",
+                producer="screening-api",
+                consumer="screening-worker-and-review-api",
+                source_run_id="c2-migration-run",
+                source_artifact_name="collected-order-plans.json",
+                source_artifact_schema_version="bidops.collected-order-plans.v1",
+                source_artifact_sha256="c" * 64,
+                input_artifact_sha256="d" * 64,
+                population_count=1,
+                population_sha256="e" * 64,
+                policy_version="c2-migration-policy",
+                policy_sha256="a" * 64,
+                binding_sha256="b" * 64,
+                stage1_binding_version="bm25-v1",
+                stage1_binding_sha256="f" * 64,
+                stage2_binding_version="qwen-v1",
+                stage2_binding_sha256="1" * 64,
+                status="성공",
+                active_slot=None,
+                requested_by="migration-test",
+                partial_artifact=False,
+                candidate_count=0,
+                completed_count=0,
+                failure_count=0,
+                stage1_selected_count=0,
+                stage1_filtered_out_count=1,
+                stage1_failed_count=0,
+                stage2_relevant_count=0,
+                stage2_not_relevant_count=0,
+                stage2_uncertain_count=0,
+                stage2_failed_count=0,
+                stage2_rejected_count=0,
+                human_review_count=0,
+                queued_at=now,
+                started_at=now,
+                finished_at=now,
+                created_at=now,
+            )
+        )
+        session.flush()
+        session.add(
+            OrderPlanScreeningArtifact(
+                execution_id=execution_id,
+                kind="input",
+                schema_version="bidops.order-plan-screening-input.v1",
+                producer="order-plan-screening-orchestrator",
+                consumer="order-plan-screening-worker",
+                sha256="1" * 64,
+                byte_count=1,
+                validation_status="valid",
+                created_at=now,
+            )
+        )
+        session.commit()
+
+        with pytest.raises(IntegrityError):
+            with engine.begin() as connection:
+                connection.execute(
+                    text(
+                        "UPDATE bidops.order_plan_screening_artifact "
+                        "SET sha256 = :sha256 WHERE execution_id = :execution_id"
+                    ),
+                    {"sha256": "2" * 64, "execution_id": execution_id},
+                )
+
+        with pytest.raises(IntegrityError):
+            with engine.begin() as connection:
+                connection.execute(
+                    text(
+                        "UPDATE bidops.order_plan_screening_policy "
+                        "SET activated_by = 'tampered' "
+                        "WHERE policy_version = 'c2-migration-policy'"
+                    )
+                )
+
+        with pytest.raises(IntegrityError):
+            with engine.begin() as connection:
+                connection.execute(
+                    text(
+                        "UPDATE bidops.order_plan_screening_execution "
+                        "SET failure_count = 1 WHERE execution_id = :execution_id"
+                    ),
+                    {"execution_id": execution_id},
+                )
 
 
 def test_every_revision_identifier_fits_the_version_column() -> None:

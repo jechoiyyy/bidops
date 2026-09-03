@@ -4,7 +4,7 @@
 
 ## 현재 안전 상태
 
-저장소의 `config/company-capabilities.json`에는 승인 상태의 최소 회사 역량 요약 6개가 있다. 간편 실행기는 담당자가 그 내용을 다시 확인하고 `--approve-capabilities`와 `--approved-by`를 명시해야 실행별 승인 사본을 만든다. `config/methods.json`에는 TF-IDF 계약과 확인된 Ollama BGE-M3·Qwen digest가 고정돼 있고, Qwen prompt hash는 실행할 때 Git 밖의 승인 파일에서 계산해 실행 사본에 묶는다. Luna immutable revision은 아직 비어 있으므로 fail-closed한다.
+`review-inputs/`에는 사람이 함께 확인할 회사 역량과 prompt를 모아 둔다. 현재 실행 기준은 `company/company-capabilities-v1-approved.json`과 `prompts/order-plan-batch-relevance-v3-approved.txt`이며, 상태와 SHA-256은 `review-inputs/manifest.json`이 고정한다. 본문 파일은 Git에서 제외한다. 간편 실행기는 담당자가 그 내용을 다시 확인하고 `--approve-capabilities`와 `--approved-by`를 명시해야 실행별 승인 사본을 만든다. `config/methods.json`에는 TF-IDF 계약과 확인된 Ollama BGE-M3·Qwen digest가 고정돼 있고, Qwen prompt hash는 실행할 때 승인 파일에서 계산해 실행 사본에 묶는다. Luna immutable revision은 아직 비어 있으므로 fail-closed한다.
 
 승인된 최소 회사 역량 요약은 저장소의 전용 config에 두고, prompt 본문은 Git 밖의 접근 제한 위치에 둔다. 보고서에는 회사 역량·prompt 본문 대신 hash만 기록한다. Luna는 공식 immutable revision을 확인할 수 없으면 실행하지 않는다. 모델 alias를 revision으로 복제해 이 검사를 우회하지 않는다.
 
@@ -12,8 +12,12 @@
 
 ```text
 experiments/order-plan-screening/
+├── review-inputs/
+│   ├── manifest.json              # 승인·초안 상태와 본문 SHA-256
+│   ├── company/                   # Git 제외 회사 역량 승인본·초안
+│   └── prompts/                   # Git 제외 prompt 승인본·초안
 ├── config/
-│   ├── company-capabilities.json   # 승인된 최소 회사 역량 projection
+│   ├── company-capabilities.json   # 과거 실행 재현용 원본
 │   └── methods.json                # 방법별 고정 설정과 모델 binding
 ├── scripts/
 │   ├── collect.py
@@ -78,11 +82,11 @@ TF-IDF, Ollama BGE-M3 dense representation, 로컬 Qwen을 한 명령으로 실�
 - `BIDOPS_G2B_API_KEY`는 신규 수집 때만 필요하다. 기존 raw를 재사용하면 필요하지 않다.
 - `BIDOPS_OLLAMA_BASE_URL`에는 승인된 Ollama endpoint를 넣는다.
 - `--prompt-file`은 symlink가 아닌 비어 있지 않은 승인 prompt 파일이어야 한다. 스크립트가 SHA-256을 계산해 실행별 methods 설정 사본에 묶는다.
-- 이 작업공간의 기본 prompt는 Git에서 제외되는 `.dryforge/approved/order-plan-batch-relevance-v3.txt`에 준비돼 있다. 실행 전에 본문을 검토하고 승인한 뒤 사용한다. 새 clone에는 이 파일이 따라오지 않는다.
-- `.dryforge/approved/order-plan-batch-relevance-v2.txt`는 직전 회차 재현용으로 보존한다.
+- 이 작업공간의 기본 prompt는 Git에서 제외되는 `review-inputs/prompts/order-plan-batch-relevance-v3-approved.txt`다. 실행 전에 본문과 `manifest.json`의 hash를 검토한 뒤 사용한다. 새 clone에는 본문 파일이 따라오지 않는다.
+- `.dryforge/approved/`의 과거 prompt는 이전 회차 재현용으로만 보존한다.
 - `--approve-capabilities`는 저장소의 회사 역량 projection을 실제로 읽고 승인한 뒤에만 지정한다. `--approved-by`는 인증된 신원이 아니라 실행 artifact에 남는 감사 표식이다.
 
-스크립트는 원본 `config/company-capabilities.json`과 `config/methods.json`을 수정하지 않는다. 실행별 승인 사본은 `.dryforge/order-plan-screening/<run-id>/config/`에 만들고, 모집단과 결과는 `data/experiments/order-plan-screening/<run-id>/`에 새로 만든다.
+스크립트는 `review-inputs/company/company-capabilities-v1-approved.json`과 `config/methods.json`을 수정하지 않는다. 실행별 승인 사본은 `.dryforge/order-plan-screening/<run-id>/config/`에 만들고, 모집단과 결과는 `data/experiments/order-plan-screening/<run-id>/`에 새로 만든다.
 
 ### 첫 실행: 신규 나라장터 수집
 
@@ -91,7 +95,7 @@ cd /home/jechoi/projects/bidops
 
 export BIDOPS_OLLAMA_BASE_URL=http://192.168.0.139:11434
 export BIDOPS_G2B_API_KEY='환경에서 주입한 키'
-PROMPT_FILE="$PWD/.dryforge/approved/order-plan-batch-relevance-v3.txt"
+PROMPT_FILE="$PWD/experiments/order-plan-screening/review-inputs/prompts/order-plan-batch-relevance-v3-approved.txt"
 
 ./experiments/order-plan-screening/run-local-comparison.sh \
   --approved-by 'jechoi' \
@@ -109,7 +113,7 @@ API를 다시 호출하지 않고 이전 run의 raw를 재사용하려면 새 ru
 
 ```bash
 export BIDOPS_OLLAMA_BASE_URL=http://192.168.0.139:11434
-PROMPT_FILE="$PWD/.dryforge/approved/order-plan-batch-relevance-v3.txt"
+PROMPT_FILE="$PWD/experiments/order-plan-screening/review-inputs/prompts/order-plan-batch-relevance-v3-approved.txt"
 
 ./experiments/order-plan-screening/run-local-comparison.sh \
   --run-id order-plan-replay-v2 \
@@ -125,14 +129,15 @@ PROMPT_FILE="$PWD/.dryforge/approved/order-plan-batch-relevance-v3.txt"
 
 스크립트는 아래 작업을 순서대로 수행한다.
 
-1. live endpoint를 쓰지 않는 fake/unit test
-2. TF-IDF·dense adapter 계약 확인
-3. 회사 역량 승인 사본과 prompt hash가 묶인 methods 설정 생성
-4. 나라장터 신규 수집(페이지당 60초·최대 3회) 또는 불변 raw replay
-5. TF-IDF 실행
-6. Ollama에서 BGE-M3 digest 확인 후 dense embedding을 128건 고정 batch로 실행
-7. Qwen revision 확인과 25건 고정 batch 실행
-8. 중간 실행 요약과 상세 의사결정 HTML 보고서 생성
+1. `review-inputs/manifest.json`과 active 본문 SHA-256 검증
+2. live endpoint를 쓰지 않는 fake/unit test
+3. TF-IDF·dense adapter 계약 확인
+4. 회사 역량 승인 사본과 prompt hash가 묶인 methods 설정 생성
+5. 나라장터 신규 수집(페이지당 60초·최대 3회) 또는 불변 raw replay
+6. TF-IDF 실행
+7. Ollama에서 BGE-M3 digest 확인 후 dense embedding을 128건 고정 batch로 실행
+8. Qwen revision 확인과 25건 고정 batch 실행
+9. 중간 실행 요약과 상세 의사결정 HTML 보고서 생성
 
 완료 시 각 방법의 `status`, 성공·실패 건수, 전체 실제 소요시간 `elapsed_ms`와 run 디렉터리를 출력한다. 상세 결과는 다음 위치에 생긴다.
 
@@ -183,7 +188,7 @@ ColBERT는 로컬 실행 환경이 준비된 뒤 정식 비교 절차에서 실�
 
 ```bash
 PYTHONPATH=experiments/order-plan-screening/scripts python3 -c \
-  'from pathlib import Path; from common import load_json,digest_json; d=load_json(Path("/approved/company-capabilities.json")); print(digest_json({"profile_version":d["profile_version"],"capabilities":d["capabilities"]}))'
+  'from pathlib import Path; from common import load_json,digest_json; d=load_json(Path("experiments/order-plan-screening/review-inputs/company/company-capabilities-v1-approved.json")); print(digest_json({"profile_version":d["profile_version"],"capabilities":d["capabilities"]}))'
 ```
 
 별도 `methods.json`에는 다음을 확정한다.
@@ -205,7 +210,7 @@ python3 experiments/order-plan-screening/scripts/collect.py \
   --output-dir data/experiments/order-plan-screening/20260824-20260826-staging \
   --from-date 2026-08-24 \
   --to-date 2026-08-27 \
-  --company-capabilities /approved/company-capabilities.json \
+  --company-capabilities experiments/order-plan-screening/review-inputs/company/company-capabilities-v1-approved.json \
   --methods-config /approved/methods.json
 ```
 
@@ -220,7 +225,7 @@ python3 experiments/order-plan-screening/scripts/collect.py \
   --run-id replay-20260824-20260826 \
   --output-dir data/experiments/order-plan-screening/replay-20260824-20260826 \
   --from-raw data/experiments/order-plan-screening/20260824-20260826-staging/raw \
-  --company-capabilities /approved/company-capabilities.json \
+  --company-capabilities experiments/order-plan-screening/review-inputs/company/company-capabilities-v1-approved.json \
   --methods-config /approved/methods.json
 ```
 
@@ -253,7 +258,7 @@ python3 experiments/order-plan-screening/scripts/collect.py \
   --run-id 20260824-20260826 \
   --output-dir data/experiments/order-plan-screening/20260824-20260826 \
   --from-raw data/experiments/order-plan-screening/20260824-20260826-staging/raw \
-  --company-capabilities /approved/company-capabilities.json \
+  --company-capabilities experiments/order-plan-screening/review-inputs/company/company-capabilities-v1-approved.json \
   --methods-config /approved/methods.json \
   --external-approval /approved/luna-approval-20260824-20260826.json
 ```
@@ -267,25 +272,25 @@ RUN_DIR=data/experiments/order-plan-screening/20260824-20260826
 
 python3 experiments/order-plan-screening/scripts/run_methods.py \
   --run-dir "$RUN_DIR" --method keyword --check-ready \
-  --company-capabilities /approved/company-capabilities.json \
+  --company-capabilities experiments/order-plan-screening/review-inputs/company/company-capabilities-v1-approved.json \
   --methods-config /approved/methods.json
 
 python3 experiments/order-plan-screening/scripts/run_methods.py \
   --run-dir "$RUN_DIR" --method bge_m3_colbert --check-ready \
-  --company-capabilities /approved/company-capabilities.json \
+  --company-capabilities experiments/order-plan-screening/review-inputs/company/company-capabilities-v1-approved.json \
   --methods-config /approved/methods.json
 
 python3 experiments/order-plan-screening/scripts/run_methods.py \
   --run-dir "$RUN_DIR" --method qwen --check-ready \
-  --prompt-file /approved/order-plan-batch-relevance-v3.txt \
-  --company-capabilities /approved/company-capabilities.json \
+  --prompt-file experiments/order-plan-screening/review-inputs/prompts/order-plan-batch-relevance-v3-approved.txt \
+  --company-capabilities experiments/order-plan-screening/review-inputs/company/company-capabilities-v1-approved.json \
   --methods-config /approved/methods.json
 
 python3 experiments/order-plan-screening/scripts/run_methods.py \
   --run-dir "$RUN_DIR" --method luna --check-ready \
-  --prompt-file /approved/order-plan-batch-relevance-v3.txt \
+  --prompt-file experiments/order-plan-screening/review-inputs/prompts/order-plan-batch-relevance-v3-approved.txt \
   --external-approval /approved/luna-approval-20260824-20260826.json \
-  --company-capabilities /approved/company-capabilities.json \
+  --company-capabilities experiments/order-plan-screening/review-inputs/company/company-capabilities-v1-approved.json \
   --methods-config /approved/methods.json
 ```
 

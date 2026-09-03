@@ -2,8 +2,8 @@
 
 - 상태: 채택
 - 일자: 2026-08-31
-- 구현 상태: phase 1만 구현됐다. 이 결정의 migration, worker, 결과 저장, REST projection은
-  T-23 phase 2 범위다.
+- 구현 상태: phase 1과 phase 2의 persistence·lifecycle service·안전한 REST projection을
+  구현했다. 실제 사설 모델 transport·worker 실행과 승인 binding은 아직 남았다.
 
 ## 맥락
 
@@ -11,7 +11,7 @@
 attempt를 분리하고, 승인된 사설 vLLM binding이 없으면 `awaiting_model`에서 멈추도록
 정했다. phase 1은 이 계약에 따라 snapshot 준비와 안전한 조회까지 구현했다.
 
-현재 `prespec_overview_attempt` row는 UPDATE 전체를 거부하는 append-only 구조인데 상태는
+결정 당시 `prespec_overview_attempt` row는 UPDATE 전체를 거부하는 append-only 구조인데 상태는
 `queued | running | completed | failed | cancelled`를 사용한다. 이대로는 worker가 실제
 실행의 시작·종료를 같은 attempt 계보에 기록할 수 없다. 반대로 row 전체 UPDATE를 허용하면
 snapshot, 입력 hash, sequence, 모델 binding까지 바뀌어 과거 실행을 재현할 수 없게 된다.
@@ -27,20 +27,27 @@ attempt의 review·snapshot·sequence, 입력 hash, provider/model binding과 bi
 `reference_only`·`deployable` 표식은 insert 뒤 바꾸지 않는다. 재실행은 기존 attempt를
 초기화하지 않고 sequence가 증가한 새 attempt를 만든다.
 
-DB는 attempt의 `status`, 허용된 시작·종료 시각, 검증 결과 참조처럼 생애주기에 필요한
-열만 column-scoped UPDATE로 연다. 그 밖의 UPDATE와 모든 DELETE는 trigger와 runtime
-권한으로 거부한다. terminal attempt를 다시 `queued`나 `running`으로 되돌리지 않는다.
+운영 runtime 권한은 attempt의 `status`, 허용된 시작·종료 시각, 검증 결과 참조처럼
+생애주기에 필요한 열만 column-scoped UPDATE로 연다. 입력·binding 열의 UPDATE와 모든
+DELETE는 runtime role에 부여하지 않는다. DB의 단일 상태 전이 trigger는 terminal attempt를
+`queued`나 `running`으로 되돌리는 것을 포함한 허용 목록 밖 상태 간선만 거부한다.
 
 허용 전이는 다음과 같다.
 
 - `queued → running | failed | cancelled`
 - `running → completed | failed | cancelled`
 
-`completed` 전이는 같은 transaction에서 검증 완료 result를 정확히 하나 연결한 경우에만
-허용한다. lease 상실, timeout, schema 위반, evidence 검증 실패는 성공으로 보정하지 않고
-안전한 실패 code와 함께 `failed`로 닫거나 새 attempt로 재시도한다.
+`completed` 전이는 서비스가 같은 transaction에서 검증 완료 result를 정확히 하나 연결한
+경우에만 수행한다. lease 상실, timeout, schema 위반, evidence 검증 실패는 성공으로
+보정하지 않고 안전한 실패 code와 함께 `failed`로 닫거나 새 attempt로 재시도한다.
 
-### 2. 모든 상태 전이는 별도 append-only event로 감사한다
+DB 경계는 의도적으로 가볍게 유지한다. FK·UNIQUE·CHECK는 row 구조를, runtime privilege는
+입력 계보와 result/event의 불변성을, 상태 전이 trigger 하나는 불가능한 상태 간선을 맡는다.
+result scope 검증, event와 상태 변경의 동반, 현재 review projection 갱신은
+`prespec_overview` service가 한 transaction으로 묶는다. 이를 다시 교차 table trigger로
+중복하지 않는다. migration owner의 임의 SQL은 지원하는 runtime 쓰기 경로가 아니다.
+
+### 2. runtime service의 모든 상태 전이는 별도 append-only event로 감사한다
 
 상태 변경마다 attempt ID와 attempt sequence, event sequence, 이전·다음 상태, 발생 시각,
 worker 또는 actor 식별자, request/trace 식별자와 안전한 reason code를 별도 event row에
@@ -78,9 +85,9 @@ provider endpoint, prompt, 모델 원응답, object key/path, credential과 내�
 반환하지 않는다. 공고·review·snapshot ID가 요청 scope와 다르면 교차 공고 내용을
 렌더링하지 않고 fail closed한다.
 
-현재 `bidops.prespec-overview-reviews.v1`은 phase 1 wire다. phase 2가 scalar nullable
-`result`를 위 object로 바꿀 때는 기존 v1의 의미를 조용히 바꾸지 않고 새 schema version을
-발행하며 [`contracts.md`](../../contracts.md)를 구현과 함께 갱신한다.
+`bidops.prespec-overview-reviews.v1`은 phase 1 wire로 그대로 유지한다. phase 2는 기존 v1의
+scalar nullable `result` 의미를 바꾸지 않고 `bidops.prespec-overview-reviews.v2`를 발행해
+검증 결과 object를 노출하며, 상세 계약은 [`contracts.md`](../../contracts.md)에 둔다.
 
 ### 5. 모델 전송 경계는 ADR-0033을 유지한다
 
@@ -107,7 +114,9 @@ crash나 lease 상실 때 실제로 시작된 실행과 binding 계보가 남지
 
 ## 결과
 
-- T-23 phase 2는 attempt 입력 불변성과 실제 worker 상태 전이를 함께 구현할 수 있다.
+- T-23 phase 2의 persistence, 상태 전이 service, 검증 결과 저장과 안전한 v2 projection을
+  구현했다.
 - crash·취소·실패·재시도의 이력을 result와 섞지 않고 되짚을 수 있다.
 - 검증되지 않은 결과나 snapshot 밖 근거는 완료·API 결과로 승격되지 않는다.
-- 이 ADR의 채택은 phase 2 구현 완료나 사설 모델 binding의 배포 승인을 뜻하지 않는다.
+- 이 구현은 실제 사설 모델 transport·worker 실행 완료나 binding의 배포 승인을 뜻하지
+  않는다.

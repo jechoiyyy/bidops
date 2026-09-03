@@ -23,7 +23,6 @@ def _input() -> dict[str, object]:
         "attempt_id": str(uuid4()),
         "stage": "requirements_and_evaluation",
         "slice_index": 0,
-        "requirements": [],
     }
 
 
@@ -51,6 +50,36 @@ def test_codex_exec_is_disabled_and_notice_scoped_by_default():
     with pytest.raises(CodexExecInvocationError) as unapproved:
         CodexExecClient(enabled=True).invoke("requirements_and_evaluation", _input(), _policy())
     assert unapproved.value.code == "external_provider_notice_not_approved"
+
+
+def test_codex_exec_rejects_profile_and_unapproved_fields_before_subprocess():
+    calls: list[object] = []
+
+    def runner(*args, **kwargs):
+        calls.append((args, kwargs))
+        raise AssertionError("the external subprocess must not start")
+
+    client = CodexExecClient(
+        enabled=True,
+        approved_notice_ids=(17,),
+        runner=runner,
+    )
+    safe_input = _input()
+
+    with pytest.raises(CodexExecInvocationError) as profile_error:
+        client.invoke(
+            "requirements_and_evaluation",
+            safe_input,
+            _policy(),
+            profile={"profile_version_id": str(uuid4())},
+        )
+    assert profile_error.value.code == "external_provider_payload_not_approved"
+
+    input_with_rfp = {**safe_input, "requirements": [{"text": "제안요청서 원문"}]}
+    with pytest.raises(CodexExecInvocationError) as input_error:
+        client.invoke("requirements_and_evaluation", input_with_rfp, _policy())
+    assert input_error.value.code == "external_provider_payload_not_approved"
+    assert calls == []
 
 
 def test_codex_exec_uses_isolated_tool_free_command_and_scrubbed_environment():

@@ -1,0 +1,120 @@
+{
+  "schema_version": "bidops.order-plan-screening-run.v3",
+  "run_id": "20260827-20260830-qwen-smoke2-v2",
+  "created_at": "2026-09-01T11:06:39.436455+09:00",
+  "input_sha256": "d608e1ad71dd03467278ad06a8c3290b5a5db47a118b3f1fcda5c7e90d122faf",
+  "population_sha256": "2e3165e5b1d1ca9d8e7991960147695d5f8244ec67f23c883caeefcb91cf4969",
+  "population_count": 2,
+  "selection": {
+    "top_k": 50
+  },
+  "model_payload": {
+    "allowed_plan_fields": [
+      "title"
+    ],
+    "company_capabilities_sha256": "2ee0ebdd126341a6a79997341ebb93a76b00d5477d65ee21f635a41ecef2a57a",
+    "batch_sizes": {
+      "bge_m3_dense": 128,
+      "qwen": 25,
+      "luna": 25
+    }
+  },
+  "query_window": {
+    "from": "2026-08-27T00:00:00+09:00",
+    "to_exclusive": "2026-08-31T00:00:00+09:00",
+    "business_divisions": [
+      "기술용역",
+      "일반용역"
+    ],
+    "prefilters": [],
+    "api_order_month_scope": {
+      "from": "200412",
+      "to_inclusive": "999912",
+      "purpose": "required_api_dimension_without_population_prefilter"
+    }
+  },
+  "collection": {
+    "endpoint_id": "g2b_order_plan_service_pps_search_v1",
+    "page_count": 2,
+    "request_count": 2,
+    "first_collected_at": "2026-09-01T09:12:47.754584+09:00",
+    "last_collected_at": "2026-09-01T09:13:29.077709+09:00",
+    "raw_input_sha256": "d608e1ad71dd03467278ad06a8c3290b5a5db47a118b3f1fcda5c7e90d122faf",
+    "complete": true
+  },
+  "config": {
+    "company_capabilities_sha256": "8f60dfece1934bdf857cd7e57d0fdd1860d01871131d98c3f2e8f9d71f271eae",
+    "methods_sha256": "87f038497f378c9e2e5d7fc619f7048aadfac65a991493f91a4a8fd8c31ee3ce",
+    "company_capabilities_approval_status": "approved",
+    "company_capabilities_summary_sha256": "2ee0ebdd126341a6a79997341ebb93a76b00d5477d65ee21f635a41ecef2a57a"
+  },
+  "methods": {
+    "keyword": {
+      "method_version": "keyword-title-v2",
+      "model_name": null,
+      "model_revision": null,
+      "prompt_id": null,
+      "prompt_sha256": null,
+      "config_sha256": "d78402f2f9f1f1e631c9ae0a98985d5c81afebd90f2e85dbf81c8212c275504b"
+    },
+    "tfidf": {
+      "method_version": "tfidf-char-title-capability-v1",
+      "model_name": null,
+      "model_revision": null,
+      "prompt_id": null,
+      "prompt_sha256": null,
+      "config_sha256": "309addd34e6868bd1dbb8c8a052b011ec7447a546053a49074a48b0c935d6730"
+    },
+    "bge_m3_dense": {
+      "method_version": "ollama-bge-m3-dense-title-v1",
+      "model_name": "bge-m3:latest",
+      "model_revision": "7907646426070047a77226ac3e684fbbe8410524f7b4a74d02837e43f2146bab",
+      "prompt_id": null,
+      "prompt_sha256": null,
+      "config_sha256": "696a9bea14126ba736ec62e70346bf877649383c737c1d229f729028cc8bbc74"
+    },
+    "bge_m3_colbert": {
+      "method_version": "bge-m3-colbert-title-v2",
+      "model_name": "BAAI/bge-m3",
+      "model_revision": "5617a9f61b028005a4858fdac845db406aefb181",
+      "prompt_id": null,
+      "prompt_sha256": null,
+      "config_sha256": "9bf322716ad0ebcadd21214e0bc96baf60c3c18a3b736d5d4bc405fc4ceb9cd8"
+    },
+    "qwen": {
+      "method_version": "vllm-qwen-order-plan-batch-nonthinking-v4",
+      "model_name": "qwen3.8-27B",
+      "model_revision": "6ae70ca30563209f09ec0114ce5813f7a232b38e5bb409f2adbd0e9bbe318b11",
+      "prompt_id": "order-plan-batch-relevance-v3",
+      "prompt_sha256": "639f7332e1120a41b2e8d8306126f121ae1ed37068a81b1687aff9ce66ab9d12",
+      "config_sha256": "1fd2f511a0b1c99f5a57125ebd9e1d67314d98202d42327394daa540abd27754"
+    },
+    "luna": {
+      "method_version": "luna-order-plan-batch-v2",
+      "model_name": "gpt-5.6-luna",
+      "model_revision": null,
+      "prompt_id": "order-plan-batch-relevance-v3",
+      "prompt_sha256": null,
+      "config_sha256": "68fc96b8a8cfa2340f718af33c9466db2f83e84a19820467c154d2c89efa975d"
+    }
+  },
+  "external_transmission": {
+    "status": "configured_not_executed",
+    "purpose": "order_plan_first_pass_classification_cascade",
+    "provider": "approved_private_vllm",
+    "endpoint_env": "BIDOPS_QWEN_BASE_URL",
+    "model": "qwen3.8-27B",
+    "model_revision": "6ae70ca30563209f09ec0114ce5813f7a232b38e5bb409f2adbd0e9bbe318b11",
+    "payload_fields": [
+      "title"
+    ],
+    "record_count": 2,
+    "authorization_context": "interactive_user_instruction"
+  },
+  "cascade": {
+    "source_run_id": "20260827-20260830-qwen-direct-v3",
+    "source_population_sha256": "7846e7ff51002dac613f85cc1a3e8a358430c9519ed96c6501e8e41c9f3d1c5a",
+    "prefilter": "bm25",
+    "prefilter_top_k": 2
+  }
+}

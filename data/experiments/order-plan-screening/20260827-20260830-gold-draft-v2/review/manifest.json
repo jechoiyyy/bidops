@@ -1,0 +1,31 @@
+{
+  "schema_version": "bidops.order-plan-gold-draft-manifest.v1",
+  "status": "draft_not_human_gold",
+  "input_path": "data/runs/order-plans-20260827-20260830-retry1/collected-order-plans.json",
+  "input_sha256": "d608e1ad71dd03467278ad06a8c3290b5a5db47a118b3f1fcda5c7e90d122faf",
+  "input_schema_version": "bidops.collected-order-plans.v1",
+  "source_window": {
+    "from": "2026-08-27",
+    "to": "2026-08-31",
+    "timezone": "Asia/Seoul"
+  },
+  "population_count": 625,
+  "draft_counts": {
+    "관련": 61,
+    "비관련": 547,
+    "판단보류": 17
+  },
+  "confirmation_counts": {
+    "관련 초안 승인": 61,
+    "비관련 근접 감사": 20,
+    "비관련 무작위 감사": 10,
+    "판단보류 결정": 17
+  },
+  "decision_source_sha256": "b067009e2e5f75c716844c49e71b495a00519c6dcc135335911989026c38f423",
+  "files": {
+    "gold-draft-full-population.tsv": "0df697ab93b6fd4b38de0eafd2a3475e0c31cd6bdc923bda928e27a7e36432b3",
+    "human-confirmation-queue.tsv": "7a6221f22f635e0ed920bf6ca90290c9f4ba956a6668cd44733a977be56d675d",
+    "human-confirmation-queue.md": "14076ce4d8ac4af149606cebeb01e3ff7ef71b3236ce1f9847ea81937bad0ef8"
+  },
+  "human_fields_complete": false
+}
