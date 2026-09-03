@@ -4,8 +4,8 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
-from app.config import Settings
-from app.db import Base
+from app.core.config import Settings
+from app.core.db import Base
 from app.models import ScreeningAuditEvent
 from app.services.scheduler import SchedulerService
 

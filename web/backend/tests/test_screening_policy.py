@@ -9,9 +9,9 @@ import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
-from app.db import Base
+from app.core.db import Base
 from app.models import ScreeningAuditEvent, QualityGate, QualityGateEvaluation, ScreeningExecution, ScreeningPolicy
-from app.screening.generation_config import GenerationConfig
+from app.core.generation_config import GenerationConfig
 from app.screening.policy import (
     PolicyActivationError,
     PolicyConflict,

@@ -18,7 +18,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from ..config import get_settings
+from ..core.config import get_settings
 from ..models import (
     AuditEvent,
     BidDeltaAttempt,

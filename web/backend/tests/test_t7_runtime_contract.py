@@ -160,7 +160,7 @@ def test_t7_compose_commands_and_recovery_scripts_exist():
     ops_dockerfile = (ROOT / "web/Ops.Dockerfile").read_text(encoding="utf-8")
     assert "COPY --from=minio-client /usr/bin/mc" in ops_dockerfile
     assert "postgresql-client coreutils" in ops_dockerfile
-    db_source = (ROOT / "web/backend/app/db.py").read_text(encoding="utf-8")
+    db_source = (ROOT / "web/backend/app/core/db.py").read_text(encoding="utf-8")
     postgres_branch = db_source.split('if target.dialect.name == "postgresql":', 1)[1].split("else:", 1)[0]
     assert 'connection.execute(text("CREATE SCHEMA' not in postgres_branch
     assert "Base.metadata.create_all" not in postgres_branch

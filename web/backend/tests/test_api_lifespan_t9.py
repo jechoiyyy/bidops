@@ -10,8 +10,8 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.config import Settings
-from app.db import Base, get_db
+from app.core.config import Settings
+from app.core.db import Base, get_db
 from app.models import CompanyProfileSnapshot, Run, ScreeningExecution, ScreeningPolicy
 from app.routers.runs import router as runs_router
 from app.runtime import ApplicationRuntime

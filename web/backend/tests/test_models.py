@@ -5,8 +5,8 @@ from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
-import app.db as db
-from app.db import Base, init_db
+import app.core.db as db
+from app.core.db import Base, init_db
 from app.models import (
     Evidence,
     ATTACHMENT_FETCH_TABLES,

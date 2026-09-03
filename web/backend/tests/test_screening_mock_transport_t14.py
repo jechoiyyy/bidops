@@ -10,7 +10,7 @@ import socket
 import pytest
 
 import app.screening.mock_transport as mock_transport_module
-from app.config import Settings
+from app.core.config import Settings
 from app.screening.contracts import (
     canonical_json,
     validate_judgment,

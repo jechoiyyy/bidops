@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session, selectinload
 
-from ..db import get_db
+from ..core.db import get_db
 from ..models import Notice, Opportunity, OpportunityLink
 from ..schemas.opportunities import (
     CandidateDecisionRequest,
@@ -25,7 +25,7 @@ from ..schemas.opportunities import (
     TrackingStatusUpdateRequest,
 )
 from ..services import opportunity_integrity, opportunity_tracking
-from ..services.document_bundles import BundleServiceError, validate_actor
+from ..core.api_errors import BundleServiceError, validate_actor
 from ..services.prespec_attachments import refresh_fetch_eligibility
 
 

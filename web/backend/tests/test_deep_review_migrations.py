@@ -17,7 +17,7 @@ from sqlalchemy import Column, Integer, MetaData, Text, create_engine, func, ins
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.pool import StaticPool
 
-from app.db import Base, schema_bound
+from app.core.db import Base, schema_bound
 from app.migrations import import_sqlite
 from app.migrations.import_sqlite import (
     ImportContractError,

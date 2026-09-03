@@ -8,8 +8,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from ..config import get_settings
-from ..db import get_db
+from ..core.config import get_settings
+from ..core.db import get_db
 from ..models import CompanyProfileSnapshot
 from ..schemas import (
     CompanyProfileSnapshotListResponse,

@@ -33,21 +33,21 @@ from ..models import (
     ProfileVersion,
     WorkJob,
 )
-from ..config import get_settings
+from ..core.config import get_settings
 from .deep_review_validation import DeepReviewValidationError, merge_stage_chunks, validate_deep_review_stage
+from ..core.model_binding import canonical_json_bytes
 from .input_versions import (
     STAGES,
     GradeBasis,
     InputVersionError,
     bundle_context,
-    canonical_json_bytes,
     effective_grade_basis,
     profile_context,
     policy_quality_snapshot,
     resolve_active_versions,
     validate_pinned_policy,
 )
-from .vllm_client import (
+from ..core.vllm_client import (
     APPROVED_RETRIES,
     APPROVED_TIMEOUT_SECONDS,
     EncryptedObjectStore,
@@ -55,8 +55,9 @@ from .vllm_client import (
     VllmClient,
     VllmInvocationError,
 )
+from .deep_review_vllm import DEEP_REVIEW_STAGE_CONTRACT
 from .mock_analysis_client import MockAnalysisClient
-from .object_store import EncryptedModelResponseStore
+from ..core.object_store import EncryptedModelResponseStore
 
 
 STAGE_SEQUENCE = {name: index for index, name in enumerate(STAGES, start=1)}
@@ -298,6 +299,7 @@ class DeepReviewService:
                 api_key=settings.vllm_api_key.get_secret_value(),
                 allowed_hosts=settings.vllm_allowed_hosts,
                 model=settings.vllm_model,
+                output_contract=DEEP_REVIEW_STAGE_CONTRACT,
             )
         self.reference_workflow_mode = bool(
             settings.reference_workflow_mode

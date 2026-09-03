@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Session, aliased
 
-from ..db import get_db
+from ..core.db import get_db
 from ..models import (
     Attachment,
     AttachmentFetch,

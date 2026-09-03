@@ -10,8 +10,8 @@ from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from ..constants import GRADE_ORDER, GRADE_RANK
-from ..db import get_db
+from ..core.constants import GRADE_ORDER, GRADE_RANK
+from ..core.db import get_db
 from ..models import AgencyPortal, Attachment, AuditEvent, Notice, NoticeObservation
 from ..schemas import (
     AttachmentProcedureResponse,

@@ -24,7 +24,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
-from app.db import init_db
+from app.core.db import init_db
 from app.ingest.loader import _merge_opportunities, ingest_run
 from app.models import AuditEvent, Notice, Opportunity, OpportunityLink
 from app.services.opportunity_integrity import OpportunityIntegrityError

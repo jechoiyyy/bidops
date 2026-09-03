@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.cli.import_profile_policy import import_profile_policy
-from app.db import init_db
+from app.core.db import init_db
 from app.models import (
     AnalysisPolicyVersion,
     AuditEvent,
@@ -41,18 +41,18 @@ from app.services import input_versions
 from app.services.deep_review_validation import DeepReviewValidationError, merge_stage_chunks
 from app.services.deep_reviews import DeepReviewService, DeepReviewServiceError, JobClaim, StaleFenceError
 from app.services.deep_reviews import _resolve_exact_evidence_quotes
+from app.core.model_binding import MODEL_NAME, canonical_json_bytes
 from app.services.input_versions import (
     InputVersionError,
-    MODEL_NAME,
-    canonical_json_bytes,
     bundle_context,
     import_policy_version,
     import_profile_version,
     load_canonical_policy,
     policy_activation_valid,
 )
-from app.services.vllm_client import InvocationResult, VllmClient, VllmInvocationError, build_prompt, sanitize_for_prompt
-from app.services.object_store import ObjectMetadata
+from app.core.vllm_client import InvocationResult, VllmClient, VllmInvocationError, build_prompt, sanitize_for_prompt
+from app.services.deep_review_vllm import DEEP_REVIEW_STAGE_CONTRACT
+from app.core.object_store import ObjectMetadata
 
 
 def _fixture_structure(_session, structure):
@@ -352,7 +352,7 @@ def test_vllm_timeout_retries_twice_without_exposing_prompt():
         calls.append(kwargs)
         raise TimeoutError
 
-    client = VllmClient(completion_create=completion_create)
+    client = VllmClient(output_contract=DEEP_REVIEW_STAGE_CONTRACT, completion_create=completion_create)
     with pytest.raises(VllmInvocationError) as error:
         client.invoke("requirements_and_evaluation", {"requirements": [{"text": "safe"}]}, {"chunking": {"retries": 2, "timeout_seconds": 300}, "stages": []})
     assert error.value.code == "timeout"
@@ -367,7 +367,7 @@ def test_vllm_malformed_json_is_safe_error():
         "choices": [{"finish_reason": "stop", "message": {"content": "not-json"}}],
     }
 
-    client = VllmClient(completion_create=lambda **_kwargs: response)
+    client = VllmClient(output_contract=DEEP_REVIEW_STAGE_CONTRACT, completion_create=lambda **_kwargs: response)
     with pytest.raises(VllmInvocationError) as error:
         client.invoke("requirements_and_evaluation", {"requirements": []}, {"chunking": {"retries": 0}, "stages": []})
     assert error.value.code == "malformed_json"
@@ -383,7 +383,7 @@ def test_vllm_reasoning_is_not_returned_or_hashed():
         }],
         "usage": {"prompt_tokens": 69, "completion_tokens": 48},
     }
-    result = VllmClient(completion_create=lambda **_kwargs: response).invoke(
+    result = VllmClient(output_contract=DEEP_REVIEW_STAGE_CONTRACT, completion_create=lambda **_kwargs: response).invoke(
         "requirements_and_evaluation",
         {"requirements": []},
         {"chunking": {"retries": 0, "timeout_seconds": 300}, "stages": []},
@@ -407,7 +407,7 @@ def test_vllm_enforces_the_authoritative_stage_json_schema():
         seen.append(kwargs)
         return response
 
-    VllmClient(completion_create=completion_create).invoke(
+    VllmClient(output_contract=DEEP_REVIEW_STAGE_CONTRACT, completion_create=completion_create).invoke(
         "requirements_and_evaluation",
         {},
         {"chunking": {"retries": 0, "timeout_seconds": 300}, "stages": []},
@@ -428,7 +428,7 @@ def test_vllm_length_finish_reason_is_safe_truncated_json_error():
         "model": MODEL_NAME,
         "choices": [{"finish_reason": "length", "message": {"content": '{"claims":['}}],
     }
-    client = VllmClient(completion_create=lambda **_kwargs: response)
+    client = VllmClient(output_contract=DEEP_REVIEW_STAGE_CONTRACT, completion_create=lambda **_kwargs: response)
     with pytest.raises(VllmInvocationError) as error:
         client.invoke("requirements_and_evaluation", {}, {"chunking": {"retries": 0}, "stages": []})
     assert error.value.code == "truncated_json"
@@ -444,16 +444,16 @@ def test_vllm_length_finish_reason_is_safe_truncated_json_error():
 ])
 def test_vllm_base_url_is_exact_openai_compatible_url(base_url):
     with pytest.raises(ValueError):
-        VllmClient(base_url=base_url)
+        VllmClient(output_contract=DEEP_REVIEW_STAGE_CONTRACT, base_url=base_url)
 
 
 def test_remote_vllm_ip_must_be_an_exact_explicit_allowlist_entry(monkeypatch):
     base_url = "http://10.23.45.67:58765/v1"
     with pytest.raises(ValueError):
-        VllmClient(base_url=base_url)
+        VllmClient(output_contract=DEEP_REVIEW_STAGE_CONTRACT, base_url=base_url)
 
     monkeypatch.setenv("BIDOPS_VLLM_ALLOWED_HOSTS", "10.23.45.67")
-    client = VllmClient(base_url=base_url, completion_create=lambda **_kwargs: {})
+    client = VllmClient(output_contract=DEEP_REVIEW_STAGE_CONTRACT, base_url=base_url, completion_create=lambda **_kwargs: {})
     assert client.base_url == base_url
 
 
@@ -465,7 +465,7 @@ def test_vllm_retention_is_clamped_to_one_to_ninety(monkeypatch):
             seen.append((len(data), retention_days, content_type))
             return {"encrypted": True, "object_key": "model-response/fixture", "encryption_key_ref": "fixture", "plaintext_sha256": hashlib.sha256(data).hexdigest(), "plaintext_size_bytes": len(data)}
 
-    from app.services.vllm_client import InvocationResult
+    from app.core.vllm_client import InvocationResult
     service = DeepReviewService(raw_response_store=Store())
     result = InvocationResult({}, b"{}", "a" * 64, "b" * 64, None, None, 1, ())
     monkeypatch.setenv("BIDOPS_MODEL_RESPONSE_RETENTION_DAYS", "999")
@@ -1048,7 +1048,7 @@ def test_expired_reclaim_refences_inflight_stage_and_rejects_old_worker(engine, 
 
     class Client:
         def invoke(self, stage, input_slice, _policy, **_kwargs):
-            from app.services.vllm_client import InvocationResult
+            from app.core.vllm_client import InvocationResult
             payload = _valid_stage_payload(input_slice, stage)
             raw = json.dumps(payload).encode()
             return InvocationResult(payload, raw, "a" * 64, "b" * 64, 1, 1, 1, ({"retry_index": 0, "status": "succeeded"},))
@@ -1082,7 +1082,7 @@ def test_failure_after_completed_stage_keeps_completed_stage_and_allows_new_atte
 
     class Client:
         def invoke(self, stage, input_slice, _policy, **_kwargs):
-            from app.services.vllm_client import InvocationResult
+            from app.core.vllm_client import InvocationResult
             if stage == "delivery_risk_economics":
                 raise VllmInvocationError("timeout", ({"retry_index": 0, "status": "failed", "error_code": "timeout"},))
             payload = {"schema": "bidops.deep-review-stage.v1", "deep_review_id": input_slice["deep_review_id"], "attempt_id": input_slice["attempt_id"], "stage": stage, "claims": [], "evidence": [], "unknowns": [], "warnings": []}
@@ -1156,7 +1156,7 @@ def test_reclaim_resumes_after_immutable_stage_one_prefix_and_rejects_noncontigu
 
     class Client:
         def invoke(self, stage, input_slice, _policy, **_kwargs):
-            from app.services.vllm_client import InvocationResult
+            from app.core.vllm_client import InvocationResult
             calls.append(stage)
             payload = _valid_stage_payload(input_slice, stage)
             raw = json.dumps(payload).encode()
@@ -1226,7 +1226,7 @@ def test_normal_worker_runs_exactly_three_ordered_stages(engine, monkeypatch):
 
     class Client:
         def invoke(self, stage, input_slice, _policy, **_kwargs):
-            from app.services.vllm_client import InvocationResult
+            from app.core.vllm_client import InvocationResult
             payload = _valid_stage_payload(input_slice, stage)
             raw = json.dumps(payload, ensure_ascii=False).encode()
             return InvocationResult(payload, raw, "a" * 64, "b" * 64, 1, 1, 1, ({"retry_index": 0, "status": "succeeded"},))

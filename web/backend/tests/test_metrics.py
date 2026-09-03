@@ -4,7 +4,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
-from app.db import init_db
+from app.core.db import init_db
 from app.models import Judgment, Notice, NoticeObservation, Perspective, Run
 from app.services.metrics import calculate_validation_metrics
 

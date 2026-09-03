@@ -27,11 +27,11 @@ from urllib.request import HTTPRedirectHandler, HTTPSHandler, ProxyHandler, Requ
 
 from fastapi import UploadFile
 
-from ..config import Settings, get_settings
+from ..core.config import Settings, get_settings
 from ..document_mcp.errors import DocumentProcessingError
 from ..document_mcp.processor import ClamAVChecker, DocumentProcessor, ProcessedDocument
 from ..document_mcp.safety import MAX_INPUT_BYTES
-from .object_store import FilesystemObjectStore, ObjectMetadata, ObjectStoreError, object_store
+from ..core.object_store import FilesystemObjectStore, ObjectMetadata, ObjectStoreError, object_store
 
 MAX_ASSET_BYTES = MAX_INPUT_BYTES
 UPLOAD_CHUNK_BYTES = 1024 * 1024

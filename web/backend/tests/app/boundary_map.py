@@ -43,14 +43,24 @@ SEAM_IMPORTS: dict[tuple[str, str], frozenset[str]] = {
     ),
 }
 
+# 방향은 허용이지만 **모듈 공개 이름으로만** 받아야 하는 조합 (§3·§4).
+# 값은 그 모듈의 공개 표면 파일이다. 조립 계층은 모듈 내부 경로를 import하지
+# 못하고 `__init__.py`에 올린 이름만 쓴다. T3가 app/core/__init__.py를 만들어
+# core에 대해서만 켠 상태이며, lifecycle·deep_review는 폴더가 생기는 task가
+# 같은 방식으로 켠다.
+PUBLIC_NAME_IMPORTS: dict[tuple[str, str], str] = {
+    ("assembly", "core"): "app/core/__init__.py",
+}
+
 # --- 아직 구현하지 않은 §8-1의 절 (부채) --------------------------------------
 # §4의 허용 표는 방향뿐 아니라 "공개 이름 대 모듈 내부"도 가른다. 그 절은 각
 # 모듈의 `__init__.py`가 공개 표면을 정하기 전에는 판정할 수 없어 아직 검사에
 # 들어 있지 않다. 잊히지 않도록 `MODULE_PACKAGE_INITS` 중 하나라도 생기면
 # 실패하는 테스트를 두었다(test_module_boundaries.py).
 UNIMPLEMENTED_PUBLIC_NAME_RULES: tuple[str, ...] = (
-    "조립 계층 → 네 모듈: 모듈 공개 이름만 (지금은 모듈 전체를 허용). "
-    "실제로 app/runtime.py가 app.screening.{execution_store,mock_transport,ollama,"
+    "조립 계층 → lifecycle·screening·deep_review: 모듈 공개 이름만 (지금은 모듈 "
+    "전체를 허용). core에 대해서는 T3가 PUBLIC_NAME_IMPORTS로 켰다. 실제로 "
+    "app/runtime.py가 app.screening.{execution_store,mock_transport,ollama,"
     "orchestrator,worker}·app.services.{pipeline,scheduled_pipeline}·app.ingest.loader "
     "같은 모듈 내부를 직접 들고 있다.",
     "screening → lifecycle: lifecycle 공개 이름만 (지금은 모듈 전체를 허용).",
@@ -60,8 +70,8 @@ UNIMPLEMENTED_PUBLIC_NAME_RULES: tuple[str, ...] = (
 
 # 이 중 하나라도 생기면 공개 표면이 존재한다는 뜻이므로 위 규칙을 켜야 한다.
 # app/screening/__init__.py는 이주 전부터 있으므로 신호가 아니다.
+# app/core/__init__.py는 T3가 만들면서 PUBLIC_NAME_IMPORTS로 규칙을 켰으므로 뺐다.
 MODULE_PACKAGE_INITS: tuple[str, ...] = (
-    "app/core/__init__.py",
     "app/lifecycle/__init__.py",
     "app/deep_review/__init__.py",
 )
@@ -74,10 +84,8 @@ MODULE_FOLDERS: dict[str, str] = {
     "app/deep_review": DEEP_REVIEW,
 }
 
-# 폴더 규칙의 예외. `app/screening/`은 지금도 존재하지만 generation_config만 core다.
-FOLDER_EXCEPTIONS: dict[str, str] = {
-    "app/screening/generation_config.py": CORE,
-}
+# 폴더 규칙의 예외. T3가 generation_config를 app/core로 옮겨 지금은 비어 있다.
+FOLDER_EXCEPTIONS: dict[str, str] = {}
 
 # 검사 대상에서 제외하는 파일. 여기 적힌 경로가 실제로 없으면 실패한다
 # (허용 목록의 stale 항목을 막는 것과 같은 취지). codex-exec provider는 T1이
@@ -98,18 +106,6 @@ FILE_MODULES: dict[str, str] = {
     "app/services/__init__.py": ASSEMBLY,
     "app/cli/__init__.py": ASSEMBLY,
     # core
-    "app/config.py": CORE,
-    "app/constants.py": CORE,
-    "app/db.py": CORE,
-    "app/db_admin.py": CORE,
-    "app/logging_setup.py": CORE,
-    "app/redaction.py": CORE,
-    "app/sql_dialect.py": CORE,
-    "app/services/clamav.py": CORE,
-    "app/services/object_store.py": CORE,
-    # vllm_client는 범용 부분(VllmClient 등)이 core, OrderPlan* 어댑터가 screening으로
-    # 갈라진다. 파일 단위로는 범용 부분이 본체이므로 core로 본다 (T4에서 분리).
-    "app/services/vllm_client.py": CORE,
     # lifecycle
     "app/ingest/__init__.py": LIFECYCLE,
     "app/ingest/cli.py": LIFECYCLE,
@@ -138,8 +134,9 @@ FILE_MODULES: dict[str, str] = {
     "app/ingest/judgment_revisions.py": SCREENING,
     "app/services/candidate_quality.py": SCREENING,
     "app/services/order_plan_screening.py": SCREENING,
-    # profile은 회사 프로필 파서가 core로 갈라진다. 본체는 screening이다.
     "app/services/profile.py": SCREENING,
+    # 범용 client는 core로 갔고 남은 것은 C-2 어댑터뿐이다 (T7에서 screening 폴더로).
+    "app/services/vllm_client.py": SCREENING,
     "app/services/reviews.py": SCREENING,
     "app/services/revisions.py": SCREENING,
     "app/services/scheduled_pipeline.py": SCREENING,
@@ -164,6 +161,7 @@ FILE_MODULES: dict[str, str] = {
     "app/services/bc_e2e.py": DEEP_REVIEW,
     "app/services/bid_delta.py": DEEP_REVIEW,
     "app/services/deep_review_validation.py": DEEP_REVIEW,
+    "app/services/deep_review_vllm.py": DEEP_REVIEW,
     "app/services/deep_reviews.py": DEEP_REVIEW,
     "app/services/document_bundles.py": DEEP_REVIEW,
     "app/services/document_converter.py": DEEP_REVIEW,
@@ -214,39 +212,6 @@ MIXED_FILES: frozenset[str] = frozenset(
 # "이미 다른 모듈로 가기로 정해진 이름"을 참조한 것이 거짓 위반이 된다.
 # 열거되지 않은 이름은 파일 본체의 모듈(각 항목의 두 번째 값)로 본다.
 SPLIT_FILE_NAME_MODULES: dict[str, tuple[dict[str, str], str]] = {
-    # §5.2 core: "services/profile.py의 회사 프로필 파서(parse_profile,
-    # walk_sections, profile_path, ParsedItem, PROFILE_PARSE_ERROR_CODES)"
-    "app/services/profile.py": (
-        {
-            "PROFILE_PARSE_ERROR_CODES": CORE,
-            "ParsedItem": CORE,
-            "parse_profile": CORE,
-            "profile_path": CORE,
-            "walk_sections": CORE,
-        },
-        SCREENING,
-    ),
-    # §5.2 core: "services/input_versions.py의 canonical_json_bytes, MODEL_NAME,
-    # MODEL_ENDPOINT_REF"
-    "app/services/input_versions.py": (
-        {
-            "MODEL_ENDPOINT_REF": CORE,
-            "MODEL_NAME": CORE,
-            "canonical_json_bytes": CORE,
-        },
-        DEEP_REVIEW,
-    ),
-    # §5.2 core: "services/document_bundles.py의 validate_actor·stable_api_error와
-    # 공용 오류 타입". "공용 오류 타입"은 열거돼 있지 않으므로 이름을 특정할 수
-    # 있는 둘만 옮긴다. BundleServiceError 등은 deep_review로 남겨 과대 계상
-    # 쪽으로 둔다(위반을 숨기지 않는 방향).
-    "app/services/document_bundles.py": (
-        {
-            "stable_api_error": CORE,
-            "validate_actor": CORE,
-        },
-        DEEP_REVIEW,
-    ),
     # §5.2 lifecycle: "services/attachments.py의 attachment_download_url"
     "app/services/attachments.py": (
         {
@@ -264,18 +229,6 @@ SPLIT_FILE_NAME_MODULES: dict[str, tuple[dict[str, str], str]] = {
             "tracked_order_plan_connections": LIFECYCLE,
         },
         DEEP_REVIEW,
-    ),
-    # §5.2 screening: "services/vllm_client.py의 OrderPlanVllmAdapter·
-    # OrderPlanVllmError·order_plan_batch_output_schema·OrderPlanVllmResponse"
-    # (나머지 범용 부분은 core이며 파일 본체가 core다)
-    "app/services/vllm_client.py": (
-        {
-            "OrderPlanVllmAdapter": SCREENING,
-            "OrderPlanVllmError": SCREENING,
-            "OrderPlanVllmResponse": SCREENING,
-            "order_plan_batch_output_schema": SCREENING,
-        },
-        CORE,
     ),
 }
 

@@ -43,10 +43,7 @@ CROSS_MODULE_IMPORT_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset(
         ("app/routers/notices.py", "cross_module_import", "app.models:Judgment"),
         ("app/routers/notices.py", "cross_module_import", "app.models:Perspective"),
         ("app/routers/notices.py", "cross_module_import", "app.models:Review"),
-        ("app/routers/opportunities.py", "cross_module_import", "app.services.document_bundles:BundleServiceError"),
         ("app/routers/opportunities.py", "cross_module_import", "app.services.prespec_attachments:refresh_fetch_eligibility"),
-        ("app/routers/policies.py", "cross_module_import", "app.services.document_bundles:BundleServiceError"),
-        ("app/routers/portals.py", "cross_module_import", "app.services.document_bundles:BundleServiceError"),
         ("app/routers/pre_specs.py", "cross_module_import", "app.models:AttachmentFetch"),
         ("app/routers/pre_specs.py", "cross_module_import", "app.models:PreSpecOverviewReview"),
         ("app/routers/pre_specs.py", "cross_module_import", "app.services.prespec_overview:OverviewPreparationError"),
@@ -68,9 +65,6 @@ CROSS_MODULE_IMPORT_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset(
         ("app/services/input_versions.py", "cross_module_import", "app.models:Review"),
         ("app/services/metrics.py", "cross_module_import", "app.models:Judgment"),
         ("app/services/metrics.py", "cross_module_import", "app.models:Review"),
-        ("app/services/order_plan_screening.py", "cross_module_import", "app.services.document_bundles:BundleServiceError"),
-        ("app/services/vllm_client.py", "cross_module_import", "app.contracts.deep_review:DEEP_REVIEW_STAGE_SCHEMA"),
-        ("app/services/vllm_client.py", "cross_module_import", "app.contracts.deep_review:load_schema"),
     }
 )
 
@@ -132,7 +126,7 @@ LIFECYCLE_RELATIONSHIP_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset(
 #: 위 목록은 실제 위반과 정확히 같아야 하므로(stale 항목도 실패), 이 상한은
 #: "새 위반을 허용 목록에 추가해 정당화하는" 경로를 추가로 막는다.
 BASELINE_SIZES: dict[str, int] = {
-    "cross_module_import": 57,
+    "cross_module_import": 51,
     "router_orm_access": 18,
     "schema_imports_model_or_service": 1,
     "lifecycle_relationship": 9,

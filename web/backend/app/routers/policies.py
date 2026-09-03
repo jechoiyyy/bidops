@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from ..db import get_db
+from ..core.db import get_db
 from ..models import AuditEvent, ScreeningPolicy
 from ..schemas import (
     PolicyActivationRequest,
@@ -25,7 +25,7 @@ from ..screening.policy import (
     PolicyError,
     PolicyRepository,
 )
-from ..services.document_bundles import BundleServiceError, stable_api_error, validate_actor
+from ..core.api_errors import BundleServiceError, stable_api_error, validate_actor
 
 
 router = APIRouter(prefix="/api/policies", tags=["policies"])

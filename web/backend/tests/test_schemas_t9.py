@@ -20,7 +20,7 @@ from app.schemas import (
     ScreeningExecutionResponse,
     ScreeningStopRequest,
 )
-from app.screening.generation_config import GenerationConfig
+from app.core.generation_config import GenerationConfig
 
 
 NOW = datetime(2026, 8, 26, 1, 0, tzinfo=timezone.utc)

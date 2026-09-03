@@ -9,7 +9,7 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
-from app.db import init_db
+from app.core.db import init_db
 from app.models import (
     Attachment,
     AttachmentFetch,

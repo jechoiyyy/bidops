@@ -13,8 +13,8 @@ import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.config import Settings
-from app.db import Base
+from app.core.config import Settings
+from app.core.db import Base
 from app.ingest.loader import ingest_run
 from app.models import Judgment, JudgmentRevision, Notice, Run, ScreeningAttempt, ScreeningExecution, ScreeningPolicy
 from app.screening.execution_store import ScreeningExecutionStore

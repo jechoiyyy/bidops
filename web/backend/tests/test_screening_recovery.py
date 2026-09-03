@@ -9,7 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models import ScreeningAuditEvent, CompanyProfileSnapshot, Run, ScreeningExecution, ScreeningPolicy
-from app.db import _json_serializer, schema_bound
+from app.core.db import _json_serializer, schema_bound
 from app.screening.execution_store import ScreeningExecutionStore
 from app.screening.queue import INTERRUPTED
 from tests.test_screening_queue import DIGEST, NOW, PROFILE_VERSION, enqueue, make_store

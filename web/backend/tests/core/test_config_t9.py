@@ -4,7 +4,7 @@ from typing import get_args
 
 import pytest
 
-from app.config import Settings
+from app.core.config import Settings
 
 
 @pytest.mark.parametrize("value", ["not a url", "bogus", "file:///tmp/ollama", "http://user:pass@example.test"])

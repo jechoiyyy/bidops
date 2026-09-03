@@ -10,12 +10,12 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from ..config import get_settings
-from ..db import SessionLocal
-from ..logging_setup import configure
+from ..core.config import get_settings
+from ..core.db import SessionLocal
+from ..core.logging_setup import configure
 from ..services import assets
-from ..services.clamav import ClamAVScanner
-from ..services.object_store import ObjectStoreError, assert_object_store_runtime
+from ..core.clamav import ClamAVScanner
+from ..core.object_store import ObjectStoreError, assert_object_store_runtime
 from ..services.prespec_attachments import AttachmentFetchClaim, claim_next, fetch_claimed
 
 

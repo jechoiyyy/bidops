@@ -15,8 +15,8 @@ import signal
 import time
 from pathlib import Path
 
-from ..config import get_settings
-from ..logging_setup import configure
+from ..core.config import get_settings
+from ..core.logging_setup import configure
 from .document_protocol import convert_one
 
 

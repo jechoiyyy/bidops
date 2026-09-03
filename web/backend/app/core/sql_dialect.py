@@ -1,7 +1,7 @@
 """One CHECK-constraint source string compiled for both SQL dialects.
 
 PostgreSQL 17 is the canonical store, but the declarative model is also used
-by isolated SQLite tests (see :mod:`app.db`).  A handful of predicates have no
+by isolated SQLite tests (see :mod:`app.core.db`).  A handful of predicates have no
 spelling both dialects accept:
 
 * character classes: SQLite ``GLOB`` versus PostgreSQL POSIX ``~``

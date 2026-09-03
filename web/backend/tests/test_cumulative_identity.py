@@ -5,7 +5,7 @@ from sqlalchemy import UniqueConstraint, create_engine, select
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
-from app.db import Base, init_db
+from app.core.db import Base, init_db
 from app.ingest.contracts import NoticeContract
 from app.ingest.loader import (
     NOTICE_OBSERVATION_SNAPSHOT_SCHEMA,

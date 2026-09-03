@@ -10,9 +10,9 @@ import pytest
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-from app.services import object_store as storage
-from app.services.object_store import EncryptedModelResponseStore, ObjectStoreError
-from app.config import get_settings
+from app.core import object_store as storage
+from app.core.object_store import EncryptedModelResponseStore, ObjectStoreError
+from app.core.config import get_settings
 
 
 pytestmark = pytest.mark.skipif(os.environ.get("BIDOPS_MINIO_E2E") != "1", reason="requires the isolated T7 MinIO service")

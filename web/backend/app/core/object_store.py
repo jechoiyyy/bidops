@@ -19,8 +19,8 @@ import secrets
 from typing import Protocol
 from uuid import uuid4
 
-from ..config import Settings, get_settings
-from ..db import isolated_test_boundary_active
+from .config import Settings, get_settings
+from .db import isolated_test_boundary_active
 
 
 NAMESPACES = ("source", "structure", "quarantine", "model-response")

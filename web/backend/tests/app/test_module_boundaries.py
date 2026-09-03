@@ -81,6 +81,8 @@ class Layout:
     allowed_imports: Mapping[str, frozenset[str]] = field(default_factory=dict)
     # 방향은 금지지만 지정된 이름만 허용하는 seam: {(source, target): {name, ...}}
     seam_imports: Mapping[tuple[str, str], frozenset[str]] = field(default_factory=dict)
+    # 방향은 허용이나 공개 표면 파일로만 받아야 하는 조합: {(source, target): init 경로}
+    public_name_imports: Mapping[tuple[str, str], str] = field(default_factory=dict)
     default_module: str | None = bmap.ASSEMBLY
 
     # --- 경로 헬퍼 -------------------------------------------------------
@@ -148,6 +150,7 @@ def repository_layout(root: Path) -> Layout:
         test_folder_modules=bmap.TEST_FOLDER_MODULES,
         allowed_imports=bmap.ALLOWED_IMPORTS,
         seam_imports=bmap.SEAM_IMPORTS,
+        public_name_imports=bmap.PUBLIC_NAME_IMPORTS,
     )
 
 
@@ -318,7 +321,14 @@ def check_cross_module_imports(layout: Layout) -> set[Violation]:
                         )
             else:
                 owner = layout.module_for(target_rel)
-            if owner is None or owner in allowed:
+            if owner is None:
+                continue
+            public_surface = layout.public_name_imports.get((source, owner))
+            if public_surface is not None and target_rel != public_surface:
+                # 방향은 허용이지만 모듈 내부 경로를 직접 들었다 (§3·§4).
+                violations.add(Violation(rel, CROSS_MODULE_IMPORT, target.label))
+                continue
+            if owner in allowed:
                 continue
             seam = layout.seam_imports.get((source, owner))
             if seam is not None and target.name is not None and target.name in seam:

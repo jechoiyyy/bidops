@@ -9,7 +9,7 @@ from sqlalchemy import create_engine, func, select, text
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
-from app.db import get_db, init_db
+from app.core.db import get_db, init_db
 from app.ingest import feedback as feedback_loader
 from app.main import app
 from app.models import (
@@ -24,7 +24,7 @@ from app.models import (
     VerificationAnswer,
 )
 from app.routers import reviews as reviews_router
-from app.screening.generation_config import GenerationConfig
+from app.core.generation_config import GenerationConfig
 from app.services.revisions import append_judgment_revision
 
 

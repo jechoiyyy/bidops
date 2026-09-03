@@ -13,11 +13,11 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
-from app.db import Base, get_db
+from app.core.db import Base, get_db
 from app.models import CompanyProfileSnapshot, Run, ScreeningExecution, ScreeningPolicy
 from app.routers.profile import router as profile_router
 from app.routers.screening import router as screening_router
-from app.screening.generation_config import GenerationConfig
+from app.core.generation_config import GenerationConfig
 
 
 def _app(tmp_path: Path) -> tuple[FastAPI, str]:
@@ -150,7 +150,7 @@ def test_screening_and_profile_metadata_contracts(tmp_path: Path) -> None:
 def test_screening_artifact_kind_and_missing_file_are_safe(tmp_path: Path, monkeypatch) -> None:
     application, execution_id = _app(tmp_path)
     import app.routers.screening as screening
-    from app.config import Settings
+    from app.core.config import Settings
 
     monkeypatch.setattr(screening, "get_settings", lambda: Settings(bidops_root=tmp_path))
     directory = tmp_path / "data" / "screening-executions" / execution_id
@@ -173,7 +173,7 @@ def test_screening_artifact_rejects_hardlinks_and_survives_symlink_swap(
 ) -> None:
     application, execution_id = _app(tmp_path)
     import app.routers.screening as screening
-    from app.config import Settings
+    from app.core.config import Settings
 
     monkeypatch.setattr(screening, "get_settings", lambda: Settings(bidops_root=tmp_path))
     directory = tmp_path / "data" / "screening-executions" / execution_id
@@ -219,7 +219,7 @@ def test_artifact_response_closes_fd_on_normal_and_send_failure(
     tmp_path: Path, monkeypatch
 ) -> None:
     import app.routers.screening as screening
-    from app.config import Settings
+    from app.core.config import Settings
 
     monkeypatch.setattr(screening, "get_settings", lambda: Settings(bidops_root=tmp_path))
     execution_id = "scr-" + "2" * 32
@@ -286,7 +286,7 @@ def test_artifact_response_closes_fd_on_disconnect_read_error_and_cancel(
     tmp_path: Path, monkeypatch
 ) -> None:
     import app.routers.screening as screening
-    from app.config import Settings
+    from app.core.config import Settings
 
     monkeypatch.setattr(screening, "get_settings", lambda: Settings(bidops_root=tmp_path))
     execution_id = "scr-" + "3" * 32

@@ -80,7 +80,7 @@ def configure_sqlite_connection(dbapi_connection: Any, _connection_record: Any =
         cursor.close()
     # Do this after the connection is opened, not only for ORM sessions: the
     # Alembic and db-admin engines use the same callback as well.
-    from .screening.generation_config import register_sqlite_functions
+    from .generation_config import register_sqlite_functions
 
     register_sqlite_functions(dbapi_connection)
 
@@ -196,7 +196,7 @@ def init_db(bind: Engine | None = None) -> None:
     verifies that the configured PostgreSQL database is at the expected head.
     """
 
-    from . import models  # noqa: F401 - register every declarative table
+    from .. import models  # noqa: F401 - register every declarative table
 
     # pytest's application tests use dependency-overridden isolated SQLite
     # engines. That test-only path is explicit; every non-test process still

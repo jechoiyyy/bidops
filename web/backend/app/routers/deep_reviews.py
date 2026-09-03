@@ -29,7 +29,7 @@ from ..agents import (
     attempt_artifact_ref,
     bundle_artifact_ref,
 )
-from ..db import get_db
+from ..core.db import get_db
 from ..models import DeepReview, DeepReviewAttempt, DeepReviewStage, DocumentBundle, DocumentBundleItem
 from ..services.deep_reviews import DeepReviewService, DeepReviewServiceError
 from ..services.document_bundles import BundleServiceError, validate_actor

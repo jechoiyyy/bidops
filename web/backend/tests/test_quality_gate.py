@@ -19,8 +19,8 @@ from sqlalchemy.orm import Session, sessionmaker
 
 import app.screening.quality_gate as quality_gate_module
 import app.screening.orchestrator as orchestrator_module
-from app.config import Settings
-from app.db import Base
+from app.core.config import Settings
+from app.core.db import Base
 from app.ingest.loader import ingest_run, deterministic_run_id
 from app.models import ScreeningAuditEvent, CompanyProfileSnapshot, Judgment, Notice, NoticeObservation, QualityGate, QualityGateEvaluation, QualityGateReview, Run, ScreeningExecution, ScreeningPolicy
 from app.screening.artifacts import ArtifactStore
@@ -37,7 +37,7 @@ from app.screening.orchestrator import (
 )
 from app.screening.policy import load_policy_file, policy_content_digest
 from app.screening.profile_snapshot import BASELINE_COMMIT
-from app.screening.generation_config import legacy_generation_config
+from app.core.generation_config import legacy_generation_config
 from app.screening.quality_metrics import judgment_digest
 from app.screening.quality_gate import (
     FIXED_BASELINE_RELATIVE,

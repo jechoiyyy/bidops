@@ -7,7 +7,7 @@ import logging
 from types import SimpleNamespace
 from typing import Iterator
 
-from app.logging_setup import _THIRD_PARTY_FLOOR, configure
+from app.core.logging_setup import _THIRD_PARTY_FLOOR, configure
 
 
 @contextmanager

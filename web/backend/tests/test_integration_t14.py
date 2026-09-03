@@ -1,7 +1,7 @@
 """T14-A integration boundaries on a migrated PostgreSQL database.
 
 These tests deliberately use the process-wide database configured by the
-pytest harness.  Before pytest imports ``app.db``, the harness creates and
+pytest harness.  Before pytest imports ``app.core.db``, the harness creates and
 migrates a private database on a disposable PostgreSQL 17 server and supplies
 isolated runtime paths.  Ollama is always a scripted transport; a regression
 that opens a real socket therefore fails at the fake boundary instead of
@@ -22,8 +22,8 @@ from sqlalchemy import create_engine, func, select, text
 from sqlalchemy.orm import Session
 
 from app import main
-from app.config import Settings, get_settings
-from app.db import ALEMBIC_HEAD, SessionLocal, current_revision, ensure_database_current
+from app.core.config import Settings, get_settings
+from app.core.db import ALEMBIC_HEAD, SessionLocal, current_revision, ensure_database_current
 from app.models import (
     AgencyPortal,
     AlwaysOnState,

@@ -7,10 +7,10 @@ import pytest
 from sqlalchemy import create_engine, event, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.db import Base
+from app.core.db import Base
 from app.models import CompanyProfileSnapshot, Notice, Run, ScreeningExecution, ScreeningPolicy
 from app.screening.execution_store import ScreeningExecutionStore
-from app.screening.generation_config import GenerationConfig
+from app.core.generation_config import GenerationConfig
 from app.screening.queue import ExecutionConflict, QueueValidationError
 
 

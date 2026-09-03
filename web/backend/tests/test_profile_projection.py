@@ -9,8 +9,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
-from app.config import Settings
-from app.db import Base, get_db
+from app.core.config import Settings
+from app.core.db import Base, get_db
 import app.routers.profile as profile_module
 from app.routers.profile import router as profile_router
 from app.screening.profile_snapshot import create_profile_snapshot

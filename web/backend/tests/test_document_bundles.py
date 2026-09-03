@@ -21,7 +21,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
-from app.db import init_db
+from app.core.db import init_db
 from app.document_mcp.processor import DocumentProcessor
 from app.models import AuditEvent, Attachment, ContentObject, ContentObjectLocation, ContentScan, DocumentBundle, DocumentBundleItem, DocumentStructure, DocumentVersion, IdempotencyRecord, Judgment, Notice, Run
 from app.schemas.document_bundles import ConfirmRequest, PatchDocumentVersionRequest

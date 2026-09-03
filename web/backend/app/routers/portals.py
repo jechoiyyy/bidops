@@ -9,14 +9,14 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..db import get_db
+from ..core.db import get_db
 from ..models import AgencyPortal, AuditEvent
 from ..schemas import (
     AgencyPortalCreateRequest,
     AgencyPortalResponse,
     AgencyPortalUpdateRequest,
 )
-from ..services.document_bundles import BundleServiceError, stable_api_error, validate_actor
+from ..core.api_errors import BundleServiceError, stable_api_error, validate_actor
 
 
 router = APIRouter(prefix="/api/portals", tags=["portals"])

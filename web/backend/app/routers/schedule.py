@@ -9,8 +9,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from ..config import get_settings
-from ..db import get_db
+from ..core.config import get_settings
+from ..core.db import get_db
 from ..models import AlwaysOnState, QualityGate, QualityGateEvaluation, ScheduleExecution, ScheduleReservation
 from ..schemas import (
     AlwaysOnSwitchResponse,
@@ -28,7 +28,7 @@ from ..services.scheduler import (
     ScheduleGateError,
     SchedulerService,
 )
-from ..screening.generation_config import GenerationConfigError, config_from_value, validate_digest
+from ..core.generation_config import GenerationConfigError, config_from_value, validate_digest
 
 
 router = APIRouter(prefix="/api/schedule", tags=["schedule"])

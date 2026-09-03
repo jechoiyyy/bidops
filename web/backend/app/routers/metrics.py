@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from ..db import get_db
+from ..core.db import get_db
 from ..schemas import ValidationMetricsResponse
 from ..services.metrics import calculate_validation_metrics
 from .common import get_run

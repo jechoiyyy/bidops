@@ -20,7 +20,7 @@ import os
 from alembic import op
 from sqlalchemy import text
 
-from app.db import Base
+from app.core import Base
 from app.models import LEGACY_TABLES, NEW_TABLES
 
 

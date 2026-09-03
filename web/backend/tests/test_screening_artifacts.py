@@ -8,7 +8,7 @@ import pytest
 
 from app.screening import artifacts as artifact_module
 from app.screening.artifacts import ArtifactError, ArtifactStore, ExecutionWorkspace
-from app.config import Settings
+from app.core.config import Settings
 from app.screening.worker import ScreeningWorker, WorkerError, _open_run_fds
 
 

@@ -4,8 +4,8 @@ import json
 
 import pytest
 
-from app.config import Settings
-from app.screening.generation_config import (
+from app.core.config import Settings
+from app.core.generation_config import (
     GenerationConfig,
     GenerationConfigError,
     config_from_value,

@@ -1,7 +1,7 @@
 """Disposable PostgreSQL 17 servers and databases for backend tests.
 
 When the selected tests require PostgreSQL, ``tests/conftest.py`` uses these
-helpers before collection so imports of ``app.db`` cannot bind to an operator
+helpers before collection so imports of ``app.core.db`` cannot bind to an operator
 database or a persistent SQLite file.  A caller may provide
 ``BIDOPS_TEST_POSTGRES_URL`` for a disposable maintenance server; otherwise the
 pytest harness owns a short-lived Docker container.  Every database created
@@ -340,7 +340,7 @@ def temporary_database(*, upgrade_to: str | None = "head") -> Iterator[str]:
 def migrated_engine(*, upgrade_to: str | None = "head") -> Iterator[Engine]:
     """Yield an engine bound to a freshly migrated disposable database."""
 
-    from app.db import _json_serializer, schema_bound
+    from app.core.db import _json_serializer, schema_bound
 
     with temporary_database(upgrade_to=upgrade_to) as database_url:
         engine = schema_bound(

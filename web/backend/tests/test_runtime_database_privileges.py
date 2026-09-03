@@ -14,7 +14,7 @@ from pathlib import Path
 from sqlalchemy import create_engine, func, select, text
 from sqlalchemy.orm import Session
 
-from app.db import schema_bound
+from app.core.db import schema_bound
 from app.ingest.loader import ingest_run
 from app.models import OrderPlanScreeningExecution, Run
 from tests.postgres import maintenance_url, requires_postgres, temporary_database

@@ -12,7 +12,7 @@ from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
-from app.db import init_db
+from app.core.db import init_db
 from app.document_mcp.errors import DocumentProcessingError
 from app.document_mcp.processor import DocumentProcessor
 from app.ingest.loader import ObservationSnapshotConflictError, _upsert_attachments

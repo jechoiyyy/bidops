@@ -14,7 +14,7 @@ from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
-from app.db import Base, init_db
+from app.core.db import Base, init_db
 from app.ingest.loader import (
     ORDER_PLAN_OBSERVATION_SNAPSHOT_SCHEMA,
     OrderPlanScreeningContractError,
@@ -23,7 +23,7 @@ from app.ingest.loader import (
     parse_order_plan_unty_no,
 )
 from app.ingest.judgment_revisions import judgment_revision_payload
-from app.screening.generation_config import legacy_generation_config
+from app.core.generation_config import legacy_generation_config
 from app.models import (
     Counterargument,
     IngestWarning,
