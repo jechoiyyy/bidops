@@ -16,7 +16,8 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.db import init_db
 from app.lifecycle import delete_manual_attachment, register_manual_attachment
-from app.models import AttachmentFetch, Notice
+from app.deep_review.models import AttachmentFetch
+from app.lifecycle.models import Notice
 from tests.postgres import migrated_engine, requires_postgres
 
 WHEN = datetime(2026, 9, 1, tzinfo=UTC)
@@ -67,7 +68,7 @@ def _fetch_rows(session: Session, attachment_id: int) -> int:
 
 
 def _delete_and_count(session: Session, attachment_id: int) -> int:
-    from app.models import Attachment
+    from app.lifecycle.models import Attachment
 
     attachment = session.get(Attachment, attachment_id)
     assert attachment is not None

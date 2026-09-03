@@ -21,8 +21,9 @@ from ..common import (
     AgentRunView,
 )
 from ...schemas.deep_reviews import AttemptView, DeepReviewView
-from ...models import (
-    AuditEvent,
+from ...core.models import AuditEvent
+from ...deep_review.models import (
+    AnalysisPolicyVersion,
     DeepReview,
     DeepReviewAttempt,
     DeepReviewStage,
@@ -30,7 +31,6 @@ from ...models import (
     DocumentBundleItem,
     EvidenceRef,
     ProfileVersion,
-    AnalysisPolicyVersion,
     ReportRevision,
     ReportRevisionEvidence,
     ValidationCheck,

@@ -22,7 +22,17 @@ import app.screening.orchestrator as orchestrator_module
 from app.core.config import Settings
 from app.core.db import Base
 from app.ingest.loader import ingest_run, deterministic_run_id
-from app.models import ScreeningAuditEvent, CompanyProfileSnapshot, Judgment, Notice, NoticeObservation, QualityGate, QualityGateEvaluation, QualityGateReview, Run, ScreeningExecution, ScreeningPolicy
+from app.lifecycle.models import Notice, NoticeObservation, Run
+from app.screening.models import (
+    CompanyProfileSnapshot,
+    Judgment,
+    QualityGate,
+    QualityGateEvaluation,
+    QualityGateReview,
+    ScreeningAuditEvent,
+    ScreeningExecution,
+    ScreeningPolicy,
+)
 from app.screening.artifacts import ArtifactStore
 from app.screening.contracts import MODEL_NAME, ModelIdentity, two_axis_mixing
 from app.screening.orchestrator import (

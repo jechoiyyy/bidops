@@ -27,17 +27,14 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.db import get_db, init_db
 from app.main import app
-from app.models import (
-    Attachment,
+from app.lifecycle.models import Attachment, Notice, NoticeObservation, Run
+from app.screening.models import (
     Counterargument,
     Evidence,
     Judgment,
     MatchedPerformance,
-    Notice,
-    NoticeObservation,
     Perspective,
     Review,
-    Run,
     VerificationAnswer,
     VerificationItem,
 )

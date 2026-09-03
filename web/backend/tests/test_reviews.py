@@ -10,7 +10,8 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.db import get_db, init_db
 from app.main import app
-from app.models import Judgment, Notice, Review, Run, VerificationAnswer
+from app.lifecycle.models import Notice, Run
+from app.screening.models import Judgment, Review, VerificationAnswer
 
 
 @pytest.fixture

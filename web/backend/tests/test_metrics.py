@@ -5,7 +5,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.core.db import init_db
-from app.models import Judgment, Notice, NoticeObservation, Perspective, Run
+from app.lifecycle.models import Notice, NoticeObservation, Run
+from app.screening.models import Judgment, Perspective
 from app.services.metrics import calculate_validation_metrics
 
 

@@ -26,9 +26,8 @@ from ...services.document_bundles import (
     DocumentBundleService,
     document_bundle_snapshot_hash,
 )
-from ...models import (
-    Attachment,
-    AuditEvent,
+from ...core.models import AuditEvent
+from ...deep_review.models import (
     ContentObject,
     ContentScan,
     DocumentBundle,
@@ -36,6 +35,7 @@ from ...models import (
     DocumentStructure,
     DocumentVersion,
 )
+from ...lifecycle.models import Attachment
 from ...schemas.document_bundles import (
     BundleView,
     ConfirmRequest,

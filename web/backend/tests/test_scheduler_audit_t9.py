@@ -6,7 +6,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.config import Settings
 from app.core.db import Base
-from app.models import ScreeningAuditEvent
+from app.screening.models import ScreeningAuditEvent
 from app.services.scheduler import SchedulerService
 
 

@@ -17,13 +17,8 @@ from typing import Any, Literal
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import (
-    JudgmentRevision,
-    Notice,
-    NoticeObservation,
-    ReviewRevision,
-    ScreeningExecution,
-)
+from app.lifecycle.models import Notice, NoticeObservation
+from app.screening.models import JudgmentRevision, ReviewRevision, ScreeningExecution
 
 
 JUDGMENT_PAYLOAD_SCHEMA = "bidops.judgment-revision-payload.v1"

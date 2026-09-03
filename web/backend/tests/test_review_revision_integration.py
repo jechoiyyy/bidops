@@ -12,14 +12,12 @@ from sqlalchemy.pool import StaticPool
 from app.core.db import get_db, init_db
 from app.screening import ingest_feedback as feedback_loader
 from app.main import app
-from app.models import (
-    AuditEvent,
+from app.core.models import AuditEvent
+from app.lifecycle.models import Notice, NoticeObservation, Run
+from app.screening.models import (
     JudgmentRevision,
-    Notice,
-    NoticeObservation,
     Review,
     ReviewRevision,
-    Run,
     ScreeningExecution,
     VerificationAnswer,
 )

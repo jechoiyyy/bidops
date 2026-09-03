@@ -17,7 +17,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.db import init_db
 from app.lifecycle import ingest_run
-from app.models import IngestWarning, Notice, Run
+from app.lifecycle.models import IngestWarning, Notice, Run
 from tests.c2_fixtures import write_c2_fixture
 
 

@@ -28,7 +28,13 @@ from ..agents import (
     bundle_artifact_ref,
 )
 from ..core.db import get_db
-from ..models import DeepReview, DeepReviewAttempt, DeepReviewStage, DocumentBundle, DocumentBundleItem
+from ..deep_review.models import (
+    DeepReview,
+    DeepReviewAttempt,
+    DeepReviewStage,
+    DocumentBundle,
+    DocumentBundleItem,
+)
 from ..schemas.deep_reviews import AttemptView, DeepReviewView
 from ..schemas.pre_specs import (
     PreSpecOverviewReviewsResponse,

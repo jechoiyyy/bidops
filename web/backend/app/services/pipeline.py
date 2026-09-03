@@ -17,7 +17,7 @@ from sqlalchemy import select
 from ..core.config import Settings, get_settings
 from ..core.db import SessionFactory
 from ..ingest.loader import ingest_run, parse_run_id
-from ..models import Run
+from ..lifecycle.models import Run
 from ..core.redaction import mask_secrets
 
 

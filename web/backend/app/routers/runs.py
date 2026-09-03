@@ -14,7 +14,7 @@ from ..core.config import get_settings
 from ..core.db import get_db
 from ..ingest.loader import discover_run_dirs, ingest_run
 from ..lifecycle import extension_registry
-from ..models import IngestWarning, Notice, NoticeObservation, Run
+from ..lifecycle.models import IngestWarning, Notice, NoticeObservation, Run
 from ..schemas import (
     ArtifactValidationResponse,
     CollectionScopeResponse,

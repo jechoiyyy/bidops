@@ -10,7 +10,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..core.db import get_db
-from ..models import AgencyPortal, AuditEvent
+from ..core.models import AuditEvent
+from ..lifecycle.models import AgencyPortal
 from ..schemas import (
     AgencyPortalCreateRequest,
     AgencyPortalResponse,

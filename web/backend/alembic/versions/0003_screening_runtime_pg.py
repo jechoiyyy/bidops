@@ -30,7 +30,9 @@ import json
 from alembic import op
 import sqlalchemy as sa
 
-from app.models import SCREENING_RUNTIME_TABLES
+# 명세 §3의 예외: migration revision 파일은 소유 모듈의 `models` 하위 모듈을
+# 직접 import한다. 이 revision이 만드는 12개 table은 모두 screening 소유다.
+from app.screening.models import SCREENING_RUNTIME_TABLES
 from app.core import (
     Base,
     GENERATION_CONFIG_SCHEMA,

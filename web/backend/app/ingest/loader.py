@@ -18,7 +18,7 @@ from pydantic import BaseModel, ValidationError
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
-from ..models import (
+from ..lifecycle.models import (
     Attachment,
     IngestWarning,
     Notice,

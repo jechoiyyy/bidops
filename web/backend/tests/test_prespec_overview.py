@@ -21,18 +21,18 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.core.db import init_db
-from app.models import (
+from app.deep_review.models import (
     ContentObject,
     ContentObjectLocation,
     ContentScan,
     DocumentBlock,
     DocumentStructure,
     DocumentVersion,
-    Notice,
     PreSpecOverviewAttempt,
     PreSpecOverviewReview,
     PreSpecOverviewSnapshot,
 )
+from app.lifecycle.models import Notice
 from app.routers.deep_reviews import get_pre_spec_overview_reviews
 from app.services import assets, prespec_overview
 from app.services.prespec_overview import (

@@ -17,13 +17,12 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.lifecycle import ingest_run
-from app.models import (
-    OrderPlan,
+from app.lifecycle.models import OrderPlan, Run
+from app.screening.models import (
     OrderPlanScreeningArtifact,
     OrderPlanScreeningBatchAttempt,
     OrderPlanScreeningExecution,
     OrderPlanScreeningResult,
-    Run,
 )
 from app.screening.ingest import (
     OrderPlanScreeningConflictError,

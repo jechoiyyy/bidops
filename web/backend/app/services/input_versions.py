@@ -27,7 +27,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..core.model_binding import MODEL_ENDPOINT_REF, MODEL_NAME, canonical_json_bytes
-from ..models import (
+from ..deep_review.models import (
     AnalysisPolicyVersion,
     ContentObject,
     ContentObjectLocation,
@@ -36,9 +36,8 @@ from ..models import (
     DocumentStructure,
     ProfileEvidence,
     ProfileVersion,
-    Notice,
-    NoticeObservation,
 )
+from ..lifecycle.models import Notice, NoticeObservation
 from ..screening import current_judgment, latest_corrected_grade
 from . import assets
 from .deep_review_validation import validate_structure

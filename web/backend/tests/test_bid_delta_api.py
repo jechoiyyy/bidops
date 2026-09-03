@@ -14,8 +14,8 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.db import get_db, init_db
 from app.main import app
-from app.models import (
-    AuditEvent,
+from app.core.models import AuditEvent, IdempotencyRecord
+from app.deep_review.models import (
     BidDeltaAttempt,
     BidDeltaComparison,
     BidFinalDecision,
@@ -24,11 +24,8 @@ from app.models import (
     DocumentBundleItem,
     DocumentStructure,
     DocumentVersion,
-    IdempotencyRecord,
-    Notice,
-    Opportunity,
-    OpportunityLink,
 )
+from app.lifecycle.models import Notice, Opportunity, OpportunityLink
 from app.services.bid_delta import BID_DELTA_CATEGORIES, BidDeltaService, BidDeltaServiceError
 
 

@@ -12,8 +12,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
-from app.models import (
-    Base,
+from app.core.db import Base
+from app.deep_review.models import (
     BidDeltaAttempt,
     BidDeltaComparison,
     BidDeltaEvidence,
@@ -24,10 +24,8 @@ from app.models import (
     DocumentBundleItem,
     DocumentStructure,
     DocumentVersion,
-    Notice,
-    Opportunity,
-    OpportunityLink,
 )
+from app.lifecycle.models import Notice, Opportunity, OpportunityLink
 
 
 NOW = datetime(2026, 8, 31, 12, 0, tzinfo=UTC)

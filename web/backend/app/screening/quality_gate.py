@@ -27,18 +27,17 @@ from sqlalchemy import Engine, func, select, update
 from sqlalchemy.orm import Session, selectinload, sessionmaker
 
 from ..core.config import Settings, get_settings
-from ..models import (
-    ScreeningAuditEvent,
+from ..lifecycle.models import Notice, Run
+from .models import (
     CompanyProfileSnapshot,
+    Judgment,
+    Perspective,
     QualityGate,
     QualityGateEvaluation,
     QualityGateReview,
-    Run,
+    ScreeningAuditEvent,
     ScreeningExecution,
     ScreeningPolicy,
-    Notice,
-    Judgment,
-    Perspective,
 )
 from .artifacts import ArtifactError, ArtifactStore, ExecutionWorkspace, sha256_bytes
 from ..ingest.loader import deterministic_run_id

@@ -17,7 +17,8 @@ from sqlalchemy.orm import Session
 
 from app.core.db import schema_bound
 from app.lifecycle import ingest_run
-from app.models import OrderPlanScreeningExecution, Run
+from app.lifecycle.models import Run
+from app.screening.models import OrderPlanScreeningExecution
 from tests.postgres import maintenance_url, requires_postgres, temporary_database
 
 

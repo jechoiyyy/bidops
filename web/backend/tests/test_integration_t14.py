@@ -24,11 +24,10 @@ from sqlalchemy.orm import Session
 from app import main
 from app.core.config import Settings, get_settings
 from app.core.db import ALEMBIC_HEAD, SessionLocal, current_revision, ensure_database_current
-from app.models import (
-    AgencyPortal,
+from app.lifecycle.models import AgencyPortal, Run
+from app.screening.models import (
     AlwaysOnState,
     CompanyProfileSnapshot,
-    Run,
     ScheduleExecution,
     ScreeningExecution,
     ScreeningPolicy,

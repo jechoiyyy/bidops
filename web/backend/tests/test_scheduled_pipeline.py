@@ -6,7 +6,9 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import Settings
-from app.models import Base, Run, ScheduleExecution, ScheduleReservation, ScreeningExecution
+from app.core.db import Base
+from app.lifecycle.models import Run
+from app.screening.models import ScheduleExecution, ScheduleReservation, ScreeningExecution
 from app.services.scheduler import SchedulerService
 from app.services.scheduled_pipeline import ScheduledPipeline
 from app.screening.orchestrator import ScreeningCreationError

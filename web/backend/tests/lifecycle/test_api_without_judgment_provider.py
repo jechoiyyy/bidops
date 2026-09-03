@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.core.db import get_db, init_db
-from app.models import Attachment, Notice, NoticeObservation, Run
+from app.lifecycle.models import Attachment, Notice, NoticeObservation, Run
 from app.routers.metrics import router as metrics_router
 from app.routers.notices import router as notices_router
 from app.routers.runs import router as runs_router

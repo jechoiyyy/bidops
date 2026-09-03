@@ -8,7 +8,8 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.db import get_db, init_db
 from app.main import app
-from app.models import IngestWarning, Judgment, Notice, Run
+from app.lifecycle.models import IngestWarning, Notice, Run
+from app.screening.models import Judgment
 
 
 @pytest.fixture

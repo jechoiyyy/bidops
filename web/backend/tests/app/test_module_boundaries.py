@@ -81,8 +81,12 @@ class Layout:
     allowed_imports: Mapping[str, frozenset[str]] = field(default_factory=dict)
     # 방향은 금지지만 지정된 이름만 허용하는 seam: {(source, target): {name, ...}}
     seam_imports: Mapping[tuple[str, str], frozenset[str]] = field(default_factory=dict)
-    # 방향은 허용이나 공개 표면 파일로만 받아야 하는 조합: {(source, target): init 경로}
-    public_name_imports: Mapping[tuple[str, str], str] = field(default_factory=dict)
+    # 방향은 허용이나 공개 표면 파일로만 받아야 하는 조합: {(source, target): 공개 표면 경로들}
+    public_name_imports: Mapping[tuple[str, str], tuple[str, ...]] = field(default_factory=dict)
+    # 그 규칙을 적용할 대상 경로 범위: {(source, target): 경로 prefix 또는 None}
+    public_name_scopes: Mapping[tuple[str, str], str | None] = field(default_factory=dict)
+    # §3의 예외: 각 모듈의 `models` 하위 모듈을 직접 들여도 되는 조립 파일들
+    models_submodule_importers: tuple[str, ...] = ()
     default_module: str | None = bmap.ASSEMBLY
 
     # --- 경로 헬퍼 -------------------------------------------------------
@@ -151,19 +155,21 @@ def repository_layout(root: Path) -> Layout:
         allowed_imports=bmap.ALLOWED_IMPORTS,
         seam_imports=bmap.SEAM_IMPORTS,
         public_name_imports=bmap.PUBLIC_NAME_IMPORTS,
+        public_name_scopes=bmap.PUBLIC_NAME_SCOPES,
+        models_submodule_importers=bmap.MODELS_SUBMODULE_IMPORTERS,
     )
 
 
 def _repository_name_modules(root: Path) -> dict[str, NameOwnership]:
     """이름 단위 소유가 필요한 파일들의 매핑.
 
-    `models.py`·`schemas/__init__.py`는 네 모듈이 섞여 있어 모든 이름의 소유가
-    정해져야 하고(default 없음), §5.2가 옮길 이름만 열거한 service 파일들은
-    그 이름만 따로 소유를 준다(default = 파일 본체의 모듈).
+    `schemas/__init__.py`는 네 모듈이 섞여 있어 모든 이름의 소유가 정해져야
+    하고(default 없음), §5.2가 옮길 이름만 열거한 service 파일들은 그 이름만
+    따로 소유를 준다(default = 파일 본체의 모듈). T6이 `app/models.py`를 네
+    모듈의 `models.py`로 나눈 뒤로는 모델 이름을 폴더 규칙이 판정한다.
     """
 
     mapping: dict[str, NameOwnership] = {
-        "app/models.py": NameOwnership(model_name_modules(root / "app" / "models.py")),
         "app/schemas/__init__.py": NameOwnership(bmap.SCHEMAS_NAME_MODULE),
     }
     for rel, (names, default) in bmap.SPLIT_FILE_NAME_MODULES.items():
@@ -196,9 +202,13 @@ def _tablename(node: ast.ClassDef) -> str | None:
 
 
 def model_name_modules(models_path: Path) -> dict[str, str]:
-    """`app/models.py`의 이름 → 소유 모듈 (§5.1 테이블 소유 + 비테이블 이름)."""
+    """선언 파일의 모델 클래스 이름 → 소유 모듈 (§5.1 테이블 소유표).
 
-    mapping = dict(bmap.MODELS_EXTRA_NAMES)
+    실제 저장소에서는 네 모듈의 `models.py`를 폴더 규칙이 판정하므로 더 쓰지
+    않는다. 아래 합성 트리 테스트가 검사기 자신을 확인할 때 쓴다.
+    """
+
+    mapping: dict[str, str] = {}
     if not models_path.is_file():
         return mapping
     for node in parse(models_path).body:
@@ -294,14 +304,38 @@ def imports_of(path: Path, layout: Layout) -> list[ImportTarget]:
 # --- 검사 1: 모듈 간 import 방향 -------------------------------------------
 
 
-def check_cross_module_imports(layout: Layout) -> set[Violation]:
-    violations: set[Violation] = set()
+def _is_models_submodule_exception(rel: str, target_rel: str, layout: Layout) -> bool:
+    """§3이 허용한 "조립 파일 → 모듈 `models`" import인가."""
+
+    if not target_rel.endswith("/models.py"):
+        return False
+    return any(
+        rel == allowed or rel.startswith(allowed)
+        for allowed in layout.models_submodule_importers
+    )
+
+
+def _breaks_public_surface(layout: Layout, source: str, owner: str, target_rel: str) -> bool:
+    """공개 이름 규칙이 켜진 조합에서 모듈 내부 경로를 직접 들었는가."""
+
+    surface = layout.public_name_imports.get((source, owner))
+    if surface is None:
+        return False
+    scope = layout.public_name_scopes.get((source, owner))
+    if scope is not None and not target_rel.startswith(scope):
+        # 아직 그 모듈 폴더 밖에 있는 소유 파일. 규칙 범위 밖이다.
+        return False
+    return target_rel not in surface
+
+
+def resolved_imports(layout: Layout):
+    """`(파일, 출발 모듈, 도착 모듈, 도착 경로, import 대상)`을 차례로 낸다."""
+
     for path in layout.source_files():
         rel = layout.rel(path)
         source = layout.module_for(rel)
         if source is None:  # 섞인 파일은 출발지로 검사하지 않는다.
             continue
-        allowed = set(layout.allowed_imports.get(source, frozenset())) | {source}
         for target in imports_of(path, layout):
             target_rel = layout.path_for_dotted(target.dotted)
             if target_rel is None or target_rel in layout.excluded_files:
@@ -323,18 +357,51 @@ def check_cross_module_imports(layout: Layout) -> set[Violation]:
                 owner = layout.module_for(target_rel)
             if owner is None:
                 continue
-            public_surface = layout.public_name_imports.get((source, owner))
-            if public_surface is not None and target_rel != public_surface:
-                # 방향은 허용이지만 모듈 내부 경로를 직접 들었다 (§3·§4).
-                violations.add(Violation(rel, CROSS_MODULE_IMPORT, target.label))
-                continue
-            if owner in allowed:
-                continue
-            seam = layout.seam_imports.get((source, owner))
-            if seam is not None and target.name is not None and target.name in seam:
-                continue
+            yield rel, source, owner, target_rel, target
+
+
+def check_cross_module_imports(layout: Layout) -> set[Violation]:
+    violations: set[Violation] = set()
+    for rel, source, owner, target_rel, target in resolved_imports(layout):
+        allowed = set(layout.allowed_imports.get(source, frozenset())) | {source}
+        if _is_models_submodule_exception(rel, target_rel, layout):
+            # §3의 예외: alembic/env.py와 revision 파일은 각 모듈의 `models`를
+            # 직접 들여 선언 테이블을 모두 등록한다.
+            continue
+        if _breaks_public_surface(layout, source, owner, target_rel):
+            # 방향은 허용이지만 모듈 내부 경로를 직접 들었다 (§3·§4).
             violations.add(Violation(rel, CROSS_MODULE_IMPORT, target.label))
+            continue
+        if owner in allowed:
+            continue
+        seam = layout.seam_imports.get((source, owner))
+        if seam is not None and target.name is not None and target.name in seam:
+            continue
+        violations.add(Violation(rel, CROSS_MODULE_IMPORT, target.label))
     return violations
+
+
+ASSEMBLY_DEBT = "assembly->screening|deep_review"
+LIFECYCLE_DEBT = "screening|deep_review->lifecycle(패키지 밖)"
+
+
+def public_name_debt(layout: Layout) -> dict[str, set[Violation]]:
+    """아직 켜지 않은 §8-1 두 절이 켜져 있었다면 위반이었을 import.
+
+    `UNIMPLEMENTED_PUBLIC_NAME_RULES`가 글로 적어 둔 부채를 코드에서 다시 센다.
+    """
+
+    debt: dict[str, set[Violation]] = {ASSEMBLY_DEBT: set(), LIFECYCLE_DEBT: set()}
+    for rel, source, owner, target_rel, target in resolved_imports(layout):
+        if _is_models_submodule_exception(rel, target_rel, layout):
+            continue
+        if source == bmap.ASSEMBLY and owner in (bmap.SCREENING, bmap.DEEP_REVIEW):
+            if target_rel != f"app/{owner}/__init__.py":
+                debt[ASSEMBLY_DEBT].add(Violation(rel, CROSS_MODULE_IMPORT, target.label))
+        elif source in (bmap.SCREENING, bmap.DEEP_REVIEW) and owner == bmap.LIFECYCLE:
+            if not target_rel.startswith("app/lifecycle/"):
+                debt[LIFECYCLE_DEBT].add(Violation(rel, CROSS_MODULE_IMPORT, target.label))
+    return debt
 
 
 # --- 검사 2: router 안의 ORM 접근 -------------------------------------------
@@ -574,21 +641,34 @@ def test_excluded_files_still_exist() -> None:
     )
 
 
-def test_public_name_rules_are_enabled_once_module_packages_exist() -> None:
-    """모듈 폴더가 생기면 §8-1의 미구현 절을 켜라고 실패한다.
+def test_remaining_public_name_rules_are_still_needed(layout: Layout) -> None:
+    """아직 켜지 않은 §8-1 두 절의 부채를 코드에서 다시 세어 원장과 맞춘다.
 
-    §4의 허용 표는 방향뿐 아니라 "공개 이름 대 모듈 내부"도 가른다. 그 절은
-    각 모듈의 `__init__.py`가 공개 표면을 정하기 전에는 판정할 수 없어 아직
-    검사에 없다. 폴더가 생기는 순간 이 테스트가 그 부채를 상기시킨다.
+    §4의 허용 표는 방향뿐 아니라 "공개 이름 대 모듈 내부"도 가른다. T3·T4·T6이
+    켠 조합은 검사 1이 강제한다. 남은 두 절은 아직 켤 수 없고, 그 이유는 조립
+    계층과 형제 모듈이 아직 모듈 폴더 밖 경로를 들고 있기 때문이다.
+
+    허용 목록과 같은 계약이다. 숫자가 늘면 새 부채가 생긴 것이고, 0이 되면 그
+    절을 `PUBLIC_NAME_IMPORTS`로 켤 수 있다는 신호다. 어느 쪽이든 실패한다.
     """
 
-    existing = [rel for rel in bmap.MODULE_PACKAGE_INITS if (BACKEND_ROOT / rel).is_file()]
-    assert not existing, (
-        "모듈 패키지가 생겼다: " + ", ".join(existing) + ".\n"
-        "이제 공개 이름 판정이 가능하니 §8-1의 아래 절을 검사 1에 넣고, "
-        "이 테스트를 그 검사로 교체한다:\n"
-        + "\n".join(f"  - {rule}" for rule in bmap.UNIMPLEMENTED_PUBLIC_NAME_RULES)
+    debt = public_name_debt(layout)
+    actual = {key: len(entries) for key, entries in debt.items()}
+    recorded = dict(bmap.REMAINING_PUBLIC_NAME_DEBT)
+    assert actual == recorded, (
+        "미구현 절의 부채가 원장과 다르다. 줄었으면 원장을 줄이고, 0이 되었으면 "
+        "그 절을 PUBLIC_NAME_IMPORTS로 켠다. 늘었으면 새로 생긴 import를 되돌린다.\n"
+        f"  센 값: {actual}\n  원장: {recorded}\n"
+        + "\n".join(
+            f"  [{key}]\n" + "\n".join(f"    {entry}" for entry in sorted(as_tuples(entries)))
+            for key, entries in debt.items()
+        )
     )
+    for key, count in actual.items():
+        assert count > 0, (
+            f"'{key}' 부채가 사라졌다. UNIMPLEMENTED_PUBLIC_NAME_RULES의 해당 절을 "
+            "PUBLIC_NAME_IMPORTS로 켜고 이 항목을 원장에서 지운다."
+        )
 
 
 def test_allowlists_have_no_duplicate_or_foreign_kinds() -> None:

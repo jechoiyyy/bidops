@@ -12,7 +12,8 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.config import Settings
 from app.core.db import Base, get_db
-from app.models import CompanyProfileSnapshot, Run, ScreeningExecution, ScreeningPolicy
+from app.lifecycle.models import Run
+from app.screening.models import CompanyProfileSnapshot, ScreeningExecution, ScreeningPolicy
 from app.routers.runs import router as runs_router
 from app.routers.screening import run_router as screening_run_router
 from app.runtime import ApplicationRuntime
