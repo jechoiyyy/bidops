@@ -740,3 +740,27 @@ test("사전규격 목록과 상세는 viewport 바깥으로 넘치지 않는다
     }))).toEqual({ root: 0, canvas: 0 });
   }
 });
+
+// docs/design/PLAN.md 4단계 완료 게이트: 상세 3종 공통 골격에서 결정 액션은
+// 요약 헤더에 고정되어 스크롤 위치와 무관하게 첫 화면에서 보여야 한다.
+test("사전규격 상세는 본문을 끝까지 스크롤해도 추적 결정 액션이 뷰포트 안에 남는다", async ({ page }) => {
+  await mockPreSpecs(page);
+  await page.goto("/pre-specs/991");
+  const saveButton = page.getByRole("button", { name: "추적 상태 저장", exact: true });
+  await expect(saveButton).toBeInViewport();
+  await page.evaluate(() => document.querySelector(".page-canvas")?.scrollTo(0, 999_999));
+  await expect(saveButton).toBeInViewport();
+});
+
+// 사업기회에 아직 연결되지 않은 사전규격도 비활성 결정 액션과 그 사유가
+// 스크롤 없이 함께 보여야 한다 — 버튼만 헤더에 보이고 이유는 본문 깊숙이
+// 남기지 않는다.
+test("사업기회 미연결 사전규격은 비활성 추적 결정 액션과 사유가 스크롤 없이 함께 보인다", async ({ page }) => {
+  await mockPreSpecs(page);
+  await page.goto("/pre-specs/993");
+  const saveButton = page.getByRole("button", { name: "추적 상태 저장", exact: true });
+  await expect(saveButton).toBeInViewport();
+  await expect(saveButton).toBeDisabled();
+  await expect(page.locator("#pre-spec-tracking-save-disabled")).toBeInViewport();
+  await expect(page.locator("#pre-spec-tracking-save-disabled")).toContainText("아직 사업기회에 연결되지 않아");
+});

@@ -1,0 +1,197 @@
+/*
+ * 상세 화면 3종(사전규격 상세 · 발주계획 상세 · 입찰 변경 비교)이 공유하는 골격.
+ * docs/design/PLAN.md 4단계 · 시안 정본 docs/design/mockups/screens.py의
+ * detail_screen()과 docs/design/mockups/bo-skeleton.css를 참조했다.
+ *
+ * ADR-0040: 레이아웃은 프로젝트가 소유하고, 골격 CSS도 값을 새로 정하지 않고
+ * Astryx 토큰만 읽는다. 여기서 읽는 --color-* 토큰은 data-astryx-theme="neutral"을
+ * 세운 화면 루트 아래에서만 neutral 팔레트로 해석된다. --spacing-*·--radius-*·
+ * --border-width·--font-* 토큰은 @astryxdesign/core/astryx.css가 전역으로 정의하므로
+ * data-astryx-theme 유무와 무관하게 항상 유효하다.
+ *
+ * 요약 헤더는 position:sticky로 각 페이지의 스크롤 컨테이너(AppShell의
+ * .page-canvas, overflow:auto)에 고정된다. 목록+상세 pane을 나란히 두는
+ * 검토 대기열과 달리 이 세 화면은 페이지 전체가 하나의 스크롤 영역이므로,
+ * 별도 pane 분리 없이 헤더 sticky만으로 "스크롤 위치와 무관하게 첫 화면에서
+ * 보임"을 만족시킨다.
+ */
+
+.detail-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  min-width: 0;
+}
+
+.detail-skeleton-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  padding: var(--spacing-4) var(--spacing-5);
+  background: var(--color-background-card);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-container);
+  box-shadow: var(--shadow-low);
+}
+
+.detail-skeleton-head-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+}
+
+.detail-skeleton-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+/* PRD §3.1 규칙 5 · PLAN 4단계: 결정 액션은 이 슬롯 하나로만 존재한다.
+ * margin-left:auto로 상태 배지 줄의 오른쪽 끝에 붙이고, 좁은 폭에서는
+ * 다음 줄로 wrap되되 헤더 밖(레일 등)으로 복제하지 않는다. flex 자식은
+ * 기본 min-width:auto라 내용이 길면(예: SHA-256) 줄바꿈 대신 뷰포트
+ * 밖으로 넘칠 수 있어 0으로 되돌린다. */
+.detail-skeleton-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-width: 0;
+  max-width: 100%;
+  margin-left: auto;
+}
+
+.detail-skeleton-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.8fr);
+  align-items: start;
+  gap: var(--spacing-4);
+  min-width: 0;
+}
+
+.detail-skeleton-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  min-width: 0;
+}
+
+/* 우측 레일은 이력과 연결만 담는다 (시안 주석 원문). 결정 액션을 여기에
+ * 복제하지 않는다 — CLAUDE.md "같은 업무 규칙을 복제하지 않는다". */
+.detail-skeleton-rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  min-width: 0;
+}
+
+.detail-skeleton-rail-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  padding: var(--spacing-4);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-container);
+  background: var(--color-background-card);
+}
+
+.detail-skeleton-rail-title {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.detail-skeleton-rail-history {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.detail-skeleton-rail-history li {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-0-5);
+  padding: var(--spacing-2) 0;
+  border-bottom: var(--border-width) solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.detail-skeleton-rail-history li:last-child {
+  border-bottom: 0;
+}
+
+.detail-skeleton-rail-history li strong {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.detail-skeleton-rail-links {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  padding-top: var(--spacing-2);
+  border-top: var(--border-width) solid var(--color-border);
+}
+
+.detail-skeleton-rail-links a {
+  color: var(--color-text-accent);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.detail-skeleton-rail-note {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  line-height: 1.5;
+}
+
+/* 본문 반복 목록(dense row). 근거 위치가 없는 항목은 is-warning으로 표시하고
+ * 검증을 통과시키지 않는다 (PRD §3.1 규칙, CLAUDE.md 강제 게이트). */
+.detail-skeleton-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  padding: var(--spacing-3) var(--spacing-4);
+  border-bottom: var(--border-width) solid var(--color-border);
+  border-left: 3px solid transparent;
+}
+
+.detail-skeleton-row:last-child {
+  border-bottom: 0;
+}
+
+.detail-skeleton-row.is-warning {
+  border-left-color: var(--color-warning);
+  background: var(--color-background-yellow);
+}
+
+.detail-skeleton-row.is-error {
+  border-left-color: var(--color-error);
+}
+
+.detail-skeleton-row.is-accent {
+  border-left-color: var(--color-accent);
+}
+
+@media (max-width: 900px) {
+  .detail-skeleton-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .detail-skeleton-head {
+    padding: var(--spacing-3) var(--spacing-4);
+  }
+}

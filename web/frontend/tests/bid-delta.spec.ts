@@ -71,7 +71,7 @@ test.describe("bid-delta calculation status", () => {
       } else {
         await expect(page.getByText("계산 담당 worker는 아직 운영에 없습니다.", { exact: false })).toHaveCount(0);
       }
-      await expect(page.getByRole("button", { name: "최종 결정 저장", exact: true })).toBeDisabled();
+      await expect(page.getByRole("button", { name: "결정 저장", exact: true })).toBeDisabled();
       if (calculationStatus === "failed") {
         await expect(page.getByRole("button", { name: "재시도", exact: true })).toBeVisible();
       } else {
@@ -128,11 +128,11 @@ test("사람 결정은 자동 선택되지 않고 저장 전에는 form 초안�
   await openComparison(page, { calculationStatus: "completed", resultStatus: "changed" });
   const decision = page.getByLabel("최종 결정", { exact: true });
   await expect(decision).toHaveValue("");
-  await expect(page.getByRole("button", { name: "최종 결정 저장", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "결정 저장", exact: true })).toBeDisabled();
   await page.getByLabel("최종 결정 담당자 이름").fill("홍길동");
   await decision.selectOption("go");
   await page.getByLabel("결정 이유", { exact: true }).fill("양쪽 원문을 확인하고 참여를 결정했습니다.");
-  await expect(page.getByRole("button", { name: "최종 결정 저장", exact: true })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "결정 저장", exact: true })).toBeEnabled();
 });
 
 test("최종 결정 payload는 actor header와 모든 comparison fence를 포함한다", async ({ page }) => {
@@ -142,7 +142,7 @@ test("최종 결정 payload는 actor header와 모든 comparison fence를 포함
   await page.getByLabel("최종 결정 담당자 이름").fill("홍길동");
   await page.getByLabel("최종 결정", { exact: true }).selectOption("no_go");
   await page.getByLabel("결정 이유", { exact: true }).fill("확인된 범위에서 참여하지 않기로 결정했습니다.");
-  await page.getByRole("button", { name: "최종 결정 저장", exact: true }).click();
+  await page.getByRole("button", { name: "결정 저장", exact: true }).click();
   await expect(page.getByText("No-Go 최종 결정을 append-only로 저장했습니다.", { exact: true })).toBeVisible();
   expect(trace.finalDecisionPosts).toHaveLength(1);
   expect(trace.finalDecisionPosts[0].headers["x-bidops-actor-name"]).toBe("UTF-8''%ED%99%8D%EA%B8%B8%EB%8F%99");
@@ -192,7 +192,7 @@ test("요청 conflict는 typed code를 표시하고 최신 상태를 다시 불�
   await page.getByLabel("최종 결정 담당자 이름").fill("홍길동");
   await page.getByLabel("최종 결정", { exact: true }).selectOption("go");
   await page.getByLabel("결정 이유", { exact: true }).fill("최신 상태에서도 검토할 이유");
-  await page.getByRole("button", { name: "최종 결정 저장", exact: true }).click();
+  await page.getByRole("button", { name: "결정 저장", exact: true }).click();
   await expect(page.getByText("오류 코드 bid_delta_comparison_stale", { exact: false })).toBeVisible();
   await expect(page.getByRole("button", { name: "최신 상태 다시 불러오기", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "최신 상태 다시 불러오기", exact: true }).click();
@@ -213,7 +213,7 @@ test("사업기회 상세 → delta → 저장 → 상세 이동 흐름을 유�
   await page.getByLabel("최종 결정 담당자 이름").fill("홍길동");
   await page.getByLabel("최종 결정", { exact: true }).selectOption("go");
   await page.getByLabel("결정 이유", { exact: true }).fill("원문 확인 후 참여합니다.");
-  await page.getByRole("button", { name: "최종 결정 저장", exact: true }).click();
+  await page.getByRole("button", { name: "결정 저장", exact: true }).click();
   await expect(page.getByText("Go 최종 결정을 append-only로 저장했습니다.", { exact: true })).toBeVisible();
   await page.getByRole("link", { name: "← 사업기회 상세", exact: true }).click();
   await expect(page).toHaveURL(/\/opportunities\/501$/);
@@ -234,4 +234,71 @@ test("미저장 최종 결정 초안은 beforeunload와 SPA 이동을 보호한�
   await page.getByRole("link", { name: "← 사업기회 상세", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/opportunities/501/bid-delta\\?comparison=${comparisonId}`));
   await expect(page.getByText("저장되지 않은 입찰 최종 결정 초안이 있습니다.", { exact: false })).toBeVisible();
+});
+
+// docs/design/PLAN.md 4단계 완료 게이트: 되돌릴 수 없는 최종 Go/No-Go 저장은
+// 요약 헤더에 고정되어 스크롤 위치와 무관하게 첫 화면에서 보여야 한다.
+test("최종 결정 저장 액션은 본문을 끝까지 스크롤해도 뷰포트 안에 남는다", async ({ page }) => {
+  await openComparison(page, { calculationStatus: "completed", resultStatus: "changed" });
+  const headerSave = page.locator(".detail-skeleton-head").getByRole("button", { name: "결정 저장", exact: true });
+  await expect(headerSave).toBeInViewport();
+  await page.evaluate(() => document.querySelector(".page-canvas")?.scrollTo(0, 999_999));
+  await expect(headerSave).toBeInViewport();
+});
+
+// 시안 정본(docs/design/mockups/screens_more.py biddelta_screen)은 헤더에
+// 액션만 두고 입력 폼은 본문에 둔다. 폼째로 sticky 헤더에 올린 구현은 노트북
+// 폭에서 헤더가 뷰포트의 70%를 차지해, 액션은 보이지만 정작 판단 근거인
+// 범주별 분석이 가려졌다. 헤더가 뷰포트의 3분의 1을 넘지 않도록 고정한다.
+test("고정 헤더가 노트북 폭에서 뷰포트를 과도하게 차지하지 않는다", async ({ page }, testInfo) => {
+  // 좁은 폭은 PRD §5가 인정하는 degraded case다(상세가 목록을 덮고 레일이
+  // 본문 아래로 내려간다). 이 비율 게이트는 본문과 레일이 함께 보여야 하는
+  // 960px 이상에서만 뜻이 있다.
+  test.skip((testInfo.project.use.viewport?.width ?? 0) < 960, "노트북 폭 이상에서만 검사한다");
+  await openComparison(page, { calculationStatus: "completed", resultStatus: "changed" });
+  const ratio = await page.evaluate(() => {
+    const head = document.querySelector(".detail-skeleton-head") as HTMLElement | null;
+    return head ? head.getBoundingClientRect().height / window.innerHeight : 1;
+  });
+  expect(ratio).toBeLessThan(0.34);
+});
+
+// 헤더의 저장 버튼은 본문 폼을 form 속성으로 submit한다. 같은 finalReady를
+// 쓰므로 전제조건이 헤더와 본문에서 갈라지지 않는다.
+test("헤더 저장 버튼은 본문 결정 폼과 같은 전제조건을 쓴다", async ({ page }) => {
+  await openComparison(page, { calculationStatus: "completed", resultStatus: "changed" });
+  const headerSave = page.locator(".detail-skeleton-head").getByRole("button", { name: "결정 저장", exact: true });
+  const formSave = page.locator(".bid-delta-final-decision-panel").getByRole("button", { name: "최종 결정 저장", exact: true });
+  await expect(headerSave).toHaveAttribute("form", "bid-delta-final-form");
+  await expect(headerSave).toBeDisabled();
+  await expect(formSave).toBeDisabled();
+
+  await page.getByLabel("최종 결정 담당자 이름").fill("홍길동");
+  await page.getByLabel("최종 결정", { exact: true }).selectOption("go");
+  await page.getByLabel("결정 이유", { exact: true }).fill("추정가격 하락 확인");
+  await expect(headerSave).toBeEnabled();
+  await expect(formSave).toBeEnabled();
+});
+
+// 전제조건(계산 완료·결과 failed 아님)을 만족하지 못해 비활성인 상태에서도
+// 버튼과 비활성 사유가 스크롤 없이 함께 보여야 한다 — 버튼만 헤더에 띄우고
+// 이유를 본문 깊숙이 남기지 않는다.
+test("계산 대기 중인 비교는 비활성 최종 결정 액션과 사유가 스크롤 없이 함께 보인다", async ({ page }) => {
+  await openComparison(page, { calculationStatus: "pending" });
+  const saveButton = page.locator(".detail-skeleton-head").getByRole("button", { name: "결정 저장", exact: true });
+  await expect(saveButton).toBeInViewport();
+  await expect(saveButton).toBeDisabled();
+  await expect(page.locator("#bid-delta-final-disabled")).toBeInViewport();
+  await expect(page.locator("#bid-delta-final-disabled")).toContainText("계산이 완료될 때까지");
+});
+
+// 우측 레일은 이력과 연결만 담고 결정 액션을 복제하지 않는다.
+test("우측 레일은 attempt·결정 이력과 연결 링크만 담고 최종 결정 액션을 복제하지 않는다", async ({ page }) => {
+  await openComparison(page, { calculationStatus: "completed", resultStatus: "changed", withHistory: true });
+  const rail = page.locator(".detail-skeleton-rail");
+  await expect(rail.getByRole("heading", { name: "계산 attempt 이력", exact: true })).toBeVisible();
+  await expect(rail.getByRole("heading", { name: "최종 Go/No-Go 저장 이력", exact: true })).toBeVisible();
+  await expect(rail.getByRole("heading", { name: "최종 결정 현재성", exact: true })).toBeVisible();
+  await expect(rail.getByRole("link", { name: "사업기회 상세 →", exact: true })).toBeVisible();
+  await expect(rail.getByRole("button", { name: "결정 저장", exact: true })).toHaveCount(0);
 });

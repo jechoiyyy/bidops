@@ -6,7 +6,7 @@ import { DocumentPreparationPanel } from "../components/deep-review/DocumentPrep
 import { getDocumentStructurePage } from "../components/deep-review/api";
 import { EmptyState } from "../components/common/EmptyState";
 import { Panel } from "../components/common/Panel";
-import { TrackingDecisionControl, updateTrackingProjection } from "../components/pre-specs/TrackingDecisionControl";
+import { PreSpecDocumentSummary, TrackingDecisionControl, updateTrackingProjection } from "../components/pre-specs/TrackingDecisionControl";
 import { api } from "../lib/api";
 import { describeDeadline } from "../lib/deadline";
 import { formatDateTime, formatNumber, present } from "../lib/format";
@@ -21,6 +21,7 @@ import type {
   PreSpecOverviewValidationStatus,
 } from "../lib/types";
 import "../styles/pre-specs-relaxed.css";
+import "../styles/detail-skeleton.css";
 
 const REVIEW_STATUS = PRE_SPEC_OVERVIEW_STATUS_LABEL;
 
@@ -190,32 +191,71 @@ export function PreSpecDetailPage() {
   const preSpecItem = preSpecProjectionQuery.data?.items.find((item) => item.notice_pk === noticeId);
 
   return (
-    <section className="pre-spec-detail-page" aria-labelledby="pre-spec-detail-title">
+    <section className="pre-spec-detail-page detail-skeleton" data-astryx-theme="neutral" aria-labelledby="pre-spec-detail-title">
       <nav className="pre-spec-detail-breadcrumb" aria-label="사전규격 상세 경로">
         <Link to={listUrl}>사전규격 목록</Link>
         <span aria-hidden="true">›</span>
         <span className="mono tabular-nums">notice {noticeId}</span>
       </nav>
 
-      <header className="pre-spec-detail-header">
-        <div>
-          <span className="pre-specs-eyebrow">사전규격 정본 상세 · 누적 조회</span>
-          <h2 id="pre-spec-detail-title">{present(notice.title, "사업명 미확인")}</h2>
-          <div className="pre-spec-detail-subline">
-            <span>{present(notice.agency, "발주기관 미확인")}</span>
-            <span aria-hidden="true">·</span>
-            <span className="mono tabular-nums">notice {notice.id}</span>
-            <span aria-hidden="true">·</span>
-            <span className="mono tabular-nums">{present(notice.notice_key, "정본 키 미확인")}</span>
+      {/* 상세 3종 공통 골격(4단계): 요약 헤더는 position:sticky로 스크롤 위치와
+          무관하게 첫 화면에 남는다. 결정 액션(심층 검토 추적 선택)은 이 헤더의
+          상태 배지 줄 오른쪽 끝(margin-left:auto)에만 있고 레일에는 복제하지
+          않는다. */}
+      <header className="pre-spec-detail-header detail-skeleton-head">
+        <div className="detail-skeleton-head-top">
+          <div>
+            <span className="pre-specs-eyebrow">사전규격 정본 상세 · 누적 조회</span>
+            <h2 id="pre-spec-detail-title">{present(notice.title, "사업명 미확인")}</h2>
+            <div className="pre-spec-detail-subline">
+              <span>{present(notice.agency, "발주기관 미확인")}</span>
+              <span aria-hidden="true">·</span>
+              <span className="mono tabular-nums">notice {notice.id}</span>
+              <span aria-hidden="true">·</span>
+              <span className="mono tabular-nums">{present(notice.notice_key, "정본 키 미확인")}</span>
+            </div>
+          </div>
+          <div className="pre-spec-detail-actions">
+            <span className={`pre-specs-deadline is-${deadline.urgency} mono tabular-nums`}>{deadline.label}</span>
+            {notice.url ? <a href={notice.url} target="_blank" rel="noreferrer">나라장터 원문</a> : null}
           </div>
         </div>
-        <div className="pre-spec-detail-actions">
-          <span className={`pre-specs-deadline is-${deadline.urgency} mono tabular-nums`}>{deadline.label}</span>
-          {notice.url ? <a href={notice.url} target="_blank" rel="noreferrer">나라장터 원문</a> : null}
+
+        {/* 처리 상태·검증 상태·입력 준비 배지는 본문(개요 검토 상태 패널)과
+            우측 레일(이력)이 이미 정본으로 보여준다. 여기서 같은 문구를
+            또 배지로 복제하면 같은 role·이름을 가진 요소가 늘어나 strict
+            mode 선택자가 깨진다 — 헤더는 추적 결정 컨트롤의 "현재 추적
+            상태" 배지 하나만 갖는다. */}
+        <div className="detail-skeleton-status-row">
+          <div className="detail-skeleton-actions">
+            <TrackingDecisionControl
+              compact
+              item={preSpecItem}
+              isPending={preSpecProjectionQuery.isPending}
+              isError={preSpecProjectionQuery.isError}
+              onRetry={() => { void preSpecProjectionQuery.refetch(); }}
+              onSaved={(saved) => {
+                if (noticeId === null) return;
+                queryClient.setQueryData<PreSpecListResponse>(
+                  ["pre-spec-detail", noticeId],
+                  (current) => updateTrackingProjection(current, noticeId, saved),
+                );
+                queryClient.setQueriesData<PreSpecListResponse>(
+                  { queryKey: ["pre-specs"] },
+                  (current) => updateTrackingProjection(current, noticeId, saved),
+                );
+                void queryClient.invalidateQueries({ queryKey: ["pre-spec-overview-reviews-v2", noticeId] });
+                void queryClient.invalidateQueries({ queryKey: ["pre-spec-detail", noticeId] });
+                void queryClient.invalidateQueries({ queryKey: ["pre-specs"] });
+                void queryClient.invalidateQueries({ queryKey: ["opportunity", saved.id] });
+              }}
+            />
+          </div>
         </div>
       </header>
 
-      <div className="pre-spec-detail-grid">
+      <div className="detail-skeleton-grid">
+      <div className="detail-skeleton-main">
         <Panel title="사전규격 사실">
           <dl className="pre-spec-detail-facts">
             <div><dt>게시 시각</dt><dd>{formatDateTime(notice.published_at)}</dd></div>
@@ -226,6 +266,25 @@ export function PreSpecDetailPage() {
             <div><dt>데이터 유형</dt><dd>사전규격</dd></div>
           </dl>
         </Panel>
+
+        {preSpecProjectionQuery.isPending ? <p role="status">첨부 원문 취득 집계를 불러오는 중입니다.</p> : null}
+        {preSpecProjectionQuery.isError ? (
+          <EmptyState
+            compact
+            tone="error"
+            title="첨부 원문 취득 집계를 불러오지 못했습니다."
+            description="사전규격 projection을 불러오지 못해 첨부 취득 집계를 표시하지 않습니다."
+            action={{ label: "다시 시도", onClick: () => { void preSpecProjectionQuery.refetch(); } }}
+          />
+        ) : null}
+        {preSpecItem ? (
+          // PreSpecDocumentSummary가 자체 heading("첨부 원문 취득 집계")을
+          // 이미 렌더링하므로 Panel에 title을 다시 주지 않는다 — 같은
+          // 문구의 heading이 둘이면 strict mode 선택자가 깨진다.
+          <Panel>
+            <PreSpecDocumentSummary item={preSpecItem} />
+          </Panel>
+        ) : null}
 
         <Panel title="개요 검토 상태" className="pre-spec-overview-panel">
           {overviewQuery.isPending ? <p role="status">개요 검토 projection을 불러오는 중입니다.</p> : null}
@@ -468,79 +527,74 @@ export function PreSpecDetailPage() {
               <p className="pre-spec-overview-limit">
                 이 개요 검토는 서버가 고정한 구조 절단 입력만 다룹니다. 개요 결과는 추적 상태·참여 준비·최종 Go/No-Go를 대신하지 않습니다.
               </p>
-
-              <details className="pre-spec-overview-lineage-details" open={overview.status === "needs_human_review" && !overview.result}>
-                <summary>계보 · 입력 범위와 실행 이력</summary>
-                <div className="pre-spec-overview-lineage-body">
-                  {cut ? (
-                    <div className={`pre-spec-cut-state is-${snapshot?.cut_status}`}>
-                      <Badge label={cut.label} variant={cut.variant} />
-                      <p>{cut.description}</p>
-                    </div>
-                  ) : (
-                    <div className="pre-spec-cut-state is-pending">
-                      <Badge label="입력 snapshot 없음" variant="neutral" />
-                      <p>서버 projection에 현재 입력 snapshot이 없습니다.</p>
-                    </div>
-                  )}
-                  {snapshot ? (
-                    <dl className="pre-spec-overview-lineage">
-                      <div><dt>절단 전략</dt><dd>{snapshot.strategy ?? "전략 미확정"}</dd></div>
-                      <div><dt>문서 버전</dt><dd className="mono">{snapshot.document_version_id}</dd></div>
-                      <div><dt>구조 버전</dt><dd className="mono">{snapshot.structure_id}</dd></div>
-                      <div><dt>입력 생성</dt><dd>{formatDateTime(snapshot.created_at)}</dd></div>
-                    </dl>
-                  ) : null}
-                  <div className="pre-spec-overview-attempts">
-                    <strong>실행 이력</strong>
-                    {overview.attempts.length === 0 ? <span>모델 실행 이력 없음</span> : (
-                      <ul>
-                        {overview.attempts.map((attempt) => (
-                          <li key={attempt.id}>
-                            <span className="mono tabular-nums">#{attempt.sequence}</span>
-                            <Badge
-                              label={ATTEMPT_STATUS[attempt.status]}
-                              variant={attempt.status === "completed" ? "evidence-confirmed" : attempt.status === "failed" ? "alert" : "neutral"}
-                            />
-                            <span>{attempt.reference_only ? "참고 전용" : attempt.deployable ? "배포 가능" : "배포 불가"}</span>
-                            <span>검증 {attempt.validation_status}</span>
-                            <span className="pre-spec-overview-digest mono">result {attempt.result_digest ?? "없음"}</span>
-                            <span className="pre-spec-overview-digest mono">binding {attempt.binding_digest ?? "없음"}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                  <dl className="pre-spec-overview-digests">
-                    <div><dt>결과 digest</dt><dd className="mono">{overview.result_digest ?? "없음"}</dd></div>
-                    <div><dt>binding digest</dt><dd className="mono">{overview.binding_digest ?? "없음"}</dd></div>
-                  </dl>
-                </div>
-              </details>
             </div>
           ) : null}
-          <TrackingDecisionControl
-            item={preSpecItem}
-            isPending={preSpecProjectionQuery.isPending}
-            isError={preSpecProjectionQuery.isError}
-            onRetry={() => { void preSpecProjectionQuery.refetch(); }}
-            onSaved={(saved) => {
-              if (noticeId === null) return;
-              queryClient.setQueryData<PreSpecListResponse>(
-                ["pre-spec-detail", noticeId],
-                (current) => updateTrackingProjection(current, noticeId, saved),
-              );
-              queryClient.setQueriesData<PreSpecListResponse>(
-                { queryKey: ["pre-specs"] },
-                (current) => updateTrackingProjection(current, noticeId, saved),
-              );
-              void queryClient.invalidateQueries({ queryKey: ["pre-spec-overview-reviews-v2", noticeId] });
-              void queryClient.invalidateQueries({ queryKey: ["pre-spec-detail", noticeId] });
-              void queryClient.invalidateQueries({ queryKey: ["pre-specs"] });
-              void queryClient.invalidateQueries({ queryKey: ["opportunity", saved.id] });
-            }}
-          />
         </Panel>
+      </div>
+
+      {/* 우측 레일은 이력과 연결만 담는다(시안 주석 원문). 결정 액션(추적
+          선택)은 헤더에만 있고 여기서 복제하지 않는다. */}
+      <aside className="detail-skeleton-rail">
+        <div className="detail-skeleton-rail-panel">
+          <h3 className="detail-skeleton-rail-title">이력 · 입력 범위와 실행</h3>
+          {overview ? (
+            <>
+              {cut ? (
+                <div className={`pre-spec-cut-state is-${snapshot?.cut_status}`}>
+                  <Badge label={cut.label} variant={cut.variant} />
+                  <p>{cut.description}</p>
+                </div>
+              ) : (
+                <div className="pre-spec-cut-state is-pending">
+                  <Badge label="입력 snapshot 없음" variant="neutral" />
+                  <p>서버 projection에 현재 입력 snapshot이 없습니다.</p>
+                </div>
+              )}
+              {snapshot ? (
+                <dl className="pre-spec-overview-lineage">
+                  <div><dt>절단 전략</dt><dd>{snapshot.strategy ?? "전략 미확정"}</dd></div>
+                  <div><dt>문서 버전</dt><dd className="mono">{snapshot.document_version_id}</dd></div>
+                  <div><dt>구조 버전</dt><dd className="mono">{snapshot.structure_id}</dd></div>
+                  <div><dt>입력 생성</dt><dd>{formatDateTime(snapshot.created_at)}</dd></div>
+                </dl>
+              ) : null}
+              <div className="pre-spec-overview-attempts">
+                <strong>실행 이력</strong>
+                {overview.attempts.length === 0 ? <span>모델 실행 이력 없음</span> : (
+                  <ul>
+                    {overview.attempts.map((attempt) => (
+                      <li key={attempt.id}>
+                        <span className="mono tabular-nums">#{attempt.sequence}</span>
+                        <Badge
+                          label={ATTEMPT_STATUS[attempt.status]}
+                          variant={attempt.status === "completed" ? "evidence-confirmed" : attempt.status === "failed" ? "alert" : "neutral"}
+                        />
+                        <span>{attempt.reference_only ? "참고 전용" : attempt.deployable ? "배포 가능" : "배포 불가"}</span>
+                        <span>검증 {attempt.validation_status}</span>
+                        <span className="pre-spec-overview-digest mono">result {attempt.result_digest ?? "없음"}</span>
+                        <span className="pre-spec-overview-digest mono">binding {attempt.binding_digest ?? "없음"}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <dl className="pre-spec-overview-digests">
+                <div><dt>결과 digest</dt><dd className="mono">{overview.result_digest ?? "없음"}</dd></div>
+                <div><dt>binding digest</dt><dd className="mono">{overview.binding_digest ?? "없음"}</dd></div>
+              </dl>
+            </>
+          ) : (
+            <p className="detail-skeleton-rail-note">아직 개요 검토 이력이 없습니다.</p>
+          )}
+
+          <div className="detail-skeleton-rail-links">
+            <span className="detail-skeleton-rail-title">연결된 화면</span>
+            <Link to={listUrl}>사전규격 목록 →</Link>
+            {preSpecItem?.opportunity_id ? <Link to={`/opportunities/${preSpecItem.opportunity_id}`}>사업기회 보기 →</Link> : null}
+          </div>
+          <p className="detail-skeleton-rail-note">우측 레일은 이력과 연결만 담습니다. 결정 액션은 헤더에만 있습니다.</p>
+        </div>
+      </aside>
       </div>
 
       <DocumentPreparationPanel

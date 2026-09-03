@@ -689,6 +689,59 @@
   word-break: break-all;
 }
 
+/* 발주계획 상세(4단계)가 고정 헤더 안에 FeedbackForm을 둘 때 쓰는 compact
+ * 표시 변형이다. 업무 규칙·필드·저장 동작은 그대로이고 밀도만 낮춘다.
+ * 새로 추가하는 규칙이므로 ADR-0040에 따라 Astryx 토큰만 읽는다. */
+.c2-feedback-form.is-compact {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--spacing-2);
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.c2-feedback-form.is-compact .c2-form-grid {
+  flex: 1 1 320px;
+  grid-template-columns: repeat(2, minmax(120px, 1fr));
+  gap: var(--spacing-2);
+  min-width: 260px;
+}
+
+.c2-feedback-form.is-compact label:has(textarea) {
+  flex: 1 1 220px;
+  min-width: 200px;
+}
+
+.c2-feedback-form.is-compact textarea {
+  min-height: 0;
+  height: 38px;
+}
+
+.c2-feedback-form.is-compact .actor-field {
+  flex: 0 0 auto;
+  min-width: 200px;
+}
+
+.c2-feedback-form.is-compact .c2-muted {
+  flex-basis: 100%;
+}
+
+@media (max-width: 900px) {
+  .c2-feedback-form.is-compact {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .c2-feedback-form.is-compact .c2-form-grid,
+  .c2-feedback-form.is-compact label:has(textarea),
+  .c2-feedback-form.is-compact .actor-field {
+    flex-basis: auto;
+    min-width: 0;
+  }
+}
+
 @media (max-width: 1180px) {
   .c2-count-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));

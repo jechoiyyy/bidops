@@ -493,7 +493,7 @@
 }
 
 .bid-delta-attempt-list > li {
-  grid-template-columns: minmax(115px, 0.4fr) auto minmax(160px, 1fr) auto;
+  grid-template-columns: minmax(100px, 0.4fr) auto minmax(0, 1fr) auto;
   align-items: center;
 }
 
@@ -512,8 +512,12 @@
 }
 
 .bid-delta-attempt-list > li > span {
+  min-width: 0;
+  max-width: 100%;
   color: var(--color-muted);
   font-size: 0.78rem;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .bid-delta-attempt-list code,
@@ -897,4 +901,19 @@
   .bid-delta-status-facts {
     grid-template-columns: 1fr;
   }
+}
+
+/* ============================================================================
+ * 상세 3종 공통 골격(4단계, docs/design/PLAN.md). 시안 정본
+ * docs/design/mockups/screens_more.py의 biddelta_screen은 요약 헤더에
+ * 저장·결정 입력으로 이동 액션과 비활성 사유만 두고, 입력 폼(fence·담당자·
+ * 결정·이유)은 본문에 둔다. 폼째로 sticky 헤더에 올리면 노트북 폭
+ * (1024x768)에서 헤더가 뷰포트의 70%를 차지해 정작 판단 근거인 범주별
+ * 분석을 가린다. 헤더 저장 버튼은 form 속성으로 본문 폼을 submit한다.
+ * 새로 추가하는 규칙이므로 ADR-0040에 따라 Astryx neutral 토큰만 읽는다.
+ * ==========================================================================*/
+
+.bid-delta-page-header.detail-skeleton-head {
+  align-items: stretch;
+  justify-content: flex-start;
 }
