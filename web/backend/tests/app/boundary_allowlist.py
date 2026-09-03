@@ -14,6 +14,20 @@ from __future__ import annotations
 #: 그 밖에는 대상 모듈 경로로 적는다. 이주 task마다 이 목록은 줄어들기만 한다.
 CROSS_MODULE_IMPORT_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset(
     {
+        # T4가 "조립 계층 → lifecycle은 공개 이름만"을 켜면서 새로 드러난 자리다
+        # (규칙을 켜기 전에는 검사 대상이 아니었으므로 목록이 늘었다). lifecycle
+        # router 파일들은 T7이 app/lifecycle/routers/로 옮기고 T8이 BIDOPS_MODULES에
+        # 따라 등록하면서, PipelineService는 T8이 모듈 runtime으로 옮기면서 사라진다.
+        # lifecycle/__init__.py에서 지금 router를 재공개하지 않는 이유: T5a·T5b가
+        # router 안에서 확장점 registry를 쓰게 되면 app.lifecycle → app.routers →
+        # app.lifecycle 순환 import가 된다.
+        ("app/main.py", "cross_module_import", "app.routers.metrics:router"),
+        ("app/main.py", "cross_module_import", "app.routers.notices:router"),
+        ("app/main.py", "cross_module_import", "app.routers.opportunities:router"),
+        ("app/main.py", "cross_module_import", "app.routers.portals:router"),
+        ("app/main.py", "cross_module_import", "app.routers.pre_specs:router"),
+        ("app/main.py", "cross_module_import", "app.routers.runs:router"),
+        ("app/runtime.py", "cross_module_import", "app.services.pipeline:PipelineService"),
         ("app/ingest/loader.py", "cross_module_import", "app.ingest.feedback:load_feedback"),
         ("app/ingest/loader.py", "cross_module_import", "app.ingest.judgment_revisions:judgment_revision_payload"),
         ("app/ingest/loader.py", "cross_module_import", "app.models:Counterargument"),
@@ -126,7 +140,7 @@ LIFECYCLE_RELATIONSHIP_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset(
 #: 위 목록은 실제 위반과 정확히 같아야 하므로(stale 항목도 실패), 이 상한은
 #: "새 위반을 허용 목록에 추가해 정당화하는" 경로를 추가로 막는다.
 BASELINE_SIZES: dict[str, int] = {
-    "cross_module_import": 51,
+    "cross_module_import": 58,
     "router_orm_access": 18,
     "schema_imports_model_or_service": 1,
     "lifecycle_relationship": 9,

@@ -15,7 +15,7 @@ import threading
 from typing import Any
 
 from .core import Settings, SessionLocal, get_settings, parse_run_id
-from .ingest.loader import ingest_run
+from .lifecycle import ingest_run
 from .screening.execution_store import ScreeningExecutionStore
 from .screening.mock_transport import MockScreeningTransport
 from .screening.ollama import OllamaClient
