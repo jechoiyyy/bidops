@@ -18,15 +18,24 @@ from app.lifecycle.extensions import (
     RunIngestCounts,
     extension_registry,
     reset_extension_registry,
+    restore_extension_registry,
 )
 
 
 @pytest.fixture()
 def registry() -> ExtensionRegistry:
-    """프로세스 전역 registry를 테스트마다 빈 상태로 되돌린다."""
+    """프로세스 전역 registry를 테스트마다 빈 상태로 되돌린다.
 
-    yield reset_extension_registry()
-    reset_extension_registry()
+    끝나면 **원래 객체**를 복구한다. 조립 계층이 앱을 만들 때 등록한 projection·
+    hook은 원래 객체에 있으므로, 새 빈 객체를 남겨 두면 같은 프로세스에서 뒤에
+    도는 API 테스트가 제공자 부재 상태로 떨어진다.
+    """
+
+    previous = extension_registry()
+    try:
+        yield reset_extension_registry()
+    finally:
+        restore_extension_registry(previous)
 
 
 # --- 제공자 부재 시 (§6.1) ---------------------------------------------------
@@ -290,3 +299,15 @@ def test_reset_gives_a_fresh_registry(registry):
     assert fresh is not registry
     assert fresh.judgment_filters_supported is False
     assert extension_registry() is fresh
+
+
+def test_restore_puts_the_previous_registry_back(registry):
+    registry.register_judgment_projection(_Judgment())
+    fresh = reset_extension_registry()
+    assert extension_registry() is fresh
+
+    restored = restore_extension_registry(registry)
+
+    assert restored is registry
+    assert extension_registry() is registry
+    assert extension_registry().judgment_filters_supported is True

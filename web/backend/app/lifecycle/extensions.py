@@ -30,6 +30,7 @@ __all__ = [
     "TrackingDecisionHook",
     "extension_registry",
     "reset_extension_registry",
+    "restore_extension_registry",
 ]
 
 
@@ -417,4 +418,18 @@ def reset_extension_registry() -> ExtensionRegistry:
 
     global _REGISTRY
     _REGISTRY = ExtensionRegistry()
+    return _REGISTRY
+
+
+def restore_extension_registry(registry: ExtensionRegistry) -> ExtensionRegistry:
+    """`reset_extension_registry` 이전의 registry 객체를 되돌려 놓는다.
+
+    조립 계층(`main.py`)은 앱 객체를 만들 때 **그 시점의** 전역 registry에 등록한다.
+    테스트가 reset으로 새 객체를 만들고 그대로 두면, 같은 프로세스에서 뒤에 도는
+    API 테스트는 등록이 사라진 빈 registry를 보게 된다. 그래서 reset을 쓰는
+    fixture는 끝날 때 원래 객체를 이 함수로 되돌린다. 운영 경로는 호출하지 않는다.
+    """
+
+    global _REGISTRY
+    _REGISTRY = registry
     return _REGISTRY

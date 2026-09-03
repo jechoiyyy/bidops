@@ -39,6 +39,7 @@ from .extensions import (
     TrackingDecisionHook,
     extension_registry,
     reset_extension_registry,
+    restore_extension_registry,
 )
 
 __all__ = [
@@ -67,4 +68,5 @@ __all__ = [
     "register_attachment",
     "register_manual_attachment",
     "reset_extension_registry",
+    "restore_extension_registry",
 ]
