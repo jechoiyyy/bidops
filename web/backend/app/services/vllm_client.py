@@ -404,6 +404,49 @@ class OrderPlanVllmError(RuntimeError):
         super().__init__(code)
 
 
+def _canonical_text(value: Any) -> str:
+    """Serialise a model payload the way the C-2 selection experiment does."""
+
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def order_plan_batch_output_schema(batch_count: int) -> dict[str, Any]:
+    """Constrained-decoding schema for one C-2 batch.
+
+    Mirrors ``model_batch_output_schema`` in the C-2 selection experiment
+    (``experiments/order-plan-screening/scripts/methods.py``), which cannot be
+    imported here because the runtime image ships ``skills/`` only.  Pinning the
+    batch size in the schema is what stops the model from returning a short,
+    long, or renamed batch ([ADR-0044]).
+    """
+
+    if batch_count < 1:
+        raise ValueError("a model batch needs at least one item")
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "items": {
+                "type": "array",
+                "minItems": batch_count,
+                "maxItems": batch_count,
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "item_id": {"type": "integer", "minimum": 0, "maximum": batch_count - 1},
+                        "relevance": {"type": "string", "enum": ["relevant", "not_relevant", "uncertain"]},
+                        "score": {"type": "number", "minimum": 0, "maximum": 1},
+                        "reason": {"type": "string", "minLength": 1, "maxLength": 500},
+                    },
+                    "required": ["item_id", "relevance", "score", "reason"],
+                },
+            },
+        },
+        "required": ["items"],
+    }
+
+
 @dataclass(frozen=True)
 class OrderPlanVllmResponse:
     structured_output: Mapping[str, Any]
@@ -470,20 +513,52 @@ class OrderPlanVllmAdapter:
         api_key: str,
         model: str,
         model_digest: str,
-        timeout_seconds: float = 300.0,
+        deployed_revision: str,
+        generation_config: Mapping[str, Any],
         http_client: httpx.Client | None = None,
     ) -> None:
         if model != "qwen3.8-27B" or not re.fullmatch(r"[0-9a-f]{64}", model_digest):
             raise ValueError("only the approved C-2 Qwen model binding is permitted")
+        # An OpenAI-compatible vLLM server exposes no weight revision: neither
+        # ``/v1/models`` nor a completion response carries one, so there is no
+        # server-side value to compare a response against.  The deployment
+        # declares the operator-attested digest instead and it must equal the
+        # binding, the same one-shot check the C-2 selection experiment ran
+        # before it sent anything ([ADR-0042]).  Declaring nothing fails closed.
+        if not re.fullmatch(r"[0-9a-f]{64}", deployed_revision or ""):
+            raise ValueError("C-2 deployment must declare a 64-hex model revision")
+        if deployed_revision != model_digest:
+            raise ValueError("C-2 deployed model revision does not match the binding")
+        # Generation settings come from the approved config artifact so the
+        # ``generation_config_sha256`` recorded on every attempt describes what
+        # actually went on the wire.  Hardcoding them here is what let the
+        # thinking switch go missing unnoticed ([ADR-0044]).
+        if not isinstance(generation_config, Mapping):
+            raise ValueError("C-2 generation config is required")
+        max_tokens = generation_config.get("max_output_tokens")
+        timeout_seconds = generation_config.get("timeout_seconds")
+        chat_template_kwargs = generation_config.get("chat_template_kwargs")
+        if (
+            isinstance(max_tokens, bool)
+            or not isinstance(max_tokens, int)
+            or max_tokens < 1
+            or isinstance(timeout_seconds, bool)
+            or not isinstance(timeout_seconds, (int, float))
+            or not 0 < float(timeout_seconds) <= 600
+            or not isinstance(chat_template_kwargs, Mapping)
+        ):
+            raise ValueError("C-2 generation config is missing approved values")
+        self.max_tokens = max_tokens
+        self.chat_template_kwargs = dict(chat_template_kwargs)
         self.base_url = _validated_order_plan_base_url(base_url, allowed_hosts)
         self.model = model
         self.model_digest = model_digest
-        self.timeout_seconds = timeout_seconds
+        self.timeout_seconds = float(timeout_seconds)
         self._owned_client = http_client is None
         self._client = http_client or httpx.Client(
             trust_env=False,
             follow_redirects=False,
-            timeout=timeout_seconds,
+            timeout=self.timeout_seconds,
         )
         self._api_key = api_key
 
@@ -500,26 +575,36 @@ class OrderPlanVllmAdapter:
     ) -> OrderPlanVllmResponse:
         if expected_model != self.model:
             raise OrderPlanVllmError("model_mismatch", "model_mismatch")
+        items = payload.get("items") if isinstance(payload, Mapping) else None
+        if not isinstance(items, list) or not items:
+            raise OrderPlanVllmError("schema_violation", "payload_invalid")
+        # The approved prompt is the system message and the batch payload is
+        # the user message, matching the measured C-2 selection run.  Folding
+        # them into one message would send the model a different input than the
+        # one ADR-0037 measured ([ADR-0044]).
         request_payload = {
             "model": self.model,
             "messages": [
-                {
-                    "role": "system",
-                    "content": "Return only the required JSON object. Do not include reasoning or Markdown.",
-                },
-                {"role": "user", "content": prompt},
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": _canonical_text(payload)},
             ],
-            "temperature": 0.0,
-            "top_p": 1.0,
-            "seed": 0,
-            "max_tokens": 8192,
-            "response_format": {"type": "json_object"},
-            "extra_body": {"chat_template_kwargs": {"enable_thinking": False}},
+            "stream": False,
+            "temperature": 0,
+            "max_tokens": self.max_tokens,
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "order_plan_relevance",
+                    "strict": True,
+                    "schema": order_plan_batch_output_schema(len(items)),
+                },
+            },
+            # ``extra_body`` is an OpenAI *python client* concept: the SDK
+            # flattens it into the request body.  This adapter posts raw JSON,
+            # so the key has to sit at the top level or vLLM drops it and the
+            # model keeps its thinking budget, exhausting max_tokens.
+            "chat_template_kwargs": dict(self.chat_template_kwargs),
         }
-        # Keep the argument explicit in the adapter contract.  The worker has
-        # already restricted this value to the approved plan/company fields.
-        request_payload["messages"][1]["content"] = prompt
-        _ = payload
         headers = {"Content-Type": "application/json"}
         if self._api_key and self._api_key != "EMPTY":
             headers["Authorization"] = f"Bearer {self._api_key}"
@@ -550,8 +635,12 @@ class OrderPlanVllmAdapter:
             raise OrderPlanVllmError("schema_violation", "response_schema_invalid")
         if document.get("model") != self.model:
             raise OrderPlanVllmError("model_mismatch", "model_mismatch")
+        # The revision is verified once at construction against the deployment
+        # declaration.  A stock vLLM omits it here, so absence is expected and
+        # is not treated as a failure.  A server (or an approved proxy) that
+        # does report one still has to agree with the binding.
         revision = document.get("model_revision", document.get("revision"))
-        if not isinstance(revision, str) or revision != self.model_digest:
+        if revision is not None and revision != self.model_digest:
             raise OrderPlanVllmError("model_mismatch", "model_revision_invalid")
         choices = document.get("choices")
         if not isinstance(choices, list) or len(choices) != 1 or not isinstance(choices[0], Mapping):

@@ -99,9 +99,8 @@
 
 ## 결정 대기
 
-현재 신규 아키텍처 결정 대기는 없다. 2026-08-31의 역사적 결정 대기 목록은
-[`docs/legacy/tracking/decisions-pending-20260831.md`](../legacy/tracking/decisions-pending-20260831.md)에
-보관했다. 확정 결정은 [`../ADR.md`](../ADR.md)와 `decisions/`의 상세 ADR을 따른다.
+현재 신규 아키텍처 결정 대기는 없다. 2026-08-31의 결정 대기 목록(D-5~D-11)은 모두 결정이
+끝나 저장소에서 제거했다. 확정 결정은 [`../ADR.md`](../ADR.md)와 `decisions/`의 상세 ADR을 따른다.
 D-7·D-8·D-9 등 실행·관측·운영 승인 항목은 이 문서, `status.md`, `findings.md`에서 관리한다.
 
 ## 해야 할 일

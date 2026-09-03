@@ -72,9 +72,13 @@ PostgreSQL 17의 `bidops` 스키마와 MinIO 목적별 버킷이 운영 정본�
 ## 발주계획 C-2 전송·artifact 경계
 
 C-2 Phase 0 binding은 prompt·회사 역량 본문 대신 승인 입력의 version·SHA-256만 고정한다.
-모델 payload에는 `plan_id`, `title`, `capabilities`만 허용하며 기관·예산·업무구분·원문 URL·
-raw reference·첨부·리뷰·credential은 넣지 않는다. 이 allowlist를 벗어나거나 model/prompt/
-profile digest가 다르면 전송하지 않고 `rejected`로 남긴다.
+모델 payload에는 계획의 `title`, batch 안에서만 의미가 있는 `item_id`, 그리고 승인된
+`profile_version`·`capabilities`만 허용한다. **실제 발주계획 번호(`plan_id`)는 보내지
+않는다**([ADR-0044](tracking/decisions/0044-c2-stage2-matches-the-measured-method.md)).
+기관·예산·업무구분·원문 URL·raw reference·첨부·리뷰·credential도 넣지 않는다.
+이 allowlist를 벗어나거나 model/prompt/profile/generation-config digest가 다르면
+전송하지 않고 `rejected`로 남긴다. generation config는 이름과 digest만 기록하지 않고
+승인 파일을 실제로 읽어 요청을 조립한다.
 
 현재 `external_transport.execution_allowed=false`다. private vLLM endpoint의 literal host,
 `/v1` path, no redirect·proxy, 실행별 승인 없이는 모델 호출을 시작하지 않는다. 장애 시 다른

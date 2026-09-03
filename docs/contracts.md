@@ -486,6 +486,33 @@ schema 파일의 `schema_version`, `producer`, `consumer`, 필수 key, status en
 `8f60dfece1934bdf857cd7e57d0fdd1860d01871131d98c3f2e8f9d71f271eae`, generation config
 `1fd2f511a0b1c99f5a57125ebd9e1d67314d98202d42327394daa540abd27754`다.
 
+### C-2 stage 2 wire 계약
+
+승인된 사설 vLLM에 실제로 나가는 요청과 받는 응답의 계약이다. 이 모양은
+[ADR-0037](tracking/decisions/0037-order-plan-c2-bm25-top300-qwen.md)이 625건으로 측정한
+것과 같아야 하며, 차이는 곧 "측정하지 않은 방법을 운영에 쓰는 것"이다
+([ADR-0044](tracking/decisions/0044-c2-stage2-matches-the-measured-method.md)).
+
+요청은 `POST {base_url}/chat/completions` 하나이며 body는 다음으로 고정한다.
+
+- `messages[0]`은 승인 prompt 원문을 담은 `system`, `messages[1]`은 payload의 canonical
+  JSON을 담은 `user`다. 둘을 한 message로 이어붙이지 않는다.
+- `temperature: 0`, `stream: false`. `top_p`와 `seed`는 보내지 않는다.
+- `max_tokens`와 `chat_template_kwargs`는 승인 generation config
+  (`generation_config_sha256`이 가리키는 파일)에서 읽는다. 하드코딩하지 않는다.
+- `chat_template_kwargs`는 **최상위 필드**다. `extra_body`는 OpenAI 파이썬 SDK 개념이라
+  raw JSON에서는 서버가 무시한다.
+- `response_format`은 `json_schema` + `strict: true`이며 schema가 배치 크기를
+  `minItems`/`maxItems`로 고정한다.
+
+payload는 `{company_capabilities: {profile_version, capabilities[{id,summary}]},
+items: [{item_id, title}]}`이다. `item_id`는 `0..batch-1`의 batch-local index이며
+**실제 발주계획 번호는 보내지 않는다.**
+
+응답 `items`의 각 행은 `{item_id, relevance, score, reason}` 네 필드뿐이다.
+`item_id`는 각 정확히 한 번 나타나야 하고 순서는 자유다. worker가 batch 위치로
+`plan_id`를 되돌리며, 그 이후의 내부 artifact와 DB는 전부 `plan_id`를 쓴다.
+
 ### C-2 파일·schema 경계
 
 모든 신규 C-2 JSON은 UTF-8·중복 key 금지·유한 숫자·timezone timestamp를 사용한다. 아래

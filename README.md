@@ -40,7 +40,7 @@ BidOps는 기획·사업개발 담당자가 나라장터 **발주계획을 조�
 - **로그인·역할 기반 권한·SSO가 없다.** 사내망 접근 제한이 경계이고, 담당자 이름은 인증이 아니라 감사 표식이다.
 - **스케줄러와 always-on은 기본 비활성**이다. 앱 startup은 migration·seed·정책 활성화·모델 호출을 하지 않는다.
 - **사전규격 첨부 다운로드는 기본 false**다. 승인 host allowlist가 없으면 fail closed 한다.
-- 발주계획 C-2 선별은 방식(`BM25 Top 300 + Qwen`)만 확정되고 Phase 0 계약·validator까지 구현됐다. 제품 adapter·DB·API는 미구현이며 validator는 정상일 때도 `valid_but_blocked`를 반환한다.
+- 발주계획 C-2 선별은 수집·적재·BM25·Qwen·화면까지 종단으로 동작한다(2026-09-03 확인). 다만 **운영 활성화는 아니다** — activation blocker 4건이 남아 있고 policy는 승인되지 않았다. validator는 정상일 때도 `valid_but_blocked`를 반환한다.
 - 입찰 delta는 저장·REST·화면은 있으나 비교를 계산하는 worker가 없어 운영 활성화 상태가 아니다.
 - 알림, 준비·실패 재시작 화면은 미구현이다.
 
@@ -309,7 +309,7 @@ bidops/
     └── frontend/                     Vite 6 · React 19 · TypeScript · TanStack Query v5
 ```
 
-`docs/legacy`는 완료·미채택 계획과 과거 리뷰·목업의 보관소이고, `docs/validation-runs`는 시점별 실행 증거다. **보관본을 실행 진입점으로 삼지 않는다.** `docs/legacy` 안의 `R-xx`·`A-xx`·phase 작업 번호는 종료된 체계다.
+`docs/validation-runs`는 시점별 실행 증거이며 현재 코드와 문서 계약을 대체하지 않는다. 완료·미채택 계획, 과거 리뷰·목업, 인수인계 문서는 저장소에 보관하지 않으며 필요하면 git 이력에서 찾는다. 과거의 `R-xx`·`A-xx`·phase·T-번호 체계는 종료됐고 새 작업에 다시 쓰지 않는다.
 
 ## 문서 진입점
 
@@ -325,6 +325,8 @@ bidops/
 | [docs/database-guide.md](docs/database-guide.md) | DB 전체 해설과 설계 근거 |
 | [docs/PRD.md](docs/PRD.md), [docs/PLAN.md](docs/PLAN.md) | 현재 착수 범위(발주계획 C-2 선별)의 요구와 순서 |
 | [docs/ADR.md](docs/ADR.md), [docs/tracking/decisions/](docs/tracking/decisions/) | 기술·운영 결정과 대안·결과 |
+| [docs/design/](docs/design/) | 화면 개선 PRD·PLAN·ADR-0039~0041과 목업 |
+| [docs/scheduling.md](docs/scheduling.md), [docs/model-quality-gate.md](docs/model-quality-gate.md), [docs/agent/agent-runtime.md](docs/agent/agent-runtime.md) | 공고 판정 런타임의 스케줄·품질 게이트·worker 계약 |
 | [docs/tracking/status.md](docs/tracking/status.md) | 구현과 검증의 현재 상태 |
 | [docs/tracking/findings.md](docs/tracking/findings.md) | 재현 가능한 미해결 문제 |
 

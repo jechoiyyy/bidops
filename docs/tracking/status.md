@@ -1,6 +1,6 @@
 # 구현·검증 현황
 
-기준일: 2026-09-01
+기준일: 2026-09-03
 
 `구현됨`은 코드와 계약이 존재한다는 뜻이고, `검증됨`은 기록된 명령이 해당 범위에서 통과했다는 뜻이다. Mock 결과, 과거 브랜치 결과, 현재 worktree 결과, 외부 운영 승인을 서로 대신하지 않는다.
 
@@ -21,7 +21,7 @@
 | 영역 | 구현 상태 | 검증 상태 |
 |---|---|---|
 | 기존 나라장터 공고 수집·정규화·표본 | 구현됨 | 파이프라인 단위·교차 테스트의 과거 64건 통과 기록 있음 |
-| 발주계획 C-2 선별 방식 | `BM25 Top 300 + Qwen`으로 선택 완료; Phase 0 policy·binding·전용 schema·read-only validator 구현, 제품 adapter·DB·API는 미구현 | validator가 source 625건, approved input digest, historical evidence와 C-1 partial gold(22 human / 603 draft / 87 remaining)를 대조하고 `valid_but_blocked` 반환; 실행·활성화는 불가([ADR-0038](decisions/0038-order-plan-c2-phase0-contracts.md)) |
+| 발주계획 C-2 선별 | 제품 adapter·DB·API·화면·worker까지 구현됨. binding/policy v2에서 모델 payload는 batch-local `item_id`와 `title`만 보내고 승인 generation config를 실제로 읽어 요청을 조립한다([ADR-0044](decisions/0044-c2-stage2-matches-the-measured-method.md)) | 2026-09-03 종단 실행: 수집 1,040건 → 적재(warning 0) → stage1 선정 300/탈락 740 → stage2 **300/300 완료, 실패 0건**(관련 57·비관련 144·불확실 99) → `/order-plans` 표시. 테스트 전용 policy 사본으로만 활성화했고 **품질 근거가 아니다.** validator는 v2에서도 `valid_but_blocked`이며 activation blocker 4건은 그대로 |
 | 다섯 관점·반론·종합 1차 판정 | 구현됨 | fake 테스트와 단일 live Qwen 성공·중단 기록 있음; 40건 운영 품질 승인은 없음 |
 | 결정적 HTML·피드백 YAML | 구현됨 | 파이프라인 테스트에 포함됨 |
 | FastAPI 회차·공고·리뷰·프로필·지표 | 구현됨 | 전체 backend suite `1046 passed, 5 skipped, 0 failed` |

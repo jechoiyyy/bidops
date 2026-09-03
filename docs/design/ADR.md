@@ -10,8 +10,8 @@
 | 함께 읽을 문서 | [`PRD.md`](PRD.md), [`PLAN.md`](PLAN.md), [`../ADR.md`](../ADR.md), [`../business-rules.md`](../business-rules.md) |
 
 이 문서는 화면 작업의 결정 정본이다. 저장소의 통합 색인은 [`docs/ADR.md`](../ADR.md)이고 상세
-ADR은 [`docs/tracking/decisions/`](../tracking/decisions/)에 ADR-0001~0038이 있다. 아래 세
-결정은 그 번호를 이어받고, 통합 색인과 `tracking/decisions/index.md`가 이 문서를 가리킨다.
+ADR은 [`docs/tracking/decisions/`](../tracking/decisions/)에 ADR-0001~0038·0042~0044가 있다. 아래 세
+결정은 그 번호를 이어받고, 통합 색인이 이 문서를 가리킨다.
 
 ---
 

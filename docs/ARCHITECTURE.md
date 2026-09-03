@@ -5,7 +5,6 @@
 | 문서 상태 | 현재 구조·계약·목표 구조를 통합한 기준 문서 |
 | 기준일 | 2026-09-01 (KST) |
 | 정본 | docs/ARCHITECTURE.md |
-| 호환 진입점 | docs/architecture.md |
 | 제품 | BidOps |
 | 관련 문서 | ADR.md, PRD.md, business-rules.md, contracts.md, security.md, operations.md |
 
@@ -23,7 +22,7 @@ BidOps는 기획·사업개발 담당자가 나라장터 발주계획을 조기�
 - 목표: 후속 구현 대상이다.
 - 보류: 안전·품질·운영 조건이 충족될 때까지 의도적으로 비활성이다.
 
-정확한 필드, 상태값, 경로 및 FK는 docs/contracts.md와 docs/database-guide.md를 우선하고, 결정의 이유와 대안은 docs/tracking/decisions/를 우선한다. 상세 결정 목록은 docs/ADR.md에 모아 둔다. docs/legacy/는 보관본이므로 실행 진입점이 아니다.
+정확한 필드, 상태값, 경로 및 FK는 docs/contracts.md와 docs/database-guide.md를 우선하고, 결정의 이유와 대안은 docs/tracking/decisions/를 우선한다. 상세 결정 목록은 docs/ADR.md에 모아 둔다.
 
 ## 2. 설계 원칙
 
@@ -547,4 +546,5 @@ validator 실패는 결과를 자동 보정하지 않는다. report renderer는 
 - 현재 상태: docs/tracking/status.md
 - 결정 상세: docs/tracking/decisions/
 - 미해결 findings: docs/tracking/findings.md
-- 보관 문서: docs/legacy/README.md
+- 공고 판정 런타임: docs/agent/agent-runtime.md, docs/scheduling.md, docs/model-quality-gate.md, docs/e2e-bc-acceptance.md
+- 화면 개선: docs/design/

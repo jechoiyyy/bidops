@@ -145,8 +145,9 @@ services:
       # Only the tracked policy and binding are supplied to the default image;
       # company capabilities and the prompt require the remote overlay's
       # explicit operator paths below.
-      - ./experiments/order-plan-screening/config/order-plan-screening-policy.v1.json:/app/experiments/order-plan-screening/config/order-plan-screening-policy.v1.json:ro
-      - ./experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v1.json:/app/experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v1.json:ro
+      - ./experiments/order-plan-screening/config/order-plan-screening-policy.v2.json:/app/experiments/order-plan-screening/config/order-plan-screening-policy.v2.json:ro
+      - ./experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v2.json:/app/experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v2.json:ro
+      - ./experiments/order-plan-screening/config/order-plan-screening-generation-config.v4.json:/app/experiments/order-plan-screening/config/order-plan-screening-generation-config.v4.json:ro
       # Profile-related inputs are deployment data, not image layers. The web
       # process owns both the profile snapshot boundary and the collection
       # subprocess that consumes the performance-title reference.
@@ -179,6 +180,7 @@ services:
       BIDOPS_VLLM_BASE_URL: "${BIDOPS_VLLM_BASE_URL:-http://127.0.0.1:8000/v1}"
       BIDOPS_VLLM_ALLOWED_HOSTS: "${BIDOPS_VLLM_ALLOWED_HOSTS:-}"
       BIDOPS_VLLM_MODEL: qwen3.8-27B
+      BIDOPS_VLLM_MODEL_REVISION: "${BIDOPS_VLLM_MODEL_REVISION:-}"
       BIDOPS_VLLM_API_KEY: "${BIDOPS_VLLM_API_KEY:-EMPTY}"
       # C-2 remains fail-closed until an operator approves transport for the
       # deployment and the persisted Phase 0 binding also allows it.
@@ -200,8 +202,9 @@ services:
     healthcheck: { disable: true }
     volumes:
       - pipeline-data:/app/data
-      - ./experiments/order-plan-screening/config/order-plan-screening-policy.v1.json:/app/experiments/order-plan-screening/config/order-plan-screening-policy.v1.json:ro
-      - ./experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v1.json:/app/experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v1.json:ro
+      - ./experiments/order-plan-screening/config/order-plan-screening-policy.v2.json:/app/experiments/order-plan-screening/config/order-plan-screening-policy.v2.json:ro
+      - ./experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v2.json:/app/experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v2.json:ro
+      - ./experiments/order-plan-screening/config/order-plan-screening-generation-config.v4.json:/app/experiments/order-plan-screening/config/order-plan-screening-generation-config.v4.json:ro
     networks: [database, analysis]
 
   ro-backup:

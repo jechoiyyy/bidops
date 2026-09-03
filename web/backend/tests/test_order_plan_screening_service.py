@@ -65,8 +65,8 @@ def _fixture(tmp_path: Path, count: int = 2) -> tuple[Settings, Session, str, st
     source_path = source_dir / "collected-order-plans.json"
     source_path.write_bytes(_canonical(source))
 
-    policy = json.loads((REPO_ROOT / "experiments/order-plan-screening/config/order-plan-screening-policy.v1.json").read_text())
-    binding = json.loads((REPO_ROOT / "experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v1.json").read_text())
+    policy = json.loads((REPO_ROOT / "experiments/order-plan-screening/config/order-plan-screening-policy.v2.json").read_text())
+    binding = json.loads((REPO_ROOT / "experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v2.json").read_text())
     policy["policy_status"] = "active"
     policy["activation"] = {"status": "active", "enabled": True, "approved_by": "approver", "approved_at": "2026-09-02T00:00:00+00:00"}
     binding["external_transport"]["execution_allowed"] = True
@@ -83,6 +83,8 @@ def _fixture(tmp_path: Path, count: int = 2) -> tuple[Settings, Session, str, st
     capabilities_path.parent.mkdir(parents=True, exist_ok=True)
     capabilities_path.write_bytes((REPO_ROOT / "experiments/order-plan-screening/review-inputs/company/company-capabilities-v1-approved.json").read_bytes())
     prompt_path.write_bytes((REPO_ROOT / "experiments/order-plan-screening/review-inputs/prompts/order-plan-batch-relevance-v3-approved.txt").read_bytes())
+    generation_config_path = root / "generation-config.json"
+    generation_config_path.write_bytes((REPO_ROOT / "experiments/order-plan-screening/config/order-plan-screening-generation-config.v4.json").read_bytes())
     settings = Settings(
         bidops_root=root,
         database_url="sqlite://",
@@ -91,6 +93,7 @@ def _fixture(tmp_path: Path, count: int = 2) -> tuple[Settings, Session, str, st
         c2_binding_path=binding_path,
         c2_capabilities_path=capabilities_path,
         c2_prompt_path=prompt_path,
+        c2_generation_config_path=generation_config_path,
         c2_bm25_script=(REPO_ROOT / "skills/bidops-screen/scripts/rank_order_plans_bm25.py").resolve(),
         c2_merge_script=(REPO_ROOT / "skills/bidops-screen/scripts/build_order_plan_screening_results.py").resolve(),
     )
@@ -368,3 +371,29 @@ def test_list_ignores_a_newer_failed_execution_for_the_selected_result(tmp_path:
     assert item["stage2_status"] == "success"
     assert item["qwen_relevance"] == "relevant"
     assert item["nearest_capability"] == "cap"
+
+
+@pytest.mark.parametrize("break_it", ["missing", "symlink", "digest"])
+def test_create_fails_closed_when_the_generation_config_is_not_approved(tmp_path: Path, break_it: str) -> None:
+    """The generation config is pinned exactly like the prompt and capabilities.
+
+    Without this the runtime records a generation_config_sha256 it never
+    opened, which is how the approved thinking switch went missing.
+    """
+
+    settings, session, policy_version, _, _ = _fixture(tmp_path)
+    path = Path(str(settings.c2_generation_config_path))
+    if break_it == "missing":
+        path.unlink()
+    elif break_it == "symlink":
+        target = path.with_suffix(".target.json")
+        target.write_bytes(path.read_bytes())
+        path.unlink()
+        path.symlink_to(target)
+    else:
+        path.write_bytes(path.read_bytes().replace(b'"batch_size":25', b'"batch_size":26'))
+
+    service = OrderPlanScreeningService(settings)
+    with pytest.raises(OrderPlanScreeningError) as error:
+        _create(service, session, policy_version)
+    assert error.value.code == "binding_mismatch"
