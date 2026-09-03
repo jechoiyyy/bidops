@@ -12,8 +12,8 @@ from sqlalchemy.exc import IntegrityError
 from app.db import _json_serializer, schema_bound
 from app.models import AuditEvent, OrderPlanScreeningArtifact, OrderPlanScreeningBatchAttempt, OrderPlanScreeningExecution, OrderPlanScreeningPolicy, OrderPlanScreeningResult, Run
 from app.services.vllm_client import OrderPlanVllmError, OrderPlanVllmResponse
-from app.workers.order_plan_screening import C2ScreeningWorker
-from tests.test_order_plan_screening_service import _fixture, _create
+from app.workers.order_plan_screening import C2ScreeningWorker, C2WorkerError
+from tests.test_order_plan_screening_service import REPO_ROOT, _fixture, _create
 from tests.postgres import requires_postgres, temporary_database
 
 
@@ -28,17 +28,22 @@ class MemoryResponseStore:
 
 class FakeAdapter:
     def __init__(self, fail_sequence: int | None = None) -> None:
-        self.calls: list[list[str]] = []
+        self.calls: list[list[int]] = []
         self.fail_sequences = ({fail_sequence, fail_sequence + 1} if fail_sequence is not None else set())
 
     def invoke(self, *, prompt: str, payload: dict[str, object], expected_model: str) -> OrderPlanVllmResponse:
         del prompt, expected_model
-        ids = [str(row["plan_id"]) for row in payload["items"]]  # type: ignore[index]
+        # The model only ever sees the approved payload: a batch-local item_id
+        # and a title, plus the approved company capabilities projection.
+        assert set(payload) == {"company_capabilities", "items"}
+        assert set(payload["company_capabilities"]) == {"profile_version", "capabilities"}  # type: ignore[index]
+        assert all(set(row) == {"item_id", "title"} for row in payload["items"])  # type: ignore[union-attr]
+        ids = [int(row["item_id"]) for row in payload["items"]]  # type: ignore[index]
         self.calls.append(ids)
         if len(self.calls) in self.fail_sequences:
             raise OrderPlanVllmError("schema_violation", "response_json_invalid")
         return OrderPlanVllmResponse(
-            structured_output={"items": [{"plan_id": plan_id, "relevance": "relevant", "score": .9, "reason": "관련"} for plan_id in ids]},
+            structured_output={"items": [{"item_id": item_id, "relevance": "relevant", "score": .9, "reason": "관련"} for item_id in ids]},
             approved_raw_response=b'{"approved":true}',
             input_tokens=10,
             cached_input_tokens=None,
@@ -318,3 +323,53 @@ def test_postgres_heartbeat_guard_allows_active_and_rejects_terminal() -> None:
                 session.commit()
             session.rollback()
         engine.dispose()
+
+
+def test_output_items_maps_batch_local_ids_back_onto_plans() -> None:
+    """The model answers with item_id; the plan identity is restored by position."""
+
+    expected = ["R26DD001", "R26DD002", "R26DD003"]
+    shuffled = {"items": [
+        {"item_id": 2, "relevance": "uncertain", "score": .5, "reason": "모호"},
+        {"item_id": 0, "relevance": "relevant", "score": .9, "reason": "관련"},
+        {"item_id": 1, "relevance": "not_relevant", "score": .1, "reason": "무관"},
+    ]}
+    rows = C2ScreeningWorker._output_items(shuffled, expected)
+    assert [row["plan_id"] for row in rows] == expected
+    assert [row["relevance"] for row in rows] == ["relevant", "not_relevant", "uncertain"]
+
+
+@pytest.mark.parametrize(
+    "items,code",
+    [
+        ([{"item_id": 0, "relevance": "relevant", "score": .9, "reason": "관련"}] * 2, "id_mismatch"),
+        ([{"item_id": 0, "relevance": "relevant", "score": .9, "reason": "관련"},
+          {"item_id": 5, "relevance": "relevant", "score": .9, "reason": "관련"}], "id_mismatch"),
+        ([{"item_id": 0, "relevance": "relevant", "score": .9, "reason": "관련"},
+          {"plan_id": "R26DD002", "relevance": "relevant", "score": .9, "reason": "관련"}], "schema_violation"),
+    ],
+)
+def test_output_items_rejects_duplicate_out_of_range_and_legacy_plan_id(items, code) -> None:
+    with pytest.raises(C2WorkerError) as error:
+        C2ScreeningWorker._output_items({"items": items}, ["R26DD001", "R26DD002"])
+    assert error.value.code == code
+
+
+def test_new_attempt_records_the_generation_identity_it_ran_with(tmp_path: Path) -> None:
+    """A recorded generation_config_sha256 must come from the loaded binding."""
+
+    settings, session, policy_version, _, _ = _fixture(tmp_path, count=3)
+    from app.services.order_plan_screening import OrderPlanScreeningService
+
+    _create(OrderPlanScreeningService(settings), session, policy_version)
+    adapter = FakeAdapter()
+    worker = C2ScreeningWorker(settings=settings, adapter=adapter, raw_response_store=MemoryResponseStore())
+    assert worker.run_once(session)
+    attempt = session.scalar(select(OrderPlanScreeningBatchAttempt))
+    binding = json.loads((REPO_ROOT / "experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v2.json").read_text())
+    stage2 = binding["stage2_binding"]
+    assert attempt is not None
+    assert attempt.generation_config_sha256 == stage2["generation_config_sha256"]
+    assert attempt.model_digest == stage2["model_digest"]
+    assert attempt.prompt_sha256 == stage2["prompt_sha256"]
+    assert attempt.company_profile_sha256 == stage2["company_profile_sha256"]

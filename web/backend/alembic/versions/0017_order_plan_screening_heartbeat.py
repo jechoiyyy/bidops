@@ -73,7 +73,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.execute(
+    # ``op.execute`` takes the statement alone; bound parameters go through the
+    # connection, the same way ``_record_migration_marker`` writes the marker.
+    op.get_bind().execute(
         sa.text(f"DELETE FROM {SCHEMA}.screening_audit_event WHERE event_id = :event_id"),
         {"event_id": MIGRATION_EVENT_ID},
     )

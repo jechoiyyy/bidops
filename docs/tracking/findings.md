@@ -1,6 +1,66 @@
 # 미해결 문제
 
-기준일: 2026-08-31
+기준일: 2026-09-03
+
+## 승인 사설 vLLM이 weight revision을 노출하지 않는다
+
+- 확인: 2026-09-03
+- 상태: **해결** (2026-09-03, [ADR-0042](decisions/0042-c2-model-revision-declared-at-deployment.md))
+- 재현 조건: 승인 endpoint `http://192.168.0.139:58765/v1`의 chat completion 응답 최상위
+  key는 `choices, created, id, kv_transfer_params, model, object, prompt_logprobs,
+  prompt_text, prompt_token_ids, service_tier, system_fingerprint, usage`뿐이고
+  `model_revision`도 `revision`도 없다. `/v1/models`도 `id`·`root`·`created`·
+  `max_model_len`·`permission`만 준다. OpenAI 호환 vLLM에는 weight revision을
+  노출하는 면이 없다.
+- 당시 영향: 제품 adapter가 매 응답의 `model_revision`을 binding digest와 대조하고
+  있어 모든 batch가 `model_mismatch / model_revision_invalid`로 거부됐다.
+  발주계획 1,040건 회차에서 stage 1은 300 선정 / 740 탈락으로 정상 완주했고 stage 2는
+  batch 1·2가 각각 약 224초 생성 뒤 거부됐다. 결과는 `selected/rejected` 50건으로
+  보존됐고 자동 보정은 없었다.
+- 해결: ADR-0042로 검증을 배포 시점 1회 선언 대조로 되돌렸다. 배포가
+  `BIDOPS_VLLM_MODEL_REVISION`으로 운영자 확인 digest를 선언하고 adapter 생성 시
+  binding과 대조한다. 응답의 `model_revision`은 **있으면 대조하고 없으면 통과**한다.
+- 남은 공백 1: **digest 계산 방법이 이 저장소 어디에도 없다.** 런북은 "서버 운영자가
+  제공한 64자 model artifact digest"라고만 하고, safetensors 파일들의 sha256인지
+  manifest의 sha256인지, 어떤 순서로 묶는지가 없다. 따라서 "지금 서버의 digest가
+  여전히 `6ae70ca3…`인가"를 이 저장소만으로 다시 확인할 수 없다. 운영자에게 계산
+  방법을 받아 문서로 고정해야 한다. 그때까지 이 선언과 실제 적재된 weight의 일치는
+  사람의 확인에 달려 있다.
+
+## C-2 stage 2 구현이 측정된 방법과 어긋나 있었다
+
+- 확인: 2026-09-03
+- 상태: **해결** (2026-09-03, [ADR-0044](decisions/0044-c2-stage2-matches-the-measured-method.md))
+- 재현 조건: 제품이 보내던 요청이 ADR-0037이 625건으로 측정한
+  `experiments/order-plan-screening/scripts/methods.py::QwenAdapter._score_batch`와
+  네 곳에서 달랐다. ① `plan_id`/`company` vs 승인 prompt가 계약한 `item_id`/
+  `company_capabilities` ② `json_object` vs strict `json_schema`
+  ③ `chat_template_kwargs`가 `extra_body`에 중첩돼 vLLM이 무시
+  ④ generation config를 읽지 않고 하드코딩.
+- 원인: stage 1 BM25와 병합은 `skills/` 스크립트를 subprocess로 부르지만 stage 2만
+  백엔드가 재구현했고, 그 구현을 실제 서버로 검증한 적이 없었다. 기존 테스트는 오히려
+  잘못된 모양(`extra_body` 중첩)을 단언해 네 건을 모두 통과시켰다.
+- 해결: 요청 조립을 측정된 방법과 같게 맞추고, 승인 generation config를 아티팩트로
+  복원해 실제로 읽게 했으며, 두 body가 같은지 단언하는 적합성 테스트를 넣었다.
+  발주계획 1,040건 회차 재실행에서 300/300 완료·실패 0건.
+- 남은 공백: BM25와 Qwen 요청 조립이 `experiments/`와 `web/backend/`에 각각 존재한다.
+  적합성 테스트가 드리프트를 잡지만 구현이 하나가 된 것은 아니다. stage 2를 stage 1처럼
+  subprocess 계약으로 내리는 것은 raw 응답 전달과 실패 코드 계약을 새로 설계해야 해서
+  이번 범위에서 하지 않았다.
+
+## legacy v3 screening orchestrator가 부분 성공 대신 실패를 게시한다
+
+- 확인: 2026-09-03
+- 상태: **미해결 · 기존 결함**
+- 재현 조건: clean `main`(`6788c4f`)에서
+  `pytest tests/test_screening_orchestrator.py` 를 돌리면
+  `test_full_run_continues_after_one_notice_failure_and_publishes_partial` 과
+  `test_partial_rejudgment_retains_prior_projection_and_revision` 이
+  `'실패' == '부분 성공'` 으로 실패한다(34 passed, 2 failed, 약 53초).
+- 부하 의존 flake가 아니다. 단독 실행과 전체 실행에서 같은 두 건이 재현되고,
+  변경을 stash한 clean tree에서도 같다.
+- 영향: 한 건이 실패한 회차의 부분 게시 경로가 성공으로 마감되지 않는다.
+  C-2와 무관한 legacy 판정 경로다.
 
 ## 감독 작업 transcript에 G2B API key가 노출됐다
 
@@ -330,3 +390,42 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 - 영향: 2026-09-03 3단계는 이 항목의 건수를 `null`(확인 불가)로 두고 이동 경로만 제공하는 선에서 멈췄다. 구현 위임 초안은 `limit=50` 한 페이지를 세어 숫자를 표시했는데, 누적 데이터에서는 거의 항상 "만료된 사전규격 수"를 "마감 3일 이내"로 보여주는 값이라 검수에서 되돌렸다.
 - 지금 해결할 수 없는 이유: 해결에는 목록 계약에 마감 구간 필터(`deadline_from`·`deadline_to`)나 임박 집계를 추가해야 하며, 이는 백엔드 라우터·스키마 변경이라 이번 대시보드 작업 범위를 벗어난다.
 - 접근 방법: `GET /api/pre-specs`에 `deadline_within_days` 또는 `deadline_from`·`deadline_to`를 추가하고 `docs/contracts.md`의 `PreSpecList` 항목에 등록한다. 그 뒤 대시보드의 `null` 표시를 실제 건수로 바꾸고, `criticalDeadlineCount`의 하한 없음이 회차 산출물 전용 전제임을 호출부에서 다시 확인한다.
+
+## C-1과 C-2가 모델 호출 경계를 서로 반대로 잡는다
+
+- 확인: 2026-09-03
+- 재현 조건: 같은 "선별" 업무의 두 사례가 모델을 부르는 방식을 비교한다.
+- 증상: C-2(발주계획)는 `web/backend/app/config.py:293,295`가
+  `skills/bidops-screen/scripts/rank_order_plans_bm25.py`와
+  `build_order_plan_screening_results.py`를 subprocess로 호출한다.
+  [ADR-0001](decisions/0001-artifact-boundary.md)의 경계 그대로다.
+  반면 C-1(공고)은 `web/backend/app/screening/orchestrator.py:1554`에서 웹 프로세스 안의
+  `OllamaClient`를 직접 생성하고, `app/screening/`에 `ollama.py`(653줄)·`prompts.py`·
+  `worker.py`(1,656줄)가 들어와 있다.
+- 영향: 같은 업무 규칙이 두 경계에 나뉘어 있어 모델 전송 감사·테스트 격리·정책 pinning의
+  확인 지점이 사례마다 다르다. 새 선별 흐름을 추가할 때 어느 쪽을 따라야 하는지 규칙이 없다.
+- 지금 해결할 수 없는 이유: C-1은 [ADR-0013](decisions/0013-screening-orchestrator-boundary.md)이
+  판정 단계만 애플리케이션 오케스트레이터로 옮긴 결과이고 이미 운영 중인 흐름이다.
+  경계를 되돌리려면 정책 활성화·품질 게이트·큐 재실행 경로를 함께 옮겨야 하며
+  [ADR-0044](decisions/0043-screening-deep-review-module-boundary.md)의 모듈 이주 범위를 넘는다.
+- 접근 방법: 모듈 경계 이주가 끝난 뒤 C-1 오케스트레이터의 모델 호출부만 떼어
+  C-2와 같은 subprocess 계약으로 맞출 수 있는지 별도로 판단한다. 그 전까지는 두 경계가
+  다르다는 사실을 `ARCHITECTURE.md`에 명시해 새 흐름이 임의로 한쪽을 고르지 않게 한다.
+
+## 운영 백엔드가 `experiments/`를 런타임 의존한다
+
+- 확인: 2026-09-03
+- 재현 조건: C-2 실행 경로가 읽는 정책·binding 파일의 위치를 확인한다.
+- 증상: `web/backend/app/config.py:286,288`과 `web/backend/app/ingest/loader.py:4199,4208`이
+  `experiments/order-plan-screening/config/order-plan-screening-policy.v1.json`과
+  `order-plan-screening-phase0-binding.v1.json`을 읽는다.
+  [ADR-0038](decisions/0038-order-plan-c2-phase0-contracts.md)이 고정한 계약의 정본이
+  이름상 실험 보관소인 디렉터리에 있다.
+- 영향: 실험 정리가 운영을 깨뜨릴 수 있고, 반대로 운영 때문에 실험 디렉터리를 자유롭게
+  정리할 수 없다. 계약 파일의 집이 `skills/bidops-screen/contracts/`,
+  `web/backend/app/contracts/deep_review/`, `experiments/.../config/` 세 곳으로 갈려
+  새 계약을 어디 둘지 규칙이 없다. 물리적 중복은 없다(md5 대조 확인).
+- 지금 해결할 수 없는 이유: 경로를 옮기면 `config.py`·`loader.py`와 실행 중인 회차의
+  binding 참조가 함께 바뀌므로 C-2 종단 실행으로 재검증해야 한다.
+- 접근 방법: 정책·binding을 `skills/bidops-screen/contracts/`로 승격하고 두 참조 경로를
+  갱신한 뒤 C-2 종단 실행으로 확인한다. 계약 파일의 위치 규칙을 `docs/contracts.md`에 적는다.

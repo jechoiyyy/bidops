@@ -293,19 +293,33 @@ class OrderPlanScreeningService:
             raise OrderPlanScreeningError("service_unavailable", "승인된 private vLLM transport를 사용할 수 없습니다", status_code=503, request_id=request_id)
         return policy, dict(stage1), dict(stage2), policy_bytes, binding_bytes
 
-    def _approved_inputs(self, stage2: Mapping[str, Any], request_id: UUID) -> tuple[Path, bytes, Path, bytes]:
-        capabilities_path = Path(self.settings.c2_capabilities_path or "")
-        prompt_path = Path(self.settings.c2_prompt_path or "")
-        if capabilities_path.is_symlink() or not capabilities_path.is_file() or prompt_path.is_symlink() or not prompt_path.is_file():
-            raise OrderPlanScreeningError("binding_mismatch", "승인된 C-2 review input을 읽을 수 없습니다", request_id=request_id)
-        try:
-            capabilities_bytes = capabilities_path.read_bytes()
-            prompt_bytes = prompt_path.read_bytes()
-        except OSError:
-            raise OrderPlanScreeningError("binding_mismatch", "승인된 C-2 review input을 읽을 수 없습니다", request_id=request_id) from None
-        if _sha256_bytes(capabilities_bytes) != stage2.get("company_profile_sha256") or _sha256_bytes(prompt_bytes) != stage2.get("prompt_sha256"):
-            raise OrderPlanScreeningError("binding_mismatch", "승인된 C-2 review input digest가 다릅니다", request_id=request_id)
-        return capabilities_path, capabilities_bytes, prompt_path, prompt_bytes
+    def _approved_inputs(self, stage2: Mapping[str, Any], request_id: UUID) -> tuple[tuple[Path, bytes], ...]:
+        """Read the three approved stage-2 inputs and pin each to its digest.
+
+        The generation config joins capabilities and prompt here so the values
+        that shape the request are loaded from an approved artifact instead of
+        being hardcoded in the adapter.  Recording a ``generation_config_sha256``
+        the runtime never opened would make the judgment lineage untrue
+        ([ADR-0044]).
+        """
+
+        paths = (
+            (Path(self.settings.c2_capabilities_path or ""), stage2.get("company_profile_sha256")),
+            (Path(self.settings.c2_prompt_path or ""), stage2.get("prompt_sha256")),
+            (Path(self.settings.c2_generation_config_path or ""), stage2.get("generation_config_sha256")),
+        )
+        loaded: list[tuple[Path, bytes]] = []
+        for path, expected in paths:
+            if path.is_symlink() or not path.is_file():
+                raise OrderPlanScreeningError("binding_mismatch", "승인된 C-2 review input을 읽을 수 없습니다", request_id=request_id)
+            try:
+                data = path.read_bytes()
+            except OSError:
+                raise OrderPlanScreeningError("binding_mismatch", "승인된 C-2 review input을 읽을 수 없습니다", request_id=request_id) from None
+            if _sha256_bytes(data) != expected:
+                raise OrderPlanScreeningError("binding_mismatch", "승인된 C-2 review input digest가 다릅니다", request_id=request_id)
+            loaded.append((path, data))
+        return tuple(loaded)
 
     def _create_response(self, execution: OrderPlanScreeningExecution) -> dict[str, Any]:
         return {
@@ -341,7 +355,7 @@ class OrderPlanScreeningService:
             if active is not None:
                 raise OrderPlanScreeningError("active_execution_exists", "다른 C-2 execution이 실행 중입니다", request_id=request_id)
             binding_document = json.loads(binding_bytes.decode("utf-8"))
-            capabilities_path, capabilities_bytes, prompt_path, prompt_bytes = self._approved_inputs(stage2, request_id)
+            approved_inputs = self._approved_inputs(stage2, request_id)
             run = session.get(Run, payload.source_run_id)
             if run is None:
                 raise OrderPlanScreeningError("source_run_incomplete", "source run을 찾을 수 없습니다", request_id=request_id)
@@ -377,8 +391,9 @@ class OrderPlanScreeningService:
             for source, name, data in (
                 (Path(self.settings.c2_policy_path or ""), "policy.json", policy_bytes),
                 (Path(self.settings.c2_binding_path or ""), "binding.json", binding_bytes),
-                (capabilities_path, "capabilities.json", capabilities_bytes),
-                (prompt_path, "prompt.txt", prompt_bytes),
+                (approved_inputs[0][0], "capabilities.json", approved_inputs[0][1]),
+                (approved_inputs[1][0], "prompt.txt", approved_inputs[1][1]),
+                (approved_inputs[2][0], "generation-config.json", approved_inputs[2][1]),
             ):
                 target = execution_dir / name
                 if source.is_file() and not source.is_symlink() and source.read_bytes() == data:
@@ -440,6 +455,11 @@ class OrderPlanScreeningService:
                 created_at=created_at,
             )
             session.add(execution)
+            # The artifact row carries a real foreign key to this execution and
+            # the two mappers have no relationship() to order the unit of work.
+            # PostgreSQL would otherwise see the child insert first because the
+            # artifact table sorts ahead of the execution table.
+            session.flush()
             session.add(OrderPlanScreeningArtifact(
                 execution_id=execution_id,
                 kind="input",

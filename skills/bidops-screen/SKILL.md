@@ -9,7 +9,7 @@ description: 정규화된 국내 공공 용역 공고를 Rootlab의 회사 프�
 
 - [워크플로 계약](../references/workflow-contract.md) — `bidops.decisions.v2` 절이 작성해야 할 모든 필드를 정의한다
 - `../../docs/reference/company-profile.md`
-- `../../docs/legacy/validation/skill-workflow-validation.md`
+- `../../docs/business-rules.md` — 등급·참여 준비 상태의 분리와 허용 상태
 
 `validation-set.json`을 입력으로 사용하고 `screening-decisions.json`을 작성한다. 이 파일은 이 워크플로에서 에이전트가 직접 작성하는 유일한 산출물이며, 이후 단계는 누락된 내용을 채워주지 않는다. 관점, 근거, 반론, 확인 항목 가운데 하나라도 빠진 판정은 거부되며 보고서가 만들어지지 않는다.
 

@@ -255,7 +255,7 @@ class C2ScreeningWorker:
         if getattr(completed, "returncode", 1) != 0:
             raise C2WorkerError("pipeline_failed")
 
-    def _load_binding_inputs(self, directory: Path, input_model: OrderPlanScreeningInputArtifact) -> tuple[dict[str, Any], dict[str, str], list[dict[str, str]], str]:
+    def _load_binding_inputs(self, directory: Path, input_model: OrderPlanScreeningInputArtifact) -> tuple[dict[str, Any], dict[str, str], dict[str, Any], str, dict[str, Any]]:
         binding = self._read_json(directory / "binding.json")
         policy = self._read_json(directory / "policy.json")
         try:
@@ -307,6 +307,7 @@ class C2ScreeningWorker:
         ):
             raise C2WorkerError("binding_mismatch")
         expected = {
+            "generation_config_version": stage2.get("generation_config_version"),
             "model_name": stage2.get("model_name"),
             "model_digest": stage2.get("model_digest"),
             "generation_config_version": stage2.get("generation_config_version"),
@@ -333,8 +334,8 @@ class C2ScreeningWorker:
             expected["model_name"] != "qwen3.8-27B"
             or any(expected.get(key) != value for key, value in expected_policy.items() if key != "provider")
             or stage2.get("provider") != "approved_private_vllm"
-            or stage2.get("payload_fields") != ["plan_id", "title"]
-            or stage2.get("company_payload_fields") != ["capabilities"]
+            or stage2.get("payload_fields") != ["title"]
+            or stage2.get("company_payload_fields") != ["profile_version", "capabilities"]
             or stage2.get("batch_size") != 25
             or stage2.get("max_attempts") != 2
             or stage2.get("concurrency") != 1
@@ -363,7 +364,27 @@ class C2ScreeningWorker:
             raise C2WorkerError("payload_not_approved") from None
         if _sha256_bytes(prompt.encode("utf-8")) != expected["prompt_sha256"] or not prompt.strip():
             raise C2WorkerError("binding_mismatch")
-        return binding, expected, capability_rows, prompt
+        # The approved generation config decides max_tokens, the timeout, and
+        # the thinking switch.  Reading it here keeps the recorded
+        # ``generation_config_sha256`` and the values that actually go on the
+        # wire the same artifact ([ADR-0044]).
+        generation = self._read_json(directory / "generation-config.json")
+        if _sha256_bytes((directory / "generation-config.json").read_bytes()) != expected["generation_config_sha256"]:
+            raise C2WorkerError("binding_mismatch")
+        if (
+            generation.get("method_version") != expected["generation_config_version"]
+            or generation.get("model_name") != expected["model_name"]
+            or generation.get("model_revision") != expected["model_digest"]
+            or generation.get("prompt_sha256") != expected["prompt_sha256"]
+            or generation.get("api_style") != "openai_compatible"
+            or generation.get("batch_size") != 25
+        ):
+            raise C2WorkerError("binding_mismatch")
+        company = {
+            "profile_version": capabilities_raw["profile_version"],
+            "capabilities": capability_rows,
+        }
+        return binding, expected, company, prompt, generation
 
     def _load_ranking(self, directory: Path, input_model: OrderPlanScreeningInputArtifact) -> OrderPlanScreeningRankingArtifact:
         ranking_path = directory / "screening-ranking.json"
@@ -387,7 +408,10 @@ class C2ScreeningWorker:
             model.execution_id != input_model.execution_id
             or model.source_run_id != input_model.source_run_id
             or model.input_artifact_sha256 != _sha256_bytes((directory / "screening-input.json").read_bytes())
-            or [item.plan_id for item in model.items] != input_ids
+            # The ranker emits the full population in rank order and carries the
+            # order in each item's ``rank``.  Only the covered set has to match
+            # the frozen input; the artifact model already rejects duplicates.
+            or sorted(item.plan_id for item in model.items) != sorted(input_ids)
             or model.population_count != input_model.population_count
             or model.selected_count > 300
         ):
@@ -602,7 +626,7 @@ class C2ScreeningWorker:
         if any((directory / filename).exists() for filename in ("screening-decisions.json", "screening-failures.json", "screening-telemetry.json")):
             return
         input_model = self._load_input(directory, execution)
-        binding, stage2, _, _ = self._load_binding_inputs(directory, input_model)
+        binding, stage2, _, _, _ = self._load_binding_inputs(directory, input_model)
         ranking_path = directory / "screening-ranking.json"
         if ranking_path.is_symlink() or not ranking_path.is_file():
             return
@@ -634,7 +658,7 @@ class C2ScreeningWorker:
         if directory.is_symlink() or not directory.is_dir():
             raise C2WorkerError("artifact_not_ready")
         input_model = self._load_input(directory, execution)
-        binding, stage2, capabilities, prompt = self._load_binding_inputs(directory, input_model)
+        binding, stage2, company, prompt, generation = self._load_binding_inputs(directory, input_model)
         ranking = self._load_ranking(directory, input_model)
         selected = sorted(
             (item for item in ranking.items if item.stage1_status == "selected"),
@@ -645,7 +669,7 @@ class C2ScreeningWorker:
             {"batch_id": f"batch-{sequence:04d}", "sequence": sequence, "items": batch}
             for sequence, batch in enumerate(batches, start=1)
         ]
-        state = self._process_batches(session, execution, input_model, binding, stage2, capabilities, prompt, batch_specs)
+        state = self._process_batches(session, execution, input_model, binding, stage2, company, prompt, generation, batch_specs)
         self._write_worker_artifacts(session, execution, input_model, ranking, stage2, state)
         current = self._assert_claim(session, execution.execution_id)
         current.heartbeat_at = self.clock()
@@ -665,7 +689,7 @@ class C2ScreeningWorker:
         )
         return self._publish(session, execution, input_model, stage2, state)
 
-    def _adapter(self, stage2: Mapping[str, str]) -> Any:
+    def _adapter(self, stage2: Mapping[str, str], generation: Mapping[str, Any]) -> Any:
         if self.adapter is not None:
             return self.adapter
         try:
@@ -675,6 +699,8 @@ class C2ScreeningWorker:
                 api_key=self.settings.vllm_api_key.get_secret_value(),
                 model=str(stage2["model_name"]),
                 model_digest=str(stage2["model_digest"]),
+                deployed_revision=self.settings.vllm_model_revision,
+                generation_config=generation,
             )
         except (KeyError, TypeError, ValueError):
             raise C2WorkerError("binding_mismatch") from None
@@ -682,19 +708,32 @@ class C2ScreeningWorker:
 
     @staticmethod
     def _output_items(value: Any, expected_ids: list[str]) -> list[dict[str, Any]]:
+        """Map the model's batch-local ``item_id`` rows back onto plan ids.
+
+        The model only ever sees ``item_id`` (see ``_process_batches``), so the
+        order-plan identity is restored here from the batch position.  Every
+        index in ``0..len-1`` must appear exactly once; the model may return
+        them in any order.
+        """
+
         if not isinstance(value, Mapping) or set(value) != {"items"} or not isinstance(value.get("items"), list):
             raise C2WorkerError("schema_violation")
         rows = value["items"]
         if len(rows) != len(expected_ids):
             raise C2WorkerError("id_mismatch")
-        by_id: dict[str, dict[str, Any]] = {}
+        by_index: dict[int, dict[str, Any]] = {}
         for row in rows:
-            if not isinstance(row, Mapping) or set(row) != {"plan_id", "relevance", "score", "reason"}:
+            if not isinstance(row, Mapping) or set(row) != {"item_id", "relevance", "score", "reason"}:
                 raise C2WorkerError("schema_violation")
-            plan_id = row["plan_id"]
+            item_id = row["item_id"]
             score = row["score"]
             reason = row["reason"]
-            if not isinstance(plan_id, str) or plan_id in by_id or plan_id not in expected_ids:
+            if (
+                isinstance(item_id, bool)
+                or not isinstance(item_id, int)
+                or item_id in by_index
+                or not 0 <= item_id < len(expected_ids)
+            ):
                 raise C2WorkerError("id_mismatch")
             if row["relevance"] not in {"relevant", "not_relevant", "uncertain"}:
                 raise C2WorkerError("schema_violation")
@@ -702,15 +741,15 @@ class C2ScreeningWorker:
                 raise C2WorkerError("schema_violation")
             if not isinstance(reason, str) or not reason.strip() or len(reason) > 500:
                 raise C2WorkerError("schema_violation")
-            by_id[plan_id] = {
-                "plan_id": plan_id,
+            by_index[item_id] = {
+                "plan_id": expected_ids[item_id],
                 "relevance": row["relevance"],
                 "score": float(score),
                 "reason": reason,
             }
-        if set(by_id) != set(expected_ids):
+        if set(by_index) != set(range(len(expected_ids))):
             raise C2WorkerError("id_mismatch")
-        return [by_id[plan_id] for plan_id in expected_ids]
+        return [by_index[index] for index in range(len(expected_ids))]
 
     @staticmethod
     def _failure(value: Any) -> tuple[str, str]:
@@ -822,11 +861,12 @@ class C2ScreeningWorker:
         input_model: OrderPlanScreeningInputArtifact,
         binding: Mapping[str, Any],
         stage2: Mapping[str, str],
-        capabilities: list[dict[str, str]],
+        company: Mapping[str, Any],
         prompt: str,
+        generation: Mapping[str, Any],
         batch_specs: list[dict[str, Any]],
     ) -> dict[str, Any]:
-        adapter = self._adapter(stage2)
+        adapter = self._adapter(stage2, generation)
         progress_directory = self._execution_dir(execution)
         input_titles = {item.plan_id: item.title for item in input_model.items}
         decision_batches: list[dict[str, Any]] = []
@@ -846,7 +886,18 @@ class C2ScreeningWorker:
             if current.status == "중지 요청":
                 break
             expected_ids = [item.plan_id for item in batch["items"]]
-            payload = {"items": [{"plan_id": plan_id, "title": input_titles[plan_id]} for plan_id in expected_ids], "company": {"capabilities": capabilities}}
+            # The approved prompt contracts a batch-local ``item_id`` and a
+            # ``company_capabilities`` object, and the C-2 selection experiment
+            # sends exactly this shape.  The real order-plan number never
+            # leaves the boundary; it is restored from the batch position
+            # below ([ADR-0044]).
+            payload = {
+                "company_capabilities": company,
+                "items": [
+                    {"item_id": index, "title": input_titles[plan_id]}
+                    for index, plan_id in enumerate(expected_ids)
+                ],
+            }
             batch_attempts: list[dict[str, Any]] = []
             batch_status = "failed"
             batch_failure: tuple[str, str] | None = None
@@ -860,7 +911,9 @@ class C2ScreeningWorker:
                     current = self._assert_claim(session, execution.execution_id)
                     if current.status != "실행 중" or not self.settings.c2_execution_allowed:
                         raise C2WorkerError("policy_rejected")
-                    response = adapter.invoke(prompt=prompt + "\n\n" + _canonical(payload).decode("utf-8"), payload=payload, expected_model=stage2["model_name"])
+                    # The adapter puts the approved prompt in the system
+                    # message and the payload in the user message.
+                    response = adapter.invoke(prompt=prompt, payload=payload, expected_model=stage2["model_name"])
                     structured = response.structured_output if hasattr(response, "structured_output") else response["structured_output"]
                     output = self._output_items(structured, expected_ids)
                     raw = response.approved_raw_response if hasattr(response, "approved_raw_response") else response.get("approved_raw_response")

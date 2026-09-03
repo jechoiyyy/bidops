@@ -201,6 +201,9 @@ class Settings(BaseSettings):
         validation_alias="BIDOPS_VLLM_BASE_URL",
     )
     vllm_model: str = Field(default="qwen3.8-27B", validation_alias="BIDOPS_VLLM_MODEL")
+    # The 64-hex model artifact digest the server operator attests for this
+    # deployment.  Empty by default so C-2 fails closed until it is declared.
+    vllm_model_revision: str = Field(default="", validation_alias="BIDOPS_VLLM_MODEL_REVISION")
     vllm_api_key: SecretStr = Field(default_factory=lambda: SecretStr("EMPTY"), validation_alias="BIDOPS_VLLM_API_KEY")
     vllm_allowed_hosts: str = Field(default="", validation_alias="BIDOPS_VLLM_ALLOWED_HOSTS")
     analysis_provider: Literal["vllm", "codex-exec", "mock"] = Field(default="vllm", validation_alias="BIDOPS_ANALYSIS_PROVIDER")
@@ -225,6 +228,7 @@ class Settings(BaseSettings):
     c2_binding_path: Path | None = Field(default=None, validation_alias="BIDOPS_C2_BINDING_PATH")
     c2_capabilities_path: Path | None = Field(default=None, validation_alias="BIDOPS_C2_CAPABILITIES_PATH")
     c2_prompt_path: Path | None = Field(default=None, validation_alias="BIDOPS_C2_PROMPT_PATH")
+    c2_generation_config_path: Path | None = Field(default=None, validation_alias="BIDOPS_C2_GENERATION_CONFIG_PATH")
     c2_bm25_script: Path | None = Field(default=None, validation_alias="BIDOPS_C2_BM25_SCRIPT")
     c2_merge_script: Path | None = Field(default=None, validation_alias="BIDOPS_C2_MERGE_SCRIPT")
     c2_execution_allowed: bool = Field(default=False, validation_alias="BIDOPS_C2_EXECUTION_ALLOWED")
@@ -280,9 +284,11 @@ class Settings(BaseSettings):
         if self.attachments_dir is None:
             self.attachments_dir = self.data_dir / "attachments"
         if self.c2_policy_path is None:
-            self.c2_policy_path = self.bidops_root / "experiments/order-plan-screening/config/order-plan-screening-policy.v1.json"
+            self.c2_policy_path = self.bidops_root / "experiments/order-plan-screening/config/order-plan-screening-policy.v2.json"
         if self.c2_binding_path is None:
-            self.c2_binding_path = self.bidops_root / "experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v1.json"
+            self.c2_binding_path = self.bidops_root / "experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v2.json"
+        if self.c2_generation_config_path is None:
+            self.c2_generation_config_path = self.bidops_root / "experiments/order-plan-screening/config/order-plan-screening-generation-config.v4.json"
         # Capabilities and prompt are deployment/company inputs.  They are
         # intentionally never inferred from the repository: an operator must
         # supply explicit paths before a C-2 execution can be created.

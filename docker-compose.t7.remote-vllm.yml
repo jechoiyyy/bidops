@@ -23,6 +23,7 @@ services:
       BIDOPS_VLLM_BASE_URL: "${BIDOPS_VLLM_BASE_URL:?set an approved vLLM endpoint in env/vllm.env}"
       BIDOPS_VLLM_ALLOWED_HOSTS: "${BIDOPS_VLLM_ALLOWED_HOSTS:?set the literal allowed host in env/vllm.env}"
       BIDOPS_VLLM_API_KEY: "${BIDOPS_VLLM_API_KEY:-EMPTY}"
+      BIDOPS_VLLM_MODEL_REVISION: "${BIDOPS_VLLM_MODEL_REVISION:?set the operator-attested 64-hex model revision in env/vllm.env}"
       BIDOPS_C2_EXECUTION_ALLOWED: "${BIDOPS_C2_EXECUTION_ALLOWED:-false}"
       BIDOPS_C2_CAPABILITIES_PATH: /run/c2/company-capabilities.json
       BIDOPS_C2_PROMPT_PATH: /run/c2/order-plan-prompt.txt

@@ -103,15 +103,19 @@ def test_t7_worker_network_and_command_boundaries_are_explicit():
     assert "vllm" not in analysis["depends_on"]
     assert "pipeline-data:/app/data" in analysis["volumes"]
     assert all("./experiments/order-plan-screening:" not in volume for volume in web["volumes"] + analysis["volumes"])
+    # Only the three approved C-2 artifacts are mounted, never the experiment
+    # tree.  The generation config joined them so the runtime reads the values
+    # it records instead of hardcoding them ([ADR-0044]).
     for service in (web, analysis):
-        assert any(
-            volume.startswith("./experiments/order-plan-screening/config/order-plan-screening-policy.v1.json:")
-            for volume in service["volumes"]
-        )
-        assert any(
-            volume.startswith("./experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v1.json:")
-            for volume in service["volumes"]
-        )
+        for artifact in (
+            "order-plan-screening-policy.v2.json",
+            "order-plan-screening-phase0-binding.v2.json",
+            "order-plan-screening-generation-config.v4.json",
+        ):
+            assert any(
+                volume.startswith(f"./experiments/order-plan-screening/config/{artifact}:")
+                for volume in service["volumes"]
+            )
     analysis_worker = (ROOT / "web/backend/app/workers/analysis.py").read_text(encoding="utf-8")
     assert "SessionLocal" in analysis_worker and "run_once" in analysis_worker and "rollback" in analysis_worker
     minio = services["minio"]
