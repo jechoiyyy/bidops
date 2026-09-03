@@ -50,6 +50,12 @@ SEAM_IMPORTS: dict[tuple[str, str], frozenset[str]] = {
 # 같은 방식으로 켠다.
 PUBLIC_NAME_IMPORTS: dict[tuple[str, str], str] = {
     ("assembly", "core"): "app/core/__init__.py",
+    # T4가 app/lifecycle/__init__.py를 만들면서 조립 계층 몫을 켰다. screening·
+    # deep_review 몫은 켤 수 없다 — §4 세부 규칙이 "lifecycle의 모델 클래스는
+    # 공개 이름이다"라고 못박았고, 그 모델은 T6이 app/lifecycle/models.py를
+    # 만들 때 비로소 공개 표면과 구분된다. 지금 켜면 §4가 허용한 읽기·join
+    # 100여 곳이 모두 거짓 위반이 된다.
+    ("assembly", "lifecycle"): "app/lifecycle/__init__.py",
 }
 
 # --- 아직 구현하지 않은 §8-1의 절 (부채) --------------------------------------
@@ -58,21 +64,26 @@ PUBLIC_NAME_IMPORTS: dict[tuple[str, str], str] = {
 # 들어 있지 않다. 잊히지 않도록 `MODULE_PACKAGE_INITS` 중 하나라도 생기면
 # 실패하는 테스트를 두었다(test_module_boundaries.py).
 UNIMPLEMENTED_PUBLIC_NAME_RULES: tuple[str, ...] = (
-    "조립 계층 → lifecycle·screening·deep_review: 모듈 공개 이름만 (지금은 모듈 "
-    "전체를 허용). core에 대해서는 T3가 PUBLIC_NAME_IMPORTS로 켰다. 실제로 "
+    "조립 계층 → screening·deep_review: 모듈 공개 이름만 (지금은 모듈 전체를 "
+    "허용). core는 T3가, lifecycle은 T4가 PUBLIC_NAME_IMPORTS로 켰다. 남은 것은 "
     "app/runtime.py가 app.screening.{execution_store,mock_transport,ollama,"
-    "orchestrator,worker}·app.services.{pipeline,scheduled_pipeline}·app.ingest.loader "
-    "같은 모듈 내부를 직접 들고 있다.",
-    "screening → lifecycle: lifecycle 공개 이름만 (지금은 모듈 전체를 허용).",
-    "deep_review → lifecycle: lifecycle 공개 이름만 (지금은 모듈 전체를 허용). "
-    "방향이 아니라 이름으로 갈리는 deep_review → screening seam만 SEAM_IMPORTS로 강제한다.",
+    "orchestrator,worker}·app.services.scheduled_pipeline 같은 모듈 내부를 직접 "
+    "들고 있는 자리다. 두 모듈의 공개 표면(app/screening/__init__.py의 정리, "
+    "app/deep_review/__init__.py)이 생기는 T7·T8에서 켠다.",
+    "screening → lifecycle: lifecycle 공개 이름만 (지금은 모듈 전체를 허용). "
+    "§4 세부 규칙이 lifecycle 모델 클래스를 공개 이름으로 인정하므로, "
+    "app/lifecycle/models.py가 생겨 모델과 내부 service가 구분되는 T6에서 켠다.",
+    "deep_review → lifecycle: 위와 같은 이유로 T6에서 켠다. 방향이 아니라 "
+    "이름으로 갈리는 deep_review → screening seam만 SEAM_IMPORTS로 강제한다.",
 )
 
-# 이 중 하나라도 생기면 공개 표면이 존재한다는 뜻이므로 위 규칙을 켜야 한다.
-# app/screening/__init__.py는 이주 전부터 있으므로 신호가 아니다.
-# app/core/__init__.py는 T3가 만들면서 PUBLIC_NAME_IMPORTS로 규칙을 켰으므로 뺐다.
+# 이 중 하나라도 생기면 위 규칙을 켤 수 있다는 신호다. app/screening/__init__.py는
+# 이주 전부터 있으므로 신호가 아니다. app/core/__init__.py(T3)와
+# app/lifecycle/__init__.py(T4)는 만들면서 규칙을 켰으므로 뺐다.
+# app/lifecycle/models.py는 남은 두 규칙(screening·deep_review → lifecycle)의
+# 전제이므로 신호로 둔다 — T6이 만들 때 켜야 한다.
 MODULE_PACKAGE_INITS: tuple[str, ...] = (
-    "app/lifecycle/__init__.py",
+    "app/lifecycle/models.py",
     "app/deep_review/__init__.py",
 )
 

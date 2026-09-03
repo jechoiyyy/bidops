@@ -22,6 +22,7 @@ from .core import (
     init_db,
     isolated_test_boundary_active,
 )
+from .lifecycle import extension_registry
 from .routers.attachments import router as attachments_router
 from .routers.metrics import router as metrics_router
 from .routers.notices import router as notices_router
@@ -176,6 +177,20 @@ app.include_router(deep_reviews_router)
 app.include_router(bid_delta_router)
 app.include_router(reports_router)
 app.include_router(order_plans_router)
+
+
+# --- lifecycle 확장점 등록 구역 (명세 §6) ------------------------------------
+# lifecycle은 선별·심층 검토 결과를 확장점으로만 본다. 그 구현을 registry에
+# 채우는 것은 조립 계층의 일이며, **앱 객체를 조립하는 이 시점**에 한다 —
+# router 등록과 같은 시점이고 lifespan도 `ApplicationRuntime`도 아니다. runtime을
+# 만들지 않는 격리 API 테스트(`get_db` override)에서도 projection이 있어야 하기
+# 때문이다. 등록은 import와 객체 생성일 뿐이고 migration·seed·정책 활성화·모델
+# 호출을 하지 않는다(§9).
+#
+# 모듈을 제공하는 task는 **아래에 자기 줄을 덧붙이기만** 한다. 기존 줄을 고치지
+# 않는다. T8이 `BIDOPS_MODULES` 조건을 붙일 때까지는 무조건 등록이다.
+_extensions = extension_registry()
+# (여기에 모듈별 등록을 덧붙인다)
 
 
 class SPAStaticFiles(StaticFiles):
