@@ -22,17 +22,17 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session, sessionmaker
 
 from ..core.config import Settings, get_settings
-from ..models import (
+from ..core.models import utc_now
+from ..screening.models import (
     AlwaysOnState,
-    ScreeningAuditEvent,
     QualityGate,
     QualityGateEvaluation,
     ScheduleExecution,
     ScheduleReservation,
     ScheduleSetting,
-    ScreeningPolicy,
+    ScreeningAuditEvent,
     ScreeningExecution,
-    utc_now,
+    ScreeningPolicy,
 )
 from ..screening.ollama import OllamaClient
 from ..core.generation_config import (

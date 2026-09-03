@@ -16,7 +16,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.core.db import init_db
-from app.models import Judgment, Notice, Review, Run
+from app.lifecycle.models import Notice, Run
+from app.screening.models import Judgment, Review
 from tests.postgres import migrated_engine, requires_postgres
 
 WHEN = datetime(2026, 9, 1, tzinfo=UTC)

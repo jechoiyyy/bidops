@@ -15,7 +15,8 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.db import init_db
 from app.lifecycle import OverviewDocumentProjection, PreSpecDocumentCounts
-from app.models import Attachment, AttachmentFetch, Notice, PreSpecOverviewReview
+from app.deep_review.models import AttachmentFetch, PreSpecOverviewReview
+from app.lifecycle.models import Attachment, Notice
 from app.services.prespec_projection import PreSpecOverviewDocumentProjection
 
 

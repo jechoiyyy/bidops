@@ -17,9 +17,9 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.db import init_db
 from app.lifecycle import RunIngestCounts, RunIngestHook, TrackingDecisionHook
-from app.models import (
+from app.deep_review.models import AttachmentFetch
+from app.lifecycle.models import (
     Attachment,
-    AttachmentFetch,
     Notice,
     NoticeObservation,
     Opportunity,

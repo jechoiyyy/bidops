@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 
 from ..document_mcp.contracts import validate_structure
 from ..document_mcp.errors import DocumentProcessingError
-from ..models import (
+from ..deep_review.models import (
     ContentObject,
     ContentObjectLocation,
     DocumentBlock,

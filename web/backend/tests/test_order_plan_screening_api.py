@@ -8,7 +8,11 @@ from fastapi.testclient import TestClient
 
 from app.core.db import get_db
 from app.main import app
-from app.models import OrderPlanScreeningBatchAttempt, OrderPlanScreeningExecution, OrderPlanScreeningResult
+from app.screening.models import (
+    OrderPlanScreeningBatchAttempt,
+    OrderPlanScreeningExecution,
+    OrderPlanScreeningResult,
+)
 from app.routers import order_plans as order_plans_router
 from app.schemas.order_plans import ExecutionCreateRequest
 from app.services.order_plan_screening import OrderPlanScreeningService

@@ -16,7 +16,7 @@ from sqlalchemy import exists, select
 from sqlalchemy.orm import Session, aliased
 from sqlalchemy.sql.elements import ColumnElement
 
-from ..models import Notice, Opportunity, OpportunityLink
+from ..lifecycle.models import Notice, Opportunity, OpportunityLink
 from .opportunity_integrity import (
     active_opportunity_predicate,
     authoritative_link_predicate,

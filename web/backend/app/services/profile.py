@@ -24,7 +24,7 @@ from ..core.company_profile import (
     profile_path,
     walk_sections,
 )
-from ..models import Evidence, VerificationItem
+from ..screening.models import Evidence, VerificationItem
 
 PROFILE_PROJECTION_SCHEMA: Final[str] = "bidops.profile-projection.v1"
 

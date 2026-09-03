@@ -31,7 +31,7 @@ from ..agents import (
     bundle_artifact_ref,
 )
 from ..core.db import get_db
-from ..models import DocumentBundle, DocumentBundleItem, DocumentVersion
+from ..deep_review.models import DocumentBundle, DocumentBundleItem, DocumentVersion
 from ..schemas.document_bundles import (
     BundleListResponse,
     BundleView,

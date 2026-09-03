@@ -21,7 +21,8 @@ from ..ingest.contracts import (
     model_extra_fields,
 )
 from ..lifecycle import record_ingest_warning
-from ..models import Review, Run, VerificationAnswer
+from ..lifecycle.models import Run
+from .models import Review, VerificationAnswer
 from ..services.revisions import append_review_revision
 from ..services.reviews import review_revision_payload
 

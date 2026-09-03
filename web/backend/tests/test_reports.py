@@ -17,8 +17,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.core.db import Base, get_db, init_db
-from app.models import (
-    AuditEvent,
+from app.core.models import AuditEvent
+from app.deep_review.models import (
     ContentScan,
     DeepReview,
     DeepReviewAttempt,

@@ -11,7 +11,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.db import Base, get_db
 from app.main import lifespan
-from app.models import Run
+from app.lifecycle.models import Run
 from app.routers.runs import router as runs_router
 from app.services.pipeline import PipelineExecution, PipelineLogLine
 

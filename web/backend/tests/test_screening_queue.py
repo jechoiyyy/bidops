@@ -8,7 +8,8 @@ from sqlalchemy import create_engine, event, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.db import Base
-from app.models import CompanyProfileSnapshot, Notice, Run, ScreeningExecution, ScreeningPolicy
+from app.lifecycle.models import Notice, Run
+from app.screening.models import CompanyProfileSnapshot, ScreeningExecution, ScreeningPolicy
 from app.screening.execution_store import ScreeningExecutionStore
 from app.core.generation_config import GenerationConfig
 from app.screening.queue import ExecutionConflict, QueueValidationError

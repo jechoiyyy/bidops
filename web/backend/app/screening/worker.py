@@ -22,7 +22,15 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from ..core.config import Settings, get_settings
 from ..ingest.loader import ingest_run, parse_run_id
-from ..models import CompanyProfileSnapshot, Judgment, JudgmentRevision, Notice, NoticeObservation, Run, ScreeningAttempt, ScreeningExecution, ScreeningPolicy
+from ..lifecycle.models import Notice, NoticeObservation, Run
+from .models import (
+    CompanyProfileSnapshot,
+    Judgment,
+    JudgmentRevision,
+    ScreeningAttempt,
+    ScreeningExecution,
+    ScreeningPolicy,
+)
 from .artifacts import ArtifactError, ArtifactStore, aware_iso, canonical_bytes, sha256_bytes
 from .contracts import (
     MODEL_NAME,

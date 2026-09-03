@@ -13,10 +13,10 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from ..models import (
+from ..core.models import AuditEvent, IdempotencyRecord
+from ..deep_review.models import (
     Claim,
     ClaimEvidence,
-    AuditEvent,
     DeepReview,
     DeepReviewAttempt,
     DeepReviewStage,
@@ -26,7 +26,6 @@ from ..models import (
     DocumentStructure,
     EvidenceRef,
     FinalOpinion,
-    IdempotencyRecord,
     ProfileEvidence,
     ProfileVersion,
     ReportRevision,

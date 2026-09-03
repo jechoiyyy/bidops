@@ -14,7 +14,8 @@ from sqlalchemy.orm import Session, selectinload
 from ..core.constants import GRADE_ORDER, GRADE_RANK
 from ..core.db import get_db
 from ..lifecycle import delete_manual_attachment, extension_registry, register_manual_attachment
-from ..models import AgencyPortal, Attachment, AuditEvent, Notice, NoticeObservation
+from ..core.models import AuditEvent
+from ..lifecycle.models import AgencyPortal, Attachment, Notice, NoticeObservation
 from ..schemas import (
     AttachmentProcedureResponse,
     AttachmentQueueItem,

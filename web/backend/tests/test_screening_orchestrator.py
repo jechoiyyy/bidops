@@ -16,7 +16,14 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.core.config import Settings
 from app.core.db import Base
 from app.ingest.loader import ingest_run
-from app.models import Judgment, JudgmentRevision, Notice, Run, ScreeningAttempt, ScreeningExecution, ScreeningPolicy
+from app.lifecycle.models import Notice, Run
+from app.screening.models import (
+    Judgment,
+    JudgmentRevision,
+    ScreeningAttempt,
+    ScreeningExecution,
+    ScreeningPolicy,
+)
 from app.screening.execution_store import ScreeningExecutionStore
 from app.screening.ollama import OllamaClient
 from app.screening.orchestrator import (

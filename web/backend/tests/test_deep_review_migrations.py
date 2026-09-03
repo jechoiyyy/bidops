@@ -314,7 +314,26 @@ def test_apply_requires_postgresql_destination(tmp_path: Path, target_engine):
 
 
 def test_model_has_exact_closed_table_set():
-    from app.models import ATTACHMENT_FETCH_TABLES, BID_DELTA_TABLES, Base, IDENTITY_TABLES, LEGACY_TABLES, NEW_TABLES, ORDER_PLAN_SCREENING_TABLES, PRESPEC_OVERVIEW_TABLES, REVISION_TABLES, SCREENING_RUNTIME_TABLES
+    from app.core.db import Base
+    from app.core.models import CORE_LEAN_V1_TABLES
+    from app.deep_review.models import (
+        ATTACHMENT_FETCH_TABLES,
+        BID_DELTA_TABLES,
+        DEEP_REVIEW_LEAN_V1_TABLES,
+        PRESPEC_OVERVIEW_TABLES,
+    )
+    from app.lifecycle.models import IDENTITY_TABLES, LIFECYCLE_LEGACY_TABLES
+    from app.screening.models import (
+        ORDER_PLAN_SCREENING_TABLES,
+        REVISION_TABLES,
+        SCREENING_LEGACY_TABLES,
+        SCREENING_RUNTIME_TABLES,
+    )
+
+    # 이주 전 `app/models.py`가 갖고 있던 Lean v1 두 tuple을 소유 모듈의
+    # 조각에서 다시 만든다 (명세 §5.1). 집합은 그대로다.
+    LEGACY_TABLES = LIFECYCLE_LEGACY_TABLES + SCREENING_LEGACY_TABLES
+    NEW_TABLES = DEEP_REVIEW_LEAN_V1_TABLES + CORE_LEAN_V1_TABLES
 
     assert len(LEGACY_TABLES) == 13
     assert len(NEW_TABLES) == 25
@@ -335,7 +354,14 @@ def test_model_has_exact_closed_table_set():
 
 
 def test_approved_scope_and_provenance_constraints_are_closed():
-    from app.models import DocumentBundleItem, DocumentVersion, EvidenceRef, FinalOpinion, ReportRevision, ValidationRun
+    from app.deep_review.models import (
+        DocumentBundleItem,
+        DocumentVersion,
+        EvidenceRef,
+        FinalOpinion,
+        ReportRevision,
+        ValidationRun,
+    )
 
     assert EvidenceRef.__table__.c.notice_id.nullable is False
     assert ValidationRun.__table__.c.deep_review_id.nullable is False

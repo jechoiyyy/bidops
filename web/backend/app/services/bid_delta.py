@@ -19,8 +19,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..core.config import get_settings
-from ..models import (
-    AuditEvent,
+from ..core.models import AuditEvent, IdempotencyRecord
+from ..deep_review.models import (
     BidDeltaAttempt,
     BidDeltaComparison,
     BidDeltaEvidence,
@@ -31,11 +31,8 @@ from ..models import (
     DocumentBundleItem,
     DocumentStructure,
     DocumentVersion,
-    IdempotencyRecord,
-    Notice,
-    Opportunity,
-    OpportunityLink,
 )
+from ..lifecycle.models import Notice, Opportunity, OpportunityLink
 from ..schemas.bid_delta import (
     BidDeltaAttemptCreateRequest,
     BidDeltaComparisonCreateRequest,

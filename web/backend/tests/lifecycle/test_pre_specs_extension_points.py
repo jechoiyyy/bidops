@@ -24,7 +24,7 @@ from app.lifecycle import (
     reset_extension_registry,
     restore_extension_registry,
 )
-from app.models import Attachment, Notice, Opportunity
+from app.lifecycle.models import Attachment, Notice, Opportunity
 from app.routers.opportunities import update_tracking_status
 from app.routers.pre_specs import list_pre_specs
 from app.schemas.opportunities import TrackingStatusUpdateRequest

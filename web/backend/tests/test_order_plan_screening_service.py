@@ -13,17 +13,15 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.core.config import Settings
-from app.models import (
-    AuditEvent,
-    Base,
-    OrderPlan,
-    OrderPlanObservation,
+from app.core.db import Base
+from app.core.models import AuditEvent
+from app.lifecycle.models import OrderPlan, OrderPlanObservation, Run
+from app.screening.models import (
     OrderPlanScreeningBatchAttempt,
     OrderPlanScreeningExecution,
     OrderPlanScreeningFeedback,
     OrderPlanScreeningPolicy,
     OrderPlanScreeningResult,
-    Run,
 )
 from app.schemas.order_plans import ExecutionCreateRequest, ExecutionStopRequest, FeedbackCreateRequest
 from app.services.order_plan_screening import OrderPlanScreeningError, OrderPlanScreeningService

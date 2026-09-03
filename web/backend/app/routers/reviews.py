@@ -13,7 +13,8 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..core.config import get_settings
 from ..core.db import get_db
-from ..models import Notice, NoticeObservation, Review
+from ..lifecycle.models import Notice, NoticeObservation
+from ..screening.models import Review
 from ..schemas import (
     ReviewAnswerResponse,
     ReviewResponse,

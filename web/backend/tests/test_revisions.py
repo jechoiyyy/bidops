@@ -9,7 +9,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.core.db import Base
-from app.models import Notice, NoticeObservation, Run, ScreeningExecution
+from app.lifecycle.models import Notice, NoticeObservation, Run
+from app.screening.models import ScreeningExecution
 from app.core.generation_config import GenerationConfig
 from app.services.revisions import (
     RevisionConflictError,

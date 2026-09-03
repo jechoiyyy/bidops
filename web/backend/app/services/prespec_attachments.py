@@ -19,17 +19,15 @@ from sqlalchemy import or_, select, update
 from sqlalchemy.orm import Session, selectinload
 
 from ..document_mcp.errors import DocumentProcessingError
-from ..models import (
-    Attachment,
+from ..core.models import AuditEvent, utc_now
+from ..deep_review.models import (
     AttachmentFetch,
-    AuditEvent,
     ContentObject,
     ContentObjectLocation,
     ContentScan,
     DocumentVersion,
-    Notice,
-    utc_now,
 )
+from ..lifecycle.models import Attachment, Notice
 from . import assets
 from .document_structures import materialize_structure
 # 추적 관계 판정은 lifecycle 몫이다(명세 §5.2). 취득 자격은 그 공개 SQL 조각을

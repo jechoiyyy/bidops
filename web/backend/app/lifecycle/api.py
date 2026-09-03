@@ -4,7 +4,7 @@ screening·deep_review는 lifecycle 모델을 ORM으로 **읽고 join해도 된�
 lifecycle 테이블에 **쓰기와 잠금**은 여기 있는 함수로만 한다. 그래야 회차·공고·
 사업기회·첨부 메타의 잠금 순서와 불변 조건이 한 곳에 남는다.
 
-폴더 이주(T7) 전이므로 구현은 아직 `app.models`·`app.ingest.loader`·`app.services`를
+폴더 이주(T7) 전이므로 구현은 아직 `app.lifecycle.models`·`app.ingest.loader`·`app.services`를
 가리킨다. 대상 파일들이 lifecycle 폴더로 옮겨지면 import 경로만 바뀐다.
 """
 
@@ -16,14 +16,14 @@ from sqlalchemy.orm import Session
 
 from ..core.run_id import ensure_aware as _ensure_aware
 from ..ingest.loader import IngestResult, _load_order_plans, ingest_run
-from ..models import (
+from .models import (
     AgencyPortal,
     Attachment,
     IngestWarning,
     Notice,
     NoticeObservation,
-    OrderPlan,
     Opportunity,
+    OrderPlan,
     Run,
 )
 
