@@ -1,0 +1,420 @@
+"""모듈 경계 검사가 쓰는 매핑 데이터 (명세 §4·§5.1·§5.2·§6.1).
+
+`app/core`·`app/lifecycle`·`app/deep_review` 폴더가 아직 없는 이주 초기에는
+이 파일의 명시적 매핑표가 각 파일의 *목표* 모듈을 결정한다. 폴더가 생기는
+task마다 `FILE_MODULES`·`MIXED_FILES`의 해당 항목을 지우면 되고, 마지막에는
+`MODULE_FOLDERS`(폴더 규칙)만 남는다.
+"""
+
+from __future__ import annotations
+
+CORE = "core"
+LIFECYCLE = "lifecycle"
+SCREENING = "screening"
+DEEP_REVIEW = "deep_review"
+ASSEMBLY = "assembly"
+
+DOMAIN_MODULES = (CORE, LIFECYCLE, SCREENING, DEEP_REVIEW)
+
+# --- 명세 §4 의존 규칙: 허용 방향은 왼쪽으로만 ---------------------------------
+# 값은 "이 모듈이 import해도 되는 다른 모듈"이다. 자기 모듈은 항상 허용한다.
+# §8-1은 문면대로 "허용 표에 없는 방향의 import"만 본다. 공개 이름 대 내부
+# 이름의 구분(조립 계층·deep_review→screening seam)은 모듈 폴더와 `__init__`이
+# 생긴 뒤(T3~T7)에야 표현할 수 있으므로 이 검사에는 아직 들어 있지 않다.
+ALLOWED_IMPORTS: dict[str, frozenset[str]] = {
+    CORE: frozenset(),
+    LIFECYCLE: frozenset({CORE}),
+    SCREENING: frozenset({CORE, LIFECYCLE}),
+    DEEP_REVIEW: frozenset({CORE, LIFECYCLE, SCREENING}),
+    ASSEMBLY: frozenset({CORE, LIFECYCLE, SCREENING, DEEP_REVIEW}),
+}
+
+# --- 폴더 규칙 (경로 판정에서 가장 먼저 본다) ----------------------------------
+MODULE_FOLDERS: dict[str, str] = {
+    "app/core": CORE,
+    "app/lifecycle": LIFECYCLE,
+    "app/screening": SCREENING,
+    "app/deep_review": DEEP_REVIEW,
+}
+
+# 폴더 규칙의 예외. `app/screening/`은 지금도 존재하지만 generation_config만 core다.
+FOLDER_EXCEPTIONS: dict[str, str] = {
+    "app/screening/generation_config.py": CORE,
+}
+
+# 검사 대상에서 제외한다. codex-exec provider는 병행 task가 삭제 중이므로
+# 허용 목록에 넣으면 merge 뒤 stale 항목이 된다.
+EXCLUDED_FILES: frozenset[str] = frozenset(
+    {
+        "app/services/codex_exec_client.py",
+    }
+)
+
+# --- 명세 §5.2 "현재 위치 → 이주" 대응표 ---------------------------------------
+FILE_MODULES: dict[str, str] = {
+    # 조립 계층
+    "app/__init__.py": ASSEMBLY,
+    "app/main.py": ASSEMBLY,
+    "app/runtime.py": ASSEMBLY,
+    "app/workers/__init__.py": ASSEMBLY,
+    "app/workers/analysis.py": ASSEMBLY,
+    "app/migrations/__init__.py": ASSEMBLY,
+    "app/migrations/import_sqlite.py": ASSEMBLY,
+    "app/routers/__init__.py": ASSEMBLY,
+    "app/services/__init__.py": ASSEMBLY,
+    "app/cli/__init__.py": ASSEMBLY,
+    # core
+    "app/config.py": CORE,
+    "app/constants.py": CORE,
+    "app/db.py": CORE,
+    "app/db_admin.py": CORE,
+    "app/logging_setup.py": CORE,
+    "app/redaction.py": CORE,
+    "app/sql_dialect.py": CORE,
+    "app/services/clamav.py": CORE,
+    "app/services/object_store.py": CORE,
+    # vllm_client는 범용 부분(VllmClient 등)이 core, OrderPlan* 어댑터가 screening으로
+    # 갈라진다. 파일 단위로는 범용 부분이 본체이므로 core로 본다 (T4에서 분리).
+    "app/services/vllm_client.py": CORE,
+    # lifecycle
+    "app/ingest/__init__.py": LIFECYCLE,
+    "app/ingest/cli.py": LIFECYCLE,
+    # loader/contracts는 판정·리뷰·C-2 적재 부분이 screening으로 갈라지지만
+    # 본체는 회차 적재이므로 lifecycle로 본다 (T5b에서 분리).
+    "app/ingest/contracts.py": LIFECYCLE,
+    "app/ingest/loader.py": LIFECYCLE,
+    "app/services/metrics.py": LIFECYCLE,
+    "app/services/opportunity_integrity.py": LIFECYCLE,
+    "app/services/opportunity_tracking.py": LIFECYCLE,
+    "app/services/pipeline.py": LIFECYCLE,
+    "app/routers/common.py": LIFECYCLE,
+    "app/routers/metrics.py": LIFECYCLE,
+    "app/routers/notices.py": LIFECYCLE,
+    "app/routers/opportunities.py": LIFECYCLE,
+    "app/routers/portals.py": LIFECYCLE,
+    # pre_specs router는 개요 리뷰 endpoint가 deep_review로, runs router는 판정
+    # pipeline endpoint가 screening으로 갈라진다. 본체는 lifecycle이다.
+    "app/routers/pre_specs.py": LIFECYCLE,
+    "app/routers/runs.py": LIFECYCLE,
+    "app/schemas/opportunities.py": LIFECYCLE,
+    # schemas/pre_specs는 목록·추적 부분이 lifecycle, 개요 부분이 deep_review다.
+    "app/schemas/pre_specs.py": LIFECYCLE,
+    # screening
+    "app/ingest/feedback.py": SCREENING,
+    "app/ingest/judgment_revisions.py": SCREENING,
+    "app/services/candidate_quality.py": SCREENING,
+    "app/services/order_plan_screening.py": SCREENING,
+    # profile은 회사 프로필 파서가 core로 갈라진다. 본체는 screening이다.
+    "app/services/profile.py": SCREENING,
+    "app/services/reviews.py": SCREENING,
+    "app/services/revisions.py": SCREENING,
+    "app/services/scheduled_pipeline.py": SCREENING,
+    "app/services/scheduler.py": SCREENING,
+    "app/routers/order_plans.py": SCREENING,
+    "app/routers/policies.py": SCREENING,
+    "app/routers/profile.py": SCREENING,
+    "app/routers/quality_gates.py": SCREENING,
+    "app/routers/reviews.py": SCREENING,
+    "app/routers/schedule.py": SCREENING,
+    "app/routers/screening.py": SCREENING,
+    "app/schemas/order_plans.py": SCREENING,
+    "app/schemas/revisions.py": SCREENING,
+    "app/workers/order_plan_screening.py": SCREENING,
+    "app/cli/score_candidate_quality.py": SCREENING,
+    # deep_review
+    "app/services/agent_e2e.py": DEEP_REVIEW,
+    "app/services/assets.py": DEEP_REVIEW,
+    # attachments/prespec_attachments는 각각 lifecycle로 갈 함수를 하나씩 갖는다.
+    "app/services/attachments.py": DEEP_REVIEW,
+    "app/services/prespec_attachments.py": DEEP_REVIEW,
+    "app/services/bc_e2e.py": DEEP_REVIEW,
+    "app/services/bid_delta.py": DEEP_REVIEW,
+    "app/services/deep_review_validation.py": DEEP_REVIEW,
+    "app/services/deep_reviews.py": DEEP_REVIEW,
+    "app/services/document_bundles.py": DEEP_REVIEW,
+    "app/services/document_converter.py": DEEP_REVIEW,
+    "app/services/document_structures.py": DEEP_REVIEW,
+    "app/services/evidence.py": DEEP_REVIEW,
+    "app/services/input_versions.py": DEEP_REVIEW,
+    "app/services/mock_analysis_client.py": DEEP_REVIEW,
+    "app/services/prespec_overview.py": DEEP_REVIEW,
+    "app/services/reports.py": DEEP_REVIEW,
+    "app/routers/attachments.py": DEEP_REVIEW,
+    "app/routers/bid_delta.py": DEEP_REVIEW,
+    "app/routers/deep_reviews.py": DEEP_REVIEW,
+    "app/routers/document_bundles.py": DEEP_REVIEW,
+    "app/routers/reports.py": DEEP_REVIEW,
+    "app/schemas/bid_delta.py": DEEP_REVIEW,
+    "app/schemas/document_bundles.py": DEEP_REVIEW,
+    "app/schemas/reports.py": DEEP_REVIEW,
+    "app/workers/deep_review.py": DEEP_REVIEW,
+    "app/workers/document.py": DEEP_REVIEW,
+    "app/workers/document_protocol.py": DEEP_REVIEW,
+    "app/workers/prespec_attachment.py": DEEP_REVIEW,
+    "app/cli/import_profile_policy.py": DEEP_REVIEW,
+    "app/cli/run_bc_e2e.py": DEEP_REVIEW,
+}
+
+# 디렉터리 단위로 통째로 한 모듈에 속하는 경로 (§5.2).
+DIRECTORY_MODULES: dict[str, str] = {
+    # 조립 계층. alembic은 §4에 따라 models까지 import해도 된다.
+    "alembic": ASSEMBLY,
+    "app/agents": DEEP_REVIEW,
+    "app/contracts/deep_review": DEEP_REVIEW,
+    "app/document_mcp": DEEP_REVIEW,
+}
+
+# 한 파일에 네 모듈이 섞여 있어 파일 단위로 배정할 수 없는 파일 (T6·T7이 나눈다).
+# import 하는 쪽(출발지)으로는 검사하지 않고, import 되는 쪽(도착지)일 때만
+# 이름 단위로 소유 모듈을 판정한다.
+MIXED_FILES: frozenset[str] = frozenset(
+    {
+        "app/models.py",
+        "app/schemas/__init__.py",
+    }
+)
+
+# --- 명세 §5.1 테이블 소유 -----------------------------------------------------
+TABLE_OWNER: dict[str, str] = {
+    # core (2)
+    "audit_event": CORE,
+    "idempotency_record": CORE,
+    # lifecycle (10)
+    "run": LIFECYCLE,
+    "notice": LIFECYCLE,
+    "notice_observation": LIFECYCLE,
+    "order_plan": LIFECYCLE,
+    "order_plan_observation": LIFECYCLE,
+    "opportunity": LIFECYCLE,
+    "opportunity_link": LIFECYCLE,
+    "attachment": LIFECYCLE,
+    "agency_portal": LIFECYCLE,
+    "ingest_warning": LIFECYCLE,
+    # screening (28)
+    "judgment": SCREENING,
+    "judgment_revision": SCREENING,
+    "perspective": SCREENING,
+    "screening_evidence": SCREENING,
+    "counterargument": SCREENING,
+    "verification_item": SCREENING,
+    "matched_performance": SCREENING,
+    "review": SCREENING,
+    "review_revision": SCREENING,
+    "verification_answer": SCREENING,
+    "screening_execution": SCREENING,
+    "screening_attempt": SCREENING,
+    "company_profile_snapshot": SCREENING,
+    "quality_gate": SCREENING,
+    "quality_gate_evaluation": SCREENING,
+    "quality_gate_review": SCREENING,
+    "screening_policy": SCREENING,
+    "schedule_setting": SCREENING,
+    "schedule_reservation": SCREENING,
+    "schedule_execution": SCREENING,
+    "always_on_state": SCREENING,
+    "screening_audit_event": SCREENING,
+    "order_plan_screening_policy": SCREENING,
+    "order_plan_screening_execution": SCREENING,
+    "order_plan_screening_batch_attempt": SCREENING,
+    "order_plan_screening_result": SCREENING,
+    "order_plan_screening_artifact": SCREENING,
+    "order_plan_screening_feedback": SCREENING,
+    # deep_review (34)
+    "attachment_fetch": DEEP_REVIEW,
+    "content_object": DEEP_REVIEW,
+    "content_object_location": DEEP_REVIEW,
+    "content_scan": DEEP_REVIEW,
+    "document_version": DEEP_REVIEW,
+    "document_structure": DEEP_REVIEW,
+    "document_block": DEEP_REVIEW,
+    "document_bundle": DEEP_REVIEW,
+    "document_bundle_item": DEEP_REVIEW,
+    "profile_version": DEEP_REVIEW,
+    "profile_evidence": DEEP_REVIEW,
+    "analysis_policy_version": DEEP_REVIEW,
+    "work_job": DEEP_REVIEW,
+    "deep_review": DEEP_REVIEW,
+    "deep_review_attempt": DEEP_REVIEW,
+    "deep_review_stage": DEEP_REVIEW,
+    "claim": DEEP_REVIEW,
+    "evidence_ref": DEEP_REVIEW,
+    "claim_evidence": DEEP_REVIEW,
+    "report_revision": DEEP_REVIEW,
+    "report_revision_evidence": DEEP_REVIEW,
+    "validation_run": DEEP_REVIEW,
+    "validation_check": DEEP_REVIEW,
+    "final_opinion": DEEP_REVIEW,
+    "prespec_overview_review": DEEP_REVIEW,
+    "prespec_overview_snapshot": DEEP_REVIEW,
+    "prespec_overview_attempt": DEEP_REVIEW,
+    "prespec_overview_result": DEEP_REVIEW,
+    "prespec_overview_attempt_event": DEEP_REVIEW,
+    "bid_delta_comparison": DEEP_REVIEW,
+    "bid_delta_attempt": DEEP_REVIEW,
+    "bid_delta_item": DEEP_REVIEW,
+    "bid_delta_evidence": DEEP_REVIEW,
+    "bid_final_decision": DEEP_REVIEW,
+}
+
+# `app/models.py`의 테이블이 아닌 공개 이름. 테이블 클래스는 `__tablename__`에서
+# 자동으로 유도하므로 여기 적지 않는다.
+MODELS_EXTRA_NAMES: dict[str, str] = {
+    "AwareDateTime": CORE,
+    "Base": CORE,
+    "JSONB_COMPAT": CORE,
+    "JSONB_NULL_COMPAT": CORE,
+    "app_uuid": CORE,
+    "utc_now": CORE,
+    "ScreeningEvidence": SCREENING,  # Evidence(screening_evidence)의 별칭
+    "ATTACHMENT_FETCH_TABLES": ASSEMBLY,
+    "BID_DELTA_TABLES": ASSEMBLY,
+    "IDENTITY_TABLES": ASSEMBLY,
+    "LEGACY_TABLES": ASSEMBLY,
+    "NEW_TABLES": ASSEMBLY,
+    "OPPORTUNITY_TABLES": ASSEMBLY,
+    "ORDER_PLAN_SCREENING_TABLES": ASSEMBLY,
+    "PRESPEC_OVERVIEW_TABLES": ASSEMBLY,
+    "REVISION_TABLES": ASSEMBLY,
+    "SCREENING_RUNTIME_TABLES": ASSEMBLY,
+    "PRESPEC_OVERVIEW_ATTEMPT_TRANSITIONS": DEEP_REVIEW,
+}
+
+# --- 명세 §6.1 DTO 소유: `app/schemas/__init__.py`의 이름 단위 매핑 -------------
+# projection DTO(JudgmentResponse·ReviewResponse·분포 항목 등)는 lifecycle이
+# 소유한다. 공용 기반 모델·검증기는 core로 간다(§4: schemas는 상수·검증기를
+# core에서 가져온다).
+SCHEMAS_NAME_MODULE: dict[str, str] = {
+    # core — 공용 기반 모델·타입·검증기
+    "APIModel": CORE,
+    "PageFilters": CORE,
+    "AwareDateTime": CORE,
+    "Actor": CORE,
+    "NonEmpty": CORE,
+    "Digest": CORE,
+    "RuntimeContractModel": CORE,
+    "_require_aware": CORE,
+    "_validate_clock_time": CORE,
+    "_validate_relative_source_ref": CORE,
+    "_validate_run_key_for_kind": CORE,
+    "_validate_profile_binding": CORE,
+    "_validate_generation_binding": CORE,
+    "_validate_profile_projection_binding_values": CORE,
+    "_validate_profile_error_codes": CORE,
+    # lifecycle — 회차·공고·첨부·기관 포털·파이프라인 projection DTO
+    "AttachmentResponse": LIFECYCLE,
+    "AgencyPortalResponse": LIFECYCLE,
+    "AgencyPortalCreateRequest": LIFECYCLE,
+    "AgencyPortalUpdateRequest": LIFECYCLE,
+    "AttachmentProcedureResponse": LIFECYCLE,
+    "EvidenceResponse": LIFECYCLE,
+    "PerspectiveResponse": LIFECYCLE,
+    "CounterargumentResponse": LIFECYCLE,
+    "VerificationItemResponse": LIFECYCLE,
+    "MatchedPerformanceResponse": LIFECYCLE,
+    "ReviewAnswerResponse": LIFECYCLE,
+    "ReviewAnswerInput": LIFECYCLE,
+    "ReviewUpsertRequest": LIFECYCLE,
+    "ReviewResponse": LIFECYCLE,
+    "JudgmentResponse": LIFECYCLE,
+    "NoticeListItem": LIFECYCLE,
+    "AttachmentQueueItem": LIFECYCLE,
+    "AttachmentQueueResponse": LIFECYCLE,
+    "NoticeDetailResponse": LIFECYCLE,
+    "NoticeListResponse": LIFECYCLE,
+    "HistoryItemResponse": LIFECYCLE,
+    "NoticeHistoryResponse": LIFECYCLE,
+    "RelatedNoticeResponse": LIFECYCLE,
+    "RelatedNoticeListResponse": LIFECYCLE,
+    "WarningResponse": LIFECYCLE,
+    "WarningListResponse": LIFECYCLE,
+    "RunCounts": LIFECYCLE,
+    "RunSummary": LIFECYCLE,
+    "RunListResponse": LIFECYCLE,
+    "ArtifactValidationResponse": LIFECYCLE,
+    "PipelineStageResponse": LIFECYCLE,
+    "CollectionScopeResponse": LIFECYCLE,
+    "RunDetailResponse": LIFECYCLE,
+    "FunnelItem": LIFECYCLE,
+    "DistributionItem": LIFECYCLE,
+    "VerificationRequest": LIFECYCLE,
+    "DeadlineNotice": LIFECYCLE,
+    "RunStatsResponse": LIFECYCLE,
+    "IngestRequest": LIFECYCLE,
+    "IngestResponse": LIFECYCLE,
+    "PipelineRunRequest": LIFECYCLE,
+    "PipelineLogLineResponse": LIFECYCLE,
+    "PipelineExecutionResponse": LIFECYCLE,
+    "PipelineLogResponse": LIFECYCLE,
+    "MetricBasis": LIFECYCLE,
+    "ValidationMetric": LIFECYCLE,
+    "ValidationMetricsResponse": LIFECYCLE,
+    # screening — 프로필 projection, 판정 실행·품질 게이트·정책·스케줄 런타임 계약
+    "ProfileStatus": SCREENING,
+    "ProfileSectionState": SCREENING,
+    "ProfileItemResponse": SCREENING,
+    "ProfileSectionResponse": SCREENING,
+    "ProfileSectionsResponse": SCREENING,
+    "ProfileUnknownResponse": SCREENING,
+    "ProfileUnknownsResponse": SCREENING,
+    "CompanyProfileVersion": SCREENING,
+    "ScreeningExecutionId": SCREENING,
+    "QualityGateId": SCREENING,
+    "QualityGateEvaluationId": SCREENING,
+    "ScheduleExecutionId": SCREENING,
+    "ScreeningTrigger": SCREENING,
+    "ScreeningScope": SCREENING,
+    "ScreeningStatus": SCREENING,
+    "ScreeningStage": SCREENING,
+    "AttemptStage": SCREENING,
+    "ScreeningFailureType": SCREENING,
+    "JudgmentExecutionCreateRequest": SCREENING,
+    "ScreeningStopRequest": SCREENING,
+    "ScreeningArtifactUrls": SCREENING,
+    "ScreeningExecutionResponse": SCREENING,
+    "ScreeningAttemptResponse": SCREENING,
+    "ScreeningFailureItem": SCREENING,
+    "ScreeningExecutionListResponse": SCREENING,
+    "ScreeningExecutionDetailResponse": SCREENING,
+    "ScreeningExecutionQuery": SCREENING,
+    "CompanyProfileSnapshotResponse": SCREENING,
+    "CompanyProfileSnapshotListResponse": SCREENING,
+    "QualityGatePurpose": SCREENING,
+    "QualityGateExecutionStatus": SCREENING,
+    "QualityGateResultStatus": SCREENING,
+    "QualityGateCreateRequest": SCREENING,
+    "QualityGateEvaluationResponse": SCREENING,
+    "QualityGateReviewResponse": SCREENING,
+    "QualityGateReviewUpsertRequest": SCREENING,
+    "QualityGateResponse": SCREENING,
+    "QualityGateDetailResponse": SCREENING,
+    "QualityGateListResponse": SCREENING,
+    "QualityGateQuery": SCREENING,
+    "PolicyVersionCreateRequest": SCREENING,
+    "PolicyCandidateRequest": SCREENING,
+    "PolicyActivationRequest": SCREENING,
+    "PolicyStatus": SCREENING,
+    "PolicyVersionResponse": SCREENING,
+    "PolicyVersionListResponse": SCREENING,
+    "PolicyVersionQuery": SCREENING,
+    "PolicyActivationResponse": SCREENING,
+    "ScheduleSettingsResponse": SCREENING,
+    "ScheduleSettingsUpdateRequest": SCREENING,
+    "ScheduleJobKind": SCREENING,
+    "ScheduleStatus": SCREENING,
+    "ScheduleTrigger": SCREENING,
+    "ScheduleExecutionCreateRequest": SCREENING,
+    "ScheduleExecutionSummary": SCREENING,
+    "ScheduleExecutionListResponse": SCREENING,
+    "ScheduleExecutionQuery": SCREENING,
+    "AlwaysOnSwitchUpdateRequest": SCREENING,
+    "AlwaysOnSwitchResponse": SCREENING,
+}
+
+# --- 테스트 폴더 (§5.4) --------------------------------------------------------
+TEST_FOLDER_MODULES: dict[str, str] = {
+    "tests/core": CORE,
+    "tests/lifecycle": LIFECYCLE,
+    "tests/screening": SCREENING,
+    "tests/deep_review": DEEP_REVIEW,
+    "tests/app": ASSEMBLY,
+}
