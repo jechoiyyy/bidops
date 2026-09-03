@@ -27,8 +27,8 @@ from app.lifecycle.models import (
     OrderPlan,
     Run,
 )
-from app.services import deep_review_hooks
-from app.services.deep_review_hooks import PreSpecAttachmentEligibilityHook
+from app.deep_review.services import deep_review_hooks
+from app.deep_review.services.deep_review_hooks import PreSpecAttachmentEligibilityHook
 
 G2B_URL = (
     "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do"

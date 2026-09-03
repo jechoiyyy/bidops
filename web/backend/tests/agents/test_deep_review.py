@@ -13,8 +13,8 @@ from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
-from app.agents.common import AgentAction, AgentOutcomeCode, AgentRunStatus, AgentStepStatus
-from app.agents.deep_review import (
+from app.deep_review.agents.common import AgentAction, AgentOutcomeCode, AgentRunStatus, AgentStepStatus
+from app.deep_review.agents.deep_review import (
     DeepReviewAgent,
     RetryAttemptCommand,
     StartReviewCommand,
@@ -39,8 +39,8 @@ from app.deep_review.models import (
 )
 from app.lifecycle.models import Notice, Run
 from app.screening.models import Judgment
-from app.services.deep_reviews import DeepReviewService
-from app.services.input_versions import load_canonical_policy
+from app.deep_review.services.deep_reviews import DeepReviewService
+from app.deep_review.services.input_versions import load_canonical_policy
 
 
 NOW = datetime(2026, 8, 26, 1, 0, tzinfo=UTC)
@@ -402,7 +402,7 @@ def test_agent_adapter_passes_existing_views_and_audit_lineage(agent_context) ->
             "confirmed_at": bundle.confirmed_at, "created_at": bundle.created_at,
             "sha256": bundle_snapshot_sha256(bundle, items),
         }, notice_id=notice_id, correlation_id=correlation))
-        from app.schemas.deep_reviews import DeepReviewView
+        from app.deep_review.schemas.deep_reviews import DeepReviewView
 
         assert isinstance(started.result, DeepReviewView)
         assert started.run.status is AgentRunStatus.queued

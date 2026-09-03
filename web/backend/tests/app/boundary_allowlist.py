@@ -42,10 +42,10 @@ CROSS_MODULE_IMPORT_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset(
 #: 새 위반만 막는다.
 ROUTER_ORM_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset(
     {
-        ("app/routers/attachments.py", "router_orm_access", "sqlalchemy.select"),
+        ("app/deep_review/routers/attachments.py", "router_orm_access", "sqlalchemy.select"),
         ("app/routers/common.py", "router_orm_access", "sqlalchemy.select"),
-        ("app/routers/deep_reviews.py", "router_orm_access", "sqlalchemy.select"),
-        ("app/routers/document_bundles.py", "router_orm_access", "sqlalchemy.select"),
+        ("app/deep_review/routers/deep_reviews.py", "router_orm_access", "sqlalchemy.select"),
+        ("app/deep_review/routers/document_bundles.py", "router_orm_access", "sqlalchemy.select"),
         ("app/routers/notices.py", "router_orm_access", "sqlalchemy.select"),
         ("app/routers/opportunities.py", "router_orm_access", "sqlalchemy.select"),
         ("app/routers/policies.py", "router_orm_access", "sqlalchemy.select"),
@@ -55,7 +55,7 @@ ROUTER_ORM_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset(
         ("app/routers/profile.py", "router_orm_access", "sqlalchemy.select"),
         ("app/routers/quality_gates.py", "router_orm_access", "Session.execute"),
         ("app/routers/quality_gates.py", "router_orm_access", "sqlalchemy.select"),
-        ("app/routers/reports.py", "router_orm_access", "sqlalchemy.select"),
+        ("app/deep_review/routers/reports.py", "router_orm_access", "sqlalchemy.select"),
         ("app/routers/reviews.py", "router_orm_access", "sqlalchemy.select"),
         ("app/routers/runs.py", "router_orm_access", "sqlalchemy.select"),
         ("app/routers/schedule.py", "router_orm_access", "sqlalchemy.select"),
