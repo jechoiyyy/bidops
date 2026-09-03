@@ -36,11 +36,10 @@ from ..models import (
     DocumentStructure,
     ProfileEvidence,
     ProfileVersion,
-    Review,
     Notice,
     NoticeObservation,
 )
-from ..screening import current_judgment
+from ..screening import current_judgment, latest_corrected_grade
 from . import assets
 from .deep_review_validation import validate_structure
 from ..core.company_profile import ParsedItem, parse_profile, profile_path, walk_sections
@@ -320,14 +319,11 @@ def effective_grade_basis(session: Session, notice_id: int) -> GradeBasis:
     notice = session.get(Notice, notice_id)
     if notice is None:
         raise InputVersionError("not_found", "공고를 찾을 수 없습니다")
-    review = session.scalar(
-        select(Review)
-        .where(Review.notice_id == notice_id)
-        .order_by(Review.updated_at.desc(), Review.id.desc())
-        .limit(1)
-    )
-    if review is not None and review.corrected_grade:
-        return GradeBasis(review.corrected_grade, review.run_id, review.id, "human_review")
+    # 리뷰도 판정과 마찬가지로 선별 소유다. 공고당 리뷰는 하나이므로 "가장 최근
+    # 리뷰에 정정 등급이 있으면"과 "정정 등급이 있는 가장 최근 리뷰"는 같다.
+    corrected = latest_corrected_grade(session, notice_id)
+    if corrected is not None:
+        return GradeBasis(corrected.grade, corrected.run_id, corrected.review_id, "human_review")
     latest_observation = session.scalar(
         select(NoticeObservation)
         .where(NoticeObservation.notice_id == notice_id)

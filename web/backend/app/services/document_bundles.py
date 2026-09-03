@@ -35,9 +35,7 @@ from ..models import (
     DocumentStructure,
     DocumentVersion,
     IdempotencyRecord,
-    Judgment,
     Notice,
-    Review,
 )
 from ..schemas.document_bundles import (
     BundleIssue,
@@ -50,6 +48,7 @@ from ..schemas.document_bundles import (
     PatchDocumentVersionRequest,
 )
 from ..lifecycle import register_attachment
+from ..screening import current_judgment, latest_corrected_grade
 from . import assets
 from .document_converter import ScratchDocumentProcessor
 from .document_structures import materialize_structure
@@ -595,16 +594,19 @@ class DocumentBundleService:
         return notice
 
     def effective_grade(self, session: Session, notice_id: int) -> str | None:
+        """사람이 정정한 등급이 있으면 그것, 없으면 판정 등급 (명세 §6.3).
+
+        판정과 리뷰는 선별 소유이므로 여기서 직접 조회하지 않고 선별이 공개한
+        읽기 전용 seam 함수만 쓴다. 선별이 없으면 두 값 모두 `None`이고, 문서
+        bundle 생성은 등급 부적합으로 막힌다.
+        """
+
         notice = self._notice_or_error(session, notice_id)
-        judgment = session.scalar(select(Judgment).where(Judgment.notice_id == notice.id))
-        system_grade = judgment.grade if judgment else None
-        human_grade = session.scalar(
-            select(Review.corrected_grade)
-            .where(Review.notice_id == notice.id, Review.corrected_grade.is_not(None))
-            .order_by(Review.updated_at.desc(), Review.id.desc())
-            .limit(1)
-        )
-        return human_grade or system_grade
+        corrected = latest_corrected_grade(session, notice.id)
+        if corrected is not None:
+            return corrected.grade
+        judgment = current_judgment(session, notice.id)
+        return judgment.grade if judgment is not None else None
 
     def list_bundles(self, session: Session, notice_id: int) -> BundleListResponse:
         self._notice_or_error(session, notice_id)

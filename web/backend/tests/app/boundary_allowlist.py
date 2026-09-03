@@ -33,9 +33,6 @@ CROSS_MODULE_IMPORT_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset(
         ("app/main.py", "cross_module_import", "app.routers.pre_specs:router"),
         ("app/main.py", "cross_module_import", "app.routers.runs:router"),
         ("app/runtime.py", "cross_module_import", "app.services.pipeline:PipelineService"),
-        ("app/services/document_bundles.py", "cross_module_import", "app.models:Judgment"),
-        ("app/services/document_bundles.py", "cross_module_import", "app.models:Review"),
-        ("app/services/input_versions.py", "cross_module_import", "app.models:Review"),
     }
 )
 
@@ -84,11 +81,12 @@ LIFECYCLE_RELATIONSHIP_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset()
 #: 이름 단위로 풀면서 거짓 위반 12건이 빠져 66 → 57이 됐다.
 #: 위 목록은 실제 위반과 정확히 같아야 하므로(stale 항목도 실패), 이 상한은
 #: "새 위반을 허용 목록에 추가해 정당화하는" 경로를 추가로 막는다.
-#: T5a와 T5b가 각각 판정 접근 39건과 심층 검토 접근 9건을 확장점·seam·공개 함수로
-#: 뒤집으면서 58 → 10이 됐고, lifecycle relationship 9건은 전부 사라졌다.
-#: 남은 10건은 조립 계층이 아직 모듈 내부를 직접 들고 있는 자리(T7·T8이 없앤다)다.
+#: T5a와 T5b가 판정·심층 검토 접근을 확장점·seam·공개 함수로 뒤집고, 병합 뒤
+#: 심층 검토가 판정을 읽던 세 자리를 선별 seam으로 바꾸면서 58 → 7이 됐다.
+#: lifecycle relationship 9건은 전부 사라졌다. 남은 7건은 조립 계층이 아직 모듈
+#: 내부를 직접 들고 있는 자리이며 T7·T8이 없앤다.
 BASELINE_SIZES: dict[str, int] = {
-    "cross_module_import": 10,
+    "cross_module_import": 7,
     "router_orm_access": 18,
     "schema_imports_model_or_service": 1,
     "lifecycle_relationship": 0,
