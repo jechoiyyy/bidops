@@ -19,9 +19,47 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 DEFAULT_BIDOPS_ROOT = Path(__file__).resolve().parents[4]
+
+#: 조립 계층이 고를 수 있는 도메인 모듈 (명세 §7). core는 선택 대상이 아니라
+#: 항상 포함된다. 여기 있는 것은 이름뿐이며 core는 이 모듈들을 import하지 않는다.
+MODULE_NAMES: tuple[str, ...] = ("lifecycle", "screening", "deep_review")
+
+#: `BIDOPS_MODULES`를 지정하지 않았을 때의 값. 분할 전과 같은 앱이 된다.
+DEFAULT_MODULES: str = ",".join(MODULE_NAMES)
+
 _OLLAMA_DURATION = re.compile(
     r"(?:-1|0|(?:\d+(?:\.\d+)?(?:ns|us|µs|ms|s|m|h))+)$"
 )
+
+
+def parse_modules(value: str) -> tuple[str, ...]:
+    """`BIDOPS_MODULES` 문자열을 모듈 순서 목록으로 푼다 (명세 §7).
+
+    쉼표로 나누고 공백을 떼며, 준 순서를 그대로 지킨다. **알 수 없는 이름이나
+    빈 값은 예외**다 — 조용히 기본값으로 되돌아가면 "무엇이 등록됐는지"를 설정
+    파일만 보고 알 수 없게 되므로 fail closed 한다.
+    """
+
+    names = [piece.strip() for piece in str(value).split(",")]
+    names = [name for name in names if name]
+    if not names:
+        raise ValueError(
+            "BIDOPS_MODULES must name at least one of " + ", ".join(MODULE_NAMES)
+        )
+    unknown = [name for name in names if name not in MODULE_NAMES]
+    if unknown:
+        raise ValueError(
+            "BIDOPS_MODULES has unknown module names: "
+            + ", ".join(sorted(unknown))
+            + " (allowed: "
+            + ", ".join(MODULE_NAMES)
+            + ")"
+        )
+    seen: list[str] = []
+    for name in names:
+        if name not in seen:
+            seen.append(name)
+    return tuple(seen)
 
 
 class Settings(BaseSettings):
@@ -48,6 +86,13 @@ class Settings(BaseSettings):
             "BIDOPS_ATTACHMENTS_DIR",
             "BIDOPS_ATTACHMENT_DIR",
         ),
+    )
+    # 등록할 도메인 모듈 (명세 §7). 문자열 그대로 받고 `modules` property가
+    # 푼다 — pydantic-settings 는 복합 타입 환경변수를 JSON 으로 먼저 읽으려
+    # 하므로, 쉼표 목록은 문자열 필드로 받아야 값 검증이 우리 손에 남는다.
+    modules_setting: str = Field(
+        default=DEFAULT_MODULES,
+        validation_alias="BIDOPS_MODULES",
     )
     reviewer_name: str = Field(
         default="",
@@ -256,6 +301,21 @@ class Settings(BaseSettings):
     model_response_encryption_key: str | None = Field(default=None, validation_alias="BIDOPS_MODEL_RESPONSE_ENCRYPTION_KEY")
     model_response_encryption_key_ref: str | None = Field(default=None, validation_alias="BIDOPS_MODEL_RESPONSE_ENCRYPTION_KEY_REF")
 
+    @field_validator("modules_setting")
+    @classmethod
+    def validate_modules(cls, value: str) -> str:
+        """알 수 없는 이름이나 빈 값이면 여기서 죽는다 (명세 §7의 fail closed).
+
+        `app.core.db`가 import 시점에 `get_settings()`를 부르므로 앱 객체가
+        만들어지기 전에 걸린다. 검증을 model validator가 아니라 **필드**
+        validator에 두는 것은 의도적이다 — 실패 메시지에 실리는 입력값이 이
+        필드 하나로 좁혀지고, 다른 환경변수 값이 오류 문자열에 딸려 나가지
+        않는다.
+        """
+
+        parse_modules(value)
+        return value
+
     @field_validator("log_level", mode="before")
     @classmethod
     def validate_log_level(cls, value: object) -> str:
@@ -322,6 +382,12 @@ class Settings(BaseSettings):
             if not (0 <= hour <= 23 and 0 <= minute <= 59):
                 raise ValueError(f"{name} must use HH:MM")
         return self
+
+    @property
+    def modules(self) -> tuple[str, ...]:
+        """등록할 도메인 모듈을 지정 순서대로 낸다 (명세 §7)."""
+
+        return parse_modules(self.modules_setting)
 
     @property
     def project_root(self) -> Path:

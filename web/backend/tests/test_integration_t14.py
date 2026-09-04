@@ -61,9 +61,10 @@ def _patch_ollama(monkeypatch: pytest.MonkeyPatch, transport: FakeOllamaTranspor
     def factory(settings: Settings | None = None, **_kwargs: object) -> OllamaClient:
         return OllamaClient(settings=settings, transport=transport)
 
-    # ApplicationRuntime resolves this name when it constructs its one shared
-    # client, which is then passed to both the orchestrator and worker.
-    monkeypatch.setattr("app.runtime.OllamaClient", factory)
+    # T8이 C-1 FIFO와 모델 클라이언트의 소유를 screening 모듈 runtime으로
+    # 옮겼다. 하나뿐인 공유 클라이언트를 만드는 자리가 그곳이고, orchestrator와
+    # worker가 그 객체를 함께 받는다.
+    monkeypatch.setattr("app.screening.runtime.OllamaClient", factory)
 
 
 def _seed_run(run_id: str) -> None:

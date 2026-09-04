@@ -75,6 +75,13 @@ PUBLIC_NAME_IMPORTS: dict[tuple[str, str], tuple[str, ...]] = {
     ("assembly", "core"): ("app/core/__init__.py",),
     # T4가 app/lifecycle/__init__.py를 만들면서 조립 계층 몫을 켰다.
     ("assembly", "lifecycle"): ("app/lifecycle/__init__.py",),
+    # T8 1단계가 screening·deep_review의 공개 표면(__init__)을 만들면서 마지막
+    # 조합 둘을 켰다. 조립 계층은 이제 네 모듈 모두를 `__init__`의 이름으로만
+    # 받는다 — router 인스턴스도, 모듈 runtime도, worker 진입 함수도 그렇다.
+    # 형제 모듈에게 열어 둔 models·schemas·contracts는 조립 계층 몫이 아니다
+    # (그 파일들은 §4에서 lifecycle → screening·deep_review 방향의 계약이다).
+    ("assembly", "screening"): ("app/screening/__init__.py",),
+    ("assembly", "deep_review"): ("app/deep_review/__init__.py",),
     ("screening", "lifecycle"): _LIFECYCLE_PUBLIC_SURFACE,
     ("deep_review", "lifecycle"): _LIFECYCLE_PUBLIC_SURFACE,
 }
@@ -89,6 +96,10 @@ PUBLIC_NAME_IMPORTS: dict[tuple[str, str], tuple[str, ...]] = {
 PUBLIC_NAME_SCOPES: dict[tuple[str, str], str | None] = {
     ("assembly", "core"): None,
     ("assembly", "lifecycle"): None,
+    # T8 1단계가 전 범위로 켰다. screening·deep_review의 소유 파일은 T7이 모두
+    # 자기 폴더로 들여왔으므로 좁힐 범위가 없다.
+    ("assembly", "screening"): None,
+    ("assembly", "deep_review"): None,
     ("screening", "lifecycle"): None,
     ("deep_review", "lifecycle"): None,
 }
@@ -104,36 +115,11 @@ MODELS_SUBMODULE_IMPORTERS: tuple[str, ...] = (
     "app/migrations/import_sqlite.py",
 )
 
-# --- 아직 구현하지 않은 §8-1의 절 (부채) --------------------------------------
-# §4의 허용 표는 방향뿐 아니라 "공개 이름 대 모듈 내부"도 가른다. T3가 core를,
-# T4가 조립 계층 → lifecycle을, T6이 screening·deep_review → lifecycle(패키지
-# 범위)을 켰다. 남은 두 절은 아래와 같고, 각 절이 아직 필요한 이유는
-# `REMAINING_PUBLIC_NAME_DEBT`가 실제 코드에서 센다.
-UNIMPLEMENTED_PUBLIC_NAME_RULES: tuple[str, ...] = (
-    "조립 계층 → screening·deep_review: 모듈 공개 이름만 (지금은 모듈 전체를 "
-    "허용). main.py·runtime.py·workers/analysis.py·migrations/import_sqlite.py가 "
-    "app.screening.{execution_store,ollama,orchestrator,worker,routers.*,"
-    "services.*,workers.order_plan}과 app.deep_review.{routers,services,workers}."
-    "* 같은 모듈 내부 경로를 직접 들고 있다. 두 모듈의 파일은 이제 모두 자기 "
-    "폴더 안에 있으므로 남은 일은 모듈 진입점(__init__)에 공개 이름을 올리는 "
-    "것이고, T8에서 켠다.",
-)
-
-# 위 절이 아직 필요한 이유를 실제 코드에서 센 것이다. 값은 "그 절이 켜져
-# 있었다면 위반이었을 import"의 개수이며, 허용 목록과 같은 계약을 따른다:
-# 정확히 일치해야 하고 이주 task는 **줄이기만** 한다. 0이 되면 그 절을 검사 1에
-# 넣을 수 있다는 신호이므로 테스트가 실패한다.
-#
-# T7 3단계 실측: 조립 계층 몫은 33 그대로다(경로가 바뀐 것도 없다 — 조립 계층이
-# 직접 드는 것은 screening·deep_review 내부이고 그 둘은 2단계·1단계에 이미
-# 옮겨졌다). "screening|deep_review->lifecycle(패키지 밖)" 80건은 0이 되어
-# 항목째 사라졌다. lifecycle 소유 파일이 모두 `app/lifecycle/`로 들어왔고,
-# 형제 모듈의 참조는 전부 공개 표면(`__init__`·`models`·`schemas`·
-# `ingest/contracts`)이나 core로 옮겨졌기 때문이다. 그래서
-# `PUBLIC_NAME_SCOPES`의 lifecycle 두 조합을 전 범위(None)로 켰다.
-REMAINING_PUBLIC_NAME_DEBT: dict[str, int] = {
-    "assembly->screening|deep_review": 33,
-}
+# §8-1이 열거한 "공개 이름 대 모듈 내부" 절은 이제 전부 켜져 있다. T3가 core를,
+# T4가 조립 계층 → lifecycle을, T6·T7 3단계가 screening·deep_review → lifecycle을,
+# T8 1단계가 조립 계층 → screening·deep_review를 켰다. 남은 부채가 없으므로
+# 미구현 절 목록과 그것을 세던 원장(`REMAINING_PUBLIC_NAME_DEBT`)은 지웠다.
+# 네 조합 모두 검사 1이 직접 강제한다.
 
 # --- 폴더 규칙 (경로 판정에서 가장 먼저 본다) ----------------------------------
 MODULE_FOLDERS: dict[str, str] = {

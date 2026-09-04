@@ -10,7 +10,13 @@ idempotency_record 둘만 소유한다(명세 §5.1).
 
 from __future__ import annotations
 
-from .config import Settings, get_settings
+from .config import (
+    DEFAULT_MODULES,
+    MODULE_NAMES,
+    Settings,
+    get_settings,
+    parse_modules,
+)
 from .db import (
     ALEMBIC_HEAD,
     ALEMBIC_VERSION_NUM_WIDTH,
@@ -42,12 +48,14 @@ __all__ = [
     "ALEMBIC_HEAD",
     "ALEMBIC_VERSION_NUM_WIDTH",
     "Base",
+    "DEFAULT_MODULES",
     "GENERATION_CONFIG_SCHEMA",
     "MAX_NUM_CTX",
     "MAX_NUM_PREDICT",
     "MIGRATION_COMMAND",
     "MIN_NUM_CTX",
     "MIN_NUM_PREDICT",
+    "MODULE_NAMES",
     "ObjectStoreError",
     "SessionLocal",
     "Settings",
@@ -62,6 +70,7 @@ __all__ = [
     "health_router",
     "init_db",
     "isolated_test_boundary_active",
+    "parse_modules",
     "parse_run_id",
     "schema_bound",
     "settings",

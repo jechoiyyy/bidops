@@ -14,8 +14,8 @@ from ..core import (
     configure,
     get_settings,
 )
-from ..deep_review.workers.deep_review import run_once
-from ..screening.workers.order_plan import C2ScreeningWorker
+from ..deep_review import run_deep_review_once
+from ..screening import C2ScreeningWorker
 
 
 logger = logging.getLogger(__name__)
@@ -53,7 +53,7 @@ def main() -> None:
                     # C-2 execution is queued.
                     c2_result = c2_worker.run_once(session)
                     if c2_result is None:
-                        run_once(session, worker_id)
+                        run_deep_review_once(session, worker_id)
                 except Exception:
                     # run_claim commits its own fenced transitions. Any
                     # provider/materializer error not converted there must not
