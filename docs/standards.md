@@ -68,8 +68,14 @@ BidOps의 코드, 데이터, 모델 호출, 운영 변경은 아래 기준을 �
 ./web/run-web-tests.sh            # backend pytest + frontend build + Playwright 화면 회귀
 docker compose -f docker-compose.t7.yml build
 
-cd web/frontend && npm run test:visual   # 화면만 따로 돌릴 때
+cd web/frontend && npm run test:contrast              # 테마 대비 게이트
+cd web/frontend && npx playwright test design-shell.spec.ts   # 셸 구조·색·치수
+cd web/frontend && npm run test:visual                # 화면만 따로 돌릴 때 (아래 주의)
 ```
+
+`npm run test:visual`은 2026-09-04 팔레트 전환 이후 기준선이 옛 무채색이라 다수 실패한다.
+예상된 상태이며 **승인 없이 `--update-snapshots`로 덮지 않는다.** 사유와 해제 조건은
+[`tracking/findings.md`](tracking/findings.md)에 있다.
 
 - 파이프라인 계약 변경은 관련 skill 단위 테스트와 교차 파이프라인 테스트를 모두 통과해야 한다.
 - DB 변경은 임시 PostgreSQL 17에서 빈 DB migration, 제약, 재적재 멱등성을 확인한다. 운영 DB를 테스트 대상으로 사용하지 않는다.

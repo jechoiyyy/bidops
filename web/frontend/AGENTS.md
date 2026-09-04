@@ -34,16 +34,21 @@
 ## UI 패턴
 
 - TanStack Query로 서버 상태를 조회하고 mutation 성공 뒤 영향 query만 무효화한다.
-- 밝은 중립 표면, 8px 간격 단위, 20~24px 카드 여백, 40~44px 조작부의 실무형 계층을 유지한다.
+- 색은 `bidops` 테마(무드보드 파생, ADR-0047)가 정본이다. 화면은 토큰만 읽고 `:root`나 화면 CSS에서 `--color-*`를 재정의하지 않는다. 유일한 예외는 `styles/shell-relaxed.css`의 이행용 token bridge이며 새 색 값을 만들지 않는다. 색을 바꾸려면 `src/themes/bidops/bidopsTheme.ts`를 고치고 `astryx theme build`를 다시 돌린다.
+- Tailwind `@theme`에 디자인 시스템과 이름이 겹치는 `--color-*`를 추가하지 않는다. `@theme`은 `:root`로 방출돼 `@layer astryx-theme`을 이기므로 테마 값이 조용히 무시된다([engineering-notes.md](../../docs/engineering-notes.md)).
 - 공고 목록과 상세 정보 밀도를 유지한다. 마케팅식 큰 여백, 장식 아이콘, gradient, glass effect를 사용하지 않는다.
-- 긴 한글 제목, 표의 긴 요구사항, 좁은 화면, keyboard focus, empty/loading/error 상태를 설계한다.
+- 긴 한글 제목, 표의 긴 요구사항, keyboard focus, empty/loading/error 상태를 설계한다. 지원 폭은 1280~1920px이며 모바일·태블릿 레이아웃을 만들지 않는다(ADR-0046). 1280px 미만은 가로 스크롤로 둔다.
 
 ## 검증
 
 ```bash
 cd web/frontend
-npm run build
-npm run test:visual
+npm run build              # tsc -b + vite build
+npm run test:contrast      # 테마 대비 게이트 (ADR-0047)
+npx playwright test design-shell.spec.ts   # 셸 구조·색·치수
+npm run test:visual        # 전체 화면 회귀 — 아래 주의를 먼저 읽는다
 ```
 
-TypeScript strict, production bundle, 기본 필터, null/0 표시, 부분 실패, review 저장과 다음 이동, API 오류, empty/loading, 긴 한글, 좁은 viewport, keyboard focus를 확인한다. 외부 font network 없이 visual 결과가 재현되어야 한다.
+TypeScript strict, production bundle, 기본 필터, null/0 표시, 부분 실패, review 저장과 다음 이동, API 오류, empty/loading, 긴 한글, keyboard focus를 확인한다. 외부 font network 없이 결과가 재현되어야 한다.
+
+**`npm run test:visual`은 현재 기준선이 옛 무채색 팔레트라 다수 실패한다.** 2026-09-04 팔레트 전환 이후 예상된 상태이며 회귀의 증거가 아니다. **승인 없이 `--update-snapshots`로 덮지 않는다**(PLAN §3.2·§6). 사유와 해제 조건은 [findings.md](../../docs/tracking/findings.md)의 "팔레트 전환 뒤 화면 단위 시각 회귀를 잡을 기준선이 없다"에 있다. 그때까지 셸은 `design-shell.spec.ts`, 색은 `test:contrast`가 지킨다.
