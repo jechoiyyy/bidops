@@ -277,3 +277,35 @@ TEST_FOLDER_MODULES: dict[str, str] = {
     "tests/deep_review": DEEP_REVIEW,
     "tests/app": ASSEMBLY,
 }
+
+# 검사 1(§4 방향·공개 이름)의 **대상 범위**에서 빼는 폴더.
+#
+# 이것은 검사를 느슨하게 만든 것이 아니라, 명세가 정한 대상 범위로 되돌린
+# 것이다. §8-1은 검사 1의 대상을 이렇게 못박았다:
+#
+#   "1. `app/` 아래 모든 `.py`(조립 계층 포함)와 `tests/<module>/` 아래 모든
+#    `.py`의 import를 AST로 읽어 §4의 허용 표와 다른 모듈 간 import가 있으면
+#    실패한다. 조립 계층은 모듈 공개 이름만, `alembic/`은 models까지 허용한다."
+#
+# 여기서 "조립 계층"은 `app/` 안의 파일(`app/main.py`·`app/runtime.py`·
+# `app/workers/analysis.py`·`app/migrations/import_sqlite.py`)을 가리키고,
+# 대상으로 열거된 테스트는 `tests/<module>/`뿐이다. 그런데 모듈은
+# core·lifecycle·screening·deep_review 넷이고, `tests/app/`은 §5.4가
+#
+#   "앱 조립·migration·runtime 계약·두 모듈 이상이 합쳐지는 통합 검사는
+#    `tests/app/`"
+#
+# 라고 정한 자리다. 즉 `tests/app/`은 `tests/<module>/`이 아니며 §8-1이
+# 열거한 대상이 아니다. 검사기가 `tests/app`을 조립 계층으로 함께 묶어 "조립
+# 계층은 모듈 공개 이름만" 규칙을 여기까지 적용하면, §5.4가 명시적으로
+# `tests/app/`에 두라고 한 통합 검사(두 모듈 이상의 fixture를 심고, migration·
+# runtime 계약을 확인하고, 루트 공용 harness를 쓰는 테스트)가 하나도 성립하지
+# 못한다. 그 과잉은 §2 완료 기준 1("각 모듈이 자기 테스트를 자기 폴더 안에
+# 갖는다")과 §5.4의 배치를 동시에 불가능하게 만든다.
+#
+# **production 코드의 보장은 한 치도 줄지 않는다.** `app/**`(조립 계층 포함)과
+# `alembic/`, 그리고 `tests/core`·`tests/lifecycle`·`tests/screening`·
+# `tests/deep_review`에 대한 검사 1은 그대로다. 여기서 빠지는 것은
+# `tests/app/`뿐이고, 검사 2·3·4는 `tests/app/`에도 그대로 적용된다.
+CHECK_ONE_EXEMPT_FOLDERS: tuple[str, ...] = ("tests/app",)
+
