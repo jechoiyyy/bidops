@@ -17,7 +17,7 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from ...core.vllm_client import MAX_RESPONSE_BYTES
+from ...core.model_client import MAX_RESPONSE_BYTES
 
 
 

@@ -351,7 +351,7 @@ def test_vllm_timeout_retries_twice_without_exposing_prompt():
         calls.append(kwargs)
         raise TimeoutError
 
-    client = VllmClient(output_contract=DEEP_REVIEW_STAGE_CONTRACT, completion_create=completion_create)
+    client = VllmClient(model=MODEL_NAME, output_contract=DEEP_REVIEW_STAGE_CONTRACT, completion_create=completion_create)
     with pytest.raises(VllmInvocationError) as error:
         client.invoke("requirements_and_evaluation", {"requirements": [{"text": "safe"}]}, {"chunking": {"retries": 2, "timeout_seconds": 300}, "stages": []})
     assert error.value.code == "timeout"
@@ -366,7 +366,7 @@ def test_vllm_malformed_json_is_safe_error():
         "choices": [{"finish_reason": "stop", "message": {"content": "not-json"}}],
     }
 
-    client = VllmClient(output_contract=DEEP_REVIEW_STAGE_CONTRACT, completion_create=lambda **_kwargs: response)
+    client = VllmClient(model=MODEL_NAME, output_contract=DEEP_REVIEW_STAGE_CONTRACT, completion_create=lambda **_kwargs: response)
     with pytest.raises(VllmInvocationError) as error:
         client.invoke("requirements_and_evaluation", {"requirements": []}, {"chunking": {"retries": 0}, "stages": []})
     assert error.value.code == "malformed_json"
@@ -382,7 +382,7 @@ def test_vllm_reasoning_is_not_returned_or_hashed():
         }],
         "usage": {"prompt_tokens": 69, "completion_tokens": 48},
     }
-    result = VllmClient(output_contract=DEEP_REVIEW_STAGE_CONTRACT, completion_create=lambda **_kwargs: response).invoke(
+    result = VllmClient(model=MODEL_NAME, output_contract=DEEP_REVIEW_STAGE_CONTRACT, completion_create=lambda **_kwargs: response).invoke(
         "requirements_and_evaluation",
         {"requirements": []},
         {"chunking": {"retries": 0, "timeout_seconds": 300}, "stages": []},
@@ -406,7 +406,7 @@ def test_vllm_enforces_the_authoritative_stage_json_schema():
         seen.append(kwargs)
         return response
 
-    VllmClient(output_contract=DEEP_REVIEW_STAGE_CONTRACT, completion_create=completion_create).invoke(
+    VllmClient(model=MODEL_NAME, output_contract=DEEP_REVIEW_STAGE_CONTRACT, completion_create=completion_create).invoke(
         "requirements_and_evaluation",
         {},
         {"chunking": {"retries": 0, "timeout_seconds": 300}, "stages": []},
@@ -427,7 +427,7 @@ def test_vllm_length_finish_reason_is_safe_truncated_json_error():
         "model": MODEL_NAME,
         "choices": [{"finish_reason": "length", "message": {"content": '{"claims":['}}],
     }
-    client = VllmClient(output_contract=DEEP_REVIEW_STAGE_CONTRACT, completion_create=lambda **_kwargs: response)
+    client = VllmClient(model=MODEL_NAME, output_contract=DEEP_REVIEW_STAGE_CONTRACT, completion_create=lambda **_kwargs: response)
     with pytest.raises(VllmInvocationError) as error:
         client.invoke("requirements_and_evaluation", {}, {"chunking": {"retries": 0}, "stages": []})
     assert error.value.code == "truncated_json"
@@ -443,16 +443,16 @@ def test_vllm_length_finish_reason_is_safe_truncated_json_error():
 ])
 def test_vllm_base_url_is_exact_openai_compatible_url(base_url):
     with pytest.raises(ValueError):
-        VllmClient(output_contract=DEEP_REVIEW_STAGE_CONTRACT, base_url=base_url)
+        VllmClient(model=MODEL_NAME, output_contract=DEEP_REVIEW_STAGE_CONTRACT, base_url=base_url)
 
 
 def test_remote_vllm_ip_must_be_an_exact_explicit_allowlist_entry(monkeypatch):
     base_url = "http://10.23.45.67:58765/v1"
     with pytest.raises(ValueError):
-        VllmClient(output_contract=DEEP_REVIEW_STAGE_CONTRACT, base_url=base_url)
+        VllmClient(model=MODEL_NAME, output_contract=DEEP_REVIEW_STAGE_CONTRACT, base_url=base_url)
 
     monkeypatch.setenv("BIDOPS_VLLM_ALLOWED_HOSTS", "10.23.45.67")
-    client = VllmClient(output_contract=DEEP_REVIEW_STAGE_CONTRACT, base_url=base_url, completion_create=lambda **_kwargs: {})
+    client = VllmClient(model=MODEL_NAME, output_contract=DEEP_REVIEW_STAGE_CONTRACT, base_url=base_url, completion_create=lambda **_kwargs: {})
     assert client.base_url == base_url
 
 
