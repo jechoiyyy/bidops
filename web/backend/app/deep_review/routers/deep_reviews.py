@@ -1,4 +1,4 @@
-"""Approved deep-review endpoints #8-10; registration is T7-owned."""
+"""Approved deep-review endpoints #8-10; registration is owned by the deep_review module."""
 
 from __future__ import annotations
 

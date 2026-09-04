@@ -1,4 +1,4 @@
-"""Live T7 MinIO checks (opt in with BIDOPS_MINIO_E2E=1)."""
+"""Live MinIO checks (opt in with BIDOPS_MINIO_E2E=1)."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from app.core.object_store import EncryptedModelResponseStore, ObjectStoreError
 from app.core.config import get_settings
 
 
-pytestmark = pytest.mark.skipif(os.environ.get("BIDOPS_MINIO_E2E") != "1", reason="requires the isolated T7 MinIO service")
+pytestmark = pytest.mark.skipif(os.environ.get("BIDOPS_MINIO_E2E") != "1", reason="requires the isolated MinIO service")
 
 
 def test_minio_purpose_buckets_restart_persistence():
@@ -25,7 +25,7 @@ def test_minio_purpose_buckets_restart_persistence():
     source_key = f"source/e2e-{suffix}.pdf"
     structure_key = f"structure/e2e-{suffix}.json"
     quarantine_key = f"quarantine/e2e-{suffix}.pdf"
-    source_data = b"t7-source-persistence"
+    source_data = b"source-persistence"
     structure_data = b'{"source_sha256":"' + hashlib.sha256(source_data).hexdigest().encode() + b'"}'
 
     for namespace, key, data in (

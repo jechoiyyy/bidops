@@ -9,9 +9,9 @@ BidOps는 기획·사업개발 담당자가 나라장터 발주계획을 조기�
 ```text
 bidops/
 ├── AGENTS.md, CLAUDE.md              작업 진입점이며 내용은 동일하다
-├── docker-compose.t7.yml             PostgreSQL·MinIO 기반 애플리케이션 스택
-├── docker-compose.t7.*.yml           목적별 egress·모델 overlay
-├── docker-compose.yml                SQLite 이전 입력용 ops 명령
+├── docker-compose.yml                PostgreSQL·MinIO 기반 애플리케이션 스택
+├── docker-compose.*.yml              목적별 egress·모델 overlay
+├── docker-compose.sqlite-ops.yml     SQLite 이전 입력용 ops 명령 (제거 후보)
 ├── run-tests.sh                      파이프라인 단위·교차 테스트
 ├── data/, reports/                   불변 회차 입력과 파생 보고서
 ├── docs/
@@ -30,6 +30,8 @@ bidops/
 │   ├── scheduling.md                 공고 판정 스케줄러의 예약·기간·fail-closed 조건
 │   ├── model-quality-gate.md         공고 판정 품질 게이트의 고정 입력과 통과 기준
 │   ├── e2e-bc-acceptance.md          문서 준비(B)→심층 검토(C) 연속 인수 절차
+│   ├── e2e-lifecycle-fill.md         공고·사전규격·리뷰 테이블 채우기와 화면 확인 절차
+│   ├── docker-consolidation.md       t7 접두사 제거와 Compose 프로젝트·호스트 자원 정리 기록
 │   ├── agent/agent-runtime.md        공고 판정 worker의 입력 동결·span·telemetry
 │   ├── design/                       화면 시안 기준 작업의 정본
 │   │   ├── ADR.md                    ADR-0039~0048 (디자인 시스템·정보구조·지원 폭·팔레트)
@@ -79,7 +81,7 @@ Astryx의 "레이아웃도 컴포넌트로만, `<div>` 금지" 규칙은 ADR-004
 ## 현재 런타임 사실
 
 - PostgreSQL 17의 `bidops` schema와 versioned MinIO가 운영 정본이다. SQLite는 격리 테스트와 일회성 이전 입력에만 사용한다.
-- `docker-compose.t7.yml`이 애플리케이션 스택이다. 기본 network는 내부망이며 외부 호출은 목적별 overlay를 명시한 경우에만 연다.
+- `docker-compose.yml`이 애플리케이션 스택이다. 기본 network는 내부망이며 외부 호출은 목적별 overlay를 명시한 경우에만 연다.
 - 관리 화면은 **데스크톱·노트북 전용**이다. 지원 폭은 1280~1920px이며 모바일·태블릿 레이아웃과 터치 전용 조작을 만들지 않는다. 1280px 미만은 가로 스크롤을 허용하고 별도 레이아웃으로 전환하지 않는다(ADR-0047). 화면 검증 viewport는 laptop 1280x800과 desktop 1440x900 두 폭이다.
 - 현재 애플리케이션에는 로그인·역할 기반 권한이 없다. 사내망 접근 제한이 경계이고 담당자 이름은 감사 표식일 뿐 인증이 아니다.
 - 스케줄러와 always-on은 기본 비활성이다. 앱 startup은 migration, seed, 정책 활성화, 모델 호출을 수행하지 않는다.

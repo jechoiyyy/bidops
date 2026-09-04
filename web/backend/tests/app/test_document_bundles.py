@@ -147,8 +147,8 @@ def test_production_upload_writes_and_consumes_converter_result(monkeypatch: pyt
     assert not list((scratch / "results").glob("*.json"))
 
 
-@pytest.mark.skipif(os.environ.get("BIDOPS_MINIO_E2E") != "1", reason="requires the isolated T7 MinIO service")
-def test_t7_minio_e2e_upload_provider_and_structure_round_trip(monkeypatch: pytest.MonkeyPatch, context: Context) -> None:
+@pytest.mark.skipif(os.environ.get("BIDOPS_MINIO_E2E") != "1", reason="requires the isolated MinIO service")
+def test_minio_e2e_upload_provider_and_structure_round_trip(monkeypatch: pytest.MonkeyPatch, context: Context) -> None:
     """Exercise the production bundle paths against live purpose buckets."""
 
     bundle = make_bundle(context)

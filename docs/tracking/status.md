@@ -32,7 +32,7 @@
 | 누적 관측·첨부 보존 | 신규 observation의 결정적 snapshot/hash와 provider 첨부 retire/revive 구현됨 | 같은 회차 exact replay no-op, 다른 bytes rollback, legacy `null` 보존, 수집에서 사라진 첨부 비삭제 회귀 통과 |
 | opportunity authoritative 소유권·병합 | 공식 확정 또는 사람 수락 후보만 active 소유권을 가지며 secondary row를 삭제하지 않는 merge lineage 구현됨 | focused SQLite/API/loader 회귀와 PostgreSQL 17 migration·제약 검증 통과; 추적 선택·recheck 충돌은 자동 병합하지 않음 |
 | 판정·사람 리뷰 revision | 현재 projection과 분리된 notice별 append-only 이력, execution·승계 parent·exact judgment pin 구현됨 | replay no-op/conflict rollback, 부분 실패 projection 보존, YAML/SQLite legacy `null` lineage, PostgreSQL 불변 trigger 검증 통과 |
-| MinIO·ClamAV·문서 격리 | 구현됨 | Mock T7 E2E 통과; 실제 운영 권한 matrix는 미검증 |
+| MinIO·ClamAV·문서 격리 | 구현됨 | Mock agent E2E 통과; 실제 운영 권한 matrix는 미검증 |
 | document bundle·준비 API | 7개 Lean API와 attachment version/current·bundle ordinal DB 제약 구현됨 | backend 테스트, PostgreSQL migration/preflight/autogenerate, Mock E2E 통과 |
 | 3단계 심층 검토·보고서·근거 API | 7개 Lean API 구현됨 | deterministic Mock provider E2E 통과; 실제 Qwen 품질 승인은 없음 |
 | React 관리자 화면 | 기존 공고·판정·ready bundle 이후 심층 검토 구현됨 | tsc·production build 통과; 전체 visual `646 passed, 10 skipped, 0 failed` |
@@ -49,12 +49,12 @@
 | T-23 사전규격 overview phase 2 기반 | immutable result/event, 제한된 attempt lifecycle service, safe v2 projection 구현됨; 실제 model transport·worker는 미구현 | SQLite 46 passed·1 PostgreSQL-only skipped, PostgreSQL 17 집중 9 passed, production build 282 modules |
 | 사전규격 개요 검토 화면 | v2 결과 projection이 화면에 연결됨. 권고·검증 상태·요약·조건과 기한·미확인·근거·입력 한계를 판단 순서로 내고 계보는 접어 둔다. 근거 locator는 `GET /document-structures/{id}/pages/{page}`로 원문을 열어 앞뒤 블록과 함께 강조하며, `block_key`가 원문에 없으면 보정하지 않고 사람 검토로 보낸다. `verification_action`이 없는 unknown과 `validation_status != passed`는 각각 표식과 경고로 구분한다 | 2026-09-01, 커밋 `56aeb0d`·`77700a5`. Playwright `630 passed, 10 skipped, 0 failed`, tsc·build 통과 |
 | 사전규격 심층 추적 결정 동선 | 개요를 읽은 화면에서 계속 추적·보류·종료를 기록한다. `GET /pre-specs`에 `notice_pk` 필터를 더해 `opportunity_id`·`tracking_status`·첨부 집계를 한 응답으로 읽는다(`notice_pk`가 있으면 `sw_only`를 적용하지 않는다. `source_type = 'pre_spec'`은 항상 적용된다). 담당자 이름과 사유가 모두 필수이며 개요 권고를 추적 상태로 자동 반영하지 않는다 | 2026-09-01, 커밋 `26cdab4`. backend `1046 passed, 5 skipped, 0 failed`, Playwright `646 passed, 10 skipped, 0 failed` |
-| T7 stack 조립 | PostgreSQL, MinIO, ClamAV, web, document worker, analysis worker, 일부 영속 volume, 목적별 egress overlay 구현됨 | 개발 stack health와 Ollama endpoint 도달 기록은 있으나 보안·복구 blocker로 운영 배포 불가 |
+| 애플리케이션 stack 조립 | PostgreSQL, MinIO, ClamAV, web, document worker, analysis worker, 일부 영속 volume, 목적별 egress overlay 구현됨 | 개발 stack health와 Ollama endpoint 도달 기록은 있으나 보안·복구 blocker로 운영 배포 불가 |
 | 구조화 안전 로그 | 기반과 주요 worker·queue·scheduler 계측 구현 중인 worktree 변경 | 신규 단위 테스트 일부 통과 기록, 현재 전체 worktree green 아님 |
 | 개발용 hosted Codex 심층 검토 reference | 기본 비활성·notice allowlist에 더해 닫힌 payload allowlist를 두고, 회사 profile·prior stage 결과·승인되지 않은 입력 필드가 있으면 prompt 생성과 subprocess 이전에 `external_provider_payload_not_approved`로 fail-closed한다 | 해결; 차단 시 runner 미호출을 단언하는 회귀 테스트가 있고 backend `1041 passed, 5 skipped, 0 failed` |
 | runtime image 회사자료 제외 | current profile·회사 실적 제목 TSV·vendored baseline을 build context와 runtime image에서 제외하고, `web`에만 read-only host bind mount로 주입하도록 경계를 고정함 | 해결; runtime contract `11 passed`, profile snapshot keyword `14 passed`, 실제 image build/run/find, `COMPOSE_OK`, backend `1041 passed, 5 skipped, 0 failed` |
 | backup·object-first restore script | restore가 source→target version mapping을 기록하고 backup hash를 실제로 검증하며, active manifest를 `content_object_location`에서 생성해 복구된 집합과 일대일 대조함. 암호화 model-response는 `ContentObject.sha256`이 plaintext라 stored-byte 비교 대신 존재·target version만 검사함 | 해결; disposable MinIO 2개와 PostgreSQL 17로 정상 복구 exit 0, 손상 backup·미복구 active object·복구 후 삭제 세 경우 exit 1 확인 |
-| 백엔드 모듈 경계 | `web/backend/app/`을 core·lifecycle·screening·deep_review 네 모듈과 조립 계층(`main.py`·`runtime.py`·`workers/analysis.py`·`migrations/`)으로 나눴다. lifecycle은 선별·심층 검토를 알지 못하며 역방향은 lifecycle이 정의한 확장점(projection·hook)으로 뒤집었다. `BIDOPS_MODULES`로 등록할 모듈을 고르고 알 수 없는 이름·빈 값은 기동 실패다. codex-exec provider는 전부 지웠다([ADR-0045](decisions/0045-backend-module-layout.md)) | 2026-09-04, [단독 실행 검증 기록](../validation-runs/20260904-backend-module-layout.md). 완료 기준 여섯 조건을 각각 실제로 확인했다. backend `2 failed, 1240 passed, 5 skipped`(실패 2건은 이주 이전부터 있던 `test_screening_orchestrator` 결함), `./run-tests.sh` 145 passed, Playwright `846 passed, 14 skipped`, `docker compose -f docker-compose.t7.yml build` 성공, 기준 6 스크립트 세 조합 PASS. REST 계약은 이주 전과 같다 |
+| 백엔드 모듈 경계 | `web/backend/app/`을 core·lifecycle·screening·deep_review 네 모듈과 조립 계층(`main.py`·`runtime.py`·`workers/analysis.py`·`migrations/`)으로 나눴다. lifecycle은 선별·심층 검토를 알지 못하며 역방향은 lifecycle이 정의한 확장점(projection·hook)으로 뒤집었다. `BIDOPS_MODULES`로 등록할 모듈을 고르고 알 수 없는 이름·빈 값은 기동 실패다. codex-exec provider는 전부 지웠다([ADR-0045](decisions/0045-backend-module-layout.md)) | 2026-09-04, [단독 실행 검증 기록](../validation-runs/20260904-backend-module-layout.md). 완료 기준 여섯 조건을 각각 실제로 확인했다. backend `2 failed, 1240 passed, 5 skipped`(실패 2건은 이주 이전부터 있던 `test_screening_orchestrator` 결함), `./run-tests.sh` 145 passed, Playwright `846 passed, 14 skipped`, `docker compose -f docker-compose.yml build` 성공, 기준 6 스크립트 세 조합 PASS. REST 계약은 이주 전과 같다 |
 
 T-23 `0014` 검증 경계의 PostgreSQL application schema는 legacy 13개, 심층 검토 25개,
 판정 runtime 12개, 누적 identity 5개, 첨부 fetch 1개, 판정·리뷰 revision 2개, 사전규격
@@ -80,7 +80,7 @@ schema는 68개이며, 별도로 빈 PostgreSQL 17 `upgrade head`와 `0014↔001
 | T-23 최종 집중 회귀 + PostgreSQL 17 | 85 passed | overview 권한·절단·계보·migration·문서 무결성을 최종 변경 뒤 실제 role로 재검증 |
 | T-23 phase 2 DB-light 집중 회귀 | SQLite 46 passed·1 PostgreSQL-only skipped; PostgreSQL 17 9 passed | result/event·상태 전이 service·v2 projection·runtime privilege와 단일 상태 간선 trigger를 검증; 전체 backend green을 뜻하지 않음 |
 | T14/profile harness 최종 backend + PostgreSQL 17 | 992 passed, 5 skipped, 6 warnings | 최소 환경에서 임시 PG17·fresh DB·Alembic head를 자동 구성. T14 4건은 해결됐고 profile 2건은 승인 Git blob 부재를 fail-closed로 검증 |
-| T7 stack V2 | services healthy, `/api/health` 성공, 구조화 worker log 관측, 승인 Ollama endpoint 도달 | 기동·관측·network 경계 검증; 실제 판정 품질 검증 아님 |
+| 애플리케이션 stack V2 | services healthy, `/api/health` 성공, 구조화 worker log 관측, 승인 Ollama endpoint 도달 | 기동·관측·network 경계 검증; 실제 판정 품질 검증 아님 |
 | static diff check | 당시 통합 UI 변경에서 성공 | 이후 worktree 변경의 전체 검증으로 재사용하지 않음 |
 | 모듈 경계 강제 테스트 | `29 passed`. 허용 목록 `cross_module_import 0`, `router_orm_access 18`, `schema_imports_model_or_service 0`, `lifecycle_relationship 0`, `lifecycle_table_write 0` | 남은 18건은 명세가 이번 범위 밖으로 둔 router 안 직접 select다. 다섯째 검사(형제 모듈의 lifecycle 테이블 직접 쓰기·잠금)는 최종 검토가 "의존 규칙 네 줄 중 쓰기·잠금 한 줄만 어떤 검사도 덮지 않는다"를 지적해 새로 넣었고, 그때 드러난 제품 코드 17곳을 모두 lifecycle 공개 함수로 옮겨 0이 됐다. 목록은 stale 항목도 실패시키므로 실제 위반과 정확히 같다 |
 | 기준 6 모듈 격리 | `web/backend/scripts/verify_module_isolation.sh` 세 조합 PASS — lifecycle `75 passed`, screening `2 failed, 394 passed, 1 skipped`, deep_review `230 passed` | 형제 도메인 모듈의 `app/<module>`·`tests/<module>`을 지운 임시 복사본에서 폐기 가능한 PostgreSQL 17을 띄워 실제로 돌렸다. screening의 실패 2건은 위 기존 결함이며 skip 사유는 조합마다 출력된다 |
@@ -117,7 +117,7 @@ DB에 없다. 다만 byte-identical 파일이 `web/backend/app/screening/baselin
 ### 보존된 과거 증거
 
 - 기존 pipeline 테스트는 collect 28, report 13, screen 21, root 2로 총 64개가 통과했다. 현재 변경 전체의 통과로 간주하지 않는다.
-- Deep Review Mock T7 E2E는 PostgreSQL, MinIO, ClamAV, document worker 2개, analysis worker, web에서 `passed=true`였다. 외부 모델 호출은 없었고 Qwen 품질 근거가 아니다.
+- Deep Review Mock agent E2E는 PostgreSQL, MinIO, ClamAV, document worker 2개, analysis worker, web에서 `passed=true`였다. 외부 모델 호출은 없었고 Qwen 품질 근거가 아니다.
 - 실제 Ollama 단일 판정은 한 번 실패한 뒤 generation binding을 고정한 재실행에서 7개 logical stage, 8 attempts, v3 judgment 1건으로 성공했다. 별도 stop 실행도 중단 artifact를 보존했다. 40건 A/B와 운영 activation을 뜻하지 않는다.
 - 사설 vLLM 후보는 제한된 구조화 입력에서 호출·validator 통과 기록이 있으나 server image와 model artifact digest가 아직 immutable하게 고정되지 않았다.
 

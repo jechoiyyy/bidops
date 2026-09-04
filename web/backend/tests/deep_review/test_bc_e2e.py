@@ -8,7 +8,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.deep_review.services.bc_e2e import BcE2EError, BcE2EManifest, run_bc_e2e
-from app.deep_review.services.agent_e2e import AgentProjectionSnapshot, run_t7_e2e
+from app.deep_review.services.agent_e2e import AgentProjectionSnapshot, run_agent_e2e
 
 
 class FakeApi:
@@ -172,7 +172,7 @@ def _uuid(number: int) -> str:
     return str(UUID(int=number))
 
 
-class T7FakeProjection:
+class AgentFakeProjection:
     def __init__(self, payload: dict[str, Any], lineage: str) -> None:
         self.payload = payload
         self.correlation_id = UUID(lineage)
@@ -182,8 +182,8 @@ class T7FakeProjection:
         return self.payload
 
 
-class T7FakeProjectionReader:
-    def __init__(self, api: "T7FakeApi") -> None:
+class AgentFakeProjectionReader:
+    def __init__(self, api: "AgentFakeApi") -> None:
         self.api = api
         self.reads: list[tuple[str, str]] = []
 
@@ -202,11 +202,11 @@ class T7FakeProjectionReader:
         actions: list[str],
         input_types: list[str],
         output_types: list[str],
-    ) -> T7FakeProjection:
+    ) -> AgentFakeProjection:
         def refs(types: list[str]) -> list[dict[str, str]]:
             return [{"artifact_type": value, "artifact_id": _uuid(index + 1)} for index, value in enumerate(types)]
 
-        return T7FakeProjection({
+        return AgentFakeProjection({
             "run_id": run_id,
             "status": status,
             "current_step": current_step,
@@ -316,7 +316,7 @@ class T7FakeProjectionReader:
         } for review_id in review_ids]
 
 
-class T7FakeApi:
+class AgentFakeApi:
     def __init__(self) -> None:
         self.calls: list[tuple[str, str, dict[str, Any] | None]] = []
         self.flow_count = 0
@@ -459,10 +459,10 @@ class T7FakeApi:
         }
 
 
-def test_t7_e2e_preserves_human_history_and_verifies_persisted_projections(tmp_path: Path) -> None:
-    api = T7FakeApi()
-    reader = T7FakeProjectionReader(api)
-    result = run_t7_e2e(_manifest(tmp_path), api, reader, sleep=lambda _seconds: None)
+def test_agent_e2e_preserves_human_history_and_verifies_persisted_projections(tmp_path: Path) -> None:
+    api = AgentFakeApi()
+    reader = AgentFakeProjectionReader(api)
+    result = run_agent_e2e(_manifest(tmp_path), api, reader, sleep=lambda _seconds: None)
 
     assert result["passed"] is True
     assert result["first_flow"]["lineage"] != result["second_flow"]["lineage"]

@@ -143,13 +143,13 @@ def test_acceptance_actor_header_round_trips_unicode_without_raw_header_bytes(mo
         validate_actor(encoded, "unknown-format")
 
 
-def test_t7_cli_dry_run_selects_the_agent_acceptance_plan(tmp_path: Path, capsys) -> None:
+def test_agent_cli_dry_run_selects_the_agent_acceptance_plan(tmp_path: Path, capsys) -> None:
     manifest = _bc_manifest(tmp_path)
 
-    assert run_bc_main([str(manifest), "--t7", "--dry-run"]) == 0
+    assert run_bc_main([str(manifest), "--agent", "--dry-run"]) == 0
     output = json.loads(capsys.readouterr().out)
-    assert output["schema"] == "bidops.t7-e2e-plan.v1"
-    assert output["workflow"] == "t7-mock-reference"
+    assert output["schema"] == "bidops.agent-e2e-plan.v1"
+    assert output["workflow"] == "agent-mock-reference"
     assert output["api_base"] == "http://127.0.0.1:28787"
     assert output["document_count"] == 1
 

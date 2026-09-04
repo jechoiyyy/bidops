@@ -4,7 +4,7 @@
 # overlay is not used.
 #
 #   docker compose --env-file .env --env-file env/vllm.env \
-#     -f docker-compose.t7.yml -f docker-compose.t7.remote-vllm.yml \
+#     -f docker-compose.yml -f docker-compose.remote-vllm.yml \
 #     up -d web document-worker analysis-worker
 #
 # Opening this network is not sufficient: restrict egress to that IP/port at

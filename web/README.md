@@ -10,18 +10,18 @@
 - SQLite: 격리 테스트와 일회성 migration input에만 사용
 - 현재 운영 기준: `docs/ARCHITECTURE.md`, `docs/business-rules.md`, `docs/security.md`, `docs/contracts.md`, `docs/operations.md`, `docs/standards.md`
 
-## 현재 T7 runtime 실행
+## 현재 Compose runtime 실행
 
-운영·통합 확인은 반드시 별도 Compose 프로젝트 이름과 `docker-compose.t7.yml`을 사용합니다. 비밀값은
+운영·통합 확인은 반드시 별도 Compose 프로젝트 이름과 `docker-compose.yml`을 사용합니다. 비밀값은
 `.env`에 직접 기록하거나 Git에 넣지 말고 외부 secret 주입 절차를 따릅니다.
 
 ```bash
 cp .env.example .env
-COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose -f docker-compose.t7.yml build
-COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose -f docker-compose.t7.yml up -d postgres minio clamav
-COMPOSE_PROJECT_NAME=bidops-deep-review-t7 ./scripts/init-runtime.sh
-COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose \
-  -f docker-compose.t7.yml -f docker-compose.t7.remote-vllm.yml \
+COMPOSE_PROJECT_NAME=bidops docker compose -f docker-compose.yml build
+COMPOSE_PROJECT_NAME=bidops docker compose -f docker-compose.yml up -d postgres minio clamav
+COMPOSE_PROJECT_NAME=bidops ./scripts/init-runtime.sh
+COMPOSE_PROJECT_NAME=bidops docker compose \
+  -f docker-compose.yml -f docker-compose.remote-vllm.yml \
   up -d web document-worker analysis-worker
 curl -fsS http://127.0.0.1:18787/api/health
 ```
@@ -139,7 +139,7 @@ Playwright는 브라우저 번들이 이미 설치되어
 |---|---|
 | 회차 선택기가 비어 있다 | 현재 runtime의 PostgreSQL에 적재가 되었는지 확인하고 `.venv/bin/python -m app.lifecycle.ingest.cli --all`을 실행하십시오 |
 | `빌드된 프론트엔드가 없습니다` 라는 503 응답이 온다 | `web/frontend` 에서 `npm run build` 를 실행하십시오. 빌드 산출물이 없어도 백엔드 기동 자체는 실패하지 않습니다 |
-| Docker 실행에서 화면이 비어 있다 | T7 runtime의 health, migration, PostgreSQL 적재 상태와 API 응답을 순서대로 확인하십시오 |
+| Docker 실행에서 화면이 비어 있다 | Compose runtime의 health, migration, PostgreSQL 적재 상태와 API 응답을 순서대로 확인하십시오 |
 | Docker가 만든 파일을 지울 수 없다 | 컨테이너 사용자 번호가 호스트와 다릅니다. `id -u` 와 `id -g` 를 확인해 `.env` 에 `BIDOPS_UID`·`BIDOPS_GID` 를 지정하고 다시 띄우십시오 |
 | 직접 실행에서 `ensurepip is not available` 이 나온다 | 시스템에 `python3-venv` 가 없습니다. `sudo apt install python3.12-venv` 로 설치하거나 Docker 실행을 쓰십시오 |
 | 8787 포트가 이미 쓰이고 있다 | `--port` 로 다른 번호를 지정하십시오. 개발 실행에서는 `web/frontend/vite.config.ts` 의 프록시 대상도 함께 바꿔야 합니다 |

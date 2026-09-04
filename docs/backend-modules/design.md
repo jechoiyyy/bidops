@@ -124,7 +124,7 @@ core 2 + lifecycle 16 + screening 28 + deep_review 23 = 69이고, 사전규격 �
 
 | 대상 폴더 | 현재 테스트 파일 |
 |---|---|
-| tests/app | test_alembic_autogenerate, test_api_lifespan_t9, test_config_t9, test_db_migrations, test_health, test_logging_setup, test_models, test_models_runtime, test_postgres_harness, test_requirements_lock, test_runtime_database_privileges, test_static_frontend, test_t7_runtime_contract, test_object_store, test_minio_e2e |
+| tests/app | test_alembic_autogenerate, test_api_lifespan_t9, test_config_t9, test_db_migrations, test_health, test_logging_setup, test_models, test_models_runtime, test_postgres_harness, test_requirements_lock, test_runtime_database_privileges, test_static_frontend, test_runtime_contract, test_object_store, test_minio_e2e |
 | tests/lifecycle | test_api_notices, test_api_opportunities, test_api_pre_specs, test_api_runs, test_api_pipeline_service_t9, test_attachments, test_bid_delta_*, test_cumulative_identity, test_ingest_contracts, test_ingest_loader, test_legacy_attachment_provenance, test_metrics, test_opportunity_*, test_pipeline_service, test_prespec_attachment_*, test_revision_migrations |
 | tests/screening | test_api_quality_policy, test_api_schedule_t9, test_api_screening, test_candidate_quality, test_generation_config_t15(core로), test_order_plan_screening_*, test_profile*, test_quality_*, test_reviews, test_revisions, test_review_revision_integration, test_scheduled_pipeline, test_scheduler*, test_screening_*, test_t15_runtime_binding, test_schemas_t9(확인) |
 | tests/deep_review | tests/agents/*, test_acceptance_clis, test_bc_e2e, test_deep_review_*, test_deep_reviews, test_document_*, test_integration_t14, test_mock_analysis_client, test_prespec_overview*, test_reports |

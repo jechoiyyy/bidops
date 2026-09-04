@@ -1,79 +1,252 @@
-# 이 파일은 SQLite migration 입력 스냅숏을 다루는 operator 도구만 담는다.
-# 애플리케이션 런타임(`web`, `document-worker`, `analysis-worker`)은
-# `docker-compose.t7.yml`이 담당한다.
-# 모든 서비스는 `ops` profile이므로 인자 없는 `docker compose up`은 아무것도 띄우지 않는다.
-
-x-bidops-runtime: &bidops-runtime
-  image: bidops-admin:local
-  build:
-    context: .
-    dockerfile: web/Dockerfile
-    args:
-      BIDOPS_UID: "${BIDOPS_UID:-1000}"
-      BIDOPS_GID: "${BIDOPS_GID:-1000}"
-  working_dir: /app/web/backend
-  user: "${BIDOPS_UID:-1000}:${BIDOPS_GID:-1000}"
-  env_file:
-    - path: .env
-      required: false
-  environment:
-    # Container paths are explicit so a host .env cannot redirect the DB into
-    # the image or into a read-only source tree.
-    BIDOPS_ROOT: /app
-    BIDOPS_DATA_DIR: /app/web/data
-    BIDOPS_ATTACHMENTS_DIR: /app/web/data/attachments
-    # 이 SQLite 경로는 정본이 아니라 `db-backup`/`db-migrate`/`db-verify`가
-    # 다루는 migration 입력 스냅숏이다.
-    BIDOPS_DATABASE_URL: sqlite:////app/web/data/bidops.db
-    # Set this to an approved Ollama endpoint in .env. Loopback is safe by
-    # default, so an unavailable model never affects /api/health.
-    BIDOPS_OLLAMA_BASE_URL: "${BIDOPS_OLLAMA_BASE_URL:-http://127.0.0.1:11434}"
-    BIDOPS_SCHEDULER_ENABLED: "${BIDOPS_SCHEDULER_ENABLED:-false}"
-    # These are consumed only by the explicitly invoked ops-profile helpers;
-    # blank defaults cannot trigger a backup, migration, or policy seed.
-    BIDOPS_BACKUP_OUTPUT: "${BIDOPS_BACKUP_OUTPUT:-}"
-    BIDOPS_BACKUP_MANIFEST: "${BIDOPS_BACKUP_MANIFEST:-}"
-    BIDOPS_CONFIRM_SERVICE_STOPPED: "${BIDOPS_CONFIRM_SERVICE_STOPPED:-false}"
-    BIDOPS_POLICY_SEED_ACTOR: "${BIDOPS_POLICY_SEED_ACTOR:-}"
-  volumes:
-    # Pipeline source artifacts and generated reports are host-visible and
-    # durable. The process user must match BIDOPS_UID/BIDOPS_GID.
-    - ./data:/app/data
-    - ./reports:/app/reports
-    # Skills and docs are execution inputs, never container write targets.
-    - ./skills:/app/skills:ro
-    - ./docs:/app/docs:ro
-    # SQLite, attachments, policy/profile snapshots, and audit records survive
-    # container recreation. Do not use `down -v` without a verified backup.
-    - bidops-web-data:/app/web/data
-    - bidops-backups:/app/backups
-  entrypoint: ["/usr/local/bin/bidops-entrypoint"]
-
+# Lean v1 isolated production template. Always invoke with an explicit
+# COMPOSE_PROJECT_NAME from this worktree; volumes are intentionally unnamed so
+# Compose scopes them to that project and cannot overlap the main worktree.
 services:
-  # Explicit operator commands. None starts on its own or depends on another
-  # service; each is invoked by name after the T7 runtime is stopped.
-  # `db-migrate` additionally requires a retained manifest and an explicit
-  # service-stopped confirmation in container-ops.sh.
-  db-backup:
-    <<: *bidops-runtime
-    profiles: ["ops"]
-    command: ["/usr/local/bin/bidops-ops", "backup"]
+  postgres:
+    image: postgres:17.11@sha256:051f7b7b3abdd564d5d1bd1e8c4b9c1b6e77087d1dd22020ede611c096a272e0
+    environment:
+      POSTGRES_DB: bidops
+      POSTGRES_USER: owner
+      POSTGRES_PASSWORD: "${BIDOPS_OWNER_PASSWORD:?set an external owner password}"
+    command: ["postgres", "-c", "search_path=bidops,public"]
+    ports:
+      # Admin surfaces bind to loopback by default.  The application API is the
+      # intended access boundary; publishing the database on every host
+      # interface would let the LAN reach it directly.  Remote administration is
+      # an explicit opt-in via BIDOPS_ADMIN_BIND_HOST plus a source allowlist.
+      - "${BIDOPS_ADMIN_BIND_HOST:-127.0.0.1}:${BIDOPS_POSTGRES_PORT:-15432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U owner -d bidops"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [database]
 
-  db-migrate:
-    <<: *bidops-runtime
-    profiles: ["ops"]
-    command: ["/usr/local/bin/bidops-ops", "migrate"]
+  postgres-init:
+    build: { context: ., dockerfile: web/Dockerfile }
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      PGPASSWORD: "${BIDOPS_OWNER_PASSWORD:?set an external owner password}"
+      BIDOPS_DATABASE_HOST: postgres
+      BIDOPS_OWNER_PASSWORD: "${BIDOPS_OWNER_PASSWORD:?set an external owner password}"
+      BIDOPS_MIGRATE_PASSWORD: "${BIDOPS_MIGRATE_PASSWORD:?set an external migrate password}"
+      BIDOPS_APP_PASSWORD: "${BIDOPS_APP_PASSWORD:?set an external app password}"
+      BIDOPS_WORKER_PASSWORD: "${BIDOPS_WORKER_PASSWORD:?set an external worker password}"
+      BIDOPS_RO_BACKUP_PASSWORD: "${BIDOPS_RO_BACKUP_PASSWORD:?set an external ro_backup password}"
+    entrypoint: ["/app/scripts/postgres-init.sh"]
+    networks: [database]
 
-  db-verify:
-    <<: *bidops-runtime
-    profiles: ["ops"]
-    command: ["/usr/local/bin/bidops-ops", "verify"]
+  migrate:
+    build: { context: ., dockerfile: web/Dockerfile }
+    depends_on:
+      postgres-init: { condition: service_completed_successfully }
+    environment:
+      BIDOPS_DATABASE_URL: "postgresql+psycopg://migrate:${BIDOPS_MIGRATE_PASSWORD:?set an external migrate password}@postgres:5432/bidops"
+      BIDOPS_DATABASE_HOST: postgres
+      BIDOPS_MIGRATE_PASSWORD: "${BIDOPS_MIGRATE_PASSWORD:?set an external migrate password}"
+    entrypoint: ["/app/scripts/migrate.sh"]
+    networks: [database]
 
-  policy-seed:
-    <<: *bidops-runtime
-    profiles: ["ops"]
-    command: ["/usr/local/bin/bidops-ops", "seed-policy"]
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: "${BIDOPS_MINIO_ROOT_USER:?set an external MinIO root user}"
+      MINIO_ROOT_PASSWORD: "${BIDOPS_MINIO_ROOT_PASSWORD:?set an external MinIO root password}"
+    ports:
+      # Object store API and console are admin surfaces; see the postgres note.
+      - "${BIDOPS_ADMIN_BIND_HOST:-127.0.0.1}:${BIDOPS_MINIO_PORT:-19000}:9000"
+      - "${BIDOPS_ADMIN_BIND_HOST:-127.0.0.1}:${BIDOPS_MINIO_CONSOLE_PORT:-19001}:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [storage, analysis]
+
+  minio-init:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    depends_on:
+      minio: { condition: service_healthy }
+    environment:
+      MINIO_ROOT_USER: "${BIDOPS_MINIO_ROOT_USER:?set an external MinIO root user}"
+      MINIO_ROOT_PASSWORD: "${BIDOPS_MINIO_ROOT_PASSWORD:?set an external MinIO root password}"
+      BIDOPS_SOURCE_ACCESS_KEY: "${BIDOPS_SOURCE_ACCESS_KEY:?set an external source access key}"
+      BIDOPS_SOURCE_SECRET_KEY: "${BIDOPS_SOURCE_SECRET_KEY:?set an external source secret key}"
+      BIDOPS_STRUCTURE_ACCESS_KEY: "${BIDOPS_STRUCTURE_ACCESS_KEY:?set an external structure access key}"
+      BIDOPS_STRUCTURE_SECRET_KEY: "${BIDOPS_STRUCTURE_SECRET_KEY:?set an external structure secret key}"
+      BIDOPS_STRUCTURE_READ_ACCESS_KEY: "${BIDOPS_STRUCTURE_READ_ACCESS_KEY:?set an external structure read access key}"
+      BIDOPS_STRUCTURE_READ_SECRET_KEY: "${BIDOPS_STRUCTURE_READ_SECRET_KEY:?set an external structure read secret key}"
+      BIDOPS_QUARANTINE_ACCESS_KEY: "${BIDOPS_QUARANTINE_ACCESS_KEY:?set an external quarantine access key}"
+      BIDOPS_QUARANTINE_SECRET_KEY: "${BIDOPS_QUARANTINE_SECRET_KEY:?set an external quarantine secret key}"
+      BIDOPS_MODEL_RESPONSE_ACCESS_KEY: "${BIDOPS_MODEL_RESPONSE_ACCESS_KEY:?set an external model-response access key}"
+      BIDOPS_MODEL_RESPONSE_SECRET_KEY: "${BIDOPS_MODEL_RESPONSE_SECRET_KEY:?set an external model-response secret key}"
+    volumes:
+      - ./scripts/minio-init.sh:/usr/local/bin/minio-init.sh:ro
+    entrypoint: ["/bin/sh", "/usr/local/bin/minio-init.sh"]
+    networks: [storage]
+
+  clamav:
+    image: clamav/clamav:1.4.3
+    networks: [scanning]
+
+  web:
+    build: { context: ., dockerfile: web/Dockerfile }
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      minio-init: { condition: service_completed_successfully }
+      clamav: { condition: service_started }
+      document-worker: { condition: service_started }
+    environment:
+      BIDOPS_ROOT: /app
+      BIDOPS_DATABASE_URL: "postgresql+psycopg://app:${BIDOPS_APP_PASSWORD:?set an external app password}@postgres:5432/bidops"
+      BIDOPS_OPENAI_ENABLED: "false"
+      BIDOPS_C2_EXECUTION_ALLOWED: "false"
+      BIDOPS_DOCUMENT_WORKER_CONCURRENCY: "2"
+      BIDOPS_DOCUMENT_CONVERTER_WAIT_SECONDS: "45"
+      BIDOPS_CLAMAV_HOST: clamav
+      BIDOPS_CLAMAV_PORT: "3310"
+      BIDOPS_OBJECT_STORE_BACKEND: minio
+      BIDOPS_OBJECT_STORE_ENDPOINT: minio:9000
+      BIDOPS_OBJECT_STORE_SECURE: "false"
+      BIDOPS_SOURCE_ACCESS_KEY: "${BIDOPS_SOURCE_ACCESS_KEY:?set an external source access key}"
+      BIDOPS_SOURCE_SECRET_KEY: "${BIDOPS_SOURCE_SECRET_KEY:?set an external source secret key}"
+      BIDOPS_STRUCTURE_ACCESS_KEY: "${BIDOPS_STRUCTURE_ACCESS_KEY:?set an external structure access key}"
+      BIDOPS_STRUCTURE_SECRET_KEY: "${BIDOPS_STRUCTURE_SECRET_KEY:?set an external structure secret key}"
+      BIDOPS_QUARANTINE_ACCESS_KEY: "${BIDOPS_QUARANTINE_ACCESS_KEY:?set an external quarantine access key}"
+      BIDOPS_QUARANTINE_SECRET_KEY: "${BIDOPS_QUARANTINE_SECRET_KEY:?set an external quarantine secret key}"
+      BIDOPS_ANALYSIS_WORKER_CONCURRENCY: "1"
+      # These deployment references are intentionally optional while an
+      # operator prepares a document bundle and evaluates a candidate policy.
+      # Deep-review creation fails closed until both immutable IDs are set and
+      # the measured policy passes its activation gate.
+      BIDOPS_ACTIVE_PROFILE_VERSION_ID: "${BIDOPS_ACTIVE_PROFILE_VERSION_ID:-}"
+      BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID: "${BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID:-}"
+    ports:
+      - "${BIDOPS_WEB_PORT:-18787}:8787"
+    networks: [database, storage, scanning]
+    volumes:
+      - document-scratch:/scratch
+      # Run artifacts and generated reports must outlive container
+      # recreation.  These are project-scoped named volumes rather than host
+      # bind mounts; use `docker compose cp` to take a copy out.
+      - pipeline-data:/app/data
+      - pipeline-reports:/app/reports
+      # /app/web/data holds both the legacy attachment download copies and the
+      # profile snapshot artifacts the approved profile projection reads back.
+      # Persist the whole directory: a container recreate that keeps the DB rows
+      # but drops the artifacts leaves the profile API permanently fail-closed.
+      - web-data:/app/web/data
+      # Only the tracked policy and binding are supplied to the default image;
+      # company capabilities and the prompt require the remote overlay's
+      # explicit operator paths below.
+      - ./experiments/order-plan-screening/config/order-plan-screening-policy.v2.json:/app/experiments/order-plan-screening/config/order-plan-screening-policy.v2.json:ro
+      - ./experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v2.json:/app/experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v2.json:ro
+      - ./experiments/order-plan-screening/config/order-plan-screening-generation-config.v4.json:/app/experiments/order-plan-screening/config/order-plan-screening-generation-config.v4.json:ro
+      # Profile-related inputs are deployment data, not image layers. The web
+      # process owns both the profile snapshot boundary and the collection
+      # subprocess that consumes the performance-title reference.
+      - ./docs/reference/company-profile.md:/app/docs/reference/company-profile.md:ro
+      - ./docs/reference/company-performance-titles.tsv:/app/docs/reference/company-performance-titles.tsv:ro
+      - ./web/backend/app/screening/baseline_company_profile.md:/app/web/backend/app/screening/baseline_company_profile.md:ro
+    restart: unless-stopped
+
+  document-worker:
+    build: { context: ., dockerfile: web/Dockerfile }
+    environment: {}
+    command: ["python", "-m", "app.deep_review.workers.document"]
+    # The shared image probes the web HTTP endpoint by default, but this
+    # worker intentionally has no HTTP listener.
+    healthcheck: { disable: true }
+    volumes:
+      - document-scratch:/scratch
+    network_mode: none
+    deploy:
+      replicas: 2
+
+  analysis-worker:
+    build: { context: ., dockerfile: web/Dockerfile }
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      minio-init: { condition: service_completed_successfully }
+    environment:
+      BIDOPS_ROOT: /app
+      BIDOPS_DATABASE_URL: "postgresql+psycopg://worker:${BIDOPS_WORKER_PASSWORD:?set an external worker password}@postgres:5432/bidops"
+      BIDOPS_VLLM_BASE_URL: "${BIDOPS_VLLM_BASE_URL:-http://127.0.0.1:8000/v1}"
+      BIDOPS_VLLM_ALLOWED_HOSTS: "${BIDOPS_VLLM_ALLOWED_HOSTS:-}"
+      BIDOPS_VLLM_MODEL: qwen3.8-27B
+      BIDOPS_VLLM_MODEL_REVISION: "${BIDOPS_VLLM_MODEL_REVISION:-}"
+      BIDOPS_VLLM_API_KEY: "${BIDOPS_VLLM_API_KEY:-EMPTY}"
+      # C-2 remains fail-closed until an operator approves transport for the
+      # deployment and the persisted Phase 0 binding also allows it.
+      BIDOPS_C2_EXECUTION_ALLOWED: "false"
+      BIDOPS_OPENAI_ENABLED: "false"
+      BIDOPS_ANALYSIS_WORKER_CONCURRENCY: "1"
+      BIDOPS_OBJECT_STORE_BACKEND: minio
+      BIDOPS_OBJECT_STORE_ENDPOINT: minio:9000
+      BIDOPS_OBJECT_STORE_SECURE: "false"
+      BIDOPS_MODEL_RESPONSE_ACCESS_KEY: "${BIDOPS_MODEL_RESPONSE_ACCESS_KEY:?set an external model-response access key}"
+      BIDOPS_MODEL_RESPONSE_SECRET_KEY: "${BIDOPS_MODEL_RESPONSE_SECRET_KEY:?set an external model-response secret key}"
+      BIDOPS_STRUCTURE_READ_ACCESS_KEY: "${BIDOPS_STRUCTURE_READ_ACCESS_KEY:?set an external structure read access key}"
+      BIDOPS_STRUCTURE_READ_SECRET_KEY: "${BIDOPS_STRUCTURE_READ_SECRET_KEY:?set an external structure read secret key}"
+      BIDOPS_MODEL_RESPONSE_ENCRYPTION_KEY: "${BIDOPS_MODEL_RESPONSE_ENCRYPTION_KEY:?set an external model-response encryption key}"
+      BIDOPS_MODEL_RESPONSE_ENCRYPTION_KEY_REF: "${BIDOPS_MODEL_RESPONSE_ENCRYPTION_KEY_REF:?set an external model-response encryption key reference}"
+    command: ["python", "-m", "app.workers.analysis"]
+    # Worker liveness is observed through its process/job lease; it does not
+    # expose the web image's 8787 health endpoint.
+    healthcheck: { disable: true }
+    volumes:
+      - pipeline-data:/app/data
+      - ./experiments/order-plan-screening/config/order-plan-screening-policy.v2.json:/app/experiments/order-plan-screening/config/order-plan-screening-policy.v2.json:ro
+      - ./experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v2.json:/app/experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v2.json:ro
+      - ./experiments/order-plan-screening/config/order-plan-screening-generation-config.v4.json:/app/experiments/order-plan-screening/config/order-plan-screening-generation-config.v4.json:ro
+    networks: [database, analysis]
+
+  ro-backup:
+    build: { context: ., dockerfile: web/Dockerfile }
+    profiles: [backup]
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      BIDOPS_DATABASE_URL: "postgresql+psycopg://ro_backup:${BIDOPS_RO_BACKUP_PASSWORD:?set an external ro_backup password}@postgres:5432/bidops"
+      BIDOPS_DATABASE_HOST: postgres
+      BIDOPS_RO_BACKUP_PASSWORD: "${BIDOPS_RO_BACKUP_PASSWORD:?set an external ro_backup password}"
+      BIDOPS_DATABASE_USER: ro_backup
+      BIDOPS_DATABASE_PASSWORD: "${BIDOPS_RO_BACKUP_PASSWORD:?set an external ro_backup password}"
+      BACKUP_DIR: /backup
+    volumes:
+      - ./backups/postgres:/backup
+    entrypoint: ["/app/scripts/backup-postgres.sh"]
+    networks: [database]
+
+  ops:
+    build: { context: ., dockerfile: web/Ops.Dockerfile }
+    profiles: [ops]
+    volumes:
+      - recovery-backup:/backup
+    networks: [database, storage]
+    entrypoint: ["/bin/sh"]
 
 volumes:
-  bidops-web-data:
-  bidops-backups:
+  postgres-data:
+  minio-data:
+  document-scratch:
+  pipeline-data:
+  pipeline-reports:
+  web-data:
+  recovery-backup:
+
+networks:
+  database:
+    internal: true
+  storage:
+    internal: true
+  scanning:
+    internal: true
+  analysis:
+    internal: true

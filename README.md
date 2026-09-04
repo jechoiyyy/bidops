@@ -12,7 +12,7 @@ BidOps는 기획·사업개발 담당자가 나라장터 **발주계획을 조�
 
 - [지금 무엇이 되고 무엇이 안 되는가](#지금-무엇이-되고-무엇이-안-되는가)
 - [사전 조건](#사전-조건)
-- [실행 1: Docker Compose(T7) 스택](#실행-1-docker-composet7-스택)
+- [실행 1: Docker Compose 스택](#실행-1-docker-compose-스택)
 - [실행 2: 호스트 개발 서버](#실행-2-호스트-개발-서버)
 - [파이프라인 실행](#파이프라인-실행)
 - [산출물 적재](#산출물-적재)
@@ -64,11 +64,11 @@ cp .env.example .env
 
 | 파일 | 소비하는 compose | 담는 값 |
 |---|---|---|
-| `.env` | `docker-compose.t7.yml` | 프로세스 정체성, 로그, DB·MinIO 자격증명, 암호화 키, port, 승인 profile/policy 참조 |
-| `env/vllm.env` | `docker-compose.t7.remote-vllm.yml` | 심층 검토용 사설 vLLM endpoint·allowlist·API key |
-| `env/screening.env` | `docker-compose.t7.screening.yml` | 판정용 Ollama base URL·모델 |
-| `env/prespec-attachment.env` | `docker-compose.t7.prespec-attachment.yml` | 사전규격 첨부 취득 host allowlist |
-| 없음 | `docker-compose.t7.mock-reference.yml` | 전용 값을 override 파일 안에 리터럴로 선언한다 |
+| `.env` | `docker-compose.yml` | 프로세스 정체성, 로그, DB·MinIO 자격증명, 암호화 키, port, 승인 profile/policy 참조 |
+| `env/vllm.env` | `docker-compose.remote-vllm.yml` | 심층 검토용 사설 vLLM endpoint·allowlist·API key |
+| `env/screening.env` | `docker-compose.screening.yml` | 판정용 Ollama base URL·모델 |
+| `env/prespec-attachment.env` | `docker-compose.prespec-attachment.yml` | 사전규격 첨부 취득 host allowlist |
+| 없음 | `docker-compose.mock-reference.yml` | 전용 값을 override 파일 안에 리터럴로 선언한다 |
 
 ### 회사자료 입력 전제
 
@@ -80,25 +80,25 @@ test -f docs/reference/company-performance-titles.tsv && test -r docs/reference/
 test -f web/backend/app/screening/baseline_company_profile.md && test -r web/backend/app/screening/baseline_company_profile.md
 ```
 
-이 경로는 의도된 보안 경계다. `docker run`만으로 우회하지 말고 T7 Compose를 사용한다.
+이 경로는 의도된 보안 경계다. `docker run`만으로 우회하지 말고 Compose를 사용한다.
 
-## 실행 1: Docker Compose(T7) 스택
+## 실행 1: Docker Compose 스택
 
-`docker-compose.t7.yml`이 기준 배포 파일이다. 항상 전용 `COMPOSE_PROJECT_NAME`을 쓰고, 다른 worktree의 컨테이너·volume을 건드리지 않는다.
+`docker-compose.yml`이 기준 배포 파일이다. 항상 전용 `COMPOSE_PROJECT_NAME`을 쓰고, 다른 worktree의 컨테이너·volume을 건드리지 않는다.
 
 ```bash
 cp .env.example .env
 cp env/vllm.env.example env/vllm.env
-export COMPOSE_PROJECT_NAME=bidops-deep-review-t7
+export COMPOSE_PROJECT_NAME=bidops
 
-docker compose -f docker-compose.t7.yml build
-docker compose -f docker-compose.t7.yml up -d postgres minio clamav
+docker compose -f docker-compose.yml build
+docker compose -f docker-compose.yml up -d postgres minio clamav
 
 # DB 역할 초기화 → Alembic migration → MinIO 버킷·정책 초기화
 ./scripts/init-runtime.sh
 
 docker compose --env-file .env --env-file env/vllm.env \
-  -f docker-compose.t7.yml -f docker-compose.t7.remote-vllm.yml \
+  -f docker-compose.yml -f docker-compose.remote-vllm.yml \
   up -d web document-worker analysis-worker
 
 curl --fail "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/health"
@@ -120,7 +120,7 @@ curl --fail "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/health"
 ```bash
 cp env/screening.env.example env/screening.env   # BIDOPS_OLLAMA_BASE_URL을 채운다
 docker compose --env-file .env --env-file env/screening.env \
-  -f docker-compose.t7.yml -f docker-compose.t7.screening.yml up -d web
+  -f docker-compose.yml -f docker-compose.screening.yml up -d web
 ```
 
 사전규격 첨부 취득(기본 비활성, `SW사업대상=Y` 또는 추적 중 발주계획 연결 건만 대상):
@@ -129,14 +129,14 @@ docker compose --env-file .env --env-file env/screening.env \
 cp env/prespec-attachment.env.example env/prespec-attachment.env
 # BIDOPS_G2B_ATTACHMENT_ALLOWED_HOSTS를 승인된 값으로 채운다
 docker compose --env-file .env --env-file env/prespec-attachment.env \
-  -f docker-compose.t7.yml -f docker-compose.t7.prespec-attachment.yml \
+  -f docker-compose.yml -f docker-compose.prespec-attachment.yml \
   up -d prespec-attachment-worker
 ```
 
 모델 없이 상태 전이와 저장·검증 계보만 확인할 때는 mock override를 쓴다. 추가 env 파일이 필요 없고 어떤 egress도 열지 않는다.
 
 ```bash
-docker compose -f docker-compose.t7.yml -f docker-compose.t7.mock-reference.yml \
+docker compose -f docker-compose.yml -f docker-compose.mock-reference.yml \
   up -d web document-worker analysis-worker
 ```
 
@@ -147,10 +147,10 @@ mock 결과의 계보는 `mock-analysis` / `bidops-deterministic-mock-v1`로 고
 ### 상태 확인과 중지
 
 ```bash
-export COMPOSE_PROJECT_NAME=bidops-deep-review-t7
-docker compose -f docker-compose.t7.yml ps
-docker compose -f docker-compose.t7.yml logs --since=30m web analysis-worker
-docker compose -f docker-compose.t7.yml stop web analysis-worker document-worker
+export COMPOSE_PROJECT_NAME=bidops
+docker compose -f docker-compose.yml ps
+docker compose -f docker-compose.yml logs --since=30m web analysis-worker
+docker compose -f docker-compose.yml stop web analysis-worker document-worker
 ```
 
 로그에는 prompt, 모델 응답, 회사자료, 첨부 본문, 자격증명, URL 쿼리 문자열이 **없어야 한다.**
@@ -261,8 +261,8 @@ live API key나 model endpoint 없이 실행한다.
 ./run-tests.sh                              # 파이프라인 단위·교차 테스트
 ./web/run-web-tests.sh                      # backend + frontend build + Playwright
 cd web/frontend && npm run test:screens     # 화면 게이트 (의미 + 구조)
-COMPOSE_PROJECT_NAME=bidops-deep-review-t7 \
-  docker compose -f docker-compose.t7.yml build
+COMPOSE_PROJECT_NAME=bidops \
+  docker compose -f docker-compose.yml build
 ```
 
 `web/run-web-tests.sh`는 임시 PostgreSQL 17 컨테이너를 띄워 migration을 수행하고, 격리 DB에서 backend 테스트 → frontend production build → Playwright 화면 게이트(의미 한 폭 + 구조 두 폭)를 차례로 돌린다. 임시 자원은 실패 경로를 포함한 모든 종료에서 정리된다.
@@ -274,9 +274,9 @@ COMPOSE_PROJECT_NAME=bidops-deep-review-t7 \
 ## 백업과 복구
 
 ```bash
-# PostgreSQL: timestamp custom-format dump를 ./backups/t7에 만든다 (기존 백업을 지우지 않는다)
-COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose \
-  -f docker-compose.t7.yml --profile backup run --rm ro-backup
+# PostgreSQL: timestamp custom-format dump를 ./backups/postgres에 만든다 (기존 백업을 지우지 않는다)
+COMPOSE_PROJECT_NAME=bidops docker compose \
+  -f docker-compose.yml --profile backup run --rm ro-backup
 
 # MinIO: 네 버킷의 모든 version을 복사하고 object-versions.tsv manifest를 만든다
 # 실행 환경에 mc, MINIO_ALIAS, OBJECT_BACKUP_DIR가 필요하다
@@ -292,9 +292,9 @@ DB dump와 객체 manifest는 같은 복구 지점을 식별할 수 있게 **함
 ```text
 bidops/
 ├── AGENTS.md, CLAUDE.md              작업 진입점이며 내용은 동일하다
-├── docker-compose.t7.yml             PostgreSQL·MinIO 기반 애플리케이션 스택
-├── docker-compose.t7.*.yml           목적별 egress·모델 overlay
-├── docker-compose.yml                SQLite 이전 입력용 ops 명령
+├── docker-compose.yml                PostgreSQL·MinIO 기반 애플리케이션 스택
+├── docker-compose.*.yml              목적별 egress·모델 overlay
+├── docker-compose.sqlite-ops.yml     SQLite 이전 입력용 ops 명령 (제거 후보)
 ├── run-tests.sh                      파이프라인 단위·교차 테스트
 ├── data/, reports/                   불변 회차 입력과 파생 보고서
 ├── env/                              overlay 전용 환경 파일

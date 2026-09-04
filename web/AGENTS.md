@@ -6,7 +6,7 @@
 
 ## 배포 경계
 
-- `docker-compose.t7.yml`이 애플리케이션 스택이다. 루트 Compose의 ops profile을 웹 런타임으로 바꾸지 않는다.
+- `docker-compose.yml`이 애플리케이션 스택이다. `docker-compose.sqlite-ops.yml`의 ops profile을 웹 런타임으로 바꾸지 않는다.
 - 기본 database, storage, scanning, analysis network는 internal이다. Ollama·나라장터, 사설 vLLM egress는 서로 다른 명시적 overlay로만 연다.
 - `document-worker`는 network 없이 scratch request만 처리한다. 자격증명이나 HTTP listener를 추가하지 않는다.
 - 이미지에 `.env`, API key, DB dump, 객체 원문, run, report, 회사자료를 복사하지 않는다.
@@ -33,8 +33,8 @@
 
 ```bash
 ./web/run-web-tests.sh            # backend pytest + frontend build + Playwright 화면 회귀
-COMPOSE_PROJECT_NAME=bidops-verify docker compose -f docker-compose.t7.yml build
-COMPOSE_PROJECT_NAME=bidops-verify docker compose -f docker-compose.t7.yml config
+COMPOSE_PROJECT_NAME=bidops-verify docker compose -f docker-compose.yml build
+COMPOSE_PROJECT_NAME=bidops-verify docker compose -f docker-compose.yml config
 ```
 
 임시 project에서 health, SPA, migration-before-start, internal network, worker 자격증명, volume 재생성 후 데이터 보존, non-root 쓰기 권한을 확인한다. 검증용 project만 제거하며 운영 volume은 건드리지 않는다.

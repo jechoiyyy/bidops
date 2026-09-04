@@ -66,7 +66,7 @@ BidOps의 코드, 데이터, 모델 호출, 운영 변경은 아래 기준을 �
 ```bash
 ./run-tests.sh
 ./web/run-web-tests.sh            # backend pytest + frontend build + Playwright 화면 회귀
-docker compose -f docker-compose.t7.yml build
+docker compose -f docker-compose.yml build
 
 cd web/frontend && npm run test:contrast   # 테마 대비 게이트
 cd web/frontend && npm run test:screens    # 화면 게이트 (의미 + 구조)

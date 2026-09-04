@@ -107,7 +107,7 @@
 **영향**: `.env`가 있는 상태의 host 테스트 결과는 baseline으로 쓸 수 없다. 실패 12건 중 6건이
 `.env` 때문이고, 실행 시간도 신뢰할 수 없다.
 
-**해결 방향**: `docker-compose.t7.yml`이 `BIDOPS_CLAMAV_HOST`·`BIDOPS_OBJECT_STORE_*`를
+**해결 방향**: `docker-compose.yml`이 `BIDOPS_CLAMAV_HOST`·`BIDOPS_OBJECT_STORE_*`를
 이미 106~110행과 163~165행에서 선언한다. 공통 `.env`에 중복으로 둘 이유가 없으므로 제거한다.
 같은 이유로 `BIDOPS_ROOT`·`BIDOPS_DATA_DIR`·`BIDOPS_ATTACHMENTS_DIR`은 2026-08-29에 이미
 제거했다(그 셋은 `PermissionError: /app`으로 수집 단계에서 48개 파일을 전멸시켰다).
@@ -153,7 +153,7 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 
 - 재현 조건: `MinioObjectStore`처럼 `FilesystemObjectStore`가 아닌 object store에서 `assets.acquire_legacy_attachment()`를 호출하고 반환된 asset으로 `read_quarantine()`을 호출한다. `web/backend/tests/deep_review/test_legacy_attachment_provenance.py`가 가짜 store로 이 조건을 재현한다.
 - 증상: `acquire_legacy_attachment()`가 12필드 `QuarantinedAsset`에 인자를 **9개만 위치로** 넘겼다. `object_key`가 `source_system` 자리에, object version id가 `source_attachment_key` 자리에, etag가 `source_url` 자리에 들어가고 `object_key`·`object_version_id`·`object_etag`는 `None`으로 남았다. `acquire_legacy_attachment()`는 store가 filesystem이 아니면 put 직후 로컬 quarantine 파일을 지우는데, `read_quarantine()`은 `object_key`가 없으면 그 지워진 로컬 경로를 읽으려 한다.
-- 영향: 운영 기본 백엔드가 MinIO이므로(`docker-compose.t7.yml`) legacy 첨부 ingest가 운영에서 항상 실패한다. 테스트는 filesystem store를 쓰기 때문에 로컬 파일이 남아 전부 통과했다. `test_minio_e2e`는 upload와 provider 경로만 덮고 legacy 경로를 덮지 않아 이 결함이 드러나지 않았다. 감사·응답으로 object key가 새지는 않는다 — 호출부가 `asset.source_*`를 쓰지 않고 자신의 snapshot 값을 쓴다.
+- 영향: 운영 기본 백엔드가 MinIO이므로(`docker-compose.yml`) legacy 첨부 ingest가 운영에서 항상 실패한다. 테스트는 filesystem store를 쓰기 때문에 로컬 파일이 남아 전부 통과했다. `test_minio_e2e`는 upload와 provider 경로만 덮고 legacy 경로를 덮지 않아 이 결함이 드러나지 않았다. 감사·응답으로 object key가 새지는 않는다 — 호출부가 `asset.source_*`를 쓰지 않고 자신의 snapshot 값을 쓴다.
 - 상태: **해결** (2026-08-31). 세 생성 지점을 모두 키워드 인자로 바꾸고 `QuarantinedAsset`을 `@dataclass(frozen=True, kw_only=True)`로 만들어 위치 인자 구성을 아예 막았다. 생성 지점이 `assets.py` 안 세 곳뿐이라 외부 호출부에 영향이 없다. 회귀 테스트 4건을 추가했고 결함을 일부러 되살려 두 건이 실패하는 것을 확인했다.
 - 남은 위험: 이 결함은 "운영 백엔드에서만 실패하고 테스트 백엔드에서는 통과한다"는 부류다. `test_minio_e2e`는 `BIDOPS_MINIO_E2E=1`이 없으면 skip되므로 같은 부류가 또 잠복할 수 있다. 새 테스트는 MinIO 없이도 도는 가짜 store로 이 부류를 잡는다.
 
@@ -181,12 +181,12 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 - 상태: **해결** (2026-08-31, T-9). `seed_base()`가 `notice`를 누적 행으로 넣고 `notice_observation(notice_id, run_id, ...)`을 따로 넣는다. 13건 전부 통과한다.
 - 남은 위험: skip이 기본값이라는 구조는 그대로다. `web/run-web-tests.sh`를 거치면 임시 PostgreSQL 17이 항상 서므로 이 경로에서는 잠복하지 않는다. 그러나 `pytest tests/test_foo.py`처럼 개별 파일을 직접 지정하면 여전히 조용히 skip하고 exit 0이다(`addopts = "-ra"`가 사유는 출력한다). 이 경로까지 막을지, CI로 대신할지는 D-11의 남은 결정이다.
 
-## T7 스택의 publish port가 host에서 열리지 않는다
+## 애플리케이션 스택의 publish port가 host에서 열리지 않는다
 
-- 재현 조건: Docker Engine 29.7.2에서 `docker compose -f docker-compose.t7.yml up -d`로 기동한 뒤 `curl http://127.0.0.1:18787/api/health`, `ss -ltn`으로 15432·18787·19000·19001을 확인한다.
-- 증상: 컨테이너는 정상이고 `web` 컨테이너 안에서 `/api/health`가 `{"status":"ok"}`를 반환하지만 host에서는 어떤 publish port도 바인딩되지 않는다. `HostConfig.PortBindings`에는 매핑이 남아 있으나 `NetworkSettings.Ports`가 `null`이다. `--internal` bridge 하나에만 붙은 컨테이너에 `-p`를 준 최소 재현에서도 host 연결이 실패하고, 일반 bridge에서는 같은 구성이 성공한다. `docker-compose.t7.yml`의 `database`·`storage`·`scanning`·`analysis`는 모두 `internal: true`이므로 web·postgres·minio의 publish 선언이 전부 무효다.
+- 재현 조건: Docker Engine 29.7.2에서 `docker compose -f docker-compose.yml up -d`로 기동한 뒤 `curl http://127.0.0.1:18787/api/health`, `ss -ltn`으로 15432·18787·19000·19001을 확인한다.
+- 증상: 컨테이너는 정상이고 `web` 컨테이너 안에서 `/api/health`가 `{"status":"ok"}`를 반환하지만 host에서는 어떤 publish port도 바인딩되지 않는다. `HostConfig.PortBindings`에는 매핑이 남아 있으나 `NetworkSettings.Ports`가 `null`이다. `--internal` bridge 하나에만 붙은 컨테이너에 `-p`를 준 최소 재현에서도 host 연결이 실패하고, 일반 bridge에서는 같은 구성이 성공한다. `docker-compose.yml`의 `database`·`storage`·`scanning`·`analysis`는 모두 `internal: true`이므로 web·postgres·minio의 publish 선언이 전부 무효다.
 - 영향: 문서화된 최초 기동 절차의 host `curl` health 확인과 관리 화면 접근이 현재 Docker 버전에서 동작하지 않는다. 컨테이너 내부 실행으로만 상태를 확인할 수 있어 통합 검증 절차와 운영 접근 경로가 성립하지 않는다.
-- 지금 해결할 수 없는 이유: 해결하려면 `web`에 non-internal network를 추가해야 하는데, 이는 "기본 network는 내부망"이라는 배포 경계와 `test_t7_runtime_contract.py`의 `all(network.get("internal") is True ...)` 계약을 함께 바꾸는 변경이다. 보안 경계 변경이므로 결정 기록과 회귀 테스트 갱신이 선행되어야 한다.
+- 지금 해결할 수 없는 이유: 해결하려면 `web`에 non-internal network를 추가해야 하는데, 이는 "기본 network는 내부망"이라는 배포 경계와 `test_runtime_contract.py`의 `all(network.get("internal") is True ...)` 계약을 함께 바꾸는 변경이다. 보안 경계 변경이므로 결정 기록과 회귀 테스트 갱신이 선행되어야 한다.
 - 접근 방법: `com.docker.network.bridge.enable_ip_masquerade=false`를 지정한 전용 edge bridge를 만들어 `web`에만 연결하는 방식을 실측했다. host에서 publish port가 열리고 컨테이너의 외부 TCP 연결은 계속 차단된다(다만 embedded DNS를 통한 외부 이름 해석은 남는다). 함께 `127.0.0.1` 바인딩을 명시해 현재 `0.0.0.0` publish를 좁히고, postgres·minio는 publish 없이 `docker compose exec`로만 접근하도록 분리한다. 계약 테스트는 "egress network는 overlay에서만 추가한다"와 "edge network는 masquerade 비활성"을 확인하도록 바꾼다.
 
 ## 발주계획 Qwen 잘림 응답의 실패 token 계측이 보존되지 않는다
@@ -199,7 +199,7 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 
 ## 개발용 Codex 심층 검토 경로가 외부 전송 허용 범위를 넘는다
 
-- 재현 조건: (제거 전) `docker-compose.t7.codex-reference.yml`로 `BIDOPS_ANALYSIS_PROVIDER=codex-exec`, reference mode, 승인 notice ID를 설정하고 심층 검토 stage를 실행한다.
+- 재현 조건: (제거 전) `docker-compose.codex-reference.yml`로 `BIDOPS_ANALYSIS_PROVIDER=codex-exec`, reference mode, 승인 notice ID를 설정하고 심층 검토 stage를 실행한다.
 - 증상: `CodexExecClient.invoke()`가 일반 vLLM과 같은 `build_prompt()`를 사용한다. stage 입력에는 구조화된 RFP 요구사항 excerpt가 들어가고 delivery stage에는 회사 profile facts·evidence가 들어가므로 hosted Codex에 전송될 수 있다.
 - 영향: 공개 발주계획 메타데이터와 별도 승인된 최소 회사 역량 요약만 외부 모델에 보낸다는 확정 정책을 위반한다. 공고 allowlist와 기본 비활성은 실행 승인만 제한할 뿐 금지된 payload 종류를 제거하지 않는다.
 - 상태: **해결** (2026-09-03, provider 제거). hosted 외부 deep-review provider와 그 Compose overlay·env 예시·설정·문서를 저장소에서 삭제했다. 남는 심층 검토 provider는 `vllm`과 `mock`뿐이며, 이 경로로 RFP·첨부·profile 전문·evidence가 외부로 나갈 수 있는 코드는 존재하지 않는다.
@@ -212,7 +212,7 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 - 증상: `COPY docs/reference /app/docs/reference`가 `company-profile.md`와 회사 실적 제목 TSV를 복사하고, 별도 TSV copy가 이를 반복한다. `COPY web/backend/ ./`는 `baseline_company_profile.md`도 복사한다. `.dockerignore`는 reference PDF만 제외한다. Dockerfile의 회사자료 제외 주석과 실제 image 내용이 다르다.
 - 영향: image registry, build cache, image export에 회사 프로필·실적 근거가 포함될 수 있어 회사자료를 image에 넣지 않는 보안 경계를 위반한다.
 - 상태: **해결** (2026-09-01, runtime image 경계 보완). `docs/reference`의 build-context 예외를 제거하고 backend baseline을 `.dockerignore`로 제외했다. `COPY web/backend/ ./`는 유지하되 세 회사자료는 image에 복사하지 않으며, current profile·회사 실적 제목 TSV·승인 baseline은 `web` 서비스에만 read-only bind mount로 실행 시 주입한다. 기존 baseline digest 검증은 그대로 사용한다.
-- 검증: 기존 runtime contract test는 Dockerfile의 세 파일 copy 부재, `.dockerignore`의 세 파일 제외, `web`의 세 read-only mount를 함께 확인했고 `11 passed`였다. 2026-09-01 실제 image build/run에서 `/app/docs/reference/`에는 `.`·`..`만 있었고 profile·실적·baseline 이름을 찾는 `find`는 무출력이었다. `docker compose -f docker-compose.t7.yml config`는 `COMPOSE_OK`, backend 전체 suite는 `1037 passed, 5 skipped, 6 warnings`로 실패 0건이었다.
+- 검증: 기존 runtime contract test는 Dockerfile의 세 파일 copy 부재, `.dockerignore`의 세 파일 제외, `web`의 세 read-only mount를 함께 확인했고 `11 passed`였다. 2026-09-01 실제 image build/run에서 `/app/docs/reference/`에는 `.`·`..`만 있었고 profile·실적·baseline 이름을 찾는 `find`는 무출력이었다. `docker compose -f docker-compose.yml config`는 `COMPOSE_OK`, backend 전체 suite는 `1037 passed, 5 skipped, 6 warnings`로 실패 0건이었다.
 - 접근 방법: 일반 `docs/reference`와 backend baseline의 bulk copy를 build context 단계에서 차단하고, `skills/`와 그 공개 workflow contract만 image에 둔다. 프로필·실적 reference·baseline은 승인된 read-only host checkout 경계로 실행 시 주입하고, baseline은 기존 digest 검증으로 무결성을 확인한다.
 
 ## 프로필 조회 API가 원문과 서버 경로를 노출한다
@@ -229,7 +229,7 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 - 증상: legacy attachment service는 확장자와 50MiB 한도만 확인하고 `/app/web/data/attachments`로 rename한 뒤 DB를 commit한다. MIME 판별, quarantine, ClamAV, MinIO object version·hash 없이 바로 다운로드할 수 있다. T7은 `/app/data`와 `/app/reports`만 volume으로 연결하므로 이 attachment 경로는 container 재생성 때 유실될 수도 있다. `AttachmentResponse.stored_path`는 DB 값을 그대로 내보내 notice directory와 로컬 저장 layout을 client 계약에 노출한다.
 - 영향: 파일 내용이 확장자와 다르거나 악성인 첨부가 웹 process의 로컬 저장소와 사용자 download 경로로 들어가 Lean document upload의 안전 경계를 우회한다. DB row는 남고 파일만 사라지는 불일치도 생길 수 있고, path 노출은 서버 배치 구조를 외부 wire에 고정한다.
 - 상태: **해결** (2026-09-01, A-2 legacy upload 안전 경계·응답 projection·보관 volume 보완). 기존 `Attachment` schema와 id 기반 legacy download 호환성은 유지한다.
-- 검증: 감염 표식·ClamAV 사용 불가 파일은 4xx로 등록되지 않고 filesystem 산출물이 남지 않으며, safe PDF만 등록된다. 첨부 처리·notice detail 응답에는 `stored_path`가 없고 `docker compose -f docker-compose.t7.yml config`가 통과한다.
+- 검증: 감염 표식·ClamAV 사용 불가 파일은 4xx로 등록되지 않고 filesystem 산출물이 남지 않으며, safe PDF만 등록된다. 첨부 처리·notice detail 응답에는 `stored_path`가 없고 `docker compose -f docker-compose.yml config`가 통과한다.
 - 접근 방법: 업로드 바이트를 quarantine object에 저장하고 MIME·구조·ClamAV 검사를 통과한 경우에만 source object로 승격한 뒤 legacy `Attachment`와 named-volume의 로컬 호환 사본을 만든다. `stored_path`는 내부 metadata로만 유지하고 response schema·serializer에서 제거했다. 기존 attachment object metadata schema 이전은 별도 범위다.
 
 ## MinIO versioning 초기화가 실패해도 stack이 계속 기동한다
@@ -268,12 +268,12 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 
 ## PostgreSQL과 MinIO 관리 port가 모든 host interface에 publish된다
 
-- 재현 조건: 기본 `docker-compose.t7.yml`을 기동하고 host의 listen address를 확인한다.
+- 재현 조건: 기본 `docker-compose.yml`을 기동하고 host의 listen address를 확인한다.
 - 증상: PostgreSQL, MinIO API, MinIO console port mapping에 host IP가 없어 Docker가 기본적으로 모든 host interface에 bind할 수 있다.
 - 영향: Compose internal network와 무관하게 LAN에서 DB·객체 저장소 port에 직접 접근할 수 있어 애플리케이션 API만 사용하는 접근 경계를 우회한다. 실제 노출 범위가 host firewall 상태에 의존한다.
-- 상태: **해결** (2026-09-01). 세 mapping 모두 `${BIDOPS_ADMIN_BIND_HOST:-127.0.0.1}:` prefix를 갖는다. 기본 template은 loopback에만 bind하고, 원격 관리는 `.env`에서 이 값을 명시적으로 넓히는 opt-in이다. `test_t7_admin_ports_bind_to_loopback_by_default`가 세 mapping의 host IP field 존재를 계약으로 고정한다.
+- 상태: **해결** (2026-09-01). 세 mapping 모두 `${BIDOPS_ADMIN_BIND_HOST:-127.0.0.1}:` prefix를 갖는다. 기본 template은 loopback에만 bind하고, 원격 관리는 `.env`에서 이 값을 명시적으로 넓히는 opt-in이다. `test_admin_ports_bind_to_loopback_by_default`가 세 mapping의 host IP field 존재를 계약으로 고정한다.
 - publish를 제거하지 않은 이유: host에서 `psql`·`mc`로 DB·객체를 확인하는 개발 검증 경로가 살아 있어야 한다. loopback bind는 그 경로를 유지하면서 LAN 노출만 없앤다. **애플리케이션 port(`BIDOPS_WEB_PORT`)는 사내망 접근이 설계된 경계이므로 좁히지 않았다.**
-- 남은 위험: 이 stack의 network가 전부 `internal: true`라 현재 Docker 버전에서는 publish 자체가 host에 bind되지 않는다(위 "T7 스택의 publish port가 host에서 열리지 않는다"). 그 항목을 해결해 실제로 bind되기 시작할 때 이 loopback 기본값이 효력을 갖는다. 지금은 선제적 방어다.
+- 남은 위험: 이 stack의 network가 전부 `internal: true`라 현재 Docker 버전에서는 publish 자체가 host에 bind되지 않는다(위 "애플리케이션 스택의 publish port가 host에서 열리지 않는다"). 그 항목을 해결해 실제로 bind되기 시작할 때 이 loopback 기본값이 효력을 갖는다. 지금은 선제적 방어다.
 
 ## legacy mutation 일부가 담당자 이름과 감사 기록 없이 실행된다
 
