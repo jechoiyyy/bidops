@@ -186,12 +186,5 @@
   border-left-color: var(--color-accent);
 }
 
-@media (max-width: 900px) {
-  .detail-skeleton-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .detail-skeleton-head {
-    padding: var(--spacing-3) var(--spacing-4);
-  }
-}
+/* 지원 폭은 1280~1920px 하나뿐이므로 900px 분기를 두지 않는다(ADR-0046).
+   상세 3종은 어느 폭에서도 본문 열과 우측 열을 함께 유지한다. */

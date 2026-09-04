@@ -255,6 +255,11 @@ export function DeepReviewPage() {
   const reportError = reportQuery.error ? errorText(reportQuery.error, "보고서를 확인할 수 없습니다.") : null;
   const reportNotReady = isReportNotReady(reportQuery.error);
   const validationFailed = reportView?.validation.status === "failed";
+  // 실패한 check가 가리키는 첫 근거. 없으면 원문으로 갈 길이 없다는 사실을
+  // 그대로 표시하고 다른 근거로 대신하지 않는다.
+  const firstFailedEvidenceId = reportView?.validation.checks
+    .filter((check) => check.status === "failed")
+    .flatMap((check) => check.related_evidence_ids)[0] ?? null;
   const opinionDisabledReason = opinionMutation.isPending
     ? "심층검토 의견 저장 요청을 처리하고 있습니다."
     : !actorName.trim()
@@ -282,6 +287,42 @@ export function DeepReviewPage() {
           {attempt ? <StatusBadge label={`현재 attempt · ${statusLabel(attempt.status)}`} tone={statusTone(attempt.status)} /> : <StatusBadge label="현재 attempt · 없음" tone="neutral" />}
         </div>
       </StickyDecisionHeader>
+
+      {/* 시안 `DeepReview`의 상단 카드 4개(PLAN 단계 F 작업 5). 시안의 두 번째
+          카드는 `참여 준비 상태`이지만 이 보고서 계약(bidops.deep-review-report.v1)에
+          그 축이 없다. 없는 값을 카드로 채우지 않고, 자리는 계약이 실제로 답할 수
+          있는 검증 결과가 받는다. 참여 준비 상태가 여기 없다는 사실은 카드 아래
+          한 줄로 밝힌다 — 빈칸이나 추정으로 두지 않는다. */}
+      {reportView ? (
+        <section aria-label="보고서 요약 카드" className="deep-review-summary-cards">
+          <article className="deep-review-summary-card">
+            <span>종합 판단</span>
+            <strong>{reportView.report.system_recommendation}</strong>
+            <small>모델 제안 · 사람 확정 전</small>
+          </article>
+          <article className="deep-review-summary-card">
+            <span>검증 결과</span>
+            <strong>{reportView.validation.status === "passed" ? "통과" : "실패"}</strong>
+            <small>실패 {reportView.report.validation_summary.failed}건 · 경고 {reportView.report.validation_summary.warnings}건</small>
+          </article>
+          <article className="deep-review-summary-card">
+            <span>미확인 사항</span>
+            <strong>{reportView.report.unknowns.length}건</strong>
+            <small>unknown 유지 · 자동 보정 없음</small>
+          </article>
+          <article className="deep-review-summary-card">
+            <span>보고서 revision</span>
+            <strong>rev {reportView.history.length > 0 ? reportView.history[0].sequence : "확인 불가"}</strong>
+            <small>append-only · 덮어쓰기 없음</small>
+          </article>
+        </section>
+      ) : null}
+      {reportView ? (
+        <p className="deep-review-summary-note">
+          <strong>참여 준비 상태</strong>는 이 보고서가 답하지 않습니다. 적합성 등급·참여 준비 상태는 공고 판정이 소유하는 별도 축이며,
+          심층 검토 보고서 계약에 그 값이 없습니다. 여기에 비슷한 값을 채워 넣지 않습니다.
+        </p>
+      ) : null}
 
       <section aria-labelledby="preparation-title" className="deep-review-preparation">
         <h3 id="preparation-title" className="deep-review-section-title">문서 준비 및 분석 진행</h3>
@@ -385,18 +426,53 @@ export function DeepReviewPage() {
               <h3 id="decision-title" className="deep-review-section-title">시스템 권고</h3>
               <p className="deep-review-recommendation">{reportView.report.system_recommendation}</p>
               <p className="deep-review-section-copy">자동 권고는 사람의 사전규격 심층검토 의견과 별도이며, 서버가 저장한 claim·validation을 재판정하지 않습니다.</p>
-              <div aria-label="결정 카드 요약" className="deep-review-decision-summary">
-                {decisionBlocks.flatMap((block) => block.rows).map((row) => (
-                  <div key={row.row_key} className="deep-review-decision-row">
-                    <strong>{decisionRowHeading(row.label)}</strong>
-                    <p className="deep-review-decision-row-value">{row.cells.join(" · ")}</p>
-                    <div className="deep-review-evidence-actions">
-                      {row.claim_ids.flatMap((claimId) => reportView.report.claims.find((claim) => claim.claim_id === claimId)?.evidence_ids ?? []).map((id) => (
-                        <EvidenceButton key={`${row.row_key}-${id}`} id={id} selected={id === selectedEvidenceId} onSelect={() => setSelectedEvidenceId(id)} />
-                      ))}
-                    </div>
-                  </div>
-                ))}
+              {/* 시안 `DeepReview`의 결정 카드 요약은 항목·내용·근거·검증 네 열
+                  표다(PLAN 단계 F 작업 5). 검증 열은 서버가 준 validation check를
+                  그 행의 claim으로 이어 읽을 뿐, 화면이 다시 판정하지 않는다. */}
+              <div className="deep-review-decision-table-wrap" tabIndex={0} aria-label="결정 카드 요약 표를 좌우로 이동할 수 있습니다">
+                <table aria-label="결정 카드 요약" className="deep-review-decision-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">항목</th>
+                      <th scope="col">내용</th>
+                      <th scope="col">근거</th>
+                      <th scope="col">검증</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {decisionBlocks.flatMap((block) => block.rows).map((row) => {
+                      const evidenceIdsForRow = row.claim_ids.flatMap(
+                        (claimId) => reportView.report.claims.find((claim) => claim.claim_id === claimId)?.evidence_ids ?? [],
+                      );
+                      const rowChecks = reportView.validation.checks.filter(
+                        (check) => check.related_claim_ids.some((claimId) => row.claim_ids.includes(claimId)),
+                      );
+                      const worst = rowChecks.find((check) => check.status === "failed")
+                        ?? rowChecks.find((check) => check.status === "warning")
+                        ?? rowChecks[0];
+                      return (
+                        <tr key={row.row_key}>
+                          <th scope="row">{decisionRowHeading(row.label)}</th>
+                          <td>{row.cells.join(" · ")}</td>
+                          <td>
+                            <div className="deep-review-evidence-actions">
+                              {evidenceIdsForRow.length > 0
+                                ? evidenceIdsForRow.map((id) => (
+                                  <EvidenceButton key={`${row.row_key}-${id}`} id={id} selected={id === selectedEvidenceId} onSelect={() => setSelectedEvidenceId(id)} />
+                                ))
+                                : <span className="deep-review-missing-evidence">근거를 확인할 수 없습니다.</span>}
+                            </div>
+                          </td>
+                          <td>
+                            {worst
+                              ? <StatusBadge label={worst.status} tone={worst.status === "passed" ? "success" : worst.status === "warning" ? "warning" : "danger"} />
+                              : <span className="deep-review-missing-evidence">검증 결과 없음</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
             <div className="deep-review-opinion-card">
@@ -406,9 +482,49 @@ export function DeepReviewPage() {
             </div>
           </section>
 
-          <section aria-labelledby="validation-title" className="deep-review-validation-panel">
+          <section aria-labelledby="validation-title" className={`deep-review-validation-panel${validationFailed ? " is-failed" : ""}`}>
             <h3 id="validation-title" className="deep-review-section-title">검증 결과와 unknown</h3>
             <p>상태: <strong>{reportView.validation.status === "passed" ? "통과" : "실패"}</strong> · 실패 {reportView.report.validation_summary.failed} · 경고 {reportView.report.validation_summary.warnings}</p>
+            {/* 시안의 Validation 실패 블록은 두 조작을 함께 갖는다(PLAN 단계 F 작업 5).
+                실패를 자동 보정하지 않으므로, 사람이 갈 수 있는 길은 원문 확인과
+                새 attempt 두 가지뿐이다. */}
+            {validationFailed ? (
+              <div className="deep-review-validation-failed" role="alert">
+                <p>
+                  이 항목을 판정으로 읽지 마십시오. 실패를 확인해야 심층검토 의견을 저장할 수 있고, 화면이 자동으로 보정하지 않습니다.
+                </p>
+                <div className="deep-review-validation-actions">
+                  <button
+                    className="interaction-control"
+                    type="button"
+                    disabled={firstFailedEvidenceId === null}
+                    aria-describedby={firstFailedEvidenceId === null ? "deep-review-validation-source-disabled" : undefined}
+                    onClick={() => { if (firstFailedEvidenceId) setSelectedEvidenceId(firstFailedEvidenceId); }}
+                  >
+                    원문에서 확인
+                  </button>
+                  {firstFailedEvidenceId === null ? (
+                    <DisabledReason id="deep-review-validation-source-disabled">
+                      실패한 check에 연결된 근거가 없어 원문 위치로 갈 수 없습니다. 근거가 없다는 사실을 다른 값으로 바꾸지 않습니다.
+                    </DisabledReason>
+                  ) : null}
+                  <button
+                    className="interaction-control"
+                    type="button"
+                    onClick={() => { void retryMutation.mutateAsync().catch(() => undefined); }}
+                    disabled={retryMutation.isPending || !actorName.trim()}
+                    aria-describedby={!actorName.trim() ? "deep-review-validation-retry-disabled" : undefined}
+                  >
+                    {retryMutation.isPending ? "새 attempt 생성 중" : "새 attempt로 재시도"}
+                  </button>
+                  {!actorName.trim() ? (
+                    <DisabledReason id="deep-review-validation-retry-disabled">
+                      새 attempt를 만들려면 아래 보고서 수정본 저장의 담당자 claimed name을 입력하십시오.
+                    </DisabledReason>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
             {reportView.report.unknowns.length > 0 ? <ul>{reportView.report.unknowns.map((unknown) => <li key={unknown}>{unknown}</li>)}</ul> : <p>미확인 사항이 없습니다.</p>}
             <ul>{reportView.validation.checks.map((check) => <li key={`${check.check_type}-${check.message}`}>{check.status} · {check.message}</li>)}</ul>
           </section>
@@ -497,21 +613,6 @@ export function DeepReviewPage() {
             </div> : null}
           </section>
 
-          <section aria-labelledby="editor-title" className="deep-review-editor-panel">
-            <h3 id="editor-title" className="deep-review-section-title">보고서 수정본 편집</h3>
-            <p>저장은 전체 report snapshot을 새 immutable 수정본으로 추가합니다. 담당자 이름은 인증이 아닌 입력된 claimed name입니다.</p>
-            <div className="deep-review-editor-form">
-              <ActorField value={actorName} onChange={setActorName} autoComplete="off" />
-              <label>수정할 절<select className="interaction-control deep-review-section-select" aria-label="수정 절 선택" value={editSection} onChange={(event) => setEditSection(event.target.value as ReportSectionKey)}>{(currentReport?.sections ?? []).map((section) => <option key={section.section_key} value={section.section_key}>{section.title}</option>)}</select></label>
-              <label>절 내용<textarea className="deep-review-form-textarea" aria-label="절 내용" rows={5} value={currentSection?.blocks[0]?.body ?? ""} onChange={(event) => { setReportDraftDirty(true); setDraft((value) => value ? updateFirstBlock(value, editSection, event.target.value) : value); }} /></label>
-              <label>수정 사유<textarea className="deep-review-form-textarea" aria-label="수정 사유" rows={3} value={revisionReason} onChange={(event) => setRevisionReason(event.target.value)} /></label>
-              <label>사실 변경 evidence ID (쉼표 구분)<input className="interaction-control deep-review-evidence-input" value={factualEvidenceText} onChange={(event) => setFactualEvidenceText(event.target.value)} /></label>
-              <button className="interaction-control deep-review-form-action" type="button" onClick={() => revisionMutation.mutate()} disabled={revisionMutation.isPending || !actorName.trim() || !revisionReason.trim()} aria-describedby={revisionDisabledReason ? "deep-review-revision-disabled" : undefined}>새 보고서 수정본 저장</button>
-              {revisionDisabledReason ? <DisabledReason id="deep-review-revision-disabled">{revisionDisabledReason}</DisabledReason> : null}
-              {revisionMutation.error ? <MutationFeedback tone="error">{errorText(revisionMutation.error, "보고서 수정본을 저장할 수 없습니다.")}</MutationFeedback> : null}
-            </div>
-          </section>
-
           <section aria-labelledby="opinion-title" className="deep-review-opinion-panel">
             <h3 id="opinion-title" className="deep-review-section-title">사전규격 심층검토 의견 추가</h3>
             <p>이 의견은 현재 보고서 수정본에 append-only로 남으며 최종 입찰 Go/No-Go가 아닙니다.</p>
@@ -525,10 +626,42 @@ export function DeepReviewPage() {
             </div>
           </section>
           </div>
-          <ReviewHistoryLinkRail
-            className="detail-skeleton-rail"
-            footer={<p className="detail-skeleton-rail-note">보고서 revision은 append-only로 남습니다. 실패한 attempt나 이전 수정본을 덮어쓰지 않습니다.</p>}
-            historySections={[{
+          {/* 시안 `DeepReview`의 우측 열은 보고서 범위 · 수정본 저장 · 이력
+              셋이다(PLAN 단계 F 작업 5). 수정본 저장은 네 결정 중 하나가 아니라
+              보고서 본문의 append-only 편집이므로, "레일에 결정 액션을 두지
+              않는다"(작업 1)를 어기지 않는다. 되돌릴 수 없는 결정(사전규격
+              심층검토 의견)은 본문 열에 그대로 남는다. */}
+          <div className="deep-review-side">
+            <section aria-labelledby="report-scope-title" className="deep-review-scope-panel">
+              <h3 id="report-scope-title" className="deep-review-section-title">보고서 범위</h3>
+              <dl className="deep-review-scope-facts">
+                <div><dt>공고</dt><dd className="mono">{reportView.report.notice_id}</dd></div>
+                <div><dt>문서 묶음</dt><dd className="mono">{reportView.report.bundle_id}</dd></div>
+                <div><dt>현재 attempt</dt><dd>{attempt ? `${attempt.sequence}회 · ${statusLabel(attempt.status)}` : "없음"}</dd></div>
+                <div><dt>정책 버전</dt><dd className="mono">{reportView.report.policy_version_id}</dd></div>
+                <div><dt>회사 프로필 버전</dt><dd className="mono">{reportView.report.profile_version_id}</dd></div>
+                <div><dt>보고서 생성</dt><dd>{reportView.report.created_at}</dd></div>
+              </dl>
+              <p className="detail-skeleton-rail-note">이 범위 밖의 문서는 보고서에 들어가지 않았습니다. 범위가 좁다는 것을 사실이 없다는 뜻으로 읽지 마십시오.</p>
+            </section>
+            <section aria-labelledby="editor-title" className="deep-review-editor-panel">
+            <h3 id="editor-title" className="deep-review-section-title">보고서 수정본 편집</h3>
+            <p>저장은 전체 report snapshot을 새 immutable 수정본으로 추가합니다. 담당자 이름은 인증이 아닌 입력된 claimed name입니다.</p>
+            <div className="deep-review-editor-form">
+              <ActorField value={actorName} onChange={setActorName} autoComplete="off" />
+              <label>수정할 절<select className="interaction-control deep-review-section-select" aria-label="수정 절 선택" value={editSection} onChange={(event) => setEditSection(event.target.value as ReportSectionKey)}>{(currentReport?.sections ?? []).map((section) => <option key={section.section_key} value={section.section_key}>{section.title}</option>)}</select></label>
+              <label>절 내용<textarea className="deep-review-form-textarea" aria-label="절 내용" rows={5} value={currentSection?.blocks[0]?.body ?? ""} onChange={(event) => { setReportDraftDirty(true); setDraft((value) => value ? updateFirstBlock(value, editSection, event.target.value) : value); }} /></label>
+              <label>수정 사유<textarea className="deep-review-form-textarea" aria-label="수정 사유" rows={3} value={revisionReason} onChange={(event) => setRevisionReason(event.target.value)} /></label>
+              <label>사실 변경 evidence ID (쉼표 구분)<input className="interaction-control deep-review-evidence-input" value={factualEvidenceText} onChange={(event) => setFactualEvidenceText(event.target.value)} /></label>
+              <button className="interaction-control deep-review-form-action" type="button" onClick={() => revisionMutation.mutate()} disabled={revisionMutation.isPending || !actorName.trim() || !revisionReason.trim()} aria-describedby={revisionDisabledReason ? "deep-review-revision-disabled" : undefined}>새 보고서 수정본 저장</button>
+              {revisionDisabledReason ? <DisabledReason id="deep-review-revision-disabled">{revisionDisabledReason}</DisabledReason> : null}
+              {revisionMutation.error ? <MutationFeedback tone="error">{errorText(revisionMutation.error, "보고서 수정본을 저장할 수 없습니다.")}</MutationFeedback> : null}
+            </div>
+          </section>
+            <ReviewHistoryLinkRail
+              className="detail-skeleton-rail"
+              footer={<p className="detail-skeleton-rail-note">보고서 revision은 append-only로 남습니다. 실패한 attempt나 이전 수정본을 덮어쓰지 않습니다.</p>}
+              historySections={[{
               empty: <p className="detail-skeleton-rail-note">보고서 수정본 이력이 없습니다.</p>,
               entries: reportView.history.map((item) => ({
                 detail: `validation ${item.validation_status ?? "값 없음"} · ${item.created_by_name ?? "시스템 생성"}`,
@@ -538,13 +671,14 @@ export function DeepReviewPage() {
               label: "보고서 수정본 이력",
               listClassName: "detail-skeleton-rail-history",
             }]}
-            links={[
+              links={[
               ...(typeof review?.notice_id === "number" ? [{ href: `/pre-specs/${review.notice_id}`, label: "사전규격 상세 →" }] : []),
-              { href: "/opportunities", label: "사업기회 목록 →" },
+              { href: "/opportunities", label: "사업 추적 목록 →" },
             ]}
-            linksClassName="detail-skeleton-rail-links"
-            title="보고서 이력과 연결"
-          />
+              linksClassName="detail-skeleton-rail-links"
+              title="보고서 이력과 연결"
+            />
+          </div>
         </div>
       ) : null}
       {hasUnsavedDraft ? <p className="deep-review-unsaved" role="status">저장되지 않은 심층검토 초안이 있습니다. 화면을 벗어나기 전에 저장하십시오.</p> : null}
