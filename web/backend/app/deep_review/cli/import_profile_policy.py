@@ -74,7 +74,10 @@ def import_profile_policy(
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Import immutable BidOps deep-review profile/policy versions")
+    parser = argparse.ArgumentParser(
+        prog="python -m app.deep_review.cli import-profile-policy",
+        description="Import immutable BidOps deep-review profile/policy versions",
+    )
     parser.add_argument("--profile", type=Path, default=None, help=f"profile source (default: {PROFILE_SOURCE_FILE})")
     parser.add_argument("--policy", type=Path, default=None, help="canonical policy source")
     parser.add_argument("--actor", required=True, help="operator name")
@@ -107,8 +110,13 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-if __name__ == "__main__":  # pragma: no cover
-    raise SystemExit(main())
-
 
 __all__ = ["build_parser", "import_profile_policy", "main"]
+
+
+if __name__ == "__main__":  # pragma: no cover
+    # T8 2단계가 이 파일의 직접 실행 경로를 없앴다. 호환 shim을 두지 않으므로
+    # 옛 명령은 동작하지 않는다. 다만 그냥 두면 `__main__` 블록이 없는 모듈이
+    # 아무 일도 하지 않고 종료 코드 0을 내서, 옛 기록을 따라 실행한 운영자가
+    # 성공으로 오인한다. mutating 명령이 조용히 건너뛰지 않도록 fail-closed로 막는다.
+    raise SystemExit("이 명령은 `python -m app.deep_review.cli import-profile-policy <인자>`로 실행한다")
