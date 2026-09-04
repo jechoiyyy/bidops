@@ -227,3 +227,35 @@
   검사 대상이 정의된 상태에서 돌게 한다.
 - 재발 방지: 화면에 새 구역을 붙이면 그 구역이 부르는 API를 **기존 spec의 fixture에도**
   넣는다. 새 구역만 보는 fixture(`mockDocumentPreparationVisual`)에 넣는 것으로는 부족하다.
+
+## 전체 스위트가 초록인데 `python -m` 진입점은 순환 import로 죽는다
+
+- 증상: `pytest tests/` 는 통과하는데 `python -m app.screening.cli --help` 가
+  `ImportError: cannot import name 'IngestResult' from partially initialized module
+  'app.ingest.loader' (most likely due to a circular import)` 로 끝난다.
+- 원인: 패키지 `__init__.py` 가 import 시점에 자기 하위 모듈을 끌어오면, 그 하위 모듈을
+  거쳐 다시 패키지로 돌아오는 순환이 생긴다. 2026-09-04 이주에서
+  `app/ingest/loader.py` → `app.lifecycle.models` → `app/lifecycle/__init__.py` →
+  `app/lifecycle/api.py` → `app.ingest.loader` 가 그랬다. **pytest 는 이 결함을 가린다.**
+  conftest 가 앱을 먼저 세우면서 패키지가 다른 순서로 초기화되기 때문에 순환이 드러나지
+  않는다. 단독 진입점은 그 순서를 거치지 않으므로 죽는다.
+- 대응: 모듈 패키지의 `__init__.py` 가 import 시점에 **아무것도 끌어오지 않게** 한다.
+  `{공개 이름: (모듈, 속성)}` 표를 두고 모듈 `__getattr__` 로 처음 접근할 때 해석한다
+  (`app/lifecycle/__init__.py` 참고). 공개 이름 목록과 사용법은 그대로 유지된다.
+- 재발 방지: 진입점은 **새 인터프리터에서 `python -m <진입점> --help` 를 실제로 실행하는**
+  테스트로 지킨다(`tests/app/test_module_cli_entrypoints.py`). `main` 을 직접 import 해서
+  부르는 테스트는 같은 이유로 이 부류를 못 잡는다.
+
+## `pytest tests/<하위 디렉터리>` 만 지정해도 PostgreSQL harness 가 뜨지 않는다
+
+- 증상: `pytest tests/app -q` 가 T14 관련 4건 실패로 끝난다. 같은 파일을 직접 지정한
+  `pytest tests/app/test_integration_t14.py -q` 는 8건 전부 통과한다.
+- 원인: `tests/postgres.py` 의 `postgres_harness_requested` 는 `tests/` 디렉터리 전체,
+  명시적 `BIDOPS_TEST_POSTGRES_URL`, 또는 그 파일을 이름으로 지정한 경우에만 폐기 가능한
+  PostgreSQL 17 을 띄운다. 하위 디렉터리 선택은 그 조건에 걸리지 않는다.
+  위의 "조용히 skip 된다" 항목과 같은 뿌리이고, 이쪽은 skip 이 아니라 **실패**로 나타난다.
+- 대응: 판정 기준으로 삼는 실행은 `tests/` 디렉터리 전체를 지정하거나
+  `BIDOPS_TEST_POSTGRES_URL` 을 준다. 하위 디렉터리만 돌린 결과를 회귀 판단의 근거로
+  쓰지 않는다. 모듈 격리 검증처럼 폴더를 지정해야 하는 경우에는
+  `web/backend/scripts/verify_module_isolation.sh` 처럼 스크립트가 직접 PostgreSQL 을
+  띄우고 skip 건수와 사유를 조합마다 출력하게 한다.
