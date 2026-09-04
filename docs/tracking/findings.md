@@ -1,6 +1,66 @@
 # 미해결 문제
 
-기준일: 2026-08-31
+기준일: 2026-09-03
+
+## 승인 사설 vLLM이 weight revision을 노출하지 않는다
+
+- 확인: 2026-09-03
+- 상태: **해결** (2026-09-03, [ADR-0042](decisions/0042-c2-model-revision-declared-at-deployment.md))
+- 재현 조건: 승인 endpoint `http://192.168.0.139:58765/v1`의 chat completion 응답 최상위
+  key는 `choices, created, id, kv_transfer_params, model, object, prompt_logprobs,
+  prompt_text, prompt_token_ids, service_tier, system_fingerprint, usage`뿐이고
+  `model_revision`도 `revision`도 없다. `/v1/models`도 `id`·`root`·`created`·
+  `max_model_len`·`permission`만 준다. OpenAI 호환 vLLM에는 weight revision을
+  노출하는 면이 없다.
+- 당시 영향: 제품 adapter가 매 응답의 `model_revision`을 binding digest와 대조하고
+  있어 모든 batch가 `model_mismatch / model_revision_invalid`로 거부됐다.
+  발주계획 1,040건 회차에서 stage 1은 300 선정 / 740 탈락으로 정상 완주했고 stage 2는
+  batch 1·2가 각각 약 224초 생성 뒤 거부됐다. 결과는 `selected/rejected` 50건으로
+  보존됐고 자동 보정은 없었다.
+- 해결: ADR-0042로 검증을 배포 시점 1회 선언 대조로 되돌렸다. 배포가
+  `BIDOPS_VLLM_MODEL_REVISION`으로 운영자 확인 digest를 선언하고 adapter 생성 시
+  binding과 대조한다. 응답의 `model_revision`은 **있으면 대조하고 없으면 통과**한다.
+- 남은 공백 1: **digest 계산 방법이 이 저장소 어디에도 없다.** 런북은 "서버 운영자가
+  제공한 64자 model artifact digest"라고만 하고, safetensors 파일들의 sha256인지
+  manifest의 sha256인지, 어떤 순서로 묶는지가 없다. 따라서 "지금 서버의 digest가
+  여전히 `6ae70ca3…`인가"를 이 저장소만으로 다시 확인할 수 없다. 운영자에게 계산
+  방법을 받아 문서로 고정해야 한다. 그때까지 이 선언과 실제 적재된 weight의 일치는
+  사람의 확인에 달려 있다.
+
+## C-2 stage 2 구현이 측정된 방법과 어긋나 있었다
+
+- 확인: 2026-09-03
+- 상태: **해결** (2026-09-03, [ADR-0044](decisions/0044-c2-stage2-matches-the-measured-method.md))
+- 재현 조건: 제품이 보내던 요청이 ADR-0037이 625건으로 측정한
+  `experiments/order-plan-screening/scripts/methods.py::QwenAdapter._score_batch`와
+  네 곳에서 달랐다. ① `plan_id`/`company` vs 승인 prompt가 계약한 `item_id`/
+  `company_capabilities` ② `json_object` vs strict `json_schema`
+  ③ `chat_template_kwargs`가 `extra_body`에 중첩돼 vLLM이 무시
+  ④ generation config를 읽지 않고 하드코딩.
+- 원인: stage 1 BM25와 병합은 `skills/` 스크립트를 subprocess로 부르지만 stage 2만
+  백엔드가 재구현했고, 그 구현을 실제 서버로 검증한 적이 없었다. 기존 테스트는 오히려
+  잘못된 모양(`extra_body` 중첩)을 단언해 네 건을 모두 통과시켰다.
+- 해결: 요청 조립을 측정된 방법과 같게 맞추고, 승인 generation config를 아티팩트로
+  복원해 실제로 읽게 했으며, 두 body가 같은지 단언하는 적합성 테스트를 넣었다.
+  발주계획 1,040건 회차 재실행에서 300/300 완료·실패 0건.
+- 남은 공백: BM25와 Qwen 요청 조립이 `experiments/`와 `web/backend/`에 각각 존재한다.
+  적합성 테스트가 드리프트를 잡지만 구현이 하나가 된 것은 아니다. stage 2를 stage 1처럼
+  subprocess 계약으로 내리는 것은 raw 응답 전달과 실패 코드 계약을 새로 설계해야 해서
+  이번 범위에서 하지 않았다.
+
+## legacy v3 screening orchestrator가 부분 성공 대신 실패를 게시한다
+
+- 확인: 2026-09-03
+- 상태: **미해결 · 기존 결함**
+- 재현 조건: clean `main`(`6788c4f`)에서 `pytest tests/test_screening_orchestrator.py`를
+  (모듈 이주 뒤 `pytest tests/screening/test_screening_orchestrator.py`) 돌리면
+  `test_full_run_continues_after_one_notice_failure_and_publishes_partial` 과
+  `test_partial_rejudgment_retains_prior_projection_and_revision` 이
+  `'실패' == '부분 성공'` 으로 실패한다(34 passed, 2 failed, 약 53초).
+- 부하 의존 flake가 아니다. 단독 실행과 전체 실행에서 같은 두 건이 재현되고,
+  변경을 stash한 clean tree에서도 같다.
+- 영향: 한 건이 실패한 회차의 부분 게시 경로가 성공으로 마감되지 않는다.
+  C-2와 무관한 legacy 판정 경로다.
 
 ## 감독 작업 transcript에 G2B API key가 노출됐다
 
@@ -21,7 +81,7 @@
 - 확인: 2026-08-29
 - 상태: **해결** (2026-08-29)
 
-`web/backend/app/config.py:33`이 `env_file=DEFAULT_BIDOPS_ROOT / ".env"`로 저장소 루트의
+`web/backend/app/core/config.py:71`(당시 `app/config.py:33`)이 `env_file=DEFAULT_BIDOPS_ROOT / ".env"`로 저장소 루트의
 `.env`를 읽는다. 그 파일에는 컨테이너 안에서만 유효한 값이 들어 있어서 host에서 pytest를
 돌리면 실패와 지연을 만든다.
 
@@ -91,7 +151,7 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 
 ## legacy 첨부 취득이 객체 식별자를 provenance 자리에 넣어 운영 백엔드에서 원문을 잃는다
 
-- 재현 조건: `MinioObjectStore`처럼 `FilesystemObjectStore`가 아닌 object store에서 `assets.acquire_legacy_attachment()`를 호출하고 반환된 asset으로 `read_quarantine()`을 호출한다. `web/backend/tests/test_legacy_attachment_provenance.py`가 가짜 store로 이 조건을 재현한다.
+- 재현 조건: `MinioObjectStore`처럼 `FilesystemObjectStore`가 아닌 object store에서 `assets.acquire_legacy_attachment()`를 호출하고 반환된 asset으로 `read_quarantine()`을 호출한다. `web/backend/tests/deep_review/test_legacy_attachment_provenance.py`가 가짜 store로 이 조건을 재현한다.
 - 증상: `acquire_legacy_attachment()`가 12필드 `QuarantinedAsset`에 인자를 **9개만 위치로** 넘겼다. `object_key`가 `source_system` 자리에, object version id가 `source_attachment_key` 자리에, etag가 `source_url` 자리에 들어가고 `object_key`·`object_version_id`·`object_etag`는 `None`으로 남았다. `acquire_legacy_attachment()`는 store가 filesystem이 아니면 put 직후 로컬 quarantine 파일을 지우는데, `read_quarantine()`은 `object_key`가 없으면 그 지워진 로컬 경로를 읽으려 한다.
 - 영향: 운영 기본 백엔드가 MinIO이므로(`docker-compose.t7.yml`) legacy 첨부 ingest가 운영에서 항상 실패한다. 테스트는 filesystem store를 쓰기 때문에 로컬 파일이 남아 전부 통과했다. `test_minio_e2e`는 upload와 provider 경로만 덮고 legacy 경로를 덮지 않아 이 결함이 드러나지 않았다. 감사·응답으로 object key가 새지는 않는다 — 호출부가 `asset.source_*`를 쓰지 않고 자신의 snapshot 값을 쓴다.
 - 상태: **해결** (2026-08-31). 세 생성 지점을 모두 키워드 인자로 바꾸고 `QuarantinedAsset`을 `@dataclass(frozen=True, kw_only=True)`로 만들어 위치 인자 구성을 아예 막았다. 생성 지점이 `assets.py` 안 세 곳뿐이라 외부 호출부에 영향이 없다. 회귀 테스트 4건을 추가했고 결함을 일부러 되살려 두 건이 실패하는 것을 확인했다.
@@ -139,11 +199,12 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 
 ## 개발용 Codex 심층 검토 경로가 외부 전송 허용 범위를 넘는다
 
-- 재현 조건: `docker-compose.t7.codex-reference.yml`로 `BIDOPS_ANALYSIS_PROVIDER=codex-exec`, reference mode, 승인 notice ID를 설정하고 심층 검토 stage를 실행한다.
+- 재현 조건: (제거 전) `docker-compose.t7.codex-reference.yml`로 `BIDOPS_ANALYSIS_PROVIDER=codex-exec`, reference mode, 승인 notice ID를 설정하고 심층 검토 stage를 실행한다.
 - 증상: `CodexExecClient.invoke()`가 일반 vLLM과 같은 `build_prompt()`를 사용한다. stage 입력에는 구조화된 RFP 요구사항 excerpt가 들어가고 delivery stage에는 회사 profile facts·evidence가 들어가므로 hosted Codex에 전송될 수 있다.
 - 영향: 공개 발주계획 메타데이터와 별도 승인된 최소 회사 역량 요약만 외부 모델에 보낸다는 확정 정책을 위반한다. 공고 allowlist와 기본 비활성은 실행 승인만 제한할 뿐 금지된 payload 종류를 제거하지 않는다.
-- 지금 해결할 수 없는 이유: provider code와 Compose overlay의 삭제·재설계는 실행 경로와 기존 reference 검증을 함께 바꾸므로 별도 구현·회귀 검증이 필요하다.
-- 접근 방법: 이 overlay와 `codex-exec` deep-review provider를 사용 금지 상태로 유지하고, 외부 비교 실험이 필요하면 발주계획 전용 projection·payload preview·사람 승인 경계를 별도로 구현한다. 테스트는 RFP, 첨부, profile 전문·evidence, 내부 review 필드가 payload에 들어가면 호출 전에 실패하는지 확인해야 한다.
+- 상태: **해결** (2026-09-03, provider 제거). hosted 외부 deep-review provider와 그 Compose overlay·env 예시·설정·문서를 저장소에서 삭제했다. 남는 심층 검토 provider는 `vllm`과 `mock`뿐이며, 이 경로로 RFP·첨부·profile 전문·evidence가 외부로 나갈 수 있는 코드는 존재하지 않는다.
+- 검증: `Settings.analysis_provider`의 선택지가 `{"vllm", "mock"}`뿐이고 `codex` 이름의 설정·속성이 남지 않았음을 `web/backend/tests/core/test_config_t9.py`가 고정한다. backend 전체 suite는 `2 failed, 1091 passed, 5 skipped`였고 실패 2건은 이 변경과 무관한 `tests/screening/test_screening_orchestrator.py`의 기존 결함이다(기준선 `1097 passed`에서 삭제한 테스트 7건을 빼고 새 테스트 1건을 더한 값).
+- 후속: 외부 비교 실험이 다시 필요하면 발주계획 전용 projection·payload preview·사람 승인 경계를 새로 설계한다. 그 구현의 테스트는 RFP, 첨부, profile 전문·evidence, 내부 review 필드가 payload에 들어가면 호출 전에 실패하는지 확인해야 한다.
 
 ## 런타임 이미지에 회사 프로필 자료가 포함된다
 
@@ -302,7 +363,7 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 ## 심층 검토 보고서를 사업기회·공고로 되찾을 목록 계약이 없다
 
 - 재현 조건: 공고 판정 이력에서 심층 검토를 생성해 `/deep-reviews/{id}`로 이동한 뒤 화면을 벗어난다. 사업기회 화면이나 공고 화면에서 그 보고서를 다시 연다.
-- 증상: `app/routers/deep_reviews.py`가 제공하는 읽기 계약은 `GET /deep-reviews/{deep_review_id}` 단건뿐이다. 사업기회·공고로 보고서를 나열하는 endpoint가 없고, 사업기회 목록·상세 응답과 공고 응답에도 `deep_review_id`가 없다. 보고서 식별자를 따로 적어 두지 않으면 만든 보고서로 돌아갈 길이 없다.
+- 증상: `web/backend/app/deep_review/routers/deep_reviews.py`가 제공하는 읽기 계약은 `GET /deep-reviews/{deep_review_id}` 단건뿐이다. 사업기회·공고로 보고서를 나열하는 endpoint가 없고, 사업기회 목록·상세 응답과 공고 응답에도 `deep_review_id`가 없다. 보고서 식별자를 따로 적어 두지 않으면 만든 보고서로 돌아갈 길이 없다.
 - 영향: `docs/design/PRD.md` §2.2가 요구한 "사업기회 화면의 명시적 진입점"을 데이터로 채울 수 없다. 2026-09-02 화면 개선 2단계는 사업기회 상세에 식별자로 여는 진입점을 두고 목록을 제공할 수 없다는 사실을 화면에 명시하는 선에서 멈췄다. 목록이 비어 보이는 것을 보고서가 없다는 뜻으로 오해할 위험은 문구로만 막고 있다.
 - 지금 해결할 수 없는 이유: 해결에는 REST 계약 추가(사업기회 또는 공고별 심층 검토 목록)나 기존 응답에 식별자 노출이 필요하다. 화면 개선 2단계의 범위는 프론트엔드이며 `docs/contracts.md`의 소비자 계약과 백엔드를 바꾸지 않기로 했다.
 - 접근 방법: `GET /opportunities/{id}/deep-reviews` 또는 `GET /notices/{notice_id}/deep-reviews`를 추가해 보고서 식별자·생성 시각·현재 상태를 돌려주고, `docs/contracts.md`와 `docs/deep-review-erd.md`에 소비자 계약으로 등록한다. 그 뒤 사업기회 화면의 진입점을 식별자 입력이 아니라 목록으로 바꾼다.
@@ -310,7 +371,7 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 ## Go/No-Go 결정 대기 사업기회를 N+1 없이 집계할 endpoint가 없다
 
 - 재현 조건: 대시보드 "지금 처리할 일"이나 `GoNoGoPage.tsx`에서 "최종 Go/No-Go 결정 대기" 건수를 구하려 한다.
-- 증상: `app/routers/bid_delta.py`는 사업기회 하나의 workspace만 반환하고(`GET /opportunities/{id}/bid-delta` 계열), "계속 추적 중이며 아직 최종 결정이 없는 사업기회 수" 같은 집계 endpoint가 없다. `GoNoGoPage.tsx`는 이를 우회하려고 추적 중 사업기회 목록을 받은 뒤 사업기회마다 bid-delta workspace를 조회하는 N+1을 이미 쓰고 있다(2026-09-02 화면 개선 2단계, 코드 머리 주석에 기록).
+- 증상: `web/backend/app/deep_review/routers/bid_delta.py`는 사업기회 하나의 workspace만 반환하고(`GET /opportunities/{id}/bid-delta` 계열), "계속 추적 중이며 아직 최종 결정이 없는 사업기회 수" 같은 집계 endpoint가 없다. `GoNoGoPage.tsx`는 이를 우회하려고 추적 중 사업기회 목록을 받은 뒤 사업기회마다 bid-delta workspace를 조회하는 N+1을 이미 쓰고 있다(2026-09-02 화면 개선 2단계, 코드 머리 주석에 기록).
 - 영향: 대시보드처럼 N+1을 반복할 수 없는 화면(`web/backend/AGENTS.md`·`CLAUDE.md`의 N+1 금지 게이트)은 이 건수를 전혀 계산할 수 없다. 2026-09-03 3단계는 대시보드 항목의 건수를 `null`(확인 불가)로 표시하고 이동 경로만 제공하는 선에서 멈췄다 — 페이지 자체(`GoNoGoPage.tsx`)의 기존 N+1도 아직 걷어내지 못했다.
 - 지금 해결할 수 없는 이유: 해결에는 새 집계 REST 계약(예: 사업기회당 최신 `latest_final_decision` 유무를 서버가 먼저 걸러 세는 endpoint)이 필요하며, 이는 백엔드 스키마·서비스 변경이라 이번 프론트엔드 범위를 벗어난다.
 - 접근 방법: `GET /opportunities?tracking_status=계속 추적&decision_status=pending` 같은 서버 필터 또는 `GET /bid-delta/pending-count` 집계 endpoint를 추가해 `docs/contracts.md`와 `docs/bid-delta-contract-spec.md`에 등록한다. 그 뒤 `GoNoGoPage.tsx`의 기존 N+1과 대시보드의 `null` 표시를 실제 건수로 교체한다.
@@ -318,7 +379,7 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 ## 발주계획 목록 API에 "사람 피드백 미기록" 필터가 없다
 
 - 재현 조건: 대시보드 "지금 처리할 일"에서 "C-2 검토 대기" 건수를 사람이 아직 판정하지 않은 발주계획 수로 정의하려 한다.
-- 증상: `GET /api/order-plans`(`web/backend/app/routers/order_plans.py:78`)는 `qwen_relevance`·`human_relevance`를 필터로 받지만, `human_relevance`는 특정 relevance 값(`relevant`|`not_relevant`|`uncertain`)만 받고 "사람 피드백 행 자체가 없음"을 나타내는 값(`missing`/`null`)을 받지 않는다.
+- 증상: `GET /api/order-plans`(`web/backend/app/screening/routers/order_plans.py:78`)는 `qwen_relevance`·`human_relevance`를 필터로 받지만, `human_relevance`는 특정 relevance 값(`relevant`|`not_relevant`|`uncertain`)만 받고 "사람 피드백 행 자체가 없음"을 나타내는 값(`missing`/`null`)을 받지 않는다.
 - 영향: 2026-09-03 3단계는 이 항목을 "Qwen 신호가 relevant 또는 uncertain인 발주계획" 건수(사람 피드백 여부와 무관)로 근사했다. 실제 "검토 대기"(아직 아무도 보지 않은 건)보다 넓은 집합이라 과대 계상될 수 있고, 화면 설명 문구로만 그 차이를 알린다.
 - 지금 해결할 수 없는 이유: `human_relevance=missing` 같은 값을 추가하려면 서비스 쿼리(`OrderPlanScreeningService.list_order_plans`)와 라우터 계약을 함께 바꿔야 하며, 이번 프론트엔드 범위의 대시보드 작업만으로는 안전하게 변경할 수 없다.
 - 접근 방법: `human_relevance`에 `missing` 같은 sentinel 값을 추가해 "사람 피드백 행 없음"을 서버에서 걸러주고, `docs/contracts.md`의 `GET /api/order-plans` 항목에 등록한다. 그 뒤 대시보드와 `OrderPlansPage.tsx`의 "검토 대상" 프리셋이 이 필터를 실제 "미판정" 의미로 좁힐 수 있다.
@@ -326,7 +387,167 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 ## 사전규격 목록 API에 마감 구간 필터도 임박 집계도 없다
 
 - 재현 조건: 대시보드 "지금 처리할 일"에서 "사전규격 의견등록 마감 임박" 건수를 구하려 한다.
-- 증상: `GET /api/pre-specs`(`web/backend/app/routers/pre_specs.py:198`)는 `sw_only`·`business_division`·`origin`·`q`·`sort`·`limit`·`offset`만 받는다. 마감 구간 필터가 없고 집계 응답도 없다. `sort=deadline`은 `deadline_at ASC NULLS LAST`(`pre_specs.py:304`)라 **첫 페이지가 이미 지난 마감으로 채워진다.** 따라서 한 페이지를 받아 클라이언트에서 세면 두 가지가 동시에 틀린다. (1) 지난 마감을 임박으로 센다 — 회차 산출물 `stats.imminent_deadlines`와 달리 서버가 좁혀 준 창이 없는데 `criticalDeadlineCount`에는 하한이 없다. (2) 임박 구간이 페이지 창 밖이라 애초에 도달하지 못한다.
+- 증상: `GET /api/pre-specs`(`web/backend/app/lifecycle/routers/pre_specs.py:95`)는 `sw_only`·`business_division`·`origin`·`q`·`sort`·`limit`·`offset`만 받는다. 마감 구간 필터가 없고 집계 응답도 없다. `sort=deadline`은 `deadline_at ASC NULLS LAST`(`pre_specs.py:180`)라 **첫 페이지가 이미 지난 마감으로 채워진다.** 따라서 한 페이지를 받아 클라이언트에서 세면 두 가지가 동시에 틀린다. (1) 지난 마감을 임박으로 센다 — 회차 산출물 `stats.imminent_deadlines`와 달리 서버가 좁혀 준 창이 없는데 `criticalDeadlineCount`에는 하한이 없다. (2) 임박 구간이 페이지 창 밖이라 애초에 도달하지 못한다.
 - 영향: 2026-09-03 3단계는 이 항목의 건수를 `null`(확인 불가)로 두고 이동 경로만 제공하는 선에서 멈췄다. 구현 위임 초안은 `limit=50` 한 페이지를 세어 숫자를 표시했는데, 누적 데이터에서는 거의 항상 "만료된 사전규격 수"를 "마감 3일 이내"로 보여주는 값이라 검수에서 되돌렸다.
 - 지금 해결할 수 없는 이유: 해결에는 목록 계약에 마감 구간 필터(`deadline_from`·`deadline_to`)나 임박 집계를 추가해야 하며, 이는 백엔드 라우터·스키마 변경이라 이번 대시보드 작업 범위를 벗어난다.
 - 접근 방법: `GET /api/pre-specs`에 `deadline_within_days` 또는 `deadline_from`·`deadline_to`를 추가하고 `docs/contracts.md`의 `PreSpecList` 항목에 등록한다. 그 뒤 대시보드의 `null` 표시를 실제 건수로 바꾸고, `criticalDeadlineCount`의 하한 없음이 회차 산출물 전용 전제임을 호출부에서 다시 확인한다.
+
+## C-1과 C-2가 모델 호출 경계를 서로 반대로 잡는다
+
+- 확인: 2026-09-03
+- 재현 조건: 같은 "선별" 업무의 두 사례가 모델을 부르는 방식을 비교한다.
+- 증상: C-2(발주계획)는 `web/backend/app/core/config.py:351,353`이
+  `skills/bidops-screen/scripts/rank_order_plans_bm25.py`와
+  `build_order_plan_screening_results.py`를 subprocess로 호출한다.
+  [ADR-0001](decisions/0001-artifact-boundary.md)의 경계 그대로다.
+  반면 C-1(공고)은 `web/backend/app/screening/orchestrator.py:1555`에서 웹 프로세스 안의
+  `OllamaClient`를 직접 생성하고, `app/screening/`에 `ollama.py`(653줄)·`prompts.py`·
+  `worker.py`(1,656줄)가 들어와 있다.
+- 영향: 같은 업무 규칙이 두 경계에 나뉘어 있어 모델 전송 감사·테스트 격리·정책 pinning의
+  확인 지점이 사례마다 다르다. 새 선별 흐름을 추가할 때 어느 쪽을 따라야 하는지 규칙이 없다.
+- 지금 해결할 수 없는 이유: C-1은 [ADR-0013](decisions/0013-screening-orchestrator-boundary.md)이
+  판정 단계만 애플리케이션 오케스트레이터로 옮긴 결과이고 이미 운영 중인 흐름이다.
+  경계를 되돌리려면 정책 활성화·품질 게이트·큐 재실행 경로를 함께 옮겨야 하며
+  [ADR-0043](decisions/0043-screening-deep-review-module-boundary.md)·[ADR-0045](decisions/0045-backend-module-layout.md)의 모듈 이주 범위를 넘는다.
+- 접근 방법: 모듈 경계 이주가 끝난 뒤 C-1 오케스트레이터의 모델 호출부만 떼어
+  C-2와 같은 subprocess 계약으로 맞출 수 있는지 별도로 판단한다. 그 전까지는 두 경계가
+  다르다는 사실을 `ARCHITECTURE.md`에 명시해 새 흐름이 임의로 한쪽을 고르지 않게 한다.
+
+## 운영 백엔드가 `experiments/`를 런타임 의존한다
+
+- 확인: 2026-09-03
+- 재현 조건: C-2 실행 경로가 읽는 정책·binding 파일의 위치를 확인한다.
+- 증상: `web/backend/app/core/config.py:342,344,346`과 `web/backend/app/screening/ingest.py:1324,1333`이
+  `experiments/order-plan-screening/config/order-plan-screening-policy.v1.json`과
+  `order-plan-screening-phase0-binding.v1.json`을 읽는다.
+  [ADR-0038](decisions/0038-order-plan-c2-phase0-contracts.md)이 고정한 계약의 정본이
+  이름상 실험 보관소인 디렉터리에 있다.
+- 영향: 실험 정리가 운영을 깨뜨릴 수 있고, 반대로 운영 때문에 실험 디렉터리를 자유롭게
+  정리할 수 없다. 계약 파일의 집이 `skills/bidops-screen/contracts/`,
+  `web/backend/app/deep_review/contracts/`, `experiments/.../config/` 세 곳으로 갈려
+  새 계약을 어디 둘지 규칙이 없다. 물리적 중복은 없다(md5 대조 확인).
+- 지금 해결할 수 없는 이유: 경로를 옮기면 `core/config.py`·`screening/ingest.py`와 실행 중인 회차의
+  binding 참조가 함께 바뀌므로 C-2 종단 실행으로 재검증해야 한다.
+- 접근 방법: 정책·binding을 `skills/bidops-screen/contracts/`로 승격하고 위 참조 경로를
+  갱신한 뒤 C-2 종단 실행으로 확인한다. 계약 파일의 위치 규칙을 `docs/contracts.md`에 적는다.
+
+## 모듈 이주가 드러낸 죽은 이름 네 자리
+
+- 확인: 2026-09-04
+- 재현 조건: 아래 네 이름의 읽는 쪽을 `web/backend/app/`과 `tests/` 전체에서 찾는다.
+- 증상: 대입만 되고 읽히지 않거나, 정의만 되고 불리지 않는다.
+  - `_LEGACY_GENERATION_CONFIG`, `_LEGACY_GENERATION_CONFIG_VALUE`,
+    `_LEGACY_GENERATION_CONFIG_DIGEST`(`app/screening/models.py:46,49,52`) — 세 이름 모두
+    대입뿐이고 참조가 없다.
+  - `_validate_relative_source_ref`(`app/core/schema_base.py:74`) — 호출자가 없다.
+  - `RuntimePipelineBridge.pipeline`(`app/screening/runtime.py:56`) — 생성자가 lifecycle
+    파이프라인 실행기를 받아 보관하지만 읽는 곳이 없다. 이주 전부터 그랬고, 소유 관계를
+    드러내려고 남겼다는 주석이 붙어 있다.
+  - `PageFilters`(`app/core/schema_base.py:28`)가 core에 있는데 `grade`·`readiness`·`focus`·
+    `sample_role` 필드는 선별 어휘다. 실제 사용처는 lifecycle 하나뿐이다
+    (`app/lifecycle/routers/notices.py`, `app/lifecycle/schemas/__init__.py`).
+- 영향: 읽는 사람이 "선별 계보가 core에 있다" 또는 "legacy generation config가 아직 쓰인다"고
+  읽는다. `PageFilters`는 core가 도메인 어휘를 갖지 않는다는 규칙(ADR-0045 §2)의 예외처럼
+  보이지만 실제로는 lifecycle 응답 model이 선별 필터를 그대로 되비추는 REST 계약
+  (`NoticeList`의 `filters`)의 결과다.
+- 지금 해결할 수 없는 이유: 이번 작업의 원칙은 **동작 보존**이었다. 네 이름을 지우거나 옮기면
+  import 그래프와 wire schema 이름이 바뀌어, 이주가 REST 표면을 바꾸지 않았다는 확인이
+  흐려진다. `PageFilters`를 lifecycle로 내리는 것은 응답 model의 소유를 바꾸는 일이라 계약
+  검토가 따로 필요하다.
+- 접근 방법: 죽은 세 자리(legacy generation config 3개, `_validate_relative_source_ref`,
+  `RuntimePipelineBridge.pipeline`)는 동작 변화가 없으므로 다음 정리 작업에서 삭제한다.
+  `PageFilters`는 `NoticeList`의 `filters` 계약을 `docs/contracts.md`에서 먼저 확인한 뒤
+  lifecycle로 내릴지, core에 남기되 필드 소유를 문서로 못박을지 판단한다.
+
+## `experiments/`의 회사자료가 gitignore되어 `git archive` 사본이 자족적이지 않다
+
+- 확인: 2026-09-04
+- 재현 조건: `git archive <ref> experiments/order-plan-screening | tar -x -C <새 디렉터리>` 로
+  실험 트리를 복사한 뒤 `review-inputs/company/`와 `review-inputs/prompts/`를 본다.
+- 증상: `.gitignore:7,8`이 `experiments/order-plan-screening/review-inputs/company/*.json`과
+  `review-inputs/prompts/*.txt`를 제외한다. 회사자료를 저장소에 넣지 않는다는 경계의 결과이며
+  의도된 것이다. 다만 그래서 git에서 만든 사본에는 그 입력이 없다.
+- 영향: 격리 검증을 위해 트리 사본을 만드는 절차(모듈 폴더를 지운 복사본에서 테스트를 돌리는
+  식)가 C-2 관련 경로에 닿으면 사본이 자족적이지 않다는 것을 검증자가 미리 알아야 한다.
+  모르면 "복사본에서만 실패한다"를 코드 결함으로 오해한다.
+- 지금 해결할 수 없는 이유: 회사자료를 저장소나 image에 넣지 않는 것이 확정 경계다
+  ([security.md](../security.md), 런타임 이미지 항목). gitignore를 푸는 것은 답이 아니다.
+- 접근 방법: 트리 사본을 만드는 검증 절차는 `git archive` 뒤에 그 두 디렉터리를 작업 트리에서
+  따로 복사하는 단계를 포함한다. 사본 기반 검증을 문서로 고정할 때 이 단계를 함께 적는다.
+
+## `create_app()`은 한 프로세스에서 두 번 부를 수 없다
+
+- 확인: 2026-09-04
+- 재현 조건: 같은 인터프리터에서 `from app.main import create_app`을 한 뒤
+  `create_app()`을 부른다.
+- 증상: `RuntimeError: 판정 projection 제공자가 이미 등록됐다`로 끝난다.
+  `app/main.py`의 확장점 등록 구역은 **프로세스 전역** registry에 등록하고,
+  같은 파일의 모듈 수준 `app = create_app()`이 import만으로 그 등록을 소진한다.
+  `app/lifecycle/extensions.py`의 중복 등록 가드가 두 번째 호출을 막는다.
+- 영향: 운영은 `web/Dockerfile`의 `uvicorn app.main:app`이라 무해하다. 그러나
+  `uvicorn --factory app.main:create_app`은 즉시 죽고, 앱을 두 개 만들려는 코드는
+  `reset_extension_registry`와 `restore_extension_registry`를 손으로 짝지어야 한다
+  (`tests/app/test_module_selection.py`의 fixture가 그 boilerplate다). 이 제약이
+  어느 문서에도 없어 다음 사람이 factory 방식으로 바꾸려다 막힌다.
+- 지금 해결할 수 없는 이유: 중복 등록 가드는 "제공자가 조용히 교체되지 않는다"는
+  보장이라 그냥 없앨 수 없다. registry 수명을 앱 객체에 매다는 것은 확장점 설계를
+  다시 여는 일이고, 이번 이주의 "동작을 바꾸지 않는다"를 벗어난다.
+- 접근 방법: `create_app`이 자기 등록 구역의 registry 수명을 소유하게 하거나
+  (앱마다 registry를 새로 만들고 등록한다), 재등록을 같은 제공자에 한해 idempotent로
+  만든다. 어느 쪽이든 격리 API 테스트에서 projection이 비지 않는 것을 먼저 확인한다.
+
+## 모듈 공개 표면에 밖에서 아무도 쓰지 않는 이름이 많다
+
+- 확인: 2026-09-04
+- 재현 조건: `app/**`와 `tests/**`에서 `from app.<module> import X` / `from ..<module> import X`
+  를 AST로 모아 각 모듈 `__init__.py`의 `_EXPORTS` 키와 대조한다.
+- 증상: screening 공개 이름 66개 중 router 인스턴스와 `build_runtime`을 빼면 40여 개가
+  모듈 밖 소비자가 없다(`activate_policy`, `create_policy`, `seed_policy`,
+  `ScreeningOrchestrator`, `ScreeningWorker`, `OllamaClient`, `ArtifactStore`,
+  `assemble_*_prompt`, `load_run_judgments` 등). lifecycle에도
+  `ATTACHMENT_ORIGINS`·`get_notice`·`get_run`·`list_agency_portals`·`match_agency_portal`·
+  `list_attachments_for_notice`·`list_order_plans_for_run`·`IngestResult`·
+  `ClaimedDirectoryLoad`가 같은 상태다. 테스트조차 하위 경로로 받는다
+  (`from app.screening.ollama import OllamaClient`).
+- 영향: 넓이 자체보다 **조립 계층이 그 이름들을 쓸 수 있게 된 것**이 문제다.
+  `main.py`가 `from .screening import activate_policy, seed_policy`를 하고 startup에서
+  부르면 "앱 startup은 seed·정책 활성화를 하지 않는다"는 경계를 깨는데, 경계 검사
+  다섯 중 어느 것도 그것을 잡지 못한다 — 조립 계층 → screening 공개 이름은 허용
+  방향이기 때문이다.
+- 지금 해결할 수 없는 이유: 어느 이름이 "지금 안 쓰이지만 공개여야 하는가"는 모듈
+  진입점 설계의 판단이고, 표를 줄이면 `_EXPORTS`와 `__all__`을 함께 손봐야 해서
+  이주 검증이 끝난 시점에 넣을 변경이 아니다.
+- 접근 방법: 밖에서 안 쓰는 이름을 `_EXPORTS`에서 빼거나, 뺄 수 없으면 표를 구역으로
+  나눠 왜 공개인지(조립이 쓴다 / 형제 모듈이 쓴다 / 진입점이다)를 적는다. startup이
+  하면 안 되는 일은 별도 검사로 고정하는 편이 낫다.
+
+## `app/deep_review/contracts/schemas.py`는 호출자가 없는 재수출 파일이다
+
+- 확인: 2026-09-04
+- 재현 조건: `grep -rn "contracts.schemas\|from .schemas import" web/backend/app web/backend/tests`
+- 증상: 파일 첫 줄이 `"""Compatibility exports for callers that prefer a schemas module."""`
+  인데 `app/`·`tests/`·`scripts/`·`docs/` 어디에도 호출자가 없다. 이주 전
+  (`app/contracts/deep_review/schemas.py`)에도 이미 그랬다.
+- 영향: 없다. 다만 "옛 import 경로에 호환 shim을 두지 않는다"는 이번 경계 작업의
+  원칙과 파일이 스스로 밝힌 목적이 어긋나 보여, 읽는 사람이 살아 있는 호환 경로로 오해한다.
+- 지금 해결할 수 없는 이유: 죽은 코드 정리는 이번 이주의 범위 밖이었다. 이주가 파일을
+  옮긴 commit에서 함께 지웠어야 한다.
+- 접근 방법: 지운다. 지우기 전에 `deep_review/contracts/__init__.py`가 같은 이름을
+  올리고 있는지만 확인한다.
+
+## lifecycle의 확장점 실패 로그가 특정 제공자의 어휘를 쓴다
+
+- 확인: 2026-09-04
+- 재현 조건: `app/lifecycle/routers/opportunities.py`의 추적 결정 hook 호출부를 본다.
+- 증상: 바로 위 주석이 "어느 모듈이 무엇을 하는지는 모르고"라고 적어 두고, 아래 except
+  블록은 `"pre-spec attachment eligibility refresh failed"`와
+  `event: "prespec_attachment.refresh_failed"`를 남긴다. 그 문구는 지금 등록된 유일한
+  제공자(deep_review)의 어휘다.
+- 영향: `BIDOPS_MODULES`에서 deep_review를 빼고 다른 제공자를 붙이면 로그가 거짓이 된다.
+  lifecycle이 형제 모듈을 모른다는 규칙이 코드에서는 지켜지는데 로그에서만 새는 자리다.
+  (호출부의 try/except 동작 자체는 이주 전과 같다.)
+- 지금 해결할 수 없는 이유: 없다. 작은 문자열 변경이지만 이주 검증이 끝난 뒤에 로그
+  이벤트 이름을 바꾸면 그 이름에 기대는 관측 기록과 어긋난다.
+- 접근 방법: 이벤트 이름을 확장점 이름 기준으로 바꾸고(`extension.tracking_hook_failed`),
+  어느 제공자가 실패했는지는 registry가 아는 이름을 함께 남긴다. 로그 이름을 바꾸는
+  작업과 함께 묶는다.

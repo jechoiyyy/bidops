@@ -26,23 +26,22 @@ import weakref
 from sqlalchemy import Engine, func, select, update
 from sqlalchemy.orm import Session, selectinload, sessionmaker
 
-from ..config import Settings, get_settings
-from ..models import (
-    ScreeningAuditEvent,
+from ..core.config import Settings, get_settings
+from ..lifecycle.models import Notice, Run
+from .models import (
     CompanyProfileSnapshot,
+    Judgment,
+    Perspective,
     QualityGate,
     QualityGateEvaluation,
     QualityGateReview,
-    Run,
+    ScreeningAuditEvent,
     ScreeningExecution,
     ScreeningPolicy,
-    Notice,
-    Judgment,
-    Perspective,
 )
 from .artifacts import ArtifactError, ArtifactStore, ExecutionWorkspace, sha256_bytes
-from ..ingest.loader import deterministic_run_id
-from .generation_config import GenerationConfigError, config_from_value, legacy_generation_config, validate_digest
+from ..core.run_id import deterministic_run_id
+from ..core.generation_config import GenerationConfigError, config_from_value, legacy_generation_config, validate_digest
 from .execution_store import ScreeningExecutionStore
 from .orchestrator import (
     ScreeningCreationError,
@@ -99,7 +98,7 @@ class QualityGateActivationError(QualityGateConflict):
 
 def _factory(value: Any | None) -> sessionmaker[Session]:
     if value is None:
-        from ..db import SessionLocal
+        from ..core.db import SessionLocal
 
         return SessionLocal
     if isinstance(value, Session):
@@ -898,16 +897,29 @@ _FIXED_RUN_ELIGIBLE_STATUSES = frozenset({"active", "complete", "성공", "부�
 def _fixed_run_load_options() -> tuple[Any, ...]:
     """Eagerly load the complete fixed projection used by the resolver."""
 
-    notices = selectinload(Run.notices)
-    judgment = notices.selectinload(Notice.judgment)
-    perspectives = judgment.selectinload(Judgment.perspectives)
-    return (
-        notices.selectinload(Notice.attachments),
-        perspectives.selectinload(Perspective.evidence),
-        judgment.selectinload(Judgment.counterarguments),
-        judgment.selectinload(Judgment.verification_items),
-        judgment.selectinload(Judgment.matched_performances),
-    )
+    return (selectinload(Run.notices).selectinload(Notice.attachments),)
+
+
+def _fixed_run_judgments(session: Session, notice_ids: list[int]) -> dict[int, Judgment]:
+    """공고별 현재 판정. 공고당 조회를 만들지 않도록 한 번에 읽는다.
+
+    lifecycle 모델은 판정으로 향하는 relationship 을 갖지 않으므로(§4) 소유
+    모듈인 여기서 자기 테이블을 직접 읽는다.
+    """
+
+    if not notice_ids:
+        return {}
+    rows = session.scalars(
+        select(Judgment)
+        .where(Judgment.notice_id.in_(notice_ids))
+        .options(
+            selectinload(Judgment.perspectives).selectinload(Perspective.evidence),
+            selectinload(Judgment.counterarguments),
+            selectinload(Judgment.verification_items),
+            selectinload(Judgment.matched_performances),
+        )
+    ).all()
+    return {row.notice_id: row for row in rows}
 
 
 def _identity_datetime(value: Any) -> str | None:
@@ -1007,8 +1019,7 @@ def _db_notice_identity(notice: Notice) -> dict[str, Any]:
     })
 
 
-def _db_judgment_identity(notice: Notice) -> dict[str, Any] | None:
-    judgment = notice.judgment
+def _db_judgment_identity(notice: Notice, judgment: Judgment | None) -> dict[str, Any] | None:
     if judgment is None:
         return None
     return {
@@ -1125,15 +1136,17 @@ def _resolve_fixed_run(
     for db_notice, expected in zip(db_notices, expected_notices):
         if _normalized_fixed_notice(expected) != _db_notice_identity(db_notice):
             raise QualityGateValidationError("fixed quality run is invalid")
+    judgments = _fixed_run_judgments(session, [row.id for row in db_notices])
     if sum(
         1
         for row in db_notices
-        if row.judgment is not None and row.judgment.schema_version == "bidops.decisions.v2"
+        if judgments.get(row.id) is not None
+        and judgments[row.id].schema_version == "bidops.decisions.v2"
     ) != 40:
         raise QualityGateValidationError("fixed quality run is invalid")
     baseline_judgments = baseline["judgments"]
     for db_notice, expected in zip(db_notices, baseline_judgments):
-        if _db_judgment_identity(db_notice) != _identity_value(dict(expected)):
+        if _db_judgment_identity(db_notice, judgments.get(db_notice.id)) != _identity_value(dict(expected)):
             raise QualityGateValidationError("fixed quality run is invalid")
     return run
 

@@ -1,0 +1,6200 @@
+{
+ "metrics 20260810-20260816--prev": {
+  "body": {
+   "metrics": [
+    {
+     "basis": {
+      "denominator": 0,
+      "detail": {
+       "repeated_notice_keys": 0
+      },
+      "numerator": 0
+     },
+     "key": "reproducibility",
+     "label": "재현성",
+     "meets_threshold": null,
+     "percentage": null,
+     "reason": "둘 이상의 회차에서 같은 공고를 판정한 기록이 없습니다.",
+     "status": "not_measurable",
+     "threshold": 0.8,
+     "value": null
+    },
+    {
+     "basis": {
+      "denominator": 1,
+      "detail": {
+       "grade": "우선 검토",
+       "sample_role": "analysis"
+      },
+      "numerator": 1
+     },
+     "key": "discriminative_power",
+     "label": "변별력",
+     "meets_threshold": false,
+     "percentage": 100.0,
+     "reason": null,
+     "status": "fail",
+     "threshold": {
+      "max": 0.25,
+      "min": 0.1
+     },
+     "value": 1.0
+    },
+    {
+     "basis": {
+      "denominator": 1,
+      "detail": {
+       "agreement": 1,
+       "distribution": {
+        "동의": 1
+       }
+      },
+      "numerator": 1
+     },
+     "key": "evidence_validity",
+     "label": "근거 타당성",
+     "meets_threshold": true,
+     "percentage": 100.0,
+     "reason": null,
+     "status": "pass",
+     "threshold": 0.7,
+     "value": 1.0
+    },
+    {
+     "basis": {
+      "denominator": 2,
+      "detail": {
+       "unresolved_without_attachment": 0,
+       "verification_items": 2
+      },
+      "numerator": 0
+     },
+     "key": "information_sufficiency",
+     "label": "정보 충분성",
+     "meets_threshold": null,
+     "percentage": 0.0,
+     "reason": "이 항목은 사전 확정된 합격 임계값 없이 비율을 정량화합니다.",
+     "status": "measured",
+     "threshold": null,
+     "value": 0.0
+    },
+    {
+     "basis": {
+      "denominator": 1,
+      "detail": {
+       "multi_perspective_judgments": 1
+      },
+      "numerator": 1
+     },
+     "key": "perspective_split",
+     "label": "관점 분할",
+     "meets_threshold": true,
+     "percentage": 100.0,
+     "reason": null,
+     "status": "pass",
+     "threshold": 0.4,
+     "value": 1.0
+    }
+   ],
+   "run_id": "20260810-20260816--prev"
+  },
+  "status": 200
+ },
+ "metrics 20260817-20260823--cur": {
+  "body": {
+   "metrics": [
+    {
+     "basis": {
+      "denominator": 0,
+      "detail": {
+       "repeated_notice_keys": 0
+      },
+      "numerator": 0
+     },
+     "key": "reproducibility",
+     "label": "재현성",
+     "meets_threshold": null,
+     "percentage": null,
+     "reason": "둘 이상의 회차에서 같은 공고를 판정한 기록이 없습니다.",
+     "status": "not_measurable",
+     "threshold": 0.8,
+     "value": null
+    },
+    {
+     "basis": {
+      "denominator": 7,
+      "detail": {
+       "grade": "우선 검토",
+       "sample_role": "analysis"
+      },
+      "numerator": 1
+     },
+     "key": "discriminative_power",
+     "label": "변별력",
+     "meets_threshold": true,
+     "percentage": 14.285714285714285,
+     "reason": null,
+     "status": "pass",
+     "threshold": {
+      "max": 0.25,
+      "min": 0.1
+     },
+     "value": 0.14285714285714285
+    },
+    {
+     "basis": {
+      "denominator": 2,
+      "detail": {
+       "agreement": 1,
+       "distribution": {
+        "근거 부족": 1,
+        "동의": 1
+       }
+      },
+      "numerator": 1
+     },
+     "key": "evidence_validity",
+     "label": "근거 타당성",
+     "meets_threshold": false,
+     "percentage": 50.0,
+     "reason": null,
+     "status": "fail",
+     "threshold": 0.7,
+     "value": 0.5
+    },
+    {
+     "basis": {
+      "denominator": 7,
+      "detail": {
+       "unresolved_without_attachment": 1,
+       "verification_items": 7
+      },
+      "numerator": 1
+     },
+     "key": "information_sufficiency",
+     "label": "정보 충분성",
+     "meets_threshold": null,
+     "percentage": 14.285714285714285,
+     "reason": "이 항목은 사전 확정된 합격 임계값 없이 비율을 정량화합니다.",
+     "status": "measured",
+     "threshold": null,
+     "value": 0.14285714285714285
+    },
+    {
+     "basis": {
+      "denominator": 2,
+      "detail": {
+       "multi_perspective_judgments": 2
+      },
+      "numerator": 2
+     },
+     "key": "perspective_split",
+     "label": "관점 분할",
+     "meets_threshold": true,
+     "percentage": 100.0,
+     "reason": null,
+     "status": "pass",
+     "threshold": 0.4,
+     "value": 1.0
+    }
+   ],
+   "run_id": "20260817-20260823--cur"
+  },
+  "status": 200
+ },
+ "notice detail 1": {
+  "body": {
+   "agency": "기관 A",
+   "attachment_count": 1,
+   "attachment_status": "g2b",
+   "attachments": [
+    {
+     "created_at": "2026-08-24T00:00:00Z",
+     "extract_status": null,
+     "file_ext": "pdf",
+     "id": 1,
+     "name": "g2b.pdf",
+     "origin": "g2b",
+     "size_bytes": 10,
+     "url": null
+    }
+   ],
+   "bid_no": "EQ-000",
+   "bid_ord": "000",
+   "budget": null,
+   "candidate_sources": [],
+   "collection_bucket": "candidate_pool",
+   "deadline_at": "2026-08-27T00:00:00Z",
+   "estimated_price": 1000000.0,
+   "focus": "AI/데이터",
+   "focus_matches": [],
+   "grade": "우선 검토",
+   "id": 1,
+   "judgment": {
+    "counterarguments": [
+     {
+      "id": 1,
+      "position": 1,
+      "text": "예산이 작을 수 있다"
+     }
+    ],
+    "exclusion_category": null,
+    "grade": "우선 검토",
+    "id": 1,
+    "matched_performances": [
+     {
+      "id": 1,
+      "match_reason": "같은 축",
+      "mismatch_or_limit": null,
+      "name": "유사 실적",
+      "source": "5.2",
+      "status": "confirmed"
+     }
+    ],
+    "next_action": "담당자 확인",
+    "perspectives": [
+     {
+      "assessment": "적합",
+      "evidence": [
+       {
+        "fact": "기술 적합성 사실",
+        "id": 1,
+        "source": "공고명",
+        "status": "confirmed"
+       }
+      ],
+      "id": 1,
+      "name": "기술 적합성",
+      "position": 1,
+      "reason": "기술 적합성 근거"
+     },
+     {
+      "assessment": "확인 불가",
+      "evidence": [
+       {
+        "fact": "사업성 사실",
+        "id": 2,
+        "source": "공고명",
+        "status": "confirmed"
+       }
+      ],
+      "id": 2,
+      "name": "사업성",
+      "position": 2,
+      "reason": "사업성 근거"
+     }
+    ],
+    "primary_focus": "AI/데이터",
+    "readiness": "부분 확인 필요",
+    "schema_version": "bidops.decisions.v2",
+    "summary": "AI 플랫폼 구축 요약",
+    "verification_items": [
+     {
+      "blocking": true,
+      "id": 1,
+      "item": "참가자격",
+      "status": "미확인",
+      "why": "회사 프로필 5.2의 조달 자격 항목이 참가자격"
+     },
+     {
+      "blocking": false,
+      "id": 2,
+      "item": "비차단 항목",
+      "status": "확인 완료",
+      "why": "참고"
+     }
+    ]
+   },
+   "lifecycle": {
+    "pre_spec_no": "PRE-1",
+    "unified_notice_no": "UNI-1"
+   },
+   "method": null,
+   "notice_key": "bid:EQ:000",
+   "performance_matches": [],
+   "performance_top_score": null,
+   "procurement_class": null,
+   "published_at": "2026-08-20T09:00:00Z",
+   "qualification_flags": null,
+   "readiness": "부분 확인 필요",
+   "region_limit": null,
+   "reviews": [
+    {
+     "answers": [
+      {
+       "answer": "확인 중",
+       "id": 1,
+       "item": "참가자격"
+      }
+     ],
+     "corrected_grade": null,
+     "corrected_readiness": null,
+     "created_at": "2026-08-24T01:00:00Z",
+     "disposition": "심층 검토 진행",
+     "id": 1,
+     "notice_pk": 1,
+     "reason": "첫 리뷰",
+     "reviewer": "담당자",
+     "run_id": "20260817-20260823--cur",
+     "system_judgment_review": "동의",
+     "updated_at": "2026-08-24T02:00:00Z",
+     "weakest_perspective": "사업성"
+    }
+   ],
+   "run_id": "20260810-20260816--prev",
+   "sample_role": "analysis",
+   "sample_stratum": "AI/데이터",
+   "source_type": null,
+   "timezone": "Asia/Seoul",
+   "title": "AI 플랫폼 구축",
+   "url": null
+  },
+  "status": 200
+ },
+ "notice detail 10": {
+  "body": {
+   "agency": "기관 A",
+   "attachment_count": 0,
+   "attachment_status": "none",
+   "attachments": [],
+   "bid_no": "EQ-000",
+   "bid_ord": "001",
+   "budget": null,
+   "candidate_sources": [],
+   "collection_bucket": null,
+   "deadline_at": null,
+   "estimated_price": null,
+   "focus": "AI/데이터",
+   "focus_matches": [],
+   "grade": "관찰 대상",
+   "id": 10,
+   "judgment": {
+    "counterarguments": [],
+    "exclusion_category": null,
+    "grade": "관찰 대상",
+    "id": 9,
+    "matched_performances": [],
+    "next_action": "담당자 확인",
+    "perspectives": [],
+    "primary_focus": "AI/데이터",
+    "readiness": "확인 완료",
+    "schema_version": "bidops.decisions.v2",
+    "summary": null,
+    "verification_items": []
+   },
+   "lifecycle": {
+    "change_reason": "정정"
+   },
+   "method": null,
+   "notice_key": "bid:EQ-000:001",
+   "performance_matches": [],
+   "performance_top_score": null,
+   "procurement_class": null,
+   "published_at": "2026-08-22T09:00:00Z",
+   "qualification_flags": null,
+   "readiness": "확인 완료",
+   "region_limit": null,
+   "reviews": [],
+   "run_id": "20260817-20260823--cur",
+   "sample_role": "analysis",
+   "sample_stratum": null,
+   "source_type": null,
+   "timezone": "Asia/Seoul",
+   "title": "AI 플랫폼 구축 정정",
+   "url": null
+  },
+  "status": 200
+ },
+ "notice detail 2": {
+  "body": {
+   "agency": "기관 B",
+   "attachment_count": 1,
+   "attachment_status": "manual",
+   "attachments": [
+    {
+     "created_at": "2026-08-24T00:00:00Z",
+     "extract_status": null,
+     "file_ext": "pdf",
+     "id": 2,
+     "name": "manual.pdf",
+     "origin": "manual",
+     "size_bytes": 10,
+     "url": null
+    }
+   ],
+   "bid_no": "EQ-001",
+   "bid_ord": "000",
+   "budget": null,
+   "candidate_sources": [],
+   "collection_bucket": "candidate_pool",
+   "deadline_at": "2026-08-27T00:00:00Z",
+   "estimated_price": 1000000.0,
+   "focus": "공공 SI·통합관리",
+   "focus_matches": [],
+   "grade": "검토 권장",
+   "id": 2,
+   "judgment": {
+    "counterarguments": [],
+    "exclusion_category": null,
+    "grade": "검토 권장",
+    "id": 2,
+    "matched_performances": [],
+    "next_action": "담당자 확인",
+    "perspectives": [],
+    "primary_focus": "공공 SI·통합관리",
+    "readiness": "확인 완료",
+    "schema_version": "bidops.decisions.v2",
+    "summary": "데이터 플랫폼 고도화 요약",
+    "verification_items": [
+     {
+      "blocking": true,
+      "id": 3,
+      "item": "참가자격",
+      "status": "미확인",
+      "why": "회사 프로필 5.2의 조달 자격 항목이 참가자격"
+     },
+     {
+      "blocking": true,
+      "id": 4,
+      "item": "지역 제한",
+      "status": "미확인",
+      "why": "회사 프로필 5.2의 조달 자격 항목이 지역 제한"
+     },
+     {
+      "blocking": false,
+      "id": 5,
+      "item": "비차단 항목",
+      "status": "확인 완료",
+      "why": "참고"
+     }
+    ]
+   },
+   "lifecycle": {
+    "pre_spec_no": null,
+    "unified_notice_no": "UNI-1"
+   },
+   "method": null,
+   "notice_key": "bid:EQ:001",
+   "performance_matches": [],
+   "performance_top_score": null,
+   "procurement_class": null,
+   "published_at": "2026-08-19T09:00:00Z",
+   "qualification_flags": null,
+   "readiness": "확인 완료",
+   "region_limit": null,
+   "reviews": [
+    {
+     "answers": [],
+     "corrected_grade": "관찰 대상",
+     "corrected_readiness": "확인 완료",
+     "created_at": "2026-08-24T03:00:00Z",
+     "disposition": "관찰",
+     "id": 2,
+     "notice_pk": 2,
+     "reason": "수정",
+     "reviewer": "담당자",
+     "run_id": "20260817-20260823--cur",
+     "system_judgment_review": "근거 부족",
+     "updated_at": "2026-08-24T04:00:00Z",
+     "weakest_perspective": null
+    }
+   ],
+   "run_id": "20260817-20260823--cur",
+   "sample_role": "analysis",
+   "sample_stratum": "무작위",
+   "source_type": null,
+   "timezone": "Asia/Seoul",
+   "title": "데이터 플랫폼 고도화",
+   "url": null
+  },
+  "status": 200
+ },
+ "notice detail 3": {
+  "body": {
+   "agency": "기관 A",
+   "attachment_count": 0,
+   "attachment_status": "none",
+   "attachments": [],
+   "bid_no": "EQ-002",
+   "bid_ord": "000",
+   "budget": null,
+   "candidate_sources": [],
+   "collection_bucket": "candidate_pool",
+   "deadline_at": null,
+   "estimated_price": 1000000.0,
+   "focus": "해당 없음",
+   "focus_matches": [],
+   "grade": "제외",
+   "id": 3,
+   "judgment": {
+    "counterarguments": [],
+    "exclusion_category": null,
+    "grade": "제외",
+    "id": 3,
+    "matched_performances": [],
+    "next_action": "담당자 확인",
+    "perspectives": [],
+    "primary_focus": "해당 없음",
+    "readiness": "해당 없음",
+    "schema_version": "bidops.decisions.v2",
+    "summary": "행사 운영 요약",
+    "verification_items": []
+   },
+   "lifecycle": {
+    "pre_spec_no": null,
+    "unified_notice_no": null
+   },
+   "method": null,
+   "notice_key": "bid:EQ:002",
+   "performance_matches": [],
+   "performance_top_score": null,
+   "procurement_class": null,
+   "published_at": "2026-08-18T09:00:00Z",
+   "qualification_flags": null,
+   "readiness": "해당 없음",
+   "region_limit": null,
+   "reviews": [],
+   "run_id": "20260817-20260823--cur",
+   "sample_role": "analysis",
+   "sample_stratum": "무작위",
+   "source_type": null,
+   "timezone": "Asia/Seoul",
+   "title": "행사 운영",
+   "url": null
+  },
+  "status": 200
+ },
+ "notice detail 4": {
+  "body": {
+   "agency": "기관 C",
+   "attachment_count": 2,
+   "attachment_status": "manual",
+   "attachments": [
+    {
+     "created_at": "2026-08-24T00:00:00Z",
+     "extract_status": null,
+     "file_ext": "pdf",
+     "id": 3,
+     "name": "g2b.pdf",
+     "origin": "g2b",
+     "size_bytes": 10,
+     "url": null
+    },
+    {
+     "created_at": "2026-08-24T00:00:00Z",
+     "extract_status": null,
+     "file_ext": "pdf",
+     "id": 4,
+     "name": "manual.pdf",
+     "origin": "manual",
+     "size_bytes": 10,
+     "url": null
+    }
+   ],
+   "bid_no": "EQ-003",
+   "bid_ord": "000",
+   "budget": null,
+   "candidate_sources": [],
+   "collection_bucket": "candidate_pool",
+   "deadline_at": "2026-09-03T00:00:00Z",
+   "estimated_price": 1000000.0,
+   "focus": "블록체인·DID",
+   "focus_matches": [],
+   "grade": "관찰 대상",
+   "id": 4,
+   "judgment": {
+    "counterarguments": [
+     {
+      "id": 2,
+      "position": 1,
+      "text": "예산이 작을 수 있다"
+     }
+    ],
+    "exclusion_category": null,
+    "grade": "관찰 대상",
+    "id": 4,
+    "matched_performances": [
+     {
+      "id": 2,
+      "match_reason": "같은 축",
+      "mismatch_or_limit": null,
+      "name": "유사 실적",
+      "source": "5.2",
+      "status": "confirmed"
+     }
+    ],
+    "next_action": "담당자 확인",
+    "perspectives": [
+     {
+      "assessment": "적합",
+      "evidence": [
+       {
+        "fact": "기술 적합성 사실",
+        "id": 3,
+        "source": "공고명",
+        "status": "confirmed"
+       }
+      ],
+      "id": 3,
+      "name": "기술 적합성",
+      "position": 1,
+      "reason": "기술 적합성 근거"
+     },
+     {
+      "assessment": "확인 불가",
+      "evidence": [
+       {
+        "fact": "사업성 사실",
+        "id": 4,
+        "source": "공고명",
+        "status": "confirmed"
+       }
+      ],
+      "id": 4,
+      "name": "사업성",
+      "position": 2,
+      "reason": "사업성 근거"
+     }
+    ],
+    "primary_focus": "블록체인·DID",
+    "readiness": "부분 확인 필요",
+    "schema_version": "bidops.decisions.v2",
+    "summary": "블록체인 DID 플랫폼 요약",
+    "verification_items": []
+   },
+   "lifecycle": {
+    "pre_spec_no": "PRE-1",
+    "unified_notice_no": null
+   },
+   "method": null,
+   "notice_key": "bid:EQ:003",
+   "performance_matches": [],
+   "performance_top_score": null,
+   "procurement_class": null,
+   "published_at": null,
+   "qualification_flags": null,
+   "readiness": "부분 확인 필요",
+   "region_limit": null,
+   "reviews": [],
+   "run_id": "20260817-20260823--cur",
+   "sample_role": "analysis",
+   "sample_stratum": "무작위",
+   "source_type": null,
+   "timezone": "Asia/Seoul",
+   "title": "블록체인 DID 플랫폼",
+   "url": null
+  },
+  "status": 200
+ },
+ "notice detail 5": {
+  "body": {
+   "agency": "기관 D",
+   "attachment_count": 0,
+   "attachment_status": "none",
+   "attachments": [],
+   "bid_no": "EQ-004",
+   "bid_ord": "000",
+   "budget": null,
+   "candidate_sources": [],
+   "collection_bucket": "audit_pool",
+   "deadline_at": "2026-08-29T00:00:00Z",
+   "estimated_price": null,
+   "focus": "AI/데이터",
+   "focus_matches": [],
+   "grade": "우선 검토",
+   "id": 5,
+   "judgment": {
+    "counterarguments": [],
+    "exclusion_category": null,
+    "grade": "우선 검토",
+    "id": 5,
+    "matched_performances": [],
+    "next_action": "담당자 확인",
+    "perspectives": [],
+    "primary_focus": "AI/데이터",
+    "readiness": "부분 확인 필요",
+    "schema_version": "bidops.decisions.v2",
+    "summary": "감사 공고 플랫폼 요약",
+    "verification_items": [
+     {
+      "blocking": true,
+      "id": 6,
+      "item": "실적 증빙",
+      "status": "미확인",
+      "why": "회사 프로필 5.2의 조달 자격 항목이 실적 증빙"
+     },
+     {
+      "blocking": false,
+      "id": 7,
+      "item": "비차단 항목",
+      "status": "확인 완료",
+      "why": "참고"
+     }
+    ]
+   },
+   "lifecycle": {
+    "pre_spec_no": null,
+    "unified_notice_no": null
+   },
+   "method": null,
+   "notice_key": "bid:EQ:004",
+   "performance_matches": [],
+   "performance_top_score": null,
+   "procurement_class": null,
+   "published_at": "2026-08-17T09:00:00Z",
+   "qualification_flags": null,
+   "readiness": "부분 확인 필요",
+   "region_limit": null,
+   "reviews": [],
+   "run_id": "20260817-20260823--cur",
+   "sample_role": "audit",
+   "sample_stratum": "AI/데이터",
+   "source_type": null,
+   "timezone": "Asia/Seoul",
+   "title": "감사 공고 플랫폼",
+   "url": null
+  },
+  "status": 200
+ },
+ "notice detail 6": {
+  "body": {
+   "agency": "기관 D",
+   "attachment_count": 0,
+   "attachment_status": "none",
+   "attachments": [],
+   "bid_no": "EQ-005",
+   "bid_ord": "000",
+   "budget": null,
+   "candidate_sources": [],
+   "collection_bucket": "audit_pool",
+   "deadline_at": "2026-09-23T00:00:00Z",
+   "estimated_price": null,
+   "focus": null,
+   "focus_matches": [],
+   "grade": "제외",
+   "id": 6,
+   "judgment": {
+    "counterarguments": [],
+    "exclusion_category": null,
+    "grade": "제외",
+    "id": 6,
+    "matched_performances": [],
+    "next_action": "담당자 확인",
+    "perspectives": [],
+    "primary_focus": null,
+    "readiness": "해당 없음",
+    "schema_version": "bidops.decisions.v2",
+    "summary": "감사 제외 공고 요약",
+    "verification_items": []
+   },
+   "lifecycle": {
+    "pre_spec_no": null,
+    "unified_notice_no": null
+   },
+   "method": null,
+   "notice_key": "bid:EQ:005",
+   "performance_matches": [],
+   "performance_top_score": null,
+   "procurement_class": null,
+   "published_at": "2026-08-16T09:00:00Z",
+   "qualification_flags": null,
+   "readiness": "해당 없음",
+   "region_limit": null,
+   "reviews": [],
+   "run_id": "20260817-20260823--cur",
+   "sample_role": "audit",
+   "sample_stratum": "무작위",
+   "source_type": null,
+   "timezone": "Asia/Seoul",
+   "title": "감사 제외 공고",
+   "url": null
+  },
+  "status": 200
+ },
+ "notice detail 7": {
+  "body": {
+   "agency": "기관 E",
+   "attachment_count": 1,
+   "attachment_status": "g2b",
+   "attachments": [
+    {
+     "created_at": "2026-08-24T00:00:00Z",
+     "extract_status": null,
+     "file_ext": "pdf",
+     "id": 5,
+     "name": "g2b.pdf",
+     "origin": "g2b",
+     "size_bytes": 10,
+     "url": null
+    }
+   ],
+   "bid_no": "EQ-006",
+   "bid_ord": "000",
+   "budget": null,
+   "candidate_sources": [],
+   "collection_bucket": "candidate_pool",
+   "deadline_at": "2026-08-27T00:00:00Z",
+   "estimated_price": 1000000.0,
+   "focus": null,
+   "focus_matches": [],
+   "grade": null,
+   "id": 7,
+   "judgment": null,
+   "lifecycle": {
+    "pre_spec_no": null,
+    "unified_notice_no": null
+   },
+   "method": null,
+   "notice_key": "bid:EQ:006",
+   "performance_matches": [],
+   "performance_top_score": null,
+   "procurement_class": null,
+   "published_at": "2026-08-15T09:00:00Z",
+   "qualification_flags": null,
+   "readiness": null,
+   "region_limit": null,
+   "reviews": [],
+   "run_id": "20260817-20260823--cur",
+   "sample_role": "analysis",
+   "sample_stratum": "무작위",
+   "source_type": null,
+   "timezone": "Asia/Seoul",
+   "title": "판정 없는 공고",
+   "url": null
+  },
+  "status": 200
+ },
+ "notice detail 8": {
+  "body": {
+   "agency": "기관 F",
+   "attachment_count": 0,
+   "attachment_status": "none",
+   "attachments": [],
+   "bid_no": "EQ-007",
+   "bid_ord": "000",
+   "budget": null,
+   "candidate_sources": [],
+   "collection_bucket": "candidate_pool",
+   "deadline_at": "2026-08-25T00:00:00Z",
+   "estimated_price": 1000000.0,
+   "focus": "AI/데이터",
+   "focus_matches": [],
+   "grade": "기타",
+   "id": 8,
+   "judgment": {
+    "counterarguments": [],
+    "exclusion_category": null,
+    "grade": "기타",
+    "id": 7,
+    "matched_performances": [],
+    "next_action": "담당자 확인",
+    "perspectives": [],
+    "primary_focus": "AI/데이터",
+    "readiness": "값 없음 아님",
+    "schema_version": "bidops.decisions.v2",
+    "summary": "알 수 없는 등급 요약",
+    "verification_items": []
+   },
+   "lifecycle": {
+    "pre_spec_no": null,
+    "unified_notice_no": null
+   },
+   "method": null,
+   "notice_key": "bid:EQ:007",
+   "performance_matches": [],
+   "performance_top_score": null,
+   "procurement_class": null,
+   "published_at": "2026-08-21T09:00:00Z",
+   "qualification_flags": null,
+   "readiness": "값 없음 아님",
+   "region_limit": null,
+   "reviews": [],
+   "run_id": "20260817-20260823--cur",
+   "sample_role": "analysis",
+   "sample_stratum": "AI/데이터",
+   "source_type": null,
+   "timezone": "Asia/Seoul",
+   "title": "알 수 없는 등급",
+   "url": null
+  },
+  "status": 200
+ },
+ "notice detail 9": {
+  "body": {
+   "agency": "기관 G",
+   "attachment_count": 0,
+   "attachment_status": "none",
+   "attachments": [],
+   "bid_no": "EQ-008",
+   "bid_ord": "000",
+   "budget": null,
+   "candidate_sources": [],
+   "collection_bucket": "candidate_pool",
+   "deadline_at": "2026-08-25T00:00:00Z",
+   "estimated_price": 1000000.0,
+   "focus": null,
+   "focus_matches": [],
+   "grade": "검토 권장",
+   "id": 9,
+   "judgment": {
+    "counterarguments": [],
+    "exclusion_category": null,
+    "grade": "검토 권장",
+    "id": 8,
+    "matched_performances": [],
+    "next_action": "담당자 확인",
+    "perspectives": [],
+    "primary_focus": null,
+    "readiness": null,
+    "schema_version": "bidops.decisions.v2",
+    "summary": "등급만 있는 공고 요약",
+    "verification_items": []
+   },
+   "lifecycle": {
+    "pre_spec_no": null,
+    "unified_notice_no": null
+   },
+   "method": null,
+   "notice_key": "bid:EQ:008",
+   "performance_matches": [],
+   "performance_top_score": null,
+   "procurement_class": null,
+   "published_at": "2026-08-21T09:00:00Z",
+   "qualification_flags": null,
+   "readiness": null,
+   "region_limit": null,
+   "reviews": [],
+   "run_id": "20260817-20260823--cur",
+   "sample_role": "analysis",
+   "sample_stratum": "무작위",
+   "source_type": null,
+   "timezone": "Asia/Seoul",
+   "title": "등급만 있는 공고",
+   "url": null
+  },
+  "status": 200
+ },
+ "notice history 1": {
+  "body": {
+   "items": [
+    {
+     "corrected_grade": null,
+     "corrected_readiness": null,
+     "focus": "AI/데이터",
+     "generated_at": "2026-08-24T00:00:00Z",
+     "grade": "우선 검토",
+     "notice_pk": 1,
+     "readiness": "부분 확인 필요",
+     "review_reason": "첫 리뷰",
+     "run_id": "20260817-20260823--cur",
+     "summary": "AI 플랫폼 구축 요약",
+     "timezone": "Asia/Seoul",
+     "window_from": "2026-08-17",
+     "window_to": "2026-08-23"
+    },
+    {
+     "corrected_grade": null,
+     "corrected_readiness": null,
+     "focus": "AI/데이터",
+     "generated_at": "2026-08-17T00:00:00Z",
+     "grade": "우선 검토",
+     "notice_pk": 1,
+     "readiness": "부분 확인 필요",
+     "review_reason": null,
+     "run_id": "20260810-20260816--prev",
+     "summary": "AI 플랫폼 구축 요약",
+     "timezone": "Asia/Seoul",
+     "window_from": "2026-08-10",
+     "window_to": "2026-08-16"
+    }
+   ],
+   "notice_key": "bid:EQ:000"
+  },
+  "status": 200
+ },
+ "notice history 10": {
+  "body": {
+   "items": [
+    {
+     "corrected_grade": null,
+     "corrected_readiness": null,
+     "focus": "AI/데이터",
+     "generated_at": "2026-08-24T00:00:00Z",
+     "grade": "관찰 대상",
+     "notice_pk": 10,
+     "readiness": "확인 완료",
+     "review_reason": null,
+     "run_id": "20260817-20260823--cur",
+     "summary": null,
+     "timezone": "Asia/Seoul",
+     "window_from": "2026-08-17",
+     "window_to": "2026-08-23"
+    }
+   ],
+   "notice_key": "bid:EQ-000:001"
+  },
+  "status": 200
+ },
+ "notice history 2": {
+  "body": {
+   "items": [
+    {
+     "corrected_grade": "관찰 대상",
+     "corrected_readiness": "확인 완료",
+     "focus": "공공 SI·통합관리",
+     "generated_at": "2026-08-24T00:00:00Z",
+     "grade": "검토 권장",
+     "notice_pk": 2,
+     "readiness": "확인 완료",
+     "review_reason": "수정",
+     "run_id": "20260817-20260823--cur",
+     "summary": "데이터 플랫폼 고도화 요약",
+     "timezone": "Asia/Seoul",
+     "window_from": "2026-08-17",
+     "window_to": "2026-08-23"
+    }
+   ],
+   "notice_key": "bid:EQ:001"
+  },
+  "status": 200
+ },
+ "notice history 3": {
+  "body": {
+   "items": [
+    {
+     "corrected_grade": null,
+     "corrected_readiness": null,
+     "focus": "해당 없음",
+     "generated_at": "2026-08-24T00:00:00Z",
+     "grade": "제외",
+     "notice_pk": 3,
+     "readiness": "해당 없음",
+     "review_reason": null,
+     "run_id": "20260817-20260823--cur",
+     "summary": "행사 운영 요약",
+     "timezone": "Asia/Seoul",
+     "window_from": "2026-08-17",
+     "window_to": "2026-08-23"
+    }
+   ],
+   "notice_key": "bid:EQ:002"
+  },
+  "status": 200
+ },
+ "notice history 4": {
+  "body": {
+   "items": [
+    {
+     "corrected_grade": null,
+     "corrected_readiness": null,
+     "focus": "블록체인·DID",
+     "generated_at": "2026-08-24T00:00:00Z",
+     "grade": "관찰 대상",
+     "notice_pk": 4,
+     "readiness": "부분 확인 필요",
+     "review_reason": null,
+     "run_id": "20260817-20260823--cur",
+     "summary": "블록체인 DID 플랫폼 요약",
+     "timezone": "Asia/Seoul",
+     "window_from": "2026-08-17",
+     "window_to": "2026-08-23"
+    }
+   ],
+   "notice_key": "bid:EQ:003"
+  },
+  "status": 200
+ },
+ "notice history 5": {
+  "body": {
+   "items": [
+    {
+     "corrected_grade": null,
+     "corrected_readiness": null,
+     "focus": "AI/데이터",
+     "generated_at": "2026-08-24T00:00:00Z",
+     "grade": "우선 검토",
+     "notice_pk": 5,
+     "readiness": "부분 확인 필요",
+     "review_reason": null,
+     "run_id": "20260817-20260823--cur",
+     "summary": "감사 공고 플랫폼 요약",
+     "timezone": "Asia/Seoul",
+     "window_from": "2026-08-17",
+     "window_to": "2026-08-23"
+    }
+   ],
+   "notice_key": "bid:EQ:004"
+  },
+  "status": 200
+ },
+ "notice history 6": {
+  "body": {
+   "items": [
+    {
+     "corrected_grade": null,
+     "corrected_readiness": null,
+     "focus": null,
+     "generated_at": "2026-08-24T00:00:00Z",
+     "grade": "제외",
+     "notice_pk": 6,
+     "readiness": "해당 없음",
+     "review_reason": null,
+     "run_id": "20260817-20260823--cur",
+     "summary": "감사 제외 공고 요약",
+     "timezone": "Asia/Seoul",
+     "window_from": "2026-08-17",
+     "window_to": "2026-08-23"
+    }
+   ],
+   "notice_key": "bid:EQ:005"
+  },
+  "status": 200
+ },
+ "notice history 7": {
+  "body": {
+   "items": [
+    {
+     "corrected_grade": null,
+     "corrected_readiness": null,
+     "focus": null,
+     "generated_at": "2026-08-24T00:00:00Z",
+     "grade": null,
+     "notice_pk": 7,
+     "readiness": null,
+     "review_reason": null,
+     "run_id": "20260817-20260823--cur",
+     "summary": null,
+     "timezone": "Asia/Seoul",
+     "window_from": "2026-08-17",
+     "window_to": "2026-08-23"
+    }
+   ],
+   "notice_key": "bid:EQ:006"
+  },
+  "status": 200
+ },
+ "notice history 8": {
+  "body": {
+   "items": [
+    {
+     "corrected_grade": null,
+     "corrected_readiness": null,
+     "focus": "AI/데이터",
+     "generated_at": "2026-08-24T00:00:00Z",
+     "grade": "기타",
+     "notice_pk": 8,
+     "readiness": "값 없음 아님",
+     "review_reason": null,
+     "run_id": "20260817-20260823--cur",
+     "summary": "알 수 없는 등급 요약",
+     "timezone": "Asia/Seoul",
+     "window_from": "2026-08-17",
+     "window_to": "2026-08-23"
+    }
+   ],
+   "notice_key": "bid:EQ:007"
+  },
+  "status": 200
+ },
+ "notice history 9": {
+  "body": {
+   "items": [
+    {
+     "corrected_grade": null,
+     "corrected_readiness": null,
+     "focus": null,
+     "generated_at": "2026-08-24T00:00:00Z",
+     "grade": "검토 권장",
+     "notice_pk": 9,
+     "readiness": null,
+     "review_reason": null,
+     "run_id": "20260817-20260823--cur",
+     "summary": "등급만 있는 공고 요약",
+     "timezone": "Asia/Seoul",
+     "window_from": "2026-08-17",
+     "window_to": "2026-08-23"
+    }
+   ],
+   "notice_key": "bid:EQ:008"
+  },
+  "status": 200
+ },
+ "notice related 1": {
+  "body": {
+   "items": [
+    {
+     "change_reason": "정정",
+     "grade": "관찰 대상",
+     "notice_key": "bid:EQ-000:001",
+     "notice_pk": 10,
+     "published_at": "2026-08-22T09:00:00Z",
+     "relation": "ordinal",
+     "title": "AI 플랫폼 구축 정정"
+    },
+    {
+     "change_reason": null,
+     "grade": "검토 권장",
+     "notice_key": "bid:EQ:001",
+     "notice_pk": 2,
+     "published_at": "2026-08-19T09:00:00Z",
+     "relation": "unified",
+     "title": "데이터 플랫폼 고도화"
+    },
+    {
+     "change_reason": null,
+     "grade": "관찰 대상",
+     "notice_key": "bid:EQ:003",
+     "notice_pk": 4,
+     "published_at": null,
+     "relation": "pre_spec",
+     "title": "블록체인 DID 플랫폼"
+    }
+   ],
+   "notice_pk": 1
+  },
+  "status": 200
+ },
+ "notice related 10": {
+  "body": {
+   "items": [
+    {
+     "change_reason": null,
+     "grade": "우선 검토",
+     "notice_key": "bid:EQ:000",
+     "notice_pk": 1,
+     "published_at": "2026-08-20T09:00:00Z",
+     "relation": "ordinal",
+     "title": "AI 플랫폼 구축"
+    }
+   ],
+   "notice_pk": 10
+  },
+  "status": 200
+ },
+ "notice related 2": {
+  "body": {
+   "items": [
+    {
+     "change_reason": null,
+     "grade": "우선 검토",
+     "notice_key": "bid:EQ:000",
+     "notice_pk": 1,
+     "published_at": "2026-08-20T09:00:00Z",
+     "relation": "unified",
+     "title": "AI 플랫폼 구축"
+    }
+   ],
+   "notice_pk": 2
+  },
+  "status": 200
+ },
+ "notice related 3": {
+  "body": {
+   "items": [],
+   "notice_pk": 3
+  },
+  "status": 200
+ },
+ "notice related 4": {
+  "body": {
+   "items": [
+    {
+     "change_reason": null,
+     "grade": "우선 검토",
+     "notice_key": "bid:EQ:000",
+     "notice_pk": 1,
+     "published_at": "2026-08-20T09:00:00Z",
+     "relation": "pre_spec",
+     "title": "AI 플랫폼 구축"
+    }
+   ],
+   "notice_pk": 4
+  },
+  "status": 200
+ },
+ "notice related 5": {
+  "body": {
+   "items": [],
+   "notice_pk": 5
+  },
+  "status": 200
+ },
+ "notice related 6": {
+  "body": {
+   "items": [],
+   "notice_pk": 6
+  },
+  "status": 200
+ },
+ "notice related 7": {
+  "body": {
+   "items": [],
+   "notice_pk": 7
+  },
+  "status": 200
+ },
+ "notice related 8": {
+  "body": {
+   "items": [],
+   "notice_pk": 8
+  },
+  "status": 200
+ },
+ "notice related 9": {
+  "body": {
+   "items": [],
+   "notice_pk": 9
+  },
+  "status": 200
+ },
+ "notices [('attachment', 'manual')] sort=deadline": {
+  "body": {
+   "filters": {
+    "attachment": "manual",
+    "focus": null,
+    "grade": null,
+    "limit": 50,
+    "offset": 0,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "deadline"
+   },
+   "items": [
+    {
+     "agency": "기관 B",
+     "attachment_count": 1,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "공공 SI·통합관리",
+     "grade": "검토 권장",
+     "id": 2,
+     "notice_key": "bid:EQ:001",
+     "published_at": "2026-08-19T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "데이터 플랫폼 고도화"
+    },
+    {
+     "agency": "기관 C",
+     "attachment_count": 2,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-09-03T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "블록체인·DID",
+     "grade": "관찰 대상",
+     "id": 4,
+     "notice_key": "bid:EQ:003",
+     "published_at": null,
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "블록체인 DID 플랫폼"
+    }
+   ],
+   "total": 2
+  },
+  "status": 200
+ },
+ "notices [('attachment', 'manual')] sort=grade": {
+  "body": {
+   "filters": {
+    "attachment": "manual",
+    "focus": null,
+    "grade": null,
+    "limit": 50,
+    "offset": 0,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "grade"
+   },
+   "items": [
+    {
+     "agency": "기관 B",
+     "attachment_count": 1,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "공공 SI·통합관리",
+     "grade": "검토 권장",
+     "id": 2,
+     "notice_key": "bid:EQ:001",
+     "published_at": "2026-08-19T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "데이터 플랫폼 고도화"
+    },
+    {
+     "agency": "기관 C",
+     "attachment_count": 2,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-09-03T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "블록체인·DID",
+     "grade": "관찰 대상",
+     "id": 4,
+     "notice_key": "bid:EQ:003",
+     "published_at": null,
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "블록체인 DID 플랫폼"
+    }
+   ],
+   "total": 2
+  },
+  "status": 200
+ },
+ "notices [('attachment', 'none')] sort=deadline": {
+  "body": {
+   "filters": {
+    "attachment": "none",
+    "focus": null,
+    "grade": null,
+    "limit": 50,
+    "offset": 0,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "deadline"
+   },
+   "items": [
+    {
+     "agency": "기관 F",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "기타",
+     "id": 8,
+     "notice_key": "bid:EQ:007",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": "값 없음 아님",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "알 수 없는 등급"
+    },
+    {
+     "agency": "기관 G",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": null,
+     "grade": "검토 권장",
+     "id": 9,
+     "notice_key": "bid:EQ:008",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": null,
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "등급만 있는 공고"
+    },
+    {
+     "agency": "기관 A",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": null,
+     "deadline_at": null,
+     "estimated_price": null,
+     "focus": "AI/데이터",
+     "grade": "관찰 대상",
+     "id": 10,
+     "notice_key": "bid:EQ-000:001",
+     "published_at": "2026-08-22T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": null,
+     "title": "AI 플랫폼 구축 정정"
+    }
+   ],
+   "total": 3
+  },
+  "status": 200
+ },
+ "notices [('attachment', 'none')] sort=grade": {
+  "body": {
+   "filters": {
+    "attachment": "none",
+    "focus": null,
+    "grade": null,
+    "limit": 50,
+    "offset": 0,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "grade"
+   },
+   "items": [
+    {
+     "agency": "기관 G",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": null,
+     "grade": "검토 권장",
+     "id": 9,
+     "notice_key": "bid:EQ:008",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": null,
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "등급만 있는 공고"
+    },
+    {
+     "agency": "기관 A",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": null,
+     "deadline_at": null,
+     "estimated_price": null,
+     "focus": "AI/데이터",
+     "grade": "관찰 대상",
+     "id": 10,
+     "notice_key": "bid:EQ-000:001",
+     "published_at": "2026-08-22T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": null,
+     "title": "AI 플랫폼 구축 정정"
+    },
+    {
+     "agency": "기관 F",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "기타",
+     "id": 8,
+     "notice_key": "bid:EQ:007",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": "값 없음 아님",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "알 수 없는 등급"
+    }
+   ],
+   "total": 3
+  },
+  "status": 200
+ },
+ "notices [('focus', 'AI/데이터')] sort=deadline": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": "AI/데이터",
+    "grade": null,
+    "limit": 50,
+    "offset": 0,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "deadline"
+   },
+   "items": [
+    {
+     "agency": "기관 F",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "기타",
+     "id": 8,
+     "notice_key": "bid:EQ:007",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": "값 없음 아님",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "알 수 없는 등급"
+    },
+    {
+     "agency": "기관 A",
+     "attachment_count": 1,
+     "attachment_status": "g2b",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "우선 검토",
+     "id": 1,
+     "notice_key": "bid:EQ:000",
+     "published_at": "2026-08-20T09:00:00Z",
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "AI 플랫폼 구축"
+    },
+    {
+     "agency": "기관 A",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": null,
+     "deadline_at": null,
+     "estimated_price": null,
+     "focus": "AI/데이터",
+     "grade": "관찰 대상",
+     "id": 10,
+     "notice_key": "bid:EQ-000:001",
+     "published_at": "2026-08-22T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": null,
+     "title": "AI 플랫폼 구축 정정"
+    }
+   ],
+   "total": 3
+  },
+  "status": 200
+ },
+ "notices [('focus', 'AI/데이터')] sort=grade": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": "AI/데이터",
+    "grade": null,
+    "limit": 50,
+    "offset": 0,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "grade"
+   },
+   "items": [
+    {
+     "agency": "기관 A",
+     "attachment_count": 1,
+     "attachment_status": "g2b",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "우선 검토",
+     "id": 1,
+     "notice_key": "bid:EQ:000",
+     "published_at": "2026-08-20T09:00:00Z",
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "AI 플랫폼 구축"
+    },
+    {
+     "agency": "기관 A",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": null,
+     "deadline_at": null,
+     "estimated_price": null,
+     "focus": "AI/데이터",
+     "grade": "관찰 대상",
+     "id": 10,
+     "notice_key": "bid:EQ-000:001",
+     "published_at": "2026-08-22T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": null,
+     "title": "AI 플랫폼 구축 정정"
+    },
+    {
+     "agency": "기관 F",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "기타",
+     "id": 8,
+     "notice_key": "bid:EQ:007",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": "값 없음 아님",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "알 수 없는 등급"
+    }
+   ],
+   "total": 3
+  },
+  "status": 200
+ },
+ "notices [('grade', 'all'), ('q', '기관 D'), ('sample_role', 'all')] sort=deadline": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": "all",
+    "limit": 50,
+    "offset": 0,
+    "q": "기관 D",
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "all",
+    "sort": "deadline"
+   },
+   "items": [
+    {
+     "agency": "기관 D",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "audit_pool",
+     "deadline_at": "2026-08-29T00:00:00Z",
+     "estimated_price": null,
+     "focus": "AI/데이터",
+     "grade": "우선 검토",
+     "id": 5,
+     "notice_key": "bid:EQ:004",
+     "published_at": "2026-08-17T09:00:00Z",
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "audit",
+     "sample_stratum": "AI/데이터",
+     "title": "감사 공고 플랫폼"
+    },
+    {
+     "agency": "기관 D",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "audit_pool",
+     "deadline_at": "2026-09-23T00:00:00Z",
+     "estimated_price": null,
+     "focus": null,
+     "grade": "제외",
+     "id": 6,
+     "notice_key": "bid:EQ:005",
+     "published_at": "2026-08-16T09:00:00Z",
+     "readiness": "해당 없음",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "audit",
+     "sample_stratum": "무작위",
+     "title": "감사 제외 공고"
+    }
+   ],
+   "total": 2
+  },
+  "status": 200
+ },
+ "notices [('grade', 'all'), ('q', '기관 D'), ('sample_role', 'all')] sort=grade": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": "all",
+    "limit": 50,
+    "offset": 0,
+    "q": "기관 D",
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "all",
+    "sort": "grade"
+   },
+   "items": [
+    {
+     "agency": "기관 D",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "audit_pool",
+     "deadline_at": "2026-08-29T00:00:00Z",
+     "estimated_price": null,
+     "focus": "AI/데이터",
+     "grade": "우선 검토",
+     "id": 5,
+     "notice_key": "bid:EQ:004",
+     "published_at": "2026-08-17T09:00:00Z",
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "audit",
+     "sample_stratum": "AI/데이터",
+     "title": "감사 공고 플랫폼"
+    },
+    {
+     "agency": "기관 D",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "audit_pool",
+     "deadline_at": "2026-09-23T00:00:00Z",
+     "estimated_price": null,
+     "focus": null,
+     "grade": "제외",
+     "id": 6,
+     "notice_key": "bid:EQ:005",
+     "published_at": "2026-08-16T09:00:00Z",
+     "readiness": "해당 없음",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "audit",
+     "sample_stratum": "무작위",
+     "title": "감사 제외 공고"
+    }
+   ],
+   "total": 2
+  },
+  "status": 200
+ },
+ "notices [('grade', 'all'), ('readiness', '확인 완료')] sort=deadline": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": "all",
+    "limit": 50,
+    "offset": 0,
+    "q": null,
+    "readiness": "확인 완료",
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "deadline"
+   },
+   "items": [
+    {
+     "agency": "기관 B",
+     "attachment_count": 1,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "공공 SI·통합관리",
+     "grade": "검토 권장",
+     "id": 2,
+     "notice_key": "bid:EQ:001",
+     "published_at": "2026-08-19T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "데이터 플랫폼 고도화"
+    },
+    {
+     "agency": "기관 A",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": null,
+     "deadline_at": null,
+     "estimated_price": null,
+     "focus": "AI/데이터",
+     "grade": "관찰 대상",
+     "id": 10,
+     "notice_key": "bid:EQ-000:001",
+     "published_at": "2026-08-22T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": null,
+     "title": "AI 플랫폼 구축 정정"
+    }
+   ],
+   "total": 2
+  },
+  "status": 200
+ },
+ "notices [('grade', 'all'), ('readiness', '확인 완료')] sort=grade": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": "all",
+    "limit": 50,
+    "offset": 0,
+    "q": null,
+    "readiness": "확인 완료",
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "grade"
+   },
+   "items": [
+    {
+     "agency": "기관 B",
+     "attachment_count": 1,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "공공 SI·통합관리",
+     "grade": "검토 권장",
+     "id": 2,
+     "notice_key": "bid:EQ:001",
+     "published_at": "2026-08-19T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "데이터 플랫폼 고도화"
+    },
+    {
+     "agency": "기관 A",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": null,
+     "deadline_at": null,
+     "estimated_price": null,
+     "focus": "AI/데이터",
+     "grade": "관찰 대상",
+     "id": 10,
+     "notice_key": "bid:EQ-000:001",
+     "published_at": "2026-08-22T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": null,
+     "title": "AI 플랫폼 구축 정정"
+    }
+   ],
+   "total": 2
+  },
+  "status": 200
+ },
+ "notices [('grade', 'all'), ('sample_role', 'all')] sort=deadline": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": "all",
+    "limit": 50,
+    "offset": 0,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "all",
+    "sort": "deadline"
+   },
+   "items": [
+    {
+     "agency": "기관 F",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "기타",
+     "id": 8,
+     "notice_key": "bid:EQ:007",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": "값 없음 아님",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "알 수 없는 등급"
+    },
+    {
+     "agency": "기관 G",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": null,
+     "grade": "검토 권장",
+     "id": 9,
+     "notice_key": "bid:EQ:008",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": null,
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "등급만 있는 공고"
+    },
+    {
+     "agency": "기관 A",
+     "attachment_count": 1,
+     "attachment_status": "g2b",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "우선 검토",
+     "id": 1,
+     "notice_key": "bid:EQ:000",
+     "published_at": "2026-08-20T09:00:00Z",
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "AI 플랫폼 구축"
+    },
+    {
+     "agency": "기관 B",
+     "attachment_count": 1,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "공공 SI·통합관리",
+     "grade": "검토 권장",
+     "id": 2,
+     "notice_key": "bid:EQ:001",
+     "published_at": "2026-08-19T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "데이터 플랫폼 고도화"
+    },
+    {
+     "agency": "기관 E",
+     "attachment_count": 1,
+     "attachment_status": "g2b",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": null,
+     "grade": null,
+     "id": 7,
+     "notice_key": "bid:EQ:006",
+     "published_at": "2026-08-15T09:00:00Z",
+     "readiness": null,
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "판정 없는 공고"
+    },
+    {
+     "agency": "기관 D",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "audit_pool",
+     "deadline_at": "2026-08-29T00:00:00Z",
+     "estimated_price": null,
+     "focus": "AI/데이터",
+     "grade": "우선 검토",
+     "id": 5,
+     "notice_key": "bid:EQ:004",
+     "published_at": "2026-08-17T09:00:00Z",
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "audit",
+     "sample_stratum": "AI/데이터",
+     "title": "감사 공고 플랫폼"
+    },
+    {
+     "agency": "기관 C",
+     "attachment_count": 2,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-09-03T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "블록체인·DID",
+     "grade": "관찰 대상",
+     "id": 4,
+     "notice_key": "bid:EQ:003",
+     "published_at": null,
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "블록체인 DID 플랫폼"
+    },
+    {
+     "agency": "기관 D",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "audit_pool",
+     "deadline_at": "2026-09-23T00:00:00Z",
+     "estimated_price": null,
+     "focus": null,
+     "grade": "제외",
+     "id": 6,
+     "notice_key": "bid:EQ:005",
+     "published_at": "2026-08-16T09:00:00Z",
+     "readiness": "해당 없음",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "audit",
+     "sample_stratum": "무작위",
+     "title": "감사 제외 공고"
+    },
+    {
+     "agency": "기관 A",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": null,
+     "estimated_price": 1000000.0,
+     "focus": "해당 없음",
+     "grade": "제외",
+     "id": 3,
+     "notice_key": "bid:EQ:002",
+     "published_at": "2026-08-18T09:00:00Z",
+     "readiness": "해당 없음",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "행사 운영"
+    },
+    {
+     "agency": "기관 A",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": null,
+     "deadline_at": null,
+     "estimated_price": null,
+     "focus": "AI/데이터",
+     "grade": "관찰 대상",
+     "id": 10,
+     "notice_key": "bid:EQ-000:001",
+     "published_at": "2026-08-22T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": null,
+     "title": "AI 플랫폼 구축 정정"
+    }
+   ],
+   "total": 10
+  },
+  "status": 200
+ },
+ "notices [('grade', 'all'), ('sample_role', 'all')] sort=grade": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": "all",
+    "limit": 50,
+    "offset": 0,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "all",
+    "sort": "grade"
+   },
+   "items": [
+    {
+     "agency": "기관 A",
+     "attachment_count": 1,
+     "attachment_status": "g2b",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "우선 검토",
+     "id": 1,
+     "notice_key": "bid:EQ:000",
+     "published_at": "2026-08-20T09:00:00Z",
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "AI 플랫폼 구축"
+    },
+    {
+     "agency": "기관 D",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "audit_pool",
+     "deadline_at": "2026-08-29T00:00:00Z",
+     "estimated_price": null,
+     "focus": "AI/데이터",
+     "grade": "우선 검토",
+     "id": 5,
+     "notice_key": "bid:EQ:004",
+     "published_at": "2026-08-17T09:00:00Z",
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "audit",
+     "sample_stratum": "AI/데이터",
+     "title": "감사 공고 플랫폼"
+    },
+    {
+     "agency": "기관 G",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": null,
+     "grade": "검토 권장",
+     "id": 9,
+     "notice_key": "bid:EQ:008",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": null,
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "등급만 있는 공고"
+    },
+    {
+     "agency": "기관 B",
+     "attachment_count": 1,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "공공 SI·통합관리",
+     "grade": "검토 권장",
+     "id": 2,
+     "notice_key": "bid:EQ:001",
+     "published_at": "2026-08-19T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "데이터 플랫폼 고도화"
+    },
+    {
+     "agency": "기관 C",
+     "attachment_count": 2,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-09-03T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "블록체인·DID",
+     "grade": "관찰 대상",
+     "id": 4,
+     "notice_key": "bid:EQ:003",
+     "published_at": null,
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "블록체인 DID 플랫폼"
+    },
+    {
+     "agency": "기관 A",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": null,
+     "deadline_at": null,
+     "estimated_price": null,
+     "focus": "AI/데이터",
+     "grade": "관찰 대상",
+     "id": 10,
+     "notice_key": "bid:EQ-000:001",
+     "published_at": "2026-08-22T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": null,
+     "title": "AI 플랫폼 구축 정정"
+    },
+    {
+     "agency": "기관 D",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "audit_pool",
+     "deadline_at": "2026-09-23T00:00:00Z",
+     "estimated_price": null,
+     "focus": null,
+     "grade": "제외",
+     "id": 6,
+     "notice_key": "bid:EQ:005",
+     "published_at": "2026-08-16T09:00:00Z",
+     "readiness": "해당 없음",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "audit",
+     "sample_stratum": "무작위",
+     "title": "감사 제외 공고"
+    },
+    {
+     "agency": "기관 A",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": null,
+     "estimated_price": 1000000.0,
+     "focus": "해당 없음",
+     "grade": "제외",
+     "id": 3,
+     "notice_key": "bid:EQ:002",
+     "published_at": "2026-08-18T09:00:00Z",
+     "readiness": "해당 없음",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "행사 운영"
+    },
+    {
+     "agency": "기관 F",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "기타",
+     "id": 8,
+     "notice_key": "bid:EQ:007",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": "값 없음 아님",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "알 수 없는 등급"
+    },
+    {
+     "agency": "기관 E",
+     "attachment_count": 1,
+     "attachment_status": "g2b",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": null,
+     "grade": null,
+     "id": 7,
+     "notice_key": "bid:EQ:006",
+     "published_at": "2026-08-15T09:00:00Z",
+     "readiness": null,
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "판정 없는 공고"
+    }
+   ],
+   "total": 10
+  },
+  "status": 200
+ },
+ "notices [('q', '플랫폼')] sort=deadline": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": null,
+    "limit": 50,
+    "offset": 0,
+    "q": "플랫폼",
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "deadline"
+   },
+   "items": [
+    {
+     "agency": "기관 A",
+     "attachment_count": 1,
+     "attachment_status": "g2b",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "우선 검토",
+     "id": 1,
+     "notice_key": "bid:EQ:000",
+     "published_at": "2026-08-20T09:00:00Z",
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "AI 플랫폼 구축"
+    },
+    {
+     "agency": "기관 B",
+     "attachment_count": 1,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "공공 SI·통합관리",
+     "grade": "검토 권장",
+     "id": 2,
+     "notice_key": "bid:EQ:001",
+     "published_at": "2026-08-19T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "데이터 플랫폼 고도화"
+    },
+    {
+     "agency": "기관 C",
+     "attachment_count": 2,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-09-03T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "블록체인·DID",
+     "grade": "관찰 대상",
+     "id": 4,
+     "notice_key": "bid:EQ:003",
+     "published_at": null,
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "블록체인 DID 플랫폼"
+    },
+    {
+     "agency": "기관 A",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": null,
+     "deadline_at": null,
+     "estimated_price": null,
+     "focus": "AI/데이터",
+     "grade": "관찰 대상",
+     "id": 10,
+     "notice_key": "bid:EQ-000:001",
+     "published_at": "2026-08-22T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": null,
+     "title": "AI 플랫폼 구축 정정"
+    }
+   ],
+   "total": 4
+  },
+  "status": 200
+ },
+ "notices [('q', '플랫폼')] sort=grade": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": null,
+    "limit": 50,
+    "offset": 0,
+    "q": "플랫폼",
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "grade"
+   },
+   "items": [
+    {
+     "agency": "기관 A",
+     "attachment_count": 1,
+     "attachment_status": "g2b",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "우선 검토",
+     "id": 1,
+     "notice_key": "bid:EQ:000",
+     "published_at": "2026-08-20T09:00:00Z",
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "AI 플랫폼 구축"
+    },
+    {
+     "agency": "기관 B",
+     "attachment_count": 1,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "공공 SI·통합관리",
+     "grade": "검토 권장",
+     "id": 2,
+     "notice_key": "bid:EQ:001",
+     "published_at": "2026-08-19T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "데이터 플랫폼 고도화"
+    },
+    {
+     "agency": "기관 C",
+     "attachment_count": 2,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-09-03T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "블록체인·DID",
+     "grade": "관찰 대상",
+     "id": 4,
+     "notice_key": "bid:EQ:003",
+     "published_at": null,
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "블록체인 DID 플랫폼"
+    },
+    {
+     "agency": "기관 A",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": null,
+     "deadline_at": null,
+     "estimated_price": null,
+     "focus": "AI/데이터",
+     "grade": "관찰 대상",
+     "id": 10,
+     "notice_key": "bid:EQ-000:001",
+     "published_at": "2026-08-22T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": null,
+     "title": "AI 플랫폼 구축 정정"
+    }
+   ],
+   "total": 4
+  },
+  "status": 200
+ },
+ "notices [('readiness', '부분 확인 필요')] sort=deadline": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": null,
+    "limit": 50,
+    "offset": 0,
+    "q": null,
+    "readiness": "부분 확인 필요",
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "deadline"
+   },
+   "items": [
+    {
+     "agency": "기관 A",
+     "attachment_count": 1,
+     "attachment_status": "g2b",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "우선 검토",
+     "id": 1,
+     "notice_key": "bid:EQ:000",
+     "published_at": "2026-08-20T09:00:00Z",
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "AI 플랫폼 구축"
+    },
+    {
+     "agency": "기관 C",
+     "attachment_count": 2,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-09-03T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "블록체인·DID",
+     "grade": "관찰 대상",
+     "id": 4,
+     "notice_key": "bid:EQ:003",
+     "published_at": null,
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "블록체인 DID 플랫폼"
+    }
+   ],
+   "total": 2
+  },
+  "status": 200
+ },
+ "notices [('readiness', '부분 확인 필요')] sort=grade": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": null,
+    "limit": 50,
+    "offset": 0,
+    "q": null,
+    "readiness": "부분 확인 필요",
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "grade"
+   },
+   "items": [
+    {
+     "agency": "기관 A",
+     "attachment_count": 1,
+     "attachment_status": "g2b",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "우선 검토",
+     "id": 1,
+     "notice_key": "bid:EQ:000",
+     "published_at": "2026-08-20T09:00:00Z",
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "AI 플랫폼 구축"
+    },
+    {
+     "agency": "기관 C",
+     "attachment_count": 2,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-09-03T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "블록체인·DID",
+     "grade": "관찰 대상",
+     "id": 4,
+     "notice_key": "bid:EQ:003",
+     "published_at": null,
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "블록체인 DID 플랫폼"
+    }
+   ],
+   "total": 2
+  },
+  "status": 200
+ },
+ "notices [('sample_role', 'all')] sort=deadline": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": null,
+    "limit": 50,
+    "offset": 0,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "all",
+    "sort": "deadline"
+   },
+   "items": [
+    {
+     "agency": "기관 F",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "기타",
+     "id": 8,
+     "notice_key": "bid:EQ:007",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": "값 없음 아님",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "알 수 없는 등급"
+    },
+    {
+     "agency": "기관 G",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": null,
+     "grade": "검토 권장",
+     "id": 9,
+     "notice_key": "bid:EQ:008",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": null,
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "등급만 있는 공고"
+    },
+    {
+     "agency": "기관 A",
+     "attachment_count": 1,
+     "attachment_status": "g2b",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "우선 검토",
+     "id": 1,
+     "notice_key": "bid:EQ:000",
+     "published_at": "2026-08-20T09:00:00Z",
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "AI 플랫폼 구축"
+    },
+    {
+     "agency": "기관 B",
+     "attachment_count": 1,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "공공 SI·통합관리",
+     "grade": "검토 권장",
+     "id": 2,
+     "notice_key": "bid:EQ:001",
+     "published_at": "2026-08-19T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "데이터 플랫폼 고도화"
+    },
+    {
+     "agency": "기관 D",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "audit_pool",
+     "deadline_at": "2026-08-29T00:00:00Z",
+     "estimated_price": null,
+     "focus": "AI/데이터",
+     "grade": "우선 검토",
+     "id": 5,
+     "notice_key": "bid:EQ:004",
+     "published_at": "2026-08-17T09:00:00Z",
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "audit",
+     "sample_stratum": "AI/데이터",
+     "title": "감사 공고 플랫폼"
+    },
+    {
+     "agency": "기관 C",
+     "attachment_count": 2,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-09-03T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "블록체인·DID",
+     "grade": "관찰 대상",
+     "id": 4,
+     "notice_key": "bid:EQ:003",
+     "published_at": null,
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "블록체인 DID 플랫폼"
+    },
+    {
+     "agency": "기관 A",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": null,
+     "deadline_at": null,
+     "estimated_price": null,
+     "focus": "AI/데이터",
+     "grade": "관찰 대상",
+     "id": 10,
+     "notice_key": "bid:EQ-000:001",
+     "published_at": "2026-08-22T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": null,
+     "title": "AI 플랫폼 구축 정정"
+    }
+   ],
+   "total": 7
+  },
+  "status": 200
+ },
+ "notices [('sample_role', 'all')] sort=grade": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": null,
+    "limit": 50,
+    "offset": 0,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "all",
+    "sort": "grade"
+   },
+   "items": [
+    {
+     "agency": "기관 A",
+     "attachment_count": 1,
+     "attachment_status": "g2b",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "우선 검토",
+     "id": 1,
+     "notice_key": "bid:EQ:000",
+     "published_at": "2026-08-20T09:00:00Z",
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "AI 플랫폼 구축"
+    },
+    {
+     "agency": "기관 D",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "audit_pool",
+     "deadline_at": "2026-08-29T00:00:00Z",
+     "estimated_price": null,
+     "focus": "AI/데이터",
+     "grade": "우선 검토",
+     "id": 5,
+     "notice_key": "bid:EQ:004",
+     "published_at": "2026-08-17T09:00:00Z",
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "audit",
+     "sample_stratum": "AI/데이터",
+     "title": "감사 공고 플랫폼"
+    },
+    {
+     "agency": "기관 G",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": null,
+     "grade": "검토 권장",
+     "id": 9,
+     "notice_key": "bid:EQ:008",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": null,
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "등급만 있는 공고"
+    },
+    {
+     "agency": "기관 B",
+     "attachment_count": 1,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "공공 SI·통합관리",
+     "grade": "검토 권장",
+     "id": 2,
+     "notice_key": "bid:EQ:001",
+     "published_at": "2026-08-19T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "데이터 플랫폼 고도화"
+    },
+    {
+     "agency": "기관 C",
+     "attachment_count": 2,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-09-03T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "블록체인·DID",
+     "grade": "관찰 대상",
+     "id": 4,
+     "notice_key": "bid:EQ:003",
+     "published_at": null,
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "블록체인 DID 플랫폼"
+    },
+    {
+     "agency": "기관 A",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": null,
+     "deadline_at": null,
+     "estimated_price": null,
+     "focus": "AI/데이터",
+     "grade": "관찰 대상",
+     "id": 10,
+     "notice_key": "bid:EQ-000:001",
+     "published_at": "2026-08-22T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": null,
+     "title": "AI 플랫폼 구축 정정"
+    },
+    {
+     "agency": "기관 F",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "기타",
+     "id": 8,
+     "notice_key": "bid:EQ:007",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": "값 없음 아님",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "알 수 없는 등급"
+    }
+   ],
+   "total": 7
+  },
+  "status": 200
+ },
+ "notices [('sample_role', 'audit')] sort=deadline": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": null,
+    "limit": 50,
+    "offset": 0,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "audit",
+    "sort": "deadline"
+   },
+   "items": [
+    {
+     "agency": "기관 D",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "audit_pool",
+     "deadline_at": "2026-08-29T00:00:00Z",
+     "estimated_price": null,
+     "focus": "AI/데이터",
+     "grade": "우선 검토",
+     "id": 5,
+     "notice_key": "bid:EQ:004",
+     "published_at": "2026-08-17T09:00:00Z",
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "audit",
+     "sample_stratum": "AI/데이터",
+     "title": "감사 공고 플랫폼"
+    }
+   ],
+   "total": 1
+  },
+  "status": 200
+ },
+ "notices [('sample_role', 'audit')] sort=grade": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": null,
+    "limit": 50,
+    "offset": 0,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "audit",
+    "sort": "grade"
+   },
+   "items": [
+    {
+     "agency": "기관 D",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "audit_pool",
+     "deadline_at": "2026-08-29T00:00:00Z",
+     "estimated_price": null,
+     "focus": "AI/데이터",
+     "grade": "우선 검토",
+     "id": 5,
+     "notice_key": "bid:EQ:004",
+     "published_at": "2026-08-17T09:00:00Z",
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "audit",
+     "sample_stratum": "AI/데이터",
+     "title": "감사 공고 플랫폼"
+    }
+   ],
+   "total": 1
+  },
+  "status": 200
+ },
+ "notices grade=None sort=deadline page=2/0": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": null,
+    "limit": 2,
+    "offset": 0,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "deadline"
+   },
+   "items": [
+    {
+     "agency": "기관 F",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "기타",
+     "id": 8,
+     "notice_key": "bid:EQ:007",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": "값 없음 아님",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "알 수 없는 등급"
+    },
+    {
+     "agency": "기관 G",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": null,
+     "grade": "검토 권장",
+     "id": 9,
+     "notice_key": "bid:EQ:008",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": null,
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "등급만 있는 공고"
+    }
+   ],
+   "total": 6
+  },
+  "status": 200
+ },
+ "notices grade=None sort=deadline page=2/2": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": null,
+    "limit": 2,
+    "offset": 2,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "deadline"
+   },
+   "items": [
+    {
+     "agency": "기관 A",
+     "attachment_count": 1,
+     "attachment_status": "g2b",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "우선 검토",
+     "id": 1,
+     "notice_key": "bid:EQ:000",
+     "published_at": "2026-08-20T09:00:00Z",
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "AI 플랫폼 구축"
+    },
+    {
+     "agency": "기관 B",
+     "attachment_count": 1,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "공공 SI·통합관리",
+     "grade": "검토 권장",
+     "id": 2,
+     "notice_key": "bid:EQ:001",
+     "published_at": "2026-08-19T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "데이터 플랫폼 고도화"
+    }
+   ],
+   "total": 6
+  },
+  "status": 200
+ },
+ "notices grade=None sort=deadline page=3/1": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": null,
+    "limit": 3,
+    "offset": 1,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "deadline"
+   },
+   "items": [
+    {
+     "agency": "기관 G",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": null,
+     "grade": "검토 권장",
+     "id": 9,
+     "notice_key": "bid:EQ:008",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": null,
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "등급만 있는 공고"
+    },
+    {
+     "agency": "기관 A",
+     "attachment_count": 1,
+     "attachment_status": "g2b",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "우선 검토",
+     "id": 1,
+     "notice_key": "bid:EQ:000",
+     "published_at": "2026-08-20T09:00:00Z",
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "AI 플랫폼 구축"
+    },
+    {
+     "agency": "기관 B",
+     "attachment_count": 1,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "공공 SI·통합관리",
+     "grade": "검토 권장",
+     "id": 2,
+     "notice_key": "bid:EQ:001",
+     "published_at": "2026-08-19T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "데이터 플랫폼 고도화"
+    }
+   ],
+   "total": 6
+  },
+  "status": 200
+ },
+ "notices grade=None sort=deadline page=50/0": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": null,
+    "limit": 50,
+    "offset": 0,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "deadline"
+   },
+   "items": [
+    {
+     "agency": "기관 F",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "기타",
+     "id": 8,
+     "notice_key": "bid:EQ:007",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": "값 없음 아님",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "알 수 없는 등급"
+    },
+    {
+     "agency": "기관 G",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": null,
+     "grade": "검토 권장",
+     "id": 9,
+     "notice_key": "bid:EQ:008",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": null,
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "등급만 있는 공고"
+    },
+    {
+     "agency": "기관 A",
+     "attachment_count": 1,
+     "attachment_status": "g2b",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "우선 검토",
+     "id": 1,
+     "notice_key": "bid:EQ:000",
+     "published_at": "2026-08-20T09:00:00Z",
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "AI 플랫폼 구축"
+    },
+    {
+     "agency": "기관 B",
+     "attachment_count": 1,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "공공 SI·통합관리",
+     "grade": "검토 권장",
+     "id": 2,
+     "notice_key": "bid:EQ:001",
+     "published_at": "2026-08-19T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "데이터 플랫폼 고도화"
+    },
+    {
+     "agency": "기관 C",
+     "attachment_count": 2,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-09-03T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "블록체인·DID",
+     "grade": "관찰 대상",
+     "id": 4,
+     "notice_key": "bid:EQ:003",
+     "published_at": null,
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "블록체인 DID 플랫폼"
+    },
+    {
+     "agency": "기관 A",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": null,
+     "deadline_at": null,
+     "estimated_price": null,
+     "focus": "AI/데이터",
+     "grade": "관찰 대상",
+     "id": 10,
+     "notice_key": "bid:EQ-000:001",
+     "published_at": "2026-08-22T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": null,
+     "title": "AI 플랫폼 구축 정정"
+    }
+   ],
+   "total": 6
+  },
+  "status": 200
+ },
+ "notices grade=None sort=grade page=2/0": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": null,
+    "limit": 2,
+    "offset": 0,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "grade"
+   },
+   "items": [
+    {
+     "agency": "기관 A",
+     "attachment_count": 1,
+     "attachment_status": "g2b",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "우선 검토",
+     "id": 1,
+     "notice_key": "bid:EQ:000",
+     "published_at": "2026-08-20T09:00:00Z",
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "AI 플랫폼 구축"
+    },
+    {
+     "agency": "기관 G",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": null,
+     "grade": "검토 권장",
+     "id": 9,
+     "notice_key": "bid:EQ:008",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": null,
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "등급만 있는 공고"
+    }
+   ],
+   "total": 6
+  },
+  "status": 200
+ },
+ "notices grade=None sort=grade page=2/2": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": null,
+    "limit": 2,
+    "offset": 2,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "grade"
+   },
+   "items": [
+    {
+     "agency": "기관 B",
+     "attachment_count": 1,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "공공 SI·통합관리",
+     "grade": "검토 권장",
+     "id": 2,
+     "notice_key": "bid:EQ:001",
+     "published_at": "2026-08-19T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "데이터 플랫폼 고도화"
+    },
+    {
+     "agency": "기관 C",
+     "attachment_count": 2,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-09-03T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "블록체인·DID",
+     "grade": "관찰 대상",
+     "id": 4,
+     "notice_key": "bid:EQ:003",
+     "published_at": null,
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "블록체인 DID 플랫폼"
+    }
+   ],
+   "total": 6
+  },
+  "status": 200
+ },
+ "notices grade=None sort=grade page=3/1": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": null,
+    "limit": 3,
+    "offset": 1,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "grade"
+   },
+   "items": [
+    {
+     "agency": "기관 G",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": null,
+     "grade": "검토 권장",
+     "id": 9,
+     "notice_key": "bid:EQ:008",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": null,
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "등급만 있는 공고"
+    },
+    {
+     "agency": "기관 B",
+     "attachment_count": 1,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "공공 SI·통합관리",
+     "grade": "검토 권장",
+     "id": 2,
+     "notice_key": "bid:EQ:001",
+     "published_at": "2026-08-19T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "데이터 플랫폼 고도화"
+    },
+    {
+     "agency": "기관 C",
+     "attachment_count": 2,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-09-03T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "블록체인·DID",
+     "grade": "관찰 대상",
+     "id": 4,
+     "notice_key": "bid:EQ:003",
+     "published_at": null,
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "블록체인 DID 플랫폼"
+    }
+   ],
+   "total": 6
+  },
+  "status": 200
+ },
+ "notices grade=None sort=grade page=50/0": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": null,
+    "limit": 50,
+    "offset": 0,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "grade"
+   },
+   "items": [
+    {
+     "agency": "기관 A",
+     "attachment_count": 1,
+     "attachment_status": "g2b",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "우선 검토",
+     "id": 1,
+     "notice_key": "bid:EQ:000",
+     "published_at": "2026-08-20T09:00:00Z",
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "AI 플랫폼 구축"
+    },
+    {
+     "agency": "기관 G",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": null,
+     "grade": "검토 권장",
+     "id": 9,
+     "notice_key": "bid:EQ:008",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": null,
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "등급만 있는 공고"
+    },
+    {
+     "agency": "기관 B",
+     "attachment_count": 1,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "공공 SI·통합관리",
+     "grade": "검토 권장",
+     "id": 2,
+     "notice_key": "bid:EQ:001",
+     "published_at": "2026-08-19T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "데이터 플랫폼 고도화"
+    },
+    {
+     "agency": "기관 C",
+     "attachment_count": 2,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-09-03T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "블록체인·DID",
+     "grade": "관찰 대상",
+     "id": 4,
+     "notice_key": "bid:EQ:003",
+     "published_at": null,
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "블록체인 DID 플랫폼"
+    },
+    {
+     "agency": "기관 A",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": null,
+     "deadline_at": null,
+     "estimated_price": null,
+     "focus": "AI/데이터",
+     "grade": "관찰 대상",
+     "id": 10,
+     "notice_key": "bid:EQ-000:001",
+     "published_at": "2026-08-22T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": null,
+     "title": "AI 플랫폼 구축 정정"
+    },
+    {
+     "agency": "기관 F",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "기타",
+     "id": 8,
+     "notice_key": "bid:EQ:007",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": "값 없음 아님",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "알 수 없는 등급"
+    }
+   ],
+   "total": 6
+  },
+  "status": 200
+ },
+ "notices grade=None sort=published page=2/0": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": null,
+    "limit": 2,
+    "offset": 0,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "published"
+   },
+   "items": [
+    {
+     "agency": "기관 A",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": null,
+     "deadline_at": null,
+     "estimated_price": null,
+     "focus": "AI/데이터",
+     "grade": "관찰 대상",
+     "id": 10,
+     "notice_key": "bid:EQ-000:001",
+     "published_at": "2026-08-22T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": null,
+     "title": "AI 플랫폼 구축 정정"
+    },
+    {
+     "agency": "기관 G",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": null,
+     "grade": "검토 권장",
+     "id": 9,
+     "notice_key": "bid:EQ:008",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": null,
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "등급만 있는 공고"
+    }
+   ],
+   "total": 6
+  },
+  "status": 200
+ },
+ "notices grade=None sort=published page=2/2": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": null,
+    "limit": 2,
+    "offset": 2,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "published"
+   },
+   "items": [
+    {
+     "agency": "기관 F",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "기타",
+     "id": 8,
+     "notice_key": "bid:EQ:007",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": "값 없음 아님",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "알 수 없는 등급"
+    },
+    {
+     "agency": "기관 A",
+     "attachment_count": 1,
+     "attachment_status": "g2b",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "우선 검토",
+     "id": 1,
+     "notice_key": "bid:EQ:000",
+     "published_at": "2026-08-20T09:00:00Z",
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "AI 플랫폼 구축"
+    }
+   ],
+   "total": 6
+  },
+  "status": 200
+ },
+ "notices grade=None sort=published page=3/1": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": null,
+    "limit": 3,
+    "offset": 1,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "published"
+   },
+   "items": [
+    {
+     "agency": "기관 G",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": null,
+     "grade": "검토 권장",
+     "id": 9,
+     "notice_key": "bid:EQ:008",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": null,
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "등급만 있는 공고"
+    },
+    {
+     "agency": "기관 F",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "기타",
+     "id": 8,
+     "notice_key": "bid:EQ:007",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": "값 없음 아님",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "알 수 없는 등급"
+    },
+    {
+     "agency": "기관 A",
+     "attachment_count": 1,
+     "attachment_status": "g2b",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "우선 검토",
+     "id": 1,
+     "notice_key": "bid:EQ:000",
+     "published_at": "2026-08-20T09:00:00Z",
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "AI 플랫폼 구축"
+    }
+   ],
+   "total": 6
+  },
+  "status": 200
+ },
+ "notices grade=None sort=published page=50/0": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": null,
+    "limit": 50,
+    "offset": 0,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "published"
+   },
+   "items": [
+    {
+     "agency": "기관 A",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": null,
+     "deadline_at": null,
+     "estimated_price": null,
+     "focus": "AI/데이터",
+     "grade": "관찰 대상",
+     "id": 10,
+     "notice_key": "bid:EQ-000:001",
+     "published_at": "2026-08-22T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": null,
+     "title": "AI 플랫폼 구축 정정"
+    },
+    {
+     "agency": "기관 G",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": null,
+     "grade": "검토 권장",
+     "id": 9,
+     "notice_key": "bid:EQ:008",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": null,
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "등급만 있는 공고"
+    },
+    {
+     "agency": "기관 F",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "기타",
+     "id": 8,
+     "notice_key": "bid:EQ:007",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": "값 없음 아님",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "알 수 없는 등급"
+    },
+    {
+     "agency": "기관 A",
+     "attachment_count": 1,
+     "attachment_status": "g2b",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "우선 검토",
+     "id": 1,
+     "notice_key": "bid:EQ:000",
+     "published_at": "2026-08-20T09:00:00Z",
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "AI 플랫폼 구축"
+    },
+    {
+     "agency": "기관 B",
+     "attachment_count": 1,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "공공 SI·통합관리",
+     "grade": "검토 권장",
+     "id": 2,
+     "notice_key": "bid:EQ:001",
+     "published_at": "2026-08-19T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "데이터 플랫폼 고도화"
+    },
+    {
+     "agency": "기관 C",
+     "attachment_count": 2,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-09-03T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "블록체인·DID",
+     "grade": "관찰 대상",
+     "id": 4,
+     "notice_key": "bid:EQ:003",
+     "published_at": null,
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "블록체인 DID 플랫폼"
+    }
+   ],
+   "total": 6
+  },
+  "status": 200
+ },
+ "notices grade=all sort=deadline page=2/0": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": "all",
+    "limit": 2,
+    "offset": 0,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "deadline"
+   },
+   "items": [
+    {
+     "agency": "기관 F",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "기타",
+     "id": 8,
+     "notice_key": "bid:EQ:007",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": "값 없음 아님",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "알 수 없는 등급"
+    },
+    {
+     "agency": "기관 G",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": null,
+     "grade": "검토 권장",
+     "id": 9,
+     "notice_key": "bid:EQ:008",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": null,
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "등급만 있는 공고"
+    }
+   ],
+   "total": 8
+  },
+  "status": 200
+ },
+ "notices grade=all sort=deadline page=2/2": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": "all",
+    "limit": 2,
+    "offset": 2,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "deadline"
+   },
+   "items": [
+    {
+     "agency": "기관 A",
+     "attachment_count": 1,
+     "attachment_status": "g2b",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "우선 검토",
+     "id": 1,
+     "notice_key": "bid:EQ:000",
+     "published_at": "2026-08-20T09:00:00Z",
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "AI 플랫폼 구축"
+    },
+    {
+     "agency": "기관 B",
+     "attachment_count": 1,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "공공 SI·통합관리",
+     "grade": "검토 권장",
+     "id": 2,
+     "notice_key": "bid:EQ:001",
+     "published_at": "2026-08-19T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "데이터 플랫폼 고도화"
+    }
+   ],
+   "total": 8
+  },
+  "status": 200
+ },
+ "notices grade=all sort=deadline page=3/1": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": "all",
+    "limit": 3,
+    "offset": 1,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "deadline"
+   },
+   "items": [
+    {
+     "agency": "기관 G",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": null,
+     "grade": "검토 권장",
+     "id": 9,
+     "notice_key": "bid:EQ:008",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": null,
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "등급만 있는 공고"
+    },
+    {
+     "agency": "기관 A",
+     "attachment_count": 1,
+     "attachment_status": "g2b",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "우선 검토",
+     "id": 1,
+     "notice_key": "bid:EQ:000",
+     "published_at": "2026-08-20T09:00:00Z",
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "AI 플랫폼 구축"
+    },
+    {
+     "agency": "기관 B",
+     "attachment_count": 1,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "공공 SI·통합관리",
+     "grade": "검토 권장",
+     "id": 2,
+     "notice_key": "bid:EQ:001",
+     "published_at": "2026-08-19T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "데이터 플랫폼 고도화"
+    }
+   ],
+   "total": 8
+  },
+  "status": 200
+ },
+ "notices grade=all sort=deadline page=50/0": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": "all",
+    "limit": 50,
+    "offset": 0,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "deadline"
+   },
+   "items": [
+    {
+     "agency": "기관 F",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "기타",
+     "id": 8,
+     "notice_key": "bid:EQ:007",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": "값 없음 아님",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "알 수 없는 등급"
+    },
+    {
+     "agency": "기관 G",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": null,
+     "grade": "검토 권장",
+     "id": 9,
+     "notice_key": "bid:EQ:008",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": null,
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "등급만 있는 공고"
+    },
+    {
+     "agency": "기관 A",
+     "attachment_count": 1,
+     "attachment_status": "g2b",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "우선 검토",
+     "id": 1,
+     "notice_key": "bid:EQ:000",
+     "published_at": "2026-08-20T09:00:00Z",
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "AI 플랫폼 구축"
+    },
+    {
+     "agency": "기관 B",
+     "attachment_count": 1,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "공공 SI·통합관리",
+     "grade": "검토 권장",
+     "id": 2,
+     "notice_key": "bid:EQ:001",
+     "published_at": "2026-08-19T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "데이터 플랫폼 고도화"
+    },
+    {
+     "agency": "기관 E",
+     "attachment_count": 1,
+     "attachment_status": "g2b",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": null,
+     "grade": null,
+     "id": 7,
+     "notice_key": "bid:EQ:006",
+     "published_at": "2026-08-15T09:00:00Z",
+     "readiness": null,
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "판정 없는 공고"
+    },
+    {
+     "agency": "기관 C",
+     "attachment_count": 2,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-09-03T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "블록체인·DID",
+     "grade": "관찰 대상",
+     "id": 4,
+     "notice_key": "bid:EQ:003",
+     "published_at": null,
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "블록체인 DID 플랫폼"
+    },
+    {
+     "agency": "기관 A",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": null,
+     "estimated_price": 1000000.0,
+     "focus": "해당 없음",
+     "grade": "제외",
+     "id": 3,
+     "notice_key": "bid:EQ:002",
+     "published_at": "2026-08-18T09:00:00Z",
+     "readiness": "해당 없음",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "행사 운영"
+    },
+    {
+     "agency": "기관 A",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": null,
+     "deadline_at": null,
+     "estimated_price": null,
+     "focus": "AI/데이터",
+     "grade": "관찰 대상",
+     "id": 10,
+     "notice_key": "bid:EQ-000:001",
+     "published_at": "2026-08-22T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": null,
+     "title": "AI 플랫폼 구축 정정"
+    }
+   ],
+   "total": 8
+  },
+  "status": 200
+ },
+ "notices grade=all sort=grade page=2/0": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": "all",
+    "limit": 2,
+    "offset": 0,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "grade"
+   },
+   "items": [
+    {
+     "agency": "기관 A",
+     "attachment_count": 1,
+     "attachment_status": "g2b",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "우선 검토",
+     "id": 1,
+     "notice_key": "bid:EQ:000",
+     "published_at": "2026-08-20T09:00:00Z",
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "AI 플랫폼 구축"
+    },
+    {
+     "agency": "기관 G",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": null,
+     "grade": "검토 권장",
+     "id": 9,
+     "notice_key": "bid:EQ:008",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": null,
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "등급만 있는 공고"
+    }
+   ],
+   "total": 8
+  },
+  "status": 200
+ },
+ "notices grade=all sort=grade page=2/2": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": "all",
+    "limit": 2,
+    "offset": 2,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "grade"
+   },
+   "items": [
+    {
+     "agency": "기관 B",
+     "attachment_count": 1,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "공공 SI·통합관리",
+     "grade": "검토 권장",
+     "id": 2,
+     "notice_key": "bid:EQ:001",
+     "published_at": "2026-08-19T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "데이터 플랫폼 고도화"
+    },
+    {
+     "agency": "기관 C",
+     "attachment_count": 2,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-09-03T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "블록체인·DID",
+     "grade": "관찰 대상",
+     "id": 4,
+     "notice_key": "bid:EQ:003",
+     "published_at": null,
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "블록체인 DID 플랫폼"
+    }
+   ],
+   "total": 8
+  },
+  "status": 200
+ },
+ "notices grade=all sort=grade page=3/1": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": "all",
+    "limit": 3,
+    "offset": 1,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "grade"
+   },
+   "items": [
+    {
+     "agency": "기관 G",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": null,
+     "grade": "검토 권장",
+     "id": 9,
+     "notice_key": "bid:EQ:008",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": null,
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "등급만 있는 공고"
+    },
+    {
+     "agency": "기관 B",
+     "attachment_count": 1,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "공공 SI·통합관리",
+     "grade": "검토 권장",
+     "id": 2,
+     "notice_key": "bid:EQ:001",
+     "published_at": "2026-08-19T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "데이터 플랫폼 고도화"
+    },
+    {
+     "agency": "기관 C",
+     "attachment_count": 2,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-09-03T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "블록체인·DID",
+     "grade": "관찰 대상",
+     "id": 4,
+     "notice_key": "bid:EQ:003",
+     "published_at": null,
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "블록체인 DID 플랫폼"
+    }
+   ],
+   "total": 8
+  },
+  "status": 200
+ },
+ "notices grade=all sort=grade page=50/0": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": "all",
+    "limit": 50,
+    "offset": 0,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "grade"
+   },
+   "items": [
+    {
+     "agency": "기관 A",
+     "attachment_count": 1,
+     "attachment_status": "g2b",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "우선 검토",
+     "id": 1,
+     "notice_key": "bid:EQ:000",
+     "published_at": "2026-08-20T09:00:00Z",
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "AI 플랫폼 구축"
+    },
+    {
+     "agency": "기관 G",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": null,
+     "grade": "검토 권장",
+     "id": 9,
+     "notice_key": "bid:EQ:008",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": null,
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "등급만 있는 공고"
+    },
+    {
+     "agency": "기관 B",
+     "attachment_count": 1,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "공공 SI·통합관리",
+     "grade": "검토 권장",
+     "id": 2,
+     "notice_key": "bid:EQ:001",
+     "published_at": "2026-08-19T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "데이터 플랫폼 고도화"
+    },
+    {
+     "agency": "기관 C",
+     "attachment_count": 2,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-09-03T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "블록체인·DID",
+     "grade": "관찰 대상",
+     "id": 4,
+     "notice_key": "bid:EQ:003",
+     "published_at": null,
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "블록체인 DID 플랫폼"
+    },
+    {
+     "agency": "기관 A",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": null,
+     "deadline_at": null,
+     "estimated_price": null,
+     "focus": "AI/데이터",
+     "grade": "관찰 대상",
+     "id": 10,
+     "notice_key": "bid:EQ-000:001",
+     "published_at": "2026-08-22T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": null,
+     "title": "AI 플랫폼 구축 정정"
+    },
+    {
+     "agency": "기관 A",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": null,
+     "estimated_price": 1000000.0,
+     "focus": "해당 없음",
+     "grade": "제외",
+     "id": 3,
+     "notice_key": "bid:EQ:002",
+     "published_at": "2026-08-18T09:00:00Z",
+     "readiness": "해당 없음",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "행사 운영"
+    },
+    {
+     "agency": "기관 F",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "기타",
+     "id": 8,
+     "notice_key": "bid:EQ:007",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": "값 없음 아님",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "알 수 없는 등급"
+    },
+    {
+     "agency": "기관 E",
+     "attachment_count": 1,
+     "attachment_status": "g2b",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": null,
+     "grade": null,
+     "id": 7,
+     "notice_key": "bid:EQ:006",
+     "published_at": "2026-08-15T09:00:00Z",
+     "readiness": null,
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "판정 없는 공고"
+    }
+   ],
+   "total": 8
+  },
+  "status": 200
+ },
+ "notices grade=all sort=published page=2/0": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": "all",
+    "limit": 2,
+    "offset": 0,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "published"
+   },
+   "items": [
+    {
+     "agency": "기관 A",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": null,
+     "deadline_at": null,
+     "estimated_price": null,
+     "focus": "AI/데이터",
+     "grade": "관찰 대상",
+     "id": 10,
+     "notice_key": "bid:EQ-000:001",
+     "published_at": "2026-08-22T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": null,
+     "title": "AI 플랫폼 구축 정정"
+    },
+    {
+     "agency": "기관 G",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": null,
+     "grade": "검토 권장",
+     "id": 9,
+     "notice_key": "bid:EQ:008",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": null,
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "등급만 있는 공고"
+    }
+   ],
+   "total": 8
+  },
+  "status": 200
+ },
+ "notices grade=all sort=published page=2/2": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": "all",
+    "limit": 2,
+    "offset": 2,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "published"
+   },
+   "items": [
+    {
+     "agency": "기관 F",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "기타",
+     "id": 8,
+     "notice_key": "bid:EQ:007",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": "값 없음 아님",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "알 수 없는 등급"
+    },
+    {
+     "agency": "기관 A",
+     "attachment_count": 1,
+     "attachment_status": "g2b",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "우선 검토",
+     "id": 1,
+     "notice_key": "bid:EQ:000",
+     "published_at": "2026-08-20T09:00:00Z",
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "AI 플랫폼 구축"
+    }
+   ],
+   "total": 8
+  },
+  "status": 200
+ },
+ "notices grade=all sort=published page=3/1": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": "all",
+    "limit": 3,
+    "offset": 1,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "published"
+   },
+   "items": [
+    {
+     "agency": "기관 G",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": null,
+     "grade": "검토 권장",
+     "id": 9,
+     "notice_key": "bid:EQ:008",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": null,
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "등급만 있는 공고"
+    },
+    {
+     "agency": "기관 F",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "기타",
+     "id": 8,
+     "notice_key": "bid:EQ:007",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": "값 없음 아님",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "알 수 없는 등급"
+    },
+    {
+     "agency": "기관 A",
+     "attachment_count": 1,
+     "attachment_status": "g2b",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "우선 검토",
+     "id": 1,
+     "notice_key": "bid:EQ:000",
+     "published_at": "2026-08-20T09:00:00Z",
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "AI 플랫폼 구축"
+    }
+   ],
+   "total": 8
+  },
+  "status": 200
+ },
+ "notices grade=all sort=published page=50/0": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": "all",
+    "limit": 50,
+    "offset": 0,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "published"
+   },
+   "items": [
+    {
+     "agency": "기관 A",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": null,
+     "deadline_at": null,
+     "estimated_price": null,
+     "focus": "AI/데이터",
+     "grade": "관찰 대상",
+     "id": 10,
+     "notice_key": "bid:EQ-000:001",
+     "published_at": "2026-08-22T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": null,
+     "title": "AI 플랫폼 구축 정정"
+    },
+    {
+     "agency": "기관 G",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": null,
+     "grade": "검토 권장",
+     "id": 9,
+     "notice_key": "bid:EQ:008",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": null,
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "등급만 있는 공고"
+    },
+    {
+     "agency": "기관 F",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "기타",
+     "id": 8,
+     "notice_key": "bid:EQ:007",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": "값 없음 아님",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "알 수 없는 등급"
+    },
+    {
+     "agency": "기관 A",
+     "attachment_count": 1,
+     "attachment_status": "g2b",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "우선 검토",
+     "id": 1,
+     "notice_key": "bid:EQ:000",
+     "published_at": "2026-08-20T09:00:00Z",
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "AI 플랫폼 구축"
+    },
+    {
+     "agency": "기관 B",
+     "attachment_count": 1,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "공공 SI·통합관리",
+     "grade": "검토 권장",
+     "id": 2,
+     "notice_key": "bid:EQ:001",
+     "published_at": "2026-08-19T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "데이터 플랫폼 고도화"
+    },
+    {
+     "agency": "기관 A",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": null,
+     "estimated_price": 1000000.0,
+     "focus": "해당 없음",
+     "grade": "제외",
+     "id": 3,
+     "notice_key": "bid:EQ:002",
+     "published_at": "2026-08-18T09:00:00Z",
+     "readiness": "해당 없음",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "행사 운영"
+    },
+    {
+     "agency": "기관 E",
+     "attachment_count": 1,
+     "attachment_status": "g2b",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": null,
+     "grade": null,
+     "id": 7,
+     "notice_key": "bid:EQ:006",
+     "published_at": "2026-08-15T09:00:00Z",
+     "readiness": null,
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "판정 없는 공고"
+    },
+    {
+     "agency": "기관 C",
+     "attachment_count": 2,
+     "attachment_status": "manual",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-09-03T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "블록체인·DID",
+     "grade": "관찰 대상",
+     "id": 4,
+     "notice_key": "bid:EQ:003",
+     "published_at": null,
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "블록체인 DID 플랫폼"
+    }
+   ],
+   "total": 8
+  },
+  "status": 200
+ },
+ "notices grade=우선 검토 sort=deadline page=2/0": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": "우선 검토",
+    "limit": 2,
+    "offset": 0,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "deadline"
+   },
+   "items": [
+    {
+     "agency": "기관 A",
+     "attachment_count": 1,
+     "attachment_status": "g2b",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "우선 검토",
+     "id": 1,
+     "notice_key": "bid:EQ:000",
+     "published_at": "2026-08-20T09:00:00Z",
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "AI 플랫폼 구축"
+    }
+   ],
+   "total": 1
+  },
+  "status": 200
+ },
+ "notices grade=우선 검토 sort=deadline page=2/2": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": "우선 검토",
+    "limit": 2,
+    "offset": 2,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "deadline"
+   },
+   "items": [],
+   "total": 1
+  },
+  "status": 200
+ },
+ "notices grade=우선 검토 sort=deadline page=3/1": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": "우선 검토",
+    "limit": 3,
+    "offset": 1,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "deadline"
+   },
+   "items": [],
+   "total": 1
+  },
+  "status": 200
+ },
+ "notices grade=우선 검토 sort=deadline page=50/0": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": "우선 검토",
+    "limit": 50,
+    "offset": 0,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "deadline"
+   },
+   "items": [
+    {
+     "agency": "기관 A",
+     "attachment_count": 1,
+     "attachment_status": "g2b",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "우선 검토",
+     "id": 1,
+     "notice_key": "bid:EQ:000",
+     "published_at": "2026-08-20T09:00:00Z",
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "AI 플랫폼 구축"
+    }
+   ],
+   "total": 1
+  },
+  "status": 200
+ },
+ "notices grade=우선 검토 sort=grade page=2/0": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": "우선 검토",
+    "limit": 2,
+    "offset": 0,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "grade"
+   },
+   "items": [
+    {
+     "agency": "기관 A",
+     "attachment_count": 1,
+     "attachment_status": "g2b",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "우선 검토",
+     "id": 1,
+     "notice_key": "bid:EQ:000",
+     "published_at": "2026-08-20T09:00:00Z",
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "AI 플랫폼 구축"
+    }
+   ],
+   "total": 1
+  },
+  "status": 200
+ },
+ "notices grade=우선 검토 sort=grade page=2/2": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": "우선 검토",
+    "limit": 2,
+    "offset": 2,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "grade"
+   },
+   "items": [],
+   "total": 1
+  },
+  "status": 200
+ },
+ "notices grade=우선 검토 sort=grade page=3/1": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": "우선 검토",
+    "limit": 3,
+    "offset": 1,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "grade"
+   },
+   "items": [],
+   "total": 1
+  },
+  "status": 200
+ },
+ "notices grade=우선 검토 sort=grade page=50/0": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": "우선 검토",
+    "limit": 50,
+    "offset": 0,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "grade"
+   },
+   "items": [
+    {
+     "agency": "기관 A",
+     "attachment_count": 1,
+     "attachment_status": "g2b",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "우선 검토",
+     "id": 1,
+     "notice_key": "bid:EQ:000",
+     "published_at": "2026-08-20T09:00:00Z",
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "AI 플랫폼 구축"
+    }
+   ],
+   "total": 1
+  },
+  "status": 200
+ },
+ "notices grade=우선 검토 sort=published page=2/0": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": "우선 검토",
+    "limit": 2,
+    "offset": 0,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "published"
+   },
+   "items": [
+    {
+     "agency": "기관 A",
+     "attachment_count": 1,
+     "attachment_status": "g2b",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "우선 검토",
+     "id": 1,
+     "notice_key": "bid:EQ:000",
+     "published_at": "2026-08-20T09:00:00Z",
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "AI 플랫폼 구축"
+    }
+   ],
+   "total": 1
+  },
+  "status": 200
+ },
+ "notices grade=우선 검토 sort=published page=2/2": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": "우선 검토",
+    "limit": 2,
+    "offset": 2,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "published"
+   },
+   "items": [],
+   "total": 1
+  },
+  "status": 200
+ },
+ "notices grade=우선 검토 sort=published page=3/1": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": "우선 검토",
+    "limit": 3,
+    "offset": 1,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "published"
+   },
+   "items": [],
+   "total": 1
+  },
+  "status": 200
+ },
+ "notices grade=우선 검토 sort=published page=50/0": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": "우선 검토",
+    "limit": 50,
+    "offset": 0,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "published"
+   },
+   "items": [
+    {
+     "agency": "기관 A",
+     "attachment_count": 1,
+     "attachment_status": "g2b",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "우선 검토",
+     "id": 1,
+     "notice_key": "bid:EQ:000",
+     "published_at": "2026-08-20T09:00:00Z",
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "AI 플랫폼 구축"
+    }
+   ],
+   "total": 1
+  },
+  "status": 200
+ },
+ "notices grade=제외 sort=deadline page=2/0": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": "제외",
+    "limit": 2,
+    "offset": 0,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "deadline"
+   },
+   "items": [
+    {
+     "agency": "기관 A",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": null,
+     "estimated_price": 1000000.0,
+     "focus": "해당 없음",
+     "grade": "제외",
+     "id": 3,
+     "notice_key": "bid:EQ:002",
+     "published_at": "2026-08-18T09:00:00Z",
+     "readiness": "해당 없음",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "행사 운영"
+    }
+   ],
+   "total": 1
+  },
+  "status": 200
+ },
+ "notices grade=제외 sort=deadline page=2/2": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": "제외",
+    "limit": 2,
+    "offset": 2,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "deadline"
+   },
+   "items": [],
+   "total": 1
+  },
+  "status": 200
+ },
+ "notices grade=제외 sort=deadline page=3/1": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": "제외",
+    "limit": 3,
+    "offset": 1,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "deadline"
+   },
+   "items": [],
+   "total": 1
+  },
+  "status": 200
+ },
+ "notices grade=제외 sort=deadline page=50/0": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": "제외",
+    "limit": 50,
+    "offset": 0,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "deadline"
+   },
+   "items": [
+    {
+     "agency": "기관 A",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": null,
+     "estimated_price": 1000000.0,
+     "focus": "해당 없음",
+     "grade": "제외",
+     "id": 3,
+     "notice_key": "bid:EQ:002",
+     "published_at": "2026-08-18T09:00:00Z",
+     "readiness": "해당 없음",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "행사 운영"
+    }
+   ],
+   "total": 1
+  },
+  "status": 200
+ },
+ "notices grade=제외 sort=grade page=2/0": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": "제외",
+    "limit": 2,
+    "offset": 0,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "grade"
+   },
+   "items": [
+    {
+     "agency": "기관 A",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": null,
+     "estimated_price": 1000000.0,
+     "focus": "해당 없음",
+     "grade": "제외",
+     "id": 3,
+     "notice_key": "bid:EQ:002",
+     "published_at": "2026-08-18T09:00:00Z",
+     "readiness": "해당 없음",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "행사 운영"
+    }
+   ],
+   "total": 1
+  },
+  "status": 200
+ },
+ "notices grade=제외 sort=grade page=2/2": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": "제외",
+    "limit": 2,
+    "offset": 2,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "grade"
+   },
+   "items": [],
+   "total": 1
+  },
+  "status": 200
+ },
+ "notices grade=제외 sort=grade page=3/1": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": "제외",
+    "limit": 3,
+    "offset": 1,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "grade"
+   },
+   "items": [],
+   "total": 1
+  },
+  "status": 200
+ },
+ "notices grade=제외 sort=grade page=50/0": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": "제외",
+    "limit": 50,
+    "offset": 0,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "grade"
+   },
+   "items": [
+    {
+     "agency": "기관 A",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": null,
+     "estimated_price": 1000000.0,
+     "focus": "해당 없음",
+     "grade": "제외",
+     "id": 3,
+     "notice_key": "bid:EQ:002",
+     "published_at": "2026-08-18T09:00:00Z",
+     "readiness": "해당 없음",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "행사 운영"
+    }
+   ],
+   "total": 1
+  },
+  "status": 200
+ },
+ "notices grade=제외 sort=published page=2/0": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": "제외",
+    "limit": 2,
+    "offset": 0,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "published"
+   },
+   "items": [
+    {
+     "agency": "기관 A",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": null,
+     "estimated_price": 1000000.0,
+     "focus": "해당 없음",
+     "grade": "제외",
+     "id": 3,
+     "notice_key": "bid:EQ:002",
+     "published_at": "2026-08-18T09:00:00Z",
+     "readiness": "해당 없음",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "행사 운영"
+    }
+   ],
+   "total": 1
+  },
+  "status": 200
+ },
+ "notices grade=제외 sort=published page=2/2": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": "제외",
+    "limit": 2,
+    "offset": 2,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "published"
+   },
+   "items": [],
+   "total": 1
+  },
+  "status": 200
+ },
+ "notices grade=제외 sort=published page=3/1": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": "제외",
+    "limit": 3,
+    "offset": 1,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "published"
+   },
+   "items": [],
+   "total": 1
+  },
+  "status": 200
+ },
+ "notices grade=제외 sort=published page=50/0": {
+  "body": {
+   "filters": {
+    "attachment": "any",
+    "focus": null,
+    "grade": "제외",
+    "limit": 50,
+    "offset": 0,
+    "q": null,
+    "readiness": null,
+    "run_id": "20260817-20260823--cur",
+    "sample_role": "analysis",
+    "sort": "published"
+   },
+   "items": [
+    {
+     "agency": "기관 A",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "collection_bucket": "candidate_pool",
+     "deadline_at": null,
+     "estimated_price": 1000000.0,
+     "focus": "해당 없음",
+     "grade": "제외",
+     "id": 3,
+     "notice_key": "bid:EQ:002",
+     "published_at": "2026-08-18T09:00:00Z",
+     "readiness": "해당 없음",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "행사 운영"
+    }
+   ],
+   "total": 1
+  },
+  "status": 200
+ },
+ "reviews 20260810-20260816--prev": {
+  "body": [
+   {
+    "answers": [
+     {
+      "answer": "확인 중",
+      "id": 1,
+      "item": "참가자격"
+     }
+    ],
+    "corrected_grade": null,
+    "corrected_readiness": null,
+    "created_at": "2026-08-24T01:00:00Z",
+    "disposition": "심층 검토 진행",
+    "id": 1,
+    "notice_pk": 1,
+    "reason": "첫 리뷰",
+    "reviewer": "담당자",
+    "run_id": "20260817-20260823--cur",
+    "system_judgment_review": "동의",
+    "updated_at": "2026-08-24T02:00:00Z",
+    "weakest_perspective": "사업성"
+   }
+  ],
+  "status": 200
+ },
+ "reviews 20260817-20260823--cur": {
+  "body": [
+   {
+    "answers": [
+     {
+      "answer": "확인 중",
+      "id": 1,
+      "item": "참가자격"
+     }
+    ],
+    "corrected_grade": null,
+    "corrected_readiness": null,
+    "created_at": "2026-08-24T01:00:00Z",
+    "disposition": "심층 검토 진행",
+    "id": 1,
+    "notice_pk": 1,
+    "reason": "첫 리뷰",
+    "reviewer": "담당자",
+    "run_id": "20260817-20260823--cur",
+    "system_judgment_review": "동의",
+    "updated_at": "2026-08-24T02:00:00Z",
+    "weakest_perspective": "사업성"
+   },
+   {
+    "answers": [],
+    "corrected_grade": "관찰 대상",
+    "corrected_readiness": "확인 완료",
+    "created_at": "2026-08-24T03:00:00Z",
+    "disposition": "관찰",
+    "id": 2,
+    "notice_pk": 2,
+    "reason": "수정",
+    "reviewer": "담당자",
+    "run_id": "20260817-20260823--cur",
+    "system_judgment_review": "근거 부족",
+    "updated_at": "2026-08-24T04:00:00Z",
+    "weakest_perspective": null
+   }
+  ],
+  "status": 200
+ },
+ "reviews export 20260810-20260816--prev": {
+  "body": "schema_version: bidops.feedback.v2\nreviews:\n- notice_id: bid:EQ:000\n  disposition: 심층 검토 진행\n  system_judgment_review: 동의\n  corrected_grade: null\n  corrected_readiness: null\n  weakest_perspective: 사업성\n  reason: 첫 리뷰\n  verification_answers:\n  - item: 참가자격\n    answer: 확인 중\n",
+  "status": 200
+ },
+ "reviews export 20260817-20260823--cur": {
+  "body": "schema_version: bidops.feedback.v2\nreviews:\n- notice_id: bid:EQ:000\n  disposition: 심층 검토 진행\n  system_judgment_review: 동의\n  corrected_grade: null\n  corrected_readiness: null\n  weakest_perspective: 사업성\n  reason: 첫 리뷰\n  verification_answers:\n  - item: 참가자격\n    answer: 확인 중\n- notice_id: bid:EQ:001\n  disposition: 관찰\n  system_judgment_review: 근거 부족\n  corrected_grade: 관찰 대상\n  corrected_readiness: 확인 완료\n  weakest_perspective: null\n  reason: 수정\n  verification_answers: []\n- notice_id: bid:EQ:002\n  disposition: null\n  system_judgment_review: null\n  corrected_grade: null\n  corrected_readiness: null\n  weakest_perspective: null\n  reason: null\n  verification_answers: []\n- notice_id: bid:EQ:003\n  disposition: null\n  system_judgment_review: null\n  corrected_grade: null\n  corrected_readiness: null\n  weakest_perspective: null\n  reason: null\n  verification_answers: []\n- notice_id: bid:EQ:004\n  disposition: null\n  system_judgment_review: null\n  corrected_grade: null\n  corrected_readiness: null\n  weakest_perspective: null\n  reason: null\n  verification_answers: []\n- notice_id: bid:EQ:005\n  disposition: null\n  system_judgment_review: null\n  corrected_grade: null\n  corrected_readiness: null\n  weakest_perspective: null\n  reason: null\n  verification_answers: []\n- notice_id: bid:EQ:006\n  disposition: null\n  system_judgment_review: null\n  corrected_grade: null\n  corrected_readiness: null\n  weakest_perspective: null\n  reason: null\n  verification_answers: []\n- notice_id: bid:EQ:007\n  disposition: null\n  system_judgment_review: null\n  corrected_grade: null\n  corrected_readiness: null\n  weakest_perspective: null\n  reason: null\n  verification_answers: []\n- notice_id: bid:EQ:008\n  disposition: null\n  system_judgment_review: null\n  corrected_grade: null\n  corrected_readiness: null\n  weakest_perspective: null\n  reason: null\n  verification_answers: []\n- notice_id: bid:EQ-000:001\n  disposition: null\n  system_judgment_review: null\n  corrected_grade: null\n  corrected_readiness: null\n  weakest_perspective: null\n  reason: null\n  verification_answers: []\n",
+  "status": 200
+ },
+ "run detail counts 20260810-20260816--prev": {
+  "body": {
+   "counts": {
+    "collection": {},
+    "judgments": 1,
+    "notices": 1,
+    "reviews": 0
+   },
+   "run_id": "20260810-20260816--prev"
+  },
+  "status": 200
+ },
+ "run detail counts 20260817-20260823--cur": {
+  "body": {
+   "counts": {
+    "collection": {
+     "audit_pool": 90,
+     "candidate_pool": 30,
+     "total": 120
+    },
+    "judgments": 8,
+    "notices": 9,
+    "reviews": 2
+   },
+   "run_id": "20260817-20260823--cur"
+  },
+  "status": 200
+ },
+ "run stats 20260810-20260816--prev": {
+  "body": {
+   "audit_missed_count": 0,
+   "candidate_count": null,
+   "collected_count": null,
+   "focus_distribution": [
+    {
+     "count": 1,
+     "key": "AI/데이터",
+     "label": "AI/데이터"
+    }
+   ],
+   "funnel": [
+    {
+     "count": null,
+     "key": "collected",
+     "label": "수집"
+    },
+    {
+     "count": null,
+     "key": "candidate_pool",
+     "label": "후보"
+    },
+    {
+     "count": 1,
+     "key": "sample",
+     "label": "표본"
+    },
+    {
+     "count": 1,
+     "key": "review_queue",
+     "label": "검토 대기"
+    }
+   ],
+   "generated_at": "2026-08-17T00:00:00Z",
+   "grade_distribution": [
+    {
+     "count": 1,
+     "key": "우선 검토",
+     "label": "우선 검토"
+    }
+   ],
+   "imminent_deadlines": [],
+   "priority_review_count": 1,
+   "readiness_distribution": [
+    {
+     "count": 1,
+     "key": "부분 확인 필요",
+     "label": "부분 확인 필요"
+    }
+   ],
+   "run_id": "20260810-20260816--prev",
+   "sample_count": 1,
+   "timezone": "Asia/Seoul",
+   "verification_requests": [
+    {
+     "count": 1,
+     "item": "참가자격",
+     "notice_pks": [
+      1
+     ],
+     "profile_sections": [
+      "5.2"
+     ]
+    }
+   ]
+  },
+  "status": 200
+ },
+ "run stats 20260817-20260823--cur": {
+  "body": {
+   "audit_missed_count": 1,
+   "candidate_count": 30,
+   "collected_count": 120,
+   "focus_distribution": [
+    {
+     "count": 3,
+     "key": "AI/데이터",
+     "label": "AI/데이터"
+    },
+    {
+     "count": 1,
+     "key": "블록체인·DID",
+     "label": "블록체인·DID"
+    },
+    {
+     "count": 1,
+     "key": "공공 SI·통합관리",
+     "label": "공공 SI·통합관리"
+    },
+    {
+     "count": 1,
+     "key": "해당 없음",
+     "label": "해당 없음"
+    },
+    {
+     "count": 1,
+     "key": "값 없음",
+     "label": "값 없음"
+    }
+   ],
+   "funnel": [
+    {
+     "count": 120,
+     "key": "collected",
+     "label": "수집"
+    },
+    {
+     "count": 30,
+     "key": "candidate_pool",
+     "label": "후보"
+    },
+    {
+     "count": 10,
+     "key": "sample",
+     "label": "표본"
+    },
+    {
+     "count": 6,
+     "key": "review_queue",
+     "label": "검토 대기"
+    }
+   ],
+   "generated_at": "2026-08-24T00:00:00Z",
+   "grade_distribution": [
+    {
+     "count": 1,
+     "key": "우선 검토",
+     "label": "우선 검토"
+    },
+    {
+     "count": 2,
+     "key": "검토 권장",
+     "label": "검토 권장"
+    },
+    {
+     "count": 2,
+     "key": "관찰 대상",
+     "label": "관찰 대상"
+    },
+    {
+     "count": 1,
+     "key": "제외",
+     "label": "제외"
+    },
+    {
+     "count": 1,
+     "key": "기타",
+     "label": "기타"
+    }
+   ],
+   "imminent_deadlines": [
+    {
+     "agency": "기관 F",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "blocking_verification_items": [],
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "기타",
+     "id": 8,
+     "notice_key": "bid:EQ:007",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": "값 없음 아님",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "알 수 없는 등급"
+    },
+    {
+     "agency": "기관 G",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "blocking_verification_items": [],
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-25T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": null,
+     "grade": "검토 권장",
+     "id": 9,
+     "notice_key": "bid:EQ:008",
+     "published_at": "2026-08-21T09:00:00Z",
+     "readiness": null,
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "등급만 있는 공고"
+    },
+    {
+     "agency": "기관 B",
+     "attachment_count": 1,
+     "attachment_status": "manual",
+     "blocking_verification_items": [
+      "참가자격",
+      "지역 제한"
+     ],
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "공공 SI·통합관리",
+     "grade": "검토 권장",
+     "id": 2,
+     "notice_key": "bid:EQ:001",
+     "published_at": "2026-08-19T09:00:00Z",
+     "readiness": "확인 완료",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "데이터 플랫폼 고도화"
+    },
+    {
+     "agency": "기관 E",
+     "attachment_count": 1,
+     "attachment_status": "g2b",
+     "blocking_verification_items": [],
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": null,
+     "grade": null,
+     "id": 7,
+     "notice_key": "bid:EQ:006",
+     "published_at": "2026-08-15T09:00:00Z",
+     "readiness": null,
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "무작위",
+     "title": "판정 없는 공고"
+    },
+    {
+     "agency": "기관 A",
+     "attachment_count": 1,
+     "attachment_status": "g2b",
+     "blocking_verification_items": [
+      "참가자격"
+     ],
+     "collection_bucket": "candidate_pool",
+     "deadline_at": "2026-08-27T00:00:00Z",
+     "estimated_price": 1000000.0,
+     "focus": "AI/데이터",
+     "grade": "우선 검토",
+     "id": 1,
+     "notice_key": "bid:EQ:000",
+     "published_at": "2026-08-20T09:00:00Z",
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "analysis",
+     "sample_stratum": "AI/데이터",
+     "title": "AI 플랫폼 구축"
+    },
+    {
+     "agency": "기관 D",
+     "attachment_count": 0,
+     "attachment_status": "none",
+     "blocking_verification_items": [
+      "실적 증빙"
+     ],
+     "collection_bucket": "audit_pool",
+     "deadline_at": "2026-08-29T00:00:00Z",
+     "estimated_price": null,
+     "focus": "AI/데이터",
+     "grade": "우선 검토",
+     "id": 5,
+     "notice_key": "bid:EQ:004",
+     "published_at": "2026-08-17T09:00:00Z",
+     "readiness": "부분 확인 필요",
+     "run_id": "20260817-20260823--cur",
+     "sample_role": "audit",
+     "sample_stratum": "AI/데이터",
+     "title": "감사 공고 플랫폼"
+    }
+   ],
+   "priority_review_count": 1,
+   "readiness_distribution": [
+    {
+     "count": 2,
+     "key": "확인 완료",
+     "label": "확인 완료"
+    },
+    {
+     "count": 2,
+     "key": "부분 확인 필요",
+     "label": "부분 확인 필요"
+    },
+    {
+     "count": 1,
+     "key": "해당 없음",
+     "label": "해당 없음"
+    },
+    {
+     "count": 1,
+     "key": "값 없음",
+     "label": "값 없음"
+    },
+    {
+     "count": 1,
+     "key": "값 없음 아님",
+     "label": "값 없음 아님"
+    }
+   ],
+   "run_id": "20260817-20260823--cur",
+   "sample_count": 10,
+   "timezone": "Asia/Seoul",
+   "verification_requests": [
+    {
+     "count": 2,
+     "item": "참가자격",
+     "notice_pks": [
+      2,
+      1
+     ],
+     "profile_sections": [
+      "5.2"
+     ]
+    },
+    {
+     "count": 1,
+     "item": "지역 제한",
+     "notice_pks": [
+      2
+     ],
+     "profile_sections": [
+      "5.2"
+     ]
+    }
+   ]
+  },
+  "status": 200
+ },
+ "runs": {
+  "body": {
+   "items": [
+    {
+     "counts": {
+      "collection": {
+       "audit_pool": 90,
+       "candidate_pool": 30,
+       "total": 120
+      },
+      "judgments": 8,
+      "notices": 9,
+      "reviews": 2
+     },
+     "generated_at": "2026-08-24T00:00:00Z",
+     "run_id": "20260817-20260823--cur",
+     "screening_basis": "메타데이터",
+     "status": "active",
+     "superseded_by": null,
+     "timezone": "Asia/Seoul",
+     "window_from": "2026-08-17",
+     "window_to": "2026-08-23"
+    },
+    {
+     "counts": {
+      "collection": {},
+      "judgments": 1,
+      "notices": 1,
+      "reviews": 0
+     },
+     "generated_at": "2026-08-17T00:00:00Z",
+     "run_id": "20260810-20260816--prev",
+     "screening_basis": null,
+     "status": "active",
+     "superseded_by": null,
+     "timezone": "Asia/Seoul",
+     "window_from": "2026-08-10",
+     "window_to": "2026-08-16"
+    }
+   ],
+   "total": 2
+  },
+  "status": 200
+ }
+}

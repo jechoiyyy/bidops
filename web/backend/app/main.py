@@ -11,35 +11,78 @@ from fastapi.responses import JSONResponse, Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.staticfiles import StaticFiles
 
-from .config import get_settings
-from .db import (
+from .core import (
+    ObjectStoreError,
+    assert_object_store_runtime,
     assert_postgresql_runtime,
+    configure,
     get_db,
+    get_settings,
+    health_router,
     init_db,
     isolated_test_boundary_active,
+    parse_modules,
 )
-from .logging_setup import configure
-from .routers.attachments import router as attachments_router
-from .routers.metrics import router as metrics_router
-from .routers.notices import router as notices_router
-from .routers.pre_specs import router as pre_specs_router
-from .routers.opportunities import router as opportunities_router
-from .routers.portals import router as portals_router
-from .routers.profile import router as profile_router
-from .routers.policies import router as policies_router
-from .routers.quality_gates import router as quality_gates_router
-from .routers.reviews import notice_router as notice_reviews_router
-from .routers.reviews import router as reviews_router
-from .routers.runs import router as runs_router
-from .routers.schedule import router as schedule_router
-from .routers.screening import router as screening_router
-from .routers.document_bundles import router as document_bundles_router
-from .routers.deep_reviews import router as deep_reviews_router
-from .routers.bid_delta import router as bid_delta_router
-from .routers.reports import router as reports_router
-from .routers.order_plans import router as order_plans_router
+from . import deep_review, lifecycle, screening
 from .runtime import ApplicationRuntime
-from .services.object_store import ObjectStoreError, assert_object_store_runtime
+
+
+#: 모듈 이름 → 그 모듈의 공개 표면. 조립 계층은 이 표를 통해서만 모듈에 닿고
+#: 모듈 내부 경로를 알지 못한다(명세 §4).
+_MODULE_PACKAGES = {
+    "lifecycle": lifecycle,
+    "screening": screening,
+    "deep_review": deep_review,
+}
+
+#: `include_router` 순서 (명세 §5.3·§7).
+#:
+#: 값은 `(제공 모듈, 그 모듈의 공개 router 이름)`이며 **순서가 REST 계약의
+#: 일부**다. `/api/runs/{run_id}/pipeline/judgment`(screening)는 회차 router의
+#: 일반 단계 경로 `/api/runs/{run_id}/pipeline/{stage}`(lifecycle)보다 먼저
+#: 등록해야 더 구체적인 이 경로가 선택된다. 그래서 등록 순서는 모듈 단위로
+#: 묶지 않고 여기서 한 줄씩 못박는다. 고르지 않은 모듈의 줄은 건너뛴다 —
+#: 그 모듈의 router는 import조차 되지 않는다.
+_ROUTER_REGISTRATION: tuple[tuple[str, str], ...] = (
+    ("screening", "screening_run_router"),
+    ("lifecycle", "runs_router"),
+    ("lifecycle", "notices_router"),
+    ("lifecycle", "pre_specs_router"),
+    ("lifecycle", "opportunities_router"),
+    ("screening", "notice_reviews_router"),
+    ("screening", "reviews_router"),
+    ("lifecycle", "metrics_router"),
+    ("deep_review", "attachments_router"),
+    ("lifecycle", "portals_router"),
+    ("screening", "profile_router"),
+    ("screening", "screening_router"),
+    ("screening", "quality_gates_router"),
+    ("screening", "policies_router"),
+    ("screening", "schedule_router"),
+    ("deep_review", "document_bundles_router"),
+    ("deep_review", "deep_reviews_router"),
+    ("deep_review", "bid_delta_router"),
+    ("deep_review", "reports_router"),
+    ("screening", "order_plans_router"),
+    # deep_review가 제공하는 사전규격 개요 검토 조회 (§5.3). 경로는 pre_specs다.
+    ("deep_review", "pre_spec_overview_router"),
+)
+
+#: lifecycle 확장점을 채우는 모듈 (명세 §6). lifecycle 자신은 registry를
+#: 소유할 뿐 채우지 않는다.
+_EXTENSION_PROVIDERS: tuple[str, ...] = ("screening", "deep_review")
+
+
+def selected_modules(modules=None) -> tuple[str, ...]:
+    """등록할 모듈을 지정 순서대로 낸다 (명세 §7).
+
+    `modules`가 ``None``이면 `BIDOPS_MODULES`(기본값 세 모듈 전부)를 쓴다.
+    알 수 없는 이름이나 빈 목록은 예외다 — fail closed.
+    """
+
+    if modules is None:
+        return get_settings().modules
+    return parse_modules(",".join(modules))
 
 
 @asynccontextmanager
@@ -77,8 +120,11 @@ async def lifespan(_app: FastAPI):
     if not using_test_db:
         init_db()
 
+    # 어떤 모듈의 runtime을 만들지는 앱을 조립할 때 이미 정해졌다(§7).
     runtime = injected_runtime_factory() if callable(injected_runtime_factory) else (
-        None if using_test_db else ApplicationRuntime()
+        None
+        if using_test_db
+        else ApplicationRuntime(modules=getattr(_app.state, "modules", None))
     )
     if runtime is not None:
         try:
@@ -124,64 +170,6 @@ async def lifespan(_app: FastAPI):
                     delattr(_app.state, name)
 
 
-app = FastAPI(title="BidOps Admin API", lifespan=lifespan)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-@app.middleware("http")
-async def security_headers(request, call_next):  # type: ignore[no-untyped-def]
-    response = await call_next(request)
-    response.headers.setdefault(
-        "Content-Security-Policy",
-        "default-src 'self'; connect-src 'self'; img-src 'self' data:; "
-        "style-src 'self' 'unsafe-inline'; script-src 'self'; base-uri 'self'; "
-        "frame-ancestors 'none'",
-    )
-    response.headers.setdefault("X-Content-Type-Options", "nosniff")
-    response.headers.setdefault("Referrer-Policy", "no-referrer")
-    if request.url.path.startswith("/api/"):
-        response.headers.setdefault("Cache-Control", "no-store")
-    return response
-
-
-@app.get("/api/health")
-def health() -> dict[str, str]:
-    """Return a lightweight liveness response."""
-
-    return {"status": "ok"}
-
-
-app.include_router(runs_router)
-app.include_router(notices_router)
-app.include_router(pre_specs_router)
-app.include_router(opportunities_router)
-app.include_router(notice_reviews_router)
-app.include_router(reviews_router)
-app.include_router(metrics_router)
-app.include_router(attachments_router)
-app.include_router(portals_router)
-app.include_router(profile_router)
-app.include_router(screening_router)
-app.include_router(quality_gates_router)
-app.include_router(policies_router)
-app.include_router(schedule_router)
-app.include_router(document_bundles_router)
-app.include_router(deep_reviews_router)
-app.include_router(bid_delta_router)
-app.include_router(reports_router)
-app.include_router(order_plans_router)
-
-
 class SPAStaticFiles(StaticFiles):
     """Serve built assets and fall back to index.html for client routes."""
 
@@ -222,4 +210,72 @@ def install_frontend(application: FastAPI, directory: Path = FRONTEND_DIST) -> N
         )
 
 
-install_frontend(app)
+def create_app(modules=None, *, mount_frontend: bool = True) -> FastAPI:
+    """지정한 모듈만 등록한 애플리케이션을 조립한다 (명세 §7).
+
+    `modules`가 ``None``이면 `BIDOPS_MODULES`를 쓴다. core는 항상 포함되므로
+    `/api/health`는 어떤 조합에서도 있다. CORS·보안 헤더·SPA mount는 모듈 선택과
+    무관하게 그대로다.
+
+    등록은 **import와 객체 생성일 뿐**이다. migration·seed·정책 활성화·모델
+    호출을 하지 않고 스레드도 만들지 않는다(§9). 상시 자원은 lifespan이 만드는
+    모듈 runtime의 몫이다.
+    """
+
+    modules = selected_modules(modules)
+    application = FastAPI(title="BidOps Admin API", lifespan=lifespan)
+    # lifespan이 어떤 모듈 runtime을 만들지 여기서 정한다.
+    application.state.modules = modules
+
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+        ],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    @application.middleware("http")
+    async def security_headers(request, call_next):  # type: ignore[no-untyped-def]
+        response = await call_next(request)
+        response.headers.setdefault(
+            "Content-Security-Policy",
+            "default-src 'self'; connect-src 'self'; img-src 'self' data:; "
+            "style-src 'self' 'unsafe-inline'; script-src 'self'; base-uri 'self'; "
+            "frame-ancestors 'none'",
+        )
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("Referrer-Policy", "no-referrer")
+        if request.url.path.startswith("/api/"):
+            response.headers.setdefault("Cache-Control", "no-store")
+        return response
+
+    # `/api/health`는 어느 도메인 모듈에도 속하지 않으므로 core가 제공한다(§7).
+    application.include_router(health_router)
+    for owner, router_name in _ROUTER_REGISTRATION:
+        if owner in modules:
+            application.include_router(getattr(_MODULE_PACKAGES[owner], router_name))
+
+    # --- lifecycle 확장점 등록 구역 (명세 §6) --------------------------------
+    # lifecycle은 선별·심층 검토 결과를 확장점으로만 본다. 그 구현을 registry에
+    # 채우는 것은 조립 계층의 일이며, **앱 객체를 조립하는 이 시점**에 한다 —
+    # router 등록과 같은 시점이고 lifespan도 모듈 runtime도 아니다. runtime을
+    # 만들지 않는 격리 API 테스트(`get_db` override)에서도 projection이 있어야
+    # 하기 때문이다.
+    #
+    # 등록 순서는 `BIDOPS_MODULES`가 준 순서를 따른다. 같은 hook을 여러 모듈이
+    # 등록하면 이 순서대로 실행된다(§6.2).
+    registry = lifecycle.extension_registry()
+    for name in modules:
+        if name in _EXTENSION_PROVIDERS:
+            _MODULE_PACKAGES[name].register_lifecycle_extensions(registry)
+
+    if mount_frontend:
+        install_frontend(application)
+    return application
+
+
+app = create_app()

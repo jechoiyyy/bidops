@@ -32,7 +32,7 @@ services:
       BIDOPS_PRESPEC_ATTACHMENT_WORKER_CONCURRENCY: "1"
       BIDOPS_PRESPEC_ATTACHMENT_WORKER_POLL_SECONDS: "5"
       BIDOPS_PRESPEC_ATTACHMENT_LEASE_SECONDS: "120"
-    command: ["python", "-m", "app.workers.prespec_attachment"]
+    command: ["python", "-m", "app.deep_review.workers.prespec_attachment"]
     healthcheck: { disable: true }
     restart: unless-stopped
     networks: [database, storage, scanning, prespec-egress]

@@ -18,8 +18,8 @@ MERGE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MERGE)
 
 REPO_ROOT = SCRIPT.parents[3]
-POLICY_TEMPLATE_PATH = REPO_ROOT / "experiments/order-plan-screening/config/order-plan-screening-policy.v1.json"
-BINDING_TEMPLATE_PATH = REPO_ROOT / "experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v1.json"
+POLICY_TEMPLATE_PATH = REPO_ROOT / "experiments/order-plan-screening/config/order-plan-screening-policy.v2.json"
+BINDING_TEMPLATE_PATH = REPO_ROOT / "experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v2.json"
 
 
 def write_json(path: Path, value: Any) -> None:

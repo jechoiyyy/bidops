@@ -1,7 +1,7 @@
 """Disposable PostgreSQL 17 servers and databases for backend tests.
 
 When the selected tests require PostgreSQL, ``tests/conftest.py`` uses these
-helpers before collection so imports of ``app.db`` cannot bind to an operator
+helpers before collection so imports of ``app.core.db`` cannot bind to an operator
 database or a persistent SQLite file.  A caller may provide
 ``BIDOPS_TEST_POSTGRES_URL`` for a disposable maintenance server; otherwise the
 pytest harness owns a short-lived Docker container.  Every database created
@@ -30,7 +30,7 @@ from sqlalchemy.exc import SQLAlchemyError
 BACKEND = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = BACKEND.parents[1]
 TESTS_ROOT = BACKEND / "tests"
-T14_TEST = TESTS_ROOT / "test_integration_t14.py"
+T14_TEST = TESTS_ROOT / "app" / "test_integration_t14.py"
 ENV_VAR = "BIDOPS_TEST_POSTGRES_URL"
 POSTGRES_IMAGE = "postgres:17.11"
 POSTGRES_CONTAINER_PREFIX = "bidops-pytest-pg-"
@@ -128,7 +128,6 @@ def _alembic_environment(database_url: str) -> dict[str, str]:
         "BIDOPS_VLLM_BASE_URL": "http://127.0.0.1:9/v1",
         "BIDOPS_VLLM_API_KEY": "EMPTY",
         "BIDOPS_OPENAI_ENABLED": "false",
-        "BIDOPS_CODEX_EXEC_ENABLED": "false",
         "BIDOPS_REFERENCE_WORKFLOW_MODE": "false",
     }
     for name in ("PATH", "LANG", "LC_ALL", "TZ"):
@@ -341,7 +340,7 @@ def temporary_database(*, upgrade_to: str | None = "head") -> Iterator[str]:
 def migrated_engine(*, upgrade_to: str | None = "head") -> Iterator[Engine]:
     """Yield an engine bound to a freshly migrated disposable database."""
 
-    from app.db import _json_serializer, schema_bound
+    from app.core.db import _json_serializer, schema_bound
 
     with temporary_database(upgrade_to=upgrade_to) as database_url:
         engine = schema_bound(

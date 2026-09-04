@@ -5,7 +5,7 @@
 | 문서 상태 | 현재 결정 기준선·통합 색인 |
 | 기준일 | 2026-09-01 |
 | 범위 | 수집, 선별, 사전규격 검토, 심층 검토, 입찰공고 추적, 운영·보안 |
-| 상세 결정 정본 | [`docs/tracking/decisions/`](tracking/decisions/)의 ADR-0001~0038, [`docs/design/ADR.md`](design/ADR.md)의 ADR-0039~0041 |
+| 상세 결정 정본 | [`docs/tracking/decisions/`](tracking/decisions/)의 ADR-0001~0038·0042~0045, [`docs/design/ADR.md`](design/ADR.md)의 ADR-0039~0041 |
 | 함께 읽을 문서 | [`PRD.md`](PRD.md), [`ARCHITECTURE.md`](ARCHITECTURE.md), [`contracts.md`](contracts.md) |
 
 이 문서는 여러 시점에 작성된 결정 기록을 현재 관점에서 읽기 위한 통합 ADR이다. 각 결정의
@@ -24,11 +24,10 @@
 4. [`tracking/status.md`](tracking/status.md), [`lifecycle-workstream.md`](tracking/lifecycle-workstream.md)의
    현재 구현·진행 요약
 5. [`validation-runs/`](validation-runs/)와 실험 디렉터리의 날짜별 실행 증거
-6. `docs/legacy/`의 보관 자료
 
-`docs/legacy`는 과거 계획과 목업을 보존하는 곳이다. 그 안의 SQLite 운영안, 초기 phase 번호,
-R-xx/A-xx 작업 지시, 과거 API 경로는 현재 실행 진입점이 아니다. 보관 자료는 왜 현재 결정이
-바뀌었는지 확인하는 역사적 근거로만 사용한다.
+과거 계획·목업·인수인계 문서는 저장소에 보관하지 않는다. 그 안의 SQLite 운영안, 초기 phase 번호,
+R-xx/A-xx 작업 지시, 과거 API 경로는 현재 실행 진입점이 아니며, 결정이 바뀐 이유를 확인해야
+하면 `대체됨` ADR과 git 이력을 본다.
 
 ### 결정 상태
 
@@ -124,6 +123,10 @@ R-xx/A-xx 작업 지시, 과거 API 경로는 현재 실행 진입점이 아니�
 | [0039](design/ADR.md#adr-0039-astryx-디자인-시스템-채택과-승인-범위) | Astryx 디자인 시스템 채택과 승인 범위 | 채택 | `neutral` 테마·고정 산출물; 화면 이행은 후속 단계 |
 | [0040](design/ADR.md#adr-0040-레이아웃-소유권과-화면-단위-이행) | 레이아웃 소유권과 화면 단위 이행 | 채택 | 레이아웃은 프로젝트 소유; 화면별 이행 |
 | [0041](design/ADR.md#adr-0041-정보구조와-판정-동선) | 정보구조와 판정 동선 | 채택 | 회차·누적 축과 같은 화면 판정 입력을 유지 |
+| [0042](tracking/decisions/0042-c2-model-revision-declared-at-deployment.md) | C-2 모델 revision은 배포 시점 선언으로 1회 대조 | 채택 | vLLM이 revision을 노출하지 않음; 응답 값은 있으면 대조 |
+| [0043](tracking/decisions/0043-screening-deep-review-module-boundary.md) | 선별과 심층 검토를 한 배포 단위 안의 독립 모듈로 분리 | 채택 | 구조 경계만 고정; 배포 단위·운영 활성화는 불변; [0045](tracking/decisions/0045-backend-module-layout.md)가 네 모듈로 보강 |
+| [0044](tracking/decisions/0044-c2-stage2-matches-the-measured-method.md) | C-2 stage 2를 측정된 방법과 일치시킴 | 채택 | item_id payload·strict schema·승인 generation config; binding v2 |
+| [0045](tracking/decisions/0045-backend-module-layout.md) | 백엔드를 core·lifecycle·screening·deep_review 네 모듈과 조립 계층으로 배치 | 채택 | ADR-0043 보강; lifecycle 확장점·`BIDOPS_MODULES`·경계 강제 테스트; REST 표면 불변 |
 
 ## 4. 주제별 결정 요약
 
@@ -208,7 +211,7 @@ app, worker, read-only backup으로 분리한다. 문서 worker는 `network_mode
 
 ### SQLite 운영안과 PostgreSQL 운영안
 
-ADR-0002와 legacy planning 문서의 SQLite WAL은 초기 단일 사용자 가정에 대한 역사 기록이다.
+ADR-0002와 초기 계획 문서의 SQLite WAL은 초기 단일 사용자 가정에 대한 역사 기록이다.
 심층 검토의 다중 worker lease, 객체 version, 중앙 감사·복구 요구가 추가되면서 ADR-0020이
 운영 정본을 PostgreSQL 17과 versioned MinIO로 대체했다. SQLite는 격리 테스트와 일회성 이관
 입력에만 남긴다.

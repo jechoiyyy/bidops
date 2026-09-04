@@ -8,8 +8,7 @@
 - 프론트엔드: Vite 6 · React 19 · TypeScript · Tailwind v4 · TanStack Query v5 · React Router v7
 - live 정본: PostgreSQL 17의 `bidops` schema
 - SQLite: 격리 테스트와 일회성 migration input에만 사용
-- 현재 운영 기준: `docs/architecture.md`, `docs/business-rules.md`, `docs/security.md`, `docs/contracts.md`, `docs/operations.md`, `docs/standards.md`
-- 과거 계획·인수 자료: `docs/legacy/README.md`
+- 현재 운영 기준: `docs/ARCHITECTURE.md`, `docs/business-rules.md`, `docs/security.md`, `docs/contracts.md`, `docs/operations.md`, `docs/standards.md`
 
 ## 현재 T7 runtime 실행
 
@@ -63,8 +62,8 @@ npm run dev
 
 ```bash
 cd web/backend
-.venv/bin/python -m app.ingest.cli --run 20260817-20260823   # 회차 하나
-.venv/bin/python -m app.ingest.cli --all                     # 발견된 모든 회차
+.venv/bin/python -m app.lifecycle.ingest.cli --run 20260817-20260823   # 회차 하나
+.venv/bin/python -m app.lifecycle.ingest.cli --all                     # 발견된 모든 회차
 ```
 
 적재 순서는 `validation-set.json` → `screening-results.json` → `collected-notices.json` 이며, 마지막으로 `reports/<회차>/review-feedback.yaml` 에서 값이 채워진 항목만 초기 리뷰로 가져옵니다.
@@ -134,7 +133,7 @@ build, 네 폭의 Playwright 화면 스냅샷 회귀를 차례로 수행합니�
 
 | 증상 | 원인과 해결 |
 |---|---|
-| 회차 선택기가 비어 있다 | 현재 runtime의 PostgreSQL에 적재가 되었는지 확인하고 `.venv/bin/python -m app.ingest.cli --all`을 실행하십시오 |
+| 회차 선택기가 비어 있다 | 현재 runtime의 PostgreSQL에 적재가 되었는지 확인하고 `.venv/bin/python -m app.lifecycle.ingest.cli --all`을 실행하십시오 |
 | `빌드된 프론트엔드가 없습니다` 라는 503 응답이 온다 | `web/frontend` 에서 `npm run build` 를 실행하십시오. 빌드 산출물이 없어도 백엔드 기동 자체는 실패하지 않습니다 |
 | Docker 실행에서 화면이 비어 있다 | T7 runtime의 health, migration, PostgreSQL 적재 상태와 API 응답을 순서대로 확인하십시오 |
 | Docker가 만든 파일을 지울 수 없다 | 컨테이너 사용자 번호가 호스트와 다릅니다. `id -u` 와 `id -g` 를 확인해 `.env` 에 `BIDOPS_UID`·`BIDOPS_GID` 를 지정하고 다시 띄우십시오 |

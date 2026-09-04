@@ -20,12 +20,13 @@ import weakref
 from sqlalchemy import event, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from ..config import Settings, get_settings
-from ..ingest.loader import parse_run_id
-from ..models import CompanyProfileSnapshot, Notice, Run, ScreeningExecution, ScreeningPolicy
+from ..core.config import Settings, get_settings
+from ..core.run_id import parse_run_id
+from ..lifecycle.models import Notice, Run
+from .models import CompanyProfileSnapshot, ScreeningExecution, ScreeningPolicy
 from .artifacts import ArtifactError, ArtifactStore, ExecutionWorkspace, aware_iso, canonical_bytes, sha256_bytes
 from .contracts import MODEL_NAME
-from .generation_config import GenerationConfig, generation_config_from_settings
+from ..core.generation_config import GenerationConfig, generation_config_from_settings
 from .ollama import ModelInspectionError, OllamaClient
 from .policy import canonical_policy_bytes, policy_content_digest
 from .profile_snapshot import (
@@ -1857,7 +1858,7 @@ class ScreeningOrchestrator:
 
     def _session(self) -> Session:
         if self.session_factory is None:
-            from ..db import SessionLocal
+            from ..core.db import SessionLocal
             return SessionLocal()
         value = self.session_factory()
         if not isinstance(value, Session):
