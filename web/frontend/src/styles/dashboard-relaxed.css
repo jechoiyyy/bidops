@@ -603,3 +603,12 @@
     line-height: 1.45;
   }
 }
+
+/* 스트립이 무엇을 세지 못하는지 한 줄로 남긴다. 확인 불가와 0을 섞지 않는다
+   (PLAN 단계 E 작업 7). */
+.dashboard-action-note {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  max-width: 92ch;
+}

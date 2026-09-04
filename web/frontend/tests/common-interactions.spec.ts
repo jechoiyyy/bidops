@@ -420,15 +420,17 @@ test("심층 검토 보고서 진입점이 사업 추적 화면에 명시된다"
   await expect(page).toHaveURL(/\/deep-reviews\/fixture-review/);
 });
 
-// docs/design/PLAN.md 3단계 게이트: 대시보드 "지금 처리할 일" 스트립에서
-// 네 결정(발주계획 C-2·심층 추적 승인·공고 1차 판정·최종 Go/No-Go) 화면
-// 각각으로 이동할 수 있다. 건수가 0이거나 확인 불가여도 이동 경로 자체는
-// 항상 있어야 한다(actionItems가 count>0일 때만 항목을 내보내던 이전 규칙과
-// 이 게이트가 충돌하므로, 네 결정에 속한 항목은 항상 내보내도록 바꿨다).
+// docs/design/PLAN.md 단계 E 작업 7 게이트: 대시보드 "지금 처리할 일" 스트립에서
+// 네 결정 화면 각각으로 한 번에 이동할 수 있다. 건수가 0이거나 확인 불가여도
+// 이동 경로 자체는 항상 있어야 한다.
+//
+// ADR-0045 결정 3으로 공고 1차 판정이 읽기 전용 이력이 되면서 넷째 자리가
+// `공고 1차 판정`에서 `예외 조치`로 바뀌었다. 사람이 손대야 하는 것은 회차
+// 표본 전수가 아니라 근거 없음·검증 실패·연결 불확실이다.
 const DECISION_STRIP_TARGETS = [
-  { title: /C-2 검토 대상/, pathname: "/order-plans" },
-  { title: /사전규격 의견등록 마감/, pathname: "/pre-specs" },
-  { title: /공고 1차 판정 대기 확인|우선 검토로 판정된 공고/, pathname: "/queue" },
+  { title: /발주계획 추적 결정/, pathname: "/order-plans" },
+  { title: /사전규격 심층 검토 승인/, pathname: "/pre-specs" },
+  { title: /예외 조치가 남아 있을 수 있다/, pathname: "/opportunities" },
   { title: /최종 Go\/No-Go 결정/, pathname: "/go-no-go" },
 ];
 
@@ -457,7 +459,7 @@ test("사전규격 마감 임박 건수는 서버 집계가 없어 확인 불가
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
 
-  const deadlineItem = page.locator(".dashboard-action-strip").getByRole("link", { name: /사전규격 의견등록 마감/ });
+  const deadlineItem = page.locator(".dashboard-action-strip").getByRole("link", { name: /사전규격 심층 검토 승인/ });
   await expect(deadlineItem.locator("strong")).toHaveText("확인 불가");
   await deadlineItem.click();
   await expect.poll(() => new URL(page.url()).pathname).toBe("/pre-specs");
@@ -474,7 +476,7 @@ test("Go/No-Go 대기 건수는 서버 집계가 없어 확인 불가로 표시�
   await expect(goNoGoItem).toContainText("건수 확인 불가");
 });
 
-test("회차를 선택하지 않아도 누적 추적 세 항목은 할 일 스트립에서 확인·이동할 수 있다", async ({ page }) => {
+test("회차를 선택하지 않아도 누적 추적 항목은 할 일 스트립에서 확인·이동할 수 있다", async ({ page }) => {
   // /api/runs를 빈 목록으로 덮어써 AppShell이 회차를 자동 선택하지 못하게 한다.
   await mockApi(page);
   await page.route("**/api/runs", async (route) => {
@@ -487,14 +489,104 @@ test("회차를 선택하지 않아도 누적 추적 세 항목은 할 일 스�
   await expect(page.getByText("선택된 회차가 없습니다.", { exact: true })).toBeVisible();
   const strip = page.locator(".dashboard-action-strip");
   // 누적 추적 항목(C-2·사전규격·Go/No-Go)은 회차와 무관하므로 여전히 보인다.
-  await expect(strip.getByRole("link", { name: /C-2 검토 대상/ })).toBeVisible();
-  await expect(strip.getByRole("link", { name: /사전규격 의견등록 마감/ })).toBeVisible();
+  await expect(strip.getByRole("link", { name: /발주계획 추적 결정/ })).toBeVisible();
+  await expect(strip.getByRole("link", { name: /사전규격 심층 검토 승인/ })).toBeVisible();
+  await expect(strip.getByRole("link", { name: /예외 조치가 남아 있을 수 있다/ })).toBeVisible();
   await expect(strip.getByRole("link", { name: /최종 Go\/No-Go 결정/ })).toBeVisible();
-  // 결정 3(공고 1차 판정)은 회차가 있어야 건수를 알 수 있지만, 이동 경로
-  // 자체는 회차 없이도 남는다.
-  const queueItem = strip.getByRole("link", { name: /공고 1차 판정 대기 확인/ });
+  // 회차 자료는 읽기 전용 이력이다. 회차가 있어야 건수를 알 수 있지만 이동
+  // 경로 자체는 회차 없이도 남는다.
+  const queueItem = strip.getByRole("link", { name: /공고 1차 판정 이력 확인/ });
   await expect(queueItem).toBeVisible();
   await expect(queueItem.locator("strong")).toHaveText("확인 불가");
   await queueItem.click();
   await expect.poll(() => new URL(page.url()).pathname).toBe("/queue");
+});
+
+// ── PLAN 단계 E 작업 6·7 ──────────────────────────────────────────────────
+
+test("할 일 스트립은 확인 불가를 0으로 바꾸지 않는다고 화면에 적는다", async ({ page }) => {
+  await mockApi(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+
+  const note = page.locator(".dashboard-action-note");
+  await expect(note).toContainText("확인 불가");
+  await expect(note).toContainText("0건이 아닙니다");
+  await expect(note).toContainText("읽기 전용");
+});
+
+test("판정 기준은 이 화면이 정하지 않는 것과 정책 차단 사유를 모든 탭에서 남긴다", async ({ page }) => {
+  await mockApi(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+
+  for (const path of ["/criteria", "/profile", "/policies", "/quality-gates", "/metrics"]) {
+    await page.goto(path);
+    const guardrails = page.locator(".criteria-guardrails");
+    await expect(guardrails.getByRole("heading", { name: "이 화면이 정하지 않는 것" })).toBeVisible();
+    // 네 판단은 각각 별도 조작이다. 기준 편집이 판정을 소급해 바꾸지 않는다.
+    await expect(guardrails).toContainText("적합성 등급 4값");
+    await expect(guardrails).toContainText("참여 준비 상태 4값");
+    await expect(guardrails).toContainText("심층 검토 실행 승인");
+    await expect(guardrails).toContainText("최종 입찰 Go/No-Go");
+    await expect(guardrails).toContainText("소급해 바꾸지 않습니다");
+    await expect(guardrails.getByRole("heading", { name: "활성화 대기 판정 정책" })).toBeVisible();
+  }
+});
+
+test("실행 상태는 운영 텔레메트리 위치와 상시 운영 차단 사유를 모든 탭에서 남긴다", async ({ page }) => {
+  await mockApi(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+
+  for (const path of ["/run-status", "/runs", "/attachments", "/operations", "/audit"]) {
+    await page.goto(path);
+    const guardrails = page.locator(".runstatus-guardrails");
+    await expect(guardrails.getByRole("heading", { name: "운영 텔레메트리" })).toBeVisible();
+    // 판정 화면에서 뺐지만 삭제하지 않았다(ADR-0041 결정 5).
+    await expect(guardrails).toContainText("삭제하지 않았습니다");
+    await expect(guardrails).toContainText("model_digest");
+    await expect(guardrails).toContainText("duration_ms");
+    await expect(guardrails.getByRole("heading", { name: "상시 운영" })).toBeVisible();
+    await expect(guardrails).toContainText("차단 사유");
+    await expect(guardrails).toContainText("startup은 migration·seed·정책 활성화·모델 호출을 수행하지 않습니다");
+  }
+});
+
+test("최종 Go/No-Go 목록은 사업 이름과 변경 비교 결과 없음을 값으로 보여준다", async ({ page }) => {
+  await mockApi(page);
+  await page.route(/\/api\/opportunities(\?|$)/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ items: [opportunity], total: 1, limit: 100, offset: 0 }),
+    });
+  });
+  // 비교가 하나도 없는 workspace다. `비교 0건`이 아니라 값으로 읽혀야 한다.
+  await page.route(/\/api\/opportunities\/501\/bid-delta/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        schema_version: "bidops.bid-delta-workspace.v1",
+        opportunity_id: 501,
+        baseline_candidates: [],
+        comparison_candidates: [],
+        comparisons: [],
+        latest_final_decision: null,
+        final_decisions: [],
+        decision_currentness: "unknown",
+      }),
+    });
+  });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/go-no-go?show=all");
+
+  const rows = page.locator(".gng-row");
+  await expect(rows.first()).toBeVisible();
+  // 식별자만 있는 행은 무슨 사업인지 알 수 없어 결국 하나씩 열어 봐야 한다.
+  await expect(rows.first()).toContainText("접근성 검증 입찰공고");
+  await expect(rows.first()).toContainText("테스트 조달기관");
+  // 비교 0건은 값이다. `비교 0건`으로 눌러 담아 "아직 안 봤다"와 섞지 않는다.
+  await expect(rows.first()).toContainText("변경 비교 결과 없음");
+  // 받은 목록에서 센 값이라는 사실을 요약이 직접 말한다.
+  await expect(page.locator(".gng-summary")).toContainText("전체 총계가 아닙니다");
 });

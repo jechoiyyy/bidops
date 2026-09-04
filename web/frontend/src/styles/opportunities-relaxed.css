@@ -661,11 +661,18 @@
   font-size: var(--font-size-supporting);
 }
 
+/* 위 .runstatus-guardrail-facts와 같은 이유로 감싸는 div를 지운다. 두지 않으면
+   첫 열의 max-content가 행 전체로 계산돼 dl이 부모보다 넓어진다. */
 .opportunity-history-facts {
   display: grid;
-  grid-template-columns: max-content 1fr;
+  grid-template-columns: max-content minmax(0, 1fr);
   gap: var(--spacing-1) var(--spacing-4);
   margin: 0;
+  min-width: 0;
+}
+
+.opportunity-history-facts > div {
+  display: contents;
 }
 
 .opportunity-history-facts dt {
