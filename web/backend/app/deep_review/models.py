@@ -1,4 +1,4 @@
-"""deep_review가 소유하는 선언적 모델 (명세 §5.1의 34개 테이블).
+"""deep_review가 소유하는 선언적 모델 (명세 §5.1의 37개 테이블).
 
 문서 준비(content_object → document_version → document_structure →
 document_bundle), 사전규격 개요 검토, 심층 검토와 claim·evidence·보고서·
@@ -64,7 +64,8 @@ class AttachmentFetch(Base):
             name="ck_attachment_fetch_status",
         ),
         CheckConstraint(
-            "eligibility_reason IN ('sw_business_object','tracked_order_plan','both')",
+            "eligibility_reason IN ('sw_business_object','tracked_order_plan','both',"
+            "'priority_grade')",
             name="ck_attachment_fetch_eligibility_reason",
         ),
         CheckConstraint(
@@ -258,6 +259,235 @@ class DocumentBlock(Base):
     content: Mapped[str | None] = mapped_column(Text, nullable=True)
     confidence: Mapped[Decimal | None] = mapped_column(Numeric(6, 5), nullable=True)
     attributes: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+
+
+class DocumentSegmentManifest(Base):
+    """한 ``document_structure``의 결정적 segment·요구사항 inventory manifest.
+
+    같은 (structure, taxonomy version, 추출기 binding)으로 다시 계산하면 새 행을
+    만들지 않고 이 유일 키의 기존 행을 돌려준다. 행은 만들어진 뒤 갱신·삭제하지
+    않으며, 부모 구조·문서 version이 사라질 때만 FK CASCADE로 함께 사라진다.
+    """
+
+    __tablename__ = "document_segment_manifest"
+    __table_args__ = (
+        UniqueConstraint(
+            "structure_id",
+            "taxonomy_version",
+            "extractor_binding_sha256",
+            name="uq_document_segment_manifest_identity",
+        ),
+        # 구조와 문서 version은 반드시 같은 쌍이어야 한다. 다른 문서의 구조가
+        # manifest에 붙는 경로를 DB가 직접 막는다.
+        ForeignKeyConstraint(
+            ["document_version_id", "structure_id"],
+            [
+                _table("document_structure.document_version_id"),
+                _table("document_structure.id"),
+            ],
+            name="fk_document_segment_manifest_structure_document_scope",
+            ondelete="CASCADE",
+        ),
+        CheckConstraint(
+            dual(
+                "length(source_sha256) = 64 AND source_sha256 NOT GLOB '*[^0-9a-f]*' "
+                "AND length(extractor_binding_sha256) = 64 "
+                "AND extractor_binding_sha256 NOT GLOB '*[^0-9a-f]*' "
+                "AND length(payload_sha256) = 64 AND payload_sha256 NOT GLOB '*[^0-9a-f]*'"
+            ),
+            name="ck_document_segment_manifest_hashes",
+        ),
+        CheckConstraint(
+            "length(trim(taxonomy_version)) > 0",
+            name="ck_document_segment_manifest_taxonomy_version",
+        ),
+        CheckConstraint(
+            dual(
+                "json_valid(extractor_binding) AND json_type(extractor_binding) = 'object'"
+            ),
+            name="ck_document_segment_manifest_extractor_binding",
+        ),
+        CheckConstraint(
+            dual(
+                "json_valid(inventory_summary) AND json_type(inventory_summary) = 'object'"
+            ),
+            name="ck_document_segment_manifest_inventory_summary",
+        ),
+        CheckConstraint(
+            dual("json_valid(warnings) AND json_type(warnings) = 'array'"),
+            name="ck_document_segment_manifest_warnings",
+        ),
+        CheckConstraint(
+            dual("json_valid(coverage) AND json_type(coverage) = 'object'"),
+            name="ck_document_segment_manifest_coverage",
+        ),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    structure_id: Mapped[uuid_module.UUID] = mapped_column(
+        _fk("document_structure.id", ondelete="CASCADE"), nullable=False
+    )
+    document_version_id: Mapped[uuid_module.UUID] = mapped_column(
+        _fk("document_version.id", ondelete="CASCADE"), nullable=False
+    )
+    source_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    taxonomy_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    extractor_binding: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    extractor_binding_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    inventory_summary: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    warnings: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    coverage: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    payload_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        AwareDateTime(),
+        default=utc_now,
+        server_default=text("CURRENT_TIMESTAMP"),
+        nullable=False,
+    )
+
+    segments: Mapped[list["DocumentSegment"]] = relationship(
+        "DocumentSegment",
+        foreign_keys="DocumentSegment.manifest_id",
+        back_populates="manifest",
+        order_by="DocumentSegment.ordinal",
+        viewonly=True,
+    )
+    inventory_items: Mapped[list["RequirementInventoryItem"]] = relationship(
+        "RequirementInventoryItem",
+        foreign_keys="RequirementInventoryItem.manifest_id",
+        back_populates="manifest",
+        order_by="RequirementInventoryItem.ordinal",
+        viewonly=True,
+    )
+
+
+class DocumentSegment(Base):
+    """manifest 하나에 속한 목적별 segment 한 구간 (결정적 분류만).
+
+    분류 규칙이 충돌하거나 label을 정하지 못하면 ``status``는
+    ``needs_human_review``로 남고 ``confidence``는 ``null``이다. 모르는 값을
+    0이나 빈 값으로 바꾸지 않는다.
+    """
+
+    __tablename__ = "document_segment"
+    __table_args__ = (
+        UniqueConstraint(
+            "manifest_id", "segment_id", name="uq_document_segment_segment_id"
+        ),
+        UniqueConstraint(
+            "manifest_id", "ordinal", name="uq_document_segment_ordinal"
+        ),
+        CheckConstraint("ordinal >= 1", name="ck_document_segment_ordinal"),
+        CheckConstraint(
+            "length(trim(segment_id)) > 0", name="ck_document_segment_segment_id"
+        ),
+        CheckConstraint(
+            "status IN ('classified','needs_human_review')",
+            name="ck_document_segment_status",
+        ),
+        # 모델 분류는 없다 (명세 §6.7). 값 집합이 하나인 것이 그 규칙이다.
+        CheckConstraint(
+            "classification_source = 'deterministic'",
+            name="ck_document_segment_classification_source",
+        ),
+        CheckConstraint(
+            "confidence IS NULL OR (confidence >= 0 AND confidence <= 1)",
+            name="ck_document_segment_confidence_range",
+        ),
+        # 사람 검토가 필요한 segment는 확신도를 만들어 내지 않는다.
+        CheckConstraint(
+            "status <> 'needs_human_review' OR confidence IS NULL",
+            name="ck_document_segment_needs_review_confidence",
+        ),
+        CheckConstraint(
+            dual(
+                "json_valid(taxonomy_labels) AND json_type(taxonomy_labels) = 'array'"
+            ),
+            name="ck_document_segment_taxonomy_labels",
+        ),
+        CheckConstraint(
+            dual("json_valid(start_locator) AND json_type(start_locator) = 'object'"),
+            name="ck_document_segment_start_locator",
+        ),
+        CheckConstraint(
+            dual("json_valid(end_locator) AND json_type(end_locator) = 'object'"),
+            name="ck_document_segment_end_locator",
+        ),
+        CheckConstraint(
+            dual(
+                "json_valid(requirement_ids) AND json_type(requirement_ids) = 'array'"
+            ),
+            name="ck_document_segment_requirement_ids",
+        ),
+        CheckConstraint(
+            dual(
+                "json_valid(source_block_keys) AND json_type(source_block_keys) = 'array'"
+            ),
+            name="ck_document_segment_source_block_keys",
+        ),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    manifest_id: Mapped[uuid_module.UUID] = mapped_column(
+        _fk("document_segment_manifest.id", ondelete="CASCADE"), nullable=False
+    )
+    segment_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    ordinal: Mapped[int] = mapped_column(Integer, nullable=False)
+    taxonomy_labels: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    title: Mapped[str | None] = mapped_column(Text, nullable=True)
+    start_locator: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    end_locator: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    requirement_ids: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    source_block_keys: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    classification_source: Mapped[str] = mapped_column(String(32), nullable=False)
+    confidence: Mapped[Decimal | None] = mapped_column(Numeric(6, 5), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+
+    manifest: Mapped["DocumentSegmentManifest"] = relationship(
+        "DocumentSegmentManifest",
+        foreign_keys=[manifest_id],
+        back_populates="segments",
+    )
+
+
+class RequirementInventoryItem(Base):
+    """manifest 하나가 문서에서 결정적으로 뽑은 요구사항 ID 한 건.
+
+    중복 ID는 그대로 보존한다 (요약의 ``duplicate_ids``가 그 사실을 말한다).
+    ID 없는 서술형 의무는 만들지 않는다.
+    """
+
+    __tablename__ = "requirement_inventory_item"
+    __table_args__ = (
+        UniqueConstraint(
+            "manifest_id", "ordinal", name="uq_requirement_inventory_item_ordinal"
+        ),
+        CheckConstraint("ordinal >= 1", name="ck_requirement_inventory_item_ordinal"),
+        CheckConstraint(
+            "length(trim(raw_id)) > 0 AND length(trim(normalized_id)) > 0",
+            name="ck_requirement_inventory_item_ids",
+        ),
+        CheckConstraint(
+            dual("json_valid(locator) AND json_type(locator) = 'object'"),
+            name="ck_requirement_inventory_item_locator",
+        ),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    manifest_id: Mapped[uuid_module.UUID] = mapped_column(
+        _fk("document_segment_manifest.id", ondelete="CASCADE"), nullable=False
+    )
+    raw_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    normalized_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    locator: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    title: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ordinal: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    manifest: Mapped["DocumentSegmentManifest"] = relationship(
+        "DocumentSegmentManifest",
+        foreign_keys=[manifest_id],
+        back_populates="inventory_items",
+    )
 
 
 class PreSpecOverviewReview(Base):
@@ -479,8 +709,10 @@ class PreSpecOverviewAttempt(Base):
             "(NOT reference_only) OR deployable IS FALSE",
             name="ck_prespec_overview_attempt_reference_boundary",
         ),
+        # 품질을 아직 재지 않은 실제 모델 실행(``deployable`` false)도 완료될 수
+        # 있다. mock 참조 실행(``reference_only`` true)만 완료를 막는다 (명세 §6.3).
         CheckConstraint(
-            "status <> 'completed' OR (reference_only IS FALSE AND deployable IS TRUE)",
+            "status <> 'completed' OR reference_only IS FALSE",
             name="ck_prespec_overview_attempt_completed_binding",
         ),
         CheckConstraint(
@@ -577,6 +809,12 @@ class PreSpecOverviewAttempt(Base):
     result_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
+    # 합성 worker가 claim한 실행을 표시하는 lease. 만료된 ``running`` attempt는
+    # 다음 poll이 ``failed``로 닫고 lease를 비운다 (자동 재시작 없음, 명세 §6.3).
+    lease_owner: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    lease_expires_at: Mapped[datetime | None] = mapped_column(
+        AwareDateTime(), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(AwareDateTime(), default=utc_now, nullable=False)
 
     snapshot: Mapped["PreSpecOverviewSnapshot"] = relationship(
@@ -1140,6 +1378,15 @@ BID_DELTA_TABLES = (
 )
 
 
+# 0018이 더하는 결정적 segment·요구사항 inventory 저장소. Lean v1 집합과 따로
+# 두어 기존 데이터베이스가 재생성 없이 올라간다.
+DOCUMENT_SEGMENT_TABLES = (
+    "document_segment_manifest",
+    "document_segment",
+    "requirement_inventory_item",
+)
+
+
 class BidDeltaComparison(Base):
     """An immutable exact document pair used for a bid delta calculation."""
 
@@ -1600,6 +1847,22 @@ def _reject_bid_final_decision_mutation(
     _mapper: Any, _connection: Any, _target: BidFinalDecision
 ) -> None:
     raise ValueError("bid final decisions are append-only")
+
+
+# segment manifest와 그 자식 행은 갱신·삭제가 없다 (명세 §6.7). 재계산은 새 행이
+# 아니라 같은 유일 키의 기존 행을 돌려준다. 부모 구조·문서 version이 사라질 때만
+# DB FK ``ondelete=CASCADE``가 함께 지운다 — 그 경로는 ORM을 거치지 않으므로 여기의
+# 방어가 cascade를 막지 않는다.
+@event.listens_for(DocumentSegmentManifest, "before_update")
+@event.listens_for(DocumentSegmentManifest, "before_delete")
+@event.listens_for(DocumentSegment, "before_update")
+@event.listens_for(DocumentSegment, "before_delete")
+@event.listens_for(RequirementInventoryItem, "before_update")
+@event.listens_for(RequirementInventoryItem, "before_delete")
+def _reject_document_segment_mutation(
+    _mapper: Any, _connection: Any, _target: Any
+) -> None:
+    raise ValueError("document segment manifests are append-only")
 
 
 @event.listens_for(BidDeltaItem, "before_update")
