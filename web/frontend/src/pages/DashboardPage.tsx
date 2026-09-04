@@ -55,11 +55,13 @@ function criticalDeadlineCount(notices: DeadlineNotice[], referenceAt: string | 
  */
 function runScopedActionItems(stats: RunStatsResponse | undefined, runId: string | null): ActionItem[] {
   if (!runId || !stats) {
+    // 공고 1차 판정은 읽기 전용 이력이다(ADR-0046 결정 3). 처리할 일이 아니라
+    // 회차 자료를 확인하는 자리이므로 제목이 "판정 대기"가 아니다.
     return [{
       key: "priority",
       count: null,
-      title: "공고 1차 판정 대기 확인",
-      description: "회차를 선택하면 우선 검토 건수를 확인합니다",
+      title: "공고 1차 판정 이력 확인",
+      description: "회차를 선택하면 우선 검토 건수를 확인합니다 · 읽기 전용",
       to: "/queue",
     }];
   }
@@ -71,7 +73,7 @@ function runScopedActionItems(stats: RunStatsResponse | undefined, runId: string
       key: "priority",
       count: stats.priority_review_count,
       title: "우선 검토로 판정된 공고 확인",
-      description: "대기열을 등급순으로 열기",
+      description: "회차 판정 이력을 등급순으로 열기 · 읽기 전용",
       to: `/queue?${search}&grade=${encodeURIComponent("우선 검토")}`,
     },
   ];
@@ -80,7 +82,7 @@ function runScopedActionItems(stats: RunStatsResponse | undefined, runId: string
       key: "deadline",
       count: criticalCount,
       title: `마감이 ${CRITICAL_DAYS}일 이내다`,
-      description: "대기열을 마감 임박순으로 열기",
+      description: "회차 판정 이력을 마감 임박순으로 열기 · 읽기 전용",
       to: `/queue?${search}&sort=deadline`,
       tone: "alert",
     });
@@ -103,8 +105,18 @@ interface QueryState {
 }
 
 /**
- * 결정 1(발주계획 C-2)·2(사전규격 심층 추적 승인)·4(최종 Go/No-Go)로 가는
- * 항목. 셋 다 누적 추적이라 회차 선택과 무관하다(docs/design/PRD.md §2.1).
+ * 네 결정으로 가는 항목 (PLAN 단계 E 작업 7, ADR-0046).
+ *
+ * 결정 1 발주계획 추적 결정 · 결정 2 사전규격 심층 검토 승인 · 예외 조치(연결·
+ * 실패) · 결정 4 최종 입찰 Go/No-Go. 넷 다 누적 추적이라 회차 선택과 무관하다
+ * (docs/design/PRD.md §2.1).
+ *
+ * ADR-0046 결정 3으로 공고 1차 판정이 읽기 전용 이력이 됐으므로, 넷째 자리를
+ * 차지하던 "공고 1차 판정 대기"를 **예외 조치**로 바꿨다. 사람이 손대야 하는
+ * 것은 회차 표본 전수가 아니라 근거 없음·검증 실패·연결 불확실이다.
+ *
+ * 건수를 확인할 수 없는 항목은 `null`(확인 불가)로 두고 이동 경로만 남긴다.
+ * 0으로 바꾸지 않는다 — 0은 확인된 값이고 null은 확인하지 못한 상태다.
  */
 function cumulativeActionItems(orderPlanReview: QueryState): ActionItem[] {
   return [
@@ -112,26 +124,33 @@ function cumulativeActionItems(orderPlanReview: QueryState): ActionItem[] {
       key: "c2-review",
       count: orderPlanReview.status === "success" ? orderPlanReview.count : null,
       loading: orderPlanReview.status === "pending",
-      title: "C-2 검토 대상 발주계획이 있다",
+      title: "발주계획 추적 결정이 필요하다",
       description: orderPlanReview.status === "error"
         ? "건수를 확인할 수 없습니다 · 발주계획에서 직접 확인하기"
-        : "Qwen 신호가 검토 대상(relevant·uncertain)인 발주계획 열기",
+        : "Qwen 신호가 검토 대상(relevant·uncertain)인 발주계획 열기 · 추적 미결정 건수는 아닙니다",
       to: "/order-plans",
     },
     {
-      // 이 건수는 클라이언트에서 구할 수 없다. `GET /api/pre-specs`에 마감
-      // 구간 필터도, 마감 임박 집계도 없고 `sort=deadline`은 마감 오름차순
-      // (`deadline_at ASC NULLS LAST`)이라 첫 페이지가 **이미 지난** 마감으로
-      // 채워진다. 한 페이지를 받아 세면 (1) 지난 마감을 임박으로 세고
-      // (2) 임박 구간이 페이지 창 밖이라 도달하지도 못한다. 회차 산출물인
-      // stats.imminent_deadlines와 달리 여기에는 서버가 좁혀 준 창이 없다.
-      // 그래서 건수는 null(확인 불가)로 두고 이동 경로만 제공한다 — 틀린
-      // 숫자를 사실로 보여주지 않는다(docs/design/PRD.md §4).
-      key: "pre-spec-deadline",
+      // 심층 검토 승인 대기 건수는 서버가 세지 않는다. `GET /api/pre-specs`는
+      // 개요 검토 상태 집계(`overview_status_counts`)만 주고 심층 검토 실행
+      // 승인 여부를 담지 않는다. 근사값으로 채우지 않고 이동 경로만 남긴다.
+      key: "pre-spec-deep-review",
       count: null,
-      title: "사전규격 의견등록 마감을 확인해야 한다",
+      title: "사전규격 심층 검토 승인이 필요할 수 있다",
       description: "건수 확인 불가 · 사전규격을 마감 임박순으로 열기",
       to: "/pre-specs?sort=deadline",
+    },
+    {
+      // 예외 조치(근거 없음·검증 실패·연결 불확실)는 저장된 상태가 아니라 파생
+      // 조건이라 서버가 세지 못한다(docs/tracking/findings.md). 사업 추적의
+      // `조치 필요` 구역이 받은 페이지에서 그 조건을 나누므로, 대시보드는
+      // 건수를 만들지 않고 그 구역으로 보낸다.
+      key: "tracking-exception",
+      count: null,
+      title: "예외 조치가 남아 있을 수 있다",
+      description: "건수 확인 불가 · 사업 추적의 조치 필요 구역 열기 (연결 불확실·검증 실패·근거 없음)",
+      to: `/opportunities?section=${encodeURIComponent("조치 필요")}`,
+      tone: "alert",
     },
     {
       // 서버에 "Go/No-Go 결정 대기 사업기회" 집계 endpoint가 없다(GoNoGoPage.tsx

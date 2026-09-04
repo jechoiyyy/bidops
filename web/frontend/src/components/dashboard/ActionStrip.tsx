@@ -44,6 +44,12 @@ export function ActionStrip({ items }: ActionStripProps) {
         </svg>
         <span>지금 처리할 일</span>
       </div>
+      {/* PLAN 단계 E 작업 7: 회차 자료가 읽기 전용임을 밝히고 계산 불가를 0으로
+        * 바꾸지 않는다. `확인 불가`는 서버에 집계가 없다는 뜻이고 0과 다르다. */}
+      <p className="dashboard-action-note">
+        네 결정으로 가는 항목은 건수를 확인할 수 없어도 항상 남습니다. <strong>확인 불가</strong>는 서버에 집계가 없다는 뜻이며 0건이 아닙니다.
+        회차 판정 자료는 읽기 전용 이력이고, 사람의 수정은 사업 추적의 예외 작업에서 합니다.
+      </p>
       {items.length === 0 ? (
         <div className="dashboard-action-empty">현재 회차에서 즉시 처리할 항목이 없습니다.</div>
       ) : (

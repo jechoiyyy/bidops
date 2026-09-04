@@ -3,7 +3,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Outlet, useLocation, useMatches, useSearchParams } from "react-router-dom";
 import { EmptyState } from "../common/EmptyState";
 import { api } from "../../lib/api";
-import "../../styles/shell-relaxed.css";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import { fallbackRouteMetadata, metadataFromHandle, type RouteMetadata } from "./route-meta";
@@ -91,7 +90,7 @@ export function AppShell() {
   const runError = runContextEnabled ? runsQuery.error ?? detailQuery.error : null;
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" data-astryx-theme="bidops" data-theme="light">
       <Sidebar navRef={navRef} open={navOpen} onClose={() => setNavOpen(false)} />
       <div className="app-content">
         <TopBar
@@ -117,7 +116,7 @@ export function AppShell() {
             />
           </div>
         ) : null}
-        <main className="page-canvas">
+        <main className="page-canvas" data-shell-region="canvas">
           <Outlet />
         </main>
       </div>

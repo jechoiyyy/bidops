@@ -917,3 +917,57 @@
   align-items: stretch;
   justify-content: flex-start;
 }
+
+/* --- 비교 기준과 저장 조건 (PLAN 단계 F 작업 2·3) --- */
+
+/* 무엇과 무엇을 언제 비교한 결과인지 범주 목록 바로 위에 남긴다. */
+.bid-delta-basis {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--spacing-1) var(--spacing-4);
+  margin: 0 0 var(--spacing-3);
+  padding: var(--spacing-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-container);
+  background: var(--color-background-surface);
+  font-size: var(--font-size-supporting);
+  min-width: 0;
+}
+
+/* `<dl>` 안의 `<div>`가 grid 항목이 되면 첫 열의 max-content가 행 전체로
+   계산돼 부모보다 넓어진다. dt·dd를 직접 열에 놓는다. */
+.bid-delta-basis > div {
+  display: contents;
+}
+
+.bid-delta-basis dt {
+  color: var(--color-content-secondary);
+  white-space: nowrap;
+}
+
+.bid-delta-basis dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* 저장 조건은 상태를 함께 보여준다. 색만으로 구분하지 않고 각 줄이 현재 값을
+   문장으로 말한다. */
+.bid-delta-save-conditions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  margin: 0 0 var(--spacing-3);
+  padding: 0 0 0 var(--spacing-5);
+  font-size: var(--font-size-supporting);
+  color: var(--color-content-secondary);
+  min-width: 0;
+}
+
+.bid-delta-save-conditions li {
+  overflow-wrap: anywhere;
+}
+
+.bid-delta-save-conditions li[data-met="true"] {
+  color: var(--color-text-primary);
+}

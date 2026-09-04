@@ -32,10 +32,26 @@ export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
   label?: string | null;
 }
 
+/** 등급 4단은 심각도가 아니라 우선순위 순서다. 색은 grade-ramp.css 의
+ * `--bo-grade-*` 농도 한 벌만 쓰고, 인접 단의 대비가 1.9~2.1 이라 색만으로는
+ * 구분되지 않으므로 라벨을 지울 수 없게 여기서 기본값을 채운다(ADR-0048 §3). */
+const GRADE_LEVELS: Partial<Record<BadgeVariant, number>> = {
+  "grade-1": 1,
+  "grade-2": 2,
+  "grade-3": 3,
+  "grade-4": 4,
+};
+
 export function Badge({ variant, label, className = "", ...props }: BadgeProps) {
   const text = label && label.trim() ? label : defaultLabels[variant];
+  const gradeLevel = GRADE_LEVELS[variant];
   return (
-    <span className={`badge badge-${variant} ${className}`.trim()} {...props}>
+    <span
+      className={`badge badge-${variant} ${className}`.trim()}
+      data-grade-level={gradeLevel}
+      data-review-primitive={gradeLevel === undefined ? undefined : "grade"}
+      {...props}
+    >
       {text}
     </span>
   );

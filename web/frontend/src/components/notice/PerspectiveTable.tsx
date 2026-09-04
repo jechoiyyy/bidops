@@ -1,6 +1,7 @@
 import { Badge, type BadgeVariant } from "../common/Badge";
 import { EmptyState } from "../common/EmptyState";
 import { Panel } from "../common/Panel";
+import { ReviewEvidenceList } from "../common/ReviewPrimitives";
 import type { PerspectiveResponse } from "../../lib/types";
 import { present } from "../../lib/format";
 
@@ -54,17 +55,18 @@ export function PerspectiveTable({ perspectives }: PerspectiveTableProps) {
                   <td>
                     <div>{present(perspective.reason, "판정 사유 미확인")}</div>
                     {perspective.evidence.length > 0 ? (
-                      <details className="evidence-details" open>
-                        <summary>근거 {perspective.evidence.length}개</summary>
-                        <div className="evidence-list">
-                          {perspective.evidence.map((evidence) => (
-                            <div className="evidence-row" key={evidence.id}>
-                              <Badge label={evidenceLabel(evidence.status)} variant={evidenceVariant(evidence.status)} />
-                              <span>{present(evidence.source, "출처 미확인")}</span>
-                              <span className="evidence-fact">{present(evidence.fact, "근거 내용 미확인")}</span>
-                            </div>
-                          ))}
-                        </div>
+                    <details className="evidence-details" open>
+                      <summary>근거 {perspective.evidence.length}개</summary>
+                        <ReviewEvidenceList
+                          className="evidence-list"
+                          items={perspective.evidence.map((evidence) => ({
+                            detail: present(evidence.fact, "근거 내용 미확인"),
+                            id: evidence.id,
+                            startContent: <Badge label={evidenceLabel(evidence.status)} variant={evidenceVariant(evidence.status)} />,
+                            title: present(evidence.source, "출처 미확인"),
+                          }))}
+                          label={`${present(perspective.name, "관점 미확인")} 근거`}
+                        />
                       </details>
                     ) : (
                       <div className="evidence-empty">근거 없음</div>

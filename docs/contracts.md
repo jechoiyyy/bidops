@@ -594,6 +594,14 @@ binding이 blocked이므로 실행·활성화 endpoint는 성공을 반환하지
 | `POST /api/order-plan-screening/policies/candidate` | actor header, `policy-candidate-request.v1`의 `{schema_version, producer, consumer, request_id, policy_version, base_policy_sha256, candidate_sha256, reason}` | `201`: `policy-candidate-response.v1`의 provenance와 `activation_candidate` version/status/digest | `invalid_request`, `idempotency_conflict`, `immutable_conflict` |
 | `POST /api/order-plan-screening/policies/{policy_version}/activate` | actor header, `policy-activate-request.v1`의 `{schema_version, producer, consumer, request_id, policy_sha256, quality_gate_artifact_sha256, explicit_confirmation:true}` | 승인 후에만 `200`: `policy-activate-response.v1`의 provenance와 active status·audit ID | 현재는 `activation_blocked(409)`, digest mismatch (`409`) |
 
+**미구현 — 발주계획 추적 결정 (요청안, 2026-09-04).** ADR-0046 결정 4가 추적 결정을 발주계획
+화면의 결정 1로 채택했으나 그 결정을 읽을·쓸 경로가 위 표에 없다. 목록·상세 응답의 `tracking`
+field와 `GET`/`POST /api/order-plans/{order_plan_pk}/tracking-decisions`를 백엔드 파트에
+요청했다. wire shape·오류·테스트 matrix는
+[`design/order-plan-tracking-contract-request.md`](design/order-plan-tracking-contract-request.md)에 있으며
+**제안이고 채택이 아니다.** 그 문서가 채택될 때까지 이 표가 발주계획 REST 계약의 전부다.
+화면의 Playwright fixture가 요청안의 모양을 mock하지만 그것은 구현 완료의 근거가 아니다.
+
 actor header `X-BidOps-Actor-Name`은 인증이 아닌 감사 표식이다. request body에 actor를
 중복해서 받지 않으며, API 응답·error details에는 prompt/profile/model response 본문,
 secret, 로컬 경로, object key를 넣지 않는다. `request_id`가 다른 동일 execution mutation은

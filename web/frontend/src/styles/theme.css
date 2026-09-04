@@ -19,7 +19,9 @@
   --color-soft-surface: #F3F7F4;
   --color-text: #333333;
   --color-muted-brand: #777777;
-  --color-border: #D7E1DB;
+  /* --color-border 는 Astryx 토큰 이름과 겹쳐 제거했다(ADR-0048). @theme 은
+     :root 에 방출되어 @layer astryx-theme 을 이기므로, 남겨 두면 테마가 정한
+     테두리 색이 앱 안에서 절대 적용되지 않는다. 값은 bidops 테마가 준다. */
   --color-dark: #171717;
   --color-white: #FFFFFF;
 
@@ -49,11 +51,12 @@
   --color-hair: #D7E1DB;
   --color-hair-soft: #EEF3F0;
   --color-alert: #7a3e00;
-  --color-error: #8f2f1d;
   --color-error-edge: #e8b6a8;
 
   /* 역할별 상태 색은 브랜드 초록과 섞지 않고 경고·위험·성공·정보를 구분한다. */
-  --color-warning: #7a3e00;
+  /* --color-warning·--color-error·--color-success 도 같은 이유로 제거했다.
+     의미색은 테마가 정한다(ADR-0048 결정 4). -bg/-edge 짝은 legacy 로 남고
+     셸 bridge 가 테마 muted 토큰으로 연결한다. */
   --color-warning-bg: #fff4e5;
   --color-warning-edge: #e3c49c;
   --color-danger: #8f2f1d;
@@ -61,14 +64,15 @@
   --color-danger-edge: #e8b6a8;
   --color-alert-bg: #fff4e5;
   --color-error-bg: #fff1ed;
-  --color-success: #276238;
   --color-success-bg: #eaf6eb;
   --color-info: #24576a;
   --color-info-bg: #eef7fa;
   --color-focus: #16784B;
 
   /* Canonical palette를 배경 위에서 읽히게 하는 보조 색. */
-  --color-nav-text: rgb(255 255 255 / 82%); /* 사이드바 본문 */
+  /* --color-nav-text 는 제거했다. 사이드바 본문은 테마의 --color-on-dark 를
+     직접 읽는다(PRD §4.1, 무드보드 greige #D4CDCB, navy 위 10.87:1). 같은 이름이
+     두 파일에 다른 값으로 정의돼 있던 중복도 함께 없앴다. */
   --color-muted-soft: #56615B; /* 연한 표면 위의 작은 보조 문자 대비를 보강한다. */
   --color-alert-edge: #e3c49c; /* 경고 배지 테두리 */
 
@@ -142,8 +146,10 @@
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
+  /* Astryx 의 brand accent 와 이름이 겹쳐 shadcn- 접두사로 옮겼다.
+     이 값은 shadcn 의 hover 표면이지 brand accent 가 아니다. */
+  --color-shadcn-accent: var(--accent);
+  --color-shadcn-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-input: var(--input);
@@ -231,7 +237,7 @@ a {
   width: 216px;
   min-height: 100vh;
   overflow-y: auto;
-  color: var(--color-nav-text);
+  color: var(--color-on-dark);
   background: var(--color-deep);
   border-top: 3px solid var(--color-mint-accent);
 }
@@ -318,7 +324,7 @@ a {
   padding: 7px 8px;
   border-left: 3px solid transparent;
   border-radius: 4px;
-  color: var(--color-nav-text);
+  color: var(--color-on-dark);
   font-size: 13px;
   transition: background-color 120ms ease, color 120ms ease;
 }
@@ -535,25 +541,27 @@ a {
   white-space: nowrap;
 }
 
+/* 등급 4단은 의미색이 아니라 slate accent 농도 순서다. 값은 테마 디렉터리의
+   grade-ramp.css 한곳에만 있고(ADR-0048 §3), 여기서는 읽기만 한다. 라벨 대비는
+   scripts/check-contrast.test.mjs 가 고정한다. */
 .badge-grade-1 {
-  color: var(--color-white);
-  background: var(--color-deep);
+  color: var(--bo-on-grade-1);
+  background: var(--bo-grade-1);
 }
 
 .badge-grade-2 {
-  color: var(--color-deep);
-  background: var(--color-deck-soft);
+  color: var(--bo-on-grade-2);
+  background: var(--bo-grade-2);
 }
 
 .badge-grade-3 {
-  color: var(--color-deep);
-  background: var(--color-soft-surface);
+  color: var(--bo-on-grade-3);
+  background: var(--bo-grade-3);
 }
 
 .badge-grade-4 {
-  color: var(--color-muted-soft);
-  border-color: var(--color-border);
-  background: transparent;
+  color: var(--bo-on-grade-4);
+  background: var(--bo-grade-4);
 }
 
 .badge-readiness {
@@ -2338,25 +2346,26 @@ a {
   font-weight: 400;
 }
 
-/* 등급별 레일 색. 행과 머리글이 같은 변수를 쓰도록 한곳에 둔다. */
+/* 등급별 레일 색. 배지와 같은 ramp(grade-ramp.css)를 읽어 행·머리글·배지가
+   한 벌의 농도만 쓰게 한다. */
 .rail-grade-1 {
-  --rail-color: var(--color-deep);
+  --rail-color: var(--bo-grade-1);
 }
 
 .rail-grade-2 {
-  --rail-color: var(--color-primary);
+  --rail-color: var(--bo-grade-2);
 }
 
 .rail-grade-3 {
-  --rail-color: var(--color-deck-soft);
+  --rail-color: var(--bo-grade-3);
 }
 
 .rail-grade-4 {
-  --rail-color: var(--color-border);
+  --rail-color: var(--bo-grade-4);
 }
 
 .rail-grade-none {
-  --rail-color: var(--color-neutral-soft);
+  --rail-color: var(--bo-grade-none);
 }
 
 .queue-list-item {
@@ -2701,12 +2710,24 @@ a {
 }
 
 .attachment-name {
+  display: flex;
+  flex-direction: column;
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
+  font-size: 12px;
+}
+
+/* 파일명은 잘라서 보여주지만 잘림은 부모의 시각 효과일 뿐이고, 자식 span의
+   레이아웃 상자는 그대로 넘쳐 있었다(/queue 1280px 가로 넘침 19.77px의 원인).
+   자식이 스스로 부모 폭 안에 들어가야 넘침이 실제로 사라진다. */
+.attachment-name > span {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
 }
 
 .attachment-link {

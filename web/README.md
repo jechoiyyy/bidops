@@ -125,8 +125,12 @@ PostgreSQL/object-store 자격 증명은 [운영 절차](../docs/operations.md)�
 ```
 
 `web/run-web-tests.sh`는 임시 PostgreSQL을 준비해 migration과 backend pytest, frontend production
-build, 네 폭의 Playwright 화면 스냅샷 회귀를 차례로 수행합니다. 화면만 따로 볼 때는
-`cd web/frontend && npm run test:visual`을 사용합니다. Playwright는 브라우저 번들이 이미 설치되어
+build, Playwright 화면 스냅샷 회귀를 차례로 수행합니다. 검증 폭은 laptop 1280x800과
+desktop 1440x900 두 폭입니다(ADR-0047. 이전의 네 폭에서 모바일 390·태블릿 768을 없앴습니다).
+화면만 따로 볼 때는 `cd web/frontend && npm run test:contrast`(테마 대비)와
+`npm run test:visual`을 사용합니다. **`test:visual`은 2026-09-04 팔레트 전환 이후 기준선이 옛
+무채색이라 다수 실패하며, 승인 없이 갱신하지 않습니다**
+([docs/tracking/findings.md](../docs/tracking/findings.md)). Playwright는 브라우저 번들이 이미 설치되어
 있어야 하며, 없으면 자체 안내 문구와 함께 실패합니다.
 
 ## 문제가 생기면

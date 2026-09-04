@@ -14,18 +14,23 @@ type RouteContextCase = {
 
 const routeContexts: RouteContextCase[] = [
   { name: "dashboard", path: `/?run=${RUN_ID}`, title: "대시보드", dataScope: "run", editScope: null, runSelectorVisible: true },
-  { name: "queue list", path: `/queue?run=${RUN_ID}`, title: "검토 대기열", dataScope: "run", editScope: "리뷰 저장 가능", runSelectorVisible: true },
-  { name: "queue detail", path: `/queue/29?run=${RUN_ID}`, title: "검토 대기열", dataScope: "run", editScope: "리뷰 저장 가능", runSelectorVisible: true },
-  { name: "opportunities", path: `/opportunities?run=${RUN_ID}`, title: "사업기회", dataScope: "cumulative", editScope: "추적 상태 저장 가능", runSelectorVisible: false },
+  // ADR-0046 결정 7: 회차 선택기는 대시보드와 공고 판정 이력 두 화면에만 있다.
+  // 검토 대기열은 회차 종속(dataScope run)이지만 선택기를 갖지 않는다 — 회차는
+  // 같은 화면의 공고 판정 이력 탭에서 고르고 search로 함께 넘어간다.
+  // ADR-0046 결정 3: 공고 1차 판정은 읽기 전용 이력이므로 편집 범위가 없다.
+  // 같은 저장 계약은 사업 추적의 예외 작업이 갖는다.
+  { name: "queue list", path: `/queue?run=${RUN_ID}`, title: "검토 대기열", dataScope: "run", editScope: null, runSelectorVisible: false },
+  { name: "queue detail", path: `/queue/29?run=${RUN_ID}`, title: "검토 대기열", dataScope: "run", editScope: null, runSelectorVisible: false },
+  { name: "opportunities", path: `/opportunities?run=${RUN_ID}`, title: "사업 추적", dataScope: "cumulative", editScope: "추적 상태·예외 작업 저장 가능", runSelectorVisible: false },
   { name: "bid delta", path: `/opportunities/501/bid-delta?run=${RUN_ID}`, title: "입찰 변경 비교", dataScope: "cumulative", editScope: "최종 Go/No-Go 저장 가능", runSelectorVisible: false },
   { name: "pre-specs", path: `/pre-specs?run=${RUN_ID}`, title: "사전규격", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
   { name: "pre-spec detail", path: `/pre-specs/991?run=${RUN_ID}`, title: "사전규격", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
   // 공고 판정 이력·담당자 리뷰 기록은 검토 대기열의 탭으로 흡수됐다(ADR-0041 결정 2).
-  // 옛 경로가 리다이렉트가 아니라 각 탭의 정식 주소로 남아 있으므로 화면 맥락도
-  // 흡수한 화면(검토 대기열)의 것을 쓴다.
-  { name: "judgments list", path: `/judgments?run=${RUN_ID}`, title: "검토 대기열", dataScope: "run", editScope: "리뷰 저장 가능", runSelectorVisible: true },
-  { name: "judgments detail", path: `/judgments/29?run=${RUN_ID}`, title: "검토 대기열", dataScope: "run", editScope: "리뷰 저장 가능", runSelectorVisible: true },
-  { name: "reviews", path: `/reviews?run=${RUN_ID}`, title: "검토 대기열", dataScope: "run", editScope: "리뷰 저장 가능", runSelectorVisible: true },
+  // 옛 경로가 리다이렉트가 아니라 각 탭의 정식 주소로 남아 있다. 공고 판정 이력만
+  // 자기 화면 맥락을 갖는다 — 회차 축을 갖는 두 화면 중 하나이기 때문이다.
+  { name: "judgments list", path: `/judgments?run=${RUN_ID}`, title: "공고 판정 이력", dataScope: "run", editScope: null, runSelectorVisible: true },
+  { name: "judgments detail", path: `/judgments/29?run=${RUN_ID}`, title: "공고 판정 이력", dataScope: "run", editScope: null, runSelectorVisible: true },
+  { name: "reviews", path: `/reviews?run=${RUN_ID}`, title: "검토 대기열", dataScope: "run", editScope: null, runSelectorVisible: false },
   // 최종 Go/No-Go는 사이드바 최상위 항목이 됐다(ADR-0041 결정 3).
   { name: "go-no-go", path: `/go-no-go?run=${RUN_ID}`, title: "최종 Go/No-Go", dataScope: "cumulative", editScope: "최종 Go/No-Go 저장 가능", runSelectorVisible: false },
   // 기준 4화면은 판정 기준 한 화면의 탭이다. 넷 다 누적 자료이므로 회차 선택기가
@@ -78,9 +83,9 @@ test("직접 진입한 lazy route가 metadata와 실제 화면을 함께 렌더�
   await page.goto(`/opportunities?run=${RUN_ID}`);
 
   const topbar = page.locator("header.topbar");
-  await expect(topbar.locator("h1")).toHaveText("사업기회");
+  await expect(topbar.locator("h1")).toHaveText("사업 추적");
   await expect(topbar).toHaveAttribute("data-route-data-scope", "cumulative");
-  await expect(topbar.locator(".topbar-status")).toHaveText("추적 상태 저장 가능");
+  await expect(topbar.locator(".topbar-status")).toHaveText("추적 상태·예외 작업 저장 가능");
   await expect(page.getByLabel("실행 회차", { exact: true })).toHaveCount(0);
   await expect(page.locator(".opportunities-page")).toBeVisible();
 });
@@ -99,8 +104,11 @@ test("SPA 내부 link click으로 lazy route에 들어가도 metadata와 화면�
   const topbar = page.locator("header.topbar");
   await expect(topbar.locator("h1")).toHaveText("검토 대기열");
   await expect(topbar).toHaveAttribute("data-route-data-scope", "run");
-  await expect(topbar.locator(".topbar-status")).toHaveText("리뷰 저장 가능");
-  await expect(page.getByLabel("실행 회차", { exact: true })).toHaveValue(RUN_ID);
+  await expect(topbar.locator(".topbar-status")).toHaveCount(0);
+  // 회차 선택기는 공고 판정 이력 탭에만 있다(ADR-0046 결정 7). 검토 대기열로
+  // 옮겨도 회차는 주소에 그대로 남아 같은 회차를 계속 본다.
+  await expect(page.getByLabel("실행 회차", { exact: true })).toHaveCount(0);
+  await expect(page.locator(".ws-run-note")).toContainText("공고 판정 이력");
   await expect(page.locator(".queue-page")).toBeVisible();
   expect(new URL(page.url()).searchParams.get("run")).toBe(RUN_ID);
 });
@@ -117,7 +125,7 @@ test("누적 화면은 회차 API 실패와 무관하게 열린다", async ({ pa
   });
 
   await page.goto(`/opportunities?run=${RUN_ID}`);
-  await expect(page.locator("header.topbar h1")).toHaveText("사업기회");
+  await expect(page.locator("header.topbar h1")).toHaveText("사업 추적");
   await expect(page.getByLabel("실행 회차", { exact: true })).toHaveCount(0);
   await expect(page.locator(".opportunities-page")).toBeVisible();
   await expect(page.locator(".shell-notice")).toHaveCount(0);

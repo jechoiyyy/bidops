@@ -587,3 +587,43 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 - 접근 방법: 이벤트 이름을 확장점 이름 기준으로 바꾸고(`extension.tracking_hook_failed`),
   어느 제공자가 실패했는지는 registry가 아는 이름을 함께 남긴다. 로그 이름을 바꾸는
   작업과 함께 묶는다.
+
+## B-F 설계 승인 baseline과 manifest가 없어 전체 설계 게이트를 완료할 수 없다
+
+- 재현 조건: `web/frontend`에서 `npm run test:design`을 실행하고 `docs/design/mockups/canvas.json`의 14개 artboard와 `tests/design-snapshots/`·manifest-driven `design.spec.ts`를 대조한다. 기존 공통 시각 회귀는 `npx playwright test visual.spec.ts`로 실행한다.
+- 증상: PLAN.md §3·§5·§7이 요구하는 14-artboard manifest, 승인된 PNG baseline, fixture·viewport·crop 매핑과 그 변경 승인 기록이 저장소에 없다. 현재 design suite는 shell 차원의 5 passed·3 skipped에 그치며, 기존 visual suite는 현 UI와 맞지 않는 baseline 때문에 204 passed·144 failed로 끝난다.
+- 영향: B-F 화면의 기능·반응형·접근성 검증은 가능하지만, 승인된 기준 이미지와 픽셀/crop 일치 여부를 주장할 수 없다. 승인 없이 기존 snapshot을 갱신하면 설계 검수 증거를 덮어쓰게 된다.
+- 상태: **차단** (2026-09-03 독립검증). 코드 구현 완료의 차단이 아니라 PLAN 전체 완료 정의에 포함된 승인 설계 자산의 부재다.
+- 지금 해결할 수 없는 이유: 14개 artboard의 제품 승인 PNG와 각 fixture·viewport·crop의 승인 메타데이터가 저장소나 현재 요청에 제공되지 않았다. 이를 임의로 생성하거나 기존 baseline을 승인본으로 승격할 권한이 없다.
+- 접근 방법: 제품·디자인 담당자가 14개 PNG와 source hash, viewport, fixture, crop, 승인자·승인 시각을 제공하면 `tests/design-snapshots/manifest.json`과 manifest-driven `design.spec.ts`를 추가하고, 기준선 변경은 승인 기록이 있을 때만 갱신한다. 그 뒤 laptop 1280x800·desktop 1440x900 두 폭(ADR-0047)과 접근성 게이트를 다시 실행한다. 2026-09-04 팔레트 전환으로 기준 이미지는 무드보드 v2로 만들어야 하며, 그 선행 조건은 [design/PLAN.md](../design/PLAN.md) §0-3·0-4다.
+
+## 발주계획 추적 결정(결정 1)을 저장할 REST 계약이 없다
+
+- 재현 조건: `web/backend/app/screening/routers/order_plans.py`의 경로 다섯 개를 확인한다. 목록·상세·screening-history·screening-feedback(GET/POST)뿐이다. `PATCH /opportunities/{id}/tracking-status`는 사업기회 식별자로만 부를 수 있고, `OrderPlanListItem`·`OrderPlanDetailResponse`(둘 다 `_Strict`)에는 `opportunity_id`도 추적 상태도 없다.
+- 증상: [ADR-0046](../design/ADR.md) 결정 4가 추적 결정을 발주계획 화면의 결정 1로 채택했는데, 그 결정을 읽을 수도 쓸 수도 없다. `docs/design/PLAN.md` 단계 C 작업 5(추적 결정을 상세 pane 바닥의 결정 액션으로)와 완료 게이트 2("추적 결정과 사람 판단 수정이 서로 다른 요청으로 저장된다")를 서버 없이 만족시킬 수 없다.
+- 영향: 단계 C의 화면은 만들 수 있으나 **결정이 서버에 남지 않는다.** 이 상태에서 결정을 화면 상태나 localStorage에 기록하면 담당자에게 저장된 것처럼 보이면서 실제로는 사라지므로, 그렇게 만들지 않는다.
+- 상태: **차단** (2026-09-04). 화면 구현의 차단이 아니라 계약의 부재다.
+- 지금 해결할 수 없는 이유: REST·DB 계약은 백엔드 파트의 소유이고, 화면 작업이 임의로 endpoint를 만들거나 기존 사업기회 계약의 의미를 바꿀 권한이 없다.
+- 접근 방법: 요청안을 [`order-plan-tracking-contract-request.md`](../design/order-plan-tracking-contract-request.md)로 작성해 백엔드 파트에 보낸다. 조사 결과 **새 table은 필요하지 않을 가능성이 높다** — 소유 사업기회와 `stage='order_plan'` official 링크는 `ingest/loader.py`가 이미 만들고, 상태 4값과 append-only `AuditEvent`도 이미 있다. 없는 것은 응답에 그 상태를 싣는 것과 발주계획 식별자로 쓸 경로 둘이다. 계약이 확정될 때까지 화면은 요청안 §7의 규칙을 지킨다: adapter 한 곳으로 호출을 모으고, 실패를 성공으로 보이게 하지 않으며, 응답에 추적 상태가 없으면 `계약 미구현`으로 표시하고 `미선택`으로 바꾸지 않는다. 계약이 구현·검증되기 전에는 단계 C를 완료로 적지 않는다.
+
+## 팔레트 전환 뒤 화면 단위 시각 회귀를 잡을 기준선이 없다
+
+- 재현 조건: `web/frontend`에서 `npx playwright test`를 실행한다. 2026-09-04 단계 A(무드보드 팔레트 적용, ADR-0048) 이후 기준이다.
+- 증상: 단계 A 직후 `370 passed, 75 failed, 3 skipped`. 실패 75건 중 73건이 `visual.spec.ts`다. 팔레트가 모든 화면의 색을 바꿨으므로 옛 무채색 기준선과 다른 것이 정상이며, 실패 자체는 회귀의 증거가 아니다.
+- 정정 (2026-09-04, 단계 B): 그 73건은 전부 스냅샷이 아니다. **팔레트 스냅샷 72건 + `/queue` 1280px 가로 오버플로 1건**이다. 오버플로 1건은 색과 무관한 레이아웃 실패이며(`.notice-attachments-panel`의 첨부 파일명이 19.77px 넘침), 단계 B의 변경 전후로 같은 값이 나오는 것을 확인했다. 단계 E가 `검토 대기열`을 이행할 때 함께 정리한다. 단계 B 이후 수치는 `382 passed, 74 failed, 2 skipped`이며 새 실패는 없다(74 = 위 73건 + `visual.spec.ts:257` flake 1건, 단독 실행 시 통과).
+- 해소 (2026-09-04, 단계 E): `/queue` 오버플로 1건을 고쳤다. `.attachment-name`이 ellipsis로 자르고 있었지만 **자름은 부모의 시각 효과일 뿐 자식 `span`의 레이아웃 상자는 그대로 넘쳐 있었다.** 자식이 스스로 `max-width: 100%`와 ellipsis를 갖도록 고쳤고 `visual.spec.ts`의 가로 넘침 36건이 모두 통과한다. **남은 실패는 팔레트 스냅샷 72건뿐이며, 이 finding이 말하는 신호 손실은 그 72건에만 해당한다.**
+- 영향: **그 73건이 실패로 남아 있는 동안 화면 단위 레이아웃 회귀를 자동으로 구분할 수 없다.** "색이 바뀌어서 실패"와 "레이아웃이 깨져서 실패"가 같은 실패로 보인다. 셸은 `tests/design-shell.spec.ts`의 구조 검사(테마 scope, computed 색 대 PRD §4.1, 248/76px 치수, 1280·1440·1920px 가로 오버플로 없음, legacy 토큰 회귀)로 지켜지지만 이 검사는 셸 범위이고 화면 내부 레이아웃은 보지 않는다.
+- 상태: **수용됨** (2026-09-04). 단계 A를 진행하기로 한 결정의 알려진 대가다. `visual.spec.ts`는 v2 기준 이미지가 생길 때까지 완료 게이트에서 제외한다.
+- 지금 해결할 수 없는 이유: v2 기준 이미지는 시안을 무드보드 팔레트로 다시 렌더해야 만들 수 있고, 그것은 [design/PLAN.md](../design/PLAN.md) §0-3·0-4(시안 생성기 복원과 보존본 대조)를 먼저 끝내야 한다. 생성기가 복원되기 전에 렌더 입력을 바꾸면 0-4의 대조 기준이 사라진다.
+- **기존 스냅샷을 `--update-snapshots`로 덮지 않는다.** PLAN §3.2·§6이 금지한 행위이며, 덮는 순간 이 finding이 기록하는 신호 손실이 영구화된다.
+- 접근 방법: PLAN §0-3·0-4를 끝내고 §0-5로 v2 기준 이미지를 만든 뒤, 변경 사유·영향 화면·승인자를 기록한 별도 변경으로 `visual.spec.ts` 기준선을 교체한다. 그 전까지 화면 작업(단계 C~F)은 기능 계약 테스트와 구조 검사에 의존하고, 레이아웃 변경은 사람이 눈으로 확인한다.
+
+## 사업기회 추적 이력을 읽을 계약이 없고 구역별 집계도 서버가 세지 않는다
+
+- 재현 조건: `web/backend/app/lifecycle/routers/opportunities.py`의 경로 넷을 확인한다. 목록(`GET ""`)·상세(`GET /{id}`)·후보 연결 판정(`PATCH /links/{id}/decision`)·추적 상태 변경(`PATCH /{id}/tracking-status`)뿐이다. 목록 query는 `tracking_status`·`first_registered_stage`·`sort`·`limit`·`offset`이다.
+- 증상 1 — **추적 이력이 최근 한 건뿐이다.** `opportunity_tracking`은 상태 변경마다 append-only `AuditEvent`(`opportunity.tracking_status.changed`)를 남기지만 그것을 읽는 endpoint가 없다. 화면이 받는 것은 `OpportunityStateView`의 `tracking_status`·`tracking_reason`·`tracking_selected_by`·`tracking_selected_at` 넷, 즉 **마지막 한 건**이다. [ADR-0046](../design/ADR.md) 결정 2가 요구한 사업 추적 상세의 `추적 이력` 탭이 이전 결정을 보여줄 수 없다.
+- 증상 2 — **구역별 집계와 필터가 없다.** ADR-0046 결정 2의 구역 `조치 필요`는 저장된 상태가 아니라 "미선택이거나, 재검토 신호나 예외 작업이 남았다"는 파생 조건이다. 서버에 `recheck_signal` 필터도 후보 연결 대기 필터도 집계 응답도 없어, 화면이 한 페이지를 받아 직접 나눈다.
+- 영향: (1) `추적 이력` 탭은 최근 한 건만 보여주고, 그것이 이전 결정이 없다는 뜻이 아님을 화면이 직접 밝힌다(`.opportunity-contract-gap`). 이전 revision을 화면이 지어내지 않는다. (2) `조치 필요` 구역의 건수는 **받은 페이지 안에서 센 값**이며, 목록 머리말이 그 사실과 남은 건수를 함께 적는다. 전체 총계로 읽으면 과소 계상된다.
+- 상태: **수용됨** (2026-09-04, 단계 E). 화면 구현의 차단이 아니라 계약의 부재이며, 두 한계 모두 화면이 숨기지 않고 표시한다.
+- 지금 해결할 수 없는 이유: REST·DB 계약은 백엔드 파트의 소유이고, 화면 작업이 감사 기록 읽기 경로를 새로 만들거나 목록 계약의 의미를 바꿀 권한이 없다.
+- 접근 방법: (1) `GET /api/opportunities/{id}/tracking-decisions`를 추가해 append-only 이력을 `revision`·`tracking_status`·`reason`·`selected_by`·`selected_at`·`audit_event_id`로 연다. 발주계획 쪽 같은 요청([`order-plan-tracking-contract-request.md`](../design/order-plan-tracking-contract-request.md) §2.1)과 같은 wire shape를 쓰면 화면이 `ReviewRevisionHistory` 하나로 둘을 그린다. (2) 목록에 `recheck_signal`·`has_pending_candidate_link` 필터와 구역별 `section_counts` 집계를 추가하고 `docs/contracts.md`의 `OpportunityList` 항목에 등록한다. 그 전까지 화면은 저장된 추적 상태로 서버를 거르고(`추적 중`·`보류`·`추적 종료`) `조치 필요`만 받은 페이지에서 나눈다.

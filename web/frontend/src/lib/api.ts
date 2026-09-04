@@ -17,6 +17,9 @@ import type {
   OrderPlanScreeningExecutionQuery,
   OrderPlanScreeningFeedbackCreateRequest,
   OrderPlanScreeningFeedbackCreateResponse,
+  OrderPlanTrackingDecisionCreateRequest,
+  OrderPlanTrackingDecisionCreateResponse,
+  OrderPlanTrackingHistoryResponse,
   OrderPlanScreeningFeedbackListResponse,
   OrderPlanScreeningHistoryResponse,
   PreSpecListQuery,
@@ -24,6 +27,8 @@ import type {
   PreSpecOverviewReviewsResponse,
   PreSpecOverviewReviewsV2Response,
   OpportunityDetailResponse,
+  CandidateLinkDecisionRequest,
+  OpportunityLinkView,
   OpportunityListQuery,
   OpportunityListResponse,
   PolicyActivationRequest,
@@ -343,6 +348,36 @@ export const api = {
       },
     ),
 
+  // --- 발주계획 추적 결정 (결정 1) ---
+  //
+  // 이 두 method 는 **아직 서버에 없는 계약**을 부른다.
+  // `docs/design/order-plan-tracking-contract-request.md` 가 정본이며 채택이 아니라 요청안이다.
+  // 화면이 계약 모양을 아는 자리를 여기 하나로 제한한다 — 요청안 §2.3 의 대안(기존
+  // `PATCH /opportunities/{id}/tracking-status`)으로 확정되면 이 두 함수만 바뀐다.
+  //
+  // 사람 판단 수정(`createOrderPlanScreeningFeedback`)과 **다른 경로**다. ADR-0046 결정 5 와
+  // 요청안 §3 에 따라 한 요청으로 합치지 않는다.
+
+  getOrderPlanTrackingDecisions: (orderPlanPk: number, options?: ReadRequestOptions) =>
+    request<OrderPlanTrackingHistoryResponse>(
+      `/order-plans/${orderPlanPk}/tracking-decisions`,
+      options,
+    ),
+
+  createOrderPlanTrackingDecision: (
+    orderPlanPk: number,
+    payload: OrderPlanTrackingDecisionCreateRequest,
+    actorName: string,
+  ) =>
+    request<OrderPlanTrackingDecisionCreateResponse>(
+      `/order-plans/${orderPlanPk}/tracking-decisions`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...actorHeaders(actorName) },
+        body: JSON.stringify(payload),
+      },
+    ),
+
   getPipelineLogs: (
     runId: string,
     executionId?: string,
@@ -619,6 +654,18 @@ export const api = {
 
   getOpportunity: (opportunityId: number, options?: ReadRequestOptions) =>
     request<OpportunityDetailResponse>(`/opportunities/${opportunityId}`, options),
+
+  /** 후보 연결 하나에 사람 판정을 남긴다. 응답은 갱신된 연결 하나다. */
+  decideOpportunityLink: (
+    linkId: number,
+    payload: CandidateLinkDecisionRequest,
+    actorName: string,
+  ) =>
+    request<OpportunityLinkView>(`/opportunities/links/${linkId}/decision`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...actorHeaders(actorName) },
+      body: JSON.stringify(payload),
+    }),
 
   updateOpportunityTrackingStatus: (
     opportunityId: number,

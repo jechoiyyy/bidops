@@ -5,7 +5,7 @@
 | 문서 상태 | 현재 결정 기준선·통합 색인 |
 | 기준일 | 2026-09-01 |
 | 범위 | 수집, 선별, 사전규격 검토, 심층 검토, 입찰공고 추적, 운영·보안 |
-| 상세 결정 정본 | [`docs/tracking/decisions/`](tracking/decisions/)의 ADR-0001~0038·0042~0045, [`docs/design/ADR.md`](design/ADR.md)의 ADR-0039~0041 |
+| 상세 결정 정본 | [`docs/tracking/decisions/`](tracking/decisions/)의 ADR-0001~0038·0042~0045, [`docs/design/ADR.md`](design/ADR.md)의 ADR-0039~0041·0046~0048 |
 | 함께 읽을 문서 | [`PRD.md`](PRD.md), [`ARCHITECTURE.md`](ARCHITECTURE.md), [`contracts.md`](contracts.md) |
 
 이 문서는 여러 시점에 작성된 결정 기록을 현재 관점에서 읽기 위한 통합 ADR이다. 각 결정의
@@ -120,13 +120,16 @@ R-xx/A-xx 작업 지시, 과거 API 경로는 현재 실행 진입점이 아니�
 | [0036](tracking/decisions/0036-judgment-model-lineage-source.md) | 판정의 모델 계보는 revision→execution 경로를 정본으로 함 | 채택 | legacy 계보는 `unknown` |
 | [0037](tracking/decisions/0037-order-plan-c2-bm25-top300-qwen.md) | C-2 발주계획 선별은 BM25 Top 300 뒤 Qwen으로 확정 | 채택 | 현재 선택; 운영 활성화와 별개 |
 | [0038](tracking/decisions/0038-order-plan-c2-phase0-contracts.md) | C-2 Phase 0 전용 파일·REST·DB 계약과 상태 경계 고정 | 채택 — 계약만 | 제품 adapter·DB·실행은 후속 phase |
-| [0039](design/ADR.md#adr-0039-astryx-디자인-시스템-채택과-승인-범위) | Astryx 디자인 시스템 채택과 승인 범위 | 채택 | `neutral` 테마·고정 산출물; 화면 이행은 후속 단계 |
+| [0039](design/ADR.md#adr-0039-astryx-디자인-시스템-채택과-승인-범위) | Astryx 디자인 시스템 채택과 승인 범위 | 채택 | 고정 빌드 산출물; 테마는 0048이 개정; 화면 이행은 후속 단계 |
 | [0040](design/ADR.md#adr-0040-레이아웃-소유권과-화면-단위-이행) | 레이아웃 소유권과 화면 단위 이행 | 채택 | 레이아웃은 프로젝트 소유; 화면별 이행 |
-| [0041](design/ADR.md#adr-0041-정보구조와-판정-동선) | 정보구조와 판정 동선 | 채택 | 회차·누적 축과 같은 화면 판정 입력을 유지 |
+| [0041](design/ADR.md#adr-0041-정보구조와-판정-동선) | 정보구조와 판정 동선 | 채택 | 회차·누적 축과 같은 화면 판정 입력을 유지; 결정 1·2·4는 0046가 개정 |
 | [0042](tracking/decisions/0042-c2-model-revision-declared-at-deployment.md) | C-2 모델 revision은 배포 시점 선언으로 1회 대조 | 채택 | vLLM이 revision을 노출하지 않음; 응답 값은 있으면 대조 |
 | [0043](tracking/decisions/0043-screening-deep-review-module-boundary.md) | 선별과 심층 검토를 한 배포 단위 안의 독립 모듈로 분리 | 채택 | 구조 경계만 고정; 배포 단위·운영 활성화는 불변; [0045](tracking/decisions/0045-backend-module-layout.md)가 네 모듈로 보강 |
 | [0044](tracking/decisions/0044-c2-stage2-matches-the-measured-method.md) | C-2 stage 2를 측정된 방법과 일치시킴 | 채택 | item_id payload·strict schema·승인 generation config; binding v2 |
 | [0045](tracking/decisions/0045-backend-module-layout.md) | 백엔드를 core·lifecycle·screening·deep_review 네 모듈과 조립 계층으로 배치 | 채택 | ADR-0043 보강; lifecycle 확장점·`BIDOPS_MODULES`·경계 강제 테스트; REST 표면 불변 |
+| [0046](design/ADR.md#adr-0046-사업-추적-중심-정보구조와-추적-결정의-위치) | 사업 추적 중심 정보구조와 추적 결정의 위치 | 채택 | 사이드바 16→7, 검토 대기열→사업 추적; 결정 1은 발주계획의 추적 결정 |
+| [0047](design/ADR.md#adr-0047-데스크톱노트북-전용-지원-폭) | 데스크톱·노트북 전용 지원 폭 | 채택 | 1280~1920px만 지원; 검증 viewport 두 폭 |
+| [0048](design/ADR.md#adr-0048-무드보드-기반-색-팔레트와-테마-소유권) | 무드보드 기반 색 팔레트와 테마 소유권 | 채택 | 무드보드 5색 anchor에서 파생한 `bidops` 테마; 화면은 토큰만 읽고 `--color-*`를 재정의하지 않음; 의미색은 무드보드가 정하지 않음 |
 
 ## 4. 주제별 결정 요약
 

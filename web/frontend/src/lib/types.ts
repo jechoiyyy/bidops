@@ -1161,6 +1161,22 @@ export interface TrackingStatusUpdateRequest {
   reason: string;
 }
 
+/**
+ * 후보 연결 하나에 대한 사람 판정 (`PATCH /opportunities/links/{id}/decision`).
+ *
+ * 서버는 이 계약을 이미 갖고 있었지만 화면에 진입점이 없어 `후보 확인 대기`
+ * 연결을 사람이 해소할 길이 없었다. 사업 추적의 예외 작업 경로가 그 자리다
+ * (ADR-0046 결정 3, PLAN 단계 E 작업 3-2).
+ *
+ * `accepted`는 이 후보를 이 사업기회의 관계로 확정하고, `rejected`는 관계가
+ * 아니라고 기록한다. 어느 쪽도 추적 상태·적합성 등급·최종 Go/No-Go를 바꾸지
+ * 않는다. 이유는 서버가 필수로 받는다(`min_length=1`).
+ */
+export interface CandidateLinkDecisionRequest {
+  decision: "accepted" | "rejected";
+  reason: string;
+}
+
 // ---------------------------------------------------------------------------
 // Order-plan C-2 review REST contracts
 //
@@ -1203,6 +1219,71 @@ export interface OrderPlanHumanFeedbackSummary {
   created_at: string;
 }
 
+/**
+ * 발주계획 추적 결정 — **제안 계약이며 서버에 아직 없다.**
+ * `docs/design/order-plan-tracking-contract-request.md` §2가 정본이고, 그 문서는 채택이 아니라
+ * 백엔드 파트에 보낸 요청안이다. 여기의 type은 화면이 그 모양을 한곳에서만 알도록
+ * 모아 둔 것이며, 계약이 대안(§2.3)으로 확정되면 이 type과 `lib/api.ts`의 adapter만
+ * 바뀐다.
+ *
+ * 세 상태를 서로 바꾸지 않는다.
+ * - `undefined`: 서버 응답에 `tracking`이 없다 = 계약 미구현
+ * - `null`: 소유 사업기회를 확인하지 못했다
+ * - `{ tracking_status: "미선택" }`: 사람이 아직 결정하지 않았다. 종료가 아니다
+ */
+export interface OrderPlanTracking {
+  opportunity_id: number;
+  tracking_status: OpportunityTrackingStatus;
+  tracking_reason: string | null;
+  tracking_selected_by: string | null;
+  tracking_selected_at: string | null;
+  inherited_from_order_plan: boolean;
+}
+
+export interface OrderPlanTrackingDecisionItem {
+  decided_at: string;
+  tracking_status: OpportunityTrackingStatus;
+  previous_tracking_status: OpportunityTrackingStatus | null;
+  reason: string | null;
+  claimed_name: string;
+  audit_event_id: string;
+}
+
+export interface OrderPlanTrackingHistoryResponse {
+  schema_version: "order-plan-tracking-history.v1";
+  producer: "order-plan-review-api";
+  consumer: "order-plan-review-client";
+  order_plan_pk: number;
+  opportunity_id: number | null;
+  items: OrderPlanTrackingDecisionItem[];
+}
+
+/** `미선택`은 이 요청으로 쓸 수 없다. 화면의 `이번 건 넘기기`는 아무것도 저장하지 않는다. */
+export type OrderPlanTrackingDecisionStatus = Exclude<OpportunityTrackingStatus, "미선택">;
+
+export interface OrderPlanTrackingDecisionCreateRequest {
+  schema_version: "order-plan-tracking-decision-create.v1";
+  producer: "order-plan-review-client";
+  consumer: "order-plan-review-api";
+  request_id: string;
+  tracking_status: OrderPlanTrackingDecisionStatus;
+  reason: string;
+  expected_tracking_status: OpportunityTrackingStatus | null;
+}
+
+export interface OrderPlanTrackingDecisionCreateResponse {
+  schema_version: "order-plan-tracking-decision-response.v1";
+  producer: "order-plan-review-api";
+  consumer: "order-plan-review-client";
+  order_plan_pk: number;
+  opportunity_id: number;
+  tracking_status: OpportunityTrackingStatus;
+  tracking_reason: string | null;
+  tracking_selected_by: string | null;
+  tracking_selected_at: string | null;
+  audit_event_id: string;
+}
+
 export interface OrderPlanListItem {
   order_plan_pk: number;
   order_plan_unty_no: string;
@@ -1223,6 +1304,8 @@ export interface OrderPlanListItem {
   qwen_score: number | null;
   qwen_reason: string | null;
   human_feedback: OrderPlanHumanFeedbackSummary | null;
+  /** 제안 계약(§2.1). 없으면 계약 미구현이며 `미선택`으로 바꾸지 않는다. */
+  tracking?: OrderPlanTracking | null;
 }
 
 export interface OrderPlanListResponse {
@@ -1289,6 +1372,8 @@ export interface OrderPlanDetailResponse {
   observations: OrderPlanObservationView[];
   screening_history: OrderPlanScreeningHistoryItem[];
   latest_human_feedback: OrderPlanHumanFeedbackSummary | null;
+  /** 제안 계약(§2.1). 없으면 계약 미구현이며 `미선택`으로 바꾸지 않는다. */
+  tracking?: OrderPlanTracking | null;
 }
 
 export interface OrderPlanScreeningHistoryResponse {

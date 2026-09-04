@@ -36,7 +36,7 @@ export function TopBar({
   const contextVisible = runSelectorVisible || Boolean(editScope);
 
   return (
-    <header className="topbar" data-route-data-scope={dataScope}>
+    <header className="topbar" data-route-data-scope={dataScope} data-shell-region="topbar">
       <button
         aria-controls="primary-navigation"
         aria-expanded={navOpen}
