@@ -298,8 +298,28 @@ React 코드에 붙이지 않는다.
 (2026-09-04).** 지원 폭 기준의 반대 불변식으로 다시 썼다. 단계 B가 `SplitWorkspace`의 좁은 폭
 전환 자체를 없앴으므로 이 단계까지 미룰 수 없었다.
 
-먼저 정리할 것: `VerdictPanel`의 `ReviewSecondaryInput`은 아직 `defaultIsOpen`이다. 아래 3에서
+먼저 정리할 것: `VerdictPanel`의 `ReviewSecondaryInput`은 아직 `defaultIsOpen`이다. 아래 5에서
 추적 결정이 pane 바닥의 결정이 되면 그 prop을 없애 시안의 접힌 기본값으로 되돌린다.
+
+**계약 의존성 (2026-09-04).** 아래 작업 5의 추적 결정을 저장할 REST 경로가 backend에 없다.
+요청안을 [`order-plan-tracking-contract-request.md`](../order-plan-tracking-contract-request.md)로
+백엔드 파트에 보낸다. 조사 결과 새 table은 필요하지 않을 가능성이 높다 — 소유 사업기회와
+`stage='order_plan'` official 링크를 `ingest/loader.py`가 이미 만들고, 상태 4값과 append-only
+`AuditEvent`도 이미 있다. 없는 것은 발주계획 응답이 그 상태를 싣지 않는 것과 발주계획 식별자로
+쓸 경로가 없는 것 둘이다.
+
+계약을 기다리지 않고 화면을 먼저 만들되 요청안 §7의 규칙을 지킨다.
+
+1. 저장 호출을 `lib/api.ts`의 adapter 한 곳에 모은다. 계약이 대안(§2.3)으로 확정되면 그 한 곳만
+   바꾼다.
+2. **결정을 화면 상태에만 기록하지 않는다.** 서버가 없으면 실패로 표시하고 다음 건으로 이동하지
+   않으며 낙관적 갱신을 하지 않는다.
+3. 응답에 추적 상태가 없으면 `계약 미구현`으로 표시한다. `미선택`으로도 `추적 없음`으로도 바꾸지
+   않는다. 이 셋은 서로 다른 상태다.
+4. Playwright fixture가 요청안의 wire shape를 그대로 mock한다. 그 fixture는 요청안의 실행 가능한
+   형태이며 **구현 완료의 근거가 아니다.**
+5. 계약이 채택·구현·검증되기 전에는 이 단계를 **완료로 적지 않는다.** 완료 게이트 2·3은 서버가
+   있어야만 판정할 수 있다.
 
 작업:
 
