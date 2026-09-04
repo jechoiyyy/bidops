@@ -854,9 +854,20 @@
 
 .c2l-presets {
   display: flex;
+  min-width: 0;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--spacing-2);
+}
+
+.c2l-presets p {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.c2l-presets .review-filter-segmented {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .c2l-filter-axis {
@@ -1242,4 +1253,84 @@
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
   word-break: break-all;
+}
+
+/* ===== 단계 C — 발주계획 추적 결정과 상단 요약 ===== */
+
+.c2l-scope-line {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--spacing-3);
+  flex-wrap: wrap;
+}
+
+.c2l-scope-line p {
+  margin: 0;
+}
+
+.c2l-scope-link {
+  flex: 0 0 auto;
+  color: var(--color-text-accent);
+  text-decoration: underline;
+  text-underline-offset: var(--spacing-0-5);
+}
+
+.c2l-list-foot {
+  min-width: 0;
+  margin: 0;
+  padding: var(--spacing-2) var(--spacing-4);
+  border-top: var(--border-width) solid var(--color-border);
+  overflow-wrap: anywhere;
+}
+
+/* 추적 결정 영역. 결정 버튼은 pane 바닥의 .review-decision-bar 에 있고 여기에는
+   현재 상태와 이 결정이 바꾸지 않는 것, 사유·담당자만 둔다. */
+.c2l-tracking {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3) var(--spacing-4);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-element);
+  background: var(--color-background-card);
+}
+
+.c2l-tracking p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.c2l-tracking-head {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.c2l-tracking-head p {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.c2l-tracking-fields {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--spacing-3);
+  padding-top: var(--spacing-1);
+}
+
+/* 접힌 사람 판단 수정 영역이 소유하는 저장 액션. pane 바닥의 결정 액션 바와 다른 자리다. */
+.c2l-feedback-actions {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: var(--spacing-3);
+  flex-wrap: wrap;
+}
+
+.c2l-feedback-actions .review-decision-action {
+  margin-left: auto;
 }

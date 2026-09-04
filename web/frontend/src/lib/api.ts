@@ -17,6 +17,9 @@ import type {
   OrderPlanScreeningExecutionQuery,
   OrderPlanScreeningFeedbackCreateRequest,
   OrderPlanScreeningFeedbackCreateResponse,
+  OrderPlanTrackingDecisionCreateRequest,
+  OrderPlanTrackingDecisionCreateResponse,
+  OrderPlanTrackingHistoryResponse,
   OrderPlanScreeningFeedbackListResponse,
   OrderPlanScreeningHistoryResponse,
   PreSpecListQuery,
@@ -336,6 +339,36 @@ export const api = {
   ) =>
     request<OrderPlanScreeningFeedbackCreateResponse>(
       `/order-plans/${orderPlanPk}/screening-feedback`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...actorHeaders(actorName) },
+        body: JSON.stringify(payload),
+      },
+    ),
+
+  // --- 발주계획 추적 결정 (결정 1) ---
+  //
+  // 이 두 method 는 **아직 서버에 없는 계약**을 부른다.
+  // `docs/order-plan-tracking-contract-request.md` 가 정본이며 채택이 아니라 요청안이다.
+  // 화면이 계약 모양을 아는 자리를 여기 하나로 제한한다 — 요청안 §2.3 의 대안(기존
+  // `PATCH /opportunities/{id}/tracking-status`)으로 확정되면 이 두 함수만 바뀐다.
+  //
+  // 사람 판단 수정(`createOrderPlanScreeningFeedback`)과 **다른 경로**다. ADR-0045 결정 5 와
+  // 요청안 §3 에 따라 한 요청으로 합치지 않는다.
+
+  getOrderPlanTrackingDecisions: (orderPlanPk: number, options?: ReadRequestOptions) =>
+    request<OrderPlanTrackingHistoryResponse>(
+      `/order-plans/${orderPlanPk}/tracking-decisions`,
+      options,
+    ),
+
+  createOrderPlanTrackingDecision: (
+    orderPlanPk: number,
+    payload: OrderPlanTrackingDecisionCreateRequest,
+    actorName: string,
+  ) =>
+    request<OrderPlanTrackingDecisionCreateResponse>(
+      `/order-plans/${orderPlanPk}/tracking-decisions`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json", ...actorHeaders(actorName) },

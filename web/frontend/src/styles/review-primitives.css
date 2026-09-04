@@ -322,28 +322,44 @@
   bottom: 0;
   z-index: 2;
   flex: 0 0 auto;
-  align-items: center;
-  gap: var(--spacing-3);
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--spacing-2) var(--spacing-3);
   min-width: 0;
   padding: var(--spacing-3) var(--spacing-4);
   border-top: var(--border-width) solid var(--color-border);
   background: var(--color-background-card);
 }
 
+/* 액션과 안내는 좁아지면 **줄을 바꾼다.** 한쪽이 0에 가깝게 눌리면 긴 한글이 한 글자씩
+   세로로 쌓여 바가 pane 전체를 덮는다(단계 C에서 실제로 겪었다). flex-basis 를 주고
+   wrap 을 켜서 그 상태를 만들지 않는다. */
 .review-decision-bar-actions {
   display: flex;
-  flex: 0 0 auto;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
   align-items: flex-start;
   gap: var(--spacing-2);
+  min-width: 0;
 }
 
 .review-decision-bar-hint {
+  flex: 0 1 auto;
   min-width: 0;
   margin-left: auto;
   color: var(--color-text-secondary);
   font-size: var(--font-size-xs);
   text-align: right;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+}
+
+.review-decision-bar .review-decision-action {
+  max-width: 100%;
+}
+
+.review-decision-bar .review-decision-action-reason {
+  max-width: 40ch;
+  text-align: right;
 }
 
 /* --- 접힌 보조 입력 영역 --- */
