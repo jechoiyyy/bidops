@@ -204,6 +204,40 @@
   min-width: 0;
 }
 
+.pre-specs-split-workspace {
+  align-items: flex-start;
+  gap: var(--space-3);
+  overflow: visible;
+}
+
+.pre-specs-list-pane,
+.pre-specs-detail-pane {
+  min-width: 0;
+}
+
+.pre-specs-list-pane {
+  flex-basis: 62%;
+}
+
+.pre-specs-detail-pane {
+  position: sticky;
+  top: var(--space-3);
+  flex-basis: 38%;
+}
+
+.pre-specs-detail-pane > #pre-specs-tracking-target,
+.pre-specs-detail-pane > .pre-specs-selection-empty-panel {
+  min-width: 0;
+}
+
+.pre-specs-detail-pane .panel {
+  min-width: 0;
+}
+
+.pre-specs-selection-empty-panel {
+  min-height: 240px;
+}
+
 .pre-specs-table-panel .panel-body {
   padding: 0;
 }
@@ -219,6 +253,20 @@
 .pre-specs-table .data-table th,
 .pre-specs-table .data-table td {
   vertical-align: top;
+}
+
+.pre-specs-table .data-table tbody tr[tabindex="0"] {
+  cursor: pointer;
+}
+
+.pre-specs-table .data-table tbody tr[aria-selected="true"] {
+  background: var(--surface-selected);
+  box-shadow: inset 3px 0 0 var(--color-primary-strong);
+}
+
+.pre-specs-table .data-table tbody tr[tabindex="0"]:focus-visible {
+  outline: 2px solid var(--color-primary-strong);
+  outline-offset: -2px;
 }
 
 .pre-specs-title-cell {
@@ -663,6 +711,14 @@
 
   .pre-spec-detail-actions {
     justify-content: flex-start;
+  }
+
+  .pre-specs-split-workspace {
+    gap: var(--space-2);
+  }
+
+  .pre-specs-detail-pane {
+    position: static;
   }
 }
 

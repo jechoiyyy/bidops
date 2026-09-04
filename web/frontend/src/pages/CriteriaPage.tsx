@@ -38,7 +38,7 @@ export function CriteriaPage() {
   const panelId = `criteria-panel-${tab}`;
 
   return (
-    <section aria-labelledby="criteria-page-title" className="ws-page" data-astryx-theme="neutral">
+    <section aria-labelledby="criteria-page-title" className="ws-page" data-astryx-theme="bidops">
       <h2 className="visually-hidden" id="criteria-page-title">판정 기준</h2>
       <div className="ws-tabs">
         <TabList

@@ -2,7 +2,7 @@
  * 판정 기준 · 실행 상태 · 최종 Go/No-Go 화면 골격.
  * docs/design/PLAN.md 2단계. ADR-0040에 따라 레이아웃은 프로젝트가 소유하고,
  * 값은 새로 정하지 않고 Astryx neutral 토큰만 읽는다. 화면 루트에
- * data-astryx-theme="neutral"을 세우는 범위 안에서만 유효하다.
+ * data-astryx-theme="bidops"을 세우는 범위 안에서만 유효하다.
  */
 
 .ws-page {

@@ -330,3 +330,22 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 - 영향: 2026-09-03 3단계는 이 항목의 건수를 `null`(확인 불가)로 두고 이동 경로만 제공하는 선에서 멈췄다. 구현 위임 초안은 `limit=50` 한 페이지를 세어 숫자를 표시했는데, 누적 데이터에서는 거의 항상 "만료된 사전규격 수"를 "마감 3일 이내"로 보여주는 값이라 검수에서 되돌렸다.
 - 지금 해결할 수 없는 이유: 해결에는 목록 계약에 마감 구간 필터(`deadline_from`·`deadline_to`)나 임박 집계를 추가해야 하며, 이는 백엔드 라우터·스키마 변경이라 이번 대시보드 작업 범위를 벗어난다.
 - 접근 방법: `GET /api/pre-specs`에 `deadline_within_days` 또는 `deadline_from`·`deadline_to`를 추가하고 `docs/contracts.md`의 `PreSpecList` 항목에 등록한다. 그 뒤 대시보드의 `null` 표시를 실제 건수로 바꾸고, `criticalDeadlineCount`의 하한 없음이 회차 산출물 전용 전제임을 호출부에서 다시 확인한다.
+
+## B-F 설계 승인 baseline과 manifest가 없어 전체 설계 게이트를 완료할 수 없다
+
+- 재현 조건: `web/frontend`에서 `npm run test:design`을 실행하고 `docs/design/mockups/canvas.json`의 14개 artboard와 `tests/design-snapshots/`·manifest-driven `design.spec.ts`를 대조한다. 기존 공통 시각 회귀는 `npx playwright test visual.spec.ts`로 실행한다.
+- 증상: PLAN.md §3·§5·§7이 요구하는 14-artboard manifest, 승인된 PNG baseline, fixture·viewport·crop 매핑과 그 변경 승인 기록이 저장소에 없다. 현재 design suite는 shell 차원의 5 passed·3 skipped에 그치며, 기존 visual suite는 현 UI와 맞지 않는 baseline 때문에 204 passed·144 failed로 끝난다.
+- 영향: B-F 화면의 기능·반응형·접근성 검증은 가능하지만, 승인된 기준 이미지와 픽셀/crop 일치 여부를 주장할 수 없다. 승인 없이 기존 snapshot을 갱신하면 설계 검수 증거를 덮어쓰게 된다.
+- 상태: **차단** (2026-09-03 독립검증). 코드 구현 완료의 차단이 아니라 PLAN 전체 완료 정의에 포함된 승인 설계 자산의 부재다.
+- 지금 해결할 수 없는 이유: 14개 artboard의 제품 승인 PNG와 각 fixture·viewport·crop의 승인 메타데이터가 저장소나 현재 요청에 제공되지 않았다. 이를 임의로 생성하거나 기존 baseline을 승인본으로 승격할 권한이 없다.
+- 접근 방법: 제품·디자인 담당자가 14개 PNG와 source hash, viewport, fixture, crop, 승인자·승인 시각을 제공하면 `tests/design-snapshots/manifest.json`과 manifest-driven `design.spec.ts`를 추가하고, 기준선 변경은 승인 기록이 있을 때만 갱신한다. 그 뒤 desktop/tablet/mobile 및 접근성 게이트를 다시 실행한다.
+
+## 팔레트 전환 뒤 화면 단위 시각 회귀를 잡을 기준선이 없다
+
+- 재현 조건: `web/frontend`에서 `npx playwright test`를 실행한다. 2026-09-04 단계 A(무드보드 팔레트 적용, ADR-0047) 이후 기준이다.
+- 증상: `370 passed, 75 failed, 3 skipped`. 실패 75건 중 73건이 `visual.spec.ts` 스냅샷이다. 팔레트가 모든 화면의 색을 바꿨으므로 옛 무채색 기준선과 다른 것이 정상이며, 실패 자체는 회귀의 증거가 아니다.
+- 영향: **그 73건이 실패로 남아 있는 동안 화면 단위 레이아웃 회귀를 자동으로 구분할 수 없다.** "색이 바뀌어서 실패"와 "레이아웃이 깨져서 실패"가 같은 실패로 보인다. 셸은 `tests/design-shell.spec.ts`의 구조 검사(테마 scope, computed 색 대 PRD §4.1, 248/76px 치수, 1280·1440·1920px 가로 오버플로 없음, legacy 토큰 회귀)로 지켜지지만 이 검사는 셸 범위이고 화면 내부 레이아웃은 보지 않는다.
+- 상태: **수용됨** (2026-09-04). 단계 A를 진행하기로 한 결정의 알려진 대가다. `visual.spec.ts`는 v2 기준 이미지가 생길 때까지 완료 게이트에서 제외한다.
+- 지금 해결할 수 없는 이유: v2 기준 이미지는 시안을 무드보드 팔레트로 다시 렌더해야 만들 수 있고, 그것은 [design/PLAN.md](../design/PLAN.md) §0-3·0-4(시안 생성기 복원과 보존본 대조)를 먼저 끝내야 한다. 생성기가 복원되기 전에 렌더 입력을 바꾸면 0-4의 대조 기준이 사라진다.
+- **기존 스냅샷을 `--update-snapshots`로 덮지 않는다.** PLAN §3.2·§6이 금지한 행위이며, 덮는 순간 이 finding이 기록하는 신호 손실이 영구화된다.
+- 접근 방법: PLAN §0-3·0-4를 끝내고 §0-5로 v2 기준 이미지를 만든 뒤, 변경 사유·영향 화면·승인자를 기록한 별도 변경으로 `visual.spec.ts` 기준선을 교체한다. 그 전까지 화면 작업(단계 C~F)은 기능 계약 테스트와 구조 검사에 의존하고, 레이아웃 변경은 사람이 눈으로 확인한다.

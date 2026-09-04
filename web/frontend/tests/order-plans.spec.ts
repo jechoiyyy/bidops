@@ -98,6 +98,51 @@ test("1200건 결과에서 기본 review 필터·실패·거부 필터와 페이
   await expect(page.locator(".c2l-pager")).toHaveCount(0);
 });
 
+test("검토 목록은 고정 높이 안에서 스크롤되고 상세와 같은 높이로 저장 액션을 노출한다", async ({ page }) => {
+  const viewport = page.viewportSize();
+  test.skip(Boolean(viewport && viewport.width < 960), "좁은 화면은 목록·상세 전환을 별도로 검증한다");
+
+  await mockOrderPlans(page, "large");
+  await page.goto("/order-plans");
+
+  const list = page.locator(".c2l-list-scroll");
+  await expect(list).toBeVisible();
+  await expect.poll(() => list.evaluate((element) => ({
+    clientHeight: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+  }))).toMatchObject({ clientHeight: expect.any(Number), scrollHeight: expect.any(Number) });
+
+  const scrollMetrics = await list.evaluate((element) => ({
+    clientHeight: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+  }));
+  expect(scrollMetrics.scrollHeight).toBeGreaterThan(scrollMetrics.clientHeight);
+  await list.evaluate((element) => element.scrollTo({ top: element.scrollHeight, behavior: "instant" }));
+  await expect.poll(() => list.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+
+  const geometry = await page.locator(".c2l-workspace").evaluate((workspace) => {
+    const listPane = workspace.querySelector<HTMLElement>(".c2l-list-pane");
+    const detailPane = workspace.querySelector<HTMLElement>(".c2l-detail-pane");
+    const actions = workspace.querySelector<HTMLElement>(".c2l-detail-actions");
+    if (!listPane || !detailPane || !actions) throw new Error("발주계획 목록·상세 영역을 찾을 수 없습니다.");
+    const listRect = listPane.getBoundingClientRect();
+    const detailRect = detailPane.getBoundingClientRect();
+    const actionsRect = actions.getBoundingClientRect();
+    return {
+      listHeight: listRect.height,
+      detailHeight: detailRect.height,
+      detailBottom: detailRect.bottom,
+      actionsBottom: actionsRect.bottom,
+    };
+  });
+  expect(Math.abs(geometry.listHeight - geometry.detailHeight)).toBeLessThanOrEqual(1);
+  expect(geometry.actionsBottom).toBeLessThanOrEqual(geometry.detailBottom + 1);
+
+  await page.locator(".c2l-workspace").scrollIntoViewIfNeeded();
+  await expect(page.getByRole("button", { name: "저장", exact: true })).toBeInViewport();
+  await expect(page.getByRole("button", { name: "저장 후 다음 →", exact: true })).toBeInViewport();
+});
+
 test("행 선택과 저장은 페이지 이동 0회로 끝나고, 저장 후 다음 이동과 스크롤·선택 유지를 지킨다", async ({ page }) => {
   const trace = await mockOrderPlans(page);
   await page.goto("/order-plans");
@@ -302,6 +347,7 @@ test("발주계획 상세 헤더는 최근 실행·최근 피드백 상태를 �
   await expect(header.getByText("최근 피드백 rev 1", { exact: true })).toBeVisible();
 
   const rail = page.locator(".detail-skeleton-rail");
+  await expect(rail).toHaveAttribute("data-review-primitive", "history-link-rail");
   await expect(rail.getByRole("heading", { name: "관측 history", exact: true })).toBeVisible();
   await expect(rail.getByRole("heading", { name: "사람 피드백 revision 이력", exact: true })).toBeVisible();
   await expect(rail.getByRole("link", { name: "발주계획 목록 →", exact: true })).toBeVisible();

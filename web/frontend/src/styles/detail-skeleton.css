@@ -4,7 +4,7 @@
  * detail_screen()과 docs/design/mockups/bo-skeleton.css를 참조했다.
  *
  * ADR-0040: 레이아웃은 프로젝트가 소유하고, 골격 CSS도 값을 새로 정하지 않고
- * Astryx 토큰만 읽는다. 여기서 읽는 --color-* 토큰은 data-astryx-theme="neutral"을
+ * Astryx 토큰만 읽는다. 여기서 읽는 --color-* 토큰은 data-astryx-theme="bidops"을
  * 세운 화면 루트 아래에서만 neutral 팔레트로 해석된다. --spacing-*·--radius-*·
  * --border-width·--font-* 토큰은 @astryxdesign/core/astryx.css가 전역으로 정의하므로
  * data-astryx-theme 유무와 무관하게 항상 유효하다.

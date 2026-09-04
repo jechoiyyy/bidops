@@ -1,6 +1,6 @@
 # 구현·검증 현황
 
-기준일: 2026-09-01
+기준일: 2026-09-03
 
 `구현됨`은 코드와 계약이 존재한다는 뜻이고, `검증됨`은 기록된 명령이 해당 범위에서 통과했다는 뜻이다. Mock 결과, 과거 브랜치 결과, 현재 worktree 결과, 외부 운영 승인을 서로 대신하지 않는다.
 
@@ -36,6 +36,8 @@
 | document bundle·준비 API | 7개 Lean API와 attachment version/current·bundle ordinal DB 제약 구현됨 | backend 테스트, PostgreSQL migration/preflight/autogenerate, Mock E2E 통과 |
 | 3단계 심층 검토·보고서·근거 API | 7개 Lean API 구현됨 | deterministic Mock provider E2E 통과; 실제 Qwen 품질 승인은 없음 |
 | React 관리자 화면 | 기존 공고·판정·ready bundle 이후 심층 검토 구현됨 | tsc·production build 통과; 전체 visual `646 passed, 10 skipped, 0 failed` |
+| 화면 시안 기준 B-F | 공통 review primitive, C-2 발주계획 split 화면, 사전규격 상태 그룹·선택 상세, 정보구조·dashboard 동선, 상세·심층검토 공통 skeleton을 구현함. 적합성·준비·추적·Go/No-Go 상태는 각각 유지함 | 독립검증에서 build 통과, PreSpecs mobile/tablet `54 passed`, DeepReview desktop `10 passed`, `git diff --check` 통과. 14개 승인 PNG·manifest·crop 기반 design suite는 없어 전체 시각 게이트가 차단됨([findings.md](findings.md)) |
+| 무드보드 색 팔레트 · 단계 A | **팔레트 승인 + 단계 A 완료(2026-09-04).** 무드보드 `docs/design/moodborad.jpg`의 5색 anchor를 프로젝트 소유 테마 `bidops`로 옮기고 적합성 등급 4단을 slate 농도 ramp로 정의하기로 결정함([ADR-0047](../design/ADR.md#adr-0047-무드보드-기반-색-팔레트와-테마-소유권), [design/PRD.md](../design/PRD.md) §4.1) | 앱이 `bidops` 테마(무드보드 팔레트)로 돈다. `src/themes/bidops/`(171 token overrides + `grade-ramp.css`), `scripts/check-contrast.test.mjs`, `tests/design-shell.spec.ts`를 추가했고 AppShell·페이지 10곳의 scope와 `main.tsx` import를 옮겼다. `theme.css`의 `@theme`이 `:root`로 방출돼 Astryx 테마를 이기던 토큰 4개를 제거하고 shadcn `--color-accent`를 `--color-shadcn-accent`로 옮겼다([engineering-notes.md](../engineering-notes.md)). 지원 폭을 1280~1920px로 좁히고 검증 viewport를 laptop 1280×800·desktop 1440×900 두 폭으로 고정했다(ADR-0046). `--color-nav-text` 중복 정의를 없애고 사이드바 본문을 `--color-on-dark`로 통일했다. 충돌 토큰은 미이행 화면 가드 없이 **전역 적용**하기로 결정했다(2026-09-04). **검증:** 대비 6 passed, `tsc -b`·production build 통과, `design-shell.spec.ts` 6 passed·2 skipped(1280·1440·1920px 오버플로 포함), 전체 Playwright 370 passed·75 failed·3 skipped. 실패 75건은 `visual.spec` 스냅샷 73건(팔레트 변경에 따른 예상 실패 — 승인 없이 덮어쓰지 않는다)과 `order-plans.spec.ts:287` 2건(390px 전제의 기존 실패, 팔레트와 무관). **남은 것:** 시안 렌더 입력 교체와 v2 기준 이미지는 [design/PLAN.md](../design/PLAN.md) §0-4 통과 뒤다. 그때까지 앱은 승인된 시각 기준선 없이 새 팔레트로 돈다. 팔레트 적용은 [design/PLAN.md](../design/PLAN.md) §0-4(생성기 복원 대조) 통과 뒤에만 시작한다 |
 | 문서 준비·실패 attempt 재시작 화면 | typed frontend API·type 변경은 worktree에 있으나 화면과 연결은 미구현 | 화면 검증 없음 |
 | T-23 사전규격 overview phase 2 기반 | immutable result/event, 제한된 attempt lifecycle service, safe v2 projection 구현됨; 실제 model transport·worker는 미구현 | SQLite 46 passed·1 PostgreSQL-only skipped, PostgreSQL 17 집중 9 passed, production build 282 modules |
 | 사전규격 개요 검토 화면 | v2 결과 projection이 화면에 연결됨. 권고·검증 상태·요약·조건과 기한·미확인·근거·입력 한계를 판단 순서로 내고 계보는 접어 둔다. 근거 locator는 `GET /document-structures/{id}/pages/{page}`로 원문을 열어 앞뒤 블록과 함께 강조하며, `block_key`가 원문에 없으면 보정하지 않고 사람 검토로 보낸다. `verification_action`이 없는 unknown과 `validation_status != passed`는 각각 표식과 경고로 구분한다 | 2026-09-01, 커밋 `56aeb0d`·`77700a5`. Playwright `630 passed, 10 skipped, 0 failed`, tsc·build 통과 |
@@ -88,6 +90,15 @@ DB에 없다. 다만 byte-identical 파일이 `web/backend/app/screening/baselin
 `operational_approval`은 `profile_source = "current"`를 요구하고 런타임의
 `snapshot_current()`는 현재 `docs/reference/company-profile.md`
 (sha256 `96731dd5f77d…`)를 읽는다. 두 경로는 의도적으로 분리돼 있다.
+
+### 2026-09-03 화면 시안 B-F 독립검증
+
+- 별도 Orchestration 작업자가 파일을 수정하지 않는 조건으로 현재 worktree를 재검증했다.
+- `cd web/frontend && npm run build`: TypeScript strict build와 Vite production bundle 통과.
+- `npx playwright test tests/pre-specs.spec.ts --project=mobile --project=tablet`: `54 passed`(각 27건, 390×844·768×1024).
+- `npx playwright test tests/deep-review.spec.ts --project=desktop`: `10 passed`(1440×900).
+- `ReviewBar.tsx`의 보조 selector 3개는 공통 `ReviewFilterSelector`의 clear 계약과 `null → ""` 복원을 사용하며, `DeepReviewPage.tsx`의 인라인 style·hex·px 검색은 0건이다. `git diff --check`도 통과했다.
+- `npm run test:design`: `5 passed, 3 skipped`. 현재 스위트는 공통 light/neutral shell smoke만 검증하고, PLAN이 요구하는 14-artboard 승인 PNG·manifest·fixture/viewport/crop 비교를 수행하지 않으므로 전체 완료로 기록하지 않는다.
 
 ### 보존된 과거 증거
 

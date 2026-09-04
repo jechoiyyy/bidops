@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
-import { Collapsible } from "@astryxdesign/core/Collapsible";
 import { Badge } from "../components/common/Badge";
 import { DataTable, type DataTableColumn } from "../components/common/DataTable";
 import { DisabledReason } from "../components/common/DisabledReason";
 import { EmptyState } from "../components/common/EmptyState";
 import { Panel } from "../components/common/Panel";
+import { ReviewStateGroup, SplitWorkspace } from "../components/common/ReviewPrimitives";
 import { TrackingDecisionControl, updateTrackingProjection } from "../components/pre-specs/TrackingDecisionControl";
 import { api } from "../lib/api";
 import { describeDeadline } from "../lib/deadline";
@@ -60,6 +60,14 @@ function groupLabel(status: PreSpecOverviewReviewStatus | null): string {
 
 function groupBadgeVariant(status: PreSpecOverviewReviewStatus | null) {
   return status === null ? "neutral" : preSpecOverviewStatusVariant(status);
+}
+
+function groupStatusDotVariant(status: PreSpecOverviewReviewStatus | null): "success" | "warning" | "error" | "accent" | "neutral" {
+  if (status === "completed") return "success";
+  if (status === "failed") return "error";
+  if (status === "needs_human_review") return "warning";
+  if (status === "running" || status === "queued") return "accent";
+  return "neutral";
 }
 
 function validDivision(value: string | null): string {
@@ -256,12 +264,12 @@ export function PreSpecsPage() {
   const sort = validSort(searchParams.get("sort"));
   const offset = readOffset(searchParams.get("offset"));
   const [searchText, setSearchText] = useState(queryText);
-  const [expandedGroups, setExpandedGroups] = useState<Set<PreSpecOverviewReviewStatus | null>>(
-    () => new Set(DEFAULT_EXPANDED_GROUPS),
-  );
   const [selectedTrackingPk, setSelectedTrackingPk] = useState<number | null>(null);
 
   useEffect(() => setSearchText(queryText), [queryText]);
+  useEffect(() => {
+    setSelectedTrackingPk(null);
+  }, [businessDivision, offset, origin, queryText, sort, swOnly]);
 
   const listQuery = useMemo(
     () => ({
@@ -308,15 +316,6 @@ export function PreSpecsPage() {
   }, [items]);
   const selectedTrackingItem = items.find((item) => item.notice_pk === selectedTrackingPk);
 
-  function toggleGroup(status: PreSpecOverviewReviewStatus | null) {
-    setExpandedGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(status)) next.delete(status);
-      else next.add(status);
-      return next;
-    });
-  }
-
   function updateSearchParams(changes: Record<string, string | null>) {
     const next = new URLSearchParams(searchParams);
     for (const [key, value] of Object.entries(changes)) {
@@ -344,7 +343,7 @@ export function PreSpecsPage() {
   }
 
   return (
-    <section className="pre-specs-page" data-astryx-theme="neutral" aria-labelledby="page-title">
+    <section className="pre-specs-page" data-astryx-theme="bidops" aria-labelledby="page-title">
       <header className="pre-specs-page-header">
         <div>
           <span className="pre-specs-eyebrow">모니터링 · 누적 조회</span>
@@ -430,103 +429,122 @@ export function PreSpecsPage() {
       ) : null}
 
       {result.isSuccess ? (
-        <Panel
-          className="pre-specs-table-panel"
-          title="누적 사전규격 목록 · 개요 검토 상태별"
-          action={total > 0 ? <span className="panel-meta">{total}건 · {offset + 1}–{Math.min(offset + items.length, total)}</span> : undefined}
+        <SplitWorkspace
+          className="pre-specs-split-workspace"
+          mobileView={selectedTrackingItem ? "detail" : "list"}
         >
-          {items.length === 0 ? (
-            <EmptyState
-              compact
-              title="조건에 맞는 사전규격이 없습니다."
-              description={emptyDescription()}
-              action={isDefaultView
-                ? { label: "전체 사전규격 보기", onClick: showAllPreSpecs }
-                : { label: "기본값으로", onClick: restoreDefaults }}
-            />
-          ) : (
-            <div className="pre-specs-groups" role="list" aria-label="개요 검토 상태 그룹">
-              {GROUP_ORDER.map((status) => {
-                const count = countByStatus.get(status) ?? 0;
-                const groupItems = itemsByStatus.get(status) ?? [];
-                const isOpen = expandedGroups.has(status);
-                const groupKeyText = status ?? "null";
-                const isPartial = count > 0 && groupItems.length !== count;
-                return (
-                  <div className="pre-specs-group" role="listitem" key={groupKeyText}>
-                    <Collapsible
-                      isOpen={isOpen}
-                      onOpenChange={() => toggleGroup(status)}
-                      trigger={
-                        <div className="pre-specs-group-trigger">
-                          <Badge label={groupLabel(status)} variant={groupBadgeVariant(status)} />
-                          <span className="pre-specs-group-count mono tabular-nums">{count}건</span>
-                        </div>
-                      }
-                    >
-                      {count === 0 ? (
-                        <p className="pre-specs-group-empty">이 상태의 사전규격이 현재 필터에 없습니다.</p>
-                      ) : (
-                        <>
-                          {isPartial ? (
-                            <p className="pre-specs-group-partial">
-                              전체 {count}건 중 현재 페이지에 표시된 {groupItems.length}건만 보입니다. 페이지를 이동하거나 검색 조건을 좁혀 나머지를 확인하십시오.
-                            </p>
-                          ) : null}
-                          {groupItems.length === 0 ? (
-                            <p className="pre-specs-group-empty">
-                              전체 {count}건이 있지만 현재 불러온 페이지에는 없습니다. 페이지를 이동하거나 검색 조건을 좁혀 보십시오.
-                            </p>
+          <section className="review-split-list pre-specs-list-pane" aria-label="사전규격 목록">
+            <Panel
+              className="pre-specs-table-panel"
+              title="누적 사전규격 목록 · 개요 검토 상태별"
+              action={total > 0 ? <span className="panel-meta">{total}건 · {offset + 1}–{Math.min(offset + items.length, total)}</span> : undefined}
+            >
+              {items.length === 0 ? (
+                <EmptyState
+                  compact
+                  title="조건에 맞는 사전규격이 없습니다."
+                  description={emptyDescription()}
+                  action={isDefaultView
+                    ? { label: "전체 사전규격 보기", onClick: showAllPreSpecs }
+                    : { label: "기본값으로", onClick: restoreDefaults }}
+                />
+              ) : (
+                <div className="pre-specs-groups" role="list" aria-label="개요 검토 상태 그룹">
+                  {GROUP_ORDER.map((status) => {
+                    const count = countByStatus.get(status) ?? 0;
+                    const groupItems = itemsByStatus.get(status) ?? [];
+                    const groupKeyText = status ?? "null";
+                    const isPartial = count > 0 && groupItems.length !== count;
+                    return (
+                      <div className="pre-specs-group" role="listitem" key={groupKeyText}>
+                        <ReviewStateGroup
+                          count={count}
+                          defaultIsOpen={DEFAULT_EXPANDED_GROUPS.includes(status)}
+                          label={
+                            <span className="pre-specs-group-trigger">
+                              <Badge label={groupLabel(status)} variant={groupBadgeVariant(status)} />
+                            </span>
+                          }
+                          status={{ label: groupLabel(status), variant: groupStatusDotVariant(status) }}
+                          value={groupKeyText}
+                        >
+                          {count === 0 ? (
+                            <p className="pre-specs-group-empty">이 상태의 사전규격이 현재 필터에 없습니다.</p>
                           ) : (
-                            <DataTable
-                              className="pre-specs-table"
-                              columns={tableColumns}
-                              rows={groupItems}
-                              rowKey="notice_pk"
-                            />
+                            <>
+                              {isPartial ? (
+                                <p className="pre-specs-group-partial">
+                                  전체 {count}건 중 현재 페이지에 표시된 {groupItems.length}건만 보입니다. 페이지를 이동하거나 검색 조건을 좁혀 나머지를 확인하십시오.
+                                </p>
+                              ) : null}
+                              {groupItems.length === 0 ? (
+                                <p className="pre-specs-group-empty">
+                                  전체 {count}건이 있지만 현재 불러온 페이지에는 없습니다. 페이지를 이동하거나 검색 조건을 좁혀 보십시오.
+                                </p>
+                              ) : (
+                                <DataTable
+                                  className="pre-specs-table"
+                                  columns={tableColumns}
+                                  onRowSelect={(item) => setSelectedTrackingPk(item.notice_pk)}
+                                  rows={groupItems}
+                                  rowKey="notice_pk"
+                                  selectedRowKey={selectedTrackingPk}
+                                />
+                              )}
+                            </>
                           )}
-                        </>
-                      )}
-                    </Collapsible>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </Panel>
-      ) : null}
+                        </ReviewStateGroup>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </Panel>
+          </section>
 
-      {selectedTrackingItem ? (
-        <div id="pre-specs-tracking-target">
-          <Panel
-            className="pre-specs-tracking-target-panel"
-            title={`심층 추적 승인 · ${selectedTrackingItem.title?.trim() || "사업명 미확인"}`}
-            action={<button type="button" onClick={() => setSelectedTrackingPk(null)}>닫기</button>}
-          >
-            <TrackingDecisionControl
-              item={selectedTrackingItem}
-              isPending={result.isPending}
-              isError={result.isError}
-              onRetry={() => { void result.refetch(); }}
-              headingLevel="h4"
-              onSaved={(saved) => {
-                const noticePk = selectedTrackingItem.notice_pk;
-                queryClient.setQueryData<PreSpecListResponse>(
-                  ["pre-spec-detail", noticePk],
-                  (current) => updateTrackingProjection(current, noticePk, saved),
-                );
-                queryClient.setQueriesData<PreSpecListResponse>(
-                  { queryKey: ["pre-specs"] },
-                  (current) => updateTrackingProjection(current, noticePk, saved),
-                );
-                void queryClient.invalidateQueries({ queryKey: ["pre-spec-overview-reviews-v2", noticePk] });
-                void queryClient.invalidateQueries({ queryKey: ["pre-spec-detail", noticePk] });
-                void queryClient.invalidateQueries({ queryKey: ["pre-specs"] });
-                void queryClient.invalidateQueries({ queryKey: ["opportunity", saved.id] });
-              }}
-            />
-          </Panel>
-        </div>
+          <section className="review-split-detail pre-specs-detail-pane" aria-label="선택한 사전규격 상세">
+            {selectedTrackingItem ? (
+              <div id="pre-specs-tracking-target">
+                <Panel
+                  className="pre-specs-tracking-target-panel"
+                  title={`심층 추적 승인 · ${selectedTrackingItem.title?.trim() || "사업명 미확인"}`}
+                  action={<button type="button" onClick={() => setSelectedTrackingPk(null)}>닫기</button>}
+                >
+                  <TrackingDecisionControl
+                    item={selectedTrackingItem}
+                    isPending={result.isPending}
+                    isError={result.isError}
+                    onRetry={() => { void result.refetch(); }}
+                    headingLevel="h4"
+                    onSaved={(saved) => {
+                      const noticePk = selectedTrackingItem.notice_pk;
+                      queryClient.setQueryData<PreSpecListResponse>(
+                        ["pre-spec-detail", noticePk],
+                        (current) => updateTrackingProjection(current, noticePk, saved),
+                      );
+                      queryClient.setQueriesData<PreSpecListResponse>(
+                        { queryKey: ["pre-specs"] },
+                        (current) => updateTrackingProjection(current, noticePk, saved),
+                      );
+                      void queryClient.invalidateQueries({ queryKey: ["pre-spec-overview-reviews-v2", noticePk] });
+                      void queryClient.invalidateQueries({ queryKey: ["pre-spec-detail", noticePk] });
+                      void queryClient.invalidateQueries({ queryKey: ["pre-specs"] });
+                      void queryClient.invalidateQueries({ queryKey: ["opportunity", saved.id] });
+                    }}
+                  />
+                </Panel>
+              </div>
+            ) : (
+              <Panel className="pre-specs-selection-empty-panel" title="선택한 사전규격">
+                <EmptyState
+                  compact
+                  title="사전규격을 선택하십시오."
+                  description="왼쪽 목록에서 행을 선택하면 추적 상태와 승인 사유를 기록할 수 있습니다. 이 선택은 최종 Go/No-Go와 별개입니다."
+                />
+              </Panel>
+            )}
+          </section>
+        </SplitWorkspace>
       ) : null}
 
       {result.isSuccess && total > PAGE_SIZE ? (

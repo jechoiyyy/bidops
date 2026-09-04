@@ -296,6 +296,9 @@ test("계산 대기 중인 비교는 비활성 최종 결정 액션과 사유가
 test("우측 레일은 attempt·결정 이력과 연결 링크만 담고 최종 결정 액션을 복제하지 않는다", async ({ page }) => {
   await openComparison(page, { calculationStatus: "completed", resultStatus: "changed", withHistory: true });
   const rail = page.locator(".detail-skeleton-rail");
+  await expect(page.locator('[data-review-primitive="sticky-decision-header"]')).toBeVisible();
+  await expect(page.locator('[data-review-primitive="history-link-rail"]')).toHaveCount(1);
+  await expect(page.locator('[data-review-primitive="decision-action"]')).toHaveCount(1);
   await expect(rail.getByRole("heading", { name: "계산 attempt 이력", exact: true })).toBeVisible();
   await expect(rail.getByRole("heading", { name: "최종 Go/No-Go 저장 이력", exact: true })).toBeVisible();
   await expect(rail.getByRole("heading", { name: "최종 결정 현재성", exact: true })).toBeVisible();

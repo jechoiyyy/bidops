@@ -403,7 +403,7 @@ test("추적 예외, 신규, D-day, 문서 차단과 실패를 별도 상태로 
   await mockPreSpecs(page);
   await page.goto("/pre-specs");
 
-  const trackedRow = page.getByRole("row").filter({ has: page.getByRole("link", { name: trackingException.title }) });
+  const trackedRow = page.locator("tbody tr").filter({ hasText: trackingException.title });
   await expect(trackedRow).toContainText("추적");
   await expect(trackedRow).toContainText("추적 예외");
   await expect(trackedRow).toContainText("N");
@@ -485,7 +485,7 @@ test("목록 화면에서 심층 추적 승인을 내릴 수 있다", async ({ p
   const trace = await mockPreSpecs(page);
   await page.goto("/pre-specs");
 
-  const trackedRow = page.getByRole("row").filter({ has: page.getByRole("link", { name: trackingException.title }) });
+  const trackedRow = page.locator("tbody tr").filter({ hasText: trackingException.title });
   await trackedRow.getByRole("button", { name: "추적 결정" }).click();
 
   const decisionPanel = page.locator("#pre-specs-tracking-target");
@@ -503,7 +503,7 @@ test("목록 화면에서 심층 추적 승인을 내릴 수 있다", async ({ p
   }]);
   await expect(decisionPanel.getByText("심층 검토 추적 상태를 저장했습니다.", { exact: true })).toBeVisible();
   // 저장 뒤 목록 행의 추적 상태 배지도 같은 캐시 갱신으로 새 상태를 보여준다.
-  await expect(trackedRow.getByText("보류", { exact: true })).toBeVisible();
+  await expect(trackedRow).toContainText("보류");
 });
 
 test("사업기회가 없는 행은 목록에서도 추적 결정 비활성 사유를 보여준다", async ({ page }) => {
@@ -511,10 +511,29 @@ test("사업기회가 없는 행은 목록에서도 추적 결정 비활성 사�
   await page.goto("/pre-specs?sw_only=false");
   await page.getByRole("button", { name: /개요 검토 미시작/ }).click();
 
-  const untrackedRow = page.getByRole("row").filter({ has: page.getByRole("link", { name: allOnlyPreSpec.title }) });
+  const untrackedRow = page.locator("tbody tr").filter({ hasText: allOnlyPreSpec.title });
   const disabledButton = untrackedRow.getByRole("button", { name: "추적 결정" });
   await expect(disabledButton).toBeDisabled();
   await expect(page.getByText("아직 사업기회에 연결되지 않아 추적 결정을 기록할 수 없습니다.", { exact: true })).toBeVisible();
+});
+
+test("사전규격 목록 행 선택은 오른쪽 상세를 열고 좁은 화면에서 목록과 전환된다", async ({ page }) => {
+  await mockPreSpecs(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/pre-specs");
+
+  const row = page.getByRole("row").filter({ has: page.getByRole("link", { name: trackingException.title }) });
+  await row.click();
+
+  const workspace = page.locator('[data-review-primitive="split-workspace"]');
+  await expect(workspace).toHaveAttribute("data-mobile-view", "detail");
+  await expect(page.locator('tbody tr[aria-selected="true"]')).toHaveCount(1);
+  await expect(page.locator("#pre-specs-tracking-target")).toBeVisible();
+  await expect(page.locator(".pre-specs-list-pane")).toBeHidden();
+
+  await page.getByRole("button", { name: "닫기", exact: true }).click();
+  await expect(workspace).toHaveAttribute("data-mobile-view", "list");
+  await expect(page.locator(".pre-specs-list-pane")).toBeVisible();
 });
 
 test("notice 991 정본 상세는 29로 치환되지 않고 unknown을 사람 확인 상태로 보존한다", async ({ page }) => {
@@ -746,6 +765,8 @@ test("사전규격 목록과 상세는 viewport 바깥으로 넘치지 않는다
 test("사전규격 상세는 본문을 끝까지 스크롤해도 추적 결정 액션이 뷰포트 안에 남는다", async ({ page }) => {
   await mockPreSpecs(page);
   await page.goto("/pre-specs/991");
+  await expect(page.locator('[data-review-primitive="sticky-decision-header"]')).toBeVisible();
+  await expect(page.locator('[data-review-primitive="history-link-rail"]')).toHaveCount(1);
   const saveButton = page.getByRole("button", { name: "추적 상태 저장", exact: true });
   await expect(saveButton).toBeInViewport();
   await page.evaluate(() => document.querySelector(".page-canvas")?.scrollTo(0, 999_999));

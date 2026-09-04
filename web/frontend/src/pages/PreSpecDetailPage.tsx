@@ -6,6 +6,7 @@ import { DocumentPreparationPanel } from "../components/deep-review/DocumentPrep
 import { getDocumentStructurePage } from "../components/deep-review/api";
 import { EmptyState } from "../components/common/EmptyState";
 import { Panel } from "../components/common/Panel";
+import { ReviewHistoryLinkRail, StickyDecisionHeader } from "../components/common/ReviewPrimitives";
 import { PreSpecDocumentSummary, TrackingDecisionControl, updateTrackingProjection } from "../components/pre-specs/TrackingDecisionControl";
 import { api } from "../lib/api";
 import { describeDeadline } from "../lib/deadline";
@@ -191,7 +192,7 @@ export function PreSpecDetailPage() {
   const preSpecItem = preSpecProjectionQuery.data?.items.find((item) => item.notice_pk === noticeId);
 
   return (
-    <section className="pre-spec-detail-page detail-skeleton" data-astryx-theme="neutral" aria-labelledby="pre-spec-detail-title">
+    <section className="pre-spec-detail-page detail-skeleton" data-astryx-theme="bidops" aria-labelledby="pre-spec-detail-title">
       <nav className="pre-spec-detail-breadcrumb" aria-label="사전규격 상세 경로">
         <Link to={listUrl}>사전규격 목록</Link>
         <span aria-hidden="true">›</span>
@@ -202,7 +203,7 @@ export function PreSpecDetailPage() {
           무관하게 첫 화면에 남는다. 결정 액션(심층 검토 추적 선택)은 이 헤더의
           상태 배지 줄 오른쪽 끝(margin-left:auto)에만 있고 레일에는 복제하지
           않는다. */}
-      <header className="pre-spec-detail-header detail-skeleton-head">
+      <StickyDecisionHeader className="pre-spec-detail-header detail-skeleton-head" label="사전규격 상세 결정 헤더">
         <div className="detail-skeleton-head-top">
           <div>
             <span className="pre-specs-eyebrow">사전규격 정본 상세 · 누적 조회</span>
@@ -252,7 +253,7 @@ export function PreSpecDetailPage() {
             />
           </div>
         </div>
-      </header>
+      </StickyDecisionHeader>
 
       <div className="detail-skeleton-grid">
       <div className="detail-skeleton-main">
@@ -534,10 +535,12 @@ export function PreSpecDetailPage() {
 
       {/* 우측 레일은 이력과 연결만 담는다(시안 주석 원문). 결정 액션(추적
           선택)은 헤더에만 있고 여기서 복제하지 않는다. */}
-      <aside className="detail-skeleton-rail">
-        <div className="detail-skeleton-rail-panel">
-          <h3 className="detail-skeleton-rail-title">이력 · 입력 범위와 실행</h3>
-          {overview ? (
+      <ReviewHistoryLinkRail
+        className="detail-skeleton-rail"
+        footer={<p className="detail-skeleton-rail-note">우측 레일은 이력과 연결만 담습니다. 결정 액션은 헤더에만 있습니다.</p>}
+        historySections={[{
+          className: "detail-skeleton-rail-panel",
+          content: overview ? (
             <>
               {cut ? (
                 <div className={`pre-spec-cut-state is-${snapshot?.cut_status}`}>
@@ -583,18 +586,18 @@ export function PreSpecDetailPage() {
                 <div><dt>binding digest</dt><dd className="mono">{overview.binding_digest ?? "없음"}</dd></div>
               </dl>
             </>
-          ) : (
-            <p className="detail-skeleton-rail-note">아직 개요 검토 이력이 없습니다.</p>
-          )}
-
-          <div className="detail-skeleton-rail-links">
-            <span className="detail-skeleton-rail-title">연결된 화면</span>
-            <Link to={listUrl}>사전규격 목록 →</Link>
-            {preSpecItem?.opportunity_id ? <Link to={`/opportunities/${preSpecItem.opportunity_id}`}>사업기회 보기 →</Link> : null}
-          </div>
-          <p className="detail-skeleton-rail-note">우측 레일은 이력과 연결만 담습니다. 결정 액션은 헤더에만 있습니다.</p>
-        </div>
-      </aside>
+          ) : <p className="detail-skeleton-rail-note">아직 개요 검토 이력이 없습니다.</p>,
+          entries: [],
+          label: "입력 범위와 실행",
+          showHeading: false,
+        }]}
+        links={[
+          { href: listUrl, label: "사전규격 목록 →" },
+          ...(preSpecItem?.opportunity_id ? [{ href: `/opportunities/${preSpecItem.opportunity_id}`, label: "사업기회 보기 →" }] : []),
+        ]}
+        linksClassName="detail-skeleton-rail-links"
+        title="이력 · 입력 범위와 실행"
+      />
       </div>
 
       <DocumentPreparationPanel

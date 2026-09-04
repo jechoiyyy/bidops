@@ -9,6 +9,7 @@ test.describe("심층 검토 보고서 접근성·반응형 계약", () => {
   test("키보드 focus, 좁은 화면, 긴 matrix containment", async ({ page }) => {
     await page.goto("/deep-reviews/fixture-review");
     await expect(page.getByRole("heading", { name: "심층 검토 보고서", level: 1 })).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('[data-review-primitive="sticky-decision-header"]')).toBeVisible();
     await page.getByRole("button", { name: /근거/ }).first().focus();
     await expect(page.getByRole("button", { name: /근거/ }).first()).toBeFocused();
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);

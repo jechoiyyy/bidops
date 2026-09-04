@@ -5,6 +5,7 @@ import { ActorField } from "../components/common/ActorField";
 import { EmptyState } from "../components/common/EmptyState";
 import { MutationFeedback } from "../components/common/MutationFeedback";
 import { Panel } from "../components/common/Panel";
+import { ReviewHistoryLinkRail, ReviewValue } from "../components/common/ReviewPrimitives";
 import { StatusBadge, type StatusTone } from "../components/common/StatusBadge";
 import { api, ApiError } from "../lib/api";
 import type {
@@ -317,7 +318,7 @@ export function OrderPlanDetailPage() {
   const latestExecution = history.length > 0 ? history[0] : null;
 
   return (
-    <section className="c2-page c2-detail-page detail-skeleton" data-astryx-theme="neutral" aria-labelledby="order-plan-detail-title">
+    <section className="c2-page c2-detail-page detail-skeleton" data-astryx-theme="bidops" aria-labelledby="order-plan-detail-title">
       {/* 상세 3종 공통 골격(4단계): 요약 헤더는 position:sticky로 스크롤
           위치와 무관하게 첫 화면에 남는다. 결정 액션(사람 relevance·priority·
           memo 저장, PRD 결정 1)은 상태 배지 줄 오른쪽 끝에만 있고 레일에는
@@ -418,58 +419,55 @@ export function OrderPlanDetailPage() {
 
           {/* 우측 레일은 이력과 연결만 담는다(시안 주석 원문). 결정 액션은
               헤더에만 있고 여기서 복제하지 않는다. */}
-          <aside className="detail-skeleton-rail">
-            <div className="detail-skeleton-rail-panel">
-              <h3 className="detail-skeleton-rail-title">관측 history</h3>
-              {detailQuery.data.observations.length ? (
-                <div className="c2-scroll-table">
-                  <table>
-                    <caption className="visually-hidden">발주계획 관측 history</caption>
-                    <thead><tr><th scope="col">source run</th><th scope="col">observed at</th><th scope="col">source sha256</th></tr></thead>
-                    <tbody>
-                      {detailQuery.data.observations.map((observation) => (
-                        <tr key={`${observation.source_run_id}-${observation.observed_at}`}>
-                          <td className="mono">{observation.source_run_id}</td>
-                          <td>{formatMoment(observation.observed_at)}</td>
-                          <td className="c2-digest">{observation.source_sha256 ?? "null (미제공)"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : <EmptyState compact title="관측 history가 없습니다." description="서버가 제공한 관측 기록이 없어 변경 여부를 판단하지 않습니다." />}
-            </div>
-
-            <div className="detail-skeleton-rail-panel">
-              <h3 className="detail-skeleton-rail-title">사람 피드백 revision 이력</h3>
-              <p className="c2-form-note">모든 feedback은 append-only revision입니다. 이 기록은 자동 relevance를 덮어쓰지 않으며 사람 판단의 별도 이력입니다.</p>
-              {feedbackQuery.isError ? <p className="c2-inline-warning" role="alert">사람 피드백 history를 불러오지 못했습니다. 저장 전 현재 revision을 확인할 수 없습니다.</p> : null}
-              {feedback.length ? (
-                <ol className="c2-feedback-history">
-                  {feedback.map((item) => (
-                    <li key={item.feedback_id}>
-                      <div className="c2-feedback-history-heading">
-                        <strong>revision {item.revision}</strong>
-                        <StatusBadge label={item.relevance} tone={statusTone(item.relevance)} />
-                        <span className="mono">{item.execution_id}</span>
-                      </div>
-                      <dl>
-                        <div><dt>priority</dt><dd>{item.priority ?? "null (미지정)"}</dd></div>
-                        <div><dt>note</dt><dd>{item.memo ?? "null (메모 미제공)"}</dd></div>
-                        <div><dt>claimed name</dt><dd>{item.claimed_name}</dd></div>
-                        <div><dt>created at</dt><dd>{formatMoment(item.created_at)}</dd></div>
-                      </dl>
-                    </li>
-                  ))}
-                </ol>
-              ) : <EmptyState compact title="사람 피드백이 없습니다." description="사람 relevance·priority·note를 새 revision으로 기록할 수 있습니다." />}
-              <div className="detail-skeleton-rail-links">
-                <span className="detail-skeleton-rail-title">연결된 화면</span>
-                <Link to={returnPath}>발주계획 목록 →</Link>
-              </div>
-              <p className="detail-skeleton-rail-note">우측 레일은 이력과 연결만 담습니다. 결정 액션은 헤더에만 있습니다.</p>
-            </div>
-          </aside>
+          <ReviewHistoryLinkRail
+            className="detail-skeleton-rail"
+            footer={<p className="detail-skeleton-rail-note">우측 레일은 이력과 연결만 담습니다. 결정 액션은 헤더에만 있습니다.</p>}
+            historySections={[
+              {
+                className: "detail-skeleton-rail-panel",
+                empty: <EmptyState compact title="관측 history가 없습니다." description="서버가 제공한 관측 기록이 없어 변경 여부를 판단하지 않습니다." />,
+                entries: detailQuery.data.observations.map((observation) => ({
+                  detail: (
+                    <span>
+                      observed at {formatMoment(observation.observed_at)} · <ReviewValue className="c2-digest" value={observation.source_sha256} nullLabel="null (미제공)" />
+                    </span>
+                  ),
+                  id: `${observation.source_run_id}-${observation.observed_at}`,
+                  label: <span className="mono">source run {observation.source_run_id}</span>,
+                })),
+                label: "관측 history",
+                listClassName: "detail-skeleton-rail-history",
+              },
+              {
+                className: "detail-skeleton-rail-panel",
+                empty: <EmptyState compact title="사람 피드백이 없습니다." description="사람 relevance·priority·note를 새 revision으로 기록할 수 있습니다." />,
+                entries: feedback.map((item) => ({
+                  detail: (
+                    <dl>
+                      <div><dt>priority</dt><dd>{item.priority ?? "null (미지정)"}</dd></div>
+                      <div><dt>note</dt><dd>{item.memo ?? "null (메모 미제공)"}</dd></div>
+                      <div><dt>claimed name</dt><dd>{item.claimed_name}</dd></div>
+                      <div><dt>created at</dt><dd>{formatMoment(item.created_at)}</dd></div>
+                    </dl>
+                  ),
+                  id: item.feedback_id,
+                  label: (
+                    <span className="c2-feedback-history-heading">
+                      <strong>revision {item.revision}</strong>
+                      <StatusBadge label={item.relevance} tone={statusTone(item.relevance)} />
+                      <span className="mono">{item.execution_id}</span>
+                    </span>
+                  ),
+                })),
+                error: feedbackQuery.isError ? "사람 피드백 history를 불러오지 못했습니다. 저장 전 현재 revision을 확인할 수 없습니다." : undefined,
+                label: "사람 피드백 revision 이력",
+                listClassName: "c2-feedback-history",
+              },
+            ]}
+            links={[{ href: returnPath, label: "발주계획 목록 →" }]}
+            linksClassName="detail-skeleton-rail-links"
+            title="이력과 연결"
+          />
         </div>
       ) : null}
     </section>
