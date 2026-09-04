@@ -66,6 +66,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     # 형제 모듈이 확장점을 구현하고, 조립이 registry에 등록하며, 테스트가 그
     # 계약을 검사한다. `ClaimedDirectoryLoad`는 `RunDirectoryClaim.load`의 형일
     # 뿐이라 밖에서 이름으로 받지 않는다 — 공개하지 않는다.
+    "EffectiveGradeChangedHook": (".extensions", "EffectiveGradeChangedHook"),
     "ExtensionRegistry": (".extensions", "ExtensionRegistry"),
     "JudgmentProjection": (".extensions", "JudgmentProjection"),
     "OverviewDocumentProjection": (".extensions", "OverviewDocumentProjection"),
@@ -150,6 +151,7 @@ if TYPE_CHECKING:  # pragma: no cover - 정적 분석용 이름 노출
     )
     from .runtime import build_runtime
     from .extensions import (
+        EffectiveGradeChangedHook,
         ExtensionRegistry,
         JudgmentProjection,
         OverviewDocumentProjection,

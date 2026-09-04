@@ -21,6 +21,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
+from app.core.constants import (
+    UNSUPPORTED_ATTACHMENT_EXTRACT_STATUS,
+    UNSUPPORTED_ATTACHMENT_ISSUE_CODE,
+)
 from app.core.db import init_db
 from app.deep_review.document_mcp.processor import DocumentProcessor
 from app.core.models import AuditEvent, IdempotencyRecord
@@ -1972,3 +1976,99 @@ def test_segments_endpoint_is_403_for_an_unsafe_document(context: Context) -> No
     response = _segments_client(context).get(f"/api/document-structures/{structure_id}/segments")
     assert response.status_code == 403
     assert response.json()["error"]["code"] == "unsafe_document"
+
+
+# --- 형식 밖 첨부의 비차단 issue (명세 §5·§6.2) ------------------------------
+
+
+def _add_excluded_attachment(context: Context, *, name: str = "붙임자료.zip") -> int:
+    """취득이 `unsupported_extension`으로 종결된 첨부를 심는다."""
+
+    with Session(context.engine) as session:  # type: ignore[arg-type]
+        attachment = Attachment(
+            notice_id=context.notice_id,
+            name=name,
+            origin="g2b",
+            source_system="g2b",
+            source_attachment_key="R26ZIP00000001:BFDTL:9",
+            source_url=(
+                "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do"
+                "?bfSpecRegNo=R26ZIP00000001&fileType=BFDTL&fileSeq=9"
+            ),
+            extract_status=UNSUPPORTED_ATTACHMENT_EXTRACT_STATUS,
+        )
+        session.add(attachment)
+        session.commit()
+        return attachment.id
+
+
+def test_unsupported_attachment_leaves_a_non_blocking_issue_and_confirm_succeeds(
+    context: Context,
+) -> None:
+    bundle = make_bundle(context)
+    document = upload(context, bundle.id, filename="제안요청서.pdf")
+    _add_excluded_attachment(context)
+
+    with Session(context.engine) as session:  # type: ignore[arg-type]
+        ready = context.service.confirm(
+            session,
+            bundle.id,
+            ConfirmRequest(
+                request_id=uuid4(),
+                version=bundle.version,
+                confirmed_documents=[
+                    {"document_version_id": document.id, "version": document.version}
+                ],
+            ),
+            "담당자",
+        )
+
+    assert ready.status == "ready"
+    issues = {issue.code: issue for issue in ready.issues}
+    assert UNSUPPORTED_ATTACHMENT_ISSUE_CODE in issues
+    excluded = issues[UNSUPPORTED_ATTACHMENT_ISSUE_CODE]
+    assert excluded.blocking is False
+    assert excluded.severity == "보통"
+    # 확정된 묶음의 불변 snapshot에도 남는다 (§6.2).
+    with Session(context.engine) as session:  # type: ignore[arg-type]
+        stored = session.get(DocumentBundle, ready.id)
+        codes = {row["code"] for row in stored.issues_snapshot}
+        assert UNSUPPORTED_ATTACHMENT_ISSUE_CODE in codes
+        # 제외된 첨부는 묶음 item이 되지 않는다.
+        items = list(
+            session.scalars(
+                select(DocumentBundleItem).where(DocumentBundleItem.bundle_id == ready.id)
+            )
+        )
+        assert [item.document_version_id for item in items] == [document.id]
+
+
+def test_other_provider_failures_stay_blocking(context: Context) -> None:
+    bundle = make_bundle(context)
+    document = upload(context, bundle.id, filename="제안요청서.pdf")
+    with Session(context.engine) as session:  # type: ignore[arg-type]
+        session.add(
+            Attachment(
+                notice_id=context.notice_id,
+                name="실패.pdf",
+                origin="g2b",
+                extract_status="provider_acquisition_failed",
+            )
+        )
+        session.commit()
+
+    with Session(context.engine) as session:  # type: ignore[arg-type]
+        with pytest.raises(BundleServiceError) as error:
+            context.service.confirm(
+                session,
+                bundle.id,
+                ConfirmRequest(
+                    request_id=uuid4(),
+                    version=bundle.version,
+                    confirmed_documents=[
+                        {"document_version_id": document.id, "version": document.version}
+                    ],
+                ),
+                "담당자",
+            )
+    assert error.value.code == "bundle_has_blocking_issues"
