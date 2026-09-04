@@ -914,7 +914,11 @@ export function ReviewDecisionAction({
   const generatedReasonId = `review-decision-reason-${useId().replace(/:/g, "")}`;
   const reasonId = disabledReasonId ?? generatedReasonId;
   const hasReason = isDisabled && disabledReason !== undefined && disabledReason !== null;
-  const describedBy = [ariaDescribedBy, hasReason ? reasonId : undefined].filter(Boolean).join(" ") || undefined;
+  // Several actions in one bar can share the same reason. The owner renders the
+  // text once; the others point at that id so the reason is still announced
+  // without repeating it on screen three times.
+  const describesReason = isDisabled && (hasReason || disabledReasonId !== undefined);
+  const describedBy = [ariaDescribedBy, describesReason ? reasonId : undefined].filter(Boolean).join(" ") || undefined;
   return (
     <span className="review-decision-action" data-review-primitive="decision-action">
       <AstryxButton
