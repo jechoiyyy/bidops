@@ -108,11 +108,18 @@ _EXPORTS: dict[str, tuple[str, str]] = {
 }
 
 
+#: registry에 자기 등록을 표시하는 키. lifecycle은 이 문자열의 의미를 해석하지
+#: 않고 "같은 등록자인가"만 본다. 같은 키로 다시 등록하면 제자리 교체이므로
+#: `create_app()`을 한 프로세스에서 두 번 불러도 hook이 두 번 붙지 않는다.
+EXTENSION_OWNER = __name__
+
+
 def register_lifecycle_extensions(registry=None):
     """screening 구현으로 lifecycle 확장점을 채운다 (명세 §6).
 
-    조립 계층이 앱 객체를 만들 때 한 번 부른다. import와 객체 생성일 뿐이며
-    migration·seed·정책 활성화·모델 호출을 하지 않는다(§9).
+    조립 계층이 앱 객체를 만들 때 부른다. import와 객체 생성일 뿐이며
+    migration·seed·정책 활성화·모델 호출을 하지 않는다(§9). 같은 registry에 두 번
+    불러도 결과가 같다 — 등록은 `EXTENSION_OWNER` 키로 제자리 교체된다.
     """
 
     from .ingest import ScreeningRunIngestHook
@@ -122,8 +129,10 @@ def register_lifecycle_extensions(registry=None):
         from ..lifecycle import extension_registry
 
         registry = extension_registry()
-    registry.register_judgment_projection(ScreeningJudgmentProjection())
-    registry.register_run_ingest_hook(ScreeningRunIngestHook())
+    registry.register_judgment_projection(
+        ScreeningJudgmentProjection(), owner=EXTENSION_OWNER
+    )
+    registry.register_run_ingest_hook(ScreeningRunIngestHook(), owner=EXTENSION_OWNER)
     return registry
 
 
