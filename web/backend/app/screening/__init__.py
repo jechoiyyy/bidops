@@ -30,6 +30,9 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "current_judgment": (".projection", "current_judgment"),
     "current_judgments": (".projection", "current_judgments"),
     "latest_corrected_grade": (".projection", "latest_corrected_grade"),
+    # 목록 projection과 자격 재평가는 공고 수백 건을 한 번에 다룬다. 명세 §8이
+    # 그 자리에 N+1을 금지하므로 단건 판과 나란히 batch 판도 seam에 둔다.
+    "latest_corrected_grades": (".projection", "latest_corrected_grades"),
     # === 확장점 구현과 그 seam 자료형 (§6.1·§6.2) ==========================
     # `register_lifecycle_extensions`가 만드는 객체와 seam 함수가 돌려주는 값의
     # 형이다. 모듈 밖 검사(`tests/screening/`)가 이 이름으로 확장점 계약을 본다.
@@ -124,6 +127,7 @@ if TYPE_CHECKING:  # pragma: no cover - 정적 분석용 이름 노출
         current_judgment,
         current_judgments,
         latest_corrected_grade,
+        latest_corrected_grades,
     )
     from .runtime import build_runtime
     from .services.reviews import review_revision_payload

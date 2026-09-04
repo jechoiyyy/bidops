@@ -45,6 +45,11 @@ SEAM_IMPORTS: dict[tuple[str, str], frozenset[str]] = {
             # 채운다. 밖으로 나갈 때 다른 이름을 새로 만들지 않도록 seam에 남긴다.
             "current_judgments",
             "latest_corrected_grade",
+            # 그 batch 판. 사전규격 목록 projection과 첨부 자격 재평가는 공고
+            # 수백~수천 건의 effective grade를 한 번에 필요로 하고, 명세 §8이
+            # 그 자리에 N+1을 금지한다. 단건 판만 seam에 두면 호출부가 공고당
+            # 조회를 만들 수밖에 없으므로 같은 읽기 전용 seam으로 함께 둔다.
+            "latest_corrected_grades",
         }
     ),
 }

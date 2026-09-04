@@ -124,6 +124,22 @@ class _FakeOverviewProjection:
         self.calls.append(("document_counts", tuple(notice_ids)))
         return {notice_ids[0]: PreSpecDocumentCounts(completed=2, blocked=1)} if notice_ids else {}
 
+    def prespec_status_fields(
+        self, session: Any, notice_ids: Sequence[int]
+    ) -> Mapping[int, Mapping[str, Any]]:
+        self.calls.append(("prespec_status_fields", tuple(notice_ids)))
+        if not notice_ids:
+            return {}
+        return {
+            notice_ids[0]: {
+                "grade": "우선 검토",
+                "grade_source": "human_review",
+                "auto_preparation_status": "bundle_ready",
+                "auto_preparation_reason": None,
+                "latest_deep_review_id": None,
+            }
+        }
+
 
 def test_with_a_provider_the_projection_values_are_carried_into_the_response(registry, db_session):
     first = _pre_spec(db_session, "pre:FIRST", attachments=3)
@@ -142,17 +158,27 @@ def test_with_a_provider_the_projection_values_are_carried_into_the_response(reg
     assert by_id[projected_id]["overview_review_status"] == "completed"
     assert by_id[projected_id]["document"]["완료"] == 2
     assert by_id[projected_id]["document"]["차단"] == 1
+    # 등급·자동 준비도 같은 확장점에서 온다. 제공자가 값을 주지 않은 공고는
+    # 등급 `null`과 `not_applicable`로 남는다 — lifecycle이 만들어 내지 않는다.
+    assert by_id[projected_id]["grade"] == "우선 검토"
+    assert by_id[projected_id]["grade_source"] == "human_review"
+    assert by_id[projected_id]["auto_preparation_status"] == "bundle_ready"
+    other_id = next(value for value in by_id if value != projected_id)
+    assert by_id[other_id]["grade"] is None
+    assert by_id[other_id]["grade_source"] is None
+    assert by_id[other_id]["auto_preparation_status"] == "not_applicable"
     # attachments는 lifecycle이 자기 테이블에서 센다. projection이 준 값이 아니다.
     assert by_id[first.id]["document"]["attachments"] == 3
     assert by_id[second.id]["document"]["attachments"] == 0
     counts = {row["status"]: row["count"] for row in payload["overview_status_counts"]}
     assert counts["completed"] == 1
     assert counts[None] == 1
-    # 세 메서드가 각각 한 번씩만 불렸고, 페이지 밖 공고는 넘기지 않는다.
+    # 네 메서드가 각각 한 번씩만 불렸고, 페이지 밖 공고는 넘기지 않는다.
     assert [name for name, _ids in projection.calls] == [
         "overview_status_counts",
         "overview_status",
         "document_counts",
+        "prespec_status_fields",
     ]
     assert all(set(ids) == {first.id, second.id} for _name, ids in projection.calls)
 
@@ -170,6 +196,7 @@ def test_projection_receives_only_the_page_for_per_notice_values(registry, db_se
     assert set(calls["overview_status_counts"]) == {notice.id for notice in notices}
     assert calls["overview_status"] == (page_id,)
     assert calls["document_counts"] == (page_id,)
+    assert calls["prespec_status_fields"] == (page_id,)
 
 
 class _RecordingTrackingHook:

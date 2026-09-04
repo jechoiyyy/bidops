@@ -185,7 +185,10 @@ def list_pre_specs(
     page_ids = [int(row._mapping[Notice].id) for row in rows]
     overview_status = projection.overview_status(session, page_ids)
     document_counts = projection.document_counts(session, page_ids)
+    # 등급·자동 준비 필드도 페이지 전체를 한 번에 받는다 (명세 §8: N+1 금지).
+    status_fields = projection.prespec_status_fields(session, page_ids)
     absent_counts = PreSpecDocumentCounts()
+    absent_status: Mapping[str, Any] = {}
 
     items: list[PreSpecListItem] = []
     for row in rows:
@@ -199,6 +202,7 @@ def list_pre_specs(
         else:
             origin_value = None
         counts = document_counts.get(notice.id, absent_counts)
+        status = status_fields.get(notice.id, absent_status)
         items.append(
             PreSpecListItem(
                 notice_pk=notice.id,
@@ -215,6 +219,13 @@ def list_pre_specs(
                 tracking_status=mapping["tracking_status"],
                 kept_by_tracking=bool(mapping["kept_by_tracking"]),
                 overview_review_status=overview_status.get(notice.id),
+                grade=status.get("grade"),
+                grade_source=status.get("grade_source"),
+                auto_preparation_status=status.get(
+                    "auto_preparation_status", "not_applicable"
+                ),
+                auto_preparation_reason=status.get("auto_preparation_reason"),
+                latest_deep_review_id=status.get("latest_deep_review_id"),
                 document=PreSpecDocumentSummary(
                     attachments=_count(mapping["attachments"]),
                     completed=counts.completed,

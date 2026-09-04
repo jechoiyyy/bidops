@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
 __all__ = [
+    "EffectiveGradeChangedHook",
     "ExtensionRegistry",
     "JudgmentProjection",
     "OverviewDocumentProjection",
@@ -145,6 +146,21 @@ class OverviewDocumentProjection(Protocol):
     def document_counts(self, session: Any, notice_ids: Sequence[int]) -> Mapping[int, PreSpecDocumentCounts]:
         """공고별 첨부 취득 상태 건수. 없는 공고는 빠뜨린다(호출부가 0으로 채운다)."""
 
+    def prespec_status_fields(
+        self, session: Any, notice_ids: Sequence[int]
+    ) -> Mapping[int, Mapping[str, Any]]:
+        """등급과 자동 준비 상태 (명세 §8).
+
+        키는 `grade`·`grade_source`·`auto_preparation_status`·
+        `auto_preparation_reason`·`latest_deep_review_id`다. 등급은 판정도 정정도
+        없으면 `None`이고 그때 `grade_source`도 `None`이다 — 둘을 특정 값으로
+        접지 않는다.
+
+        `document_counts`와 같은 계약이다: 호출부가 넘긴 `notice_ids` 만큼을
+        **상수 회 조회**로 처리하고 공고당 조회를 만들지 않는다. 없는 공고는
+        빠뜨린다(호출부가 부재 기본값으로 채운다).
+        """
+
 
 # --- 6.2 이벤트 hook --------------------------------------------------------
 
@@ -259,6 +275,22 @@ class RunIngestHook(Protocol):
 
 
 @runtime_checkable
+class EffectiveGradeChangedHook(Protocol):
+    """공고의 effective grade가 달라졌을 수 있다고 알리는 확장점 (§6.2 둘째 촉발).
+
+    `PUT /api/notices/{pk}/review`가 `corrected_grade`를 바꾼 뒤 판정을 소유한
+    모듈이 이 확장점을 부른다. **부르는 쪽은 누가 구현했는지 알지 못한다** —
+    registry만 본다. 제공자가 없으면 no-op이다.
+
+    구현은 자기 실패를 savepoint로 가둔다. 한 hook의 실패가 형제 hook의 성공
+    쓰기나 리뷰 저장 자체를 되돌리면 안 되기 때문이다(§6.2).
+    """
+
+    def effective_grade_changed(self, session: Any, notice_ids: Sequence[int]) -> None:
+        """등급이 달라졌을 수 있는 공고들. 호출자가 넘긴 session에서 동기 실행된다."""
+
+
+@runtime_checkable
 class TrackingDecisionHook(Protocol):
     """추적 결정이 바뀐 뒤 불리는 확장점 (§6.2 둘째 행)."""
 
@@ -318,6 +350,11 @@ class _AbsentOverviewDocumentProjection:
         return {}
 
     def document_counts(self, session: Any, notice_ids: Sequence[int]) -> Mapping[int, PreSpecDocumentCounts]:
+        return {}
+
+    def prespec_status_fields(
+        self, session: Any, notice_ids: Sequence[int]
+    ) -> Mapping[int, Mapping[str, Any]]:
         return {}
 
 
@@ -385,6 +422,7 @@ class ExtensionRegistry:
     _overview: _OwnedProvider | None = None
     _run_ingest_hooks: dict[str, RunIngestHook] = field(default_factory=dict)
     _tracking_hooks: dict[str, TrackingDecisionHook] = field(default_factory=dict)
+    _effective_grade_hooks: dict[str, EffectiveGradeChangedHook] = field(default_factory=dict)
 
     _absent_judgment: Any = field(default_factory=_AbsentJudgmentProjection, repr=False)
     _absent_overview: Any = field(default_factory=_AbsentOverviewDocumentProjection, repr=False)
@@ -407,6 +445,11 @@ class ExtensionRegistry:
 
     def register_tracking_decision_hook(self, hook: TrackingDecisionHook, *, owner: str) -> None:
         self._tracking_hooks[_checked_owner(owner)] = hook
+
+    def register_effective_grade_changed_hook(
+        self, hook: EffectiveGradeChangedHook, *, owner: str
+    ) -> None:
+        self._effective_grade_hooks[_checked_owner(owner)] = hook
 
     # --- 조회 (lifecycle이 호출한다) ---
     @property
@@ -466,6 +509,16 @@ class ExtensionRegistry:
         for hook in self._tracking_hooks.values():
             hook.tracking_decision_changed(session, opportunity_id)
 
+    def effective_grade_changed(self, session: Any, notice_ids: Sequence[int]) -> None:
+        """등록 순서대로 실행한다. hook이 없으면 아무 일도 하지 않는다 (§6.2).
+
+        빈 `notice_ids`도 그대로 넘긴다 — "0건 일치"와 "제한하지 않음"을 섞지
+        않는 것과 같은 이유로, 대상이 없다는 사실은 구현이 판단한다.
+        """
+
+        for hook in self._effective_grade_hooks.values():
+            hook.effective_grade_changed(session, notice_ids)
+
     @property
     def run_ingest_hook_count(self) -> int:
         return len(self._run_ingest_hooks)
@@ -473,6 +526,10 @@ class ExtensionRegistry:
     @property
     def tracking_decision_hook_count(self) -> int:
         return len(self._tracking_hooks)
+
+    @property
+    def effective_grade_changed_hook_count(self) -> int:
+        return len(self._effective_grade_hooks)
 
 
 _REGISTRY = ExtensionRegistry()

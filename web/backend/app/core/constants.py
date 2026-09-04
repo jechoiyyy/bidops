@@ -42,3 +42,39 @@ PreSpecOverviewReviewStatus = Literal[
     "failed",
     "cancelled",
 ]
+
+
+# 형식 밖 첨부(`unsupported_extension`)로 종결된 취득 행이 남기는
+# `attachment.extract_status` (명세 §6.2).
+#
+# 값을 쓰는 것은 deep_review의 취득 worker이고 읽는 것은 문서 묶음 issue 계산이다.
+# 두 곳이 각자 문자열을 들면 "확정을 막지 않는 값"이라는 계약이 조용히 갈라지므로
+# 여기 한 벌만 둔다. 접두사가 `provider_`로 시작하지만 **차단 issue가 아니다** —
+# 묶음 issue 계산이 다른 `provider_*`보다 먼저 이 값을 본다.
+UNSUPPORTED_ATTACHMENT_EXTRACT_STATUS = "provider_unsupported_excluded"
+
+#: 위 첨부가 묶음에 남기는 비차단 issue 코드 (명세 §5).
+UNSUPPORTED_ATTACHMENT_ISSUE_CODE = "unsupported_attachment_excluded"
+
+
+# 사전규격 자동 준비 상태 (명세 §5·§6.2).
+#
+# 값을 만드는 것은 deep_review의 자동 준비지만 lifecycle의 사전규격 응답이 같은
+# 리터럴을 싣는다. 개요 검토 상태와 같은 이유로 core에 한 벌만 둔다.
+# `not_applicable`은 "자동 준비 대상이 아니다"이며 "알 수 없다"가 아니다 —
+# 제공자가 없는 배포에서도 자동 준비는 실제로 일어나지 않으므로 같은 값이다.
+PreSpecAutoPreparationStatus = Literal[
+    "not_applicable",
+    "waiting_attachments",
+    "bundle_draft",
+    "bundle_ready",
+    "overview_running",
+    "deep_review_started",
+    "deep_review_ready_for_click",
+    "blocked",
+]
+
+#: 사전규격 응답의 `grade`가 어디서 왔는가 (명세 §8).
+#: 사람 정정 등급이 있으면 `human_review`, 없고 판정만 있으면
+#: `screening_judgment`, 둘 다 없으면 `None`(등급도 `None`)이다.
+PreSpecGradeSource = Literal["screening_judgment", "human_review"]
