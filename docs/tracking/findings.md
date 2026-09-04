@@ -434,6 +434,16 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 ## 모듈 이주가 드러낸 죽은 이름 네 자리
 
 - 확인: 2026-09-04
+- 상태: **해결** (2026-09-04). 세 `_LEGACY_GENERATION_CONFIG*` 상수와 `_validate_relative_source_ref`를
+  지웠다(지우기 전 `app/`·`tests/`·`scripts/`·`alembic/`·`docs/` 문자열 참조까지 전수 확인).
+  `PageFilters`는 core에서 lifecycle로 내렸다 — 의존 규칙 위반은 아니었고(타입이 screening을
+  import하지 않는다), "둘 이상이 쓰는 것을 core에 둔다"는 배정 원칙에서 소비자가
+  `NoticeListResponse.filters`와 `lifecycle/routers/notices.py` 하나뿐이었다. 옛 자리에 재수출을
+  남기지 않았고 응답 계약은 그대로다. 다섯째였던 `RuntimePipelineBridge.pipeline`도 지웠다 —
+  받아서 들고만 있고 부르지 않던 인자라, `ScreeningRuntime`·`build_runtime`·조립 계층이 그것을
+  넘기던 사슬을 함께 걷어 냈다. 그 결과 `app/runtime.py`의 모듈 runtime 생성 루프에서
+  screening만 다르게 부르던 분기가 사라졌다(모듈 순서를 `screening,lifecycle`로 주면 그 인자가
+  `None`이 되던 자리이기도 하다).
 - 재현 조건: 아래 네 이름의 읽는 쪽을 `web/backend/app/`과 `tests/` 전체에서 찾는다.
 - 증상: 대입만 되고 읽히지 않거나, 정의만 되고 불리지 않는다.
   - `_LEGACY_GENERATION_CONFIG`, `_LEGACY_GENERATION_CONFIG_VALUE`,
@@ -478,6 +488,13 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 ## `create_app()`은 한 프로세스에서 두 번 부를 수 없다
 
 - 확인: 2026-09-04
+- 상태: **해결** (2026-09-04). 확장점 등록에 **소유자 키**를 붙였다. 등록 함수는
+  `register_*(provider, *, owner: str)` 형태이고, 같은 owner가 다시 등록하면 제자리 교체(예외
+  없음), 다른 owner가 이미 찬 projection 자리를 채우려 하면 여전히 `RuntimeError`다. hook은
+  `(종류, owner)`로 키를 잡아 **두 번 등록되지 않는다** — 가드를 그냥 없앴다면 회차 적재 hook이
+  두 번 실행됐을 것이고, 가드가 그 결함을 가리고 있었다. 실행 순서는 최초 등록 순서
+  (= `BIDOPS_MODULES` 순서) 그대로다. owner는 lifecycle이 해석하지 않는 불투명한 문자열이다.
+  `uvicorn --factory app.main:create_app`이 동작한다. 등록 시점은 여전히 `main.py` 조립 시점이다.
 - 재현 조건: 같은 인터프리터에서 `from app.main import create_app`을 한 뒤
   `create_app()`을 부른다.
 - 증상: `RuntimeError: 판정 projection 제공자가 이미 등록됐다`로 끝난다.
@@ -499,6 +516,15 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 ## 모듈 공개 표면에 밖에서 아무도 쓰지 않는 이름이 많다
 
 - 확인: 2026-09-04
+- 상태: **해결** (2026-09-04). 실제 소비자를 AST로 전수 조사해 줄였다 — lifecycle 61→49,
+  screening 66→22, deep_review 12→11. 남은 이름 중 정적 import가 없는 것은 조립 계층이
+  `getattr`로 가져가는 router 인스턴스 21개와 `build_runtime` 3개뿐이며, 표에 왜 공개인지를
+  구역 주석(조립이 쓴다 / 형제 모듈이 쓴다 / 진입점이 쓴다)으로 적었다. deep_review가 쓰는
+  screening seam 세 이름은 그대로다. 더 중요한 것은 **경계 검사 6**을 새로 넣은 것이다 —
+  조립 계층의 startup 파일(`app/__init__.py`, `main.py`, `runtime.py`)이 상태를 바꾸거나 모델을
+  부르는 이름(`activate_policy`, `seed_policy`, `create_profile_snapshot`, `ingest_run`,
+  `OllamaClient`, `ScreeningWorker` 등)을 import하면 실패한다. 별도 프로세스 진입점
+  (`workers/analysis.py`, `migrations/import_sqlite.py`)과 `alembic/`은 그것이 목적이므로 제외다.
 - 재현 조건: `app/**`와 `tests/**`에서 `from app.<module> import X` / `from ..<module> import X`
   를 AST로 모아 각 모듈 `__init__.py`의 `_EXPORTS` 키와 대조한다.
 - 증상: screening 공개 이름 66개 중 router 인스턴스와 `build_runtime`을 빼면 40여 개가
@@ -524,6 +550,9 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 ## `app/deep_review/contracts/schemas.py`는 호출자가 없는 재수출 파일이다
 
 - 확인: 2026-09-04
+- 상태: **해결** (2026-09-04). 파일을 지웠다. 재수출하던 이름 10개가 모두
+  `app/deep_review/contracts/__init__.py`의 `__all__`에 이미 있고, `schema_path()`가 `.json`
+  파일 이름으로 계약을 찾으므로 이 파일의 존재는 무관했다. 계약 JSON과 `_validator.py`는 그대로다.
 - 재현 조건: `grep -rn "contracts.schemas\|from .schemas import" web/backend/app web/backend/tests`
 - 증상: 파일 첫 줄이 `"""Compatibility exports for callers that prefer a schemas module."""`
   인데 `app/`·`tests/`·`scripts/`·`docs/` 어디에도 호출자가 없다. 이주 전
@@ -538,6 +567,13 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 ## lifecycle의 확장점 실패 로그가 특정 제공자의 어휘를 쓴다
 
 - 확인: 2026-09-04
+- 상태: **해결** (2026-09-04). 이벤트 이름을 `prespec_attachment.refresh_failed`에서
+  `extension.tracking_decision_hook_failed`로, 메시지를 "tracking decision extension hook
+  failed"로 바꿨다. 제공자 이름 대신 lifecycle이 정당하게 아는 값만 남긴다(등록된 hook 수,
+  예외 타입). try/except **동작은 그대로**이며 registry 조회도 try 안에 남겼다 — 밖으로 빼면
+  삼켜지던 오류가 500이 된다. `app/lifecycle/**` 전체를 훑었고 이 자리가 유일한 누수였다.
+  `services/pipeline.py`의 `screening-results.json`은 형제 모듈이 아니라 파이프라인 **파일 계약**
+  이름이라 남겼다.
 - 재현 조건: `app/lifecycle/routers/opportunities.py`의 추적 결정 hook 호출부를 본다.
 - 증상: 바로 위 주석이 "어느 모듈이 무엇을 하는지는 모르고"라고 적어 두고, 아래 except
   블록은 `"pre-spec attachment eligibility refresh failed"`와
