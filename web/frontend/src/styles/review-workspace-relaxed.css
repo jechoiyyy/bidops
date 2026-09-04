@@ -921,6 +921,11 @@
   min-width: 0;
 }
 
+/* 감싸는 div가 grid 항목이 되면 첫 열의 max-content가 행 전체로 계산된다. */
+.review-record-facts > div {
+  display: contents;
+}
+
 .review-record-facts dt {
   color: var(--color-content-secondary);
   font-size: var(--font-size-supporting);

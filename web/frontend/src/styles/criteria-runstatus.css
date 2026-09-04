@@ -131,3 +131,123 @@
 .gng-empty {
   padding: var(--spacing-5);
 }
+
+/* --- 경계 패널 (PLAN 단계 E 작업 6) ---
+ *
+ * 탭이 바뀌어도 남아야 하는 문장들이다. 본문 옆에 고정 폭으로 두고, 본문이
+ * 좁아지면 아래로 내려가지 않는다 — 지원 폭이 1280px 이상 하나뿐이라
+ * (ADR-0046) 폭에 따라 배치를 바꿀 이유가 없다. */
+/* 아트보드(`Criteria`·`RunStatus`)는 이 패널들을 본문 **아래**의 2열
+ * facts grid에 둔다. 옆에 고정 폭으로 세우면 실행 목록 같은 넓은 표가 남은
+ * 폭 안으로 접히지 못해 1280px에서 화면이 통째로 가로로 넘친다. */
+.criteria-guardrails,
+.runstatus-guardrails {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: var(--spacing-3);
+  min-width: 0;
+  padding: var(--spacing-4) var(--spacing-5) var(--spacing-5);
+}
+
+.criteria-guardrail-panel,
+.runstatus-guardrail-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  min-width: 0;
+  padding: var(--spacing-4);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-container);
+  background: var(--color-background-card);
+}
+
+.criteria-guardrail-panel h3,
+.runstatus-guardrail-panel h3 {
+  margin: 0;
+  font-size: var(--font-size-sm);
+}
+
+.criteria-guardrail-panel p,
+.runstatus-guardrail-panel p {
+  margin: 0;
+  color: var(--color-content-secondary);
+  font-size: var(--font-size-supporting);
+  overflow-wrap: anywhere;
+}
+
+.criteria-guardrail-panel ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  margin: 0;
+  padding-left: var(--spacing-4);
+  font-size: var(--font-size-supporting);
+}
+
+.criteria-guardrail-policies {
+  padding-left: 0 !important;
+  list-style: none;
+}
+
+.criteria-guardrail-policies li {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-0-5);
+  min-width: 0;
+  padding: var(--spacing-2) 0;
+  border-top: var(--border-width) solid var(--color-border);
+  color: var(--color-content-secondary);
+  overflow-wrap: anywhere;
+}
+
+.criteria-guardrail-status {
+  align-self: flex-start;
+  padding: 0 var(--spacing-1);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-inner);
+  font-size: var(--font-size-xs);
+}
+
+/* `<dl>` 안의 `<div>`가 dt·dd를 감싸고 있으므로 grid 항목은 그 div다. 열
+ * 정의를 그대로 두면 첫 열의 max-content가 div 전체(긴 mono 문자열 포함)로
+ * 계산돼 dl이 부모보다 넓어진다 — /run-status 1280px 616px 넘침의 원인이었다.
+ * div를 `display: contents`로 지워 dt·dd가 직접 열에 놓이게 한다. */
+.runstatus-guardrail-facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--spacing-0-5) var(--spacing-2);
+  margin: 0;
+  min-width: 0;
+  font-size: var(--font-size-supporting);
+}
+
+.runstatus-guardrail-facts > div {
+  display: contents;
+}
+
+.runstatus-guardrail-facts dt {
+  color: var(--color-content-secondary);
+}
+
+.runstatus-guardrail-facts dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.criteria-guardrail-link,
+.runstatus-guardrail-link {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-height);
+  font-size: var(--font-size-supporting);
+}
+
+/* 결정 대기 목록의 요약 한 줄. 받은 목록에서 센 값이라는 사실을 함께 적는다. */
+.gng-summary {
+  margin: 0;
+  color: var(--color-content-secondary);
+  font-size: var(--font-size-supporting);
+}

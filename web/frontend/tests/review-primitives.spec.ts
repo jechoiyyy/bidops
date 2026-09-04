@@ -15,7 +15,10 @@ test("검토 대기열은 공통 필터·밀집 행·sticky 결정 헤더를 사
   await expect(page.locator('[data-review-primitive="dense-list"]')).toBeVisible();
   await expect(page.locator('[data-review-primitive="dense-list-row"]')).not.toHaveCount(0);
   await expect(page.locator('[data-review-primitive="sticky-decision-header"]')).toBeVisible();
-  await expect(page.locator('[data-review-primitive="segmented-control"]')).toBeVisible();
+  // 단계 E 작업 4 이후 이 화면에는 입력이 없다. 리뷰 입력이 쓰던 segmented
+  // control도 함께 사라졌고, 남은 것은 저장된 리뷰를 읽는 자리다.
+  await expect(page.locator('[data-review-primitive="segmented-control"]')).toHaveCount(0);
+  await expect(page.locator(".review-record")).toBeVisible();
 
   const headerPosition = await page.locator('[data-review-primitive="sticky-decision-header"]').evaluate((element) => getComputedStyle(element).position);
   expect(headerPosition).toBe("sticky");
