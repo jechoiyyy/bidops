@@ -26,6 +26,7 @@ bidops/
 │   ├── database-guide.md             DB 전체 해설과 설계 근거
 │   ├── deep-review-erd.md            심층 검토 DB 권위 계약
 │   ├── bid-delta-contract-spec.md    입찰 delta·최종 결정 OpenAPI·DB 명세
+│   ├── order-plan-tracking-contract-request.md  발주계획 추적 결정 계약 요청안(제안, 미채택)
 │   └── tracking/
 │       ├── status.md                 구현과 검증의 현재 상태
 │       ├── lifecycle-workstream.md 생애주기 구현의 결정 대기·할 일 기록
