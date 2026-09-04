@@ -30,12 +30,13 @@ export const routeMetadata = {
   // dataScope는 `run` 그대로여서 AppShell이 회차를 계속 해석하고 주소에 넣는다.
   // 회차를 고르는 자리는 같은 화면의 `공고 판정 이력` 탭이다.
   //
-  // `editScope`는 예외 작업 경로(PLAN 단계 E 작업 3-2)가 동작한 뒤에 바꾼다.
-  // 리뷰 저장 경로가 사라진 시점이 없어야 한다.
+  // `editScope`가 `null`인 것은 결정 3의 이행 결과다. 이 화면의 리뷰 저장은 사업
+  // 추적의 예외 작업 경로로 옮겨갔고(단계 E 작업 3-2를 먼저 통과시킨 뒤 작업 4로
+  // 잠갔다), 남은 것은 읽기 전용 이력이다.
   queue: {
     title: "검토 대기열",
     dataScope: "run",
-    editScope: "리뷰 저장 가능",
+    editScope: null,
     runSelectorVisible: false,
   },
   // 공고 판정 이력은 사이드바 항목이 아니다. 사업 추적 상세에서 열리고,
@@ -43,15 +44,17 @@ export const routeMetadata = {
   noticeJudgments: {
     title: "공고 판정 이력",
     dataScope: "run",
-    editScope: "리뷰 저장 가능",
+    editScope: null,
     runSelectorVisible: true,
   },
   // ADR-0045 결정 2: `사업기회` 화면이 이름과 구조를 바꿔 `검토 대기열`의
   // 자리를 받는다. 주소(/opportunities)는 그대로 두어 기존 링크가 살아 있다.
+  // 추적 상태 저장에 더해 예외 작업(후보 연결 판정·확인 항목 답변)의 저장도
+  // 이 화면이 갖는다(결정 3).
   opportunities: {
     title: "사업 추적",
     dataScope: "cumulative",
-    editScope: "추적 상태 저장 가능",
+    editScope: "추적 상태·예외 작업 저장 가능",
     runSelectorVisible: false,
   },
   orderPlans: {

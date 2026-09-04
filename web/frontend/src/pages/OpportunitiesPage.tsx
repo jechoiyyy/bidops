@@ -150,6 +150,7 @@ function LifecycleCard({ link, isSignalSource, step }: { link: OpportunityLinkVi
 function LinkedRecordsPanel({ item, returnSearch }: { item: OpportunityDetailResponse; returnSearch: string }) {
   const lifecycleLinks = [...item.links].sort((left, right) => lifecycleRank(left) - lifecycleRank(right));
   const noticeLink = lifecycleLinks.find((link) => link.notice_id !== null);
+  const noticeLinks = lifecycleLinks.filter((link) => link.notice_id !== null);
   return (
     <>
       <section className="opportunity-detail-block">
@@ -169,6 +170,34 @@ function LinkedRecordsPanel({ item, returnSearch }: { item: OpportunityDetailRes
             ))}
           </ul>
         )}
+      </section>
+
+      {/* ADR-0045 결정 3: 공고 1차 판정은 읽기 전용 이력이 되고 사업 추적 상세에서
+          열린다. 회차 선택기는 그 화면이 갖는다 — 여기서 회차를 고르지 않는다. */}
+      <section className="opportunity-detail-block" aria-labelledby="opportunity-judgments-title">
+        <div className="opportunity-section-heading">
+          <div>
+            <span className="opportunity-panel-kicker">NOTICE JUDGMENT HISTORY</span>
+            <h4 id="opportunity-judgments-title">공고 판정 이력</h4>
+          </div>
+          <span>회차별 읽기 전용 이력</span>
+        </div>
+        {noticeLinks.length === 0 ? (
+          <p className="opportunity-link-note">연결된 공고가 없어 열 판정 이력이 없습니다. 발주계획만 연결된 단계입니다.</p>
+        ) : (
+          <ul className="opportunity-judgment-links">
+            {noticeLinks.map((link) => (
+              <li key={link.id}>
+                <Link className="opportunity-linked-link" to={`/judgments/${link.notice_id as number}`}>
+                  {linkRecordLabel(link)} · {link.title?.trim() || "제목 미확인"} →
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="opportunity-link-note">
+          판정 이력 화면은 회차 선택기를 갖고 있으며 저장하지 않습니다. 사람의 수정은 <strong>시스템 신호</strong> 탭의 예외 작업에서 합니다.
+        </p>
       </section>
 
       <section className="opportunity-detail-block" aria-labelledby="opportunity-bid-delta-title">
@@ -246,18 +275,33 @@ function TrackingHistoryPanel({ item }: { item: OpportunityDetailResponse }) {
 // 탭 3 · 시스템 신호와 예외 작업 경로 (PLAN 단계 E 작업 3-2)
 
 /** 후보 연결 하나를 사람이 수용·기각한다. 서버 계약 `PATCH /opportunities/links/{id}/decision`. */
-function CandidateDecisionForm({ exception, onResolved }: { exception: TrackingException; onResolved: (message: string) => void }) {
+function CandidateDecisionForm({
+  exception,
+  onDirtyChange,
+  onResolved,
+}: {
+  exception: TrackingException;
+  onDirtyChange: (key: string, dirty: boolean) => void;
+  onResolved: (message: string) => void;
+}) {
   const queryClient = useQueryClient();
   const [decision, setDecision] = useState<"accepted" | "rejected">("accepted");
   const [reason, setReason] = useState("");
   const [actorName, setActorName] = useState("");
   const linkId = exception.linkId as number;
+  const dirtyKey = `candidate:${linkId}`;
+  const dirty = reason.length > 0 || actorName.length > 0;
+  useEffect(() => {
+    onDirtyChange(dirtyKey, dirty);
+    return () => onDirtyChange(dirtyKey, false);
+  }, [dirty, dirtyKey, onDirtyChange]);
 
   const mutation = useMutation({
     mutationFn: () => api.decideOpportunityLink(linkId, { decision, reason: reason.trim() }, actorName),
     onSuccess: async () => {
       setReason("");
       setActorName("");
+      onDirtyChange(dirtyKey, false);
       await queryClient.invalidateQueries({ queryKey: ["opportunity"] });
       await queryClient.invalidateQueries({ queryKey: ["opportunities"] });
       onResolved(decision === "accepted" ? "후보 연결을 수용으로 기록했습니다." : "후보 연결을 기각으로 기록했습니다.");
@@ -335,10 +379,12 @@ function CandidateDecisionForm({ exception, onResolved }: { exception: TrackingE
 function NoticeCorrectionForm({
   exceptions,
   notice,
+  onDirtyChange,
   onResolved,
 }: {
   exceptions: TrackingException[];
   notice: NoticeDetailResponse;
+  onDirtyChange: (key: string, dirty: boolean) => void;
   onResolved: (message: string) => void;
 }) {
   const queryClient = useQueryClient();
@@ -346,6 +392,13 @@ function NoticeCorrectionForm({
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [reason, setReason] = useState("");
   const [actorName, setActorName] = useState("");
+  const dirtyKey = `notice:${notice.id}`;
+  const dirty = reason.length > 0 || actorName.length > 0
+    || Object.values(answers).some((value) => value.length > 0);
+  useEffect(() => {
+    onDirtyChange(dirtyKey, dirty);
+    return () => onDirtyChange(dirtyKey, false);
+  }, [dirty, dirtyKey, onDirtyChange]);
 
   const mutation = useMutation({
     mutationFn: () => {
@@ -372,6 +425,7 @@ function NoticeCorrectionForm({
       setAnswers({});
       setReason("");
       setActorName("");
+      onDirtyChange(dirtyKey, false);
       await queryClient.invalidateQueries({ queryKey: ["notice", notice.id] });
       onResolved("확인 항목 답변을 저장했습니다.");
     },
@@ -444,9 +498,11 @@ function NoticeCorrectionForm({
 
 function SystemSignalPanel({
   item,
+  onDirtyChange,
   onResolved,
 }: {
   item: OpportunityDetailResponse;
+  onDirtyChange: (key: string, dirty: boolean) => void;
   onResolved: (message: string) => void;
 }) {
   const signalLink = item.links.find((link) => link.id === item.recheck_signal_link_id);
@@ -528,7 +584,7 @@ function SystemSignalPanel({
               <p className="opportunity-exception-detail">{exception.detail}</p>
               <p className="opportunity-exception-resolution"><strong>처리 경로</strong> · {exception.resolution}</p>
               {exception.resolution === "후보 연결 판정" ? (
-                <CandidateDecisionForm exception={exception} onResolved={onResolved} />
+                <CandidateDecisionForm exception={exception} onDirtyChange={onDirtyChange} onResolved={onResolved} />
               ) : null}
               {exception.resolution === "화면 밖 확인" ? (
                 <p className="opportunity-exception-detail">
@@ -546,7 +602,7 @@ function SystemSignalPanel({
           return (
             <div className="opportunity-exception-notice" key={notice.id}>
               <h5>{notice.title?.trim() || "제목 미확인"} · 확인 항목 {forNotice.length}건</h5>
-              <NoticeCorrectionForm exceptions={forNotice} notice={notice} onResolved={onResolved} />
+              <NoticeCorrectionForm exceptions={forNotice} notice={notice} onDirtyChange={onDirtyChange} onResolved={onResolved} />
               <Link
                 className="opportunity-linked-link"
                 to={{ pathname: `/judgments/${notice.id}`, search: new URLSearchParams({ run: notice.run_id }).toString() }}
@@ -702,13 +758,33 @@ function TrackingDetail({
   returnSearch: string;
 }) {
   const [tab, setTab] = useState<DetailTab>("records");
+  // 시스템 신호 탭은 연결된 공고를 읽어야 검증 실패를 셀 수 있으므로 열기 전에는
+  // 그리지 않는다. 다만 한 번 연 뒤에는 탭을 옮겨도 남겨 둔다 — 예외 작업 form에
+  // 입력하던 값이 탭 이동만으로 사라지면 안 된다.
+  const [signalsOpened, setSignalsOpened] = useState(false);
+  // 상세 안에 저장되지 않은 입력이 여러 자리에 있을 수 있다(추적 상태 변경,
+  // 후보 연결 판정, 확인 항목 답변). 어느 하나라도 남아 있으면 화면 이탈을
+  // 막아야 하므로 자리별로 모아 OR로 올린다.
+  const [dirtySources, setDirtySources] = useState<Record<string, boolean>>({});
+  const setSourceDirty = useCallback((key: string, dirty: boolean) => {
+    setDirtySources((current) => (Boolean(current[key]) === dirty ? current : { ...current, [key]: dirty }));
+  }, []);
   const detail = useQuery({
     queryKey: ["opportunity", opportunityId],
     queryFn: ({ signal }) => api.getOpportunity(opportunityId, { signal }),
   });
 
+  const anyDirty = Object.values(dirtySources).some(Boolean);
+  useEffect(() => {
+    onDirtyChange(anyDirty);
+  }, [anyDirty, onDirtyChange]);
+
+  const handleTrackingDirty = useCallback((dirty: boolean) => setSourceDirty("tracking", dirty), [setSourceDirty]);
+
   useEffect(() => {
     setTab("records");
+    setSignalsOpened(false);
+    setDirtySources({});
   }, [opportunityId]);
 
   if (detail.isPending) return <p className="opportunity-detail-status" role="status">불러오는 중…</p>;
@@ -732,7 +808,15 @@ function TrackingDetail({
           <Badge variant={trackingVariant(item.tracking_status)} label={item.tracking_status} />
           <Badge variant={nextAction.variant} label={`다음 행동 · ${nextAction.label}`} />
         </div>
-        <TabList value={tab} onChange={(value) => setTab(value as DetailTab)} role="tablist" hasDivider>
+        <TabList
+          value={tab}
+          onChange={(value) => {
+            if (value === "signals") setSignalsOpened(true);
+            setTab(value as DetailTab);
+          }}
+          role="tablist"
+          hasDivider
+        >
           <Tab value="records" label="연결 레코드" panelId="opportunity-panel-records" />
           <Tab value="history" label="추적 이력" panelId="opportunity-panel-history" />
           <Tab value="signals" label="시스템 신호" panelId="opportunity-panel-signals" />
@@ -747,7 +831,7 @@ function TrackingDetail({
           <TrackingHistoryPanel item={item} />
         </div>
         <div id="opportunity-panel-signals" role="tabpanel" aria-label="시스템 신호" hidden={tab !== "signals"}>
-          {tab === "signals" ? <SystemSignalPanel item={item} onResolved={onSaved} /> : null}
+          {signalsOpened ? <SystemSignalPanel item={item} onDirtyChange={setSourceDirty} onResolved={onSaved} /> : null}
         </div>
       </div>
 
@@ -764,7 +848,7 @@ function TrackingDetail({
             key={`${item.id}:${item.tracking_selected_at ?? "unselected"}`}
             opportunity={item}
             onSaved={onSaved}
-            onDirtyChange={onDirtyChange}
+            onDirtyChange={handleTrackingDirty}
           />
         </ReviewSecondaryInput>
       </div>

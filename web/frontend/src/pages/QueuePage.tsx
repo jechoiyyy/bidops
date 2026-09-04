@@ -1,98 +1,37 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useEffect, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Badge } from "../components/common/Badge";
 import { EmptyState } from "../components/common/EmptyState";
 import { SplitWorkspace, StickyDecisionHeader } from "../components/common/ReviewPrimitives";
-import { Toast } from "../components/common/Toast";
-import { useUnsavedGuard } from "../components/common/useUnsavedGuard";
 import { AttachmentPanel } from "../components/notice/AttachmentPanel";
 import { CounterargumentList } from "../components/notice/CounterargumentList";
 import { JudgmentBanner } from "../components/notice/JudgmentBanner";
 import { NoticeFacts } from "../components/notice/NoticeFacts";
 import { PerspectiveTable } from "../components/notice/PerspectiveTable";
 import { RetrievalSignals } from "../components/notice/RetrievalSignals";
-import { ReviewBar, type ReviewDraft } from "../components/notice/ReviewBar";
+import { ReviewRecord } from "../components/notice/ReviewRecord";
 import { VerificationItemTable } from "../components/notice/VerificationItemTable";
 import { QueueFilters, type QueueFilterValues } from "../components/queue/QueueFilters";
 import { QueueList } from "../components/queue/QueueList";
 import { api } from "../lib/api";
 import { formatPrice, present } from "../lib/format";
 import { describeDeadline } from "../lib/deadline";
-import type { NoticeDetailResponse, ReviewAnswerInput, ReviewResponse, ReviewUpsertRequest } from "../lib/types";
+import type { ReviewAnswerInput } from "../lib/types";
 import { gradeVariant } from "../lib/grade";
 import "../styles/review-workspace-relaxed.css";
 
-const emptyDraft: ReviewDraft = {
-  disposition: "",
-  system_judgment_review: "",
-  corrected_grade: "",
-  corrected_readiness: "",
-  weakest_perspective: "",
-  reason: "",
-  verification_answers: [],
-};
-
-function draftFromNotice(notice: NoticeDetailResponse | undefined, runId: string): ReviewDraft {
-  const review = notice?.reviews.find((item) => item.run_id === runId);
-  if (!review) return { ...emptyDraft, verification_answers: [] };
-  return {
-    disposition: review.disposition ?? "",
-    system_judgment_review: review.system_judgment_review ?? "",
-    corrected_grade: review.corrected_grade ?? "",
-    corrected_readiness: review.corrected_readiness ?? "",
-    weakest_perspective: review.weakest_perspective ?? "",
-    reason: review.reason ?? "",
-    verification_answers: review.answers.map((answer) => ({ item: answer.item, answer: answer.answer })),
-  };
-}
-
-// 확인 항목 답변은 순서가 보장되지 않으므로 항목 이름을 기준으로 맞춰 본다.
-function answersEqual(left: ReviewAnswerInput[], right: ReviewAnswerInput[]): boolean {
-  if (left.length !== right.length) return false;
-  const rightByItem = new Map(right.map((entry) => [entry.item, entry.answer] as const));
-  return left.every((entry) => rightByItem.has(entry.item) && rightByItem.get(entry.item) === entry.answer);
-}
-
-function draftsEqual(left: ReviewDraft, right: ReviewDraft): boolean {
-  return left.disposition === right.disposition
-    && left.system_judgment_review === right.system_judgment_review
-    && left.corrected_grade === right.corrected_grade
-    && left.corrected_readiness === right.corrected_readiness
-    && left.weakest_perspective === right.weakest_perspective
-    && left.reason === right.reason
-    && answersEqual(left.verification_answers, right.verification_answers);
-}
-
-// 회차와 공고마다 초안을 따로 보관한다. 회차를 바꿨다가 돌아와도 입력값이 남아 있어야 한다.
-function draftStorageKey(runId: string, noticePk: number): string {
-  return `bidops.queue-draft:${runId}:${noticePk}`;
-}
-
-function readStoredDraft(runId: string, noticePk: number): ReviewDraft | null {
-  try {
-    const raw = window.localStorage.getItem(draftStorageKey(runId, noticePk));
-    return raw ? (JSON.parse(raw) as ReviewDraft) : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeStoredDraft(runId: string, noticePk: number, draft: ReviewDraft): void {
-  try {
-    window.localStorage.setItem(draftStorageKey(runId, noticePk), JSON.stringify(draft));
-  } catch {
-    // 저장 공간이 없거나 접근이 막힌 환경에서는 임시 저장만 포기한다.
-  }
-}
-
-function clearStoredDraft(runId: string, noticePk: number): void {
-  try {
-    window.localStorage.removeItem(draftStorageKey(runId, noticePk));
-  } catch {
-    // 위와 같다.
-  }
-}
+/**
+ * 공고 1차 판정은 읽기 전용 이력이다 (ADR-0045 결정 3, PLAN 단계 E 작업 4).
+ *
+ * 이 화면이 갖고 있던 리뷰 초안·localStorage 임시 저장·`PUT /notices/{pk}/review`
+ * 저장은 모두 사라졌다. 같은 저장 계약을 쓰는 사람 수정 경로는 사업 추적 상세의
+ * 예외 작업이 갖고 있으며(단계 E 작업 3-2, 먼저 통과시킨 뒤 여기를 잠갔다),
+ * 회차는 공고의 `run_id`를 그대로 쓰므로 누적 화면에서도 회차가 어긋나지 않는다.
+ *
+ * 저장이 사라졌으므로 미저장 guard도 임시 초안도 필요 없다. 저장할 것이 없는
+ * 화면에서 "저장되지 않은 변경"을 경고하면 사람이 없는 위험을 찾게 된다.
+ */
 
 function filterFromParams(params: URLSearchParams, defaultSort: QueueFilterValues["sort"] = "grade"): QueueFilterValues {
   const attachment = params.get("attachment");
@@ -131,22 +70,6 @@ function isTypingTarget(target: EventTarget | null): boolean {
   return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable;
 }
 
-// 900px 이하에서는 목록과 상세를 한 화면에 같이 두지 않는다.
-// 이 값은 theme.css의 태블릿 전환점과 짝을 이루므로 함께 바꿔야 한다.
-const SPLIT_QUERY = "(max-width: 900px)";
-
-function useSplitLayout(): boolean {
-  const [split, setSplit] = useState(() => window.matchMedia(SPLIT_QUERY).matches);
-  useEffect(() => {
-    const query = window.matchMedia(SPLIT_QUERY);
-    const onChange = (event: MediaQueryListEvent) => setSplit(event.matches);
-    query.addEventListener("change", onChange);
-    setSplit(query.matches);
-    return () => query.removeEventListener("change", onChange);
-  }, []);
-  return split;
-}
-
 /**
  * @param defaultSort 주소에 sort가 없을 때 쓸 정렬. 마감 추적(/deadlines)은
  *   리다이렉트가 아니라 이 화면의 저장된 뷰이므로(docs/design/PLAN.md 2단계)
@@ -155,21 +78,12 @@ function useSplitLayout(): boolean {
  */
 export function QueuePage({ defaultSort = "grade" }: { defaultSort?: QueueFilterValues["sort"] } = {}) {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const { noticePk: noticePkParam } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const runId = searchParams.get("run");
   const filters = useMemo(() => filterFromParams(searchParams, defaultSort), [searchParams, defaultSort]);
   const noticePk = noticePkParam ? Number(noticePkParam) : null;
   const selectedId = noticePk !== null && Number.isInteger(noticePk) ? noticePk : null;
-  const [draft, setDraft] = useState<ReviewDraft>(emptyDraft);
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ message: string; actionLabel?: string; onAction?: () => void } | null>(null);
-  // draft가 어느 공고의 것인지 함께 들고 있어야 한다. 공고를 바꾸는 렌더에서는 draft가
-  // 아직 이전 공고의 값이므로, 이 키가 맞을 때만 비교하고 임시 저장한다.
-  const [draftOwner, setDraftOwner] = useState<string | null>(null);
-  const splitLayout = useSplitLayout();
 
   const noticesQuery = useQuery({
     queryKey: ["queue-notices", runId, filters],
@@ -211,13 +125,17 @@ export function QueuePage({ defaultSort = "grade" }: { defaultSort?: QueueFilter
     [notices],
   );
   const detail = detailQuery.data?.id === selectedId ? detailQuery.data : undefined;
-  const serverDraft = useMemo(() => draftFromNotice(detail, runId ?? ""), [detail, runId]);
-  const draftKey = detail && runId ? draftStorageKey(runId, detail.id) : null;
-  const draftMatchesDetail = draftOwner === draftKey;
-  const isDirty = Boolean(detail) && draftMatchesDetail && !draftsEqual(draft, serverDraft);
+  // 저장된 리뷰는 이 회차의 것 하나다. 다른 회차의 리뷰를 이 회차의 값으로 읽지 않는다.
+  const savedReview = useMemo(
+    () => detail?.reviews.find((review) => review.run_id === runId),
+    [detail, runId],
+  );
+  const savedAnswers = useMemo<ReviewAnswerInput[]>(
+    () => (savedReview?.answers ?? []).map((answer) => ({ item: answer.item, answer: answer.answer })),
+    [savedReview],
+  );
   const detailDeadline = detail ? describeDeadline(detail.deadline_at) : null;
   const selectedIndex = notices.findIndex((notice) => notice.id === selectedId);
-  useUnsavedGuard(isDirty);
 
   useEffect(() => {
     if (!runId || noticesQuery.isLoading) return;
@@ -225,38 +143,12 @@ export function QueuePage({ defaultSort = "grade" }: { defaultSort?: QueueFilter
       if (selectedId !== null) navigate({ pathname: "/queue", search: searchParams.toString() }, { replace: true });
       return;
     }
-    if ((selectedId !== null && selectedIndex === -1) || (selectedId === null && !splitLayout)) {
+    // ADR-0046: 지원 폭은 1280~1920px 하나뿐이라 목록만 보여주는 좁은 폭 모드가
+    // 없다. 어느 폭에서도 첫 공고를 골라 두 pane을 함께 유지한다.
+    if (selectedId === null || selectedIndex === -1) {
       navigate({ pathname: `/queue/${notices[0].id}`, search: searchParams.toString() }, { replace: true });
     }
-  }, [navigate, notices, noticesQuery.isLoading, runId, searchParams, selectedId, selectedIndex, splitLayout]);
-
-  useEffect(() => {
-    if (!detail || !runId) {
-      setDraft({ ...emptyDraft, verification_answers: [] });
-      setDraftOwner(null);
-      setSaveError(null);
-      return;
-    }
-    const stored = readStoredDraft(runId, detail.id);
-    setDraft(stored ?? draftFromNotice(detail, runId));
-    setDraftOwner(draftStorageKey(runId, detail.id));
-    setSaveError(null);
-  }, [detail, runId]);
-
-  useEffect(() => {
-    if (!detail || !runId || !draftMatchesDetail) return;
-    if (draftsEqual(draft, serverDraft)) {
-      clearStoredDraft(runId, detail.id);
-      return;
-    }
-    writeStoredDraft(runId, detail.id, draft);
-  }, [draft, draftMatchesDetail, detail, runId, serverDraft]);
-
-  useEffect(() => {
-    if (!toast) return;
-    const timer = window.setTimeout(() => setToast(null), 6000);
-    return () => window.clearTimeout(timer);
-  }, [toast]);
+  }, [navigate, notices, noticesQuery.isLoading, runId, searchParams, selectedId, selectedIndex]);
 
   const setFilter = <K extends keyof QueueFilterValues>(key: K, value: QueueFilterValues[K]) => {
     const next = new URLSearchParams(searchParams);
@@ -307,75 +199,6 @@ export function QueuePage({ defaultSort = "grade" }: { defaultSort?: QueueFilter
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [moveSelection]);
-
-  const updateDraft = <K extends keyof ReviewDraft>(key: K, value: ReviewDraft[K]) => {
-    setDraft((current) => ({ ...current, [key]: value }));
-  };
-
-  const discardDraft = () => {
-    if (!detail || !runId) return;
-    clearStoredDraft(runId, detail.id);
-    setDraft(draftFromNotice(detail, runId));
-    setSaveError(null);
-  };
-
-  const updateAnswer = (item: string, answer: string) => {
-    setDraft((current) => {
-      const index = current.verification_answers.findIndex((entry) => entry.item === item);
-      if (index === -1) {
-        return { ...current, verification_answers: [...current.verification_answers, { item, answer }] };
-      }
-      const next = [...current.verification_answers];
-      next[index] = { ...next[index], answer };
-      return { ...current, verification_answers: next };
-    });
-  };
-
-  const saveReview = async () => {
-    if (!selectedId || !runId || !detail) return;
-    setSaving(true);
-    setSaveError(null);
-    const payload: ReviewUpsertRequest = {
-      run_id: runId,
-      disposition: draft.disposition || null,
-      system_judgment_review: draft.system_judgment_review || null,
-      corrected_grade: draft.corrected_grade || null,
-      corrected_readiness: draft.corrected_readiness || null,
-      weakest_perspective: draft.weakest_perspective || null,
-      reason: draft.reason || null,
-      verification_answers: draft.verification_answers,
-    };
-    try {
-      const saved = await api.saveReview(selectedId, payload);
-      clearStoredDraft(runId, selectedId);
-      queryClient.setQueryData<ReviewResponse[]>(["reviews", runId], (current = []) => {
-        const next = current.filter((review) => review.notice_pk !== saved.notice_pk);
-        return [...next, saved].sort((left, right) => left.notice_pk - right.notice_pk);
-      });
-      queryClient.setQueryData<NoticeDetailResponse>(["notice", selectedId], (current) => current ? {
-        ...current,
-        reviews: [...current.reviews.filter((review) => review.run_id !== saved.run_id), saved],
-      } : current);
-      const currentIndex = notices.findIndex((notice) => notice.id === selectedId);
-      const nextNotice = currentIndex >= 0 ? notices[currentIndex + 1] : undefined;
-      if (nextNotice) {
-        const savedId = selectedId;
-        setToast({
-          message: "저장됨 · 다음 공고로 이동했습니다",
-          actionLabel: "되돌리기",
-          onAction: () => navigate({ pathname: `/queue/${savedId}`, search: searchParams.toString() }),
-        });
-        navigate({ pathname: `/queue/${nextNotice.id}`, search: searchParams.toString() });
-      } else {
-        setToast({ message: "저장됨 · 마지막 공고입니다" });
-        setDraft(draftFromNotice(detail, runId));
-      }
-    } catch (error) {
-      setSaveError(errorMessage(error, "리뷰 저장에 실패했습니다."));
-    } finally {
-      setSaving(false);
-    }
-  };
 
   if (!runId) {
     return <EmptyState title="선택된 회차가 없습니다." description="상단의 실행 회차 선택기에서 회차를 선택하십시오." />;
@@ -480,10 +303,10 @@ export function QueuePage({ defaultSort = "grade" }: { defaultSort?: QueueFilter
                   <PerspectiveTable perspectives={detail.judgment?.perspectives ?? []} />
                   <div className="notice-review-grid">
                     <CounterargumentList items={detail.judgment?.counterarguments ?? []} />
+                    {/* 답변은 저장된 리뷰의 것을 그대로 읽는다. 입력 자리는 없다. */}
                     <VerificationItemTable
                       items={detail.judgment?.verification_items ?? []}
-                      answers={draft.verification_answers}
-                      onAnswerChange={updateAnswer}
+                      answers={savedAnswers}
                     />
                   </div>
                 </section>
@@ -497,29 +320,13 @@ export function QueuePage({ defaultSort = "grade" }: { defaultSort?: QueueFilter
                   </div>
                   <RetrievalSignals matches={detail.focus_matches} />
                 </section>
+                {/* 결정 액션이 아니라 이력이므로 pane 바닥에 고정하지 않고 본문 안에 둔다. */}
+                <ReviewRecord review={savedReview} correctionSearch={`q=${encodeURIComponent(detail.title ?? "")}`} />
               </div>
-              <ReviewBar
-                draft={draft}
-                perspectives={detail.judgment?.perspectives ?? []}
-                saving={saving}
-                dirty={isDirty}
-                error={saveError}
-                onChange={updateDraft}
-                onDiscard={discardDraft}
-                onSave={() => void saveReview()}
-              />
             </>
           )}
         </section>
       </SplitWorkspace>
-      {toast ? (
-        <Toast
-          message={toast.message}
-          actionLabel={toast.actionLabel}
-          onAction={toast.onAction ? () => { toast.onAction?.(); setToast(null); } : undefined}
-          onDismiss={() => setToast(null)}
-        />
-      ) : null}
     </div>
   );
 }
