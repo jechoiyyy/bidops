@@ -172,7 +172,7 @@ npm ci
 npm run dev        # http://localhost:5173
 ```
 
-프론트엔드 스크립트는 `dev`, `build`, `preview`, `test:visual`, `test:visual:update` 다. UI를 만들 때는 Astryx 디자인 시스템 CLI(`npx @astryxdesign/cli`)로 컴포넌트를 먼저 확인한다. 자세한 규칙은 [CLAUDE.md](CLAUDE.md)와 [web/frontend/AGENTS.md](web/frontend/AGENTS.md)에 있다.
+프론트엔드 스크립트는 `dev`, `dev:mock`, `build`, `preview`, `test:contrast`, `test:screens`, `test:design`, `test:pixel`, `test:pixel:update` 다. UI를 만들 때는 Astryx 디자인 시스템 CLI(`npx @astryxdesign/cli`)로 컴포넌트를 먼저 확인한다. 자세한 규칙은 [CLAUDE.md](CLAUDE.md)와 [web/frontend/AGENTS.md](web/frontend/AGENTS.md)에 있다.
 
 ## 파이프라인 실행
 
@@ -260,7 +260,7 @@ live API key나 model endpoint 없이 실행한다.
 ```bash
 ./run-tests.sh                              # 파이프라인 단위·교차 테스트
 ./web/run-web-tests.sh                      # backend + frontend build + Playwright
-cd web/frontend && npm run test:visual      # 화면 스냅샷만
+cd web/frontend && npm run test:screens     # 화면 게이트 (의미 + 구조)
 COMPOSE_PROJECT_NAME=bidops-deep-review-t7 \
   docker compose -f docker-compose.t7.yml build
 ```

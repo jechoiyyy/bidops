@@ -208,7 +208,7 @@ lifecycle이 선별 결과를 화면에 같이 보여 줘야 하는 경우(공�
 ```bash
 cd web/backend && .venv/bin/python -m pytest tests/ -q     # 디렉터리 전체 지정. 개별 파일 지정 시 PostgreSQL 테스트가 조용히 skip된다
 ./run-tests.sh
-cd web/frontend && npm run build && npm run test:visual
+cd web/frontend && npm run build && npm run test:screens
 ```
 
 - 2026-09-03 기준선: backend 1097 passed, 5 skipped, 2 failed. 실패 2건은 `test_screening_orchestrator.py`의 기존 결함이며 clean main에서도 재현된다. 이 2건 외의 실패만 회귀로 본다.

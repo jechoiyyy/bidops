@@ -68,14 +68,30 @@ BidOps의 코드, 데이터, 모델 호출, 운영 변경은 아래 기준을 �
 ./web/run-web-tests.sh            # backend pytest + frontend build + Playwright 화면 회귀
 docker compose -f docker-compose.t7.yml build
 
-cd web/frontend && npm run test:contrast              # 테마 대비 게이트
-cd web/frontend && npx playwright test design-shell.spec.ts   # 셸 구조·색·치수
-cd web/frontend && npm run test:visual                # 화면만 따로 돌릴 때 (아래 주의)
+cd web/frontend && npm run test:contrast   # 테마 대비 게이트
+cd web/frontend && npm run test:screens    # 화면 게이트 (의미 + 구조)
+cd web/frontend && npm run test:pixel      # 기준 이미지 대조 (게이트 아님, 아래 참조)
 ```
 
-`npm run test:visual`은 2026-09-04 팔레트 전환 이후 기준선이 옛 무채색이라 다수 실패한다.
-예상된 상태이며 **승인 없이 `--update-snapshots`로 덮지 않는다.** 사유와 해제 조건은
-[`tracking/findings.md`](tracking/findings.md)에 있다.
+### 화면 검사의 세 층
+
+화면 검사는 실패의 뜻이 서로 다른 세 층으로 나뉘고, 각 층은 자기 파일과 자기 실행 폭을 갖는다.
+
+| 층 | 파일 | 폭 | 실패가 뜻하는 것 |
+|---|---|---|---|
+| 의미 | `screen-semantics.spec.ts`와 화면별 spec | 1440px 한 폭 | 화면이 업무 상태를 잘못 말한다 |
+| 구조 | `overflow.spec.ts`, `design-shell.spec.ts` | 1280·1440px 두 폭 | 지원 폭 안에 안 들어가거나 셸 치수가 어긋났다 |
+| 픽셀 | `pixel-screens.spec.ts` | 1440px | 지난 기준선과 화면이 달라졌다 |
+
+앞의 두 층이 `npm run test:screens`이고 이것이 게이트다. 픽셀 층은 게이트가 아니다 —
+"틀렸다"가 아니라 "달라졌다"를 말하므로, 의도한 변경이면 기준선을 갈아 끼우는 것이 정답이다.
+
+픽셀 층의 기준 이미지는 **앱이 자기 화면을 찍은 회귀 기준선이며 승인된 시안이 아니다.**
+시안 대조는 `web/frontend/tests/design-snapshots/`가 따로 갖는다. 화면 전부를 찍지 않고
+골격이 다른 대표 화면만 찍는다. 나머지 화면은 구조·의미 층이 본다.
+
+기준 이미지를 갈아 끼울 때(`npm run test:pixel:update`)는 **변경 사유·영향 화면·승인자와
+승인 시각을 함께 기록으로 남긴다.** 승인 기록 없이 덮지 않는다.
 
 - 파이프라인 계약 변경은 관련 skill 단위 테스트와 교차 파이프라인 테스트를 모두 통과해야 한다.
 - DB 변경은 임시 PostgreSQL 17에서 빈 DB migration, 제약, 재적재 멱등성을 확인한다. 운영 DB를 테스트 대상으로 사용하지 않는다.

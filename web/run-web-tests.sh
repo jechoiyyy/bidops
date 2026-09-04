@@ -94,4 +94,4 @@ npm run build
 # here would be an unannounced network fetch, so a missing bundle fails with
 # Playwright's own install instructions rather than being worked around.
 echo "== frontend: visual regression (Playwright, 4 viewports)"
-npm run test:visual
+npm run test:screens

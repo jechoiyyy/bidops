@@ -45,10 +45,11 @@
 cd web/frontend
 npm run build              # tsc -b + vite build
 npm run test:contrast      # 테마 대비 게이트 (ADR-0048)
-npx playwright test design-shell.spec.ts   # 셸 구조·색·치수
-npm run test:visual        # 전체 화면 회귀 — 아래 주의를 먼저 읽는다
+npm run test:screens       # 화면 게이트 — 의미(한 폭) + 구조(두 폭)
+npm run test:design        # 셸 구조·색·치수만 따로
+npm run test:pixel         # 기준 이미지 대조 — 게이트 아님
 ```
 
 TypeScript strict, production bundle, 기본 필터, null/0 표시, 부분 실패, review 저장과 다음 이동, API 오류, empty/loading, 긴 한글, keyboard focus를 확인한다. 외부 font network 없이 결과가 재현되어야 한다.
 
-**`npm run test:visual`은 현재 기준선이 옛 무채색 팔레트라 다수 실패한다.** 2026-09-04 팔레트 전환 이후 예상된 상태이며 회귀의 증거가 아니다. **승인 없이 `--update-snapshots`로 덮지 않는다**(PLAN §3.2·§6). 사유와 해제 조건은 [findings.md](../../docs/tracking/findings.md)의 "팔레트 전환 뒤 화면 단위 시각 회귀를 잡을 기준선이 없다"에 있다. 그때까지 셸은 `design-shell.spec.ts`, 색은 `test:contrast`가 지킨다.
+화면 검사는 의미·구조·픽셀 세 층이고 층마다 실패의 뜻이 다르다. 표와 각 층의 규칙은 [`docs/standards.md`](../../docs/standards.md)의 "화면 검사의 세 층"에 있다. **게이트는 `test:screens`까지이고 픽셀 층은 게이트가 아니다.** 픽셀이 깨졌다는 것은 "화면이 틀렸다"가 아니라 "지난 기준선과 달라졌다"는 뜻이므로, 의도한 변경이면 `npm run test:pixel:update`로 갈아 끼우고 **사유·영향 화면·승인자를 기록에 남긴다.**
