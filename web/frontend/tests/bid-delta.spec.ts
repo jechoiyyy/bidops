@@ -305,3 +305,44 @@ test("우측 레일은 attempt·결정 이력과 연결 링크만 담고 최종 
   await expect(rail.getByRole("link", { name: "사업 추적 상세 →", exact: true })).toBeVisible();
   await expect(rail.getByRole("button", { name: "결정 저장", exact: true })).toHaveCount(0);
 });
+
+// ── PLAN 단계 F 작업 2·3 ───────────────────────────────────────────────────
+
+test("범주 목록 바로 위에 무엇을 언제 비교했는지 남긴다", async ({ page }) => {
+  await openComparison(page, { calculationStatus: "completed", resultStatus: "changed" });
+
+  const basis = page.locator(".bid-delta-basis");
+  await expect(basis).toBeVisible();
+  await expect(basis).toContainText("기준 사전규격");
+  await expect(basis).toContainText("대상 입찰공고");
+  await expect(basis).toContainText("문서 묶음 상태");
+  await expect(basis).toContainText("계산 시각");
+  await expect(basis).toContainText("category policy");
+});
+
+test("저장 조건 셋이 결정 폼 바로 위에서 현재 값과 함께 보인다", async ({ page }) => {
+  await openComparison(page, { calculationStatus: "completed", resultStatus: "changed" });
+
+  const conditions = page.locator(".bid-delta-save-conditions");
+  await expect(conditions.locator("li")).toHaveCount(3);
+  await expect(conditions).toContainText("completed");
+  await expect(conditions).toContainText("failed가 아니어야");
+  // 보류는 최종 결정 값이 아니며 기록을 만들지 않는다(단계 F 작업 4).
+  await expect(conditions).toContainText("보류는 최종 결정 값이 아니며 저장되지 않습니다");
+  // 결정 select에도 보류는 없다.
+  const options = await page.getByLabel("최종 결정", { exact: true }).locator("option").allInnerTexts();
+  expect(options).toEqual(["선택하십시오", "Go", "No-Go"]);
+});
+
+test("계산 실패는 헤더에서 비교 재계산으로, 본문 재시도 입력으로 데려간다", async ({ page }) => {
+  await openComparison(page, { calculationStatus: "failed", resultStatus: "failed" });
+
+  const header = page.locator('[data-review-primitive="sticky-decision-header"]');
+  const recalculate = header.getByRole("button", { name: "비교 재계산", exact: true });
+  await expect(recalculate).toBeInViewport();
+  // 재계산도 담당자 이름을 받으므로 헤더에서 바로 실행하지 않는다.
+  await expect(header.getByLabel("재시도 담당자 이름")).toHaveCount(0);
+
+  await recalculate.click();
+  await expect(page.getByLabel("재시도 담당자 이름")).toBeFocused();
+});

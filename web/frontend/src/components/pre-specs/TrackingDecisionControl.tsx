@@ -85,14 +85,18 @@ export interface TrackingDecisionControlProps {
   onSaved: (saved: OpportunityDetailResponse) => void;
   /** 상세 화면과 목록 화면에서 heading level이 다를 수 있어 호출자가 정한다. */
   headingLevel?: "h3" | "h4";
-  /** PreSpecDetailPage(4단계)가 이 컨트롤을 고정 헤더 안에 둘 때 쓰는 밀도
-   * 전용 표시 변형이다. 선택 가능한 상태값·사유 필수·비활성 사유 같은
-   * 업무 규칙은 그대로 이 컴포넌트가 소유하며, compact는 설명 문구와
-   * 첨부 취득 집계(PreSpecDocumentSummary)만 생략한다 — 호출자가 그 집계를
-   * 본문에서 별도로 렌더링한다고 가정한다(CLAUDE.md "같은 업무 규칙을
-   * 복제하지 않는다"). 접근 가능한 이름·문구는 full과 동일하게 유지해
-   * 기존 테스트 선택자를 그대로 만족시킨다. */
+  /** 첨부 취득 집계(PreSpecDocumentSummary)와 긴 설명을 생략하는 밀도 변형.
+   * 호출자가 그 집계를 본문에서 따로 렌더링한다고 가정한다. 선택 가능한
+   * 상태값·사유 필수·비활성 사유 같은 업무 규칙은 그대로 이 컴포넌트가
+   * 소유한다(CLAUDE.md "같은 업무 규칙을 복제하지 않는다"). */
   compact?: boolean;
+  /** 주어지면 저장 폼에 이 id가 붙어, 상세 화면의 고정 헤더가 `form` 속성으로
+   * 같은 submit을 쏠 수 있다. 폼 자체는 본문에 남는다 — 되돌릴 수 없는 입력
+   * form을 헤더에 올리지 않는다(PLAN 단계 F 완료 게이트). */
+  formId?: string;
+  /** 헤더 액션의 비활성 상태를 이 폼의 전제조건과 같게 유지한다. 사유 문구도
+   * 함께 넘겨 두 자리가 다른 말을 하지 않게 한다. */
+  onDecisionStateChange?: (state: { ready: boolean; disabledReason: string | null; hasForm: boolean; saveLabel: string }) => void;
   /**
    * 신규 사전규격에서 `추적 시작하고 심층 검토`를 한 조작으로 제공할 때 이어지는 자리.
    *
@@ -112,6 +116,8 @@ export function TrackingDecisionControl({
   onSaved,
   headingLevel = "h3",
   compact = false,
+  formId,
+  onDecisionStateChange,
   onStartedForDeepReview,
 }: TrackingDecisionControlProps) {
   const Heading = headingLevel;
@@ -151,6 +157,28 @@ export function TrackingDecisionControl({
     },
   });
 
+  // 전제조건은 조기 반환보다 앞에서 계산한다. 상세 화면의 고정 헤더가 같은
+  // 값을 읽어 액션의 비활성 여부와 사유를 이 컴포넌트와 똑같이 유지하기
+  // 때문이다(hook 순서를 조건부 반환이 흔들지 않게 하려는 목적도 같다).
+  const hasOpportunity = item?.opportunity_id != null;
+  const currentStatus = item?.tracking_status ?? "미선택";
+  const hasForm = Boolean(item) && !isPending && !isError && !(item && isInheritedTracking(item));
+  const ready = hasOpportunity && reason.trim().length > 0 && actorName.trim().length > 0 && !mutation.isPending;
+  const saveLabel = onStartedForDeepReview ? "추적 시작하고 심층 검토" : "추적 상태 저장";
+  const disabledReason = mutation.isPending
+    ? "추적 상태 저장 요청을 처리하고 있습니다."
+    : !hasOpportunity
+      ? "아직 사업기회에 연결되지 않아 추적 결정을 기록할 수 없습니다."
+      : !reason.trim()
+        ? "추적 결정을 저장하려면 사유를 입력하십시오."
+        : !actorName.trim()
+          ? "추적 결정을 저장하려면 담당자 이름을 입력하십시오."
+          : null;
+
+  useEffect(() => {
+    onDecisionStateChange?.({ ready, disabledReason, hasForm, saveLabel });
+  }, [disabledReason, hasForm, onDecisionStateChange, ready, saveLabel]);
+
   if (isPending) {
     return (
       <section className="pre-spec-tracking-decision" aria-labelledby="pre-spec-tracking-decision-title">
@@ -174,9 +202,6 @@ export function TrackingDecisionControl({
       </section>
     );
   }
-
-  const hasOpportunity = item.opportunity_id !== null;
-  const currentStatus = item.tracking_status ?? "미선택";
 
   // 발주계획에서 승계한 건은 이 화면이 추적 상태를 **다시 묻지 않는다**(ADR-0045 결정 6).
   // 승계 사실을 배지로 밝히고 결정 form 자체를 그리지 않는다. 심층 검토가 정상
@@ -208,18 +233,6 @@ export function TrackingDecisionControl({
       </section>
     );
   }
-
-  const ready = hasOpportunity && reason.trim().length > 0 && actorName.trim().length > 0;
-  const saveLabel = onStartedForDeepReview ? "추적 시작하고 심층 검토" : "추적 상태 저장";
-  const disabledReason = mutation.isPending
-    ? "추적 상태 저장 요청을 처리하고 있습니다."
-    : !hasOpportunity
-      ? "아직 사업기회에 연결되지 않아 추적 결정을 기록할 수 없습니다."
-      : !reason.trim()
-        ? "추적 결정을 저장하려면 사유를 입력하십시오."
-        : !actorName.trim()
-          ? "추적 결정을 저장하려면 담당자 이름을 입력하십시오."
-          : null;
 
   return (
     <section
@@ -257,6 +270,7 @@ export function TrackingDecisionControl({
 
       <form
         className={`pre-spec-tracking-form${compact ? " is-compact" : ""}`}
+        id={formId}
         onSubmit={(event) => {
           event.preventDefault();
           if (ready) mutation.mutate();
@@ -307,15 +321,23 @@ export function TrackingDecisionControl({
         ) : null}
 
         {feedback ? <MutationFeedback tone={feedback.tone}>{feedback.message}</MutationFeedback> : null}
-        <button
-          className="pre-spec-tracking-save interaction-control"
-          type="submit"
-          disabled={!ready || mutation.isPending}
-          aria-describedby={disabledReason ? "pre-spec-tracking-save-disabled" : undefined}
-        >
-          {mutation.isPending ? "저장 중…" : saveLabel}
-        </button>
-        {disabledReason ? <DisabledReason id="pre-spec-tracking-save-disabled">{disabledReason}</DisabledReason> : null}
+        {/* 상세 화면은 이 폼의 submit을 고정 헤더의 액션이 소유한다(formId).
+            같은 이름의 저장 버튼을 본문에도 두면 한 화면에 같은 결정 조작이
+            둘이 되고, 어느 쪽이 정본인지 화면이 답하지 못한다. 목록 화면처럼
+            헤더 액션이 없을 때만 이 폼이 자기 버튼을 갖는다. */}
+        {formId ? null : (
+          <>
+            <button
+              className="pre-spec-tracking-save interaction-control"
+              type="submit"
+              disabled={!ready}
+              aria-describedby={disabledReason ? "pre-spec-tracking-save-disabled" : undefined}
+            >
+              {mutation.isPending ? "저장 중…" : saveLabel}
+            </button>
+            {disabledReason ? <DisabledReason id="pre-spec-tracking-save-disabled">{disabledReason}</DisabledReason> : null}
+          </>
+        )}
         {onStartedForDeepReview ? (
           <p className="pre-spec-tracking-combined-note">
             한 조작이지만 기록은 둘입니다. 추적 시작을 지금 남기고, 심층 검토 실행 승인은 문서 묶음이 준비된 상세에서 이어서 남깁니다.

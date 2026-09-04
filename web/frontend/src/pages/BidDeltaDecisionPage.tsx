@@ -685,12 +685,17 @@ export function BidDeltaDecisionPage() {
   // 헤더의 "결정 입력으로 이동"은 본문 결정 폼으로 초점을 옮긴다. 스크롤만
   // 하면 키보드 사용자가 따라가지 못하므로 첫 입력에 초점을 준다.
   const decisionPanelRef = useRef<HTMLElement | null>(null);
-  function focusDecisionForm() {
-    const panel = decisionPanelRef.current;
+  const retryPanelRef = useRef<HTMLElement | null>(null);
+  function focusPanel(panel: HTMLElement | null) {
     if (!panel) return;
     panel.scrollIntoView({ block: "center" });
-    const firstField = panel.querySelector<HTMLElement>("input, select, textarea");
-    firstField?.focus();
+    panel.querySelector<HTMLElement>("input, select, textarea")?.focus();
+  }
+  function focusDecisionForm() {
+    focusPanel(decisionPanelRef.current);
+  }
+  function focusRetryForm() {
+    focusPanel(retryPanelRef.current);
   }
   useUnsavedGuard(hasUnsavedDraft, {
     blockSpaNavigation: true,
@@ -775,6 +780,14 @@ export function BidDeltaDecisionPage() {
                   결정 입력으로 이동
                 </button>
               ) : null}
+              {/* 시안 정본의 헤더 액션 셋 중 마지막이다. 재계산도 담당자 이름을
+                  받아야 하므로 헤더에서 바로 실행하지 않고 본문의 재시도 입력으로
+                  데려간다 — 되돌릴 수 없는 입력 form을 헤더에 올리지 않는다. */}
+              {comparisonView.calculation_status === "failed" ? (
+                <button className="interaction-control bid-delta-secondary-action" type="button" onClick={focusRetryForm}>
+                  비교 재계산
+                </button>
+              ) : null}
             </div>
           </div>
         ) : null}
@@ -841,7 +854,7 @@ export function BidDeltaDecisionPage() {
               </section>
 
               {comparisonView.calculation_status === "failed" ? (
-                <section className="bid-delta-retry-panel" aria-labelledby="bid-delta-retry-title">
+                <section className="bid-delta-retry-panel" aria-labelledby="bid-delta-retry-title" ref={retryPanelRef}>
                   <div>
                     <p className="bid-delta-kicker">FAILED COMPARISON</p>
                     <h4 id="bid-delta-retry-title">새 attempt로 재시도</h4>
@@ -865,6 +878,37 @@ export function BidDeltaDecisionPage() {
                   </div>
                   <span className="bid-delta-muted">{comparisonView.items.length}건 반환</span>
                 </div>
+                {/* 무엇과 무엇을 언제 비교한 결과인지 목록 바로 위에 남긴다
+                    (PLAN 단계 F 작업 3). 아래 항목만 읽으면 어떤 snapshot 쌍의
+                    결과인지 화면이 답하지 못한다. */}
+                <dl className="bid-delta-basis" aria-label="비교 기준">
+                  <div>
+                    <dt>기준 사전규격</dt>
+                    <dd><span className="mono">{comparisonView.baseline.notice_external_id}</span> · 문서 v{comparisonView.baseline.document_version_version}</dd>
+                  </div>
+                  <div>
+                    <dt>대상 입찰공고</dt>
+                    <dd><span className="mono">{comparisonView.comparison.notice_external_id}</span> · 문서 v{comparisonView.comparison.document_version_version}</dd>
+                  </div>
+                  <div>
+                    <dt>문서 묶음 상태</dt>
+                    <dd>
+                      기준 bundle rev {comparisonView.baseline.bundle_revision} / v{comparisonView.baseline.bundle_version} ·
+                      {" "}대상 bundle rev {comparisonView.comparison.bundle_revision} / v{comparisonView.comparison.bundle_version}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>계산 시각</dt>
+                    <dd>
+                      {comparisonView.completed_at
+                        ? `완료 ${formatMoment(comparisonView.completed_at)}`
+                        : comparisonView.started_at
+                          ? `시작 ${formatMoment(comparisonView.started_at)} · 아직 완료되지 않음`
+                          : "아직 시작하지 않음"}
+                      {" · "}category policy <span className="mono">{comparisonView.category_policy_version}</span>
+                    </dd>
+                  </div>
+                </dl>
                 {comparisonView.items.length === 0 ? <EmptyState compact title="아직 범주별 결과가 없습니다." description="계산이 끝나 결과가 발행될 때까지 대기합니다. 결과 미발행을 변경 없음으로 해석하지 않습니다." /> : (
                   <div className="bid-delta-items-list">{comparisonView.items.map((item) => <DeltaItem key={item.id} item={item} />)}</div>
                 )}
@@ -886,6 +930,20 @@ export function BidDeltaDecisionPage() {
                   <strong>시스템 분석과 사람 결정은 별도입니다.</strong>
                   <p>시스템 결과는 {comparisonView.result_status ? RESULT_LABELS[comparisonView.result_status] : "결과 미발행"}이며 사람의 Go/No-Go를 자동 제안하거나 선택하지 않습니다.</p>
                 </div>
+                {/* 저장 조건 셋을 폼 바로 위에 둔다(PLAN 단계 F 작업 2). 무엇이
+                    갖춰져야 저장되는지 알기 위해 비활성 사유를 하나씩 눌러 보게
+                    하지 않는다. */}
+                <ol className="bid-delta-save-conditions" aria-label="저장 조건">
+                  <li data-met={comparisonView.calculation_status === "completed" ? "true" : "false"}>
+                    계산이 <strong>completed</strong>여야 합니다. 현재 {CALCULATION_LABELS[comparisonView.calculation_status]}.
+                  </li>
+                  <li data-met={comparisonView.result_status && comparisonView.result_status !== "failed" ? "true" : "false"}>
+                    결과가 발행돼 있고 <strong>failed가 아니어야</strong> 합니다. 현재 {comparisonView.result_status ? RESULT_LABELS[comparisonView.result_status] : "결과 미발행"}.
+                  </li>
+                  <li data-met={decisionActor.trim() && decision && reason.trim() ? "true" : "false"}>
+                    담당자 이름 · Go 또는 No-Go · 결정 이유를 <strong>모두</strong> 입력해야 합니다. 보류는 최종 결정 값이 아니며 저장되지 않습니다.
+                  </li>
+                </ol>
                 {canRecordDecision ? (
                   <form id="bid-delta-final-form" className="bid-delta-final-form" onSubmit={(event) => { event.preventDefault(); if (finalReady) finalDecisionMutation.mutate(); }}>
                     <div className="bid-delta-form-fence" aria-label="최종 결정 저장 fence">

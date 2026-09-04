@@ -1,12 +1,12 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Badge, type BadgeVariant } from "../components/common/Badge";
 import { DocumentPreparationPanel } from "../components/deep-review/DocumentPreparationPanel";
 import { getDocumentStructurePage } from "../components/deep-review/api";
 import { EmptyState } from "../components/common/EmptyState";
 import { Panel } from "../components/common/Panel";
-import { ReviewHistoryLinkRail, StickyDecisionHeader } from "../components/common/ReviewPrimitives";
+import { ReviewDecisionAction, ReviewHistoryLinkRail, StickyDecisionHeader } from "../components/common/ReviewPrimitives";
 import { PreSpecDocumentSummary, TrackingDecisionControl, updateTrackingProjection } from "../components/pre-specs/TrackingDecisionControl";
 import { api } from "../lib/api";
 import { describeDeadline } from "../lib/deadline";
@@ -25,6 +25,16 @@ import "../styles/pre-specs-relaxed.css";
 import "../styles/detail-skeleton.css";
 
 const REVIEW_STATUS = PRE_SPEC_OVERVIEW_STATUS_LABEL;
+
+/** 헤더의 저장 액션이 `form` 속성으로 본문의 추적 결정 폼을 submit한다. */
+const TRACKING_FORM_ID = "pre-spec-detail-tracking-form";
+
+interface TrackingDecisionState {
+  ready: boolean;
+  disabledReason: string | null;
+  hasForm: boolean;
+  saveLabel: string;
+}
 
 const ATTEMPT_STATUS: Record<PreSpecOverviewAttemptStatus, string> = {
   queued: "대기",
@@ -141,6 +151,32 @@ export function PreSpecDetailPage() {
     setSelectedEvidence(null);
   }, [noticeId]);
 
+  // 조기 반환보다 앞에 둔다. 아래 반환들이 hook 순서를 흔들면 화면이 통째로
+  // 오류 경계로 떨어진다.
+  const [trackingDecision, setTrackingDecision] = useState<TrackingDecisionState>({
+    ready: false,
+    disabledReason: null,
+    hasForm: false,
+    saveLabel: "추적 상태 저장",
+  });
+  const handleTrackingDecisionState = useCallback((next: TrackingDecisionState) => {
+    setTrackingDecision((current) => (
+      current.ready === next.ready
+        && current.disabledReason === next.disabledReason
+        && current.hasForm === next.hasForm
+        && current.saveLabel === next.saveLabel
+        ? current
+        : next
+    ));
+  }, []);
+  const trackingPanelRef = useRef<HTMLDivElement>(null);
+  const focusTrackingForm = useCallback(() => {
+    const panel = trackingPanelRef.current;
+    if (!panel) return;
+    panel.scrollIntoView({ block: "start" });
+    panel.querySelector<HTMLElement>("button, textarea, input")?.focus({ preventScroll: true });
+  }, []);
+
   if (noticeId === null) {
     return (
       <EmptyState
@@ -190,6 +226,7 @@ export function PreSpecDetailPage() {
     ? sourceBlocks
     : sourceBlocks.slice(Math.max(0, selectedBlockIndex - 1), Math.min(sourceBlocks.length, selectedBlockIndex + 2));
   const preSpecItem = preSpecProjectionQuery.data?.items.find((item) => item.notice_pk === noticeId);
+  const trackingStatusLabel = preSpecItem?.tracking_status ?? "미선택";
 
   return (
     <section className="pre-spec-detail-page detail-skeleton" data-astryx-theme="bidops" aria-labelledby="pre-spec-detail-title">
@@ -225,38 +262,73 @@ export function PreSpecDetailPage() {
         {/* 처리 상태·검증 상태·입력 준비 배지는 본문(개요 검토 상태 패널)과
             우측 레일(이력)이 이미 정본으로 보여준다. 여기서 같은 문구를
             또 배지로 복제하면 같은 role·이름을 가진 요소가 늘어나 strict
-            mode 선택자가 깨진다 — 헤더는 추적 결정 컨트롤의 "현재 추적
-            상태" 배지 하나만 갖는다. */}
+            mode 선택자가 깨진다 — 헤더는 현재 추적 상태 배지와 결정 액션만
+            갖는다.
+
+            결정 **액션**은 헤더에 고정하고 되돌릴 수 없는 입력 **form**은 본문에
+            둔다(PLAN 단계 F 작업 1·완료 게이트). 시안 `PreSpecDetail`·
+            `DetailSkeleton`의 헤더도 버튼만 갖는다. 저장 버튼은 form 속성으로
+            본문 폼을 submit하므로 전제조건이 한 곳에만 있다. */}
         <div className="detail-skeleton-status-row">
+          <Badge label={`추적 ${trackingStatusLabel}`} variant={trackingStatusLabel === "미선택" ? "neutral" : "grade-1"} />
           <div className="detail-skeleton-actions">
-            <TrackingDecisionControl
-              compact
-              item={preSpecItem}
-              isPending={preSpecProjectionQuery.isPending}
-              isError={preSpecProjectionQuery.isError}
-              onRetry={() => { void preSpecProjectionQuery.refetch(); }}
-              onSaved={(saved) => {
-                if (noticeId === null) return;
-                queryClient.setQueryData<PreSpecListResponse>(
-                  ["pre-spec-detail", noticeId],
-                  (current) => updateTrackingProjection(current, noticeId, saved),
-                );
-                queryClient.setQueriesData<PreSpecListResponse>(
-                  { queryKey: ["pre-specs"] },
-                  (current) => updateTrackingProjection(current, noticeId, saved),
-                );
-                void queryClient.invalidateQueries({ queryKey: ["pre-spec-overview-reviews-v2", noticeId] });
-                void queryClient.invalidateQueries({ queryKey: ["pre-spec-detail", noticeId] });
-                void queryClient.invalidateQueries({ queryKey: ["pre-specs"] });
-                void queryClient.invalidateQueries({ queryKey: ["opportunity", saved.id] });
-              }}
-            />
+            {trackingDecision.hasForm ? (
+              <>
+                <ReviewDecisionAction
+                  className="interaction-control"
+                  disabledReason={trackingDecision.disabledReason ?? undefined}
+                  disabledReasonId="pre-spec-detail-tracking-disabled"
+                  form={TRACKING_FORM_ID}
+                  isDisabled={!trackingDecision.ready}
+                  label={trackingDecision.saveLabel}
+                  type="submit"
+                  variant="primary"
+                />
+                <button className="interaction-control" type="button" onClick={focusTrackingForm}>
+                  추적 결정 입력으로 이동
+                </button>
+              </>
+            ) : (
+              <button className="interaction-control" type="button" onClick={focusTrackingForm}>
+                추적 상태 확인
+              </button>
+            )}
           </div>
         </div>
       </StickyDecisionHeader>
 
       <div className="detail-skeleton-grid">
       <div className="detail-skeleton-main">
+        {/* 되돌릴 수 없는 입력 form은 본문에 둔다. 헤더는 같은 submit을 쏘는
+            액션과 현재 상태 배지만 갖는다(PLAN 단계 F 작업 1). */}
+        <div ref={trackingPanelRef}>
+          <TrackingDecisionControl
+            compact
+            formId={TRACKING_FORM_ID}
+            headingLevel="h3"
+            item={preSpecItem}
+            isPending={preSpecProjectionQuery.isPending}
+            isError={preSpecProjectionQuery.isError}
+            onDecisionStateChange={handleTrackingDecisionState}
+            onRetry={() => { void preSpecProjectionQuery.refetch(); }}
+            onSaved={(saved) => {
+              if (noticeId === null) return;
+              queryClient.setQueryData<PreSpecListResponse>(
+                ["pre-spec-detail", noticeId],
+                (current) => updateTrackingProjection(current, noticeId, saved),
+              );
+              queryClient.setQueriesData<PreSpecListResponse>(
+                { queryKey: ["pre-specs"] },
+                (current) => updateTrackingProjection(current, noticeId, saved),
+              );
+              void queryClient.invalidateQueries({ queryKey: ["pre-spec-overview-reviews-v2", noticeId] });
+              void queryClient.invalidateQueries({ queryKey: ["pre-spec-detail", noticeId] });
+              void queryClient.invalidateQueries({ queryKey: ["pre-specs"] });
+              void queryClient.invalidateQueries({ queryKey: ["opportunity", saved.id] });
+            }}
+          />
+        </div>
+
         <Panel title="사전규격 사실">
           <dl className="pre-spec-detail-facts">
             <div><dt>게시 시각</dt><dd>{formatDateTime(notice.published_at)}</dd></div>

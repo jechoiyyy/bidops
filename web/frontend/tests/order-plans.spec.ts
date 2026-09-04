@@ -421,24 +421,33 @@ test("사람 피드백 축과 텍스트 검색도 다른 축과 AND로 조합된
   await expect(page.locator(".c2l-row")).toContainText("지방공기업");
 });
 
-// docs/design/PLAN.md 4단계: 발주계획 상세(사람 relevance·priority·memo 저장,
-// 결정 1)도 사전규격 상세·입찰 변경 비교와 같은 골격을 쓴다. 결정 액션은
-// 요약 헤더에 고정되어 스크롤 위치와 무관하게 첫 화면에서 보여야 한다.
-test("발주계획 상세는 사람 피드백 저장 결정 액션이 헤더에 고정되어 스크롤해도 보인다", async ({ page }) => {
+// docs/design/PLAN.md 단계 F 작업 1: 발주계획 상세(사람 relevance·priority·memo
+// 저장, 결정 1)도 사전규격 상세·입찰 변경 비교와 같은 골격을 쓴다. 결정 **액션**은
+// 요약 헤더에 고정되어 스크롤 위치와 무관하게 첫 화면에서 보이고, 되돌릴 수 없는
+// 입력 **form**은 헤더에 올라가지 않는다(단계 F 완료 게이트).
+test("발주계획 상세는 결정 액션만 헤더에 고정하고 입력 form은 본문에 둔다", async ({ page }) => {
   await mockOrderPlans(page);
   await page.goto("/order-plans/101");
   await expect(page.getByRole("heading", { level: 2 })).toBeVisible();
 
-  const saveButton = page.getByRole("button", { name: "새 revision 저장", exact: true });
+  const header = page.locator(".c2-page-header");
+  const saveButton = header.getByRole("button", { name: "새 revision 저장", exact: true });
   await expect(saveButton).toBeInViewport();
-  await expect(page.getByLabel("relevance")).toBeInViewport();
-  await expect(page.getByLabel("담당자 claimed name")).toBeInViewport();
+  await expect(header.getByRole("button", { name: "사람 판단 입력으로 이동", exact: true })).toBeInViewport();
+
+  // 입력 필드는 헤더가 아니라 본문 열의 패널 안에 있다.
+  await expect(header.locator("textarea")).toHaveCount(0);
+  await expect(header.getByLabel("담당자 claimed name")).toHaveCount(0);
+  await expect(page.locator(".c2-feedback-panel").getByLabel("담당자 claimed name")).toHaveCount(1);
 
   await page.evaluate(() => document.querySelector(".page-canvas")?.scrollTo(0, 999_999));
   await expect(saveButton).toBeInViewport();
 });
 
-test("발주계획 상세 헤더는 최근 실행·최근 피드백 상태를 요약하고, 우측 레일은 관측·피드백 이력만 담는다", async ({ page }) => {
+// 시안 `OrderPlanDetail`은 사람 피드백 revision 이력과 새 revision 입력을 본문
+// 열에 함께 둔다. 지금 저장하려는 값과 직전 revision을 한눈에 대조해야 하기
+// 때문이다. 레일은 관측·실행 이력과 연결만 담는다.
+test("발주계획 상세 헤더는 상태를 요약하고, revision 이력은 본문 열, 레일은 관측 이력만 담는다", async ({ page }) => {
   await mockOrderPlans(page);
   await page.goto("/order-plans/101");
 
@@ -446,13 +455,18 @@ test("발주계획 상세 헤더는 최근 실행·최근 피드백 상태를 �
   await expect(header.getByText("최근 실행 부분 성공", { exact: true })).toBeVisible();
   await expect(header.getByText("최근 피드백 rev 1", { exact: true })).toBeVisible();
 
+  const feedbackPanel = page.locator(".c2-feedback-panel");
+  await expect(feedbackPanel.getByRole("heading", { name: "사람 피드백 revision 이력", exact: true })).toBeVisible();
+  await expect(feedbackPanel).toContainText("append-only");
+
   const rail = page.locator(".detail-skeleton-rail");
   await expect(rail).toHaveAttribute("data-review-primitive", "history-link-rail");
   await expect(rail.getByRole("heading", { name: "관측 history", exact: true })).toBeVisible();
-  await expect(rail.getByRole("heading", { name: "사람 피드백 revision 이력", exact: true })).toBeVisible();
   await expect(rail.getByRole("link", { name: "발주계획 목록 →", exact: true })).toBeVisible();
-  // 결정 액션(저장 버튼)은 헤더에만 있고 레일에는 복제하지 않는다.
-  await expect(rail.getByRole("button", { name: "새 revision 저장", exact: true })).toHaveCount(0);
+  // 이력은 본문 열이 소유한다. 레일에 복제하지 않는다.
+  await expect(rail.getByRole("heading", { name: "사람 피드백 revision 이력", exact: true })).toHaveCount(0);
+  // 결정 액션(저장 버튼)도 레일에 복제하지 않는다.
+  await expect(rail.getByRole("button", { name: /revision 저장/ })).toHaveCount(0);
 });
 
 test("발주계획 상세는 viewport 바깥으로 넘치지 않는다", async ({ page }) => {

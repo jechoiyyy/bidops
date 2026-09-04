@@ -639,8 +639,9 @@ test("사유 없이 사전규격 추적 상태를 보낼 수 없다", async ({ p
   // 991은 승계 건이라 결정 form이 없다. 사유 규칙은 신규 건에서 확인한다.
   await page.goto("/pre-specs/992");
 
+  // 저장 액션은 헤더가 소유하고 입력 form은 본문에 있다(PLAN 단계 F 작업 1).
   await expect(page.getByRole("button", { name: "추적 상태 저장", exact: true })).toBeDisabled();
-  await expect(page.getByText("추적 결정을 저장하려면 사유를 입력하십시오.", { exact: true })).toBeVisible();
+  await expect(page.locator("#pre-spec-detail-tracking-disabled")).toContainText("추적 결정을 저장하려면 사유를 입력하십시오.");
   expect(trace.trackingPatches).toEqual([]);
 });
 
@@ -672,6 +673,7 @@ test("사업기회가 없으면 추적 결정을 기록할 수 없는 이유를 
   await expect(page.locator(".mutation-feedback-warning")).toContainText("아직 사업기회에 연결되지 않아 추적 상태를 결정할 수 없습니다.");
   await expect(page.getByRole("button", { name: "계속 추적", exact: true })).toBeDisabled();
   await expect(page.getByRole("button", { name: "추적 상태 저장", exact: true })).toBeDisabled();
+  await expect(page.locator("#pre-spec-detail-tracking-disabled")).toContainText("아직 사업기회에 연결되지 않아");
 });
 
 test("v2 개요 결과는 평가에 필요한 요약·미확인·근거 위치를 보여준다", async ({ page }) => {
@@ -826,16 +828,24 @@ test("사전규격 목록과 상세는 viewport 바깥으로 넘치지 않는다
   }
 });
 
-// docs/design/PLAN.md 4단계 완료 게이트: 상세 3종 공통 골격에서 결정 액션은
-// 요약 헤더에 고정되어 스크롤 위치와 무관하게 첫 화면에서 보여야 한다.
-test("사전규격 상세는 본문을 끝까지 스크롤해도 추적 결정 액션이 뷰포트 안에 남는다", async ({ page }) => {
+// docs/design/PLAN.md 단계 F 작업 1·완료 게이트: 결정 **액션**은 요약 헤더에
+// 고정되어 스크롤 위치와 무관하게 첫 화면에서 보이고, 되돌릴 수 없는 입력
+// **form**은 헤더가 아니라 본문 열에 있다.
+test("사전규격 상세는 결정 액션만 헤더에 고정하고 입력 form은 본문에 둔다", async ({ page }) => {
   await mockPreSpecs(page);
   // 결정 액션이 있는 건에서 확인한다. 991은 승계 건이라 결정 form이 없다.
   await page.goto("/pre-specs/992");
-  await expect(page.locator('[data-review-primitive="sticky-decision-header"]')).toBeVisible();
+  const header = page.locator('[data-review-primitive="sticky-decision-header"]');
+  await expect(header).toBeVisible();
   await expect(page.locator('[data-review-primitive="history-link-rail"]')).toHaveCount(1);
-  const saveButton = page.getByRole("button", { name: "추적 상태 저장", exact: true });
+
+  const saveButton = header.getByRole("button", { name: "추적 상태 저장", exact: true });
   await expect(saveButton).toBeInViewport();
+  await expect(header.getByRole("button", { name: "추적 결정 입력으로 이동", exact: true })).toBeInViewport();
+  // 사유·담당자 입력은 헤더가 아니라 본문 열의 결정 패널 안에 있다.
+  await expect(header.locator("textarea")).toHaveCount(0);
+  await expect(page.locator(".detail-skeleton-main").getByRole("textbox", { name: "사유 (필수)" })).toHaveCount(1);
+
   await page.evaluate(() => document.querySelector(".page-canvas")?.scrollTo(0, 999_999));
   await expect(saveButton).toBeInViewport();
 });
@@ -849,6 +859,6 @@ test("사업기회 미연결 사전규격은 비활성 추적 결정 액션과 �
   const saveButton = page.getByRole("button", { name: "추적 상태 저장", exact: true });
   await expect(saveButton).toBeInViewport();
   await expect(saveButton).toBeDisabled();
-  await expect(page.locator("#pre-spec-tracking-save-disabled")).toBeInViewport();
-  await expect(page.locator("#pre-spec-tracking-save-disabled")).toContainText("아직 사업기회에 연결되지 않아");
+  await expect(page.locator("#pre-spec-detail-tracking-disabled")).toBeInViewport();
+  await expect(page.locator("#pre-spec-detail-tracking-disabled")).toContainText("아직 사업기회에 연결되지 않아");
 });

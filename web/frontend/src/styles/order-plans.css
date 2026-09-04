@@ -667,56 +667,13 @@
 /* 발주계획 상세(4단계)가 고정 헤더 안에 FeedbackForm을 둘 때 쓰는 compact
  * 표시 변형이다. 업무 규칙·필드·저장 동작은 그대로이고 밀도만 낮춘다.
  * 새로 추가하는 규칙이므로 ADR-0040에 따라 Astryx 토큰만 읽는다. */
-.c2-feedback-form.is-compact {
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: var(--spacing-2);
-  padding: 0;
-  border: 0;
-  background: transparent;
-}
+/* 사람 판단 입력은 본문 열의 패널 안에 있다(단계 F 작업 1). 고정 헤더에 폼째로
+   올리던 밀도 전용 변형(.is-compact)은 함께 사라졌다 — 되돌릴 수 없는 입력 form을
+   헤더에 두지 않는다. */
 
-.c2-feedback-form.is-compact .c2-form-grid {
-  flex: 1 1 320px;
-  grid-template-columns: repeat(2, minmax(120px, 1fr));
-  gap: var(--spacing-2);
-  min-width: 260px;
-}
-
-.c2-feedback-form.is-compact label:has(textarea) {
-  flex: 1 1 220px;
-  min-width: 200px;
-}
-
-.c2-feedback-form.is-compact textarea {
-  min-height: 0;
-  height: 38px;
-}
-
-.c2-feedback-form.is-compact .actor-field {
-  flex: 0 0 auto;
-  min-width: 200px;
-}
-
-.c2-feedback-form.is-compact .c2-muted {
-  flex-basis: 100%;
-}
-
-@media (max-width: 900px) {
-  .c2-feedback-form.is-compact {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .c2-feedback-form.is-compact .c2-form-grid,
-  .c2-feedback-form.is-compact label:has(textarea),
-  .c2-feedback-form.is-compact .actor-field {
-    flex-basis: auto;
-    min-width: 0;
-  }
-}
-
+/* 1280px가 최소 지원 폭이므로 그보다 좁은 분기는 두지 않는다(ADR-0046).
+   1180px 분기는 남은 하나인데, 이는 사이드바(248px)를 뺀 본문 폭이 1280px
+   화면에서 약 1010px이 되므로 최소 지원 폭에서도 실제로 쓰인다. */
 @media (max-width: 1180px) {
   .c2-count-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -727,79 +684,9 @@
   }
 }
 
-@media (max-width: 900px) {
-  .c2-page-header,
-  .c2-results-heading,
-  .c2-execution-heading,
-  .c2-history-heading,
-  .c2-plan-card-header,
-  .c2-plan-card-footer {
-    flex-direction: column;
-  }
 
-  .c2-contract-note {
-    max-width: none;
-    text-align: left;
-  }
 
-  .c2-fact-grid,
-  .c2-fact-grid-compact,
-  .c2-history-meta,
-  .c2-attempt-grid,
-  .c2-detail-facts .c2-plan-identity {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 
-  .c2-filter-bar {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .c2-search-form {
-    width: 100%;
-  }
-}
-
-@media (max-width: 640px) {
-  .c2-page {
-    padding: var(--space-2);
-  }
-
-  .c2-fact-grid,
-  .c2-fact-grid-compact,
-  .c2-plan-facts,
-  .c2-history-meta,
-  .c2-attempt-grid,
-  .c2-detail-facts .c2-plan-identity,
-  .c2-binding-grid,
-  .c2-signal-grid,
-  .c2-form-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .c2-count-grid,
-  .c2-filter-bar {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .c2-plan-card,
-  .c2-history-card {
-    padding: var(--space-2);
-  }
-
-  .c2-artifact-summary li,
-  .c2-live-list li {
-    grid-template-columns: 1fr;
-    align-items: flex-start;
-  }
-
-  .c2-search-form > div {
-    flex-direction: column;
-  }
-
-  .c2-pagination {
-    flex-wrap: wrap;
-  }
-}
 
 /* ============================================================================
  * 발주계획 C-2 목록+판정 통합 화면 (PLAN 1단계, docs/design/PLAN.md §3).
