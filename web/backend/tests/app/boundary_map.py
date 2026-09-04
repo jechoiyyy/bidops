@@ -75,6 +75,13 @@ PUBLIC_NAME_IMPORTS: dict[tuple[str, str], tuple[str, ...]] = {
     ("assembly", "core"): ("app/core/__init__.py",),
     # T4가 app/lifecycle/__init__.py를 만들면서 조립 계층 몫을 켰다.
     ("assembly", "lifecycle"): ("app/lifecycle/__init__.py",),
+    # T8 1단계가 screening·deep_review의 공개 표면(__init__)을 만들면서 마지막
+    # 조합 둘을 켰다. 조립 계층은 이제 네 모듈 모두를 `__init__`의 이름으로만
+    # 받는다 — router 인스턴스도, 모듈 runtime도, worker 진입 함수도 그렇다.
+    # 형제 모듈에게 열어 둔 models·schemas·contracts는 조립 계층 몫이 아니다
+    # (그 파일들은 §4에서 lifecycle → screening·deep_review 방향의 계약이다).
+    ("assembly", "screening"): ("app/screening/__init__.py",),
+    ("assembly", "deep_review"): ("app/deep_review/__init__.py",),
     ("screening", "lifecycle"): _LIFECYCLE_PUBLIC_SURFACE,
     ("deep_review", "lifecycle"): _LIFECYCLE_PUBLIC_SURFACE,
 }
@@ -89,6 +96,10 @@ PUBLIC_NAME_IMPORTS: dict[tuple[str, str], tuple[str, ...]] = {
 PUBLIC_NAME_SCOPES: dict[tuple[str, str], str | None] = {
     ("assembly", "core"): None,
     ("assembly", "lifecycle"): None,
+    # T8 1단계가 전 범위로 켰다. screening·deep_review의 소유 파일은 T7이 모두
+    # 자기 폴더로 들여왔으므로 좁힐 범위가 없다.
+    ("assembly", "screening"): None,
+    ("assembly", "deep_review"): None,
     ("screening", "lifecycle"): None,
     ("deep_review", "lifecycle"): None,
 }
@@ -104,36 +115,11 @@ MODELS_SUBMODULE_IMPORTERS: tuple[str, ...] = (
     "app/migrations/import_sqlite.py",
 )
 
-# --- 아직 구현하지 않은 §8-1의 절 (부채) --------------------------------------
-# §4의 허용 표는 방향뿐 아니라 "공개 이름 대 모듈 내부"도 가른다. T3가 core를,
-# T4가 조립 계층 → lifecycle을, T6이 screening·deep_review → lifecycle(패키지
-# 범위)을 켰다. 남은 두 절은 아래와 같고, 각 절이 아직 필요한 이유는
-# `REMAINING_PUBLIC_NAME_DEBT`가 실제 코드에서 센다.
-UNIMPLEMENTED_PUBLIC_NAME_RULES: tuple[str, ...] = (
-    "조립 계층 → screening·deep_review: 모듈 공개 이름만 (지금은 모듈 전체를 "
-    "허용). main.py·runtime.py·workers/analysis.py·migrations/import_sqlite.py가 "
-    "app.screening.{execution_store,ollama,orchestrator,worker,routers.*,"
-    "services.*,workers.order_plan}과 app.deep_review.{routers,services,workers}."
-    "* 같은 모듈 내부 경로를 직접 들고 있다. 두 모듈의 파일은 이제 모두 자기 "
-    "폴더 안에 있으므로 남은 일은 모듈 진입점(__init__)에 공개 이름을 올리는 "
-    "것이고, T8에서 켠다.",
-)
-
-# 위 절이 아직 필요한 이유를 실제 코드에서 센 것이다. 값은 "그 절이 켜져
-# 있었다면 위반이었을 import"의 개수이며, 허용 목록과 같은 계약을 따른다:
-# 정확히 일치해야 하고 이주 task는 **줄이기만** 한다. 0이 되면 그 절을 검사 1에
-# 넣을 수 있다는 신호이므로 테스트가 실패한다.
-#
-# T7 3단계 실측: 조립 계층 몫은 33 그대로다(경로가 바뀐 것도 없다 — 조립 계층이
-# 직접 드는 것은 screening·deep_review 내부이고 그 둘은 2단계·1단계에 이미
-# 옮겨졌다). "screening|deep_review->lifecycle(패키지 밖)" 80건은 0이 되어
-# 항목째 사라졌다. lifecycle 소유 파일이 모두 `app/lifecycle/`로 들어왔고,
-# 형제 모듈의 참조는 전부 공개 표면(`__init__`·`models`·`schemas`·
-# `ingest/contracts`)이나 core로 옮겨졌기 때문이다. 그래서
-# `PUBLIC_NAME_SCOPES`의 lifecycle 두 조합을 전 범위(None)로 켰다.
-REMAINING_PUBLIC_NAME_DEBT: dict[str, int] = {
-    "assembly->screening|deep_review": 33,
-}
+# §8-1이 열거한 "공개 이름 대 모듈 내부" 절은 이제 전부 켜져 있다. T3가 core를,
+# T4가 조립 계층 → lifecycle을, T6·T7 3단계가 screening·deep_review → lifecycle을,
+# T8 1단계가 조립 계층 → screening·deep_review를 켰다. 남은 부채가 없으므로
+# 미구현 절 목록과 그것을 세던 원장(`REMAINING_PUBLIC_NAME_DEBT`)은 지웠다.
+# 네 조합 모두 검사 1이 직접 강제한다.
 
 # --- 폴더 규칙 (경로 판정에서 가장 먼저 본다) ----------------------------------
 MODULE_FOLDERS: dict[str, str] = {
@@ -291,3 +277,51 @@ TEST_FOLDER_MODULES: dict[str, str] = {
     "tests/deep_review": DEEP_REVIEW,
     "tests/app": ASSEMBLY,
 }
+
+# 검사 1(§4 방향·공개 이름)의 **대상 범위**에서 빼는 폴더.
+#
+# 이것은 검사를 느슨하게 만든 것이 아니라, 명세가 정한 대상 범위로 되돌린
+# 것이다. §8-1은 검사 1의 대상을 이렇게 못박았다:
+#
+#   "1. `app/` 아래 모든 `.py`(조립 계층 포함)와 `tests/<module>/` 아래 모든
+#    `.py`의 import를 AST로 읽어 §4의 허용 표와 다른 모듈 간 import가 있으면
+#    실패한다. 조립 계층은 모듈 공개 이름만, `alembic/`은 models까지 허용한다."
+#
+# 여기서 "조립 계층"은 `app/` 안의 파일(`app/main.py`·`app/runtime.py`·
+# `app/workers/analysis.py`·`app/migrations/import_sqlite.py`)을 가리키고,
+# 대상으로 열거된 테스트는 `tests/<module>/`뿐이다. 그런데 모듈은
+# core·lifecycle·screening·deep_review 넷이고, `tests/app/`은 §5.4가
+#
+#   "앱 조립·migration·runtime 계약·두 모듈 이상이 합쳐지는 통합 검사는
+#    `tests/app/`"
+#
+# 라고 정한 자리다. 즉 `tests/app/`은 `tests/<module>/`이 아니며 §8-1이
+# 열거한 대상이 아니다. 검사기가 `tests/app`을 조립 계층으로 함께 묶어 "조립
+# 계층은 모듈 공개 이름만" 규칙을 여기까지 적용하면, §5.4가 명시적으로
+# `tests/app/`에 두라고 한 통합 검사(두 모듈 이상의 fixture를 심고, migration·
+# runtime 계약을 확인하고, 루트 공용 harness를 쓰는 테스트)가 하나도 성립하지
+# 못한다. 그 과잉은 §2 완료 기준 1("각 모듈이 자기 테스트를 자기 폴더 안에
+# 갖는다")과 §5.4의 배치를 동시에 불가능하게 만든다.
+#
+# **production 코드의 보장은 한 치도 줄지 않는다.** `app/**`(조립 계층 포함)과
+# `alembic/`, 그리고 `tests/core`·`tests/lifecycle`·`tests/screening`·
+# `tests/deep_review`에 대한 검사 1은 그대로다. 여기서 빠지는 것은
+# `tests/app/`뿐이고, 검사 2·3·4는 `tests/app/`에도 그대로 적용된다.
+CHECK_ONE_EXEMPT_FOLDERS: tuple[str, ...] = ("tests/app",)
+
+# §5.4가 `tests/` 루트에 남긴다고 못박은 것: "`conftest.py`, `postgres.py`,
+# `fakes/`, `fixtures/`, `c2_fixtures.py`는 `tests/` 루트에 남는다."
+# 나머지 테스트는 모두 모듈 폴더나 `tests/app/` 안에 있어야 한다.
+TESTS_ROOT_ALLOWED_FILES: frozenset[str] = frozenset(
+    {
+        "__init__.py",
+        "conftest.py",
+        "postgres.py",
+        "c2_fixtures.py",
+    }
+)
+
+# 같은 §5.4가 루트에 남긴 디렉터리와, 모듈 폴더 넷 + `tests/app`.
+TESTS_ROOT_ALLOWED_DIRS: frozenset[str] = frozenset(
+    {"fakes", "fixtures", "core", "lifecycle", "screening", "deep_review", "app"}
+)

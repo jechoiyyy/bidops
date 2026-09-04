@@ -42,8 +42,8 @@ def test_alembic_child_environment_does_not_forward_unrelated_secrets(
     [
         ((), True),
         (("tests",), True),
-        (("tests/test_integration_t14.py",), True),
-        (("tests/test_db_migrations.py",), False),
+        (("tests/app/test_integration_t14.py",), True),
+        (("tests/app/test_db_migrations.py",), False),
         (("tests/screening/test_profile.py",), False),
         (
             (
@@ -86,7 +86,7 @@ def test_explicit_maintenance_url_activates_targeted_postgres(
     )
 
     assert postgres.postgres_harness_requested(
-        ("tests/test_db_migrations.py",),
+        ("tests/app/test_db_migrations.py",),
         invocation_dir=postgres.BACKEND,
         rootpath=postgres.BACKEND,
     )
@@ -124,7 +124,7 @@ def test_targeted_postgres_without_server_is_explicitly_skipped() -> None:
             "-m",
             "pytest",
             "-q",
-            "tests/test_alembic_autogenerate.py",
+            "tests/app/test_alembic_autogenerate.py",
         ],
         cwd=postgres.BACKEND,
         env={

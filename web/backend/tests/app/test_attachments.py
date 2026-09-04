@@ -17,8 +17,8 @@ from app.core.clamav import ClamAVUnavailable
 from app.screening.policy import load_policy_file
 
 
-SAFE_PDF = Path(__file__).parent / "fixtures/document_bundles/safe.pdf"
-EICAR_PDF = Path(__file__).parent / "fixtures/document_bundles/eicar.pdf"
+SAFE_PDF = Path(__file__).parents[1] / "fixtures/document_bundles/safe.pdf"
+EICAR_PDF = Path(__file__).parents[1] / "fixtures/document_bundles/eicar.pdf"
 
 
 @pytest.fixture

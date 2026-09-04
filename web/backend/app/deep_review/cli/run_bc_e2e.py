@@ -14,7 +14,10 @@ from ..services.bc_e2e import BcE2EError, BcE2EManifest, JsonAcceptanceApi, run_
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Run isolated BidOps stage B to C API acceptance")
+    parser = argparse.ArgumentParser(
+        prog="python -m app.deep_review.cli run-bc-e2e",
+        description="Run isolated BidOps stage B to C API acceptance",
+    )
     parser.add_argument("manifest", type=Path, help="absolute bidops.bc-e2e-run.v1 JSON path")
     parser.add_argument("--confirm-target", help="must exactly match manifest api_base before mutation")
     parser.add_argument("--output", type=Path, help="absolute evidence JSON path (required unless --dry-run)")
@@ -143,8 +146,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
 
 
-if __name__ == "__main__":  # pragma: no cover
-    raise SystemExit(main())
-
 
 __all__ = ["build_parser", "main"]
+
+
+if __name__ == "__main__":  # pragma: no cover
+    # T8 2단계가 이 파일의 직접 실행 경로를 없앴다. 호환 shim을 두지 않으므로
+    # 옛 명령은 동작하지 않는다. 다만 그냥 두면 `__main__` 블록이 없는 모듈이
+    # 아무 일도 하지 않고 종료 코드 0을 내서, 옛 기록을 따라 실행한 운영자가
+    # 성공으로 오인한다. mutating 명령이 조용히 건너뛰지 않도록 fail-closed로 막는다.
+    raise SystemExit("이 명령은 `python -m app.deep_review.cli run-bc-e2e <인자>`로 실행한다")

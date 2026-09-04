@@ -6,7 +6,7 @@ from pathlib import Path
 import yaml
 
 
-ROOT = Path(__file__).parents[3]
+ROOT = Path(__file__).parents[4]
 
 
 def test_runtime_image_copies_only_allowlisted_reference_material():
