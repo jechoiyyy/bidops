@@ -213,18 +213,26 @@ def _trigger_metadata(run_id: str | None, review_id: int | None) -> dict[str, An
 def _prepare_one(
     session: Session,
     notice_id: int,
+    grade: EffectiveGrade,
     *,
     service: Any,
     run_id: str | None,
     review_id: int | None,
 ) -> AutoPreparationOutcome:
-    notice = session.get(Notice, notice_id)
-    if notice is None or notice.source_type != "pre_spec":
-        return AutoPreparationOutcome(notice_id=notice_id)
+    """이미 `우선 검토`로 확인된 공고 하나를 실제로 준비한다.
 
-    grade = effective_grades(session, [notice_id]).get(notice_id)
-    if grade is None or not grade.is_priority:
-        return AutoPreparationOutcome(notice_id=notice_id, reason=REASON_GRADE_NOT_PRIORITY)
+    사전규격 여부와 등급은 호출부가 **batch로 한 번에** 걸러 두었다. 회차 하나가
+    사전규격 약 2,000건이므로 여기서 공고당 다시 묻지 않는다.
+    """
+
+    # 촉발 식별자 (명세 §6.2). 호출부가 알려 준 회차·리뷰가 있으면 그것이고,
+    # 없으면 **이 등급을 만든 것**이 촉발이다 — 등급 변경 hook은 확장점 서명상
+    # 식별자를 받지 않으므로 그 경우 리뷰의 회차·리뷰 id가 남는다. 둘 다 없으면
+    # `None`으로 남기고 다른 값으로 채우지 않는다.
+    trigger = _trigger_metadata(
+        run_id if run_id is not None else grade.run_id,
+        review_id if review_id is not None else grade.review_id,
+    )
 
     attachment_ids = _active_attachment_ids(session, notice_id)
     if attachment_ids:
@@ -272,7 +280,7 @@ def _prepare_one(
                 notice_id,
                 AUTO_ACTOR_NAME,
                 actor_kind=AUTO_ACTOR_KIND,
-                trigger_metadata=_trigger_metadata(run_id, review_id),
+                trigger_metadata=trigger,
             )
         except BundleServiceError as error:
             return AutoPreparationOutcome(notice_id=notice_id, reason=error.code)
@@ -297,7 +305,7 @@ def _prepare_one(
             request,
             AUTO_ACTOR_NAME,
             actor_kind=AUTO_ACTOR_KIND,
-            trigger_metadata=_trigger_metadata(run_id, review_id),
+            trigger_metadata=trigger,
         )
     except BundleServiceError as error:
         # 확정 fence가 막으면 묶음은 `draft`로 남고 blocking issue가 보인다.
@@ -318,7 +326,7 @@ def _prepare_one(
                 "revision": view.revision,
                 "version": view.version,
                 "document_count": len(view.documents),
-                **_trigger_metadata(run_id, review_id),
+                **trigger,
             },
         )
     )
@@ -339,6 +347,14 @@ def maybe_auto_prepare(
 ) -> list[AutoPreparationOutcome]:
     """대상 공고마다 자동 묶음 생성·확정 조건을 검사하고 만족하면 실행한다.
 
+    **선별과 등급은 batch로 한 번에 푼다.** 회차 적재 hook은 그 회차의 사전규격
+    전부(관측 규모로 3일 약 1,200건, 1주 약 2,000건)를 한 번에 넘긴다. 공고당
+    등급을 묻거나 공고당 savepoint를 열면 회차 적재 transaction 하나에 수천 번의
+    왕복과 수천 개의 하위 transaction이 쌓인다 — PostgreSQL은 한 transaction의
+    subtransaction이 대략 64개를 넘어서면 눈에 띄게 나빠진다. 그래서 실제로 할 일이
+    있는 공고(사전규격이고 effective grade가 `우선 검토`)가 하나도 없으면 작업
+    session 자체를 열지 않는다. 그 경우 비용은 상수 회 조회뿐이다.
+
     한 공고의 실패가 다른 공고를 막지 않는다. 어떤 실패도 호출자에게 예외로
     오르지 않으며 사유는 안전 코드로만 남는다 — 자동 준비는 파생 작업이고 그
     실패가 회차 적재나 리뷰 저장을 무효로 만들지 않는다(§6.2).
@@ -347,38 +363,77 @@ def maybe_auto_prepare(
     ids = tuple(dict.fromkeys(int(value) for value in notice_ids))
     if not ids:
         return []
-    if service is None:
-        # 지연 import: `document_bundles`가 이 모듈을 부르는 방향과 겹치지 않게
-        # 모듈 최상위가 아니라 여기서 든다.
-        from .document_bundles import DocumentBundleService
 
-        service = DocumentBundleService(root=root)
-
-    outcomes: list[AutoPreparationOutcome] = []
+    outcomes: dict[int, AutoPreparationOutcome] = {}
     try:
-        with _work_session(session) as work:
-            for notice_id in ids:
-                try:
-                    outcomes.append(
-                        _prepare_one(
+        pre_spec_ids = [
+            int(value)
+            for value in session.scalars(
+                select(Notice.id).where(Notice.id.in_(ids), Notice.source_type == "pre_spec")
+            ).all()
+        ]
+        grades = effective_grades(session, pre_spec_ids) if pre_spec_ids else {}
+    except Exception:
+        # 등급을 아예 풀지 못하면(선별 모듈 부재 등) 자동 준비는 이번에 아무것도
+        # 하지 않는다. 예외는 호출자에게 오르지 않는다.
+        return [
+            AutoPreparationOutcome(notice_id=notice_id, reason="processing_failed")
+            for notice_id in ids
+        ]
+
+    pre_spec = set(pre_spec_ids)
+    candidates: list[tuple[int, EffectiveGrade]] = []
+    for notice_id in ids:
+        if notice_id not in pre_spec:
+            outcomes[notice_id] = AutoPreparationOutcome(notice_id=notice_id)
+            continue
+        grade = grades.get(notice_id)
+        if grade is None or not grade.is_priority:
+            outcomes[notice_id] = AutoPreparationOutcome(
+                notice_id=notice_id, reason=REASON_GRADE_NOT_PRIORITY
+            )
+            continue
+        candidates.append((notice_id, grade))
+
+    if candidates:
+        if service is None:
+            # 지연 import: `document_bundles`가 이 모듈을 부르는 방향과 겹치지 않게
+            # 모듈 최상위가 아니라 여기서 든다. 할 일이 있을 때만 만든다.
+            from .document_bundles import DocumentBundleService
+
+            service = DocumentBundleService(root=root)
+        try:
+            with _work_session(session) as work:
+                for notice_id, grade in candidates:
+                    try:
+                        outcomes[notice_id] = _prepare_one(
                             work,
                             notice_id,
+                            grade,
                             service=service,
                             run_id=run_id,
                             review_id=review_id,
                         )
-                    )
-                except Exception:
-                    # 예외 본문은 여기서 버린다. 다음 촉발에서 다시 시도된다.
-                    work.rollback()
-                    outcomes.append(
-                        AutoPreparationOutcome(notice_id=notice_id, reason="processing_failed")
-                    )
-    except Exception:
-        # savepoint session을 세우지 못하는 경우까지 포함해 자동 준비의 실패가
-        # 호출자에게 오르지 않게 한다.
-        return outcomes
-    return outcomes
+                    except Exception:
+                        # 예외 본문은 여기서 버린다. 다음 촉발에서 다시 시도된다.
+                        work.rollback()
+                        outcomes[notice_id] = AutoPreparationOutcome(
+                            notice_id=notice_id, reason="processing_failed"
+                        )
+        except Exception:
+            # savepoint session을 세우지 못하는 경우까지 포함해 자동 준비의 실패가
+            # 호출자에게 오르지 않게 한다.
+            pass
+
+    # 입력 순서를 지킨다. 아직 결과가 없는 공고(작업 session을 세우지 못한 경우)는
+    # 안전 코드로 남긴다.
+    return [
+        outcomes.get(
+            notice_id,
+            AutoPreparationOutcome(notice_id=notice_id, reason="processing_failed"),
+        )
+        for notice_id in ids
+    ]
 
 
 # --- 사전규격 응답 필드 (명세 §8) --------------------------------------------

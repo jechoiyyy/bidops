@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 
 import pytest
-from sqlalchemy import create_engine, func, select
+from sqlalchemy import create_engine, event, func, select
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
@@ -35,7 +35,14 @@ from app.deep_review.models import (
     DocumentStructure,
     DocumentVersion,
 )
-from app.lifecycle.models import Attachment, Notice, Opportunity, OpportunityLink, OrderPlan
+from app.lifecycle.models import (
+    Attachment,
+    Notice,
+    Opportunity,
+    OpportunityLink,
+    OrderPlan,
+    Run,
+)
 # 판정·정정 등급은 선별 소유다. 두 모듈이 합쳐지는 검사라 `tests/app/`에 있고,
 # 이 import가 `init_db`보다 먼저 선별 테이블을 metadata에 등록한다.
 from app.screening.models import Judgment, Review
@@ -1205,3 +1212,112 @@ def test_the_grade_hook_prepares_inside_the_callers_transaction(
 
     assert _bundles(db_session, notice) == []
     assert db_session.scalar(select(Review).where(Review.notice_id == notice.id)) is None
+
+
+def test_the_grade_hook_records_the_triggering_run_and_review(
+    db_session: Session, tmp_path: Path
+):
+    """등급 변경으로 촉발된 자동 준비는 **어느 회차·어느 리뷰가** 열었는지 남긴다.
+
+    명세 §6.2는 자동 생성·확정 감사 이벤트에 `trigger=priority_grade`와 함께
+    촉발 회차·리뷰 식별자를 요구한다. 등급 변경 hook은 확장점 서명상 그 식별자를
+    받지 않으므로, effective grade가 자기 출처(정정 리뷰)를 실어 나른다.
+    """
+
+    run = Run(id="20260901-20260907", timezone="Asia/Seoul")
+    db_session.add(run)
+    db_session.flush()
+    notice, attachments = _priority_notice(db_session, ["제안요청서.pdf"])
+    judgment = db_session.scalar(select(Judgment).where(Judgment.notice_id == notice.id))
+    judgment.grade = "관찰 대상"
+    db_session.commit()
+    # hook은 설정된 기본 보관소를 쓰므로 취득도 같은 보관소에서 한다.
+    _drain_queue(db_session, _responses(db_session, attachments, [SAFE_PDF.read_bytes()]), None)
+    assert _bundles(db_session, notice) == []
+
+    review = Review(
+        notice_id=notice.id,
+        run_id=run.id,
+        corrected_grade="우선 검토",
+        reviewer_snapshot="검토자",
+    )
+    db_session.add(review)
+    db_session.flush()
+    PreSpecAttachmentEligibilityHook().effective_grade_changed(db_session, [notice.id])
+
+    bundles = _bundles(db_session, notice)
+    assert [(bundle.revision, bundle.status) for bundle in bundles] == [(1, "ready")]
+    actions = _audit_actions(db_session, bundles[0].id)
+    assert set(actions) == {
+        "document_bundle.create",
+        "document_bundle.confirm",
+        "document_bundle.auto_confirm",
+    }
+    for action in actions.values():
+        assert action.safe_metadata["trigger"] == "priority_grade"
+        assert action.safe_metadata["trigger_run_id"] == run.id
+        assert action.safe_metadata["trigger_review_id"] == review.id
+    db_session.rollback()
+
+
+def _statements(session: Session, action) -> list[str]:
+    """`action`이 도는 동안 실제로 나간 SQL 문. savepoint도 여기 잡힌다."""
+
+    engine = session.get_bind()
+    captured: list[str] = []
+
+    def record(_conn, _cursor, statement, _parameters, _context, _executemany):
+        captured.append(statement)
+
+    event.listen(engine, "before_cursor_execute", record)
+    try:
+        action()
+    finally:
+        event.remove(engine, "before_cursor_execute", record)
+    return captured
+
+
+def _non_priority_pre_specs(session: Session, count: int) -> list[int]:
+    """`우선 검토`가 아닌 사전규격 여러 건. 회차 적재 hook이 보는 흔한 경우다."""
+
+    ids: list[int] = []
+    for _index in range(count):
+        notice = Notice(
+            notice_key=f"pre:batch-{session.query(Notice).count() + 1}",
+            source_type="pre_spec",
+            title="대량 사전규격",
+            qualification_flags_json={"sw_business_status": "N"},
+            raw_source={},
+        )
+        session.add(notice)
+        session.flush()
+        session.add(Judgment(notice_id=notice.id, grade="관찰 대상", readiness="확인 완료"))
+        ids.append(notice.id)
+    session.commit()
+    return ids
+
+
+def test_auto_preparation_query_count_does_not_grow_with_the_batch(db_session: Session):
+    """회차 적재 hook은 사전규격 전부를 한 번에 넘긴다 (3일 약 1,200건).
+
+    등급을 공고당 묻거나 공고당 savepoint를 열면 회차 적재 transaction 하나에
+    수천 번의 왕복과 수천 개의 하위 transaction이 쌓인다. 할 일이 없는 공고의
+    비용은 건수와 무관한 상수여야 한다.
+    """
+
+    few = _non_priority_pre_specs(db_session, 3)
+    many = _non_priority_pre_specs(db_session, 30)
+
+    small = _statements(db_session, lambda: maybe_auto_prepare(db_session, few))
+    db_session.rollback()
+    large = _statements(db_session, lambda: maybe_auto_prepare(db_session, many))
+    db_session.rollback()
+
+    assert len(small) == len(large)
+    # 사전규격 선별 한 번 + 등급 seam(정정·판정·개정) 세 번이 전부다.
+    assert len(large) <= 5
+    # 할 일이 없으면 작업 session도 savepoint도 만들지 않는다.
+    assert not [line for line in large if "SAVEPOINT" in line.upper()]
+    assert [outcome.reason for outcome in maybe_auto_prepare(db_session, many)] == [
+        "grade_not_priority"
+    ] * len(many)

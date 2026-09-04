@@ -33,11 +33,19 @@ class EffectiveGrade:
     `grade`가 ``None``이면 판정도 정정도 없다는 뜻이고 그때 `source`도 ``None``
     이다. 둘을 따로 두는 이유는 사람 정정과 모델 판정을 같은 값으로 접지 않기
     위해서다(§8).
+
+    `run_id`·`review_id`는 **이 등급을 만든 것이 무엇인가**를 가리킨다. 명세
+    §6.2가 자동 준비 감사 이벤트에 "촉발 회차·리뷰 식별자"를 요구하는데, 등급
+    변경 hook은 확장점 서명상 그 식별자를 받지 않으므로 등급 자신이 실어 나른다.
+    사람 정정에서 온 등급이면 그 리뷰의 회차와 리뷰 id, 판정에서 온 등급이면 그
+    판정이 기록된 회차이고 `review_id`는 ``None``이다. 값이 없는 것은 그대로
+    ``None``이며 다른 회차로 채우지 않는다.
     """
 
     notice_id: int
     grade: str | None
     source: str | None
+    run_id: str | None = None
     review_id: int | None = None
 
     @property
@@ -71,6 +79,7 @@ def effective_grades(
                 notice_id=notice_id,
                 grade=correction.grade,
                 source=SOURCE_HUMAN_REVIEW,
+                run_id=correction.run_id,
                 review_id=correction.review_id,
             )
             continue
@@ -80,6 +89,7 @@ def effective_grades(
                 notice_id=notice_id,
                 grade=judgment.grade,
                 source=SOURCE_SCREENING_JUDGMENT,
+                run_id=judgment.run_id,
             )
     return resolved
 
