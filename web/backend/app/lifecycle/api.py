@@ -11,7 +11,7 @@ T7 3단계가 lifecycle 소유 파일을 모두 `app/lifecycle/`로 들여왔으
 from __future__ import annotations
 
 from collections.abc import Sequence
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from ..core.run_id import ensure_aware as _ensure_aware
@@ -32,12 +32,16 @@ __all__ = [
     "IngestResult",
     "attachment_download_url",
     "delete_manual_attachment",
+    "delete_run",
     "get_notice",
     "get_run",
     "ingest_run",
     "list_agency_portals",
     "list_attachments_for_notice",
     "list_order_plans_for_run",
+    "seed_default_portals",
+    "lock_active_attachments",
+    "lock_attachment",
     "load_order_plan_artifact",
     "lock_notice",
     "lock_opportunity",
@@ -119,6 +123,47 @@ def list_attachments_for_notice(session: Session, notice_id: int) -> Sequence[At
     )
 
 
+# --- 기관 포털 시드 ---------------------------------------------------------
+
+# MVP 대상 3개 기관의 시드 데이터. 검색 주소는 담당자가 실제 주소로 교체하는
+# 것을 전제로 한 자리표시자이며, 확인 전에는 화면에서 미확인 상태로 안내한다.
+PORTAL_SEED_NOTE = "검색 주소는 자리표시자입니다. 실제 조달시스템 주소를 확인하여 수정한 뒤 사용하십시오."
+
+
+def seed_default_portals(session: Session) -> None:
+    """기관 포털 표가 완전히 비어 있을 때만 MVP 시드를 넣는다.
+
+    `agency_portal`은 lifecycle 소유이므로 이 쓰기도 lifecycle 안에 있다(§4).
+    앱 startup은 seed를 하지 않는다(§9) — 담당자가 명시적으로 부를 때만 돈다.
+    """
+
+    if session.scalar(select(AgencyPortal.id).limit(1)) is not None:
+        return
+    session.add_all(
+        [
+            AgencyPortal(
+                agency_pattern="한국수자원공사",
+                system_name="한국수자원공사 전자조달시스템",
+                search_url_template="https://ebid.kwater.or.kr/search?bidNo={bid_no}&title={title}",
+                note=PORTAL_SEED_NOTE,
+            ),
+            AgencyPortal(
+                agency_pattern="한국도로공사",
+                system_name="한국도로공사 전자조달시스템",
+                search_url_template="https://ebid.ex.co.kr/search?bidNo={bid_no}&title={title}",
+                note=PORTAL_SEED_NOTE,
+            ),
+            AgencyPortal(
+                agency_pattern="한국토지주택공사",
+                system_name="한국토지주택공사 전자조달",
+                search_url_template="https://ebid.lh.or.kr/search?bidNo={bid_no}&title={title}",
+                note=PORTAL_SEED_NOTE,
+            ),
+        ]
+    )
+    session.commit()
+
+
 # --- 잠금 -------------------------------------------------------------------
 
 
@@ -132,12 +177,61 @@ def lock_notice(session: Session, notice_id: int) -> Notice | None:
     return session.scalar(select(Notice).where(Notice.id == notice_id).with_for_update())
 
 
+def lock_attachment(
+    session: Session, attachment_id: int, *, populate_existing: bool = False
+) -> Attachment | None:
+    """첨부 메타 행을 잠근다.
+
+    `populate_existing`은 같은 session이 이미 들고 있는 인스턴스를 잠금과 함께 다시
+    읽어야 할 때 켠다(문서 준비가 취득 상태를 바꾼 직후처럼). 끄면 identity map의
+    값을 그대로 쓴다 — 호출부의 기존 동작을 그대로 옮기려고 둔 선택지다.
+    """
+
+    statement = select(Attachment).where(Attachment.id == attachment_id)
+    if populate_existing:
+        statement = statement.execution_options(populate_existing=True)
+    return session.scalar(statement.with_for_update())
+
+
+def lock_active_attachments(session: Session, notice_id: int) -> Sequence[Attachment]:
+    """공고의 은퇴하지 않은 첨부 메타를 id 순서로 한꺼번에 잠근다.
+
+    문서 준비가 공고 단위 은퇴 울타리를 세울 때 쓴다. join 잠금이 아니라 행을
+    명시적으로 나열해 잠그는 것이 원래 동작이며, 그래야 잠금 대상이
+    PostgreSQL과 이후 첨부 writer 양쪽에 결정적으로 보인다.
+    """
+
+    return session.scalars(
+        select(Attachment)
+        .where(Attachment.notice_id == notice_id, Attachment.retired_at.is_(None))
+        .order_by(Attachment.id.asc())
+        .with_for_update()
+    ).all()
+
+
 def lock_opportunity(session: Session, opportunity_id: int) -> Opportunity | None:
     """사업기회를 잠근다. 병합 여부 판단은 호출부가 한다."""
 
     return session.scalar(
         select(Opportunity).where(Opportunity.id == opportunity_id).with_for_update()
     )
+
+
+# --- 회차 쓰기 ---------------------------------------------------------------
+
+
+def delete_run(session: Session, run_id: str) -> None:
+    """회차 행을 지운다. commit은 호출부가 한다.
+
+    선별이 공고 산출물 발행에 실패해 자기가 만든 회차를 되돌릴 때 쓴다. 그
+    한 자리 때문에 lifecycle 테이블 삭제를 모듈 밖에서 직접 하게 두지 않는다
+    (§4: lifecycle 테이블 쓰기는 lifecycle 공개 함수로만).
+
+    행이 없으면 아무 일도 하지 않는다 — 호출부가 재시도 안에서 부르므로 두 번째
+    호출이 실패하면 안 된다.
+    """
+
+    session.execute(delete(Run).where(Run.id == run_id))
 
 
 # --- 첨부 메타 쓰기 ----------------------------------------------------------

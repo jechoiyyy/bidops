@@ -39,8 +39,10 @@ SEAM_IMPORTS: dict[tuple[str, str], frozenset[str]] = {
     (DEEP_REVIEW, SCREENING): frozenset(
         {
             "current_judgment",
-            # 목록 화면이 공고마다 조회를 내지 않도록 T5a가 더한 batch 판이다.
-            # 방향은 §4 그대로이며 이름만 하나 늘었다.
+            # 여러 공고의 판정을 한 번에 읽는 batch 판. 지금은 screening 안에서만
+            # 쓰이고(`projection.py`의 단건 조회가 이것을 부른다) deep_review는
+            # 부르지 않는다. 목록 화면의 등급·판정 표시는 projection이 자기 쿼리로
+            # 채운다. 밖으로 나갈 때 다른 이름을 새로 만들지 않도록 seam에 남긴다.
             "current_judgments",
             "latest_corrected_grade",
         }
@@ -60,8 +62,10 @@ SEAM_IMPORTS: dict[tuple[str, str], frozenset[str]] = {
 # 폴더로 들여오면서 함께 켰다.
 #
 # **동작**(loader·service·router)은 예외 없이 `__init__.py`의 이름으로만 받는다.
-# 쓰기와 잠금 역시 `__init__.py`의 함수로 제한된다(그 제한은 이 검사가 아니라
-# `api.py`의 공개 함수 설계가 진다).
+# 쓰기와 잠금 역시 `__init__.py`의 함수로 제한된다. 그 제한은 이 검사(1번)가
+# 아니라 **검사 5**(`check_lifecycle_table_writes`)가 진다 — 모델 클래스가 공개
+# 이름인 이상 import 방향만 봐서는 `session.add(Notice(...))`와
+# `select(Notice).with_for_update()`를 구분할 수 없기 때문이다.
 _LIFECYCLE_PUBLIC_SURFACE: tuple[str, ...] = (
     "app/lifecycle/__init__.py",
     "app/lifecycle/ingest/contracts.py",

@@ -26,6 +26,7 @@ CROSS_MODULE_IMPORT = "cross_module_import"
 ROUTER_ORM_ACCESS = "router_orm_access"
 SCHEMA_IMPORTS_MODEL_OR_SERVICE = "schema_imports_model_or_service"
 LIFECYCLE_RELATIONSHIP = "lifecycle_relationship"
+LIFECYCLE_TABLE_WRITE = "lifecycle_table_write"
 
 #: 검사 2가 금지하는 호출·import. 값은 허용 목록에 적히는 대상 이름이다.
 ROUTER_SELECT = "sqlalchemy.select"
@@ -518,11 +519,122 @@ def check_lifecycle_relationships(layout: Layout) -> set[Violation]:
     return violations
 
 
+# --- 검사 5: 형제 모듈의 lifecycle 테이블 직접 쓰기·잠금 -----------------------
+#
+# 명세 §4 세부 규칙: "screening·deep_review는 `lifecycle.models`의 `Notice`·`Run`…
+# 을 import해 ORM으로 **읽고 join해도 된다**. 다만 lifecycle 테이블에 **쓰기**
+# (insert·update·delete)와 잠금은 lifecycle이 공개한 함수로만 한다."
+#
+# 검사 1은 import 방향만 본다. 모델 클래스가 공개 이름이므로 그 클래스를 들여와
+# `session.add(Notice(...))`를 하든 `select(Notice)…with_for_update()`를 하든 검사 1은
+# 그대로 통과한다. 즉 §4의 네 세부 규칙 중 이 한 줄만 어떤 검사도 덮지 않았다.
+# 이 검사가 그 자리를 메운다.
+#
+# 읽기는 건드리지 않는다 — `select(Notice)`, `join(Notice)`, `session.get(Notice, …)`는
+# 허용 방향이고 저장소에 100곳쯤 있다. 금지하는 것은 셋뿐이다.
+#
+#   1. lifecycle 모델 생성자를 `session.add`/`add_all`에 넘기는 것 (insert)
+#   2. `update(<lifecycle 모델>)` / `delete(<lifecycle 모델>)`
+#   3. `select(<lifecycle 모델>)…with_for_update()` (잠금)
+
+LIFECYCLE_MODEL_NAMES: frozenset[str] = frozenset(
+    {table for table, owner in bmap.TABLE_OWNER.items() if owner == bmap.LIFECYCLE}
+)
+
+
+def _lifecycle_model_aliases(tree: ast.Module) -> set[str]:
+    """이 파일이 lifecycle에서 들여온 **모델 클래스**의 지역 이름."""
+
+    declared = _lifecycle_model_class_names()
+    aliases: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module and "lifecycle" in node.module:
+            for alias in node.names:
+                if alias.name in declared:
+                    aliases.add(alias.asname or alias.name)
+    return aliases
+
+
+def _lifecycle_model_class_names() -> set[str]:
+    """`app/lifecycle/models.py`가 선언한 테이블 클래스 이름."""
+
+    path = BACKEND_ROOT / "app" / "lifecycle" / "models.py"
+    if not path.is_file():
+        return set()
+    names: set[str] = set()
+    for node in parse(path).body:
+        if isinstance(node, ast.ClassDef) and _tablename(node):
+            names.add(node.name)
+    return names
+
+
+def _call_targets(call: ast.Call) -> list[str]:
+    out: list[str] = []
+    for argument in call.args:
+        if isinstance(argument, ast.Name):
+            out.append(argument.id)
+        elif isinstance(argument, ast.Attribute) and isinstance(argument.value, ast.Name):
+            out.append(argument.value.id)
+    return out
+
+
+def check_lifecycle_table_writes(layout: Layout) -> set[Violation]:
+    violations: set[Violation] = set()
+    for path in layout.source_files():
+        rel = layout.rel(path)
+        # §4는 **제품 코드**의 의존을 규율한다. `tests/<module>/`의 fixture가
+        # 회차·공고 행을 심는 것은 그 규율 대상이 아니다 — 검사 대상 코드를
+        # 세우는 준비이지 모듈 간 결합이 아니다.
+        if not rel.startswith("app/"):
+            continue
+        module = layout.module_for(rel)
+        if module not in (bmap.SCREENING, bmap.DEEP_REVIEW):
+            continue
+        tree = parse(path)
+        aliases = _lifecycle_model_aliases(tree)
+        if not aliases:
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            # 1. session.add(Notice(...)) / add_all([...])
+            if isinstance(node.func, ast.Attribute) and node.func.attr in {"add", "add_all"}:
+                for inner in ast.walk(node):
+                    if (
+                        isinstance(inner, ast.Call)
+                        and isinstance(inner.func, ast.Name)
+                        and inner.func.id in aliases
+                    ):
+                        violations.add(Violation(rel, LIFECYCLE_TABLE_WRITE, f"insert:{inner.func.id}"))
+            # 2. update(Notice) / delete(Run)
+            if isinstance(node.func, ast.Name) and node.func.id in {"update", "delete"}:
+                for target in _call_targets(node):
+                    if target in aliases:
+                        violations.add(
+                            Violation(rel, LIFECYCLE_TABLE_WRITE, f"{node.func.id}:{target}")
+                        )
+            # 3. select(Notice)....with_for_update()
+            if isinstance(node.func, ast.Attribute) and node.func.attr == "with_for_update":
+                for inner in ast.walk(node.func.value):
+                    if (
+                        isinstance(inner, ast.Call)
+                        and isinstance(inner.func, ast.Name)
+                        and inner.func.id == "select"
+                    ):
+                        for target in _call_targets(inner):
+                            if target in aliases:
+                                violations.add(
+                                    Violation(rel, LIFECYCLE_TABLE_WRITE, f"lock:{target}")
+                                )
+    return violations
+
+
 CHECKS = {
     CROSS_MODULE_IMPORT: check_cross_module_imports,
     ROUTER_ORM_ACCESS: check_router_orm_access,
     SCHEMA_IMPORTS_MODEL_OR_SERVICE: check_schema_imports,
     LIFECYCLE_RELATIONSHIP: check_lifecycle_relationships,
+    LIFECYCLE_TABLE_WRITE: check_lifecycle_table_writes,
 }
 
 
@@ -557,6 +669,7 @@ ALLOWLISTS: dict[str, frozenset[tuple[str, str, str]]] = {
     ROUTER_ORM_ACCESS: allowlist.ROUTER_ORM_ALLOWLIST,
     SCHEMA_IMPORTS_MODEL_OR_SERVICE: allowlist.SCHEMA_IMPORT_ALLOWLIST,
     LIFECYCLE_RELATIONSHIP: allowlist.LIFECYCLE_RELATIONSHIP_ALLOWLIST,
+    LIFECYCLE_TABLE_WRITE: allowlist.LIFECYCLE_TABLE_WRITE_ALLOWLIST,
 }
 
 
@@ -605,6 +718,17 @@ def test_schemas_do_not_import_models_or_services(layout: Layout) -> None:
 
 def test_lifecycle_models_have_no_outbound_relationships(layout: Layout) -> None:
     _assert_matches_allowlist(LIFECYCLE_RELATIONSHIP, check_lifecycle_relationships(layout))
+
+
+def test_sibling_modules_do_not_write_or_lock_lifecycle_tables(layout: Layout) -> None:
+    """§4: lifecycle 테이블 쓰기·잠금은 lifecycle 공개 함수로만 한다.
+
+    읽기·join은 허용이므로 검사하지 않는다. `lifecycle.lock_notice`·`lock_attachment`·
+    `lock_active_attachments`·`delete_run`·`register_attachment`·`ingest_run` 같은 공개
+    함수를 쓰면 이 검사에 걸리지 않는다.
+    """
+
+    _assert_matches_allowlist(LIFECYCLE_TABLE_WRITE, check_lifecycle_table_writes(layout))
 
 
 def test_declared_tables_match_the_ownership_table(layout: Layout) -> None:
