@@ -81,6 +81,9 @@ GRANT SELECT ON TABLE
     bidops.prespec_overview_snapshot,
     bidops.prespec_overview_attempt,
     bidops.prespec_overview_result,
+    bidops.document_segment_manifest,
+    bidops.document_segment,
+    bidops.requirement_inventory_item,
     bidops.order_plan_screening_policy,
     bidops.order_plan_screening_execution,
     bidops.order_plan_screening_batch_attempt,
@@ -155,6 +158,9 @@ GRANT INSERT ON TABLE
     bidops.screening_audit_event,
     bidops.prespec_overview_review,
     bidops.prespec_overview_snapshot,
+    bidops.document_segment_manifest,
+    bidops.document_segment,
+    bidops.requirement_inventory_item,
     bidops.order_plan_screening_policy,
     bidops.order_plan_screening_execution,
     bidops.order_plan_screening_batch_attempt,
@@ -309,6 +315,9 @@ GRANT SELECT ON TABLE
     bidops.prespec_overview_attempt,
     bidops.prespec_overview_result,
     bidops.prespec_overview_attempt_event,
+    bidops.document_segment_manifest,
+    bidops.document_segment,
+    bidops.requirement_inventory_item,
     bidops.order_plan,
     bidops.order_plan_observation,
     bidops.order_plan_screening_policy,
@@ -337,6 +346,9 @@ GRANT INSERT ON TABLE
     bidops.prespec_overview_attempt,
     bidops.prespec_overview_result,
     bidops.prespec_overview_attempt_event,
+    bidops.document_segment_manifest,
+    bidops.document_segment,
+    bidops.requirement_inventory_item,
     bidops.order_plan_screening_batch_attempt,
     bidops.order_plan_screening_artifact,
     bidops.order_plan_screening_result
@@ -365,7 +377,7 @@ GRANT UPDATE (
     human_review_count, error_code, started_at, finished_at, heartbeat_at
 ) ON bidops.order_plan_screening_execution TO worker;
 GRANT UPDATE (
-    status, started_at, completed_at, result_id
+    status, started_at, completed_at, result_id, lease_owner, lease_expires_at
 ) ON bidops.prespec_overview_attempt TO worker;
 GRANT UPDATE (is_current) ON bidops.document_version TO worker;
 

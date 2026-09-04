@@ -177,6 +177,41 @@ def test_overview_worker_update_stays_column_scoped_and_snapshot_immutable() -> 
     assert _column_update_grant("app", "prespec_overview_review") == allowed_review_updates
     assert _column_update_grant("worker", "prespec_overview_review") == allowed_review_updates
 
+    # lease 두 열만 더 열린다 (명세 §6.3). 입력 계보는 여전히 닫혀 있다.
+    assert _column_update_grant("worker", "prespec_overview_attempt") == {
+        "status",
+        "started_at",
+        "completed_at",
+        "result_id",
+        "lease_owner",
+        "lease_expires_at",
+    }
+    assert "prespec_overview_attempt" not in _table_grants("app", "UPDATE")
+    assert "prespec_overview_attempt" not in _table_grants("worker", "UPDATE")
+
+
+def test_document_segment_grants_are_append_only_for_both_runtime_roles() -> None:
+    """결정적 segment 저장소는 두 runtime role 모두 insert·select만 갖는다."""
+
+    segment_tables = {
+        "document_segment_manifest",
+        "document_segment",
+        "requirement_inventory_item",
+    }
+    for role in ("app", "worker"):
+        assert segment_tables <= _table_grants(role, "SELECT")
+        assert segment_tables <= _table_grants(role, "INSERT")
+        assert not segment_tables & _table_grants(role, "UPDATE")
+        assert not segment_tables & _table_grants(role, "DELETE")
+        for table in sorted(segment_tables):
+            assert (
+                re.search(
+                    rf"GRANT\s+UPDATE\s*\([^)]*\)\s+ON\s+bidops\.{table}\s+TO\s+{role};",
+                    POLICY,
+                )
+                is None
+            )
+
 
 def test_c2_runtime_grants_are_role_specific_and_column_scoped() -> None:
     app_selects = _table_grants("app", "SELECT")
@@ -554,7 +589,14 @@ def test_effective_runtime_role_matrix_and_future_defaults() -> None:
                         column,
                         "UPDATE",
                     )
-                for column in ("status", "started_at", "completed_at", "result_id"):
+                for column in (
+                    "status",
+                    "started_at",
+                    "completed_at",
+                    "result_id",
+                    "lease_owner",
+                    "lease_expires_at",
+                ):
                     assert _column_privilege(
                         connection,
                         "worker",
@@ -586,6 +628,16 @@ def test_effective_runtime_role_matrix_and_future_defaults() -> None:
                     "notice_id",
                     "UPDATE",
                 )
+                for table in (
+                    "document_segment_manifest",
+                    "document_segment",
+                    "requirement_inventory_item",
+                ):
+                    for role in ("app", "worker"):
+                        assert _table_privilege(connection, role, table, "SELECT")
+                        assert _table_privilege(connection, role, table, "INSERT")
+                        assert not _table_privilege(connection, role, table, "UPDATE")
+                        assert not _table_privilege(connection, role, table, "DELETE")
                 for table in (
                     "prespec_overview_snapshot",
                     "prespec_overview_attempt",
