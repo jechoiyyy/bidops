@@ -71,20 +71,6 @@ def _validate_clock_time(value: str) -> str:
     return value
 
 
-def _validate_relative_source_ref(value: str) -> str:
-    if (
-        value.startswith(("/", "\\"))
-        or value == ".."
-        or value.startswith("../")
-        or "/../" in value
-        or value.endswith("/..")
-    ):
-        raise ValueError("working-tree source_ref must be a relative path")
-    if "\\" in value:
-        raise ValueError("working-tree source_ref must use a relative POSIX path")
-    return value
-
-
 def _validate_run_key_for_kind(value: str, kind: str) -> str:
     try:
         if kind == "daily":
