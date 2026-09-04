@@ -18,6 +18,9 @@ StageName = Literal["requirements_and_evaluation", "delivery_risk_economics", "s
 StageStatus = Literal["queued", "running", "completed", "failed"]
 AttemptStatus = Literal["queued", "running", "completed", "failed", "superseded"]
 ReviewStatus = Literal["queued", "running", "completed", "failed"]
+#: 모델 실행 품질 상태 (명세 §5). 참조 실행 두 값은 `deployable=false`이며
+#: 운영 완료로 집계하지 않는다. `None`은 표식 없음이고 미측정과 다르다.
+QualityStatus = Literal["measured", "unmeasured_reference", "mock_reference"]
 
 
 class StageView(StrictModel):
@@ -48,12 +51,16 @@ class DeepReviewView(StrictModel):
     attempts: list[AttemptView]
     created_at: datetime
     completed_at: datetime | None
+    # 기본값은 이 필드가 없던 시절의 idempotency snapshot을 그대로 재생하기
+    # 위한 것이다. 없음을 미측정으로 승격시키지 않는다 (명세 §8).
+    quality_status: QualityStatus | None = None
 
 
 __all__ = [
     "AttemptStatus",
     "AttemptView",
     "DeepReviewView",
+    "QualityStatus",
     "ReviewStatus",
     "StageName",
     "StageStatus",

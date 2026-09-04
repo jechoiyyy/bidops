@@ -261,6 +261,16 @@ def _report() -> dict:
     return {"schema": "bidops.deep-review-report.v1", "deep_review_id": U, "notice_id": 1, "bundle_id": U3, "profile_version_id": U, "policy_version_id": U2, "sections": sections, "system_recommendation": "조건부 추진 검토", "claims": [claim(evidence_ids=[U5])], "unknowns": [], "validation_summary": {"status": "passed", "failed": 0, "warnings": 0, "passed": 1}, "created_at": "2026-08-25T00:00:00+09:00"}
 
 
+def test_report_quality_status_is_optional_and_bounded() -> None:
+    # 이 필드가 없던 시절의 저장 revision은 그대로 통과해야 한다.
+    assert "quality_status" not in _report()
+    validate_payload(_report(), "deep-review-report")
+    for value in ("measured", "unmeasured_reference", "mock_reference", None):
+        validate_payload({**_report(), "quality_status": value}, "deep-review-report")
+    with pytest.raises(SchemaValidationError):
+        validate_payload({**_report(), "quality_status": "deployable"}, "deep-review-report")
+
+
 def test_report_requires_exact_sections_and_decision_card() -> None:
     report = _report()
     assert validate_deep_review_report(report, bundle=bundle(), evidence=[evidence()], structures=structures())["schema"] == "bidops.deep-review-report.v1"
