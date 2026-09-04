@@ -1,0 +1,351 @@
+/*
+ * 단계 B — 검토 화면 공통 primitive
+ *
+ * Astryx가 그리는 control/list surface는 component props로 결정하고,
+ * 이 파일은 여러 화면이 공유하는 pane·toolbar·rail 배치만 소유한다.
+ * 색·간격·반경은 neutral theme token을 사용한다.
+ */
+
+.review-dense-list {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.review-dense-list-row {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.review-dense-list-row :where(button, a) {
+  min-height: var(--size-element-lg);
+}
+
+.review-split-workspace {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.review-split-list,
+.review-split-detail {
+  min-width: 0;
+  min-height: 0;
+}
+
+.review-split-list {
+  flex: 0 0 36%;
+}
+
+.review-split-detail {
+  flex: 1 1 auto;
+}
+
+.review-filter-bar {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.review-filter-bar > * {
+  min-width: 0;
+}
+
+.review-filter-reset {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.review-filter-selector,
+.review-filter-text-input {
+  min-width: 0;
+}
+
+.review-control-selector {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.review-control-label {
+  flex: 0 0 auto;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+}
+
+.review-control-selector .review-filter-selector {
+  flex: 1 1 auto;
+}
+
+.review-filter-bar .review-filter-selector,
+.review-filter-bar .review-filter-text-input {
+  overflow-wrap: anywhere;
+}
+
+/* Queue's filter labels remain visible while the actual field is an Astryx
+   Selector/TextInput. The nested control owns the keyboard and popup state. */
+.review-filter-bar .queue-filter-select {
+  display: inline-flex;
+  flex: 0 0 auto;
+  min-width: 0;
+  align-items: center;
+  gap: var(--spacing-1);
+  min-height: var(--size-element-lg);
+  padding: var(--spacing-0-5) var(--spacing-2);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-inner);
+  color: var(--color-text-secondary);
+  background: var(--color-background-surface);
+}
+
+.review-filter-bar .queue-filter-label {
+  flex: 0 0 auto;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+}
+
+.review-filter-bar .queue-filter-select.is-active {
+  border-color: var(--color-border-emphasized);
+  background: var(--color-background-muted);
+}
+
+.review-filter-bar .queue-filter-select.is-active .queue-filter-label {
+  color: var(--color-text-primary);
+}
+
+.review-filter-bar .queue-filter-control {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+}
+
+.review-filter-bar .queue-filter-control button {
+  min-width: 0;
+  padding-inline: var(--spacing-1);
+  border: 0;
+  border-radius: var(--radius-inner);
+  color: var(--color-text-primary);
+  background: transparent;
+  font-size: var(--font-size-xs);
+}
+
+.review-filter-bar .queue-filter-control button:focus-visible {
+  outline-offset: calc(-1 * var(--spacing-0-5));
+}
+
+.review-filter-bar .queue-search {
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+  align-items: center;
+  min-height: var(--size-element-lg);
+  padding: 0;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-inner);
+  background: var(--color-background-surface);
+}
+
+.review-filter-bar .queue-search.is-active {
+  border-color: var(--color-border-emphasized);
+  background: var(--color-background-muted);
+}
+
+.review-filter-bar .queue-search .review-filter-text-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+}
+
+.review-filter-bar .queue-search .review-filter-text-input input {
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font-size: var(--font-size-sm);
+}
+
+.review-status {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--spacing-1);
+  overflow-wrap: anywhere;
+}
+
+.review-status-label {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+.review-status-detail {
+  color: var(--color-text-secondary);
+}
+
+.review-value {
+  overflow-wrap: anywhere;
+}
+
+.review-value.is-unknown,
+.review-value.is-null {
+  color: var(--color-text-secondary);
+  font-style: italic;
+}
+
+.review-value.is-unknown {
+  border-bottom: var(--border-width) dashed var(--color-border-emphasized);
+}
+
+.review-sticky-decision-header {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  min-width: 0;
+}
+
+.review-sticky-decision-header :where(h1, h2, h3, h4, p, strong, span, a) {
+  overflow-wrap: anywhere;
+}
+
+.review-evidence-list,
+.review-history-list,
+.review-rail-links > ul {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.review-evidence-list-empty,
+.review-history-empty {
+  color: var(--color-text-secondary);
+}
+
+.review-history-link-rail {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  overflow-wrap: anywhere;
+}
+
+.review-history-link-rail :where(h3, h4, p) {
+  margin: 0;
+}
+
+.review-history-link-rail h3 {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.review-history-link-rail h4 {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+}
+
+.review-history-link-rail > section,
+.review-rail-links {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.review-rail-links a {
+  color: var(--color-text-accent);
+  text-decoration: underline;
+  text-underline-offset: var(--spacing-0-5);
+}
+
+.review-state {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.review-state-group {
+  min-width: 0;
+  border-block-end: var(--border-width) solid var(--color-border);
+}
+
+.review-state-group-trigger {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--spacing-2);
+  overflow-wrap: anywhere;
+}
+
+.review-state-group-label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.review-state-group-content {
+  min-width: 0;
+  padding: var(--spacing-2) 0 var(--spacing-3);
+}
+
+.review-state-group-disabled-reason,
+.review-decision-action-reason {
+  margin: var(--spacing-1) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  overflow-wrap: anywhere;
+}
+
+.review-decision-action {
+  display: inline-flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--spacing-1);
+}
+
+@media (max-width: 900px) {
+  .review-split-workspace {
+    flex-direction: column;
+    overflow: visible;
+  }
+
+  .review-split-workspace[data-mobile-view="list"] .review-split-detail,
+  .review-split-workspace[data-mobile-view="detail"] .review-split-list {
+    display: none;
+  }
+
+  .review-split-list,
+  .review-split-detail {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+
+  .review-filter-bar {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .review-filter-bar .queue-search {
+    flex-basis: 100%;
+    min-width: 0;
+  }
+
+  .review-filter-bar .queue-filter-select {
+    flex: 1 1 calc(50% - var(--spacing-2));
+  }
+}
+
+@media (max-width: 640px) {
+  .review-filter-bar .queue-filter-select {
+    flex-basis: 100%;
+  }
+
+  .review-decision-action {
+    align-items: stretch;
+  }
+}

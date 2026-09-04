@@ -130,7 +130,7 @@ export function RunStatusPage() {
   const needsRun = tab === "attachments" || tab === "audit";
 
   return (
-    <section aria-labelledby="run-status-page-title" className="ws-page" data-astryx-theme="neutral">
+    <section aria-labelledby="run-status-page-title" className="ws-page" data-astryx-theme="bidops">
       <h2 className="visually-hidden" id="run-status-page-title">실행 상태</h2>
       <div className="ws-tabs">
         <TabList

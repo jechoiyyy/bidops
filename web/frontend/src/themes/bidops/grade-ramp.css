@@ -1,0 +1,30 @@
+/*
+ * 적합성 등급 ramp — ADR-0047 결정 3, docs/design/PRD.md §4.1.
+ *
+ * bidopsTheme.ts 에 두지 못하는 이유: Astryx 의 `TokenName` 이 닫힌 union
+ * (`CoreTokenName | DomainTokenName`)이라 커스텀 토큰을 받지 않는다.
+ * `astryx theme build` 는 emit 하지만 `tsc -b` 가 TS2353 으로 거부한다.
+ * 그래서 `--color-*` 가 아닌 프로젝트 접두사 `--bo-*` 로 두고, 색이 한곳에
+ * 모이도록 테마 디렉터리에 함께 둔다. 화면 CSS 는 읽기만 한다.
+ *
+ * 등급은 심각도가 아니라 우선순위 순서다. 의미색에 싣지 않고 slate accent
+ * (#5B687C)의 농도 4단으로 순서만 나타낸다. 인접 단의 배경 대비는 1.9~2.1
+ * 이라 색만으로는 구분되지 않으므로 **등급 표시는 항상 텍스트 라벨을 동반한다.**
+ * `판정 없음`은 다섯 번째 등급이 아니라 아직 판정하지 않음이므로 ramp 바깥의
+ * 무채색이다.
+ *
+ * 라벨 대비는 scripts/check-contrast.test.mjs 가 고정한다.
+ */
+[data-astryx-theme='bidops'] {
+  --bo-grade-1: #2f3a4c; /* 최우선 · 라벨 #FFFFFF · 11.47:1 */
+  --bo-grade-2: #5b687c; /* 라벨 #FFFFFF · 5.65:1 */
+  --bo-grade-3: #93a0b0; /* 라벨 #17181F · 6.65:1 */
+  --bo-grade-4: #d3d9e1; /* 라벨 #17181F · 12.45:1 */
+  --bo-grade-none: #e5e5e5; /* 판정 없음 · 라벨 #262626 · 12.01:1 · ramp 바깥 */
+
+  --bo-on-grade-1: #ffffff;
+  --bo-on-grade-2: #ffffff;
+  --bo-on-grade-3: #17181f;
+  --bo-on-grade-4: #17181f;
+  --bo-on-grade-none: #262626;
+}

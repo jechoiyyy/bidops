@@ -80,7 +80,7 @@ export function ReviewWorkspacePage() {
   useDeadlineSavedView(pathname);
 
   return (
-    <section aria-labelledby="review-workspace-title" className="ws-page" data-astryx-theme="neutral">
+    <section aria-labelledby="review-workspace-title" className="ws-page" data-astryx-theme="bidops">
       <h2 className="visually-hidden" id="review-workspace-title">검토 대기열</h2>
       <div className="ws-tabs">
         <TabList

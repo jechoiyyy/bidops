@@ -1,3 +1,212 @@
+.deep-review-page {
+  width: 100%;
+  max-width: 1500px;
+  min-width: 0;
+}
+
+.deep-review-header h2 {
+  margin: var(--space-1) 0 0;
+  color: var(--color-deep);
+  font-size: 1.55rem;
+  letter-spacing: -0.03em;
+}
+
+.deep-review-kicker {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.deep-review-scope {
+  color: var(--color-muted);
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+
+.deep-review-report-grid {
+  align-items: start;
+}
+
+.deep-review-report-main {
+  min-width: 0;
+}
+
+.deep-review-preparation,
+.deep-review-opinion-card,
+.deep-review-validation-panel,
+.deep-review-report-section,
+.deep-review-editor-panel,
+.deep-review-opinion-panel {
+  border: var(--border-width) solid var(--border-subtle);
+  border-radius: var(--radius-element);
+  padding: var(--spacing-4);
+  background: var(--surface-card);
+}
+
+.deep-review-preparation {
+  background: var(--surface-secondary);
+}
+
+.deep-review-section-title {
+  margin: 0;
+}
+
+.deep-review-section-lede {
+  margin-block-end: var(--spacing-3);
+}
+
+.deep-review-section-copy {
+  margin-block-end: 0;
+}
+
+.deep-review-preparation-grid,
+.deep-review-decision-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(var(--spacing-12), 1fr));
+  gap: var(--spacing-2);
+}
+
+.deep-review-preparation-stage {
+  border-inline-start: calc(3 * var(--border-width)) solid var(--color-info);
+  padding-inline-start: var(--spacing-2);
+}
+
+.deep-review-safe-error {
+  display: block;
+}
+
+.deep-review-system-card {
+  border: calc(2 * var(--border-width)) solid var(--color-primary-strong);
+  border-radius: var(--radius-element);
+  padding: var(--spacing-4);
+  background: var(--surface-selected);
+}
+
+.deep-review-recommendation {
+  margin-block: var(--spacing-2);
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
+}
+
+.deep-review-decision-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--spacing-2);
+  margin-block-start: var(--spacing-3);
+}
+
+.deep-review-decision-row {
+  border-block-start: var(--border-width) solid var(--border-strong);
+  padding-block-start: var(--spacing-2);
+}
+
+.deep-review-decision-row-value {
+  margin-block: var(--spacing-1) 0;
+  white-space: pre-wrap;
+}
+
+.deep-review-evidence-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+}
+
+.deep-review-report-sections {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--spacing-4);
+}
+
+.deep-review-report-block {
+  margin-block-end: var(--spacing-3);
+}
+
+.deep-review-report-block-body {
+  white-space: pre-wrap;
+  line-height: var(--text-body-leading);
+}
+
+.deep-review-report-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.deep-review-report-table {
+  width: 100%;
+  min-width: 100%;
+  border-collapse: collapse;
+}
+
+.deep-review-report-table-head {
+  border-block-end: calc(2 * var(--border-width)) solid var(--border-strong);
+  padding: var(--spacing-2);
+  text-align: start;
+}
+
+.deep-review-report-table-cell {
+  border-block-end: var(--border-width) solid var(--border-subtle);
+  padding: var(--spacing-2);
+  text-align: start;
+  vertical-align: top;
+}
+
+.deep-review-report-table-label {
+  white-space: nowrap;
+}
+
+.deep-review-report-table-value {
+  white-space: pre-wrap;
+}
+
+.deep-review-evidence-error {
+  color: var(--color-danger);
+}
+
+.deep-review-editor-form,
+.deep-review-opinion-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--spacing-3);
+  max-width: 100%;
+}
+
+.deep-review-editor-form label,
+.deep-review-opinion-form label {
+  display: grid;
+  gap: var(--spacing-1);
+}
+
+.deep-review-section-select {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  margin-block-start: var(--spacing-1);
+}
+
+.deep-review-form-textarea,
+.deep-review-evidence-input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: var(--spacing-2);
+}
+
+.deep-review-evidence-input {
+  font-family: var(--font-mono);
+}
+
+.deep-review-form-action {
+  justify-self: start;
+  padding-block: var(--spacing-2);
+  padding-inline: var(--spacing-3);
+}
+
+.deep-review-report-grid .detail-skeleton-rail {
+  position: sticky;
+  top: var(--spacing-3);
+}
+
 .evidence-reference {
   min-height: 32px;
   border: 1px solid var(--border-strong);
@@ -485,6 +694,10 @@
 @media (max-width: 900px) {
   .evidence-compare-grid {
     grid-template-columns: 1fr;
+  }
+
+  .deep-review-report-grid .detail-skeleton-rail {
+    position: static;
   }
 
   .deep-review-retry-panel,

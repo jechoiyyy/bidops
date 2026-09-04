@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ReviewFilterSelector, ReviewFilterSegmentedControl } from "../common/ReviewPrimitives";
 import type { ReviewAnswerInput, PerspectiveResponse } from "../../lib/types";
 
 export interface ReviewDraft {
@@ -42,56 +43,74 @@ export function ReviewBar({ draft, perspectives, saving, dirty, error, onChange,
           </span>
         ) : null}
       </div>
-      <div className="review-segmented" role="group" aria-label="시스템 판정 검토">
-        {judgmentOptions.map((option) => (
-          <button
-            className={draft.system_judgment_review === option ? "is-active" : ""}
-            key={option}
-            type="button"
-            onClick={() => onChange("system_judgment_review", option)}
-          >
-            {option}
-          </button>
-        ))}
+      <ReviewFilterSegmentedControl
+        className="review-segmented"
+        isDisabled={saving}
+        label="시스템 판정 검토"
+        onChange={(value) => onChange("system_judgment_review", value)}
+        options={judgmentOptions.map((option) => ({ label: option, value: option }))}
+        value={draft.system_judgment_review || "__not_selected__"}
+      />
+      <div className="review-control review-control-selector">
+        <span className="review-control-label">최종 처리</span>
+        <ReviewFilterSelector
+          isDisabled={saving}
+          label="최종 처리"
+          onChange={(value) => onChange("disposition", value ?? "")}
+          options={[
+            { value: "심층 검토 진행", label: "심층 검토 진행" },
+            { value: "관찰", label: "관찰" },
+            { value: "제외", label: "제외" },
+          ]}
+          placeholder="선택 안 함"
+          value={draft.disposition || null}
+        />
       </div>
-      <label className="review-control">
-        <span>최종 처리</span>
-        <select value={draft.disposition} onChange={(event) => onChange("disposition", event.target.value)}>
-          <option value="">선택 안 함</option>
-          <option value="심층 검토 진행">심층 검토 진행</option>
-          <option value="관찰">관찰</option>
-          <option value="제외">제외</option>
-        </select>
-      </label>
       <div className={`review-secondary ${showMore ? "is-open" : ""}`.trim()} id="review-secondary-fields">
-        <label className="review-control">
-          <span>수정 등급</span>
-          <select value={draft.corrected_grade} onChange={(event) => onChange("corrected_grade", event.target.value)}>
-            <option value="">수정 없음</option>
-            <option value="우선 검토">우선 검토</option>
-            <option value="검토 권장">검토 권장</option>
-            <option value="관찰 대상">관찰 대상</option>
-            <option value="제외">제외</option>
-          </select>
-        </label>
-        <label className="review-control">
-          <span>수정 준비 상태</span>
-          <select value={draft.corrected_readiness} onChange={(event) => onChange("corrected_readiness", event.target.value)}>
-            <option value="">수정 없음</option>
-            <option value="확인 완료">확인 완료</option>
-            <option value="부분 확인 필요">부분 확인 필요</option>
-            <option value="참여 불가 확인">참여 불가 확인</option>
-          </select>
-        </label>
-        <label className="review-control review-control-perspective">
-          <span>근거 부족 관점</span>
-          <select value={draft.weakest_perspective} onChange={(event) => onChange("weakest_perspective", event.target.value)}>
-            <option value="">선택 안 함</option>
-            {perspectives.map((perspective) => (
-              <option key={perspective.id} value={perspective.name ?? ""}>{perspective.name ?? "관점 미확인"}</option>
-            ))}
-          </select>
-        </label>
+        <div className="review-control review-control-selector">
+          <span className="review-control-label">수정 등급</span>
+          <ReviewFilterSelector
+            isDisabled={saving}
+            label="수정 등급"
+            onChange={(value) => onChange("corrected_grade", value ?? "")}
+            options={[
+              { value: "우선 검토", label: "우선 검토" },
+              { value: "검토 권장", label: "검토 권장" },
+              { value: "관찰 대상", label: "관찰 대상" },
+              { value: "제외", label: "제외" },
+            ]}
+            placeholder="수정 없음"
+            value={draft.corrected_grade || null}
+          />
+        </div>
+        <div className="review-control review-control-selector">
+          <span className="review-control-label">수정 준비 상태</span>
+          <ReviewFilterSelector
+            isDisabled={saving}
+            label="수정 준비 상태"
+            onChange={(value) => onChange("corrected_readiness", value ?? "")}
+            options={[
+              { value: "확인 완료", label: "확인 완료" },
+              { value: "부분 확인 필요", label: "부분 확인 필요" },
+              { value: "참여 불가 확인", label: "참여 불가 확인" },
+            ]}
+            placeholder="수정 없음"
+            value={draft.corrected_readiness || null}
+          />
+        </div>
+        <div className="review-control review-control-selector review-control-perspective">
+          <span className="review-control-label">근거 부족 관점</span>
+          <ReviewFilterSelector
+            isDisabled={saving}
+            label="근거 부족 관점"
+            onChange={(value) => onChange("weakest_perspective", value ?? "")}
+            options={perspectives
+              .filter((perspective) => Boolean(perspective.name))
+              .map((perspective) => ({ value: perspective.name as string, label: perspective.name as string }))}
+            placeholder="선택 안 함"
+            value={draft.weakest_perspective || null}
+          />
+        </div>
       </div>
       <button
         aria-controls="review-secondary-fields"

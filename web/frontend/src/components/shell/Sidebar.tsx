@@ -36,7 +36,7 @@ const groups: NavGroup[] = [
   {
     label: "누적 추적",
     items: [
-      { label: "발주계획 C-2", path: "/order-plans", icon: "order-plan" },
+      { label: "발주계획", path: "/order-plans", icon: "order-plan" },
       { label: "사전규격", path: "/pre-specs", icon: "judgment" },
       // 심층 검토 보고서(/deep-reviews/:id)는 사업기회 화면이 진입점을 갖는다.
       { label: "사업기회", path: "/opportunities", icon: "queue", absorbs: ["/deep-reviews"] },
@@ -114,6 +114,7 @@ export function Sidebar({ navRef, open, onClose }: { navRef: RefObject<HTMLEleme
       <aside
         aria-label="주 메뉴"
         className={`sidebar ${open ? "is-open" : ""}`.trim()}
+        data-shell-region="sidebar"
         id="primary-navigation"
         ref={navRef}
       >

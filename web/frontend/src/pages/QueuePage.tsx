@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Badge } from "../components/common/Badge";
 import { EmptyState } from "../components/common/EmptyState";
+import { SplitWorkspace, StickyDecisionHeader } from "../components/common/ReviewPrimitives";
 import { Toast } from "../components/common/Toast";
 import { useUnsavedGuard } from "../components/common/useUnsavedGuard";
 import { AttachmentPanel } from "../components/notice/AttachmentPanel";
@@ -391,7 +392,12 @@ export function QueuePage({ defaultSort = "grade" }: { defaultSort?: QueueFilter
         onChange={setFilter}
         onReset={resetFilters}
       />
-      <div className={`queue-workspace ${selectedId !== null ? "shows-detail" : "shows-list"}`}>
+      <SplitWorkspace
+        className={`queue-workspace ${selectedId !== null ? "shows-detail" : "shows-list"}`}
+        detailLabel="공고 상세"
+        listLabel="검토 대기 공고 목록"
+        mobileView={selectedId !== null ? "detail" : "list"}
+      >
         <QueueList
           notices={notices}
           reviews={reviewsById}
@@ -409,7 +415,7 @@ export function QueuePage({ defaultSort = "grade" }: { defaultSort?: QueueFilter
             <EmptyState title="공고 상세를 불러오지 못했습니다." description={errorMessage(detailQuery.error, "상세 정보를 확인할 수 없습니다.")} action={{ label: "다시 시도", onClick: () => void detailQuery.refetch() }} />
           ) : (
             <>
-              <header className="queue-detail-header">
+              <StickyDecisionHeader className="queue-detail-header" label="공고 상세 결정 헤더">
                 <div className="queue-detail-back">
                   <Link to={{ pathname: "/queue", search: searchParams.toString() }}>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M19 12H6M11 6l-6 6 6 6" /></svg>
@@ -448,7 +454,7 @@ export function QueuePage({ defaultSort = "grade" }: { defaultSort?: QueueFilter
                     </a>
                   ) : null}
                 </div>
-              </header>
+              </StickyDecisionHeader>
               <div className="queue-detail-scroll">
                 <section className="review-workspace-section queue-information-section" aria-labelledby="queue-information-heading">
                   <div className="review-section-heading">
@@ -506,7 +512,7 @@ export function QueuePage({ defaultSort = "grade" }: { defaultSort?: QueueFilter
             </>
           )}
         </section>
-      </div>
+      </SplitWorkspace>
       {toast ? (
         <Toast
           message={toast.message}

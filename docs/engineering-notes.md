@@ -227,3 +227,9 @@
   검사 대상이 정의된 상태에서 돌게 한다.
 - 재발 방지: 화면에 새 구역을 붙이면 그 구역이 부르는 API를 **기존 spec의 fixture에도**
   넣는다. 새 구역만 보는 fixture(`mockDocumentPreparationVisual`)에 넣는 것으로는 부족하다.
+
+## Tailwind `@theme`의 토큰이 Astryx 테마를 조용히 이긴다
+
+- 증상: `astryx theme build`로 테마 색을 바꿔도 앱에서 일부 색만 바뀌지 않는다. 테두리가 계속 이전 팔레트 색이고, 상태 배지의 성공·경고·실패 색이 테마 값과 다르다. 빌드된 테마 CSS를 열어 보면 값은 제대로 들어 있다.
+- 원인: Tailwind 4의 `@theme { }` 블록은 값을 **`:root`에 방출**한다. Astryx 테마는 `@layer astryx-theme` 안의 `@scope([data-astryx-theme="…"])`에 있다. CSS cascade 에서 **unlayered 선언이 어떤 layer 보다도 강하므로**, 이름이 같은 토큰은 selector 특이성이나 scope 근접성과 무관하게 항상 `:root` 쪽이 이긴다. 2026-09-04 기준 `--color-border`·`--color-success`·`--color-warning`·`--color-error`·`--color-accent` 다섯 개가 겹쳐 있었다.
+- 대응: 디자인 시스템 토큰과 이름이 겹치는 legacy 토큰을 `@theme`에서 없애고 테마가 소유하게 한다. 의미가 다른데 이름만 같은 것(shadcn의 hover 표면 `--color-accent`)은 접두사를 붙여 옮긴다(`--color-shadcn-accent`). 이행 중 legacy 이름이 필요하면 `:root`가 아니라 **테마 scope 안의 단일 bridge**에서 `var(--color-*)`로 잇고 새 색 값을 만들지 않는다. 회귀는 계산된 토큰 값을 읽는 테스트로 막는다(`tests/design-shell.spec.ts`). 빌드된 CSS만 검사하는 대비 테스트는 이 문제를 잡지 못한다 — 런타임 cascade 를 보지 않기 때문이다.

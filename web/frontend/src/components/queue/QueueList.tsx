@@ -1,5 +1,6 @@
 import { Fragment, useMemo } from "react";
 import { EmptyState } from "../common/EmptyState";
+import { DenseList } from "../common/ReviewPrimitives";
 import type { NoticeListItem, ReviewResponse } from "../../lib/types";
 import { formatNumber } from "../../lib/format";
 import { gradeRailClass, gradeRank } from "../../lib/grade";
@@ -89,19 +90,23 @@ export function QueueList({ notices, selectedId, reviews, total, sort, onSelect 
       <div className="queue-list-scroll">
         {notices.length === 0 ? (
           <EmptyState compact title="조건에 맞는 공고가 없습니다." description="필터를 넓혀 다른 공고를 확인하십시오." />
-        ) : groups ? (
-          groups.map((group) => (
-            <Fragment key={group.grade}>
-              <div className={`queue-group-header ${gradeRailClass(group.grade)}`}>
-                <span className="queue-group-swatch" aria-hidden="true" />
-                <span className="queue-group-label">{group.grade}</span>
-                <span className="mono tabular-nums queue-group-count">{formatNumber(group.items.length)}건</span>
-              </div>
-              {group.items.map(renderItem)}
-            </Fragment>
-          ))
         ) : (
-          notices.map(renderItem)
+          <DenseList aria-label="검토 대기 공고 목록">
+            {groups ? (
+              groups.map((group) => (
+                <Fragment key={group.grade}>
+                  <li className={`queue-group-header ${gradeRailClass(group.grade)}`}>
+                    <span className="queue-group-swatch" aria-hidden="true" />
+                    <span className="queue-group-label">{group.grade}</span>
+                    <span className="mono tabular-nums queue-group-count">{formatNumber(group.items.length)}건</span>
+                  </li>
+                  {group.items.map(renderItem)}
+                </Fragment>
+              ))
+            ) : (
+              notices.map(renderItem)
+            )}
+          </DenseList>
         )}
       </div>
     </aside>

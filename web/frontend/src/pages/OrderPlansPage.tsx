@@ -6,7 +6,6 @@ import { Banner } from "@astryxdesign/core/Banner";
 import { Button } from "@astryxdesign/core/Button";
 import { Collapsible } from "@astryxdesign/core/Collapsible";
 import { Heading } from "@astryxdesign/core/Heading";
-import { Selector } from "@astryxdesign/core/Selector";
 import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl";
 import { Stack } from "@astryxdesign/core/Stack";
 import { StatusDot } from "@astryxdesign/core/StatusDot";
@@ -15,6 +14,19 @@ import { TextArea } from "@astryxdesign/core/TextArea";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { ToggleButton, ToggleButtonGroup } from "@astryxdesign/core/ToggleButton";
 import { Text } from "@astryxdesign/core/Text";
+import {
+  DenseList,
+  DenseListRow,
+  ReviewDecisionAction,
+  ReviewFilterBar,
+  ReviewFilterSelector,
+  ReviewFilterTextInput,
+  ReviewState,
+  ReviewStatus,
+  ReviewValue,
+  SplitWorkspace,
+  StickyDecisionHeader,
+} from "../components/common/ReviewPrimitives";
 import { api, ApiError } from "../lib/api";
 import type {
   OrderPlanFeedbackPriority,
@@ -286,24 +298,19 @@ function executionHasProblem(latest: OrderPlanScreeningExecutionSummary | null, 
 /** 실행 결과가 없거나 성공/부분 성공이 없을 때의 안내. 값 없음과 실패를 성공으로 바꾸지 않는다. */
 function ExecutionMissingBlock({ executions }: { executions: OrderPlanScreeningExecutionSummary[] }) {
   if (!executions.length) {
-    return (
-      <Banner
-        status="warning"
-        title="C-2 실행 결과가 없습니다."
-        description="성공 또는 부분 성공 실행이 없어 발주계획을 표시하지 않습니다. 결과 없음은 비관련로 해석하지 않습니다."
-        collapsible={false}
-      />
-    );
+    return <ReviewState
+      kind="empty"
+      title="C-2 실행 결과가 없습니다."
+      description="성공 또는 부분 성공 실행이 없어 발주계획을 표시하지 않습니다. 결과 없음은 비관련로 해석하지 않습니다."
+    />;
   }
   return (
-    <div className="c2l-execution-empty" role="status">
-      <Banner
-        status="warning"
-        title="검토에 사용할 성공/부분 성공 결과가 없습니다."
-        description={`실행 상태: ${executions.slice(0, 3).map((item) => `${item.status} (${item.execution_id})`).join(", ")}. 실패·중단·중지 상태를 성공 결과로 해석하지 않습니다.`}
-        collapsible={false}
-      />
-    </div>
+    <ReviewState
+      className="c2l-execution-empty"
+      kind="failure"
+      title="검토에 사용할 성공/부분 성공 결과가 없습니다."
+      description={`실행 상태: ${executions.slice(0, 3).map((item) => `${item.status} (${item.execution_id})`).join(", ")}. 실패·중단·중지 상태를 성공 결과로 해석하지 않습니다.`}
+    />
   );
 }
 
@@ -312,16 +319,21 @@ function ExecutionSummaryLine({ latest, executions }: { latest: OrderPlanScreeni
   if (!latest) {
     return (
       <Stack direction="horizontal" gap={2} align="center">
-        <StatusDot variant="neutral" label="실행 없음" />
-        <Text type="body" color="secondary">표시할 성공/부분 성공 실행이 없습니다.</Text>
+        <ReviewStatus
+          label="실행 없음"
+          variant="neutral"
+          detail="표시할 성공/부분 성공 실행이 없습니다."
+        />
       </Stack>
     );
   }
   return (
     <Stack direction="horizontal" gap={2} align="center" wrap="wrap">
-      <StatusDot variant={statusDotVariant(latest.status)} label={latest.status} />
-      <Text type="body" color="primary">{latest.status}</Text>
-      <Text type="body" color="secondary" as="span">· {latest.execution_id.slice(0, 8)} · {formatMoment(latest.finished_at ?? latest.queued_at)}</Text>
+      <ReviewStatus
+        label={latest.status}
+        variant={statusDotVariant(latest.status)}
+        detail={`· ${latest.execution_id.slice(0, 8)} · ${formatMoment(latest.finished_at ?? latest.queued_at)}`}
+      />
       {!latest.execution_allowed ? <Badge variant="error" label="policy/binding 비허용" /> : null}
       {active.length ? <Badge variant="warning" label={`진행 중 실행 ${active.length}건`} /> : null}
     </Stack>
@@ -334,7 +346,7 @@ function SignalPanel({ item }: { item: OrderPlanListItem }) {
     <div className="c2l-verdict">
       {/* source run·관측 시각은 판정 탭에서 뺐지만(시안 주석) 삭제하지 않고 이 탭에 남긴다(F3). */}
       <dl className="c2l-signal-facts">
-        <div><dt>source run</dt><dd className="c2l-digest">{item.source_run_id ?? "null (미제공)"}</dd></div>
+        <div><dt>source run</dt><dd className="c2l-digest"><ReviewValue value={item.source_run_id} nullLabel="null (미제공)" /></dd></div>
         <div><dt>관측 시각</dt><dd>{formatMoment(item.observed_at)}</dd></div>
       </dl>
       <div className="c2l-signal-grid">
@@ -344,7 +356,7 @@ function SignalPanel({ item }: { item: OrderPlanListItem }) {
             <div><dt>status</dt><dd>{stage1RowLabel(item.stage1_status)}</dd></div>
             <div><dt>rank</dt><dd>{item.stage1_rank === null ? "null (값 없음/미측정)" : item.stage1_rank}</dd></div>
             <div><dt>score</dt><dd>{formatScore(item.stage1_score)}</dd></div>
-            <div><dt>nearest capability</dt><dd>{item.nearest_capability ?? "null (미제공)"}</dd></div>
+            <div><dt>nearest capability</dt><dd><ReviewValue value={item.nearest_capability} nullLabel="null (미제공)" /></dd></div>
           </dl>
         </section>
         <section className="c2l-signal" aria-labelledby={`c2l-qwen-${item.order_plan_pk}`}>
@@ -355,7 +367,7 @@ function SignalPanel({ item }: { item: OrderPlanListItem }) {
             <div><dt>status</dt><dd>{stage2Label(item.stage2_status)}</dd></div>
             <div><dt>relevance</dt><dd>{item.qwen_relevance ?? "null (값 없음/미적용)"}</dd></div>
             <div><dt>score</dt><dd>{formatScore(item.qwen_score)}</dd></div>
-            <div><dt>reason</dt><dd>{item.qwen_reason ?? "null (근거 미제공)"}</dd></div>
+            <div><dt>reason</dt><dd><ReviewValue value={item.qwen_reason} nullLabel="null (근거 미제공)" /></dd></div>
           </dl>
         </section>
       </div>
@@ -566,29 +578,34 @@ function OrderPlanRow({
   returnSearch: string;
 }) {
   return (
-    <div className={`c2l-row-wrap${isSelected ? " is-selected" : ""}`}>
-      <button
-        type="button"
-        className="c2l-row"
-        aria-current={isSelected ? "true" : undefined}
-        onClick={onSelect}
-      >
+    <DenseListRow
+      aria-label={textOrUnknown(item.title)}
+      className={`c2l-row-wrap c2l-row${isSelected ? " is-selected" : ""}`.trim()}
+      description={
+        <>
+          <span className="c2l-row-badges">
+            <Badge variant={stage1BadgeVariant(item.stage1_status)} label={stage1RowLabel(item.stage1_status)} />
+            <Badge variant={qwenBadgeVariant(item)} label={qwenRowLabel(item)} />
+            <Badge variant="neutral" label={item.human_feedback ? `피드백 rev ${item.human_feedback.revision}` : "피드백 없음"} />
+          </span>
+          <Text type="supporting" color="secondary" as="span">
+            {textOrUnknown(item.agency_name)} · {budgetLabel(item.budget_amount)} · {plannedTiming(item.planned_order_year, item.planned_order_month)}
+          </Text>
+        </>
+      }
+      endContent={
+        <Link className="c2l-row-detail-link" to={`/order-plans/${item.order_plan_pk}${returnSearch ? `?${returnSearch}` : ""}`}>
+          전체 상세 열기 →
+        </Link>
+      }
+      label={
         <span className="c2l-row-line">
           <Text type="body" color="primary" maxLines={1}>{textOrUnknown(item.title)}</Text>
         </span>
-        <span className="c2l-row-badges">
-          <Badge variant={stage1BadgeVariant(item.stage1_status)} label={stage1RowLabel(item.stage1_status)} />
-          <Badge variant={qwenBadgeVariant(item)} label={qwenRowLabel(item)} />
-          <Badge variant="neutral" label={item.human_feedback ? `피드백 rev ${item.human_feedback.revision}` : "피드백 없음"} />
-        </span>
-        <Text type="supporting" color="secondary" as="span">
-          {textOrUnknown(item.agency_name)} · {budgetLabel(item.budget_amount)} · {plannedTiming(item.planned_order_year, item.planned_order_month)}
-        </Text>
-      </button>
-      <Link className="c2l-row-detail-link" to={`/order-plans/${item.order_plan_pk}${returnSearch ? `?${returnSearch}` : ""}`}>
-        전체 상세 열기 →
-      </Link>
-    </div>
+      }
+      onSelect={onSelect}
+      selected={isSelected}
+    />
   );
 }
 
@@ -812,6 +829,7 @@ export function OrderPlansPage() {
   });
 
   const ready = Boolean(selectedItem) && Boolean(latestExecution) && actorName.trim().length > 0;
+  const decisionDisabledReason = !actorName.trim() ? "담당자 claimed name을 입력하면 저장할 수 있습니다." : undefined;
 
   function handleSave(advance: boolean) {
     if (!ready) return;
@@ -849,9 +867,12 @@ export function OrderPlansPage() {
   const returnSearch = searchParams.toString();
   const hasProblem = executionsQuery.isPending || executionHasProblem(latestExecution, executions);
   const descriptionIsOpen = descriptionOpen ?? hasProblem;
+  const activeFilterCount = isDefaultView
+    ? 0
+    : qwenSet.size + stage1Set.size + feedbackSet.size + (issueOn ? 1 : 0) + (qText.trim() ? 1 : 0);
 
   return (
-    <section className="c2l-page" data-astryx-theme="neutral" aria-labelledby="order-plans-title">
+    <section className="c2l-page" data-astryx-theme="bidops" aria-labelledby="order-plans-title">
       <Heading level={2} id="order-plans-title">발주계획 C-2 검토</Heading>
 
       <Collapsible
@@ -879,7 +900,13 @@ export function OrderPlansPage() {
 
       {latestExecution ? (
         <div className="c2l-workspace-shell">
-          <section className="c2l-filters" aria-label="C-2 결과 필터">
+          <ReviewFilterBar
+            activeFilterCount={activeFilterCount}
+            aria-label="C-2 결과 필터"
+            className="c2l-filters"
+            onReset={resetFilters}
+            resetLabel="필터 초기화"
+          >
             <div className="c2l-presets">
               {PRESETS.map((preset) => (
                 <Button
@@ -891,7 +918,6 @@ export function OrderPlansPage() {
                   onClick={() => applyPreset(preset.key)}
                 />
               ))}
-              <Button label="필터 초기화" variant="ghost" size="sm" onClick={resetFilters} />
             </div>
 
             <div className="c2l-filter-axis">
@@ -949,7 +975,7 @@ export function OrderPlansPage() {
             </div>
 
             <div className="c2l-filter-axis">
-              <TextInput
+              <ReviewFilterTextInput
                 label="제목·계획번호 검색"
                 value={searchText}
                 onChange={setSearchText}
@@ -960,7 +986,8 @@ export function OrderPlansPage() {
             </div>
 
             <div className="c2l-filter-axis c2l-saved-views">
-              <Selector
+              <ReviewFilterSelector
+                clearable={false}
                 label="저장된 뷰"
                 options={savedViews.map((view) => ({ value: view.id, label: view.name }))}
                 value=""
@@ -973,7 +1000,7 @@ export function OrderPlansPage() {
               />
               {isNamingView ? (
                 <>
-                  <TextInput label="뷰 이름" value={newViewName} onChange={setNewViewName} isLabelHidden placeholder="뷰 이름" onEnter={saveCurrentAsView} />
+                  <ReviewFilterTextInput label="뷰 이름" value={newViewName} onChange={setNewViewName} placeholder="뷰 이름" onEnter={saveCurrentAsView} />
                   <Button label="뷰 저장" size="sm" onClick={saveCurrentAsView} isDisabled={!newViewName.trim()} />
                   <Button label="취소" size="sm" variant="ghost" onClick={() => { setIsNamingView(false); setNewViewName(""); }} />
                 </>
@@ -989,9 +1016,9 @@ export function OrderPlansPage() {
                     </li>
                   ))}
                 </ul>
-              ) : null}
+                ) : null}
             </div>
-          </section>
+          </ReviewFilterBar>
 
           {listQuery.isPending ? <Text type="body" color="secondary" as="p" role="status">발주계획을 불러오는 중…</Text> : null}
           {listQuery.isError ? (
@@ -1000,7 +1027,12 @@ export function OrderPlansPage() {
           ) : null}
 
           {!listQuery.isPending && !listQuery.isError ? (
-            <div className="c2l-workspace" data-mobile-view={mobileView} style={{ "--c2l-list-width": `${listWidth}px` } as React.CSSProperties}>
+            <SplitWorkspace
+              aria-label="발주계획 목록과 상세"
+              className="c2l-workspace"
+              mobileView={mobileView}
+              style={{ "--c2l-list-width": `${listWidth}px` } as React.CSSProperties}
+            >
               <aside className="c2l-list-pane">
                 <header className="c2l-list-head">
                   <Text type="label" color="primary" as="p">검토 목록</Text>
@@ -1011,7 +1043,7 @@ export function OrderPlansPage() {
                     <Text type="body" color="secondary" as="p">현재 필터에 해당하는 결과가 없습니다. 표시되지 않은 값이나 실행 실패를 다른 relevance 상태로 바꾸지 않습니다.</Text>
                   </div>
                 ) : (
-                  <div className="c2l-list-scroll">
+                  <DenseList aria-label="발주계획 검토 목록" className="c2l-list-scroll">
                     {visibleItems.map((item) => (
                       <OrderPlanRow
                         key={item.order_plan_pk}
@@ -1021,7 +1053,7 @@ export function OrderPlansPage() {
                         returnSearch={returnSearch}
                       />
                     ))}
-                  </div>
+                  </DenseList>
                 )}
                 {hasPrevious || hasNext ? (
                   <nav className="c2l-pager" aria-label="발주계획 목록 페이지">
@@ -1061,7 +1093,7 @@ export function OrderPlansPage() {
               <section className="c2l-detail-pane">
                 {selectedItem ? (
                   <>
-                    <header className="c2l-detail-head">
+                    <StickyDecisionHeader className="c2l-detail-head" label="발주계획 상세 헤더">
                       <span className="c2l-mobile-back">
                         <Button label="← 목록으로" variant="ghost" size="sm" onClick={() => setMobileView("list")} />
                       </span>
@@ -1072,7 +1104,7 @@ export function OrderPlansPage() {
                         <Tab value="signals" label="신호 세부" panelId="c2l-panel-signals" />
                         <Tab value="telemetry" label="운영 텔레메트리" panelId="c2l-panel-telemetry" />
                       </TabList>
-                    </header>
+                    </StickyDecisionHeader>
                     <div className="c2l-detail-scroll">
                       <div id="c2l-panel-verdict" role="tabpanel" aria-label="판정" hidden={detailTab !== "verdict"}>
                         <VerdictPanel
@@ -1102,8 +1134,20 @@ export function OrderPlansPage() {
                     <footer className="c2l-detail-actions">
                       {mutation.isError ? <Text type="body" color="secondary" role="alert">{mutation.error instanceof ApiError ? mutation.error.message : "사람 피드백을 저장하지 못했습니다."}</Text> : null}
                       {savedMessage ? <Text type="body" color="secondary" role="status">{savedMessage}</Text> : null}
-                      <Button label="저장" variant="primary" isDisabled={!ready || mutation.isPending} onClick={() => handleSave(false)} />
-                      <Button label="저장 후 다음 →" variant="secondary" isDisabled={!ready || mutation.isPending} onClick={() => handleSave(true)} />
+                      <ReviewDecisionAction
+                        disabledReason={decisionDisabledReason}
+                        isDisabled={!ready || mutation.isPending}
+                        label="저장"
+                        variant="primary"
+                        onClick={() => handleSave(false)}
+                      />
+                      <ReviewDecisionAction
+                        disabledReason={decisionDisabledReason}
+                        isDisabled={!ready || mutation.isPending}
+                        label="저장 후 다음 →"
+                        variant="secondary"
+                        onClick={() => handleSave(true)}
+                      />
                       <Text type="supporting" color="secondary" className="c2l-detail-position">
                         {filteredItems.findIndex((item) => item.order_plan_pk === selectedItem.order_plan_pk) + 1} / {total}
                       </Text>
@@ -1115,7 +1159,7 @@ export function OrderPlansPage() {
                   </div>
                 )}
               </section>
-            </div>
+            </SplitWorkspace>
           ) : null}
         </div>
       ) : null}

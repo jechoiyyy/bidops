@@ -3,12 +3,15 @@ import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "@astryxdesign/core/reset.css";
 import "@astryxdesign/core/astryx.css";
-import "./themes/neutral/neutral.css";
-import App from "./App";
+import "./themes/bidops/bidops.css";
+import "./themes/bidops/grade-ramp.css";
 import "./styles/theme.css";
+import "./styles/shell-relaxed.css";
+import "./styles/review-primitives.css";
 import "./styles/run-screening.css";
 import "./styles/quality-policy.css";
 import "./styles/operations.css";
+import App from "./App";
 
 const queryClient = new QueryClient({
   defaultOptions: {

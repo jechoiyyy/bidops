@@ -275,7 +275,7 @@ test("공통 unsaved guard가 기존 queue 임시 초안 보호를 유지한다"
 const SIDEBAR_ITEMS = [
   { group: "회차 검토", label: "대시보드", path: "/" },
   { group: "회차 검토", label: "검토 대기열", path: "/queue" },
-  { group: "누적 추적", label: "발주계획 C-2", path: "/order-plans" },
+  { group: "누적 추적", label: "발주계획", path: "/order-plans" },
   { group: "누적 추적", label: "사전규격", path: "/pre-specs" },
   { group: "누적 추적", label: "사업기회", path: "/opportunities" },
   { group: "누적 추적", label: "최종 Go/No-Go", path: "/go-no-go" },

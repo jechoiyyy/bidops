@@ -16,6 +16,7 @@ import { MutationFeedback } from "../components/common/MutationFeedback";
 import { StatusBadge, type StatusTone } from "../components/common/StatusBadge";
 import { Toast } from "../components/common/Toast";
 import { useUnsavedGuard } from "../components/common/useUnsavedGuard";
+import { ReviewHistoryLinkRail, StickyDecisionHeader } from "../components/common/ReviewPrimitives";
 import type {
   AttemptView,
   DeepReviewReport,
@@ -267,25 +268,31 @@ export function DeepReviewPage() {
   const decisionBlocks = decisionCard?.blocks ?? [];
 
   return (
-    <section aria-labelledby="deep-review-title" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 18, maxWidth: 1500 }}>
-      <header style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 12, alignItems: "end" }}>
-        <div>
-          <p style={{ color: "#527078", fontSize: 12, letterSpacing: ".08em", margin: 0 }}>DEEP REVIEW · {reviewId.slice(0, 8)}</p>
-          <h2 id="deep-review-title" style={{ margin: "5px 0 0" }}>심층 검토 보고서</h2>
+    <section aria-labelledby="deep-review-title" className="deep-review-page detail-skeleton" data-astryx-theme="bidops">
+      <StickyDecisionHeader className="deep-review-header detail-skeleton-head" label="심층 검토 보고서 상태 헤더">
+        <div className="detail-skeleton-head-top">
+          <div>
+            <p className="deep-review-kicker">DEEP REVIEW · {reviewId.slice(0, 8)}</p>
+            <h2 id="deep-review-title">심층 검토 보고서</h2>
+          </div>
+          <div aria-label="보고서 범위" className="deep-review-scope">공고 {review?.notice_id ?? "확인 중"} · bundle {review?.bundle_id.slice(0, 8) ?? "확인 중"}</div>
         </div>
-        <div aria-label="보고서 범위" style={{ color: "#527078", fontSize: 13 }}>공고 {review?.notice_id ?? "확인 중"} · bundle {review?.bundle_id.slice(0, 8) ?? "확인 중"}</div>
-      </header>
+        <div className="detail-skeleton-status-row">
+          <StatusBadge label={review ? `상태 · ${statusLabel(review.status)}` : "상태 · 확인 중"} tone={review ? statusTone(review.status) : "neutral"} />
+          {attempt ? <StatusBadge label={`현재 attempt · ${statusLabel(attempt.status)}`} tone={statusTone(attempt.status)} /> : <StatusBadge label="현재 attempt · 없음" tone="neutral" />}
+        </div>
+      </StickyDecisionHeader>
 
-      <section aria-labelledby="preparation-title" style={{ border: "1px solid #d4e0e2", borderRadius: 8, padding: 16, background: "#f8fbfb" }}>
-        <h3 id="preparation-title" style={{ marginTop: 0 }}>문서 준비 및 분석 진행</h3>
-        <p style={{ marginBottom: 12 }}>문서 준비 상태는 서버가 고정한 bundle과 안전 검사 결과를 기준으로 표시됩니다.</p>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 8 }}>
+      <section aria-labelledby="preparation-title" className="deep-review-preparation">
+        <h3 id="preparation-title" className="deep-review-section-title">문서 준비 및 분석 진행</h3>
+        <p className="deep-review-section-lede">문서 준비 상태는 서버가 고정한 bundle과 안전 검사 결과를 기준으로 표시됩니다.</p>
+        <div className="deep-review-preparation-grid">
           <div><strong>검토 상태</strong><br />{review ? statusLabel(review.status) : "불러오는 중"}</div>
           <div><strong>현재 attempt</strong><br />{attempt ? `${attempt.sequence}회 · ${statusLabel(attempt.status)}` : "없음"}</div>
           {(attempt?.stages ?? []).map((stage) => (
-            <div key={stage.stage} style={{ borderLeft: "3px solid #6b9da5", paddingLeft: 9 }}>
+            <div key={stage.stage} className="deep-review-preparation-stage">
               <strong>{STAGE_LABELS[stage.stage]}</strong><br />{statusLabel(stage.status)}
-              {stage.last_error_code ? <small style={{ display: "block" }}>안전한 오류 코드: {stage.last_error_code}</small> : null}
+              {stage.last_error_code ? <small className="deep-review-safe-error">안전한 오류 코드: {stage.last_error_code}</small> : null}
             </div>
           ))}
         </div>
@@ -371,18 +378,19 @@ export function DeepReviewPage() {
       ) : null}
       {review?.status === "completed" && reportQuery.isLoading ? <p role="status" aria-live="polite">분석이 완료되어 보고서를 불러오는 중입니다.</p> : null}
       {reportView ? (
-        <>
-          <section aria-labelledby="decision-title" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
-            <div style={{ border: "2px solid #1b5e73", borderRadius: 8, padding: 16, background: "#eef7f8" }}>
-              <h3 id="decision-title" style={{ marginTop: 0 }}>시스템 권고</h3>
-              <p style={{ fontSize: 24, fontWeight: 600, margin: "7px 0" }}>{reportView.report.system_recommendation}</p>
-              <p style={{ marginBottom: 0 }}>자동 권고는 사람의 사전규격 심층검토 의견과 별도이며, 서버가 저장한 claim·validation을 재판정하지 않습니다.</p>
-              <div aria-label="결정 카드 요약" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 9, marginTop: 14 }}>
+        <div className="detail-skeleton-grid deep-review-report-grid">
+          <div className="detail-skeleton-main deep-review-report-main">
+          <section aria-labelledby="decision-title" className="deep-review-decision-grid">
+            <div className="deep-review-system-card">
+              <h3 id="decision-title" className="deep-review-section-title">시스템 권고</h3>
+              <p className="deep-review-recommendation">{reportView.report.system_recommendation}</p>
+              <p className="deep-review-section-copy">자동 권고는 사람의 사전규격 심층검토 의견과 별도이며, 서버가 저장한 claim·validation을 재판정하지 않습니다.</p>
+              <div aria-label="결정 카드 요약" className="deep-review-decision-summary">
                 {decisionBlocks.flatMap((block) => block.rows).map((row) => (
-                  <div key={row.row_key} style={{ borderTop: "1px solid #b8d0d4", paddingTop: 8 }}>
+                  <div key={row.row_key} className="deep-review-decision-row">
                     <strong>{decisionRowHeading(row.label)}</strong>
-                    <p style={{ margin: "3px 0", whiteSpace: "pre-wrap" }}>{row.cells.join(" · ")}</p>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+                    <p className="deep-review-decision-row-value">{row.cells.join(" · ")}</p>
+                    <div className="deep-review-evidence-actions">
                       {row.claim_ids.flatMap((claimId) => reportView.report.claims.find((claim) => claim.claim_id === claimId)?.evidence_ids ?? []).map((id) => (
                         <EvidenceButton key={`${row.row_key}-${id}`} id={id} selected={id === selectedEvidenceId} onSelect={() => setSelectedEvidenceId(id)} />
                       ))}
@@ -391,33 +399,33 @@ export function DeepReviewPage() {
                 ))}
               </div>
             </div>
-            <div style={{ border: "1px solid #d4e0e2", borderRadius: 8, padding: 16 }}>
-              <h3 style={{ marginTop: 0 }}>사전규격 심층검토 의견</h3>
+            <div className="deep-review-opinion-card">
+              <h3 className="deep-review-section-title">사전규격 심층검토 의견</h3>
               {reportView.final_opinion ? <p><strong>{reportView.final_opinion.value}</strong> · {reportView.final_opinion.reason}</p> : <p>아직 기록되지 않았습니다.</p>}
-              <p style={{ marginBottom: 0 }}>현재 validation: <strong>{reportView.validation.status === "passed" ? "통과" : "실패"}</strong> · 최종 입찰 Go/No-Go와 별도이며 실패 시 acknowledge가 필요합니다.</p>
+              <p className="deep-review-section-copy">현재 validation: <strong>{reportView.validation.status === "passed" ? "통과" : "실패"}</strong> · 최종 입찰 Go/No-Go와 별도이며 실패 시 acknowledge가 필요합니다.</p>
             </div>
           </section>
 
-          <section aria-labelledby="validation-title" style={{ border: "1px solid #d4e0e2", borderRadius: 8, padding: 16 }}>
-            <h3 id="validation-title" style={{ marginTop: 0 }}>검증 결과와 unknown</h3>
+          <section aria-labelledby="validation-title" className="deep-review-validation-panel">
+            <h3 id="validation-title" className="deep-review-section-title">검증 결과와 unknown</h3>
             <p>상태: <strong>{reportView.validation.status === "passed" ? "통과" : "실패"}</strong> · 실패 {reportView.report.validation_summary.failed} · 경고 {reportView.report.validation_summary.warnings}</p>
             {reportView.report.unknowns.length > 0 ? <ul>{reportView.report.unknowns.map((unknown) => <li key={unknown}>{unknown}</li>)}</ul> : <p>미확인 사항이 없습니다.</p>}
             <ul>{reportView.validation.checks.map((check) => <li key={`${check.check_type}-${check.message}`}>{check.status} · {check.message}</li>)}</ul>
           </section>
 
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 16 }}>
+          <div className="deep-review-report-sections">
             {reportView.report.sections.map((section) => (
-              <section key={section.section_key} aria-labelledby={`section-${section.section_key}`} style={{ border: "1px solid #d4e0e2", borderRadius: 8, padding: 16 }}>
-                <h3 id={`section-${section.section_key}`} style={{ marginTop: 0 }}>{section.title}</h3>
+              <section key={section.section_key} aria-labelledby={`section-${section.section_key}`} className="deep-review-report-section">
+                <h3 id={`section-${section.section_key}`} className="deep-review-section-title">{section.title}</h3>
                 {section.blocks.map((block) => (
-                  <div key={block.block_id} style={{ marginBottom: 12 }}>
+                  <div key={block.block_id} className="deep-review-report-block">
                     {block.title ? <h4>{block.title}</h4> : null}
-                    {block.body ? <p style={{ whiteSpace: "pre-wrap", lineHeight: 1.65 }}>{block.body}</p> : null}
+                    {block.body ? <p className="deep-review-report-block-body">{block.body}</p> : null}
                     {block.rows.length > 0 ? (
-                      <div style={{ overflowX: "auto", maxWidth: "100%" }} tabIndex={0} aria-label={`${section.title} 표를 좌우로 이동할 수 있습니다`}>
-                        <table style={{ borderCollapse: "collapse", minWidth: 720, width: "100%" }}>
-                          <thead><tr><th scope="col" style={{ textAlign: "left", padding: 8, borderBottom: "2px solid #9eb5ba" }}>항목</th><th scope="col" style={{ textAlign: "left", padding: 8, borderBottom: "2px solid #9eb5ba" }}>내용</th><th scope="col" style={{ textAlign: "left", padding: 8, borderBottom: "2px solid #9eb5ba" }}>근거</th></tr></thead>
-                          <tbody>{block.rows.map((row) => <tr key={row.row_key}><th scope="row" style={{ textAlign: "left", verticalAlign: "top", padding: 8, borderBottom: "1px solid #d4e0e2", whiteSpace: "nowrap" }}>{row.label}</th><td style={{ padding: 8, borderBottom: "1px solid #d4e0e2", whiteSpace: "pre-wrap" }}>{row.cells.join(" · ")}</td><td style={{ padding: 8, borderBottom: "1px solid #d4e0e2" }}>{row.claim_ids.flatMap((claimId) => reportView.report.claims.find((claim) => claim.claim_id === claimId)?.evidence_ids ?? []).map((id) => <EvidenceButton key={id} id={id} selected={id === selectedEvidenceId} onSelect={() => setSelectedEvidenceId(id)} />)}</td></tr>)}</tbody>
+                      <div className="deep-review-report-table-wrap" tabIndex={0} aria-label={`${section.title} 표를 좌우로 이동할 수 있습니다`}>
+                        <table className="deep-review-report-table">
+                          <thead><tr><th scope="col" className="deep-review-report-table-head">항목</th><th scope="col" className="deep-review-report-table-head">내용</th><th scope="col" className="deep-review-report-table-head">근거</th></tr></thead>
+                          <tbody>{block.rows.map((row) => <tr key={row.row_key}><th scope="row" className="deep-review-report-table-cell deep-review-report-table-label">{row.label}</th><td className="deep-review-report-table-cell deep-review-report-table-value">{row.cells.join(" · ")}</td><td className="deep-review-report-table-cell deep-review-report-table-evidence">{row.claim_ids.flatMap((claimId) => reportView.report.claims.find((claim) => claim.claim_id === claimId)?.evidence_ids ?? []).map((id) => <EvidenceButton key={id} id={id} selected={id === selectedEvidenceId} onSelect={() => setSelectedEvidenceId(id)} />)}</td></tr>)}</tbody>
                         </table>
                       </div>
                     ) : null}
@@ -445,7 +453,7 @@ export function DeepReviewPage() {
               {evidenceIds.length > 0 ? evidenceIds.map((id) => <EvidenceButton key={id} id={id} selected={id === selectedEvidenceId} onSelect={() => setSelectedEvidenceId(id)} />) : <span>연결된 근거가 없습니다.</span>}
             </div>
             {evidenceQuery.isLoading ? <p role="status">근거를 불러오는 중입니다.</p> : null}
-            {evidenceQuery.error ? <p role="status" style={{ color: "#8a3b3b" }}>{errorText(evidenceQuery.error, "근거를 확인할 수 없습니다.")}</p> : null}
+            {evidenceQuery.error ? <p className="deep-review-evidence-error" role="status">{errorText(evidenceQuery.error, "근거를 확인할 수 없습니다.")}</p> : null}
             {evidenceQuery.data ? <div className="evidence-compare-grid">
               <article className="evidence-source-card" aria-label="선택된 근거 정보">
                 <div className="evidence-source-heading">
@@ -489,39 +497,55 @@ export function DeepReviewPage() {
             </div> : null}
           </section>
 
-          <section aria-labelledby="history-title" style={{ border: "1px solid #d4e0e2", borderRadius: 8, padding: 16 }}>
-            <h3 id="history-title" style={{ marginTop: 0 }}>보고서 수정본 이력</h3>
-            <ol>{reportView.history.map((item) => <li key={item.revision_id}>v{item.sequence} · {item.origin === "machine" ? "시스템" : "사람"} · validation {item.validation_status ?? "값 없음"} · {item.created_by_name ?? "시스템 생성"}</li>)}</ol>
-          </section>
-
-          <section aria-labelledby="editor-title" style={{ border: "1px solid #d4e0e2", borderRadius: 8, padding: 16 }}>
-            <h3 id="editor-title" style={{ marginTop: 0 }}>보고서 수정본 편집</h3>
+          <section aria-labelledby="editor-title" className="deep-review-editor-panel">
+            <h3 id="editor-title" className="deep-review-section-title">보고서 수정본 편집</h3>
             <p>저장은 전체 report snapshot을 새 immutable 수정본으로 추가합니다. 담당자 이름은 인증이 아닌 입력된 claimed name입니다.</p>
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 10, maxWidth: 900 }}>
+            <div className="deep-review-editor-form">
               <ActorField value={actorName} onChange={setActorName} autoComplete="off" />
-              <label>수정할 절<select className="interaction-control" aria-label="수정 절 선택" value={editSection} onChange={(event) => setEditSection(event.target.value as ReportSectionKey)} style={{ display: "block", maxWidth: 420, padding: 8, marginTop: 4 }}>{(currentReport?.sections ?? []).map((section) => <option key={section.section_key} value={section.section_key}>{section.title}</option>)}</select></label>
-              <label>절 내용<textarea aria-label="절 내용" rows={5} value={currentSection?.blocks[0]?.body ?? ""} onChange={(event) => { setReportDraftDirty(true); setDraft((value) => value ? updateFirstBlock(value, editSection, event.target.value) : value); }} style={{ width: "100%", padding: 8 }} /></label>
-              <label>수정 사유<textarea aria-label="수정 사유" rows={3} value={revisionReason} onChange={(event) => setRevisionReason(event.target.value)} style={{ width: "100%", padding: 8 }} /></label>
-              <label>사실 변경 evidence ID (쉼표 구분)<input className="interaction-control" value={factualEvidenceText} onChange={(event) => setFactualEvidenceText(event.target.value)} style={{ width: "100%", padding: 8, fontFamily: "IBM Plex Mono, monospace" }} /></label>
-              <button className="interaction-control" type="button" onClick={() => revisionMutation.mutate()} disabled={revisionMutation.isPending || !actorName.trim() || !revisionReason.trim()} aria-describedby={revisionDisabledReason ? "deep-review-revision-disabled" : undefined} style={{ justifySelf: "start", padding: "9px 14px" }}>새 보고서 수정본 저장</button>
+              <label>수정할 절<select className="interaction-control deep-review-section-select" aria-label="수정 절 선택" value={editSection} onChange={(event) => setEditSection(event.target.value as ReportSectionKey)}>{(currentReport?.sections ?? []).map((section) => <option key={section.section_key} value={section.section_key}>{section.title}</option>)}</select></label>
+              <label>절 내용<textarea className="deep-review-form-textarea" aria-label="절 내용" rows={5} value={currentSection?.blocks[0]?.body ?? ""} onChange={(event) => { setReportDraftDirty(true); setDraft((value) => value ? updateFirstBlock(value, editSection, event.target.value) : value); }} /></label>
+              <label>수정 사유<textarea className="deep-review-form-textarea" aria-label="수정 사유" rows={3} value={revisionReason} onChange={(event) => setRevisionReason(event.target.value)} /></label>
+              <label>사실 변경 evidence ID (쉼표 구분)<input className="interaction-control deep-review-evidence-input" value={factualEvidenceText} onChange={(event) => setFactualEvidenceText(event.target.value)} /></label>
+              <button className="interaction-control deep-review-form-action" type="button" onClick={() => revisionMutation.mutate()} disabled={revisionMutation.isPending || !actorName.trim() || !revisionReason.trim()} aria-describedby={revisionDisabledReason ? "deep-review-revision-disabled" : undefined}>새 보고서 수정본 저장</button>
               {revisionDisabledReason ? <DisabledReason id="deep-review-revision-disabled">{revisionDisabledReason}</DisabledReason> : null}
               {revisionMutation.error ? <MutationFeedback tone="error">{errorText(revisionMutation.error, "보고서 수정본을 저장할 수 없습니다.")}</MutationFeedback> : null}
             </div>
           </section>
 
-          <section aria-labelledby="opinion-title" style={{ border: "1px solid #d4e0e2", borderRadius: 8, padding: 16 }}>
-            <h3 id="opinion-title" style={{ marginTop: 0 }}>사전규격 심층검토 의견 추가</h3>
+          <section aria-labelledby="opinion-title" className="deep-review-opinion-panel">
+            <h3 id="opinion-title" className="deep-review-section-title">사전규격 심층검토 의견 추가</h3>
             <p>이 의견은 현재 보고서 수정본에 append-only로 남으며 최종 입찰 Go/No-Go가 아닙니다.</p>
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 10, maxWidth: 900 }}>
-              <label>심층검토 의견<select className="interaction-control" value={opinionValue} onChange={(event) => setOpinionValue(event.target.value as FinalOpinionValue)} style={{ display: "block", padding: 8, marginTop: 4 }}>{FINAL_VALUES.map((value) => <option key={value}>{value}</option>)}</select></label>
-              <label>심층검토 의견 사유<textarea aria-label="심층검토 의견 사유" rows={3} value={opinionReason} onChange={(event) => setOpinionReason(event.target.value)} style={{ width: "100%", padding: 8 }} /></label>
+            <div className="deep-review-opinion-form">
+              <label>심층검토 의견<select className="interaction-control deep-review-section-select" value={opinionValue} onChange={(event) => setOpinionValue(event.target.value as FinalOpinionValue)}>{FINAL_VALUES.map((value) => <option key={value}>{value}</option>)}</select></label>
+              <label>심층검토 의견 사유<textarea className="deep-review-form-textarea" aria-label="심층검토 의견 사유" rows={3} value={opinionReason} onChange={(event) => setOpinionReason(event.target.value)} /></label>
               {validationFailed ? <label className="interaction-check"><input type="checkbox" checked={acknowledged} onChange={(event) => setAcknowledged(event.target.checked)} /> validation 실패를 확인했으며 실패 label을 유지합니다.</label> : null}
-              <button className="interaction-control" type="button" onClick={() => opinionMutation.mutate()} disabled={opinionMutation.isPending || !actorName.trim() || !opinionReason.trim() || (validationFailed && !acknowledged)} aria-describedby={opinionDisabledReason ? "deep-review-opinion-disabled" : undefined} style={{ justifySelf: "start", padding: "9px 14px" }}>심층검토 의견 append</button>
+              <button className="interaction-control deep-review-form-action" type="button" onClick={() => opinionMutation.mutate()} disabled={opinionMutation.isPending || !actorName.trim() || !opinionReason.trim() || (validationFailed && !acknowledged)} aria-describedby={opinionDisabledReason ? "deep-review-opinion-disabled" : undefined}>심층검토 의견 append</button>
               {opinionDisabledReason ? <DisabledReason id="deep-review-opinion-disabled">{opinionDisabledReason}</DisabledReason> : null}
               {opinionMutation.error ? <MutationFeedback tone="error">{errorText(opinionMutation.error, "사전규격 심층검토 의견을 저장할 수 없습니다.")}</MutationFeedback> : null}
             </div>
           </section>
-        </>
+          </div>
+          <ReviewHistoryLinkRail
+            className="detail-skeleton-rail"
+            footer={<p className="detail-skeleton-rail-note">보고서 revision은 append-only로 남습니다. 실패한 attempt나 이전 수정본을 덮어쓰지 않습니다.</p>}
+            historySections={[{
+              empty: <p className="detail-skeleton-rail-note">보고서 수정본 이력이 없습니다.</p>,
+              entries: reportView.history.map((item) => ({
+                detail: `validation ${item.validation_status ?? "값 없음"} · ${item.created_by_name ?? "시스템 생성"}`,
+                id: item.revision_id,
+                label: `revision ${item.sequence} · ${item.origin === "machine" ? "시스템" : "사람"}`,
+              })),
+              label: "보고서 수정본 이력",
+              listClassName: "detail-skeleton-rail-history",
+            }]}
+            links={[
+              ...(typeof review?.notice_id === "number" ? [{ href: `/pre-specs/${review.notice_id}`, label: "사전규격 상세 →" }] : []),
+              { href: "/opportunities", label: "사업기회 목록 →" },
+            ]}
+            linksClassName="detail-skeleton-rail-links"
+            title="보고서 이력과 연결"
+          />
+        </div>
       ) : null}
       {hasUnsavedDraft ? <p className="deep-review-unsaved" role="status">저장되지 않은 심층검토 초안이 있습니다. 화면을 벗어나기 전에 저장하십시오.</p> : null}
       {feedback ? <Toast message={feedback} onDismiss={() => setFeedback(null)} /> : null}

@@ -92,6 +92,7 @@ export function GoNoGoPage() {
     staleTime: 30_000,
   });
   const opportunities = opportunitiesQuery.data?.items ?? [];
+  const returnSearch = searchParams.toString();
 
   const workspaceQueries = useQueries({
     queries: opportunities.map((item) => ({
@@ -117,7 +118,7 @@ export function GoNoGoPage() {
   }
 
   return (
-    <section aria-labelledby="go-no-go-title" className="gng-page" data-astryx-theme="neutral">
+    <section aria-labelledby="go-no-go-title" className="gng-page" data-astryx-theme="bidops">
       <header className="gng-head">
         <Heading level={2} id="go-no-go-title">최종 Go/No-Go</Heading>
         <Text type="body" color="secondary" as="p">
@@ -160,7 +161,11 @@ export function GoNoGoPage() {
       {visibleRows.length > 0 ? (
         <div className="gng-list">
           {visibleRows.map((row) => (
-            <Link className="gng-row" key={row.opportunity.id} to={`/opportunities/${row.opportunity.id}/bid-delta`}>
+            <Link
+              className="gng-row"
+              key={row.opportunity.id}
+              to={{ pathname: `/opportunities/${row.opportunity.id}/bid-delta`, search: returnSearch }}
+            >
               <span className="gng-row-line">
                 <Text type="body" color="primary">{opportunityTitle(row.opportunity)}</Text>
                 <span className="gng-row-badges"><DecisionBadges row={row} /></span>
