@@ -38,9 +38,11 @@ from ..schemas.reports import FinalOpinionRequest, ReportRevisionRequest
 from .deep_review_validation import (
     DeepReviewValidationError,
     REQUIRED_SECTIONS,
+    build_segment_checks,
     validate_deep_review_report,
     validate_deep_review_validation,
 )
+from . import document_segments
 from .document_bundles import BundleServiceError, validate_actor
 from .deep_reviews import JobClaim, StaleFenceError, quality_status_for_review
 
@@ -470,15 +472,42 @@ class ReportService:
                 if isinstance(value, str) and value not in unknowns:
                     unknowns.append(value)
         failed_claims = [claim for claim in claim_payloads if claim["status"] in {"unsupported", "conflicting"}]
-        status = "failed" if failed_claims else "passed"
+        # 요구사항 inventory 대조 실패는 보고서 validation 상태에 그대로 드러난다.
+        # 자동으로 보정하지 않고 사람 검토로 보낸다.
+        segment_failed = any(
+            check["status"] == "failed" for check in self._segment_checks(stage_payloads, contexts)
+        )
+        status = "failed" if failed_claims or segment_failed else "passed"
         recommendation, recommendation_unknown = self._system_recommendation(stage_payloads, status)
         if recommendation_unknown and recommendation_unknown not in unknowns:
             unknowns.append(recommendation_unknown)
         report = self._render_report(
             review, claim_payloads, unknowns, status, recommendation,
             quality_status=quality_status_for_review(session, review.id),
+            bundle_limitations=contexts.get("bundle_limitations", ()),
         )
         return report, stage_payloads, evidence_payloads, contexts
+
+    @staticmethod
+    def _segment_checks(stages: Sequence[Mapping[str, Any]], contexts: Mapping[str, Any]) -> list[dict[str, Any]]:
+        """stage 1 claim이 보고한 요구사항 ID를 문서 inventory와 대조한다.
+
+        claim schema에는 요구사항 ID 필드가 없으므로 stage 1 claim 본문에서
+        **문서가 확정한 prefix에 속하는 토큰만** 결정적으로 읽는다. 확정되지 않은
+        prefix는 요구사항 ID로 만들지 않는다.
+        """
+
+        inventory = contexts.get("segments")
+        inventory = inventory if isinstance(inventory, Mapping) else {}
+        stage_one = next((row for row in stages if row.get("stage") == STAGE_NAMES[0]), None)
+        texts: list[str] = []
+        claims = stage_one.get("claims", []) if isinstance(stage_one, Mapping) else []
+        for claim in claims if isinstance(claims, list) else []:
+            if isinstance(claim, Mapping):
+                texts.append(str(claim.get("body", "")))
+                texts.append(str(claim.get("category", "")))
+        observed = document_segments.observed_requirement_ids(texts, inventory.get("prefixes", []) or [])
+        return build_segment_checks(inventory, observed)
 
     @staticmethod
     def _system_recommendation(stage_payloads: Sequence[Mapping[str, Any]], validation_status: str) -> tuple[str, str | None]:
@@ -612,7 +641,14 @@ class ReportService:
                 "locator": row.locator if isinstance(row.locator, Mapping) else {}, "quote": row.quote,
             } for row in profile_rows],
         }
-        return {"bundle": bundle_context, "profile": profile_context, "structures": structures}
+        # 묶음의 모든 문서 inventory 합집합과 segment 상태. 검증의 두 check가 쓴다.
+        segments = document_segments.inventory_context(
+            session, [item.structure_id_at_confirmation for item in items]
+        )
+        return {
+            "bundle": bundle_context, "profile": profile_context, "structures": structures,
+            "segments": segments, "bundle_limitations": _bundle_limitations(bundle),
+        }
 
     def _render_report(
         self,
@@ -623,6 +659,7 @@ class ReportService:
         system_recommendation: str,
         *,
         quality_status: str | None = None,
+        bundle_limitations: Sequence[str] = (),
     ) -> dict[str, Any]:
         all_ids = [claim["claim_id"] for claim in claims]
         sections: list[dict[str, Any]] = []
@@ -654,6 +691,13 @@ class ReportService:
             elif section_key in scenario_sections:
                 body = first_body
                 block_type = "scenario"
+            elif section_key == "document_bundle_limitations":
+                # 확정된 묶음의 issues_snapshot이 남긴 사실을 그대로 옮긴다.
+                # 여기서 다시 계산하지 않는다.
+                block_type = "paragraph"
+                body = "\n".join([*bundle_limitations, first_body]) if bundle_limitations and first_body else (
+                    "\n".join(bundle_limitations) or first_body
+                )
             else:
                 body = first_body
                 block_type = "paragraph"
@@ -751,6 +795,11 @@ class ReportService:
             checks.append({"check_type": "declared_validation", "status": "failed", "severity": "중대", "message": "report가 validation failed 상태를 보존합니다", "related_claim_ids": [], "related_evidence_ids": []})
         else:
             checks.append({"check_type": "report_contract", "status": "passed", "severity": "낮음", "message": "전체 report contract와 immutable projection을 확인했습니다", "related_claim_ids": [], "related_evidence_ids": []})
+        # 요구사항 inventory와 segment coverage. inventory가 비어 있으면 경고이고
+        # coverage는 어떤 경우에도 차단하지 않는다.
+        checks.extend(self._segment_checks(stages, contexts))
+        if any(check["status"] == "failed" for check in checks):
+            status = "failed"
         validation_payload = {
             "schema": "bidops.deep-review-validation.v1", "validation_run_id": str(validation_id),
             "report_revision_id": str(revision_id), "status": status, "checks": checks, "created_at": _iso(_now()),
@@ -935,6 +984,23 @@ class ReportService:
             "acknowledged_validation_failure": opinion.acknowledged_validation_failure,
             "claimed_name": opinion.claimed_name, "created_at": _iso(opinion.created_at),
         }
+
+
+def _bundle_limitations(bundle: DocumentBundle | None) -> list[str]:
+    """확정된 묶음의 비차단 issue 중 보고서에 남겨야 할 사실만 문장으로 만든다.
+
+    issue code는 묶음이 이미 확정한 사실이다. 여기서 다시 판정하지 않고 개수만
+    센다. 파일명·경로 같은 원문은 넣지 않는다.
+    """
+
+    issues = bundle.issues_snapshot if bundle is not None and isinstance(bundle.issues_snapshot, list) else []
+    excluded = [
+        issue for issue in issues
+        if isinstance(issue, Mapping) and issue.get("code") == "unsupported_attachment_excluded"
+    ]
+    if not excluded:
+        return []
+    return [f"형식 밖 첨부 {len(excluded)}건이 묶음에서 제외됐습니다(unsupported_attachment_excluded)."]
 
 
 def new_payload_evidence_ids(payload: Mapping[str, Any]) -> list[str]:
