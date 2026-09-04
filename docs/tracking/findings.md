@@ -52,8 +52,8 @@
 
 - 확인: 2026-09-03
 - 상태: **미해결 · 기존 결함**
-- 재현 조건: clean `main`(`6788c4f`)에서
-  `pytest tests/test_screening_orchestrator.py` 를 돌리면
+- 재현 조건: clean `main`(`6788c4f`)에서 `pytest tests/test_screening_orchestrator.py`를
+  (모듈 이주 뒤 `pytest tests/screening/test_screening_orchestrator.py`) 돌리면
   `test_full_run_continues_after_one_notice_failure_and_publishes_partial` 과
   `test_partial_rejudgment_retains_prior_projection_and_revision` 이
   `'실패' == '부분 성공'` 으로 실패한다(34 passed, 2 failed, 약 53초).
@@ -81,7 +81,7 @@
 - 확인: 2026-08-29
 - 상태: **해결** (2026-08-29)
 
-`web/backend/app/config.py:33`이 `env_file=DEFAULT_BIDOPS_ROOT / ".env"`로 저장소 루트의
+`web/backend/app/core/config.py:71`(당시 `app/config.py:33`)이 `env_file=DEFAULT_BIDOPS_ROOT / ".env"`로 저장소 루트의
 `.env`를 읽는다. 그 파일에는 컨테이너 안에서만 유효한 값이 들어 있어서 host에서 pytest를
 돌리면 실패와 지연을 만든다.
 
@@ -363,7 +363,7 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 ## 심층 검토 보고서를 사업기회·공고로 되찾을 목록 계약이 없다
 
 - 재현 조건: 공고 판정 이력에서 심층 검토를 생성해 `/deep-reviews/{id}`로 이동한 뒤 화면을 벗어난다. 사업기회 화면이나 공고 화면에서 그 보고서를 다시 연다.
-- 증상: `app/routers/deep_reviews.py`가 제공하는 읽기 계약은 `GET /deep-reviews/{deep_review_id}` 단건뿐이다. 사업기회·공고로 보고서를 나열하는 endpoint가 없고, 사업기회 목록·상세 응답과 공고 응답에도 `deep_review_id`가 없다. 보고서 식별자를 따로 적어 두지 않으면 만든 보고서로 돌아갈 길이 없다.
+- 증상: `web/backend/app/deep_review/routers/deep_reviews.py`가 제공하는 읽기 계약은 `GET /deep-reviews/{deep_review_id}` 단건뿐이다. 사업기회·공고로 보고서를 나열하는 endpoint가 없고, 사업기회 목록·상세 응답과 공고 응답에도 `deep_review_id`가 없다. 보고서 식별자를 따로 적어 두지 않으면 만든 보고서로 돌아갈 길이 없다.
 - 영향: `docs/design/PRD.md` §2.2가 요구한 "사업기회 화면의 명시적 진입점"을 데이터로 채울 수 없다. 2026-09-02 화면 개선 2단계는 사업기회 상세에 식별자로 여는 진입점을 두고 목록을 제공할 수 없다는 사실을 화면에 명시하는 선에서 멈췄다. 목록이 비어 보이는 것을 보고서가 없다는 뜻으로 오해할 위험은 문구로만 막고 있다.
 - 지금 해결할 수 없는 이유: 해결에는 REST 계약 추가(사업기회 또는 공고별 심층 검토 목록)나 기존 응답에 식별자 노출이 필요하다. 화면 개선 2단계의 범위는 프론트엔드이며 `docs/contracts.md`의 소비자 계약과 백엔드를 바꾸지 않기로 했다.
 - 접근 방법: `GET /opportunities/{id}/deep-reviews` 또는 `GET /notices/{notice_id}/deep-reviews`를 추가해 보고서 식별자·생성 시각·현재 상태를 돌려주고, `docs/contracts.md`와 `docs/deep-review-erd.md`에 소비자 계약으로 등록한다. 그 뒤 사업기회 화면의 진입점을 식별자 입력이 아니라 목록으로 바꾼다.
@@ -371,7 +371,7 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 ## Go/No-Go 결정 대기 사업기회를 N+1 없이 집계할 endpoint가 없다
 
 - 재현 조건: 대시보드 "지금 처리할 일"이나 `GoNoGoPage.tsx`에서 "최종 Go/No-Go 결정 대기" 건수를 구하려 한다.
-- 증상: `app/routers/bid_delta.py`는 사업기회 하나의 workspace만 반환하고(`GET /opportunities/{id}/bid-delta` 계열), "계속 추적 중이며 아직 최종 결정이 없는 사업기회 수" 같은 집계 endpoint가 없다. `GoNoGoPage.tsx`는 이를 우회하려고 추적 중 사업기회 목록을 받은 뒤 사업기회마다 bid-delta workspace를 조회하는 N+1을 이미 쓰고 있다(2026-09-02 화면 개선 2단계, 코드 머리 주석에 기록).
+- 증상: `web/backend/app/deep_review/routers/bid_delta.py`는 사업기회 하나의 workspace만 반환하고(`GET /opportunities/{id}/bid-delta` 계열), "계속 추적 중이며 아직 최종 결정이 없는 사업기회 수" 같은 집계 endpoint가 없다. `GoNoGoPage.tsx`는 이를 우회하려고 추적 중 사업기회 목록을 받은 뒤 사업기회마다 bid-delta workspace를 조회하는 N+1을 이미 쓰고 있다(2026-09-02 화면 개선 2단계, 코드 머리 주석에 기록).
 - 영향: 대시보드처럼 N+1을 반복할 수 없는 화면(`web/backend/AGENTS.md`·`CLAUDE.md`의 N+1 금지 게이트)은 이 건수를 전혀 계산할 수 없다. 2026-09-03 3단계는 대시보드 항목의 건수를 `null`(확인 불가)로 표시하고 이동 경로만 제공하는 선에서 멈췄다 — 페이지 자체(`GoNoGoPage.tsx`)의 기존 N+1도 아직 걷어내지 못했다.
 - 지금 해결할 수 없는 이유: 해결에는 새 집계 REST 계약(예: 사업기회당 최신 `latest_final_decision` 유무를 서버가 먼저 걸러 세는 endpoint)이 필요하며, 이는 백엔드 스키마·서비스 변경이라 이번 프론트엔드 범위를 벗어난다.
 - 접근 방법: `GET /opportunities?tracking_status=계속 추적&decision_status=pending` 같은 서버 필터 또는 `GET /bid-delta/pending-count` 집계 endpoint를 추가해 `docs/contracts.md`와 `docs/bid-delta-contract-spec.md`에 등록한다. 그 뒤 `GoNoGoPage.tsx`의 기존 N+1과 대시보드의 `null` 표시를 실제 건수로 교체한다.
@@ -379,7 +379,7 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 ## 발주계획 목록 API에 "사람 피드백 미기록" 필터가 없다
 
 - 재현 조건: 대시보드 "지금 처리할 일"에서 "C-2 검토 대기" 건수를 사람이 아직 판정하지 않은 발주계획 수로 정의하려 한다.
-- 증상: `GET /api/order-plans`(`web/backend/app/routers/order_plans.py:78`)는 `qwen_relevance`·`human_relevance`를 필터로 받지만, `human_relevance`는 특정 relevance 값(`relevant`|`not_relevant`|`uncertain`)만 받고 "사람 피드백 행 자체가 없음"을 나타내는 값(`missing`/`null`)을 받지 않는다.
+- 증상: `GET /api/order-plans`(`web/backend/app/screening/routers/order_plans.py:78`)는 `qwen_relevance`·`human_relevance`를 필터로 받지만, `human_relevance`는 특정 relevance 값(`relevant`|`not_relevant`|`uncertain`)만 받고 "사람 피드백 행 자체가 없음"을 나타내는 값(`missing`/`null`)을 받지 않는다.
 - 영향: 2026-09-03 3단계는 이 항목을 "Qwen 신호가 relevant 또는 uncertain인 발주계획" 건수(사람 피드백 여부와 무관)로 근사했다. 실제 "검토 대기"(아직 아무도 보지 않은 건)보다 넓은 집합이라 과대 계상될 수 있고, 화면 설명 문구로만 그 차이를 알린다.
 - 지금 해결할 수 없는 이유: `human_relevance=missing` 같은 값을 추가하려면 서비스 쿼리(`OrderPlanScreeningService.list_order_plans`)와 라우터 계약을 함께 바꿔야 하며, 이번 프론트엔드 범위의 대시보드 작업만으로는 안전하게 변경할 수 없다.
 - 접근 방법: `human_relevance`에 `missing` 같은 sentinel 값을 추가해 "사람 피드백 행 없음"을 서버에서 걸러주고, `docs/contracts.md`의 `GET /api/order-plans` 항목에 등록한다. 그 뒤 대시보드와 `OrderPlansPage.tsx`의 "검토 대상" 프리셋이 이 필터를 실제 "미판정" 의미로 좁힐 수 있다.
@@ -387,7 +387,7 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 ## 사전규격 목록 API에 마감 구간 필터도 임박 집계도 없다
 
 - 재현 조건: 대시보드 "지금 처리할 일"에서 "사전규격 의견등록 마감 임박" 건수를 구하려 한다.
-- 증상: `GET /api/pre-specs`(`web/backend/app/routers/pre_specs.py:198`)는 `sw_only`·`business_division`·`origin`·`q`·`sort`·`limit`·`offset`만 받는다. 마감 구간 필터가 없고 집계 응답도 없다. `sort=deadline`은 `deadline_at ASC NULLS LAST`(`pre_specs.py:304`)라 **첫 페이지가 이미 지난 마감으로 채워진다.** 따라서 한 페이지를 받아 클라이언트에서 세면 두 가지가 동시에 틀린다. (1) 지난 마감을 임박으로 센다 — 회차 산출물 `stats.imminent_deadlines`와 달리 서버가 좁혀 준 창이 없는데 `criticalDeadlineCount`에는 하한이 없다. (2) 임박 구간이 페이지 창 밖이라 애초에 도달하지 못한다.
+- 증상: `GET /api/pre-specs`(`web/backend/app/lifecycle/routers/pre_specs.py:95`)는 `sw_only`·`business_division`·`origin`·`q`·`sort`·`limit`·`offset`만 받는다. 마감 구간 필터가 없고 집계 응답도 없다. `sort=deadline`은 `deadline_at ASC NULLS LAST`(`pre_specs.py:180`)라 **첫 페이지가 이미 지난 마감으로 채워진다.** 따라서 한 페이지를 받아 클라이언트에서 세면 두 가지가 동시에 틀린다. (1) 지난 마감을 임박으로 센다 — 회차 산출물 `stats.imminent_deadlines`와 달리 서버가 좁혀 준 창이 없는데 `criticalDeadlineCount`에는 하한이 없다. (2) 임박 구간이 페이지 창 밖이라 애초에 도달하지 못한다.
 - 영향: 2026-09-03 3단계는 이 항목의 건수를 `null`(확인 불가)로 두고 이동 경로만 제공하는 선에서 멈췄다. 구현 위임 초안은 `limit=50` 한 페이지를 세어 숫자를 표시했는데, 누적 데이터에서는 거의 항상 "만료된 사전규격 수"를 "마감 3일 이내"로 보여주는 값이라 검수에서 되돌렸다.
 - 지금 해결할 수 없는 이유: 해결에는 목록 계약에 마감 구간 필터(`deadline_from`·`deadline_to`)나 임박 집계를 추가해야 하며, 이는 백엔드 라우터·스키마 변경이라 이번 대시보드 작업 범위를 벗어난다.
 - 접근 방법: `GET /api/pre-specs`에 `deadline_within_days` 또는 `deadline_from`·`deadline_to`를 추가하고 `docs/contracts.md`의 `PreSpecList` 항목에 등록한다. 그 뒤 대시보드의 `null` 표시를 실제 건수로 바꾸고, `criticalDeadlineCount`의 하한 없음이 회차 산출물 전용 전제임을 호출부에서 다시 확인한다.
@@ -396,11 +396,11 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 
 - 확인: 2026-09-03
 - 재현 조건: 같은 "선별" 업무의 두 사례가 모델을 부르는 방식을 비교한다.
-- 증상: C-2(발주계획)는 `web/backend/app/config.py:293,295`가
+- 증상: C-2(발주계획)는 `web/backend/app/core/config.py:351,353`이
   `skills/bidops-screen/scripts/rank_order_plans_bm25.py`와
   `build_order_plan_screening_results.py`를 subprocess로 호출한다.
   [ADR-0001](decisions/0001-artifact-boundary.md)의 경계 그대로다.
-  반면 C-1(공고)은 `web/backend/app/screening/orchestrator.py:1554`에서 웹 프로세스 안의
+  반면 C-1(공고)은 `web/backend/app/screening/orchestrator.py:1555`에서 웹 프로세스 안의
   `OllamaClient`를 직접 생성하고, `app/screening/`에 `ollama.py`(653줄)·`prompts.py`·
   `worker.py`(1,656줄)가 들어와 있다.
 - 영향: 같은 업무 규칙이 두 경계에 나뉘어 있어 모델 전송 감사·테스트 격리·정책 pinning의
@@ -408,7 +408,7 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 - 지금 해결할 수 없는 이유: C-1은 [ADR-0013](decisions/0013-screening-orchestrator-boundary.md)이
   판정 단계만 애플리케이션 오케스트레이터로 옮긴 결과이고 이미 운영 중인 흐름이다.
   경계를 되돌리려면 정책 활성화·품질 게이트·큐 재실행 경로를 함께 옮겨야 하며
-  [ADR-0044](decisions/0043-screening-deep-review-module-boundary.md)의 모듈 이주 범위를 넘는다.
+  [ADR-0043](decisions/0043-screening-deep-review-module-boundary.md)·[ADR-0045](decisions/0045-backend-module-layout.md)의 모듈 이주 범위를 넘는다.
 - 접근 방법: 모듈 경계 이주가 끝난 뒤 C-1 오케스트레이터의 모델 호출부만 떼어
   C-2와 같은 subprocess 계약으로 맞출 수 있는지 별도로 판단한다. 그 전까지는 두 경계가
   다르다는 사실을 `ARCHITECTURE.md`에 명시해 새 흐름이 임의로 한쪽을 고르지 않게 한다.
@@ -417,16 +417,60 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 
 - 확인: 2026-09-03
 - 재현 조건: C-2 실행 경로가 읽는 정책·binding 파일의 위치를 확인한다.
-- 증상: `web/backend/app/config.py:286,288`과 `web/backend/app/ingest/loader.py:4199,4208`이
+- 증상: `web/backend/app/core/config.py:342,344,346`과 `web/backend/app/screening/ingest.py:1324,1333`이
   `experiments/order-plan-screening/config/order-plan-screening-policy.v1.json`과
   `order-plan-screening-phase0-binding.v1.json`을 읽는다.
   [ADR-0038](decisions/0038-order-plan-c2-phase0-contracts.md)이 고정한 계약의 정본이
   이름상 실험 보관소인 디렉터리에 있다.
 - 영향: 실험 정리가 운영을 깨뜨릴 수 있고, 반대로 운영 때문에 실험 디렉터리를 자유롭게
   정리할 수 없다. 계약 파일의 집이 `skills/bidops-screen/contracts/`,
-  `web/backend/app/contracts/deep_review/`, `experiments/.../config/` 세 곳으로 갈려
+  `web/backend/app/deep_review/contracts/`, `experiments/.../config/` 세 곳으로 갈려
   새 계약을 어디 둘지 규칙이 없다. 물리적 중복은 없다(md5 대조 확인).
-- 지금 해결할 수 없는 이유: 경로를 옮기면 `config.py`·`loader.py`와 실행 중인 회차의
+- 지금 해결할 수 없는 이유: 경로를 옮기면 `core/config.py`·`screening/ingest.py`와 실행 중인 회차의
   binding 참조가 함께 바뀌므로 C-2 종단 실행으로 재검증해야 한다.
-- 접근 방법: 정책·binding을 `skills/bidops-screen/contracts/`로 승격하고 두 참조 경로를
+- 접근 방법: 정책·binding을 `skills/bidops-screen/contracts/`로 승격하고 위 참조 경로를
   갱신한 뒤 C-2 종단 실행으로 확인한다. 계약 파일의 위치 규칙을 `docs/contracts.md`에 적는다.
+
+## 모듈 이주가 드러낸 죽은 이름 네 자리
+
+- 확인: 2026-09-04
+- 재현 조건: 아래 네 이름의 읽는 쪽을 `web/backend/app/`과 `tests/` 전체에서 찾는다.
+- 증상: 대입만 되고 읽히지 않거나, 정의만 되고 불리지 않는다.
+  - `_LEGACY_GENERATION_CONFIG`, `_LEGACY_GENERATION_CONFIG_VALUE`,
+    `_LEGACY_GENERATION_CONFIG_DIGEST`(`app/screening/models.py:46,49,52`) — 세 이름 모두
+    대입뿐이고 참조가 없다.
+  - `_validate_relative_source_ref`(`app/core/schema_base.py:74`) — 호출자가 없다.
+  - `RuntimePipelineBridge.pipeline`(`app/screening/runtime.py:56`) — 생성자가 lifecycle
+    파이프라인 실행기를 받아 보관하지만 읽는 곳이 없다. 이주 전부터 그랬고, 소유 관계를
+    드러내려고 남겼다는 주석이 붙어 있다.
+  - `PageFilters`(`app/core/schema_base.py:28`)가 core에 있는데 `grade`·`readiness`·`focus`·
+    `sample_role` 필드는 선별 어휘다. 실제 사용처는 lifecycle 하나뿐이다
+    (`app/lifecycle/routers/notices.py`, `app/lifecycle/schemas/__init__.py`).
+- 영향: 읽는 사람이 "선별 계보가 core에 있다" 또는 "legacy generation config가 아직 쓰인다"고
+  읽는다. `PageFilters`는 core가 도메인 어휘를 갖지 않는다는 규칙(ADR-0045 §2)의 예외처럼
+  보이지만 실제로는 lifecycle 응답 model이 선별 필터를 그대로 되비추는 REST 계약
+  (`NoticeList`의 `filters`)의 결과다.
+- 지금 해결할 수 없는 이유: 이번 작업의 원칙은 **동작 보존**이었다. 네 이름을 지우거나 옮기면
+  import 그래프와 wire schema 이름이 바뀌어, 이주가 REST 표면을 바꾸지 않았다는 확인이
+  흐려진다. `PageFilters`를 lifecycle로 내리는 것은 응답 model의 소유를 바꾸는 일이라 계약
+  검토가 따로 필요하다.
+- 접근 방법: 죽은 세 자리(legacy generation config 3개, `_validate_relative_source_ref`,
+  `RuntimePipelineBridge.pipeline`)는 동작 변화가 없으므로 다음 정리 작업에서 삭제한다.
+  `PageFilters`는 `NoticeList`의 `filters` 계약을 `docs/contracts.md`에서 먼저 확인한 뒤
+  lifecycle로 내릴지, core에 남기되 필드 소유를 문서로 못박을지 판단한다.
+
+## `experiments/`의 회사자료가 gitignore되어 `git archive` 사본이 자족적이지 않다
+
+- 확인: 2026-09-04
+- 재현 조건: `git archive <ref> experiments/order-plan-screening | tar -x -C <새 디렉터리>` 로
+  실험 트리를 복사한 뒤 `review-inputs/company/`와 `review-inputs/prompts/`를 본다.
+- 증상: `.gitignore:7,8`이 `experiments/order-plan-screening/review-inputs/company/*.json`과
+  `review-inputs/prompts/*.txt`를 제외한다. 회사자료를 저장소에 넣지 않는다는 경계의 결과이며
+  의도된 것이다. 다만 그래서 git에서 만든 사본에는 그 입력이 없다.
+- 영향: 격리 검증을 위해 트리 사본을 만드는 절차(모듈 폴더를 지운 복사본에서 테스트를 돌리는
+  식)가 C-2 관련 경로에 닿으면 사본이 자족적이지 않다는 것을 검증자가 미리 알아야 한다.
+  모르면 "복사본에서만 실패한다"를 코드 결함으로 오해한다.
+- 지금 해결할 수 없는 이유: 회사자료를 저장소나 image에 넣지 않는 것이 확정 경계다
+  ([security.md](../security.md), 런타임 이미지 항목). gitignore를 푸는 것은 답이 아니다.
+- 접근 방법: 트리 사본을 만드는 검증 절차는 `git archive` 뒤에 그 두 디렉터리를 작업 트리에서
+  따로 복사하는 단계를 포함한다. 사본 기반 검증을 문서로 고정할 때 이 단계를 함께 적는다.

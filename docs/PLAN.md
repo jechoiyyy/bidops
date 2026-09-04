@@ -167,14 +167,15 @@ python3 -m unittest discover -s skills/bidops-screen/tests -p 'test_*.py' -v
 
 - `web/backend/app/screening/models.py`
 - `web/backend/alembic/versions/0016_order_plan_screening.py`
-- `web/backend/app/ingest/contracts.py`
-- `web/backend/app/ingest/loader.py`
+- `web/backend/app/lifecycle/ingest/contracts.py`
+- `web/backend/app/lifecycle/ingest/loader.py`
+- `web/backend/app/screening/ingest.py`
 - `scripts/runtime-privileges.sql`
-- `web/backend/tests/test_ingest_contracts.py`
-- `web/backend/tests/test_ingest_loader.py`
-- `web/backend/tests/test_db_migrations.py`
-- `web/backend/tests/test_runtime_database_privileges.py`
-- `web/backend/tests/test_alembic_autogenerate.py`
+- `web/backend/tests/lifecycle/test_ingest_contracts.py`
+- `web/backend/tests/app/test_ingest_loader.py`
+- `web/backend/tests/app/test_db_migrations.py`
+- `web/backend/tests/app/test_runtime_database_privileges.py`
+- `web/backend/tests/app/test_alembic_autogenerate.py`
 
 revision 번호는 구현 착수 시 현재 Alembic head를 다시 확인하고 조정한다.
 
@@ -217,19 +218,19 @@ PostgreSQL 17에서 migration·적재·재적재 검증이 모두 통과해야 �
 
 신규:
 
-- `web/backend/app/services/order_plan_screening.py`
-- `web/backend/app/routers/order_plans.py`
-- `web/backend/app/schemas/order_plans.py`
-- `web/backend/tests/test_order_plan_screening_service.py`
-- `web/backend/tests/test_api_order_plans.py`
-- `web/backend/tests/test_order_plan_screening_worker.py`
+- `web/backend/app/screening/services/order_plan_screening.py`
+- `web/backend/app/screening/routers/order_plans.py`
+- `web/backend/app/screening/schemas/order_plans.py`
+- `web/backend/tests/screening/test_order_plan_screening_service.py`
+- `web/backend/tests/app/test_order_plan_screening_api.py`
+- `web/backend/tests/screening/test_order_plan_screening_worker.py`
 
 수정:
 
 - `web/backend/app/main.py`
 - `web/backend/app/workers/analysis.py`
-- `web/backend/app/services/vllm_client.py` 또는 목적별 전용 adapter
-- `web/backend/app/config.py`
+- `web/backend/app/screening/services/vllm_client.py` 또는 목적별 전용 adapter
+- `web/backend/app/core/config.py`
 - `docker-compose.t7.yml`
 - `docker-compose.t7.remote-vllm.yml`
 - `env/vllm.env.example`
@@ -365,7 +366,8 @@ API mock은 성공, 부분 성공, 전체 실패, 결과 없음, `null` 계측, 
    같은 파일 upgrade 경로의 `op.get_bind().execute(...)`는 정상이므로 호출 형태만 맞춘다.
    이 한 건이 migration 회귀 4건의 공통 원인이다.
 2. **legacy v3 회차를 C-2로 오인하는 분기 교정.**
-   `web/backend/app/ingest/loader.py:4725`가 `screening-ranking|failures|telemetry|feedback.json`의
+   `web/backend/app/screening/ingest.py`의 `c2_specific_sibling_present`가
+   `screening-ranking|failures|telemetry|feedback.json`의
    **존재만으로** C-2로 분기한다. legacy v3 worker(`web/backend/app/screening/worker.py:580`)가
    같은 이름의 `screening-failures.json`을 쓰므로, 부분 실패한 기존 v3 회차가
    `C-2 source_run_id is missing`으로 적재에 실패한다. 판별을 같은 함수의
@@ -477,10 +479,10 @@ D-f를 "제품 재실행"으로 정하면 P5-3 전체가 D-d에 종속된다. "�
 
 ### 예상 변경 영역
 
-- `web/backend/app/services/scheduled_pipeline.py`
-- `web/backend/app/services/scheduler.py`
-- `web/backend/app/runtime.py`
-- `web/backend/app/routers/schedule.py`
+- `web/backend/app/screening/services/scheduled_pipeline.py`
+- `web/backend/app/screening/services/scheduler.py`
+- `web/backend/app/screening/runtime.py`
+- `web/backend/app/screening/routers/schedule.py`
 - schedule schema·models·migration 또는 기존 계약의 versioned 확장
 - `docker-compose.t7.yml`과 목적별 egress overlay
 - 운영 화면의 schedule 상태·복구 UI
