@@ -281,14 +281,6 @@ def attachment_download_path(attachment: Attachment) -> Path:
     return safe_stored_path(attachment.stored_path)
 
 
-def attachment_download_url(attachment: Attachment) -> str | None:
-    """Return an internal download URL when a stored file exists."""
-
-    if attachment.stored_path:
-        return f"/api/attachments/{attachment.id}/download"
-    return attachment.url
-
-
 def remove_stored_file(attachment: Attachment) -> None:
     """Delete a stored file only after resolving it inside the root."""
 

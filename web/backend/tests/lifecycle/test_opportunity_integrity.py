@@ -9,10 +9,10 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.core.db import init_db
-from app.ingest.contracts import NoticeContract
-from app.ingest.loader import _merge_opportunities, _target_opportunities, _upsert_notice
+from app.lifecycle.ingest.contracts import NoticeContract
+from app.lifecycle.ingest.loader import _merge_opportunities, _target_opportunities, _upsert_notice
 from app.lifecycle.models import IngestWarning, Notice, Opportunity, OpportunityLink, OrderPlan, Run
-from app.services.opportunity_integrity import OpportunityIntegrityError
+from app.lifecycle.services.opportunity_integrity import OpportunityIntegrityError
 
 
 def _engine():

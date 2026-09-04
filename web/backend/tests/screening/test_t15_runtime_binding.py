@@ -9,7 +9,7 @@ from app.core.config import Settings
 from app.core.db import Base
 from app.lifecycle.models import Run
 from app.screening.models import AlwaysOnState, ScheduleExecution, ScheduleReservation
-from app.schemas import _validate_generation_binding
+from app.core.schema_base import _validate_generation_binding
 from app.core.generation_config import legacy_generation_config
 from app.screening.services.scheduled_pipeline import ScheduledPipeline
 from app.screening.services.scheduler import ScheduleConflictError, SchedulerService

@@ -16,7 +16,7 @@ from ...core.db import get_db
 from ...lifecycle import delete_manual_attachment, extension_registry, register_manual_attachment
 from ...core.models import AuditEvent
 from ...lifecycle.models import AgencyPortal, Attachment, Notice, NoticeObservation
-from ...schemas import (
+from ...lifecycle.schemas import (
     AttachmentProcedureResponse,
     AttachmentQueueItem,
     AttachmentQueueResponse,
@@ -27,7 +27,6 @@ from ..services.attachments import (
     AttachmentPathError,
     AttachmentValidationError,
     attachment_download_path,
-    attachment_download_url,
     build_search_url,
     match_portal,
     remove_stored_file,
@@ -36,7 +35,11 @@ from ..services.attachments import (
 )
 from ..services import assets
 from ..services.document_bundles import BundleServiceError, stable_api_error, validate_actor
-from ...routers.common import get_run, notice_list_item
+from ...lifecycle import (
+    attachment_download_url,
+    get_run_or_404 as get_run,
+    notice_list_item,
+)
 
 
 router = APIRouter(prefix="/api", tags=["attachments"])

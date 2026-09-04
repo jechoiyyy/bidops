@@ -6,8 +6,8 @@ import argparse
 import json
 from pathlib import Path
 
-from ..core.config import get_settings
-from ..core.db import SessionFactory, init_db
+from ...core.config import get_settings
+from ...core.db import SessionFactory, init_db
 from .loader import discover_run_dirs, ingest_run
 
 

@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from ..lifecycle import extension_registry
+from .. import extension_registry
 from ..schemas import MetricBasis, ValidationMetric
 
 #: 제공자가 없을 때 내보내는 지표의 키와 이름. 순서는 응답 계약의 일부다.

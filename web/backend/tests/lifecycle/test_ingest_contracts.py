@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from app.ingest.contracts import (
+from app.lifecycle.ingest.contracts import (
     DecisionArtifact,
     DecisionJudgment,
     FeedbackArtifact,

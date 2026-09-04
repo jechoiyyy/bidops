@@ -39,7 +39,7 @@ from ..queue import (
 )
 # 회차 조회 규칙(사람이 읽는 디렉터리 이름 허용, 없으면 404)은 lifecycle의 것이다.
 # 같은 규칙을 다시 구현하지 않고 그 helper를 쓴다(§4의 허용 방향).
-from ...routers.common import get_run
+from ...lifecycle import get_run_or_404 as get_run
 
 
 router = APIRouter(prefix="/api/screening", tags=["screening"])

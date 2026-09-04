@@ -12,10 +12,10 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..core.config import get_settings
+from ...core.config import get_settings
 from ..ingest.loader import parse_run_id
-from ..lifecycle import extension_registry
-from ..lifecycle.models import Notice, NoticeObservation, Run
+from .. import extension_registry
+from ..models import Notice, NoticeObservation, Run
 from ..schemas import NoticeListItem, RunCounts, RunSummary
 
 

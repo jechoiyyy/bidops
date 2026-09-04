@@ -32,7 +32,7 @@ from app.screening.models import (
     ScreeningExecution,
     ScreeningPolicy,
 )
-from app.routers.runs import router as runs_router
+from app.lifecycle.routers.runs import router as runs_router
 from app.screening.routers.screening import router as screening_router
 from app.screening.routers.screening import run_router as screening_run_router
 from app.runtime import ApplicationRuntime

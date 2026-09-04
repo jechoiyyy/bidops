@@ -39,7 +39,7 @@ from ..models import (
     PreSpecOverviewSnapshot,
 )
 from ...lifecycle.models import Notice
-from ...schemas.pre_specs import (
+from ..schemas.prespec_overview import (
     PreSpecOverviewAttemptView,
     PreSpecOverviewAttemptV2View,
     PreSpecOverviewResultPayload,

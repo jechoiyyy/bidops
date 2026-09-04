@@ -63,7 +63,7 @@ from .models import (
     ScreeningExecution,
     VerificationItem,
 )
-from ..ingest.contracts import (
+from ..lifecycle.ingest.contracts import (
     DecisionArtifact,
     JudgmentContract,
     NoticeContract,
@@ -77,24 +77,25 @@ from ..ingest.contracts import (
     model_extra_fields,
 )
 # 회차 산출물을 읽는 공통 helper. lifecycle 적재기와 같은 바이트를 같은 규칙으로
-# 읽어야 하므로 복제하지 않고 그대로 가져온다(§4의 허용 방향).
-from ..ingest.loader import (
+# 읽어야 하므로 복제하지 않고 lifecycle 공개 이름으로 받는다(§4의 허용 방향).
+# 이 파일 안의 지역 이름은 그대로 두려고 밑줄 이름으로 별칭만 준다.
+from ..lifecycle import (
     EXECUTION_ID_RE,
+    ORDER_PLAN_FIELD_ALIASES as _ORDER_PLAN_FIELD_ALIASES,
     ORDER_PLAN_FILE,
+    SCREENING_COMMON_NOTICE_KEYS as _SCREENING_COMMON_NOTICE_KEYS,
+    SCREENING_INPUT_KEYS as _SCREENING_INPUT_KEYS,
     SHA256_RE,
     V3_GENERATION_SCHEMAS,
-    _ORDER_PLAN_FIELD_ALIASES,
-    _SCREENING_COMMON_NOTICE_KEYS,
-    _SCREENING_INPUT_KEYS,
-    _artifact_unknown_fields,
-    _is_aware_iso,
-    _normalize_v3_generation_binding,
-    _order_plan_items,
-    _plan_text,
-    _raw_list,
-    _read_optional_json,
-    _read_screening_input,
-    _screening_input_error,
+    artifact_unknown_fields as _artifact_unknown_fields,
+    is_aware_iso as _is_aware_iso,
+    normalize_v3_generation_binding as _normalize_v3_generation_binding,
+    order_plan_items as _order_plan_items,
+    plan_text as _plan_text,
+    raw_list as _raw_list,
+    read_optional_json as _read_optional_json,
+    read_screening_input as _read_screening_input,
+    screening_input_error as _screening_input_error,
 )
 from .c2_contracts import (
     OrderPlanScreeningDecisionsArtifact,
@@ -515,7 +516,7 @@ def _load_judgment(
 
 
 def _model_or_none(raw: Any, kind: str) -> BaseModel:
-    from ..ingest.contracts import PerspectiveContract
+    from ..lifecycle.ingest.contracts import PerspectiveContract
 
     if kind == "perspective":
         return PerspectiveContract.model_validate(raw)

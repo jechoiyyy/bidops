@@ -21,7 +21,7 @@ from .screening.mock_transport import MockScreeningTransport
 from .screening.ollama import OllamaClient
 from .screening.orchestrator import ScreeningOrchestrator
 from .screening.worker import ScreeningWorker
-from .services.pipeline import PipelineService
+from .lifecycle.services.pipeline import PipelineService
 from .screening.services.scheduled_pipeline import ScheduledPipeline
 from .screening.services.scheduler import SchedulerService
 

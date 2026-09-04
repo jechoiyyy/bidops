@@ -21,7 +21,8 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session, sessionmaker
 
 from ..core.config import Settings, get_settings
-from ..ingest.loader import ingest_run, parse_run_id
+from ..core.run_id import parse_run_id
+from ..lifecycle import ingest_run
 from ..lifecycle.models import Notice, NoticeObservation, Run
 from .models import (
     CompanyProfileSnapshot,

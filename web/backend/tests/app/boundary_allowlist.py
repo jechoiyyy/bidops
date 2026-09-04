@@ -20,19 +20,19 @@ CROSS_MODULE_IMPORT_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset(
         # relationship 일곱 개가 함께 사라졌다.
         #
         # T4가 "조립 계층 → lifecycle은 공개 이름만"을 켜면서 새로 드러난 자리다
-        # (규칙을 켜기 전에는 검사 대상이 아니었으므로 목록이 늘었다). lifecycle
-        # router 파일들은 T7이 app/lifecycle/routers/로 옮기고 T8이 BIDOPS_MODULES에
-        # 따라 등록하면서, PipelineService는 T8이 모듈 runtime으로 옮기면서 사라진다.
-        # lifecycle/__init__.py에서 지금 router를 재공개하지 않는 이유: T5a·T5b가
-        # router 안에서 확장점 registry를 쓰게 되면 app.lifecycle → app.routers →
-        # app.lifecycle 순환 import가 된다.
-        ("app/main.py", "cross_module_import", "app.routers.metrics:router"),
-        ("app/main.py", "cross_module_import", "app.routers.notices:router"),
-        ("app/main.py", "cross_module_import", "app.routers.opportunities:router"),
-        ("app/main.py", "cross_module_import", "app.routers.portals:router"),
-        ("app/main.py", "cross_module_import", "app.routers.pre_specs:router"),
-        ("app/main.py", "cross_module_import", "app.routers.runs:router"),
-        ("app/runtime.py", "cross_module_import", "app.services.pipeline:PipelineService"),
+        # (규칙을 켜기 전에는 검사 대상이 아니었으므로 목록이 늘었다). T7 3단계가
+        # 파일을 app/lifecycle/routers/·app/lifecycle/services/로 옮겨 경로만
+        # 바뀌었고, 등록 자체는 T8이 BIDOPS_MODULES에 따라 고르면서, PipelineService는
+        # T8이 모듈 runtime으로 옮기면서 사라진다. `app/lifecycle/__init__.py`가 이제
+        # 지연 해석이라 순환 import 걱정은 없지만, router 인스턴스를 어느 이름으로
+        # 공개할지는 모듈 선택과 함께 정해야 하므로 T8까지 남긴다.
+        ("app/main.py", "cross_module_import", "app.lifecycle.routers.metrics:router"),
+        ("app/main.py", "cross_module_import", "app.lifecycle.routers.notices:router"),
+        ("app/main.py", "cross_module_import", "app.lifecycle.routers.opportunities:router"),
+        ("app/main.py", "cross_module_import", "app.lifecycle.routers.portals:router"),
+        ("app/main.py", "cross_module_import", "app.lifecycle.routers.pre_specs:router"),
+        ("app/main.py", "cross_module_import", "app.lifecycle.routers.runs:router"),
+        ("app/runtime.py", "cross_module_import", "app.lifecycle.services.pipeline:PipelineService"),
     }
 )
 
@@ -43,21 +43,21 @@ CROSS_MODULE_IMPORT_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset(
 ROUTER_ORM_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset(
     {
         ("app/deep_review/routers/attachments.py", "router_orm_access", "sqlalchemy.select"),
-        ("app/routers/common.py", "router_orm_access", "sqlalchemy.select"),
+        ("app/lifecycle/routers/common.py", "router_orm_access", "sqlalchemy.select"),
         ("app/deep_review/routers/deep_reviews.py", "router_orm_access", "sqlalchemy.select"),
         ("app/deep_review/routers/document_bundles.py", "router_orm_access", "sqlalchemy.select"),
-        ("app/routers/notices.py", "router_orm_access", "sqlalchemy.select"),
-        ("app/routers/opportunities.py", "router_orm_access", "sqlalchemy.select"),
+        ("app/lifecycle/routers/notices.py", "router_orm_access", "sqlalchemy.select"),
+        ("app/lifecycle/routers/opportunities.py", "router_orm_access", "sqlalchemy.select"),
         ("app/screening/routers/policies.py", "router_orm_access", "sqlalchemy.select"),
-        ("app/routers/portals.py", "router_orm_access", "sqlalchemy.select"),
-        ("app/routers/pre_specs.py", "router_orm_access", "Session.execute"),
-        ("app/routers/pre_specs.py", "router_orm_access", "sqlalchemy.select"),
+        ("app/lifecycle/routers/portals.py", "router_orm_access", "sqlalchemy.select"),
+        ("app/lifecycle/routers/pre_specs.py", "router_orm_access", "Session.execute"),
+        ("app/lifecycle/routers/pre_specs.py", "router_orm_access", "sqlalchemy.select"),
         ("app/screening/routers/profile.py", "router_orm_access", "sqlalchemy.select"),
         ("app/screening/routers/quality_gates.py", "router_orm_access", "Session.execute"),
         ("app/screening/routers/quality_gates.py", "router_orm_access", "sqlalchemy.select"),
         ("app/deep_review/routers/reports.py", "router_orm_access", "sqlalchemy.select"),
         ("app/screening/routers/reviews.py", "router_orm_access", "sqlalchemy.select"),
-        ("app/routers/runs.py", "router_orm_access", "sqlalchemy.select"),
+        ("app/lifecycle/routers/runs.py", "router_orm_access", "sqlalchemy.select"),
         ("app/screening/routers/schedule.py", "router_orm_access", "sqlalchemy.select"),
         ("app/screening/routers/screening.py", "router_orm_access", "sqlalchemy.select"),
     }

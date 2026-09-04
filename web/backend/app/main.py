@@ -28,17 +28,17 @@ from .screening import register_lifecycle_extensions
 from .deep_review.services.deep_review_hooks import PreSpecAttachmentEligibilityHook
 from .deep_review.services.prespec_projection import PreSpecOverviewDocumentProjection
 from .deep_review.routers.attachments import router as attachments_router
-from .routers.metrics import router as metrics_router
-from .routers.notices import router as notices_router
-from .routers.pre_specs import router as pre_specs_router
-from .routers.opportunities import router as opportunities_router
-from .routers.portals import router as portals_router
+from .lifecycle.routers.metrics import router as metrics_router
+from .lifecycle.routers.notices import router as notices_router
+from .lifecycle.routers.pre_specs import router as pre_specs_router
+from .lifecycle.routers.opportunities import router as opportunities_router
+from .lifecycle.routers.portals import router as portals_router
 from .screening.routers.profile import router as profile_router
 from .screening.routers.policies import router as policies_router
 from .screening.routers.quality_gates import router as quality_gates_router
 from .screening.routers.reviews import notice_router as notice_reviews_router
 from .screening.routers.reviews import router as reviews_router
-from .routers.runs import router as runs_router
+from .lifecycle.routers.runs import router as runs_router
 from .screening.routers.schedule import router as schedule_router
 from .screening.routers.screening import router as screening_router
 from .screening.routers.screening import run_router as screening_run_router

@@ -36,7 +36,7 @@ from ..models import (
     DocumentBundleItem,
 )
 from ..schemas.deep_reviews import AttemptView, DeepReviewView
-from ...schemas.pre_specs import (
+from ..schemas.prespec_overview import (
     PreSpecOverviewReviewsResponse,
     PreSpecOverviewReviewsV2Response,
 )

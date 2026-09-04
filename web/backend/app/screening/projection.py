@@ -26,7 +26,7 @@ from sqlalchemy.orm import Session, selectinload
 from ..core.constants import GRADE_ORDER, READINESS_ORDER
 from ..lifecycle.models import Notice, NoticeObservation
 from .models import Judgment, JudgmentRevision, Perspective, Review
-from ..schemas import (
+from ..lifecycle.schemas import (
     CounterargumentResponse,
     DistributionItem,
     EvidenceResponse,

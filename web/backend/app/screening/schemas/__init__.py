@@ -12,7 +12,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import ConfigDict, Field, StringConstraints, field_validator, model_validator
 
-from ...schemas import (
+from ...core.schema_base import (
     APIModel,
     Actor,
     AwareDateTime,

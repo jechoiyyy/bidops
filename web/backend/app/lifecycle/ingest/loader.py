@@ -18,7 +18,7 @@ from pydantic import BaseModel, ValidationError
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
-from ..lifecycle.models import (
+from ..models import (
     Attachment,
     IngestWarning,
     Notice,
@@ -38,7 +38,7 @@ from .contracts import (
     is_blank,
     model_extra_fields,
 )
-from ..core.generation_config import (
+from ...core.generation_config import (
     GenerationConfigError,
     config_from_value,
     legacy_generation_config,
@@ -53,7 +53,7 @@ from ..services.opportunity_integrity import (
     merge_opportunities,
 )
 from ..services.opportunity_connections import parse_attachment_key
-from ..core.run_id import (
+from ...core.run_id import (
     DEFAULT_TIMEZONE,
     RUN_ID_RE,
     deterministic_run_id,
@@ -2823,7 +2823,7 @@ def _run_ingested_hooks(
 
     # `app.lifecycle`은 `api`를 거쳐 이 파일을 import하므로 registry는 호출
     # 시점에 가져온다(순환 import 회피). 같은 모듈 안의 import다.
-    from ..lifecycle.extensions import extension_registry
+    from ..extensions import extension_registry
 
     counts = extension_registry().run_ingested(
         session, run_id, directory, reports_root=reports_root
@@ -2943,11 +2943,11 @@ def ingest_run(
 
     # lifecycle 공개 표면(`app.lifecycle`)은 이 파일을 다시 import하므로 모듈
     # 최상단에서 가져오면 순환이 된다. 확장점 모듈만 함수 안에서 가져온다.
-    from ..lifecycle.extensions import RunIngestCounts, extension_registry
+    from ..extensions import RunIngestCounts, extension_registry
 
     owns_session = session is None
     if owns_session:
-        from ..core.db import SessionFactory
+        from ...core.db import SessionFactory
 
         session = SessionFactory()
     assert session is not None
