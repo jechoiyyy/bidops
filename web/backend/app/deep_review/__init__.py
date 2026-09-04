@@ -18,8 +18,15 @@ from importlib import import_module
 from typing import TYPE_CHECKING, Any
 
 #: 공개 이름 → (구현 모듈, 그 모듈 안의 이름).
+#:
+#: 표는 **모듈 밖에 실제 소비자가 있는 이름만** 담는다. 구역마다 왜 공개인지를
+#: 적어 두었다. 여기 없는 것은 deep_review 내부이며, 상태를 바꾸거나 모델을 부르는
+#: 이름은 공개하지 않는다 — 공개하면 조립 계층이 startup에서 부를 수 있게 되고
+#: 그것은 §9가 금지한 일이다(`tests/app/test_module_boundaries.py`의 startup 검사).
 _EXPORTS: dict[str, tuple[str, str]] = {
-    # --- 조립 계층이 등록하는 router 인스턴스 (routers/*.py) ---------------
+    # === 조립이 쓴다 — router 인스턴스 (routers/*.py) ======================
+    # `app/main.py`가 `getattr(<모듈>, <router 이름>)`로 가져간다. 정적 import가
+    # 없어도 조립에 반드시 필요하다.
     # `attachments_router`·`document_bundles_router`·`deep_reviews_router`와
     # `pre_spec_overview_router`는 lifecycle의 경로 접두사(`/api/notices`,
     # `/api/pre-specs`)를 쓰지만 제공 모듈은 deep_review다(§5.3).
@@ -30,7 +37,9 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "document_bundles_router": (".routers.document_bundles", "router"),
     "pre_spec_overview_router": (".routers.deep_reviews", "pre_spec_overview_router"),
     "reports_router": (".routers.reports", "router"),
-    # --- lifecycle 확장점 구현 (§6.1·§6.2) ---------------------------------
+    # === 확장점 구현 (§6.1·§6.2) ===========================================
+    # `register_lifecycle_extensions`가 만드는 객체다. 조립 계층의 등록 검사
+    # (`tests/app/test_extension_registration.py`)가 이 이름으로 등록 결과를 본다.
     "PreSpecAttachmentEligibilityHook": (
         ".services.deep_review_hooks",
         "PreSpecAttachmentEligibilityHook",
@@ -39,24 +48,32 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         ".services.prespec_projection",
         "PreSpecOverviewDocumentProjection",
     ),
-    # --- 개요 검토 결과 (models.py) ----------------------------------------
+    # === 밖에서 상태를 만든다 — 개요 검토 결과 (models.py) =================
     # 개요 검토 행은 사전규격 화면의 계약이며 두 모듈 조합 테스트가 이 이름으로
     # 상태를 만든다. 그 밖의 deep_review ORM은 모듈 밖으로 나가지 않는다.
     "PreSpecOverviewReview": (".models", "PreSpecOverviewReview"),
-    # --- in-process runtime (runtime.py) -----------------------------------
-    "DeepReviewRuntime": (".runtime", "DeepReviewRuntime"),
+    # === 조립이 쓴다 — in-process runtime (runtime.py) =====================
+    # `app/runtime.py`가 `package.build_runtime(...)`로 가져간다. runtime 객체의
+    # **형**은 조립이 쓰지 않으므로 공개하지 않는다.
     "build_runtime": (".runtime", "build_runtime"),
-    # --- 별도 worker 프로세스가 쓰는 심층 검토 1건 처리 --------------------
+    # === 별도 worker 진입점이 쓴다 (workers/deep_review.py) ================
     # 조립 계층의 합성 analysis worker가 C-2 claim이 없을 때 부른다.
     "run_deep_review_once": (".workers.deep_review", "run_once"),
 }
 
 
+#: registry에 자기 등록을 표시하는 키. lifecycle은 이 문자열의 의미를 해석하지
+#: 않고 "같은 등록자인가"만 본다. 같은 키로 다시 등록하면 제자리 교체이므로
+#: `create_app()`을 한 프로세스에서 두 번 불러도 hook이 두 번 붙지 않는다.
+EXTENSION_OWNER = __name__
+
+
 def register_lifecycle_extensions(registry=None):
     """deep_review 구현으로 lifecycle 확장점을 채운다 (명세 §6).
 
-    조립 계층이 앱 객체를 만들 때 한 번 부른다. import와 객체 생성일 뿐이며
-    migration·seed·정책 활성화·모델 호출을 하지 않는다(§9).
+    조립 계층이 앱 객체를 만들 때 부른다. import와 객체 생성일 뿐이며
+    migration·seed·정책 활성화·모델 호출을 하지 않는다(§9). 같은 registry에 두 번
+    불러도 결과가 같다 — 등록은 `EXTENSION_OWNER` 키로 제자리 교체된다.
 
     - 사전규격 개요·문서 projection (§6.1)
     - 첨부 fetch 자격을 다시 세는 회차 적재·추적 결정 hook (§6.2)
@@ -69,10 +86,12 @@ def register_lifecycle_extensions(registry=None):
         from ..lifecycle import extension_registry
 
         registry = extension_registry()
-    registry.register_overview_document_projection(PreSpecOverviewDocumentProjection())
+    registry.register_overview_document_projection(
+        PreSpecOverviewDocumentProjection(), owner=EXTENSION_OWNER
+    )
     hook = PreSpecAttachmentEligibilityHook()
-    registry.register_run_ingest_hook(hook)
-    registry.register_tracking_decision_hook(hook)
+    registry.register_run_ingest_hook(hook, owner=EXTENSION_OWNER)
+    registry.register_tracking_decision_hook(hook, owner=EXTENSION_OWNER)
     return registry
 
 
@@ -96,6 +115,7 @@ __all__ = sorted(set(_EXPORTS) | {"register_lifecycle_extensions"})
 
 if TYPE_CHECKING:  # pragma: no cover - 정적 분석용 이름 노출
     from .models import PreSpecOverviewReview
-    from .runtime import DeepReviewRuntime, build_runtime
+    from .runtime import build_runtime
+    from .workers.deep_review import run_once as run_deep_review_once
     from .services.deep_review_hooks import PreSpecAttachmentEligibilityHook
     from .services.prespec_projection import PreSpecOverviewDocumentProjection

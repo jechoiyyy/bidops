@@ -321,6 +321,44 @@ class _AbsentOverviewDocumentProjection:
         return {}
 
 
+@dataclass(frozen=True)
+class _OwnedProvider:
+    """projection 자리를 채운 제공자와 그것을 등록한 owner.
+
+    lifecycle은 `owner`를 **불투명한 키**로만 쓴다. 값을 비교해 "같은 등록자인가"만
+    묻고 그 문자열의 의미(어느 모듈인가)는 해석하지 않는다.
+    """
+
+    owner: str
+    provider: Any
+
+
+def _checked_owner(owner: str) -> str:
+    """등록자 키의 최소 형식 검사. 값의 **의미**는 보지 않는다."""
+
+    if not isinstance(owner, str) or not owner:
+        raise ValueError("확장점 등록에는 비어 있지 않은 owner 문자열이 필요하다")
+    return owner
+
+
+def _claim_slot(
+    current: _OwnedProvider | None, owner: str, provider: Any, label: str
+) -> _OwnedProvider:
+    """projection 자리 하나를 채운다.
+
+    같은 owner의 재등록은 제자리 교체다(`create_app()`을 두 번 불러도 예외가 없다).
+    다른 owner가 이미 찬 자리를 채우려는 것은 조립 오류이므로 `RuntimeError`다.
+    """
+
+    owner = _checked_owner(owner)
+    if current is not None and current.owner != owner:
+        raise RuntimeError(
+            f"{label} 제공자가 이미 등록됐다: {current.owner!r}가 채운 자리를 "
+            f"{owner!r}가 채우려 한다"
+        )
+    return _OwnedProvider(owner, provider)
+
+
 @dataclass
 class ExtensionRegistry:
     """프로세스 전역 단일 확장점 registry.
@@ -328,37 +366,52 @@ class ExtensionRegistry:
     lifecycle은 여기에 무엇이 있는지만 본다. 제공자가 없어도 projection 접근자는
     항상 객체를 돌려주므로 호출부가 `None` 분기를 하지 않는다. 필터·정렬을 422로
     거절해야 하는 자리만 `*_supported` 술어를 본다.
+
+    등록은 **소유 모듈(owner)** 단위다. `owner`는 lifecycle에게 불투명한 문자열
+    키일 뿐이며 lifecycle은 그 값의 의미를 해석하지 않는다 — 어느 모듈이
+    등록했는지 알 필요가 없고, 같은 등록자를 알아보기만 하면 된다.
+
+    - 같은 owner가 같은 자리에 다시 등록하면 **제자리 교체**다(idempotent).
+      `create_app()`을 한 프로세스에서 두 번 불러도 예외가 없고 hook이 두 번
+      실행되지 않는다.
+    - 다른 owner가 이미 찬 projection 자리를 채우려 하면 `RuntimeError`다. 그것이
+      "제공자가 조용히 교체되지 않는다"는 원래 보장의 실체다.
+    - hook은 (종류, owner)로 키를 잡으므로 여러 모듈이 같은 종류를 등록하는 것은
+      그대로 허용이고, 실행 순서는 지금처럼 **처음 등록된 순서**(=
+      `BIDOPS_MODULES`가 준 순서)다. 재등록은 순서를 바꾸지 않는다.
     """
 
-    _judgment: JudgmentProjection | None = None
-    _overview: OverviewDocumentProjection | None = None
-    _run_ingest_hooks: list[RunIngestHook] = field(default_factory=list)
-    _tracking_hooks: list[TrackingDecisionHook] = field(default_factory=list)
+    _judgment: _OwnedProvider | None = None
+    _overview: _OwnedProvider | None = None
+    _run_ingest_hooks: dict[str, RunIngestHook] = field(default_factory=dict)
+    _tracking_hooks: dict[str, TrackingDecisionHook] = field(default_factory=dict)
 
     _absent_judgment: Any = field(default_factory=_AbsentJudgmentProjection, repr=False)
     _absent_overview: Any = field(default_factory=_AbsentOverviewDocumentProjection, repr=False)
 
     # --- 등록 (조립 계층이 앱 조립 시점에 호출한다) ---
-    def register_judgment_projection(self, projection: JudgmentProjection) -> None:
-        if self._judgment is not None:
-            raise RuntimeError("판정 projection 제공자가 이미 등록됐다")
-        self._judgment = projection
+    def register_judgment_projection(
+        self, projection: JudgmentProjection, *, owner: str
+    ) -> None:
+        self._judgment = _claim_slot(self._judgment, owner, projection, "판정 projection")
 
-    def register_overview_document_projection(self, projection: OverviewDocumentProjection) -> None:
-        if self._overview is not None:
-            raise RuntimeError("개요·문서 projection 제공자가 이미 등록됐다")
-        self._overview = projection
+    def register_overview_document_projection(
+        self, projection: OverviewDocumentProjection, *, owner: str
+    ) -> None:
+        self._overview = _claim_slot(self._overview, owner, projection, "개요·문서 projection")
 
-    def register_run_ingest_hook(self, hook: RunIngestHook) -> None:
-        self._run_ingest_hooks.append(hook)
+    def register_run_ingest_hook(self, hook: RunIngestHook, *, owner: str) -> None:
+        # `dict`는 이미 있는 키에 다시 넣어도 **자리를 옮기지 않는다.** 그래서
+        # 재등록이 실행 순서를 바꾸지 않는다.
+        self._run_ingest_hooks[_checked_owner(owner)] = hook
 
-    def register_tracking_decision_hook(self, hook: TrackingDecisionHook) -> None:
-        self._tracking_hooks.append(hook)
+    def register_tracking_decision_hook(self, hook: TrackingDecisionHook, *, owner: str) -> None:
+        self._tracking_hooks[_checked_owner(owner)] = hook
 
     # --- 조회 (lifecycle이 호출한다) ---
     @property
     def judgment_projection(self) -> JudgmentProjection:
-        return self._judgment if self._judgment is not None else self._absent_judgment
+        return self._judgment.provider if self._judgment is not None else self._absent_judgment
 
     @property
     def judgment_filters_supported(self) -> bool:
@@ -372,7 +425,7 @@ class ExtensionRegistry:
 
     @property
     def overview_document_projection(self) -> OverviewDocumentProjection:
-        return self._overview if self._overview is not None else self._absent_overview
+        return self._overview.provider if self._overview is not None else self._absent_overview
 
     @property
     def overview_filters_supported(self) -> bool:
@@ -384,7 +437,7 @@ class ExtensionRegistry:
     def claim_run_directory(self, directory: Path) -> RunDirectoryClaim | None:
         """등록된 hook에 디렉터리를 보여 준다. 아무도 답하지 않으면 `None`."""
 
-        for hook in self._run_ingest_hooks:
+        for hook in self._run_ingest_hooks.values():
             claim = hook.inspect_run_directory(directory)
             if claim is not None:
                 return claim
@@ -401,7 +454,7 @@ class ExtensionRegistry:
         """등록 순서대로 실행하고 건수를 합친다. hook이 없으면 모두 0이다."""
 
         counts = RunIngestCounts()
-        for hook in self._run_ingest_hooks:
+        for hook in self._run_ingest_hooks.values():
             counts = counts.merged_with(
                 hook.run_ingested(session, run_id, directory, reports_root=reports_root)
             )
@@ -410,7 +463,7 @@ class ExtensionRegistry:
     def tracking_decision_changed(self, session: Any, opportunity_id: Any) -> None:
         """등록 순서대로 실행한다. hook이 없으면 아무 일도 하지 않는다."""
 
-        for hook in self._tracking_hooks:
+        for hook in self._tracking_hooks.values():
             hook.tracking_decision_changed(session, opportunity_id)
 
     @property
