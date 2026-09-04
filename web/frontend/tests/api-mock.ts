@@ -1153,6 +1153,18 @@ export interface OrderPlanMockTrace {
   trackingPosts: Array<{ orderPlanPk: number; body: unknown; headers: Record<string, string> }>;
 }
 
+interface OrderPlanFeedbackFixture {
+  feedback_id: string;
+  execution_id: string;
+  order_plan_pk: number;
+  revision: number;
+  relevance: string;
+  priority: string | null;
+  memo: string | null;
+  claimed_name: string;
+  created_at: string;
+}
+
 const c2Digest = (letter: string): string => letter.repeat(64);
 
 function c2Execution(overrides: Record<string, unknown> = {}) {
@@ -1631,7 +1643,9 @@ export async function mockOrderPlans(page: Page, scenario: OrderPlanMockScenario
           ? [c2LargeExecution]
           : [c2Failed, c2Running, partial, c2OlderSuccess];
   const planItems = scenario === "large" ? c2LargeItems : c2Items;
-  const feedbackItems = c2Items[0].human_feedback ? [{
+  // `priority`·`memo`는 계약상 null이 될 수 있다. 초기값만 보고 추론하면 배열
+  // 원소가 string으로 좁혀져 POST가 저장한 null을 담지 못한다.
+  const feedbackItems: OrderPlanFeedbackFixture[] = c2Items[0].human_feedback ? [{
     feedback_id: "c2f4d7c1-0a61-4c07-8d2e-000000000001",
     execution_id: "a2f4d7c1-0a61-4a07-8d2e-7f1d1d010101",
     order_plan_pk: 101,
@@ -1690,7 +1704,7 @@ export async function mockOrderPlans(page: Page, scenario: OrderPlanMockScenario
       const body = request.postDataJSON() as Record<string, unknown>;
       trace.feedbackPosts.push({ body, headers: request.headers() });
       const revision = feedbackItems.reduce((highest, item) => Math.max(highest, item.revision), 0) + 1;
-      const saved = { feedback_id: `c2f4d7c1-0a61-4c07-8d2e-${String(revision).padStart(12, "0")}`, execution_id: body.execution_id, order_plan_pk: 101, revision, relevance: body.relevance, priority: body.priority ?? null, memo: body.memo ?? null, claimed_name: request.headers()["x-bidops-actor-name"] ?? "시각 테스트 담당자", created_at: "2026-09-02T00:00:00Z" };
+      const saved: OrderPlanFeedbackFixture = { feedback_id: `c2f4d7c1-0a61-4c07-8d2e-${String(revision).padStart(12, "0")}`, execution_id: String(body.execution_id ?? ""), order_plan_pk: 101, revision, relevance: String(body.relevance ?? ""), priority: (body.priority ?? null) as string | null, memo: (body.memo ?? null) as string | null, claimed_name: request.headers()["x-bidops-actor-name"] ?? "시각 테스트 담당자", created_at: "2026-09-02T00:00:00Z" };
       feedbackItems.push(saved);
       await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify({ schema_version: "feedback-create-response.v1", producer: "human-review-api", consumer: "postgres-history", ...saved }) });
       return;
