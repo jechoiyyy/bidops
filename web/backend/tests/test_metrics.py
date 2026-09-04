@@ -7,7 +7,7 @@ from sqlalchemy.pool import StaticPool
 from app.core.db import init_db
 from app.lifecycle.models import Notice, NoticeObservation, Run
 from app.screening.models import Judgment, Perspective
-from app.services.metrics import calculate_validation_metrics
+from app.lifecycle.services.metrics import calculate_validation_metrics
 
 
 def test_validation_metrics_keep_unmeasurable_values_as_null():

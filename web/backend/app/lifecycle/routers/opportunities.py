@@ -11,9 +11,9 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session, selectinload
 
-from ..core.db import get_db
-from ..lifecycle import extension_registry
-from ..lifecycle.models import Opportunity, OpportunityLink
+from ...core.db import get_db
+from .. import extension_registry
+from ..models import Opportunity, OpportunityLink
 from ..schemas.opportunities import (
     CandidateDecisionRequest,
     OpportunityDetailResponse,
@@ -26,7 +26,7 @@ from ..schemas.opportunities import (
     TrackingStatusUpdateRequest,
 )
 from ..services import opportunity_integrity, opportunity_tracking
-from ..core.api_errors import BundleServiceError, validate_actor
+from ...core.api_errors import BundleServiceError, validate_actor
 
 
 router = APIRouter(prefix="/api/opportunities", tags=["opportunities"])

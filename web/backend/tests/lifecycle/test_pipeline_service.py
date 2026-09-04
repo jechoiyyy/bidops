@@ -9,7 +9,7 @@ import pytest
 
 from app.core.config import Settings
 from app.lifecycle.models import Run
-from app.services.pipeline import PipelineBusyError, PipelineService
+from app.lifecycle.services.pipeline import PipelineBusyError, PipelineService
 
 
 class FakeProcess:

@@ -138,7 +138,7 @@ docker compose --project-name bidops-deep-review-e2e \
   -f docker-compose.t7.yml -f docker-compose.t7.remote-vllm.yml \
   run --rm --no-deps \
   -v "$PWD/data:/app/data:ro" \
-  web python -m app.ingest.cli --run 20260817-20260823
+  web python -m app.lifecycle.ingest.cli --run 20260817-20260823
 docker compose --project-name bidops-deep-review-e2e \
   --env-file /secure/bidops-e2e.env \
   -f docker-compose.t7.yml -f docker-compose.t7.remote-vllm.yml \

@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import Settings
 from app.core.db import Base
-from app.ingest.loader import ingest_run
+from app.lifecycle import ingest_run
 from app.lifecycle.models import Notice, Run
 from app.screening.models import (
     Judgment,

@@ -25,9 +25,9 @@ from app.lifecycle import (
     restore_extension_registry,
 )
 from app.lifecycle.models import Attachment, Notice, Opportunity
-from app.routers.opportunities import update_tracking_status
-from app.routers.pre_specs import list_pre_specs
-from app.schemas.opportunities import TrackingStatusUpdateRequest
+from app.lifecycle.routers.opportunities import update_tracking_status
+from app.lifecycle.routers.pre_specs import list_pre_specs
+from app.lifecycle.schemas.opportunities import TrackingStatusUpdateRequest
 
 WHEN = datetime(2026, 9, 1, tzinfo=UTC)
 

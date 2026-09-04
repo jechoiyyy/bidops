@@ -7,7 +7,7 @@ from typing import Literal
 
 from pydantic import AliasChoices, Field
 
-from . import AwareDateTime, RuntimeContractModel
+from ...core.schema_base import AwareDateTime, RuntimeContractModel
 
 
 OpportunityTrackingStatus = Literal["미선택", "계속 추적", "보류", "종료"]

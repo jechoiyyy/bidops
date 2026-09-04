@@ -32,7 +32,7 @@ MODULE_CLIS: tuple[tuple[str, int], ...] = (
     ("app.screening.cli.score_candidate_quality", 0),
     ("app.deep_review.cli.import_profile_policy", 0),
     ("app.deep_review.cli.run_bc_e2e", 0),
-    ("app.ingest.cli", 0),
+    ("app.lifecycle.ingest.cli", 0),
 )
 
 

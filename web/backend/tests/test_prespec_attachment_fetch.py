@@ -15,7 +15,7 @@ from sqlalchemy.pool import StaticPool
 from app.core.db import init_db
 from app.deep_review.document_mcp.errors import DocumentProcessingError
 from app.deep_review.document_mcp.processor import DocumentProcessor
-from app.ingest.loader import ObservationSnapshotConflictError, _upsert_attachments
+from app.lifecycle.ingest.loader import ObservationSnapshotConflictError, _upsert_attachments
 from app.deep_review.models import (
     AttachmentFetch,
     ContentObject,
@@ -26,7 +26,7 @@ from app.deep_review.models import (
 )
 from app.lifecycle.models import Attachment, Notice, Opportunity, OpportunityLink, OrderPlan
 from app.deep_review.services import assets, prespec_attachments
-from app.services.opportunity_connections import (
+from app.lifecycle.services.opportunity_connections import (
     parse_attachment_key,
     tracked_order_plan_connection,
 )

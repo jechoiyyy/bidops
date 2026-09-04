@@ -32,7 +32,7 @@ from . import assets
 from .document_structures import materialize_structure
 # 추적 관계 판정은 lifecycle 몫이다(명세 §5.2). 취득 자격은 그 공개 SQL 조각을
 # 그대로 쓰므로 목록의 표시 예외와 어긋나지 않는다.
-from ...services.opportunity_connections import tracked_order_plan_connections
+from ...lifecycle import tracked_order_plan_connections
 from .prespec_overview import prepare_overview_review
 
 

@@ -6,8 +6,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.core.db import Base, init_db
-from app.ingest.contracts import NoticeContract
-from app.ingest.loader import (
+from app.lifecycle.ingest.contracts import NoticeContract
+from app.lifecycle.ingest.loader import (
     NOTICE_OBSERVATION_SNAPSHOT_SCHEMA,
     ObservationSnapshotConflictError,
     _upsert_notice,

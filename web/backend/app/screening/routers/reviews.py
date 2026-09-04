@@ -15,7 +15,7 @@ from ...core.config import get_settings
 from ...core.db import get_db
 from ...lifecycle.models import Notice, NoticeObservation
 from ..models import Review
-from ...schemas import (
+from ...lifecycle.schemas import (
     ReviewAnswerResponse,
     ReviewResponse,
     ReviewUpsertRequest,
@@ -26,7 +26,7 @@ from ..schemas.revisions import (
     ReviewRevisionHistoryItem,
 )
 from ..services import reviews as review_service
-from ...routers.common import get_run
+from ...lifecycle import get_run_or_404 as get_run
 
 
 router = APIRouter(prefix="/api/reviews", tags=["reviews"])

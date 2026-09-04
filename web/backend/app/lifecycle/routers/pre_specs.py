@@ -9,9 +9,9 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, aliased
 
-from ..core.db import get_db
-from ..lifecycle import PreSpecDocumentCounts, extension_registry
-from ..lifecycle.models import Attachment, Notice, Opportunity, OpportunityLink
+from ...core.db import get_db
+from .. import PreSpecDocumentCounts, extension_registry
+from ..models import Attachment, Notice, Opportunity, OpportunityLink
 from ..schemas.pre_specs import (
     PreSpecDocumentSummary,
     PreSpecListItem,

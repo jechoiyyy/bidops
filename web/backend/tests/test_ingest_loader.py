@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.core.db import Base, init_db
-from app.ingest.loader import (
+from app.lifecycle.ingest.loader import (
     ORDER_PLAN_OBSERVATION_SNAPSHOT_SCHEMA,
     ingest_run,
     parse_order_plan_unty_no,

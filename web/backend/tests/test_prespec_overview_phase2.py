@@ -102,17 +102,17 @@ def test_result_schema_is_strict_and_conditional_requires_due() -> None:
         "input_limitations": [],
     }
     with pytest.raises(ValidationError):
-        from app.schemas.pre_specs import PreSpecOverviewResultPayload
+        from app.deep_review.schemas.prespec_overview import PreSpecOverviewResultPayload
 
         PreSpecOverviewResultPayload.model_validate({**common, "internal": "secret"})
     with pytest.raises(ValidationError):
-        from app.schemas.pre_specs import PreSpecOverviewResultPayload
+        from app.deep_review.schemas.prespec_overview import PreSpecOverviewResultPayload
 
         PreSpecOverviewResultPayload.model_validate(
             {**common, "recommendation": "조건부 추진 검토"}
         )
     with pytest.raises(ValidationError):
-        from app.schemas.pre_specs import PreSpecOverviewResultPayload
+        from app.deep_review.schemas.prespec_overview import PreSpecOverviewResultPayload
 
         PreSpecOverviewResultPayload.model_validate(
             {key: value for key, value in common.items() if key != "evidence"}

@@ -20,8 +20,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.db import ALEMBIC_HEAD
-from app.ingest.contracts import NoticeContract
-from app.ingest.loader import ObservationSnapshotConflictError, _upsert_notice
+from app.lifecycle.ingest.contracts import NoticeContract
+from app.lifecycle.ingest.loader import ObservationSnapshotConflictError, _upsert_notice
 from app.core.models import CORE_LEAN_V1_TABLES
 from app.deep_review.models import (
     ATTACHMENT_FETCH_TABLES,

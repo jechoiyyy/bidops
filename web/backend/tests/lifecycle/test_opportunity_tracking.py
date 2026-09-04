@@ -25,11 +25,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.core.db import init_db
-from app.ingest.loader import _merge_opportunities, ingest_run
+from app.lifecycle.ingest.loader import _merge_opportunities, ingest_run
 from app.core.models import AuditEvent
 from app.lifecycle.models import Notice, Opportunity, OpportunityLink
-from app.services.opportunity_integrity import OpportunityIntegrityError
-from app.services.opportunity_tracking import (
+from app.lifecycle.services.opportunity_integrity import OpportunityIntegrityError
+from app.lifecycle.services.opportunity_tracking import (
     raise_recheck_signal,
     set_tracking_status,
 )
@@ -638,7 +638,7 @@ def test_0007_upgrade_backfills_and_downgrade_restores_the_old_schema():
     try:
         _legacy_opportunity_schema(engine)
         migration_path = (
-            Path(__file__).parents[1]
+            Path(__file__).parents[2]
             / "alembic"
             / "versions"
             / "0007_opportunity_tracking_state.py"

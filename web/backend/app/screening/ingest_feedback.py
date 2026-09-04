@@ -14,7 +14,7 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..ingest.contracts import (
+from ..lifecycle.ingest.contracts import (
     FeedbackArtifact,
     FeedbackReviewContract,
     is_blank,

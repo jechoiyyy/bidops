@@ -21,7 +21,8 @@ import app.screening.quality_gate as quality_gate_module
 import app.screening.orchestrator as orchestrator_module
 from app.core.config import Settings
 from app.core.db import Base
-from app.ingest.loader import ingest_run, deterministic_run_id
+from app.core.run_id import deterministic_run_id
+from app.lifecycle import ingest_run
 from app.lifecycle.models import Notice, NoticeObservation, Run
 from app.screening.models import (
     CompanyProfileSnapshot,

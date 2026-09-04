@@ -6,15 +6,16 @@ lifecycle은 core만 import하고 screening·deep_review의 존재를 알지 못
 
 이 `__init__`이 lifecycle의 **공개 표면**이다. screening·deep_review는 lifecycle
 테이블에 쓰거나 잠글 때 여기 있는 함수만 쓰고, 조립 계층은 여기 있는 이름만 쓴다.
-읽기·join은 `lifecycle.models`의 모델 클래스로 직접 해도 된다(§4 세부 규칙).
+읽기·join은 `lifecycle.models`의 모델 클래스로 직접 해도 된다(§4 세부 규칙). 같은
+이유로 선언적 계약인 `lifecycle.schemas`의 DTO와 `lifecycle.ingest.contracts`의
+회차 산출물 계약도 형제 모듈이 직접 받는다. **동작**(loader·service·router)은 여기
+있는 이름으로만 받는다.
 
 이름은 **지연 해석**한다. 모듈 수준에서 `.api`를 곧바로 import하면
-`app.lifecycle` → `api` → `ingest.loader` → `lifecycle.models` → `app.lifecycle`
-순환이 생겨 `python -m app.screening.cli`·`python -m app.ingest.cli`가 죽는다
-(T6의 models 분할이 만든 회귀. conftest가 다른 순서로 import하는 pytest에서는
-전체 suite가 녹색인 채로 이 명령만 죽었다). 지연 해석은 패키지 초기화를 즉시
-끝내므로 어떤 import 순서로 들어와도 순환이 성립하지 않는다. **공개 이름 목록과
-동작은 그대로다** — `from app.lifecycle import ingest_run`은 전과 같이 된다.
+`app.lifecycle` → `api` → `ingest.loader` → `lifecycle.models` 순환이 생겨
+`python -m app.screening.cli` 같은 진입점이 죽는다(T6의 models 분할이 만든 회귀).
+지연 해석은 패키지 초기화를 즉시 끝내므로 어떤 import 순서로 들어와도 순환이
+성립하지 않는다. 공개 이름과 동작은 그대로다.
 """
 
 from __future__ import annotations
@@ -23,6 +24,7 @@ from importlib import import_module
 from typing import TYPE_CHECKING, Any
 
 #: 공개 이름 → (구현 모듈, 그 모듈 안의 이름).
+#: 이름이 같으면 두 번째 값을 생략한다.
 _EXPORTS: dict[str, tuple[str, str]] = {
     # --- 회차·공고·첨부 메타 쓰기와 잠금 (api.py) --------------------------
     "ATTACHMENT_ORIGINS": (".api", "ATTACHMENT_ORIGINS"),
@@ -56,6 +58,41 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "extension_registry": (".extensions", "extension_registry"),
     "reset_extension_registry": (".extensions", "reset_extension_registry"),
     "restore_extension_registry": (".extensions", "restore_extension_registry"),
+    # --- 추적 관계 판정 (services/opportunity_connections.py) ---------------
+    "tracked_order_plan_connections": (
+        ".services.opportunity_connections",
+        "tracked_order_plan_connections",
+    ),
+    # --- 응답 helper (routers/common.py) -----------------------------------
+    # `get_run_or_404`은 사람이 쓰는 회차 디렉터리 이름까지 풀고 없으면 404를
+    # 낸다. `get_run`(api.py)은 잠그지도 404를 내지도 않는 단순 조회라서 이름을
+    # 나눈다.
+    "get_run_or_404": (".routers.common", "get_run"),
+    "notice_list_item": (".routers.common", "notice_list_item"),
+    # --- 회차 산출물을 읽는 공통 helper (ingest/loader.py) -----------------
+    # 판정 적재를 맡은 모듈이 **같은 바이트를 같은 규칙으로** 읽어야 하므로
+    # 복제하지 않고 lifecycle이 공개한다(§4의 허용 방향). loader 안에서는
+    # 이름 앞에 `_`가 붙은 것이 있지만, 공개 표면에서는 밑줄 없는 이름으로
+    # 낸다. 값과 동작은 loader의 정의 그대로다.
+    "EXECUTION_ID_RE": (".ingest.loader", "EXECUTION_ID_RE"),
+    "ORDER_PLAN_FILE": (".ingest.loader", "ORDER_PLAN_FILE"),
+    "ORDER_PLAN_FIELD_ALIASES": (".ingest.loader", "_ORDER_PLAN_FIELD_ALIASES"),
+    "SCREENING_COMMON_NOTICE_KEYS": (".ingest.loader", "_SCREENING_COMMON_NOTICE_KEYS"),
+    "SCREENING_INPUT_KEYS": (".ingest.loader", "_SCREENING_INPUT_KEYS"),
+    "SHA256_RE": (".ingest.loader", "SHA256_RE"),
+    "V3_GENERATION_SCHEMAS": (".ingest.loader", "V3_GENERATION_SCHEMAS"),
+    "artifact_unknown_fields": (".ingest.loader", "_artifact_unknown_fields"),
+    "is_aware_iso": (".ingest.loader", "_is_aware_iso"),
+    "normalize_v3_generation_binding": (
+        ".ingest.loader",
+        "_normalize_v3_generation_binding",
+    ),
+    "order_plan_items": (".ingest.loader", "_order_plan_items"),
+    "plan_text": (".ingest.loader", "_plan_text"),
+    "raw_list": (".ingest.loader", "_raw_list"),
+    "read_optional_json": (".ingest.loader", "_read_optional_json"),
+    "read_screening_input": (".ingest.loader", "_read_screening_input"),
+    "screening_input_error": (".ingest.loader", "_screening_input_error"),
 }
 
 
