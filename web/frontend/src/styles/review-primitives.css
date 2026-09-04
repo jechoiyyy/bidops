@@ -3,7 +3,11 @@
  *
  * Astryx가 그리는 control/list surface는 component props로 결정하고,
  * 이 파일은 여러 화면이 공유하는 pane·toolbar·rail 배치만 소유한다.
- * 색·간격·반경은 neutral theme token을 사용한다.
+ * 색·간격·반경은 bidops theme token을 사용한다.
+ *
+ * 지원 폭은 1280~1920px 두 폭뿐이다(ADR-0046). 좁은 폭에서 목록과 상세를
+ * 번갈아 보여주던 900·640px 분기는 제거했다. split workspace는 어느 폭에서도
+ * 두 pane을 함께 유지한다.
  */
 
 .review-dense-list {
@@ -308,44 +312,162 @@
   gap: var(--spacing-1);
 }
 
-@media (max-width: 900px) {
-  .review-split-workspace {
-    flex-direction: column;
-    overflow: visible;
-  }
-
-  .review-split-workspace[data-mobile-view="list"] .review-split-detail,
-  .review-split-workspace[data-mobile-view="detail"] .review-split-list {
-    display: none;
-  }
-
-  .review-split-list,
-  .review-split-detail {
-    flex: 1 1 auto;
-    width: 100%;
-  }
-
-  .review-filter-bar {
-    align-items: stretch;
-    flex-wrap: wrap;
-  }
-
-  .review-filter-bar .queue-search {
-    flex-basis: 100%;
-    min-width: 0;
-  }
-
-  .review-filter-bar .queue-filter-select {
-    flex: 1 1 calc(50% - var(--spacing-2));
-  }
+/* --- 결정 액션 바 (분할 화면의 상세 pane 바닥) ---
+ *
+ * 단독 상세 화면은 .review-sticky-decision-header 를 쓴다. 두 배치 모두
+ * 스크롤 위치와 무관하게 결정 액션을 첫 화면에 남기는 것이 목적이다. */
+.review-decision-bar {
+  display: flex;
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--spacing-3);
+  min-width: 0;
+  padding: var(--spacing-3) var(--spacing-4);
+  border-top: var(--border-width) solid var(--color-border);
+  background: var(--color-background-card);
 }
 
-@media (max-width: 640px) {
-  .review-filter-bar .queue-filter-select {
-    flex-basis: 100%;
-  }
+.review-decision-bar-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: flex-start;
+  gap: var(--spacing-2);
+}
 
-  .review-decision-action {
-    align-items: stretch;
-  }
+.review-decision-bar-hint {
+  min-width: 0;
+  margin-left: auto;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+/* --- 접힌 보조 입력 영역 --- */
+.review-secondary-input {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3) var(--spacing-4);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-element);
+  background: var(--color-background-muted);
+}
+
+.review-secondary-input-head {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: var(--spacing-3);
+}
+
+.review-secondary-input-heading {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.review-secondary-input-title {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.review-secondary-input-description {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  overflow-wrap: anywhere;
+}
+
+.review-secondary-input-summary {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.review-secondary-input-toggle {
+  flex: 0 0 auto;
+}
+
+.review-secondary-input-reason {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  overflow-wrap: anywhere;
+}
+
+.review-secondary-input-region {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  padding-top: var(--spacing-2);
+  border-top: var(--border-width) solid var(--color-border);
+}
+
+/* --- append-only revision 이력 --- */
+.review-revision-history {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.review-revision-history-head {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.review-revision-history-title {
+  flex: 1 1 auto;
+  margin: 0;
+  min-width: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.review-revision-history-list {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.review-revision-history-label {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--spacing-1-5);
+  overflow-wrap: anywhere;
+}
+
+.review-revision-history-meta,
+.review-revision-history-empty {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  white-space: nowrap;
+}
+
+.review-revision-history-empty {
+  margin: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.review-revision-history-error {
+  margin: 0;
+  color: var(--color-text-red);
+  font-size: var(--font-size-xs);
+  overflow-wrap: anywhere;
 }

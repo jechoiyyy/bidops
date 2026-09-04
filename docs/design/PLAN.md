@@ -61,7 +61,7 @@
 | 이미 된 것 | 새 설계와의 차이 | 고칠 단계 |
 |---|---|---|
 | 셸·테마 scope·248/76px 골격 | 지원 폭이 네 폭이다. 1280~1920px로 좁혀야 한다 | A |
-| 공통 primitive | 결정 액션 배치 두 형태와 접힌 보조 입력 영역이 없다 | B |
+| 공통 primitive | ~~결정 액션 배치 두 형태와 접힌 보조 입력 영역이 없다~~ **완료 2026-09-04** | B |
 | 발주계획 목록·상세 | 추적 결정이 없다. 사람 판단 수정만 있다 | C |
 | 사전규격 그룹 목록 | 승계 배지와 신규 전용 결합 조작이 없다 | D |
 | 사이드바 8항목·검토 대기열 | 7항목·사업 추적으로 바꿔야 한다 | E |
@@ -238,20 +238,68 @@ Astryx 컴포넌트는 props로 표현하고, 레이아웃만 프로젝트 소�
 Tailwind utility와 Astryx styling을 섞지 않는다. 시안의 추출된 atomic class 문자열을 직접
 React 코드에 붙이지 않는다.
 
+**단계 B 작업 결과 (2026-09-04).** 목록 행·필터 bar·상태·`unknown`/`null`·rail·접이식 상태
+그룹은 이미 `ReviewPrimitives.tsx`에 있었다. 이번에 채운 것은 다음 다섯이다.
+
+| 항목 | 한 일 |
+|---|---|
+| 결정 액션 배치 두 형태 | `ReviewDecisionBar`를 새로 만들었다(`data-review-primitive="decision-bar"`). 분할 화면은 상세 pane 바닥의 이 바를, 단독 상세는 기존 `StickyDecisionHeader`를 쓰고 한 화면에서 두 배치를 섞지 않는다. `OrderPlansPage`의 손으로 만든 `<footer className="c2l-detail-actions">`가 이 primitive가 됐고 배치 CSS는 `order-plans.css`에서 `review-primitives.css`로 옮겼다 |
+| 접힌 보조 입력 영역 | `ReviewSecondaryInput`을 새로 만들었다. 접어도 **현재 값(summary)과 "이 입력이 무엇을 대신하지 않는가"(description)는 남고 입력만 숨는다.** 토글은 `aria-expanded`·`aria-controls`를 가지며 접근 가능한 이름은 `<제목> 열기`/`<제목> 닫기`다. `OrderPlansPage`의 사람 판단 입력이 첫 사용처다 |
+| append-only revision 이력 | `ReviewRevisionHistory`를 새로 만들었다. 건수와 `append-only` 표식을 함께 내고 `data-revision-count`·`data-revision`으로 고정한다. `OrderPlanDetailPage`의 사람 피드백 revision 이력이 첫 사용처다 |
+| 좁은 폭 전환 제거 | `SplitWorkspace`의 `mobileView` prop과 `data-mobile-view`, `review-primitives.css`의 900·640px 분기, `order-plans.css`의 960px 분기와 `← 목록으로` 버튼을 없앴다. 세 화면(`OrderPlansPage`·`QueuePage`·`PreSpecsPage`)이 어느 폭에서도 두 pane을 유지한다(ADR-0046) |
+| 등급 4단 한 벌 | `.badge-grade-*`와 `.rail-grade-*`가 legacy 색 이름 대신 `grade-ramp.css`의 `--bo-grade-*`를 읽는다. `order-plans.css`에 쓰이지 않은 채 남아 있던 두 번째 4단 스케일(`.c2l-grade-tag`)을 지웠다. `Badge`는 등급 변형에 `data-review-primitive="grade"`·`data-grade-level`을 붙이고 라벨이 비면 기본 라벨을 채워 색만으로 등급이 표시되지 않게 한다 |
+
+`order-plans.spec.ts:287`(390px pane 전환)은 단계 C가 아니라 여기서 정리했다. 단계 B가
+`SplitWorkspace`의 좁은 폭 전환 자체를 없애므로 그 테스트가 검사하던 동작이 더 이상 존재하지
+않기 때문이다. 삭제가 아니라 **지원 폭 기준의 반대 불변식으로 다시 썼다**: 1280·1440·1920px
+모두에서 두 pane이 함께 남고, 행 선택은 상세 pane만 제자리에서 바꾸며 `/order-plans/:pk`로
+이동하지 않는다.
+
+`OrderPlansPage`의 접힌 보조 입력은 아직 **기본이 열림**이다. 이 화면에서 pane 바닥의 결정이
+지금은 그 입력을 저장하는 것뿐이라, 접어 두면 첫 화면의 결정이 항상 비활성으로 보인다.
+단계 C가 추적 결정을 pane 바닥의 결정으로 들이면 `defaultIsOpen`을 false로 바꿔 `Main`
+아트보드의 접힌 기본값과 맞춘다.
+
 완료 게이트:
 
-- 같은 의미의 상태·버튼·필터가 화면마다 별도 CSS로 복제되지 않는다.
-- 등급 4단이 색과 라벨을 함께 쓰고, 상태 의미색에 blue 계열이 없다.
-- keyboard focus, disabled reason, 긴 한글이 primitive 테스트에 고정된다.
-- 결정 액션이 두 폭 모두에서 스크롤 위치와 무관하게 첫 화면에 보인다.
+- ~~같은 의미의 상태·버튼·필터가 화면마다 별도 CSS로 복제되지 않는다.~~ 결정 액션 바와 등급
+  4단의 중복 정의를 없앴다.
+- ~~등급 4단이 색과 라벨을 함께 쓰고, 상태 의미색에 blue 계열이 없다.~~ `review-primitives.spec.ts`가
+  등급 배지의 computed 배경이 ramp 값과 1:1인지와 라벨이 비지 않는지를 검사하고,
+  `check-contrast.test.mjs`가 화면 CSS에서 blue 토큰 사용을 막는다(7 tests).
+- ~~keyboard focus, disabled reason, 긴 한글이 primitive 테스트에 고정된다.~~ 접힌 영역을
+  키보드로 여닫는 것, 저장 액션의 disabled reason 두 개, 긴 한글 제목의 가로 오버플로 없음이
+  `review-primitives.spec.ts`에 있다.
+- ~~결정 액션이 두 폭 모두에서 스크롤 위치와 무관하게 첫 화면에 보인다.~~ 상세 pane 본문을
+  끝까지 내려도 `저장`·`저장 후 다음 →`이 viewport 안에 남고, 바의 아래 모서리가 pane 바닥을
+  넘지 않는 것을 두 폭에서 검사한다.
+
+**검증 (2026-09-04).** `npm run test:contrast` 7 passed · `tsc -b` clean · production build 통과 ·
+`design-shell.spec.ts` 6 passed 2 skipped · `review-primitives.spec.ts` 16 passed(두 폭).
+전체 Playwright는 **382 passed, 74 failed, 2 skipped**이다(단계 A 기준선 371 passed, 75 failed,
+4 skipped).
+
+- 실패 74건 중 **73건이 단계 A에서 이어진 `visual.spec.ts` 실패 그대로**다. 그 73건의 내역을
+  단계 A 기록보다 정확히 적으면 **팔레트 스냅샷 72건 + `/queue` 1280px 가로 오버플로 1건**이다.
+  오버플로 1건은 첨부 파일명(`.notice-attachments-panel`의 `.attachment-name`)이 19.77px
+  넘치는 것이며 단계 B의 변경과 무관하다 — 이 단계에서 바꾼 파일 5개를 되돌리고 같은 테스트를
+  돌려 같은 값(19.765625)이 나오는 것을 확인했다. 단계 E가 `검토 대기열`을 `사업 추적`으로
+  바꿀 때 함께 정리한다.
+- 나머지 1건(`visual.spec.ts:257` 흡수한 마감·감사 경로)은 **flake**다. 단독 실행에서 통과한다.
+- **새 실패는 없다.** `order-plans.spec.ts:287` 2건이 사라졌고, 좁은 폭 전용이라 두 폭 모두에서
+  건너뛰던 `review-primitives.spec.ts`의 테스트 1개를 지워 skipped가 4에서 2로 줄었다.
+- `visual.spec.ts` 스냅샷은 단계 A와 같은 이유로 계속 실패하며 승인 없이 덮어쓰지 않는다.
 
 ### 단계 C — 발주계획
 
 대상 시안: `Main`, `OrderPlanDetail`.
 
-먼저 정리할 것: `order-plans.spec.ts:287`(좁은 폭 pane 전환)은 390px를 전제하므로 ADR-0046의
-지원 폭 밖이다. 지원 폭 기준으로 다시 쓰거나 없앤다. 단계 A의 viewport 축소(mobile·tablet
-project 제거) 뒤 laptop·desktop 두 폭에서 실패로 남아 있다.
+~~먼저 정리할 것: `order-plans.spec.ts:287`(좁은 폭 pane 전환)~~ **단계 B에서 처리했다
+(2026-09-04).** 지원 폭 기준의 반대 불변식으로 다시 썼다. 단계 B가 `SplitWorkspace`의 좁은 폭
+전환 자체를 없앴으므로 이 단계까지 미룰 수 없었다.
+
+먼저 정리할 것: `VerdictPanel`의 `ReviewSecondaryInput`은 아직 `defaultIsOpen`이다. 아래 3에서
+추적 결정이 pane 바닥의 결정이 되면 그 prop을 없애 시안의 접힌 기본값으로 되돌린다.
 
 작업:
 

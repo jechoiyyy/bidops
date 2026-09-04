@@ -16,7 +16,7 @@ test("기본 목록은 밀집 행이고 판정에 필요한 값만 담으며, �
   await expect(page.locator(".c2l-row").first()).toContainText("125,000,000");
   await expect(page.locator(".c2l-row").first()).not.toContainText("nearest capability");
 
-  // 좁은 뷰포트에서는 상세가 목록을 덮으므로 행을 먼저 명시로 선택한다.
+  // 상세 pane은 행을 고른 뒤에 채워진다.
   await page.locator(".c2l-row").first().click();
 
   // 신호 세부(BM25 rank/score/nearest capability, Qwen score/reason)는 행이 아니라
@@ -99,9 +99,6 @@ test("1200건 결과에서 기본 review 필터·실패·거부 필터와 페이
 });
 
 test("검토 목록은 고정 높이 안에서 스크롤되고 상세와 같은 높이로 저장 액션을 노출한다", async ({ page }) => {
-  const viewport = page.viewportSize();
-  test.skip(Boolean(viewport && viewport.width < 960), "좁은 화면은 목록·상세 전환을 별도로 검증한다");
-
   await mockOrderPlans(page, "large");
   await page.goto("/order-plans");
 
@@ -150,7 +147,6 @@ test("행 선택과 저장은 페이지 이동 0회로 끝나고, 저장 후 다
 
   await expect(page.locator(".c2l-row").first()).toContainText("공공데이터 통합");
 
-  // 좁은 뷰포트에서는 행을 명시로 선택해야 상세가 목록을 덮는다(반응형 요구사항).
   await page.locator(".c2l-row").first().click();
 
   // 사람 피드백 폼은 상세 영역 안에 있다 (판정 탭, 기본 탭). SegmentedControl은 radiogroup으로 렌더된다.
@@ -284,21 +280,31 @@ test("저장된 뷰: 이름 붙여 저장한 조합만 localStorage에 남고 �
   await expect(page).toHaveURL(/qwen=not_relevant/);
 });
 
-test("좁은 폭에서는 상세가 목록을 덮고 ← 목록으로 버튼으로 되돌아간다", async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
+// ADR-0046 이 지원 폭을 1280~1920px 로 좁히면서, 390px 에서 상세가 목록을 덮고
+// "← 목록으로" 로 되돌아오던 동작은 없앴다. 그 자리에 반대 불변식을 고정한다:
+// 지원 폭 어디에서도 두 pane 이 함께 남고, 행 선택은 상세 pane 만 제자리에서
+// 바꾸며 페이지를 이동하지 않는다(PLAN 단계 B).
+test("지원 폭 전체에서 목록과 상세 두 pane이 함께 남고 행 선택은 상세만 제자리에서 바꾼다", async ({ page }) => {
   await mockOrderPlans(page);
   await page.goto("/order-plans");
 
-  await expect(page.locator(".c2l-list-pane")).toBeVisible();
-  await expect(page.locator(".c2l-detail-pane")).toBeHidden();
+  const workspace = page.locator('[data-review-primitive="split-workspace"]');
+  await expect(workspace).not.toHaveAttribute("data-mobile-view", /.*/);
 
-  await page.locator(".c2l-row").first().click();
-  await expect(page.locator(".c2l-detail-pane")).toBeVisible();
-  await expect(page.locator(".c2l-list-pane")).toBeHidden();
+  for (const width of [1280, 1440, 1920]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(page.locator(".c2l-list-pane"), `${width}px 에서 목록 pane`).toBeVisible();
+    await expect(page.locator(".c2l-detail-pane"), `${width}px 에서 상세 pane`).toBeVisible();
+  }
 
-  await page.getByRole("button", { name: "← 목록으로" }).click();
+  const pathnameBefore = new URL(page.url()).pathname;
+  await page.locator(".c2l-row").nth(1).click();
+  await expect(page.locator(".c2l-row-wrap.is-selected")).toContainText("지방공기업");
+  await expect(page.locator(".c2l-detail-pane")).toContainText("지방공기업");
+  // 제자리 pane 교체다. /order-plans/:pk 로 이동하지 않는다.
+  expect(new URL(page.url()).pathname).toBe(pathnameBefore);
   await expect(page.locator(".c2l-list-pane")).toBeVisible();
-  await expect(page.locator(".c2l-detail-pane")).toBeHidden();
+  await expect(page.getByRole("button", { name: "← 목록으로" })).toHaveCount(0);
 });
 
 test("사람 피드백 축과 텍스트 검색도 다른 축과 AND로 조합된다", async ({ page }) => {

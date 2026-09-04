@@ -541,25 +541,27 @@ a {
   white-space: nowrap;
 }
 
+/* 등급 4단은 의미색이 아니라 slate accent 농도 순서다. 값은 테마 디렉터리의
+   grade-ramp.css 한곳에만 있고(ADR-0047 §3), 여기서는 읽기만 한다. 라벨 대비는
+   scripts/check-contrast.test.mjs 가 고정한다. */
 .badge-grade-1 {
-  color: var(--color-white);
-  background: var(--color-deep);
+  color: var(--bo-on-grade-1);
+  background: var(--bo-grade-1);
 }
 
 .badge-grade-2 {
-  color: var(--color-deep);
-  background: var(--color-deck-soft);
+  color: var(--bo-on-grade-2);
+  background: var(--bo-grade-2);
 }
 
 .badge-grade-3 {
-  color: var(--color-deep);
-  background: var(--color-soft-surface);
+  color: var(--bo-on-grade-3);
+  background: var(--bo-grade-3);
 }
 
 .badge-grade-4 {
-  color: var(--color-muted-soft);
-  border-color: var(--color-border);
-  background: transparent;
+  color: var(--bo-on-grade-4);
+  background: var(--bo-grade-4);
 }
 
 .badge-readiness {
@@ -2344,25 +2346,26 @@ a {
   font-weight: 400;
 }
 
-/* 등급별 레일 색. 행과 머리글이 같은 변수를 쓰도록 한곳에 둔다. */
+/* 등급별 레일 색. 배지와 같은 ramp(grade-ramp.css)를 읽어 행·머리글·배지가
+   한 벌의 농도만 쓰게 한다. */
 .rail-grade-1 {
-  --rail-color: var(--color-deep);
+  --rail-color: var(--bo-grade-1);
 }
 
 .rail-grade-2 {
-  --rail-color: var(--color-primary);
+  --rail-color: var(--bo-grade-2);
 }
 
 .rail-grade-3 {
-  --rail-color: var(--color-deck-soft);
+  --rail-color: var(--bo-grade-3);
 }
 
 .rail-grade-4 {
-  --rail-color: var(--color-border);
+  --rail-color: var(--bo-grade-4);
 }
 
 .rail-grade-none {
-  --rail-color: var(--color-neutral-soft);
+  --rail-color: var(--bo-grade-none);
 }
 
 .queue-list-item {
