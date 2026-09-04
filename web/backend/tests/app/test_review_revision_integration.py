@@ -42,7 +42,7 @@ def _execution(execution_id: str, run_id: str, suffix: str) -> ScreeningExecutio
         requested_by="review-integration-test",
         policy_version="policy-review-test",
         prompt_version="prompt-review-test",
-        model_name="qwen3.8:27b",
+        model_name="qwen3.8-27B",
         model_digest=DIGEST,
         company_profile_version=PROFILE_VERSION,
         company_profile_digest=DIGEST,

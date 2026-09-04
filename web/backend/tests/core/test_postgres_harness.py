@@ -34,7 +34,8 @@ def test_alembic_child_environment_does_not_forward_unrelated_secrets(
     assert "HARNESS_SENTINEL_SECRET" not in child
     assert child["BIDOPS_ROOT"] == str(postgres.PROJECT_ROOT)
     assert child["BIDOPS_G2B_API_KEY"] == ""
-    assert child["BIDOPS_OLLAMA_BASE_URL"] == "http://127.0.0.1:9"
+    assert child["BIDOPS_VLLM_BASE_URL"] == "http://127.0.0.1:9/v1"
+    assert not [name for name in child if "OLLAMA" in name]
 
 
 @pytest.mark.parametrize(

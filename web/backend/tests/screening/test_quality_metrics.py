@@ -16,7 +16,7 @@ def judgment(notice_id: str, *, grade: str = "검토 권장", assessments: tuple
     return {
         "notice_id": notice_id,
         "judgment_mode": "신규",
-        "model_name": "qwen3.8:27b",
+        "model_name": "qwen3.8-27B",
         "model_digest": "a" * 64,
         "prompt_version": "prompt-v1",
         "policy_version": "policy-v1",
@@ -59,7 +59,7 @@ def artifact(count: int, *, priority: int = 0, offset: int = 0):
         "run_id": "run-1",
         "generated_at": "2026-01-01T00:00:00+00:00",
         "screening_basis": "회차에 고정된 정규화 공고와 회사 프로필·정책 버전",
-        "model_name": "qwen3.8:27b",
+        "model_name": "qwen3.8-27B",
         "model_digest": "a" * 64,
         "prompt_version": "prompt-v1",
         "policy_version": "policy-v1",
