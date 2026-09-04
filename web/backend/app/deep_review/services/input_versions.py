@@ -38,7 +38,6 @@ from ..models import (
     ProfileVersion,
 )
 from ...lifecycle.models import Notice, NoticeObservation
-from ...screening import current_judgment, latest_corrected_grade
 from . import assets
 from .deep_review_validation import validate_structure
 from ...core.company_profile import ParsedItem, parse_profile, profile_path, walk_sections
@@ -315,6 +314,12 @@ class GradeBasis:
 
 
 def effective_grade_basis(session: Session, notice_id: int) -> GradeBasis:
+    # 선별 seam은 함수 안에서 늦게 들여온다. 방향과 이름은 §4·§6.3 그대로이며
+    # (경계 검사가 AST 전체를 보므로 seam 목록도 그대로 적용된다), import 시점만
+    # 옮겨 선별 모듈이 없는 배포에서도 이 모듈이 import된다. 선별이 없으면 이
+    # 함수를 실제로 부르는 자리에서만 실패한다(§2 완료 기준 6).
+    from ...screening import current_judgment, latest_corrected_grade
+
     notice = session.get(Notice, notice_id)
     if notice is None:
         raise InputVersionError("not_found", "공고를 찾을 수 없습니다")
