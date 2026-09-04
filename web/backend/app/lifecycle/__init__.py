@@ -45,6 +45,18 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "record_ingest_warning": (".api", "record_ingest_warning"),
     "register_attachment": (".api", "register_attachment"),
     "register_manual_attachment": (".api", "register_manual_attachment"),
+    # --- 조립 계층이 등록하는 router 인스턴스 (routers/*.py) ---------------
+    # 이름은 "무엇의 router인가"로 짓는다. 조립 계층은 이 이름만 보고 등록
+    # 순서를 정하며 router 파일 경로를 알지 못한다(§4).
+    "metrics_router": (".routers.metrics", "router"),
+    "notices_router": (".routers.notices", "router"),
+    "opportunities_router": (".routers.opportunities", "router"),
+    "portals_router": (".routers.portals", "router"),
+    "pre_specs_router": (".routers.pre_specs", "router"),
+    "runs_router": (".routers.runs", "router"),
+    # --- in-process runtime (runtime.py) -----------------------------------
+    "LifecycleRuntime": (".runtime", "LifecycleRuntime"),
+    "build_runtime": (".runtime", "build_runtime"),
     # --- 확장점 정의와 registry (extensions.py) ----------------------------
     "ClaimedDirectoryLoad": (".extensions", "ClaimedDirectoryLoad"),
     "ExtensionRegistry": (".extensions", "ExtensionRegistry"),
@@ -135,6 +147,7 @@ if TYPE_CHECKING:  # pragma: no cover - 정적 분석용 이름 노출
         register_attachment,
         register_manual_attachment,
     )
+    from .runtime import LifecycleRuntime, build_runtime
     from .extensions import (
         ClaimedDirectoryLoad,
         ExtensionRegistry,

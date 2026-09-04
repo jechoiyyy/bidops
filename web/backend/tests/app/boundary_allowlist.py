@@ -12,29 +12,11 @@ from __future__ import annotations
 #:
 #: `app/models.py`·`app/schemas/__init__.py`가 대상일 때는 `모듈:이름` 형태로,
 #: 그 밖에는 대상 모듈 경로로 적는다. 이주 task마다 이 목록은 줄어들기만 한다.
-CROSS_MODULE_IMPORT_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset(
-    {
-        # T5a가 판정 projection·회차 적재 hook·seam으로 lifecycle → screening 접근을
-        # 모두 끊었다. ingest/loader.py, routers/{common,notices,runs}.py,
-        # services/metrics.py의 판정·리뷰 참조와 lifecycle 모델의 판정 방향
-        # relationship 일곱 개가 함께 사라졌다.
-        #
-        # T4가 "조립 계층 → lifecycle은 공개 이름만"을 켜면서 새로 드러난 자리다
-        # (규칙을 켜기 전에는 검사 대상이 아니었으므로 목록이 늘었다). T7 3단계가
-        # 파일을 app/lifecycle/routers/·app/lifecycle/services/로 옮겨 경로만
-        # 바뀌었고, 등록 자체는 T8이 BIDOPS_MODULES에 따라 고르면서, PipelineService는
-        # T8이 모듈 runtime으로 옮기면서 사라진다. `app/lifecycle/__init__.py`가 이제
-        # 지연 해석이라 순환 import 걱정은 없지만, router 인스턴스를 어느 이름으로
-        # 공개할지는 모듈 선택과 함께 정해야 하므로 T8까지 남긴다.
-        ("app/main.py", "cross_module_import", "app.lifecycle.routers.metrics:router"),
-        ("app/main.py", "cross_module_import", "app.lifecycle.routers.notices:router"),
-        ("app/main.py", "cross_module_import", "app.lifecycle.routers.opportunities:router"),
-        ("app/main.py", "cross_module_import", "app.lifecycle.routers.portals:router"),
-        ("app/main.py", "cross_module_import", "app.lifecycle.routers.pre_specs:router"),
-        ("app/main.py", "cross_module_import", "app.lifecycle.routers.runs:router"),
-        ("app/runtime.py", "cross_module_import", "app.lifecycle.services.pipeline:PipelineService"),
-    }
-)
+#: T8 1단계가 비웠다. 남아 있던 일곱 건은 모두 `app/main.py`·`app/runtime.py`가
+#: lifecycle 내부 경로(routers/*, services/pipeline)를 직접 들던 자리였다. 네
+#: 모듈이 공개 표면(`__init__`)에 router 인스턴스와 `build_runtime`을 올리면서
+#: 조립 계층은 모듈 내부 경로를 하나도 들지 않는다.
+CROSS_MODULE_IMPORT_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset()
 
 #: 검사 2 — router 안의 직접 ORM 접근.
 #:
@@ -88,8 +70,9 @@ LIFECYCLE_RELATIONSHIP_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset()
 #: 내부를 직접 들고 있는 자리이며 T7·T8이 없앤다.
 #: T7 2단계는 screening 폴더 이주만 했으므로 router 18건은 경로만 바뀌었고,
 #: schemas → services 1건은 실제로 사라져 0이 됐다.
+#: T8 1단계가 모듈 공개 표면을 만들면서 조립 계층의 마지막 7건이 사라져 0이 됐다.
 BASELINE_SIZES: dict[str, int] = {
-    "cross_module_import": 7,
+    "cross_module_import": 0,
     "router_orm_access": 18,
     "schema_imports_model_or_service": 0,
     "lifecycle_relationship": 0,

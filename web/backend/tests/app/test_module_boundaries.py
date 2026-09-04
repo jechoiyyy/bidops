@@ -379,28 +379,6 @@ def check_cross_module_imports(layout: Layout) -> set[Violation]:
     return violations
 
 
-ASSEMBLY_DEBT = "assembly->screening|deep_review"
-
-
-def public_name_debt(layout: Layout) -> dict[str, set[Violation]]:
-    """아직 켜지 않은 §8-1의 남은 절이 켜져 있었다면 위반이었을 import.
-
-    `UNIMPLEMENTED_PUBLIC_NAME_RULES`가 글로 적어 둔 부채를 코드에서 다시 센다.
-    T7 3단계가 "screening·deep_review → lifecycle" 절을 실제로 켜면서
-    (`PUBLIC_NAME_SCOPES`가 전 범위) 그 몫은 검사 1이 직접 강제하므로 여기서
-    세지 않는다. 남은 절은 조립 계층 → screening·deep_review 하나다.
-    """
-
-    debt: dict[str, set[Violation]] = {ASSEMBLY_DEBT: set()}
-    for rel, source, owner, target_rel, target in resolved_imports(layout):
-        if _is_models_submodule_exception(rel, target_rel, layout):
-            continue
-        if source == bmap.ASSEMBLY and owner in (bmap.SCREENING, bmap.DEEP_REVIEW):
-            if target_rel != f"app/{owner}/__init__.py":
-                debt[ASSEMBLY_DEBT].add(Violation(rel, CROSS_MODULE_IMPORT, target.label))
-    return debt
-
-
 # --- 검사 2: router 안의 ORM 접근 -------------------------------------------
 
 
@@ -636,36 +614,6 @@ def test_excluded_files_still_exist() -> None:
         "EXCLUDED_FILES에 실재하지 않는 경로가 있다. 지워야 한다:\n"
         + "\n".join(f"  {rel}" for rel in stale)
     )
-
-
-def test_remaining_public_name_rules_are_still_needed(layout: Layout) -> None:
-    """아직 켜지 않은 §8-1 두 절의 부채를 코드에서 다시 세어 원장과 맞춘다.
-
-    §4의 허용 표는 방향뿐 아니라 "공개 이름 대 모듈 내부"도 가른다. T3·T4·T6과
-    T7 3단계가 켠 조합은 검사 1이 강제한다. 남은 한 절은 아직 켤 수 없고, 그
-    이유는 조립 계층이 아직 두 모듈의 내부 경로를 직접 들고 있기 때문이다.
-
-    허용 목록과 같은 계약이다. 숫자가 늘면 새 부채가 생긴 것이고, 0이 되면 그
-    절을 `PUBLIC_NAME_IMPORTS`로 켤 수 있다는 신호다. 어느 쪽이든 실패한다.
-    """
-
-    debt = public_name_debt(layout)
-    actual = {key: len(entries) for key, entries in debt.items()}
-    recorded = dict(bmap.REMAINING_PUBLIC_NAME_DEBT)
-    assert actual == recorded, (
-        "미구현 절의 부채가 원장과 다르다. 줄었으면 원장을 줄이고, 0이 되었으면 "
-        "그 절을 PUBLIC_NAME_IMPORTS로 켠다. 늘었으면 새로 생긴 import를 되돌린다.\n"
-        f"  센 값: {actual}\n  원장: {recorded}\n"
-        + "\n".join(
-            f"  [{key}]\n" + "\n".join(f"    {entry}" for entry in sorted(as_tuples(entries)))
-            for key, entries in debt.items()
-        )
-    )
-    for key, count in actual.items():
-        assert count > 0, (
-            f"'{key}' 부채가 사라졌다. UNIMPLEMENTED_PUBLIC_NAME_RULES의 해당 절을 "
-            "PUBLIC_NAME_IMPORTS로 켜고 이 항목을 원장에서 지운다."
-        )
 
 
 def test_allowlists_have_no_duplicate_or_foreign_kinds() -> None:
