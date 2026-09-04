@@ -9,8 +9,8 @@
 저장소에는 다음 실행 경계가 준비되어 있다.
 
 - `app.screening.cli.score_candidate_quality`: 실제 모델 결과를 사람이 판정한 manifest에서 재현율·사람 일치율·근거 부족 오판율을 계산한다. 실패 결과는 policy import 인자를 내보내지 않는다.
-- `app.cli.import_profile_policy`: 측정한 policy SHA와 실제 import 대상 SHA가 다르면 저장 전에 거부한다. import 결과는 active 설정을 자동 변경하지 않는다.
-- `app.cli.run_bc_e2e`: 문서 업로드·검사·구조화·역할 지정·전체 current 문서 확정 후 deep review를 만들고, 세 stage·validation·evidence를 확인한다.
+- `app.deep_review.cli.import_profile_policy`: 측정한 policy SHA와 실제 import 대상 SHA가 다르면 저장 전에 거부한다. import 결과는 active 설정을 자동 변경하지 않는다.
+- `app.deep_review.cli.run_bc_e2e`: 문서 업로드·검사·구조화·역할 지정·전체 current 문서 확정 후 deep review를 만들고, 세 stage·validation·evidence를 확인한다.
 - `docker-compose.t7.remote-vllm.yml`: analysis worker에만 외부 모델 egress network를 추가하는 선택 override다. vLLM 자체는 이 Compose 밖의 승인 서버에서 운영한다.
 
 아래 항목은 저장소만으로 대신 만들 수 없는 실제 인수 입력이다.
@@ -112,7 +112,7 @@ docker compose --project-name bidops-deep-review-e2e \
   --env-file /secure/bidops-e2e.env \
   -f docker-compose.t7.yml -f docker-compose.t7.remote-vllm.yml \
   run --rm --no-deps web \
-  python -m app.cli.import_profile_policy \
+  python -m app.deep_review.cli.import_profile_policy \
   --actor 'E2E 담당자' \
   --expected-policy-sha256 <policy_sha256> \
   --sample-hash <sample_hash> \
@@ -177,7 +177,7 @@ docker run --rm --network host --read-only --tmpfs /tmp \
   --user "$(id -u):$(id -g)" \
   -v /secure/bidops-e2e/input:/acceptance:ro \
   bidops-deep-review-e2e-web \
-  python -m app.cli.run_bc_e2e /acceptance/bc-run.json --dry-run
+  python -m app.deep_review.cli.run_bc_e2e /acceptance/bc-run.json --dry-run
 ```
 
 검토 후 target을 같은 문자열로 다시 확인하고 새 evidence 파일에 기록한다. 출력 파일이 이미 있으면 덮어쓰지 않고 중단한다.
@@ -188,7 +188,7 @@ docker run --rm --network host --read-only --tmpfs /tmp \
   -v /secure/bidops-e2e/input:/acceptance:ro \
   -v /secure/bidops-e2e/output:/evidence \
   bidops-deep-review-e2e-web \
-  python -m app.cli.run_bc_e2e /acceptance/bc-run.json \
+  python -m app.deep_review.cli.run_bc_e2e /acceptance/bc-run.json \
   --confirm-target http://127.0.0.1:18787 \
   --analysis-timeout-seconds 3600 \
   --poll-seconds 2 \
