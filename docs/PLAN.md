@@ -306,7 +306,8 @@ payload preview와 모델 revision을 명시적으로 승인한 단일 실행에
 - `web/frontend/src/components/shell/Sidebar.tsx`
 - `web/frontend/src/components/shell/route-meta.ts`
 - `web/frontend/tests/api-mock.ts`
-- `web/frontend/tests/visual.spec.ts`
+- `web/frontend/tests/screen-fixtures.ts`
+- `web/frontend/tests/screen-semantics.spec.ts`
 
 ### 화면 요구
 
@@ -324,7 +325,7 @@ payload preview와 모델 revision을 명시적으로 승인한 단일 실행에
 ```bash
 cd web/frontend
 npm run build
-npm run test:visual
+npm run test:screens
 ```
 
 API mock은 성공, 부분 성공, 전체 실패, 결과 없음, `null` 계측, 장문 한글 제목을 포함한다.
@@ -511,7 +512,7 @@ C-2 relevance를 이 단계의 적합성·준비·추적·최종 결정으로 �
 ```bash
 ./run-tests.sh
 ./web/run-web-tests.sh
-cd web/frontend && npm run test:visual
+cd web/frontend && npm run test:screens
 COMPOSE_PROJECT_NAME=bidops-verify docker compose -f docker-compose.t7.yml build
 COMPOSE_PROJECT_NAME=bidops-verify docker compose -f docker-compose.t7.yml config
 ```
