@@ -65,6 +65,15 @@ LIFECYCLE_RELATIONSHIP_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset()
 #: 다른 목록과 같은 계약이다 — 목록에 없는 새 위반은 즉시 실패한다.
 LIFECYCLE_TABLE_WRITE_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset()
 
+#: 검사 6 — startup 경로의 조립 파일이 받는 상태 변경·모델 호출 이름.
+#:
+#: 검사를 넣는 시점의 실측 위반은 **0건**이다. 조립 계층 → 모듈 공개 이름은 허용
+#: 방향이라 검사 1~5 어느 것도 이 자리를 덮지 않았고, 그래서 지금은 깨끗해도
+#: 다음 변경이 조용히 경계를 넘을 수 있었다. 대상 파일과 금지 이름은
+#: `boundary_map.STARTUP_FILES`·`STARTUP_FORBIDDEN_NAMES`에 데이터로 있다.
+#: 다른 목록과 같은 계약이다 — 목록에 없는 새 위반은 즉시 실패한다.
+ASSEMBLY_STARTUP_IMPORT_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset()
+
 
 #: 허용 목록 크기의 상한. 이주 task는 이 값을 **내리기만** 한다.
 #: T2 검토에서 한 번 다시 세웠다: deep_review → screening을 seam 이름만 허용하도록
@@ -86,4 +95,5 @@ BASELINE_SIZES: dict[str, int] = {
     "schema_imports_model_or_service": 0,
     "lifecycle_relationship": 0,
     "lifecycle_table_write": 0,
+    "assembly_startup_import": 0,
 }

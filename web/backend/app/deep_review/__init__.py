@@ -18,8 +18,15 @@ from importlib import import_module
 from typing import TYPE_CHECKING, Any
 
 #: 공개 이름 → (구현 모듈, 그 모듈 안의 이름).
+#:
+#: 표는 **모듈 밖에 실제 소비자가 있는 이름만** 담는다. 구역마다 왜 공개인지를
+#: 적어 두었다. 여기 없는 것은 deep_review 내부이며, 상태를 바꾸거나 모델을 부르는
+#: 이름은 공개하지 않는다 — 공개하면 조립 계층이 startup에서 부를 수 있게 되고
+#: 그것은 §9가 금지한 일이다(`tests/app/test_module_boundaries.py`의 startup 검사).
 _EXPORTS: dict[str, tuple[str, str]] = {
-    # --- 조립 계층이 등록하는 router 인스턴스 (routers/*.py) ---------------
+    # === 조립이 쓴다 — router 인스턴스 (routers/*.py) ======================
+    # `app/main.py`가 `getattr(<모듈>, <router 이름>)`로 가져간다. 정적 import가
+    # 없어도 조립에 반드시 필요하다.
     # `attachments_router`·`document_bundles_router`·`deep_reviews_router`와
     # `pre_spec_overview_router`는 lifecycle의 경로 접두사(`/api/notices`,
     # `/api/pre-specs`)를 쓰지만 제공 모듈은 deep_review다(§5.3).
@@ -30,7 +37,9 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "document_bundles_router": (".routers.document_bundles", "router"),
     "pre_spec_overview_router": (".routers.deep_reviews", "pre_spec_overview_router"),
     "reports_router": (".routers.reports", "router"),
-    # --- lifecycle 확장점 구현 (§6.1·§6.2) ---------------------------------
+    # === 확장점 구현 (§6.1·§6.2) ===========================================
+    # `register_lifecycle_extensions`가 만드는 객체다. 조립 계층의 등록 검사
+    # (`tests/app/test_extension_registration.py`)가 이 이름으로 등록 결과를 본다.
     "PreSpecAttachmentEligibilityHook": (
         ".services.deep_review_hooks",
         "PreSpecAttachmentEligibilityHook",
@@ -39,14 +48,15 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         ".services.prespec_projection",
         "PreSpecOverviewDocumentProjection",
     ),
-    # --- 개요 검토 결과 (models.py) ----------------------------------------
+    # === 밖에서 상태를 만든다 — 개요 검토 결과 (models.py) =================
     # 개요 검토 행은 사전규격 화면의 계약이며 두 모듈 조합 테스트가 이 이름으로
     # 상태를 만든다. 그 밖의 deep_review ORM은 모듈 밖으로 나가지 않는다.
     "PreSpecOverviewReview": (".models", "PreSpecOverviewReview"),
-    # --- in-process runtime (runtime.py) -----------------------------------
-    "DeepReviewRuntime": (".runtime", "DeepReviewRuntime"),
+    # === 조립이 쓴다 — in-process runtime (runtime.py) =====================
+    # `app/runtime.py`가 `package.build_runtime(...)`로 가져간다. runtime 객체의
+    # **형**은 조립이 쓰지 않으므로 공개하지 않는다.
     "build_runtime": (".runtime", "build_runtime"),
-    # --- 별도 worker 프로세스가 쓰는 심층 검토 1건 처리 --------------------
+    # === 별도 worker 진입점이 쓴다 (workers/deep_review.py) ================
     # 조립 계층의 합성 analysis worker가 C-2 claim이 없을 때 부른다.
     "run_deep_review_once": (".workers.deep_review", "run_once"),
 }
@@ -105,6 +115,7 @@ __all__ = sorted(set(_EXPORTS) | {"register_lifecycle_extensions"})
 
 if TYPE_CHECKING:  # pragma: no cover - 정적 분석용 이름 노출
     from .models import PreSpecOverviewReview
-    from .runtime import DeepReviewRuntime, build_runtime
+    from .runtime import build_runtime
+    from .workers.deep_review import run_once as run_deep_review_once
     from .services.deep_review_hooks import PreSpecAttachmentEligibilityHook
     from .services.prespec_projection import PreSpecOverviewDocumentProjection
