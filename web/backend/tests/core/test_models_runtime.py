@@ -153,7 +153,7 @@ def seed_base(connection: _PostgresConnection) -> None:
 
 
 def add_execution(connection: _PostgresConnection, execution_id: str, suffix: str) -> None:
-    connection.execute("insert into screening_execution(execution_id, trigger, source_run_id, scope, status, requested_by, policy_version, prompt_version, model_name, model_digest, company_profile_version, company_profile_digest, input_artifact_path, input_artifact_digest, artifact_dir, queued_at) values (?, 'manual_run', 'r1', 'full_run', '대기', 'tester', 'p1', 'prompt-1', 'qwen3.8:27b', ?, ?, ?, ?, ?, ?, ?)", (execution_id, MODEL_DIGEST, PROFILE_VERSION, DIGEST, f"runs/{suffix}.json", DIGEST, f"runs/{suffix}", "2026-01-01T00:00:00+00:00"))
+    connection.execute("insert into screening_execution(execution_id, trigger, source_run_id, scope, status, requested_by, policy_version, prompt_version, model_name, model_digest, company_profile_version, company_profile_digest, input_artifact_path, input_artifact_digest, artifact_dir, queued_at) values (?, 'manual_run', 'r1', 'full_run', '대기', 'tester', 'p1', 'prompt-1', 'qwen3.8-27B', ?, ?, ?, ?, ?, ?, ?)", (execution_id, MODEL_DIGEST, PROFILE_VERSION, DIGEST, f"runs/{suffix}.json", DIGEST, f"runs/{suffix}", "2026-01-01T00:00:00+00:00"))
 
 
 def test_exact_columns_nullability_and_ids(tmp_path: Path) -> None:
@@ -201,10 +201,10 @@ def test_gate_evaluation_append_and_input_immutability(tmp_path: Path) -> None:
         add_execution(connection, "scr-" + "1" * 32, "a")
         add_execution(connection, "scr-" + "2" * 32, "b")
         with pytest.raises(sqlite3.IntegrityError):
-            connection.execute("insert into quality_gate(gate_id, purpose, execution_status, result_status, baseline_run_id, sample_artifact_path, sample_artifact_digest, baseline_decisions_path, baseline_decisions_digest, policy_version, prompt_version, model_name, model_digest, company_profile_version, company_profile_digest, pass_a_execution_id, pass_b_execution_id, created_at, completed_at, metrics_json, reasons_json, created_by) values (?, 'operational_approval', '완료', '통과', 'r1', '/absolute/sample.json', ?, 'decisions.json', ?, 'p1', 'prompt-1', 'qwen3.8:27b', ?, ?, ?, ?, ?, ?, ?, ?, ?, 'tester')", ("gate-" + "0" * 32, DIGEST, DIGEST, MODEL_DIGEST, PROFILE_VERSION, DIGEST, "scr-" + "1" * 32, "scr-" + "2" * 32, "2026-01-01T00:00:00+00:00", "2026-01-01T00:00:00+00:00", "{}", "[]"))
+            connection.execute("insert into quality_gate(gate_id, purpose, execution_status, result_status, baseline_run_id, sample_artifact_path, sample_artifact_digest, baseline_decisions_path, baseline_decisions_digest, policy_version, prompt_version, model_name, model_digest, company_profile_version, company_profile_digest, pass_a_execution_id, pass_b_execution_id, created_at, completed_at, metrics_json, reasons_json, created_by) values (?, 'operational_approval', '완료', '통과', 'r1', '/absolute/sample.json', ?, 'decisions.json', ?, 'p1', 'prompt-1', 'qwen3.8-27B', ?, ?, ?, ?, ?, ?, ?, ?, ?, 'tester')", ("gate-" + "0" * 32, DIGEST, DIGEST, MODEL_DIGEST, PROFILE_VERSION, DIGEST, "scr-" + "1" * 32, "scr-" + "2" * 32, "2026-01-01T00:00:00+00:00", "2026-01-01T00:00:00+00:00", "{}", "[]"))
         with pytest.raises(sqlite3.IntegrityError):
-            connection.execute("insert into quality_gate(gate_id, purpose, execution_status, result_status, baseline_run_id, sample_artifact_path, sample_artifact_digest, baseline_decisions_path, baseline_decisions_digest, policy_version, prompt_version, model_name, model_digest, company_profile_version, company_profile_digest, pass_a_execution_id, pass_b_execution_id, created_at, completed_at, metrics_json, reasons_json, created_by) values (?, 'operational_approval', '완료', '통과', 'r1', 'sample.json', ?, '../decisions.json', ?, 'p1', 'prompt-1', 'qwen3.8:27b', ?, ?, ?, ?, ?, ?, ?, ?, ?, 'tester')", ("gate-" + "0" * 32, DIGEST, DIGEST, MODEL_DIGEST, PROFILE_VERSION, DIGEST, "scr-" + "1" * 32, "scr-" + "2" * 32, "2026-01-01T00:00:00+00:00", "2026-01-01T00:00:00+00:00", "{}", "[]"))
-        connection.execute("insert into quality_gate(gate_id, purpose, execution_status, result_status, baseline_run_id, sample_artifact_path, sample_artifact_digest, baseline_decisions_path, baseline_decisions_digest, policy_version, prompt_version, model_name, model_digest, company_profile_version, company_profile_digest, pass_a_execution_id, pass_b_execution_id, created_at, completed_at, metrics_json, reasons_json, created_by) values (?, 'operational_approval', '완료', '통과', 'r1', 'sample.json', ?, 'decisions.json', ?, 'p1', 'prompt-1', 'qwen3.8:27b', ?, ?, ?, ?, ?, ?, ?, ?, ?, 'tester')", ("gate-" + "1" * 32, DIGEST, DIGEST, MODEL_DIGEST, PROFILE_VERSION, DIGEST, "scr-" + "1" * 32, "scr-" + "2" * 32, "2026-01-01T00:00:00+00:00", "2026-01-01T00:00:00+00:00", "{}", "[]"))
+            connection.execute("insert into quality_gate(gate_id, purpose, execution_status, result_status, baseline_run_id, sample_artifact_path, sample_artifact_digest, baseline_decisions_path, baseline_decisions_digest, policy_version, prompt_version, model_name, model_digest, company_profile_version, company_profile_digest, pass_a_execution_id, pass_b_execution_id, created_at, completed_at, metrics_json, reasons_json, created_by) values (?, 'operational_approval', '완료', '통과', 'r1', 'sample.json', ?, '../decisions.json', ?, 'p1', 'prompt-1', 'qwen3.8-27B', ?, ?, ?, ?, ?, ?, ?, ?, ?, 'tester')", ("gate-" + "0" * 32, DIGEST, DIGEST, MODEL_DIGEST, PROFILE_VERSION, DIGEST, "scr-" + "1" * 32, "scr-" + "2" * 32, "2026-01-01T00:00:00+00:00", "2026-01-01T00:00:00+00:00", "{}", "[]"))
+        connection.execute("insert into quality_gate(gate_id, purpose, execution_status, result_status, baseline_run_id, sample_artifact_path, sample_artifact_digest, baseline_decisions_path, baseline_decisions_digest, policy_version, prompt_version, model_name, model_digest, company_profile_version, company_profile_digest, pass_a_execution_id, pass_b_execution_id, created_at, completed_at, metrics_json, reasons_json, created_by) values (?, 'operational_approval', '완료', '통과', 'r1', 'sample.json', ?, 'decisions.json', ?, 'p1', 'prompt-1', 'qwen3.8-27B', ?, ?, ?, ?, ?, ?, ?, ?, ?, 'tester')", ("gate-" + "1" * 32, DIGEST, DIGEST, MODEL_DIGEST, PROFILE_VERSION, DIGEST, "scr-" + "1" * 32, "scr-" + "2" * 32, "2026-01-01T00:00:00+00:00", "2026-01-01T00:00:00+00:00", "{}", "[]"))
         with pytest.raises(sqlite3.IntegrityError):
             connection.execute("update quality_gate set prompt_version='changed' where gate_id=?", ("gate-" + "1" * 32,))
         with pytest.raises(sqlite3.IntegrityError):
@@ -221,8 +221,8 @@ def test_gate_evaluation_append_and_input_immutability(tmp_path: Path) -> None:
             ("2026-01-01T00:00:00+00:00", "gateeval-" + "2" * 32),
         )
         with pytest.raises(sqlite3.IntegrityError):
-            connection.execute("update always_on_state set enabled=1, quality_gate_result_id=?, generation_config_digest=?, policy_version='p1', model_name='qwen3.8:27b', model_digest=?, prompt_version='prompt-1', company_profile_version=?, company_profile_digest=?, updated_at=?, updated_by='tester' where singleton_id=1", (gateeval, GENERATION_CONFIG_DIGEST, MODEL_DIGEST, PROFILE_VERSION, DIGEST, "2026-01-01T00:00:00+00:00"))
-        connection.execute("update always_on_state set enabled=1, quality_gate_result_id=?, generation_config_digest=?, policy_version='p1', model_name='qwen3.8:27b', model_digest=?, prompt_version='prompt-1', company_profile_version=?, company_profile_digest=?, updated_at=?, updated_by='tester' where singleton_id=1", ("gateeval-" + "2" * 32, GENERATION_CONFIG_DIGEST, MODEL_DIGEST, PROFILE_VERSION, DIGEST, "2026-01-01T00:00:00+00:00"))
+            connection.execute("update always_on_state set enabled=1, quality_gate_result_id=?, generation_config_digest=?, policy_version='p1', model_name='qwen3.8-27B', model_digest=?, prompt_version='prompt-1', company_profile_version=?, company_profile_digest=?, updated_at=?, updated_by='tester' where singleton_id=1", (gateeval, GENERATION_CONFIG_DIGEST, MODEL_DIGEST, PROFILE_VERSION, DIGEST, "2026-01-01T00:00:00+00:00"))
+        connection.execute("update always_on_state set enabled=1, quality_gate_result_id=?, generation_config_digest=?, policy_version='p1', model_name='qwen3.8-27B', model_digest=?, prompt_version='prompt-1', company_profile_version=?, company_profile_digest=?, updated_at=?, updated_by='tester' where singleton_id=1", ("gateeval-" + "2" * 32, GENERATION_CONFIG_DIGEST, MODEL_DIGEST, PROFILE_VERSION, DIGEST, "2026-01-01T00:00:00+00:00"))
         with pytest.raises(sqlite3.IntegrityError):
             connection.execute("update always_on_state set model_digest=? where singleton_id=1", ("c" * 64,))
         connection.execute(
@@ -252,7 +252,7 @@ def test_gate_evaluation_append_and_input_immutability(tmp_path: Path) -> None:
             "update screening_policy set status='active', active_slot=1, activated_at=?, activated_by='tester', quality_gate_result_id=? where policy_version='p1'",
             ("2026-01-01T00:00:00+00:00", "gateeval-" + "3" * 32),
         )
-        connection.execute("update always_on_state set enabled=1, quality_gate_result_id=?, generation_config_digest=?, policy_version='p1', model_name='qwen3.8:27b', model_digest=?, prompt_version='prompt-1', company_profile_version=?, company_profile_digest=?, updated_at=?, updated_by='tester' where singleton_id=1", ("gateeval-" + "3" * 32, GENERATION_CONFIG_DIGEST, MODEL_DIGEST, PROFILE_VERSION, DIGEST, "2026-01-01T00:00:00+00:00"))
+        connection.execute("update always_on_state set enabled=1, quality_gate_result_id=?, generation_config_digest=?, policy_version='p1', model_name='qwen3.8-27B', model_digest=?, prompt_version='prompt-1', company_profile_version=?, company_profile_digest=?, updated_at=?, updated_by='tester' where singleton_id=1", ("gateeval-" + "3" * 32, GENERATION_CONFIG_DIGEST, MODEL_DIGEST, PROFILE_VERSION, DIGEST, "2026-01-01T00:00:00+00:00"))
         connection.execute(
             "insert into quality_gate_evaluation(evaluation_id, gate_id, revision, result_status, metrics_json, reasons_json, valid_review_count, distinct_notice_review_count, created_at) values (?, ?, 4, '미달', '{\"passed\": 0}', '[\"failed\"]', 0, 0, ?)",
             ("gateeval-" + "4" * 32, "gate-" + "1" * 32, "2026-01-01T00:00:00+00:00"),
@@ -282,7 +282,7 @@ def test_quality_gate_delete_cascades_evaluations(tmp_path: Path) -> None:
         add_execution(connection, "scr-" + "1" * 32, "a")
         add_execution(connection, "scr-" + "2" * 32, "b")
         connection.execute(
-            "insert into quality_gate(gate_id, purpose, execution_status, result_status, baseline_run_id, sample_artifact_path, sample_artifact_digest, baseline_decisions_path, baseline_decisions_digest, policy_version, prompt_version, model_name, model_digest, company_profile_version, company_profile_digest, pass_a_execution_id, pass_b_execution_id, created_at, metrics_json, reasons_json, created_by) values (?, 'model_comparison', '대기', '미측정', 'r1', 'sample.json', ?, 'decisions.json', ?, 'p1', 'prompt-1', 'qwen3.8:27b', ?, ?, ?, ?, ?, ?, ?, ?, 'tester')",
+            "insert into quality_gate(gate_id, purpose, execution_status, result_status, baseline_run_id, sample_artifact_path, sample_artifact_digest, baseline_decisions_path, baseline_decisions_digest, policy_version, prompt_version, model_name, model_digest, company_profile_version, company_profile_digest, pass_a_execution_id, pass_b_execution_id, created_at, metrics_json, reasons_json, created_by) values (?, 'model_comparison', '대기', '미측정', 'r1', 'sample.json', ?, 'decisions.json', ?, 'p1', 'prompt-1', 'qwen3.8-27B', ?, ?, ?, ?, ?, ?, ?, ?, 'tester')",
             ("gate-" + "9" * 32, DIGEST, DIGEST, MODEL_DIGEST, PROFILE_VERSION, DIGEST, "scr-" + "1" * 32, "scr-" + "2" * 32, "2026-01-01T00:00:00+00:00", "{}", "[]"),
         )
         connection.execute(
@@ -304,7 +304,7 @@ def test_policy_body_and_single_notice_identity_are_protected(tmp_path: Path) ->
         with pytest.raises(sqlite3.IntegrityError):
             connection.execute(
                 "insert into screening_execution(execution_id, trigger, source_run_id, scope, notice_pk, notice_id, status, requested_by, policy_version, prompt_version, model_name, model_digest, company_profile_version, company_profile_digest, input_artifact_path, input_artifact_digest, artifact_dir, queued_at) "
-                "values (?, 'cli_single', 'r1', 'single_notice', ?, 'wrong-notice', '대기', 'tester', 'p1', 'prompt-1', 'qwen3.8:27b', ?, ?, ?, 'runs/single.json', ?, 'runs/single', ?)",
+                "values (?, 'cli_single', 'r1', 'single_notice', ?, 'wrong-notice', '대기', 'tester', 'p1', 'prompt-1', 'qwen3.8-27B', ?, ?, ?, 'runs/single.json', ?, 'runs/single', ?)",
                 ("scr-" + "3" * 32, notice_pk, MODEL_DIGEST, PROFILE_VERSION, DIGEST, DIGEST, "2026-01-01T00:00:00+00:00"),
             )
 
@@ -319,7 +319,7 @@ def test_single_notice_source_run_and_nonblank_identifiers_are_protected(tmp_pat
         with pytest.raises(sqlite3.IntegrityError):
             connection.execute(
                 "insert into screening_execution(execution_id, trigger, source_run_id, scope, notice_pk, notice_id, status, requested_by, policy_version, prompt_version, model_name, model_digest, company_profile_version, company_profile_digest, input_artifact_path, input_artifact_digest, artifact_dir, queued_at) "
-                "values (?, 'cli_single', 'r2', 'single_notice', ?, 'notice-1', '대기', 'tester', 'p1', 'prompt-1', 'qwen3.8:27b', ?, ?, ?, 'runs/mismatch.json', ?, 'runs/mismatch', ?)",
+                "values (?, 'cli_single', 'r2', 'single_notice', ?, 'notice-1', '대기', 'tester', 'p1', 'prompt-1', 'qwen3.8-27B', ?, ?, ?, 'runs/mismatch.json', ?, 'runs/mismatch', ?)",
                 ("scr-" + "4" * 32, notice_pk, MODEL_DIGEST, PROFILE_VERSION, DIGEST, DIGEST, "2026-01-01T00:00:00+00:00"),
             )
         with pytest.raises(sqlite3.IntegrityError):
@@ -337,21 +337,21 @@ def test_screening_stop_metadata_is_consistent(tmp_path: Path) -> None:
         seed_base(connection)
         with pytest.raises(sqlite3.IntegrityError):
             connection.execute(
-                "insert into screening_execution(execution_id, trigger, source_run_id, scope, status, active_slot, requested_by, policy_version, prompt_version, model_name, model_digest, company_profile_version, company_profile_digest, input_artifact_path, input_artifact_digest, artifact_dir, stop_reason, queued_at) values (?, 'manual_run', 'r1', 'full_run', '중지 요청', 1, 'tester', 'p1', 'prompt-1', 'qwen3.8:27b', ?, ?, ?, 'runs/stop-a.json', ?, 'runs/stop-a', 'user_requested', ?)",
+                "insert into screening_execution(execution_id, trigger, source_run_id, scope, status, active_slot, requested_by, policy_version, prompt_version, model_name, model_digest, company_profile_version, company_profile_digest, input_artifact_path, input_artifact_digest, artifact_dir, stop_reason, queued_at) values (?, 'manual_run', 'r1', 'full_run', '중지 요청', 1, 'tester', 'p1', 'prompt-1', 'qwen3.8-27B', ?, ?, ?, 'runs/stop-a.json', ?, 'runs/stop-a', 'user_requested', ?)",
                 ("scr-" + "6" * 32, MODEL_DIGEST, PROFILE_VERSION, DIGEST, DIGEST, "2026-01-01T00:00:00+00:00"),
             )
         with pytest.raises(sqlite3.IntegrityError):
             connection.execute(
-                "insert into screening_execution(execution_id, trigger, source_run_id, scope, status, active_slot, requested_by, policy_version, prompt_version, model_name, model_digest, company_profile_version, company_profile_digest, input_artifact_path, input_artifact_digest, artifact_dir, stop_requested_at, queued_at) values (?, 'manual_run', 'r1', 'full_run', '실행 중', 1, 'tester', 'p1', 'prompt-1', 'qwen3.8:27b', ?, ?, ?, 'runs/stop-b.json', ?, 'runs/stop-b', ?, ?)",
+                "insert into screening_execution(execution_id, trigger, source_run_id, scope, status, active_slot, requested_by, policy_version, prompt_version, model_name, model_digest, company_profile_version, company_profile_digest, input_artifact_path, input_artifact_digest, artifact_dir, stop_requested_at, queued_at) values (?, 'manual_run', 'r1', 'full_run', '실행 중', 1, 'tester', 'p1', 'prompt-1', 'qwen3.8-27B', ?, ?, ?, 'runs/stop-b.json', ?, 'runs/stop-b', ?, ?)",
                 ("scr-" + "7" * 32, MODEL_DIGEST, PROFILE_VERSION, DIGEST, DIGEST, "2026-01-01T00:00:00+00:00", "2026-01-01T00:00:00+00:00"),
             )
         with pytest.raises(sqlite3.IntegrityError):
             connection.execute(
-                "insert into screening_execution(execution_id, trigger, source_run_id, scope, status, requested_by, policy_version, prompt_version, model_name, model_digest, company_profile_version, company_profile_digest, input_artifact_path, input_artifact_digest, artifact_dir, stop_reason, queued_at) values (?, 'manual_run', 'r1', 'full_run', '대기', 'tester', 'p1', 'prompt-1', 'qwen3.8:27b', ?, ?, ?, 'runs/stop-c.json', ?, 'runs/stop-c', 'user_requested', ?)",
+                "insert into screening_execution(execution_id, trigger, source_run_id, scope, status, requested_by, policy_version, prompt_version, model_name, model_digest, company_profile_version, company_profile_digest, input_artifact_path, input_artifact_digest, artifact_dir, stop_reason, queued_at) values (?, 'manual_run', 'r1', 'full_run', '대기', 'tester', 'p1', 'prompt-1', 'qwen3.8-27B', ?, ?, ?, 'runs/stop-c.json', ?, 'runs/stop-c', 'user_requested', ?)",
                 ("scr-" + "8" * 32, MODEL_DIGEST, PROFILE_VERSION, DIGEST, DIGEST, "2026-01-01T00:00:00+00:00"),
             )
         connection.execute(
-            "insert into screening_execution(execution_id, trigger, source_run_id, scope, status, active_slot, requested_by, policy_version, prompt_version, model_name, model_digest, company_profile_version, company_profile_digest, input_artifact_path, input_artifact_digest, artifact_dir, stop_requested_at, stop_requested_by, stop_reason, queued_at) values (?, 'manual_run', 'r1', 'full_run', '중지 요청', 1, 'tester', 'p1', 'prompt-1', 'qwen3.8:27b', ?, ?, ?, 'runs/stop-d.json', ?, 'runs/stop-d', ?, 'tester', 'user_requested', ?)",
+            "insert into screening_execution(execution_id, trigger, source_run_id, scope, status, active_slot, requested_by, policy_version, prompt_version, model_name, model_digest, company_profile_version, company_profile_digest, input_artifact_path, input_artifact_digest, artifact_dir, stop_requested_at, stop_requested_by, stop_reason, queued_at) values (?, 'manual_run', 'r1', 'full_run', '중지 요청', 1, 'tester', 'p1', 'prompt-1', 'qwen3.8-27B', ?, ?, ?, 'runs/stop-d.json', ?, 'runs/stop-d', ?, 'tester', 'user_requested', ?)",
             ("scr-" + "9" * 32, MODEL_DIGEST, PROFILE_VERSION, DIGEST, DIGEST, "2026-01-01T00:00:00+00:00", "2026-01-01T00:00:00+00:00"),
         )
 
@@ -395,7 +395,7 @@ def test_active_policy_requires_latest_passing_operational_gate(tmp_path: Path) 
         add_execution(connection, "scr-" + "2" * 32, "b")
         connection.execute(
             "insert into quality_gate(gate_id, purpose, execution_status, result_status, baseline_run_id, sample_artifact_path, sample_artifact_digest, baseline_decisions_path, baseline_decisions_digest, policy_version, prompt_version, model_name, model_digest, company_profile_version, company_profile_digest, pass_a_execution_id, pass_b_execution_id, created_at, completed_at, metrics_json, reasons_json, created_by) "
-            "values (?, 'operational_approval', '완료', '통과', 'r1', 'sample.json', ?, 'decisions.json', ?, 'p1', 'prompt-1', 'qwen3.8:27b', ?, ?, ?, ?, ?, ?, ?, ?, ?, 'tester')",
+            "values (?, 'operational_approval', '완료', '통과', 'r1', 'sample.json', ?, 'decisions.json', ?, 'p1', 'prompt-1', 'qwen3.8-27B', ?, ?, ?, ?, ?, ?, ?, ?, ?, 'tester')",
             ("gate-" + "1" * 32, DIGEST, DIGEST, MODEL_DIGEST, PROFILE_VERSION, DIGEST, "scr-" + "1" * 32, "scr-" + "2" * 32, "2026-01-01T00:00:00+00:00", "2026-01-01T00:00:00+00:00", "{}", "[]"),
         )
         connection.execute(
@@ -423,7 +423,7 @@ def test_active_policy_requires_completed_operational_gate(tmp_path: Path) -> No
         add_execution(connection, "scr-" + "1" * 32, "a")
         add_execution(connection, "scr-" + "2" * 32, "b")
         connection.execute(
-            "insert into quality_gate(gate_id, purpose, execution_status, result_status, baseline_run_id, sample_artifact_path, sample_artifact_digest, baseline_decisions_path, baseline_decisions_digest, policy_version, prompt_version, model_name, model_digest, company_profile_version, company_profile_digest, pass_a_execution_id, pass_b_execution_id, created_at, metrics_json, reasons_json, created_by) values (?, 'operational_approval', '실행 중', '통과', 'r1', 'sample.json', ?, 'decisions.json', ?, 'p1', 'prompt-1', 'qwen3.8:27b', ?, ?, ?, ?, ?, ?, '{}', '[]', 'tester')",
+            "insert into quality_gate(gate_id, purpose, execution_status, result_status, baseline_run_id, sample_artifact_path, sample_artifact_digest, baseline_decisions_path, baseline_decisions_digest, policy_version, prompt_version, model_name, model_digest, company_profile_version, company_profile_digest, pass_a_execution_id, pass_b_execution_id, created_at, metrics_json, reasons_json, created_by) values (?, 'operational_approval', '실행 중', '통과', 'r1', 'sample.json', ?, 'decisions.json', ?, 'p1', 'prompt-1', 'qwen3.8-27B', ?, ?, ?, ?, ?, ?, '{}', '[]', 'tester')",
             ("gate-" + "8" * 32, DIGEST, DIGEST, MODEL_DIGEST, PROFILE_VERSION, DIGEST, "scr-" + "1" * 32, "scr-" + "2" * 32, "2026-01-01T00:00:00+00:00"),
         )
         connection.execute(
@@ -483,28 +483,24 @@ def test_schedule_duplicate_and_recovery_relationships_are_restricted(tmp_path: 
 
 
 def test_exact_environment_names_and_validation(monkeypatch: pytest.MonkeyPatch) -> None:
-    for name in ("BIDOPS_OLLAMA_ENDPOINT", "BIDOPS_MODEL_BASE_URL", "BIDOPS_HEARTBEAT_SECONDS", "BIDOPS_STALE_SECONDS", "BIDOPS_LIVE_TEST", "BIDOPS_OLLAMA_THINK"):
+    for name in ("BIDOPS_OLLAMA_ENDPOINT", "BIDOPS_MODEL_BASE_URL", "BIDOPS_HEARTBEAT_SECONDS", "BIDOPS_STALE_SECONDS", "BIDOPS_LIVE_TEST"):
         monkeypatch.delenv(name, raising=False)
-    monkeypatch.setenv("BIDOPS_OLLAMA_BASE_URL", "http://example:11434")
     monkeypatch.setenv("BIDOPS_SCREEN_HEARTBEAT_SECONDS", "5")
     monkeypatch.setenv("BIDOPS_SCREEN_STALE_AFTER_SECONDS", "60")
-    assert Settings().model_base_url == "http://example:11434"
+    monkeypatch.setenv("BIDOPS_SCREENING_CONTEXT_SIZE", "16384")
     defaults = Settings()
-    assert defaults.model_name == "qwen3.8:27b"
-    assert defaults.model_timeout == 180
+    assert defaults.vllm_screening_model == "qwen3.8-27B"
+    assert defaults.screening_provider == "vllm"
     assert defaults.model_context == 16384
     assert defaults.model_max_output == 2048
     assert defaults.screen_concurrency == 1
     assert defaults.schedule_daily_time == "02:00"
     assert defaults.schedule_weekly_time == "06:00"
     assert defaults.schedule_prespec is False
-    assert defaults.live_test is False
     with pytest.raises(ValueError):
         Settings(heartbeat_seconds=20, stale_seconds=30)
     with pytest.raises(ValueError):
         Settings(screen_concurrency=2)
-    with pytest.raises(ValueError):
-        Settings(model_timeout=0)
     with pytest.raises(ValueError):
         Settings(model_context=0)
     with pytest.raises(ValueError):

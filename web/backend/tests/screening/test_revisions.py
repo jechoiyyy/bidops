@@ -52,7 +52,7 @@ def _execution(execution_id: str, run_id: str, suffix: str) -> ScreeningExecutio
         requested_by="revision-test",
         policy_version="policy-revision-test",
         prompt_version="prompt-revision-test",
-        model_name="qwen3.8:27b",
+        model_name="qwen3.8-27B",
         model_digest=DIGEST,
         company_profile_version=PROFILE_VERSION,
         company_profile_digest=DIGEST,

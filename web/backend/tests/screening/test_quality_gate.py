@@ -35,7 +35,7 @@ from app.screening.models import (
     ScreeningPolicy,
 )
 from app.screening.artifacts import ArtifactStore
-from app.screening.contracts import MODEL_NAME, ModelIdentity, two_axis_mixing
+from app.screening.contracts import ModelIdentity, two_axis_mixing
 from app.screening.orchestrator import (
     CreatedExecution,
     ScreeningCreationError,
@@ -50,6 +50,7 @@ from app.screening.policy import load_policy_file, policy_content_digest
 from app.screening.profile_snapshot import BASELINE_COMMIT
 from app.core.generation_config import legacy_generation_config
 from app.screening.quality_metrics import judgment_digest
+from tests.fakes import APPROVED_MODEL
 from app.screening.quality_gate import (
     FIXED_BASELINE_RELATIVE,
     FIXED_BASELINE_DIGEST,
@@ -243,7 +244,7 @@ class _FailingPassOrchestrator:
         row = ScreeningExecution(
                 execution_id=execution_id, trigger="quality_gate", source_run_id=self.run_id,
                 scope="quality_sample", status="대기", requested_by="tester", policy_version="policy-1",
-                prompt_version="prompt-1", model_name="qwen3.8:27b", model_digest=DIGEST,
+                prompt_version="prompt-1", model_name=APPROVED_MODEL, model_digest=DIGEST,
                 company_profile_version=PROFILE_VERSION, company_profile_digest=DIGEST,
                 input_artifact_path=path, input_artifact_digest=digest,
                 artifact_dir=f"data/screening-executions/{execution_id}", queued_at=NOW,
@@ -253,7 +254,7 @@ class _FailingPassOrchestrator:
         session.add(row)
         session.flush()
         return SimpleNamespace(
-            created=CreatedExecution(execution_id, "대기", "qwen3.8:27b", DIGEST, PROFILE_VERSION, DIGEST,
+            created=CreatedExecution(execution_id, "대기", APPROVED_MODEL, DIGEST, PROFILE_VERSION, DIGEST,
                                      f"data/screening-executions/{execution_id}", path, digest),
             row=row,
             workspace=workspace,
@@ -336,9 +337,9 @@ def test_production_transaction_preparer_publishes_two_fifo_rows_atomically(tmp_
 
     class FakeModel:
         def inspect_model(self):
-            return ModelIdentity(MODEL_NAME, "c" * 64)
+            return ModelIdentity(APPROVED_MODEL, "c" * 64)
 
-    orchestrator = ScreeningOrchestrator(settings, session_factory=factory, ollama=FakeModel(), clock=lambda: NOW)
+    orchestrator = ScreeningOrchestrator(settings, session_factory=factory, model_client=FakeModel(), clock=lambda: NOW)
     gate = QualityGateService(settings, session_factory=factory, orchestrator=orchestrator).create_gate(
         purpose="operational_approval", policy_version=body["policy_version"], profile_source="current", created_by="tester"
     )
@@ -599,7 +600,7 @@ def test_snapshot_closure_entry_tamper_is_authenticated_before_public_prepare(tm
     creator = ScreeningOrchestrator(
         foreign_settings,
         session_factory=factory,
-        ollama=type("NoModelCall", (), {"inspect_model": lambda _self: (_ for _ in ()).throw(AssertionError("must reject before model"))})(),
+        model_client=type("NoModelCall", (), {"inspect_model": lambda _self: (_ for _ in ()).throw(AssertionError("must reject before model"))})(),
         clock=lambda: NOW,
     )
     with factory() as session:
@@ -680,7 +681,7 @@ def test_snapshot_binding_rejects_foreign_public_prepare_without_side_effect(tmp
     creator = ScreeningOrchestrator(
         foreign_settings,
         session_factory=factory,
-        ollama=type("NoModelCall", (), {"inspect_model": lambda _self: (_ for _ in ()).throw(AssertionError("must reject before model"))})(),
+        model_client=type("NoModelCall", (), {"inspect_model": lambda _self: (_ for _ in ()).throw(AssertionError("must reject before model"))})(),
         clock=lambda: NOW,
     )
     with factory() as session:
@@ -713,7 +714,7 @@ def test_quality_binding_preflight_failure_releases_retry_capability(tmp_path: P
     good_model = type(
         "GoodModel",
         (),
-        {"inspect_model": lambda _self: ModelIdentity(MODEL_NAME, "c" * 64)},
+        {"inspect_model": lambda _self: ModelIdentity(APPROVED_MODEL, "c" * 64)},
     )()
     bad_model = type(
         "BadModel",
@@ -725,7 +726,7 @@ def test_quality_binding_preflight_failure_releases_retry_capability(tmp_path: P
     bad_creator = ScreeningOrchestrator(
         settings,
         session_factory=factory,
-        ollama=bad_model if preflight == "model" else good_model,
+        model_client=bad_model if preflight == "model" else good_model,
         clock=lambda: NOW,
     )
     with factory() as session:
@@ -749,7 +750,7 @@ def test_quality_binding_preflight_failure_releases_retry_capability(tmp_path: P
     good_creator = ScreeningOrchestrator(
         settings,
         session_factory=factory,
-        ollama=good_model,
+        model_client=good_model,
         clock=lambda: NOW,
     )
     with factory() as session:
@@ -780,9 +781,9 @@ def test_quality_binding_reservation_failure_releases_for_retry(tmp_path: Path, 
     good_model = type(
         "GoodModel",
         (),
-        {"inspect_model": lambda _self: ModelIdentity(MODEL_NAME, "c" * 64)},
+        {"inspect_model": lambda _self: ModelIdentity(APPROVED_MODEL, "c" * 64)},
     )()
-    creator = ScreeningOrchestrator(settings, session_factory=factory, ollama=good_model, clock=lambda: NOW)
+    creator = ScreeningOrchestrator(settings, session_factory=factory, model_client=good_model, clock=lambda: NOW)
 
     def fail_workspace(_self, _execution_id):
         raise OSError("workspace unavailable")
@@ -832,9 +833,9 @@ def test_quality_binding_listener_registration_failure_releases_exact_lease(tmp_
     model = type(
         "GoodModel",
         (),
-        {"inspect_model": lambda _self: ModelIdentity(MODEL_NAME, "c" * 64)},
+        {"inspect_model": lambda _self: ModelIdentity(APPROVED_MODEL, "c" * 64)},
     )()
-    creator = ScreeningOrchestrator(settings, session_factory=factory, ollama=model, clock=lambda: NOW)
+    creator = ScreeningOrchestrator(settings, session_factory=factory, model_client=model, clock=lambda: NOW)
 
     def fail_registration(_session, _binding, _lease):
         raise RuntimeError("listener registration failed")
@@ -883,9 +884,9 @@ def test_quality_binding_outer_rollback_releases_and_commit_consumes(tmp_path: P
     model = type(
         "GoodModel",
         (),
-        {"inspect_model": lambda _self: ModelIdentity(MODEL_NAME, "c" * 64)},
+        {"inspect_model": lambda _self: ModelIdentity(APPROVED_MODEL, "c" * 64)},
     )()
-    creator = ScreeningOrchestrator(settings, session_factory=factory, ollama=model, clock=lambda: NOW)
+    creator = ScreeningOrchestrator(settings, session_factory=factory, model_client=model, clock=lambda: NOW)
     store = ArtifactStore(settings.bidops_root)
     with factory() as session:
         outer = session.begin()
@@ -967,9 +968,9 @@ def test_quality_binding_session_abandonment_releases_and_allows_retry(tmp_path:
     model = type(
         "GoodModel",
         (),
-        {"inspect_model": lambda _self: ModelIdentity(MODEL_NAME, "c" * 64)},
+        {"inspect_model": lambda _self: ModelIdentity(APPROVED_MODEL, "c" * 64)},
     )()
-    creator = ScreeningOrchestrator(settings, session_factory=factory, ollama=model, clock=lambda: NOW)
+    creator = ScreeningOrchestrator(settings, session_factory=factory, model_client=model, clock=lambda: NOW)
     store = ArtifactStore(settings.bidops_root)
     with factory() as session:
         abandoned = creator.prepare_execution(
@@ -1065,9 +1066,9 @@ def test_quality_binding_direct_release_cannot_cancel_transaction_reservation(tm
     model = type(
         "GoodModel",
         (),
-        {"inspect_model": lambda _self: ModelIdentity(MODEL_NAME, "c" * 64)},
+        {"inspect_model": lambda _self: ModelIdentity(APPROVED_MODEL, "c" * 64)},
     )()
-    creator = ScreeningOrchestrator(settings, session_factory=factory, ollama=model, clock=lambda: NOW)
+    creator = ScreeningOrchestrator(settings, session_factory=factory, model_client=model, clock=lambda: NOW)
     with factory() as session:
         prepared = creator.prepare_execution(
             session,
@@ -1254,9 +1255,9 @@ def test_quality_binding_nested_savepoint_lifecycle_is_transaction_aware(tmp_pat
     model = type(
         "GoodModel",
         (),
-        {"inspect_model": lambda _self: ModelIdentity(MODEL_NAME, "c" * 64)},
+        {"inspect_model": lambda _self: ModelIdentity(APPROVED_MODEL, "c" * 64)},
     )()
-    creator = ScreeningOrchestrator(settings, session_factory=factory, ollama=model, clock=lambda: NOW)
+    creator = ScreeningOrchestrator(settings, session_factory=factory, model_client=model, clock=lambda: NOW)
     store = ArtifactStore(settings.bidops_root)
     with factory() as session:
         outer = session.begin()
@@ -1411,7 +1412,7 @@ def test_fixed_snapshot_path_swap_during_second_prepare_has_no_input_effect(tmp_
     settings, engine, factory, _run_dir, canonical_run_id = _canonical_service_fixture(tmp_path)
     delegate = ScreeningOrchestrator(
         settings, session_factory=factory,
-        ollama=type("FakeModel", (), {"inspect_model": lambda _self: ModelIdentity(MODEL_NAME, "c" * 64)})(),
+        model_client=type("FakeModel", (), {"inspect_model": lambda _self: ModelIdentity(APPROVED_MODEL, "c" * 64)})(),
         clock=lambda: NOW,
     )
 
@@ -1456,7 +1457,7 @@ def test_fixed_snapshot_aba_restore_during_prepare_keeps_original_semantics(tmp_
     settings, engine, factory, _run_dir, canonical_run_id = _canonical_service_fixture(tmp_path)
     delegate = ScreeningOrchestrator(
         settings, session_factory=factory,
-        ollama=type("FakeModel", (), {"inspect_model": lambda _self: ModelIdentity(MODEL_NAME, "c" * 64)})(),
+        model_client=type("FakeModel", (), {"inspect_model": lambda _self: ModelIdentity(APPROVED_MODEL, "c" * 64)})(),
         clock=lambda: NOW,
     )
 
@@ -1579,7 +1580,7 @@ def test_quality_gate_creation_query_budget_is_bounded(tmp_path: Path):
 
     orchestrator = ScreeningOrchestrator(
         settings, session_factory=factory,
-        ollama=type("FakeModel", (), {"inspect_model": lambda _self: ModelIdentity(MODEL_NAME, "c" * 64)})(),
+        model_client=type("FakeModel", (), {"inspect_model": lambda _self: ModelIdentity(APPROVED_MODEL, "c" * 64)})(),
         clock=lambda: NOW,
     )
     event.listen(engine, "before_cursor_execute", record)
@@ -1710,7 +1711,7 @@ def test_quality_pass_provenance_alias_is_rejected_before_gate_publish(tmp_path:
         def __init__(self):
             self.delegate = ScreeningOrchestrator(
                 settings, session_factory=factory,
-                ollama=type("FakeModel", (), {"inspect_model": lambda _self: ModelIdentity(MODEL_NAME, "c" * 64)})(),
+                model_client=type("FakeModel", (), {"inspect_model": lambda _self: ModelIdentity(APPROVED_MODEL, "c" * 64)})(),
                 clock=lambda: NOW,
             )
 
@@ -1801,7 +1802,7 @@ def _completed_gate_fixture(root: Path):
             mixing = two_axis_mixing(value["perspectives"], value["grade"])
             value.update({
                 "notice_id": notice_id, "judgment_mode": "신규", "carried_over": False,
-                "rejudge_reason": None, "model_name": MODEL_NAME, "model_digest": DIGEST,
+                "rejudge_reason": None, "model_name": APPROVED_MODEL, "model_digest": DIGEST,
                 "prompt_version": "prompt-1", "policy_version": "policy-1",
                 "company_profile_version": PROFILE_VERSION, "company_profile_digest": DIGEST,
                 "judged_in_run": FIXED_RUN_ID, "recorded_in_run": FIXED_RUN_ID,
@@ -1813,14 +1814,14 @@ def _completed_gate_fixture(root: Path):
         decisions_value = {
             "schema_version": "bidops.decisions.v3", "execution_id": execution_id, "run_id": FIXED_RUN_ID,
             "generated_at": NOW.isoformat(), "screening_basis": "회차에 고정된 정규화 공고와 회사 프로필·정책 버전",
-            "model_name": MODEL_NAME, "model_digest": DIGEST, "prompt_version": "prompt-1", "policy_version": "policy-1",
+            "model_name": APPROVED_MODEL, "model_digest": DIGEST, "prompt_version": "prompt-1", "policy_version": "policy-1",
             "company_profile_version": PROFILE_VERSION, "company_profile_digest": DIGEST, "judgments": decisions,
         }
         _decision_path, _decision_digest = store.write_json(execution_id, "screening-decisions.json", decisions_value)
         workspace.close()
         execution_rows.append(ScreeningExecution(
             execution_id=execution_id, trigger="quality_gate", source_run_id=FIXED_RUN_ID, scope="quality_sample", status="성공",
-            requested_by="tester", policy_version="policy-1", prompt_version="prompt-1", model_name=MODEL_NAME,
+            requested_by="tester", policy_version="policy-1", prompt_version="prompt-1", model_name=APPROVED_MODEL,
             model_digest=DIGEST, company_profile_version=PROFILE_VERSION, company_profile_digest=DIGEST,
             generation_config_json=legacy_value, generation_config_digest=legacy_digest,
             input_artifact_path=input_path, input_artifact_digest=input_digest, artifact_dir=f"data/screening-executions/{execution_id}",
@@ -1835,7 +1836,7 @@ def _completed_gate_fixture(root: Path):
             gate_id=gate_id, purpose="operational_approval", execution_status="대기", result_status="미측정",
             baseline_run_id=FIXED_RUN_ID, sample_artifact_path=FIXED_SAMPLE_RELATIVE, sample_artifact_digest=hashlib.sha256(sample_raw).hexdigest(),
             baseline_decisions_path=FIXED_BASELINE_RELATIVE, baseline_decisions_digest=hashlib.sha256(baseline_raw).hexdigest(),
-            policy_version="policy-1", prompt_version="prompt-1", model_name=MODEL_NAME, model_digest=DIGEST,
+            policy_version="policy-1", prompt_version="prompt-1", model_name=APPROVED_MODEL, model_digest=DIGEST,
             generation_config_json=legacy_value, generation_config_digest=legacy_digest,
             company_profile_version=PROFILE_VERSION, company_profile_digest=DIGEST,
             pass_a_execution_id=execution_rows[0].execution_id, pass_b_execution_id=execution_rows[1].execution_id,

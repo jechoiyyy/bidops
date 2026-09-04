@@ -1,13 +1,12 @@
-"""Deterministic, non-production transport for screening workflow tests.
+"""판정 흐름 테스트를 위한 결정적 비운영 transport (ADR-0029).
 
-This transport implements the same small boundary as :class:`OllamaTransport`.
-It never contacts a model service.  The output is deliberately marked as a
-mock and keeps company performance evidence unknown, so it cannot be used as
-an operating screening result or as a quality approval.
+이 transport는 판정 어댑터가 쓰는 것과 **같은 OpenAI 호환 경계**
+(`models()`·`create()`)를 구현한다. 모델 서비스에 접속하지 않는다. 산출물은
+일부러 모의임을 표시하고 회사 실적 근거를 `unknown`으로 남기므로 운영 판정
+결과나 품질 승인으로 쓸 수 없다.
 
-Stage selection is based only on the required-key set in Ollama's JSON schema.
-The prompt is used for notice identity only when the synthesis response needs
-to satisfy the notice-bound judgment contract.
+stage 선택은 요청 schema의 필수 키 집합만 본다. 프롬프트는 종합 응답이
+공고에 묶인 판정 계약을 만족해야 할 때 공고 identity를 얻는 데만 쓴다.
 """
 
 from __future__ import annotations
@@ -19,17 +18,23 @@ import re
 from typing import Any, Final
 from uuid import NAMESPACE_URL, uuid5
 
+from ..core.config import get_settings
 from .contracts import (
     EXCLUSION_CATEGORIES,
-    MODEL_NAME,
     PERSPECTIVE_NAMES,
     canonical_json,
 )
 
 
-# This is a synthetic identity, not an Ollama blob digest.  It is deliberately
-# exposed so persisted ScreeningAttempt telemetry can distinguish a reference
-# mock execution from a real model execution by digest alone.
+def _model_name() -> str:
+    """모의 응답이 말하는 모델명. 코드에 고정하지 않고 설정에서 읽는다."""
+
+    return get_settings().vllm_screening_model
+
+
+# 합성 identity이며 배포가 선언한 실제 revision이 아니다. 저장된
+# ScreeningAttempt telemetry가 digest만으로 참조용 모의 실행과 실제 모델
+# 실행을 구분할 수 있도록 일부러 공개한다.
 MOCK_MODEL_DIGEST: Final[str] = "0f1e2d3c4b5a69788796a5b4c3d2e1f0aabbccddeeff00112233445566778899"
 
 _NOTICE_ASSIGNMENT: Final[str] = "notice_json="
@@ -364,9 +369,12 @@ def _stage_matches(kind: str, name: str | None, requested: str | None) -> bool:
 
 
 class MockScreeningTransport:
-    """Implement the Ollama transport contract with deterministic fixtures."""
+    """판정 어댑터의 OpenAI 호환 경계를 결정적 fixture로 구현한다."""
 
     model_digest = MOCK_MODEL_DIGEST
+    #: 배포 선언 revision 자리에 놓이는 모의 값. 어댑터의 64자 digest 규칙을
+    #: 그대로 통과해야 하므로 실제 실행과 같은 fail-closed 경로를 탄다.
+    model_revision = MOCK_MODEL_DIGEST
 
     def __init__(
         self,
@@ -381,29 +389,32 @@ class MockScreeningTransport:
         self.failure_mode = failure_mode
         self.failure_stage = failure_stage
         self.requests: list[dict[str, Any]] = []
+        self.models_calls = 0
 
     @property
     def generate_requests(self) -> list[dict[str, Any]]:
-        return [
-            request
-            for request in self.requests
-            if request["path"] == "/api/generate"
-        ]
+        return list(self.requests)
 
     def _envelope(
         self,
         value: dict[str, Any],
         *,
-        done: bool = True,
-        done_reason: str = "stop",
+        finish_reason: str = "stop",
         raw: str | None = None,
     ) -> dict[str, Any]:
         return {
-            "model": MODEL_NAME,
-            "digest": MOCK_MODEL_DIGEST,
-            "done": done,
-            "done_reason": done_reason,
-            "response": canonical_json(value) if raw is None else raw,
+            "model": _model_name(),
+            "model_revision": MOCK_MODEL_DIGEST,
+            "choices": [
+                {
+                    "index": 0,
+                    "finish_reason": finish_reason,
+                    "message": {
+                        "role": "assistant",
+                        "content": canonical_json(value) if raw is None else raw,
+                    },
+                }
+            ],
         }
 
     def _generate_response(
@@ -417,9 +428,8 @@ class MockScreeningTransport:
         if not _stage_matches(kind, name, self.failure_stage):
             return self._envelope(output)
         if self.failure_mode == "schema_violation":
-            # Keep an evidence member so the authoritative validator reports a
-            # schema violation rather than classifying the response as missing
-            # evidence.  The extra key is intentionally never repaired here.
+            # 권위 있는 validator가 근거 누락이 아니라 schema 위반으로
+            # 보고하도록 evidence 항목은 남긴다. 추가 키는 일부러 고치지 않는다.
             output["모의 계약 위반"] = "추가 키가 있는 모의 응답입니다."
             return self._envelope(output)
         if self.failure_mode == "evidence_missing":
@@ -431,7 +441,7 @@ class MockScreeningTransport:
         if self.failure_mode == "malformed_json":
             return self._envelope(output, raw="{")
         if self.failure_mode == "truncated_output":
-            return self._envelope(output, done=False, done_reason="length")
+            return self._envelope(output, finish_reason="length")
         if self.failure_mode == "notice_id_mismatch":
             if kind == "judgment":
                 output["notice_id"] = "모의 notice_id 불일치 자리표시자"
@@ -440,44 +450,30 @@ class MockScreeningTransport:
             return self._envelope(output)
         return self._envelope(output)
 
-    def request(
-        self,
-        method: str,
-        path: str,
-        payload: Mapping[str, Any] | None,
-        *,
-        timeout: float,
-    ) -> Mapping[str, Any]:
-        self.requests.append(
-            {
-                "method": method,
-                "path": path,
-                "payload": None if payload is None else deepcopy(dict(payload)),
-                "timeout": timeout,
-            }
-        )
-        if path == "/api/tags":
-            if method != "GET" or payload is not None:
-                raise MockScreeningTransportError("mock tags request shape is invalid")
-            return {
-                "models": [
-                    {
-                        "name": MODEL_NAME,
-                        "model": MODEL_NAME,
-                        "digest": MOCK_MODEL_DIGEST,
-                    }
-                ]
-            }
-        if path != "/api/generate":
-            raise MockScreeningTransportError("mock transport path is unsupported")
-        if method != "POST" or not isinstance(payload, Mapping):
+    def models(self) -> Mapping[str, Any]:
+        """`GET /models` 응답 모양. 설정이 정한 모델명 하나만 낸다."""
+
+        self.models_calls += 1
+        return {"data": [{"id": _model_name(), "object": "model", "model_revision": MOCK_MODEL_DIGEST}]}
+
+    def create(self, **request: Any) -> Mapping[str, Any]:
+        """`chat.completions.create` 모양. 소켓을 열지 않는다."""
+
+        self.requests.append(deepcopy(dict(request)))
+        messages = request.get("messages")
+        if not isinstance(messages, list) or len(messages) != 2:
             raise MockScreeningTransportError("mock generate request shape is invalid")
-        prompt = payload.get("prompt")
-        schema = payload.get("format")
+        prompt = messages[1].get("content") if isinstance(messages[1], Mapping) else None
+        response_format = request.get("response_format")
+        schema = None
+        if isinstance(response_format, Mapping):
+            json_schema = response_format.get("json_schema")
+            if isinstance(json_schema, Mapping):
+                schema = json_schema.get("schema")
         if not isinstance(prompt, str) or not prompt:
             raise MockScreeningTransportError("mock prompt is missing")
         if not isinstance(schema, Mapping):
-            raise MockScreeningTransportError("mock format schema is missing")
+            raise MockScreeningTransportError("mock response schema is missing")
         return self._generate_response(prompt, schema)
 
 

@@ -18,6 +18,7 @@ from typing import Any, Mapping, Sequence
 
 from .artifacts import canonical_bytes
 from .contracts import ContractViolation, PERSPECTIVE_NAMES, two_axis_mixing, validate_judgment
+from ..core.config import get_settings
 from ..core.generation_config import GenerationConfigError, config_from_value, legacy_generation_config, validate_digest
 
 
@@ -208,7 +209,10 @@ def _judgment_map(
                         raise ContractViolation(f"{key} must be a digest")
                 if item["company_profile_version"] != f"company-profile.sha256:{item['company_profile_digest']}":
                     raise ContractViolation("company profile identity does not match digest")
-                if item["model_name"] != "qwen3.8:27b":
+                # 승인된 모델명은 `BIDOPS_VLLM_SCREENING_MODEL`이 정한다.
+                # 코드에 박으면 배포가 모델을 바꿀 때 이 게이트가 정상 산출물을
+                # 거부하게 된다.
+                if item["model_name"] != get_settings().vllm_screening_model:
                     raise ContractViolation("model identity is invalid")
                 if item["judgment_mode"] not in {"신규", "재판정", "승계"} or type(item["carried_over"]) is not bool:
                     raise ContractViolation("judgment provenance is invalid")

@@ -1,5 +1,5 @@
-"""Deterministic test doubles for the model boundary."""
+"""모델 경계의 결정적 test double."""
 
-from .ollama import FakeOllamaTransport
+from .model_transport import APPROVED_MODEL, DECLARED_REVISION, FakeScreeningTransport, completion
 
-__all__ = ["FakeOllamaTransport"]
+__all__ = ["APPROVED_MODEL", "DECLARED_REVISION", "FakeScreeningTransport", "completion"]

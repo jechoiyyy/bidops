@@ -25,9 +25,8 @@ from ..core.run_id import parse_run_id
 from ..lifecycle.models import Notice, Run
 from .models import CompanyProfileSnapshot, ScreeningExecution, ScreeningPolicy
 from .artifacts import ArtifactError, ArtifactStore, ExecutionWorkspace, aware_iso, canonical_bytes, sha256_bytes
-from .contracts import MODEL_NAME
 from ..core.generation_config import GenerationConfig, generation_config_from_settings
-from .ollama import ModelInspectionError, OllamaClient
+from .model_adapter import ModelInspectionError, ScreeningModelClient
 from .policy import canonical_policy_bytes, policy_content_digest
 from .profile_snapshot import (
     BASELINE_COMMIT,
@@ -1543,8 +1542,7 @@ class ScreeningOrchestrator:
         *,
         session_factory: Any | None = None,
         queue: ScreeningQueue | None = None,
-        ollama: OllamaClient | Any | None = None,
-        ollama_client: OllamaClient | Any | None = None,
+        model_client: ScreeningModelClient | Any | None = None,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         self.settings = settings or get_settings()
@@ -1552,7 +1550,7 @@ class ScreeningOrchestrator:
             session_factory = sessionmaker(bind=session_factory.get_bind(), class_=Session, autoflush=False, expire_on_commit=False)
         self.session_factory = session_factory
         self.queue = queue or ScreeningQueue(session_factory=session_factory, settings=self.settings)
-        self.ollama = ollama or ollama_client or OllamaClient(settings=self.settings)
+        self.model_client = model_client or ScreeningModelClient(settings=self.settings)
         self.clock = clock or (lambda: datetime.now(timezone.utc))
 
     def create_execution(
@@ -1619,10 +1617,10 @@ class ScreeningOrchestrator:
             except (ProfileSnapshotError, OSError):
                 raise ScreeningCreationError("profile_snapshot") from None
             try:
-                model_identity = self.ollama.inspect_model()
+                model_identity = self.model_client.inspect_model()
             except (ModelInspectionError, OSError, ConnectionError, TimeoutError):
                 raise ScreeningCreationError("model_inspection") from None
-            if model_identity.model_name != MODEL_NAME:
+            if model_identity.model_name != self.settings.vllm_screening_model:
                 raise ScreeningCreationError("model_inspection")
             generated_at = aware_iso(_now(self.clock))
             # Read generation settings exactly once.  The resulting canonical
@@ -1779,10 +1777,10 @@ class ScreeningOrchestrator:
         except (ProfileSnapshotError, OSError):
             raise ScreeningCreationError("profile_snapshot") from None
         try:
-            model_identity = self.ollama.inspect_model()
+            model_identity = self.model_client.inspect_model()
         except (ModelInspectionError, OSError, ConnectionError, TimeoutError):
             raise ScreeningCreationError("model_inspection") from None
-        if model_identity.model_name != MODEL_NAME:
+        if model_identity.model_name != self.settings.vllm_screening_model:
             raise ScreeningCreationError("model_inspection")
         generated_at = aware_iso(_now(self.clock))
         generation_config = generation_config_from_settings(self.settings)

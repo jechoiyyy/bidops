@@ -7,26 +7,35 @@ import pytest
 from app.core.config import Settings
 
 
-@pytest.mark.parametrize("value", ["not a url", "bogus", "file:///tmp/ollama", "http://user:pass@example.test"])
-def test_ollama_base_url_rejects_unsafe_values(value: str) -> None:
+def test_screening_provider_is_limited_to_vllm_and_mock() -> None:
+    """C-1도 승인된 OpenAI 호환 배치와 mock 둘뿐이다. Ollama 경로는 제거됐다."""
+
+    field = Settings.model_fields["screening_provider"]
+    assert set(get_args(field.annotation)) == {"vllm", "mock"}
     with pytest.raises(ValueError):
-        Settings(model_base_url=value)
+        Settings(screening_provider="ollama")
 
 
-@pytest.mark.parametrize("value", ["http://ollama.example:11434", "https://ollama.example/v1"])
-def test_ollama_base_url_accepts_absolute_http_urls(value: str) -> None:
-    assert Settings(model_base_url=value).model_base_url == value
+def test_removed_ollama_settings_have_no_replacement_alias() -> None:
+    """설정 표면에 Ollama 전용 항목이 남아 있으면 fail closed가 무너진다.
+
+    이름만 남겨 두면 배포가 그 값을 채우고도 아무 효과가 없는 상태가 되고,
+    endpoint·모델명이 두 곳에서 정의되는 것처럼 보인다.
+    """
+
+    names = set(Settings.model_fields)
+    assert not [name for name in names if "ollama" in name.lower()]
+    for removed in ("model_name", "model_base_url", "model_timeout", "model_keep_alive", "live_test"):
+        assert removed not in names
+        assert not hasattr(Settings, removed)
+    aliases = {str(field.validation_alias) for field in Settings.model_fields.values()}
+    assert not [alias for alias in aliases if "OLLAMA" in alias]
 
 
-@pytest.mark.parametrize("value", ["30m", "1.5h", "0", "-1", 0, -1, 123456])
-def test_ollama_keep_alive_preserves_supported_duration_forms(value) -> None:
-    assert Settings(model_keep_alive=value).model_keep_alive == value
-
-
-@pytest.mark.parametrize("value", ["bogus", "30", "-2", True])
-def test_ollama_keep_alive_rejects_invalid_duration_forms(value) -> None:
-    with pytest.raises(ValueError):
-        Settings(model_keep_alive=value)
+def test_screening_model_name_comes_from_one_setting() -> None:
+    assert Settings.model_fields["vllm_screening_model"].validation_alias == "BIDOPS_VLLM_SCREENING_MODEL"
+    assert Settings().vllm_screening_model == "qwen3.8-27B"
+    assert Settings(vllm_screening_model="배포가-정한-모델").vllm_screening_model == "배포가-정한-모델"
 
 
 def test_analysis_provider_is_limited_to_vllm_and_mock() -> None:

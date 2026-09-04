@@ -1,8 +1,11 @@
-"""Frozen, stage-aware Ollama generation configuration.
+"""얼려서 실행에 묶는 stage별 생성 설정.
 
-Generation settings are execution data, not process configuration.  This
-module is the single source of truth for the canonical representation used at
-enqueue time, in screening-input.v1, and by every model request.
+생성 설정은 프로세스 설정이 아니라 **실행 데이터**다. 이 모듈이 enqueue 시점,
+`bidops.screening-input.v1`, 모든 모델 요청이 공유하는 정본 표현을 갖는다.
+
+이름(`num_ctx`·`num_predict`)은 계약 digest에 묶여 있어 바꾸지 않는다. OpenAI
+호환 호출에서는 stage별 `num_predict`가 `max_tokens`로 대응되고, `num_ctx`는
+대응 파라미터가 없어 **binding 기록에만** 남는다.
 """
 
 from __future__ import annotations
@@ -21,8 +24,8 @@ DEFAULT_PERSPECTIVE_NUM_PREDICT: Final[int] = 2_048
 DEFAULT_COUNTERARGUMENT_NUM_PREDICT: Final[int] = 2_048
 DEFAULT_SYNTHESIS_NUM_PREDICT: Final[int] = 4_096
 
-# These bounds deliberately reject values that are technically accepted by a
-# particular Ollama build but are unsafe or non-reproducible for this worker.
+# 어떤 배치는 기술적으로 받아들이지만 이 worker에게는 안전하지 않거나
+# 재현되지 않는 값을 일부러 거부하는 경계다.
 MIN_NUM_CTX: Final[int] = 1
 MAX_NUM_CTX: Final[int] = 131_072
 MIN_NUM_PREDICT: Final[int] = 1

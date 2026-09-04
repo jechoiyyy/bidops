@@ -25,9 +25,6 @@ x-bidops-runtime: &bidops-runtime
     # 이 SQLite 경로는 정본이 아니라 `db-backup`/`db-migrate`/`db-verify`가
     # 다루는 migration 입력 스냅숏이다.
     BIDOPS_DATABASE_URL: sqlite:////app/web/data/bidops.db
-    # Set this to an approved Ollama endpoint in .env. Loopback is safe by
-    # default, so an unavailable model never affects /api/health.
-    BIDOPS_OLLAMA_BASE_URL: "${BIDOPS_OLLAMA_BASE_URL:-http://127.0.0.1:11434}"
     BIDOPS_SCHEDULER_ENABLED: "${BIDOPS_SCHEDULER_ENABLED:-false}"
     # These are consumed only by the explicitly invoked ops-profile helpers;
     # blank defaults cannot trigger a backup, migration, or policy seed.
