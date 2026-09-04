@@ -56,6 +56,15 @@ SCHEMA_IMPORT_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset()
 #: 검사 4 — 다른 모듈 모델로 향하는 lifecycle 모델의 `relationship`.
 LIFECYCLE_RELATIONSHIP_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset()
 
+#: 검사 5 — screening·deep_review가 lifecycle 테이블에 직접 쓰거나 잠그는 자리.
+#:
+#: 최종 검토가 "§4의 네 세부 규칙 중 쓰기·잠금 한 줄만 어떤 검사도 덮지 않는다"를
+#: 지적해 검사를 새로 넣었다. 넣는 시점의 실측 위반은 17건이었고(screening 3,
+#: deep_review 14) 전부 `lifecycle.lock_notice`·`lock_attachment`·
+#: `lock_active_attachments`·`delete_run`·`seed_default_portals`로 옮겨 **0이 됐다.**
+#: 다른 목록과 같은 계약이다 — 목록에 없는 새 위반은 즉시 실패한다.
+LIFECYCLE_TABLE_WRITE_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset()
+
 
 #: 허용 목록 크기의 상한. 이주 task는 이 값을 **내리기만** 한다.
 #: T2 검토에서 한 번 다시 세웠다: deep_review → screening을 seam 이름만 허용하도록
@@ -76,4 +85,5 @@ BASELINE_SIZES: dict[str, int] = {
     "router_orm_access": 18,
     "schema_imports_model_or_service": 0,
     "lifecycle_relationship": 0,
+    "lifecycle_table_write": 0,
 }

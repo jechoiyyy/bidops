@@ -45,7 +45,7 @@ from ..schemas.document_bundles import (
     DocumentVersionView,
     PatchDocumentVersionRequest,
 )
-from ...lifecycle import register_attachment
+from ...lifecycle import lock_active_attachments, lock_attachment, lock_notice, register_attachment
 from . import assets
 from .document_converter import ScratchDocumentProcessor
 from .document_structures import materialize_structure
@@ -594,8 +594,14 @@ class DocumentBundleService:
         """사람이 정정한 등급이 있으면 그것, 없으면 판정 등급 (명세 §6.3).
 
         판정과 리뷰는 선별 소유이므로 여기서 직접 조회하지 않고 선별이 공개한
-        읽기 전용 seam 함수만 쓴다. 선별이 없으면 두 값 모두 `None`이고, 문서
+        읽기 전용 seam 함수만 쓴다. 판정도 정정도 없는 공고면 `None`이고, 문서
         bundle 생성은 등급 부적합으로 막힌다.
+
+        **선별 모듈이 배포에 아예 없으면** 아래 지연 import가 `ModuleNotFoundError`
+        를 낸다. `BIDOPS_MODULES`로 끄는 것과는 다르다 — 그때는 등록만 빠지고
+        `app/screening/`은 그대로 있어 이 함수가 정상 동작한다. 폴더까지 없는
+        구성은 §2 완료 기준 6의 격리 검증용이며, 그 트리에서 이 경로를 태우면
+        4xx가 아니라 예외가 오른다.
         """
 
         # 선별 seam은 함수 안에서 늦게 들여온다. 방향과 이름은 §4·§6.3 그대로이며
@@ -673,11 +679,7 @@ class DocumentBundleService:
             # collision is retried after the failed transaction is rolled back
             # instead of leaking an endpoint-2 version_conflict response.
             session.rollback()
-            notice = session.scalar(
-                select(Notice)
-                .where(Notice.id == notice_id)
-                .with_for_update()
-            )
+            notice = lock_notice(session, notice_id)
             if notice is None:
                 raise BundleServiceError("not_found", "공고를 찾을 수 없습니다", status_code=404)
             effective_grade_at_start = self.effective_grade(session, notice.id)
@@ -986,11 +988,7 @@ class DocumentBundleService:
                     raise BundleServiceError("not_found", "provider 첨부를 찾을 수 없습니다", status_code=404)
                 notice_id = identity.notice_id
                 session.rollback()
-            notice = session.scalar(
-                select(Notice)
-                .where(Notice.id == notice_id)
-                .with_for_update()
-            )
+            notice = lock_notice(session, notice_id)
             if notice is None:
                 raise BundleServiceError("not_found", "provider 첨부를 찾을 수 없습니다", status_code=404)
             bundle = session.scalar(
@@ -999,12 +997,7 @@ class DocumentBundleService:
                 .execution_options(populate_existing=True)
                 .with_for_update()
             )
-            attachment = session.scalar(
-                select(Attachment)
-                .where(Attachment.id == attachment_id)
-                .execution_options(populate_existing=True)
-                .with_for_update()
-            )
+            attachment = lock_attachment(session, attachment_id, populate_existing=True)
             if bundle is None or attachment is None:
                 raise BundleServiceError("not_found", "provider 첨부를 찾을 수 없습니다", status_code=404)
             if attachment.notice_id != bundle.notice_id:
@@ -1065,11 +1058,7 @@ class DocumentBundleService:
         assets.cleanup_paths(request_paths)
         session.rollback()
         try:
-            notice = session.scalar(
-                select(Notice)
-                .where(Notice.id == snapshot.bundle_notice_id)
-                .with_for_update()
-            )
+            notice = lock_notice(session, snapshot.bundle_notice_id)
             if notice is None:
                 raise BundleServiceError("not_found", "기존 첨부를 찾을 수 없습니다", status_code=404)
             bundle = session.scalar(
@@ -1078,12 +1067,7 @@ class DocumentBundleService:
                 .execution_options(populate_existing=True)
                 .with_for_update()
             )
-            attachment = session.scalar(
-                select(Attachment)
-                .where(Attachment.id == attachment_id)
-                .execution_options(populate_existing=True)
-                .with_for_update()
-            )
+            attachment = lock_attachment(session, attachment_id, populate_existing=True)
             if bundle is None or attachment is None or attachment.notice_id != snapshot.attachment_notice_id:
                 raise BundleServiceError("not_found", "기존 첨부를 찾을 수 없습니다", status_code=404)
             if bundle.status != "draft" or not _legacy_scope_matches(snapshot, bundle, attachment):
@@ -1208,11 +1192,7 @@ class DocumentBundleService:
             # This is the race fence: no ORM write happens before this lock
             # and complete source/bundle comparison.
             session.rollback()
-            notice = session.scalar(
-                select(Notice)
-                .where(Notice.id == snapshot.bundle_notice_id)
-                .with_for_update()
-            )
+            notice = lock_notice(session, snapshot.bundle_notice_id)
             if notice is None:
                 raise BundleServiceError("not_found", "기존 첨부를 찾을 수 없습니다", status_code=404)
             bundle = session.scalar(
@@ -1221,12 +1201,7 @@ class DocumentBundleService:
                 .execution_options(populate_existing=True)
                 .with_for_update()
             )
-            attachment = session.scalar(
-                select(Attachment)
-                .where(Attachment.id == attachment_id)
-                .execution_options(populate_existing=True)
-                .with_for_update()
-            )
+            attachment = lock_attachment(session, attachment_id, populate_existing=True)
             if bundle is None or attachment is None or attachment.notice_id != snapshot.attachment_notice_id:
                 raise BundleServiceError("not_found", "기존 첨부를 찾을 수 없습니다", status_code=404)
             if bundle.status != "draft" or not _legacy_scope_matches(snapshot, bundle, attachment):
@@ -1456,11 +1431,7 @@ class DocumentBundleService:
             # transaction/lock after the snapshot and is the race fence with
             # confirmation and provider metadata updates.
             session.rollback()
-            notice = session.scalar(
-                select(Notice)
-                .where(Notice.id == snapshot.notice_id)
-                .with_for_update()
-            )
+            notice = lock_notice(session, snapshot.notice_id)
             if notice is None:
                 raise BundleServiceError("not_found", "provider 첨부를 찾을 수 없습니다", status_code=404)
             bundle = session.scalar(
@@ -1469,12 +1440,7 @@ class DocumentBundleService:
                 .execution_options(populate_existing=True)
                 .with_for_update()
             )
-            attachment = session.scalar(
-                select(Attachment)
-                .where(Attachment.id == attachment_id)
-                .execution_options(populate_existing=True)
-                .with_for_update()
-            )
+            attachment = lock_attachment(session, attachment_id, populate_existing=True)
             if bundle is None or attachment is None or attachment.notice_id != snapshot.notice_id or bundle.notice_id != snapshot.bundle_notice_id:
                 raise BundleServiceError("not_found", "provider 첨부를 찾을 수 없습니다", status_code=404)
             if bundle.status != "draft":
@@ -1689,7 +1655,7 @@ class DocumentBundleService:
             raise BundleServiceError("not_found", "document version을 찾을 수 없습니다", status_code=404)
         notice_id = identity.notice_id
         session.rollback()
-        notice = session.scalar(select(Notice).where(Notice.id == notice_id).with_for_update())
+        notice = lock_notice(session, notice_id)
         if notice is None:
             session.rollback()
             raise BundleServiceError("not_found", "공고를 찾을 수 없습니다", status_code=404)
@@ -1838,11 +1804,7 @@ class DocumentBundleService:
         notice_id = bundle_identity.notice_id
         session.rollback()
 
-        notice = session.scalar(
-            select(Notice)
-            .where(Notice.id == notice_id)
-            .with_for_update()
-        )
+        notice = lock_notice(session, notice_id)
         if notice is None:
             session.rollback()
             raise BundleServiceError("not_found", "공고를 찾을 수 없습니다", status_code=404, request_id=request.request_id)
@@ -1890,12 +1852,7 @@ class DocumentBundleService:
         # their structures.  The explicit rows (rather than a joined lock)
         # make the notice-wide retirement fence visible and deterministic to
         # PostgreSQL and to the future T7 attachment writers.
-        attachments = session.scalars(
-            select(Attachment)
-            .where(Attachment.notice_id == notice.id, Attachment.retired_at.is_(None))
-            .order_by(Attachment.id.asc())
-            .with_for_update()
-        ).all()
+        attachments = lock_active_attachments(session, notice.id)
         attachment_ids = {attachment.id for attachment in attachments}
         all_current = session.scalars(
             select(DocumentVersion)

@@ -201,8 +201,9 @@ screening의 `POST /api/runs/{run_id}/pipeline/judgment`가 lifecycle의
 1. **`app/migrations/import_sqlite.py`가 네 모듈의 `models`를 직접 import한다.** 설계의 예외
    목록은 `alembic/env.py`와 migration revision 파일만 적었으나, 이 파일도 legacy·Lean v1
    대상 테이블을 전부 등록해야 한다. 대안(네 모듈의 `__init__` import)은 성립하지 않는다 —
-   `app/core/__init__.py`와 `app/deep_review/__init__.py`가 `models`를 공개 이름으로 올리지
-   않아 테이블이 등록되지 않는다. 예외 목록에 이 파일을 더했다.
+   **네 모듈 중 어느 것도** `models`를 공개 이름으로 올리지 않고, 세 도메인 모듈은 아래 이탈 4의
+   지연 공개 때문에 `import app.lifecycle`이 아무것도 import하지 않는다. 예외 목록에 이 파일을
+   더했다.
 2. **경계 검사 1의 대상 범위는 `app/` 아래 모든 `.py`(조립 계층 포함)와 `tests/<module>/`
    아래 모든 `.py`다.** 검사기가 한때 `tests/app/`도 조립 계층으로 보고 "공개 이름만" 규칙을
    적용했는데, `tests/app/`은 `tests/<module>/`이 아니다. 그 과잉 적용은 통합 테스트를 제자리에
@@ -214,7 +215,9 @@ screening의 `POST /api/runs/{run_id}/pipeline/judgment`가 lifecycle의
    통과하라고 한다. 모듈 최상위에서 seam을 import하면 두 조항이 어긋난다. 그래서 seam은
    **필요할 때만** — 함수 안에서 — import한다. screening이 있을 때 동작은 완전히 같고,
    없으면 모듈은 뜨며 그 조회를 실제로 쓰는 테스트만 `tests/app/`으로 간다.
-4. **네 모듈의 `__init__.py`는 지연 공개다**(`_EXPORTS` 표 + 모듈 `__getattr__`). models 분할
+4. **세 도메인 모듈(lifecycle·screening·deep_review)의 `__init__.py`는 지연 공개다**
+   (`_EXPORTS` 표 + 모듈 `__getattr__`). `app/core/__init__.py`는 평범한 eager import다 —
+   core는 아무 도메인 모듈도 import하지 않아 순환이 생길 수 없다. models 분할
    과정에서 `app/ingest/loader.py`(현재 `app/lifecycle/ingest/loader.py`)가 `app.lifecycle.models`를 import하게 되자 패키지 초기화가
    `app/lifecycle/api.py`를 거쳐 loader로 되돌아오는 순환이 생겨 `python -m app.screening.cli`가
    죽었다(전체 테스트는 conftest의 import 순서 때문에 이를 가렸다). 패키지 초기화가 아무것도
@@ -231,11 +234,34 @@ screening의 `POST /api/runs/{run_id}/pipeline/judgment`가 lifecycle의
 7. **hook 실패 격리는 hook 구현 안에 둔다.** 회차 적재 hook은 savepoint를 hook 안에 두었고
    추적 결정 hook은 호출부에 남겼다(동치는 테스트로 확인). 여러 모듈이 같은 hook을 등록할 때
    한 hook의 실패가 형제 hook의 성공 쓰기를 되돌리지 않으려면 hook 안이 맞다. 앞으로 추가되는
-   hook은 자기 보호를 갖춰야 한다.
+   hook은 자기 보호를 갖춰야 한다. **예외는 판정·리뷰 적재 hook(screening)이다** — 산출물이
+   깨졌으면 회차 적재 전체를 되돌려야 하므로 일부러 격리하지 않는다. 격리 여부는 "이 hook의
+   실패가 회차를 무효로 만드는가"로 정한다.
 8. **`tests/agents/`의 두 파일은 `tests/app/`으로 갔다**(`test_deep_review_agent.py`,
    `test_document_preparation_agent.py`). fixture가 screening의 판정 행을 심어 두 모듈이 합쳐지는
    검사이기 때문이다. `docs/backend-modules/design.md` §4.5 표는 `tests/deep_review`로 적었지만
    테스트 배치의 산문 규칙("두 모듈 이상이 합쳐지는 통합 검사는 `tests/app/`")을 따랐다.
+
+9. **기준 6 검증 스크립트는 형제 모듈의 `models.py` 한 파일을 남긴다.** 기준의 문면은 형제
+   모듈 폴더가 "없이"이지만, `alembic/env.py`와 모든 revision이 네 모듈의 `models`를 import해야
+   `Base.metadata`가 완성되므로(위 예외) 폴더를 통째로 지우면 PostgreSQL harness 자체가 뜨지
+   않아 postgres 테스트가 통째로 빠진다. `models.py`만 남기고 `__init__.py`는 지우면 형제
+   모듈은 namespace package가 되어 공개 표면 접근은 그대로 실패한다 — 격리 강도는 줄지 않고
+   harness만 산다. `web/backend/scripts/verify_module_isolation.sh`가 그렇게 한다.
+
+10. **lifecycle 테이블 쓰기·잠금 규칙에 강제 검사를 새로 넣었다(검사 5).** 모델 클래스가 공개
+    이름이라 import 방향만 보는 검사 1로는 `select(Notice)`(허용)와 `session.add(Notice(...))`·
+    `select(Notice).with_for_update()`(금지)를 구분할 수 없다. 즉 의존 규칙 네 줄 중 이 한 줄만
+    어떤 검사도 덮지 않았고, 실제로 제품 코드 17곳이 이 규칙을 지키지 않고 있었다(screening 3,
+    deep_review 14 — 대부분 공고·첨부 잠금). 열일곱 자리를 모두 lifecycle 공개 함수
+    (`lock_notice`·`lock_attachment`·`lock_active_attachments`·`delete_run`·`seed_default_portals`)
+    로 옮기고, 같은 위반이 다시 들어오지 못하도록 검사 5를 두었다. 허용 목록은 0에서 시작한다.
+
+11. **screening이 밖으로 내보내는 seam은 실질적으로 둘이다.** `current_judgment`와
+    `latest_corrected_grade`는 deep_review가 쓰고, `current_judgments`(batch 판)는 지금 screening
+    안에서만 쓰인다. 목록 화면의 등급·판정 표시는 projection이 자기 쿼리로 채운다. 세 이름 모두
+    seam 허용 목록에 남기되, "목록 화면의 N+1을 없애려고 batch 판을 둔다"는 설명은 현재 코드와
+    다르다.
 
 ### 남는 것
 

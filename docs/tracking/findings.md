@@ -151,7 +151,7 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 
 ## legacy 첨부 취득이 객체 식별자를 provenance 자리에 넣어 운영 백엔드에서 원문을 잃는다
 
-- 재현 조건: `MinioObjectStore`처럼 `FilesystemObjectStore`가 아닌 object store에서 `assets.acquire_legacy_attachment()`를 호출하고 반환된 asset으로 `read_quarantine()`을 호출한다. `web/backend/tests/test_legacy_attachment_provenance.py`가 가짜 store로 이 조건을 재현한다.
+- 재현 조건: `MinioObjectStore`처럼 `FilesystemObjectStore`가 아닌 object store에서 `assets.acquire_legacy_attachment()`를 호출하고 반환된 asset으로 `read_quarantine()`을 호출한다. `web/backend/tests/deep_review/test_legacy_attachment_provenance.py`가 가짜 store로 이 조건을 재현한다.
 - 증상: `acquire_legacy_attachment()`가 12필드 `QuarantinedAsset`에 인자를 **9개만 위치로** 넘겼다. `object_key`가 `source_system` 자리에, object version id가 `source_attachment_key` 자리에, etag가 `source_url` 자리에 들어가고 `object_key`·`object_version_id`·`object_etag`는 `None`으로 남았다. `acquire_legacy_attachment()`는 store가 filesystem이 아니면 put 직후 로컬 quarantine 파일을 지우는데, `read_quarantine()`은 `object_key`가 없으면 그 지워진 로컬 경로를 읽으려 한다.
 - 영향: 운영 기본 백엔드가 MinIO이므로(`docker-compose.t7.yml`) legacy 첨부 ingest가 운영에서 항상 실패한다. 테스트는 filesystem store를 쓰기 때문에 로컬 파일이 남아 전부 통과했다. `test_minio_e2e`는 upload와 provider 경로만 덮고 legacy 경로를 덮지 않아 이 결함이 드러나지 않았다. 감사·응답으로 object key가 새지는 않는다 — 호출부가 `asset.source_*`를 쓰지 않고 자신의 snapshot 값을 쓴다.
 - 상태: **해결** (2026-08-31). 세 생성 지점을 모두 키워드 인자로 바꾸고 `QuarantinedAsset`을 `@dataclass(frozen=True, kw_only=True)`로 만들어 위치 인자 구성을 아예 막았다. 생성 지점이 `assets.py` 안 세 곳뿐이라 외부 호출부에 영향이 없다. 회귀 테스트 4건을 추가했고 결함을 일부러 되살려 두 건이 실패하는 것을 확인했다.
@@ -203,7 +203,7 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 - 증상: `CodexExecClient.invoke()`가 일반 vLLM과 같은 `build_prompt()`를 사용한다. stage 입력에는 구조화된 RFP 요구사항 excerpt가 들어가고 delivery stage에는 회사 profile facts·evidence가 들어가므로 hosted Codex에 전송될 수 있다.
 - 영향: 공개 발주계획 메타데이터와 별도 승인된 최소 회사 역량 요약만 외부 모델에 보낸다는 확정 정책을 위반한다. 공고 allowlist와 기본 비활성은 실행 승인만 제한할 뿐 금지된 payload 종류를 제거하지 않는다.
 - 상태: **해결** (2026-09-03, provider 제거). hosted 외부 deep-review provider와 그 Compose overlay·env 예시·설정·문서를 저장소에서 삭제했다. 남는 심층 검토 provider는 `vllm`과 `mock`뿐이며, 이 경로로 RFP·첨부·profile 전문·evidence가 외부로 나갈 수 있는 코드는 존재하지 않는다.
-- 검증: `Settings.analysis_provider`의 선택지가 `{"vllm", "mock"}`뿐이고 `codex` 이름의 설정·속성이 남지 않았음을 `web/backend/tests/test_config_t9.py`가 고정한다. backend 전체 suite는 `2 failed, 1091 passed, 5 skipped`였고 실패 2건은 이 변경과 무관한 `tests/test_screening_orchestrator.py`의 기존 결함이다(기준선 `1097 passed`에서 삭제한 테스트 7건을 빼고 새 테스트 1건을 더한 값).
+- 검증: `Settings.analysis_provider`의 선택지가 `{"vllm", "mock"}`뿐이고 `codex` 이름의 설정·속성이 남지 않았음을 `web/backend/tests/core/test_config_t9.py`가 고정한다. backend 전체 suite는 `2 failed, 1091 passed, 5 skipped`였고 실패 2건은 이 변경과 무관한 `tests/screening/test_screening_orchestrator.py`의 기존 결함이다(기준선 `1097 passed`에서 삭제한 테스트 7건을 빼고 새 테스트 1건을 더한 값).
 - 후속: 외부 비교 실험이 다시 필요하면 발주계획 전용 projection·payload preview·사람 승인 경계를 새로 설계한다. 그 구현의 테스트는 RFP, 첨부, profile 전문·evidence, 내부 review 필드가 payload에 들어가면 호출 전에 실패하는지 확인해야 한다.
 
 ## 런타임 이미지에 회사 프로필 자료가 포함된다
@@ -474,3 +474,80 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
   ([security.md](../security.md), 런타임 이미지 항목). gitignore를 푸는 것은 답이 아니다.
 - 접근 방법: 트리 사본을 만드는 검증 절차는 `git archive` 뒤에 그 두 디렉터리를 작업 트리에서
   따로 복사하는 단계를 포함한다. 사본 기반 검증을 문서로 고정할 때 이 단계를 함께 적는다.
+
+## `create_app()`은 한 프로세스에서 두 번 부를 수 없다
+
+- 확인: 2026-09-04
+- 재현 조건: 같은 인터프리터에서 `from app.main import create_app`을 한 뒤
+  `create_app()`을 부른다.
+- 증상: `RuntimeError: 판정 projection 제공자가 이미 등록됐다`로 끝난다.
+  `app/main.py`의 확장점 등록 구역은 **프로세스 전역** registry에 등록하고,
+  같은 파일의 모듈 수준 `app = create_app()`이 import만으로 그 등록을 소진한다.
+  `app/lifecycle/extensions.py`의 중복 등록 가드가 두 번째 호출을 막는다.
+- 영향: 운영은 `web/Dockerfile`의 `uvicorn app.main:app`이라 무해하다. 그러나
+  `uvicorn --factory app.main:create_app`은 즉시 죽고, 앱을 두 개 만들려는 코드는
+  `reset_extension_registry`와 `restore_extension_registry`를 손으로 짝지어야 한다
+  (`tests/app/test_module_selection.py`의 fixture가 그 boilerplate다). 이 제약이
+  어느 문서에도 없어 다음 사람이 factory 방식으로 바꾸려다 막힌다.
+- 지금 해결할 수 없는 이유: 중복 등록 가드는 "제공자가 조용히 교체되지 않는다"는
+  보장이라 그냥 없앨 수 없다. registry 수명을 앱 객체에 매다는 것은 확장점 설계를
+  다시 여는 일이고, 이번 이주의 "동작을 바꾸지 않는다"를 벗어난다.
+- 접근 방법: `create_app`이 자기 등록 구역의 registry 수명을 소유하게 하거나
+  (앱마다 registry를 새로 만들고 등록한다), 재등록을 같은 제공자에 한해 idempotent로
+  만든다. 어느 쪽이든 격리 API 테스트에서 projection이 비지 않는 것을 먼저 확인한다.
+
+## 모듈 공개 표면에 밖에서 아무도 쓰지 않는 이름이 많다
+
+- 확인: 2026-09-04
+- 재현 조건: `app/**`와 `tests/**`에서 `from app.<module> import X` / `from ..<module> import X`
+  를 AST로 모아 각 모듈 `__init__.py`의 `_EXPORTS` 키와 대조한다.
+- 증상: screening 공개 이름 66개 중 router 인스턴스와 `build_runtime`을 빼면 40여 개가
+  모듈 밖 소비자가 없다(`activate_policy`, `create_policy`, `seed_policy`,
+  `ScreeningOrchestrator`, `ScreeningWorker`, `OllamaClient`, `ArtifactStore`,
+  `assemble_*_prompt`, `load_run_judgments` 등). lifecycle에도
+  `ATTACHMENT_ORIGINS`·`get_notice`·`get_run`·`list_agency_portals`·`match_agency_portal`·
+  `list_attachments_for_notice`·`list_order_plans_for_run`·`IngestResult`·
+  `ClaimedDirectoryLoad`가 같은 상태다. 테스트조차 하위 경로로 받는다
+  (`from app.screening.ollama import OllamaClient`).
+- 영향: 넓이 자체보다 **조립 계층이 그 이름들을 쓸 수 있게 된 것**이 문제다.
+  `main.py`가 `from .screening import activate_policy, seed_policy`를 하고 startup에서
+  부르면 "앱 startup은 seed·정책 활성화를 하지 않는다"는 경계를 깨는데, 경계 검사
+  다섯 중 어느 것도 그것을 잡지 못한다 — 조립 계층 → screening 공개 이름은 허용
+  방향이기 때문이다.
+- 지금 해결할 수 없는 이유: 어느 이름이 "지금 안 쓰이지만 공개여야 하는가"는 모듈
+  진입점 설계의 판단이고, 표를 줄이면 `_EXPORTS`와 `__all__`을 함께 손봐야 해서
+  이주 검증이 끝난 시점에 넣을 변경이 아니다.
+- 접근 방법: 밖에서 안 쓰는 이름을 `_EXPORTS`에서 빼거나, 뺄 수 없으면 표를 구역으로
+  나눠 왜 공개인지(조립이 쓴다 / 형제 모듈이 쓴다 / 진입점이다)를 적는다. startup이
+  하면 안 되는 일은 별도 검사로 고정하는 편이 낫다.
+
+## `app/deep_review/contracts/schemas.py`는 호출자가 없는 재수출 파일이다
+
+- 확인: 2026-09-04
+- 재현 조건: `grep -rn "contracts.schemas\|from .schemas import" web/backend/app web/backend/tests`
+- 증상: 파일 첫 줄이 `"""Compatibility exports for callers that prefer a schemas module."""`
+  인데 `app/`·`tests/`·`scripts/`·`docs/` 어디에도 호출자가 없다. 이주 전
+  (`app/contracts/deep_review/schemas.py`)에도 이미 그랬다.
+- 영향: 없다. 다만 "옛 import 경로에 호환 shim을 두지 않는다"는 이번 경계 작업의
+  원칙과 파일이 스스로 밝힌 목적이 어긋나 보여, 읽는 사람이 살아 있는 호환 경로로 오해한다.
+- 지금 해결할 수 없는 이유: 죽은 코드 정리는 이번 이주의 범위 밖이었다. 이주가 파일을
+  옮긴 commit에서 함께 지웠어야 한다.
+- 접근 방법: 지운다. 지우기 전에 `deep_review/contracts/__init__.py`가 같은 이름을
+  올리고 있는지만 확인한다.
+
+## lifecycle의 확장점 실패 로그가 특정 제공자의 어휘를 쓴다
+
+- 확인: 2026-09-04
+- 재현 조건: `app/lifecycle/routers/opportunities.py`의 추적 결정 hook 호출부를 본다.
+- 증상: 바로 위 주석이 "어느 모듈이 무엇을 하는지는 모르고"라고 적어 두고, 아래 except
+  블록은 `"pre-spec attachment eligibility refresh failed"`와
+  `event: "prespec_attachment.refresh_failed"`를 남긴다. 그 문구는 지금 등록된 유일한
+  제공자(deep_review)의 어휘다.
+- 영향: `BIDOPS_MODULES`에서 deep_review를 빼고 다른 제공자를 붙이면 로그가 거짓이 된다.
+  lifecycle이 형제 모듈을 모른다는 규칙이 코드에서는 지켜지는데 로그에서만 새는 자리다.
+  (호출부의 try/except 동작 자체는 이주 전과 같다.)
+- 지금 해결할 수 없는 이유: 없다. 작은 문자열 변경이지만 이주 검증이 끝난 뒤에 로그
+  이벤트 이름을 바꾸면 그 이름에 기대는 관측 기록과 어긋난다.
+- 접근 방법: 이벤트 이름을 확장점 이름 기준으로 바꾸고(`extension.tracking_hook_failed`),
+  어느 제공자가 실패했는지는 registry가 아는 이름을 함께 남긴다. 로그 이름을 바꾸는
+  작업과 함께 묶는다.

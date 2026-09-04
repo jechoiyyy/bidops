@@ -17,12 +17,12 @@ from threading import Event
 from typing import Any, Callable, Mapping
 from uuid import uuid4
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session, sessionmaker
 
 from ..core.config import Settings, get_settings
 from ..core.run_id import parse_run_id
-from ..lifecycle import ingest_run
+from ..lifecycle import delete_run, ingest_run
 from ..lifecycle.models import Notice, NoticeObservation, Run
 from .models import (
     CompanyProfileSnapshot,
@@ -1617,7 +1617,8 @@ class ScreeningWorker:
                 with self._session() as session:
                     if derived_id:
                         session.execute(update(ScreeningExecution).where(ScreeningExecution.published_run_id == derived_id).values(published_run_id=None))
-                        session.execute(delete(Run).where(Run.id == derived_id))
+                        # lifecycle 테이블 쓰기는 lifecycle 공개 함수로만 한다(§4).
+                        delete_run(session, derived_id)
                     session.commit()
                 db_clean = True
                 break

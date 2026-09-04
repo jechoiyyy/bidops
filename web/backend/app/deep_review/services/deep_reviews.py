@@ -31,7 +31,7 @@ from ..models import (
     ProfileVersion,
     WorkJob,
 )
-from ...lifecycle.models import Notice
+from ...lifecycle import lock_notice
 from ...core.config import get_settings
 from .deep_review_validation import DeepReviewValidationError, merge_stage_chunks, validate_deep_review_stage
 from ...core.model_binding import canonical_json_bytes
@@ -392,7 +392,7 @@ class DeepReviewService:
             # Notice is the aggregate root for the immutable grade/bundle /
             # active profile/policy snapshot.  Lock it before replay lookup so
             # concurrent same-key requests cannot create two reviews.
-            notice = session.scalar(select(Notice).where(Notice.id == notice_id).with_for_update())
+            notice = lock_notice(session, notice_id)
             if notice is None:
                 raise InputVersionError("not_found", "공고를 찾을 수 없습니다")
             approval_check = getattr(self.client, "require_notice_approval", None)

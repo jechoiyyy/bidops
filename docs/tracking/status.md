@@ -73,7 +73,7 @@ schema는 68개이며, 별도로 빈 PostgreSQL 17 `upgrade head`와 `0014↔001
 | T14/profile harness 최종 backend + PostgreSQL 17 | 992 passed, 5 skipped, 6 warnings | 최소 환경에서 임시 PG17·fresh DB·Alembic head를 자동 구성. T14 4건은 해결됐고 profile 2건은 승인 Git blob 부재를 fail-closed로 검증 |
 | T7 stack V2 | services healthy, `/api/health` 성공, 구조화 worker log 관측, 승인 Ollama endpoint 도달 | 기동·관측·network 경계 검증; 실제 판정 품질 검증 아님 |
 | static diff check | 당시 통합 UI 변경에서 성공 | 이후 worktree 변경의 전체 검증으로 재사용하지 않음 |
-| 모듈 경계 강제 테스트 | `28 passed`. 허용 목록 `cross_module_import 0`, `router_orm_access 18`, `schema_imports_model_or_service 0`, `lifecycle_relationship 0` | 남은 18건은 명세가 이번 범위 밖으로 둔 router 안 직접 select다. 목록은 stale 항목도 실패시키므로 실제 위반과 정확히 같다 |
+| 모듈 경계 강제 테스트 | `29 passed`. 허용 목록 `cross_module_import 0`, `router_orm_access 18`, `schema_imports_model_or_service 0`, `lifecycle_relationship 0`, `lifecycle_table_write 0` | 남은 18건은 명세가 이번 범위 밖으로 둔 router 안 직접 select다. 다섯째 검사(형제 모듈의 lifecycle 테이블 직접 쓰기·잠금)는 최종 검토가 "의존 규칙 네 줄 중 쓰기·잠금 한 줄만 어떤 검사도 덮지 않는다"를 지적해 새로 넣었고, 그때 드러난 제품 코드 17곳을 모두 lifecycle 공개 함수로 옮겨 0이 됐다. 목록은 stale 항목도 실패시키므로 실제 위반과 정확히 같다 |
 | 기준 6 모듈 격리 | `web/backend/scripts/verify_module_isolation.sh` 세 조합 PASS — lifecycle `75 passed`, screening `2 failed, 394 passed, 1 skipped`, deep_review `230 passed` | 형제 도메인 모듈의 `app/<module>`·`tests/<module>`을 지운 임시 복사본에서 폐기 가능한 PostgreSQL 17을 띄워 실제로 돌렸다. screening의 실패 2건은 위 기존 결함이며 skip 사유는 조합마다 출력된다 |
 | 이주 전후 REST 표면 | OpenAPI 문서 diff 11줄, 전부 `tags` | 경로 74개와 메서드·파라미터·요청 본문·응답 스키마·`components`는 동일하다. `/api/health`에 `health` tag가 붙고 판정 실행 경로의 tag가 `runs`에서 `screening`으로 바뀐 것이 전부이며 둘 다 소유 변경을 반영한다. `tags`는 `contracts.md`가 계약으로 고정한 값이 아니다 |
 

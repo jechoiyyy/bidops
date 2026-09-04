@@ -17,6 +17,7 @@ from typing import Any, Literal
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.lifecycle import lock_notice
 from app.lifecycle.models import Notice, NoticeObservation
 from app.screening.models import JudgmentRevision, ReviewRevision, ScreeningExecution
 
@@ -88,9 +89,10 @@ def _nonblank(value: str, field: str) -> str:
 
 
 def _lock_notice(session: Session, notice_id: int) -> Notice:
-    notice = session.scalar(
-        select(Notice).where(Notice.id == notice_id).with_for_update()
-    )
+    # lifecycle 테이블 잠금은 lifecycle 공개 함수로만 한다(§4). 같은
+    # `SELECT ... FOR UPDATE`이며 없는 공고를 이 모듈의 오류로 바꾸는 것만
+    # 여기서 한다.
+    notice = lock_notice(session, notice_id)
     if notice is None:
         raise RevisionNotFoundError(f"notice {notice_id} does not exist")
     return notice

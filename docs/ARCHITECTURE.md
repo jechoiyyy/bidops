@@ -194,7 +194,7 @@ web/backend/app/
 
 기동할 모듈은 `BIDOPS_MODULES`(쉼표 구분, 기본값 세 도메인 모듈 전부)로 고른다. core는 항상 포함되므로 `/api/health`는 어떤 조합에도 있다. **의존은 import만, 등록은 지정 모듈만** — 지정 모듈이 의존하는 모듈의 `models`·seam은 import되어 동작하지만 router·runtime·확장점 등록은 지정 모듈에만 한다. 알 수 없는 이름이나 빈 값은 기동 실패다. 운영은 셋 다 등록하며, 모듈 선택은 개발·검증용 기동 옵션이다.
 
-경계는 규율이 아니라 `web/backend/tests/app/test_module_boundaries.py`의 네 검사가 강제한다. 허용 목록은 줄어드는 방향만 허용하고, 목록에 있는데 더 이상 위반이 아닌 항목이 남아 있어도 실패한다.
+경계는 규율이 아니라 `web/backend/tests/app/test_module_boundaries.py`의 다섯 검사가 강제한다. 다섯째는 형제 모듈이 lifecycle 테이블에 직접 insert·update·delete하거나 `with_for_update()`로 잠그는 자리를 잡는다 — 모델 클래스가 공개 이름이라 import 방향만 보는 검사로는 읽기와 구분되지 않기 때문이다. 허용 목록은 줄어드는 방향만 허용하고, 목록에 있는데 더 이상 위반이 아닌 항목이 남아 있어도 실패한다.
 
 ## 5. 주요 데이터 흐름
 

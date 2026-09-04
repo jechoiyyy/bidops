@@ -240,41 +240,6 @@ def build_search_url(
     return result
 
 
-# MVP 대상 3개 기관의 시드 데이터. 검색 주소는 담당자가 실제 주소로 교체하는
-# 것을 전제로 한 자리표시자이며, 확인 전에는 화면에서 미확인 상태로 안내한다.
-PORTAL_SEED_NOTE = "검색 주소는 자리표시자입니다. 실제 조달시스템 주소를 확인하여 수정한 뒤 사용하십시오."
-
-
-def seed_default_portals(session: Session) -> None:
-    """Insert MVP portal data only when the table is completely empty."""
-
-    if session.scalar(select(AgencyPortal.id).limit(1)) is not None:
-        return
-    session.add_all(
-        [
-            AgencyPortal(
-                agency_pattern="한국수자원공사",
-                system_name="한국수자원공사 전자조달시스템",
-                search_url_template="https://ebid.kwater.or.kr/search?bidNo={bid_no}&title={title}",
-                note=PORTAL_SEED_NOTE,
-            ),
-            AgencyPortal(
-                agency_pattern="한국도로공사",
-                system_name="한국도로공사 전자조달시스템",
-                search_url_template="https://ebid.ex.co.kr/search?bidNo={bid_no}&title={title}",
-                note=PORTAL_SEED_NOTE,
-            ),
-            AgencyPortal(
-                agency_pattern="한국토지주택공사",
-                system_name="한국토지주택공사 전자조달",
-                search_url_template="https://ebid.lh.or.kr/search?bidNo={bid_no}&title={title}",
-                note=PORTAL_SEED_NOTE,
-            ),
-        ]
-    )
-    session.commit()
-
-
 def attachment_download_path(attachment: Attachment) -> Path:
     """Resolve an attachment's path, keeping the security check at the edge."""
 

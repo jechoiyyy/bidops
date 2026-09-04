@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.models import AuditEvent
+from app.lifecycle import lock_notice
 from app.lifecycle.models import Notice, NoticeObservation, Run
 from app.screening.models import JudgmentRevision, Review, ReviewRevision, VerificationAnswer
 from app.screening.services.revisions import (
@@ -178,9 +179,8 @@ def save_human_review(
     # Notice locking is the serialization boundary shared with the core
     # append functions.  Run/observation validation happens before any
     # projection row or child answer can be written.
-    notice = session.scalar(
-        select(Notice).where(Notice.id == notice_id).with_for_update()
-    )
+    # lifecycle 테이블 잠금은 lifecycle 공개 함수로만 한다(§4).
+    notice = lock_notice(session, notice_id)
     if notice is None:
         raise ReviewServiceError("notice_not_found", "공고를 찾을 수 없습니다")
     if session.get(Run, run_id) is None:

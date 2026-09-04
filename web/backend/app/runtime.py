@@ -127,9 +127,22 @@ class ApplicationRuntime:
         self._shutdown = True
         # start의 역순으로 거둔다: screening의 worker·스케줄러가 먼저 멈추고
         # 그다음 lifecycle의 파이프라인 스레드 풀이 닫힌다.
+        #
+        # 앞 모듈의 shutdown이 실패해도 **뒤 모듈까지 반드시 거둔다.** 이주 전
+        # `ApplicationRuntime.shutdown`은 scheduler 종료를 `try`에, worker join과
+        # 스레드 풀 정리를 `finally`에 두어 그것을 보장했다. 모듈로 나뉜 뒤 단순
+        # 반복문으로 두면 screening이 던질 때 lifecycle의 `PipelineService` 스레드
+        # 풀이 회수되지 않는다. 첫 예외는 전부 거둔 뒤 다시 던진다.
+        failure: BaseException | None = None
         for _name, runtime in reversed(self._runtimes):
-            runtime.shutdown()
+            try:
+                runtime.shutdown()
+            except BaseException as exc:  # noqa: BLE001 - 남은 모듈을 마저 거둔다
+                if failure is None:
+                    failure = exc
         self._started = False
+        if failure is not None:
+            raise failure
 
 
 __all__ = ["ApplicationRuntime"]

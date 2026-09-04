@@ -82,6 +82,9 @@ app/
   조회(N+1)를 만들지 않는다.
 - **hook은 자기 실패를 스스로 가둔다.** 여러 모듈이 같은 hook을 등록하므로, 한 hook의 실패가
   형제 hook의 성공 쓰기를 되돌리면 안 된다. 새 회차 적재 hook은 savepoint를 hook 안에 둔다.
+  **예외가 하나 있다.** 판정·리뷰 적재 hook(`screening`)은 일부러 격리하지 않는다 — 산출물이
+  깨졌으면 회차 적재 전체를 되돌려야 하고, 그것을 경고로 낮추면 회차 계약이 달라진다.
+  격리할지 말지는 "이 hook의 실패가 회차를 무효로 만드는가"로 정한다.
 - router 등록 **순서는 조립 계층이 소유한다.** `main.py`의 `(모듈, router 이름)` 표를 고친다.
   더 구체적인 경로가 먼저 와야 한다(`/api/runs/{run_id}/pipeline/judgment`가
   `/api/runs/{run_id}/pipeline/{stage}`보다 앞).
@@ -157,7 +160,7 @@ cd web/backend && .venv/bin/python -m pytest tests/app/test_module_boundaries.py
 cd web/backend && .venv/bin/python -m pytest tests/app/test_module_selection.py tests/app/test_module_cli_entrypoints.py -q
 ```
 
-경계는 규율이 아니라 `tests/app/test_module_boundaries.py`의 네 검사가 강제한다. 허용 목록
+경계는 규율이 아니라 `tests/app/test_module_boundaries.py`의 다섯 검사가 강제한다. 허용 목록
 (`tests/app/boundary_allowlist.py`)은 **줄어드는 방향만** 허용한다. 목록에 없는 새 위반은 즉시
 실패하고, 목록에 있는데 더 이상 위반이 아닌 항목이 남아 있어도 실패한다.
 
@@ -167,8 +170,16 @@ cd web/backend && .venv/bin/python -m pytest tests/app/test_module_selection.py 
 | 2. router 안의 ORM 접근 | router 파일 | 18건 (service로 내리는 작업을 추적만 한다) |
 | 3. schemas → models·services | schema 파일 | 0건 |
 | 4. lifecycle 모델의 바깥 방향 relationship | `app/lifecycle/models.py` | 0건 |
+| 5. 형제 모듈의 lifecycle 테이블 직접 쓰기·잠금 | `app/screening/**`, `app/deep_review/**` | 0건 |
 
 검사 1은 `tests/app/`을 대상으로 삼지 않는다. 그곳은 두 모듈 이상이 합쳐지는 통합 검사의
-자리이기 때문이다. 검사 2·3·4는 `tests/app/`에도 적용된다.
+자리이기 때문이다. 검사 2·3·4는 `tests/app/`에도 적용된다. 검사 5는 제품 코드(`app/`)만 본다 —
+테스트 fixture가 회차·공고 행을 심는 것은 모듈 간 결합이 아니라 검사 대상을 세우는 준비다.
+
+검사 5가 따로 있는 이유: lifecycle **모델 클래스는 공개 이름**이라 검사 1(import 방향)은
+`select(Notice)`(허용)와 `session.add(Notice(...))`·`select(Notice).with_for_update()`(금지)를
+구분하지 못한다. 읽기·join은 그대로 두고 insert·update·delete·잠금만 잡는다. 필요하면
+`lifecycle.lock_notice`·`lock_attachment`·`lock_active_attachments`·`delete_run`·
+`register_attachment`·`seed_default_portals` 같은 공개 함수를 쓴다. 없으면 lifecycle에 만든다.
 
 DB 변경은 임시 PostgreSQL 17의 빈 migration, 제약, 중복 적재, rollback을 검사한다. API 변경은 정상과 404/409/422/503, idempotency, 상태 fence, actor encoding, 비밀 없는 오류를 포함한다. 첨부는 형식·크기·path escape·symlink·scan 실패·부분 정리를, 모델·worker는 timeout·잘림·schema·근거 실패·재시도·무승인 외부 호출 차단을 검사한다.

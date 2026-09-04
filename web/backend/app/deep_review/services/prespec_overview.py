@@ -38,6 +38,7 @@ from ..models import (
     PreSpecOverviewReview,
     PreSpecOverviewSnapshot,
 )
+from ...lifecycle import lock_notice
 from ...lifecycle.models import Notice
 from ..schemas.prespec_overview import (
     PreSpecOverviewAttemptView,
@@ -1014,9 +1015,7 @@ def prepare_overview_review(
     safe T-20 promotion can roll back every write if this preparation fails.
     """
 
-    notice = session.scalar(
-        select(Notice).where(Notice.id == int(notice_id)).with_for_update()
-    )
+    notice = lock_notice(session, int(notice_id))
     if notice is None or notice.source_type != "pre_spec":
         raise OverviewReviewNotFound
 
@@ -1413,9 +1412,7 @@ def create_overview_attempt(
     it creates no attempt and performs no transport/model operation.
     """
 
-    notice = session.scalar(
-        select(Notice).where(Notice.id == int(notice_id)).with_for_update()
-    )
+    notice = lock_notice(session, int(notice_id))
     review = session.scalar(
         select(PreSpecOverviewReview)
         .where(PreSpecOverviewReview.id == review_id)
