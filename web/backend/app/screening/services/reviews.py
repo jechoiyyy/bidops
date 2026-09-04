@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.models import AuditEvent
-from app.lifecycle import lock_notice
+from app.lifecycle import extension_registry, lock_notice
 from app.lifecycle.models import Notice, NoticeObservation, Run
 from app.screening.models import JudgmentRevision, Review, ReviewRevision, VerificationAnswer
 from app.screening.services.revisions import (
@@ -25,6 +25,25 @@ from app.screening.services.revisions import (
 
 
 REVIEW_SAVE_ACTION = "review.save"
+
+
+def _notify_effective_grade_changed(session: Session, notice_id: int) -> None:
+    """정정 등급이 달라졌음을 lifecycle 확장점으로 알린다 (명세 §6.2).
+
+    선별은 **누가 이 확장점을 구현했는지 알지 못한다.** deep_review를 import하지
+    않고 registry만 부르며, 제공자가 없으면 no-op이다.
+
+    확장점 구현은 자기 실패를 savepoint에 가두기로 돼 있지만, 그것을 지키지 않는
+    제공자가 리뷰 저장을 되돌리게 두지 않는다. 여기서 한 겹 더 savepoint로 감싸고
+    예외 본문은 버린다 — 리뷰는 사람이 방금 내린 결정이고, 파생 재계산의 실패가
+    그것을 무효로 만들지 않는다.
+    """
+
+    try:
+        with session.begin_nested():
+            extension_registry().effective_grade_changed(session, [int(notice_id)])
+    except Exception:
+        return
 
 
 class ReviewServiceError(RuntimeError):
@@ -235,6 +254,9 @@ def save_human_review(
         review.run_id = run_id
         review.updated_at = event_at
 
+    # 확장점을 부를지는 **저장 전후의 정정 등급 차이**로 정한다. 값이 그대로면
+    # effective grade도 그대로이므로 아무 일도 일어나지 않아야 한다(§6.2).
+    previous_corrected_grade = review.corrected_grade
     review.disposition = payload["disposition"]
     review.system_judgment_review = payload["system_judgment_review"]
     review.corrected_grade = payload["corrected_grade"]
@@ -268,6 +290,8 @@ def save_human_review(
         )
     )
     session.flush()
+    if payload["corrected_grade"] != previous_corrected_grade:
+        _notify_effective_grade_changed(session, notice_id)
     return review
 
 

@@ -24,6 +24,10 @@ from sqlalchemy.orm import Session
 
 from ..document_mcp.contracts import validate_structure
 from ..document_mcp.processor import ClamAVChecker, DocumentProcessor
+from ...core.constants import (
+    UNSUPPORTED_ATTACHMENT_EXTRACT_STATUS,
+    UNSUPPORTED_ATTACHMENT_ISSUE_CODE,
+)
 from ...core.models import AuditEvent, IdempotencyRecord
 from ..models import (
     ContentObject,
@@ -386,6 +390,21 @@ class DocumentBundleService:
         current_documents: list[DocumentVersion] = []
         for attachment in attachments:
             candidates = [item for item in by_attachment.get(attachment.id, []) if item.is_current]
+            if attachment.extract_status == UNSUPPORTED_ATTACHMENT_EXTRACT_STATUS:
+                # 형식 밖 첨부는 묶음에 넣지 않고 **비차단** issue만 남긴다
+                # (명세 §5·§6.2). 접두사가 `provider_`이지만 아래의 취득 실패
+                # 분기보다 먼저 보아야 하고, `attachment_bytes_missing`도 내지
+                # 않는다 — 원문이 없는 것이 아니라 처리 범위 밖이기 때문이다.
+                issues.append(
+                    _error_issue(
+                        UNSUPPORTED_ATTACHMENT_ISSUE_CODE,
+                        "지원 형식 밖 첨부는 문서 묶음에서 제외됩니다",
+                        document_version_id=candidates[-1].id if candidates else None,
+                        blocking=False,
+                        severity="보통",
+                    )
+                )
+                continue
             if attachment.extract_status and attachment.extract_status.startswith("provider_"):
                 # Keep a provider connector failure blocking even when the
                 # acquisition stopped before a DocumentVersion could be
@@ -671,7 +690,17 @@ class DocumentBundleService:
         actor: str,
         *,
         correlation_id: UUID | None = None,
+        actor_kind: str = "human",
+        trigger_metadata: Mapping[str, Any] | None = None,
     ) -> BundleView:
+        """`actor_kind`/`trigger_metadata`는 자동 준비(§6.2)가 쓰는 인자다.
+
+        기본값은 지금까지의 사람 경로 그대로이며, 자동 경로만 `system` actor와
+        촉발 사유(`trigger`·회차·리뷰 식별자)를 감사 이벤트에 덧붙인다. 등급
+        검사·revision 할당·`_seed_bundle_items`·issue 계산은 두 경로가 **같은
+        코드**를 지난다.
+        """
+
         claimed_name = validate_actor(actor)
         for attempt in range(CREATE_BUNDLE_RETRIES):
             # The notice is the allocation aggregate for bundle revisions.
@@ -704,7 +733,7 @@ class DocumentBundleService:
                 bundle.issues_snapshot = self._issues(session, bundle)
                 session.add(
                     AuditEvent(
-                        actor_kind="human",
+                        actor_kind=actor_kind,
                         claimed_name=claimed_name,
                         action="document_bundle.create",
                         aggregate_type="document_bundle",
@@ -718,6 +747,7 @@ class DocumentBundleService:
                                 if correlation_id is not None
                                 else {}
                             ),
+                            **(dict(trigger_metadata) if trigger_metadata else {}),
                         },
                     )
                 )
@@ -1779,7 +1809,23 @@ class DocumentBundleService:
             raise BundleServiceError("not_found", "document bundle을 찾을 수 없습니다", status_code=404)
         return self._document_view(document, bundle.id, session)
 
-    def confirm(self, session: Session, bundle_id: UUID, request: ConfirmRequest, actor: str) -> BundleView:
+    def confirm(
+        self,
+        session: Session,
+        bundle_id: UUID,
+        request: ConfirmRequest,
+        actor: str,
+        *,
+        actor_kind: str = "human",
+        trigger_metadata: Mapping[str, Any] | None = None,
+    ) -> BundleView:
+        """확정 fence는 사람 경로와 자동 준비(§6.2)가 **같은 코드**를 지난다.
+
+        `actor_kind`/`trigger_metadata`만 감사 이벤트의 표식을 바꾼다. 최신
+        document version·clean scan·불변 structure snapshot 검사와 blocking issue
+        판단은 두 경로에서 동일하며, 자동 경로도 조건이 깨지면 확정되지 않는다.
+        """
+
         claimed_name = validate_actor(actor)
         request_hash = _canonical_hash(request.model_dump(mode="json"))
         existing = self._idempotency(session, "document_bundle_confirm", "document_bundle", str(bundle_id), claimed_name, request.request_id, request_hash)
@@ -1979,7 +2025,7 @@ class DocumentBundleService:
         )
         session.add(
             AuditEvent(
-                actor_kind="human",
+                actor_kind=actor_kind,
                 claimed_name=claimed_name,
                 action="document_bundle.confirm",
                 aggregate_type="document_bundle",
@@ -1988,6 +2034,7 @@ class DocumentBundleService:
                     "version": bundle.version,
                     "document_count": len(response.documents),
                     **self._lineage_metadata(correlation_id),
+                    **(dict(trigger_metadata) if trigger_metadata else {}),
                 },
                 request_id=str(request.request_id),
             )

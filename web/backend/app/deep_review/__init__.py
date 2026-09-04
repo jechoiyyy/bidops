@@ -76,7 +76,7 @@ def register_lifecycle_extensions(registry=None):
     불러도 결과가 같다 — 등록은 `EXTENSION_OWNER` 키로 제자리 교체된다.
 
     - 사전규격 개요·문서 projection (§6.1)
-    - 첨부 fetch 자격을 다시 세는 회차 적재·추적 결정 hook (§6.2)
+    - 첨부 fetch 자격을 다시 세는 회차 적재·추적 결정·등급 변경 hook (§6.2)
     """
 
     from .services.deep_review_hooks import PreSpecAttachmentEligibilityHook
@@ -92,6 +92,8 @@ def register_lifecycle_extensions(registry=None):
     hook = PreSpecAttachmentEligibilityHook()
     registry.register_run_ingest_hook(hook, owner=EXTENSION_OWNER)
     registry.register_tracking_decision_hook(hook, owner=EXTENSION_OWNER)
+    # 사람 리뷰가 정정 등급을 바꾼 뒤 선별이 registry로 부르는 확장점 (§6.2).
+    registry.register_effective_grade_changed_hook(hook, owner=EXTENSION_OWNER)
     return registry
 
 
