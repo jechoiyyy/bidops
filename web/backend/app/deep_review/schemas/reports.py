@@ -8,6 +8,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from .deep_reviews import QualityStatus
 from .document_bundles import DocumentStructurePageView
 
 
@@ -78,6 +79,9 @@ class DeepReviewReport(StrictModel):
     unknowns: list[str]
     validation_summary: ValidationSummary
     created_at: datetime
+    # 기존에 저장된 revision에는 이 필드가 없다. 없으면 `null`이고 화면은
+    # 표식 없음으로 보인다 — 미측정으로 읽지 않는다 (명세 §8).
+    quality_status: QualityStatus | None = None
 
 
 class ValidationCheck(StrictModel):
@@ -168,6 +172,7 @@ class EvidenceView(StrictModel):
 
 __all__ = [
     "DeepReviewReport", "DeepReviewValidation", "EvidenceView", "FinalOpinionRequest",
-    "FinalOpinionView", "ReportBlock", "ReportClaim", "ReportRevisionRequest", "ReportRow",
-    "ReportSection", "ReportView", "RevisionHistoryItem", "ValidationCheck", "ValidationSummary",
+    "FinalOpinionView", "QualityStatus", "ReportBlock", "ReportClaim", "ReportRevisionRequest",
+    "ReportRow", "ReportSection", "ReportView", "RevisionHistoryItem", "ValidationCheck",
+    "ValidationSummary",
 ]

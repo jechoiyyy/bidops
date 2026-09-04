@@ -42,7 +42,7 @@ from .deep_review_validation import (
     validate_deep_review_validation,
 )
 from .document_bundles import BundleServiceError, validate_actor
-from .deep_reviews import JobClaim, StaleFenceError
+from .deep_reviews import JobClaim, StaleFenceError, quality_status_for_review
 
 
 STAGE_NAMES = ("requirements_and_evaluation", "delivery_risk_economics", "synthesis_and_validation")
@@ -268,6 +268,11 @@ class ReportService:
             if payload.report.deep_review_id != review.id:
                 raise _error("validation_failed", "report가 deep review 범위와 일치하지 않습니다", status_code=422, request_id=payload.request_id)
             new_payload = payload.report.model_dump(mode="json")
+            # `quality_status`는 사람이 고칠 수 있는 report 내용이 아니라 생성
+            # 감사 이벤트에서 파생하는 서버 소유 표식이다. 요청이 무엇을 실어
+            # 보냈든 여기서 다시 계산해 붙여야 참조 실행 배지가 후속 revision
+            # 에서 사라지지 않는다 (명세 §6.5·§8).
+            new_payload["quality_status"] = quality_status_for_review(session, review.id)
             old_payload = current.report_payload if isinstance(current.report_payload, Mapping) else {}
             if new_payload.get("system_recommendation") != old_payload.get("system_recommendation"):
                 raise _error("validation_failed", "system recommendation은 base revision에서 변경할 수 없습니다", status_code=409, request_id=payload.request_id)
@@ -469,7 +474,10 @@ class ReportService:
         recommendation, recommendation_unknown = self._system_recommendation(stage_payloads, status)
         if recommendation_unknown and recommendation_unknown not in unknowns:
             unknowns.append(recommendation_unknown)
-        report = self._render_report(review, claim_payloads, unknowns, status, recommendation)
+        report = self._render_report(
+            review, claim_payloads, unknowns, status, recommendation,
+            quality_status=quality_status_for_review(session, review.id),
+        )
         return report, stage_payloads, evidence_payloads, contexts
 
     @staticmethod
@@ -613,6 +621,8 @@ class ReportService:
         unknowns: list[str],
         validation_status: str,
         system_recommendation: str,
+        *,
+        quality_status: str | None = None,
     ) -> dict[str, Any]:
         all_ids = [claim["claim_id"] for claim in claims]
         sections: list[dict[str, Any]] = []
@@ -668,6 +678,9 @@ class ReportService:
             "claims": claims, "unknowns": unknowns,
             "validation_summary": {"status": validation_status, "failed": failed, "warnings": len(unknowns), "passed": 1 - failed},
             "created_at": _iso(_now()),
+            # 품질 상태는 생성 감사 이벤트에서 파생하는 서버 소유 표식이다
+            # (명세 §8). 값이 없으면 표식 없음이며 미측정으로 승격하지 않는다.
+            "quality_status": quality_status,
         }
 
     def _section_claims(self, section_key: str, claims: Sequence[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
@@ -771,6 +784,8 @@ class ReportService:
 
         projected = json.loads(json.dumps(payload, ensure_ascii=False, sort_keys=True))
         projected.pop("created_at", None)
+        # 서버가 파생시키는 표식이므로 사람이 바꾼 사실이 아니다.
+        projected.pop("quality_status", None)
         for section in projected.get("sections", []):
             if isinstance(section, Mapping):
                 section.pop("title", None)

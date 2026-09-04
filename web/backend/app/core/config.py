@@ -271,6 +271,10 @@ class Settings(BaseSettings):
     vllm_screening_model: str = Field(default="qwen3.8-27B", validation_alias="BIDOPS_VLLM_SCREENING_MODEL")
     analysis_provider: Literal["vllm", "mock"] = Field(default="vllm", validation_alias="BIDOPS_ANALYSIS_PROVIDER")
     openai_enabled: bool = Field(default=False, validation_alias="BIDOPS_OPENAI_ENABLED")
+    # 참조 실행 모드는 provider에 매이지 않는다 (명세 §6.5). mock provider는 아래
+    # 검증이 이 모드를 필수로 요구하고, 승인된 사설 vLLM 경로도 이 모드에서는
+    # 측정값 없는 policy로 실행할 수 있다. 그 결과는 `deployable=false`이며 운영
+    # 완료·품질 근거·활성화 근거로 쓰지 않는다.
     reference_workflow_mode: bool = Field(default=False, validation_alias="BIDOPS_REFERENCE_WORKFLOW_MODE")
     document_worker_concurrency: int = Field(default=2, validation_alias="BIDOPS_DOCUMENT_WORKER_CONCURRENCY")
     analysis_worker_concurrency: int = Field(default=1, validation_alias="BIDOPS_ANALYSIS_WORKER_CONCURRENCY")

@@ -50,7 +50,12 @@ from app.deep_review.services.input_versions import (
     policy_activation_valid,
 )
 from app.core.vllm_client import InvocationResult, VllmClient, VllmInvocationError, build_prompt, sanitize_for_prompt
+from app.core.config import get_settings
+from app.core.model_binding import MODEL_ENDPOINT_REF
+from app.core.model_client import ModelClient
+from app.deep_review.services import deep_reviews as deep_reviews_module
 from app.deep_review.services.deep_review_vllm import DEEP_REVIEW_STAGE_CONTRACT
+from app.deep_review.services.reports import ReportService
 from app.core.object_store import ObjectMetadata
 
 
@@ -775,7 +780,7 @@ def test_job_transition_audits_are_fenced_and_safe(engine, monkeypatch):
         assert service.view(session, UUID(created["id"]))["status"] == "completed"
 
 
-def _seed_review_context(engine, monkeypatch):
+def _seed_review_context(engine, monkeypatch, *, measured: bool = True):
     with Session(engine) as session:
         run = Run(id=f"t5-{uuid4()}")
         notice = Notice(run=run, notice_key=f"t5-notice-{uuid4()}")
@@ -783,15 +788,26 @@ def _seed_review_context(engine, monkeypatch):
         session.add_all([run, notice])
         session.flush()
         bundle = DocumentBundle(id=uuid4(), notice_id=notice.id, revision=1, version=1, status="ready", issues_snapshot=[], confirmed_by_name="담당자")
-        profile = ProfileVersion(id=uuid4(), version=1, label="profile", profile_payload={"schema": "bidops.company-profile.v1", "source_file": "docs/reference/company-profile.md", "source_sha256": "a" * 64, "facts": [{"fact_key": f"fixture.fact[{index}]", "status": "unknown", "quote": "fixture"} for index in range(39)]}, profile_sha256="a" * 64, source_kind="fixture")
+        # profile·policy version은 전역 유일하다. 한 engine에서 여러 번 seed 하는
+        # 검사가 있으므로 이미 있는 값 다음 번호를 쓴다.
+        next_profile_version = int(session.query(ProfileVersion).count()) + 1
+        next_policy_version = int(session.query(AnalysisPolicyVersion).count()) + 1
+        profile_hash = hashlib.sha256(f"profile-{next_profile_version}".encode()).hexdigest()
+        content_hash = hashlib.sha256(f"content-{next_profile_version}".encode()).hexdigest()
+        structure_hash = hashlib.sha256(f"structure-{next_profile_version}".encode()).hexdigest()
+        profile = ProfileVersion(id=uuid4(), version=next_profile_version, label="profile", profile_payload={"schema": "bidops.company-profile.v1", "source_file": "docs/reference/company-profile.md", "source_sha256": profile_hash, "facts": [{"fact_key": f"fixture.fact[{index}]", "status": "unknown", "quote": "fixture"} for index in range(39)]}, profile_sha256=profile_hash, source_kind="fixture")
         policy_payload, _canonical, policy_hash = load_canonical_policy()
-        policy = AnalysisPolicyVersion(id=uuid4(), version=1, label="policy", model_endpoint_ref="vllm-openai-compatible", model_name=MODEL_NAME, prompts=policy_payload["stages"], validation_rules={**policy_payload["validation"], "generation": policy_payload["generation"], "sample_hash": "b" * 64, "required_item_recall": .8, "human_agreement": .7, "unsupported_false_positive_rate": .1}, policy_sha256=policy_hash)
+        # 측정값이 없는 policy는 `import-profile-policy`를 품질 인자 없이 실행한
+        # row와 같은 모양이다. 참조 실행 게이트가 그 row를 어떻게 다루는지
+        # 확인하려면 두 모양이 다 필요하다.
+        quality_rules = {"sample_hash": "b" * 64, "required_item_recall": .8, "human_agreement": .7, "unsupported_false_positive_rate": .1} if measured else {}
+        policy = AnalysisPolicyVersion(id=uuid4(), version=next_policy_version, label="policy", model_endpoint_ref="vllm-openai-compatible", model_name=MODEL_NAME, prompts=policy_payload["stages"], validation_rules={**policy_payload["validation"], "generation": policy_payload["generation"], **quality_rules}, policy_sha256=policy_hash)
         content_id = uuid4()
         from app.deep_review.models import ContentObject
-        content = ContentObject(id=content_id, sha256="d" * 64, size_bytes=0, detected_mime="application/json", retention_class="fixture")
+        content = ContentObject(id=content_id, sha256=content_hash, size_bytes=0, detected_mime="application/json", retention_class="fixture")
         document = DocumentVersion(id=uuid4(), notice_id=notice.id, content_object_id=content_id, version=1, source_kind="manual", original_filename="fixture.pdf", role="기타", is_current=True, safety_status="safe")
-        structure = DocumentStructure(id=uuid4(), document_version_id=document.id, source_sha256="d" * 64, media_type="application/pdf", extractor_name="fixture", extractor_version="1", payload_content_object_id=content_id, payload_sha256="e" * 64, page_count=1, block_count=0, validation_status="ready")
-        item = DocumentBundleItem(bundle_id=bundle.id, document_version_id=document.id, ordinal=0, document_version_version=1, content_object_id=content_id, content_sha256="d" * 64, detected_mime="application/pdf", size_bytes=0, original_filename="fixture.pdf", source_kind="manual", role_at_confirmation="기타", is_current_at_confirmation=True, safety_status_at_confirmation="safe", structure_id_at_confirmation=structure.id, structure_payload_sha256="e" * 64)
+        structure = DocumentStructure(id=uuid4(), document_version_id=document.id, source_sha256=content_hash, media_type="application/pdf", extractor_name="fixture", extractor_version="1", payload_content_object_id=content_id, payload_sha256=structure_hash, page_count=1, block_count=0, validation_status="ready")
+        item = DocumentBundleItem(bundle_id=bundle.id, document_version_id=document.id, ordinal=0, document_version_version=1, content_object_id=content_id, content_sha256=content_hash, detected_mime="application/pdf", size_bytes=0, original_filename="fixture.pdf", source_kind="manual", role_at_confirmation="기타", is_current_at_confirmation=True, safety_status_at_confirmation="safe", structure_id_at_confirmation=structure.id, structure_payload_sha256=structure_hash)
         session.add_all([bundle, profile, policy, content, document, structure, item])
         session.commit()
         monkeypatch.setenv("BIDOPS_ACTIVE_PROFILE_VERSION_ID", str(profile.id))
@@ -1247,3 +1263,181 @@ def test_normal_worker_runs_exactly_three_ordered_stages(engine, monkeypatch):
             "requirements_and_evaluation", "delivery_risk_economics", "synthesis_and_validation"
         ]
         assert all(stage["status"] == "completed" for stage in view["current_attempt"]["stages"])
+
+
+# --- 참조 실행 모드(§6.5)와 quality_status(§8) ---------------------------------
+#
+# 아래 검사는 **fake transport**만 쓴다. 실제 vLLM·Ollama 주소를 부르지 않고,
+# `ModelClient`의 요청 조립·identity 확인·응답 해석 경로는 그대로 통과시킨다.
+
+_DEEP_REVIEW_REVISION = "c" * 64
+
+
+class _FixtureStore:
+    def put_encrypted(self, data, *, retention_days, content_type):
+        digest = hashlib.sha256(data).hexdigest()
+        return {"object_key": f"model-response/{digest}", "encryption_key_ref": "fixture", "encrypted": True, "plaintext_sha256": digest, "plaintext_size_bytes": len(data)}
+
+
+def _fake_chat_completion(**kwargs):
+    """`/v1/chat/completions` 응답 모양만 흉내 내는 fake 전송이다."""
+
+    prompt = json.loads(kwargs["messages"][1]["content"])
+    payload = _valid_stage_payload(prompt["input_slice"], prompt["stage"])
+    return {
+        "model": kwargs["model"],
+        "choices": [{"finish_reason": "stop", "message": {"role": "assistant", "content": json.dumps(payload, ensure_ascii=False)}}],
+        "usage": {"prompt_tokens": 1, "completion_tokens": 1},
+    }
+
+
+def _fake_vllm_client_class(served: list[str] | None = None):
+    """용도별 설정 해석과 identity 확인은 진짜로 하고 전송만 fake로 바꾼다."""
+
+    class FakeTransportModelClient(ModelClient):
+        @classmethod
+        def for_purpose(cls, purpose, *, model, output_contract, **kwargs):
+            kwargs.setdefault("completion_create", _fake_chat_completion)
+            kwargs.setdefault("models_list", lambda: {"data": [{"id": name} for name in (served if served is not None else [model])]})
+            return super().for_purpose(purpose, model=model, output_contract=output_contract, **kwargs)
+
+    return FakeTransportModelClient
+
+
+def _vllm_env(monkeypatch, *, reference: bool, allowed_hosts: str = "127.0.0.1", revision: str = _DEEP_REVIEW_REVISION):
+    monkeypatch.setenv("BIDOPS_ANALYSIS_PROVIDER", "vllm")
+    monkeypatch.setenv("BIDOPS_OPENAI_ENABLED", "false")
+    monkeypatch.setenv("BIDOPS_REFERENCE_WORKFLOW_MODE", "true" if reference else "false")
+    monkeypatch.setenv("BIDOPS_VLLM_ALLOWED_HOSTS", "")
+    monkeypatch.setenv("BIDOPS_VLLM_MODEL_REVISION", "")
+    monkeypatch.setenv("BIDOPS_VLLM_DEEP_REVIEW_BASE_URL", "http://127.0.0.1:8000/v1")
+    monkeypatch.setenv("BIDOPS_VLLM_DEEP_REVIEW_ALLOWED_HOSTS", allowed_hosts)
+    monkeypatch.setenv("BIDOPS_VLLM_DEEP_REVIEW_MODEL_REVISION", revision)
+    get_settings.cache_clear()
+
+
+@pytest.fixture
+def clear_settings_cache():
+    yield
+    get_settings.cache_clear()
+
+
+def test_reference_mode_runs_unmeasured_policy_through_vllm_to_a_report(engine, monkeypatch, clear_settings_cache):
+    notice_id, bundle_id, _profile_id, _policy_id = _seed_review_context(engine, monkeypatch, measured=False)
+    _vllm_env(monkeypatch, reference=True)
+    monkeypatch.setattr(deep_reviews_module, "ModelClient", _fake_vllm_client_class())
+    service = DeepReviewService(raw_response_store=_FixtureStore(), structure_loader=_fixture_structure)
+    assert service.reference_workflow_mode is True
+    with Session(engine) as session:
+        created = service.create_review(session, notice_id, bundle_id, "담당자", uuid4())
+        creation = session.scalar(select(AuditEvent).where(
+            AuditEvent.action == "deep_review.create", AuditEvent.aggregate_id == created["id"],
+        ))
+        assert creation is not None
+        assert creation.safe_metadata["policy_quality"] == {"status": "reference_workflow_unmeasured", "deployable": False}
+        assert creation.safe_metadata["analysis_provider"] == MODEL_ENDPOINT_REF
+        assert creation.safe_metadata["runtime_model"] == MODEL_NAME
+        assert creation.safe_metadata["reference_workflow_mode"] is True
+        claim = service.claim_next_job(session, "worker-reference")
+        assert claim is not None
+        service.run_claim(session, claim)
+        view = service.view(session, UUID(created["id"]))
+        assert view["status"] == "completed"
+        assert view["quality_status"] == "unmeasured_reference"
+        assert [stage["status"] for stage in view["current_attempt"]["stages"]] == ["completed"] * 3
+        report = ReportService().get_report(session, UUID(created["id"]))
+        assert report["report"]["quality_status"] == "unmeasured_reference"
+
+
+def test_unmeasured_policy_without_reference_mode_stays_service_unavailable(engine, monkeypatch, clear_settings_cache):
+    notice_id, bundle_id, _profile_id, _policy_id = _seed_review_context(engine, monkeypatch, measured=False)
+    _vllm_env(monkeypatch, reference=False)
+    monkeypatch.setattr(deep_reviews_module, "ModelClient", _fake_vllm_client_class())
+    service = DeepReviewService(raw_response_store=_FixtureStore(), structure_loader=_fixture_structure)
+    assert service.reference_workflow_mode is False
+    with Session(engine) as session:
+        with pytest.raises(InputVersionError) as error:
+            service.create_review(session, notice_id, bundle_id, "담당자", uuid4())
+        assert error.value.code == "service_unavailable"
+        assert session.query(DeepReview).count() == 0
+
+
+def test_reference_created_review_fails_closed_when_the_runner_is_not_in_reference_mode(engine, monkeypatch, clear_settings_cache):
+    # 측정값이 있는 policy로 만들어 "생성과 실행의 모드가 다르다"만 실패 사유로 남긴다.
+    notice_id, bundle_id, _profile_id, _policy_id = _seed_review_context(engine, monkeypatch)
+    _vllm_env(monkeypatch, reference=True)
+    monkeypatch.setattr(deep_reviews_module, "ModelClient", _fake_vllm_client_class())
+    service = DeepReviewService(raw_response_store=_FixtureStore(), structure_loader=_fixture_structure)
+    with Session(engine) as session:
+        created = service.create_review(session, notice_id, bundle_id, "담당자", uuid4())
+        claim = service.claim_next_job(session, "worker-reference")
+        assert claim is not None
+        _vllm_env(monkeypatch, reference=False)
+        runner = DeepReviewService(raw_response_store=_FixtureStore(), structure_loader=_fixture_structure)
+        assert runner.reference_workflow_mode is False
+        with pytest.raises(DeepReviewServiceError) as error:
+            runner.run_claim(session, claim)
+        assert error.value.code == "service_unavailable" and error.value.status_code == 503
+        assert service.view(session, UUID(created["id"]))["status"] == "failed"
+
+
+def test_quality_status_separates_measured_reference_and_mock_runs(engine, monkeypatch, clear_settings_cache):
+    measured_notice, measured_bundle, _p, _q = _seed_review_context(engine, monkeypatch)
+    _vllm_env(monkeypatch, reference=False)
+    measured_service = DeepReviewService(raw_response_store=_FixtureStore(), structure_loader=_fixture_structure)
+    with Session(engine) as session:
+        measured = measured_service.create_review(session, measured_notice, measured_bundle, "담당자", uuid4())
+        assert measured_service.view(session, UUID(measured["id"]))["quality_status"] == "measured"
+
+    reference_notice, reference_bundle, _p, _q = _seed_review_context(engine, monkeypatch, measured=False)
+    _vllm_env(monkeypatch, reference=True)
+    reference_service = DeepReviewService(raw_response_store=_FixtureStore(), structure_loader=_fixture_structure)
+    with Session(engine) as session:
+        reference = reference_service.create_review(session, reference_notice, reference_bundle, "담당자", uuid4())
+        assert reference_service.view(session, UUID(reference["id"]))["quality_status"] == "unmeasured_reference"
+
+    mock_notice, mock_bundle, _p, _q = _seed_review_context(engine, monkeypatch, measured=False)
+    monkeypatch.setenv("BIDOPS_ANALYSIS_PROVIDER", "mock")
+    monkeypatch.setenv("BIDOPS_REFERENCE_WORKFLOW_MODE", "true")
+    get_settings.cache_clear()
+    mock_service = DeepReviewService(raw_response_store=_FixtureStore(), structure_loader=_fixture_structure)
+    with Session(engine) as session:
+        mocked = mock_service.create_review(session, mock_notice, mock_bundle, "담당자", uuid4())
+        assert mock_service.view(session, UUID(mocked["id"]))["quality_status"] == "mock_reference"
+
+
+def test_deep_review_model_client_is_built_for_its_own_purpose_and_fails_closed(engine, monkeypatch, clear_settings_cache):
+    notice_id, bundle_id, _profile_id, _policy_id = _seed_review_context(engine, monkeypatch)
+    _vllm_env(monkeypatch, reference=False, allowed_hosts="")
+    monkeypatch.setattr(deep_reviews_module, "ModelClient", _fake_vllm_client_class())
+    service = DeepReviewService(raw_response_store=_FixtureStore(), structure_loader=_fixture_structure)
+    with Session(engine) as session:
+        service.create_review(session, notice_id, bundle_id, "담당자", uuid4())
+        claim = service.claim_next_job(session, "worker-no-host")
+        assert claim is not None
+        with pytest.raises(DeepReviewServiceError) as error:
+            service.run_claim(session, claim)
+        assert error.value.code == "service_unavailable" and error.value.status_code == 503
+
+    other_notice, other_bundle, _p, _q = _seed_review_context(engine, monkeypatch)
+    _vllm_env(monkeypatch, reference=False, revision="")
+    empty_revision = DeepReviewService(raw_response_store=_FixtureStore(), structure_loader=_fixture_structure)
+    with Session(engine) as session:
+        empty_revision.create_review(session, other_notice, other_bundle, "담당자", uuid4())
+        claim = empty_revision.claim_next_job(session, "worker-no-revision")
+        assert claim is not None
+        with pytest.raises(DeepReviewServiceError) as error:
+            empty_revision.run_claim(session, claim)
+        assert error.value.code == "service_unavailable"
+
+    served_notice, served_bundle, _p, _q = _seed_review_context(engine, monkeypatch)
+    _vllm_env(monkeypatch, reference=False)
+    monkeypatch.setattr(deep_reviews_module, "ModelClient", _fake_vllm_client_class(served=["다른-모델"]))
+    identity = DeepReviewService(raw_response_store=_FixtureStore(), structure_loader=_fixture_structure)
+    with Session(engine) as session:
+        identity.create_review(session, served_notice, served_bundle, "담당자", uuid4())
+        claim = identity.claim_next_job(session, "worker-not-served")
+        assert claim is not None
+        with pytest.raises(DeepReviewServiceError) as error:
+            identity.run_claim(session, claim)
+        assert error.value.code == "model_not_served"
