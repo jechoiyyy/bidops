@@ -7,7 +7,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.exc import IntegrityError
 
 from app.core.db import ALEMBIC_HEAD
-from app.services.revisions import canonical_payload_sha256
+from app.screening.services.revisions import canonical_payload_sha256
 from tests.postgres import requires_postgres, run_alembic, temporary_database
 
 

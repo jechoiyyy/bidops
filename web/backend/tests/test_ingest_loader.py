@@ -44,9 +44,9 @@ from app.screening.models import (
     Review,
     VerificationItem,
 )
-from app.services.revisions import RevisionConflictError
+from app.screening.services.revisions import RevisionConflictError
 from tests.postgres import migrated_engine, requires_postgres
-from tests.test_screening_orchestrator import _notice as screening_notice
+from tests.screening.test_screening_orchestrator import _notice as screening_notice
 
 
 def make_engine():

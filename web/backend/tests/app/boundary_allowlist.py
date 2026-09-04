@@ -48,27 +48,28 @@ ROUTER_ORM_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset(
         ("app/deep_review/routers/document_bundles.py", "router_orm_access", "sqlalchemy.select"),
         ("app/routers/notices.py", "router_orm_access", "sqlalchemy.select"),
         ("app/routers/opportunities.py", "router_orm_access", "sqlalchemy.select"),
-        ("app/routers/policies.py", "router_orm_access", "sqlalchemy.select"),
+        ("app/screening/routers/policies.py", "router_orm_access", "sqlalchemy.select"),
         ("app/routers/portals.py", "router_orm_access", "sqlalchemy.select"),
         ("app/routers/pre_specs.py", "router_orm_access", "Session.execute"),
         ("app/routers/pre_specs.py", "router_orm_access", "sqlalchemy.select"),
-        ("app/routers/profile.py", "router_orm_access", "sqlalchemy.select"),
-        ("app/routers/quality_gates.py", "router_orm_access", "Session.execute"),
-        ("app/routers/quality_gates.py", "router_orm_access", "sqlalchemy.select"),
+        ("app/screening/routers/profile.py", "router_orm_access", "sqlalchemy.select"),
+        ("app/screening/routers/quality_gates.py", "router_orm_access", "Session.execute"),
+        ("app/screening/routers/quality_gates.py", "router_orm_access", "sqlalchemy.select"),
         ("app/deep_review/routers/reports.py", "router_orm_access", "sqlalchemy.select"),
-        ("app/routers/reviews.py", "router_orm_access", "sqlalchemy.select"),
+        ("app/screening/routers/reviews.py", "router_orm_access", "sqlalchemy.select"),
         ("app/routers/runs.py", "router_orm_access", "sqlalchemy.select"),
-        ("app/routers/schedule.py", "router_orm_access", "sqlalchemy.select"),
-        ("app/routers/screening.py", "router_orm_access", "sqlalchemy.select"),
+        ("app/screening/routers/schedule.py", "router_orm_access", "sqlalchemy.select"),
+        ("app/screening/routers/screening.py", "router_orm_access", "sqlalchemy.select"),
     }
 )
 
 #: 검사 3 — `schemas`가 `models`·`services`를 import하는 자리.
-SCHEMA_IMPORT_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset(
-    {
-        ("app/schemas/__init__.py", "schema_imports_model_or_service", "app.services.profile"),
-    }
-)
+#:
+#: T7 2단계가 비웠다. `app/schemas/__init__.py`는 `PROFILE_PARSE_ERROR_CODES`를
+#: `app.services.profile`에서 받고 있었는데, 그 상수의 정의는 이미 T3가
+#: `app.core.company_profile`로 옮겨 둔 것이라 재수출을 거치지 않고 core에서
+#: 직접 받도록 바꿨다. 값과 동작은 같다.
+SCHEMA_IMPORT_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset()
 
 #: 검사 4 — 다른 모듈 모델로 향하는 lifecycle 모델의 `relationship`.
 LIFECYCLE_RELATIONSHIP_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset()
@@ -85,9 +86,11 @@ LIFECYCLE_RELATIONSHIP_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset()
 #: 심층 검토가 판정을 읽던 세 자리를 선별 seam으로 바꾸면서 58 → 7이 됐다.
 #: lifecycle relationship 9건은 전부 사라졌다. 남은 7건은 조립 계층이 아직 모듈
 #: 내부를 직접 들고 있는 자리이며 T7·T8이 없앤다.
+#: T7 2단계는 screening 폴더 이주만 했으므로 router 18건은 경로만 바뀌었고,
+#: schemas → services 1건은 실제로 사라져 0이 됐다.
 BASELINE_SIZES: dict[str, int] = {
     "cross_module_import": 7,
     "router_orm_access": 18,
-    "schema_imports_model_or_service": 1,
+    "schema_imports_model_or_service": 0,
     "lifecycle_relationship": 0,
 }

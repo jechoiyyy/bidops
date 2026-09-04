@@ -113,7 +113,7 @@ from .contracts import (
 )
 from .ingest_feedback import load_feedback
 from .judgment_revisions import judgment_revision_payload
-from ..services.revisions import (
+from .services.revisions import (
     RevisionValidationError,
     append_judgment_revision,
     current_judgment_revision,

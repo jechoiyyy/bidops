@@ -13,10 +13,10 @@ from app.screening.models import (
     OrderPlanScreeningExecution,
     OrderPlanScreeningResult,
 )
-from app.routers import order_plans as order_plans_router
-from app.schemas.order_plans import ExecutionCreateRequest
-from app.services.order_plan_screening import OrderPlanScreeningService
-from tests.test_order_plan_screening_service import _fixture
+from app.screening.routers import order_plans as order_plans_router
+from app.screening.schemas.order_plans import ExecutionCreateRequest
+from app.screening.services.order_plan_screening import OrderPlanScreeningService
+from tests.screening.test_order_plan_screening_service import _fixture
 
 
 def test_manual_execution_and_review_api_contract(tmp_path, monkeypatch) -> None:

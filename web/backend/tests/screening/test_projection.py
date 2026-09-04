@@ -23,7 +23,7 @@ from app.screening import (
     current_judgments,
     latest_corrected_grade,
 )
-from app.services.revisions import append_judgment_revision
+from app.screening.services.revisions import append_judgment_revision
 
 NOW = datetime(2026, 8, 24, tzinfo=timezone.utc)
 
