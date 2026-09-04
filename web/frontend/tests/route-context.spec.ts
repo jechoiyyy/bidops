@@ -96,7 +96,7 @@ test("SPA 내부 link click으로 lazy route에 들어가도 metadata와 화면�
   // chunk가 그려지기 전에는 하나, 그려진 뒤에는 둘이 잡혀 strict mode를 어긴다.
   // 통과하던 실행은 출발 화면이 아직 안 그려진 상태를 눌렀다는 뜻이므로,
   // 화면이 그려진 것을 확인한 뒤 그 화면의 링크로 이동한다. 사이드바는 좁은
-  // 폭에서 접히므로 네 폭에서 같은 동작을 하는 쪽은 화면 안의 링크다.
+  // 폭에서 접히므로 지원 폭 어디에서나 같은 동작을 하는 쪽은 화면 안의 링크다.
   const toQueue = page.locator(".judgment-page-actions").getByRole("link", { name: "검토 대기열" });
   await expect(toQueue).toBeVisible();
   await toQueue.click();
