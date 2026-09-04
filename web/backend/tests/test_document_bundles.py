@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.core.db import init_db
-from app.document_mcp.processor import DocumentProcessor
+from app.deep_review.document_mcp.processor import DocumentProcessor
 from app.core.models import AuditEvent, IdempotencyRecord
 from app.deep_review.models import (
     ContentObject,
@@ -35,12 +35,12 @@ from app.deep_review.models import (
 )
 from app.lifecycle.models import Attachment, Notice, Run
 from app.screening.models import Judgment
-from app.schemas.document_bundles import ConfirmRequest, PatchDocumentVersionRequest
-from app.services import assets
-from app.services import document_converter
-from app.services.document_converter import ScratchDocumentProcessor
-from app.services.document_bundles import BundleServiceError, DocumentBundleService, stable_api_error
-from app.workers.document_protocol import convert_one
+from app.deep_review.schemas.document_bundles import ConfirmRequest, PatchDocumentVersionRequest
+from app.deep_review.services import assets
+from app.deep_review.services import document_converter
+from app.deep_review.services.document_converter import ScratchDocumentProcessor
+from app.deep_review.services.document_bundles import BundleServiceError, DocumentBundleService, stable_api_error
+from app.deep_review.document_protocol import convert_one
 
 FIXTURES = Path(__file__).parent / "fixtures" / "document_bundles"
 

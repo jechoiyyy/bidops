@@ -12,8 +12,8 @@ from sqlalchemy.pool import StaticPool
 from app.core.db import Base, get_db
 from app.main import lifespan
 from app.lifecycle.models import Run
-from app.routers.runs import router as runs_router
-from app.services.pipeline import PipelineExecution, PipelineLogLine
+from app.lifecycle.routers.runs import router as runs_router
+from app.lifecycle.services.pipeline import PipelineExecution, PipelineLogLine
 
 
 def _db_application() -> tuple[FastAPI, object, PipelineExecution]:

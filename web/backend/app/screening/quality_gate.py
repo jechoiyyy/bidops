@@ -40,7 +40,7 @@ from .models import (
     ScreeningPolicy,
 )
 from .artifacts import ArtifactError, ArtifactStore, ExecutionWorkspace, sha256_bytes
-from ..ingest.loader import deterministic_run_id
+from ..core.run_id import deterministic_run_id
 from ..core.generation_config import GenerationConfigError, config_from_value, legacy_generation_config, validate_digest
 from .execution_store import ScreeningExecutionStore
 from .orchestrator import (

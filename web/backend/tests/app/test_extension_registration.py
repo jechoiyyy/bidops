@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from app.lifecycle import extension_registry
 from app.main import app  # noqa: F401 — import 자체가 등록 시점이다
-from app.services.deep_review_hooks import PreSpecAttachmentEligibilityHook
-from app.services.prespec_projection import PreSpecOverviewDocumentProjection
+from app.deep_review.services.deep_review_hooks import PreSpecAttachmentEligibilityHook
+from app.deep_review.services.prespec_projection import PreSpecOverviewDocumentProjection
 
 
 def test_app_assembly_registers_the_overview_document_projection():

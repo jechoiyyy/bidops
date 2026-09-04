@@ -4,8 +4,8 @@ screening·deep_review는 lifecycle 모델을 ORM으로 **읽고 join해도 된�
 lifecycle 테이블에 **쓰기와 잠금**은 여기 있는 함수로만 한다. 그래야 회차·공고·
 사업기회·첨부 메타의 잠금 순서와 불변 조건이 한 곳에 남는다.
 
-폴더 이주(T7) 전이므로 구현은 아직 `app.lifecycle.models`·`app.ingest.loader`·`app.services`를
-가리킨다. 대상 파일들이 lifecycle 폴더로 옮겨지면 import 경로만 바뀐다.
+T7 3단계가 lifecycle 소유 파일을 모두 `app/lifecycle/`로 들여왔으므로 구현은
+같은 패키지 안(`.models`·`.ingest.loader`)을 가리킨다.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..core.run_id import ensure_aware as _ensure_aware
-from ..ingest.loader import IngestResult, _load_order_plans, ingest_run
+from .ingest.loader import IngestResult, _load_order_plans, ingest_run
 from .models import (
     AgencyPortal,
     Attachment,
@@ -30,6 +30,7 @@ from .models import (
 __all__ = [
     "ATTACHMENT_ORIGINS",
     "IngestResult",
+    "attachment_download_url",
     "delete_manual_attachment",
     "get_notice",
     "get_run",
@@ -323,3 +324,16 @@ def mirror_notice_observation(
 # --- 회차 적재 --------------------------------------------------------------
 # `ingest_run`은 `..ingest.loader`에서 그대로 재공개한다(위 import). 선별 worker가
 # 회차를 적재할 때 lifecycle 공개 이름으로 부른다.
+
+
+def attachment_download_url(attachment: Attachment) -> str | None:
+    """Return an internal download URL when a stored file exists.
+
+    첨부 메타는 lifecycle 소유이고 다운로드 경로 문자열도 그 계약의 일부다
+    (명세 §5.2). deep_review의 첨부 화면도 같은 문자열을 쓰므로 여기 한 벌만
+    둔다. 순수 문자열 생성이며 저장소에 닿지 않는다.
+    """
+
+    if attachment.stored_path:
+        return f"/api/attachments/{attachment.id}/download"
+    return attachment.url

@@ -21,7 +21,7 @@ from sqlalchemy import event, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from ..core.config import Settings, get_settings
-from ..ingest.loader import parse_run_id
+from ..core.run_id import parse_run_id
 from ..lifecycle.models import Notice, Run
 from .models import CompanyProfileSnapshot, ScreeningExecution, ScreeningPolicy
 from .artifacts import ArtifactError, ArtifactStore, ExecutionWorkspace, aware_iso, canonical_bytes, sha256_bytes

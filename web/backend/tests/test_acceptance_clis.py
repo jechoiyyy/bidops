@@ -6,10 +6,10 @@ from pathlib import Path
 
 import pytest
 
-from app.cli.run_bc_e2e import _write_evidence, main as run_bc_main
-from app.cli.score_candidate_quality import main as score_quality_main
-from app.services.bc_e2e import BcE2EError, JsonAcceptanceApi, actor_header_value
-from app.services.document_bundles import BundleServiceError, validate_actor
+from app.deep_review.cli.run_bc_e2e import _write_evidence, main as run_bc_main
+from app.screening.cli.score_candidate_quality import main as score_quality_main
+from app.deep_review.services.bc_e2e import BcE2EError, JsonAcceptanceApi, actor_header_value
+from app.deep_review.services.document_bundles import BundleServiceError, validate_actor
 
 
 def _write_json(path: Path, payload: dict) -> Path:

@@ -23,30 +23,30 @@ from .core import (
     isolated_test_boundary_active,
 )
 from .lifecycle import extension_registry
-from .routers.deep_reviews import pre_spec_overview_router
+from .deep_review.routers.deep_reviews import pre_spec_overview_router
 from .screening import register_lifecycle_extensions
-from .services.deep_review_hooks import PreSpecAttachmentEligibilityHook
-from .services.prespec_projection import PreSpecOverviewDocumentProjection
-from .routers.attachments import router as attachments_router
-from .routers.metrics import router as metrics_router
-from .routers.notices import router as notices_router
-from .routers.pre_specs import router as pre_specs_router
-from .routers.opportunities import router as opportunities_router
-from .routers.portals import router as portals_router
-from .routers.profile import router as profile_router
-from .routers.policies import router as policies_router
-from .routers.quality_gates import router as quality_gates_router
-from .routers.reviews import notice_router as notice_reviews_router
-from .routers.reviews import router as reviews_router
-from .routers.runs import router as runs_router
-from .routers.schedule import router as schedule_router
-from .routers.screening import router as screening_router
-from .routers.screening import run_router as screening_run_router
-from .routers.document_bundles import router as document_bundles_router
-from .routers.deep_reviews import router as deep_reviews_router
-from .routers.bid_delta import router as bid_delta_router
-from .routers.reports import router as reports_router
-from .routers.order_plans import router as order_plans_router
+from .deep_review.services.deep_review_hooks import PreSpecAttachmentEligibilityHook
+from .deep_review.services.prespec_projection import PreSpecOverviewDocumentProjection
+from .deep_review.routers.attachments import router as attachments_router
+from .lifecycle.routers.metrics import router as metrics_router
+from .lifecycle.routers.notices import router as notices_router
+from .lifecycle.routers.pre_specs import router as pre_specs_router
+from .lifecycle.routers.opportunities import router as opportunities_router
+from .lifecycle.routers.portals import router as portals_router
+from .screening.routers.profile import router as profile_router
+from .screening.routers.policies import router as policies_router
+from .screening.routers.quality_gates import router as quality_gates_router
+from .screening.routers.reviews import notice_router as notice_reviews_router
+from .screening.routers.reviews import router as reviews_router
+from .lifecycle.routers.runs import router as runs_router
+from .screening.routers.schedule import router as schedule_router
+from .screening.routers.screening import router as screening_router
+from .screening.routers.screening import run_router as screening_run_router
+from .deep_review.routers.document_bundles import router as document_bundles_router
+from .deep_review.routers.deep_reviews import router as deep_reviews_router
+from .deep_review.routers.bid_delta import router as bid_delta_router
+from .deep_review.routers.reports import router as reports_router
+from .screening.routers.order_plans import router as order_plans_router
 from .runtime import ApplicationRuntime
 
 

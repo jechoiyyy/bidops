@@ -224,8 +224,8 @@ python3 skills/bidops-screen/scripts/validate_order_plan_phase0.py --json
 
 ```bash
 cd web/backend
-.venv/bin/python -m app.ingest.cli --run 20260817-20260823   # 회차 하나
-.venv/bin/python -m app.ingest.cli --all                     # 발견된 모든 회차
+.venv/bin/python -m app.lifecycle.ingest.cli --run 20260817-20260823   # 회차 하나
+.venv/bin/python -m app.lifecycle.ingest.cli --all                     # 발견된 모든 회차
 ```
 
 적재 순서는 `validation-set.json` → `screening-results.json` → `collected-notices.json` 이고, 마지막으로 `reports/<회차>/review-feedback.yaml` 에서 값이 채워진 항목만 초기 리뷰로 가져온다.
@@ -336,7 +336,7 @@ bidops/
 
 | 증상 | 원인과 해결 |
 |---|---|
-| 회차 선택기가 비어 있다 | 적재가 안 됐다. `python -m app.ingest.cli --all`을 실행한다 |
+| 회차 선택기가 비어 있다 | 적재가 안 됐다. `python -m app.lifecycle.ingest.cli --all`을 실행한다 |
 | `빌드된 프론트엔드가 없습니다` 503 | `cd web/frontend && npm run build`. 빌드 산출물이 없어도 백엔드 기동 자체는 실패하지 않는다 |
 | `/api/profile/*`가 503 `profile_snapshot_unavailable` | 승인된 profile snapshot이 없다. 회차 판정을 한 번 실행한다. fail closed가 정상 동작이다 |
 | Docker가 만든 파일을 지울 수 없다 | 컨테이너 사용자 번호가 host와 다르다. `id -u`·`id -g`를 `.env`의 `BIDOPS_UID`·`BIDOPS_GID`에 넣고 다시 띄운다 |

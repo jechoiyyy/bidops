@@ -1,10 +1,10 @@
 """모듈 경계 검사가 쓰는 매핑 데이터 (명세 §4·§5.1·§5.2·§6.1).
 
-네 모듈 폴더(`app/core`·`app/lifecycle`·`app/screening`·`app/deep_review`)는
-모두 생겼지만 아직 대부분의 service·router·worker가 폴더 밖에 있다. 그 파일들의
-*목표* 모듈은 이 파일의 명시적 매핑표가 결정한다. 폴더 이주 task마다
-`FILE_MODULES`·`MIXED_FILES`의 해당 항목을 지우면 되고, 마지막에는
-`MODULE_FOLDERS`(폴더 규칙)만 남는다.
+네 모듈 폴더(`app/core`·`app/lifecycle`·`app/screening`·`app/deep_review`)가
+모두 생겼고, T7 1·2·3단계가 소유 파일을 전부 자기 폴더로 옮겼다. 그래서
+경로 판정은 이제 `MODULE_FOLDERS`(폴더 규칙)와, 폴더 밖에 남은 조립 계층
+파일 목록(`FILE_MODULES`)만으로 끝난다. `MIXED_FILES`·`SPLIT_FILE_NAME_MODULES`는
+비어 있고, 새 파일이 모듈 폴더 밖에 생기면 배정을 강제하는 검사가 걸린다.
 """
 
 from __future__ import annotations
@@ -51,41 +51,46 @@ SEAM_IMPORTS: dict[tuple[str, str], frozenset[str]] = {
 # 값은 그 모듈의 공개 표면 파일들이다. 이 조합에서는 여기 적힌 파일에서 받은
 # 이름만 허용하고 그 밖의 모듈 내부 경로는 위반으로 잡는다.
 #
-# lifecycle의 공개 표면은 두 파일이다. `__init__.py`가 올린 함수·타입과,
-# **모델 클래스**다 — §4 세부 규칙이 "lifecycle의 모델 클래스는 공개 이름이다.
-# screening·deep_review는 `lifecycle.models`의 `Notice`·`Run`... 을 import해
-# ORM으로 읽고 join해도 된다"고 못박았다. 쓰기와 잠금만 `__init__.py`의 함수로
-# 제한된다(그 제한은 이 검사가 아니라 `api.py`의 공개 함수 설계가 진다).
-# T6이 `app/lifecycle/models.py`를 만들면서 screening·deep_review 몫을 켰다.
+# lifecycle의 공개 표면은 `__init__.py`가 올린 함수·타입과 **선언적 계약 파일**
+# 이다. §4 세부 규칙이 "lifecycle의 모델 클래스는 공개 이름이다. screening·
+# deep_review는 `lifecycle.models`의 `Notice`·`Run`... 을 import해 ORM으로 읽고
+# join해도 된다"고 못박았고, 같은 성격의 선언 파일이 `schemas`의 응답 DTO와
+# `ingest/contracts.py`의 회차 산출물 계약이다(둘 다 `docs/contracts.md`가 정본
+# 으로 삼는 계약이며 테이블에 닿지 않는다). T7 3단계가 그 파일들을 lifecycle
+# 폴더로 들여오면서 함께 켰다.
+#
+# **동작**(loader·service·router)은 예외 없이 `__init__.py`의 이름으로만 받는다.
+# 쓰기와 잠금 역시 `__init__.py`의 함수로 제한된다(그 제한은 이 검사가 아니라
+# `api.py`의 공개 함수 설계가 진다).
+_LIFECYCLE_PUBLIC_SURFACE: tuple[str, ...] = (
+    "app/lifecycle/__init__.py",
+    "app/lifecycle/ingest/contracts.py",
+    "app/lifecycle/models.py",
+    "app/lifecycle/schemas/__init__.py",
+    "app/lifecycle/schemas/opportunities.py",
+    "app/lifecycle/schemas/pre_specs.py",
+)
+
 PUBLIC_NAME_IMPORTS: dict[tuple[str, str], tuple[str, ...]] = {
     ("assembly", "core"): ("app/core/__init__.py",),
     # T4가 app/lifecycle/__init__.py를 만들면서 조립 계층 몫을 켰다.
     ("assembly", "lifecycle"): ("app/lifecycle/__init__.py",),
-    ("screening", "lifecycle"): (
-        "app/lifecycle/__init__.py",
-        "app/lifecycle/models.py",
-    ),
-    ("deep_review", "lifecycle"): (
-        "app/lifecycle/__init__.py",
-        "app/lifecycle/models.py",
-    ),
+    ("screening", "lifecycle"): _LIFECYCLE_PUBLIC_SURFACE,
+    ("deep_review", "lifecycle"): _LIFECYCLE_PUBLIC_SURFACE,
 }
 
 # 규칙을 적용할 대상 경로 범위. `None`이면 그 모듈이 소유한 파일 전부다.
 #
-# screening·deep_review → lifecycle은 **lifecycle 패키지 안**으로 한정해 켠다.
+# T6은 screening·deep_review → lifecycle을 `app/lifecycle/` 안으로만 켰다.
 # lifecycle 소유 파일 상당수(app/ingest, app/services, app/routers, app/schemas)가
-# 아직 `app/lifecycle/` 밖에 있고, 그 파일들의 공개 표면은 T7의 폴더 이주가
-# 정한다. 지금 전 범위로 켜면 아직 설계되지 않은 표면에 대한 위반 수십 건이
-# 한꺼번에 허용 목록으로 들어가야 하고, 허용 목록은 줄어드는 방향만 허용한다.
-# 파일이 `app/lifecycle/`로 들어오는 순간 이 규칙이 자동으로 그 파일까지
-# 강제하므로 부채는 사라지지 않는다. 남은 범위는
-# `UNIMPLEMENTED_PUBLIC_NAME_RULES`와 `REMAINING_PUBLIC_NAME_DEBT`가 센다.
+# 아직 폴더 밖에 있었기 때문이다. T7 3단계가 그 파일을 모두 들여오면서 범위를
+# 전 범위(`None`)로 올렸다. lifecycle 소유 파일은 이제 하나도 폴더 밖에 없으므로
+# 두 값은 같은 집합을 가리키고, 남아 있던 부채 항목은 0이 되어 원장에서 빠졌다.
 PUBLIC_NAME_SCOPES: dict[tuple[str, str], str | None] = {
     ("assembly", "core"): None,
     ("assembly", "lifecycle"): None,
-    ("screening", "lifecycle"): "app/lifecycle/",
-    ("deep_review", "lifecycle"): "app/lifecycle/",
+    ("screening", "lifecycle"): None,
+    ("deep_review", "lifecycle"): None,
 }
 
 # §3의 유일한 예외: "`alembic/env.py`와 migration revision 파일이 각 모듈의
@@ -106,30 +111,28 @@ MODELS_SUBMODULE_IMPORTERS: tuple[str, ...] = (
 # `REMAINING_PUBLIC_NAME_DEBT`가 실제 코드에서 센다.
 UNIMPLEMENTED_PUBLIC_NAME_RULES: tuple[str, ...] = (
     "조립 계층 → screening·deep_review: 모듈 공개 이름만 (지금은 모듈 전체를 "
-    "허용). app/runtime.py가 app.screening.{execution_store,mock_transport,"
-    "ollama,orchestrator,worker}·app.services.scheduled_pipeline 같은 모듈 "
-    "내부를 직접 들고 있고, 두 모듈의 service·router·worker가 아직 app/services·"
-    "app/routers·app/workers에 남아 있다. 폴더 이주와 모듈 진입점이 끝나는 "
-    "T7·T8에서 켠다.",
-    "screening·deep_review → lifecycle: `app/lifecycle/` **밖에** 남은 lifecycle "
-    "소유 파일(app/ingest/{loader,contracts}.py, app/services의 lifecycle 파일, "
-    "app/routers/common.py, app/schemas의 lifecycle 이름)까지 공개 이름으로 "
-    "제한하는 부분. T6은 lifecycle 패키지 안(PUBLIC_NAME_SCOPES)만 켰다. "
-    "T7이 그 파일들을 app/lifecycle/로 옮기면 같은 규칙이 그대로 적용되므로, "
-    "그때 각 파일의 공개 표면을 정하면서 이 절이 닫힌다.",
+    "허용). main.py·runtime.py·workers/analysis.py·migrations/import_sqlite.py가 "
+    "app.screening.{execution_store,ollama,orchestrator,worker,routers.*,"
+    "services.*,workers.order_plan}과 app.deep_review.{routers,services,workers}."
+    "* 같은 모듈 내부 경로를 직접 들고 있다. 두 모듈의 파일은 이제 모두 자기 "
+    "폴더 안에 있으므로 남은 일은 모듈 진입점(__init__)에 공개 이름을 올리는 "
+    "것이고, T8에서 켠다.",
 )
 
-# 위 두 절이 아직 필요한 이유를 실제 코드에서 센 것이다. 값은 "그 절이 켜져
+# 위 절이 아직 필요한 이유를 실제 코드에서 센 것이다. 값은 "그 절이 켜져
 # 있었다면 위반이었을 import"의 개수이며, 허용 목록과 같은 계약을 따른다:
 # 정확히 일치해야 하고 이주 task는 **줄이기만** 한다. 0이 되면 그 절을 검사 1에
 # 넣을 수 있다는 신호이므로 테스트가 실패한다.
 #
-# 모듈 패키지 존재 여부는 더 이상 신호가 아니다. 네 패키지가 모두 생겼고
-# (app/core·app/lifecycle·app/screening·app/deep_review), 남은 조건은 파일이
-# 있느냐가 아니라 조립 계층·형제 모듈이 아직 모듈 밖 경로를 들고 있느냐다.
+# T7 3단계 실측: 조립 계층 몫은 33 그대로다(경로가 바뀐 것도 없다 — 조립 계층이
+# 직접 드는 것은 screening·deep_review 내부이고 그 둘은 2단계·1단계에 이미
+# 옮겨졌다). "screening|deep_review->lifecycle(패키지 밖)" 80건은 0이 되어
+# 항목째 사라졌다. lifecycle 소유 파일이 모두 `app/lifecycle/`로 들어왔고,
+# 형제 모듈의 참조는 전부 공개 표면(`__init__`·`models`·`schemas`·
+# `ingest/contracts`)이나 core로 옮겨졌기 때문이다. 그래서
+# `PUBLIC_NAME_SCOPES`의 lifecycle 두 조합을 전 범위(None)로 켰다.
 REMAINING_PUBLIC_NAME_DEBT: dict[str, int] = {
     "assembly->screening|deep_review": 33,
-    "screening|deep_review->lifecycle(패키지 밖)": 77,
 }
 
 # --- 폴더 규칙 (경로 판정에서 가장 먼저 본다) ----------------------------------
@@ -158,119 +161,21 @@ FILE_MODULES: dict[str, str] = {
     "app/workers/analysis.py": ASSEMBLY,
     "app/migrations/__init__.py": ASSEMBLY,
     "app/migrations/import_sqlite.py": ASSEMBLY,
-    "app/routers/__init__.py": ASSEMBLY,
-    "app/services/__init__.py": ASSEMBLY,
-    "app/cli/__init__.py": ASSEMBLY,
-    # core
-    # lifecycle
-    "app/ingest/__init__.py": LIFECYCLE,
-    "app/ingest/cli.py": LIFECYCLE,
-    # T5a가 판정·리뷰·C-2 적재와 C-2 계약을 screening으로 옮겼다. 남은 본체는
-    # 회차 적재와 회차 산출물 계약이므로 lifecycle이다.
-    "app/ingest/contracts.py": LIFECYCLE,
-    "app/ingest/loader.py": LIFECYCLE,
-    "app/services/metrics.py": LIFECYCLE,
-    "app/services/opportunity_integrity.py": LIFECYCLE,
-    "app/services/opportunity_tracking.py": LIFECYCLE,
-    "app/services/pipeline.py": LIFECYCLE,
-    "app/routers/common.py": LIFECYCLE,
-    "app/routers/metrics.py": LIFECYCLE,
-    "app/routers/notices.py": LIFECYCLE,
-    "app/routers/opportunities.py": LIFECYCLE,
-    "app/routers/portals.py": LIFECYCLE,
-    # 두 router의 본체는 lifecycle이다. 갈라져 나간 endpoint는 각각 소유 모듈이
-    # 같은 경로로 제공한다 — 판정 pipeline은 screening router로, 개요 리뷰는
-    # routers/deep_reviews.py로 옮겼다(§5.3).
-    "app/routers/pre_specs.py": LIFECYCLE,
-    "app/routers/runs.py": LIFECYCLE,
-    "app/schemas/opportunities.py": LIFECYCLE,
-    # schemas/pre_specs는 목록·추적 부분이 lifecycle, 개요 부분이 deep_review다.
-    "app/schemas/pre_specs.py": LIFECYCLE,
-    # T5b가 services/prespec_attachments.py에서 갈라낸 lifecycle 몫
-    # (parse_attachment_key, tracked_order_plan_connection*).
-    "app/services/opportunity_connections.py": LIFECYCLE,
-    # screening
-    "app/services/candidate_quality.py": SCREENING,
-    "app/services/order_plan_screening.py": SCREENING,
-    "app/services/profile.py": SCREENING,
-    # 범용 client는 core로 갔고 남은 것은 C-2 어댑터뿐이다 (T7에서 screening 폴더로).
-    "app/services/vllm_client.py": SCREENING,
-    "app/services/reviews.py": SCREENING,
-    "app/services/revisions.py": SCREENING,
-    "app/services/scheduled_pipeline.py": SCREENING,
-    "app/services/scheduler.py": SCREENING,
-    "app/routers/order_plans.py": SCREENING,
-    "app/routers/policies.py": SCREENING,
-    "app/routers/profile.py": SCREENING,
-    "app/routers/quality_gates.py": SCREENING,
-    "app/routers/reviews.py": SCREENING,
-    "app/routers/schedule.py": SCREENING,
-    "app/routers/screening.py": SCREENING,
-    "app/schemas/order_plans.py": SCREENING,
-    "app/schemas/revisions.py": SCREENING,
-    "app/workers/order_plan_screening.py": SCREENING,
-    "app/cli/score_candidate_quality.py": SCREENING,
-    # T5a가 판정·리뷰·C-2 적재와 그 계약을 screening 폴더로 옮겼다. 아래 두
-    # 항목은 폴더 규칙이 이미 처리하므로 여기 없어도 되지만, 남은 lifecycle
-    # 파일과의 대비를 위해 이 블록의 끝을 표시해 둔다.
-    # deep_review
-    "app/services/agent_e2e.py": DEEP_REVIEW,
-    "app/services/assets.py": DEEP_REVIEW,
-    # attachments는 lifecycle로 갈 함수(attachment_download_url)를 하나 갖는다.
-    "app/services/attachments.py": DEEP_REVIEW,
-    "app/services/prespec_attachments.py": DEEP_REVIEW,
-    "app/services/bc_e2e.py": DEEP_REVIEW,
-    "app/services/bid_delta.py": DEEP_REVIEW,
-    "app/services/deep_review_validation.py": DEEP_REVIEW,
-    "app/services/deep_review_vllm.py": DEEP_REVIEW,
-    "app/services/deep_reviews.py": DEEP_REVIEW,
-    "app/services/document_bundles.py": DEEP_REVIEW,
-    "app/services/document_converter.py": DEEP_REVIEW,
-    "app/services/document_structures.py": DEEP_REVIEW,
-    "app/services/evidence.py": DEEP_REVIEW,
-    "app/services/input_versions.py": DEEP_REVIEW,
-    "app/services/mock_analysis_client.py": DEEP_REVIEW,
-    "app/services/prespec_overview.py": DEEP_REVIEW,
-    "app/services/reports.py": DEEP_REVIEW,
-    "app/routers/attachments.py": DEEP_REVIEW,
-    "app/routers/bid_delta.py": DEEP_REVIEW,
-    "app/routers/deep_reviews.py": DEEP_REVIEW,
-    "app/routers/document_bundles.py": DEEP_REVIEW,
-    "app/routers/reports.py": DEEP_REVIEW,
-    "app/schemas/bid_delta.py": DEEP_REVIEW,
-    "app/schemas/document_bundles.py": DEEP_REVIEW,
-    "app/schemas/reports.py": DEEP_REVIEW,
-    "app/workers/deep_review.py": DEEP_REVIEW,
-    "app/workers/document.py": DEEP_REVIEW,
-    "app/workers/document_protocol.py": DEEP_REVIEW,
-    "app/workers/prespec_attachment.py": DEEP_REVIEW,
-    "app/cli/import_profile_policy.py": DEEP_REVIEW,
-    "app/cli/run_bc_e2e.py": DEEP_REVIEW,
-    # T5b: lifecycle 확장점(§6.1 개요·문서 projection, §6.2 hook)의 deep_review 구현과
-    # router·agent가 함께 쓰는 심층 검토 view.
-    "app/services/prespec_projection.py": DEEP_REVIEW,
-    "app/services/deep_review_hooks.py": DEEP_REVIEW,
-    "app/schemas/deep_reviews.py": DEEP_REVIEW,
+    # core·lifecycle·screening·deep_review
+    # T7 1·2·3단계가 네 모듈의 소유 파일을 모두 자기 폴더로 옮겼다. 이제
+    # 폴더 규칙(MODULE_FOLDERS)이 판정하므로 여기 남은 항목이 없다.
 }
 
 # 디렉터리 단위로 통째로 한 모듈에 속하는 경로 (§5.2).
 DIRECTORY_MODULES: dict[str, str] = {
     # 조립 계층. alembic은 §4에 따라 models까지 import해도 된다.
     "alembic": ASSEMBLY,
-    "app/agents": DEEP_REVIEW,
-    "app/contracts/deep_review": DEEP_REVIEW,
-    "app/document_mcp": DEEP_REVIEW,
 }
 
-# 한 파일에 네 모듈이 섞여 있어 파일 단위로 배정할 수 없는 파일 (T7이 나눈다).
-# import 하는 쪽(출발지)으로는 검사하지 않고, import 되는 쪽(도착지)일 때만
-# 이름 단위로 소유 모듈을 판정한다. T6이 `app/models.py`를 네 모듈의
-# `models.py`로 나눠 없앴으므로 남은 것은 schemas뿐이다.
-MIXED_FILES: frozenset[str] = frozenset(
-    {
-        "app/schemas/__init__.py",
-    }
-)
+# 한 파일에 네 모듈이 섞여 있어 파일 단위로 배정할 수 없는 파일.
+# T6이 `app/models.py`를, T7 3단계가 `app/schemas/__init__.py`를 소유 모듈로
+# 나눠 없앴으므로 비어 있다.
+MIXED_FILES: frozenset[str] = frozenset()
 
 # --- 명세 §5.2가 이름 단위로 쪼갠 service 파일 --------------------------------
 # 파일은 본체가 가는 모듈에 배정하되(FILE_MODULES), §5.2가 다른 모듈로 옮길
@@ -278,16 +183,11 @@ MIXED_FILES: frozenset[str] = frozenset(
 # "이미 다른 모듈로 가기로 정해진 이름"을 참조한 것이 거짓 위반이 된다.
 # 열거되지 않은 이름은 파일 본체의 모듈(각 항목의 두 번째 값)로 본다.
 SPLIT_FILE_NAME_MODULES: dict[str, tuple[dict[str, str], str]] = {
-    # §5.2 lifecycle: "services/attachments.py의 attachment_download_url"
-    "app/services/attachments.py": (
-        {
-            "attachment_download_url": LIFECYCLE,
-        },
-        DEEP_REVIEW,
-    ),
-    # §5.2 lifecycle의 "services/prespec_attachments.py의 parse_attachment_key와
-    # tracked_order_plan_connection*"은 T5b가 services/opportunity_connections.py로
-    # 옮겨 파일 단위로 lifecycle이 됐다.
+    # T7 3단계가 마지막 항목을 없앴다. §5.2 lifecycle의
+    # "services/attachments.py의 attachment_download_url"은 이제
+    # `app/lifecycle/api.py`에 있고, "services/prespec_attachments.py의
+    # parse_attachment_key와 tracked_order_plan_connection*"은 T5b가
+    # `services/opportunity_connections.py`로 옮겨 파일 단위로 lifecycle이 됐다.
 }
 
 
@@ -373,142 +273,14 @@ TABLE_OWNER: dict[str, str] = {
     "bid_final_decision": DEEP_REVIEW,
 }
 
-# --- 명세 §6.1 DTO 소유: `app/schemas/__init__.py`의 이름 단위 매핑 -------------
-# projection DTO(JudgmentResponse·ReviewResponse·분포 항목 등)는 lifecycle이
-# 소유한다. 공용 기반 모델·검증기는 core로 간다(§4: schemas는 상수·검증기를
-# core에서 가져온다).
-SCHEMAS_NAME_MODULE: dict[str, str] = {
-    # core — 공용 기반 모델·타입·검증기
-    "APIModel": CORE,
-    "PageFilters": CORE,
-    "AwareDateTime": CORE,
-    "Actor": CORE,
-    "NonEmpty": CORE,
-    "Digest": CORE,
-    "RuntimeContractModel": CORE,
-    "_require_aware": CORE,
-    "_validate_clock_time": CORE,
-    "_validate_relative_source_ref": CORE,
-    "_validate_run_key_for_kind": CORE,
-    "_validate_profile_binding": CORE,
-    "_validate_generation_binding": CORE,
-    "_validate_profile_projection_binding_values": CORE,
-    "_validate_profile_error_codes": CORE,
-    # lifecycle — 회차·공고·첨부·기관 포털·파이프라인 projection DTO
-    "AttachmentResponse": LIFECYCLE,
-    "AgencyPortalResponse": LIFECYCLE,
-    "AgencyPortalCreateRequest": LIFECYCLE,
-    "AgencyPortalUpdateRequest": LIFECYCLE,
-    "AttachmentProcedureResponse": LIFECYCLE,
-    "EvidenceResponse": LIFECYCLE,
-    "PerspectiveResponse": LIFECYCLE,
-    "CounterargumentResponse": LIFECYCLE,
-    "VerificationItemResponse": LIFECYCLE,
-    "MatchedPerformanceResponse": LIFECYCLE,
-    "ReviewAnswerResponse": LIFECYCLE,
-    "ReviewAnswerInput": LIFECYCLE,
-    "ReviewUpsertRequest": LIFECYCLE,
-    "ReviewResponse": LIFECYCLE,
-    "JudgmentResponse": LIFECYCLE,
-    "NoticeListItem": LIFECYCLE,
-    "AttachmentQueueItem": LIFECYCLE,
-    "AttachmentQueueResponse": LIFECYCLE,
-    "NoticeDetailResponse": LIFECYCLE,
-    "NoticeListResponse": LIFECYCLE,
-    "HistoryItemResponse": LIFECYCLE,
-    "NoticeHistoryResponse": LIFECYCLE,
-    "RelatedNoticeResponse": LIFECYCLE,
-    "RelatedNoticeListResponse": LIFECYCLE,
-    "WarningResponse": LIFECYCLE,
-    "WarningListResponse": LIFECYCLE,
-    "RunCounts": LIFECYCLE,
-    "RunSummary": LIFECYCLE,
-    "RunListResponse": LIFECYCLE,
-    "ArtifactValidationResponse": LIFECYCLE,
-    "PipelineStageResponse": LIFECYCLE,
-    "CollectionScopeResponse": LIFECYCLE,
-    "RunDetailResponse": LIFECYCLE,
-    "FunnelItem": LIFECYCLE,
-    "DistributionItem": LIFECYCLE,
-    "VerificationRequest": LIFECYCLE,
-    "DeadlineNotice": LIFECYCLE,
-    "RunStatsResponse": LIFECYCLE,
-    "IngestRequest": LIFECYCLE,
-    "IngestResponse": LIFECYCLE,
-    "PipelineRunRequest": LIFECYCLE,
-    "PipelineLogLineResponse": LIFECYCLE,
-    "PipelineExecutionResponse": LIFECYCLE,
-    "PipelineLogResponse": LIFECYCLE,
-    "MetricBasis": LIFECYCLE,
-    "ValidationMetric": LIFECYCLE,
-    "ValidationMetricsResponse": LIFECYCLE,
-    # screening — 프로필 projection, 판정 실행·품질 게이트·정책·스케줄 런타임 계약
-    "ProfileStatus": SCREENING,
-    "ProfileSectionState": SCREENING,
-    "ProfileItemResponse": SCREENING,
-    "ProfileSectionResponse": SCREENING,
-    "ProfileSectionsResponse": SCREENING,
-    "ProfileUnknownResponse": SCREENING,
-    "ProfileUnknownsResponse": SCREENING,
-    "CompanyProfileVersion": SCREENING,
-    "ScreeningExecutionId": SCREENING,
-    "QualityGateId": SCREENING,
-    "QualityGateEvaluationId": SCREENING,
-    "ScheduleExecutionId": SCREENING,
-    "ScreeningTrigger": SCREENING,
-    "ScreeningScope": SCREENING,
-    "ScreeningStatus": SCREENING,
-    "ScreeningStage": SCREENING,
-    "AttemptStage": SCREENING,
-    "ScreeningFailureType": SCREENING,
-    "JudgmentExecutionCreateRequest": SCREENING,
-    "ScreeningStopRequest": SCREENING,
-    "ScreeningArtifactUrls": SCREENING,
-    "ScreeningExecutionResponse": SCREENING,
-    "ScreeningAttemptResponse": SCREENING,
-    "ScreeningFailureItem": SCREENING,
-    "ScreeningExecutionListResponse": SCREENING,
-    "ScreeningExecutionDetailResponse": SCREENING,
-    "ScreeningExecutionQuery": SCREENING,
-    "CompanyProfileSnapshotResponse": SCREENING,
-    "CompanyProfileSnapshotListResponse": SCREENING,
-    "QualityGatePurpose": SCREENING,
-    "QualityGateExecutionStatus": SCREENING,
-    "QualityGateResultStatus": SCREENING,
-    "QualityGateCreateRequest": SCREENING,
-    "QualityGateEvaluationResponse": SCREENING,
-    "QualityGateReviewResponse": SCREENING,
-    "QualityGateReviewUpsertRequest": SCREENING,
-    "QualityGateResponse": SCREENING,
-    "QualityGateDetailResponse": SCREENING,
-    "QualityGateListResponse": SCREENING,
-    "QualityGateQuery": SCREENING,
-    "PolicyVersionCreateRequest": SCREENING,
-    "PolicyCandidateRequest": SCREENING,
-    "PolicyActivationRequest": SCREENING,
-    "PolicyStatus": SCREENING,
-    "PolicyVersionResponse": SCREENING,
-    "PolicyVersionListResponse": SCREENING,
-    "PolicyVersionQuery": SCREENING,
-    "PolicyActivationResponse": SCREENING,
-    "ScheduleSettingsResponse": SCREENING,
-    "ScheduleSettingsUpdateRequest": SCREENING,
-    "ScheduleJobKind": SCREENING,
-    "ScheduleStatus": SCREENING,
-    "ScheduleTrigger": SCREENING,
-    "ScheduleExecutionCreateRequest": SCREENING,
-    "ScheduleExecutionSummary": SCREENING,
-    "ScheduleExecutionListResponse": SCREENING,
-    "ScheduleExecutionQuery": SCREENING,
-    "AlwaysOnSwitchUpdateRequest": SCREENING,
-    "AlwaysOnSwitchResponse": SCREENING,
-}
-
 # `tests/` 루트에 두는 공용 helper. conftest·postgres 처럼 어느 모듈의 테스트든
 # 쓸 수 있어야 하므로 core로 본다. 여기 없으면 기본값(조립 계층)이 되어 모듈
 # 테스트가 helper를 쓰는 것 자체가 위반으로 잡힌다.
 FILE_MODULES["tests/c2_fixtures.py"] = CORE
 FILE_MODULES["tests/postgres.py"] = CORE
+# `tests/fakes/`도 같은 성격의 루트 공용 helper다(§5.4가 루트에 남긴다).
+# T7 2단계가 선별 테스트를 tests/screening/으로 옮기면서 실제로 필요해졌다.
+DIRECTORY_MODULES["tests/fakes"] = CORE
 
 
 # --- 테스트 폴더 (§5.4) --------------------------------------------------------

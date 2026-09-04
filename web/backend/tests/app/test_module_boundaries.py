@@ -163,15 +163,13 @@ def repository_layout(root: Path) -> Layout:
 def _repository_name_modules(root: Path) -> dict[str, NameOwnership]:
     """이름 단위 소유가 필요한 파일들의 매핑.
 
-    `schemas/__init__.py`는 네 모듈이 섞여 있어 모든 이름의 소유가 정해져야
-    하고(default 없음), §5.2가 옮길 이름만 열거한 service 파일들은 그 이름만
-    따로 소유를 준다(default = 파일 본체의 모듈). T6이 `app/models.py`를 네
-    모듈의 `models.py`로 나눈 뒤로는 모델 이름을 폴더 규칙이 판정한다.
+    §5.2가 다른 모듈로 옮길 이름만 열거한 파일은 그 이름에만 따로 소유를 준다
+    (default = 파일 본체의 모듈). T6이 `app/models.py`를, T7 3단계가
+    `app/schemas/__init__.py`와 마지막 split 항목을 없앴으므로 실제 저장소에서는
+    비어 있고, 아래 합성 트리 테스트가 이 갈래를 계속 검사한다.
     """
 
-    mapping: dict[str, NameOwnership] = {
-        "app/schemas/__init__.py": NameOwnership(bmap.SCHEMAS_NAME_MODULE),
-    }
+    mapping: dict[str, NameOwnership] = {}
     for rel, (names, default) in bmap.SPLIT_FILE_NAME_MODULES.items():
         mapping[rel] = NameOwnership(names, default)
     return mapping
@@ -382,25 +380,24 @@ def check_cross_module_imports(layout: Layout) -> set[Violation]:
 
 
 ASSEMBLY_DEBT = "assembly->screening|deep_review"
-LIFECYCLE_DEBT = "screening|deep_review->lifecycle(패키지 밖)"
 
 
 def public_name_debt(layout: Layout) -> dict[str, set[Violation]]:
-    """아직 켜지 않은 §8-1 두 절이 켜져 있었다면 위반이었을 import.
+    """아직 켜지 않은 §8-1의 남은 절이 켜져 있었다면 위반이었을 import.
 
     `UNIMPLEMENTED_PUBLIC_NAME_RULES`가 글로 적어 둔 부채를 코드에서 다시 센다.
+    T7 3단계가 "screening·deep_review → lifecycle" 절을 실제로 켜면서
+    (`PUBLIC_NAME_SCOPES`가 전 범위) 그 몫은 검사 1이 직접 강제하므로 여기서
+    세지 않는다. 남은 절은 조립 계층 → screening·deep_review 하나다.
     """
 
-    debt: dict[str, set[Violation]] = {ASSEMBLY_DEBT: set(), LIFECYCLE_DEBT: set()}
+    debt: dict[str, set[Violation]] = {ASSEMBLY_DEBT: set()}
     for rel, source, owner, target_rel, target in resolved_imports(layout):
         if _is_models_submodule_exception(rel, target_rel, layout):
             continue
         if source == bmap.ASSEMBLY and owner in (bmap.SCREENING, bmap.DEEP_REVIEW):
             if target_rel != f"app/{owner}/__init__.py":
                 debt[ASSEMBLY_DEBT].add(Violation(rel, CROSS_MODULE_IMPORT, target.label))
-        elif source in (bmap.SCREENING, bmap.DEEP_REVIEW) and owner == bmap.LIFECYCLE:
-            if not target_rel.startswith("app/lifecycle/"):
-                debt[LIFECYCLE_DEBT].add(Violation(rel, CROSS_MODULE_IMPORT, target.label))
     return debt
 
 
@@ -644,9 +641,9 @@ def test_excluded_files_still_exist() -> None:
 def test_remaining_public_name_rules_are_still_needed(layout: Layout) -> None:
     """아직 켜지 않은 §8-1 두 절의 부채를 코드에서 다시 세어 원장과 맞춘다.
 
-    §4의 허용 표는 방향뿐 아니라 "공개 이름 대 모듈 내부"도 가른다. T3·T4·T6이
-    켠 조합은 검사 1이 강제한다. 남은 두 절은 아직 켤 수 없고, 그 이유는 조립
-    계층과 형제 모듈이 아직 모듈 폴더 밖 경로를 들고 있기 때문이다.
+    §4의 허용 표는 방향뿐 아니라 "공개 이름 대 모듈 내부"도 가른다. T3·T4·T6과
+    T7 3단계가 켠 조합은 검사 1이 강제한다. 남은 한 절은 아직 켤 수 없고, 그
+    이유는 조립 계층이 아직 두 모듈의 내부 경로를 직접 들고 있기 때문이다.
 
     허용 목록과 같은 계약이다. 숫자가 늘면 새 부채가 생긴 것이고, 0이 되면 그
     절을 `PUBLIC_NAME_IMPORTS`로 켤 수 있다는 신호다. 어느 쪽이든 실패한다.
@@ -685,27 +682,6 @@ def test_allowlists_only_shrink() -> None:
             f"[{kind}] 허용 목록이 기준선({baseline})보다 커졌다: {len(entries)}. "
             "허용 목록은 줄어드는 방향만 허용한다."
         )
-
-
-def test_every_schema_name_has_an_owning_module() -> None:
-    """`app/schemas/__init__.py`에 새 이름이 생기면 소유 모듈을 정하게 만든다."""
-
-    schemas_path = BACKEND_ROOT / "app" / "schemas" / "__init__.py"
-    if not schemas_path.is_file():  # T7 이후에는 파일이 사라진다.
-        return
-    declared: list[str] = []
-    for node in parse(schemas_path).body:
-        if isinstance(node, (ast.ClassDef, ast.FunctionDef)):
-            declared.append(node.name)
-        elif isinstance(node, ast.Assign):
-            declared.extend(t.id for t in node.targets if isinstance(t, ast.Name))
-        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
-            declared.append(node.target.id)
-    missing = sorted(set(declared) - set(bmap.SCHEMAS_NAME_MODULE))
-    assert not missing, (
-        "boundary_map.SCHEMAS_NAME_MODULE에 소유 모듈이 없는 이름:\n"
-        + "\n".join(f"  {name}" for name in missing)
-    )
 
 
 # ---------------------------------------------------------------------------

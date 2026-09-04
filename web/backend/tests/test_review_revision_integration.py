@@ -21,9 +21,9 @@ from app.screening.models import (
     ScreeningExecution,
     VerificationAnswer,
 )
-from app.routers import reviews as reviews_router
+from app.screening.routers import reviews as reviews_router
 from app.core.generation_config import GenerationConfig
-from app.services.revisions import append_judgment_revision
+from app.screening.services.revisions import append_judgment_revision
 
 
 NOW = datetime(2026, 8, 31, 3, 0, tzinfo=timezone.utc)

@@ -44,17 +44,17 @@ def test_alembic_child_environment_does_not_forward_unrelated_secrets(
         (("tests",), True),
         (("tests/test_integration_t14.py",), True),
         (("tests/test_db_migrations.py",), False),
-        (("tests/test_profile.py",), False),
+        (("tests/screening/test_profile.py",), False),
         (
             (
-                "tests/test_scheduler.py::"
+                "tests/screening/test_scheduler.py::"
                 "test_reservation_pk_and_duplicate_execution_are_transactional",
             ),
             False,
         ),
         (
             (
-                "tests/test_scheduler.py::"
+                "tests/screening/test_scheduler.py::"
                 "test_migrated_postgresql_allows_recovery_of_skipped_execution",
             ),
             False,
@@ -101,7 +101,7 @@ def test_requires_postgres_marker_is_registered(pytestconfig: pytest.Config) -> 
 
 def test_profile_target_runs_without_docker() -> None:
     result = subprocess.run(
-        [sys.executable, "-m", "pytest", "-q", "tests/test_profile.py"],
+        [sys.executable, "-m", "pytest", "-q", "tests/screening/test_profile.py"],
         cwd=postgres.BACKEND,
         env={
             "PATH": "/nonexistent",

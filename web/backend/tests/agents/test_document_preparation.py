@@ -12,7 +12,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
-from app.agents.common import (
+from app.deep_review.agents.common import (
     AgentAction,
     AgentActorRef,
     AgentAggregateRef,
@@ -22,7 +22,7 @@ from app.agents.common import (
     AgentName,
     AgentRunStatus,
 )
-from app.agents.document_preparation import (
+from app.deep_review.agents.document_preparation import (
     ConfirmReadyCommand,
     ConfirmReadyPayload,
     DocumentPreparationAgent,
@@ -34,13 +34,13 @@ from app.agents.document_preparation import (
     project_document_preparation,
 )
 from app.core.db import init_db
-from app.document_mcp.processor import DocumentProcessor
+from app.deep_review.document_mcp.processor import DocumentProcessor
 from app.core.models import AuditEvent
 from app.deep_review.models import DocumentBundle, DocumentBundleItem, DocumentVersion
 from app.lifecycle.models import Notice, Run
 from app.screening.models import Judgment
-from app.schemas.document_bundles import BundleView, DocumentVersionView
-from app.services.document_bundles import BundleServiceError, DocumentBundleService
+from app.deep_review.schemas.document_bundles import BundleView, DocumentVersionView
+from app.deep_review.services.document_bundles import BundleServiceError, DocumentBundleService
 
 
 FIXTURES = Path(__file__).parents[1] / "fixtures" / "document_bundles"
@@ -425,7 +425,7 @@ def test_status_projection_is_repeatable_and_write_free(agent_context: tuple[obj
     with Session(engine) as session:  # type: ignore[arg-type]
         started = agent.start(session, start_command(notice_id))
         count_before = session.scalar(select(__import__("sqlalchemy").func.count(AuditEvent.id)))
-        monkeypatch.setattr("app.services.document_bundles._now", lambda: (_ for _ in ()).throw(AssertionError("projection clock")))
+        monkeypatch.setattr("app.deep_review.services.document_bundles._now", lambda: (_ for _ in ()).throw(AssertionError("projection clock")))
         first = agent.status(session, AgentAggregateRef(aggregate_type="document_bundle", aggregate_id=str(started.result.id)))
         second = agent.status(session, AgentAggregateRef(aggregate_type="document_bundle", aggregate_id=str(started.result.id)))
         count_after = session.scalar(select(__import__("sqlalchemy").func.count(AuditEvent.id)))

@@ -111,8 +111,8 @@ worker 설정은 `BIDOPS_PRESPEC_ATTACHMENT_WORKER_CONCURRENCY=1`,
 worker를 직접 실행할 때는 migration·MinIO·ClamAV가 준비된 backend 환경에서 다음 명령을 쓴다.
 
 ```bash
-python -m app.workers.prespec_attachment
-python -m app.workers.prespec_attachment --once
+python -m app.deep_review.workers.prespec_attachment
+python -m app.deep_review.workers.prespec_attachment --once
 ```
 
 첨부 URL의 수명은 아직 측정하지 않았으므로 `unknown`으로 유지한다. URL·object key·로컬

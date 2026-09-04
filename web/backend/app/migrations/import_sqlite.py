@@ -47,12 +47,12 @@ from ..core import models as core_models  # noqa: F401
 from ..lifecycle import models as lifecycle_models  # noqa: F401
 from ..screening import models as screening_models  # noqa: F401
 from ..deep_review import models as deep_review_models  # noqa: F401
-from ..services.revisions import (
+from ..screening.services.revisions import (
     JUDGMENT_PAYLOAD_SCHEMA,
     REVIEW_PAYLOAD_SCHEMA,
     canonical_payload_and_hash,
 )
-from ..services.reviews import review_revision_payload
+from ..screening.services.reviews import review_revision_payload
 
 
 LEGACY_COLUMNS: dict[str, tuple[str, ...]] = {
