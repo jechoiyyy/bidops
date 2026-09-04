@@ -46,13 +46,14 @@ from .input_versions import (
     resolve_active_versions,
     validate_pinned_policy,
 )
-from ...core.vllm_client import (
+from ...core.model_binding import MODEL_NAME
+from ...core.model_client import (
     APPROVED_RETRIES,
     APPROVED_TIMEOUT_SECONDS,
     EncryptedObjectStore,
     InvocationResult,
-    VllmClient,
-    VllmInvocationError,
+    ModelClient,
+    ModelInvocationError,
 )
 from .deep_review_vllm import DEEP_REVIEW_STAGE_CONTRACT
 from .mock_analysis_client import MockAnalysisClient
@@ -280,7 +281,7 @@ class DeepReviewService:
     def __init__(
         self,
         *,
-        client: VllmClient | Any | None = None,
+        client: ModelClient | Any | None = None,
         raw_response_store: EncryptedObjectStore | Any | None = None,
         structure_loader: Callable[[Session, Any], Mapping[str, Any]] | None = None,
         report_service: Any | None = None,
@@ -293,11 +294,17 @@ class DeepReviewService:
         elif settings.analysis_provider == "mock":
             self.client = MockAnalysisClient()
         else:
-            self.client = VllmClient(
+            # 심층 검토가 부르는 모델명은 policy의 `model_name`이고,
+            # `input_versions`가 활성 policy의 그 값을 `MODEL_NAME`으로
+            # 고정해 둔다. client는 여기서 그 policy binding을 받는다 —
+            # 환경변수로 모델명을 따로 받으면 실행 row에 기록되는 policy
+            # 모델명과 실제로 부른 모델이 갈릴 수 있다.
+            self.client = ModelClient(
                 base_url=settings.vllm_base_url,
                 api_key=settings.vllm_api_key.get_secret_value(),
                 allowed_hosts=settings.vllm_allowed_hosts,
-                model=settings.vllm_model,
+                model=MODEL_NAME,
+                model_revision=settings.vllm_model_revision,
                 output_contract=DEEP_REVIEW_STAGE_CONTRACT,
             )
         self.reference_workflow_mode = bool(
@@ -399,7 +406,7 @@ class DeepReviewService:
             if callable(approval_check):
                 try:
                     approval_check(notice_id)
-                except VllmInvocationError as error:
+                except ModelInvocationError as error:
                     raise DeepReviewServiceError(
                         error.code,
                         "외부 분석 provider 사용 승인이 없습니다",
@@ -1256,7 +1263,7 @@ class DeepReviewService:
             if callable(approval_check):
                 try:
                     approval_check(review.notice_id)
-                except VllmInvocationError as error:
+                except ModelInvocationError as error:
                     raise DeepReviewServiceError(error.code, "외부 분석 provider 사용 승인이 없습니다", status_code=403) from error
             bundle, structures = bundle_context(session, review.bundle_id, structure_loader=self.structure_loader)
             profile_payload = profile_context(session, profile)
@@ -1359,7 +1366,7 @@ class DeepReviewService:
                         })
                         stage_invocations.extend(safe_attempts)
                         chunks.append(chunk_output)
-                    except VllmInvocationError as error:
+                    except ModelInvocationError as error:
                         safe_attempts = [_safe_invocation_attempt(item) for item in error.attempts]
                         invocation_metadata.extend({"slice_index": slice_index, "input_slice_sha256": _canonical_hash(invocation_input), **item} for item in safe_attempts)
                         stage_invocations.extend({"slice_index": slice_index, "input_slice_sha256": _canonical_hash(invocation_input), **item} for item in safe_attempts)
