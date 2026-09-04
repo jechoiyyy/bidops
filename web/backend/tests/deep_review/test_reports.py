@@ -642,3 +642,118 @@ def test_reports_router_agent_mutations_preserve_success_and_idempotent_replay(r
         )
         assert first_opinion.status_code == replay_opinion.status_code == 201
         assert first_opinion.json()["id"] == replay_opinion.json()["id"]
+
+
+# --------------------------------------------------------------------------
+# 요구사항 inventory·segment coverage 검증 연결
+# --------------------------------------------------------------------------
+
+
+def _validation_checks(context: dict[str, object]) -> list[dict[str, object]]:
+    from app.deep_review.models import ValidationCheck
+
+    with Session(context["engine"]) as session:
+        run = session.scalar(select(ValidationRun).order_by(ValidationRun.sequence.desc()).limit(1))
+        assert run is not None
+        checks = session.scalars(select(ValidationCheck).where(ValidationCheck.validation_run_id == run.id)).all()
+        return [{"check_type": row.check_type, "status": row.status, "severity": row.severity} for row in checks]
+
+
+def _attach_document_with_inventory(context: dict[str, object], raw_ids: list[str]) -> None:
+    """요구사항 ID를 가진 합성 문서 하나를 확정 묶음에 넣는다."""
+
+    from app.deep_review.models import ContentObject, DocumentStructure
+    from app.deep_review.services import document_segments
+
+    with Session(context["engine"]) as session:
+        content = ContentObject(sha256="d" * 64, size_bytes=2, detected_mime="application/hwp+zip", retention_class="fixture")
+        session.add(content)
+        session.flush()
+        document = DocumentVersion(
+            notice_id=1, attachment_id=None, version=1, source_kind="manual", role="제안요청서",
+            is_current=True, content_object_id=content.id, original_filename="합성.hwpx",
+            safety_status="safe", created_by_name="운영자",
+        )
+        session.add(document)
+        session.flush()
+        structure = DocumentStructure(
+            document_version_id=document.id, source_sha256="d" * 64, media_type="application/hwp+zip",
+            extractor_name="hwpx-stdlib", extractor_version="1", upstream_commit=None,
+            payload_content_object_id=content.id, payload_sha256="d" * 64,
+            page_count=1, block_count=1, validation_status="ready",
+        )
+        session.add(structure)
+        session.flush()
+        cells: list[dict[str, object]] = [{
+            "block_key": "table-1-1-block", "parent_block_key": None, "type": "table", "page": 1,
+            "bbox": None, "text": "", "confidence": None, "attributes": {"table_key": "table-1-1"},
+        }]
+        for column, label in enumerate(("요구사항 ID", "요구사항 명칭")):
+            cells.append({
+                "block_key": f"table-1-1-r0-c{column}", "parent_block_key": "table-1-1-block",
+                "type": "table_cell", "page": 1, "bbox": None, "text": label, "confidence": None,
+                "attributes": {"table_key": "table-1-1", "row": 0, "column": column},
+            })
+        for index, raw_id in enumerate(raw_ids, start=1):
+            for column, value in enumerate((raw_id, f"합성 요구사항 {index}")):
+                cells.append({
+                    "block_key": f"table-1-1-r{index}-c{column}", "parent_block_key": "table-1-1-block",
+                    "type": "table_cell", "page": 1, "bbox": None, "text": value, "confidence": None,
+                    "attributes": {"table_key": "table-1-1", "row": index, "column": column},
+                })
+        document_segments.store_manifest(session, {
+            "schema": "bidops.document-structure.v1",
+            "structure_id": str(structure.id), "document_version_id": str(document.id),
+            "source_sha256": "d" * 64, "media_type": "application/hwp+zip",
+            "extractor": {"name": "hwpx-stdlib", "version": "1", "upstream_commit": None},
+            "pages": [{"number": 1, "width": 1.0, "height": 1.0, "image_content_object_id": None}],
+            "blocks": cells, "warnings": [], "created_at": "2026-09-04T00:00:00+00:00",
+        })
+        session.add(DocumentBundleItem(
+            bundle_id=context["bundle_id"], document_version_id=document.id, ordinal=1,
+            document_version_version=1, content_object_id=content.id, content_sha256="d" * 64,
+            detected_mime="application/hwp+zip", size_bytes=2, original_filename="합성.hwpx",
+            source_kind="manual", role_at_confirmation="제안요청서", is_current_at_confirmation=True,
+            safety_status_at_confirmation="safe", structure_id_at_confirmation=structure.id,
+            structure_payload_sha256="d" * 64,
+        ))
+        session.commit()
+
+
+def test_inventory_less_bundle_only_warns(report_context):
+    view = materialize(report_context)
+    checks = {item["check_type"]: item for item in _validation_checks(report_context)}
+    assert checks["requirement_inventory"]["status"] == "warning"
+    assert checks["requirement_inventory"]["severity"] == "보통"
+    # manifest가 없으면 segment coverage는 판단하지 않는다.
+    assert "segment_coverage" not in checks
+    assert view["report"]["validation_summary"]["status"] == "passed"
+
+
+def test_missing_requirement_ids_fail_validation_and_are_not_auto_corrected(report_context):
+    _attach_document_with_inventory(report_context, ["SFR-01", "SFR-02"])
+    view = materialize(report_context)
+    checks = {item["check_type"]: item for item in _validation_checks(report_context)}
+    assert checks["requirement_inventory"]["status"] == "failed"
+    assert checks["requirement_inventory"]["severity"] == "중대"
+    assert checks["segment_coverage"]["status"] in {"passed", "warning"}
+    assert checks["segment_coverage"]["severity"] in {"낮음", "보통"}
+    assert view["report"]["validation_summary"]["status"] == "failed"
+    assert view["report"]["system_recommendation"] == "보류"
+
+
+def test_bundle_limitations_section_reports_excluded_attachments(report_context):
+    from app.deep_review.models import DocumentBundle
+
+    with Session(report_context["engine"]) as session:
+        bundle = session.get(DocumentBundle, report_context["bundle_id"])
+        assert bundle is not None
+        bundle.issues_snapshot = [{
+            "issue_id": "unsupported_attachment_excluded:bundle",
+            "code": "unsupported_attachment_excluded", "severity": "보통", "blocking": False,
+            "document_version_id": None, "message": "형식 밖 첨부", "locator_type": "none", "locator": None,
+        }]
+        session.commit()
+    view = materialize(report_context)
+    section = next(item for item in view["report"]["sections"] if item["section_key"] == "document_bundle_limitations")
+    assert "unsupported_attachment_excluded" in section["blocks"][0]["body"]
