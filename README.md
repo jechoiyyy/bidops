@@ -265,7 +265,7 @@ COMPOSE_PROJECT_NAME=bidops-deep-review-t7 \
   docker compose -f docker-compose.t7.yml build
 ```
 
-`web/run-web-tests.sh`는 임시 PostgreSQL 17 컨테이너를 띄워 migration을 수행하고, 격리 DB에서 backend 테스트 → frontend production build → 네 폭의 Playwright 스냅샷 회귀를 차례로 돌린다. 임시 자원은 실패 경로를 포함한 모든 종료에서 정리된다.
+`web/run-web-tests.sh`는 임시 PostgreSQL 17 컨테이너를 띄워 migration을 수행하고, 격리 DB에서 backend 테스트 → frontend production build → Playwright 화면 게이트(의미 한 폭 + 구조 두 폭)를 차례로 돌린다. 임시 자원은 실패 경로를 포함한 모든 종료에서 정리된다.
 
 - Docker가 없으면 `BIDOPS_TEST_POSTGRES_URL`에 **폐기 가능한** PostgreSQL 관리 URL을 준다. 운영 DB URL을 쓰지 않는다.
 - Playwright는 브라우저 번들을 자동으로 내려받지 않는다. 없으면 안내 문구와 함께 실패한다.
