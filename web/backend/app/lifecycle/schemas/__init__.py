@@ -15,7 +15,25 @@ from typing import Any, Literal
 
 from pydantic import Field
 
-from ...core.schema_base import APIModel, PageFilters
+from ...core.schema_base import APIModel
+
+
+# `NoticeList`가 실제로 적용한 조회 조건을 되비추는 응답 조각.
+# 필드 어휘(`grade`·`readiness`·`focus`·`sample_role`)는 선별 것이지만 값은 query
+# 문자열을 그대로 담을 뿐이라 screening 타입에 의존하지 않는다. 쓰는 쪽이
+# lifecycle 하나뿐이므로 공용 core가 아니라 소유 모듈이 정의한다(§4).
+# docstring을 두면 pydantic이 OpenAPI `description`으로 올려 wire 계약이 바뀐다.
+class PageFilters(APIModel):
+    run_id: str
+    grade: str | None = None
+    readiness: str | None = None
+    focus: str | None = None
+    sample_role: str | None = None
+    attachment: Literal["any", "none", "manual"] = "any"
+    q: str | None = None
+    sort: Literal["deadline", "grade", "published"] = "deadline"
+    limit: int
+    offset: int
 
 
 class AttachmentResponse(APIModel):

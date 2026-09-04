@@ -9,7 +9,7 @@ lifecycle·screening이 함께 쓰던 기반 모델·타입 별칭·검증기를
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any
 
 from pydantic import (
     AfterValidator,
@@ -23,19 +23,6 @@ from .company_profile import PROFILE_PARSE_ERROR_CODES
 
 class APIModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-
-
-class PageFilters(APIModel):
-    run_id: str
-    grade: str | None = None
-    readiness: str | None = None
-    focus: str | None = None
-    sample_role: str | None = None
-    attachment: Literal["any", "none", "manual"] = "any"
-    q: str | None = None
-    sort: Literal["deadline", "grade", "published"] = "deadline"
-    limit: int
-    offset: int
 
 
 def _validate_profile_projection_binding_values(version: str, digest: str) -> None:
@@ -68,20 +55,6 @@ def _validate_clock_time(value: str) -> str:
     minute = int(value[3:])
     if hour > 23 or minute > 59:
         raise ValueError("time must use HH:MM")
-    return value
-
-
-def _validate_relative_source_ref(value: str) -> str:
-    if (
-        value.startswith(("/", "\\"))
-        or value == ".."
-        or value.startswith("../")
-        or "/../" in value
-        or value.endswith("/..")
-    ):
-        raise ValueError("working-tree source_ref must be a relative path")
-    if "\\" in value:
-        raise ValueError("working-tree source_ref must use a relative POSIX path")
     return value
 
 
@@ -161,6 +134,5 @@ __all__ = [
     "AwareDateTime",
     "Digest",
     "NonEmpty",
-    "PageFilters",
     "RuntimeContractModel",
 ]

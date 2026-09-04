@@ -35,21 +35,12 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, foreign, mapped_column, relationship, synonym
 
 from ..core.db import Base
-from ..core.generation_config import GenerationConfig, legacy_generation_config
+from ..core.generation_config import GenerationConfig
 from ..core.models import AwareDateTime, JSONB_COMPAT, _fk, _uuid_column, utc_now
 from ..core.sql_dialect import DualSQL, dual
 # 판정·리뷰가 가리키는 lifecycle 모델. 읽기·join 방향이며 §4가 허용한다.
 # import 자체가 relationship 문자열("Notice")의 등록도 보장한다.
 from ..lifecycle.models import Notice, Run  # noqa: F401
-
-
-_LEGACY_GENERATION_CONFIG = legacy_generation_config()
-
-
-_LEGACY_GENERATION_CONFIG_VALUE = _LEGACY_GENERATION_CONFIG.canonical_value()
-
-
-_LEGACY_GENERATION_CONFIG_DIGEST = _LEGACY_GENERATION_CONFIG.digest()
 
 
 _DEFAULT_GENERATION_CONFIG = GenerationConfig()
