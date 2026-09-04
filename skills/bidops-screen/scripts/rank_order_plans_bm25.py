@@ -302,10 +302,10 @@ def _validate_policy_document(document: Any) -> dict[str, Any]:
     profile = PHASE0.require_exact_keys(stage2["company_profile"], {"version", "sha256", "allowed_fields"}, "policy.stage2.company_profile")
     _string(profile["version"], "policy.stage2.company_profile.version")
     _hash(profile["sha256"], "policy.stage2.company_profile.sha256")
-    if profile["allowed_fields"] != ["capabilities"]:
+    if profile["allowed_fields"] != ["profile_version", "capabilities"]:
         _error("policy_binding_mismatch", "policy company profile allowlist가 다릅니다")
     payload = PHASE0.require_exact_keys(stage2["payload"], {"allowed_plan_fields", "allowed_company_fields", "forbidden_fields"}, "policy.stage2.payload")
-    if payload["allowed_plan_fields"] != ["plan_id", "title"] or payload["allowed_company_fields"] != ["capabilities"]:
+    if payload["allowed_plan_fields"] != ["title"] or payload["allowed_company_fields"] != ["profile_version", "capabilities"]:
         _error("policy_binding_mismatch", "policy payload allowlist가 다릅니다")
     batching = PHASE0.require_exact_keys(stage2["batching"], {"mode", "size", "last_batch", "concurrency", "order"}, "policy.stage2.batching")
     if batching != {"mode": "fixed_rank_contiguous", "size": 25, "last_batch": "shorter_allowed", "concurrency": 1, "order": "stage1_rank_ascending"}:
@@ -332,7 +332,7 @@ def _validate_binding_document(document: Any) -> dict[str, Any]:
         _hash(stage2[field], f"binding.stage2_binding.{field}")
     for field in ("generation_config_version", "prompt_version", "company_profile_version"):
         _string(stage2[field], f"binding.stage2_binding.{field}")
-    if stage2["payload_fields"] != ["plan_id", "title"] or stage2["company_payload_fields"] != ["capabilities"] or stage2["batch_size"] != 25 or stage2["max_attempts"] != 2 or stage2["concurrency"] != 1:
+    if stage2["payload_fields"] != ["title"] or stage2["company_payload_fields"] != ["profile_version", "capabilities"] or stage2["batch_size"] != 25 or stage2["max_attempts"] != 2 or stage2["concurrency"] != 1:
         _error("binding_invalid", "phase0 stage2 execution binding이 다릅니다")
     return binding
 
@@ -388,7 +388,7 @@ def validate_fixed_references(
         "model_digest": stage2["model_digest"],
         "generation_config": {"version": stage2["generation_config_version"], "sha256": stage2["generation_config_sha256"]},
         "prompt": {"version": stage2["prompt_version"], "sha256": stage2["prompt_sha256"]},
-        "company_profile": {"version": stage2["company_profile_version"], "sha256": stage2["company_profile_sha256"], "allowed_fields": ["capabilities"]},
+        "company_profile": {"version": stage2["company_profile_version"], "sha256": stage2["company_profile_sha256"], "allowed_fields": ["profile_version", "capabilities"]},
     }
     for field in ("provider", "model_name", "model_digest", "generation_config", "prompt", "company_profile"):
         if policy_stage2[field] != expected_stage2[field]:

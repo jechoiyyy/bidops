@@ -18,7 +18,7 @@ fail-closed로 검증하고, PostgreSQL·MinIO API·console port는 `BIDOPS_ADMI
 아직 남은 것은 차단 조건이 아니라 운영 훈련이다. 실제 secret, MinIO allow/deny,
 egress firewall, backup·restore를 **운영 환경에서** 한 번도 검증하지 않았다.
 
-개발 검증에서도 hosted Codex reference overlay를 사용하지 않는다. 회사자료 host 입력을 registry에 push·export하지 않으며 로컬 build cache의 접근 범위를 제한한다. legacy notice attachment upload는 quarantine·ClamAV·MinIO 경계를 통과한 파일만 사용한다. 나머지 stack 기동은 폐기 가능한 데이터와 host firewall로 격리한 환경에서만 수행한다.
+hosted 외부 모델 reference overlay는 제거됐고 개발 검증에서도 사용하지 않는다. 회사자료 host 입력을 registry에 push·export하지 않으며 로컬 build cache의 접근 범위를 제한한다. legacy notice attachment upload는 quarantine·ClamAV·MinIO 경계를 통과한 파일만 사용한다. 나머지 stack 기동은 폐기 가능한 데이터와 host firewall로 격리한 환경에서만 수행한다.
 
 ## 사전 조건
 
@@ -111,8 +111,8 @@ worker 설정은 `BIDOPS_PRESPEC_ATTACHMENT_WORKER_CONCURRENCY=1`,
 worker를 직접 실행할 때는 migration·MinIO·ClamAV가 준비된 backend 환경에서 다음 명령을 쓴다.
 
 ```bash
-python -m app.workers.prespec_attachment
-python -m app.workers.prespec_attachment --once
+python -m app.deep_review.workers.prespec_attachment
+python -m app.deep_review.workers.prespec_attachment --once
 ```
 
 첨부 URL의 수명은 아직 측정하지 않았으므로 `unknown`으로 유지한다. URL·object key·로컬
@@ -137,14 +137,66 @@ mock 결과의 provider/model 계보는 `mock-analysis` / `bidops-deterministic-
 실제 모델 산출인지 mock인지는 이 값으로 판별한다. `model_name`은 `OllamaClient`가
 허용 모델만 받으므로 구별에 쓸 수 없다.
 
+### C-2 모델 revision 선언
+
+`BIDOPS_VLLM_MODEL_REVISION`에 서버 운영자가 확인한 64자 model artifact digest를 넣는다.
+이 값은 승인 binding의 `stage2_binding.model_digest`와 같아야 하며, 비어 있거나 다르면
+C-2 execution이 payload를 한 건도 보내기 전에 실패한다. OpenAI 호환 vLLM은 weight
+revision을 응답에도 `/v1/models`에도 싣지 않으므로 이 값이 배포의 선언이다
+([ADR-0042](tracking/decisions/0042-c2-model-revision-declared-at-deployment.md)).
+
+서버를 재기동하거나 vLLM 버전을 올려도 이 값은 바뀌지 않는다. **모델 weight가 실제로
+바뀔 때만** 갱신하며, 그때는 값만 고치지 않고 binding을 새 버전으로 올리고 품질 게이트를
+다시 측정한다. 응답의 `system_fingerprint`는 빌드·병렬도 지문이므로 이 값으로 쓰지 않는다.
+
+## 모듈 선택과 진입점
+
+백엔드는 `core`·`lifecycle`·`screening`·`deep_review` 네 모듈과 조립 계층으로 나뉜다
+([ADR-0045](tracking/decisions/0045-backend-module-layout.md)). 운영 기동은 세 도메인 모듈을
+모두 등록한다. `BIDOPS_MODULES`는 그 부분집합을 쉼표로 지정해 일부만 올리는 **개발·검증용**
+설정이다.
+
+```bash
+BIDOPS_MODULES=deep_review          # /api/health와 deep_review 경로만. 나머지는 404
+BIDOPS_MODULES=lifecycle,screening  # deep_review 경로 없음
+```
+
+- core는 선택 대상이 아니라 항상 포함되므로 `/api/health`는 어떤 조합에도 있다.
+- **알 수 없는 이름이나 빈 값은 기동 실패**다(fail closed). 조용히 기본값으로 되돌아가지
+  않는다.
+- 의존은 import만 하고 등록은 지정 모듈만 한다. 꺼진 모듈의 REST 경로는 404다.
+- 값을 지정하지 않으면 분할 전과 같은 앱이 된다. 운영 `.env`에는 두지 않는다.
+
+worker 진입점은 셋뿐이다. 모델을 쓰는 심층 검토·C-2 선별 worker에는 단독 진입점이 없다.
+`app.workers.analysis` 한 프로세스가 둘을 합성하며, 이것이 **모델 슬롯 1개** 보장이다.
+두 worker를 따로 띄우는 명령을 만들지 않는다.
+
+```bash
+python -m app.deep_review.workers.document            # 자격증명 없는 문서 worker
+python -m app.deep_review.workers.prespec_attachment  # 사전규격 첨부 취득 worker
+python -m app.workers.analysis                        # 모델을 쓰는 합성 worker
+```
+
+`--once`를 주면 한 건만 처리하고 종료한다. Compose의 `document-worker`는
+`python -m app.deep_review.workers.document`를, `analysis-worker`는
+`python -m app.workers.analysis`를 실행한다.
+
+CLI 진입점은 모듈별로 하나씩이며 웹 없이 실행한다. migration·MinIO가 준비된 backend 환경에서
+쓴다.
+
+```bash
+python -m app.screening.cli --help          # run-one, score-candidate-quality
+python -m app.deep_review.cli --help        # run-bc-e2e, import-profile-policy
+python -m app.lifecycle.ingest.cli --help   # --run <회차> | --all
+```
+
 ## 환경 파일 배치
 
 | 파일 | 소비하는 compose | 담는 값 |
 |---|---|---|
 | `.env` | `docker-compose.t7.yml`, `docker-compose.yml` | 프로세스 정체성, 로그, DB·MinIO 자격증명, 암호화 키, port, 승인 profile/policy 참조 |
-| `env/vllm.env` | `docker-compose.t7.remote-vllm.yml` | `BIDOPS_VLLM_BASE_URL`, `BIDOPS_VLLM_ALLOWED_HOSTS`, `BIDOPS_VLLM_API_KEY` |
+| `env/vllm.env` | `docker-compose.t7.remote-vllm.yml` | `BIDOPS_VLLM_BASE_URL`, `BIDOPS_VLLM_ALLOWED_HOSTS`, `BIDOPS_VLLM_API_KEY`, `BIDOPS_VLLM_MODEL_REVISION` |
 | `env/screening.env` | `docker-compose.t7.screening.yml` | `BIDOPS_OLLAMA_BASE_URL`, `BIDOPS_OLLAMA_MODEL` |
-| `env/codex.env` | `docker-compose.t7.codex-reference.yml` | 승인 notice ID, host Codex 바이너리·auth 경로 (개발 검증 한정) |
 | 없음 | `docker-compose.t7.mock-reference.yml` | 전용 값을 override 파일 안에 리터럴로 선언한다 |
 
 overlay 전용 값을 `.env`에 두지 않는다. `.env`에 두면 overlay를 붙이지 않은 기동에서도 endpoint가 주입되어 fail-closed 기본값이 흐려진다.
@@ -172,8 +224,9 @@ COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose -f docker-compose.t7.y
 | 객체 저장소 | MinIO root와 namespace별 access/secret, endpoint, secure flag | 용도별 최소 권한, versioning 유지 |
 | 문서 검사 | ClamAV host/port/timeout | clean scan envelope 없이는 준비 단계 진행 금지 |
 | 심층 모델 | vLLM base URL, allowed hosts, model, API key, response encryption key/ref | 승인된 사설 endpoint만, 응답 암호화 |
+| 모듈 선택 | `BIDOPS_MODULES` | 미지정이면 세 도메인 모듈 전부. 알 수 없는 이름·빈 값은 기동 실패. 꺼진 모듈 경로는 404 |
 | 활성 버전 | active profile version, active analysis policy version | 불변 ID, 빈 값이면 fail closed |
-| 외부 참조 | OpenAI·Codex exec enabled, approved notice IDs, reference workflow mode | 현재 Codex deep-review 경로는 사용 금지. 향후 발주계획 전용 projection에서만 공개 plan metadata+최소 승인 요약을 preview·건별 승인 후 전송 |
+| 외부 참조 | `BIDOPS_OPENAI_ENABLED`, reference workflow mode | 심층 검토 provider는 `BIDOPS_ANALYSIS_PROVIDER`의 `vllm`과 `mock` 둘뿐이며 hosted 외부 deep-review provider(codex-exec)와 그 overlay·설정은 저장소에서 제거됐다. 향후 발주계획 전용 projection에서만 공개 plan metadata+최소 승인 요약을 preview·건별 승인 후 전송 |
 
 ## 발주계획 선별 실험 운영
 

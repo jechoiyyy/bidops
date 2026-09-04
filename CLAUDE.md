@@ -15,20 +15,29 @@ bidops/
 ├── run-tests.sh                      파이프라인 단위·교차 테스트
 ├── data/, reports/                   불변 회차 입력과 파생 보고서
 ├── docs/
-│   ├── architecture.md               현재 구조와 목표 데이터 흐름
+│   ├── ARCHITECTURE.md               현재 구조·계약·목표 데이터 흐름 (정본)
+│   ├── ADR.md                        결정 통합 색인 (상세는 tracking/decisions/)
+│   ├── PRD.md, PLAN.md               현재 착수 범위(발주계획 C-2 선별)의 요구와 순서
 │   ├── business-rules.md             생애주기·선별·심층 검토 상태 규칙
 │   ├── security.md                   접근·민감정보·모델 전송·감사 정책
 │   ├── standards.md                  구현·검증 강제 기준
 │   ├── engineering-notes.md          증상별 재발 방지 지식
 │   ├── operations.md                 설치·실행·백업·복구 절차
 │   ├── contracts.md                  REST·파일·DB 소비자 계약
-│   ├── PRD.md, PLAN.md               현재 착수 범위(발주계획 C-2 선별)의 요구와 순서
 │   ├── database-guide.md             DB 전체 해설과 설계 근거
 │   ├── deep-review-erd.md            심층 검토 DB 권위 계약
 │   ├── bid-delta-contract-spec.md    입찰 delta·최종 결정 OpenAPI·DB 명세
+│   ├── scheduling.md                 공고 판정 스케줄러의 예약·기간·fail-closed 조건
+│   ├── model-quality-gate.md         공고 판정 품질 게이트의 고정 입력과 통과 기준
+│   ├── e2e-bc-acceptance.md          문서 준비(B)→심층 검토(C) 연속 인수 절차
+│   ├── agent/agent-runtime.md        공고 판정 worker의 입력 동결·span·telemetry
+│   ├── design/                       화면 개선 PRD·PLAN·ADR-0039~0041과 목업
+│   ├── deep-review-v2/               첨부문서 분석 설계와 Luna 시안 검증 계획 (제안)
+│   ├── reference/                    회사 프로필·실적 근거자료
+│   ├── validation-runs/              시점별 실행 증거
 │   └── tracking/
 │       ├── status.md                 구현과 검증의 현재 상태
-│       ├── lifecycle-workstream.md 생애주기 구현의 결정 대기·할 일 기록
+│       ├── lifecycle-workstream.md   생애주기 구현의 결정 대기·할 일 기록
 │       ├── findings.md               재현 가능한 미해결 문제
 │       └── decisions/                기술·운영 결정과 대안·결과
 ├── skills/
@@ -41,7 +50,7 @@ bidops/
     └── frontend/AGENTS.md             React 검토 화면
 ```
 
-`docs/legacy`는 완료·미채택 계획과 과거 리뷰·목업의 보관소이고, `docs/validation-runs`는 시점별 실행 증거다. 이 자료가 현재 코드와 위 핵심 문서의 계약을 대체하지 않으며, **보관본을 실행 진입점으로 삼지 않는다.** `docs/legacy` 안의 `R-xx`·`A-xx`·phase 작업 번호는 종료된 체계다. 외부 의존성은 나라장터 OpenAPI, PostgreSQL 17, MinIO, ClamAV, Ollama Qwen3.8:27B, 승인된 사설 OpenAI-compatible vLLM, 문서 변환기, 승인 프로필 기준선 검증용 Git, Astryx 디자인 시스템(`@astryxdesign/core@0.5.2`, `@astryxdesign/cli@0.5.2`, 테마 아이콘 레지스트리가 요구하는 `lucide-react@1.39.0`)이다.
+`docs/validation-runs`는 시점별 실행 증거이며 현재 코드와 위 핵심 문서의 계약을 대체하지 않는다. 완료·미채택 계획, 과거 리뷰·목업, 인수인계 문서는 저장소에 보관하지 않으며 필요하면 git 이력에서 찾는다. 과거의 `R-xx`·`A-xx`·phase·T-번호 체계는 종료됐고 새 작업에 다시 쓰지 않는다. 외부 의존성은 나라장터 OpenAPI, PostgreSQL 17, MinIO, ClamAV, Ollama Qwen3.8:27B, 승인된 사설 OpenAI-compatible vLLM, 문서 변환기, 승인 프로필 기준선 검증용 Git, Astryx 디자인 시스템(`@astryxdesign/core@0.5.2`, `@astryxdesign/cli@0.5.2`, 테마 아이콘 레지스트리가 요구하는 `lucide-react@1.39.0`)이다.
 Astryx의 "레이아웃도 컴포넌트로만, `<div>` 금지" 규칙은 ADR-0040에 따라 이 저장소에 적용하지 않으며 레이아웃은 프로젝트가 소유한다.
 
 ## 작업 전 확인

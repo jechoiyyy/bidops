@@ -13,6 +13,8 @@ producer나 구현 완료 근거가 아니다. ADR-0034 채택으로 R-08 진입
 
 ## 1. 현재 코드 조사 결과
 
+이 절은 계약을 설계하기 전의 **조사 시점 기록**이다. 이후 R-08이 bid-delta router를 구현했고 ([ADR-0034](tracking/decisions/0034-bid-delta-final-decision.md)), [ADR-0045](tracking/decisions/0045-backend-module-layout.md)의 모듈 이주로 파일 경로도 바뀌었다(현재 위치는 `app/deep_review/routers/bid_delta.py`, `app/lifecycle/routers/opportunities.py`). 아래 문장은 그 시점의 사실이므로 고치지 않는다.
+
 - `web/backend/app/main.py`는 runs, notices, pre-specs, opportunities, document bundles,
   deep reviews, reports 등의 router만 등록한다. bid-delta router는 없다.
 - `web/backend/app/routers/opportunities.py`의 현재 경로는 목록, 단건, candidate link 판정,

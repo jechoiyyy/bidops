@@ -17,13 +17,13 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
-from ..models import (
-    ScreeningAuditEvent,
+from ..core.models import utc_now
+from .models import (
     QualityGate,
     QualityGateEvaluation,
+    ScreeningAuditEvent,
     ScreeningExecution,
     ScreeningPolicy,
-    utc_now,
 )
 
 
@@ -560,7 +560,7 @@ class PolicyRepository:
         # Keep a repository-level guard in addition to the service check so
         # every activation path enforces the same frozen generation binding.
         try:
-            from .generation_config import GenerationConfigError, config_from_value, validate_digest
+            from ..core.generation_config import GenerationConfigError, config_from_value, validate_digest
 
             gate_config = config_from_value(gate.generation_config_json)
             validate_digest(gate_config, gate.generation_config_digest)
@@ -702,7 +702,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command != "seed-default":  # pragma: no cover - argparse choices
         return 2
     try:
-        from ..db import SessionLocal
+        from ..core.db import SessionLocal
 
         with SessionLocal() as session:
             row = seed_policy(session, actor=args.created_by)

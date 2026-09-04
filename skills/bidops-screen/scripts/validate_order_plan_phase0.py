@@ -36,8 +36,8 @@ REVIEW_INPUT_SCHEMA = "bidops.order-plan-review-inputs-manifest.v1"
 GOLD_SCHEMA = "bidops.order-plan-gold-adjudication-manifest.v1"
 RAW_PAGE_SCHEMA = "bidops.collected-order-plans-raw-page.v1"
 
-POLICY_RELATIVE = "experiments/order-plan-screening/config/order-plan-screening-policy.v1.json"
-BINDING_RELATIVE = "experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v1.json"
+POLICY_RELATIVE = "experiments/order-plan-screening/config/order-plan-screening-policy.v2.json"
+BINDING_RELATIVE = "experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v2.json"
 BM25_RELATIVE = "experiments/order-plan-screening/config/bm25.json"
 REVIEW_INPUTS_RELATIVE = "experiments/order-plan-screening/review-inputs"
 SOURCE_RELATIVE = "data/runs/order-plans-20260827-20260830-retry1/collected-order-plans.json"
@@ -50,8 +50,8 @@ GOLD_MANIFEST_RELATIVE = "data/experiments/order-plan-screening/20260827-2026083
 # accepting a changed historical artifact would defeat the Phase 0 gate.
 EXPECTED = {
     "contract_index_sha256": "7cc1ace43dad42e0cfb59cfef101f99caee05d4358ced54df30fee4db7c1e5a1",
-    "policy_sha256": "3010c7bfb569e062fc8e94b052df0325caccad7e23a34cf1e15dad6a6358e196",
-    "binding_sha256": "e0367de6155e362539a867d3b6820e204ba1238a2a613c6b973780c8348c86ef",
+    "policy_sha256": "fa58501f6a8775d68360294d8115ff630019b289dcccf102c917a060d407470a",
+    "binding_sha256": "c3d4d8e11a4cdb28e3a6cb7428b8da62b53166c3ef7ba09e19ea442ab454c485",
     "bm25_sha256": "e026b2bdd2f99ddc09ae17bc83b1cd9cc40ef413f3b72372a35db32918d696da",
     "generation_config_sha256": "1fd2f511a0b1c99f5a57125ebd9e1d67314d98202d42327394daa540abd27754",
     "review_manifest_sha256": "a478a18a873f332d0de45b13b4445315db83a855c9fa698ceb9150a9b98203b8",
@@ -1078,10 +1078,10 @@ def validate_policy_artifact(repo_root: Path, review: dict[str, Any], path: Path
     if prompt["version"] != review["active_prompt_version"] or prompt["sha256"] != review["active_prompt_sha256"]:
         raise ContractError("policy_binding_mismatch", "prompt binding이 active manifest와 다릅니다")
     profile = require_exact_keys(stage2["company_profile"], {"version", "sha256", "allowed_fields"}, "policy company profile")
-    if profile["version"] != review["active_company_profile_version"] or profile["sha256"] != review["active_company_capabilities_sha256"] or profile["allowed_fields"] != ["capabilities"]:
+    if profile["version"] != review["active_company_profile_version"] or profile["sha256"] != review["active_company_capabilities_sha256"] or profile["allowed_fields"] != ["profile_version", "capabilities"]:
         raise ContractError("policy_binding_mismatch", "company profile binding이 active manifest와 다릅니다")
     payload = require_exact_keys(stage2["payload"], {"allowed_plan_fields", "allowed_company_fields", "forbidden_fields"}, "policy payload")
-    if payload["allowed_plan_fields"] != ["plan_id", "title"] or payload["allowed_company_fields"] != ["capabilities"]:
+    if payload["allowed_plan_fields"] != ["title"] or payload["allowed_company_fields"] != ["profile_version", "capabilities"]:
         raise ContractError("payload_policy_mismatch", "model payload allowlist가 다릅니다")
     if not isinstance(payload["forbidden_fields"], list) or not all(isinstance(field, str) and field for field in payload["forbidden_fields"]) or not {"agency_code", "agency_name", "budget_amount", "business_division", "contract_amount", "source_url", "raw_source", "review", "attachment", "credential"}.issubset(set(payload["forbidden_fields"])):
         raise ContractError("payload_policy_mismatch", "model payload 금지 필드가 부족합니다")
@@ -1339,7 +1339,7 @@ def validate_binding(repo_root: Path, review: dict[str, Any], collected: dict[st
     if stage1 != {"method": "bm25", "path": BM25_RELATIVE, "schema_version": "bidops.order-plan-bm25.v1", "sha256": EXPECTED["bm25_sha256"], "top_k": 300, "tie_break": ["score_desc", "order_plan_unty_no_asc"]}:
         raise ContractError("binding_invalid", "binding stage1이 고정값과 다릅니다")
     stage2 = require_exact_keys(binding["stage2_binding"], {"provider", "model_name", "model_digest", "generation_config_version", "generation_config_sha256", "prompt_version", "prompt_sha256", "company_profile_version", "company_profile_sha256", "payload_fields", "company_payload_fields", "batch_size", "max_attempts", "concurrency"}, "binding stage2")
-    expected_stage2 = {"provider": "approved_private_vllm", "model_name": "qwen3.8-27B", "model_digest": "6ae70ca30563209f09ec0114ce5813f7a232b38e5bb409f2adbd0e9bbe318b11", "generation_config_version": "vllm-qwen-order-plan-batch-nonthinking-v4", "generation_config_sha256": EXPECTED["generation_config_sha256"], "prompt_version": review["active_prompt_version"], "prompt_sha256": review["active_prompt_sha256"], "company_profile_version": review["active_company_profile_version"], "company_profile_sha256": review["active_company_capabilities_sha256"], "payload_fields": ["plan_id", "title"], "company_payload_fields": ["capabilities"], "batch_size": 25, "max_attempts": 2, "concurrency": 1}
+    expected_stage2 = {"provider": "approved_private_vllm", "model_name": "qwen3.8-27B", "model_digest": "6ae70ca30563209f09ec0114ce5813f7a232b38e5bb409f2adbd0e9bbe318b11", "generation_config_version": "vllm-qwen-order-plan-batch-nonthinking-v4", "generation_config_sha256": EXPECTED["generation_config_sha256"], "prompt_version": review["active_prompt_version"], "prompt_sha256": review["active_prompt_sha256"], "company_profile_version": review["active_company_profile_version"], "company_profile_sha256": review["active_company_capabilities_sha256"], "payload_fields": ["title"], "company_payload_fields": ["profile_version", "capabilities"], "batch_size": 25, "max_attempts": 2, "concurrency": 1}
     if stage2 != expected_stage2:
         raise ContractError("binding_invalid", "binding stage2가 고정값과 다릅니다")
     evidence = require_exact_keys(binding["selection_evidence"], {"cascade_path", "cascade_sha256", "qwen_result_path", "qwen_result_sha256", "scoring_path", "scoring_sha256", "accepted_misses_path", "accepted_misses_sha256", "accepted_misses_count"}, "binding selection evidence")

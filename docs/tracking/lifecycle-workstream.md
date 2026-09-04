@@ -29,10 +29,10 @@
 | 사업명 검색이 유일한 대체 경로. 전략 사다리로 **재현율 87.4%**(76/87) | 정답쌍 87건 채점 |
 | 사전규격에 `swBizObjYn`·`bsnsDivNm`·`specDocFileUrl1~5`·`bidNtceNoList`가 있다 | 650건 |
 | 규격서 첨부는 인증 없이 받아지고 실제 내용이 **과업지시서**(hwp)다 | 5건 표본 다운로드 |
-| 첨부 형식(hwp/hwpx/pdf)이 기존 허용 확장자와 일치한다 | `attachments.py:17` |
+| 첨부 형식(hwp/hwpx/pdf)이 기존 허용 확장자와 일치한다 | `app/deep_review/services/attachments.py:20` |
 | `inqryDiv`는 조회 모드 선택자다. 1=접수일시(구간 필수·365일 상한), 2=등록번호, 3=참조번호 | 모드별 실측 |
 | 사전규격 서비스는 물품·용역·공사·외자 × 기본·PPSSrch = 8 오퍼레이션 | 직접 호출 |
-| `notice`는 이미 다형적이다. `source_type`으로 `bid_notice`·`pre_spec`을 담고 하위 8개 테이블이 **대리키 `notice.id`**를 참조한다 | `web/backend/app/models.py:147` |
+| `notice`는 이미 다형적이다. `source_type`으로 `bid_notice`·`pre_spec`을 담고 하위 8개 테이블이 **대리키 `notice.id`**를 참조한다 | `web/backend/app/lifecycle/models.py:96` |
 | 회차 종속은 `notice.run_id`·`uq_notice_run_key`·`review.run_id`·`uq_review_notice_run` 네 곳이다. 하위 8개 테이블은 무관하다 | 같은 파일 |
 | 운영 데이터가 없다. Alembic 3개(0001 baseline), `web/data/` 비어 있음 | 2026-08-28 확인 |
 | 공식/후보 경계가 DB CHECK로 강제된다. `link_type='candidate'`는 `status='확정'`이 될 수 없다 | `0005_opportunity_links` |
@@ -99,9 +99,8 @@
 
 ## 결정 대기
 
-현재 신규 아키텍처 결정 대기는 없다. 2026-08-31의 역사적 결정 대기 목록은
-[`docs/legacy/tracking/decisions-pending-20260831.md`](../legacy/tracking/decisions-pending-20260831.md)에
-보관했다. 확정 결정은 [`../ADR.md`](../ADR.md)와 `decisions/`의 상세 ADR을 따른다.
+현재 신규 아키텍처 결정 대기는 없다. 2026-08-31의 결정 대기 목록(D-5~D-11)은 모두 결정이
+끝나 저장소에서 제거했다. 확정 결정은 [`../ADR.md`](../ADR.md)와 `decisions/`의 상세 ADR을 따른다.
 D-7·D-8·D-9 등 실행·관측·운영 승인 항목은 이 문서, `status.md`, `findings.md`에서 관리한다.
 
 ## 해야 할 일

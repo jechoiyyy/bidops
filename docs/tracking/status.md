@@ -1,6 +1,6 @@
 # 구현·검증 현황
 
-기준일: 2026-09-01
+기준일: 2026-09-03
 
 `구현됨`은 코드와 계약이 존재한다는 뜻이고, `검증됨`은 기록된 명령이 해당 범위에서 통과했다는 뜻이다. Mock 결과, 과거 브랜치 결과, 현재 worktree 결과, 외부 운영 승인을 서로 대신하지 않는다.
 
@@ -21,7 +21,7 @@
 | 영역 | 구현 상태 | 검증 상태 |
 |---|---|---|
 | 기존 나라장터 공고 수집·정규화·표본 | 구현됨 | 파이프라인 단위·교차 테스트의 과거 64건 통과 기록 있음 |
-| 발주계획 C-2 선별 방식 | `BM25 Top 300 + Qwen`으로 선택 완료; Phase 0 policy·binding·전용 schema·read-only validator 구현, 제품 adapter·DB·API는 미구현 | validator가 source 625건, approved input digest, historical evidence와 C-1 partial gold(22 human / 603 draft / 87 remaining)를 대조하고 `valid_but_blocked` 반환; 실행·활성화는 불가([ADR-0038](decisions/0038-order-plan-c2-phase0-contracts.md)) |
+| 발주계획 C-2 선별 | 제품 adapter·DB·API·화면·worker까지 구현됨. binding/policy v2에서 모델 payload는 batch-local `item_id`와 `title`만 보내고 승인 generation config를 실제로 읽어 요청을 조립한다([ADR-0044](decisions/0044-c2-stage2-matches-the-measured-method.md)) | 2026-09-03 종단 실행: 수집 1,040건 → 적재(warning 0) → stage1 선정 300/탈락 740 → stage2 **300/300 완료, 실패 0건**(관련 57·비관련 144·불확실 99) → `/order-plans` 표시. 테스트 전용 policy 사본으로만 활성화했고 **품질 근거가 아니다.** validator는 v2에서도 `valid_but_blocked`이며 activation blocker 4건은 그대로 |
 | 다섯 관점·반론·종합 1차 판정 | 구현됨 | fake 테스트와 단일 live Qwen 성공·중단 기록 있음; 40건 운영 품질 승인은 없음 |
 | 결정적 HTML·피드백 YAML | 구현됨 | 파이프라인 테스트에 포함됨 |
 | FastAPI 회차·공고·리뷰·프로필·지표 | 구현됨 | 전체 backend suite `1046 passed, 5 skipped, 0 failed` |
@@ -45,6 +45,7 @@
 | 개발용 hosted Codex 심층 검토 reference | 기본 비활성·notice allowlist에 더해 닫힌 payload allowlist를 두고, 회사 profile·prior stage 결과·승인되지 않은 입력 필드가 있으면 prompt 생성과 subprocess 이전에 `external_provider_payload_not_approved`로 fail-closed한다 | 해결; 차단 시 runner 미호출을 단언하는 회귀 테스트가 있고 backend `1041 passed, 5 skipped, 0 failed` |
 | runtime image 회사자료 제외 | current profile·회사 실적 제목 TSV·vendored baseline을 build context와 runtime image에서 제외하고, `web`에만 read-only host bind mount로 주입하도록 경계를 고정함 | 해결; runtime contract `11 passed`, profile snapshot keyword `14 passed`, 실제 image build/run/find, `COMPOSE_OK`, backend `1041 passed, 5 skipped, 0 failed` |
 | backup·object-first restore script | restore가 source→target version mapping을 기록하고 backup hash를 실제로 검증하며, active manifest를 `content_object_location`에서 생성해 복구된 집합과 일대일 대조함. 암호화 model-response는 `ContentObject.sha256`이 plaintext라 stored-byte 비교 대신 존재·target version만 검사함 | 해결; disposable MinIO 2개와 PostgreSQL 17로 정상 복구 exit 0, 손상 backup·미복구 active object·복구 후 삭제 세 경우 exit 1 확인 |
+| 백엔드 모듈 경계 | `web/backend/app/`을 core·lifecycle·screening·deep_review 네 모듈과 조립 계층(`main.py`·`runtime.py`·`workers/analysis.py`·`migrations/`)으로 나눴다. lifecycle은 선별·심층 검토를 알지 못하며 역방향은 lifecycle이 정의한 확장점(projection·hook)으로 뒤집었다. `BIDOPS_MODULES`로 등록할 모듈을 고르고 알 수 없는 이름·빈 값은 기동 실패다. codex-exec provider는 전부 지웠다([ADR-0045](decisions/0045-backend-module-layout.md)) | 2026-09-04, [단독 실행 검증 기록](../validation-runs/20260904-backend-module-layout.md). 완료 기준 여섯 조건을 각각 실제로 확인했다. backend `2 failed, 1240 passed, 5 skipped`(실패 2건은 이주 이전부터 있던 `test_screening_orchestrator` 결함), `./run-tests.sh` 145 passed, Playwright `846 passed, 14 skipped`, `docker compose -f docker-compose.t7.yml build` 성공, 기준 6 스크립트 세 조합 PASS. REST 계약은 이주 전과 같다 |
 
 T-23 `0014` 검증 경계의 PostgreSQL application schema는 legacy 13개, 심층 검토 25개,
 판정 runtime 12개, 누적 identity 5개, 첨부 fetch 1개, 판정·리뷰 revision 2개, 사전규격
@@ -72,9 +73,15 @@ schema는 68개이며, 별도로 빈 PostgreSQL 17 `upgrade head`와 `0014↔001
 | T14/profile harness 최종 backend + PostgreSQL 17 | 992 passed, 5 skipped, 6 warnings | 최소 환경에서 임시 PG17·fresh DB·Alembic head를 자동 구성. T14 4건은 해결됐고 profile 2건은 승인 Git blob 부재를 fail-closed로 검증 |
 | T7 stack V2 | services healthy, `/api/health` 성공, 구조화 worker log 관측, 승인 Ollama endpoint 도달 | 기동·관측·network 경계 검증; 실제 판정 품질 검증 아님 |
 | static diff check | 당시 통합 UI 변경에서 성공 | 이후 worktree 변경의 전체 검증으로 재사용하지 않음 |
+| 모듈 경계 강제 테스트 | `29 passed`. 허용 목록 `cross_module_import 0`, `router_orm_access 18`, `schema_imports_model_or_service 0`, `lifecycle_relationship 0`, `lifecycle_table_write 0` | 남은 18건은 명세가 이번 범위 밖으로 둔 router 안 직접 select다. 다섯째 검사(형제 모듈의 lifecycle 테이블 직접 쓰기·잠금)는 최종 검토가 "의존 규칙 네 줄 중 쓰기·잠금 한 줄만 어떤 검사도 덮지 않는다"를 지적해 새로 넣었고, 그때 드러난 제품 코드 17곳을 모두 lifecycle 공개 함수로 옮겨 0이 됐다. 목록은 stale 항목도 실패시키므로 실제 위반과 정확히 같다 |
+| 기준 6 모듈 격리 | `web/backend/scripts/verify_module_isolation.sh` 세 조합 PASS — lifecycle `75 passed`, screening `2 failed, 394 passed, 1 skipped`, deep_review `230 passed` | 형제 도메인 모듈의 `app/<module>`·`tests/<module>`을 지운 임시 복사본에서 폐기 가능한 PostgreSQL 17을 띄워 실제로 돌렸다. screening의 실패 2건은 위 기존 결함이며 skip 사유는 조합마다 출력된다 |
+| 이주 전후 REST 표면 | OpenAPI 문서 diff 11줄, 전부 `tags` | 경로 74개와 메서드·파라미터·요청 본문·응답 스키마·`components`는 동일하다. `/api/health`에 `health` tag가 붙고 판정 실행 경로의 tag가 `runs`에서 `screening`으로 바뀐 것이 전부이며 둘 다 소유 변경을 반영한다. `tags`는 `contracts.md`가 계약으로 고정한 값이 아니다 |
 
-최근 끝까지 완주한 backend 전체 suite는 1046 passed, 5 skipped, 6 warnings이며
-실패 0건이다(2026-09-01).
+최근 끝까지 완주한 backend 전체 suite는 2026-09-04 모듈 경계 이주 뒤의
+`2 failed, 1240 passed, 5 skipped`이다. 실패 2건은 이주 이전부터 있던
+`tests/screening/test_screening_orchestrator.py`의 결함(`'실패' == '부분 성공'`)이며
+이 이주의 회귀가 아니다. 그 직전에 실패 0건으로 완주한 기록은 2026-09-01의
+1046 passed, 5 skipped다.
 저장소 `.env`를 상속하지 않은 최소 환경에서 일회용 PostgreSQL 17 server, random DB,
 Alembic head, 임시 data·attachments 경로를 pytest 수집 전에 구성했고 종료 후 소유
 container가 남지 않음을 확인했다. skip 5건은 별도 MinIO가 필요한 4건과 target

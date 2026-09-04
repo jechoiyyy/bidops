@@ -4,6 +4,110 @@
 
 이 모듈은 FastAPI REST 계약, SQLAlchemy·Alembic, PostgreSQL 정본, MinIO 객체, 회차 적재, 리뷰, 판정 실행, 문서 준비, 심층 검토, 보고서·근거 조회, scheduler와 worker 상태 전이를 소유한다. 원천 수집·판정 스크립트의 업무 규칙과 React 표현은 여기서 복제하지 않는다.
 
+## 모듈 구조
+
+`app/`은 아래 표의 한 방향으로만 의존하는 네 모듈과 그것을 조립하는 얇은 계층이다
+([ADR-0045](../../docs/tracking/decisions/0045-backend-module-layout.md)).
+
+```text
+app/
+├── core/          db, config, logging_setup, redaction, sql_dialect, constants, db_admin,
+│                  generation_config, run_id, api_errors, object_store, clamav,
+│                  vllm_client(범용), company_profile, model_binding, schema_base, health
+│                  models 2개
+├── lifecycle/     회차 적재와 기회 identity, 공고·발주계획·사전규격·첨부 메타
+│                  api, extensions, ingest/, routers/, services/, schemas/, runtime
+│                  models 10개
+├── screening/     C-1 공고 판정과 C-2 발주계획 선별
+│                  orchestrator/queue/worker/policy/projection/ingest, routers/, services/,
+│                  schemas/, workers/order_plan, cli/, runtime
+│                  models 28개
+├── deep_review/   문서 준비, 사전규격 개요 검토, 심층 검토, 입찰 delta·최종 결정
+│                  services/, routers/, workers/, agents/, document_mcp/, contracts/,
+│                  policies/, schemas/, cli/, runtime
+│                  models 34개
+└── main.py, runtime.py, workers/analysis.py, migrations/, alembic/   ← 조립 계층
+```
+
+`tests/`도 같은 축이다. `tests/core/`, `tests/lifecycle/`, `tests/screening/`,
+`tests/deep_review/`가 각 모듈의 테스트를 갖고, 앱 조립·migration·runtime 계약·**두 모듈
+이상이 합쳐지는 통합 검사**는 `tests/app/`이다. `conftest.py`, `postgres.py`,
+`c2_fixtures.py`, `fakes/`, `fixtures/`만 `tests/` 루트에 남는다. 새 테스트 파일을 루트에
+떨어뜨리면 경계 테스트가 실패한다 — 소유 모듈을 정해 폴더 안에 두라는 뜻이다.
+
+### 의존 규칙
+
+| import 하는 쪽 | 허용 대상 | 금지 |
+|---|---|---|
+| core | 표준 라이브러리, 외부 패키지 | 모든 도메인 모듈, 조립 계층 |
+| lifecycle | core | screening, deep_review, 조립 계층 |
+| screening | core, lifecycle 공개 이름 | deep_review, 조립 계층 |
+| deep_review | core, lifecycle 공개 이름, screening 공개 이름 중 읽기 전용 seam 함수 | screening 내부 ORM·service, 조립 계층 |
+| 조립 계층 | 네 모듈 공개 이름 | 모듈 내부 |
+
+- **공개 이름은 각 모듈 `__init__.py`의 `_EXPORTS` 표에 올린 것뿐이다.** 표는 지연 해석
+  (`__getattr__`)이라 패키지 초기화가 아무것도 import하지 않는다. 새 이름을 공개할 때는 표에
+  넣고, 모듈 최상위에서 import하지 않는다 — 순환이 생기면 `python -m <모듈>.cli`가 죽는다.
+- 조립 계층의 예외는 `alembic/env.py`, migration revision 파일, `app/migrations/import_sqlite.py`
+  가 각 모듈의 `models` 하위 모듈을 import하는 것뿐이다. 이 셋만 전체 테이블 집합을 등록한다.
+  `init_db(bind)`는 호출자의 import 그래프에 등록된 것만 만든다.
+- **lifecycle 모델은 공개 이름이다.** screening·deep_review는 `Notice`·`Run`·`OrderPlan`·
+  `Opportunity`·`Attachment` 등을 ORM으로 읽고 join해도 된다. lifecycle 테이블에 **쓰기와
+  잠금**만 lifecycle 공개 함수(`ingest_run`, `lock_notice`, `register_manual_attachment` 등)로
+  한다.
+- deep_review는 screening의 `current_judgment`·`current_judgments`·`latest_corrected_grade`만
+  쓰고, 그 import는 **함수 안에서** 한다. 모듈 최상위에서 들면 screening 폴더 없이 deep_review
+  테스트가 수집되지 않는다.
+- **ORM relationship도 import다.** lifecycle 모델은 다른 모듈 모델로 향하는 relationship을 갖지
+  않는다. 관계는 소유 모듈이 자기 모델에서 단방향으로 선언한다. 삭제 전파는 ORM cascade 대신
+  DB FK `ondelete=CASCADE`로 표현한다.
+
+### lifecycle 확장점
+
+역방향이 필요하면 코드를 옮기지 말고 lifecycle이 정의한 확장점으로 뒤집는다.
+`app/lifecycle/extensions.py`가 인터페이스와 프로세스 전역 registry를 갖는다.
+
+| 확장점 | 종류 | 구현 | 제공자가 없을 때 |
+|---|---|---|---|
+| 공고 판정 | 읽기 projection | screening | 필드 `null`, 분포·지표 빈 값. 등급 필터·`sort=grade` 미지원 |
+| 사전규격 개요·문서 준비 상태 | 읽기 projection | deep_review | 개요 상태 `null`, 문서 건수 0 |
+| 회차 적재됨 | 이벤트 hook | screening, deep_review | no-op, 건수 0 |
+| 추적 결정 변경됨 | 이벤트 hook | deep_review | no-op |
+
+- 등록은 **`main.py`가 앱 객체를 조립할 때** 한다. lifespan이나 `ApplicationRuntime`에 두면
+  runtime을 만들지 않는 격리 API 테스트에서 projection이 빈다.
+- `notice_ids_for_filters`의 `None`은 "제한하지 않음", 빈 sequence는 "0건 일치"다. 둘을 섞으면
+  제공자 없을 때 전체가 사라지거나 그 반대가 된다.
+- projection 구현은 호출부가 넘긴 `notice_ids` 만큼을 **상수 회 조회**로 처리한다. 공고당
+  조회(N+1)를 만들지 않는다.
+- **hook은 자기 실패를 스스로 가둔다.** 여러 모듈이 같은 hook을 등록하므로, 한 hook의 실패가
+  형제 hook의 성공 쓰기를 되돌리면 안 된다. 새 회차 적재 hook은 savepoint를 hook 안에 둔다.
+  **예외가 하나 있다.** 판정·리뷰 적재 hook(`screening`)은 일부러 격리하지 않는다 — 산출물이
+  깨졌으면 회차 적재 전체를 되돌려야 하고, 그것을 경고로 낮추면 회차 계약이 달라진다.
+  격리할지 말지는 "이 hook의 실패가 회차를 무효로 만드는가"로 정한다.
+- router 등록 **순서는 조립 계층이 소유한다.** `main.py`의 `(모듈, router 이름)` 표를 고친다.
+  더 구체적인 경로가 먼저 와야 한다(`/api/runs/{run_id}/pipeline/judgment`가
+  `/api/runs/{run_id}/pipeline/{stage}`보다 앞).
+
+### 모듈 선택과 진입점
+
+`BIDOPS_MODULES`는 `lifecycle`·`screening`·`deep_review`의 쉼표 구분 부분집합이고 기본값은 셋
+다이다. core는 항상 포함되므로 `/api/health`는 어떤 조합에도 있다. 알 수 없는 이름이나 빈 값은
+기동 실패다. **의존은 import만, 등록은 지정 모듈만** — 꺼진 모듈의 경로는 404다.
+
+```bash
+python -m app.screening.cli {run-one, score-candidate-quality}
+python -m app.deep_review.cli {run-bc-e2e, import-profile-policy}
+python -m app.lifecycle.ingest.cli {--run <회차> | --all}
+
+python -m app.deep_review.workers.document            # 자격증명 없는 문서 worker
+python -m app.deep_review.workers.prespec_attachment  # 사전규격 첨부 취득 worker
+python -m app.workers.analysis                        # 모델을 쓰는 합성 worker
+```
+
+모델을 쓰는 심층 검토·C-2 worker에 단독 진입점을 만들지 않는다. 합성 worker와 동시에 실행되면
+**모델 슬롯 1개** 보장이 깨진다.
+
 ## 경계
 
 - 파이프라인은 versioned file과 subprocess로 호출한다. 내부 script 함수를 서비스로 import하거나 같은 판정 규칙을 다시 구현하지 않는다.
@@ -37,7 +141,7 @@
 - 현재 접근 경계는 사내망이며 로그인·role authorization은 없다. 담당자 이름은 mutation 감사 표식이고 인증 성공으로 표현하지 않는다.
 - 담당자 이름, prompt, 모델 응답, 공고·회사자료 원문, upload 파일명, credential, DB URL, 쿼리 문자열을 로그에 남기지 않는다.
 - 로그 field는 allowlist를 사용하고 외부 예외·subprocess stderr는 저장 전에 redaction한다.
-- hosted OpenAI는 운영 기본 비활성이다. 현재 Codex deep-review provider는 개발에서도 사용하지 않는다. 외부 실험은 향후 발주계획 전용 projection에서만 공개 plan metadata와 별도 승인된 최소 회사 역량 요약을 보낼 수 있다. RFP·첨부, profile 전문, evidence, 내부 review·실적은 건별 승인으로도 허용되지 않는다. 허용 projection도 개발 mode, 대상 allowlist, payload preview·승인 중 하나라도 없으면 fail closed한다.
+- hosted OpenAI는 운영 기본 비활성이다. 심층 검토 provider는 `vllm`과 `mock`뿐이며 hosted 외부 provider 경로는 제거됐다. 외부 실험은 향후 발주계획 전용 projection에서만 공개 plan metadata와 별도 승인된 최소 회사 역량 요약을 보낼 수 있다. RFP·첨부, profile 전문, evidence, 내부 review·실적은 건별 승인으로도 허용되지 않는다. 허용 projection도 개발 mode, 대상 allowlist, payload preview·승인 중 하나라도 없으면 fail closed한다.
 - 사설 vLLM과 Ollama endpoint는 목적별 allowlist와 실행 binding을 사용한다. 하나의 장애를 다른 provider 자동 fallback으로 처리하지 않는다.
 
 ## API와 서비스 구현
@@ -51,7 +155,31 @@
 ## 검증
 
 ```bash
-cd web/backend && .venv/bin/pytest
+cd web/backend && .venv/bin/pytest          # 디렉터리 전체. 개별 파일만 지정하면 PostgreSQL 테스트가 skip된다
+cd web/backend && .venv/bin/python -m pytest tests/app/test_module_boundaries.py -q
+cd web/backend && .venv/bin/python -m pytest tests/app/test_module_selection.py tests/app/test_module_cli_entrypoints.py -q
 ```
+
+경계는 규율이 아니라 `tests/app/test_module_boundaries.py`의 다섯 검사가 강제한다. 허용 목록
+(`tests/app/boundary_allowlist.py`)은 **줄어드는 방향만** 허용한다. 목록에 없는 새 위반은 즉시
+실패하고, 목록에 있는데 더 이상 위반이 아닌 항목이 남아 있어도 실패한다.
+
+| 검사 | 대상 | 현재 허용 목록 |
+|---|---|---|
+| 1. 모듈 간 import 방향 | `app/` 아래 모든 `.py`(조립 계층 포함)와 `tests/<module>/` 아래 모든 `.py` | 0건 |
+| 2. router 안의 ORM 접근 | router 파일 | 18건 (service로 내리는 작업을 추적만 한다) |
+| 3. schemas → models·services | schema 파일 | 0건 |
+| 4. lifecycle 모델의 바깥 방향 relationship | `app/lifecycle/models.py` | 0건 |
+| 5. 형제 모듈의 lifecycle 테이블 직접 쓰기·잠금 | `app/screening/**`, `app/deep_review/**` | 0건 |
+
+검사 1은 `tests/app/`을 대상으로 삼지 않는다. 그곳은 두 모듈 이상이 합쳐지는 통합 검사의
+자리이기 때문이다. 검사 2·3·4는 `tests/app/`에도 적용된다. 검사 5는 제품 코드(`app/`)만 본다 —
+테스트 fixture가 회차·공고 행을 심는 것은 모듈 간 결합이 아니라 검사 대상을 세우는 준비다.
+
+검사 5가 따로 있는 이유: lifecycle **모델 클래스는 공개 이름**이라 검사 1(import 방향)은
+`select(Notice)`(허용)와 `session.add(Notice(...))`·`select(Notice).with_for_update()`(금지)를
+구분하지 못한다. 읽기·join은 그대로 두고 insert·update·delete·잠금만 잡는다. 필요하면
+`lifecycle.lock_notice`·`lock_attachment`·`lock_active_attachments`·`delete_run`·
+`register_attachment`·`seed_default_portals` 같은 공개 함수를 쓴다. 없으면 lifecycle에 만든다.
 
 DB 변경은 임시 PostgreSQL 17의 빈 migration, 제약, 중복 적재, rollback을 검사한다. API 변경은 정상과 404/409/422/503, idempotency, 상태 fence, actor encoding, 비밀 없는 오류를 포함한다. 첨부는 형식·크기·path escape·symlink·scan 실패·부분 정리를, 모델·worker는 timeout·잘림·schema·근거 실패·재시도·무승인 외부 호출 차단을 검사한다.

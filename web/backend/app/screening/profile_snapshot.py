@@ -21,8 +21,9 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
-from ..config import get_settings
-from ..models import CompanyProfileSnapshot, utc_now
+from ..core.config import get_settings
+from ..core.models import utc_now
+from .models import CompanyProfileSnapshot
 
 
 PROFILE_SOURCE_PATH: Final[str] = "docs/reference/company-profile.md"

@@ -18,7 +18,7 @@ from typing import Any, Mapping, Sequence
 
 from .artifacts import canonical_bytes
 from .contracts import ContractViolation, PERSPECTIVE_NAMES, two_axis_mixing, validate_judgment
-from .generation_config import GenerationConfigError, config_from_value, legacy_generation_config, validate_digest
+from ..core.generation_config import GenerationConfigError, config_from_value, legacy_generation_config, validate_digest
 
 
 VALID_GRADES = frozenset({"우선 검토", "검토 권장", "관찰 대상", "제외"})

@@ -1,0 +1,135 @@
+{
+  "schema_version": "bidops.order-plan-screening-phase0-binding.v1",
+  "producer": "phase0-contracts",
+  "consumer": "phase1-screening-pipeline",
+  "binding_version": "c2-order-plan-screening-binding-v2",
+  "status": "blocked",
+  "created_at": "2026-09-03T12:00:00+09:00",
+  "policy": {
+    "path": "experiments/order-plan-screening/config/order-plan-screening-policy.v2.json",
+    "schema_version": "bidops.order-plan-screening-policy.v1",
+    "policy_version": "c2-order-plan-screening-v2",
+    "sha256": "fa58501f6a8775d68360294d8115ff630019b289dcccf102c917a060d407470a",
+    "policy_status": "draft"
+  },
+  "selection_decision": {
+    "path": "data/experiments/order-plan-screening/20260827-20260830-bm25-qwen300-v3/selection-decision.json",
+    "schema_version": "bidops.order-plan-screening-selection-decision.v1",
+    "sha256": "e242077be204fddb6213bb4ba96f24ec51a8acac3cc5fb95654a191be9c1aa44",
+    "decision_status": "selected",
+    "operational_activation": false
+  },
+  "source_input": {
+    "path": "data/runs/order-plans-20260827-20260830-retry1/collected-order-plans.json",
+    "schema_version": "bidops.collected-order-plans.v1",
+    "sha256": "d608e1ad71dd03467278ad06a8c3290b5a5db47a118b3f1fcda5c7e90d122faf",
+    "raw_manifest_sha256": "f0afcbb549844d5628bed6726bb141a9d0acc7ad987e9b5ab996f84c62903402",
+    "source_run_id": "20260827-20260830-retry1",
+    "population_count": 625,
+    "complete": true,
+    "business_divisions": [
+      "기술용역",
+      "일반용역"
+    ]
+  },
+  "selection_evidence_population": {
+    "path": "data/experiments/order-plan-screening/20260827-20260830-qwen-direct-v3/population.json",
+    "schema_version": "bidops.order-plan-population.v1",
+    "file_sha256": "503a7794d37bbb406c2d2069b23ef3cc42bb8f1d163c88764e50fee0bba549bd",
+    "population_sha256": "7846e7ff51002dac613f85cc1a3e8a358430c9519ed96c6501e8e41c9f3d1c5a",
+    "population_count": 625
+  },
+  "stage1_binding": {
+    "method": "bm25",
+    "path": "experiments/order-plan-screening/config/bm25.json",
+    "schema_version": "bidops.order-plan-bm25.v1",
+    "sha256": "e026b2bdd2f99ddc09ae17bc83b1cd9cc40ef413f3b72372a35db32918d696da",
+    "top_k": 300,
+    "tie_break": [
+      "score_desc",
+      "order_plan_unty_no_asc"
+    ]
+  },
+  "stage2_binding": {
+    "provider": "approved_private_vllm",
+    "model_name": "qwen3.8-27B",
+    "model_digest": "6ae70ca30563209f09ec0114ce5813f7a232b38e5bb409f2adbd0e9bbe318b11",
+    "generation_config_version": "vllm-qwen-order-plan-batch-nonthinking-v4",
+    "generation_config_sha256": "1fd2f511a0b1c99f5a57125ebd9e1d67314d98202d42327394daa540abd27754",
+    "prompt_version": "order-plan-batch-relevance-v3",
+    "prompt_sha256": "639f7332e1120a41b2e8d8306126f121ae1ed37068a81b1687aff9ce66ab9d12",
+    "company_profile_version": "rootlab-company-profile-2026-08-96731dd5f77d",
+    "company_profile_sha256": "8f60dfece1934bdf857cd7e57d0fdd1860d01871131d98c3f2e8f9d71f271eae",
+    "payload_fields": [
+      "title"
+    ],
+    "company_payload_fields": [
+      "profile_version",
+      "capabilities"
+    ],
+    "batch_size": 25,
+    "max_attempts": 2,
+    "concurrency": 1
+  },
+  "selection_evidence": {
+    "cascade_path": "data/experiments/order-plan-screening/20260827-20260830-bm25-qwen300-v3/cascade.json",
+    "cascade_sha256": "06fd0cdf122f0ffec6cf6480e50b6dd50d98d019acdc40fe1a14c01f3dfb9a7a",
+    "qwen_result_path": "data/experiments/order-plan-screening/20260827-20260830-bm25-qwen300-v3/results/qwen.json",
+    "qwen_result_sha256": "a150cf845271b591d4144d76b9d7f9931fe87389eca894fc6e6e2fa0611f44e4",
+    "scoring_path": "data/experiments/order-plan-screening/20260827-20260830-bm25-qwen300-v3/qwen-cascade-scoring-gold-v2.json",
+    "scoring_sha256": "36040cbf68796129fd8d67ebc817c9f41b3ac2b667ba4d78eaffe8d422ae11a3",
+    "accepted_misses_path": "data/experiments/order-plan-screening/20260827-20260830-bm25-qwen300-v3/review/accepted-stage1-misses.tsv",
+    "accepted_misses_sha256": "ba8aea251e39e0b83cf2ecb85c220fa62213d72635471a6579a21ba7a741d13c",
+    "accepted_misses_count": 2
+  },
+  "review_inputs": {
+    "manifest_path": "experiments/order-plan-screening/review-inputs/manifest.json",
+    "manifest_schema_version": "bidops.order-plan-review-inputs-manifest.v1",
+    "manifest_sha256": "a478a18a873f332d0de45b13b4445315db83a855c9fa698ceb9150a9b98203b8",
+    "active_company_capabilities_path": "experiments/order-plan-screening/review-inputs/company/company-capabilities-v1-approved.json",
+    "active_company_capabilities_sha256": "8f60dfece1934bdf857cd7e57d0fdd1860d01871131d98c3f2e8f9d71f271eae",
+    "active_prompt_path": "experiments/order-plan-screening/review-inputs/prompts/order-plan-batch-relevance-v3-approved.txt",
+    "active_prompt_sha256": "639f7332e1120a41b2e8d8306126f121ae1ed37068a81b1687aff9ce66ab9d12"
+  },
+  "gold": {
+    "manifest_path": "data/experiments/order-plan-screening/20260827-20260830-gold-adjudicated-v2/review/manifest.json",
+    "manifest_schema_version": "bidops.order-plan-gold-adjudication-manifest.v1",
+    "manifest_sha256": "6089b8421540a39352af9fa06b082d72d67ee5868d6c843051bae802ebc1b6e5",
+    "status": "partially_human_adjudicated",
+    "full_artifact_path": "data/experiments/order-plan-screening/20260827-20260830-gold-adjudicated-v2/review/gold-adjudicated-full-population.tsv",
+    "full_artifact_sha256": "07d1986ab9d8abc7ef8ce12466e65998044928127682b9b7f743b08f4aacc4cd",
+    "remaining_queue_path": "data/experiments/order-plan-screening/20260827-20260830-gold-adjudicated-v2/review/remaining-confirmation-queue.tsv",
+    "remaining_queue_sha256": "2f1dc92be41029f8a5a4e5c078fa3dc44c626ce706fc863e59c36544b81d65a8",
+    "population_count": 625,
+    "human_adjudication_count": 22,
+    "draft_label_count": 603,
+    "remaining_confirmation_count": 87,
+    "activation_eligible": false
+  },
+  "external_transport": {
+    "status": "not_allowed_for_product_runtime",
+    "execution_allowed": false,
+    "approval_required_per_execution": true,
+    "endpoint_source": "runtime_secret_and_literal_allowlist",
+    "redirects": false,
+    "environment_proxy": false,
+    "fallback_provider": null
+  },
+  "compatibility": {
+    "legacy_experiment_artifacts": "read_only",
+    "legacy_schema_mutation": false,
+    "new_semantics_require_new_version": true
+  },
+  "activation": {
+    "status": "blocked",
+    "enabled": false,
+    "approved_by": null,
+    "approved_at": null,
+    "blockers": [
+      "c1_gold_incomplete",
+      "audit_sample_policy_unapproved",
+      "quality_gate_not_measured",
+      "private_vllm_transport_requires_per_execution_approval"
+    ]
+  }
+}

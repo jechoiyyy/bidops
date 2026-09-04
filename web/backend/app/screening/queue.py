@@ -21,17 +21,16 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session, sessionmaker
 
-from ..config import Settings, get_settings
-from ..models import (
-    ScreeningAuditEvent,
+from ..core.config import Settings, get_settings
+from ..core.models import utc_now
+from ..lifecycle.models import Notice, Run
+from .models import (
     CompanyProfileSnapshot,
-    Notice,
-    Run,
+    ScreeningAuditEvent,
     ScreeningExecution,
     ScreeningPolicy,
-    utc_now,
 )
-from .generation_config import GenerationConfigError, ensure_generation_config
+from ..core.generation_config import GenerationConfigError, ensure_generation_config
 
 
 logger = logging.getLogger(__name__)
@@ -203,7 +202,7 @@ def _session_factory(value: Any | None) -> sessionmaker[Session]:
     """Turn an engine, sessionmaker, or Session into a fresh-session factory."""
 
     if value is None:
-        from ..db import SessionLocal
+        from ..core.db import SessionLocal
 
         return SessionLocal
     if isinstance(value, Session):

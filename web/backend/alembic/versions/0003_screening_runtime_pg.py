@@ -11,7 +11,7 @@ PostgreSQL, so this revision reproduces the same rules natively:
 
 * the canonical-JSON and SHA-256 digest validators become two ``IMMUTABLE``
   functions in the ``bidops`` schema, computing byte-identical output to
-  :mod:`app.screening.generation_config`;
+  :mod:`app.core.generation_config`;
 * every trigger becomes a ``plpgsql`` function raising ``check_violation``
   (SQLSTATE 23514), so a violated invariant still surfaces as an
   ``IntegrityError`` rather than a generic failure.
@@ -30,9 +30,11 @@ import json
 from alembic import op
 import sqlalchemy as sa
 
-from app.db import Base
-from app.models import SCREENING_RUNTIME_TABLES
-from app.screening.generation_config import (
+# 명세 §3의 예외: migration revision 파일은 소유 모듈의 `models` 하위 모듈을
+# 직접 import한다. 이 revision이 만드는 12개 table은 모두 screening 소유다.
+from app.screening.models import SCREENING_RUNTIME_TABLES
+from app.core import (
+    Base,
     GENERATION_CONFIG_SCHEMA,
     MAX_NUM_CTX,
     MAX_NUM_PREDICT,
@@ -70,7 +72,7 @@ def _runtime_tables() -> list[sa.Table]:
 # ---------------------------------------------------------------------------
 # Generation-config validators
 #
-# ``app.screening.generation_config`` is the single source of truth for the
+# ``app.core.generation_config`` is the single source of truth for the
 # canonical representation.  These functions must produce the same bytes, so
 # the bounds and the schema string are imported rather than restated.
 # ---------------------------------------------------------------------------

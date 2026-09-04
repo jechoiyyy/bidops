@@ -17,7 +17,7 @@ from urllib import error as urllib_error
 from urllib import request as urllib_request
 from uuid import uuid4
 
-from ..config import Settings, get_settings
+from ..core.config import Settings, get_settings
 from .contracts import (
     CallMetadata,
     ContractViolation,
@@ -33,7 +33,7 @@ from .contracts import (
     validate_judgment,
     validate_perspective,
 )
-from .generation_config import GenerationConfig, ensure_generation_config, generation_config_from_settings
+from ..core.generation_config import GenerationConfig, ensure_generation_config, generation_config_from_settings
 from .prompts import (
     assemble_counterargument_prompt,
     assemble_perspective_prompt,

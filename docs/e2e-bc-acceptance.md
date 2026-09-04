@@ -8,11 +8,10 @@
 
 저장소에는 다음 실행 경계가 준비되어 있다.
 
-- `app.cli.score_candidate_quality`: 실제 모델 결과를 사람이 판정한 manifest에서 재현율·사람 일치율·근거 부족 오판율을 계산한다. 실패 결과는 policy import 인자를 내보내지 않는다.
-- `app.cli.import_profile_policy`: 측정한 policy SHA와 실제 import 대상 SHA가 다르면 저장 전에 거부한다. import 결과는 active 설정을 자동 변경하지 않는다.
-- `app.cli.run_bc_e2e`: 문서 업로드·검사·구조화·역할 지정·전체 current 문서 확정 후 deep review를 만들고, 세 stage·validation·evidence를 확인한다.
+- `app.screening.cli score-candidate-quality`: 실제 모델 결과를 사람이 판정한 manifest에서 재현율·사람 일치율·근거 부족 오판율을 계산한다. 실패 결과는 policy import 인자를 내보내지 않는다.
+- `app.deep_review.cli import-profile-policy`: 측정한 policy SHA와 실제 import 대상 SHA가 다르면 저장 전에 거부한다. import 결과는 active 설정을 자동 변경하지 않는다.
+- `app.deep_review.cli run-bc-e2e`: 문서 업로드·검사·구조화·역할 지정·전체 current 문서 확정 후 deep review를 만들고, 세 stage·validation·evidence를 확인한다.
 - `docker-compose.t7.remote-vllm.yml`: analysis worker에만 외부 모델 egress network를 추가하는 선택 override다. vLLM 자체는 이 Compose 밖의 승인 서버에서 운영한다.
-- `docker-compose.t7.codex-reference.yml`: 워크플로우 확정 기간에만 Codex exec를 모델 생성 경계에 연결하는 개발용 override다. Qwen 품질 승인이나 운영 배포 증적으로 사용할 수 없다.
 
 아래 항목은 저장소만으로 대신 만들 수 없는 실제 인수 입력이다.
 
@@ -102,7 +101,7 @@ docker run --rm --network none --read-only --tmpfs /tmp \
   --user "$(id -u):$(id -g)" \
   -v /secure/bidops-e2e/input:/acceptance:ro \
   bidops-deep-review-e2e-web \
-  python -m app.cli.score_candidate_quality /acceptance/qwen-quality.json \
+  python -m app.screening.cli score-candidate-quality /acceptance/qwen-quality.json \
   > /secure/bidops-e2e/qwen-quality-result.json
 ```
 
@@ -113,7 +112,7 @@ docker compose --project-name bidops-deep-review-e2e \
   --env-file /secure/bidops-e2e.env \
   -f docker-compose.t7.yml -f docker-compose.t7.remote-vllm.yml \
   run --rm --no-deps web \
-  python -m app.cli.import_profile_policy \
+  python -m app.deep_review.cli import-profile-policy \
   --actor 'E2E 담당자' \
   --expected-policy-sha256 <policy_sha256> \
   --sample-hash <sample_hash> \
@@ -139,7 +138,7 @@ docker compose --project-name bidops-deep-review-e2e \
   -f docker-compose.t7.yml -f docker-compose.t7.remote-vllm.yml \
   run --rm --no-deps \
   -v "$PWD/data:/app/data:ro" \
-  web python -m app.ingest.cli --run 20260817-20260823
+  web python -m app.lifecycle.ingest.cli --run 20260817-20260823
 docker compose --project-name bidops-deep-review-e2e \
   --env-file /secure/bidops-e2e.env \
   -f docker-compose.t7.yml -f docker-compose.t7.remote-vllm.yml \
@@ -178,7 +177,7 @@ docker run --rm --network host --read-only --tmpfs /tmp \
   --user "$(id -u):$(id -g)" \
   -v /secure/bidops-e2e/input:/acceptance:ro \
   bidops-deep-review-e2e-web \
-  python -m app.cli.run_bc_e2e /acceptance/bc-run.json --dry-run
+  python -m app.deep_review.cli run-bc-e2e /acceptance/bc-run.json --dry-run
 ```
 
 검토 후 target을 같은 문자열로 다시 확인하고 새 evidence 파일에 기록한다. 출력 파일이 이미 있으면 덮어쓰지 않고 중단한다.
@@ -189,7 +188,7 @@ docker run --rm --network host --read-only --tmpfs /tmp \
   -v /secure/bidops-e2e/input:/acceptance:ro \
   -v /secure/bidops-e2e/output:/evidence \
   bidops-deep-review-e2e-web \
-  python -m app.cli.run_bc_e2e /acceptance/bc-run.json \
+  python -m app.deep_review.cli run-bc-e2e /acceptance/bc-run.json \
   --confirm-target http://127.0.0.1:18787 \
   --analysis-timeout-seconds 3600 \
   --poll-seconds 2 \
@@ -236,7 +235,7 @@ docker compose \
 
 - `BIDOPS_ANALYSIS_PROVIDER=mock`
 - `BIDOPS_REFERENCE_WORKFLOW_MODE=true`
-- OpenAI/Codex 비활성
+- hosted OpenAI 비활성
 - analysis worker의 기존 internal network 유지; model egress 추가 없음
 - creation audit의 provider/model은 `mock-analysis` / `bidops-deterministic-mock-v1`
 - policy quality는 `reference_workflow_unmeasured`, `deployable=false`
@@ -259,33 +258,3 @@ final opinion은 실제 경로를 그대로 사용한다.
 Qwen 전환 시에는 Mock override를 제거하고 승인된 vLLM override/config를 사용한다. 기존 Mock
 review는 provider/model lineage가 고정되어 있으므로 Qwen attempt로 재사용하지 않는다. 새 bundle
 또는 새 policy version으로 새 deep review를 만들고 55개 fixture 품질 gate를 별도로 수행한다.
-
-## 임시 Codex exec 기준 실행
-
-Qwen 품질 조정 전에 B→C와 보고서 후속 흐름을 먼저 확정할 때만 `docker-compose.t7.codex-reference.yml`을 사용한다. 외부 전송이므로 대상 내부 `notice_id`마다 담당자 승인이 선행되어야 하며, 다음 세 gate 중 하나라도 빠지면 deep review 생성이 403으로 중단된다.
-
-- `BIDOPS_ANALYSIS_PROVIDER=codex-exec`
-- `BIDOPS_OPENAI_ENABLED=true`와 `BIDOPS_CODEX_EXEC_ENABLED=true`
-- `BIDOPS_CODEX_EXEC_APPROVED_NOTICE_IDS`에 대상 내부 notice ID 존재
-
-override는 host Codex 실행 파일과 `auth.json` 파일 하나만 analysis worker에 읽기 전용으로 mount한다. Codex는 `--ephemeral`, read-only sandbox, user config/rules 무시, shell·browser·computer-use·plugin·multi-agent 비활성 상태로 실행된다. BidOps DB/MinIO credential은 subprocess 환경에서 제거되며 prompt와 원문은 stdin으로만 전달된다. raw 응답은 Qwen과 동일하게 암호화 model-response namespace에 저장된다.
-
-이 값들은 override 전용이므로 공통 `.env`가 아니라 `env/codex.env`에 두고 추가 `--env-file`로 넘긴다(`env/codex.env.example` 참고).
-
-```text
-# env/codex.env
-BIDOPS_CODEX_EXEC_HOST_BIN=/absolute/path/to/codex
-BIDOPS_CODEX_EXEC_HOST_AUTH_FILE=/absolute/path/to/auth.json
-BIDOPS_CODEX_EXEC_MODEL=gpt-5.6-sol
-BIDOPS_CODEX_EXEC_REASONING_EFFORT=low
-BIDOPS_CODEX_EXEC_APPROVED_NOTICE_IDS=123
-```
-
-```bash
-docker compose -p "$COMPOSE_PROJECT_NAME" \
-  --env-file .env --env-file env/codex.env \
-  -f docker-compose.t7.yml -f docker-compose.t7.codex-reference.yml \
-  up -d
-```
-
-기동할 때 remote-vLLM override 대신 Codex override를 결합한다. 이 실행의 creation audit와 stage invocation metadata에는 실제 provider/model이 `codex-exec-reference`와 Codex model로 남지만, 고정 policy의 Qwen model 이름은 별도 필드로 보존된다. 동일 입력을 Qwen으로 재검증할 때는 provider lineage 충돌을 피하도록 새 격리 DB 또는 새 policy version에서 새 review를 만든다.

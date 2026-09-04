@@ -14,8 +14,15 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import MetaData, engine_from_config, pool, text
 
-from app.db import ALEMBIC_VERSION_NUM_WIDTH, Base, settings
-from app import models  # noqa: F401 - register every declarative table
+from app.core import ALEMBIC_VERSION_NUM_WIDTH, Base, settings
+
+# 네 모듈의 선언 테이블을 모두 등록해야 ``Base.metadata``가 완전해진다. 명세 §3은
+# `alembic/env.py`와 migration revision 파일만 각 모듈의 `models` 하위 모듈을
+# 직접 import하도록 허용한다.
+from app.core import models as core_models  # noqa: F401
+from app.lifecycle import models as lifecycle_models  # noqa: F401
+from app.screening import models as screening_models  # noqa: F401
+from app.deep_review import models as deep_review_models  # noqa: F401
 
 
 config = context.config
@@ -70,7 +77,7 @@ def _include_name(
 # Alembic looks for it; ``Table.create(checkfirst=True)`` then leaves the
 # existing table alone.  Both statements are idempotent.
 #
-# The width lives in ``app.db`` so ``tests/test_db_migrations.py`` can hold
+# The width lives in ``app.core.db`` so ``tests/app/test_db_migrations.py`` can hold
 # every revision identifier to it without importing this Alembic script.
 VERSION_NUM_WIDTH = ALEMBIC_VERSION_NUM_WIDTH
 CREATE_VERSION_TABLE = (

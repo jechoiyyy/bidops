@@ -38,14 +38,21 @@ from sqlalchemy import (
 )
 from sqlalchemy.engine import Engine
 
-from ..db import Base, schema_bound, settings
-from .. import models  # noqa: F401 - register legacy and new target tables
-from ..services.revisions import (
+from ..core import Base, schema_bound, settings
+from ..core.models import AwareDateTime
+
+# 대상 테이블(legacy·Lean v1)을 모두 등록한다. 조립 계층인 이 파일은 네 모듈의
+# `models` 하위 모듈을 직접 import한다 (명세 §3).
+from ..core import models as core_models  # noqa: F401
+from ..lifecycle import models as lifecycle_models  # noqa: F401
+from ..screening import models as screening_models  # noqa: F401
+from ..deep_review import models as deep_review_models  # noqa: F401
+from ..screening import (
     JUDGMENT_PAYLOAD_SCHEMA,
     REVIEW_PAYLOAD_SCHEMA,
     canonical_payload_and_hash,
+    review_revision_payload,
 )
-from ..services.reviews import review_revision_payload
 
 
 LEGACY_COLUMNS: dict[str, tuple[str, ...]] = {
@@ -299,7 +306,7 @@ def _decode_json(value: Any) -> Any:
 def _coerce_target_value(value: Any, target_type: Any, *, table: str, column: str) -> Any:
     if value is None:
         return None
-    if isinstance(target_type, models.AwareDateTime) and isinstance(value, str):
+    if isinstance(target_type, AwareDateTime) and isinstance(value, str):
         try:
             parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
         except ValueError as exc:
@@ -1032,7 +1039,7 @@ def run_import(*, sqlite_backup: Path, file_manifest: Path, mode: str, destinati
                 _sequence_reconciliation(None, target, source_tables[source_table], report, apply=False)
         else:
             if destination is None:
-                from ..db import engine as application_engine
+                from ..core import engine as application_engine
 
                 destination = application_engine
             if destination.dialect.name != "postgresql":
