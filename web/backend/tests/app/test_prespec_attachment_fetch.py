@@ -12,12 +12,23 @@ from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
+from app.core.constants import (
+    UNSUPPORTED_ATTACHMENT_EXTRACT_STATUS,
+    UNSUPPORTED_ATTACHMENT_ISSUE_CODE,
+)
 from app.core.db import init_db
 from app.deep_review.document_mcp.errors import DocumentProcessingError
 from app.deep_review.document_mcp.processor import DocumentProcessor
 from app.lifecycle.ingest.loader import ObservationSnapshotConflictError, _upsert_attachments
+from app.core.models import AuditEvent
+from app.deep_review.services.auto_preparation import (
+    auto_preparation_fields,
+    maybe_auto_prepare,
+)
 from app.deep_review.models import (
     AttachmentFetch,
+    DocumentBundle,
+    DocumentBundleItem,
     ContentObject,
     ContentObjectLocation,
     DocumentBlock,
@@ -25,6 +36,9 @@ from app.deep_review.models import (
     DocumentVersion,
 )
 from app.lifecycle.models import Attachment, Notice, Opportunity, OpportunityLink, OrderPlan
+# 판정·정정 등급은 선별 소유다. 두 모듈이 합쳐지는 검사라 `tests/app/`에 있고,
+# 이 import가 `init_db`보다 먼저 선별 테이블을 metadata에 등록한다.
+from app.screening.models import Judgment, Review
 from app.deep_review.services import assets, prespec_attachments
 from app.lifecycle.services.opportunity_connections import (
     parse_attachment_key,
@@ -36,6 +50,7 @@ from app.deep_review.services.prespec_attachments import (
     fetch_claimed,
     refresh_fetch_eligibility,
 )
+from app.deep_review.services.deep_review_hooks import PreSpecAttachmentEligibilityHook
 from app.deep_review.workers.prespec_attachment import run_once
 
 
@@ -771,3 +786,422 @@ def test_last_error_code_is_bounded_and_contains_no_exception_details(db_session
     assert "g2b.go.kr" not in (result.last_error_code or "")
     assert "secret" not in (result.last_error_code or "")
     assert "credential" not in (result.last_error_code or "")
+
+
+# --- 판정 등급이 여는 취득 자격 (명세 §6.2 "자격", 결합 규칙 §5) --------------
+
+
+def _grade(session: Session, notice: Notice, grade: str) -> None:
+    """1차 판정 등급을 심는다. 선별 소유 테이블이라 두 모듈 조합 테스트에서만 쓴다."""
+
+    session.add(Judgment(notice_id=notice.id, grade=grade, readiness="확인 완료"))
+    session.flush()
+
+
+def _corrected(session: Session, notice: Notice, grade: str | None) -> None:
+    """사람 정정 등급을 심는다."""
+
+    session.add(Review(notice_id=notice.id, corrected_grade=grade, reviewer_snapshot="검토자"))
+    session.flush()
+
+
+def test_priority_grade_alone_opens_attachment_fetch_for_a_non_sw_untracked_notice(
+    db_session: Session,
+):
+    notice, attachment, _ = add_attachment(db_session, sw_status="N")
+    _grade(db_session, notice, "우선 검토")
+
+    assert refresh_fetch_eligibility(db_session, notice_ids=[notice.id]) == 1
+
+    row = db_session.scalar(
+        select(AttachmentFetch).where(AttachmentFetch.attachment_id == attachment.id)
+    )
+    assert row is not None
+    assert row.status == "대기"
+    assert row.eligibility_reason == "priority_grade"
+
+
+@pytest.mark.parametrize(
+    ("grade", "expected"),
+    [("검토 권장", None), ("관찰 대상", None), ("제외", None), ("우선 검토", "priority_grade")],
+)
+def test_only_the_priority_grade_opens_eligibility(
+    db_session: Session, grade: str, expected: str | None
+):
+    notice, attachment, _ = add_attachment(db_session, sw_status="N")
+    _grade(db_session, notice, grade)
+
+    refresh_fetch_eligibility(db_session, notice_ids=[notice.id])
+
+    row = db_session.scalar(
+        select(AttachmentFetch).where(AttachmentFetch.attachment_id == attachment.id)
+    )
+    assert (row.eligibility_reason if row is not None else None) == expected
+
+
+def test_existing_reasons_win_over_the_grade_reason(db_session: Session):
+    """§5 결합 규칙: 등급+SW는 `sw_business_object`, 등급+추적은 `tracked_order_plan`."""
+
+    sw_notice, sw_attachment, _ = add_attachment(db_session, sw_status="Y")
+    _grade(db_session, sw_notice, "우선 검토")
+    tracked_notice, tracked_attachment, _ = add_attachment(
+        db_session,
+        sw_status="N",
+        tracking_status="계속 추적",
+        notice_link_status="확정",
+        with_order_plan=True,
+    )
+    _grade(db_session, tracked_notice, "우선 검토")
+    both_notice, both_attachment, _ = add_attachment(
+        db_session,
+        sw_status="Y",
+        tracking_status="계속 추적",
+        notice_link_status="확정",
+        with_order_plan=True,
+    )
+    _grade(db_session, both_notice, "우선 검토")
+
+    refresh_fetch_eligibility(
+        db_session, notice_ids=[sw_notice.id, tracked_notice.id, both_notice.id]
+    )
+
+    reasons = {
+        row.attachment_id: row.eligibility_reason
+        for row in db_session.scalars(select(AttachmentFetch))
+    }
+    assert reasons[sw_attachment.id] == "sw_business_object"
+    assert reasons[tracked_attachment.id] == "tracked_order_plan"
+    assert reasons[both_attachment.id] == "both"
+
+
+def test_a_human_correction_up_to_priority_creates_the_fetch_row(db_session: Session):
+    notice, attachment, _ = add_attachment(db_session, sw_status="N")
+    _grade(db_session, notice, "관찰 대상")
+
+    assert refresh_fetch_eligibility(db_session, notice_ids=[notice.id]) == 0
+
+    _corrected(db_session, notice, "우선 검토")
+
+    assert refresh_fetch_eligibility(db_session, notice_ids=[notice.id]) == 1
+    row = db_session.scalar(
+        select(AttachmentFetch).where(AttachmentFetch.attachment_id == attachment.id)
+    )
+    assert row.eligibility_reason == "priority_grade"
+
+
+def test_a_correction_down_from_priority_leaves_the_existing_row_untouched(
+    db_session: Session,
+):
+    """등급이 내려가도 이미 만들어진 취득 행은 취소하지 않는다 (명세 §6.2)."""
+
+    notice, attachment, _ = add_attachment(db_session, sw_status="N")
+    _grade(db_session, notice, "우선 검토")
+    refresh_fetch_eligibility(db_session, notice_ids=[notice.id])
+    row = db_session.scalar(
+        select(AttachmentFetch).where(AttachmentFetch.attachment_id == attachment.id)
+    )
+    before = (row.id, row.status, row.eligibility_reason)
+
+    _corrected(db_session, notice, "제외")
+    assert refresh_fetch_eligibility(db_session, notice_ids=[notice.id]) == 0
+
+    db_session.refresh(row)
+    assert (row.id, row.status, row.eligibility_reason) == before
+
+
+def test_grade_eligibility_is_not_extended_to_bid_notices(db_session: Session):
+    notice, attachment, _ = add_attachment(db_session, sw_status="N")
+    notice.source_type = "bid_notice"
+    db_session.flush()
+    _grade(db_session, notice, "우선 검토")
+
+    assert refresh_fetch_eligibility(db_session, notice_ids=[notice.id]) == 0
+    assert db_session.scalar(select(func.count(AttachmentFetch.id))) == 0
+
+
+def test_unsupported_extension_marks_the_attachment_as_excluded_not_failed(
+    db_session: Session, tmp_path: Path
+):
+    """형식 밖 첨부는 `차단`이지만 묶음 확정을 막지 않는 `extract_status`를 남긴다 (§6.2)."""
+
+    _, attachment, _ = queue_one(db_session, sw_status="Y")
+    claim = claim_next(db_session, worker_id="worker-a", lease_seconds=120)
+    assert claim is not None
+
+    result = fetch_claimed(
+        db_session,
+        claim,
+        connectors={"g2b": StubConnector(assets.ProviderResponse(b"zip", G2B_URL, "붙임.zip"))},
+        root=tmp_path,
+    )
+
+    assert result is not None and result.status == "차단"
+    assert result.last_error_code == "unsupported_extension"
+    db_session.refresh(attachment)
+    assert attachment.extract_status == UNSUPPORTED_ATTACHMENT_EXTRACT_STATUS
+
+
+def test_other_terminal_codes_do_not_mark_the_attachment_as_excluded(
+    db_session: Session, tmp_path: Path
+):
+    _, attachment, _ = queue_one(db_session, sw_status="Y")
+    claim = claim_next(db_session, worker_id="worker-a", lease_seconds=120)
+    assert claim is not None
+    eicar = (Path(__file__).parents[1] / "fixtures/document_bundles/eicar.pdf").read_bytes()
+
+    result = fetch_claimed(
+        db_session,
+        claim,
+        connectors={"g2b": StubConnector(assets.ProviderResponse(eicar, G2B_URL, "infected.pdf"))},
+        processor=DocumentProcessor(clamav_checker=lambda _content: True),
+        root=tmp_path,
+    )
+
+    assert result is not None and result.status == "차단"
+    db_session.refresh(attachment)
+    assert attachment.extract_status != UNSUPPORTED_ATTACHMENT_EXTRACT_STATUS
+
+
+# --- 자동 문서 준비 (명세 §6.2) ----------------------------------------------
+
+
+class MapConnector:
+    """URL마다 다른 응답을 주는 stub. 첨부가 둘 이상인 공고를 세울 때 쓴다."""
+
+    source_system = SOURCE_SYSTEM
+
+    def __init__(self, responses: dict[str, assets.ProviderResponse]):
+        self.responses = responses
+
+    def fetch(self, url: str) -> assets.ProviderResponse:
+        response = self.responses.get(url)
+        assert response is not None, url
+        return response
+
+
+def _variant_pdf() -> bytes:
+    """같은 구조·같은 크기, 다른 bytes인 PDF. 재수집 규칙 검사에 쓴다."""
+
+    return SAFE_PDF.read_bytes().replace(b"T3 fixture", b"T6 fixture")
+
+
+def _priority_notice(session: Session, names: list[str]) -> tuple[Notice, list[Attachment]]:
+    """`우선 검토` 판정만으로 자격을 얻는 사전규격과 그 첨부들."""
+
+    notice = Notice(
+        notice_key=f"pre:auto-{session.query(Notice).count() + 1}",
+        source_type="pre_spec",
+        title="자동 준비 사전규격",
+        qualification_flags_json={"sw_business_status": "N"},
+        raw_source={},
+    )
+    session.add(notice)
+    session.flush()
+    session.add(Judgment(notice_id=notice.id, grade="우선 검토", readiness="확인 완료"))
+    attachments: list[Attachment] = []
+    for seq, name in enumerate(names, start=1):
+        url = G2B_URL.replace("fileSeq=1", f"fileSeq={seq}")
+        attachment = Attachment(
+            notice_id=notice.id,
+            name=name,
+            origin="g2b",
+            source_url=url,
+            source_system=SOURCE_SYSTEM,
+            source_attachment_key=parse_attachment_key(url),
+        )
+        session.add(attachment)
+        attachments.append(attachment)
+    session.flush()
+    refresh_fetch_eligibility(session, notice_ids=[notice.id])
+    session.commit()
+    return notice, attachments
+
+
+def _drain_queue(session: Session, connector: MapConnector, tmp_path: Path | None) -> None:
+    """큐가 빌 때까지 취득한다. `tmp_path`가 `None`이면 설정된 기본 보관소를 쓴다."""
+
+    while True:
+        claim = claim_next(session, worker_id="worker-auto", lease_seconds=120)
+        if claim is None:
+            return
+        fetch_claimed(
+            session,
+            claim,
+            connectors={"g2b": connector},
+            processor=DocumentProcessor(clamav_checker=lambda _content: True),
+            root=tmp_path,
+        )
+
+
+def _responses(session: Session, attachments: list[Attachment], payloads: list[bytes]):
+    return MapConnector(
+        {
+            attachment.source_url: assets.ProviderResponse(
+                payload, attachment.source_url, attachment.name
+            )
+            for attachment, payload in zip(attachments, payloads, strict=True)
+        }
+    )
+
+
+def _bundles(session: Session, notice: Notice) -> list[DocumentBundle]:
+    return list(
+        session.scalars(
+            select(DocumentBundle)
+            .where(DocumentBundle.notice_id == notice.id)
+            .order_by(DocumentBundle.revision.asc())
+        )
+    )
+
+
+def _audit_actions(session: Session, bundle_id) -> dict[str, AuditEvent]:
+    return {
+        row.action: row
+        for row in session.scalars(
+            select(AuditEvent).where(AuditEvent.aggregate_id == str(bundle_id))
+        )
+    }
+
+
+def test_terminal_fetch_creates_and_confirms_the_bundle_as_a_system_actor(
+    db_session: Session, tmp_path: Path
+):
+    notice, attachments = _priority_notice(db_session, ["제안요청서.pdf"])
+
+    _drain_queue(db_session, _responses(db_session, attachments, [SAFE_PDF.read_bytes()]), tmp_path)
+
+    bundles = _bundles(db_session, notice)
+    assert [(bundle.revision, bundle.status) for bundle in bundles] == [(1, "ready")]
+    assert bundles[0].created_by_name == "auto-preparation"
+    assert bundles[0].confirmed_by_name == "auto-preparation"
+    actions = _audit_actions(db_session, bundles[0].id)
+    assert set(actions) == {
+        "document_bundle.create",
+        "document_bundle.confirm",
+        "document_bundle.auto_confirm",
+    }
+    for action in actions.values():
+        assert action.actor_kind == "system"
+        assert action.claimed_name == "auto-preparation"
+    assert actions["document_bundle.create"].safe_metadata["trigger"] == "priority_grade"
+    assert actions["document_bundle.auto_confirm"].safe_metadata["notice_id"] == notice.id
+
+
+def test_an_unsupported_attachment_does_not_stop_the_automatic_confirmation(
+    db_session: Session, tmp_path: Path
+):
+    notice, attachments = _priority_notice(db_session, ["제안요청서.pdf", "붙임자료.zip"])
+
+    _drain_queue(
+        db_session,
+        _responses(db_session, attachments, [SAFE_PDF.read_bytes(), b"PK\x03\x04zip"]),
+        tmp_path,
+    )
+
+    bundles = _bundles(db_session, notice)
+    assert [(bundle.revision, bundle.status) for bundle in bundles] == [(1, "ready")]
+    codes = {issue["code"]: issue for issue in bundles[0].issues_snapshot}
+    assert codes[UNSUPPORTED_ATTACHMENT_ISSUE_CODE]["blocking"] is False
+    assert codes[UNSUPPORTED_ATTACHMENT_ISSUE_CODE]["severity"] == "보통"
+    assert not [issue for issue in bundles[0].issues_snapshot if issue["blocking"]]
+
+
+def test_a_scan_failure_leaves_the_automatic_bundle_in_draft(
+    db_session: Session, tmp_path: Path
+):
+    notice, attachments = _priority_notice(db_session, ["제안요청서.pdf", "감염.pdf"])
+    eicar = (Path(__file__).parents[1] / "fixtures/document_bundles/eicar.pdf").read_bytes()
+
+    _drain_queue(
+        db_session, _responses(db_session, attachments, [SAFE_PDF.read_bytes(), eicar]), tmp_path
+    )
+
+    bundles = _bundles(db_session, notice)
+    assert [(bundle.revision, bundle.status) for bundle in bundles] == [(1, "draft")]
+    assert [issue["code"] for issue in bundles[0].issues_snapshot if issue["blocking"]]
+    fields = auto_preparation_fields(db_session, [notice.id])[notice.id]
+    assert fields["auto_preparation_status"] == "blocked"
+    assert fields["auto_preparation_reason"] == "bundle_has_blocking_issues"
+
+
+def test_the_same_document_set_never_creates_a_second_bundle(
+    db_session: Session, tmp_path: Path
+):
+    notice, attachments = _priority_notice(db_session, ["제안요청서.pdf"])
+    _drain_queue(db_session, _responses(db_session, attachments, [SAFE_PDF.read_bytes()]), tmp_path)
+
+    outcomes = maybe_auto_prepare(db_session, [notice.id], root=tmp_path)
+
+    assert [outcome.reason for outcome in outcomes] == ["bundle_unchanged"]
+    assert [(bundle.revision, bundle.status) for bundle in _bundles(db_session, notice)] == [
+        (1, "ready")
+    ]
+
+
+def test_new_attachment_bytes_create_a_new_confirmed_revision(
+    db_session: Session, tmp_path: Path
+):
+    notice, attachments = _priority_notice(db_session, ["제안요청서.pdf"])
+    _drain_queue(db_session, _responses(db_session, attachments, [SAFE_PDF.read_bytes()]), tmp_path)
+    first = _bundles(db_session, notice)[0]
+
+    # 같은 첨부가 다른 bytes로 다시 취득된다.
+    row = db_session.scalar(
+        select(AttachmentFetch).where(AttachmentFetch.attachment_id == attachments[0].id)
+    )
+    row.status = "대기"
+    row.completed_at = None
+    row.next_attempt_at = datetime.now(UTC) - timedelta(seconds=1)
+    db_session.commit()
+    _drain_queue(db_session, _responses(db_session, attachments, [_variant_pdf()]), tmp_path)
+
+    bundles = _bundles(db_session, notice)
+    assert [(bundle.revision, bundle.status) for bundle in bundles] == [
+        (1, "superseded"),
+        (2, "ready"),
+    ]
+    # 이전 묶음의 item snapshot은 그대로 남는다.
+    assert db_session.scalar(
+        select(func.count())
+        .select_from(DocumentBundleItem)
+        .where(DocumentBundleItem.bundle_id == first.id)
+    ) == 1
+
+
+def test_the_grade_hook_prepares_inside_the_callers_transaction(
+    db_session: Session, tmp_path: Path
+):
+    """등급 변경 hook의 묶음 생성·확정은 호출자의 transaction 안에서 일어난다.
+
+    `create_bundle`·`confirm`은 스스로 commit하므로, 그 commit이 리뷰 저장이나
+    회차 적재를 앞당겨 끝내면 안 된다. 호출자가 rollback하면 자동 준비 결과도
+    함께 사라져야 한다 — 그것이 "같은 transaction"의 증거다.
+    """
+
+    notice, attachments = _priority_notice(db_session, ["제안요청서.pdf"])
+    # 판정 등급을 내려 자동 준비가 아직 열리지 않은 상태로 취득만 끝낸다.
+    judgment = db_session.scalar(select(Judgment).where(Judgment.notice_id == notice.id))
+    judgment.grade = "관찰 대상"
+    db_session.commit()
+    # hook은 확장점 서명상 보관소 경로를 받지 않고 **설정된 기본 보관소**를 쓴다.
+    # 그래서 이 검사만 취득도 같은 기본 보관소에서 한다.
+    _drain_queue(db_session, _responses(db_session, attachments, [SAFE_PDF.read_bytes()]), None)
+    assert _bundles(db_session, notice) == []
+
+    # 사람이 등급을 `우선 검토`로 정정한 뒤, 아직 커밋되지 않은 같은 transaction에서
+    # hook이 불린다.
+    db_session.add(
+        Review(notice_id=notice.id, corrected_grade="우선 검토", reviewer_snapshot="검토자")
+    )
+    db_session.flush()
+    PreSpecAttachmentEligibilityHook().effective_grade_changed(db_session, [notice.id])
+
+    assert [(bundle.revision, bundle.status) for bundle in _bundles(db_session, notice)] == [
+        (1, "ready")
+    ]
+    assert db_session.in_transaction()
+
+    db_session.rollback()
+
+    assert _bundles(db_session, notice) == []
+    assert db_session.scalar(select(Review).where(Review.notice_id == notice.id)) is None

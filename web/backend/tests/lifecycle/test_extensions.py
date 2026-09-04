@@ -382,3 +382,62 @@ def test_restore_puts_the_previous_registry_back(registry):
     assert restored is registry
     assert extension_registry() is registry
     assert extension_registry().judgment_filters_supported is True
+
+
+# --- 등급 변경 hook (§6.2 둘째 촉발) -----------------------------------------
+
+
+class _GradeHook:
+    """`EffectiveGradeChangedHook` 구현 하나. 받은 공고 id를 그대로 적어 둔다."""
+
+    def __init__(self, label: str, order: list[str]):
+        self.label = label
+        self.order = order
+        self.seen: list[list[int]] = []
+
+    def effective_grade_changed(self, session, notice_ids) -> None:
+        self.order.append(self.label)
+        self.seen.append([int(value) for value in notice_ids])
+
+
+def test_effective_grade_hook_matches_the_protocol():
+    from app.lifecycle import EffectiveGradeChangedHook
+
+    assert isinstance(_GradeHook("x", []), EffectiveGradeChangedHook)
+
+
+def test_no_effective_grade_hook_registered_is_a_no_op(registry):
+    registry.effective_grade_changed(None, [1, 2])
+
+    assert registry.effective_grade_changed_hook_count == 0
+
+
+def test_effective_grade_hooks_run_in_registration_order(registry):
+    order: list[str] = []
+    first = _GradeHook("first", order)
+    second = _GradeHook("second", order)
+    registry.register_effective_grade_changed_hook(first, owner="first")
+    registry.register_effective_grade_changed_hook(second, owner="second")
+
+    registry.effective_grade_changed(None, [7])
+
+    assert order == ["first", "second"]
+    assert first.seen == [[7]] and second.seen == [[7]]
+    assert registry.effective_grade_changed_hook_count == 2
+
+
+def test_the_same_owner_does_not_stack_effective_grade_hooks(registry):
+    order: list[str] = []
+    registry.register_effective_grade_changed_hook(_GradeHook("g", order), owner="deep-review-like")
+    registry.register_effective_grade_changed_hook(_GradeHook("g", order), owner="deep-review-like")
+
+    assert registry.effective_grade_changed_hook_count == 1
+
+    registry.effective_grade_changed(None, [1])
+
+    assert order == ["g"]
+
+
+def test_an_empty_owner_is_refused_for_the_effective_grade_hook(registry):
+    with pytest.raises(ValueError):
+        registry.register_effective_grade_changed_hook(_GradeHook("g", []), owner="")

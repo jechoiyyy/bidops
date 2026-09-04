@@ -20,6 +20,8 @@ from sqlalchemy import event
 
 from app.main import app  # noqa: F401 — 조립 계층이 lifecycle 확장점을 등록한다
 from app.deep_review import PreSpecOverviewReview
+from app.lifecycle.models import Notice
+from app.screening.models import Judgment, Review
 from tests.app.test_api_pre_specs import _items_by_id, _payload, pre_specs_api  # noqa: F401
 
 BASELINE_PATH = Path(__file__).resolve().parents[1] / "fixtures" / "pre_specs_list_baseline.json"
@@ -168,6 +170,83 @@ def test_pre_specs_list_uses_constant_query_count(pre_specs_api):
         event.remove(engine, "before_cursor_execute", count_statement)
 
     # lifecycle 몫(필터된 공고 id 집합, 페이지)과 projection 몫(개요 상태, 상태별
-    # 건수, 첨부 취득 건수)을 합쳐도 상수 회다. 공고당 조회는 없다.
-    assert len(statements) <= 5
+    # 건수, 첨부 취득 건수, 등급·자동 준비 필드)을 합쳐도 상수 회다. 공고당
+    # 조회는 없다. 상한은 실측 회수이며, 공고 수와 무관하다는 사실은 아래
+    # `..._does_not_grow_with_the_number_of_notices`가 본다.
+    assert len(statements) <= 14
     assert response["total"] == 9
+
+
+def _count_statements(session, engine, **params) -> int:
+    statements: list[str] = []
+
+    def count_statement(_conn, _cursor, statement, _parameters, _context, _executemany):
+        statements.append(statement)
+
+    event.listen(engine, "before_cursor_execute", count_statement)
+    try:
+        _payload(session, **params)
+    finally:
+        event.remove(engine, "before_cursor_execute", count_statement)
+    return len(statements)
+
+
+def test_pre_specs_query_count_does_not_grow_with_the_number_of_notices(pre_specs_api):
+    """명세 §8: 새 등급·자동 준비 필드도 `notice_ids` 만큼을 상수 회로 처리한다."""
+
+    session, engine, _refs = pre_specs_api
+    before = _count_statements(session, engine, sw_only=False)
+
+    for index in range(12):
+        session.add(
+            Notice(
+                notice_key=f"pre:SCALE-{index}",
+                source_type="pre_spec",
+                title=f"확장 사전규격 {index}",
+                agency="확장 기관",
+                qualification_flags_json={"sw_business_status": "Y"},
+                lifecycle_json={"pre_spec_no": f"SCALE-{index}"},
+            )
+        )
+    session.commit()
+
+    payload = _payload(session, sw_only=False, limit=500)
+    assert payload["total"] == 21
+    assert _count_statements(session, engine, sw_only=False, limit=500) == before
+
+
+def test_pre_specs_grade_and_auto_preparation_fields_are_null_without_a_judgment(
+    pre_specs_api,
+):
+    session, _engine, refs = pre_specs_api
+
+    item = _items_by_id(_payload(session, sw_only=False))[refs["sw_yes"].id]
+
+    # 판정도 정정도 없으면 등급은 `null`이고 출처도 `null`이다. 0이나 특정
+    # 등급으로 접지 않는다.
+    assert item["grade"] is None
+    assert item["grade_source"] is None
+    assert item["auto_preparation_status"] == "not_applicable"
+    assert item["auto_preparation_reason"] == "grade_not_priority"
+    assert item["latest_deep_review_id"] is None
+
+
+def test_pre_specs_grade_comes_from_the_screening_seam(pre_specs_api):
+    session, _engine, refs = pre_specs_api
+    session.add(Judgment(notice_id=refs["sw_yes"].id, grade="검토 권장", readiness="확인 완료"))
+    session.commit()
+
+    item = _items_by_id(_payload(session, sw_only=False))[refs["sw_yes"].id]
+    assert item["grade"] == "검토 권장"
+    assert item["grade_source"] == "screening_judgment"
+
+    session.add(
+        Review(notice_id=refs["sw_yes"].id, corrected_grade="우선 검토", reviewer_snapshot="검토자")
+    )
+    session.commit()
+
+    item = _items_by_id(_payload(session, sw_only=False))[refs["sw_yes"].id]
+    # 사람 정정이 있으면 그것이 effective grade이고 출처가 달라진다.
+    assert item["grade"] == "우선 검토"
+    assert item["grade_source"] == "human_review"
+    assert item["auto_preparation_status"] == "waiting_attachments"

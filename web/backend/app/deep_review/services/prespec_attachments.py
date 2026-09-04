@@ -19,6 +19,7 @@ from sqlalchemy import or_, select, update
 from sqlalchemy.orm import Session, selectinload
 
 from ..document_mcp.errors import DocumentProcessingError
+from ...core.constants import UNSUPPORTED_ATTACHMENT_EXTRACT_STATUS
 from ...core.models import AuditEvent, utc_now
 from ..models import (
     AttachmentFetch,
@@ -33,6 +34,8 @@ from .document_structures import materialize_structure
 # 추적 관계 판정은 lifecycle 몫이다(명세 §5.2). 취득 자격은 그 공개 SQL 조각을
 # 그대로 쓰므로 목록의 표시 예외와 어긋나지 않는다.
 from ...lifecycle import lock_attachment, tracked_order_plan_connections
+from .auto_preparation import TERMINAL_FETCH_STATUSES, maybe_auto_prepare
+from .effective_grade import priority_notice_ids
 from .prespec_overview import prepare_overview_review
 
 
@@ -152,6 +155,10 @@ def refresh_fetch_eligibility(
     Existing queue state is intentionally untouched except for the explanation
     of why it is eligible.  In particular, a later re-evaluation never revives
     a completed, blocked, or exhausted row.
+
+    자격은 세 가지다 — SW사업대상, 추적 중인 발주계획 연결, 그리고 effective
+    grade가 `우선 검토`인 사전규격(명세 §6.2). 등급이 내려가도 이미 만들어진
+    행은 지우거나 되돌리지 않는다: 등급을 잃은 공고는 그저 새 행을 얻지 못한다.
     """
 
     if notice_ids is not None:
@@ -192,19 +199,49 @@ def refresh_fetch_eligibility(
             )
         ).all()
     }
+    candidate_notice_ids = {attachment.notice_id for attachment in candidates}
     tracked_connections = tracked_order_plan_connections(
         session,
-        notice_ids={attachment.notice_id for attachment in candidates},
+        notice_ids=candidate_notice_ids,
     )
+    # 판정 등급 자격 (명세 §6.2 "자격"). 선별 seam을 batch로 **한 번만** 부른다 —
+    # 회차 하나가 사전규격 약 2,000건이므로 공고당 조회를 만들지 않는다.
+    #
+    # §5의 결합 규칙에서 기존 사유는 등급 사유를 언제나 이기므로, SW나 추적으로
+    # 이미 자격이 있는 후보의 등급은 결과를 바꾸지 못한다. 그래서 등급을 물어야
+    # 하는 공고가 하나도 없으면 seam을 아예 부르지 않는다.
+    sw_notice_ids = {
+        attachment.notice_id
+        for attachment in candidates
+        if _sw_business_object(attachment.notice)
+    }
+    grade_candidates = sorted(
+        notice_id
+        for notice_id in candidate_notice_ids
+        if notice_id not in sw_notice_ids and not tracked_connections.get(notice_id)
+    )
+    priority_ids = priority_notice_ids(session, grade_candidates) if grade_candidates else frozenset()
     created = 0
     next_attempt_at = utc_now()
     for attachment in candidates:
         notice = attachment.notice
         sw = _sw_business_object(notice)
         tracked = bool(tracked_connections.get(notice.id))
-        if not sw and not tracked:
+        priority = notice.id in priority_ids
+        if not sw and not tracked and not priority:
             continue
-        reason = "both" if sw and tracked else "sw_business_object" if sw else "tracked_order_plan"
+        # §5 결합 규칙: 기존 사유가 등급 사유보다 우선한다. 등급은 아무 사유도
+        # 없을 때만 `priority_grade`로 나타나고, SW·추적과 겹치면 그쪽 사유가
+        # 그대로 남는다(등급이 `both`를 만들지 않는다).
+        reason = (
+            "both"
+            if sw and tracked
+            else "sw_business_object"
+            if sw
+            else "tracked_order_plan"
+            if tracked
+            else "priority_grade"
+        )
         row = existing.get(attachment.id)
         if row is not None:
             if row.eligibility_reason != reason:
@@ -420,6 +457,18 @@ def _transition_failure(
     row.last_error_code = code
     row.lease_owner = None
     row.lease_expires_at = None
+    if final_status == "차단" and code == "unsupported_extension":
+        # 형식 밖 첨부는 취득으로는 `차단`이지만 **문서 묶음 확정을 막지 않는다**
+        # (명세 §6.2). 묶음 issue 계산이 이 값을 보고 비차단
+        # `unsupported_attachment_excluded`를 남긴다. 첨부 잠금은 lifecycle
+        # 공개 함수로만 한다(§4).
+        #
+        # lease 열을 비운 **뒤에** 잠근다. `lock_attachment`의 autoflush가
+        # `(status='진행') = (lease_owner IS NOT NULL ...)` CHECK를 반쯤 바뀐
+        # 상태에서 보게 두면 안 되기 때문이다.
+        attachment = lock_attachment(session, row.attachment_id)
+        if attachment is not None:
+            attachment.extract_status = UNSUPPORTED_ATTACHMENT_EXTRACT_STATUS
     _audit(session, row, status=final_status, error_code=code)
     session.commit()
     return row
@@ -720,7 +769,44 @@ def fetch_claimed(
     clamav_checker: Any = None,
     root: Path | None = None,
 ) -> AttachmentFetch | None:
-    """Fetch, inspect, promote, and record one claimed attachment."""
+    """Fetch, inspect, promote, and record one claimed attachment.
+
+    취득 행이 종결(`완료|차단|실패`)되면 그 공고의 자동 문서 준비 조건을 다시
+    본다(명세 §6.2). 자동 준비는 파생 작업이라 자기 실패를 삼키며, 취득 결과를
+    되돌리지 않는다 — 이 함수의 반환값은 자동 준비 성패와 무관하다.
+    """
+
+    row = _fetch_claimed(
+        session,
+        claim,
+        connectors=connectors,
+        processor=processor,
+        clamav_checker=clamav_checker,
+        root=root,
+    )
+    if row is not None and row.status in TERMINAL_FETCH_STATUSES:
+        notice_id = session.scalar(
+            select(Attachment.notice_id).where(Attachment.id == row.attachment_id)
+        )
+        # 위 조회가 연 읽기 transaction을 닫는다. 그래야 자동 준비가 자기
+        # transaction을 소유하고 자기 결과를 스스로 커밋한다 — 열린 채로 두면
+        # 다음 claim이 커밋해 줄 때까지 묶음이 durable하지 않다.
+        session.commit()
+        if notice_id is not None:
+            maybe_auto_prepare(session, [int(notice_id)], root=root)
+    return row
+
+
+def _fetch_claimed(
+    session: Session,
+    claim: AttachmentFetchClaim,
+    *,
+    connectors: Mapping[str, Any],
+    processor: Any = None,
+    clamav_checker: Any = None,
+    root: Path | None = None,
+) -> AttachmentFetch | None:
+    """One claimed attachment: acquire, inspect, promote, record."""
 
     snapshot = _snapshot(session, claim)
     if snapshot is None:

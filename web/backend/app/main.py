@@ -268,6 +268,11 @@ def create_app(modules=None, *, mount_frontend: bool = True) -> FastAPI:
     #
     # 등록 순서는 `BIDOPS_MODULES`가 준 순서를 따른다. 같은 hook을 여러 모듈이
     # 등록하면 이 순서대로 실행된다(§6.2).
+    #
+    # 채워지는 자리: 판정 projection(screening), 개요·문서 projection(deep_review),
+    # 회차 적재 hook(screening·deep_review), 추적 결정 hook(deep_review),
+    # **등급 변경 hook(deep_review)**. 마지막 것은 사람 리뷰가 `corrected_grade`를
+    # 바꾼 뒤 screening이 registry로 부르는 자리이며, 제공자가 없으면 no-op이다.
     registry = lifecycle.extension_registry()
     for name in modules:
         if name in _EXTENSION_PROVIDERS:
