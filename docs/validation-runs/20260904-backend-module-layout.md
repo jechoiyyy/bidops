@@ -322,3 +322,38 @@ skip 5건의 사유는 모두 출력에 남았다(MinIO 격리 서비스 4건, �
 
 이 문서의 앞부분에 적힌 "diff 0줄"은 seam 수정 **전후**를 비교한 값이다. 이주 **전체**의
 전후 비교는 위 11줄이 정확한 값이다.
+
+## 최종 검토 뒤 재검증
+
+최종 검토가 "의존 규칙의 쓰기·잠금 한 줄만 어떤 검사도 덮지 않는다"를 지적해 제품 코드 17곳을
+lifecycle 공개 함수로 옮기고 경계 검사 5를 새로 넣었다(commit `64d90f6`). 코드가 바뀌었으므로
+검증을 다시 돌렸다.
+
+| 명령 | 결과 | 종료 코드 |
+|---|---|---|
+| `cd web/backend && .venv/bin/python -m pytest tests/ -q -p no:cacheprovider -rs` | `2 failed, 1251 passed, 5 skipped, 6 warnings in 709.58s (0:11:49)` | 1 |
+| `web/backend/scripts/verify_module_isolation.sh` | lifecycle `75 passed` / screening `2 failed, 394 passed, 1 skipped` / deep_review `230 passed`, 전체 PASS | 0 |
+| `docker compose -f docker-compose.t7.yml build` | image 5개 빌드 | 0 |
+
+- 통과 수 1240 → 1251은 새 테스트 11건(`test_module_public_surface.py` 10, 경계 검사 5의
+  실제 저장소 검사 1)만큼 늘어난 것이다. 실패는 같은 기존 결함 2건뿐이고 skip은 5로 같다.
+- 경계 검사는 `29 passed`이며 허용 목록은 `cross_module_import 0`, `router_orm_access 18`,
+  `schema_imports_model_or_service 0`, `lifecycle_relationship 0`, `lifecycle_table_write 0`이다.
+- REST 표면은 완료 검증 시점(`0a889f5`)과 **diff 0줄**이고, 이주 전(`a7deaa2`)과는 여전히
+  11줄(`tags`뿐)이다. 잠금·쓰기 경로만 공개 함수로 바꿨고 경로·요청·응답은 건드리지 않았다.
+- `./run-tests.sh`와 프론트엔드 build·visual은 다시 돌리지 않았다. 이번 변경은
+  `web/backend/app/**`와 `web/backend/tests/app/**`, `docs/**`만 건드렸고
+  `skills/**`·`web/frontend/**`는 한 줄도 바뀌지 않았다(`git diff 0a889f5..HEAD --stat`로 확인).
+
+### 옮긴 17자리
+
+| 모듈 | 자리 | 옮긴 곳 |
+|---|---|---|
+| screening | `services/revisions.py`·`services/reviews.py`의 공고 잠금 2 | `lifecycle.lock_notice` |
+| screening | `worker.py`의 `delete(Run)` 1 | `lifecycle.delete_run`(신설) |
+| deep_review | `services/deep_reviews.py`·`document_bundles.py`·`prespec_overview.py`의 공고 잠금 10 | `lifecycle.lock_notice` |
+| deep_review | `document_bundles.py`·`prespec_attachments.py`의 첨부 잠금 5 | `lifecycle.lock_attachment`(신설), `lock_active_attachments`(신설) |
+| deep_review | `services/attachments.py`의 `seed_default_portals` 1(호출자 0) | `lifecycle.seed_default_portals`로 이동 |
+
+`lock_notice`·`lock_opportunity`는 이 작업 전까지 호출자가 0이었다. 잠금 순서
+(notice → 최신 bundle → document)와 쿼리는 바뀌지 않았다.
