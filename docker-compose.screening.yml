@@ -1,11 +1,11 @@
 # 판정 파이프라인(단계 A) 전용 egress 오버레이.
 # `web` 컨테이너 안의 판정 워커 스레드가 승인된 Ollama endpoint를,
 # collect 단계가 나라장터 OpenAPI를 호출해야 할 때만 명시적으로 추가한다.
-# 기본 docker-compose.t7.yml의 격리는 이 파일 없이는 유지된다.
+# 기본 docker-compose.yml의 격리는 이 파일 없이는 유지된다.
 #
 # 이 overlay 전용 값은 env/screening.env에 있다.
 #   docker compose --env-file .env --env-file env/screening.env \
-#     -f docker-compose.t7.yml -f docker-compose.t7.screening.yml up -d web
+#     -f docker-compose.yml -f docker-compose.screening.yml up -d web
 #
 # host 방화벽에서 승인된 IP/port 외 egress를 차단한 뒤에 사용한다.
 services:

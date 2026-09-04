@@ -7,8 +7,8 @@
 # Every value this overlay needs is declared literally below, so it needs no
 # env file beyond the shared .env.
 #
-#   docker compose -f docker-compose.t7.yml \
-#     -f docker-compose.t7.mock-reference.yml up -d
+#   docker compose -f docker-compose.yml \
+#     -f docker-compose.mock-reference.yml up -d
 services:
   web:
     environment:

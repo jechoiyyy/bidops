@@ -160,7 +160,7 @@ class ReportService:
     def materialize_machine_report(self, session: Session, claim: JobClaim) -> dict[str, Any]:
         """Materialize the first report while the T5 lease fence is held.
 
-        T7 calls this after stage 3 has committed and immediately before
+        The agent E2E flow calls this after stage 3 has committed and immediately before
         ``DeepReviewService._finish_claim``.  This method intentionally does
         not commit: the report, validation, evidence joins, audit row, and the
         subsequent fenced job/attempt/review completion are one transaction.

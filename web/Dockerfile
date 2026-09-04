@@ -61,11 +61,11 @@ COPY web/backend/ ./
 COPY --from=frontend /build/dist /app/web/frontend/dist
 COPY --from=node-runtime /usr/local/bin/node /usr/local/bin/node
 COPY scripts /app/scripts
-COPY docker-compose.t7.yml /app/docker-compose.t7.yml
+COPY docker-compose.yml /app/docker-compose.yml
 RUN chmod +x /app/scripts/*.sh
 
 # Bundle the immutable execution contract as a fallback for docker run. The
-# T7 web service supplies the current profile, performance-title reference,
+# web service supplies the current profile, performance-title reference,
 # and approved baseline as read-only bind mounts; those profile-related inputs
 # are intentionally not copied. A docker run without these mounts cannot use
 # the profile or collection paths, which is the deliberate image boundary.

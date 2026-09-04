@@ -1,4 +1,4 @@
-"""The seven approved document/bundle endpoints (registration is T7-owned)."""
+"""The seven approved document/bundle endpoints (registration is owned by the deep_review module)."""
 
 from __future__ import annotations
 

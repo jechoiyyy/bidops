@@ -231,8 +231,8 @@ PostgreSQL 17에서 migration·적재·재적재 검증이 모두 통과해야 �
 - `web/backend/app/workers/analysis.py`
 - `web/backend/app/screening/services/vllm_client.py` 또는 목적별 전용 adapter
 - `web/backend/app/core/config.py`
-- `docker-compose.t7.yml`
-- `docker-compose.t7.remote-vllm.yml`
+- `docker-compose.yml`
+- `docker-compose.remote-vllm.yml`
 - `env/vllm.env.example`
 
 ### 구현 내용
@@ -487,7 +487,7 @@ D-f를 "제품 재실행"으로 정하면 P5-3 전체가 D-d에 종속된다. "�
 - `web/backend/app/screening/runtime.py`
 - `web/backend/app/screening/routers/schedule.py`
 - schedule schema·models·migration 또는 기존 계약의 versioned 확장
-- `docker-compose.t7.yml`과 목적별 egress overlay
+- `docker-compose.yml`과 목적별 egress overlay
 - 운영 화면의 schedule 상태·복구 UI
 - `docs/operations.md`, `docs/contracts.md`, 별도 scheduler ADR
 
@@ -513,8 +513,8 @@ C-2 relevance를 이 단계의 적합성·준비·추적·최종 결정으로 �
 ./run-tests.sh
 ./web/run-web-tests.sh
 cd web/frontend && npm run test:screens
-COMPOSE_PROJECT_NAME=bidops-verify docker compose -f docker-compose.t7.yml build
-COMPOSE_PROJECT_NAME=bidops-verify docker compose -f docker-compose.t7.yml config
+COMPOSE_PROJECT_NAME=bidops-verify docker compose -f docker-compose.yml build
+COMPOSE_PROJECT_NAME=bidops-verify docker compose -f docker-compose.yml config
 ```
 
 live endpoint 호출은 이 목록에 포함하지 않는다. 별도 승인된 smoke 명령과 결과로 기록한다.

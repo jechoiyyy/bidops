@@ -733,7 +733,7 @@
 
           <article class="workflow-card">
             <header><h3>첨부 안전 처리·문서 준비</h3><p>HWP/HWPX/PDF → bundle</p><span class="maturity" aria-label="성숙도 3/5"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span><p class="maturity-label">3 / 5 · API/Mock E2E</p></header>
-            <section><p class="workflow-state"><span class="tag done">quarantine·ClamAV</span><span class="tag done">versioned object</span><span class="tag done">bundle API</span><span class="tag missing">준비 화면</span></p><p>50MiB·형식·경로 이탈 검사, 문서 변환·구조화, immutable bundle 계약과 Lean API가 있습니다. Mock T7 E2E는 통과했지만 bundle 생성·업로드·metadata·확정과 실패 재시작을 브라우저에서 끝낼 수 없습니다.</p></section>
+            <section><p class="workflow-state"><span class="tag done">quarantine·ClamAV</span><span class="tag done">versioned object</span><span class="tag done">bundle API</span><span class="tag missing">준비 화면</span></p><p>50MiB·형식·경로 이탈 검사, 문서 변환·구조화, immutable bundle 계약과 Lean API가 있습니다. Mock agent E2E는 통과했지만 bundle 생성·업로드·metadata·확정과 실패 재시작을 브라우저에서 끝낼 수 없습니다.</p></section>
             <aside class="workflow-next"><strong>Next gate</strong><p>문서 준비 패널과 retry UI, 운영 MinIO/DB 권한 matrix, 실제 HWP/PDF corpus 검증.</p></aside>
           </article>
 
@@ -768,7 +768,7 @@
           </article>
 
           <article class="workflow-card">
-            <header><h3>운영·배포·복구</h3><p>T7 Compose runtime</p><span class="maturity" aria-label="성숙도 3/5"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span><p class="maturity-label">3 / 5 · 개발 통합, 운영 훈련 전</p></header>
+            <header><h3>운영·배포·복구</h3><p>Compose runtime</p><span class="maturity" aria-label="성숙도 3/5"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span><p class="maturity-label">3 / 5 · 개발 통합, 운영 훈련 전</p></header>
             <section><p class="workflow-state"><span class="tag done">PG17·MinIO·ClamAV</span><span class="tag done">목적별 egress</span><span class="tag done">복구 script</span><span class="tag blocked">항상 꺼짐</span></p><p>앱 startup은 migration/seed/model을 수행하지 않고 scheduler·always-on은 기본 비활성입니다. 개발 stack과 disposable 복구는 검증됐지만 실제 secret·권한·방화벽·RPO/RTO 훈련과 CI가 남았습니다.</p></section>
             <aside class="workflow-next"><strong>Next gate</strong><p>CI, 운영 복사본 권한/egress/restore drill, API key rotation 확인, SSO 전 외부 노출 금지.</p></aside>
           </article>
@@ -929,12 +929,12 @@
 │   └── frontend/           React 관리 화면
 ├── scripts/                migration·worker·복구
 ├── data/, reports/         불변 회차·파생 산출물
-└── docker-compose.t7.yml   기준 application stack</pre>
+└── docker-compose.yml   기준 application stack</pre>
           <section class="onboarding">
             <article><b>1</b><section><h3>제품 목적과 금지선</h3><p><a href="../PRD.md">PRD</a>와 <a href="../business-rules.md">업무 규칙</a>에서 사람이 결정하는 네 축을 먼저 확인합니다.</p></section></article>
             <article><b>2</b><section><h3>현재 사실과 목표 분리</h3><p><a href="status.md">구현 현황</a>과 <a href="../PLAN.md">C-2 계획</a>에서 코드·검증·운영 승인을 따로 읽습니다.</p></section></article>
             <article><b>3</b><section><h3>변경할 경계 찾기</h3><p><a href="../contracts.md">계약</a>과 가까운 <code>AGENTS.md</code>를 확인한 뒤 producer/consumer와 불변 정본을 정합니다.</p></section></article>
-            <article><b>4</b><section><h3>실행과 검증</h3><p><code>./run-tests.sh</code>, <code>./web/run-web-tests.sh</code>, T7 build를 범위에 맞게 실행하며 live 모델·외부 API는 명시 승인 없이 호출하지 않습니다.</p></section></article>
+            <article><b>4</b><section><h3>실행과 검증</h3><p><code>./run-tests.sh</code>, <code>./web/run-web-tests.sh</code>, Compose build를 범위에 맞게 실행하며 live 모델·외부 API는 명시 승인 없이 호출하지 않습니다.</p></section></article>
           </section>
         </section>
       </section>

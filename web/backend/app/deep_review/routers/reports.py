@@ -1,4 +1,4 @@
-"""Approved deep-review report/evidence endpoints #11-14 (T7 registers router)."""
+"""Approved deep-review report/evidence endpoints #11-14 (the deep_review module registers the router)."""
 
 from __future__ import annotations
 

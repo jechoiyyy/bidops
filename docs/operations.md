@@ -3,9 +3,9 @@
 ## 운영 기준선
 
 - 운영 정본은 PostgreSQL 17의 `bidops` schema와 버전 관리가 켜진 MinIO 객체 저장소다.
-- `docker-compose.t7.yml`이 웹, DB, 객체 저장소, 악성코드 검사, 문서 worker, 분석 worker의 기준 배포 파일이다.
-- 루트 `docker-compose.yml`은 SQLite 이전 입력 스냅숏을 백업·검증하는 명시적 `ops` 명령만 제공한다. 애플리케이션 런타임으로 사용하지 않는다.
-- 모든 T7 명령에는 전용 `COMPOSE_PROJECT_NAME`을 사용한다. 다른 worktree의 컨테이너와 volume을 중지하거나 삭제하지 않는다.
+- `docker-compose.yml`이 웹, DB, 객체 저장소, 악성코드 검사, 문서 worker, 분석 worker의 기준 배포 파일이다.
+- `docker-compose.sqlite-ops.yml`은 SQLite 이전 입력 스냅숏을 백업·검증하는 명시적 `ops` 명령만 제공한다. 애플리케이션 런타임으로 사용하지 않는다.
+- 모든 Compose 명령에는 전용 `COMPOSE_PROJECT_NAME`을 사용한다. 다른 worktree의 컨테이너와 volume을 중지하거나 삭제하지 않는다.
 - 일상 운영에서 `docker compose down -v`, volume 삭제, 원본 객체 삭제를 사용하지 않는다.
 - legacy notice attachment의 id 기반 다운로드 호환 사본은 `/app/web/data/attachments`에 있다. 같은 부모의 `/app/web/data/profile-snapshots`는 승인 프로필 projection이 읽는 artifact이므로 Compose named volume `web-data`가 `/app/web/data` 전체를 보존한다. 업로드는 quarantine·ClamAV 검사 후에만 등록된다.
 
@@ -32,9 +32,9 @@ hosted 외부 모델 reference overlay는 제거됐고 개발 검증에서도 �
 - 프로필 조회 화면은 승인된 profile snapshot에 고정된다. snapshot이 하나도 없으면 `/api/profile/sections`와 `/api/profile/unknowns`가 `503 profile_snapshot_unavailable`로 fail closed하는 것이 정상이다([ADR-0023](tracking/decisions/0023-company-profile-minimal-projection.md)). snapshot은 판정 실행이 만들므로 신규 배포에서는 회차 판정을 한 번 실행한 뒤에 프로필 화면을 사용한다.
 - 사설 vLLM을 사용할 때 endpoint의 literal IP와 allowlist를 일치시키고 host firewall에서 해당 IP와 port 외 egress를 차단한다.
 
-### T7 웹의 회사자료 입력 전제
+### 웹의 회사자료 입력 전제
 
-`docker-compose.t7.yml`의 `web` 서비스는 다음 세 파일을 host checkout에서 read-only로 주입한다. 세 파일은 build context와 runtime image에 없으므로 Compose로 웹 서비스를 실행할 때 반드시 현재 checkout에 regular file로 존재하고 읽을 수 있어야 한다.
+`docker-compose.yml`의 `web` 서비스는 다음 세 파일을 host checkout에서 read-only로 주입한다. 세 파일은 build context와 runtime image에 없으므로 Compose로 웹 서비스를 실행할 때 반드시 현재 checkout에 regular file로 존재하고 읽을 수 있어야 한다.
 
 ```text
 docs/reference/company-profile.md
@@ -50,19 +50,19 @@ test -f docs/reference/company-performance-titles.tsv && test -r docs/reference/
 test -f web/backend/app/screening/baseline_company_profile.md && test -r web/backend/app/screening/baseline_company_profile.md
 ```
 
-프로필 baseline은 실행 시 주입된 파일을 기존 SHA-256 검증으로 확인한다. `skills/` 스크립트는 image에 남아 있어 계약상 fallback으로 제공되지만, 위 세 mount 없이 `docker run`만 실행하면 프로필 관련 경로와 수집 subprocess를 사용할 수 없다. 이 경로는 의도된 보안 경계이므로 T7 Compose를 사용한다.
+프로필 baseline은 실행 시 주입된 파일을 기존 SHA-256 검증으로 확인한다. `skills/` 스크립트는 image에 남아 있어 계약상 fallback으로 제공되지만, 위 세 mount 없이 `docker run`만 실행하면 프로필 관련 경로와 수집 subprocess를 사용할 수 없다. 이 경로는 의도된 보안 경계이므로 Compose를 사용한다.
 
 ## 최초 기동
 
 ```bash
 cp .env.example .env
 cp env/vllm.env.example env/vllm.env
-export COMPOSE_PROJECT_NAME=bidops-deep-review-t7
-docker compose -f docker-compose.t7.yml build
-docker compose -f docker-compose.t7.yml up -d postgres minio clamav
+export COMPOSE_PROJECT_NAME=bidops
+docker compose -f docker-compose.yml build
+docker compose -f docker-compose.yml up -d postgres minio clamav
 ./scripts/init-runtime.sh
 docker compose --env-file .env --env-file env/vllm.env \
-  -f docker-compose.t7.yml -f docker-compose.t7.remote-vllm.yml \
+  -f docker-compose.yml -f docker-compose.remote-vllm.yml \
   up -d web document-worker analysis-worker
 curl --fail "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/health"
 ```
@@ -79,9 +79,9 @@ curl --fail "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/health"
 
 ```bash
 cp env/screening.env.example env/screening.env   # BIDOPS_OLLAMA_BASE_URL을 채운다
-COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose \
+COMPOSE_PROJECT_NAME=bidops docker compose \
   --env-file .env --env-file env/screening.env \
-  -f docker-compose.t7.yml -f docker-compose.t7.screening.yml \
+  -f docker-compose.yml -f docker-compose.screening.yml \
   up -d web
 ```
 
@@ -95,9 +95,9 @@ overlay 추가만으로 egress가 안전해지지 않는다. host firewall의 �
 ```bash
 cp env/prespec-attachment.env.example env/prespec-attachment.env
 # env/prespec-attachment.env의 BIDOPS_G2B_ATTACHMENT_ALLOWED_HOSTS를 승인된 값으로 채운다.
-COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose \
+COMPOSE_PROJECT_NAME=bidops docker compose \
   --env-file .env --env-file env/prespec-attachment.env \
-  -f docker-compose.t7.yml -f docker-compose.t7.prespec-attachment.yml \
+  -f docker-compose.yml -f docker-compose.prespec-attachment.yml \
   up -d prespec-attachment-worker
 ```
 
@@ -121,8 +121,8 @@ python -m app.deep_review.workers.prespec_attachment --once
 모델 없이 상태 전이와 저장·검증 계보만 확인할 때는 mock override를 사용한다. 이 override는 전용 값을 파일 안에 리터럴로 선언하므로 추가 env 파일이 필요 없고 어떤 egress도 열지 않는다.
 
 ```bash
-COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose \
-  -f docker-compose.t7.yml -f docker-compose.t7.mock-reference.yml \
+COMPOSE_PROJECT_NAME=bidops docker compose \
+  -f docker-compose.yml -f docker-compose.mock-reference.yml \
   up -d web document-worker analysis-worker
 ```
 
@@ -194,20 +194,20 @@ python -m app.lifecycle.ingest.cli --help   # --run <회차> | --all
 
 | 파일 | 소비하는 compose | 담는 값 |
 |---|---|---|
-| `.env` | `docker-compose.t7.yml`, `docker-compose.yml` | 프로세스 정체성, 로그, DB·MinIO 자격증명, 암호화 키, port, 승인 profile/policy 참조 |
-| `env/vllm.env` | `docker-compose.t7.remote-vllm.yml` | `BIDOPS_VLLM_BASE_URL`, `BIDOPS_VLLM_ALLOWED_HOSTS`, `BIDOPS_VLLM_API_KEY`, `BIDOPS_VLLM_MODEL_REVISION` |
-| `env/screening.env` | `docker-compose.t7.screening.yml` | `BIDOPS_OLLAMA_BASE_URL`, `BIDOPS_OLLAMA_MODEL` |
-| 없음 | `docker-compose.t7.mock-reference.yml` | 전용 값을 override 파일 안에 리터럴로 선언한다 |
+| `.env` | `docker-compose.yml`, `docker-compose.sqlite-ops.yml` | 프로세스 정체성, 로그, DB·MinIO 자격증명, 암호화 키, port, 승인 profile/policy 참조 |
+| `env/vllm.env` | `docker-compose.remote-vllm.yml` | `BIDOPS_VLLM_BASE_URL`, `BIDOPS_VLLM_ALLOWED_HOSTS`, `BIDOPS_VLLM_API_KEY`, `BIDOPS_VLLM_MODEL_REVISION` |
+| `env/screening.env` | `docker-compose.screening.yml` | `BIDOPS_OLLAMA_BASE_URL`, `BIDOPS_OLLAMA_MODEL` |
+| 없음 | `docker-compose.mock-reference.yml` | 전용 값을 override 파일 안에 리터럴로 선언한다 |
 
 overlay 전용 값을 `.env`에 두지 않는다. `.env`에 두면 overlay를 붙이지 않은 기동에서도 endpoint가 주입되어 fail-closed 기본값이 흐려진다.
 
 ## 상태 확인과 중지
 
 ```bash
-COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose -f docker-compose.t7.yml ps
+COMPOSE_PROJECT_NAME=bidops docker compose -f docker-compose.yml ps
 curl --fail "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/health"
-COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose -f docker-compose.t7.yml logs --since=30m web analysis-worker
-COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose -f docker-compose.t7.yml stop web analysis-worker document-worker
+COMPOSE_PROJECT_NAME=bidops docker compose -f docker-compose.yml logs --since=30m web analysis-worker
+COMPOSE_PROJECT_NAME=bidops docker compose -f docker-compose.yml stop web analysis-worker document-worker
 ```
 
 로그에는 prompt, 모델 응답, 회사자료, 첨부 본문, 자격증명, URL 쿼리 문자열이 없어야 한다. traceback은 기본 비활성이고 안전한 식별자와 오류 분류만 확인한다.
@@ -305,7 +305,7 @@ python3 skills/bidops-screen/scripts/validate_order_plan_phase0.py --json
 ./web/run-web-tests.sh
 cd web/frontend && npm run test:contrast
 cd web/frontend && npm run test:screens
-COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose -f docker-compose.t7.yml build
+COMPOSE_PROJECT_NAME=bidops docker compose -f docker-compose.yml build
 ```
 
 `web/run-web-tests.sh`는 임시 PostgreSQL 17에서 migration을 수행하고, 격리 DB의 backend 테스트와 frontend production build, Playwright 화면 스냅샷 회귀를 실행한다. 검증 폭은 laptop 1280x800과 desktop 1440x900 두 폭이다(ADR-0047. 이전의 네 폭에서 모바일 390·태블릿 768을 없앴다). 화면 검사는 의미·구조·픽셀 세 층이며 게이트는 앞의 둘(`npm run test:screens`)이다. 픽셀 층(`npm run test:pixel`)은 기준 이미지 대조라 게이트가 아니고, 갈아 끼울 때는 사유·영향 화면·승인자를 기록에 남긴다([standards.md](standards.md)). Docker가 없으면 `BIDOPS_TEST_POSTGRES_URL`에 폐기 가능한 PostgreSQL 관리 URL을 제공한다. 운영 DB URL을 사용하지 않는다. Playwright는 브라우저 번들을 자동으로 내려받지 않으므로 없으면 실패한다.
@@ -314,11 +314,11 @@ live Ollama 또는 vLLM smoke는 운영자가 명시한 한 번의 명령과 대
 
 ## 백업
 
-PostgreSQL 백업은 현재 Compose 계약상 host의 `./backups/t7`에 쓴다. 실행 뒤 dump를 승인된 외부 보존 위치로 복사하고 보존 위치의 접근권한과 hash를 기록한다.
+PostgreSQL 백업은 현재 Compose 계약상 host의 `./backups/postgres`에 쓴다. 실행 뒤 dump를 승인된 외부 보존 위치로 복사하고 보존 위치의 접근권한과 hash를 기록한다.
 
 ```bash
-COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose \
-  -f docker-compose.t7.yml --profile backup run --rm ro-backup
+COMPOSE_PROJECT_NAME=bidops docker compose \
+  -f docker-compose.yml --profile backup run --rm ro-backup
 ```
 
 `scripts/backup-postgres.sh`는 timestamp가 붙은 custom-format dump를 만들고 기존 백업을 삭제하지 않는다. 4시간 RPO가 필요하면 이 스크립트와 별도로 WAL 보관을 구성하고 복구 시험으로 확인한다.

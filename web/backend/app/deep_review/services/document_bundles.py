@@ -2,7 +2,7 @@
 
 The service owns the state transition from an asset's quarantine record to a
 document version and finally to a locked bundle snapshot.  It intentionally
-does not enqueue deep-review work; T5/T7 own that boundary.
+does not enqueue deep-review work; the workers own that boundary.
 """
 
 from __future__ import annotations
@@ -1851,7 +1851,7 @@ class DocumentBundleService:
         # Lock all non-retired attachments first, then current documents and
         # their structures.  The explicit rows (rather than a joined lock)
         # make the notice-wide retirement fence visible and deterministic to
-        # PostgreSQL and to the future T7 attachment writers.
+        # PostgreSQL and to the future attachment writers.
         attachments = lock_active_attachments(session, notice.id)
         attachment_ids = {attachment.id for attachment in attachments}
         all_current = session.scalars(

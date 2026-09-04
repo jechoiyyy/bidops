@@ -39,7 +39,7 @@ def test_runtime_image_copies_only_allowlisted_reference_material():
     assert "web/backend/app/screening/baseline_company_profile.md" in dockerignore_lines
     assert "!docs/reference/company-performance-titles.tsv" not in dockerignore_lines
 
-    compose = yaml.safe_load((ROOT / "docker-compose.t7.yml").read_text(encoding="utf-8"))
+    compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
     web_volumes = compose["services"]["web"]["volumes"]
     assert (
         "./docs/reference/company-profile.md:/app/docs/reference/company-profile.md:ro"
@@ -57,13 +57,13 @@ def test_runtime_image_copies_only_allowlisted_reference_material():
 
 
 def test_real_qwen_is_not_embedded_in_the_application_compose():
-    compose = yaml.safe_load((ROOT / "docker-compose.t7.yml").read_text(encoding="utf-8"))
+    compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
     assert "ollama" not in compose["services"]
     assert "vllm" not in compose["services"]
 
 
-def test_t7_worker_network_and_command_boundaries_are_explicit():
-    compose = yaml.safe_load((ROOT / "docker-compose.t7.yml").read_text(encoding="utf-8"))
+def test_worker_network_and_command_boundaries_are_explicit():
+    compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
     services = compose["services"]
 
     worker = services["document-worker"]
@@ -122,9 +122,9 @@ def test_t7_worker_network_and_command_boundaries_are_explicit():
     assert set(minio["networks"]) == {"storage", "analysis"}
 
 
-def test_t7_admin_ports_bind_to_loopback_by_default():
+def test_admin_ports_bind_to_loopback_by_default():
     """The application API is the access boundary; admin surfaces are not."""
-    compose = yaml.safe_load((ROOT / "docker-compose.t7.yml").read_text(encoding="utf-8"))
+    compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
     services = compose["services"]
     admin_ports = services["postgres"]["ports"] + services["minio"]["ports"]
     assert admin_ports == [
@@ -138,8 +138,8 @@ def test_t7_admin_ports_bind_to_loopback_by_default():
         assert mapping.count(":") >= 2 and mapping.startswith("${BIDOPS_ADMIN_BIND_HOST:-127.0.0.1}:")
 
 
-def test_t7_compose_commands_and_recovery_scripts_exist():
-    compose = yaml.safe_load((ROOT / "docker-compose.t7.yml").read_text(encoding="utf-8"))
+def test_compose_commands_and_recovery_scripts_exist():
+    compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
     for service in compose["services"].values():
         command = service.get("command")
         if command and command[:3] == ["python", "-m", "app.deep_review.workers.document"]:
@@ -168,7 +168,7 @@ def test_t7_compose_commands_and_recovery_scripts_exist():
 
 
 def test_remote_vllm_egress_is_an_explicit_override():
-    override = yaml.safe_load((ROOT / "docker-compose.t7.remote-vllm.yml").read_text(encoding="utf-8"))
+    override = yaml.safe_load((ROOT / "docker-compose.remote-vllm.yml").read_text(encoding="utf-8"))
     assert set(override["services"]["analysis-worker"]["networks"]) == {"database", "analysis", "model-egress"}
     assert override["networks"] == {"model-egress": None}
     for service in override["services"].values():
@@ -180,20 +180,20 @@ def test_remote_vllm_egress_is_an_explicit_override():
 
 
 def test_screening_egress_is_an_explicit_override():
-    override = yaml.safe_load((ROOT / "docker-compose.t7.screening.yml").read_text(encoding="utf-8"))
+    override = yaml.safe_load((ROOT / "docker-compose.screening.yml").read_text(encoding="utf-8"))
     assert set(override["services"]) == {"web"}
     assert set(override["services"]["web"]["networks"]) == {
         "database", "storage", "scanning", "screening-egress",
     }
     assert override["networks"] == {"screening-egress": None}
-    base = yaml.safe_load((ROOT / "docker-compose.t7.yml").read_text(encoding="utf-8"))
+    base = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
     assert "screening-egress" not in base["networks"]
     assert all(network.get("internal") is True for network in base["networks"].values())
 
 
 def test_prespec_attachment_egress_is_an_explicit_override():
     override = yaml.safe_load(
-        (ROOT / "docker-compose.t7.prespec-attachment.yml").read_text(encoding="utf-8")
+        (ROOT / "docker-compose.prespec-attachment.yml").read_text(encoding="utf-8")
     )
     assert set(override["services"]) == {"prespec-attachment-worker"}
     worker = override["services"]["prespec-attachment-worker"]
@@ -207,19 +207,19 @@ def test_prespec_attachment_egress_is_an_explicit_override():
     assert worker["command"] == ["python", "-m", "app.deep_review.workers.prespec_attachment"]
     assert worker["healthcheck"] == {"disable": True}
     assert override["networks"] == {"prespec-egress": None}
-    base = yaml.safe_load((ROOT / "docker-compose.t7.yml").read_text(encoding="utf-8"))
+    base = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
     assert "prespec-egress" not in base["networks"]
     assert all(network.get("internal") is True for network in base["networks"].values())
 
 
 def test_non_http_workers_disable_the_shared_web_image_healthcheck():
-    compose = yaml.safe_load((ROOT / "docker-compose.t7.yml").read_text(encoding="utf-8"))
+    compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
     for name in ("document-worker", "analysis-worker"):
         assert compose["services"][name]["healthcheck"] == {"disable": True}
 
 
 def test_mock_reference_override_has_no_model_egress_or_external_provider_gate():
-    override = yaml.safe_load((ROOT / "docker-compose.t7.mock-reference.yml").read_text(encoding="utf-8"))
+    override = yaml.safe_load((ROOT / "docker-compose.mock-reference.yml").read_text(encoding="utf-8"))
     assert set(override["services"]) == {"web", "analysis-worker"}
     for service in override["services"].values():
         environment = service["environment"]
@@ -229,7 +229,7 @@ def test_mock_reference_override_has_no_model_egress_or_external_provider_gate()
         assert "networks" not in service and "volumes" not in service
 
 
-def test_t7_minio_versioning_and_object_first_recovery_contract():
+def test_minio_versioning_and_object_first_recovery_contract():
     bootstrap = (ROOT / "scripts/minio-init.sh").read_text(encoding="utf-8")
     backup = (ROOT / "scripts/backup-objects.sh").read_text(encoding="utf-8")
     restore = (ROOT / "scripts/restore.sh").read_text(encoding="utf-8")

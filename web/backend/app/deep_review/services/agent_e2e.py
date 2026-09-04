@@ -1,4 +1,4 @@
-"""T7 acceptance flow for the persisted agent projections.
+"""Agent acceptance flow for the persisted agent projections.
 
 The existing :func:`run_bc_e2e` owns the document-bundle to machine-report
 boundary. This module composes that flow with the already-approved report
@@ -35,7 +35,7 @@ from .bc_e2e import AcceptanceApi, BcE2EError, BcE2EManifest, run_bc_e2e
 from .document_bundles import DocumentBundleService
 
 
-T7_E2E_RESULT_SCHEMA = "bidops.t7-e2e-result.v1"
+AGENT_E2E_RESULT_SCHEMA = "bidops.agent-e2e-result.v1"
 MOCK_PROVIDER = "mock-analysis"
 MOCK_MODEL = "bidops-deterministic-mock-v1"
 
@@ -49,7 +49,7 @@ class AgentProjectionSnapshot:
     decision: Any
 
 
-class T7ProjectionReader(Protocol):
+class AgentProjectionReader(Protocol):
     """Internal reader boundary used by the workflow and deterministic tests."""
 
     def validate_mock_context(self) -> None: ...
@@ -127,7 +127,7 @@ class PersistedAgentProjectionReader:
         ):
             raise BcE2EError(
                 "mock_provider_required",
-                "T7 requires mock-analysis/bidops-deterministic-mock-v1 with OpenAI disabled",
+                "agent E2E requires mock-analysis/bidops-deterministic-mock-v1 with OpenAI disabled",
             )
 
     def active_work_jobs(self) -> int:
@@ -203,7 +203,7 @@ class PersistedAgentProjectionReader:
                         or metadata.get("reference_workflow_mode") is not True
                         or metadata.get("external_provider_approved") is not False
                     ):
-                        raise BcE2EError("provider_context_invalid", "persisted deep review provider context is not the T7 mock context")
+                        raise BcE2EError("provider_context_invalid", "persisted deep review provider context is not the agent E2E mock context")
                     result.append({
                         "review_id": review_id,
                         "provider": metadata.get("analysis_provider"),
@@ -225,14 +225,14 @@ class PersistedAgentProjectionReader:
 def _required_string(payload: Mapping[str, Any], key: str) -> str:
     value = payload.get(key)
     if not isinstance(value, str) or not value:
-        raise BcE2EError("invalid_api_response", f"T7 response is missing {key}")
+        raise BcE2EError("invalid_api_response", f"agent E2E response is missing {key}")
     return value
 
 
 def _required_mapping(payload: Mapping[str, Any], key: str) -> Mapping[str, Any]:
     value = payload.get(key)
     if not isinstance(value, Mapping):
-        raise BcE2EError("invalid_api_response", f"T7 response is missing object {key}")
+        raise BcE2EError("invalid_api_response", f"agent E2E response is missing object {key}")
     return value
 
 
@@ -241,7 +241,7 @@ def _required_uuid(payload: Mapping[str, Any], key: str) -> str:
     try:
         UUID(value)
     except (TypeError, ValueError, AttributeError) as error:
-        raise BcE2EError("invalid_api_response", f"T7 response has an invalid UUID in {key}") from error
+        raise BcE2EError("invalid_api_response", f"agent E2E response has an invalid UUID in {key}") from error
     return value
 
 
@@ -318,7 +318,7 @@ def _uploaded_ids(flow: Mapping[str, Any]) -> list[str]:
     bundle = _required_mapping(flow, "bundle")
     documents = bundle.get("documents")
     if not isinstance(documents, list):
-        raise BcE2EError("invalid_api_response", "T7 bundle evidence has no document list")
+        raise BcE2EError("invalid_api_response", "agent E2E bundle evidence has no document list")
     return [
         _required_string(document, "document_version_id")
         for document in documents
@@ -334,7 +334,7 @@ def _machine_report(api: AcceptanceApi, review_id: str) -> dict[str, Any]:
         raise BcE2EError("report_scope_invalid", "report is outside the persisted deep review")
     validation = _required_mapping(report, "validation")
     if _required_string(validation, "status") != "passed":
-        raise BcE2EError("validation_failed", "T7 mock machine validation did not pass")
+        raise BcE2EError("validation_failed", "agent E2E mock machine validation did not pass")
     history = report.get("history")
     if not isinstance(history, list) or not history:
         raise BcE2EError("report_revision_invalid", "report history is missing")
@@ -349,7 +349,7 @@ def _human_report_payload(report: Mapping[str, Any]) -> dict[str, Any]:
     if isinstance(sections, list) and sections and isinstance(sections[0], dict):
         title = sections[0].get("title")
         if isinstance(title, str) and title:
-            sections[0]["title"] = f"{title} (T7 human review)"
+            sections[0]["title"] = f"{title} (agent E2E human review)"
     return payload
 
 
@@ -398,7 +398,7 @@ def _verify_bundle_history(api: AcceptanceApi, notice_id: int, first_id: str, se
         if isinstance(item, Mapping)
     }
     if first_id not in by_id or second_id not in by_id:
-        raise BcE2EError("bundle_history_missing", "both T7 bundles are not present in persisted history")
+        raise BcE2EError("bundle_history_missing", "both agent E2E bundles are not present in persisted history")
     if by_id[first_id].get("status") != "superseded" or by_id[second_id].get("status") != "ready":
         raise BcE2EError("bundle_history_invalid", "new ready bundle did not preserve the prior bundle")
     return {
@@ -442,7 +442,7 @@ def _flow_projection_evidence(
             output_types=("document_structure",),
         )
     else:
-        raise BcE2EError("projection_invalid", "unknown T7 document checkpoint")
+        raise BcE2EError("projection_invalid", "unknown agent E2E document checkpoint")
     deep_review = _assert_projection(
         projections.deep_review,
         label=f"deep_review:{review_id}",
@@ -498,7 +498,7 @@ def _flow_projection_evidence(
             output_types=("report_revision", "validation_run", "final_opinion"),
         )
     else:
-        raise BcE2EError("projection_invalid", "unknown T7 decision checkpoint")
+        raise BcE2EError("projection_invalid", "unknown agent E2E decision checkpoint")
     return {
         "document_preparation": document,
         "deep_review": deep_review,
@@ -517,17 +517,17 @@ def _lineage_from_projection(projections: AgentProjectionSnapshot) -> UUID:
     return values[0]  # type: ignore[return-value]
 
 
-def run_t7_e2e(
+def run_agent_e2e(
     manifest: BcE2EManifest,
     api: AcceptanceApi,
-    projection_reader: T7ProjectionReader,
+    projection_reader: AgentProjectionReader,
     *,
     timeout_seconds: float = 3600,
     poll_seconds: float = 2,
     sleep: Any = None,
     monotonic: Any = None,
 ) -> dict[str, Any]:
-    """Run the complete isolated T7 mock-reference acceptance workflow."""
+    """Run the complete isolated agent E2E mock-reference acceptance workflow."""
 
     validate_mock_context = getattr(projection_reader, "validate_mock_context", None)
     if callable(validate_mock_context):
@@ -568,7 +568,7 @@ def run_t7_e2e(
             "request_id": revision_request_id,
             "base_revision_id": machine_revision_id,
             "report": _human_report_payload(machine_report),
-            "reason": "T7 human full revision fixture: 담당자가 machine report 전체를 검토했습니다.",
+            "reason": "agent E2E human full revision fixture: 담당자가 machine report 전체를 검토했습니다.",
             "factual_change_evidence_ids": [],
         },
         actor=manifest.actor_name,
@@ -596,7 +596,7 @@ def run_t7_e2e(
             "report_revision_id": human_revision["revision_id"],
             "validation_run_id": human_revision["validation_run_id"],
             "value": "조건부 추진",
-            "reason": "T7 explicit human opinion fixture; 운영 참여 결정이나 모델 품질 판정이 아닙니다.",
+            "reason": "agent E2E explicit human opinion fixture; 운영 참여 결정이나 모델 품질 판정이 아닙니다.",
             "acknowledged_validation_failure": False,
         },
         actor=manifest.actor_name,
@@ -644,11 +644,11 @@ def run_t7_e2e(
         decision_state="machine",
     )
     if first_bundle_id == second_bundle_id or first_review_id == second_review_id:
-        raise BcE2EError("new_scope_invalid", "second T7 bundle/review reused the first persisted identity")
+        raise BcE2EError("new_scope_invalid", "second agent E2E bundle/review reused the first persisted identity")
     first_uploaded = _uploaded_ids(first)
     second_uploaded = _uploaded_ids(second)
     if not first_uploaded or not second_uploaded or set(first_uploaded) & set(second_uploaded):
-        raise BcE2EError("new_attachment_invalid", "second T7 flow did not create a new uploaded attachment")
+        raise BcE2EError("new_attachment_invalid", "second agent E2E flow did not create a new uploaded attachment")
     if first_lineage == second_lineage:
         raise BcE2EError("lineage_reused", "second document bundle reused the first lineage")
 
@@ -684,16 +684,16 @@ def run_t7_e2e(
         or context.get("external_calls") != {"openai": 0, "qwen": 0, "total": 0}
         for context in provider_context
     ):
-        raise BcE2EError("provider_context_invalid", "T7 provider/model or external-call guard is invalid")
+        raise BcE2EError("provider_context_invalid", "agent E2E provider/model or external-call guard is invalid")
     active_jobs = projection_reader.active_work_jobs()
     if active_jobs != 0:
-        raise BcE2EError("active_work_jobs", "queued/running WorkJob rows remain at T7 completion")
+        raise BcE2EError("active_work_jobs", "queued/running WorkJob rows remain at agent E2E completion")
 
     first_report_evidence = first.get("report")
     evidence_rows = first_report_evidence.get("evidence", []) if isinstance(first_report_evidence, Mapping) else []
     return {
-        "schema": T7_E2E_RESULT_SCHEMA,
-        "workflow": "t7-mock-reference",
+        "schema": AGENT_E2E_RESULT_SCHEMA,
+        "workflow": "agent-mock-reference",
         "api_base": manifest.api_base,
         "notice_id": manifest.notice_id,
         "first_flow": {
@@ -765,7 +765,7 @@ __all__ = [
     "MOCK_MODEL",
     "MOCK_PROVIDER",
     "PersistedAgentProjectionReader",
-    "T7ProjectionReader",
-    "T7_E2E_RESULT_SCHEMA",
-    "run_t7_e2e",
+    "AgentProjectionReader",
+    "AGENT_E2E_RESULT_SCHEMA",
+    "run_agent_e2e",
 ]

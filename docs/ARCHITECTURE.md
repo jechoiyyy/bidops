@@ -476,9 +476,9 @@ React는 FastAPI REST API의 consumer다. DB·MinIO·worker·모델 endpoint에 
 
 ## 10. 배포 구조
 
-### 10.1 T7 애플리케이션 스택
+### 10.1 애플리케이션 스택
 
-운영 기준 compose는 docker-compose.t7.yml이다. 기본 network는 내부망이며 외부 호출은 목적별 overlay를 명시한 경우에만 열 수 있다.
+운영 기준 compose는 docker-compose.yml이다. 기본 network는 내부망이며 외부 호출은 목적별 overlay를 명시한 경우에만 열 수 있다.
 
 | 영역 | 역할 |
 |---|---|
@@ -491,7 +491,7 @@ React는 FastAPI REST API의 consumer다. DB·MinIO·worker·모델 endpoint에 
 | init/migrate/minio-init | 명시적 초기화·migration·bucket 정책 |
 | overlays | screening, remote-vllm, attachment, mock/reference 등 목적별 egress |
 
-관리 포트는 기본 loopback binding이다. 운영 secret은 환경·secret 파일 계약을 사용하며 이미지·Git·로그에 넣지 않는다. root docker-compose.yml은 SQLite 기반 일회성 ops 입력·격리 테스트용으로 운영 정본을 대체하지 않는다.
+관리 포트는 기본 loopback binding이다. 운영 secret은 환경·secret 파일 계약을 사용하며 이미지·Git·로그에 넣지 않는다. docker-compose.sqlite-ops.yml은 SQLite 기반 일회성 ops 입력·격리 테스트용으로 운영 정본을 대체하지 않는다.
 
 ### 10.2 시작과 종료
 
