@@ -129,7 +129,7 @@ def test_with_a_provider_the_projection_values_are_carried_into_the_response(reg
     first = _pre_spec(db_session, "pre:FIRST", attachments=3)
     second = _pre_spec(db_session, "pre:SECOND", attachments=0)
     projection = _FakeOverviewProjection()
-    registry.register_overview_document_projection(projection)
+    registry.register_overview_document_projection(projection, owner="test")
 
     payload = _list(db_session)
 
@@ -160,7 +160,7 @@ def test_with_a_provider_the_projection_values_are_carried_into_the_response(reg
 def test_projection_receives_only_the_page_for_per_notice_values(registry, db_session):
     notices = [_pre_spec(db_session, f"pre:PAGE-{index}", attachments=0) for index in range(3)]
     projection = _FakeOverviewProjection()
-    registry.register_overview_document_projection(projection)
+    registry.register_overview_document_projection(projection, owner="test")
 
     payload = _list(db_session, limit=1, offset=1)
 
@@ -208,7 +208,7 @@ def test_tracking_status_change_without_a_hook_still_succeeds(registry, db_sessi
 def test_tracking_status_change_notifies_the_registered_hook_with_the_opportunity(registry, db_session):
     opportunity = _opportunity(db_session)
     hook = _RecordingTrackingHook()
-    registry.register_tracking_decision_hook(hook)
+    registry.register_tracking_decision_hook(hook, owner="test")
 
     response = _patch(db_session, opportunity.id)
 
@@ -224,7 +224,7 @@ class _ExplodingTrackingHook:
 
 def test_hook_failure_does_not_undo_the_human_decision(registry, db_session):
     opportunity = _opportunity(db_session)
-    registry.register_tracking_decision_hook(_ExplodingTrackingHook())
+    registry.register_tracking_decision_hook(_ExplodingTrackingHook(), owner="test")
 
     response = _patch(db_session, opportunity.id)
 

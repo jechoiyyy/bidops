@@ -90,6 +90,61 @@ PUBLIC_NAME_IMPORTS: dict[tuple[str, str], tuple[str, ...]] = {
     ("deep_review", "lifecycle"): _LIFECYCLE_PUBLIC_SURFACE,
 }
 
+# --- 검사 6: 앱 startup이 해서는 안 되는 일 -----------------------------------
+#
+# "앱 startup은 migration·seed·정책 활성화·모델 호출을 수행하지 않는다"는 경계는
+# 검사 1~5 어느 것도 지키지 못한다. 조립 계층 → 모듈 **공개 이름**은 허용 방향
+# 이므로, `app/main.py`가 `from .screening import activate_policy, seed_policy`를
+# 하고 startup에서 부르면 경계가 깨지는데도 위반이 하나도 잡히지 않는다.
+#
+# 그래서 "무엇을 import할 수 있는가"가 아니라 **어느 파일이 어떤 이름을 받을 수
+# 있는가**로 못박는다. 아래 두 값이 그 데이터다.
+
+#: startup 경로에 있는 조립 계층 파일. 여기 있는 파일의 import는 서비스되는 앱이
+#: 뜰 때 실행된다.
+#:
+#: `app/workers/analysis.py`와 `app/migrations/import_sqlite.py`는 조립 계층이지만
+#: **별도 프로세스 진입점**이다. 그 둘은 모델을 부르고 행을 쓰는 것이 하는 일
+#: 자체이므로 이 검사의 대상이 아니다 — 대상으로 삼으면 정당한 일을 막는다.
+#: `alembic/`도 migration을 실행하는 것이 그 존재 이유라 대상이 아니다.
+STARTUP_FILES: tuple[str, ...] = (
+    "app/__init__.py",
+    "app/main.py",
+    "app/runtime.py",
+)
+
+#: startup 파일이 모듈 공개 표면에서 받아서는 안 되는 이름. 실제 코드에서 골랐다.
+#:
+#: 두 부류다.
+#: - **상태를 바꾼다**: 정책을 만들거나 후보로 지정하거나 활성화하는 것, 기본 행을
+#:   심는 것(seed), 회사 프로필 스냅샷을 새로 쓰는 것, 회차를 적재하거나 지우는 것.
+#: - **모델을 부른다**: 모델 클라이언트와 그것을 돌리는 실행기.
+#:
+#: 이 이름들이 지금 모듈 공개 표면에 없더라도 목록에 남긴다. 검사는 "지금 위반이
+#: 있는가"가 아니라 "이 이름이 startup으로 들어오면 실패한다"를 고정하는 것이고,
+#: 다시 공개하면서 startup에서 부르는 것이 정확히 막고 싶은 변경이다.
+STARTUP_FORBIDDEN_NAMES: frozenset[str] = frozenset(
+    {
+        # 상태 변경 — 판정 정책 (app/screening/policy.py)
+        "activate_policy",
+        "create_policy",
+        "designate_policy_candidate",
+        "seed_policy",
+        # 상태 변경 — 기본 행 seed (app/lifecycle/api.py)
+        "seed_default_portals",
+        # 상태 변경 — 회사 프로필 스냅샷 (app/screening/profile_snapshot.py)
+        "create_profile_snapshot",
+        # 상태 변경 — 회차 적재·삭제 (app/lifecycle/api.py)
+        "ingest_run",
+        "delete_run",
+        # 모델 호출 (app/screening/ollama.py, app/screening/worker.py)
+        "OllamaClient",
+        "ScreeningOrchestrator",
+        "ScreeningWorker",
+    }
+)
+
+
 # 규칙을 적용할 대상 경로 범위. `None`이면 그 모듈이 소유한 파일 전부다.
 #
 # T6은 screening·deep_review → lifecycle을 `app/lifecycle/` 안으로만 켰다.

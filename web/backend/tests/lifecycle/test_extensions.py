@@ -75,7 +75,7 @@ def test_no_restriction_and_zero_matches_are_different_values(registry):
 
     assert registry.judgment_projection.notice_ids_for_filters(None) is None
 
-    registry.register_judgment_projection(_ZeroMatch())
+    registry.register_judgment_projection(_ZeroMatch(), owner="test")
     result = registry.judgment_projection.notice_ids_for_filters(None, grade="우선 검토")
 
     assert result is not None
@@ -129,7 +129,7 @@ class _Judgment:
 
 
 def test_registered_judgment_projection_replaces_the_absent_default(registry):
-    registry.register_judgment_projection(_Judgment())
+    registry.register_judgment_projection(_Judgment(), owner="test")
 
     assert registry.judgment_filters_supported is True
     assert registry.judgment_projection.notice_fields(None, [4])[4]["grade"] == "우선 검토"
@@ -143,7 +143,9 @@ def test_run_ingest_counts_carry_the_v3_binding_lineage(registry):
     """
 
     order: list[str] = []
-    registry.register_run_ingest_hook(_RunHook("v2", order, counts=RunIngestCounts(judgments=1)))
+    registry.register_run_ingest_hook(
+        _RunHook("v2", order, counts=RunIngestCounts(judgments=1)), owner="v2"
+    )
     registry.register_run_ingest_hook(
         _RunHook(
             "v3",
@@ -153,7 +155,8 @@ def test_run_ingest_counts_carry_the_v3_binding_lineage(registry):
                 generation_config={"num_ctx": 8192},
                 generation_config_digest="a" * 64,
             ),
-        )
+        ),
+        owner="v3",
     )
 
     counts = registry.run_ingested(None, "r1", Path("/tmp/r1"))
@@ -167,10 +170,72 @@ def test_run_ingest_counts_carry_the_v3_binding_lineage(registry):
 def test_a_second_judgment_provider_is_refused(registry):
     """projection은 모듈 하나가 제공한다. 두 번째 등록은 조립 오류다."""
 
-    registry.register_judgment_projection(_Judgment())
+    registry.register_judgment_projection(_Judgment(), owner="screening-like")
 
     with pytest.raises(RuntimeError):
-        registry.register_judgment_projection(_Judgment())
+        registry.register_judgment_projection(_Judgment(), owner="another-module")
+
+
+def test_the_same_owner_may_register_again_in_place(registry):
+    """같은 등록자의 재등록은 **제자리 교체**다 (조립을 두 번 해도 예외가 없다).
+
+    `create_app()`을 한 프로세스에서 두 번 부르면 같은 owner가 같은 자리에 다시
+    등록한다. 그것은 충돌이 아니라 같은 조립을 다시 한 것이므로 마지막 제공자가
+    자리를 차지하고 끝난다.
+    """
+
+    first = _Judgment()
+    second = _Judgment()
+
+    registry.register_judgment_projection(first, owner="screening-like")
+    registry.register_judgment_projection(second, owner="screening-like")
+
+    assert registry.judgment_projection is second
+    assert registry.judgment_filters_supported is True
+
+
+def test_the_same_owner_does_not_stack_hooks(registry):
+    """hook은 (종류, owner)로 키를 잡는다. 재등록이 실행 횟수를 늘리지 않는다.
+
+    가드가 없던 시절 projection 예외가 우연히 가리고 있던 진짜 결함이다 — 조립을
+    두 번 하면 회차 적재 hook이 두 번 실행돼 건수가 두 배가 된다.
+    """
+
+    order: list[str] = []
+    registry.register_run_ingest_hook(
+        _RunHook("first", order, counts=RunIngestCounts(judgments=1)), owner="screening-like"
+    )
+    registry.register_run_ingest_hook(
+        _RunHook("second", order, counts=RunIngestCounts(judgments=1)), owner="screening-like"
+    )
+    registry.register_tracking_decision_hook(_TrackingHook("t", order), owner="screening-like")
+    registry.register_tracking_decision_hook(_TrackingHook("t", order), owner="screening-like")
+
+    assert registry.run_ingest_hook_count == 1
+    assert registry.tracking_decision_hook_count == 1
+    assert registry.run_ingested(None, "r1", Path("/tmp/r1")).judgments == 1
+    registry.tracking_decision_changed(None, 1)
+    assert order == ["second", "t"]
+
+
+def test_re_registration_keeps_the_original_execution_position(registry):
+    """재등록은 순서를 뒤로 밀지 않는다. 실행 순서는 **처음** 등록 순서다."""
+
+    order: list[str] = []
+    registry.register_run_ingest_hook(_RunHook("early", order), owner="a")
+    registry.register_run_ingest_hook(_RunHook("late", order), owner="b")
+    registry.register_run_ingest_hook(_RunHook("early-again", order), owner="a")
+
+    registry.run_ingested(None, "r1", Path("/tmp/r1"))
+
+    assert order == ["early-again", "late"]
+
+
+def test_an_empty_owner_is_refused(registry):
+    """owner는 불투명한 키지만 비어 있으면 등록자를 구분할 수 없다."""
+
+    with pytest.raises(ValueError):
+        registry.register_judgment_projection(_Judgment(), owner="")
 
 
 # --- hook (§6.2) -------------------------------------------------------------
@@ -217,10 +282,10 @@ def test_no_hook_registered_is_a_no_op(registry):
 
 def test_hooks_run_in_registration_order(registry):
     order: list[str] = []
-    registry.register_run_ingest_hook(_RunHook("first", order))
-    registry.register_run_ingest_hook(_RunHook("second", order))
-    registry.register_tracking_decision_hook(_TrackingHook("t-first", order))
-    registry.register_tracking_decision_hook(_TrackingHook("t-second", order))
+    registry.register_run_ingest_hook(_RunHook("first", order), owner="first")
+    registry.register_run_ingest_hook(_RunHook("second", order), owner="second")
+    registry.register_tracking_decision_hook(_TrackingHook("t-first", order), owner="first")
+    registry.register_tracking_decision_hook(_TrackingHook("t-second", order), owner="second")
 
     registry.run_ingested(None, "r1", Path("/tmp/r1"))
     registry.tracking_decision_changed(None, 1)
@@ -231,10 +296,12 @@ def test_hooks_run_in_registration_order(registry):
 def test_run_ingest_counts_are_summed_across_hooks(registry):
     order: list[str] = []
     registry.register_run_ingest_hook(
-        _RunHook("a", order, counts=RunIngestCounts(judgments=3, reviews=1, warnings=({"level": "warning"},)))
+        _RunHook("a", order, counts=RunIngestCounts(judgments=3, reviews=1, warnings=({"level": "warning"},))),
+        owner="a",
     )
     registry.register_run_ingest_hook(
-        _RunHook("b", order, counts=RunIngestCounts(judgments=2, order_plans=5, screening_results=5))
+        _RunHook("b", order, counts=RunIngestCounts(judgments=2, order_plans=5, screening_results=5)),
+        owner="b",
     )
 
     counts = registry.run_ingested(None, "r1", Path("/tmp/r1"))
@@ -250,9 +317,10 @@ def test_directory_claim_comes_from_the_first_hook_that_answers(registry):
     """C-2 전용 결과 디렉터리 판정은 hook 안에서 일어난다 (§6.2)."""
 
     order: list[str] = []
-    registry.register_run_ingest_hook(_RunHook("silent", order))
+    registry.register_run_ingest_hook(_RunHook("silent", order), owner="silent")
     registry.register_run_ingest_hook(
-        _RunHook("owner", order, claim_dir="c2-run", counts=RunIngestCounts(screening_results=9))
+        _RunHook("owner", order, claim_dir="c2-run", counts=RunIngestCounts(screening_results=9)),
+        owner="claimer",
     )
 
     claim = registry.claim_run_directory(Path("/data/runs/c2-run"))
@@ -273,10 +341,12 @@ def test_the_first_hook_that_claims_a_directory_wins(registry):
 
     order: list[str] = []
     registry.register_run_ingest_hook(
-        _RunHook("early", order, claim_dir="c2-run", counts=RunIngestCounts(screening_results=1))
+        _RunHook("early", order, claim_dir="c2-run", counts=RunIngestCounts(screening_results=1)),
+        owner="early",
     )
     registry.register_run_ingest_hook(
-        _RunHook("late", order, claim_dir="c2-run", counts=RunIngestCounts(screening_results=2))
+        _RunHook("late", order, claim_dir="c2-run", counts=RunIngestCounts(screening_results=2)),
+        owner="late",
     )
 
     claim = registry.claim_run_directory(Path("/data/runs/c2-run"))
@@ -287,12 +357,12 @@ def test_the_first_hook_that_claims_a_directory_wins(registry):
 
 def test_the_global_registry_is_one_object(registry):
     assert extension_registry() is registry
-    registry.register_judgment_projection(_Judgment())
+    registry.register_judgment_projection(_Judgment(), owner="test")
     assert extension_registry().judgment_filters_supported is True
 
 
 def test_reset_gives_a_fresh_registry(registry):
-    registry.register_judgment_projection(_Judgment())
+    registry.register_judgment_projection(_Judgment(), owner="test")
     assert registry.judgment_filters_supported is True
 
     fresh = reset_extension_registry()
@@ -303,7 +373,7 @@ def test_reset_gives_a_fresh_registry(registry):
 
 
 def test_restore_puts_the_previous_registry_back(registry):
-    registry.register_judgment_projection(_Judgment())
+    registry.register_judgment_projection(_Judgment(), owner="test")
     fresh = reset_extension_registry()
     assert extension_registry() is fresh
 

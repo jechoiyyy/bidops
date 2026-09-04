@@ -25,44 +25,47 @@ from typing import TYPE_CHECKING, Any
 
 #: 공개 이름 → (구현 모듈, 그 모듈 안의 이름).
 #: 이름이 같으면 두 번째 값을 생략한다.
+#:
+#: 표는 **모듈 밖에 실제 소비자가 있는 이름만** 담는다. 구역마다 왜 공개인지를
+#: 적어 두었다. 여기 없는 것은 lifecycle 내부이며, 형제 모듈이나 조립이 쓰고 싶으면
+#: 표에 올리는 것이 곧 그 결정이다. 상태를 바꾸는 이름을 근거 없이 올리면 조립
+#: 계층이 startup에서 부를 수 있게 된다 — 그것은 §9가 금지한 일이고
+#: `tests/app/test_module_boundaries.py`의 startup 검사가 막는다.
 _EXPORTS: dict[str, tuple[str, str]] = {
-    # --- 회차·공고·첨부 메타 쓰기와 잠금 (api.py) --------------------------
-    "ATTACHMENT_ORIGINS": (".api", "ATTACHMENT_ORIGINS"),
-    "IngestResult": (".api", "IngestResult"),
+    # === 형제 모듈이 쓴다 — 회차·공고·첨부 메타 쓰기와 잠금 (api.py) =======
+    # lifecycle 테이블에 쓰거나 잠그는 일은 형제 모듈이 직접 하지 않고 반드시
+    # 이 함수들을 거친다(경계 검사 5의 실체).
     "attachment_download_url": (".api", "attachment_download_url"),
     "delete_manual_attachment": (".api", "delete_manual_attachment"),
     "delete_run": (".api", "delete_run"),
-    "get_notice": (".api", "get_notice"),
-    "get_run": (".api", "get_run"),
     "ingest_run": (".api", "ingest_run"),
-    "list_agency_portals": (".api", "list_agency_portals"),
-    "list_attachments_for_notice": (".api", "list_attachments_for_notice"),
-    "list_order_plans_for_run": (".api", "list_order_plans_for_run"),
     "load_order_plan_artifact": (".api", "load_order_plan_artifact"),
     "lock_active_attachments": (".api", "lock_active_attachments"),
     "lock_attachment": (".api", "lock_attachment"),
     "lock_notice": (".api", "lock_notice"),
-    "lock_opportunity": (".api", "lock_opportunity"),
-    "match_agency_portal": (".api", "match_agency_portal"),
     "mirror_notice_observation": (".api", "mirror_notice_observation"),
     "record_ingest_warning": (".api", "record_ingest_warning"),
-    "seed_default_portals": (".api", "seed_default_portals"),
     "register_attachment": (".api", "register_attachment"),
     "register_manual_attachment": (".api", "register_manual_attachment"),
-    # --- 조립 계층이 등록하는 router 인스턴스 (routers/*.py) ---------------
-    # 이름은 "무엇의 router인가"로 짓는다. 조립 계층은 이 이름만 보고 등록
-    # 순서를 정하며 router 파일 경로를 알지 못한다(§4).
+    # === 조립이 쓴다 — router 인스턴스 (routers/*.py) ======================
+    # `app/main.py`가 `getattr(<모듈>, <router 이름>)`로 가져간다. 정적 import가
+    # 없어도 조립에 반드시 필요하다. 이름은 "무엇의 router인가"로 짓는다 —
+    # 조립 계층은 이 이름만 보고 등록 순서를 정하며 router 파일 경로를 알지
+    # 못한다(§4).
     "metrics_router": (".routers.metrics", "router"),
     "notices_router": (".routers.notices", "router"),
     "opportunities_router": (".routers.opportunities", "router"),
     "portals_router": (".routers.portals", "router"),
     "pre_specs_router": (".routers.pre_specs", "router"),
     "runs_router": (".routers.runs", "router"),
-    # --- in-process runtime (runtime.py) -----------------------------------
-    "LifecycleRuntime": (".runtime", "LifecycleRuntime"),
+    # === 조립이 쓴다 — in-process runtime (runtime.py) =====================
+    # `app/runtime.py`가 `package.build_runtime(...)`로 가져간다. runtime 객체의
+    # **형**은 조립이 쓰지 않으므로 공개하지 않는다.
     "build_runtime": (".runtime", "build_runtime"),
-    # --- 확장점 정의와 registry (extensions.py) ----------------------------
-    "ClaimedDirectoryLoad": (".extensions", "ClaimedDirectoryLoad"),
+    # === 확장점 정의와 registry (extensions.py) ============================
+    # 형제 모듈이 확장점을 구현하고, 조립이 registry에 등록하며, 테스트가 그
+    # 계약을 검사한다. `ClaimedDirectoryLoad`는 `RunDirectoryClaim.load`의 형일
+    # 뿐이라 밖에서 이름으로 받지 않는다 — 공개하지 않는다.
     "ExtensionRegistry": (".extensions", "ExtensionRegistry"),
     "JudgmentProjection": (".extensions", "JudgmentProjection"),
     "OverviewDocumentProjection": (".extensions", "OverviewDocumentProjection"),
@@ -74,18 +77,18 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "extension_registry": (".extensions", "extension_registry"),
     "reset_extension_registry": (".extensions", "reset_extension_registry"),
     "restore_extension_registry": (".extensions", "restore_extension_registry"),
-    # --- 추적 관계 판정 (services/opportunity_connections.py) ---------------
+    # === 형제 모듈이 쓴다 — 추적 관계 판정 =================================
     "tracked_order_plan_connections": (
         ".services.opportunity_connections",
         "tracked_order_plan_connections",
     ),
-    # --- 응답 helper (routers/common.py) -----------------------------------
+    # === 형제 모듈이 쓴다 — 응답 helper (routers/common.py) ================
     # `get_run_or_404`은 사람이 쓰는 회차 디렉터리 이름까지 풀고 없으면 404를
-    # 낸다. `get_run`(api.py)은 잠그지도 404를 내지도 않는 단순 조회라서 이름을
-    # 나눈다.
+    # 낸다. 잠그지도 404를 내지도 않는 단순 조회(`api.get_run`)는 밖에서 쓰는
+    # 곳이 없으므로 공개하지 않는다.
     "get_run_or_404": (".routers.common", "get_run"),
     "notice_list_item": (".routers.common", "notice_list_item"),
-    # --- 회차 산출물을 읽는 공통 helper (ingest/loader.py) -----------------
+    # === 형제 모듈이 쓴다 — 회차 산출물을 읽는 공통 helper (ingest/loader.py)
     # 판정 적재를 맡은 모듈이 **같은 바이트를 같은 규칙으로** 읽어야 하므로
     # 복제하지 않고 lifecycle이 공개한다(§4의 허용 방향). loader 안에서는
     # 이름 앞에 `_`가 붙은 것이 있지만, 공개 표면에서는 밑줄 없는 이름으로
@@ -132,32 +135,21 @@ __all__ = sorted(_EXPORTS)
 
 if TYPE_CHECKING:  # pragma: no cover - 정적 분석용 이름 노출
     from .api import (
-        ATTACHMENT_ORIGINS,
-        IngestResult,
         attachment_download_url,
         delete_manual_attachment,
         delete_run,
-        get_notice,
-        get_run,
         ingest_run,
-        list_agency_portals,
-        list_attachments_for_notice,
-        list_order_plans_for_run,
         load_order_plan_artifact,
         lock_active_attachments,
         lock_attachment,
         lock_notice,
-        lock_opportunity,
-        match_agency_portal,
         mirror_notice_observation,
         record_ingest_warning,
-        seed_default_portals,
         register_attachment,
         register_manual_attachment,
     )
-    from .runtime import LifecycleRuntime, build_runtime
+    from .runtime import build_runtime
     from .extensions import (
-        ClaimedDirectoryLoad,
         ExtensionRegistry,
         JudgmentProjection,
         OverviewDocumentProjection,
