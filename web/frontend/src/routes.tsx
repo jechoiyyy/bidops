@@ -37,10 +37,14 @@ export const routes: RouteObject[] = [
           { index: true, element: <DashboardPage />, handle: routeHandle(routeMetadata.dashboard) },
           // 검토 대기열 · 공고 판정 이력 · 담당자 리뷰 기록은 한 화면의 세 탭이다.
           // 옛 경로를 리다이렉트하지 않고 각 탭의 정식 주소로 남겨 404를 막는다.
+          //
+          // 공고 판정 이력만 다른 화면 맥락을 쓴다. ADR-0045 결정 7이 회차 축을
+          // 대시보드와 공고 판정 이력 두 화면으로 제한하므로 회차 선택기가 이
+          // 탭에만 있고, 화면 제목도 그 탭의 것을 쓴다.
           { path: "queue", element: <ReviewWorkspacePage />, handle: routeHandle(routeMetadata.queue) },
           { path: "queue/:noticePk", element: <ReviewWorkspacePage />, handle: routeHandle(routeMetadata.queue) },
-          { path: "judgments", element: <ReviewWorkspacePage />, handle: routeHandle(routeMetadata.queue) },
-          { path: "judgments/:noticePk", element: <ReviewWorkspacePage />, handle: routeHandle(routeMetadata.queue) },
+          { path: "judgments", element: <ReviewWorkspacePage />, handle: routeHandle(routeMetadata.noticeJudgments) },
+          { path: "judgments/:noticePk", element: <ReviewWorkspacePage />, handle: routeHandle(routeMetadata.noticeJudgments) },
           { path: "reviews", element: <ReviewWorkspacePage />, handle: routeHandle(routeMetadata.queue) },
           // 마감 추적은 검토 대기열의 저장된 뷰다(정렬 하나가 메뉴 한 칸을 쓰고 있었다).
           // 리다이렉트가 아니라 그 뷰의 주소다: 리다이렉트는 AppShell의 회차 동기화와

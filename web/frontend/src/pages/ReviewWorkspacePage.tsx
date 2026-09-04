@@ -12,6 +12,11 @@ import "../styles/criteria-runstatus.css";
 //
 // 옛 경로를 리다이렉트하지 않고 각 탭의 정식 주소로 남긴다. /queue/:noticePk와
 // /judgments/:noticePk도 그대로 살아 있어 기존 링크가 404를 내지 않는다.
+//
+// 단계 E(ADR-0045 결정 2·7): 이 화면은 사이드바에서 내려오고 사업 추적이 여는
+// 화면이 됐다. 회차 축을 갖는 두 화면 중 하나가 `공고 판정 이력` 탭이므로 상단
+// 회차 선택기는 그 탭에만 나타난다. 세 탭은 같은 search를 그대로 넘기므로 회차를
+// 고른 뒤 다른 탭으로 옮겨도 회차가 유지된다.
 
 export type ReviewTab = "queue" | "judgments" | "reviews";
 
@@ -81,7 +86,9 @@ export function ReviewWorkspacePage() {
 
   return (
     <section aria-labelledby="review-workspace-title" className="ws-page" data-astryx-theme="bidops">
-      <h2 className="visually-hidden" id="review-workspace-title">검토 대기열</h2>
+      <h2 className="visually-hidden" id="review-workspace-title">
+        {TABS.find((item) => item.value === tab)?.label ?? "검토 대기열"}
+      </h2>
       <div className="ws-tabs">
         <TabList
           value={tab}
@@ -98,6 +105,11 @@ export function ReviewWorkspacePage() {
           ))}
         </TabList>
       </div>
+      {tab === "queue" ? (
+        <p className="ws-run-note">
+          회차 선택기는 <strong>공고 판정 이력</strong> 탭에 있습니다. 회차를 바꾸면 이 탭도 같은 회차를 봅니다.
+        </p>
+      ) : null}
       <div className="ws-body">
         <div className="ws-panel" id={panelId} role="tabpanel" aria-label={TABS.find((item) => item.value === tab)?.label}>
           {tab === "queue" ? <QueuePage defaultSort={isDeadlineView(pathname) ? "deadline" : "grade"} /> : null}

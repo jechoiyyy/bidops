@@ -191,7 +191,9 @@ for (const target of lifecycleVisualTargets) {
     await page.waitForLoadState("networkidle");
     await settleFonts(page);
     if (target.name === "opportunities-list") {
-      await expect(page.locator(".opportunity-list > .opportunity-card")).toHaveCount(3);
+      // 세 fixture 모두 미선택·재검토 신호·후보 확인 대기 중 하나를 갖고 있어
+      // 기본 구역인 `조치 필요`에 모인다(ADR-0045 결정 2).
+      await expect(page.locator(".opportunity-list-scroll > .review-dense-list-row")).toHaveCount(3);
     }
     await expect(page).toHaveScreenshot(`${target.name}.png`, {
       fullPage: true,

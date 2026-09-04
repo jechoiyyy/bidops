@@ -736,7 +736,7 @@ export function BidDeltaDecisionPage() {
       <StickyDecisionHeader className="bid-delta-page-header detail-skeleton-head" label="입찰 변경 비교 결정 헤더">
         <div className="detail-skeleton-head-top">
           <div>
-            <Link className="bid-delta-back-link" to={opportunityDetailTo}>← 사업기회 상세</Link>
+            <Link className="bid-delta-back-link" to={opportunityDetailTo}>← 사업 추적 상세</Link>
             <p className="bid-delta-kicker">BID NOTICE TRANSITION · OPPORTUNITY #{workspace.opportunity_id}</p>
             <h2 id="bid-delta-title">입찰 변경 비교</h2>
           </div>
@@ -940,7 +940,7 @@ export function BidDeltaDecisionPage() {
             links={[
               {
                 href: `${opportunityDetailTo.pathname}${opportunityDetailTo.search ? `?${opportunityDetailTo.search}` : ""}`,
-                label: "사업기회 상세 →",
+                label: "사업 추적 상세 →",
               },
               {
                 href: `/opportunities/${opportunityId}/bid-delta${opportunityDetailSearch.toString() ? `?${opportunityDetailSearch.toString()}` : ""}`,

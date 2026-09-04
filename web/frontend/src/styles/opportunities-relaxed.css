@@ -473,3 +473,298 @@
   color: var(--color-primary-strong);
   font-weight: 600;
 }
+
+/* ---------------------------------------------------------------------------
+   사업 추적 분할 화면 (PLAN 단계 E 작업 3).
+
+   목록과 상세를 한 화면에 두고 각 pane이 자기 스크롤을 가둔다. 아래 골격은
+   review-primitives.css의 .review-split-* 안에 들어가므로 그쪽과 같은 Astryx
+   토큰을 읽는다. 이 파일 위쪽의 카드·연결 레코드 스타일은 프로젝트 토큰을
+   그대로 쓰던 자리라 건드리지 않는다. */
+
+.opportunity-filter-axis {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+
+.opportunity-filter-label {
+  font-size: var(--font-size-supporting);
+  color: var(--color-content-secondary);
+}
+
+.opportunity-sections {
+  flex: 1 1 320px;
+  min-width: 260px;
+}
+
+.opportunity-workspace {
+  flex-direction: row;
+  align-items: stretch;
+  height: clamp(420px, calc(100dvh - 360px), 760px);
+  min-height: 0;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-container);
+  background: var(--color-background-card);
+  overflow: hidden;
+}
+
+.opportunity-list-pane {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 clamp(320px, 34%, 460px);
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  border-right: var(--border-width) solid var(--color-border);
+}
+
+.opportunity-list-head {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  padding: var(--spacing-4);
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.opportunity-list-title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.opportunity-list-note {
+  margin: 0;
+  font-size: var(--font-size-supporting);
+  color: var(--color-content-secondary);
+}
+
+.opportunity-list-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.opportunity-list-empty {
+  padding: var(--spacing-5);
+  color: var(--color-content-secondary);
+}
+
+.opportunity-row-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--spacing-1);
+}
+
+.opportunity-detail-pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.opportunity-detail-pane > .opportunity-detail {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* 단독 상세 화면은 pane 높이를 화면에서 받는다. 분할 화면과 같은 컴포넌트를
+   쓰되 바깥 상자만 다르다. */
+.opportunity-standalone-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: clamp(420px, calc(100dvh - 300px), 900px);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-container);
+  background: var(--color-background-card);
+  overflow: hidden;
+}
+
+.opportunity-detail {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
+.opportunity-detail-head {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding: var(--spacing-4);
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.opportunity-detail-kicker {
+  margin: 0;
+  font-size: var(--font-size-supporting);
+  color: var(--color-content-secondary);
+}
+
+.opportunity-detail-title {
+  margin: 0;
+  font-size: var(--font-size-lg);
+}
+
+.opportunity-detail-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+}
+
+.opportunity-detail-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--spacing-4);
+}
+
+.opportunity-detail-scroll > [role="tabpanel"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  min-width: 0;
+}
+
+/* 결정 영역은 pane 바닥에 고정한다. 펼치면 form이 길어지므로 pane의 절반을
+   넘지 않게 잘라 자기 안에서 스크롤한다 — 단계 B에서 결정 바가 상세를 통째로
+   덮은 회귀와 같은 실패를 만들지 않는다. */
+.opportunity-detail-decision {
+  flex: 0 0 auto;
+  max-height: 50%;
+  overflow-y: auto;
+  border-top: var(--border-width) solid var(--color-border);
+  background: var(--color-background-card);
+}
+
+.opportunity-detail-empty {
+  padding: var(--spacing-5);
+  color: var(--color-content-secondary);
+}
+
+.opportunity-detail-permalink {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: var(--spacing-2) var(--spacing-4);
+  border-top: var(--border-width) solid var(--color-border);
+  font-size: var(--font-size-supporting);
+}
+
+.opportunity-history-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--spacing-1) var(--spacing-4);
+  margin: 0;
+}
+
+.opportunity-history-facts dt {
+  font-size: var(--font-size-supporting);
+  color: var(--color-content-secondary);
+}
+
+.opportunity-history-facts dd {
+  margin: 0;
+  min-width: 0;
+}
+
+/* 계약이 없어 화면이 보여줄 수 없는 것을 빈칸으로 두지 않는다. */
+.opportunity-contract-gap {
+  margin: 0;
+  padding: var(--spacing-3);
+  border: var(--border-width) dashed var(--color-border);
+  border-radius: var(--radius-container);
+  font-size: var(--font-size-supporting);
+  color: var(--color-content-secondary);
+}
+
+.opportunity-signal-note {
+  font-size: var(--font-size-supporting);
+}
+
+.opportunity-exceptions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.opportunity-exception {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-container);
+  min-width: 0;
+}
+
+.opportunity-exception-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.opportunity-exception-title {
+  font-weight: 600;
+  min-width: 0;
+}
+
+.opportunity-exception-detail,
+.opportunity-exception-resolution {
+  margin: 0;
+  font-size: var(--font-size-supporting);
+  color: var(--color-content-secondary);
+}
+
+.opportunity-exception-notice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-container);
+  min-width: 0;
+}
+
+.opportunity-exception-notice h5 {
+  margin: 0;
+}
+
+.opportunity-exception-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.opportunity-exception-form label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+
+.opportunity-exception-form label > span {
+  font-size: var(--font-size-supporting);
+  color: var(--color-content-secondary);
+}
+
+.opportunity-exception-form textarea,
+.opportunity-exception-form select {
+  min-width: 0;
+  width: 100%;
+}
