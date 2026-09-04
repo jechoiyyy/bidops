@@ -46,7 +46,6 @@ from ..schemas.document_bundles import (
     PatchDocumentVersionRequest,
 )
 from ...lifecycle import register_attachment
-from ...screening import current_judgment, latest_corrected_grade
 from . import assets
 from .document_converter import ScratchDocumentProcessor
 from .document_structures import materialize_structure
@@ -598,6 +597,12 @@ class DocumentBundleService:
         읽기 전용 seam 함수만 쓴다. 선별이 없으면 두 값 모두 `None`이고, 문서
         bundle 생성은 등급 부적합으로 막힌다.
         """
+
+        # 선별 seam은 함수 안에서 늦게 들여온다. 방향과 이름은 §4·§6.3 그대로이며
+        # (경계 검사가 AST 전체를 보므로 seam 목록도 그대로 적용된다), import
+        # 시점만 옮겨 선별 모듈이 없는 배포에서도 이 모듈이 import된다. 선별이
+        # 없으면 이 함수를 실제로 부르는 자리에서만 실패한다(§2 완료 기준 6).
+        from ...screening import current_judgment, latest_corrected_grade
 
         notice = self._notice_or_error(session, notice_id)
         corrected = latest_corrected_grade(session, notice.id)
