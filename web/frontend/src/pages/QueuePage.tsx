@@ -396,7 +396,6 @@ export function QueuePage({ defaultSort = "grade" }: { defaultSort?: QueueFilter
         className={`queue-workspace ${selectedId !== null ? "shows-detail" : "shows-list"}`}
         detailLabel="공고 상세"
         listLabel="검토 대기 공고 목록"
-        mobileView={selectedId !== null ? "detail" : "list"}
       >
         <QueueList
           notices={notices}

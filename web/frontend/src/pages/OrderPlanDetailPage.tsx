@@ -5,7 +5,7 @@ import { ActorField } from "../components/common/ActorField";
 import { EmptyState } from "../components/common/EmptyState";
 import { MutationFeedback } from "../components/common/MutationFeedback";
 import { Panel } from "../components/common/Panel";
-import { ReviewHistoryLinkRail, ReviewValue } from "../components/common/ReviewPrimitives";
+import { ReviewHistoryLinkRail, ReviewRevisionHistory, ReviewValue } from "../components/common/ReviewPrimitives";
 import { StatusBadge, type StatusTone } from "../components/common/StatusBadge";
 import { api, ApiError } from "../lib/api";
 import type {
@@ -440,28 +440,33 @@ export function OrderPlanDetailPage() {
               },
               {
                 className: "detail-skeleton-rail-panel",
-                empty: <EmptyState compact title="사람 피드백이 없습니다." description="사람 relevance·priority·note를 새 revision으로 기록할 수 있습니다." />,
-                entries: feedback.map((item) => ({
-                  detail: (
-                    <dl>
-                      <div><dt>priority</dt><dd>{item.priority ?? "null (미지정)"}</dd></div>
-                      <div><dt>note</dt><dd>{item.memo ?? "null (메모 미제공)"}</dd></div>
-                      <div><dt>claimed name</dt><dd>{item.claimed_name}</dd></div>
-                      <div><dt>created at</dt><dd>{formatMoment(item.created_at)}</dd></div>
-                    </dl>
-                  ),
-                  id: item.feedback_id,
-                  label: (
-                    <span className="c2-feedback-history-heading">
-                      <strong>revision {item.revision}</strong>
-                      <StatusBadge label={item.relevance} tone={statusTone(item.relevance)} />
-                      <span className="mono">{item.execution_id}</span>
-                    </span>
-                  ),
-                })),
-                error: feedbackQuery.isError ? "사람 피드백 history를 불러오지 못했습니다. 저장 전 현재 revision을 확인할 수 없습니다." : undefined,
+                // 사람 판단 수정은 덮어쓰기가 아니라 append-only revision 이다.
+                // 공통 primitive 가 건수와 append-only 표식을 함께 보여준다.
+                content: (
+                  <ReviewRevisionHistory
+                    className="c2-feedback-history"
+                    empty="사람 피드백이 없습니다. 사람 relevance·priority·note를 새 revision으로 기록할 수 있습니다."
+                    entries={feedback.map((item) => ({
+                      actor: item.claimed_name,
+                      at: formatMoment(item.created_at),
+                      body: (
+                        <dl>
+                          <div><dt>priority</dt><dd>{item.priority ?? "null (미지정)"}</dd></div>
+                          <div><dt>note</dt><dd>{item.memo ?? "null (메모 미제공)"}</dd></div>
+                          <div><dt>execution</dt><dd className="mono">{item.execution_id}</dd></div>
+                        </dl>
+                      ),
+                      id: item.feedback_id,
+                      revision: item.revision,
+                      tags: <StatusBadge label={item.relevance} tone={statusTone(item.relevance)} />,
+                    }))}
+                    error={feedbackQuery.isError ? "사람 피드백 history를 불러오지 못했습니다. 저장 전 현재 revision을 확인할 수 없습니다." : undefined}
+                    label="사람 피드백 revision 이력"
+                  />
+                ),
+                entries: [],
                 label: "사람 피드백 revision 이력",
-                listClassName: "c2-feedback-history",
+                showHeading: false,
               },
             ]}
             links={[{ href: returnPath, label: "발주계획 목록 →" }]}

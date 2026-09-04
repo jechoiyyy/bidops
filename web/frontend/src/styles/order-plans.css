@@ -13,8 +13,7 @@
 .c2-execution-heading,
 .c2-history-heading,
 .c2-plan-card-header,
-.c2-plan-card-footer,
-.c2-feedback-history-heading {
+.c2-plan-card-footer {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -278,8 +277,7 @@
 }
 
 .c2-artifact-summary ul,
-.c2-live-list,
-.c2-feedback-history {
+.c2-live-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -626,29 +624,6 @@
   overflow-wrap: anywhere;
 }
 
-.c2-feedback-history {
-  margin-bottom: var(--space-2);
-  counter-reset: c2-revision;
-}
-
-.c2-feedback-history > li {
-  min-width: 0;
-  padding: 12px;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  background: var(--surface-secondary);
-}
-
-.c2-feedback-history-heading {
-  align-items: center;
-}
-
-.c2-feedback-history-heading .mono {
-  min-width: 0;
-  margin-left: auto;
-  overflow-wrap: anywhere;
-}
-
 .c2-feedback-history dl {
   display: grid;
   grid-template-columns: minmax(100px, auto) minmax(0, 1fr);
@@ -823,15 +798,6 @@
 
   .c2-pagination {
     flex-wrap: wrap;
-  }
-
-  .c2-feedback-history-heading {
-    align-items: flex-start;
-  }
-
-  .c2-feedback-history-heading .mono {
-    width: 100%;
-    margin-left: 0;
   }
 }
 
@@ -1090,20 +1056,6 @@
   padding: var(--spacing-5);
 }
 
-.c2l-detail-actions {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: var(--spacing-3);
-  padding: var(--spacing-3) var(--spacing-4);
-  border-top: var(--border-width) solid var(--color-border);
-  background: var(--color-background-card);
-}
-
-.c2l-detail-position {
-  margin-left: auto;
-}
-
 /* --- 판정 탭 --- */
 .c2l-verdict {
   display: flex;
@@ -1137,16 +1089,6 @@
 .c2l-facts dd {
   margin: 0;
   min-width: 0;
-}
-
-.c2l-feedback-form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-4);
-  padding: var(--spacing-4);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-element);
-  background: var(--color-background-muted);
 }
 
 .c2l-feedback-field {
@@ -1300,87 +1242,4 @@
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
   word-break: break-all;
-}
-
-/* ===== 등급 전용 4단 스케일 (docs/design/PLAN.md 6절 "열린 항목" 결정) =====
- * 적합성 등급 4값은 심각도가 아니라 우선순위 순서다. Astryx 의미색
- * (error/warning/success)에 실으면 순서가 아니라 위험도로 읽힌다. accent
- * 한 색의 농도 4단으로 순서만 나타내고 unknown은 점선 무채색으로 따로 둔다.
- * 이 화면은 등급을 편집하지 않지만 스케일은 이 단계에서 정의해 둔다. */
-.c2l-grade-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-1);
-  padding: var(--spacing-0-5) var(--spacing-2);
-  border-radius: var(--radius-full);
-  border: var(--border-width) solid var(--color-border);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
-}
-
-.c2l-grade-tag.is-g1 {
-  background: var(--color-accent);
-  color: var(--color-on-accent);
-  border-color: var(--color-accent);
-}
-
-.c2l-grade-tag.is-g2 {
-  background: color-mix(in srgb, var(--color-accent) 72%, var(--color-background-card));
-  color: var(--color-on-accent);
-}
-
-.c2l-grade-tag.is-g3 {
-  background: color-mix(in srgb, var(--color-accent) 44%, var(--color-background-card));
-  color: var(--color-text-primary);
-}
-
-.c2l-grade-tag.is-g4 {
-  background: color-mix(in srgb, var(--color-accent) 18%, var(--color-background-card));
-  color: var(--color-text-primary);
-}
-
-.c2l-grade-tag.is-unknown {
-  background: var(--color-background-muted);
-  color: var(--color-text-secondary);
-  border-style: dashed;
-}
-
-.c2l-mobile-back {
-  display: none;
-}
-
-/* 960px 미만: 상세가 목록을 덮는다(PRD §5 반응형). 행을 고르면 detail-pane이
- * list-pane을 대체해 보이고, "← 목록으로"로 되돌아간다. 폭이 넓을 때는
- * data-mobile-view을 무시하고 목록·상세를 나란히 보여준다. */
-@media (max-width: 960px) {
-  .c2l-workspace {
-    flex-direction: column;
-    height: clamp(420px, calc(100dvh - 360px), 720px);
-  }
-
-  .c2l-list-pane {
-    width: 100%;
-    flex: 1 1 auto;
-    border-right: 0;
-  }
-
-  .c2l-resizer {
-    display: none;
-  }
-
-  .c2l-detail-pane {
-    min-height: 420px;
-  }
-
-  .c2l-mobile-back {
-    display: inline-flex;
-  }
-
-  .c2l-workspace[data-mobile-view="list"] .c2l-detail-pane {
-    display: none;
-  }
-
-  .c2l-workspace[data-mobile-view="detail"] .c2l-list-pane {
-    display: none;
-  }
 }

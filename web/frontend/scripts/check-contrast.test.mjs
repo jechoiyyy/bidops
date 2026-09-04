@@ -12,7 +12,7 @@
  */
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
+import {readdirSync, readFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {dirname, join} from 'node:path';
 
@@ -135,4 +135,22 @@ test('의미색은 무드보드가 정하지 않는다 — neutral 값을 유지
       `--${name} 이 바뀌었다. 의미색 변경은 ADR-0047 결정 4 를 다시 열어야 한다`,
     );
   }
+});
+
+test('상태·등급 표시에 blue 계열 토큰을 배정하지 않는다', () => {
+  // PLAN 단계 B 완료 게이트. blue 는 이 화면에서 "정보"로 읽히므로 상태나
+  // 등급에 실으면 순서·성패가 아니라 안내로 보인다. 등급은 grade-ramp.css 의
+  // slate 농도만 쓰고, 상태는 success/error/warning/teal 의미색만 쓴다.
+  // 테마와 core 는 blue 토큰을 정의하지만 화면 CSS 가 그것을 읽지 않는 것이
+  // 이 게이트다.
+  const styles = join(root, 'src/styles');
+  const offenders = [];
+  for (const name of readdirSync(styles)) {
+    if (!name.endsWith('.css')) continue;
+    const body = readFileSync(join(styles, name), 'utf8');
+    for (const m of body.matchAll(/var\(\s*(--color-[a-z-]*blue[a-z0-9-]*)/g)) {
+      offenders.push(`${name}: ${m[1]}`);
+    }
+  }
+  assert.deepEqual(offenders, [], `화면 CSS 가 blue 토큰을 읽는다: ${offenders.join(', ')}`);
 });

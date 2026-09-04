@@ -429,10 +429,7 @@ export function PreSpecsPage() {
       ) : null}
 
       {result.isSuccess ? (
-        <SplitWorkspace
-          className="pre-specs-split-workspace"
-          mobileView={selectedTrackingItem ? "detail" : "list"}
-        >
+        <SplitWorkspace className="pre-specs-split-workspace">
           <section className="review-split-list pre-specs-list-pane" aria-label="사전규격 목록">
             <Panel
               className="pre-specs-table-panel"

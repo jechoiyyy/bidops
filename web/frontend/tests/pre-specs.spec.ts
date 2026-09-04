@@ -517,23 +517,30 @@ test("사업기회가 없는 행은 목록에서도 추적 결정 비활성 사�
   await expect(page.getByText("아직 사업기회에 연결되지 않아 추적 결정을 기록할 수 없습니다.", { exact: true })).toBeVisible();
 });
 
-test("사전규격 목록 행 선택은 오른쪽 상세를 열고 좁은 화면에서 목록과 전환된다", async ({ page }) => {
+// ADR-0046 이 지원 폭을 1280~1920px 로 좁히면서 390px 의 목록·상세 전환은
+// 없앴다(PLAN 단계 B). 행 선택은 목록을 덮지 않고 오른쪽 상세만 바꾼다.
+test("사전규격 목록 행 선택은 목록을 유지한 채 오른쪽 상세만 바꾼다", async ({ page }) => {
   await mockPreSpecs(page);
-  await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/pre-specs");
+
+  const listPane = page.locator(".pre-specs-list-pane");
+  const detailPane = page.locator(".pre-specs-detail-pane");
+  await expect(listPane).toBeVisible();
+  await expect(detailPane).toContainText("사전규격을 선택하십시오.");
 
   const row = page.getByRole("row").filter({ has: page.getByRole("link", { name: trackingException.title }) });
   await row.click();
 
-  const workspace = page.locator('[data-review-primitive="split-workspace"]');
-  await expect(workspace).toHaveAttribute("data-mobile-view", "detail");
+  await expect(page.locator('[data-review-primitive="split-workspace"]')).not.toHaveAttribute("data-mobile-view", /.*/);
   await expect(page.locator('tbody tr[aria-selected="true"]')).toHaveCount(1);
   await expect(page.locator("#pre-specs-tracking-target")).toBeVisible();
-  await expect(page.locator(".pre-specs-list-pane")).toBeHidden();
+  // 목록은 선택 뒤에도 그대로 남는다.
+  await expect(listPane).toBeVisible();
 
   await page.getByRole("button", { name: "닫기", exact: true }).click();
-  await expect(workspace).toHaveAttribute("data-mobile-view", "list");
-  await expect(page.locator(".pre-specs-list-pane")).toBeVisible();
+  await expect(page.locator("#pre-specs-tracking-target")).toHaveCount(0);
+  await expect(listPane).toBeVisible();
+  await expect(detailPane).toContainText("사전규격을 선택하십시오.");
 });
 
 test("notice 991 정본 상세는 29로 치환되지 않고 unknown을 사람 확인 상태로 보존한다", async ({ page }) => {

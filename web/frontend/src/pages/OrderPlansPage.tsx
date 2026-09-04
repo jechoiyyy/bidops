@@ -18,9 +18,11 @@ import {
   DenseList,
   DenseListRow,
   ReviewDecisionAction,
+  ReviewDecisionBar,
   ReviewFilterBar,
   ReviewFilterSelector,
   ReviewFilterTextInput,
+  ReviewSecondaryInput,
   ReviewState,
   ReviewStatus,
   ReviewValue,
@@ -523,11 +525,25 @@ function VerdictPanel({
         />
       ) : null}
 
-      <div className="c2l-feedback-form">
-        <Text type="supporting" color="secondary" as="p">
-          이 입력은 적합성 등급·참여 준비 상태·심층 추적 승인·최종 Go/No-Go를 채우거나 대신하지 않습니다.
-        </Text>
-
+      {/* 접힌 보조 입력 영역(PLAN 단계 B). 접어도 현재 사람 판단 값과 "무엇을
+          바꾸지 않는가"는 머리에 남고 입력만 숨는다.
+          이 화면에서는 아직 기본이 열림이다. pane 바닥의 결정이 지금은 이 입력을
+          저장하는 것뿐이라, 접어 두면 첫 화면의 결정이 항상 비활성으로 보인다.
+          단계 C 가 추적 결정을 pane 바닥의 결정으로 들이면 defaultIsOpen 을
+          false 로 바꿔 시안(Main 아트보드)의 접힌 기본값과 맞춘다. */}
+      <ReviewSecondaryInput
+        defaultIsOpen
+        description="이 입력은 적합성 등급·참여 준비 상태·심층 추적 승인·최종 Go/No-Go를 채우거나 대신하지 않습니다."
+        summary={(
+          <Badge
+            variant="neutral"
+            label={item.human_feedback
+              ? `${item.human_feedback.relevance} · 우선순위 ${item.human_feedback.priority ?? "미지정"}`
+              : "사람 판단 미입력"}
+          />
+        )}
+        title="사람 판단 수정 (선택)"
+      >
         <div className="c2l-feedback-field">
           <Text type="label" color="secondary" as="p" id={`c2l-relevance-label-${item.order_plan_pk}`}>relevance</Text>
           <SegmentedControl value={relevance} onChange={(value) => onRelevanceChange(value as OrderPlanRelevance)} label="사람 relevance 판단">
@@ -561,7 +577,7 @@ function VerdictPanel({
           onChange={onActorNameChange}
           description="감사 귀속용 이름이며 로그인·신원 인증·권한 부여가 아닙니다."
         />
-      </div>
+      </ReviewSecondaryInput>
     </div>
   );
 }
@@ -615,7 +631,6 @@ export function OrderPlansPage() {
 
   const [searchText, setSearchText] = useState(searchParams.get("q") ?? "");
   const [detailTab, setDetailTab] = useState<DetailTab>("verdict");
-  const [mobileView, setMobileView] = useState<"list" | "detail">("list");
   const [listWidth, setListWidth] = useState<number>(() => loadListWidth());
   const [savedViews, setSavedViews] = useState<SavedView[]>(() => loadSavedViews());
   const [newViewName, setNewViewName] = useState("");
@@ -727,7 +742,6 @@ export function OrderPlansPage() {
     const params = new URLSearchParams(searchParams);
     params.set("selected", String(pk));
     setSearchParams(params, { replace: true });
-    setMobileView("detail");
   }
 
   const executionsQuery = useQuery({
@@ -1030,7 +1044,6 @@ export function OrderPlansPage() {
             <SplitWorkspace
               aria-label="발주계획 목록과 상세"
               className="c2l-workspace"
-              mobileView={mobileView}
               style={{ "--c2l-list-width": `${listWidth}px` } as React.CSSProperties}
             >
               <aside className="c2l-list-pane">
@@ -1094,9 +1107,6 @@ export function OrderPlansPage() {
                 {selectedItem ? (
                   <>
                     <StickyDecisionHeader className="c2l-detail-head" label="발주계획 상세 헤더">
-                      <span className="c2l-mobile-back">
-                        <Button label="← 목록으로" variant="ghost" size="sm" onClick={() => setMobileView("list")} />
-                      </span>
                       <Text type="supporting" color="secondary" as="p">발주계획 {selectedItem.order_plan_unty_no} · 계획 ID {selectedItem.order_plan_pk}</Text>
                       <Heading level={4}>{textOrUnknown(selectedItem.title)}</Heading>
                       <TabList value={detailTab} onChange={(value) => setDetailTab(value as DetailTab)} role="tablist" hasDivider>
@@ -1131,27 +1141,38 @@ export function OrderPlansPage() {
                         />
                       </div>
                     </div>
-                    <footer className="c2l-detail-actions">
-                      {mutation.isError ? <Text type="body" color="secondary" role="alert">{mutation.error instanceof ApiError ? mutation.error.message : "사람 피드백을 저장하지 못했습니다."}</Text> : null}
-                      {savedMessage ? <Text type="body" color="secondary" role="status">{savedMessage}</Text> : null}
-                      <ReviewDecisionAction
-                        disabledReason={decisionDisabledReason}
-                        isDisabled={!ready || mutation.isPending}
-                        label="저장"
-                        variant="primary"
-                        onClick={() => handleSave(false)}
-                      />
-                      <ReviewDecisionAction
-                        disabledReason={decisionDisabledReason}
-                        isDisabled={!ready || mutation.isPending}
-                        label="저장 후 다음 →"
-                        variant="secondary"
-                        onClick={() => handleSave(true)}
-                      />
-                      <Text type="supporting" color="secondary" className="c2l-detail-position">
-                        {filteredItems.findIndex((item) => item.order_plan_pk === selectedItem.order_plan_pk) + 1} / {total}
-                      </Text>
-                    </footer>
+                    {/* 분할 화면의 결정 액션은 상세 pane 바닥에 둔다. 단독
+                        상세 화면(OrderPlanDetailPage)은 sticky 헤더에 두며, 두
+                        배치를 한 화면에서 섞지 않는다(PLAN 단계 B). */}
+                    <ReviewDecisionBar
+                      className="c2l-detail-actions"
+                      hint={`${filteredItems.findIndex((item) => item.order_plan_pk === selectedItem.order_plan_pk) + 1} / ${total}`}
+                      label="발주계획 사람 판단 저장"
+                      status={(
+                        <>
+                          {mutation.isError ? <Text type="body" color="secondary" role="alert">{mutation.error instanceof ApiError ? mutation.error.message : "사람 피드백을 저장하지 못했습니다."}</Text> : null}
+                          {savedMessage ? <Text type="body" color="secondary" role="status">{savedMessage}</Text> : null}
+                        </>
+                      )}
+                      actions={(
+                        <>
+                          <ReviewDecisionAction
+                            disabledReason={decisionDisabledReason}
+                            isDisabled={!ready || mutation.isPending}
+                            label="저장"
+                            variant="primary"
+                            onClick={() => handleSave(false)}
+                          />
+                          <ReviewDecisionAction
+                            disabledReason={decisionDisabledReason}
+                            isDisabled={!ready || mutation.isPending}
+                            label="저장 후 다음 →"
+                            variant="secondary"
+                            onClick={() => handleSave(true)}
+                          />
+                        </>
+                      )}
+                    />
                   </>
                 ) : (
                   <div className="c2l-detail-empty">

@@ -5,8 +5,7 @@ test.beforeEach(async ({ page }) => {
   await mockApi(page);
 });
 
-test("검토 대기열은 공통 필터·밀집 행·sticky 결정 헤더를 사용한다", async ({ page, viewport }) => {
-  test.skip((viewport?.width ?? 0) <= 900, "좁은 화면의 목록·상세 전환은 별도 회귀에서 확인한다");
+test("검토 대기열은 공통 필터·밀집 행·sticky 결정 헤더를 사용한다", async ({ page }) => {
   await page.goto("/queue");
 
   const filterBar = page.locator('[data-review-primitive="filter-bar"]');
@@ -36,8 +35,7 @@ test("검토 대기열은 공통 필터·밀집 행·sticky 결정 헤더를 사
   await expect(page).not.toHaveURL(/grade=/);
 });
 
-test("발주계획 C-2는 공통 필터·목록·상세·상태·결정 action을 한 화면에서 조합한다", async ({ page, viewport }) => {
-  test.skip((viewport?.width ?? 0) <= 900, "좁은 화면의 목록·상세 전환은 order-plans 회귀에서 확인한다");
+test("발주계획 C-2는 공통 필터·목록·상세·상태·결정 action을 한 화면에서 조합한다", async ({ page }) => {
   await mockOrderPlans(page);
   await page.goto("/order-plans");
 
@@ -58,26 +56,6 @@ test("발주계획 C-2는 공통 필터·목록·상세·상태·결정 action�
   expect(overflow).toBeLessThanOrEqual(1);
 });
 
-test("좁은 화면에서 검토 대기열은 목록과 상세를 한 번에 하나만 보여준다", async ({ page, viewport }) => {
-  test.skip((viewport?.width ?? 0) > 900, "좁은 화면 전용 회귀");
-  await page.goto("/queue");
-
-  const workspace = page.locator('[data-review-primitive="split-workspace"]');
-  await expect(workspace).toHaveAttribute("data-mobile-view", "list");
-  await expect(page.locator(".queue-list-pane")).toBeVisible();
-  await expect(page.locator(".queue-detail-pane")).toBeHidden();
-
-  await page.locator('[data-review-primitive="dense-list-row"]').first().click();
-  await expect(workspace).toHaveAttribute("data-mobile-view", "detail");
-  await expect(page.locator(".queue-list-pane")).toBeHidden();
-  await expect(page.locator('[data-review-primitive="sticky-decision-header"]')).toBeVisible();
-
-  await page.getByRole("link", { name: "목록으로" }).click();
-  await expect(workspace).toHaveAttribute("data-mobile-view", "list");
-  await expect(page.locator(".queue-list-pane")).toBeVisible();
-  await expect(page.locator(".queue-detail-pane")).toBeHidden();
-});
-
 test("사전규격 상태 그룹은 공통 collapsible primitive로 0건·미시작 상태를 보존한다", async ({ page }) => {
   await mockPreSpecs(page);
   await page.goto("/pre-specs?sw_only=false");
@@ -91,4 +69,144 @@ test("사전규격 상태 그룹은 공통 collapsible primitive로 0건·미시
   await notStarted.click();
   await expect(notStarted).toHaveAttribute("aria-expanded", "true");
   await expect(page.getByText("개요 검토 미시작", { exact: true })).toBeVisible();
+});
+
+// ── 단계 B에서 추가한 primitive ────────────────────────────────────────────
+// 결정 액션 배치 두 형태(분할 화면의 pane 바닥 / 단독 상세의 sticky 헤더),
+// 접힌 보조 입력 영역과 그 append-only revision 이력, 등급 4단 스케일.
+
+test("분할 화면의 결정 액션 바는 상세 pane 바닥에 남아 스크롤 위치와 무관하게 보인다", async ({ page }) => {
+  await mockOrderPlans(page, "large");
+  await page.goto("/order-plans");
+
+  const bar = page.locator('[data-review-primitive="decision-bar"]');
+  await expect(bar).toBeVisible();
+  await expect(bar).toHaveCSS("position", "sticky");
+  // 단독 상세용 sticky 헤더와 같은 화면에서 두 배치를 섞지 않는다.
+  await expect(page.locator('[data-review-primitive="sticky-decision-header"] [data-review-primitive="decision-action"]')).toHaveCount(0);
+
+  const save = page.getByRole("button", { name: "저장", exact: true });
+  await expect(save).toBeInViewport();
+
+  // 상세 pane 본문을 끝까지 내려도 결정 액션은 제자리에 남는다.
+  await page.locator(".c2l-detail-scroll").evaluate((element) => element.scrollTo({ top: element.scrollHeight, behavior: "instant" }));
+  await expect(save).toBeInViewport();
+  await expect(page.getByRole("button", { name: "저장 후 다음 →", exact: true })).toBeInViewport();
+
+  const geometry = await page.locator(".c2l-detail-pane").evaluate((pane) => {
+    const actions = pane.querySelector<HTMLElement>('[data-review-primitive="decision-bar"]');
+    if (!actions) throw new Error("결정 액션 바를 찾을 수 없습니다.");
+    return { paneBottom: pane.getBoundingClientRect().bottom, barBottom: actions.getBoundingClientRect().bottom };
+  });
+  expect(geometry.barBottom).toBeLessThanOrEqual(geometry.paneBottom + 1);
+});
+
+test("접힌 보조 입력 영역은 닫아도 현재 값과 무엇을 바꾸지 않는지를 남기고 입력만 숨긴다", async ({ page }) => {
+  await mockOrderPlans(page);
+  await page.goto("/order-plans");
+  await page.locator(".c2l-row").first().click();
+
+  const secondary = page.locator('[data-review-primitive="secondary-input"]');
+  await expect(secondary).toHaveCount(1);
+  const toggle = page.getByRole("button", { name: "사람 판단 수정 (선택) 닫기" });
+  await expect(secondary).toHaveAttribute("data-open", "true");
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByLabel("담당자 claimed name")).toBeVisible();
+
+  await toggle.click();
+
+  const reopen = page.getByRole("button", { name: "사람 판단 수정 (선택) 열기" });
+  await expect(secondary).toHaveAttribute("data-open", "false");
+  await expect(reopen).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByLabel("담당자 claimed name")).toBeHidden();
+  // 접어도 현재 사람 판단 값과 이 입력이 대신하지 않는 결정은 화면에 남는다.
+  await expect(secondary.locator(".review-secondary-input-summary")).toHaveText("relevant · 우선순위 high");
+  await expect(secondary.locator(".review-secondary-input-description"))
+    .toHaveText("이 입력은 적합성 등급·참여 준비 상태·심층 추적 승인·최종 Go/No-Go를 채우거나 대신하지 않습니다.");
+
+  // 접힌 영역은 토글이 aria-controls로 가리키는 하나의 region이다.
+  const controls = await reopen.getAttribute("aria-controls");
+  expect(controls).toBeTruthy();
+  await expect(page.locator(`#${controls}`)).toContainText("담당자 claimed name");
+
+  // 키보드만으로 다시 열 수 있고 열림 상태가 aria로도 전달된다.
+  await reopen.focus();
+  await page.keyboard.press("Enter");
+  await expect(secondary).toHaveAttribute("data-open", "true");
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByLabel("담당자 claimed name")).toBeVisible();
+});
+
+test("append-only revision 이력은 건수와 append-only 표식을 함께 보여주고 revision을 덮어쓰지 않는다", async ({ page }) => {
+  await mockOrderPlans(page);
+  await page.goto("/order-plans/101");
+
+  const history = page.locator('[data-review-primitive="revision-history"]');
+  await expect(history).toBeVisible();
+  await expect(history).toHaveAttribute("data-revision-count", "1");
+  await expect(history).toContainText("append-only · 1건");
+  await expect(history.locator("[data-revision]")).toHaveCount(1);
+  await expect(history.locator('[data-revision="1"]')).toContainText("revision 1");
+});
+
+test("등급 4단은 한 벌의 농도 스케일을 쓰고 색만이 아니라 라벨을 함께 쓴다", async ({ page }) => {
+  await page.goto("/queue");
+
+  const grades = page.locator('[data-review-primitive="grade"]');
+  await expect(grades).not.toHaveCount(0);
+
+  const rendered = await grades.evaluateAll((nodes) => nodes.map((node) => ({
+    level: node.getAttribute("data-grade-level"),
+    text: (node.textContent ?? "").trim(),
+    background: getComputedStyle(node).backgroundColor,
+  })));
+
+  // 라벨 없이 색만으로 등급을 나타내는 배지가 없다.
+  for (const badge of rendered) expect(badge.text.length).toBeGreaterThan(0);
+
+  // 각 단은 grade-ramp.css 의 값 하나로만 칠해진다. 같은 단은 같은 색이고
+  // 다른 단은 다른 색이다.
+  const byLevel = new Map<string, Set<string>>();
+  for (const badge of rendered) {
+    if (!badge.level) continue;
+    const bucket = byLevel.get(badge.level) ?? new Set<string>();
+    bucket.add(badge.background);
+    byLevel.set(badge.level, bucket);
+  }
+  expect(byLevel.size).toBeGreaterThan(0);
+  for (const [level, colors] of byLevel) expect(colors, `등급 ${level}`).toHaveProperty("size", 1);
+  const distinct = new Set([...byLevel.values()].map((colors) => [...colors][0]));
+  expect(distinct.size).toBe(byLevel.size);
+
+  const ramp: Record<string, string> = {
+    "1": "rgb(47, 58, 76)",
+    "2": "rgb(91, 104, 124)",
+    "3": "rgb(147, 160, 176)",
+    "4": "rgb(211, 217, 225)",
+  };
+  for (const [level, colors] of byLevel) expect([...colors][0], `등급 ${level}`).toBe(ramp[level]);
+});
+
+test("긴 한글 제목이 목록 행과 접힌 보조 입력을 가로로 넘치게 하지 않는다", async ({ page }) => {
+  await mockOrderPlans(page);
+  await page.goto("/order-plans");
+  await page.locator(".c2l-row").first().click();
+
+  const longTitle = "인공지능".repeat(60);
+  await page.locator(".c2l-detail-pane").evaluate((pane, text) => {
+    const heading = pane.querySelector("h4");
+    if (heading) heading.textContent = text;
+    const title = pane.querySelector<HTMLElement>(".review-secondary-input-title");
+    if (title) title.textContent = text;
+  }, longTitle);
+
+  const overflow = await page.evaluate(() => ({
+    document: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    pane: (() => {
+      const pane = document.querySelector<HTMLElement>(".c2l-detail-pane");
+      return pane ? pane.scrollWidth - pane.clientWidth : 0;
+    })(),
+  }));
+  expect(overflow.document).toBeLessThanOrEqual(1);
+  expect(overflow.pane).toBeLessThanOrEqual(1);
 });

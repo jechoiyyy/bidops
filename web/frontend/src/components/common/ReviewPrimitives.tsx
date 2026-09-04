@@ -5,7 +5,7 @@ import type {
   ReactNode,
   Ref,
 } from "react";
-import { useId } from "react";
+import { useId, useState } from "react";
 import { Badge as AstryxBadge } from "@astryxdesign/core/Badge";
 import { Banner as AstryxBanner } from "@astryxdesign/core/Banner";
 import { Button as AstryxButton, type ButtonProps } from "@astryxdesign/core/Button";
@@ -112,23 +112,20 @@ export function DenseListRow({
   );
 }
 
-export type SplitMobileView = "list" | "detail";
-
 export interface SplitWorkspaceProps extends Omit<HTMLAttributes<HTMLDivElement>, "children"> {
   /** Slot API for new screens. Existing workspaces may pass children directly. */
   detail?: ReactNode;
   detailLabel?: string;
   list?: ReactNode;
   listLabel?: string;
-  mobileView?: SplitMobileView;
   children?: ReactNode;
 }
 
 /**
- * Master-detail workspace. The wrapper regions use display: contents on wide
- * screens so existing list/detail panes keep their width budget. At the
- * narrow breakpoint one region is hidden, so the detail view can cover the
- * list without navigating to another page.
+ * Master-detail workspace. Both panes stay on screen at every supported width
+ * (ADR-0046: 1280~1920px). There is no narrow-width mode where the detail
+ * covers the list, so selecting a row only replaces the detail pane in place
+ * and never navigates.
  */
 export function SplitWorkspace({
   children,
@@ -137,14 +134,12 @@ export function SplitWorkspace({
   detailLabel = "상세",
   list,
   listLabel = "목록",
-  mobileView,
   ...props
 }: SplitWorkspaceProps) {
   return (
     <div
       {...props}
       className={joinClassNames("review-split-workspace", className)}
-      data-mobile-view={mobileView}
       data-review-primitive="split-workspace"
     >
       {children ?? (
@@ -448,6 +443,224 @@ export function StickyDecisionHeader({
       {children}
       {actions}
     </header>
+  );
+}
+
+export interface ReviewDecisionBarProps extends Omit<HTMLAttributes<HTMLElement>, "children"> {
+  /** Decision buttons. Use {@link ReviewDecisionAction} so a disabled reason stays attached. */
+  actions: ReactNode;
+  /** Context that is not itself a decision (position in the list, what the buttons record). */
+  hint?: ReactNode;
+  label?: string;
+  /** Live region for save and error feedback. */
+  status?: ReactNode;
+}
+
+/**
+ * Decision actions pinned to the bottom of a split workspace's detail pane.
+ *
+ * The two placements are deliberate and not interchangeable: a split screen
+ * keeps its decisions at the bottom of the detail pane (this primitive), a
+ * standalone detail screen keeps them in the sticky header
+ * ({@link StickyDecisionHeader}). Either way the actions stay on the first
+ * screen regardless of scroll position, so the bar sits outside the pane's
+ * scroll container and sticks to its bottom edge.
+ */
+export function ReviewDecisionBar({
+  actions,
+  className,
+  hint,
+  label = "결정 액션",
+  status,
+  ...props
+}: ReviewDecisionBarProps) {
+  return (
+    <footer
+      {...props}
+      aria-label={label}
+      className={joinClassNames("review-decision-bar", className)}
+      data-review-primitive="decision-bar"
+      role="group"
+    >
+      {status}
+      <span className="review-decision-bar-actions">{actions}</span>
+      {hint !== undefined && hint !== null ? <span className="review-decision-bar-hint">{hint}</span> : null}
+    </footer>
+  );
+}
+
+export interface ReviewSecondaryInputProps {
+  children: ReactNode;
+  className?: string;
+  closeLabel?: string;
+  defaultIsOpen?: boolean;
+  /** Stays visible while collapsed: says what opening this does and what it does not touch. */
+  description?: ReactNode;
+  disabledMessage?: string;
+  isDisabled?: boolean;
+  /** Controlled open state. Omit to let the primitive own it. */
+  isOpen?: boolean;
+  onOpenChange?: (isOpen: boolean) => void;
+  openLabel?: string;
+  /** The value this input would change, shown while collapsed. */
+  summary?: ReactNode;
+  title: string;
+}
+
+/**
+ * Optional secondary input that stays folded until a person asks for it —
+ * human-judgment corrections and tracking-status changes.
+ *
+ * Folding it is the point: the screen's primary decision must not look like
+ * it needs this input first. The current value and the "what this does not
+ * change" sentence stay visible while collapsed, so folding never hides the
+ * state, only the form.
+ */
+export function ReviewSecondaryInput({
+  children,
+  className,
+  closeLabel = "닫기",
+  defaultIsOpen = false,
+  description,
+  disabledMessage,
+  isDisabled = false,
+  isOpen: isOpenProp,
+  onOpenChange,
+  openLabel = "열기",
+  summary,
+  title,
+}: ReviewSecondaryInputProps) {
+  const [uncontrolledIsOpen, setUncontrolledIsOpen] = useState(defaultIsOpen);
+  const isOpen = isOpenProp ?? uncontrolledIsOpen;
+  const baseId = `review-secondary-input-${useId().replace(/:/g, "")}`;
+  const regionId = `${baseId}-region`;
+  const titleId = `${baseId}-title`;
+  const reasonId = `${baseId}-reason`;
+  const toggleLabel = isOpen ? closeLabel : openLabel;
+  const hasReason = isDisabled && Boolean(disabledMessage);
+  return (
+    <section
+      aria-labelledby={titleId}
+      className={joinClassNames("review-secondary-input", isOpen && "is-open", className)}
+      data-review-primitive="secondary-input"
+      data-open={isOpen ? "true" : "false"}
+    >
+      <header className="review-secondary-input-head">
+        <span className="review-secondary-input-heading">
+          <span className="review-secondary-input-title" id={titleId}>{title}</span>
+          {description !== undefined && description !== null
+            ? <span className="review-secondary-input-description">{description}</span>
+            : null}
+        </span>
+        {summary !== undefined && summary !== null
+          ? <span className="review-secondary-input-summary">{summary}</span>
+          : null}
+        <AstryxButton
+          aria-controls={regionId}
+          aria-describedby={hasReason ? reasonId : undefined}
+          aria-expanded={isOpen}
+          aria-label={`${title} ${toggleLabel}`}
+          className="review-secondary-input-toggle"
+          isDisabled={isDisabled}
+          label={toggleLabel}
+          onClick={() => {
+            const next = !isOpen;
+            if (isOpenProp === undefined) setUncontrolledIsOpen(next);
+            onOpenChange?.(next);
+          }}
+          size="sm"
+          variant="secondary"
+        />
+      </header>
+      {hasReason ? <p className="review-secondary-input-reason" id={reasonId}>{disabledMessage}</p> : null}
+      <div className="review-secondary-input-region" hidden={!isOpen} id={regionId}>
+        {children}
+      </div>
+    </section>
+  );
+}
+
+export interface ReviewRevisionEntry {
+  /** Who claimed the change. An audit marker, never an authenticated identity. */
+  actor?: ReactNode;
+  at?: ReactNode;
+  body?: ReactNode;
+  id: string | number;
+  revision: number;
+  /** The recorded values, e.g. relevance and priority tokens. */
+  tags?: ReactNode;
+}
+
+export interface ReviewRevisionHistoryProps {
+  appendOnlyLabel?: string;
+  className?: string;
+  empty?: ReactNode;
+  /** Newest first. The primitive preserves the caller's order rather than sorting. */
+  entries: ReviewRevisionEntry[];
+  error?: ReactNode;
+  /** Depends on what already surrounds it — a rail section sits under an h3. */
+  headingLevel?: 3 | 4 | 5;
+  label: string;
+}
+
+/**
+ * Append-only revision history for a secondary input.
+ *
+ * Revisions are added, never edited or replaced, so the count and the
+ * append-only marker are part of the reading — a shrinking count means the
+ * server lost history, not that a person tidied it up.
+ */
+export function ReviewRevisionHistory({
+  appendOnlyLabel = "append-only",
+  className,
+  empty,
+  entries,
+  error,
+  headingLevel = 4,
+  label,
+}: ReviewRevisionHistoryProps) {
+  const titleId = `review-revision-history-${useId().replace(/:/g, "")}`;
+  const Heading = `h${headingLevel}` as const;
+  return (
+    <section
+      aria-labelledby={titleId}
+      className={joinClassNames("review-revision-history", className)}
+      data-review-primitive="revision-history"
+      data-revision-count={entries.length}
+    >
+      <header className="review-revision-history-head">
+        <Heading className="review-revision-history-title" id={titleId}>{label}</Heading>
+        <AstryxBadge label={`${appendOnlyLabel} · ${entries.length.toLocaleString("ko-KR")}건`} variant="neutral" />
+      </header>
+      {error ? <p className="review-revision-history-error" role="alert">{error}</p> : null}
+      {entries.length === 0 ? (
+        <p className="review-revision-history-empty">{empty ?? "기록된 revision이 없습니다."}</p>
+      ) : (
+        <List className="review-revision-history-list" density="compact" hasDividers>
+          {entries.map((entry) => (
+            <ListItem
+              className="review-revision-history-entry"
+              data-revision={entry.revision}
+              description={entry.body}
+              endContent={entry.at !== undefined || entry.actor !== undefined ? (
+                <span className="review-revision-history-meta">
+                  {entry.at}
+                  {entry.at !== undefined && entry.actor !== undefined ? " · " : null}
+                  {entry.actor}
+                </span>
+              ) : undefined}
+              key={entry.id}
+              label={(
+                <span className="review-revision-history-label">
+                  <AstryxBadge label={`revision ${entry.revision}`} variant="neutral" />
+                  {entry.tags}
+                </span>
+              )}
+            />
+          ))}
+        </List>
+      )}
+    </section>
   );
 }
 
