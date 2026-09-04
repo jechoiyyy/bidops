@@ -1,6 +1,6 @@
 """각 모듈 CLI가 새 인터프리터에서 실제로 뜨는지 본다 (명세 §2 완료 기준 4).
 
-`tests/test_acceptance_clis.py`는 `main`을 직접 import해서 부르므로, pytest가
+`tests/app/test_acceptance_clis.py`는 `main`을 직접 import해서 부르므로, pytest가
 conftest 순서로 이미 끌어와 둔 모듈 덕분에 import 순서 버그가 가려진다. 실제
 운영 명령은 `python -m <진입점>`이고 그때의 import 순서는 전혀 다르다. T6의
 models 분할이 만든 `app.lifecycle` 순환 import가 전체 suite 녹색인 채로 이

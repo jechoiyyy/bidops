@@ -596,7 +596,7 @@ def test_every_revision_identifier_fits_the_version_column() -> None:
 
     from app.core.db import ALEMBIC_VERSION_NUM_WIDTH as VERSION_NUM_WIDTH
 
-    versions = Path(__file__).resolve().parents[1] / "alembic" / "versions"
+    versions = Path(__file__).resolve().parents[2] / "alembic" / "versions"
     pattern = re.compile(r"^revision(?::\s*str)?\s*=\s*[\"']([^\"']+)[\"']", re.MULTILINE)
     identifiers = []
     for path in sorted(versions.glob("*.py")):

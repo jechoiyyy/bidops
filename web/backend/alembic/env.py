@@ -77,7 +77,7 @@ def _include_name(
 # Alembic looks for it; ``Table.create(checkfirst=True)`` then leaves the
 # existing table alone.  Both statements are idempotent.
 #
-# The width lives in ``app.core.db`` so ``tests/test_db_migrations.py`` can hold
+# The width lives in ``app.core.db`` so ``tests/app/test_db_migrations.py`` can hold
 # every revision identifier to it without importing this Alembic script.
 VERSION_NUM_WIDTH = ALEMBIC_VERSION_NUM_WIDTH
 CREATE_VERSION_TABLE = (

@@ -20,7 +20,7 @@ from sqlalchemy import event
 
 from app.main import app  # noqa: F401 — 조립 계층이 lifecycle 확장점을 등록한다
 from app.deep_review import PreSpecOverviewReview
-from tests.test_api_pre_specs import _items_by_id, _payload, pre_specs_api  # noqa: F401
+from tests.app.test_api_pre_specs import _items_by_id, _payload, pre_specs_api  # noqa: F401
 
 BASELINE_PATH = Path(__file__).resolve().parents[1] / "fixtures" / "pre_specs_list_baseline.json"
 
