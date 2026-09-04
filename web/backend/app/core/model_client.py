@@ -241,6 +241,18 @@ def sanitize_for_prompt(value: Any, *, key: str | None = None) -> Any:
     return value
 
 
+#: policy가 자기 출력 계약 문구를 선언하지 않았을 때 쓰는 심층 검토 stage 계약.
+#: 이 값은 기존 policy 파일의 프롬프트 바이트를 그대로 유지하기 위한 기본값이다.
+_DEEP_REVIEW_PROMPT_CONTRACT: Mapping[str, Any] = {
+    "schema": "bidops.deep-review-stage.v1",
+    "fields": ["schema", "deep_review_id", "attempt_id", "stage", "claims", "evidence", "unknowns", "warnings"],
+    "identity_rule": "Copy deep_review_id, attempt_id, and stage exactly from input_slice.",
+    "bounded_output_rule": "Emit at most 8 claims, 8 evidence rows, 8 unknowns, and 8 warnings for this reference-workflow slice. Prefer material requirements and explicit unknowns over exhaustive restatement.",
+    "evidence_rule": "Every fact, calculation, inference, and requirement must cite only this slice or fixed profile evidence.",
+    "document_evidence_rule": "For document evidence copy document_version_id, structure_id, source_sha256, locator_type, and locator from the cited requirement; set profile IDs to null and use an exact substring from one source block as quote. Never quote across newline-separated blocks in a page excerpt.",
+}
+
+
 def build_prompt(
     stage: str,
     input_slice: Mapping[str, Any],
@@ -249,25 +261,26 @@ def build_prompt(
     profile: Mapping[str, Any] | None = None,
     prior_stages: Sequence[Mapping[str, Any]] = (),
 ) -> str:
-    """Build a bounded JSON prompt with no storage metadata or credentials."""
+    """Build a bounded JSON prompt with no storage metadata or credentials.
+
+    출력 계약 문구는 policy가 ``prompt_output_contract``로 선언하면 그것을
+    쓰고, 선언이 없으면 심층 검토 stage 계약을 쓴다. core가 도메인 계약을
+    아는 것이 아니라 policy가 들고 오는 것이며, 선언이 없는 기존 policy는
+    프롬프트 바이트가 그대로다.
+    """
 
     instructions = next((row.get("instruction", "") for row in policy.get("stages", []) if row.get("stage") == stage), "")
     prompt_input = dict(input_slice)
     if profile is not None:
         prompt_input.pop("profile_facts", None)
         prompt_input.pop("profile_evidence", None)
+    raw_contract = policy.get("prompt_output_contract")
+    declared_contract = dict(raw_contract) if isinstance(raw_contract, Mapping) else None
     payload: dict[str, Any] = {
         "stage": stage,
         "instruction": instructions,
         "input_slice": sanitize_for_prompt(prompt_input),
-        "output_contract": {
-            "schema": "bidops.deep-review-stage.v1",
-            "fields": ["schema", "deep_review_id", "attempt_id", "stage", "claims", "evidence", "unknowns", "warnings"],
-            "identity_rule": "Copy deep_review_id, attempt_id, and stage exactly from input_slice.",
-            "bounded_output_rule": "Emit at most 8 claims, 8 evidence rows, 8 unknowns, and 8 warnings for this reference-workflow slice. Prefer material requirements and explicit unknowns over exhaustive restatement.",
-            "evidence_rule": "Every fact, calculation, inference, and requirement must cite only this slice or fixed profile evidence.",
-            "document_evidence_rule": "For document evidence copy document_version_id, structure_id, source_sha256, locator_type, and locator from the cited requirement; set profile IDs to null and use an exact substring from one source block as quote. Never quote across newline-separated blocks in a page excerpt.",
-        },
+        "output_contract": declared_contract if declared_contract is not None else dict(_DEEP_REVIEW_PROMPT_CONTRACT),
     }
     if profile is not None:
         selected_profile = {

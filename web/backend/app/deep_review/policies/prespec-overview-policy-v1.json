@@ -47,11 +47,18 @@
                   "type": "integer"
                 }
               },
-              "required": ["block_key", "page", "ordinal"],
+              "required": [
+                "block_key",
+                "page",
+                "ordinal"
+              ],
               "type": "object"
             }
           },
-          "required": ["claim", "locator"],
+          "required": [
+            "claim",
+            "locator"
+          ],
           "type": "object"
         },
         "minItems": 1,
@@ -65,7 +72,12 @@
         "type": "array"
       },
       "recommendation": {
-        "enum": ["추진 검토", "조건부 추진 검토", "보류", "검토 종료"],
+        "enum": [
+          "추진 검토",
+          "조건부 추진 검토",
+          "보류",
+          "검토 종료"
+        ],
         "type": "string"
       },
       "schema_version": {
@@ -89,17 +101,27 @@
               "type": "string"
             },
             "verification_action": {
-              "type": ["string", "null"]
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
-          "required": ["topic", "reason", "verification_action"],
+          "required": [
+            "topic",
+            "reason",
+            "verification_action"
+          ],
           "type": "object"
         },
         "type": "array"
       },
       "verification_due_at": {
         "format": "date-time",
-        "type": ["string", "null"]
+        "type": [
+          "string",
+          "null"
+        ]
       }
     },
     "required": [
@@ -113,6 +135,23 @@
       "input_limitations"
     ],
     "type": "object"
+  },
+  "prompt_output_contract": {
+    "evidence_rule": "Every statement must cite an input block by copying its block_key, page, and ordinal exactly from input_slice.blocks. Never cite a block that is not in this slice.",
+    "fields": [
+      "schema_version",
+      "recommendation",
+      "summary",
+      "conditions",
+      "verification_due_at",
+      "unknowns",
+      "evidence",
+      "input_limitations"
+    ],
+    "recommendation_rule": "Emit exactly one recommendation, one of: 추진 검토, 조건부 추진 검토, 보류, 검토 종료. If it is 조건부 추진 검토, both conditions and verification_due_at must be filled.",
+    "schema": "bidops.prespec-overview-result.v1",
+    "scope_rule": "This slice is the 사업개요 opening of one 제안요청서 only. Judge nothing that is not in it; leave 참가자격, 배점, 제출물, and 실적요건 in unknowns.",
+    "unknown_rule": "Never invent a number, date, or requirement. What the slice does not state belongs in unknowns and input_limitations, not in summary."
   },
   "prompt_version": "prespec-overview-v1",
   "schema": "bidops.prespec-overview-policy.v1",
