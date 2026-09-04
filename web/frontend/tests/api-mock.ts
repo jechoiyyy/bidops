@@ -1144,7 +1144,7 @@ export async function mockApi(page: Page): Promise<void> {
 
 // `no-tracking-contract`는 발주계획 추적 결정 계약이 없는 **현재 서버**를 흉내낸다.
 // 응답에 `tracking`이 없고 POST가 404다. 나머지 scenario는 요청안
-// (docs/order-plan-tracking-contract-request.md §2)의 wire shape를 그대로 mock한다.
+// (docs/design/order-plan-tracking-contract-request.md §2)의 wire shape를 그대로 mock한다.
 // 그 fixture는 요청안의 실행 가능한 형태이며 **구현 완료의 근거가 아니다**(요청안 §7 규칙 4).
 export type OrderPlanMockScenario = "default" | "failure" | "no-results" | "live-disabled" | "stopped" | "large" | "no-tracking-contract" | "no-owning-opportunity";
 

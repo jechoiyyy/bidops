@@ -1205,7 +1205,7 @@ export interface OrderPlanHumanFeedbackSummary {
 
 /**
  * 발주계획 추적 결정 — **제안 계약이며 서버에 아직 없다.**
- * `docs/order-plan-tracking-contract-request.md` §2가 정본이고, 그 문서는 채택이 아니라
+ * `docs/design/order-plan-tracking-contract-request.md` §2가 정본이고, 그 문서는 채택이 아니라
  * 백엔드 파트에 보낸 요청안이다. 여기의 type은 화면이 그 모양을 한곳에서만 알도록
  * 모아 둔 것이며, 계약이 대안(§2.3)으로 확정되면 이 type과 `lib/api.ts`의 adapter만
  * 바뀐다.

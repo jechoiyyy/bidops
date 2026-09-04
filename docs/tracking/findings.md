@@ -347,7 +347,7 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 - 영향: 단계 C의 화면은 만들 수 있으나 **결정이 서버에 남지 않는다.** 이 상태에서 결정을 화면 상태나 localStorage에 기록하면 담당자에게 저장된 것처럼 보이면서 실제로는 사라지므로, 그렇게 만들지 않는다.
 - 상태: **차단** (2026-09-04). 화면 구현의 차단이 아니라 계약의 부재다.
 - 지금 해결할 수 없는 이유: REST·DB 계약은 백엔드 파트의 소유이고, 화면 작업이 임의로 endpoint를 만들거나 기존 사업기회 계약의 의미를 바꿀 권한이 없다.
-- 접근 방법: 요청안을 [`order-plan-tracking-contract-request.md`](../order-plan-tracking-contract-request.md)로 작성해 백엔드 파트에 보낸다. 조사 결과 **새 table은 필요하지 않을 가능성이 높다** — 소유 사업기회와 `stage='order_plan'` official 링크는 `ingest/loader.py`가 이미 만들고, 상태 4값과 append-only `AuditEvent`도 이미 있다. 없는 것은 응답에 그 상태를 싣는 것과 발주계획 식별자로 쓸 경로 둘이다. 계약이 확정될 때까지 화면은 요청안 §7의 규칙을 지킨다: adapter 한 곳으로 호출을 모으고, 실패를 성공으로 보이게 하지 않으며, 응답에 추적 상태가 없으면 `계약 미구현`으로 표시하고 `미선택`으로 바꾸지 않는다. 계약이 구현·검증되기 전에는 단계 C를 완료로 적지 않는다.
+- 접근 방법: 요청안을 [`order-plan-tracking-contract-request.md`](../design/order-plan-tracking-contract-request.md)로 작성해 백엔드 파트에 보낸다. 조사 결과 **새 table은 필요하지 않을 가능성이 높다** — 소유 사업기회와 `stage='order_plan'` official 링크는 `ingest/loader.py`가 이미 만들고, 상태 4값과 append-only `AuditEvent`도 이미 있다. 없는 것은 응답에 그 상태를 싣는 것과 발주계획 식별자로 쓸 경로 둘이다. 계약이 확정될 때까지 화면은 요청안 §7의 규칙을 지킨다: adapter 한 곳으로 호출을 모으고, 실패를 성공으로 보이게 하지 않으며, 응답에 추적 상태가 없으면 `계약 미구현`으로 표시하고 `미선택`으로 바꾸지 않는다. 계약이 구현·검증되기 전에는 단계 C를 완료로 적지 않는다.
 
 ## 팔레트 전환 뒤 화면 단위 시각 회귀를 잡을 기준선이 없다
 
