@@ -260,14 +260,15 @@ test("R-08 이후 상세는 변경 비교로 이동하고 추적 저장과 최�
   await expect(page.locator("#opportunity-panel-history")).toContainText("기록된 이유 없음");
 });
 
-test("공통 unsaved guard가 기존 queue 임시 초안 보호를 유지한다", async ({ page, viewport }) => {
-  await page.goto("/queue");
-  if ((viewport?.width ?? 0) <= 900) {
-    await page.locator(".queue-list-item").first().click();
-  } else {
-    await page.waitForURL(/\/queue\/\d+/);
-  }
-  await page.getByLabel("리뷰 사유").fill("공통 guard 회귀 검증 초안");
+// ADR-0045 결정 3으로 공고 1차 판정의 리뷰 저장이 사업 추적의 예외 작업으로
+// 옮겨갔다. 공통 unsaved guard가 지켜야 할 입력도 함께 옮겨간다. 옛 자리에는
+// 지킬 입력이 없고, 새 자리에는 있다.
+test("공통 unsaved guard가 옮겨간 예외 작업 입력을 지킨다", async ({ page }) => {
+  await mockOpportunity(page);
+  await page.goto("/opportunities/501");
+
+  await page.getByRole("button", { name: "추적 상태 변경 열기" }).click();
+  await page.getByLabel("이유").fill("공통 guard 회귀 검증 초안");
 
   const blocked = await page.evaluate(() => {
     const event = new Event("beforeunload", { cancelable: true });
@@ -275,7 +276,7 @@ test("공통 unsaved guard가 기존 queue 임시 초안 보호를 유지한다"
     return event.defaultPrevented;
   });
   expect(blocked).toBe(true);
-  await expect(page.getByLabel("리뷰 사유")).toHaveValue("공통 guard 회귀 검증 초안");
+  await expect(page.getByLabel("이유")).toHaveValue("공통 guard 회귀 검증 초안");
 });
 
 // ─────────────────────────────────────────────────────────────────────────

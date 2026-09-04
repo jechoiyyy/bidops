@@ -2710,12 +2710,24 @@ a {
 }
 
 .attachment-name {
+  display: flex;
+  flex-direction: column;
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
+  font-size: 12px;
+}
+
+/* 파일명은 잘라서 보여주지만 잘림은 부모의 시각 효과일 뿐이고, 자식 span의
+   레이아웃 상자는 그대로 넘쳐 있었다(/queue 1280px 가로 넘침 19.77px의 원인).
+   자식이 스스로 부모 폭 안에 들어가야 넘침이 실제로 사라진다. */
+.attachment-name > span {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
 }
 
 .attachment-link {

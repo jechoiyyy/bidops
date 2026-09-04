@@ -877,3 +877,88 @@
     min-height: 44px;
   }
 }
+
+/* --- 저장된 담당자 리뷰 (읽기 전용 이력) ---
+ *
+ * ADR-0045 결정 3으로 이 화면의 리뷰 저장이 사업 추적의 예외 작업으로 옮겨간
+ * 뒤, 남은 것은 무엇이 저장돼 있는지 읽는 일이다. 입력이 없으므로 pane 바닥에
+ * 고정하지 않고 본문 마지막 블록으로 둔다. */
+.review-record {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  min-width: 0;
+  padding: var(--spacing-4);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-container);
+  background: var(--color-background-card);
+}
+
+.review-record-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.review-record-head h3 {
+  margin: 0;
+}
+
+.review-record-badge {
+  padding: var(--spacing-0-5) var(--spacing-2);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-inner);
+  color: var(--color-content-secondary);
+  font-size: var(--font-size-supporting);
+}
+
+.review-record-facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--spacing-1) var(--spacing-4);
+  margin: 0;
+  min-width: 0;
+}
+
+.review-record-facts dt {
+  color: var(--color-content-secondary);
+  font-size: var(--font-size-supporting);
+}
+
+.review-record-facts dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.review-record-answers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-width: 0;
+}
+
+.review-record-answers li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.review-record-note {
+  margin: 0;
+  color: var(--color-content-secondary);
+  font-size: var(--font-size-supporting);
+}
+
+.review-record-link {
+  align-self: flex-start;
+  min-height: var(--control-height);
+  display: inline-flex;
+  align-items: center;
+}

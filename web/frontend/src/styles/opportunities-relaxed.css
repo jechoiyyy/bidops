@@ -768,3 +768,18 @@
   min-width: 0;
   width: 100%;
 }
+
+.opportunity-judgment-links {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-width: 0;
+}
+
+.opportunity-judgment-links li {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
