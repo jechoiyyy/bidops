@@ -36,12 +36,14 @@ from ..schemas.document_bundles import (
     BundleListResponse,
     BundleView,
     ConfirmRequest,
+    DocumentSegmentsView,
     DocumentStructure,
     DocumentStructurePageView,
     DocumentVersionView,
     EmptyRequest,
     PatchDocumentVersionRequest,
 )
+from ..services import document_segments
 from ..services.document_bundles import BundleServiceError, DocumentBundleService, stable_api_error, validate_actor
 
 router = APIRouter(prefix="/api", tags=["document-bundles"])
@@ -303,6 +305,20 @@ def get_document_structure_page(structure_id: UUID, page: str, session: Session 
         except (TypeError, ValueError):
             raise BundleServiceError("not_found", "document page를 찾을 수 없습니다", status_code=404) from None
         return service.get_structure_page(session, structure_id, parsed_page)
+    except BundleServiceError as error:
+        return _error_response(error)
+    except Exception as error:  # pragma: no cover - defensive API boundary
+        return _unexpected(error)
+
+
+@router.get("/document-structures/{structure_id}/segments", response_model=DocumentSegmentsView)
+def get_document_structure_segments(structure_id: UUID, session: Session = Depends(get_db)) -> DocumentSegmentsView | JSONResponse:
+    """저장된 결정적 segment manifest를 읽는다 (원문 text 없음)."""
+
+    try:
+        return DocumentSegmentsView.model_validate(document_segments.segments_view(session, structure_id))
+    except document_segments.SegmentViewError as error:
+        return _error_response(BundleServiceError(error.code, error.message, status_code=error.status_code))
     except BundleServiceError as error:
         return _error_response(error)
     except Exception as error:  # pragma: no cover - defensive API boundary

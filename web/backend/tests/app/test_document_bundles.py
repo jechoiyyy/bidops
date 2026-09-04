@@ -1905,3 +1905,70 @@ def test_legacy_changed_hash_creates_next_immutable_version(context: Context) ->
         assert versions[1].replaces_document_version_id == versions[0].id
         row = session.get(Attachment, attachment.id)
         assert row is not None and row.legacy_stored_path == "legacy/old.pdf"
+
+
+# --------------------------------------------------------------------------
+# GET /api/document-structures/{structure_id}/segments
+# --------------------------------------------------------------------------
+
+
+def _segments_client(context: Context):
+    """segment 조회 endpoint만 붙인 최소 앱."""
+
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from app.core.db import get_db
+    from app.deep_review.routers.document_bundles import router as bundles_router
+
+    app = FastAPI()
+    app.include_router(bundles_router)
+
+    def _session():
+        with Session(context.engine) as session:  # type: ignore[arg-type]
+            yield session
+
+    app.dependency_overrides[get_db] = _session
+    return TestClient(app)
+
+
+def test_segments_endpoint_returns_the_manifest_without_source_text(context: Context) -> None:
+    bundle = make_bundle(context)
+    document = upload(context, bundle.id)
+    with Session(context.engine) as session:  # type: ignore[arg-type]
+        structure = session.scalar(select(DocumentStructure).where(DocumentStructure.document_version_id == document.id))
+        assert structure is not None
+        structure_id = structure.id
+    response = _segments_client(context).get(f"/api/document-structures/{structure_id}/segments")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["schema"] == "bidops.document-segments.v1"
+    assert body["structure_id"] == str(structure_id)
+    assert body["taxonomy_version"] == "bidops.segment-taxonomy.v1"
+    assert "inventory_summary" in body and "coverage" in body
+    for segment in body["segments"]:
+        assert segment["classification_source"] == "deterministic"
+        assert segment["confidence"] is None
+        assert "title" not in segment
+
+
+def test_segments_endpoint_is_404_when_no_manifest_exists(context: Context) -> None:
+    response = _segments_client(context).get(f"/api/document-structures/{uuid4()}/segments")
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "not_found"
+
+
+def test_segments_endpoint_is_403_for_an_unsafe_document(context: Context) -> None:
+    bundle = make_bundle(context)
+    document = upload(context, bundle.id)
+    with Session(context.engine) as session:  # type: ignore[arg-type]
+        structure = session.scalar(select(DocumentStructure).where(DocumentStructure.document_version_id == document.id))
+        assert structure is not None
+        structure_id = structure.id
+        row = session.get(DocumentVersion, document.id)
+        assert row is not None
+        row.safety_status = "quarantined"
+        session.commit()
+    response = _segments_client(context).get(f"/api/document-structures/{structure_id}/segments")
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "unsafe_document"
