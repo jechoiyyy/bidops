@@ -68,21 +68,12 @@ class ApplicationRuntime:
         )
         self._runtimes: list[tuple[str, Any]] = []
         self._by_module: dict[str, Any] = {}
-        # lifecycle의 회차 파이프라인 실행기는 screening의 예약 파이프라인이
-        # 소유 관계로 들고 있는 것이라 만들어진 뒤에 넘긴다. lifecycle을 함께
-        # 고르지 않으면 ``None``이고, 그 adapter는 subprocess·파일 계약으로만
-        # 단계를 돌리므로 그대로 동작한다.
-        pipeline: Any = None
+        # 모듈 runtime은 서로를 모른다. 예약 파이프라인의 adapter는 skill
+        # 스크립트를 subprocess로 돌리고 산출물을 파일 계약으로 적재할 뿐이라
+        # lifecycle 객체를 필요로 하지 않는다.
         for name in self.modules:
             package = _MODULE_PACKAGES[name]
-            if name == "screening":
-                runtime = package.build_runtime(
-                    self.settings, self.session_factory, pipeline=pipeline
-                )
-            else:
-                runtime = package.build_runtime(self.settings, self.session_factory)
-            if name == "lifecycle":
-                pipeline = runtime.pipeline_service
+            runtime = package.build_runtime(self.settings, self.session_factory)
             self._runtimes.append((name, runtime))
             self._by_module[name] = runtime
         self._started = False

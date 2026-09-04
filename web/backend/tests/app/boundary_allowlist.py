@@ -61,7 +61,10 @@ LIFECYCLE_RELATIONSHIP_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset()
 #: 최종 검토가 "§4의 네 세부 규칙 중 쓰기·잠금 한 줄만 어떤 검사도 덮지 않는다"를
 #: 지적해 검사를 새로 넣었다. 넣는 시점의 실측 위반은 17건이었고(screening 3,
 #: deep_review 14) 전부 `lifecycle.lock_notice`·`lock_attachment`·
-#: `lock_active_attachments`·`delete_run`·`seed_default_portals`로 옮겨 **0이 됐다.**
+#: `lock_active_attachments`·`delete_run`으로 바꿔 **0이 됐다.** `seed_default_portals`는
+#: 함수째 lifecycle로 옮겼다 — `agency_portal`을 쓰므로 소유 모듈이 lifecycle이다.
+#: (그 함수는 호출자가 없다. 앱 startup이 seed를 하지 않는다는 경계 때문이며 검사 6이
+#: 조립 계층에서 그것을 부르지 못하게 막는다.)
 #: 다른 목록과 같은 계약이다 — 목록에 없는 새 위반은 즉시 실패한다.
 LIFECYCLE_TABLE_WRITE_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset()
 

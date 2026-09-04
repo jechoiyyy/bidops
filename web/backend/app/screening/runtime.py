@@ -48,12 +48,7 @@ class RuntimePipelineBridge:
     screening FIFO worker.
     """
 
-    def __init__(self, pipeline: Any, settings: Settings, session_factory: Any) -> None:
-        # `pipeline`은 lifecycle의 회차 파이프라인 실행기다. 조립 계층이 넘겨
-        # 주며, lifecycle을 등록하지 않은 조합에서는 ``None``이다. 이 adapter는
-        # 단계를 subprocess로 돌리고 산출물을 적재할 뿐이라 그 객체를 부르지
-        # 않지만, 소유 관계를 드러내려고 그대로 들고 있는다.
-        self.pipeline = pipeline
+    def __init__(self, settings: Settings, session_factory: Any) -> None:
         self.settings = settings
         self.session_factory = session_factory
 
@@ -159,7 +154,6 @@ class ScreeningRuntime:
         settings: Settings | None = None,
         *,
         session_factory: Any = None,
-        pipeline: Any = None,
     ) -> None:
         self.settings = settings or get_settings()
         self.session_factory = session_factory or SessionLocal
@@ -190,7 +184,7 @@ class ScreeningRuntime:
             self.settings,
             session_factory=self.session_factory,
             scheduler=self.scheduler_service,
-            pipeline=RuntimePipelineBridge(pipeline, self.settings, self.session_factory),
+            pipeline=RuntimePipelineBridge(self.settings, self.session_factory),
             orchestrator=self.orchestrator,
             worker=self.worker,
             ollama=self.ollama,
@@ -247,17 +241,10 @@ class ScreeningRuntime:
 def build_runtime(
     settings: Settings | None = None,
     session_factory: Any = None,
-    *,
-    pipeline: Any = None,
 ) -> ScreeningRuntime:
-    """조립 계층이 부르는 screening runtime 생성자 (명세 §7).
+    """조립 계층이 부르는 screening runtime 생성자 (명세 §7)."""
 
-    `pipeline`은 lifecycle runtime의 회차 파이프라인 실행기다. lifecycle을 함께
-    등록하지 않은 조합에서는 ``None``이며, 예약 파이프라인은 subprocess·파일
-    계약으로만 단계를 돌리므로 그대로 동작한다.
-    """
-
-    return ScreeningRuntime(settings, session_factory=session_factory, pipeline=pipeline)
+    return ScreeningRuntime(settings, session_factory=session_factory)
 
 
 __all__ = ["RuntimePipelineBridge", "ScreeningRuntime", "build_runtime"]
