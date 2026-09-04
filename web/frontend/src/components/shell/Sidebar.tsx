@@ -7,8 +7,8 @@ interface NavItem {
   label: string;
   path: string;
   icon: IconName;
-  // 이 항목의 화면이 탭으로 흡수한 옛 경로들이다. 옛 경로는 리다이렉트가 아니라
-  // 그 탭의 정식 주소로 남아 있으므로(ADR-0041 결정 2), 그 주소에 있을 때도
+  // 이 항목의 화면이 흡수한 옛 경로들이다. 옛 경로는 리다이렉트가 아니라 그
+  // 뷰·탭의 정식 주소로 남아 있으므로(ADR-0045 결정 8), 그 주소에 있을 때도
   // 이 항목이 활성으로 보여야 한다.
   absorbs?: string[];
 }
@@ -18,28 +18,35 @@ interface NavGroup {
   items: NavItem[];
 }
 
-// ADR-0041 결정 1·2·3: 1차 분류를 회차 검토 / 누적 추적으로 나누고 기준·운영을
-// 그 아래 별도 묶음으로 둔다. 16항목을 8항목으로 줄이며, 리다이렉트 항목과
-// 미구현 안내 항목을 최상위에 두지 않는다. 회차 선택기 표시 여부가 1차 분류만
-// 보고 예측 가능해야 하므로(PRD §2.1) route-meta의 runSelectorVisible이
-// 회차 검토 묶음에서만 true다.
+// ADR-0045 결정 1·2: 1차 분류를 `오늘의 업무` / `탐색과 추적`으로 바꾸고 항목을
+// 16에서 7로 줄인다. `검토 대기열`은 회차 축이라 같은 사업기회가 회차마다 다른
+// 행으로 나타났다. 그 자리를 `사업 추적`이 받고, 검토 대기열·공고 판정 이력·
+// 담당자 리뷰 기록·마감 추적은 사업 추적이 여는 화면이 된다.
+//
+// 회차 선택기 표시 여부가 사이드바만 보고 예측돼야 하므로(ADR-0045 결정 7)
+// 사이드바 항목 중 회차 선택기를 갖는 것은 `대시보드` 하나다. 나머지 한 자리인
+// 공고 판정 이력은 사이드바 항목이 아니다.
 const groups: NavGroup[] = [
   {
-    label: "회차 검토",
+    label: "오늘의 업무",
     items: [
       { label: "대시보드", path: "/", icon: "dashboard" },
-      // 마감 추적(/deadlines)은 sort=deadline 저장된 뷰로, 공고 판정 이력
-      // (/judgments)과 담당자 리뷰 기록(/reviews)은 탭으로 흡수했다.
-      { label: "검토 대기열", path: "/queue", icon: "queue", absorbs: ["/deadlines", "/judgments", "/reviews"] },
     ],
   },
   {
-    label: "누적 추적",
+    label: "탐색과 추적",
     items: [
       { label: "발주계획", path: "/order-plans", icon: "order-plan" },
       { label: "사전규격", path: "/pre-specs", icon: "judgment" },
-      // 심층 검토 보고서(/deep-reviews/:id)는 사업기회 화면이 진입점을 갖는다.
-      { label: "사업기회", path: "/opportunities", icon: "queue", absorbs: ["/deep-reviews"] },
+      // 사업 추적이 검토 대기열의 자리를 받는다. 흡수한 옛 경로는 리다이렉트가
+      // 아니라 그 화면들의 정식 주소로 남아 있으므로(ADR-0045 결정 8) 그 주소에
+      // 있을 때도 이 항목이 활성으로 보인다.
+      {
+        label: "사업 추적",
+        path: "/opportunities",
+        icon: "queue",
+        absorbs: ["/queue", "/judgments", "/reviews", "/deadlines", "/deep-reviews"],
+      },
       { label: "최종 Go/No-Go", path: "/go-no-go", icon: "judgment" },
     ],
   },

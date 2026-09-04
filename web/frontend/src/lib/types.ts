@@ -1161,6 +1161,22 @@ export interface TrackingStatusUpdateRequest {
   reason: string;
 }
 
+/**
+ * 후보 연결 하나에 대한 사람 판정 (`PATCH /opportunities/links/{id}/decision`).
+ *
+ * 서버는 이 계약을 이미 갖고 있었지만 화면에 진입점이 없어 `후보 확인 대기`
+ * 연결을 사람이 해소할 길이 없었다. 사업 추적의 예외 작업 경로가 그 자리다
+ * (ADR-0045 결정 3, PLAN 단계 E 작업 3-2).
+ *
+ * `accepted`는 이 후보를 이 사업기회의 관계로 확정하고, `rejected`는 관계가
+ * 아니라고 기록한다. 어느 쪽도 추적 상태·적합성 등급·최종 Go/No-Go를 바꾸지
+ * 않는다. 이유는 서버가 필수로 받는다(`min_length=1`).
+ */
+export interface CandidateLinkDecisionRequest {
+  decision: "accepted" | "rejected";
+  reason: string;
+}
+
 // ---------------------------------------------------------------------------
 // Order-plan C-2 review REST contracts
 //

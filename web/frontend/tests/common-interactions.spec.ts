@@ -169,17 +169,20 @@ test("UC-01은 키보드만으로 추적 저장 직전까지 이동하고 비활
   const trace = await mockOpportunity(page);
   await page.goto("/opportunities/501");
 
-  const editorToggle = page.getByRole("button", { name: "사람 추적 상태 변경" });
+  // 추적 상태 변경은 상세 pane 바닥의 접힌 보조 입력이다(PLAN 단계 E 작업 3-3).
+  const editorToggle = page.getByRole("button", { name: "추적 상태 변경 열기" });
   await tabTo(page, editorToggle);
   await expectKeyboardTarget(editorToggle);
   await page.keyboard.press("Enter");
 
   const save = page.getByRole("button", { name: "추적 상태 저장" });
   await expect(save).toBeDisabled();
-  await expect(page.locator(`#${await save.getAttribute("aria-describedby")}`)).toContainText("이유를 입력하십시오");
+  // 미선택 건은 아무 상태도 미리 골라 두지 않으므로 첫 비활성 사유가 상태 선택이다.
+  await expect(page.locator(`#${await save.getAttribute("aria-describedby")}`)).toContainText("추적 상태를 고르십시오");
   const status = page.locator(".opportunity-tracking-form select");
   await tabTo(page, status);
   await page.keyboard.press("ArrowDown");
+  await expect(page.locator(`#${await save.getAttribute("aria-describedby")}`)).toContainText("이유를 입력하십시오");
   const reason = page.getByLabel("이유");
   await tabTo(page, reason);
   await page.keyboard.type("새 사전규격을 계속 확인합니다.");
@@ -243,11 +246,18 @@ test("R-08 이후 상세는 변경 비교로 이동하고 추적 저장과 최�
   await mockOpportunity(page);
   await page.goto("/opportunities/501");
 
-  await expect(page.getByText("사람의 추적 판단", { exact: true })).toBeVisible();
   await expect(page.locator('a[href="/opportunities/501/bid-delta"]')).toHaveCount(1);
   await expect(page.getByRole("button", { name: "최종 결정 저장" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "추적 상태 변경" })).toHaveCount(1);
+  // 추적 상태 변경은 접혀 있고, 접힌 상태에서도 현재 값이 그대로 보인다.
+  await expect(page.getByRole("button", { name: "추적 상태 변경 열기" })).toHaveCount(1);
   await expect(page.getByRole("button", { name: "추적 상태 저장" })).toHaveCount(0);
+  await expect(page.locator('[data-review-primitive="secondary-input"]')).toHaveAttribute("data-open", "false");
+
+  // 사람의 추적 판단은 추적 이력 탭이 소유한다. 무엇을 골랐고 누가 언제 골랐는지
+  // 그 탭 하나에서 읽는다.
+  await page.getByRole("tab", { name: "추적 이력", exact: true }).click();
+  await expect(page.locator("#opportunity-panel-history")).toContainText("미선택");
+  await expect(page.locator("#opportunity-panel-history")).toContainText("기록된 이유 없음");
 });
 
 test("공통 unsaved guard가 기존 queue 임시 초안 보호를 유지한다", async ({ page, viewport }) => {
@@ -269,28 +279,27 @@ test("공통 unsaved guard가 기존 queue 임시 초안 보호를 유지한다"
 });
 
 // ─────────────────────────────────────────────────────────────────────────
-// docs/design/PLAN.md 2단계 완료 게이트 (ADR-0041)
+// docs/design/PLAN.md 단계 E 완료 게이트 (ADR-0045가 ADR-0041 결정 1·2를 개정)
 // ─────────────────────────────────────────────────────────────────────────
 
 const SIDEBAR_ITEMS = [
-  { group: "회차 검토", label: "대시보드", path: "/" },
-  { group: "회차 검토", label: "검토 대기열", path: "/queue" },
-  { group: "누적 추적", label: "발주계획", path: "/order-plans" },
-  { group: "누적 추적", label: "사전규격", path: "/pre-specs" },
-  { group: "누적 추적", label: "사업기회", path: "/opportunities" },
-  { group: "누적 추적", label: "최종 Go/No-Go", path: "/go-no-go" },
+  { group: "오늘의 업무", label: "대시보드", path: "/" },
+  { group: "탐색과 추적", label: "발주계획", path: "/order-plans" },
+  { group: "탐색과 추적", label: "사전규격", path: "/pre-specs" },
+  { group: "탐색과 추적", label: "사업 추적", path: "/opportunities" },
+  { group: "탐색과 추적", label: "최종 Go/No-Go", path: "/go-no-go" },
   { group: "기준과 운영", label: "판정 기준", path: "/criteria" },
   { group: "기준과 운영", label: "실행 상태", path: "/run-status" },
 ];
 
-test("사이드바는 8항목이고 1차 분류가 회차 검토 · 누적 추적 · 기준과 운영이다", async ({ page }) => {
+test("사이드바는 7항목이고 1차 분류가 오늘의 업무 · 탐색과 추적 · 기준과 운영이다", async ({ page }) => {
   await mockApi(page);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
 
   const sidebar = page.locator("aside.sidebar");
   await expect(sidebar.locator(".sidebar-item")).toHaveCount(SIDEBAR_ITEMS.length);
-  await expect(sidebar.locator(".sidebar-group-label")).toHaveText(["회차 검토", "누적 추적", "기준과 운영"]);
+  await expect(sidebar.locator(".sidebar-group-label")).toHaveText(["오늘의 업무", "탐색과 추적", "기준과 운영"]);
 
   for (const item of SIDEBAR_ITEMS) {
     const group = sidebar.locator(".sidebar-group", { hasText: item.group });
@@ -301,9 +310,13 @@ test("사이드바는 8항목이고 1차 분류가 회차 검토 · 누적 추�
   await expect(sidebar.getByText("준비 중")).toHaveCount(0);
   await expect(sidebar.getByRole("link", { name: "마감 추적" })).toHaveCount(0);
   await expect(sidebar.getByRole("link", { name: "산출물 감사 로그" })).toHaveCount(0);
+  // ADR-0045 결정 2: 회차 축 목록인 검토 대기열은 사이드바에서 사라진다.
+  // 경로는 남지만(아래 흡수 경로 테스트) 최상위 진입점은 사업 추적 하나다.
+  await expect(sidebar.getByRole("link", { name: "검토 대기열" })).toHaveCount(0);
+  await expect(sidebar.getByRole("link", { name: "사업기회", exact: true })).toHaveCount(0);
 });
 
-test("사이드바 8항목이 모두 실제 화면으로 연결되고 최종 Go/No-Go에 한 번에 도달한다", async ({ page }) => {
+test("사이드바 7항목이 모두 실제 화면으로 연결되고 최종 Go/No-Go에 한 번에 도달한다", async ({ page }) => {
   await mockApi(page);
   await page.setViewportSize({ width: 1440, height: 900 });
 
@@ -322,16 +335,36 @@ test("사이드바 8항목이 모두 실제 화면으로 연결되고 최종 Go/
   await expect(page.getByRole("heading", { name: "최종 Go/No-Go", level: 2 })).toBeVisible();
 });
 
-test("회차 선택기 표시 여부가 1차 분류와 일치한다", async ({ page }) => {
+// ADR-0045 결정 7: 회차 축은 대시보드와 공고 판정 이력 두 화면뿐이다. 공고 판정
+// 이력은 사이드바 항목이 아니므로, 사이드바만 보면 회차 선택기가 보이는 자리는
+// 대시보드 하나로 예측된다.
+test("회차 선택기는 사이드바에서 대시보드에만 나타난다", async ({ page }) => {
   await mockApi(page);
   await page.setViewportSize({ width: 1440, height: 900 });
 
   for (const item of SIDEBAR_ITEMS) {
     await page.goto(item.path);
     const runSelector = page.getByLabel("실행 회차", { exact: true });
-    if (item.group === "회차 검토") await expect(runSelector).toBeVisible();
+    if (item.path === "/") await expect(runSelector).toBeVisible();
     else await expect(runSelector).toHaveCount(0);
   }
+});
+
+test("사이드바 밖의 회차 축 화면은 공고 판정 이력 하나다", async ({ page }) => {
+  await mockApi(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+
+  await page.goto("/judgments");
+  await expect(page.locator("header.topbar h1")).toHaveText("공고 판정 이력");
+  await expect(page.getByLabel("실행 회차", { exact: true })).toBeVisible();
+
+  // 같은 화면의 다른 두 탭은 회차 종속이지만 선택기를 갖지 않는다. 회차를 못
+  // 바꾼다고 오인하지 않도록 어디서 고르는지 화면이 직접 말한다.
+  await page.goto("/queue");
+  await expect(page.getByLabel("실행 회차", { exact: true })).toHaveCount(0);
+  await expect(page.locator(".ws-run-note")).toContainText("공고 판정 이력");
+  await page.goto("/reviews");
+  await expect(page.getByLabel("실행 회차", { exact: true })).toHaveCount(0);
 });
 
 test("흡수한 옛 경로는 404를 내지 않고 목적지 화면의 해당 탭으로 열린다", async ({ page }) => {
@@ -339,7 +372,7 @@ test("흡수한 옛 경로는 404를 내지 않고 목적지 화면의 해당 �
   await page.setViewportSize({ width: 1440, height: 900 });
 
   const absorbed = [
-    { path: "/judgments", title: "검토 대기열", tab: "공고 판정 이력" },
+    { path: "/judgments", title: "공고 판정 이력", tab: "공고 판정 이력" },
     { path: "/reviews", title: "검토 대기열", tab: "담당자 리뷰 기록" },
     { path: "/profile", title: "판정 기준", tab: "회사 프로필" },
     { path: "/policies", title: "판정 기준", tab: "판정 정책" },
@@ -371,8 +404,9 @@ test("흡수한 옛 경로는 404를 내지 않고 목적지 화면의 해당 �
   await expect(page.getByLabel("정렬", { exact: true })).toHaveValue("grade");
 });
 
-test("심층 검토 보고서 진입점이 사업기회 화면에 명시된다", async ({ page }) => {
+test("심층 검토 보고서 진입점이 사업 추적 화면에 명시된다", async ({ page }) => {
   await mockApi(page);
+  await mockOpportunity(page);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/opportunities/501");
 

@@ -203,7 +203,7 @@ test("요청 conflict는 typed code를 표시하고 최신 상태를 다시 불�
   expect(trace.workspaceGets).toBeGreaterThanOrEqual(2);
 });
 
-test("사업기회 상세 → delta → 저장 → 상세 이동 흐름을 유지한다", async ({ page }) => {
+test("사업 추적 상세 → delta → 저장 → 상세 이동 흐름을 유지한다", async ({ page }) => {
   await mockBidDelta(page, { calculationStatus: "completed", resultStatus: "changed" });
   await mockOpportunity(page);
   await page.goto("/opportunities/501");
@@ -215,9 +215,9 @@ test("사업기회 상세 → delta → 저장 → 상세 이동 흐름을 유�
   await page.getByLabel("결정 이유", { exact: true }).fill("원문 확인 후 참여합니다.");
   await page.getByRole("button", { name: "결정 저장", exact: true }).click();
   await expect(page.getByText("Go 최종 결정을 append-only로 저장했습니다.", { exact: true })).toBeVisible();
-  await page.getByRole("link", { name: "← 사업기회 상세", exact: true }).click();
+  await page.getByRole("link", { name: "← 사업 추적 상세", exact: true }).click();
   await expect(page).toHaveURL(/\/opportunities\/501$/);
-  await expect(page.getByRole("heading", { name: "사업기회 상세 #501", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "사업 추적 상세 #501", exact: true })).toBeVisible();
 });
 
 test("미저장 최종 결정 초안은 beforeunload와 SPA 이동을 보호한다", async ({ page }) => {
@@ -231,7 +231,7 @@ test("미저장 최종 결정 초안은 beforeunload와 SPA 이동을 보호한�
     return event.defaultPrevented;
   })).toBe(true);
   page.once("dialog", (dialog) => dialog.dismiss());
-  await page.getByRole("link", { name: "← 사업기회 상세", exact: true }).click();
+  await page.getByRole("link", { name: "← 사업 추적 상세", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/opportunities/501/bid-delta\\?comparison=${comparisonId}`));
   await expect(page.getByText("저장되지 않은 입찰 최종 결정 초안이 있습니다.", { exact: false })).toBeVisible();
 });
@@ -302,6 +302,6 @@ test("우측 레일은 attempt·결정 이력과 연결 링크만 담고 최종 
   await expect(rail.getByRole("heading", { name: "계산 attempt 이력", exact: true })).toBeVisible();
   await expect(rail.getByRole("heading", { name: "최종 Go/No-Go 저장 이력", exact: true })).toBeVisible();
   await expect(rail.getByRole("heading", { name: "최종 결정 현재성", exact: true })).toBeVisible();
-  await expect(rail.getByRole("link", { name: "사업기회 상세 →", exact: true })).toBeVisible();
+  await expect(rail.getByRole("link", { name: "사업 추적 상세 →", exact: true })).toBeVisible();
   await expect(rail.getByRole("button", { name: "결정 저장", exact: true })).toHaveCount(0);
 });

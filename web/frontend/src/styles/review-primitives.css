@@ -409,8 +409,13 @@
   gap: var(--spacing-1);
 }
 
+/* 이 버튼은 결정으로 들어가는 유일한 문이다. Astryx `sm` 버튼의 28px는 이
+ * 저장소가 키보드 조작 대상에 요구하는 높이에 못 미쳐, 접힌 영역을 여는 조작만
+ * 다른 결정 액션보다 작아진다. 다른 화면의 `sm` 버튼 치수를 건드리지 않도록
+ * 크기 토큰 대신 최소 높이만 다른 조작부와 같은 --control-height로 올린다. */
 .review-secondary-input-toggle {
   flex: 0 0 auto;
+  min-height: var(--control-height);
 }
 
 .review-secondary-input-reason {

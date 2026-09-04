@@ -25,14 +25,31 @@ export const routeMetadata = {
     editScope: null,
     runSelectorVisible: true,
   },
+  // ADR-0045 결정 2·3·7: `검토 대기열`은 사이드바에서 사라지지만 경로는 남는다.
+  // 회차 선택기는 대시보드와 공고 판정 이력에만 두므로 여기서는 감춘다. 다만
+  // dataScope는 `run` 그대로여서 AppShell이 회차를 계속 해석하고 주소에 넣는다.
+  // 회차를 고르는 자리는 같은 화면의 `공고 판정 이력` 탭이다.
+  //
+  // `editScope`는 예외 작업 경로(PLAN 단계 E 작업 3-2)가 동작한 뒤에 바꾼다.
+  // 리뷰 저장 경로가 사라진 시점이 없어야 한다.
   queue: {
     title: "검토 대기열",
     dataScope: "run",
     editScope: "리뷰 저장 가능",
+    runSelectorVisible: false,
+  },
+  // 공고 판정 이력은 사이드바 항목이 아니다. 사업 추적 상세에서 열리고,
+  // 회차 축을 갖는 두 화면 중 하나다(ADR-0045 결정 7).
+  noticeJudgments: {
+    title: "공고 판정 이력",
+    dataScope: "run",
+    editScope: "리뷰 저장 가능",
     runSelectorVisible: true,
   },
+  // ADR-0045 결정 2: `사업기회` 화면이 이름과 구조를 바꿔 `검토 대기열`의
+  // 자리를 받는다. 주소(/opportunities)는 그대로 두어 기존 링크가 살아 있다.
   opportunities: {
-    title: "사업기회",
+    title: "사업 추적",
     dataScope: "cumulative",
     editScope: "추적 상태 저장 가능",
     runSelectorVisible: false,

@@ -27,6 +27,8 @@ import type {
   PreSpecOverviewReviewsResponse,
   PreSpecOverviewReviewsV2Response,
   OpportunityDetailResponse,
+  CandidateLinkDecisionRequest,
+  OpportunityLinkView,
   OpportunityListQuery,
   OpportunityListResponse,
   PolicyActivationRequest,
@@ -652,6 +654,18 @@ export const api = {
 
   getOpportunity: (opportunityId: number, options?: ReadRequestOptions) =>
     request<OpportunityDetailResponse>(`/opportunities/${opportunityId}`, options),
+
+  /** 후보 연결 하나에 사람 판정을 남긴다. 응답은 갱신된 연결 하나다. */
+  decideOpportunityLink: (
+    linkId: number,
+    payload: CandidateLinkDecisionRequest,
+    actorName: string,
+  ) =>
+    request<OpportunityLinkView>(`/opportunities/links/${linkId}/decision`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...actorHeaders(actorName) },
+      body: JSON.stringify(payload),
+    }),
 
   updateOpportunityTrackingStatus: (
     opportunityId: number,

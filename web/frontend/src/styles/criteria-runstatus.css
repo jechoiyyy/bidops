@@ -30,6 +30,18 @@
   min-height: 0;
 }
 
+/* 회차 선택기는 공고 판정 이력 탭에만 있다(ADR-0045 결정 7). 검토 대기열 탭이
+ * 회차 종속인데 선택기가 안 보이면 회차를 못 바꾸는 것으로 오인하므로, 어디서
+ * 고르는지 화면이 직접 말한다. */
+.ws-run-note {
+  margin: 0;
+  padding: var(--spacing-2) var(--spacing-5);
+  font-size: var(--font-size-supporting);
+  color: var(--color-content-secondary);
+  border-bottom: var(--border-width) solid var(--color-border);
+  background: var(--color-background-secondary);
+}
+
 /* 흡수한 페이지 컴포넌트는 각자 자기 padding을 갖고 있으므로 여기서 더하지
  * 않는다. 숨긴 탭은 hidden 속성으로 접근성 트리에서도 빠진다. */
 .ws-panel {

@@ -359,3 +359,13 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 - 지금 해결할 수 없는 이유: v2 기준 이미지는 시안을 무드보드 팔레트로 다시 렌더해야 만들 수 있고, 그것은 [design/PLAN.md](../design/PLAN.md) §0-3·0-4(시안 생성기 복원과 보존본 대조)를 먼저 끝내야 한다. 생성기가 복원되기 전에 렌더 입력을 바꾸면 0-4의 대조 기준이 사라진다.
 - **기존 스냅샷을 `--update-snapshots`로 덮지 않는다.** PLAN §3.2·§6이 금지한 행위이며, 덮는 순간 이 finding이 기록하는 신호 손실이 영구화된다.
 - 접근 방법: PLAN §0-3·0-4를 끝내고 §0-5로 v2 기준 이미지를 만든 뒤, 변경 사유·영향 화면·승인자를 기록한 별도 변경으로 `visual.spec.ts` 기준선을 교체한다. 그 전까지 화면 작업(단계 C~F)은 기능 계약 테스트와 구조 검사에 의존하고, 레이아웃 변경은 사람이 눈으로 확인한다.
+
+## 사업기회 추적 이력을 읽을 계약이 없고 구역별 집계도 서버가 세지 않는다
+
+- 재현 조건: `web/backend/app/routers/opportunities.py`의 경로 넷을 확인한다. 목록(`GET ""`)·상세(`GET /{id}`)·후보 연결 판정(`PATCH /links/{id}/decision`)·추적 상태 변경(`PATCH /{id}/tracking-status`)뿐이다. 목록 query는 `tracking_status`·`first_registered_stage`·`sort`·`limit`·`offset`이다.
+- 증상 1 — **추적 이력이 최근 한 건뿐이다.** `opportunity_tracking`은 상태 변경마다 append-only `AuditEvent`(`opportunity.tracking_status.changed`)를 남기지만 그것을 읽는 endpoint가 없다. 화면이 받는 것은 `OpportunityStateView`의 `tracking_status`·`tracking_reason`·`tracking_selected_by`·`tracking_selected_at` 넷, 즉 **마지막 한 건**이다. [ADR-0045](../design/ADR.md) 결정 2가 요구한 사업 추적 상세의 `추적 이력` 탭이 이전 결정을 보여줄 수 없다.
+- 증상 2 — **구역별 집계와 필터가 없다.** ADR-0045 결정 2의 구역 `조치 필요`는 저장된 상태가 아니라 "미선택이거나, 재검토 신호나 예외 작업이 남았다"는 파생 조건이다. 서버에 `recheck_signal` 필터도 후보 연결 대기 필터도 집계 응답도 없어, 화면이 한 페이지를 받아 직접 나눈다.
+- 영향: (1) `추적 이력` 탭은 최근 한 건만 보여주고, 그것이 이전 결정이 없다는 뜻이 아님을 화면이 직접 밝힌다(`.opportunity-contract-gap`). 이전 revision을 화면이 지어내지 않는다. (2) `조치 필요` 구역의 건수는 **받은 페이지 안에서 센 값**이며, 목록 머리말이 그 사실과 남은 건수를 함께 적는다. 전체 총계로 읽으면 과소 계상된다.
+- 상태: **수용됨** (2026-09-04, 단계 E). 화면 구현의 차단이 아니라 계약의 부재이며, 두 한계 모두 화면이 숨기지 않고 표시한다.
+- 지금 해결할 수 없는 이유: REST·DB 계약은 백엔드 파트의 소유이고, 화면 작업이 감사 기록 읽기 경로를 새로 만들거나 목록 계약의 의미를 바꿀 권한이 없다.
+- 접근 방법: (1) `GET /api/opportunities/{id}/tracking-decisions`를 추가해 append-only 이력을 `revision`·`tracking_status`·`reason`·`selected_by`·`selected_at`·`audit_event_id`로 연다. 발주계획 쪽 같은 요청([`order-plan-tracking-contract-request.md`](../design/order-plan-tracking-contract-request.md) §2.1)과 같은 wire shape를 쓰면 화면이 `ReviewRevisionHistory` 하나로 둘을 그린다. (2) 목록에 `recheck_signal`·`has_pending_candidate_link` 필터와 구역별 `section_counts` 집계를 추가하고 `docs/contracts.md`의 `OpportunityList` 항목에 등록한다. 그 전까지 화면은 저장된 추적 상태로 서버를 거르고(`추적 중`·`보류`·`추적 종료`) `조치 필요`만 받은 페이지에서 나눈다.
