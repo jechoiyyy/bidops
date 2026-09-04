@@ -17,7 +17,8 @@
     "claims": {"type": "array", "items": {"$ref": "#/$defs/claim"}},
     "unknowns": {"type": "array", "items": {"type": "string"}},
     "validation_summary": {"$ref": "#/$defs/validation_summary"},
-    "created_at": {"$ref": "#/$defs/timestamp"}
+    "created_at": {"$ref": "#/$defs/timestamp"},
+    "quality_status": {"type": ["string", "null"], "enum": ["measured", "unmeasured_reference", "mock_reference", null]}
   },
   "$defs": {
     "uuid": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},

@@ -642,3 +642,71 @@ def test_reports_router_agent_mutations_preserve_success_and_idempotent_replay(r
         )
         assert first_opinion.status_code == replay_opinion.status_code == 201
         assert first_opinion.json()["id"] == replay_opinion.json()["id"]
+
+
+def _creation_audit(context: dict[str, object], metadata: dict[str, object]) -> None:
+    with Session(context["engine"]) as session:
+        session.add(AuditEvent(
+            actor_kind="human", claimed_name="담당자", action="deep_review.create",
+            aggregate_type="deep_review", aggregate_id=str(context["review_id"]),
+            safe_metadata=metadata,
+        ))
+        session.commit()
+
+
+def test_report_without_a_creation_audit_has_no_quality_marker(report_context):
+    view = materialize(report_context)
+    assert view["report"]["quality_status"] is None
+
+
+def test_report_quality_status_is_derived_from_the_creation_audit(report_context):
+    _creation_audit(report_context, {
+        "analysis_provider": "vllm-openai-compatible",
+        "reference_workflow_mode": True,
+        "policy_quality": {"status": "reference_workflow_unmeasured", "deployable": False},
+    })
+    view = materialize(report_context)
+    assert view["report"]["quality_status"] == "unmeasured_reference"
+
+
+def test_mock_creation_audit_produces_the_mock_reference_status(report_context):
+    _creation_audit(report_context, {
+        "analysis_provider": "mock-analysis",
+        "reference_workflow_mode": True,
+        "policy_quality": {"status": "reference_workflow_unmeasured", "deployable": False},
+    })
+    assert materialize(report_context)["report"]["quality_status"] == "mock_reference"
+
+
+def test_measured_creation_audit_produces_the_measured_status(report_context):
+    _creation_audit(report_context, {
+        "analysis_provider": "vllm-openai-compatible",
+        "reference_workflow_mode": False,
+        "policy_quality": {"sample_hash": "b" * 64, "required_item_recall": 0.8, "human_agreement": 0.7, "unsupported_false_positive_rate": 0.1, "deployable": True},
+    })
+    assert materialize(report_context)["report"]["quality_status"] == "measured"
+
+
+def test_measured_looking_audit_without_deployable_stays_unmarked(report_context):
+    # 측정값이 있어도 배치 가능 판정이 없으면 `measured`로 승격하지 않는다.
+    _creation_audit(report_context, {
+        "analysis_provider": "vllm-openai-compatible",
+        "reference_workflow_mode": False,
+        "policy_quality": {"sample_hash": "b" * 64, "required_item_recall": 0.8},
+    })
+    assert materialize(report_context)["report"]["quality_status"] is None
+
+
+def test_human_revision_keeps_the_server_derived_quality_marker(report_context):
+    _creation_audit(report_context, {
+        "analysis_provider": "vllm-openai-compatible",
+        "reference_workflow_mode": True,
+        "policy_quality": {"status": "reference_workflow_unmeasured", "deployable": False},
+    })
+    view = materialize(report_context)
+    request = revision_request(view, report_context["evidence_id"])
+    # 요청이 표식을 지워도 서버가 다시 붙인다. 참조 실행 배지는 사람 revision에서 사라지지 않는다.
+    request.report.quality_status = None
+    with Session(report_context["engine"]) as session:
+        revised = ReportService().create_revision(session, report_context["review_id"], "담당자", request)
+    assert revised["report"]["quality_status"] == "unmeasured_reference"
