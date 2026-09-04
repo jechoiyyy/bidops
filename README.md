@@ -306,8 +306,13 @@ bidops/
 │   └── bidops-report/                결정적 HTML·피드백 렌더링
 └── web/
     ├── backend/                      FastAPI · SQLAlchemy 2.x · Pydantic v2 · Alembic
+    │   └── app/                      core · lifecycle · screening · deep_review 네 모듈과 조립 계층
     └── frontend/                     Vite 6 · React 19 · TypeScript · TanStack Query v5
 ```
+
+백엔드는 한 방향으로만 의존하는 네 모듈과 그것을 조립하는 얇은 계층으로 나뉜다
+([ADR-0045](docs/tracking/decisions/0045-backend-module-layout.md)). 폴더 구조·의존 규칙·확장점·
+경계 테스트는 [web/backend/AGENTS.md](web/backend/AGENTS.md)에 있다.
 
 `docs/validation-runs`는 시점별 실행 증거이며 현재 코드와 문서 계약을 대체하지 않는다. 완료·미채택 계획, 과거 리뷰·목업, 인수인계 문서는 저장소에 보관하지 않으며 필요하면 git 이력에서 찾는다. 과거의 `R-xx`·`A-xx`·phase·T-번호 체계는 종료됐고 새 작업에 다시 쓰지 않는다.
 
