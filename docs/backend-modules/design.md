@@ -2,11 +2,11 @@
 
 | 항목 | 내용 |
 |---|---|
-| 문서 상태 | 제안. ADR-0043을 보강하는 설계이며 후속 ADR로 확정하기 전까지 구현 착수 근거로만 쓴다 |
+| 문서 상태 | 확정([ADR-0045](../tracking/decisions/0045-backend-module-layout.md)). 이 문서는 설계 근거와 소유권 지도이고, 확정된 규칙과 실행 중 이탈은 ADR-0045가 정본이다 |
 | 기준일 | 2026-09-03 (KST) |
 | 정본 | docs/backend-modules/design.md |
 | 대상 | `web/backend/app/` |
-| 관련 문서 | [ADR-0043](../tracking/decisions/0043-screening-deep-review-module-boundary.md), [ADR-0001](../tracking/decisions/0001-artifact-boundary.md), [ADR-0013](../tracking/decisions/0013-screening-orchestrator-boundary.md), [ARCHITECTURE.md](../ARCHITECTURE.md), [standards.md](../standards.md), [web/backend/AGENTS.md](../../web/backend/AGENTS.md) |
+| 관련 문서 | [ADR-0045](../tracking/decisions/0045-backend-module-layout.md), [ADR-0043](../tracking/decisions/0043-screening-deep-review-module-boundary.md), [ADR-0001](../tracking/decisions/0001-artifact-boundary.md), [ADR-0013](../tracking/decisions/0013-screening-orchestrator-boundary.md), [ARCHITECTURE.md](../ARCHITECTURE.md), [standards.md](../standards.md), [web/backend/AGENTS.md](../../web/backend/AGENTS.md) |
 
 ## 1. 목적
 
@@ -226,13 +226,25 @@ cd web/frontend && npm run build && npm run test:visual
 - router 안의 select를 service로 내리는 작업. 경계 테스트 허용 목록으로 추적만 한다
 - Compose·스크립트 폴더 재배치, 의존성 단일 원천, CI 도입
 
-## 13. 확인이 필요한 항목
+## 13. 확인이 필요한 항목 — 확인 결과
 
-이주 전에 코드에서 확인하고 결과를 이 문서에 반영한다.
+이주 전에 코드에서 확인하기로 한 여섯 항목의 결과다. 확정 규칙은 [ADR-0045](../tracking/decisions/0045-backend-module-layout.md)가 갖는다.
 
-- `attachment`(lifecycle)가 `content_object`(deep_review)를 FK로 참조하는지. 참조하면 문서 준비의 content_object·content_scan·document_version을 lifecycle로 옮기고 deep_review는 document_structure 이후만 소유하는 대안을 검토한다.
-- `prespec_overview_review`의 소속 (§7).
-- `services/metrics.py`와 `routers/notices.py`의 Judgment·Review 조회를 seam 함수로 바꿀 때 목록 화면의 응답 지연이 허용 범위인지.
-- `mock_analysis_client`가 선별·심층 양쪽 mock인지. 양쪽이면 core, 한쪽이면 그 모듈.
-- `test_schemas_t9`, `test_generation_config_t15`의 실제 대상 모듈.
-- Compose `analysis-worker`를 두 서비스로 나눌 때 `document-scratch`·`analysis` network 배정과 lease concurrency 1 유지 방법.
+- **`attachment`(lifecycle)가 `content_object`(deep_review)를 FK로 참조하는지** — 참조하지 않는다. 방향은 반대다. `attachment_fetch`(deep_review)가 `attachment.id`를 `ondelete=CASCADE` FK로 참조하고 `document_version_id`를 갖는다. 따라서 검토하기로 했던 대안(문서 준비 앞부분을 lifecycle로 옮기는 안)은 필요 없다. 첨부 **메타** 쓰기는 lifecycle이, 취득 큐·lease·결과와 그 뒤의 문서 흐름은 deep_review가 소유한다. 첨부 삭제 시 `attachment_fetch` 행 제거는 ORM cascade가 아니라 이 DB FK가 맡는다.
+- **`prespec_overview_review`의 소속** — deep_review다(`app/deep_review/models.py`). 쓰기 주체가 하나이고, lifecycle 목록의 개요 상태 표시는 확장점 projection이 맡는다.
+- **`services/metrics.py`와 `routers/notices.py`의 Judgment·Review 조회** — seam 함수로 바꾸지 않았다. 이 자리는 lifecycle의 화면이 선별 결과를 필요로 하는 **역방향**이므로 판정 projection 확장점으로 뒤집었다. 목록의 등급 필터·정렬은 여전히 SQL로 처리되고(`notice_ids_for_filters`·`grade_rank`), projection 구현은 호출부가 넘긴 `notice_ids` 만큼을 상수 회 조회로 처리해 공고당 조회를 만들지 않는다. REST 응답 형태는 바뀌지 않았다.
+- **`mock_analysis_client`의 소속** — deep_review 한쪽이다(`app/deep_review/services/mock_analysis_client.py`, 테스트는 `tests/deep_review/`). 선별의 mock은 별도로 `app/screening/mock_transport.py`에 있다. core에 두지 않았다.
+- **`test_schemas_t9`, `test_generation_config_t15`의 대상 모듈** — 둘 다 screening이다(`tests/screening/`). `test_generation_config_t15`는 `OllamaClient`를 검사한다.
+- **Compose `analysis-worker`를 두 서비스로 나누는 문제** — 나누지 않기로 했다. 모델을 쓰는 심층 검토·C-2 worker에는 단독 진입점을 두지 않고 `app/workers/analysis.py`가 계속 합성한다. 나누면 운영자가 둘을 동시에 띄워 모델 슬롯 1개 보장을 깰 수 있고, network 배정과 lease concurrency를 다시 설계해야 한다. Compose의 `analysis-worker` command는 `python -m app.workers.analysis` 그대로다.
+
+### §8 진입점의 확정값
+
+§8이 적은 worker 진입점 넷 중 실행 가능한 것은 셋이다. `app.deep_review.workers.deep_review`와 `app.screening.workers.order_plan`에는 `__main__`을 두지 않았다(위 마지막 항목). 사전규격 첨부 worker는 `app.lifecycle.workers.prespec_attachment`가 아니라 **`app.deep_review.workers.prespec_attachment`**다 — 첨부 취득 소유가 deep_review로 확정됐기 때문이다.
+
+```bash
+python -m app.deep_review.workers.document
+python -m app.deep_review.workers.prespec_attachment
+python -m app.workers.analysis
+```
+
+CLI 세 진입점은 §8 그대로다.
