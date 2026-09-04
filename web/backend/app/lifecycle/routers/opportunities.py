@@ -342,19 +342,33 @@ def update_tracking_status(
             selected_at=datetime.now(UTC),
         )
         session.commit()
+        registry = None
         try:
             # 추적 결정 변경됨 hook(명세 §6.2). 어느 모듈이 무엇을 하는지는 모르고,
             # 사람 결정이 commit된 뒤 별도 transaction에서 부른다.
-            extension_registry().tracking_decision_changed(session, opportunity_id)
+            registry = extension_registry()
+            registry.tracking_decision_changed(session, opportunity_id)
             session.commit()
-        except Exception:
+        except Exception as error:
             # The human tracking decision is already durable.  The hook is a
             # retryable side effect and must never rewrite the four human
             # choice fields or turn a successful PATCH into a 500 response.
             session.rollback()
+            # 어느 제공자가 무엇을 하는지 모르므로 확장점 어휘로만 남긴다.
+            # 등록자 수와 예외 타입은 lifecycle이 정당하게 아는 값이다.
             logger.warning(
-                "pre-spec attachment eligibility refresh failed",
-                extra={"bidops": {"event": "prespec_attachment.refresh_failed"}},
+                "tracking decision extension hook failed",
+                extra={
+                    "bidops": {
+                        "event": "extension.tracking_decision_hook_failed",
+                        "hook_count": (
+                            registry.tracking_decision_hook_count
+                            if registry is not None
+                            else None
+                        ),
+                        "error_type": type(error).__name__,
+                    }
+                },
             )
         updated = _get_opportunity(session, opportunity_id)
         if updated is None:  # pragma: no cover - the service locked this row.
