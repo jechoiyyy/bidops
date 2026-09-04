@@ -357,3 +357,42 @@ lifecycle 공개 함수로 옮기고 경계 검사 5를 새로 넣었다(commit 
 
 `lock_notice`·`lock_opportunity`는 이 작업 전까지 호출자가 0이었다. 잠금 순서
 (notice → 최신 bundle → document)와 쿼리는 바뀌지 않았다.
+
+## 미해결 항목 다섯 건 처리 뒤 재검증
+
+`docs/tracking/findings.md`의 다섯 항목(죽은 이름, `create_app` 재호출, 공개 표면,
+재수출 파일, 확장점 로그 어휘)을 닫으면서 백엔드 코드가 바뀌었으므로 다시 돌렸다.
+
+| 명령 | 결과 | 종료 코드 |
+|---|---|---|
+| `cd web/backend && .venv/bin/python -m pytest tests/ -q -p no:cacheprovider -rs` | `2 failed, 1265 passed, 5 skipped, 6 warnings in 549.03s (0:09:09)` | 1 |
+| `web/backend/scripts/verify_module_isolation.sh` | lifecycle `79 passed` / screening `2 failed, 394 passed, 1 skipped` / deep_review `230 passed`, 전체 PASS | 0 |
+| `docker compose -f docker-compose.t7.yml build` | image 5개 빌드 | 0 |
+
+- 통과 수 1251 → 1265는 새 테스트 14건(확장점 등록 4, 조립 5, 경계 검사 5)만큼 늘어난 것이다.
+  실패는 같은 기존 결함 2건뿐이고 skip은 5로 같다.
+- 경계 허용 목록은 여섯 검사 모두 계약대로다: `cross_module_import 0`,
+  `router_orm_access 18`(범위 밖), `schema_imports_model_or_service 0`,
+  `lifecycle_relationship 0`, `lifecycle_table_write 0`, `assembly_startup_import 0`.
+- `./run-tests.sh`와 프론트엔드 build·visual은 다시 돌리지 않았다. 이번 변경은
+  `web/backend/**`와 `docs/**`만 건드렸고 `skills/**`·`web/frontend/**`는 한 줄도 바뀌지 않았다
+  (`git diff 871be0e..HEAD --name-only`로 확인).
+
+### REST 표면 — 기준 파일을 새로 뽑아 재확인
+
+이주 전(`a7deaa2`)과 현재를 각각 `git archive`로 뽑은 **새 사본**에서 OpenAPI 문서를 생성해
+비교했다. **11줄이고 전부 `tags`**로, 이 문서 앞부분에 적은 값과 같다. 정리 작업은 REST 표면을
+한 글자도 바꾸지 않았다(직전 측정 대비 diff 0줄).
+
+기준 파일을 재사용하지 않고 매번 새로 뽑는다. 이번에 scratchpad에 두었던 기준 파일이 중간에
+덮어써져 있었고, 그대로 비교했으면 "이주 전과 완전히 같다"는 잘못된 결론이 나왔다.
+
+### 새로 생긴 강제 검사 두 개
+
+| 검사 | 무엇을 막나 | 허용 목록 |
+|---|---|---|
+| 5. 형제 모듈의 lifecycle 테이블 직접 쓰기·잠금 | `session.add(Notice(...))`, `update/delete(모델)`, `select(모델).with_for_update()` | 0건 |
+| 6. 조립 계층 startup의 상태 변경·모델 호출 import | `app/__init__.py`·`main.py`·`runtime.py`가 `activate_policy`·`seed_policy`·`create_profile_snapshot`·`ingest_run`·`delete_run`·`seed_default_portals`·`designate_policy_candidate`·`create_policy`·`OllamaClient`·`ScreeningOrchestrator`·`ScreeningWorker`를 받는 것 | 0건 |
+
+검사 6은 별도 프로세스 진입점(`app/workers/analysis.py`, `app/migrations/import_sqlite.py`)과
+`alembic/`을 대상에서 뺀다 — 그 파일들은 모델을 부르고 행을 쓰는 것이 목적이다.

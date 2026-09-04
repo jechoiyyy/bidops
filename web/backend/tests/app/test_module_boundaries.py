@@ -27,6 +27,7 @@ ROUTER_ORM_ACCESS = "router_orm_access"
 SCHEMA_IMPORTS_MODEL_OR_SERVICE = "schema_imports_model_or_service"
 LIFECYCLE_RELATIONSHIP = "lifecycle_relationship"
 LIFECYCLE_TABLE_WRITE = "lifecycle_table_write"
+ASSEMBLY_STARTUP_IMPORT = "assembly_startup_import"
 
 #: 검사 2가 금지하는 호출·import. 값은 허용 목록에 적히는 대상 이름이다.
 ROUTER_SELECT = "sqlalchemy.select"
@@ -88,6 +89,9 @@ class Layout:
     public_name_scopes: Mapping[tuple[str, str], str | None] = field(default_factory=dict)
     # §3의 예외: 각 모듈의 `models` 하위 모듈을 직접 들여도 되는 조립 파일들
     models_submodule_importers: tuple[str, ...] = ()
+    # 검사 6: startup 경로에 있는 조립 파일과 그 파일이 받아서는 안 되는 이름.
+    startup_files: tuple[str, ...] = ()
+    startup_forbidden_names: frozenset[str] = frozenset()
     # 검사 1의 대상 범위에서 빼는 폴더 (§8-1이 열거한 대상이 아닌 곳).
     # 자세한 근거는 `boundary_map.CHECK_ONE_EXEMPT_FOLDERS`의 주석에 있다.
     check_one_exempt_folders: tuple[str, ...] = ()
@@ -176,6 +180,8 @@ def repository_layout(root: Path) -> Layout:
         public_name_scopes=bmap.PUBLIC_NAME_SCOPES,
         models_submodule_importers=bmap.MODELS_SUBMODULE_IMPORTERS,
         check_one_exempt_folders=bmap.CHECK_ONE_EXEMPT_FOLDERS,
+        startup_files=bmap.STARTUP_FILES,
+        startup_forbidden_names=bmap.STARTUP_FORBIDDEN_NAMES,
     )
 
 
@@ -629,12 +635,51 @@ def check_lifecycle_table_writes(layout: Layout) -> set[Violation]:
     return violations
 
 
+# --- 검사 6: 앱 startup이 받아서는 안 되는 공개 이름 -------------------------
+
+
+def check_assembly_startup_imports(layout: Layout) -> set[Violation]:
+    """startup 경로의 조립 파일이 상태 변경·모델 호출 이름을 받는 자리 (§9).
+
+    검사 1~5의 사각지대다. 조립 계층 → 모듈 **공개 이름**은 허용 방향이므로
+    `app/main.py`가 `from .screening import activate_policy, seed_policy`를 해도
+    어떤 검사도 잡지 못한다. 그런데 그것을 startup에서 부르면
+    "앱 startup은 migration·seed·정책 활성화·모델 호출을 수행하지 않는다"가
+    깨진다.
+
+    막을 자리는 호출이 아니라 **import**다. import가 없으면 startup은 그 이름에
+    닿을 수 없고, import는 정적으로 셀 수 있다. 모듈 내부 경로로 우회하는 길은
+    검사 1이 이미 막고 있다(조립 → 모듈 내부는 공개 표면 위반이다).
+    """
+
+    violations: set[Violation] = set()
+    if not layout.startup_forbidden_names:
+        return violations
+    for path in layout.source_files():
+        rel = layout.rel(path)
+        if rel not in layout.startup_files:
+            continue
+        for target in imports_of(path, layout):
+            if target.name is None:
+                continue
+            if target.name not in layout.startup_forbidden_names:
+                continue
+            target_rel = layout.path_for_dotted(target.dotted)
+            if target_rel is None:
+                continue
+            if layout.module_for(target_rel) in (bmap.ASSEMBLY, None):
+                continue
+            violations.add(Violation(rel, ASSEMBLY_STARTUP_IMPORT, target.label))
+    return violations
+
+
 CHECKS = {
     CROSS_MODULE_IMPORT: check_cross_module_imports,
     ROUTER_ORM_ACCESS: check_router_orm_access,
     SCHEMA_IMPORTS_MODEL_OR_SERVICE: check_schema_imports,
     LIFECYCLE_RELATIONSHIP: check_lifecycle_relationships,
     LIFECYCLE_TABLE_WRITE: check_lifecycle_table_writes,
+    ASSEMBLY_STARTUP_IMPORT: check_assembly_startup_imports,
 }
 
 
@@ -670,6 +715,7 @@ ALLOWLISTS: dict[str, frozenset[tuple[str, str, str]]] = {
     SCHEMA_IMPORTS_MODEL_OR_SERVICE: allowlist.SCHEMA_IMPORT_ALLOWLIST,
     LIFECYCLE_RELATIONSHIP: allowlist.LIFECYCLE_RELATIONSHIP_ALLOWLIST,
     LIFECYCLE_TABLE_WRITE: allowlist.LIFECYCLE_TABLE_WRITE_ALLOWLIST,
+    ASSEMBLY_STARTUP_IMPORT: allowlist.ASSEMBLY_STARTUP_IMPORT_ALLOWLIST,
 }
 
 
@@ -729,6 +775,40 @@ def test_sibling_modules_do_not_write_or_lock_lifecycle_tables(layout: Layout) -
     """
 
     _assert_matches_allowlist(LIFECYCLE_TABLE_WRITE, check_lifecycle_table_writes(layout))
+
+
+def test_startup_does_not_import_state_changing_or_model_calling_names(
+    layout: Layout,
+) -> None:
+    """§9: 앱 startup은 migration·seed·정책 활성화·모델 호출을 하지 않는다.
+
+    `app/main.py`·`app/runtime.py`·`app/__init__.py`가 모듈 공개 표면에서
+    `bmap.STARTUP_FORBIDDEN_NAMES`의 이름을 받으면 실패한다. 별도 프로세스
+    진입점(`app/workers/analysis.py`·`app/migrations/import_sqlite.py`)과
+    `alembic/`은 그 일을 하는 것이 존재 이유이므로 대상이 아니다.
+    """
+
+    _assert_matches_allowlist(ASSEMBLY_STARTUP_IMPORT, check_assembly_startup_imports(layout))
+
+
+def test_startup_files_and_forbidden_names_are_not_stale() -> None:
+    """검사 6의 데이터가 실제와 어긋난 채 조용히 아무 일도 하지 않는 것을 막는다.
+
+    - `STARTUP_FILES`의 경로는 실재해야 한다.
+    - 그 파일들은 조립 계층이어야 한다. 모듈 폴더로 옮겨진 경로가 남아 있으면
+      검사가 엉뚱한 곳을 본다.
+    """
+
+    missing = sorted(rel for rel in bmap.STARTUP_FILES if not (BACKEND_ROOT / rel).is_file())
+    assert not missing, f"STARTUP_FILES에 실재하지 않는 경로가 있다: {missing}"
+    assert bmap.STARTUP_FORBIDDEN_NAMES, "금지 이름 목록이 비면 검사 6은 아무 일도 하지 않는다"
+    not_assembly = sorted(
+        rel for rel in bmap.STARTUP_FILES if bmap.FILE_MODULES.get(rel) != bmap.ASSEMBLY
+    )
+    assert not not_assembly, (
+        f"STARTUP_FILES에 조립 계층이 아닌 경로가 있다: {not_assembly}"
+    )
+
 
 
 def test_declared_tables_match_the_ownership_table(layout: Layout) -> None:
@@ -1127,6 +1207,87 @@ def test_checker_flags_lifecycle_relationship_to_another_module(tmp_path: Path) 
     assert ("app/models.py", LIFECYCLE_RELATIONSHIP, "Judgment.notice") not in found
     # 같은 모듈 안의 relationship도 위반이 아니다.
     assert ("app/models.py", LIFECYCLE_RELATIONSHIP, "Notice.observations") not in found
+
+
+# --- 검사 6 자신에 대한 테스트 (합성 트리) ----------------------------------
+
+
+def _startup_layout(root: Path) -> Layout:
+    return Layout(
+        root=root,
+        package_roots=("app",),
+        module_folders={
+            "app/core": bmap.CORE,
+            "app/lifecycle": bmap.LIFECYCLE,
+            "app/screening": bmap.SCREENING,
+            "app/deep_review": bmap.DEEP_REVIEW,
+        },
+        file_modules={
+            "app/main.py": bmap.ASSEMBLY,
+            "app/workers/analysis.py": bmap.ASSEMBLY,
+        },
+        allowed_imports=bmap.ALLOWED_IMPORTS,
+        startup_files=("app/main.py",),
+        startup_forbidden_names=frozenset({"activate_policy", "seed_policy"}),
+    )
+
+
+@pytest.fixture()
+def startup_tree(tmp_path: Path) -> Layout:
+    _write(tmp_path, "app/__init__.py", "")
+    _write(tmp_path, "app/main.py", "")
+    _write(tmp_path, "app/workers/__init__.py", "")
+    _write(tmp_path, "app/workers/analysis.py", "")
+    for module in ("core", "lifecycle", "screening", "deep_review"):
+        _write(tmp_path, f"app/{module}/__init__.py", "")
+    return _startup_layout(tmp_path)
+
+
+def test_check_six_flags_a_startup_import_of_a_forbidden_name(startup_tree: Layout) -> None:
+    """조립 계층 → 모듈 공개 이름은 허용 방향이지만 이 이름들은 startup 밖이다."""
+
+    _write(
+        startup_tree.root,
+        "app/main.py",
+        "from .screening import activate_policy, screening_router\n",
+    )
+
+    found = as_tuples(check_assembly_startup_imports(startup_tree))
+
+    assert ("app/main.py", ASSEMBLY_STARTUP_IMPORT, "app.screening:activate_policy") in found
+    # 같은 줄의 router 인스턴스는 조립이 반드시 받아야 하는 이름이다.
+    assert not [entry for entry in found if entry[2].endswith(":screening_router")]
+
+
+def test_check_six_leaves_separate_process_entrypoints_alone(startup_tree: Layout) -> None:
+    """별도 프로세스 진입점은 대상이 아니다. 그것이 하는 일이 곧 그 일이다."""
+
+    _write(
+        startup_tree.root,
+        "app/workers/analysis.py",
+        "from ..screening import seed_policy\n",
+    )
+
+    assert check_assembly_startup_imports(startup_tree) == set()
+
+
+def test_check_six_is_silent_without_a_forbidden_list(startup_tree: Layout) -> None:
+    """금지 목록이 비면 검사는 아무것도 잡지 않는다 (데이터가 계약이다)."""
+
+    _write(startup_tree.root, "app/main.py", "from .screening import activate_policy\n")
+    empty = _startup_layout(startup_tree.root)
+    empty = Layout(
+        root=empty.root,
+        package_roots=empty.package_roots,
+        module_folders=empty.module_folders,
+        file_modules=empty.file_modules,
+        allowed_imports=empty.allowed_imports,
+        startup_files=empty.startup_files,
+        startup_forbidden_names=frozenset(),
+    )
+
+    assert check_assembly_startup_imports(empty) == set()
+
 
 
 def test_stale_allowlist_entry_fails() -> None:
