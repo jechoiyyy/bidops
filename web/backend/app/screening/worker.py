@@ -34,7 +34,6 @@ from .models import (
 )
 from .artifacts import ArtifactError, ArtifactStore, aware_iso, canonical_bytes, sha256_bytes
 from .contracts import (
-    MODEL_NAME,
     PERSPECTIVE_NAMES,
     add_two_axis_metadata,
     new_trace_id,
@@ -44,7 +43,7 @@ from .contracts import (
 )
 from ..core.generation_config import GenerationConfigError, config_from_value, validate_digest
 from .execution_store import ScreeningExecutionStore
-from .ollama import OllamaCallError, OllamaClient
+from .model_adapter import ScreeningCallError, ScreeningModelClient
 from .orchestrator import ScreeningCreationError, _notice_common
 from .policy import canonical_policy_bytes
 from .profile_snapshot import read_profile_snapshot
@@ -259,8 +258,7 @@ class ScreeningWorker:
         *,
         store: ScreeningExecutionStore | None = None,
         session_factory: Any | None = None,
-        ollama: OllamaClient | Any | None = None,
-        ollama_client: OllamaClient | Any | None = None,
+        model_client: ScreeningModelClient | Any | None = None,
         clock: Callable[[], datetime] | None = None,
         sleep: Callable[[float], None] = time.sleep,
         poll_seconds: float = 1.0,
@@ -271,7 +269,7 @@ class ScreeningWorker:
             session_factory = sessionmaker(bind=session_factory.get_bind(), class_=Session, autoflush=False, expire_on_commit=False)
         self.session_factory = session_factory
         self.store = store or ScreeningExecutionStore(session_factory=session_factory, settings=self.settings)
-        self.ollama = ollama or ollama_client or OllamaClient(settings=self.settings)
+        self.model_client = model_client or ScreeningModelClient(settings=self.settings)
         self.clock = clock or (lambda: datetime.now(timezone.utc))
         self.sleep = sleep
         self.poll_seconds = max(0.01, float(poll_seconds))
@@ -389,8 +387,9 @@ class ScreeningWorker:
                 raise
             except Exception:
                 raise WorkerError("execution_failure") from None
-        identity = self.ollama.inspect_model(refresh=True)
-        if identity.model_name != MODEL_NAME or row.model_name != MODEL_NAME or identity.digest != row.model_digest:
+        identity = self.model_client.inspect_model(refresh=True)
+        approved_model = self.settings.vllm_screening_model
+        if identity.model_name != approved_model or row.model_name != approved_model or identity.digest != row.model_digest:
             raise WorkerError("model_mismatch")
         notices = input_value["notices"]
         completed = 0
@@ -647,7 +646,7 @@ class ScreeningWorker:
                     return None, None
                 self.store.update_progress(row.execution_id, current_notice_id=notice["notice_id"], current_stage=name)
                 prompt = assemble_perspective_prompt(policy, name, notice, profile)
-                result = self.ollama.generate(prompt.user_message, schema_for_stage(name), execution_id=row.execution_id, notice_id=notice["notice_id"], stage=name, trace_id=trace, validator=lambda value, expected=name: validate_perspective(value, expected_name=expected), attempt_callback=record_failure_attempt, generation_config=generation_config)
+                result = self.model_client.generate(prompt.user_message, schema_for_stage(name), execution_id=row.execution_id, notice_id=notice["notice_id"], stage=name, trace_id=trace, validator=lambda value, expected=name: validate_perspective(value, expected_name=expected), attempt_callback=record_failure_attempt, generation_config=generation_config)
                 self._record_attempt(row, result.metadata, store, result.value)
                 perspectives.append(result.value)
                 if self.store.should_stop(row.execution_id):
@@ -656,13 +655,13 @@ class ScreeningWorker:
                 return None, None
             self.store.update_progress(row.execution_id, current_stage="counterargument")
             counter_prompt = assemble_counterargument_prompt(policy, notice, perspectives)
-            counter = self.ollama.generate(counter_prompt.user_message, schema_for_stage("counterargument.v1"), execution_id=row.execution_id, notice_id=notice["notice_id"], stage="counterargument", trace_id=trace, validator=validate_counterargument, attempt_callback=record_failure_attempt, generation_config=generation_config)
+            counter = self.model_client.generate(counter_prompt.user_message, schema_for_stage("counterargument.v1"), execution_id=row.execution_id, notice_id=notice["notice_id"], stage="counterargument", trace_id=trace, validator=validate_counterargument, attempt_callback=record_failure_attempt, generation_config=generation_config)
             self._record_attempt(row, counter.metadata, store, counter.value)
             if self.store.should_stop(row.execution_id):
                 return None, None
             self.store.update_progress(row.execution_id, current_stage="synthesis")
             synthesis_prompt = assemble_synthesis_prompt(policy, notice, perspectives, counter.value)
-            synthesis = self.ollama.generate(synthesis_prompt.user_message, schema_for_stage("judgment.v3"), execution_id=row.execution_id, notice_id=notice["notice_id"], stage="synthesis", trace_id=trace, validator=lambda value: validate_judgment(value, notice=notice), attempt_callback=record_failure_attempt, generation_config=generation_config)
+            synthesis = self.model_client.generate(synthesis_prompt.user_message, schema_for_stage("judgment.v3"), execution_id=row.execution_id, notice_id=notice["notice_id"], stage="synthesis", trace_id=trace, validator=lambda value: validate_judgment(value, notice=notice), attempt_callback=record_failure_attempt, generation_config=generation_config)
             self._record_attempt(row, synthesis.metadata, store, synthesis.value)
             judgment = add_two_axis_metadata(synthesis.value)
             judgment.update({
@@ -673,7 +672,7 @@ class ScreeningWorker:
                 "rejudge_reason": notice.get("rejudge_reason"),
             })
             return judgment, None
-        except OllamaCallError as exc:
+        except ScreeningCallError as exc:
             metadata = exc.metadata
             return None, self._failure(notice, metadata.stage, _stage_failure(exc), max(0, len(exc.attempts) - 1), metadata, trace, None)
         except WorkerError:
@@ -755,7 +754,7 @@ class ScreeningWorker:
             for key in ("screening_basis", "model_name", "model_digest", "prompt_version", "policy_version", "company_profile_version", "company_profile_digest")
         ):
             return None
-        if old["model_name"] != MODEL_NAME or len(old["model_digest"]) != 64 or any(character not in "0123456789abcdef" for character in old["model_digest"]):
+        if old["model_name"] != self.settings.vllm_screening_model or len(old["model_digest"]) != 64 or any(character not in "0123456789abcdef" for character in old["model_digest"]):
             return None
         if len(old["company_profile_digest"]) != 64 or any(character not in "0123456789abcdef" for character in old["company_profile_digest"]) or old["company_profile_version"] != f"company-profile.sha256:{old['company_profile_digest']}":
             return None
@@ -806,7 +805,7 @@ class ScreeningWorker:
         for notice_id, prior_judgment in prior_judgments.items():
             prior_notice = prior_by_id[notice_id]
             mode = prior_notice.get("judgment_mode")
-            if prior_judgment.get("judgment_mode") != mode or prior_judgment.get("model_name") != MODEL_NAME or not isinstance(prior_judgment.get("prompt_version"), str) or not prior_judgment["prompt_version"].strip() or not isinstance(prior_judgment.get("policy_version"), str) or not prior_judgment["policy_version"].strip() or not isinstance(prior_judgment.get("company_profile_version"), str) or not prior_judgment["company_profile_version"].strip() or not isinstance(prior_judgment.get("model_digest"), str) or len(prior_judgment["model_digest"]) != 64 or any(character not in "0123456789abcdef" for character in prior_judgment["model_digest"]) or not isinstance(prior_judgment.get("company_profile_digest"), str) or len(prior_judgment["company_profile_digest"]) != 64 or any(character not in "0123456789abcdef" for character in prior_judgment["company_profile_digest"]) or prior_judgment.get("company_profile_version") != f"company-profile.sha256:{prior_judgment.get('company_profile_digest')}":
+            if prior_judgment.get("judgment_mode") != mode or prior_judgment.get("model_name") != self.settings.vllm_screening_model or not isinstance(prior_judgment.get("prompt_version"), str) or not prior_judgment["prompt_version"].strip() or not isinstance(prior_judgment.get("policy_version"), str) or not prior_judgment["policy_version"].strip() or not isinstance(prior_judgment.get("company_profile_version"), str) or not prior_judgment["company_profile_version"].strip() or not isinstance(prior_judgment.get("model_digest"), str) or len(prior_judgment["model_digest"]) != 64 or any(character not in "0123456789abcdef" for character in prior_judgment["model_digest"]) or not isinstance(prior_judgment.get("company_profile_digest"), str) or len(prior_judgment["company_profile_digest"]) != 64 or any(character not in "0123456789abcdef" for character in prior_judgment["company_profile_digest"]) or prior_judgment.get("company_profile_version") != f"company-profile.sha256:{prior_judgment.get('company_profile_digest')}":
                 return None
             if mode in {"신규", "재판정"}:
                 if any(prior_judgment.get(key) != old.get(key) for key in ("model_name", "model_digest", "prompt_version", "policy_version", "company_profile_version", "company_profile_digest")) or prior_judgment.get("judged_in_run") != old.get("run_id") or prior_judgment.get("recorded_in_run") != old.get("run_id") or prior_judgment.get("carried_over") is not False or prior_judgment.get("rejudge_reason") != prior_notice.get("rejudge_reason") or (mode == "신규" and prior_judgment.get("rejudge_reason") is not None):
@@ -902,7 +901,7 @@ class ScreeningWorker:
         for key in ("model_name", "model_digest"):
             if value.get(key) != getattr(row, key):
                 raise WorkerError("execution_failure")
-        if value.get("model_name") != MODEL_NAME:
+        if value.get("model_name") != self.settings.vllm_screening_model:
             raise WorkerError("execution_failure")
         if not isinstance(value.get("screening_basis"), str) or not value["screening_basis"].strip():
             raise WorkerError("execution_failure")
@@ -960,7 +959,7 @@ class ScreeningWorker:
                 raise WorkerError("execution_failure")
             if mode == "재판정" and judgment.get("rejudge_reason") not in {"정정", "재공고", "본공고 전환", "담당자 요청"}:
                 raise WorkerError("execution_failure")
-            if judgment.get("model_name") != MODEL_NAME or not isinstance(judgment.get("prompt_version"), str) or not judgment["prompt_version"].strip() or not isinstance(judgment.get("policy_version"), str) or not judgment["policy_version"].strip() or not isinstance(judgment.get("company_profile_version"), str) or not judgment["company_profile_version"].strip() or not isinstance(judgment.get("model_digest"), str) or len(judgment["model_digest"]) != 64 or any(character not in "0123456789abcdef" for character in judgment["model_digest"]) or not isinstance(judgment.get("company_profile_digest"), str) or len(judgment["company_profile_digest"]) != 64 or any(character not in "0123456789abcdef" for character in judgment["company_profile_digest"]) or judgment.get("company_profile_version") != f"company-profile.sha256:{judgment.get('company_profile_digest')}":
+            if judgment.get("model_name") != self.settings.vllm_screening_model or not isinstance(judgment.get("prompt_version"), str) or not judgment["prompt_version"].strip() or not isinstance(judgment.get("policy_version"), str) or not judgment["policy_version"].strip() or not isinstance(judgment.get("company_profile_version"), str) or not judgment["company_profile_version"].strip() or not isinstance(judgment.get("model_digest"), str) or len(judgment["model_digest"]) != 64 or any(character not in "0123456789abcdef" for character in judgment["model_digest"]) or not isinstance(judgment.get("company_profile_digest"), str) or len(judgment["company_profile_digest"]) != 64 or any(character not in "0123456789abcdef" for character in judgment["company_profile_digest"]) or judgment.get("company_profile_version") != f"company-profile.sha256:{judgment.get('company_profile_digest')}":
                 raise WorkerError("execution_failure")
             expected_judged = source_notice.get("carry_over_from") if mode == "승계" else row.source_run_id
             if judgment.get("judged_in_run") != expected_judged or judgment.get("recorded_in_run") != row.source_run_id:

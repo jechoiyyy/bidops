@@ -485,25 +485,47 @@ class ModelClient:
         return ModelIdentity(model=self.model, revision=self.model_revision)
 
     def _request(self, prompt: str, *, timeout_seconds: int) -> Mapping[str, Any]:
+        return self.complete_structured(prompt, timeout_seconds=timeout_seconds)
+
+    def complete_structured(
+        self,
+        prompt: str,
+        *,
+        contract: StructuredOutputContract | None = None,
+        max_tokens: int | None = None,
+        timeout_seconds: int = APPROVED_TIMEOUT_SECONDS,
+    ) -> Mapping[str, Any]:
+        """구조화 응답 한 번을 요청하고 provider 응답 원형을 낸다.
+
+        `contract`와 `max_tokens`는 호출마다 계약과 출력 예산이 다른 호출부를
+        위한 것이다. C-1 판정은 stage마다 응답 schema가 다르고 stage별
+        `num_predict` 예산을 `max_tokens`로 넘긴다. 생략하면 이 client가 묶인
+        계약과 승인 기본값을 쓴다.
+
+        재시도는 하지 않는다 — 재시도 정책은 `invoke`와 도메인 어댑터가
+        각자의 계약대로 소유한다.
+        """
+
+        selected = contract or self.output_contract
         response = self._completion_create(
             model=self.model,
             messages=[
                 {
                     "role": "system",
-                    "content": self.output_contract.system_prompt,
+                    "content": selected.system_prompt,
                 },
                 {"role": "user", "content": prompt},
             ],
             temperature=APPROVED_GENERATION["temperature"],
             top_p=APPROVED_GENERATION["top_p"],
             seed=APPROVED_GENERATION["seed"],
-            max_tokens=APPROVED_GENERATION["max_completion_tokens"],
+            max_tokens=int(APPROVED_GENERATION["max_completion_tokens"] if max_tokens is None else max_tokens),
             response_format={
                 "type": "json_schema",
                 "json_schema": {
-                    "name": self.output_contract.name,
+                    "name": selected.name,
                     "strict": True,
-                    "schema": self.output_contract.schema,
+                    "schema": selected.schema,
                 },
             },
             extra_body={

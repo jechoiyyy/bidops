@@ -39,7 +39,6 @@ logger = logging.getLogger(__name__)
 TRIGGERS: Final[frozenset[str]] = frozenset(
     {"cli_single", "manual_run", "quality_gate", "schedule"}
 )
-MODEL_NAME: Final[str] = "qwen3.8:27b"
 TRIGGER_SCOPES: Final[dict[str, str]] = {
     "cli_single": "single_notice",
     "manual_run": "full_run",
@@ -372,7 +371,7 @@ class ScreeningQueue:
 
         This method performs no model inspection or network request.  Model
         identity is persisted exactly as supplied after strict digest/name
-        validation; the Ollama boundary belongs to the worker.
+        validation; the model-call boundary belongs to the worker.
         """
 
         trigger = _text(trigger, "trigger", max_length=32)
@@ -388,7 +387,9 @@ class ScreeningQueue:
         policy_version = _text(policy_version, "policy_version")
         prompt_version = _text(prompt_version, "prompt_version")
         model_name = _text(model_name, "model_name")
-        if model_name != MODEL_NAME:
+        # 승인된 모델명은 `BIDOPS_VLLM_SCREENING_MODEL`이 정한다. 코드에 박으면
+        # 배포가 모델을 바꿀 때 실행 row와 실제 호출이 갈린다.
+        if model_name != self.settings.vllm_screening_model:
             raise QueueValidationError("model_name is not the approved model")
         model_digest = _digest(model_digest, "model_digest")
         company_profile_version = _text(company_profile_version, "company_profile_version", max_length=128)
@@ -501,7 +502,7 @@ class ScreeningQueue:
         policy_version = _text(kwargs["policy_version"], "policy_version")
         prompt_version = _text(kwargs["prompt_version"], "prompt_version")
         model_name = _text(kwargs["model_name"], "model_name")
-        if model_name != MODEL_NAME:
+        if model_name != self.settings.vllm_screening_model:
             raise QueueValidationError("model_name is not the approved model")
         model_digest = _digest(kwargs["model_digest"], "model_digest")
         company_profile_version = _text(kwargs["company_profile_version"], "company_profile_version", max_length=128)

@@ -179,7 +179,6 @@ services:
       BIDOPS_DATABASE_URL: "postgresql+psycopg://worker:${BIDOPS_WORKER_PASSWORD:?set an external worker password}@postgres:5432/bidops"
       BIDOPS_VLLM_BASE_URL: "${BIDOPS_VLLM_BASE_URL:-http://127.0.0.1:8000/v1}"
       BIDOPS_VLLM_ALLOWED_HOSTS: "${BIDOPS_VLLM_ALLOWED_HOSTS:-}"
-      BIDOPS_VLLM_MODEL: qwen3.8-27B
       BIDOPS_VLLM_MODEL_REVISION: "${BIDOPS_VLLM_MODEL_REVISION:-}"
       BIDOPS_VLLM_API_KEY: "${BIDOPS_VLLM_API_KEY:-EMPTY}"
       # C-2 remains fail-closed until an operator approves transport for the

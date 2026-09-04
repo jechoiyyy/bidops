@@ -20,6 +20,7 @@ from app.screening.execution_store import ScreeningExecutionStore
 from app.screening.queue import INTERRUPTED
 from tests.screening.test_screening_queue import DIGEST, NOW, PROFILE_VERSION, enqueue, make_store
 from tests.postgres import requires_postgres, temporary_database
+from tests.fakes import APPROVED_MODEL
 
 
 def test_queued_stop_is_not_claimable_and_running_stop_finishes_at_boundary(tmp_path):
@@ -99,9 +100,9 @@ def test_heartbeat_pump_stops_under_held_write_lock(tmp_path):
 
 def test_stale_recovery_is_strict_and_preserves_progress(tmp_path):
     engine, store = make_store(tmp_path)
-    # The settings object is intentionally tiny: the store only needs the
-    # configured stale interval and does not depend on global process state.
-    store.settings = type("Settings", (), {"stale_seconds": 10})()
+    # 설정 stub은 일부러 작다. store는 stale 간격과 승인된 모델명만 쓰고 전역
+    # 프로세스 상태에 기대지 않는다.
+    store.settings = type("Settings", (), {"stale_seconds": 10, "vllm_screening_model": APPROVED_MODEL})()
     old = enqueue(store, n=1, candidate_count=4)
     store.claim(now=NOW)
     store.update_progress(old.execution_id, completed_count=2, failure_count=1)
@@ -134,7 +135,7 @@ def test_stale_recovery_is_strict_and_preserves_progress(tmp_path):
 
 def test_stale_equality_and_fresh_active_are_untouched(tmp_path):
     engine, store = make_store(tmp_path)
-    store.settings = type("Settings", (), {"stale_seconds": 10})()
+    store.settings = type("Settings", (), {"stale_seconds": 10, "vllm_screening_model": APPROVED_MODEL})()
     equality = enqueue(store, n=1)
     store.claim(now=NOW)
     with Session(engine) as session:
@@ -193,7 +194,7 @@ def test_actual_alembic_database_claim_stop_recovery_and_constraints(tmp_path):
 
         second = enqueue(store, n=2)
         assert store.claim(now=NOW).execution_id == second.execution_id
-        store.settings = type("Settings", (), {"stale_seconds": 10})()
+        store.settings = type("Settings", (), {"stale_seconds": 10, "vllm_screening_model": APPROVED_MODEL})()
         with Session(engine) as session:
             session.execute(
                 update(ScreeningExecution)

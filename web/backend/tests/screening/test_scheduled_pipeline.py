@@ -12,11 +12,12 @@ from app.screening.models import ScheduleExecution, ScheduleReservation, Screeni
 from app.screening.services.scheduler import SchedulerService
 from app.screening.services.scheduled_pipeline import ScheduledPipeline
 from app.screening.orchestrator import ScreeningCreationError
+from tests.fakes import APPROVED_MODEL
 
 
 class FakeOllama:
     def inspect_model(self, *, refresh=False):
-        return {"model_name": "qwen3.8:27b", "digest": "a" * 64}
+        return {"model_name": APPROVED_MODEL, "digest": "a" * 64}
 
 
 class ModeStages:
@@ -78,10 +79,10 @@ def test_daily_orders_stages_and_publishes_success(tmp_path: Path):
     # projection would do; no direct model call is made by the stage runner.
     with Session(engine) as session:
         row = session.get(ScheduleExecution, execution.execution_id)
-        row.model_name = "qwen3.8:27b"
+        row.model_name = APPROVED_MODEL
         row.model_digest = "a" * 64
         session.commit()
-    pipeline = ScheduledPipeline(settings, session_factory=factory, pipeline=FakeStages(), ollama=FakeOllama(), clock=lambda: datetime(2026, 8, 26, 3, tzinfo=timezone.utc))
+    pipeline = ScheduledPipeline(settings, session_factory=factory, pipeline=FakeStages(), model_client=FakeOllama(), clock=lambda: datetime(2026, 8, 26, 3, tzinfo=timezone.utc))
     result = pipeline.run_daily(execution.execution_id)
     assert result.status == "성공"
     with Session(engine) as session:
@@ -102,13 +103,13 @@ def test_model_identity_failure_happens_before_judgment_enqueue(tmp_path: Path):
     assert execution is not None
     with Session(engine) as session:
         row = session.get(ScheduleExecution, execution.execution_id)
-        row.model_name = "qwen3.8:27b"
+        row.model_name = APPROVED_MODEL
         row.model_digest = "a" * 64
         session.commit()
     class WrongModel(FakeOllama):
         def inspect_model(self, *, refresh=False):
             return {"model_name": "wrong", "digest": "b" * 64}
-    pipeline = ScheduledPipeline(settings, session_factory=factory, pipeline=FakeStages(), ollama=WrongModel())
+    pipeline = ScheduledPipeline(settings, session_factory=factory, pipeline=FakeStages(), model_client=WrongModel())
     result = pipeline.run_daily(execution.execution_id)
     assert result.status == "실패"
     assert result.failure_reason == "ollama_unavailable"
@@ -135,9 +136,9 @@ def test_interrupted_non_judgment_stages_never_flow_to_success(tmp_path: Path):
         execution = scheduler.reserve_daily(date(2026, 8, 25), trigger="manual", requested_by="tester")
         with Session(engine) as session:
             row = session.get(ScheduleExecution, execution.execution_id)
-            row.model_name, row.model_digest = "qwen3.8:27b", "a" * 64
+            row.model_name, row.model_digest = APPROVED_MODEL, "a" * 64
             session.commit()
-        pipeline = ScheduledPipeline(settings, session_factory=factory, pipeline=ModeStages(interrupted_stage), ollama=FakeOllama())
+        pipeline = ScheduledPipeline(settings, session_factory=factory, pipeline=ModeStages(interrupted_stage), model_client=FakeOllama())
         result = pipeline.run_daily(execution.execution_id)
         assert result.status == expected_status
         assert result.failure_reason == expected_reason
@@ -156,14 +157,14 @@ def test_judgment_without_worker_is_not_reported_as_success(tmp_path: Path):
     execution = scheduler.reserve_daily(date(2026, 8, 25), trigger="manual", requested_by="tester")
     with Session(engine) as session:
         row = session.get(ScheduleExecution, execution.execution_id)
-        row.model_name, row.model_digest, row.policy_version = "qwen3.8:27b", "a" * 64, "policy-v1"
+        row.model_name, row.model_digest, row.policy_version = APPROVED_MODEL, "a" * 64, "policy-v1"
         session.commit()
 
     class FakeOrchestrator:
         def create_execution(self, **kwargs):
             return {"execution_id": "scr-" + "b" * 32}
 
-    pipeline = ScheduledPipeline(settings, session_factory=factory, pipeline=ModeStages(), orchestrator=FakeOrchestrator(), ollama=FakeOllama())
+    pipeline = ScheduledPipeline(settings, session_factory=factory, pipeline=ModeStages(), orchestrator=FakeOrchestrator(), model_client=FakeOllama())
     result = pipeline.run_daily(execution.execution_id)
     assert result.status == "실패"
     assert result.failure_reason == "judgment_incomplete"
@@ -182,10 +183,10 @@ def test_judgment_partial_counts_and_zeroes_are_preserved(tmp_path: Path):
     execution = scheduler.reserve_daily(date(2026, 8, 25), trigger="manual", requested_by="tester")
     with Session(engine) as session:
         row = session.get(ScheduleExecution, execution.execution_id)
-        row.model_name, row.model_digest, row.policy_version = "qwen3.8:27b", "a" * 64, "policy-v1"
+        row.model_name, row.model_digest, row.policy_version = APPROVED_MODEL, "a" * 64, "policy-v1"
         session.commit()
     stages = ModeStages(judgment={"status": "부분 성공", "candidate_count": 0, "result_count": 0, "failure_count": 2, "partial_artifact": True})
-    pipeline = ScheduledPipeline(settings, session_factory=factory, pipeline=stages, ollama=FakeOllama())
+    pipeline = ScheduledPipeline(settings, session_factory=factory, pipeline=stages, model_client=FakeOllama())
     result = pipeline.run_daily(execution.execution_id)
     assert result.status == "부분 성공"
     assert result.candidate_count == 0
@@ -207,14 +208,14 @@ def test_precondition_failed_is_stable_ollama_unavailable(tmp_path: Path):
     execution = scheduler.reserve_daily(date(2026, 8, 25), trigger="manual", requested_by="tester")
     with Session(engine) as session:
         row = session.get(ScheduleExecution, execution.execution_id)
-        row.model_name, row.model_digest, row.policy_version = "qwen3.8:27b", "a" * 64, "policy-v1"
+        row.model_name, row.model_digest, row.policy_version = APPROVED_MODEL, "a" * 64, "policy-v1"
         session.commit()
 
     class PreconditionOrchestrator:
         def create_execution(self, **kwargs):
             raise ScreeningCreationError("precondition_failed")
 
-    pipeline = ScheduledPipeline(settings, session_factory=factory, pipeline=ModeStages(), orchestrator=PreconditionOrchestrator(), ollama=FakeOllama())
+    pipeline = ScheduledPipeline(settings, session_factory=factory, pipeline=ModeStages(), orchestrator=PreconditionOrchestrator(), model_client=FakeOllama())
     result = pipeline.run_daily(execution.execution_id)
     assert result.failure_reason == "ollama_unavailable"
 
@@ -283,7 +284,7 @@ def test_concurrent_daily_claim_runs_stages_once_on_file_sqlite(tmp_path: Path):
     execution = scheduler.reserve_daily(date(2026, 8, 25), trigger="manual", requested_by="tester")
     with Session(engine) as session:
         row = session.get(ScheduleExecution, execution.execution_id)
-        row.model_name, row.model_digest = "qwen3.8:27b", "a" * 64
+        row.model_name, row.model_digest = APPROVED_MODEL, "a" * 64
         session.commit()
 
     class BlockingStages(FakeStages):
@@ -301,8 +302,8 @@ def test_concurrent_daily_claim_runs_stages_once_on_file_sqlite(tmp_path: Path):
             return super().collect(**kwargs)
 
     stages = BlockingStages()
-    first = ScheduledPipeline(settings, session_factory=factory, pipeline=stages, ollama=FakeOllama())
-    second = ScheduledPipeline(settings, session_factory=factory, pipeline=stages, ollama=FakeOllama())
+    first = ScheduledPipeline(settings, session_factory=factory, pipeline=stages, model_client=FakeOllama())
+    second = ScheduledPipeline(settings, session_factory=factory, pipeline=stages, model_client=FakeOllama())
     barrier = Barrier(2)
     results = []
 
@@ -337,10 +338,10 @@ def test_failed_judgment_with_partial_artifact_finishes_partial_success(tmp_path
     execution = scheduler.reserve_daily(date(2026, 8, 25), trigger="manual", requested_by="tester")
     with Session(engine) as session:
         row = session.get(ScheduleExecution, execution.execution_id)
-        row.model_name, row.model_digest = "qwen3.8:27b", "a" * 64
+        row.model_name, row.model_digest = APPROVED_MODEL, "a" * 64
         session.commit()
     stages = ModeStages(judgment={"status": "실패", "failure_reason": "judgment_failed", "candidate_count": 3, "result_count": 1, "failure_count": 2, "partial_artifact": True})
-    result = ScheduledPipeline(settings, session_factory=factory, pipeline=stages, ollama=FakeOllama()).run_daily(execution.execution_id)
+    result = ScheduledPipeline(settings, session_factory=factory, pipeline=stages, model_client=FakeOllama()).run_daily(execution.execution_id)
     assert result.status == "부분 성공"
     assert result.failure_reason == "judgment_failed"
     assert (result.candidate_count, result.result_count, result.failure_count, result.partial_artifact) == (3, 1, 2, True)
@@ -359,10 +360,10 @@ def test_zero_candidate_success_is_terminal_zero_result_failure(tmp_path: Path):
     execution = scheduler.reserve_daily(date(2026, 8, 25), trigger="manual", requested_by="tester")
     with Session(engine) as session:
         row = session.get(ScheduleExecution, execution.execution_id)
-        row.model_name, row.model_digest = "qwen3.8:27b", "a" * 64
+        row.model_name, row.model_digest = APPROVED_MODEL, "a" * 64
         session.commit()
     stages = ModeStages(judgment={"status": "성공", "candidate_count": 0, "result_count": 0, "failure_count": 0})
-    result = ScheduledPipeline(settings, session_factory=factory, pipeline=stages, ollama=FakeOllama()).run_daily(execution.execution_id)
+    result = ScheduledPipeline(settings, session_factory=factory, pipeline=stages, model_client=FakeOllama()).run_daily(execution.execution_id)
     assert result.status == "실패"
     assert result.failure_reason == "judgment_zero_result"
     assert (result.candidate_count, result.result_count, result.failure_count) == (0, 0, 0)
@@ -381,14 +382,14 @@ def test_model_inspection_creation_error_is_ollama_unavailable(tmp_path: Path):
     execution = scheduler.reserve_daily(date(2026, 8, 25), trigger="manual", requested_by="tester")
     with Session(engine) as session:
         row = session.get(ScheduleExecution, execution.execution_id)
-        row.model_name, row.model_digest, row.policy_version = "qwen3.8:27b", "a" * 64, "policy-v1"
+        row.model_name, row.model_digest, row.policy_version = APPROVED_MODEL, "a" * 64, "policy-v1"
         session.commit()
 
     class ModelInspectionOrchestrator:
         def create_execution(self, **kwargs):
             raise ScreeningCreationError("model_inspection")
 
-    result = ScheduledPipeline(settings, session_factory=factory, pipeline=ModeStages(), orchestrator=ModelInspectionOrchestrator(), ollama=FakeOllama()).run_daily(execution.execution_id)
+    result = ScheduledPipeline(settings, session_factory=factory, pipeline=ModeStages(), orchestrator=ModelInspectionOrchestrator(), model_client=FakeOllama()).run_daily(execution.execution_id)
     assert result.failure_reason == "ollama_unavailable"
     with Session(engine) as session:
         assert session.scalar(select(ScreeningExecution)) is None

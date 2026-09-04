@@ -9,10 +9,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
-import math
-import re
 from typing import Literal
-from urllib.parse import urlsplit
 
 from pydantic import AliasChoices, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -26,11 +23,6 @@ MODULE_NAMES: tuple[str, ...] = ("lifecycle", "screening", "deep_review")
 
 #: `BIDOPS_MODULES`를 지정하지 않았을 때의 값. 분할 전과 같은 앱이 된다.
 DEFAULT_MODULES: str = ",".join(MODULE_NAMES)
-
-_OLLAMA_DURATION = re.compile(
-    r"(?:-1|0|(?:\d+(?:\.\d+)?(?:ns|us|µs|ms|s|m|h))+)$"
-)
-
 
 def parse_modules(value: str) -> tuple[str, ...]:
     """`BIDOPS_MODULES` 문자열을 모듈 순서 목록으로 푼다 (명세 §7).
@@ -129,38 +121,23 @@ class Settings(BaseSettings):
         default=30.0,
         validation_alias="BIDOPS_G2B_ATTACHMENT_TIMEOUT_SECONDS",
     )
-    model_name: str = Field(
-        default="qwen3.8:27b",
-        validation_alias="BIDOPS_OLLAMA_MODEL",
-    )
-    model_base_url: str = Field(
-        default="http://192.168.0.139:11434",
-        validation_alias="BIDOPS_OLLAMA_BASE_URL",
-    )
-    model_timeout: int = Field(
-        default=180,
-        validation_alias="BIDOPS_OLLAMA_TIMEOUT_SECONDS",
-    )
-    # Ollama accepts a Go duration string, or a numeric nanosecond value.
-    # Keep the numeric forms because 0 unloads a model and -1 keeps it loaded.
-    model_keep_alive: str | int | float = Field(
-        default="30m",
-        validation_alias="BIDOPS_OLLAMA_KEEP_ALIVE",
-    )
+    # C-1 생성 예산. 실행마다 얼려 `bidops.generation-config.v1`으로 보존하고
+    # stage별 `num_predict`는 호출 시점에 OpenAI 호환 `max_tokens`가 된다.
+    # `num_ctx`는 대응 파라미터가 없어 binding 기록에만 남는다.
     model_context: int = Field(
         default=16384,
-        validation_alias="BIDOPS_OLLAMA_CONTEXT_SIZE",
+        validation_alias="BIDOPS_SCREENING_CONTEXT_SIZE",
     )
     model_max_output: int = Field(
         default=2048,
-        validation_alias="BIDOPS_OLLAMA_MAX_OUTPUT_TOKENS",
+        validation_alias="BIDOPS_SCREENING_MAX_OUTPUT_TOKENS",
     )
     model_synthesis_output: int = Field(
         default=4096,
-        validation_alias="BIDOPS_OLLAMA_SYNTHESIS_MAX_OUTPUT_TOKENS",
+        validation_alias="BIDOPS_SCREENING_SYNTHESIS_MAX_OUTPUT_TOKENS",
     )
-    screening_provider: Literal["ollama", "mock"] = Field(
-        default="ollama",
+    screening_provider: Literal["vllm", "mock"] = Field(
+        default="vllm",
         validation_alias="BIDOPS_SCREENING_PROVIDER",
     )
     screen_concurrency: int = Field(
@@ -183,62 +160,6 @@ class Settings(BaseSettings):
         default="06:00", validation_alias="BIDOPS_SCHEDULE_WEEKLY_TIME"
     )
     schedule_prespec: bool = Field(default=False, validation_alias="BIDOPS_PRESPEC_ENABLED")
-    live_test: bool = Field(default=False, validation_alias="BIDOPS_LIVE_OLLAMA_TEST")
-
-    @field_validator("model_base_url")
-    @classmethod
-    def validate_model_base_url(cls, value: str) -> str:
-        """Require a credential-free absolute HTTP(S) Ollama endpoint."""
-
-        if (
-            not isinstance(value, str)
-            or not value
-            or any(character.isspace() for character in value)
-            or "?" in value
-            or "#" in value
-            or "\\" in value
-        ):
-            raise ValueError("BIDOPS_OLLAMA_BASE_URL must be an absolute HTTP(S) URL")
-        try:
-            parsed = urlsplit(value)
-            hostname = parsed.hostname
-            # Accessing port also validates malformed ports and brackets.
-            _ = parsed.port
-        except ValueError as exc:
-            raise ValueError("BIDOPS_OLLAMA_BASE_URL must be an absolute HTTP(S) URL") from exc
-        if (
-            parsed.scheme not in {"http", "https"}
-            or not parsed.netloc
-            or not hostname
-            or parsed.netloc.endswith(":")
-            or parsed.username is not None
-            or parsed.password is not None
-            or parsed.query
-            or parsed.fragment
-        ):
-            raise ValueError(
-                "BIDOPS_OLLAMA_BASE_URL must use http/https without credentials, query, or fragment"
-            )
-        return value
-
-    @field_validator("model_keep_alive", mode="before")
-    @classmethod
-    def validate_model_keep_alive(cls, value: object) -> object:
-        """Accept Ollama duration strings and its numeric sentinel forms."""
-
-        if isinstance(value, bool):
-            raise ValueError("BIDOPS_OLLAMA_KEEP_ALIVE must be an Ollama duration or number")
-        if isinstance(value, (int, float)):
-            if isinstance(value, float) and not math.isfinite(value):
-                raise ValueError("BIDOPS_OLLAMA_KEEP_ALIVE must be finite")
-            if value < -1:
-                raise ValueError("BIDOPS_OLLAMA_KEEP_ALIVE must be -1 or greater")
-            return value
-        if isinstance(value, str) and _OLLAMA_DURATION.fullmatch(value):
-            return value
-        raise ValueError(
-            "BIDOPS_OLLAMA_KEEP_ALIVE must be a duration such as 30m, 0, or -1"
-        )
 
     # --- Deep review analysis providers and document pipeline ---
     vllm_base_url: str = Field(
@@ -383,8 +304,8 @@ class Settings(BaseSettings):
             )
         if self.screen_concurrency != 1:
             raise ValueError("only BIDOPS_SCREEN_MAX_CONCURRENCY=1 is supported")
-        if self.model_timeout <= 0 or self.model_context <= 0 or self.model_max_output <= 0 or self.model_synthesis_output <= 0:
-            raise ValueError("model timeout, context, and output budgets must be positive")
+        if self.model_context <= 0 or self.model_max_output <= 0 or self.model_synthesis_output <= 0:
+            raise ValueError("model context and output budgets must be positive")
         if self.model_context > 131072 or self.model_max_output > 32768 or self.model_synthesis_output > 32768:
             raise ValueError("model context/output budgets exceed the supported generation bounds")
         if self.model_max_output > self.model_context or self.model_synthesis_output > self.model_context:
@@ -430,44 +351,12 @@ class Settings(BaseSettings):
             raise ValueError("unknown object namespace") from error
 
     @property
-    def ollama_endpoint(self) -> str:
-        return self.model_base_url
-
-    @property
-    def ollama_base_url(self) -> str:
-        return self.model_base_url
-
-    @property
-    def ollama_model(self) -> str:
-        return self.model_name
-
-    @property
-    def ollama_timeout_seconds(self) -> int:
-        return self.model_timeout
-
-    @property
-    def ollama_keep_alive(self) -> str | int | float:
-        return self.model_keep_alive
-
-    @property
-    def ollama_context_size(self) -> int:
-        return self.model_context
-
-    @property
-    def ollama_max_output_tokens(self) -> int:
-        return self.model_max_output
-
-    @property
     def screen_heartbeat_seconds(self) -> int:
         return self.heartbeat_seconds
 
     @property
     def screen_stale_after_seconds(self) -> int:
         return self.stale_seconds
-
-    @property
-    def live_ollama_test(self) -> bool:
-        return self.live_test
 
     @property
     def database_path(self) -> Path:

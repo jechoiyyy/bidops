@@ -19,9 +19,7 @@ trap 'exit 143' TERM
 export BIDOPS_ROOT="$PROJECT_ROOT"
 export BIDOPS_DATA_DIR="$TEST_TMP/data"
 export BIDOPS_ATTACHMENTS_DIR="$TEST_TMP/attachments"
-export BIDOPS_OLLAMA_BASE_URL="http://127.0.0.1:9"
 export BIDOPS_SCHEDULER_ENABLED="false"
-export BIDOPS_LIVE_OLLAMA_TEST="false"
 
 # PostgreSQL is the canonical store.  The pytest collection harness creates a
 # fresh migrated application database for every invocation and uses this URL

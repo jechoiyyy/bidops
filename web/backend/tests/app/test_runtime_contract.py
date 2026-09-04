@@ -88,7 +88,6 @@ def test_worker_network_and_command_boundaries_are_explicit():
     assert analysis["environment"]["BIDOPS_ANALYSIS_WORKER_CONCURRENCY"] == "1"
     assert analysis["environment"]["BIDOPS_VLLM_BASE_URL"] == "${BIDOPS_VLLM_BASE_URL:-http://127.0.0.1:8000/v1}"
     assert analysis["environment"]["BIDOPS_VLLM_ALLOWED_HOSTS"] == "${BIDOPS_VLLM_ALLOWED_HOSTS:-}"
-    assert analysis["environment"]["BIDOPS_VLLM_MODEL"] == "qwen3.8-27B"
     assert analysis["environment"]["BIDOPS_VLLM_API_KEY"] == "${BIDOPS_VLLM_API_KEY:-EMPTY}"
     assert analysis["environment"]["BIDOPS_OBJECT_STORE_BACKEND"] == "minio"
     assert analysis["environment"]["BIDOPS_STRUCTURE_READ_ACCESS_KEY"].startswith("${BIDOPS_STRUCTURE_READ_ACCESS_KEY")
@@ -183,12 +182,37 @@ def test_screening_egress_is_an_explicit_override():
     override = yaml.safe_load((ROOT / "docker-compose.screening.yml").read_text(encoding="utf-8"))
     assert set(override["services"]) == {"web"}
     assert set(override["services"]["web"]["networks"]) == {
-        "database", "storage", "scanning", "screening-egress",
+        "database", "storage", "scanning", "model-egress",
     }
-    assert override["networks"] == {"screening-egress": None}
+    assert override["networks"] == {"model-egress": None}
     base = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
-    assert "screening-egress" not in base["networks"]
+    assert "model-egress" not in base["networks"]
     assert all(network.get("internal") is True for network in base["networks"].values())
+
+
+def test_screening_overlay_fails_closed_without_endpoint_host_and_revision():
+    """endpoint·허용 host·선언 revision 중 하나라도 없으면 overlay가 멈춘다.
+
+    기본값을 채워 두면 C-1이 승인되지 않은 주소로 조용히 나갈 수 있다. 세
+    값에는 `:?` 형식만 쓴다.
+    """
+
+    override = yaml.safe_load((ROOT / "docker-compose.screening.yml").read_text(encoding="utf-8"))
+    environment = override["services"]["web"]["environment"]
+    for name in (
+        "BIDOPS_VLLM_SCREENING_BASE_URL",
+        "BIDOPS_VLLM_SCREENING_ALLOWED_HOSTS",
+        "BIDOPS_VLLM_SCREENING_MODEL_REVISION",
+    ):
+        assert environment[name].startswith("${" + name + ":?")
+    assert environment["BIDOPS_VLLM_SCREENING_MODEL"] == "${BIDOPS_VLLM_SCREENING_MODEL:-qwen3.8-27B}"
+    assert not [name for name in environment if "OLLAMA" in name]
+
+    example = (ROOT / "env/screening.env.example").read_text(encoding="utf-8")
+    assert "BIDOPS_VLLM_SCREENING_BASE_URL=\n" in example
+    assert "BIDOPS_VLLM_SCREENING_ALLOWED_HOSTS=\n" in example
+    assert "BIDOPS_VLLM_SCREENING_MODEL_REVISION=\n" in example
+    assert "OLLAMA" not in example
 
 
 def test_prespec_attachment_egress_is_an_explicit_override():
@@ -286,7 +310,16 @@ def test_web_test_entry_point_runs_every_declared_gate():
 
     assert '"$PYTHON" -m pytest' in harness
     assert "npm run build" in harness
-    assert "npm run test:visual" in harness
+    # 화면 게이트는 의미·구조 두 층을 함께 도는 `test:screens`다. 스크립트가
+    # 실제로 부르는 이름을 그대로 고정한다 — 스크립트에만 있고 여기에 없는
+    # 게이트가 생기면 조용히 빠질 수 있기 때문이다.
+    assert "npm run test:screens" in harness
+    declared = {
+        line.split("npm run ", 1)[1].strip()
+        for line in harness.splitlines()
+        if line.strip().startswith("npm run ")
+    }
+    assert declared == {"build", "test:screens"}
 
     # PostgreSQL is not optional here.  Without a maintenance URL the backend
     # suite skips every `requires_postgres` test and still exits 0, so the

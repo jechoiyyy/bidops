@@ -44,7 +44,7 @@ _DELEGATED_NAMES: dict[str, str] = {
     "worker": "screening",
     "worker_thread": "screening",
     "stop_event": "screening",
-    "ollama": "screening",
+    "model_client": "screening",
     "scheduler_service": "screening",
     "scheduled_pipeline": "screening",
     "dispatch_schedule": "screening",
