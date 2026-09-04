@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.core.db import Base, init_db
-from app.ingest.loader import (
+from app.lifecycle.ingest.loader import (
     ORDER_PLAN_OBSERVATION_SNAPSHOT_SCHEMA,
     ingest_run,
     parse_order_plan_unty_no,
@@ -44,9 +44,9 @@ from app.screening.models import (
     Review,
     VerificationItem,
 )
-from app.services.revisions import RevisionConflictError
+from app.screening.services.revisions import RevisionConflictError
 from tests.postgres import migrated_engine, requires_postgres
-from tests.test_screening_orchestrator import _notice as screening_notice
+from tests.screening.test_screening_orchestrator import _notice as screening_notice
 
 
 def make_engine():

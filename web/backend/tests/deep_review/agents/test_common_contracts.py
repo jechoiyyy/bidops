@@ -8,7 +8,7 @@ from uuid import UUID, uuid4
 import pytest
 from pydantic import BaseModel, ConfigDict, ValidationError
 
-from app.agents.common import (
+from app.deep_review.agents.common import (
     AgentAction,
     AgentActionResult,
     AgentActorRef,
@@ -36,7 +36,7 @@ from app.agents.common import (
     make_wait,
     sort_unique_refs,
 )
-from app.agents.common.errors import SAFE_ERROR_MAPPING, WAIT_MAPPING
+from app.deep_review.agents.common.errors import SAFE_ERROR_MAPPING, WAIT_MAPPING
 
 
 NOW = datetime(2026, 8, 26, 1, 2, 3, tzinfo=UTC)
@@ -308,7 +308,7 @@ def test_action_result_and_command_do_not_create_uuid_or_time_defaults() -> None
 
 
 def test_projection_does_not_depend_on_runtime_modules() -> None:
-    import app.agents.common.projection as projection
+    import app.deep_review.agents.common.projection as projection
 
     names = set(projection.__dict__)
     assert not any(name in names for name in {"Session", "select", "uuid4", "datetime_now"})

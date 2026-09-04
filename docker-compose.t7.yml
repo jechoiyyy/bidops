@@ -159,7 +159,7 @@ services:
   document-worker:
     build: { context: ., dockerfile: web/Dockerfile }
     environment: {}
-    command: ["python", "-m", "app.workers.document"]
+    command: ["python", "-m", "app.deep_review.workers.document"]
     # The shared image probes the web HTTP endpoint by default, but this
     # worker intentionally has no HTTP listener.
     healthcheck: { disable: true }

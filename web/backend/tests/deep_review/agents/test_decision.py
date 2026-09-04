@@ -11,23 +11,23 @@ from uuid import UUID, uuid4
 import pytest
 from pydantic import ValidationError
 
-from app.agents.common import (
+from app.deep_review.agents.common import (
     AgentAction,
     AgentArtifactType,
     AgentRunStatus,
     AgentStepStatus,
 )
-from app.agents.decision.commands import (
+from app.deep_review.agents.decision.commands import (
     CreateFullRevisionCommand,
     RecordFinalOpinionCommand,
 )
-from app.agents.decision.projection import (
+from app.deep_review.agents.decision.projection import (
     STEP_NAMES,
     final_opinion_snapshot_payload,
     project_decision,
     validation_snapshot_payload,
 )
-from app.schemas.reports import DeepReviewReport, ValidationSummary
+from app.deep_review.schemas.reports import DeepReviewReport, ValidationSummary
 
 
 NOW = datetime(2026, 8, 26, 1, 2, 3, tzinfo=UTC)
@@ -371,7 +371,7 @@ def test_projection_is_deterministic_and_side_effect_free() -> None:
     second = project_decision(deepcopy(snapshot))
     assert first.model_dump(mode="json") == second.model_dump(mode="json")
     assert snapshot == before
-    import app.agents.decision.projection as projection
+    import app.deep_review.agents.decision.projection as projection
 
     assert "uuid4" not in projection.__dict__
     assert "datetime_now" not in projection.__dict__

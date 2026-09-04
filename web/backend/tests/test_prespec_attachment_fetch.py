@@ -13,9 +13,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.core.db import init_db
-from app.document_mcp.errors import DocumentProcessingError
-from app.document_mcp.processor import DocumentProcessor
-from app.ingest.loader import ObservationSnapshotConflictError, _upsert_attachments
+from app.deep_review.document_mcp.errors import DocumentProcessingError
+from app.deep_review.document_mcp.processor import DocumentProcessor
+from app.lifecycle.ingest.loader import ObservationSnapshotConflictError, _upsert_attachments
 from app.deep_review.models import (
     AttachmentFetch,
     ContentObject,
@@ -25,18 +25,18 @@ from app.deep_review.models import (
     DocumentVersion,
 )
 from app.lifecycle.models import Attachment, Notice, Opportunity, OpportunityLink, OrderPlan
-from app.services import assets, prespec_attachments
-from app.services.opportunity_connections import (
+from app.deep_review.services import assets, prespec_attachments
+from app.lifecycle.services.opportunity_connections import (
     parse_attachment_key,
     tracked_order_plan_connection,
 )
-from app.services.prespec_attachments import (
+from app.deep_review.services.prespec_attachments import (
     SOURCE_SYSTEM,
     claim_next,
     fetch_claimed,
     refresh_fetch_eligibility,
 )
-from app.workers.prespec_attachment import run_once
+from app.deep_review.workers.prespec_attachment import run_once
 
 
 G2B_URL = (

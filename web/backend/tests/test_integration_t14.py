@@ -32,12 +32,12 @@ from app.screening.models import (
     ScreeningExecution,
     ScreeningPolicy,
 )
-from app.routers.runs import router as runs_router
-from app.routers.screening import router as screening_router
-from app.routers.screening import run_router as screening_run_router
+from app.lifecycle.routers.runs import router as runs_router
+from app.screening.routers.screening import router as screening_router
+from app.screening.routers.screening import run_router as screening_run_router
 from app.runtime import ApplicationRuntime
 from app.screening.ollama import OllamaClient
-from app.services.scheduler import SchedulerService
+from app.screening.services.scheduler import SchedulerService
 from tests.fakes.ollama import FakeOllamaTransport
 
 

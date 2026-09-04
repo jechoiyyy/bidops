@@ -17,7 +17,7 @@ from sqlalchemy.pool import StaticPool
 from app.core.db import init_db
 from app.deep_review.models import AttachmentFetch, ContentObject, DocumentVersion
 from app.lifecycle.models import Attachment, Notice, Opportunity, OpportunityLink, OrderPlan
-from app.routers.pre_specs import list_pre_specs
+from app.lifecycle.routers.pre_specs import list_pre_specs
 
 
 def _add_notice(

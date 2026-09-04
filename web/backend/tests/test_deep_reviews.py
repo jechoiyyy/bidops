@@ -14,7 +14,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
-from app.cli.import_profile_policy import import_profile_policy
+from app.deep_review.cli.import_profile_policy import import_profile_policy
 from app.core.db import init_db
 from app.core.models import AuditEvent
 from app.deep_review.models import (
@@ -36,12 +36,12 @@ from app.deep_review.models import (
 )
 from app.lifecycle.models import Notice, Run
 from app.screening.models import Judgment
-from app.services import input_versions
-from app.services.deep_review_validation import DeepReviewValidationError, merge_stage_chunks
-from app.services.deep_reviews import DeepReviewService, DeepReviewServiceError, JobClaim, StaleFenceError
-from app.services.deep_reviews import _resolve_exact_evidence_quotes
+from app.deep_review.services import input_versions
+from app.deep_review.services.deep_review_validation import DeepReviewValidationError, merge_stage_chunks
+from app.deep_review.services.deep_reviews import DeepReviewService, DeepReviewServiceError, JobClaim, StaleFenceError
+from app.deep_review.services.deep_reviews import _resolve_exact_evidence_quotes
 from app.core.model_binding import MODEL_NAME, canonical_json_bytes
-from app.services.input_versions import (
+from app.deep_review.services.input_versions import (
     InputVersionError,
     bundle_context,
     import_policy_version,
@@ -50,7 +50,7 @@ from app.services.input_versions import (
     policy_activation_valid,
 )
 from app.core.vllm_client import InvocationResult, VllmClient, VllmInvocationError, build_prompt, sanitize_for_prompt
-from app.services.deep_review_vllm import DEEP_REVIEW_STAGE_CONTRACT
+from app.deep_review.services.deep_review_vllm import DEEP_REVIEW_STAGE_CONTRACT
 from app.core.object_store import ObjectMetadata
 
 
@@ -103,7 +103,7 @@ def engine():
 
 
 def test_approved_policy_is_byte_canonical():
-    path = Path(__file__).parents[1] / "app" / "policies" / "analysis-policy-lean-v1.json"
+    path = Path(__file__).parents[1] / "app" / "deep_review" / "policies" / "analysis-policy-lean-v1.json"
     raw = path.read_bytes()
     assert raw == canonical_json_bytes(json.loads(raw))
     policy = json.loads(raw)
@@ -121,7 +121,7 @@ def test_approved_policy_is_byte_canonical():
 
 
 def test_policy_hash_is_the_approved_literal_hash():
-    path = Path(__file__).parents[1] / "app" / "policies" / "analysis-policy-lean-v1.json"
+    path = Path(__file__).parents[1] / "app" / "deep_review" / "policies" / "analysis-policy-lean-v1.json"
     assert hashlib.sha256(path.read_bytes()).hexdigest() == "ade63ebfafa2eec424bbb456dea1b5b21da0980eac6c484853612e37dda422e8"
 
 
@@ -543,7 +543,7 @@ def test_multi_invocation_raw_aggregate_is_complete_sorted_and_metadata_safe():
     metadata = [{"slice_index": index, "attempts": [{"retry_index": 0, "status": "succeeded", "locator": "drop", "object_key": "drop"}]} for index in range(56)]
     safe = [_safe for _safe in metadata]
     # The worker's persisted path uses the same whitelist as failure metadata.
-    from app.services.deep_reviews import _safe_invocation_metadata
+    from app.deep_review.services.deep_reviews import _safe_invocation_metadata
     persisted = [_safe_invocation_metadata(item) for item in safe]
     assert all("locator" not in str(item) and "object_key" not in str(item) for item in persisted)
 

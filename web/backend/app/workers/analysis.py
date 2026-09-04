@@ -14,8 +14,8 @@ from ..core import (
     configure,
     get_settings,
 )
-from .deep_review import run_once
-from .order_plan_screening import C2ScreeningWorker
+from ..deep_review.workers.deep_review import run_once
+from ..screening.workers.order_plan import C2ScreeningWorker
 
 
 logger = logging.getLogger(__name__)

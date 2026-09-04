@@ -16,8 +16,8 @@ from app.deep_review.models import (
     PreSpecOverviewAttemptEvent,
     PreSpecOverviewResult,
 )
-from app.routers.deep_reviews import get_pre_spec_overview_reviews_v2
-from app.services.prespec_overview import (
+from app.deep_review.routers.deep_reviews import get_pre_spec_overview_reviews_v2
+from app.deep_review.services.prespec_overview import (
     OverviewAttemptError,
     OverviewModelBinding,
     OverviewResultValidationError,
@@ -28,7 +28,7 @@ from app.services.prespec_overview import (
     transition_overview_attempt,
     validate_overview_result,
 )
-from tests.test_prespec_overview import _block, _engine, _notice, _seed_document
+from tests.deep_review.test_prespec_overview import _block, _engine, _notice, _seed_document
 
 
 def _ready_attempt(
@@ -102,17 +102,17 @@ def test_result_schema_is_strict_and_conditional_requires_due() -> None:
         "input_limitations": [],
     }
     with pytest.raises(ValidationError):
-        from app.schemas.pre_specs import PreSpecOverviewResultPayload
+        from app.deep_review.schemas.prespec_overview import PreSpecOverviewResultPayload
 
         PreSpecOverviewResultPayload.model_validate({**common, "internal": "secret"})
     with pytest.raises(ValidationError):
-        from app.schemas.pre_specs import PreSpecOverviewResultPayload
+        from app.deep_review.schemas.prespec_overview import PreSpecOverviewResultPayload
 
         PreSpecOverviewResultPayload.model_validate(
             {**common, "recommendation": "조건부 추진 검토"}
         )
     with pytest.raises(ValidationError):
-        from app.schemas.pre_specs import PreSpecOverviewResultPayload
+        from app.deep_review.schemas.prespec_overview import PreSpecOverviewResultPayload
 
         PreSpecOverviewResultPayload.model_validate(
             {key: value for key, value in common.items() if key != "evidence"}

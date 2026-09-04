@@ -69,7 +69,7 @@ def test_t7_worker_network_and_command_boundaries_are_explicit():
     worker = services["document-worker"]
     assert worker["network_mode"] == "none"
     assert worker["environment"] == {}
-    assert worker["command"] == ["python", "-m", "app.workers.document"]
+    assert worker["command"] == ["python", "-m", "app.deep_review.workers.document"]
     assert worker["deploy"]["replicas"] == 2
     assert worker["volumes"] == ["document-scratch:/scratch"]
     web = services["web"]
@@ -80,7 +80,7 @@ def test_t7_worker_network_and_command_boundaries_are_explicit():
     assert web["environment"]["BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID"] == "${BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID:-}"
     assert "BIDOPS_MODEL_RESPONSE_ACCESS_KEY" not in web["environment"]
     assert "document-scratch:/scratch" in web["volumes"]
-    document_worker = (ROOT / "web/backend/app/workers/document.py").read_text(encoding="utf-8")
+    document_worker = (ROOT / "web/backend/app/deep_review/workers/document.py").read_text(encoding="utf-8")
     assert "SessionLocal" not in document_worker and "convert_one" in document_worker
 
     analysis = services["analysis-worker"]
@@ -142,8 +142,8 @@ def test_t7_compose_commands_and_recovery_scripts_exist():
     compose = yaml.safe_load((ROOT / "docker-compose.t7.yml").read_text(encoding="utf-8"))
     for service in compose["services"].values():
         command = service.get("command")
-        if command and command[:3] == ["python", "-m", "app.workers.document"]:
-            assert (ROOT / "web/backend/app/workers/document.py").is_file()
+        if command and command[:3] == ["python", "-m", "app.deep_review.workers.document"]:
+            assert (ROOT / "web/backend/app/deep_review/workers/document.py").is_file()
         if command and command[:3] == ["python", "-m", "app.workers.analysis"]:
             assert (ROOT / "web/backend/app/workers/analysis.py").is_file()
         entrypoint = service.get("entrypoint", [])
@@ -204,7 +204,7 @@ def test_prespec_attachment_egress_is_an_explicit_override():
     assert worker["environment"]["BIDOPS_G2B_ATTACHMENT_ALLOWED_HOSTS"].startswith(
         "${BIDOPS_G2B_ATTACHMENT_ALLOWED_HOSTS:?"
     )
-    assert worker["command"] == ["python", "-m", "app.workers.prespec_attachment"]
+    assert worker["command"] == ["python", "-m", "app.deep_review.workers.prespec_attachment"]
     assert worker["healthcheck"] == {"disable": True}
     assert override["networks"] == {"prespec-egress": None}
     base = yaml.safe_load((ROOT / "docker-compose.t7.yml").read_text(encoding="utf-8"))
