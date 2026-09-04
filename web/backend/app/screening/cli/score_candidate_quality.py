@@ -13,7 +13,10 @@ from ..services.candidate_quality import CandidateQualityError, CandidateQuality
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Score human-reviewed Qwen candidate quality evidence")
+    parser = argparse.ArgumentParser(
+        prog="python -m app.screening.cli score-candidate-quality",
+        description="Score human-reviewed Qwen candidate quality evidence",
+    )
     parser.add_argument("manifest", type=Path, help="UTF-8 bidops.qwen-quality-evaluation.v1 JSON")
     return parser
 
@@ -44,8 +47,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     return 0 if result.passed else 3
 
 
-if __name__ == "__main__":  # pragma: no cover
-    raise SystemExit(main())
-
 
 __all__ = ["build_parser", "main"]
+
+
+if __name__ == "__main__":  # pragma: no cover
+    # T8 2단계가 이 파일의 직접 실행 경로를 없앴다. 호환 shim을 두지 않으므로
+    # 옛 명령은 동작하지 않는다. 다만 그냥 두면 `__main__` 블록이 없는 모듈이
+    # 아무 일도 하지 않고 종료 코드 0을 내서, 옛 기록을 따라 실행한 운영자가
+    # 성공으로 오인한다. mutating 명령이 조용히 건너뛰지 않도록 fail-closed로 막는다.
+    raise SystemExit("이 명령은 `python -m app.screening.cli score-candidate-quality <인자>`로 실행한다")
