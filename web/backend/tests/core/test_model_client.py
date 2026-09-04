@@ -287,6 +287,40 @@ def test_reported_revision_mismatch_fails_the_invocation() -> None:
     assert error.value.code == "model_revision_invalid"
 
 
+def test_reported_revision_without_a_declared_one_fails_closed() -> None:
+    """선언 revision이 비었는데 서버가 값을 내면 통과시키지 않는다.
+
+    기준은 응답이 값을 냈는가다. 선언이 비었다고 대조를 건너뛰면 서버가
+    어떤 weight를 말해도 그대로 받게 되고, `verify_identity`와 판단이
+    갈린다.
+    """
+
+    client = ModelClient(
+        model="합성-모델-a",
+        output_contract=CONTRACT,
+        model_revision="",
+        completion_create=lambda **_kwargs: _completion(
+            "합성-모델-a", {"verdict": "ok"}, model_revision=REVISION
+        ),
+    )
+    with pytest.raises(ModelInvocationError) as error:
+        client.invoke("s1", {"item": "합성"}, {**POLICY, "chunking": {"retries": 0, "timeout_seconds": 300}})
+    assert error.value.code == "model_revision_invalid"
+
+
+@pytest.mark.parametrize("declared", ["", REVISION])
+def test_absent_reported_revision_passes_whatever_was_declared(declared: str) -> None:
+    """응답이 revision을 내지 않으면 선언값과 무관하게 통과한다."""
+
+    client = ModelClient(
+        model="합성-모델-a",
+        output_contract=CONTRACT,
+        model_revision=declared,
+        completion_create=lambda **_kwargs: _completion("합성-모델-a", {"verdict": "ok"}),
+    )
+    assert client.invoke("s1", {"item": "합성"}, POLICY).structured_output == {"verdict": "ok"}
+
+
 def test_reported_revision_match_passes() -> None:
     """선언 revision과 같은 값을 실어 보내면 통과한다."""
 

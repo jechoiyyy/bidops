@@ -558,9 +558,12 @@ class ModelClient:
                 if response.get("model") != self.model:
                     raise ValueError("model_mismatch")
                 # 응답이 revision을 실어 보내면 배포 선언과 대조한다. stock
-                # vLLM은 내지 않으므로 부재는 통과다(ADR-0042).
+                # vLLM은 내지 않으므로 부재는 통과다(ADR-0042). 판단 기준은
+                # **응답이 값을 냈는가**이지 배포가 선언했는가가 아니다 —
+                # 선언이 비었을 때 통과시키면 서버가 다른 weight를 말해도
+                # 그대로 받게 되고, `verify_identity`와도 어긋난다.
                 reported_revision = response.get("model_revision", response.get("revision"))
-                if reported_revision is not None and self.model_revision and reported_revision != self.model_revision:
+                if reported_revision is not None and reported_revision != self.model_revision:
                     raise ModelIdentityError("model_revision_invalid")
                 choices = response.get("choices")
                 if not isinstance(choices, list) or len(choices) != 1 or not isinstance(choices[0], Mapping):
