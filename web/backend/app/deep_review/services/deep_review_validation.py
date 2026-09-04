@@ -1142,6 +1142,104 @@ validate_requirement_inventory = compare_requirement_ids
 compare_pilot_requirements = compare_requirement_ids
 
 
+REQUIREMENT_INVENTORY_CHECK = "requirement_inventory"
+SEGMENT_COVERAGE_CHECK = "segment_coverage"
+
+
+def validate_document_segments(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """결정적 segment manifest wire payload를 계약대로 검사한다.
+
+    이 계약에는 원문 text가 없다. segment 순서(``ordinal``)와 ``segment_id``의
+    유일성, 그리고 사람 검토가 필요한 segment가 확신도를 만들어 내지 않는다는
+    것만 추가로 확인한다.
+    """
+
+    issues = _schema_issues(payload, "document-segments")
+    if issues:
+        raise DeepReviewValidationError(issues)
+    segments = payload["segments"]
+    if duplicates := _duplicates([str(item["segment_id"]) for item in segments]):
+        issues.append(_issue("duplicate_segment_id", f"segment IDs must be unique: {duplicates}", "$.segments"))
+    if [int(item["ordinal"]) for item in segments] != list(range(1, len(segments) + 1)):
+        issues.append(_issue("segment_ordinal_gap", "segment ordinals must be 1..n without gaps", "$.segments"))
+    for index, segment in enumerate(segments):
+        path = f"$.segments[{index}]"
+        if segment["status"] == "needs_human_review" and segment["confidence"] is not None:
+            issues.append(_issue("segment_review_confidence", "needs_human_review segments must not carry a confidence", path))
+        if segment["status"] == "classified" and not segment["taxonomy_labels"]:
+            issues.append(_issue("segment_label_missing", "classified segments must carry at least one taxonomy label", path))
+    return _strict(payload, "document-segments", issues)
+
+
+def build_segment_checks(
+    inventory: Mapping[str, Any],
+    observed_requirement_ids: Iterable[str],
+) -> list[dict[str, Any]]:
+    """심층 검토 검증에 더하는 두 check를 결정적으로 만든다.
+
+    ``requirement_inventory``는 stage 1 claim이 보고한 requirement ID 집합과
+    묶음의 모든 문서 inventory 합집합을 :func:`compare_requirement_ids`로 비교한다.
+    inventory가 비어 있으면(문서에 ID 체계가 없음) 실패로 만들지 않고 경고로 남긴다.
+
+    ``segment_coverage``는 사람 검토가 필요한 segment나 빈 구간·겹침을 경고로만
+    드러낸다. 어느 쪽도 자동으로 보정하지 않는다.
+    """
+
+    expected = [str(value) for value in inventory.get("expected_ids", []) or []]
+    checks: list[dict[str, Any]] = []
+    if not expected:
+        checks.append({
+            "check_type": REQUIREMENT_INVENTORY_CHECK, "status": "warning", "severity": "보통",
+            "message": "문서에 요구사항 ID 체계가 없어 inventory 대조를 하지 못했습니다",
+            "related_claim_ids": [], "related_evidence_ids": [],
+        })
+    else:
+        result = compare_requirement_ids(expected, observed_requirement_ids)
+        if result.missing_ids or result.unexpected_ids:
+            checks.append({
+                "check_type": REQUIREMENT_INVENTORY_CHECK, "status": "failed", "severity": "중대",
+                "message": (
+                    "stage 1 claim의 요구사항 ID가 문서 inventory와 다릅니다 "
+                    f"(누락 {len(result.missing_ids)}건, 예상 밖 {len(result.unexpected_ids)}건)"
+                ),
+                "related_claim_ids": [], "related_evidence_ids": [],
+            })
+        elif result.duplicate_ids:
+            checks.append({
+                "check_type": REQUIREMENT_INVENTORY_CHECK, "status": "warning", "severity": "보통",
+                "message": f"stage 1 claim이 같은 요구사항 ID를 {len(result.duplicate_ids)}건 중복 보고했습니다",
+                "related_claim_ids": [], "related_evidence_ids": [],
+            })
+        else:
+            checks.append({
+                "check_type": REQUIREMENT_INVENTORY_CHECK, "status": "passed", "severity": "낮음",
+                "message": f"요구사항 ID {result.expected_count}건을 문서 inventory와 대조했습니다",
+                "related_claim_ids": [], "related_evidence_ids": [],
+            })
+
+    if not int(inventory.get("manifest_count", 0) or 0):
+        return checks
+    needs_review = int(inventory.get("needs_human_review_count", 0) or 0)
+    gaps = int(inventory.get("gap_count", 0) or 0)
+    overlaps = int(inventory.get("overlap_count", 0) or 0)
+    if needs_review or gaps or overlaps:
+        checks.append({
+            "check_type": SEGMENT_COVERAGE_CHECK, "status": "warning", "severity": "보통",
+            "message": (
+                "segment manifest에 사람 검토가 필요한 구간이 있습니다 "
+                f"(미분류 {needs_review}건, 빈 구간 {gaps}건, 겹침 {overlaps}건)"
+            ),
+            "related_claim_ids": [], "related_evidence_ids": [],
+        })
+    else:
+        checks.append({
+            "check_type": SEGMENT_COVERAGE_CHECK, "status": "passed", "severity": "낮음",
+            "message": "segment manifest가 문서 전체를 빈 구간·겹침 없이 덮습니다",
+            "related_claim_ids": [], "related_evidence_ids": [],
+        })
+    return checks
+
+
 def merge_stage_chunks(
     chunks: Sequence[Mapping[str, Any]],
     *,
@@ -1282,6 +1380,7 @@ def validate_deep_review(payload: Mapping[str, Any], **kwargs: Any) -> dict[str,
         "bidops.deep-review-stage.v1": validate_deep_review_stage,
         "bidops.deep-review-report.v1": validate_deep_review_report,
         "bidops.deep-review-validation.v1": validate_deep_review_validation,
+        "bidops.document-segments.v1": validate_document_segments,
     }
     if schema not in dispatch:
         raise DeepReviewValidationError(_issue("unknown_schema", f"unsupported deep-review schema: {schema!r}"))
@@ -1290,8 +1389,9 @@ def validate_deep_review(payload: Mapping[str, Any], **kwargs: Any) -> dict[str,
 
 __all__ = [
     "ContractValidationError", "DeepReviewValidationError", "RequirementInventory", "ValidationIssue", "ValidationResult",
+    "REQUIREMENT_INVENTORY_CHECK", "SEGMENT_COVERAGE_CHECK", "build_segment_checks",
     "compare_pilot_requirements", "compare_requirement_ids", "deterministic_chunk_merge", "merge_stage_chunks",
     "merge_chunks", "replay_calculation", "replay_formula", "validate_bundle", "validate_deep_review", "validate_deep_review_report", "validate_deep_review_stage",
-    "validate_deep_review_validation", "validate_document_bundle", "validate_document_structure",
+    "validate_deep_review_validation", "validate_document_bundle", "validate_document_segments", "validate_document_structure",
     "validate_final_opinion_snapshot", "validate_report_payload", "validate_stage_payload", "validate_structure", "validate_validation_payload", "validate_requirement_inventory",
 ]

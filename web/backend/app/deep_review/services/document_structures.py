@@ -30,7 +30,7 @@ from ..models import (
     DocumentStructure,
     DocumentVersion,
 )
-from . import assets
+from . import assets, document_segments
 
 
 LocationWriter = Callable[[Session, UUID, str, Path, str], None]
@@ -226,6 +226,11 @@ def materialize_structure(
                 attributes=block["attributes"],
             )
         )
+    # 구조 저장 직후에 결정적 segment·요구사항 inventory manifest를 만든다. 취득
+    # worker와 수동 업로드가 이 helper 하나를 공유한다. 실패는 구조 저장을
+    # 되돌리지 않고 savepoint 안에서 경고로 끝난다.
+    session.flush()
+    document_segments.ensure_manifest(session, payload)
     return structure
 
 

@@ -21,6 +21,7 @@ SCHEMA_FILES = {
     "deep-review-stage": "bidops.deep-review-stage.v1.json",
     "deep-review-report": "bidops.deep-review-report.v1.json",
     "deep-review-validation": "bidops.deep-review-validation.v1.json",
+    "document-segments": "bidops.document-segments.v1.json",
 }
 
 DOCUMENT_STRUCTURE_SCHEMA = "document-structure"
@@ -28,6 +29,7 @@ DOCUMENT_BUNDLE_SCHEMA = "document-bundle"
 DEEP_REVIEW_STAGE_SCHEMA = "deep-review-stage"
 DEEP_REVIEW_REPORT_SCHEMA = "deep-review-report"
 DEEP_REVIEW_VALIDATION_SCHEMA = "deep-review-validation"
+DOCUMENT_SEGMENTS_SCHEMA = "document-segments"
 SCHEMAS = {key: value for key, value in SCHEMA_FILES.items()}
 
 
@@ -42,7 +44,7 @@ def schema_path(name: str) -> Path:
 
 
 def load_schema(name: str) -> dict[str, Any]:
-    """Load one of the five immutable contract schemas."""
+    """Load one of the immutable contract schemas."""
 
     return json.loads(schema_path(name).read_text(encoding="utf-8"))
 
@@ -66,6 +68,7 @@ __all__ = [
     "DEEP_REVIEW_STAGE_SCHEMA",
     "DEEP_REVIEW_VALIDATION_SCHEMA",
     "DOCUMENT_BUNDLE_SCHEMA",
+    "DOCUMENT_SEGMENTS_SCHEMA",
     "DOCUMENT_STRUCTURE_SCHEMA",
     "SCHEMAS",
     "SCHEMA_FILES",
