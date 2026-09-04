@@ -278,3 +278,47 @@ deep_review의 전제이므로 남긴다.
 - `tests/screening/test_screening_orchestrator.py`의 기존 결함 2건은 이 이주와 무관하며 그대로다.
 - Playwright 전체 규모(860건)와 `status.md`에 남아 있던 646건 기준선이 다르다. 이 이주의
   변경이 아니다.
+
+## 통합 base에서 다시 돌린 완료 검증
+
+위 기록은 작업 worktree(`dryforge/wt-t9`)에서 나온 것이다. T9과 T10을 `dryforge/backend-modules`에
+병합한 뒤 **통합된 상태(`0a889f5`)에서 같은 명령을 처음부터 다시 돌렸다.** 이전 통과 기록을
+재사용하지 않았다.
+
+| 명령 | 결과 | 종료 코드 |
+|---|---|---|
+| `cd web/backend && .venv/bin/python -m pytest tests/ -q -p no:cacheprovider -rs` | `2 failed, 1240 passed, 5 skipped, 6 warnings in 611.46s (0:10:11)` | 1 |
+| `./run-tests.sh` | collect 41 / report 13 / screen 89(skipped 10) / root 2 = 145, 전부 OK | 0 |
+| `cd web/frontend && npm run build` | `✓ built in 1.21s`, 초기 JS `index-B3SAj4Ri.js` 358.70 kB / gzip 112.89 kB | 0 |
+| `cd web/frontend && npm run test:visual` | `14 skipped, 846 passed (9.9m)` — 1차 실행에서 바로 통과했다(재실행 없음) | 0 |
+| `docker compose -f docker-compose.t7.yml build` | `bidops-migrate`, `bidops-postgres-init`, `bidops-web`, `bidops-document-worker`, `bidops-analysis-worker` 다섯 image 빌드 | 0 |
+| `web/backend/scripts/verify_module_isolation.sh` | lifecycle `75 passed` / screening `2 failed, 394 passed, 1 skipped` / deep_review `230 passed`, 전체 PASS | 0 |
+
+backend 실패 2건은 위와 같은 기존 결함 2건뿐이며 로그에서 이름과 단언
+(`'실패' == '부분 성공'`)을 확인했다.
+
+- `tests/screening/test_screening_orchestrator.py::test_full_run_continues_after_one_notice_failure_and_publishes_partial`
+- `tests/screening/test_screening_orchestrator.py::test_partial_rejudgment_retains_prior_projection_and_revision`
+
+skip 5건의 사유는 모두 출력에 남았다(MinIO 격리 서비스 4건, 컨테이너 경로 전용 installed-set 1건).
+
+`web/frontend`는 이주 전 `a7deaa2`부터 `0a889f5`까지 **diff가 비어 있다.** 이 이주는 프론트엔드를
+한 줄도 바꾸지 않았으므로 위 Playwright 결과는 이주의 영향을 받지 않는 상태의 측정이다.
+
+### 이주 전후 REST 표면 — 정정된 측정
+
+`a7deaa2`와 `0a889f5`를 각각 `git archive`로 뽑은 깨끗한 사본에서 `app.main:app`의 OpenAPI 문서를
+정렬된 JSON으로 생성해 비교했다. **diff는 11줄이고 전부 `tags`다.**
+
+```
+14345c14345,14348          /api/health 의 tags: (없음) → ["health"]
+17912c17915                POST /api/runs/{run_id}/pipeline/judgment 의 tags: ["runs"] → ["screening"]
+```
+
+경로 74개와 각 경로의 메서드·파라미터·요청 본문·응답 스키마, `components` 전체는 동일하다.
+두 변화는 T3가 `/api/health`를 `app/core/health.py`로, T5a가 판정 실행 endpoint를 screening router로
+옮기면서 생긴 것이며(중간 commit `cb1e4b5`에서 이미 나타난다) 소유 모듈을 정확히 반영한다.
+`tags`는 `/docs` 화면의 묶음 이름표이고 `docs/contracts.md`가 계약으로 고정한 값이 아니다.
+
+이 문서의 앞부분에 적힌 "diff 0줄"은 seam 수정 **전후**를 비교한 값이다. 이주 **전체**의
+전후 비교는 위 11줄이 정확한 값이다.
