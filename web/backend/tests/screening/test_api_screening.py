@@ -81,7 +81,7 @@ def _app(tmp_path: Path) -> tuple[FastAPI, str]:
                 requested_by="operator",
                 policy_version="policy-1",
                 prompt_version="prompt-1",
-                model_name="qwen3.8:27b",
+                model_name="qwen3.8-27B",
                 model_digest=digest,
                 company_profile_version=f"company-profile.sha256:{digest}",
                 company_profile_digest=digest,

@@ -137,8 +137,8 @@ STARTUP_FORBIDDEN_NAMES: frozenset[str] = frozenset(
         # 상태 변경 — 회차 적재·삭제 (app/lifecycle/api.py)
         "ingest_run",
         "delete_run",
-        # 모델 호출 (app/screening/ollama.py, app/screening/worker.py)
-        "OllamaClient",
+        # 모델 호출 (app/screening/model_adapter.py, app/screening/worker.py)
+        "ScreeningModelClient",
         "ScreeningOrchestrator",
         "ScreeningWorker",
     }

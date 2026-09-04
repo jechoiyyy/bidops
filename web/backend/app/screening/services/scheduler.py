@@ -34,7 +34,7 @@ from ..models import (
     ScreeningExecution,
     ScreeningPolicy,
 )
-from ..ollama import OllamaClient
+from ..model_adapter import ScreeningModelClient
 from ...core.generation_config import (
     GenerationConfigError,
     config_from_value,
@@ -192,7 +192,7 @@ class SchedulerService:
         engine: Engine | None = None,
         scheduler: Any | None = None,
         clock: Callable[[], datetime] | None = None,
-        ollama: Any | None = None,
+        model_client: Any | None = None,
         on_daily: Callable[[str], Any] | None = None,
         on_weekly: Callable[[str], Any] | None = None,
     ) -> None:
@@ -202,7 +202,7 @@ class SchedulerService:
         self.session_factory = _factory(session_factory or engine)
         self.scheduler = scheduler or BackgroundScheduler(timezone=TIMEZONE)
         self.clock = clock or (lambda: datetime.now(UTC))
-        self.ollama = ollama
+        self.model_client = model_client
         self.on_daily = on_daily
         self.on_weekly = on_weekly
 
@@ -403,7 +403,7 @@ class SchedulerService:
             # A durable always-on projection is the source of the schedule
             # identity. Check its frozen generation binding before creating a
             # reservation or execution row. This path deliberately does not
-            # inspect Ollama; config drift must be observable without a model
+            # 모델을 확인하지 않는다. 설정 이동은 모델 호출 없이도 관측돼야 한다
             # call and must fail closed first.
             self._assert_generation_for_reservation(session)
             reservation = session.get(ScheduleReservation, run_key)
@@ -811,7 +811,7 @@ class SchedulerService:
         # therefore rejected instead of being treated as an exception.
         if current_generation.digest() != gate_digest:
             return None, "generation_config_mismatch"
-        inspector = self.ollama or OllamaClient(settings=self.settings)
+        inspector = self.model_client or ScreeningModelClient(settings=self.settings)
         try:
             identity = inspector.inspect_model(refresh=True)
         except Exception:
@@ -821,7 +821,7 @@ class SchedulerService:
         if isinstance(identity, dict):
             model_name = identity.get("model_name") or identity.get("name")
             model_digest = identity.get("digest") or identity.get("model_digest")
-        if model_name != self.settings.model_name or model_name != gate.model_name or model_digest != gate.model_digest:
+        if model_name != self.settings.vllm_screening_model or model_name != gate.model_name or model_digest != gate.model_digest:
             return None, "model_identity_mismatch"
         metadata = {
             "quality_gate_result_id": evaluation.evaluation_id,

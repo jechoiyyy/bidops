@@ -30,7 +30,7 @@ from ..schemas import (
 )
 from ..execution_store import ScreeningExecutionStore
 from ...core.generation_config import GenerationConfigError, config_from_value, validate_digest
-from ..ollama import ModelInspectionError
+from ..model_adapter import ModelInspectionError
 from ..orchestrator import ScreeningCreationError, ScreeningOrchestrator
 from ..queue import (
     ExecutionConflict,
@@ -501,9 +501,9 @@ def start_judgment_pipeline(
         # A fresh tags inspection is deliberately done before any artifact or
         # queue write.  The orchestrator repeats the binding while preparing
         # the frozen input, so a changed model cannot be silently accepted.
-        ollama = getattr(orchestrator, "ollama", None)
-        if ollama is not None:
-            ollama.inspect_model(refresh=True)
+        model_client = getattr(orchestrator, "model_client", None)
+        if model_client is not None:
+            model_client.inspect_model(refresh=True)
         created = orchestrator.create_execution(
             run_id=run.id,
             policy_version=payload.policy_version,

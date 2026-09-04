@@ -16,7 +16,6 @@ from typing import Any, Final, Literal, Mapping, Sequence
 from uuid import uuid4
 
 
-MODEL_NAME: Final[str] = "qwen3.8:27b"
 SYSTEM_MESSAGE: Final[str] = "JSON 외 텍스트를 출력하지 마라. 제공되지 않은 사실을 만들지 마라."
 PERSPECTIVE_NAMES: Final[tuple[str, ...]] = (
     "기술 적합성",
@@ -115,7 +114,13 @@ class CallMetadata:
 
 @dataclass(frozen=True)
 class ModelIdentity:
-    """The tag and immutable digest verified by ``/api/tags``."""
+    """한 실행이 묶인 모델명과 배포가 선언한 revision.
+
+    `model_name`은 `BIDOPS_VLLM_SCREENING_MODEL`이 정하고 server의 served id에
+    있어야 한다. `digest`는 Ollama blob digest가 아니라 **배포가 선언한 64자
+    revision**이다(ADR-0042). 응답이 revision을 실어 보내면 대조하고 없으면
+    통과하며, 선언이 비면 그 용도는 fail closed한다.
+    """
 
     model_name: str
     digest: str
@@ -427,7 +432,7 @@ def add_two_axis_metadata(judgment: Mapping[str, Any]) -> dict[str, Any]:
 
 __all__ = [
     "ASSESSMENTS", "CallMetadata", "ContractViolation", "EXCLUSION_CATEGORIES",
-    "EVIDENCE_STATUSES", "FOCUS_AXES", "GRADES", "MODEL_NAME", "ModelIdentity",
+    "EVIDENCE_STATUSES", "FOCUS_AXES", "GRADES", "ModelIdentity",
     "PERSPECTIVE_NAMES", "READINESS", "RESOLUTION_STATUSES", "SYSTEM_MESSAGE",
     "TwoAxisMixing", "VERIFICATION_STATUSES", "add_two_axis_metadata", "canonical_json",
     "new_span_id", "new_trace_id", "parse_json_object", "two_axis_mixing",

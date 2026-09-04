@@ -1,8 +1,13 @@
-"""Persistence and orchestration boundary for model-quality gates.
+"""모델 품질 게이트의 저장·조립 경계.
 
-Gate creation validates the immutable 40-notice input before touching the
-database.  The two passes are ordinary ``quality_sample`` executions and are
-therefore subject to the same FIFO worker as every other Qwen call.
+게이트 생성은 DB에 손대기 전에 불변 40건 입력을 검증한다. 두 pass는 평범한
+`quality_sample` 실행이므로 다른 모든 모델 호출과 같은 FIFO worker를 탄다.
+
+게이트가 binding하는 `model_digest`의 출처는 **배포가 선언한 64자
+revision**(ADR-0042)이며 모델 blob의 hash가 아니다. 값은 실행 row가 이미
+가진 것을 그대로 옮길 뿐 이 모듈이 모델을 부르지 않는다. 모델명 역시
+`BIDOPS_VLLM_SCREENING_MODEL`이 정하므로 게이트 비교는 코드에 박힌 이름이
+아니라 실행 row끼리의 동일성만 본다.
 """
 
 from __future__ import annotations

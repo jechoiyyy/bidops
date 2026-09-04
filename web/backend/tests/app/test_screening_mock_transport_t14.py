@@ -21,7 +21,7 @@ from app.screening.mock_transport import (
     MockScreeningTransport,
     MockScreeningTransportError,
 )
-from app.screening.ollama import OllamaCallError, OllamaClient, ScreeningOrchestrator
+from app.screening.model_adapter import ScreeningCallError, ScreeningModelClient, ScreeningStageRunner
 from app.screening.policy import load_policy_file
 from app.screening.prompts import (
     schema_for_stage,
@@ -73,7 +73,7 @@ def _base_judgment(value: dict[str, object]) -> dict[str, object]:
 def _run(notice_id: str, *, transport: MockScreeningTransport | None = None):
     notice = _notice(notice_id)
     chosen = transport or MockScreeningTransport()
-    result = ScreeningOrchestrator(OllamaClient(transport=chosen)).run(
+    result = ScreeningStageRunner(ScreeningModelClient(transport=chosen)).run(
         execution_id="mock-execution",
         notice_id=notice_id,
         policy=load_policy_file(),
@@ -83,7 +83,7 @@ def _run(notice_id: str, *, transport: MockScreeningTransport | None = None):
     return chosen, notice, result
 
 
-def test_mock_transport_runs_all_seven_calls_through_real_ollama_client() -> None:
+def test_mock_transport_runs_all_seven_calls_through_the_real_adapter() -> None:
     transport, notice, result = _run("notice-1")
 
     assert len(transport.generate_requests) == 7
@@ -120,7 +120,7 @@ def test_same_notice_produces_byte_identical_mock_judgment_output() -> None:
     second_bytes = canonical_json(_base_judgment(second.judgment)).encode("utf-8")
     assert first_bytes == second_bytes
     assert first_notice == second_notice
-    assert first_transport.generate_requests[-1]["payload"]["format"] == second_transport.generate_requests[-1]["payload"]["format"]
+    assert first_transport.generate_requests[-1]["response_format"] == second_transport.generate_requests[-1]["response_format"]
 
 
 def test_mock_covers_all_grades_and_valid_readiness_cross_rules() -> None:
@@ -153,10 +153,10 @@ def test_mock_covers_all_grades_and_valid_readiness_cross_rules() -> None:
 
 
 @pytest.mark.parametrize("failure_mode", ["schema_violation", "evidence_missing"])
-def test_failure_mode_is_retried_twice_then_raises_ollama_call_error(failure_mode: str) -> None:
+def test_failure_mode_is_retried_twice_then_raises_a_bounded_call_error(failure_mode: str) -> None:
     transport = MockScreeningTransport(failure_mode=failure_mode)
-    with pytest.raises(OllamaCallError) as caught:
-        OllamaClient(transport=transport).generate(
+    with pytest.raises(ScreeningCallError) as caught:
+        ScreeningModelClient(transport=transport).generate(
             "모의 입력",
             schema_for_stage(NAMES[0]),
             stage=NAMES[0],
@@ -168,21 +168,36 @@ def test_failure_mode_is_retried_twice_then_raises_ollama_call_error(failure_mod
     assert len(transport.generate_requests) == 2
 
 
+def _create(transport: MockScreeningTransport, prompt: str, schema: object) -> dict:
+    """어댑터가 보내는 것과 같은 모양의 요청 하나."""
+
+    return transport.create(
+        model=Settings().vllm_screening_model,
+        messages=[{"role": "system", "content": "s"}, {"role": "user", "content": prompt}],
+        response_format={"type": "json_schema", "json_schema": {"name": "n", "strict": True, "schema": schema}},
+        max_tokens=2048,
+    )
+
+
+def _content(response: dict) -> dict:
+    return json.loads(response["choices"][0]["message"]["content"])
+
+
 def test_judgment_notice_identity_is_strictly_extracted_from_canonical_json() -> None:
     schema = schema_for_stage("judgment.v3")
     valid_prompt = "notice_json=" + canonical_json(_notice("notice-strict"))
     transport = MockScreeningTransport()
-    valid = transport.request("POST", "/api/generate", {"prompt": valid_prompt, "format": schema}, timeout=1)
-    assert json.loads(valid["response"])["notice_id"] == "notice-strict"
+    valid = _create(transport, valid_prompt, schema)
+    assert _content(valid)["notice_id"] == "notice-strict"
 
     with pytest.raises(MockScreeningTransportError, match="canonical"):
-        transport.request("POST", "/api/generate", {"prompt": "notice_json={}", "format": schema}, timeout=1)
+        _create(transport, "notice_json={}", schema)
     with pytest.raises(MockScreeningTransportError, match="missing"):
-        transport.request("POST", "/api/generate", {"prompt": "no notice", "format": schema}, timeout=1)
+        _create(transport, "no notice", schema)
 
 
-def test_screening_mock_setting_is_explicit_and_defaults_to_ollama() -> None:
-    assert Settings().screening_provider == "ollama"
+def test_screening_mock_setting_is_explicit_and_defaults_to_vllm() -> None:
+    assert Settings().screening_provider == "vllm"
     with pytest.raises(ValueError, match="mock screening provider"):
         Settings(screening_provider="mock", reference_workflow_mode=False)
     settings = Settings(screening_provider="mock", reference_workflow_mode=True)
@@ -202,15 +217,15 @@ def test_application_runtime_injects_mock_only_for_the_explicit_provider(tmp_pat
     )
     runtime = ApplicationRuntime(settings)
     try:
-        assert isinstance(runtime.ollama.transport, MockScreeningTransport)
-        assert runtime.ollama.inspect_model().digest == MOCK_MODEL_DIGEST
+        assert isinstance(runtime.model_client.transport, MockScreeningTransport)
+        assert runtime.model_client.inspect_model().digest == MOCK_MODEL_DIGEST
     finally:
         runtime.shutdown()
 
 
-def test_mock_tags_and_telemetry_use_the_named_synthetic_digest() -> None:
+def test_mock_identity_and_telemetry_use_the_named_synthetic_revision() -> None:
     transport = MockScreeningTransport()
-    identity = OllamaClient(transport=transport).inspect_model()
+    identity = ScreeningModelClient(transport=transport).inspect_model()
     assert identity.digest == MOCK_MODEL_DIGEST
     assert identity.digest != "a" * 64
 
@@ -225,26 +240,18 @@ def test_mock_transport_does_not_import_or_open_network_sockets(monkeypatch: pyt
 
     monkeypatch.setattr(socket, "socket", fail_socket)
     transport = MockScreeningTransport()
-    tags = transport.request("GET", "/api/tags", None, timeout=1)
-    generated = transport.request(
-        "POST",
-        "/api/generate",
-        {"prompt": "not a stage prompt", "format": schema_for_stage(NAMES[0])},
-        timeout=1,
-    )
-    assert tags["models"][0]["digest"] == MOCK_MODEL_DIGEST
-    assert json.loads(generated["response"])["name"] == NAMES[0]
+    served = transport.models()
+    generated = _create(transport, "not a stage prompt", schema_for_stage(NAMES[0]))
+    assert served["data"][0]["model_revision"] == MOCK_MODEL_DIGEST
+    assert served["data"][0]["id"] == Settings().vllm_screening_model
+    assert _content(generated)["name"] == NAMES[0]
 
 
 def test_stage_selection_uses_format_required_keys_not_prompt_text() -> None:
     transport = MockScreeningTransport()
-    response = transport.request(
-        "POST",
-        "/api/generate",
-        {
-            "prompt": "이 텍스트는 synthesis judgment counterargument라는 단어를 포함한다.",
-            "format": schema_for_stage(NAMES[1]),
-        },
-        timeout=1,
+    response = _create(
+        transport,
+        "이 텍스트는 synthesis judgment counterargument라는 단어를 포함한다.",
+        schema_for_stage(NAMES[1]),
     )
-    assert json.loads(response["response"])["name"] == NAMES[1]
+    assert _content(response)["name"] == NAMES[1]

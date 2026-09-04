@@ -9,7 +9,7 @@ C-1 판정 FIFO(불변 입력 저장소·orchestrator·worker와 그 스레드),
 - worker는 항상 살아 있고 스케줄러는 `BIDOPS_SCHEDULER_ENABLED`가 켜졌을 때만
   start한다(기본 비활성, §9).
 - 프로세스당 모델 슬롯은 하나다. orchestrator와 worker가 **같은** 클라이언트를
-  나눠 쓴다.
+  나눠 쓴다. 동시 호출은 서버 측 큐잉에 맡긴다.
 - 새 worker가 FIFO를 잡기 전에 `recover_stale()`이 먼저 돈다.
 
 `RuntimePipelineBridge`는 skill 스크립트를 subprocess로 부르고 그 산출물을
@@ -24,13 +24,13 @@ import logging
 from pathlib import Path
 import subprocess
 import threading
-from typing import Any
+from typing import Any, Final
 
 from ..core import SessionLocal, Settings, get_settings, parse_run_id
 from ..lifecycle import ingest_run
 from .execution_store import ScreeningExecutionStore
 from .mock_transport import MockScreeningTransport
-from .ollama import OllamaClient
+from .model_adapter import ScreeningModelClient
 from .orchestrator import ScreeningOrchestrator
 from .services.scheduled_pipeline import ScheduledPipeline
 from .services.scheduler import SchedulerService
@@ -38,6 +38,11 @@ from .worker import ScreeningWorker
 
 
 logger = logging.getLogger(__name__)
+
+
+#: skill subprocess 한 단계의 상한(초). 모델 호출 timeout과 다른 값이며 모델
+#: 설정에서 오지 않는다 — 수집·표본·병합·보고서는 모델을 부르지 않는다.
+_PIPELINE_STAGE_TIMEOUT_SECONDS: Final[int] = 300
 
 
 class RuntimePipelineBridge:
@@ -62,7 +67,7 @@ class RuntimePipelineBridge:
                 stderr=subprocess.PIPE,
                 text=True,
                 check=False,
-                timeout=max(1, self.settings.model_timeout),
+                timeout=_PIPELINE_STAGE_TIMEOUT_SECONDS,
             )
             return completed.returncode == 0
         except (OSError, subprocess.SubprocessError):
@@ -159,24 +164,24 @@ class ScreeningRuntime:
         self.session_factory = session_factory or SessionLocal
         self.store = ScreeningExecutionStore(session_factory=self.session_factory, settings=self.settings)
         transport = MockScreeningTransport() if self.settings.screening_provider == "mock" else None
-        self.ollama = OllamaClient(settings=self.settings, transport=transport)
+        self.model_client = ScreeningModelClient(settings=self.settings, transport=transport)
         self.orchestrator = ScreeningOrchestrator(
             self.settings,
             session_factory=self.session_factory,
             queue=self.store,
-            ollama=self.ollama,
+            model_client=self.model_client,
         )
         self.worker = ScreeningWorker(
             self.settings,
             store=self.store,
             session_factory=self.session_factory,
-            ollama=self.ollama,
+            model_client=self.model_client,
         )
         self._schedule_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="bidops-schedule")
         self.scheduler_service = SchedulerService(
             self.settings,
             session_factory=self.session_factory,
-            ollama=self.ollama,
+            model_client=self.model_client,
             on_daily=lambda execution_id: self.dispatch_schedule(execution_id, "daily"),
             on_weekly=lambda execution_id: self.dispatch_schedule(execution_id, "weekly"),
         )
@@ -187,7 +192,7 @@ class ScreeningRuntime:
             pipeline=RuntimePipelineBridge(self.settings, self.session_factory),
             orchestrator=self.orchestrator,
             worker=self.worker,
-            ollama=self.ollama,
+            model_client=self.model_client,
         )
         self.stop_event = threading.Event()
         self.worker_thread: threading.Thread | None = None
