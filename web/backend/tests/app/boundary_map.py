@@ -281,7 +281,7 @@ TABLE_OWNER: dict[str, str] = {
     "order_plan_screening_result": SCREENING,
     "order_plan_screening_artifact": SCREENING,
     "order_plan_screening_feedback": SCREENING,
-    # deep_review (34)
+    # deep_review (37)
     "attachment_fetch": DEEP_REVIEW,
     "content_object": DEEP_REVIEW,
     "content_object_location": DEEP_REVIEW,
@@ -316,6 +316,9 @@ TABLE_OWNER: dict[str, str] = {
     "bid_delta_item": DEEP_REVIEW,
     "bid_delta_evidence": DEEP_REVIEW,
     "bid_final_decision": DEEP_REVIEW,
+    "document_segment_manifest": DEEP_REVIEW,
+    "document_segment": DEEP_REVIEW,
+    "requirement_inventory_item": DEEP_REVIEW,
 }
 
 # `tests/` 루트에 두는 공용 helper. conftest·postgres 처럼 어느 모듈의 테스트든
