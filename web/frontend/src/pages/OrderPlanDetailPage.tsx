@@ -1,11 +1,17 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { ActorField } from "../components/common/ActorField";
 import { EmptyState } from "../components/common/EmptyState";
 import { MutationFeedback } from "../components/common/MutationFeedback";
 import { Panel } from "../components/common/Panel";
-import { ReviewHistoryLinkRail, ReviewRevisionHistory, ReviewValue } from "../components/common/ReviewPrimitives";
+import {
+  ReviewDecisionAction,
+  ReviewHistoryLinkRail,
+  ReviewRevisionHistory,
+  ReviewValue,
+  StickyDecisionHeader,
+} from "../components/common/ReviewPrimitives";
 import { StatusBadge, type StatusTone } from "../components/common/StatusBadge";
 import { api, ApiError } from "../lib/api";
 import type {
@@ -167,22 +173,25 @@ function ExecutionHistoryCard({
   );
 }
 
+const FEEDBACK_FORM_ID = "c2-detail-feedback-form";
+
 function FeedbackForm({
+  formId,
   orderPlanPk,
   executionId,
   expectedRevision,
+  onReadyChange,
   onSaved,
-  compact = false,
 }: {
+  /** 헤더의 저장 액션이 `form` 속성으로 이 폼을 submit한다. 전제조건과 저장
+   * 동작이 한 곳에만 있어 업무 규칙이 복제되지 않는다. */
+  formId: string;
   orderPlanPk: number;
   executionId: string;
   expectedRevision: number;
+  /** 헤더 액션의 비활성 여부를 이 폼의 준비 상태와 같게 유지한다. */
+  onReadyChange: (ready: boolean) => void;
   onSaved: () => void;
-  /** 발주계획 상세(4단계)가 고정 헤더 안에 이 폼을 둘 때 쓰는 밀도 전용
-   * 표시 변형이다. 이 화면에 이 결정(사람 relevance·priority·memo 입력,
-   * PRD 결정 1)을 소유·저장하는 곳은 여기 하나뿐이므로 compact는 설명
-   * 문구만 생략하고 필드·저장 동작은 그대로 둔다. */
-  compact?: boolean;
 }) {
   const queryClient = useQueryClient();
   const [relevance, setRelevance] = useState<OrderPlanRelevance>("uncertain");
@@ -214,21 +223,22 @@ function FeedbackForm({
     },
   });
 
-  const ready = actorName.trim().length > 0 && executionId.length > 0;
+  const ready = actorName.trim().length > 0 && executionId.length > 0 && !mutation.isPending;
+  useEffect(() => {
+    onReadyChange(ready);
+  }, [onReadyChange, ready]);
+
   return (
     <form
-      className={`c2-feedback-form${compact ? " is-compact" : ""}`}
+      className="c2-feedback-form"
+      id={formId}
       onSubmit={(event) => {
         event.preventDefault();
         if (ready) mutation.mutate();
       }}
     >
-      {!compact ? (
-        <>
-          <h4>사람 relevance / priority / note 기록</h4>
-          <p className="c2-form-note">새 revision을 append-only로 추가합니다. tracking 상태·fitness grade·readiness·최종 Go/No-Go를 변경하지 않습니다.</p>
-        </>
-      ) : null}
+      <h4>사람 relevance / priority / note 기록</h4>
+      <p className="c2-form-note">새 revision을 append-only로 추가합니다. tracking 상태·fitness grade·readiness·최종 Go/No-Go를 변경하지 않습니다.</p>
       <div className="c2-form-grid">
         <label>
           <span>relevance</span>
@@ -252,8 +262,10 @@ function FeedbackForm({
       <p className="c2-muted">대상 execution <span className="mono">{executionId}</span> · expected revision {expectedRevision}</p>
       {mutation.isError ? <MutationFeedback tone="error">{mutation.error instanceof ApiError ? mutation.error.message : "사람 피드백을 저장하지 못했습니다."}</MutationFeedback> : null}
       {mutation.isSuccess ? <MutationFeedback tone="success">새 사람 피드백 revision을 저장했습니다.</MutationFeedback> : null}
-      <button className="c2-button" type="submit" disabled={!ready || mutation.isPending}>
-        {mutation.isPending ? "저장 중…" : "새 revision 저장"}
+      {/* 헤더의 `새 revision 저장`과 같은 submit이다. 이름을 달리해 두 버튼이
+          같은 이름으로 두 번 잡히지 않게 한다(입찰 변경 비교와 같은 방식). */}
+      <button className="c2-button" type="submit" disabled={!ready}>
+        {mutation.isPending ? "저장 중…" : "사람 피드백 revision 저장"}
       </button>
     </form>
   );
@@ -266,6 +278,15 @@ export function OrderPlanDetailPage() {
   const returnPath = `/order-plans${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
   const [selectedExecutionId, setSelectedExecutionId] = useState("");
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const [feedbackReady, setFeedbackReady] = useState(false);
+  const feedbackPanelRef = useRef<HTMLDivElement>(null);
+  const handleFeedbackReadyChange = useCallback((ready: boolean) => setFeedbackReady(ready), []);
+  const focusFeedbackForm = useCallback(() => {
+    const panel = feedbackPanelRef.current;
+    if (!panel) return;
+    panel.scrollIntoView({ block: "start" });
+    panel.querySelector<HTMLElement>("select, input, textarea")?.focus({ preventScroll: true });
+  }, []);
 
   const detailQuery = useQuery({
     queryKey: ["order-plan-c2", "plan", orderPlanPk],
@@ -316,14 +337,22 @@ export function OrderPlanDetailPage() {
 
   const latestFeedback = detailQuery.data?.latest_human_feedback ?? null;
   const latestExecution = history.length > 0 ? history[0] : null;
+  const feedbackDisabledReason = feedbackReady
+    ? undefined
+    : "새 revision을 저장하려면 본문의 사람 판단 입력에서 담당자 claimed name을 입력하십시오.";
 
   return (
     <section className="c2-page c2-detail-page detail-skeleton" data-astryx-theme="bidops" aria-labelledby="order-plan-detail-title">
-      {/* 상세 3종 공통 골격(4단계): 요약 헤더는 position:sticky로 스크롤
-          위치와 무관하게 첫 화면에 남는다. 결정 액션(사람 relevance·priority·
-          memo 저장, PRD 결정 1)은 상태 배지 줄 오른쪽 끝에만 있고 레일에는
-          복제하지 않는다. */}
-      <header className="c2-page-header detail-skeleton-head">
+      {/* 상세 3종 공통 골격(PLAN 단계 F 작업 1): 요약 헤더 → 헤더 고정 상태·결정
+          action → 본문 반복 목록 → 우측 이력·연결 rail. 세 화면이 같은
+          primitive(StickyDecisionHeader·ReviewHistoryLinkRail)를 쓴다.
+
+          되돌릴 수 없는 입력 form은 헤더에 올리지 않는다(단계 F 완료 게이트).
+          헤더에는 저장 액션과 입력으로 가는 이동만 두고, 폼 자체는 본문 열에
+          둔다 — 시안 `OrderPlanDetail`이 사람 피드백 revision 이력과 새 revision
+          입력을 본문 열에 함께 두는 배치다. 저장 버튼은 form 속성으로 본문 폼을
+          submit하므로 전제조건이 한 곳에만 있다. */}
+      <StickyDecisionHeader className="c2-page-header detail-skeleton-head" label="발주계획 상세 결정 헤더">
         <div className="detail-skeleton-head-top">
           <div>
             <Link className="c2-back-link" to={returnPath}>← 발주계획 목록</Link>
@@ -341,18 +370,26 @@ export function OrderPlanDetailPage() {
           />
           <div className="detail-skeleton-actions">
             {selectedExecutionId ? (
-              <FeedbackForm
-                compact
-                orderPlanPk={orderPlanPk}
-                executionId={selectedExecutionId}
-                expectedRevision={expectedRevision}
-                onSaved={() => setSavedMessage("사람 피드백 revision을 추가했습니다.")}
-              />
+              <>
+                <ReviewDecisionAction
+                  className="c2-button"
+                  disabledReason={feedbackDisabledReason}
+                  disabledReasonId="c2-detail-feedback-disabled"
+                  form={FEEDBACK_FORM_ID}
+                  isDisabled={!feedbackReady}
+                  label="새 revision 저장"
+                  type="submit"
+                  variant="primary"
+                />
+                <button className="c2-button c2-button-secondary" type="button" onClick={focusFeedbackForm}>
+                  사람 판단 입력으로 이동
+                </button>
+              </>
             ) : <p className="c2-muted">피드백을 기록할 execution history가 없습니다.</p>}
           </div>
         </div>
         {savedMessage ? <MutationFeedback tone="success">{savedMessage}</MutationFeedback> : null}
-      </header>
+      </StickyDecisionHeader>
 
       <p className="c2-page-lede">관측·단계 결과·시도/실패 투영·안전한 artifact·사람 피드백 revision을 한 건 단위로 확인합니다.</p>
       <p className="c2-semantics-note"><code>filtered_out</code>·<code>not_relevant</code>·<code>unknown</code>·<code>null</code>은 각각 BM25 탈락·relevance 음성·정보 부족·값 없음/미적용을 뜻하며 서로 대체하지 않습니다.</p>
@@ -385,6 +422,52 @@ export function OrderPlanDetailPage() {
                 <div><dt>계획 시기</dt><dd>{plannedTiming(detailQuery.data.planned_order_year, detailQuery.data.planned_order_month)}</dd></div>
               </div>
             </Panel>
+
+            {/* 시안 `OrderPlanDetail`은 사람 피드백 revision 이력과 새 revision
+                입력을 **본문 열**에 함께 둔다. 이력을 우측 레일에 두면 지금
+                저장하려는 값과 직전 revision을 한눈에 대조할 수 없다. 레일은
+                관측·실행 이력과 연결만 담는다. */}
+            <div ref={feedbackPanelRef}>
+              <Panel
+                className="c2-feedback-panel"
+                title="사람 피드백 revision history"
+                action={<span className="c2-muted">append-only · {feedback.length.toLocaleString("ko-KR")}건</span>}
+              >
+                <ReviewRevisionHistory
+                  className="c2-feedback-history"
+                  empty="사람 피드백이 없습니다. 사람 relevance·priority·note를 새 revision으로 기록할 수 있습니다."
+                  entries={feedback.map((item) => ({
+                    actor: item.claimed_name,
+                    at: formatMoment(item.created_at),
+                    body: (
+                      <dl>
+                        <div><dt>priority</dt><dd>{item.priority ?? "null (미지정)"}</dd></div>
+                        <div><dt>note</dt><dd>{item.memo ?? "null (메모 미제공)"}</dd></div>
+                        <div><dt>execution</dt><dd className="mono">{item.execution_id}</dd></div>
+                      </dl>
+                    ),
+                    id: item.feedback_id,
+                    revision: item.revision,
+                    tags: <StatusBadge label={item.relevance} tone={statusTone(item.relevance)} />,
+                  }))}
+                  error={feedbackQuery.isError ? "사람 피드백 history를 불러오지 못했습니다. 저장 전 현재 revision을 확인할 수 없습니다." : undefined}
+                  headingLevel={4}
+                  label="사람 피드백 revision 이력"
+                />
+                {selectedExecutionId ? (
+                  <FeedbackForm
+                    formId={FEEDBACK_FORM_ID}
+                    orderPlanPk={orderPlanPk}
+                    executionId={selectedExecutionId}
+                    expectedRevision={expectedRevision}
+                    onReadyChange={handleFeedbackReadyChange}
+                    onSaved={() => setSavedMessage("사람 피드백 revision을 추가했습니다.")}
+                  />
+                ) : (
+                  <p className="c2-muted">피드백을 기록할 execution history가 없습니다. 실행 기록 없이 revision을 만들지 않습니다.</p>
+                )}
+              </Panel>
+            </div>
 
             <Panel title="screening execution history" className="c2-history-panel">
               {historyQuery.isError && detailQuery.data.screening_history.length === 0 ? <p className="c2-inline-warning" role="alert">screening history endpoint를 확인하지 못했습니다. 결과 없음과 실패를 구분할 수 없습니다.</p> : null}
@@ -437,36 +520,6 @@ export function OrderPlanDetailPage() {
                 })),
                 label: "관측 history",
                 listClassName: "detail-skeleton-rail-history",
-              },
-              {
-                className: "detail-skeleton-rail-panel",
-                // 사람 판단 수정은 덮어쓰기가 아니라 append-only revision 이다.
-                // 공통 primitive 가 건수와 append-only 표식을 함께 보여준다.
-                content: (
-                  <ReviewRevisionHistory
-                    className="c2-feedback-history"
-                    empty="사람 피드백이 없습니다. 사람 relevance·priority·note를 새 revision으로 기록할 수 있습니다."
-                    entries={feedback.map((item) => ({
-                      actor: item.claimed_name,
-                      at: formatMoment(item.created_at),
-                      body: (
-                        <dl>
-                          <div><dt>priority</dt><dd>{item.priority ?? "null (미지정)"}</dd></div>
-                          <div><dt>note</dt><dd>{item.memo ?? "null (메모 미제공)"}</dd></div>
-                          <div><dt>execution</dt><dd className="mono">{item.execution_id}</dd></div>
-                        </dl>
-                      ),
-                      id: item.feedback_id,
-                      revision: item.revision,
-                      tags: <StatusBadge label={item.relevance} tone={statusTone(item.relevance)} />,
-                    }))}
-                    error={feedbackQuery.isError ? "사람 피드백 history를 불러오지 못했습니다. 저장 전 현재 revision을 확인할 수 없습니다." : undefined}
-                    label="사람 피드백 revision 이력"
-                  />
-                ),
-                entries: [],
-                label: "사람 피드백 revision 이력",
-                showHeading: false,
               },
             ]}
             links={[{ href: returnPath, label: "발주계획 목록 →" }]}
