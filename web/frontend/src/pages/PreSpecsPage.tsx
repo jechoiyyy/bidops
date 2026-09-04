@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Badge } from "../components/common/Badge";
 import { DataTable, type DataTableColumn } from "../components/common/DataTable";
 import { DisabledReason } from "../components/common/DisabledReason";
 import { EmptyState } from "../components/common/EmptyState";
 import { Panel } from "../components/common/Panel";
 import { ReviewStateGroup, SplitWorkspace } from "../components/common/ReviewPrimitives";
-import { TrackingDecisionControl, updateTrackingProjection } from "../components/pre-specs/TrackingDecisionControl";
+import { isInheritedTracking, TrackingDecisionControl, updateTrackingProjection } from "../components/pre-specs/TrackingDecisionControl";
 import { api } from "../lib/api";
 import { describeDeadline } from "../lib/deadline";
 import { formatDateTime, formatNumber } from "../lib/format";
@@ -256,6 +256,7 @@ function columns(
 
 export function PreSpecsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const swOnly = searchParams.get("sw_only") !== "false";
   const businessDivision = validDivision(searchParams.get("business_division"));
@@ -505,14 +506,29 @@ export function PreSpecsPage() {
                 <Panel
                   className="pre-specs-tracking-target-panel"
                   title={`심층 추적 승인 · ${selectedTrackingItem.title?.trim() || "사업명 미확인"}`}
-                  action={<button type="button" onClick={() => setSelectedTrackingPk(null)}>닫기</button>}
+                  action={(
+                    <span className="pre-specs-detail-actions">
+                      {/* 이 화면의 결정은 심층 검토 실행 승인이다(PLAN 단계 D 작업 3).
+                          문서 묶음 준비와 승인은 상세가 소유하므로 그 자리로 보낸다. */}
+                      <Link to={`/pre-specs/${selectedTrackingItem.notice_pk}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`}>
+                        심층 검토 실행 →
+                      </Link>
+                      <button type="button" onClick={() => setSelectedTrackingPk(null)}>닫기</button>
+                    </span>
+                  )}
                 >
+                  {/* 신규 사전규격에만 `추적 시작하고 심층 검토`를 한 조작으로 준다
+                      (ADR-0045 결정 6, PLAN 단계 D 작업 4). 승계된 건은 컨트롤이
+                      추적 상태를 다시 묻지 않으므로 이 prop이 쓰이지 않는다. */}
                   <TrackingDecisionControl
                     item={selectedTrackingItem}
                     isPending={result.isPending}
                     isError={result.isError}
                     onRetry={() => { void result.refetch(); }}
                     headingLevel="h4"
+                    onStartedForDeepReview={isInheritedTracking(selectedTrackingItem)
+                      ? undefined
+                      : () => navigate(`/pre-specs/${selectedTrackingItem.notice_pk}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`)}
                     onSaved={(saved) => {
                       const noticePk = selectedTrackingItem.notice_pk;
                       queryClient.setQueryData<PreSpecListResponse>(
