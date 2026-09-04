@@ -349,7 +349,7 @@ export const api = {
   // --- 발주계획 추적 결정 (결정 1) ---
   //
   // 이 두 method 는 **아직 서버에 없는 계약**을 부른다.
-  // `docs/order-plan-tracking-contract-request.md` 가 정본이며 채택이 아니라 요청안이다.
+  // `docs/design/order-plan-tracking-contract-request.md` 가 정본이며 채택이 아니라 요청안이다.
   // 화면이 계약 모양을 아는 자리를 여기 하나로 제한한다 — 요청안 §2.3 의 대안(기존
   // `PATCH /opportunities/{id}/tracking-status`)으로 확정되면 이 두 함수만 바뀐다.
   //

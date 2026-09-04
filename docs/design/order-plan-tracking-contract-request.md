@@ -5,8 +5,8 @@
 | 상태 | **제안 — 백엔드 파트 검토 대기.** 채택도 구현도 아니다 |
 | 작성일 | 2026-09-04 |
 | 기준 HEAD | `27588af` (화면 시안 기준 구현 단계 B) |
-| 요청자 | 화면 작업(`docs/design/PLAN.md` 단계 C) |
-| 선행 결정 | [ADR-0045](design/ADR.md#adr-0045-사업-추적-중심-정보구조와-추적-결정의-위치) 결정 4·5·6, [`business-rules.md`](business-rules.md) 추적 상태 |
+| 요청자 | 화면 작업([`PLAN.md`](PLAN.md) 단계 C) |
+| 선행 결정 | [ADR-0045](ADR.md#adr-0045-사업-추적-중심-정보구조와-추적-결정의-위치) 결정 4·5·6, [`business-rules.md`](../business-rules.md) 추적 상태 |
 | 범위 | REST wire shape, 기존 DB 재사용 범위, 오류, 테스트 matrix |
 | 비범위 | backend production code, migration, 모델 호출, 운영 활성화, 프런트 구현 |
 
@@ -192,9 +192,9 @@ POST /api/order-plans/{order_plan_pk}/tracking-decisions
 4. Playwright fixture는 §2의 wire shape를 그대로 mock한다. 그 fixture가 이 요청안의 실행 가능한
    형태이며, **구현 완료의 근거가 아니다.**
 5. 이 문서의 상태가 `채택`으로 바뀌고 backend가 구현·검증되기 전에는 단계 C를 "완료"로 적지
-   않는다. `docs/tracking/status.md`가 그 사실을 남긴다.
+   않는다. [`../tracking/status.md`](../tracking/status.md)가 그 사실을 남긴다.
 
-이 방식의 선례는 [`bid-delta-contract-spec.md`](bid-delta-contract-spec.md)다. 그 문서도
+이 방식의 선례는 [`bid-delta-contract-spec.md`](../bid-delta-contract-spec.md)다. 그 문서도
 "작업 트리의 frontend는 존재하지 않는 endpoint를 호출하는 시안이며 구현 완료 근거가 아니다"라고
 같은 경계를 적었다.
 

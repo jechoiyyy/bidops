@@ -177,7 +177,7 @@ test("사람 판단 수정은 접힌 영역에서 새 revision만 저장하고 �
 });
 
 // ADR-0045 결정 4·5: 결정 1은 추적 결정이고 사람 판단 수정과 저장 경로를 공유하지 않는다.
-// 서버 계약은 아직 없다 — fixture 는 docs/order-plan-tracking-contract-request.md §2 의
+// 서버 계약은 아직 없다 — fixture 는 docs/design/order-plan-tracking-contract-request.md §2 의
 // wire shape 를 mock 하며 구현 완료의 근거가 아니다.
 test("추적 결정은 별도 요청으로 저장되고 선택 즉시 다음 발주계획으로 이동한다", async ({ page }) => {
   const trace = await mockOrderPlans(page);

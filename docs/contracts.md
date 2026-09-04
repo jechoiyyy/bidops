@@ -569,7 +569,7 @@ binding이 blocked이므로 실행·활성화 endpoint는 성공을 반환하지
 화면의 결정 1로 채택했으나 그 결정을 읽을·쓸 경로가 위 표에 없다. 목록·상세 응답의 `tracking`
 field와 `GET`/`POST /api/order-plans/{order_plan_pk}/tracking-decisions`를 백엔드 파트에
 요청했다. wire shape·오류·테스트 matrix는
-[`order-plan-tracking-contract-request.md`](order-plan-tracking-contract-request.md)에 있으며
+[`design/order-plan-tracking-contract-request.md`](design/order-plan-tracking-contract-request.md)에 있으며
 **제안이고 채택이 아니다.** 그 문서가 채택될 때까지 이 표가 발주계획 REST 계약의 전부다.
 화면의 Playwright fixture가 요청안의 모양을 mock하지만 그것은 구현 완료의 근거가 아니다.
 

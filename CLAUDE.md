@@ -26,7 +26,12 @@ bidops/
 │   ├── database-guide.md             DB 전체 해설과 설계 근거
 │   ├── deep-review-erd.md            심층 검토 DB 권위 계약
 │   ├── bid-delta-contract-spec.md    입찰 delta·최종 결정 OpenAPI·DB 명세
-│   ├── order-plan-tracking-contract-request.md  발주계획 추적 결정 계약 요청안(제안, 미채택)
+│   ├── design/                       화면 시안 기준 작업의 정본
+│   │   ├── ADR.md                    ADR-0039~0047 (디자인 시스템·정보구조·지원 폭·팔레트)
+│   │   ├── PRD.md                    화면 요구와 무드보드 색 토큰 표
+│   │   ├── PLAN.md                   시안 기준 구현 순서(단계 A~F)와 검증 절차
+│   │   ├── order-plan-tracking-contract-request.md  발주계획 추적 결정 계약 요청안(제안, 미채택)
+│   │   └── moodborad.jpg             색 팔레트의 원본 무드보드
 │   └── tracking/
 │       ├── status.md                 구현과 검증의 현재 상태
 │       ├── lifecycle-workstream.md 생애주기 구현의 결정 대기·할 일 기록

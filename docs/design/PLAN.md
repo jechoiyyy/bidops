@@ -302,7 +302,7 @@ React 코드에 붙이지 않는다.
 추적 결정이 pane 바닥의 결정이 되면 그 prop을 없애 시안의 접힌 기본값으로 되돌린다.
 
 **계약 의존성 (2026-09-04).** 아래 작업 5의 추적 결정을 저장할 REST 경로가 backend에 없다.
-요청안을 [`order-plan-tracking-contract-request.md`](../order-plan-tracking-contract-request.md)로
+요청안을 [`order-plan-tracking-contract-request.md`](order-plan-tracking-contract-request.md)로
 백엔드 파트에 보낸다. 조사 결과 새 table은 필요하지 않을 가능성이 높다 — 소유 사업기회와
 `stage='order_plan'` official 링크를 `ingest/loader.py`가 이미 만들고, 상태 4값과 append-only
 `AuditEvent`도 이미 있다. 없는 것은 발주계획 응답이 그 상태를 싣지 않는 것과 발주계획 식별자로
