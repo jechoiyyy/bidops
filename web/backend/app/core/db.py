@@ -104,7 +104,7 @@ ALEMBIC_HEAD = "0017_order_plan_screening_heartbeat"
 # Alembic hard-codes ``version_num VARCHAR(32)`` when it creates its version
 # table, and revision identifiers in this lineage are longer than that.  The
 # table is created at this width by ``alembic/env.py`` instead; the guard in
-# ``tests/test_db_migrations.py`` keeps every identifier inside it.
+# ``tests/app/test_db_migrations.py`` keeps every identifier inside it.
 ALEMBIC_VERSION_NUM_WIDTH = 64
 MIGRATION_COMMAND = "docker compose --project-name <isolated> -f docker-compose.t7.yml run --rm migrate"
 

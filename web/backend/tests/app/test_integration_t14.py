@@ -120,7 +120,7 @@ def test_migrated_database_is_at_head_before_lifespan() -> None:
     """The pytest harness proves migration before any app startup."""
 
     assert os.environ.get("BIDOPS_DATABASE_URL", "").startswith(("postgresql://", "postgresql+"))
-    assert Path(os.environ["BIDOPS_ROOT"]).resolve() == Path(__file__).resolve().parents[3]
+    assert Path(os.environ["BIDOPS_ROOT"]).resolve() == Path(__file__).resolve().parents[4]
     assert current_revision() == ALEMBIC_HEAD
 
 

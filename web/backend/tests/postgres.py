@@ -30,7 +30,7 @@ from sqlalchemy.exc import SQLAlchemyError
 BACKEND = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = BACKEND.parents[1]
 TESTS_ROOT = BACKEND / "tests"
-T14_TEST = TESTS_ROOT / "test_integration_t14.py"
+T14_TEST = TESTS_ROOT / "app" / "test_integration_t14.py"
 ENV_VAR = "BIDOPS_TEST_POSTGRES_URL"
 POSTGRES_IMAGE = "postgres:17.11"
 POSTGRES_CONTAINER_PREFIX = "bidops-pytest-pg-"

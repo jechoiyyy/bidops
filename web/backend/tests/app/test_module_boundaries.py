@@ -624,6 +624,51 @@ def test_declared_tables_match_the_ownership_table(layout: Layout) -> None:
     assert not extra, f"§5.1 소유표에만 있고 선언되지 않은 테이블: {extra}"
 
 
+def test_tests_root_holds_only_the_shared_helpers(layout: Layout) -> None:
+    """§5.4: `tests/` 루트에는 공용 helper와 모듈 폴더만 남는다.
+
+    "`tests/`는 모듈 폴더를 따른다. `tests/core/`, `tests/lifecycle/`,
+    `tests/screening/`, `tests/deep_review/`, 그리고 앱 조립·migration·runtime
+    계약·두 모듈 이상이 합쳐지는 통합 검사는 `tests/app/`. `conftest.py`,
+    `postgres.py`, `fakes/`, `fixtures/`, `c2_fixtures.py`는 `tests/` 루트에
+    남는다."
+
+    새 테스트 파일을 루트에 떨어뜨리면 여기서 실패한다 — 소유 모듈을 정해
+    폴더 안에 두라는 뜻이다.
+    """
+
+    tests_root = BACKEND_ROOT / "tests"
+    stray_files = sorted(
+        entry.name
+        for entry in tests_root.iterdir()
+        if entry.is_file() and entry.name not in bmap.TESTS_ROOT_ALLOWED_FILES
+    )
+    stray_dirs = sorted(
+        entry.name
+        for entry in tests_root.iterdir()
+        if entry.is_dir()
+        and not entry.name.startswith("__")
+        and entry.name not in bmap.TESTS_ROOT_ALLOWED_DIRS
+    )
+    assert not stray_files, (
+        "tests/ 루트에는 §5.4가 남긴 공용 helper만 둔다. 아래 파일은 소유 모듈의 "
+        f"폴더나 tests/app/으로 옮긴다:\n" + "\n".join(f"  tests/{name}" for name in stray_files)
+    )
+    assert not stray_dirs, (
+        "tests/ 루트에는 모듈 폴더와 §5.4가 남긴 공용 디렉터리만 둔다:\n"
+        + "\n".join(f"  tests/{name}/" for name in stray_dirs)
+    )
+
+
+def test_every_module_test_folder_exists() -> None:
+    """§2 완료 기준 1: 네 모듈 모두 자기 테스트 폴더를 갖는다."""
+
+    for folder in bmap.TEST_FOLDER_MODULES:
+        path = BACKEND_ROOT / folder
+        assert path.is_dir(), f"{folder}/ 가 없다"
+        assert sorted(path.glob("**/test_*.py")), f"{folder}/ 에 테스트가 하나도 없다"
+
+
 def test_excluded_files_still_exist() -> None:
     """실재하지 않는 경로가 EXCLUDED_FILES에 남아 있으면 실패한다.
 

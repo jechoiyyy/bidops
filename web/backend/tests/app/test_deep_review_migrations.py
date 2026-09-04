@@ -415,7 +415,7 @@ def test_alembic_downgrade_fails_closed_without_disposable_opt_in(monkeypatch):
     fake_alembic = type(sys)("alembic")
     fake_alembic.op = SimpleNamespace(get_bind=get_bind)
     monkeypatch.setitem(sys.modules, "alembic", fake_alembic)
-    migration_path = Path(__file__).parents[1] / "alembic" / "versions" / "0001_lean_v1_postgresql.py"
+    migration_path = Path(__file__).parents[2] / "alembic" / "versions" / "0001_lean_v1_postgresql.py"
     module_spec = importlib.util.spec_from_file_location("t1_alembic_revision", migration_path)
     assert module_spec is not None and module_spec.loader is not None
     migration = importlib.util.module_from_spec(module_spec)

@@ -309,3 +309,19 @@ TEST_FOLDER_MODULES: dict[str, str] = {
 # `tests/app/`뿐이고, 검사 2·3·4는 `tests/app/`에도 그대로 적용된다.
 CHECK_ONE_EXEMPT_FOLDERS: tuple[str, ...] = ("tests/app",)
 
+# §5.4가 `tests/` 루트에 남긴다고 못박은 것: "`conftest.py`, `postgres.py`,
+# `fakes/`, `fixtures/`, `c2_fixtures.py`는 `tests/` 루트에 남는다."
+# 나머지 테스트는 모두 모듈 폴더나 `tests/app/` 안에 있어야 한다.
+TESTS_ROOT_ALLOWED_FILES: frozenset[str] = frozenset(
+    {
+        "__init__.py",
+        "conftest.py",
+        "postgres.py",
+        "c2_fixtures.py",
+    }
+)
+
+# 같은 §5.4가 루트에 남긴 디렉터리와, 모듈 폴더 넷 + `tests/app`.
+TESTS_ROOT_ALLOWED_DIRS: frozenset[str] = frozenset(
+    {"fakes", "fixtures", "core", "lifecycle", "screening", "deep_review", "app"}
+)

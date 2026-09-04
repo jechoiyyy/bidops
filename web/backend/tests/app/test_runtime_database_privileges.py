@@ -22,7 +22,7 @@ from app.screening.models import OrderPlanScreeningExecution
 from tests.postgres import maintenance_url, requires_postgres, temporary_database
 
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[4]
 MIGRATE = (ROOT / "scripts/migrate.sh").read_text(encoding="utf-8")
 POLICY_PATH = ROOT / "scripts/runtime-privileges.sql"
 POLICY = POLICY_PATH.read_text(encoding="utf-8")
