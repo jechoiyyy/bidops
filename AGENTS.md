@@ -31,7 +31,12 @@ bidops/
 │   ├── model-quality-gate.md         공고 판정 품질 게이트의 고정 입력과 통과 기준
 │   ├── e2e-bc-acceptance.md          문서 준비(B)→심층 검토(C) 연속 인수 절차
 │   ├── agent/agent-runtime.md        공고 판정 worker의 입력 동결·span·telemetry
-│   ├── design/                       화면 개선 PRD·PLAN·ADR-0039~0041과 목업
+│   ├── design/                       화면 시안 기준 작업의 정본
+│   │   ├── ADR.md                    ADR-0039~0048 (디자인 시스템·정보구조·지원 폭·팔레트)
+│   │   ├── PRD.md                    화면 요구와 무드보드 색 토큰 표
+│   │   ├── PLAN.md                   시안 기준 구현 순서(단계 A~F)와 검증 절차
+│   │   ├── order-plan-tracking-contract-request.md  발주계획 추적 결정 계약 요청안(제안, 미채택)
+│   │   └── moodborad.jpg             색 팔레트의 원본 무드보드
 │   ├── deep-review-v2/               첨부문서 분석 설계와 Luna 시안 검증 계획 (제안)
 │   ├── reference/                    회사 프로필·실적 근거자료
 │   ├── validation-runs/              시점별 실행 증거
@@ -52,6 +57,7 @@ bidops/
 
 `docs/validation-runs`는 시점별 실행 증거이며 현재 코드와 위 핵심 문서의 계약을 대체하지 않는다. 완료·미채택 계획, 과거 리뷰·목업, 인수인계 문서는 저장소에 보관하지 않으며 필요하면 git 이력에서 찾는다. 과거의 `R-xx`·`A-xx`·phase·T-번호 체계는 종료됐고 새 작업에 다시 쓰지 않는다. 외부 의존성은 나라장터 OpenAPI, PostgreSQL 17, MinIO, ClamAV, Ollama Qwen3.8:27B, 승인된 사설 OpenAI-compatible vLLM, 문서 변환기, 승인 프로필 기준선 검증용 Git, Astryx 디자인 시스템(`@astryxdesign/core@0.5.2`, `@astryxdesign/cli@0.5.2`, 테마 아이콘 레지스트리가 요구하는 `lucide-react@1.39.0`)이다.
 Astryx의 "레이아웃도 컴포넌트로만, `<div>` 금지" 규칙은 ADR-0040에 따라 이 저장소에 적용하지 않으며 레이아웃은 프로젝트가 소유한다.
+화면의 색은 무드보드(`docs/design/moodborad.jpg`)에서 파생한 프로젝트 소유 테마 `bidops`가 정본이며(ADR-0048), 화면은 테마 토큰만 읽고 `:root`나 화면 CSS에서 `--color-*`를 재정의하지 않는다. 성공·실패·경고 의미색은 무드보드가 정하지 않는다.
 
 ## 작업 전 확인
 
@@ -74,6 +80,7 @@ Astryx의 "레이아웃도 컴포넌트로만, `<div>` 금지" 규칙은 ADR-004
 
 - PostgreSQL 17의 `bidops` schema와 versioned MinIO가 운영 정본이다. SQLite는 격리 테스트와 일회성 이전 입력에만 사용한다.
 - `docker-compose.t7.yml`이 애플리케이션 스택이다. 기본 network는 내부망이며 외부 호출은 목적별 overlay를 명시한 경우에만 연다.
+- 관리 화면은 **데스크톱·노트북 전용**이다. 지원 폭은 1280~1920px이며 모바일·태블릿 레이아웃과 터치 전용 조작을 만들지 않는다. 1280px 미만은 가로 스크롤을 허용하고 별도 레이아웃으로 전환하지 않는다(ADR-0047). 화면 검증 viewport는 laptop 1280x800과 desktop 1440x900 두 폭이다.
 - 현재 애플리케이션에는 로그인·역할 기반 권한이 없다. 사내망 접근 제한이 경계이고 담당자 이름은 감사 표식일 뿐 인증이 아니다.
 - 스케줄러와 always-on은 기본 비활성이다. 앱 startup은 migration, seed, 정책 활성화, 모델 호출을 수행하지 않는다.
 - 발주계획·사전규격 중심 신규 흐름, 준비·실패 재시작 화면, 입찰 delta 추적, SSO, 알림은 아직 구현 전이다.

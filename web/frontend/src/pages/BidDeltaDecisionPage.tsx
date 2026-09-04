@@ -8,6 +8,7 @@ import { MutationFeedback } from "../components/common/MutationFeedback";
 import { StatusBadge, type StatusTone } from "../components/common/StatusBadge";
 import { Toast } from "../components/common/Toast";
 import { useUnsavedGuard } from "../components/common/useUnsavedGuard";
+import { ReviewDecisionAction, ReviewHistoryLinkRail, StickyDecisionHeader } from "../components/common/ReviewPrimitives";
 import {
   BidDeltaApiError,
   createBidDeltaComparison,
@@ -684,12 +685,17 @@ export function BidDeltaDecisionPage() {
   // 헤더의 "결정 입력으로 이동"은 본문 결정 폼으로 초점을 옮긴다. 스크롤만
   // 하면 키보드 사용자가 따라가지 못하므로 첫 입력에 초점을 준다.
   const decisionPanelRef = useRef<HTMLElement | null>(null);
-  function focusDecisionForm() {
-    const panel = decisionPanelRef.current;
+  const retryPanelRef = useRef<HTMLElement | null>(null);
+  function focusPanel(panel: HTMLElement | null) {
     if (!panel) return;
     panel.scrollIntoView({ block: "center" });
-    const firstField = panel.querySelector<HTMLElement>("input, select, textarea");
-    firstField?.focus();
+    panel.querySelector<HTMLElement>("input, select, textarea")?.focus();
+  }
+  function focusDecisionForm() {
+    focusPanel(decisionPanelRef.current);
+  }
+  function focusRetryForm() {
+    focusPanel(retryPanelRef.current);
   }
   useUnsavedGuard(hasUnsavedDraft, {
     blockSpaNavigation: true,
@@ -725,17 +731,17 @@ export function BidDeltaDecisionPage() {
   opportunityDetailSearch.delete("comparison");
   const opportunityDetailTo = { pathname: `/opportunities/${opportunityId}`, search: opportunityDetailSearch.toString() };
   return (
-    <section className="bid-delta-page detail-skeleton" data-astryx-theme="neutral" aria-labelledby="bid-delta-title">
+    <section className="bid-delta-page detail-skeleton" data-astryx-theme="bidops" aria-labelledby="bid-delta-title">
       {/* 상세 3종 공통 골격(4단계): 요약 헤더는 position:sticky로 스크롤
           위치와 무관하게 첫 화면에 남는다. 되돌릴 수 없는 최종 Go/No-Go
           저장 액션(PRD 결정 4)은 이 헤더 안에만 있고 레일에는 복제하지
           않는다. 전제조건(comparison 선택·계산 완료·담당자·사유)과 비활성
           사유는 기존 canRecordDecision/decisionDisabledReason 그대로
           유지하며, 헤더로 옮기며 느슨하게 만들지 않는다. */}
-      <header className="bid-delta-page-header detail-skeleton-head">
+      <StickyDecisionHeader className="bid-delta-page-header detail-skeleton-head" label="입찰 변경 비교 결정 헤더">
         <div className="detail-skeleton-head-top">
           <div>
-            <Link className="bid-delta-back-link" to={opportunityDetailTo}>← 사업기회 상세</Link>
+            <Link className="bid-delta-back-link" to={opportunityDetailTo}>← 사업 추적 상세</Link>
             <p className="bid-delta-kicker">BID NOTICE TRANSITION · OPPORTUNITY #{workspace.opportunity_id}</p>
             <h2 id="bid-delta-title">입찰 변경 비교</h2>
           </div>
@@ -759,25 +765,33 @@ export function BidDeltaDecisionPage() {
                 범주별 분석을 가린다. 저장 버튼은 form 속성으로 본문 폼과 같은
                 submit·같은 finalReady를 쓰므로 업무 규칙이 복제되지 않는다. */}
             <div className="detail-skeleton-actions">
-              <button
+              <ReviewDecisionAction
                 className="interaction-control bid-delta-primary-action"
-                type="submit"
+                disabledReason={decisionDisabledReason}
+                disabledReasonId="bid-delta-final-disabled"
                 form="bid-delta-final-form"
-                disabled={!finalReady}
-                aria-describedby={decisionDisabledReason ? "bid-delta-final-disabled" : undefined}
-              >
-                {finalDecisionMutation.isPending ? "결정 저장 중" : "결정 저장"}
-              </button>
+                isDisabled={!finalReady}
+                label={finalDecisionMutation.isPending ? "결정 저장 중" : "결정 저장"}
+                type="submit"
+                variant="primary"
+              />
               {canRecordDecision ? (
                 <button className="interaction-control bid-delta-secondary-action" type="button" onClick={focusDecisionForm}>
                   결정 입력으로 이동
                 </button>
               ) : null}
-              {decisionDisabledReason ? <DisabledReason id="bid-delta-final-disabled">{decisionDisabledReason}</DisabledReason> : null}
+              {/* 시안 정본의 헤더 액션 셋 중 마지막이다. 재계산도 담당자 이름을
+                  받아야 하므로 헤더에서 바로 실행하지 않고 본문의 재시도 입력으로
+                  데려간다 — 되돌릴 수 없는 입력 form을 헤더에 올리지 않는다. */}
+              {comparisonView.calculation_status === "failed" ? (
+                <button className="interaction-control bid-delta-secondary-action" type="button" onClick={focusRetryForm}>
+                  비교 재계산
+                </button>
+              ) : null}
             </div>
           </div>
         ) : null}
-      </header>
+      </StickyDecisionHeader>
 
       <p className="bid-delta-page-lede">사전규격 기준 snapshot과 입찰공고 비교 snapshot을 사람이 고르고, 시스템 결과와 사람의 최종 결정을 분리해 기록합니다.</p>
 
@@ -840,7 +854,7 @@ export function BidDeltaDecisionPage() {
               </section>
 
               {comparisonView.calculation_status === "failed" ? (
-                <section className="bid-delta-retry-panel" aria-labelledby="bid-delta-retry-title">
+                <section className="bid-delta-retry-panel" aria-labelledby="bid-delta-retry-title" ref={retryPanelRef}>
                   <div>
                     <p className="bid-delta-kicker">FAILED COMPARISON</p>
                     <h4 id="bid-delta-retry-title">새 attempt로 재시도</h4>
@@ -864,6 +878,37 @@ export function BidDeltaDecisionPage() {
                   </div>
                   <span className="bid-delta-muted">{comparisonView.items.length}건 반환</span>
                 </div>
+                {/* 무엇과 무엇을 언제 비교한 결과인지 목록 바로 위에 남긴다
+                    (PLAN 단계 F 작업 3). 아래 항목만 읽으면 어떤 snapshot 쌍의
+                    결과인지 화면이 답하지 못한다. */}
+                <dl className="bid-delta-basis" aria-label="비교 기준">
+                  <div>
+                    <dt>기준 사전규격</dt>
+                    <dd><span className="mono">{comparisonView.baseline.notice_external_id}</span> · 문서 v{comparisonView.baseline.document_version_version}</dd>
+                  </div>
+                  <div>
+                    <dt>대상 입찰공고</dt>
+                    <dd><span className="mono">{comparisonView.comparison.notice_external_id}</span> · 문서 v{comparisonView.comparison.document_version_version}</dd>
+                  </div>
+                  <div>
+                    <dt>문서 묶음 상태</dt>
+                    <dd>
+                      기준 bundle rev {comparisonView.baseline.bundle_revision} / v{comparisonView.baseline.bundle_version} ·
+                      {" "}대상 bundle rev {comparisonView.comparison.bundle_revision} / v{comparisonView.comparison.bundle_version}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>계산 시각</dt>
+                    <dd>
+                      {comparisonView.completed_at
+                        ? `완료 ${formatMoment(comparisonView.completed_at)}`
+                        : comparisonView.started_at
+                          ? `시작 ${formatMoment(comparisonView.started_at)} · 아직 완료되지 않음`
+                          : "아직 시작하지 않음"}
+                      {" · "}category policy <span className="mono">{comparisonView.category_policy_version}</span>
+                    </dd>
+                  </div>
+                </dl>
                 {comparisonView.items.length === 0 ? <EmptyState compact title="아직 범주별 결과가 없습니다." description="계산이 끝나 결과가 발행될 때까지 대기합니다. 결과 미발행을 변경 없음으로 해석하지 않습니다." /> : (
                   <div className="bid-delta-items-list">{comparisonView.items.map((item) => <DeltaItem key={item.id} item={item} />)}</div>
                 )}
@@ -885,6 +930,20 @@ export function BidDeltaDecisionPage() {
                   <strong>시스템 분석과 사람 결정은 별도입니다.</strong>
                   <p>시스템 결과는 {comparisonView.result_status ? RESULT_LABELS[comparisonView.result_status] : "결과 미발행"}이며 사람의 Go/No-Go를 자동 제안하거나 선택하지 않습니다.</p>
                 </div>
+                {/* 저장 조건 셋을 폼 바로 위에 둔다(PLAN 단계 F 작업 2). 무엇이
+                    갖춰져야 저장되는지 알기 위해 비활성 사유를 하나씩 눌러 보게
+                    하지 않는다. */}
+                <ol className="bid-delta-save-conditions" aria-label="저장 조건">
+                  <li data-met={comparisonView.calculation_status === "completed" ? "true" : "false"}>
+                    계산이 <strong>completed</strong>여야 합니다. 현재 {CALCULATION_LABELS[comparisonView.calculation_status]}.
+                  </li>
+                  <li data-met={comparisonView.result_status && comparisonView.result_status !== "failed" ? "true" : "false"}>
+                    결과가 발행돼 있고 <strong>failed가 아니어야</strong> 합니다. 현재 {comparisonView.result_status ? RESULT_LABELS[comparisonView.result_status] : "결과 미발행"}.
+                  </li>
+                  <li data-met={decisionActor.trim() && decision && reason.trim() ? "true" : "false"}>
+                    담당자 이름 · Go 또는 No-Go · 결정 이유를 <strong>모두</strong> 입력해야 합니다. 보류는 최종 결정 값이 아니며 저장되지 않습니다.
+                  </li>
+                </ol>
                 {canRecordDecision ? (
                   <form id="bid-delta-final-form" className="bid-delta-final-form" onSubmit={(event) => { event.preventDefault(); if (finalReady) finalDecisionMutation.mutate(); }}>
                     <div className="bid-delta-form-fence" aria-label="최종 결정 저장 fence">
@@ -910,25 +969,45 @@ export function BidDeltaDecisionPage() {
 
           {/* 우측 레일은 이력과 연결만 담는다(시안 주석 원문). 되돌릴 수
               없는 최종 결정 액션은 헤더에만 있고 여기서 복제하지 않는다. */}
-          <aside className="detail-skeleton-rail">
-            <div className="detail-skeleton-rail-panel">
-              <AttemptHistory comparison={comparisonView} />
-            </div>
-            <div className="detail-skeleton-rail-panel">
-              <DecisionHistory decisions={comparisonView.final_decisions} workspaceLatest={workspace.latest_final_decision} />
-            </div>
-            <div className="detail-skeleton-rail-panel">
-              <CurrentnessPanel titleId="bid-delta-detail-currentness-title" decision={comparisonView.latest_final_decision} currentness={comparisonView.decision_currentness} reasons={comparisonView.currentness_reasons} />
-            </div>
-            <div className="detail-skeleton-rail-panel">
-              <div className="detail-skeleton-rail-links">
-                <span className="detail-skeleton-rail-title">연결된 화면</span>
-                <Link to={opportunityDetailTo}>사업기회 상세 →</Link>
-                <Link to={{ pathname: `/opportunities/${opportunityId}/bid-delta`, search: opportunityDetailSearch.toString() }}>workspace로 돌아가기 →</Link>
-              </div>
-              <p className="detail-skeleton-rail-note">우측 레일은 이력과 연결만 담습니다. 되돌릴 수 없는 최종 결정 액션은 헤더에만 있습니다.</p>
-            </div>
-          </aside>
+          <ReviewHistoryLinkRail
+            className="detail-skeleton-rail"
+            footer={<p className="detail-skeleton-rail-note">우측 레일은 이력과 연결만 담습니다. 되돌릴 수 없는 최종 결정 액션은 헤더에만 있습니다.</p>}
+            historySections={[
+              {
+                className: "detail-skeleton-rail-panel",
+                content: <AttemptHistory comparison={comparisonView} />,
+                entries: [],
+                label: "계산 attempt 이력",
+                showHeading: false,
+              },
+              {
+                className: "detail-skeleton-rail-panel",
+                content: <DecisionHistory decisions={comparisonView.final_decisions} workspaceLatest={workspace.latest_final_decision} />,
+                entries: [],
+                label: "최종 Go/No-Go 저장 이력",
+                showHeading: false,
+              },
+              {
+                className: "detail-skeleton-rail-panel",
+                content: <CurrentnessPanel titleId="bid-delta-detail-currentness-title" decision={comparisonView.latest_final_decision} currentness={comparisonView.decision_currentness} reasons={comparisonView.currentness_reasons} />,
+                entries: [],
+                label: "최종 결정 현재성",
+                showHeading: false,
+              },
+            ]}
+            links={[
+              {
+                href: `${opportunityDetailTo.pathname}${opportunityDetailTo.search ? `?${opportunityDetailTo.search}` : ""}`,
+                label: "사업 추적 상세 →",
+              },
+              {
+                href: `/opportunities/${opportunityId}/bid-delta${opportunityDetailSearch.toString() ? `?${opportunityDetailSearch.toString()}` : ""}`,
+                label: "workspace로 돌아가기 →",
+              },
+            ]}
+            linksClassName="detail-skeleton-rail-links"
+            title="이력과 연결"
+          />
         </div>
       ) : null}
 

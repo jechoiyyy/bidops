@@ -4,6 +4,7 @@ import { Selector } from "@astryxdesign/core/Selector";
 import { Tab, TabList } from "@astryxdesign/core/TabList";
 import { Text } from "@astryxdesign/core/Text";
 import { ArtifactValidation } from "../components/runs/ArtifactValidation";
+import { OperationsGuardrails } from "../components/runs/OperationsGuardrails";
 import { ExecutionLog } from "../components/runs/ExecutionLog";
 import { EmptyState } from "../components/common/EmptyState";
 import { api } from "../lib/api";
@@ -130,7 +131,7 @@ export function RunStatusPage() {
   const needsRun = tab === "attachments" || tab === "audit";
 
   return (
-    <section aria-labelledby="run-status-page-title" className="ws-page" data-astryx-theme="neutral">
+    <section aria-labelledby="run-status-page-title" className="ws-page" data-astryx-theme="bidops">
       <h2 className="visually-hidden" id="run-status-page-title">실행 상태</h2>
       <div className="ws-tabs">
         <TabList
@@ -148,6 +149,9 @@ export function RunStatusPage() {
         </TabList>
       </div>
       {needsRun ? <RunPicker label={tab === "attachments" ? "첨부 확보 대상 회차" : "감사 로그 대상 회차"} /> : null}
+      {/* 경계 패널은 탭과 함께 바뀌지 않는다. 운영 텔레메트리가 어디 있는지와
+        * 상시 운영이 꺼져 있는 이유는 어느 탭에서도 같은 자리에 있어야 한다
+        * (PLAN 단계 E 작업 6). */}
       <div className="ws-body">
         <div className="ws-panel" id={panelId} role="tabpanel" aria-label={TABS.find((item) => item.value === tab)?.label}>
           {tab === "runs" ? <RunsPage /> : null}
@@ -155,6 +159,7 @@ export function RunStatusPage() {
           {tab === "operations" ? <OperationsPage /> : null}
           {tab === "audit" ? <AuditLogPanel /> : null}
         </div>
+        <OperationsGuardrails />
       </div>
     </section>
   );

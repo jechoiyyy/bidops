@@ -9,6 +9,7 @@ test.describe("심층 검토 보고서 접근성·반응형 계약", () => {
   test("키보드 focus, 좁은 화면, 긴 matrix containment", async ({ page }) => {
     await page.goto("/deep-reviews/fixture-review");
     await expect(page.getByRole("heading", { name: "심층 검토 보고서", level: 1 })).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('[data-review-primitive="sticky-decision-header"]')).toBeVisible();
     await page.getByRole("button", { name: /근거/ }).first().focus();
     await expect(page.getByRole("button", { name: /근거/ }).first()).toBeFocused();
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
@@ -221,4 +222,51 @@ test.describe("심층 검토 보고서 접근성·반응형 계약", () => {
       "저장되지 않은 심층검토 초안이 있습니다. 이 페이지를 벗어나시겠습니까?",
     ]);
   });
+});
+
+// ── PLAN 단계 F 작업 5 ─────────────────────────────────────────────────────
+
+test("심층 검토 보고서는 상단 카드 4개와 결정 카드 요약 표를 갖는다", async ({ page }) => {
+  await mockApi(page);
+  await mockDeepReviewLifecycle(page, "completed");
+  await page.goto("/deep-reviews/fixture-review");
+
+  const cards = page.locator(".deep-review-summary-card");
+  await expect(cards).toHaveCount(4);
+  await expect(cards.nth(0)).toContainText("종합 판단");
+  await expect(cards.nth(1)).toContainText("검증 결과");
+  await expect(cards.nth(2)).toContainText("미확인 사항");
+  await expect(cards.nth(3)).toContainText("보고서 revision");
+  await expect(cards.nth(3)).toContainText("append-only");
+
+  // 계약에 없는 축(참여 준비 상태)을 카드로 채우지 않고 그 사실을 밝힌다.
+  await expect(page.locator(".deep-review-summary-note")).toContainText("참여 준비 상태");
+  await expect(page.locator(".deep-review-summary-note")).toContainText("보고서 계약에 그 값이 없습니다");
+
+  const table = page.getByRole("table", { name: "결정 카드 요약" });
+  await expect(table).toBeVisible();
+  await expect(table.getByRole("columnheader")).toHaveText(["항목", "내용", "근거", "검증"]);
+});
+
+test("우측 열은 보고서 범위·수정본 저장·이력 순서로 배치된다", async ({ page }) => {
+  await mockApi(page);
+  await mockDeepReviewLifecycle(page, "completed");
+  await page.goto("/deep-reviews/fixture-review");
+
+  const side = page.locator(".deep-review-side");
+  const sections = side.locator(":scope > section, :scope > [data-review-primitive='history-link-rail']");
+  await expect(sections).toHaveCount(3);
+  await expect(side.getByRole("heading", { name: "보고서 범위", exact: true })).toBeVisible();
+  await expect(side.getByRole("heading", { name: "보고서 수정본 편집", exact: true })).toBeVisible();
+  await expect(side.getByRole("heading", { name: "보고서 이력과 연결", exact: true })).toBeVisible();
+
+  // 수정본은 새 immutable revision이며 담당자 claimed name을 필수로 받는다.
+  await expect(side).toContainText("새 immutable 수정본으로 추가합니다");
+  const save = side.getByRole("button", { name: "새 보고서 수정본 저장", exact: true });
+  await expect(save).toBeDisabled();
+  await expect(page.locator("#deep-review-revision-disabled")).toContainText("claimed name을 입력하십시오");
+
+  // 되돌릴 수 없는 결정(사전규격 심층검토 의견)은 본문 열에 남는다.
+  await expect(side.getByRole("button", { name: "심층검토 의견 append", exact: true })).toHaveCount(0);
+  await expect(page.locator(".deep-review-report-main").getByRole("button", { name: "심층검토 의견 append", exact: true })).toHaveCount(1);
 });

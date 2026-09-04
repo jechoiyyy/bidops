@@ -1,131 +1,94 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { mockApi } from "./api-mock";
 
-// 계획서 P0-2가 요구하는 다섯 경로에서 미저장 초안이 사라지지 않는지 확인한다.
-const REASON = "검증용 미저장 메모";
+/**
+ * P0-2가 요구한 "미저장 초안이 사라지지 않는다"는 계약은 입력이 있는 자리에만
+ * 의미가 있다.
+ *
+ * ADR-0046 결정 3으로 공고 1차 판정 화면은 읽기 전용 이력이 됐고(PLAN 단계 E
+ * 작업 4), 리뷰 초안·localStorage 임시 저장·저장 버튼이 모두 사라졌다. 사람의
+ * 수정은 사업 추적 상세의 예외 작업으로 옮겨갔으므로, 초안 보호도 그 자리로
+ * 옮겨 확인한다.
+ *
+ * 이 파일은 두 가지를 함께 지킨다.
+ * 1. 읽기 전용이 된 화면에 입력이 남아 있지 않다. 저장할 것이 없는데 "저장되지
+ *    않은 변경" 경고가 뜨지 않는다.
+ * 2. 입력이 실제로 있는 자리(사업 추적의 예외 작업·추적 상태 변경)는 화면을
+ *    벗어날 때 그 입력을 지키라고 알린다.
+ */
 
 test.beforeEach(async ({ page }) => {
   await mockApi(page);
-  // 리뷰 저장은 고정 응답에 없으므로 이 검증에서만 따로 응답을 준다.
+});
+
+test("공고 1차 판정 화면에는 리뷰 입력이 없고 저장 경로도 없다", async ({ page }) => {
+  let reviewWrites = 0;
   await page.route("**/api/notices/*/review", async (route) => {
-    if (route.request().method() !== "PUT") return route.fallback();
-    const body = JSON.parse(route.request().postData() ?? "{}");
-    const pk = Number(new URL(route.request().url()).pathname.split("/")[3]);
+    if (route.request().method() === "PUT") reviewWrites += 1;
+    await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ detail: "저장 경로가 없어야 한다" }) });
+  });
+
+  await page.goto("/queue");
+  await page.waitForURL(/\/queue\/\d+/);
+
+  await expect(page.getByLabel("리뷰 사유")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "저장하고 다음" })).toHaveCount(0);
+  await expect(page.getByText("저장되지 않은 변경사항")).toHaveCount(0);
+  // 확인 항목 답변 입력도 사라진다. 저장할 수 없는 입력을 남겨 두지 않는다.
+  await expect(page.locator(".verification-answer-input")).toHaveCount(0);
+
+  // 저장할 것이 없으므로 이탈 확인도 걸리지 않는다.
+  const blocked = await page.evaluate(() => {
+    const event = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(event);
+    return event.defaultPrevented;
+  });
+  expect(blocked).toBe(false);
+  expect(reviewWrites).toBe(0);
+});
+
+test("읽기 전용 화면은 저장된 리뷰와 수정하러 갈 자리를 함께 남긴다", async ({ page }) => {
+  await page.goto("/queue");
+  await page.waitForURL(/\/queue\/\d+/);
+
+  const record = page.locator(".review-record");
+  await expect(record.getByRole("heading", { name: "담당자 리뷰" })).toBeVisible();
+  await expect(record).toContainText("읽기 전용 이력");
+  // 리뷰가 없는 것과 못 읽은 것을 섞지 않는다.
+  await expect(record).toContainText(/저장된 담당자 리뷰가 없습니다|담당자 감사 표식/);
+  await expect(record).toContainText("사업 추적");
+  await expect(record.getByRole("link", { name: "사업 추적에서 이 사업기회 찾기 →" })).toBeVisible();
+});
+
+test("사업 추적의 추적 상태 변경은 미저장 입력을 지키라고 알린다", async ({ page }) => {
+  await page.route("**/api/opportunities/501", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        notice_pk: pk, run_id: body.run_id, disposition: body.disposition,
-        system_judgment_review: body.system_judgment_review, corrected_grade: body.corrected_grade,
-        corrected_readiness: body.corrected_readiness, weakest_perspective: body.weakest_perspective,
-        reason: body.reason, answers: body.verification_answers ?? [],
-        reviewer: null, created_at: "2026-08-25T00:00:00Z", updated_at: "2026-08-25T00:00:00Z",
+        id: 501,
+        tracking_status: "계속 추적",
+        tracking_reason: "기존 이유",
+        tracking_selected_by: "기존 담당자",
+        tracking_selected_at: "2026-08-29T00:00:00Z",
+        recheck_signal: false,
+        recheck_signal_at: null,
+        recheck_signal_link_id: null,
+        first_registered_stage: "order_plan",
+        links: [],
       }),
     });
   });
-});
 
-async function typeReason(page: Page): Promise<void> {
-  const box = page.getByLabel("리뷰 사유");
-  await box.fill(REASON);
-  await expect(page.getByText("저장되지 않은 변경사항")).toBeVisible();
-}
+  await page.goto("/opportunities/501");
+  await page.getByRole("button", { name: "추적 상태 변경 열기" }).click();
+  await page.getByLabel("이유").fill("검증용 미저장 메모");
+  await expect(page.getByText("저장되지 않은 추적 상태 변경이 있습니다.")).toBeVisible();
 
-test.describe("넓은 화면의 검토 초안 흐름", () => {
-  // 900px 이하에서는 목록과 상세가 분리되어 첫 공고가 자동 선택되지 않는다.
-  // 분리 화면은 아래의 폭별 흐름 테스트에서 별도로 확인한다.
-  test.skip(({ viewport }) => (viewport?.width ?? 0) <= 900, "분리 화면 흐름은 폭별 테스트에서 확인한다");
-
-  test("목록 클릭으로 벗어났다 돌아와도 초안이 남는다", async ({ page }) => {
-    await page.goto("/queue");
-    await page.waitForURL(/\/queue\/\d+/);
-    const first = page.url();
-    await typeReason(page);
-    await page.locator(".queue-list-item").nth(3).click();
-    await expect(page.getByLabel("리뷰 사유")).toHaveValue("");
-    await page.goBack();
-    await expect(page.getByLabel("리뷰 사유")).toHaveValue(REASON);
-    expect(page.url()).toBe(first);
+  const blocked = await page.evaluate(() => {
+    const event = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(event);
+    return event.defaultPrevented;
   });
-
-  test("J/K 이동 후 돌아와도 초안이 남는다", async ({ page }) => {
-    await page.goto("/queue");
-    await page.waitForURL(/\/queue\/\d+/);
-    await typeReason(page);
-    await page.locator("body").click();
-    await page.keyboard.press("j");
-    await expect(page.getByLabel("리뷰 사유")).toHaveValue("");
-    await page.keyboard.press("k");
-    await expect(page.getByLabel("리뷰 사유")).toHaveValue(REASON);
-  });
-
-  test("회차를 바꿨다 돌아와도 초안이 남는다", async ({ page }) => {
-    await page.goto("/queue");
-    await page.waitForURL(/\/queue\/\d+/);
-    await typeReason(page);
-    const url = new URL(page.url());
-    const run = url.searchParams.get("run");
-    url.searchParams.set("run", "다른-회차");
-    await page.goto(url.pathname + url.search);
-    url.searchParams.set("run", run!);
-    await page.goto(url.pathname + url.search);
-    await expect(page.getByLabel("리뷰 사유")).toHaveValue(REASON);
-  });
-
-  test("저장하면 다음 공고로 이동하고 알림과 되돌리기가 뜬다", async ({ page }) => {
-    await page.goto("/queue");
-    await page.waitForURL(/\/queue\/\d+/);
-    const first = page.url();
-    await typeReason(page);
-    await page.getByRole("button", { name: "저장하고 다음" }).click();
-    await expect(page.getByText("저장됨 · 다음 공고로 이동했습니다")).toBeVisible();
-    expect(page.url()).not.toBe(first);
-    await page.getByRole("button", { name: "되돌리기" }).click();
-    expect(page.url()).toBe(first);
-    // 저장이 끝났으므로 미저장 표시는 사라져 있어야 한다.
-    await expect(page.getByText("저장되지 않은 변경사항")).toHaveCount(0);
-  });
-
-  test("미저장 상태에서 브라우저 이탈에 확인이 걸린다", async ({ page }) => {
-    await page.goto("/queue");
-    await page.waitForURL(/\/queue\/\d+/);
-    await typeReason(page);
-    const blocked = await page.evaluate(() => {
-      const event = new Event("beforeunload", { cancelable: true });
-      window.dispatchEvent(event);
-      return event.defaultPrevented;
-    });
-    expect(blocked).toBe(true);
-  });
-});
-
-test("검토 대기열에서 같은 공고로 돌아와도 미저장 초안이 남는다", async ({ page, viewport }) => {
-  const splitLayout = (viewport?.width ?? 0) <= 900;
-  await page.goto("/queue");
-
-  if (splitLayout) {
-    await expect(page.locator(".queue-list-item").first()).toBeVisible();
-    await page.locator(".queue-list-item").first().click();
-    await page.waitForURL(/\/queue\/\d+/);
-    const first = page.url();
-    const noticePk = new URL(first).pathname.split("/").pop();
-    await typeReason(page);
-    await page.getByRole("link", { name: "목록으로" }).click();
-    await expect(page).toHaveURL(/\/queue(?:\?.*)?$/);
-    await page.locator(".queue-list-item").first().click();
-    await expect(page).toHaveURL(new RegExp(`/queue/${noticePk}(?:\\?.*)?$`));
-    await expect(page.getByLabel("리뷰 사유")).toHaveValue(REASON);
-    return;
-  }
-
-  // 1024/1440px에서는 기존 목록 내 선택·뒤로가기 흐름도 계속 의미가
-  // 있으므로 같은 초안을 다른 공고를 거쳐 복원하는 경로를 확인한다.
-  await page.waitForURL(/\/queue\/\d+/);
-  const first = page.url();
-  await typeReason(page);
-  await page.locator(".queue-list-item").nth(3).click();
-  await expect(page.getByLabel("리뷰 사유")).toHaveValue("");
-  await page.goBack();
-  await expect(page.getByLabel("리뷰 사유")).toHaveValue(REASON);
-  expect(page.url()).toBe(first);
+  expect(blocked).toBe(true);
 });

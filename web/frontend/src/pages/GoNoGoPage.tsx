@@ -39,10 +39,18 @@ function currentnessVariant(value: Currentness): "success" | "warning" | "neutra
   return "neutral";
 }
 
+/** 사람이 아는 이름으로 행을 연다. 식별자만 있는 행은 담당자가 무슨 사업인지
+ * 알 수 없어 결국 하나씩 열어 봐야 한다(`GoNoGo` 아트보드). */
 function opportunityTitle(item: OpportunityListItem): string {
+  const named = item.links.find((link) => link.title && link.title.trim());
+  return named?.title?.trim() ?? "제목 미확인";
+}
+
+function opportunityMarker(item: OpportunityListItem): string {
   const evidence = item.links.find((link) => link.evidence_bid_no ?? link.evidence_external_no);
   const marker = evidence?.evidence_bid_no ?? evidence?.evidence_external_no;
-  return marker ? `사업기회 ${item.id} · ${marker}` : `사업기회 ${item.id}`;
+  const agency = item.links.find((link) => link.agency && link.agency.trim())?.agency?.trim();
+  return [agency ?? "기관 미확인", `사업기회 ${item.id}`, marker].filter(Boolean).join(" · ");
 }
 
 interface DecisionRow {
@@ -75,7 +83,13 @@ function DecisionBadges({ row }: { row: DecisionRow }) {
         <Badge variant="warning" label="결정 대기" />
       )}
       <Badge variant={currentnessVariant(workspace.decision_currentness)} label={currentnessLabel(workspace.decision_currentness)} />
-      <Badge variant="neutral" label={`비교 ${workspace.comparisons.length}건`} />
+      {/* 비교가 0건인 것은 값이다. `비교 0건`으로 눌러 담으면 "아직 안 봤다"와
+          "봤는데 비교할 것이 없다"가 같은 자리에서 사라진다(PLAN 단계 E 작업 5). */}
+      {workspace.comparisons.length === 0 ? (
+        <Badge variant="warning" label="변경 비교 결과 없음" />
+      ) : (
+        <Badge variant="neutral" label={`비교 ${workspace.comparisons.length}건`} />
+      )}
     </>
   );
 }
@@ -92,6 +106,7 @@ export function GoNoGoPage() {
     staleTime: 30_000,
   });
   const opportunities = opportunitiesQuery.data?.items ?? [];
+  const returnSearch = searchParams.toString();
 
   const workspaceQueries = useQueries({
     queries: opportunities.map((item) => ({
@@ -117,7 +132,7 @@ export function GoNoGoPage() {
   }
 
   return (
-    <section aria-labelledby="go-no-go-title" className="gng-page" data-astryx-theme="neutral">
+    <section aria-labelledby="go-no-go-title" className="gng-page" data-astryx-theme="bidops">
       <header className="gng-head">
         <Heading level={2} id="go-no-go-title">최종 Go/No-Go</Heading>
         <Text type="body" color="secondary" as="p">
@@ -158,13 +173,27 @@ export function GoNoGoPage() {
       ) : null}
 
       {visibleRows.length > 0 ? (
+        <>
+        <p className="gng-summary">
+          {/* 상단 요약은 받은 목록에서 센 값이다. 서버가 결정 상태를 집계하지 않으므로
+              전체 총계로 읽으면 안 된다(docs/tracking/findings.md). */}
+          받은 {rows.length.toLocaleString("ko-KR")}건 기준 · 결정 대기 {rows.filter(isAwaitingDecision).length.toLocaleString("ko-KR")} ·
+          {" "}Go {rows.filter((row) => row.workspace?.latest_final_decision?.decision === "go").length.toLocaleString("ko-KR")} ·
+          {" "}No-Go {rows.filter((row) => row.workspace?.latest_final_decision?.decision === "no_go").length.toLocaleString("ko-KR")}.
+          서버가 결정 상태를 집계하지 않아 전체 총계가 아닙니다.
+        </p>
         <div className="gng-list">
           {visibleRows.map((row) => (
-            <Link className="gng-row" key={row.opportunity.id} to={`/opportunities/${row.opportunity.id}/bid-delta`}>
+            <Link
+              className="gng-row"
+              key={row.opportunity.id}
+              to={{ pathname: `/opportunities/${row.opportunity.id}/bid-delta`, search: returnSearch }}
+            >
               <span className="gng-row-line">
                 <Text type="body" color="primary">{opportunityTitle(row.opportunity)}</Text>
                 <span className="gng-row-badges"><DecisionBadges row={row} /></span>
               </span>
+              <Text type="supporting" color="secondary" as="span">{opportunityMarker(row.opportunity)}</Text>
               <Text type="supporting" color="secondary" as="span">
                 추적 {row.opportunity.tracking_status} · 최초 등록 단계 {row.opportunity.first_registered_stage}
                 {row.opportunity.recheck_signal ? " · 재확인 신호 있음" : ""}
@@ -172,6 +201,7 @@ export function GoNoGoPage() {
             </Link>
           ))}
         </div>
+        </>
       ) : null}
     </section>
   );

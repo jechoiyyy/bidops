@@ -13,8 +13,7 @@
 .c2-execution-heading,
 .c2-history-heading,
 .c2-plan-card-header,
-.c2-plan-card-footer,
-.c2-feedback-history-heading {
+.c2-plan-card-footer {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -278,8 +277,7 @@
 }
 
 .c2-artifact-summary ul,
-.c2-live-list,
-.c2-feedback-history {
+.c2-live-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -626,29 +624,6 @@
   overflow-wrap: anywhere;
 }
 
-.c2-feedback-history {
-  margin-bottom: var(--space-2);
-  counter-reset: c2-revision;
-}
-
-.c2-feedback-history > li {
-  min-width: 0;
-  padding: 12px;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  background: var(--surface-secondary);
-}
-
-.c2-feedback-history-heading {
-  align-items: center;
-}
-
-.c2-feedback-history-heading .mono {
-  min-width: 0;
-  margin-left: auto;
-  overflow-wrap: anywhere;
-}
-
 .c2-feedback-history dl {
   display: grid;
   grid-template-columns: minmax(100px, auto) minmax(0, 1fr);
@@ -692,56 +667,13 @@
 /* 발주계획 상세(4단계)가 고정 헤더 안에 FeedbackForm을 둘 때 쓰는 compact
  * 표시 변형이다. 업무 규칙·필드·저장 동작은 그대로이고 밀도만 낮춘다.
  * 새로 추가하는 규칙이므로 ADR-0040에 따라 Astryx 토큰만 읽는다. */
-.c2-feedback-form.is-compact {
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: var(--spacing-2);
-  padding: 0;
-  border: 0;
-  background: transparent;
-}
+/* 사람 판단 입력은 본문 열의 패널 안에 있다(단계 F 작업 1). 고정 헤더에 폼째로
+   올리던 밀도 전용 변형(.is-compact)은 함께 사라졌다 — 되돌릴 수 없는 입력 form을
+   헤더에 두지 않는다. */
 
-.c2-feedback-form.is-compact .c2-form-grid {
-  flex: 1 1 320px;
-  grid-template-columns: repeat(2, minmax(120px, 1fr));
-  gap: var(--spacing-2);
-  min-width: 260px;
-}
-
-.c2-feedback-form.is-compact label:has(textarea) {
-  flex: 1 1 220px;
-  min-width: 200px;
-}
-
-.c2-feedback-form.is-compact textarea {
-  min-height: 0;
-  height: 38px;
-}
-
-.c2-feedback-form.is-compact .actor-field {
-  flex: 0 0 auto;
-  min-width: 200px;
-}
-
-.c2-feedback-form.is-compact .c2-muted {
-  flex-basis: 100%;
-}
-
-@media (max-width: 900px) {
-  .c2-feedback-form.is-compact {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .c2-feedback-form.is-compact .c2-form-grid,
-  .c2-feedback-form.is-compact label:has(textarea),
-  .c2-feedback-form.is-compact .actor-field {
-    flex-basis: auto;
-    min-width: 0;
-  }
-}
-
+/* 1280px가 최소 지원 폭이므로 그보다 좁은 분기는 두지 않는다(ADR-0047).
+   1180px 분기는 남은 하나인데, 이는 사이드바(248px)를 뺀 본문 폭이 1280px
+   화면에서 약 1010px이 되므로 최소 지원 폭에서도 실제로 쓰인다. */
 @media (max-width: 1180px) {
   .c2-count-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -752,94 +684,15 @@
   }
 }
 
-@media (max-width: 900px) {
-  .c2-page-header,
-  .c2-results-heading,
-  .c2-execution-heading,
-  .c2-history-heading,
-  .c2-plan-card-header,
-  .c2-plan-card-footer {
-    flex-direction: column;
-  }
 
-  .c2-contract-note {
-    max-width: none;
-    text-align: left;
-  }
 
-  .c2-fact-grid,
-  .c2-fact-grid-compact,
-  .c2-history-meta,
-  .c2-attempt-grid,
-  .c2-detail-facts .c2-plan-identity {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 
-  .c2-filter-bar {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .c2-search-form {
-    width: 100%;
-  }
-}
-
-@media (max-width: 640px) {
-  .c2-page {
-    padding: var(--space-2);
-  }
-
-  .c2-fact-grid,
-  .c2-fact-grid-compact,
-  .c2-plan-facts,
-  .c2-history-meta,
-  .c2-attempt-grid,
-  .c2-detail-facts .c2-plan-identity,
-  .c2-binding-grid,
-  .c2-signal-grid,
-  .c2-form-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .c2-count-grid,
-  .c2-filter-bar {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .c2-plan-card,
-  .c2-history-card {
-    padding: var(--space-2);
-  }
-
-  .c2-artifact-summary li,
-  .c2-live-list li {
-    grid-template-columns: 1fr;
-    align-items: flex-start;
-  }
-
-  .c2-search-form > div {
-    flex-direction: column;
-  }
-
-  .c2-pagination {
-    flex-wrap: wrap;
-  }
-
-  .c2-feedback-history-heading {
-    align-items: flex-start;
-  }
-
-  .c2-feedback-history-heading .mono {
-    width: 100%;
-    margin-left: 0;
-  }
-}
 
 /* ============================================================================
  * 발주계획 C-2 목록+판정 통합 화면 (PLAN 1단계, docs/design/PLAN.md §3).
  * 이 블록의 클래스는 전부 `c2l-` 접두사를 쓴다. 위의 `.c2-*` 클래스는
  * OrderPlanDetailPage(/order-plans/:pk, 4단계 대상)가 그대로 쓰므로 건드리지
- * 않는다. 이 블록은 OrderPlansPage 루트(`data-astryx-theme="neutral"`)
+ * 않는다. 이 블록은 OrderPlansPage 루트(`data-astryx-theme="bidops"`)
  * 안에서만 렌더링되며, 값은 전부 Astryx neutral 테마 토큰에서 읽는다
  * (raw hex, raw px 없음; ADR-0040).
  * ==========================================================================*/
@@ -888,9 +741,20 @@
 
 .c2l-presets {
   display: flex;
+  min-width: 0;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--spacing-2);
+}
+
+.c2l-presets p {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.c2l-presets .review-filter-segmented {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .c2l-filter-axis {
@@ -933,7 +797,8 @@
   display: flex;
   flex-direction: row;
   align-items: stretch;
-  min-height: 560px;
+  height: clamp(420px, calc(100dvh - 420px), 720px);
+  min-height: 0;
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-container);
   background: var(--color-background-card);
@@ -945,6 +810,7 @@
   flex-direction: column;
   flex: 0 0 var(--c2l-list-width, 380px);
   width: var(--c2l-list-width, 380px);
+  height: 100%;
   min-width: 0;
   border-right: var(--border-width) solid var(--color-border);
   min-height: 0;
@@ -952,6 +818,7 @@
 
 .c2l-list-head {
   display: flex;
+  flex: 0 0 auto;
   flex-direction: column;
   gap: var(--spacing-1);
   padding: var(--spacing-4);
@@ -1059,12 +926,14 @@
   display: flex;
   flex-direction: column;
   flex: 1 1 auto;
+  height: 100%;
   min-width: 0;
   min-height: 0;
 }
 
 .c2l-detail-head {
   display: flex;
+  flex: 0 0 auto;
   flex-direction: column;
   gap: var(--spacing-2);
   padding: var(--spacing-4);
@@ -1075,7 +944,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-5);
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-height: 0;
   overflow-y: auto;
   padding: var(--spacing-4);
@@ -1083,19 +952,6 @@
 
 .c2l-detail-empty {
   padding: var(--spacing-5);
-}
-
-.c2l-detail-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-3);
-  padding: var(--spacing-3) var(--spacing-4);
-  border-top: var(--border-width) solid var(--color-border);
-  background: var(--color-background-card);
-}
-
-.c2l-detail-position {
-  margin-left: auto;
 }
 
 /* --- 판정 탭 --- */
@@ -1131,16 +987,6 @@
 .c2l-facts dd {
   margin: 0;
   min-width: 0;
-}
-
-.c2l-feedback-form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-4);
-  padding: var(--spacing-4);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-element);
-  background: var(--color-background-muted);
 }
 
 .c2l-feedback-field {
@@ -1296,84 +1142,82 @@
   word-break: break-all;
 }
 
-/* ===== 등급 전용 4단 스케일 (docs/design/PLAN.md 6절 "열린 항목" 결정) =====
- * 적합성 등급 4값은 심각도가 아니라 우선순위 순서다. Astryx 의미색
- * (error/warning/success)에 실으면 순서가 아니라 위험도로 읽힌다. accent
- * 한 색의 농도 4단으로 순서만 나타내고 unknown은 점선 무채색으로 따로 둔다.
- * 이 화면은 등급을 편집하지 않지만 스케일은 이 단계에서 정의해 둔다. */
-.c2l-grade-tag {
-  display: inline-flex;
+/* ===== 단계 C — 발주계획 추적 결정과 상단 요약 ===== */
+
+.c2l-scope-line {
+  display: flex;
+  min-width: 0;
   align-items: center;
-  gap: var(--spacing-1);
-  padding: var(--spacing-0-5) var(--spacing-2);
-  border-radius: var(--radius-full);
+  gap: var(--spacing-3);
+  flex-wrap: wrap;
+}
+
+.c2l-scope-line p {
+  margin: 0;
+}
+
+.c2l-scope-link {
+  flex: 0 0 auto;
+  color: var(--color-text-accent);
+  text-decoration: underline;
+  text-underline-offset: var(--spacing-0-5);
+}
+
+.c2l-list-foot {
+  min-width: 0;
+  margin: 0;
+  padding: var(--spacing-2) var(--spacing-4);
+  border-top: var(--border-width) solid var(--color-border);
+  overflow-wrap: anywhere;
+}
+
+/* 추적 결정 영역. 결정 버튼은 pane 바닥의 .review-decision-bar 에 있고 여기에는
+   현재 상태와 이 결정이 바꾸지 않는 것, 사유·담당자만 둔다. */
+.c2l-tracking {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3) var(--spacing-4);
   border: var(--border-width) solid var(--color-border);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
+  border-radius: var(--radius-element);
+  background: var(--color-background-card);
 }
 
-.c2l-grade-tag.is-g1 {
-  background: var(--color-accent);
-  color: var(--color-on-accent);
-  border-color: var(--color-accent);
+.c2l-tracking p {
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 
-.c2l-grade-tag.is-g2 {
-  background: color-mix(in srgb, var(--color-accent) 72%, var(--color-background-card));
-  color: var(--color-on-accent);
+.c2l-tracking-head {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--spacing-2);
 }
 
-.c2l-grade-tag.is-g3 {
-  background: color-mix(in srgb, var(--color-accent) 44%, var(--color-background-card));
-  color: var(--color-text-primary);
+.c2l-tracking-head p {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
-.c2l-grade-tag.is-g4 {
-  background: color-mix(in srgb, var(--color-accent) 18%, var(--color-background-card));
-  color: var(--color-text-primary);
+.c2l-tracking-fields {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--spacing-3);
+  padding-top: var(--spacing-1);
 }
 
-.c2l-grade-tag.is-unknown {
-  background: var(--color-background-muted);
-  color: var(--color-text-secondary);
-  border-style: dashed;
+/* 접힌 사람 판단 수정 영역이 소유하는 저장 액션. pane 바닥의 결정 액션 바와 다른 자리다. */
+.c2l-feedback-actions {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: var(--spacing-3);
+  flex-wrap: wrap;
 }
 
-.c2l-mobile-back {
-  display: none;
-}
-
-/* 960px 미만: 상세가 목록을 덮는다(PRD §5 반응형). 행을 고르면 detail-pane이
- * list-pane을 대체해 보이고, "← 목록으로"로 되돌아간다. 폭이 넓을 때는
- * data-mobile-view을 무시하고 목록·상세를 나란히 보여준다. */
-@media (max-width: 960px) {
-  .c2l-workspace {
-    flex-direction: column;
-  }
-
-  .c2l-list-pane {
-    width: 100%;
-    flex: 1 1 auto;
-    border-right: 0;
-  }
-
-  .c2l-resizer {
-    display: none;
-  }
-
-  .c2l-detail-pane {
-    min-height: 420px;
-  }
-
-  .c2l-mobile-back {
-    display: inline-flex;
-  }
-
-  .c2l-workspace[data-mobile-view="list"] .c2l-detail-pane {
-    display: none;
-  }
-
-  .c2l-workspace[data-mobile-view="detail"] .c2l-list-pane {
-    display: none;
-  }
+.c2l-feedback-actions .review-decision-action {
+  margin-left: auto;
 }

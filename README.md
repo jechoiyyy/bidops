@@ -330,7 +330,7 @@ bidops/
 | [docs/database-guide.md](docs/database-guide.md) | DB 전체 해설과 설계 근거 |
 | [docs/PRD.md](docs/PRD.md), [docs/PLAN.md](docs/PLAN.md) | 현재 착수 범위(발주계획 C-2 선별)의 요구와 순서 |
 | [docs/ADR.md](docs/ADR.md), [docs/tracking/decisions/](docs/tracking/decisions/) | 기술·운영 결정과 대안·결과 |
-| [docs/design/](docs/design/) | 화면 개선 PRD·PLAN·ADR-0039~0041과 목업 |
+| [docs/design/](docs/design/) | 화면 시안 기준 작업의 정본 — PRD·PLAN·ADR-0039~0041·0046~0048, 무드보드와 목업 |
 | [docs/scheduling.md](docs/scheduling.md), [docs/model-quality-gate.md](docs/model-quality-gate.md), [docs/agent/agent-runtime.md](docs/agent/agent-runtime.md) | 공고 판정 런타임의 스케줄·품질 게이트·worker 계약 |
 | [docs/tracking/status.md](docs/tracking/status.md) | 구현과 검증의 현재 상태 |
 | [docs/tracking/findings.md](docs/tracking/findings.md) | 재현 가능한 미해결 문제 |

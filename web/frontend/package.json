@@ -5,8 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:mock": "BIDOPS_MOCK_API=1 vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
+    "test:contrast": "node --test scripts/check-contrast.test.mjs",
+    "test:design": "playwright test design-shell.spec.ts",
     "test:visual": "playwright test",
     "test:visual:update": "playwright test --update-snapshots"
   },

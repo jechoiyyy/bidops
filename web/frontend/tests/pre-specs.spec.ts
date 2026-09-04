@@ -239,7 +239,10 @@ interface PreSpecMockOptions {
 
 async function mockPreSpecs(page: Page, options: PreSpecMockOptions = {}): Promise<PreSpecTrace> {
   const trace: PreSpecTrace = { listQueries: [], noticeGets: [], overviewGets: [], structurePageGets: [], trackingPatches: [] };
-  let currentTrackingStatus: string = trackingException.tracking_status;
+  const trackingByOpportunity = new Map<number, string>([
+    [trackingException.opportunity_id, trackingException.tracking_status],
+    [newPreSpec.opportunity_id, newPreSpec.tracking_status],
+  ]);
 
   await page.route("**/api/pre-specs**", async (route) => {
     const request = route.request();
@@ -270,8 +273,8 @@ async function mockPreSpecs(page: Page, options: PreSpecMockOptions = {}): Promi
       const noticePk = url.searchParams.has("notice_pk") ? Number(url.searchParams.get("notice_pk")) : null;
       const swOnly = url.searchParams.get("sw_only") !== "false";
       const allItems = [
-        { ...trackingException, tracking_status: currentTrackingStatus },
-        newPreSpec,
+        { ...trackingException, tracking_status: trackingByOpportunity.get(trackingException.opportunity_id) },
+        { ...newPreSpec, tracking_status: trackingByOpportunity.get(newPreSpec.opportunity_id) },
         allOnlyPreSpec,
       ];
       const items = noticePk !== null
@@ -304,13 +307,14 @@ async function mockPreSpecs(page: Page, options: PreSpecMockOptions = {}): Promi
       return;
     }
     const body = request.postDataJSON() as { tracking_status?: string; reason?: string };
-    if (Number(match[1]) !== trackingException.opportunity_id || !body.tracking_status || !body.reason?.trim()) {
+    const opportunityId = Number(match[1]);
+    if (!trackingByOpportunity.has(opportunityId) || !body.tracking_status || !body.reason?.trim()) {
       await route.fulfill({ status: 422, contentType: "application/json", body: JSON.stringify({ detail: "tracking_reason_required" }) });
       return;
     }
-    currentTrackingStatus = body.tracking_status;
+    trackingByOpportunity.set(opportunityId, body.tracking_status);
     trace.trackingPatches.push({
-      opportunityId: Number(match[1]),
+      opportunityId,
       trackingStatus: body.tracking_status,
       reason: body.reason,
     });
@@ -318,8 +322,8 @@ async function mockPreSpecs(page: Page, options: PreSpecMockOptions = {}): Promi
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        id: trackingException.opportunity_id,
-        tracking_status: currentTrackingStatus,
+        id: opportunityId,
+        tracking_status: body.tracking_status,
         tracking_reason: body.reason,
         tracking_selected_by: request.headers()["x-bidops-actor-name"] ?? "테스트 담당자",
         tracking_selected_at: "2026-09-01T00:00:00Z",
@@ -339,13 +343,17 @@ async function mockPreSpecs(page: Page, options: PreSpecMockOptions = {}): Promi
       const id = Number(match[1]);
       trace.noticeGets.push(id);
       await route.fulfill({
-        status: id === 991 || id === 993 ? 200 : 404,
+        status: id === 991 || id === 992 || id === 993 ? 200 : 404,
         contentType: "application/json",
         body: JSON.stringify(id === 991
           ? notice991
-          : id === 993
-            ? { ...notice991, id: 993, notice_key: "pre-spec:993", title: allOnlyPreSpec.title, agency: allOnlyPreSpec.agency, attachment_count: 0, url: null, lifecycle: { pre_spec_no: allOnlyPreSpec.pre_spec_no }, qualification_flags: { sw_business_status: null } }
-            : { detail: "공고 없음" }),
+          // 992는 발주계획에 없던 신규 사전규격이다. 승계 건(991)과 달리 이 화면이
+          // 추적 시작을 묻는 유일한 경우다.
+          : id === 992
+            ? { ...notice991, id: 992, notice_key: "pre-spec:992", title: newPreSpec.title, agency: newPreSpec.agency, attachment_count: 1, url: null, lifecycle: { pre_spec_no: newPreSpec.pre_spec_no }, qualification_flags: { sw_business_status: "Y" } }
+            : id === 993
+              ? { ...notice991, id: 993, notice_key: "pre-spec:993", title: allOnlyPreSpec.title, agency: allOnlyPreSpec.agency, attachment_count: 0, url: null, lifecycle: { pre_spec_no: allOnlyPreSpec.pre_spec_no }, qualification_flags: { sw_business_status: null } }
+              : { detail: "공고 없음" }),
       });
       return;
     }
@@ -403,7 +411,7 @@ test("추적 예외, 신규, D-day, 문서 차단과 실패를 별도 상태로 
   await mockPreSpecs(page);
   await page.goto("/pre-specs");
 
-  const trackedRow = page.getByRole("row").filter({ has: page.getByRole("link", { name: trackingException.title }) });
+  const trackedRow = page.locator("tbody tr").filter({ hasText: trackingException.title });
   await expect(trackedRow).toContainText("추적");
   await expect(trackedRow).toContainText("추적 예외");
   await expect(trackedRow).toContainText("N");
@@ -481,29 +489,76 @@ test("사람 검토 필요·실패는 기본 펼침, 그 외 그룹은 기본 �
   await expect(page.getByRole("link", { name: allOnlyPreSpec.title })).toHaveCount(0);
 });
 
-test("목록 화면에서 심층 추적 승인을 내릴 수 있다", async ({ page }) => {
+// ADR-0046 결정 6: 추적 상태를 묻는 자리는 하나다. 발주계획에서 승계한 건은 이 화면이
+// 다시 묻지 않고 승계 사실만 밝힌다.
+test("발주계획에서 승계한 건은 추적 상태를 다시 묻지 않고 승계 사실을 배지로 밝힌다", async ({ page }) => {
   const trace = await mockPreSpecs(page);
   await page.goto("/pre-specs");
 
-  const trackedRow = page.getByRole("row").filter({ has: page.getByRole("link", { name: trackingException.title }) });
+  const trackedRow = page.locator("tbody tr").filter({ hasText: trackingException.title });
   await trackedRow.getByRole("button", { name: "추적 결정" }).click();
 
   const decisionPanel = page.locator("#pre-specs-tracking-target");
+  await expect(decisionPanel.getByRole("heading", { name: "추적 상태 · 발주계획에서 승계" })).toBeVisible();
+  await expect(decisionPanel.getByText("계속 추적 · 발주계획에서 승계", { exact: true })).toBeVisible();
+  await expect(decisionPanel).toContainText("이 화면에서 다시 묻지 않으며 심층 검토가 정상 완료돼도 다시 묻지 않습니다.");
+
+  // 결정 form 자체가 없다. 보류·추적 종료는 사업 추적에서만 고른다.
+  await expect(decisionPanel.getByRole("button", { name: "추적 상태 저장", exact: true })).toHaveCount(0);
+  await expect(decisionPanel.getByRole("button", { name: "추적 시작하고 심층 검토", exact: true })).toHaveCount(0);
+  await expect(decisionPanel.getByRole("button", { name: "보류", exact: true })).toHaveCount(0);
+  await expect(decisionPanel.getByRole("button", { name: "종료", exact: true })).toHaveCount(0);
+  await expect(decisionPanel.getByRole("link", { name: "사업 추적" })).toBeVisible();
+  expect(trace.trackingPatches).toEqual([]);
+});
+
+// PLAN 단계 D 작업 3: 이 화면의 결정은 심층 검토 실행 승인이다. 승계 건은 추적 상태를
+// 다시 묻지 않으므로 그 진입점이 없으면 막다른 카드가 된다.
+test("승계 건도 상세 pane에서 심층 검토 실행으로 이어질 수 있다", async ({ page }) => {
+  await mockPreSpecs(page);
+  await page.goto("/pre-specs?sw_only=false&sort=deadline");
+
+  const trackedRow = page.locator("tbody tr").filter({ hasText: trackingException.title });
+  await trackedRow.getByRole("button", { name: "추적 결정" }).click();
+
+  const detailPane = page.locator(".pre-specs-detail-pane");
+  await detailPane.getByRole("link", { name: "심층 검토 실행 →" }).click();
+
+  await expect.poll(() => new URL(page.url()).pathname).toBe("/pre-specs/991");
+  // 목록에서 들고 온 query를 잃지 않는다.
+  expect(new URL(page.url()).search).toBe("?sw_only=false&sort=deadline");
+});
+
+// PLAN 단계 D 작업 4: 발주계획에 없던 신규 사전규격만 한 조작으로 받는다. 한 조작이지만
+// 기록은 둘이다 — 추적 시작을 지금 남기고 심층 검토 실행 승인은 상세에서 이어서 남긴다.
+test("신규 사전규격만 추적 시작하고 심층 검토를 한 조작으로 받고 두 기록을 따로 남긴다", async ({ page }) => {
+  const trace = await mockPreSpecs(page);
+  await page.goto("/pre-specs");
+
+  const newRow = page.locator("tbody tr").filter({ hasText: newPreSpec.title });
+  await newRow.getByRole("button", { name: "추적 결정" }).click();
+
+  const decisionPanel = page.locator("#pre-specs-tracking-target");
   await expect(decisionPanel.getByRole("heading", { name: "심층 검토 추적 선택" })).toBeVisible();
+  await expect(decisionPanel).toContainText("한 조작이지만 기록은 둘입니다.");
+  // 이 화면에는 보류·추적 종료가 없다.
+  await expect(decisionPanel.getByRole("button", { name: "보류", exact: true })).toHaveCount(0);
+  await expect(decisionPanel.getByRole("button", { name: "종료", exact: true })).toHaveCount(0);
+  await expect(decisionPanel).toContainText("사업 추적에서만 사람이 고릅니다.");
 
-  await decisionPanel.getByRole("button", { name: "보류", exact: true }).click();
-  await decisionPanel.getByRole("textbox", { name: "사유 (필수)" }).fill("목록 화면에서 승인");
+  await decisionPanel.getByRole("textbox", { name: "사유 (필수)" }).fill("발주계획에 없던 신규 건");
   await decisionPanel.getByRole("textbox", { name: "담당자 이름 (필수)" }).fill("홍길동");
-  await decisionPanel.getByRole("button", { name: "추적 상태 저장", exact: true }).click();
+  await decisionPanel.getByRole("button", { name: "추적 시작하고 심층 검토", exact: true }).click();
 
+  // 기록 1: 추적 시작만 저장된다. 심층 검토 실행은 이 요청에 섞이지 않는다.
   await expect.poll(() => trace.trackingPatches).toEqual([{
-    opportunityId: 77,
-    trackingStatus: "보류",
-    reason: "목록 화면에서 승인",
+    opportunityId: 78,
+    trackingStatus: "계속 추적",
+    reason: "발주계획에 없던 신규 건",
   }]);
-  await expect(decisionPanel.getByText("심층 검토 추적 상태를 저장했습니다.", { exact: true })).toBeVisible();
-  // 저장 뒤 목록 행의 추적 상태 배지도 같은 캐시 갱신으로 새 상태를 보여준다.
-  await expect(trackedRow.getByText("보류", { exact: true })).toBeVisible();
+
+  // 기록 2의 자리: 심층 검토 실행 승인은 문서 묶음이 준비된 상세에서 이어서 남긴다.
+  await expect.poll(() => new URL(page.url()).pathname).toBe("/pre-specs/992");
 });
 
 test("사업기회가 없는 행은 목록에서도 추적 결정 비활성 사유를 보여준다", async ({ page }) => {
@@ -511,10 +566,36 @@ test("사업기회가 없는 행은 목록에서도 추적 결정 비활성 사�
   await page.goto("/pre-specs?sw_only=false");
   await page.getByRole("button", { name: /개요 검토 미시작/ }).click();
 
-  const untrackedRow = page.getByRole("row").filter({ has: page.getByRole("link", { name: allOnlyPreSpec.title }) });
+  const untrackedRow = page.locator("tbody tr").filter({ hasText: allOnlyPreSpec.title });
   const disabledButton = untrackedRow.getByRole("button", { name: "추적 결정" });
   await expect(disabledButton).toBeDisabled();
   await expect(page.getByText("아직 사업기회에 연결되지 않아 추적 결정을 기록할 수 없습니다.", { exact: true })).toBeVisible();
+});
+
+// ADR-0047 이 지원 폭을 1280~1920px 로 좁히면서 390px 의 목록·상세 전환은
+// 없앴다(PLAN 단계 B). 행 선택은 목록을 덮지 않고 오른쪽 상세만 바꾼다.
+test("사전규격 목록 행 선택은 목록을 유지한 채 오른쪽 상세만 바꾼다", async ({ page }) => {
+  await mockPreSpecs(page);
+  await page.goto("/pre-specs");
+
+  const listPane = page.locator(".pre-specs-list-pane");
+  const detailPane = page.locator(".pre-specs-detail-pane");
+  await expect(listPane).toBeVisible();
+  await expect(detailPane).toContainText("사전규격을 선택하십시오.");
+
+  const row = page.getByRole("row").filter({ has: page.getByRole("link", { name: trackingException.title }) });
+  await row.click();
+
+  await expect(page.locator('[data-review-primitive="split-workspace"]')).not.toHaveAttribute("data-mobile-view", /.*/);
+  await expect(page.locator('tbody tr[aria-selected="true"]')).toHaveCount(1);
+  await expect(page.locator("#pre-specs-tracking-target")).toBeVisible();
+  // 목록은 선택 뒤에도 그대로 남는다.
+  await expect(listPane).toBeVisible();
+
+  await page.getByRole("button", { name: "닫기", exact: true }).click();
+  await expect(page.locator("#pre-specs-tracking-target")).toHaveCount(0);
+  await expect(listPane).toBeVisible();
+  await expect(detailPane).toContainText("사전규격을 선택하십시오.");
 });
 
 test("notice 991 정본 상세는 29로 치환되지 않고 unknown을 사람 확인 상태로 보존한다", async ({ page }) => {
@@ -544,7 +625,8 @@ test("사전규격 상세는 notice_pk projection의 현재 추적 상태와 첨
   await page.goto("/pre-specs/991");
 
   await expect(page.getByText("현재 추적 상태", { exact: true })).toBeVisible();
-  await expect(page.locator(".pre-spec-tracking-current").getByText("계속 추적", { exact: true })).toBeVisible();
+  // 991은 발주계획에서 승계한 건이라 상세도 상태만 밝히고 다시 묻지 않는다.
+  await expect(page.locator(".pre-spec-tracking-current").getByText("계속 추적 · 발주계획에서 승계", { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "첨부 원문 취득 집계", exact: true })).toBeVisible();
   await expect(page.getByText("완료", { exact: true })).toBeVisible();
   await expect(page.getByText("차단", { exact: true })).toBeVisible();
@@ -554,29 +636,33 @@ test("사전규격 상세는 notice_pk projection의 현재 추적 상태와 첨
 
 test("사유 없이 사전규격 추적 상태를 보낼 수 없다", async ({ page }) => {
   const trace = await mockPreSpecs(page);
-  await page.goto("/pre-specs/991");
+  // 991은 승계 건이라 결정 form이 없다. 사유 규칙은 신규 건에서 확인한다.
+  await page.goto("/pre-specs/992");
 
+  // 저장 액션은 헤더가 소유하고 입력 form은 본문에 있다(PLAN 단계 F 작업 1).
   await expect(page.getByRole("button", { name: "추적 상태 저장", exact: true })).toBeDisabled();
-  await expect(page.getByText("추적 결정을 저장하려면 사유를 입력하십시오.", { exact: true })).toBeVisible();
+  await expect(page.locator("#pre-spec-detail-tracking-disabled")).toContainText("추적 결정을 저장하려면 사유를 입력하십시오.");
   expect(trace.trackingPatches).toEqual([]);
 });
 
 test("사전규격 추적 선택에 성공하면 사람 결정 상태가 갱신된다", async ({ page }) => {
   const trace = await mockPreSpecs(page);
-  await page.goto("/pre-specs/991");
+  await page.goto("/pre-specs/992");
 
-  await page.getByRole("button", { name: "보류", exact: true }).click();
+  // 사전규격에서 고를 수 있는 값은 `계속 추적` 하나뿐이다(ADR-0046 결정 6).
+  await expect(page.getByRole("button", { name: "보류", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "종료", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "계속 추적", exact: true }).click();
   await page.getByRole("textbox", { name: "사유 (필수)" }).fill("연계 범위를 확인한 뒤 계속 검토하기로 함");
   await page.getByRole("textbox", { name: "담당자 이름 (필수)" }).fill("홍길동");
   await page.getByRole("button", { name: "추적 상태 저장", exact: true }).click();
 
   await expect.poll(() => trace.trackingPatches).toEqual([{
-    opportunityId: 77,
-    trackingStatus: "보류",
+    opportunityId: 78,
+    trackingStatus: "계속 추적",
     reason: "연계 범위를 확인한 뒤 계속 검토하기로 함",
   }]);
   await expect(page.getByText("심층 검토 추적 상태를 저장했습니다.", { exact: true })).toBeVisible();
-  await expect(page.locator(".pre-spec-tracking-current").getByText("보류", { exact: true })).toBeVisible();
 });
 
 test("사업기회가 없으면 추적 결정을 기록할 수 없는 이유를 보여준다", async ({ page }) => {
@@ -587,6 +673,7 @@ test("사업기회가 없으면 추적 결정을 기록할 수 없는 이유를 
   await expect(page.locator(".mutation-feedback-warning")).toContainText("아직 사업기회에 연결되지 않아 추적 상태를 결정할 수 없습니다.");
   await expect(page.getByRole("button", { name: "계속 추적", exact: true })).toBeDisabled();
   await expect(page.getByRole("button", { name: "추적 상태 저장", exact: true })).toBeDisabled();
+  await expect(page.locator("#pre-spec-detail-tracking-disabled")).toContainText("아직 사업기회에 연결되지 않아");
 });
 
 test("v2 개요 결과는 평가에 필요한 요약·미확인·근거 위치를 보여준다", async ({ page }) => {
@@ -741,13 +828,24 @@ test("사전규격 목록과 상세는 viewport 바깥으로 넘치지 않는다
   }
 });
 
-// docs/design/PLAN.md 4단계 완료 게이트: 상세 3종 공통 골격에서 결정 액션은
-// 요약 헤더에 고정되어 스크롤 위치와 무관하게 첫 화면에서 보여야 한다.
-test("사전규격 상세는 본문을 끝까지 스크롤해도 추적 결정 액션이 뷰포트 안에 남는다", async ({ page }) => {
+// docs/design/PLAN.md 단계 F 작업 1·완료 게이트: 결정 **액션**은 요약 헤더에
+// 고정되어 스크롤 위치와 무관하게 첫 화면에서 보이고, 되돌릴 수 없는 입력
+// **form**은 헤더가 아니라 본문 열에 있다.
+test("사전규격 상세는 결정 액션만 헤더에 고정하고 입력 form은 본문에 둔다", async ({ page }) => {
   await mockPreSpecs(page);
-  await page.goto("/pre-specs/991");
-  const saveButton = page.getByRole("button", { name: "추적 상태 저장", exact: true });
+  // 결정 액션이 있는 건에서 확인한다. 991은 승계 건이라 결정 form이 없다.
+  await page.goto("/pre-specs/992");
+  const header = page.locator('[data-review-primitive="sticky-decision-header"]');
+  await expect(header).toBeVisible();
+  await expect(page.locator('[data-review-primitive="history-link-rail"]')).toHaveCount(1);
+
+  const saveButton = header.getByRole("button", { name: "추적 상태 저장", exact: true });
   await expect(saveButton).toBeInViewport();
+  await expect(header.getByRole("button", { name: "추적 결정 입력으로 이동", exact: true })).toBeInViewport();
+  // 사유·담당자 입력은 헤더가 아니라 본문 열의 결정 패널 안에 있다.
+  await expect(header.locator("textarea")).toHaveCount(0);
+  await expect(page.locator(".detail-skeleton-main").getByRole("textbox", { name: "사유 (필수)" })).toHaveCount(1);
+
   await page.evaluate(() => document.querySelector(".page-canvas")?.scrollTo(0, 999_999));
   await expect(saveButton).toBeInViewport();
 });
@@ -761,6 +859,6 @@ test("사업기회 미연결 사전규격은 비활성 추적 결정 액션과 �
   const saveButton = page.getByRole("button", { name: "추적 상태 저장", exact: true });
   await expect(saveButton).toBeInViewport();
   await expect(saveButton).toBeDisabled();
-  await expect(page.locator("#pre-spec-tracking-save-disabled")).toBeInViewport();
-  await expect(page.locator("#pre-spec-tracking-save-disabled")).toContainText("아직 사업기회에 연결되지 않아");
+  await expect(page.locator("#pre-spec-detail-tracking-disabled")).toBeInViewport();
+  await expect(page.locator("#pre-spec-detail-tracking-disabled")).toContainText("아직 사업기회에 연결되지 않아");
 });

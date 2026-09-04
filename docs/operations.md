@@ -303,11 +303,12 @@ python3 skills/bidops-screen/scripts/validate_order_plan_phase0.py --json
 ```bash
 ./run-tests.sh
 ./web/run-web-tests.sh
-cd web/frontend && npm run test:visual
+cd web/frontend && npm run test:contrast
+cd web/frontend && npm run test:visual   # 기준선 주의 — 아래 참조
 COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose -f docker-compose.t7.yml build
 ```
 
-`web/run-web-tests.sh`는 임시 PostgreSQL 17에서 migration을 수행하고, 격리 DB의 backend 테스트와 frontend production build, 네 폭의 Playwright 화면 스냅샷 회귀를 실행한다. Docker가 없으면 `BIDOPS_TEST_POSTGRES_URL`에 폐기 가능한 PostgreSQL 관리 URL을 제공한다. 운영 DB URL을 사용하지 않는다. Playwright는 브라우저 번들을 자동으로 내려받지 않으므로 없으면 실패한다.
+`web/run-web-tests.sh`는 임시 PostgreSQL 17에서 migration을 수행하고, 격리 DB의 backend 테스트와 frontend production build, Playwright 화면 스냅샷 회귀를 실행한다. 검증 폭은 laptop 1280x800과 desktop 1440x900 두 폭이다(ADR-0047. 이전의 네 폭에서 모바일 390·태블릿 768을 없앴다). 화면 스냅샷은 2026-09-04 팔레트 전환 이후 기준선이 옛 무채색이라 다수 실패하며, 승인 없이 갱신하지 않는다([tracking/findings.md](tracking/findings.md)). Docker가 없으면 `BIDOPS_TEST_POSTGRES_URL`에 폐기 가능한 PostgreSQL 관리 URL을 제공한다. 운영 DB URL을 사용하지 않는다. Playwright는 브라우저 번들을 자동으로 내려받지 않으므로 없으면 실패한다.
 
 live Ollama 또는 vLLM smoke는 운영자가 명시한 한 번의 명령과 대상에서만 수행한다. safety 환경변수가 true라는 사실만으로 실행하지 않는다. 결과에는 모델명, digest 또는 승인된 immutable reference, 정책·프로필 버전, 입력 hash, 시작·종료 시각을 남긴다.
 

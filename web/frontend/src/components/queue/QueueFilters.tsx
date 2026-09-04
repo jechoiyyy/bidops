@@ -1,4 +1,8 @@
-import type { ChangeEvent } from "react";
+import {
+  ReviewFilterBar,
+  ReviewFilterSelector,
+  ReviewFilterTextInput,
+} from "../common/ReviewPrimitives";
 
 export interface QueueFilterValues {
   grade: string;
@@ -43,40 +47,39 @@ function FilterSelect({
   onChange: (value: string) => void;
 }) {
   return (
-    <label className={`queue-filter-select ${active ? "is-active" : ""}`.trim()}>
-      <span>{label}</span>
-      <select aria-label={label} value={value} onChange={(event) => onChange(event.target.value)}>
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-        <path d="m6 9 6 6 6-6" />
-      </svg>
-    </label>
+    <div className={`queue-filter-select ${active ? "is-active" : ""}`.trim()}>
+      <span className="queue-filter-label">{label}</span>
+      <ReviewFilterSelector
+        className="queue-filter-control"
+        label={label}
+        onChange={(next) => onChange(next ?? "")}
+        options={options.filter((option) => option.value !== "")}
+        placeholder={options.find((option) => option.value === "")?.label ?? "전체"}
+        value={value || null}
+      />
+    </div>
   );
 }
 
 export function QueueFilters({ value, focusOptions, onChange, onReset }: QueueFiltersProps) {
-  const onSearchChange = (event: ChangeEvent<HTMLInputElement>) => onChange("q", event.target.value);
   const activeCount = narrowingFilterCount(value);
   return (
-    <div className="queue-filters" aria-label="검토 대기열 필터">
-      <label className={`queue-search ${value.q.trim() ? "is-active" : ""}`.trim()}>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-          <circle cx="11" cy="11" r="7" />
-          <path d="m20 20-4-4" />
-        </svg>
-        <input
-          aria-label="공고명·기관 검색"
+    <ReviewFilterBar
+      activeFilterCount={activeCount}
+      aria-label="검토 대기열 필터"
+      className="queue-filters"
+      onReset={onReset}
+      resetLabel={`필터 ${activeCount}개 해제`}
+    >
+      <div className={`queue-search ${value.q.trim() ? "is-active" : ""}`.trim()}>
+        <ReviewFilterTextInput
+          className="queue-search-input"
+          label="공고명·기관 검색"
+          onChange={(next) => onChange("q", next)}
           placeholder="공고명·기관 검색"
-          type="search"
           value={value.q}
-          onChange={onSearchChange}
         />
-      </label>
+      </div>
 
       <FilterSelect
         label="등급"
@@ -136,15 +139,6 @@ export function QueueFilters({ value, focusOptions, onChange, onReset }: QueueFi
         ]}
       />
 
-      {activeCount > 0 ? (
-        <button className="queue-filter-reset" type="button" onClick={onReset}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-            <path d="M18 6 6 18M6 6l12 12" />
-          </svg>
-          <span>필터 {activeCount}개 해제</span>
-        </button>
-      ) : null}
-
       <div className="queue-filter-spacer" />
 
       <label className="queue-filter-select queue-filter-sort">
@@ -161,6 +155,6 @@ export function QueueFilters({ value, focusOptions, onChange, onReset }: QueueFi
           <path d="m6 9 6 6 6-6" />
         </svg>
       </label>
-    </div>
+    </ReviewFilterBar>
   );
 }

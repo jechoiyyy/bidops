@@ -1,5 +1,6 @@
 import { useNavigate, useLocation } from "react-router-dom";
 import { Tab, TabList } from "@astryxdesign/core/TabList";
+import { CriteriaGuardrails } from "../components/criteria/CriteriaGuardrails";
 import { MetricsPage } from "./MetricsPage";
 import { PoliciesPage } from "./PoliciesPage";
 import { ProfilePage } from "./ProfilePage";
@@ -38,7 +39,7 @@ export function CriteriaPage() {
   const panelId = `criteria-panel-${tab}`;
 
   return (
-    <section aria-labelledby="criteria-page-title" className="ws-page" data-astryx-theme="neutral">
+    <section aria-labelledby="criteria-page-title" className="ws-page" data-astryx-theme="bidops">
       <h2 className="visually-hidden" id="criteria-page-title">판정 기준</h2>
       <div className="ws-tabs">
         <TabList
@@ -59,7 +60,9 @@ export function CriteriaPage() {
         </TabList>
       </div>
       {/* 고른 탭만 렌더한다. 넷을 모두 마운트하면 네 화면의 조회가 한꺼번에
-        * 나가고, 보이지 않는 화면의 실패까지 사용자에게 알려야 한다. */}
+        * 나가고, 보이지 않는 화면의 실패까지 사용자에게 알려야 한다.
+        * 반대로 경계 패널은 탭과 함께 바뀌지 않는다 — 어느 탭에 있든 "이 화면이
+        * 정하지 않는 것"과 정책 차단 사유가 같은 자리에 남는다(단계 E 작업 6). */}
       <div className="ws-body">
         <div className="ws-panel" id={panelId} role="tabpanel" aria-label={TABS.find((item) => item.value === tab)?.label}>
           {tab === "profile" ? <ProfilePage /> : null}
@@ -67,6 +70,7 @@ export function CriteriaPage() {
           {tab === "quality-gates" ? <QualityGatesPage /> : null}
           {tab === "metrics" ? <MetricsPage /> : null}
         </div>
+        <CriteriaGuardrails />
       </div>
     </section>
   );

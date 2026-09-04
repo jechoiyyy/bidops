@@ -1,11 +1,14 @@
 import type {
   HTMLAttributes,
+  KeyboardEvent as ReactKeyboardEvent,
+  MouseEvent as ReactMouseEvent,
   ReactNode,
   Ref,
 } from "react";
+import { useId, useState } from "react";
 import { Badge as AstryxBadge } from "@astryxdesign/core/Badge";
 import { Banner as AstryxBanner } from "@astryxdesign/core/Banner";
-import { Button as AstryxButton } from "@astryxdesign/core/Button";
+import { Button as AstryxButton, type ButtonProps } from "@astryxdesign/core/Button";
 import { Collapsible as AstryxCollapsible } from "@astryxdesign/core/Collapsible";
 import { EmptyState as AstryxEmptyState } from "@astryxdesign/core/EmptyState";
 import { List, ListItem, type ListItemProps } from "@astryxdesign/core/List";
@@ -34,6 +37,7 @@ export function DenseList({ children, className, ...props }: DenseListProps) {
     <List
       {...props}
       className={joinClassNames("review-dense-list", className)}
+      data-review-primitive="dense-list"
       density="compact"
       hasDividers
     >
@@ -64,65 +68,90 @@ export function DenseListRow({
   endContent,
   label,
   onSelect,
+  onKeyDown,
+  role,
   ref,
   selected = false,
   startContent,
+  tabIndex,
   ...props
 }: DenseListRowProps) {
+  const rowRole = role ?? (onSelect ? "button" : undefined);
+  const handleClick = (event: ReactMouseEvent<Element>) => {
+    if (disabled || !onSelect) return;
+    const target = event.target;
+    if (target instanceof Element && target.closest("a,button,input,select,textarea")) return;
+    onSelect();
+  };
+  const handleKeyDown = (event: ReactKeyboardEvent<HTMLLIElement>) => {
+    onKeyDown?.(event);
+    if (event.defaultPrevented || disabled || !onSelect) return;
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onSelect();
+    }
+  };
   return (
     <ListItem
       {...props}
       aria-current={selected ? "true" : undefined}
       className={joinClassNames("review-dense-list-row", selected && "is-selected", className)}
+      data-review-primitive="dense-list-row"
       description={description}
       endContent={endContent}
       isDisabled={disabled}
       isSelected={selected}
       label={label}
-      onClick={onSelect ? () => onSelect() : undefined}
+      onClick={onSelect ? handleClick : undefined}
+      onKeyDown={onSelect ? handleKeyDown : onKeyDown}
       ref={ref}
+      role={rowRole}
       startContent={startContent}
+      tabIndex={rowRole ? (disabled ? -1 : tabIndex ?? 0) : tabIndex}
     />
   );
 }
 
-export type SplitMobileView = "list" | "detail";
-
 export interface SplitWorkspaceProps extends Omit<HTMLAttributes<HTMLDivElement>, "children"> {
-  detail: ReactNode;
-  detailLabel: string;
-  list: ReactNode;
-  listLabel: string;
-  mobileView?: SplitMobileView;
+  /** Slot API for new screens. Existing workspaces may pass children directly. */
+  detail?: ReactNode;
+  detailLabel?: string;
+  list?: ReactNode;
+  listLabel?: string;
+  children?: ReactNode;
 }
 
 /**
- * Master-detail workspace. The wrapper regions use display: contents on wide
- * screens so existing list/detail panes keep their width budget. At the
- * narrow breakpoint one region is hidden, so the detail view can cover the
- * list without navigating to another page.
+ * Master-detail workspace. Both panes stay on screen at every supported width
+ * (ADR-0047: 1280~1920px). There is no narrow-width mode where the detail
+ * covers the list, so selecting a row only replaces the detail pane in place
+ * and never navigates.
  */
 export function SplitWorkspace({
+  children,
   className,
   detail,
-  detailLabel,
+  detailLabel = "상세",
   list,
-  listLabel,
-  mobileView,
+  listLabel = "목록",
   ...props
 }: SplitWorkspaceProps) {
   return (
     <div
       {...props}
       className={joinClassNames("review-split-workspace", className)}
-      data-mobile-view={mobileView}
+      data-review-primitive="split-workspace"
     >
-      <section aria-label={listLabel} className="review-split-list">
-        {list}
-      </section>
-      <section aria-label={detailLabel} className="review-split-detail">
-        {detail}
-      </section>
+      {children ?? (
+        <>
+          <section aria-label={listLabel} className="review-split-list">
+            {list}
+          </section>
+          <section aria-label={detailLabel} className="review-split-detail">
+            {detail}
+          </section>
+        </>
+      )}
     </div>
   );
 }
@@ -149,6 +178,7 @@ export function ReviewFilterBar({
       {...props}
       className={joinClassNames("review-filter-bar", className)}
       data-active-filter-count={activeFilterCount}
+      data-review-primitive="filter-bar"
       role="toolbar"
     >
       {children}
@@ -174,17 +204,20 @@ export interface ReviewFilterOption {
 
 export interface ReviewFilterSelectorProps {
   className?: string;
+  clearable?: boolean;
   disabledMessage?: string;
   isDisabled?: boolean;
   label: string;
   onChange: (value: string | null) => void;
   options: ReviewFilterOption[];
   placeholder?: string;
+  variant?: "ghost" | "input";
   value: string | null;
 }
 
 /** Selector adapter used by filters so labels and disabled reasons stay consistent. */
 export function ReviewFilterSelector({
+  clearable = true,
   className,
   disabledMessage,
   isDisabled = false,
@@ -192,6 +225,7 @@ export function ReviewFilterSelector({
   onChange,
   options,
   placeholder = "전체",
+  variant = "input",
   value,
 }: ReviewFilterSelectorProps) {
   const selectorOptions: SelectorOptionData[] = options.map(({ description, disabled, label: optionLabel, value: optionValue }) => ({
@@ -200,19 +234,36 @@ export function ReviewFilterSelector({
     label: optionLabel,
     value: optionValue,
   }));
+  const selectorProps = {
+    className: joinClassNames("review-filter-selector", className),
+    disabledMessage,
+    isDisabled,
+    label,
+    isLabelHidden: true,
+    options: selectorOptions,
+    placeholder,
+    size: "sm" as const,
+    variant,
+  };
+
+  if (clearable) {
+    return (
+      <Selector
+        {...selectorProps}
+        data-review-primitive="filter-selector"
+        hasClear
+        onChange={onChange}
+        value={value}
+      />
+    );
+  }
+
   return (
     <Selector
-      className={joinClassNames("review-filter-selector", className)}
-      disabledMessage={disabledMessage}
-      hasClear
-      isDisabled={isDisabled}
-      label={label}
-      isLabelHidden
-      onChange={onChange}
-      options={selectorOptions}
-      placeholder={placeholder}
-      size="sm"
-      value={value}
+      {...selectorProps}
+      data-review-primitive="filter-selector"
+      onChange={(next) => onChange(next)}
+      value={value ?? undefined}
     />
   );
 }
@@ -246,6 +297,7 @@ export function ReviewFilterSegmentedControl({
   return (
     <SegmentedControl
       className={joinClassNames("review-filter-segmented", className)}
+      data-review-primitive="segmented-control"
       disabledMessage={disabledMessage}
       isDisabled={isDisabled}
       label={label}
@@ -272,6 +324,7 @@ export interface ReviewFilterTextInputProps {
   isDisabled?: boolean;
   label: string;
   onChange: (value: string) => void;
+  onEnter?: () => void;
   placeholder?: string;
   value: string;
 }
@@ -283,18 +336,21 @@ export function ReviewFilterTextInput({
   isDisabled = false,
   label,
   onChange,
+  onEnter,
   placeholder,
   value,
 }: ReviewFilterTextInputProps) {
   return (
     <TextInput
       className={joinClassNames("review-filter-text-input", className)}
+      data-review-primitive="text-input"
       disabledMessage={disabledMessage}
       hasClear
       isDisabled={isDisabled}
       isLabelHidden
       label={label}
       onChange={onChange}
+      onEnter={onEnter}
       placeholder={placeholder}
       size="sm"
       value={value}
@@ -321,7 +377,7 @@ export function ReviewStatus({
   variant,
 }: ReviewStatusProps) {
   return (
-    <span className={joinClassNames("review-status", className)} data-status-variant={variant}>
+    <span className={joinClassNames("review-status", className)} data-review-primitive="status" data-status-variant={variant}>
       <StatusDot isPulsing={isPulsing} label={label} tooltip={tooltip} variant={variant} />
       <span className="review-status-label">{label}</span>
       {detail !== undefined ? <span className="review-status-detail">{detail}</span> : null}
@@ -356,7 +412,7 @@ export function ReviewValue({
         ? String(value)
         : value;
   return (
-    <span className={joinClassNames("review-value", `is-${state}`, className)} data-value-state={state}>
+    <span className={joinClassNames("review-value", `is-${state}`, className)} data-review-primitive="value" data-value-state={state}>
       {content}
     </span>
   );
@@ -381,6 +437,7 @@ export function StickyDecisionHeader({
       {...props}
       aria-label={label}
       className={joinClassNames("review-sticky-decision-header", className)}
+      data-review-primitive="sticky-decision-header"
       data-sticky="true"
     >
       {children}
@@ -389,10 +446,229 @@ export function StickyDecisionHeader({
   );
 }
 
+export interface ReviewDecisionBarProps extends Omit<HTMLAttributes<HTMLElement>, "children"> {
+  /** Decision buttons. Use {@link ReviewDecisionAction} so a disabled reason stays attached. */
+  actions: ReactNode;
+  /** Context that is not itself a decision (position in the list, what the buttons record). */
+  hint?: ReactNode;
+  label?: string;
+  /** Live region for save and error feedback. */
+  status?: ReactNode;
+}
+
+/**
+ * Decision actions pinned to the bottom of a split workspace's detail pane.
+ *
+ * The two placements are deliberate and not interchangeable: a split screen
+ * keeps its decisions at the bottom of the detail pane (this primitive), a
+ * standalone detail screen keeps them in the sticky header
+ * ({@link StickyDecisionHeader}). Either way the actions stay on the first
+ * screen regardless of scroll position, so the bar sits outside the pane's
+ * scroll container and sticks to its bottom edge.
+ */
+export function ReviewDecisionBar({
+  actions,
+  className,
+  hint,
+  label = "결정 액션",
+  status,
+  ...props
+}: ReviewDecisionBarProps) {
+  return (
+    <footer
+      {...props}
+      aria-label={label}
+      className={joinClassNames("review-decision-bar", className)}
+      data-review-primitive="decision-bar"
+      role="group"
+    >
+      {status}
+      <span className="review-decision-bar-actions">{actions}</span>
+      {hint !== undefined && hint !== null ? <span className="review-decision-bar-hint">{hint}</span> : null}
+    </footer>
+  );
+}
+
+export interface ReviewSecondaryInputProps {
+  children: ReactNode;
+  className?: string;
+  closeLabel?: string;
+  defaultIsOpen?: boolean;
+  /** Stays visible while collapsed: says what opening this does and what it does not touch. */
+  description?: ReactNode;
+  disabledMessage?: string;
+  isDisabled?: boolean;
+  /** Controlled open state. Omit to let the primitive own it. */
+  isOpen?: boolean;
+  onOpenChange?: (isOpen: boolean) => void;
+  openLabel?: string;
+  /** The value this input would change, shown while collapsed. */
+  summary?: ReactNode;
+  title: string;
+}
+
+/**
+ * Optional secondary input that stays folded until a person asks for it —
+ * human-judgment corrections and tracking-status changes.
+ *
+ * Folding it is the point: the screen's primary decision must not look like
+ * it needs this input first. The current value and the "what this does not
+ * change" sentence stay visible while collapsed, so folding never hides the
+ * state, only the form.
+ */
+export function ReviewSecondaryInput({
+  children,
+  className,
+  closeLabel = "닫기",
+  defaultIsOpen = false,
+  description,
+  disabledMessage,
+  isDisabled = false,
+  isOpen: isOpenProp,
+  onOpenChange,
+  openLabel = "열기",
+  summary,
+  title,
+}: ReviewSecondaryInputProps) {
+  const [uncontrolledIsOpen, setUncontrolledIsOpen] = useState(defaultIsOpen);
+  const isOpen = isOpenProp ?? uncontrolledIsOpen;
+  const baseId = `review-secondary-input-${useId().replace(/:/g, "")}`;
+  const regionId = `${baseId}-region`;
+  const titleId = `${baseId}-title`;
+  const reasonId = `${baseId}-reason`;
+  const toggleLabel = isOpen ? closeLabel : openLabel;
+  const hasReason = isDisabled && Boolean(disabledMessage);
+  return (
+    <section
+      aria-labelledby={titleId}
+      className={joinClassNames("review-secondary-input", isOpen && "is-open", className)}
+      data-review-primitive="secondary-input"
+      data-open={isOpen ? "true" : "false"}
+    >
+      <header className="review-secondary-input-head">
+        <span className="review-secondary-input-heading">
+          <span className="review-secondary-input-title" id={titleId}>{title}</span>
+          {description !== undefined && description !== null
+            ? <span className="review-secondary-input-description">{description}</span>
+            : null}
+        </span>
+        {summary !== undefined && summary !== null
+          ? <span className="review-secondary-input-summary">{summary}</span>
+          : null}
+        <AstryxButton
+          aria-controls={regionId}
+          aria-describedby={hasReason ? reasonId : undefined}
+          aria-expanded={isOpen}
+          aria-label={`${title} ${toggleLabel}`}
+          className="review-secondary-input-toggle"
+          isDisabled={isDisabled}
+          label={toggleLabel}
+          onClick={() => {
+            const next = !isOpen;
+            if (isOpenProp === undefined) setUncontrolledIsOpen(next);
+            onOpenChange?.(next);
+          }}
+          size="sm"
+          variant="secondary"
+        />
+      </header>
+      {hasReason ? <p className="review-secondary-input-reason" id={reasonId}>{disabledMessage}</p> : null}
+      <div className="review-secondary-input-region" hidden={!isOpen} id={regionId}>
+        {children}
+      </div>
+    </section>
+  );
+}
+
+export interface ReviewRevisionEntry {
+  /** Who claimed the change. An audit marker, never an authenticated identity. */
+  actor?: ReactNode;
+  at?: ReactNode;
+  body?: ReactNode;
+  id: string | number;
+  revision: number;
+  /** The recorded values, e.g. relevance and priority tokens. */
+  tags?: ReactNode;
+}
+
+export interface ReviewRevisionHistoryProps {
+  appendOnlyLabel?: string;
+  className?: string;
+  empty?: ReactNode;
+  /** Newest first. The primitive preserves the caller's order rather than sorting. */
+  entries: ReviewRevisionEntry[];
+  error?: ReactNode;
+  /** Depends on what already surrounds it — a rail section sits under an h3. */
+  headingLevel?: 3 | 4 | 5;
+  label: string;
+}
+
+/**
+ * Append-only revision history for a secondary input.
+ *
+ * Revisions are added, never edited or replaced, so the count and the
+ * append-only marker are part of the reading — a shrinking count means the
+ * server lost history, not that a person tidied it up.
+ */
+export function ReviewRevisionHistory({
+  appendOnlyLabel = "append-only",
+  className,
+  empty,
+  entries,
+  error,
+  headingLevel = 4,
+  label,
+}: ReviewRevisionHistoryProps) {
+  const titleId = `review-revision-history-${useId().replace(/:/g, "")}`;
+  const Heading = `h${headingLevel}` as const;
+  return (
+    <section
+      aria-labelledby={titleId}
+      className={joinClassNames("review-revision-history", className)}
+      data-review-primitive="revision-history"
+      data-revision-count={entries.length}
+    >
+      <header className="review-revision-history-head">
+        <Heading className="review-revision-history-title" id={titleId}>{label}</Heading>
+        <AstryxBadge label={`${appendOnlyLabel} · ${entries.length.toLocaleString("ko-KR")}건`} variant="neutral" />
+      </header>
+      {error ? <p className="review-revision-history-error" role="alert">{error}</p> : null}
+      {entries.length === 0 ? (
+        <p className="review-revision-history-empty">{empty ?? "기록된 revision이 없습니다."}</p>
+      ) : (
+        <List className="review-revision-history-list" density="compact" hasDividers>
+          {entries.map((entry) => (
+            <ListItem
+              className="review-revision-history-entry"
+              data-revision={entry.revision}
+              description={entry.body}
+              endContent={entry.at !== undefined || entry.actor !== undefined ? (
+                <span className="review-revision-history-meta">
+                  {entry.at}
+                  {entry.at !== undefined && entry.actor !== undefined ? " · " : null}
+                  {entry.actor}
+                </span>
+              ) : undefined}
+              key={entry.id}
+              label={(
+                <span className="review-revision-history-label">
+                  <AstryxBadge label={`revision ${entry.revision}`} variant="neutral" />
+                  {entry.tags}
+                </span>
+              )}
+            />
+          ))}
+        </List>
+      )}
+    </section>
+  );
+}
+
 export interface ReviewEvidenceItem {
   detail?: ReactNode;
   id: string | number;
   locator?: ReactNode;
+  startContent?: ReactNode;
   title: ReactNode;
   tone?: "neutral" | "warning" | "error" | "accent";
 }
@@ -407,18 +683,28 @@ export interface ReviewEvidenceListProps {
 /** Repeating evidence rows with an explicit locator slot for source links. */
 export function ReviewEvidenceList({ className, empty, items, label }: ReviewEvidenceListProps) {
   if (items.length === 0) {
-    return <div className={joinClassNames("review-evidence-list-empty", className)}>{empty ?? "근거 항목이 없습니다."}</div>;
+    return (
+      <div
+        className={joinClassNames("review-evidence-list-empty", className)}
+        data-review-primitive="evidence-list"
+      >
+        {empty ?? "근거 항목이 없습니다."}
+      </div>
+    );
   }
   return (
-    <ul aria-label={label} className={joinClassNames("review-evidence-list", className)}>
+    <List aria-label={label} className={joinClassNames("review-evidence-list", className)} data-review-primitive="evidence-list" density="compact" hasDividers>
       {items.map((item) => (
-        <li className={item.tone ? `is-${item.tone}` : undefined} key={item.id}>
-          <strong>{item.title}</strong>
-          {item.detail !== undefined ? <span className="review-evidence-detail">{item.detail}</span> : null}
-          {item.locator !== undefined ? <span className="review-evidence-locator">{item.locator}</span> : null}
-        </li>
+        <ListItem
+          className={item.tone ? `is-${item.tone}` : undefined}
+          description={item.detail}
+          endContent={item.locator}
+          key={item.id}
+          label={item.title}
+          startContent={item.startContent}
+        />
       ))}
-    </ul>
+    </List>
   );
 }
 
@@ -435,57 +721,86 @@ export interface ReviewRailLink {
   external?: boolean;
 }
 
+export interface ReviewHistorySection {
+  className?: string;
+  content?: ReactNode;
+  empty?: ReactNode;
+  entries: ReviewHistoryEntry[];
+  error?: ReactNode;
+  label: string;
+  listClassName?: string;
+  showHeading?: boolean;
+}
+
 export interface ReviewHistoryLinkRailProps {
   className?: string;
   history?: ReviewHistoryEntry[];
+  historySections?: ReviewHistorySection[];
   historyLabel?: string;
   links?: ReviewRailLink[];
+  linksClassName?: string;
   linksLabel?: string;
   title?: string;
+  footer?: ReactNode;
 }
 
 /** Shared right rail for history and related links; it never owns decisions. */
 export function ReviewHistoryLinkRail({
   className,
   history = [],
+  historySections,
   historyLabel = "변경 이력",
   links = [],
+  linksClassName,
   linksLabel = "연결된 화면",
   title = "이력과 연결",
+  footer,
 }: ReviewHistoryLinkRailProps) {
+  const sections = historySections ?? [{ entries: history, label: historyLabel }];
   return (
-    <aside aria-label={title} className={joinClassNames("review-history-link-rail", className)}>
+    <aside aria-label={title} className={joinClassNames("review-history-link-rail", className)} data-review-primitive="history-link-rail">
       <h3>{title}</h3>
-      {history.length > 0 ? (
-        <section aria-label={historyLabel}>
-          <h4>{historyLabel}</h4>
-          <ol className="review-history-list">
-            {history.map((entry) => (
-              <li key={entry.id}>
-                {entry.status ? <ReviewStatus label={entry.status.label} variant={entry.status.variant} /> : null}
-                <strong>{entry.label}</strong>
-                {entry.detail !== undefined ? <span>{entry.detail}</span> : null}
-              </li>
-            ))}
-          </ol>
+      {sections.map((section) => (
+        <section aria-label={section.label} className={section.className} key={section.label}>
+          {section.showHeading !== false ? <h4>{section.label}</h4> : null}
+          {section.content !== undefined ? section.content : (
+            <>
+              {section.error ? <p className="review-history-error" role="alert">{section.error}</p> : null}
+              {section.entries.length > 0 ? (
+                <List className={joinClassNames("review-history-list", section.listClassName)} data-review-primitive="history-list" density="compact">
+                  {section.entries.map((entry) => (
+                    <ListItem
+                      key={entry.id}
+                      label={entry.label}
+                      description={entry.detail}
+                      startContent={entry.status ? <ReviewStatus label={entry.status.label} variant={entry.status.variant} /> : undefined}
+                    />
+                  ))}
+                </List>
+              ) : (
+                <p className="review-history-empty">{section.empty ?? "이력이 없습니다."}</p>
+              )}
+            </>
+          )}
         </section>
-      ) : (
-        <p className="review-history-empty">이력이 없습니다.</p>
-      )}
+      ))}
       {links.length > 0 ? (
-        <nav aria-label={linksLabel} className="review-rail-links">
+        <nav aria-label={linksLabel} className={joinClassNames("review-rail-links", linksClassName)}>
           <h4>{linksLabel}</h4>
-          <ul>
+          <List data-review-primitive="rail-links" density="compact">
             {links.map((link) => (
-              <li key={`${link.href}-${link.label}`}>
-                <a href={link.href} rel={link.external ? "noreferrer" : undefined} target={link.external ? "_blank" : undefined}>
-                  {link.label}
-                </a>
-              </li>
+              <ListItem
+                href={link.href}
+                key={`${link.href}-${link.label}`}
+                label={link.label}
+                rel={link.external ? "noreferrer" : undefined}
+                target={link.external ? "_blank" : undefined}
+              />
             ))}
-          </ul>
+          </List>
         </nav>
       ) : null}
+      {footer}
     </aside>
   );
 }
@@ -506,6 +821,7 @@ export function ReviewState({ action, children, className, description, kind, ti
       <AstryxEmptyState
         actions={action}
         className={joinClassNames("review-state", "is-empty", className)}
+        data-review-primitive="state"
         description={description}
         headingLevel={3}
         isCompact
@@ -521,6 +837,7 @@ export function ReviewState({ action, children, className, description, kind, ti
       endContent={action}
       status={kind === "failure" ? "error" : "warning"}
       title={title}
+      data-review-primitive="state"
     >
       {children}
     </AstryxBanner>
@@ -554,6 +871,7 @@ export function ReviewStateGroup({
     <div className="review-state-group" data-group-value={value}>
       <AstryxCollapsible
         data-testid={`review-state-group-${value}`}
+        data-review-primitive="state-group"
         defaultIsOpen={defaultIsOpen}
         isDisabled={isDisabled}
         trigger={
@@ -569,5 +887,48 @@ export function ReviewStateGroup({
       </AstryxCollapsible>
       {isDisabled && disabledMessage ? <p className="review-state-group-disabled-reason">{disabledMessage}</p> : null}
     </div>
+  );
+}
+
+export interface ReviewDecisionActionProps extends Omit<ButtonProps, "children" | "isDisabled" | "label"> {
+  disabledReason?: ReactNode;
+  disabledReasonId?: string;
+  isDisabled?: boolean;
+  label: string;
+}
+
+/**
+ * A decision button that keeps the reason for a disabled action adjacent and
+ * discoverable. The button itself remains an Astryx control; this wrapper only
+ * owns the product's disabled-reason contract.
+ */
+export function ReviewDecisionAction({
+  "aria-describedby": ariaDescribedBy,
+  className,
+  disabledReason,
+  disabledReasonId,
+  isDisabled = false,
+  label,
+  ...props
+}: ReviewDecisionActionProps) {
+  const generatedReasonId = `review-decision-reason-${useId().replace(/:/g, "")}`;
+  const reasonId = disabledReasonId ?? generatedReasonId;
+  const hasReason = isDisabled && disabledReason !== undefined && disabledReason !== null;
+  // Several actions in one bar can share the same reason. The owner renders the
+  // text once; the others point at that id so the reason is still announced
+  // without repeating it on screen three times.
+  const describesReason = isDisabled && (hasReason || disabledReasonId !== undefined);
+  const describedBy = [ariaDescribedBy, describesReason ? reasonId : undefined].filter(Boolean).join(" ") || undefined;
+  return (
+    <span className="review-decision-action" data-review-primitive="decision-action">
+      <AstryxButton
+        {...props}
+        aria-describedby={describedBy}
+        className={className}
+        isDisabled={isDisabled}
+        label={label}
+      />
+      {hasReason ? <span className="review-decision-action-reason" id={reasonId}>{disabledReason}</span> : null}
+    </span>
   );
 }

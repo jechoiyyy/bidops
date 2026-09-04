@@ -204,6 +204,40 @@
   min-width: 0;
 }
 
+.pre-specs-split-workspace {
+  align-items: flex-start;
+  gap: var(--space-3);
+  overflow: visible;
+}
+
+.pre-specs-list-pane,
+.pre-specs-detail-pane {
+  min-width: 0;
+}
+
+.pre-specs-list-pane {
+  flex-basis: 62%;
+}
+
+.pre-specs-detail-pane {
+  position: sticky;
+  top: var(--space-3);
+  flex-basis: 38%;
+}
+
+.pre-specs-detail-pane > #pre-specs-tracking-target,
+.pre-specs-detail-pane > .pre-specs-selection-empty-panel {
+  min-width: 0;
+}
+
+.pre-specs-detail-pane .panel {
+  min-width: 0;
+}
+
+.pre-specs-selection-empty-panel {
+  min-height: 240px;
+}
+
 .pre-specs-table-panel .panel-body {
   padding: 0;
 }
@@ -219,6 +253,20 @@
 .pre-specs-table .data-table th,
 .pre-specs-table .data-table td {
   vertical-align: top;
+}
+
+.pre-specs-table .data-table tbody tr[tabindex="0"] {
+  cursor: pointer;
+}
+
+.pre-specs-table .data-table tbody tr[aria-selected="true"] {
+  background: var(--surface-selected);
+  box-shadow: inset 3px 0 0 var(--color-primary-strong);
+}
+
+.pre-specs-table .data-table tbody tr[tabindex="0"]:focus-visible {
+  outline: 2px solid var(--color-primary-strong);
+  outline-offset: -2px;
 }
 
 .pre-specs-title-cell {
@@ -663,6 +711,14 @@
 
   .pre-spec-detail-actions {
     justify-content: flex-start;
+  }
+
+  .pre-specs-split-workspace {
+    gap: var(--space-2);
+  }
+
+  .pre-specs-detail-pane {
+    position: static;
   }
 }
 
@@ -1549,4 +1605,39 @@
   .pre-spec-tracking-save {
     width: 100%;
   }
+}
+
+/* ===== 단계 D — 승계 표시와 결정이 여기 없다는 안내 ===== */
+
+/* 발주계획에서 승계한 건은 결정 form 자체가 없다. 카드가 상태만 밝힌다. */
+.pre-spec-tracking-decision.is-inherited .pre-spec-tracking-current strong {
+  color: var(--color-text-secondary);
+}
+
+.pre-spec-tracking-elsewhere,
+.pre-spec-tracking-combined-note {
+  min-width: 0;
+  margin: var(--spacing-2) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  overflow-wrap: anywhere;
+}
+
+.pre-spec-tracking-elsewhere a {
+  color: var(--color-text-accent);
+  text-decoration: underline;
+  text-underline-offset: var(--spacing-0-5);
+}
+
+.pre-specs-detail-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-3);
+}
+
+.pre-specs-detail-actions a {
+  color: var(--color-text-accent);
+  text-decoration: underline;
+  text-underline-offset: var(--spacing-0-5);
+  white-space: nowrap;
 }

@@ -1142,10 +1142,27 @@ export async function mockApi(page: Page): Promise<void> {
   });
 }
 
-export type OrderPlanMockScenario = "default" | "failure" | "no-results" | "live-disabled" | "stopped" | "large";
+// `no-tracking-contract`는 발주계획 추적 결정 계약이 없는 **현재 서버**를 흉내낸다.
+// 응답에 `tracking`이 없고 POST가 404다. 나머지 scenario는 요청안
+// (docs/design/order-plan-tracking-contract-request.md §2)의 wire shape를 그대로 mock한다.
+// 그 fixture는 요청안의 실행 가능한 형태이며 **구현 완료의 근거가 아니다**(요청안 §7 규칙 4).
+export type OrderPlanMockScenario = "default" | "failure" | "no-results" | "live-disabled" | "stopped" | "large" | "no-tracking-contract" | "no-owning-opportunity";
 
 export interface OrderPlanMockTrace {
   feedbackPosts: Array<{ body: unknown; headers: Record<string, string> }>;
+  trackingPosts: Array<{ orderPlanPk: number; body: unknown; headers: Record<string, string> }>;
+}
+
+interface OrderPlanFeedbackFixture {
+  feedback_id: string;
+  execution_id: string;
+  order_plan_pk: number;
+  revision: number;
+  relevance: string;
+  priority: string | null;
+  memo: string | null;
+  claimed_name: string;
+  created_at: string;
 }
 
 const c2Digest = (letter: string): string => letter.repeat(64);
@@ -1589,7 +1606,32 @@ function c2ExecutionDetail(execution: Record<string, unknown>) {
 
 /** Stable Phase 4 C-2 responses. Register after mockApi so this route has precedence. */
 export async function mockOrderPlans(page: Page, scenario: OrderPlanMockScenario = "default"): Promise<OrderPlanMockTrace> {
-  const trace: OrderPlanMockTrace = { feedbackPosts: [] };
+  const trace: OrderPlanMockTrace = { feedbackPosts: [], trackingPosts: [] };
+
+  // 추적 결정 계약(요청안 §2)의 세 가지 읽기 상태를 fixture 로 구분한다.
+  // `undefined`(계약 없음) · `null`(소유 사업기회 미확인) · 실제 상태. 화면은 이 셋을
+  // 서로 바꾸어 표시하지 않아야 한다.
+  const trackingState = new Map<number, { status: string; reason: string | null; by: string | null; at: string | null }>();
+  const trackingDecisions = new Map<number, Array<Record<string, unknown>>>();
+
+  function trackingProjection(orderPlanPk: number): Record<string, unknown> | null | undefined {
+    if (scenario === "no-tracking-contract") return undefined;
+    if (scenario === "no-owning-opportunity") return null;
+    const current = trackingState.get(orderPlanPk);
+    return {
+      opportunity_id: 5000 + orderPlanPk,
+      tracking_status: current?.status ?? "미선택",
+      tracking_reason: current?.reason ?? null,
+      tracking_selected_by: current?.by ?? null,
+      tracking_selected_at: current?.at ?? null,
+      inherited_from_order_plan: false,
+    };
+  }
+
+  function withTracking<T extends { order_plan_pk: number }>(item: T): T {
+    const tracking = trackingProjection(item.order_plan_pk);
+    return tracking === undefined ? item : { ...item, tracking };
+  }
   const partial = scenario === "live-disabled" ? c2Execution({ execution_allowed: false }) : c2Execution();
   const executions = scenario === "no-results"
     ? []
@@ -1601,7 +1643,9 @@ export async function mockOrderPlans(page: Page, scenario: OrderPlanMockScenario
           ? [c2LargeExecution]
           : [c2Failed, c2Running, partial, c2OlderSuccess];
   const planItems = scenario === "large" ? c2LargeItems : c2Items;
-  const feedbackItems = c2Items[0].human_feedback ? [{
+  // `priority`·`memo`는 계약상 null이 될 수 있다. 초기값만 보고 추론하면 배열
+  // 원소가 string으로 좁혀져 POST가 저장한 null을 담지 못한다.
+  const feedbackItems: OrderPlanFeedbackFixture[] = c2Items[0].human_feedback ? [{
     feedback_id: "c2f4d7c1-0a61-4c07-8d2e-000000000001",
     execution_id: "a2f4d7c1-0a61-4a07-8d2e-7f1d1d010101",
     order_plan_pk: 101,
@@ -1637,12 +1681,12 @@ export async function mockOrderPlans(page: Page, scenario: OrderPlanMockScenario
       if (queryText) items = items.filter((item) => `${item.title} ${item.order_plan_unty_no}`.toLocaleLowerCase("ko-KR").includes(queryText));
       const offset = Number(search.get("offset") ?? 0);
       const limit = Number(search.get("limit") ?? 500);
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ schema_version: "order-plan-list-response.v1", producer: "order-plan-review-api", consumer: "order-plan-review-client", items: items.slice(offset, offset + limit), total: items.length, limit, offset }) });
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ schema_version: "order-plan-list-response.v1", producer: "order-plan-review-api", consumer: "order-plan-review-client", items: items.slice(offset, offset + limit).map(withTracking), total: items.length, limit, offset }) });
       return;
     }
 
     if (pathname === "/api/order-plans/101" && method === "GET") {
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(c2Detail) });
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(withTracking(c2Detail)) });
       return;
     }
 
@@ -1660,10 +1704,42 @@ export async function mockOrderPlans(page: Page, scenario: OrderPlanMockScenario
       const body = request.postDataJSON() as Record<string, unknown>;
       trace.feedbackPosts.push({ body, headers: request.headers() });
       const revision = feedbackItems.reduce((highest, item) => Math.max(highest, item.revision), 0) + 1;
-      const saved = { feedback_id: `c2f4d7c1-0a61-4c07-8d2e-${String(revision).padStart(12, "0")}`, execution_id: body.execution_id, order_plan_pk: 101, revision, relevance: body.relevance, priority: body.priority ?? null, memo: body.memo ?? null, claimed_name: request.headers()["x-bidops-actor-name"] ?? "시각 테스트 담당자", created_at: "2026-09-02T00:00:00Z" };
+      const saved: OrderPlanFeedbackFixture = { feedback_id: `c2f4d7c1-0a61-4c07-8d2e-${String(revision).padStart(12, "0")}`, execution_id: String(body.execution_id ?? ""), order_plan_pk: 101, revision, relevance: String(body.relevance ?? ""), priority: (body.priority ?? null) as string | null, memo: (body.memo ?? null) as string | null, claimed_name: request.headers()["x-bidops-actor-name"] ?? "시각 테스트 담당자", created_at: "2026-09-02T00:00:00Z" };
       feedbackItems.push(saved);
       await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify({ schema_version: "feedback-create-response.v1", producer: "human-review-api", consumer: "postgres-history", ...saved }) });
       return;
+    }
+
+    // --- 발주계획 추적 결정 (요청안 §2, 서버 미구현) ---
+    const trackingMatch = pathname.match(/^\/api\/order-plans\/(\d+)\/tracking-decisions$/);
+    if (trackingMatch) {
+      const orderPlanPk = Number(trackingMatch[1]);
+      if (scenario === "no-tracking-contract") {
+        // 계약이 없는 현재 서버. router 에 경로가 없으므로 404 다.
+        await route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ error: { code: "not_found", message: "Not Found" }, request_id: "e2f4d7c1-0a61-4e07-8d2e-000000000001" }) });
+        return;
+      }
+      if (method === "GET") {
+        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ schema_version: "order-plan-tracking-history.v1", producer: "order-plan-review-api", consumer: "order-plan-review-client", order_plan_pk: orderPlanPk, opportunity_id: scenario === "no-owning-opportunity" ? null : 5000 + orderPlanPk, items: trackingDecisions.get(orderPlanPk) ?? [] }) });
+        return;
+      }
+      if (method === "POST") {
+        const body = request.postDataJSON() as Record<string, unknown>;
+        trace.trackingPosts.push({ orderPlanPk, body, headers: request.headers() });
+        if (scenario === "no-owning-opportunity") {
+          await route.fulfill({ status: 409, contentType: "application/json", body: JSON.stringify({ error: { code: "opportunity_not_found", message: "발주계획을 소유한 사업기회를 찾을 수 없습니다" }, request_id: "e2f4d7c1-0a61-4e07-8d2e-000000000002" }) });
+          return;
+        }
+        const previous = trackingState.get(orderPlanPk)?.status ?? "미선택";
+        const claimedName = request.headers()["x-bidops-actor-name"] ?? "";
+        const decidedAt = "2026-09-02T01:00:00Z";
+        trackingState.set(orderPlanPk, { status: String(body.tracking_status), reason: (body.reason as string) ?? null, by: claimedName, at: decidedAt });
+        const decisions = trackingDecisions.get(orderPlanPk) ?? [];
+        decisions.unshift({ decided_at: decidedAt, tracking_status: body.tracking_status, previous_tracking_status: previous, reason: body.reason ?? null, claimed_name: claimedName, audit_event_id: `f2f4d7c1-0a61-4f07-8d2e-${String(decisions.length + 1).padStart(12, "0")}` });
+        trackingDecisions.set(orderPlanPk, decisions);
+        await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify({ schema_version: "order-plan-tracking-decision-response.v1", producer: "order-plan-review-api", consumer: "order-plan-review-client", order_plan_pk: orderPlanPk, opportunity_id: 5000 + orderPlanPk, tracking_status: body.tracking_status, tracking_reason: body.reason ?? null, tracking_selected_by: claimedName, tracking_selected_at: decidedAt, audit_event_id: decisions[0].audit_event_id }) });
+        return;
+      }
     }
 
     const executionMatch = pathname.match(/^\/api\/order-plan-screening\/executions\/([^/]+)$/);

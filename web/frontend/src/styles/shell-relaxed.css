@@ -1,286 +1,385 @@
-/* 공통 셸의 여유형 계층. 색·간격·표면은 theme.css의 토큰만 사용한다. */
+/*
+ * 단계 A — 공통 셸
+ *
+ * AppShell이 bidops 테마(무드보드 팔레트, ADR-0048)의 경계를 소유한다.
+ * 지원 폭은 1280~1920px이며 1280px 미만은 가로 스크롤로 둔다(ADR-0047).
+ * 좁은 폭 전환(1180·900·640px)은 이 파일에서 제거했다. 기존 화면을 한 번에
+ * 재작성하지 않기 위해 legacy 이름은 이 파일의 단일 bridge에서만
+ * 테마 의미 토큰으로 연결하고, 셸 골격 자체는 테마 토큰을 읽는다.
+ * bridge는 새 색 값을 만들지 않고 legacy 이름을 테마 토큰에 잇기만 한다.
+ * 레이아웃은 ADR-0040에 따라 프로젝트가 소유한다.
+ */
 
-.app-shell {
+.app-shell[data-astryx-theme="bidops"] {
+  /* Legacy token bridge: descendants that have not moved to neutral yet keep
+     their existing names without bringing the RootLab shell palette back. */
+  --color-primary: var(--color-text-primary);
+  --color-primary-strong: var(--color-text-primary);
+  --color-deep: var(--color-background-inverted);
+  --color-deck: var(--color-background-inverted);
+  --color-mint-accent: var(--color-text-primary);
+  --color-teal: var(--color-icon-teal);
+  --color-soft-surface: var(--color-background-body);
+  --color-text: var(--color-text-primary);
+  --color-muted-brand: var(--color-text-secondary);
+  --color-dark: var(--color-text-primary);
+  --color-white: var(--color-background-surface);
+  --color-ink: var(--color-background-inverted);
+  --color-ink-deep: var(--color-background-inverted);
+  --color-sage: var(--color-text-primary);
+  --color-keylime: var(--color-background-body);
+  --color-mint: var(--color-text-primary);
+  --color-slate: var(--color-text-secondary);
+  --color-paper: var(--color-background-surface);
+  --color-canvas: var(--color-background-body);
+  --color-charcoal: var(--color-text-primary);
+  --color-hair: var(--color-border);
+  --color-hair-soft: var(--color-background-muted);
+  --color-muted: var(--color-text-secondary);
+  --color-muted-soft: var(--color-text-secondary);
+  --color-neutral-soft: var(--color-background-muted);
+  --color-deck-soft: var(--color-background-muted);
+  --color-mint-soft: var(--color-accent-muted);
+  --color-teal-soft: var(--color-background-teal);
+  --color-alert: var(--color-text-orange);
+  --color-alert-bg: var(--color-background-orange);
+  --color-alert-edge: var(--color-border-orange);
+  --color-error-bg: var(--color-error-muted);
+  --color-error-edge: var(--color-border-red);
+  --color-danger: var(--color-error);
+  --color-danger-bg: var(--color-error-muted);
+  --color-danger-edge: var(--color-border-red);
+  --color-warning-bg: var(--color-warning-muted);
+  --color-warning-edge: var(--color-border-yellow);
+  --color-success-bg: var(--color-success-muted);
+  --color-info: var(--color-text-teal);
+  --color-info-bg: var(--color-background-teal);
+  --color-focus: var(--color-text-primary);
+  --surface-app: var(--color-background-body);
+  --surface-card: var(--color-background-card);
+  --surface-selected: var(--color-background-muted);
+  --surface-secondary: var(--color-background-muted);
+  --surface-warning: var(--color-warning-muted);
+  --surface-error: var(--color-error-muted);
+  --border-subtle: var(--color-border);
+  --border-strong: var(--color-border-emphasized);
+  --space-1: var(--spacing-2);
+  --space-2: var(--spacing-4);
+  --space-3: var(--spacing-6);
+  --space-4: var(--spacing-8);
+  --control-height: calc(var(--size-element-lg) + var(--spacing-1-5));
+  --card-padding: var(--spacing-6);
+  --radius-sm: var(--radius-inner);
+  --radius-md: var(--radius-element);
+  --radius-lg: var(--radius-container);
+  --font-sans: var(--font-family-body);
+  --font-mono: var(--font-family-code);
+
+  /* These shell tokens capture the reference's structural gutters. */
+  --shell-canvas-inline-padding: 18px;
+  --shell-sidebar-line: color-mix(in srgb, var(--color-on-dark) 14%, transparent);
+  --shell-sidebar-hover: color-mix(in srgb, var(--color-on-dark) 8%, transparent);
+  --shell-sidebar-active: color-mix(in srgb, var(--color-on-dark) 14%, transparent);
+  --shell-sidebar-muted: color-mix(in srgb, var(--color-on-dark) 68%, transparent);
+
+  display: flex;
+  height: 100vh;
   min-height: 100vh;
+  overflow: hidden;
+  color: var(--color-text-primary);
+  color-scheme: light;
+  background: var(--color-background-body);
 }
 
-.sidebar {
-  flex-basis: 248px;
+.app-shell[data-astryx-theme="bidops"] .sidebar {
+  display: flex;
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  flex: 0 0 248px;
+  flex-direction: column;
   width: 248px;
-  border-top: 0;
-  border-right: 1px solid var(--color-primary-strong);
+  height: 100vh;
+  min-height: 0;
+  max-height: 100vh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  color: var(--color-on-dark);
+  background: var(--color-background-inverted);
+  border-top: 3px solid var(--color-background-inverted);
+  border-right: 1px solid var(--shell-sidebar-line);
 }
 
-.sidebar-brand {
-  gap: var(--space-1);
-  padding: var(--space-3) var(--space-3) var(--space-2);
+.app-shell[data-astryx-theme="bidops"] .sidebar :where(a, button):focus-visible {
+  outline-color: var(--color-on-dark);
 }
 
-.sidebar-brand-logo {
-  flex-basis: 40px;
-  width: 40px;
-  height: 40px;
+.app-shell[data-astryx-theme="bidops"] .sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-4) var(--spacing-4) var(--spacing-3);
+  border-bottom: 1px solid var(--shell-sidebar-line);
+  transition: background-color var(--duration-fast) ease;
 }
 
-.sidebar-brand strong {
-  font-size: 17px;
+.app-shell[data-astryx-theme="bidops"] .sidebar-brand-logo {
+  display: block;
+  flex: 0 0 var(--spacing-10);
+  width: var(--spacing-10);
+  height: var(--spacing-10);
+  padding: var(--spacing-1);
+  border-radius: var(--radius-element);
+  background: var(--color-text-primary);
+  object-fit: contain;
 }
 
-.sidebar-brand span {
-  margin-top: 4px;
-  font-size: 12px;
-}
-
-.sidebar-brand.is-current {
-  background: var(--color-primary-strong);
-}
-
-.sidebar-nav {
-  padding: var(--space-1) var(--space-2) var(--space-2);
-}
-
-.sidebar-group {
-  padding: var(--space-2) 0 0;
-}
-
-.sidebar-group-label {
-  padding: 0 12px var(--space-1);
-  color: var(--color-nav-text);
-  font-size: 11px;
-  letter-spacing: 0.08em;
-}
-
-.sidebar-items {
-  gap: 4px;
-}
-
-.sidebar-item {
-  gap: 12px;
-  min-height: var(--control-height);
-  padding: 8px 12px;
-  border-radius: var(--radius-md);
-  font-size: 14px;
-}
-
-.sidebar-item svg {
-  flex-basis: 18px;
-  width: 18px;
-  height: 18px;
-}
-
-.sidebar-item-pending {
-  padding: 2px 7px;
-  font-size: 11px;
-}
-
-.sidebar-footer {
-  gap: 4px;
-  padding: var(--space-2) var(--space-3) var(--space-3);
-  font-size: 12px;
-}
-
-.topbar {
-  flex: 0 0 auto;
-  min-height: 76px;
-  height: auto;
-  gap: var(--space-3);
-  padding: var(--space-2) var(--space-3);
-}
-
-.topbar-heading {
+.app-shell[data-astryx-theme="bidops"] .sidebar-brand-text {
+  flex: 1 1 auto;
   min-width: 0;
 }
 
-.topbar h1 {
-  overflow-wrap: anywhere;
-  font-size: 20px;
-  line-height: 1.3;
+.app-shell[data-astryx-theme="bidops"] .sidebar-brand strong {
+  display: block;
+  color: var(--color-on-dark);
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
-.topbar-context {
+.app-shell[data-astryx-theme="bidops"] .sidebar-brand span {
+  display: block;
+  margin-top: var(--spacing-1);
+  color: var(--shell-sidebar-muted);
+  font-size: var(--font-size-xs);
+}
+
+.app-shell[data-astryx-theme="bidops"] .sidebar-brand-text > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-shell[data-astryx-theme="bidops"] .sidebar-brand:hover,
+.app-shell[data-astryx-theme="bidops"] .sidebar-brand:focus-visible {
+  background: var(--shell-sidebar-hover);
+}
+
+.app-shell[data-astryx-theme="bidops"] .sidebar-brand.is-current {
+  background: var(--shell-sidebar-active);
+}
+
+.app-shell[data-astryx-theme="bidops"] .sidebar-nav {
+  flex: 1;
+  padding: var(--spacing-1) var(--spacing-3) var(--spacing-3);
+}
+
+.app-shell[data-astryx-theme="bidops"] .sidebar-group {
+  padding: var(--spacing-3) 0 0;
+}
+
+.app-shell[data-astryx-theme="bidops"] .sidebar-group-label {
+  padding: 0 var(--spacing-3) var(--spacing-2);
+  color: var(--shell-sidebar-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.app-shell[data-astryx-theme="bidops"] .sidebar-items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.app-shell[data-astryx-theme="bidops"] .sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  min-height: var(--size-element-lg);
+  padding: var(--spacing-2) var(--spacing-3);
+  border: 0;
+  border-radius: var(--radius-inner);
+  color: var(--color-on-dark);
+  font-size: var(--font-size-base);
+  transition: background-color var(--duration-fast) ease, color var(--duration-fast) ease;
+}
+
+.app-shell[data-astryx-theme="bidops"] .sidebar-item svg {
+  flex: 0 0 var(--spacing-5);
+  width: var(--spacing-5);
+  height: var(--spacing-5);
+}
+
+.app-shell[data-astryx-theme="bidops"] .sidebar-item:hover,
+.app-shell[data-astryx-theme="bidops"] .sidebar-item.is-active {
+  color: var(--color-on-dark);
+  background: var(--shell-sidebar-active);
+}
+
+.app-shell[data-astryx-theme="bidops"] .sidebar-item.is-active {
+  font-weight: 600;
+}
+
+.app-shell[data-astryx-theme="bidops"] .sidebar-item-pending {
+  margin-left: auto;
+  padding: var(--spacing-0-5) var(--spacing-2);
+  border-radius: var(--radius-full);
+  color: var(--color-on-dark);
+  background: var(--shell-sidebar-hover);
+  font-size: var(--font-size-xs);
+}
+
+.app-shell[data-astryx-theme="bidops"] .sidebar-footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  padding: var(--spacing-4) var(--spacing-5) var(--spacing-5);
+  border-top: 1px solid var(--shell-sidebar-line);
+  color: var(--shell-sidebar-muted);
+  font-size: var(--font-size-xs);
+}
+
+.app-shell[data-astryx-theme="bidops"] .sidebar-footer span:last-child {
+  color: var(--shell-sidebar-muted);
+}
+
+.app-shell[data-astryx-theme="bidops"] .app-content {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.app-shell[data-astryx-theme="bidops"] .topbar {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--spacing-4);
+  min-height: 76px;
+  height: 76px;
+  padding: var(--spacing-3) var(--shell-canvas-inline-padding);
+  overflow: visible;
+  color: var(--color-text-primary);
+  background: var(--color-background-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.app-shell[data-astryx-theme="bidops"] .topbar-heading {
+  min-width: 0;
+}
+
+.app-shell[data-astryx-theme="bidops"] .topbar h1 {
+  overflow-wrap: anywhere;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xl);
+  line-height: 1.3;
+  white-space: normal;
+}
+
+.app-shell[data-astryx-theme="bidops"] .topbar-context {
   display: flex;
   flex: 1 1 auto;
   min-width: 0;
   align-items: center;
   justify-content: flex-end;
-  gap: var(--space-1);
+  gap: var(--spacing-2);
 }
 
-.topbar-status {
+.app-shell[data-astryx-theme="bidops"] .topbar-status {
   display: inline-flex;
-  min-height: 36px;
+  min-height: var(--size-element-lg);
   max-width: 210px;
   align-items: center;
-  padding: 6px 10px;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  color: var(--color-muted);
-  background: var(--surface-secondary);
-  font-size: 12px;
+  padding: var(--spacing-1-5) var(--spacing-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-inner);
+  color: var(--color-text-secondary);
+  background: var(--color-background-muted);
+  font-size: var(--font-size-xs);
   line-height: 1.35;
   text-align: center;
   white-space: normal;
 }
 
-.topbar-menu {
-  width: var(--control-height);
-  height: var(--control-height);
-  border-radius: var(--radius-md);
+.app-shell[data-astryx-theme="bidops"] .topbar-menu {
+  width: var(--size-element-lg);
+  height: var(--size-element-lg);
+  border-color: var(--color-border);
+  border-radius: var(--radius-inner);
+  color: var(--color-text-primary);
+  background: var(--color-background-surface);
 }
 
-.basis-popover-trigger {
-  height: var(--control-height);
-  padding: 0 12px;
-  border-radius: var(--radius-md);
-  font-size: 12px;
+.app-shell[data-astryx-theme="bidops"] .basis-popover-trigger {
+  height: var(--size-element-lg);
+  padding: 0 var(--spacing-3);
+  border-color: var(--color-border);
+  border-radius: var(--radius-inner);
+  color: var(--color-text-primary);
+  background: var(--color-background-surface);
+  font-size: var(--font-size-xs);
 }
 
-.basis-popover-panel {
-  top: calc(100% + var(--space-1));
-  width: min(380px, calc(100vw - 32px));
-  padding: var(--space-2);
+.app-shell[data-astryx-theme="bidops"] .basis-popover-trigger:hover {
+  border-color: var(--color-border-emphasized);
+  background: var(--color-background-muted);
 }
 
-.basis-popover-panel .facts-wide {
+.app-shell[data-astryx-theme="bidops"] .basis-popover-panel {
+  top: calc(100% + var(--spacing-1));
+  width: min(380px, calc(100vw - var(--spacing-8)));
+  padding: var(--spacing-2);
+  border-color: var(--color-border);
+  border-radius: var(--radius-container);
+  background: var(--color-background-surface);
+  box-shadow: var(--shadow-med);
+}
+
+.app-shell[data-astryx-theme="bidops"] .basis-popover-panel .facts-wide {
   overflow-wrap: anywhere;
 }
 
-.run-selector {
+.app-shell[data-astryx-theme="bidops"] .run-selector {
   flex: 0 1 360px;
   width: min(360px, 38vw);
   min-width: 240px;
-  height: var(--control-height);
-  padding: 0 12px;
-  border-radius: var(--radius-md);
-  background: var(--surface-card);
-  font-size: 12px;
+  height: var(--size-element-lg);
+  padding: 0 var(--spacing-3);
+  border-color: var(--color-border);
+  border-radius: var(--radius-inner);
+  background: var(--color-background-surface);
+  font-size: var(--font-size-xs);
 }
 
-.run-selector-label {
-  color: var(--color-deep);
-  font-size: 12px;
+.app-shell[data-astryx-theme="bidops"] .run-selector-label {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
   font-weight: 600;
 }
 
-.run-selector select {
-  font-size: 12px;
+.app-shell[data-astryx-theme="bidops"] .run-selector select {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xs);
 }
 
-.select-chevron {
-  right: 12px;
+.app-shell[data-astryx-theme="bidops"] .select-chevron {
+  right: var(--spacing-3);
 }
 
-.page-canvas {
-  padding: var(--space-3);
+.app-shell[data-astryx-theme="bidops"] .page-canvas {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  padding: var(--spacing-4) var(--shell-canvas-inline-padding);
+  overflow: auto;
+  background: var(--color-background-body);
 }
 
-.shell-notice {
-  padding: 0 var(--space-3);
-}
-
-@media (max-width: 1180px) {
-  .topbar-context {
-    gap: 6px;
-  }
-
-  .run-selector {
-    width: min(300px, 32vw);
-    min-width: 220px;
-  }
-
-  .topbar-status {
-    max-width: 170px;
-  }
-}
-
-@media (max-width: 900px) {
-  .topbar {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    grid-template-areas:
-      "menu heading heading"
-      "context context context";
-    align-items: center;
-    gap: var(--space-1) var(--space-2);
-    padding: var(--space-2) var(--space-3);
-  }
-
-  .topbar-menu {
-    display: inline-flex;
-    grid-area: menu;
-  }
-
-  .topbar-heading {
-    grid-area: heading;
-  }
-
-  .topbar-context {
-    display: grid;
-    grid-area: context;
-    grid-template-columns: minmax(0, 1fr) auto auto;
-    gap: var(--space-1);
-    width: 100%;
-  }
-
-  .run-selector {
-    width: auto;
-    min-width: 0;
-  }
-
-  .sidebar {
-    width: min(296px, calc(100vw - 56px));
-    flex-basis: min(296px, calc(100vw - 56px));
-  }
-
-  .page-canvas {
-    padding: var(--space-2);
-  }
-
-  .shell-notice {
-    padding: 0 var(--space-2);
-  }
-}
-
-@media (max-width: 640px) {
-  .topbar {
-    grid-template-columns: auto minmax(0, 1fr);
-    grid-template-areas:
-      "menu heading"
-      "context context";
-    gap: var(--space-1) var(--space-2);
-    padding: var(--space-2);
-  }
-
-  .topbar h1 {
-    font-size: 18px;
-  }
-
-  .topbar-context {
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: var(--space-1);
-  }
-
-  .run-selector {
-    grid-column: 1 / -1;
-    width: 100%;
-  }
-
-  .topbar-status {
-    max-width: none;
-    min-width: 0;
-    justify-content: flex-start;
-    text-align: left;
-  }
-
-  .basis-popover {
-    justify-self: end;
-  }
-
-  .page-canvas {
-    padding: var(--space-2);
-  }
-
-  .shell-notice {
-    padding: 0 var(--space-2);
-  }
+.app-shell[data-astryx-theme="bidops"] .shell-notice {
+  padding: 0 var(--shell-canvas-inline-padding);
+  background: var(--color-background-surface);
+  border-bottom: 1px solid var(--color-border);
 }

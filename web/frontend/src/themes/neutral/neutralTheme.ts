@@ -133,26 +133,11 @@ export const neutralTheme = defineTheme({
     '--color-background-popover': ['#ffffff', '#1b1b1b'],
     '--color-background-muted': ['#f1f1f1', '#1b1b1b'],
 
-    // Accent + neutral surface tints (sit alongside backgrounds)
-    //
-    // BidOps/RootLab brand override (docs/design/PLAN.md 2단계, "사이드바
-    // 브랜드색" 결정): neutral의 무채색 accent(near-black/near-white)를
-    // 받아들이지 않고 RootLab 민트 계열로 덮는다. `:root`에서 --color-*를
-    // 직접 override하지 않고(Astryx 지침·ADR-0039 §3 위반) 이 테마 소스에서
-    // 바꾼 뒤 `astryx theme build`로 재생성한다.
-    //
-    // Light accent는 src/styles/theme.css의 --color-primary-strong(#1D7B4E,
-    // RootLab 팔레트의 "강한 민트")를 그대로 쓴다. --color-mint-accent
-    // (#24A266)는 흰 on-accent 텍스트와 3.26:1로 AA 본문 기준(4.5:1)을
-    // 통과하지 못해 텍스트를 얹는 accent fill에는 --color-primary-strong을
-    // 쓰고, #24A266 계열은 옅은 muted 배경에만 남긴다.
-    // 대비비(scripts/check-badge-contrast 방식과 동일한 WCAG 상대휘도 계산):
-    //   accent(#1D7B4E) × on-accent 흰색            = 5.26:1  (AA 본문 통과)
-    //   accent-muted(#E7F3EB) × text-accent(#1D7B4E) = 4.61:1  (AA 본문 통과)
-    //   dark accent(#7FD9AE) × on-accent(#171717)    = 10.62:1 (다크 모드는
-    //     범위 밖이지만 토큰 쌍은 완전해야 하므로 값을 채우고 계산만 남긴다)
-    '--color-accent': ['#1D7B4E', '#7FD9AE'],
-    '--color-accent-muted': ['#E7F3EB', '#1B3326'],
+    // Accent + neutral surface tints (sit alongside backgrounds).
+    // The v1 screen reference is the neutral monochrome palette. Brand color
+    // changes require a regenerated, separately approved design baseline.
+    '--color-accent': ['#262626', '#ebebeb'],
+    '--color-accent-muted': ['#f1f1f1', '#262626'],
     '--color-neutral': ['#0000000F', '#FFFFFF1A'],
 
     // Overlays (modal scrims, hover/pressed tints)
@@ -167,18 +152,17 @@ export const neutralTheme = defineTheme({
     // 600 clears it (6.9:1 on body, 7.8:1 on card). Dark stays neutral-400.
     '--color-text-secondary': ['#525252', '#a3a3a3'],
     '--color-text-disabled': ['#a3a3a3', '#525252'],
-    '--color-text-accent': ['#1D7B4E', '#7FD9AE'],
+    '--color-text-accent': ['#262626', '#ebebeb'],
     '--color-on-dark': '#ffffff',
     '--color-on-light': '#171717',
-    // RootLab mint accent: light accent(#1D7B4E)는 어두워 흰 텍스트가 읽히고,
-    // dark accent(#7FD9AE)는 밝아 근흑색 텍스트가 읽힌다(위 대비비 계산 참고).
+    // Neutral accent is near-black in light mode and near-white in dark mode.
     '--color-on-accent': ['#ffffff', '#171717'],
     '--color-on-success': ['#ffffff', '#171717'],
     '--color-on-error': ['#ffffff', '#171717'],
     '--color-on-warning': '#171717',
 
     // Icon
-    '--color-icon-accent': ['#1D7B4E', '#7FD9AE'],
+    '--color-icon-accent': ['#262626', '#ebebeb'],
     '--color-icon-primary': ['#171717', '#fafafa'],
     '--color-icon-secondary': ['#737373', '#a3a3a3'],
     '--color-icon-disabled': ['#a3a3a3', '#525252'],
