@@ -9,7 +9,7 @@ from packaging.markers import default_environment
 from packaging.requirements import Requirement
 
 
-BACKEND = Path(__file__).resolve().parents[1]
+BACKEND = Path(__file__).resolve().parents[2]
 CONTAINER_BACKEND = Path("/app/web/backend")
 DIRECT_REQUIREMENTS = BACKEND / "requirements.txt"
 LOCKFILE = BACKEND / "requirements.lock"

@@ -28,7 +28,7 @@ from app.deep_review.services.prespec_overview import (
     transition_overview_attempt,
     validate_overview_result,
 )
-from tests.deep_review.test_prespec_overview import _block, _engine, _notice, _seed_document
+from .test_prespec_overview import _block, _engine, _notice, _seed_document
 
 
 def _ready_attempt(
