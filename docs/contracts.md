@@ -79,7 +79,7 @@
 
 이 절은 [ADR-0034](tracking/decisions/0034-bid-delta-final-decision.md)와
 [OpenAPI·DB 명세](bid-delta-contract-spec.md)로 채택하고 R-08에서 구현한 계약이다.
-아래 경로는 `web/backend/app/routers/bid_delta.py`에 존재하며 `app/main.py`에 등록되어 있다.
+아래 경로는 `web/backend/app/deep_review/routers/bid_delta.py`에 존재하며 `app/main.py`에 등록되어 있다.
 저장은 `bid_delta_comparison`, `bid_delta_attempt`, `bid_delta_item`, `bid_delta_evidence`,
 `bid_final_decision` 5개 table과 revision `0015_bid_delta_final_decision`이 소유한다.
 
@@ -146,6 +146,8 @@ allowlist 밖 role의 문서는 후보로 노출되지 않으므로 선택 자�
 code와 테스트 조합은 상세 명세를 따른다.
 
 ## 현재 REST 경로
+
+아래 경로는 세 도메인 모듈을 모두 등록한 기본 기동(`BIDOPS_MODULES` 미지정)의 표면이다. `BIDOPS_MODULES`로 모듈을 꺼서 기동하면 그 모듈이 소유한 경로는 등록되지 않아 404이며, `GET /api/health`는 어떤 조합에도 있다([ADR-0045](tracking/decisions/0045-backend-module-layout.md)). 경로·입력·응답 자체는 모듈 선택과 무관하게 이 절의 계약 그대로다.
 
 ### 상태, 회차, 공고
 

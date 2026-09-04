@@ -149,6 +149,47 @@ revision을 응답에도 `/v1/models`에도 싣지 않으므로 이 값이 배�
 바뀔 때만** 갱신하며, 그때는 값만 고치지 않고 binding을 새 버전으로 올리고 품질 게이트를
 다시 측정한다. 응답의 `system_fingerprint`는 빌드·병렬도 지문이므로 이 값으로 쓰지 않는다.
 
+## 모듈 선택과 진입점
+
+백엔드는 `core`·`lifecycle`·`screening`·`deep_review` 네 모듈과 조립 계층으로 나뉜다
+([ADR-0045](tracking/decisions/0045-backend-module-layout.md)). 운영 기동은 세 도메인 모듈을
+모두 등록한다. `BIDOPS_MODULES`는 그 부분집합을 쉼표로 지정해 일부만 올리는 **개발·검증용**
+설정이다.
+
+```bash
+BIDOPS_MODULES=deep_review          # /api/health와 deep_review 경로만. 나머지는 404
+BIDOPS_MODULES=lifecycle,screening  # deep_review 경로 없음
+```
+
+- core는 선택 대상이 아니라 항상 포함되므로 `/api/health`는 어떤 조합에도 있다.
+- **알 수 없는 이름이나 빈 값은 기동 실패**다(fail closed). 조용히 기본값으로 되돌아가지
+  않는다.
+- 의존은 import만 하고 등록은 지정 모듈만 한다. 꺼진 모듈의 REST 경로는 404다.
+- 값을 지정하지 않으면 분할 전과 같은 앱이 된다. 운영 `.env`에는 두지 않는다.
+
+worker 진입점은 셋뿐이다. 모델을 쓰는 심층 검토·C-2 선별 worker에는 단독 진입점이 없다.
+`app.workers.analysis` 한 프로세스가 둘을 합성하며, 이것이 **모델 슬롯 1개** 보장이다.
+두 worker를 따로 띄우는 명령을 만들지 않는다.
+
+```bash
+python -m app.deep_review.workers.document            # 자격증명 없는 문서 worker
+python -m app.deep_review.workers.prespec_attachment  # 사전규격 첨부 취득 worker
+python -m app.workers.analysis                        # 모델을 쓰는 합성 worker
+```
+
+`--once`를 주면 한 건만 처리하고 종료한다. Compose의 `document-worker`는
+`python -m app.deep_review.workers.document`를, `analysis-worker`는
+`python -m app.workers.analysis`를 실행한다.
+
+CLI 진입점은 모듈별로 하나씩이며 웹 없이 실행한다. migration·MinIO가 준비된 backend 환경에서
+쓴다.
+
+```bash
+python -m app.screening.cli --help          # run-one, score-candidate-quality
+python -m app.deep_review.cli --help        # run-bc-e2e, import-profile-policy
+python -m app.lifecycle.ingest.cli --help   # --run <회차> | --all
+```
+
 ## 환경 파일 배치
 
 | 파일 | 소비하는 compose | 담는 값 |
@@ -183,8 +224,9 @@ COMPOSE_PROJECT_NAME=bidops-deep-review-t7 docker compose -f docker-compose.t7.y
 | 객체 저장소 | MinIO root와 namespace별 access/secret, endpoint, secure flag | 용도별 최소 권한, versioning 유지 |
 | 문서 검사 | ClamAV host/port/timeout | clean scan envelope 없이는 준비 단계 진행 금지 |
 | 심층 모델 | vLLM base URL, allowed hosts, model, API key, response encryption key/ref | 승인된 사설 endpoint만, 응답 암호화 |
+| 모듈 선택 | `BIDOPS_MODULES` | 미지정이면 세 도메인 모듈 전부. 알 수 없는 이름·빈 값은 기동 실패. 꺼진 모듈 경로는 404 |
 | 활성 버전 | active profile version, active analysis policy version | 불변 ID, 빈 값이면 fail closed |
-| 외부 참조 | `BIDOPS_OPENAI_ENABLED`, reference workflow mode | hosted 외부 deep-review provider는 제거됐다. 향후 발주계획 전용 projection에서만 공개 plan metadata+최소 승인 요약을 preview·건별 승인 후 전송 |
+| 외부 참조 | `BIDOPS_OPENAI_ENABLED`, reference workflow mode | 심층 검토 provider는 `BIDOPS_ANALYSIS_PROVIDER`의 `vllm`과 `mock` 둘뿐이며 hosted 외부 deep-review provider(codex-exec)와 그 overlay·설정은 저장소에서 제거됐다. 향후 발주계획 전용 projection에서만 공개 plan metadata+최소 승인 요약을 preview·건별 승인 후 전송 |
 
 ## 발주계획 선별 실험 운영
 

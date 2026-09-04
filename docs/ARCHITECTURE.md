@@ -141,6 +141,61 @@ flowchart TB
 | MinIO | raw·attachment·문서·보고서 등 versioned object bytes | 공개 URL 제공, 임의 overwrite |
 | ClamAV | quarantine 파일 악성코드 검사 | 파일 승인 판단의 유일한 근거 |
 
+### 4.2 백엔드 모듈 경계
+
+FastAPI backend는 하나의 배포 단위 안에서 한 방향으로만 의존하는 네 모듈과 그것을 조립하는 얇은 계층으로 나뉜다([ADR-0043](tracking/decisions/0043-screening-deep-review-module-boundary.md), [ADR-0045](tracking/decisions/0045-backend-module-layout.md)). 별도 프로세스나 별도 DB로 나누지 않는다.
+
+```text
+web/backend/app/
+├── core/          db, config, logging_setup, redaction, sql_dialect, constants, db_admin,
+│                  generation_config, run_id, api_errors, object_store, clamav,
+│                  vllm_client(범용), company_profile, model_binding, schema_base, health
+│                  models 2개 (audit_event, idempotency_record)
+├── lifecycle/     회차 적재와 기회 identity, 공고·발주계획·사전규격·첨부 메타
+│                  api, extensions, ingest/, routers/, services/, schemas/, runtime
+│                  models 10개
+├── screening/     C-1 공고 판정과 C-2 발주계획 선별
+│                  orchestrator/queue/worker/policy/projection/ingest, routers/, services/,
+│                  schemas/, workers/order_plan, cli/, runtime
+│                  models 28개
+├── deep_review/   문서 준비, 사전규격 개요 검토, 심층 검토, 입찰 delta·최종 결정
+│                  services/, routers/, workers/, agents/, document_mcp/, contracts/,
+│                  policies/, schemas/, cli/, runtime
+│                  models 34개
+└── main.py, runtime.py, workers/analysis.py, migrations/, alembic/   ← 조립 계층
+```
+
+의존은 한 방향으로만 흐른다.
+
+| import 하는 쪽 | 허용 대상 | 금지 |
+|---|---|---|
+| core | 표준 라이브러리, 외부 패키지 | 모든 도메인 모듈, 조립 계층 |
+| lifecycle | core | screening, deep_review, 조립 계층 |
+| screening | core, lifecycle 공개 이름 | deep_review, 조립 계층 |
+| deep_review | core, lifecycle 공개 이름, screening 공개 이름 중 읽기 전용 seam 함수 | screening 내부 ORM·service, 조립 계층 |
+| 조립 계층 | 네 모듈 공개 이름 (+ `alembic/env.py`·migration revision·`app/migrations/import_sqlite.py`는 각 모듈의 `models`) | 모듈 내부 |
+
+- lifecycle의 모델 클래스는 공개 이름이다. screening·deep_review는 `Notice`·`Run`·`OrderPlan`·`Opportunity`·`Attachment` 등을 ORM으로 읽고 join하되, **쓰기와 잠금**은 lifecycle 공개 함수(`ingest_run`, `lock_notice`, `register_manual_attachment` 등)로만 한다.
+- deep_review는 screening의 내부를 보지 않는다. `current_judgment`·`current_judgments`·`latest_corrected_grade` 세 읽기 전용 seam 함수만 쓰며, 그 seam은 함수 안에서 지연 import한다.
+- ORM relationship도 import다. lifecycle 모델은 다른 모듈 모델로 향하는 relationship을 갖지 않으며, 관계는 소유 모듈이 자기 모델에서 단방향으로 선언한다. 첨부 삭제 시 `attachment_fetch` 행 제거는 ORM cascade가 아니라 DB FK `ondelete=CASCADE`가 맡는다.
+
+역방향이 필요한 자리는 **lifecycle이 정의한 확장점**으로 뒤집는다. lifecycle은 screening과 deep_review의 존재를 알지 못하고 `app/lifecycle/extensions.py`의 프로세스 전역 registry에 무엇이 등록됐는지만 본다.
+
+| 확장점 | 종류 | 구현 | 제공자가 없을 때 |
+|---|---|---|---|
+| 공고 판정 | 읽기 projection | screening | 등급·준비·focus 필드가 `null`, 분포·지표는 빈 값. 등급 필터·`sort=grade`는 지원하지 않음 |
+| 사전규격 개요·문서 준비 상태 | 읽기 projection | deep_review | 개요 상태 `null`, 문서 상태 건수 0 |
+| 회차 적재됨 | 이벤트 hook | screening, deep_review | no-op, 건수 0, 건너뛰었음을 경고로 남김 |
+| 추적 결정 변경됨 | 이벤트 hook | deep_review | no-op |
+
+확장점 등록은 `main.py`가 앱 객체를 조립하는 시점에 한다. lifespan이나 runtime이 아니다 — runtime을 만들지 않는 격리 API 테스트에서도 projection이 있어야 하기 때문이다. 등록은 import와 객체 생성뿐이며 migration·seed·정책 활성화·모델 호출을 하지 않는다.
+
+`deep_review/agents/`는 파이프라인이 아니라 **어댑터 층**이다. `commands.py`(명령 봉투) → `agent.py`(기존 Service 위의 얇은 어댑터) → `projection.py`(순수 투영) 3짝으로 구성되며 `subprocess`·HTTP·모델 호출을 하지 않고 SQLAlchemy `Session`에 묶인다. skill 파이프라인과 이름이 겹쳐 보이지만 경계가 다르다([ADR-0001](tracking/decisions/0001-artifact-boundary.md)).
+
+기동할 모듈은 `BIDOPS_MODULES`(쉼표 구분, 기본값 세 도메인 모듈 전부)로 고른다. core는 항상 포함되므로 `/api/health`는 어떤 조합에도 있다. **의존은 import만, 등록은 지정 모듈만** — 지정 모듈이 의존하는 모듈의 `models`·seam은 import되어 동작하지만 router·runtime·확장점 등록은 지정 모듈에만 한다. 알 수 없는 이름이나 빈 값은 기동 실패다. 운영은 셋 다 등록하며, 모듈 선택은 개발·검증용 기동 옵션이다.
+
+경계는 규율이 아니라 `web/backend/tests/app/test_module_boundaries.py`의 네 검사가 강제한다. 허용 목록은 줄어드는 방향만 허용하고, 목록에 있는데 더 이상 위반이 아닌 항목이 남아 있어도 실패한다.
+
 ## 5. 주요 데이터 흐름
 
 ~~~mermaid
