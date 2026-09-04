@@ -2,13 +2,19 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 import json
 from uuid import uuid4
 
 import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
+from app.deep_review.services.prespec_overview import (
+    claim_overview_attempt,
+    expire_overview_leases,
+)
 
 from tests.postgres import migrated_engine, requires_postgres
 from tests.deep_review.test_prespec_overview_postgres import _seed_lineage
@@ -247,3 +253,51 @@ def test_postgres_attempt_constraints_keep_binding_and_result_evidence_strict() 
                 payload=_valid_result_payload(evidence=[]),
                 created_at=now,
             )
+
+
+def test_postgres_lease_claim_and_expiry_close_the_attempt() -> None:
+    """claim이 lease를 걸고 만료된 lease는 `failed`로 닫힌다 (명세 §6.3)."""
+
+    with migrated_engine() as engine:
+        attempt_id, _review_id, _snapshot_id = _seed_phase2_attempt(engine)
+        started = datetime(2026, 8, 31, 1, tzinfo=UTC)
+        with Session(engine) as session:
+            claimed = claim_overview_attempt(
+                session, "pg-analysis-worker", lease_seconds=1200, now=started
+            )
+            session.commit()
+            assert claimed is not None and claimed.id == attempt_id
+            assert claimed.status == "running"
+            assert claimed.lease_owner == "pg-analysis-worker"
+            assert claimed.lease_expires_at == started + timedelta(seconds=1200)
+
+            # 아직 살아 있는 lease는 회수하지 않는다.
+            assert expire_overview_leases(session, now=started + timedelta(seconds=1)) == []
+            expired = expire_overview_leases(
+                session, now=started + timedelta(seconds=1201)
+            )
+            session.commit()
+            assert expired == [attempt_id]
+            session.refresh(claimed)
+            assert claimed.status == "failed"
+            assert claimed.lease_owner is None and claimed.lease_expires_at is None
+
+        with engine.connect() as connection:
+            assert connection.scalar(
+                text(
+                    "SELECT reason_code FROM bidops.prespec_overview_attempt_event "
+                    "WHERE attempt_id = :id ORDER BY event_sequence DESC LIMIT 1"
+                ),
+                {"id": attempt_id},
+            ) == "lease_expired"
+
+        # 자동 재시작이 없다는 것을 DB도 강제한다: 종료된 attempt는 다시 열리지 않는다.
+        with pytest.raises(IntegrityError):
+            with engine.begin() as connection:
+                connection.execute(
+                    text(
+                        "UPDATE bidops.prespec_overview_attempt SET status = 'running' "
+                        "WHERE id = :id"
+                    ),
+                    {"id": attempt_id},
+                )

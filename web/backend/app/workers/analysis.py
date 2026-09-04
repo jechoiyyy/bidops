@@ -14,7 +14,7 @@ from ..core import (
     configure,
     get_settings,
 )
-from ..deep_review import run_deep_review_once
+from ..deep_review import run_deep_review_once, run_prespec_overview_once
 from ..screening import C2ScreeningWorker
 
 
@@ -53,7 +53,10 @@ def main() -> None:
                     # C-2 execution is queued.
                     c2_result = c2_worker.run_once(session)
                     if c2_result is None:
-                        run_deep_review_once(session, worker_id)
+                        # 개요 실행은 세 번째 슬롯이다. 한 poll은 C-2·심층
+                        # 검토·개요 중 하나만 잡는다 (명세 §6.3).
+                        if not run_deep_review_once(session, worker_id).claimed:
+                            run_prespec_overview_once(session, worker_id)
                 except Exception:
                     # run_claim commits its own fenced transitions. Any
                     # provider/materializer error not converted there must not
