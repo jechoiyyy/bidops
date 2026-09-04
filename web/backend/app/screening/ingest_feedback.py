@@ -23,8 +23,8 @@ from ..ingest.contracts import (
 from ..lifecycle import record_ingest_warning
 from ..lifecycle.models import Run
 from .models import Review, VerificationAnswer
-from ..services.revisions import append_review_revision
-from ..services.reviews import review_revision_payload
+from .services.revisions import append_review_revision
+from .services.reviews import review_revision_payload
 
 
 def _has_value(value: Any) -> bool:

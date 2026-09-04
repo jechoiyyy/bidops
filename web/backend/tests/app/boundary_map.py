@@ -106,17 +106,18 @@ MODELS_SUBMODULE_IMPORTERS: tuple[str, ...] = (
 # `REMAINING_PUBLIC_NAME_DEBT`가 실제 코드에서 센다.
 UNIMPLEMENTED_PUBLIC_NAME_RULES: tuple[str, ...] = (
     "조립 계층 → screening·deep_review: 모듈 공개 이름만 (지금은 모듈 전체를 "
-    "허용). app/runtime.py가 app.screening.{execution_store,mock_transport,"
-    "ollama,orchestrator,worker}·app.services.scheduled_pipeline 같은 모듈 "
-    "내부를 직접 들고 있고, 두 모듈의 service·router·worker가 아직 app/services·"
-    "app/routers·app/workers에 남아 있다. 폴더 이주와 모듈 진입점이 끝나는 "
-    "T7·T8에서 켠다.",
+    "허용). main.py·runtime.py·workers/analysis.py·migrations/import_sqlite.py가 "
+    "app.screening.{execution_store,ollama,orchestrator,worker,routers.*,"
+    "services.*,workers.order_plan}과 app.deep_review.{routers,services,workers}."
+    "* 같은 모듈 내부 경로를 직접 들고 있다. 두 모듈의 파일은 이제 모두 자기 "
+    "폴더 안에 있으므로 남은 일은 모듈 진입점(__init__)에 공개 이름을 올리는 "
+    "것이고, T8에서 켠다.",
     "screening·deep_review → lifecycle: `app/lifecycle/` **밖에** 남은 lifecycle "
     "소유 파일(app/ingest/{loader,contracts}.py, app/services의 lifecycle 파일, "
     "app/routers/common.py, app/schemas의 lifecycle 이름)까지 공개 이름으로 "
     "제한하는 부분. T6은 lifecycle 패키지 안(PUBLIC_NAME_SCOPES)만 켰다. "
-    "T7이 그 파일들을 app/lifecycle/로 옮기면 같은 규칙이 그대로 적용되므로, "
-    "그때 각 파일의 공개 표면을 정하면서 이 절이 닫힌다.",
+    "T7 3단계가 그 파일들을 app/lifecycle/로 옮기면 같은 규칙이 그대로 "
+    "적용되므로, 그때 각 파일의 공개 표면을 정하면서 이 절이 닫힌다.",
 )
 
 # 위 두 절이 아직 필요한 이유를 실제 코드에서 센 것이다. 값은 "그 절이 켜져
@@ -127,9 +128,15 @@ UNIMPLEMENTED_PUBLIC_NAME_RULES: tuple[str, ...] = (
 # 모듈 패키지 존재 여부는 더 이상 신호가 아니다. 네 패키지가 모두 생겼고
 # (app/core·app/lifecycle·app/screening·app/deep_review), 남은 조건은 파일이
 # 있느냐가 아니라 조립 계층·형제 모듈이 아직 모듈 밖 경로를 들고 있느냐다.
+# T7 2단계 실측: 조립 계층 몫은 33 그대로다(경로만 app/screening/... 로 바뀌었다).
+# lifecycle 몫은 77 → 80으로 세 건 늘었는데, 제품 코드의 import는 하나도 바뀌지
+# 않았고 선별 테스트 두 개(tests/screening/test_quality_gate.py의 두 건,
+# test_screening_orchestrator.py의 한 건)가 tests/ 루트에서 tests/screening/으로
+# 들어오면서 비로소 검사 대상이 된 것뿐이다. 셋 다 `app/ingest/loader.py`를
+# 가리키며, 3단계가 그 파일을 app/lifecycle/로 옮기면 함께 정리된다.
 REMAINING_PUBLIC_NAME_DEBT: dict[str, int] = {
     "assembly->screening|deep_review": 33,
-    "screening|deep_review->lifecycle(패키지 밖)": 77,
+    "screening|deep_review->lifecycle(패키지 밖)": 80,
 }
 
 # --- 폴더 규칙 (경로 판정에서 가장 먼저 본다) ----------------------------------
@@ -190,29 +197,9 @@ FILE_MODULES: dict[str, str] = {
     # (parse_attachment_key, tracked_order_plan_connection*).
     "app/services/opportunity_connections.py": LIFECYCLE,
     # screening
-    "app/services/candidate_quality.py": SCREENING,
-    "app/services/order_plan_screening.py": SCREENING,
-    "app/services/profile.py": SCREENING,
-    # 범용 client는 core로 갔고 남은 것은 C-2 어댑터뿐이다 (T7에서 screening 폴더로).
-    "app/services/vllm_client.py": SCREENING,
-    "app/services/reviews.py": SCREENING,
-    "app/services/revisions.py": SCREENING,
-    "app/services/scheduled_pipeline.py": SCREENING,
-    "app/services/scheduler.py": SCREENING,
-    "app/routers/order_plans.py": SCREENING,
-    "app/routers/policies.py": SCREENING,
-    "app/routers/profile.py": SCREENING,
-    "app/routers/quality_gates.py": SCREENING,
-    "app/routers/reviews.py": SCREENING,
-    "app/routers/schedule.py": SCREENING,
-    "app/routers/screening.py": SCREENING,
-    "app/schemas/order_plans.py": SCREENING,
-    "app/schemas/revisions.py": SCREENING,
-    "app/workers/order_plan_screening.py": SCREENING,
-    "app/cli/score_candidate_quality.py": SCREENING,
-    # T5a가 판정·리뷰·C-2 적재와 그 계약을 screening 폴더로 옮겼다. 아래 두
-    # 항목은 폴더 규칙이 이미 처리하므로 여기 없어도 되지만, 남은 lifecycle
-    # 파일과의 대비를 위해 이 블록의 끝을 표시해 둔다.
+    # T7 2단계가 screening 소유 service·router·worker·cli·schemas를 모두
+    # app/screening/로 옮겼다. 이제 폴더 규칙(MODULE_FOLDERS)이 판정하므로
+    # 여기 남은 항목이 없다.
     # deep_review
     # T7 1단계가 deep_review 소유 service·router·worker·agent·document_mcp·
     # contracts·policies·cli·schemas를 모두 app/deep_review/로 옮겼다. 이제
@@ -408,66 +395,9 @@ SCHEMAS_NAME_MODULE: dict[str, str] = {
     "MetricBasis": LIFECYCLE,
     "ValidationMetric": LIFECYCLE,
     "ValidationMetricsResponse": LIFECYCLE,
-    # screening — 프로필 projection, 판정 실행·품질 게이트·정책·스케줄 런타임 계약
-    "ProfileStatus": SCREENING,
-    "ProfileSectionState": SCREENING,
-    "ProfileItemResponse": SCREENING,
-    "ProfileSectionResponse": SCREENING,
-    "ProfileSectionsResponse": SCREENING,
-    "ProfileUnknownResponse": SCREENING,
-    "ProfileUnknownsResponse": SCREENING,
-    "CompanyProfileVersion": SCREENING,
-    "ScreeningExecutionId": SCREENING,
-    "QualityGateId": SCREENING,
-    "QualityGateEvaluationId": SCREENING,
-    "ScheduleExecutionId": SCREENING,
-    "ScreeningTrigger": SCREENING,
-    "ScreeningScope": SCREENING,
-    "ScreeningStatus": SCREENING,
-    "ScreeningStage": SCREENING,
-    "AttemptStage": SCREENING,
-    "ScreeningFailureType": SCREENING,
-    "JudgmentExecutionCreateRequest": SCREENING,
-    "ScreeningStopRequest": SCREENING,
-    "ScreeningArtifactUrls": SCREENING,
-    "ScreeningExecutionResponse": SCREENING,
-    "ScreeningAttemptResponse": SCREENING,
-    "ScreeningFailureItem": SCREENING,
-    "ScreeningExecutionListResponse": SCREENING,
-    "ScreeningExecutionDetailResponse": SCREENING,
-    "ScreeningExecutionQuery": SCREENING,
-    "CompanyProfileSnapshotResponse": SCREENING,
-    "CompanyProfileSnapshotListResponse": SCREENING,
-    "QualityGatePurpose": SCREENING,
-    "QualityGateExecutionStatus": SCREENING,
-    "QualityGateResultStatus": SCREENING,
-    "QualityGateCreateRequest": SCREENING,
-    "QualityGateEvaluationResponse": SCREENING,
-    "QualityGateReviewResponse": SCREENING,
-    "QualityGateReviewUpsertRequest": SCREENING,
-    "QualityGateResponse": SCREENING,
-    "QualityGateDetailResponse": SCREENING,
-    "QualityGateListResponse": SCREENING,
-    "QualityGateQuery": SCREENING,
-    "PolicyVersionCreateRequest": SCREENING,
-    "PolicyCandidateRequest": SCREENING,
-    "PolicyActivationRequest": SCREENING,
-    "PolicyStatus": SCREENING,
-    "PolicyVersionResponse": SCREENING,
-    "PolicyVersionListResponse": SCREENING,
-    "PolicyVersionQuery": SCREENING,
-    "PolicyActivationResponse": SCREENING,
-    "ScheduleSettingsResponse": SCREENING,
-    "ScheduleSettingsUpdateRequest": SCREENING,
-    "ScheduleJobKind": SCREENING,
-    "ScheduleStatus": SCREENING,
-    "ScheduleTrigger": SCREENING,
-    "ScheduleExecutionCreateRequest": SCREENING,
-    "ScheduleExecutionSummary": SCREENING,
-    "ScheduleExecutionListResponse": SCREENING,
-    "ScheduleExecutionQuery": SCREENING,
-    "AlwaysOnSwitchUpdateRequest": SCREENING,
-    "AlwaysOnSwitchResponse": SCREENING,
+    # screening 이름 59개는 T7 2단계가 `app/screening/schemas/__init__.py`로
+    # 옮겼다. 그 파일은 폴더 규칙이 판정하므로 여기 남길 것이 없다. 남은
+    # `_validate_profile_*` 검증기는 core 이름이라 이 파일에 그대로 있다.
 }
 
 # `tests/` 루트에 두는 공용 helper. conftest·postgres 처럼 어느 모듈의 테스트든
@@ -475,6 +405,9 @@ SCHEMAS_NAME_MODULE: dict[str, str] = {
 # 테스트가 helper를 쓰는 것 자체가 위반으로 잡힌다.
 FILE_MODULES["tests/c2_fixtures.py"] = CORE
 FILE_MODULES["tests/postgres.py"] = CORE
+# `tests/fakes/`도 같은 성격의 루트 공용 helper다(§5.4가 루트에 남긴다).
+# T7 2단계가 선별 테스트를 tests/screening/으로 옮기면서 실제로 필요해졌다.
+DIRECTORY_MODULES["tests/fakes"] = CORE
 
 
 # --- 테스트 폴더 (§5.4) --------------------------------------------------------

@@ -22,8 +22,8 @@ from .screening.ollama import OllamaClient
 from .screening.orchestrator import ScreeningOrchestrator
 from .screening.worker import ScreeningWorker
 from .services.pipeline import PipelineService
-from .services.scheduled_pipeline import ScheduledPipeline
-from .services.scheduler import SchedulerService
+from .screening.services.scheduled_pipeline import ScheduledPipeline
+from .screening.services.scheduler import SchedulerService
 
 
 logger = logging.getLogger(__name__)
