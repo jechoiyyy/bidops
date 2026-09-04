@@ -1,7 +1,7 @@
 """심층 검토 단계의 구조화 출력 계약.
 
 무엇을 물어볼지는 계약을 소유한 이 모듈이 정하고, 승인된 vLLM 배치로 나가는
-경계 자체는 `app.core.vllm_client`가 소유한다.
+경계 자체는 `app.core.model_client`가 소유한다.
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from copy import deepcopy
 from typing import Any
 
 from ..contracts import DEEP_REVIEW_STAGE_SCHEMA, load_schema
-from ...core.vllm_client import StructuredOutputContract
+from ...core.model_client import StructuredOutputContract
 
 STAGE_SYSTEM_PROMPT = (
     "Return exactly one JSON object matching the enforced deep-review-stage schema. "

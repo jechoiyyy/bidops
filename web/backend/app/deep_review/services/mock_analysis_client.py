@@ -15,7 +15,7 @@ import json
 from typing import Any
 from uuid import NAMESPACE_URL, uuid5
 
-from ...core.vllm_client import InvocationResult, build_prompt
+from ...core.model_client import InvocationResult, build_prompt
 
 
 MOCK_MODEL_NAME = "bidops-deterministic-mock-v1"

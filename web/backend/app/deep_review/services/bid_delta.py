@@ -18,6 +18,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from ...core.model_binding import MODEL_NAME
 from ...core.config import get_settings
 from ...core.models import AuditEvent, IdempotencyRecord
 from ..models import (
@@ -219,7 +220,9 @@ def resolve_runtime_binding() -> _RuntimeBinding:
                 provider="vllm",
                 allowed_hosts=getattr(settings, "vllm_allowed_hosts", ""),
             )
-            model = getattr(settings, "vllm_model", None)
+            # 모델명은 심층 검토 policy가 고정한 값이다. binding 문자열은
+            # 그 policy 모델명으로 만든다.
+            model = MODEL_NAME
         elif provider == "ollama":
             base_url = _validate_internal_url(
                 getattr(settings, "model_base_url", None),

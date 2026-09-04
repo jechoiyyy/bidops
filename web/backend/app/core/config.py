@@ -245,12 +245,30 @@ class Settings(BaseSettings):
         default="http://127.0.0.1:8000/v1",
         validation_alias="BIDOPS_VLLM_BASE_URL",
     )
-    vllm_model: str = Field(default="qwen3.8-27B", validation_alias="BIDOPS_VLLM_MODEL")
     # The 64-hex model artifact digest the server operator attests for this
     # deployment.  Empty by default so C-2 fails closed until it is declared.
     vllm_model_revision: str = Field(default="", validation_alias="BIDOPS_VLLM_MODEL_REVISION")
     vllm_api_key: SecretStr = Field(default_factory=lambda: SecretStr("EMPTY"), validation_alias="BIDOPS_VLLM_API_KEY")
     vllm_allowed_hosts: str = Field(default="", validation_alias="BIDOPS_VLLM_ALLOWED_HOSTS")
+    # 용도별 override (명세 §6.6). 빈 값은 "지정하지 않음"이고 그때는 위의
+    # 공유값을 쓴다. 공유값에도 허용 host나 선언 revision이 없으면 그 용도는
+    # `resolve_model_endpoint`에서 fail closed한다 — 여기서 기본 주소를 채워
+    # 넣지 않는 것이 요점이다.
+    vllm_screening_base_url: str = Field(default="", validation_alias="BIDOPS_VLLM_SCREENING_BASE_URL")
+    vllm_screening_allowed_hosts: str = Field(default="", validation_alias="BIDOPS_VLLM_SCREENING_ALLOWED_HOSTS")
+    vllm_screening_api_key: SecretStr = Field(default_factory=lambda: SecretStr(""), validation_alias="BIDOPS_VLLM_SCREENING_API_KEY")
+    vllm_screening_model_revision: str = Field(default="", validation_alias="BIDOPS_VLLM_SCREENING_MODEL_REVISION")
+    vllm_overview_base_url: str = Field(default="", validation_alias="BIDOPS_VLLM_OVERVIEW_BASE_URL")
+    vllm_overview_allowed_hosts: str = Field(default="", validation_alias="BIDOPS_VLLM_OVERVIEW_ALLOWED_HOSTS")
+    vllm_overview_api_key: SecretStr = Field(default_factory=lambda: SecretStr(""), validation_alias="BIDOPS_VLLM_OVERVIEW_API_KEY")
+    vllm_overview_model_revision: str = Field(default="", validation_alias="BIDOPS_VLLM_OVERVIEW_MODEL_REVISION")
+    vllm_deep_review_base_url: str = Field(default="", validation_alias="BIDOPS_VLLM_DEEP_REVIEW_BASE_URL")
+    vllm_deep_review_allowed_hosts: str = Field(default="", validation_alias="BIDOPS_VLLM_DEEP_REVIEW_ALLOWED_HOSTS")
+    vllm_deep_review_api_key: SecretStr = Field(default_factory=lambda: SecretStr(""), validation_alias="BIDOPS_VLLM_DEEP_REVIEW_API_KEY")
+    vllm_deep_review_model_revision: str = Field(default="", validation_alias="BIDOPS_VLLM_DEEP_REVIEW_MODEL_REVISION")
+    # C-1 공고 판정이 부르는 모델명. 개요·심층 검토는 policy의 `model_name`을
+    # 쓰므로 설정 항목이 없다.
+    vllm_screening_model: str = Field(default="qwen3.8-27B", validation_alias="BIDOPS_VLLM_SCREENING_MODEL")
     analysis_provider: Literal["vllm", "mock"] = Field(default="vllm", validation_alias="BIDOPS_ANALYSIS_PROVIDER")
     openai_enabled: bool = Field(default=False, validation_alias="BIDOPS_OPENAI_ENABLED")
     reference_workflow_mode: bool = Field(default=False, validation_alias="BIDOPS_REFERENCE_WORKFLOW_MODE")
