@@ -59,6 +59,9 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     # === 별도 worker 진입점이 쓴다 (workers/deep_review.py) ================
     # 조립 계층의 합성 analysis worker가 C-2 claim이 없을 때 부른다.
     "run_deep_review_once": (".workers.deep_review", "run_once"),
+    # 개요 실행은 합성 analysis worker의 세 번째 슬롯이다. 개요 전용 process
+    # 진입점은 만들지 않는다 — 그러면 모델 슬롯 1개 보장이 깨진다 (§6.3).
+    "run_prespec_overview_once": (".workers.prespec_overview", "run_once"),
 }
 
 
@@ -117,5 +120,6 @@ if TYPE_CHECKING:  # pragma: no cover - 정적 분석용 이름 노출
     from .models import PreSpecOverviewReview
     from .runtime import build_runtime
     from .workers.deep_review import run_once as run_deep_review_once
+    from .workers.prespec_overview import run_once as run_prespec_overview_once
     from .services.deep_review_hooks import PreSpecAttachmentEligibilityHook
     from .services.prespec_projection import PreSpecOverviewDocumentProjection
