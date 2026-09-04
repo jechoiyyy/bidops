@@ -1,66 +1,110 @@
-"""Qwen 기반 판정 실행 경계와 불변 입력 저장소."""
+"""Qwen 기반 판정 실행 경계와 불변 입력 저장소.
+
+screening은 core와 lifecycle 공개 이름만 import하고 deep_review를 알지 못한다
+(명세 §4). 이 `__init__`이 screening의 **공개 표면**이다. 조립 계층은 여기 있는
+이름만 쓰고, deep_review는 §6.3이 정한 읽기 전용 seam 함수
+(`current_judgment`·`current_judgments`·`latest_corrected_grade`)만 쓴다.
+
+이름은 lifecycle과 같은 방식으로 **지연 해석**한다. 패키지 초기화가 아무것도
+import하지 않으므로 `python -m app.screening.cli` 같은 진입점이 모듈 전체를 지고
+시작하지 않고, router 인스턴스를 공개 이름으로 올려도 import 순환이 생기지
+않는다. 공개 이름과 동작은 그대로다.
+"""
+
+from __future__ import annotations
 
 from importlib import import_module
+from typing import TYPE_CHECKING, Any
 
-_POLICY_EXPORTS = {
-    "PolicyActivationError",
-    "PolicyConflict",
-    "PolicyRepository",
-    "activate_policy",
-    "canonical_policy_bytes",
-    "create_policy",
-    "designate_policy_candidate",
-    "policy_content_digest",
-    "seed_policy",
-}
-_PROFILE_EXPORTS = {
-    "BASELINE_COMMIT",
-    "PROFILE_SOURCE_PATH",
-    "ProfileSnapshotError",
-    "ProfileSnapshotRepository",
-    "create_profile_snapshot",
-    "read_profile_snapshot",
-}
-_RUNTIME_EXPORTS = {
-    "CallMetadata",
-    "ContractViolation",
-    "ModelInspectionError",
-    "OllamaCallError",
-    "OllamaClient",
-    "ScreeningOrchestrator",
-    "ScreeningRunResult",
-    "assemble_counterargument_prompt",
-    "assemble_perspective_prompt",
-    "assemble_synthesis_prompt",
-    "project_notice_for_prompt",
-    "schema_for_stage",
-    "validate_counterargument",
-    "validate_judgment",
-    "validate_perspective",
-}
-_T6_EXPORTS = {
-    "ArtifactError", "ArtifactStore", "CreatedExecution", "ScreeningCreationError",
-    "ScreeningWorker", "WorkerError",
-}
-_MOCK_EXPORTS = {
-    "MOCK_MODEL_DIGEST", "MockScreeningTransport", "MockScreeningTransportError",
-}
-# 확장점 구현과 deep_review가 이름으로 가려 받는 seam (명세 §6.1·§6.3).
-# `current_judgment`·`current_judgments`·`latest_corrected_grade`만 모듈 밖으로
-# 나가며, 그 밖의 판정 ORM·service는 다른 모듈이 쓰지 못한다.
-_PROJECTION_EXPORTS = {
-    "CorrectedGrade",
-    "JudgmentSummary",
-    "ScreeningJudgmentProjection",
-    "current_judgment",
-    "current_judgments",
-    "latest_corrected_grade",
-}
-_INGEST_EXPORTS = {
-    "ScreeningRunIngestHook",
-    "inspect_c2_directory",
-    "load_order_plan_screening",
-    "load_run_judgments",
+#: 공개 이름 → (구현 모듈, 그 모듈 안의 이름).
+_EXPORTS: dict[str, tuple[str, str]] = {
+    # --- 판정 정책 (policy.py) --------------------------------------------
+    "PolicyActivationError": (".policy", "PolicyActivationError"),
+    "PolicyConflict": (".policy", "PolicyConflict"),
+    "PolicyRepository": (".policy", "PolicyRepository"),
+    "activate_policy": (".policy", "activate_policy"),
+    "canonical_policy_bytes": (".policy", "canonical_policy_bytes"),
+    "create_policy": (".policy", "create_policy"),
+    "designate_policy_candidate": (".policy", "designate_policy_candidate"),
+    "policy_content_digest": (".policy", "policy_content_digest"),
+    "seed_policy": (".policy", "seed_policy"),
+    # --- 회사 프로필 스냅샷 (profile_snapshot.py) ---------------------------
+    "BASELINE_COMMIT": (".profile_snapshot", "BASELINE_COMMIT"),
+    "PROFILE_SOURCE_PATH": (".profile_snapshot", "PROFILE_SOURCE_PATH"),
+    "ProfileSnapshotError": (".profile_snapshot", "ProfileSnapshotError"),
+    "ProfileSnapshotRepository": (".profile_snapshot", "ProfileSnapshotRepository"),
+    "create_profile_snapshot": (".profile_snapshot", "create_profile_snapshot"),
+    "read_profile_snapshot": (".profile_snapshot", "read_profile_snapshot"),
+    # --- 모델 계약 검증 (contracts.py) --------------------------------------
+    "CallMetadata": (".contracts", "CallMetadata"),
+    "ContractViolation": (".contracts", "ContractViolation"),
+    "validate_counterargument": (".contracts", "validate_counterargument"),
+    "validate_judgment": (".contracts", "validate_judgment"),
+    "validate_perspective": (".contracts", "validate_perspective"),
+    # --- 모델 클라이언트와 실행 (ollama.py) ---------------------------------
+    "ModelInspectionError": (".ollama", "ModelInspectionError"),
+    "OllamaCallError": (".ollama", "OllamaCallError"),
+    "OllamaClient": (".ollama", "OllamaClient"),
+    "ScreeningOrchestrator": (".ollama", "ScreeningOrchestrator"),
+    "ScreeningRunResult": (".ollama", "ScreeningRunResult"),
+    # --- 프롬프트 조립 (prompts.py) -----------------------------------------
+    "assemble_counterargument_prompt": (".prompts", "assemble_counterargument_prompt"),
+    "assemble_perspective_prompt": (".prompts", "assemble_perspective_prompt"),
+    "assemble_synthesis_prompt": (".prompts", "assemble_synthesis_prompt"),
+    "project_notice_for_prompt": (".prompts", "project_notice_for_prompt"),
+    "schema_for_stage": (".prompts", "schema_for_stage"),
+    # --- 실행 생성·산출물·worker -------------------------------------------
+    "ArtifactError": (".artifacts", "ArtifactError"),
+    "ArtifactStore": (".artifacts", "ArtifactStore"),
+    "CreatedExecution": (".orchestrator", "CreatedExecution"),
+    "ScreeningCreationError": (".orchestrator", "ScreeningCreationError"),
+    "ScreeningWorker": (".worker", "ScreeningWorker"),
+    "WorkerError": (".worker", "WorkerError"),
+    # --- 참조 워크플로 전용 합성 transport (mock_transport.py) --------------
+    "MOCK_MODEL_DIGEST": (".mock_transport", "MOCK_MODEL_DIGEST"),
+    "MockScreeningTransport": (".mock_transport", "MockScreeningTransport"),
+    "MockScreeningTransportError": (".mock_transport", "MockScreeningTransportError"),
+    # --- 확장점 구현과 deep_review가 이름으로 가려 받는 seam (§6.1·§6.3) ----
+    # `current_judgment`·`current_judgments`·`latest_corrected_grade`만 모듈
+    # 밖으로 나가며, 그 밖의 판정 ORM·service는 다른 모듈이 쓰지 못한다.
+    "CorrectedGrade": (".projection", "CorrectedGrade"),
+    "JudgmentSummary": (".projection", "JudgmentSummary"),
+    "ScreeningJudgmentProjection": (".projection", "ScreeningJudgmentProjection"),
+    "current_judgment": (".projection", "current_judgment"),
+    "current_judgments": (".projection", "current_judgments"),
+    "latest_corrected_grade": (".projection", "latest_corrected_grade"),
+    # --- 회차 적재 hook (ingest.py) ----------------------------------------
+    "ScreeningRunIngestHook": (".ingest", "ScreeningRunIngestHook"),
+    "inspect_c2_directory": (".ingest", "inspect_c2_directory"),
+    "load_order_plan_screening": (".ingest", "load_order_plan_screening"),
+    "load_run_judgments": (".ingest", "load_run_judgments"),
+    # --- 개정 payload 계약 (services/{revisions,reviews}.py) ----------------
+    # 일회성 SQLite 이전 도구가 legacy 개정 행을 지금의 payload 계약으로 다시
+    # 쓸 때 쓴다. 같은 정규화를 복제하지 않으려고 screening이 공개한다.
+    "JUDGMENT_PAYLOAD_SCHEMA": (".services.revisions", "JUDGMENT_PAYLOAD_SCHEMA"),
+    "REVIEW_PAYLOAD_SCHEMA": (".services.revisions", "REVIEW_PAYLOAD_SCHEMA"),
+    "canonical_payload_and_hash": (".services.revisions", "canonical_payload_and_hash"),
+    "review_revision_payload": (".services.reviews", "review_revision_payload"),
+    # --- 조립 계층이 등록하는 router 인스턴스 (routers/*.py) ---------------
+    # `notice_reviews_router`와 `screening_run_router`는 다른 모듈의 경로
+    # 접두사(`/api/notices`, `/api/runs`)를 쓰지만 제공 모듈은 screening이다
+    # (§5.3). screening을 끄면 그 경로도 404다.
+    "notice_reviews_router": (".routers.reviews", "notice_router"),
+    "order_plans_router": (".routers.order_plans", "router"),
+    "policies_router": (".routers.policies", "router"),
+    "profile_router": (".routers.profile", "router"),
+    "quality_gates_router": (".routers.quality_gates", "router"),
+    "reviews_router": (".routers.reviews", "router"),
+    "schedule_router": (".routers.schedule", "router"),
+    "screening_router": (".routers.screening", "router"),
+    "screening_run_router": (".routers.screening", "run_router"),
+    # --- in-process runtime (runtime.py) -----------------------------------
+    "RuntimePipelineBridge": (".runtime", "RuntimePipelineBridge"),
+    "ScreeningRuntime": (".runtime", "ScreeningRuntime"),
+    "build_runtime": (".runtime", "build_runtime"),
+    # --- 별도 worker 프로세스가 쓰는 C-2 실행기 (workers/order_plan.py) -----
+    # 조립 계층의 합성 analysis worker가 C-2 claim을 먼저 시도할 때 쓴다.
+    "C2ScreeningWorker": (".workers.order_plan", "C2ScreeningWorker"),
 }
 
 
@@ -83,39 +127,24 @@ def register_lifecycle_extensions(registry=None):
     return registry
 
 
-def __getattr__(name: str):  # type: ignore[no-untyped-def]
-    if name in _POLICY_EXPORTS:
-        return getattr(import_module(".policy", __name__), name)
-    if name in _PROFILE_EXPORTS:
-        return getattr(import_module(".profile_snapshot", __name__), name)
-    if name in _RUNTIME_EXPORTS:
-        module_name = ".contracts" if name in {
-            "CallMetadata", "ContractViolation", "validate_counterargument",
-            "validate_judgment", "validate_perspective",
-        } else ".ollama" if name in {
-            "ModelInspectionError", "OllamaCallError", "OllamaClient",
-            "ScreeningOrchestrator", "ScreeningRunResult",
-        } else ".prompts"
-        return getattr(import_module(module_name, __name__), name)
-    if name in _T6_EXPORTS:
-        module_name = ".artifacts" if name in {"ArtifactError", "ArtifactStore"} else ".worker" if name in {"ScreeningWorker", "WorkerError"} else ".orchestrator"
-        return getattr(import_module(module_name, __name__), name)
-    if name in _MOCK_EXPORTS:
-        return getattr(import_module(".mock_transport", __name__), name)
-    if name in _PROJECTION_EXPORTS:
-        return getattr(import_module(".projection", __name__), name)
-    if name in _INGEST_EXPORTS:
-        return getattr(import_module(".ingest", __name__), name)
-    raise AttributeError(name)
+def __getattr__(name: str) -> Any:
+    target = _EXPORTS.get(name)
+    if target is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    module_name, attribute = target
+    value = getattr(import_module(module_name, __name__), attribute)
+    # 한 번 푼 이름은 모듈에 심어 다음부터 `__getattr__`을 거치지 않게 한다.
+    globals()[name] = value
+    return value
 
 
-__all__ = sorted(
-    _POLICY_EXPORTS
-    | _PROFILE_EXPORTS
-    | _RUNTIME_EXPORTS
-    | _T6_EXPORTS
-    | _MOCK_EXPORTS
-    | _PROJECTION_EXPORTS
-    | _INGEST_EXPORTS
-    | {"register_lifecycle_extensions"}
-)
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | set(_EXPORTS))
+
+
+__all__ = sorted(set(_EXPORTS) | {"register_lifecycle_extensions"})
+
+
+if TYPE_CHECKING:  # pragma: no cover - 정적 분석용 이름 노출
+    from .runtime import RuntimePipelineBridge, ScreeningRuntime, build_runtime
+    from .workers.order_plan import C2ScreeningWorker

@@ -42,7 +42,7 @@ from app.deep_review.services.document_converter import ScratchDocumentProcessor
 from app.deep_review.services.document_bundles import BundleServiceError, DocumentBundleService, stable_api_error
 from app.deep_review.document_protocol import convert_one
 
-FIXTURES = Path(__file__).parent / "fixtures" / "document_bundles"
+FIXTURES = Path(__file__).parents[1] / "fixtures" / "document_bundles"
 
 
 def fixture_pdf() -> bytes:

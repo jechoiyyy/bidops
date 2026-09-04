@@ -773,7 +773,7 @@ def test_collector_artifact_round_trips_through_ingest_run(tmp_path, db_session)
         encoding="utf-8",
     )
 
-    project_root = Path(__file__).resolve().parents[3]
+    project_root = Path(__file__).resolve().parents[4]
     producer = project_root / "skills/bidops-collect/scripts/collect_order_plans.py"
     run_dir = tmp_path / "runs" / "order-plan-roundtrip"
     completed = subprocess.run(
@@ -1045,7 +1045,7 @@ def test_new_generated_at_creates_snapshot_and_supersedes_previous(tmp_path, db_
 
 
 def test_real_run_integration_if_artifacts_are_available(tmp_path, db_session):
-    project_root = Path(__file__).resolve().parents[3]
+    project_root = Path(__file__).resolve().parents[4]
     run_dir = project_root / "data" / "runs" / "20260817-20260823"
     if not all((run_dir / name).is_file() for name in ("validation-set.json", "screening-results.json")):
         pytest.skip("실제 회차 산출물이 없습니다")

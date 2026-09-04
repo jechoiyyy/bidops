@@ -39,7 +39,7 @@ from app.screening.models import (
     VerificationItem,
 )
 
-GOLDEN_PATH = Path(__file__).resolve().parent / "fixtures" / "projection" / "api_responses.json"
+GOLDEN_PATH = Path(__file__).resolve().parents[1] / "fixtures" / "projection" / "api_responses.json"
 WRITE_ENV = "BIDOPS_WRITE_PROJECTION_GOLDEN"
 
 GENERATED_AT = datetime(2026, 8, 24, 0, 0, tzinfo=timezone.utc)

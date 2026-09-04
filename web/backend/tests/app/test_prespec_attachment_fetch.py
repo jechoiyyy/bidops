@@ -43,8 +43,8 @@ G2B_URL = (
     "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do"
     "?bfSpecRegNo=R26BD00266984&fileType=BFDTL&fileSeq=1"
 )
-SAFE_PDF = Path(__file__).parent / "fixtures/document_bundles/safe.pdf"
-SAFE_HWP = Path(__file__).parent / "fixtures/documents/labor_template.hwp"
+SAFE_PDF = Path(__file__).parents[1] / "fixtures/document_bundles/safe.pdf"
+SAFE_HWP = Path(__file__).parents[1] / "fixtures/documents/labor_template.hwp"
 
 
 def make_engine():
@@ -696,7 +696,7 @@ def test_malware_never_creates_source_location(db_session: Session, tmp_path: Pa
     _, _, _ = queue_one(db_session, sw_status="Y")
     claim = claim_next(db_session, worker_id="worker-a", lease_seconds=120)
     assert claim is not None
-    eicar = (Path(__file__).parent / "fixtures/document_bundles/eicar.pdf").read_bytes()
+    eicar = (Path(__file__).parents[1] / "fixtures/document_bundles/eicar.pdf").read_bytes()
     result = fetch_claimed(
         db_session,
         claim,

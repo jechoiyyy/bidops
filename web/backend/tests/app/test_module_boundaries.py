@@ -87,6 +87,9 @@ class Layout:
     public_name_scopes: Mapping[tuple[str, str], str | None] = field(default_factory=dict)
     # §3의 예외: 각 모듈의 `models` 하위 모듈을 직접 들여도 되는 조립 파일들
     models_submodule_importers: tuple[str, ...] = ()
+    # 검사 1의 대상 범위에서 빼는 폴더 (§8-1이 열거한 대상이 아닌 곳).
+    # 자세한 근거는 `boundary_map.CHECK_ONE_EXEMPT_FOLDERS`의 주석에 있다.
+    check_one_exempt_folders: tuple[str, ...] = ()
     default_module: str | None = bmap.ASSEMBLY
 
     # --- 경로 헬퍼 -------------------------------------------------------
@@ -104,6 +107,20 @@ class Layout:
             if root.is_dir():
                 found.extend(sorted(root.rglob("*.py")))
         return [p for p in found if self.rel(p) not in self.excluded_files]
+
+    def exempt_from_check_one(self, rel_path: str) -> bool:
+        """§8-1이 검사 1의 대상으로 열거하지 않은 경로인가.
+
+        §8-1의 대상은 `app/` 아래 모든 `.py`(조립 계층 포함)와
+        `tests/<module>/` 아래 모든 `.py`다. `tests/app/`은 모듈 폴더가 아니라
+        §5.4가 정한 "앱 조립·migration·runtime 계약·두 모듈 이상이 합쳐지는
+        통합 검사"의 자리이므로 그 열거에 들어 있지 않다.
+        """
+
+        return any(
+            rel_path == folder or rel_path.startswith(folder + "/")
+            for folder in self.check_one_exempt_folders
+        )
 
     def module_for(self, rel_path: str) -> str | None:
         """경로가 속할 목표 모듈. 섞인 파일이면 ``None``."""
@@ -157,6 +174,7 @@ def repository_layout(root: Path) -> Layout:
         public_name_imports=bmap.PUBLIC_NAME_IMPORTS,
         public_name_scopes=bmap.PUBLIC_NAME_SCOPES,
         models_submodule_importers=bmap.MODELS_SUBMODULE_IMPORTERS,
+        check_one_exempt_folders=bmap.CHECK_ONE_EXEMPT_FOLDERS,
     )
 
 
@@ -331,6 +349,10 @@ def resolved_imports(layout: Layout):
 
     for path in layout.source_files():
         rel = layout.rel(path)
+        if layout.exempt_from_check_one(rel):
+            # §8-1이 검사 1의 대상으로 열거하지 않은 경로(`tests/app/`).
+            # `app/**`와 `tests/<module>/`는 그대로 검사한다.
+            continue
         source = layout.module_for(rel)
         if source is None:  # 섞인 파일은 출발지로 검사하지 않는다.
             continue
@@ -377,28 +399,6 @@ def check_cross_module_imports(layout: Layout) -> set[Violation]:
             continue
         violations.add(Violation(rel, CROSS_MODULE_IMPORT, target.label))
     return violations
-
-
-ASSEMBLY_DEBT = "assembly->screening|deep_review"
-
-
-def public_name_debt(layout: Layout) -> dict[str, set[Violation]]:
-    """아직 켜지 않은 §8-1의 남은 절이 켜져 있었다면 위반이었을 import.
-
-    `UNIMPLEMENTED_PUBLIC_NAME_RULES`가 글로 적어 둔 부채를 코드에서 다시 센다.
-    T7 3단계가 "screening·deep_review → lifecycle" 절을 실제로 켜면서
-    (`PUBLIC_NAME_SCOPES`가 전 범위) 그 몫은 검사 1이 직접 강제하므로 여기서
-    세지 않는다. 남은 절은 조립 계층 → screening·deep_review 하나다.
-    """
-
-    debt: dict[str, set[Violation]] = {ASSEMBLY_DEBT: set()}
-    for rel, source, owner, target_rel, target in resolved_imports(layout):
-        if _is_models_submodule_exception(rel, target_rel, layout):
-            continue
-        if source == bmap.ASSEMBLY and owner in (bmap.SCREENING, bmap.DEEP_REVIEW):
-            if target_rel != f"app/{owner}/__init__.py":
-                debt[ASSEMBLY_DEBT].add(Violation(rel, CROSS_MODULE_IMPORT, target.label))
-    return debt
 
 
 # --- 검사 2: router 안의 ORM 접근 -------------------------------------------
@@ -624,6 +624,51 @@ def test_declared_tables_match_the_ownership_table(layout: Layout) -> None:
     assert not extra, f"§5.1 소유표에만 있고 선언되지 않은 테이블: {extra}"
 
 
+def test_tests_root_holds_only_the_shared_helpers(layout: Layout) -> None:
+    """§5.4: `tests/` 루트에는 공용 helper와 모듈 폴더만 남는다.
+
+    "`tests/`는 모듈 폴더를 따른다. `tests/core/`, `tests/lifecycle/`,
+    `tests/screening/`, `tests/deep_review/`, 그리고 앱 조립·migration·runtime
+    계약·두 모듈 이상이 합쳐지는 통합 검사는 `tests/app/`. `conftest.py`,
+    `postgres.py`, `fakes/`, `fixtures/`, `c2_fixtures.py`는 `tests/` 루트에
+    남는다."
+
+    새 테스트 파일을 루트에 떨어뜨리면 여기서 실패한다 — 소유 모듈을 정해
+    폴더 안에 두라는 뜻이다.
+    """
+
+    tests_root = BACKEND_ROOT / "tests"
+    stray_files = sorted(
+        entry.name
+        for entry in tests_root.iterdir()
+        if entry.is_file() and entry.name not in bmap.TESTS_ROOT_ALLOWED_FILES
+    )
+    stray_dirs = sorted(
+        entry.name
+        for entry in tests_root.iterdir()
+        if entry.is_dir()
+        and not entry.name.startswith("__")
+        and entry.name not in bmap.TESTS_ROOT_ALLOWED_DIRS
+    )
+    assert not stray_files, (
+        "tests/ 루트에는 §5.4가 남긴 공용 helper만 둔다. 아래 파일은 소유 모듈의 "
+        f"폴더나 tests/app/으로 옮긴다:\n" + "\n".join(f"  tests/{name}" for name in stray_files)
+    )
+    assert not stray_dirs, (
+        "tests/ 루트에는 모듈 폴더와 §5.4가 남긴 공용 디렉터리만 둔다:\n"
+        + "\n".join(f"  tests/{name}/" for name in stray_dirs)
+    )
+
+
+def test_every_module_test_folder_exists() -> None:
+    """§2 완료 기준 1: 네 모듈 모두 자기 테스트 폴더를 갖는다."""
+
+    for folder in bmap.TEST_FOLDER_MODULES:
+        path = BACKEND_ROOT / folder
+        assert path.is_dir(), f"{folder}/ 가 없다"
+        assert sorted(path.glob("**/test_*.py")), f"{folder}/ 에 테스트가 하나도 없다"
+
+
 def test_excluded_files_still_exist() -> None:
     """실재하지 않는 경로가 EXCLUDED_FILES에 남아 있으면 실패한다.
 
@@ -636,36 +681,6 @@ def test_excluded_files_still_exist() -> None:
         "EXCLUDED_FILES에 실재하지 않는 경로가 있다. 지워야 한다:\n"
         + "\n".join(f"  {rel}" for rel in stale)
     )
-
-
-def test_remaining_public_name_rules_are_still_needed(layout: Layout) -> None:
-    """아직 켜지 않은 §8-1 두 절의 부채를 코드에서 다시 세어 원장과 맞춘다.
-
-    §4의 허용 표는 방향뿐 아니라 "공개 이름 대 모듈 내부"도 가른다. T3·T4·T6과
-    T7 3단계가 켠 조합은 검사 1이 강제한다. 남은 한 절은 아직 켤 수 없고, 그
-    이유는 조립 계층이 아직 두 모듈의 내부 경로를 직접 들고 있기 때문이다.
-
-    허용 목록과 같은 계약이다. 숫자가 늘면 새 부채가 생긴 것이고, 0이 되면 그
-    절을 `PUBLIC_NAME_IMPORTS`로 켤 수 있다는 신호다. 어느 쪽이든 실패한다.
-    """
-
-    debt = public_name_debt(layout)
-    actual = {key: len(entries) for key, entries in debt.items()}
-    recorded = dict(bmap.REMAINING_PUBLIC_NAME_DEBT)
-    assert actual == recorded, (
-        "미구현 절의 부채가 원장과 다르다. 줄었으면 원장을 줄이고, 0이 되었으면 "
-        "그 절을 PUBLIC_NAME_IMPORTS로 켠다. 늘었으면 새로 생긴 import를 되돌린다.\n"
-        f"  센 값: {actual}\n  원장: {recorded}\n"
-        + "\n".join(
-            f"  [{key}]\n" + "\n".join(f"    {entry}" for entry in sorted(as_tuples(entries)))
-            for key, entries in debt.items()
-        )
-    )
-    for key, count in actual.items():
-        assert count > 0, (
-            f"'{key}' 부채가 사라졌다. UNIMPLEMENTED_PUBLIC_NAME_RULES의 해당 절을 "
-            "PUBLIC_NAME_IMPORTS로 켜고 이 항목을 원장에서 지운다."
-        )
 
 
 def test_allowlists_have_no_duplicate_or_foreign_kinds() -> None:
@@ -787,6 +802,97 @@ def test_checker_allows_the_deep_review_to_screening_seam(synthetic: Layout) -> 
         "from ..screening import current_judgment, latest_corrected_grade\n",
     )
     assert check_cross_module_imports(synthetic) == set()
+
+
+def _assembly_surface_layout(root: Path) -> Layout:
+    """조립 계층이 모듈 공개 이름만 받아야 하는, 실제 저장소와 같은 모양의 트리.
+
+    `tests/app`은 §8-1이 검사 1의 대상으로 열거하지 않았으므로 면제 목록에
+    들어간다. `app/main.py`는 열거된 대상이라 그대로 검사한다.
+    """
+
+    return Layout(
+        root=root,
+        package_roots=("app",),
+        module_folders={
+            "app/core": bmap.CORE,
+            "app/lifecycle": bmap.LIFECYCLE,
+            "app/screening": bmap.SCREENING,
+            "app/deep_review": bmap.DEEP_REVIEW,
+        },
+        file_modules={"app/main.py": bmap.ASSEMBLY},
+        test_folder_modules={"tests/app": bmap.ASSEMBLY, "tests/screening": bmap.SCREENING},
+        allowed_imports=bmap.ALLOWED_IMPORTS,
+        seam_imports=bmap.SEAM_IMPORTS,
+        public_name_imports={("assembly", "screening"): ("app/screening/__init__.py",)},
+        public_name_scopes={("assembly", "screening"): None},
+        check_one_exempt_folders=("tests/app",),
+    )
+
+
+@pytest.fixture()
+def assembly_surface(tmp_path: Path) -> Layout:
+    _write(tmp_path, "app/__init__.py", "")
+    _write(tmp_path, "app/main.py", "")
+    for module in ("core", "lifecycle", "screening", "deep_review"):
+        _write(tmp_path, f"app/{module}/__init__.py", "")
+    _write(tmp_path, "app/screening/models.py", "Judgment = None\n")
+    _write(tmp_path, "tests/__init__.py", "")
+    _write(tmp_path, "tests/app/__init__.py", "")
+    _write(tmp_path, "tests/screening/__init__.py", "")
+    return _assembly_surface_layout(tmp_path)
+
+
+def test_check_one_skips_tests_app_but_not_the_assembly_layer(
+    assembly_surface: Layout,
+) -> None:
+    """§8-1의 대상 범위: `app/`은 검사하고 `tests/app/`은 검사하지 않는다.
+
+    두 파일이 **똑같은** 모듈 내부 import를 한다. 조립 계층 파일
+    (`app/main.py`)은 여전히 위반으로 잡혀야 하고, §5.4가 통합 검사의 자리로
+    정한 `tests/app/`의 파일은 잡히지 않아야 한다. 이 테스트가 실패하는
+    방향은 둘 다 회귀다 — 위쪽이 빠지면 production 보장이 줄어든 것이고,
+    아래쪽이 잡히면 §5.4의 배치가 다시 불가능해진다.
+    """
+
+    internal_import = "from app.screening.models import Judgment\n"
+    _write(assembly_surface.root, "app/main.py", internal_import)
+    _write(assembly_surface.root, "tests/app/test_integration.py", internal_import)
+
+    found = as_tuples(check_cross_module_imports(assembly_surface))
+    assert ("app/main.py", CROSS_MODULE_IMPORT, "app.screening.models:Judgment") in found
+    assert not [entry for entry in found if entry[0].startswith("tests/app/")]
+
+
+def test_check_one_still_guards_module_test_folders(assembly_surface: Layout) -> None:
+    """면제는 `tests/app/`뿐이다. `tests/<module>/`은 §5.4대로 계속 검사한다."""
+
+    _write(
+        assembly_surface.root,
+        "tests/screening/test_leak.py",
+        "from app.deep_review import build_runtime\n",
+    )
+    _write(assembly_surface.root, "app/deep_review/__init__.py", "build_runtime = None\n")
+    found = as_tuples(check_cross_module_imports(assembly_surface))
+    assert (
+        "tests/screening/test_leak.py",
+        CROSS_MODULE_IMPORT,
+        "app.deep_review:build_runtime",
+    ) in found
+
+
+def test_check_one_exempt_folders_are_only_test_folders() -> None:
+    """면제 목록이 `app/`이나 `alembic/`으로 번지지 않는다.
+
+    §8-1이 검사 1의 대상으로 못박은 production 경로는 어떤 이유로도 면제
+    목록에 들어갈 수 없다.
+    """
+
+    assert bmap.CHECK_ONE_EXEMPT_FOLDERS == ("tests/app",)
+    for folder in bmap.CHECK_ONE_EXEMPT_FOLDERS:
+        assert folder.startswith("tests/")
+        assert folder not in bmap.MODULE_FOLDERS
+        assert (BACKEND_ROOT / folder).is_dir()
 
 
 def test_checker_resolves_split_service_names_by_owner(synthetic: Layout) -> None:
