@@ -7,7 +7,7 @@
 ## 배포 경계
 
 - `docker-compose.yml`이 애플리케이션 스택이다. `docker-compose.sqlite-ops.yml`의 ops profile을 웹 런타임으로 바꾸지 않는다.
-- 기본 database, storage, scanning, analysis network는 internal이다. Ollama·나라장터, 사설 vLLM egress는 서로 다른 명시적 overlay로만 연다.
+- 기본 database, storage, scanning, analysis network는 internal이다. 나라장터 첨부 egress와 사설 vLLM egress는 서로 다른 명시적 overlay(`prespec-egress`, `model-egress`)로만 연다.
 - `document-worker`는 network 없이 scratch request만 처리한다. 자격증명이나 HTTP listener를 추가하지 않는다.
 - 이미지에 `.env`, API key, DB dump, 객체 원문, run, report, 회사자료를 복사하지 않는다.
 - PostgreSQL, MinIO, pipeline data, report는 project-scoped volume으로 보존한다. 다른 Compose project의 volume을 공유하거나 삭제하지 않는다.
