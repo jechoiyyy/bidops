@@ -29,7 +29,6 @@ ENV PYTHONUNBUFFERED=1 \
     BIDOPS_ROOT=/app \
     BIDOPS_DATA_DIR=/app/web/data \
     BIDOPS_ATTACHMENTS_DIR=/app/web/data/attachments \
-    BIDOPS_OLLAMA_BASE_URL=http://127.0.0.1:11434 \
     BIDOPS_SCHEDULER_ENABLED=false
 
 WORKDIR /app/web/backend
@@ -97,7 +96,7 @@ USER bidops:bidops
 EXPOSE 8787
 
 # Python's standard library HTTP client is present in every supported runtime;
-# health does not contact Ollama or any external API.
+# health does not contact any model server or external API.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD python -c "import urllib.request; response=urllib.request.urlopen('http://127.0.0.1:8787/api/health', timeout=3); raise SystemExit(0 if response.status == 200 else 1)"
 
