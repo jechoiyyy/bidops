@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -21,12 +21,16 @@ from app.core.models import AuditEvent
 from app.deep_review.models import (
     ContentObject,
     ContentObjectLocation,
+    DeepReview,
+    DocumentBundle,
+    DocumentBundleItem,
     PreSpecOverviewAttempt,
     PreSpecOverviewAttemptEvent,
     PreSpecOverviewResult,
     PreSpecOverviewReview,
     PreSpecOverviewSnapshot,
 )
+from app.deep_review.services.auto_preparation import AUTO_ACTOR_KIND, AUTO_ACTOR_NAME
 from app.deep_review.services.prespec_overview import (
     OverviewModelBinding,
     approved_overview_binding,
@@ -518,6 +522,200 @@ def test_review_rows_are_untouched_when_no_review_is_ready(tmp_path: Path) -> No
         assert outcome.claimed is False
         assert session.scalar(select(PreSpecOverviewReview)) is None
         assert client.calls == []
+    finally:
+        session.close()
+        engine.dispose()
+
+
+# --- 개요 완료 → SW사업대상=Y 자동 심층 검토 시작 (명세 §6.4) -----------------
+
+
+class _RecordingDeepReviewService:
+    """`DeepReviewService.create_review` 계약만 흉내 내는 fake."""
+
+    def __init__(self, *, error: Exception | None = None) -> None:
+        self.calls: list[tuple[int, Any, str | None, str]] = []
+        self.error = error
+
+    def create_review(
+        self,
+        session: Session,
+        notice_id: int,
+        bundle_id: Any,
+        actor: str | None,
+        request_id: Any,
+        *,
+        actor_kind: str = "human",
+    ) -> dict[str, Any]:
+        self.calls.append((notice_id, bundle_id, actor, actor_kind))
+        if self.error is not None:
+            raise self.error
+        review = DeepReview(
+            notice_id=notice_id,
+            bundle_id=bundle_id,
+            profile_version_id=_AUTO_PROFILE_ID,
+            policy_version_id=_AUTO_POLICY_ID,
+            effective_grade_at_start="우선 검토",
+            status="queued",
+            requested_by_name=actor,
+        )
+        session.add(review)
+        session.commit()
+        return {"id": str(review.id)}
+
+
+_AUTO_PROFILE_ID = uuid4()
+_AUTO_POLICY_ID = uuid4()
+
+
+def _auto_start_ready(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    key: str,
+    *,
+    sw_business_status: str = "Y",
+):
+    """개요만 끝나면 §6.4가 성립하도록 세운 사전규격 하나."""
+
+    monkeypatch.setenv("BIDOPS_ACTIVE_PROFILE_VERSION_ID", str(_AUTO_PROFILE_ID))
+    monkeypatch.setenv("BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID", str(_AUTO_POLICY_ID))
+    engine = _engine()
+    session = Session(engine)
+    notice = _notice(session, key)
+    notice.qualification_flags_json = {"sw_business_status": sw_business_status}
+    document, structure, _source, _payload = _seed_document(
+        session,
+        tmp_path,
+        notice,
+        [
+            _block("start", "heading", "사업개요"),
+            _block("body", "paragraph", "합성 본문 문장"),
+            _block("end", "heading", "과업내용"),
+        ],
+        source_suffix=key,
+    )
+    bundle = DocumentBundle(
+        notice_id=notice.id,
+        revision=1,
+        version=1,
+        status="ready",
+        issues_snapshot=[],
+        created_by_name=AUTO_ACTOR_NAME,
+        confirmed_by_name=AUTO_ACTOR_NAME,
+        confirmed_at=datetime.now(UTC),
+    )
+    session.add(bundle)
+    session.flush()
+    session.add(
+        DocumentBundleItem(
+            bundle_id=bundle.id,
+            document_version_id=document.id,
+            ordinal=0,
+            document_version_version=document.version,
+            content_object_id=document.content_object_id,
+            content_sha256=structure.source_sha256,
+            detected_mime="application/pdf",
+            size_bytes=1,
+            original_filename=document.original_filename,
+            source_kind="provider",
+            source_system="g2b",
+            source_attachment_key=document.source_attachment_key,
+            role_at_confirmation="제안요청서",
+            is_current_at_confirmation=True,
+            safety_status_at_confirmation="safe",
+            structure_id_at_confirmation=structure.id,
+            structure_payload_sha256=structure.payload_sha256,
+        )
+    )
+    review = prepare_overview_review(session, notice.id, root=tmp_path)
+    session.commit()
+    assert review.status == "awaiting_model"
+    return engine, session, notice, bundle, review
+
+
+def test_a_completed_overview_starts_the_deep_review_for_an_sw_business_pre_spec(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """개요가 `추진 검토`로 끝나면 같은 poll에서 심층 검토가 만들어진다."""
+
+    engine, session, notice, bundle, review = _auto_start_ready(
+        tmp_path, monkeypatch, "autostart"
+    )
+    deep_reviews = _RecordingDeepReviewService()
+    try:
+        runner = _runner(
+            tmp_path,
+            _FakeClient([_result_payload()]),
+            binding=_binding(),
+            deep_review_service=deep_reviews,
+        )
+        outcome = runner.run_once(session, WORKER_ID)
+        session.commit()
+
+        assert outcome.status == "completed"
+        assert deep_reviews.calls == [
+            (notice.id, bundle.id, AUTO_ACTOR_NAME, AUTO_ACTOR_KIND)
+        ]
+        assert len(session.scalars(select(DeepReview)).all()) == 1
+        session.refresh(review)
+        assert review.status == "completed"
+    finally:
+        session.close()
+        engine.dispose()
+
+
+def test_an_sw_n_pre_spec_completes_the_overview_without_a_deep_review(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    engine, session, _notice_row, _bundle, review = _auto_start_ready(
+        tmp_path, monkeypatch, "autostart-n", sw_business_status="N"
+    )
+    deep_reviews = _RecordingDeepReviewService()
+    try:
+        runner = _runner(
+            tmp_path,
+            _FakeClient([_result_payload()]),
+            binding=_binding(),
+            deep_review_service=deep_reviews,
+        )
+        outcome = runner.run_once(session, WORKER_ID)
+        session.commit()
+
+        assert outcome.status == "completed"
+        assert deep_reviews.calls == []
+        assert session.scalar(select(DeepReview)) is None
+    finally:
+        session.close()
+        engine.dispose()
+
+
+def test_a_failing_auto_start_does_not_undo_the_completed_overview(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """hook 실패가 개요 완료를 되돌리면 안 된다."""
+
+    engine, session, _notice_row, _bundle, review = _auto_start_ready(
+        tmp_path, monkeypatch, "autostart-fail"
+    )
+    deep_reviews = _RecordingDeepReviewService(error=RuntimeError("생성 실패"))
+    try:
+        runner = _runner(
+            tmp_path,
+            _FakeClient([_result_payload()]),
+            binding=_binding(),
+            deep_review_service=deep_reviews,
+        )
+        outcome = runner.run_once(session, WORKER_ID)
+        session.commit()
+
+        assert outcome.status == "completed"
+        assert len(deep_reviews.calls) == 1
+        assert session.scalar(select(DeepReview)) is None
+        attempt = session.scalar(select(PreSpecOverviewAttempt))
+        assert attempt is not None and attempt.status == "completed"
+        session.refresh(review)
+        assert review.status == "completed"
+        assert review.result == "추진 검토"
     finally:
         session.close()
         engine.dispose()
