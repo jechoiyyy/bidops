@@ -19,6 +19,11 @@ const trackingException = {
   kept_by_tracking: true,
   document: { attachments: 6, "완료": 2, "대기": 1, "진행": 0, "차단": 2, "실패": 1 },
   overview_review_status: "needs_human_review",
+  grade: "우선 검토",
+  grade_source: "screening_judgment",
+  auto_preparation_status: "waiting_attachments",
+  auto_preparation_reason: "awaiting_fetch",
+  latest_deep_review_id: null,
 };
 
 const newPreSpec = {
@@ -37,6 +42,11 @@ const newPreSpec = {
   kept_by_tracking: false,
   document: { attachments: 1, "완료": 1, "대기": 0, "진행": 0, "차단": 0, "실패": 0 },
   overview_review_status: "failed",
+  grade: "검토 권장",
+  grade_source: "human_review",
+  auto_preparation_status: "blocked",
+  auto_preparation_reason: "processing_failed",
+  latest_deep_review_id: null,
 };
 
 const allOnlyPreSpec = {
@@ -57,6 +67,12 @@ const allOnlyPreSpec = {
   // notice에 prespec_overview_review 행이 아직 없다(개요 검토 미시작). 10값
   // 중 어느 것도 아니며, awaiting_document로 접어 넣지 않는다.
   overview_review_status: null,
+  // 판정도 사람 정정도 없다. `판정 없음`이며 다섯 번째 등급이 아니다.
+  grade: null,
+  grade_source: null,
+  auto_preparation_status: "not_applicable",
+  auto_preparation_reason: null,
+  latest_deep_review_id: null,
 };
 
 const ALL_OVERVIEW_STATUSES: (string | null)[] = [

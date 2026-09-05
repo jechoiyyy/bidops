@@ -123,6 +123,11 @@ const preSpecItem = {
   kept_by_tracking: true,
   document: { attachments: 2, "완료": 1, "대기": 1, "진행": 0, "차단": 0, "실패": 0 },
   overview_review_status: null,
+  grade: "우선 검토",
+  grade_source: "screening_judgment",
+  auto_preparation_status: "not_applicable",
+  auto_preparation_reason: null,
+  latest_deep_review_id: null,
 };
 
 async function mockDocumentPreparation(page: Page, scenario: Scenario): Promise<PreparationTrace> {

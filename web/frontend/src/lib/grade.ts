@@ -1,4 +1,5 @@
 import type { BadgeVariant } from "../components/common/Badge";
+import type { PreSpecGradeSource } from "./types";
 
 // 등급 문자열은 `skills/references/workflow-contract.md` 가 정의한 네 값이다.
 // 배지 변형과의 대응을 한곳에 두어, 계약이 바뀔 때 고칠 자리를 하나로 만든다.
@@ -41,4 +42,19 @@ export function gradeRank(grade: string | null): number {
   if (!grade) return GRADE_ORDER.length;
   const index = GRADE_ORDER.indexOf(grade as (typeof GRADE_ORDER)[number]);
   return index === -1 ? GRADE_ORDER.length : index;
+}
+
+/** 등급이 없는 상태의 고정 라벨. 다섯 번째 등급이 아니라 "아직 판정하지
+ * 않음"이므로 등급 ramp가 아닌 무채색으로 따로 둔다(design/PRD.md §4). */
+export const GRADE_NONE_LABEL = "판정 없음";
+
+export function gradeLabel(grade: string | null): string {
+  return grade && grade.trim() ? grade : GRADE_NONE_LABEL;
+}
+
+/** 등급 출처(`grade_source`)의 표시 이름. 등급이 없으면 출처도 없다. */
+export function gradeSourceLabel(source: PreSpecGradeSource | null): string {
+  if (source === "screening_judgment") return "판정";
+  if (source === "human_review") return "정정";
+  return "없음";
 }

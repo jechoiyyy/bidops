@@ -10,13 +10,16 @@ import {
   saveFinalOpinion,
   saveRevision,
 } from "../components/deep-review/api";
+import { SegmentInventoryPanel } from "../components/deep-review/SegmentInventoryPanel";
 import { ActorField } from "../components/common/ActorField";
+import { Badge } from "../components/common/Badge";
 import { DisabledReason } from "../components/common/DisabledReason";
 import { MutationFeedback } from "../components/common/MutationFeedback";
 import { StatusBadge, type StatusTone } from "../components/common/StatusBadge";
 import { Toast } from "../components/common/Toast";
 import { useUnsavedGuard } from "../components/common/useUnsavedGuard";
 import { ReviewHistoryLinkRail, StickyDecisionHeader } from "../components/common/ReviewPrimitives";
+import { qualityStatusLabel, qualityStatusNote, qualityStatusVariant } from "../lib/qualityStatus";
 import type {
   AttemptView,
   DeepReviewReport,
@@ -314,6 +317,16 @@ export function DeepReviewPage() {
             <span>보고서 revision</span>
             <strong>rev {reportView.history.length > 0 ? reportView.history[0].sequence : "확인 불가"}</strong>
             <small>append-only · 덮어쓰기 없음</small>
+          </article>
+          {/* 품질 표식(명세 §6.5·§8). 참조 실행과 mock 참조를 운영 완료로 보이게
+              하지 않고, 표식이 없는 옛 revision은 `표식 없음`이다. */}
+          <article className="deep-review-summary-card deep-review-quality-card">
+            <span>품질 표식</span>
+            <Badge
+              label={qualityStatusLabel(reportView.report.quality_status)}
+              variant={qualityStatusVariant(reportView.report.quality_status)}
+            />
+            <small>{qualityStatusNote(reportView.report.quality_status)}</small>
           </article>
         </section>
       ) : null}
@@ -615,6 +628,17 @@ export function DeepReviewPage() {
 
           <section aria-labelledby="opinion-title" className="deep-review-opinion-panel">
             <h3 id="opinion-title" className="deep-review-section-title">사전규격 심층검토 의견 추가</h3>
+            {/* 상단 카드와 같은 문구를 저장 form 위에도 둔다(명세 §6.5). 표식이
+                무엇이든 최종 의견 저장을 막지 않는다 — 사람의 기록을 품질
+                표식으로 잠그지 않는다. */}
+            <p className="deep-review-opinion-quality">
+              <span>이 보고서의 품질 표식</span>
+              <Badge
+                label={qualityStatusLabel(reportView.report.quality_status)}
+                variant={qualityStatusVariant(reportView.report.quality_status)}
+              />
+              <span>{qualityStatusNote(reportView.report.quality_status)}</span>
+            </p>
             <p>이 의견은 현재 보고서 수정본에 append-only로 남으며 최종 입찰 Go/No-Go가 아닙니다.</p>
             <div className="deep-review-opinion-form">
               <label>심층검토 의견<select className="interaction-control deep-review-section-select" value={opinionValue} onChange={(event) => setOpinionValue(event.target.value as FinalOpinionValue)}>{FINAL_VALUES.map((value) => <option key={value}>{value}</option>)}</select></label>
@@ -644,6 +668,16 @@ export function DeepReviewPage() {
               </dl>
               <p className="detail-skeleton-rail-note">이 범위 밖의 문서는 보고서에 들어가지 않았습니다. 범위가 좁다는 것을 사실이 없다는 뜻으로 읽지 마십시오.</p>
             </section>
+            {/* 문서별 inventory와 사람 확인 필요 segment(명세 §6.8). 이 화면의
+                계약에는 bundle → 문서 구조 ID를 주는 자리가 없으므로, 지금
+                선택된 근거가 가리키는 구조 ID를 쓴다. 다른 문서의 값으로
+                대신하지 않고 어느 문서인지 문장으로 밝힌다. */}
+            <SegmentInventoryPanel
+              structureId={evidenceQuery.data?.structure_id ?? null}
+              sourceNote={evidenceQuery.data?.structure_id
+                ? `현재 선택한 근거가 가리키는 문서의 manifest입니다. 문서 버전 ${evidenceQuery.data.document_version_id ?? "값 없음"}.`
+                : "근거를 선택하면 그 근거가 가리키는 문서의 inventory를 표시합니다."}
+            />
             <section aria-labelledby="editor-title" className="deep-review-editor-panel">
             <h3 id="editor-title" className="deep-review-section-title">보고서 수정본 편집</h3>
             <p>저장은 전체 report snapshot을 새 immutable 수정본으로 추가합니다. 담당자 이름은 인증이 아닌 입력된 claimed name입니다.</p>

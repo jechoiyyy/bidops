@@ -1641,3 +1641,123 @@
   text-underline-offset: var(--spacing-0-5);
   white-space: nowrap;
 }
+
+/* 등급 필터가 서버 집계와 다른 범위에 적용된다는 사실을 눈에 띄게 남긴다. */
+.pre-specs-grade-filter-note {
+  margin: var(--spacing-2) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.pre-specs-grade-cell,
+.pre-specs-auto-preparation-cell {
+  white-space: nowrap;
+}
+
+/* 상세 헤더의 등급 줄과 자동 준비 단계 표시. */
+.pre-spec-detail-grade-row {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin-top: var(--spacing-2);
+}
+
+.pre-spec-detail-grade-label {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: 650;
+}
+
+.pre-spec-detail-grade-source {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.pre-spec-auto-preparation {
+  min-width: 0;
+  margin-top: var(--spacing-2);
+}
+
+.pre-spec-auto-steps {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: stretch;
+  margin: 0;
+  padding: 0;
+  gap: var(--spacing-2);
+  list-style: none;
+}
+
+.pre-spec-auto-step {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 12rem;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  padding: var(--spacing-2) var(--spacing-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-container);
+  background: var(--color-background-card);
+}
+
+.pre-spec-auto-step-label {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: 650;
+}
+
+.pre-spec-auto-step-detail {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.pre-spec-auto-preparation-link {
+  display: inline-block;
+  margin-top: var(--spacing-2);
+  color: var(--color-text-accent);
+  text-decoration: underline;
+  text-underline-offset: var(--spacing-0-5);
+}
+
+.pre-spec-auto-preparation-note {
+  margin: var(--spacing-1) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+/* 개요 카드의 품질 표식. */
+.pre-spec-overview-quality {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-container);
+}
+
+.pre-spec-overview-quality > span {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: 650;
+}
+
+.pre-spec-overview-quality > p {
+  min-width: 0;
+  flex: 1 1 16rem;
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
