@@ -228,4 +228,79 @@ class MockAnalysisClient:
         )
 
 
-__all__ = ["MAX_MOCK_ROWS", "MOCK_MODEL_NAME", "MockAnalysisClient"]
+class MockOverviewTransport:
+    """사전규격 개요 판정의 결정적 transport (명세 §6.3).
+
+    `ModelClient`의 주입 seam(`completion_create`·`models_list`)만 채운다.
+    C-1 판정의 mock transport(ADR-0029)와 같은 자리이며 **네트워크를 열지
+    않는다.** 모델 client·prompt 조립·검증·저장 경로는 실제 실행과 같고, 이
+    class는 그 경계 바깥에서 OpenAI 호환 응답 한 벌을 만들 뿐이다.
+
+    응답의 근거 locator는 프롬프트가 실은 block 중 **첫 block**을 가리킨다.
+    문장을 지어내 원문에 없는 위치를 만들지 않는다는 뜻이며, 그래서 결정적
+    검증이 실제 실행과 같은 규칙으로 통과하거나 실패한다.
+    """
+
+    provider_name = "mock-overview"
+
+    def __init__(self, model: str) -> None:
+        self.model = model
+        self.calls = 0
+
+    def models_list(self) -> dict[str, Any]:
+        """`GET /models`의 자리. 서버가 revision을 싣지 않는 stock 모양이다."""
+
+        return {"data": [{"id": self.model}]}
+
+    def completion_create(self, **request: Any) -> dict[str, Any]:
+        self.calls += 1
+        messages = request.get("messages") or []
+        prompt = messages[-1].get("content") if messages else None
+        if not isinstance(prompt, str):
+            raise ValueError("mock overview request has no prompt")
+        try:
+            blocks = json.loads(prompt)["input_slice"]["blocks"]
+        except (TypeError, KeyError, ValueError) as error:
+            raise ValueError("mock overview prompt does not carry an input slice") from error
+        if not isinstance(blocks, list) or not blocks:
+            raise ValueError("mock overview prompt carries no block")
+        first = blocks[0]
+        output = {
+            "schema_version": "bidops.prespec-overview-result.v1",
+            "recommendation": "추진 검토",
+            "summary": "모의 개요 결과이며 실제 사업 판단이나 승인 근거가 아닙니다.",
+            "conditions": [],
+            "verification_due_at": None,
+            "unknowns": [],
+            "evidence": [
+                {
+                    "claim": "모의 개요 근거 자리표시자이며 실제 원문 판단이 아닙니다.",
+                    "locator": {
+                        "block_key": first.get("block_key"),
+                        "page": first.get("page"),
+                        "ordinal": first.get("ordinal"),
+                    },
+                }
+            ],
+            "input_limitations": ["모의 실행이며 사업개요 범위만 확인했습니다."],
+        }
+        return {
+            "model": request.get("model", self.model),
+            "choices": [
+                {
+                    "finish_reason": "stop",
+                    "message": {
+                        "role": "assistant",
+                        "content": json.dumps(output, ensure_ascii=False, sort_keys=True),
+                    },
+                }
+            ],
+        }
+
+
+__all__ = [
+    "MAX_MOCK_ROWS",
+    "MOCK_MODEL_NAME",
+    "MockAnalysisClient",
+    "MockOverviewTransport",
+]

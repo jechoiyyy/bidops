@@ -13,6 +13,15 @@ from app.deep_review.services.bc_e2e import BcE2EError, JsonAcceptanceApi, actor
 from app.deep_review.services.document_bundles import BundleServiceError, validate_actor
 
 
+PRESPEC_FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "deep_review" / "prespec-run"
+
+
+def run_prespec_main(argv: list[str]) -> int:
+    """`python -m app.deep_review.cli run-prespec-e2e <인자>`와 같은 경로."""
+
+    return deep_review_cli_main(["run-prespec-e2e", *argv])
+
+
 def run_bc_main(argv: list[str]) -> int:
     """`python -m app.deep_review.cli run-bc-e2e <기존 인자>`와 같은 경로."""
 
@@ -172,3 +181,40 @@ def test_bc_evidence_publish_is_private_and_never_overwrites(tmp_path: Path) -> 
         _write_evidence(output, {"passed": False})
     assert error.value.code == "invalid_output"
     assert json.loads(output.read_text(encoding="utf-8")) == {"passed": True}
+
+
+def test_prespec_cli_dry_run_describes_the_fixture_without_a_workspace(
+    tmp_path: Path, capsys
+) -> None:
+    """dry-run은 fixture만 읽고 workspace를 만들지 않는다 (명세 §12)."""
+
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+
+    assert run_prespec_main([
+        "--fixture", str(PRESPEC_FIXTURE),
+        "--workspace", str(workspace),
+        "--dry-run",
+    ]) == 0
+    output = json.loads(capsys.readouterr().out)
+    assert output["schema"] == "bidops.prespec-e2e-plan.v1"
+    assert output["workflow"] == "prespec-mock-reference"
+    assert output["notice_keys"] == ["pre-1", "pre-5"]
+    assert output["unsupported_attachment_count"] == 2
+    assert list(workspace.iterdir()) == []
+
+
+def test_prespec_cli_rejects_a_fixture_without_an_attachment_manifest(
+    tmp_path: Path, capsys
+) -> None:
+    """manifest 없는 입력은 변경 전에 fail closed한다."""
+
+    fixture = tmp_path / "fixture"
+    (fixture / "run").mkdir(parents=True)
+
+    assert run_prespec_main([
+        "--fixture", str(fixture),
+        "--workspace", str(tmp_path),
+        "--dry-run",
+    ]) == 2
+    assert json.loads(capsys.readouterr().out)["error"]["code"] == "invalid_fixture"
