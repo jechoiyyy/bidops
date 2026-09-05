@@ -1,8 +1,10 @@
 """deep_review의 서버측 관리 CLI 명령.
 
-`python -m app.deep_review.cli`가 두 하위 명령을 모두 받는다.
+`python -m app.deep_review.cli`가 세 하위 명령을 모두 받는다.
 
 - ``run-bc-e2e``: 문서 준비(B)에서 심층 검토(C)까지의 격리 인수 흐름을 돌린다.
+- ``run-prespec-e2e``: 사전규격 회차 적재부터 보고서·최종 의견까지의 mock
+  종단 인수 흐름을 격리 workspace에서 돌린다.
 - ``import-profile-policy``: 불변 회사 프로필·분석 policy 판을 import한다.
 
 T8 2단계가 두 스크립트에 패키지 진입점을 만들어 하나의 하위 명령 체계로
@@ -11,8 +13,8 @@ T8 2단계가 두 스크립트에 패키지 진입점을 만들어 하나의 하
 나머지 인자를 그대로 넘긴다(각 명령의 파서는 여전히 자기 모듈이 소유한다).
 
 고른 하위 명령의 모듈만 늦게 import한다. `import-profile-policy`가 DB를,
-`run-bc-e2e`가 인수 API client를 끌어오므로 패키지 import만으로 둘 다 지고
-시작하지 않게 한다.
+`run-bc-e2e`가 인수 API client를, `run-prespec-e2e`가 취득·개요·심층 실행
+경로를 끌어오므로 패키지 import만으로 셋을 다 지고 시작하지 않게 한다.
 """
 
 from __future__ import annotations
@@ -27,6 +29,10 @@ PROG = "python -m app.deep_review.cli"
 #: 하위 명령 이름 → (구현 모듈, 도움말 한 줄).
 _SUBCOMMANDS: dict[str, tuple[str, str]] = {
     "run-bc-e2e": (".run_bc_e2e", "문서 준비(B)에서 심층 검토(C)까지 인수 흐름을 돌린다"),
+    "run-prespec-e2e": (
+        ".run_prespec_e2e",
+        "사전규격 회차 적재부터 보고서·최종 의견까지 mock 종단 인수 흐름을 돌린다",
+    ),
     "import-profile-policy": (
         ".import_profile_policy",
         "불변 회사 프로필·분석 policy 판을 import한다",

@@ -1,0 +1,194 @@
+{
+  "schema_version": "bidops.decisions.v2",
+  "generated_at": "2026-09-03T00:00:00+09:00",
+  "screening_basis": "메타데이터",
+  "source_window": {
+    "from": "2026-09-01",
+    "to": "2026-09-03",
+    "timezone": "Asia/Seoul"
+  },
+  "judgments": [
+    {
+      "notice_id": "pre-1",
+      "grade": "우선 검토",
+      "readiness": "부분 확인 필요",
+      "primary_focus": "블록체인·DID",
+      "exclusion_category": null,
+      "summary": "모의 종합 결과이며 실제 사업·회사 판단이나 승인 근거가 아닙니다.",
+      "perspectives": [
+        {
+          "name": "기술 적합성",
+          "assessment": "부적합",
+          "reason": "모의 판정: 기술 적합성의 실제 공고·회사 사실을 확인하지 않은 결정적 자리표시자입니다.",
+          "evidence": [
+            {
+              "source": "모의 근거 자리표시자(실제 출처 아님)",
+              "status": "unknown",
+              "fact": "모의 검증용 문자열이며 원문·회사 실적 근거가 아닙니다."
+            }
+          ]
+        },
+        {
+          "name": "실적 정합성",
+          "assessment": "부적합",
+          "reason": "모의 판정: 실적 정합성의 실제 공고·회사 사실을 확인하지 않은 결정적 자리표시자입니다.",
+          "evidence": [
+            {
+              "source": "모의 근거 자리표시자(실제 출처 아님)",
+              "status": "unknown",
+              "fact": "모의 검증용 문자열이며 원문·회사 실적 근거가 아닙니다."
+            }
+          ]
+        },
+        {
+          "name": "공공 SI 적합성",
+          "assessment": "적합",
+          "reason": "모의 판정: 공공 SI 적합성의 실제 공고·회사 사실을 확인하지 않은 결정적 자리표시자입니다.",
+          "evidence": [
+            {
+              "source": "모의 근거 자리표시자(실제 출처 아님)",
+              "status": "unknown",
+              "fact": "모의 검증용 문자열이며 원문·회사 실적 근거가 아닙니다."
+            }
+          ]
+        },
+        {
+          "name": "사업성·자격 제약",
+          "assessment": "확인 불가",
+          "reason": "모의 판정: 사업성·자격 제약의 실제 공고·회사 사실을 확인하지 않은 결정적 자리표시자입니다.",
+          "evidence": [
+            {
+              "source": "모의 근거 자리표시자(실제 출처 아님)",
+              "status": "unknown",
+              "fact": "모의 검증용 문자열이며 원문·회사 실적 근거가 아닙니다."
+            }
+          ]
+        },
+        {
+          "name": "전략 부합",
+          "assessment": "적합",
+          "reason": "모의 판정: 전략 부합의 실제 공고·회사 사실을 확인하지 않은 결정적 자리표시자입니다.",
+          "evidence": [
+            {
+              "source": "모의 근거 자리표시자(실제 출처 아님)",
+              "status": "unknown",
+              "fact": "모의 검증용 문자열이며 원문·회사 실적 근거가 아닙니다."
+            }
+          ]
+        }
+      ],
+      "matched_performances": [
+        {
+          "name": "모의 실적 자리표시자(실제 회사 실적 아님)",
+          "match_reason": "모의 검증용 문자열이며 실제 수행실적 일치 근거가 아닙니다.",
+          "mismatch_or_limit": "실제 회사 실적·자격·일치 여부는 확인하지 않았습니다.",
+          "source": "모의 근거 자리표시자(실제 출처 아님)",
+          "status": "unknown"
+        }
+      ],
+      "counterarguments": [
+        "모의 반론: 공고 식별자 pre-1의 예산·자격 범위는 원문 확인 전에는 알 수 없으며 실제 판단으로 사용할 수 없습니다."
+      ],
+      "verification_items": [
+        {
+          "item": "모의 참여 자격 확인",
+          "why": "모의 결과이며 실제 자격 원문이 제공되지 않았습니다.",
+          "blocking": true,
+          "status": "미확인"
+        }
+      ],
+      "next_action": "모의 결과를 실제 판단으로 사용하지 말고 담당자가 원문과 자격을 확인합니다."
+    },
+    {
+      "notice_id": "pre-5",
+      "grade": "우선 검토",
+      "readiness": "부분 확인 필요",
+      "primary_focus": "블록체인·DID",
+      "exclusion_category": null,
+      "summary": "모의 종합 결과이며 실제 사업·회사 판단이나 승인 근거가 아닙니다.",
+      "perspectives": [
+        {
+          "name": "기술 적합성",
+          "assessment": "확인 불가",
+          "reason": "모의 판정: 기술 적합성의 실제 공고·회사 사실을 확인하지 않은 결정적 자리표시자입니다.",
+          "evidence": [
+            {
+              "source": "모의 근거 자리표시자(실제 출처 아님)",
+              "status": "unknown",
+              "fact": "모의 검증용 문자열이며 원문·회사 실적 근거가 아닙니다."
+            }
+          ]
+        },
+        {
+          "name": "실적 정합성",
+          "assessment": "적합",
+          "reason": "모의 판정: 실적 정합성의 실제 공고·회사 사실을 확인하지 않은 결정적 자리표시자입니다.",
+          "evidence": [
+            {
+              "source": "모의 근거 자리표시자(실제 출처 아님)",
+              "status": "unknown",
+              "fact": "모의 검증용 문자열이며 원문·회사 실적 근거가 아닙니다."
+            }
+          ]
+        },
+        {
+          "name": "공공 SI 적합성",
+          "assessment": "부분 적합",
+          "reason": "모의 판정: 공공 SI 적합성의 실제 공고·회사 사실을 확인하지 않은 결정적 자리표시자입니다.",
+          "evidence": [
+            {
+              "source": "모의 근거 자리표시자(실제 출처 아님)",
+              "status": "unknown",
+              "fact": "모의 검증용 문자열이며 원문·회사 실적 근거가 아닙니다."
+            }
+          ]
+        },
+        {
+          "name": "사업성·자격 제약",
+          "assessment": "확인 불가",
+          "reason": "모의 판정: 사업성·자격 제약의 실제 공고·회사 사실을 확인하지 않은 결정적 자리표시자입니다.",
+          "evidence": [
+            {
+              "source": "모의 근거 자리표시자(실제 출처 아님)",
+              "status": "unknown",
+              "fact": "모의 검증용 문자열이며 원문·회사 실적 근거가 아닙니다."
+            }
+          ]
+        },
+        {
+          "name": "전략 부합",
+          "assessment": "확인 불가",
+          "reason": "모의 판정: 전략 부합의 실제 공고·회사 사실을 확인하지 않은 결정적 자리표시자입니다.",
+          "evidence": [
+            {
+              "source": "모의 근거 자리표시자(실제 출처 아님)",
+              "status": "unknown",
+              "fact": "모의 검증용 문자열이며 원문·회사 실적 근거가 아닙니다."
+            }
+          ]
+        }
+      ],
+      "matched_performances": [
+        {
+          "name": "모의 실적 자리표시자(실제 회사 실적 아님)",
+          "match_reason": "모의 검증용 문자열이며 실제 수행실적 일치 근거가 아닙니다.",
+          "mismatch_or_limit": "실제 회사 실적·자격·일치 여부는 확인하지 않았습니다.",
+          "source": "모의 근거 자리표시자(실제 출처 아님)",
+          "status": "unknown"
+        }
+      ],
+      "counterarguments": [
+        "모의 반론: 공고 식별자 pre-5의 예산·자격 범위는 원문 확인 전에는 알 수 없으며 실제 판단으로 사용할 수 없습니다."
+      ],
+      "verification_items": [
+        {
+          "item": "모의 참여 자격 확인",
+          "why": "모의 결과이며 실제 자격 원문이 제공되지 않았습니다.",
+          "blocking": true,
+          "status": "미확인"
+        }
+      ],
+      "next_action": "모의 결과를 실제 판단으로 사용하지 말고 담당자가 원문과 자격을 확인합니다."
+    }
+  ]
+}
