@@ -719,3 +719,173 @@ def test_a_failing_auto_start_does_not_undo_the_completed_overview(
     finally:
         session.close()
         engine.dispose()
+
+
+# --- 빈 poll의 비용과 유입 실패의 회복 (명세 §6.3) ---------------------------
+
+
+def _seed_ready_review(session: Session, tmp_path: Path, key: str):
+    """이미 열린 session에 ``awaiting_model`` review 하나를 더 심는다."""
+
+    notice = _notice(session, key)
+    _seed_document(
+        session,
+        tmp_path,
+        notice,
+        [
+            _block("start", "heading", "사업개요"),
+            _block("body", "paragraph", "합성 본문 문장"),
+            _block("end", "heading", "과업내용"),
+        ],
+        source_suffix=key,
+    )
+    review = prepare_overview_review(session, notice.id, root=tmp_path)
+    session.commit()
+    assert review.status == "awaiting_model"
+    return notice, review
+
+
+def test_an_idle_poll_never_reaches_the_model_server(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """큐가 비면 client를 만들지도 `/models`를 부르지도 않는다 (명세 §6.3).
+
+    합성 worker는 1초마다 이 슬롯을 돈다. 할 일이 없는데 binding을 해석하면
+    idle worker가 하루 8만여 번 승인 경계 밖으로 identity 요청을 내고, 그
+    호출이 느리면 같은 loop의 C-2·심층 검토 슬롯까지 굶는다.
+    """
+
+    from app.deep_review.services import prespec_overview_runner as runner_module
+
+    policy = load_overview_policy()
+    assert policy is not None
+    built: list[str] = []
+    identity_calls: list[str] = []
+
+    class _SpyClient(_FakeClient):
+        def __init__(self) -> None:
+            super().__init__([_result_payload()], model=policy.model_name)
+
+        def verify_identity(self) -> ModelIdentity:
+            identity_calls.append("models")
+            return ModelIdentity(model=policy.model_name, revision="d" * 64)
+
+    def _for_purpose(*_args: Any, **_kwargs: Any) -> _SpyClient:
+        built.append("client")
+        return _SpyClient()
+
+    monkeypatch.setattr(runner_module.ModelClient, "for_purpose", _for_purpose)
+
+    engine = _engine()
+    session = Session(engine)
+    try:
+        runner = PreSpecOverviewRunner(raw_response_store=_FakeStore(), root=tmp_path)
+        outcome = runner.run_once(session, WORKER_ID)
+        session.commit()
+        assert outcome.claimed is False
+        # 이것이 이 검사의 전부다. 큐가 비면 provider를 만지지 않는다.
+        assert built == []
+        assert identity_calls == []
+
+        # 검사가 공허하지 않다는 확인: 할 일이 생기면 그때 해석한다.
+        _seed_ready_review(session, tmp_path, "idle-probe")
+        runner.run_once(session, WORKER_ID)
+        session.commit()
+        assert built == ["client"]
+        assert identity_calls == ["models"]
+    finally:
+        session.close()
+        engine.dispose()
+
+
+def test_a_resolved_runner_does_not_rebuild_its_client_on_later_polls(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """한 번 해석한 binding·client는 poll을 넘겨 산다 (명세 §6.3)."""
+
+    from app.deep_review.services import prespec_overview_runner as runner_module
+
+    policy = load_overview_policy()
+    assert policy is not None
+    built: list[str] = []
+
+    class _SpyClient(_FakeClient):
+        def __init__(self) -> None:
+            super().__init__(
+                [_result_payload(), _result_payload()], model=policy.model_name
+            )
+
+        def verify_identity(self) -> ModelIdentity:
+            return ModelIdentity(model=policy.model_name, revision="d" * 64)
+
+    def _for_purpose(*_args: Any, **_kwargs: Any) -> _SpyClient:
+        built.append("client")
+        return _SpyClient()
+
+    monkeypatch.setattr(runner_module.ModelClient, "for_purpose", _for_purpose)
+
+    engine = _engine()
+    session = Session(engine)
+    try:
+        runner = PreSpecOverviewRunner(raw_response_store=_FakeStore(), root=tmp_path)
+        _seed_ready_review(session, tmp_path, "cache-first")
+        assert runner.run_once(session, WORKER_ID).status == "completed"
+        session.commit()
+        assert built == ["client"]
+
+        _seed_ready_review(session, tmp_path, "cache-second")
+        runner.run_once(session, WORKER_ID)
+        session.commit()
+        # 두 번째 poll은 캐시된 client를 그대로 쓴다.
+        assert built == ["client"]
+    finally:
+        session.close()
+        engine.dispose()
+
+
+def test_a_review_that_cannot_produce_an_attempt_is_closed_and_the_slot_moves_on(
+    tmp_path: Path,
+) -> None:
+    """유입이 거부된 review를 닫고 다음 poll이 건강한 review를 처리한다.
+
+    유입 후보는 ``updated_at ASC``로 뽑히므로, 닫지 않으면 같은 review가 1초마다
+    영원히 다시 뽑혀 개요 슬롯이 그 한 건에 막힌다.
+    """
+
+    engine = _engine()
+    session = Session(engine)
+    client = _FakeClient([_result_payload()])
+    try:
+        poison_notice, poison = _seed_ready_review(session, tmp_path, "poison")
+        # snapshot을 쓸 수 없게 만든다 — 범위가 어긋난 review다.
+        poison_notice.source_type = "notice"
+        session.flush()
+        session.commit()
+        _healthy_notice, healthy = _seed_ready_review(session, tmp_path, "healthy")
+
+        runner = _runner(tmp_path, client, binding=_binding())
+        first = runner.run_once(session, WORKER_ID)
+        assert first.status == "failed"
+        assert first.reason_code == "scope_mismatch"
+        assert client.calls == []
+        session.refresh(poison)
+        assert poison.status == "failed"
+        audit = session.scalars(
+            select(AuditEvent).where(
+                AuditEvent.aggregate_type == "prespec_overview_review"
+            )
+        ).all()
+        assert len(audit) == 1
+        assert audit[0].safe_metadata["reason_code"] == "scope_mismatch"
+        assert audit[0].safe_metadata["status"] == "failed"
+
+        # 슬롯이 막히지 않았다 — 다음 poll이 건강한 review를 끝까지 돈다.
+        second = runner.run_once(session, WORKER_ID)
+        session.commit()
+        assert second.claimed is True
+        assert second.status == "completed"
+        session.refresh(healthy)
+        assert healthy.status == "completed"
+    finally:
+        session.close()
+        engine.dispose()

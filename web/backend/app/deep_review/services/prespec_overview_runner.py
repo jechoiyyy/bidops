@@ -61,8 +61,11 @@ from .prespec_overview import (
     enqueue_overview_attempt,
     expire_overview_leases,
     fail_overview_attempt,
+    fail_overview_review,
+    has_claimable_overview_attempt,
     load_overview_policy,
     overview_quality_status,
+    select_overview_enqueue_candidate,
 )
 
 
@@ -167,7 +170,12 @@ class PreSpecOverviewRunner:
             binding, client = None, None
         if binding is None or client is None:
             # binding이 없으면 client도 들고 있지 않는다. 승인 없이 열려 있는
-            # 주소를 남겨 두지 않는다는 뜻이다.
+            # 주소를 남겨 두지 않는다는 뜻이다. 이 poll이 만든 transport는
+            # 버리기 전에 닫는다 — 안 닫으면 실패 poll마다 연결이 샌다.
+            if client is not None and client is not self._client:
+                closer = getattr(client, "close", None)
+                if callable(closer):
+                    closer()
             self._resolved = (None, None)
         else:
             self._resolved = (binding, client)
@@ -175,18 +183,46 @@ class PreSpecOverviewRunner:
 
     # -- 한 poll -------------------------------------------------------
     def run_once(self, session: Session, worker_id: str) -> OverviewRunResult:
-        """만료 lease 회수 → 큐 유입 → claim → 실행을 한 번씩 한다."""
+        """만료 lease 회수 → 큐 유입 → claim → 실행을 한 번씩 한다.
+
+        **싼 일이 먼저다.** 만료 lease 회수와 "이번 poll에 할 일이 있는가"는
+        DB만 보면 되고 모델 client가 필요 없다. 큐가 비었는데 binding을 해석하면
+        idle worker가 poll마다 policy 파일을 SHA-256하고 `/models`를 부르며,
+        그 호출이 느리면 같은 단일 loop를 쓰는 C-2·심층 검토 슬롯까지 굶는다.
+        """
 
         now = self.clock()
         expired = expire_overview_leases(session, now=now, actor_id=worker_id)
         if expired:
             session.commit()
+
+        candidate = select_overview_enqueue_candidate(session)
+        if candidate is None and not has_claimable_overview_attempt(session):
+            # 할 일이 없다. 모델 서버를 부르지 않고 이 poll을 끝낸다.
+            return OverviewRunResult(False, expired_leases=len(expired))
+
         binding, client = self._resolve()
         if binding is None or client is None:
             return OverviewRunResult(False, expired_leases=len(expired))
 
-        if enqueue_overview_attempt(session, binding) is not None:
-            session.commit()
+        if candidate is not None:
+            # rollback은 ORM 인스턴스를 만료시키므로 식별자를 먼저 읽어 둔다.
+            candidate_review_id = candidate[0].id
+            candidate_notice_id = int(candidate[0].notice_id)
+            try:
+                if enqueue_overview_attempt(session, binding, candidate=candidate) is not None:
+                    session.commit()
+            except (OverviewAttemptError, OverviewScopeError) as error:
+                # attempt를 만들지 못하는 review는 다음 poll에도 같은 순서로
+                # 다시 뽑힌다. 다른 실패 경로와 같이 분류해 닫고 슬롯을 넘긴다.
+                session.rollback()
+                return self._fail_enqueue(
+                    session,
+                    candidate_review_id,
+                    candidate_notice_id,
+                    error.code,
+                    expired_leases=len(expired),
+                )
         attempt = claim_overview_attempt(
             session,
             worker_id,
@@ -457,6 +493,48 @@ class PreSpecOverviewRunner:
         )
         session.commit()
         return OverviewRunResult(True, attempt_id, "failed", code)
+
+    def _fail_enqueue(
+        self,
+        session: Session,
+        review_id: UUID,
+        notice_id: int | None,
+        reason_code: str,
+        *,
+        expired_leases: int,
+    ) -> OverviewRunResult:
+        """attempt를 만들지 못한 큐 유입을 분류해 닫는다 (명세 §6.3).
+
+        attempt row가 없으므로 감사는 review를 aggregate로 남긴다. 사유는
+        ``create_overview_attempt``가 낸 안정 code 그대로이며 원문·프롬프트·
+        경로는 담지 않는다. ``claimed``는 ``False``다 — 잡은 attempt가 없다는
+        사실 그대로이며, 그것을 ``status='failed'``와 사유 code가 설명한다.
+        """
+
+        code = (reason_code or "failed")[:64]
+        fail_overview_review(session, review_id)
+        session.add(
+            AuditEvent(
+                actor_kind="system",
+                claimed_name=None,
+                action=OVERVIEW_AUDIT_ACTION,
+                aggregate_type="prespec_overview_review",
+                aggregate_id=str(review_id),
+                safe_metadata={
+                    "notice_id": notice_id,
+                    "review_id": str(review_id),
+                    "sequence": None,
+                    "status": "failed",
+                    "reason_code": code,
+                    "quality_status": None,
+                    "response_sha256": None,
+                },
+            )
+        )
+        session.commit()
+        return OverviewRunResult(
+            False, None, "failed", code, expired_leases=expired_leases
+        )
 
     def _audit(
         self,

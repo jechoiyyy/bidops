@@ -580,7 +580,7 @@ class _StageClient:
         import json
         from uuid import NAMESPACE_URL, uuid5
 
-        from app.core.vllm_client import InvocationResult
+        from app.core.model_client import InvocationResult
 
         claims = []
         if stage == "requirements_and_evaluation":

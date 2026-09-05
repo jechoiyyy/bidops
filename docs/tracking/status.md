@@ -48,7 +48,7 @@
 | 통일 모델 클라이언트 | C-1 공고 판정·사전규격 개요·심층 검토가 `app/core/model_client.py` 하나를 `screening`·`overview`·`deep_review` 용도로 부른다. 용도마다 endpoint·허용 host·자격증명·선언 revision을 갖고 허용 host나 revision이 없으면 호출 전에 fail closed한다([ADR-0050](decisions/0050-unified-openai-compatible-model-client.md)). 이전 로컬 provider 설정 7개는 제거됐고 C-1 모델명이 `qwen3.8-27B`가 됐다 | 단위 테스트 범위. **live vLLM 호출은 이 저장소에서 실행하지 않았다.** C-2 발주계획 어댑터는 별도 transport로 남아 있다 |
 | 참조 실행 모드와 품질 표식 | `BIDOPS_REFERENCE_WORKFLOW_MODE`가 결정적 mock과 품질 미측정 실행을 허용하고, 결과에 `quality_status=measured\|unmeasured_reference\|mock_reference\|null` 표식이 붙는다. 개요 attempt는 표식이 필수다 | 단위 테스트 범위. **참조 실행 절차는 아직 실행되지 않았다**(운영 절차의 "사전규격 심층 검토 참조 실행"). 참조 실행 결과는 운영 완료·품질 근거가 아니다 |
 | 사전규격 자동 문서 준비 | effective grade가 `우선 검토`인 사전규격의 묶음 초안 생성·자동 확정, 새 확장점 `effective_grade_changed`, `GET /api/pre-specs`의 등급·자동 준비 필드 다섯([ADR-0049](decisions/0049-prespec-auto-preparation-and-auto-deep-review.md)) | 단위 테스트 범위. 목록 쿼리 수가 건수와 무관하게 12(묶음 없음)/14(자동 확정 묶음 있음)로 일정함을 확장 테스트가 고정한다 |
-| SW=Y 자동 심층 시작 | `SW사업대상=Y`·자동 확정 `ready` 묶음·개요 `completed`·권고가 `검토 종료`가 아닐 때 시스템 actor로 심층 검토 생성(`deep_review.auto_create`) | 단위 테스트 범위. **자동 생성된 검토를 실제로 실행하는 경로에 결함이 있다**([findings](findings.md)) — 실행 claim이 생성 감사 action을 `deep_review.create`로 고정해 자동 생성 건을 찾지 못한다 |
+| SW=Y 자동 심층 시작 | `SW사업대상=Y`·자동 확정 `ready` 묶음·개요 `completed`·권고가 `검토 종료`가 아닐 때 시스템 actor로 심층 검토 생성(`deep_review.auto_create`) | 단위 테스트 범위. 자동 생성 건을 실행하지 못하던 결함(생성 감사 action 고정)은 2026-09-05에 해결했다 — 생성 감사를 찾는 여덟 자리가 모두 `DEEP_REVIEW_CREATION_ACTIONS`를 본다([findings](findings.md)) |
 | 사전규격 개요 모델 실행 worker | 통일 client를 `overview` 용도로 묶어 실행하고, 검증 실패는 재호출 없이 `failed`, transport 실패만 1+2회 재시도한다. lease는 모듈 상수 1,200초이며 합성 analysis worker가 C-2 → 심층 → 개요 순서로 하나만 claim한다 | 단위 테스트 범위. 실제 모델 호출 기록 없음 |
 | 결정적 문서 segment·요구사항 inventory | 구조 저장 시점에 manifest·segment·inventory 항목을 append-only로 만들고 `GET /api/document-structures/{id}/segments`로 읽는다. 검증에 `requirement_inventory`·`segment_coverage` check 추가([ADR-0051](decisions/0051-deep-review-v2-deterministic-subset.md)) | 단위 테스트 범위. **이 변경 전 구조에는 manifest가 없고 조회가 404다**(사후 재구성 불가). 역할별 모델 분석과 Luna 평가는 보류 |
 | 문서 준비·실패 attempt 재시작 화면 | typed frontend API·type 변경은 worktree에 있으나 화면과 연결은 미구현 | 화면 검증 없음 |
@@ -98,23 +98,24 @@ screening 28 · deep_review 37). 두 수는 세는 대상이 다르며 어느 �
 
 ### 2026-09-05 문서 갱신 시점의 기준선
 
-이 절의 수치는 문서 갱신(ADR-0049~0051 반영) **직전** 코드 상태에서 나온 것이다. 문서 작업
-자신은 코드를 바꾸지 않았으므로 아래 수치를 그대로 물려받는다.
+아래 수치는 **branch head 트리에서 실제로 잰 값**이다. 앞선 문서 갱신 회차가 "코드를
+바꾸지 않았으므로 이전 수치를 물려받는다"고 적어 둔 문장은 사실이 아니었다 — 그 문서
+커밋 뒤에 코드와 테스트를 더한 커밋이 넷 있었다. 물려받기를 지우고 다시 쟀다.
 
-| 검증 | 기록된 결과 | 해석 |
+| 검증 | 측정 결과 | 해석 |
 |---|---|---|
-| backend `pytest` 전체 | `2 failed, 1406 passed, 5 skipped` | 실패 2건은 이주 이전부터 있던 `tests/screening/test_screening_orchestrator.py`의 결함(`'실패' == '부분 성공'`)이며 이번 변경의 회귀가 아니다 |
+| backend `pytest` 전체(`tests/`) | `2 failed, 1454 passed, 5 skipped` | 실패 2건은 이주 이전부터 있던 `tests/screening/test_screening_orchestrator.py`의 결함(`'실패' == '부분 성공'`)이며 이번 변경의 회귀가 아니다 |
+| `./run-tests.sh` | `145 passed`, exit 0 | 파이프라인 단위·교차 |
+| `scripts/verify_module_isolation.sh` | 세 조합 `전체: PASS` | 형제 모듈을 지운 임시 복사본 |
 | frontend `npm run test:screens` | `256 passed, 4 skipped` | 화면 게이트(의미 한 폭 + 구조 두 폭) |
 | frontend `npm run build` | exit 0 | TypeScript strict build와 Vite production bundle |
 | frontend `npm run test:contrast` | exit 0 | 테마 대비 게이트(ADR-0048) |
+| `docker compose -f docker-compose.yml build` | exit 0 | 애플리케이션 스택 이미지 |
+| OpenAPI 경로 수 | `75 paths` | `docs/contracts.md`의 경로 표와 일치 |
 | frontend `npm run test:pixel` | **돌리지 않음** | `pre-specs-list`·`deep-review-complete` 두 장이 코드와 어긋난 채 남아 있다. 게이트가 아니며 갈아 끼우지 않았다([findings](findings.md)) |
 
-문서 갱신 작업 자신이 실행한 것은 다음 둘뿐이다.
-
-| 검증 | 결과 |
-|---|---|
-| `pytest tests/app/test_module_boundaries.py -q` | `34 passed` |
-| `python -c "... len(app.openapi()['paths'])"` | `75 paths`. `docs/contracts.md`의 경로 표와 대조해 누락 하나(`GET /api/document-structures/{structure_id}/segments`)를 채웠다 |
+**이 표는 위 수치를 잰 시점의 트리를 말한다.** 그 뒤 최종 검토 지적을 고치며 회귀 검사를
+더했으므로 backend 통과 건수는 늘어 있다. 다음 회차는 물려받지 말고 다시 재서 적는다.
 
 **실제 vLLM 호출, 나라장터 다운로드, Compose 스택 기동은 이 작업에서 수행하지 않았다.**
 운영 절차의 "사전규격 심층 검토 참조 실행"은 아직 한 번도 실행되지 않은 절차다.
@@ -167,7 +168,7 @@ DB에 없다. 다만 byte-identical 파일이 `web/backend/app/screening/baselin
 
 1. **사람 몫 — 지금 던져두면 병렬로 돈다.** C-2 방식 선택은 완료했다. 기존 997건 실험의 gold 재판정 9건 확인, 별도 C-2 625건 gold의 잔여 87건 확인, D-7 방화벽 승인 상신이 남아 있다.
 2. **테스트 harness.** MinIO versioning fail-open과 host-wide DB·MinIO port publish는 2026-09-01에 닫았고 **알려진 운영 배포 blocker는 0이다.** `web/run-web-tests.sh`는 2026-08-31부터 있고(`84bbcc5`) 임시 PostgreSQL 17에서 backend pytest와 frontend build를 돌린다. 2026-09-01에 Playwright visual 회귀를 같은 진입점에 넣어 화면 검증이 문서에만 있는 게이트로 남지 않게 했다. **남은 것은 CI다.** 개별 파일만 지정해 pytest를 직접 치면 postgres 테스트가 여전히 조용히 skip되며, 이 저장소는 같은 부류 결함에 두 번 데였다.
-3. **껍데기를 실제로 도는 기능으로.** 사전규격 개요 model worker는 2026-09-05에 통일 client 위로 구현했다(참조 실행 단계). 남은 것은 **입찰 delta 계산 worker와 모델 adapter**, 문서 준비·실패 attempt 재시작 화면, T-19 판정 모델 계보 projection, 그리고 자동 생성된 심층 검토를 실행하지 못하는 결함([findings](findings.md))이다. 입찰 delta는 저장·REST·화면이 있으나 `bid_delta_comparison`이 `pending`에 머문다.
+3. **껍데기를 실제로 도는 기능으로.** 사전규격 개요 model worker는 2026-09-05에 통일 client 위로 구현했다(참조 실행 단계). 남은 것은 **입찰 delta 계산 worker와 모델 adapter**, 문서 준비·실패 attempt 재시작 화면, T-19 판정 모델 계보 projection이다. 자동 생성된 심층 검토를 실행하지 못하던 결함은 2026-09-05에 해결했다([findings](findings.md)). 입찰 delta는 저장·REST·화면이 있으나 `bid_delta_comparison`이 `pending`에 머문다.
 4. **판정을 믿을 수 있게.** 실제 model artifact digest·대표 HWP/PDF gold·사람 판정으로 Qwen·vLLM 품질 gate 2건을 측정하고, screening v3를 보고서 renderer에 명시적으로 연결한다.
 5. **선별 제품 — C-2 선택 완료.** BM25 Top 300→Qwen threshold·감사 표본 정책 확정 → 전체 발주계획 원본과 방식별 결과를 저장하는 불변 수집 회차·DB 계약 → 내부 opportunity와 plan·pre-spec·bid 공식 관계 및 사람 확인 대기 relation 후보 → 사전규격 독립 일일 수집·저비용 1차선별·사람 승인 gate 연결 → `계속 추적|보류|종료`, 입찰공고 발견, 사전규격 대비 material delta, 최종 사람 Go/No-Go.
 6. **이후 범위.** 실제 secret·MinIO allow/deny·egress firewall·backup/restore를 운영 환경에서 검증하고, 개발계정 API 요청 수를 실측해 증액 근거를 준비하며, SSO·역할 권한과 dashboard·외부 알림을 설계한다.
