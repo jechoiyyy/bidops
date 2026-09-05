@@ -42,6 +42,7 @@ from app.deep_review.services.auto_preparation import (
     AUTO_ACTOR_NAME,
     AUTO_DEEP_REVIEW_ACTION,
     REASON_BUNDLE_UNCHANGED,
+    auto_preparation_fields,
     maybe_auto_prepare,
     maybe_auto_start_deep_review,
 )
@@ -460,3 +461,106 @@ def test_a_freshly_confirmed_bundle_starts_the_deep_review_in_the_same_pass(
             select(AuditEvent).where(AuditEvent.aggregate_type == "deep_review")
         )
         assert audit is not None and audit.action == AUTO_DEEP_REVIEW_ACTION
+
+
+# --- 화면이 말하는 사유 = 실제로 시작하지 않은 이유 (명세 §6.4·§8) ------------
+
+
+def _sw_n(session: Session, seeded: SimpleNamespace) -> None:
+    notice = session.get(Notice, seeded.notice_id)
+    notice.qualification_flags_json = {"sw_business_status": "N"}
+
+
+def _human_confirmed(session: Session, seeded: SimpleNamespace) -> None:
+    session.get(DocumentBundle, seeded.bundle.id).confirmed_by_name = "담당자"
+
+
+def _overview_needs_human(session: Session, seeded: SimpleNamespace) -> None:
+    review = session.scalar(
+        select(PreSpecOverviewReview).where(
+            PreSpecOverviewReview.notice_id == seeded.notice_id
+        )
+    )
+    review.status = "needs_human_review"
+    review.result = None
+    review.completed_at = None
+
+
+def _overview_closed(session: Session, seeded: SimpleNamespace) -> None:
+    session.scalar(
+        select(PreSpecOverviewReview).where(
+            PreSpecOverviewReview.notice_id == seeded.notice_id
+        )
+    ).result = "검토 종료"
+
+
+def _snapshot_outside_bundle(session: Session, seeded: SimpleNamespace) -> None:
+    session.delete(
+        session.scalar(
+            select(DocumentBundleItem).where(
+                DocumentBundleItem.bundle_id == seeded.bundle.id
+            )
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    ("mutate", "expected"),
+    [
+        (_sw_n, "not_sw_business"),
+        (_human_confirmed, "bundle_not_auto_ready"),
+        (_overview_needs_human, "overview_not_completed"),
+        (_overview_closed, "overview_recommendation_closed"),
+        (_snapshot_outside_bundle, "overview_bundle_mismatch"),
+    ],
+)
+def test_the_projection_reports_the_same_reason_the_write_path_used(
+    engine, monkeypatch: pytest.MonkeyPatch, mutate, expected: str
+):
+    """읽기 시점 재계산이 쓰기 경로와 같은 규칙을 쓴다는 근거."""
+
+    with Session(engine) as session:
+        seeded = _seed(session, monkeypatch)
+        mutate(session, seeded)
+        session.commit()
+
+        fields = auto_preparation_fields(session, [seeded.notice_id])[seeded.notice_id]
+        outcome = maybe_auto_start_deep_review(session, seeded.notice_id, service=_service())
+
+        assert fields["auto_preparation_status"] == "deep_review_ready_for_click"
+        assert fields["auto_preparation_reason"] == expected
+        assert outcome.reason == expected
+        assert session.scalar(select(DeepReview)) is None
+
+
+def test_the_fail_closed_reason_reaches_the_rest_field(
+    engine, monkeypatch: pytest.MonkeyPatch
+):
+    """§6.4: active 설정이 없으면 그 사유가 `auto_preparation_reason`으로 보인다."""
+
+    with Session(engine) as session:
+        seeded = _seed(session, monkeypatch)
+        monkeypatch.delenv("BIDOPS_ACTIVE_PROFILE_VERSION_ID", raising=False)
+        monkeypatch.delenv("BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID", raising=False)
+
+        fields = auto_preparation_fields(session, [seeded.notice_id])[seeded.notice_id]
+        outcome = maybe_auto_start_deep_review(session, seeded.notice_id, service=_service())
+
+        assert fields["auto_preparation_status"] == "deep_review_ready_for_click"
+        assert fields["auto_preparation_reason"] == "service_unavailable"
+        assert outcome.reason == "service_unavailable"
+
+
+def test_a_started_deep_review_reports_no_reason_at_all(
+    engine, monkeypatch: pytest.MonkeyPatch
+):
+    """막은 것이 없으면 `null`이다. 자리표시자로 채우지 않는다."""
+
+    with Session(engine) as session:
+        seeded = _seed(session, monkeypatch)
+        assert maybe_auto_start_deep_review(session, seeded.notice_id, service=_service()).created
+
+        fields = auto_preparation_fields(session, [seeded.notice_id])[seeded.notice_id]
+
+        assert fields["auto_preparation_status"] == "deep_review_started"
+        assert fields["auto_preparation_reason"] is None
