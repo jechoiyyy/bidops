@@ -66,7 +66,7 @@ cp .env.example .env
 |---|---|---|
 | `.env` | `docker-compose.yml` | 프로세스 정체성, 로그, DB·MinIO 자격증명, 암호화 키, port, 승인 profile/policy 참조 |
 | `env/vllm.env` | `docker-compose.remote-vllm.yml` | 심층 검토용 사설 vLLM endpoint·allowlist·API key |
-| `env/screening.env` | `docker-compose.screening.yml` | 판정용 Ollama base URL·모델 |
+| `env/screening.env` | `docker-compose.screening.yml` | C-1 판정용 vLLM endpoint·allowlist·API key·선언 revision·모델 id |
 | `env/prespec-attachment.env` | `docker-compose.prespec-attachment.yml` | 사전규격 첨부 취득 host allowlist |
 | 없음 | `docker-compose.mock-reference.yml` | 전용 값을 override 파일 안에 리터럴로 선언한다 |
 
@@ -115,10 +115,10 @@ curl --fail "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/health"
 
 ### 목적별 overlay
 
-판정 파이프라인이 승인된 Ollama·나라장터 OpenAPI에 접근해야 할 때만 egress를 연다.
+판정 파이프라인이 승인된 모델 endpoint·나라장터 OpenAPI에 접근해야 할 때만 egress를 연다.
 
 ```bash
-cp env/screening.env.example env/screening.env   # BIDOPS_OLLAMA_BASE_URL을 채운다
+cp env/screening.env.example env/screening.env   # BIDOPS_VLLM_SCREENING_* 를 채운다
 docker compose --env-file .env --env-file env/screening.env \
   -f docker-compose.yml -f docker-compose.screening.yml up -d web
 ```
@@ -269,7 +269,7 @@ COMPOSE_PROJECT_NAME=bidops \
 
 - Docker가 없으면 `BIDOPS_TEST_POSTGRES_URL`에 **폐기 가능한** PostgreSQL 관리 URL을 준다. 운영 DB URL을 쓰지 않는다.
 - Playwright는 브라우저 번들을 자동으로 내려받지 않는다. 없으면 안내 문구와 함께 실패한다.
-- live Ollama·vLLM smoke는 운영자가 명시한 한 번의 명령과 대상에서만 수행한다. safety 환경변수가 true라는 사실만으로 실행하지 않는다.
+- live vLLM smoke는 운영자가 명시한 한 번의 명령과 대상에서만 수행한다. safety 환경변수가 true라는 사실만으로 실행하지 않는다.
 
 ## 백업과 복구
 

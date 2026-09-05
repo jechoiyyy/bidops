@@ -75,10 +75,10 @@ curl --fail "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/health"
 
 사설 vLLM 없이 웹과 문서 준비만 확인할 때는 remote-vLLM overlay를 빼고 기동할 수 있다. 이 경우 분석 worker가 모델 단계에서 실패하는 것은 정상이며 성공으로 보정하지 않는다.
 
-판정 파이프라인이 승인된 Ollama와 나라장터 OpenAPI에 접근해야 할 때만 다음 overlay를 추가한다.
+판정 파이프라인이 승인된 모델 endpoint와 나라장터 OpenAPI에 접근해야 할 때만 다음 overlay를 추가한다. 이 overlay는 `web`에 `model-egress` network를 붙이고 `screening` 용도 설정을 주입한다.
 
 ```bash
-cp env/screening.env.example env/screening.env   # BIDOPS_OLLAMA_BASE_URL을 채운다
+cp env/screening.env.example env/screening.env   # BIDOPS_VLLM_SCREENING_* 를 채운다
 COMPOSE_PROJECT_NAME=bidops docker compose \
   --env-file .env --env-file env/screening.env \
   -f docker-compose.yml -f docker-compose.screening.yml \
@@ -130,12 +130,14 @@ COMPOSE_PROJECT_NAME=bidops docker compose \
 1차 분류는 `BIDOPS_SCREENING_PROVIDER=mock`이다. 둘 다 `BIDOPS_REFERENCE_WORKFLOW_MODE`가
 참이 아니면 기동 전에 설정 검증에서 거부된다.
 
-mock 결과의 provider/model 계보는 `mock-analysis` / `bidops-deterministic-mock-v1`로 고정되고 policy quality는 `reference_workflow_unmeasured`, `deployable=false`다. 사업 판단이나 모델 품질 평가 근거로 사용하지 않는다.
+mock 결과의 provider/model 계보는 `mock-analysis` / `bidops-deterministic-mock-v1`로 고정되고 policy quality는 `reference_workflow_unmeasured`, `deployable=false`다. 응답과 화면에는 `quality_status=mock_reference` 표식이 붙는다. 사업 판단이나 모델 품질 평가 근거로 사용하지 않는다.
+
+`BIDOPS_REFERENCE_WORKFLOW_MODE=true`만 켜고 provider는 `vllm`으로 두면 실제 모델을 부르되 결과에 `quality_status=unmeasured_reference` 표식이 붙는다. 이 모드는 policy의 `model_name` 대조를 건너뛰지만 `model_endpoint_ref` 검사는 유지한다. **참조 실행 결과를 운영 완료·품질 근거·정책 활성화 근거로 기록하지 않는다.**
 
 1차 분류 mock은 `ScreeningAttempt.model_digest`가 mock 전용 상수
 (`app/screening/mock_transport.py`의 `MOCK_MODEL_DIGEST`)로 남는다. 저장된 판정이
-실제 모델 산출인지 mock인지는 이 값으로 판별한다. `model_name`은 `OllamaClient`가
-허용 모델만 받으므로 구별에 쓸 수 없다.
+실제 모델 산출인지 mock인지는 이 값으로 판별한다. `model_name`은 실제 경로도 설정된
+모델 id만 받으므로 구별에 쓸 수 없다.
 
 ### C-2 모델 revision 선언
 
@@ -167,9 +169,10 @@ BIDOPS_MODULES=lifecycle,screening  # deep_review 경로 없음
 - 의존은 import만 하고 등록은 지정 모듈만 한다. 꺼진 모듈의 REST 경로는 404다.
 - 값을 지정하지 않으면 분할 전과 같은 앱이 된다. 운영 `.env`에는 두지 않는다.
 
-worker 진입점은 셋뿐이다. 모델을 쓰는 심층 검토·C-2 선별 worker에는 단독 진입점이 없다.
-`app.workers.analysis` 한 프로세스가 둘을 합성하며, 이것이 **모델 슬롯 1개** 보장이다.
-두 worker를 따로 띄우는 명령을 만들지 않는다.
+worker 진입점은 셋뿐이다. 모델을 쓰는 C-2 선별·심층 검토·사전규격 개요 worker에는 단독
+진입점이 없다. `app.workers.analysis` 한 프로세스가 셋을 합성하며, 이것이 **모델 슬롯 1개**
+보장이다. 한 바퀴에서 C-2 → 심층 → 개요 순서로 **하나만** claim한다. 셋을 따로 띄우는 명령을
+만들지 않는다 — 동시에 뜨면 슬롯 1개 보장이 깨진다.
 
 ```bash
 python -m app.deep_review.workers.document            # 자격증명 없는 문서 worker
@@ -196,7 +199,7 @@ python -m app.lifecycle.ingest.cli --help   # --run <회차> | --all
 |---|---|---|
 | `.env` | `docker-compose.yml`, `docker-compose.sqlite-ops.yml` | 프로세스 정체성, 로그, DB·MinIO 자격증명, 암호화 키, port, 승인 profile/policy 참조 |
 | `env/vllm.env` | `docker-compose.remote-vllm.yml` | `BIDOPS_VLLM_BASE_URL`, `BIDOPS_VLLM_ALLOWED_HOSTS`, `BIDOPS_VLLM_API_KEY`, `BIDOPS_VLLM_MODEL_REVISION` |
-| `env/screening.env` | `docker-compose.screening.yml` | `BIDOPS_OLLAMA_BASE_URL`, `BIDOPS_OLLAMA_MODEL` |
+| `env/screening.env` | `docker-compose.screening.yml` | `BIDOPS_VLLM_SCREENING_BASE_URL`, `_ALLOWED_HOSTS`, `_API_KEY`, `_MODEL_REVISION`, `BIDOPS_VLLM_SCREENING_MODEL` |
 | 없음 | `docker-compose.mock-reference.yml` | 전용 값을 override 파일 안에 리터럴로 선언한다 |
 
 overlay 전용 값을 `.env`에 두지 않는다. `.env`에 두면 overlay를 붙이지 않은 기동에서도 endpoint가 주입되어 fail-closed 기본값이 흐려진다.
@@ -218,15 +221,15 @@ COMPOSE_PROJECT_NAME=bidops docker compose -f docker-compose.yml stop web analys
 |---|---|---|
 | 프로세스 | `BIDOPS_UID`, `BIDOPS_GID`, `BIDOPS_LOG_LEVEL`, `BIDOPS_LOG_TRACEBACK` | non-root, 기본 WARNING, 비밀 없는 로그 |
 | 나라장터 | `BIDOPS_G2B_API_KEY`, `BIDOPS_G2B_ATTACHMENT_ENABLED`, `BIDOPS_G2B_ATTACHMENT_ALLOWED_HOSTS`, `BIDOPS_G2B_ATTACHMENT_TIMEOUT_SECONDS` | API key는 수집 실행 때만 주입. 첨부 취득은 기본 false, 승인 host allowlist가 없으면 fail closed |
-| 로컬 판정 | `BIDOPS_OLLAMA_BASE_URL`, `BIDOPS_OLLAMA_MODEL`, context/output/timeout, concurrency/heartbeat/stale | 승인 endpoint, digest 고정, concurrency 1 |
+| C-1 공고 판정 | `BIDOPS_VLLM_SCREENING_{BASE_URL,ALLOWED_HOSTS,API_KEY,MODEL_REVISION}`, `BIDOPS_VLLM_SCREENING_MODEL`, `BIDOPS_SCREENING_{CONTEXT_SIZE,MAX_OUTPUT_TOKENS,SYNTHESIS_MAX_OUTPUT_TOKENS}`, `BIDOPS_SCREENING_PROVIDER`, concurrency/heartbeat/stale | 승인 endpoint, 배포 선언 revision 고정, concurrency 1. 허용 host나 revision이 비면 호출 전에 fail closed |
 | 일정·첨부 worker | `BIDOPS_SCHEDULER_ENABLED`, daily/weekly 시간, `BIDOPS_PRESPEC_ENABLED`, `BIDOPS_PRESPEC_ATTACHMENT_WORKER_CONCURRENCY`, `BIDOPS_PRESPEC_ATTACHMENT_WORKER_POLL_SECONDS`, `BIDOPS_PRESPEC_ATTACHMENT_LEASE_SECONDS` | 기본 false/worker 1·5초·120초, 품질 승인·운영자 확인·host firewall 뒤 활성화 |
 | DB | owner/migrate/app/worker/ro-backup 비밀번호, port | 역할 분리, migration은 전용 계정 |
 | 객체 저장소 | MinIO root와 namespace별 access/secret, endpoint, secure flag | 용도별 최소 권한, versioning 유지 |
 | 문서 검사 | ClamAV host/port/timeout | clean scan envelope 없이는 준비 단계 진행 금지 |
-| 심층 모델 | vLLM base URL, allowed hosts, model, API key, response encryption key/ref | 승인된 사설 endpoint만, 응답 암호화 |
+| 개요·심층 모델 | `BIDOPS_VLLM_{BASE_URL,ALLOWED_HOSTS,API_KEY,MODEL_REVISION}`과 `BIDOPS_VLLM_{OVERVIEW,DEEP_REVIEW}_*` override, response encryption key/ref | 승인된 사설 endpoint만, 응답 암호화. 모델명은 설정이 아니라 policy가 정한다 |
 | 모듈 선택 | `BIDOPS_MODULES` | 미지정이면 세 도메인 모듈 전부. 알 수 없는 이름·빈 값은 기동 실패. 꺼진 모듈 경로는 404 |
 | 활성 버전 | active profile version, active analysis policy version | 불변 ID, 빈 값이면 fail closed |
-| 외부 참조 | `BIDOPS_OPENAI_ENABLED`, reference workflow mode | 심층 검토 provider는 `BIDOPS_ANALYSIS_PROVIDER`의 `vllm`과 `mock` 둘뿐이며 hosted 외부 deep-review provider(codex-exec)와 그 overlay·설정은 저장소에서 제거됐다. 향후 발주계획 전용 projection에서만 공개 plan metadata+최소 승인 요약을 preview·건별 승인 후 전송 |
+| 외부 참조 | `BIDOPS_OPENAI_ENABLED`, `BIDOPS_REFERENCE_WORKFLOW_MODE` | 심층 검토 provider는 `BIDOPS_ANALYSIS_PROVIDER`의 `vllm`과 `mock` 둘뿐이며 hosted 외부 deep-review provider(codex-exec)와 그 overlay·설정은 저장소에서 제거됐다. 향후 발주계획 전용 projection에서만 공개 plan metadata+최소 승인 요약을 preview·건별 승인 후 전송 |
 
 ## 발주계획 선별 실험 운영
 
@@ -234,7 +237,7 @@ COMPOSE_PROJECT_NAME=bidops docker compose -f docker-compose.yml stop web analys
 
 1. 일반용역과 기술용역을 수집하고 발주계획 단계에서는 SW사업대상 여부로 선필터하지 않는다.
 2. 원본 응답, 정규화 전체 레코드, 조회 조건, 페이지, source hash, 최초 수집 시각을 보존한다.
-3. 키워드 규칙, ColBERT, Qwen3.8:27B, GPT Luna xhigh를 같은 모집단에 실행한다.
+3. 키워드 규칙, ColBERT, `qwen3.8-27B`, GPT Luna xhigh를 같은 모집단에 실행한다.
 4. GPT Luna에는 공개 발주계획 메타데이터와 별도 승인된 회사 역량 요약만 전송한다. 전송 전에 담당자가 payload를 확인하고 승인 기록을 남긴다.
 5. Sol xhigh 결과는 silver reference와 이견 탐색에만 사용한다. 최종 relevance·우선순위 정답은 사람이 판정한다.
 6. 방식별 recall, precision, 검토량, 중요 누락, 순위 품질, 비용, 지연, 재현성을 보고서에 기록한다.
@@ -279,6 +282,427 @@ python3 skills/bidops-collect/scripts/collect_order_plans.py \
 - 입찰 추적: `계속 추적` 기회에 대해 신규 공고와 정정공고를 확인하고 사전규격 대비 중요 변경을 계산한다.
 - 각 단계는 자동 연결 실행과 수동 단독 실행·재시도를 같은 실행 ID, artifact, 상태 전이 규칙으로 제공한다.
 
+## 사전규격 심층 검토 참조 실행
+
+이 절은 사전규격 하나를 **수집 → 판정 → 첨부 취득 → 자동 문서 준비 → 개요 검토 → 심층
+검토**까지 한 번 통과시키는 절차다. 담당자 한 사람이 처음부터 끝까지 혼자 실행할 수 있게
+단계마다 명령·overlay·환경변수·확인 방법·중단 기준을 적는다.
+
+> **이 절차는 아직 실행되지 않았다.** 이 문서를 쓴 시점에 vLLM 호출, 나라장터 다운로드,
+> Compose 스택 기동을 한 번도 수행하지 않았다. 아래 명령은 코드와 Compose 파일에서 읽어
+> 구성한 것이며, 실제 실행은 사용자가 한다. 아래 어떤 문장도 "이렇게 돌려 봤다"는 뜻이
+> **아니다.**
+
+> **결과의 성격.** 이 실행이 만드는 심층 검토와 개요 검토에는
+> `quality_status=unmeasured_reference`(실제 모델) 또는 `mock_reference`(결정적 mock) 표식이
+> 붙는다. 이것은 **참조 실행**이며 운영 완료, 모델 품질 근거, 정책 활성화 근거로 쓰지
+> 않는다. 사업 판단에 쓰지 않는다.
+
+### 시작 전 확인 — 반복해서 걸리는 다섯 가지
+
+이 다섯은 각 단계 본문에서 다시 언급하지만, 시작 전에 한 번에 읽어 두는 편이 낫다.
+
+1. **수집기 timeout은 300초로 준다.** `collect_notices.py`의 `--timeout` 기본값은 30초이고
+   사전규격 구간 수집에서는 거의 항상 모자란다.
+2. **회차 디렉터리는 host에서 만들고 `docker compose cp`로 컨테이너에 넣는다.** web
+   컨테이너에는 나라장터 API key가 없다. 수집은 host에서 하고 결과 디렉터리만 넣는다.
+3. **컨테이너 안에서 `127.0.0.1`을 쓰지 않는다.** 컨테이너의 loopback은 자기 자신이다.
+   DB는 `postgres`, 객체 저장소는 `minio`, 검사기는 `clamav`처럼 **서비스 이름**을 쓰고,
+   모델 서버는 컨테이너에서 도달 가능한 실제 IP를 쓴다.
+4. **`import-profile-policy`가 낸 UUID를 `.env`에 넣은 뒤 반드시 재기동한다.** 설정은
+   프로세스 시작 때 읽는다. 값만 넣고 재기동하지 않으면 심층 검토 생성이 계속
+   `service_unavailable`로 fail closed한다.
+5. **방화벽은 첨부 host와 모델 IP를 각각 한 곳만 연다.** overlay가 network를 붙이는 것과
+   egress가 안전한 것은 다른 문제다. overlay는 host 방화벽 정책을 대신하지 않는다.
+
+준비물은 나라장터 API key, 승인된 vLLM endpoint의 IP·port와 운영자가 확인해 준 64자 model
+revision, PostgreSQL·MinIO 자격증명이다. 이 문서에는 실제 주소·키를 적지 않는다.
+`<approved-ip>`, `<approved-port>`, `<64-hex-revision>` 자리에 담당자가 값을 넣는다.
+
+### 1단계. 담당자 커밋과 스택 기동
+
+작업 전에 현재 worktree가 깨끗한지 확인하고, 이 실행에서 만들 증거 파일이 어느 코드
+상태에서 나왔는지 고정한다.
+
+```bash
+cd /path/to/bidops
+git status --short
+git rev-parse HEAD
+cp .env.example .env          # 이미 있으면 건너뛴다
+export COMPOSE_PROJECT_NAME=bidops
+```
+
+`.env`에서 최소한 다음을 채운다. 비밀은 외부 secret manager에서 주입하고 `.env`는
+커밋하지 않는다.
+
+```text
+BIDOPS_REVIEWER=<담당자 이름>
+BIDOPS_G2B_API_KEY=<나라장터 키>
+BIDOPS_OWNER_PASSWORD / BIDOPS_MIGRATE_PASSWORD / BIDOPS_APP_PASSWORD /
+BIDOPS_WORKER_PASSWORD / BIDOPS_RO_BACKUP_PASSWORD
+BIDOPS_MINIO_ROOT_USER / BIDOPS_MINIO_ROOT_PASSWORD 및 용도별 access/secret 6쌍
+BIDOPS_MODEL_RESPONSE_ENCRYPTION_KEY / _KEY_REF
+```
+
+회사자료 세 파일이 regular file로 있어야 한다(없으면 Compose가 그 자리에 디렉터리를
+만들고 프로필 경계가 비정상적으로 실패한다).
+
+```bash
+test -f docs/reference/company-profile.md && test -r docs/reference/company-profile.md
+test -f docs/reference/company-performance-titles.tsv
+test -f web/backend/app/screening/baseline_company_profile.md
+```
+
+기동한다.
+
+```bash
+docker compose -f docker-compose.yml build
+docker compose -f docker-compose.yml up -d postgres minio clamav
+./scripts/init-runtime.sh
+docker compose -f docker-compose.yml up -d web document-worker
+curl --fail "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/health"
+```
+
+`curl`은 **host에서** 실행하므로 `127.0.0.1`이 맞다. 컨테이너 안에서 같은 주소를 쓰지
+않는다.
+
+- **확인**: `docker compose ps`에서 `postgres`·`minio`·`clamav`·`web`·`document-worker`가
+  healthy 또는 running이고, `/api/health`가 `{"status":"ok"}`다.
+- **중단 기준**: `init-runtime.sh`가 실패하거나 `/api/health`가 200이 아니면 다음 단계로
+  가지 않는다. MinIO versioning 검증 실패는 fail-closed가 정상 동작이므로 우회하지 않는다.
+  `document-worker`가 `PermissionError: '/scratch/inbox'`로 죽으면 스택을 중지하고
+  `document-scratch` volume만 지운 뒤 다시 올린다(장애 대응 절).
+
+### 2단계. `import-profile-policy`와 active ID 설정
+
+심층 검토는 승인된 profile version과 analysis policy version이 있어야 생성된다. 이 참조
+실행에서는 **품질 인자 없이** import한다 — 아직 측정한 값이 없기 때문이다.
+
+```bash
+docker compose -f docker-compose.yml exec web \
+  python -m app.deep_review.cli import-profile-policy \
+  --actor '<담당자 이름>'
+```
+
+품질 인자(`--sample-hash`, `--required-item-recall`, `--human-agreement`,
+`--unsupported-false-positive-rate`)를 **주지 않는다.** 하나라도 주면
+`--expected-policy-sha256`이 함께 필요하고, 측정하지 않은 값을 넣는 것은 이 절차의 범위를
+벗어난다. 인자 없이 import하면 policy의 품질 metadata가 비어 `deployable=false`가 되며,
+그래서 이 실행이 참조 실행이다.
+
+출력의 `profile_version_id`와 `policy_version_id`를 `.env`에 넣는다.
+
+```text
+BIDOPS_ACTIVE_PROFILE_VERSION_ID=<profile_version_id>
+BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID=<policy_version_id>
+BIDOPS_REFERENCE_WORKFLOW_MODE=true
+```
+
+**그리고 반드시 재기동한다.** 값만 넣고 재기동하지 않으면 프로세스가 옛 설정을 들고 있어
+심층 검토 생성이 계속 실패한다.
+
+```bash
+docker compose -f docker-compose.yml up -d --force-recreate web
+```
+
+- **확인**: `docker compose exec web env | grep BIDOPS_ACTIVE_`가 두 UUID를 보여 준다.
+  `import-profile-policy` 출력의 `active_configuration_changed`는 항상 `false`다 — 명령이
+  환경을 대신 바꾸지 않는다는 뜻이므로 정상이다.
+- **중단 기준**: 명령이 `policy_hash_mismatch`나 `invalid_request`로 끝나면 값을 고쳐 넣지
+  말고 멈춘다. UUID가 비어 있는 채로 다음 단계를 진행하면 6단계에서 fail closed한다.
+
+### 3단계. 사전규격 회차 수집·표본 선정·적재
+
+수집은 **host에서** 한다. web 컨테이너에는 API key가 없다.
+
+```bash
+RUN_ID=$(date +%Y%m%d)-prespec-ref
+python3 skills/bidops-collect/scripts/collect_notices.py \
+  --from-date <YYYY-MM-DD> --to-date <YYYY-MM-DD> \
+  --output-dir "data/runs/${RUN_ID}" \
+  --skip-bids \
+  --timeout 300
+```
+
+- `--skip-bids`는 입찰공고를 빼고 사전규격만 담는다. 둘은 같은
+  `collected-notices.json` 하나에 들어가므로 이 플래그가 없으면 입찰공고까지 적재된다.
+- `--timeout 300`이 핵심이다. 기본 30초로는 구간 수집이 거의 항상 끊긴다.
+- 원문 페이지는 `data/runs/${RUN_ID}/raw/`에 남는다. 재분류는 `--from-raw`로 API 호출 없이
+  반복할 수 있다.
+
+표본을 고른다. 판정은 `validation-set.json`을 입력으로 쓴다.
+
+```bash
+python3 skills/bidops-collect/scripts/select_validation_sample.py \
+  "data/runs/${RUN_ID}/collected-notices.json" \
+  --output "data/runs/${RUN_ID}/validation-set.json"
+```
+
+회차 디렉터리를 컨테이너에 넣고 적재한다.
+
+```bash
+docker compose -f docker-compose.yml cp "data/runs/${RUN_ID}" web:/app/data/runs/
+docker compose -f docker-compose.yml exec web \
+  python -m app.lifecycle.ingest.cli --run "${RUN_ID}"
+```
+
+- **확인**: `curl --fail "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/runs/${RUN_ID}/warnings"`에
+  차단 등급 경고가 없다. `/api/pre-specs`의 `total`이 DB의
+  `notice where source_type='pre_spec'` 건수와 같다.
+- **중단 기준**: 적재 경고에 차단 등급이 있으면 원인을 `docs/tracking/findings.md`에 적고
+  멈춘다. 수집 결과가 0건이면 날짜 구간을 바꿔 다시 수집한다 — 빈 회차를 적재하고 진행하면
+  뒤 단계의 실패 원인이 모호해진다.
+
+### 4단계. C-1 판정 실행
+
+이 단계부터 모델을 부른다. **먼저 host 방화벽에서 승인된 모델 IP와 port 한 곳만 열고**,
+그 다음에 overlay를 붙인다.
+
+```bash
+cp env/screening.env.example env/screening.env
+```
+
+`env/screening.env`를 채운다. 주소는 **컨테이너에서 도달 가능한** 값이어야 한다.
+
+```text
+BIDOPS_VLLM_SCREENING_BASE_URL=http://<approved-ip>:<approved-port>/v1
+BIDOPS_VLLM_SCREENING_ALLOWED_HOSTS=<approved-ip>
+BIDOPS_VLLM_SCREENING_API_KEY=EMPTY
+BIDOPS_VLLM_SCREENING_MODEL_REVISION=<64-hex-revision>
+BIDOPS_VLLM_SCREENING_MODEL=qwen3.8-27B
+```
+
+`<approved-ip>`에 `127.0.0.1`을 넣지 않는다. host에서 도는 모델 서버라면 컨테이너에서 보이는
+host 주소를 쓴다. `ALLOWED_HOSTS`는 base URL의 host와 **같은 리터럴**이어야 한다. 비어 있거나
+revision이 64자 hex가 아니면 C-1은 **호출 전에** fail closed한다.
+
+vLLM이 실제로 그 모델을 서빙하는지 먼저 확인한다(host에서).
+
+```bash
+curl --fail --silent --show-error \
+  -H 'Authorization: Bearer EMPTY' \
+  "http://<approved-ip>:<approved-port>/v1/models"
+```
+
+응답의 `data[].id`에 `qwen3.8-27B`가 있어야 한다. 없으면 `model_not_served`로 실패하므로
+여기서 멈추고 서버 운영자와 모델 id를 맞춘다.
+
+overlay를 붙여 `web`을 재기동한다.
+
+```bash
+docker compose --env-file .env --env-file env/screening.env \
+  -f docker-compose.yml -f docker-compose.screening.yml \
+  up -d web
+```
+
+판정을 실행한다. 회차 하나를 통째로 판정한다.
+
+```bash
+curl --fail -X POST \
+  -H 'Content-Type: application/json' \
+  -H 'X-BidOps-Actor-Name: <담당자 이름>' \
+  -d '{"scope":"full_run","policy_version":"<active policy version>","profile_source":"current"}' \
+  "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/runs/${RUN_ID}/pipeline/judgment"
+```
+
+요청 body의 정확한 필드는 `docs/contracts.md`의 `JudgmentExecutionCreateRequest`를 따른다.
+202가 오면 `execution_id`로 진행 상태를 본다.
+
+```bash
+curl --fail "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/screening/executions?run_id=${RUN_ID}"
+```
+
+- **확인**: execution 상태가 `성공` 또는 `부분 성공`이고, `/api/pre-specs`의 항목에 `grade`와
+  `grade_source=screening_judgment`가 채워진다. 최소 한 건이 `우선 검토`여야 다음 단계가
+  의미가 있다.
+- **중단 기준**:
+  - `503`으로 즉시 실패하면 모델 preflight 실패다. 허용 host·선언 revision·served id 셋을
+    다시 확인한다. **fail-closed를 우회하려고 값을 지어내지 않는다.**
+  - 모든 공고가 실패해 `실패`로 끝나면 멈춘다. `error_summary`의 안전 분류만 읽고 로그에서
+    prompt·응답 본문을 찾지 않는다.
+  - `우선 검토`가 한 건도 없으면 자동 준비가 열리지 않는다. 다른 구간으로 3단계를 다시
+    하거나 여기서 절차를 끝낸다 — 등급을 손으로 고쳐 넣지 않는다.
+  - 옛 모델 이름(`qwen3.8:27b`)으로 기록된 과거 execution이 같은 DB에 있으면 carry-over
+    검증과 enqueue에서 거부된다. 새 DB로 시작하거나 담당자가 이관을 별도로 판단한다.
+
+### 5단계. 첨부 취득 worker
+
+`우선 검토` 등급이 붙으면 첨부 취득 자격이 생긴다. **먼저 host 방화벽에서 승인된 G2B
+첨부 host 한 곳만 연다.**
+
+```bash
+cp env/prespec-attachment.env.example env/prespec-attachment.env
+# BIDOPS_G2B_ATTACHMENT_ALLOWED_HOSTS 를 방화벽에서 승인한 host와 같게 채운다
+docker compose --env-file .env --env-file env/prespec-attachment.env \
+  -f docker-compose.yml -f docker-compose.prespec-attachment.yml \
+  up -d prespec-attachment-worker
+```
+
+overlay가 `BIDOPS_G2B_ATTACHMENT_ENABLED=true`를 덮고 `prespec-egress` network를 붙인다.
+overlay 없이는 기본값 `false`로 worker가 idle이고, allowlist가 비면 fail closed한다.
+worker 설정은 concurrency 1, poll 5초, lease 120초다.
+
+- **확인**: `docker compose logs --since=10m prespec-attachment-worker`에 안전한 상태 전이만
+  보인다. `/api/pre-specs`의 항목 `document` 집계에서 `완료` 건수가 오르고,
+  `auto_preparation_status`가 `waiting_attachments`에서 넘어간다.
+- **중단 기준**: 로그에 URL·object key·로컬 경로·자격증명이 보이면 **즉시 중지하고 보고한다**
+  (문제 보고 절). 허용 host 밖 요청이 나가면 같다. 취득이 전부 `차단`·`실패`로 끝나면
+  방화벽과 allowlist를 확인하고, 그래도 안 되면 여기서 멈춘다 — 첨부를 손으로 넣어 절차를
+  이어 붙이지 않는다.
+
+### 6단계. 자동 준비·개요 검토·심층 검토 확인
+
+모델을 쓰는 worker는 `analysis-worker` 하나다. 개요와 심층은 이 프로세스가 합성하고 한
+바퀴에 하나만 claim한다. 개요 전용 진입점은 없다.
+
+```bash
+cp env/vllm.env.example env/vllm.env
+```
+
+`env/vllm.env`를 채운다. 여기 값은 `overview`와 `deep_review` 용도의 공유값이 된다.
+
+```text
+BIDOPS_VLLM_BASE_URL=http://<approved-ip>:<approved-port>/v1
+BIDOPS_VLLM_ALLOWED_HOSTS=<approved-ip>
+BIDOPS_VLLM_API_KEY=EMPTY
+BIDOPS_VLLM_MODEL_REVISION=<64-hex-revision>
+BIDOPS_C2_EXECUTION_ALLOWED=false
+BIDOPS_C2_CAPABILITIES_HOST_PATH=<승인된 파일 경로>
+BIDOPS_C2_PROMPT_HOST_PATH=<승인된 파일 경로>
+```
+
+`remote-vllm` overlay는 `web`에도 C-2용 read-only bind mount를 요구하므로 두 host 경로를
+비워 두면 기동이 거부된다. 이 참조 실행에서 C-2를 돌리지 않으므로
+`BIDOPS_C2_EXECUTION_ALLOWED`는 `false`로 둔다.
+
+```bash
+docker compose --env-file .env --env-file env/vllm.env \
+  -f docker-compose.yml -f docker-compose.remote-vllm.yml \
+  up -d analysis-worker
+```
+
+이 단계에서 사람이 누르는 것은 없다. 자동으로 다음이 일어난다.
+
+1. 등급이 `우선 검토`가 되고 첨부 취득이 끝나면 자동 준비가 묶음 초안을 만들고 확정한다
+   (`confirmed_by_name = auto-preparation`).
+2. 확정된 묶음으로 개요 검토가 실행된다.
+3. `SW사업대상=Y`이고 개요가 `completed`이며 권고가 `검토 종료`가 아니면 심층 검토가
+   자동으로 생성된다.
+
+진행은 사전규격 목록의 파생 필드로 읽는다.
+
+```bash
+curl --fail "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/pre-specs?limit=50"
+```
+
+`auto_preparation_status`가 `not_applicable → waiting_attachments → bundle_draft →
+bundle_ready → overview_running → deep_review_started`로 간다.
+`deep_review_ready_for_click`에서 멈추면 `auto_preparation_reason`이 **왜 자동으로 열리지
+않았는지**를 말한다(`not_sw_business`, `overview_recommendation_closed` 등). 그 값이 정상적인
+설명이면 화면에서 사람이 심층 검토를 실행한다.
+
+개요와 심층 결과를 본다.
+
+```bash
+curl --fail "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/pre-specs/<notice_id>/overview-reviews/v2"
+curl --fail "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/deep-reviews/<deep_review_id>"
+curl --fail "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/deep-reviews/<deep_review_id>/report"
+```
+
+- **확인**:
+  - 개요 attempt의 `quality_status`가 `unmeasured_reference`(실제 모델) 또는
+    `mock_reference`(mock)다. **둘 다 참조 실행이며 운영 완료가 아니다.**
+  - 심층 검토의 `status`가 `completed`이고 report의 `validation.status`를 읽는다.
+    `failed`도 정상적인 결과다 — 실패를 통과로 바꾸지 않는다.
+  - report의 `quality_status`가 위와 같은 표식이거나 `null`이다.
+  - `GET /api/document-structures/<structure_id>/segments`가 200이고 `segments[].confidence`가
+    전부 `null`이다.
+- **중단 기준**:
+  - 심층 검토 실행이 `503`으로 닫히면 pinned 입력 대조 실패다. 이 변경 **전에** 만들어진
+    검토는 `policy_quality` snapshot 모양이 달라 실행되지 않는다 — 새 attempt를 만든다.
+    DB row나 감사 metadata를 고쳐 통과시키지 않는다.
+  - 자동 생성된 심층 검토(`deep_review.auto_create`)가 실행에서 "입력 snapshot이 없습니다"로
+    닫히면 알려진 결함이다(`docs/tracking/findings.md`). 그 건은 여기서 멈추고, 사람이 만든
+    검토로 절차를 이어 간다.
+  - segments 조회가 404면 그 구조는 이 변경 전에 만들어져 manifest가 없다. 사후 재구성은
+    불가능하므로 문서를 다시 올려 새 구조를 만든다.
+  - 모델 호출이 `model_not_served`·`model_revision_invalid`·`identity_unavailable`로 끝나면
+    4단계의 확인을 `overview`/`deep_review` 용도에 대해 다시 한다. **다른 endpoint나 hosted
+    provider로 바꾸지 않는다.**
+
+### 7단계. 화면 확인과 증거 기록
+
+화면은 데스크톱·노트북 전용이다. 확인 viewport는 laptop 1280x800과 desktop 1440x900이다.
+
+| 화면 | 확인할 것 |
+|---|---|
+| `/pre-specs` | 등급과 `등급 출처 · 판정\|정정\|없음`, 자동 준비 8값 한국어 문구, 등급 필터가 **브라우저 쪽 필터**라는 안내 |
+| `/pre-specs/<notice_pk>` | 개요 카드의 품질 표식(`참조 실행 · 품질 미측정` 또는 `mock 참조`), 근거 locator로 원문 열기 |
+| `/deep-reviews/<id>` | 상단 카드 다섯(`종합 판단`·`검증 결과`·`미확인 사항`·`보고서 revision`·`품질 표식`), 우측 열 네 구역(`보고서 범위` → 문서 inventory → `보고서 수정본 저장` → 이력) |
+| 문서 inventory 패널 | 선택한 근거가 가리키는 **문서 하나**만 보인다는 안내와 segment 제목이 없는 이유 |
+
+등급 필터는 URL `/pre-specs?grade=<값>`으로 열린다. 허용 값은
+`우선 검토|검토 권장|관찰 대상|제외|판정 없음`이고 그 밖의 값은 `전체`로 떨어진다.
+`grade`를 바꾸면 `offset`이 초기화된다. **이 필터는 이미 받은 페이지만 좁히므로 상단의
+개요 상태 집계와 대상 집합이 다르다.** 화면이 그 사실을 적어 두었는지 함께 확인한다.
+
+증거는 `docs/validation-runs/<날짜>-prespec-deep-review-reference.md`에 남긴다. 아래 틀을
+그대로 쓴다. **실제로 실행한 명령과 요약 줄만 적고 이전 통과 기록을 재사용하지 않는다.**
+
+```markdown
+# 사전규격 심층 검토 참조 실행 — <YYYY-MM-DD>
+
+- 실행자: <담당자 이름>
+- 코드 상태: `git rev-parse HEAD` = <commit>
+- Compose project: bidops
+- 회차 ID: <RUN_ID>
+- 결과 성격: **참조 실행.** quality_status = <unmeasured_reference | mock_reference>
+  운영 완료·품질 근거·정책 활성화 근거가 아니다.
+
+## 단계별 결과
+
+| 단계 | 실행한 명령(요약) | 결과 | 비고 |
+|---|---|---|---|
+| 1 스택 기동 | | | |
+| 2 profile/policy import | | profile=<uuid> policy=<uuid> | 품질 인자 없이 import |
+| 3 수집·표본·적재 | | 수집 <n>건 / 적재 경고 <n>건 | `--skip-bids --timeout 300` |
+| 4 C-1 판정 | | execution=<id> 상태=<...> 우선 검토 <n>건 | |
+| 5 첨부 취득 | | 완료 <n> / 차단 <n> / 실패 <n> | 방화벽 승인 host: <host> |
+| 6 자동 준비·개요·심층 | | 자동 확정 <n> / 개요 completed <n> / 심층 <id> | |
+| 7 화면 확인 | | 1280x800, 1440x900 | |
+
+## 모델 binding
+
+- served model id: <...>
+- 배포 선언 revision: <64-hex 앞 8자리만 적는다>
+- endpoint: <자리표시자. 실제 IP·port를 적지 않는다>
+- 용도별 설정: screening / overview / deep_review
+
+## 관측한 실패와 그대로 남긴 것
+
+- <실패 분류 코드와 건수. 실패를 통과로 바꾼 조치가 있으면 안 된다>
+
+## 이 실행이 증명하지 않는 것
+
+- 모델 품질. 사람 gold도 A/B도 없다.
+- 운영 활성화 근거. `deployable=false`다.
+- 나라장터 데이터의 정확성.
+```
+
+증거 파일에 원문, 회사 프로필 전문, prompt, 모델 응답, 비밀값, object key, 실제 IP,
+자격증명을 넣지 않는다. 주소와 키는 자리표시자로 적는다.
+
+### 실행 뒤 정리
+
+```bash
+docker compose -f docker-compose.yml stop analysis-worker prespec-attachment-worker web
+```
+
+`docker compose down -v`와 volume 삭제는 하지 않는다. 회차 원본과 만들어진 검토는
+보존한다. 참조 실행이 만든 심층 검토를 나중에 실제 품질 실행으로 재사용하지 않는다 —
+provider/model 계보와 품질 표식이 고정돼 있으므로 새 묶음 또는 새 policy version으로 새
+검토를 만든다.
+
 ## 검증
 
 소스와 fake 모델 검증은 live API key나 model endpoint 없이 실행한다.
@@ -310,7 +734,7 @@ COMPOSE_PROJECT_NAME=bidops docker compose -f docker-compose.yml build
 
 `web/run-web-tests.sh`는 임시 PostgreSQL 17에서 migration을 수행하고, 격리 DB의 backend 테스트와 frontend production build, Playwright 화면 스냅샷 회귀를 실행한다. 검증 폭은 laptop 1280x800과 desktop 1440x900 두 폭이다(ADR-0047. 이전의 네 폭에서 모바일 390·태블릿 768을 없앴다). 화면 검사는 의미·구조·픽셀 세 층이며 게이트는 앞의 둘(`npm run test:screens`)이다. 픽셀 층(`npm run test:pixel`)은 기준 이미지 대조라 게이트가 아니고, 갈아 끼울 때는 사유·영향 화면·승인자를 기록에 남긴다([standards.md](standards.md)). Docker가 없으면 `BIDOPS_TEST_POSTGRES_URL`에 폐기 가능한 PostgreSQL 관리 URL을 제공한다. 운영 DB URL을 사용하지 않는다. Playwright는 브라우저 번들을 자동으로 내려받지 않으므로 없으면 실패한다.
 
-live Ollama 또는 vLLM smoke는 운영자가 명시한 한 번의 명령과 대상에서만 수행한다. safety 환경변수가 true라는 사실만으로 실행하지 않는다. 결과에는 모델명, digest 또는 승인된 immutable reference, 정책·프로필 버전, 입력 hash, 시작·종료 시각을 남긴다.
+live vLLM smoke는 운영자가 명시한 한 번의 명령과 대상에서만 수행한다. safety 환경변수가 true라는 사실만으로 실행하지 않는다. 결과에는 모델명, digest 또는 승인된 immutable reference, 정책·프로필 버전, 입력 hash, 시작·종료 시각을 남긴다.
 
 ## 백업
 

@@ -1,7 +1,7 @@
 # BidOps 데이터베이스 이해하기
 
-> 기준일: 2026-09-01
-> 기준 소스: PostgreSQL 17 `bidops` 스키마, Alembic head `0015_bid_delta_final_decision`, 현재 업무 계약
+> 기준일: 2026-09-05
+> 기준 소스: PostgreSQL 17 `bidops` 스키마, Alembic head `0018_prespec_auto_preparation_segments`, 현재 업무 계약
 > 대상 독자: 기획·사업개발 담당자, 운영자, 처음 프로젝트를 보는 개발자
 
 ## 한 문장으로 이해하기
@@ -12,7 +12,9 @@ BidOps DB는 공고의 최신값만 모아 둔 목록이 아니라, **어떤 회
 
 ## 먼저 알아둘 현재 기준
 
-현재 ORM과 Alembic head 기준 애플리케이션 테이블은 **68개**다. PostgreSQL 자체의 Alembic 관리 테이블 `alembic_version`은 이 수에 포함하지 않는다.
+현재 Alembic head 기준으로 이 문서가 세는 애플리케이션 테이블은 **71개**다. PostgreSQL 자체의 Alembic 관리 테이블 `alembic_version`은 이 수에 포함하지 않는다.
+
+이 71은 아래 여덟 영역의 합이며, ORM `Base.metadata`가 등록하는 **77개**와 다르다. 두 수는 세는 대상이 다르다 — 이 문서는 업무 영역으로 묶어 설명하는 표만 세고, ORM은 등록된 모든 표를 센다. 모듈 소유 기준으로는 core 2 + lifecycle 10 + screening 28 + deep_review 37 = 77이다. 어느 쪽 수치도 다른 쪽을 대신하지 않는다.
 
 | 구분 | 테이블 수 | 담당하는 일 |
 |---|---:|---|
@@ -21,10 +23,11 @@ BidOps DB는 공고의 최신값만 모아 둔 목록이 아니라, **어떤 회
 | 첨부 취득 | 3 | 첨부 메타데이터, 다운로드 큐, 기관 포털 정보 |
 | 문서 준비 | 8 | 파일 객체, 악성코드 검사, 문서 버전·구조·묶음 |
 | 사전규격 개요 검토 | 5 | 앞부분 절단 snapshot, 모델 실행·결과·상태 전이 계보 |
+| 문서 segment·요구사항 inventory | 3 | 결정적 segment manifest, segment, 요구사항 ID 항목 |
 | 심층 검토 | 17 | 고정 입력, 단계별 분석, 주장·근거, 리포트·검증·사람 의견 |
 | 판정 실행·품질·일정 | 12 | 실행 큐, 재시도, 프로필 snapshot, 품질 게이트, 정책·일정·감사 |
 | 입찰 delta·최종 결정 | 5 | 문서 쌍 고정, 비교 시도, 항목·근거, 사람 Go/No-Go |
-| 합계 | **68** | `alembic_version` 제외 |
+| 합계 | **71** | `alembic_version` 제외 |
 
 테이블이 있다는 사실과 그 업무가 운영 가능하다는 사실은 다르다. `0014`의 `prespec_overview_result`·`prespec_overview_attempt_event`는 phase 2 저장 기반만 만들었고 실제 모델 호출·검증 결과 API는 아직 없다. `0015`의 입찰 delta 5개 테이블도 endpoint까지는 있지만 비교 계산 worker와 모델 binding이 없어 `pending`·`running`에서 더 진행되지 않는다. **스키마의 존재**와 **워크플로우의 운영 가능 여부**를 같은 뜻으로 해석하면 안 된다.
 
@@ -407,7 +410,7 @@ version**으로 다시 등록한다.
 일반 업무 흐름에서 attachment를 물리 삭제하지 않는다. `retired_at`, `retired_reason`,
 `retired_by_name`으로 은퇴 처리한다.
 
-## 전체 68개 테이블 빠른 사전
+## 전체 71개 테이블 빠른 사전
 
 ### A. 수집·사업기회 7개
 
@@ -442,7 +445,7 @@ version**으로 다시 등록한다.
 | 테이블 | 쉬운 설명 |
 |---|---|
 | `attachment` | 공고가 제공한 첨부 메타데이터 |
-| `attachment_fetch` | 첨부 다운로드·검사 큐의 상태와 lease |
+| `attachment_fetch` | 첨부 다운로드·검사 큐의 상태와 lease. 자격 사유는 `sw_business_object`·`tracked_order_plan`·`both`·`priority_grade` 넷이다 |
 | `agency_portal` | 기관별 원문 포털 접근 정보 |
 
 ### D. 문서 준비 8개
@@ -458,13 +461,26 @@ version**으로 다시 등록한다.
 | `document_bundle` | 한 번의 심층 검토에 사용할 문서 집합 |
 | `document_bundle_item` | bundle에 고정된 문서 버전과 순서 snapshot |
 
+### D-2. 문서 segment·요구사항 inventory 3개
+
+| 테이블 | 쉬운 설명 |
+|---|---|
+| `document_segment_manifest` | 문서 구조 하나에 대한 결정적 segment 판. taxonomy version·추출 규칙 hash·coverage·경고를 담는다 |
+| `document_segment` | 순서가 있는 의미 단위. 분류 label, 시작·끝 위치, 요구사항 ID, 상태를 담는다 |
+| `requirement_inventory_item` | 문서에서 읽어 낸 요구사항 ID 항목 |
+
+세 표는 append-only이며 runtime role에 `SELECT`·`INSERT`만 준다. 분류는 규칙으로만 하므로
+`classification_source`가 `deterministic` 고정이고 `confidence`는 항상 비어 있다. 규칙이
+바뀌면 기존 행을 고치지 않고 새 행이 생긴다. 자세한 계약은
+[심층 검토 ERD](deep-review-erd.md)의 8.1절이다.
+
 ### E. 사전규격 개요 검토 5개
 
 | 테이블 | 쉬운 설명 |
 |---|---|
 | `prespec_overview_review` | 사전규격별 개요 검토의 현재 상태 |
 | `prespec_overview_snapshot` | 앞부분 절단 범위와 원문·구조 hash를 고정한 입력 |
-| `prespec_overview_attempt` | 개요 모델 실행의 불변 입력·binding과 제한된 lifecycle 상태 |
+| `prespec_overview_attempt` | 개요 모델 실행의 불변 입력·binding과 제한된 lifecycle 상태. worker lease는 `lease_owner`·`lease_expires_at`에 남는다 |
 | `prespec_overview_result` | 검증된 구조화 결과의 immutable payload와 digest |
 | `prespec_overview_attempt_event` | attempt 상태 전이의 append-only event |
 
@@ -523,7 +539,8 @@ version**으로 다시 등록한다.
 
 - 발주계획 선별 실험의 방식별 score·rank·reason·사람 정답을 저장하는 운영 테이블/API
 - 제목·유사도 기반 candidate opportunity 연결 생성의 완결된 앱 경로
-- 사전규격 overview phase 2의 실제 모델 실행·검증 서비스, 승인된 binding, 런타임 권한·새 API 계약 완결
+- 사전규격 overview의 **품질 측정**. 모델 실행 worker와 검증 서비스, 런타임 권한, API 계약은 구현됐으나 실행 결과에 `quality_status=unmeasured_reference|mock_reference` 표식이 붙는 참조 실행 단계다. 승인된 artifact와 사람 gold 측정이 남아 있다
+- deep-review-v2의 역할별 모델 분석과 segment의 모델 보조 분류 (결정적 segment·요구사항 inventory만 `0018`에 있다)
 - 입찰공고 delta의 비교 계산 worker와 모델 binding (테이블·endpoint는 `0015`에 있으나 실행 주체가 없다)
 - delta 결과 알림 전달 이력
 - SSO, 웹 사용자, 역할 기반 권한

@@ -821,7 +821,7 @@
           <article class="component data"><h3>PostgreSQL 17</h3><p><code>bidops</code> schema의 메타데이터·관계·상태·리뷰·감사 정본. Alembic 외 startup migration 금지.</p><footer>74 tables · head 0017</footer></article>
           <article class="component data"><h3>Versioned MinIO</h3><p>raw, attachment, document, structure, report, model response의 byte 정본. object hash와 version ID를 DB에 연결합니다.</p><footer>source / structure / quarantine</footer></article>
           <article class="component worker"><h3>보안·검사 경계</h3><p>ClamAV, MIME/구조 검사, 경로 격리, 최소 권한, 목적별 egress overlay. 외부 전송은 건별 승인입니다.</p><footer>fail closed by default</footer></article>
-          <article class="component core"><h3>외부 의존성</h3><p>나라장터 OpenAPI, Ollama Qwen, 승인된 사설 vLLM, Git profile 기준선. hosted OpenAI 자동 fallback은 없습니다.</p><footer>purpose-specific access</footer></article>
+          <article class="component core"><h3>외부 의존성</h3><p>나라장터 OpenAPI, 승인된 사설 OpenAI 호환 vLLM(<code>qwen3.8-27B</code>), Git profile 기준선. 모델 호출은 용도별 설정으로 나가며 hosted OpenAI 자동 fallback은 없습니다.</p><footer>purpose-specific access</footer></article>
         </section>
       </section>
 
