@@ -17,8 +17,10 @@ snapshot·blocking issue)는 그대로다. 조건이 깨지면 확정하지 않�
   안에서는 그 연결에 savepoint를 잡은 별도 session으로 돈다. 그 session의 commit은
   savepoint를 놓을 뿐 바깥 transaction을 끝내지 않는다.
 
-심층 검토는 여기서 만들지 않는다. SW사업대상=Y 자동 시작 규칙(명세 §6.4)은 다른
-작업의 몫이며, 이 모듈은 그 결과를 `auto_preparation_status`로 **읽기만** 한다.
+SW사업대상=Y 자동 심층 검토 시작(명세 §6.4)도 이 모듈이 갖는다. 조건 검사는
+`maybe_auto_start_deep_review`이고, 생성은 사람 경로와 **같은 함수**
+(`DeepReviewService.create_review`)를 시스템 actor로 부른다. 자동 시작은
+사업기회 추적 상태를 바꾸지 않으며 최종 입찰 Go/No-Go도 아니다.
 """
 
 from __future__ import annotations
@@ -28,7 +30,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-from uuid import UUID, uuid4
+from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -45,9 +47,12 @@ from ..models import (
     DocumentStructure,
     DocumentVersion,
     PreSpecOverviewReview,
+    PreSpecOverviewSnapshot,
 )
 from ..schemas.document_bundles import ConfirmRequest
 from .effective_grade import EffectiveGrade, effective_grades
+from .input_versions import InputVersionError, active_version_ids, resolve_active_versions
+from ...core.config import get_settings
 
 #: 시스템 actor의 표식 (명세 §6.2). 인증이 아니라 감사 표식이다.
 AUTO_ACTOR_NAME = "auto-preparation"
@@ -79,6 +84,28 @@ REASON_BLOCKING_ISSUES = "bundle_has_blocking_issues"
 REASON_BUNDLE_UNCHANGED = "bundle_unchanged"
 REASON_HUMAN_DRAFT = "human_bundle_draft"
 
+# --- SW사업대상=Y 자동 심층 검토 시작 (명세 §6.4) ----------------------------
+
+#: 자동 시작이 남기는 감사 이벤트 (명세 §8). 실제 기록은 사람 경로와 같은
+#: `DeepReviewService.create_review`가 하고, safe_metadata 모양도 같다 —
+#: `quality_status`가 이 action에서도 계산돼야 하기 때문이다.
+AUTO_DEEP_REVIEW_ACTION = "deep_review.auto_create"
+
+#: 개요 권고가 이 값이면 자동 시작하지 않고 사람 클릭으로 남긴다 (명세 §6.4).
+OVERVIEW_CLOSED_RECOMMENDATION = "검토 종료"
+
+#: 자동 시작 사유 코드. 안전한 코드만 남기고 예외 본문·경로·비밀값은 넣지 않는다.
+REASON_NOT_SW_BUSINESS = "not_sw_business"
+REASON_BUNDLE_NOT_AUTO_READY = "bundle_not_auto_ready"
+REASON_OVERVIEW_NOT_COMPLETED = "overview_not_completed"
+REASON_OVERVIEW_CLOSED = "overview_recommendation_closed"
+REASON_OVERVIEW_BUNDLE_MISMATCH = "overview_bundle_mismatch"
+REASON_DEEP_REVIEW_EXISTS = "deep_review_exists"
+#: active profile/policy 설정이 없거나 §6.5 조건이 맞지 않는다. 생성 경로가
+#: 내는 code와 같은 값이라 화면이 두 경로를 같은 이름으로 설명한다.
+REASON_SERVICE_UNAVAILABLE = "service_unavailable"
+REASON_PROCESSING_FAILED = "processing_failed"
+
 
 @dataclass(frozen=True)
 class AutoPreparationOutcome:
@@ -88,6 +115,17 @@ class AutoPreparationOutcome:
     bundle_id: UUID | None = None
     created: bool = False
     confirmed: bool = False
+    reason: str | None = None
+
+
+@dataclass(frozen=True)
+class AutoDeepReviewOutcome:
+    """공고 한 건에 대해 §6.4의 자동 시작이 실제로 한 일."""
+
+    notice_id: int
+    bundle_id: UUID | None = None
+    deep_review_id: UUID | None = None
+    created: bool = False
     reason: str | None = None
 
 
@@ -218,6 +256,7 @@ def _prepare_one(
     service: Any,
     run_id: str | None,
     review_id: int | None,
+    deep_review_service: Any = None,
 ) -> AutoPreparationOutcome:
     """이미 `우선 검토`로 확인된 공고 하나를 실제로 준비한다.
 
@@ -258,7 +297,15 @@ def _prepare_one(
     )
     if confirmed is not None and _bundle_fingerprint(session, confirmed.id) == fingerprint:
         # 같은 사전규격이 뒤 회차에서 다시 `우선 검토`여도 문서 집합이 같으면
-        # 아무것도 하지 않는다 (명세 §6.2 재수집 규칙).
+        # 새 묶음은 만들지 않는다 (명세 §6.2 재수집 규칙). 다만 §6.4의 자동
+        # 시작은 이 촉발(회차 적재·등급 변경)에서 다시 판단한다 — 지난번
+        # fail closed의 재시도가 일어나는 자리가 여기다.
+        #
+        # 재판단 전에 읽기만 한 savepoint를 놓는다. 확정 경로가 `confirm`의
+        # commit 뒤에 자동 시작을 부르는 것과 같은 이유다 — 이 함수가 끝나며
+        # 작업 session이 닫힐 때 자동 시작이 만든 것까지 되돌아가면 안 된다.
+        session.commit()
+        maybe_auto_start_deep_review(session, notice_id, service=deep_review_service)
         return AutoPreparationOutcome(
             notice_id=notice_id, bundle_id=confirmed.id, reason=REASON_BUNDLE_UNCHANGED
         )
@@ -331,9 +378,255 @@ def _prepare_one(
         )
     )
     session.commit()
+    # 묶음이 방금 `ready`가 됐다. 개요가 이미 완료돼 있으면 여기서 심층 검토가
+    # 시작된다 (명세 §6.4). 실패는 안전한 사유 코드로만 남고 위의 확정을
+    # 되돌리지 않는다.
+    maybe_auto_start_deep_review(session, notice_id, service=deep_review_service)
     return AutoPreparationOutcome(
         notice_id=notice_id, bundle_id=view.id, created=created, confirmed=True
     )
+
+
+# --- SW사업대상=Y 자동 심층 검토 시작 (명세 §6.4) ----------------------------
+
+
+def _sw_business_object(flags: Any) -> bool:
+    """발주기관이 매긴 `SW사업대상` 값. `unknown`·값 없음을 `Y`로 접지 않는다."""
+
+    return isinstance(flags, Mapping) and flags.get("sw_business_status") == "Y"
+
+
+def auto_start_reason(
+    *,
+    is_sw_business: bool,
+    ready_bundle_auto_confirmed: bool,
+    overview_status: str | None,
+    overview_result: str | None,
+    overview_document_in_bundle: bool,
+    active_versions_available: bool,
+) -> str | None:
+    """§6.4의 자동 시작을 막은 사유 코드. ``None``이면 막은 것이 없다.
+
+    **이 순서가 규칙 자체다.** 쓰기 경로(`_auto_start_scope`)와 읽기 경로
+    (`auto_preparation_fields`)가 같은 함수를 부르므로 화면이 말하는 사유와
+    실제로 시작하지 않은 이유가 갈리지 않는다.
+    """
+
+    if not is_sw_business:
+        # SW=N은 언제나 사람 클릭이다.
+        return REASON_NOT_SW_BUSINESS
+    if not ready_bundle_auto_confirmed:
+        # "자동 확정된 묶음이 `ready`"가 조건이다. 사람이 확정한 묶음은 사람이
+        # 심층 검토도 누른다.
+        return REASON_BUNDLE_NOT_AUTO_READY
+    if overview_status != "completed":
+        # `needs_human_review`·`failed`·`awaiting_model`은 자동 시작하지 않는다.
+        return REASON_OVERVIEW_NOT_COMPLETED
+    if overview_result == OVERVIEW_CLOSED_RECOMMENDATION:
+        return REASON_OVERVIEW_CLOSED
+    if not overview_document_in_bundle:
+        # 개요 snapshot은 문서 하나에 묶이므로, 그 문서가 묶음에 들어 있는지가
+        # "같은 묶음" 판정이다.
+        return REASON_OVERVIEW_BUNDLE_MISMATCH
+    if not active_versions_available:
+        # active profile/policy 설정이 없거나 §6.5 조건이 맞지 않는다.
+        return REASON_SERVICE_UNAVAILABLE
+    return None
+
+
+def _auto_start_scope(session: Session, notice_id: int) -> tuple[UUID | None, str | None]:
+    """§6.4의 조건을 검사해 (묶음 id, 사유 코드)를 돌려준다.
+
+    사유가 ``None``이면 자동 시작해도 되는 상태다. 조건이 하나라도 어긋나면
+    사람 클릭으로 남는다. 앞 조건이 이미 막았으면 뒤 조건은 **조회하지 않고**
+    통과 값으로 둔다 — 판단은 `auto_start_reason`이 순서대로 하므로 결과가
+    같고, SW=N 사전규격 한 건에 조회 하나만 쓴다.
+
+    active profile/policy는 여기서 보지 않는다. 그 fail closed는 생성 직전에
+    보고, 읽기 경로는 `auto_preparation_fields`가 따로 판단한다.
+    """
+
+    notice = session.get(Notice, notice_id)
+    if notice is None or notice.source_type != "pre_spec":
+        # 사전규격이 아니면 이 규칙의 대상이 아니다. 사유도 남기지 않는다.
+        return None, None
+
+    is_sw_business = _sw_business_object(notice.qualification_flags_json)
+    bundle = (
+        session.scalars(
+            select(DocumentBundle)
+            .where(DocumentBundle.notice_id == notice_id, DocumentBundle.status == "ready")
+            .order_by(DocumentBundle.revision.desc())
+            .limit(1)
+        ).first()
+        if is_sw_business
+        else None
+    )
+    ready_bundle_auto_confirmed = (
+        bundle is not None and bundle.confirmed_by_name == AUTO_ACTOR_NAME
+    )
+    review = (
+        session.scalar(
+            select(PreSpecOverviewReview).where(
+                PreSpecOverviewReview.notice_id == notice_id
+            )
+        )
+        if ready_bundle_auto_confirmed
+        else None
+    )
+    overview_status = review.status if review is not None else None
+    overview_result = review.result if review is not None else None
+
+    document_in_bundle = False
+    if bundle is not None and overview_status == "completed" and review is not None:
+        document_version_id = (
+            session.scalar(
+                select(PreSpecOverviewSnapshot.document_version_id).where(
+                    PreSpecOverviewSnapshot.id == review.current_snapshot_id
+                )
+            )
+            if review.current_snapshot_id is not None
+            else None
+        )
+        document_in_bundle = document_version_id is not None and (
+            session.scalar(
+                select(DocumentBundleItem.document_version_id)
+                .where(
+                    DocumentBundleItem.bundle_id == bundle.id,
+                    DocumentBundleItem.document_version_id == document_version_id,
+                )
+                .limit(1)
+            )
+            is not None
+        )
+
+    reason = auto_start_reason(
+        is_sw_business=is_sw_business,
+        ready_bundle_auto_confirmed=ready_bundle_auto_confirmed,
+        overview_status=overview_status,
+        overview_result=overview_result,
+        overview_document_in_bundle=document_in_bundle,
+        # active 설정은 이 함수의 판단 대상이 아니다.
+        active_versions_available=True,
+    )
+    return (bundle.id if bundle is not None else None), reason
+
+
+def _auto_request_id(
+    notice_id: int, bundle_id: UUID, profile_id: UUID, policy_id: UUID
+) -> UUID:
+    """불변 입력 묶음에서 유도한 결정적 request id.
+
+    같은 (공고, 묶음, active profile, active policy)를 다시 촉발해도 값이 같으므로
+    생성 경로의 idempotency 검사가 재생으로 처리한다. 무작위 값을 쓰면 같은
+    입력에 다른 요청이 쌓인다.
+    """
+
+    return uuid5(
+        NAMESPACE_URL,
+        f"bidops.deep-review.auto-create:{notice_id}:{bundle_id}:{profile_id}:{policy_id}",
+    )
+
+
+def maybe_auto_start_deep_review(
+    session: Session,
+    notice_id: int,
+    *,
+    service: Any = None,
+) -> AutoDeepReviewOutcome:
+    """§6.4의 조건이 모두 성립하면 심층 검토를 시스템 actor로 만든다.
+
+    **아무것도 되돌리지 않는다.** 촉발한 개요 완료나 묶음 확정은 이 함수의
+    성패와 무관하게 그대로 남는다 — 호출자가 transaction을 열어 두었으면
+    savepoint session에서 돌기 때문이다.
+
+    **추적 상태를 바꾸지 않는다.** 사업기회는 `미선택` 그대로이고, 자동 시작은
+    적합성 등급·참여 준비 상태·추적 선택·최종 Go/No-Go 중 어느 것도 대신하지
+    않는다.
+
+    실패는 예외로 오르지 않고 안전한 사유 코드로만 남는다. active profile/policy
+    설정이 없거나 §6.5 조건이 맞지 않으면 fail closed하고, 재시도는 다음 촉발
+    시점(회차 적재·등급 변경·개요 완료)에만 한다.
+    """
+
+    notice_id = int(notice_id)
+    try:
+        with _work_session(session) as work:
+            bundle_id, reason = _auto_start_scope(work, notice_id)
+            if reason is not None or bundle_id is None:
+                return AutoDeepReviewOutcome(
+                    notice_id=notice_id, bundle_id=bundle_id, reason=reason
+                )
+
+            try:
+                profile_id, policy_id = active_version_ids()
+            except InputVersionError as error:
+                # active ID가 없으면 만들지 않는다. 사유는 안정 code뿐이다.
+                return AutoDeepReviewOutcome(
+                    notice_id=notice_id, bundle_id=bundle_id, reason=error.code
+                )
+
+            existing = work.scalar(
+                select(DeepReview.id)
+                .where(
+                    DeepReview.notice_id == notice_id,
+                    DeepReview.bundle_id == bundle_id,
+                    DeepReview.profile_version_id == profile_id,
+                    DeepReview.policy_version_id == policy_id,
+                )
+                .limit(1)
+            )
+            if existing is not None:
+                # 같은 불변 입력에는 두 번 만들지 않는다 (명세 §6.4).
+                return AutoDeepReviewOutcome(
+                    notice_id=notice_id,
+                    bundle_id=bundle_id,
+                    deep_review_id=existing,
+                    reason=REASON_DEEP_REVIEW_EXISTS,
+                )
+
+            if service is None:
+                # 지연 import: 모듈 최상위에서 들면 서비스와 서로를 부르는
+                # 방향이 겹친다. 실제로 만들 일이 있을 때만 만든다.
+                from .deep_reviews import DeepReviewService
+
+                service = DeepReviewService()
+
+            try:
+                response = service.create_review(
+                    work,
+                    notice_id,
+                    bundle_id,
+                    AUTO_ACTOR_NAME,
+                    _auto_request_id(notice_id, bundle_id, profile_id, policy_id),
+                    actor_kind=AUTO_ACTOR_KIND,
+                )
+            except Exception as error:
+                # 예외 본문·경로는 버린다. 서비스가 붙인 안정 code만 남긴다.
+                work.rollback()
+                code = getattr(error, "code", None)
+                return AutoDeepReviewOutcome(
+                    notice_id=notice_id,
+                    bundle_id=bundle_id,
+                    reason=code if isinstance(code, str) and code else REASON_PROCESSING_FAILED,
+                )
+
+            created_id = None
+            if isinstance(response, Mapping):
+                try:
+                    created_id = UUID(str(response.get("id")))
+                except (TypeError, ValueError):
+                    created_id = None
+            return AutoDeepReviewOutcome(
+                notice_id=notice_id,
+                bundle_id=bundle_id,
+                deep_review_id=created_id,
+                created=True,
+            )
+    except Exception:
+        # savepoint session을 세우지 못하는 경우까지 포함해 자동 시작의 실패가
+        # 촉발한 쪽으로 오르지 않게 한다.
+        return AutoDeepReviewOutcome(notice_id=notice_id, reason=REASON_PROCESSING_FAILED)
 
 
 def maybe_auto_prepare(
@@ -344,6 +637,7 @@ def maybe_auto_prepare(
     review_id: int | None = None,
     root: Path | None = None,
     service: Any = None,
+    deep_review_service: Any = None,
 ) -> list[AutoPreparationOutcome]:
     """대상 공고마다 자동 묶음 생성·확정 조건을 검사하고 만족하면 실행한다.
 
@@ -413,6 +707,7 @@ def maybe_auto_prepare(
                             service=service,
                             run_id=run_id,
                             review_id=review_id,
+                            deep_review_service=deep_review_service,
                         )
                     except Exception:
                         # 예외 본문은 여기서 버린다. 다음 촉발에서 다시 시도된다.
@@ -447,12 +742,18 @@ def _status_for(
     bundles: Sequence[tuple[int, str, Any, str | None]],
     overview_status: str | None,
     has_pending_fetch: bool,
+    auto_start_reason_code: str | None = None,
 ) -> tuple[str, str | None]:
     """(`auto_preparation_status`, `auto_preparation_reason`)를 정한다.
 
-    `bundles`는 revision 내림차순의 `(revision, status, issues_snapshot, created_by)`다.
+    `bundles`는 revision 내림차순의 `(revision, status, issues_snapshot, created_by, ...)`다.
     등급이 내려가도 이미 만들어진 것을 되돌리지 않으므로, 실제로 존재하는
     산출물을 먼저 보고 등급은 마지막에 본다.
+
+    `auto_start_reason_code`는 §6.4의 자동 시작을 막은 사유이며
+    `deep_review_ready_for_click`에서만 나온다 — 사람이 눌러야 하는 이유가
+    바로 그 값이기 때문이다. 막은 것이 없으면 ``None``이고, 그 ``None``을
+    자리표시자로 채우지 않는다.
     """
 
     if not is_pre_spec:
@@ -474,13 +775,31 @@ def _status_for(
         if overview_status in _OVERVIEW_RUNNING_STATUSES:
             return "overview_running", None
         if overview_status in _OVERVIEW_SETTLED_STATUSES:
-            return "deep_review_ready_for_click", None
+            return "deep_review_ready_for_click", auto_start_reason_code
         return "bundle_ready", None
     if grade is None or not grade.is_priority:
         return "not_applicable", REASON_GRADE_NOT_PRIORITY
     if has_pending_fetch:
         return "waiting_attachments", REASON_AWAITING_FETCH
     return "waiting_attachments", REASON_NO_READY_DOCUMENT
+
+
+def _resolve_active_versions_ok(session: Session) -> bool:
+    """§6.4의 fail closed 조건을 읽는 시점에 다시 판단한다.
+
+    "active 환경변수가 없거나 §6.5 조건이 맞지 않으면"이 조건이고, 생성 경로가
+    그것을 확인하는 함수와 **같은 함수**를 쓴다. 실패 사유는 모두 하나의 안전한
+    code(`service_unavailable`)이며 예외 본문·경로는 보지 않는다.
+    """
+
+    try:
+        resolve_active_versions(
+            session,
+            allow_unmeasured_reference=bool(get_settings().reference_workflow_mode),
+        )
+    except Exception:
+        return False
+    return True
 
 
 def auto_preparation_fields(
@@ -495,12 +814,15 @@ def auto_preparation_fields(
     if not ids:
         return {}
 
-    kinds = {
-        int(notice_id): source_type
-        for notice_id, source_type in session.execute(
-            select(Notice.id, Notice.source_type).where(Notice.id.in_(ids))
-        ).all()
-    }
+    kinds: dict[int, str] = {}
+    sw_business: dict[int, bool] = {}
+    for notice_id, source_type, flags in session.execute(
+        select(Notice.id, Notice.source_type, Notice.qualification_flags_json).where(
+            Notice.id.in_(ids)
+        )
+    ).all():
+        kinds[int(notice_id)] = source_type
+        sw_business[int(notice_id)] = _sw_business_object(flags)
     grades = effective_grades(session, ids)
 
     pending_by_notice: set[int] = set()
@@ -512,28 +834,33 @@ def auto_preparation_fields(
         if status not in TERMINAL_FETCH_STATUSES:
             pending_by_notice.add(int(notice_id))
 
-    bundles_by_notice: dict[int, list[tuple[int, str, Any, str | None]]] = {}
-    for notice_id, revision, status, issues, created_by in session.execute(
+    bundles_by_notice: dict[int, list[tuple[int, str, Any, str | None, str | None, UUID]]] = {}
+    for notice_id, revision, status, issues, created_by, confirmed_by, bundle_id in session.execute(
         select(
             DocumentBundle.notice_id,
             DocumentBundle.revision,
             DocumentBundle.status,
             DocumentBundle.issues_snapshot,
             DocumentBundle.created_by_name,
+            DocumentBundle.confirmed_by_name,
+            DocumentBundle.id,
         )
         .where(DocumentBundle.notice_id.in_(ids))
         .order_by(DocumentBundle.notice_id.asc(), DocumentBundle.revision.desc())
     ).all():
         bundles_by_notice.setdefault(int(notice_id), []).append(
-            (int(revision), str(status), issues, created_by)
+            (int(revision), str(status), issues, created_by, confirmed_by, bundle_id)
         )
 
-    overview_by_notice = {
-        int(notice_id): status
-        for notice_id, status in session.execute(
-            select(PreSpecOverviewReview.notice_id, PreSpecOverviewReview.status).where(
-                PreSpecOverviewReview.notice_id.in_(ids)
-            )
+    overview_by_notice: dict[int, tuple[str, str | None, UUID | None]] = {
+        int(notice_id): (status, result, snapshot_id)
+        for notice_id, status, result, snapshot_id in session.execute(
+            select(
+                PreSpecOverviewReview.notice_id,
+                PreSpecOverviewReview.status,
+                PreSpecOverviewReview.result,
+                PreSpecOverviewReview.current_snapshot_id,
+            ).where(PreSpecOverviewReview.notice_id.in_(ids))
         ).all()
     }
 
@@ -545,17 +872,83 @@ def auto_preparation_fields(
     ).all():
         deep_review_by_notice.setdefault(int(notice_id), deep_review_id)
 
+    # §6.4의 자동 시작을 막은 사유를 **읽는 시점에 다시 계산한다**. 새 열을
+    # 만들지 않고, 규칙은 쓰기 경로와 같은 `auto_start_reason`이 판단한다.
+    # 아래 두 조회는 공고 수와 무관하게 각각 한 번이다 (명세 §8의 N+1 금지).
+    ready_bundle_by_notice = {
+        notice_id: next((row for row in rows if row[1] == "ready"), None)
+        for notice_id, rows in bundles_by_notice.items()
+    }
+    ready_bundle_ids = [row[5] for row in ready_bundle_by_notice.values() if row is not None]
+    bundle_documents: dict[UUID, set[UUID]] = {}
+    if ready_bundle_ids:
+        for bundle_id, document_version_id in session.execute(
+            select(DocumentBundleItem.bundle_id, DocumentBundleItem.document_version_id).where(
+                DocumentBundleItem.bundle_id.in_(ready_bundle_ids)
+            )
+        ).all():
+            bundle_documents.setdefault(bundle_id, set()).add(document_version_id)
+
+    # 자동 확정 묶음이 하나도 없으면 사유를 물을 일이 없다 — 그때는 두 조회를
+    # 모두 건너뛴다.
+    snapshot_ids = (
+        [row[2] for row in overview_by_notice.values() if row[2] is not None]
+        if ready_bundle_ids
+        else []
+    )
+    snapshot_documents: dict[UUID, UUID] = {}
+    if snapshot_ids:
+        snapshot_documents = {
+            snapshot_id: document_version_id
+            for snapshot_id, document_version_id in session.execute(
+                select(
+                    PreSpecOverviewSnapshot.id, PreSpecOverviewSnapshot.document_version_id
+                ).where(PreSpecOverviewSnapshot.id.in_(snapshot_ids))
+            ).all()
+        }
+
+    # active profile/policy는 배포 단위 설정이므로 공고 수와 무관하게 최대 한
+    # 번만 본다. 볼 일이 없으면 아예 보지 않는다.
+    active_versions: bool | None = None
+
+    def _active_versions_available() -> bool:
+        nonlocal active_versions
+        if active_versions is None:
+            active_versions = _resolve_active_versions_ok(session)
+        return active_versions
+
     fields: dict[int, Mapping[str, Any]] = {}
     for notice_id in ids:
         grade = grades.get(notice_id)
         deep_review_id = deep_review_by_notice.get(notice_id)
+        overview = overview_by_notice.get(notice_id)
+        ready_bundle = ready_bundle_by_notice.get(notice_id)
+        snapshot_document = (
+            snapshot_documents.get(overview[2])
+            if overview is not None and overview[2] is not None
+            else None
+        )
+        auto_start_reason_code = None
+        if kinds.get(notice_id) == "pre_spec" and deep_review_id is None and ready_bundle is not None:
+            auto_start_reason_code = auto_start_reason(
+                is_sw_business=sw_business.get(notice_id, False),
+                ready_bundle_auto_confirmed=ready_bundle[4] == AUTO_ACTOR_NAME,
+                overview_status=overview[0] if overview is not None else None,
+                overview_result=overview[1] if overview is not None else None,
+                overview_document_in_bundle=(
+                    snapshot_document is not None
+                    and snapshot_document in bundle_documents.get(ready_bundle[5], ())
+                ),
+                active_versions_available=_active_versions_available(),
+            )
         status, reason = _status_for(
             is_pre_spec=kinds.get(notice_id) == "pre_spec",
             grade=grade,
             deep_review_id=deep_review_id,
             bundles=bundles_by_notice.get(notice_id, ()),
-            overview_status=overview_by_notice.get(notice_id),
+            overview_status=overview[0] if overview is not None else None,
             has_pending_fetch=notice_id in pending_by_notice,
+            auto_start_reason_code=auto_start_reason_code,
         )
         fields[notice_id] = {
             # 판정도 정정도 없으면 `None`이다. 0이나 특정 등급으로 접지 않는다.
@@ -570,7 +963,17 @@ def auto_preparation_fields(
 
 __all__ = [
     "AUTO_ACTOR_KIND",
+    "AUTO_DEEP_REVIEW_ACTION",
+    "OVERVIEW_CLOSED_RECOMMENDATION",
     "REASON_AWAITING_FETCH",
+    "REASON_BUNDLE_NOT_AUTO_READY",
+    "REASON_DEEP_REVIEW_EXISTS",
+    "REASON_SERVICE_UNAVAILABLE",
+    "REASON_NOT_SW_BUSINESS",
+    "REASON_OVERVIEW_BUNDLE_MISMATCH",
+    "REASON_OVERVIEW_CLOSED",
+    "REASON_OVERVIEW_NOT_COMPLETED",
+    "REASON_PROCESSING_FAILED",
     "REASON_BLOCKING_ISSUES",
     "REASON_BUNDLE_UNCHANGED",
     "REASON_GRADE_NOT_PRIORITY",
@@ -579,9 +982,12 @@ __all__ = [
     "AUTO_ACTOR_NAME",
     "AUTO_CONFIRM_ACTION",
     "AUTO_TRIGGER",
+    "AutoDeepReviewOutcome",
     "AutoPreparationOutcome",
     "TERMINAL_FETCH_STATUSES",
     "auto_preparation_fields",
+    "auto_start_reason",
     "document_fingerprint",
     "maybe_auto_prepare",
+    "maybe_auto_start_deep_review",
 ]
