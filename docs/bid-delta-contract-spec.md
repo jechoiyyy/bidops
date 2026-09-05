@@ -571,7 +571,7 @@ item·evidence UPDATE/DELETE를 trigger로 거부한다. 실패 attempt의 부�
   허용한다. final decision에는 쓰기 권한이 없다.
 - 새 table은 runtime DML allowlist에 자동 포함하지 않는다. migration 뒤 명시적으로 검토한다.
 - startup은 migration, seed, policy 활성화, delta 계산을 실행하지 않는다.
-- 회사 내부망의 allowlist된 Ollama·사설 vLLM만 사용한다. 비교 생성 전에 exact 문서 pair,
+- 회사 내부망의 allowlist된 사설 vLLM만 사용한다. 비교 생성 전에 exact 문서 pair,
   category policy version, binding과 payload 범위를 표시하고 actor·request ID가 있는 생성
   요청을 해당 snapshot의 건별 내부 모델 처리 승인으로 감사한다.
 - 내부 binding 또는 건별 처리 승인이 없거나 payload가 승인 범위를 벗어나면 503으로 실패

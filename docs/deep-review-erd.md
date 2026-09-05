@@ -576,6 +576,70 @@ erDiagram
 - DB role은 `bidops_owner`/migration, `bidops_app`, `bidops_worker`, `bidops_ro_backup` 네 경계로
   제한한다.
 
+## 8.1 결정적 문서 segment 저장소 — 신규 3개 테이블 (`0018`)
+
+[ADR-0051](tracking/decisions/0051-deep-review-v2-deterministic-subset.md)이 채택한 결정적
+segment·요구사항 inventory를 담는다. Lean v1 동결 이후 추가된 표이므로 §2의 규모 표에는
+포함하지 않고 여기서 계약을 고정한다.
+
+| 테이블 | 담는 것 |
+|---|---|
+| `document_segment_manifest` | 구조 하나에 대한 manifest. taxonomy version, extractor binding과 그 SHA-256, payload hash, inventory 요약, coverage, 경고 |
+| `document_segment` | 순서가 있는 segment. taxonomy label, 시작·끝 locator, 요구사항 ID, source block key, 상태 |
+| `requirement_inventory_item` | 문서에서 읽은 요구사항 ID 항목 |
+
+계약은 다음과 같다.
+
+- 세 표 모두 **append-only**다. runtime role에는 `SELECT`와 `INSERT`만 준다.
+- FK는 `ondelete=CASCADE`이며 `(document_version_id, structure_id)` 복합 FK로 구조와 문서
+  버전의 짝을 강제한다.
+- manifest의 유일키는 `(structure_id, taxonomy_version, extractor_binding_sha256)`다.
+- **`schema_version` 열을 두지 않는다.** 판을 표시하는 것은 `taxonomy_version`과
+  `extractor_binding`이며, 규칙 표가 바뀌면 `rules_sha256`이 바뀌어 새 identity 키 = 새 row가
+  된다. 기존 row를 덮어쓰는 경로가 없다.
+- `document_segment.status`는 `classified|needs_human_review`, `classification_source`는
+  `deterministic` 고정, `ordinal >= 1`이다. `needs_human_review`면 `confidence`는 반드시
+  `NULL`이다. 실제로는 `classified`에서도 항상 `NULL`이다 — 결정적 규칙에는 확률이 없다.
+- `requirement_inventory_item.ordinal >= 1`이며 ID와 locator는 구조 검사를 받는다.
+- manifest는 **구조 저장 시점의 메모리 payload로만** 만든다. `document_block`에 ordinal이
+  없어 사후 재구성이 불가능하므로, 이 migration 이전에 만들어진 `DocumentStructure`에는
+  manifest가 없고 `GET /api/document-structures/{id}/segments`가 404다.
+
+## 8.2 `0018`의 기존 제약 변경과 명세 이름 정정
+
+`0018_prespec_auto_preparation_segments`는 기존 CHECK 둘을 바꾼다.
+
+| CHECK | 이전 | 이후 |
+|---|---|---|
+| `attachment_fetch.ck_attachment_fetch_eligibility_reason` | `('sw_business_object','tracked_order_plan','both')` | 여기에 `'priority_grade'`를 더한다 |
+| `prespec_overview_attempt.ck_prespec_overview_attempt_completed_binding` | `status <> 'completed' OR (reference_only IS FALSE AND deployable IS TRUE)` | `status <> 'completed' OR reference_only IS FALSE` |
+
+둘째 변경의 뜻은 **품질을 아직 재지 않은 실제 모델 실행(`deployable=false`,
+`reference_only=false`)도 `completed`가 될 수 있고, mock 참조 실행(`reference_only=true`)만
+완료를 막는다**는 것이다. 상태 전이 trigger는 그대로 둔다.
+
+**명세 이름 정정.** 이 변경을 요구한 명세(§7·§6.3)는 대상 CHECK를
+`ck_prespec_overview_attempt_completion`으로 **이름으로** 지목했다. 그 CHECK는 실제로는
+status·시각·result 참조의 생애주기 불변식이고, "완료는 배포 가능 binding만"을 강제하던 것은
+`ck_prespec_overview_attempt_completed_binding`이다. 명세가 인용한 새 본문의 모양도 후자의
+것이다. `..._completion`을 그 본문으로 바꾸면 §7이 건드리지 말라고 한 생애주기 불변식이
+사라진다. 따라서 **이름이 아니라 인용된 본문을 정본으로 읽어** `..._completed_binding`을
+교체했다. 이 정정은 migration 파일 머리주석에도 같은 내용으로 남아 있다.
+
+또한 `prespec_overview_attempt`에 nullable `lease_owner`(varchar 255)와
+`lease_expires_at`(timestamptz)이 추가된다. worker의 column-scoped UPDATE 허용 열은
+`status`·`started_at`·`completed_at`·`result_id`·`lease_owner`·`lease_expires_at` 여섯이다.
+lease 길이는 환경변수가 아니라 모듈 상수 1,200초다.
+
+**downgrade는 조용히 데이터를 잃지 않는다.** `priority_grade` 자격 행,
+`deployable=false`인 완료 attempt, 세 segment 표의 행 중 하나라도 있으면 추정 보정 없이
+거부한다.
+
+개요 attempt와 암호화된 원응답 사이에는 직접 FK가 없다. 원응답은 `ContentObject`와
+`ContentObjectLocation('model-response')`로 저장되고, 대조는 감사 이벤트의
+`response_sha256`으로 한다. 명세가 이 표에 두 열만 허용했으므로 이번 범위에서 FK를 만들지
+않았다.
+
 ## 9. FK 삭제와 불변 정책
 
 기본 FK는 `RESTRICT`/`NO ACTION`이다.

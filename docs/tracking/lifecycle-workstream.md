@@ -10,7 +10,7 @@
 - 측정으로 확인한 것만 사실로 적는다. 확인하지 않은 것은 `unknown`으로 남기고 추정하지 않는다.
 - 이 파일은 요약이다. 근거는 `validation-runs/`, 미해결 문제는 `findings.md`, 확정 결정은 `decisions/`가 정본이다.
 
-최종 갱신: 2026-09-01
+최종 갱신: 2026-09-05
 
 ---
 
@@ -100,7 +100,20 @@
 ## 결정 대기
 
 현재 신규 아키텍처 결정 대기는 없다. 2026-08-31의 결정 대기 목록(D-5~D-11)은 모두 결정이
-끝나 저장소에서 제거했다. 확정 결정은 [`../ADR.md`](../ADR.md)와 `decisions/`의 상세 ADR을 따른다.
+끝나 저장소에서 제거했다.
+
+2026-09-05에 담당자가 확인해 닫은 두 건은 다음과 같다. 열린 질문이 아니라 **내려진 결정**이다.
+
+- **선별→심층 검토 seam 함수가 셋에서 넷으로 늘었다.** `latest_corrected_grades`가
+  `latest_corrected_grade`의 batch 짝으로 추가됐다. 사유는 "N+1 금지, `notice_ids` 상수 회
+  조회"와 "세 이름만 쓰기"가 동시에 성립하지 않고, 회차 적재 hot path에서도 건별 조회가
+  되기 때문이다. 경계 허용 목록과 의존 방향은 그대로다.
+  `docs/ARCHITECTURE.md`와 `web/backend/AGENTS.md`의 "세 seam" 문장을 넷으로 고쳤다.
+- **명세가 이름으로 지목한 CHECK가 틀렸다.** `ck_prespec_overview_attempt_completion`은
+  status·시각·result 참조의 생애주기 불변식이고, "완료는 배포 가능 binding만"을 실제로
+  강제하던 것은 `ck_prespec_overview_attempt_completed_binding`이다. 인용된 새 본문의 모양도
+  후자이므로 **이름이 아니라 본문을 정본으로 읽어** `..._completed_binding`을 교체했다.
+  정정 기록은 [`deep-review-erd.md`](../deep-review-erd.md) 8.2절에 있다. 확정 결정은 [`../ADR.md`](../ADR.md)와 `decisions/`의 상세 ADR을 따른다.
 D-7·D-8·D-9 등 실행·관측·운영 승인 항목은 이 문서, `status.md`, `findings.md`에서 관리한다.
 
 ## 해야 할 일
@@ -134,7 +147,7 @@ D-7·D-8·D-9 등 실행·관측·운영 승인 항목은 이 문서, `status.md
 | T-20 | 사전규격 첨부 조건부 취득·적재 (quarantine → ClamAV → content object → bundle 없는 DocumentVersion·structure) | 완료 | 메타데이터는 전량 수집하고 `SW사업대상=Y` 또는 추적 중 발주계획 연결만 재평가 큐에 넣는다. strict G2B provenance, lease worker, 안전한 오류 분류, source 승격 전 스캔, version 멱등성을 구현했다. clean inspect 결과는 document bundle 경로와 같은 canonical helper로 `DocumentStructure`·`DocumentBlock`에 저장한다. 다운로드는 backend `prespec-attachment-worker`가 전담하며 egress는 명시적 overlay로만 연다. **스캔 통과 전에는 변환·파싱·제공하지 않으며**, 구조 저장 실패는 부분 `DocumentVersion`을 남기지 않고 rollback 후 실패 전이한다 (`security.md:56`) |
 | T-21 | 제안요청서 소제목·목차 분포 측정 | 완료 | 실제 문서 120건 수집·추출. 제안요청서·과업지시서 65건에서 **목차 보유 32%**, 첫 주제 소제목이 `사업개요`인 것 58%, **주제 소제목을 하나도 못 찾는 문서 14%**, `과업내용` 절 보유 66%. 번호 체계 최빈이 아라비아 62%. 첫 소제목 위치 p50 32 / p90 49 / 최대 211 block. **단일 규칙으로는 어떤 것을 골라도 최소 3분의 1이 사람에게 간다.** [validation-run](../validation-runs/20260831-prespec-rfp-structure.md) |
 | T-22 | 앞부분 잘라내기 규칙 확정 | 완료 | [ADR-0032](decisions/0032-prespec-overview-cutting-rule.md). 본문과 대응하는 목차 또는 의미 있는 주제 소제목을 쓰고, 모호하면 `unknown`으로 사람에게 보낸다 |
-| T-23 | `사전규격 개요 검토` 구현 | 진행 중 (phase 1 + phase 2 기반 완료, 실제 모델 실행 대기) | [ADR-0031](decisions/0031-prespec-overview-review-stage.md), [ADR-0032](decisions/0032-prespec-overview-cutting-rule.md), [ADR-0033](decisions/0033-prespec-overview-review-runtime-contract.md), [ADR-0035](decisions/0035-prespec-overview-attempt-result-lifecycle.md). clean RFP 선택·절단 snapshot·자동 준비·조회 API·상세 화면과 phase 2 immutable result/event·제한된 lifecycle service·safe v2 projection을 구현했다. DB는 구조 제약·runtime 권한·상태 전이 trigger 하나만 사용한다. 실제 모델 adapter·worker와 승인된 사설 binding은 아직 남았다 |
+| T-23 | `사전규격 개요 검토` 구현 | 완료 (참조 실행 단계) | [ADR-0031](decisions/0031-prespec-overview-review-stage.md), [ADR-0032](decisions/0032-prespec-overview-cutting-rule.md), [ADR-0033](decisions/0033-prespec-overview-review-runtime-contract.md), [ADR-0035](decisions/0035-prespec-overview-attempt-result-lifecycle.md). clean RFP 선택·절단 snapshot·자동 준비·조회 API·상세 화면과 phase 2 immutable result/event·제한된 lifecycle service·safe v2 projection을 구현했다. DB는 구조 제약·runtime 권한·상태 전이 trigger 하나만 사용한다. 2026-09-05에 실제 모델 실행 worker를 통일 client(`overview` 용도) 위로 구현했다([ADR-0050](decisions/0050-unified-openai-compatible-model-client.md)). 검증 실패는 재호출 없이 `failed`, transport 실패만 1+2회 재시도하고 lease는 모듈 상수 1,200초이며 합성 analysis worker가 C-2 → 심층 → 개요 순서로 하나만 claim한다. **실행 결과에는 `quality_status=unmeasured_reference|mock_reference` 표식이 붙으며 운영 완료가 아니다.** 승인된 artifact와 사람 gold 측정이 남았다 |
 | T-24 | 사전규격 화면의 SW사업대상 기본 필터와 `신규` 표시 | 완료 | 누적 `GET /api/pre-specs`와 `/pre-specs` 화면을 구현했다. 기본 SW 필터, 추적 예외(`SW사업대상=N` 포함), `추적`·`신규` 데이터 값, 문서 취득 상태 집계와 안전한 빈 상태를 제공한다. 전용 테스트 11건 |
 
 ## 이번 범위가 아닌 것
@@ -192,6 +205,10 @@ D-7·D-8·D-9 등 실행·관측·운영 승인 항목은 이 문서, `status.md
 | 2026-08-31 | T-9 완료. 일회용 PostgreSQL 17에서 배포를 막고 있던 Alembic version 컬럼 결함을 찾아 고치고, `0001`~`0007` upgrade·downgrade·제약조건·trigger를 실행 검증했다. 저장소의 PostgreSQL 테스트를 처음 돌려 `0004` 이후 갱신되지 않은 테스트 seed도 고쳤다 | [validation-run](../validation-runs/20260831-postgresql-migration-verification.md), `alembic/env.py`, `test_db_migrations.py` |
 | 2026-08-29 | T-10/T-11/T-13 완료. 발주계획 독립 artifact 적재·관측, 공고의 `orderPlanUntyNo` 투영, flush 후 대기 링크 해소 연결 | `collected-order-plans.json` / `bidops.collected-order-plans.v1`, `loader.py`, `test_order_plan_ingest_resolves_bid_first_waiting_reference` |
 | 2026-09-01 | C-2 Phase 0 계약 구현. 정책·binding·전용 artifact schema, 불변 입력/raw hash validator, REST·DB 명세와 활성화 blocker를 고정 | [ADR-0038](decisions/0038-order-plan-c2-phase0-contracts.md), `skills/bidops-screen/contracts/`, `validate_order_plan_phase0.py`; focused validator tests 및 skill suite 통과 |
+| 2026-09-05 | 모델 호출을 하나의 OpenAI 호환 client와 용도별 설정으로 통일. 이전 로컬 provider 설정 7개 제거, 용도별 endpoint·선언 revision, 참조 실행 모드와 `quality_status` 표식 | [ADR-0050](decisions/0050-unified-openai-compatible-model-client.md), `app/core/model_client.py` |
+| 2026-09-05 | 사전규격 자동 문서 준비와 `SW사업대상=Y` 자동 심층 시작. 새 확장점 `effective_grade_changed`, `GET /api/pre-specs`의 등급·자동 준비 필드 다섯 | [ADR-0049](decisions/0049-prespec-auto-preparation-and-auto-deep-review.md), `0018_prespec_auto_preparation_segments` |
+| 2026-09-05 | 결정적 문서 segment manifest·요구사항 inventory와 검증 연결. deep-review-v2의 결정적 부분만 채택하고 역할별 모델 분석·Luna 평가는 보류 | [ADR-0051](decisions/0051-deep-review-v2-deterministic-subset.md), `GET /api/document-structures/{id}/segments` |
+| 2026-09-05 | 사전규격 개요 모델 실행 worker를 통일 client 위로 구현. T-23 완료(참조 실행 단계) | `prespec_overview_runner.py`, 감사 action `prespec_overview.attempt_run` |
 
 ## 소거한 항목
 
