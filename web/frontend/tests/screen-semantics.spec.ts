@@ -370,6 +370,33 @@ test("클릭 대기 상태는 보고서 링크 대신 기존 심층 검토 실�
   await expect(page.locator(".pre-spec-detail-grade-row")).toContainText("등급 출처 · 정정");
 });
 
+// 명세 §6.2: 화면은 **현재 등급만** 보여 준다. 사람 정정이 있으면 정정된 값
+// 하나만 보이고, notice의 판정 등급을 라벨 없이 함께 두지 않는다 — 어느 쪽이
+// 현재 값인지 읽는 사람이 알 수 없게 되기 때문이다.
+test("사전규격 상세는 정정된 현재 등급 하나만 보여준다", async ({ page }) => {
+  await mockPreSpecAutoDetail(page, "corrected");
+  await page.goto("/pre-specs/991");
+  await expect(page.locator(".pre-spec-detail-grade-row")).toBeVisible({ timeout: 10_000 });
+
+  // 문서 준비 패널까지 그려진 뒤에 센다. 등급을 그리는 자리가 늘어나면 여기서 잡힌다.
+  await expect(page.locator("#document-preparation")).toBeVisible();
+
+  const gradeTexts = await page.evaluate(() => {
+    const labels = ["우선 검토", "검토 권장", "관찰 대상", "제외", "판정 없음"];
+    return [...document.querySelectorAll<HTMLElement>("body *")]
+      .filter((element) => element.children.length === 0)
+      .map((element) => (element.textContent ?? "").trim())
+      .filter((text) => labels.includes(text));
+  });
+  // 정정된 값 하나뿐이다. notice의 판정 등급(`우선 검토`)은 화면에 없다.
+  expect(gradeTexts).toEqual(["관찰 대상"]);
+  await expect(page.locator(".pre-spec-detail-grade-row")).toContainText("등급 출처 · 정정");
+  await expect(page.getByText("화면 참고 등급", { exact: false })).toHaveCount(0);
+
+  // 현재 등급이 우선 검토가 아니므로 서버가 다시 본다는 안내는 남는다.
+  await expect(page.locator(".document-preparation-gate")).toContainText("effective grade를 다시 확인합니다");
+});
+
 test("개요 카드가 참조 실행 품질 표식을 문자로 보여준다", async ({ page }) => {
   await mockPreSpecAutoDetail(page, "started");
   await page.goto("/pre-specs/991");

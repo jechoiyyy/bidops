@@ -55,7 +55,6 @@
   text-transform: uppercase;
 }
 
-.document-preparation-grade,
 .document-preparation-badge {
   display: inline-flex;
   min-height: 26px;
@@ -511,10 +510,6 @@
   .document-preparation-document > header {
     flex-direction: column;
     align-items: stretch;
-  }
-
-  .document-preparation-grade {
-    width: fit-content;
   }
 
   .document-preparation-actor {
