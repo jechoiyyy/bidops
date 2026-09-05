@@ -1,9 +1,9 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Badge, type BadgeVariant } from "../components/common/Badge";
-import { DocumentPreparationPanel } from "../components/deep-review/DocumentPreparationPanel";
-import { getDocumentStructurePage } from "../components/deep-review/api";
+import { BUNDLE_STATUS_LABELS, DocumentPreparationPanel } from "../components/deep-review/DocumentPreparationPanel";
+import { getDocumentBundles, getDocumentStructurePage } from "../components/deep-review/api";
 import { EmptyState } from "../components/common/EmptyState";
 import { Panel } from "../components/common/Panel";
 import { ReviewDecisionAction, ReviewHistoryLinkRail, StickyDecisionHeader } from "../components/common/ReviewPrimitives";
@@ -11,7 +11,18 @@ import { PreSpecDocumentSummary, TrackingDecisionControl, updateTrackingProjecti
 import { api } from "../lib/api";
 import { describeDeadline } from "../lib/deadline";
 import { formatDateTime, formatNumber, present } from "../lib/format";
-import { PRE_SPEC_OVERVIEW_STATUS_LABEL, preSpecOverviewStatusVariant } from "../lib/preSpecOverviewStatus";
+import { gradeLabel, gradeSourceLabel, gradeVariant } from "../lib/grade";
+import {
+  PRE_SPEC_AUTO_PREPARATION_STATUS_LABEL,
+  preSpecAutoPreparationReasonLabel,
+  preSpecAutoPreparationVariant,
+} from "../lib/preSpecAutoPreparation";
+import {
+  PRE_SPEC_OVERVIEW_NOT_STARTED_LABEL,
+  PRE_SPEC_OVERVIEW_STATUS_LABEL,
+  preSpecOverviewStatusVariant,
+} from "../lib/preSpecOverviewStatus";
+import { qualityStatusLabel, qualityStatusNote, qualityStatusVariant } from "../lib/qualityStatus";
 import type {
   PreSpecListItem,
   PreSpecListResponse,
@@ -101,6 +112,31 @@ function hasCanonicalOverviewNoticeId(
     ));
 }
 
+/** 자동 준비 진행 한 줄 단계 표시. 네 칸의 값은 모두 서버가 준 것이며 화면이
+ * 다른 값에서 다시 계산하지 않는다:
+ *
+ * 1. 첨부 취득 — 사전규격 projection의 상태별 건수
+ * 2. 묶음 — document bundle 응답의 `status`
+ * 3. 개요 — projection의 `overview_review_status`(행이 없으면 미시작)
+ * 4. 심층 검토 — projection의 `auto_preparation_status`와 그 사유
+ */
+interface AutoPreparationStepProps {
+  label: string;
+  value: string;
+  variant: BadgeVariant;
+  detail?: ReactNode;
+}
+
+function AutoPreparationStep({ label, value, variant, detail }: AutoPreparationStepProps) {
+  return (
+    <li className="pre-spec-auto-step">
+      <span className="pre-spec-auto-step-label">{label}</span>
+      <Badge label={value} variant={variant} />
+      {detail ? <span className="pre-spec-auto-step-detail">{detail}</span> : null}
+    </li>
+  );
+}
+
 function evidenceKey(evidence: PreSpecOverviewEvidence): string {
   return `${evidence.claim}-${evidence.locator.block_key}-${evidence.locator.page}-${evidence.locator.ordinal}`;
 }
@@ -124,6 +160,14 @@ export function PreSpecDetailPage() {
   const preSpecProjectionQuery = useQuery({
     queryKey: ["pre-spec-detail", noticeId],
     queryFn: ({ signal }) => api.getPreSpecs({ notice_pk: noticeId }, { signal }),
+    enabled: noticeId !== null,
+    staleTime: 30_000,
+  });
+  // DocumentPreparationPanel과 **같은 query key**를 쓴다. 단계 표시가 새 요청을
+  // 만들지 않고 이미 있는 bundle 응답을 함께 읽는다.
+  const bundleQuery = useQuery({
+    queryKey: ["document-bundles", noticeId],
+    queryFn: () => getDocumentBundles(noticeId as number),
     enabled: noticeId !== null,
     staleTime: 30_000,
   });
@@ -227,6 +271,18 @@ export function PreSpecDetailPage() {
     : sourceBlocks.slice(Math.max(0, selectedBlockIndex - 1), Math.min(sourceBlocks.length, selectedBlockIndex + 2));
   const preSpecItem = preSpecProjectionQuery.data?.items.find((item) => item.notice_pk === noticeId);
   const trackingStatusLabel = preSpecItem?.tracking_status ?? "미선택";
+  // 묶음 상태는 최신 revision 하나만 본다. 없으면 "묶음 없음"이며 초안으로
+  // 보정하지 않는다.
+  const latestBundle = [...(bundleQuery.data?.items ?? [])].sort((left, right) => right.revision - left.revision)[0] ?? null;
+  const autoStatus = preSpecItem?.auto_preparation_status ?? null;
+  const autoReasonLabel = preSpecAutoPreparationReasonLabel(preSpecItem?.auto_preparation_reason ?? null);
+  const autoDeepReviewId = preSpecItem?.latest_deep_review_id ?? null;
+  const documentCounts = preSpecItem?.document ?? null;
+  const overviewStatusForStep = preSpecItem
+    ? (preSpecItem.overview_review_status === null
+      ? PRE_SPEC_OVERVIEW_NOT_STARTED_LABEL
+      : PRE_SPEC_OVERVIEW_STATUS_LABEL[preSpecItem.overview_review_status])
+    : null;
 
   return (
     <section className="pre-spec-detail-page detail-skeleton" data-astryx-theme="bidops" aria-labelledby="pre-spec-detail-title">
@@ -257,6 +313,80 @@ export function PreSpecDetailPage() {
             <span className={`pre-specs-deadline is-${deadline.urgency} mono tabular-nums`}>{deadline.label}</span>
             {notice.url ? <a href={notice.url} target="_blank" rel="noreferrer">나라장터 원문</a> : null}
           </div>
+        </div>
+
+        {/* 등급과 등급 출처(명세 §6.8). 등급은 서버가 준 값 그대로이며 화면이
+            판정하지 않는다. 판정도 사람 정정도 없으면 `판정 없음`이고, 그것은
+            다섯 번째 등급이 아니라 아직 판정하지 않았다는 뜻이다. */}
+        <div className="pre-spec-detail-grade-row">
+          <span className="pre-spec-detail-grade-label">적합성 등급</span>
+          {preSpecProjectionQuery.isPending ? (
+            <span className="pre-spec-detail-grade-source">등급을 불러오는 중입니다.</span>
+          ) : (
+            <>
+              <Badge label={gradeLabel(preSpecItem?.grade ?? null)} variant={gradeVariant(preSpecItem?.grade ?? null)} />
+              <span className="pre-spec-detail-grade-source">
+                등급 출처 · {gradeSourceLabel(preSpecItem?.grade_source ?? null)}
+              </span>
+            </>
+          )}
+        </div>
+
+        {/* 자동 준비 진행 — 첨부 취득 → 묶음 → 개요 → 심층 검토. */}
+        <div className="pre-spec-auto-preparation" aria-label="자동 준비 진행">
+          <ol className="pre-spec-auto-steps">
+            <AutoPreparationStep
+              label="1 · 첨부 취득"
+              value={documentCounts ? `${documentCounts.attachments}건` : "집계 없음"}
+              variant={documentCounts && (documentCounts["차단"] > 0 || documentCounts["실패"] > 0) ? "alert" : "neutral"}
+              detail={documentCounts
+                ? `완료 ${documentCounts["완료"]} · 대기 ${documentCounts["대기"]} · 진행 ${documentCounts["진행"]} · 차단 ${documentCounts["차단"]} · 실패 ${documentCounts["실패"]}`
+                : "사전규격 projection이 없어 첨부 집계를 표시하지 않습니다."}
+            />
+            <AutoPreparationStep
+              label="2 · 문서 묶음"
+              value={bundleQuery.isPending
+                ? "확인 중"
+                : latestBundle ? BUNDLE_STATUS_LABELS[latestBundle.status] : "묶음 없음"}
+              variant={latestBundle?.status === "ready"
+                ? "evidence-confirmed"
+                : latestBundle?.status === "failed" || latestBundle?.status === "quarantined" || latestBundle?.status === "needs_review"
+                  ? "alert"
+                  : "neutral"}
+              detail={latestBundle ? `revision ${latestBundle.revision}` : undefined}
+            />
+            <AutoPreparationStep
+              label="3 · 개요 검토"
+              value={overviewStatusForStep ?? "확인 중"}
+              variant={preSpecItem && preSpecItem.overview_review_status !== null
+                ? preSpecOverviewStatusVariant(preSpecItem.overview_review_status)
+                : "neutral"}
+            />
+            <AutoPreparationStep
+              label="4 · 심층 검토"
+              value={autoStatus ? PRE_SPEC_AUTO_PREPARATION_STATUS_LABEL[autoStatus] : "확인 중"}
+              variant={autoStatus ? preSpecAutoPreparationVariant(autoStatus) : "neutral"}
+              detail={autoReasonLabel ?? undefined}
+            />
+          </ol>
+          {autoStatus === "deep_review_started" && autoDeepReviewId ? (
+            <Link className="pre-spec-auto-preparation-link" to={`/deep-reviews/${autoDeepReviewId}`}>
+              자동 시작된 심층 검토 보고서 열기 →
+            </Link>
+          ) : null}
+          {autoStatus === "deep_review_started" && !autoDeepReviewId ? (
+            <p className="pre-spec-auto-preparation-note">
+              심층 검토가 자동으로 시작됐지만 응답에 식별자가 없어 보고서로 갈 수 없습니다. 다른 보고서로 대신 보내지 않습니다.
+            </p>
+          ) : null}
+          {autoStatus === "deep_review_ready_for_click" ? (
+            <a className="pre-spec-auto-preparation-link" href="#document-preparation">
+              심층 검토 실행 · 아래 문서 준비에서 시작 →
+            </a>
+          ) : null}
+          <p className="pre-spec-auto-preparation-note">
+            자동 준비는 문서를 모으는 단계까지입니다. 추적 선택·참여 준비 상태·최종 입찰 Go/No-Go를 대신하지 않습니다.
+          </p>
         </div>
 
         {/* 처리 상태·검증 상태·입력 준비 배지는 본문(개요 검토 상태 패널)과
@@ -383,6 +513,13 @@ export function PreSpecDetailPage() {
           ) : null}
           {overview ? (
             <div className="pre-spec-overview-content">
+              {/* 개요 카드의 품질 표식(명세 §6.3·§8). 참조 실행과 mock 참조를
+                  운영 완료로 보이게 하지 않고, 표식이 없으면 `표식 없음`이다. */}
+              <div className="pre-spec-overview-quality">
+                <span>품질 표식</span>
+                <Badge label={qualityStatusLabel(overview.quality_status)} variant={qualityStatusVariant(overview.quality_status)} />
+                <p>{qualityStatusNote(overview.quality_status)}</p>
+              </div>
               {overview.result ? (
                 <>
                   <div className={`pre-spec-overview-decision ${overview.validation_status === "passed" ? "" : "is-unverified"}`}>

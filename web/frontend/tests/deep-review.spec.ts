@@ -226,18 +226,23 @@ test.describe("심층 검토 보고서 접근성·반응형 계약", () => {
 
 // ── PLAN 단계 F 작업 5 ─────────────────────────────────────────────────────
 
-test("심층 검토 보고서는 상단 카드 4개와 결정 카드 요약 표를 갖는다", async ({ page }) => {
+// 상단 카드는 넷이었고 명세 §6.5의 품질 표식이 다섯 번째로 붙었다. 표식은
+// 실행이 참조 실행인지 측정 통과인지를 문자로 말하며, 값이 없는 옛 revision은
+// `표식 없음`이다.
+test("심층 검토 보고서는 상단 카드 5개와 결정 카드 요약 표를 갖는다", async ({ page }) => {
   await mockApi(page);
   await mockDeepReviewLifecycle(page, "completed");
   await page.goto("/deep-reviews/fixture-review");
 
   const cards = page.locator(".deep-review-summary-card");
-  await expect(cards).toHaveCount(4);
+  await expect(cards).toHaveCount(5);
   await expect(cards.nth(0)).toContainText("종합 판단");
   await expect(cards.nth(1)).toContainText("검증 결과");
   await expect(cards.nth(2)).toContainText("미확인 사항");
   await expect(cards.nth(3)).toContainText("보고서 revision");
   await expect(cards.nth(3)).toContainText("append-only");
+  await expect(cards.nth(4)).toContainText("품질 표식");
+  await expect(cards.nth(4)).toContainText("참조 실행 · 품질 미측정");
 
   // 계약에 없는 축(참여 준비 상태)을 카드로 채우지 않고 그 사실을 밝힌다.
   await expect(page.locator(".deep-review-summary-note")).toContainText("참여 준비 상태");
@@ -248,15 +253,18 @@ test("심층 검토 보고서는 상단 카드 4개와 결정 카드 요약 표�
   await expect(table.getByRole("columnheader")).toHaveText(["항목", "내용", "근거", "검증"]);
 });
 
-test("우측 열은 보고서 범위·수정본 저장·이력 순서로 배치된다", async ({ page }) => {
+// 명세 §6.8이 문서 inventory와 사람 확인 필요 segment를 우측 열에 더한다.
+// 문서 사실을 범위 다음에 두고, 편집·이력은 그 뒤로 밀린다.
+test("우측 열은 보고서 범위·문서 inventory·수정본 저장·이력 순서로 배치된다", async ({ page }) => {
   await mockApi(page);
   await mockDeepReviewLifecycle(page, "completed");
   await page.goto("/deep-reviews/fixture-review");
 
   const side = page.locator(".deep-review-side");
   const sections = side.locator(":scope > section, :scope > [data-review-primitive='history-link-rail']");
-  await expect(sections).toHaveCount(3);
+  await expect(sections).toHaveCount(4);
   await expect(side.getByRole("heading", { name: "보고서 범위", exact: true })).toBeVisible();
+  await expect(side.getByRole("heading", { name: "문서 요구사항 inventory와 사람 확인 구간", exact: true })).toBeVisible();
   await expect(side.getByRole("heading", { name: "보고서 수정본 편집", exact: true })).toBeVisible();
   await expect(side.getByRole("heading", { name: "보고서 이력과 연결", exact: true })).toBeVisible();
 

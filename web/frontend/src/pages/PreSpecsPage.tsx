@@ -11,7 +11,12 @@ import { isInheritedTracking, TrackingDecisionControl, updateTrackingProjection 
 import { api } from "../lib/api";
 import { describeDeadline } from "../lib/deadline";
 import { formatDateTime, formatNumber } from "../lib/format";
+import { GRADE_NONE_LABEL, GRADE_ORDER, gradeLabel, gradeVariant } from "../lib/grade";
 import { originOf, trackingVariant } from "../lib/opportunity";
+import {
+  PRE_SPEC_AUTO_PREPARATION_STATUS_LABEL,
+  preSpecAutoPreparationVariant,
+} from "../lib/preSpecAutoPreparation";
 import {
   PRE_SPEC_OVERVIEW_NOT_STARTED_LABEL,
   PRE_SPEC_OVERVIEW_STATUS_LABEL,
@@ -29,6 +34,26 @@ import "../styles/pre-specs-relaxed.css";
 const PAGE_SIZE = 200;
 const BUSINESS_DIVISIONS = ["일반용역", "기술용역"] as const;
 const ORIGINS: PreSpecOrigin[] = ["추적", "신규"];
+
+// 등급 필터 URL 계약: `grade` 하나를 추가하고 기존 그룹·필터 파라미터는 그대로
+// 둔다. 허용값은 계약의 등급 4값과 `판정 없음`(= `grade`가 null인 건)뿐이다.
+//
+// **서버 `/api/pre-specs`에는 등급 질의 파라미터가 없다.** 그래서 이 필터는
+// 불러온 페이지에만 적용되고, 그룹 머리글의 건수(`overview_status_counts`,
+// 서버가 필터 전체에서 센 값)는 등급 필터 이전 기준이다. 그 사실을 화면에
+// 문장으로 남긴다 — 조용히 다른 뜻으로 보이게 하지 않는다.
+const GRADE_FILTER_VALUES = [...GRADE_ORDER, GRADE_NONE_LABEL] as const;
+type GradeFilter = (typeof GRADE_FILTER_VALUES)[number] | "";
+
+function validGrade(value: string | null): GradeFilter {
+  return value && (GRADE_FILTER_VALUES as readonly string[]).includes(value) ? (value as GradeFilter) : "";
+}
+
+function matchesGradeFilter(item: PreSpecListItem, grade: GradeFilter): boolean {
+  if (!grade) return true;
+  if (grade === GRADE_NONE_LABEL) return item.grade === null;
+  return item.grade === grade;
+}
 
 // 그룹 표시 순서. 사람 검토 필요·실패를 맨 앞에 두고, 개요 검토 미시작(행
 // 없음)을 그 다음에 두어 "아직 시작하지 않음 → 진행 중 → 종료"의 자연스러운
@@ -165,6 +190,20 @@ function trackingActionCell(item: PreSpecListItem, selectedPk: number | null, on
   );
 }
 
+/** 등급은 심각도가 아니라 순위이고, 농도만으로는 인접 단이 구분되지 않는다.
+ * 그래서 배지는 항상 문자 라벨을 함께 갖고, 판정이 없으면 `판정 없음`이다
+ * (design/PRD.md §4). 화면은 등급을 다시 계산하지 않는다. */
+function gradeCell(item: PreSpecListItem): ReactNode {
+  return <Badge label={gradeLabel(item.grade)} variant={gradeVariant(item.grade)} />;
+}
+
+function autoPreparationCell(item: PreSpecListItem): ReactNode {
+  const status = item.auto_preparation_status;
+  return (
+    <Badge label={PRE_SPEC_AUTO_PREPARATION_STATUS_LABEL[status]} variant={preSpecAutoPreparationVariant(status)} />
+  );
+}
+
 function columns(
   listSearch: string,
   selectedPk: number | null,
@@ -188,6 +227,18 @@ function columns(
         ) : null}
       </div>
     ),
+  },
+  {
+    key: "grade",
+    header: "적합성 등급",
+    className: "pre-specs-grade-cell",
+    render: (item) => gradeCell(item),
+  },
+  {
+    key: "auto_preparation_status",
+    header: "자동 준비",
+    className: "pre-specs-auto-preparation-cell",
+    render: (item) => autoPreparationCell(item),
   },
   {
     key: "title",
@@ -261,6 +312,7 @@ export function PreSpecsPage() {
   const swOnly = searchParams.get("sw_only") !== "false";
   const businessDivision = validDivision(searchParams.get("business_division"));
   const origin = validOrigin(searchParams.get("origin"));
+  const gradeFilter = validGrade(searchParams.get("grade"));
   const queryText = searchParams.get("q") ?? "";
   const sort = validSort(searchParams.get("sort"));
   const offset = readOffset(searchParams.get("offset"));
@@ -270,7 +322,7 @@ export function PreSpecsPage() {
   useEffect(() => setSearchText(queryText), [queryText]);
   useEffect(() => {
     setSelectedTrackingPk(null);
-  }, [businessDivision, offset, origin, queryText, sort, swOnly]);
+  }, [businessDivision, gradeFilter, offset, origin, queryText, sort, swOnly]);
 
   const listQuery = useMemo(
     () => ({
@@ -291,10 +343,16 @@ export function PreSpecsPage() {
     // 서버 기본 projection과 화면 상태가 같은지 확인한다.
     staleTime: 0,
   });
-  const items = result.data?.items ?? [];
+  const loadedItems = result.data?.items ?? [];
+  // 서버에 등급 질의가 없으므로 여기서 고른다. 이것은 판정의 재계산이 아니라
+  // 서버가 준 `grade` 값으로 행을 고르는 것뿐이다.
+  const items = useMemo(
+    () => loadedItems.filter((item) => matchesGradeFilter(item, gradeFilter)),
+    [gradeFilter, loadedItems],
+  );
   const total = result.data?.total ?? 0;
   const overviewStatusCounts = result.data?.overview_status_counts ?? [];
-  const isDefaultView = swOnly && !businessDivision && !origin && !queryText && sort === "published" && offset === 0;
+  const isDefaultView = swOnly && !businessDivision && !origin && !gradeFilter && !queryText && sort === "published" && offset === 0;
   const tableColumns = useMemo(
     () => columns(searchParams.toString(), selectedTrackingPk, (pk) => setSelectedTrackingPk((current) => (current === pk ? null : pk))),
     [searchParams, selectedTrackingPk],
@@ -328,7 +386,7 @@ export function PreSpecsPage() {
   }
 
   function restoreDefaults() {
-    updateSearchParams({ sw_only: null, business_division: null, origin: null, q: null, sort: null });
+    updateSearchParams({ sw_only: null, business_division: null, origin: null, grade: null, q: null, sort: null });
     setSearchText("");
   }
 
@@ -339,7 +397,7 @@ export function PreSpecsPage() {
   function emptyDescription(): string {
     if (isDefaultView) return "SW 중심 기본 보기에 맞는 항목이 없습니다. 전체 보기는 SW사업대상과 무관한 사전규격까지 명시적으로 요청합니다.";
     if (swOnly) return "SW 중심 기본 보기와 추가 필터가 함께 적용되어 있습니다. 기본값으로 돌아가거나 조건을 조정해 보십시오.";
-    if (businessDivision || origin || queryText) return "현재 선택한 업무구분·구분·검색어 조건에 맞는 누적 데이터가 없습니다.";
+    if (businessDivision || origin || gradeFilter || queryText) return "현재 선택한 업무구분·구분·등급·검색어 조건에 맞는 누적 데이터가 없습니다.";
     return "누적 수집된 사전규격 데이터가 아직 없습니다.";
   }
 
@@ -388,6 +446,13 @@ export function PreSpecsPage() {
             </select>
           </label>
           <label>
+            <span>적합성 등급</span>
+            <select value={gradeFilter} onChange={(event) => updateSearchParams({ grade: event.target.value || null })}>
+              <option value="">전체</option>
+              {GRADE_FILTER_VALUES.map((value) => <option key={value} value={value}>{value}</option>)}
+            </select>
+          </label>
+          <label>
             <span>정렬</span>
             <select value={sort} onChange={(event) => updateSearchParams({ sort: event.target.value || null })}>
               <option value="published">게시 최신순</option>
@@ -414,6 +479,11 @@ export function PreSpecsPage() {
           </form>
           <button className="pre-specs-reset" type="button" onClick={restoreDefaults}>기본값으로</button>
         </div>
+        {gradeFilter ? (
+          <p className="pre-specs-grade-filter-note" role="status">
+            등급 필터 <strong>{gradeFilter}</strong>는 현재 불러온 페이지에만 적용됩니다. 그룹 머리글의 건수는 서버가 등급 필터 이전 조건으로 센 값이므로 두 숫자가 다를 수 있습니다.
+          </p>
+        ) : null}
         <p className="pre-specs-policy-note">
           추적 예외는 <strong>SW사업대상=Y가 아니지만 추적 중인 발주계획에 연결됨</strong>을 뜻합니다. 값이 없는 SW사업대상은 미확인으로 표시합니다.
         </p>
@@ -435,7 +505,7 @@ export function PreSpecsPage() {
             <Panel
               className="pre-specs-table-panel"
               title="누적 사전규격 목록 · 개요 검토 상태별"
-              action={total > 0 ? <span className="panel-meta">{total}건 · {offset + 1}–{Math.min(offset + items.length, total)}</span> : undefined}
+              action={total > 0 ? <span className="panel-meta">{total}건 · {offset + 1}–{Math.min(offset + loadedItems.length, total)}</span> : undefined}
             >
               {items.length === 0 ? (
                 <EmptyState
@@ -472,12 +542,18 @@ export function PreSpecsPage() {
                             <>
                               {isPartial ? (
                                 <p className="pre-specs-group-partial">
-                                  전체 {count}건 중 현재 페이지에 표시된 {groupItems.length}건만 보입니다. 페이지를 이동하거나 검색 조건을 좁혀 나머지를 확인하십시오.
+                                  전체 {count}건 중 {groupItems.length}건이 보입니다.
+                                  {gradeFilter
+                                    ? " 등급 필터가 불러온 페이지에만 적용되고 이 건수는 등급 필터 이전 서버 집계입니다."
+                                    : " 페이지를 이동하거나 검색 조건을 좁혀 나머지를 확인하십시오."}
                                 </p>
                               ) : null}
                               {groupItems.length === 0 ? (
                                 <p className="pre-specs-group-empty">
-                                  전체 {count}건이 있지만 현재 불러온 페이지에는 없습니다. 페이지를 이동하거나 검색 조건을 좁혀 보십시오.
+                                  전체 {count}건이 있지만 현재 보이는 목록에는 없습니다.
+                                  {gradeFilter
+                                    ? " 등급 필터가 불러온 페이지에만 적용되고 이 건수는 등급 필터 이전 서버 집계입니다."
+                                    : " 페이지를 이동하거나 검색 조건을 좁혀 보십시오."}
                                 </p>
                               ) : (
                                 <DataTable
@@ -574,7 +650,7 @@ export function PreSpecsPage() {
           >
             이전
           </button>
-          <span>{offset + 1}–{Math.min(offset + items.length, total)} / {total}</span>
+          <span>{offset + 1}–{Math.min(offset + loadedItems.length, total)} / {total}</span>
           <button
             type="button"
             disabled={offset + PAGE_SIZE >= total}
