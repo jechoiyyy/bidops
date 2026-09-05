@@ -29,6 +29,7 @@ bidops/
 │   ├── bid-delta-contract-spec.md    입찰 delta·최종 결정 OpenAPI·DB 명세
 │   ├── scheduling.md                 공고 판정 스케줄러의 예약·기간·fail-closed 조건
 │   ├── model-quality-gate.md         공고 판정 품질 게이트의 고정 입력과 통과 기준
+│   ├── prespec-reference-run-guide.md  사전규격 참조 실행 시작 가이드 (먼저 읽는다)
 │   ├── e2e-bc-acceptance.md          문서 준비(B)→심층 검토(C) 연속 인수 절차
 │   ├── e2e-lifecycle-fill.md         공고·사전규격·리뷰 테이블 채우기와 화면 확인 절차
 │   ├── docker-consolidation.md       t7 접두사 제거와 Compose 프로젝트·호스트 자원 정리 기록
