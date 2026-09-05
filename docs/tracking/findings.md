@@ -831,7 +831,11 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 ## runtime image에 쓰이지 않는 `BIDOPS_OLLAMA_BASE_URL` ENV가 남아 있다
 
 - 확인: 2026-09-05
-- 재현 조건: `web/Dockerfile`의 32행을 본다.
+- 상태: **해결** (2026-09-05). `web/Dockerfile`의 `ENV` 줄과 health 주석의 Ollama
+  언급을 지우고 `docker compose -f docker-compose.yml build`를 다시 확인했다(exit 0).
+  `BIDOPS_VLLM_MODEL`을 읽는 곳이 없어 `docker-compose.mock-reference.yml`의 두 줄도
+  함께 지웠다.
+- (해결 전 기록) 재현 조건: `web/Dockerfile`의 32행을 본다.
 - 증상: image가 `BIDOPS_OLLAMA_BASE_URL=http://127.0.0.1:11434`를 `ENV`로 굽는다. 이 설정은
   `app/core/config.py`에서 제거됐으므로 어떤 코드도 읽지 않는다.
 - 영향: 동작에는 영향이 없다(pydantic settings가 모르는 환경변수를 무시한다). 다만 컨테이너
@@ -840,3 +844,44 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
   소유가 아니다. 지우면 image layer가 바뀌므로 build 검증과 함께 해야 한다.
 - 접근 방법: 다음 backend 작업에서 그 `ENV` 줄과 100행의 주석 문구를 함께 지우고
   `COMPOSE_OK`와 image build를 다시 확인한다.
+
+## 요구사항 대조 검사가 ID 체계를 가진 실제 문서에서 구조적으로 실패한다
+
+- 확인: 2026-09-05
+- 재현 조건: 요구사항 ID 체계를 가진 제안요청서로 심층 검토를 완주시키고 보고서의
+  `validation_summary`를 본다. `tests/fixtures/.../fire_prevention_55.json`이 기대하는
+  유일 ID는 55개다.
+- 증상: stage 1 claim 상한이 8개(`app/core/model_client.py`의 `bounded_output_rule`)라
+  모델이 문서의 ID를 다 언급할 수 없다. `deep_review_validation`의 `requirement_inventory`가
+  `missing = expected - observed`를 `failed`(중대)로 올리고, `reports.py`가 그것을 보고서
+  `validation_status = "failed"`로 승격한다. `system_recommendation`은 `보류`가 된다.
+- 영향: 첫 참조 실행부터 ID 체계가 있는 문서의 보고서가 **구조적으로** 실패로 나온다.
+  이것은 "문서를 잘못 읽었다"가 아니라 "검사 기대치와 모델 출력 예산이 맞지 않는다"는 뜻이다.
+- 지금 해결할 수 없는 이유: 명세 §6.7이 "누락·예상 밖 ID가 있으면 `failed`(중대)"로 정했다.
+  claim 상한을 올리면 참조 실행 비용과 프롬프트 경계가 함께 바뀌고, 기대 집합을 좁히면
+  명세를 고쳐야 한다. 담당자가 2026-09-05에 이번 차수에는 명세대로 두기로 결정했다.
+- 접근 방법: 다음 차수에 셋 중 하나를 명세 개정과 함께 정한다.
+  (a) 기대 집합을 stage가 실제로 다룬 구간으로 좁힌다.
+  (b) 누락을 경고로 낮추고 누락 목록만 보고서에 싣는다.
+  (c) claim 상한을 문서 규모에 맞게 연다.
+
+## mock 종단의 개요 검토가 실제 참조 실행과 응답에서 구분되지 않는다
+
+- 확인: 2026-09-05
+- 재현 조건: `python -m app.deep_review.cli run-prespec-e2e`로 mock 종단을 완주시키고
+  개요 attempt의 `quality_status`를 본다. `unmeasured_reference`가 나오며, 이는 실제
+  승인 사설 vLLM 참조 실행과 같은 값이다.
+- 원인: 명세 §6.3이 `reference_only=true`인 attempt의 완료를 금지하고(§7의
+  `ck_prespec_overview_attempt_completed_binding`도 같다), §8이 `quality_status`를
+  `reference_only` 하나로만 가른다. 그래서 저장소만으로 개요를 완주시키려면 mock을
+  provider가 아니라 **transport 계층**에 두어야 하고, 그때 binding은 `reference_only=false`가
+  되어 표식이 `unmeasured_reference`로 남는다.
+- 영향: 화면·응답만으로는 mock 종단이 만든 개요 결과와 실제 참조 실행 결과를 가릴 수 없다.
+  현재는 mock 종단이 테스트·검증 경로에서만 돌고 운영 화면에 그 데이터가 생기지 않아
+  실제 혼동은 일어나지 않는다. 심층 검토의 `mock_reference`는 provider에서 나오므로
+  이 제약과 무관하다.
+- 지금 해결할 수 없는 이유: 세 번째 판별자(attempt에 transport 표식)를 넣으려면 명세 §8이
+  허용한 응답·DB 변경 목록 밖의 열과 필드가 필요하다. 담당자가 2026-09-05에 이번 차수에는
+  기록만 남기기로 결정했다.
+- 접근 방법: 다음 차수에 attempt에 transport 표식을 더하고 `quality_status` 계산을
+  `reference_only`와 transport 두 축으로 가른다.
