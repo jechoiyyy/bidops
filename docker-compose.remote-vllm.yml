@@ -9,6 +9,11 @@
 #
 # Opening this network is not sufficient: restrict egress to that IP/port at
 # the host firewall and keep the allowlist identical to the endpoint IP.
+#
+# 여기 주는 BIDOPS_VLLM_* 는 overview·deep_review 용도의 공유값이다. 용도별로
+# 다른 endpoint를 쓰려면 BIDOPS_VLLM_OVERVIEW_* / BIDOPS_VLLM_DEEP_REVIEW_* 를
+# 추가로 준다. 허용 host가 비었거나 선언 revision이 64자 hex가 아니면 그 용도는
+# 네트워크 호출 전에 fail closed한다(ADR-0050).
 services:
   web:
     environment:

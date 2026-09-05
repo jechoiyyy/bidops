@@ -7,6 +7,9 @@
 # Every value this overlay needs is declared literally below, so it needs no
 # env file beyond the shared .env.
 #
+# 이 override로 만든 결과에는 quality_status=mock_reference 표식이 붙는다.
+# 운영 완료·품질 근거·정책 활성화 근거가 아니다(ADR-0050).
+#
 #   docker compose -f docker-compose.yml \
 #     -f docker-compose.mock-reference.yml up -d
 services:

@@ -61,7 +61,7 @@ web/backend/app/
 
 이주 시 이 표를 그대로 따른다. "확인" 표시는 이주 전에 한 번 더 검증한다.
 
-### 4.1 테이블 (74)
+### 4.1 테이블 (설계 시점 74, 현재 77)
 
 | 모듈 | 테이블 |
 |---|---|
@@ -71,6 +71,8 @@ web/backend/app/
 | deep_review (23, 개요 4) | content_object, content_object_location, content_scan, document_version, document_structure, document_block, document_bundle, document_bundle_item, profile_version, profile_evidence, analysis_policy_version, work_job, deep_review, deep_review_attempt, deep_review_stage, claim, evidence_ref, claim_evidence, report_revision, report_revision_evidence, validation_run, validation_check, final_opinion, prespec_overview_snapshot, prespec_overview_attempt, prespec_overview_result, prespec_overview_attempt_event |
 
 core 2 + lifecycle 16 + screening 28 + deep_review 23 = 69이고, 사전규격 개요 5개(§7)를 더해 74다. 현재 안은 개요 결과 4개를 deep_review에, 사람 리뷰 상태 1개를 lifecycle에 두되 후자는 확인 대상이다.
+
+**이후 변경.** 이주 뒤 확정된 소유는 core 2 + lifecycle 10 + screening 28 + deep_review 37 = **77**이다. `prespec_overview_review`와 개요 결과 표가 전부 deep_review로 확정됐고(§10의 확인 결과), `0018`이 결정적 segment 저장소 3개를 deep_review에 더했다([ADR-0051](../tracking/decisions/0051-deep-review-v2-deterministic-subset.md)). 위 74는 설계 시점의 수이며 현재 수치는 [database-guide.md](../database-guide.md)와 이 문단이 정본이다.
 
 분류 근거:
 
@@ -87,7 +89,7 @@ core 2 + lifecycle 16 + screening 28 + deep_review 23 = 69이고, 사전규격 �
 |---|---|
 | core | object_store, clamav, `document_bundles.validate_actor`(공용 actor 검증으로 추출), 공용 오류 타입 |
 | lifecycle | pipeline, attachments, assets, prespec_attachments, opportunity_tracking, opportunity_integrity, bid_delta, metrics(확인: Judgment·Review 집계를 포함하므로 선별 seam 함수로 읽도록 바꾼다) |
-| screening | order_plan_screening, scheduler, scheduled_pipeline, profile, reviews, revisions, candidate_quality, vllm_client, mock_analysis_client(선별·심층 공용 mock이면 core) |
+| screening | order_plan_screening, scheduler, scheduled_pipeline, profile, reviews, revisions, candidate_quality, vllm_client(C-2 전용 어댑터로 남음), mock_analysis_client(선별·심층 공용 mock이면 core) |
 | deep_review | deep_reviews, deep_review_validation, document_bundles, document_converter, document_structures, evidence, input_versions, prespec_overview, reports, agent_e2e, bc_e2e |
 | 삭제 | codex_exec_client. backend AGENTS.md가 개발에서도 사용하지 않는다고 정한 경로이며 findings에 외부 전송 범위 초과로 기록됨 |
 
@@ -234,7 +236,7 @@ cd web/frontend && npm run build && npm run test:screens
 - **`prespec_overview_review`의 소속** — deep_review다(`app/deep_review/models.py`). 쓰기 주체가 하나이고, lifecycle 목록의 개요 상태 표시는 확장점 projection이 맡는다.
 - **`services/metrics.py`와 `routers/notices.py`의 Judgment·Review 조회** — seam 함수로 바꾸지 않았다. 이 자리는 lifecycle의 화면이 선별 결과를 필요로 하는 **역방향**이므로 판정 projection 확장점으로 뒤집었다. 목록의 등급 필터·정렬은 여전히 SQL로 처리되고(`notice_ids_for_filters`·`grade_rank`), projection 구현은 호출부가 넘긴 `notice_ids` 만큼을 상수 회 조회로 처리해 공고당 조회를 만들지 않는다. REST 응답 형태는 바뀌지 않았다.
 - **`mock_analysis_client`의 소속** — deep_review 한쪽이다(`app/deep_review/services/mock_analysis_client.py`, 테스트는 `tests/deep_review/`). 선별의 mock은 별도로 `app/screening/mock_transport.py`에 있다. core에 두지 않았다.
-- **`test_schemas_t9`, `test_generation_config_t15`의 대상 모듈** — 둘 다 screening이다(`tests/screening/`). `test_generation_config_t15`는 `OllamaClient`를 검사한다.
+- **`test_schemas_t9`, `test_generation_config_t15`의 대상 모듈** — 둘 다 screening이다(`tests/screening/`). `test_generation_config_t15`는 판정 어댑터(`ScreeningModelClient`)를 검사한다. 그 어댑터가 쓰는 transport는 [ADR-0050](../tracking/decisions/0050-unified-openai-compatible-model-client.md)이 core의 `model_client`로 통일했고, 얼려 둔 생성 설정의 이름·digest는 그대로다.
 - **Compose `analysis-worker`를 두 서비스로 나누는 문제** — 나누지 않기로 했다. 모델을 쓰는 심층 검토·C-2 worker에는 단독 진입점을 두지 않고 `app/workers/analysis.py`가 계속 합성한다. 나누면 운영자가 둘을 동시에 띄워 모델 슬롯 1개 보장을 깰 수 있고, network 배정과 lease concurrency를 다시 설계해야 한다. Compose의 `analysis-worker` command는 `python -m app.workers.analysis` 그대로다.
 
 ### §8 진입점의 확정값

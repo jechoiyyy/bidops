@@ -11,9 +11,21 @@
 - `data/runs/20260817-20260823/screening-decisions.json`, schema `bidops.decisions.v2`, 40건이며 sample 순서와 ID가 정확히 일치
 - baseline은 Claude historical decision이고 `screening_basis`는 `회차에 고정된 정규화 공고와 회사 프로필·정책 버전`이다.
 
+**고정 입력의 모델 신원은 더 이상 위 회차의 실행과 맞지 않는다.** C-1이 부르는 모델 id가
+이전 태그 형식에서 vLLM served id `qwen3.8-27B`로 바뀌었으므로
+([ADR-0050](tracking/decisions/0050-unified-openai-compatible-model-client.md)), 옛 이름으로
+기록된 기존 execution·판정 row는 carry-over·재판정 검증과 `queue.enqueue`에서 거부된다.
+이 40건 고정 표본으로 gate를 다시 측정하려면 **새 이름으로 A/B execution을 새로 만들어야
+한다.** 옛 이름의 기록을 새 실행의 baseline으로 재사용하지 않는다. 이 상태는
+[findings](tracking/findings.md)에 재현 조건과 함께 기록돼 있다.
+
+모델 identity 확인 방법도 바뀌었다. blob digest를 노출하는 면이 없으므로
+`GET {base_url}/models`의 served id를 확인하고, 서버가 `model_revision`을 실어 보내는 경우에만
+배포가 선언한 64자 revision과 대조한다([ADR-0042](tracking/decisions/0042-c2-model-revision-declared-at-deployment.md)).
+
 두 pass는 같은 frozen 40건을 사용하고 각각 고유 execution/artifact/telemetry를 가진다. 분모는 항상 40이며 threshold 직전에 반올림하지 않는다.
 
-두 pass는 frozen generation configuration도 공유해야 한다. 기본값은 context 16384, perspective/counterargument 2048, synthesis 4096, `think=false`, `stream=false`이며 canonical compact UTF-8 JSON의 SHA-256 digest를 gate와 evaluation에 저장한다. A/B config 또는 digest가 다르면 gate 생성·평가·통과·activation 전에 거부한다. 이 T15 구현은 아직 live 재검증 전이며 기존 Phase 1 synthesis truncation 실패 evidence를 변경하지 않는다.
+두 pass는 frozen generation configuration도 공유해야 한다. 기본값은 context 16384, perspective/counterargument 2048, synthesis 4096, `think=false`, `stream=false`이며 canonical compact UTF-8 JSON의 SHA-256 digest를 gate와 evaluation에 저장한다. 이 이름들은 계약 digest에 묶여 있어 바꾸지 않는다. OpenAI 호환 호출에서 stage별 `num_predict`는 `max_tokens`가 되고, `num_ctx`는 대응 파라미터가 없어 binding 기록에만 남으며, `think=false`는 `extra_body.chat_template_kwargs.enable_thinking=false`가 된다([ADR-0050](tracking/decisions/0050-unified-openai-compatible-model-client.md)). A/B config 또는 digest가 다르면 gate 생성·평가·통과·activation 전에 거부한다. 이 T15 구현은 아직 live 재검증 전이며 기존 Phase 1 synthesis truncation 실패 evidence를 변경하지 않는다.
 
 Gate JSON 자체도 shared canonical parser와 digest로 검증한다. persisted JSON이
 tamper되거나 evaluation/pass execution과 불일치하면 activation/always-on을

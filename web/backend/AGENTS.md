@@ -13,7 +13,8 @@
 app/
 ├── core/          db, config, logging_setup, redaction, sql_dialect, constants, db_admin,
 │                  generation_config, run_id, api_errors, object_store, clamav,
-│                  vllm_client(범용), company_profile, model_binding, schema_base, health
+│                  model_client(용도별 통일 transport), company_profile, model_binding,
+│                  schema_base, health
 │                  models 2개
 ├── lifecycle/     회차 적재와 기회 identity, 공고·발주계획·사전규격·첨부 메타
 │                  api, extensions, ingest/, routers/, services/, schemas/, runtime
@@ -25,7 +26,7 @@ app/
 ├── deep_review/   문서 준비, 사전규격 개요 검토, 심층 검토, 입찰 delta·최종 결정
 │                  services/, routers/, workers/, agents/, document_mcp/, contracts/,
 │                  policies/, schemas/, cli/, runtime
-│                  models 34개
+│                  models 37개
 └── main.py, runtime.py, workers/analysis.py, migrations/, alembic/   ← 조립 계층
 ```
 
@@ -55,9 +56,12 @@ app/
   `Opportunity`·`Attachment` 등을 ORM으로 읽고 join해도 된다. lifecycle 테이블에 **쓰기와
   잠금**만 lifecycle 공개 함수(`ingest_run`, `lock_notice`, `register_manual_attachment` 등)로
   한다.
-- deep_review는 screening의 `current_judgment`·`current_judgments`·`latest_corrected_grade`만
-  쓰고, 그 import는 **함수 안에서** 한다. 모듈 최상위에서 들면 screening 폴더 없이 deep_review
-  테스트가 수집되지 않는다.
+- deep_review는 screening의 `current_judgment`·`current_judgments`·`latest_corrected_grade`·
+  `latest_corrected_grades` **네** seam만 쓰고, 그 import는 **함수 안에서** 한다. 모듈
+  최상위에서 들면 screening 폴더 없이 deep_review 테스트가 수집되지 않는다.
+  넷째(`latest_corrected_grades`)는 셋째의 batch 짝이며 2026-09-05에 담당자가 승인했다 —
+  회차 적재 hot path와 사전규격 목록이 상수 회 조회를 요구하므로 건별 seam만으로는 N+1
+  금지와 동시에 성립하지 않는다.
 - **ORM relationship도 import다.** lifecycle 모델은 다른 모듈 모델로 향하는 relationship을 갖지
   않는다. 관계는 소유 모듈이 자기 모델에서 단방향으로 선언한다. 삭제 전파는 ORM cascade 대신
   DB FK `ondelete=CASCADE`로 표현한다.
@@ -73,6 +77,7 @@ app/
 | 사전규격 개요·문서 준비 상태 | 읽기 projection | deep_review | 개요 상태 `null`, 문서 건수 0 |
 | 회차 적재됨 | 이벤트 hook | screening, deep_review | no-op, 건수 0 |
 | 추적 결정 변경됨 | 이벤트 hook | deep_review | no-op |
+| effective grade 변경됨 | 이벤트 hook | deep_review | no-op. 첨부 취득 자격 재계산과 자동 문서 준비가 일어나지 않는다 |
 
 - 등록은 **`main.py`가 앱 객체를 조립할 때** 한다. lifespan이나 `ApplicationRuntime`에 두면
   runtime을 만들지 않는 격리 API 테스트에서 projection이 빈다.
@@ -105,8 +110,10 @@ python -m app.deep_review.workers.prespec_attachment  # 사전규격 첨부 취�
 python -m app.workers.analysis                        # 모델을 쓰는 합성 worker
 ```
 
-모델을 쓰는 심층 검토·C-2 worker에 단독 진입점을 만들지 않는다. 합성 worker와 동시에 실행되면
-**모델 슬롯 1개** 보장이 깨진다.
+모델을 쓰는 C-2 선별·심층 검토·사전규격 개요 worker에 단독 진입점을 만들지 않는다. 합성
+worker가 한 바퀴에 C-2 → 심층 → 개요 순서로 **하나만** claim하며, 따로 띄우면 **모델 슬롯
+1개** 보장이 깨진다. 개요 attempt lease는 모듈 상수 `OVERVIEW_LEASE_SECONDS=1200`이고
+환경변수로 열지 않는다.
 
 ## 경계
 
@@ -133,6 +140,11 @@ python -m app.workers.analysis                        # 모델을 쓰는 합성 
 - document bundle confirm은 최신 document version, clean scan, immutable structure snapshot을 같은 fence에서 확인한다.
 - document metadata 변경은 notice → latest bundle → document 순서로 잠그고 기대 version과 hash를 재검증한다.
 - 심층 검토는 고정 bundle, profile, policy, model reference만 사용한다. live attachment나 변경된 profile을 중간에 다시 읽지 않는다.
+- 사전규격 자동 준비는 effective grade가 `우선 검토`인 건만 열고, **자기가 만든 초안만** 확정한다(`confirmed_by_name == "auto-preparation"`). 사람이 만든 초안은 자동으로 확정하지 않는다. 등급이 내려가도 만든 묶음을 되돌리지 않는다([ADR-0049](../../docs/tracking/decisions/0049-prespec-auto-preparation-and-auto-deep-review.md)).
+- 자동 준비 상태와 사유는 **저장하지 않는다.** 등급·취득·묶음·개요·심층의 파생값이므로 읽을 때 계산하고, 공고 수와 무관한 상수 회 조회여야 한다. 새 열을 만들지 않는다.
+- 자동 심층 시작은 사람 경로와 **같은 함수**(`DeepReviewService.create_review`)를 쓰고 `actor_kind`만 다르다. 별도 생성 경로를 만들면 입력 동결·품질 표식·감사 metadata가 두 벌이 된다.
+- 자동 준비·자동 시작의 실패는 촉발한 작업(회차 적재·리뷰 저장)으로 예외를 올리지 않는다. 안전 코드로만 남기고 재시도는 다음 촉발 시점에 한다.
+- 문서 segment manifest는 구조 저장 시점의 메모리 payload로만 만든다. append-only이며 `confidence`는 결정적 규칙 결과이므로 언제나 `null`이다. 확률을 지어내지 말고 `needs_human_review` 상태로 남긴다([ADR-0051](../../docs/tracking/decisions/0051-deep-review-v2-deterministic-subset.md)).
 - 모델 claims, 숫자, 요구사항, evidence locator는 결정적 schema·근거 검증을 통과해야 한다. 실패는 report에 표시하고 자동 보정하지 않는다.
 - model response 객체는 암호화하고 DB에는 key reference, version, hash만 저장한다.
 
@@ -142,7 +154,11 @@ python -m app.workers.analysis                        # 모델을 쓰는 합성 
 - 담당자 이름, prompt, 모델 응답, 공고·회사자료 원문, upload 파일명, credential, DB URL, 쿼리 문자열을 로그에 남기지 않는다.
 - 로그 field는 allowlist를 사용하고 외부 예외·subprocess stderr는 저장 전에 redaction한다.
 - hosted OpenAI는 운영 기본 비활성이다. 심층 검토 provider는 `vllm`과 `mock`뿐이며 hosted 외부 provider 경로는 제거됐다. 외부 실험은 향후 발주계획 전용 projection에서만 공개 plan metadata와 별도 승인된 최소 회사 역량 요약을 보낼 수 있다. RFP·첨부, profile 전문, evidence, 내부 review·실적은 건별 승인으로도 허용되지 않는다. 허용 projection도 개발 mode, 대상 allowlist, payload preview·승인 중 하나라도 없으면 fail closed한다.
-- 사설 vLLM과 Ollama endpoint는 목적별 allowlist와 실행 binding을 사용한다. 하나의 장애를 다른 provider 자동 fallback으로 처리하지 않는다.
+- 모델 호출은 `app/core/model_client.py` 하나를 쓴다. C-1 공고 판정·사전규격 개요·심층 검토가 `screening`·`overview`·`deep_review` 용도로 각각 묶이며, 용도마다 자기 endpoint·허용 host·자격증명·선언 revision을 갖는다([ADR-0050](../../docs/tracking/decisions/0050-unified-openai-compatible-model-client.md)). C-2 발주계획 어댑터만 별도 transport로 남아 있으므로 "유일한 transport"는 앞의 셋에 한정해 읽는다.
+- **허용 host가 비었거나 선언 revision이 64자 hex가 아니면 그 용도는 네트워크 호출 전에 fail closed한다.** client를 만든 뒤 검사하지 않는다. 한 용도의 실패를 다른 용도나 다른 provider 자동 fallback으로 처리하지 않는다.
+- core에는 고정된 모델명이 없다. 무엇을 부를지는 policy(`model_name`)와 용도별 설정(`BIDOPS_VLLM_SCREENING_MODEL`)이 정한다. 새 모델 상수를 core에 넣지 않는다.
+- 응답 schema와 system prompt는 계약을 소유한 도메인 모듈이 `StructuredOutputContract`로 넘긴다. core가 도메인 계약을 알게 만들지 않는다.
+- 참조 실행 모드(`BIDOPS_REFERENCE_WORKFLOW_MODE`)의 결과에는 `quality_status` 표식이 붙는다. 표식이 붙은 결과를 운영 완료·품질 근거·활성화 근거로 집계하지 않으며, 표식 없음(`null`)을 미측정이나 측정으로 승격시키지 않는다.
 
 ## API와 서비스 구현
 

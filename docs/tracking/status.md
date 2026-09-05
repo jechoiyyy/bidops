@@ -1,6 +1,6 @@
 # 구현·검증 현황
 
-기준일: 2026-09-03
+기준일: 2026-09-05
 
 `구현됨`은 코드와 계약이 존재한다는 뜻이고, `검증됨`은 기록된 명령이 해당 범위에서 통과했다는 뜻이다. Mock 결과, 과거 브랜치 결과, 현재 worktree 결과, 외부 운영 승인을 서로 대신하지 않는다.
 
@@ -45,11 +45,17 @@
 | 정보구조와 사업 추적 · 단계 E | **완료(2026-09-04).** 사이드바를 7항목으로 줄이고 `검토 대기열`을 `사업 추적`으로 대체했다. 예외 작업 경로를 옮긴 뒤 공고 1차 판정을 읽기 전용으로 잠갔다 ([design/PLAN.md](../design/PLAN.md) 단계 E, ADR-0046) | 커밋을 PLAN §6이 요구한 순서대로 셋으로 나눴다. `e7ed15f`(3-2 예외 작업 경로) → `a21a988`(읽기 전용 전환) → `ab7a53c`(대시보드·Go/No-Go·기준과 운영). 두 커밋 사이에 리뷰 저장 경로가 없던 순간이 없다. **사이드바**는 `오늘의 업무`/`탐색과 추적`/`기준과 운영` 7항목이고 회차 선택기를 갖는 사이드바 항목은 대시보드 하나다(공고 판정 이력은 사이드바 항목이 아니다). **사업 추적**은 분할 화면이 됐고 구역 판정이 `trackingSectionOf` 한 곳에서만 이뤄져 한 사업기회가 구역 넷을 통틀어 한 행으로만 나타난다. **예외 작업**은 실제 저장 경로를 갖는다 — `연결 불확실`은 서버에 이미 있던 `PATCH /opportunities/links/{id}/decision`(진입점이 없어 지금까지 쓸 수 없었다), `검증 실패`는 그 공고의 회차로 `PUT /notices/{pk}/review`에 확인 항목 답변만 실어 보내고, `근거 없음`은 화면이 해소할 수 없다는 사실을 그대로 말한다. **읽기 전용 전환**으로 검토 대기열의 리뷰 초안·localStorage·저장이 사라지고 `ReviewRecord`가 저장된 리뷰를 읽기 전용으로 보여준다. `ReviewBar.tsx`는 삭제했다. 단계 B가 미뤄 둔 `/queue` 1280px 가로 넘침 19.77px도 고쳤다(`.attachment-name`의 ellipsis가 부모의 시각 효과일 뿐 자식 span의 레이아웃 상자는 그대로 넘쳐 있었다). **검증:** 대비 7 passed, `tsc -b`·production build 통과, 전체 Playwright 410 passed·72 failed·2 skipped. 실패 72건은 **전부 팔레트 스냅샷**이며 단계 D까지 함께 실패하던 `/queue` 오버플로 1건과 flake 1건이 사라졌다. **미해결:** 사업기회 추적 이력 읽기 계약과 구역별 집계가 서버에 없어 화면이 그 한계를 표시한다([findings.md](findings.md)) |
 | 상세 3종과 심층 검토 · 단계 F | **완료(2026-09-04).** 세 상세 화면을 한 골격으로 맞추고 되돌릴 수 없는 입력 form을 헤더에서 내렸다 ([design/PLAN.md](../design/PLAN.md) 단계 F) | 커밋 `ec79da7`(상세 3종 골격) → `adae790`(심층 검토 보고서). **헤더에는 액션만** 남고 폼은 본문 열에 있다 — 헤더 저장 버튼이 `form` 속성으로 본문 폼을 submit하므로 전제조건이 한 곳에만 있다. 시안 `OrderPlanDetail`대로 사람 피드백 revision 이력을 레일에서 본문 열로 옮겼다(지금 저장할 값과 직전 revision을 대조해야 한다). 입찰 변경 비교 헤더가 `결정 저장`·`결정 입력으로 이동`·`비교 재계산` 셋을 갖고, 최종 Go/No-Go 폼 바로 위에 저장 조건 셋을, 범주 목록 바로 위에 비교 기준(기준 사전규격·대상 입찰공고·문서 묶음 상태·계산 시각)을 남겼다. 심층 검토 보고서는 상단 카드 4개·결정 카드 요약 표(항목·내용·근거·검증)·Validation 실패 블록(`원문에서 확인`·`새 attempt로 재시도`)·우측 열(보고서 범위·수정본 저장·이력)로 배치했다. 시안의 `참여 준비 상태` 카드는 **이 보고서 계약에 그 축이 없어** 채우지 않고 그 사실을 한 줄로 밝혔다. **검증:** 대비 7 passed, `tsc -b`·production build 통과, 전체 Playwright 420 passed·72 failed·2 skipped. 실패 72건은 전부 팔레트 스냅샷이고 그 밖의 실패는 없다. **미완료:** 완료 게이트의 `시안 기준 캡처`는 v2 기준 이미지가 없어 판정할 수 없다([design/PLAN.md](../design/PLAN.md) §0-3·0-4·0-5, [findings.md](findings.md)) |
 | 화면 검사 층 분리 · 기준선 교체 | **완료(2026-09-04).** `visual.spec.ts` 한 파일이 픽셀 36 + 가로 넘침 36 + 의미 15를 섞어 담고 있어 픽셀이 깨지면 나머지 51개의 초록이 묻혔다. 세 층으로 갈랐다 — `screen-semantics.spec.ts`(의미, 1440px 한 폭) · `overflow.spec.ts`(구조, 1280·1440px) · `pixel-screens.spec.ts`(픽셀, 게이트 밖). 폭에 의존하지 않는 spec을 한 폭에서만 돌려 실행 건수가 494→260으로 줄었다. 픽셀 기준선은 대표 화면 여덟 장으로 교체했다(144장 39MB → 8장 1.1MB, 승인 기록은 [findings.md](findings.md)) | `npm run test:screens` `4 skipped, 247 passed (2.1m)`, 실패 0. `npm run test:pixel` `9 passed`, 재실행에도 동일 |
+| 통일 모델 클라이언트 | C-1 공고 판정·사전규격 개요·심층 검토가 `app/core/model_client.py` 하나를 `screening`·`overview`·`deep_review` 용도로 부른다. 용도마다 endpoint·허용 host·자격증명·선언 revision을 갖고 허용 host나 revision이 없으면 호출 전에 fail closed한다([ADR-0050](decisions/0050-unified-openai-compatible-model-client.md)). 이전 로컬 provider 설정 7개는 제거됐고 C-1 모델명이 `qwen3.8-27B`가 됐다 | 단위 테스트 범위. **live vLLM 호출은 이 저장소에서 실행하지 않았다.** C-2 발주계획 어댑터는 별도 transport로 남아 있다 |
+| 참조 실행 모드와 품질 표식 | `BIDOPS_REFERENCE_WORKFLOW_MODE`가 결정적 mock과 품질 미측정 실행을 허용하고, 결과에 `quality_status=measured\|unmeasured_reference\|mock_reference\|null` 표식이 붙는다. 개요 attempt는 표식이 필수다 | 단위 테스트 범위. **참조 실행 절차는 아직 실행되지 않았다**(운영 절차의 "사전규격 심층 검토 참조 실행"). 참조 실행 결과는 운영 완료·품질 근거가 아니다 |
+| 사전규격 자동 문서 준비 | effective grade가 `우선 검토`인 사전규격의 묶음 초안 생성·자동 확정, 새 확장점 `effective_grade_changed`, `GET /api/pre-specs`의 등급·자동 준비 필드 다섯([ADR-0049](decisions/0049-prespec-auto-preparation-and-auto-deep-review.md)) | 단위 테스트 범위. 목록 쿼리 수가 건수와 무관하게 12(묶음 없음)/14(자동 확정 묶음 있음)로 일정함을 확장 테스트가 고정한다 |
+| SW=Y 자동 심층 시작 | `SW사업대상=Y`·자동 확정 `ready` 묶음·개요 `completed`·권고가 `검토 종료`가 아닐 때 시스템 actor로 심층 검토 생성(`deep_review.auto_create`) | 단위 테스트 범위. **자동 생성된 검토를 실제로 실행하는 경로에 결함이 있다**([findings](findings.md)) — 실행 claim이 생성 감사 action을 `deep_review.create`로 고정해 자동 생성 건을 찾지 못한다 |
+| 사전규격 개요 모델 실행 worker | 통일 client를 `overview` 용도로 묶어 실행하고, 검증 실패는 재호출 없이 `failed`, transport 실패만 1+2회 재시도한다. lease는 모듈 상수 1,200초이며 합성 analysis worker가 C-2 → 심층 → 개요 순서로 하나만 claim한다 | 단위 테스트 범위. 실제 모델 호출 기록 없음 |
+| 결정적 문서 segment·요구사항 inventory | 구조 저장 시점에 manifest·segment·inventory 항목을 append-only로 만들고 `GET /api/document-structures/{id}/segments`로 읽는다. 검증에 `requirement_inventory`·`segment_coverage` check 추가([ADR-0051](decisions/0051-deep-review-v2-deterministic-subset.md)) | 단위 테스트 범위. **이 변경 전 구조에는 manifest가 없고 조회가 404다**(사후 재구성 불가). 역할별 모델 분석과 Luna 평가는 보류 |
 | 문서 준비·실패 attempt 재시작 화면 | typed frontend API·type 변경은 worktree에 있으나 화면과 연결은 미구현 | 화면 검증 없음 |
 | T-23 사전규격 overview phase 2 기반 | immutable result/event, 제한된 attempt lifecycle service, safe v2 projection 구현됨; 실제 model transport·worker는 미구현 | SQLite 46 passed·1 PostgreSQL-only skipped, PostgreSQL 17 집중 9 passed, production build 282 modules |
 | 사전규격 개요 검토 화면 | v2 결과 projection이 화면에 연결됨. 권고·검증 상태·요약·조건과 기한·미확인·근거·입력 한계를 판단 순서로 내고 계보는 접어 둔다. 근거 locator는 `GET /document-structures/{id}/pages/{page}`로 원문을 열어 앞뒤 블록과 함께 강조하며, `block_key`가 원문에 없으면 보정하지 않고 사람 검토로 보낸다. `verification_action`이 없는 unknown과 `validation_status != passed`는 각각 표식과 경고로 구분한다 | 2026-09-01, 커밋 `56aeb0d`·`77700a5`. Playwright `630 passed, 10 skipped, 0 failed`, tsc·build 통과 |
 | 사전규격 심층 추적 결정 동선 | 개요를 읽은 화면에서 계속 추적·보류·종료를 기록한다. `GET /pre-specs`에 `notice_pk` 필터를 더해 `opportunity_id`·`tracking_status`·첨부 집계를 한 응답으로 읽는다(`notice_pk`가 있으면 `sw_only`를 적용하지 않는다. `source_type = 'pre_spec'`은 항상 적용된다). 담당자 이름과 사유가 모두 필수이며 개요 권고를 추적 상태로 자동 반영하지 않는다 | 2026-09-01, 커밋 `26cdab4`. backend `1046 passed, 5 skipped, 0 failed`, Playwright `646 passed, 10 skipped, 0 failed` |
-| 애플리케이션 stack 조립 | PostgreSQL, MinIO, ClamAV, web, document worker, analysis worker, 일부 영속 volume, 목적별 egress overlay 구현됨 | 개발 stack health와 Ollama endpoint 도달 기록은 있으나 보안·복구 blocker로 운영 배포 불가 |
+| 애플리케이션 stack 조립 | PostgreSQL, MinIO, ClamAV, web, document worker, analysis worker, 일부 영속 volume, 목적별 egress overlay 구현됨 | 개발 stack health와 모델 endpoint 도달 기록은 있으나 실제 secret·MinIO 권한·egress·backup/restore 훈련이 남아 있다 |
 | 구조화 안전 로그 | 기반과 주요 worker·queue·scheduler 계측 구현 중인 worktree 변경 | 신규 단위 테스트 일부 통과 기록, 현재 전체 worktree green 아님 |
 | 개발용 hosted Codex 심층 검토 reference | 기본 비활성·notice allowlist에 더해 닫힌 payload allowlist를 두고, 회사 profile·prior stage 결과·승인되지 않은 입력 필드가 있으면 prompt 생성과 subprocess 이전에 `external_provider_payload_not_approved`로 fail-closed한다 | 해결; 차단 시 runner 미호출을 단언하는 회귀 테스트가 있고 backend `1041 passed, 5 skipped, 0 failed` |
 | runtime image 회사자료 제외 | current profile·회사 실적 제목 TSV·vendored baseline을 build context와 runtime image에서 제외하고, `web`에만 read-only host bind mount로 주입하도록 경계를 고정함 | 해결; runtime contract `11 passed`, profile snapshot keyword `14 passed`, 실제 image build/run/find, `COMPOSE_OK`, backend `1041 passed, 5 skipped, 0 failed` |
@@ -59,8 +65,12 @@
 T-23 `0014` 검증 경계의 PostgreSQL application schema는 legacy 13개, 심층 검토 25개,
 판정 runtime 12개, 누적 identity 5개, 첨부 fetch 1개, 판정·리뷰 revision 2개, 사전규격
 overview 5개로 총 63개 table이다. `0015`가 더한 입찰 delta 5개는 이 수치와 T-23 검증
-증거에 포함하지 않는다. 그 5개를 합친 현재 head `0015_bid_delta_final_decision`의 application
+증거에 포함하지 않는다. 그 5개를 합친 `0015_bid_delta_final_decision`의 application
 schema는 68개이며, 별도로 빈 PostgreSQL 17 `upgrade head`와 `0014↔0015` 왕복을 검증했다.
+현재 head는 `0018_prespec_auto_preparation_segments`이고 문서 기준 애플리케이션 table은
+**71개**, ORM `Base.metadata` 기준은 **77개**다(모듈 소유 core 2 · lifecycle 10 ·
+screening 28 · deep_review 37). 두 수는 세는 대상이 다르며 어느 쪽도 다른 쪽을 대신하지
+않는다.
 입찰 delta는 저장·REST·화면까지 있으나 비교를 실제로 계산하는 worker와 모델 binding 실행이
 없어 운영 활성화 상태가 아니다. SQLite는 격리 테스트와 일회성 이전 입력에만 남아 있다.
 
@@ -80,11 +90,34 @@ schema는 68개이며, 별도로 빈 PostgreSQL 17 `upgrade head`와 `0014↔001
 | T-23 최종 집중 회귀 + PostgreSQL 17 | 85 passed | overview 권한·절단·계보·migration·문서 무결성을 최종 변경 뒤 실제 role로 재검증 |
 | T-23 phase 2 DB-light 집중 회귀 | SQLite 46 passed·1 PostgreSQL-only skipped; PostgreSQL 17 9 passed | result/event·상태 전이 service·v2 projection·runtime privilege와 단일 상태 간선 trigger를 검증; 전체 backend green을 뜻하지 않음 |
 | T14/profile harness 최종 backend + PostgreSQL 17 | 992 passed, 5 skipped, 6 warnings | 최소 환경에서 임시 PG17·fresh DB·Alembic head를 자동 구성. T14 4건은 해결됐고 profile 2건은 승인 Git blob 부재를 fail-closed로 검증 |
-| 애플리케이션 stack V2 | services healthy, `/api/health` 성공, 구조화 worker log 관측, 승인 Ollama endpoint 도달 | 기동·관측·network 경계 검증; 실제 판정 품질 검증 아님 |
+| 애플리케이션 stack V2 | services healthy, `/api/health` 성공, 구조화 worker log 관측, 승인 모델 endpoint 도달 | 기동·관측·network 경계 검증; 실제 판정 품질 검증 아님 |
 | static diff check | 당시 통합 UI 변경에서 성공 | 이후 worktree 변경의 전체 검증으로 재사용하지 않음 |
 | 모듈 경계 강제 테스트 | `29 passed`. 허용 목록 `cross_module_import 0`, `router_orm_access 18`, `schema_imports_model_or_service 0`, `lifecycle_relationship 0`, `lifecycle_table_write 0` | 남은 18건은 명세가 이번 범위 밖으로 둔 router 안 직접 select다. 다섯째 검사(형제 모듈의 lifecycle 테이블 직접 쓰기·잠금)는 최종 검토가 "의존 규칙 네 줄 중 쓰기·잠금 한 줄만 어떤 검사도 덮지 않는다"를 지적해 새로 넣었고, 그때 드러난 제품 코드 17곳을 모두 lifecycle 공개 함수로 옮겨 0이 됐다. 목록은 stale 항목도 실패시키므로 실제 위반과 정확히 같다 |
 | 기준 6 모듈 격리 | `web/backend/scripts/verify_module_isolation.sh` 세 조합 PASS — lifecycle `75 passed`, screening `2 failed, 394 passed, 1 skipped`, deep_review `230 passed` | 형제 도메인 모듈의 `app/<module>`·`tests/<module>`을 지운 임시 복사본에서 폐기 가능한 PostgreSQL 17을 띄워 실제로 돌렸다. screening의 실패 2건은 위 기존 결함이며 skip 사유는 조합마다 출력된다 |
 | 이주 전후 REST 표면 | OpenAPI 문서 diff 11줄, 전부 `tags` | 경로 74개와 메서드·파라미터·요청 본문·응답 스키마·`components`는 동일하다. `/api/health`에 `health` tag가 붙고 판정 실행 경로의 tag가 `runs`에서 `screening`으로 바뀐 것이 전부이며 둘 다 소유 변경을 반영한다. `tags`는 `contracts.md`가 계약으로 고정한 값이 아니다 |
+
+### 2026-09-05 문서 갱신 시점의 기준선
+
+이 절의 수치는 문서 갱신(ADR-0049~0051 반영) **직전** 코드 상태에서 나온 것이다. 문서 작업
+자신은 코드를 바꾸지 않았으므로 아래 수치를 그대로 물려받는다.
+
+| 검증 | 기록된 결과 | 해석 |
+|---|---|---|
+| backend `pytest` 전체 | `2 failed, 1406 passed, 5 skipped` | 실패 2건은 이주 이전부터 있던 `tests/screening/test_screening_orchestrator.py`의 결함(`'실패' == '부분 성공'`)이며 이번 변경의 회귀가 아니다 |
+| frontend `npm run test:screens` | `256 passed, 4 skipped` | 화면 게이트(의미 한 폭 + 구조 두 폭) |
+| frontend `npm run build` | exit 0 | TypeScript strict build와 Vite production bundle |
+| frontend `npm run test:contrast` | exit 0 | 테마 대비 게이트(ADR-0048) |
+| frontend `npm run test:pixel` | **돌리지 않음** | `pre-specs-list`·`deep-review-complete` 두 장이 코드와 어긋난 채 남아 있다. 게이트가 아니며 갈아 끼우지 않았다([findings](findings.md)) |
+
+문서 갱신 작업 자신이 실행한 것은 다음 둘뿐이다.
+
+| 검증 | 결과 |
+|---|---|
+| `pytest tests/app/test_module_boundaries.py -q` | `34 passed` |
+| `python -c "... len(app.openapi()['paths'])"` | `75 paths`. `docs/contracts.md`의 경로 표와 대조해 누락 하나(`GET /api/document-structures/{structure_id}/segments`)를 채웠다 |
+
+**실제 vLLM 호출, 나라장터 다운로드, Compose 스택 기동은 이 작업에서 수행하지 않았다.**
+운영 절차의 "사전규격 심층 검토 참조 실행"은 아직 한 번도 실행되지 않은 절차다.
 
 최근 끝까지 완주한 backend 전체 suite는 2026-09-04 모듈 경계 이주 뒤의
 `2 failed, 1240 passed, 5 skipped`이다. 실패 2건은 이주 이전부터 있던
@@ -118,7 +151,7 @@ DB에 없다. 다만 byte-identical 파일이 `web/backend/app/screening/baselin
 
 - 기존 pipeline 테스트는 collect 28, report 13, screen 21, root 2로 총 64개가 통과했다. 현재 변경 전체의 통과로 간주하지 않는다.
 - Deep Review Mock agent E2E는 PostgreSQL, MinIO, ClamAV, document worker 2개, analysis worker, web에서 `passed=true`였다. 외부 모델 호출은 없었고 Qwen 품질 근거가 아니다.
-- 실제 Ollama 단일 판정은 한 번 실패한 뒤 generation binding을 고정한 재실행에서 7개 logical stage, 8 attempts, v3 judgment 1건으로 성공했다. 별도 stop 실행도 중단 artifact를 보존했다. 40건 A/B와 운영 activation을 뜻하지 않는다.
+- 이전 로컬 provider로 돌린 단일 판정은 한 번 실패한 뒤 generation binding을 고정한 재실행에서 7개 logical stage, 8 attempts, v3 judgment 1건으로 성공했다. 별도 stop 실행도 중단 artifact를 보존했다. 40건 A/B와 운영 activation을 뜻하지 않으며, **모델 이름과 transport가 그 뒤에 바뀌었으므로(ADR-0050) 그 실행을 새 실행의 baseline으로 재사용하지 않는다.**
 - 사설 vLLM 후보는 제한된 구조화 입력에서 호출·validator 통과 기록이 있으나 server image와 model artifact digest가 아직 immutable하게 고정되지 않았다.
 
 ## 진행 중 작업 기록
@@ -134,7 +167,7 @@ DB에 없다. 다만 byte-identical 파일이 `web/backend/app/screening/baselin
 
 1. **사람 몫 — 지금 던져두면 병렬로 돈다.** C-2 방식 선택은 완료했다. 기존 997건 실험의 gold 재판정 9건 확인, 별도 C-2 625건 gold의 잔여 87건 확인, D-7 방화벽 승인 상신이 남아 있다.
 2. **테스트 harness.** MinIO versioning fail-open과 host-wide DB·MinIO port publish는 2026-09-01에 닫았고 **알려진 운영 배포 blocker는 0이다.** `web/run-web-tests.sh`는 2026-08-31부터 있고(`84bbcc5`) 임시 PostgreSQL 17에서 backend pytest와 frontend build를 돌린다. 2026-09-01에 Playwright visual 회귀를 같은 진입점에 넣어 화면 검증이 문서에만 있는 게이트로 남지 않게 했다. **남은 것은 CI다.** 개별 파일만 지정해 pytest를 직접 치면 postgres 테스트가 여전히 조용히 skip되며, 이 저장소는 같은 부류 결함에 두 번 데였다.
-3. **껍데기를 실제로 도는 기능으로.** 입찰 delta 계산 worker와 모델 adapter, T-23 사전규격 개요 model adapter·worker, 문서 준비·실패 attempt 재시작 화면, T-19 판정 모델 계보 projection. 전부 결정이 끝나 막는 것이 없다. **사전규격 개요는 2026-09-01에 화면 몫을 끝냈으므로 남은 것은 worker다.** worker가 없는 동안 실데이터는 대부분 `awaiting_model`에 머물며, 화면은 승인된 모델 binding이 없어 실행되지 않는 상태임을 알린다.
+3. **껍데기를 실제로 도는 기능으로.** 사전규격 개요 model worker는 2026-09-05에 통일 client 위로 구현했다(참조 실행 단계). 남은 것은 **입찰 delta 계산 worker와 모델 adapter**, 문서 준비·실패 attempt 재시작 화면, T-19 판정 모델 계보 projection, 그리고 자동 생성된 심층 검토를 실행하지 못하는 결함([findings](findings.md))이다. 입찰 delta는 저장·REST·화면이 있으나 `bid_delta_comparison`이 `pending`에 머문다.
 4. **판정을 믿을 수 있게.** 실제 model artifact digest·대표 HWP/PDF gold·사람 판정으로 Qwen·vLLM 품질 gate 2건을 측정하고, screening v3를 보고서 renderer에 명시적으로 연결한다.
 5. **선별 제품 — C-2 선택 완료.** BM25 Top 300→Qwen threshold·감사 표본 정책 확정 → 전체 발주계획 원본과 방식별 결과를 저장하는 불변 수집 회차·DB 계약 → 내부 opportunity와 plan·pre-spec·bid 공식 관계 및 사람 확인 대기 relation 후보 → 사전규격 독립 일일 수집·저비용 1차선별·사람 승인 gate 연결 → `계속 추적|보류|종료`, 입찰공고 발견, 사전규격 대비 material delta, 최종 사람 Go/No-Go.
 6. **이후 범위.** 실제 secret·MinIO allow/deny·egress firewall·backup/restore를 운영 환경에서 검증하고, 개발계정 API 요청 수를 실측해 증액 근거를 준비하며, SSO·역할 권한과 dashboard·외부 알림을 설계한다.
