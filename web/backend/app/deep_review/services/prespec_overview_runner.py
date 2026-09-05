@@ -40,6 +40,7 @@ from ...core.model_client import (
 )
 from ...core.models import AuditEvent
 from ...core.object_store import EncryptedModelResponseStore, ObjectStoreError
+from .auto_preparation import maybe_auto_start_deep_review
 from ..models import (
     ContentObject,
     ContentObjectLocation,
@@ -109,6 +110,7 @@ class PreSpecOverviewRunner:
         root: Path | None = None,
         lease_seconds: int = OVERVIEW_LEASE_SECONDS,
         settings: Any | None = None,
+        deep_review_service: Any | None = None,
         clock: Callable[[], datetime] = _now,
     ) -> None:
         self._client = client
@@ -116,6 +118,9 @@ class PreSpecOverviewRunner:
         self._policy = policy
         self._policy_loaded = policy is not None
         self._raw_response_store = raw_response_store
+        # §6.4의 자동 시작이 부르는 심층 검토 서비스. 없으면 필요한 순간에
+        # 기본 서비스를 만든다 — 개요 실행 경로가 그 설정에 묶이지 않는다.
+        self._deep_review_service = deep_review_service
         self.root = root
         self.lease_seconds = max(int(lease_seconds), 1)
         self.settings = settings
@@ -298,11 +303,14 @@ class PreSpecOverviewRunner:
                 response_sha256=response_sha256,
             )
 
-        # ── 후속 작업의 hook 지점 ─────────────────────────────────────
-        # "개요 completed → SW사업대상=Y 자동 심층 검토 시작"은 여기에 붙인다.
-        # 이 자리는 완료 전이가 이미 성사됐고 commit 전이라 같은 transaction에
-        # 있으며 ``notice_id``·``review_id``·``attempt_id``가 모두 손에 있다.
-        # 이 작업의 범위가 아니므로 여기서 심층 검토를 만들지 않는다.
+        # ── SW사업대상=Y 자동 심층 검토 시작 (명세 §6.4) ─────────────
+        # 완료 전이가 이미 성사됐고 commit 전이라 같은 transaction에 있다.
+        # 자동 시작은 자기 savepoint session에서 돌므로 실패해도 위의 개요
+        # 완료를 되돌리지 않고, 조건이 어긋나면 사람 클릭으로 남는다.
+        if notice_id is not None:
+            maybe_auto_start_deep_review(
+                session, notice_id, service=self._deep_review_service
+            )
         self._audit(
             session,
             attempt_id,

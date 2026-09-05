@@ -65,7 +65,9 @@ from ...core.object_store import EncryptedModelResponseStore
 STAGE_SEQUENCE = {name: index for index, name in enumerate(STAGES, start=1)}
 MOCK_ANALYSIS_PROVIDER = "mock-analysis"
 MODEL_PURPOSE = "deep_review"
-CREATION_ACTIONS = ("deep_review.create", "deep_review.auto_create")
+#: 심층 검토를 만든 감사 action. 사람 클릭과 §6.4의 자동 시작 둘뿐이다.
+CREATION_ACTION_BY_ACTOR_KIND = {"human": "deep_review.create", "system": "deep_review.auto_create"}
+CREATION_ACTIONS = tuple(CREATION_ACTION_BY_ACTOR_KIND.values())
 MIN_LEASE_SECONDS = APPROVED_TIMEOUT_SECONDS * (APPROVED_RETRIES + 1) + 60
 WORKER_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 EMPTY_PRIOR_CLAIM_ID = uuid5(NAMESPACE_URL, "bidops.deep-review.empty-prior-claim")
@@ -123,6 +125,14 @@ def _validate_actor(actor: str | None) -> str:
     if len(clean) > 128 or any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in clean) or clean.lower() == "system":
         raise DeepReviewServiceError("actor_name_invalid", "담당자 이름이 올바르지 않습니다", status_code=400)
     return clean
+
+
+def _validate_actor_kind(actor_kind: str) -> str:
+    """심층 검토를 만들 수 있는 actor 종류는 사람과 시스템 둘뿐이다 (§6.4)."""
+
+    if actor_kind not in CREATION_ACTION_BY_ACTOR_KIND:
+        raise DeepReviewServiceError("invalid_request", "actor 종류가 올바르지 않습니다", status_code=400)
+    return actor_kind
 
 
 def _validate_worker_id(worker_id: str) -> str:
@@ -471,8 +481,27 @@ class DeepReviewService:
         review.status = "queued"
         return attempt
 
-    def create_review(self, session: Session, notice_id: int, bundle_id: UUID, actor: str | None, request_id: UUID) -> dict[str, Any]:
+    def create_review(
+        self,
+        session: Session,
+        notice_id: int,
+        bundle_id: UUID,
+        actor: str | None,
+        request_id: UUID,
+        *,
+        actor_kind: str = "human",
+    ) -> dict[str, Any]:
+        """심층 검토와 첫 attempt를 만든다.
+
+        `actor_kind`가 ``system``이면 §6.4의 자동 시작이다. 담당자 이름 검사와
+        불변 입력 고정, 등급 검사, 감사 metadata의 **모양**은 사람 경로와 같고
+        감사 action 이름과 actor 종류만 다르다 — `quality_status`가 두 action
+        모두에서 계산되기 때문이다(§8). 자동 시작이 추가 권한을 얻지는 않는다.
+        """
+
         claimed_name = _validate_actor(actor)
+        actor_kind = _validate_actor_kind(actor_kind)
+        creation_action = CREATION_ACTION_BY_ACTOR_KIND[actor_kind]
         request_hash = _idempotency_hash("deep_review_create", {"notice_id": notice_id, "bundle_id": str(bundle_id)})
         try:
             # Notice is the aggregate root for the immutable grade/bundle /
@@ -536,7 +565,9 @@ class DeepReviewService:
             ).limit(1))
             if existing is not None:
                 creation = session.scalar(select(AuditEvent).where(
-                    AuditEvent.action == "deep_review.create",
+                    # 사람 경로와 자동 시작(§6.4)이 같은 계보를 남긴다. 한쪽만
+                    # 보면 자동 생성된 review의 provider 문맥을 못 읽는다.
+                    AuditEvent.action.in_(CREATION_ACTIONS),
                     AuditEvent.aggregate_type == "deep_review",
                     AuditEvent.aggregate_id == str(existing.id),
                 ).order_by(AuditEvent.created_at.asc(), AuditEvent.id.asc()).limit(1))
@@ -559,7 +590,7 @@ class DeepReviewService:
             session.flush()
             response = self.view(session, review.id)
             session.add(IdempotencyRecord(operation="deep_review_create", aggregate_type="notice", aggregate_id=str(notice_id), claimed_name=claimed_name, request_id=request_id, request_sha256=request_hash, response_status=202, response_snapshot=response))
-            session.add(AuditEvent(actor_kind="human", claimed_name=claimed_name, action="deep_review.create", aggregate_type="deep_review", aggregate_id=str(review.id), request_id=str(request_id), safe_metadata={
+            session.add(AuditEvent(actor_kind=actor_kind, claimed_name=claimed_name, action=creation_action, aggregate_type="deep_review", aggregate_id=str(review.id), request_id=str(request_id), safe_metadata={
                 "notice_id": notice_id, "bundle_id": str(bundle_id), "profile_version_id": str(profile.id), "profile_sha256": profile.profile_sha256,
                 "policy_version_id": str(policy.id), "policy_sha256": policy.policy_sha256, "policy_model_name": policy.model_name,
                 "analysis_provider": runtime_provider, "runtime_model": runtime_model,
