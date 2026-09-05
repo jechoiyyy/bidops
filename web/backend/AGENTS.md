@@ -102,13 +102,20 @@ app/
 
 ```bash
 python -m app.screening.cli {run-one, score-candidate-quality}
-python -m app.deep_review.cli {run-bc-e2e, import-profile-policy}
+python -m app.deep_review.cli {run-bc-e2e, run-prespec-e2e, import-profile-policy}
 python -m app.lifecycle.ingest.cli {--run <회차> | --all}
 
 python -m app.deep_review.workers.document            # 자격증명 없는 문서 worker
 python -m app.deep_review.workers.prespec_attachment  # 사전규격 첨부 취득 worker
 python -m app.workers.analysis                        # 모델을 쓰는 합성 worker
 ```
+
+`run-prespec-e2e`는 사전규격 종단 인수 실행이며 격리 실행 경계
+(`BIDOPS_TEST_MODE=1` 또는 pytest)에서만 돈다. 자기 workspace의 SQLite와 filesystem 객체
+저장소만 쓰고 live 모델·나라장터를 부르지 않으며, 판정 적재 제공자는
+`--extension-provider app.screening:register_lifecycle_extensions`처럼 **이름으로** 받는다 —
+deep_review가 형제 모듈을 import하지 않기 위해서다. 제공자가 없으면 판정이 0건이므로
+`screening_provider_missing`으로 fail closed한다.
 
 모델을 쓰는 C-2 선별·심층 검토·사전규격 개요 worker에 단독 진입점을 만들지 않는다. 합성
 worker가 한 바퀴에 C-2 → 심층 → 개요 순서로 **하나만** claim하며, 따로 띄우면 **모델 슬롯
