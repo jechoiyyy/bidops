@@ -96,10 +96,6 @@ class ModelInvocationError(RuntimeError):
         super().__init__(code)
 
 
-#: 이름이 바뀌기 전 계약을 들고 있는 호출부를 위한 별칭이다. 새 코드는
-#: `ModelInvocationError`를 쓴다.
-VllmInvocationError = ModelInvocationError
-
 
 class ModelEndpointError(ValueError):
     """용도별 설정이 모델을 부를 수 있는 상태가 아니다 (fail closed).
@@ -348,6 +344,19 @@ class ModelClient:
 
     모델명은 호출자가 준다. 개요·심층 검토는 policy의 `model_name`을,
     C-1은 `BIDOPS_VLLM_SCREENING_MODEL`을 넘긴다.
+
+    **승인 게이트는 이 생성자가 아니라 `resolve_model_endpoint`에 있다**
+    (명세 §6.6, ADR-0050). "허용 host가 비었거나 선언 revision이 64자 hex가
+    아니면 그 용도는 호출 전에 fail closed한다"는 규칙은 용도별 설정을 푸는
+    그 함수가 강제하며, 그래서 `for_purpose`는 client를 **만들기 전에** 멈춘다.
+    생성자를 직접 부르는 것은 transport 주입 seam이다 — 허용 host 목록과 선언
+    revision을 호출자가 책임지고 넘겨야 하고, 생성자는 그 둘의 존재를 다시
+    검사하지 않는다. 운영 경로는 예외 없이 `for_purpose`를 지난다. 직접
+    생성하는 제품 코드는 `app/screening/model_adapter.py`의 주입 transport
+    한 곳뿐이며, 그곳은 선언 revision을 스스로 64자 hex로 검사한다.
+
+    소유한 `httpx.Client`는 `close()`나 `with` 문으로 닫는다. 버릴 client를
+    닫지 않으면 poll마다 연결이 쌓인다.
     """
 
     def __init__(
@@ -406,6 +415,24 @@ class ModelClient:
         """이 client가 소유한 bounded transport (없으면 주입된 호출자)."""
 
         return self._http_client
+
+    def close(self) -> None:
+        """소유한 `httpx.Client`를 닫는다. 주입된 transport는 건드리지 않는다.
+
+        여러 번 불러도 안전하다. 닫은 뒤 호출하면 SDK가 실패하므로 **버리는
+        client에만** 쓴다.
+        """
+
+        client, self._http_client = self._http_client, None
+        self._sdk = None
+        if client is not None:
+            client.close()
+
+    def __enter__(self) -> "ModelClient":
+        return self
+
+    def __exit__(self, *_exc: object) -> None:
+        self.close()
 
     @property
     def sdk_max_retries(self) -> int | None:
@@ -653,10 +680,6 @@ class ModelClient:
             observations.append({"retry_index": index, "status": "failed", "error_code": code, "latency_ms": elapsed})
         raise ModelInvocationError(str(observations[-1].get("error_code", "provider_error")), observations)
 
-#: 이름이 바뀌기 전 계약을 들고 있는 호출부를 위한 별칭이다. 새 코드는
-#: `ModelClient`를 쓴다.
-VllmClient = ModelClient
-
 __all__ = [
     "APPROVED_GENERATION",
     "APPROVED_RETRIES",
@@ -674,8 +697,6 @@ __all__ = [
     "ModelInvocationError",
     "ResponseTooLargeError",
     "StructuredOutputContract",
-    "VllmClient",
-    "VllmInvocationError",
     "build_prompt",
     "resolve_model_endpoint",
     "sanitize_for_prompt",

@@ -357,6 +357,11 @@ class DeepReviewService:
             self._client = MockAnalysisClient()
         else:
             self._client = None
+        # 주입·mock client는 policy 모델명에 묶이지 않는다. 그 밖의 client는
+        # `_bind_client`가 만든 것이고, 어느 모델명으로 만들었는지를 여기에
+        # 남겨야 policy가 다른 job이 남의 client를 물려받지 않는다.
+        self._injected_client = self._client is not None
+        self._bound_model_name: str | None = None
         # 참조 실행 모드는 provider와 무관하다(명세 §6.5). mock provider는
         # 설정 검증이 이 모드를 필수로 요구하고, vLLM 경로도 이 모드에서는
         # 측정값 없는 policy로 실행할 수 있다.
@@ -391,12 +396,23 @@ class DeepReviewService:
         확정돼 있으므로 여기서는 그 둘만 읽는다.
         """
 
-        if self._client is not None:
+        if self._client is not None and self._client_matches(str(policy.model_name)):
             return (
                 str(getattr(self._client, "provider_name", "injected-analysis-client")),
                 str(getattr(self._client, "model", policy.model_name)),
             )
         return MODEL_ENDPOINT_REF, str(policy.model_name)
+
+    def _client_matches(self, model_name: str) -> bool:
+        """들고 있는 client를 이 모델명에 그대로 쓸 수 있는가.
+
+        주입·mock client는 언제나 쓴다 — 호출자가 그 계약을 소유한다. 스스로
+        묶은 client는 **묶을 때 쓴 모델명이 같을 때만** 쓴다. worker 하나가
+        서비스를 job 사이에 들고 있으므로, 이 대조가 없으면 policy A로 만든
+        client가 policy B에 고정된 job에 그대로 돌아간다.
+        """
+
+        return self._injected_client or self._bound_model_name == model_name
 
     def _bind_client(self, model_name: str) -> Any:
         """용도별 설정으로 심층 검토 client를 만들고 identity를 확인한다 (명세 §6.6).
@@ -406,8 +422,15 @@ class DeepReviewService:
         어느 실패도 다른 주소·다른 provider로 넘어가지 않는다.
         """
 
-        if self._client is not None:
+        if self._client is not None and self._client_matches(model_name):
             return self._client
+        # 모델명이 다르면 이전 client는 버린다. transport를 닫지 않으면 job이
+        # 모델을 오갈 때마다 연결이 쌓인다.
+        discarded, self._client, self._bound_model_name = self._client, None, None
+        if discarded is not None:
+            closer = getattr(discarded, "close", None)
+            if callable(closer):
+                closer()
         try:
             self._client = ModelClient.for_purpose(
                 MODEL_PURPOSE,
@@ -419,6 +442,7 @@ class DeepReviewService:
             raise DeepReviewServiceError(error.code, "승인된 분석 모델 identity를 확인할 수 없습니다", status_code=503) from error
         except (ModelEndpointError, ValueError) as error:
             raise DeepReviewServiceError("service_unavailable", "심층 검토 모델 endpoint 설정이 유효하지 않습니다", status_code=503) from error
+        self._bound_model_name = model_name
         return self._client
 
     def _idempotent_response(self, session: Session, *, operation: str, aggregate_type: str, aggregate_id: str, actor: str, request_id: UUID, request_hash: str) -> dict[str, Any] | None:
