@@ -416,3 +416,73 @@ def test_for_purpose_fails_closed_before_touching_the_network() -> None:
             completion_create=lambda **_kwargs: {},
             models_list=models_list,
         )
+
+
+def test_close_releases_the_owned_transport() -> None:
+    """버리는 client는 자기 `httpx.Client`를 닫는다.
+
+    이 client를 만드는 자리는 poll loop 안이거나(개요 슬롯) refresh 경로다
+    (C-1 adapter). 닫지 않고 버리면 연결이 그 횟수만큼 쌓인다.
+    """
+
+    client = ModelClient(model="합성-모델-a", output_contract=CONTRACT, allowed_hosts="127.0.0.1")
+    transport = client.http_client
+    assert transport is not None and transport.is_closed is False
+
+    client.close()
+    assert transport.is_closed is True
+    assert client.http_client is None
+    # 두 번 닫아도 안전하다.
+    client.close()
+
+
+def test_the_client_is_a_context_manager() -> None:
+    with ModelClient(
+        model="합성-모델-a", output_contract=CONTRACT, allowed_hosts="127.0.0.1"
+    ) as client:
+        transport = client.http_client
+        assert transport is not None
+    assert transport.is_closed is True
+
+
+def test_injected_transport_is_not_closed_by_close() -> None:
+    """주입된 호출부는 이 client의 소유가 아니므로 건드리지 않는다."""
+
+    client = ModelClient(
+        model="합성-모델-a",
+        output_contract=CONTRACT,
+        allowed_hosts="127.0.0.1",
+        completion_create=lambda **_kwargs: {},
+    )
+    assert client.http_client is None
+    client.close()  # 소유한 transport가 없어도 실패하지 않는다
+
+
+def test_the_approval_gate_lives_in_resolve_model_endpoint_not_the_constructor() -> None:
+    """승인 게이트의 자리를 코드로 고정한다 (명세 §6.6, ADR-0050).
+
+    생성자는 허용 host·선언 revision의 존재를 검사하지 않는다 — transport 주입
+    seam이기 때문이다. 그 규칙은 용도별 설정을 푸는 `resolve_model_endpoint`가
+    강제하고, 그래서 `for_purpose`는 client를 **만들기 전에** 멈춘다. 그러므로
+    직접 생성하는 제품 코드가 있으면 그 자리가 스스로 책임져야 한다. 아래
+    목록은 그 예외를 명시적으로 좁힌다.
+    """
+
+    import re
+    from pathlib import Path
+
+    # 경계 검사가 보는 것은 파일이지 import가 아니다. 여기서 `app`을 import하면
+    # core 테스트가 조립 계층을 끌어와 모듈 방향 검사에 걸린다.
+    construction = re.compile(r"(?<![A-Za-z0-9_])ModelClient\(")
+    root = Path(__file__).resolve().parents[2] / "app"
+    direct = sorted(
+        str(path.relative_to(root))
+        for path in root.rglob("*.py")
+        if path.name != "model_client.py"
+        and construction.search(path.read_text(encoding="utf-8"))
+    )
+    assert direct == ["screening/model_adapter.py"], (
+        "ModelClient를 직접 만드는 제품 코드가 늘었다. 운영 경로는 `for_purpose`를 "
+        "지나야 하고, 주입 transport로 직접 만드는 자리는 허용 host와 선언 "
+        "revision을 스스로 책임져야 한다."
+    )

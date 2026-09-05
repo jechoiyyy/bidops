@@ -230,8 +230,11 @@ class ScreeningModelClient:
             return self.identity
         if refresh and self._injected_client is None:
             # 배포가 선언한 revision 자체가 바뀌었을 수 있다. refresh는 served
-            # id뿐 아니라 **선언의 출처**를 다시 읽는다는 뜻이다.
-            self._client = None
+            # id뿐 아니라 **선언의 출처**를 다시 읽는다는 뜻이다. 버리는
+            # client의 transport는 닫는다 — 안 닫으면 refresh마다 연결이 샌다.
+            discarded, self._client = self._client, None
+            if discarded is not None:
+                discarded.close()
         client = self._ensure_client()
         failure_summary: str | None = None
         try:

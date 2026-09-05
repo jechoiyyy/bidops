@@ -81,7 +81,7 @@ effective grade(사람 정정 등급이 있으면 그것, 없으면 판정 등�
 
 자동 준비 상태는 여덟이다. `not_applicable`(자동 준비 대상 아님), `waiting_attachments`(첨부 취득 대기), `bundle_draft`(묶음 초안), `bundle_ready`(묶음 확정), `overview_running`(개요 검토 실행 중), `deep_review_started`(심층 검토 자동 시작됨), `deep_review_ready_for_click`(심층 검토 클릭 대기), `blocked`(자동 준비 중단). `not_applicable`은 "대상이 아님"이며 "알 수 없음"이 아니다.
 
-다음이 모두 성립하면 심층 검토를 시스템이 자동으로 만든다. 사전규격이고 `SW사업대상=Y`, 자동 준비가 확정한 `ready` 묶음이 있고, 그 묶음의 개요 검토가 `completed`이며, 권고가 `검토 종료`가 아니고, 개요가 본 묶음과 지금 묶음이 같으며, 같은 불변 입력의 심층 검토가 아직 없다. 하나라도 어긋나면 각각의 사유 코드(`not_sw_business`, `bundle_not_auto_ready`, `overview_not_completed`, `overview_recommendation_closed`, `overview_bundle_mismatch`, `deep_review_exists`, `service_unavailable`, `processing_failed`)로 남기고 사람 클릭으로 넘긴다. 평가 순서는 이 목록 순서이며 첫 일치가 이긴다.
+다음이 모두 성립하면 심층 검토를 시스템이 자동으로 만든다. 사전규격이고 `SW사업대상=Y`, 자동 준비가 확정한 `ready` 묶음이 있고, 그 묶음의 개요 검토가 `completed`이며, 권고가 `검토 종료`가 아니고, 개요가 본 묶음과 지금 묶음이 같으며, 같은 불변 입력의 심층 검토가 아직 없다. 하나라도 어긋나면 각각의 사유 코드(`not_sw_business`, `bundle_not_auto_ready`, `overview_not_completed`, `overview_recommendation_closed`, `overview_bundle_mismatch`, `service_unavailable`, `deep_review_exists`, `processing_failed`)로 남기고 사람 클릭으로 넘긴다. 평가 순서는 이 목록 순서이며 첫 일치가 이긴다 — 앞의 여섯은 쓰기·읽기가 같은 함수로 판정하고, `deep_review_exists`와 `processing_failed`는 실제로 만들어 보는 쓰기 경로에서만 나온다. **읽기 경로는 `deep_review_exists`를 내지 않는다.** 이미 심층 검토가 있으면 사유가 아니라 상태 `deep_review_started`로 답한다.
 
 자동 시작은 추적 상태를 바꾸지 않는다. 사업기회는 `미선택` 그대로이고, 자동 시작이 적합성 등급·참여 준비 상태·추적 선택·최종 입찰 Go/No-Go를 대신하지 않는다. **자동으로 여는 것은 분석의 시작뿐이다.**
 

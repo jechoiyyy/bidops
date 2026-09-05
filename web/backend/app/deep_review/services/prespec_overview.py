@@ -1740,15 +1740,14 @@ def build_overview_model_input(
     return selected
 
 
-def enqueue_overview_attempt(
+def select_overview_enqueue_candidate(
     session: Session,
-    binding: OverviewModelBinding,
-) -> PreSpecOverviewAttempt | None:
-    """큐 유입: ``awaiting_model``·``cut_status=ready`` review 하나를 큐에 넣는다.
+) -> tuple[PreSpecOverviewReview, PreSpecOverviewSnapshot] | None:
+    """큐에 넣을 수 있는 review·snapshot 한 쌍을 고른다. 모델을 부르지 않는다.
 
-    사람 검토가 필요한 review와 ``failed``·``cancelled`` review는 건드리지 않고,
-    같은 snapshot에 ``queued|running`` attempt가 있으면 새로 만들지 않는다
-    (명세 §6.3). 자동 재시작이 아니라 아직 한 번도 실행되지 않은 유입이다.
+    이 조회가 큐 유입 조건 자체다. runner는 **승인된 binding을 해석하기 전에**
+    이것으로 "이번 poll에 할 일이 있는가"를 판정한다 — 할 일이 없는데 policy를
+    읽고 `/models`를 부르면 idle worker가 poll마다 모델 서버를 두드린다.
     """
 
     active = (
@@ -1778,6 +1777,47 @@ def enqueue_overview_attempt(
     if row is None:
         return None
     review, snapshot = row
+    return review, snapshot
+
+
+def has_claimable_overview_attempt(session: Session) -> bool:
+    """claim 가능한 queued attempt가 있는지만 본다. 잠그지도 부르지도 않는다."""
+
+    return (
+        session.scalar(
+            select(PreSpecOverviewAttempt.id)
+            .where(
+                PreSpecOverviewAttempt.status == "queued",
+                PreSpecOverviewAttempt.review_id.is_not(None),
+                PreSpecOverviewAttempt.input_sha256.is_not(None),
+                PreSpecOverviewAttempt.binding_digest.is_not(None),
+            )
+            .limit(1)
+        )
+        is not None
+    )
+
+
+def enqueue_overview_attempt(
+    session: Session,
+    binding: OverviewModelBinding,
+    *,
+    candidate: tuple[PreSpecOverviewReview, PreSpecOverviewSnapshot] | None = None,
+) -> PreSpecOverviewAttempt | None:
+    """큐 유입: ``awaiting_model``·``cut_status=ready`` review 하나를 큐에 넣는다.
+
+    사람 검토가 필요한 review와 ``failed``·``cancelled`` review는 건드리지 않고,
+    같은 snapshot에 ``queued|running`` attempt가 있으면 새로 만들지 않는다
+    (명세 §6.3). 자동 재시작이 아니라 아직 한 번도 실행되지 않은 유입이다.
+
+    ``candidate``를 넘기면 그 쌍을 그대로 쓴다. 호출자가 이미 고른 쌍을 다시
+    고르지 않기 위한 것이며, 넘기지 않으면 여기서 고른다.
+    """
+
+    selected = candidate if candidate is not None else select_overview_enqueue_candidate(session)
+    if selected is None:
+        return None
+    review, snapshot = selected
     return create_overview_attempt(
         session,
         review.notice_id,
@@ -1798,6 +1838,12 @@ def claim_overview_attempt(
 
     상태 전이·``started_at``·lease 설정을 한 transaction에서 한다. 호출자가
     commit을 소유한다.
+
+    잠금은 ``SKIP LOCKED``다(`prespec_attachments.claim_next`와 같은 형태).
+    지금은 analysis concurrency가 1이라 경쟁자가 없지만, 그냥 ``FOR UPDATE``면
+    둘째 claim이 첫째의 transaction을 기다렸다가 **빈 손으로** 돌아온다 —
+    없는 것과 잠긴 것이 같은 값으로 보인다. ``SKIP LOCKED``는 잠긴 행을 건너뛰고
+    다음 queued attempt로 나아간다.
     """
 
     if not isinstance(worker_id, str) or not worker_id.strip() or len(worker_id.strip()) > 255:
@@ -1818,7 +1864,7 @@ def claim_overview_attempt(
             PreSpecOverviewAttempt.sequence.asc(),
         )
         .limit(1)
-        .with_for_update()
+        .with_for_update(skip_locked=True)
     ).first()
     if attempt is None:
         return None
@@ -2156,6 +2202,34 @@ def fail_overview_attempt(
         request_id=request_id,
         trace_id=trace_id,
     )
+
+
+def fail_overview_review(
+    session: Session,
+    review_id: UUID,
+) -> PreSpecOverviewReview | None:
+    """attempt를 만들지 못한 review를 ``failed``로 닫는다 (명세 §6.3).
+
+    큐 유입이 거부되면 attempt row 자체가 없어 ``fail_overview_attempt``로
+    닫을 수 없다. 그런데 유입 후보는 ``updated_at ASC``로 뽑히므로, 같은
+    review를 닫지 않으면 다음 poll이 또 그 review를 집어 개요 슬롯이 영구히
+    막힌다. 이 함수는 그 고리를 끊는 것이 전부다 — 자동 재시작은 하지 않고
+    사람이 다시 시작한다. 이미 종료된 review는 건드리지 않는다.
+
+    review row에는 사유 열이 없다. 분류는 호출자가 남기는 감사 이벤트가 갖고,
+    여기서 만들어 넣지 않는다.
+    """
+
+    review = session.scalar(
+        select(PreSpecOverviewReview)
+        .where(PreSpecOverviewReview.id == review_id)
+        .with_for_update()
+    )
+    if review is None or review.status in {"completed", "failed", "cancelled"}:
+        return review
+    _set_review_state(review, status="failed")
+    session.flush()
+    return review
 
 
 def cancel_overview_attempt(

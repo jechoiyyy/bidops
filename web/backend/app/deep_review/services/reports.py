@@ -217,7 +217,7 @@ class ReportService:
                     ReportRevision.deep_review_id == review.id,
                 ).order_by(ReportRevision.sequence.desc()).limit(1)) or existing.id)
 
-            report, stage_payloads, evidence_payloads, contexts = self._initial_report_projection(session, review, attempt, stages)
+            report, stage_payloads, evidence_payloads, contexts, segment_checks = self._initial_report_projection(session, review, attempt, stages)
             self._validate_submitted_report(report, review, stage_payloads, evidence_payloads, contexts, None)
             evidence_ids = [_uuid(item["evidence_id"]) for item in evidence_payloads]
             revision = self._insert_revision_and_validation(
@@ -227,6 +227,7 @@ class ReportService:
                 stage_payloads=stage_payloads,
                 evidence_payloads=evidence_payloads,
                 contexts=contexts,
+                segment_checks=segment_checks,
                 origin="machine",
                 parent_revision_id=None,
                 reason=None,
@@ -462,7 +463,13 @@ class ReportService:
         ))
         return revision
 
-    def _initial_report_projection(self, session: Session, review: DeepReview, attempt: DeepReviewAttempt, stages: Sequence[DeepReviewStage]) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
+    def _initial_report_projection(self, session: Session, review: DeepReview, attempt: DeepReviewAttempt, stages: Sequence[DeepReviewStage]) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]], dict[str, Any], list[dict[str, Any]]]:
+        """machine 보고서 payload와 그것을 만든 projection을 함께 돌려준다.
+
+        segment 대조는 stage 1 claim 본문을 전부 다시 훑는 작업이라 한 보고서를
+        만들며 두 번 하지 않는다. 여기서 한 번 계산해 검증 단계로 넘긴다.
+        """
+
         stage_payloads, evidence_payloads, contexts = self._stage_projection(session, review, attempt, stages)
         claim_payloads = self._claims(session, review.id, stages)
         if not claim_payloads:
@@ -475,9 +482,8 @@ class ReportService:
         failed_claims = [claim for claim in claim_payloads if claim["status"] in {"unsupported", "conflicting"}]
         # 요구사항 inventory 대조 실패는 보고서 validation 상태에 그대로 드러난다.
         # 자동으로 보정하지 않고 사람 검토로 보낸다.
-        segment_failed = any(
-            check["status"] == "failed" for check in self._segment_checks(stage_payloads, contexts)
-        )
+        segment_checks = self._segment_checks(stage_payloads, contexts)
+        segment_failed = any(check["status"] == "failed" for check in segment_checks)
         status = "failed" if failed_claims or segment_failed else "passed"
         recommendation, recommendation_unknown = self._system_recommendation(stage_payloads, status)
         if recommendation_unknown and recommendation_unknown not in unknowns:
@@ -487,7 +493,7 @@ class ReportService:
             quality_status=quality_status_for_review(session, review.id),
             bundle_limitations=contexts.get("bundle_limitations", ()),
         )
-        return report, stage_payloads, evidence_payloads, contexts
+        return report, stage_payloads, evidence_payloads, contexts, segment_checks
 
     @staticmethod
     def _segment_checks(stages: Sequence[Mapping[str, Any]], contexts: Mapping[str, Any]) -> list[dict[str, Any]]:
@@ -742,7 +748,7 @@ class ReportService:
         except (DeepReviewValidationError, ValueError) as error:
             raise _error("validation_failed", "report validation을 통과하지 못했습니다", status_code=409, request_id=request_id) from error
 
-    def _insert_revision_and_validation(self, session: Session, review: DeepReview, report: Mapping[str, Any], *, stage_payloads: Sequence[Mapping[str, Any]], evidence_payloads: Sequence[Mapping[str, Any]], contexts: Mapping[str, Any], origin: str, parent_revision_id: UUID | None, reason: str | None, actor: str | None, evidence_ids: Sequence[UUID]) -> ReportRevision:
+    def _insert_revision_and_validation(self, session: Session, review: DeepReview, report: Mapping[str, Any], *, stage_payloads: Sequence[Mapping[str, Any]], evidence_payloads: Sequence[Mapping[str, Any]], contexts: Mapping[str, Any], origin: str, parent_revision_id: UUID | None, reason: str | None, actor: str | None, evidence_ids: Sequence[UUID], segment_checks: Sequence[Mapping[str, Any]] | None = None) -> ReportRevision:
         """Prepare and validate every payload before the first INSERT.
 
         ``revision_id`` and ``validation_run_id`` are allocated up front so
@@ -757,6 +763,7 @@ class ReportService:
         validation_id = uuid4()
         validation_status, checks, validation_payload = self._validation_result(
             report, revision_id, validation_id, review, stage_payloads, evidence_payloads, contexts,
+            segment_checks=segment_checks,
         )
         sequence = int(session.scalar(select(func.max(ReportRevision.sequence)).where(ReportRevision.deep_review_id == review.id)) or 0) + 1
         revision = ReportRevision(
@@ -784,7 +791,7 @@ class ReportService:
             raise _error("processing_failed", "validation run 식별자가 일치하지 않습니다", status_code=500)
         return revision
 
-    def _validation_result(self, report: Mapping[str, Any], revision_id: UUID, validation_id: UUID, review: DeepReview, stages: Sequence[Mapping[str, Any]], evidence: Sequence[Mapping[str, Any]], contexts: Mapping[str, Any]) -> tuple[str, list[dict[str, Any]], dict[str, Any]]:
+    def _validation_result(self, report: Mapping[str, Any], revision_id: UUID, validation_id: UUID, review: DeepReview, stages: Sequence[Mapping[str, Any]], evidence: Sequence[Mapping[str, Any]], contexts: Mapping[str, Any], *, segment_checks: Sequence[Mapping[str, Any]] | None = None) -> tuple[str, list[dict[str, Any]], dict[str, Any]]:
         failed_ids = [str(claim["claim_id"]) for claim in report.get("claims", []) if claim.get("status") in {"unsupported", "conflicting"}]
         summary = report.get("validation_summary", {})
         declared_failed = summary.get("status") == "failed" and int(summary.get("failed", 0) or 0) > 0
@@ -798,7 +805,13 @@ class ReportService:
             checks.append({"check_type": "report_contract", "status": "passed", "severity": "낮음", "message": "전체 report contract와 immutable projection을 확인했습니다", "related_claim_ids": [], "related_evidence_ids": []})
         # 요구사항 inventory와 segment coverage. inventory가 비어 있으면 경고이고
         # coverage는 어떤 경우에도 차단하지 않는다.
-        checks.extend(self._segment_checks(stages, contexts))
+        # 호출자가 이미 계산했으면 그것을 쓴다. 같은 입력에서 같은 값이 나오는
+        # 결정적 대조이므로 다시 훑을 이유가 없다.
+        checks.extend(
+            list(segment_checks)
+            if segment_checks is not None
+            else self._segment_checks(stages, contexts)
+        )
         if any(check["status"] == "failed" for check in checks):
             status = "failed"
         validation_payload = {
