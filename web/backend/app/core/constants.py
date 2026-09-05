@@ -78,3 +78,25 @@ PreSpecAutoPreparationStatus = Literal[
 #: 사람 정정 등급이 있으면 `human_review`, 없고 판정만 있으면
 #: `screening_judgment`, 둘 다 없으면 `None`(등급도 `None`)이다.
 PreSpecGradeSource = Literal["screening_judgment", "human_review"]
+
+
+# 심층 검토를 만든 감사 action (명세 §6.4·§8).
+#
+# 사람 클릭은 `deep_review.create`, SW사업대상=Y 자동 시작은
+# `deep_review.auto_create`이고 **둘은 같은 safe_metadata 모양**을 남긴다.
+# "이 검토의 생성 감사"를 찾는 자리는 두 값을 모두 봐야 한다 — 한쪽만 보면
+# 자동 생성된 검토는 실행 시점에 고정 입력 snapshot을 찾지 못해 만들어지기만
+# 하고 절대 실행되지 않는다.
+#
+# 서비스·router와 **의존성 없는 agent projection**이 같이 쓴다. projection은
+# 서비스를 import하지 않는 것이 그 모듈의 계약이므로, 명세 §4의 "상수·검증기가
+# 필요하면 core로 옮긴다"에 따라 여기 한 벌만 둔다.
+DEEP_REVIEW_CREATION_ACTION_BY_ACTOR_KIND: dict[str, str] = {
+    "human": "deep_review.create",
+    "system": "deep_review.auto_create",
+}
+
+#: 위 표의 값들. "누가 만들었든 이 검토의 생성 감사"를 찾을 때 쓴다.
+DEEP_REVIEW_CREATION_ACTIONS: tuple[str, ...] = tuple(
+    DEEP_REVIEW_CREATION_ACTION_BY_ACTOR_KIND.values()
+)

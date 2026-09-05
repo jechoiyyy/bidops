@@ -13,6 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from ...core.constants import DEEP_REVIEW_CREATION_ACTIONS
 from ...core.models import AuditEvent, IdempotencyRecord
 from ..models import (
     Claim,
@@ -866,7 +867,8 @@ class ReportService:
         rows = session.scalars(
             select(AuditEvent)
             .where(
-                AuditEvent.action == "deep_review.create",
+                # 사람 클릭과 자동 시작 둘 다 이 검토의 생성 감사다 (§6.4).
+                AuditEvent.action.in_(DEEP_REVIEW_CREATION_ACTIONS),
                 AuditEvent.aggregate_type == "deep_review",
                 AuditEvent.aggregate_id == str(review_id),
             )

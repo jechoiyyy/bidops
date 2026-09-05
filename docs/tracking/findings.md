@@ -674,6 +674,17 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 ## 자동 생성된 심층 검토가 실행 단계에서 생성 감사를 찾지 못한다
 
 - 확인: 2026-09-05
+- 상태: **해결** (2026-09-05). 생성 감사를 찾는 자리를 **모두** 두 action을 보게 바꿨다.
+  `run_claim`의 snapshot 조회와 `create_attempt`의 correlation 조회뿐 아니라
+  `services/reports.py`·`routers/reports.py`의 계보 조회, `services/agent_e2e.py`의
+  provider context, `agents/deep_review/agent.py`의 재시도 계보,
+  `agents/{decision,deep_review}/projection.py`의 생성 감사 선별까지 여덟 자리였다.
+  `deep_review.create`·`deep_review.auto_create` 표는 `app/core/constants.py`의
+  `DEEP_REVIEW_CREATION_ACTIONS` 한 벌로 옮겼다 — 의존성을 갖지 않는 agent projection도
+  같은 표를 읽어야 해서 서비스에 둘 수 없었다. 회귀는 자동 생성된 검토를
+  `claim_next_job` → `run_claim`으로 실제로 완주시키고 사람이 재시도까지 하는
+  `tests/app/test_auto_deep_review_start.py`의 두 검사가 막는다. 고치기 전에 두 검사가
+  각각 503·500으로 실패하는 것을 확인했다.
 - 재현 조건: `SW사업대상=Y` 사전규격에서 자동 시작이 심층 검토를 만들고
   (`deep_review.auto_create`), analysis worker가 그 검토를 claim한다.
 - 증상: `deep_review.py`의 `run_claim`(`AuditEvent.action == "deep_review.create"`)과
@@ -687,13 +698,10 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
   `auto_preparation_status`는 `deep_review_started`로 보이지만 그 검토는 진행되지 않는다.
   사람이 직접 만든 검토는 영향이 없다. 이 경로를 덮는 테스트는 없다 —
   `tests/deep_review/test_auto_preparation.py`가 감사 action 상수값만 단언한다.
-- 지금 해결할 수 없는 이유: T10의 범위는 문서이며 `.py` 파일을 고치지 않는다. 고치려면 두
-  자리를 `CREATION_ACTIONS`로 바꾸고 자동 생성 review를 실제로 실행하는 회귀 테스트를 함께
-  넣어야 한다.
-- 접근 방법: `run_claim`의 생성 감사 조회를 `AuditEvent.action.in_(CREATION_ACTIONS)`로 바꾸고,
-  `create_attempt`의 correlation 조회도 두 action을 모두 보게 한다. 그 다음 "자동 생성된
-  검토가 claim되어 stage를 끝낸다"를 단언하는 테스트를 `tests/deep_review/`에 추가한다.
-  그때까지 참조 실행 절차는 이 건에서 멈추고 사람이 만든 검토로 이어 간다.
+- (해결 전 기록) 지금 해결할 수 없는 이유: T10의 범위는 문서이며 `.py` 파일을 고치지 않는다.
+- 남은 위험: 이 결함은 "사람 경로만 테스트하면 통과한다"는 부류다. 생성 action을 하나 더
+  더하는 변경이 다시 오면 같은 자리들이 또 갈라진다. 새 생성 경로는 `CREATION_ACTIONS`에
+  올리고, 그 경로로 만든 검토를 실제로 실행하는 검사를 함께 넣는다.
 
 ## 개요 attempt와 암호화된 원응답 사이에 직접 FK가 없다
 

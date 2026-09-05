@@ -564,3 +564,126 @@ def test_a_started_deep_review_reports_no_reason_at_all(
 
         assert fields["auto_preparation_status"] == "deep_review_started"
         assert fields["auto_preparation_reason"] is None
+
+
+# --- 자동 생성된 검토가 실제로 실행된다 (명세 §6.4·§6.5) ----------------------
+
+
+class _StageClient:
+    """policy가 정한 stage마다 빈 구조화 출력을 돌려주는 fake.
+
+    모델 서버를 부르지 않는다. 여기서 보려는 것은 자동 생성된 검토가 사람이
+    만든 검토와 **같은 경로로 실행되는가** 하나뿐이다.
+    """
+
+    def invoke(self, stage: str, input_slice: Any, _policy: Any, **_kwargs: Any):
+        import json
+        from uuid import NAMESPACE_URL, uuid5
+
+        from app.core.vllm_client import InvocationResult
+
+        claims = []
+        if stage == "requirements_and_evaluation":
+            claim_id = uuid5(
+                NAMESPACE_URL,
+                f"{input_slice['deep_review_id']}:{input_slice['attempt_id']}:fixture-claim",
+            )
+            claims = [
+                {
+                    "claim_id": str(claim_id),
+                    "category": "requirements",
+                    "claim_type": "unknown",
+                    "body": "fixture claim is not established",
+                    "status": "unknown",
+                    "formula": None,
+                    "premise_claim_ids": [],
+                    "reason": "fixture",
+                    "evidence_ids": [],
+                }
+            ]
+        payload = {
+            "schema": "bidops.deep-review-stage.v1",
+            "deep_review_id": input_slice["deep_review_id"],
+            "attempt_id": input_slice["attempt_id"],
+            "stage": stage,
+            "claims": claims,
+            "evidence": [],
+            "unknowns": ["fixture unknown"],
+            "warnings": [],
+        }
+        raw = json.dumps(payload).encode()
+        return InvocationResult(
+            payload, raw, "a" * 64, "b" * 64, 1, 1, 1, ({"retry_index": 0, "status": "succeeded"},)
+        )
+
+
+class _StageStore:
+    """암호화 model-response 저장소의 계약만 흉내 내는 fake."""
+
+    def put_encrypted(self, data: bytes, *, retention_days: int, content_type: str):
+        digest = hashlib.sha256(data).hexdigest()
+        return {
+            "object_key": f"model-response/{digest}",
+            "encryption_key_ref": "fixture",
+            "encrypted": True,
+            "plaintext_sha256": digest,
+            "plaintext_size_bytes": len(data),
+        }
+
+
+def _runnable_service() -> DeepReviewService:
+    return DeepReviewService(
+        client=_StageClient(), raw_response_store=_StageStore(), structure_loader=_fixture_structure
+    )
+
+
+def test_an_auto_created_review_runs_through_the_same_path_as_a_human_one(
+    engine, monkeypatch: pytest.MonkeyPatch
+):
+    """자동 생성 감사(`deep_review.auto_create`)로도 실행 snapshot을 찾아야 한다.
+
+    생성 감사를 사람 action 하나로만 찾으면 자동 생성된 검토는 `run_claim`에서
+    입력 snapshot을 못 찾고 503으로 끝난다 — 만들어지기만 하고 절대 실행되지
+    않는 검토가 된다.
+    """
+
+    with Session(engine) as session:
+        seeded = _seed(session, monkeypatch)
+        service = _runnable_service()
+
+        outcome = maybe_auto_start_deep_review(session, seeded.notice_id, service=service)
+        assert outcome.created is True
+
+        claim = service.claim_next_job(session, "worker-auto")
+        assert claim is not None
+        service.run_claim(session, claim)
+
+        view = service.view(session, outcome.deep_review_id)
+        assert view["status"] == "completed"
+        assert [stage["status"] for stage in view["current_attempt"]["stages"]] == [
+            "completed",
+            "completed",
+            "completed",
+        ]
+
+
+def test_an_auto_created_review_can_be_retried_by_a_human(
+    engine, monkeypatch: pytest.MonkeyPatch
+):
+    """재시도의 계보 확인도 자동 생성 감사를 읽어야 한다.
+
+    사람 action만 보면 correlation이 `None`이 되어 묶음 계보와 어긋나고
+    `processing_failed`(500)로 끝난다.
+    """
+
+    with Session(engine) as session:
+        seeded = _seed(session, monkeypatch)
+        service = _runnable_service()
+        outcome = maybe_auto_start_deep_review(session, seeded.notice_id, service=service)
+        claim = service.claim_next_job(session, "worker-auto")
+        assert claim is not None
+        service.run_claim(session, claim)
+
+        retried = service.create_attempt(session, outcome.deep_review_id, "담당자", uuid4())
+
+        assert retried["sequence"] == 2
