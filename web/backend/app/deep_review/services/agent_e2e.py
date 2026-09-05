@@ -29,6 +29,7 @@ from ..agents import (
 )
 from ...core.config import get_settings
 from ...core.db import SessionLocal
+from ...core.constants import DEEP_REVIEW_CREATION_ACTIONS
 from ...core.models import AuditEvent
 from ..models import DeepReviewAttempt, DeepReviewStage, WorkJob
 from .bc_e2e import AcceptanceApi, BcE2EError, BcE2EManifest, run_bc_e2e
@@ -150,7 +151,8 @@ class PersistedAgentProjectionReader:
                 rows = session.scalars(
                     select(AuditEvent)
                     .where(
-                        AuditEvent.action == "deep_review.create",
+                        # 사람 클릭과 자동 시작 둘 다 생성 감사다 (§6.4).
+                        AuditEvent.action.in_(DEEP_REVIEW_CREATION_ACTIONS),
                         AuditEvent.aggregate_type == "deep_review",
                         AuditEvent.aggregate_id.in_([str(value) for value in ids]),
                     )

@@ -621,9 +621,6 @@ curl --fail "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/deep-reviews/<deep_r
   - 심층 검토 실행이 `503`으로 닫히면 pinned 입력 대조 실패다. 이 변경 **전에** 만들어진
     검토는 `policy_quality` snapshot 모양이 달라 실행되지 않는다 — 새 attempt를 만든다.
     DB row나 감사 metadata를 고쳐 통과시키지 않는다.
-  - 자동 생성된 심층 검토(`deep_review.auto_create`)가 실행에서 "입력 snapshot이 없습니다"로
-    닫히면 알려진 결함이다(`docs/tracking/findings.md`). 그 건은 여기서 멈추고, 사람이 만든
-    검토로 절차를 이어 간다.
   - segments 조회가 404면 그 구조는 이 변경 전에 만들어져 manifest가 없다. 사후 재구성은
     불가능하므로 문서를 다시 올려 새 구조를 만든다.
   - 모델 호출이 `model_not_served`·`model_revision_invalid`·`identity_unavailable`로 끝나면

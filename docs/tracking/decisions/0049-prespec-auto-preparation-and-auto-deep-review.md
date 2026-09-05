@@ -140,13 +140,11 @@ request ID는 `uuid5(notice, bundle, profile, policy)`로 결정적이라 같은
 - `SW사업대상=Y`는 심층 검토 실행 대기까지 간다. 화면은 `심층 검토 자동 시작됨`으로 보인다.
 - 자동으로 열리지 않은 건은 화면이 **왜 열리지 않았는지**를 사유 코드로 말한다.
   `심층 검토 클릭 대기`에 사유가 붙으면 그것이 사람이 눌러야 하는 이유다.
-- 자동 경로가 만든 산출물은 감사에서 사람 경로와 구분된다.
+- 자동 경로가 만든 산출물은 감사에서 사람 경로와 구분된다. 구분되면서도 **같은 경로로
+  실행된다** — 생성 감사를 찾는 자리는 두 action을 모두 보고, 그 표는
+  `app/core/constants.py`의 `DEEP_REVIEW_CREATION_ACTIONS` 한 벌이다.
 
 ## 남은 공백
 
-- 자동 시작이 만든 심층 검토를 **실행**하는 경로에 결함이 있다.
-  `DeepReviewService`의 실행 claim과 재시도 correlation 조회가 생성 감사 action을
-  `deep_review.create` 문자열로 고정하고 있어 `deep_review.auto_create`로 만든 review를
-  찾지 못한다. `docs/tracking/findings.md`에 재현 조건과 함께 기록했다.
 - 자동 준비 hook과 첨부 취득 worker가 동시에 돌면 같은 문서 집합으로 묶음 revision이 둘
   생길 수 있다. worker끼리는 concurrency 1로 배제된다. 같은 findings에 기록했다.
