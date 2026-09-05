@@ -15,6 +15,7 @@ import json
 from typing import Any
 from uuid import UUID
 
+from ....core.constants import DEEP_REVIEW_CREATION_ACTIONS
 from ..common import (
     AgentAction,
     AgentAggregateRef,
@@ -211,6 +212,20 @@ def _audit_action(audit: object, action: str, aggregate_id: str | None = None) -
     return True
 
 
+def _creation_audit(audit: object, review_id: str) -> bool:
+    """"누가 만들었든" 이 검토의 생성 감사인가 (명세 §6.4).
+
+    사람 클릭(`deep_review.create`)과 SW사업대상=Y 자동 시작
+    (`deep_review.auto_create`)은 같은 모양을 남긴다. 한쪽만 보면 자동 생성된
+    검토의 run projection이 통째로 실패한다.
+    """
+
+    return any(
+        _audit_action(audit, action, review_id)
+        for action in DEEP_REVIEW_CREATION_ACTIONS
+    )
+
+
 def _metadata(audit: object) -> Mapping[str, Any]:
     value = _get(audit, "safe_metadata", {})
     return value if isinstance(value, Mapping) else {}
@@ -240,7 +255,7 @@ def _lineage(parts: Mapping[str, Any], review_id: str, bundle_id: str) -> UUID |
 
     create_audits = [
         row for row in _as_list(parts.get("audits"))
-        if _audit_action(row, "deep_review.create", review_id)
+        if _creation_audit(row, review_id)
     ]
     if len(create_audits) != 1:
         raise DeepReviewProjectionError("deep review creation audit is missing or duplicated")
@@ -470,7 +485,7 @@ def _attempt_audit_created_at(parts: Mapping[str, Any], review_id: str, attempt:
     if sequence == 1:
         rows = [
             row for row in _as_list(parts.get("audits"))
-            if _audit_action(row, "deep_review.create", review_id)
+            if _creation_audit(row, review_id)
         ]
     else:
         rows = [
