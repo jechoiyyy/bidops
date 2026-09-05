@@ -49,10 +49,9 @@ from app.deep_review.services.input_versions import (
     load_canonical_policy,
     policy_activation_valid,
 )
-from app.core.vllm_client import InvocationResult, VllmClient, VllmInvocationError, build_prompt, sanitize_for_prompt
+from app.core.model_client import InvocationResult, ModelClient, ModelInvocationError, build_prompt, sanitize_for_prompt
 from app.core.config import get_settings
 from app.core.model_binding import MODEL_ENDPOINT_REF
-from app.core.model_client import ModelClient
 from app.deep_review.services import deep_reviews as deep_reviews_module
 from app.deep_review.services.deep_review_vllm import DEEP_REVIEW_STAGE_CONTRACT
 from app.deep_review.services.reports import ReportService
@@ -356,8 +355,8 @@ def test_vllm_timeout_retries_twice_without_exposing_prompt():
         calls.append(kwargs)
         raise TimeoutError
 
-    client = VllmClient(model=MODEL_NAME, output_contract=DEEP_REVIEW_STAGE_CONTRACT, completion_create=completion_create)
-    with pytest.raises(VllmInvocationError) as error:
+    client = ModelClient(model=MODEL_NAME, output_contract=DEEP_REVIEW_STAGE_CONTRACT, completion_create=completion_create)
+    with pytest.raises(ModelInvocationError) as error:
         client.invoke("requirements_and_evaluation", {"requirements": [{"text": "safe"}]}, {"chunking": {"retries": 2, "timeout_seconds": 300}, "stages": []})
     assert error.value.code == "timeout"
     assert len(calls) == 3
@@ -371,8 +370,8 @@ def test_vllm_malformed_json_is_safe_error():
         "choices": [{"finish_reason": "stop", "message": {"content": "not-json"}}],
     }
 
-    client = VllmClient(model=MODEL_NAME, output_contract=DEEP_REVIEW_STAGE_CONTRACT, completion_create=lambda **_kwargs: response)
-    with pytest.raises(VllmInvocationError) as error:
+    client = ModelClient(model=MODEL_NAME, output_contract=DEEP_REVIEW_STAGE_CONTRACT, completion_create=lambda **_kwargs: response)
+    with pytest.raises(ModelInvocationError) as error:
         client.invoke("requirements_and_evaluation", {"requirements": []}, {"chunking": {"retries": 0}, "stages": []})
     assert error.value.code == "malformed_json"
 
@@ -387,7 +386,7 @@ def test_vllm_reasoning_is_not_returned_or_hashed():
         }],
         "usage": {"prompt_tokens": 69, "completion_tokens": 48},
     }
-    result = VllmClient(model=MODEL_NAME, output_contract=DEEP_REVIEW_STAGE_CONTRACT, completion_create=lambda **_kwargs: response).invoke(
+    result = ModelClient(model=MODEL_NAME, output_contract=DEEP_REVIEW_STAGE_CONTRACT, completion_create=lambda **_kwargs: response).invoke(
         "requirements_and_evaluation",
         {"requirements": []},
         {"chunking": {"retries": 0, "timeout_seconds": 300}, "stages": []},
@@ -411,7 +410,7 @@ def test_vllm_enforces_the_authoritative_stage_json_schema():
         seen.append(kwargs)
         return response
 
-    VllmClient(model=MODEL_NAME, output_contract=DEEP_REVIEW_STAGE_CONTRACT, completion_create=completion_create).invoke(
+    ModelClient(model=MODEL_NAME, output_contract=DEEP_REVIEW_STAGE_CONTRACT, completion_create=completion_create).invoke(
         "requirements_and_evaluation",
         {},
         {"chunking": {"retries": 0, "timeout_seconds": 300}, "stages": []},
@@ -432,8 +431,8 @@ def test_vllm_length_finish_reason_is_safe_truncated_json_error():
         "model": MODEL_NAME,
         "choices": [{"finish_reason": "length", "message": {"content": '{"claims":['}}],
     }
-    client = VllmClient(model=MODEL_NAME, output_contract=DEEP_REVIEW_STAGE_CONTRACT, completion_create=lambda **_kwargs: response)
-    with pytest.raises(VllmInvocationError) as error:
+    client = ModelClient(model=MODEL_NAME, output_contract=DEEP_REVIEW_STAGE_CONTRACT, completion_create=lambda **_kwargs: response)
+    with pytest.raises(ModelInvocationError) as error:
         client.invoke("requirements_and_evaluation", {}, {"chunking": {"retries": 0}, "stages": []})
     assert error.value.code == "truncated_json"
 
@@ -448,16 +447,16 @@ def test_vllm_length_finish_reason_is_safe_truncated_json_error():
 ])
 def test_vllm_base_url_is_exact_openai_compatible_url(base_url):
     with pytest.raises(ValueError):
-        VllmClient(model=MODEL_NAME, output_contract=DEEP_REVIEW_STAGE_CONTRACT, base_url=base_url)
+        ModelClient(model=MODEL_NAME, output_contract=DEEP_REVIEW_STAGE_CONTRACT, base_url=base_url)
 
 
 def test_remote_vllm_ip_must_be_an_exact_explicit_allowlist_entry(monkeypatch):
     base_url = "http://10.23.45.67:58765/v1"
     with pytest.raises(ValueError):
-        VllmClient(model=MODEL_NAME, output_contract=DEEP_REVIEW_STAGE_CONTRACT, base_url=base_url)
+        ModelClient(model=MODEL_NAME, output_contract=DEEP_REVIEW_STAGE_CONTRACT, base_url=base_url)
 
     monkeypatch.setenv("BIDOPS_VLLM_ALLOWED_HOSTS", "10.23.45.67")
-    client = VllmClient(model=MODEL_NAME, output_contract=DEEP_REVIEW_STAGE_CONTRACT, base_url=base_url, completion_create=lambda **_kwargs: {})
+    client = ModelClient(model=MODEL_NAME, output_contract=DEEP_REVIEW_STAGE_CONTRACT, base_url=base_url, completion_create=lambda **_kwargs: {})
     assert client.base_url == base_url
 
 
@@ -469,7 +468,7 @@ def test_vllm_retention_is_clamped_to_one_to_ninety(monkeypatch):
             seen.append((len(data), retention_days, content_type))
             return {"encrypted": True, "object_key": "model-response/fixture", "encryption_key_ref": "fixture", "plaintext_sha256": hashlib.sha256(data).hexdigest(), "plaintext_size_bytes": len(data)}
 
-    from app.core.vllm_client import InvocationResult
+    from app.core.model_client import InvocationResult
     service = DeepReviewService(raw_response_store=Store())
     result = InvocationResult({}, b"{}", "a" * 64, "b" * 64, None, None, 1, ())
     monkeypatch.setenv("BIDOPS_MODEL_RESPONSE_RETENTION_DAYS", "999")
@@ -1063,7 +1062,7 @@ def test_expired_reclaim_refences_inflight_stage_and_rejects_old_worker(engine, 
 
     class Client:
         def invoke(self, stage, input_slice, _policy, **_kwargs):
-            from app.core.vllm_client import InvocationResult
+            from app.core.model_client import InvocationResult
             payload = _valid_stage_payload(input_slice, stage)
             raw = json.dumps(payload).encode()
             return InvocationResult(payload, raw, "a" * 64, "b" * 64, 1, 1, 1, ({"retry_index": 0, "status": "succeeded"},))
@@ -1097,9 +1096,9 @@ def test_failure_after_completed_stage_keeps_completed_stage_and_allows_new_atte
 
     class Client:
         def invoke(self, stage, input_slice, _policy, **_kwargs):
-            from app.core.vllm_client import InvocationResult
+            from app.core.model_client import InvocationResult
             if stage == "delivery_risk_economics":
-                raise VllmInvocationError("timeout", ({"retry_index": 0, "status": "failed", "error_code": "timeout"},))
+                raise ModelInvocationError("timeout", ({"retry_index": 0, "status": "failed", "error_code": "timeout"},))
             payload = {"schema": "bidops.deep-review-stage.v1", "deep_review_id": input_slice["deep_review_id"], "attempt_id": input_slice["attempt_id"], "stage": stage, "claims": [], "evidence": [], "unknowns": [], "warnings": []}
             raw = json.dumps(payload).encode()
             return InvocationResult(payload, raw, "a" * 64, "b" * 64, 1, 1, 1, ({"retry_index": 0, "status": "succeeded"},))
@@ -1171,7 +1170,7 @@ def test_reclaim_resumes_after_immutable_stage_one_prefix_and_rejects_noncontigu
 
     class Client:
         def invoke(self, stage, input_slice, _policy, **_kwargs):
-            from app.core.vllm_client import InvocationResult
+            from app.core.model_client import InvocationResult
             calls.append(stage)
             payload = _valid_stage_payload(input_slice, stage)
             raw = json.dumps(payload).encode()
@@ -1241,7 +1240,7 @@ def test_normal_worker_runs_exactly_three_ordered_stages(engine, monkeypatch):
 
     class Client:
         def invoke(self, stage, input_slice, _policy, **_kwargs):
-            from app.core.vllm_client import InvocationResult
+            from app.core.model_client import InvocationResult
             payload = _valid_stage_payload(input_slice, stage)
             raw = json.dumps(payload, ensure_ascii=False).encode()
             return InvocationResult(payload, raw, "a" * 64, "b" * 64, 1, 1, 1, ({"retry_index": 0, "status": "succeeded"},))
@@ -1291,7 +1290,7 @@ def _fake_chat_completion(**kwargs):
     }
 
 
-def _fake_vllm_client_class(served: list[str] | None = None):
+def _fake_model_client_class(served: list[str] | None = None):
     """용도별 설정 해석과 identity 확인은 진짜로 하고 전송만 fake로 바꾼다."""
 
     class FakeTransportModelClient(ModelClient):
@@ -1325,7 +1324,7 @@ def clear_settings_cache():
 def test_reference_mode_runs_unmeasured_policy_through_vllm_to_a_report(engine, monkeypatch, clear_settings_cache):
     notice_id, bundle_id, _profile_id, _policy_id = _seed_review_context(engine, monkeypatch, measured=False)
     _vllm_env(monkeypatch, reference=True)
-    monkeypatch.setattr(deep_reviews_module, "ModelClient", _fake_vllm_client_class())
+    monkeypatch.setattr(deep_reviews_module, "ModelClient", _fake_model_client_class())
     service = DeepReviewService(raw_response_store=_FixtureStore(), structure_loader=_fixture_structure)
     assert service.reference_workflow_mode is True
     with Session(engine) as session:
@@ -1352,7 +1351,7 @@ def test_reference_mode_runs_unmeasured_policy_through_vllm_to_a_report(engine, 
 def test_unmeasured_policy_without_reference_mode_stays_service_unavailable(engine, monkeypatch, clear_settings_cache):
     notice_id, bundle_id, _profile_id, _policy_id = _seed_review_context(engine, monkeypatch, measured=False)
     _vllm_env(monkeypatch, reference=False)
-    monkeypatch.setattr(deep_reviews_module, "ModelClient", _fake_vllm_client_class())
+    monkeypatch.setattr(deep_reviews_module, "ModelClient", _fake_model_client_class())
     service = DeepReviewService(raw_response_store=_FixtureStore(), structure_loader=_fixture_structure)
     assert service.reference_workflow_mode is False
     with Session(engine) as session:
@@ -1366,7 +1365,7 @@ def test_reference_created_review_fails_closed_when_the_runner_is_not_in_referen
     # 측정값이 있는 policy로 만들어 "생성과 실행의 모드가 다르다"만 실패 사유로 남긴다.
     notice_id, bundle_id, _profile_id, _policy_id = _seed_review_context(engine, monkeypatch)
     _vllm_env(monkeypatch, reference=True)
-    monkeypatch.setattr(deep_reviews_module, "ModelClient", _fake_vllm_client_class())
+    monkeypatch.setattr(deep_reviews_module, "ModelClient", _fake_model_client_class())
     service = DeepReviewService(raw_response_store=_FixtureStore(), structure_loader=_fixture_structure)
     with Session(engine) as session:
         created = service.create_review(session, notice_id, bundle_id, "담당자", uuid4())
@@ -1409,7 +1408,7 @@ def test_quality_status_separates_measured_reference_and_mock_runs(engine, monke
 def test_deep_review_model_client_is_built_for_its_own_purpose_and_fails_closed(engine, monkeypatch, clear_settings_cache):
     notice_id, bundle_id, _profile_id, _policy_id = _seed_review_context(engine, monkeypatch)
     _vllm_env(monkeypatch, reference=False, allowed_hosts="")
-    monkeypatch.setattr(deep_reviews_module, "ModelClient", _fake_vllm_client_class())
+    monkeypatch.setattr(deep_reviews_module, "ModelClient", _fake_model_client_class())
     service = DeepReviewService(raw_response_store=_FixtureStore(), structure_loader=_fixture_structure)
     with Session(engine) as session:
         service.create_review(session, notice_id, bundle_id, "담당자", uuid4())
@@ -1432,7 +1431,7 @@ def test_deep_review_model_client_is_built_for_its_own_purpose_and_fails_closed(
 
     served_notice, served_bundle, _p, _q = _seed_review_context(engine, monkeypatch)
     _vllm_env(monkeypatch, reference=False)
-    monkeypatch.setattr(deep_reviews_module, "ModelClient", _fake_vllm_client_class(served=["다른-모델"]))
+    monkeypatch.setattr(deep_reviews_module, "ModelClient", _fake_model_client_class(served=["다른-모델"]))
     identity = DeepReviewService(raw_response_store=_FixtureStore(), structure_loader=_fixture_structure)
     with Session(engine) as session:
         identity.create_review(session, served_notice, served_bundle, "담당자", uuid4())
@@ -1441,3 +1440,53 @@ def test_deep_review_model_client_is_built_for_its_own_purpose_and_fails_closed(
         with pytest.raises(DeepReviewServiceError) as error:
             identity.run_claim(session, claim)
         assert error.value.code == "model_not_served"
+
+
+def test_the_analysis_client_cache_is_keyed_on_the_policy_model_name(
+    monkeypatch, clear_settings_cache
+):
+    """policy가 다른 모델을 지정하면 다른 client를 묶는다 (명세 §6.6).
+
+    `DeepReviewWorker`는 서비스 하나를 job 사이에 들고 있다. 캐시가 모델명을
+    무시하면 policy A로 만든 client가 policy B에 고정된 job에 그대로 돌아가고,
+    `_runtime_identity`도 그 client의 모델명을 감사에 남긴다.
+    """
+
+    from types import SimpleNamespace
+
+    _vllm_env(monkeypatch, reference=False)
+    monkeypatch.setattr(deep_reviews_module, "ModelClient", _fake_model_client_class())
+    service = DeepReviewService(
+        raw_response_store=_FixtureStore(), structure_loader=_fixture_structure
+    )
+    assert service.client is None
+
+    first = service._bind_client("합성-모델-a")
+    assert first.model == "합성-모델-a"
+    # 같은 모델명이면 다시 만들지 않는다.
+    assert service._bind_client("합성-모델-a") is first
+
+    second = service._bind_client("합성-모델-b")
+    assert second is not first
+    assert second.model == "합성-모델-b"
+
+    # 감사에 남길 identity는 policy가 고정한 모델을 따라간다.
+    assert service._runtime_identity(SimpleNamespace(model_name="합성-모델-a"))[1] == "합성-모델-a"
+    assert service._runtime_identity(SimpleNamespace(model_name="합성-모델-b"))[1] == "합성-모델-b"
+
+
+def test_an_injected_client_is_never_rebound_by_the_model_name(monkeypatch, clear_settings_cache):
+    """주입·mock client는 호출자의 계약이므로 모델명으로 갈아 끼우지 않는다."""
+
+    _vllm_env(monkeypatch, reference=False)
+
+    class _Injected:
+        model = "주입된-모델"
+        provider_name = "injected-analysis-client"
+
+    injected = _Injected()
+    service = DeepReviewService(
+        client=injected, raw_response_store=_FixtureStore(), structure_loader=_fixture_structure
+    )
+    assert service._bind_client("합성-모델-a") is injected
+    assert service._bind_client("합성-모델-b") is injected

@@ -25,8 +25,12 @@ class _Session:
         pass
 
 
+overview_runners: list[int] = []
+
+
 def _install(monkeypatch: pytest.MonkeyPatch, *, c2_result: Any, deep_claimed: bool) -> dict[str, int]:
     calls = {"c2": 0, "deep": 0, "overview": 0}
+    overview_runners.clear()
 
     class _C2Worker:
         def __init__(self, *, settings: Any) -> None:
@@ -40,8 +44,12 @@ def _install(monkeypatch: pytest.MonkeyPatch, *, c2_result: Any, deep_claimed: b
         calls["deep"] += 1
         return SimpleNamespace(claimed=deep_claimed)
 
-    def _overview(_session: Any, _worker_id: str) -> Any:
+    def _overview(_session: Any, _worker_id: str, *, runner: Any = None) -> Any:
         calls["overview"] += 1
+        # runner는 poll loop 밖에서 만들어 넘어온다. 매 poll 새로 만들면 binding
+        # 해석 캐시가 살아남지 못한다 (명세 §6.3).
+        assert runner is not None
+        overview_runners.append(id(runner))
         return SimpleNamespace(claimed=True)
 
     settings = SimpleNamespace(
@@ -93,3 +101,31 @@ def test_the_worker_has_no_standalone_overview_entry_point() -> None:
     source = module.read_text(encoding="utf-8")
     assert "__main__" not in source
     assert "argparse" not in source
+
+
+def test_the_overview_runner_is_built_once_and_reused_across_polls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """runner는 poll loop 밖에서 한 번 만들어 계속 쓴다 (명세 §6.3).
+
+    poll마다 새로 만들면 binding 해석 캐시가 매번 비어, 큐가 비어 있을 때도
+    policy를 다시 읽고 승인 경계 밖으로 identity 요청이 나간다.
+    """
+
+    calls = _install(monkeypatch, c2_result=None, deep_claimed=False)
+    # `--once` 없이 두 바퀴 돌리고 두 번째 sleep에서 빠져나온다.
+    monkeypatch.setattr("sys.argv", ["analysis"])
+    slept = {"count": 0}
+
+    def _sleep(_seconds: float) -> None:
+        slept["count"] += 1
+        if slept["count"] >= 2:
+            raise KeyboardInterrupt
+
+    monkeypatch.setattr(analysis.time, "sleep", _sleep)
+
+    with pytest.raises(KeyboardInterrupt):
+        analysis.main()
+
+    assert calls["overview"] == 2
+    assert len(set(overview_runners)) == 1

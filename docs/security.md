@@ -69,6 +69,7 @@ C-1 공고 판정, 사전규격 개요 검토, 심층 검토는 `app/core/model_
 
 - 공유값 `BIDOPS_VLLM_{BASE_URL,ALLOWED_HOSTS,API_KEY,MODEL_REVISION}`가 기본이고, `BIDOPS_VLLM_{용도}_*`가 있으면 그것을 쓴다. **빈 override는 미선언이며 공유값으로 떨어진다.**
 - **허용 host가 비었거나 선언 revision이 64자 hex가 아니면 그 용도는 네트워크 호출 전에 fail closed한다.** client를 만든 뒤에 검사하면 이미 주소를 연 상태가 되고 기본값으로 hosted 주소가 새어 들어갈 자리가 생긴다.
+- 이 게이트가 사는 자리는 용도별 설정을 푸는 `resolve_model_endpoint`이고, `ModelClient.for_purpose`가 그것을 지난 뒤에만 client를 만든다. **생성자 자체는 게이트가 아니다** — 직접 생성은 transport 주입 seam이며 허용 host 목록과 선언 revision을 호출자가 넘겨야 한다. 운영 경로는 예외 없이 `for_purpose`를 지나고, 직접 만드는 제품 코드는 `app/screening/model_adapter.py`의 주입 transport 한 곳뿐이며 그곳은 선언 revision을 스스로 64자 hex로 검사한다. 이 예외가 늘지 않는 것은 `tests/core/test_model_client.py`가 강제한다.
 - 한 용도의 fail closed가 다른 용도로 새지 않는다. 다른 주소나 다른 provider로 넘어가는 경로는 없다.
 - base URL은 허용 host와 정확히 일치해야 하고 경로는 `/v1`이어야 한다. redirect, 환경 proxy, SDK 자동 재시도는 쓰지 않는다.
 - 선언 revision은 배포가 증언하는 값이다([ADR-0042](tracking/decisions/0042-c2-model-revision-declared-at-deployment.md)). 서버가 응답에 revision을 실어 보내는 경우에만 대조하고, 다르면 `model_revision_invalid`다. served id에 설정·policy 모델명이 없으면 `model_not_served`, 서버에 물을 수 없으면 `identity_unavailable`이다. 세 코드 모두 안전한 분류이며 endpoint·prompt·응답 본문을 담지 않는다.

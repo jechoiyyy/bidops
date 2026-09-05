@@ -39,6 +39,10 @@ C-1 공고 판정, 사전규격 개요 검토, 심층 검토가 부르는 모델
 공개 이름만 재수출하는 얇은 shim으로 남아 기존 호출부가 그대로 돌아간다. 새 코드는
 `app.core.model_client`를 직접 import한다.
 
+**2026-09-05에 그 shim과 `VllmClient`·`VllmInvocationError` 별칭을 지웠다.** 남은 소비자가
+테스트뿐이어서, 이름이 바뀌기 전 표면을 두는 것이 새 코드의 잘못된 import를 부르는 쪽으로만
+작용했다. transport는 `app.core.model_client` 하나다.
+
 core는 응답 schema도 system prompt도 알지 못한다. 계약을 소유한 도메인 모듈이
 `StructuredOutputContract`(이름·JSON schema·system prompt)로 넘기고 client는 그것을 provider
 요청에 싣는다. **이 모듈에는 고정된 모델명이 없다.** 모델명을 코드에 박으면 배포가 모델을
