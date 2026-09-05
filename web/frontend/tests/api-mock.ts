@@ -118,6 +118,7 @@ const syntheticReport = {
   unknowns: ["synthetic unknown"],
   validation_summary: { status: "passed", failed: 0, warnings: 0, passed: 1 },
   created_at: "2026-08-26T00:00:00Z",
+  quality_status: "unmeasured_reference",
 };
 
 const deepReviewStageNames = [
@@ -162,7 +163,88 @@ const syntheticReview = {
   created_at: "2026-08-26T00:00:00Z", completed_at: "2026-08-26T00:00:01Z",
   current_attempt: syntheticCompletedAttempt,
   attempts: [syntheticCompletedAttempt],
+  quality_status: "unmeasured_reference",
 };
+
+// 심층 보고서 우측 열의 segment manifest. 화면이 조회하는 경로를 고정 fixture에
+// 빠짐없이 넣어야 기존 spec이 정의된 상태에서 돈다(engineering-notes.md).
+const FIXTURE_STRUCTURE_ID = "fixture-structure";
+
+function syntheticSegmentLocator(page: number, blockKey: string, ordinal: number) {
+  return { kind: "paragraph", block_key: blockKey, page, ordinal, table_key: null, row: null, column: null };
+}
+
+function syntheticSegments() {
+  return {
+    schema: "bidops.document-segments.v1",
+    structure_id: FIXTURE_STRUCTURE_ID,
+    document_version_id: "fixture-document",
+    source_sha256: "a".repeat(64),
+    taxonomy_version: "taxonomy.v1",
+    extractor_binding: {
+      name: "fixture-extractor",
+      version: "1.0.0",
+      taxonomy_version: "taxonomy.v1",
+      rules_sha256: "b".repeat(64),
+      schema: "bidops.document-segments.v1",
+    },
+    extractor_binding_sha256: "c".repeat(64),
+    payload_sha256: "d".repeat(64),
+    segments: [
+      {
+        segment_id: "fixture-segment-1",
+        ordinal: 1,
+        taxonomy_labels: ["business_eligibility_evaluation"],
+        start_locator: syntheticSegmentLocator(1, "fixture-block", 0),
+        end_locator: syntheticSegmentLocator(1, "fixture-block", 2),
+        requirement_ids: ["SFR-1", "SFR-2"],
+        source_block_keys: ["fixture-block"],
+        classification_source: "deterministic",
+        confidence: null,
+        status: "classified",
+      },
+      {
+        segment_id: "fixture-segment-2",
+        ordinal: 2,
+        taxonomy_labels: ["technical_functional", "quality_security_constraints"],
+        start_locator: syntheticSegmentLocator(2, "fixture-block-review", 3),
+        end_locator: syntheticSegmentLocator(2, "fixture-block-review", 5),
+        requirement_ids: ["SFR-3"],
+        source_block_keys: ["fixture-block-review"],
+        classification_source: "deterministic",
+        confidence: null,
+        status: "needs_human_review",
+      },
+    ],
+    inventory_summary: {
+      expected_ids: ["SFR-1", "SFR-2", "SFR-3"],
+      duplicate_ids: ["SFR-2"],
+      ambiguous_items: [{
+        reason: "prefix_unconfirmed",
+        raw_id: "SFR- 4",
+        raw_prefix: "SFR",
+        normalized_prefix: "SFR",
+        occurrence_count: 2,
+        locator: syntheticSegmentLocator(2, "fixture-block-review", 4),
+      }],
+      prefixes: ["SFR"],
+      item_count: 4,
+    },
+    coverage: {
+      block_count: 6,
+      covered_block_count: 5,
+      segment_count: 2,
+      gap_count: 1,
+      overlap_count: 0,
+      gaps: [{ start_ordinal: 5, end_ordinal: 5 }],
+      overlaps: [],
+      needs_human_review_count: 1,
+      toc: { entry_count: 3, matched_heading_count: 2, unmatched_entry_count: 1 },
+    },
+    warnings: [],
+    created_at: "2026-08-26T00:00:00Z",
+  };
+}
 
 function syntheticReportView(finalOpinion: unknown = null) {
   return {
@@ -189,6 +271,7 @@ function syntheticReportView(finalOpinion: unknown = null) {
 }
 
 function syntheticResponse(pathname: string): unknown | undefined {
+  if (pathname === `/api/document-structures/${FIXTURE_STRUCTURE_ID}/segments`) return syntheticSegments();
   if (pathname === "/api/deep-reviews/fixture-review") return syntheticReview;
   if (pathname === "/api/deep-reviews/fixture-review/report") return syntheticReportView();
   if (pathname === `/api/evidence/${fixtureEvidenceId}`) return { evidence_id: fixtureEvidenceId, source_kind: "document", document_version_id: "fixture-document", structure_id: "fixture-structure", profile_version_id: null, profile_evidence_id: null, locator_type: "page", locator: { page: 1 }, quote: "synthetic fixture evidence", confidence: 0.99, source_sha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", page: { structure_id: "fixture-structure", page: 1, metadata: { number: 1, width: 100, height: 100, image_content_object_id: null }, blocks: [{ block_key: "fixture-block", parent_block_key: null, type: "paragraph", page: 1, bbox: [0, 0, 100, 100], text: "synthetic fixture evidence", confidence: 0.99, attributes: {} }] } };
@@ -255,6 +338,7 @@ export async function mockDeepReviewLifecycle(page: Page, scenario: DeepReviewFi
         body: JSON.stringify({
           id: "fixture-review", notice_id: 1, bundle_id: "fixture-bundle", status: reviewStatus,
           current_attempt: currentAttempt, attempts, created_at: "2026-08-26T00:00:00Z", completed_at: completedAt,
+          quality_status: "unmeasured_reference",
         }),
       });
       return;
@@ -751,6 +835,11 @@ const visualPreSpecItems = [
     kept_by_tracking: true,
     document: { attachments: 2, "완료": 0, "대기": 0, "진행": 0, "차단": 1, "실패": 1 },
     overview_review_status: "needs_human_review",
+    grade: "우선 검토",
+    grade_source: "screening_judgment",
+    auto_preparation_status: "blocked",
+    auto_preparation_reason: "bundle_has_blocking_issues",
+    latest_deep_review_id: null,
   },
   {
     notice_pk: 992,
@@ -768,6 +857,11 @@ const visualPreSpecItems = [
     kept_by_tracking: false,
     document: { attachments: 1, "완료": 1, "대기": 0, "진행": 0, "차단": 0, "실패": 0 },
     overview_review_status: "failed",
+    grade: null,
+    grade_source: null,
+    auto_preparation_status: "not_applicable",
+    auto_preparation_reason: null,
+    latest_deep_review_id: null,
   },
 ] as const;
 
@@ -804,6 +898,7 @@ const visualUnknownOverview = {
     result: null,
     result_digest: null,
     binding_digest: null,
+    quality_status: null,
     validation_status: "pending",
     completed_at: null,
     current_snapshot: {
@@ -861,6 +956,7 @@ function visualCompletedOverview() {
       },
       result_digest: "c".repeat(64),
       binding_digest: "d".repeat(64),
+      quality_status: "unmeasured_reference",
       validation_status: "passed",
       completed_at: "2026-08-31T02:00:00Z",
       current_snapshot: { ...review.current_snapshot, cut_status: "ready", strategy: "topic_heading" },
@@ -871,6 +967,7 @@ function visualCompletedOverview() {
         status: "completed",
         reference_only: false,
         deployable: true,
+        quality_status: "unmeasured_reference",
         validation_status: "passed",
         result_digest: "c".repeat(64),
         binding_digest: "d".repeat(64),
@@ -1025,6 +1122,132 @@ export async function mockPreSpecs(page: Page, overviewState: "completed" | "unk
       return;
     }
     await route.fallback();
+  });
+}
+
+// 명세 §6.8 게이트: 자동 준비 8값과 등급 4값 + `판정 없음`이 화면에 **문자로**
+// 나타나는지 의미 층이 확인할 수 있게, 한 응답 안에 여덟 행을 모두 담는다.
+const AUTO_PREPARATION_MATRIX = [
+  { status: "not_applicable", grade: null, reason: "grade_not_priority", deepReviewId: null },
+  { status: "waiting_attachments", grade: "우선 검토", reason: "awaiting_fetch", deepReviewId: null },
+  { status: "bundle_draft", grade: "우선 검토", reason: "human_bundle_draft", deepReviewId: null },
+  { status: "bundle_ready", grade: "검토 권장", reason: null, deepReviewId: null },
+  { status: "overview_running", grade: "검토 권장", reason: "overview_not_completed", deepReviewId: null },
+  { status: "deep_review_started", grade: "우선 검토", reason: null, deepReviewId: "fixture-review" },
+  { status: "deep_review_ready_for_click", grade: "관찰 대상", reason: "bundle_not_auto_ready", deepReviewId: null },
+  { status: "blocked", grade: "제외", reason: "bundle_has_blocking_issues", deepReviewId: null },
+] as const;
+
+const preSpecMatrixItems = AUTO_PREPARATION_MATRIX.map((entry, index) => ({
+  notice_pk: 8001 + index,
+  pre_spec_no: `PRE-${8001 + index}`,
+  title: `자동 준비 표본 ${index + 1}`,
+  agency: "표본 발주기관",
+  published_at: "2026-08-30T00:00:00Z",
+  deadline_at: "2026-09-10T00:00:00Z",
+  budget: 100_000_000,
+  sw_business_status: "Y",
+  business_division: "일반용역",
+  origin: "신규",
+  opportunity_id: null,
+  tracking_status: null,
+  kept_by_tracking: false,
+  document: { attachments: 1, "완료": 1, "대기": 0, "진행": 0, "차단": 0, "실패": 0 },
+  overview_review_status: "needs_human_review",
+  grade: entry.grade,
+  grade_source: entry.grade === null ? null : "screening_judgment",
+  auto_preparation_status: entry.status,
+  auto_preparation_reason: entry.reason,
+  latest_deep_review_id: entry.deepReviewId,
+}));
+
+/** 등급·자동 준비 8값을 한 화면에 올리는 사전규격 목록 fixture. */
+export async function mockPreSpecMatrix(page: Page): Promise<void> {
+  await page.route("**/api/pre-specs**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (url.pathname !== "/api/pre-specs" || request.method() !== "GET") {
+      await route.fallback();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        items: preSpecMatrixItems,
+        total: preSpecMatrixItems.length,
+        limit: 200,
+        offset: 0,
+        overview_status_counts: overviewStatusCounts(preSpecMatrixItems),
+      }),
+    });
+  });
+}
+
+export type PreSpecAutoDetailState = "started" | "ready_for_click";
+
+/** 사전규격 상세의 자동 준비 단계 표시와 두 갈래 동선(보고서 링크 · 실행 버튼). */
+export async function mockPreSpecAutoDetail(page: Page, state: PreSpecAutoDetailState): Promise<void> {
+  const item = {
+    ...visualPreSpecItems[0],
+    tracking_status: "계속 추적",
+    document: { attachments: 3, "완료": 2, "대기": 1, "진행": 0, "차단": 0, "실패": 0 },
+    overview_review_status: "completed",
+    grade: "우선 검토",
+    grade_source: state === "started" ? "screening_judgment" : "human_review",
+    auto_preparation_status: state === "started" ? "deep_review_started" : "deep_review_ready_for_click",
+    auto_preparation_reason: state === "started" ? null : "bundle_not_auto_ready",
+    latest_deep_review_id: state === "started" ? "fixture-review" : null,
+  };
+  await page.route("**/api/pre-specs**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (url.pathname === "/api/pre-specs" && request.method() === "GET") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ items: [item], total: 1, limit: 50, offset: 0, overview_status_counts: overviewStatusCounts([item]) }),
+      });
+      return;
+    }
+    if (url.pathname === "/api/pre-specs/991/overview-reviews/v2" && request.method() === "GET") {
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(visualCompletedOverview()) });
+      return;
+    }
+    await route.fallback();
+  });
+  await page.route("**/api/notices/991", async (route) => {
+    if (route.request().method() !== "GET") {
+      await route.fallback();
+      return;
+    }
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(visualPreSpecNotice) });
+  });
+  await page.route("**/api/notices/991/document-bundles", async (route) => {
+    if (route.request().method() !== "GET") {
+      await route.fallback();
+      return;
+    }
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ items: [visualBundle("ready")] }) });
+  });
+}
+
+/** 보고서 화면의 `quality_status` 네 경우(3값 + 표식 없는 옛 revision). */
+export async function mockDeepReviewQuality(
+  page: Page,
+  quality: "measured" | "unmeasured_reference" | "mock_reference" | null,
+): Promise<void> {
+  await page.route("**/api/deep-reviews/fixture-review/report", async (route) => {
+    if (route.request().method() !== "GET") {
+      await route.fallback();
+      return;
+    }
+    const view = syntheticReportView();
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ...view, report: { ...view.report, quality_status: quality } }),
+    });
   });
 }
 

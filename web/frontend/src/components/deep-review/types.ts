@@ -25,6 +25,16 @@ export type ReportBlockType = "paragraph" | "matrix" | "decision_card" | "scenar
 export type SystemRecommendation = "추진 검토" | "조건부 추진 검토" | "보류" | "검토 종료";
 export type FinalOpinionValue = "추진" | "조건부 추진" | "보류" | "검토 종료";
 export type BundleStatus = "draft" | "processing" | "needs_review" | "ready" | "quarantined" | "failed" | "superseded";
+/** 심층 검토 실행의 품질 표식. 이 필드가 없던 시절의 revision은 `null`이며
+ * 화면은 `표식 없음`으로 보인다 — 미측정으로 승격시키지 않는다. */
+export type QualityStatus = "measured" | "unmeasured_reference" | "mock_reference";
+export type SegmentStatus = "classified" | "needs_human_review";
+export type SegmentLocatorKind = "paragraph" | "table_cell" | "block";
+export type TaxonomyLabel =
+  | "business_eligibility_evaluation"
+  | "technical_functional"
+  | "quality_security_constraints"
+  | "partnership_governance";
 
 export type EmptyRequest = Record<string, never>;
 
@@ -123,6 +133,7 @@ export interface DeepReviewView {
   attempts: AttemptView[];
   created_at: string;
   completed_at: string | null;
+  quality_status: QualityStatus | null;
 }
 
 export interface ReportRow {
@@ -179,6 +190,8 @@ export interface DeepReviewReport {
   unknowns: string[];
   validation_summary: ValidationSummary;
   created_at: string;
+  /** 이 필드가 없던 옛 revision은 `null`이다. `null`을 미측정으로 읽지 않는다. */
+  quality_status: QualityStatus | null;
 }
 
 export interface ValidationCheck {
@@ -299,4 +312,98 @@ export interface DocumentStructurePageView {
   page: number;
   metadata: PageMetadata;
   blocks: StructureBlock[];
+}
+
+// --- 결정적 segment manifest (bidops.document-segments.v1) --------------------
+//
+// 이 응답에는 **원문 text가 없다.** segment에 `title`이 없는 것은 누락이 아니라
+// 계약이 원문을 싣지 않기로 한 결과이므로, 화면이 제목을 만들어 내거나 다른
+// endpoint에서 원문을 받아 다시 짓지 않는다.
+
+export interface SegmentLocator {
+  kind: SegmentLocatorKind;
+  block_key: string;
+  page: number;
+  ordinal: number;
+  table_key: string | null;
+  row: number | null;
+  column: number | null;
+}
+
+export interface DocumentSegmentView {
+  segment_id: string;
+  ordinal: number;
+  taxonomy_labels: TaxonomyLabel[];
+  start_locator: SegmentLocator;
+  end_locator: SegmentLocator;
+  requirement_ids: string[];
+  source_block_keys: string[];
+  classification_source: "deterministic";
+  /** 결정적 규칙에는 확률이 없다. 계약이 항상 `null`로 둔다. */
+  confidence: null;
+  status: SegmentStatus;
+}
+
+export interface RequirementInventoryAmbiguity {
+  reason: "prefix_unconfirmed" | "prefix_collision";
+  raw_id: string | null;
+  raw_prefix: string | null;
+  normalized_prefix: string;
+  occurrence_count: number;
+  locator: SegmentLocator | null;
+}
+
+export interface RequirementInventorySummary {
+  expected_ids: string[];
+  duplicate_ids: string[];
+  ambiguous_items: RequirementInventoryAmbiguity[];
+  prefixes: string[];
+  item_count: number;
+}
+
+export interface SegmentSpan {
+  start_ordinal: number;
+  end_ordinal: number;
+}
+
+export interface SegmentTocSummary {
+  entry_count: number;
+  matched_heading_count: number;
+  unmatched_entry_count: number;
+}
+
+export interface SegmentCoverage {
+  block_count: number;
+  covered_block_count: number;
+  segment_count: number;
+  gap_count: number;
+  overlap_count: number;
+  gaps: SegmentSpan[];
+  overlaps: SegmentSpan[];
+  needs_human_review_count: number;
+  toc: SegmentTocSummary;
+}
+
+export interface SegmentExtractorBinding {
+  name: string;
+  version: string;
+  taxonomy_version: string;
+  rules_sha256: string;
+  schema: "bidops.document-segments.v1";
+}
+
+export interface DocumentSegmentsView {
+  schema: "bidops.document-segments.v1";
+  structure_id: string;
+  document_version_id: string;
+  source_sha256: string;
+  taxonomy_version: string;
+  extractor_binding: SegmentExtractorBinding;
+  extractor_binding_sha256: string;
+  payload_sha256: string;
+  segments: DocumentSegmentView[];
+  inventory_summary: RequirementInventorySummary;
+  coverage: SegmentCoverage;
+  warnings: string[];
+  created_at: string;
 }

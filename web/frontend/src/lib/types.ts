@@ -201,6 +201,23 @@ export interface NoticeListResponse {
 export type PreSpecOrigin = "추적" | "신규";
 export type PreSpecSort = "published" | "deadline";
 
+/** 사전규격 응답의 `grade`가 어디서 왔는가. 사람 정정이 있으면 `human_review`,
+ * 판정만 있으면 `screening_judgment`, 둘 다 없으면 `null`(등급도 `null`)이다. */
+export type PreSpecGradeSource = "screening_judgment" | "human_review";
+
+/** 자동 문서 준비가 어디까지 갔는가. `not_applicable`은 "대상이 아니다"이며
+ * "알 수 없다"가 아니다 — 제공자가 없는 배포에서도 같은 값이다. 8값 전부
+ * 서버가 정하고 화면은 재계산하지 않는다. */
+export type PreSpecAutoPreparationStatus =
+  | "not_applicable"
+  | "waiting_attachments"
+  | "bundle_draft"
+  | "bundle_ready"
+  | "overview_running"
+  | "deep_review_started"
+  | "deep_review_ready_for_click"
+  | "blocked";
+
 export interface PreSpecDocumentSummary {
   attachments: number;
   "완료": number;
@@ -229,6 +246,17 @@ export interface PreSpecListItem {
    * 미시작). 10개 계약값 중 어느 것도 아니므로 awaiting_document로 접어
    * 넣지 않는다. */
   overview_review_status: PreSpecOverviewReviewStatus | null;
+  /** 판정도 사람 정정도 없으면 `null`이고 그때 `grade_source`도 `null`이다.
+   * 화면은 `판정 없음`으로 보이며 다섯 번째 등급으로 접지 않는다. */
+  grade: string | null;
+  grade_source: PreSpecGradeSource | null;
+  /** 서버가 정한 자동 준비 단계. 응답에서 `null`이 되지 않는다. */
+  auto_preparation_status: PreSpecAutoPreparationStatus;
+  /** 왜 다음 단계로 가지 않는가. 안전한 코드이며 없으면 `null`이다.
+   * `null`은 정상이므로 자리표시 문구로 바꾸지 않는다. */
+  auto_preparation_reason: string | null;
+  /** 자동으로 시작된(또는 마지막) 심층 검토 식별자. 없으면 `null`이다. */
+  latest_deep_review_id: string | null;
 }
 
 /** 개요 검토 상태 그룹 하나의 전체 건수. `limit`/`offset`과 무관하게 현재
@@ -258,6 +286,10 @@ export interface PreSpecListQuery {
 }
 
 export type PreSpecOverviewCutStatus = "pending" | "ready" | "unknown" | "failed";
+
+/** 개요 검토 실행의 품질 표식. 개요 attempt에는 반드시 있고 review에는 없을 수
+ * 있다. 심층 검토 보고서 쪽은 `measured`까지 포함하는 별도 union이다. */
+export type PreSpecOverviewQualityStatus = "mock_reference" | "unmeasured_reference";
 export type PreSpecOverviewReviewStatus =
   | "awaiting_document"
   | "awaiting_structure"
@@ -346,6 +378,7 @@ export interface PreSpecOverviewResultPayload {
 export interface PreSpecOverviewResultView extends PreSpecOverviewResultPayload {}
 
 export interface PreSpecOverviewAttemptV2View extends PreSpecOverviewAttemptView {
+  quality_status: PreSpecOverviewQualityStatus;
   validation_status: PreSpecOverviewValidationStatus;
   result_digest: string | null;
   binding_digest: string | null;
@@ -358,6 +391,8 @@ export interface PreSpecOverviewReviewV2View {
   result: PreSpecOverviewResultView | null;
   result_digest: string | null;
   binding_digest: string | null;
+  /** 실행이 아직 없거나 옛 기록이면 `null`이고 화면은 `표식 없음`으로 보인다. */
+  quality_status: PreSpecOverviewQualityStatus | null;
   validation_status: PreSpecOverviewValidationStatus;
   completed_at: string | null;
   current_snapshot: PreSpecOverviewSnapshotView | null;

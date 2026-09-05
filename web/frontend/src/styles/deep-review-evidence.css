@@ -719,7 +719,9 @@
 /* 상단 카드 4개. 시안 `DeepReview`의 첫 줄이다. */
 .deep-review-summary-cards {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  /* 품질 표식 카드가 다섯 번째로 붙는다(명세 §6.5). 1280px에서도 다섯 칸이
+     들어가도록 각 칸을 0까지 줄이고, 카드 안에서 줄바꿈한다. */
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: var(--spacing-3);
   min-width: 0;
 }
@@ -857,4 +859,155 @@
   margin: 0;
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+/* 품질 표식은 색이 아니라 문구가 상태를 말한다. 카드 안에서 배지가 줄바꿈될 수
+   있도록 정렬만 잡는다. */
+.deep-review-quality-card > .badge {
+  align-self: start;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.deep-review-opinion-quality {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin: 0 0 var(--spacing-2);
+  color: var(--color-content-secondary);
+  font-size: var(--font-size-supporting);
+  overflow-wrap: anywhere;
+}
+
+/* 문서별 inventory와 사람 확인 필요 segment. */
+.deep-review-segment-panel {
+  min-width: 0;
+  padding: var(--spacing-4);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-container);
+  background: var(--color-background-card);
+}
+
+.deep-review-segment-inventory {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-2);
+  margin: var(--spacing-3) 0 0;
+}
+
+.deep-review-segment-inventory > div {
+  min-width: 0;
+  padding: var(--spacing-2);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-container);
+}
+
+.deep-review-segment-inventory dt {
+  color: var(--color-content-secondary);
+  font-size: var(--font-size-supporting);
+}
+
+.deep-review-segment-inventory dd {
+  margin: 0;
+  font-size: var(--font-size-lg);
+}
+
+.deep-review-segment-coverage {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  margin-top: var(--spacing-3);
+  overflow-wrap: anywhere;
+}
+
+.deep-review-segment-coverage > span {
+  color: var(--color-content-secondary);
+  font-size: var(--font-size-supporting);
+}
+
+.deep-review-segment-note,
+.deep-review-segment-empty {
+  margin: var(--spacing-2) 0 0;
+  color: var(--color-content-secondary);
+  font-size: var(--font-size-supporting);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.deep-review-segment-ambiguous,
+.deep-review-segment-list,
+.deep-review-segment-source-blocks {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  margin: var(--spacing-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.deep-review-segment-ambiguous > li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+  font-size: var(--font-size-supporting);
+  overflow-wrap: anywhere;
+}
+
+.deep-review-segment-list > li {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  padding: var(--spacing-2);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-container);
+}
+
+.deep-review-segment-heading,
+.deep-review-segment-meta {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+  overflow-wrap: anywhere;
+}
+
+.deep-review-segment-meta {
+  color: var(--color-content-secondary);
+  font-size: var(--font-size-supporting);
+}
+
+.deep-review-segment-open {
+  align-self: start;
+}
+
+.deep-review-segment-source {
+  min-width: 0;
+  margin-top: var(--spacing-3);
+  padding: var(--spacing-2);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-container);
+}
+
+.deep-review-segment-source > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+}
+
+.deep-review-segment-source-blocks > li {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.deep-review-segment-source-blocks p {
+  margin: var(--spacing-1) 0 0;
+  font-size: var(--font-size-supporting);
 }

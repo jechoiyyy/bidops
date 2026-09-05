@@ -27,7 +27,9 @@ import "../../styles/document-preparation.css";
 const DOCUMENT_ROLES: DocumentRole[] = ["공고", "정정", "제안요청서", "과업지시서", "내역서", "제출서식", "부록", "기타"];
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
 
-const BUNDLE_STATUS_LABELS: Record<BundleStatus, string> = {
+/** 사전규격 상세의 자동 준비 단계 표시도 같은 문구를 쓴다. 묶음 상태 이름을
+ * 두 곳에서 따로 정의하지 않는다. */
+export const BUNDLE_STATUS_LABELS: Record<BundleStatus, string> = {
   draft: "초안",
   processing: "처리 중",
   needs_review: "사람 확인 필요",
