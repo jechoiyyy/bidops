@@ -59,6 +59,10 @@ from ...core.model_client import (
 )
 from .deep_review_vllm import DEEP_REVIEW_STAGE_CONTRACT
 from .mock_analysis_client import MockAnalysisClient
+from ...core.constants import (
+    DEEP_REVIEW_CREATION_ACTION_BY_ACTOR_KIND,
+    DEEP_REVIEW_CREATION_ACTIONS,
+)
 from ...core.object_store import EncryptedModelResponseStore
 
 
@@ -66,8 +70,9 @@ STAGE_SEQUENCE = {name: index for index, name in enumerate(STAGES, start=1)}
 MOCK_ANALYSIS_PROVIDER = "mock-analysis"
 MODEL_PURPOSE = "deep_review"
 #: 심층 검토를 만든 감사 action. 사람 클릭과 §6.4의 자동 시작 둘뿐이다.
-CREATION_ACTION_BY_ACTOR_KIND = {"human": "deep_review.create", "system": "deep_review.auto_create"}
-CREATION_ACTIONS = tuple(CREATION_ACTION_BY_ACTOR_KIND.values())
+#: 정본은 `core.constants`다 — 의존성 없는 agent projection도 같은 표를 읽는다.
+CREATION_ACTION_BY_ACTOR_KIND = DEEP_REVIEW_CREATION_ACTION_BY_ACTOR_KIND
+CREATION_ACTIONS = DEEP_REVIEW_CREATION_ACTIONS
 MIN_LEASE_SECONDS = APPROVED_TIMEOUT_SECONDS * (APPROVED_RETRIES + 1) + 60
 WORKER_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 EMPTY_PRIOR_CLAIM_ID = uuid5(NAMESPACE_URL, "bidops.deep-review.empty-prior-claim")
@@ -258,16 +263,20 @@ def _policy_payload(policy: AnalysisPolicyVersion) -> dict[str, Any]:
 def _audit_correlation_id(
     session: Session,
     *,
-    action: str,
+    actions: Sequence[str],
     aggregate_type: str,
     aggregate_id: str,
 ) -> UUID | None:
-    """Read one immutable lineage value without backfilling legacy audits."""
+    """Read one immutable lineage value without backfilling legacy audits.
+
+    ``actions``는 "이 aggregate를 만든 감사"의 후보다. 심층 검토는 사람 클릭과
+    자동 시작 둘 중 하나로 만들어지므로 한쪽만 보면 계보가 비어 보인다.
+    """
 
     rows = session.scalars(
         select(AuditEvent)
         .where(
-            AuditEvent.action == action,
+            AuditEvent.action.in_(tuple(actions)),
             AuditEvent.aggregate_type == aggregate_type,
             AuditEvent.aggregate_id == aggregate_id,
         )
@@ -553,7 +562,7 @@ class DeepReviewService:
                 raise DeepReviewServiceError("not_found", "공고와 document bundle이 일치하지 않습니다", status_code=404, request_id=request_id)
             bundle_correlation_id = _audit_correlation_id(
                 session,
-                action="document_bundle.create",
+                actions=("document_bundle.create",),
                 aggregate_type="document_bundle",
                 aggregate_id=str(bundle_id),
             )
@@ -647,13 +656,16 @@ class DeepReviewService:
                 raise DeepReviewServiceError("review_not_ready", "실패 또는 완료된 current attempt만 재시도할 수 있습니다", status_code=409, request_id=request_id)
             correlation_id = _audit_correlation_id(
                 session,
-                action="deep_review.create",
+                # 사람이 만든 검토든 자동으로 시작된 검토든 계보는 그 생성
+                # 감사에 있다. 한쪽만 보면 자동 생성분의 재시도가 계보 불일치로
+                # 막힌다.
+                actions=CREATION_ACTIONS,
                 aggregate_type="deep_review",
                 aggregate_id=str(review.id),
             )
             bundle_correlation_id = _audit_correlation_id(
                 session,
-                action="document_bundle.create",
+                actions=("document_bundle.create",),
                 aggregate_type="document_bundle",
                 aggregate_id=str(review.bundle_id),
             )
@@ -1345,7 +1357,10 @@ class DeepReviewService:
                 raise DeepReviewServiceError("service_unavailable", "고정된 profile 또는 policy가 없습니다", status_code=503)
             validate_pinned_policy(policy, allow_unmeasured_reference=self.reference_workflow_mode)
             pinned_provider, pinned_runtime_model = self._runtime_identity(policy)
-            creation_audit = session.scalar(select(AuditEvent).where(AuditEvent.action == "deep_review.create", AuditEvent.aggregate_type == "deep_review", AuditEvent.aggregate_id == str(review.id)).order_by(AuditEvent.created_at.asc(), AuditEvent.id.asc()).limit(1))
+            # 생성 감사는 사람 클릭과 자동 시작 둘 중 하나다. 사람 action만
+            # 보면 자동 생성된 검토가 고정 입력 snapshot을 못 찾고 503으로
+            # 끝난다 — 만들어지기만 하고 실행되지 않는 검토가 된다.
+            creation_audit = session.scalar(select(AuditEvent).where(AuditEvent.action.in_(CREATION_ACTIONS), AuditEvent.aggregate_type == "deep_review", AuditEvent.aggregate_id == str(review.id)).order_by(AuditEvent.created_at.asc(), AuditEvent.id.asc()).limit(1))
             audit_snapshot = creation_audit.safe_metadata if creation_audit is not None and isinstance(creation_audit.safe_metadata, Mapping) else None
             if audit_snapshot is None:
                 raise DeepReviewServiceError("service_unavailable", "deep review 입력 snapshot이 없습니다", status_code=503)
