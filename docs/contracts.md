@@ -312,7 +312,7 @@ digest만 노출하고 endpoint, prompt, raw response, object path와 내부 오
 
 개요 검토는 `app/core/model_client.py`를 `overview` 용도로 묶어 부른다([ADR-0050](tracking/decisions/0050-unified-openai-compatible-model-client.md)). 그 용도의 허용 host가 비었거나 선언 revision이 64자 hex가 아니면 호출 전에 fail closed하며, 그 상태의 리뷰는 `awaiting_model`에 머물고 attempt를 만들지 않는다. hosted fallback은 없다.
 
-실행된 attempt는 품질 표식을 반드시 갖는다. 결정적 mock은 `mock_reference`, 실제 모델의 품질 미측정 실행은 `unmeasured_reference`이며 둘 다 `deployable=false`로 남는다. `deployable=false`인 `completed`의 뜻은 "완료 불가"가 아니라 **"운영 완료로 집계하지 않음"**이다. 참조 실행 결과를 사업 판단·품질 근거·활성화 근거로 쓰지 않는다.
+실행된 attempt는 품질 표식을 반드시 갖는다. `reference_only`인 attempt는 `mock_reference`, 그 밖은 `unmeasured_reference`이며 둘 다 `deployable=false`로 남는다. `reference_only`인 attempt는 완료할 수 없으므로(`ck_prespec_overview_attempt_completed_binding`) **`status=completed`인 개요 attempt의 표식은 언제나 `unmeasured_reference`다.** `deployable=false`인 `completed`의 뜻은 "완료 불가"가 아니라 **"운영 완료로 집계하지 않음"**이다. 참조 실행 결과를 사업 판단·품질 근거·활성화 근거로 쓰지 않는다.
 
 검증 실패(schema 위반, snapshot 밖 evidence)는 재호출 없이 바로 `failed`다. 재시도는 transport 계열 실패에만 1+2회 적용한다. worker가 잡는 lease 길이는 모듈 상수 1,200초이며 환경변수로 열지 않는다. **만료 lease 회수는 개요 슬롯 안에서 돈다** — 합성 worker가 C-2 큐를 먼저 보므로 그쪽이 계속 붐비면 회수가 늦어진다. 감사 action `prespec_overview.attempt_run`(actor_kind `system`, aggregate_type `prespec_overview_attempt`)의 `safe_metadata`는 `notice_id`, `review_id`, `sequence`, `status`, `reason_code`, `quality_status`, `response_sha256`이다. 암호화된 원응답과 attempt 사이에 직접 FK는 없고 `response_sha256`으로 대조한다.
 

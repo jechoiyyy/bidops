@@ -265,3 +265,58 @@
 - 증상: `astryx theme build`로 테마 색을 바꿔도 앱에서 일부 색만 바뀌지 않는다. 테두리가 계속 이전 팔레트 색이고, 상태 배지의 성공·경고·실패 색이 테마 값과 다르다. 빌드된 테마 CSS를 열어 보면 값은 제대로 들어 있다.
 - 원인: Tailwind 4의 `@theme { }` 블록은 값을 **`:root`에 방출**한다. Astryx 테마는 `@layer astryx-theme` 안의 `@scope([data-astryx-theme="…"])`에 있다. CSS cascade 에서 **unlayered 선언이 어떤 layer 보다도 강하므로**, 이름이 같은 토큰은 selector 특이성이나 scope 근접성과 무관하게 항상 `:root` 쪽이 이긴다. 2026-09-04 기준 `--color-border`·`--color-success`·`--color-warning`·`--color-error`·`--color-accent` 다섯 개가 겹쳐 있었다.
 - 대응: 디자인 시스템 토큰과 이름이 겹치는 legacy 토큰을 `@theme`에서 없애고 테마가 소유하게 한다. 의미가 다른데 이름만 같은 것(shadcn의 hover 표면 `--color-accent`)은 접두사를 붙여 옮긴다(`--color-shadcn-accent`). 이행 중 legacy 이름이 필요하면 `:root`가 아니라 **테마 scope 안의 단일 bridge**에서 `var(--color-*)`로 잇고 새 색 값을 만들지 않는다. 회귀는 계산된 토큰 값을 읽는 테스트로 막는다(`tests/design-shell.spec.ts`). 빌드된 CSS만 검사하는 대비 테스트는 이 문제를 잡지 못한다 — 런타임 cascade 를 보지 않기 때문이다.
+
+## 자동 경로가 만든 row 를 뒤 단계가 사람용 action 이름으로만 찾는다
+
+- 증상: SW=Y 사전규격에서 심층 검토가 자동으로 생성되기는 하는데 실행이 503
+  `deep review 입력 snapshot이 없습니다` 로 닫히고, 사람이 재시도하면 500 이 난다.
+  생성 자체는 성공하므로 화면에는 "심층 검토 자동 시작됨" 으로 보인다.
+- 원인: 자동 생성이 감사 action `deep_review.auto_create` 를 남기는데, 생성 감사를
+  되찾는 쪽(`run_claim` 의 snapshot 조회, `create_attempt` 의 correlation, 보고서·결정
+  projection 의 lineage) 이 `action == "deep_review.create"` 를 문자열로 고정하고
+  있었다. 여덟 군데였고, 그중 두 곳만 고치면 나머지 여섯이 그대로 남는다.
+- 대응: "이 리뷰를 만든 감사" 를 찾는 조회는 전부 `app/core/constants.py` 의
+  `DEEP_REVIEW_CREATION_ACTIONS` 를 쓴다. 사람 action 을 **일부러** 가리키는 자리(오류
+  메시지의 field 이름 등)만 문자열로 남기고 그 이유를 주석에 적는다.
+- 재발 방지: 사람 경로와 자동 경로가 같은 표에 다른 action 으로 쓰는 기능을 더할 때는
+  "자동으로 만든 것을 끝까지 실행시키는" 테스트를 하나 둔다. action 상수만 단언하는
+  테스트는 이 결함을 잡지 못한다 — 실제로 잡지 못했다.
+
+## 목록 응답에 다른 모듈의 값을 실으면 seam 의 단수 함수가 N+1 을 만든다
+
+- 증상: 사전규격 목록에 등급을 실었더니 목록 쿼리 수가 건수에 비례해 늘었다.
+- 원인: `deep_review` 가 쓸 수 있는 `screening` seam 에 사람 정정 등급을 읽는 함수가
+  단건(`latest_corrected_grade`) 밖에 없었다. 목록 200 건이면 조회가 200 번이다.
+- 대응: `current_judgments` 가 `current_judgment` 의 batch 짝인 것과 같은 모양으로
+  `latest_corrected_grades` 를 더하고, 단건 쪽이 batch 를 부르게 했다. 이름이 늘었지
+  방향·읽기 전용·함수 안 import 는 그대로이고 경계 허용 목록은 늘지 않았다.
+- 재발 방지: 쿼리 수 상한만 단언하는 테스트는 약하다. **건수를 바꿔 가며 쿼리 수가
+  같은지** 를 단언한다(9건과 21건). 상한은 보조 장치다.
+- 같은 뿌리: 회차 적재 hook 이 공고를 건별로 돌면 회차당 1,200~2,000 건이라 쿼리도
+  savepoint 도 그만큼 열린다. PostgreSQL 은 한 transaction 의 subtransaction 이 64 개를
+  넘어가면 급격히 느려진다. 후보를 먼저 batch 로 걸러 내고, 할 일이 없는 공고에는
+  savepoint 를 열지 않는다.
+
+## 공용 프롬프트 조립기가 한 도메인의 출력 계약을 코드에 박고 있다
+
+- 증상: 개요 검토 프롬프트 안에 "deep_review_id·attempt_id·stage 를 그대로 복사하라",
+  "claim 8 개까지" 같은 심층 검토용 지시가 섞여 나간다. 강제되는 응답 모양은 policy 의
+  `output_schema` 라 검증은 통과하므로 테스트로는 드러나지 않는다.
+- 원인: `core` 의 `build_prompt` 가 `output_contract` 블록을
+  `bidops.deep-review-stage.v1` 로 고정하고 있었다. core 는 어느 도메인 계약도 몰라야
+  한다는 원칙과 어긋난다.
+- 대응: policy 가 `prompt_output_contract` 를 선언하면 그것을 쓰고, 선언이 없으면 기존
+  블록을 쓴다. 선언이 없는 기존 policy 는 프롬프트 바이트가 그대로라 digest 가 바뀌지
+  않는다.
+- 재발 방지: 모델에 실제로 나가는 프롬프트를 한 번은 눈으로 본다. schema 검증이
+  통과한다고 프롬프트가 맞는 것은 아니다.
+
+## 회차 원본 밖의 gitignore 된 입력이 worktree 에는 없다
+
+- 증상: worktree 에서 `pytest tests/app` 을 돌리면 `FileNotFoundError` 로 34 건이 한꺼번에
+  깨진다. 같은 명령이 주 checkout 에서는 전부 통과한다.
+- 원인: `experiments/order-plan-screening/review-inputs/{company,prompts}` 가 회사자료라
+  gitignore 돼 있어 `git worktree add` 로 만든 트리에는 존재하지 않는다.
+- 대응: worktree 를 만들 때 그 디렉터리를 주 checkout 에서 복사해 넣는다. gitignore 는
+  그대로라 커밋될 수 없다. 같은 이유로 `.env` 도 없어서 `docker compose build` 가 변수
+  보간 단계에서 멈춘다 — `--env-file` 로 주 checkout 의 `.env` 를 준다.

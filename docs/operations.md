@@ -189,7 +189,7 @@ CLI 진입점은 모듈별로 하나씩이며 웹 없이 실행한다. migration
 
 ```bash
 python -m app.screening.cli --help          # run-one, score-candidate-quality
-python -m app.deep_review.cli --help        # run-bc-e2e, import-profile-policy
+python -m app.deep_review.cli --help        # run-bc-e2e, run-prespec-e2e, import-profile-policy
 python -m app.lifecycle.ingest.cli --help   # --run <회차> | --all
 ```
 
