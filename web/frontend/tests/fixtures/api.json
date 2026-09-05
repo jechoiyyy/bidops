@@ -8200,7 +8200,12 @@
      "차단": 0,
      "실패": 0
     },
-    "overview_review_status": null
+    "overview_review_status": null,
+    "grade": "검토 권장",
+    "grade_source": "screening_judgment",
+    "auto_preparation_status": "not_applicable",
+    "auto_preparation_reason": "grade_not_priority",
+    "latest_deep_review_id": null
    }
   ],
   "total": 1,
