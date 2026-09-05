@@ -52,7 +52,7 @@
 
 개요 검토의 결정적 절단 snapshot과 모델 attempt는 분리한다([ADR-0033](tracking/decisions/0033-prespec-overview-review-runtime-contract.md)). 승인된 사설 vLLM binding이 없으면 절단까지만 만들고 `awaiting_model`로 두며 결과와 완료 시각은 `null`로 보존한다. 경계가 모호한 절단은 `needs_human_review`로 보내고 모델을 호출하지 않는다. 결정적 mock은 `reference_only`, `deployable=false`이며 운영 완료로 집계하지 않는다. `completed`는 승인된 binding의 응답이 strict schema, evidence locator, source hash 검증을 모두 통과한 경우에만 허용하고 hosted OpenAI·Codex로 자동 fallback하지 않는다.
 
-모든 개요 attempt는 품질 표식 `quality_status`를 갖는다. 결정적 mock은 `mock_reference`, 실제 모델의 품질 미측정 실행은 `unmeasured_reference`다([ADR-0050](tracking/decisions/0050-unified-openai-compatible-model-client.md)). `deployable=false`인 `completed`의 뜻은 "완료 불가"가 아니라 **"운영 완료로 집계하지 않음"**이다. 참조 실행 결과를 사업 판단, 품질 근거, 정책 활성화 근거로 쓰지 않는다.
+모든 개요 attempt는 품질 표식 `quality_status`를 갖는다. `reference_only`인 attempt는 `mock_reference`, 그 밖은 `unmeasured_reference`다. **완료한 개요 attempt는 언제나 `unmeasured_reference`다** — `reference_only`인 attempt는 완료할 수 없으므로(위 문단) `mock_reference`는 완료하지 못한 attempt에만 붙는다. 저장소만으로 개요를 완주시키려면 mock을 provider가 아니라 transport 층에 두어야 하고, 그때 표식은 `unmeasured_reference`다. 심층 검토의 `mock_reference`는 provider에서 나오므로 이 제약과 무관하다([ADR-0050](tracking/decisions/0050-unified-openai-compatible-model-client.md)). `deployable=false`인 `completed`의 뜻은 "완료 불가"가 아니라 **"운영 완료로 집계하지 않음"**이다. 참조 실행 결과를 사업 판단, 품질 근거, 정책 활성화 근거로 쓰지 않는다.
 
 검증에 실패한 응답(schema 위반, snapshot 밖 evidence)은 재호출하지 않고 바로 `failed`다. 같은 seed와 같은 고정 프롬프트가 같은 결과를 내므로 재호출이 결과를 바꾸지 않기 때문이다. 재시도는 transport 계열 실패(timeout·잘림 등)에만 1+2회 적용한다.
 

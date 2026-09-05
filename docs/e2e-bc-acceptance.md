@@ -11,6 +11,7 @@
 - `app.screening.cli score-candidate-quality`: 실제 모델 결과를 사람이 판정한 manifest에서 재현율·사람 일치율·근거 부족 오판율을 계산한다. 실패 결과는 policy import 인자를 내보내지 않는다.
 - `app.deep_review.cli import-profile-policy`: 측정한 policy SHA와 실제 import 대상 SHA가 다르면 저장 전에 거부한다. import 결과는 active 설정을 자동 변경하지 않는다.
 - `app.deep_review.cli run-bc-e2e`: 문서 업로드·검사·구조화·역할 지정·전체 current 문서 확정 후 deep review를 만들고, 세 stage·validation·evidence를 확인한다.
+- `app.deep_review.cli run-prespec-e2e`: 사전규격 회차 적재부터 자동 문서 준비·개요 검토·SW=Y 자동 심층 검토·보고서·최종 의견까지를 mock transport와 fake 취득 connector로 완주하고 증거 JSON(`bidops.prespec-e2e-result.v1`)을 남긴다. 판정 제공자는 `--extension-provider app.screening:register_lifecycle_extensions`로 설정에서 주입하며, 저장소만으로 돌릴 때는 `BIDOPS_TEST_MODE=1`이 필요하다(파일 객체 저장소가 격리 경계에서만 열린다).
 - `docker-compose.remote-vllm.yml`: analysis worker에만 외부 모델 egress network를 추가하는 선택 override다. vLLM 자체는 이 Compose 밖의 승인 서버에서 운영한다.
 
 아래 항목은 저장소만으로 대신 만들 수 없는 실제 인수 입력이다.
