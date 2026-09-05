@@ -63,7 +63,11 @@ type UploadOutcome = {
 
 interface DocumentPreparationPanelProps {
   noticeId: number;
-  displayedGrade: string | null;
+  /** 사전규격 projection의 **현재 등급**(사람 정정이 있으면 그 값). 화면은 현재
+   * 등급 하나만 보여 주므로 이 패널은 등급을 다시 그리지 않고, 서버가 시작
+   * 시점에 effective grade를 다시 본다는 사실만 이 값으로 안내한다. 화면의
+   * 등급 표시는 상세 헤더가 소유한다(명세 §6.2). */
+  currentGrade: string | null;
   onDeepReviewCreated: (review: DeepReviewView) => void;
 }
 
@@ -230,7 +234,7 @@ function DocumentMetadataEditor({
   );
 }
 
-export function DocumentPreparationPanel({ noticeId, displayedGrade, onDeepReviewCreated }: DocumentPreparationPanelProps) {
+export function DocumentPreparationPanel({ noticeId, currentGrade, onDeepReviewCreated }: DocumentPreparationPanelProps) {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [actorName, setActorName] = useState("");
@@ -430,10 +434,9 @@ export function DocumentPreparationPanel({ noticeId, displayedGrade, onDeepRevie
           <h3 id="document-preparation-title">Draft bundle에서 심층 검토까지</h3>
           <p>upload, 안전 검사, 변환·구조화, 역할 확인, snapshot 확정을 서로 다른 단계로 보존합니다.</p>
         </div>
-        <span className="document-preparation-grade">화면 참고 등급 · {displayedGrade ?? "미확인"}</span>
       </header>
 
-      {displayedGrade !== "우선 검토" ? (
+      {currentGrade !== "우선 검토" ? (
         <p className="document-preparation-gate" role="status">
           서버는 생성·심층 검토 시작 시 effective grade를 다시 확인합니다. 우선 검토가 아니면 403으로 거부되며 화면 값으로 우회하지 않습니다.
         </p>

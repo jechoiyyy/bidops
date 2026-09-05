@@ -1184,7 +1184,9 @@ export async function mockPreSpecMatrix(page: Page): Promise<void> {
   });
 }
 
-export type PreSpecAutoDetailState = "started" | "ready_for_click";
+// `corrected`는 사람 정정 등급이 notice의 판정 등급과 **다른** 경우다. 화면이
+// 현재 등급 하나만 보여 주는지 확인하려면 두 값이 달라야 한다(명세 §6.2).
+export type PreSpecAutoDetailState = "started" | "ready_for_click" | "corrected";
 
 /** 사전규격 상세의 자동 준비 단계 표시와 두 갈래 동선(보고서 링크 · 실행 버튼). */
 export async function mockPreSpecAutoDetail(page: Page, state: PreSpecAutoDetailState): Promise<void> {
@@ -1193,7 +1195,10 @@ export async function mockPreSpecAutoDetail(page: Page, state: PreSpecAutoDetail
     tracking_status: "계속 추적",
     document: { attachments: 3, "완료": 2, "대기": 1, "진행": 0, "차단": 0, "실패": 0 },
     overview_review_status: "completed",
-    grade: "우선 검토",
+    // notice(`visualPreSpecNotice`)의 판정 등급은 `우선 검토`다. `corrected`는
+    // 사람이 `관찰 대상`으로 정정한 상태이며 화면은 정정된 현재 등급만 보여야
+    // 한다 — 판정 등급을 라벨 없이 함께 두지 않는다.
+    grade: state === "corrected" ? "관찰 대상" : "우선 검토",
     grade_source: state === "started" ? "screening_judgment" : "human_review",
     auto_preparation_status: state === "started" ? "deep_review_started" : "deep_review_ready_for_click",
     auto_preparation_reason: state === "started" ? null : "bundle_not_auto_ready",

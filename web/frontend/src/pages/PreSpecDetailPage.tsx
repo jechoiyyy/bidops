@@ -811,7 +811,9 @@ export function PreSpecDetailPage() {
 
       <DocumentPreparationPanel
         noticeId={notice.id}
-        displayedGrade={notice.grade}
+        // 헤더가 보여 주는 것과 **같은 현재 등급**을 넘긴다. `notice.grade`는
+        // 사람 정정을 반영하지 않아 헤더와 다른 값을 말할 수 있다(명세 §6.2).
+        currentGrade={preSpecItem?.grade ?? null}
         onDeepReviewCreated={(review) => navigate(`/deep-reviews/${review.id}`)}
       />
     </section>
