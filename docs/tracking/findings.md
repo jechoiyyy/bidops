@@ -400,9 +400,14 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
   `skills/bidops-screen/scripts/rank_order_plans_bm25.py`와
   `build_order_plan_screening_results.py`를 subprocess로 호출한다.
   [ADR-0001](decisions/0001-artifact-boundary.md)의 경계 그대로다.
-  반면 C-1(공고)은 `web/backend/app/screening/orchestrator.py:1555`에서 웹 프로세스 안의
-  `OllamaClient`를 직접 생성하고, `app/screening/`에 `ollama.py`(653줄)·`prompts.py`·
-  `worker.py`(1,656줄)가 들어와 있다.
+  반면 C-1(공고)은 `web/backend/app/screening/orchestrator.py`에서 웹 프로세스 안의 판정
+  어댑터(`ScreeningModelClient`)를 직접 생성하고, `app/screening/`에 `model_adapter.py`·
+  `prompts.py`·`worker.py`가 들어와 있다.
+- 2026-09-05 정정: [ADR-0050](decisions/0050-unified-openai-compatible-model-client.md)이
+  C-1·개요·심층의 **transport**를 `app/core/model_client.py` 하나로 합쳤다. 그래서 전송 경계와
+  fail-closed 규칙은 이제 한 벌이다. **그러나 이 항목이 말하는 경계 차이는 그대로다** — C-1은
+  여전히 웹 프로세스 안에서 모델을 부르고 C-2는 subprocess 파일 계약으로 부른다. 위 재현
+  조건의 파일 이름만 현재 값으로 고쳤다.
 - 영향: 같은 업무 규칙이 두 경계에 나뉘어 있어 모델 전송 감사·테스트 격리·정책 pinning의
   확인 지점이 사례마다 다르다. 새 선별 흐름을 추가할 때 어느 쪽을 따라야 하는지 규칙이 없다.
 - 지금 해결할 수 없는 이유: C-1은 [ADR-0013](decisions/0013-screening-orchestrator-boundary.md)이
@@ -629,3 +634,267 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 - 상태: **수용됨** (2026-09-04, 단계 E). 화면 구현의 차단이 아니라 계약의 부재이며, 두 한계 모두 화면이 숨기지 않고 표시한다.
 - 지금 해결할 수 없는 이유: REST·DB 계약은 백엔드 파트의 소유이고, 화면 작업이 감사 기록 읽기 경로를 새로 만들거나 목록 계약의 의미를 바꿀 권한이 없다.
 - 접근 방법: (1) `GET /api/opportunities/{id}/tracking-decisions`를 추가해 append-only 이력을 `revision`·`tracking_status`·`reason`·`selected_by`·`selected_at`·`audit_event_id`로 연다. 발주계획 쪽 같은 요청([`order-plan-tracking-contract-request.md`](../design/order-plan-tracking-contract-request.md) §2.1)과 같은 wire shape를 쓰면 화면이 `ReviewRevisionHistory` 하나로 둘을 그린다. (2) 목록에 `recheck_signal`·`has_pending_candidate_link` 필터와 구역별 `section_counts` 집계를 추가하고 `docs/contracts.md`의 `OpportunityList` 항목에 등록한다. 그 전까지 화면은 저장된 추적 상태로 서버를 거르고(`추적 중`·`보류`·`추적 종료`) `조치 필요`만 받은 페이지에서 나눈다.
+
+## C-1 모델명이 바뀌어 기존 실행·판정 row가 새 실행에서 거부된다
+
+- 확인: 2026-09-05
+- 재현 조건: 옛 이름(`qwen3.8:27b`)으로 기록된 `ScreeningExecution`과 그 판정이 있는 DB에서
+  새 회차를 판정하거나 재판정한다. `web/backend/app/core/model_binding.py`의 `MODEL_NAME`은
+  이제 `qwen3.8-27B`이고 C-1이 부르는 이름은
+  `settings.vllm_screening_model`(`BIDOPS_VLLM_SCREENING_MODEL`, 기본 `qwen3.8-27B`)이다.
+- 증상: carry-over 검증과 재판정 검증이 실행 binding의 모델명을 대조하므로 옛 이름의 row는
+  이어지지 않고, `queue.enqueue`도 현재 이름과 다른 binding을 거부한다.
+- 영향: 이전 회차의 판정을 승계하려는 재판정이 승계 대신 새 판정으로 떨어지거나 거부된다.
+  `docs/model-quality-gate.md`가 고정 입력으로 못 박은 40건 표본도 옛 이름으로 기록돼 있으면
+  그 execution을 새 A/B의 baseline으로 재사용할 수 없다.
+- 지금 해결할 수 없는 이유: 실행 binding은 불변이다([ADR-0007](decisions/0007-immutable-runs.md)).
+  저장된 모델명을 사후에 새 이름으로 고쳐 쓰는 것은 "회차 원본을 덮어쓰지 않는다"는 게이트를
+  깬다. 옛 데이터를 이어 쓸지, 새 이름으로 다시 측정할지는 담당자의 판단이 필요하다.
+- 접근 방법: (1) 새 이름으로 A/B를 다시 측정하고 옛 execution은 이력으로만 둔다(권장), 또는
+  (2) 옛 이름을 새 이름의 별칭으로 인정하는 명시적 매핑을 binding 검증에 도입하고 그 결정을
+  ADR로 남긴다. (2)를 고르면 어느 실행이 어느 실제 배포에서 나왔는지 감사에서 구분할 수
+  있어야 한다.
+
+## `policy_quality` snapshot 모양이 바뀌어 이전에 만든 미실행 심층 검토가 503으로 닫힌다
+
+- 확인: 2026-09-05
+- 재현 조건: 이 변경 **전에** 생성돼 아직 실행되지 않은 심층 검토를 worker가 claim한다.
+- 증상: `web/backend/app/deep_review/services/deep_reviews.py`의 `run_claim`이 생성 감사의
+  `policy_quality`를 현재 계산값과 **정확히 같은지** 비교한다. 참조 실행 표식을 위해
+  snapshot에 `deployable` 키가 항상 붙게 됐으므로 옛 snapshot과 모양이 달라지고
+  `service_unavailable`(503, "pinned deep review 입력이 변경되었습니다")로 닫힌다.
+- 영향: 변경 시점에 큐에 남아 있던 심층 검토는 실행되지 않는다. 결과가 틀리게 나오는 것이
+  아니라 **아예 실행되지 않는** 것이므로 조용한 오염은 없다.
+- 지금 해결할 수 없는 이유: 옛 snapshot을 새 모양으로 다시 쓰면 감사 이벤트를 덮어쓰게
+  된다. append-only 감사 계약을 깨는 조치라 하지 않는다. 비교를 느슨하게 만들면 pinned 입력
+  대조 자체가 약해진다.
+- 접근 방법: 해당 review에 **새 attempt를 만든다.** 새 attempt는 현재 모양의 snapshot으로
+  다시 고정된다. 운영 절차의 참조 실행 6단계에 이 중단 기준을 적어 두었다.
+
+## 자동 생성된 심층 검토가 실행 단계에서 생성 감사를 찾지 못한다
+
+- 확인: 2026-09-05
+- 상태: **해결** (2026-09-05). 생성 감사를 찾는 자리를 **모두** 두 action을 보게 바꿨다.
+  `run_claim`의 snapshot 조회와 `create_attempt`의 correlation 조회뿐 아니라
+  `services/reports.py`·`routers/reports.py`의 계보 조회, `services/agent_e2e.py`의
+  provider context, `agents/deep_review/agent.py`의 재시도 계보,
+  `agents/{decision,deep_review}/projection.py`의 생성 감사 선별까지 여덟 자리였다.
+  `deep_review.create`·`deep_review.auto_create` 표는 `app/core/constants.py`의
+  `DEEP_REVIEW_CREATION_ACTIONS` 한 벌로 옮겼다 — 의존성을 갖지 않는 agent projection도
+  같은 표를 읽어야 해서 서비스에 둘 수 없었다. 회귀는 자동 생성된 검토를
+  `claim_next_job` → `run_claim`으로 실제로 완주시키고 사람이 재시도까지 하는
+  `tests/app/test_auto_deep_review_start.py`의 두 검사가 막는다. 고치기 전에 두 검사가
+  각각 503·500으로 실패하는 것을 확인했다.
+- 재현 조건: `SW사업대상=Y` 사전규격에서 자동 시작이 심층 검토를 만들고
+  (`deep_review.auto_create`), analysis worker가 그 검토를 claim한다.
+- 증상: `deep_review.py`의 `run_claim`(`AuditEvent.action == "deep_review.create"`)과
+  `create_attempt`의 correlation 조회(`_audit_correlation_id(..., action="deep_review.create")`)가
+  생성 action을 **문자열 하나로 고정**하고 있다. 같은 파일이 다른 자리에서는
+  `CREATION_ACTIONS`(`deep_review.create`, `deep_review.auto_create`) 튜플을 쓴다.
+  자동 생성 review에는 `deep_review.create` 이벤트가 없으므로 `audit_snapshot is None`이 되어
+  `service_unavailable`(503, "deep review 입력 snapshot이 없습니다")로 닫히고, 재시도 경로도
+  correlation 불일치로 `processing_failed`(500)가 된다.
+- 영향: **자동 시작이 만든 심층 검토는 실행되지 않는다.** 화면의
+  `auto_preparation_status`는 `deep_review_started`로 보이지만 그 검토는 진행되지 않는다.
+  사람이 직접 만든 검토는 영향이 없다. 이 경로를 덮는 테스트는 없다 —
+  `tests/deep_review/test_auto_preparation.py`가 감사 action 상수값만 단언한다.
+- (해결 전 기록) 지금 해결할 수 없는 이유: T10의 범위는 문서이며 `.py` 파일을 고치지 않는다.
+- 남은 위험: 이 결함은 "사람 경로만 테스트하면 통과한다"는 부류다. 생성 action을 하나 더
+  더하는 변경이 다시 오면 같은 자리들이 또 갈라진다. 새 생성 경로는 `CREATION_ACTIONS`에
+  올리고, 그 경로로 만든 검토를 실제로 실행하는 검사를 함께 넣는다.
+
+## 개요 attempt와 암호화된 원응답 사이에 직접 FK가 없다
+
+- 확인: 2026-09-05
+- 재현 조건: 개요 검토 attempt 하나가 어느 모델 응답 객체에서 나왔는지 DB만으로 찾으려 한다.
+- 증상: 원응답은 `ContentObject`와 `ContentObjectLocation('model-response')`로 암호화 저장되지만
+  `prespec_overview_attempt`에는 그것을 가리키는 열이 없다. 대조는 감사 이벤트
+  `prespec_overview.attempt_run`의 `safe_metadata.response_sha256`으로만 가능하다.
+- 영향: 감사 이벤트가 없거나 지워지면 attempt와 원응답의 연결을 DB에서 복원할 수 없다.
+  응답 객체 자체는 남지만 어느 attempt의 것인지 확정할 수 없다.
+- 지금 해결할 수 없는 이유: 이 표에 열을 더하는 것을 명세가 이번 범위에서 두 개
+  (`lease_owner`, `lease_expires_at`)로 제한했다. FK를 더하면 그 경계를 넘고, 기존 row의
+  backfill 정책도 함께 정해야 한다.
+- 접근 방법: nullable `response_content_object_id` FK를 다음 migration에서 더하고, 기존 row는
+  추정 없이 `null`로 둔다. 감사 이벤트의 `response_sha256`은 그대로 유지해 두 경로가 서로를
+  검증하게 한다.
+
+## 이 변경 전에 만들어진 문서 구조에는 segment manifest가 없다
+
+- 확인: 2026-09-05
+- 재현 조건: `0018` 이전에 저장된 `DocumentStructure`의 ID로
+  `GET /api/document-structures/{structure_id}/segments`를 호출한다.
+- 증상: 404 `not_found`다. manifest는 **구조 저장 시점의 메모리 payload로만** 만들어지고
+  저장된 `document_block`에는 ordinal이 없어 경계를 사후에 되짚을 수 없다.
+- 영향: 옛 문서로 만든 심층 검토는 문서 inventory 패널이 비고, `requirement_inventory`
+  check도 그 문서에 대해서는 근거가 없다. 그 사실이 조용히 "요구사항 누락 없음"으로 읽히면
+  안 되므로 화면과 검증이 각각 없음을 밝힌다.
+- 지금 해결할 수 없는 이유: 사후 재구성이 **불가능**하다. `document_block`에 ordinal을 더하는
+  것은 저장된 구조의 의미를 바꾸는 일이고, 기존 행에 넣을 값이 없다.
+- 접근 방법: 그 문서를 다시 올려 새 `DocumentVersion`·`DocumentStructure`를 만든다. 옛
+  구조를 고치지 않는다. 대량 재처리가 필요하면 별도 결정으로 다룬다.
+
+## 보고서의 문서 inventory 패널이 문서 하나만 보여 준다
+
+- 확인: 2026-09-05
+- 재현 조건: 여러 문서가 든 묶음으로 심층 검토를 하고 보고서 화면의 우측 문서 inventory
+  패널을 본다.
+- 증상: 패널은 **선택된 근거가 가리키는 문서 하나**의 manifest만 보여 준다. 묶음이나 공고에서
+  그 안의 문서들의 `structure_id` 목록을 주는 endpoint가 없고, `DocumentVersionView`에도
+  `structure_id`가 없기 때문이다.
+- 영향: "문서별 inventory"를 요구한 설계를 절반만 만족한다. 근거를 고르지 않으면 패널이
+  비고, 고르면 그 문서만 보인다. 화면이 어느 문서의 것인지 문장으로 밝히므로 다른 문서의
+  값으로 오해할 위험은 막고 있다.
+- 지금 해결할 수 없는 이유: 해결에 REST 계약 추가가 필요한데, 이번 범위가 허용한 REST 추가
+  목록에 그 endpoint가 없다.
+- 접근 방법: `DocumentVersionView`에 nullable `structure_id`를 더하거나
+  `GET /api/document-bundles/{bundle_id}/structures`를 추가해 `docs/contracts.md`에 등록한다.
+  그 뒤 패널을 문서 목록으로 바꾼다.
+
+## 사전규격 목록의 등급 필터가 브라우저 쪽이라 집계와 비대칭이다
+
+- 확인: 2026-09-05
+- 재현 조건: `/pre-specs?grade=우선 검토`를 연다.
+- 증상: `GET /api/pre-specs`에 `grade` 질의 인자가 없다. 화면 필터는 **이미 불러온 페이지만**
+  좁히고, 같은 응답의 `overview_status_counts`는 **필터 이전 전체 집합**을 가리킨다. 두 수의
+  대상 집합이 다르다.
+- 영향: 페이지를 넘기면 등급별로 보이는 건수가 페이지마다 달라지고, 그룹 헤더 건수와 목록
+  건수가 맞지 않는다. 화면이 이 사실을 직접 적어 두었으므로 잘못된 총계로 읽힐 위험은
+  문구로 막고 있다.
+- 지금 해결할 수 없는 이유: 서버 쪽 `grade` 인자는 `PreSpecList` query 계약과 등급 projection
+  확장점을 함께 바꾸는 일이고, 이번 범위가 허용한 REST 변경 밖이다.
+- 접근 방법: `PreSpecList` query에 `grade`를 더하고 판정 projection 확장점의
+  `notice_ids_for_filters`로 서버에서 거른다. 그때 `overview_status_counts`도 같은 필터를
+  반영하게 해 두 수의 대상 집합을 맞춘다.
+
+## 리뷰 저장 hook과 첨부 취득 worker가 같은 문서 집합으로 묶음을 둘 만들 수 있다
+
+- 확인: 2026-09-05
+- 재현 조건: 같은 사전규격에 대해 사람이 등급을 정정해 `effective_grade_changed` hook이 도는
+  순간과 첨부 취득 worker가 그 공고의 취득을 종결하는 순간이 겹친다. 둘 다
+  `maybe_auto_prepare`를 부른다.
+- 증상: 두 경로가 각각 현재 문서 집합을 읽고 "묶음이 없거나 지문이 달라졌다"고 판단하면 같은
+  문서 집합으로 묶음 revision이 둘 생길 수 있다. worker끼리는 concurrency 1이라 배제되지만
+  hook은 web 프로세스에서 돈다.
+- 영향: 좁은 경합이며 데이터가 깨지지는 않는다. 묶음은 append-only이고 revision이 하나 더
+  생길 뿐이다. 다만 자동 확정이 두 번 일어나면 감사에 `document_bundle.auto_confirm`이 둘
+  남고, 어느 것이 심층 검토의 입력인지는 심층 검토 row가 가리키는 `bundle_id`로만 확정된다.
+- 지금 해결할 수 없는 이유: 공고 단위 잠금을 자동 준비 경로에 넣으면 회차 적재 hook이 수천
+  건에 대해 잠금을 걸게 되고, 그것이 회차 적재 transaction의 성능 특성을 바꾼다. 어느 쪽이
+  나은지는 실측 없이 정할 수 없다.
+- 접근 방법: 자동 준비 진입에 공고별 advisory lock을 걸거나, 묶음 생성에 문서 지문 기반
+  unique 제약을 더해 둘째 생성을 idempotent replay로 만든다. 둘 다 회차 적재 hot path의
+  실측이 먼저다.
+
+## `ollama_unavailable` 실패 사유 문자열이 이름만 남았다
+
+- 확인: 2026-09-05
+- 재현 조건: `screening_execution`·`schedule_execution`의 실패 사유와
+  `screening-failures.json`을 읽는다.
+- 증상: 모델 endpoint를 쓸 수 없을 때의 실패 사유가 여전히 `ollama_unavailable`이다
+  (`app/screening/services/scheduled_pipeline.py`, `services/scheduler.py`,
+  `routers/screening.py`). 현재 transport는 OpenAI 호환 vLLM이므로 이름이 실제 provider와
+  맞지 않는다.
+- 영향: 이름만 어긋나고 동작은 정확하다. 문서와 화면은 이 값을 "모델 endpoint를 쓸 수 없음"
+  으로 읽는다.
+- 지금 해결할 수 없는 이유: 이미 DB row와 회차 artifact에 기록된 **저장된 계약값**이다.
+  값을 바꾸면 과거 실행의 실패 사유를 재해석해야 하고, 그 재해석은 회차 불변성 게이트에
+  걸린다.
+- 접근 방법: 새 코드가 새 값(`model_endpoint_unavailable` 등)을 쓰고 과거 값은 읽기 전용
+  별칭으로 남기는 방식으로만 바꾼다. 그 전환은 `docs/contracts.md`의 실패 사유 어휘와 화면
+  문구를 함께 바꾸는 별도 작업이다.
+
+## 픽셀 기준선 두 장이 현재 화면과 어긋난 채 남아 있다
+
+- 확인: 2026-09-05
+- 재현 조건: `cd web/frontend && npm run test:pixel`을 실행한다.
+- 증상: `tests/pixel-screens.spec.ts-snapshots/pre-specs-list-pixel-linux.png`와
+  `deep-review-complete-pixel-linux.png`가 현재 화면과 다르다.
+  - `pre-specs-list`: 등급과 자동 준비 열 **두 개가 추가**됐다.
+  - `deep-review-complete`: 상단 카드가 4 → 5(`품질 표식`)로, 우측 열이 3 → 4구역
+    (문서 inventory 추가)으로 늘었다.
+- 상태: **해결** (2026-09-07, 아래 기록). 확인 시점(2026-09-05)에는 미갱신이었고 그 작업에서는 **다시 찍지 않았다.** 픽셀 층은 게이트가
+  아니므로(`docs/standards.md`의 "화면 검사의 세 층") `npm run test:screens`는 영향받지 않는다.
+- 영향: 픽셀 층을 돌리면 두 장이 실패한다. 그 실패는 "화면이 틀렸다"가 아니라 "지난
+  기준선과 달라졌다"는 뜻이다. 다만 **그 두 화면에 대해서는 픽셀 층이 회귀를 잡아 주지
+  못한다** — 새 실패와 기존 실패를 구분할 수 없기 때문이다.
+- 지금 해결할 수 없는 이유: 기준선 교체는 `npm run test:pixel:update`로 이미지를 다시 찍는
+  일이고, 그러려면 실행 환경에서 앱을 띄워야 한다. T10은 문서 작업이라 화면을 실행하지
+  않았다. 승인자 없이 기준 이미지를 갈아 끼우지 않는다.
+- 접근 방법: 화면을 실행할 수 있는 작업에서 `npm run test:pixel:update`로 두 장만 갈아 끼우고
+  아래를 이 문서에 기록한다.
+  - **사유**: 등급·자동 준비 열 추가(ADR-0049)와 품질 표식 카드·문서 inventory 패널
+    추가(ADR-0050·0051)로 화면 구조가 바뀌었다.
+  - **영향 화면**: `pre-specs-list`, `deep-review-complete` 두 장. 나머지 여섯 장은 그대로다.
+  - **승인자**: 아래 2026-09-07 기록 참조.
+- **기준선 교체 기록 (2026-09-07)**
+  - 명령: `cd web/frontend && npm run test:pixel:update` → 9 passed, 8장 교체(`bid-delta-changed`,
+    `criteria`, `dashboard`, `deep-review-complete`, `opportunities-list`, `order-plan-detail`,
+    `order-plans-list`, `pre-specs-list`).
+  - 사유: UI/UX 고도화 4웨이브. cascade layer 순서 선언(`styles/layers.css`)으로 Astryx 컴포넌트
+    chrome이 전 화면에서 되살아났고, 상단바가 경로 표시로 바뀌었으며, 타이포 4단
+    (`styles/typography.css`, 최소 12px)·배지 `danger` 분리·사전규격 목록 리스트 행·대시보드
+    할 일 스트립 재구성·용어 한국어화가 들어갔다. 위에 적힌 두 장의 이전 드리프트(등급·자동
+    준비 열, 품질 표식 카드·문서 inventory)도 이번 교체에 포함됐다.
+  - 영향 화면: 8장 전부. 픽셀 층은 게이트가 아니며 `npm run test:screens` 300 passed /
+    `npm run test:contrast` 9 pass를 같은 트리에서 확인했다.
+  - 승인자: jechoi (저장소 소유자, 2026-09-07 대화에서 "픽셀 기준선 갱신하고 웨이브 단위로
+    커밋해줘"로 명시 지시). 실행: Claude Code 세션.
+
+## runtime image에 쓰이지 않는 `BIDOPS_OLLAMA_BASE_URL` ENV가 남아 있다
+
+- 확인: 2026-09-05
+- 상태: **해결** (2026-09-05). `web/Dockerfile`의 `ENV` 줄과 health 주석의 Ollama
+  언급을 지우고 `docker compose -f docker-compose.yml build`를 다시 확인했다(exit 0).
+  `BIDOPS_VLLM_MODEL`을 읽는 곳이 없어 `docker-compose.mock-reference.yml`의 두 줄도
+  함께 지웠다.
+- (해결 전 기록) 재현 조건: `web/Dockerfile`의 32행을 본다.
+- 증상: image가 `BIDOPS_OLLAMA_BASE_URL=http://127.0.0.1:11434`를 `ENV`로 굽는다. 이 설정은
+  `app/core/config.py`에서 제거됐으므로 어떤 코드도 읽지 않는다.
+- 영향: 동작에는 영향이 없다(pydantic settings가 모르는 환경변수를 무시한다). 다만 컨테이너
+  환경을 읽는 사람에게 **아직 Ollama를 쓴다**는 잘못된 신호를 준다.
+- 지금 해결할 수 없는 이유: T10은 문서 작업이며 `web/Dockerfile`의 기능 줄은 이번 범위의
+  소유가 아니다. 지우면 image layer가 바뀌므로 build 검증과 함께 해야 한다.
+- 접근 방법: 다음 backend 작업에서 그 `ENV` 줄과 100행의 주석 문구를 함께 지우고
+  `COMPOSE_OK`와 image build를 다시 확인한다.
+
+## 요구사항 대조 검사가 ID 체계를 가진 실제 문서에서 구조적으로 실패한다
+
+- 확인: 2026-09-05
+- 재현 조건: 요구사항 ID 체계를 가진 제안요청서로 심층 검토를 완주시키고 보고서의
+  `validation_summary`를 본다. `tests/fixtures/.../fire_prevention_55.json`이 기대하는
+  유일 ID는 55개다.
+- 증상: stage 1 claim 상한이 8개(`app/core/model_client.py`의 `bounded_output_rule`)라
+  모델이 문서의 ID를 다 언급할 수 없다. `deep_review_validation`의 `requirement_inventory`가
+  `missing = expected - observed`를 `failed`(중대)로 올리고, `reports.py`가 그것을 보고서
+  `validation_status = "failed"`로 승격한다. `system_recommendation`은 `보류`가 된다.
+- 영향: 첫 참조 실행부터 ID 체계가 있는 문서의 보고서가 **구조적으로** 실패로 나온다.
+  이것은 "문서를 잘못 읽었다"가 아니라 "검사 기대치와 모델 출력 예산이 맞지 않는다"는 뜻이다.
+- 지금 해결할 수 없는 이유: 명세 §6.7이 "누락·예상 밖 ID가 있으면 `failed`(중대)"로 정했다.
+  claim 상한을 올리면 참조 실행 비용과 프롬프트 경계가 함께 바뀌고, 기대 집합을 좁히면
+  명세를 고쳐야 한다. 담당자가 2026-09-05에 이번 차수에는 명세대로 두기로 결정했다.
+- 접근 방법: 다음 차수에 셋 중 하나를 명세 개정과 함께 정한다.
+  (a) 기대 집합을 stage가 실제로 다룬 구간으로 좁힌다.
+  (b) 누락을 경고로 낮추고 누락 목록만 보고서에 싣는다.
+  (c) claim 상한을 문서 규모에 맞게 연다.
+
+## mock 종단의 개요 검토가 실제 참조 실행과 응답에서 구분되지 않는다
+
+- 확인: 2026-09-05
+- 재현 조건: `python -m app.deep_review.cli run-prespec-e2e`로 mock 종단을 완주시키고
+  개요 attempt의 `quality_status`를 본다. `unmeasured_reference`가 나오며, 이는 실제
+  승인 사설 vLLM 참조 실행과 같은 값이다.
+- 원인: 명세 §6.3이 `reference_only=true`인 attempt의 완료를 금지하고(§7의
+  `ck_prespec_overview_attempt_completed_binding`도 같다), §8이 `quality_status`를
+  `reference_only` 하나로만 가른다. 그래서 저장소만으로 개요를 완주시키려면 mock을
+  provider가 아니라 **transport 계층**에 두어야 하고, 그때 binding은 `reference_only=false`가
+  되어 표식이 `unmeasured_reference`로 남는다.
+- 영향: 화면·응답만으로는 mock 종단이 만든 개요 결과와 실제 참조 실행 결과를 가릴 수 없다.
+  현재는 mock 종단이 테스트·검증 경로에서만 돌고 운영 화면에 그 데이터가 생기지 않아
+  실제 혼동은 일어나지 않는다. 심층 검토의 `mock_reference`는 provider에서 나오므로
+  이 제약과 무관하다.
+- 지금 해결할 수 없는 이유: 세 번째 판별자(attempt에 transport 표식)를 넣으려면 명세 §8이
+  허용한 응답·DB 변경 목록 밖의 열과 필드가 필요하다. 담당자가 2026-09-05에 이번 차수에는
+  기록만 남기기로 결정했다.
+- 접근 방법: 다음 차수에 attempt에 transport 표식을 더하고 `quality_status` 계산을
+  `reference_only`와 transport 두 축으로 가른다.

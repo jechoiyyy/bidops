@@ -1,4 +1,4 @@
-/* 누적 사전규격 목록은 기존 Panel·DataTable·Badge 표면을 그대로 사용한다. */
+/* 누적 사전규격 목록은 Panel·DenseList·Badge 표면을 그대로 사용한다. */
 
 .pre-specs-page {
   display: flex;
@@ -19,28 +19,20 @@
   gap: var(--space-3);
 }
 
-.pre-specs-eyebrow {
-  display: block;
-  color: var(--color-muted);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-}
-
 .pre-specs-page-header h2 {
   margin: 4px 0 8px;
   color: var(--color-deep);
-  font-size: 26px;
-  font-weight: 650;
+  font-size: var(--bo-type-page-title);
+  font-weight: var(--bo-type-page-title-weight);
   letter-spacing: -0.03em;
-  line-height: 1.2;
+  line-height: var(--bo-type-page-title-leading);
 }
 
 .pre-specs-page-header p {
   max-width: 860px;
   margin: 0;
   color: var(--color-muted-soft);
-  font-size: 14px;
+  font-size: var(--bo-type-body);
   line-height: 1.6;
 }
 
@@ -64,7 +56,7 @@
 
 .pre-specs-count span {
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
 }
 
 .pre-specs-filter-panel {
@@ -91,7 +83,7 @@
   flex-direction: column;
   gap: 4px;
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
   font-weight: 600;
 }
 
@@ -103,7 +95,7 @@
   border-radius: var(--radius-md);
   color: var(--color-text);
   background: var(--surface-card);
-  font-size: 13px;
+  font-size: var(--bo-type-caption);
 }
 
 .pre-specs-switch {
@@ -118,7 +110,7 @@
   color: var(--color-deep) !important;
   background: var(--surface-selected);
   cursor: pointer;
-  font-size: 13px !important;
+  font-size: var(--bo-type-caption) !important;
 }
 
 .pre-specs-switch input {
@@ -132,7 +124,7 @@
   align-self: center;
   margin-right: auto;
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
 }
 
 .pre-specs-search {
@@ -150,48 +142,16 @@
   flex: 1 1 auto;
 }
 
-.pre-specs-search button,
-.pre-specs-reset,
-.pre-specs-pager button {
-  min-height: var(--control-height);
-  padding: 0 14px;
-  border: 1px solid var(--color-deep);
-  border-radius: var(--radius-md);
-  color: var(--color-white);
-  background: var(--color-deep);
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.pre-specs-search button:hover,
-.pre-specs-reset:hover,
-.pre-specs-pager button:hover:not(:disabled) {
-  background: var(--color-primary-strong);
-}
-
-.pre-specs-search button:disabled,
-.pre-specs-reset:disabled,
-.pre-specs-pager button:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-
+/* 검색·페이저·초기화 버튼은 `.interaction-control`(theme.css)이 생김새를
+   갖는다. 여기서는 이 화면에서만 다른 자리 값만 남긴다. */
 .pre-specs-reset {
   align-self: end;
-  color: var(--color-deep);
-  border-color: var(--border-strong);
-  background: var(--surface-card);
-}
-
-.pre-specs-reset:hover {
-  color: var(--color-white);
 }
 
 .pre-specs-policy-note {
   margin: 0;
   color: var(--color-muted-soft);
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
   line-height: 1.55;
 }
 
@@ -215,14 +175,18 @@
   min-width: 0;
 }
 
-.pre-specs-list-pane {
-  flex-basis: 62%;
+/* 목록:상세 = 3:2. 목록이 12열 표가 아니라 리스트 행이 되면서 상세가 선택한
+   건의 사실과 결정을 함께 담는다 — 두 pane 모두 지원 폭 안에서 자기 몫을
+   갖는다(ADR-0047: 1280~1920px, 좁은 폭 전환 없음). 공통
+   review-primitives.css의 기본 비율을 이 화면에서만 덮는다. */
+.pre-specs-split-workspace > .pre-specs-list-pane {
+  flex: 1 1 60%;
 }
 
-.pre-specs-detail-pane {
+.pre-specs-split-workspace > .pre-specs-detail-pane {
   position: sticky;
   top: var(--space-3);
-  flex-basis: 38%;
+  flex: 1 1 40%;
 }
 
 .pre-specs-detail-pane > #pre-specs-tracking-target,
@@ -242,43 +206,34 @@
   padding: 0;
 }
 
-.pre-specs-table {
-  overflow-x: auto;
+/* ── 목록 행 ────────────────────────────────────────────────────────────
+   한 건은 제목 · 배지 줄 · 기관/번호 줄로 쌓이고 D-day가 오른쪽에 붙는다.
+   마감·예산·추적 상태를 가로 스크롤 뒤로 숨기지 않기 위한 구조다. */
+.pre-specs-list {
+  padding: 0 0 var(--space-1);
 }
 
-.pre-specs-table .data-table {
-  min-width: 1180px;
-}
-
-.pre-specs-table .data-table th,
-.pre-specs-table .data-table td {
-  vertical-align: top;
-}
-
-.pre-specs-table .data-table tbody tr[tabindex="0"] {
+/* Astryx Item은 행 padding을 화면에 맡긴다. 사업 추적·발주계획 목록과 같은
+   밀도를 쓰되 선택 표시가 들어갈 좌측 여백을 남긴다. */
+.pre-specs-row {
+  min-width: 0;
+  padding: var(--spacing-2) var(--spacing-3);
   cursor: pointer;
 }
 
-.pre-specs-table .data-table tbody tr[aria-selected="true"] {
+.pre-specs-row[aria-current="true"] {
   background: var(--surface-selected);
   box-shadow: inset 3px 0 0 var(--color-primary-strong);
 }
 
-.pre-specs-table .data-table tbody tr[tabindex="0"]:focus-visible {
+.pre-specs-row:focus-visible {
   outline: 2px solid var(--color-primary-strong);
   outline-offset: -2px;
 }
 
-.pre-specs-title-cell {
-  min-width: 260px;
-}
-
-.pre-specs-title-stack,
-.pre-specs-origin-stack,
-.pre-specs-document-summary {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
+.pre-specs-row-title {
+  display: block;
+  min-width: 0;
 }
 
 .pre-specs-title-link {
@@ -293,68 +248,138 @@
   text-underline-offset: 3px;
 }
 
-.pre-specs-title-stack > span,
-.pre-specs-title-stack > code {
-  color: var(--color-muted);
-  font-size: 12px;
+.pre-specs-row-badges,
+.pre-specs-row-meta,
+.pre-specs-row-action {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
 }
 
-.pre-specs-title-stack > code {
+.pre-specs-row-badges {
+  margin-top: 4px;
+}
+
+.pre-specs-row-meta {
+  margin-top: 4px;
+  color: var(--color-muted);
+  font-size: var(--bo-type-caption);
+}
+
+.pre-specs-row-meta code {
   color: var(--color-deep);
   font-family: var(--font-mono);
 }
 
-.pre-specs-origin-cell {
-  min-width: 88px;
+.pre-specs-row-unknown {
+  color: var(--color-muted);
+  font-size: var(--bo-type-caption);
+  font-weight: 650;
+}
+
+.pre-specs-row-action {
+  margin-top: 6px;
+}
+
+/* 공통 primitive는 행 안의 control을 큰 표적으로 키우지만 이 화면은 데스크톱
+   전용 밀도를 유지한다. 공통 파일을 고치지 않고 여기서만 되돌린다. */
+.pre-specs-row-end {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  text-align: right;
+}
+
+.pre-specs-row-deadline-at {
+  color: var(--color-muted);
+  font-size: var(--bo-type-caption);
+  white-space: nowrap;
+}
+
+/* ── 상세 pane ─────────────────────────────────────────────────────────── */
+.pre-specs-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.pre-specs-detail-identity {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  margin: 0;
+  color: var(--color-muted);
+  font-size: var(--bo-type-caption);
+}
+
+.pre-specs-detail-identity code {
+  color: var(--color-deep);
+  font-family: var(--font-mono);
+}
+
+.pre-specs-detail-badges {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  margin-top: 8px;
+}
+
+.pre-specs-detail-facts {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  margin: 12px 0 0;
+}
+
+.pre-specs-detail-facts > div {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 92px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.pre-specs-detail-facts > div:last-child {
+  border-bottom: none;
+}
+
+.pre-specs-detail-facts dt {
+  color: var(--color-muted);
+  font-size: var(--bo-type-caption);
+  font-weight: 650;
+}
+
+.pre-specs-detail-facts dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--color-deep);
+  font-size: var(--bo-type-caption);
+}
+
+.pre-specs-detail-deadline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
 }
 
 .pre-specs-tracking-exception {
   display: inline-block;
-  max-width: 150px;
   color: var(--color-warning);
-  font-size: 11px;
+  font-size: var(--bo-type-caption);
   font-weight: 650;
   line-height: 1.35;
-}
-
-.pre-specs-date-cell {
-  min-width: 126px;
-  white-space: nowrap;
-}
-
-.pre-specs-budget-cell {
-  min-width: 112px;
-  white-space: nowrap;
-}
-
-.pre-specs-document-cell {
-  min-width: 180px;
-}
-
-.pre-specs-document-summary strong {
-  color: var(--color-deep);
-  font-weight: 650;
-}
-
-.pre-specs-document-summary span {
-  color: var(--color-muted);
-  font-size: 11px;
-  line-height: 1.35;
-  white-space: nowrap;
-}
-
-.pre-specs-document-alerts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  white-space: normal !important;
-}
-
-.pre-specs-deadline-stack {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
 }
 
 .pre-specs-deadline {
@@ -364,7 +389,7 @@
   padding: 0 7px;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
-  font-size: 11px;
+  font-size: var(--bo-type-caption);
   font-weight: 600;
   white-space: nowrap;
 }
@@ -412,7 +437,7 @@
   justify-content: center;
   gap: 14px;
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: var(--bo-type-caption);
 }
 
 .pre-specs-pager button {
@@ -439,18 +464,12 @@
   min-width: 0;
 }
 
-.pre-specs-group-count {
-  color: var(--color-muted);
-  font-size: 13px;
-  font-weight: 650;
-}
-
 .pre-specs-group-empty,
 .pre-specs-group-partial {
   margin: 0;
   padding: var(--space-1) var(--space-2) var(--space-2);
   color: var(--color-muted);
-  font-size: 12.5px;
+  font-size: var(--bo-type-caption);
   line-height: 1.5;
 }
 
@@ -460,28 +479,19 @@
 
 .pre-specs-tracking-action {
   display: flex;
-  flex-direction: column;
-  gap: 3px;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
 }
 
 .pre-specs-tracking-action .disabled-reason {
-  max-width: 160px;
-  font-size: 11px;
+  max-width: 42ch;
+  font-size: var(--bo-type-caption);
 }
 
-.pre-specs-tracking-action-button {
-  min-height: var(--control-height);
-  padding: 0 12px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  color: var(--color-deep);
-  background: var(--surface-card);
-  cursor: pointer;
-  font-size: 12.5px;
-  font-weight: 650;
-  white-space: nowrap;
-}
-
+/* 생김새는 `.interaction-control.interaction-control-compact`가 준다.
+   여기 남는 것은 이 화면의 눌림 상태(`aria-pressed`)뿐이다. */
 .pre-specs-tracking-action-button:hover:not(:disabled) {
   border-color: var(--color-primary-strong);
   color: var(--color-primary-strong);
@@ -493,13 +503,15 @@
   background: var(--color-primary-strong);
 }
 
+/* 눌린 상태의 hover는 base hover(문자색을 진하게)보다 뒤에 와야 한다.
+   그러지 않으면 진한 배경 위에 같은 색 문자가 놓여 이름이 사라진다. */
+.pre-specs-tracking-action-button[aria-pressed="true"]:hover:not(:disabled) {
+  color: var(--color-white);
+}
+
 .pre-specs-tracking-action-button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
-}
-
-.pre-specs-tracking-action-cell {
-  min-width: 150px;
 }
 
 .pre-specs-tracking-target-panel {
@@ -516,20 +528,6 @@
   margin-inline: auto;
 }
 
-.pre-spec-detail-breadcrumb {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 7px;
-  color: var(--color-muted);
-  font-size: 12px;
-}
-
-.pre-spec-detail-breadcrumb a {
-  color: var(--color-deep);
-  font-weight: 650;
-}
-
 .pre-spec-detail-header {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -544,9 +542,10 @@
 .pre-spec-detail-header h2 {
   margin: 5px 0 8px;
   color: var(--color-deep);
-  font-size: 25px;
+  font-size: var(--bo-type-page-title);
+  font-weight: var(--bo-type-page-title-weight);
   letter-spacing: -0.03em;
-  line-height: 1.28;
+  line-height: var(--bo-type-page-title-leading);
 }
 
 .pre-spec-detail-subline,
@@ -556,7 +555,7 @@
   align-items: center;
   gap: 6px;
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
 }
 
 .pre-spec-detail-actions {
@@ -569,7 +568,7 @@
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
   color: var(--color-deep);
-  font-size: 13px;
+  font-size: var(--bo-type-caption);
   font-weight: 650;
 }
 
@@ -608,7 +607,7 @@
 .pre-spec-detail-facts dt,
 .pre-spec-overview-lineage dt {
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
   font-weight: 600;
 }
 
@@ -618,7 +617,7 @@
   margin: 0;
   overflow-wrap: anywhere;
   color: var(--color-deep);
-  font-size: 13px;
+  font-size: var(--bo-type-caption);
 }
 
 .pre-spec-overview-content,
@@ -651,18 +650,18 @@
 .pre-spec-overview-limit {
   margin: 7px 0 0;
   color: var(--color-muted-soft);
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
   line-height: 1.55;
 }
 
 .pre-spec-overview-attempts > strong {
   color: var(--color-deep);
-  font-size: 13px;
+  font-size: var(--bo-type-caption);
 }
 
 .pre-spec-overview-attempts > span {
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
 }
 
 .pre-spec-overview-attempts ul {
@@ -680,80 +679,12 @@
   align-items: center;
   gap: 8px;
   color: var(--color-muted-soft);
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
 }
 
 .pre-spec-overview-limit {
   padding-top: 12px;
   border-top: 1px solid var(--border-subtle);
-}
-
-@media (max-width: 900px) {
-  .pre-specs-page-header {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .pre-specs-count {
-    width: fit-content;
-    min-width: 90px;
-    align-items: flex-start;
-  }
-
-  .pre-specs-filter-help {
-    flex-basis: 100%;
-    margin-right: 0;
-  }
-
-  .pre-spec-detail-header,
-  .pre-spec-detail-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .pre-spec-detail-actions {
-    justify-content: flex-start;
-  }
-
-  .pre-specs-split-workspace {
-    gap: var(--space-2);
-  }
-
-  .pre-specs-detail-pane {
-    position: static;
-  }
-}
-
-@media (max-width: 640px) {
-  .pre-specs-page-header h2 {
-    font-size: 22px;
-  }
-
-  .pre-specs-filter-row > label,
-  .pre-specs-search {
-    width: 100%;
-    min-width: 0;
-  }
-
-  .pre-specs-switch {
-    width: fit-content !important;
-  }
-
-  .pre-specs-reset {
-    width: 100%;
-  }
-
-  .pre-spec-detail-header {
-    padding: 15px;
-  }
-
-  .pre-spec-detail-header h2 {
-    font-size: 21px;
-  }
-
-  .pre-spec-detail-facts > div,
-  .pre-spec-overview-lineage > div {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 4px;
-  }
 }
 
 /* v2 개요 결과는 상태보다 판단 내용을 먼저 읽도록 계층을 나눈다. */
@@ -787,7 +718,7 @@
 .pre-spec-overview-due > span,
 .pre-spec-overview-evidence-locator > span:first-child {
   color: var(--color-muted);
-  font-size: 11px;
+  font-size: var(--bo-type-caption);
   font-weight: 650;
 }
 
@@ -811,7 +742,7 @@
   border-radius: var(--radius-sm);
   color: var(--color-warning);
   background: var(--color-warning-bg);
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
   font-weight: 650;
   line-height: 1.5;
 }
@@ -822,7 +753,7 @@
 
 .pre-spec-overview-statuses > span {
   color: var(--color-muted);
-  font-size: 11px;
+  font-size: var(--bo-type-caption);
   font-weight: 650;
 }
 
@@ -835,14 +766,15 @@
 .pre-spec-overview-section h4 {
   margin: 0 0 8px;
   color: var(--color-deep);
-  font-size: 14px;
-  font-weight: 700;
+  font-size: var(--bo-type-section-title);
+  line-height: var(--bo-type-section-title-leading);
+  font-weight: var(--bo-type-section-title-weight);
 }
 
 .pre-spec-overview-summary {
   margin: 0;
   color: var(--color-text);
-  font-size: 14px;
+  font-size: var(--bo-type-body);
   line-height: 1.7;
   overflow-wrap: anywhere;
 }
@@ -861,12 +793,12 @@
   align-items: center;
   gap: 8px;
   color: var(--color-deep);
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
 }
 
 .pre-spec-overview-due strong {
   color: var(--color-muted-soft);
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
   font-weight: 600;
 }
 
@@ -892,7 +824,7 @@
   position: relative;
   padding-left: 16px;
   color: var(--color-text);
-  font-size: 13px;
+  font-size: var(--bo-type-caption);
   line-height: 1.55;
   overflow-wrap: anywhere;
 }
@@ -911,7 +843,7 @@
 .pre-spec-overview-empty {
   margin: 0;
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
 }
 
 .pre-spec-overview-unknowns > li,
@@ -945,7 +877,7 @@
 .pre-spec-overview-unknowns dt,
 .pre-spec-overview-digests dt {
   color: var(--color-muted);
-  font-size: 11px;
+  font-size: var(--bo-type-caption);
   font-weight: 650;
 }
 
@@ -954,7 +886,7 @@
   min-width: 0;
   margin: 0;
   color: var(--color-text);
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
@@ -962,7 +894,7 @@
 .pre-spec-overview-evidence > li > p {
   margin: 0 0 8px;
   color: var(--color-text);
-  font-size: 13px;
+  font-size: var(--bo-type-caption);
   line-height: 1.55;
   overflow-wrap: anywhere;
 }
@@ -973,7 +905,7 @@
   align-items: center;
   gap: 6px 10px;
   color: var(--color-muted-soft);
-  font-size: 11px;
+  font-size: var(--bo-type-caption);
 }
 
 .pre-spec-overview-evidence-locator code {
@@ -1004,7 +936,7 @@
   background: var(--surface-card);
   cursor: pointer;
   font: inherit;
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
   font-weight: 650;
 }
 
@@ -1039,14 +971,14 @@
 
 .pre-spec-overview-source-eyebrow {
   color: var(--color-muted);
-  font-size: 11px;
+  font-size: var(--bo-type-caption);
   font-weight: 650;
 }
 
 .pre-spec-overview-source-header h5 {
   margin: 4px 0 0;
   color: var(--color-deep);
-  font-size: 14px;
+  font-size: var(--bo-type-body);
   line-height: 1.4;
 }
 
@@ -1058,7 +990,7 @@
 .pre-spec-overview-source-page {
   margin: 12px 0 0;
   color: var(--color-muted-soft);
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
   line-height: 1.5;
 }
 
@@ -1072,12 +1004,12 @@
 }
 
 .pre-spec-overview-source-mismatch strong {
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
 }
 
 .pre-spec-overview-source-mismatch p {
   margin: 5px 0 0;
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
   line-height: 1.55;
   overflow-wrap: anywhere;
 }
@@ -1113,7 +1045,7 @@
   align-items: center;
   gap: 6px 8px;
   color: var(--color-muted);
-  font-size: 11px;
+  font-size: var(--bo-type-caption);
   font-weight: 650;
 }
 
@@ -1131,32 +1063,10 @@
   min-width: 0;
   margin: 7px 0 0;
   color: var(--color-text);
-  font-size: 13px;
+  font-size: var(--bo-type-caption);
   line-height: 1.65;
   overflow-wrap: anywhere;
   word-break: break-word;
-}
-
-@media (max-width: 640px) {
-  .pre-spec-overview-evidence-footer {
-    align-items: stretch;
-  }
-
-  .pre-spec-overview-evidence-locator {
-    width: 100%;
-  }
-
-  .pre-spec-overview-evidence-open {
-    width: 100%;
-  }
-
-  .pre-spec-overview-source-header {
-    flex-direction: column;
-  }
-
-  .pre-spec-overview-source-close {
-    width: 100%;
-  }
 }
 
 .pre-spec-overview-limitations {
@@ -1179,13 +1089,13 @@
 
 .pre-spec-overview-waiting strong {
   color: var(--color-deep);
-  font-size: 13px;
+  font-size: var(--bo-type-caption);
 }
 
 .pre-spec-overview-waiting p {
   margin: 6px 0 0;
   color: var(--color-muted-soft);
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
   line-height: 1.6;
   overflow-wrap: anywhere;
 }
@@ -1198,7 +1108,7 @@
   padding: 12px 0 2px;
   color: var(--color-muted);
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
   font-weight: 650;
   list-style-position: inside;
 }
@@ -1237,43 +1147,12 @@
 .pre-spec-overview-digest {
   flex: 1 1 220px;
   color: var(--color-muted);
-  font-size: 11px;
+  font-size: var(--bo-type-caption);
 }
 
 .pre-spec-overview-digests {
   padding-top: 10px;
   border-top: 1px solid var(--border-subtle);
-}
-
-@media (max-width: 640px) {
-  .pre-spec-overview-decision {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .pre-spec-overview-recommendation strong {
-    font-size: 21px;
-  }
-
-  .pre-spec-overview-validation {
-    min-width: 0;
-    align-items: flex-start;
-    padding-top: 10px;
-    padding-left: 0;
-    border-top: 1px solid var(--border-subtle);
-    border-left: 0;
-  }
-
-  .pre-spec-overview-unknowns dl > div,
-  .pre-spec-overview-digests > div {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 2px;
-  }
-
-  .pre-spec-overview-evidence-locator {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 4px;
-  }
 }
 
 /* 개요를 읽은 자리에서 사람이 심층 검토 추적 범위를 선택한다. */
@@ -1298,14 +1177,15 @@
 .pre-spec-tracking-decision h3 {
   margin: 0;
   color: var(--color-deep);
-  font-size: 14px;
-  font-weight: 700;
+  font-size: var(--bo-type-section-title);
+  line-height: var(--bo-type-section-title-leading);
+  font-weight: var(--bo-type-section-title-weight);
 }
 
 .pre-spec-detail-section-heading strong {
   flex: 0 0 auto;
   color: var(--color-deep);
-  font-size: 14px;
+  font-size: var(--bo-type-body);
 }
 
 .pre-spec-detail-document-facts {
@@ -1325,14 +1205,14 @@
 
 .pre-spec-detail-document-facts dt {
   color: var(--color-muted);
-  font-size: 11px;
+  font-size: var(--bo-type-caption);
   font-weight: 650;
 }
 
 .pre-spec-detail-document-facts dd {
   margin: 3px 0 0;
   color: var(--color-deep);
-  font-size: 13px;
+  font-size: var(--bo-type-caption);
   font-weight: 650;
 }
 
@@ -1341,7 +1221,7 @@
   max-width: 70ch;
   margin: 8px 0 0;
   color: var(--color-muted-soft);
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
   line-height: 1.55;
   overflow-wrap: anywhere;
 }
@@ -1355,14 +1235,16 @@
 
 .pre-spec-tracking-kicker {
   color: var(--color-muted);
-  font-size: 11px;
+  font-size: var(--bo-type-caption);
   font-weight: 700;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.02em;
 }
 
 .pre-spec-tracking-decision-header h3 {
   margin-top: 4px;
-  font-size: 17px;
+  font-size: var(--bo-type-section-title);
+  font-weight: var(--bo-type-section-title-weight);
+  line-height: var(--bo-type-section-title-leading);
 }
 
 .pre-spec-tracking-current {
@@ -1373,14 +1255,14 @@
   align-items: flex-end;
   gap: 5px;
   color: var(--color-muted);
-  font-size: 11px;
+  font-size: var(--bo-type-caption);
   font-weight: 650;
   text-align: right;
 }
 
 .pre-spec-tracking-current strong {
   color: var(--color-warning);
-  font-size: 13px;
+  font-size: var(--bo-type-caption);
 }
 
 .pre-spec-tracking-decision > .pre-spec-detail-document-summary {
@@ -1410,7 +1292,7 @@
 .pre-spec-tracking-form legend {
   margin-bottom: 7px;
   color: var(--color-deep);
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
   font-weight: 700;
 }
 
@@ -1445,12 +1327,12 @@
 }
 
 .pre-spec-tracking-option strong {
-  font-size: 13px;
+  font-size: var(--bo-type-caption);
 }
 
 .pre-spec-tracking-option span {
   color: var(--color-muted-soft);
-  font-size: 11px;
+  font-size: var(--bo-type-caption);
   line-height: 1.45;
   overflow-wrap: anywhere;
 }
@@ -1461,13 +1343,13 @@
   flex-direction: column;
   gap: 4px;
   color: var(--color-deep);
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
   font-weight: 650;
 }
 
 .pre-spec-tracking-reason em {
   color: var(--color-warning);
-  font-size: 11px;
+  font-size: var(--bo-type-caption);
   font-style: normal;
 }
 
@@ -1480,7 +1362,7 @@
   color: var(--color-text);
   background: var(--surface-card);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--bo-type-caption);
   line-height: 1.5;
   resize: vertical;
 }
@@ -1519,7 +1401,9 @@
 
 .pre-spec-tracking-decision.is-compact .pre-spec-tracking-decision-header h3 {
   margin-top: 0;
-  font-size: var(--font-size-sm);
+  font-size: var(--bo-type-section-title);
+  font-weight: var(--bo-type-section-title-weight);
+  line-height: var(--bo-type-section-title-leading);
 }
 
 .pre-spec-tracking-decision.is-compact .pre-spec-tracking-current {
@@ -1570,43 +1454,6 @@
   align-self: center;
 }
 
-@media (max-width: 900px) {
-  .pre-spec-tracking-decision-header {
-    flex-direction: column;
-  }
-
-  .pre-spec-tracking-current {
-    align-items: flex-start;
-    text-align: left;
-  }
-
-  .pre-spec-tracking-form.is-compact {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .pre-spec-tracking-form.is-compact fieldset,
-  .pre-spec-tracking-form.is-compact .pre-spec-tracking-reason {
-    flex-basis: auto;
-    min-width: 0;
-  }
-}
-
-@media (max-width: 640px) {
-  .pre-spec-detail-document-facts {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .pre-spec-tracking-options {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .pre-spec-tracking-option,
-  .pre-spec-tracking-save {
-    width: 100%;
-  }
-}
-
 /* ===== 단계 D — 승계 표시와 결정이 여기 없다는 안내 ===== */
 
 /* 발주계획에서 승계한 건은 결정 form 자체가 없다. 카드가 상태만 밝힌다. */
@@ -1619,7 +1466,7 @@
   min-width: 0;
   margin: var(--spacing-2) 0 0;
   color: var(--color-text-secondary);
-  font-size: var(--font-size-xs);
+  font-size: var(--bo-type-caption);
   overflow-wrap: anywhere;
 }
 
@@ -1640,4 +1487,124 @@
   text-decoration: underline;
   text-underline-offset: var(--spacing-0-5);
   white-space: nowrap;
+}
+
+/* 등급 필터가 서버 집계와 다른 범위에 적용된다는 사실을 눈에 띄게 남긴다. */
+.pre-specs-grade-filter-note {
+  margin: var(--spacing-2) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.pre-specs-grade-cell,
+.pre-specs-auto-preparation-cell {
+  white-space: nowrap;
+}
+
+/* 상세 헤더의 등급 줄과 자동 준비 단계 표시. */
+.pre-spec-detail-grade-row {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin-top: var(--spacing-2);
+}
+
+.pre-spec-detail-grade-label {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  font-weight: 650;
+}
+
+.pre-spec-detail-grade-source {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+}
+
+.pre-spec-auto-preparation {
+  min-width: 0;
+  margin-top: var(--spacing-2);
+}
+
+.pre-spec-auto-steps {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: stretch;
+  margin: 0;
+  padding: 0;
+  gap: var(--spacing-2);
+  list-style: none;
+}
+
+.pre-spec-auto-step {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 12rem;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  padding: var(--spacing-2) var(--spacing-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-container);
+  background: var(--color-background-card);
+}
+
+.pre-spec-auto-step-label {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  font-weight: 650;
+}
+
+.pre-spec-auto-step-detail {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.pre-spec-auto-preparation-link {
+  display: inline-block;
+  margin-top: var(--spacing-2);
+  color: var(--color-text-accent);
+  text-decoration: underline;
+  text-underline-offset: var(--spacing-0-5);
+}
+
+.pre-spec-auto-preparation-note {
+  margin: var(--spacing-1) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+/* 개요 카드의 품질 표식. */
+.pre-spec-overview-quality {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-container);
+}
+
+.pre-spec-overview-quality > span {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  font-weight: 650;
+}
+
+.pre-spec-overview-quality > p {
+  min-width: 0;
+  flex: 1 1 16rem;
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
 }

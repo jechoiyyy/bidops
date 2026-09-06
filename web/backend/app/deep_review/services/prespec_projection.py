@@ -16,6 +16,7 @@ from sqlalchemy import func, select
 from ...lifecycle import PreSpecDocumentCounts
 from ..models import AttachmentFetch, PreSpecOverviewReview
 from ...lifecycle.models import Attachment
+from .auto_preparation import auto_preparation_fields
 
 # attachment_fetch.status 값 → PreSpecDocumentCounts 필드. 응답 별칭(완료·대기·
 # 진행·차단·실패)은 lifecycle의 응답 모델이 붙인다.
@@ -88,6 +89,20 @@ class PreSpecOverviewDocumentProjection:
         return {
             notice_id: PreSpecDocumentCounts(**fields) for notice_id, fields in grouped.items()
         }
+
+    def prespec_status_fields(
+        self, session: Any, notice_ids: Sequence[int]
+    ) -> Mapping[int, Mapping[str, Any]]:
+        """등급·자동 준비 상태·최신 심층 검토 (명세 §8).
+
+        계산은 자동 준비 서비스가 갖는다. projection은 확장점 서명을 맞추고
+        결과를 그대로 넘긴다 — 상태의 뜻을 두 곳에서 정의하지 않는다.
+        """
+
+        ids = _distinct_ids(notice_ids)
+        if not ids:
+            return {}
+        return auto_preparation_fields(session, ids)
 
 
 __all__ = ["PreSpecOverviewDocumentProjection"]

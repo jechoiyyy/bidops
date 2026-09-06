@@ -10,7 +10,13 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.db import get_db, init_db
 from app.main import app
-from app.lifecycle.models import Notice, Run
+from app.lifecycle import (
+    extension_registry,
+    reset_extension_registry,
+    restore_extension_registry,
+)
+from app.lifecycle.models import Attachment, Notice, Run
+from app.deep_review.models import AttachmentFetch
 from app.screening.models import Judgment, Review, VerificationAnswer
 
 
@@ -132,3 +138,121 @@ def test_review_export_preserves_feedback_v2_shape(reviews_client):
             "verification_answers": [{"item": "참가자격", "answer": "확인 완료"}],
         }
     ]
+
+
+# --- 정정 등급 변경이 lifecycle 확장점을 부른다 (명세 §6.2 둘째 촉발) ---------
+
+G2B_PRE_SPEC_URL = (
+    "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do"
+    "?bfSpecRegNo=R26RV00000001&fileType=BFDTL&fileSeq=1"
+)
+
+
+def _add_pre_spec(session: Session) -> Notice:
+    """SW=N·추적 없음인 사전규격. 자격을 여는 것은 오직 등급뿐이다."""
+
+    run = session.get(Run, "review-run")
+    notice = Notice(
+        run=run,
+        notice_key="pre:REVIEW-GRADE",
+        source_type="pre_spec",
+        title="정정 등급 사전규격",
+        qualification_flags_json={"sw_business_status": "N"},
+    )
+    session.add(notice)
+    session.flush()
+    session.add(
+        Attachment(
+            notice_id=notice.id,
+            name="제안요청서.pdf",
+            origin="g2b",
+            source_url=G2B_PRE_SPEC_URL,
+            source_system="g2b",
+            source_attachment_key="R26RV00000001:BFDTL:1",
+        )
+    )
+    session.commit()
+    return notice
+
+
+def _put_review(client, notice_pk: int, grade: str | None):
+    return client.put(
+        f"/api/notices/{notice_pk}/review",
+        json={
+            "run_id": "review-run",
+            "disposition": "심층 검토 진행",
+            "corrected_grade": grade,
+            "reason": "등급 정정",
+            "reviewer": "테스트 담당자",
+            "verification_answers": [],
+        },
+    )
+
+
+def test_correcting_the_grade_up_to_priority_creates_the_fetch_row(reviews_client):
+    client, session = reviews_client
+    notice = _add_pre_spec(session)
+
+    assert session.scalar(select(func.count(AttachmentFetch.id))) == 0
+    assert _put_review(client, notice.id, "우선 검토").status_code == 200
+
+    rows = list(session.scalars(select(AttachmentFetch)))
+    assert [row.eligibility_reason for row in rows] == ["priority_grade"]
+    assert rows[0].status == "대기"
+
+
+def test_correcting_the_grade_down_leaves_the_existing_fetch_row(reviews_client):
+    client, session = reviews_client
+    notice = _add_pre_spec(session)
+    assert _put_review(client, notice.id, "우선 검토").status_code == 200
+    row = session.scalar(select(AttachmentFetch))
+    before = (row.id, row.status, row.eligibility_reason)
+
+    assert _put_review(client, notice.id, "제외").status_code == 200
+
+    session.expire_all()
+    rows = list(session.scalars(select(AttachmentFetch)))
+    assert len(rows) == 1
+    assert (rows[0].id, rows[0].status, rows[0].eligibility_reason) == before
+
+
+def test_saving_the_same_grade_again_does_not_call_the_hook(reviews_client):
+    client, session = reviews_client
+    notice = _add_pre_spec(session)
+    calls: list[list[int]] = []
+
+    class _Recorder:
+        def effective_grade_changed(self, _session, notice_ids) -> None:
+            calls.append([int(value) for value in notice_ids])
+
+    original = reset_extension_registry()
+    try:
+        registry = extension_registry()
+        registry.register_effective_grade_changed_hook(_Recorder(), owner="test")
+        assert _put_review(client, notice.id, "검토 권장").status_code == 200
+        assert _put_review(client, notice.id, "검토 권장").status_code == 200
+    finally:
+        restore_extension_registry(original)
+
+    assert calls == [[notice.id]]
+
+
+def test_a_failing_hook_does_not_roll_back_the_review(reviews_client):
+    client, session = reviews_client
+    notice = _add_pre_spec(session)
+
+    class _Broken:
+        def effective_grade_changed(self, _session, _notice_ids) -> None:
+            raise RuntimeError("확장점 구현이 깨졌다")
+
+    original = reset_extension_registry()
+    try:
+        extension_registry().register_effective_grade_changed_hook(_Broken(), owner="test")
+        response = _put_review(client, notice.id, "우선 검토")
+    finally:
+        restore_extension_registry(original)
+
+    assert response.status_code == 200
+    saved = session.scalar(select(Review).where(Review.notice_id == notice.id))
+    assert saved is not None
+    assert saved.corrected_grade == "우선 검토"

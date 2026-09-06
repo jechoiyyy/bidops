@@ -29,11 +29,17 @@ def test_app_assembly_registers_the_prespec_attachment_hooks():
 
     assert registry.run_ingest_hook_count >= 1
     assert registry.tracking_decision_hook_count >= 1
+    # 등급 변경 hook(§6.2 둘째 촉발)도 같은 구현이 채운다.
+    assert registry.effective_grade_changed_hook_count >= 1
     assert any(
         isinstance(hook, PreSpecAttachmentEligibilityHook) for hook in registry._run_ingest_hooks.values()
     )
     assert any(
         isinstance(hook, PreSpecAttachmentEligibilityHook) for hook in registry._tracking_hooks.values()
+    )
+    assert any(
+        isinstance(hook, PreSpecAttachmentEligibilityHook)
+        for hook in registry._effective_grade_hooks.values()
     )
 
 
@@ -83,13 +89,22 @@ def test_a_second_assembly_does_not_stack_hooks(isolated_registry):
 
     create_app(mount_frontend=False)
     registry = extension_registry()
-    once = (registry.run_ingest_hook_count, registry.tracking_decision_hook_count)
+    once = (
+        registry.run_ingest_hook_count,
+        registry.tracking_decision_hook_count,
+        registry.effective_grade_changed_hook_count,
+    )
 
     create_app(mount_frontend=False)
 
-    assert (registry.run_ingest_hook_count, registry.tracking_decision_hook_count) == once
+    assert (
+        registry.run_ingest_hook_count,
+        registry.tracking_decision_hook_count,
+        registry.effective_grade_changed_hook_count,
+    ) == once
     assert registry.run_ingest_hook_count == 2  # screening + deep_review
     assert registry.tracking_decision_hook_count == 1  # deep_review
+    assert registry.effective_grade_changed_hook_count == 1  # deep_review
 
 
 def test_both_apps_still_see_the_registered_projections(isolated_registry):

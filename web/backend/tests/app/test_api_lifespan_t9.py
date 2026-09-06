@@ -17,6 +17,7 @@ from app.screening.models import CompanyProfileSnapshot, ScreeningExecution, Scr
 from app.lifecycle.routers.runs import router as runs_router
 from app.screening.routers.screening import run_router as screening_run_router
 from app.runtime import ApplicationRuntime
+from tests.fakes import APPROVED_MODEL
 
 
 def _engine():
@@ -44,7 +45,7 @@ def test_judgment_endpoint_enqueues_full_manual_run_without_waiting(tmp_path: Pa
         ))
         session.add(ScreeningExecution(
             execution_id=execution_id, trigger="manual_run", source_run_id="run-1", scope="full_run", status="대기",
-            requested_by="operator", policy_version="policy-1", prompt_version="prompt-1", model_name="qwen3.8:27b",
+            requested_by="operator", policy_version="policy-1", prompt_version="prompt-1", model_name=APPROVED_MODEL,
             model_digest=digest, company_profile_version=f"company-profile.sha256:{digest}", company_profile_digest=digest,
             input_artifact_path=f"data/screening-executions/{execution_id}/screening-input.json", input_artifact_digest=digest,
             artifact_dir=f"data/screening-executions/{execution_id}", queued_at=now,
@@ -56,7 +57,7 @@ def test_judgment_endpoint_enqueues_full_manual_run_without_waiting(tmp_path: Pa
     class FakeOllama:
         def inspect_model(self, *, refresh: bool = False):
             assert refresh is True
-            return SimpleNamespace(model_name="qwen3.8:27b", digest=digest)
+            return SimpleNamespace(model_name=APPROVED_MODEL, digest=digest)
 
     class FakeOrchestrator:
         ollama = FakeOllama()
@@ -109,7 +110,7 @@ def test_runtime_recovers_stale_execution_and_worker_runs_when_scheduler_disable
         session.add(ScreeningExecution(
             execution_id="scr-" + "2" * 32, trigger="manual_run", source_run_id="run-1", scope="full_run",
             status="실행 중", active_slot=1, requested_by="operator", policy_version="policy-1", prompt_version="prompt-1",
-            model_name="qwen3.8:27b", model_digest=digest, company_profile_version=f"company-profile.sha256:{digest}",
+            model_name=APPROVED_MODEL, model_digest=digest, company_profile_version=f"company-profile.sha256:{digest}",
             company_profile_digest=digest, input_artifact_path="data/screening-executions/scr-" + "2" * 32 + "/screening-input.json",
             input_artifact_digest=digest, artifact_dir="data/screening-executions/scr-" + "2" * 32,
             queued_at=now - timedelta(minutes=2), started_at=now - timedelta(minutes=2), heartbeat_at=now - timedelta(minutes=2),

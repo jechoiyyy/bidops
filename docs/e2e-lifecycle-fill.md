@@ -7,6 +7,10 @@
 발주계획 종단 실행(`docs/validation-runs/20260902-order-plan-c2-phases2-4.md`)과 같은 스택에서
 이어서 수행한다.
 
+등급 기반 자동 문서 준비와 `SW사업대상=Y` 자동 심층 시작까지 한 번에 통과시키는 절차는 이
+문서가 아니라 [운영 절차의 "사전규격 심층 검토 참조 실행"](operations.md#사전규격-심층-검토-참조-실행)이
+정본이다. 이 문서는 테이블을 채우고 화면에 뜨는지만 확인한다.
+
 ## 2026-09-04 확인 상태
 
 프론트엔드 → 백엔드 → PostgreSQL 연결은 확인됐다. 확인 방법과 결과는 다음과 같다.
@@ -35,9 +39,13 @@
   `screening-results.json`, `screening-decisions.json`, `collected-order-plans.json` 중 있는 것을 읽는다.
 - **web 컨테이너에는 나라장터 API 키가 없다.** 호스트 `.env`의 `BIDOPS_G2B_API_KEY`로 수집기를
   호스트에서 실행하고, 결과 디렉터리만 `pipeline-data` volume으로 복사한다.
-- **모델 판정은 현재 스택에서 돌지 않는다.** web의 `BIDOPS_OLLAMA_BASE_URL`이 127.0.0.1이다.
-  새 회차에 판정을 붙이려면 `docker-compose.mock-reference.yml`로 web·analysis-worker를
-  재기동해야 하며, mock 판정은 화면 흐름 확인용이지 품질 근거가 아니다.
+- **모델 판정은 overlay 없이 돌지 않는다.** 기본 `.env`의 `BIDOPS_VLLM_BASE_URL`은
+  컨테이너 자기 자신을 가리키는 loopback이고 `BIDOPS_VLLM_ALLOWED_HOSTS`·
+  `BIDOPS_VLLM_MODEL_REVISION`이 비어 있어 모델을 부르는 모든 용도가 호출 전에 fail
+  closed한다. 화면 흐름만 볼 때는 `docker-compose.mock-reference.yml`로 web·analysis-worker를
+  재기동하고, 실제 모델로 돌릴 때는
+  [운영 절차의 "사전규격 심층 검토 참조 실행"](operations.md#사전규격-심층-검토-참조-실행)을
+  따른다. mock 판정은 화면 흐름 확인용이지 품질 근거가 아니다.
 
 ## 실행 순서
 
@@ -112,6 +120,8 @@ docker compose -p bidops \
 ```
 
 - mock 판정의 `model_digest`는 `MOCK_MODEL_DIGEST` 상수로 남는다. 실제 모델 산출과 구별하는 기준이다.
+- mock override는 `BIDOPS_REFERENCE_WORKFLOW_MODE=true`를 함께 켜야 기동한다. 그렇지 않으면
+  설정 검증이 거부한다.
 - 사전규격 첨부 다운로드는 별도 allowlist overlay와 host firewall 승인이 필요하므로 이 절차의 범위에서 제외한다.
 
 ## 합격 조건

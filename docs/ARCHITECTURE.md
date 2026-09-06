@@ -3,7 +3,7 @@
 | 항목 | 내용 |
 |---|---|
 | 문서 상태 | 현재 구조·계약·목표 구조를 통합한 기준 문서 |
-| 기준일 | 2026-09-01 (KST) |
+| 기준일 | 2026-09-05 (KST) |
 | 정본 | docs/ARCHITECTURE.md |
 | 제품 | BidOps |
 | 관련 문서 | ADR.md, PRD.md, business-rules.md, contracts.md, security.md, operations.md |
@@ -65,7 +65,6 @@ flowchart LR
     operator[운영 담당자]
     g2b[나라장터 OpenAPI]
     git[승인 프로필 기준선 Git]
-    localmodel[Ollama Qwen 모델]
     privatevllm[승인된 사설 OpenAI-compatible vLLM]
     bidops[BidOps]
 
@@ -73,11 +72,10 @@ flowchart LR
     operator -->|실행·승인·장애 확인| bidops
     g2b -->|발주계획·사전규격·입찰공고| bidops
     git -->|회사 프로필 기준선 검증| bidops
-    bidops -->|로컬 추론| localmodel
-    bidops -->|승인 payload만 건별 전송| privatevllm
+    bidops -->|용도별 승인 endpoint로 건별 전송| privatevllm
 ~~~
 
-나라장터 자료는 외부 원문과 관측 시점을 보존한다. Git은 승인된 회사 프로필 기준선을 검증하는 입력일 뿐, 회사 역량의 자동 증명원이 아니다. 모델 endpoint는 기능별로 승인되고 식별자·revision·prompt·profile hash와 함께 기록된다.
+나라장터 자료는 외부 원문과 관측 시점을 보존한다. Git은 승인된 회사 프로필 기준선을 검증하는 입력일 뿐, 회사 역량의 자동 증명원이 아니다. 모델 endpoint는 용도(`screening`·`overview`·`deep_review`)별로 승인되고 식별자·선언 revision·prompt·profile hash와 함께 기록된다([ADR-0050](tracking/decisions/0050-unified-openai-compatible-model-client.md)).
 
 현재 애플리케이션에는 로그인·역할 기반 권한·SSO가 없다. 사내망 접근 제한이 네트워크 경계이며, 담당자 이름은 인증이나 세밀한 권한이 아니라 감사 표식이다.
 
@@ -104,7 +102,6 @@ flowchart TB
     pg[(PostgreSQL 17<br/>bidops schema)]
     minio[(Versioned MinIO)]
     clamav[ClamAV]
-    ollama[Ollama]
     vllm[Private approved vLLM]
     source[나라장터 OpenAPI]
 
@@ -119,8 +116,8 @@ flowchart TB
     docworker -->|structured sidecar via scratch| api
     analysis -->|lease / result / audit| pg
     analysis -->|structure / response object| minio
-    analysis -->|approved local or private inference| ollama
-    analysis -->|approved payload| vllm
+    api -->|approved payload / screening purpose| vllm
+    analysis -->|approved payload / overview + deep_review purpose| vllm
     scheduler -->|when explicitly enabled| analysis
     source -->|purpose-specific egress| pipeline
 ~~~
@@ -135,7 +132,7 @@ flowchart TB
 | Python screen | 결정적 선별, 모델 호출 wrapper, 결과·실패 파일 생성 | 사람 승인 대행 |
 | Python report | 결정적 HTML·피드백 렌더링 | 화면 전용 업무 규칙 |
 | Document worker | quarantine 파일 검사·변환·구조 추출 | 네트워크 호출, 원본 덮어쓰기 |
-| Analysis worker | overview/deep review/비교 실행, lease·fence·validation | 무승인 외부 전송, 자동 Go/No-Go |
+| Analysis worker | overview/deep review/C-2 실행, lease·fence·validation. 세 종류를 한 프로세스가 합성해 **모델 슬롯 1개**를 보장한다 | 무승인 외부 전송, 자동 Go/No-Go |
 | Scheduler | 승인된 주기 실행을 enqueue | startup catch-up, 자동 retry, 기본 활성화 |
 | PostgreSQL | 메타데이터·관계·상태·감사·정본 리뷰 | 원본 binary의 유일한 저장소 |
 | MinIO | raw·attachment·문서·보고서 등 versioned object bytes | 공개 URL 제공, 임의 overwrite |
@@ -149,7 +146,8 @@ FastAPI backend는 하나의 배포 단위 안에서 한 방향으로만 의존�
 web/backend/app/
 ├── core/          db, config, logging_setup, redaction, sql_dialect, constants, db_admin,
 │                  generation_config, run_id, api_errors, object_store, clamav,
-│                  vllm_client(범용), company_profile, model_binding, schema_base, health
+│                  model_client(용도별 통일 transport), company_profile, model_binding,
+│                  schema_base, health
 │                  models 2개 (audit_event, idempotency_record)
 ├── lifecycle/     회차 적재와 기회 identity, 공고·발주계획·사전규격·첨부 메타
 │                  api, extensions, ingest/, routers/, services/, schemas/, runtime
@@ -161,7 +159,7 @@ web/backend/app/
 ├── deep_review/   문서 준비, 사전규격 개요 검토, 심층 검토, 입찰 delta·최종 결정
 │                  services/, routers/, workers/, agents/, document_mcp/, contracts/,
 │                  policies/, schemas/, cli/, runtime
-│                  models 34개
+│                  models 37개
 └── main.py, runtime.py, workers/analysis.py, migrations/, alembic/   ← 조립 계층
 ```
 
@@ -176,7 +174,7 @@ web/backend/app/
 | 조립 계층 | 네 모듈 공개 이름 (+ `alembic/env.py`·migration revision·`app/migrations/import_sqlite.py`는 각 모듈의 `models`) | 모듈 내부 |
 
 - lifecycle의 모델 클래스는 공개 이름이다. screening·deep_review는 `Notice`·`Run`·`OrderPlan`·`Opportunity`·`Attachment` 등을 ORM으로 읽고 join하되, **쓰기와 잠금**은 lifecycle 공개 함수(`ingest_run`, `lock_notice`, `register_manual_attachment` 등)로만 한다.
-- deep_review는 screening의 내부를 보지 않는다. `current_judgment`·`current_judgments`·`latest_corrected_grade` 세 읽기 전용 seam 함수만 쓰며, 그 seam은 함수 안에서 지연 import한다.
+- deep_review는 screening의 내부를 보지 않는다. `current_judgment`·`current_judgments`·`latest_corrected_grade`·`latest_corrected_grades` **네** 읽기 전용 seam 함수만 쓰며, 그 seam은 함수 안에서 지연 import한다. 넷째(`latest_corrected_grades`)는 `latest_corrected_grade`의 batch 짝이며 2026-09-05에 담당자가 승인했다 — 회차 적재 hot path와 사전규격 목록이 공고 수와 무관한 상수 회 조회를 요구하는데, 건별 seam만으로는 N+1 금지와 동시에 성립하지 않기 때문이다.
 - ORM relationship도 import다. lifecycle 모델은 다른 모듈 모델로 향하는 relationship을 갖지 않으며, 관계는 소유 모듈이 자기 모델에서 단방향으로 선언한다. 첨부 삭제 시 `attachment_fetch` 행 제거는 ORM cascade가 아니라 DB FK `ondelete=CASCADE`가 맡는다.
 
 역방향이 필요한 자리는 **lifecycle이 정의한 확장점**으로 뒤집는다. lifecycle은 screening과 deep_review의 존재를 알지 못하고 `app/lifecycle/extensions.py`의 프로세스 전역 registry에 무엇이 등록됐는지만 본다.
@@ -187,6 +185,7 @@ web/backend/app/
 | 사전규격 개요·문서 준비 상태 | 읽기 projection | deep_review | 개요 상태 `null`, 문서 상태 건수 0 |
 | 회차 적재됨 | 이벤트 hook | screening, deep_review | no-op, 건수 0, 건너뛰었음을 경고로 남김 |
 | 추적 결정 변경됨 | 이벤트 hook | deep_review | no-op |
+| effective grade 변경됨 | 이벤트 hook | deep_review | no-op. 첨부 취득 자격 재계산과 자동 문서 준비가 일어나지 않는다 |
 
 확장점 등록은 `main.py`가 앱 객체를 조립하는 시점에 한다. lifespan이나 runtime이 아니다 — runtime을 만들지 않는 격리 API 테스트에서도 projection이 있어야 하기 때문이다. 등록은 import와 객체 생성뿐이며 migration·seed·정책 활성화·모델 호출을 하지 않는다.
 
@@ -284,6 +283,10 @@ flowchart LR
 
 문서 구조는 목차와 의미 있는 heading을 기준으로 절단한다. 구조가 모호하면 더 공격적으로 자르거나 내용을 추정하지 않고 unknown 또는 사람 검토로 보낸다. review bundle은 특정 document version과 cut snapshot을 고정하여 뒤늦은 원문 변경이 리뷰를 바꾸지 않게 한다.
 
+구조를 저장하는 같은 시점에 결정적 **segment manifest**와 **요구사항 inventory**를 만든다([ADR-0051](tracking/decisions/0051-deep-review-v2-deterministic-subset.md)). append-only이며 identity 키는 `(structure_id, taxonomy_version, extractor_binding_sha256)`다. 규칙이 바뀌면 `rules_sha256`이 바뀌어 새 row가 되고 기존 row를 덮지 않는다. 분류 출처는 `deterministic` 고정, `confidence`는 항상 `null`이며 못 정한 경계는 `needs_human_review`다. 읽기 계약은 `GET /api/document-structures/{structure_id}/segments`이고 응답에 원문 text가 없다. **이 변경 전에 만들어진 구조에는 manifest가 없고 조회가 404다** — `document_block`에 ordinal이 없어 사후 재구성이 불가능하다.
+
+적합성 등급이 `우선 검토`인 사전규격은 이 준비를 자동으로 진행한다([ADR-0049](tracking/decisions/0049-prespec-auto-preparation-and-auto-deep-review.md)). 자동 준비는 자기가 만든 초안만 확정하고(`confirmed_by_name == "auto-preparation"`) 사람이 만든 초안은 건드리지 않으며, 등급이 내려가도 이미 만든 묶음을 되돌리지 않는다. 촉발은 회차 적재 hook, effective grade 변경 hook, 첨부 취득 종결 셋이다.
+
 ### 5.4 개요·심층 검토
 
 ~~~mermaid
@@ -311,6 +314,14 @@ flowchart LR
 ~~~
 
 개요 검토는 1차 분류와 심층 검토 사이의 별도 단계다. 심층 검토 실행은 bundle, 최소 회사 프로필 projection, 활성 policy, prompt revision, model revision을 binding한다. 모델은 판단을 보조하지만, 모든 claim은 source locator와 연결하고 검증기 실패를 사람 검토로 보낸다.
+
+개요 검토와 심층 검토는 `app/core/model_client.py` 하나를 각각 `overview`·`deep_review` 용도로 묶어 부른다([ADR-0050](tracking/decisions/0050-unified-openai-compatible-model-client.md)). client는 생성 시점이 아니라 **실행 시점**(`run_claim`)에 용도로 묶이므로 생성은 성공하고 설정 실패는 실행에서 fail closed로 난다. 개요 attempt의 lease는 모듈 상수 1,200초이고 환경변수로 열지 않는다. 합성 analysis worker는 세 종류를 C-2 → 심층 → 개요 순서로 하나만 claim한다 — 개요 전용 진입점은 없다.
+
+`SW사업대상=Y`이고 자동 확정된 `ready` 묶음의 개요가 `completed`이며 권고가 `검토 종료`가 아니면, 심층 검토를 시스템 actor로 자동 생성한다(감사 action `deep_review.auto_create`). 생성은 사람 경로와 같은 함수를 쓰고 `actor_kind`만 다르다.
+
+모든 실행은 품질 표식 `quality_status`를 남긴다. `measured`는 측정값이 활성화 게이트를 통과했다는 뜻이고 `unmeasured_reference`·`mock_reference`는 참조 실행이며 표식이 없으면 `null`이다. 참조 실행 결과를 운영 완료·품질 근거·활성화 근거로 집계하지 않는다.
+
+개요 원응답은 `ContentObject`와 `ContentObjectLocation('model-response')`로 암호화 저장되며 attempt와의 직접 FK는 없다. 대조는 감사 이벤트의 `response_sha256`으로 한다.
 
 모델 lineage는 judgment revision의 recording execution이 어느 screening execution에서 생성되었는지 추적할 수 있어야 한다. legacy import처럼 lineage를 확인할 수 없는 값은 unknown으로 기록한다.
 
@@ -345,11 +356,11 @@ flowchart LR
 
 PostgreSQL 17의 bidops schema가 운영 메타데이터·관계·상태·감사·리뷰의 정본이다. MinIO는 raw, attachment, document, report와 같은 binary/object bytes를 versioning으로 보존한다. DB row가 object hash·namespace·version과 연결되지 않으면 산출물을 완전한 정본으로 취급하지 않는다.
 
-현재 Alembic head는 0015_bid_delta_final_decision이며, SQLite는 격리 테스트와 일회성 이전 입력에만 사용한다. 운영 애플리케이션이 startup에서 SQLite로 fallback하거나 create_all로 스키마를 만들지 않는다.
+현재 Alembic head는 0018_prespec_auto_preparation_segments이며, SQLite는 격리 테스트와 일회성 이전 입력에만 사용한다. 운영 애플리케이션이 startup에서 SQLite로 fallback하거나 create_all로 스키마를 만들지 않는다.
 
 ### 6.2 도메인 그룹
 
-현재 DB guide 기준 68개 table은 다음 영역으로 묶인다.
+현재 DB guide 기준 71개 table은 다음 영역으로 묶인다.
 
 | 영역 | 수량 | 주요 책임 |
 |---|---:|---|
@@ -357,11 +368,14 @@ PostgreSQL 17의 bidops schema가 운영 메타데이터·관계·상태·감사
 | screening / review | 11 | 선별 정책·실행·판정·리뷰 |
 | attachment | 3 | 첨부 메타데이터·수명·안전 상태 |
 | document | 8 | object·scan·변환·버전·구조·bundle |
+| document segment / inventory | 3 | segment manifest·segment·요구사항 inventory 항목 |
 | overview | 5 | 개요 실행·결과·이벤트 |
 | deep review | 17 | claim·evidence·report·validation·opinion |
 | execution / quality / schedule | 12 | job·lease·quality gate·활성화·스케줄 |
 | delta / final | 5 | snapshot pair·delta·최종 결정 |
-| 합계 | 68 | Alembic head 기준 |
+| 합계 | 71 | Alembic head 기준 |
+
+문서 기준 71개는 ORM `Base.metadata` 기준 77개와 다르다. 후자에는 문서 사전이 별도 영역으로 세지 않는 표가 함께 들어 있다. 모듈 소유 기준은 core 2 + lifecycle 10 + screening 28 + deep_review 37이다.
 
 세부 table·column·FK·삭제 정책은 docs/database-guide.md와 docs/deep-review-erd.md의 계약을 사용한다. 이 문서의 그룹화는 탐색용이며 schema 정의를 복제하지 않는다.
 
@@ -468,7 +482,7 @@ React는 FastAPI REST API의 consumer다. DB·MinIO·worker·모델 endpoint에 
 
 외부 모델에는 execution별로 승인된 최소 payload만 보낸다. payload와 binding은 목적·모델·prompt·profile hash와 감사 추적 가능해야 한다. API key, 회사 원문자료, 전체 raw attachment, 내부 경로, 불필요한 profile 데이터와 응답 본문을 로그·Git·API 응답에 남기지 않는다.
 
-로컬 Ollama와 승인된 사설 vLLM은 기능별 model binding을 가진다. 모델 장애가 발생해도 hosted OpenAI로 자동 전환하지 않는다. 원격 overlay와 egress는 필요한 서비스에만 명시적으로 연다.
+승인된 사설 OpenAI 호환 vLLM은 용도(`screening`·`overview`·`deep_review`)별 endpoint·자격증명·선언 revision을 가진다([ADR-0050](tracking/decisions/0050-unified-openai-compatible-model-client.md)). 허용 host가 비었거나 선언 revision이 64자 hex가 아니면 그 용도는 **네트워크 호출 전에** fail closed하며, 한 용도의 fail closed가 다른 용도로 새지 않는다. 모델 장애가 발생해도 hosted OpenAI로 자동 전환하지 않는다. 원격 overlay와 egress는 필요한 서비스에만 명시적으로 연다.
 
 ### 9.3 접근과 보존
 
@@ -514,8 +528,9 @@ React는 FastAPI REST API의 consumer다. DB·MinIO·worker·모델 endpoint에 
 | PostgreSQL/MinIO | 운영 정본과 Alembic head 존재 | migration·backup·restore 절차의 실제 검증 |
 | FastAPI/React | 기본 관리 API·화면과 여러 router 존재 | 준비·실패 재시작·모든 lifecycle action의 end-to-end 연결 |
 | 첨부·문서 | 안전 경계와 worker 설계·일부 구현 존재 | 실제 다양한 HWP/HWPX/PDF corpus, 변환 실패 UI, 재시작 |
-| 개요 검토 | DB/API/UI 기반과 계약 존재 | 승인 model transport·worker·quality gate |
-| 심층 검토 | ERD·계약·worker 구조 존재 | 실 corpus/gold, claim/evidence 검증, 운영 승인 |
+| 개요 검토 | DB/API/UI·계약에 더해 모델 실행 worker와 통일 client 연결까지 존재. 실행 결과는 참조 실행 표식이 붙는다 | 승인 artifact와 사람 gold로 측정한 quality gate |
+| 심층 검토 | ERD·계약·worker 구조, 결정적 segment·요구사항 inventory 검증 존재 | 실 corpus/gold, 역할별 분석, 운영 승인 |
+| 사전규격 자동 준비·자동 심층 시작 | 등급 기반 자동 묶음과 `SW사업대상=Y` 자동 생성 존재 | 자동 생성된 검토의 실행 경로 결함 해소(findings), 운영 관측 |
 | C-2 선별 | 실험 선택 BM25 Top 300 + Qwen, Phase 0 contract validator | 제품 adapter·DB/API/UI·worker·human gold·quality gate |
 | 입찰 delta | schema/API/UI/migration 계약과 일부 구현 존재 | 계산 worker, exact snapshot 비교, 운영 검증 |
 | 최종 결정 | append-only 계약 | 사람 action과 감사·권한 경계의 운영 구현 |

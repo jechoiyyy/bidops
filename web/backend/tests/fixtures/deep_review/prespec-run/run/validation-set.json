@@ -1,0 +1,111 @@
+{
+  "schema_version": "bidops.validation-set.v2",
+  "generated_at": "2026-09-03T00:00:00+09:00",
+  "source_window": {
+    "from": "2026-09-01",
+    "to": "2026-09-03",
+    "timezone": "Asia/Seoul"
+  },
+  "selection": {
+    "sample_size": 2
+  },
+  "warnings": [],
+  "notices": [
+    {
+      "notice_id": "pre-1",
+      "source_type": "pre_spec",
+      "title": "합성 사전규격 pre-1",
+      "agency": "합성 수요기관",
+      "published_at": "2026-09-01T09:00:00+09:00",
+      "deadline_at": null,
+      "budget": null,
+      "estimated_price": null,
+      "method": null,
+      "url": "https://example.invalid/pre-spec/pre-1",
+      "procurement_class": {
+        "large": "용역",
+        "middle": "SW 및 시스템 개발",
+        "detail": "개발",
+        "code": "01"
+      },
+      "region_limit": {},
+      "lifecycle": {
+        "pre_spec_no": "R26TEST00000001"
+      },
+      "attachments": [
+        {
+          "name": "합성-제안요청서.hwpx",
+          "url": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26TEST00000001&fileType=BFDTL&fileSeq=1"
+        },
+        {
+          "name": "합성-사업설명.pdf",
+          "url": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26TEST00000001&fileType=BFDTL&fileSeq=2"
+        },
+        {
+          "name": "합성-제출서식.zip",
+          "url": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26TEST00000001&fileType=BFDTL&fileSeq=3"
+        }
+      ],
+      "qualification_flags": {
+        "sw_business_status": "Y"
+      },
+      "focus_matches": [],
+      "performance_matches": [],
+      "performance_top_score": null,
+      "candidate_sources": [
+        "focus_title"
+      ],
+      "collection_bucket": "candidate_pool",
+      "unknown_fields": [],
+      "raw_source": "raw/pre-specs.json",
+      "sample_role": "analysis",
+      "sample_stratum": "AI/데이터"
+    },
+    {
+      "notice_id": "pre-5",
+      "source_type": "pre_spec",
+      "title": "합성 사전규격 pre-5",
+      "agency": "합성 수요기관",
+      "published_at": "2026-09-01T09:00:00+09:00",
+      "deadline_at": null,
+      "budget": null,
+      "estimated_price": null,
+      "method": null,
+      "url": "https://example.invalid/pre-spec/pre-5",
+      "procurement_class": {
+        "large": "용역",
+        "middle": "SW 및 시스템 개발",
+        "detail": "개발",
+        "code": "01"
+      },
+      "region_limit": {},
+      "lifecycle": {
+        "pre_spec_no": "R26TEST00000005"
+      },
+      "attachments": [
+        {
+          "name": "합성-제안요청서.hwpx",
+          "url": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26TEST00000005&fileType=BFDTL&fileSeq=1"
+        },
+        {
+          "name": "합성-첨부묶음.zip",
+          "url": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26TEST00000005&fileType=BFDTL&fileSeq=2"
+        }
+      ],
+      "qualification_flags": {
+        "sw_business_status": "N"
+      },
+      "focus_matches": [],
+      "performance_matches": [],
+      "performance_top_score": null,
+      "candidate_sources": [
+        "focus_title"
+      ],
+      "collection_bucket": "candidate_pool",
+      "unknown_fields": [],
+      "raw_source": "raw/pre-specs.json",
+      "sample_role": "analysis",
+      "sample_stratum": "AI/데이터"
+    }
+  ]
+}

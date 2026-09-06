@@ -6,6 +6,7 @@ import type {
   CreateDeepReviewPayload,
   DeepReviewReport,
   DeepReviewView,
+  DocumentSegmentsView,
   DocumentStructure,
   DocumentStructurePageView,
   DocumentVersionView,
@@ -188,6 +189,12 @@ export function getDocumentStructurePage(structureId: string, page: number): Pro
   return request<DocumentStructurePageView>(
     `/document-structures/${encodeURIComponent(structureId)}/pages/${encodeURIComponent(String(page))}`,
   );
+}
+
+/** 결정적 segment manifest. 응답에 원문 text가 없고, manifest가 만들어지기 전에
+ * 생긴 구조는 정상적으로 404 `not_found`다 — 그것을 오류로 표시하지 않는다. */
+export function getDocumentSegments(structureId: string): Promise<DocumentSegmentsView> {
+  return request<DocumentSegmentsView>(`/document-structures/${encodeURIComponent(structureId)}/segments`);
 }
 
 export function createDeepReview(noticeId: number, bundleId: string, actorName: string): Promise<DeepReviewView> {

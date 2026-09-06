@@ -127,7 +127,7 @@ def test_first_enable_dispatches_only_the_previous_daily_target(tmp_path: Path):
     metadata = {
         "quality_gate_result_id": "gateeval-" + "a" * 32,
         "policy_version": "policy-v1",
-        "model_name": "qwen3.8:27b",
+        "model_name": "qwen3.8-27B",
         "model_digest": "a" * 64,
         "prompt_version": "prompt-v1",
         "company_profile_version": "profile-v1",
@@ -158,7 +158,7 @@ def test_first_enable_monday_dispatches_daily_and_weekly_callbacks(tmp_path: Pat
     metadata = {
         "quality_gate_result_id": "gateeval-" + "a" * 32,
         "policy_version": "policy-v1",
-        "model_name": "qwen3.8:27b",
+        "model_name": "qwen3.8-27B",
         "model_digest": "a" * 64,
         "prompt_version": "prompt-v1",
         "company_profile_version": "profile-v1",
@@ -195,7 +195,7 @@ def test_repeated_enable_does_not_run_first_enable_catch_up_again(tmp_path: Path
     metadata = {
         "quality_gate_result_id": "gateeval-" + "a" * 32,
         "policy_version": "policy-v1",
-        "model_name": "qwen3.8:27b",
+        "model_name": "qwen3.8-27B",
         "model_digest": "a" * 64,
         "prompt_version": "prompt-v1",
         "company_profile_version": "profile-v1",

@@ -13,6 +13,7 @@ from app.core.schema_base import _validate_generation_binding
 from app.core.generation_config import legacy_generation_config
 from app.screening.services.scheduled_pipeline import ScheduledPipeline
 from app.screening.services.scheduler import ScheduleConflictError, SchedulerService
+from tests.fakes import APPROVED_MODEL
 
 
 class _CountingInspector:
@@ -21,7 +22,7 @@ class _CountingInspector:
 
     def inspect_model(self, **_kwargs):
         self.inspect_calls += 1
-        return {"model_name": "qwen3.8:27b", "digest": "a" * 64}
+        return {"model_name": APPROVED_MODEL, "digest": "a" * 64}
 
 
 class _CountingOrchestrator:
@@ -54,7 +55,7 @@ def test_scheduled_judgment_drift_is_before_inspection_or_model_queue(tmp_path: 
             status="예약",
             requested_by="system:scheduler",
             policy_version="policy-v1",
-            model_name="qwen3.8:27b",
+            model_name=APPROVED_MODEL,
             model_digest="a" * 64,
             generation_config_digest=legacy_generation_config().digest(),
         )
@@ -65,7 +66,7 @@ def test_scheduled_judgment_drift_is_before_inspection_or_model_queue(tmp_path: 
     settings = Settings(bidops_root=tmp_path, database_url=f"sqlite:///{database}", scheduler_enabled=True)
     inspector = _CountingInspector()
     orchestrator = _CountingOrchestrator()
-    pipeline = ScheduledPipeline(settings, session_factory=factory, orchestrator=orchestrator, ollama=inspector)
+    pipeline = ScheduledPipeline(settings, session_factory=factory, orchestrator=orchestrator, model_client=inspector)
     row = pipeline._execution(execution_id)
     result = pipeline._judgment(row, run_id=run_key)
     assert result.failure_reason == "generation_config_mismatch"
@@ -83,7 +84,7 @@ def test_enabled_schedule_rejects_drift_before_reservation(tmp_path: Path):
             enabled=True,
             quality_gate_result_id="gateeval-" + "a" * 32,
             policy_version="policy-v1",
-            model_name="qwen3.8:27b",
+            model_name=APPROVED_MODEL,
             model_digest="a" * 64,
             prompt_version="prompt-v1",
             company_profile_version="company-profile.sha256:" + "b" * 64,

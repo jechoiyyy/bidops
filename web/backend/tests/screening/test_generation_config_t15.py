@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import json
-
 import pytest
 
 from app.core.config import Settings
@@ -13,23 +11,12 @@ from app.core.generation_config import (
     legacy_generation_config,
     validate_digest,
 )
-from app.screening.ollama import OllamaCallError, OllamaClient
-from tests.fakes import FakeOllamaTransport
+from app.screening.model_adapter import ScreeningModelClient
+from tests.fakes import FakeScreeningTransport, completion
 
 
 def _response() -> dict[str, object]:
-    return {
-        "model": "qwen3.8:27b",
-        "done": True,
-        "done_reason": "stop",
-        "response": json.dumps({}),
-        "prompt_eval_count": 1,
-        "eval_count": 1,
-        "prompt_eval_duration": 1,
-        "eval_duration": 1,
-        "load_duration": 1,
-        "total_duration": 1,
-    }
+    return completion({}, usage={"prompt_tokens": 1, "completion_tokens": 1})
 
 
 def test_canonical_config_digest_is_stable_and_stage_aware() -> None:
@@ -69,21 +56,28 @@ def test_settings_freeze_uses_synthesis_budget_alias() -> None:
     assert config.stages == {"perspective": 2048, "counterargument": 2048, "synthesis": 4096}
 
 
-def test_request_payload_and_retry_share_frozen_stage_options_and_telemetry() -> None:
-    transport = FakeOllamaTransport([{"model": "qwen3.8:27b", "done": True, "done_reason": "length", "response": "{}"}, _response()])
-    client = OllamaClient(transport=transport)
+def test_request_payload_and_retry_share_frozen_stage_budget_and_telemetry() -> None:
+    """stage별 `num_predict`가 요청에서는 `max_tokens` 하나로만 나타난다.
+
+    `num_ctx`는 OpenAI 호환 대응 파라미터가 없으므로 요청에 실리지 않고
+    binding 기록(attempt telemetry)에만 남는다.
+    """
+
+    transport = FakeScreeningTransport([completion({}, finish_reason="length"), _response()])
+    client = ScreeningModelClient(transport=transport)
     result = client.generate("p", {}, stage="synthesis")
     assert len(transport.generate_requests) == 2
-    assert all(item["payload"]["options"] == {"num_ctx": 16384, "num_predict": 4096} for item in transport.generate_requests)
+    assert all(item["max_tokens"] == 4096 for item in transport.generate_requests)
+    assert all("num_ctx" not in item and "options" not in item for item in transport.generate_requests)
     assert result.metadata.generation_config_digest == GenerationConfig().digest()
     assert result.metadata.num_ctx == 16384
     assert result.metadata.num_predict == 4096
 
 
 def test_generation_config_digest_mismatch_fails_before_request() -> None:
-    transport = FakeOllamaTransport([_response()])
+    transport = FakeScreeningTransport([_response()])
     with pytest.raises(GenerationConfigError):
-        OllamaClient(transport=transport).generate("p", {}, stage="synthesis", generation_config={
+        ScreeningModelClient(transport=transport).generate("p", {}, stage="synthesis", generation_config={
             **GenerationConfig().canonical_value(),
             "think": True,
         })

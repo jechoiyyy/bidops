@@ -33,9 +33,7 @@ from tests.postgres import (
 
 _HARNESS: ExitStack | None = None
 _TEST_ENVIRONMENT = {
-    "BIDOPS_OLLAMA_BASE_URL": "http://127.0.0.1:9",
     "BIDOPS_SCHEDULER_ENABLED": "false",
-    "BIDOPS_LIVE_OLLAMA_TEST": "false",
     "BIDOPS_G2B_API_KEY": "",
     "BIDOPS_G2B_ATTACHMENT_ENABLED": "false",
     "BIDOPS_VLLM_BASE_URL": "http://127.0.0.1:9/v1",

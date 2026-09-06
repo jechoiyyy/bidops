@@ -13,11 +13,13 @@
 
 프로필 `current`는 working tree snapshot이고 `git:<40hex>`는 승인된 역사 commit only다. 현재 문서의 경로와 digest 검사는 [아키텍처](../ARCHITECTURE.md)의 프로필 절차와 동일하다. fresh migrated DB에는 policy row가 없으므로 명시적 seed 이후에만 실행을 만들 수 있다. 정책 body·prompt·모델 설정이 생성 후 바뀌면 실행과 섞지 않고 새 version을 만든다.
 
-워커는 queue claim 후 input bytes, path hardening, DB binding, Ollama `/api/tags`의 정확한 `qwen3.8:27b`와 64-hex digest를 다시 확인한다. mismatch, missing input, invalid profile/policy는 모델 호출 전에 실패한다.
+워커는 queue claim 후 input bytes, path hardening, DB binding, 그리고 `screening` 용도 모델 identity를 다시 확인한다. identity 확인은 `GET {base_url}/models`의 served id에 설정 모델명(`BIDOPS_VLLM_SCREENING_MODEL`, 기본 `qwen3.8-27B`)이 있는지 보고, 서버가 `model_revision`을 실어 보내는 경우에만 배포 선언 64-hex revision과 대조한다([ADR-0050](../tracking/decisions/0050-unified-openai-compatible-model-client.md), [ADR-0042](../tracking/decisions/0042-c2-model-revision-declared-at-deployment.md)). 허용 host가 비었거나 선언 revision이 64자 hex가 아니면 **네트워크 호출 전에** fail closed한다. mismatch, missing input, invalid profile/policy도 모델 호출 전에 실패한다.
 
 ### Frozen generation configuration
 
-실행 생성 시 `app.screening.generation_config`가 유일한 source of truth로 stage-aware 설정을 freeze한다. 기본 canonical JSON은 `num_ctx=16384`, `num_predict.perspective=2048`, `num_predict.counterargument=2048`, `num_predict.synthesis=4096`, `think=false`, `stream=false`이며 SHA-256은 compact UTF-8 JSON(`sort_keys=true`, `separators=(',', ':')`, `ensure_ascii=false`)의 바이트를 해시한다. 이 값과 digest는 `screening_execution`과 `screening-input.v1`에 함께 저장되고 worker/retry가 그대로 사용한다. process env를 enqueue 이후 다시 읽지 않으며 row/input 불일치는 모델 호출 전에 실패한다.
+실행 생성 시 `app.core.generation_config`가 유일한 source of truth로 stage-aware 설정을 freeze한다. 기본 canonical JSON은 `num_ctx=16384`, `num_predict.perspective=2048`, `num_predict.counterargument=2048`, `num_predict.synthesis=4096`, `think=false`, `stream=false`이며 SHA-256은 compact UTF-8 JSON(`sort_keys=true`, `separators=(',', ':')`, `ensure_ascii=false`)의 바이트를 해시한다. 이 값과 digest는 `screening_execution`과 `screening-input.v1`에 함께 저장되고 worker/retry가 그대로 사용한다. process env를 enqueue 이후 다시 읽지 않으며 row/input 불일치는 모델 호출 전에 실패한다.
+
+**이름과 digest는 계약에 묶여 있어 바꾸지 않는다.** OpenAI 호환 호출에서 stage별 `num_predict`는 `max_tokens`가 되고, `num_ctx`는 대응 파라미터가 없어 binding 기록에만 남으며, `think=false`는 `extra_body.chat_template_kwargs.enable_thinking=false`가 된다.
 
 각 telemetry line에는 non-secret `generation_config_digest`, 실제 `num_ctx`, `num_predict`가 포함된다. quality gate A/B execution, evaluation, operational activation, always-on/scheduled execution도 동일 digest와 canonical object를 요구한다. 이 기능의 live 재검증은 아직 pending이며 Phase 1 실패 evidence를 성공으로 해석하지 않는다.
 
@@ -43,13 +45,13 @@ projected notice의 허용 필드 집합은 `notice_id`, `source_type`, `title`,
 
 모든 모델 생성 경로가 동일한 `screening_execution` 테이블에 insert한다. `queue_no ASC`가 유일한 순서이고 전역 `active_slot=1` partial unique index가 마지막 동시성 경쟁을 막는다. `BIDOPS_SCREEN_MAX_CONCURRENCY=1`이 코드와 설정의 고정값이다. 따라서 각 다섯 관점도 병렬이 아니라 순차 호출이다.
 
-claim은 SQLite `BEGIN IMMEDIATE`로 수행하고 busy retry는 제한된다. API는 queue row를 만든 뒤 202를 반환한다. CLI `--wait`도 직접 호출하지 않고 FIFO 앞의 작업을 먼저 처리한 뒤 자기 실행의 terminal state를 기다린다.
+claim은 짧은 transaction으로 수행하고 busy retry는 제한된다. SQLite 격리 테스트에서만 `BEGIN IMMEDIATE`를 추가로 건다 — 운영 정본인 PostgreSQL에서는 전역 `active_slot=1` partial unique index가 마지막 경쟁을 막는다. API는 queue row를 만든 뒤 202를 반환한다. CLI `--wait`도 직접 호출하지 않고 FIFO 앞의 작업을 먼저 처리한 뒤 자기 실행의 terminal state를 기다린다.
 
 heartbeat pump는 기본 5초마다 갱신한다. 시작 또는 다음 claim에서 기본 60초보다 오래 heartbeat가 없는 active row는 `중단됨`, `stop_reason=process_interrupted`로 회수하고 slot을 푼다. 새 실행을 자동 생성하거나 중단 위치부터 재개하지 않는다.
 
 ## 일곱 span
 
-신규와 재판정은 공고마다 다음 순서다. 모든 Ollama 호출은 `think=false`, `stream=false`다.
+신규와 재판정은 공고마다 다음 순서다. 모든 호출은 non-thinking·non-streaming이며 `seed=0`, `temperature=0.7`, `top_p=0.8`, `top_k=20`으로 고정된다.
 
 | 순번 | span/stage | 산출물·핵심 검증 |
 |---:|---|---|
@@ -85,15 +87,15 @@ heartbeat pump는 기본 5초마다 갱신한다. 시작 또는 다음 claim에�
 
 ## 호출·재시도·실패
 
-Ollama `/api/generate`의 전체 시도 수는 stage당 최대 2회다. 같은 trace 아래 새 span을 만들고, 앞선 실패 attempt와 그 telemetry를 삭제하지 않는다.
+`POST {base_url}/chat/completions`의 전체 시도 수는 stage당 최대 2회다. 호출당 timeout은 300초, 응답 상한은 4 MiB다. 같은 trace 아래 새 span을 만들고, 앞선 실패 attempt와 그 telemetry를 삭제하지 않는다.
 
 | failure type | retry |
 |---|---|
-| `timeout`, `truncated_output` | 같은 frozen prompt와 같은 Ollama options로 최대 한 번 재시도 |
+| `timeout`, `truncated_output` | 같은 frozen prompt와 같은 생성 설정으로 최대 한 번 재시도. 응답이 상한을 넘는 경우도 `truncated_output`으로 분류한다 |
 | `schema_violation`, `evidence_missing` | 거부된 response body를 넣지 않는 안전한 correction prompt로 최대 한 번 재시도 |
 | `counterargument_repetition` | retry하지 않고 공고 실패로 격리 |
 
-모델 identity `/api/tags` transport/mismatch 실패는 preflight 오류이며 model-call retry로 바꾸지 않는다. schema/evidence correction도 입력·스키마를 다시 제시할 뿐 값을 자동 보정하거나 두 응답을 이어 붙이지 않는다. 모든 attempt telemetry는 남기되 prompt·response body·profile 전문과 비밀은 오류·로그에 남기지 않는다.
+모델 identity 조회(`GET {base_url}/models`)의 transport/mismatch 실패는 preflight 오류이며 model-call retry로 바꾸지 않는다. 안전한 분류는 `model_not_served`, `model_revision_invalid`, `identity_unavailable` 셋이다. schema/evidence correction도 입력·스키마를 다시 제시할 뿐 값을 자동 보정하거나 두 응답을 이어 붙이지 않는다. 모든 attempt telemetry는 남기되 prompt·response body·profile 전문과 비밀은 오류·로그에 남기지 않는다.
 
 실패한 공고는 `screening-failures.json`의 exact top-level `schema_version`, `execution_id`, `run_id`, `generated_at`, `failure_count`, `failures` 아래에 남긴다. failure item의 exact keys는 `notice_id`, `failed_stage`, `failure_type`, `last_attempt_at`, `retry_count`, `status`, `failure_context`, `trace_id`, `span_id`, `error_summary`다. 모델 단계 실패에는 trace/span을 연결하고 `병합·검증` 또는 승계 검증 실패에는 null을 허용한다. `error_summary`는 허용된 안전 분류만 가지며 원문·prompt·profile·secret을 포함하지 않는다. 실패 공고의 상태는 `사람 검토 대기`이고 성공 subset은 보존한다.
 
@@ -118,7 +120,7 @@ execution artifact directory에는 다음 파일만 알려진 계약으로 취�
 
 `screening-results.json`의 v3 top-level exact keys는 `schema_version`, `execution_id`, `generated_at`, `screening_basis`, `source_window`, `model_name`, `model_digest`, `prompt_version`, `policy_version`, `company_profile_version`, `company_profile_digest`, `generation_config`, `generation_config_digest`, `candidate_count`, `result_count`, `failure_count`, `partial_artifact`, `failure_artifact`, `results`다. input/decision/failure binding과 model identity가 모두 맞을 때만 publish한다. 일부 공고가 실패하면 성공 result subset과 failure artifact를 함께 보존하고 `partial_artifact=true`; 전역 merge/validation 실패는 성공 결과로 publish하지 않는다.
 
-`screening-telemetry.jsonl`의 각 line은 위 필드와 `generation_config_digest`, `num_ctx`, `num_predict`를 가진다. Ollama가 주지 않은 token/duration은 0으로 만들지 않고 null로 남긴다. telemetry에는 model/prompt/policy/profile 원문이나 API key를 넣지 않으며 execution/DB binding은 별도로 보존한다.
+`screening-telemetry.jsonl`의 각 line은 위 필드와 `generation_config_digest`, `num_ctx`, `num_predict`를 가진다. provider가 주지 않은 token/duration은 0으로 만들지 않고 null로 남긴다. **OpenAI 호환 응답에는 서버 측 소요 시간 계측이 없으므로 `prompt_eval_duration_ns`·`eval_duration_ns`·`load_duration_ns`·`total_duration_ns` 네 값은 항상 null이다** — client 측 경과 시간으로 채우면 과거 회차의 계측과 뜻이 다른 숫자가 같은 열에 섞인다. token 수는 `usage.*`에서, `done_reason`은 `finish_reason`에서 온다. telemetry에는 model/prompt/policy/profile 원문이나 API key를 넣지 않으며 execution/DB binding은 별도로 보존한다.
 
 full run의 성공·부분 성공 처리에서는 원 `data/runs/<source>`를 읽기만 하고 새 이름에 source provenance, current screening artifacts, `screening-replacement-provenance.json`을 복사한다. 원 회차의 reviews/files/judgments는 변경하지 않는다. single notice와 quality sample은 execution artifact와 DB gate evidence로만 남는다.
 
@@ -134,15 +136,17 @@ python -m app.screening.cli run-one \
   --profile-source current --requested-by <actor> [--wait]
 ```
 
+수집·표본·병합·보고서 skill subprocess 한 단계의 상한은 상수 **300초**이며 모델 설정에서 오지 않는다 — 이 단계들은 모델을 부르지 않는다. 모델 호출당 timeout(같은 300초)과는 별개 값이다.
+
 CLI는 profile/model/digest와 artifact 경로·상태 메타데이터만 출력한다. exit code는 성공 0, 부분 성공 2, 실패·중단·입력 오류 1이다. prompt, profile 전문, API key를 출력하지 않는다.
 
-`POST /api/runs/{run_id}/pipeline/judgment`는 동일한 queue로 enqueue하고 202를 반환한다. Ollama preflight 실패는 queue row를 만들기 전에 503이다. `POST /api/screening/executions/{execution_id}/stop`은 actor를 audit attribution으로 저장하며 인증을 제공하지 않는다. queued stop은 즉시 terminal `중단됨`, running stop은 `중지 요청`, terminal stop은 409다.
+`POST /api/runs/{run_id}/pipeline/judgment`는 동일한 queue로 enqueue하고 202를 반환한다. 모델 preflight 실패는 queue row를 만들기 전에 503이다. `POST /api/screening/executions/{execution_id}/stop`은 actor를 audit attribution으로 저장하며 인증을 제공하지 않는다. queued stop은 즉시 terminal `중단됨`, running stop은 `중지 요청`, terminal stop은 409다.
 
 Quality gate가 만드는 두 pass도 각각 독립적인 `quality_sample` execution이며 같은 fixed input/identity를 사용한다. A/B와 review/evaluation revision은 [모델 품질 게이트](../model-quality-gate.md)를 참조한다.
 
 ## 운영 불변식
 
-1. model은 정확히 `qwen3.8:27b`; Ollama unavailable/identity mismatch는 실패이며 OpenAI fallback이 아니다.
+1. model은 `BIDOPS_VLLM_SCREENING_MODEL`이 정한 정확한 served id(기본 `qwen3.8-27B`)다. endpoint 불가·identity mismatch는 실패이며 hosted OpenAI fallback이 아니다. **이 이름이 이전 태그 형식(`qwen3.8:27b`)에서 바뀌었으므로 옛 이름으로 기록된 기존 실행·판정 row는 carry-over·재판정 검증과 enqueue에서 거부된다**([findings](../tracking/findings.md)).
 2. 정책·prompt·model·profile·input/artifact digest는 실행 생성 후 바뀌지 않는다.
 3. FIFO, active slot 1, bounded retry, heartbeat recovery는 수동·스케줄·quality trigger에 공통이다.
 4. 실패·부분 성공·중단의 사실과 성공 subset을 보존하며 자동 재개·자동 등급 보정·자동 발행을 하지 않는다.

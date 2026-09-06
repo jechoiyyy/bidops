@@ -63,7 +63,7 @@ export function QualityGateReviewForm({ gateId, reviews, latestEvaluation, onSav
           <span>{distinctCount === null ? "계산 불가" : distinctCount}/10 서로 다른 공고</span>
         </div>
       </div>
-      <p className="quality-review-explanation">리뷰는 Pass A의 judgment digest에 묶입니다. 판단 보류와 digest 불일치는 유효 분모에서 제외됩니다.</p>
+      <p className="quality-review-explanation">리뷰는 Pass A 판정의 식별 해시에 묶입니다. 판단 보류와 식별 해시 불일치는 유효 분모에서 빠집니다.</p>
       <form className="quality-form quality-review-form" onSubmit={submit}>
         <div className="quality-form-grid">
           <label>
@@ -94,7 +94,7 @@ export function QualityGateReviewForm({ gateId, reviews, latestEvaluation, onSav
           <div className="quality-table-wrap">
             <table className="quality-review-table">
               <caption className="quality-sr-only">담당자 리뷰 목록</caption>
-              <thead><tr><th scope="col">공고</th><th scope="col">담당자</th><th scope="col">판단</th><th scope="col">digest</th><th scope="col">수정 시각</th></tr></thead>
+              <thead><tr><th scope="col">공고</th><th scope="col">담당자</th><th scope="col">판단</th><th scope="col">식별 해시</th><th scope="col">수정 시각</th></tr></thead>
               <tbody>{reviews.map((review) => <tr key={review.review_id}><th scope="row" className="mono">{review.notice_id}</th><td>{review.reviewer}</td><td>{review.evidence_judgment}</td><td><code>{review.decision_digest}</code></td><td>{new Date(review.updated_at).toLocaleString("ko-KR")}</td></tr>)}</tbody>
             </table>
           </div>

@@ -3,9 +3,9 @@
 | 항목 | 내용 |
 |---|---|
 | 문서 상태 | 현재 결정 기준선·통합 색인 |
-| 기준일 | 2026-09-01 |
+| 기준일 | 2026-09-05 |
 | 범위 | 수집, 선별, 사전규격 검토, 심층 검토, 입찰공고 추적, 운영·보안 |
-| 상세 결정 정본 | [`docs/tracking/decisions/`](tracking/decisions/)의 ADR-0001~0038·0042~0045, [`docs/design/ADR.md`](design/ADR.md)의 ADR-0039~0041·0046~0048 |
+| 상세 결정 정본 | [`docs/tracking/decisions/`](tracking/decisions/)의 ADR-0001~0038·0042~0045·0049~0051, [`docs/design/ADR.md`](design/ADR.md)의 ADR-0039~0041·0046~0048 |
 | 함께 읽을 문서 | [`PRD.md`](PRD.md), [`ARCHITECTURE.md`](ARCHITECTURE.md), [`contracts.md`](contracts.md) |
 
 이 문서는 여러 시점에 작성된 결정 기록을 현재 관점에서 읽기 위한 통합 ADR이다. 각 결정의
@@ -78,7 +78,7 @@ R-xx/A-xx 작업 지시, 과거 API 경로는 현재 실행 진입점이 아니�
 
 ## 3. 채택 결정 색인
 
-아래 표는 2026-09-01 현재의 결정 목록이다. 상세 배경·대안·결과는 각 링크가 정본이다.
+아래 표는 2026-09-05 현재의 결정 목록이다. 상세 배경·대안·결과는 각 링크가 정본이다.
 
 | ADR | 결정 | 상태 | 현재 효력 |
 |---|---|---|---|
@@ -112,9 +112,9 @@ R-xx/A-xx 작업 지시, 과거 API 경로는 현재 실행 진입점이 아니�
 | [0028](tracking/decisions/0028-bid-first-opportunity-registration.md) | 입찰공고에서 처음 등장한 사업도 기회로 등록 | 채택 | 첫 단계가 bid인 기회 허용 |
 | [0029](tracking/decisions/0029-screening-mock-provider.md) | 1차 분류는 결정적 mock 제공자로 소비 계층을 먼저 구현 | 채택 | mock은 reference-only |
 | [0030](tracking/decisions/0030-opportunity-tracking-state.md) | 추적 상태는 모든 사업기회가 갖고 사람 선택과 시스템 신호를 분리 | 채택 | `미선택·계속 추적·보류·종료` |
-| [0031](tracking/decisions/0031-prespec-overview-review-stage.md) | 사전규격 개요 검토를 1차 분류와 심층 검토 사이 독립 단계로 둠 | 채택 | RFP 앞부분의 저비용 판단 |
+| [0031](tracking/decisions/0031-prespec-overview-review-stage.md) | 사전규격 개요 검토를 1차 분류와 심층 검토 사이 독립 단계로 둠 | 채택 | RFP 앞부분의 저비용 판단; 심층 진입의 "사람 승인" 문장은 [0049](tracking/decisions/0049-prespec-auto-preparation-and-auto-deep-review.md)가 좁힘 |
 | [0032](tracking/decisions/0032-prespec-overview-cutting-rule.md) | 사전규격 개요 검토 앞부분은 문서 구조에 따라 자르고 모호하면 사람 검토로 보냄 | 채택 | 고정 block 수 fallback 금지 |
-| [0033](tracking/decisions/0033-prespec-overview-review-runtime-contract.md) | 개요 검토 절단 snapshot과 모델 attempt를 분리하고 사설 binding 없이는 완료하지 않음 | 채택 | `awaiting_model`·mock 비배포 |
+| [0033](tracking/decisions/0033-prespec-overview-review-runtime-contract.md) | 개요 검토 절단 snapshot과 모델 attempt를 분리하고 사설 binding 없이는 완료하지 않음 | 채택 | `awaiting_model`·mock 비배포; 진입의 "사람 승인"은 [0049](tracking/decisions/0049-prespec-auto-preparation-and-auto-deep-review.md), 참조 실행 표식은 [0050](tracking/decisions/0050-unified-openai-compatible-model-client.md) |
 | [0034](tracking/decisions/0034-bid-delta-final-decision.md) | 입찰 delta와 최종 사람 결정을 불변 비교와 append-only 기록으로 분리 | 채택 — 계약/구현 경계 | worker·운영 활성화는 별도 |
 | [0035](tracking/decisions/0035-prespec-overview-attempt-result-lifecycle.md) | 개요 모델 attempt의 상태 전이와 검증 결과를 분리 | 채택 | result/event와 안전한 v2 projection |
 | [0036](tracking/decisions/0036-judgment-model-lineage-source.md) | 판정의 모델 계보는 revision→execution 경로를 정본으로 함 | 채택 | legacy 계보는 `unknown` |
@@ -123,13 +123,16 @@ R-xx/A-xx 작업 지시, 과거 API 경로는 현재 실행 진입점이 아니�
 | [0039](design/ADR.md#adr-0039-astryx-디자인-시스템-채택과-승인-범위) | Astryx 디자인 시스템 채택과 승인 범위 | 채택 | 고정 빌드 산출물; 테마는 0048이 개정; 화면 이행은 후속 단계 |
 | [0040](design/ADR.md#adr-0040-레이아웃-소유권과-화면-단위-이행) | 레이아웃 소유권과 화면 단위 이행 | 채택 | 레이아웃은 프로젝트 소유; 화면별 이행 |
 | [0041](design/ADR.md#adr-0041-정보구조와-판정-동선) | 정보구조와 판정 동선 | 채택 | 회차·누적 축과 같은 화면 판정 입력을 유지; 결정 1·2·4는 0046가 개정 |
-| [0042](tracking/decisions/0042-c2-model-revision-declared-at-deployment.md) | C-2 모델 revision은 배포 시점 선언으로 1회 대조 | 채택 | vLLM이 revision을 노출하지 않음; 응답 값은 있으면 대조 |
+| [0042](tracking/decisions/0042-c2-model-revision-declared-at-deployment.md) | C-2 모델 revision은 배포 시점 선언으로 1회 대조 | 채택 | vLLM이 revision을 노출하지 않음; 응답 값은 있으면 대조; [0050](tracking/decisions/0050-unified-openai-compatible-model-client.md)이 판정·개요·심층으로 확장 |
 | [0043](tracking/decisions/0043-screening-deep-review-module-boundary.md) | 선별과 심층 검토를 한 배포 단위 안의 독립 모듈로 분리 | 채택 | 구조 경계만 고정; 배포 단위·운영 활성화는 불변; [0045](tracking/decisions/0045-backend-module-layout.md)가 네 모듈로 보강 |
 | [0044](tracking/decisions/0044-c2-stage2-matches-the-measured-method.md) | C-2 stage 2를 측정된 방법과 일치시킴 | 채택 | item_id payload·strict schema·승인 generation config; binding v2 |
-| [0045](tracking/decisions/0045-backend-module-layout.md) | 백엔드를 core·lifecycle·screening·deep_review 네 모듈과 조립 계층으로 배치 | 채택 | ADR-0043 보강; lifecycle 확장점·`BIDOPS_MODULES`·경계 강제 테스트; REST 표면 불변 |
+| [0045](tracking/decisions/0045-backend-module-layout.md) | 백엔드를 core·lifecycle·screening·deep_review 네 모듈과 조립 계층으로 배치 | 채택 | ADR-0043 보강; lifecycle 확장점·`BIDOPS_MODULES`·경계 강제 테스트; REST 표면 불변. core의 모델 transport 이름은 [0050](tracking/decisions/0050-unified-openai-compatible-model-client.md)이 `model_client`로, 확장점은 [0049](tracking/decisions/0049-prespec-auto-preparation-and-auto-deep-review.md)가 다섯째로 갱신 |
 | [0046](design/ADR.md#adr-0046-사업-추적-중심-정보구조와-추적-결정의-위치) | 사업 추적 중심 정보구조와 추적 결정의 위치 | 채택 | 사이드바 16→7, 검토 대기열→사업 추적; 결정 1은 발주계획의 추적 결정 |
 | [0047](design/ADR.md#adr-0047-데스크톱노트북-전용-지원-폭) | 데스크톱·노트북 전용 지원 폭 | 채택 | 1280~1920px만 지원; 검증 viewport 두 폭 |
 | [0048](design/ADR.md#adr-0048-무드보드-기반-색-팔레트와-테마-소유권) | 무드보드 기반 색 팔레트와 테마 소유권 | 채택 | 무드보드 5색 anchor에서 파생한 `bidops` 테마; 화면은 토큰만 읽고 `--color-*`를 재정의하지 않음; 의미색은 무드보드가 정하지 않음 |
+| [0049](tracking/decisions/0049-prespec-auto-preparation-and-auto-deep-review.md) | 사전규격 문서 준비를 등급으로 자동화하고 `SW사업대상=Y`는 심층 검토까지 자동 시작 | 채택 | FR-DOC-07·ADR-0031·0033의 "사람 승인"을 이 규칙으로 대체; 고비용 전량 분석의 승인 경계는 유지 |
+| [0050](tracking/decisions/0050-unified-openai-compatible-model-client.md) | 모델 호출을 하나의 OpenAI 호환 client와 용도별 설정으로 통일 | 채택 | C-1·개요·심층이 `core/model_client`를 씀; 용도별 endpoint·선언 revision·참조 실행 표식; 이전 로컬 provider 경로 제거 |
+| [0051](tracking/decisions/0051-deep-review-v2-deterministic-subset.md) | deep-review-v2의 결정적 부분만 채택 | 채택 — 부분 채택 | segment manifest·요구사항 inventory·검증 연결만 구현. 역할별 모델 분석과 Luna 평가는 보류 |
 
 ## 4. 주제별 결정 요약
 
@@ -189,7 +192,10 @@ report가 된다.
 
 ### 4.5 모델·외부 전송·운영
 
-- 로컬 Ollama와 승인된 사설 vLLM만 목적별 binding으로 사용한다.
+- 승인된 사설 OpenAI 호환 vLLM만 용도별 binding으로 사용한다. C-1 공고 판정·사전규격 개요
+  검토·심층 검토는 `app/core/model_client.py` 하나를 쓰고 용도(`screening`·`overview`·
+  `deep_review`)마다 자기 endpoint·자격증명·선언 revision을 가진다([ADR-0050](tracking/decisions/0050-unified-openai-compatible-model-client.md)).
+  허용 host가 비었거나 선언 revision이 64자 hex가 아니면 그 용도는 호출 전에 fail closed한다.
 - hosted OpenAI·Codex로 자동 fallback하지 않는다. 외부 실험도 공개 발주계획 metadata와
   승인된 최소 회사 역량 projection만, payload preview·건별 승인을 거쳐 전송한다.
 - 실행 입력에는 source run, policy, profile, prompt, model, generation config와 digest를
@@ -241,9 +247,10 @@ ADR-0021은 “운영 제품 전에 동일 모집단과 사람 정답으로 비�
 | C-2 Phase 0 | 계약 고정, `valid_but_blocked` | 제품 adapter·DB·API·worker 구현 후 별도 승인 |
 | C-2 품질 gold | 실험별 corpus가 다름 | C-2 625건 manifest의 사람 adjudication·감사 표본·threshold 확정 |
 | C-2 외부 transport | `execution_allowed=false` | 실행별 private vLLM 전송 승인, allowlist·payload preview·binding 일치 |
-| 개요 검토 model worker | 기반 API·화면·attempt 저장 구현, 실제 transport/worker 미완료 | 승인된 사설 vLLM artifact와 strict result 검증 |
+| 개요 검토 model worker | 기반 API·화면·attempt 저장에 더해 모델 실행 worker와 통일 client 연결까지 구현. 실행 결과는 `quality_status=unmeasured_reference\|mock_reference` | 승인된 사설 vLLM artifact와 사람 gold로 측정한 품질. 참조 실행 결과는 활성화 근거가 아니다 |
 | 입찰 delta | schema·REST·화면 계약과 migration 존재, 계산 worker 미완료 | exact pair 기반 계산·근거 검증·Go/No-Go 연속 E2E |
-| 심층 품질 | Mock E2E 및 단일 live 기록은 품질 승인 아님 | immutable model artifact, 대표 HWP/PDF, 사람 gold로 gate 측정 |
+| 심층 품질 | Mock E2E, 단일 live 기록, 참조 실행 모드 결과는 모두 품질 승인이 아님 | immutable model artifact, 대표 HWP/PDF, 사람 gold로 gate 측정 |
+| deep-review-v2 역할별 분석 | 결정적 segment·요구사항 inventory만 구현([ADR-0051](tracking/decisions/0051-deep-review-v2-deterministic-subset.md)) | 외부 전송 1회성 예외 승인과 역할별 출력 계약 확정 |
 | 운영 복구 | script와 격리 검증 존재 | 실제 secret·MinIO 권한·egress·backup/restore 훈련 |
 | 접근 제어 | 사내망·claimed name만 사용 | 외부 노출 전 SSO subject·역할·권한 회수 설계 |
 | pipeline renderer | `screening.v3` adapter 필요 | v2/v3·partial/failure·provenance 결정성 회귀 |

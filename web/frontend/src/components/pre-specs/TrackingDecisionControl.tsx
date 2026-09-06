@@ -3,10 +3,13 @@ import { useMutation } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { Badge } from "../common/Badge";
 import { ActorField } from "../common/ActorField";
+import { ConfirmDecisionDialog, trackingEndConfirmContent } from "../common/ConfirmDecisionDialog";
+import { useUnsavedGuard } from "../common/useUnsavedGuard";
 import { DisabledReason } from "../common/DisabledReason";
 import { EmptyState } from "../common/EmptyState";
 import { MutationFeedback } from "../common/MutationFeedback";
 import { api } from "../../lib/api";
+import { describeApiError, type ApiErrorDescription } from "../../lib/apiErrors";
 import { originOf, trackingDescription, trackingVariant } from "../../lib/opportunity";
 import type {
   OpportunityDetailResponse,
@@ -70,7 +73,7 @@ export function PreSpecDocumentSummary({ item }: { item: PreSpecListItem }) {
         <div><dt>차단</dt><dd>{document["차단"]}건</dd></div>
         <div><dt>실패</dt><dd>{document["실패"]}건</dd></div>
       </dl>
-      <p>첨부 취득 상태는 같은 notice_pk의 누적 사전규격 projection에서 확인했습니다.</p>
+      <p>첨부 취득 상태는 같은 공고의 누적 사전규격 요약 정보에서 확인했습니다.</p>
     </section>
   );
 }
@@ -106,6 +109,14 @@ export interface TrackingDecisionControlProps {
    * 실행 승인 자리로 데려간다.
    */
   onStartedForDeepReview?: () => void;
+  /**
+   * 사유·담당자에 저장되지 않은 입력이 있는지 알린다.
+   *
+   * route 이동은 이 컴포넌트가 직접 막지만(아래 `useUnsavedGuard`), **목록 화면에서
+   * 다른 행을 고르는 것**은 route 이동이 아니라 목록이 소유한 선택 변경이라 여기서
+   * 막을 수 없다. 그 확인은 목록 화면이 이 콜백을 받아 걸어야 한다.
+   */
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 export function TrackingDecisionControl({
@@ -119,6 +130,7 @@ export function TrackingDecisionControl({
   formId,
   onDecisionStateChange,
   onStartedForDeepReview,
+  onDirtyChange,
 }: TrackingDecisionControlProps) {
   const Heading = headingLevel;
   // 사전규격에서 고를 수 있는 값은 `계속 추적` 하나뿐이다(ADR-0046 결정 6).
@@ -127,12 +139,41 @@ export function TrackingDecisionControl({
   );
   const [reason, setReason] = useState("");
   const [actorName, setActorName] = useState("");
-  const [feedback, setFeedback] = useState<{ tone: "success" | "error"; message: string } | null>(null);
+  const [feedback, setFeedback] = useState<{ tone: "success"; message: string } | null>(null);
+  const [problem, setProblem] = useState<ApiErrorDescription | null>(null);
+  // `종료`만 되돌릴 수 없다. `계속 추적`과 `보류`는 다시 고를 수 있으므로 확인
+  // 단계를 두지 않는다. 저장에 성공하면 사유·담당자가 비워지므로 요약은 열 때의
+  // 값을 얼려 둔다.
+  const [endConfirm, setEndConfirm] = useState<ReturnType<typeof trackingEndConfirmContent> | null>(null);
 
   useEffect(() => {
     if (!item) return;
     setStatus(item.tracking_status && item.tracking_status !== "미선택" ? item.tracking_status : TRACKING_DECISION_STATUSES[0]);
   }, [item?.notice_pk]);
+
+  // 사유와 담당자는 저장 전까지 이 컴포넌트에만 있다. 화면을 떠나면 사라지므로
+  // 여기서 직접 route 이동을 막는다. 부르는 화면(PreSpecsPage·PreSpecDetailPage)이
+  // 같은 규칙을 다시 구현하지 않게 하려는 것이며, 목록의 행 전환은 목록이
+  // `onDirtyChange`로 받아 자기 자리에서 확인해야 한다.
+  //
+  // 범위가 `pathname`인 이유: 두 화면 모두 선택·필터를 검색 인자로 옮기므로
+  // `any`로 두면 사유를 적는 중에 목록 조작마다 이탈 확인이 뜬다.
+  const dirty = reason.trim().length > 0 || actorName.trim().length > 0;
+  const guard = useUnsavedGuard(dirty, {
+    blockSpaNavigation: true,
+    scope: "pathname",
+    title: "심층 검토 추적 선택을 저장하지 않고 떠납니다",
+    message: "저장하지 않은 추적 결정 사유와 담당자 이름이 있습니다. 지금 이동하면 사라지며 저장된 추적 상태는 바뀌지 않습니다.",
+    summary: [
+      { label: "사유", value: reason.trim() || "값 없음" },
+      { label: "담당자", value: actorName.trim() || "값 없음" },
+    ],
+  });
+
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+    return () => onDirtyChange?.(false);
+  }, [dirty, onDirtyChange]);
 
   const mutation = useMutation({
     mutationFn: () => api.updateOpportunityTrackingStatus(
@@ -142,18 +183,23 @@ export function TrackingDecisionControl({
     ),
     onSuccess: (saved) => {
       if (!item) return;
+      // 저장이 끝났으므로 잃을 입력이 없다. `onStartedForDeepReview`가 곧바로
+      // 이동시키는데, 그 시점의 dirty 계산은 아직 이전 렌더 값이라 먼저 푼다.
+      guard.release();
       setStatus(saved.tracking_status);
       setReason("");
       setActorName("");
+      setProblem(null);
       setFeedback({ tone: "success", message: "심층 검토 추적 상태를 저장했습니다." });
       onSaved(saved);
       // 추적 시작이 기록된 뒤에만 심층 검토 실행 자리로 넘어간다. 두 결정은 별개다.
       onStartedForDeepReview?.();
     },
-    onError: () => {
-      // Server response bodies can contain unsafe provider or validation detail.
-      // This screen exposes only a stable, user-safe mutation message.
-      setFeedback({ tone: "error", message: "심층 검토 추적 상태를 저장하지 못했습니다." });
+    onError: (caught: unknown) => {
+      // 서버 응답 본문에는 provider·검증 상세가 실릴 수 있다. 화면에 내는 것은
+      // `describeApiError`가 status와 안전한 오류 코드로 옮긴 문구뿐이다.
+      setFeedback(null);
+      setProblem(describeApiError(caught, "심층 검토 추적 상태를 저장하지 못했습니다."));
     },
   });
 
@@ -241,7 +287,7 @@ export function TrackingDecisionControl({
     >
       <div className="pre-spec-tracking-decision-header">
         <div>
-          {!compact ? <span className="pre-spec-tracking-kicker">HUMAN TRACKING DECISION</span> : null}
+          {!compact ? <span className="pre-spec-tracking-kicker">사람이 고르는 추적 결정</span> : null}
           <Heading id="pre-spec-tracking-decision-title">심층 검토 추적 선택</Heading>
           {/* 이 결정이 최종 Go/No-Go가 아니라는 사실은 CLAUDE.md 강제 게이트
               (네 결정은 서로를 대신하지 않는다)라, 밀도를 낮추더라도 액션 옆에서
@@ -273,7 +319,16 @@ export function TrackingDecisionControl({
         id={formId}
         onSubmit={(event) => {
           event.preventDefault();
-          if (ready) mutation.mutate();
+          if (!ready) return;
+          if (status === "종료") {
+            setEndConfirm(trackingEndConfirmContent({
+              actor: actorName,
+              reason,
+              target: `사업기회 #${item.opportunity_id}`,
+            }));
+            return;
+          }
+          mutation.mutate();
         }}
       >
         <fieldset>
@@ -321,6 +376,7 @@ export function TrackingDecisionControl({
         ) : null}
 
         {feedback ? <MutationFeedback tone={feedback.tone}>{feedback.message}</MutationFeedback> : null}
+        {problem ? <MutationFeedback tone="error" problem={problem} /> : null}
         {/* 상세 화면은 이 폼의 submit을 고정 헤더의 액션이 소유한다(formId).
             같은 이름의 저장 버튼을 본문에도 두면 한 화면에 같은 결정 조작이
             둘이 되고, 어느 쪽이 정본인지 화면이 답하지 못한다. 목록 화면처럼
@@ -347,6 +403,17 @@ export function TrackingDecisionControl({
           <strong>보류</strong>와 <strong>추적 종료</strong>는 이 화면에 없습니다. 사업 추적에서만 사람이 고릅니다.
         </p>
       </form>
+      {/* 확인 단계. 취소하면 초안은 그대로 남고 요청은 나가지 않는다. 저장에
+          실패하면 다이얼로그는 닫히고 기존 인라인 오류 표시가 그대로 보인다. */}
+      <ConfirmDecisionDialog
+        confirmLabel={endConfirm?.confirmLabel ?? "종료 상태로 저장"}
+        isPending={mutation.isPending}
+        onConfirm={() => mutation.mutate(undefined, { onSettled: () => setEndConfirm(null) })}
+        onOpenChange={(next) => { if (!next) setEndConfirm(null); }}
+        open={endConfirm !== null}
+        summary={endConfirm?.summary ?? []}
+        title={endConfirm?.title ?? "추적을 종료합니다"}
+      />
     </section>
   );
 }

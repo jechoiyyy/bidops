@@ -2,7 +2,7 @@
 
 lifecycle은 자기 목록·상세·통계·지표에 등급과 리뷰를 함께 보여 주어야 하지만
 판정 테이블을 알지 못한다. 그 자리를 여기 구현이 채운다. 반대 방향(deep_review가
-판정을 읽는 자리)은 이름을 가려 받는 seam 함수 세 개뿐이다.
+판정을 읽는 자리)은 이름을 가려 받는 seam 함수 네 개뿐이다.
 
 성능 계약: 회차 하나가 최대 약 2,000건이므로 **회차 단위로 한 번에** 읽고
 메모리에서 결합한다. 공고당 조회(N+1)를 만들지 않는다.
@@ -135,22 +135,44 @@ def current_judgment(session: Session, notice_id: int) -> JudgmentSummary | None
     return current_judgments(session, [notice_id]).get(int(notice_id))
 
 
-def latest_corrected_grade(session: Session, notice_id: int) -> CorrectedGrade | None:
-    """가장 최근에 사람이 정정한 등급. 정정이 없으면 `None`.
+def latest_corrected_grades(
+    session: Session, notice_ids: Sequence[int]
+) -> Mapping[int, CorrectedGrade]:
+    """공고 여러 건의 정정 등급. 건수와 무관하게 **한 번의 조회**다.
 
-    리뷰는 공고당 하나지만 정렬 기준을 남겨 두는 이유는, 정정 등급이 비어 있는
-    리뷰를 정정으로 세지 않기 위해서다.
+    `latest_corrected_grade`의 batch 판이며 `current_judgment`/`current_judgments`
+    와 같은 관계다. 목록 화면과 자격 재평가는 공고 수백~수천 건을 한 번에 다루고
+    명세 §8이 그 자리에 N+1을 금지하므로, 단건 판만 seam에 두면 호출부가 공고당
+    조회를 만들 수밖에 없다.
+
+    정정이 없는 공고는 결과에 없다 — `null`과 "정정 없음"을 같은 값으로 만들지
+    않기 위해 빈 항목을 채우지 않는다. 정정 등급이 비어 있는 리뷰도 정정으로
+    세지 않는다.
     """
 
-    row = session.execute(
-        select(Review.corrected_grade, Review.run_id, Review.id)
-        .where(Review.notice_id == int(notice_id), Review.corrected_grade.is_not(None))
+    ids = [int(value) for value in notice_ids]
+    if not ids:
+        return {}
+    rows = session.execute(
+        select(Review.notice_id, Review.corrected_grade, Review.run_id, Review.id)
+        .where(Review.notice_id.in_(ids), Review.corrected_grade.is_not(None))
         .order_by(Review.updated_at.desc(), Review.id.desc())
-        .limit(1)
-    ).first()
-    if row is None or not row[0]:
-        return None
-    return CorrectedGrade(grade=row[0], run_id=row[1], review_id=row[2])
+    ).all()
+    corrected: dict[int, CorrectedGrade] = {}
+    for notice_id, grade, run_id, review_id in rows:
+        if not grade:
+            continue
+        # 정렬이 최신 우선이므로 공고당 첫 행만 남긴다.
+        corrected.setdefault(
+            int(notice_id), CorrectedGrade(grade=grade, run_id=run_id, review_id=review_id)
+        )
+    return corrected
+
+
+def latest_corrected_grade(session: Session, notice_id: int) -> CorrectedGrade | None:
+    """가장 최근에 사람이 정정한 등급. 정정이 없으면 `None`."""
+
+    return latest_corrected_grades(session, [notice_id]).get(int(notice_id))
 
 
 # --- lifecycle projection (§6.1) ----------------------------------------------
@@ -660,4 +682,5 @@ __all__ = [
     "current_judgment",
     "current_judgments",
     "latest_corrected_grade",
+    "latest_corrected_grades",
 ]

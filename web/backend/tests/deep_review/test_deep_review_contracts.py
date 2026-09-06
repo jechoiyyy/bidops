@@ -261,6 +261,16 @@ def _report() -> dict:
     return {"schema": "bidops.deep-review-report.v1", "deep_review_id": U, "notice_id": 1, "bundle_id": U3, "profile_version_id": U, "policy_version_id": U2, "sections": sections, "system_recommendation": "조건부 추진 검토", "claims": [claim(evidence_ids=[U5])], "unknowns": [], "validation_summary": {"status": "passed", "failed": 0, "warnings": 0, "passed": 1}, "created_at": "2026-08-25T00:00:00+09:00"}
 
 
+def test_report_quality_status_is_optional_and_bounded() -> None:
+    # 이 필드가 없던 시절의 저장 revision은 그대로 통과해야 한다.
+    assert "quality_status" not in _report()
+    validate_payload(_report(), "deep-review-report")
+    for value in ("measured", "unmeasured_reference", "mock_reference", None):
+        validate_payload({**_report(), "quality_status": value}, "deep-review-report")
+    with pytest.raises(SchemaValidationError):
+        validate_payload({**_report(), "quality_status": "deployable"}, "deep-review-report")
+
+
 def test_report_requires_exact_sections_and_decision_card() -> None:
     report = _report()
     assert validate_deep_review_report(report, bundle=bundle(), evidence=[evidence()], structures=structures())["schema"] == "bidops.deep-review-report.v1"
@@ -378,3 +388,42 @@ def test_pilot_55_52_and_yangsan_evaluation_duty_regressions() -> None:
     yangsan = json.loads((FIXTURES / "yangsan_evaluation_duty.json").read_text())
     duties = compare_requirement_ids(yangsan["required_duties"], yangsan["observed_duties"])
     assert duties.missing_ids == ("평가위원 사전교육",)
+
+
+def test_segment_checks_wire_compare_requirement_ids_into_deep_review_validation() -> None:
+    """두 check가 `compare_requirement_ids` 결과를 그대로 옮기는지 본다."""
+
+    from app.deep_review.services.deep_review_validation import build_segment_checks
+
+    expected = json.loads((FIXTURES / "fire_prevention_55.json").read_text())["expected_requirement_ids"]
+    observed = json.loads((FIXTURES / "fire_prevention_52.json").read_text())["observed_requirement_ids"]
+    inventory = {
+        "manifest_count": 1, "expected_ids": expected, "duplicate_ids": [], "prefixes": ["REQ"],
+        "needs_human_review_count": 0, "gap_count": 0, "overlap_count": 0,
+    }
+    by_type = {check["check_type"]: check for check in build_segment_checks(inventory, observed)}
+    assert by_type["requirement_inventory"]["status"] == "failed"
+    assert by_type["requirement_inventory"]["severity"] == "중대"
+    assert by_type["segment_coverage"]["status"] == "passed"
+
+    complete = {check["check_type"]: check for check in build_segment_checks(inventory, expected)}
+    assert complete["requirement_inventory"]["status"] == "passed"
+
+    duplicated = {check["check_type"]: check for check in build_segment_checks(inventory, [*expected, expected[0]])}
+    assert duplicated["requirement_inventory"]["status"] == "warning"
+
+    # inventory가 비어 있으면 실패로 만들지 않는다.
+    empty = {check["check_type"]: check for check in build_segment_checks(
+        {"manifest_count": 1, "expected_ids": [], "prefixes": [], "needs_human_review_count": 0,
+         "gap_count": 0, "overlap_count": 0}, [],
+    )}
+    assert empty["requirement_inventory"]["status"] == "warning"
+    assert empty["segment_coverage"]["status"] == "passed"
+
+    # 사람 검토가 필요한 segment는 경고일 뿐 차단하지 않는다.
+    review_needed = {check["check_type"]: check for check in build_segment_checks(
+        {"manifest_count": 1, "expected_ids": [], "prefixes": [], "needs_human_review_count": 2,
+         "gap_count": 1, "overlap_count": 0}, [],
+    )}
+    assert review_needed["segment_coverage"]["status"] == "warning"
+    assert review_needed["segment_coverage"]["severity"] == "보통"

@@ -13,6 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from ...core.constants import DEEP_REVIEW_CREATION_ACTIONS
 from ...core.models import AuditEvent, IdempotencyRecord
 from ..models import (
     Claim,
@@ -38,11 +39,13 @@ from ..schemas.reports import FinalOpinionRequest, ReportRevisionRequest
 from .deep_review_validation import (
     DeepReviewValidationError,
     REQUIRED_SECTIONS,
+    build_segment_checks,
     validate_deep_review_report,
     validate_deep_review_validation,
 )
+from . import document_segments
 from .document_bundles import BundleServiceError, validate_actor
-from .deep_reviews import JobClaim, StaleFenceError
+from .deep_reviews import JobClaim, StaleFenceError, quality_status_for_review
 
 
 STAGE_NAMES = ("requirements_and_evaluation", "delivery_risk_economics", "synthesis_and_validation")
@@ -214,7 +217,7 @@ class ReportService:
                     ReportRevision.deep_review_id == review.id,
                 ).order_by(ReportRevision.sequence.desc()).limit(1)) or existing.id)
 
-            report, stage_payloads, evidence_payloads, contexts = self._initial_report_projection(session, review, attempt, stages)
+            report, stage_payloads, evidence_payloads, contexts, segment_checks = self._initial_report_projection(session, review, attempt, stages)
             self._validate_submitted_report(report, review, stage_payloads, evidence_payloads, contexts, None)
             evidence_ids = [_uuid(item["evidence_id"]) for item in evidence_payloads]
             revision = self._insert_revision_and_validation(
@@ -224,6 +227,7 @@ class ReportService:
                 stage_payloads=stage_payloads,
                 evidence_payloads=evidence_payloads,
                 contexts=contexts,
+                segment_checks=segment_checks,
                 origin="machine",
                 parent_revision_id=None,
                 reason=None,
@@ -268,6 +272,11 @@ class ReportService:
             if payload.report.deep_review_id != review.id:
                 raise _error("validation_failed", "report가 deep review 범위와 일치하지 않습니다", status_code=422, request_id=payload.request_id)
             new_payload = payload.report.model_dump(mode="json")
+            # `quality_status`는 사람이 고칠 수 있는 report 내용이 아니라 생성
+            # 감사 이벤트에서 파생하는 서버 소유 표식이다. 요청이 무엇을 실어
+            # 보냈든 여기서 다시 계산해 붙여야 참조 실행 배지가 후속 revision
+            # 에서 사라지지 않는다 (명세 §6.5·§8).
+            new_payload["quality_status"] = quality_status_for_review(session, review.id)
             old_payload = current.report_payload if isinstance(current.report_payload, Mapping) else {}
             if new_payload.get("system_recommendation") != old_payload.get("system_recommendation"):
                 raise _error("validation_failed", "system recommendation은 base revision에서 변경할 수 없습니다", status_code=409, request_id=payload.request_id)
@@ -454,7 +463,13 @@ class ReportService:
         ))
         return revision
 
-    def _initial_report_projection(self, session: Session, review: DeepReview, attempt: DeepReviewAttempt, stages: Sequence[DeepReviewStage]) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
+    def _initial_report_projection(self, session: Session, review: DeepReview, attempt: DeepReviewAttempt, stages: Sequence[DeepReviewStage]) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]], dict[str, Any], list[dict[str, Any]]]:
+        """machine 보고서 payload와 그것을 만든 projection을 함께 돌려준다.
+
+        segment 대조는 stage 1 claim 본문을 전부 다시 훑는 작업이라 한 보고서를
+        만들며 두 번 하지 않는다. 여기서 한 번 계산해 검증 단계로 넘긴다.
+        """
+
         stage_payloads, evidence_payloads, contexts = self._stage_projection(session, review, attempt, stages)
         claim_payloads = self._claims(session, review.id, stages)
         if not claim_payloads:
@@ -465,12 +480,41 @@ class ReportService:
                 if isinstance(value, str) and value not in unknowns:
                     unknowns.append(value)
         failed_claims = [claim for claim in claim_payloads if claim["status"] in {"unsupported", "conflicting"}]
-        status = "failed" if failed_claims else "passed"
+        # 요구사항 inventory 대조 실패는 보고서 validation 상태에 그대로 드러난다.
+        # 자동으로 보정하지 않고 사람 검토로 보낸다.
+        segment_checks = self._segment_checks(stage_payloads, contexts)
+        segment_failed = any(check["status"] == "failed" for check in segment_checks)
+        status = "failed" if failed_claims or segment_failed else "passed"
         recommendation, recommendation_unknown = self._system_recommendation(stage_payloads, status)
         if recommendation_unknown and recommendation_unknown not in unknowns:
             unknowns.append(recommendation_unknown)
-        report = self._render_report(review, claim_payloads, unknowns, status, recommendation)
-        return report, stage_payloads, evidence_payloads, contexts
+        report = self._render_report(
+            review, claim_payloads, unknowns, status, recommendation,
+            quality_status=quality_status_for_review(session, review.id),
+            bundle_limitations=contexts.get("bundle_limitations", ()),
+        )
+        return report, stage_payloads, evidence_payloads, contexts, segment_checks
+
+    @staticmethod
+    def _segment_checks(stages: Sequence[Mapping[str, Any]], contexts: Mapping[str, Any]) -> list[dict[str, Any]]:
+        """stage 1 claim이 보고한 요구사항 ID를 문서 inventory와 대조한다.
+
+        claim schema에는 요구사항 ID 필드가 없으므로 stage 1 claim 본문에서
+        **문서가 확정한 prefix에 속하는 토큰만** 결정적으로 읽는다. 확정되지 않은
+        prefix는 요구사항 ID로 만들지 않는다.
+        """
+
+        inventory = contexts.get("segments")
+        inventory = inventory if isinstance(inventory, Mapping) else {}
+        stage_one = next((row for row in stages if row.get("stage") == STAGE_NAMES[0]), None)
+        texts: list[str] = []
+        claims = stage_one.get("claims", []) if isinstance(stage_one, Mapping) else []
+        for claim in claims if isinstance(claims, list) else []:
+            if isinstance(claim, Mapping):
+                texts.append(str(claim.get("body", "")))
+                texts.append(str(claim.get("category", "")))
+        observed = document_segments.observed_requirement_ids(texts, inventory.get("prefixes", []) or [])
+        return build_segment_checks(inventory, observed)
 
     @staticmethod
     def _system_recommendation(stage_payloads: Sequence[Mapping[str, Any]], validation_status: str) -> tuple[str, str | None]:
@@ -604,7 +648,14 @@ class ReportService:
                 "locator": row.locator if isinstance(row.locator, Mapping) else {}, "quote": row.quote,
             } for row in profile_rows],
         }
-        return {"bundle": bundle_context, "profile": profile_context, "structures": structures}
+        # 묶음의 모든 문서 inventory 합집합과 segment 상태. 검증의 두 check가 쓴다.
+        segments = document_segments.inventory_context(
+            session, [item.structure_id_at_confirmation for item in items]
+        )
+        return {
+            "bundle": bundle_context, "profile": profile_context, "structures": structures,
+            "segments": segments, "bundle_limitations": _bundle_limitations(bundle),
+        }
 
     def _render_report(
         self,
@@ -613,6 +664,9 @@ class ReportService:
         unknowns: list[str],
         validation_status: str,
         system_recommendation: str,
+        *,
+        quality_status: str | None = None,
+        bundle_limitations: Sequence[str] = (),
     ) -> dict[str, Any]:
         all_ids = [claim["claim_id"] for claim in claims]
         sections: list[dict[str, Any]] = []
@@ -644,6 +698,13 @@ class ReportService:
             elif section_key in scenario_sections:
                 body = first_body
                 block_type = "scenario"
+            elif section_key == "document_bundle_limitations":
+                # 확정된 묶음의 issues_snapshot이 남긴 사실을 그대로 옮긴다.
+                # 여기서 다시 계산하지 않는다.
+                block_type = "paragraph"
+                body = "\n".join([*bundle_limitations, first_body]) if bundle_limitations and first_body else (
+                    "\n".join(bundle_limitations) or first_body
+                )
             else:
                 body = first_body
                 block_type = "paragraph"
@@ -668,6 +729,9 @@ class ReportService:
             "claims": claims, "unknowns": unknowns,
             "validation_summary": {"status": validation_status, "failed": failed, "warnings": len(unknowns), "passed": 1 - failed},
             "created_at": _iso(_now()),
+            # 품질 상태는 생성 감사 이벤트에서 파생하는 서버 소유 표식이다
+            # (명세 §8). 값이 없으면 표식 없음이며 미측정으로 승격하지 않는다.
+            "quality_status": quality_status,
         }
 
     def _section_claims(self, section_key: str, claims: Sequence[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
@@ -684,7 +748,7 @@ class ReportService:
         except (DeepReviewValidationError, ValueError) as error:
             raise _error("validation_failed", "report validation을 통과하지 못했습니다", status_code=409, request_id=request_id) from error
 
-    def _insert_revision_and_validation(self, session: Session, review: DeepReview, report: Mapping[str, Any], *, stage_payloads: Sequence[Mapping[str, Any]], evidence_payloads: Sequence[Mapping[str, Any]], contexts: Mapping[str, Any], origin: str, parent_revision_id: UUID | None, reason: str | None, actor: str | None, evidence_ids: Sequence[UUID]) -> ReportRevision:
+    def _insert_revision_and_validation(self, session: Session, review: DeepReview, report: Mapping[str, Any], *, stage_payloads: Sequence[Mapping[str, Any]], evidence_payloads: Sequence[Mapping[str, Any]], contexts: Mapping[str, Any], origin: str, parent_revision_id: UUID | None, reason: str | None, actor: str | None, evidence_ids: Sequence[UUID], segment_checks: Sequence[Mapping[str, Any]] | None = None) -> ReportRevision:
         """Prepare and validate every payload before the first INSERT.
 
         ``revision_id`` and ``validation_run_id`` are allocated up front so
@@ -699,6 +763,7 @@ class ReportService:
         validation_id = uuid4()
         validation_status, checks, validation_payload = self._validation_result(
             report, revision_id, validation_id, review, stage_payloads, evidence_payloads, contexts,
+            segment_checks=segment_checks,
         )
         sequence = int(session.scalar(select(func.max(ReportRevision.sequence)).where(ReportRevision.deep_review_id == review.id)) or 0) + 1
         revision = ReportRevision(
@@ -726,7 +791,7 @@ class ReportService:
             raise _error("processing_failed", "validation run 식별자가 일치하지 않습니다", status_code=500)
         return revision
 
-    def _validation_result(self, report: Mapping[str, Any], revision_id: UUID, validation_id: UUID, review: DeepReview, stages: Sequence[Mapping[str, Any]], evidence: Sequence[Mapping[str, Any]], contexts: Mapping[str, Any]) -> tuple[str, list[dict[str, Any]], dict[str, Any]]:
+    def _validation_result(self, report: Mapping[str, Any], revision_id: UUID, validation_id: UUID, review: DeepReview, stages: Sequence[Mapping[str, Any]], evidence: Sequence[Mapping[str, Any]], contexts: Mapping[str, Any], *, segment_checks: Sequence[Mapping[str, Any]] | None = None) -> tuple[str, list[dict[str, Any]], dict[str, Any]]:
         failed_ids = [str(claim["claim_id"]) for claim in report.get("claims", []) if claim.get("status") in {"unsupported", "conflicting"}]
         summary = report.get("validation_summary", {})
         declared_failed = summary.get("status") == "failed" and int(summary.get("failed", 0) or 0) > 0
@@ -738,6 +803,17 @@ class ReportService:
             checks.append({"check_type": "declared_validation", "status": "failed", "severity": "중대", "message": "report가 validation failed 상태를 보존합니다", "related_claim_ids": [], "related_evidence_ids": []})
         else:
             checks.append({"check_type": "report_contract", "status": "passed", "severity": "낮음", "message": "전체 report contract와 immutable projection을 확인했습니다", "related_claim_ids": [], "related_evidence_ids": []})
+        # 요구사항 inventory와 segment coverage. inventory가 비어 있으면 경고이고
+        # coverage는 어떤 경우에도 차단하지 않는다.
+        # 호출자가 이미 계산했으면 그것을 쓴다. 같은 입력에서 같은 값이 나오는
+        # 결정적 대조이므로 다시 훑을 이유가 없다.
+        checks.extend(
+            list(segment_checks)
+            if segment_checks is not None
+            else self._segment_checks(stages, contexts)
+        )
+        if any(check["status"] == "failed" for check in checks):
+            status = "failed"
         validation_payload = {
             "schema": "bidops.deep-review-validation.v1", "validation_run_id": str(validation_id),
             "report_revision_id": str(revision_id), "status": status, "checks": checks, "created_at": _iso(_now()),
@@ -771,6 +847,8 @@ class ReportService:
 
         projected = json.loads(json.dumps(payload, ensure_ascii=False, sort_keys=True))
         projected.pop("created_at", None)
+        # 서버가 파생시키는 표식이므로 사람이 바꾼 사실이 아니다.
+        projected.pop("quality_status", None)
         for section in projected.get("sections", []):
             if isinstance(section, Mapping):
                 section.pop("title", None)
@@ -802,7 +880,8 @@ class ReportService:
         rows = session.scalars(
             select(AuditEvent)
             .where(
-                AuditEvent.action == "deep_review.create",
+                # 사람 클릭과 자동 시작 둘 다 이 검토의 생성 감사다 (§6.4).
+                AuditEvent.action.in_(DEEP_REVIEW_CREATION_ACTIONS),
                 AuditEvent.aggregate_type == "deep_review",
                 AuditEvent.aggregate_id == str(review_id),
             )
@@ -920,6 +999,23 @@ class ReportService:
             "acknowledged_validation_failure": opinion.acknowledged_validation_failure,
             "claimed_name": opinion.claimed_name, "created_at": _iso(opinion.created_at),
         }
+
+
+def _bundle_limitations(bundle: DocumentBundle | None) -> list[str]:
+    """확정된 묶음의 비차단 issue 중 보고서에 남겨야 할 사실만 문장으로 만든다.
+
+    issue code는 묶음이 이미 확정한 사실이다. 여기서 다시 판정하지 않고 개수만
+    센다. 파일명·경로 같은 원문은 넣지 않는다.
+    """
+
+    issues = bundle.issues_snapshot if bundle is not None and isinstance(bundle.issues_snapshot, list) else []
+    excluded = [
+        issue for issue in issues
+        if isinstance(issue, Mapping) and issue.get("code") == "unsupported_attachment_excluded"
+    ]
+    if not excluded:
+        return []
+    return [f"형식 밖 첨부 {len(excluded)}건이 묶음에서 제외됐습니다(unsupported_attachment_excluded)."]
 
 
 def new_payload_evidence_ids(payload: Mapping[str, Any]) -> list[str]:

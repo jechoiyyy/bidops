@@ -261,6 +261,23 @@ def _policy_hash_matches(policy: AnalysisPolicyVersion) -> bool:
     return digest == policy.policy_sha256 == _sha256(approved_canonical)
 
 
+def _validate_model_binding(policy: AnalysisPolicyVersion, *, allow_unmeasured_reference: bool) -> None:
+    """transport 참조를 확인하고, 모델명 검사는 참조 모드에서만 넘긴다 (명세 §6.5).
+
+    `model_endpoint_ref`는 어느 모드에서도 승인된 OpenAI 호환 transport여야
+    한다. 모델명은 참조 실행에서 코드 상수와 대조하지 않는다 — policy hash가
+    저장소 canonical 파일과 같은지는 그대로 보고, "그 모델이 실제로 서비스되고
+    있는가"는 실행 직전 `ModelClient.verify_identity`가 서버 served id로
+    확인한다. 설정의 모델명과 비교하면 배포가 모델을 바꿀 때 실행 row에
+    기록되는 모델명과 실제로 부른 모델이 갈린다.
+    """
+
+    if policy.model_endpoint_ref != MODEL_ENDPOINT_REF:
+        raise InputVersionError("service_unavailable", "허용되지 않은 analysis model입니다")
+    if not allow_unmeasured_reference and policy.model_name != MODEL_NAME:
+        raise InputVersionError("service_unavailable", "허용되지 않은 analysis model입니다")
+
+
 def validate_pinned_policy(policy: AnalysisPolicyVersion, *, allow_unmeasured_reference: bool = False) -> None:
     """Validate a review's already-pinned policy without reading active env IDs."""
 
@@ -268,19 +285,23 @@ def validate_pinned_policy(policy: AnalysisPolicyVersion, *, allow_unmeasured_re
         raise InputVersionError("service_unavailable", "고정된 policy 품질 metadata가 유효하지 않습니다")
     if not _policy_hash_matches(policy):
         raise InputVersionError("service_unavailable", "고정된 policy hash가 승인본과 일치하지 않습니다")
-    if policy.model_endpoint_ref != MODEL_ENDPOINT_REF or policy.model_name != MODEL_NAME:
-        raise InputVersionError("service_unavailable", "허용되지 않은 analysis model입니다")
+    _validate_model_binding(policy, allow_unmeasured_reference=allow_unmeasured_reference)
 
 
 def policy_quality_snapshot(policy: AnalysisPolicyVersion) -> dict[str, Any]:
-    """Return canonical measured metadata for a deep-review input snapshot."""
+    """Return canonical measured metadata for a deep-review input snapshot.
+
+    `deployable`은 측정값이 활성화 게이트를 실제로 통과했는지를 그대로 담는다
+    (명세 §5·§8). 측정값이 없으면 `False`이며 0이나 빈 값으로 바꾸지 않는다.
+    """
 
     rules = policy.validation_rules if isinstance(policy.validation_rules, Mapping) else {}
     quality = _quality_mapping(rules)
     try:
-        return _normalise_quality_metadata(validation_metadata=quality)
+        normalised = _normalise_quality_metadata(validation_metadata=quality)
     except InputVersionError as exc:
         raise InputVersionError("service_unavailable", "고정된 policy 품질 metadata가 유효하지 않습니다") from exc
+    return {**normalised, "deployable": bool(normalised) and policy_activation_valid(policy)}
 
 
 def resolve_active_versions(
@@ -300,8 +321,7 @@ def resolve_active_versions(
         raise InputVersionError("service_unavailable", "active policy hash가 payload와 일치하지 않습니다")
     if not isinstance(profile.profile_payload, Mapping) or profile.profile_payload.get("source_sha256") != profile.profile_sha256:
         raise InputVersionError("service_unavailable", "active profile hash가 payload와 일치하지 않습니다")
-    if policy.model_endpoint_ref != MODEL_ENDPOINT_REF or policy.model_name != MODEL_NAME:
-        raise InputVersionError("service_unavailable", "허용되지 않은 analysis model입니다")
+    _validate_model_binding(policy, allow_unmeasured_reference=allow_unmeasured_reference)
     return profile, policy
 
 

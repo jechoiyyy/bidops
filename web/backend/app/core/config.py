@@ -9,10 +9,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
-import math
-import re
 from typing import Literal
-from urllib.parse import urlsplit
 
 from pydantic import AliasChoices, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -26,11 +23,6 @@ MODULE_NAMES: tuple[str, ...] = ("lifecycle", "screening", "deep_review")
 
 #: `BIDOPS_MODULES`를 지정하지 않았을 때의 값. 분할 전과 같은 앱이 된다.
 DEFAULT_MODULES: str = ",".join(MODULE_NAMES)
-
-_OLLAMA_DURATION = re.compile(
-    r"(?:-1|0|(?:\d+(?:\.\d+)?(?:ns|us|µs|ms|s|m|h))+)$"
-)
-
 
 def parse_modules(value: str) -> tuple[str, ...]:
     """`BIDOPS_MODULES` 문자열을 모듈 순서 목록으로 푼다 (명세 §7).
@@ -129,38 +121,23 @@ class Settings(BaseSettings):
         default=30.0,
         validation_alias="BIDOPS_G2B_ATTACHMENT_TIMEOUT_SECONDS",
     )
-    model_name: str = Field(
-        default="qwen3.8:27b",
-        validation_alias="BIDOPS_OLLAMA_MODEL",
-    )
-    model_base_url: str = Field(
-        default="http://192.168.0.139:11434",
-        validation_alias="BIDOPS_OLLAMA_BASE_URL",
-    )
-    model_timeout: int = Field(
-        default=180,
-        validation_alias="BIDOPS_OLLAMA_TIMEOUT_SECONDS",
-    )
-    # Ollama accepts a Go duration string, or a numeric nanosecond value.
-    # Keep the numeric forms because 0 unloads a model and -1 keeps it loaded.
-    model_keep_alive: str | int | float = Field(
-        default="30m",
-        validation_alias="BIDOPS_OLLAMA_KEEP_ALIVE",
-    )
+    # C-1 생성 예산. 실행마다 얼려 `bidops.generation-config.v1`으로 보존하고
+    # stage별 `num_predict`는 호출 시점에 OpenAI 호환 `max_tokens`가 된다.
+    # `num_ctx`는 대응 파라미터가 없어 binding 기록에만 남는다.
     model_context: int = Field(
         default=16384,
-        validation_alias="BIDOPS_OLLAMA_CONTEXT_SIZE",
+        validation_alias="BIDOPS_SCREENING_CONTEXT_SIZE",
     )
     model_max_output: int = Field(
         default=2048,
-        validation_alias="BIDOPS_OLLAMA_MAX_OUTPUT_TOKENS",
+        validation_alias="BIDOPS_SCREENING_MAX_OUTPUT_TOKENS",
     )
     model_synthesis_output: int = Field(
         default=4096,
-        validation_alias="BIDOPS_OLLAMA_SYNTHESIS_MAX_OUTPUT_TOKENS",
+        validation_alias="BIDOPS_SCREENING_SYNTHESIS_MAX_OUTPUT_TOKENS",
     )
-    screening_provider: Literal["ollama", "mock"] = Field(
-        default="ollama",
+    screening_provider: Literal["vllm", "mock"] = Field(
+        default="vllm",
         validation_alias="BIDOPS_SCREENING_PROVIDER",
     )
     screen_concurrency: int = Field(
@@ -183,76 +160,42 @@ class Settings(BaseSettings):
         default="06:00", validation_alias="BIDOPS_SCHEDULE_WEEKLY_TIME"
     )
     schedule_prespec: bool = Field(default=False, validation_alias="BIDOPS_PRESPEC_ENABLED")
-    live_test: bool = Field(default=False, validation_alias="BIDOPS_LIVE_OLLAMA_TEST")
-
-    @field_validator("model_base_url")
-    @classmethod
-    def validate_model_base_url(cls, value: str) -> str:
-        """Require a credential-free absolute HTTP(S) Ollama endpoint."""
-
-        if (
-            not isinstance(value, str)
-            or not value
-            or any(character.isspace() for character in value)
-            or "?" in value
-            or "#" in value
-            or "\\" in value
-        ):
-            raise ValueError("BIDOPS_OLLAMA_BASE_URL must be an absolute HTTP(S) URL")
-        try:
-            parsed = urlsplit(value)
-            hostname = parsed.hostname
-            # Accessing port also validates malformed ports and brackets.
-            _ = parsed.port
-        except ValueError as exc:
-            raise ValueError("BIDOPS_OLLAMA_BASE_URL must be an absolute HTTP(S) URL") from exc
-        if (
-            parsed.scheme not in {"http", "https"}
-            or not parsed.netloc
-            or not hostname
-            or parsed.netloc.endswith(":")
-            or parsed.username is not None
-            or parsed.password is not None
-            or parsed.query
-            or parsed.fragment
-        ):
-            raise ValueError(
-                "BIDOPS_OLLAMA_BASE_URL must use http/https without credentials, query, or fragment"
-            )
-        return value
-
-    @field_validator("model_keep_alive", mode="before")
-    @classmethod
-    def validate_model_keep_alive(cls, value: object) -> object:
-        """Accept Ollama duration strings and its numeric sentinel forms."""
-
-        if isinstance(value, bool):
-            raise ValueError("BIDOPS_OLLAMA_KEEP_ALIVE must be an Ollama duration or number")
-        if isinstance(value, (int, float)):
-            if isinstance(value, float) and not math.isfinite(value):
-                raise ValueError("BIDOPS_OLLAMA_KEEP_ALIVE must be finite")
-            if value < -1:
-                raise ValueError("BIDOPS_OLLAMA_KEEP_ALIVE must be -1 or greater")
-            return value
-        if isinstance(value, str) and _OLLAMA_DURATION.fullmatch(value):
-            return value
-        raise ValueError(
-            "BIDOPS_OLLAMA_KEEP_ALIVE must be a duration such as 30m, 0, or -1"
-        )
 
     # --- Deep review analysis providers and document pipeline ---
     vllm_base_url: str = Field(
         default="http://127.0.0.1:8000/v1",
         validation_alias="BIDOPS_VLLM_BASE_URL",
     )
-    vllm_model: str = Field(default="qwen3.8-27B", validation_alias="BIDOPS_VLLM_MODEL")
     # The 64-hex model artifact digest the server operator attests for this
     # deployment.  Empty by default so C-2 fails closed until it is declared.
     vllm_model_revision: str = Field(default="", validation_alias="BIDOPS_VLLM_MODEL_REVISION")
     vllm_api_key: SecretStr = Field(default_factory=lambda: SecretStr("EMPTY"), validation_alias="BIDOPS_VLLM_API_KEY")
     vllm_allowed_hosts: str = Field(default="", validation_alias="BIDOPS_VLLM_ALLOWED_HOSTS")
+    # 용도별 override (명세 §6.6). 빈 값은 "지정하지 않음"이고 그때는 위의
+    # 공유값을 쓴다. 공유값에도 허용 host나 선언 revision이 없으면 그 용도는
+    # `resolve_model_endpoint`에서 fail closed한다 — 여기서 기본 주소를 채워
+    # 넣지 않는 것이 요점이다.
+    vllm_screening_base_url: str = Field(default="", validation_alias="BIDOPS_VLLM_SCREENING_BASE_URL")
+    vllm_screening_allowed_hosts: str = Field(default="", validation_alias="BIDOPS_VLLM_SCREENING_ALLOWED_HOSTS")
+    vllm_screening_api_key: SecretStr = Field(default_factory=lambda: SecretStr(""), validation_alias="BIDOPS_VLLM_SCREENING_API_KEY")
+    vllm_screening_model_revision: str = Field(default="", validation_alias="BIDOPS_VLLM_SCREENING_MODEL_REVISION")
+    vllm_overview_base_url: str = Field(default="", validation_alias="BIDOPS_VLLM_OVERVIEW_BASE_URL")
+    vllm_overview_allowed_hosts: str = Field(default="", validation_alias="BIDOPS_VLLM_OVERVIEW_ALLOWED_HOSTS")
+    vllm_overview_api_key: SecretStr = Field(default_factory=lambda: SecretStr(""), validation_alias="BIDOPS_VLLM_OVERVIEW_API_KEY")
+    vllm_overview_model_revision: str = Field(default="", validation_alias="BIDOPS_VLLM_OVERVIEW_MODEL_REVISION")
+    vllm_deep_review_base_url: str = Field(default="", validation_alias="BIDOPS_VLLM_DEEP_REVIEW_BASE_URL")
+    vllm_deep_review_allowed_hosts: str = Field(default="", validation_alias="BIDOPS_VLLM_DEEP_REVIEW_ALLOWED_HOSTS")
+    vllm_deep_review_api_key: SecretStr = Field(default_factory=lambda: SecretStr(""), validation_alias="BIDOPS_VLLM_DEEP_REVIEW_API_KEY")
+    vllm_deep_review_model_revision: str = Field(default="", validation_alias="BIDOPS_VLLM_DEEP_REVIEW_MODEL_REVISION")
+    # C-1 공고 판정이 부르는 모델명. 개요·심층 검토는 policy의 `model_name`을
+    # 쓰므로 설정 항목이 없다.
+    vllm_screening_model: str = Field(default="qwen3.8-27B", validation_alias="BIDOPS_VLLM_SCREENING_MODEL")
     analysis_provider: Literal["vllm", "mock"] = Field(default="vllm", validation_alias="BIDOPS_ANALYSIS_PROVIDER")
     openai_enabled: bool = Field(default=False, validation_alias="BIDOPS_OPENAI_ENABLED")
+    # 참조 실행 모드는 provider에 매이지 않는다 (명세 §6.5). mock provider는 아래
+    # 검증이 이 모드를 필수로 요구하고, 승인된 사설 vLLM 경로도 이 모드에서는
+    # 측정값 없는 policy로 실행할 수 있다. 그 결과는 `deployable=false`이며 운영
+    # 완료·품질 근거·활성화 근거로 쓰지 않는다.
     reference_workflow_mode: bool = Field(default=False, validation_alias="BIDOPS_REFERENCE_WORKFLOW_MODE")
     document_worker_concurrency: int = Field(default=2, validation_alias="BIDOPS_DOCUMENT_WORKER_CONCURRENCY")
     analysis_worker_concurrency: int = Field(default=1, validation_alias="BIDOPS_ANALYSIS_WORKER_CONCURRENCY")
@@ -365,8 +308,8 @@ class Settings(BaseSettings):
             )
         if self.screen_concurrency != 1:
             raise ValueError("only BIDOPS_SCREEN_MAX_CONCURRENCY=1 is supported")
-        if self.model_timeout <= 0 or self.model_context <= 0 or self.model_max_output <= 0 or self.model_synthesis_output <= 0:
-            raise ValueError("model timeout, context, and output budgets must be positive")
+        if self.model_context <= 0 or self.model_max_output <= 0 or self.model_synthesis_output <= 0:
+            raise ValueError("model context and output budgets must be positive")
         if self.model_context > 131072 or self.model_max_output > 32768 or self.model_synthesis_output > 32768:
             raise ValueError("model context/output budgets exceed the supported generation bounds")
         if self.model_max_output > self.model_context or self.model_synthesis_output > self.model_context:
@@ -412,44 +355,12 @@ class Settings(BaseSettings):
             raise ValueError("unknown object namespace") from error
 
     @property
-    def ollama_endpoint(self) -> str:
-        return self.model_base_url
-
-    @property
-    def ollama_base_url(self) -> str:
-        return self.model_base_url
-
-    @property
-    def ollama_model(self) -> str:
-        return self.model_name
-
-    @property
-    def ollama_timeout_seconds(self) -> int:
-        return self.model_timeout
-
-    @property
-    def ollama_keep_alive(self) -> str | int | float:
-        return self.model_keep_alive
-
-    @property
-    def ollama_context_size(self) -> int:
-        return self.model_context
-
-    @property
-    def ollama_max_output_tokens(self) -> int:
-        return self.model_max_output
-
-    @property
     def screen_heartbeat_seconds(self) -> int:
         return self.heartbeat_seconds
 
     @property
     def screen_stale_after_seconds(self) -> int:
         return self.stale_seconds
-
-    @property
-    def live_ollama_test(self) -> bool:
-        return self.live_test
 
     @property
     def database_path(self) -> Path:

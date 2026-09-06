@@ -45,13 +45,14 @@ function DistributionContent({ distribution, runId }: Pick<GradeDistributionProp
               className={className}
               key={item.key}
               style={{ width: `${width}%` }}
-              title={label}
               to={queueLink(runId, item.key)}
             >
               <span className="dashboard-grade-segment-count mono tabular-nums">{formatNumber(item.count)}</span>
             </Link>
           ) : (
-            <div className={className} key={item.key} style={{ width: `${width}%` }} title={label} />
+            /* 등급 이름과 건수는 아래 legend가 글자로 적는다. 막대에 `title`
+               툴팁을 겹쳐 두면 마우스에만 보이는 두 번째 설명이 된다. */
+            <div className={className} key={item.key} style={{ width: `${width}%` }} />
           );
         })}
       </div>

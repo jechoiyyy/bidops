@@ -29,6 +29,7 @@ from ..agents import (
     validation_artifact_ref,
 )
 from ...core.db import get_db
+from ...core.constants import DEEP_REVIEW_CREATION_ACTIONS
 from ...core.models import AuditEvent, IdempotencyRecord
 from ..models import DeepReview, ReportRevision, ValidationCheck, ValidationRun
 from ..schemas.reports import EvidenceView, FinalOpinionRequest, FinalOpinionView, ReportRevisionRequest, ReportView
@@ -129,7 +130,8 @@ def _review_lineage(session: Session, review_id: UUID) -> UUID | None:
     audits = session.scalars(
         select(AuditEvent)
         .where(
-            AuditEvent.action == "deep_review.create",
+            # 사람 클릭과 자동 시작 둘 다 이 검토의 생성 감사다 (§6.4).
+            AuditEvent.action.in_(DEEP_REVIEW_CREATION_ACTIONS),
             AuditEvent.aggregate_type == "deep_review",
             AuditEvent.aggregate_id == str(review_id),
         )

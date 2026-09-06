@@ -63,7 +63,18 @@ PostgreSQL 17의 `bidops` 스키마와 MinIO 목적별 버킷이 운영 정본�
 
 ## 외부 모델 전송
 
-운영 경로는 OpenAI hosted API로 자동 전환하지 않는다. Ollama 또는 사설 vLLM 실패는 사람 검토 상태로 끝나며 실패 자체가 외부 전송 동의가 아니다.
+운영 경로는 OpenAI hosted API로 자동 전환하지 않는다. 사설 vLLM 실패는 사람 검토 상태로 끝나며 실패 자체가 외부 전송 동의가 아니다.
+
+C-1 공고 판정, 사전규격 개요 검토, 심층 검토는 `app/core/model_client.py` 하나를 쓰고 용도별 설정으로 나간다([ADR-0050](tracking/decisions/0050-unified-openai-compatible-model-client.md)). 용도는 `screening`·`overview`·`deep_review` 셋이며 각각 자기 endpoint·허용 host·자격증명·선언 revision을 가진다.
+
+- 공유값 `BIDOPS_VLLM_{BASE_URL,ALLOWED_HOSTS,API_KEY,MODEL_REVISION}`가 기본이고, `BIDOPS_VLLM_{용도}_*`가 있으면 그것을 쓴다. **빈 override는 미선언이며 공유값으로 떨어진다.**
+- **허용 host가 비었거나 선언 revision이 64자 hex가 아니면 그 용도는 네트워크 호출 전에 fail closed한다.** client를 만든 뒤에 검사하면 이미 주소를 연 상태가 되고 기본값으로 hosted 주소가 새어 들어갈 자리가 생긴다.
+- 이 게이트가 사는 자리는 용도별 설정을 푸는 `resolve_model_endpoint`이고, `ModelClient.for_purpose`가 그것을 지난 뒤에만 client를 만든다. **생성자 자체는 게이트가 아니다** — 직접 생성은 transport 주입 seam이며 허용 host 목록과 선언 revision을 호출자가 넘겨야 한다. 운영 경로는 예외 없이 `for_purpose`를 지나고, 직접 만드는 제품 코드는 `app/screening/model_adapter.py`의 주입 transport 한 곳뿐이며 그곳은 선언 revision을 스스로 64자 hex로 검사한다. 이 예외가 늘지 않는 것은 `tests/core/test_model_client.py`가 강제한다.
+- 한 용도의 fail closed가 다른 용도로 새지 않는다. 다른 주소나 다른 provider로 넘어가는 경로는 없다.
+- base URL은 허용 host와 정확히 일치해야 하고 경로는 `/v1`이어야 한다. redirect, 환경 proxy, SDK 자동 재시도는 쓰지 않는다.
+- 선언 revision은 배포가 증언하는 값이다([ADR-0042](tracking/decisions/0042-c2-model-revision-declared-at-deployment.md)). 서버가 응답에 revision을 실어 보내는 경우에만 대조하고, 다르면 `model_revision_invalid`다. served id에 설정·policy 모델명이 없으면 `model_not_served`, 서버에 물을 수 없으면 `identity_unavailable`이다. 세 코드 모두 안전한 분류이며 endpoint·prompt·응답 본문을 담지 않는다.
+- API key는 `SecretStr`로만 다뤄 repr·로그에 값이 실리지 않는다. 오류 메시지에서 URL·경로·비밀 형태 문자열은 저장 전에 redaction한다.
+- 참조 실행 모드(`BIDOPS_REFERENCE_WORKFLOW_MODE=true`)는 결정적 mock provider를 허용하고 policy 모델명 대조를 건너뛰지만 `model_endpoint_ref` 검사는 유지한다. 그 결과에는 `quality_status=unmeasured_reference|mock_reference` 표식이 붙으며 운영 완료·품질 근거·활성화 근거로 쓰지 않는다.
 
 발주계획 선별 실험에서 Luna·Sol을 사용할 때는 공개 발주계획 필드와 사람이 승인한 회사 역량 요약만 전송한다. 실행마다 모델·목적·전송 필드·건수·승인자·시각을 미리 보여 주고 승인 뒤 호출한다. 승인되지 않은 추가 필드가 있거나 회사 프로필 원문·제안요청서·첨부·리뷰가 포함되면 전체 실행을 중단한다.
 

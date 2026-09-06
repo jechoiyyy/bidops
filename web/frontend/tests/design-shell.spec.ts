@@ -48,7 +48,21 @@ test("모든 시안 대상 route가 공통 bidops light 셸 안에서 렌더링�
     await expect(shell.locator('[data-shell-region="sidebar"]')).toBeAttached();
     await expect(shell.locator('[data-shell-region="topbar"]')).toBeAttached();
     await expect(shell.locator('[data-shell-region="canvas"]')).toBeAttached();
+    // 상단바는 제목을 반복하지 않고 현재 위치를 보여 준다. 화면 이름 칸이
+    // `<h1>`이므로 문서의 level 1 제목은 하나로 유지된다.
+    await expect(shell.locator("header.topbar nav[aria-label='현재 위치']")).toBeAttached();
+    await expect(shell.locator("header.topbar h1")).toHaveCount(1);
   }
+});
+
+// ADR-0047: 지원 폭은 1280~1920px뿐이다. 좁은 폭 서랍(메뉴 단추·backdrop)은
+// 지원 폭에서 한 번도 열리지 않는 죽은 코드였다. 사이드바는 늘 보인다.
+test("셸에 좁은 폭 서랍이 없고 사이드바가 항상 보인다", async ({ page }) => {
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("button", { name: /주 메뉴/ })).toHaveCount(0);
+  await expect(page.locator(".topbar-menu")).toHaveCount(0);
+  await expect(page.locator(".sidebar-backdrop")).toHaveCount(0);
+  await expect(page.locator("aside.sidebar")).toBeVisible();
 });
 
 test("1440px 셸의 무드보드 색과 기준 치수를 고정한다", async ({ page }, testInfo) => {
@@ -77,6 +91,9 @@ test("1440px 셸의 무드보드 색과 기준 치수를 고정한다", async ({
       topbarHeight: topbar.getBoundingClientRect().height,
       canvasBackground: canvasStyle.backgroundColor,
       canvasPadding: [canvasStyle.paddingTop, canvasStyle.paddingRight, canvasStyle.paddingBottom, canvasStyle.paddingLeft],
+      // 1280px 미만은 별도 레이아웃이 아니라 가로 스크롤이다(ADR-0047).
+      shellMinWidth: rootStyle.minWidth,
+      bodyMinWidth: getComputedStyle(document.body).minWidth,
       accentToken: rootStyle.getPropertyValue("--color-accent").trim(),
       // legacy @theme 이 :root 로 방출되어 테마를 이기던 토큰들(ADR-0048 §4-1).
       borderToken: rootStyle.getPropertyValue("--color-border").trim(),
@@ -94,6 +111,8 @@ test("1440px 셸의 무드보드 색과 기준 치수를 고정한다", async ({
     topbarHeight: 76,
     canvasBackground: "rgb(242, 240, 239)",
     canvasPadding: ["16px", "18px", "16px", "18px"],
+    shellMinWidth: "1280px",
+    bodyMinWidth: "1280px",
   });
 
   // accent 는 무드보드 slate 다. RootLab 녹색이 되돌아오지 않았는지도 함께 본다.

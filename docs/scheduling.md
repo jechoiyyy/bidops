@@ -52,10 +52,13 @@ daily callback은 effective always-on 확인 후 전일 reservation을 만들고
 
 schedule enqueue 전 frozen `generation_config` JSON/digest를 current process
 settings와 먼저 대조한다. drift 또는 legacy all-2048 approval이면 model
-inspection·reservation·queue row보다 먼저 fail closed한다. 그 뒤 Ollama
-endpoint 및 exact model/digest preflight를 한다. 실패하면 빈 screening input이나
-fallback을 만들지 않고 schedule execution을 실패 사유 `ollama_unavailable`로
-남긴다. worker가 실행 중 다시 identity를 검사하며 mismatch도 실패다. OpenAI
+inspection·reservation·queue row보다 먼저 fail closed한다. 그 뒤 `screening`
+용도의 모델 endpoint preflight를 한다 — 허용 host와 선언 revision을 확인하고
+`GET {base_url}/models`의 served id에 설정 모델명이 있는지 본다
+([ADR-0050](tracking/decisions/0050-unified-openai-compatible-model-client.md)).
+실패하면 빈 screening input이나 fallback을 만들지 않고 schedule execution을 실패
+사유 `ollama_unavailable`로 남긴다. **이 문자열은 이미 DB와 artifact에 기록된
+계약값이라 이름만 남았고 현재 뜻은 "모델 endpoint를 쓸 수 없음"이다.** worker가 실행 중 다시 identity를 검사하며 mismatch도 실패다. OpenAI
 호출은 존재하지 않는다. API schedule/always-on 응답은 canonical
 `generation_config`와 digest를 함께 노출하고, 요청은 이 값을 받지 않는다.
 

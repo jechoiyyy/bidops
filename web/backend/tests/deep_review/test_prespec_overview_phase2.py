@@ -291,14 +291,13 @@ def test_empty_evidence_fails_attempt_without_result(tmp_path: Path) -> None:
         engine.dispose()
 
 
-@pytest.mark.parametrize(
-    ("reference_only", "deployable"), [(True, False), (False, False)]
-)
-def test_non_deployable_attempt_cannot_complete_but_can_fail_or_cancel(
-    tmp_path: Path, reference_only: bool, deployable: bool
+def test_mock_reference_attempt_cannot_complete_but_can_fail_or_cancel(
+    tmp_path: Path,
 ) -> None:
+    """결정적 mock(`reference_only`)만 완료할 수 없다 (명세 §6.3)."""
+
     engine, session, _notice, _review, attempt = _ready_attempt(
-        tmp_path, reference_only=reference_only, deployable=deployable
+        tmp_path, reference_only=True, deployable=False
     )
     try:
         transition_overview_attempt(
@@ -327,6 +326,38 @@ def test_non_deployable_attempt_cannot_complete_but_can_fail_or_cancel(
         )
         session.commit()
         assert attempt.status == "failed"
+    finally:
+        session.close()
+        engine.dispose()
+
+
+def test_unmeasured_real_attempt_completes_without_being_deployable(
+    tmp_path: Path,
+) -> None:
+    """실제 모델의 품질 미측정 실행은 완료된다. `deployable`은 여전히 false다."""
+
+    engine, session, _notice, review, attempt = _ready_attempt(
+        tmp_path, reference_only=False, deployable=False
+    )
+    try:
+        transition_overview_attempt(
+            session,
+            attempt.id,
+            "running",
+            actor_id="fake-worker",
+            reason_code="started",
+        )
+        session.commit()
+        complete_overview_attempt(session, attempt.id, _payload())
+        session.commit()
+        assert attempt.status == "completed"
+        assert attempt.deployable is False
+        assert review.status == "completed"
+        assert session.scalar(
+            select(PreSpecOverviewResult).where(
+                PreSpecOverviewResult.attempt_id == attempt.id
+            )
+        ) is not None
     finally:
         session.close()
         engine.dispose()

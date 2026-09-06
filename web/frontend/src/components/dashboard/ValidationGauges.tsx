@@ -76,7 +76,7 @@ export function ValidationGauges({ metrics }: ValidationGaugesProps) {
   const panelAction = rows.length === 0
     ? <span className="panel-note">검증 기준 없음</span>
     : failed > 0
-      ? <Badge label={`${formatNumber(rows.length)}개 중 ${formatNumber(failed)}개 미달`} variant="alert" />
+      ? <Badge label={`${formatNumber(rows.length)}개 중 ${formatNumber(failed)}개 미달`} variant="danger" />
       : <span className="panel-note">{formatNumber(rows.length)}개 항목 모두 통과</span>;
 
   return (
