@@ -813,7 +813,7 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
   - `pre-specs-list`: 등급과 자동 준비 열 **두 개가 추가**됐다.
   - `deep-review-complete`: 상단 카드가 4 → 5(`품질 표식`)로, 우측 열이 3 → 4구역
     (문서 inventory 추가)으로 늘었다.
-- 상태: **미해결 · 기준선 미갱신.** 이번 작업에서 **다시 찍지 않았다.** 픽셀 층은 게이트가
+- 상태: **해결** (2026-09-07, 아래 기록). 확인 시점(2026-09-05)에는 미갱신이었고 그 작업에서는 **다시 찍지 않았다.** 픽셀 층은 게이트가
   아니므로(`docs/standards.md`의 "화면 검사의 세 층") `npm run test:screens`는 영향받지 않는다.
 - 영향: 픽셀 층을 돌리면 두 장이 실패한다. 그 실패는 "화면이 틀렸다"가 아니라 "지난
   기준선과 달라졌다"는 뜻이다. 다만 **그 두 화면에 대해서는 픽셀 층이 회귀를 잡아 주지
@@ -826,7 +826,20 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
   - **사유**: 등급·자동 준비 열 추가(ADR-0049)와 품질 표식 카드·문서 inventory 패널
     추가(ADR-0050·0051)로 화면 구조가 바뀌었다.
   - **영향 화면**: `pre-specs-list`, `deep-review-complete` 두 장. 나머지 여섯 장은 그대로다.
-  - **승인자**: 아직 없다. 저장소 소유자의 명시 지시를 받은 뒤 적는다.
+  - **승인자**: 아래 2026-09-07 기록 참조.
+- **기준선 교체 기록 (2026-09-07)**
+  - 명령: `cd web/frontend && npm run test:pixel:update` → 9 passed, 8장 교체(`bid-delta-changed`,
+    `criteria`, `dashboard`, `deep-review-complete`, `opportunities-list`, `order-plan-detail`,
+    `order-plans-list`, `pre-specs-list`).
+  - 사유: UI/UX 고도화 4웨이브. cascade layer 순서 선언(`styles/layers.css`)으로 Astryx 컴포넌트
+    chrome이 전 화면에서 되살아났고, 상단바가 경로 표시로 바뀌었으며, 타이포 4단
+    (`styles/typography.css`, 최소 12px)·배지 `danger` 분리·사전규격 목록 리스트 행·대시보드
+    할 일 스트립 재구성·용어 한국어화가 들어갔다. 위에 적힌 두 장의 이전 드리프트(등급·자동
+    준비 열, 품질 표식 카드·문서 inventory)도 이번 교체에 포함됐다.
+  - 영향 화면: 8장 전부. 픽셀 층은 게이트가 아니며 `npm run test:screens` 300 passed /
+    `npm run test:contrast` 9 pass를 같은 트리에서 확인했다.
+  - 승인자: jechoi (저장소 소유자, 2026-09-07 대화에서 "픽셀 기준선 갱신하고 웨이브 단위로
+    커밋해줘"로 명시 지시). 실행: Claude Code 세션.
 
 ## runtime image에 쓰이지 않는 `BIDOPS_OLLAMA_BASE_URL` ENV가 남아 있다
 
