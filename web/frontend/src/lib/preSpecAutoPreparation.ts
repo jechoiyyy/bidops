@@ -45,7 +45,9 @@ export function preSpecAutoPreparationReasonLabel(reason: string | null | undefi
 }
 
 export function preSpecAutoPreparationVariant(status: PreSpecAutoPreparationStatus): BadgeVariant {
-  if (status === "blocked") return "alert";
+  // `blocked`는 자동 준비가 **멈춘** 상태다. 확인이 필요한 경고가 아니라
+  // 진행이 막힌 것이므로 오류 색을 쓴다.
+  if (status === "blocked") return "danger";
   if (status === "deep_review_started" || status === "bundle_ready") return "evidence-confirmed";
   return "neutral";
 }

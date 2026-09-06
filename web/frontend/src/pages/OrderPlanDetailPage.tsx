@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { ActorField } from "../components/common/ActorField";
 import { EmptyState } from "../components/common/EmptyState";
 import { MutationFeedback } from "../components/common/MutationFeedback";
@@ -13,7 +13,8 @@ import {
   StickyDecisionHeader,
 } from "../components/common/ReviewPrimitives";
 import { StatusBadge, type StatusTone } from "../components/common/StatusBadge";
-import { api, ApiError } from "../lib/api";
+import { api } from "../lib/api";
+import { describeApiError } from "../lib/apiErrors";
 import type {
   OrderPlanFeedbackPriority,
   OrderPlanRelevance,
@@ -122,7 +123,7 @@ function ExecutionHistoryCard({
       </div>
 
       <section className="c2-attempt-summary" aria-label={`${item.execution_id} 시도 및 실패 정보`}>
-        <h5>attempt / failure 정보</h5>
+        <h5>분석 회차 / 실패 정보</h5>
         {pending ? <p className="c2-muted" role="status">실행 상세를 불러오는 중…</p> : null}
         {error ? <p className="c2-inline-warning" role="alert">실행 상세를 불러오지 못했습니다. 실패 행을 성공이나 0건으로 해석하지 않습니다.</p> : null}
         {!pending && !error && detail ? (
@@ -147,7 +148,7 @@ function ExecutionHistoryCard({
                   </li>
                 ))}
               </ol>
-            ) : <p>attempt 기록 없음 (서버 응답)</p>}
+            ) : <p>분석 회차 기록 없음 (서버 응답)</p>}
             {detail.error_code !== null ? <p>execution error code: <span className="mono">{detail.error_code}</span></p> : <p>execution error code: null (서버 미제공)</p>}
           </>
         ) : null}
@@ -166,7 +167,7 @@ function ExecutionHistoryCard({
               </li>
             ))}
           </ul>
-          <p className="c2-muted">artifact metadata만 표시하며 원문·객체 경로·다운로드 동작은 제공하지 않습니다.</p>
+          <p className="c2-muted">산출물 정보만 표시하며 원문·객체 경로·다운로드는 제공하지 않습니다.</p>
         </section>
       ) : null}
     </article>
@@ -238,7 +239,7 @@ function FeedbackForm({
       }}
     >
       <h4>사람 relevance / priority / note 기록</h4>
-      <p className="c2-form-note">새 revision을 append-only로 추가합니다. tracking 상태·fitness grade·readiness·최종 Go/No-Go를 변경하지 않습니다.</p>
+      <p className="c2-form-note">사람 판단을 새 수정본으로 남깁니다. 추가만 기록하며 추적 상태·적합성 등급·참여 준비 상태·최종 Go/No-Go를 바꾸지 않습니다.</p>
       <div className="c2-form-grid">
         <label>
           <span>relevance</span>
@@ -258,14 +259,14 @@ function FeedbackForm({
         <span>note</span>
         <textarea rows={3} value={memo} onChange={(event) => setMemo(event.target.value)} placeholder="사람 검토 근거 또는 다음 확인 사항" />
       </label>
-      <ActorField value={actorName} onChange={setActorName} label="담당자 claimed name" placeholder="예: 홍길동" autoComplete="off" />
-      <p className="c2-muted">대상 execution <span className="mono">{executionId}</span> · expected revision {expectedRevision}</p>
-      {mutation.isError ? <MutationFeedback tone="error">{mutation.error instanceof ApiError ? mutation.error.message : "사람 피드백을 저장하지 못했습니다."}</MutationFeedback> : null}
-      {mutation.isSuccess ? <MutationFeedback tone="success">새 사람 피드백 revision을 저장했습니다.</MutationFeedback> : null}
-      {/* 헤더의 `새 revision 저장`과 같은 submit이다. 이름을 달리해 두 버튼이
+      <ActorField value={actorName} onChange={setActorName} label="담당자 이름" placeholder="예: 홍길동" autoComplete="off" />
+      <p className="c2-muted">대상 실행 <span className="mono">{executionId}</span> · 기대 수정본 {expectedRevision}</p>
+      {mutation.isError ? <MutationFeedback tone="error" problem={describeApiError(mutation.error, "사람 피드백을 저장하지 못했습니다.")} /> : null}
+      {mutation.isSuccess ? <MutationFeedback tone="success">새 사람 피드백 수정본을 저장했습니다.</MutationFeedback> : null}
+      {/* 헤더의 `새 수정본 저장`과 같은 submit이다. 이름을 달리해 두 버튼이
           같은 이름으로 두 번 잡히지 않게 한다(입찰 변경 비교와 같은 방식). */}
       <button className="c2-button" type="submit" disabled={!ready}>
-        {mutation.isPending ? "저장 중…" : "사람 피드백 revision 저장"}
+        {mutation.isPending ? "저장 중…" : "사람 피드백 수정본 저장"}
       </button>
     </form>
   );
@@ -339,7 +340,7 @@ export function OrderPlanDetailPage() {
   const latestExecution = history.length > 0 ? history[0] : null;
   const feedbackDisabledReason = feedbackReady
     ? undefined
-    : "새 revision을 저장하려면 본문의 사람 판단 입력에서 담당자 claimed name을 입력하십시오.";
+    : "새 수정본을 저장하려면 본문의 사람 판단 입력에서 담당자 이름을 입력하십시오.";
 
   return (
     <section className="c2-page c2-detail-page detail-skeleton" data-astryx-theme="bidops" aria-labelledby="order-plan-detail-title">
@@ -355,8 +356,10 @@ export function OrderPlanDetailPage() {
       <StickyDecisionHeader className="c2-page-header detail-skeleton-head" label="발주계획 상세 결정 헤더">
         <div className="detail-skeleton-head-top">
           <div>
-            <Link className="c2-back-link" to={returnPath}>← 발주계획 목록</Link>
-            <p className="c2-kicker">발주계획 C-2 상세</p>
+            {/* 되돌아가기 링크와 kicker는 상단 경로(`nav[aria-label="현재 위치"]`)가
+                이미 `탐색과 추적 › 발주계획 › 발주계획 C-2 상세 › #ID`로 말한다.
+                같은 말을 두 자리에 두면 어느 쪽이 현재 위치인지 흐려진다.
+                목록으로 돌아가는 길은 상단 경로와 우측 레일의 `발주계획 목록 →`이다. */}
             <h2 id="order-plan-detail-title">{detailQuery.data ? textOrUnknown(detailQuery.data.title) : "발주계획 상세"}</h2>
           </div>
           <div className="c2-contract-note">relevance는 tracking/등급/준비/최종 결정과 다른 상태축</div>
@@ -365,7 +368,7 @@ export function OrderPlanDetailPage() {
         <div className="detail-skeleton-status-row">
           {latestExecution ? <StatusBadge label={`최근 실행 ${latestExecution.execution_status}`} tone={statusTone(latestExecution.execution_status)} /> : null}
           <StatusBadge
-            label={latestFeedback ? `최근 피드백 rev ${latestFeedback.revision}` : "피드백 없음"}
+            label={latestFeedback ? `최근 피드백 수정본 ${latestFeedback.revision}` : "피드백 없음"}
             tone={latestFeedback ? statusTone(latestFeedback.relevance) : "neutral"}
           />
           <div className="detail-skeleton-actions">
@@ -377,7 +380,7 @@ export function OrderPlanDetailPage() {
                   disabledReasonId="c2-detail-feedback-disabled"
                   form={FEEDBACK_FORM_ID}
                   isDisabled={!feedbackReady}
-                  label="새 revision 저장"
+                  label="새 수정본 저장"
                   type="submit"
                   variant="primary"
                 />
@@ -385,13 +388,13 @@ export function OrderPlanDetailPage() {
                   사람 판단 입력으로 이동
                 </button>
               </>
-            ) : <p className="c2-muted">피드백을 기록할 execution history가 없습니다.</p>}
+            ) : <p className="c2-muted">피드백을 기록할 실행 이력이 없습니다.</p>}
           </div>
         </div>
         {savedMessage ? <MutationFeedback tone="success">{savedMessage}</MutationFeedback> : null}
       </StickyDecisionHeader>
 
-      <p className="c2-page-lede">관측·단계 결과·시도/실패 투영·안전한 artifact·사람 피드백 revision을 한 건 단위로 확인합니다.</p>
+      <p className="c2-page-lede">한 건의 관측·단계 결과·실패 정보·안전한 산출물을 확인하고 사람 판단을 새 수정본으로 남깁니다. 이 화면은 추적 상태나 최종 Go/No-Go를 정하지 않습니다.</p>
       <p className="c2-semantics-note"><code>filtered_out</code>·<code>not_relevant</code>·<code>unknown</code>·<code>null</code>은 각각 BM25 탈락·relevance 음성·정보 부족·값 없음/미적용을 뜻하며 서로 대체하지 않습니다.</p>
 
       {detailQuery.isPending ? <p className="c2-loading" role="status">발주계획 상세를 불러오는 중…</p> : null}
@@ -399,7 +402,7 @@ export function OrderPlanDetailPage() {
         <EmptyState
           tone="error"
           title="발주계획 상세를 불러오지 못했습니다."
-          description={detailQuery.error instanceof ApiError ? detailQuery.error.message : "계약에 맞는 상세 응답이 없습니다."}
+          description={describeApiError(detailQuery.error, "계약에 맞는 상세 응답이 없습니다.").detail}
           action={{ label: "목록으로", to: returnPath }}
         />
       ) : null}
@@ -423,19 +426,19 @@ export function OrderPlanDetailPage() {
               </div>
             </Panel>
 
-            {/* 시안 `OrderPlanDetail`은 사람 피드백 revision 이력과 새 revision
+            {/* 시안 `OrderPlanDetail`은 사람 피드백 수정본 이력과 새 수정본
                 입력을 **본문 열**에 함께 둔다. 이력을 우측 레일에 두면 지금
-                저장하려는 값과 직전 revision을 한눈에 대조할 수 없다. 레일은
+                저장하려는 값과 직전 수정본을 한눈에 대조할 수 없다. 레일은
                 관측·실행 이력과 연결만 담는다. */}
             <div ref={feedbackPanelRef}>
               <Panel
                 className="c2-feedback-panel"
-                title="사람 피드백 revision history"
-                action={<span className="c2-muted">append-only · {feedback.length.toLocaleString("ko-KR")}건</span>}
+                title="사람 피드백 수정본 이력"
+                action={<span className="c2-muted">추가만 기록 · {feedback.length.toLocaleString("ko-KR")}건</span>}
               >
                 <ReviewRevisionHistory
                   className="c2-feedback-history"
-                  empty="사람 피드백이 없습니다. 사람 relevance·priority·note를 새 revision으로 기록할 수 있습니다."
+                  empty="사람 피드백이 없습니다. 사람 판단을 새 수정본으로 기록할 수 있습니다."
                   entries={feedback.map((item) => ({
                     actor: item.claimed_name,
                     at: formatMoment(item.created_at),
@@ -450,9 +453,9 @@ export function OrderPlanDetailPage() {
                     revision: item.revision,
                     tags: <StatusBadge label={item.relevance} tone={statusTone(item.relevance)} />,
                   }))}
-                  error={feedbackQuery.isError ? "사람 피드백 history를 불러오지 못했습니다. 저장 전 현재 revision을 확인할 수 없습니다." : undefined}
+                  error={feedbackQuery.isError ? "사람 피드백 이력을 불러오지 못했습니다. 저장 전 현재 수정본을 확인할 수 없습니다." : undefined}
                   headingLevel={4}
-                  label="사람 피드백 revision 이력"
+                  label="저장된 수정본 목록"
                 />
                 {selectedExecutionId ? (
                   <FeedbackForm
@@ -461,10 +464,10 @@ export function OrderPlanDetailPage() {
                     executionId={selectedExecutionId}
                     expectedRevision={expectedRevision}
                     onReadyChange={handleFeedbackReadyChange}
-                    onSaved={() => setSavedMessage("사람 피드백 revision을 추가했습니다.")}
+                    onSaved={() => setSavedMessage("사람 피드백 수정본을 추가했습니다.")}
                   />
                 ) : (
-                  <p className="c2-muted">피드백을 기록할 execution history가 없습니다. 실행 기록 없이 revision을 만들지 않습니다.</p>
+                  <p className="c2-muted">피드백을 기록할 실행 이력이 없습니다. 실행 기록 없이 수정본을 만들지 않습니다.</p>
                 )}
               </Panel>
             </div>

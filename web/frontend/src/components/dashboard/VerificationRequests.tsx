@@ -27,7 +27,7 @@ export function VerificationRequests({ requests, runId }: VerificationRequestsPr
     <Panel
       className="dashboard-verification-panel"
       title="담당자 확인 요청"
-      action={total > 0 ? <Badge label={`차단 항목 ${formatNumber(total)}건`} variant="alert" /> : <span className="panel-note">확인 요청 없음</span>}
+      action={total > 0 ? <Badge label={`차단 항목 ${formatNumber(total)}건`} variant="danger" /> : <span className="panel-note">확인 요청 없음</span>}
     >
       {sorted.length === 0 ? (
         <EmptyState compact title="차단 확인 항목이 없습니다." description="차단으로 표시된 확인 항목만 집계합니다." />

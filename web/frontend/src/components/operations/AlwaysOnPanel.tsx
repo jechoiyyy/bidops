@@ -35,27 +35,18 @@ function isPresent(value: string | null | undefined): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
-function compactDigest(value: string): string {
-  if (value.length <= 30) return value;
-  return `${value.slice(0, 14)}…${value.slice(-12)}`;
-}
-
-function compactIdentifier(value: string | null | undefined): string {
-  const normalized = value?.trim();
-  if (!normalized) return "값 없음";
-  if (normalized.length <= 34) return normalized;
-  return `${normalized.slice(0, 16)}…${normalized.slice(-12)}`;
+/** 승인 조합의 digest·식별자는 담당자가 눈으로 대조하는 값이다. 줄여 놓고
+ * 전체를 `title` 툴팁에만 두면 키보드·스크린리더로는 확인할 길이 없고 마우스로도
+ * 복사할 수 없다. 그래서 줄이지 않고 그대로 적으며, 줄바꿈은 컨테이너의
+ * `overflow-wrap: anywhere`(operations.css)가 처리한다. */
+function identifierText(value: string | null | undefined): string {
+  return value?.trim() || "값 없음";
 }
 
 function DigestValue({ value, className = "" }: { value: string | null | undefined; className?: string }) {
-  const normalized = value?.trim() ?? "";
   return (
-    <span
-      aria-label={normalized ? `전체 digest ${normalized}` : "digest 값 없음"}
-      className={`operations-digest-value mono ${className}`.trim()}
-      title={normalized || undefined}
-    >
-      {normalized ? compactDigest(normalized) : "값 없음"}
+    <span className={`operations-digest-value mono ${className}`.trim()}>
+      {identifierText(value)}
     </span>
   );
 }
@@ -102,13 +93,13 @@ export function AlwaysOnPanel({ state, activePolicy, activePolicyVersion, policy
     [state.quality_gate_result_id, "quality gate evaluation"],
     [state.policy_version, "정책 버전"],
     [state.model_name, "모델 tag"],
-    [state.model_digest, "모델 digest"],
+    [state.model_digest, "모델 식별 해시"],
     [state.prompt_version, "prompt version"],
     [state.company_profile_version, "프로필 version"],
-    [state.company_profile_digest, "프로필 digest"],
+    [state.company_profile_digest, "프로필 식별 해시"],
     [activePolicy?.quality_gate_result_id ?? null, "active 정책의 게이트 연결"],
     [activePolicy?.prompt_version ?? null, "active 정책의 prompt version"],
-    [activePolicy?.content_digest ?? null, "active 정책 digest"],
+    [activePolicy?.content_digest ?? null, "활성 정책 식별 해시"],
   ];
   const missingMetadata = metadataFields.filter(([value]) => !isPresent(value)).map(([, label]) => label);
   const metadataComplete = missingMetadata.length === 0;
@@ -206,7 +197,7 @@ export function AlwaysOnPanel({ state, activePolicy, activePolicyVersion, policy
     if (!isPresent(activePolicy.content_digest)) {
       structuralBlockers.push({
         key: "policy-digest",
-        message: "active 정책 digest가 없습니다.",
+        message: "활성 정책 식별 해시가 없습니다.",
         href: "/policies",
         linkLabel: "정책 열기",
       });
@@ -317,11 +308,11 @@ export function AlwaysOnPanel({ state, activePolicy, activePolicyVersion, policy
         <div className="operations-approval-binding" aria-labelledby="operations-binding-title">
           <div className="operations-subheading"><h4 id="operations-binding-title">현재 승인 조합</h4><span className="operations-binding-status">게이트 {valueLabel(state.quality_gate_status)}</span></div>
           <dl className="operations-binding-list">
-            <div><dt>quality gate evaluation</dt><dd className="mono" title={gateId ?? undefined}>{compactIdentifier(gateId)}</dd></div>
-            <div><dt>정책 버전 · digest</dt><dd><span className="mono">{valueLabel(state.policy_version)}</span><DigestValue value={policyDigest} className="operations-binding-digest" /></dd></div>
-            <div><dt>모델 tag · digest</dt><dd><span className="mono">{valueLabel(state.model_name)}</span><DigestValue value={state.model_digest} className="operations-binding-digest" /></dd></div>
+            <div><dt>quality gate evaluation</dt><dd className="mono">{identifierText(gateId)}</dd></div>
+            <div><dt>정책 버전 · 식별 해시</dt><dd><span className="mono">{valueLabel(state.policy_version)}</span><DigestValue value={policyDigest} className="operations-binding-digest" /></dd></div>
+            <div><dt>모델 이름 · 식별 해시</dt><dd><span className="mono">{valueLabel(state.model_name)}</span><DigestValue value={state.model_digest} className="operations-binding-digest" /></dd></div>
             <div><dt>prompt version</dt><dd className="mono">{valueLabel(state.prompt_version)}</dd></div>
-            <div><dt>프로필 version · digest</dt><dd><span className="mono">{valueLabel(state.company_profile_version)}</span><DigestValue value={state.company_profile_digest} className="operations-binding-digest" /></dd></div>
+            <div><dt>프로필 버전 · 식별 해시</dt><dd><span className="mono">{valueLabel(state.company_profile_version)}</span><DigestValue value={state.company_profile_digest} className="operations-binding-digest" /></dd></div>
           </dl>
         </div>
 
@@ -364,15 +355,15 @@ export function AlwaysOnPanel({ state, activePolicy, activePolicyVersion, policy
                         <div><span className="mono">{valueLabel(state.policy_version)}</span><BindingStatus status={policyVersionStatus} /><small>active {valueLabel(activePolicyVersion)}</small></div>
                       </div>
                       <div className="operations-dialog-binding-row">
-                        <span>정책 digest</span>
-                        <div><DigestValue value={policyDigest} className="operations-dialog-digest" /><BindingStatus status="unknown" label={isPresent(policyDigest) ? "active 정책 기준값" : "값 없음"} /></div>
+                        <span>정책 식별 해시</span>
+                        <div><DigestValue value={policyDigest} className="operations-dialog-digest" /><BindingStatus status="unknown" label={isPresent(policyDigest) ? "활성 정책 기준값" : "값 없음"} /></div>
                       </div>
                       <div className="operations-dialog-binding-row">
                         <span>게이트 결과 ID</span>
-                        <div><span className="mono" title={gateId ?? undefined}>{compactIdentifier(gateId)}</span><BindingStatus status={policyGateStatus} /><small>현재 상태 {valueLabel(state.quality_gate_status)}</small></div>
+                        <div><span className="mono">{identifierText(gateId)}</span><BindingStatus status={policyGateStatus} /><small>현재 상태 {valueLabel(state.quality_gate_status)}</small></div>
                       </div>
                       <div className="operations-dialog-binding-row">
-                        <span>모델 · digest</span>
+                        <span>모델 · 식별 해시</span>
                         <div><span className="mono">{valueLabel(state.model_name)}</span><DigestValue value={state.model_digest} className="operations-dialog-digest" /><BindingStatus status="unknown" /></div>
                       </div>
                       <div className="operations-dialog-binding-row">
@@ -380,7 +371,7 @@ export function AlwaysOnPanel({ state, activePolicy, activePolicyVersion, policy
                         <div><span className="mono">{valueLabel(state.prompt_version)}</span><BindingStatus status={policyPromptStatus} /></div>
                       </div>
                       <div className="operations-dialog-binding-row">
-                        <span>프로필 · digest</span>
+                        <span>프로필 · 식별 해시</span>
                         <div><span className="mono">{valueLabel(state.company_profile_version)}</span><DigestValue value={state.company_profile_digest} className="operations-dialog-digest" /><BindingStatus status="unknown" /></div>
                       </div>
                     </div>

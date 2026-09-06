@@ -74,6 +74,38 @@ test("대시보드 퍼널은 단계별 건수와 직전 단계 잔존율을 함�
   await expect(page.locator(".dashboard-funnel-axis")).toContainText("0%25%50%75%100%");
 });
 
+// 할 일 스트립은 네 결정을 첫 줄에 고정하고, 회차 통계에서만 나오는 보조
+// 항목을 아래 줄에 둔다. 확인하지 못한 건수는 큰 숫자 자리를 차지하지 않는다 —
+// 큰 글자로 두면 0이나 오류처럼 읽힌다(docs/design/PRD.md §4).
+test("할 일 스트립은 네 결정을 한 줄에 두고 확인 불가를 숫자로 키우지 않는다", async ({ page }) => {
+  await page.goto(`/?run=${encodeURIComponent(RUN_ID)}`);
+  const decisions = page.locator(".dashboard-action-decisions .dashboard-action-item");
+  await expect(decisions).toHaveCount(4);
+  await expect(decisions.first().locator("strong")).toHaveText(/확인 불가|확인 중|[0-9]/);
+
+  const rows = await decisions.evaluateAll((items) => items.map((item) => Math.round(item.getBoundingClientRect().top)));
+  expect(new Set(rows).size, `네 결정이 한 줄이 아니다: ${rows.join(",")}`).toBe(1);
+
+  // 제목이 잘리면 어느 결정인지 읽을 수 없다. 두 줄까지 늘어나고 자르지 않는다.
+  const clipped = await decisions.locator(".dashboard-action-item-title").evaluateAll((titles) => titles
+    .filter((title) => title.scrollWidth - title.clientWidth > 1)
+    .map((title) => title.textContent ?? ""));
+  expect(clipped).toEqual([]);
+
+  // `확인 불가`는 서버에 집계가 없다는 뜻이고 0이 아니다. 숫자 자리를 비운다.
+  const unavailable = decisions.locator("strong.is-unavailable");
+  expect(await unavailable.count()).toBeGreaterThan(0);
+  const unavailableSizes = await unavailable.evaluateAll((values) => values
+    .map((value) => Number.parseFloat(getComputedStyle(value).fontSize)));
+  for (const size of unavailableSizes) expect(size).toBeLessThanOrEqual(16);
+
+  // 회차 자료에서 나오는 보조 항목은 네 결정 아래 줄이다.
+  const secondary = page.locator(".dashboard-action-secondary .dashboard-action-item").first();
+  await expect(secondary).toBeVisible();
+  const secondaryTop = await secondary.evaluate((item) => Math.round(item.getBoundingClientRect().top));
+  expect(secondaryTop).toBeGreaterThan(rows[0]);
+});
+
 test("흡수한 마감·감사 경로가 기존 쿼리를 보존한다", async ({ page }) => {
   // docs/design/PLAN.md 2단계: 마감 추적은 검토 대기열의 저장된 뷰, 산출물 감사
   // 로그는 실행 상태의 탭으로 흡수됐다. 리다이렉트가 아니라 각 뷰의 주소이므로
@@ -173,7 +205,7 @@ test("프로필 읽기 실패는 빈 정상 상태가 아니라 오류 상태로
 
   await page.goto("/profile");
   await expect(page.getByText("회사 프로필을 불러오지 못했습니다.", { exact: true })).toBeVisible();
-  await expect(page.getByText("승인된 프로필 snapshot과 구조화 상태를 확인할 수 없습니다.", { exact: true })).toBeVisible();
+  await expect(page.getByText("승인된 프로필 사본과 구조화 상태를 확인할 수 없습니다.", { exact: true })).toBeVisible();
 });
 
 test("진행 중인 전량 판정은 중복 실행할 수 없다", async ({ page }) => {
@@ -303,35 +335,35 @@ test("사전규격 목록이 등급 4값과 판정 없음, 자동 준비 8값을
   await mockPreSpecMatrix(page);
   await page.goto("/pre-specs");
 
-  const table = page.locator(".pre-specs-table").first();
-  await expect(table).toBeVisible({ timeout: 10_000 });
+  const list = page.locator(".pre-specs-list").first();
+  await expect(list).toBeVisible({ timeout: 10_000 });
   for (const grade of ["우선 검토", "검토 권장", "관찰 대상", "제외", "판정 없음"]) {
-    await expect(table.getByText(grade, { exact: true }).first()).toBeVisible();
+    await expect(list.getByText(grade, { exact: true }).first()).toBeVisible();
   }
   for (const label of AUTO_PREPARATION_LABELS) {
-    await expect(table.getByText(label, { exact: true }).first()).toBeVisible();
+    await expect(list.getByText(label, { exact: true }).first()).toBeVisible();
   }
 });
 
 test("사전규격 등급 필터는 URL과 동기화되고 적용 범위를 밝힌다", async ({ page }) => {
   await mockPreSpecMatrix(page);
   await page.goto("/pre-specs");
-  await expect(page.locator(".pre-specs-table").first()).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator(".pre-specs-list").first()).toBeVisible({ timeout: 10_000 });
 
   await page.getByLabel("적합성 등급").selectOption("제외");
   await expect.poll(() => new URL(page.url()).searchParams.get("grade")).toBe("제외");
   const note = page.locator(".pre-specs-grade-filter-note");
   await expect(note).toContainText("현재 불러온 페이지에만 적용됩니다");
   await expect(note).toContainText("등급 필터 이전");
-  const rows = page.locator(".pre-specs-table tbody tr");
+  const rows = page.locator('.pre-specs-list [data-review-primitive="dense-list-row"]');
   await expect(rows).toHaveCount(1);
   await expect(rows.first()).toContainText("제외");
 
   // `판정 없음`은 다섯 번째 등급이 아니라 등급이 null인 건이다.
   await page.getByLabel("적합성 등급").selectOption("판정 없음");
   await expect.poll(() => new URL(page.url()).searchParams.get("grade")).toBe("판정 없음");
-  await expect(page.locator(".pre-specs-table tbody tr")).toHaveCount(1);
-  await expect(page.locator(".pre-specs-table tbody tr").first()).toContainText("자동 준비 대상 아님");
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toContainText("자동 준비 대상 아님");
 
   await page.getByRole("button", { name: "기본값으로" }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("grade")).toBeNull();
@@ -394,7 +426,7 @@ test("사전규격 상세는 정정된 현재 등급 하나만 보여준다", as
   await expect(page.getByText("화면 참고 등급", { exact: false })).toHaveCount(0);
 
   // 현재 등급이 우선 검토가 아니므로 서버가 다시 본다는 안내는 남는다.
-  await expect(page.locator(".document-preparation-gate")).toContainText("effective grade를 다시 확인합니다");
+  await expect(page.locator(".document-preparation-gate")).toContainText("등급을 다시 확인합니다");
 });
 
 test("개요 카드가 참조 실행 품질 표식을 문자로 보여준다", async ({ page }) => {
@@ -420,7 +452,7 @@ test("심층 보고서의 품질 표식 3값과 표식 없음이 카드와 의�
     await expect(page.locator(".deep-review-quality-card")).toContainText(label, { timeout: 10_000 });
     await expect(page.locator(".deep-review-opinion-quality")).toContainText(label);
     // 표식이 무엇이든 최종 의견 저장을 막지 않는다.
-    await expect(page.getByRole("button", { name: "심층검토 의견 append" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "심층검토 의견 추가" })).toBeVisible();
   }
 });
 

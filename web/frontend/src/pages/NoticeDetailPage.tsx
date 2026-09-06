@@ -180,13 +180,6 @@ export function NoticeDetailPage() {
             <EmptyState title="공고 상세가 없습니다." description="선택한 공고의 상세 데이터를 확인할 수 없습니다." />
           ) : (
             <div className="judgment-detail-scroll">
-              <div className="queue-detail-back judgment-detail-back">
-                <Link state={{ keepListOpen: true }} to={{ pathname: "/judgments", search: searchParams.toString() }}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M19 12H6M11 6l-6 6 6 6" /></svg>
-                  목록으로
-                </Link>
-                {selectedIndex >= 0 ? <span className="mono tabular-nums">{selectedIndex + 1} / {notices.length}</span> : null}
-              </div>
               <div className="judgment-detail-badges">
                 <Badge label={detail.judgment?.grade} variant={gradeVariant(detail.judgment?.grade ?? null)} />
                 <Badge label={detail.judgment?.readiness} variant="readiness" />

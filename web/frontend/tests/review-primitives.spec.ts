@@ -135,23 +135,23 @@ test("접힌 보조 입력 영역은 닫아도 현재 값과 무엇을 바꾸지
   const reopen = page.getByRole("button", { name: "사람 판단 수정 (선택) 열기" });
   await expect(secondary).toHaveAttribute("data-open", "false");
   await expect(reopen).toHaveAttribute("aria-expanded", "false");
-  await expect(page.getByLabel("담당자 claimed name")).toBeHidden();
+  await expect(page.getByLabel("사람 판단 담당자 이름")).toBeHidden();
   // 접어도 현재 사람 판단 값과 이 입력이 대신하지 않는 결정은 화면에 남는다.
   await expect(secondary.locator(".review-secondary-input-summary")).toHaveText("relevant · 우선순위 high");
   await expect(secondary.locator(".review-secondary-input-description"))
-    .toHaveText("기존 사람 판단을 유지합니다. 추적 결정과는 별도 revision이며 적합성 등급·참여 준비 상태·심층 추적 승인·최종 Go/No-Go를 채우거나 대신하지 않습니다.");
+    .toHaveText("기존 사람 판단을 그대로 둡니다. 추적 결정과는 별도 수정본이며 적합성 등급·참여 준비 상태·심층 추적 승인·최종 Go/No-Go를 채우거나 대신하지 않습니다.");
 
   // 접힌 영역은 토글이 aria-controls로 가리키는 하나의 region이다.
   const controls = await reopen.getAttribute("aria-controls");
   expect(controls).toBeTruthy();
-  await expect(page.locator(`#${controls}`)).toContainText("담당자 claimed name");
+  await expect(page.locator(`#${controls}`)).toContainText("사람 판단 담당자 이름");
 
   // 키보드만으로 열 수 있고 열림 상태가 aria로도 전달된다.
   await reopen.focus();
   await page.keyboard.press("Enter");
   await expect(secondary).toHaveAttribute("data-open", "true");
   await expect(page.getByRole("button", { name: "사람 판단 수정 (선택) 닫기" })).toHaveAttribute("aria-expanded", "true");
-  await expect(page.getByLabel("담당자 claimed name")).toBeVisible();
+  await expect(page.getByLabel("사람 판단 담당자 이름")).toBeVisible();
 });
 
 test("append-only revision 이력은 건수와 append-only 표식을 함께 보여주고 revision을 덮어쓰지 않는다", async ({ page }) => {
