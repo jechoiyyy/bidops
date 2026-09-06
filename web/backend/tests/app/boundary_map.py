@@ -45,6 +45,11 @@ SEAM_IMPORTS: dict[tuple[str, str], frozenset[str]] = {
             # 채운다. 밖으로 나갈 때 다른 이름을 새로 만들지 않도록 seam에 남긴다.
             "current_judgments",
             "latest_corrected_grade",
+            # 그 batch 판. 사전규격 목록 projection과 첨부 자격 재평가는 공고
+            # 수백~수천 건의 effective grade를 한 번에 필요로 하고, 명세 §8이
+            # 그 자리에 N+1을 금지한다. 단건 판만 seam에 두면 호출부가 공고당
+            # 조회를 만들 수밖에 없으므로 같은 읽기 전용 seam으로 함께 둔다.
+            "latest_corrected_grades",
         }
     ),
 }
@@ -137,8 +142,8 @@ STARTUP_FORBIDDEN_NAMES: frozenset[str] = frozenset(
         # 상태 변경 — 회차 적재·삭제 (app/lifecycle/api.py)
         "ingest_run",
         "delete_run",
-        # 모델 호출 (app/screening/ollama.py, app/screening/worker.py)
-        "OllamaClient",
+        # 모델 호출 (app/screening/model_adapter.py, app/screening/worker.py)
+        "ScreeningModelClient",
         "ScreeningOrchestrator",
         "ScreeningWorker",
     }
@@ -281,7 +286,7 @@ TABLE_OWNER: dict[str, str] = {
     "order_plan_screening_result": SCREENING,
     "order_plan_screening_artifact": SCREENING,
     "order_plan_screening_feedback": SCREENING,
-    # deep_review (34)
+    # deep_review (37)
     "attachment_fetch": DEEP_REVIEW,
     "content_object": DEEP_REVIEW,
     "content_object_location": DEEP_REVIEW,
@@ -316,6 +321,9 @@ TABLE_OWNER: dict[str, str] = {
     "bid_delta_item": DEEP_REVIEW,
     "bid_delta_evidence": DEEP_REVIEW,
     "bid_final_decision": DEEP_REVIEW,
+    "document_segment_manifest": DEEP_REVIEW,
+    "document_segment": DEEP_REVIEW,
+    "requirement_inventory_item": DEEP_REVIEW,
 }
 
 # `tests/` 루트에 두는 공용 helper. conftest·postgres 처럼 어느 모듈의 테스트든

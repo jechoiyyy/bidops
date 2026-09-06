@@ -35,7 +35,7 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: 0.875rem;
+  font-size: var(--bo-type-body);
 }
 
 .opportunities-filters select,
@@ -83,7 +83,7 @@
 .opportunity-card-id {
   margin-left: auto;
   color: var(--color-muted);
-  font-size: 0.8125rem;
+  font-size: var(--bo-type-caption);
 }
 
 .opportunity-card-title {
@@ -94,7 +94,7 @@
 .opportunity-card-meta {
   margin: 0;
   color: var(--color-muted);
-  font-size: 0.875rem;
+  font-size: var(--bo-type-body);
 }
 
 .opportunity-card-toggle {
@@ -115,12 +115,6 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-}
-
-.opportunity-back-link {
-  margin-bottom: var(--space-1);
-  color: var(--color-primary-strong);
-  font-weight: 600;
 }
 
 .opportunity-detail-page > .opportunity-detail {
@@ -146,7 +140,9 @@
 .opportunity-detail-block h4,
 .opportunity-tracking-form h4 {
   margin: 0 0 var(--space-1);
-  font-size: 0.9375rem;
+  font-size: var(--bo-type-section-title);
+  font-weight: var(--bo-type-section-title-weight);
+  line-height: var(--bo-type-section-title-leading);
 }
 
 .opportunity-decision-grid {
@@ -165,9 +161,9 @@
 
 .opportunity-panel-kicker {
   color: var(--color-muted);
-  font-size: 0.75rem;
+  font-size: var(--bo-type-caption);
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.02em;
 }
 
 .opportunity-signal {
@@ -185,7 +181,9 @@
 .opportunity-signal h4,
 .opportunity-human-decision h4 {
   margin: 8px 0 4px;
-  font-size: 1.05rem;
+  font-size: var(--bo-type-section-title);
+  font-weight: var(--bo-type-section-title-weight);
+  line-height: var(--bo-type-section-title-leading);
 }
 
 .opportunity-signal p,
@@ -195,7 +193,7 @@
 
 .opportunity-signal-source {
   color: var(--color-muted);
-  font-size: 0.875rem;
+  font-size: var(--bo-type-body);
 }
 
 .opportunity-human-decision {
@@ -212,7 +210,7 @@
 
 .opportunity-decision-meta {
   color: var(--color-muted);
-  font-size: 0.8125rem;
+  font-size: var(--bo-type-caption);
 }
 
 .opportunity-section-heading {
@@ -221,12 +219,14 @@
 
 .opportunity-section-heading h4 {
   margin: 2px 0 0;
-  font-size: 1rem;
+  font-size: var(--bo-type-section-title);
+  font-weight: var(--bo-type-section-title-weight);
+  line-height: var(--bo-type-section-title-leading);
 }
 
 .opportunity-section-heading > span {
   color: var(--color-muted);
-  font-size: 0.8125rem;
+  font-size: var(--bo-type-caption);
 }
 
 .opportunity-links {
@@ -273,7 +273,7 @@
   border-radius: 50%;
   background: var(--color-deep);
   color: var(--color-white);
-  font-size: 0.75rem;
+  font-size: var(--bo-type-caption);
   font-weight: 700;
 }
 
@@ -290,7 +290,7 @@
 
 .opportunity-link-kind {
   font-weight: 600;
-  font-size: 0.875rem;
+  font-size: var(--bo-type-body);
 }
 
 .opportunity-link-title {
@@ -303,12 +303,12 @@
   display: grid;
   gap: 4px;
   margin: 0;
-  font-size: 0.875rem;
+  font-size: var(--bo-type-body);
 }
 
 .opportunity-link-facts dt {
   color: var(--color-muted);
-  font-size: 0.8125rem;
+  font-size: var(--bo-type-caption);
 }
 
 .opportunity-link-facts dd {
@@ -318,7 +318,7 @@
 .opportunity-link-note {
   margin: 4px 0 0;
   color: var(--color-muted);
-  font-size: 0.8125rem;
+  font-size: var(--bo-type-caption);
 }
 
 .opportunity-tracking-form {
@@ -351,38 +351,23 @@
   margin-top: var(--space-1);
 }
 
-@media (max-width: 900px) {
-  .opportunity-decision-grid,
-  .opportunity-links {
-    grid-template-columns: 1fr;
-  }
-
-  .opportunity-link:not(:last-child)::after {
-    content: "↓";
-    top: auto;
-    right: 50%;
-    bottom: -22px;
-    transform: translateX(50%);
-  }
-}
-
 .opportunity-form-note,
 .opportunity-form-hint,
 .opportunity-form-unsaved {
   margin: 0;
   color: var(--color-muted);
-  font-size: 0.8125rem;
+  font-size: var(--bo-type-caption);
 }
 
 .opportunity-form-unsaved {
-  color: var(--color-alert-text, var(--color-text));
+  color: var(--color-warning);
   font-weight: 600;
 }
 
 .opportunity-form-error {
   margin: 0;
   color: var(--color-error);
-  font-size: 0.875rem;
+  font-size: var(--bo-type-body);
 }
 
 .opportunity-tracking-form button {
@@ -441,7 +426,9 @@
 .opportunity-deep-review h3,
 .opportunity-linked-screens h3 {
   margin: 0;
-  font-size: 0.95rem;
+  font-size: var(--bo-type-section-title);
+  font-weight: var(--bo-type-section-title-weight);
+  line-height: var(--bo-type-section-title-leading);
 }
 
 .opportunity-deep-review p,
@@ -490,8 +477,8 @@
 }
 
 .opportunity-filter-label {
-  font-size: var(--font-size-supporting);
-  color: var(--color-content-secondary);
+  font-size: var(--bo-type-caption);
+  color: var(--color-text-secondary);
 }
 
 .opportunity-sections {
@@ -536,8 +523,8 @@
 
 .opportunity-list-note {
   margin: 0;
-  font-size: var(--font-size-supporting);
-  color: var(--color-content-secondary);
+  font-size: var(--bo-type-caption);
+  color: var(--color-text-secondary);
 }
 
 .opportunity-list-scroll {
@@ -548,7 +535,7 @@
 
 .opportunity-list-empty {
   padding: var(--spacing-5);
-  color: var(--color-content-secondary);
+  color: var(--color-text-secondary);
 }
 
 .opportunity-row-badges {
@@ -605,8 +592,8 @@
 
 .opportunity-detail-kicker {
   margin: 0;
-  font-size: var(--font-size-supporting);
-  color: var(--color-content-secondary);
+  font-size: var(--bo-type-caption);
+  color: var(--color-text-secondary);
 }
 
 .opportunity-detail-title {
@@ -650,7 +637,7 @@
 
 .opportunity-detail-empty {
   padding: var(--spacing-5);
-  color: var(--color-content-secondary);
+  color: var(--color-text-secondary);
 }
 
 .opportunity-detail-permalink {
@@ -658,7 +645,7 @@
   margin: 0;
   padding: var(--spacing-2) var(--spacing-4);
   border-top: var(--border-width) solid var(--color-border);
-  font-size: var(--font-size-supporting);
+  font-size: var(--bo-type-caption);
 }
 
 /* 위 .runstatus-guardrail-facts와 같은 이유로 감싸는 div를 지운다. 두지 않으면
@@ -676,8 +663,8 @@
 }
 
 .opportunity-history-facts dt {
-  font-size: var(--font-size-supporting);
-  color: var(--color-content-secondary);
+  font-size: var(--bo-type-caption);
+  color: var(--color-text-secondary);
 }
 
 .opportunity-history-facts dd {
@@ -691,12 +678,12 @@
   padding: var(--spacing-3);
   border: var(--border-width) dashed var(--color-border);
   border-radius: var(--radius-container);
-  font-size: var(--font-size-supporting);
-  color: var(--color-content-secondary);
+  font-size: var(--bo-type-caption);
+  color: var(--color-text-secondary);
 }
 
 .opportunity-signal-note {
-  font-size: var(--font-size-supporting);
+  font-size: var(--bo-type-caption);
 }
 
 .opportunity-exceptions {
@@ -733,8 +720,8 @@
 .opportunity-exception-detail,
 .opportunity-exception-resolution {
   margin: 0;
-  font-size: var(--font-size-supporting);
-  color: var(--color-content-secondary);
+  font-size: var(--bo-type-caption);
+  color: var(--color-text-secondary);
 }
 
 .opportunity-exception-notice {
@@ -766,8 +753,8 @@
 }
 
 .opportunity-exception-form label > span {
-  font-size: var(--font-size-supporting);
-  color: var(--color-content-secondary);
+  font-size: var(--bo-type-caption);
+  color: var(--color-text-secondary);
 }
 
 .opportunity-exception-form textarea,

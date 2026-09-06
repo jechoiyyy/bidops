@@ -29,15 +29,19 @@ from ..agents import (
 )
 from ...core.config import get_settings
 from ...core.db import SessionLocal
+from ...core.constants import DEEP_REVIEW_CREATION_ACTIONS
 from ...core.models import AuditEvent
 from ..models import DeepReviewAttempt, DeepReviewStage, WorkJob
 from .bc_e2e import AcceptanceApi, BcE2EError, BcE2EManifest, run_bc_e2e
 from .document_bundles import DocumentBundleService
+from .mock_analysis_client import MockAnalysisClient
 
 
 AGENT_E2E_RESULT_SCHEMA = "bidops.agent-e2e-result.v1"
 MOCK_PROVIDER = "mock-analysis"
-MOCK_MODEL = "bidops-deterministic-mock-v1"
+#: 결정적 mock의 계보 이름은 mock client가 갖는다. 환경변수로 따로 선언하면
+#: client가 기록하는 모델명과 인수 검사가 기대하는 이름이 갈릴 수 있다.
+MOCK_MODEL = MockAnalysisClient.model
 
 
 @dataclass(frozen=True)
@@ -121,7 +125,6 @@ class PersistedAgentProjectionReader:
         settings = get_settings()
         if (
             settings.analysis_provider != "mock"
-            or settings.vllm_model != MOCK_MODEL
             or settings.openai_enabled
             or not settings.reference_workflow_mode
         ):
@@ -148,7 +151,8 @@ class PersistedAgentProjectionReader:
                 rows = session.scalars(
                     select(AuditEvent)
                     .where(
-                        AuditEvent.action == "deep_review.create",
+                        # 사람 클릭과 자동 시작 둘 다 생성 감사다 (§6.4).
+                        AuditEvent.action.in_(DEEP_REVIEW_CREATION_ACTIONS),
                         AuditEvent.aggregate_type == "deep_review",
                         AuditEvent.aggregate_id.in_([str(value) for value in ids]),
                     )

@@ -52,6 +52,10 @@
 
 개요 검토의 결정적 절단 snapshot과 모델 attempt는 분리한다([ADR-0033](tracking/decisions/0033-prespec-overview-review-runtime-contract.md)). 승인된 사설 vLLM binding이 없으면 절단까지만 만들고 `awaiting_model`로 두며 결과와 완료 시각은 `null`로 보존한다. 경계가 모호한 절단은 `needs_human_review`로 보내고 모델을 호출하지 않는다. 결정적 mock은 `reference_only`, `deployable=false`이며 운영 완료로 집계하지 않는다. `completed`는 승인된 binding의 응답이 strict schema, evidence locator, source hash 검증을 모두 통과한 경우에만 허용하고 hosted OpenAI·Codex로 자동 fallback하지 않는다.
 
+모든 개요 attempt는 품질 표식 `quality_status`를 갖는다. `reference_only`인 attempt는 `mock_reference`, 그 밖은 `unmeasured_reference`다. **완료한 개요 attempt는 언제나 `unmeasured_reference`다** — `reference_only`인 attempt는 완료할 수 없으므로(위 문단) `mock_reference`는 완료하지 못한 attempt에만 붙는다. 저장소만으로 개요를 완주시키려면 mock을 provider가 아니라 transport 층에 두어야 하고, 그때 표식은 `unmeasured_reference`다. 심층 검토의 `mock_reference`는 provider에서 나오므로 이 제약과 무관하다([ADR-0050](tracking/decisions/0050-unified-openai-compatible-model-client.md)). `deployable=false`인 `completed`의 뜻은 "완료 불가"가 아니라 **"운영 완료로 집계하지 않음"**이다. 참조 실행 결과를 사업 판단, 품질 근거, 정책 활성화 근거로 쓰지 않는다.
+
+검증에 실패한 응답(schema 위반, snapshot 밖 evidence)은 재호출하지 않고 바로 `failed`다. 같은 seed와 같은 고정 프롬프트가 같은 결과를 내므로 재호출이 결과를 바꾸지 않기 때문이다. 재시도는 transport 계열 실패(timeout·잘림 등)에만 1+2회 적용한다.
+
 실제 모델 attempt의 입력 snapshot·sequence·입력 hash·binding은 생성 뒤 바꾸지 않는다
 ([ADR-0035](tracking/decisions/0035-prespec-overview-attempt-result-lifecycle.md)). 상태·허용 시각·
 검증 결과 참조만 열 단위로 전이하고 모든 전이를 별도 append-only event로 남긴다. 검증된
@@ -69,7 +73,19 @@
 
 `검색 미확인` 링크와 `미선택`·`종료` opportunity, order-plan 링크가 없는 opportunity는 첨부 취득 자격을 만들지 않는다. 사람이 추적 상태를 나중에 선택할 수 있으므로 이 자격은 배치 한 번으로 고정하지 않고 재평가 큐에서 갱신한다. 이 조건은 수집 필터가 아니며 `SW사업대상` 표시 값의 의미도 바꾸지 않는다.
 
-개요 검토 결과 뒤에는 사람이 심층검토 실행 여부를 선택한다. 승인 전에는 제안요청서 전체를 고비용 모델 분석에 자동 투입하지 않는다. 승인된 문서 묶음만 구조화·분석하고, 실패한 변환이나 검증을 성공 결과로 보정하지 않는다.
+### 자동 문서 준비와 자동 심층 시작
+
+effective grade(사람 정정 등급이 있으면 그것, 없으면 판정 등급)가 `우선 검토`인 사전규격은 문서 준비를 자동으로 진행한다([ADR-0049](tracking/decisions/0049-prespec-auto-preparation-and-auto-deep-review.md)). 안전 검사를 통과한 현재 문서로 묶음 초안을 만들고, **자기가 만든 초안만** 확정한다. 사람이 만든 초안은 사람이 확정한다. 등급이 나중에 내려가도 이미 만든 묶음을 되돌리지 않는다. 그 밖의 등급과 등급 없음은 자동 준비 대상이 아니며 사유는 `grade_not_priority`다 — "등급 없음"을 특정 등급으로 접지 않는다.
+
+촉발 지점은 셋이다. 회차 적재, 사람 정정으로 effective grade가 바뀐 시점, 첨부 취득이 한 공고에서 종결된 시점이다. **수동 업로드로 구조가 저장된 시점은 촉발하지 않는다.** 그 경우는 사람이 확정한다.
+
+자동 준비 상태는 여덟이다. `not_applicable`(자동 준비 대상 아님), `waiting_attachments`(첨부 취득 대기), `bundle_draft`(묶음 초안), `bundle_ready`(묶음 확정), `overview_running`(개요 검토 실행 중), `deep_review_started`(심층 검토 자동 시작됨), `deep_review_ready_for_click`(심층 검토 클릭 대기), `blocked`(자동 준비 중단). `not_applicable`은 "대상이 아님"이며 "알 수 없음"이 아니다.
+
+다음이 모두 성립하면 심층 검토를 시스템이 자동으로 만든다. 사전규격이고 `SW사업대상=Y`, 자동 준비가 확정한 `ready` 묶음이 있고, 그 묶음의 개요 검토가 `completed`이며, 권고가 `검토 종료`가 아니고, 개요가 본 묶음과 지금 묶음이 같으며, 같은 불변 입력의 심층 검토가 아직 없다. 하나라도 어긋나면 각각의 사유 코드(`not_sw_business`, `bundle_not_auto_ready`, `overview_not_completed`, `overview_recommendation_closed`, `overview_bundle_mismatch`, `service_unavailable`, `deep_review_exists`, `processing_failed`)로 남기고 사람 클릭으로 넘긴다. 평가 순서는 이 목록 순서이며 첫 일치가 이긴다 — 앞의 여섯은 쓰기·읽기가 같은 함수로 판정하고, `deep_review_exists`와 `processing_failed`는 실제로 만들어 보는 쓰기 경로에서만 나온다. **읽기 경로는 `deep_review_exists`를 내지 않는다.** 이미 심층 검토가 있으면 사유가 아니라 상태 `deep_review_started`로 답한다.
+
+자동 시작은 추적 상태를 바꾸지 않는다. 사업기회는 `미선택` 그대로이고, 자동 시작이 적합성 등급·참여 준비 상태·추적 선택·최종 입찰 Go/No-Go를 대신하지 않는다. **자동으로 여는 것은 분석의 시작뿐이다.**
+
+자동으로 열리지 않은 건은 개요 검토 결과를 읽은 사람이 심층검토 실행 여부를 선택한다. 어느 경로든 승인된 문서 묶음만 구조화·분석하고, 실패한 변환이나 검증을 성공 결과로 보정하지 않는다.
 
 심층검토 결과에서 사람은 다음 상태 중 하나를 선택한다.
 
@@ -109,7 +125,7 @@ R-07의 상세 계약은 [ADR-0034](tracking/decisions/0034-bid-delta-final-deci
 
 새 authoritative 입찰공고·정정 또는 새 ready 비교 문서가 생기면 기존 최종 결정 row는
 그대로 두고 strict currentness projection을 즉시 `stale`로 만든다. 순서·효력이 불확실하면
-`unknown`이다. 비교 모델은 회사 내부망의 allowlist된 Ollama·사설 vLLM만 사용하고 exact
+`unknown`이다. 비교 모델은 회사 내부망의 allowlist된 사설 vLLM만 사용하고 exact
 snapshot의 비교 생성 요청을 건별 처리 승인으로 감사한다. 외부·hosted fallback은 없으며
 감사 metadata에는 안전한 ID·code·count·hash·binding digest만 남긴다.
 
@@ -160,6 +176,12 @@ HWP 원본은 그대로 보존하고 HWP 분석에는 검증된 HWPX 변환 결�
 | 기술·보안·법무 위험 | 연계, 데이터, 비기능, 개인정보, 망분리, 권리, 위약 | 문서상 의무·미확인·전문 검토 필요를 구분 |
 | 사업성 | 예산, 원가, 지급·검수, 보증, 제안 비용, 파트너 | 회사 마진이나 비용을 임의 생성하지 않음 |
 | 경쟁·제안 전략 | 발주 배경, 차별점, 예상 평가 초점, 레퍼런스 | 원문 사실과 전략 추론을 분리하고 반대 근거를 포함 |
+
+문서 구조를 저장할 때 결정적 segment manifest와 요구사항 inventory를 함께 만든다([ADR-0051](tracking/decisions/0051-deep-review-v2-deterministic-subset.md)). segment는 네 taxonomy label(`business_eligibility_evaluation`, `technical_functional`, `quality_security_constraints`, `partnership_governance`)로 분류하며 **분류 출처는 `deterministic` 고정, `confidence`는 언제나 `null`**이다. 결정적 규칙에는 확률이 없으므로 경계를 정하지 못한 자리는 확률을 지어내지 않고 `needs_human_review` 상태로 남긴다.
+
+심층 검토 검증에 결정적 check 두 종을 더한다. `requirement_inventory`는 문서가 준 요구사항 ID 집합과 claim이 적은 ID 집합을 대조해 누락·예상 밖 ID를 실패(중대), 중복을 warning, ID 체계가 없는 문서를 warning "inventory 없음"으로 남긴다. `segment_coverage`는 간극·중첩을 warning(보통)으로 표시하되 차단하지 않는다. **문서에 ID 체계가 있는데 claim이 ID를 적지 않으면 `requirement_inventory`가 실패한다.** 요구사항 전수성은 형식 완결성으로 대신할 수 없다.
+
+심층 검토 실행에도 품질 표식 `quality_status`가 붙는다. `measured`는 측정값이 활성화 게이트를 통과했다는 뜻이고, `unmeasured_reference`·`mock_reference`는 참조 실행이며, 표식이 없던 시절의 실행은 `null`(표식 없음)이다. **없음을 미측정이나 측정으로 승격시키지 않는다.**
 
 요구사항 대응 상태는 `대응 가능`, `추가 확인`, `갭`, `해당 없음` 중 하나다. 위험은 `차단`, `중대`, `보통`, `낮음`으로 표시하고 근거, 영향, 확인·완화 행동, 담당 역할, 기한, 잔여 위험을 가진다. 정보가 없으면 항목을 삭제하지 않고 `산정 불가`와 필요한 자료를 남긴다.
 

@@ -41,7 +41,7 @@ export function VerificationItemTable({ items, answers, onAnswerChange }: Verifi
             return (
               <div className={`verification-row ${item.blocking ? "is-blocking" : ""}`.trim()} key={item.id}>
                 <div className="verification-row-main">
-                  {item.blocking ? <Badge label="차단" variant="alert" /> : null}
+                  {item.blocking ? <Badge label="차단" variant="danger" /> : null}
                   <div>
                     <strong>{present(item.item, "확인 항목 미확인")}</strong>
                     <p>{present(item.why, "확인 사유 미확인")}</p>

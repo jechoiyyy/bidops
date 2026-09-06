@@ -40,7 +40,9 @@ test("pre-specs-tracking-panel 화면이 가로로 넘치지 않는다", async (
   await mockPreSpecs(page);
   await page.goto("/pre-specs");
   await expect(page.locator("h1").first()).toBeVisible();
-  const trackedRow = page.getByRole("row").filter({ has: page.getByRole("link", { name: "안전한 문서 준비 사전규격" }) });
+  const trackedRow = page
+    .locator('.pre-specs-list-pane [data-review-primitive="dense-list-row"]')
+    .filter({ hasText: "안전한 문서 준비 사전규격" });
   await trackedRow.getByRole("button", { name: "추적 결정" }).click();
   await expect(page.locator("#pre-specs-tracking-target")).toBeVisible();
   await page.waitForLoadState("networkidle");

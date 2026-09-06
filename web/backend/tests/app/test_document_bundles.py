@@ -21,6 +21,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
+from app.core.constants import (
+    UNSUPPORTED_ATTACHMENT_EXTRACT_STATUS,
+    UNSUPPORTED_ATTACHMENT_ISSUE_CODE,
+)
 from app.core.db import init_db
 from app.deep_review.document_mcp.processor import DocumentProcessor
 from app.core.models import AuditEvent, IdempotencyRecord
@@ -1905,3 +1909,166 @@ def test_legacy_changed_hash_creates_next_immutable_version(context: Context) ->
         assert versions[1].replaces_document_version_id == versions[0].id
         row = session.get(Attachment, attachment.id)
         assert row is not None and row.legacy_stored_path == "legacy/old.pdf"
+
+
+# --------------------------------------------------------------------------
+# GET /api/document-structures/{structure_id}/segments
+# --------------------------------------------------------------------------
+
+
+def _segments_client(context: Context):
+    """segment 조회 endpoint만 붙인 최소 앱."""
+
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from app.core.db import get_db
+    from app.deep_review.routers.document_bundles import router as bundles_router
+
+    app = FastAPI()
+    app.include_router(bundles_router)
+
+    def _session():
+        with Session(context.engine) as session:  # type: ignore[arg-type]
+            yield session
+
+    app.dependency_overrides[get_db] = _session
+    return TestClient(app)
+
+
+def test_segments_endpoint_returns_the_manifest_without_source_text(context: Context) -> None:
+    bundle = make_bundle(context)
+    document = upload(context, bundle.id)
+    with Session(context.engine) as session:  # type: ignore[arg-type]
+        structure = session.scalar(select(DocumentStructure).where(DocumentStructure.document_version_id == document.id))
+        assert structure is not None
+        structure_id = structure.id
+    response = _segments_client(context).get(f"/api/document-structures/{structure_id}/segments")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["schema"] == "bidops.document-segments.v1"
+    assert body["structure_id"] == str(structure_id)
+    assert body["taxonomy_version"] == "bidops.segment-taxonomy.v1"
+    assert "inventory_summary" in body and "coverage" in body
+    for segment in body["segments"]:
+        assert segment["classification_source"] == "deterministic"
+        assert segment["confidence"] is None
+        assert "title" not in segment
+
+
+def test_segments_endpoint_is_404_when_no_manifest_exists(context: Context) -> None:
+    response = _segments_client(context).get(f"/api/document-structures/{uuid4()}/segments")
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "not_found"
+
+
+def test_segments_endpoint_is_403_for_an_unsafe_document(context: Context) -> None:
+    bundle = make_bundle(context)
+    document = upload(context, bundle.id)
+    with Session(context.engine) as session:  # type: ignore[arg-type]
+        structure = session.scalar(select(DocumentStructure).where(DocumentStructure.document_version_id == document.id))
+        assert structure is not None
+        structure_id = structure.id
+        row = session.get(DocumentVersion, document.id)
+        assert row is not None
+        row.safety_status = "quarantined"
+        session.commit()
+    response = _segments_client(context).get(f"/api/document-structures/{structure_id}/segments")
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "unsafe_document"
+
+
+# --- 형식 밖 첨부의 비차단 issue (명세 §5·§6.2) ------------------------------
+
+
+def _add_excluded_attachment(context: Context, *, name: str = "붙임자료.zip") -> int:
+    """취득이 `unsupported_extension`으로 종결된 첨부를 심는다."""
+
+    with Session(context.engine) as session:  # type: ignore[arg-type]
+        attachment = Attachment(
+            notice_id=context.notice_id,
+            name=name,
+            origin="g2b",
+            source_system="g2b",
+            source_attachment_key="R26ZIP00000001:BFDTL:9",
+            source_url=(
+                "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do"
+                "?bfSpecRegNo=R26ZIP00000001&fileType=BFDTL&fileSeq=9"
+            ),
+            extract_status=UNSUPPORTED_ATTACHMENT_EXTRACT_STATUS,
+        )
+        session.add(attachment)
+        session.commit()
+        return attachment.id
+
+
+def test_unsupported_attachment_leaves_a_non_blocking_issue_and_confirm_succeeds(
+    context: Context,
+) -> None:
+    bundle = make_bundle(context)
+    document = upload(context, bundle.id, filename="제안요청서.pdf")
+    _add_excluded_attachment(context)
+
+    with Session(context.engine) as session:  # type: ignore[arg-type]
+        ready = context.service.confirm(
+            session,
+            bundle.id,
+            ConfirmRequest(
+                request_id=uuid4(),
+                version=bundle.version,
+                confirmed_documents=[
+                    {"document_version_id": document.id, "version": document.version}
+                ],
+            ),
+            "담당자",
+        )
+
+    assert ready.status == "ready"
+    issues = {issue.code: issue for issue in ready.issues}
+    assert UNSUPPORTED_ATTACHMENT_ISSUE_CODE in issues
+    excluded = issues[UNSUPPORTED_ATTACHMENT_ISSUE_CODE]
+    assert excluded.blocking is False
+    assert excluded.severity == "보통"
+    # 확정된 묶음의 불변 snapshot에도 남는다 (§6.2).
+    with Session(context.engine) as session:  # type: ignore[arg-type]
+        stored = session.get(DocumentBundle, ready.id)
+        codes = {row["code"] for row in stored.issues_snapshot}
+        assert UNSUPPORTED_ATTACHMENT_ISSUE_CODE in codes
+        # 제외된 첨부는 묶음 item이 되지 않는다.
+        items = list(
+            session.scalars(
+                select(DocumentBundleItem).where(DocumentBundleItem.bundle_id == ready.id)
+            )
+        )
+        assert [item.document_version_id for item in items] == [document.id]
+
+
+def test_other_provider_failures_stay_blocking(context: Context) -> None:
+    bundle = make_bundle(context)
+    document = upload(context, bundle.id, filename="제안요청서.pdf")
+    with Session(context.engine) as session:  # type: ignore[arg-type]
+        session.add(
+            Attachment(
+                notice_id=context.notice_id,
+                name="실패.pdf",
+                origin="g2b",
+                extract_status="provider_acquisition_failed",
+            )
+        )
+        session.commit()
+
+    with Session(context.engine) as session:  # type: ignore[arg-type]
+        with pytest.raises(BundleServiceError) as error:
+            context.service.confirm(
+                session,
+                bundle.id,
+                ConfirmRequest(
+                    request_id=uuid4(),
+                    version=bundle.version,
+                    confirmed_documents=[
+                        {"document_version_id": document.id, "version": document.version}
+                    ],
+                ),
+                "담당자",
+            )
+    assert error.value.code == "bundle_has_blocking_issues"

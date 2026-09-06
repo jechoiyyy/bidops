@@ -1,0 +1,43 @@
+/*
+ * BidOps 타이포 스케일 — 화면 전체가 읽는 한 벌.
+ *
+ * 왜 있나: 페이지 `<h2>` 크기가 화면마다 12종(26px·25px·22px·1.55rem·clamp…)
+ * 이었고 섹션 제목·본문·캡션도 제각각이었다. 같은 역할의 글자가 화면마다 다른
+ * 크기로 나오면 담당자는 "여기가 더 중요한가"를 매번 다시 판단해야 한다.
+ *
+ * 단은 넷뿐이다.
+ *
+ *   page-title    20px  페이지 `<h2>` (상단바 `<h1>`과 역할이 다르다)
+ *   section-title 14px  패널·섹션 `<h3>` — 크기가 아니라 굵기로 구분한다
+ *   body          14px  본문
+ *   caption       12px  보조·표 캡션. 이보다 작은 글자는 두지 않는다.
+ *
+ * 섹션 제목이 본문과 같은 크기인 것은 시안(`tests/design-snapshots/`)이 패널
+ * 제목을 `label`(14px medium)로 그리기 때문이다. 밀도를 지키라는 규칙
+ * (`web/frontend/AGENTS.md` "UI 패턴")과도 같은 방향이다.
+ *
+ * **값이 px인 이유.** Astryx의 `--font-size-*`는 rem이고 이 앱의 root는 14px다
+ * (`theme.css`의 `:root { font-size: ... }`). 그래서 `--font-size-sm`(0.75rem)은
+ * 이름과 달리 12px가 아니라 **10.5px**로 계산된다. 4단을 그 토큰으로 정의하면
+ * 최소 크기 약속이 조용히 깨지므로 여기서는 실제 크기를 적는다. root 크기를
+ * 16px로 올리는 쪽은 Astryx 컴포넌트 전부를 14% 키우므로 택하지 않았다.
+ *
+ * 최소 크기는 12px이다. 10~11px 글자가 337곳 있었고 1280~1920px 데스크톱에서도
+ * 읽기 어려웠다. 화면별로 이 스케일을 벗어나야 하면 그 자리에 이유를 주석으로
+ * 남긴다.
+ */
+:root {
+  --bo-type-page-title: 20px;
+  --bo-type-page-title-leading: 1.35;
+  --bo-type-page-title-weight: 600;
+
+  --bo-type-section-title: 14px;
+  --bo-type-section-title-leading: 1.4;
+  --bo-type-section-title-weight: 600;
+
+  --bo-type-body: 14px;
+  --bo-type-body-leading: 1.5;
+
+  --bo-type-caption: 12px;
+  --bo-type-caption-leading: 1.45;
+}

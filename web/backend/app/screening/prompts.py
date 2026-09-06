@@ -239,7 +239,8 @@ def assemble_synthesis_prompt(
     return StagePrompt("종합 판정", user_message, "judgment.v3", ("notice", "perspectives", "counterarguments"), ())
 
 
-# A compact JSON-schema vocabulary is sent to Ollama's ``format`` field.
+# 응답 계약으로 보내는 압축 JSON-schema 어휘. OpenAI 호환 요청에서는
+# ``response_format.json_schema.schema``가 이 값을 싣는다.
 # additionalProperties=false is important: the model boundary must not
 # silently accept fields which the downstream v3 assembler cannot persist.
 PERSPECTIVE_SCHEMA: Final[dict[str, Any]] = {

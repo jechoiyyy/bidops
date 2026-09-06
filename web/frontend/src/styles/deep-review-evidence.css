@@ -7,21 +7,23 @@
 .deep-review-header h2 {
   margin: var(--space-1) 0 0;
   color: var(--color-deep);
-  font-size: 1.55rem;
+  font-size: var(--bo-type-page-title);
+  font-weight: var(--bo-type-page-title-weight);
+  line-height: var(--bo-type-page-title-leading);
   letter-spacing: -0.03em;
 }
 
 .deep-review-kicker {
   margin: 0;
   color: var(--color-muted);
-  font-size: 0.75rem;
+  font-size: var(--bo-type-caption);
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.02em;
 }
 
 .deep-review-scope {
   color: var(--color-muted);
-  font-size: 0.8125rem;
+  font-size: var(--bo-type-caption);
   overflow-wrap: anywhere;
 }
 
@@ -215,7 +217,7 @@
   color: var(--color-text);
   cursor: pointer;
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: var(--bo-type-caption);
   padding: 4px 9px;
 }
 
@@ -243,7 +245,9 @@
 
 .evidence-viewer-header h3 {
   margin: 2px 0 3px;
-  font-size: 1.25rem;
+  font-size: var(--bo-type-section-title);
+  font-weight: var(--bo-type-section-title-weight);
+  line-height: var(--bo-type-section-title-leading);
 }
 
 .evidence-viewer-header p {
@@ -252,9 +256,9 @@
 }
 
 .evidence-viewer-kicker {
-  font-size: 0.72rem;
+  font-size: var(--bo-type-caption);
   font-weight: 700;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.02em;
 }
 
 .evidence-validation {
@@ -262,7 +266,7 @@
   border: 1px solid var(--border-subtle);
   border-radius: 999px;
   padding: 5px 10px;
-  font-size: 0.8125rem;
+  font-size: var(--bo-type-caption);
   font-weight: 700;
 }
 
@@ -278,7 +282,7 @@
   background: var(--color-info-bg);
   color: var(--color-info);
   padding: 5px 10px;
-  font-size: 0.8125rem;
+  font-size: var(--bo-type-caption);
   font-weight: 700;
 }
 
@@ -338,12 +342,12 @@
 .evidence-quote > span,
 .evidence-hash > span {
   color: var(--color-muted);
-  font-size: 0.75rem;
+  font-size: var(--bo-type-caption);
 }
 
 .evidence-source-heading strong {
   overflow-wrap: anywhere;
-  font-size: 0.78rem;
+  font-size: var(--bo-type-caption);
 }
 
 .evidence-source-kind {
@@ -370,7 +374,7 @@
 
 .evidence-source-facts dt {
   color: var(--color-muted);
-  font-size: 0.78rem;
+  font-size: var(--bo-type-caption);
 }
 
 .evidence-source-facts dd {
@@ -403,7 +407,7 @@
   overflow-wrap: anywhere;
   color: var(--color-text);
   font-family: var(--font-mono);
-  font-size: 0.76rem;
+  font-size: var(--bo-type-caption);
   line-height: 1.45;
 }
 
@@ -433,7 +437,7 @@
 
 .evidence-page-block > div span {
   color: var(--color-muted);
-  font-size: 0.75rem;
+  font-size: var(--bo-type-caption);
 }
 
 .evidence-page-block p {
@@ -520,7 +524,7 @@
   background: var(--surface-secondary);
   padding: 5px 10px;
   color: var(--color-muted);
-  font-size: 0.8125rem;
+  font-size: var(--bo-type-caption);
   font-weight: 700;
 }
 
@@ -564,7 +568,7 @@
 .deep-review-attempt-heading > div:first-child span {
   overflow-wrap: anywhere;
   color: var(--color-muted);
-  font-size: 0.75rem;
+  font-size: var(--bo-type-caption);
 }
 
 .deep-review-attempt-status,
@@ -572,7 +576,7 @@
   flex: none;
   border-radius: 999px;
   padding: 4px 8px;
-  font-size: 0.75rem;
+  font-size: var(--bo-type-caption);
   font-weight: 700;
 }
 
@@ -603,13 +607,13 @@
 .deep-review-current-label {
   background: var(--color-primary-strong);
   color: var(--color-paper);
-  letter-spacing: 0.06em;
+  letter-spacing: 0.02em;
 }
 
 .deep-review-attempt-error {
   margin: 10px 0 0;
   color: var(--color-danger);
-  font-size: 0.8125rem;
+  font-size: var(--bo-type-caption);
 }
 
 .deep-review-stage-list {
@@ -631,14 +635,14 @@
 .deep-review-stage-list code {
   overflow-wrap: anywhere;
   color: var(--color-muted);
-  font-size: 0.75rem;
+  font-size: var(--bo-type-caption);
 }
 
 .deep-review-panel-kicker {
   color: var(--color-danger) !important;
-  font-size: 0.72rem;
+  font-size: var(--bo-type-caption);
   font-weight: 700;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.02em;
 }
 
 .deep-review-retry-panel {
@@ -660,7 +664,7 @@
   display: grid;
   gap: 4px;
   color: var(--color-muted);
-  font-size: 0.8125rem;
+  font-size: var(--bo-type-caption);
   font-weight: 700;
 }
 
@@ -691,35 +695,14 @@
   opacity: 0.55;
 }
 
-@media (max-width: 900px) {
-  .evidence-compare-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .deep-review-report-grid .detail-skeleton-rail {
-    position: static;
-  }
-
-  .deep-review-retry-panel,
-  .deep-review-section-heading {
-    display: grid;
-  }
-
-  .deep-review-retry-controls {
-    width: 100%;
-  }
-
-  .deep-review-stage-list {
-    grid-template-columns: 1fr;
-  }
-}
-
 /* --- 심층 검토 보고서 배치 (PLAN 단계 F 작업 5) --- */
 
 /* 상단 카드 4개. 시안 `DeepReview`의 첫 줄이다. */
 .deep-review-summary-cards {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  /* 품질 표식 카드가 다섯 번째로 붙는다(명세 §6.5). 1280px에서도 다섯 칸이
+     들어가도록 각 칸을 0까지 줄이고, 카드 안에서 줄바꿈한다. */
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: var(--spacing-3);
   min-width: 0;
 }
@@ -737,8 +720,8 @@
 
 .deep-review-summary-card > span,
 .deep-review-summary-card > small {
-  color: var(--color-content-secondary);
-  font-size: var(--font-size-supporting);
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
   overflow-wrap: anywhere;
 }
 
@@ -750,8 +733,8 @@
 /* 계약에 없는 축을 카드로 채우지 않고 그 사실을 한 줄로 남긴다. */
 .deep-review-summary-note {
   margin: 0;
-  color: var(--color-content-secondary);
-  font-size: var(--font-size-supporting);
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
   max-width: 92ch;
 }
 
@@ -778,14 +761,14 @@
 }
 
 .deep-review-decision-table thead th {
-  color: var(--color-content-secondary);
-  font-size: var(--font-size-supporting);
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
   white-space: nowrap;
 }
 
 .deep-review-missing-evidence {
-  color: var(--color-content-secondary);
-  font-size: var(--font-size-supporting);
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
 }
 
 /* Validation 실패 블록은 두 조작을 함께 갖는다. 실패를 자동 보정하지 않으므로
@@ -839,7 +822,7 @@
   gap: var(--spacing-1) var(--spacing-3);
   margin: 0;
   min-width: 0;
-  font-size: var(--font-size-supporting);
+  font-size: var(--bo-type-caption);
 }
 
 /* dt·dd를 직접 열에 놓는다. 감싸는 div가 grid 항목이 되면 첫 열의 max-content가
@@ -849,7 +832,7 @@
 }
 
 .deep-review-scope-facts dt {
-  color: var(--color-content-secondary);
+  color: var(--color-text-secondary);
   white-space: nowrap;
 }
 
@@ -857,4 +840,190 @@
   margin: 0;
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+/* 품질 표식은 색이 아니라 문구가 상태를 말한다. 카드 안에서 배지가 줄바꿈될 수
+   있도록 정렬만 잡는다. */
+.deep-review-quality-card > .badge {
+  align-self: start;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.deep-review-opinion-quality {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin: 0 0 var(--spacing-2);
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  overflow-wrap: anywhere;
+}
+
+/* 문서별 inventory와 사람 확인 필요 segment. */
+.deep-review-segment-panel {
+  min-width: 0;
+  padding: var(--spacing-4);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-container);
+  background: var(--color-background-card);
+}
+
+.deep-review-segment-inventory {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-2);
+  margin: var(--spacing-3) 0 0;
+}
+
+.deep-review-segment-inventory > div {
+  min-width: 0;
+  padding: var(--spacing-2);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-container);
+}
+
+.deep-review-segment-inventory dt {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+}
+
+.deep-review-segment-inventory dd {
+  margin: 0;
+  font-size: var(--font-size-lg);
+}
+
+.deep-review-segment-coverage {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  margin-top: var(--spacing-3);
+  overflow-wrap: anywhere;
+}
+
+.deep-review-segment-coverage > span {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+}
+
+.deep-review-segment-note,
+.deep-review-segment-empty {
+  margin: var(--spacing-2) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.deep-review-segment-ambiguous,
+.deep-review-segment-list,
+.deep-review-segment-source-blocks {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  margin: var(--spacing-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.deep-review-segment-ambiguous > li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+  font-size: var(--bo-type-caption);
+  overflow-wrap: anywhere;
+}
+
+.deep-review-segment-list > li {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  padding: var(--spacing-2);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-container);
+}
+
+.deep-review-segment-heading,
+.deep-review-segment-meta {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+  overflow-wrap: anywhere;
+}
+
+.deep-review-segment-meta {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+}
+
+.deep-review-segment-open {
+  align-self: start;
+}
+
+.deep-review-segment-source {
+  min-width: 0;
+  margin-top: var(--spacing-3);
+  padding: var(--spacing-2);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-container);
+}
+
+.deep-review-segment-source > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+}
+
+.deep-review-segment-source-blocks > li {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.deep-review-segment-source-blocks p {
+  margin: var(--spacing-1) 0 0;
+  font-size: var(--bo-type-caption);
+}
+
+/* 담당자 이름 한 번 입력 자리.
+ *
+ * 재시도 패널과 수정본 편집 패널이 각각 담당자 이름을 물어 한 화면에서 같은
+ * 값을 두 번 입력해야 했다. 자리를 헤더 바로 아래 하나로 합치고, 설명과 입력을
+ * 좌우로 둔다. 지원 폭은 1280~1920px 하나뿐이라 분기를 두지 않는다(ADR-0047).
+ */
+.deep-review-actor-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  min-width: 0;
+  padding: var(--spacing-4);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-container);
+  background: var(--color-background-card);
+}
+
+.deep-review-actor-panel > div:first-child {
+  min-width: 0;
+  max-width: 720px;
+}
+
+.deep-review-actor-panel p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+}
+
+.deep-review-actor-panel .actor-field {
+  flex: 0 1 360px;
+  min-width: 0;
 }

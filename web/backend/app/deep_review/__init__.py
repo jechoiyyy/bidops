@@ -59,6 +59,16 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     # === 별도 worker 진입점이 쓴다 (workers/deep_review.py) ================
     # 조립 계층의 합성 analysis worker가 C-2 claim이 없을 때 부른다.
     "run_deep_review_once": (".workers.deep_review", "run_once"),
+    # 개요 실행은 합성 analysis worker의 세 번째 슬롯이다. 개요 전용 process
+    # 진입점은 만들지 않는다 — 그러면 모델 슬롯 1개 보장이 깨진다 (§6.3).
+    "run_prespec_overview_once": (".workers.prespec_overview", "run_once"),
+    # 조립 계층이 poll loop **밖에서** 한 번 만들어 들고 있는다. 매 poll 새로
+    # 만들면 binding 해석 캐시가 살아남지 못해 idle worker가 poll마다 policy를
+    # 다시 읽고 `/models`를 부른다 (§6.3).
+    "PreSpecOverviewRunner": (
+        ".services.prespec_overview_runner",
+        "PreSpecOverviewRunner",
+    ),
 }
 
 
@@ -76,7 +86,7 @@ def register_lifecycle_extensions(registry=None):
     불러도 결과가 같다 — 등록은 `EXTENSION_OWNER` 키로 제자리 교체된다.
 
     - 사전규격 개요·문서 projection (§6.1)
-    - 첨부 fetch 자격을 다시 세는 회차 적재·추적 결정 hook (§6.2)
+    - 첨부 fetch 자격을 다시 세는 회차 적재·추적 결정·등급 변경 hook (§6.2)
     """
 
     from .services.deep_review_hooks import PreSpecAttachmentEligibilityHook
@@ -92,6 +102,8 @@ def register_lifecycle_extensions(registry=None):
     hook = PreSpecAttachmentEligibilityHook()
     registry.register_run_ingest_hook(hook, owner=EXTENSION_OWNER)
     registry.register_tracking_decision_hook(hook, owner=EXTENSION_OWNER)
+    # 사람 리뷰가 정정 등급을 바꾼 뒤 선별이 registry로 부르는 확장점 (§6.2).
+    registry.register_effective_grade_changed_hook(hook, owner=EXTENSION_OWNER)
     return registry
 
 
@@ -117,5 +129,7 @@ if TYPE_CHECKING:  # pragma: no cover - 정적 분석용 이름 노출
     from .models import PreSpecOverviewReview
     from .runtime import build_runtime
     from .workers.deep_review import run_once as run_deep_review_once
+    from .workers.prespec_overview import run_once as run_prespec_overview_once
+    from .services.prespec_overview_runner import PreSpecOverviewRunner
     from .services.deep_review_hooks import PreSpecAttachmentEligibilityHook
     from .services.prespec_projection import PreSpecOverviewDocumentProjection

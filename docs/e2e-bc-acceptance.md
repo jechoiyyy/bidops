@@ -11,6 +11,7 @@
 - `app.screening.cli score-candidate-quality`: 실제 모델 결과를 사람이 판정한 manifest에서 재현율·사람 일치율·근거 부족 오판율을 계산한다. 실패 결과는 policy import 인자를 내보내지 않는다.
 - `app.deep_review.cli import-profile-policy`: 측정한 policy SHA와 실제 import 대상 SHA가 다르면 저장 전에 거부한다. import 결과는 active 설정을 자동 변경하지 않는다.
 - `app.deep_review.cli run-bc-e2e`: 문서 업로드·검사·구조화·역할 지정·전체 current 문서 확정 후 deep review를 만들고, 세 stage·validation·evidence를 확인한다.
+- `app.deep_review.cli run-prespec-e2e`: 사전규격 회차 적재부터 자동 문서 준비·개요 검토·SW=Y 자동 심층 검토·보고서·최종 의견까지를 mock transport와 fake 취득 connector로 완주하고 증거 JSON(`bidops.prespec-e2e-result.v1`)을 남긴다. 판정 제공자는 `--extension-provider app.screening:register_lifecycle_extensions`로 설정에서 주입하며, 저장소만으로 돌릴 때는 `BIDOPS_TEST_MODE=1`이 필요하다(파일 객체 저장소가 격리 경계에서만 열린다).
 - `docker-compose.remote-vllm.yml`: analysis worker에만 외부 모델 egress network를 추가하는 선택 override다. vLLM 자체는 이 Compose 밖의 승인 서버에서 운영한다.
 
 아래 항목은 저장소만으로 대신 만들 수 없는 실제 인수 입력이다.
@@ -65,13 +66,19 @@ COMPOSE_PROJECT_NAME=bidops-deep-review-e2e \
 ```text
 BIDOPS_VLLM_BASE_URL=http://<approved-ip>:<published-port>/v1
 BIDOPS_VLLM_ALLOWED_HOSTS=<approved-ip>
-BIDOPS_VLLM_MODEL=qwen3.8-27B
 BIDOPS_VLLM_API_KEY=EMPTY
+BIDOPS_VLLM_MODEL_REVISION=<운영자가 확인한 64자 digest>
 ```
+
+`BIDOPS_VLLM_MODEL`은 더 이상 없다. 심층 검토가 부를 모델명은 policy의 `model_name`이 정하고
+설정 항목이 아니다([ADR-0050](tracking/decisions/0050-unified-openai-compatible-model-client.md)).
+용도별로 다른 endpoint를 쓰려면 `BIDOPS_VLLM_DEEP_REVIEW_*` override를 준다.
+**허용 host가 비었거나 선언 revision이 64자 hex가 아니면 그 용도는 네트워크 호출 전에
+fail closed한다.**
 
 현재 client 계약은 OpenAI Python SDK를 통한 명시적 IP/port의 plain HTTP vLLM base URL `/v1`이다. 실제 호출 path는 `/v1/chat/completions`이고 SDK 자동 재시도·환경 proxy·redirect는 비활성이다. `EMPTY`는 서버 인증이 꺼져 있을 때만 허용한다. endpoint가 HTTPS, hostname 또는 실제 API key를 요구하면 값을 주입하기 전에 transport·secret 계약을 별도로 검토한다. remote override의 `model-egress`는 host firewall에서 승인 IP/port 하나로 제한한다. `document-worker`의 `network_mode: none`은 그대로 유지된다.
 
-생성 계약은 non-thinking, `temperature=0.7`, `top_p=0.8`, `top_k=20`, `seed=0`, 최대 completion 16,384 tokens, 호출당 timeout 300초로 canonical policy에 고정돼 있다. vLLM 요청은 평탄화한 provider JSON Schema로 구조를 제한하고, 응답은 다시 더 엄격한 권위 deep-review-stage validator를 통과해야 한다. 이 중 하나라도 바뀌면 기존 품질 점수를 재사용하지 않는다.
+생성 계약은 non-thinking, `temperature=0.7`, `top_p=0.8`, `top_k=20`, `seed=0`, 최대 completion 16,384 tokens, 호출당 timeout 300초, 응답 4 MiB 상한으로 `app/core/model_client.py`에 고정돼 있다. vLLM 요청은 평탄화한 provider JSON Schema로 구조를 제한하고, 응답은 다시 더 엄격한 권위 deep-review-stage validator를 통과해야 한다. 이 중 하나라도 바뀌면 기존 품질 점수를 재사용하지 않는다.
 
 ## 2. 모델 artifact 고정과 품질 점수
 
@@ -105,7 +112,7 @@ docker run --rm --network none --read-only --tmpfs /tmp \
   > /secure/bidops-e2e/qwen-quality-result.json
 ```
 
-통과 결과의 `policy_import_arguments`를 그대로 사용해 measured profile/policy를 import한다. 아래 `<...>`에는 scorer가 출력한 값만 넣는다.
+통과 결과의 `policy_import_arguments`를 그대로 사용해 measured profile/policy를 import한다. 아래 `<...>`에는 scorer가 출력한 값만 넣는다. 품질을 아직 재지 않은 **참조 실행**은 이 인수 절차가 아니라 [운영 절차의 "사전규격 심층 검토 참조 실행"](operations.md#사전규격-심층-검토-참조-실행)을 따르며, 그쪽은 품질 인자 없이 import한다.
 
 ```bash
 docker compose --project-name bidops-deep-review-e2e \
@@ -239,6 +246,7 @@ docker compose \
 - analysis worker의 기존 internal network 유지; model egress 추가 없음
 - creation audit의 provider/model은 `mock-analysis` / `bidops-deterministic-mock-v1`
 - policy quality는 `reference_workflow_unmeasured`, `deployable=false`
+- 응답·화면의 `quality_status`는 `mock_reference`. 참조 실행 표식이며 운영 완료가 아니다
 
 Mock은 입력 slice의 exact quote로 최소 supported claim/evidence를 만들고 Stage 3에 고정 권고를
 넣는다. 따라서 결과 내용은 사업 판단이나 모델 품질 평가에 사용할 수 없다. JSON Schema,

@@ -78,7 +78,7 @@ export function PolicyCreateForm({ onCreated }: PolicyCreateFormProps) {
   return (
     <section className="policy-panel policy-create-panel" aria-labelledby="policy-create-heading">
       <div className="policy-panel-heading"><div><span className="policy-eyebrow">불변 저장</span><h2 id="policy-create-heading">새 정책 버전 생성</h2></div><span className="policy-readonly-note">기존 본문은 편집할 수 없음</span></div>
-      <p className="policy-form-intro">정책은 저장 후 본문 digest가 고정됩니다. 변경이 필요하면 새 버전으로 다시 생성하십시오.</p>
+      <p className="policy-form-intro">정책은 저장하면 본문 식별 해시가 고정됩니다. 바꾸려면 새 버전으로 다시 만드십시오.</p>
       <form className="policy-form" onSubmit={submit}>
         <div className="policy-form-grid">
           <label>정책 버전<input required value={policyVersion} onChange={(event) => setPolicyVersion(event.target.value)} placeholder="예: screening-policy.v1.20260826" /></label>

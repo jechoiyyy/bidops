@@ -25,6 +25,10 @@ PreSpecOverviewAttemptStatus = Literal[
 PreSpecOverviewStrategy = Literal["toc_body_match", "topic_heading"]
 PreSpecOverviewRecommendation = Literal["추진 검토", "조건부 추진 검토", "보류", "검토 종료"]
 PreSpecOverviewValidationStatus = Literal["passed", "failed", "pending"]
+#: 개요 attempt의 품질 표식 (명세 §8). 결정적 mock은 `mock_reference`, 실제
+#: 모델의 품질 미측정 실행은 `unmeasured_reference`이며 둘 다 운영 완료
+#: 집계에 넣지 않는다.
+PreSpecOverviewQualityStatus = Literal["mock_reference", "unmeasured_reference"]
 
 
 class PreSpecOverviewSnapshotView(RuntimeContractModel):
@@ -106,6 +110,7 @@ class PreSpecOverviewAttemptV2View(RuntimeContractModel):
     status: PreSpecOverviewAttemptStatus
     reference_only: bool
     deployable: bool
+    quality_status: PreSpecOverviewQualityStatus
     validation_status: PreSpecOverviewValidationStatus
     result_digest: Digest | None = None
     binding_digest: Digest | None = None
@@ -121,6 +126,7 @@ class PreSpecOverviewReviewV2View(RuntimeContractModel):
     result: PreSpecOverviewResultView | None = None
     result_digest: Digest | None = None
     binding_digest: Digest | None = None
+    quality_status: PreSpecOverviewQualityStatus | None = None
     validation_status: PreSpecOverviewValidationStatus
     completed_at: AwareDateTime | None = None
     current_snapshot: PreSpecOverviewSnapshotView | None = None
@@ -168,6 +174,7 @@ __all__ = [
     "PreSpecOverviewAttemptV2View",
     "PreSpecOverviewAttemptView",
     "PreSpecOverviewCutStatus",
+    "PreSpecOverviewQualityStatus",
     "PreSpecOverviewEvidence",
     "PreSpecOverviewRecommendation",
     "PreSpecOverviewResultLocator",

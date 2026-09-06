@@ -19,6 +19,11 @@ const trackingException = {
   kept_by_tracking: true,
   document: { attachments: 6, "완료": 2, "대기": 1, "진행": 0, "차단": 2, "실패": 1 },
   overview_review_status: "needs_human_review",
+  grade: "우선 검토",
+  grade_source: "screening_judgment",
+  auto_preparation_status: "waiting_attachments",
+  auto_preparation_reason: "awaiting_fetch",
+  latest_deep_review_id: null,
 };
 
 const newPreSpec = {
@@ -37,6 +42,11 @@ const newPreSpec = {
   kept_by_tracking: false,
   document: { attachments: 1, "완료": 1, "대기": 0, "진행": 0, "차단": 0, "실패": 0 },
   overview_review_status: "failed",
+  grade: "검토 권장",
+  grade_source: "human_review",
+  auto_preparation_status: "blocked",
+  auto_preparation_reason: "processing_failed",
+  latest_deep_review_id: null,
 };
 
 const allOnlyPreSpec = {
@@ -57,6 +67,12 @@ const allOnlyPreSpec = {
   // notice에 prespec_overview_review 행이 아직 없다(개요 검토 미시작). 10값
   // 중 어느 것도 아니며, awaiting_document로 접어 넣지 않는다.
   overview_review_status: null,
+  // 판정도 사람 정정도 없다. `판정 없음`이며 다섯 번째 등급이 아니다.
+  grade: null,
+  grade_source: null,
+  auto_preparation_status: "not_applicable",
+  auto_preparation_reason: null,
+  latest_deep_review_id: null,
 };
 
 const ALL_OVERVIEW_STATUSES: (string | null)[] = [
@@ -366,6 +382,17 @@ async function mockPreSpecs(page: Page, options: PreSpecMockOptions = {}): Promi
   return trace;
 }
 
+// 목록은 12열 표가 아니라 리스트 행이다(시안 PreSpecs.png). 한 건을 집는
+// 자리를 한곳에 두어 행 구조가 바뀌어도 spec 전체가 같은 곳만 고치면 된다.
+function preSpecRow(page: Page, title: string) {
+  return page.locator('.pre-specs-list-pane [data-review-primitive="dense-list-row"]').filter({ hasText: title });
+}
+
+/** 행 선택은 제목 링크·버튼이 아닌 자리를 눌러야 상세만 바뀐다. */
+async function selectPreSpecRow(page: Page, title: string) {
+  await preSpecRow(page, title).locator(".pre-specs-row-meta").click();
+}
+
 test.beforeEach(async ({ page }) => {
   await page.clock.setFixedTime(FIXED_TIME);
   await mockApi(page);
@@ -411,16 +438,23 @@ test("추적 예외, 신규, D-day, 문서 차단과 실패를 별도 상태로 
   await mockPreSpecs(page);
   await page.goto("/pre-specs");
 
-  const trackedRow = page.locator("tbody tr").filter({ hasText: trackingException.title });
+  const trackedRow = preSpecRow(page, trackingException.title);
   await expect(trackedRow).toContainText("추적");
   await expect(trackedRow).toContainText("추적 예외");
-  await expect(trackedRow).toContainText("N");
   await expect(trackedRow.getByLabel("D-day: D-2")).toBeVisible();
   await expect(trackedRow.getByText("차단 2", { exact: true })).toBeVisible();
   await expect(trackedRow.getByText("실패 1", { exact: true })).toBeVisible();
 
-  const newRow = page.getByRole("row").filter({ has: page.getByRole("link", { name: newPreSpec.title }) });
+  // 목록 행은 SW사업대상=Y만 배지로 세운다. 실제 `N`은 없음(null)과 다른 값이므로
+  // 상세 pane의 사실 목록이 값을 그대로 밝힌다 — 두 경우를 같은 표시로 접지 않는다.
+  const newRow = preSpecRow(page, newPreSpec.title);
   await expect(newRow.getByText("신규", { exact: true })).toBeVisible();
+  await expect(newRow.getByText("SW사업대상", { exact: true })).toBeVisible();
+  await expect(trackedRow.getByText("SW사업대상", { exact: true })).toHaveCount(0);
+
+  await selectPreSpecRow(page, trackingException.title);
+  const swFact = page.locator(".pre-specs-detail-facts > div").filter({ hasText: "SW사업대상" });
+  await expect(swFact).toContainText("N");
 });
 
 test("개요 검토 상태 10값과 미시작(null)이 모두 그룹으로 표현된다", async ({ page }) => {
@@ -495,7 +529,7 @@ test("발주계획에서 승계한 건은 추적 상태를 다시 묻지 않고 
   const trace = await mockPreSpecs(page);
   await page.goto("/pre-specs");
 
-  const trackedRow = page.locator("tbody tr").filter({ hasText: trackingException.title });
+  const trackedRow = preSpecRow(page, trackingException.title);
   await trackedRow.getByRole("button", { name: "추적 결정" }).click();
 
   const decisionPanel = page.locator("#pre-specs-tracking-target");
@@ -518,7 +552,7 @@ test("승계 건도 상세 pane에서 심층 검토 실행으로 이어질 수 �
   await mockPreSpecs(page);
   await page.goto("/pre-specs?sw_only=false&sort=deadline");
 
-  const trackedRow = page.locator("tbody tr").filter({ hasText: trackingException.title });
+  const trackedRow = preSpecRow(page, trackingException.title);
   await trackedRow.getByRole("button", { name: "추적 결정" }).click();
 
   const detailPane = page.locator(".pre-specs-detail-pane");
@@ -535,7 +569,7 @@ test("신규 사전규격만 추적 시작하고 심층 검토를 한 조작으�
   const trace = await mockPreSpecs(page);
   await page.goto("/pre-specs");
 
-  const newRow = page.locator("tbody tr").filter({ hasText: newPreSpec.title });
+  const newRow = preSpecRow(page, newPreSpec.title);
   await newRow.getByRole("button", { name: "추적 결정" }).click();
 
   const decisionPanel = page.locator("#pre-specs-tracking-target");
@@ -561,15 +595,44 @@ test("신규 사전규격만 추적 시작하고 심층 검토를 한 조작으�
   await expect.poll(() => new URL(page.url()).pathname).toBe("/pre-specs/992");
 });
 
+// 상세 pane의 추적 결정 입력은 행을 바꾸면 사라진다. 조용히 버리지 않고 묻는다.
+test("추적 결정 사유를 적는 중에 다른 행을 고르면 확인 없이 입력을 버리지 않는다", async ({ page }) => {
+  const trace = await mockPreSpecs(page);
+  await page.goto("/pre-specs");
+
+  await preSpecRow(page, newPreSpec.title).getByRole("button", { name: "추적 결정" }).click();
+  const decisionPanel = page.locator("#pre-specs-tracking-target");
+  await decisionPanel.getByRole("textbox", { name: "사유 (필수)" }).fill("아직 저장하지 않은 사유");
+
+  // 취소하면 선택도 입력도 그대로다.
+  await selectPreSpecRow(page, trackingException.title);
+  const dialog = page.getByRole("alertdialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("저장하지 않은 추적 결정 사유와 담당자 이름이 있습니다.");
+  await dialog.getByRole("button", { name: "계속 편집", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(decisionPanel).toContainText(newPreSpec.title);
+  await expect(decisionPanel.getByRole("textbox", { name: "사유 (필수)" })).toHaveValue("아직 저장하지 않은 사유");
+
+  // 확인하면 옮겨 가고, 새 행의 입력은 비어 있다(이전 행의 사유가 새지 않는다).
+  await selectPreSpecRow(page, trackingException.title);
+  await page.getByRole("alertdialog").getByRole("button", { name: "저장하지 않고 옮기기", exact: true }).click();
+  await expect(decisionPanel).toContainText(trackingException.title);
+  expect(trace.trackingPatches).toEqual([]);
+});
+
 test("사업기회가 없는 행은 목록에서도 추적 결정 비활성 사유를 보여준다", async ({ page }) => {
   await mockPreSpecs(page);
   await page.goto("/pre-specs?sw_only=false");
   await page.getByRole("button", { name: /개요 검토 미시작/ }).click();
 
-  const untrackedRow = page.locator("tbody tr").filter({ hasText: allOnlyPreSpec.title });
+  const untrackedRow = preSpecRow(page, allOnlyPreSpec.title);
   const disabledButton = untrackedRow.getByRole("button", { name: "추적 결정" });
   await expect(disabledButton).toBeDisabled();
   await expect(page.getByText("아직 사업기회에 연결되지 않아 추적 결정을 기록할 수 없습니다.", { exact: true })).toBeVisible();
+  // 이 건은 SW사업대상이 null이다. `N`처럼 값이 있는 경우와 달리 목록에서 미확인으로 적는다.
+  await expect(untrackedRow.getByText("SW 미확인", { exact: true })).toBeVisible();
+  await expect(untrackedRow.getByText("구분 미확인", { exact: true })).toBeVisible();
 });
 
 // ADR-0047 이 지원 폭을 1280~1920px 로 좁히면서 390px 의 목록·상세 전환은
@@ -583,11 +646,10 @@ test("사전규격 목록 행 선택은 목록을 유지한 채 오른쪽 상세
   await expect(listPane).toBeVisible();
   await expect(detailPane).toContainText("사전규격을 선택하십시오.");
 
-  const row = page.getByRole("row").filter({ has: page.getByRole("link", { name: trackingException.title }) });
-  await row.click();
+  await selectPreSpecRow(page, trackingException.title);
 
   await expect(page.locator('[data-review-primitive="split-workspace"]')).not.toHaveAttribute("data-mobile-view", /.*/);
-  await expect(page.locator('tbody tr[aria-selected="true"]')).toHaveCount(1);
+  await expect(page.locator('.pre-specs-list-pane [data-review-primitive="dense-list-row"][aria-current="true"]')).toHaveCount(1);
   await expect(page.locator("#pre-specs-tracking-target")).toBeVisible();
   // 목록은 선택 뒤에도 그대로 남는다.
   await expect(listPane).toBeVisible();
@@ -780,7 +842,7 @@ test("result가 없고 awaiting_model이면 승인된 binding 대기 상태를 �
   await page.goto("/pre-specs/991");
 
   await expect(page.getByText("검토 결과 미확정", { exact: true })).toBeVisible();
-  await expect(page.getByText("승인된 모델 binding이 없어 아직 실행되지 않은 상태입니다. 승인된 사설 모델 binding이 준비되기 전에는 모델을 호출하지 않습니다.", { exact: true })).toBeVisible();
+  await expect(page.getByText("승인된 모델 연결이 없어 아직 실행하지 않았습니다. 승인된 사설 모델 연결이 준비되기 전에는 모델을 부르지 않습니다.", { exact: true })).toBeVisible();
 });
 
 test("overview envelope notice ID가 어긋나면 교차 정본을 렌더링하지 않는다", async ({ page }) => {
@@ -803,14 +865,20 @@ test("overview nested review notice ID가 어긋나면 교차 정본을 렌더�
   await expect(page.getByText("응답의 notice ID가 요청과 일치하지 않아 개요 검토를 표시하지 않습니다.", { exact: true })).toBeVisible();
 });
 
+// 오류 상태는 서버 원문을 내지 않고 원인과 다음 행동을 함께 말한다
+// (`src/lib/apiErrors.ts` 정책 하나).
 test("overview API 오류는 서버 detail이나 원문을 화면에 노출하지 않는다", async ({ page }) => {
   const secret = "raw-prompt-response-secret";
   await mockPreSpecs(page, { overviewStatus: 500, overviewBody: { detail: secret } });
   await page.goto("/pre-specs/991");
 
+  const panel = page.locator(".pre-spec-overview-panel");
   await expect(page.getByText("개요 검토 상태를 불러오지 못했습니다.", { exact: true })).toBeVisible();
   await expect(page.getByText(secret, { exact: true })).not.toBeVisible();
-  await expect(page.getByText("개요 검토 API 응답을 확인할 수 없습니다.", { exact: true })).toBeVisible();
+  // 원인 한 줄과 다음 행동 한 줄이 함께 있고, 행동은 버튼으로도 있다.
+  await expect(panel).toContainText("서버 오류가 발생했습니다.");
+  await expect(panel).toContainText("잠시 뒤 다시 시도");
+  await expect(panel.getByRole("button", { name: "다시 시도" })).toBeVisible();
 });
 
 test("사전규격 목록과 상세는 viewport 바깥으로 넘치지 않는다", async ({ page }) => {

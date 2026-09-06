@@ -76,7 +76,7 @@
 .review-control-label {
   flex: 0 0 auto;
   color: var(--color-text-secondary);
-  font-size: var(--font-size-xs);
+  font-size: var(--bo-type-caption);
   font-weight: var(--font-weight-medium);
   white-space: nowrap;
 }
@@ -109,7 +109,7 @@
 .review-filter-bar .queue-filter-label {
   flex: 0 0 auto;
   color: var(--color-text-secondary);
-  font-size: var(--font-size-xs);
+  font-size: var(--bo-type-caption);
   font-weight: var(--font-weight-medium);
   white-space: nowrap;
 }
@@ -137,7 +137,7 @@
   border-radius: var(--radius-inner);
   color: var(--color-text-primary);
   background: transparent;
-  font-size: var(--font-size-xs);
+  font-size: var(--bo-type-caption);
 }
 
 .review-filter-bar .queue-filter-control button:focus-visible {
@@ -172,7 +172,7 @@
   min-width: 0;
   border: 0;
   background: transparent;
-  font-size: var(--font-size-sm);
+  font-size: var(--bo-type-caption);
 }
 
 .review-status {
@@ -244,14 +244,16 @@
 
 .review-history-link-rail h3 {
   color: var(--color-text-primary);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
+  font-size: var(--bo-type-section-title);
+  line-height: var(--bo-type-section-title-leading);
+  font-weight: var(--bo-type-section-title-weight);
 }
 
 .review-history-link-rail h4 {
   color: var(--color-text-primary);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
+  font-size: var(--bo-type-section-title);
+  line-height: var(--bo-type-section-title-leading);
+  font-weight: var(--bo-type-section-title-weight);
 }
 
 .review-history-link-rail > section,
@@ -300,7 +302,7 @@
 .review-decision-action-reason {
   margin: var(--spacing-1) 0 0;
   color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
+  font-size: var(--bo-type-caption);
   overflow-wrap: anywhere;
 }
 
@@ -348,7 +350,7 @@
   min-width: 0;
   margin-left: auto;
   color: var(--color-text-secondary);
-  font-size: var(--font-size-xs);
+  font-size: var(--bo-type-caption);
   text-align: right;
   overflow-wrap: break-word;
 }
@@ -391,14 +393,14 @@
 
 .review-secondary-input-title {
   color: var(--color-text-primary);
-  font-size: var(--font-size-sm);
+  font-size: var(--bo-type-caption);
   font-weight: var(--font-weight-semibold);
   overflow-wrap: anywhere;
 }
 
 .review-secondary-input-description {
   color: var(--color-text-secondary);
-  font-size: var(--font-size-xs);
+  font-size: var(--bo-type-caption);
   overflow-wrap: anywhere;
 }
 
@@ -421,7 +423,7 @@
 .review-secondary-input-reason {
   margin: 0;
   color: var(--color-text-secondary);
-  font-size: var(--font-size-xs);
+  font-size: var(--bo-type-caption);
   overflow-wrap: anywhere;
 }
 
@@ -454,7 +456,7 @@
   margin: 0;
   min-width: 0;
   color: var(--color-text-primary);
-  font-size: var(--font-size-sm);
+  font-size: var(--bo-type-caption);
   font-weight: var(--font-weight-semibold);
   overflow-wrap: anywhere;
 }
@@ -476,7 +478,7 @@
 .review-revision-history-meta,
 .review-revision-history-empty {
   color: var(--color-text-secondary);
-  font-size: var(--font-size-xs);
+  font-size: var(--bo-type-caption);
   white-space: nowrap;
 }
 
@@ -489,6 +491,6 @@
 .review-revision-history-error {
   margin: 0;
   color: var(--color-text-red);
-  font-size: var(--font-size-xs);
+  font-size: var(--bo-type-caption);
   overflow-wrap: anywhere;
 }

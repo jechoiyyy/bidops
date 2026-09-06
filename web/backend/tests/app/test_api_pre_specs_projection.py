@@ -13,6 +13,7 @@ router가 같은 fixture로 낸 응답(`tests/fixtures/pre_specs_list_baseline.j
 from __future__ import annotations
 
 from datetime import UTC, datetime
+import hashlib
 import json
 from pathlib import Path
 
@@ -20,6 +21,16 @@ from sqlalchemy import event
 
 from app.main import app  # noqa: F401 — 조립 계층이 lifecycle 확장점을 등록한다
 from app.deep_review import PreSpecOverviewReview
+from app.deep_review.models import (
+    ContentObject,
+    DocumentBundle,
+    DocumentBundleItem,
+    DocumentStructure,
+    DocumentVersion,
+    PreSpecOverviewSnapshot,
+)
+from app.lifecycle.models import Notice
+from app.screening.models import Judgment, Review
 from tests.app.test_api_pre_specs import _items_by_id, _payload, pre_specs_api  # noqa: F401
 
 BASELINE_PATH = Path(__file__).resolve().parents[1] / "fixtures" / "pre_specs_list_baseline.json"
@@ -168,6 +179,226 @@ def test_pre_specs_list_uses_constant_query_count(pre_specs_api):
         event.remove(engine, "before_cursor_execute", count_statement)
 
     # lifecycle 몫(필터된 공고 id 집합, 페이지)과 projection 몫(개요 상태, 상태별
-    # 건수, 첨부 취득 건수)을 합쳐도 상수 회다. 공고당 조회는 없다.
-    assert len(statements) <= 5
+    # 건수, 첨부 취득 건수, 등급·자동 준비 필드)을 합쳐도 상수 회다. 공고당
+    # 조회는 없다. 상한은 실측 회수이며, 공고 수와 무관하다는 사실은 아래
+    # `..._does_not_grow_with_the_number_of_notices`가 본다.
+    assert len(statements) <= 14
     assert response["total"] == 9
+
+
+def _count_statements(session, engine, **params) -> int:
+    statements: list[str] = []
+
+    def count_statement(_conn, _cursor, statement, _parameters, _context, _executemany):
+        statements.append(statement)
+
+    event.listen(engine, "before_cursor_execute", count_statement)
+    try:
+        _payload(session, **params)
+    finally:
+        event.remove(engine, "before_cursor_execute", count_statement)
+    return len(statements)
+
+
+def test_pre_specs_query_count_does_not_grow_with_the_number_of_notices(pre_specs_api):
+    """명세 §8: 새 등급·자동 준비 필드도 `notice_ids` 만큼을 상수 회로 처리한다."""
+
+    session, engine, _refs = pre_specs_api
+    before = _count_statements(session, engine, sw_only=False)
+
+    for index in range(12):
+        session.add(
+            Notice(
+                notice_key=f"pre:SCALE-{index}",
+                source_type="pre_spec",
+                title=f"확장 사전규격 {index}",
+                agency="확장 기관",
+                qualification_flags_json={"sw_business_status": "Y"},
+                lifecycle_json={"pre_spec_no": f"SCALE-{index}"},
+            )
+        )
+    session.commit()
+
+    payload = _payload(session, sw_only=False, limit=500)
+    assert payload["total"] == 21
+    assert _count_statements(session, engine, sw_only=False, limit=500) == before
+
+
+def test_pre_specs_grade_and_auto_preparation_fields_are_null_without_a_judgment(
+    pre_specs_api,
+):
+    session, _engine, refs = pre_specs_api
+
+    item = _items_by_id(_payload(session, sw_only=False))[refs["sw_yes"].id]
+
+    # 판정도 정정도 없으면 등급은 `null`이고 출처도 `null`이다. 0이나 특정
+    # 등급으로 접지 않는다.
+    assert item["grade"] is None
+    assert item["grade_source"] is None
+    assert item["auto_preparation_status"] == "not_applicable"
+    assert item["auto_preparation_reason"] == "grade_not_priority"
+    assert item["latest_deep_review_id"] is None
+
+
+def test_pre_specs_grade_comes_from_the_screening_seam(pre_specs_api):
+    session, _engine, refs = pre_specs_api
+    session.add(Judgment(notice_id=refs["sw_yes"].id, grade="검토 권장", readiness="확인 완료"))
+    session.commit()
+
+    item = _items_by_id(_payload(session, sw_only=False))[refs["sw_yes"].id]
+    assert item["grade"] == "검토 권장"
+    assert item["grade_source"] == "screening_judgment"
+
+    session.add(
+        Review(notice_id=refs["sw_yes"].id, corrected_grade="우선 검토", reviewer_snapshot="검토자")
+    )
+    session.commit()
+
+    item = _items_by_id(_payload(session, sw_only=False))[refs["sw_yes"].id]
+    # 사람 정정이 있으면 그것이 effective grade이고 출처가 달라진다.
+    assert item["grade"] == "우선 검토"
+    assert item["grade_source"] == "human_review"
+    assert item["auto_preparation_status"] == "waiting_attachments"
+
+
+# --- 자동 심층 시작을 막은 사유가 화면까지 온다 (명세 §6.4·§8) ----------------
+
+
+def _auto_start_rows(session, notice, *, overview_result: str, in_bundle: bool = True):
+    """자동 확정된 `ready` 묶음과 완료된 개요 검토 한 벌.
+
+    §6.4의 앞 조건을 모두 세워 두고, 검사마다 한 조건씩만 어긋나게 한다.
+    """
+
+    payload = f"synthetic-{notice.id}".encode()
+    content = ContentObject(
+        sha256=hashlib.sha256(payload).hexdigest(),
+        size_bytes=len(payload),
+        detected_mime="application/pdf",
+        retention_class="document-source",
+    )
+    session.add(content)
+    session.flush()
+    document = DocumentVersion(
+        notice_id=notice.id,
+        content_object_id=content.id,
+        version=1,
+        source_kind="manual",
+        original_filename="제안요청서.pdf",
+        role="제안요청서",
+        is_current=True,
+        safety_status="safe",
+    )
+    session.add(document)
+    session.flush()
+    structure = DocumentStructure(
+        document_version_id=document.id,
+        source_sha256=content.sha256,
+        media_type="application/pdf",
+        extractor_name="test",
+        extractor_version="1",
+        payload_content_object_id=content.id,
+        payload_sha256=hashlib.sha256(b"structure").hexdigest(),
+        page_count=1,
+        block_count=0,
+        validation_status="ready",
+    )
+    session.add(structure)
+    session.flush()
+    bundle = DocumentBundle(
+        notice_id=notice.id,
+        revision=1,
+        version=1,
+        status="ready",
+        issues_snapshot=[],
+        created_by_name="auto-preparation",
+        confirmed_by_name="auto-preparation",
+        confirmed_at=datetime(2026, 8, 26, tzinfo=UTC),
+    )
+    session.add(bundle)
+    session.flush()
+    if in_bundle:
+        session.add(
+            DocumentBundleItem(
+                bundle_id=bundle.id,
+                document_version_id=document.id,
+                ordinal=0,
+                document_version_version=1,
+                content_object_id=content.id,
+                content_sha256=content.sha256,
+                detected_mime="application/pdf",
+                size_bytes=len(payload),
+                original_filename="제안요청서.pdf",
+                source_kind="manual",
+                role_at_confirmation="제안요청서",
+                is_current_at_confirmation=True,
+                safety_status_at_confirmation="safe",
+                structure_id_at_confirmation=structure.id,
+                structure_payload_sha256=structure.payload_sha256,
+            )
+        )
+    review = PreSpecOverviewReview(notice_id=notice.id, status="awaiting_model")
+    session.add(review)
+    session.flush()
+    snapshot = PreSpecOverviewSnapshot(
+        review_id=review.id,
+        notice_id=notice.id,
+        document_version_id=document.id,
+        structure_id=structure.id,
+        source_sha256=content.sha256,
+        payload_sha256=structure.payload_sha256,
+        cut_status="ready",
+        strategy="topic_heading",
+        start_locator={"block_key": "start", "page": 1, "ordinal": 0},
+        end_locator={"block_key": "end", "page": 1, "ordinal": 2},
+        input_block_keys=["start"],
+    )
+    session.add(snapshot)
+    session.flush()
+    review.current_snapshot_id = snapshot.id
+    review.status = "completed"
+    review.result = overview_result
+    review.completed_at = datetime(2026, 8, 26, tzinfo=UTC)
+    session.commit()
+
+
+def test_pre_specs_show_why_the_deep_review_was_not_started_automatically(
+    pre_specs_api, monkeypatch
+):
+    """§6.4: `deep_review_ready_for_click`에는 막은 사유 코드가 붙는다."""
+
+    session, _engine, refs = pre_specs_api
+    monkeypatch.delenv("BIDOPS_ACTIVE_PROFILE_VERSION_ID", raising=False)
+    monkeypatch.delenv("BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID", raising=False)
+    # SW=N 사전규격. 앞 조건이 모두 성립해도 사람 클릭이다.
+    _auto_start_rows(session, refs["sw_no"], overview_result="추진 검토")
+    # SW=Y이지만 개요 권고가 `검토 종료`다.
+    _auto_start_rows(session, refs["sw_yes"], overview_result="검토 종료")
+
+    items = _items_by_id(_payload(session, sw_only=False))
+
+    assert items[refs["sw_no"].id]["auto_preparation_status"] == "deep_review_ready_for_click"
+    assert items[refs["sw_no"].id]["auto_preparation_reason"] == "not_sw_business"
+    assert items[refs["sw_yes"].id]["auto_preparation_status"] == "deep_review_ready_for_click"
+    assert (
+        items[refs["sw_yes"].id]["auto_preparation_reason"] == "overview_recommendation_closed"
+    )
+
+
+def test_pre_specs_show_the_fail_closed_reason_when_active_versions_are_missing(
+    pre_specs_api, monkeypatch
+):
+    """active profile/policy 설정이 없으면 fail closed 사유가 화면에 보인다."""
+
+    session, _engine, refs = pre_specs_api
+    monkeypatch.delenv("BIDOPS_ACTIVE_PROFILE_VERSION_ID", raising=False)
+    monkeypatch.delenv("BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID", raising=False)
+    _auto_start_rows(session, refs["sw_yes"], overview_result="추진 검토")
+
+    item = _items_by_id(_payload(session, sw_only=False))[refs["sw_yes"].id]
+
+    assert item["auto_preparation_status"] == "deep_review_ready_for_click"
+    assert item["auto_preparation_reason"] == "service_unavailable"
+    # 개요 검토 행이 없는 다른 공고는 그대로 null이다. 자리표시자로 채우지 않는다.
+    other = _items_by_id(_payload(session, sw_only=False))[refs["sw_no"].id]
+    assert other["auto_preparation_reason"] == "grade_not_priority"

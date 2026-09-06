@@ -4,6 +4,7 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import { Tab, TabList } from "@astryxdesign/core/TabList";
 import { ActorField } from "../components/common/ActorField";
 import { Badge } from "../components/common/Badge";
+import { ConfirmDecisionDialog, trackingEndConfirmContent } from "../components/common/ConfirmDecisionDialog";
 import { DisabledReason } from "../components/common/DisabledReason";
 import { EmptyState } from "../components/common/EmptyState";
 import { MutationFeedback } from "../components/common/MutationFeedback";
@@ -19,8 +20,10 @@ import {
   StickyDecisionHeader,
 } from "../components/common/ReviewPrimitives";
 import { Toast } from "../components/common/Toast";
+import { useToast } from "../components/common/useToast";
 import { useUnsavedGuard } from "../components/common/useUnsavedGuard";
-import { api, ApiError } from "../lib/api";
+import { api } from "../lib/api";
+import { describeApiError, type ApiErrorDescription } from "../lib/apiErrors";
 import {
   linkExceptions,
   linkRecordLabel,
@@ -156,7 +159,7 @@ function LinkedRecordsPanel({ item, returnSearch }: { item: OpportunityDetailRes
       <section className="opportunity-detail-block">
         <div className="opportunity-section-heading">
           <div>
-            <span className="opportunity-panel-kicker">OPPORTUNITY LIFECYCLE</span>
+            <span className="opportunity-panel-kicker">사업 생애주기</span>
             <h4>연결 레코드 {item.links.length}건</h4>
           </div>
           <span>서버에 저장된 관계를 그대로 표시</span>
@@ -177,7 +180,7 @@ function LinkedRecordsPanel({ item, returnSearch }: { item: OpportunityDetailRes
       <section className="opportunity-detail-block" aria-labelledby="opportunity-judgments-title">
         <div className="opportunity-section-heading">
           <div>
-            <span className="opportunity-panel-kicker">NOTICE JUDGMENT HISTORY</span>
+            <span className="opportunity-panel-kicker">공고 1차 판정</span>
             <h4 id="opportunity-judgments-title">공고 판정 이력</h4>
           </div>
           <span>회차별 읽기 전용 이력</span>
@@ -203,7 +206,7 @@ function LinkedRecordsPanel({ item, returnSearch }: { item: OpportunityDetailRes
       <section className="opportunity-detail-block" aria-labelledby="opportunity-bid-delta-title">
         <div className="opportunity-section-heading">
           <div>
-            <span className="opportunity-panel-kicker">BID NOTICE REVIEW</span>
+            <span className="opportunity-panel-kicker">입찰공고 검토</span>
             <h4 id="opportunity-bid-delta-title">입찰공고 변경 비교</h4>
           </div>
           <span>추적 상태와 별도의 최종 결정</span>
@@ -239,7 +242,7 @@ function TrackingHistoryPanel({ item }: { item: OpportunityDetailResponse }) {
     <section className="opportunity-detail-block" aria-labelledby="opportunity-tracking-history-title">
       <div className="opportunity-section-heading">
         <div>
-          <span className="opportunity-panel-kicker">TRACKING HISTORY</span>
+          <span className="opportunity-panel-kicker">사람이 고른 추적 상태</span>
           <h4 id="opportunity-tracking-history-title">추적 이력</h4>
         </div>
         <Badge variant={trackingVariant(item.tracking_status)} label={item.tracking_status} />
@@ -314,7 +317,7 @@ function CandidateDecisionForm({
     : !reason.trim()
       ? "판정을 저장하려면 이유를 입력하십시오."
       : !actorName.trim()
-        ? "판정을 저장하려면 담당자 claimed name을 입력하십시오."
+        ? "판정을 저장하려면 담당자 이름을 입력하십시오."
         : null;
 
   return (
@@ -345,8 +348,8 @@ function CandidateDecisionForm({
       </label>
       <ActorField label="담당자 이름" required value={actorName} onChange={setActorName} placeholder="예: 홍길동" autoComplete="off" />
       {mutation.isError ? (
-        <MutationFeedback tone="error">
-          {mutation.error instanceof ApiError ? mutation.error.message : "후보 연결 판정을 저장하지 못했습니다."} 연결 상태는 바뀌지 않았습니다.
+        <MutationFeedback tone="error" problem={describeApiError(mutation.error, "후보 연결 판정을 저장하지 못했습니다.")}>
+          <p>연결 상태는 바뀌지 않았습니다.</p>
         </MutationFeedback>
       ) : null}
       <button
@@ -440,7 +443,7 @@ function NoticeCorrectionForm({
       : !reason.trim()
         ? "저장하려면 수정 이유를 입력하십시오."
         : !actorName.trim()
-          ? "저장하려면 담당자 claimed name을 입력하십시오."
+          ? "저장하려면 담당자 이름을 입력하십시오."
           : null;
 
   return (
@@ -479,8 +482,8 @@ function NoticeCorrectionForm({
       </label>
       <ActorField label="담당자 이름" required value={actorName} onChange={setActorName} placeholder="예: 홍길동" autoComplete="off" />
       {mutation.isError ? (
-        <MutationFeedback tone="error">
-          {mutation.error instanceof ApiError ? mutation.error.message : "확인 항목 답변을 저장하지 못했습니다."} 공고 판정은 바뀌지 않았습니다.
+        <MutationFeedback tone="error" problem={describeApiError(mutation.error, "확인 항목 답변을 저장하지 못했습니다.")}>
+          <p>공고 판정은 바뀌지 않았습니다.</p>
         </MutationFeedback>
       ) : null}
       <button
@@ -557,7 +560,7 @@ function SystemSignalPanel({
       <section className="opportunity-detail-block" aria-labelledby="opportunity-exception-title">
         <div className="opportunity-section-heading">
           <div>
-            <span className="opportunity-panel-kicker">EXCEPTION WORK</span>
+            <span className="opportunity-panel-kicker">사람이 해소할 항목</span>
             <h4 id="opportunity-exception-title">예외 작업 {exceptions.length}건</h4>
           </div>
           <span>근거 없음 · 검증 실패 · 연결 불확실</span>
@@ -644,7 +647,11 @@ function TrackingStatusForm({
   const [status, setStatus] = useState<OpportunityTrackingStatus | "">(initialStatus);
   const [reason, setReason] = useState("");
   const [actorName, setActorName] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [problem, setProblem] = useState<ApiErrorDescription | null>(null);
+  // `종료`만 되돌릴 수 없다. `계속 추적`과 `보류`는 다시 고를 수 있으므로 확인
+  // 단계를 두지 않는다. 저장에 성공하면 사유·담당자가 비워지므로 요약은 열 때의
+  // 값을 얼려 둔다. 확인 문구는 사전규격의 추적 저장과 같은 자리에서 만든다.
+  const [endConfirm, setEndConfirm] = useState<ReturnType<typeof trackingEndConfirmContent> | null>(null);
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -654,7 +661,7 @@ function TrackingStatusForm({
         actorName,
       ),
     onSuccess: async (saved) => {
-      setError(null);
+      setProblem(null);
       setStatus(saved.tracking_status);
       setReason("");
       setActorName("");
@@ -664,7 +671,7 @@ function TrackingStatusForm({
       onSaved("추적 상태를 저장했습니다.");
     },
     onError: (caught: unknown) => {
-      setError(caught instanceof ApiError ? caught.message : "추적 상태를 저장하지 못했습니다.");
+      setProblem(describeApiError(caught, "추적 상태를 저장하지 못했습니다."));
     },
   });
 
@@ -677,7 +684,7 @@ function TrackingStatusForm({
       : !reason.trim()
         ? "추적 상태를 저장하려면 이유를 입력하십시오."
         : !actorName.trim()
-          ? "추적 상태를 저장하려면 담당자 claimed name을 입력하십시오."
+          ? "추적 상태를 저장하려면 담당자 이름을 입력하십시오."
           : null;
 
   useEffect(() => {
@@ -690,7 +697,16 @@ function TrackingStatusForm({
       className="opportunity-tracking-form"
       onSubmit={(event) => {
         event.preventDefault();
-        if (ready) mutation.mutate();
+        if (!ready) return;
+        if (status === "종료") {
+          setEndConfirm(trackingEndConfirmContent({
+            actor: actorName,
+            reason,
+            target: `사업기회 #${opportunity.id}`,
+          }));
+          return;
+        }
+        mutation.mutate();
       }}
     >
       {dirty ? <p className="opportunity-form-unsaved" role="status">저장되지 않은 추적 상태 변경이 있습니다.</p> : null}
@@ -727,7 +743,7 @@ function TrackingStatusForm({
         placeholder="예: 홍길동"
         autoComplete="off"
       />
-      {error ? <MutationFeedback tone="error">{error}</MutationFeedback> : null}
+      {problem ? <MutationFeedback tone="error" problem={problem} /> : null}
       <button
         className="interaction-control"
         type="submit"
@@ -739,6 +755,17 @@ function TrackingStatusForm({
       {disabledReason ? (
         <DisabledReason id="opportunity-save-disabled-reason">{disabledReason}</DisabledReason>
       ) : null}
+      {/* 확인 단계. 취소하면 초안은 그대로 남고 요청은 나가지 않는다. 저장에
+          실패하면 다이얼로그는 닫히고 기존 인라인 오류 표시가 그대로 보인다. */}
+      <ConfirmDecisionDialog
+        confirmLabel={endConfirm?.confirmLabel ?? "종료 상태로 저장"}
+        isPending={mutation.isPending}
+        onConfirm={() => mutation.mutate(undefined, { onSettled: () => setEndConfirm(null) })}
+        onOpenChange={(next) => { if (!next) setEndConfirm(null); }}
+        open={endConfirm !== null}
+        summary={endConfirm?.summary ?? []}
+        title={endConfirm?.title ?? "추적을 종료합니다"}
+      />
     </form>
   );
 }
@@ -861,13 +888,18 @@ function TrackingDetail({
 
 export function OpportunitiesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [toast, setToast] = useState<string | null>(null);
+  const { toast, showToast, dismissToast } = useToast();
   const [dirty, setDirty] = useState(false);
   const [searchText, setSearchText] = useState(searchParams.get("q") ?? "");
   const handleDirtyChange = useCallback((nextDirty: boolean) => setDirty(nextDirty), []);
-  useUnsavedGuard(dirty, {
+  // 목록은 구역·필터·정렬·선택을 검색 인자로 옮긴다. 그 이동은 route를 떠나는 것이
+  // 아니므로 blocker 범위를 `pathname`으로 두고, 아래에서 각자의 문구로 확인한다.
+  // `any`로 두면 필터 확인과 blocker 확인이 겹쳐 같은 조작에 두 번 묻는다.
+  const guard = useUnsavedGuard(dirty, {
     blockSpaNavigation: true,
-    message: "저장되지 않은 추적 상태 변경이 있습니다. 이 페이지를 벗어나시겠습니까?",
+    scope: "pathname",
+    title: "사업 추적 목록을 떠납니다",
+    message: "저장하지 않은 추적 상태 변경이 있습니다. 지금 이동하면 사라지며 저장된 추적 상태는 바뀌지 않습니다.",
   });
 
   const requestedSection = searchParams.get("section");
@@ -913,19 +945,43 @@ export function OpportunitiesPage() {
   const returnSearch = searchParams.toString();
 
   function applyParam(key: string, value: string | null) {
-    if (dirty && !window.confirm("저장되지 않은 추적 상태 변경이 있습니다. 목록을 바꾸시겠습니까?")) return;
-    const next = new URLSearchParams(searchParams);
-    if (value) next.set(key, value);
-    else next.delete(key);
-    next.delete("offset");
-    next.delete("selected");
-    setSearchParams(next, { replace: true });
+    guard.confirmDiscard(() => {
+      const next = new URLSearchParams(searchParams);
+      if (value) next.set(key, value);
+      else next.delete(key);
+      next.delete("offset");
+      next.delete("selected");
+      setSearchParams(next, { replace: true });
+    }, {
+      title: "목록을 바꿉니다",
+      message: "목록을 바꾸면 열려 있던 사업기회가 닫히고 저장하지 않은 추적 상태 변경이 사라집니다.",
+      confirmLabel: "저장하지 않고 목록 바꾸기",
+    });
+  }
+
+  /** 페이지를 옮기면 선택이 풀려 상세의 입력이 사라진다. 필터와 같은 확인을 건다. */
+  function changeOffset(nextOffset: number) {
+    guard.confirmDiscard(() => {
+      const next = new URLSearchParams(searchParams);
+      next.set("offset", String(nextOffset));
+      next.delete("selected");
+      setSearchParams(next, { replace: true });
+    }, {
+      title: "목록 페이지를 옮깁니다",
+      message: "페이지를 옮기면 열려 있던 사업기회가 닫히고 저장하지 않은 추적 상태 변경이 사라집니다.",
+      confirmLabel: "저장하지 않고 페이지 이동",
+    });
   }
 
   function selectRow(id: number) {
-    const next = new URLSearchParams(searchParams);
-    next.set("selected", String(id));
-    setSearchParams(next, { replace: true });
+    guard.confirmDiscard(() => {
+      const next = new URLSearchParams(searchParams);
+      next.set("selected", String(id));
+      setSearchParams(next, { replace: true });
+    }, {
+      title: "다른 사업기회를 엽니다",
+      message: "저장하지 않은 추적 상태 변경은 이 사업기회를 닫으면 사라집니다.",
+    });
   }
 
   return (
@@ -933,9 +989,9 @@ export function OpportunitiesPage() {
       <header className="opportunities-header">
         <h2 id="page-title">사업 추적</h2>
         <p>
-          발주계획·사전규격·입찰공고를 외부 식별자로 누적한 사업 단위다. 회차 목록이 아니므로 한 사업기회는
-          한 행으로만 나타나고, 회차를 옮겨 다니며 같은 건을 다시 찾지 않는다. 이 화면이 정하는 것은 추적 상태
-          하나이며 적합성 등급·참여 준비 상태·심층 검토 승인·최종 Go/No-Go를 대신하지 않는다.
+          발주계획·사전규격·입찰공고를 한 사업 단위로 모아 추적 상태를 정합니다. 회차 목록이 아니므로 한 사업기회는
+          한 행으로만 나타납니다. 이 화면이 정하는 것은 추적 상태 하나이며 적합성 등급·참여 준비 상태·심층 검토
+          승인·최종 Go/No-Go를 대신하지 않습니다.
         </p>
       </header>
 
@@ -1044,12 +1100,7 @@ export function OpportunitiesPage() {
                   className="interaction-control"
                   type="button"
                   disabled={offset === 0}
-                  onClick={() => {
-                    const next = new URLSearchParams(searchParams);
-                    next.set("offset", String(Math.max(0, offset - PAGE_SIZE)));
-                    next.delete("selected");
-                    setSearchParams(next, { replace: true });
-                  }}
+                  onClick={() => changeOffset(Math.max(0, offset - PAGE_SIZE))}
                 >
                   이전
                 </button>
@@ -1060,12 +1111,7 @@ export function OpportunitiesPage() {
                   className="interaction-control"
                   type="button"
                   disabled={offset + PAGE_SIZE >= total}
-                  onClick={() => {
-                    const next = new URLSearchParams(searchParams);
-                    next.set("offset", String(offset + PAGE_SIZE));
-                    next.delete("selected");
-                    setSearchParams(next, { replace: true });
-                  }}
+                  onClick={() => changeOffset(offset + PAGE_SIZE)}
                 >
                   다음
                 </button>
@@ -1083,7 +1129,7 @@ export function OpportunitiesPage() {
                 <TrackingDetail
                   key={selectedId}
                   onDirtyChange={handleDirtyChange}
-                  onSaved={setToast}
+                  onSaved={showToast}
                   opportunityId={selectedId}
                   returnSearch={returnSearch}
                 />
@@ -1098,7 +1144,7 @@ export function OpportunitiesPage() {
         </SplitWorkspace>
       ) : null}
 
-      {toast ? <Toast message={toast} onDismiss={() => setToast(null)} /> : null}
+      {toast ? <Toast message={toast.message} variant={toast.variant} onDismiss={dismissToast} /> : null}
     </section>
   );
 }
@@ -1138,8 +1184,11 @@ function DeepReviewEntry({ noticePk }: { noticePk: number | null }) {
           onChange={(event) => setDeepReviewId(event.target.value)}
           placeholder="보고서 식별자"
         />
+        {/* 이 화면에서 연 보고서는 상단 경로와 사이드바가 `사업 추적` 아래로
+            보여야 한다. 주소의 `from`이 그 대안 위치를 고른다
+            (components/shell/route-meta.ts의 alternateOrigin). */}
         {trimmed ? (
-          <Link className="opportunity-linked-link" to={`/deep-reviews/${encodeURIComponent(trimmed)}`}>
+          <Link className="opportunity-linked-link" to={`/deep-reviews/${encodeURIComponent(trimmed)}?from=opportunities`}>
             보고서 열기 →
           </Link>
         ) : (
@@ -1162,31 +1211,29 @@ function DeepReviewEntry({ noticePk }: { noticePk: number | null }) {
 export function OpportunityDetailPage() {
   const { opportunityId: opportunityIdParam } = useParams();
   const [searchParams] = useSearchParams();
-  const [toast, setToast] = useState<string | null>(null);
+  const { toast, showToast, dismissToast } = useToast();
   const [dirty, setDirty] = useState(false);
   const opportunityId = Number(opportunityIdParam);
   const validOpportunityId = Number.isInteger(opportunityId) && opportunityId > 0;
   const handleDirtyChange = useCallback((nextDirty: boolean) => setDirty(nextDirty), []);
   useUnsavedGuard(dirty, {
     blockSpaNavigation: true,
-    message: "저장되지 않은 추적 상태 변경이 있습니다. 이 페이지를 벗어나시겠습니까?",
+    title: "사업 추적 상세를 떠납니다",
+    message: "저장하지 않은 추적 상태 변경이 있습니다. 지금 이동하면 사라지며 저장된 추적 상태는 바뀌지 않습니다.",
   });
 
   return (
     <section className="opportunities-page opportunity-detail-page" aria-labelledby="page-title">
       <header className="opportunities-header opportunity-detail-header">
-        <Link className="opportunity-back-link" to={{ pathname: "/opportunities", search: searchParams.toString() }}>
-          ← 사업 추적 목록
-        </Link>
         <h2 id="page-title">사업 추적 상세{validOpportunityId ? ` #${opportunityId}` : ""}</h2>
-        <p>목록의 구역·필터·정렬·페이지 문맥을 유지한 누적 사업기회 상세다.</p>
+        <p>연결된 기록과 예외 작업을 확인하고 추적 상태를 정합니다. 목록의 구역·필터·정렬·페이지 문맥은 그대로 유지됩니다.</p>
       </header>
 
       <div className="opportunity-standalone-pane">
         {validOpportunityId ? (
           <TrackingDetail
             onDirtyChange={handleDirtyChange}
-            onSaved={setToast}
+            onSaved={showToast}
             opportunityId={opportunityId}
             returnSearch={searchParams.toString()}
           />
@@ -1195,7 +1242,7 @@ export function OpportunityDetailPage() {
         )}
       </div>
 
-      {toast ? <Toast message={toast} onDismiss={() => setToast(null)} /> : null}
+      {toast ? <Toast message={toast.message} variant={toast.variant} onDismiss={dismissToast} /> : null}
     </section>
   );
 }

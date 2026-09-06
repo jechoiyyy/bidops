@@ -15,7 +15,7 @@ import re
 import unicodedata
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
@@ -24,6 +24,13 @@ from pydantic import ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from ...core.model_client import (
+    ModelClient,
+    ModelEndpointError,
+    ModelIdentity,
+    ModelIdentityError,
+    StructuredOutputContract,
+)
 from ..document_mcp.contracts import validate_structure
 from ..models import (
     ContentObject,
@@ -216,6 +223,9 @@ class OverviewModelBinding:
     reference_only: bool = False
     deployable: bool = True
     binding_digest: str | None = None
+    #: policy 파일의 canonical SHA-256. 있으면 ``binding_digest`` 계산에 들어간다
+    #: (명세 §6.3). 없는 binding(결정적 mock)의 digest는 그대로 둔다.
+    policy_digest: str | None = None
 
     def __post_init__(self) -> None:
         values = (
@@ -230,16 +240,19 @@ class OverviewModelBinding:
             raise OverviewAttemptError("invalid_binding")
         if self.reference_only and self.deployable:
             raise OverviewAttemptError("invalid_binding")
-        digest = _sha256_hex(
-            {
-                "provider": self.provider.strip(),
-                "model_name": self.model_name.strip(),
-                "model_digest": self.model_digest,
-                "prompt_version": self.prompt_version.strip(),
-                "reference_only": bool(self.reference_only),
-                "deployable": bool(self.deployable),
-            }
-        )
+        if self.policy_digest is not None and not _SHA256.fullmatch(self.policy_digest):
+            raise OverviewAttemptError("invalid_binding")
+        material: dict[str, Any] = {
+            "provider": self.provider.strip(),
+            "model_name": self.model_name.strip(),
+            "model_digest": self.model_digest,
+            "prompt_version": self.prompt_version.strip(),
+            "reference_only": bool(self.reference_only),
+            "deployable": bool(self.deployable),
+        }
+        if self.policy_digest is not None:
+            material["policy_digest"] = self.policy_digest
+        digest = _sha256_hex(material)
         if self.binding_digest is not None and self.binding_digest != digest:
             raise OverviewAttemptError("invalid_binding")
         object.__setattr__(self, "provider", self.provider.strip())
@@ -248,15 +261,173 @@ class OverviewModelBinding:
         object.__setattr__(self, "binding_digest", digest)
 
 
-def approved_overview_binding() -> None:
-    """Return the approved production binding, when one is configured.
+class OverviewPolicyError(RuntimeError):
+    """개요 policy 파일을 그대로 신뢰할 수 없다 (fail closed)."""
 
-    No approved private binding exists in this deployment.  Keeping this
-    explicit ``None`` return prevents callers from inventing a provider or
-    silently falling back to hosted OpenAI/Codex.
+    def __init__(self, code: str) -> None:
+        self.code = code
+        super().__init__(code)
+
+
+@dataclass(frozen=True)
+class OverviewPolicy:
+    """개요 실행의 불변 binding 문서 (명세 §6.3).
+
+    모델명·프롬프트 version·출력 schema·generation 설정을 코드가 아니라 이
+    파일이 갖는다. 파일 전체의 canonical SHA-256이 ``digest``이고 binding에
+    함께 묶인다 — 프롬프트나 schema가 한 글자 바뀌면 다른 binding이 된다.
     """
 
-    return None
+    document: Mapping[str, Any]
+    digest: str
+
+    @property
+    def model_name(self) -> str:
+        return str(self.document["model_name"])
+
+    @property
+    def prompt_version(self) -> str:
+        return str(self.document["prompt_version"])
+
+    @property
+    def stage(self) -> str:
+        return str(self.document["stages"][0]["stage"])
+
+    @property
+    def output_schema(self) -> Mapping[str, Any]:
+        return self.document["output_schema"]
+
+    @property
+    def output_contract(self) -> StructuredOutputContract:
+        """provider에 실어 보낼 strict 구조화 출력 계약."""
+
+        return StructuredOutputContract(
+            name="bidops_prespec_overview_result_v1",
+            schema=self.output_schema,
+            system_prompt=str(self.document["system_prompt"]),
+        )
+
+
+OVERVIEW_POLICY_PATH = (
+    Path(__file__).resolve().parent.parent / "policies" / "prespec-overview-policy-v1.json"
+)
+OVERVIEW_POLICY_SCHEMA = "bidops.prespec-overview-policy.v1"
+_REQUIRED_POLICY_KEYS = (
+    "chunking",
+    "generation",
+    "model_endpoint_ref",
+    "model_name",
+    "output_schema",
+    "prompt_version",
+    "schema",
+    "stages",
+    "system_prompt",
+)
+
+
+def load_overview_policy(path: Path | None = None) -> OverviewPolicy | None:
+    """개요 policy 파일을 읽고 canonical digest와 함께 돌려준다.
+
+    파일이 없으면 ``None``이다 — 그 배포에는 승인된 개요 binding이 없다는 뜻이고
+    review는 ``awaiting_model``에 남는다. 파일이 있는데 계약을 어기면 추정해서
+    보정하지 않고 :class:`OverviewPolicyError`로 멈춘다.
+    """
+
+    source = path or OVERVIEW_POLICY_PATH
+    if not source.is_file():
+        return None
+    try:
+        document = json.loads(source.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValueError) as exc:
+        raise OverviewPolicyError("policy_unreadable") from exc
+    if not isinstance(document, Mapping):
+        raise OverviewPolicyError("policy_invalid")
+    if any(key not in document for key in _REQUIRED_POLICY_KEYS):
+        raise OverviewPolicyError("policy_invalid")
+    if document.get("schema") != OVERVIEW_POLICY_SCHEMA:
+        raise OverviewPolicyError("policy_invalid")
+    stages = document.get("stages")
+    if (
+        not isinstance(stages, list)
+        or len(stages) != 1
+        or not isinstance(stages[0], Mapping)
+        or not str(stages[0].get("stage", "")).strip()
+        or not str(stages[0].get("instruction", "")).strip()
+    ):
+        raise OverviewPolicyError("policy_invalid")
+    for key in ("model_name", "prompt_version", "system_prompt"):
+        value = document.get(key)
+        if not isinstance(value, str) or not value.strip():
+            raise OverviewPolicyError("policy_invalid")
+    if not isinstance(document.get("output_schema"), Mapping):
+        raise OverviewPolicyError("policy_invalid")
+    return OverviewPolicy(document=document, digest=_sha256_hex(document))
+
+
+def _verified_overview_identity(
+    policy: OverviewPolicy,
+    *,
+    settings: Any | None = None,
+) -> ModelIdentity:
+    """용도별 설정으로 client를 만들고 §6.6 identity를 확인한다.
+
+    허용 host나 선언 revision이 없으면 `/models`도 부르지 않고 실패한다.
+    """
+
+    client = ModelClient.for_purpose(
+        "overview",
+        model=policy.model_name,
+        output_contract=policy.output_contract,
+        settings=settings,
+        verify_identity=False,
+    )
+    return client.verify_identity()
+
+
+def approved_overview_binding(
+    *,
+    policy: OverviewPolicy | None = None,
+    identity: Any | None = None,
+    settings: Any | None = None,
+) -> OverviewModelBinding | None:
+    """policy·선언 revision·identity가 모두 통과할 때만 binding을 낸다 (명세 §6.3).
+
+    하나라도 없으면 ``None``이고 review는 ``awaiting_model``에 남는다. 다른
+    주소나 다른 provider로 넘어가지 않으며 hosted OpenAI로 fallback하지 않는다.
+    ``deployable``은 "운영 완료로 집계 가능"이라는 뜻이므로 품질을 재지 않은
+    지금은 ``False``다. 그래도 완료 자체는 할 수 있다.
+    """
+
+    if policy is None:
+        try:
+            policy = load_overview_policy()
+        except OverviewPolicyError:
+            return None
+        if policy is None:
+            return None
+    try:
+        resolved = (
+            identity()
+            if identity is not None
+            else _verified_overview_identity(policy, settings=settings)
+        )
+    except (ModelEndpointError, ModelIdentityError, ValueError, OSError):
+        return None
+    revision = getattr(resolved, "revision", None)
+    served = getattr(resolved, "model", None)
+    if not isinstance(revision, str) or not _SHA256.fullmatch(revision):
+        return None
+    if served is not None and str(served) != policy.model_name:
+        return None
+    return OverviewModelBinding(
+        provider="openai-compatible",
+        model_name=policy.model_name,
+        model_digest=revision,
+        prompt_version=policy.prompt_version,
+        reference_only=False,
+        deployable=False,
+        policy_digest=policy.digest,
+    )
 
 
 class _CutInputError(RuntimeError):
@@ -1384,7 +1555,14 @@ def _overview_scope(
 def _require_phase2_attempt(
     attempt: PreSpecOverviewAttempt, *, for_completion: bool = False
 ) -> None:
-    """Reject preserved phase-1 rows and non-deployable completion attempts."""
+    """보존된 phase-1 행과 mock 참조 실행의 완료를 막는다.
+
+    품질을 아직 재지 않은 **실제** 모델 실행(``reference_only=false``,
+    ``deployable=false``)은 완료할 수 있다(명세 §6.3). ``deployable``의 뜻은
+    "운영 완료로 집계 가능"이지 "완료 가능"이 아니다. 완료를 막는 축은
+    ``reference_only`` 하나이며 DB CHECK
+    ``ck_prespec_overview_attempt_completed_binding``과 같은 규칙이다.
+    """
 
     if (
         attempt.review_id is None
@@ -1392,10 +1570,18 @@ def _require_phase2_attempt(
         or attempt.binding_digest is None
     ):
         raise OverviewAttemptError("legacy_attempt_frozen")
-    if for_completion and (
-        attempt.reference_only is not False or attempt.deployable is not True
-    ):
+    if for_completion and attempt.reference_only is not False:
         raise OverviewAttemptError("completion_requires_deployable_binding")
+
+
+def overview_quality_status(attempt: PreSpecOverviewAttempt) -> str:
+    """attempt의 품질 표식 (명세 §8).
+
+    ``reference_only``인 결정적 mock은 ``mock_reference``, 실제 모델의 품질
+    미측정 실행은 ``unmeasured_reference``다. 둘 다 운영 완료 집계에 넣지 않는다.
+    """
+
+    return "mock_reference" if attempt.reference_only else "unmeasured_reference"
 
 
 def create_overview_attempt(
@@ -1487,6 +1673,260 @@ def create_overview_attempt(
     review.updated_at = _now()
     session.flush()
     return attempt
+
+
+def build_overview_model_input(
+    session: Session,
+    snapshot: PreSpecOverviewSnapshot,
+    *,
+    root: Path | None = None,
+) -> list[dict[str, Any]]:
+    """모델 경계로 보낼 block만 고정 snapshot 범위에서 뽑는다 (명세 §6.3).
+
+    ``input_block_keys`` 범위의 block text·page·ordinal·block_key만 나간다.
+    object key·경로·자격증명·회사 프로필은 이 경계를 넘지 않는다.
+    """
+
+    block_keys, start_ordinal, end_ordinal = _validate_snapshot_range(snapshot)
+    document = session.get(DocumentVersion, snapshot.document_version_id)
+    structure = session.get(DocumentStructure, snapshot.structure_id)
+    if document is None or structure is None:
+        raise OverviewAttemptError("input_unavailable")
+    if (
+        structure.source_sha256 != snapshot.source_sha256
+        or structure.payload_sha256 != snapshot.payload_sha256
+    ):
+        raise OverviewAttemptError("input_hash_mismatch")
+    try:
+        payload = _load_structure_payload(session, document, structure, root=root)
+    except _CutInputError as error:
+        raise OverviewAttemptError(error.reason_code) from error
+    blocks = payload.get("blocks")
+    if not isinstance(blocks, list) or end_ordinal > len(blocks):
+        raise OverviewAttemptError("input_out_of_range")
+    selected: list[dict[str, Any]] = []
+    for ordinal in range(start_ordinal, end_ordinal):
+        block = blocks[ordinal]
+        if not isinstance(block, Mapping):
+            raise OverviewAttemptError("input_out_of_range")
+        block_key = block.get("block_key")
+        page = block.get("page")
+        text = block.get("text")
+        if (
+            not isinstance(block_key, str)
+            or block_key != block_keys[ordinal - start_ordinal]
+            or isinstance(page, bool)
+            or not isinstance(page, int)
+            or page < 1
+            or not isinstance(text, str)
+        ):
+            raise OverviewAttemptError("input_out_of_range")
+        selected.append(
+            {
+                "block_key": block_key,
+                "page": page,
+                "ordinal": ordinal,
+                "text": text,
+            }
+        )
+    if not selected:
+        raise OverviewAttemptError("input_out_of_range")
+    # 경계 있는 입력만 모델로 보낸다. 상한을 넘으면 잘라서 보내지 않고 실패한다 —
+    # 자른 입력의 결과를 완전한 판단으로 발행할 수 없기 때문이다.
+    if len(selected) > MAX_OVERVIEW_INPUT_BLOCKS:
+        raise OverviewAttemptError("input_too_large")
+    if sum(len(item["text"].encode("utf-8")) for item in selected) > MAX_OVERVIEW_INPUT_BYTES:
+        raise OverviewAttemptError("input_too_large")
+    return selected
+
+
+def select_overview_enqueue_candidate(
+    session: Session,
+) -> tuple[PreSpecOverviewReview, PreSpecOverviewSnapshot] | None:
+    """큐에 넣을 수 있는 review·snapshot 한 쌍을 고른다. 모델을 부르지 않는다.
+
+    이 조회가 큐 유입 조건 자체다. runner는 **승인된 binding을 해석하기 전에**
+    이것으로 "이번 poll에 할 일이 있는가"를 판정한다 — 할 일이 없는데 policy를
+    읽고 `/models`를 부르면 idle worker가 poll마다 모델 서버를 두드린다.
+    """
+
+    active = (
+        select(PreSpecOverviewAttempt.id)
+        .where(
+            PreSpecOverviewAttempt.snapshot_id == PreSpecOverviewSnapshot.id,
+            PreSpecOverviewAttempt.review_id.is_not(None),
+            PreSpecOverviewAttempt.status.in_(("queued", "running")),
+        )
+        .exists()
+    )
+    row = session.execute(
+        select(PreSpecOverviewReview, PreSpecOverviewSnapshot)
+        .join(
+            PreSpecOverviewSnapshot,
+            PreSpecOverviewSnapshot.id == PreSpecOverviewReview.current_snapshot_id,
+        )
+        .where(
+            PreSpecOverviewReview.status == "awaiting_model",
+            PreSpecOverviewSnapshot.cut_status == "ready",
+            PreSpecOverviewSnapshot.review_id == PreSpecOverviewReview.id,
+            ~active,
+        )
+        .order_by(PreSpecOverviewReview.updated_at.asc(), PreSpecOverviewReview.id.asc())
+        .limit(1)
+    ).first()
+    if row is None:
+        return None
+    review, snapshot = row
+    return review, snapshot
+
+
+def has_claimable_overview_attempt(session: Session) -> bool:
+    """claim 가능한 queued attempt가 있는지만 본다. 잠그지도 부르지도 않는다."""
+
+    return (
+        session.scalar(
+            select(PreSpecOverviewAttempt.id)
+            .where(
+                PreSpecOverviewAttempt.status == "queued",
+                PreSpecOverviewAttempt.review_id.is_not(None),
+                PreSpecOverviewAttempt.input_sha256.is_not(None),
+                PreSpecOverviewAttempt.binding_digest.is_not(None),
+            )
+            .limit(1)
+        )
+        is not None
+    )
+
+
+def enqueue_overview_attempt(
+    session: Session,
+    binding: OverviewModelBinding,
+    *,
+    candidate: tuple[PreSpecOverviewReview, PreSpecOverviewSnapshot] | None = None,
+) -> PreSpecOverviewAttempt | None:
+    """큐 유입: ``awaiting_model``·``cut_status=ready`` review 하나를 큐에 넣는다.
+
+    사람 검토가 필요한 review와 ``failed``·``cancelled`` review는 건드리지 않고,
+    같은 snapshot에 ``queued|running`` attempt가 있으면 새로 만들지 않는다
+    (명세 §6.3). 자동 재시작이 아니라 아직 한 번도 실행되지 않은 유입이다.
+
+    ``candidate``를 넘기면 그 쌍을 그대로 쓴다. 호출자가 이미 고른 쌍을 다시
+    고르지 않기 위한 것이며, 넘기지 않으면 여기서 고른다.
+    """
+
+    selected = candidate if candidate is not None else select_overview_enqueue_candidate(session)
+    if selected is None:
+        return None
+    review, snapshot = selected
+    return create_overview_attempt(
+        session,
+        review.notice_id,
+        review.id,
+        snapshot.id,
+        binding=binding,
+    )
+
+
+def claim_overview_attempt(
+    session: Session,
+    worker_id: str,
+    *,
+    lease_seconds: int,
+    now: datetime | None = None,
+) -> PreSpecOverviewAttempt | None:
+    """FIFO로 queued attempt 하나를 ``running``으로 claim하고 lease를 건다.
+
+    상태 전이·``started_at``·lease 설정을 한 transaction에서 한다. 호출자가
+    commit을 소유한다.
+
+    잠금은 ``SKIP LOCKED``다(`prespec_attachments.claim_next`와 같은 형태).
+    지금은 analysis concurrency가 1이라 경쟁자가 없지만, 그냥 ``FOR UPDATE``면
+    둘째 claim이 첫째의 transaction을 기다렸다가 **빈 손으로** 돌아온다 —
+    없는 것과 잠긴 것이 같은 값으로 보인다. ``SKIP LOCKED``는 잠긴 행을 건너뛰고
+    다음 queued attempt로 나아간다.
+    """
+
+    if not isinstance(worker_id, str) or not worker_id.strip() or len(worker_id.strip()) > 255:
+        raise OverviewAttemptError("invalid_actor")
+    if not isinstance(lease_seconds, int) or isinstance(lease_seconds, bool) or lease_seconds <= 0:
+        raise OverviewAttemptError("invalid_lease")
+    when = now or _now()
+    attempt = session.scalars(
+        select(PreSpecOverviewAttempt)
+        .where(
+            PreSpecOverviewAttempt.status == "queued",
+            PreSpecOverviewAttempt.review_id.is_not(None),
+            PreSpecOverviewAttempt.input_sha256.is_not(None),
+            PreSpecOverviewAttempt.binding_digest.is_not(None),
+        )
+        .order_by(
+            PreSpecOverviewAttempt.created_at.asc(),
+            PreSpecOverviewAttempt.sequence.asc(),
+        )
+        .limit(1)
+        .with_for_update(skip_locked=True)
+    ).first()
+    if attempt is None:
+        return None
+    claimed = transition_overview_attempt(
+        session,
+        attempt.id,
+        "running",
+        actor_id=worker_id.strip(),
+        reason_code="claimed",
+        occurred_at=when,
+    )
+    claimed.lease_owner = worker_id.strip()
+    claimed.lease_expires_at = when + timedelta(seconds=lease_seconds)
+    session.flush()
+    return claimed
+
+
+def release_overview_lease(attempt: PreSpecOverviewAttempt) -> None:
+    """종료된 attempt의 lease를 비운다. 자동 재시작은 하지 않는다."""
+
+    attempt.lease_owner = None
+    attempt.lease_expires_at = None
+
+
+def expire_overview_leases(
+    session: Session,
+    *,
+    now: datetime | None = None,
+    actor_id: str = "overview-worker",
+) -> list[UUID]:
+    """만료된 ``running`` attempt를 ``failed``(``lease_expired``)로 닫는다.
+
+    자동 재시작은 없다. review는 ``failed``로 남고 사람이 다시 시작한다.
+    """
+
+    when = now or _now()
+    expired = session.scalars(
+        select(PreSpecOverviewAttempt)
+        .where(
+            PreSpecOverviewAttempt.status == "running",
+            PreSpecOverviewAttempt.review_id.is_not(None),
+            PreSpecOverviewAttempt.lease_expires_at.is_not(None),
+            PreSpecOverviewAttempt.lease_expires_at <= when,
+        )
+        .order_by(PreSpecOverviewAttempt.created_at.asc())
+        .with_for_update()
+    ).all()
+    closed: list[UUID] = []
+    for attempt in expired:
+        transition_overview_attempt(
+            session,
+            attempt.id,
+            "failed",
+            actor_id=actor_id,
+            reason_code="lease_expired",
+            occurred_at=when,
+        )
+        release_overview_lease(attempt)
+        closed.append(attempt.id)
+    if closed:
+        session.flush()
+    return closed
 
 
 def transition_overview_attempt(
@@ -1609,9 +2049,13 @@ def transition_overview_attempt(
         assert attempt.started_at is not None
         attempt.completed_at = when
         attempt.result_id = result_id
+        release_overview_lease(attempt)
     else:
         attempt.completed_at = when
         attempt.result_id = None
+        # 종료된 attempt는 lease를 들고 있지 않는다. 자동 재시작이 없으므로
+        # 비워 두는 것이 만료 회수 대상과 실행 중을 가르는 유일한 표식이다.
+        release_overview_lease(attempt)
     if review.current_snapshot_id == attempt.snapshot_id:
         review.status = to_status
         review.updated_at = _now()
@@ -1760,6 +2204,34 @@ def fail_overview_attempt(
     )
 
 
+def fail_overview_review(
+    session: Session,
+    review_id: UUID,
+) -> PreSpecOverviewReview | None:
+    """attempt를 만들지 못한 review를 ``failed``로 닫는다 (명세 §6.3).
+
+    큐 유입이 거부되면 attempt row 자체가 없어 ``fail_overview_attempt``로
+    닫을 수 없다. 그런데 유입 후보는 ``updated_at ASC``로 뽑히므로, 같은
+    review를 닫지 않으면 다음 poll이 또 그 review를 집어 개요 슬롯이 영구히
+    막힌다. 이 함수는 그 고리를 끊는 것이 전부다 — 자동 재시작은 하지 않고
+    사람이 다시 시작한다. 이미 종료된 review는 건드리지 않는다.
+
+    review row에는 사유 열이 없다. 분류는 호출자가 남기는 감사 이벤트가 갖고,
+    여기서 만들어 넣지 않는다.
+    """
+
+    review = session.scalar(
+        select(PreSpecOverviewReview)
+        .where(PreSpecOverviewReview.id == review_id)
+        .with_for_update()
+    )
+    if review is None or review.status in {"completed", "failed", "cancelled"}:
+        return review
+    _set_review_state(review, status="failed")
+    session.flush()
+    return review
+
+
 def cancel_overview_attempt(
     session: Session,
     attempt_id: UUID,
@@ -1872,6 +2344,7 @@ def get_overview_reviews_v2(
                     status=attempt.status,
                     reference_only=attempt.reference_only,
                     deployable=attempt.deployable,
+                    quality_status=overview_quality_status(attempt),
                     validation_status=validation_status,
                     result_digest=result_digest,
                     binding_digest=attempt.binding_digest,
@@ -1926,10 +2399,18 @@ def get_overview_reviews_v2(
             )
         )
         current_view = _snapshot_view(current_snapshot) if current_snapshot is not None else None
+        # review의 품질 표식은 현재 snapshot의 마지막 attempt에서 온다.
+        # attempt가 없으면 아직 표식이 없다는 뜻이므로 ``null``이다.
+        review_quality = (
+            overview_quality_status(latest_current_attempt)
+            if latest_current_attempt is not None
+            else None
+        )
         review_view = PreSpecOverviewReviewV2View(
             id=review.id,
             notice_id=review.notice_id,
             status=review.status,
+            quality_status=review_quality,
             result=safe_result,
             result_digest=(current_result_row.payload_sha256 if current_result_row is not None else None),
             binding_digest=binding_digest,
@@ -1954,24 +2435,35 @@ def get_overview_reviews_v2(
 __all__ = [
     "MAX_OVERVIEW_INPUT_BLOCKS",
     "MAX_OVERVIEW_INPUT_BYTES",
+    "OVERVIEW_POLICY_PATH",
+    "OVERVIEW_POLICY_SCHEMA",
     "OVERVIEW_SCHEMA_VERSION",
     "OverviewPreparationError",
     "OverviewAttemptError",
     "OverviewModelBinding",
+    "OverviewPolicy",
+    "OverviewPolicyError",
     "OverviewResultValidationError",
     "OverviewScopeError",
     "approved_overview_binding",
+    "build_overview_model_input",
     "cancel_overview_attempt",
+    "claim_overview_attempt",
     "complete_overview_attempt",
     "create_overview_attempt",
     "OverviewReviewNotFound",
     "deterministic_prefix_cut",
+    "enqueue_overview_attempt",
+    "expire_overview_leases",
     "fail_overview_attempt",
     "get_overview_reviews",
     "get_overview_reviews_v2",
+    "load_overview_policy",
     "overview_input_digest",
+    "overview_quality_status",
     "prepare_overview_review",
     "record_overview_result",
+    "release_overview_lease",
     "transition_overview_attempt",
     "validate_overview_result",
 ]

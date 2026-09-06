@@ -15,6 +15,7 @@ import json
 from typing import Any
 from uuid import UUID
 
+from ....core.constants import DEEP_REVIEW_CREATION_ACTIONS
 from ..common import (
     AgentAction,
     AgentAggregateRef,
@@ -174,6 +175,20 @@ def _audit_matches(audit: object, action: str, review_id: str) -> bool:
     )
 
 
+def _creation_audit_matches(audit: object, review_id: str) -> bool:
+    """"누가 만들었든" 이 검토의 생성 감사인가 (명세 §6.4).
+
+    사람 클릭과 SW사업대상=Y 자동 시작은 action 이름만 다르고 같은 자리에서
+    같은 모양을 남긴다. 한쪽만 보면 자동 생성된 검토의 계보가 통째로 없는
+    것처럼 보인다.
+    """
+
+    return any(
+        _audit_matches(audit, action, review_id)
+        for action in DEEP_REVIEW_CREATION_ACTIONS
+    )
+
+
 def _metadata(audit: object, field_name: str) -> Mapping[str, Any]:
     value = _get(audit, "safe_metadata", {})
     if not isinstance(value, Mapping):
@@ -217,7 +232,7 @@ def _ordered_rows(rows: Iterable[object], field_name: str, review_id: str) -> li
 def _lineage(parts: Mapping[str, Any], review_id: str) -> tuple[object, UUID | None, datetime]:
     rows = [
         row for row in _as_list(parts.get("audits"))
-        if _audit_matches(row, "deep_review.create", review_id)
+        if _creation_audit_matches(row, review_id)
     ]
     if len(rows) != 1:
         raise DecisionProjectionError("deep review creation audit is missing or duplicated")
@@ -230,7 +245,7 @@ def _failure_context(parts: Mapping[str, Any], review_id: str) -> tuple[datetime
 
     root_rows = [
         row for row in _as_list(parts.get("audits"))
-        if _audit_matches(row, "deep_review.create", review_id)
+        if _creation_audit_matches(row, review_id)
     ]
     root_rows = sorted(root_rows, key=lambda row: (str(_get(row, "created_at", "")), str(_get(row, "id", ""))))
     if root_rows:

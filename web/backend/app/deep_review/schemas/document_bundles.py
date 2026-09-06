@@ -130,3 +130,103 @@ class DocumentStructurePageView(StrictModel):
     page: int = Field(ge=1)
     metadata: PageMetadata
     blocks: list[StructureBlock]
+
+
+# --- 결정적 segment manifest 조회 (원문 text 없음) --------------------------
+
+TaxonomyLabel = Literal[
+    "business_eligibility_evaluation",
+    "technical_functional",
+    "quality_security_constraints",
+    "partnership_governance",
+]
+SegmentStatus = Literal["classified", "needs_human_review"]
+SegmentLocatorKind = Literal["paragraph", "table_cell", "block"]
+
+
+class SegmentLocator(StrictModel):
+    kind: SegmentLocatorKind
+    block_key: str = Field(min_length=1)
+    page: int = Field(ge=1)
+    ordinal: int = Field(ge=0)
+    table_key: str | None
+    row: int | None = Field(default=None, ge=0)
+    column: int | None = Field(default=None, ge=0)
+
+
+class DocumentSegmentView(StrictModel):
+    segment_id: str = Field(min_length=1)
+    ordinal: int = Field(ge=1)
+    taxonomy_labels: list[TaxonomyLabel]
+    start_locator: SegmentLocator
+    end_locator: SegmentLocator
+    requirement_ids: list[str]
+    source_block_keys: list[str]
+    classification_source: Literal["deterministic"]
+    # 결정적 규칙에는 확률이 없다. 값을 만들어 내지 않고 항상 null로 둔다.
+    confidence: None = None
+    status: SegmentStatus
+
+
+class RequirementInventoryAmbiguity(StrictModel):
+    reason: Literal["prefix_unconfirmed", "prefix_collision"]
+    raw_id: str | None
+    raw_prefix: str | None
+    normalized_prefix: str = Field(min_length=1)
+    occurrence_count: int = Field(ge=1)
+    locator: SegmentLocator | None
+
+
+class RequirementInventorySummary(StrictModel):
+    expected_ids: list[str]
+    duplicate_ids: list[str]
+    ambiguous_items: list[RequirementInventoryAmbiguity]
+    prefixes: list[str]
+    item_count: int = Field(ge=0)
+
+
+class SegmentSpan(StrictModel):
+    start_ordinal: int = Field(ge=0)
+    end_ordinal: int = Field(ge=0)
+
+
+class SegmentTocSummary(StrictModel):
+    entry_count: int = Field(ge=0)
+    matched_heading_count: int = Field(ge=0)
+    unmatched_entry_count: int = Field(ge=0)
+
+
+class SegmentCoverage(StrictModel):
+    block_count: int = Field(ge=0)
+    covered_block_count: int = Field(ge=0)
+    segment_count: int = Field(ge=0)
+    gap_count: int = Field(ge=0)
+    overlap_count: int = Field(ge=0)
+    gaps: list[SegmentSpan]
+    overlaps: list[SegmentSpan]
+    needs_human_review_count: int = Field(ge=0)
+    toc: SegmentTocSummary
+
+
+class SegmentExtractorBinding(StrictModel):
+    name: str = Field(min_length=1)
+    version: str = Field(min_length=1)
+    taxonomy_version: str = Field(min_length=1)
+    rules_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    schema: Literal["bidops.document-segments.v1"]
+
+
+class DocumentSegmentsView(StrictModel):
+    schema: Literal["bidops.document-segments.v1"]
+    structure_id: UUID
+    document_version_id: UUID
+    source_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    taxonomy_version: str = Field(min_length=1)
+    extractor_binding: SegmentExtractorBinding
+    extractor_binding_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    payload_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    segments: list[DocumentSegmentView]
+    inventory_summary: RequirementInventorySummary
+    coverage: SegmentCoverage
+    warnings: list[str]
+    created_at: datetime

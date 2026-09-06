@@ -46,20 +46,33 @@ from .input_versions import (
     resolve_active_versions,
     validate_pinned_policy,
 )
-from ...core.vllm_client import (
+from ...core.model_binding import MODEL_ENDPOINT_REF
+from ...core.model_client import (
     APPROVED_RETRIES,
     APPROVED_TIMEOUT_SECONDS,
     EncryptedObjectStore,
     InvocationResult,
-    VllmClient,
-    VllmInvocationError,
+    ModelClient,
+    ModelEndpointError,
+    ModelIdentityError,
+    ModelInvocationError,
 )
 from .deep_review_vllm import DEEP_REVIEW_STAGE_CONTRACT
 from .mock_analysis_client import MockAnalysisClient
+from ...core.constants import (
+    DEEP_REVIEW_CREATION_ACTION_BY_ACTOR_KIND,
+    DEEP_REVIEW_CREATION_ACTIONS,
+)
 from ...core.object_store import EncryptedModelResponseStore
 
 
 STAGE_SEQUENCE = {name: index for index, name in enumerate(STAGES, start=1)}
+MOCK_ANALYSIS_PROVIDER = "mock-analysis"
+MODEL_PURPOSE = "deep_review"
+#: 심층 검토를 만든 감사 action. 사람 클릭과 §6.4의 자동 시작 둘뿐이다.
+#: 정본은 `core.constants`다 — 의존성 없는 agent projection도 같은 표를 읽는다.
+CREATION_ACTION_BY_ACTOR_KIND = DEEP_REVIEW_CREATION_ACTION_BY_ACTOR_KIND
+CREATION_ACTIONS = DEEP_REVIEW_CREATION_ACTIONS
 MIN_LEASE_SECONDS = APPROVED_TIMEOUT_SECONDS * (APPROVED_RETRIES + 1) + 60
 WORKER_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 EMPTY_PRIOR_CLAIM_ID = uuid5(NAMESPACE_URL, "bidops.deep-review.empty-prior-claim")
@@ -117,6 +130,14 @@ def _validate_actor(actor: str | None) -> str:
     if len(clean) > 128 or any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in clean) or clean.lower() == "system":
         raise DeepReviewServiceError("actor_name_invalid", "담당자 이름이 올바르지 않습니다", status_code=400)
     return clean
+
+
+def _validate_actor_kind(actor_kind: str) -> str:
+    """심층 검토를 만들 수 있는 actor 종류는 사람과 시스템 둘뿐이다 (§6.4)."""
+
+    if actor_kind not in CREATION_ACTION_BY_ACTOR_KIND:
+        raise DeepReviewServiceError("invalid_request", "actor 종류가 올바르지 않습니다", status_code=400)
+    return actor_kind
 
 
 def _validate_worker_id(worker_id: str) -> str:
@@ -242,16 +263,20 @@ def _policy_payload(policy: AnalysisPolicyVersion) -> dict[str, Any]:
 def _audit_correlation_id(
     session: Session,
     *,
-    action: str,
+    actions: Sequence[str],
     aggregate_type: str,
     aggregate_id: str,
 ) -> UUID | None:
-    """Read one immutable lineage value without backfilling legacy audits."""
+    """Read one immutable lineage value without backfilling legacy audits.
+
+    ``actions``는 "이 aggregate를 만든 감사"의 후보다. 심층 검토는 사람 클릭과
+    자동 시작 둘 중 하나로 만들어지므로 한쪽만 보면 계보가 비어 보인다.
+    """
 
     rows = session.scalars(
         select(AuditEvent)
         .where(
-            AuditEvent.action == action,
+            AuditEvent.action.in_(tuple(actions)),
             AuditEvent.aggregate_type == aggregate_type,
             AuditEvent.aggregate_id == aggregate_id,
         )
@@ -274,13 +299,45 @@ def _audit_correlation_id(
         raise DeepReviewServiceError("processing_failed", "deep review 계보를 확인할 수 없습니다", status_code=500) from exc
 
 
+def quality_status_for_review(session: Session, review_id: UUID) -> str | None:
+    """생성 감사 이벤트에서 이 심층 검토의 모델 실행 품질 상태를 계산한다 (명세 §8).
+
+    순서가 규칙이다. mock provider면 `mock_reference`, 그 밖에 참조 모드였으면
+    `unmeasured_reference`, 측정값이 배치 가능(`deployable`)하면 `measured`다.
+    **감사 이벤트가 없거나 어느 것도 아니면 `None`이다.** 없음을 미측정이나
+    측정으로 바꾸지 않는다 — 필드가 없던 시절의 실행은 표식 없음으로 남는다.
+    """
+
+    row = session.scalar(
+        select(AuditEvent)
+        .where(
+            AuditEvent.action.in_(CREATION_ACTIONS),
+            AuditEvent.aggregate_type == "deep_review",
+            AuditEvent.aggregate_id == str(review_id),
+        )
+        .order_by(AuditEvent.created_at.asc(), AuditEvent.id.asc())
+        .limit(1)
+    )
+    metadata = row.safe_metadata if row is not None else None
+    if not isinstance(metadata, Mapping):
+        return None
+    if metadata.get("analysis_provider") == MOCK_ANALYSIS_PROVIDER:
+        return "mock_reference"
+    if metadata.get("reference_workflow_mode") is True:
+        return "unmeasured_reference"
+    quality = metadata.get("policy_quality")
+    if isinstance(quality, Mapping) and quality.get("deployable") is True:
+        return "measured"
+    return None
+
+
 class DeepReviewService:
     """Owns review/attempt/job state while keeping model I/O transaction-free."""
 
     def __init__(
         self,
         *,
-        client: VllmClient | Any | None = None,
+        client: ModelClient | Any | None = None,
         raw_response_store: EncryptedObjectStore | Any | None = None,
         structure_loader: Callable[[Session, Any], Mapping[str, Any]] | None = None,
         report_service: Any | None = None,
@@ -288,23 +345,27 @@ class DeepReviewService:
         clock: Callable[[], datetime] = _now,
     ) -> None:
         settings = get_settings()
+        self.settings = settings
+        # 심층 검토가 부르는 모델명은 policy의 `model_name`이다. 그 값은 review가
+        # policy를 고정한 뒤에야 정해지므로 vLLM client는 여기서 만들지 않고
+        # 실행 직전에 `_bind_client`가 용도별 설정으로 만든다. 미리 만들면
+        # 모델명을 설정에서 다시 읽게 되고, 실행 row에 기록되는 policy 모델명과
+        # 실제로 부른 모델이 갈린다.
         if client is not None:
-            self.client = client
+            self._client = client
         elif settings.analysis_provider == "mock":
-            self.client = MockAnalysisClient()
+            self._client = MockAnalysisClient()
         else:
-            self.client = VllmClient(
-                base_url=settings.vllm_base_url,
-                api_key=settings.vllm_api_key.get_secret_value(),
-                allowed_hosts=settings.vllm_allowed_hosts,
-                model=settings.vllm_model,
-                output_contract=DEEP_REVIEW_STAGE_CONTRACT,
-            )
-        self.reference_workflow_mode = bool(
-            settings.reference_workflow_mode
-            and settings.analysis_provider == "mock"
-            and getattr(self.client, "provider_name", None) == "mock-analysis"
-        )
+            self._client = None
+        # 주입·mock client는 policy 모델명에 묶이지 않는다. 그 밖의 client는
+        # `_bind_client`가 만든 것이고, 어느 모델명으로 만들었는지를 여기에
+        # 남겨야 policy가 다른 job이 남의 client를 물려받지 않는다.
+        self._injected_client = self._client is not None
+        self._bound_model_name: str | None = None
+        # 참조 실행 모드는 provider와 무관하다(명세 §6.5). mock provider는
+        # 설정 검증이 이 모드를 필수로 요구하고, vLLM 경로도 이 모드에서는
+        # 측정값 없는 policy로 실행할 수 있다.
+        self.reference_workflow_mode = bool(settings.reference_workflow_mode)
         # The configured store is lazy so module import remains usable for
         # isolated unit tests; production lifespan/worker startup validates
         # MinIO credentials and encryption key configuration before serving.
@@ -316,6 +377,73 @@ class DeepReviewService:
         # stale while vLLM is still processing the approved request.
         self.lease_seconds = max(int(lease_seconds), MIN_LEASE_SECONDS)
         self.clock = clock
+
+    @property
+    def client(self) -> Any | None:
+        """이 서비스가 쓰는 분석 client.
+
+        vLLM 경로에서는 policy가 모델명을 정하므로 실행 전까지 `None`이다.
+        `None`을 "client가 없다"가 아니라 "아직 묶이지 않았다"로 읽는다.
+        """
+
+        return self._client
+
+    def _runtime_identity(self, policy: AnalysisPolicyVersion) -> tuple[str, str]:
+        """감사에 남길 provider와 모델명. 모델을 부르지 않고 정한다.
+
+        생성 시점에 `/models`를 부르면 공고 잠금을 쥔 transaction 안에서
+        network I/O를 하게 된다. transport 식별자와 policy 모델명은 그때도
+        확정돼 있으므로 여기서는 그 둘만 읽는다.
+        """
+
+        if self._client is not None and self._client_matches(str(policy.model_name)):
+            return (
+                str(getattr(self._client, "provider_name", "injected-analysis-client")),
+                str(getattr(self._client, "model", policy.model_name)),
+            )
+        return MODEL_ENDPOINT_REF, str(policy.model_name)
+
+    def _client_matches(self, model_name: str) -> bool:
+        """들고 있는 client를 이 모델명에 그대로 쓸 수 있는가.
+
+        주입·mock client는 언제나 쓴다 — 호출자가 그 계약을 소유한다. 스스로
+        묶은 client는 **묶을 때 쓴 모델명이 같을 때만** 쓴다. worker 하나가
+        서비스를 job 사이에 들고 있으므로, 이 대조가 없으면 policy A로 만든
+        client가 policy B에 고정된 job에 그대로 돌아간다.
+        """
+
+        return self._injected_client or self._bound_model_name == model_name
+
+    def _bind_client(self, model_name: str) -> Any:
+        """용도별 설정으로 심층 검토 client를 만들고 identity를 확인한다 (명세 §6.6).
+
+        허용 host나 배포 선언 revision이 없으면 `/models`를 부르기도 전에 fail
+        closed하고, served id에 policy 모델명이 없으면 `model_not_served`다.
+        어느 실패도 다른 주소·다른 provider로 넘어가지 않는다.
+        """
+
+        if self._client is not None and self._client_matches(model_name):
+            return self._client
+        # 모델명이 다르면 이전 client는 버린다. transport를 닫지 않으면 job이
+        # 모델을 오갈 때마다 연결이 쌓인다.
+        discarded, self._client, self._bound_model_name = self._client, None, None
+        if discarded is not None:
+            closer = getattr(discarded, "close", None)
+            if callable(closer):
+                closer()
+        try:
+            self._client = ModelClient.for_purpose(
+                MODEL_PURPOSE,
+                model=model_name,
+                output_contract=DEEP_REVIEW_STAGE_CONTRACT,
+                settings=self.settings,
+            )
+        except ModelIdentityError as error:
+            raise DeepReviewServiceError(error.code, "승인된 분석 모델 identity를 확인할 수 없습니다", status_code=503) from error
+        except (ModelEndpointError, ValueError) as error:
+            raise DeepReviewServiceError("service_unavailable", "심층 검토 모델 endpoint 설정이 유효하지 않습니다", status_code=503) from error
+        self._bound_model_name = model_name
+        return self._client
 
     def _idempotent_response(self, session: Session, *, operation: str, aggregate_type: str, aggregate_id: str, actor: str, request_id: UUID, request_hash: str) -> dict[str, Any] | None:
         row = session.scalar(select(IdempotencyRecord).where(
@@ -369,6 +497,7 @@ class DeepReviewService:
             "status": review.status, "current_attempt": self._attempt_view(session, current) if current else None,
             "attempts": [self._attempt_view(session, attempt) for attempt in attempts],
             "created_at": review.created_at.isoformat(), "completed_at": review.completed_at.isoformat() if review.completed_at else None,
+            "quality_status": quality_status_for_review(session, review.id),
         }
 
     def _seed_attempt(self, session: Session, review: DeepReview, *, sequence: int, actor: str) -> DeepReviewAttempt:
@@ -385,8 +514,27 @@ class DeepReviewService:
         review.status = "queued"
         return attempt
 
-    def create_review(self, session: Session, notice_id: int, bundle_id: UUID, actor: str | None, request_id: UUID) -> dict[str, Any]:
+    def create_review(
+        self,
+        session: Session,
+        notice_id: int,
+        bundle_id: UUID,
+        actor: str | None,
+        request_id: UUID,
+        *,
+        actor_kind: str = "human",
+    ) -> dict[str, Any]:
+        """심층 검토와 첫 attempt를 만든다.
+
+        `actor_kind`가 ``system``이면 §6.4의 자동 시작이다. 담당자 이름 검사와
+        불변 입력 고정, 등급 검사, 감사 metadata의 **모양**은 사람 경로와 같고
+        감사 action 이름과 actor 종류만 다르다 — `quality_status`가 두 action
+        모두에서 계산되기 때문이다(§8). 자동 시작이 추가 권한을 얻지는 않는다.
+        """
+
         claimed_name = _validate_actor(actor)
+        actor_kind = _validate_actor_kind(actor_kind)
+        creation_action = CREATION_ACTION_BY_ACTOR_KIND[actor_kind]
         request_hash = _idempotency_hash("deep_review_create", {"notice_id": notice_id, "bundle_id": str(bundle_id)})
         try:
             # Notice is the aggregate root for the immutable grade/bundle /
@@ -399,7 +547,7 @@ class DeepReviewService:
             if callable(approval_check):
                 try:
                     approval_check(notice_id)
-                except VllmInvocationError as error:
+                except ModelInvocationError as error:
                     raise DeepReviewServiceError(
                         error.code,
                         "외부 분석 provider 사용 승인이 없습니다",
@@ -414,8 +562,7 @@ class DeepReviewService:
                 session,
                 allow_unmeasured_reference=self.reference_workflow_mode,
             )
-            runtime_provider = str(getattr(self.client, "provider_name", "injected-analysis-client"))
-            runtime_model = str(getattr(self.client, "model", policy.model_name))
+            runtime_provider, runtime_model = self._runtime_identity(policy)
             quality_snapshot = (
                 {"status": "reference_workflow_unmeasured", "deployable": False}
                 if self.reference_workflow_mode
@@ -439,7 +586,7 @@ class DeepReviewService:
                 raise DeepReviewServiceError("not_found", "공고와 document bundle이 일치하지 않습니다", status_code=404, request_id=request_id)
             bundle_correlation_id = _audit_correlation_id(
                 session,
-                action="document_bundle.create",
+                actions=("document_bundle.create",),
                 aggregate_type="document_bundle",
                 aggregate_id=str(bundle_id),
             )
@@ -451,7 +598,9 @@ class DeepReviewService:
             ).limit(1))
             if existing is not None:
                 creation = session.scalar(select(AuditEvent).where(
-                    AuditEvent.action == "deep_review.create",
+                    # 사람 경로와 자동 시작(§6.4)이 같은 계보를 남긴다. 한쪽만
+                    # 보면 자동 생성된 review의 provider 문맥을 못 읽는다.
+                    AuditEvent.action.in_(CREATION_ACTIONS),
                     AuditEvent.aggregate_type == "deep_review",
                     AuditEvent.aggregate_id == str(existing.id),
                 ).order_by(AuditEvent.created_at.asc(), AuditEvent.id.asc()).limit(1))
@@ -474,7 +623,7 @@ class DeepReviewService:
             session.flush()
             response = self.view(session, review.id)
             session.add(IdempotencyRecord(operation="deep_review_create", aggregate_type="notice", aggregate_id=str(notice_id), claimed_name=claimed_name, request_id=request_id, request_sha256=request_hash, response_status=202, response_snapshot=response))
-            session.add(AuditEvent(actor_kind="human", claimed_name=claimed_name, action="deep_review.create", aggregate_type="deep_review", aggregate_id=str(review.id), request_id=str(request_id), safe_metadata={
+            session.add(AuditEvent(actor_kind=actor_kind, claimed_name=claimed_name, action=creation_action, aggregate_type="deep_review", aggregate_id=str(review.id), request_id=str(request_id), safe_metadata={
                 "notice_id": notice_id, "bundle_id": str(bundle_id), "profile_version_id": str(profile.id), "profile_sha256": profile.profile_sha256,
                 "policy_version_id": str(policy.id), "policy_sha256": policy.policy_sha256, "policy_model_name": policy.model_name,
                 "analysis_provider": runtime_provider, "runtime_model": runtime_model,
@@ -531,13 +680,16 @@ class DeepReviewService:
                 raise DeepReviewServiceError("review_not_ready", "실패 또는 완료된 current attempt만 재시도할 수 있습니다", status_code=409, request_id=request_id)
             correlation_id = _audit_correlation_id(
                 session,
-                action="deep_review.create",
+                # 사람이 만든 검토든 자동으로 시작된 검토든 계보는 그 생성
+                # 감사에 있다. 한쪽만 보면 자동 생성분의 재시도가 계보 불일치로
+                # 막힌다.
+                actions=CREATION_ACTIONS,
                 aggregate_type="deep_review",
                 aggregate_id=str(review.id),
             )
             bundle_correlation_id = _audit_correlation_id(
                 session,
-                action="document_bundle.create",
+                actions=("document_bundle.create",),
                 aggregate_type="document_bundle",
                 aggregate_id=str(review.bundle_id),
             )
@@ -1228,7 +1380,11 @@ class DeepReviewService:
             if profile is None or policy is None:
                 raise DeepReviewServiceError("service_unavailable", "고정된 profile 또는 policy가 없습니다", status_code=503)
             validate_pinned_policy(policy, allow_unmeasured_reference=self.reference_workflow_mode)
-            creation_audit = session.scalar(select(AuditEvent).where(AuditEvent.action == "deep_review.create", AuditEvent.aggregate_type == "deep_review", AuditEvent.aggregate_id == str(review.id)).order_by(AuditEvent.created_at.asc(), AuditEvent.id.asc()).limit(1))
+            pinned_provider, pinned_runtime_model = self._runtime_identity(policy)
+            # 생성 감사는 사람 클릭과 자동 시작 둘 중 하나다. 사람 action만
+            # 보면 자동 생성된 검토가 고정 입력 snapshot을 못 찾고 503으로
+            # 끝난다 — 만들어지기만 하고 실행되지 않는 검토가 된다.
+            creation_audit = session.scalar(select(AuditEvent).where(AuditEvent.action.in_(CREATION_ACTIONS), AuditEvent.aggregate_type == "deep_review", AuditEvent.aggregate_id == str(review.id)).order_by(AuditEvent.created_at.asc(), AuditEvent.id.asc()).limit(1))
             audit_snapshot = creation_audit.safe_metadata if creation_audit is not None and isinstance(creation_audit.safe_metadata, Mapping) else None
             if audit_snapshot is None:
                 raise DeepReviewServiceError("service_unavailable", "deep review 입력 snapshot이 없습니다", status_code=503)
@@ -1244,19 +1400,15 @@ class DeepReviewService:
                     else policy_quality_snapshot(policy)
                 )
                 or bool(audit_snapshot.get("reference_workflow_mode", False)) != self.reference_workflow_mode
-                or audit_snapshot.get("analysis_provider") not in {
-                    None, str(getattr(self.client, "provider_name", "injected-analysis-client")),
-                }
-                or audit_snapshot.get("runtime_model") not in {
-                    None, str(getattr(self.client, "model", policy.model_name)),
-                }
+                or audit_snapshot.get("analysis_provider") not in {None, pinned_provider}
+                or audit_snapshot.get("runtime_model") not in {None, pinned_runtime_model}
             ):
                 raise DeepReviewServiceError("service_unavailable", "pinned deep review 입력이 변경되었습니다", status_code=503)
             approval_check = getattr(self.client, "require_notice_approval", None)
             if callable(approval_check):
                 try:
                     approval_check(review.notice_id)
-                except VllmInvocationError as error:
+                except ModelInvocationError as error:
                     raise DeepReviewServiceError(error.code, "외부 분석 provider 사용 승인이 없습니다", status_code=403) from error
             bundle, structures = bundle_context(session, review.bundle_id, structure_loader=self.structure_loader)
             profile_payload = profile_context(session, profile)
@@ -1295,6 +1447,9 @@ class DeepReviewService:
                     continue
                 if stage_row.status != "queued":
                     raise DeepReviewServiceError("processing_failed", "stage 상태 전이가 올바르지 않습니다", status_code=500)
+                # 실제로 모델을 부르기 직전에만 client를 묶는다. 완료된 stage만
+                # 남은 재개 실행은 여기까지 오지 않으므로 `/models`도 부르지 않는다.
+                client = self._bind_client(pinned_model_name)
                 self._mark_running(session, claim, stage_row)
                 slices = self._stage_slices(stage_name, bundle, structures, profile_payload, previous_outputs)
                 chunks: list[Mapping[str, Any]] = []
@@ -1310,7 +1465,7 @@ class DeepReviewService:
                     }
                     try:
                         self._renew_lease(session, claim)
-                        result = self.client.invoke(
+                        result = client.invoke(
                             stage_name,
                             invocation_input,
                             policy_payload,
@@ -1351,7 +1506,7 @@ class DeepReviewService:
                         invocation_metadata.append({
                             "slice_index": slice_index, "input_slice_sha256": _canonical_hash(invocation_input), "prompt_sha256": result.input_sha256,
                             "response_sha256": hashlib.sha256(result.raw_response).hexdigest(),
-                            "provider": result.provider or str(getattr(self.client, "provider_name", "unknown")),
+                            "provider": result.provider or str(getattr(client, "provider_name", "unknown")),
                             "model": result.model or pinned_model_name,
                             "policy_sha256": pinned_policy_sha256, "prompt_tokens": result.prompt_tokens,
                             "output_tokens": result.output_tokens, "latency_ms": result.latency_ms,
@@ -1359,7 +1514,7 @@ class DeepReviewService:
                         })
                         stage_invocations.extend(safe_attempts)
                         chunks.append(chunk_output)
-                    except VllmInvocationError as error:
+                    except ModelInvocationError as error:
                         safe_attempts = [_safe_invocation_attempt(item) for item in error.attempts]
                         invocation_metadata.extend({"slice_index": slice_index, "input_slice_sha256": _canonical_hash(invocation_input), **item} for item in safe_attempts)
                         stage_invocations.extend({"slice_index": slice_index, "input_slice_sha256": _canonical_hash(invocation_input), **item} for item in safe_attempts)
@@ -1422,4 +1577,7 @@ class DeepReviewService:
             raise DeepReviewServiceError("processing_failed", "deep review 실행에 실패했습니다", status_code=500) from error
 
 
-__all__ = ["DeepReviewError", "DeepReviewService", "DeepReviewServiceError", "JobClaim", "StaleFenceError"]
+__all__ = [
+    "DeepReviewError", "DeepReviewService", "DeepReviewServiceError",
+    "JobClaim", "StaleFenceError", "quality_status_for_review",
+]

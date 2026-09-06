@@ -1,6 +1,11 @@
 # Deep Review v2 첨부문서 분석 설계
 
-> 상태: 제안 설계 — Luna 시안 평가 전, 구현·운영 미승인
+> 상태: 제안 설계 — **결정적 부분만 구현됨**, 역할별 모델 분석과 Luna 평가는 보류
+>
+> [ADR-0051](../tracking/decisions/0051-deep-review-v2-deterministic-subset.md)이 §4의 segment
+> 경계·요구사항 inventory와 §6의 결정적 검증 연결을 채택해 구현했다. §5의 역할별 모델 분석,
+> segment의 모델 보조 분류, §7.2의 `edwardkim/rhwp` A/B는 구현하지 않았다. 구현 상태는 아래
+> §2 표의 `현재 구현` 열이 정본이다.
 >
 > 기준일: 2026-09-03 (KST)
 >
@@ -43,10 +48,13 @@
 | HWP | 원본 보존 후 vendored WASM 런타임으로 HWPX 변환 | 변환된 구조와 실제 페이지·표·장절의 완전성 검증이 제한적 |
 | HWPX | stdlib XML parser가 문단·표·표 셀을 block으로 구조화 | heading 의미와 목차 관계가 canonical block에 충분히 남지 않음 |
 | PDF | 페이지별 text/block 추출과 poppler fallback | 표 구조와 읽기 순서가 HWPX보다 약할 수 있음 |
-| 입력 고정 | ready document bundle이 document version·structure·hash를 snapshot | 의미 segment manifest는 아직 없음 |
+| 입력 고정 | ready document bundle이 document version·structure·hash를 snapshot | — |
 | 심층 검토 | `requirements_and_evaluation`, `delivery_risk_economics`, `synthesis_and_validation` 3단계 | 역할별 목적이 입력 분할 계약으로 명확히 분리되지 않음 |
 | chunk | 페이지 block을 문자 수와 행 수로 제한한 excerpt로 분할 | `requirement_id`가 원문의 SYR/QUR 등이 아니라 excerpt용 가상 ID임 |
-| 요구사항 검증 | `compare_requirement_ids()`가 누락·중복·예상 밖 ID를 비교 | 현재 deep-review 실행 경로에는 연결되지 않고 fixture 테스트에서만 사용됨 |
+| segment manifest | **결정적 부분 구현됨.** 구조 저장 시점에 `document_segment_manifest`·`document_segment`·`requirement_inventory_item`을 만들고 `GET /api/document-structures/{id}/segments`로 읽는다 | 분류는 결정적 규칙만 쓴다(`classification_source=deterministic`, `confidence` 항상 `null`). 모델 보조 분류는 보류. 이 변경 전 구조에는 manifest가 없고 조회가 404이며 사후 재구성이 불가능하다 |
+| segment coverage | **결정적 부분 구현됨.** `segment_coverage` check가 간극·중첩을 warning(보통)으로 남긴다 | 차단하지 않는다 |
+| 역할별 분석 | **미구현.** §5의 네 역할과 출력 schema는 보류다 | 기존 3단계가 그대로다 |
+| 요구사항 검증 | **결정적 부분 구현됨.** `requirement_inventory` check가 심층 검토 검증 경로에서 누락·예상 밖 ID를 `failed`(중대), 중복을 warning으로 남긴다 | ID 체계가 없는 문서는 warning "inventory 없음"이다. claim이 ID를 적지 않으면 실패하므로 기존 통과 리뷰를 뒤집을 수 있다 |
 | 근거·보고서 | claim/evidence, exact quote, locator, 계산 검증, append-only revision | 형식 완결성이 의미상 요구사항 전수성이나 역할별 적합성을 보장하지 않음 |
 | 사람 결정 | 최종 의견을 별도 revision으로 기록 | 유지해야 하는 경계이며 자동 권고와 합치지 않음 |
 
@@ -313,7 +321,7 @@ worker 안에 연결하는 방식을 우선한다. upstream의 MCP 기능은 개
 
 ## 9. 구현 순서와 수용 기준
 
-구현은 [Luna 시안·품질 검증 계획](luna-evaluation-plan.md)의 승인 뒤 시작한다.
+**1~3과 5·6의 결정적 부분은 [ADR-0051](../tracking/decisions/0051-deep-review-v2-deterministic-subset.md)로 이미 구현했다.** 남은 항목(4·7·8과 5·6의 모델 관련 부분)은 [Luna 시안·품질 검증 계획](luna-evaluation-plan.md)의 승인 뒤 시작한다.
 
 1. segment·inventory 후보 계약과 fixture를 확정한다.
 2. HWPX 기준 결정적 heading/ID inventory와 segmenter를 구현한다.
@@ -335,5 +343,5 @@ worker 안에 연결하는 방식을 우선한다. upstream의 MCP 기능은 개
 - validation 실패가 성공 report나 사람 최종결정으로 자동 승격되는 경로 0건
 - 기존 deep-review API, revision history, final opinion 회귀 테스트 통과
 
-이 문서는 목표 설계다. 승인된 평가 결과와 후속 ADR·계약 변경 전에는 현재 런타임이 이
-동작을 제공한다고 표시하지 않는다.
+이 문서는 목표 설계다. 위 §2 표에서 **결정적 부분 구현됨**으로 표시한 것 말고는, 승인된 평가
+결과와 후속 ADR·계약 변경 전에 현재 런타임이 그 동작을 제공한다고 표시하지 않는다.

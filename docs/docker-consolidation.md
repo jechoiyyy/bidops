@@ -11,7 +11,7 @@
 |---|---|---|
 | `docker-compose.t7.yml` | `docker-compose.yml` | 애플리케이션 스택 정본. postgres·minio·clamav·web·worker 2종, profile `backup`·`ops` |
 | `docker-compose.t7.remote-vllm.yml` | `docker-compose.remote-vllm.yml` | analysis-worker에만 사설 vLLM egress를 여는 overlay |
-| `docker-compose.t7.screening.yml` | `docker-compose.screening.yml` | web에만 Ollama egress를 여는 overlay |
+| `docker-compose.t7.screening.yml` | `docker-compose.screening.yml` | web에만 판정용 모델 egress를 여는 overlay |
 | `docker-compose.t7.prespec-attachment.yml` | `docker-compose.prespec-attachment.yml` | 사전규격 첨부 worker와 G2B egress overlay |
 | `docker-compose.t7.mock-reference.yml` | `docker-compose.mock-reference.yml` | 모델 없이 상태 전이만 확인하는 mock override |
 | `docker-compose.yml` (SQLite ops) | `docker-compose.sqlite-ops.yml` | SQLite 이전 입력 스냅숏의 backup·migrate·verify·seed-policy `ops` 명령. **제거 후보** |

@@ -8,10 +8,15 @@
 from __future__ import annotations
 
 from typing import Literal
+from uuid import UUID
 
 from pydantic import ConfigDict, Field
 
-from ...core.constants import PreSpecOverviewReviewStatus
+from ...core.constants import (
+    PreSpecAutoPreparationStatus,
+    PreSpecGradeSource,
+    PreSpecOverviewReviewStatus,
+)
 from ...core.schema_base import AwareDateTime, RuntimeContractModel
 from .opportunities import OpportunityTrackingStatus
 
@@ -54,6 +59,20 @@ class PreSpecListItem(RuntimeContractModel):
     # ``None`` here; it is a distinct, eleventh bucket and must never be
     # folded into ``awaiting_document`` (CLAUDE.md unknown/null 보존 게이트).
     overview_review_status: PreSpecOverviewReviewStatus | None = None
+    # 등급과 자동 문서 준비 (명세 §8). 값은 deep_review의 개요·문서 projection
+    # 확장점에서 온다 — lifecycle은 판정도 자동 준비도 소유하지 않는다.
+    #
+    # `grade`가 `None`이면 판정도 사람 정정도 없다는 뜻이고 그때 `grade_source`도
+    # `None`이다. 둘 중 하나만 채우거나 "없음"을 특정 등급으로 접지 않는다
+    # (CLAUDE.md unknown/null 보존 게이트).
+    grade: str | None = None
+    grade_source: PreSpecGradeSource | None = None
+    # 제공자가 없는 배포에서는 자동 준비가 실제로 일어나지 않으므로
+    # `not_applicable`이다. "알 수 없음"이 아니라 "대상이 아님"이다.
+    auto_preparation_status: PreSpecAutoPreparationStatus = "not_applicable"
+    #: 왜 다음 단계로 가지 않는가. 안전한 코드이며 없으면 `None`이다.
+    auto_preparation_reason: str | None = None
+    latest_deep_review_id: UUID | None = None
 
 
 class PreSpecOverviewStatusCount(RuntimeContractModel):

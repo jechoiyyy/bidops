@@ -238,15 +238,6 @@ export function QueuePage({ defaultSort = "grade" }: { defaultSort?: QueueFilter
           ) : (
             <>
               <StickyDecisionHeader className="queue-detail-header" label="공고 상세 결정 헤더">
-                <div className="queue-detail-back">
-                  <Link to={{ pathname: "/queue", search: searchParams.toString() }}>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M19 12H6M11 6l-6 6 6 6" /></svg>
-                    목록으로
-                  </Link>
-                  {selectedIndex >= 0 ? (
-                    <span className="mono tabular-nums">{selectedIndex + 1} / {notices.length}</span>
-                  ) : null}
-                </div>
                 <div className="queue-detail-heading">
                   <div className="queue-detail-badges">
                     <Badge label={detail.judgment?.grade} variant={gradeVariant(detail.judgment?.grade ?? null)} />

@@ -16,7 +16,7 @@ def _created(status: str = "대기") -> SimpleNamespace:
     return SimpleNamespace(
         execution_id="scr-" + "a" * 32,
         status=status,
-        model_name="qwen3.8:27b",
+        model_name="qwen3.8-27B",
         model_digest="a" * 64,
         profile_version="company-profile.sha256:" + "b" * 64,
         profile_digest="b" * 64,

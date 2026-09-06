@@ -61,9 +61,9 @@ test("legacy 첨부는 mutation control 없이 provenance와 안전한 문서 �
   const panel = page.getByRole("heading", { name: "기존 첨부 출처 이력" }).locator("..").locator("..");
   await expect(panel).toContainText("기존 수동 등록 이력");
   await expect(panel).toContainText("읽기 전용 이력");
-  await expect(panel).toContainText("ready bundle 판단에 사용하지 않음");
+  await expect(panel).toContainText("확정 문서 묶음 판단에 쓰지 않음");
   await expect(panel).not.toContainText("/internal/legacy/9001.pdf");
-  await expect(panel.getByText("안전한 문서 bundle 준비", { exact: false })).toBeVisible();
+  await expect(panel.getByText("안전한 문서 묶음 준비", { exact: false })).toBeVisible();
   await expect(panel.locator('input[type="file"]')).toHaveCount(0);
   await expect(panel.getByRole("button", { name: /삭제/ })).toHaveCount(0);
   await expect(panel.getByRole("link", { name: /내려받기|다운로드/ })).toHaveCount(0);
@@ -77,4 +77,34 @@ test("legacy 첨부는 mutation control 없이 provenance와 안전한 문서 �
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);
   expect(legacyMutationRequests).toEqual([]);
+});
+
+// 담당자 이름은 화면마다 되풀이해 묻지 않고 이 브라우저에 기억된다. 기억은
+// 편의일 뿐이므로 **인증으로 표현되지 않고**, 이름이 채워졌다는 것만으로는
+// 어떤 변경 요청도 나가지 않는다(docs/security.md · AGENTS.md).
+test("기억된 담당자 이름은 인증으로 표현되지 않고 스스로 변경을 보내지 않는다", async ({ page }) => {
+  const mutations: string[] = [];
+  page.on("request", (request) => {
+    const method = request.method();
+    const pathname = new URL(request.url()).pathname;
+    if (pathname.startsWith("/api/") && method !== "GET" && method !== "HEAD") {
+      mutations.push(`${method} ${pathname}`);
+    }
+  });
+
+  await page.goto("/deep-reviews/fixture-review");
+  const actor = page.getByLabel("담당자 이름");
+  await actor.fill("기억되는 담당자");
+
+  const describedBy = await actor.getAttribute("aria-describedby");
+  const description = page.locator(`#${describedBy}`);
+  await expect(description).toContainText("감사 귀속용");
+  await expect(description).toContainText("로그인·신원 인증·권한 부여가 아닙니다");
+  await expect(description).toContainText("이 브라우저에 기억됩니다");
+  await expect(description).toContainText("로그인이나 신원 인증이 아닙니다");
+
+  await page.reload();
+  await expect(page.getByLabel("담당자 이름")).toHaveValue("기억되는 담당자");
+  // 이름이 채워졌다고 해서 저장이 일어나지 않는다.
+  expect(mutations).toEqual([]);
 });

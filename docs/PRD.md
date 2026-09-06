@@ -70,10 +70,12 @@ flowchart LR
     C --> D[사람 후보 검토]
     B --> E[사전규격 독립 수집]
     E --> F[공식 연결 또는 후보 연결]
-    F --> G[RFP 개요 검토]
-    G --> H{사람이 심층 검토 승인}
-    H -->|승인| I[첨부 안전 검사·bundle 확정]
-    I --> J[3단계 심층 검토·근거 검증]
+    F --> I[첨부 안전 검사·bundle 자동 확정]
+    I --> G[RFP 개요 검토]
+    G --> H{SW사업대상=Y이고 권고가 검토 종료가 아닌가}
+    H -->|예| J[3단계 심층 검토·근거 검증]
+    H -->|아니오| P[사람이 심층 검토 실행]
+    P --> J
     J --> K[계속 추적·보류·종료]
     K --> L[입찰공고·정정 발견]
     L --> M[정확한 문서쌍 delta 비교]
@@ -97,9 +99,18 @@ flowchart LR
 `swBizObjYn`은 원문 값으로 저장하고 표시·필터에만 사용한다. 공식 연결이 없으면 사업명 검색
 전략과 후보를 저장하며, `검색 미확인`을 사전규격 부재로 표시하지 않는다.
 
+적합성 등급이 `우선 검토`인 사전규격은 문서 준비를 자동으로 진행한다. 안전 검사를 통과한
+현재 문서로 묶음 초안을 만들고, 자기가 만든 초안만 확정한다. 사람이 만든 초안은 사람이
+확정한다([ADR-0049](tracking/decisions/0049-prespec-auto-preparation-and-auto-deep-review.md)).
+등급이 나중에 내려가도 이미 만든 묶음을 되돌리지 않는다.
+
 RFP 개요 검토는 문서의 목차와 의미 있는 소제목에 따라 결정적으로 앞부분을 잘라 사업내용만
-확인한다. 시작·끝이 모호하면 모델을 호출하지 않고 사람 검토로 보낸다. 사람의 심층 검토
-승인 전에는 전체 첨부를 고비용 분석에 투입하지 않는다.
+확인한다. 시작·끝이 모호하면 모델을 호출하지 않고 사람 검토로 보낸다.
+
+개요 검토가 `completed`이고 권고가 `검토 종료`가 아니며 `SW사업대상=Y`인 건은 심층 검토를
+시스템이 자동으로 만든다. 그 밖의 건은 화면이 **왜 자동으로 열리지 않았는지**를 안전한 사유
+코드로 보여 주고 사람이 실행한다. 자동 시작은 분석의 시작만 열며 적합성 등급, 참여 준비
+상태, 추적 선택, 최종 입찰 Go/No-Go 중 어느 것도 만들지 않는다.
 
 심층 검토는 clean·구조화된 immutable bundle, 승인 profile, 분석 policy를 고정하고 다음 세
 단계를 제한된 slice로 실행한다.
@@ -132,7 +143,9 @@ RFP 개요 검토는 문서의 목차와 의미 있는 소제목에 따라 결�
 | 기존 공고 pipeline | 수집·정규화·표본·다섯 관점 판정·HTML/YAML 산출물 구현 | 검증된 기존 기준선 |
 | 관리자 API/UI | 회차·공고·리뷰·프로필 projection·지표·첨부·기회·문서 bundle·심층 검토 화면 제공 | 사람이 조회·검토하는 기반 |
 | PostgreSQL/MinIO | 운영 정본 schema·object versioning·복구 경계 고정 | SQLite는 격리 테스트·일회성 이관만 |
-| 사전규격 개요 | 절단 snapshot·attempt/result 계약·조회 화면 기반 구현 | 승인된 실제 model transport/worker가 남음 |
+| 사전규격 개요 | 절단 snapshot·attempt/result 계약·조회 화면에 더해 모델 실행 worker와 통일 client 연결까지 구현 | 실행은 `quality_status=unmeasured_reference\|mock_reference`인 참조 실행이다. 승인된 artifact와 사람 gold 측정이 남음 |
+| 사전규격 자동 준비 | 등급 기반 자동 묶음·`SW사업대상=Y` 자동 심층 시작 구현([ADR-0049](tracking/decisions/0049-prespec-auto-preparation-and-auto-deep-review.md)) | 자동 시작이 만든 검토를 실행하는 경로에 결함이 남아 있다([findings](tracking/findings.md)) |
+| 문서 segment·요구사항 inventory | 결정적 manifest 저장과 검증 연결 구현([ADR-0051](tracking/decisions/0051-deep-review-v2-deterministic-subset.md)) | 역할별 모델 분석과 Luna 외부 평가는 보류 |
 | 입찰 delta | schema·REST·화면 계약 및 migration 경계 존재 | 실제 계산 worker/model adapter와 운영 실행은 남음 |
 | C-2 선별 | 비교 실험·Phase 0 전용 schema/validator·binding 고정 | 제품 adapter·C-2 DB/API/worker는 미구현 |
 | scheduler/always-on | 계약·상태·조건 설계와 기본 비활성 경계 | 운영 품질 승인 뒤 별도 활성화 |
@@ -218,7 +231,8 @@ prompt·profile·generation config digest는 계약과 실행 binding에만 기�
 | FR-DOC-04 | 문서 버전을 불변으로 만든다 | 동일 파일명이라도 다른 bytes는 새 version이고 이전 bundle은 유지된다 |
 | FR-DOC-05 | HWP 분석 정본을 고정한다 | HWP 원본을 보존하고 검증된 HWPX 변환 구조와 converter version을 기록한다 |
 | FR-DOC-06 | 개요 절단을 결정적으로 저장한다 | 목차/소제목 대응을 사용하고 경계가 모호하면 `unknown`·사람 검토다 |
-| FR-DOC-07 | 심층 검토 전 사람이 승인한다 | ready bundle이 없거나 승인 전이면 전체 첨부 모델 분석이 시작되지 않는다 |
+| FR-DOC-07 | 심층 검토 진입을 등급·SW 표시로 제한한다 | `우선 검토` 등급만 자동 문서 준비를 열고, `SW사업대상=Y`이며 개요가 `completed`·권고가 `검토 종료`가 아닌 건만 자동 시작한다. 그 밖에는 ready bundle 없이 전체 첨부 모델 분석이 시작되지 않으며 사람이 실행한다([ADR-0049](tracking/decisions/0049-prespec-auto-preparation-and-auto-deep-review.md)) |
+| FR-DOC-08 | 문서 구조에서 요구사항 inventory와 segment manifest를 결정적으로 만든다 | 분류 출처는 `deterministic` 고정, `confidence`는 항상 `null`, 못 정한 경계는 `needs_human_review`다. 응답에 원문 text를 싣지 않는다([ADR-0051](tracking/decisions/0051-deep-review-v2-deterministic-subset.md)) |
 
 ### 6.4 심층 검토·근거·사람 결정
 
@@ -230,6 +244,7 @@ prompt·profile·generation config digest는 계약과 실행 binding에만 기�
 | FR-REV-04 | 결정적 검증을 적용한다 | 숫자·요구사항 ID·배점·기간·locator 불일치는 실패·사람 검토다 |
 | FR-REV-05 | 리포트와 사람 수정은 full snapshot이다 | machine/human revision, parent, reason, validation이 append-only다 |
 | FR-REV-06 | 추적 상태를 분리한다 | `미선택|계속 추적|보류|종료`는 개요 권고·등급·최종 결정과 별도다 |
+| FR-REV-07 | 실행의 품질 표식을 결과와 함께 남긴다 | `quality_status`가 `measured|unmeasured_reference|mock_reference|null`이며, 참조 실행과 mock을 운영 완료·품질 근거·활성화 근거로 집계하지 않는다([ADR-0050](tracking/decisions/0050-unified-openai-compatible-model-client.md)) |
 
 ### 6.5 입찰 delta·최종 Go/No-Go
 

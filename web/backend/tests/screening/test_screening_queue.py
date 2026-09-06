@@ -78,7 +78,7 @@ def enqueue(store, *, n=0, scope="full_run", trigger="manual_run", **extra):
         requested_by="operator",
         policy_version="policy-1",
         prompt_version="prompt-1",
-        model_name="qwen3.8:27b",
+        model_name="qwen3.8-27B",
         model_digest=DIGEST,
         company_profile_version=PROFILE_VERSION,
         company_profile_digest=DIGEST,

@@ -3,6 +3,8 @@
     "items": [
       {
         "agency": "가나다 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "일반용역",
         "deadline_at": "2026-08-28T00:00:00Z",
@@ -14,7 +16,10 @@
           "진행": 1,
           "차단": 1
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": false,
+        "latest_deep_review_id": null,
         "notice_pk": 1,
         "opportunity_id": null,
         "origin": null,
@@ -27,6 +32,8 @@
       },
       {
         "agency": "마바사 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "일반용역",
         "deadline_at": "2026-08-27T00:00:00Z",
@@ -38,7 +45,10 @@
           "진행": 0,
           "차단": 0
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": false,
+        "latest_deep_review_id": null,
         "notice_pk": 2,
         "opportunity_id": null,
         "origin": null,
@@ -51,6 +61,8 @@
       },
       {
         "agency": "다라마 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "기술용역",
         "deadline_at": "2026-08-22T00:00:00Z",
@@ -62,7 +74,10 @@
           "진행": 0,
           "차단": 0
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": true,
+        "latest_deep_review_id": null,
         "notice_pk": 3,
         "opportunity_id": 1,
         "origin": "추적",
@@ -75,6 +90,8 @@
       },
       {
         "agency": "라바 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "기술용역",
         "deadline_at": "2026-09-09T00:00:00Z",
@@ -86,7 +103,10 @@
           "진행": 0,
           "차단": 0
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": false,
+        "latest_deep_review_id": null,
         "notice_pk": 4,
         "opportunity_id": null,
         "origin": null,
@@ -99,6 +119,8 @@
       },
       {
         "agency": "사아 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "일반용역",
         "deadline_at": "2026-09-04T00:00:00Z",
@@ -110,7 +132,10 @@
           "진행": 0,
           "차단": 0
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": false,
+        "latest_deep_review_id": null,
         "notice_pk": 5,
         "opportunity_id": 2,
         "origin": "신규",
@@ -123,6 +148,8 @@
       },
       {
         "agency": "차카 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "일반용역",
         "deadline_at": "2026-09-07T00:00:00Z",
@@ -134,7 +161,10 @@
           "진행": 0,
           "차단": 0
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": false,
+        "latest_deep_review_id": null,
         "notice_pk": 6,
         "opportunity_id": null,
         "origin": null,
@@ -147,6 +177,8 @@
       },
       {
         "agency": "타파 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "일반용역",
         "deadline_at": "2026-09-06T00:00:00Z",
@@ -158,7 +190,10 @@
           "진행": 0,
           "차단": 0
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": false,
+        "latest_deep_review_id": null,
         "notice_pk": 7,
         "opportunity_id": 4,
         "origin": "추적",
@@ -171,6 +206,8 @@
       },
       {
         "agency": "하마 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "일반용역",
         "deadline_at": "2026-09-05T00:00:00Z",
@@ -182,7 +219,10 @@
           "진행": 0,
           "차단": 0
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": false,
+        "latest_deep_review_id": null,
         "notice_pk": 8,
         "opportunity_id": 5,
         "origin": "추적",
@@ -195,6 +235,8 @@
       },
       {
         "agency": "거너 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "일반용역",
         "deadline_at": "2026-09-03T00:00:00Z",
@@ -206,7 +248,10 @@
           "진행": 0,
           "차단": 0
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": false,
+        "latest_deep_review_id": null,
         "notice_pk": 9,
         "opportunity_id": 6,
         "origin": "추적",
@@ -272,6 +317,8 @@
     "items": [
       {
         "agency": "다라마 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "기술용역",
         "deadline_at": "2026-08-22T00:00:00Z",
@@ -283,7 +330,10 @@
           "진행": 0,
           "차단": 0
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": true,
+        "latest_deep_review_id": null,
         "notice_pk": 3,
         "opportunity_id": 1,
         "origin": "추적",
@@ -296,6 +346,8 @@
       },
       {
         "agency": "마바사 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "일반용역",
         "deadline_at": "2026-08-27T00:00:00Z",
@@ -307,7 +359,10 @@
           "진행": 0,
           "차단": 0
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": false,
+        "latest_deep_review_id": null,
         "notice_pk": 2,
         "opportunity_id": null,
         "origin": null,
@@ -320,6 +375,8 @@
       },
       {
         "agency": "가나다 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "일반용역",
         "deadline_at": "2026-08-28T00:00:00Z",
@@ -331,7 +388,10 @@
           "진행": 1,
           "차단": 1
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": false,
+        "latest_deep_review_id": null,
         "notice_pk": 1,
         "opportunity_id": null,
         "origin": null,
@@ -344,6 +404,8 @@
       },
       {
         "agency": "거너 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "일반용역",
         "deadline_at": "2026-09-03T00:00:00Z",
@@ -355,7 +417,10 @@
           "진행": 0,
           "차단": 0
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": false,
+        "latest_deep_review_id": null,
         "notice_pk": 9,
         "opportunity_id": 6,
         "origin": "추적",
@@ -368,6 +433,8 @@
       },
       {
         "agency": "사아 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "일반용역",
         "deadline_at": "2026-09-04T00:00:00Z",
@@ -379,7 +446,10 @@
           "진행": 0,
           "차단": 0
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": false,
+        "latest_deep_review_id": null,
         "notice_pk": 5,
         "opportunity_id": 2,
         "origin": "신규",
@@ -392,6 +462,8 @@
       },
       {
         "agency": "하마 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "일반용역",
         "deadline_at": "2026-09-05T00:00:00Z",
@@ -403,7 +475,10 @@
           "진행": 0,
           "차단": 0
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": false,
+        "latest_deep_review_id": null,
         "notice_pk": 8,
         "opportunity_id": 5,
         "origin": "추적",
@@ -416,6 +491,8 @@
       },
       {
         "agency": "타파 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "일반용역",
         "deadline_at": "2026-09-06T00:00:00Z",
@@ -427,7 +504,10 @@
           "진행": 0,
           "차단": 0
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": false,
+        "latest_deep_review_id": null,
         "notice_pk": 7,
         "opportunity_id": 4,
         "origin": "추적",
@@ -440,6 +520,8 @@
       },
       {
         "agency": "차카 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "일반용역",
         "deadline_at": "2026-09-07T00:00:00Z",
@@ -451,7 +533,10 @@
           "진행": 0,
           "차단": 0
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": false,
+        "latest_deep_review_id": null,
         "notice_pk": 6,
         "opportunity_id": null,
         "origin": null,
@@ -464,6 +549,8 @@
       },
       {
         "agency": "라바 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "기술용역",
         "deadline_at": "2026-09-09T00:00:00Z",
@@ -475,7 +562,10 @@
           "진행": 0,
           "차단": 0
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": false,
+        "latest_deep_review_id": null,
         "notice_pk": 4,
         "opportunity_id": null,
         "origin": null,
@@ -541,6 +631,8 @@
     "items": [
       {
         "agency": "가나다 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "일반용역",
         "deadline_at": "2026-08-28T00:00:00Z",
@@ -552,7 +644,10 @@
           "진행": 1,
           "차단": 1
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": false,
+        "latest_deep_review_id": null,
         "notice_pk": 1,
         "opportunity_id": null,
         "origin": null,
@@ -565,6 +660,8 @@
       },
       {
         "agency": "다라마 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "기술용역",
         "deadline_at": "2026-08-22T00:00:00Z",
@@ -576,7 +673,10 @@
           "진행": 0,
           "차단": 0
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": true,
+        "latest_deep_review_id": null,
         "notice_pk": 3,
         "opportunity_id": 1,
         "origin": "추적",
@@ -589,6 +689,8 @@
       },
       {
         "agency": "사아 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "일반용역",
         "deadline_at": "2026-09-04T00:00:00Z",
@@ -600,7 +702,10 @@
           "진행": 0,
           "차단": 0
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": false,
+        "latest_deep_review_id": null,
         "notice_pk": 5,
         "opportunity_id": 2,
         "origin": "신규",
@@ -666,6 +771,8 @@
     "items": [
       {
         "agency": "다라마 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "기술용역",
         "deadline_at": "2026-08-22T00:00:00Z",
@@ -677,7 +784,10 @@
           "진행": 0,
           "차단": 0
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": true,
+        "latest_deep_review_id": null,
         "notice_pk": 3,
         "opportunity_id": 1,
         "origin": "추적",
@@ -690,6 +800,8 @@
       },
       {
         "agency": "라바 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "기술용역",
         "deadline_at": "2026-09-09T00:00:00Z",
@@ -701,7 +813,10 @@
           "진행": 0,
           "차단": 0
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": false,
+        "latest_deep_review_id": null,
         "notice_pk": 4,
         "opportunity_id": null,
         "origin": null,
@@ -767,6 +882,8 @@
     "items": [
       {
         "agency": "마바사 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "일반용역",
         "deadline_at": "2026-08-27T00:00:00Z",
@@ -778,7 +895,10 @@
           "진행": 0,
           "차단": 0
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": false,
+        "latest_deep_review_id": null,
         "notice_pk": 2,
         "opportunity_id": null,
         "origin": null,
@@ -844,6 +964,8 @@
     "items": [
       {
         "agency": "사아 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "일반용역",
         "deadline_at": "2026-09-04T00:00:00Z",
@@ -855,7 +977,10 @@
           "진행": 0,
           "차단": 0
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": false,
+        "latest_deep_review_id": null,
         "notice_pk": 5,
         "opportunity_id": 2,
         "origin": "신규",
@@ -921,6 +1046,8 @@
     "items": [
       {
         "agency": "다라마 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "기술용역",
         "deadline_at": "2026-08-22T00:00:00Z",
@@ -932,7 +1059,10 @@
           "진행": 0,
           "차단": 0
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": true,
+        "latest_deep_review_id": null,
         "notice_pk": 3,
         "opportunity_id": 1,
         "origin": "추적",
@@ -945,6 +1075,8 @@
       },
       {
         "agency": "타파 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "일반용역",
         "deadline_at": "2026-09-06T00:00:00Z",
@@ -956,7 +1088,10 @@
           "진행": 0,
           "차단": 0
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": false,
+        "latest_deep_review_id": null,
         "notice_pk": 7,
         "opportunity_id": 4,
         "origin": "추적",
@@ -969,6 +1104,8 @@
       },
       {
         "agency": "하마 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "일반용역",
         "deadline_at": "2026-09-05T00:00:00Z",
@@ -980,7 +1117,10 @@
           "진행": 0,
           "차단": 0
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": false,
+        "latest_deep_review_id": null,
         "notice_pk": 8,
         "opportunity_id": 5,
         "origin": "추적",
@@ -993,6 +1133,8 @@
       },
       {
         "agency": "거너 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "일반용역",
         "deadline_at": "2026-09-03T00:00:00Z",
@@ -1004,7 +1146,10 @@
           "진행": 0,
           "차단": 0
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": false,
+        "latest_deep_review_id": null,
         "notice_pk": 9,
         "opportunity_id": 6,
         "origin": "추적",
@@ -1070,6 +1215,8 @@
     "items": [
       {
         "agency": "다라마 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "기술용역",
         "deadline_at": "2026-08-22T00:00:00Z",
@@ -1081,7 +1228,10 @@
           "진행": 0,
           "차단": 0
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": true,
+        "latest_deep_review_id": null,
         "notice_pk": 3,
         "opportunity_id": 1,
         "origin": "추적",
@@ -1094,6 +1244,8 @@
       },
       {
         "agency": "라바 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "기술용역",
         "deadline_at": "2026-09-09T00:00:00Z",
@@ -1105,7 +1257,10 @@
           "진행": 0,
           "차단": 0
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": false,
+        "latest_deep_review_id": null,
         "notice_pk": 4,
         "opportunity_id": null,
         "origin": null,
@@ -1171,6 +1326,8 @@
     "items": [
       {
         "agency": "가나다 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "일반용역",
         "deadline_at": "2026-08-28T00:00:00Z",
@@ -1182,7 +1339,10 @@
           "진행": 1,
           "차단": 1
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": false,
+        "latest_deep_review_id": null,
         "notice_pk": 1,
         "opportunity_id": null,
         "origin": null,
@@ -1195,6 +1355,8 @@
       },
       {
         "agency": "마바사 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "일반용역",
         "deadline_at": "2026-08-27T00:00:00Z",
@@ -1206,7 +1368,10 @@
           "진행": 0,
           "차단": 0
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": false,
+        "latest_deep_review_id": null,
         "notice_pk": 2,
         "opportunity_id": null,
         "origin": null,
@@ -1219,6 +1384,8 @@
       },
       {
         "agency": "다라마 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "기술용역",
         "deadline_at": "2026-08-22T00:00:00Z",
@@ -1230,7 +1397,10 @@
           "진행": 0,
           "차단": 0
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": true,
+        "latest_deep_review_id": null,
         "notice_pk": 3,
         "opportunity_id": 1,
         "origin": "추적",
@@ -1243,6 +1413,8 @@
       },
       {
         "agency": "라바 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "기술용역",
         "deadline_at": "2026-09-09T00:00:00Z",
@@ -1254,7 +1426,10 @@
           "진행": 0,
           "차단": 0
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": false,
+        "latest_deep_review_id": null,
         "notice_pk": 4,
         "opportunity_id": null,
         "origin": null,
@@ -1267,6 +1442,8 @@
       },
       {
         "agency": "사아 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "일반용역",
         "deadline_at": "2026-09-04T00:00:00Z",
@@ -1278,7 +1455,10 @@
           "진행": 0,
           "차단": 0
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": false,
+        "latest_deep_review_id": null,
         "notice_pk": 5,
         "opportunity_id": 2,
         "origin": "신규",
@@ -1291,6 +1471,8 @@
       },
       {
         "agency": "차카 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "일반용역",
         "deadline_at": "2026-09-07T00:00:00Z",
@@ -1302,7 +1484,10 @@
           "진행": 0,
           "차단": 0
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": false,
+        "latest_deep_review_id": null,
         "notice_pk": 6,
         "opportunity_id": null,
         "origin": null,
@@ -1315,6 +1500,8 @@
       },
       {
         "agency": "타파 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "일반용역",
         "deadline_at": "2026-09-06T00:00:00Z",
@@ -1326,7 +1513,10 @@
           "진행": 0,
           "차단": 0
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": false,
+        "latest_deep_review_id": null,
         "notice_pk": 7,
         "opportunity_id": 4,
         "origin": "추적",
@@ -1339,6 +1529,8 @@
       },
       {
         "agency": "하마 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "일반용역",
         "deadline_at": "2026-09-05T00:00:00Z",
@@ -1350,7 +1542,10 @@
           "진행": 0,
           "차단": 0
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": false,
+        "latest_deep_review_id": null,
         "notice_pk": 8,
         "opportunity_id": 5,
         "origin": "추적",
@@ -1363,6 +1558,8 @@
       },
       {
         "agency": "거너 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "일반용역",
         "deadline_at": "2026-09-03T00:00:00Z",
@@ -1374,7 +1571,10 @@
           "진행": 0,
           "차단": 0
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": false,
+        "latest_deep_review_id": null,
         "notice_pk": 9,
         "opportunity_id": 6,
         "origin": "추적",
@@ -1440,6 +1640,8 @@
     "items": [
       {
         "agency": "가나다 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "일반용역",
         "deadline_at": "2026-08-28T00:00:00Z",
@@ -1451,7 +1653,10 @@
           "진행": 1,
           "차단": 1
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": false,
+        "latest_deep_review_id": null,
         "notice_pk": 1,
         "opportunity_id": null,
         "origin": null,
@@ -1464,6 +1669,8 @@
       },
       {
         "agency": "다라마 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "기술용역",
         "deadline_at": "2026-08-22T00:00:00Z",
@@ -1475,7 +1682,10 @@
           "진행": 0,
           "차단": 0
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": true,
+        "latest_deep_review_id": null,
         "notice_pk": 3,
         "opportunity_id": 1,
         "origin": "추적",
@@ -1488,6 +1698,8 @@
       },
       {
         "agency": "사아 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "일반용역",
         "deadline_at": "2026-09-04T00:00:00Z",
@@ -1499,7 +1711,10 @@
           "진행": 0,
           "차단": 0
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": false,
+        "latest_deep_review_id": null,
         "notice_pk": 5,
         "opportunity_id": 2,
         "origin": "신규",
@@ -1565,6 +1780,8 @@
     "items": [
       {
         "agency": "가나다 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "일반용역",
         "deadline_at": "2026-08-28T00:00:00Z",
@@ -1576,7 +1793,10 @@
           "진행": 1,
           "차단": 1
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": false,
+        "latest_deep_review_id": null,
         "notice_pk": 1,
         "opportunity_id": null,
         "origin": null,
@@ -1642,6 +1862,8 @@
     "items": [
       {
         "agency": "다라마 기관",
+        "auto_preparation_reason": "grade_not_priority",
+        "auto_preparation_status": "not_applicable",
         "budget": 1234567.0,
         "business_division": "기술용역",
         "deadline_at": "2026-08-22T00:00:00Z",
@@ -1653,7 +1875,10 @@
           "진행": 0,
           "차단": 0
         },
+        "grade": null,
+        "grade_source": null,
         "kept_by_tracking": true,
+        "latest_deep_review_id": null,
         "notice_pk": 3,
         "opportunity_id": 1,
         "origin": "추적",

@@ -2,7 +2,7 @@
 
 This module coordinates existing process runners and the screening FIFO.  It
 does not implement a model call and never replaces the screening worker with
-an implicit direct Ollama path.
+an implicit direct model-call path.
 """
 
 from __future__ import annotations
@@ -196,7 +196,7 @@ class ScheduledPipeline:
         orchestrator: Any | None = None,
         screening_orchestrator: Any | None = None,
         worker: Any | None = None,
-        ollama: Any | None = None,
+        model_client: Any | None = None,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         if session_factory is not None and engine is not None:
@@ -207,7 +207,7 @@ class ScheduledPipeline:
         self.pipeline = pipeline or runner or stage_runner
         self.orchestrator = orchestrator or screening_orchestrator
         self.worker = worker
-        self.ollama = ollama
+        self.model_client = model_client
         self.clock = clock or (lambda: datetime.now(timezone.utc))
 
     def _run(self, fn: Callable[[Session], Any]) -> Any:
@@ -337,9 +337,9 @@ class ScheduledPipeline:
             return StageResult(status="failed", failure_reason=f"{stage}_failed", value=exc)
 
     def _model_identity(self, execution: ScheduleExecution) -> tuple[str, str] | None:
-        inspector = self.ollama
+        inspector = self.model_client
         if inspector is None and self.orchestrator is not None:
-            inspector = getattr(self.orchestrator, "ollama", None)
+            inspector = getattr(self.orchestrator, "model_client", None)
         if inspector is None:
             return None
         try:
@@ -356,7 +356,7 @@ class ScheduledPipeline:
         expected_digest = execution.model_digest
         if not expected_name or not expected_digest:
             return None
-        if model_name != expected_name or model_name != self.settings.model_name or digest != expected_digest:
+        if model_name != expected_name or model_name != self.settings.vllm_screening_model or digest != expected_digest:
             return None
         return model_name, digest
 

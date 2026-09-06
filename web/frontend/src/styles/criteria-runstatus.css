@@ -19,9 +19,69 @@
   position: sticky;
   top: 0;
   z-index: 1;
-  padding: var(--spacing-3) var(--spacing-5) 0;
+  padding: var(--spacing-3) var(--spacing-5);
   background: var(--color-background-body);
   border-bottom: var(--border-width) solid var(--color-border);
+}
+
+/* 탭이 눌리는 것으로 보여야 한다. 시안 `Criteria`·`RunStatus`는 회색 트랙 안에
+ * 선택 탭만 흰 pill 로 그린다.
+ *
+ * `styles/layers.css` 로 layer 순서를 고친 뒤 다시 재어 보면(1440px 실측),
+ * Astryx 기본은 탭에 padding 도 min-height 도 배경도 주지 않는다 — 이 규칙을
+ * 지우면 트랙도 pill 도 없이 평문 링크만 남는다. 그러므로 이것은 Astryx 기본과
+ * 겹치는 두 번째 벌이 아니라 시안이 요구하는 유일한 정의다.
+ * 값은 새로 만들지 않는다(ADR-0048). */
+.ws-tabs .astryx-tab-list {
+  min-width: 0;
+}
+
+.ws-tabs .astryx-tab-strip {
+  gap: var(--spacing-1);
+  padding: var(--spacing-1);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-container);
+  background: var(--color-background-muted);
+}
+
+.ws-tabs .astryx-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-1);
+  min-height: var(--size-element-md);
+  padding: var(--spacing-1) var(--spacing-3);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-inner);
+  color: var(--color-text-secondary);
+  background: transparent;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ws-tabs .astryx-tab:hover {
+  color: var(--color-text-primary);
+  background: var(--color-overlay-hover);
+}
+
+/* 선택은 pill 채움 + 테두리 + 굵기로 함께 말한다. 색만으로 구분하지 않는다.
+ * `aria-selected`는 tablist, `aria-current`는 nav 형태의 TabList 가 쓴다. */
+.ws-tabs .astryx-tab[aria-selected="true"],
+.ws-tabs .astryx-tab[aria-current="page"] {
+  border-color: var(--color-border-emphasized);
+  color: var(--color-text-primary);
+  background: var(--color-background-card);
+  font-weight: var(--font-weight-semibold);
+}
+
+.ws-tabs .astryx-tab:focus-visible {
+  outline: var(--focus-outline-width) var(--focus-outline-style) var(--focus-outline-color);
+  outline-offset: var(--focus-outline-offset);
+}
+
+/* pill 이 선택을 말하므로 밑줄 indicator 를 겹쳐 두지 않는다. */
+.ws-tabs .astryx-tab-indicator {
+  display: none;
 }
 
 .ws-body {
@@ -36,10 +96,10 @@
 .ws-run-note {
   margin: 0;
   padding: var(--spacing-2) var(--spacing-5);
-  font-size: var(--font-size-supporting);
-  color: var(--color-content-secondary);
+  font-size: var(--bo-type-caption);
+  color: var(--color-text-secondary);
   border-bottom: var(--border-width) solid var(--color-border);
-  background: var(--color-background-secondary);
+  background: var(--color-background-muted);
 }
 
 /* 흡수한 페이지 컴포넌트는 각자 자기 padding을 갖고 있으므로 여기서 더하지
@@ -165,14 +225,16 @@
 .criteria-guardrail-panel h3,
 .runstatus-guardrail-panel h3 {
   margin: 0;
-  font-size: var(--font-size-sm);
+  font-size: var(--bo-type-section-title);
+  font-weight: var(--bo-type-section-title-weight);
+  line-height: var(--bo-type-section-title-leading);
 }
 
 .criteria-guardrail-panel p,
 .runstatus-guardrail-panel p {
   margin: 0;
-  color: var(--color-content-secondary);
-  font-size: var(--font-size-supporting);
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
   overflow-wrap: anywhere;
 }
 
@@ -182,7 +244,7 @@
   gap: var(--spacing-1);
   margin: 0;
   padding-left: var(--spacing-4);
-  font-size: var(--font-size-supporting);
+  font-size: var(--bo-type-caption);
 }
 
 .criteria-guardrail-policies {
@@ -197,7 +259,7 @@
   min-width: 0;
   padding: var(--spacing-2) 0;
   border-top: var(--border-width) solid var(--color-border);
-  color: var(--color-content-secondary);
+  color: var(--color-text-secondary);
   overflow-wrap: anywhere;
 }
 
@@ -206,7 +268,7 @@
   padding: 0 var(--spacing-1);
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-inner);
-  font-size: var(--font-size-xs);
+  font-size: var(--bo-type-caption);
 }
 
 /* `<dl>` 안의 `<div>`가 dt·dd를 감싸고 있으므로 grid 항목은 그 div다. 열
@@ -219,7 +281,7 @@
   gap: var(--spacing-0-5) var(--spacing-2);
   margin: 0;
   min-width: 0;
-  font-size: var(--font-size-supporting);
+  font-size: var(--bo-type-caption);
 }
 
 .runstatus-guardrail-facts > div {
@@ -227,7 +289,7 @@
 }
 
 .runstatus-guardrail-facts dt {
-  color: var(--color-content-secondary);
+  color: var(--color-text-secondary);
 }
 
 .runstatus-guardrail-facts dd {
@@ -242,12 +304,12 @@
   display: inline-flex;
   align-items: center;
   min-height: var(--control-height);
-  font-size: var(--font-size-supporting);
+  font-size: var(--bo-type-caption);
 }
 
 /* 결정 대기 목록의 요약 한 줄. 받은 목록에서 센 값이라는 사실을 함께 적는다. */
 .gng-summary {
   margin: 0;
-  color: var(--color-content-secondary);
-  font-size: var(--font-size-supporting);
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
 }

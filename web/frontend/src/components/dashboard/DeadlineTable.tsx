@@ -113,7 +113,7 @@ export function DeadlineTable({ notices, referenceAt, timezone, runId }: Deadlin
                     <td>
                       <span aria-hidden="true" className="dashboard-mobile-cell-label">확인 항목</span>
                       {blockingCount > 0 ? (
-                        <Badge label={`차단 ${formatNumber(blockingCount)}`} variant="alert" />
+                        <Badge label={`차단 ${formatNumber(blockingCount)}`} variant="danger" />
                       ) : (
                         <span className="dashboard-no-blocking">확인 없음</span>
                       )}

@@ -26,6 +26,9 @@ export const PRE_SPEC_OVERVIEW_NOT_STARTED_LABEL = "개요 검토 미시작";
 
 export function preSpecOverviewStatusVariant(status: PreSpecOverviewReviewStatus): BadgeVariant {
   if (status === "completed") return "evidence-confirmed";
-  if (status === "failed" || status === "needs_human_review") return "alert";
+  // 실패는 오류이고 사람 검토 필요는 경고다. 같은 색으로 칠하면 "확인해
+  // 주세요"와 "이건 실패했습니다"가 구분되지 않는다.
+  if (status === "failed") return "danger";
+  if (status === "needs_human_review") return "alert";
   return "neutral";
 }

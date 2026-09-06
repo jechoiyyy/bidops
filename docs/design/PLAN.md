@@ -636,6 +636,15 @@ ADR-0047 정리: `order-plans.css`에 남아 있던 900px·640px 분기를 없�
 | 결정 카드 요약 표 | `항목`·`내용`·`근거`·`검증` 네 열. 검증 열은 서버가 준 validation check를 그 행의 claim으로 이어 읽을 뿐 화면이 다시 판정하지 않는다. 근거가 없으면 `근거를 확인할 수 없습니다`로 남긴다 |
 | Validation 실패 블록 | `원문에서 확인`(실패한 check가 가리키는 첫 근거로 이동)과 `새 attempt로 재시도` 두 조작. 실패한 check에 연결된 근거가 없으면 원문으로 갈 수 없다는 사실을 그대로 말하고 다른 근거로 대신하지 않는다 |
 | 우측 열 | `보고서 범위` → `보고서 수정본 저장` → `이력` 순. 수정본 저장은 네 결정 중 하나가 아니라 보고서 본문의 append-only 편집이므로 "레일에 결정 액션을 두지 않는다"(작업 1)를 어기지 않는다 — 되돌릴 수 없는 결정인 사전규격 심층검토 의견은 본문 열에 그대로 남는다 |
+
+#### 단계 F 이후 변경 — 품질 표식과 문서 inventory
+
+| 변경 | 결과 |
+|---|---|
+| 상단 카드 **4 → 5** | 다섯째 카드는 `품질 표식`이다. `측정 통과`·`참조 실행 · 품질 미측정`·`mock 참조`·`표식 없음` 넷을 그대로 보이고 성공·실패 의미색을 쓰지 않는다 — 셋은 성공도 실패도 아니기 때문이다([ADR-0050](../tracking/decisions/0050-unified-openai-compatible-model-client.md)) |
+| 우측 열 **3 → 4구역** | `보고서 범위` → **문서 inventory** → `보고서 수정본 저장` → `이력`. 새 구역은 결정 액션이 아니라 읽기 패널이므로 작업 1의 규칙을 어기지 않는다 |
+| 문서 inventory의 범위 한계 | 패널은 "문서별"이 아니라 **선택된 근거가 가리키는 문서 하나**를 보여 준다. 묶음에서 문서들의 `structure_id`를 얻을 endpoint가 없기 때문이며(`DocumentVersionView`에 `structure_id`가 없다), 화면이 그 사실을 문장으로 밝힌다. segment에는 wire 상 제목이 없으므로 ordinal·taxonomy label·요구사항 id·`block_key`·page 링크만 보이고 제목이 없는 이유를 적는다 |
+| 픽셀 기준선 | 이 변경으로 `deep-review-complete-pixel-linux.png`와 `pre-specs-list-pixel-linux.png`가 코드와 어긋난다. **다시 찍지 않았다.** 사유·영향 화면·승인자는 [findings](../tracking/findings.md)에 있다 |
 | 수정본 계약 | 새 immutable revision이며 담당자 claimed name이 필수다. 기존 문구·비활성 사유를 그대로 유지했다 |
 
 ADR-0047 정리: `detail-skeleton.css`의 900px 분기를 없앴다. 상세 3종은 어느 폭에서도 본문 열과
