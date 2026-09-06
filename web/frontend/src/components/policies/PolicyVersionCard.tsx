@@ -1,6 +1,22 @@
 import { useMemo, useState } from "react";
+import { ConfirmDecisionDialog, type ConfirmDecisionSummaryItem } from "../common/ConfirmDecisionDialog";
 import { ApiError, api } from "../../lib/api";
 import type { PolicyActivationResponse, PolicyVersionResponse, QualityGateResponse } from "../../lib/types";
+
+/**
+ * 후보 지정과 활성화의 확인 단계.
+ *
+ * 두 조작 모두 불변 정책의 상태를 바꾸고 되돌리려면 새 버전이 필요하므로, 무엇을
+ * 어떤 근거로 바꾸는지 화면이 다시 보여 준 뒤에만 요청이 나간다. 브라우저 confirm은
+ * 결합 입력(정책·게이트·담당자)을 되풀이해 보여 줄 자리가 없어 쓰지 않는다.
+ */
+interface PendingConfirm {
+  action: "candidate" | "activate";
+  title: string;
+  confirmLabel: string;
+  summary: ConfirmDecisionSummaryItem[];
+  run: () => void;
+}
 
 interface PolicyVersionCardProps {
   policy: PolicyVersionResponse;
@@ -26,6 +42,7 @@ export function PolicyVersionCard({ policy, operationalGates, onChanged, onActiv
   const [selectedResultId, setSelectedResultId] = useState("");
   const [busy, setBusy] = useState<"candidate" | "activate" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState<PendingConfirm | null>(null);
   const passingGates = useMemo(() => operationalGates.filter((gate) => gate.result_status === "통과" && gate.latest_evaluation_id), [operationalGates]);
   const selectedGate = passingGates.find((gate) => gate.latest_evaluation_id === selectedResultId) ?? null;
   const canActivate = policy.status === "activation_candidate" && Boolean(selectedResultId && activationActor.trim() && selectedGate);
@@ -35,13 +52,27 @@ export function PolicyVersionCard({ policy, operationalGates, onChanged, onActiv
       setError("후보 지정 담당자를 입력하십시오.");
       return;
     }
-    if (!window.confirm(`${policy.policy_version}을(를) 운영 활성화 후보로 지정하시겠습니까?`)) return;
+    setPending({
+      action: "candidate",
+      title: "운영 활성화 후보로 지정합니다",
+      confirmLabel: "후보로 지정",
+      summary: [
+        { label: "정책", value: policy.policy_version },
+        { label: "content digest", value: policy.content_digest },
+        { label: "바뀌는 것", value: "상태 draft → activation_candidate · 본문은 바뀌지 않습니다" },
+        { label: "확인 담당자", value: candidateActor.trim() },
+      ],
+      run: runDesignateCandidate,
+    });
+  }
+
+  function runDesignateCandidate() {
     setBusy("candidate");
     setError(null);
     void api.designatePolicyCandidate(policy.policy_version, { confirmed_by: candidateActor.trim() }, candidateActor.trim())
       .then(onChanged)
       .catch((reason: unknown) => setError(safeError(reason, "후보 지정")))
-      .finally(() => setBusy(null));
+      .finally(() => { setBusy(null); setPending(null); });
   }
 
   function activate() {
@@ -53,7 +84,23 @@ export function PolicyVersionCard({ policy, operationalGates, onChanged, onActiv
       setError("선택한 운영 게이트의 정책 버전이 대상 정책과 다릅니다.");
       return;
     }
-    if (!window.confirm(`${policy.policy_version}을(를) ${selectedResultId} 근거로 활성화하시겠습니까?`)) return;
+    setPending({
+      action: "activate",
+      title: "판정 정책을 운영에 활성화합니다",
+      confirmLabel: "정책 활성화",
+      summary: [
+        { label: "정책", value: `${policy.policy_version} · ${policy.content_digest}` },
+        { label: "근거 게이트", value: `${selectedGate.latest_evaluation_id} · ${selectedGate.result_status}` },
+        { label: "모델", value: `${selectedGate.model_name} · ${selectedGate.model_digest}` },
+        { label: "프로필", value: `${selectedGate.company_profile_version} · ${selectedGate.company_profile_digest}` },
+        { label: "프롬프트", value: selectedGate.prompt_version },
+        { label: "활성화 담당자", value: activationActor.trim() },
+      ],
+      run: runActivate,
+    });
+  }
+
+  function runActivate() {
     setBusy("activate");
     setError(null);
     void api.activatePolicy(policy.policy_version, { quality_gate_result_id: selectedResultId, confirmed_by: activationActor.trim() }, activationActor.trim())
@@ -62,7 +109,7 @@ export function PolicyVersionCard({ policy, operationalGates, onChanged, onActiv
         onChanged();
       })
       .catch((reason: unknown) => setError(safeError(reason, "정책 활성화")))
-      .finally(() => setBusy(null));
+      .finally(() => { setBusy(null); setPending(null); });
   }
 
   return (
@@ -76,7 +123,7 @@ export function PolicyVersionCard({ policy, operationalGates, onChanged, onActiv
         <div><dt>프롬프트</dt><dd className="mono">{policy.prompt_version}</dd></div>
         <div><dt>생성자</dt><dd>{policy.created_by}</dd></div>
         <div><dt>생성 시각</dt><dd>{new Date(policy.created_at).toLocaleString("ko-KR")}</dd></div>
-        <div><dt>연결 게이트 evaluation</dt><dd><code>{digest(policy.quality_gate_result_id)}</code></dd></div>
+        <div><dt>연결 게이트 평가</dt><dd><code>{digest(policy.quality_gate_result_id)}</code></dd></div>
       </dl>
       <details className="policy-body-details"><summary>불변 정책 본문 보기 (편집 불가)</summary><pre>{JSON.stringify({ perspective_prompts: policy.perspective_prompts, counterargument_prompt: policy.counterargument_prompt, synthesis_prompt: policy.synthesis_prompt, candidate_selection: policy.candidate_selection, thresholds: policy.thresholds }, null, 2)}</pre></details>
       {policy.status === "draft" ? (
@@ -95,13 +142,23 @@ export function PolicyVersionCard({ policy, operationalGates, onChanged, onActiv
           {selectedGate ? <div className="policy-binding" aria-label="활성화에 결합되는 입력">
             <strong>결합 입력</strong>
             <dl><div><dt>정책</dt><dd className="mono">{selectedGate.policy_version} · {policy.content_digest}</dd></div><div><dt>모델</dt><dd>{selectedGate.model_name} · <code>{selectedGate.model_digest}</code></dd></div><div><dt>프로필</dt><dd className="mono">{selectedGate.company_profile_version} · <code>{selectedGate.company_profile_digest}</code></dd></div><div><dt>프롬프트</dt><dd className="mono">{selectedGate.prompt_version}</dd></div><div><dt>게이트</dt><dd><code>{selectedGate.latest_evaluation_id}</code> · {selectedGate.result_status}</dd></div></dl>
-          </div> : <p className="policy-empty-binding">통과한 최신 운영 게이트를 선택하면 모델·프로필·프롬프트 digest를 확인할 수 있습니다.</p>}
+          </div> : <p className="policy-empty-binding">통과한 최신 운영 게이트를 고르면 모델·프로필·프롬프트 식별 해시를 확인할 수 있습니다.</p>}
           <label>활성화 담당자<input value={activationActor} onChange={(event) => setActivationActor(event.target.value)} placeholder="예: 홍길동" /></label>
           <button className="policy-button policy-button-primary" type="button" onClick={activate} disabled={busy !== null || !canActivate}>{busy === "activate" ? "활성화 중…" : "정책 활성화 확인"}</button>
         </div>
       ) : null}
       {policy.status === "active" ? <p className="policy-active-note" role="status">현재 active 정책입니다. 본문은 불변이며 새 변경은 새 버전으로 생성하십시오.</p> : null}
       {error ? <p className="policy-form-error" role="alert">{error}</p> : null}
+      <ConfirmDecisionDialog
+        confirmLabel={pending?.confirmLabel ?? "확인"}
+        isPending={pending !== null && busy === pending.action}
+        onConfirm={() => pending?.run()}
+        onOpenChange={(next) => { if (!next) setPending(null); }}
+        open={pending !== null}
+        summary={pending?.summary ?? []}
+        title={pending?.title ?? "정책 상태를 바꿉니다"}
+        warning="정책 본문은 불변입니다. 이 상태 변경을 되돌리려면 새 버전을 만들어야 합니다."
+      />
     </article>
   );
 }

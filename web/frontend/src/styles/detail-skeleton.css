@@ -105,7 +105,7 @@
 .detail-skeleton-rail-title {
   margin: 0;
   color: var(--color-text-primary);
-  font-size: var(--font-size-sm);
+  font-size: var(--bo-type-caption);
   font-weight: var(--font-weight-semibold);
 }
 
@@ -125,7 +125,7 @@
   padding: var(--spacing-2) 0;
   border-bottom: var(--border-width) solid var(--color-border);
   color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
+  font-size: var(--bo-type-caption);
 }
 
 .detail-skeleton-rail-history li:last-child {
@@ -147,14 +147,14 @@
 
 .detail-skeleton-rail-links a {
   color: var(--color-text-accent);
-  font-size: var(--font-size-sm);
+  font-size: var(--bo-type-caption);
   font-weight: var(--font-weight-medium);
 }
 
 .detail-skeleton-rail-note {
   margin: 0;
   color: var(--color-text-secondary);
-  font-size: var(--font-size-xs);
+  font-size: var(--bo-type-caption);
   line-height: 1.5;
 }
 

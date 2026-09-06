@@ -1,14 +1,15 @@
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
-import { Badge } from "@astryxdesign/core/Badge";
-import { Banner } from "@astryxdesign/core/Banner";
 import { Heading } from "@astryxdesign/core/Heading";
 import { Text } from "@astryxdesign/core/Text";
 import { ToggleButton, ToggleButtonGroup } from "@astryxdesign/core/ToggleButton";
+import { Badge, type BadgeVariant } from "../components/common/Badge";
 import { EmptyState } from "../components/common/EmptyState";
+import { SkeletonBlock, SkeletonPanel } from "../components/common/Skeleton";
 import { getBidDelta } from "../components/bid-delta/api";
 import type { BidDeltaWorkspaceView, Currentness } from "../components/bid-delta/types";
 import { api } from "../lib/api";
+import { apiErrorRecoveryAction, describeApiError } from "../lib/apiErrors";
 import type { OpportunityListItem } from "../lib/types";
 import "../styles/criteria-runstatus.css";
 
@@ -27,15 +28,27 @@ import "../styles/criteria-runstatus.css";
 
 type DecisionFilter = "pending" | "all";
 
+// 한 화면이 사업기회 100건을 받고 **행마다** workspace를 하나씩 조회했다 —
+// 최대 101 요청이다. 서버에 결정 목록 엔드포인트가 없다는 사실은 그대로지만,
+// 한 번에 보는 만큼만 받으면 행 조회도 그만큼으로 줄어든다. 페이지 크기를
+// 줄이고 페이저를 두어 **화면에 있는 행만** workspace를 조회한다.
+const PAGE_SIZE = 25;
+
+function readOffset(raw: string | null): number {
+  const parsed = Number(raw);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 0;
+}
+
 function currentnessLabel(value: Currentness): string {
   if (value === "current") return "최신";
   if (value === "stale") return "재계산 필요";
   return "unknown (확인 대기)";
 }
 
-function currentnessVariant(value: Currentness): "success" | "warning" | "neutral" {
+function currentnessVariant(value: Currentness): BadgeVariant {
   if (value === "current") return "success";
-  if (value === "stale") return "warning";
+  // 재계산이 필요한 상태는 실패가 아니라 경고다.
+  if (value === "stale") return "alert";
   return "neutral";
 }
 
@@ -68,8 +81,17 @@ function isAwaitingDecision(row: DecisionRow): boolean {
 }
 
 function DecisionBadges({ row }: { row: DecisionRow }) {
-  if (row.isPending) return <Badge variant="neutral" label="결정 상태 확인 중" />;
-  if (row.isError) return <Badge variant="error" label="결정 상태 조회 실패" />;
+  // 조회 전이라는 사실은 배지 문구가 말하고, 그 옆의 골격은 자리를 잡아 준다.
+  // 골격에 live region을 또 붙이면 행 수만큼 같은 문장을 되풀이해 읽는다.
+  if (row.isPending) {
+    return (
+      <>
+        <Badge variant="neutral" label="결정 상태 확인 중" />
+        <SkeletonBlock className="skeleton-inline" label={null} lines={1} />
+      </>
+    );
+  }
+  if (row.isError) return <Badge variant="danger" label="결정 상태 조회 실패" />;
 
   const workspace = row.workspace;
   if (!workspace) return <Badge variant="neutral" label="결정 상태 unknown" />;
@@ -80,13 +102,13 @@ function DecisionBadges({ row }: { row: DecisionRow }) {
       {decision ? (
         <Badge variant={decision.decision === "go" ? "success" : "neutral"} label={`결정 ${decision.decision}`} />
       ) : (
-        <Badge variant="warning" label="결정 대기" />
+        <Badge variant="alert" label="결정 대기" />
       )}
       <Badge variant={currentnessVariant(workspace.decision_currentness)} label={currentnessLabel(workspace.decision_currentness)} />
       {/* 비교가 0건인 것은 값이다. `비교 0건`으로 눌러 담으면 "아직 안 봤다"와
           "봤는데 비교할 것이 없다"가 같은 자리에서 사라진다(PLAN 단계 E 작업 5). */}
       {workspace.comparisons.length === 0 ? (
-        <Badge variant="warning" label="변경 비교 결과 없음" />
+        <Badge variant="alert" label="변경 비교 결과 없음" />
       ) : (
         <Badge variant="neutral" label={`비교 ${workspace.comparisons.length}건`} />
       )}
@@ -97,15 +119,20 @@ function DecisionBadges({ row }: { row: DecisionRow }) {
 export function GoNoGoPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const filter: DecisionFilter = searchParams.get("show") === "all" ? "all" : "pending";
+  const offset = readOffset(searchParams.get("offset"));
 
   // 최종 Go/No-Go까지 가는 것은 계속 추적하기로 한 사업기회다. 보류·종료·미선택을
   // 결정 대기로 끌어올리지 않는다.
   const opportunitiesQuery = useQuery({
-    queryKey: ["opportunities", "tracking", "계속 추적"],
-    queryFn: ({ signal }) => api.getOpportunities({ tracking_status: "계속 추적", limit: 100 }, { signal }),
+    queryKey: ["opportunities", "tracking", "계속 추적", offset],
+    queryFn: ({ signal }) => api.getOpportunities(
+      { tracking_status: "계속 추적", limit: PAGE_SIZE, offset },
+      { signal },
+    ),
     staleTime: 30_000,
   });
   const opportunities = opportunitiesQuery.data?.items ?? [];
+  const total = opportunitiesQuery.data?.total ?? opportunities.length;
   const returnSearch = searchParams.toString();
 
   const workspaceQueries = useQueries({
@@ -123,11 +150,24 @@ export function GoNoGoPage() {
     isError: workspaceQueries[index]?.isError ?? false,
   }));
   const visibleRows = filter === "pending" ? rows.filter(isAwaitingDecision) : rows;
+  const opportunitiesProblem = opportunitiesQuery.error
+    ? describeApiError(opportunitiesQuery.error, "추적 중인 사업기회 목록을 확인할 수 없습니다.")
+    : null;
 
   function setFilter(next: DecisionFilter) {
     const params = new URLSearchParams(searchParams);
     if (next === "all") params.set("show", "all");
     else params.delete("show");
+    // 필터를 바꾸면 보는 범위가 달라진다. 옛 페이지 위치를 그대로 두면 빈
+    // 페이지가 열린다.
+    params.delete("offset");
+    setSearchParams(params, { replace: true });
+  }
+
+  function goToOffset(next: number) {
+    const params = new URLSearchParams(searchParams);
+    if (next > 0) params.set("offset", String(next));
+    else params.delete("offset");
     setSearchParams(params, { replace: true });
   }
 
@@ -151,16 +191,20 @@ export function GoNoGoPage() {
       </header>
 
       {opportunitiesQuery.isError ? (
-        <Banner
-          status="error"
+        <EmptyState
+          compact
+          tone="error"
           title="추적 중인 사업기회를 불러오지 못했습니다."
           description="조회 실패를 결정 대기 없음으로 해석하지 않습니다."
-          collapsible={false}
+          problem={opportunitiesProblem ?? undefined}
+          action={opportunitiesProblem
+            ? apiErrorRecoveryAction(opportunitiesProblem, () => { void opportunitiesQuery.refetch(); })
+            : undefined}
         />
       ) : null}
 
       {opportunitiesQuery.isPending ? (
-        <Text type="body" color="secondary" as="p" role="status">추적 중인 사업기회를 불러오는 중…</Text>
+        <SkeletonPanel label="추적 중인 사업기회를 불러오는 중" lines={5} />
       ) : null}
 
       {!opportunitiesQuery.isPending && !opportunitiesQuery.isError && visibleRows.length === 0 ? (
@@ -202,6 +246,36 @@ export function GoNoGoPage() {
           ))}
         </div>
         </>
+      ) : null}
+
+      {/* 페이저는 목록이 비어 보이는 페이지에서도 남는다. 이 페이지의 모든 행이
+          결정 대기 필터에 걸러졌다고 해서 다음 페이지로 갈 길까지 사라지면
+          "없다"와 "이 페이지에 없다"가 같아진다. */}
+      {!opportunitiesQuery.isPending && !opportunitiesQuery.isError && total > PAGE_SIZE ? (
+        <nav
+          aria-label="사업기회 목록 페이지"
+          style={{ display: "flex", alignItems: "center", gap: "var(--spacing-3)" }}
+        >
+          <button
+            className="interaction-control"
+            type="button"
+            disabled={offset === 0}
+            onClick={() => goToOffset(Math.max(0, offset - PAGE_SIZE))}
+          >
+            이전
+          </button>
+          <Text type="supporting" color="secondary" as="span">
+            {offset + 1}–{Math.min(offset + opportunities.length, total)} / {total}
+          </Text>
+          <button
+            className="interaction-control"
+            type="button"
+            disabled={offset + PAGE_SIZE >= total}
+            onClick={() => goToOffset(offset + PAGE_SIZE)}
+          >
+            다음
+          </button>
+        </nav>
       ) : null}
     </section>
   );

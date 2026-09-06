@@ -91,4 +91,19 @@ test("사업 추적의 추적 상태 변경은 미저장 입력을 지키라고 
     return event.defaultPrevented;
   });
   expect(blocked).toBe(true);
+
+  // 브라우저 종료·새로고침만 native 경고다. SPA 이동은 화면의 확인 다이얼로그가 받는다.
+  await page.locator('nav[aria-label="현재 위치"]').getByRole("link", { name: "사업 추적", exact: true }).click();
+  const dialog = page.getByRole("alertdialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("사업 추적 상세를 떠납니다");
+  await expect(dialog).toContainText("저장된 추적 상태는 바뀌지 않습니다");
+  await dialog.getByRole("button", { name: "계속 편집", exact: true }).click();
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  await expect.poll(() => new URL(page.url()).pathname).toBe("/opportunities/501");
+  await expect(page.getByLabel("이유")).toHaveValue("검증용 미저장 메모");
+
+  await page.locator('nav[aria-label="현재 위치"]').getByRole("link", { name: "사업 추적", exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "저장하지 않고 이동", exact: true }).click();
+  await expect.poll(() => new URL(page.url()).pathname).toBe("/opportunities");
 });

@@ -113,6 +113,44 @@ test("SPA 내부 link click으로 lazy route에 들어가도 metadata와 화면�
   expect(new URL(page.url()).searchParams.get("run")).toBe(RUN_ID);
 });
 
+// 오류 경계의 "다시 시도"가 `window.location.reload()`였다. 새로고침은 다른
+// 화면에서 작성 중이던 초안까지 지우므로, 복구는 경계 state를 비우고 실패한
+// 조회만 다시 묻는 것으로 끝나야 한다. 위치가 바뀌면 옛 오류는 스스로 사라진다.
+test("라우트 오류 재시도는 reload 없이 복구한다", async ({ page }) => {
+  await page.addInitScript(() => {
+    (window as unknown as { __reloads: number }).__reloads = 0;
+    const original = window.location.reload.bind(window.location);
+    Object.defineProperty(window.location, "reload", {
+      configurable: true,
+      value: () => {
+        (window as unknown as { __reloads: number }).__reloads += 1;
+        return original;
+      },
+    });
+  });
+  // lazy chunk 하나만 못 가져오게 해서 오류 경계를 띄운다.
+  await page.route("**/assets/GoNoGoPage-*.js", (route) => route.abort());
+
+  await page.goto("/go-no-go");
+  const boundary = page.locator(".lazy-route-error");
+  await expect(boundary).toBeVisible();
+  await expect(boundary).toContainText("새로고침 없이");
+
+  // 이 표식이 살아 있으면 문서가 다시 로드되지 않았다는 뜻이다.
+  await page.evaluate(() => { (window as unknown as { __sentinel: string }).__sentinel = "kept"; });
+  await boundary.getByRole("button", { name: "다시 시도" }).click();
+
+  expect(await page.evaluate(() => (window as unknown as { __sentinel?: string }).__sentinel)).toBe("kept");
+  expect(await page.evaluate(() => (window as unknown as { __reloads: number }).__reloads)).toBe(0);
+  expect(new URL(page.url()).pathname).toBe("/go-no-go");
+
+  // 위치가 바뀌면 경계는 스스로 비워지고 다음 화면이 그대로 열린다.
+  await page.locator("aside.sidebar").getByRole("link", { name: "대시보드", exact: true }).click();
+  await expect(page.locator("header.topbar h1")).toHaveText("대시보드");
+  await expect(page.locator(".lazy-route-error")).toHaveCount(0);
+  expect(await page.evaluate(() => (window as unknown as { __reloads: number }).__reloads)).toBe(0);
+});
+
 test("누적 화면은 회차 API 실패와 무관하게 열린다", async ({ page }) => {
   let runRequestCount = 0;
   await page.route("**/api/runs**", async (route) => {
@@ -131,4 +169,89 @@ test("누적 화면은 회차 API 실패와 무관하게 열린다", async ({ pa
   await expect(page.locator(".shell-notice")).toHaveCount(0);
   expect(runRequestCount).toBe(0);
   expect(new URL(page.url()).searchParams.get("run")).toBe(RUN_ID);
+});
+
+// ── 상단 경로(현재 위치) ────────────────────────────────────────────────────
+// 상단바는 화면 제목을 다시 쓰지 않는다. 각 화면의 `<h2>`가 시각 제목이고
+// 상단바는 `그룹 › 상위 화면 › 화면 이름 › 상세 식별자`만 보여 준다.
+// 화면 이름 칸이 `<h1>`이라 접근성 랜드마크는 그대로 남는다.
+
+type BreadcrumbCase = { name: string; path: string; crumbs: string[] };
+
+const breadcrumbCases: BreadcrumbCase[] = [
+  { name: "dashboard", path: "/", crumbs: ["오늘의 업무", "대시보드"] },
+  { name: "order-plans", path: "/order-plans", crumbs: ["탐색과 추적", "발주계획 C-2 검토"] },
+  { name: "order-plan detail", path: "/order-plans/101", crumbs: ["탐색과 추적", "발주계획", "발주계획 C-2 상세", "#101"] },
+  { name: "pre-specs", path: "/pre-specs", crumbs: ["탐색과 추적", "사전규격"] },
+  { name: "pre-spec detail", path: "/pre-specs/991", crumbs: ["탐색과 추적", "사전규격", "notice 991"] },
+  { name: "opportunities", path: "/opportunities", crumbs: ["탐색과 추적", "사업 추적"] },
+  { name: "opportunity detail", path: "/opportunities/501", crumbs: ["탐색과 추적", "사업 추적", "#501"] },
+  // 되돌릴 수 없는 결정 화면은 어느 사업기회의 결정인지 경로에 남긴다.
+  { name: "bid delta", path: "/opportunities/501/bid-delta", crumbs: ["탐색과 추적", "사업 추적", "#501", "입찰 변경 비교"] },
+  { name: "queue detail", path: "/queue/29", crumbs: ["탐색과 추적", "사업 추적", "검토 대기열", "공고 29"] },
+  { name: "judgments detail", path: "/judgments/29", crumbs: ["탐색과 추적", "사업 추적", "공고 판정 이력", "공고 29"] },
+  // 심층 검토 보고서는 사전규격이 여는 화면이다(ADR-0049의 자동 시작 진입점도 거기다).
+  { name: "deep review", path: "/deep-reviews/fixture-review", crumbs: ["탐색과 추적", "사전규격", "심층 검토 보고서", "fixture-…"] },
+  { name: "criteria", path: "/criteria", crumbs: ["기준과 운영", "판정 기준"] },
+  { name: "run-status", path: "/run-status", crumbs: ["기준과 운영", "실행 상태"] },
+];
+
+for (const context of breadcrumbCases) {
+  test(`${context.name} 상단 경로`, async ({ page }) => {
+    await page.goto(context.path);
+    const crumbs = page.locator("header.topbar .topbar-breadcrumb .topbar-crumb");
+    await expect(crumbs).toHaveText(context.crumbs);
+    // 화면 이름 칸 하나만 `<h1>`이다. 제목을 두 번 쓰지 않는다.
+    await expect(page.locator("header.topbar h1")).toHaveCount(1);
+  });
+}
+
+const DETAIL_BACK_LINKS: Array<{ name: string; path: string; back: string; settles?: RegExp }> = [
+  { name: "order-plan detail", path: "/order-plans/101", back: "/order-plans" },
+  { name: "pre-spec detail", path: "/pre-specs/991", back: "/pre-specs" },
+  { name: "opportunity detail", path: "/opportunities/501", back: "/opportunities" },
+  { name: "bid delta", path: "/opportunities/501/bid-delta", back: "/opportunities" },
+  // 검토 대기열·공고 판정 이력은 목록·상세가 한 화면이라, 목록 주소로 가면
+  // 화면이 첫 공고를 스스로 다시 고른다(QueuePage·NoticeDetailPage의 replace
+  // navigate). 링크는 목록으로 가고 그 화면이 선택을 되살리므로 착지 주소는
+  // 목록이거나 목록이 되살린 선택 하나다.
+  { name: "queue detail", path: "/queue/29", back: "/queue", settles: /^\/queue(?:\/\d+)?$/ },
+  { name: "judgments detail", path: "/judgments/29", back: "/judgments", settles: /^\/judgments(?:\/\d+)?$/ },
+  { name: "deep review", path: "/deep-reviews/fixture-review", back: "/pre-specs" },
+];
+
+for (const context of DETAIL_BACK_LINKS) {
+  test(`${context.name} 상단 경로가 목록으로 돌아가는 링크를 가진다`, async ({ page }) => {
+    await page.goto(`${context.path}?run=${RUN_ID}`);
+    const breadcrumb = page.locator("header.topbar .topbar-breadcrumb");
+    const back = breadcrumb.locator(`a[href^="${context.back}?"], a[href="${context.back}"]`);
+    await expect(back).toHaveCount(1);
+    // 회차 선택은 주소에만 있다. 경로 링크가 그것을 잃으면 최신 회차로 되돌아간다.
+    await expect(back).toHaveAttribute("href", `${context.back}?run=${encodeURIComponent(RUN_ID)}`);
+    await back.click();
+    await expect.poll(() => new URL(page.url()).pathname).toMatch(context.settles ?? new RegExp(`^${context.back}$`));
+  });
+}
+
+// 심층 검토 보고서는 사전규격 아래에 둔다. 사업 추적 상세에서도 열 수 있지만
+// 그때는 주소의 `from`이 그 사실을 남긴다.
+test("심층 검토 보고서에서 사이드바의 사전규격 항목이 활성이다", async ({ page }) => {
+  await page.goto("/deep-reviews/fixture-review");
+  const active = page.locator("aside.sidebar .sidebar-item.is-active");
+  await expect(active).toHaveCount(1);
+  await expect(active).toHaveText("사전규격");
+  await expect(active).toHaveAttribute("aria-current", "page");
+});
+
+test("사업 추적에서 연 심층 검토 보고서는 사업 추적 아래로 보인다", async ({ page }) => {
+  await page.goto("/deep-reviews/fixture-review?from=opportunities");
+  const active = page.locator("aside.sidebar .sidebar-item.is-active");
+  await expect(active).toHaveCount(1);
+  await expect(active).toHaveText("사업 추적");
+  await expect(page.locator("header.topbar .topbar-crumb")).toHaveText([
+    "탐색과 추적",
+    "사업 추적",
+    "심층 검토 보고서",
+    "fixture-…",
+  ]);
 });

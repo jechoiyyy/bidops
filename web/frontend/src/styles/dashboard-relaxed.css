@@ -1,4 +1,5 @@
-/* 대시보드 전용 여유형 계층. 공통 토큰과 기존 컴포넌트 계약은 유지한다. */
+/* 대시보드 전용 여유형 계층. 공통 토큰과 기존 컴포넌트 계약은 유지한다.
+   지원 폭은 1280~1920px뿐이라 폭 전환점이 없다(ADR-0047). */
 .dashboard-page {
   width: 100%;
   max-width: 1680px;
@@ -13,36 +14,44 @@
   border-radius: var(--radius-lg);
 }
 
-.dashboard-action-title {
-  gap: 10px;
-  padding: 16px 20px;
-  font-size: 13px;
+.dashboard-action-head {
+  padding: 12px 20px;
 }
 
-.dashboard-action-items {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-auto-flow: row;
+.dashboard-action-title {
+  gap: 10px;
+  font-size: var(--bo-type-section-title);
+  font-weight: var(--bo-type-section-title-weight);
+}
+
+.dashboard-action-scope,
+.dashboard-action-secondary-label,
+.dashboard-action-empty {
+  font-size: var(--bo-type-caption);
 }
 
 .dashboard-action-item {
-  min-height: 76px;
-  gap: 14px;
+  min-height: 92px;
+  gap: 5px 12px;
   padding: 14px 18px;
 }
 
-.dashboard-action-item > strong {
+/* 예외: 지표 숫자는 제목·본문·캡션 어느 단도 아니다. 할 일 스트립에서
+   한눈에 읽어야 하는 값이므로 4단 밖의 크기를 그대로 둔다. */
+.dashboard-action-item > .dashboard-action-metric > strong {
   font-size: 26px;
 }
 
-.dashboard-action-item > strong.is-unavailable {
-  color: var(--color-muted);
-  font-size: 14px;
+/* 확인하지 못한 값은 큰 숫자 자리를 차지하지 않고 보조 문구로 남는다.
+   `screen-semantics.spec.ts`가 이 자리의 크기를 16px 이하로 고정한다. */
+.dashboard-action-item > .dashboard-action-metric > strong.is-unavailable {
+  font-size: var(--bo-type-body);
   font-weight: 650;
 }
 
 .dashboard-action-item-title,
 .dashboard-action-item-description {
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
 }
 
 .dashboard-action-item-title {
@@ -50,17 +59,21 @@
 }
 
 .dashboard-action-item-description {
-  margin-top: 3px;
   line-height: 1.5;
 }
 
+.dashboard-action-item.is-compact {
+  min-height: 0;
+  padding: 10px 18px;
+}
+
+.dashboard-action-item.is-compact > .dashboard-action-metric > strong {
+  font-size: 16px;
+}
+
+.dashboard-action-secondary-label,
 .dashboard-action-empty {
-  display: flex;
-  min-height: 76px;
-  align-items: center;
-  padding: 16px 20px;
-  color: var(--color-muted);
-  font-size: 12px;
+  padding: 10px 20px;
 }
 
 .dashboard-kpi-grid {
@@ -74,7 +87,7 @@
 }
 
 .dashboard-kpi-label {
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
   font-weight: 500;
 }
 
@@ -92,13 +105,13 @@
 .dashboard-kpi-unit,
 .dashboard-kpi-fraction {
   margin-left: 0;
-  font-size: 14px;
+  font-size: var(--bo-type-body);
 }
 
 .dashboard-kpi-description {
   min-height: 36px;
   margin-top: 10px;
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
   line-height: 1.55;
   overflow-wrap: anywhere;
 }
@@ -108,7 +121,7 @@
   margin-top: 5px;
   margin-left: 0;
   padding: 0 7px;
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
 }
 
 .dashboard-primary-grid,
@@ -130,7 +143,9 @@
 }
 
 .dashboard-page .panel-header h3 {
-  font-size: 15px;
+  font-size: var(--bo-type-section-title);
+  font-weight: var(--bo-type-section-title-weight);
+  line-height: var(--bo-type-section-title-leading);
 }
 
 .dashboard-page .panel-body {
@@ -138,7 +153,7 @@
 }
 
 .dashboard-page .panel-note {
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
   line-height: 1.45;
   white-space: normal;
 }
@@ -159,7 +174,7 @@
 
 .dashboard-funnel-label,
 .dashboard-funnel-change {
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
 }
 
 .dashboard-funnel-track {
@@ -169,7 +184,7 @@
 
 .dashboard-page .dashboard-funnel-bar {
   padding: 0 11px;
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
 }
 
 .dashboard-page .dashboard-funnel-bar.is-compact {
@@ -183,11 +198,11 @@
 
 .dashboard-subsection-title {
   margin-bottom: 12px;
-  font-size: 13px;
+  font-size: var(--bo-type-caption);
 }
 
 .dashboard-subsection-note {
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
 }
 
 .dashboard-grade-bar {
@@ -197,7 +212,7 @@
 .dashboard-grade-legend {
   gap: 10px 18px;
   margin-top: 12px;
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
 }
 
 .dashboard-grade-legend-item {
@@ -206,7 +221,7 @@
 
 .dashboard-distribution-caption {
   margin-top: 12px;
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
 }
 
 .dashboard-validation-list {
@@ -225,7 +240,7 @@
 .dashboard-validation-label strong,
 .dashboard-validation-values,
 .dashboard-validation-status {
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
 }
 
 .dashboard-validation-gauge {
@@ -234,14 +249,14 @@
 
 .dashboard-validation-reason {
   margin-top: 7px;
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
   line-height: 1.55;
   overflow-wrap: anywhere;
 }
 
 .dashboard-validation-basis {
   margin-top: 6px;
-  font-size: 11px;
+  font-size: var(--bo-type-caption);
 }
 
 .dashboard-table {
@@ -254,11 +269,11 @@
 }
 
 .dashboard-table th {
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
 }
 
 .dashboard-table td {
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
 }
 
 .dashboard-table th:nth-child(1),
@@ -298,7 +313,7 @@
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   color: var(--color-deep);
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
   font-weight: 600;
   white-space: nowrap;
 }
@@ -309,17 +324,17 @@
 }
 
 .dashboard-deadline-day {
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
 }
 
 .dashboard-deadline-date,
 .dashboard-notice-agency {
-  font-size: 11px;
+  font-size: var(--bo-type-caption);
 }
 
 .dashboard-price-cell,
 .dashboard-no-blocking {
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
 }
 
 .dashboard-mobile-cell-label {
@@ -340,7 +355,7 @@
 
 .dashboard-verification-item-main {
   gap: 16px;
-  font-size: 13px;
+  font-size: var(--bo-type-caption);
   line-height: 1.5;
 }
 
@@ -349,12 +364,12 @@
 }
 
 .dashboard-verification-item-main strong {
-  font-size: 13px;
+  font-size: var(--bo-type-caption);
 }
 
 .dashboard-verification-basis {
   margin-top: 5px;
-  font-size: 11px;
+  font-size: var(--bo-type-caption);
   line-height: 1.45;
   overflow-wrap: anywhere;
 }
@@ -365,7 +380,7 @@
   min-height: 42px;
   align-items: center;
   border-radius: var(--radius-md);
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
   font-weight: 600;
 }
 
@@ -389,226 +404,14 @@
 
 .dashboard-inline-empty {
   padding: 24px 0;
-  font-size: 13px;
-}
-
-@media (max-width: 1180px) {
-  .dashboard-primary-grid,
-  .dashboard-secondary-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-@media (max-width: 900px) {
-  .dashboard-action-strip {
-    flex-direction: column;
-  }
-
-  .dashboard-action-items {
-    grid-template-columns: minmax(0, 1fr);
-    grid-auto-flow: row;
-  }
-
-  .dashboard-action-item {
-    border-right: 0;
-    border-bottom: 1px solid var(--color-hair-soft);
-  }
-
-  .dashboard-action-item:last-child {
-    border-bottom: 0;
-  }
-}
-
-@media (max-width: 640px) {
-  .dashboard-page {
-    gap: var(--space-2);
-  }
-
-  .dashboard-action-title,
-  .dashboard-action-empty {
-    padding-right: var(--space-2);
-    padding-left: var(--space-2);
-  }
-
-  .dashboard-action-item {
-    min-height: 70px;
-    padding: 13px var(--space-2);
-  }
-
-  .dashboard-kpi {
-    min-height: 132px;
-    padding: 18px;
-  }
-
-  .dashboard-kpi-value {
-    font-size: 30px;
-  }
-
-  .dashboard-page .panel-header,
-  .dashboard-page .panel-body {
-    padding-right: var(--space-2);
-    padding-left: var(--space-2);
-  }
-
-  .dashboard-page .panel-header {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 8px;
-    justify-content: center;
-  }
-
-  .dashboard-page .panel-header > :last-child {
-    width: 100%;
-  }
-
-  .dashboard-subsection-title {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .dashboard-funnel-row {
-    grid-template-columns: 64px minmax(0, 1fr);
-    gap: 8px 10px;
-  }
-
-  .dashboard-funnel-axis {
-    grid-template-columns: 64px minmax(0, 1fr);
-    gap: 8px 10px;
-  }
-
-  .dashboard-page .dashboard-funnel-bar {
-    padding: 0;
-    font-size: 10px;
-  }
-
-  .dashboard-funnel-change {
-    grid-column: 2;
-    margin-top: -2px;
-    text-align: left;
-    align-items: flex-start;
-  }
-
-  .dashboard-validation-heading {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .dashboard-validation-values {
-    white-space: normal;
-  }
-
-  .dashboard-deadline-header-action {
-    align-items: flex-start;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    gap: 8px;
-  }
-
-  .dashboard-table {
-    display: block;
-    min-width: 0;
-    table-layout: auto;
-  }
-
-  .dashboard-table thead {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
-    border: 0;
-  }
-
-  .dashboard-table tbody {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .dashboard-table tr {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 10px 12px;
-    padding: 16px 0;
-    border-bottom: 1px solid var(--color-neutral-soft);
-  }
-
-  .dashboard-table tr:last-child {
-    border-bottom: 0;
-  }
-
-  .dashboard-table td,
-  .dashboard-table th,
-  .dashboard-table th:nth-child(1),
-  .dashboard-table td:nth-child(1),
-  .dashboard-table th:nth-child(2),
-  .dashboard-table td:nth-child(2),
-  .dashboard-table th:nth-child(4),
-  .dashboard-table td:nth-child(4),
-  .dashboard-table th:nth-child(5),
-  .dashboard-table td:nth-child(5) {
-    width: auto;
-    padding: 0;
-    border: 0;
-  }
-
-  .dashboard-mobile-cell-label {
-    display: block;
-    margin-bottom: 3px;
-    color: var(--color-muted);
-    font-family: var(--font-sans);
-    font-size: 11px;
-    font-weight: 500;
-    line-height: 1.3;
-  }
-
-  .dashboard-table td:nth-child(1) {
-    grid-column: 1;
-    grid-row: 1;
-  }
-
-  .dashboard-table td:nth-child(2) {
-    grid-column: 2;
-    grid-row: 1;
-    justify-self: end;
-  }
-
-  .dashboard-table td:nth-child(3) {
-    grid-column: 1 / -1;
-    grid-row: 2;
-  }
-
-  .dashboard-table td:nth-child(4) {
-    grid-column: 1;
-    grid-row: 3;
-    align-self: center;
-  }
-
-  .dashboard-table td:nth-child(5) {
-    grid-column: 2;
-    grid-row: 3;
-    justify-self: end;
-    align-self: center;
-  }
-
-  .dashboard-notice-title {
-    white-space: normal;
-    line-height: 1.5;
-  }
-
-  .dashboard-notice-agency {
-    line-height: 1.45;
-  }
+  font-size: var(--bo-type-caption);
 }
 
 /* 스트립이 무엇을 세지 못하는지 한 줄로 남긴다. 확인 불가와 0을 섞지 않는다
    (PLAN 단계 E 작업 7). */
 .dashboard-action-note {
   margin: 0;
+  padding: 10px 20px;
   color: var(--color-muted);
-  font-size: 12px;
-  max-width: 92ch;
+  font-size: var(--bo-type-caption);
 }
