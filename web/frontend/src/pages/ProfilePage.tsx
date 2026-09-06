@@ -83,7 +83,7 @@ function hasUnknownsPayload(data: ProfileUnknownsResponse | undefined): boolean 
 }
 
 const profileErrorLabels: Record<ProfileErrorCode, string> = {
-  profile_snapshot_unavailable: "승인된 프로필 snapshot을 읽지 못했습니다.",
+  profile_snapshot_unavailable: "승인된 프로필 사본을 읽지 못했습니다.",
   profile_source_unavailable: "프로필 원본을 읽지 못했습니다.",
   profile_yaml_unclosed: "YAML 블록이 닫히지 않아 해당 절을 구조화하지 못했습니다.",
   profile_yaml_invalid: "YAML 형식이 올바르지 않아 해당 절을 구조화하지 못했습니다.",
@@ -192,7 +192,7 @@ export function ProfilePage() {
 
   if (sectionsQuery.isLoading || unknownsQuery.isLoading) return <div className="profile-loading" role="status" aria-live="polite">회사 프로필을 읽는 중입니다.</div>;
   if (sectionsQuery.error || unknownsQuery.error) {
-    return <EmptyState title="회사 프로필을 불러오지 못했습니다." description="승인된 프로필 snapshot과 구조화 상태를 확인할 수 없습니다." action={{ label: "다시 시도", onClick: () => { void sectionsQuery.refetch(); void unknownsQuery.refetch(); } }} />;
+    return <EmptyState title="회사 프로필을 불러오지 못했습니다." description="승인된 프로필 사본과 구조화 상태를 확인할 수 없습니다." action={{ label: "다시 시도", onClick: () => { void sectionsQuery.refetch(); void unknownsQuery.refetch(); } }} />;
   }
 
   const summary = sectionsPayloadAvailable && isRecord(sectionsResponse?.status_counts)
@@ -220,15 +220,15 @@ export function ProfilePage() {
         <div className="profile-header-copy">
           <span className="profile-eyebrow">기준 · 읽기 전용</span>
           <h2>회사 프로필</h2>
-          <p>승인된 프로필 snapshot의 구조화 항목과 확인 상태를 표시합니다. 이 화면에서 프로필을 편집할 수 없습니다.</p>
+          <p>승인된 프로필 사본의 구조화 항목과 확인 상태를 표시합니다. 이 화면에서 프로필을 편집할 수 없습니다.</p>
           <dl className="profile-reference-meta">
             <div>
               <dt>관리 범위</dt>
-              <dd>승인 snapshot · 읽기 전용</dd>
+              <dd>승인된 사본 · 읽기 전용</dd>
             </div>
             <div className="profile-reference-source">
-              <dt>프로필 snapshot</dt>
-              <dd><code>{profileVersion ?? "snapshot 미확인"}</code><span>digest {profileDigest ? `${profileDigest.slice(0, 10)}…${profileDigest.slice(-6)}` : "미확인"}</span></dd>
+              <dt>프로필 사본</dt>
+              <dd><code>{profileVersion ?? "사본 미확인"}</code><span>식별 해시 {profileDigest ? `${profileDigest.slice(0, 10)}…${profileDigest.slice(-6)}` : "미확인"}</span></dd>
             </div>
           </dl>
         </div>
@@ -290,7 +290,7 @@ export function ProfilePage() {
           ) : (
             <p className="profile-empty-value">
               {profileReadError
-                ? "미확인 항목을 표시할 수 없습니다. 프로필 snapshot 읽기 오류가 있습니다."
+                ? "미확인 항목을 표시할 수 없습니다. 프로필 사본 읽기 오류가 있습니다."
                 : filter !== "all" && filter !== "unknown"
                 ? `현재 ${filterLabels[filter]} 필터에서는 미확인 항목을 숨겼습니다.`
                 : unknownTotal === 0

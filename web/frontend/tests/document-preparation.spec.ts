@@ -292,10 +292,10 @@ test("생성→upload→patch→confirm→deep review가 actor·request ID·vers
   const trace = await mockDocumentPreparation(page, "flow");
   await page.goto(`/pre-specs/${NOTICE_ID}`);
 
-  await expect(page.getByRole("heading", { name: "Draft bundle에서 심층 검토까지" })).toBeVisible();
-  await page.getByLabel("담당자 claimed name").fill("홍길동");
-  await page.getByRole("button", { name: "새 문서 bundle 만들기" }).click();
-  await expect(page.getByText("새 document bundle revision 1 초안을 만들었습니다.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "문서 묶음 준비부터 심층 검토까지" })).toBeVisible();
+  await page.getByLabel("문서 준비 담당자 이름").fill("홍길동");
+  await page.getByRole("button", { name: "새 문서 묶음 만들기" }).click();
+  await expect(page.getByText("문서 묶음 수정본 1 초안을 만들었습니다.")).toBeVisible();
 
   await page.getByLabel("안전한 문서 등록").locator("input[type=file]").setInputFiles({
     name: "제안요청서.pdf",
@@ -309,18 +309,18 @@ test("생성→upload→patch→confirm→deep review가 actor·request ID·vers
   await page.getByLabel("문서 역할 · 제안요청서.pdf").selectOption("제안요청서");
   await page.getByLabel("시행일 · 제안요청서.pdf").fill("2026-09-01");
   await expect(page.getByLabel("현재 버전 · 제안요청서.pdf")).toBeChecked();
-  await page.getByRole("button", { name: "metadata 저장", exact: true }).click();
-  await expect(page.getByText("제안요청서.pdf metadata를 version 2으로 저장했습니다.")).toBeVisible();
+  await page.getByRole("button", { name: "문서 정보 저장", exact: true }).click();
+  await expect(page.getByText("제안요청서.pdf 문서 정보를 버전 2으로 저장했습니다.")).toBeVisible();
 
-  await expect(page.getByText(/문서 1건 이상, safety safe, structure ready/)).toBeVisible();
-  await page.getByRole("button", { name: "Ready bundle 확정" }).click();
-  await expect(page.getByText(/ready snapshot으로 확정했습니다/)).toBeVisible();
+  await expect(page.getByText(/문서 1건 이상 · 모든 문서 안전 확인 · 모든 문서 구조화 완료 · 차단 항목 0건/)).toBeVisible();
+  await page.getByRole("button", { name: "문서 묶음 확정하기" }).click();
+  await expect(page.getByText(/문서 묶음 수정본 1을 확정했습니다/)).toBeVisible();
   await expect(page.getByLabel("문서 역할 · 제안요청서.pdf")).toBeDisabled();
-  await expect(page.getByText("이 bundle snapshot과 document version은 불변이며 수정하지 않습니다.")).toBeVisible();
+  await expect(page.getByText("이 문서 묶음과 그 안의 문서 버전은 확정돼 바뀌지 않습니다.")).toBeVisible();
   const preparationOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(preparationOverflow).toBeLessThanOrEqual(1);
 
-  await page.getByRole("button", { name: "이 ready bundle로 심층 검토 시작" }).click();
+  await page.getByRole("button", { name: "확정된 문서 묶음으로 심층 검토 시작" }).click();
   await expect(page).toHaveURL(/\/deep-reviews\/40000000-0000-0000-0000-000000000991$/);
 
   expect(trace.creates).toHaveLength(1);
@@ -354,8 +354,8 @@ test("생성→upload→patch→confirm→deep review가 actor·request ID·vers
 test("부분 upload 실패와 blocked·failed·needs_review를 ready로 표시하지 않는다", async ({ page }) => {
   const trace = await mockDocumentPreparation(page, "partial");
   await page.goto(`/pre-specs/${NOTICE_ID}`);
-  await page.getByLabel("담당자 claimed name").fill("홍길동");
-  await page.getByRole("button", { name: "새 문서 bundle 만들기" }).click();
+  await page.getByLabel("문서 준비 담당자 이름").fill("홍길동");
+  await page.getByRole("button", { name: "새 문서 묶음 만들기" }).click();
   await page.getByLabel("안전한 문서 등록").locator("input[type=file]").setInputFiles([
     { name: "제안요청서.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4 first") },
     { name: "부록.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4 second") },
@@ -365,8 +365,8 @@ test("부분 upload 실패와 blocked·failed·needs_review를 ready로 표시�
   await expect(page.getByText("안전 검사 차단", { exact: true })).toBeVisible();
   await expect(page.getByText("변환·구조화 실패", { exact: true })).toBeVisible();
   await expect(page.getByText("구조화 사람 확인 필요", { exact: true })).toBeVisible();
-  await expect(page.getByText("blocking issue 1건을 먼저 해결해야 합니다.")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Ready bundle 확정" })).toBeDisabled();
+  await expect(page.getByText("차단 항목 1건을 먼저 해결해야 합니다.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "문서 묶음 확정하기" })).toBeDisabled();
   expect(trace.uploads).toHaveLength(2);
   expect(trace.uploads[0].requestId).toMatch(/^[0-9a-f-]{36}$/);
   expect(trace.uploads[1].requestId).toMatch(/^[0-9a-f-]{36}$/);
@@ -376,12 +376,12 @@ test("부분 upload 실패와 blocked·failed·needs_review를 ready로 표시�
 test("403 effective grade gate를 우회하지 않고 안정 사유를 표시한다", async ({ page }) => {
   const trace = await mockDocumentPreparation(page, "forbidden");
   await page.goto(`/pre-specs/${NOTICE_ID}`);
-  await page.getByLabel("담당자 claimed name").fill("홍길동");
-  await page.getByRole("button", { name: "새 문서 bundle 만들기" }).click();
+  await page.getByLabel("문서 준비 담당자 이름").fill("홍길동");
+  await page.getByRole("button", { name: "새 문서 묶음 만들기" }).click();
 
   const gateFeedback = page.locator(".mutation-feedback");
-  await expect(gateFeedback).toContainText("우선 검토 effective grade가 필요합니다");
-  await expect(gateFeedback).toContainText("서버 gate를 우회할 수 없습니다");
+  await expect(gateFeedback).toContainText("현재 공고는 이 작업의 대상이 아닙니다");
+  await expect(gateFeedback).toContainText("화면에 보이는 등급으로 서버 조건을 우회할 수 없습니다");
   expect(trace.creates).toHaveLength(1);
   expect(trace.creates[0].body).toEqual({});
 });
@@ -389,19 +389,19 @@ test("403 effective grade gate를 우회하지 않고 안정 사유를 표시한
 test("ready·superseded 이력은 불변이고 503 profile/policy를 fail-closed로 표시한다", async ({ page }) => {
   const trace = await mockDocumentPreparation(page, "unavailable");
   await page.goto(`/pre-specs/${NOTICE_ID}`);
-  await page.getByLabel("담당자 claimed name").fill("홍길동");
+  await page.getByLabel("문서 준비 담당자 이름").fill("홍길동");
 
-  await page.getByRole("button", { name: /Revision 1/ }).click();
-  await expect(page.getByText("최신 revision이 아니므로 과거 이력으로만 표시합니다.")).toBeVisible();
+  await page.getByRole("button", { name: /수정본 1/ }).click();
+  await expect(page.getByText("최신 수정본이 아니므로 과거 이력으로만 표시합니다.")).toBeVisible();
   await expect(page.getByLabel("문서 역할 · 이전-확정본.pdf")).toBeDisabled();
-  await expect(page.getByRole("button", { name: "이 ready bundle로 심층 검토 시작" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "확정된 문서 묶음으로 심층 검토 시작" })).toHaveCount(0);
 
-  await page.getByRole("button", { name: /Revision 2/ }).click();
+  await page.getByRole("button", { name: /수정본 2/ }).click();
   await expect(page.getByLabel("문서 역할 · ready.pdf")).toBeDisabled();
-  await page.getByRole("button", { name: "이 ready bundle로 심층 검토 시작" }).click();
+  await page.getByRole("button", { name: "확정된 문서 묶음으로 심층 검토 시작" }).click();
   // 이 화면의 alert는 하나가 아니다. 심층 검토 요청 결과만 본다.
   const deepReviewFeedback = page.locator(".mutation-feedback");
-  await expect(deepReviewFeedback).toContainText("활성 profile version과 analysis policy version이 모두 필요합니다");
+  await expect(deepReviewFeedback).toContainText("활성 회사 프로필 버전과 분석 정책 버전이 모두 있어야 심층 검토를 시작합니다");
   await expect(deepReviewFeedback).toContainText("hosted OpenAI로 자동 전환하지 않습니다");
   expect(trace.deepReviews).toHaveLength(1);
 });

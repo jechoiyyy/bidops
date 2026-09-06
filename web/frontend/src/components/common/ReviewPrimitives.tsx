@@ -634,7 +634,7 @@ export function ReviewRevisionHistory({
       </header>
       {error ? <p className="review-revision-history-error" role="alert">{error}</p> : null}
       {entries.length === 0 ? (
-        <p className="review-revision-history-empty">{empty ?? "기록된 revision이 없습니다."}</p>
+        <p className="review-revision-history-empty">{empty ?? "기록된 수정본이 없습니다."}</p>
       ) : (
         <List className="review-revision-history-list" density="compact" hasDividers>
           {entries.map((entry) => (

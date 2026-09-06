@@ -78,21 +78,21 @@ export function SegmentInventoryPanel({ structureId, sourceNote }: SegmentInvent
         </p>
       ) : null}
       {structureId !== null && segmentsQuery.isPending ? (
-        <p className="deep-review-segment-empty" role="status" aria-live="polite">문서 segment manifest를 불러오는 중입니다.</p>
+        <p className="deep-review-segment-empty" role="status" aria-live="polite">문서 구간 목록을 불러오는 중입니다.</p>
       ) : null}
       {isNotFound(segmentsQuery.error) ? (
         <p className="deep-review-segment-empty" role="status">
-          이 문서에는 segment manifest가 없습니다. manifest가 생기기 전에 만들어진 구조는 정상적으로 값이 없으며, 없음을 0건으로 바꾸지 않습니다.
+          이 문서에는 구간 목록이 없습니다. 목록이 생기기 전에 만들어진 구조는 정상적으로 값이 없으며, 없음을 0건으로 바꾸지 않습니다.
         </p>
       ) : null}
       {isUnsafeDocument(segmentsQuery.error) ? (
         <p className="deep-review-segment-empty" role="status">
-          안전 검사를 통과하지 못한 문서라 segment manifest를 열지 않았습니다.
+          안전 검사를 통과하지 못한 문서라 구간 목록을 열지 않았습니다.
         </p>
       ) : null}
       {segmentsQuery.error && !isNotFound(segmentsQuery.error) && !isUnsafeDocument(segmentsQuery.error) ? (
         <p className="deep-review-segment-empty" role="status">
-          문서 segment manifest를 확인할 수 없습니다.
+          문서 구간 목록을 확인할 수 없습니다.
         </p>
       ) : null}
 

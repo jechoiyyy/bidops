@@ -145,11 +145,11 @@ function GateContext({ gate }: { gate: QualityGateDetailResponse }) {
 function EvaluationHistory({ gate }: { gate: QualityGateDetailResponse }) {
   return (
     <section className="quality-panel quality-evaluation-panel" aria-labelledby="quality-evaluations-heading">
-      <div className="quality-panel-heading"><div><span className="quality-eyebrow">불변 revision</span><h2 id="quality-evaluations-heading">계산 이력</h2></div><span className="quality-readonly-note">최신 결과만 연결 가능</span></div>
+      <div className="quality-panel-heading"><div><span className="quality-eyebrow">바뀌지 않는 기록</span><h2 id="quality-evaluations-heading">계산 이력</h2></div><span className="quality-readonly-note">최신 결과만 연결 가능</span></div>
       <div className="quality-table-wrap">
         <table className="quality-evaluation-table">
-          <caption className="quality-sr-only">품질 게이트 계산 revision 이력</caption>
-          <thead><tr><th scope="col">revision</th><th scope="col">evaluation ID</th><th scope="col">상태</th><th scope="col">유효 리뷰</th><th scope="col">생성 시각</th><th scope="col">사유</th></tr></thead>
+          <caption className="quality-sr-only">품질 게이트 계산 수정본 이력</caption>
+          <thead><tr><th scope="col">수정본</th><th scope="col">평가 ID</th><th scope="col">상태</th><th scope="col">유효 리뷰</th><th scope="col">생성 시각</th><th scope="col">사유</th></tr></thead>
           <tbody>{gate.evaluations.map((evaluation) => <tr className={evaluation.evaluation_id === gate.latest_evaluation_id ? "is-latest" : ""} key={evaluation.evaluation_id}><th scope="row">{evaluation.revision}{evaluation.evaluation_id === gate.latest_evaluation_id ? " · 최신" : ""}</th><td><code>{evaluation.evaluation_id}</code></td><td>{evaluation.result_status}</td><td>{evaluation.valid_review_count}/10 · {evaluation.distinct_notice_review_count}/10</td><td>{new Date(evaluation.created_at).toLocaleString("ko-KR")}</td><td>{evaluation.reasons.length > 0 ? evaluation.reasons.join(" ") : "사유 없음"}</td></tr>)}</tbody>
         </table>
       </div>

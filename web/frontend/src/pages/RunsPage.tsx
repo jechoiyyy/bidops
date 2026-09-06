@@ -350,7 +350,7 @@ export function RunsPage() {
     const selectedProfileSource = selectedProfile ? profileSourceFor(selectedProfile) : null;
     if (!capturedRunId || !screeningActor.trim() || !selectedPolicy || !selectedProfile || !selectedProfileSource || hasNonterminalManualFullRun) {
       if (hasNonterminalManualFullRun) setScreeningActionError("이미 진행 중인 전량 판정 실행이 있습니다.");
-      else setScreeningActionError("담당자 이름, 판정 정책, 프로필 snapshot을 모두 선택해야 합니다.");
+      else setScreeningActionError("담당자 이름, 판정 정책, 프로필 사본을 모두 선택해야 합니다.");
       return;
     }
     screeningStartInFlight.current = true;

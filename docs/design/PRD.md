@@ -313,6 +313,54 @@ BidOps는 조회 도구가 아니라 사람이 네 번 결정하는 파이프라
   ([ADR-0048](ADR.md) §1). Tailwind `@theme`은 `:root`로 방출돼 테마를 이기므로 디자인 시스템과
   이름이 겹치는 토큰을 거기에 두지 않는다([ADR-0048](ADR.md) §4-1).
 
+### 4.2 용어 표시 규칙
+
+화면을 쓰는 사람은 기획·사업개발 담당자다. 계약과 구현에서 쓰는 개발 용어를 화면 문자열에
+그대로 두지 않는다. 정본은 `web/frontend/src/lib/glossary.ts`의 `TERM`이며 아래 표와 같다.
+
+| 계약·구현 용어 | 화면 표시 |
+|---|---|
+| `attempt` | 분석 회차 |
+| `revision` | 수정본 |
+| `bundle` | 문서 묶음 |
+| `snapshot` | 고정 입력 (문맥에 따라 `저장 시점 사본`) |
+| `digest` | 식별 해시 |
+| `binding` | 모델 연결 |
+| `locator` | 원문 위치 |
+| `claimed name` | 담당자 이름 |
+| `workspace` | 작업 화면 |
+| `projection` | 요약 정보 |
+| `append-only` | 추가만 기록(덮어쓰지 않음) |
+| `manifest` | 목록 |
+| `validation` | 검증 |
+| `currentness` | 최신 여부 |
+| `fence` | 저장 조건 |
+| `evidence` | 근거 |
+
+`attempt`를 `회차`로 옮긴 것은 수집 회차(run)와 다른 축이므로 항상 **`분석 회차`**로 적어
+구분한다. 회차 선택기를 갖는 화면(대시보드·공고 판정 이력)에서는 `분석 회차`라는 말을 쓰지
+않는다.
+
+**옮기지 않는 것.**
+
+- 서버 계약의 enum 토큰(`relevant`, `filtered_out`, `needs_human_review`, `passed`, `pending`,
+  `completed`, `go`, `no_go` 등). 값 자체가 계약이므로 한국어 설명을 덧붙일 수는 있어도
+  (`completed · 계산 완료`) 토큰을 지우지 않는다. §4의 등급·준비·개요·추적 4벌도 같다.
+- 식별자와 해시 값 자체(문서 버전 ID, SHA-256, 요청 식별자). 사람이 눈으로 대조하는 값이다.
+  옮기는 것은 그 값을 가리키는 **이름**뿐이다.
+- 이미 라벨 맵을 가진 업무 상태(`BUNDLE_STATUS_LABELS`, `PRE_SPEC_*_LABEL`,
+  `QUALITY_STATUS_LABEL`). 그 맵이 해당 도메인의 정본이다.
+
+**문구 구조.** 화면 헤더와 섹션 도입문은 첫 문장이 *이 화면에서 할 수 있는 것*을, 둘째 문장이
+*이 화면이 정하지 않는 것*을 말한다. 규칙상 남겨야 하는 문장(네 결정은 서로를 대신하지 않는다 ·
+참조 실행·mock 표식 · `unknown` 보존 · 되돌릴 수 없음)은 지우지 않고 한 문장으로 압축한다.
+버튼 이름은 상태 문장이 아니라 행동 하나이며, 눌림·펼침 상태는 `aria-pressed`·`aria-expanded`가
+말한다.
+
+**오류 문구.** 화면이 서버 message를 그대로 싣지 않는다. `web/frontend/src/lib/apiErrors.ts`의
+`describeApiError`가 status와 안전한 오류 코드를 제목·설명·다음 행동으로 옮기고, 화면은 그
+결과만 표시한다(`docs/security.md`).
+
 ## 5. 비기능 요구사항
 
 | 항목 | 요구 |
