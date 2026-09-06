@@ -22,7 +22,7 @@
   border-radius: var(--radius-md);
   background: var(--color-soft-surface);
   color: var(--color-text);
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
   line-height: 1.55;
 }
 
@@ -145,7 +145,7 @@
   height: 34px;
   padding-right: 20px;
   padding-left: 20px;
-  font-size: 11px;
+  font-size: var(--bo-type-caption);
 }
 
 .queue-list-item,
@@ -159,7 +159,7 @@
 
 .queue-list-title,
 .judgment-notice-title {
-  font-size: 14px;
+  font-size: var(--bo-type-body);
   line-height: 1.5;
 }
 
@@ -172,7 +172,7 @@
 .queue-list-meta,
 .judgment-notice-meta {
   margin-top: 9px;
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
 }
 
 .queue-detail-header,
@@ -203,15 +203,16 @@
 .judgment-page-header h2 {
   max-width: none;
   overflow-wrap: anywhere;
-  font-size: 22px;
-  line-height: 1.4;
+  font-size: var(--bo-type-page-title);
+  font-weight: var(--bo-type-page-title-weight);
+  line-height: var(--bo-type-page-title-leading);
 }
 
 .queue-detail-subline,
 .judgment-page-subline {
   gap: 8px;
   margin-top: 8px;
-  font-size: 13px;
+  font-size: var(--bo-type-caption);
 }
 
 .judgment-page-heading-meta {
@@ -231,7 +232,7 @@
 .notice-source-link {
   min-height: 40px;
   padding: 0 13px;
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
 }
 
 .queue-detail-scroll,
@@ -268,15 +269,15 @@
 .review-section-heading h3 {
   margin: 2px 0 0;
   color: var(--color-deep);
-  font-size: 17px;
-  font-weight: 600;
-  line-height: 1.4;
+  font-size: var(--bo-type-section-title);
+  font-weight: var(--bo-type-section-title-weight);
+  line-height: var(--bo-type-section-title-leading);
 }
 
 .review-section-heading > span {
   flex: 0 0 auto;
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
   line-height: 1.4;
   text-align: right;
 }
@@ -284,7 +285,7 @@
 .review-section-eyebrow {
   display: block;
   color: var(--color-info);
-  font-size: 11px;
+  font-size: var(--bo-type-caption);
   font-weight: 600;
   letter-spacing: 0.05em;
 }
@@ -317,7 +318,7 @@
 }
 
 :where(.queue-page, .judgment-page) .panel-header h3 {
-  font-size: 14px;
+  font-size: var(--bo-type-body);
 }
 
 :where(.queue-page, .judgment-page) .panel-body {
@@ -327,7 +328,7 @@
 .notice-facts,
 .qualification-flags-list {
   row-gap: 11px;
-  font-size: 13px;
+  font-size: var(--bo-type-caption);
 }
 
 .notice-facts {
@@ -357,10 +358,6 @@
 .judgment-detail-badges {
   display: flex;
   flex-wrap: wrap;
-}
-
-.judgment-detail-back {
-  display: none;
 }
 
 .judgment-history-details {
@@ -415,7 +412,7 @@
   align-items: center;
   color: var(--color-info);
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
   font-weight: 600;
   list-style: none;
 }
@@ -483,7 +480,7 @@
 .review-segmented button {
   flex: 1 1 0;
   padding: 0 12px;
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
 }
 
 .review-bar > .review-control {
@@ -509,13 +506,13 @@
 .review-control {
   min-width: 0;
   padding: 0 12px;
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
 }
 
 .review-control select {
   max-width: none;
   min-width: 0;
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
 }
 
 .review-reason {
@@ -526,14 +523,14 @@
 .review-reason textarea {
   min-height: 40px;
   padding: 8px 10px;
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
 }
 
 .review-save-button {
   grid-area: save;
   justify-content: center;
   padding: 0 16px;
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
   white-space: nowrap;
 }
 
@@ -544,338 +541,6 @@
 
 .review-error {
   grid-area: error;
-}
-
-/* 901~1180px에서는 상세 pane이 좁아지므로 내부 카드만 한 열로 접는다. */
-@media (min-width: 901px) and (max-width: 1180px) {
-  /* theme.css의 기존 1180px 규칙은 다른 화면을 위해 남겨 두고,
-     검토 화면만 이 구간에서 목록·상세 2열을 유지한다. */
-  .queue-page.queue-page,
-  .judgment-page.judgment-page {
-    height: calc(100vh - 82px);
-    min-height: 0;
-    overflow: hidden;
-  }
-
-  .queue-page .queue-workspace,
-  .judgment-page .judgment-workspace {
-    flex-direction: row;
-    overflow: hidden;
-  }
-
-  .queue-page .queue-list-pane {
-    flex: 0 0 min(390px, 34%);
-    width: min(390px, 34%);
-    border-right: 1px solid var(--color-border);
-    border-bottom: 0;
-  }
-
-  .judgment-page .judgment-notice-list {
-    flex: 0 0 min(360px, 32%);
-    width: min(360px, 32%);
-    border-right: 1px solid var(--color-border);
-    border-bottom: 0;
-  }
-
-  .queue-page .queue-detail-pane,
-  .judgment-page .judgment-detail-pane {
-    min-height: 0;
-  }
-
-  .queue-page .queue-detail-header,
-  .judgment-page .judgment-page-header {
-    flex-direction: row;
-  }
-
-  .queue-page .queue-detail-scroll,
-  .judgment-page .judgment-detail-scroll {
-    padding: 24px;
-  }
-
-  .queue-page .notice-facts-grid,
-  .queue-page .notice-review-grid,
-  .judgment-page .judgment-summary-grid,
-  .judgment-page .judgment-history-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-@media (max-width: 900px) {
-  .queue-page,
-  .judgment-page {
-    height: auto;
-    min-height: calc(100vh - 82px);
-    overflow: visible;
-  }
-
-  .queue-filters {
-    padding-right: 16px;
-    padding-left: 16px;
-  }
-
-  .queue-workspace,
-  .judgment-workspace {
-    flex-direction: column;
-    overflow: visible;
-  }
-
-  .queue-list-pane,
-  .judgment-notice-list {
-    flex: 0 0 320px;
-    width: 100%;
-    border-right: 0;
-    border-bottom: 1px solid var(--color-border);
-  }
-
-  .queue-detail-pane,
-  .judgment-detail-pane {
-    min-height: 720px;
-  }
-
-  .queue-detail-header,
-  .judgment-page-header,
-  .queue-detail-scroll,
-  .judgment-detail-scroll,
-  .review-bar {
-    padding-right: 20px;
-    padding-left: 20px;
-  }
-
-  .queue-detail-header,
-  .judgment-page-header {
-    flex-direction: column;
-  }
-
-  .queue-detail-actions,
-  .judgment-page-actions {
-    width: 100%;
-    justify-content: flex-start;
-  }
-
-  .queue-workspace.shows-detail .queue-list-pane,
-  .queue-workspace.shows-list .queue-detail-pane,
-  .judgment-workspace.shows-detail .judgment-notice-list,
-  .judgment-workspace.shows-list .judgment-detail-pane {
-    display: none;
-  }
-
-  .queue-workspace.shows-list .queue-list-pane,
-  .judgment-workspace.shows-list .judgment-notice-list {
-    flex: 1 1 auto;
-    min-height: calc(100vh - 230px);
-    border-bottom: 0;
-  }
-
-  .queue-detail-pane,
-  .judgment-detail-pane {
-    min-height: 0;
-    overflow: visible;
-  }
-
-  .queue-detail-scroll,
-  .judgment-detail-scroll {
-    flex: 0 0 auto;
-    overflow-y: visible;
-    padding: 20px;
-  }
-
-  .queue-detail-back,
-  .judgment-detail-back {
-    display: flex;
-    width: 100%;
-    margin-bottom: 0;
-  }
-
-  .queue-detail-header {
-    padding-top: 16px;
-    padding-bottom: 16px;
-  }
-
-  .judgment-page-header {
-    padding-top: 16px;
-    padding-bottom: 16px;
-  }
-
-  .review-bar {
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas:
-      "title title"
-      "judgment judgment"
-      "disposition disposition"
-      "secondary secondary"
-      "reason reason"
-      "save save"
-      "hint hint"
-      "error error";
-    align-items: stretch;
-    padding-top: 14px;
-    padding-bottom: 14px;
-  }
-
-  .review-secondary {
-    display: flex;
-  }
-
-  .review-secondary > .review-control {
-    flex: 1 1 200px;
-  }
-
-  .review-shortcut-hint {
-    justify-self: start;
-  }
-
-  .review-control,
-  .review-segmented button,
-  .review-reason textarea,
-  .review-save-button {
-    min-height: 42px;
-  }
-
-  .review-reason textarea {
-    min-height: 72px;
-    resize: vertical;
-  }
-}
-
-@media (max-width: 640px) {
-  .queue-page,
-  .judgment-page {
-    border-right: 0;
-    border-left: 0;
-    border-radius: 0;
-  }
-
-  .queue-filters {
-    display: flex;
-    align-items: stretch;
-    gap: 8px;
-    padding: 12px;
-  }
-
-  .queue-search,
-  .queue-filter-sort {
-    flex: 1 1 100%;
-    width: 100%;
-  }
-
-  .queue-filter-select:not(.queue-filter-sort),
-  .queue-filter-reset {
-    flex: 1 1 calc(50% - 4px);
-    min-width: 0;
-  }
-
-  .queue-filter-select select {
-    min-width: 0;
-    max-width: none;
-  }
-
-  .queue-filter-spacer {
-    display: none;
-  }
-
-  .queue-list-header,
-  .judgment-list-header,
-  .queue-list-item,
-  .judgment-notice-item {
-    padding-right: 16px;
-    padding-left: 16px;
-  }
-
-  .queue-list-item,
-  .judgment-notice-item {
-    min-height: 0;
-    padding-top: 15px;
-    padding-bottom: 16px;
-  }
-
-  .queue-detail-header,
-  .judgment-page-header,
-  .queue-detail-scroll,
-  .judgment-detail-scroll,
-  .review-bar {
-    padding-right: 16px;
-    padding-left: 16px;
-  }
-
-  .queue-detail-header h2,
-  .judgment-page-header h2 {
-    font-size: 18px;
-  }
-
-  .queue-detail-actions,
-  .judgment-page-actions {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .queue-detail-actions .notice-source-link,
-  .judgment-page-actions .notice-source-link {
-    width: 100%;
-    justify-content: center;
-  }
-
-  .review-section-heading {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 5px;
-  }
-
-  .review-section-heading > span {
-    text-align: left;
-  }
-
-  .notice-facts-grid,
-  .notice-review-grid,
-  .judgment-summary-grid,
-  .judgment-history-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  :where(.queue-page, .judgment-page) .panel-header {
-    min-height: 50px;
-    padding-right: 16px;
-    padding-left: 16px;
-  }
-
-  :where(.queue-page, .judgment-page) .panel-body {
-    padding: 16px;
-  }
-
-  .notice-facts {
-    grid-template-columns: 92px minmax(0, 1fr);
-  }
-
-  .review-secondary > .review-control {
-    flex-basis: 100%;
-  }
-
-  .review-bar {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas:
-      "title"
-      "judgment"
-      "disposition"
-      "secondary"
-      "reason"
-      "save"
-      "hint"
-      "error";
-  }
-
-  .review-segmented,
-  .review-control,
-  .review-reason,
-  .review-save-button {
-    width: 100%;
-  }
-
-  .review-segmented button {
-    flex: 1 1 0;
-  }
-
-  .review-save-button {
-    min-height: 44px;
-  }
 }
 
 /* --- 저장된 담당자 리뷰 (읽기 전용 이력) ---
@@ -909,8 +574,8 @@
   padding: var(--spacing-0-5) var(--spacing-2);
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-inner);
-  color: var(--color-content-secondary);
-  font-size: var(--font-size-supporting);
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
 }
 
 .review-record-facts {
@@ -927,8 +592,8 @@
 }
 
 .review-record-facts dt {
-  color: var(--color-content-secondary);
-  font-size: var(--font-size-supporting);
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
 }
 
 .review-record-facts dd {
@@ -957,8 +622,8 @@
 
 .review-record-note {
   margin: 0;
-  color: var(--color-content-secondary);
-  font-size: var(--font-size-supporting);
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
 }
 
 .review-record-link {

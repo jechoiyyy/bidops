@@ -81,6 +81,41 @@ const GRADES = [
   ['bo-grade-none', 'bo-on-grade-none'],
 ];
 
+/**
+ * 배지 다섯 갈래의 라벨 대비 — `.badge-*`(theme.css)가 읽는 조합 그대로다.
+ * 경고(`alert`)와 오류(`danger`)를 나눈 뒤 두 색이 각자 읽혀야 하므로 여기에
+ * 고정한다. 화면 CSS 는 이 토큰들을 셸 bridge(`shell-relaxed.css`)를 통해
+ * `--color-warning-bg`·`--color-danger`… 이름으로 읽는다.
+ */
+const BADGES = [
+  ['color-error', 'color-error-muted'],
+  ['color-success', 'color-success-muted'],
+  ['color-warning', 'color-warning-muted'],
+  ['color-text-teal', 'color-background-teal'],
+];
+
+test('배지 의미색 라벨이 WCAG AA(4.5:1)를 만족한다', () => {
+  for (const [fg, bg] of BADGES) {
+    const r = ratio(token(fg), token(bg));
+    assert.ok(r >= 4.5, `배지 --${fg} on --${bg} = ${r.toFixed(2)}:1 (4.5 필요)`);
+  }
+});
+
+test('경고 배지와 오류 배지가 같은 색을 쓰지 않는다', () => {
+  // 노랑 하나로 경고와 오류를 다 칠하던 것을 나눈 자리다. 두 배경의 밝기는
+  // 거의 같고(1.05:1) 구분은 색상과 라벨 문구가 맡으므로, 대비비가 아니라
+  // **값이 서로 다른지**를 고정한다. 색만으로 상태를 말하지 않는다는 규칙은
+  // 화면 쪽(`Badge.tsx`)이 문구를 항상 함께 두는 것으로 지킨다.
+  for (const name of ['muted', '']) {
+    const suffix = name ? `-${name}` : '';
+    assert.notEqual(
+      token(`color-warning${suffix}`).toLowerCase(),
+      token(`color-error${suffix}`).toLowerCase(),
+      `--color-warning${suffix} 와 --color-error${suffix} 가 같은 값이 됐다`,
+    );
+  }
+});
+
 test('텍스트 토큰이 WCAG AA(4.5:1)를 만족한다', () => {
   for (const [fg, bg] of TEXT) {
     const r = ratio(token(fg), token(bg));
