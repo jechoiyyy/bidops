@@ -592,9 +592,15 @@ test("추적 상태 변경은 접힌 채로 열리고 저장 계약을 유지한
     return event.defaultPrevented;
   })).toBe(true);
 
-  page.once("dialog", (dialog) => dialog.dismiss());
-  await page.getByRole("link", { name: "← 사업 추적 목록" }).click();
+  // 이탈 확인은 브라우저 confirm이 아니라 화면의 확인 다이얼로그다. 취소하면 초안이 남는다.
+  await page.locator('nav[aria-label="현재 위치"]').getByRole("link", { name: "사업 추적", exact: true }).click();
+  const leaveDialog = page.getByRole("alertdialog");
+  await expect(leaveDialog).toBeVisible();
+  await expect(leaveDialog).toContainText("사업 추적 상세를 떠납니다");
+  await leaveDialog.getByRole("button", { name: "계속 편집", exact: true }).click();
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
   await expect(page).toHaveURL(/\/opportunities\/101\?sort=created_at$/);
+  await expect(page.getByLabel("이유")).toHaveValue("새 사전규격 공개 여부를 계속 확인");
 
   await page.getByRole("button", { name: "추적 상태 저장" }).click();
   await expect(page.getByText("추적 상태를 저장했습니다.")).toBeVisible();
@@ -602,4 +608,76 @@ test("추적 상태 변경은 접힌 채로 열리고 저장 계약을 유지한
   expect(trace.patches[0].body).toEqual({ tracking_status: "계속 추적", reason: "새 사전규격 공개 여부를 계속 확인" });
   expect(trace.patches[0].headers["x-bidops-actor-name"]).toBe("UTF-8''%ED%99%8D%EA%B8%B8%EB%8F%99");
   expect(trace.patches[0].headers["x-bidops-actor-name-format"]).toBe("utf-8-percent-v1");
+});
+
+// 목록 조작(구역·정렬·페이지·행 선택)은 열려 있던 상세를 닫아 저장하지 않은 입력을
+// 잃는다. 확인은 브라우저 confirm이 아니라 같은 화면 다이얼로그다.
+test("목록을 바꾸기 전에 저장하지 않은 추적 상태 변경을 확인한다", async ({ page }) => {
+  const trace = await mockOpportunities(page);
+  await page.goto("/opportunities?section=%EC%A1%B0%EC%B9%98%20%ED%95%84%EC%9A%94");
+
+  await page.getByRole("button", { name: "추적 상태 변경 열기" }).click();
+  await page.getByLabel("이유").fill("목록 확인용 미저장 입력");
+
+  await page.getByRole("radio", { name: "추적 중", exact: true }).click();
+  const dialog = page.getByRole("alertdialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("목록을 바꿉니다");
+  await dialog.getByRole("button", { name: "계속 편집", exact: true }).click();
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  await expect(page.getByLabel("이유")).toHaveValue("목록 확인용 미저장 입력");
+
+  await page.getByRole("radio", { name: "추적 중", exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "저장하지 않고 목록 바꾸기", exact: true }).click();
+  await expect(page).toHaveURL(/section=/);
+  expect(trace.patches).toHaveLength(0);
+});
+
+// 추적 `종료`는 되돌릴 수 없는 결정이므로 확인 단계를 거쳐야 요청이 나간다.
+// `계속 추적`·`보류`는 다시 고를 수 있으므로 확인 단계를 두지 않는다.
+test("추적 종료는 확인 없이는 요청이 나가지 않고 취소하면 초안만 남는다", async ({ page }) => {
+  const trace = await mockOpportunities(page);
+  await page.goto("/opportunities/101?sort=created_at");
+
+  await page.getByRole("button", { name: "추적 상태 변경 열기" }).click();
+  await page.locator(".opportunity-tracking-form select").selectOption("종료");
+  await page.getByLabel("이유").fill("현재 범위와 맞지 않아 능동 추적을 종료합니다.");
+  await page.getByLabel("담당자 이름").fill("홍길동");
+
+  await page.getByRole("button", { name: "추적 상태 저장" }).click();
+  const dialog = page.getByRole("alertdialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("되돌릴 수 없습니다");
+  await expect(dialog).toContainText("종료 · 추적 종료");
+  await expect(dialog).toContainText("사업기회 #101");
+  await expect(dialog).toContainText("현재 범위와 맞지 않아 능동 추적을 종료합니다.");
+  expect(trace.patches).toHaveLength(0);
+
+  await dialog.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  expect(trace.patches).toHaveLength(0);
+  await expect(page.locator(".opportunity-tracking-form select")).toHaveValue("종료");
+  await expect(page.getByLabel("이유")).toHaveValue("현재 범위와 맞지 않아 능동 추적을 종료합니다.");
+
+  await page.getByRole("button", { name: "추적 상태 저장" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "종료 상태로 저장", exact: true }).click();
+  await expect(page.getByText("추적 상태를 저장했습니다.")).toBeVisible();
+  expect(trace.patches).toHaveLength(1);
+  expect(trace.patches[0].body).toEqual({ tracking_status: "종료", reason: "현재 범위와 맞지 않아 능동 추적을 종료합니다." });
+});
+
+// `계속 추적`은 되돌릴 수 있는 결정이라 확인 단계 없이 그대로 저장된다.
+test("계속 추적 저장은 확인 단계 없이 그대로 나간다", async ({ page }) => {
+  const trace = await mockOpportunities(page);
+  await page.goto("/opportunities/101?sort=created_at");
+
+  await page.getByRole("button", { name: "추적 상태 변경 열기" }).click();
+  await page.locator(".opportunity-tracking-form select").selectOption("계속 추적");
+  await page.getByLabel("이유").fill("새 사전규격 공개 여부를 계속 확인");
+  await page.getByLabel("담당자 이름").fill("홍길동");
+  await page.getByRole("button", { name: "추적 상태 저장" }).click();
+
+  await expect(page.getByText("추적 상태를 저장했습니다.")).toBeVisible();
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  expect(trace.patches).toHaveLength(1);
 });

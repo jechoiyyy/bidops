@@ -29,7 +29,9 @@
 }
 
 .c2-page-header h2 {
-  font-size: clamp(1.45rem, 2.2vw, 2rem);
+  font-size: var(--bo-type-page-title);
+  font-weight: var(--bo-type-page-title-weight);
+  line-height: var(--bo-type-page-title-leading);
 }
 
 .c2-page-lede,
@@ -49,7 +51,7 @@
   max-width: 88ch;
   margin: 6px 0 0;
   color: var(--color-muted);
-  font-size: 0.8125rem;
+  font-size: var(--bo-type-caption);
 }
 
 .c2-semantics-note code {
@@ -60,11 +62,10 @@
   font-family: var(--font-mono);
 }
 
-.c2-kicker,
 .c2-card-eyebrow {
   margin: 0 0 4px;
   color: var(--color-muted);
-  font-size: 0.75rem;
+  font-size: var(--bo-type-caption);
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -82,7 +83,7 @@
   border-radius: var(--radius-md);
   background: var(--surface-selected);
   color: var(--color-deep);
-  font-size: 0.8125rem;
+  font-size: var(--bo-type-caption);
   font-weight: 700;
   text-align: right;
 }
@@ -97,7 +98,7 @@
 
 .c2-status-text {
   color: var(--color-muted);
-  font-size: 0.8125rem;
+  font-size: var(--bo-type-caption);
   font-weight: 700;
 }
 
@@ -159,7 +160,7 @@
 .c2-signal dt,
 .c2-feedback-history dt {
   color: var(--color-muted);
-  font-size: 0.75rem;
+  font-size: var(--bo-type-caption);
   font-weight: 700;
 }
 
@@ -235,7 +236,7 @@
 
 .c2-count-grid span {
   color: var(--color-muted);
-  font-size: 0.75rem;
+  font-size: var(--bo-type-caption);
   overflow-wrap: anywhere;
 }
 
@@ -273,7 +274,7 @@
 
 .c2-scroll-table th {
   color: var(--color-muted);
-  font-size: 0.75rem;
+  font-size: var(--bo-type-caption);
 }
 
 .c2-artifact-summary ul,
@@ -325,7 +326,7 @@
 .c2-search-form label,
 .c2-feedback-form label {
   color: var(--color-muted);
-  font-size: 0.8125rem;
+  font-size: var(--bo-type-caption);
   font-weight: 700;
 }
 
@@ -434,12 +435,13 @@
 
 .c2-plan-card h3 {
   max-width: 75ch;
-  font-size: 1.1rem;
+  font-size: var(--bo-type-section-title);
+  font-weight: var(--bo-type-section-title-weight);
+  line-height: var(--bo-type-section-title-leading);
 }
 
 .c2-plan-card h3 a,
-.c2-text-link,
-.c2-back-link {
+.c2-text-link {
   color: var(--color-deep);
   text-decoration: underline;
   text-decoration-thickness: 1px;
@@ -515,12 +517,6 @@
   min-width: 12ch;
   color: var(--color-muted);
   text-align: center;
-}
-
-.c2-back-link {
-  display: inline-block;
-  margin-bottom: var(--space-1);
-  font-weight: 700;
 }
 
 .c2-large-id {
@@ -615,7 +611,7 @@
 
 .c2-attempt-grid dt {
   color: var(--color-muted);
-  font-size: 0.75rem;
+  font-size: var(--bo-type-caption);
   font-weight: 700;
 }
 
@@ -659,7 +655,7 @@
 
 .c2-digest {
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: var(--bo-type-caption);
   overflow-wrap: anywhere;
   word-break: break-all;
 }
@@ -670,23 +666,6 @@
 /* 사람 판단 입력은 본문 열의 패널 안에 있다(단계 F 작업 1). 고정 헤더에 폼째로
    올리던 밀도 전용 변형(.is-compact)은 함께 사라졌다 — 되돌릴 수 없는 입력 form을
    헤더에 두지 않는다. */
-
-/* 1280px가 최소 지원 폭이므로 그보다 좁은 분기는 두지 않는다(ADR-0047).
-   1180px 분기는 남은 하나인데, 이는 사이드바(248px)를 뺀 본문 폭이 1280px
-   화면에서 약 1010px이 되므로 최소 지원 폭에서도 실제로 쓰인다. */
-@media (max-width: 1180px) {
-  .c2-count-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
-  .c2-plan-facts {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-
-
-
 
 /* ============================================================================
  * 발주계획 C-2 목록+판정 통합 화면 (PLAN 1단계, docs/design/PLAN.md §3).
@@ -761,13 +740,27 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-1);
+  min-width: 0;
+}
+
+.c2l-filter-axis > p {
+  margin: 0;
+}
+
+/* 검색은 축 이름 아래에 입력과 실행 버튼을 한 줄로 둔다. */
+.c2l-filter-search-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-width: 0;
 }
 
 .c2l-saved-views {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
-  align-items: flex-end;
+  align-items: center;
   gap: var(--spacing-2);
 }
 
@@ -790,6 +783,127 @@
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-full);
   background: var(--color-background-muted);
+}
+
+/* --- 필터 control 의 조작 affordance ---
+ *
+ * 이 규칙은 preflight 가 Astryx 를 덮던 시절의 임시 복원이 아니다.
+ * `styles/layers.css` 로 layer 순서를 고쳐 Astryx 기본 chrome 이 되살아난 뒤
+ * 다시 재어 보면(1440px 실측), Astryx 기본은 이 자리에 padding 8/12px 과
+ * 배경만 주고 **테두리도 pill 반지름도 주지 않는다.** 시안 `Main` 의 필터는
+ * 테두리 있는 칩이므로 그 차이만 여기서 채운다 — 겹치는 선언이 아니라
+ * 시안과 기본값의 차이다.
+ *
+ * 값은 새로 만들지 않고 토큰만 읽는다(ADR-0048). */
+.c2l-filters :where(.astryx-button, .astryx-toggle-button) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-1);
+  min-height: var(--size-element-md);
+  padding: var(--spacing-1) var(--spacing-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-inner);
+  background: var(--color-background-card);
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+
+.c2l-filters :where(.astryx-button, .astryx-toggle-button):hover {
+  background: var(--color-background-muted);
+}
+
+.c2l-filters :where(.astryx-button, .astryx-toggle-button):focus-visible {
+  outline: var(--focus-outline-width) var(--focus-outline-style) var(--focus-outline-color);
+  outline-offset: var(--focus-outline-offset);
+}
+
+.c2l-filters :where(.astryx-button, .astryx-toggle-button)[aria-disabled="true"],
+.c2l-filters :where(.astryx-button, .astryx-toggle-button):disabled {
+  color: var(--color-text-disabled);
+  background: var(--color-background-muted);
+  cursor: default;
+}
+
+/* 저장된 뷰 chip 안의 삭제는 chip 자체가 테두리를 갖고 있어 다시 두르지 않는다. */
+.c2l-filters .c2l-view-delete {
+  min-height: var(--size-element-sm);
+  padding: 0 var(--spacing-1);
+  border-color: transparent;
+  background: transparent;
+}
+
+.c2l-filters .astryx-text-input,
+.c2l-filters .astryx-selector {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  min-height: var(--size-element-md);
+  min-width: 0;
+  padding: 0 var(--spacing-2);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-inner);
+  background: var(--color-background-card);
+}
+
+.c2l-filters .astryx-text-input:focus-within,
+.c2l-filters .astryx-selector:focus-within {
+  border-color: var(--color-accent);
+}
+
+/* 저장된 뷰가 하나도 없으면 selector 는 비활성이다. 눌러도 되는 것처럼 보이지
+ * 않게 배경과 글자색으로 함께 말한다. */
+.c2l-filters .astryx-selector[data-disabled] {
+  color: var(--color-text-disabled);
+  background: var(--color-background-muted);
+}
+
+/* 토글 축은 다중 선택이다. 미선택도 누를 수 있는 칩으로 보이고, 선택은 채움과
+ * 체크 표시로 함께 말한다 — 색만으로 구분하지 않는다. 접근 가능한 이름은
+ * Astryx 가 `aria-label` 로 고정하므로 체크 표시가 이름을 바꾸지 않는다. */
+.c2l-filters .astryx-toggle-button-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+
+.c2l-filters .astryx-toggle-button {
+  gap: var(--spacing-1-5);
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: var(--radius-full);
+  color: var(--color-text-secondary);
+  background: var(--color-background-surface);
+  font-size: var(--bo-type-caption);
+}
+
+.c2l-filters .astryx-toggle-button:hover {
+  border-color: var(--color-border-emphasized);
+  background: var(--color-background-muted);
+}
+
+.c2l-filters .astryx-toggle-button::before {
+  content: "✓";
+  flex: 0 0 auto;
+  visibility: hidden;
+  font-size: var(--bo-type-caption);
+  line-height: 1;
+}
+
+.c2l-filters .astryx-toggle-button[aria-pressed="true"] {
+  border-color: var(--color-accent);
+  color: var(--color-on-accent);
+  background: var(--color-accent);
+  font-weight: var(--font-weight-semibold);
+}
+
+.c2l-filters .astryx-toggle-button[aria-pressed="true"]::before {
+  visibility: visible;
+}
+
+.c2l-filters .astryx-toggle-button[aria-pressed="true"]:hover {
+  background: var(--color-accent);
+  border-color: var(--color-border-emphasized);
 }
 
 /* --- 목록/상세 workspace --- */
@@ -835,30 +949,37 @@
   padding: var(--spacing-5);
 }
 
+/* 목록 행 — 시안 `Opportunities`·`PreSpecs`의 밀집 행과 같은 골격이다.
+ *
+ * Astryx Item 은 행을 `align-items: center` 인 가로 flex 로 그린다. 이 화면은
+ * 세로 배치로 바꾸면서 그 정렬을 함께 바꾸지 않아, 내용이 행 가운데에 놓이고
+ * 폭이 max-content 로 부풀어 제목과 배지가 좌우로 잘려 나갔다. 세로 배치에서
+ * 필요한 정렬은 `stretch` 다.
+ *
+ * `.c2l-row-wrap`과 `.c2l-row`는 같은 요소에 함께 붙는 클래스다. 두 벌로
+ * 나누어 두면 뒤에 오는 `border: 0`이 앞의 구분선을 지우므로 한 벌로 둔다. */
 .c2l-row-wrap {
   display: flex;
   flex-direction: column;
-  border-bottom: var(--border-width) solid var(--color-border);
-  border-left: 3px solid transparent;
-}
-
-.c2l-row-wrap.is-selected {
-  background: var(--color-background-muted);
-  border-left-color: var(--color-accent);
-}
-
-.c2l-row {
-  display: flex;
-  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
   gap: var(--spacing-1-5);
   width: 100%;
-  padding: var(--spacing-4);
+  min-width: 0;
+  padding: var(--spacing-3) var(--spacing-4);
   border: 0;
+  border-bottom: var(--border-width) solid var(--color-border);
+  border-left: 3px solid transparent;
   background: transparent;
   text-align: left;
   cursor: pointer;
   font: inherit;
   color: inherit;
+}
+
+.c2l-row-wrap.is-selected {
+  background: var(--color-background-muted);
+  border-left-color: var(--color-accent);
 }
 
 .c2l-row:hover {
@@ -870,21 +991,38 @@
   outline-offset: calc(-1 * var(--focus-outline-width));
 }
 
+/* 긴 한글 제목은 두 줄까지 보이고 그 뒤를 말줄임한다. */
 .c2l-row-line {
-  display: flex;
+  display: block;
   min-width: 0;
+}
+
+.c2l-row-line > .astryx-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
 }
 
 .c2l-row-badges {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: var(--spacing-1-5);
 }
 
+/* 배지의 좌우 여백도 전역 preflight 가 지운다(위 필터 주석 참조). 여백이 없으면
+ * 라벨이 배지 테두리에 닿아 마지막 글자가 잘려 보인다. */
+.c2l-row-badges .astryx-badge {
+  padding-inline: var(--spacing-2);
+}
+
 .c2l-row-detail-link {
-  padding: 0 var(--spacing-4) var(--spacing-2);
+  align-self: flex-start;
   color: var(--color-text-accent);
-  font-size: var(--font-size-sm);
+  font-size: var(--bo-type-caption);
   text-decoration: none;
 }
 
@@ -981,7 +1119,7 @@
 .c2l-facts dt {
   flex: 0 0 132px;
   color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
+  font-size: var(--bo-type-caption);
 }
 
 .c2l-facts dd {
@@ -1024,7 +1162,7 @@
 
 .c2l-signal-facts dt {
   color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
+  font-size: var(--bo-type-caption);
 }
 
 .c2l-signal-facts dd {
@@ -1069,7 +1207,7 @@
 .c2l-fact-grid dt,
 .c2l-count-grid dt {
   color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
+  font-size: var(--bo-type-caption);
 }
 
 .c2l-fact-grid dd,
@@ -1110,7 +1248,7 @@
 
 .c2l-attempt-grid dt {
   color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
+  font-size: var(--bo-type-caption);
 }
 
 .c2l-attempt-grid dd {
@@ -1137,7 +1275,7 @@
 
 .c2l-digest {
   font-family: var(--font-family-code);
-  font-size: var(--font-size-sm);
+  font-size: var(--bo-type-caption);
   color: var(--color-text-secondary);
   word-break: break-all;
 }

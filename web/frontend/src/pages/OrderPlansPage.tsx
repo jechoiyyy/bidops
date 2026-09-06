@@ -14,6 +14,8 @@ import { TextArea } from "@astryxdesign/core/TextArea";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { ToggleButton, ToggleButtonGroup } from "@astryxdesign/core/ToggleButton";
 import { Text } from "@astryxdesign/core/Text";
+import { ConfirmDecisionDialog, trackingEndConfirmContent } from "../components/common/ConfirmDecisionDialog";
+import { useUnsavedGuard } from "../components/common/useUnsavedGuard";
 import {
   DenseList,
   DenseListRow,
@@ -30,7 +32,8 @@ import {
   SplitWorkspace,
   StickyDecisionHeader,
 } from "../components/common/ReviewPrimitives";
-import { api, ApiError } from "../lib/api";
+import { api } from "../lib/api";
+import { describeApiError } from "../lib/apiErrors";
 import type {
   OrderPlanFeedbackPriority,
   OrderPlanListItem,
@@ -338,7 +341,7 @@ function ExecutionSummaryLine({ latest, executions }: { latest: OrderPlanScreeni
         variant={statusDotVariant(latest.status)}
         detail={`· ${latest.execution_id.slice(0, 8)} · ${formatMoment(latest.finished_at ?? latest.queued_at)}`}
       />
-      {!latest.execution_allowed ? <Badge variant="error" label="policy/binding 비허용" /> : null}
+      {!latest.execution_allowed ? <Badge variant="error" label="정책·모델 연결 비허용" /> : null}
       {active.length ? <Badge variant="warning" label={`진행 중 실행 ${active.length}건`} /> : null}
     </Stack>
   );
@@ -402,7 +405,7 @@ function TelemetryPanel({
         </div>
         <Stack direction="horizontal" gap={2} align="center">
           <Badge variant={statusTone(execution.status) === "error" ? "error" : statusTone(execution.status) === "warning" ? "warning" : "neutral"} label={execution.status} />
-          <Text type="body" color="secondary">{execution.execution_allowed ? "policy/binding 허용" : "policy/binding 비허용"}</Text>
+          <Text type="body" color="secondary">{execution.execution_allowed ? "정책·모델 연결 허용" : "정책·모델 연결 비허용"}</Text>
         </Stack>
       </div>
 
@@ -412,14 +415,14 @@ function TelemetryPanel({
         <div><dt>policy version</dt><dd>{execution.policy_version}</dd></div>
         <div><dt>population</dt><dd>{formatNumber(execution.population_count)}건</dd></div>
         <div><dt>대상 hash</dt><dd className="c2l-digest">{execution.population_sha256}</dd></div>
-        <div><dt>policy hash</dt><dd className="c2l-digest">{execution.policy_sha256}</dd></div>
-        <div><dt>binding status</dt><dd>{execution.execution_allowed ? "허용됨" : "허용됨이 아님"}</dd></div>
-        <div><dt>binding hash</dt><dd className="c2l-digest">{execution.binding_sha256}</dd></div>
+        <div><dt>정책 해시</dt><dd className="c2l-digest">{execution.policy_sha256}</dd></div>
+        <div><dt>모델 연결 상태</dt><dd>{execution.execution_allowed ? "허용됨" : "허용됨이 아님"}</dd></div>
+        <div><dt>모델 연결 해시</dt><dd className="c2l-digest">{execution.binding_sha256}</dd></div>
       </dl>
 
-      <dl className="c2l-fact-grid" aria-label="단계별 binding">
-        <div><dt>BM25 binding</dt><dd>{execution.stage1_binding_version} · <span className="c2l-digest">{execution.stage1_binding_sha256}</span></dd></div>
-        <div><dt>Qwen binding</dt><dd>{execution.stage2_binding_version} · <span className="c2l-digest">{execution.stage2_binding_sha256}</span></dd></div>
+      <dl className="c2l-fact-grid" aria-label="단계별 모델 연결">
+        <div><dt>BM25 모델 연결</dt><dd>{execution.stage1_binding_version} · <span className="c2l-digest">{execution.stage1_binding_sha256}</span></dd></div>
+        <div><dt>Qwen 모델 연결</dt><dd>{execution.stage2_binding_version} · <span className="c2l-digest">{execution.stage2_binding_sha256}</span></dd></div>
       </dl>
 
       <dl className="c2l-count-grid" aria-label="실행 집계">
@@ -438,9 +441,9 @@ function TelemetryPanel({
       </dl>
 
       <div className="c2l-telemetry-attempts">
-        <Heading level={5}>실행 model / revision / prompt / profile / attempt</Heading>
+        <Heading level={5}>실행 모델 · 수정본 · 프롬프트 · 프로필 · 분석 회차</Heading>
         {detailPending ? <Text type="body" color="secondary" as="p">실행 artifact 요약을 불러오는 중…</Text> : null}
-        {detailError ? <Text type="body" color="secondary" as="p" data-role="alert">실행 상세를 불러오지 못해 artifact·attempt 안전 요약을 확인할 수 없습니다.</Text> : null}
+        {detailError ? <Text type="body" color="secondary" as="p" data-role="alert">실행 상세를 불러오지 못해 산출물·분석 회차 요약을 확인할 수 없습니다.</Text> : null}
         {detail?.attempts.length ? (
           <ol className="c2l-attempt-list">
             {detail.attempts.map((attempt) => (
@@ -460,7 +463,7 @@ function TelemetryPanel({
               </li>
             ))}
           </ol>
-        ) : detail ? <Text type="body" color="secondary" as="p">attempt 기록 없음 (서버 응답)</Text> : null}
+        ) : detail ? <Text type="body" color="secondary" as="p">분석 회차 기록 없음 (서버 응답)</Text> : null}
         <dl className="c2l-fact-grid">
           <div><dt>partial artifact</dt><dd>{execution.partial_artifact ? "있음" : "없음"}</dd></div>
           <div><dt>error code</dt><dd>{execution.error_code === null ? "null (서버 미제공)" : execution.error_code}</dd></div>
@@ -501,6 +504,32 @@ const TRACKING_REASONS = [
   "역량 밖으로 판단",
   "중복·오탐으로 확인",
 ] as const;
+
+/**
+ * 저장되지 않은 입력의 두 묶음. 잃는 조건이 서로 달라 한 값으로 합치지 않는다.
+ *
+ * - `FeedbackDraft`(사람 판단 수정): 선택한 행이 바뀌면 초기화된다. 그래서 **행을
+ *   바꾸는 조작**(행 선택·필터·페이지·넘기기·추적 결정 저장)이 이 값을 묻는다.
+ * - `TrackingDraft`(추적 결정 사유·담당자): 행이 바뀌어도 남고 화면을 떠날 때만
+ *   사라진다. 그래서 **route 이동**만 이 값을 묻는다.
+ *
+ * 사람 판단 수정의 담당자 이름(`actorName`)은 어느 쪽에도 넣지 않는다. 감사 표식이라
+ * 한 번 적고 여러 건에 다시 쓰는 값이고, dirty에 넣으면 이름을 적은 뒤로는 모든 이동이
+ * 확인을 요구해 경고가 뜻을 잃는다.
+ */
+interface FeedbackDraft {
+  relevance: OrderPlanRelevance;
+  priority: OrderPlanFeedbackPriority | "";
+  memo: string;
+}
+
+interface TrackingDraft {
+  reason: string;
+  actor: string;
+}
+
+const EMPTY_FEEDBACK_DRAFT: FeedbackDraft = { relevance: "uncertain", priority: "", memo: "" };
+const EMPTY_TRACKING_DRAFT: TrackingDraft = { reason: TRACKING_REASONS[0], actor: "" };
 
 /**
  * 추적 결정을 기록할 수 있는지의 세 상태. 서로 바꾸지 않는다.
@@ -652,7 +681,7 @@ function VerdictPanel({
       {item.human_feedback ? (
         <Banner
           status="info"
-          title={`최근 사람 피드백: revision ${item.human_feedback.revision}`}
+          title={`최근 사람 피드백: 수정본 ${item.human_feedback.revision}`}
           description={`${item.human_feedback.relevance} · priority ${item.human_feedback.priority ?? "null"} · ${item.human_feedback.claimed_name} · ${formatMoment(item.human_feedback.created_at)}`}
           collapsible={false}
         />
@@ -671,7 +700,7 @@ function VerdictPanel({
           "무엇을 바꾸지 않는가"는 머리에 남고 입력만 숨는다. 저장은 추적 결정과 공유하지
           않고 이 영역이 소유한다. */}
       <ReviewSecondaryInput
-        description="기존 사람 판단을 유지합니다. 추적 결정과는 별도 revision이며 적합성 등급·참여 준비 상태·심층 추적 승인·최종 Go/No-Go를 채우거나 대신하지 않습니다."
+        description="기존 사람 판단을 그대로 둡니다. 추적 결정과는 별도 수정본이며 적합성 등급·참여 준비 상태·심층 추적 승인·최종 Go/No-Go를 채우거나 대신하지 않습니다."
         summary={(
           <Badge
             variant="neutral"
@@ -710,7 +739,7 @@ function VerdictPanel({
         />
 
         <TextInput
-          label="담당자 claimed name"
+          label="사람 판단 담당자 이름"
           value={actorName}
           onChange={onActorNameChange}
           description="감사 귀속용 이름이며 로그인·신원 인증·권한 부여가 아닙니다."
@@ -722,7 +751,7 @@ function VerdictPanel({
           <ReviewDecisionAction
             disabledReason={feedbackDisabledReason}
             isDisabled={!feedbackReady}
-            label="새 revision 저장"
+            label="새 수정본 저장"
             variant="secondary"
             onClick={onSaveFeedback}
           />
@@ -752,7 +781,7 @@ function OrderPlanRow({
           <span className="c2l-row-badges">
             <Badge variant={stage1BadgeVariant(item.stage1_status)} label={stage1RowLabel(item.stage1_status)} />
             <Badge variant={qwenBadgeVariant(item)} label={qwenRowLabel(item)} />
-            <Badge variant="neutral" label={item.human_feedback ? `피드백 rev ${item.human_feedback.revision}` : "피드백 없음"} />
+            <Badge variant="neutral" label={item.human_feedback ? `피드백 수정본 ${item.human_feedback.revision}` : "피드백 없음"} />
           </span>
           <Text type="supporting" color="secondary" as="span">
             {textOrUnknown(item.agency_name)} · {budgetLabel(item.budget_amount)} · {plannedTiming(item.planned_order_year, item.planned_order_month)}
@@ -766,7 +795,9 @@ function OrderPlanRow({
       }
       label={
         <span className="c2l-row-line">
-          <Text type="body" color="primary" maxLines={1}>{textOrUnknown(item.title)}</Text>
+          {/* 긴 한글 제목은 한 줄에 담기지 않는다. 시안 `Opportunities`·`PreSpecs`의
+              목록 행처럼 두 줄까지 보이고 그 뒤를 말줄임한다. */}
+          <Text type="body" color="primary" maxLines={2}>{textOrUnknown(item.title)}</Text>
         </span>
       }
       onSelect={onSelect}
@@ -789,6 +820,9 @@ export function OrderPlansPage() {
 
   const [trackingReason, setTrackingReason] = useState<string>(TRACKING_REASONS[0]);
   const [trackingActor, setTrackingActor] = useState("");
+  // 추적 `종료`만 되돌릴 수 없다. 확인 문구는 사전규격·사업 추적과 같은 자리에서
+  // 만들어 세 화면이 다른 말을 하지 않게 한다.
+  const [endConfirm, setEndConfirm] = useState<ReturnType<typeof trackingEndConfirmContent> | null>(null);
   // 결정 뒤의 안내는 **이동한 뒤의 건**에 붙는다. 선택이 바뀌면 사라지되, 그 이동을 만든
   // 결정의 안내는 남아야 하므로 어느 건에서 보일 문구인지를 함께 들고 다닌다.
   const [trackingMessage, setTrackingMessage] = useState<{ pk: number; text: string } | null>(null);
@@ -798,7 +832,51 @@ export function OrderPlansPage() {
   const [memo, setMemo] = useState("");
   const [actorName, setActorName] = useState("");
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  // 저장 기준점. 저장에 성공하면 그때의 값이 새 기준이 되어 "저장되지 않은 입력"이
+  // 풀린다. 값 자체는 그대로 두므로 사람은 방금 저장한 내용을 계속 볼 수 있다.
+  const [feedbackBaseline, setFeedbackBaseline] = useState<FeedbackDraft>(EMPTY_FEEDBACK_DRAFT);
+  const [trackingBaseline, setTrackingBaseline] = useState<TrackingDraft>(EMPTY_TRACKING_DRAFT);
   const dragStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
+
+  const feedbackDirty = relevance !== feedbackBaseline.relevance
+    || priority !== feedbackBaseline.priority
+    || memo !== feedbackBaseline.memo;
+  const trackingDraftDirty = trackingReason !== trackingBaseline.reason
+    || trackingActor !== trackingBaseline.actor;
+
+  const feedbackDraftSummary = [
+    { label: "사람 판단 수정", value: `relevance ${relevance} · priority ${priority || "미지정"}` },
+    { label: "memo", value: memo.trim() || "값 없음" },
+  ];
+  const routeDraftSummary = [
+    ...(feedbackDirty ? feedbackDraftSummary : []),
+    ...(trackingDraftDirty
+      ? [{ label: "추적 결정 초안", value: `사유 ${trackingReason} · 담당자 ${trackingActor.trim() || "값 없음"}` }]
+      : []),
+  ];
+
+  // route를 떠나면 두 입력이 모두 사라진다. 화면 안의 이동(행·필터·페이지)은 경로가
+  // 바뀌지 않으므로 `pathname` 범위로 두고, 그 이동은 아래에서 자기 문구로 묻는다.
+  const guard = useUnsavedGuard(feedbackDirty || trackingDraftDirty, {
+    blockSpaNavigation: true,
+    scope: "pathname",
+    title: "발주계획 검토 화면을 떠납니다",
+    message: "저장하지 않은 입력이 있습니다. 지금 이동하면 사라지며 저장된 사람 피드백·추적 상태는 바뀌지 않습니다.",
+    summary: routeDraftSummary,
+  });
+
+  /**
+   * 선택한 행이 바뀌는 조작. 사람 판단 수정 입력만 사라지므로 그 사실만 묻는다.
+   * 추적 결정 사유·담당자는 행이 바뀌어도 남으므로 여기서 잃는다고 말하지 않는다.
+   */
+  function withRowGuard(run: () => void) {
+    guard.confirmDiscard(run, {
+      dirty: feedbackDirty,
+      title: "다른 발주계획으로 이동합니다",
+      message: "저장하지 않은 사람 판단 수정 입력은 이 발주계획을 떠나면 사라집니다. 추적 결정 사유와 담당자 이름은 그대로 남습니다.",
+      summary: feedbackDraftSummary,
+    });
+  }
 
   useEffect(() => setSearchText(searchParams.get("q") ?? ""), [searchParams]);
 
@@ -826,6 +904,9 @@ export function OrderPlansPage() {
     return null;
   })();
 
+  // 아래 네 함수는 확인 단계를 갖지 않는 원본이다. 확인은 사람이 누르는 자리
+  // (`changeAxes`, `applyPreset`, `applySavedViewSearch`, `resetFilters`, 페이지 이동)가
+  // 한 번만 건다. 원본끼리 겹쳐 부르면 같은 질문이 두 번 뜬다.
   function applyAxes(next: { qwen?: Set<RelevanceToken>; stage1?: Set<Stage1Token>; feedback?: Set<FeedbackToken>; issue?: boolean; q?: string }) {
     const params = new URLSearchParams(searchParams);
     if (next.qwen) params.set("qwen", serializeTokens(next.qwen));
@@ -837,37 +918,48 @@ export function OrderPlansPage() {
     setSearchParams(params, { replace: true });
   }
 
+  /** 사람이 누르는 필터 축. 필터가 바뀌면 선택한 행도 바뀌므로 먼저 확인한다. */
+  function changeAxes(next: { qwen?: Set<RelevanceToken>; stage1?: Set<Stage1Token>; feedback?: Set<FeedbackToken>; issue?: boolean; q?: string }) {
+    withRowGuard(() => applyAxes(next));
+  }
+
   function applyPreset(presetKey: string) {
     const preset = PRESETS.find((item) => item.key === presetKey);
     if (!preset) return;
-    applyAxes({
-      qwen: new Set(preset.axes.qwen),
-      stage1: new Set(preset.axes.stage1),
-      feedback: new Set(preset.axes.feedback),
-      issue: preset.axes.issue,
-      q: "",
+    withRowGuard(() => {
+      applyAxes({
+        qwen: new Set(preset.axes.qwen),
+        stage1: new Set(preset.axes.stage1),
+        feedback: new Set(preset.axes.feedback),
+        issue: preset.axes.issue,
+        q: "",
+      });
+      setSearchText("");
     });
-    setSearchText("");
   }
 
   function applySavedViewSearch(search: string) {
-    const savedParams = new URLSearchParams(search);
-    const params = new URLSearchParams(searchParams);
-    for (const key of AXIS_KEYS) {
-      if (savedParams.has(key)) params.set(key, savedParams.get(key) ?? "");
-      else params.delete(key);
-    }
-    params.delete("offset");
-    setSearchParams(params, { replace: true });
-    setSearchText(savedParams.get("q") ?? "");
+    withRowGuard(() => {
+      const savedParams = new URLSearchParams(search);
+      const params = new URLSearchParams(searchParams);
+      for (const key of AXIS_KEYS) {
+        if (savedParams.has(key)) params.set(key, savedParams.get(key) ?? "");
+        else params.delete(key);
+      }
+      params.delete("offset");
+      setSearchParams(params, { replace: true });
+      setSearchText(savedParams.get("q") ?? "");
+    });
   }
 
   function resetFilters() {
-    const params = new URLSearchParams(searchParams);
-    for (const key of AXIS_KEYS) params.delete(key);
-    params.delete("offset");
-    setSearchParams(params, { replace: true });
-    setSearchText("");
+    withRowGuard(() => {
+      const params = new URLSearchParams(searchParams);
+      for (const key of AXIS_KEYS) params.delete(key);
+      params.delete("offset");
+      setSearchParams(params, { replace: true });
+      setSearchText("");
+    });
   }
 
   function saveCurrentAsView() {
@@ -894,9 +986,19 @@ export function OrderPlansPage() {
   }
 
   function selectRow(pk: number) {
-    const params = new URLSearchParams(searchParams);
-    params.set("selected", String(pk));
-    setSearchParams(params, { replace: true });
+    withRowGuard(() => {
+      const params = new URLSearchParams(searchParams);
+      params.set("selected", String(pk));
+      setSearchParams(params, { replace: true });
+    });
+  }
+
+  function changeOffset(nextOffset: number) {
+    withRowGuard(() => {
+      const params = new URLSearchParams(searchParams);
+      params.set("offset", String(nextOffset));
+      setSearchParams(params, { replace: true });
+    });
   }
 
   const executionsQuery = useQuery({
@@ -955,10 +1057,13 @@ export function OrderPlansPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibleItems.map((item) => item.order_plan_pk).join(","), selectedPk]);
 
+  // 행이 바뀌면 사람 판단 수정 입력을 초기화한다. 입력을 잃는 것을 사람이 확인한 뒤에만
+  // 여기까지 오도록 이동하는 자리마다 `withRowGuard`를 걸었고, 초기화 자체는 그대로 둔다.
   useEffect(() => {
-    setRelevance("uncertain");
-    setPriority("");
-    setMemo("");
+    setRelevance(EMPTY_FEEDBACK_DRAFT.relevance);
+    setPriority(EMPTY_FEEDBACK_DRAFT.priority);
+    setMemo(EMPTY_FEEDBACK_DRAFT.memo);
+    setFeedbackBaseline(EMPTY_FEEDBACK_DRAFT);
   }, [selectedItem?.order_plan_pk]);
 
   /** 다음 건으로 이동하고 그 건의 PK를 돌려준다. 마지막 건이면 현재 PK를 그대로 돌려준다. */
@@ -993,13 +1098,15 @@ export function OrderPlansPage() {
       actorName,
     ),
     onSuccess: async () => {
-      setSavedMessage("사람 피드백 revision을 저장했습니다. 추적 상태는 바뀌지 않았습니다.");
+      setSavedMessage("사람 피드백 수정본을 저장했습니다. 추적 상태는 바뀌지 않았습니다.");
+      // 저장한 값이 새 기준이 된다. 화면의 입력은 그대로 두고 "저장되지 않은 입력"만 푼다.
+      setFeedbackBaseline({ relevance, priority, memo });
       await queryClient.invalidateQueries({ queryKey: ["order-plan-c2", "list"] });
     },
   });
 
   const ready = Boolean(selectedItem) && Boolean(latestExecution) && actorName.trim().length > 0;
-  const decisionDisabledReason = !actorName.trim() ? "담당자 claimed name을 입력하면 저장할 수 있습니다." : undefined;
+  const decisionDisabledReason = !actorName.trim() ? "담당자 이름을 입력하면 저장할 수 있습니다." : undefined;
 
   // 사람 판단 수정은 저장만 하고 다음 건으로 이동하지 않는다. 이동은 추적 결정이 소유한다.
   function handleSave() {
@@ -1033,6 +1140,9 @@ export function OrderPlansPage() {
       trackingActor,
     ),
     onSuccess: async (saved) => {
+      // 사유·담당자는 다음 건에도 그대로 쓰이므로 비우지 않는다. 저장된 값이 새 기준이
+      // 되어 "저장되지 않은 입력"만 풀린다.
+      setTrackingBaseline({ reason: trackingReason, actor: trackingActor });
       await queryClient.invalidateQueries({ queryKey: ["order-plan-c2", "list"] });
       const nextPk = advanceToNext();
       if (nextPk !== null) {
@@ -1052,25 +1162,52 @@ export function OrderPlansPage() {
           : undefined;
   const trackingReady = Boolean(selectedItem) && trackingDisabledReason === undefined;
 
-  function decideTracking(status: OrderPlanTrackingDecisionStatus) {
-    if (!trackingReady) return;
+  function saveTracking(status: OrderPlanTrackingDecisionStatus) {
     setTrackingMessage(null);
     trackingMutation.mutate(status);
+  }
+
+  /**
+   * 추적 결정은 저장에 성공하면 다음 건으로 이동하므로 사람 판단 수정 입력을 함께
+   * 잃는다. `종료`는 되돌릴 수 없어 이미 확인 단계를 거치므로 그 사실을 같은
+   * 다이얼로그의 요약에 한 줄로 얹고, 되돌릴 수 있는 두 상태만 이탈 확인을 따로 묻는다.
+   */
+  function decideTracking(status: OrderPlanTrackingDecisionStatus) {
+    if (!trackingReady) return;
+    if (status === "종료") {
+      const content = trackingEndConfirmContent({
+        actor: trackingActor,
+        reason: trackingReason,
+        target: `발주계획 ${(selectedItem as OrderPlanListItem).order_plan_unty_no}`,
+      });
+      setEndConfirm({
+        ...content,
+        summary: feedbackDirty
+          ? [...content.summary, { label: "함께 사라지는 입력", value: "저장하지 않은 사람 판단 수정 입력" }]
+          : content.summary,
+      });
+      return;
+    }
+    withRowGuard(() => saveTracking(status));
   }
 
   // 실패 안내도 그 건을 떠나면 사라져야 한다. 다른 건의 결정 바에 남은 오류는 거짓이다.
   useEffect(() => {
     trackingMutation.reset();
+    // 열려 있던 확인 단계도 그 건의 것이다. 다른 건으로 옮겨 가면 닫는다.
+    setEndConfirm(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedItem?.order_plan_pk]);
 
   /** 저장하지 않는다. 상태를 미선택에 그대로 두고 다음 건으로만 이동한다(요청안 §4). */
   function skipCurrent() {
-    trackingMutation.reset();
-    const nextPk = advanceToNext();
-    if (nextPk !== null) {
-      setTrackingMessage({ pk: nextPk, text: "추적 상태를 바꾸지 않고 다음 발주계획으로 이동했습니다. 미선택은 추적 종료가 아닙니다." });
-    }
+    withRowGuard(() => {
+      trackingMutation.reset();
+      const nextPk = advanceToNext();
+      if (nextPk !== null) {
+        setTrackingMessage({ pk: nextPk, text: "추적 상태를 바꾸지 않고 다음 발주계획으로 이동했습니다. 미선택은 추적 종료가 아닙니다." });
+      }
+    });
   }
 
   function updateListWidth(next: number) {
@@ -1097,8 +1234,10 @@ export function OrderPlansPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const listError = listQuery.error instanceof ApiError ? listQuery.error.message : "발주계획 목록을 확인할 수 없습니다.";
-  const executionError = executionsQuery.error instanceof ApiError ? executionsQuery.error.message : "C-2 실행 목록을 확인할 수 없습니다.";
+  // 오류 문구는 화면마다 따로 만들지 않는다. 서버 raw message를 그대로 싣지
+  // 않고 `describeApiError`가 옮긴 문장만 쓴다.
+  const listError = describeApiError(listQuery.error, "발주계획 목록을 확인할 수 없습니다.").title;
+  const executionError = describeApiError(executionsQuery.error, "C-2 실행 목록을 확인할 수 없습니다.").title;
   const returnSearch = searchParams.toString();
   const hasProblem = executionsQuery.isPending || executionHasProblem(latestExecution, executions);
   const descriptionIsOpen = descriptionOpen ?? hasProblem;
@@ -1186,7 +1325,7 @@ export function OrderPlansPage() {
                 type="multiple"
                 label="Qwen relevance 필터"
                 value={Array.from(qwenSet)}
-                onChange={(value) => applyAxes({ qwen: new Set(value as RelevanceToken[]) })}
+                onChange={(value) => changeAxes({ qwen: new Set(value as RelevanceToken[]) })}
               >
                 <ToggleButton value="relevant" label="relevant" />
                 <ToggleButton value="uncertain" label="uncertain" />
@@ -1201,7 +1340,7 @@ export function OrderPlansPage() {
                 type="multiple"
                 label="BM25 stage1 필터"
                 value={Array.from(stage1Set)}
-                onChange={(value) => applyAxes({ stage1: new Set(value as Stage1Token[]) })}
+                onChange={(value) => changeAxes({ stage1: new Set(value as Stage1Token[]) })}
               >
                 <ToggleButton value="selected" label="selected" />
                 <ToggleButton value="filtered_out" label="filtered_out" />
@@ -1217,7 +1356,7 @@ export function OrderPlansPage() {
                 type="multiple"
                 label="사람 피드백 필터"
                 value={Array.from(feedbackSet)}
-                onChange={(value) => applyAxes({ feedback: new Set(value as FeedbackToken[]) })}
+                onChange={(value) => changeAxes({ feedback: new Set(value as FeedbackToken[]) })}
               >
                 <ToggleButton value="has" label="있음" />
                 <ToggleButton value="none" label="없음" />
@@ -1230,19 +1369,25 @@ export function OrderPlansPage() {
                 value="issue"
                 label="실패·거부만"
                 isPressed={issueOn}
-                onPressedChange={(pressed) => applyAxes({ issue: pressed })}
+                onPressedChange={(pressed) => changeAxes({ issue: pressed })}
               />
             </div>
 
-            <div className="c2l-filter-axis">
-              <ReviewFilterTextInput
-                label="제목·계획번호 검색"
-                value={searchText}
-                onChange={setSearchText}
-                onEnter={() => applyAxes({ q: searchText })}
-                placeholder="검색어"
-              />
-              <Button label="검색" size="sm" onClick={() => applyAxes({ q: searchText })} />
+            {/* 검색은 다른 축과 같은 골격(축 이름 → 조작)을 쓰고, 입력과 실행 버튼은
+                한 줄에 같은 높이로 둔다. 둘이 서로 다른 줄에 떠 있으면 어느 버튼이
+                어느 입력을 실행하는지 화면이 말해 주지 못한다. */}
+            <div className="c2l-filter-axis c2l-filter-search">
+              <Text type="label" color="secondary" as="p">제목·계획번호 검색</Text>
+              <div className="c2l-filter-search-row">
+                <ReviewFilterTextInput
+                  label="제목·계획번호 검색"
+                  value={searchText}
+                  onChange={setSearchText}
+                  onEnter={() => changeAxes({ q: searchText })}
+                  placeholder="검색어"
+                />
+                <Button label="검색" size="sm" onClick={() => changeAxes({ q: searchText })} />
+              </div>
             </div>
 
             <div className="c2l-filter-axis c2l-saved-views">
@@ -1272,7 +1417,7 @@ export function OrderPlansPage() {
                   {savedViews.map((view) => (
                     <li key={view.id}>
                       <Text type="supporting" color="secondary" as="span">{view.name}</Text>
-                      <Button label={`${view.name} 삭제`} isIconOnly icon={<span aria-hidden="true">×</span>} size="sm" variant="ghost" onClick={() => deleteSavedView(view.id)} />
+                      <Button className="c2l-view-delete" label={`${view.name} 삭제`} isIconOnly icon={<span aria-hidden="true">×</span>} size="sm" variant="ghost" onClick={() => deleteSavedView(view.id)} />
                     </li>
                   ))}
                 </ul>
@@ -1325,17 +1470,9 @@ export function OrderPlansPage() {
                 ) : null}
                 {hasPrevious || hasNext ? (
                   <nav className="c2l-pager" aria-label="발주계획 목록 페이지">
-                    <Button label="이전" size="sm" variant="secondary" isDisabled={!hasPrevious} onClick={() => {
-                      const params = new URLSearchParams(searchParams);
-                      params.set("offset", String(Math.max(0, offset - PAGE_SIZE)));
-                      setSearchParams(params, { replace: true });
-                    }} />
+                    <Button label="이전" size="sm" variant="secondary" isDisabled={!hasPrevious} onClick={() => changeOffset(Math.max(0, offset - PAGE_SIZE))} />
                     <Text type="supporting" color="secondary">{(offset + 1).toLocaleString("ko-KR")}–{Math.min(offset + visibleItems.length, total).toLocaleString("ko-KR")} / {total.toLocaleString("ko-KR")}</Text>
-                    <Button label="다음" size="sm" variant="secondary" isDisabled={!hasNext} onClick={() => {
-                      const params = new URLSearchParams(searchParams);
-                      params.set("offset", String(offset + PAGE_SIZE));
-                      setSearchParams(params, { replace: true });
-                    }} />
+                    <Button label="다음" size="sm" variant="secondary" isDisabled={!hasNext} onClick={() => changeOffset(offset + PAGE_SIZE)} />
                   </nav>
                 ) : null}
               </aside>
@@ -1387,7 +1524,7 @@ export function OrderPlansPage() {
                           trackingActorName={trackingActor}
                           onTrackingActorNameChange={setTrackingActor}
                           feedbackDisabledReason={decisionDisabledReason}
-                          feedbackError={mutation.isError ? (mutation.error instanceof ApiError ? mutation.error.message : "사람 피드백을 저장하지 못했습니다.") : null}
+                          feedbackError={mutation.isError ? describeApiError(mutation.error, "사람 피드백을 저장하지 못했습니다.").title : null}
                           feedbackReady={ready && !mutation.isPending}
                           onSaveFeedback={handleSave}
                           savedMessage={savedMessage}
@@ -1424,7 +1561,7 @@ export function OrderPlansPage() {
                         <>
                           {trackingMutation.isError ? (
                             <Text type="body" color="secondary" role="alert">
-                              {trackingMutation.error instanceof ApiError ? trackingMutation.error.message : "추적 결정을 저장하지 못했습니다."} 이 발주계획의 추적 상태는 바뀌지 않았습니다.
+                              {describeApiError(trackingMutation.error, "추적 결정을 저장하지 못했습니다.").title} 이 발주계획의 추적 상태는 바뀌지 않았습니다.
                             </Text>
                           ) : null}
                           {trackingMessage?.pk === selectedItem.order_plan_pk ? <Text type="body" color="secondary" role="status">{trackingMessage.text}</Text> : null}
@@ -1477,6 +1614,22 @@ export function OrderPlansPage() {
           ) : null}
         </div>
       ) : null}
+
+      {/* 되돌릴 수 없는 `종료`의 확인 단계. 취소하면 초안은 그대로 남고 요청은 나가지
+          않으며, 저장에 실패하면 다이얼로그는 닫히고 결정 바의 오류 문구가 남는다.
+          확인 문구는 사전규격·사업 추적과 같은 `trackingEndConfirmContent`에서 온다. */}
+      <ConfirmDecisionDialog
+        confirmLabel={endConfirm?.confirmLabel ?? "종료 상태로 저장"}
+        isPending={trackingMutation.isPending}
+        onConfirm={() => {
+          setTrackingMessage(null);
+          trackingMutation.mutate("종료", { onSettled: () => setEndConfirm(null) });
+        }}
+        onOpenChange={(next) => { if (!next) setEndConfirm(null); }}
+        open={endConfirm !== null}
+        summary={endConfirm?.summary ?? []}
+        title={endConfirm?.title ?? "추적을 종료합니다"}
+      />
     </section>
   );
 }

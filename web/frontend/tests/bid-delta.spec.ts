@@ -1,6 +1,12 @@
 import { expect, test, type Page } from "@playwright/test";
 import { mockApi, mockBidDelta, type BidDeltaMockOptions } from "./api-mock";
 
+/** 상세 화면은 자체 브레드크럼을 갖지 않는다. 되돌아가는 길은 상단 경로
+ *  (`nav[aria-label="현재 위치"]`)와 우측 레일의 목록 링크뿐이다. */
+function routeCrumbLink(page: Page, name: string) {
+  return page.locator('nav[aria-label="현재 위치"]').getByRole("link", { name, exact: true });
+}
+
 const comparisonId = "77777777-7777-4777-8777-777777777777";
 
 const bidOpportunity = {
@@ -50,6 +56,14 @@ async function openComparison(page: Page, options: BidDeltaMockOptions = {}) {
   await expect(page.getByRole("heading", { name: "비교 상세", exact: true })).toBeVisible();
 }
 
+// 되돌릴 수 없는 최종 Go/No-Go는 확인 단계를 거쳐야 요청이 나간다. 헤더·본문의
+// 저장 버튼은 확인 다이얼로그를 열 뿐이고, 실제 저장은 이 확인 버튼이 보낸다.
+async function confirmFinalDecision(page: Page, label: string): Promise<void> {
+  const dialog = page.getByRole("alertdialog");
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: label, exact: true }).click();
+}
+
 async function mockOpportunity(page: Page): Promise<void> {
   await page.route("**/api/opportunities/501", async (route) => {
     if (route.request().method() === "GET") {
@@ -67,9 +81,9 @@ test.describe("bid-delta calculation status", () => {
       const calculation = page.locator('[aria-labelledby="bid-delta-calculation-title"]');
       await expect(calculation).toContainText(calculationStatus === "pending" ? "대기 중" : calculationStatus === "running" ? "계산 중" : calculationStatus === "completed" ? "계산 완료" : "계산 실패");
       if (calculationStatus === "pending" || calculationStatus === "running") {
-        await expect(page.getByText("계산 담당 worker는 아직 운영에 없습니다.", { exact: false })).toBeVisible();
+        await expect(page.getByText("계산을 실행하는 프로그램이 아직 운영에 없습니다.", { exact: false })).toBeVisible();
       } else {
-        await expect(page.getByText("계산 담당 worker는 아직 운영에 없습니다.", { exact: false })).toHaveCount(0);
+        await expect(page.getByText("계산을 실행하는 프로그램이 아직 운영에 없습니다.", { exact: false })).toHaveCount(0);
       }
       await expect(page.getByRole("button", { name: "결정 저장", exact: true })).toBeDisabled();
       if (calculationStatus === "failed") {
@@ -143,7 +157,8 @@ test("최종 결정 payload는 actor header와 모든 comparison fence를 포함
   await page.getByLabel("최종 결정", { exact: true }).selectOption("no_go");
   await page.getByLabel("결정 이유", { exact: true }).fill("확인된 범위에서 참여하지 않기로 결정했습니다.");
   await page.getByRole("button", { name: "결정 저장", exact: true }).click();
-  await expect(page.getByText("No-Go 최종 결정을 append-only로 저장했습니다.", { exact: true })).toBeVisible();
+  await confirmFinalDecision(page, "No-Go로 최종 결정 저장");
+  await expect(page.getByText("No-Go 최종 결정을 저장했습니다. 이전 결정은 그대로 남습니다.", { exact: true })).toBeVisible();
   expect(trace.finalDecisionPosts).toHaveLength(1);
   expect(trace.finalDecisionPosts[0].headers["x-bidops-actor-name"]).toBe("UTF-8''%ED%99%8D%EA%B8%B8%EB%8F%99");
   expect(trace.finalDecisionPosts[0].headers["x-bidops-actor-name-format"]).toBe("utf-8-percent-v1");
@@ -168,11 +183,11 @@ test("실패 비교 재시도는 expected version을 보내고 이전 attempt를
   await expect(page.getByRole("button", { name: "재시도", exact: true })).toBeVisible();
   await page.getByLabel("재시도 담당자 이름").fill("재시도 담당자");
   await page.getByRole("button", { name: "재시도", exact: true }).click();
-  await expect(page.getByText("새 계산 attempt를 추가했습니다. 이전 attempt는 보존됩니다.", { exact: true })).toBeVisible();
+  await expect(page.getByText("새 계산 회차를 시작했습니다. 이전 회차는 그대로 남습니다.", { exact: true })).toBeVisible();
   expect(retryTrace.retryPosts[0].body).toMatchObject({ schema_version: "bidops.bid-delta-attempt-create.v1", expected_comparison_version: 2 });
   expect(String(retryTrace.retryPosts[0].body.request_id)).toMatch(/^[0-9a-f-]{36}$/);
-  await expect(page.getByText("Attempt 1회", { exact: true })).toBeVisible();
-  await expect(page.getByText("Attempt 2회", { exact: true })).toBeVisible();
+  await expect(page.getByText("1회차", { exact: true })).toBeVisible();
+  await expect(page.getByText("2회차", { exact: true })).toBeVisible();
 });
 
 test("과거 final decision 이력은 현재성 문자와 함께 append-only로 모두 보인다", async ({ page }) => {
@@ -193,10 +208,13 @@ test("요청 conflict는 typed code를 표시하고 최신 상태를 다시 불�
   await page.getByLabel("최종 결정", { exact: true }).selectOption("go");
   await page.getByLabel("결정 이유", { exact: true }).fill("최신 상태에서도 검토할 이유");
   await page.getByRole("button", { name: "결정 저장", exact: true }).click();
+  await confirmFinalDecision(page, "Go로 최종 결정 저장");
+  // 저장에 실패하면 다이얼로그는 닫히고 기존 인라인 오류 표시가 그대로 보인다.
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
   await expect(page.getByText("오류 코드 bid_delta_comparison_stale", { exact: false })).toBeVisible();
   await expect(page.getByRole("button", { name: "최신 상태 다시 불러오기", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "최신 상태 다시 불러오기", exact: true }).click();
-  await expect(page.getByText("최신 비교와 현재성을 다시 불러왔습니다. 입력한 초안은 유지했습니다.", { exact: true })).toBeVisible();
+  await expect(page.getByText("최신 비교와 최신 여부를 다시 불러왔습니다. 입력한 초안은 그대로 두었습니다.", { exact: true })).toBeVisible();
   await expect(page.getByLabel("최종 결정 담당자 이름")).toHaveValue("홍길동");
   await expect(page.getByLabel("최종 결정", { exact: true })).toHaveValue("go");
   await expect(page.getByLabel("결정 이유", { exact: true })).toHaveValue("최신 상태에서도 검토할 이유");
@@ -214,8 +232,9 @@ test("사업 추적 상세 → delta → 저장 → 상세 이동 흐름을 유�
   await page.getByLabel("최종 결정", { exact: true }).selectOption("go");
   await page.getByLabel("결정 이유", { exact: true }).fill("원문 확인 후 참여합니다.");
   await page.getByRole("button", { name: "결정 저장", exact: true }).click();
-  await expect(page.getByText("Go 최종 결정을 append-only로 저장했습니다.", { exact: true })).toBeVisible();
-  await page.getByRole("link", { name: "← 사업 추적 상세", exact: true }).click();
+  await confirmFinalDecision(page, "Go로 최종 결정 저장");
+  await expect(page.getByText("Go 최종 결정을 저장했습니다. 이전 결정은 그대로 남습니다.", { exact: true })).toBeVisible();
+  await routeCrumbLink(page, "#501").click();
   await expect(page).toHaveURL(/\/opportunities\/501$/);
   await expect(page.getByRole("heading", { name: "사업 추적 상세 #501", exact: true })).toBeVisible();
 });
@@ -230,10 +249,15 @@ test("미저장 최종 결정 초안은 beforeunload와 SPA 이동을 보호한�
     window.dispatchEvent(event);
     return event.defaultPrevented;
   })).toBe(true);
-  page.once("dialog", (dialog) => dialog.dismiss());
-  await page.getByRole("link", { name: "← 사업 추적 상세", exact: true }).click();
+  // 이탈 확인은 브라우저 confirm이 아니라 화면 다이얼로그다. 같은 문구가 본문
+  // 인라인 안내에도 있으므로 alertdialog 안으로 좁혀 찾는다.
+  await routeCrumbLink(page, "#501").click();
+  const unsavedDialog = page.getByRole("alertdialog");
+  await expect(unsavedDialog).toBeVisible();
+  await expect(unsavedDialog).toContainText("저장되지 않은 입찰 최종 결정 초안이 있습니다.");
+  await unsavedDialog.getByRole("button", { name: "계속 편집", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/opportunities/501/bid-delta\\?comparison=${comparisonId}`));
-  await expect(page.getByText("저장되지 않은 입찰 최종 결정 초안이 있습니다.", { exact: false })).toBeVisible();
+  await expect(page.getByLabel("결정 이유", { exact: true })).toHaveValue("아직 저장하지 않은 검토 초안");
 });
 
 // docs/design/PLAN.md 4단계 완료 게이트: 되돌릴 수 없는 최종 Go/No-Go 저장은
@@ -299,9 +323,9 @@ test("우측 레일은 attempt·결정 이력과 연결 링크만 담고 최종 
   await expect(page.locator('[data-review-primitive="sticky-decision-header"]')).toBeVisible();
   await expect(page.locator('[data-review-primitive="history-link-rail"]')).toHaveCount(1);
   await expect(page.locator('[data-review-primitive="decision-action"]')).toHaveCount(1);
-  await expect(rail.getByRole("heading", { name: "계산 attempt 이력", exact: true })).toBeVisible();
+  await expect(rail.getByRole("heading", { name: "계산 회차 이력", exact: true })).toBeVisible();
   await expect(rail.getByRole("heading", { name: "최종 Go/No-Go 저장 이력", exact: true })).toBeVisible();
-  await expect(rail.getByRole("heading", { name: "최종 결정 현재성", exact: true })).toBeVisible();
+  await expect(rail.getByRole("heading", { name: "최종 결정 최신 여부", exact: true })).toBeVisible();
   await expect(rail.getByRole("link", { name: "사업 추적 상세 →", exact: true })).toBeVisible();
   await expect(rail.getByRole("button", { name: "결정 저장", exact: true })).toHaveCount(0);
 });
@@ -317,7 +341,7 @@ test("범주 목록 바로 위에 무엇을 언제 비교했는지 남긴다", a
   await expect(basis).toContainText("대상 입찰공고");
   await expect(basis).toContainText("문서 묶음 상태");
   await expect(basis).toContainText("계산 시각");
-  await expect(basis).toContainText("category policy");
+  await expect(basis).toContainText("범주 정책");
 });
 
 test("저장 조건 셋이 결정 폼 바로 위에서 현재 값과 함께 보인다", async ({ page }) => {
@@ -326,7 +350,7 @@ test("저장 조건 셋이 결정 폼 바로 위에서 현재 값과 함께 보�
   const conditions = page.locator(".bid-delta-save-conditions");
   await expect(conditions.locator("li")).toHaveCount(3);
   await expect(conditions).toContainText("completed");
-  await expect(conditions).toContainText("failed가 아니어야");
+  await expect(conditions).toContainText("분석 실패가 아니어야");
   // 보류는 최종 결정 값이 아니며 기록을 만들지 않는다(단계 F 작업 4).
   await expect(conditions).toContainText("보류는 최종 결정 값이 아니며 저장되지 않습니다");
   // 결정 select에도 보류는 없다.
@@ -345,4 +369,38 @@ test("계산 실패는 헤더에서 비교 재계산으로, 본문 재시도 입
 
   await recalculate.click();
   await expect(page.getByLabel("재시도 담당자 이름")).toBeFocused();
+});
+
+// 화면이 "되돌릴 수 없습니다"라고 쓰면서 submit 한 번에 요청을 보내면 그 문장은
+// 경고가 아니라 사후 설명이다. 최종 Go/No-Go는 확인 단계를 거쳐야 나간다.
+test("최종 결정은 확인 없이는 요청이 나가지 않고 취소하면 초안만 남는다", async ({ page }) => {
+  const trace = await mockBidDelta(page, { calculationStatus: "completed", resultStatus: "changed" });
+  await page.goto(`/opportunities/501/bid-delta?comparison=${comparisonId}`);
+  await expect(page.getByRole("heading", { name: "비교 상세", exact: true })).toBeVisible();
+  await page.getByLabel("최종 결정 담당자 이름").fill("홍길동");
+  await page.getByLabel("최종 결정", { exact: true }).selectOption("go");
+  await page.getByLabel("결정 이유", { exact: true }).fill("양쪽 원문을 확인하고 참여를 결정했습니다.");
+
+  await page.getByRole("button", { name: "결정 저장", exact: true }).click();
+  const dialog = page.getByRole("alertdialog");
+  await expect(dialog).toBeVisible();
+  // 무엇을 저장하는지 다시 보여 준다.
+  await expect(dialog).toContainText("되돌릴 수 없습니다");
+  await expect(dialog).toContainText("Go · 참여");
+  await expect(dialog).toContainText("홍길동");
+  await expect(dialog).toContainText("양쪽 원문을 확인하고 참여를 결정했습니다.");
+  // 확인 전에는 요청이 없다.
+  expect(trace.finalDecisionPosts).toHaveLength(0);
+
+  await dialog.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  expect(trace.finalDecisionPosts).toHaveLength(0);
+  // 취소는 초안을 지우지 않는다.
+  await expect(page.getByLabel("최종 결정", { exact: true })).toHaveValue("go");
+  await expect(page.getByLabel("결정 이유", { exact: true })).toHaveValue("양쪽 원문을 확인하고 참여를 결정했습니다.");
+
+  await page.getByRole("button", { name: "결정 저장", exact: true }).click();
+  await confirmFinalDecision(page, "Go로 최종 결정 저장");
+  await expect(page.getByText("Go 최종 결정을 저장했습니다. 이전 결정은 그대로 남습니다.", { exact: true })).toBeVisible();
+  expect(trace.finalDecisionPosts).toHaveLength(1);
 });
