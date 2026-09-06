@@ -151,7 +151,7 @@ function ConfigurationState({
   onRetry,
 }: Pick<ScreeningRunPanelProps, "policies" | "policiesLoading" | "policiesError" | "profileSnapshots" | "profilesLoading" | "profilesError"> & { onRetry: () => void }) {
   if (policiesLoading || profilesLoading) {
-    return <p className="runs-screening-muted" role="status" aria-live="polite">정책과 프로필 snapshot을 불러오는 중입니다.</p>;
+    return <p className="runs-screening-muted" role="status" aria-live="polite">정책과 프로필 사본을 불러오는 중입니다.</p>;
   }
   if (policiesError || profilesError) {
     return (
@@ -165,7 +165,7 @@ function ConfigurationState({
     return (
       <div className="runs-screening-empty" role="status">
         <strong>실행 가능한 설정이 없습니다.</strong>
-        <p>{policies.length === 0 ? "activation candidate 또는 active 정책이 필요합니다." : "사용할 수 있는 프로필 snapshot이 필요합니다."}</p>
+        <p>{policies.length === 0 ? "activation candidate 또는 active 정책이 필요합니다." : "사용할 수 있는 프로필 사본이 필요합니다."}</p>
       </div>
     );
   }
@@ -288,9 +288,9 @@ export function ScreeningRunPanel({
             </select>
           </label>
           <label className="runs-screening-field">
-            <span>프로필 snapshot <em>필수</em></span>
+            <span>프로필 사본 <em>필수</em></span>
             <select value={selectedProfileVersion} onChange={(event) => onProfileChange(event.target.value)} required disabled={!profileSnapshots.length}>
-              {!profileSnapshots.length ? <option value="">선택 가능한 snapshot 없음</option> : null}
+              {!profileSnapshots.length ? <option value="">선택 가능한 사본 없음</option> : null}
               {profileSnapshots.map((snapshot) => <option value={snapshot.version} key={snapshot.version}>{profileLabel(snapshot)}</option>)}
             </select>
           </label>

@@ -50,7 +50,7 @@ function AttachmentRow({
         <span className="attachment-meta">
           {sourceLabel(attachment.origin)} · {formatBytes(attachment.size_bytes)} · {formatDateTime(attachment.created_at)}
         </span>
-        <span className="attachment-meta">{extractHistoryLabel(attachment.extract_status)} · ready bundle 판단에 사용하지 않음</span>
+        <span className="attachment-meta">{extractHistoryLabel(attachment.extract_status)} · 확정 문서 묶음 판단에 쓰지 않음</span>
       </span>
       <Badge label="읽기 전용 이력" variant="neutral" />
     </div>
@@ -76,7 +76,7 @@ export function AttachmentPanel({ noticePk, attachments, documentPreparationHref
       action={<Badge label={statusLabel} variant="neutral" />}
     >
       <div className="attachment-status-line">
-        <span>legacy 첨부 provenance를 조회하는 영역입니다. 문서 준비 완료나 심층 검토 가능 상태를 뜻하지 않습니다.</span>
+        <span>예전 첨부의 출처를 확인하는 영역입니다. 문서 준비 완료나 심층 검토 가능 상태를 뜻하지 않습니다.</span>
         {procedure?.agency ? <span className="attachment-agency">{procedure.agency}</span> : null}
       </div>
 
@@ -89,12 +89,12 @@ export function AttachmentPanel({ noticePk, attachments, documentPreparationHref
       )}
 
       <div className="attachment-safe-guidance">
-        <strong>다음 행동 · 안전한 문서 bundle 준비</strong>
-        <p>legacy 첨부 이력은 심층 검토 입력으로 사용할 수 없습니다. 원문 격리, 악성코드 검사, 변환·구조화, 문서 역할 확인을 거쳐 ready bundle을 명시적으로 확정하십시오.</p>
+        <strong>다음 행동 · 안전한 문서 묶음 준비</strong>
+        <p>예전 첨부 이력은 심층 검토 입력으로 쓸 수 없습니다. 원문 격리, 악성코드 검사, 변환·구조화, 문서 역할 확인을 거쳐 문서 묶음을 직접 확정하십시오.</p>
         {documentPreparationHref ? (
           <a href={documentPreparationHref}>문서 준비 상태 확인</a>
         ) : (
-          <span>공고 상세의 문서 준비 영역에서 ready bundle 상태를 확인하십시오.</span>
+          <span>공고 상세의 문서 준비 영역에서 문서 묶음 확정 상태를 확인하십시오.</span>
         )}
       </div>
     </Panel>
