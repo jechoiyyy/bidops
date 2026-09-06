@@ -18,6 +18,11 @@ const viewports = {
 const LAYOUT_SPECS = ["**/overflow.spec.ts", "**/design-shell.spec.ts"];
 const PIXEL_SPECS = ["**/pixel-screens.spec.ts"];
 
+// 같은 작업 트리에서 여러 검증이 동시에 돌 때 서로의 build 결과와 port를 밟지 않도록
+// 환경 변수로 분리한다. 기본값은 이전과 같다.
+const previewPort = process.env.PW_PORT ?? "4173";
+const previewOutDir = process.env.PW_OUT_DIR ?? "dist";
+
 export default defineConfig({
   testDir: "./tests",
   fullyParallel: true,
@@ -25,7 +30,7 @@ export default defineConfig({
   retries: 0,
   reporter: [["list"]],
   use: {
-    baseURL: "http://127.0.0.1:4173",
+    baseURL: `http://127.0.0.1:${previewPort}`,
     trace: "retain-on-failure",
   },
   projects: [
@@ -51,8 +56,8 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "npm run build && npm run preview -- --port 4173 --strictPort",
-    url: "http://127.0.0.1:4173",
+    command: `npm run build -- --outDir ${previewOutDir} && npm run preview -- --outDir ${previewOutDir} --port ${previewPort} --strictPort`,
+    url: `http://127.0.0.1:${previewPort}`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },

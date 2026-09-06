@@ -320,3 +320,31 @@
 - 대응: worktree 를 만들 때 그 디렉터리를 주 checkout 에서 복사해 넣는다. gitignore 는
   그대로라 커밋될 수 없다. 같은 이유로 `.env` 도 없어서 `docker compose build` 가 변수
   보간 단계에서 멈춘다 — `--env-file` 로 주 checkout 의 `.env` 를 준다.
+
+## Tailwind preflight 가 Astryx 컴포넌트의 테두리·배경·padding 을 지운다
+
+- 증상: Astryx `ToggleButton`·`TabList`·`Button`·`TextInput` 이 테두리·배경·padding 없이
+  평문처럼 렌더된다. 필터 토글이 눌리는 요소로 보이지 않고 탭 트랙이 없다. 빌드된
+  `astryx.css` 에는 규칙이 다 들어 있고 특이성도 충분하다.
+- 원인: cascade layer 순서를 아무도 선언하지 않아 "처음 등장한 순서"가 됐다.
+  `reset → astryx-base → astryx-theme → properties → theme → base → …` 에서 Tailwind
+  preflight 의 `@layer base` (`*{padding:0;border:0 solid}`,
+  `button,input{background:transparent;border-radius:0}`) 가 `astryx-base` 뒤에 와서
+  layer 우선순위로 이긴다. 특이성과 무관하다.
+- 대응: `web/frontend/src/styles/layers.css` 가 `@layer properties, theme, base, reset,
+  astryx-base, astryx-theme, components, utilities;` 를 선언하고 `main.tsx` 의 **첫 번째**
+  스타일 import 여야 한다(그 뒤에 오는 선언은 순서를 바꾸지 못한다). 화면 CSS 는 unlayered
+  라 이 순서와 무관하게 이긴다.
+- 재발 방지: 컴포넌트가 "스타일이 없어 보이면" 먼저 브라우저 computed style 에서 어느
+  layer 의 규칙이 이겼는지 본다. 빌드된 CSS 의 `@layer` 등장 순서를 grep 하면 30초에 확인된다.
+
+## Astryx `--font-size-*` 는 이 앱에서 이름보다 작은 px 로 계산된다
+
+- 증상: `var(--font-size-sm)` 을 "12px" 로 알고 썼는데 실제 렌더는 10.5px 다. 캡션이
+  지원 폭에서도 읽기 어렵다.
+- 원인: Astryx 토큰은 rem 이고 `theme.css` 가 `:root { font-size: 14px }` 를 둔다.
+  `--font-size-sm`(0.75rem)=10.5px, `--font-size-base`=12.25px, `--font-size-xs`=8.75px.
+- 대응: 화면 글자 크기는 `styles/typography.css` 의 4단(`--bo-type-page-title 20px`,
+  `section-title 14px`, `body 14px`, `caption 12px`)만 쓴다. 최소 12px. root 를 16px 로
+  올리면 Astryx 컴포넌트 전부가 14% 커지므로 택하지 않았다. `var(--font-size-*)` 를 화면
+  CSS 에 새로 쓰지 않는다.
