@@ -1,5 +1,4 @@
-import type { RefObject } from "react";
-import { Link, useLocation, useSearchParams } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
 type IconName = "dashboard" | "queue" | "deadline" | "judgment" | "review" | "profile" | "metrics" | "quality" | "policy" | "runs" | "attachments" | "operations" | "audit" | "order-plan";
 
@@ -37,7 +36,11 @@ const groups: NavGroup[] = [
     label: "탐색과 추적",
     items: [
       { label: "발주계획", path: "/order-plans", icon: "order-plan" },
-      { label: "사전규격", path: "/pre-specs", icon: "judgment" },
+      // 심층 검토 보고서는 사전규격이 여는 화면이다(ADR-0049의 자동 시작
+      // 진입점도 사전규격 상세에 있다). 사업 추적 상세에서 보고서 ID로 열면
+      // 주소의 `from`이 그 사실을 남기고, 그때는 `사업 추적`이 활성이 된다
+      // (route-meta.ts의 `alternateOrigin`).
+      { label: "사전규격", path: "/pre-specs", icon: "judgment", absorbs: ["/deep-reviews"] },
       // 사업 추적이 검토 대기열의 자리를 받는다. 흡수한 옛 경로는 리다이렉트가
       // 아니라 그 화면들의 정식 주소로 남아 있으므로(ADR-0046 결정 8) 그 주소에
       // 있을 때도 이 항목이 활성으로 보인다.
@@ -45,7 +48,7 @@ const groups: NavGroup[] = [
         label: "사업 추적",
         path: "/opportunities",
         icon: "queue",
-        absorbs: ["/queue", "/judgments", "/reviews", "/deadlines", "/deep-reviews"],
+        absorbs: ["/queue", "/judgments", "/reviews", "/deadlines"],
       },
       { label: "최종 Go/No-Go", path: "/go-no-go", icon: "judgment" },
     ],
@@ -102,76 +105,63 @@ function isActiveItem(pathname: string, item: NavItem): boolean {
   return (item.absorbs ?? []).some((absorbed) => isCurrentPath(pathname, absorbed));
 }
 
-export function Sidebar({ navRef, open, onClose }: { navRef: RefObject<HTMLElement | null>; open: boolean; onClose: () => void }) {
+/**
+ * 활성 항목은 화면 metadata가 정한 `activeNavPath`가 먼저 정하고, metadata가
+ * 없는 주소에서만 경로·흡수 목록으로 되돌아간다. 지원 폭이 1280px 이상뿐이라
+ * (ADR-0047) 사이드바는 늘 보이며 서랍으로 접히지 않는다.
+ */
+export function Sidebar({ activeNavPath, runSearch }: { activeNavPath: string | null; runSearch: string }) {
   const { pathname } = useLocation();
-  const [searchParams] = useSearchParams();
-  // 회차 선택은 주소의 run 파라미터에만 남아 있다. 화면을 옮길 때 이 값을 잃으면
-  // 담당자가 고른 회차가 최신 회차로 되돌아가므로, 모든 이동에 그대로 넘긴다.
-  const runSearchParams = new URLSearchParams();
-  if (searchParams.has("run")) runSearchParams.set("run", searchParams.get("run") ?? "");
-  const runSearch = runSearchParams.toString() ? `?${runSearchParams.toString()}` : "";
   const atHome = pathname === "/";
   return (
-    <>
-      <div
-        className={`sidebar-backdrop ${open ? "is-open" : ""}`.trim()}
-        aria-hidden="true"
-        onClick={onClose}
-      />
-      <aside
-        aria-label="주 메뉴"
-        className={`sidebar ${open ? "is-open" : ""}`.trim()}
-        data-shell-region="sidebar"
-        id="primary-navigation"
-        ref={navRef}
+    <aside
+      aria-label="주 메뉴"
+      className="sidebar"
+      data-shell-region="sidebar"
+    >
+      <Link
+        aria-current={atHome ? "page" : undefined}
+        aria-label="RootLab BidOps 대시보드로 이동"
+        className={`sidebar-brand ${atHome ? "is-current" : ""}`.trim()}
+        to={{ pathname: "/", search: runSearch }}
       >
-        <Link
-          aria-current={atHome ? "page" : undefined}
-          aria-label="RootLab BidOps 대시보드로 이동"
-          className={`sidebar-brand ${atHome ? "is-current" : ""}`.trim()}
-          to={{ pathname: "/", search: runSearch }}
-          onClick={onClose}
-        >
-          <img alt="" className="sidebar-brand-logo" src="/rootlab-icon-light.svg" />
-          <span className="sidebar-brand-text">
-            <strong>BidOps</strong>
-            <span>ROOTLAB · 사업기회 모니터링</span>
-          </span>
-        </Link>
-        <nav aria-label="주 메뉴" className="sidebar-nav">
-          {groups.map((group) => (
-            <div className="sidebar-group" key={group.label}>
-              <div className="sidebar-group-label">{group.label}</div>
-              <div className="sidebar-items">
-                {group.items.map((item) => (
-                  <NavLinkItem
-                    active={isActiveItem(pathname, item)}
-                    item={item}
-                    key={item.path}
-                    onNavigate={onClose}
-                    runSearch={runSearch}
-                  />
-                ))}
-              </div>
+        <img alt="" className="sidebar-brand-logo" src="/rootlab-icon-light.svg" />
+        <span className="sidebar-brand-text">
+          <strong>BidOps</strong>
+          <span>ROOTLAB · 사업기회 모니터링</span>
+        </span>
+      </Link>
+      <nav aria-label="주 메뉴" className="sidebar-nav">
+        {groups.map((group) => (
+          <div className="sidebar-group" key={group.label}>
+            <div className="sidebar-group-label">{group.label}</div>
+            <div className="sidebar-items">
+              {group.items.map((item) => (
+                <NavLinkItem
+                  active={activeNavPath !== null ? activeNavPath === item.path : isActiveItem(pathname, item)}
+                  item={item}
+                  key={item.path}
+                  runSearch={runSearch}
+                />
+              ))}
             </div>
-          ))}
-        </nav>
-        <div className="sidebar-footer">
-          <span>기획부 · 사업기획</span>
-          <span>관리자 화면</span>
-        </div>
-      </aside>
-    </>
+          </div>
+        ))}
+      </nav>
+      <div className="sidebar-footer">
+        <span>기획부 · 사업기획</span>
+        <span>관리자 화면</span>
+      </div>
+    </aside>
   );
 }
 
-function NavLinkItem({ item, active, onNavigate, runSearch }: { item: NavItem; active: boolean; onNavigate: () => void; runSearch: string }) {
+function NavLinkItem({ item, active, runSearch }: { item: NavItem; active: boolean; runSearch: string }) {
   return (
     <Link
       aria-current={active ? "page" : undefined}
       className={`sidebar-item ${active ? "is-active" : ""}`.trim()}
       to={{ pathname: item.path, search: runSearch }}
-      onClick={onNavigate}
     >
       <NavIcon name={item.icon} />
       <span>{item.label}</span>

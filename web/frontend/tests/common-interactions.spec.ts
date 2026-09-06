@@ -210,10 +210,10 @@ test("UC-03은 키보드만으로 draft bundle 생성 직전까지 이동한다"
   const trace = await mockPreSpecWorkbench(page);
   await page.goto("/pre-specs/991");
 
-  const actor = page.getByLabel("담당자 claimed name");
-  const create = page.getByRole("button", { name: "새 문서 bundle 만들기" });
+  const actor = page.getByLabel("문서 준비 담당자 이름");
+  const create = page.getByRole("button", { name: "새 문서 묶음 만들기" });
   await expect(create).toBeDisabled();
-  await expect(page.locator(`#${await create.getAttribute("aria-describedby")}`)).toContainText("claimed name을 입력하십시오");
+  await expect(page.locator(`#${await create.getAttribute("aria-describedby")}`)).toContainText("이름을 입력하십시오");
   await tabTo(page, actor);
   await expect(actor).toHaveAttribute("aria-describedby", /description/);
   await page.keyboard.type("문서 담당자");
@@ -228,17 +228,17 @@ test("UC-04는 키보드만으로 append-only 재시작 직전까지 이동한�
   const trace = await mockDeepReviewLifecycle(page, "failed");
   await page.goto("/deep-reviews/fixture-review");
 
-  const actor = page.getByLabel("담당자 claimed name");
-  const retry = page.getByRole("button", { name: "새 attempt로 재시도" });
+  const actor = page.getByLabel("담당자 이름");
+  const retry = page.getByRole("button", { name: "새 분석 회차로 재시도" });
   await expect(retry).toBeDisabled();
-  await expect(page.locator(`#${await retry.getAttribute("aria-describedby")}`)).toContainText("claimed name을 입력하십시오");
+  await expect(page.locator(`#${await retry.getAttribute("aria-describedby")}`)).toContainText("이름을 입력하십시오");
   await tabTo(page, actor);
   await page.keyboard.type("심층 검토자");
   await tabTo(page, retry);
 
   await expectKeyboardTarget(retry);
   await expect(retry).toBeEnabled();
-  await expect(page.getByText("Attempt 1회", { exact: true })).toBeVisible();
+  await expect(page.getByText("1회차", { exact: true })).toBeVisible();
   expect(trace.attemptPosts).toHaveLength(0);
 });
 
@@ -417,7 +417,9 @@ test("심층 검토 보고서 진입점이 사업 추적 화면에 명시된다"
   await expect(entry).toContainText("서버가 사업기회별 보고서 목록을 제공하지 않아");
   await entry.getByLabel("심층 검토 보고서 ID").fill("fixture-review");
   await entry.getByRole("link", { name: "보고서 열기 →" }).click();
-  await expect(page).toHaveURL(/\/deep-reviews\/fixture-review/);
+  await expect(page).toHaveURL(/\/deep-reviews\/fixture-review\?from=opportunities/);
+  // 이 화면에서 연 보고서는 사업 추적 아래로 보인다(route-meta의 alternateOrigin).
+  await expect(page.locator("aside.sidebar .sidebar-item.is-active")).toHaveText("사업 추적");
 });
 
 // docs/design/PLAN.md 단계 E 작업 7 게이트: 대시보드 "지금 처리할 일" 스트립에서
@@ -589,4 +591,117 @@ test("최종 Go/No-Go 목록은 사업 이름과 변경 비교 결과 없음을 
   await expect(rows.first()).toContainText("변경 비교 결과 없음");
   // 받은 목록에서 센 값이라는 사실을 요약이 직접 말한다.
   await expect(page.locator(".gng-summary")).toContainText("전체 총계가 아닙니다");
+});
+
+// 결정 대기 목록은 서버에 집계 엔드포인트가 없어 행마다 workspace를 하나씩
+// 조회한다. 100건을 한꺼번에 받으면 그 자리에서 101 요청이 나갔다 — 화면에
+// 있는 만큼(25건)만 받고 나머지는 페이저 뒤로 둔다.
+test("최종 Go/No-Go 목록은 25건씩 받고 보이는 행만 결정 상태를 조회한다", async ({ page }) => {
+  await mockApi(page);
+  const many = Array.from({ length: 30 }, (_, index) => ({
+    ...opportunity,
+    id: 600 + index,
+    links: [{ ...opportunity.links[0], id: 6000 + index, title: `결정 대기 사업 ${index + 1}` }],
+  }));
+  const listQueries: Array<{ limit: string | null; offset: string | null }> = [];
+  const workspaceIds: number[] = [];
+
+  await page.route(/\/api\/opportunities(\?|$)/, async (route) => {
+    const url = new URL(route.request().url());
+    const limit = Number(url.searchParams.get("limit") ?? "25");
+    const offset = Number(url.searchParams.get("offset") ?? "0");
+    listQueries.push({ limit: url.searchParams.get("limit"), offset: url.searchParams.get("offset") });
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ items: many.slice(offset, offset + limit), total: many.length, limit, offset }),
+    });
+  });
+  await page.route(/\/api\/opportunities\/\d+\/bid-delta/, async (route) => {
+    const matched = /\/api\/opportunities\/(\d+)\/bid-delta/.exec(new URL(route.request().url()).pathname);
+    workspaceIds.push(Number(matched?.[1] ?? 0));
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        schema_version: "bidops.bid-delta-workspace.v1",
+        opportunity_id: Number(matched?.[1] ?? 0),
+        baseline_candidates: [],
+        comparison_candidates: [],
+        comparisons: [],
+        latest_final_decision: null,
+        final_decisions: [],
+        decision_currentness: "unknown",
+      }),
+    });
+  });
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/go-no-go?show=all");
+
+  await expect(page.locator(".gng-row")).toHaveCount(25);
+  expect(listQueries[0]).toEqual({ limit: "25", offset: "0" });
+  await expect.poll(() => new Set(workspaceIds).size).toBe(25);
+  // 요약은 여전히 받은 목록에서 센 값이며 전체 총계가 아니라고 밝힌다.
+  await expect(page.locator(".gng-summary")).toContainText("받은 25건 기준");
+  await expect(page.locator(".gng-summary")).toContainText("전체 총계가 아닙니다");
+
+  const pager = page.getByRole("navigation", { name: "사업기회 목록 페이지" });
+  await expect(pager).toContainText("1–25 / 30");
+  await expect(pager.getByRole("button", { name: "이전" })).toBeDisabled();
+  await pager.getByRole("button", { name: "다음" }).click();
+
+  await expect(page.locator(".gng-row")).toHaveCount(5);
+  await expect.poll(() => new URL(page.url()).searchParams.get("offset")).toBe("25");
+  await expect.poll(() => new Set(workspaceIds).size).toBe(30);
+});
+
+// 저장 알림은 읽는 동안 사라지면 안 된다. 자동 소멸 시간을 늘리고, hover·focus
+// 중에는 시간을 세지 않는다.
+test("저장 알림은 hover 중에 사라지지 않고 명시적으로 닫을 수 있다", async ({ page }) => {
+  const trace = await mockDeepReviewLifecycle(page, "failed");
+  await page.goto("/deep-reviews/fixture-review");
+
+  await page.getByLabel("담당자 이름").fill("알림 담당자");
+  await page.getByRole("button", { name: "새 분석 회차로 재시도" }).click();
+
+  const toast = page.locator(".toast");
+  await expect(toast).toBeVisible();
+  await toast.hover();
+  await expect(toast).toHaveAttribute("data-toast-held", "true");
+  // 옛 자동 소멸 시간(6초)을 넘겨도 hover 중에는 남아 있다.
+  await page.waitForTimeout(7_000);
+  await expect(toast).toBeVisible();
+
+  await toast.getByRole("button", { name: "알림 닫기" }).click();
+  await expect(page.locator(".toast")).toHaveCount(0);
+  expect(trace.attemptPosts).toHaveLength(1);
+});
+
+// 되돌릴 수 없는 결정의 확인 단계는 키보드만으로도 취소할 수 있어야 한다.
+// 열릴 때 초점은 취소에 있고 Esc는 취소이며, 확인 전에는 요청이 나가지 않는다.
+test("UC-05 추적 종료 확인 단계는 취소에 초점이 오고 Esc로 요청 없이 닫힌다", async ({ page }) => {
+  const trace = await mockOpportunity(page);
+  await page.goto("/opportunities/501");
+
+  await page.getByRole("button", { name: "추적 상태 변경 열기" }).click();
+  await page.locator(".opportunity-tracking-form select").selectOption("종료");
+  await page.getByLabel("이유").fill("현재 범위와 맞지 않아 능동 추적을 종료합니다.");
+  await page.getByLabel("담당자 이름").fill("홍길동");
+
+  const save = page.getByRole("button", { name: "추적 상태 저장" });
+  await expect(save).toBeEnabled();
+  await tabTo(page, save);
+  await page.keyboard.press("Enter");
+
+  const dialog = page.getByRole("alertdialog");
+  await expect(dialog).toBeVisible();
+  const cancel = dialog.getByRole("button", { name: "취소", exact: true });
+  await expectKeyboardTarget(cancel);
+  expect(trace.patchCount()).toBe(0);
+
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  expect(trace.patchCount()).toBe(0);
+  await expect(page.getByLabel("이유")).toHaveValue("현재 범위와 맞지 않아 능동 추적을 종료합니다.");
 });

@@ -201,18 +201,20 @@ export function DashboardPage() {
     staleTime: 60_000,
   });
 
-  const actionItems: ActionItem[] = [
-    ...runScopedActionItems(statsQuery.data, runId),
-    ...cumulativeActionItems({
-      status: orderPlanReviewQuery.status,
-      count: orderPlanReviewQuery.data ?? null,
-    }),
-  ];
+  // 네 결정은 첫 줄에 고정하고, 회차 통계에서만 나오는 보조 항목은 아래 줄에
+  // 둔다. 둘을 한 줄에 섞으면 "지금 결정할 일"이 회차 자료 확인과 같은 무게로
+  // 보인다(docs/design/PRD.md §3.2 대시보드).
+  const decisionItems: ActionItem[] = cumulativeActionItems({
+    status: orderPlanReviewQuery.status,
+    count: orderPlanReviewQuery.data ?? null,
+  });
+  const runScopedItems: ActionItem[] = runScopedActionItems(statsQuery.data, runId);
+  const actionStrip = <ActionStrip decisions={decisionItems} runScoped={runScopedItems} />;
 
   if (!runId) {
     return (
       <div className="dashboard-page">
-        <ActionStrip items={actionItems} />
+        {actionStrip}
         <EmptyState title="선택된 회차가 없습니다." description="상단의 실행 회차 선택기에서 회차를 선택하면 회차 지표를 확인합니다. 위 항목은 회차와 무관하게 항상 확인할 수 있습니다." />
       </div>
     );
@@ -221,7 +223,7 @@ export function DashboardPage() {
   if (statsQuery.isLoading || validationQuery.isLoading) {
     return (
       <div className="dashboard-page">
-        <ActionStrip items={actionItems} />
+        {actionStrip}
         <div className="dashboard-loading" role="status" aria-live="polite">선택한 회차의 대시보드 데이터를 불러오는 중입니다.</div>
       </div>
     );
@@ -230,7 +232,7 @@ export function DashboardPage() {
   if (statsQuery.error || validationQuery.error) {
     return (
       <div className="dashboard-page">
-        <ActionStrip items={actionItems} />
+        {actionStrip}
         <EmptyState
           title="대시보드 데이터를 불러오지 못했습니다."
           description={errorMessage(statsQuery.error ?? validationQuery.error)}
@@ -245,7 +247,7 @@ export function DashboardPage() {
   if (!stats || !validation) {
     return (
       <div className="dashboard-page">
-        <ActionStrip items={actionItems} />
+        {actionStrip}
         <EmptyState title="대시보드 데이터 없음" description="선택한 회차에 표시할 응답이 없습니다." />
       </div>
     );
@@ -263,7 +265,7 @@ export function DashboardPage() {
 
   return (
     <div className="dashboard-page">
-      <ActionStrip items={actionItems} />
+      {actionStrip}
 
       <section className="dashboard-kpi-grid" aria-label="회차 주요 지표">
         <KpiCard

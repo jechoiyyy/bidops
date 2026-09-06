@@ -22,8 +22,10 @@ test.describe("심층 검토 보고서 접근성·반응형 계약", () => {
     await page.goto("/deep-reviews/fixture-review");
 
     await expect(page.getByText("분석 진행 상태를 제한된 간격으로 자동 갱신하고 있습니다.")).toBeVisible();
-    await expect(page.getByRole("button", { name: "새 attempt로 재시도" })).toHaveCount(0);
-    await expect(page.getByRole("heading", { name: "시스템 권고" })).toBeVisible({ timeout: 6_000 });
+    await expect(page.getByRole("button", { name: "새 분석 회차로 재시도" })).toHaveCount(0);
+    // 폴링은 1초 고정이 아니라 2초에서 시작해 경과에 따라 느려진다. 완주까지의
+    // 실제 시간이 늘었으므로 대기 예산도 그만큼 준다.
+    await expect(page.getByRole("heading", { name: "시스템 권고" })).toBeVisible({ timeout: 15_000 });
 
     expect(trace.reviewGets).toBeGreaterThanOrEqual(3);
     expect(trace.reportGets).toBe(1);
@@ -35,7 +37,8 @@ test.describe("심층 검토 보고서 접근성·반응형 계약", () => {
     expect(trace.events).not.toContain("report:running");
 
     const terminalReadCount = trace.reviewGets;
-    await page.waitForTimeout(1_300);
+    // 가장 빠른 폴링 간격(2초)보다 길게 기다려야 "멈췄다"가 증명된다.
+    await page.waitForTimeout(2_600);
     expect(trace.reviewGets).toBe(terminalReadCount);
     await expect(page.getByText("분석 진행 상태를 제한된 간격으로 자동 갱신하고 있습니다.")).toHaveCount(0);
   });
@@ -93,9 +96,12 @@ test.describe("심층 검토 보고서 접근성·반응형 계약", () => {
     expect(reportRequests).toBe(4);
   });
 
+  // 오류 문구는 정책 하나가 정한다(`src/lib/apiErrors.ts`). 화면은 서버 raw
+  // message를 옮겨 적지 않고, 안전한 코드만 표식으로 남기며, 다음 행동을 함께
+  // 말한다. 404는 지금 할 수 있는 행동이 없으므로 버튼도 없다.
   for (const fixture of [
-    { status: 404, code: "not_found", message: "보고서를 찾을 수 없습니다" },
-    { status: 500, code: "processing_failed", message: "심층 검토를 완료할 수 없습니다" },
+    { status: 404, code: "not_found", message: "보고서를 찾을 수 없습니다", title: "대상을 찾을 수 없습니다.", hasRecovery: false },
+    { status: 500, code: "processing_failed", message: "심층 검토를 완료할 수 없습니다", title: "작업을 완료하지 못했습니다.", hasRecovery: true },
   ]) {
     test(`report ${fixture.status}는 자동 재시도하거나 성공 처리하지 않는다`, async ({ page }) => {
       await mockDeepReviewLifecycle(page, "completed");
@@ -113,27 +119,80 @@ test.describe("심층 검토 보고서 접근성·반응형 계약", () => {
       });
 
       await page.goto("/deep-reviews/fixture-review");
-      await expect(page.getByRole("alert")).toContainText(`${fixture.message} · 오류 코드 ${fixture.code}`);
+      const alert = page.getByRole("alert");
+      await expect(alert).toContainText(fixture.title);
+      await expect(alert).toContainText(`오류 코드 ${fixture.code}`);
+      // 서버 message는 UI 전송 계약이 아니다(docs/security.md).
+      await expect(page.getByText(fixture.message)).toHaveCount(0);
       await page.waitForTimeout(1_200);
       expect(reportRequests).toBe(1);
       await expect(page.getByRole("heading", { name: "시스템 권고" })).toHaveCount(0);
-      await expect(page.getByRole("button", { name: "보고서 다시 조회" })).toHaveCount(0);
+      await expect(page.getByRole("button", { name: "보고서 다시 조회" }))
+        .toHaveCount(fixture.hasRecovery ? 1 : 0);
+      // 다음 행동 버튼이 있어도 사람이 누르기 전에는 요청이 나가지 않는다.
+      expect(reportRequests).toBe(1);
     });
   }
+
+  // 화면이 아는 안전한 코드는 코드별 한국어 문구를 갖고, 서버 문장은 버린다.
+  test("오류 상태는 서버 원문을 내지 않고 다음 행동 버튼을 가진다", async ({ page }) => {
+    const secret = "internal detail /srv/bidops/prompt.json";
+    await mockDeepReviewLifecycle(page, "completed");
+    await page.route("**/api/deep-reviews/fixture-review/report", async (route) => {
+      await route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({ error: { code: "service_unavailable", message: secret, details: null }, request_id: null }),
+      });
+    });
+
+    await page.goto("/deep-reviews/fixture-review");
+    const alert = page.getByRole("alert");
+    await expect(alert).toContainText("서비스를 일시적으로 사용할 수 없습니다.");
+    await expect(alert).toContainText("잠시 뒤 다시 시도");
+    await expect(alert).toContainText("오류 코드 service_unavailable");
+    await expect(page.getByText(secret)).toHaveCount(0);
+    await expect(alert.getByRole("button", { name: "보고서 다시 조회" })).toBeVisible();
+  });
+
+  // 담당자 이름은 화면마다 다시 묻지 않는다. 감사 표식일 뿐 인증이 아니므로
+  // 이 브라우저에 남겨도 권한이 생기지 않는다는 사실을 함께 적는다.
+  test("담당자 이름은 새로고침 뒤에도 채워진다", async ({ page }) => {
+    await mockDeepReviewLifecycle(page, "completed");
+    await page.goto("/deep-reviews/fixture-review");
+
+    const actor = page.getByLabel("담당자 이름");
+    await actor.fill("기억되는 담당자");
+    await expect(page.locator(".deep-review-actor-panel")).toContainText("로그인이나 신원 인증이 아닙니다");
+
+    await page.reload();
+    await expect(page.getByLabel("담당자 이름")).toHaveValue("기억되는 담당자");
+  });
+
+  // 한 화면 안에서 같은 값을 두 번 묻지 않는다. 재시도·수정본 저장·의견 저장이
+  // 모두 이 하나를 쓴다.
+  test("담당자 이름 입력은 화면에 하나뿐이고 비활성 사유가 다른 자리를 가리키지 않는다", async ({ page }) => {
+    await mockDeepReviewLifecycle(page, "completed");
+    await page.goto("/deep-reviews/fixture-review");
+
+    await expect(page.getByLabel("담당자 이름")).toHaveCount(1);
+    await expect(page.locator("#deep-review-revision-disabled")).not.toContainText("아래");
+    await expect(page.locator(".deep-review-side").getByLabel("담당자 이름")).toHaveCount(0);
+  });
 
   test("failed current attempt만 새 request ID로 한 번 재시도하고 이전 이력을 보존한다", async ({ page }) => {
     const trace = await mockDeepReviewLifecycle(page, "failed");
     await page.goto("/deep-reviews/fixture-review");
 
-    await expect(page.getByRole("heading", { name: "새 attempt로 재시도" })).toBeVisible();
-    await expect(page.getByText("Attempt 1회", { exact: true })).toBeVisible();
-    await page.getByLabel("담당자 claimed name").fill("홍길동");
-    await page.getByRole("button", { name: "새 attempt로 재시도" }).click();
+    await expect(page.getByRole("heading", { name: "새 분석 회차로 재시도" })).toBeVisible();
+    await expect(page.getByText("1회차", { exact: true })).toBeVisible();
+    await page.getByLabel("담당자 이름").fill("홍길동");
+    await page.getByRole("button", { name: "새 분석 회차로 재시도" }).click();
 
-    await expect(page.getByText("새 attempt 2회가 추가되었습니다. 기존 실패 이력은 보존됩니다.")).toBeVisible();
-    await expect(page.getByText("Attempt 1회", { exact: true })).toBeVisible();
-    await expect(page.getByText("Attempt 2회", { exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "새 attempt로 재시도" })).toHaveCount(0);
+    await expect(page.getByText("분석 회차 2회를 새로 시작했습니다. 기존 실패 이력은 그대로 남습니다.")).toBeVisible();
+    await expect(page.getByText("1회차", { exact: true })).toBeVisible();
+    await expect(page.getByText("2회차", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "새 분석 회차로 재시도" })).toHaveCount(0);
     expect(trace.attemptPosts).toHaveLength(1);
     expect(trace.attemptPosts[0].body.request_id).toMatch(/^[0-9a-f-]{36}$/);
     expect(trace.attemptPosts[0].headers["x-bidops-actor-name"]).toBe("UTF-8''%ED%99%8D%EA%B8%B8%EB%8F%99");
@@ -142,7 +201,7 @@ test.describe("심층 검토 보고서 접근성·반응형 계약", () => {
     expect(overflow).toBeLessThanOrEqual(1);
   });
 
-  test("retry typed 오류의 안전한 code와 message를 함께 표시한다", async ({ page }) => {
+  test("retry typed 오류의 안전한 code와 다음 행동을 함께 표시한다", async ({ page }) => {
     await mockDeepReviewLifecycle(page, "failed");
     await page.route("**/api/deep-reviews/fixture-review/attempts", async (route) => {
       await route.fulfill({
@@ -155,9 +214,13 @@ test.describe("심층 검토 보고서 접근성·반응형 계약", () => {
       });
     });
     await page.goto("/deep-reviews/fixture-review");
-    await page.getByLabel("담당자 claimed name").fill("fixture actor");
-    await page.getByRole("button", { name: "새 attempt로 재시도" }).click();
-    await expect(page.getByRole("alert")).toContainText("이미 실행 중인 attempt가 있습니다 · 오류 코드 active_attempt_exists");
+    await page.getByLabel("담당자 이름").fill("fixture actor");
+    await page.getByRole("button", { name: "새 분석 회차로 재시도" }).click();
+    const alert = page.getByRole("alert");
+    // 코드는 그대로 남기고 문구는 화면이 소유한다. 서버 문장을 옮겨 적지 않는다.
+    await expect(alert).toContainText("이미 실행 중인 분석 회차가 있습니다.");
+    await expect(alert).toContainText("오류 코드 active_attempt_exists");
+    await expect(page.getByText("이미 실행 중인 attempt가 있습니다")).toHaveCount(0);
   });
 
   test("사전규격 심층검토 의견 초안을 이탈 보호하고 저장 결과를 live feedback으로 알린다", async ({ page }) => {
@@ -165,7 +228,7 @@ test.describe("심층 검토 보고서 접근성·반응형 계약", () => {
     await page.goto("/deep-reviews/fixture-review");
     await expect(page.getByRole("heading", { name: "사전규격 심층검토 의견 추가" })).toBeVisible();
 
-    await page.getByLabel("담당자 claimed name").fill("검토 담당자");
+    await page.getByLabel("담당자 이름").fill("검토 담당자");
     await page.getByLabel("심층검토 의견 사유").fill("근거 확인 뒤 계속 검토합니다.");
     await expect(page.getByText(/저장되지 않은 심층검토 초안/)).toBeVisible();
     const blocked = await page.evaluate(() => {
@@ -175,8 +238,10 @@ test.describe("심층 검토 보고서 접근성·반응형 계약", () => {
     });
     expect(blocked).toBe(true);
 
-    await page.getByRole("button", { name: "심층검토 의견 append" }).click();
-    await expect(page.getByText("사전규격 심층검토 의견을 append-only로 저장했습니다.")).toBeVisible();
+    await page.getByRole("button", { name: "심층검토 의견 추가" }).click();
+    // append-only 기록이라 저장 뒤 지울 수 없다. 확인 단계를 거쳐야 요청이 나간다.
+    await page.getByRole("alertdialog").getByRole("button", { name: "심층검토 의견 저장 · 보류", exact: true }).click();
+    await expect(page.getByText("사전규격 심층검토 의견을 추가했습니다. 이전 기록은 그대로 남습니다.")).toBeVisible();
     await expect(page.getByText(/저장되지 않은 심층검토 초안/)).toHaveCount(0);
     expect(trace.opinionPosts).toHaveLength(1);
     expect(trace.opinionPosts[0].body.reason).toBe("근거 확인 뒤 계속 검토합니다.");
@@ -189,38 +254,34 @@ test.describe("심층 검토 보고서 접근성·반응형 계약", () => {
 
     await page.getByLabel("절 내용").fill("저장되지 않은 보고서 수정본");
     await page.getByLabel("수정 사유").fill("수정본 이탈 보호 확인");
-    await page.getByLabel("사실 변경 evidence ID (쉼표 구분)").fill("fixture-evidence-1");
+    await page.getByLabel("사실을 바꾼 근거 식별자 (쉼표 구분)").fill("fixture-evidence-1");
     await page.getByLabel("심층검토 의견 사유").fill("저장되지 않은 의견");
 
-    const messages: string[] = [];
-    page.on("dialog", async (dialog) => {
-      messages.push(dialog.message());
-      if (messages.length === 1) await dialog.dismiss();
-      else await dialog.accept();
-    });
-
+    // 이탈 확인은 브라우저 `window.confirm`이 아니라 화면의 확인 다이얼로그다
+    // (`useUnsavedGuard`). 취소하면 초안이 그대로 남고, 명시적으로 허용해야
+    // 이동한다.
+    // 사이드바는 항상 보인다(ADR-0047: 지원 폭 1280px 이상, 드로어 없음).
     const openDashboard = async () => {
-      const dashboard = page.getByRole("link", { name: "대시보드", exact: true });
-      const menuButton = page.getByRole("button", { name: "주 메뉴 열기" });
-      if (await menuButton.isVisible()) {
-        await menuButton.click();
-        await expect(dashboard).toBeVisible();
-      }
-      await dashboard.click();
+      await page.getByRole("link", { name: "대시보드", exact: true }).click();
     };
 
     await openDashboard();
+    const guard = page.getByRole("alertdialog");
+    await expect(guard).toBeVisible();
+    await expect(guard).toContainText("저장되지 않은 심층검토 초안이 있습니다.");
+    await guard.getByRole("button", { name: "계속 편집", exact: true }).click();
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
+
     await expect(page).toHaveURL(/\/deep-reviews\/fixture-review$/);
     await expect(page.getByLabel("절 내용")).toHaveValue("저장되지 않은 보고서 수정본");
-    await expect(page.getByLabel("사실 변경 evidence ID (쉼표 구분)")).toHaveValue("fixture-evidence-1");
+    await expect(page.getByLabel("사실을 바꾼 근거 식별자 (쉼표 구분)")).toHaveValue("fixture-evidence-1");
     await expect(page.getByLabel("심층검토 의견 사유")).toHaveValue("저장되지 않은 의견");
 
     await openDashboard();
+    const secondGuard = page.getByRole("alertdialog");
+    await expect(secondGuard).toContainText("저장되지 않은 심층검토 초안이 있습니다.");
+    await secondGuard.getByRole("button", { name: "저장하지 않고 이동", exact: true }).click();
     await expect.poll(() => new URL(page.url()).pathname).toBe("/");
-    expect(messages).toEqual([
-      "저장되지 않은 심층검토 초안이 있습니다. 이 페이지를 벗어나시겠습니까?",
-      "저장되지 않은 심층검토 초안이 있습니다. 이 페이지를 벗어나시겠습니까?",
-    ]);
   });
 });
 
@@ -239,14 +300,14 @@ test("심층 검토 보고서는 상단 카드 5개와 결정 카드 요약 표�
   await expect(cards.nth(0)).toContainText("종합 판단");
   await expect(cards.nth(1)).toContainText("검증 결과");
   await expect(cards.nth(2)).toContainText("미확인 사항");
-  await expect(cards.nth(3)).toContainText("보고서 revision");
-  await expect(cards.nth(3)).toContainText("append-only");
+  await expect(cards.nth(3)).toContainText("보고서 수정본");
+  await expect(cards.nth(3)).toContainText("추가만 기록");
   await expect(cards.nth(4)).toContainText("품질 표식");
   await expect(cards.nth(4)).toContainText("참조 실행 · 품질 미측정");
 
   // 계약에 없는 축(참여 준비 상태)을 카드로 채우지 않고 그 사실을 밝힌다.
   await expect(page.locator(".deep-review-summary-note")).toContainText("참여 준비 상태");
-  await expect(page.locator(".deep-review-summary-note")).toContainText("보고서 계약에 그 값이 없습니다");
+  await expect(page.locator(".deep-review-summary-note")).toContainText("보고서 계약에 그 값이 없으므로");
 
   const table = page.getByRole("table", { name: "결정 카드 요약" });
   await expect(table).toBeVisible();
@@ -268,13 +329,45 @@ test("우측 열은 보고서 범위·문서 inventory·수정본 저장·이력
   await expect(side.getByRole("heading", { name: "보고서 수정본 편집", exact: true })).toBeVisible();
   await expect(side.getByRole("heading", { name: "보고서 이력과 연결", exact: true })).toBeVisible();
 
-  // 수정본은 새 immutable revision이며 담당자 claimed name을 필수로 받는다.
-  await expect(side).toContainText("새 immutable 수정본으로 추가합니다");
+  // 수정본은 새 기록으로 쌓이며 담당자 이름을 필수로 받는다.
+  await expect(side).toContainText("이전 수정본을 덮어쓰지 않으며");
   const save = side.getByRole("button", { name: "새 보고서 수정본 저장", exact: true });
   await expect(save).toBeDisabled();
-  await expect(page.locator("#deep-review-revision-disabled")).toContainText("claimed name을 입력하십시오");
+  await expect(page.locator("#deep-review-revision-disabled")).toContainText("이름을 입력하십시오");
 
   // 되돌릴 수 없는 결정(사전규격 심층검토 의견)은 본문 열에 남는다.
-  await expect(side.getByRole("button", { name: "심층검토 의견 append", exact: true })).toHaveCount(0);
-  await expect(page.locator(".deep-review-report-main").getByRole("button", { name: "심층검토 의견 append", exact: true })).toHaveCount(1);
+  await expect(side.getByRole("button", { name: "심층검토 의견 추가", exact: true })).toHaveCount(0);
+  await expect(page.locator(".deep-review-report-main").getByRole("button", { name: "심층검토 의견 추가", exact: true })).toHaveCount(1);
+});
+
+// 심층검토 의견은 append-only라 저장 뒤 지울 수 없다. 클릭 한 번에 나가지 않고
+// 확인 단계를 거치며, 취소하면 요청도 초안 손실도 없다.
+test("심층검토 의견은 확인 없이는 요청이 나가지 않고 취소하면 초안만 남는다", async ({ page }) => {
+  await mockApi(page);
+  const trace = await mockDeepReviewLifecycle(page, "completed");
+  await page.goto("/deep-reviews/fixture-review");
+  await expect(page.getByRole("heading", { name: "사전규격 심층검토 의견 추가" })).toBeVisible();
+
+  await page.getByLabel("담당자 이름").fill("검토 담당자");
+  await page.getByLabel("심층검토 의견 사유").fill("근거를 다시 확인한 뒤 보류합니다.");
+  await page.getByRole("button", { name: "심층검토 의견 추가" }).click();
+
+  const dialog = page.getByRole("alertdialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("되돌릴 수 없습니다");
+  await expect(dialog).toContainText("추가만 기록");
+  await expect(dialog).toContainText("보류");
+  await expect(dialog).toContainText("근거를 다시 확인한 뒤 보류합니다.");
+  await expect(dialog).toContainText("검증");
+  expect(trace.opinionPosts).toHaveLength(0);
+
+  await dialog.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  expect(trace.opinionPosts).toHaveLength(0);
+  await expect(page.getByLabel("심층검토 의견 사유")).toHaveValue("근거를 다시 확인한 뒤 보류합니다.");
+
+  await page.getByRole("button", { name: "심층검토 의견 추가" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "심층검토 의견 저장 · 보류", exact: true }).click();
+  await expect(page.getByText("사전규격 심층검토 의견을 추가했습니다. 이전 기록은 그대로 남습니다.")).toBeVisible();
+  expect(trace.opinionPosts).toHaveLength(1);
 });

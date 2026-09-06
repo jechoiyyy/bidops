@@ -1,0 +1,90 @@
+/*
+ * 로딩 골격(`components/common/Skeleton.tsx`).
+ *
+ * ADR-0040: 레이아웃은 프로젝트가 소유하고, 골격 CSS도 값을 새로 정하지 않고
+ * 테마 토큰만 읽는다. `--color-*`는 data-astryx-theme="bidops"를 세운 셸 아래에서
+ * 해석되고, `--spacing-*`·`--radius-*`는 astryx.css가 전역으로 정의한다.
+ *
+ * 색은 의미색이 아니다. 로딩은 성공도 실패도 아니므로 success·error 계열 토큰을
+ * 쓰지 않는다(CLAUDE.md 강제 게이트).
+ *
+ * `detail-skeleton.css`의 `.detail-skeleton`은 이름이 비슷하지만 로딩이 아니라
+ * 상세 3종의 레이아웃 골격이다. 두 파일의 class 이름은 겹치지 않는다.
+ */
+
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.skeleton-line {
+  display: block;
+  width: 100%;
+  border-radius: var(--radius-element);
+  background-color: var(--color-background-muted);
+  background-image: linear-gradient(
+    90deg,
+    var(--color-background-muted) 0%,
+    var(--color-background-gray) 50%,
+    var(--color-background-muted) 100%
+  );
+  background-size: 300% 100%;
+  animation: skeleton-sweep 1.4s ease-in-out infinite;
+}
+
+.skeleton-text .skeleton-line {
+  height: var(--spacing-4);
+}
+
+.skeleton-title .skeleton-line {
+  height: var(--spacing-6);
+}
+
+.skeleton-block .skeleton-line {
+  height: var(--spacing-10);
+}
+
+/* 마지막 줄은 짧게 둔다. 문단이 끝나는 모양이라 실제 본문과 덜 어긋난다. */
+.skeleton .skeleton-line:last-child:not(:first-child) {
+  width: 62%;
+}
+
+/* 행 안의 값 하나를 기다리는 자리. 배지·문구와 나란히 놓이므로 줄 폭을 문자
+   수로 잡는다. */
+.skeleton-inline {
+  display: inline-flex;
+  width: 10ch;
+  vertical-align: middle;
+}
+
+.skeleton-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  min-width: 0;
+  padding: var(--spacing-4);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-container);
+  background: var(--color-background-card);
+}
+
+.skeleton-panel-title {
+  width: 40%;
+  height: var(--spacing-5);
+}
+
+@keyframes skeleton-sweep {
+  from { background-position: 150% 0; }
+  to { background-position: -150% 0; }
+}
+
+/* 움직임을 줄이도록 설정한 사람에게는 애니메이션을 주지 않는다. 자리표시자라는
+   사실은 구조와 숨김 문장이 이미 말한다. */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-line {
+    background-image: none;
+    animation: none;
+  }
+}
