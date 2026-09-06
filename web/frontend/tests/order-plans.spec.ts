@@ -28,7 +28,7 @@ test("기본 목록은 밀집 행이고 판정에 필요한 값만 담으며, �
   // 운영 텔레메트리(model_digest, token 수, duration_ms, binding sha256, artifact 요약)도
   // 삭제하지 않고 `실행 기록` 탭으로 옮겼다.
   await page.getByRole("tab", { name: "실행 기록" }).click();
-  await expect(page.locator("#c2l-panel-telemetry")).toContainText("policy/binding");
+  await expect(page.locator("#c2l-panel-telemetry")).toContainText("정책·모델 연결");
   await expect(page.locator("#c2l-panel-telemetry")).toContainText("qwen3.8-27B");
   await expect(page.locator("#c2l-panel-telemetry")).toContainText("prompt-v3");
   await expect(page.locator("#c2l-panel-telemetry")).toContainText("profile-v1");
@@ -152,10 +152,10 @@ test("사람 판단 수정은 접힌 영역에서 새 revision만 저장하고 �
   // 사람 판단 수정은 pane 바닥의 결정이 아니라 접힌 보조 입력이다(ADR-0046 결정 5).
   await page.getByRole("button", { name: "사람 판단 수정 (선택) 열기" }).click();
   await page.getByRole("radiogroup", { name: "사람 relevance 판단" }).getByRole("radio", { name: "uncertain" }).click();
-  await page.getByLabel("담당자 claimed name").fill("Phase4 tester");
-  await page.getByRole("button", { name: "새 revision 저장", exact: true }).click();
+  await page.getByLabel("사람 판단 담당자 이름").fill("Phase4 tester");
+  await page.getByRole("button", { name: "새 수정본 저장", exact: true }).click();
 
-  await expect(page.getByText("사람 피드백 revision을 저장했습니다. 추적 상태는 바뀌지 않았습니다.")).toBeVisible();
+  await expect(page.getByText("사람 피드백 수정본을 저장했습니다. 추적 상태는 바뀌지 않았습니다.")).toBeVisible();
   expect(trace.feedbackPosts).toHaveLength(1);
   expect(trace.feedbackPosts[0].body).toMatchObject({
     schema_version: "feedback-create-request.v1",
@@ -191,7 +191,7 @@ test("추적 결정은 별도 요청으로 저장되고 선택 즉시 다음 발
   await expect(start).toBeDisabled();
   await expect(page.getByText("담당자 이름을 입력하면 추적 결정을 기록할 수 있습니다.")).toBeVisible();
 
-  await page.getByLabel("담당자 이름").fill("홍길동");
+  await page.getByLabel("담당자 이름", { exact: true }).fill("홍길동");
   await expect(start).toBeEnabled();
   await start.click();
 
@@ -216,6 +216,129 @@ test("추적 결정은 별도 요청으로 저장되고 선택 즉시 다음 발
   // 페이지 이동 0회이고 다음 건이 선택된다.
   expect(new URL(page.url()).pathname).toBe(pathnameBefore);
   await expect(page.locator(".c2l-row-wrap.is-selected")).toContainText("지방공기업");
+});
+
+// 추적 `종료`는 되돌릴 수 없는 결정이므로 확인 단계를 거쳐야 요청이 나간다. 확인 문구는
+// 사전규격(TrackingDecisionControl)·사업 추적(OpportunitiesPage)과 같은 자리에서 만든다.
+test("발주계획 추적 종료는 확인 없이는 요청이 나가지 않고 취소하면 초안만 남는다", async ({ page }) => {
+  const trace = await mockOrderPlans(page);
+  await page.goto("/order-plans");
+  await page.locator(".c2l-row").first().click();
+  await page.getByLabel("담당자 이름", { exact: true }).fill("홍길동");
+
+  await page.getByRole("button", { name: "추적 종료", exact: true }).click();
+  const dialog = page.getByRole("alertdialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("되돌릴 수 없습니다");
+  await expect(dialog).toContainText("종료 · 추적 종료");
+  await expect(dialog).toContainText("발주계획 OP-2026-00101");
+  await expect(dialog).toContainText("후속 사전규격·공고 확인");
+  expect(trace.trackingPosts).toHaveLength(0);
+
+  // 취소하면 요청은 나가지 않고 초안(사유·담당자)은 그대로 남는다.
+  await dialog.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  expect(trace.trackingPosts).toHaveLength(0);
+  await expect(page.getByLabel("담당자 이름", { exact: true })).toHaveValue("홍길동");
+  await expect(page.locator(".c2l-row-wrap.is-selected")).toContainText("공공데이터 통합");
+
+  await page.getByRole("button", { name: "추적 종료", exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "종료 상태로 저장", exact: true }).click();
+  await expect(page.getByText("추적 상태를 종료(으)로 기록했습니다. 다음 발주계획으로 이동합니다.")).toBeVisible();
+  expect(trace.trackingPosts).toHaveLength(1);
+  expect(trace.trackingPosts[0].body).toMatchObject({ tracking_status: "종료", reason: "후속 사전규격·공고 확인" });
+});
+
+// 되돌릴 수 있는 `계속 추적`·`보류`는 확인 단계를 두지 않는다. 확인을 모든 결정에 걸면
+// 확인이 뜻을 잃는다.
+test("계속 추적과 보류는 확인 단계 없이 그대로 저장된다", async ({ page }) => {
+  const trace = await mockOrderPlans(page);
+  await page.goto("/order-plans");
+  await page.locator(".c2l-row").first().click();
+  await page.getByLabel("담당자 이름", { exact: true }).fill("홍길동");
+
+  await page.getByRole("button", { name: "보류", exact: true }).click();
+  await expect(page.getByText("추적 상태를 보류(으)로 기록했습니다. 다음 발주계획으로 이동합니다.")).toBeVisible();
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  expect(trace.trackingPosts).toHaveLength(1);
+});
+
+// P1: 행이 바뀌면 사람 판단 수정 입력이 초기화된다. 초기화 자체는 유지하되 사람이
+// 그 사실을 확인한 뒤에만 일어난다.
+test("행을 바꾸기 전에 저장하지 않은 사람 판단 입력을 확인하고 취소하면 입력이 남는다", async ({ page }) => {
+  await mockOrderPlans(page);
+  await page.goto("/order-plans");
+  await page.locator(".c2l-row").first().click();
+
+  await page.getByRole("button", { name: "사람 판단 수정 (선택) 열기" }).click();
+  await page.getByLabel("memo").fill("아직 저장하지 않은 검토 근거");
+
+  await page.locator(".c2l-row").nth(1).click();
+  const dialog = page.getByRole("alertdialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("다른 발주계획으로 이동합니다");
+  // 무엇이 사라지고 무엇이 남는지 화면이 함께 말한다.
+  await expect(dialog).toContainText("추적 결정 사유와 담당자 이름은 그대로 남습니다");
+  await expect(dialog).toContainText("아직 저장하지 않은 검토 근거");
+
+  await dialog.getByRole("button", { name: "계속 편집", exact: true }).click();
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  await expect(page.locator(".c2l-row-wrap.is-selected")).toContainText("공공데이터 통합");
+  await expect(page.getByLabel("memo")).toHaveValue("아직 저장하지 않은 검토 근거");
+
+  await page.locator(".c2l-row").nth(1).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "저장하지 않고 이동", exact: true }).click();
+  await expect(page.locator(".c2l-row-wrap.is-selected")).toContainText("지방공기업");
+  // 접힘 상태는 행이 바뀌어도 사람이 연 그대로 남고, 초기화되는 것은 입력값이다.
+  await expect(page.getByLabel("memo")).toHaveValue("");
+});
+
+// 필터는 보이는 모집단과 선택된 행을 함께 바꾼다. 같은 확인을 건다.
+test("필터를 바꾸기 전에도 저장하지 않은 사람 판단 입력을 확인한다", async ({ page }) => {
+  await mockOrderPlans(page);
+  await page.goto("/order-plans");
+  await page.locator(".c2l-row").first().click();
+  await page.getByRole("button", { name: "사람 판단 수정 (선택) 열기" }).click();
+  await page.getByLabel("memo").fill("필터 확인용 미저장 입력");
+
+  await page.getByRole("radio", { name: "전체", exact: true }).click();
+  const dialog = page.getByRole("alertdialog");
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "계속 편집", exact: true }).click();
+  await expect(page.locator(".c2l-row")).toHaveCount(2);
+  await expect(page.getByLabel("memo")).toHaveValue("필터 확인용 미저장 입력");
+
+  await page.getByRole("radio", { name: "전체", exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "저장하지 않고 이동", exact: true }).click();
+  await expect(page.locator(".c2l-row")).toHaveCount(8);
+});
+
+// route 이동은 사람 판단 입력과 추적 결정 초안을 함께 잃는다. 둘 다 문장으로 밝힌다.
+test("화면을 떠나기 전에 저장하지 않은 입력을 화면 다이얼로그로 확인한다", async ({ page }) => {
+  await mockOrderPlans(page);
+  await page.goto("/order-plans");
+  await page.locator(".c2l-row").first().click();
+  await page.getByLabel("담당자 이름", { exact: true }).fill("홍길동");
+
+  // 브라우저 종료·새로고침은 native 경고만 가능하므로 beforeunload는 그대로다.
+  expect(await page.evaluate(() => {
+    const event = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(event);
+    return event.defaultPrevented;
+  })).toBe(true);
+
+  await page.getByRole("link", { name: "실행 상세 →" }).click();
+  const dialog = page.getByRole("alertdialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("발주계획 검토 화면을 떠납니다");
+  await expect(dialog).toContainText("추적 결정 초안");
+  await dialog.getByRole("button", { name: "계속 편집", exact: true }).click();
+  await expect.poll(() => new URL(page.url()).pathname).toBe("/order-plans");
+  await expect(page.getByLabel("담당자 이름", { exact: true })).toHaveValue("홍길동");
+
+  await page.getByRole("link", { name: "실행 상세 →" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "저장하지 않고 이동", exact: true }).click();
+  await expect.poll(() => new URL(page.url()).pathname).toBe("/run-status");
 });
 
 test("이번 건 넘기기는 아무것도 저장하지 않고 미선택을 종료로 바꾸지 않는다", async ({ page }) => {
@@ -253,7 +376,7 @@ test("추적 결정 계약이 없으면 계약 미구현으로 표시하고 미�
 
   // 사람 판단 수정은 계약이 있으므로 계속 저장할 수 있다.
   await page.getByRole("button", { name: "사람 판단 수정 (선택) 열기" }).click();
-  await expect(page.getByLabel("담당자 claimed name")).toBeVisible();
+  await expect(page.getByLabel("사람 판단 담당자 이름")).toBeVisible();
 });
 
 test("소유 사업기회를 확인하지 못하면 저장을 시도하지 않고 다음 건으로도 이동하지 않는다", async ({ page }) => {
@@ -319,7 +442,7 @@ test("실패·결과 없음·중지/비허용 상태를 성공 결과로 바꾸�
   await page.goto("/order-plans");
   await page.locator(".c2l-row").first().click();
   await page.getByRole("tab", { name: "실행 기록" }).click();
-  await expect(page.locator("#c2l-panel-telemetry")).toContainText("policy/binding 비허용");
+  await expect(page.locator("#c2l-panel-telemetry")).toContainText("정책·모델 연결 비허용");
 });
 
 test("크기 조절 가능한 상세 영역: 드래그와 화살표 키로 폭을 조절하고 localStorage에 남긴다", async ({ page }) => {
@@ -410,7 +533,7 @@ test("사람 피드백 축과 텍스트 검색도 다른 축과 AND로 조합된
   // 사람 피드백 "있음"은 revision이 있는 101 한 건만 남긴다.
   await page.locator(".c2l-filter-axis", { hasText: "사람 피드백" }).getByRole("button", { name: "있음" }).click();
   await expect(page.locator(".c2l-row")).toHaveCount(1);
-  await expect(page.locator(".c2l-row")).toContainText("피드백 rev 1");
+  await expect(page.locator(".c2l-row")).toContainText("피드백 수정본 1");
 
   // 필터 초기화 후 텍스트 검색만으로 제목·계획번호를 좁힌다.
   await page.getByRole("button", { name: "필터 초기화" }).click();
@@ -431,20 +554,20 @@ test("발주계획 상세는 결정 액션만 헤더에 고정하고 입력 form
   await expect(page.getByRole("heading", { level: 2 })).toBeVisible();
 
   const header = page.locator(".c2-page-header");
-  const saveButton = header.getByRole("button", { name: "새 revision 저장", exact: true });
+  const saveButton = header.getByRole("button", { name: "새 수정본 저장", exact: true });
   await expect(saveButton).toBeInViewport();
   await expect(header.getByRole("button", { name: "사람 판단 입력으로 이동", exact: true })).toBeInViewport();
 
   // 입력 필드는 헤더가 아니라 본문 열의 패널 안에 있다.
   await expect(header.locator("textarea")).toHaveCount(0);
-  await expect(header.getByLabel("담당자 claimed name")).toHaveCount(0);
-  await expect(page.locator(".c2-feedback-panel").getByLabel("담당자 claimed name")).toHaveCount(1);
+  await expect(header.getByLabel("담당자 이름")).toHaveCount(0);
+  await expect(page.locator(".c2-feedback-panel").getByLabel("담당자 이름")).toHaveCount(1);
 
   await page.evaluate(() => document.querySelector(".page-canvas")?.scrollTo(0, 999_999));
   await expect(saveButton).toBeInViewport();
 });
 
-// 시안 `OrderPlanDetail`은 사람 피드백 revision 이력과 새 revision 입력을 본문
+// 시안 `OrderPlanDetail`은 사람 피드백 수정본 이력과 새 revision 입력을 본문
 // 열에 함께 둔다. 지금 저장하려는 값과 직전 revision을 한눈에 대조해야 하기
 // 때문이다. 레일은 관측·실행 이력과 연결만 담는다.
 test("발주계획 상세 헤더는 상태를 요약하고, revision 이력은 본문 열, 레일은 관측 이력만 담는다", async ({ page }) => {
@@ -453,10 +576,10 @@ test("발주계획 상세 헤더는 상태를 요약하고, revision 이력은 �
 
   const header = page.locator(".c2-page-header");
   await expect(header.getByText("최근 실행 부분 성공", { exact: true })).toBeVisible();
-  await expect(header.getByText("최근 피드백 rev 1", { exact: true })).toBeVisible();
+  await expect(header.getByText("최근 피드백 수정본 1", { exact: true })).toBeVisible();
 
   const feedbackPanel = page.locator(".c2-feedback-panel");
-  await expect(feedbackPanel.getByRole("heading", { name: "사람 피드백 revision 이력", exact: true })).toBeVisible();
+  await expect(feedbackPanel.getByRole("heading", { name: "사람 피드백 수정본 이력", exact: true })).toBeVisible();
   await expect(feedbackPanel).toContainText("append-only");
 
   const rail = page.locator(".detail-skeleton-rail");
@@ -464,7 +587,7 @@ test("발주계획 상세 헤더는 상태를 요약하고, revision 이력은 �
   await expect(rail.getByRole("heading", { name: "관측 history", exact: true })).toBeVisible();
   await expect(rail.getByRole("link", { name: "발주계획 목록 →", exact: true })).toBeVisible();
   // 이력은 본문 열이 소유한다. 레일에 복제하지 않는다.
-  await expect(rail.getByRole("heading", { name: "사람 피드백 revision 이력", exact: true })).toHaveCount(0);
+  await expect(rail.getByRole("heading", { name: "사람 피드백 수정본 이력", exact: true })).toHaveCount(0);
   // 결정 액션(저장 버튼)도 레일에 복제하지 않는다.
   await expect(rail.getByRole("button", { name: /revision 저장/ })).toHaveCount(0);
 });

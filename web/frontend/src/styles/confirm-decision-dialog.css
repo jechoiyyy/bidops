@@ -1,0 +1,126 @@
+/*
+ * 되돌릴 수 없는 결정의 확인 다이얼로그.
+ *
+ * radix Portal이 document.body로 내보내므로 `.app-shell`의 legacy token bridge
+ * 밖에서 그려진다. 그래서 이 다이얼로그는 자기 요소에 `data-astryx-theme="bidops"`를
+ * 달고 **bidops 테마 토큰만** 읽는다. `:root`나 여기서 `--color-*`를 새로 정의하지
+ * 않고 새 hex 값도 만들지 않는다(ADR-0048).
+ *
+ * 확인 버튼은 accent(primary)다. 결정은 오류가 아니므로 위험 의미색을 쓰지 않고,
+ * 되돌릴 수 없다는 사실은 색이 아니라 kicker·경고 문장·요약 표가 전달한다.
+ */
+
+.confirm-decision-dialog {
+  max-width: min(560px, calc(100% - var(--spacing-8)));
+  max-height: calc(100dvh - var(--spacing-8));
+  gap: var(--spacing-4);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--spacing-6);
+  border: 1px solid var(--color-border-emphasized);
+  border-radius: var(--radius-container);
+  color: var(--color-text-primary);
+  background: var(--color-background-card);
+}
+
+.confirm-decision-dialog-header {
+  display: grid;
+  gap: var(--spacing-2);
+  place-items: start;
+  text-align: left;
+}
+
+.confirm-decision-dialog-kicker {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+.confirm-decision-dialog [data-slot="alert-dialog-title"] {
+  color: var(--color-text-primary);
+  font-size: var(--bo-type-page-title);
+  font-weight: var(--bo-type-page-title-weight);
+  line-height: var(--bo-type-page-title-leading);
+}
+
+.confirm-decision-dialog [data-slot="alert-dialog-description"] {
+  max-width: 60ch;
+  color: var(--color-text-primary);
+  font-size: var(--bo-type-body);
+  font-weight: 600;
+  line-height: var(--bo-type-body-leading);
+}
+
+.confirm-decision-dialog-summary {
+  display: grid;
+  margin: 0;
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.confirm-decision-dialog-summary-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.5fr) minmax(0, 1.5fr);
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) 0;
+  border-bottom: 1px solid var(--color-background-muted);
+  font-size: var(--bo-type-body);
+}
+
+.confirm-decision-dialog-summary-row:last-child {
+  border-bottom: 0;
+}
+
+.confirm-decision-dialog-summary-row > dt {
+  color: var(--color-text-secondary);
+}
+
+.confirm-decision-dialog-summary-row > dd {
+  margin: 0;
+  min-width: 0;
+  color: var(--color-text-primary);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.confirm-decision-dialog-footer {
+  gap: var(--spacing-2);
+}
+
+.confirm-decision-dialog-cancel,
+.confirm-decision-dialog-confirm {
+  min-height: calc(var(--size-element-lg) + var(--spacing-1-5));
+  padding: 0 var(--spacing-4);
+  border-radius: var(--radius-element);
+  font-size: var(--bo-type-body);
+  font-weight: 600;
+}
+
+.confirm-decision-dialog-cancel {
+  border: 1px solid var(--color-border-emphasized);
+  color: var(--color-text-primary);
+  background: var(--color-background-card);
+}
+
+.confirm-decision-dialog-cancel:hover:not(:disabled) {
+  background: var(--color-background-muted);
+}
+
+.confirm-decision-dialog-confirm {
+  border: 1px solid var(--color-accent);
+  color: var(--color-on-accent);
+  background: var(--color-accent);
+}
+
+.confirm-decision-dialog-confirm:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  color: var(--color-on-accent);
+  background: var(--color-accent);
+}
+
+.confirm-decision-dialog-cancel:disabled,
+.confirm-decision-dialog-confirm:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}

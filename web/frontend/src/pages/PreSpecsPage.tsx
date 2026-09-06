@@ -1,13 +1,18 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Badge } from "../components/common/Badge";
-import { DataTable, type DataTableColumn } from "../components/common/DataTable";
 import { DisabledReason } from "../components/common/DisabledReason";
 import { EmptyState } from "../components/common/EmptyState";
+import { useUnsavedGuard } from "../components/common/useUnsavedGuard";
 import { Panel } from "../components/common/Panel";
-import { ReviewStateGroup, SplitWorkspace } from "../components/common/ReviewPrimitives";
-import { isInheritedTracking, TrackingDecisionControl, updateTrackingProjection } from "../components/pre-specs/TrackingDecisionControl";
+import { DenseList, DenseListRow, ReviewStateGroup, SplitWorkspace } from "../components/common/ReviewPrimitives";
+import {
+  isInheritedTracking,
+  PreSpecDocumentSummary,
+  TrackingDecisionControl,
+  updateTrackingProjection,
+} from "../components/pre-specs/TrackingDecisionControl";
 import { api } from "../lib/api";
 import { describeDeadline } from "../lib/deadline";
 import { formatDateTime, formatNumber } from "../lib/format";
@@ -116,9 +121,17 @@ function formatBudget(value: number | null): string {
   return value === null || Number.isNaN(value) ? "예산 미확인" : `${formatNumber(value)}원`;
 }
 
-function swStatusCell(value: string | null): ReactNode {
-  if (value === null) return <Badge label="미확인" variant="evidence-unknown" />;
-  return <Badge label={value} variant={value === "Y" ? "evidence-confirmed" : "neutral"} />;
+function titleOf(item: PreSpecListItem): string {
+  return item.title?.trim() || "사업명 미확인";
+}
+
+/** 목록 행은 SW사업대상=Y만 배지로 세우고, 값이 없는 건은 `SW 미확인`으로
+ * 따로 적는다. `N`은 배지를 세우지 않지만 상세 pane의 사실 목록이 값을 그대로
+ * 보여 준다 — 없음(null)과 실제 `N`을 같은 표시로 접지 않는다. */
+function swRowMark(value: string | null): ReactNode {
+  if (value === null) return <span className="pre-specs-row-unknown">SW 미확인</span>;
+  if (value === "Y") return <Badge label="SW사업대상" variant="evidence-confirmed" />;
+  return null;
 }
 
 function originCell(value: PreSpecOrigin | null): ReactNode {
@@ -127,67 +140,12 @@ function originCell(value: PreSpecOrigin | null): ReactNode {
   return <Badge label={origin} variant={origin === "추적" ? "grade-1" : "focus"} />;
 }
 
-function trackingCell(item: PreSpecListItem): ReactNode {
-  if (item.opportunity_id === null) return <span className="pre-specs-muted">—</span>;
+/** 추적 상태는 사업기회에 연결된 건만 갖는다. 연결이 없으면 상태가 `없음`이
+ * 아니라 아직 물어볼 자리가 없는 것이므로 배지를 세우지 않는다. */
+function trackingRowBadge(item: PreSpecListItem): ReactNode {
+  if (item.opportunity_id === null) return null;
   if (item.tracking_status === null) return <Badge label="미확인" variant="neutral" />;
   return <Badge label={item.tracking_status} variant={trackingVariant(item.tracking_status)} />;
-}
-
-function documentCell(item: PreSpecListItem): ReactNode {
-  const document = item.document;
-  return (
-    <div className="pre-specs-document-summary" title="첨부 취득 상태 집계">
-      <strong>{document.attachments}건</strong>
-      <span>
-        완료 {document["완료"]} · 대기 {document["대기"]} · 진행 {document["진행"]}
-      </span>
-      <span className="pre-specs-document-alerts">
-        <Badge label={`차단 ${document["차단"]}`} variant={document["차단"] > 0 ? "alert" : "neutral"} />
-        <Badge label={`실패 ${document["실패"]}`} variant={document["실패"] > 0 ? "alert" : "neutral"} />
-      </span>
-    </div>
-  );
-}
-
-function deadlineCell(value: string | null): ReactNode {
-  const deadline = describeDeadline(value);
-  return (
-    <div className="pre-specs-deadline-stack">
-      <span>{formatDateTime(value)}</span>
-      <span aria-label={`D-day: ${deadline.label}`} className={`pre-specs-deadline is-${deadline.urgency} mono tabular-nums`}>
-        {deadline.label}
-      </span>
-    </div>
-  );
-}
-
-/** 목록 화면에서 심층 추적 승인을 내리는 동선(PLAN.md 3단계 3). 사업기회가
- * 없으면 조용히 숨기지 않고 비활성 사유를 aria-describedby로 노출한다. */
-function trackingActionCell(item: PreSpecListItem, selectedPk: number | null, onSelect: (pk: number) => void): ReactNode {
-  if (item.opportunity_id === null) {
-    const reasonId = `pre-specs-tracking-disabled-${item.notice_pk}`;
-    return (
-      <div className="pre-specs-tracking-action">
-        <button type="button" className="pre-specs-tracking-action-button" disabled aria-describedby={reasonId}>
-          추적 결정
-        </button>
-        <DisabledReason id={reasonId}>아직 사업기회에 연결되지 않아 추적 결정을 기록할 수 없습니다.</DisabledReason>
-      </div>
-    );
-  }
-  const isSelected = selectedPk === item.notice_pk;
-  return (
-    <button
-      type="button"
-      className="pre-specs-tracking-action-button"
-      aria-pressed={isSelected}
-      aria-expanded={isSelected}
-      aria-controls={isSelected ? "pre-specs-tracking-target" : undefined}
-      onClick={() => onSelect(item.notice_pk)}
-    >
-      {isSelected ? "선택됨 · 결정 패널 열림" : "추적 결정"}
-    </button>
-  );
 }
 
 /** 등급은 심각도가 아니라 순위이고, 농도만으로는 인접 단이 구분되지 않는다.
@@ -204,105 +162,146 @@ function autoPreparationCell(item: PreSpecListItem): ReactNode {
   );
 }
 
-function columns(
-  listSearch: string,
-  selectedPk: number | null,
-  onSelectTracking: (pk: number) => void,
-): DataTableColumn<PreSpecListItem>[] {
-  return [
-  {
-    key: "origin",
-    header: "구분",
-    className: "pre-specs-origin-cell",
-    render: (item) => (
-      <div className="pre-specs-origin-stack">
-        {originCell(item.origin)}
-        {item.kept_by_tracking ? (
-          <span
-            className="pre-specs-tracking-exception"
-            title="SW사업대상=Y가 아니지만 추적 중인 발주계획에 연결됨"
-          >
-            추적 예외
+function DeadlineMark({ value }: { value: string | null }) {
+  const deadline = describeDeadline(value);
+  return (
+    <span aria-label={`D-day: ${deadline.label}`} className={`pre-specs-deadline is-${deadline.urgency} mono tabular-nums`}>
+      {deadline.label}
+    </span>
+  );
+}
+
+interface PreSpecRowProps {
+  item: PreSpecListItem;
+  listSearch: string;
+  isSelected: boolean;
+  onSelect: () => void;
+  onToggleTracking: () => void;
+}
+
+/**
+ * 시안(`tests/design-snapshots/shots/PreSpecs.png`)의 목록 행이다. 12열 표를
+ * 좁은 분할 pane에 넣으면 마감·예산·추적 상태가 가로 스크롤 뒤로 사라지므로,
+ * 한 건을 제목 · 배지 줄 · 기관/번호 줄로 쌓고 D-day를 오른쪽에 붙인다.
+ *
+ * 행이 스스로 판정하지 않는다는 점은 그대로다 — 서버가 준 등급·자동 준비
+ * 상태·추적 상태를 각각 별도 배지로 적을 뿐 서로 대신하게 하지 않는다.
+ */
+function PreSpecRow({ item, listSearch, isSelected, onSelect, onToggleTracking }: PreSpecRowProps) {
+  const title = titleOf(item);
+  const document = item.document;
+  const hasOpportunity = item.opportunity_id !== null;
+  const reasonId = `pre-specs-tracking-disabled-${item.notice_pk}`;
+  return (
+    <DenseListRow
+      // 행 자체가 role="button"이 되므로 접근 가능한 이름을 사업명으로 고정한다.
+      // 그러지 않으면 행 안의 `추적 결정` 버튼과 이름이 겹쳐 같은 이름의 control이
+      // 둘이 된다(Playwright strict mode는 이것을 결정적 결함으로 본다).
+      aria-label={title}
+      className="pre-specs-row"
+      selected={isSelected}
+      onSelect={onSelect}
+      label={(
+        <span className="pre-specs-row-title">
+          <Link className="pre-specs-title-link" to={{ pathname: `/pre-specs/${item.notice_pk}`, search: listSearch }}>
+            {title}
+          </Link>
+        </span>
+      )}
+      description={(
+        <>
+          <span className="pre-specs-row-badges">
+            {originCell(item.origin)}
+            {item.kept_by_tracking ? (
+              /* 뜻은 목록 위 정책 안내(`pre-specs-policy-note`)에 글자로 적혀
+                 있다. `title` 툴팁으로 겹쳐 두면 키보드·스크린리더로는 닿지
+                 않으므로 그 문장을 `aria-describedby`로 가리킨다. */
+              <span aria-describedby="pre-specs-tracking-exception-note" className="pre-specs-tracking-exception">
+                추적 예외
+              </span>
+            ) : null}
+            {gradeCell(item)}
+            {autoPreparationCell(item)}
+            {trackingRowBadge(item)}
+            {swRowMark(item.sw_business_status)}
+            {/* 0건은 실제 0이므로 경고로 올리지 않는다. 1건 이상일 때만 alert 배지를 세운다. */}
+            {document["차단"] > 0 ? <Badge label={`차단 ${document["차단"]}`} variant="danger" /> : null}
+            {document["실패"] > 0 ? <Badge label={`실패 ${document["실패"]}`} variant="danger" /> : null}
           </span>
-        ) : null}
+          <span className="pre-specs-row-meta">
+            <span>{item.agency?.trim() || "발주기관 미확인"}</span>
+            <span aria-hidden="true">·</span>
+            {item.pre_spec_no ? <code>{String(item.pre_spec_no)}</code> : <span>번호 미확인</span>}
+            <span aria-hidden="true">·</span>
+            <span>{item.business_division?.trim() || "미확인"}</span>
+          </span>
+          <span className="pre-specs-row-action pre-specs-tracking-action">
+            {hasOpportunity ? (
+              <button
+                type="button"
+                className="interaction-control interaction-control-compact pre-specs-tracking-action-button"
+                aria-pressed={isSelected}
+                aria-expanded={isSelected}
+                aria-controls={isSelected ? "pre-specs-tracking-target" : undefined}
+                onClick={onToggleTracking}
+              >
+                {/* 이름은 늘 행동 하나다. 눌린 상태는 aria-pressed·aria-expanded와
+                    바로 아래 열리는 결정 패널이 말한다 — 버튼 이름을 상태 문장으로
+                    바꾸면 같은 조작이 화면마다 다른 이름으로 읽힌다. */}
+                추적 결정
+              </button>
+            ) : (
+              <>
+                {/* 사업기회가 없으면 조용히 숨기지 않고 비활성 사유를 aria-describedby로 노출한다. */}
+                <button type="button" className="interaction-control interaction-control-compact pre-specs-tracking-action-button" disabled aria-describedby={reasonId}>
+                  추적 결정
+                </button>
+                <DisabledReason id={reasonId}>아직 사업기회에 연결되지 않아 추적 결정을 기록할 수 없습니다.</DisabledReason>
+              </>
+            )}
+          </span>
+        </>
+      )}
+      endContent={(
+        <span className="pre-specs-row-end">
+          <DeadlineMark value={item.deadline_at} />
+          {item.deadline_at ? <span className="pre-specs-row-deadline-at">{formatDateTime(item.deadline_at)}</span> : null}
+        </span>
+      )}
+    />
+  );
+}
+
+/** 선택한 건의 사실만 모은다. 결정은 아래의 TrackingDecisionControl이 소유하며
+ * 이 표는 서버가 준 값을 옮길 뿐 비어 있는 값을 채우지 않는다. */
+function PreSpecDetailFacts({ item }: { item: PreSpecListItem }) {
+  return (
+    <dl className="pre-specs-detail-facts">
+      <div>
+        <dt>업무구분</dt>
+        <dd>{item.business_division?.trim() || <span className="pre-specs-muted">미확인</span>}</dd>
       </div>
-    ),
-  },
-  {
-    key: "grade",
-    header: "적합성 등급",
-    className: "pre-specs-grade-cell",
-    render: (item) => gradeCell(item),
-  },
-  {
-    key: "auto_preparation_status",
-    header: "자동 준비",
-    className: "pre-specs-auto-preparation-cell",
-    render: (item) => autoPreparationCell(item),
-  },
-  {
-    key: "title",
-    header: "사업명·기관",
-    className: "pre-specs-title-cell",
-    render: (item) => (
-      <div className="pre-specs-title-stack">
-        <Link
-          className="pre-specs-title-link"
-          to={{ pathname: `/pre-specs/${item.notice_pk}`, search: listSearch }}
-        >
-          {item.title?.trim() || "사업명 미확인"}
-        </Link>
-        <span>{item.agency?.trim() || "발주기관 미확인"}</span>
-        {item.pre_spec_no ? <code>{String(item.pre_spec_no)}</code> : <span>사전규격번호 미확인</span>}
+      <div>
+        <dt>SW사업대상</dt>
+        <dd>{item.sw_business_status === null ? <span className="pre-specs-muted">미확인</span> : item.sw_business_status}</dd>
       </div>
-    ),
-  },
-  {
-    key: "business_division",
-    header: "업무구분",
-    render: (item) => item.business_division ?? <span className="pre-specs-muted">미확인</span>,
-  },
-  {
-    key: "sw_business_status",
-    header: "SW사업대상",
-    render: (item) => swStatusCell(item.sw_business_status),
-  },
-  {
-    key: "published_at",
-    header: "게시",
-    className: "pre-specs-date-cell",
-    render: (item) => formatDateTime(item.published_at),
-  },
-  {
-    key: "deadline_at",
-    header: "의견등록 마감",
-    className: "pre-specs-date-cell",
-    render: (item) => deadlineCell(item.deadline_at),
-  },
-  {
-    key: "budget",
-    header: "예산",
-    className: "pre-specs-budget-cell",
-    render: (item) => formatBudget(item.budget),
-  },
-  {
-    key: "tracking_status",
-    header: "추적 상태",
-    render: (item) => trackingCell(item),
-  },
-  {
-    key: "tracking_action",
-    header: "심층 추적 승인",
-    className: "pre-specs-tracking-action-cell",
-    render: (item) => trackingActionCell(item, selectedPk, onSelectTracking),
-  },
-  {
-    key: "document",
-    header: "문서",
-    className: "pre-specs-document-cell",
-    render: (item) => documentCell(item),
-  },
-  ];
+      <div>
+        <dt>게시</dt>
+        <dd>{formatDateTime(item.published_at)}</dd>
+      </div>
+      <div>
+        <dt>의견등록 마감</dt>
+        <dd className="pre-specs-detail-deadline">
+          <span>{item.deadline_at ? formatDateTime(item.deadline_at) : "마감 일시 없음"}</span>
+          <DeadlineMark value={item.deadline_at} />
+        </dd>
+      </div>
+      <div>
+        <dt>예산</dt>
+        <dd>{formatBudget(item.budget)}</dd>
+      </div>
+    </dl>
+  );
 }
 
 export function PreSpecsPage() {
@@ -318,6 +317,18 @@ export function PreSpecsPage() {
   const offset = readOffset(searchParams.get("offset"));
   const [searchText, setSearchText] = useState(queryText);
   const [selectedTrackingPk, setSelectedTrackingPk] = useState<number | null>(null);
+  // 상세 pane의 추적 결정 입력(사유·담당자)은 행을 바꾸면 사라진다. route 이동은
+  // 컨트롤이 스스로 막으므로 여기서는 행 전환·닫기만 확인한다.
+  const [trackingDirty, setTrackingDirty] = useState(false);
+  const trackingGuard = useUnsavedGuard(trackingDirty, {
+    scope: "pathname",
+    title: "추적 결정 입력을 저장하지 않고 다른 사전규격으로 옮깁니다",
+    message: "저장하지 않은 추적 결정 사유와 담당자 이름이 있습니다. 지금 옮기면 사라지며 저장된 추적 상태는 바뀌지 않습니다.",
+    confirmLabel: "저장하지 않고 옮기기",
+  });
+  const selectTrackingPk = useCallback((next: number | null | ((current: number | null) => number | null)) => {
+    trackingGuard.confirmDiscard(() => setSelectedTrackingPk(next));
+  }, [trackingGuard]);
 
   useEffect(() => setSearchText(queryText), [queryText]);
   useEffect(() => {
@@ -353,10 +364,7 @@ export function PreSpecsPage() {
   const total = result.data?.total ?? 0;
   const overviewStatusCounts = result.data?.overview_status_counts ?? [];
   const isDefaultView = swOnly && !businessDivision && !origin && !gradeFilter && !queryText && sort === "published" && offset === 0;
-  const tableColumns = useMemo(
-    () => columns(searchParams.toString(), selectedTrackingPk, (pk) => setSelectedTrackingPk((current) => (current === pk ? null : pk))),
-    [searchParams, selectedTrackingPk],
-  );
+  const listSearch = searchParams.toString();
 
   const countByStatus = useMemo(() => {
     const map = new Map<PreSpecOverviewReviewStatus | null, number>();
@@ -405,10 +413,10 @@ export function PreSpecsPage() {
     <section className="pre-specs-page" data-astryx-theme="bidops" aria-labelledby="page-title">
       <header className="pre-specs-page-header">
         <div>
-          <span className="pre-specs-eyebrow">모니터링 · 누적 조회</span>
           <h2 id="page-title">사전규격</h2>
           <p>
-            회차가 아닌 누적 사전규격을 확인합니다. SW사업대상은 화면 필터이며, 추적 중인 발주계획 연결은 라벨과 관계없이 보존됩니다.
+            누적 사전규격을 확인하고 심층 검토 추적을 시작합니다. SW사업대상은 화면 필터일 뿐이어서 추적 중인 발주계획
+            연결은 라벨과 관계없이 그대로 남으며, 이 화면이 정하는 것은 추적 선택 하나입니다.
           </p>
         </div>
         <div className="pre-specs-count" aria-live="polite">
@@ -474,17 +482,17 @@ export function PreSpecsPage() {
                 placeholder="부분일치"
                 onChange={(event) => setSearchText(event.target.value)}
               />
-              <button type="submit">검색</button>
+              <button className="interaction-control interaction-control-primary" type="submit">검색</button>
             </div>
           </form>
-          <button className="pre-specs-reset" type="button" onClick={restoreDefaults}>기본값으로</button>
+          <button className="interaction-control pre-specs-reset" type="button" onClick={restoreDefaults}>기본값으로</button>
         </div>
         {gradeFilter ? (
           <p className="pre-specs-grade-filter-note" role="status">
             등급 필터 <strong>{gradeFilter}</strong>는 현재 불러온 페이지에만 적용됩니다. 그룹 머리글의 건수는 서버가 등급 필터 이전 조건으로 센 값이므로 두 숫자가 다를 수 있습니다.
           </p>
         ) : null}
-        <p className="pre-specs-policy-note">
+        <p className="pre-specs-policy-note" id="pre-specs-tracking-exception-note">
           추적 예외는 <strong>SW사업대상=Y가 아니지만 추적 중인 발주계획에 연결됨</strong>을 뜻합니다. 값이 없는 SW사업대상은 미확인으로 표시합니다.
         </p>
       </section>
@@ -556,14 +564,20 @@ export function PreSpecsPage() {
                                     : " 페이지를 이동하거나 검색 조건을 좁혀 보십시오."}
                                 </p>
                               ) : (
-                                <DataTable
-                                  className="pre-specs-table"
-                                  columns={tableColumns}
-                                  onRowSelect={(item) => setSelectedTrackingPk(item.notice_pk)}
-                                  rows={groupItems}
-                                  rowKey="notice_pk"
-                                  selectedRowKey={selectedTrackingPk}
-                                />
+                                <DenseList aria-label={`${groupLabel(status)} 사전규격`} className="pre-specs-list">
+                                  {groupItems.map((item) => (
+                                    <PreSpecRow
+                                      key={item.notice_pk}
+                                      item={item}
+                                      listSearch={listSearch}
+                                      isSelected={item.notice_pk === selectedTrackingPk}
+                                      onSelect={() => selectTrackingPk(item.notice_pk)}
+                                      onToggleTracking={() => selectTrackingPk(
+                                        (current) => (current === item.notice_pk ? null : item.notice_pk),
+                                      )}
+                                    />
+                                  ))}
+                                </DenseList>
                               )}
                             </>
                           )}
@@ -581,30 +595,50 @@ export function PreSpecsPage() {
               <div id="pre-specs-tracking-target">
                 <Panel
                   className="pre-specs-tracking-target-panel"
-                  title={`심층 추적 승인 · ${selectedTrackingItem.title?.trim() || "사업명 미확인"}`}
+                  title={titleOf(selectedTrackingItem)}
                   action={(
                     <span className="pre-specs-detail-actions">
                       {/* 이 화면의 결정은 심층 검토 실행 승인이다(PLAN 단계 D 작업 3).
                           문서 묶음 준비와 승인은 상세가 소유하므로 그 자리로 보낸다. */}
-                      <Link to={`/pre-specs/${selectedTrackingItem.notice_pk}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`}>
+                      <Link to={`/pre-specs/${selectedTrackingItem.notice_pk}${listSearch ? `?${listSearch}` : ""}`}>
                         심층 검토 실행 →
                       </Link>
-                      <button type="button" onClick={() => setSelectedTrackingPk(null)}>닫기</button>
+                      <button type="button" onClick={() => selectTrackingPk(null)}>닫기</button>
                     </span>
                   )}
                 >
+                  <p className="pre-specs-detail-identity">
+                    <span>{selectedTrackingItem.agency?.trim() || "발주기관 미확인"}</span>
+                    <span aria-hidden="true">·</span>
+                    {selectedTrackingItem.pre_spec_no
+                      ? <code>{String(selectedTrackingItem.pre_spec_no)}</code>
+                      : <span>번호 미확인</span>}
+                  </p>
+                  <span className="pre-specs-detail-badges">
+                    {originCell(selectedTrackingItem.origin)}
+                    {gradeCell(selectedTrackingItem)}
+                    {autoPreparationCell(selectedTrackingItem)}
+                    {trackingRowBadge(selectedTrackingItem)}
+                  </span>
+                  <PreSpecDetailFacts item={selectedTrackingItem} />
+                  {/* 첨부 집계는 상세 pane이 직접 그리므로 결정 컨트롤은 compact로
+                      부른다 — 같은 집계를 한 화면에 두 번 그리지 않는다. */}
+                  <PreSpecDocumentSummary item={selectedTrackingItem} />
                   {/* 신규 사전규격에만 `추적 시작하고 심층 검토`를 한 조작으로 준다
                       (ADR-0046 결정 6, PLAN 단계 D 작업 4). 승계된 건은 컨트롤이
                       추적 상태를 다시 묻지 않으므로 이 prop이 쓰이지 않는다. */}
                   <TrackingDecisionControl
+                    key={selectedTrackingItem.notice_pk}
                     item={selectedTrackingItem}
+                    onDirtyChange={setTrackingDirty}
                     isPending={result.isPending}
                     isError={result.isError}
                     onRetry={() => { void result.refetch(); }}
                     headingLevel="h4"
+                    compact
                     onStartedForDeepReview={isInheritedTracking(selectedTrackingItem)
                       ? undefined
-                      : () => navigate(`/pre-specs/${selectedTrackingItem.notice_pk}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`)}
+                      : () => navigate(`/pre-specs/${selectedTrackingItem.notice_pk}${listSearch ? `?${listSearch}` : ""}`)}
                     onSaved={(saved) => {
                       const noticePk = selectedTrackingItem.notice_pk;
                       queryClient.setQueryData<PreSpecListResponse>(
@@ -639,6 +673,7 @@ export function PreSpecsPage() {
       {result.isSuccess && total > PAGE_SIZE ? (
         <nav className="pre-specs-pager" aria-label="사전규격 목록 페이지">
           <button
+            className="interaction-control interaction-control-primary"
             type="button"
             disabled={offset === 0}
             onClick={() => {
@@ -652,6 +687,7 @@ export function PreSpecsPage() {
           </button>
           <span>{offset + 1}–{Math.min(offset + loadedItems.length, total)} / {total}</span>
           <button
+            className="interaction-control interaction-control-primary"
             type="button"
             disabled={offset + PAGE_SIZE >= total}
             onClick={() => {
