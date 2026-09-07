@@ -115,6 +115,9 @@ def test_manual_execution_and_review_api_contract(tmp_path, monkeypatch) -> None
             plan_pk = plans[0].id
             execution = session.get(OrderPlanScreeningExecution, UUID(execution_id))
             assert execution is not None
+            execution.status = "성공"
+            execution.started_at = execution.queued_at
+            execution.finished_at = datetime.now(UTC)
             session.add(OrderPlanScreeningResult(
                 id=uuid4(),
                 execution_id=UUID(execution_id),
@@ -144,6 +147,9 @@ def test_manual_execution_and_review_api_contract(tmp_path, monkeypatch) -> None
             session.commit()
             plan_list = client.get("/api/order-plans?source_run_id=run-c2&limit=10")
             assert plan_list.status_code == 200
+            assert plan_list.json()["schema_version"] == "order-plan-list-response.v2"
+            assert plan_list.json()["scope"]["execution_id"] == execution_id
+            assert plan_list.json()["scope"]["status"] == "성공"
             assert plan_list.json()["items"][0]["budget_amount"] == 123456789.0
             assert plan_list.json()["items"][0]["planned_order_year"] == "2027"
             assert plan_list.json()["items"][0]["planned_order_month"] == "09"

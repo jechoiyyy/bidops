@@ -22,6 +22,13 @@ from tests.postgres import migrated_engine, requires_postgres
 from tests.screening.test_order_plan_screening_service import _create, _fixture
 
 NOW = datetime(2026, 9, 2, tzinfo=UTC)
+UNICODE_SEARCH_CASES = (
+    ("Straße 데이터 플랫폼 구축", "STRASSE"),
+    ("ÜBERBLICK", "überblick"),
+    ("ὈΔΥΣΣΕΎΣ", "ὀδυσσεύσ"),
+    ("oﬃce", "OFFICE"),
+    ("İstanbul", "i\u0307STANBUL"),
+)
 
 
 def execution(session, service, policy_version, *, status="성공", minute=1, source_run_id="run-c2", execution_id=None):
@@ -238,6 +245,7 @@ def test_search_escapes_sql_wildcards_and_paginates_in_sql(listing):
     session.commit()
     assert ids(client.get("/api/order-plans", params={"q": "%_"})) == [plans[0].id]
     assert ids(client.get("/api/order-plans", params={"q": " ai "})) == [plans[0].id, plans[1].id]
+    assert ids(client.get("/api/order-plans", params={"q": "p-3"})) == [plans[2].id]
     statements = []
     def capture(_connection, _cursor, statement, _parameters, _context, _many):
         if statement.lstrip().upper().startswith("SELECT"):
@@ -252,6 +260,17 @@ def test_search_escapes_sql_wildcards_and_paginates_in_sql(listing):
     item_queries = [sql for sql in statements if "order_plan.title" in sql and "count(" not in sql.lower()]
     assert len(item_queries) == 1
     assert "LIMIT" in item_queries[0] and "OFFSET" in item_queries[0]
+
+
+@pytest.mark.parametrize("title,query", UNICODE_SEARCH_CASES)
+def test_search_preserves_unicode_casefold_with_sql_total_and_page(listing, title, query):
+    session, _, _, plans, client = listing
+    plans[0].title = title
+    plans[1].title = title
+    session.commit()
+    response = client.get("/api/order-plans", params={"q": query, "limit": 1, "offset": 1})
+    assert ids(response) == [plans[1].id]
+    assert response.json()["total"] == 2
 
 
 def test_query_count_does_not_grow_with_population(tmp_path):
@@ -325,3 +344,15 @@ def test_postgres_list_filters_pagination_and_tracking_projection(tmp_path, scre
         assert service.list_order_plans(session, issue=True)["total"] == 0
         beyond = service.list_order_plans(session, limit=1, offset=5)
         assert beyond["total"] == 2 and beyond["items"] == []
+
+        for title, query in UNICODE_SEARCH_CASES:
+            first = OrderPlan(order_plan_unty_no=str(uuid4()), title=title)
+            second = OrderPlan(order_plan_unty_no=str(uuid4()), title=title)
+            session.add_all([first, second])
+            session.flush()
+            for added in (first, second):
+                session.add(OrderPlanObservation(order_plan_id=added.id, run_id=source_run_id, observed_at=NOW))
+            session.commit()
+            searched = service.list_order_plans(session, q=query, limit=1, offset=1)
+            assert searched["total"] == 2
+            assert [item["order_plan_pk"] for item in searched["items"]] == [second.id]
