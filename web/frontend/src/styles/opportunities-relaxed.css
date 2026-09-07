@@ -1,507 +1,188 @@
-/* 누적 사업기회 화면.
-   회차 목록(queue)과 달리 사업 단위로 세로로 쌓고, 재검토 신호가
-   시선을 먼저 받도록 카드 경계에서 구분한다. 색·간격 토큰은 theme를 따른다. */
+/* 사업 추적 화면.
+ *
+ * 이 파일은 승인된 시안(`design-previews/bidops-opportunities-erp-20260907/`)의
+ * `source/base.css` + `source/style.css` 중 **페이지가 소유한 부분만** 옮긴 것이다.
+ * 시안의 바깥 셸(preview bar·sidebar)은 제품의 공통 셸이 이미 갖고 있으므로
+ * 옮기지 않는다. 값(비율·글자 크기·여백·순서)은 시안의 계산값을 그대로 쓰고,
+ * 선택자 이름만 이 저장소의 `opportunity-` 접두사로 바꿨다.
+ *
+ * 색은 `bidops` 테마 토큰만 읽는다(ADR-0048). `:root`나 이 파일에서 `--color-*`를
+ * 새로 정의하지 않는다.
+ */
 
 .opportunities-page {
+  /* 목록 첫 줄(사업명·발주기관)은 본문보다 한 단 크다. 사용자가 16px에서 15px로
+     낮춘 최종 시안의 값이며 시안 CSS와 같은 방식으로 본문 토큰에서 계산한다. */
+  --opportunity-row-primary: calc(var(--bo-type-body) + var(--border-width));
+  --opportunity-step-size: var(--spacing-7);
+
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-3);
+  gap: var(--spacing-3);
   min-width: 0;
-}
-
-.opportunities-header h2 {
-  margin: 0 0 var(--space-1);
-}
-
-.opportunities-header p {
-  margin: 0;
-  color: var(--color-muted);
-  max-width: 68ch;
-}
-
-.opportunities-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  padding: var(--space-2);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  background: var(--color-paper);
-}
-
-.opportunities-filters label,
-.opportunity-tracking-form label {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  /* pane 안에서만 스크롤한다. 페이지가 통째로 길어지면 상세 바닥의 고정 액션이
+     화면 밖으로 밀린다(발주계획·사전규격 화면과 같은 골격). */
+  height: 100%;
+  min-height: calc(var(--spacing-12) * 14);
   font-size: var(--bo-type-body);
+  line-height: var(--bo-type-body-leading);
+  color: var(--color-text-primary);
 }
 
-.opportunities-filters select,
-.opportunity-tracking-form select,
-.opportunity-tracking-form input,
-.opportunity-tracking-form textarea {
-  min-height: var(--control-height);
-  padding: 6px 8px;
-  border: 1px solid var(--border-subtle);
-  border-radius: 8px;
-  background: var(--color-paper);
-  color: var(--color-text);
-  font: inherit;
-  min-width: 0;
-}
-
-.opportunity-list {
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+.opportunities-page p {
   margin: 0;
-  padding: 0;
 }
 
-.opportunity-card {
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  background: var(--color-paper);
-  padding: var(--space-2);
+/* --- 글자 크기 ---
+ * Astryx의 `--font-size-*`는 rem이고 이 앱의 root는 14px다. 컴포넌트가 그 토큰을
+ * 그대로 쓰면 본문이 12px 아래로 내려가므로 시안과 같이 네 단으로 되돌린다. */
+:is(.opportunities-page, .opportunity-dialog-body) :where(.astryx-text, dd, li, span, input) {
+  font-size: var(--bo-type-body);
+  line-height: var(--bo-type-body-leading);
 }
 
-/* 재검토 신호는 사람이 다시 봐야 한다는 뜻이므로 목록에서 먼저 눈에 띈다. */
-.opportunity-card-signal {
-  border-left: 4px solid var(--color-alert);
-}
-
-.opportunity-card-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-}
-
-.opportunity-card-id {
-  margin-left: auto;
-  color: var(--color-muted);
+:is(.opportunities-page, .opportunity-dialog-body)
+  :where(.astryx-text.small, .astryx-button, .astryx-field-label, .astryx-token, .astryx-badge, dt) {
   font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
 }
 
-.opportunity-card-title {
-  margin: var(--space-1) 0 4px;
-  font-size: 1rem;
-}
-
-.opportunity-card-meta {
+:is(.opportunities-page, .opportunity-dialog-body)
+  :where(h3, h4, h5, .astryx-heading.level-3, .astryx-heading.level-4, .astryx-heading.level-5) {
   margin: 0;
-  color: var(--color-muted);
-  font-size: var(--bo-type-body);
-}
-
-.opportunity-card-toggle {
-  display: inline-flex;
-  align-items: center;
-  margin-top: var(--space-1);
-  padding: 4px 10px;
-  border: 1px solid var(--border-subtle);
-  border-radius: 8px;
-  background: var(--color-soft-surface);
-  color: var(--color-text);
-  font: inherit;
-  cursor: pointer;
-  text-decoration: none;
-}
-
-.opportunity-detail-header {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-}
-
-.opportunity-detail-page > .opportunity-detail {
-  margin-top: 0;
-  padding-top: 0;
-  border-top: 0;
-}
-
-.opportunity-detail {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  margin-top: var(--space-2);
-  padding-top: var(--space-2);
-  border-top: 1px solid var(--border-subtle);
-}
-
-.opportunity-detail-status {
-  margin: 0;
-  color: var(--color-muted);
-}
-
-.opportunity-detail-block h4,
-.opportunity-tracking-form h4 {
-  margin: 0 0 var(--space-1);
   font-size: var(--bo-type-section-title);
-  font-weight: var(--bo-type-section-title-weight);
   line-height: var(--bo-type-section-title-leading);
+  font-weight: var(--bo-type-section-title-weight);
 }
 
-.opportunity-decision-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.8fr);
-  gap: var(--space-2);
+.opportunities-page .astryx-heading.level-2 {
+  font-size: var(--bo-type-page-title);
+  line-height: var(--bo-type-page-title-leading);
+  font-weight: var(--bo-type-page-title-weight);
 }
 
-.opportunity-panel-heading,
-.opportunity-section-heading {
+.opportunities-page .astryx-token {
+  height: auto;
+  min-height: var(--spacing-6);
+  white-space: nowrap;
+  border-radius: var(--radius-inner);
+}
+
+.opportunity-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.opportunity-spread {
+  justify-content: space-between;
+}
+
+.opportunity-caption {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+
+/* --- 페이지 머리와 필터 --- */
+
+.opportunity-page-header {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  min-height: var(--spacing-12);
+  padding: var(--spacing-3) 0;
+}
+
+.opportunity-page-header h2 {
+  margin: 0;
+  font-size: var(--bo-type-page-title);
+  line-height: var(--bo-type-page-title-leading);
+  font-weight: var(--bo-type-page-title-weight);
+}
+
+.opportunity-filters {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-element) var(--radius-element) 0 0;
+  background: var(--color-background-surface);
+}
+
+.opportunity-filter-line {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-1);
-}
-
-.opportunity-panel-kicker {
-  color: var(--color-muted);
-  font-size: var(--bo-type-caption);
-  font-weight: 700;
-  letter-spacing: 0.02em;
-}
-
-.opportunity-signal {
-  border: 1px solid var(--color-alert);
-  border-radius: var(--radius-lg);
-  padding: var(--space-2);
-  background: var(--surface-warning);
-}
-
-.opportunity-signal-clear {
-  border-color: var(--border-subtle);
-  background: var(--color-soft-surface);
-}
-
-.opportunity-signal h4,
-.opportunity-human-decision h4 {
-  margin: 8px 0 4px;
-  font-size: var(--bo-type-section-title);
-  font-weight: var(--bo-type-section-title-weight);
-  line-height: var(--bo-type-section-title-leading);
-}
-
-.opportunity-signal p,
-.opportunity-human-decision p {
-  margin: 4px 0 0;
-}
-
-.opportunity-signal-source {
-  color: var(--color-muted);
-  font-size: var(--bo-type-body);
-}
-
-.opportunity-human-decision {
-  border: 1px solid var(--border-strong);
-  border-left: 4px solid var(--color-primary);
-  border-radius: var(--radius-lg);
-  background: var(--surface-selected);
-  padding: var(--space-2);
-}
-
-.opportunity-human-reason {
-  font-weight: 600;
-}
-
-.opportunity-decision-meta {
-  color: var(--color-muted);
-  font-size: var(--bo-type-caption);
-}
-
-.opportunity-section-heading {
-  margin-bottom: var(--space-1);
-}
-
-.opportunity-section-heading h4 {
-  margin: 2px 0 0;
-  font-size: var(--bo-type-section-title);
-  font-weight: var(--bo-type-section-title-weight);
-  line-height: var(--bo-type-section-title-leading);
-}
-
-.opportunity-section-heading > span {
-  color: var(--color-muted);
-  font-size: var(--bo-type-caption);
-}
-
-.opportunity-links {
-  list-style: none;
-  display: flex;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-1);
-  margin: 0;
-  padding: 0;
-}
-
-.opportunity-link {
-  position: relative;
-  border: 1px solid var(--border-subtle);
-  border-radius: 8px;
-  padding: 14px 14px 12px 44px;
+  gap: var(--spacing-3);
   min-width: 0;
 }
 
-.opportunity-link:not(:last-child)::after {
-  content: "→";
-  position: absolute;
-  z-index: 1;
-  top: 50%;
-  right: -21px;
-  width: 28px;
-  color: var(--color-primary-strong);
-  background: var(--color-paper);
-  font-size: 1.15rem;
-  font-weight: 700;
-  text-align: center;
-  transform: translateY(-50%);
-}
-
-.opportunity-link-step {
-  position: absolute;
-  top: 14px;
-  left: 12px;
-  display: grid;
-  width: 24px;
-  height: 24px;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--color-deep);
-  color: var(--color-white);
-  font-size: var(--bo-type-caption);
-  font-weight: 700;
-}
-
-.opportunity-link-signal {
-  border-color: var(--color-alert);
-}
-
-.opportunity-link-head {
+.opportunity-view-tabs {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
+  gap: 0;
+  min-width: 0;
 }
 
-.opportunity-link-kind {
-  font-weight: 600;
-  font-size: var(--bo-type-body);
-}
-
-.opportunity-link-title {
-  margin: 4px 0;
-  min-height: 2.9em;
-  font-weight: 600;
-}
-
-.opportunity-link-facts {
-  display: grid;
-  gap: 4px;
-  margin: 0;
-  font-size: var(--bo-type-body);
-}
-
-.opportunity-link-facts dt {
-  color: var(--color-muted);
-  font-size: var(--bo-type-caption);
-}
-
-.opportunity-link-facts dd {
-  margin: 0;
-}
-
-.opportunity-link-note {
-  margin: 4px 0 0;
-  color: var(--color-muted);
-  font-size: var(--bo-type-caption);
-}
-
-.opportunity-tracking-form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  padding: var(--space-2);
-  background: var(--color-soft-surface);
-  max-width: 48rem;
-}
-
-.opportunity-tracking-editor {
-  border-top: 1px solid var(--border-subtle);
-  padding-top: var(--space-1);
-}
-
-.opportunity-tracking-editor-toggle {
-  padding: 0 8px;
-  border: 0;
+.opportunity-view-tabs .astryx-button {
   background: transparent;
-  color: var(--color-primary-strong);
-  cursor: pointer;
-  font: inherit;
+  border-color: transparent;
+}
+
+.opportunity-view-tabs [aria-pressed="true"] {
+  background: var(--color-accent-muted);
+  border-color: var(--color-border);
   font-weight: 600;
 }
 
-.opportunity-tracking-editor .opportunity-tracking-form {
-  margin-top: var(--space-1);
-}
-
-.opportunity-form-note,
-.opportunity-form-hint,
-.opportunity-form-unsaved {
-  margin: 0;
-  color: var(--color-muted);
-  font-size: var(--bo-type-caption);
-}
-
-.opportunity-form-unsaved {
-  color: var(--color-warning);
-  font-weight: 600;
-}
-
-.opportunity-form-error {
-  margin: 0;
-  color: var(--color-error);
-  font-size: var(--bo-type-body);
-}
-
-.opportunity-tracking-form button {
-  align-self: flex-start;
-  min-height: var(--control-height);
-  padding: 6px 14px;
-  border: 1px solid var(--color-primary-strong);
-  border-radius: 8px;
-  background: var(--color-primary);
-  color: var(--color-white);
-  font: inherit;
-  cursor: pointer;
-}
-
-.opportunity-tracking-form button:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.opportunity-pager {
+.opportunity-filter-end {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-}
-
-.opportunity-pager button {
-  min-height: var(--control-height);
-  padding: 4px 12px;
-  border: 1px solid var(--border-subtle);
-  border-radius: 8px;
-  background: var(--color-paper);
-  font: inherit;
-  cursor: pointer;
-}
-
-.opportunity-pager button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* 심층 검토 보고서·최종 Go/No-Go 진입점 (docs/design/PRD.md §2.2).
- * 이 화면은 아직 Astryx로 이행하지 않았으므로 한 화면 안에서 두 체계를 섞지
- * 않는다는 ADR-0040 결정에 따라 기존 프로젝트 토큰만 쓴다. */
-.opportunity-deep-review,
-.opportunity-linked-screens {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  margin-top: var(--space-2);
-  padding: var(--space-2);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  background: var(--surface-secondary);
-}
-
-.opportunity-deep-review h3,
-.opportunity-linked-screens h3 {
-  margin: 0;
-  font-size: var(--bo-type-section-title);
-  font-weight: var(--bo-type-section-title-weight);
-  line-height: var(--bo-type-section-title-leading);
-}
-
-.opportunity-deep-review p,
-.opportunity-linked-screens p {
-  margin: 0;
-  color: var(--color-muted);
-}
-
-.opportunity-deep-review-form {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1);
-}
-
-.opportunity-deep-review-form input {
-  min-width: 260px;
-  padding: 0.4rem 0.6rem;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-}
-
-.opportunity-deep-review-hint {
-  color: var(--color-muted);
-}
-
-.opportunity-linked-link {
-  align-self: flex-start;
-  color: var(--color-primary-strong);
-  font-weight: 600;
-}
-
-/* ---------------------------------------------------------------------------
-   사업 추적 분할 화면 (PLAN 단계 E 작업 3).
-
-   목록과 상세를 한 화면에 두고 각 pane이 자기 스크롤을 가둔다. 아래 골격은
-   review-primitives.css의 .review-split-* 안에 들어가므로 그쪽과 같은 Astryx
-   토큰을 읽는다. 이 파일 위쪽의 카드·연결 레코드 스타일은 프로젝트 토큰을
-   그대로 쓰던 자리라 건드리지 않는다. */
-
-.opportunity-filter-axis {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-1);
+  gap: var(--spacing-2);
   min-width: 0;
 }
 
-.opportunity-filter-label {
-  font-size: var(--bo-type-caption);
-  color: var(--color-text-secondary);
+.opportunity-filters .opportunity-search {
+  width: calc(var(--spacing-12) * 5.5);
+  max-width: 100%;
 }
 
-.opportunity-sections {
-  flex: 1 1 320px;
-  min-width: 260px;
+.opportunity-filter-advanced {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--spacing-4);
+  padding-top: var(--spacing-2);
+  border-top: var(--border-width) solid var(--color-border);
 }
+
+/* --- 목록 38% : 상세 62% ---
+ * 발주계획·사전규격 화면과 같은 기본 비율이다. 고정 px로 근사하지 않는다. */
 
 .opportunity-workspace {
+  display: flex;
+  flex: 1 1 0;
   flex-direction: row;
   align-items: stretch;
-  height: clamp(420px, calc(100dvh - 360px), 760px);
   min-height: 0;
   border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-container);
-  background: var(--color-background-card);
+  border-top: 0;
+  border-radius: 0 0 var(--radius-element) var(--radius-element);
+  background: var(--color-background-surface);
   overflow: hidden;
 }
 
 .opportunity-list-pane {
   display: flex;
+  flex: 0 0 38%;
   flex-direction: column;
-  flex: 0 0 clamp(320px, 34%, 460px);
-  height: 100%;
+  width: 38%;
   min-width: 0;
   min-height: 0;
   border-right: var(--border-width) solid var(--color-border);
@@ -510,9 +191,10 @@
 .opportunity-list-head {
   display: flex;
   flex: 0 0 auto;
-  flex-direction: column;
-  gap: var(--spacing-1);
-  padding: var(--spacing-4);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3) var(--spacing-4);
   border-bottom: var(--border-width) solid var(--color-border);
 }
 
@@ -521,259 +203,628 @@
   font-weight: 600;
 }
 
-.opportunity-list-note {
-  margin: 0;
-  font-size: var(--bo-type-caption);
-  color: var(--color-text-secondary);
-}
-
-.opportunity-list-scroll {
+.opportunity-table-scroll {
   flex: 1 1 auto;
   min-height: 0;
-  overflow-y: auto;
+  overflow: auto;
 }
 
-.opportunity-list-empty {
-  padding: var(--spacing-5);
+.opportunity-list-foot {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: var(--spacing-0-5);
+  padding: var(--spacing-3) var(--spacing-4);
+  border-top: var(--border-width) solid var(--color-border);
+  background: var(--color-background-body);
+}
+
+/* --- 목록 행 --- */
+
+.opportunities-page .astryx-table-cell {
+  padding: var(--spacing-3);
+  vertical-align: top;
+}
+
+.opportunities-page .astryx-table-header-cell {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--color-background-body);
+  font-size: var(--bo-type-caption);
+}
+
+/* 선택 표시는 행의 선택 버튼이 진다. Astryx `Table`의 data 모드는 선택 상태를
+   갖지 않으므로 표가 아니라 `aria-pressed`를 그대로 읽는다 — 두 곳이 서로 다른
+   상태를 그리지 않게 표식은 하나만 둔다. */
+.opportunities-page tbody tr:has(.opportunity-row-business[aria-pressed="true"]) {
+  background: var(--color-accent-muted);
+}
+
+.opportunities-page tbody tr:has(.opportunity-row-business[aria-pressed="true"]) > td:first-child {
+  box-shadow: inset var(--spacing-1) 0 0 var(--color-accent);
+}
+
+.opportunity-row-business {
+  display: grid;
+  gap: var(--spacing-1);
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.opportunity-row-business .opportunity-row-title,
+.opportunity-row-business .opportunity-row-agency {
+  font-size: var(--opportunity-row-primary);
+  line-height: 1.5;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.opportunity-row-business .opportunity-row-title {
+  font-weight: 600;
+}
+
+.opportunity-row-business .opportunity-row-agency {
+  font-weight: 500;
   color: var(--color-text-secondary);
 }
 
-.opportunity-row-badges {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--spacing-1);
+.opportunity-row-business:hover .opportunity-row-title {
+  text-decoration: underline;
 }
+
+.opportunity-row-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding-top: var(--spacing-1);
+  min-width: 0;
+}
+
+.opportunity-row-meta .opportunity-caption {
+  font-size: var(--bo-type-body);
+}
+
+.opportunity-next-cell {
+  display: grid;
+  gap: var(--spacing-2);
+  padding-top: var(--spacing-0-5);
+}
+
+.opportunity-next-cell > .opportunity-next-label {
+  font-size: var(--bo-type-body);
+  line-height: 1.5;
+}
+
+.opportunity-next-cell > .opportunity-next-label.is-action {
+  font-weight: 600;
+}
+
+/* --- 상세 --- */
 
 .opportunity-detail-pane {
   display: flex;
-  flex-direction: column;
   flex: 1 1 auto;
-  height: 100%;
+  flex-direction: column;
   min-width: 0;
   min-height: 0;
-}
-
-.opportunity-detail-pane > .opportunity-detail {
-  flex: 1 1 auto;
-  min-height: 0;
-}
-
-/* 단독 상세 화면은 pane 높이를 화면에서 받는다. 분할 화면과 같은 컴포넌트를
-   쓰되 바깥 상자만 다르다. */
-.opportunity-standalone-pane {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  height: clamp(420px, calc(100dvh - 300px), 900px);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-container);
-  background: var(--color-background-card);
-  overflow: hidden;
 }
 
 .opportunity-detail {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  height: 100%;
 }
 
 .opportunity-detail-head {
-  display: flex;
+  display: grid;
   flex: 0 0 auto;
-  flex-direction: column;
   gap: var(--spacing-2);
-  padding: var(--spacing-4);
-  border-bottom: var(--border-width) solid var(--color-border);
+  padding: var(--spacing-3) var(--spacing-5) var(--spacing-3);
 }
 
-.opportunity-detail-kicker {
-  margin: 0;
-  font-size: var(--bo-type-caption);
-  color: var(--color-text-secondary);
+.opportunity-agency {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  min-width: 0;
+  margin-bottom: var(--spacing-1);
+  padding: var(--spacing-2) var(--spacing-3);
+  border-radius: var(--radius-inner);
+  background: var(--color-accent-muted);
+}
+
+.opportunity-agency > svg {
+  width: var(--spacing-5);
+  height: var(--spacing-5);
+  flex-shrink: 0;
+  color: var(--color-text-accent);
+}
+
+/* 상세의 발주기관은 목록보다 한 단 더 크다(시안의 `--bo-list-primary` 16px).
+   사용자가 15px로 낮춘 것은 목록의 사업명·기관뿐이다. */
+.opportunity-agency-name {
+  font-size: calc(var(--bo-type-body) + var(--spacing-0-5));
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 
 .opportunity-detail-title {
   margin: 0;
-  font-size: var(--font-size-lg);
+  font-size: var(--bo-type-page-title);
+  line-height: var(--bo-type-page-title-leading);
+  font-weight: var(--bo-type-page-title-weight);
+  overflow-wrap: anywhere;
 }
 
-.opportunity-detail-badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--spacing-1);
+.opportunity-detail-tabs {
+  flex: 0 0 auto;
+  padding: 0 var(--spacing-5);
+  border-top: var(--border-width) solid var(--color-border);
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.opportunity-detail-tabs .astryx-tab {
+  min-height: var(--spacing-10);
+  font-size: var(--bo-type-body);
 }
 
 .opportunity-detail-scroll {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-4);
   flex: 1 1 0;
   min-height: 0;
-  overflow-y: auto;
-  padding: var(--spacing-4);
+  overflow: auto;
+  padding: 0 var(--spacing-5);
 }
 
-.opportunity-detail-scroll > [role="tabpanel"] {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-4);
-  min-width: 0;
-}
+/* --- 사업 흐름 탭 ---
+ *
+ * 시안과 같은 순서·구성이되 세로 여백만 한 단 좁힌다. 제품 셸의 상단바(76px)가
+ * 시안의 미리보기 바(40px)보다 높아 상세가 읽는 높이가 그만큼 짧기 때문이다.
+ * 글자 크기·38% 비율·고정 액션·원천 상태는 그대로 두고 간격만 줄인다. */
 
-/* 결정 영역은 pane 바닥에 고정한다. 펼치면 form이 길어지므로 pane의 절반을
-   넘지 않게 잘라 자기 안에서 스크롤한다 — 단계 B에서 결정 바가 상세를 통째로
-   덮은 회귀와 같은 실패를 만들지 않는다. */
-.opportunity-detail-decision {
-  flex: 0 0 auto;
-  max-height: 50%;
-  overflow-y: auto;
-  border-top: var(--border-width) solid var(--color-border);
-  background: var(--color-background-card);
-}
-
-.opportunity-detail-empty {
-  padding: var(--spacing-5);
-  color: var(--color-text-secondary);
-}
-
-.opportunity-detail-permalink {
-  flex: 0 0 auto;
-  margin: 0;
-  padding: var(--spacing-2) var(--spacing-4);
-  border-top: var(--border-width) solid var(--color-border);
-  font-size: var(--bo-type-caption);
-}
-
-/* 위 .runstatus-guardrail-facts와 같은 이유로 감싸는 div를 지운다. 두지 않으면
-   첫 열의 max-content가 행 전체로 계산돼 dl이 부모보다 넓어진다. */
-.opportunity-history-facts {
+.opportunity-flow-section,
+.opportunity-linked-section,
+.opportunity-checks-panel,
+.opportunity-decision-panel {
   display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
-  gap: var(--spacing-1) var(--spacing-4);
-  margin: 0;
-  min-width: 0;
+  gap: var(--spacing-2);
+  padding-block: var(--spacing-2);
 }
 
-.opportunity-history-facts > div {
-  display: contents;
-}
-
-.opportunity-history-facts dt {
-  font-size: var(--bo-type-caption);
-  color: var(--color-text-secondary);
-}
-
-.opportunity-history-facts dd {
-  margin: 0;
-  min-width: 0;
-}
-
-/* 계약이 없어 화면이 보여줄 수 없는 것을 빈칸으로 두지 않는다. */
-.opportunity-contract-gap {
-  margin: 0;
-  padding: var(--spacing-3);
-  border: var(--border-width) dashed var(--color-border);
-  border-radius: var(--radius-container);
-  font-size: var(--bo-type-caption);
-  color: var(--color-text-secondary);
-}
-
-.opportunity-signal-note {
-  font-size: var(--bo-type-caption);
-}
-
-.opportunity-exceptions {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-3);
-  list-style: none;
+.opportunity-lifecycle {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   margin: 0;
   padding: 0;
+  list-style: none;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-inner);
+  overflow: hidden;
 }
 
-.opportunity-exception {
+.opportunity-lifecycle li {
+  display: grid;
+  gap: var(--spacing-1-5);
+  min-width: 0;
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--color-background-body);
+}
+
+.opportunity-lifecycle li + li {
+  border-left: var(--border-width) solid var(--color-border);
+}
+
+.opportunity-lifecycle li.is-confirmed {
+  background: var(--color-background-surface);
+}
+
+.opportunity-lifecycle li.is-candidate {
+  background: var(--color-accent-muted);
+}
+
+.opportunity-step {
+  display: grid;
+  place-items: center;
+  width: var(--opportunity-step-size);
+  height: var(--opportunity-step-size);
+  flex-shrink: 0;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-full);
+  font-size: var(--bo-type-caption);
+}
+
+.opportunity-step > svg {
+  width: var(--spacing-4);
+  height: var(--spacing-4);
+}
+
+.is-confirmed .opportunity-step {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.is-candidate .opportunity-step {
+  border-style: dashed;
+  border-color: var(--color-text-accent);
+  color: var(--color-text-accent);
+}
+
+.opportunity-connection-label {
+  margin: 0;
+  padding-left: calc(var(--opportunity-step-size) + var(--spacing-2));
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+}
+
+.opportunity-next-check {
+  display: grid;
+  gap: var(--spacing-1);
+  padding: var(--spacing-2) var(--spacing-4);
+  border-left: var(--spacing-1) solid var(--color-accent);
+  background: var(--color-accent-muted);
+}
+
+.opportunity-next-check > .opportunity-row > svg {
+  width: var(--spacing-4);
+  height: var(--spacing-4);
+  flex-shrink: 0;
+  color: var(--color-text-accent);
+}
+
+.opportunity-next-check-body {
+  margin: 0;
+  font-size: var(--bo-type-body);
+  line-height: 1.6;
+}
+
+.opportunity-linked-section {
+  gap: var(--spacing-1-5);
+}
+
+.opportunity-linked-rows {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-2);
-  padding: var(--spacing-3);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-container);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.opportunity-linked-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-3);
+  padding-block: var(--spacing-1-5);
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.opportunity-linked-row > svg {
+  width: var(--spacing-4);
+  height: var(--spacing-4);
+  flex-shrink: 0;
+  margin-top: var(--spacing-1);
+  color: var(--color-text-secondary);
+}
+
+.opportunity-linked-row > div {
+  display: grid;
+  flex: 1;
+  gap: var(--spacing-0-5);
   min-width: 0;
 }
 
-.opportunity-exception-head {
+.opportunity-linked-row > div > p {
+  overflow-wrap: anywhere;
+}
+
+.opportunity-linked-row .astryx-button,
+.opportunity-linked-row .opportunity-record-link {
+  align-self: center;
+}
+
+.opportunity-record-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: var(--radius-inner);
+  color: var(--color-text-accent);
+  font-size: var(--bo-type-caption);
+  white-space: nowrap;
+}
+
+.opportunity-record-link:hover {
+  background: var(--color-accent-muted);
+}
+
+.opportunity-record-link > svg {
+  width: var(--spacing-4);
+  height: var(--spacing-4);
+  flex-shrink: 0;
+}
+
+/* --- 확인 사항 탭 --- */
+
+.opportunity-checks-panel {
+  gap: var(--spacing-5);
+}
+
+.opportunity-check-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-3);
+  padding: var(--spacing-4);
+  background: var(--color-accent-muted);
+}
+
+.opportunity-check-item > svg {
+  width: var(--spacing-4);
+  height: var(--spacing-4);
+  flex-shrink: 0;
+  margin-top: var(--spacing-1);
+  color: var(--color-text-accent);
+}
+
+.opportunity-check-item > div {
+  display: grid;
+  gap: var(--spacing-3);
+  min-width: 0;
+}
+
+.opportunity-check-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--spacing-2);
 }
 
-.opportunity-exception-title {
-  font-weight: 600;
+.opportunity-search-log,
+.opportunity-quiet-state {
+  display: grid;
+  gap: var(--spacing-3);
+  padding: var(--spacing-4);
+  background: var(--color-background-body);
+}
+
+.opportunity-quiet-state > svg {
+  width: var(--spacing-4);
+  height: var(--spacing-4);
+  color: var(--color-text-accent);
+}
+
+.opportunity-check-block {
+  display: grid;
+  gap: var(--spacing-2);
+  padding-block: var(--spacing-2);
+  border-top: var(--border-width) solid var(--color-border);
   min-width: 0;
 }
 
-.opportunity-exception-detail,
-.opportunity-exception-resolution {
-  margin: 0;
-  font-size: var(--bo-type-caption);
-  color: var(--color-text-secondary);
+.opportunity-deep-review {
+  display: grid;
+  gap: var(--spacing-2);
+  padding-block: var(--spacing-2);
+  border-top: var(--border-width) solid var(--color-border);
+  min-width: 0;
 }
 
-.opportunity-exception-notice {
+.opportunity-deep-review-form {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
+  align-items: center;
   gap: var(--spacing-2);
-  padding: var(--spacing-3);
+}
+
+.opportunity-deep-review-form input {
+  min-width: calc(var(--spacing-12) * 4);
+  min-height: var(--size-element-sm, var(--spacing-8));
+  padding: var(--spacing-1) var(--spacing-2);
   border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-container);
-  min-width: 0;
+  border-radius: var(--radius-inner);
+  background: var(--color-background-body);
+  color: var(--color-text-primary);
+  font: inherit;
 }
 
-.opportunity-exception-notice h5 {
+.opportunity-linked-link {
+  align-self: flex-start;
+  color: var(--color-text-accent);
+  font-weight: 600;
+}
+
+/* --- 최근 추적 결정 탭 --- */
+
+.opportunity-decision-facts {
+  display: grid;
+  gap: var(--spacing-5);
   margin: 0;
+  padding-block: var(--spacing-3);
 }
 
-.opportunity-exception-form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-2);
-  min-width: 0;
-}
-
-.opportunity-exception-form label {
-  display: flex;
-  flex-direction: column;
+.opportunity-decision-facts > div {
+  display: grid;
   gap: var(--spacing-1);
   min-width: 0;
 }
 
-.opportunity-exception-form label > span {
+.opportunity-decision-facts dt {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+}
+
+.opportunity-decision-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* --- 상세 바닥의 고정 액션 --- */
+
+.opportunity-action-footer {
+  display: grid;
+  flex: 0 0 auto;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3) var(--spacing-5);
+  border-top: var(--border-width) solid var(--color-border);
+  background: var(--color-background-body);
+}
+
+.opportunity-tracking-summary {
+  display: grid;
+  gap: var(--spacing-0-5);
+  min-width: 0;
+}
+
+.opportunity-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  flex-shrink: 0;
+}
+
+/* --- 빈 상태·상태 표시 --- */
+
+.opportunity-empty {
+  display: grid;
+  height: 100%;
+  align-content: center;
+  justify-items: center;
+  gap: var(--spacing-4);
+  padding: var(--spacing-6);
+  text-align: center;
+}
+
+.opportunity-empty > svg {
+  width: var(--spacing-5);
+  height: var(--spacing-5);
+  color: var(--color-text-secondary);
+}
+
+.opportunity-detail-status {
+  margin: 0;
+  padding: var(--spacing-5);
+  color: var(--color-text-secondary);
+}
+
+/* --- 대화상자 --- */
+
+.opportunity-dialog-body {
+  display: grid;
+  gap: var(--spacing-5);
+  color: var(--color-text-primary);
+  font-size: var(--bo-type-body);
+  line-height: 1.6;
+}
+
+.opportunity-dialog-body .astryx-dialog-header-title {
+  font-size: var(--bo-type-page-title);
+}
+
+.opportunity-dialog-body .astryx-button {
+  white-space: nowrap;
+}
+
+.opportunity-dialog-body label {
+  display: grid;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+
+.opportunity-dialog-body label > span {
   font-size: var(--bo-type-caption);
   color: var(--color-text-secondary);
 }
 
-.opportunity-exception-form textarea,
-.opportunity-exception-form select {
+.opportunity-dialog-body :where(input, textarea) {
   min-width: 0;
-  width: 100%;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-inner);
+  background: var(--color-background-body);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: var(--bo-type-body);
 }
 
-.opportunity-judgment-links {
+.opportunity-dialog-actions {
   display: flex;
-  flex-direction: column;
-  gap: var(--spacing-1);
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--spacing-2);
+  flex-wrap: wrap;
+}
+
+.opportunity-dialog-actions > .opportunity-caption {
+  margin-right: auto;
+}
+
+.opportunity-comparison,
+.opportunity-form-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--spacing-5);
+}
+
+.opportunity-comparison > section {
+  display: grid;
+  gap: var(--spacing-3);
+  align-content: start;
+  min-width: 0;
+  padding: var(--spacing-4);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-inner);
+  background: var(--color-background-body);
+}
+
+.opportunity-comparison > section:last-child {
+  background: var(--color-accent-muted);
+}
+
+.opportunity-comparison p {
+  overflow-wrap: anywhere;
+}
+
+.opportunity-dialog-list {
+  display: grid;
+  gap: var(--spacing-3);
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.opportunity-dialog-item {
+  display: grid;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-inner);
   min-width: 0;
 }
 
-.opportunity-judgment-links li {
-  min-width: 0;
-  overflow-wrap: anywhere;
+/* 시안과 같은 배경을 쓰되 스크롤은 대화상자가 갖는다. */
+.astryx-dialog:has(.opportunity-dialog-body) {
+  background: var(--color-background-surface);
+}
+
+/* --- 단독 상세 route (`/opportunities/:id`) ---
+ * 목록 없이 상세 하나만 열지만 골격·비율·고정 액션은 같은 컴포넌트를 쓴다. */
+
+.opportunity-standalone-pane {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-height: 0;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-element);
+  background: var(--color-background-surface);
+  overflow: hidden;
 }

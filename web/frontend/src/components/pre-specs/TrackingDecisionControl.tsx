@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
+import { Selector } from "@astryxdesign/core/Selector";
+import { TextInput } from "@astryxdesign/core/TextInput";
 import { Badge } from "../common/Badge";
 import { ActorField } from "../common/ActorField";
 import { ConfirmDecisionDialog, trackingEndConfirmContent } from "../common/ConfirmDecisionDialog";
@@ -33,6 +35,9 @@ import type {
  * 심층 검토가 정상 완료돼도 다시 묻지 않는다. 이 배열을 늘리면 그 결정이 깨진다.
  */
 export const TRACKING_DECISION_STATUSES: OpportunityTrackingStatus[] = ["계속 추적"];
+
+/** 사유 예시 드롭다운에서 "직접 입력"을 뜻하는 값. 계약에 실리지 않는다. */
+const OTHER_REASON_PRESET = "__other__";
 
 /** 발주계획에서 추적 상태를 물려받은 건인지. 물려받았으면 이 화면은 다시 묻지 않는다. */
 export function isInheritedTracking(item: PreSpecListItem): boolean {
@@ -110,6 +115,12 @@ export interface TrackingDecisionControlProps {
    */
   onStartedForDeepReview?: () => void;
   /**
+   * 자주 쓰는 선택 사유 예시. 주면 빈 드롭다운에서 사유를 고르고, `기타`를
+   * 고른 경우에만 직접 입력한다. 주지 않으면 기존 자유 입력을 유지한다.
+   * 어느 경우에도 공백만 있는 사유는 저장할 수 없다.
+   */
+  reasonPresets?: readonly string[];
+  /**
    * 사유·담당자에 저장되지 않은 입력이 있는지 알린다.
    *
    * route 이동은 이 컴포넌트가 직접 막지만(아래 `useUnsavedGuard`), **목록 화면에서
@@ -131,13 +142,17 @@ export function TrackingDecisionControl({
   onDecisionStateChange,
   onStartedForDeepReview,
   onDirtyChange,
+  reasonPresets,
 }: TrackingDecisionControlProps) {
   const Heading = headingLevel;
+  const hasPresets = Boolean(reasonPresets && reasonPresets.length > 0);
   // 사전규격에서 고를 수 있는 값은 `계속 추적` 하나뿐이다(ADR-0046 결정 6).
   const [status, setStatus] = useState<OpportunityTrackingStatus>(
     item?.tracking_status && item.tracking_status !== "미선택" ? item.tracking_status : TRACKING_DECISION_STATUSES[0],
   );
   const [reason, setReason] = useState("");
+  // 드롭다운 선택 키와 실제 저장 사유를 구분한다. `기타` 키는 API에 보내지 않는다.
+  const [presetChoice, setPresetChoice] = useState("");
   const [actorName, setActorName] = useState("");
   const [feedback, setFeedback] = useState<{ tone: "success"; message: string } | null>(null);
   const [problem, setProblem] = useState<ApiErrorDescription | null>(null);
@@ -188,6 +203,7 @@ export function TrackingDecisionControl({
       guard.release();
       setStatus(saved.tracking_status);
       setReason("");
+      setPresetChoice("");
       setActorName("");
       setProblem(null);
       setFeedback({ tone: "success", message: "심층 검토 추적 상태를 저장했습니다." });
@@ -207,7 +223,9 @@ export function TrackingDecisionControl({
   // 값을 읽어 액션의 비활성 여부와 사유를 이 컴포넌트와 똑같이 유지하기
   // 때문이다(hook 순서를 조건부 반환이 흔들지 않게 하려는 목적도 같다).
   const hasOpportunity = item?.opportunity_id != null;
-  const currentStatus = item?.tracking_status ?? "미선택";
+  const currentStatus = item?.tracking_status ?? null;
+  const currentStatusLabel = currentStatus ?? "미확인";
+  const currentStatusVariant = currentStatus === null ? "neutral" : trackingVariant(currentStatus);
   const hasForm = Boolean(item) && !isPending && !isError && !(item && isInheritedTracking(item));
   const ready = hasOpportunity && reason.trim().length > 0 && actorName.trim().length > 0 && !mutation.isPending;
   const saveLabel = onStartedForDeepReview ? "추적 시작하고 심층 검토" : "추적 상태 저장";
@@ -267,7 +285,7 @@ export function TrackingDecisionControl({
           </div>
           <div className="pre-spec-tracking-current" aria-label="현재 추적 상태">
             <span>현재 추적 상태</span>
-            <Badge label={`${currentStatus} · 발주계획에서 승계`} variant={trackingVariant(currentStatus)} />
+            <Badge label={`${currentStatusLabel} · 발주계획에서 승계`} variant={currentStatusVariant} />
           </div>
         </div>
 
@@ -301,7 +319,7 @@ export function TrackingDecisionControl({
         <div className="pre-spec-tracking-current" aria-label="현재 추적 상태">
           <span>현재 추적 상태</span>
           {hasOpportunity
-            ? <Badge label={currentStatus} variant={trackingVariant(currentStatus)} />
+            ? <Badge label={currentStatusLabel} variant={currentStatusVariant} />
             : <strong>사업기회 미연결</strong>}
         </div>
       </div>
@@ -354,16 +372,51 @@ export function TrackingDecisionControl({
 
         {hasOpportunity ? (
           <>
-            <label className="pre-spec-tracking-reason">
-              <span>사유 <em>(필수)</em></span>
-              <textarea
-                required
-                rows={3}
-                value={reason}
-                onChange={(event) => setReason(event.target.value)}
-                placeholder="이 상태를 고른 사유를 남깁니다."
-              />
-            </label>
+            {hasPresets ? (
+              /* 시안의 사유 입력이다. 빈 값으로 시작하는 드롭다운에서 고른 문장이
+                 그대로 저장 사유가 되고, `기타 · 직접 입력`을 골랐을 때만 자유
+                 입력이 열린다. 예시를 주지 않은 화면(사전규격 상세)은 아래의
+                 자유 입력 textarea를 그대로 쓴다 — 기존 소비자의 동작은 그대로다. */
+              <div className="pre-spec-tracking-reason-preset">
+                <Selector
+                  label="선택 사유"
+                  size="sm"
+                  placeholder="사유를 선택하세요"
+                  isDisabled={mutation.isPending}
+                  options={[
+                    ...(reasonPresets ?? []).map((preset) => ({ value: preset, label: preset })),
+                    { value: OTHER_REASON_PRESET, label: "기타 · 직접 입력" },
+                  ]}
+                  value={presetChoice || undefined}
+                  onChange={(next) => {
+                    const chosen = next ?? "";
+                    setPresetChoice(chosen);
+                    // `기타`는 사람이 적을 자리를 비워 준다. 예시를 고르면 그 문장이 사유다.
+                    setReason(chosen === OTHER_REASON_PRESET || chosen === "" ? "" : chosen);
+                  }}
+                />
+                {presetChoice === OTHER_REASON_PRESET ? (
+                  <TextInput
+                    label="선택 사유 직접 입력"
+                    size="sm"
+                    value={reason}
+                    onChange={setReason}
+                    placeholder="이 상태를 고른 사유를 남깁니다."
+                  />
+                ) : null}
+              </div>
+            ) : (
+              <label className="pre-spec-tracking-reason">
+                <span>사유 <em>(필수)</em></span>
+                <textarea
+                  required
+                  rows={3}
+                  value={reason}
+                  onChange={(event) => setReason(event.target.value)}
+                  placeholder="이 상태를 고른 사유를 남깁니다."
+                />
+              </label>
+            )}
             <ActorField
               label="담당자 이름 (필수)"
               required

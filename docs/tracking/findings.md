@@ -898,3 +898,13 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
   기록만 남기기로 결정했다.
 - 접근 방법: 다음 차수에 attempt에 transport 표식을 더하고 `quality_status` 계산을
   `reference_only`와 transport 두 축으로 가른다.
+
+## 입찰 delta 조회가 runtime 테이블 권한 누락으로 실패한다
+
+- 확인: 2026-09-07, 네 검토 화면 UI 반영 뒤 `http://localhost:18787`의 실제 데이터 확인.
+- 재현: `GET /api/opportunities/48/bid-delta` (771·1129도 동일)가 HTTP 500, `processing_failed`를 반환한다. 실행 중인 web의 `app` 세션에서 `SET TRANSACTION READ ONLY` 후 `BidDeltaService.workspace(session, 48)`을 호출하면 `InsufficientPrivilege: permission denied for table bid_delta_comparison`이 발생한다(`services/bid_delta.py`, 비교 목록 SELECT). 세션은 rollback했다.
+- 원인 범위: `scripts/runtime-privileges.sql`의 명시적 app/worker allowlist에 `bid_delta_*`·`bid_final_decision`이 없다. 따라서 권한 파일 전체를 다시 실행하는 것만으로 해결되지 않는다. 현재 직접 확인한 첫 실패 테이블은 `bid_delta_comparison`이며 나머지 작업 경로의 권한 충족을 검증한 것은 아니다.
+- 영향: 최종 Go/No-Go 목록의 사업명·기관은 표시되지만 비교/결정 상태는 조회 실패로 남는다. UI는 이를 미결정·변경 없음·0건으로 바꾸지 않는다. 계산 worker가 아직 없는 문제와는 별개의 조회 장애다.
+- 현재 범위에서 해결하지 않은 이유: 이번 변경은 승인 시안의 프론트엔드 구현과 서버 UI 반영이다. 조회 장애는 DB 역할별 테이블·operation 권한 설계, 격리 PostgreSQL 회귀, 운영 권한 적용이 함께 필요한 백엔드 변경이다. UI 반영 과정에서 임의 blanket grant, migration, 실제 결정 쓰기는 수행하지 않았다.
+- 후속: 입찰 delta 조회·비교 생성·attempt 재시도·append-only 최종 결정 경로별 app/worker 권한을 검토해 allowlist와 역할 검사를 추가하고, 기존 결정의 UPDATE/DELETE가 거부되는 것을 확인한 뒤 해당 권한을 적용한다. 실제 API의 정상 조회와 권한 경계를 다시 확인한다.
+- 화면 및 검증 증거: `/home/jechoi/design-previews/bidops-ui-implementation-20260907/live/verification.json`.

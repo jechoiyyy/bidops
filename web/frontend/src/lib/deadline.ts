@@ -27,6 +27,13 @@ export function describeDeadline(value: string | null | undefined): DeadlineDisp
   return { label: formatShortDate(date), urgency: "later" };
 }
 
+/** `09.08` 꼴의 짧은 날짜. 목록의 마감 열이 D-day 아래에 같은 형식으로 쓴다. */
+export function shortDateLabel(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : formatShortDate(date);
+}
+
 function formatShortDate(date: Date): string {
   return new Intl.DateTimeFormat("ko-KR", { month: "2-digit", day: "2-digit" })
     .format(date)

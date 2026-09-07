@@ -1489,6 +1489,7 @@ export interface OrderPlanMockTrace {
   stopPosts: Array<{ executionId: string; body: unknown; headers: Record<string, string> }>;
 }
 export interface OrderPlanMockOptions {
+  omitTracking?: boolean;
   createErrorCode?: OrderPlanScreeningErrorCode;
   stopErrorCode?: OrderPlanScreeningErrorCode;
   errorStatus?: number;
@@ -1617,7 +1618,7 @@ const c2Items: Omit<OrderPlanListItem, "tracking">[] = [
     business_division: "정보화",
     budget_amount: 125000000,
     planned_order_year: "2026",
-    planned_order_month: "11",
+    planned_order_month: "2026-11",
     source_run_id: "91d8c2e4-3f09-4e6a-9bd9-0c2e4e6d0101",
     observed_at: "2026-09-01T01:00:00Z",
     stage1_status: "selected",
@@ -2074,7 +2075,11 @@ export async function mockOrderPlans(page: Page, scenario: OrderPlanMockScenario
     }
     if (pathname === "/api/order-plans" && method === "GET") {
       const items = listItems(search), limit = Number(search.get("limit") ?? 100), offset = Number(search.get("offset") ?? 0);
-      await fulfillJson(route, { schema_version: "order-plan-list-response.v2", producer: "order-plan-review-api", consumer: "order-plan-review-client", scope: scopeFor(search.get("source_run_id")), items: items.slice(offset, offset + limit), total: items.length, limit, offset }); return;
+      await fulfillJson(route, { schema_version: "order-plan-list-response.v2", producer: "order-plan-review-api", consumer: "order-plan-review-client", scope: scopeFor(search.get("source_run_id")), items: items.slice(offset, offset + limit).map((item) => {
+        if (!options.omitTracking) return item;
+        const { tracking: _tracking, ...legacy } = item;
+        return legacy;
+      }), total: items.length, limit, offset }); return;
     }
     const planMatch = pathname.match(/^\/api\/order-plans\/(\d+)(?:\/(screening-history|screening-feedback))?$/);
     if (planMatch) {

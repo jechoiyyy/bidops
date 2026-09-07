@@ -112,13 +112,13 @@ async function tabTo(page: Page, target: Locator, maximumTabs = 120): Promise<vo
   throw new Error(`키보드 Tab ${maximumTabs}회 안에 대상 control에 도달하지 못했습니다.`);
 }
 
-async function expectKeyboardTarget(target: Locator): Promise<void> {
+async function expectKeyboardTarget(target: Locator, minimumHeight = 40): Promise<void> {
   await expect(target).toBeFocused();
   const metrics = await target.evaluate((element) => {
     const style = getComputedStyle(element);
     return { height: element.getBoundingClientRect().height, outline: style.outlineStyle };
   });
-  expect(metrics.height).toBeGreaterThanOrEqual(40);
+  expect(metrics.height).toBeGreaterThanOrEqual(minimumHeight);
   expect(metrics.outline).not.toBe("none");
 }
 
@@ -169,29 +169,36 @@ test("UC-01은 키보드만으로 추적 저장 직전까지 이동하고 비활
   const trace = await mockOpportunity(page);
   await page.goto("/opportunities/501");
 
-  // 추적 상태 변경은 상세 pane 바닥의 접힌 보조 입력이다(PLAN 단계 E 작업 3-3).
-  const editorToggle = page.getByRole("button", { name: "추적 상태 변경 열기" });
+  const editorToggle = page.getByRole("button", { name: "추적 상태 변경", exact: true });
   await tabTo(page, editorToggle);
-  await expectKeyboardTarget(editorToggle);
+  // 승인된 데스크톱 ERP 시안은 이 버튼에 Astryx sm(28px)을 쓴다.
+  await expectKeyboardTarget(editorToggle, 28);
   await page.keyboard.press("Enter");
 
-  const save = page.getByRole("button", { name: "추적 상태 저장" });
+  const save = page.getByRole("button", { name: "변경 사항 적용", exact: true });
   await expect(save).toBeDisabled();
-  // 미선택 건은 아무 상태도 미리 골라 두지 않으므로 첫 비활성 사유가 상태 선택이다.
   await expect(page.locator(`#${await save.getAttribute("aria-describedby")}`)).toContainText("추적 상태를 고르십시오");
-  const status = page.locator(".opportunity-tracking-form select");
+  const status = page.getByRole("combobox", { name: "추적 상태", exact: true });
   await tabTo(page, status);
-  await page.keyboard.press("ArrowDown");
-  await expect(page.locator(`#${await save.getAttribute("aria-describedby")}`)).toContainText("이유를 입력하십시오");
-  const reason = page.getByLabel("이유");
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Home");
+  await page.keyboard.press("Enter");
+  await expect(status).toContainText("계속 추적");
+  await expect(page.locator(`#${await save.getAttribute("aria-describedby")}`)).toContainText("선택 사유");
+
+  const preset = page.getByRole("combobox", { name: "선택 사유", exact: true });
+  await tabTo(page, preset);
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("End");
+  await page.keyboard.press("Enter");
+  const reason = page.getByLabel("선택 사유 직접 입력");
   await tabTo(page, reason);
   await page.keyboard.type("새 사전규격을 계속 확인합니다.");
-  const actor = page.getByLabel("담당자 이름");
+  const actor = page.getByLabel("결정 기록자", { exact: true });
   await tabTo(page, actor);
   await page.keyboard.type("홍길동");
   await tabTo(page, save);
-
-  await expectKeyboardTarget(save);
+  await expectKeyboardTarget(save, 28);
   await expect(save).toBeEnabled();
   expect(trace.patchCount()).toBe(0);
 });
@@ -242,22 +249,17 @@ test("UC-04는 키보드만으로 append-only 재시작 직전까지 이동한�
   expect(trace.attemptPosts).toHaveLength(0);
 });
 
-test("R-08 이후 상세는 변경 비교로 이동하고 추적 저장과 최종 결정 저장을 분리한다", async ({ page }) => {
+test("사업 추적 상세는 변경 비교로 이동하고 추적 저장과 최종 결정 저장을 분리한다", async ({ page }) => {
   await mockOpportunity(page);
   await page.goto("/opportunities/501");
-
   await expect(page.locator('a[href="/opportunities/501/bid-delta"]')).toHaveCount(1);
   await expect(page.getByRole("button", { name: "최종 결정 저장" })).toHaveCount(0);
-  // 추적 상태 변경은 접혀 있고, 접힌 상태에서도 현재 값이 그대로 보인다.
-  await expect(page.getByRole("button", { name: "추적 상태 변경 열기" })).toHaveCount(1);
-  await expect(page.getByRole("button", { name: "추적 상태 저장" })).toHaveCount(0);
-  await expect(page.locator('[data-review-primitive="secondary-input"]')).toHaveAttribute("data-open", "false");
-
-  // 사람의 추적 판단은 추적 이력 탭이 소유한다. 무엇을 골랐고 누가 언제 골랐는지
-  // 그 탭 하나에서 읽는다.
-  await page.getByRole("tab", { name: "추적 이력", exact: true }).click();
-  await expect(page.locator("#opportunity-panel-history")).toContainText("미선택");
-  await expect(page.locator("#opportunity-panel-history")).toContainText("기록된 이유 없음");
+  await expect(page.getByRole("button", { name: "추적 상태 변경", exact: true })).toHaveCount(1);
+  await expect(page.getByRole("dialog")).not.toBeVisible();
+  await expect(page.locator(".opportunity-action-footer")).toContainText("미선택");
+  await page.getByRole("tab", { name: "최근 추적 결정", exact: true }).click();
+  await expect(page.locator("#opportunity-panel-decision")).toContainText("미선택");
+  await expect(page.locator("#opportunity-panel-decision")).toContainText("아직 선택하지 않았습니다");
 });
 
 // ADR-0046 결정 3으로 공고 1차 판정의 리뷰 저장이 사업 추적의 예외 작업으로
@@ -267,8 +269,12 @@ test("공통 unsaved guard가 옮겨간 예외 작업 입력을 지킨다", asyn
   await mockOpportunity(page);
   await page.goto("/opportunities/501");
 
-  await page.getByRole("button", { name: "추적 상태 변경 열기" }).click();
-  await page.getByLabel("이유").fill("공통 guard 회귀 검증 초안");
+  await page.getByRole("button", { name: "추적 상태 변경", exact: true }).click();
+  await page.getByRole("combobox", { name: "추적 상태", exact: true }).click();
+  await page.getByRole("option", { name: "계속 추적", exact: true }).click();
+  await page.getByRole("combobox", { name: "선택 사유", exact: true }).click();
+  await page.getByRole("option", { name: "기타", exact: true }).click();
+  await page.getByLabel("선택 사유 직접 입력").fill("공통 guard 회귀 검증 초안");
 
   const blocked = await page.evaluate(() => {
     const event = new Event("beforeunload", { cancelable: true });
@@ -276,7 +282,7 @@ test("공통 unsaved guard가 옮겨간 예외 작업 입력을 지킨다", asyn
     return event.defaultPrevented;
   });
   expect(blocked).toBe(true);
-  await expect(page.getByLabel("이유")).toHaveValue("공통 guard 회귀 검증 초안");
+  await expect(page.getByLabel("선택 사유 직접 입력")).toHaveValue("공통 guard 회귀 검증 초안");
 });
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -411,6 +417,7 @@ test("심층 검토 보고서 진입점이 사업 추적 화면에 명시된다"
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/opportunities/501");
 
+  await page.getByRole("tab", { name: /확인 사항/ }).click();
   const entry = page.locator(".opportunity-deep-review");
   await expect(entry.getByRole("heading", { name: "심층 검토 보고서" })).toBeVisible();
   // 서버가 사업기회별 보고서 목록을 주지 않는다는 사실을 감추지 않는다.
@@ -576,6 +583,7 @@ test("최종 Go/No-Go 목록은 사업 이름과 변경 비교 결과 없음을 
         latest_final_decision: null,
         final_decisions: [],
         decision_currentness: "unknown",
+        currentness_reasons: [],
       }),
     });
   });
@@ -632,6 +640,7 @@ test("최종 Go/No-Go 목록은 25건씩 받고 보이는 행만 결정 상태�
         latest_final_decision: null,
         final_decisions: [],
         decision_currentness: "unknown",
+        currentness_reasons: [],
       }),
     });
   });
@@ -684,12 +693,15 @@ test("UC-05 추적 종료 확인 단계는 취소에 초점이 오고 Esc로 요
   const trace = await mockOpportunity(page);
   await page.goto("/opportunities/501");
 
-  await page.getByRole("button", { name: "추적 상태 변경 열기" }).click();
-  await page.locator(".opportunity-tracking-form select").selectOption("종료");
-  await page.getByLabel("이유").fill("현재 범위와 맞지 않아 능동 추적을 종료합니다.");
-  await page.getByLabel("담당자 이름").fill("홍길동");
+  await page.getByRole("button", { name: "추적 상태 변경", exact: true }).click();
+  await page.getByRole("combobox", { name: "추적 상태", exact: true }).click();
+  await page.getByRole("option", { name: "종료 · 추적 종료", exact: true }).click();
+  await page.getByRole("combobox", { name: "선택 사유", exact: true }).click();
+  await page.getByRole("option", { name: "기타", exact: true }).click();
+  await page.getByLabel("선택 사유 직접 입력").fill("현재 범위와 맞지 않아 능동 추적을 종료합니다.");
+  await page.getByLabel("결정 기록자", { exact: true }).fill("홍길동");
 
-  const save = page.getByRole("button", { name: "추적 상태 저장" });
+  const save = page.getByRole("button", { name: "추적 종료로 변경", exact: true });
   await expect(save).toBeEnabled();
   await tabTo(page, save);
   await page.keyboard.press("Enter");
@@ -703,5 +715,5 @@ test("UC-05 추적 종료 확인 단계는 취소에 초점이 오고 Esc로 요
   await page.keyboard.press("Escape");
   await expect(page.getByRole("alertdialog")).toHaveCount(0);
   expect(trace.patchCount()).toBe(0);
-  await expect(page.getByLabel("이유")).toHaveValue("현재 범위와 맞지 않아 능동 추적을 종료합니다.");
+  await expect(page.getByLabel("선택 사유 직접 입력")).toHaveValue("현재 범위와 맞지 않아 능동 추적을 종료합니다.");
 });

@@ -1,0 +1,682 @@
+/* 최종 Go/No-Go 결정 검토 목록.
+ *
+ * 이 파일은 승인된 시안(`design-previews/bidops-go-no-go-erp-20260907/`)의
+ * `source/base.css` + `source/style.css` 중 **페이지가 소유한 부분만** 옮긴 것이다.
+ * 시안의 바깥 셸(preview bar·sidebar)은 제품 공통 셸이 이미 갖고 있으므로 옮기지
+ * 않는다. 비율·글자 크기·여백·정보 순서는 시안의 계산값을 그대로 쓰고 선택자
+ * 이름만 이 저장소의 `gng-` 접두사로 바꿨다.
+ *
+ * 색은 `bidops` 테마 토큰만 읽는다(ADR-0048). `:root`나 이 파일에서 `--color-*`를
+ * 새로 정의하지 않는다. 값은 전부 토큰이며 raw hex·px를 두지 않는다.
+ *
+ * `.gng-empty`는 실행 상태 화면과 공유하는 이름이라 이 파일에서 다시 정의하지
+ * 않는다(`styles/criteria-runstatus.css`). 이 화면의 빈 상태는 `.gng-list-empty`다.
+ */
+
+.gng-page {
+  /* 목록 첫 줄(사업명·발주기관)은 본문보다 한 단 크다. 사용자가 16px에서 15px로
+     낮춘 최신 시안 값이며 시안 CSS와 같은 방식으로 본문 토큰에서 계산한다
+     (`--gng-row-primary: calc(var(--bo-type-body) + var(--bo-line))`). */
+  --gng-row-primary: calc(var(--bo-type-body) + var(--border-width));
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  min-width: 0;
+  /* pane 안에서만 스크롤한다. 페이지가 통째로 길어지면 상세 바닥의 고정 액션이
+     화면 밖으로 밀린다(발주계획·사전규격·사업 추적 화면과 같은 골격). */
+  height: 100%;
+  min-height: calc(var(--spacing-12) * 14);
+  font-size: var(--bo-type-body);
+  line-height: var(--bo-type-body-leading);
+  color: var(--color-text-primary);
+}
+
+.gng-page p {
+  margin: 0;
+}
+
+/* --- 글자 크기 ---
+ * Astryx의 `--font-size-*`는 rem이고 이 앱의 root는 14px다. 컴포넌트가 그 토큰을
+ * 그대로 쓰면 본문이 12.25px, 보조가 10.5px로 계산돼 시안(20/14/14/12px)보다
+ * 작다(`docs/engineering-notes.md`, `styles/typography.css`). root를 키우면 앱
+ * 전체가 커지므로 이 화면이 쓰는 컴포넌트에만 프로젝트 4단을 되돌린다. */
+:is(.gng-page, .gng-dialog-body) :where(.astryx-text, dd, li, span, input, textarea) {
+  font-size: var(--bo-type-body);
+  line-height: var(--bo-type-body-leading);
+}
+
+:is(.gng-page, .gng-dialog-body)
+  :where(.astryx-text.small, .astryx-button, .astryx-field-label, .astryx-token, .astryx-badge, dt) {
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+
+:is(.gng-page, .gng-dialog-body) :where(.astryx-heading.level-3, .astryx-heading.level-4) {
+  font-size: var(--bo-type-section-title);
+  line-height: var(--bo-type-section-title-leading);
+  font-weight: var(--bo-type-section-title-weight);
+}
+
+:is(.gng-page, .gng-dialog-body) .astryx-heading.level-2 {
+  font-size: var(--bo-type-page-title);
+  line-height: var(--bo-type-page-title-leading);
+  font-weight: var(--bo-type-page-title-weight);
+}
+
+:is(.gng-page, .gng-dialog-body) .astryx-token {
+  height: auto;
+  min-height: var(--spacing-6);
+  white-space: nowrap;
+  border-radius: var(--radius-inner);
+}
+
+.gng-row-line {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.gng-spread {
+  justify-content: space-between;
+}
+
+.gng-caption {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+
+/* --- 페이지 머리 ---
+ * 시안 §1: 상단은 제목 한 줄이다. API·실행 경계에 대한 긴 설명은 기본 화면을
+ * 차지하지 않고 `데이터 현황` 대화상자로 간다(IMPLEMENTATION-CONTRACT §고정할 기준). */
+
+.gng-page-header {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  min-height: var(--spacing-12);
+  padding: var(--spacing-3) 0;
+}
+
+.gng-page-header h2 {
+  margin: 0;
+}
+
+/* --- 필터 줄 --- */
+
+.gng-filters {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-element) var(--radius-element) 0 0;
+  background: var(--color-background-surface);
+}
+
+.gng-filter-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  min-width: 0;
+}
+
+.gng-view-tabs {
+  display: flex;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+
+.gng-view-tabs .astryx-button {
+  background: transparent;
+  border-color: transparent;
+}
+
+.gng-view-tabs [aria-pressed="true"] {
+  background: var(--color-accent-muted);
+  border-color: var(--color-border);
+  font-weight: 600;
+}
+
+/* 시안의 검색 상자 폭(220px)을 토큰으로 옮긴다. */
+.gng-filters .astryx-text-input {
+  width: calc(var(--spacing-10) * 5.5);
+  max-width: 100%;
+}
+
+.gng-filter-context {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  min-width: 0;
+  padding-top: var(--spacing-1);
+  border-top: var(--border-width) solid var(--color-border);
+}
+
+/* --- 목록 38% : 상세 62% ---
+ * 발주계획·사전규격·사업 추적 화면과 같은 기본 비율이다. 고정 px로 근사하지 않는다. */
+
+.gng-workspace {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: row;
+  align-items: stretch;
+  min-height: 0;
+  border: var(--border-width) solid var(--color-border);
+  border-top: 0;
+  border-radius: 0 0 var(--radius-element) var(--radius-element);
+  background: var(--color-background-surface);
+  overflow: hidden;
+}
+
+.gng-list-pane {
+  display: flex;
+  flex: 0 0 38%;
+  flex-direction: column;
+  width: 38%;
+  min-width: 0;
+  min-height: 0;
+  border-right: var(--border-width) solid var(--color-border);
+}
+
+.gng-list-head {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3) var(--spacing-4);
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.gng-list-title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.gng-table-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.gng-list-foot {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2) var(--spacing-3);
+  flex-wrap: wrap;
+  padding: var(--spacing-3) var(--spacing-4);
+  border-top: var(--border-width) solid var(--color-border);
+  background: var(--color-background-body);
+}
+
+.gng-pager {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+/* 받은 목록에서 센 값이라는 사실을 요약이 직접 말한다. 전체 총계가 아니다. */
+.gng-summary {
+  margin: 0;
+  min-width: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+
+/* --- 목록 행 ---
+ * 시안 §목록: 사업명(15px) → 발주기관(15px) → 비교 상태·식별(14px), 오른쪽 열은
+ * 사람 결정 하나다. 행마다 전체 날짜·UUID를 늘어놓지 않는다. */
+
+.gng-page .astryx-table-cell {
+  padding: var(--spacing-2) var(--spacing-3);
+  vertical-align: top;
+}
+
+.gng-page .astryx-table-header-cell {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--color-background-body);
+  font-size: var(--bo-type-caption);
+}
+
+.gng-page .astryx-table-row:has([aria-pressed="true"]) {
+  background: var(--color-accent-muted);
+}
+
+.gng-page .astryx-table-row:has([aria-pressed="true"]) > td:first-child {
+  box-shadow: inset var(--spacing-1) 0 0 var(--color-accent);
+}
+
+.gng-row {
+  display: grid;
+  gap: var(--spacing-1);
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.gng-row .gng-row-title,
+.gng-row .gng-row-agency {
+  font-size: var(--gng-row-primary);
+  line-height: 1.5;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.gng-row .gng-row-title {
+  font-weight: 600;
+}
+
+.gng-row .gng-row-agency {
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+
+.gng-row:hover .gng-row-title {
+  text-decoration: underline;
+}
+
+.gng-row:focus-visible {
+  outline: var(--focus-outline-width) var(--focus-outline-style) var(--focus-outline-color);
+  outline-offset: var(--spacing-0-5);
+}
+
+/* 목록 보조줄은 12px가 아니라 본문 14px다(시안 `.queue .business>.small`). */
+.gng-row > .gng-caption {
+  padding-top: var(--spacing-1);
+  font-size: var(--bo-type-body);
+  line-height: var(--bo-type-body-leading);
+}
+
+.gng-decision-cell {
+  display: grid;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.gng-decision-state {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.gng-list-empty {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: var(--spacing-4);
+  height: 100%;
+  padding: var(--spacing-6);
+  text-align: center;
+}
+
+.gng-list-empty > svg {
+  width: var(--spacing-5);
+  height: var(--spacing-5);
+  color: var(--color-text-secondary);
+}
+
+/* --- 상세 --- */
+
+.gng-detail-pane {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.gng-detail-head {
+  display: grid;
+  flex: 0 0 auto;
+  gap: var(--spacing-1);
+  padding: var(--spacing-3) var(--spacing-5);
+}
+
+.gng-agency {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  min-width: 0;
+  padding: var(--spacing-2) var(--spacing-3);
+  border-radius: var(--radius-inner);
+  background: var(--color-accent-muted);
+}
+
+.gng-agency > svg {
+  width: var(--spacing-5);
+  height: var(--spacing-5);
+  flex-shrink: 0;
+  color: var(--color-text-accent);
+}
+
+.gng-agency-name {
+  /* 시안 `.detail-header .agency .astryx-text:last-child` = 본문 + 2px. */
+  font-size: calc(var(--bo-type-body) + var(--spacing-0-5));
+  font-weight: 600;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.gng-detail-head .astryx-heading.level-2 {
+  margin: 0;
+  font-size: var(--bo-type-page-title);
+  line-height: var(--bo-type-page-title-leading);
+  font-weight: var(--bo-type-page-title-weight);
+  overflow-wrap: anywhere;
+}
+
+.gng-detail-tabs {
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--spacing-3);
+  padding: 0 var(--spacing-5);
+  border-top: var(--border-width) solid var(--color-border);
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.gng-detail-tabs .astryx-button {
+  min-height: var(--spacing-10);
+  padding-inline: var(--spacing-1);
+  border: 0;
+  border-bottom: var(--spacing-0-5) solid transparent;
+  border-radius: 0;
+  background: transparent;
+  font-size: var(--bo-type-body);
+}
+
+.gng-detail-tabs [aria-pressed="true"] {
+  border-bottom-color: var(--color-accent);
+  color: var(--color-text-accent);
+  font-weight: 600;
+}
+
+.gng-detail-scroll {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 var(--spacing-5);
+}
+
+/* --- 검토 요약 탭 --- */
+
+.gng-review-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-3);
+  margin-top: var(--spacing-3);
+  padding: var(--spacing-3);
+  border-left: var(--spacing-1) solid var(--color-accent);
+  background: var(--color-accent-muted);
+}
+
+.gng-review-notice > svg {
+  margin-top: var(--spacing-1);
+  width: var(--spacing-4);
+  height: var(--spacing-4);
+  flex-shrink: 0;
+}
+
+.gng-review-notice > div {
+  display: grid;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.gng-delta-overview,
+.gng-documents,
+.gng-decision-history {
+  display: grid;
+  gap: var(--spacing-3);
+  padding-block: var(--spacing-2);
+}
+
+.gng-delta-counts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: hidden;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-inner);
+  background: var(--color-background-body);
+}
+
+.gng-delta-counts > div {
+  display: grid;
+  gap: var(--spacing-1);
+  padding: var(--spacing-2) var(--spacing-3);
+  min-width: 0;
+}
+
+.gng-delta-counts > div + div {
+  border-left: var(--border-width) solid var(--color-border);
+}
+
+.gng-delta-counts > div:last-child {
+  background: var(--color-accent-muted);
+}
+
+.gng-count-value {
+  display: flex;
+  gap: var(--spacing-2);
+  align-items: baseline;
+  font-size: var(--bo-type-page-title);
+  line-height: var(--bo-type-page-title-leading);
+  font-weight: 600;
+}
+
+.gng-count-value .gng-caption {
+  font-weight: 400;
+}
+
+.gng-key-changes {
+  display: grid;
+  gap: 0;
+  padding-bottom: var(--spacing-3);
+}
+
+.gng-key-changes > .gng-row-line {
+  padding-bottom: var(--spacing-1);
+}
+
+.gng-delta-row {
+  display: grid;
+  gap: var(--spacing-1);
+  min-width: 0;
+  padding: var(--spacing-2) 0;
+  border: 0;
+  border-bottom: var(--border-width) solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.gng-delta-row:hover {
+  background: var(--color-background-body);
+}
+
+.gng-delta-row:focus-visible {
+  outline: var(--focus-outline-width) var(--focus-outline-style) var(--focus-outline-color);
+  outline-offset: var(--spacing-0-5);
+}
+
+.gng-delta-values {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-width: 0;
+  font-size: var(--bo-type-body);
+  overflow-wrap: anywhere;
+}
+
+.gng-delta-values > svg {
+  width: var(--spacing-3);
+  height: var(--spacing-3);
+  flex-shrink: 0;
+  color: var(--color-text-secondary);
+}
+
+/* 결과가 아직 없는 상태. 계산 대기·실패·조회 미확인을 변경 없음과 구분한다. */
+.gng-availability {
+  display: grid;
+  justify-items: start;
+  gap: var(--spacing-4);
+  padding: var(--spacing-6) 0;
+}
+
+.gng-availability > svg {
+  width: var(--spacing-6);
+  height: var(--spacing-6);
+  color: var(--color-text-accent);
+}
+
+.gng-availability > p {
+  line-height: 1.6;
+}
+
+.gng-quiet {
+  display: grid;
+  gap: var(--spacing-3);
+  padding: var(--spacing-5);
+  background: var(--color-background-body);
+}
+
+.gng-quiet > svg {
+  width: var(--spacing-4);
+  height: var(--spacing-4);
+  color: var(--color-text-accent);
+}
+
+/* --- 비교 문서 탭 --- */
+
+.gng-document-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--spacing-3);
+}
+
+.gng-document-pair > div {
+  display: grid;
+  gap: var(--spacing-2);
+  min-width: 0;
+  padding: var(--spacing-4);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-inner);
+  background: var(--color-background-body);
+  overflow-wrap: anywhere;
+}
+
+.gng-document-pair > svg {
+  width: var(--spacing-4);
+  height: var(--spacing-4);
+  color: var(--color-text-secondary);
+}
+
+.gng-comparison-picker {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--spacing-3);
+  flex-wrap: wrap;
+}
+
+.gng-comparison-picker .astryx-selector {
+  min-width: calc(var(--spacing-10) * 6);
+}
+
+/* --- 결정 기록 탭 --- */
+
+.gng-history-entry {
+  display: grid;
+  gap: var(--spacing-2);
+  padding: var(--spacing-4) 0;
+  border-bottom: var(--border-width) solid var(--color-border);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* --- 바닥 고정 액션 --- */
+
+.gng-action-footer {
+  display: grid;
+  flex: 0 0 auto;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-5);
+  border-top: var(--border-width) solid var(--color-border);
+  background: var(--color-background-body);
+}
+
+.gng-tracking-summary {
+  display: grid;
+  gap: var(--spacing-0-5);
+  min-width: 0;
+}
+
+.gng-tracking-summary > .gng-caption:last-child {
+  font-size: var(--bo-type-body);
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.gng-detail-empty {
+  display: grid;
+  place-content: center;
+  height: 100%;
+  padding: var(--spacing-6);
+}
+
+/* --- 대화상자 --- */
+
+.gng-dialog-body {
+  display: grid;
+  gap: var(--spacing-4);
+  min-width: 0;
+  color: var(--color-text-primary);
+}
+
+.gng-compare-values {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--spacing-4);
+}
+
+.gng-compare-values > div {
+  display: grid;
+  gap: var(--spacing-2);
+  min-width: 0;
+  padding: var(--spacing-4);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-inner);
+  background: var(--color-background-body);
+  overflow-wrap: anywhere;
+}
+
+.gng-compare-values > div:last-child {
+  background: var(--color-accent-muted);
+}
+
+.gng-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-2);
+}
