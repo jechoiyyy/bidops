@@ -68,7 +68,7 @@ export async function settleFonts(page: Page): Promise<void> {
     ]);
     await document.fonts.ready;
     await new Promise<void>((resolve) => {
-        requestAnimationFrame(() => requestAnimationFrame(resolve));
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
       });
     return {
       computedFontFamily: getComputedStyle(document.documentElement).fontFamily,
@@ -158,3 +158,14 @@ export const lifecycleVisualTargets: LifecycleVisualTarget[] = [
     setup: async (page: Page) => { await mockBidDelta(page, { calculationStatus: "completed", resultStatus: state }); },
   })),
 ];
+
+
+/** Shared v2 contract scenarios for the following screen tasks. */
+export const contractFixtureScenarios = {
+  orderPlansWithoutCompletedExecution: (page: Page) => mockOrderPlans(page, "no-completed-execution"),
+  orderPlansWithoutOwner: (page: Page) => mockOrderPlans(page, "no-owning-opportunity"),
+  preSpecClickReadyWithoutOrderPlan: {
+    path: "/pre-specs?sw_only=false&auto_preparation_status=deep_review_ready_for_click",
+    setup: (page: Page) => mockPreSpecs(page),
+  },
+} as const;

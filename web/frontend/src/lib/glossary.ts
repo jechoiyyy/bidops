@@ -9,10 +9,8 @@
  *
  * **바꾸지 않는 것.**
  *
- * - 서버 계약의 enum 토큰(`relevant`, `filtered_out`, `needs_human_review`,
- *   `passed`, `pending`, `completed`, `go`, `no_go` …). 값 자체가 계약이므로
- *   번역해서 표시하면 화면이 서버 상태를 재정의하는 것이 된다. 한국어 설명을
- *   덧붙이는 것은 되지만(`CALCULATION_LABELS` 같은 라벨 맵) 토큰을 지우지 않는다.
+ * - 목록·필터는 한글 라벨로 표시한다. 계약 토큰은 상세의 기술 정보에서만 표시한다.
+ *   번역은 표시만 바꾸며 서버 값과 unknown·null의 의미는 보존한다.
  * - 식별자와 해시 값 자체(문서 버전 ID, SHA-256, request ID). 사람이 눈으로
  *   대조하는 값이므로 줄이거나 옮기지 않는다. 옮기는 것은 그 값을 가리키는
  *   **이름**뿐이다(`digest` → `식별 해시`).
@@ -59,3 +57,11 @@ export const TERM = {
 } as const;
 
 export type GlossaryTerm = keyof typeof TERM;
+
+
+export const RELEVANCE_LABEL = { relevant: "관련", uncertain: "불확실", not_relevant: "비관련" } as const;
+export const STAGE1_LABEL = { selected: "후보", filtered_out: "후보 밖", failed: "실패", rejected: "거부" } as const;
+export const STAGE2_LABEL = { not_attempted: "미시도", success: "완료", failed: "실패", rejected: "거부", unknown: "판단 불가" } as const;
+export const PRIORITY_LABEL = { high: "높음", medium: "보통", low: "낮음" } as const;
+export const NULL_LABEL = "값 없음";
+export const TRACKING_STATUS_LABEL = { 미선택: "추적 결정 없음", "계속 추적": "계속 추적", 보류: "보류", 종료: "종료" } as const;
