@@ -311,11 +311,10 @@ def test_tracking_status_service_appends_human_history_including_reset_and_resel
             assert [audit.safe_metadata["tracking_status"] for audit in audits] == [
                 item[0] for item in choices
             ]
-            assert all(
-                "검토 큐로 되돌림" not in str(audit.safe_metadata)
-                and "API_KEY" not in str(audit.safe_metadata)
-                for audit in audits
-            )
+            assert [audit.safe_metadata["reason"] for audit in audits] == [
+                item[1] for item in choices
+            ]
+            assert all("API_KEY" not in str(audit.safe_metadata) for audit in audits)
     finally:
         engine.dispose()
 
