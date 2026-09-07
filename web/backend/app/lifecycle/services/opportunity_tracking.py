@@ -130,7 +130,7 @@ def set_tracking_status(
 
     The same status may be selected again.  It is treated as a new human
     assertion: the current reason/actor/time are replaced and another
-    append-only audit event is written.  This does not touch recheck fields.
+    append-only audit event is written.  Saving resolves the current recheck signal.
     The caller owns the surrounding transaction; this function flushes so a
     caller can use the returned row and event before committing.
     """
@@ -142,6 +142,11 @@ def set_tracking_status(
     event_at = _validate_timestamp(selected_at)
     target = _resolve_opportunity(session, opportunity)
     previous_status = target.tracking_status
+    previous_signal_link_id = target.recheck_signal_link_id
+    had_signal = target.recheck_signal_at is not None
+    if had_signal:
+        target.recheck_signal_at = None
+        target.recheck_signal_link_id = None
 
     # This is the only service path that writes the human tracking columns.
     # In particular, the system signal path below never assigns any of them.
@@ -166,6 +171,8 @@ def set_tracking_status(
                 "opportunity_id": target.id,
                 "previous_tracking_status": previous_status,
                 "tracking_status": status,
+                "reason": clean_reason,
+                **({"cleared_recheck_signal_link_id": previous_signal_link_id} if had_signal else {}),
             },
             request_id=str(request_id) if request_id is not None else None,
             created_at=event_at,

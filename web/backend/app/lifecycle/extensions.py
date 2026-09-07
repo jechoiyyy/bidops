@@ -29,6 +29,8 @@ __all__ = [
     "RunIngestHook",
     "RunDirectoryClaim",
     "TrackingDecisionHook",
+    "WorkloadCount",
+    "WorkloadProjection",
     "extension_registry",
     "reset_extension_registry",
     "restore_extension_registry",
@@ -110,6 +112,30 @@ class JudgmentProjection(Protocol):
         "측정 불가"로 낸다(§6.1).
         """
 
+    def notice_ids_with_open_blocking_items(self, session: Any) -> Sequence[int]:
+        """미답변 blocking 항목이 있는 전체 공고 ID. 페이지 필터 전에 호출한다."""
+
+    def open_blocking_item_counts(
+        self, session: Any, notice_ids: Sequence[int]
+    ) -> Mapping[int, int]:
+        """현재 페이지 공고별 미답변 blocking 항목 수를 상수 회 조회로 반환한다."""
+
+
+@dataclass(frozen=True)
+class WorkloadCount:
+    """독립 업무의 건수. 확인할 수 없으면 null과 안전한 사유를 보존한다."""
+
+    count: int | None
+    unavailable_reason: str | None = None
+
+
+@runtime_checkable
+class WorkloadProjection(Protocol):
+    """등록자가 소유한 업무 키들의 건수. 다른 등록자의 키를 덮지 않는다."""
+
+    def workload_counts(self, session: Any) -> Mapping[str, WorkloadCount]:
+        """누적 업무 건수. 업무 판단과 집계는 각 제공자가 소유한다."""
+
 
 @dataclass(frozen=True)
 class PreSpecDocumentCounts:
@@ -160,6 +186,11 @@ class OverviewDocumentProjection(Protocol):
         **상수 회 조회**로 처리하고 공고당 조회를 만들지 않는다. 없는 공고는
         빠뜨린다(호출부가 부재 기본값으로 채운다).
         """
+
+    def notice_ids_for_auto_preparation_status(
+        self, session: Any, notice_ids: Sequence[int], status: str
+    ) -> Sequence[int]:
+        """입력 집합 중 자동 준비 상태가 일치하는 공고 ID. 부재 기본값은 빈 목록."""
 
 
 # --- 6.2 이벤트 hook --------------------------------------------------------
@@ -339,6 +370,14 @@ class _AbsentJudgmentProjection:
     def metrics_input(self, session: Any, run_ids: Sequence[str]) -> Mapping[str, Any]:
         return {}
 
+    def notice_ids_with_open_blocking_items(self, session: Any) -> Sequence[int]:
+        return []
+
+    def open_blocking_item_counts(
+        self, session: Any, notice_ids: Sequence[int]
+    ) -> Mapping[int, int]:
+        return {}
+
 
 class _AbsentOverviewDocumentProjection:
     """제공자가 없을 때의 개요·문서 projection (§6.1 "제공자 부재 시")."""
@@ -356,6 +395,11 @@ class _AbsentOverviewDocumentProjection:
         self, session: Any, notice_ids: Sequence[int]
     ) -> Mapping[int, Mapping[str, Any]]:
         return {}
+
+    def notice_ids_for_auto_preparation_status(
+        self, session: Any, notice_ids: Sequence[int], status: str
+    ) -> Sequence[int]:
+        return []
 
 
 @dataclass(frozen=True)
@@ -420,6 +464,7 @@ class ExtensionRegistry:
 
     _judgment: _OwnedProvider | None = None
     _overview: _OwnedProvider | None = None
+    _workload_projections: dict[str, WorkloadProjection] = field(default_factory=dict)
     _run_ingest_hooks: dict[str, RunIngestHook] = field(default_factory=dict)
     _tracking_hooks: dict[str, TrackingDecisionHook] = field(default_factory=dict)
     _effective_grade_hooks: dict[str, EffectiveGradeChangedHook] = field(default_factory=dict)
@@ -437,6 +482,12 @@ class ExtensionRegistry:
         self, projection: OverviewDocumentProjection, *, owner: str
     ) -> None:
         self._overview = _claim_slot(self._overview, owner, projection, "개요·문서 projection")
+
+    def register_workload_projection(
+        self, projection: WorkloadProjection, *, owner: str
+    ) -> None:
+        """같은 owner는 제자리 교체하고, 서로 다른 owner는 자기 업무를 제공한다."""
+        self._workload_projections[_checked_owner(owner)] = projection
 
     def register_run_ingest_hook(self, hook: RunIngestHook, *, owner: str) -> None:
         # `dict`는 이미 있는 키에 다시 넣어도 **자리를 옮기지 않는다.** 그래서
@@ -475,6 +526,32 @@ class ExtensionRegistry:
         """개요 상태 필터를 받아도 되는가. 제공자가 없으면 422다(§6.1)."""
 
         return self._overview is not None
+
+    def notice_ids_with_open_blocking_items(self, session: Any) -> Sequence[int]:
+        # 기존 제공자가 아직 새 능력을 구현하지 않은 이행 구간도 부재로 다룬다.
+        method = getattr(self.judgment_projection, "notice_ids_with_open_blocking_items", None)
+        return method(session) if callable(method) else []
+
+    def open_blocking_item_counts(
+        self, session: Any, notice_ids: Sequence[int]
+    ) -> Mapping[int, int]:
+        method = getattr(self.judgment_projection, "open_blocking_item_counts", None)
+        return method(session, notice_ids) if callable(method) else {}
+
+    def notice_ids_for_auto_preparation_status(
+        self, session: Any, notice_ids: Sequence[int], status: str
+    ) -> Sequence[int]:
+        method = getattr(self.overview_document_projection, "notice_ids_for_auto_preparation_status", None)
+        return method(session, notice_ids, status) if callable(method) else []
+
+    def workload_counts(self, session: Any) -> Mapping[str, WorkloadCount]:
+        counts: dict[str, WorkloadCount] = {}
+        for projection in self._workload_projections.values():
+            provided = projection.workload_counts(session)
+            if counts.keys() & provided.keys():
+                raise RuntimeError("서로 다른 업무 제공자가 같은 집계 키를 반환했다")
+            counts.update(provided)
+        return counts
 
     # --- hook 실행 (등록 순서대로, 호출자가 넘긴 session에서 동기적으로) ---
     def claim_run_directory(self, directory: Path) -> RunDirectoryClaim | None:

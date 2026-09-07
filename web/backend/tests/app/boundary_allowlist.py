@@ -29,7 +29,6 @@ ROUTER_ORM_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset(
         ("app/deep_review/routers/deep_reviews.py", "router_orm_access", "sqlalchemy.select"),
         ("app/deep_review/routers/document_bundles.py", "router_orm_access", "sqlalchemy.select"),
         ("app/lifecycle/routers/notices.py", "router_orm_access", "sqlalchemy.select"),
-        ("app/lifecycle/routers/opportunities.py", "router_orm_access", "sqlalchemy.select"),
         ("app/screening/routers/policies.py", "router_orm_access", "sqlalchemy.select"),
         ("app/lifecycle/routers/portals.py", "router_orm_access", "sqlalchemy.select"),
         ("app/lifecycle/routers/pre_specs.py", "router_orm_access", "Session.execute"),

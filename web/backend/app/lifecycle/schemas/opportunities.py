@@ -4,11 +4,15 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Literal
+from uuid import UUID
 
 from pydantic import AliasChoices, Field
 
 from ...core.schema_base import AwareDateTime, RuntimeContractModel
 
+
+OpportunitySection = Literal["조치 필요", "추적 중", "보류", "추적 종료"]
+OpportunitySectionCountKey = Literal["조치 필요", "추적 중", "보류", "추적 종료", "미결정"]
 
 OpportunityTrackingStatus = Literal["미선택", "계속 추적", "보류", "종료"]
 OpportunityFirstRegisteredStage = Literal["order_plan", "pre_spec", "bid_notice"]
@@ -62,6 +66,9 @@ class OpportunityStateView(RuntimeContractModel):
     tracking_reason: str | None = None
     tracking_selected_by: str | None = None
     tracking_selected_at: AwareDateTime | None = None
+    section: OpportunitySection | None = None
+    pending_candidate_link_count: int = Field(default=0, ge=0)
+    open_blocking_item_count: int = Field(default=0, ge=0)
     recheck_signal: bool
     recheck_signal_at: AwareDateTime | None = None
     recheck_signal_link_id: int | None = Field(default=None, ge=1)
@@ -83,7 +90,23 @@ class OpportunityDetailResponse(OpportunityStateView):
     links: list[OpportunityLinkView] = Field(default_factory=list)
 
 
+class OpportunityTrackingDecisionView(RuntimeContractModel):
+    decided_at: AwareDateTime
+    tracking_status: str
+    previous_tracking_status: str | None = None
+    reason: str | None = None
+    claimed_name: str | None = None
+    audit_event_id: UUID
+    cleared_recheck_signal: bool
+
+
+class OpportunityTrackingDecisionsResponse(RuntimeContractModel):
+    opportunity_id: int = Field(ge=1)
+    items: list[OpportunityTrackingDecisionView] = Field(default_factory=list)
+
+
 class OpportunityListResponse(RuntimeContractModel):
+    section_counts: dict[OpportunitySectionCountKey, int]
     items: list[OpportunityListItem] = Field(default_factory=list)
     total: int = Field(ge=0)
     limit: int = Field(ge=1, le=500)
@@ -125,6 +148,9 @@ __all__ = [
     "OpportunityLinkType",
     "OpportunitySearchStrategy",
     "OpportunitySort",
+    "OpportunitySection",
+    "OpportunityTrackingDecisionView",
+    "OpportunityTrackingDecisionsResponse",
     "OpportunityStateView",
     "OpportunityTrackingStatus",
     "TrackingStatusUpdateRequest",
