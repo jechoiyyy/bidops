@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { mockApi, mockOrderPlans } from "./api-mock";
+import { mockApi } from "./api-mock";
 
 const shellRoutes = [
   "/",
@@ -148,11 +148,19 @@ test("지원 폭 1280·1440·1920px에서 셸이 가로로 넘치지 않는다",
   }
 });
 
+// 이 검사는 **셸의 계약**이다: canvas 가 넘칠 때 사이드바가 따라 움직이지 않는다.
+// 어느 화면의 높이에 기대면 그 화면이 밀도를 바꿀 때마다(발주계획·사전규격이 최근
+// 그랬다) 검사가 통째로 무의미해지므로, canvas 에 높은 블록을 직접 넣어 스크롤을
+// 만들고 셸만 본다.
 test("콘텐츠를 스크롤해도 사이드바는 viewport에 고정되어 메뉴 이동을 유지한다", async ({ page }) => {
-  await mockOrderPlans(page);
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto("/order-plans");
-  await expect(page.locator(".c2l-workspace")).toBeVisible();
+  await page.goto("/");
+  await expect(page.locator("h1").first()).toBeVisible();
+  await page.locator(".page-canvas").evaluate((canvas) => {
+    const filler = document.createElement("div");
+    filler.style.height = "3000px";
+    canvas.append(filler);
+  });
 
   const sidebar = page.locator("aside.sidebar");
   await expect(sidebar).toHaveCSS("position", "sticky");

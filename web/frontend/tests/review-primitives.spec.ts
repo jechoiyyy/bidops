@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { mockApi, mockOrderPlans, mockPreSpecs } from "./api-mock";
+import { mockApi, mockOpportunity, mockOrderPlans, mockPreSpecs } from "./api-mock";
 
 test.beforeEach(async ({ page }) => {
   await mockApi(page);
@@ -53,8 +53,9 @@ test("발주계획 C-2는 공통 필터·목록·상세·상태·결정 action�
   // pane 바닥의 결정은 추적 결정 넷이다(ADR-0046 결정 4). 사람 판단 수정의 저장은
   // 접힌 보조 입력 영역이 소유하므로 이 바에 없다.
   await expect(page.locator('[data-review-primitive="decision-bar"] [data-review-primitive="decision-action"]')).toHaveCount(4);
-  // 같은 사유로 함께 막힌 세 결정이 문구를 한 번만 그린다.
-  await expect(page.getByText("담당자 이름을 입력하면 추적 결정을 기록할 수 있습니다.", { exact: true })).toHaveCount(1);
+  // 같은 사유로 함께 막힌 세 결정이 문구를 한 번만 그린다. 사유·담당자가 모두 비어 있는
+  // 첫 상태에서는 둘을 한 문장으로 합쳐 말한다.
+  await expect(page.getByText("선택 사유와 담당자 이름을 입력하면 추적 결정을 기록할 수 있습니다.", { exact: true })).toHaveCount(1);
   for (const label of ["추적 시작", "보류", "추적 종료"]) {
     await expect(page.getByRole("button", { name: label, exact: true })).toHaveAttribute("aria-describedby", "c2l-tracking-decision-reason");
   }
@@ -65,19 +66,18 @@ test("발주계획 C-2는 공통 필터·목록·상세·상태·결정 action�
   expect(overflow).toBeLessThanOrEqual(1);
 });
 
-test("사전규격 상태 그룹은 공통 collapsible primitive로 0건·미시작 상태를 보존한다", async ({ page }) => {
+test("사전규격 보기 전환은 0건인 진행·대기도 숨기지 않는다", async ({ page }) => {
   await mockPreSpecs(page);
   await page.goto("/pre-specs?sw_only=false");
-
-  const groups = page.locator('[data-review-primitive="state-group"]');
-  await expect(groups).toHaveCount(11);
-  await expect(page.getByRole("button", { name: /^사람 검토 필요/ })).toHaveAttribute("aria-expanded", "true");
-  await expect(page.getByRole("button", { name: /^실패/ })).toHaveAttribute("aria-expanded", "true");
-  const notStarted = page.getByRole("button", { name: /^개요 검토 미시작/ });
-  await expect(notStarted).toHaveAttribute("aria-expanded", "false");
-  await notStarted.click();
-  await expect(notStarted).toHaveAttribute("aria-expanded", "true");
-  await expect(page.getByText("개요 검토 미시작", { exact: true })).toBeVisible();
+  const pending = page.getByRole("button", { name: /^진행·대기/ });
+  await expect(pending).toContainText("0");
+  await pending.click();
+  await expect(pending).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".pre-specs-row")).toHaveCount(0);
+  await expect(page.getByText("조건에 맞는 사전규격이 없습니다.", { exact: true })).toBeVisible();
+  await page.locator(".pre-specs-views").getByRole("button", { name: /^전체/ }).click();
+  await expect(pending).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator(".pre-specs-row")).not.toHaveCount(0);
 });
 
 // ── 단계 B에서 추가한 primitive ────────────────────────────────────────────
@@ -123,35 +123,28 @@ test("분할 화면의 결정 액션 바는 상세 pane 바닥에 남아 스크�
   expect(geometry.scrollHeight).toBeGreaterThan(geometry.barHeight);
 });
 
-test("접힌 보조 입력 영역은 닫아도 현재 값과 무엇을 바꾸지 않는지를 남기고 입력만 숨긴다", async ({ page }) => {
-  await mockOrderPlans(page);
-  await page.goto("/order-plans");
-  await page.locator(".c2l-row").first().click();
+// 승인 시안은 보조 입력을 대화상자로 연다. 현재 값은 하단에 남고 키보드로
+// 열고 닫을 수 있으며, 추적 선택이 다른 결정을 바꾸지 않는다는 뜻을 보존한다.
+test("추적 입력 창은 키보드로 열고 닫으며 현재 추적 값과 결정의 범위를 보존한다", async ({ page }) => {
+  await mockOpportunity(page);
+  await page.goto("/opportunities");
+  await page.locator(".opportunity-row-business").first().click();
 
-  const secondary = page.locator('[data-review-primitive="secondary-input"]');
-  await expect(secondary).toHaveCount(1);
-
-  // pane 바닥의 결정이 추적 결정이므로 사람 판단 수정은 기본이 접힘이다(ADR-0046 결정 5).
-  const reopen = page.getByRole("button", { name: "사람 판단 수정 (선택) 열기" });
-  await expect(secondary).toHaveAttribute("data-open", "false");
-  await expect(reopen).toHaveAttribute("aria-expanded", "false");
-  await expect(page.getByLabel("사람 판단 담당자 이름")).toBeHidden();
-  // 접어도 현재 사람 판단 값과 이 입력이 대신하지 않는 결정은 화면에 남는다.
-  await expect(secondary.locator(".review-secondary-input-summary")).toHaveText("relevant · 우선순위 high");
-  await expect(secondary.locator(".review-secondary-input-description"))
-    .toHaveText("기존 사람 판단을 그대로 둡니다. 추적 결정과는 별도 수정본이며 적합성 등급·참여 준비 상태·심층 추적 승인·최종 Go/No-Go를 채우거나 대신하지 않습니다.");
-
-  // 접힌 영역은 토글이 aria-controls로 가리키는 하나의 region이다.
-  const controls = await reopen.getAttribute("aria-controls");
-  expect(controls).toBeTruthy();
-  await expect(page.locator(`#${controls}`)).toContainText("사람 판단 담당자 이름");
-
-  // 키보드만으로 열 수 있고 열림 상태가 aria로도 전달된다.
-  await reopen.focus();
+  const footer = page.locator(".opportunity-action-footer");
+  const summary = footer.locator(".opportunity-tracking-summary");
+  await expect(summary).toBeVisible();
+  const before = await summary.innerText();
+  const open = footer.getByRole("button", { name: "추적 상태 변경", exact: true });
+  await open.focus();
   await page.keyboard.press("Enter");
-  await expect(secondary).toHaveAttribute("data-open", "true");
-  await expect(page.getByRole("button", { name: "사람 판단 수정 (선택) 닫기" })).toHaveAttribute("aria-expanded", "true");
-  await expect(page.getByLabel("사람 판단 담당자 이름")).toBeVisible();
+
+  const dialog = page.getByRole("dialog", { name: "추적 상태 변경", exact: true });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("적합성 등급·참여 준비 상태·심층 검토 승인·최종 입찰 Go/No-Go는 바뀌지 않습니다.");
+  await expect(dialog.getByRole("combobox", { name: "선택 사유" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).not.toBeVisible();
+  await expect(summary).toHaveText(before, { useInnerText: true });
 });
 
 test("append-only revision 이력은 건수와 append-only 표식을 함께 보여주고 revision을 덮어쓰지 않는다", async ({ page }) => {
@@ -204,7 +197,7 @@ test("등급 4단은 한 벌의 농도 스케일을 쓰고 색만이 아니라 �
   for (const [level, colors] of byLevel) expect([...colors][0], `등급 ${level}`).toBe(ramp[level]);
 });
 
-test("긴 한글 제목이 목록 행과 접힌 보조 입력을 가로로 넘치게 하지 않는다", async ({ page }) => {
+test("긴 한글 제목이 목록 행과 상세 pane을 가로로 넘치게 하지 않는다", async ({ page }) => {
   await mockOrderPlans(page);
   await page.goto("/order-plans");
   await page.locator(".c2l-row").first().click();
@@ -213,8 +206,10 @@ test("긴 한글 제목이 목록 행과 접힌 보조 입력을 가로로 넘�
   await page.locator(".c2l-detail-pane").evaluate((pane, text) => {
     const heading = pane.querySelector("h4");
     if (heading) heading.textContent = text;
-    const title = pane.querySelector<HTMLElement>(".review-secondary-input-title");
-    if (title) title.textContent = text;
+    const agency = pane.querySelector<HTMLElement>(".c2l-agency-name");
+    if (agency) agency.textContent = text;
+    const evidence = pane.querySelector<HTMLElement>(".c2l-evidence-body");
+    if (evidence) evidence.textContent = text;
   }, longTitle);
 
   const overflow = await page.evaluate(() => ({

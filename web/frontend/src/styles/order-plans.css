@@ -676,22 +676,118 @@
  * (raw hex, raw px 없음; ADR-0040).
  * ==========================================================================*/
 
+/* 시안(focus-v2)의 ERP 작업 화면: 셸 canvas 높이를 그대로 채우고 목록·상세 두
+ * pane 안에서만 스크롤한다. 페이지가 통째로 길어지면 바닥의 결정 블록이 화면 밖으로
+ * 밀려나므로 여기서 높이를 고정한다. */
 .c2l-page {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-4);
+  gap: var(--spacing-3);
   min-width: 0;
-  padding: var(--spacing-5);
+  /* canvas 높이를 그대로 쓰되(definite), 너무 낮은 창에서는 최소 높이만큼 canvas가
+     스크롤한다. `min-height: 100%`만 두면 높이가 content 로 정해져 1,200건 목록이
+     페이지째 늘어나고 바닥의 결정 블록이 화면 밖으로 밀린다. */
+  height: 100%;
+  min-height: calc(var(--spacing-12) * 14);
   font-family: var(--font-family-body);
+  font-size: var(--bo-type-body);
   color: var(--color-text-primary);
   background: var(--color-background-body);
 }
 
-.c2l-description {
+/* --- 글자 크기 ---
+ *
+ * Astryx의 `--font-size-*`는 rem 이고 이 앱의 root 는 14px 다. 그대로 두면 body 가
+ * 12.25px, supporting 이 10.5px, `<h2>`가 17.5px 로 계산돼 시안(20/14/14/12px)보다
+ * 작다(`docs/engineering-notes.md`, `styles/typography.css`). root 를 키우면 앱
+ * 전체가 커지므로 이 화면이 쓰는 컴포넌트에만 프로젝트 4단을 다시 적용한다.
+ * 최소 크기는 12px 다. */
+:is(.c2l-page, .c2l-dialog-body) :where(.astryx-text.body, .astryx-text.label),
+:is(.c2l-page, .c2l-dialog-body) :where(input, textarea),
+:is(.c2l-page, .c2l-dialog-body) :where(dd, li, p, span) {
+  font-size: var(--bo-type-body);
+  line-height: var(--bo-type-body-leading);
+}
+
+:is(.c2l-page, .c2l-dialog-body) :where(.astryx-text.supporting, .astryx-badge, .astryx-button, .astryx-toggle-button, .astryx-field-label, .astryx-tab),
+:is(.c2l-page, .c2l-dialog-body) :where(dt, code, .c2l-digest) {
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+
+:is(.c2l-page, .c2l-dialog-body) .astryx-heading.level-2 {
+  font-size: var(--bo-type-page-title);
+  line-height: var(--bo-type-page-title-leading);
+  font-weight: var(--bo-type-page-title-weight);
+}
+
+/* 선택한 사업명은 시안의 페이지 제목과 같은 크기로 읽힌다. 문서 구조상으로는 페이지
+ * `<h2>` 아래의 `<h4>`이므로 의미 계층은 그대로 두고 크기만 준다. */
+.c2l-page .c2l-detail-head .astryx-heading.level-4 {
+  font-size: var(--bo-type-page-title);
+  line-height: var(--bo-type-page-title-leading);
+  font-weight: var(--bo-type-page-title-weight);
+}
+
+:is(.c2l-page, .c2l-dialog-body) :where(.astryx-heading.level-3, .astryx-heading.level-4, .astryx-heading.level-5) {
+  font-size: var(--bo-type-section-title);
+  line-height: var(--bo-type-section-title-leading);
+  font-weight: var(--bo-type-section-title-weight);
+}
+
+/* Selector·TextInput 의 값 영역은 컴포넌트 내부 span 이라 위 규칙만으로는 닿지 않는다. */
+:is(.c2l-page, .c2l-dialog-body) :where(.astryx-selector, .astryx-text-input),
+:is(.c2l-page, .c2l-dialog-body) :where(.astryx-selector, .astryx-text-input) :where(span, input) {
+  font-size: var(--bo-type-body);
+}
+
+/* --- 상단: 제목 한 줄 --- */
+.c2l-page-header {
   display: flex;
-  flex-direction: column;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3) var(--spacing-4);
+  min-width: 0;
+}
+
+.c2l-page-header h2 {
+  margin: 0;
+}
+
+.c2l-page-header-end {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-3);
+  min-width: 0;
+}
+
+.c2l-status-chip {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: var(--spacing-2);
-  padding-top: var(--spacing-2);
+  min-width: 0;
+}
+
+/* 회차 이름은 길다. 상단 줄에서 제목과 자리를 다투지 않도록 폭을 묶는다. */
+.c2l-page-header-end .c2l-run-selector {
+  width: calc(var(--spacing-12) * 5);
+  max-width: 100%;
+}
+
+.c2l-page-header-end .astryx-selector {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  min-height: var(--size-element-md);
+  min-width: 0;
+  padding: 0 var(--spacing-2);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-inner);
+  background: var(--color-background-card);
 }
 
 .c2l-execution-empty {
@@ -701,39 +797,74 @@
 
 .c2l-workspace-shell {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
-  gap: var(--spacing-4);
+  gap: var(--spacing-2);
   min-height: 0;
 }
 
-/* --- 필터 --- */
+/* --- 압축 툴바 ---
+ *
+ * 시안의 toolbar 한 줄: 왼쪽에 보기(프리셋), 오른쪽에 검색과 `상세 필터` 토글이다.
+ * 기술 축(Qwen·BM25·사람 피드백·실행 결과·저장된 뷰)은 토글 뒤에 접혀 있고, 접혀
+ * 있어도 URL 동기화와 축의 AND/OR 의미는 그대로다. */
 .c2l-filters {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
-  gap: var(--spacing-4);
-  padding: var(--spacing-4);
+  align-items: center;
+  gap: var(--spacing-2) var(--spacing-3);
+  padding: var(--spacing-2) var(--spacing-3);
   border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-container);
+  border-radius: var(--radius-element) var(--radius-element) 0 0;
+  border-bottom: 0;
   background: var(--color-background-card);
 }
 
-.c2l-presets {
+.c2l-toolbar-main {
+  order: 0;
   display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2) var(--spacing-3);
   min-width: 0;
+}
+
+/* 프리셋은 네 칸짜리 지름길이다. `layout="fill"`이 줄 전체를 먹지 않도록 폭을 준다. */
+.c2l-filters .c2l-preset-control {
+  flex: 0 1 auto;
+  width: calc(var(--spacing-12) * 8);
+  max-width: 100%;
+  min-width: 0;
+}
+
+.c2l-toolbar-end {
+  display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--spacing-2);
-}
-
-.c2l-presets p {
-  flex: 0 0 auto;
-  margin: 0;
-}
-
-.c2l-presets .review-filter-segmented {
-  flex: 1 1 auto;
   min-width: 0;
+}
+
+.c2l-filters .c2l-toolbar-search {
+  width: calc(var(--spacing-12) * 4.5);
+  max-width: 100%;
+}
+
+.c2l-filters .review-filter-reset {
+  order: 1;
+}
+
+.c2l-filter-advanced {
+  order: 2;
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--spacing-3) var(--spacing-4);
+  padding-top: var(--spacing-2);
+  border-top: var(--border-width) solid var(--color-border);
 }
 
 .c2l-filter-axis {
@@ -747,21 +878,16 @@
   margin: 0;
 }
 
-/* 검색은 축 이름 아래에 입력과 실행 버튼을 한 줄로 둔다. */
-.c2l-filter-search-row {
+.c2l-saved-views {
+  min-width: 0;
+}
+
+.c2l-saved-views-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--spacing-2);
   min-width: 0;
-}
-
-.c2l-saved-views {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--spacing-2);
 }
 
 .c2l-saved-view-list {
@@ -906,15 +1032,18 @@
   border-color: var(--color-border-emphasized);
 }
 
-/* --- 목록/상세 workspace --- */
+/* --- 목록/상세 workspace ---
+ *
+ * 툴바 바로 아래에 이어 붙는 한 덩어리이고, 남은 높이를 전부 채운다. 스크롤은 목록과
+ * 상세 본문 안에서만 일어나므로 바닥의 결정 블록은 늘 보인다. */
 .c2l-workspace {
   display: flex;
+  flex: 1 1 0;
   flex-direction: row;
   align-items: stretch;
-  height: clamp(420px, calc(100dvh - 420px), 720px);
   min-height: 0;
   border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-container);
+  border-radius: 0 0 var(--radius-element) var(--radius-element);
   background: var(--color-background-card);
   overflow: hidden;
 }
@@ -922,9 +1051,9 @@
 .c2l-list-pane {
   display: flex;
   flex-direction: column;
-  flex: 0 0 var(--c2l-list-width, 380px);
-  width: var(--c2l-list-width, 380px);
-  height: 100%;
+  /* 시안 기준 38% : 62%. 사람이 끌면 그때 px 값이 들어온다. */
+  flex: 0 0 var(--c2l-list-width, 38%);
+  width: var(--c2l-list-width, 38%);
   min-width: 0;
   border-right: var(--border-width) solid var(--color-border);
   min-height: 0;
@@ -934,9 +1063,30 @@
   display: flex;
   flex: 0 0 auto;
   flex-direction: column;
-  gap: var(--spacing-1);
-  padding: var(--spacing-4);
+  gap: var(--spacing-0-5);
+  padding: var(--spacing-2) var(--spacing-4);
   border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.c2l-list-head p {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.c2l-list-head-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+/* 조합이 길어지면 한 줄로 줄이고 전체 문장은 title 로 남긴다. */
+.c2l-list-scope {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .c2l-list-scroll {
@@ -945,8 +1095,16 @@
   overflow-y: auto;
 }
 
-.c2l-list-empty {
+/* 빈 상태는 시안처럼 pane 가운데에 놓인다. */
+.c2l-list-empty,
+.c2l-detail-empty {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 0;
   padding: var(--spacing-5);
+  text-align: center;
 }
 
 /* 목록 행 — 시안 `Opportunities`·`PreSpecs`의 밀집 행과 같은 골격이다.
@@ -963,10 +1121,10 @@
   flex-direction: column;
   align-items: stretch;
   justify-content: flex-start;
-  gap: var(--spacing-1-5);
+  gap: var(--spacing-1);
   width: 100%;
   min-width: 0;
-  padding: var(--spacing-3) var(--spacing-4);
+  padding: var(--spacing-2) var(--spacing-4);
   border: 0;
   border-bottom: var(--border-width) solid var(--color-border);
   border-left: 3px solid transparent;
@@ -991,18 +1149,41 @@
   outline-offset: calc(-1 * var(--focus-outline-width));
 }
 
-/* 긴 한글 제목은 두 줄까지 보이고 그 뒤를 말줄임한다. */
+/* 행의 차례는 사업명 → metadata(발주기관 · 예산 · 시기) → 상태 배지다. 발주기관은
+ * 자리를 옮기지 않고 크기만 보조 글자(12px)에서 본문 굵은 글자(14px)로 키운다. 긴 한글
+ * 제목은 두 줄까지 보이고 그 뒤를 말줄임한다. */
 .c2l-row-line {
   display: block;
   min-width: 0;
 }
 
-.c2l-row-line > .astryx-text {
+.c2l-row-title {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   line-clamp: 2;
   overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+/* 시안의 행 내부 간격: 사업명 / 상태 배지 / metadata 세 줄이 같은 간격으로 쌓인다. */
+.c2l-row-desc {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+
+.c2l-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--spacing-2);
+  min-width: 0;
+}
+
+.c2l-row-agency {
+  min-width: 0;
   overflow-wrap: anywhere;
 }
 
@@ -1064,7 +1245,6 @@
   display: flex;
   flex-direction: column;
   flex: 1 1 auto;
-  height: 100%;
   min-width: 0;
   min-height: 0;
 }
@@ -1073,23 +1253,187 @@
   display: flex;
   flex: 0 0 auto;
   flex-direction: column;
-  gap: var(--spacing-2);
-  padding: var(--spacing-4);
+  gap: var(--spacing-1-5);
+  padding: var(--spacing-3) var(--spacing-4);
   border-bottom: var(--border-width) solid var(--color-border);
 }
 
+.c2l-detail-head h4 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* 발주기관은 사업명보다 먼저 읽힌다. 라벨과 기관명을 강조 영역으로 분리한다(시안 §4). */
+.c2l-agency-feature {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--spacing-1) var(--spacing-3);
+  min-width: 0;
+  padding: var(--spacing-3) var(--spacing-4);
+  border-radius: var(--radius-inner);
+  background: var(--color-accent-muted);
+}
+
+.c2l-agency-feature p {
+  margin: 0;
+}
+
+.c2l-agency-label {
+  flex: 0 0 auto;
+}
+
+.c2l-agency-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.c2l-detail-identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.c2l-detail-identity p {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* 기본 사례는 스크롤 없이 읽히고, 긴 설명만 여기서 넘친다. 바닥의 결정 블록은
+ * 이 스크롤 영역 밖에 있으므로 늘 보인다. */
 .c2l-detail-scroll {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-5);
+  gap: var(--spacing-2);
   flex: 1 1 0;
   min-height: 0;
   overflow-y: auto;
-  padding: var(--spacing-4);
+  padding: var(--spacing-3) var(--spacing-4) var(--spacing-2);
 }
 
-.c2l-detail-empty {
-  padding: var(--spacing-5);
+.c2l-detail-facts {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: var(--spacing-3);
+  margin: 0;
+  padding-bottom: var(--spacing-3);
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.c2l-detail-facts dt {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+}
+
+.c2l-detail-facts dd {
+  margin: var(--spacing-0-5) 0 0;
+  min-width: 0;
+  font-weight: var(--font-weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+/* 관련 근거는 실제로 있는 값(qwen_reason)만 싣는다. 원문 인용을 만들지 않는다. */
+.c2l-evidence {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.c2l-evidence-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.c2l-evidence-head h5 {
+  margin: 0;
+}
+
+.c2l-evidence-body {
+  margin: 0;
+  min-width: 0;
+  padding: var(--spacing-2) var(--spacing-3);
+  border-left: var(--spacing-1) solid var(--color-accent);
+  border-radius: 0 var(--radius-inner) var(--radius-inner) 0;
+  background: var(--color-background-muted);
+  overflow-wrap: anywhere;
+}
+
+/* 시안의 근거 카드와 같은 골격이다. 값은 서버가 준 알려진 필드 하나뿐이고, 문서 위치나
+ * 인용문을 지어내지 않는다 — 라벨이 어느 필드를 읽었는지만 밝힌다. */
+.c2l-evidence-source {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  margin: 0;
+  min-width: 0;
+  padding: var(--spacing-2) var(--spacing-3);
+  border-left: var(--spacing-1) solid var(--color-accent);
+  border-radius: 0 var(--radius-inner) var(--radius-inner) 0;
+  background: var(--color-background-body);
+}
+
+.c2l-evidence-source dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.c2l-evidence-source dt {
+  order: 2;
+  color: var(--color-text-secondary);
+}
+
+.c2l-evidence-scope {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.c2l-detail-note {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* 보조 표시로 가는 입구. 기본 동선에서 빼되 같은 자리에 남긴다. */
+.c2l-supplementary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-3);
+  min-width: 0;
+  padding-top: var(--spacing-2);
+  border-top: var(--border-width) solid var(--color-border);
+}
+
+
+/* --- 보조 대화상자 --- */
+.c2l-dialog-body {
+  display: flex;
+  font-size: var(--bo-type-body);
+  flex-direction: column;
+  gap: var(--spacing-3);
+  min-width: 0;
+  padding: var(--spacing-4);
+  overflow: auto;
+}
+
+.c2l-dialog-body p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.c2l-feedback-dialog .astryx-badge {
+  align-self: flex-start;
 }
 
 /* --- 판정 탭 --- */
@@ -1280,19 +1624,7 @@
   word-break: break-all;
 }
 
-/* ===== 단계 C — 발주계획 추적 결정과 상단 요약 ===== */
-
-.c2l-scope-line {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: var(--spacing-3);
-  flex-wrap: wrap;
-}
-
-.c2l-scope-line p {
-  margin: 0;
-}
+/* ===== 발주계획 추적 결정 ===== */
 
 .c2l-scope-link {
   flex: 0 0 auto;
@@ -1309,17 +1641,67 @@
   overflow-wrap: anywhere;
 }
 
-/* 추적 결정 영역. 결정 버튼은 pane 바닥의 .review-decision-bar 에 있고 여기에는
-   현재 상태와 이 결정이 바꾸지 않는 것, 사유·담당자만 둔다. */
+/* 상세 pane 바닥의 결정 블록. 시안처럼 상태·사유·담당자·버튼이 한 덩어리로 늘 보이며
+ * 본문이 아무리 길어도 이 블록은 스크롤 밖에 남는다. `.review-decision-bar`는 기본이
+ * 가로 flex 이므로 이 화면에서만 세로로 쌓는다. */
+.c2l-page .c2l-detail-actions {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3) var(--spacing-4);
+  background: var(--color-background-body);
+}
+
+.c2l-page .c2l-detail-actions .review-decision-bar-actions {
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.c2l-page .c2l-detail-actions .review-decision-bar-hint {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  margin-left: 0;
+  text-align: left;
+}
+
+.c2l-decision-message {
+  min-width: 0;
+  font-size: var(--bo-type-body);
+  overflow-wrap: anywhere;
+}
+
+.c2l-decision-hint {
+  min-width: 0;
+  font-size: var(--bo-type-caption);
+  overflow-wrap: anywhere;
+}
+
+/* 시안의 버튼 줄: 주 결정이 남는 폭을 차지하고 나머지는 최소 폭이며 높이는 같다.
+ * 넘기기는 저장하지 않는 이탈이므로 저장하는 세 결정과 떨어뜨려 둔다. */
+.c2l-page .c2l-detail-actions .review-decision-bar-actions > .review-decision-action:first-child {
+  flex: 1 1 auto;
+}
+
+.c2l-page .c2l-detail-actions .review-decision-bar-actions > .review-decision-action:first-child .astryx-button {
+  width: 100%;
+}
+
+.c2l-page .c2l-detail-actions .review-decision-bar-actions > .review-decision-action:last-child {
+  margin-left: auto;
+}
+
+.c2l-page .c2l-detail-actions .review-decision-bar-actions .astryx-button {
+  min-height: var(--size-element-md);
+}
+
 .c2l-tracking {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: var(--spacing-2);
-  padding: var(--spacing-3) var(--spacing-4);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-element);
-  background: var(--color-background-card);
+  gap: var(--spacing-1);
 }
 
 .c2l-tracking p {
@@ -1330,24 +1712,29 @@
 .c2l-tracking-head {
   display: flex;
   min-width: 0;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--spacing-2);
 }
 
-.c2l-tracking-head p {
-  flex: 1 1 auto;
-  min-width: 0;
+.c2l-tracking-position {
+  margin-left: auto;
+  flex: 0 0 auto;
 }
 
 .c2l-tracking-fields {
   display: grid;
   min-width: 0;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
   gap: var(--spacing-3);
   padding-top: var(--spacing-1);
 }
 
-/* 접힌 사람 판단 수정 영역이 소유하는 저장 액션. pane 바닥의 결정 액션 바와 다른 자리다. */
+.c2l-tracking-fields > * {
+  min-width: 0;
+}
+
+/* 사람 판단 수정 대화상자가 소유하는 저장 액션. pane 바닥의 결정 액션 바와 다른 자리다. */
 .c2l-feedback-actions {
   display: flex;
   min-width: 0;

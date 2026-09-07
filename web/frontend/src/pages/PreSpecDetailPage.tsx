@@ -20,19 +20,20 @@ import {
   preSpecAutoPreparationVariant,
 } from "../lib/preSpecAutoPreparation";
 import {
+  hasCanonicalOverviewNoticeId,
+  PRE_SPEC_OVERVIEW_ATTEMPT_STATUS_LABEL,
   PRE_SPEC_OVERVIEW_NOT_STARTED_LABEL,
   PRE_SPEC_OVERVIEW_STATUS_LABEL,
+  PRE_SPEC_OVERVIEW_VALIDATION,
+  PRE_SPEC_OVERVIEW_WAITING_DESCRIPTION,
   preSpecOverviewStatusVariant,
 } from "../lib/preSpecOverviewStatus";
 import { qualityStatusLabel, qualityStatusNote, qualityStatusVariant } from "../lib/qualityStatus";
 import type {
   PreSpecListItem,
   PreSpecListResponse,
-  PreSpecOverviewAttemptStatus,
   PreSpecOverviewCutStatus,
   PreSpecOverviewEvidence,
-  PreSpecOverviewReviewStatus,
-  PreSpecOverviewValidationStatus,
 } from "../lib/types";
 import "../styles/pre-specs-relaxed.css";
 import "../styles/detail-skeleton.css";
@@ -49,32 +50,12 @@ interface TrackingDecisionState {
   saveLabel: string;
 }
 
-const ATTEMPT_STATUS: Record<PreSpecOverviewAttemptStatus, string> = {
-  queued: "대기",
-  running: "실행 중",
-  completed: "완료",
-  failed: "실패",
-  cancelled: "취소",
-};
+const ATTEMPT_STATUS = PRE_SPEC_OVERVIEW_ATTEMPT_STATUS_LABEL;
 
-const VALIDATION_STATUS: Record<PreSpecOverviewValidationStatus, { label: string; variant: BadgeVariant; warning: string | null }> = {
-  passed: { label: "검증 통과 · passed", variant: "evidence-confirmed", warning: null },
-  failed: { label: "검증 실패 · failed", variant: "danger", warning: "검증에 실패한 결과입니다. 이 내용을 판정으로 읽지 마세요." },
-  pending: { label: "검증 대기 · pending", variant: "neutral", warning: "아직 결정적 검증을 통과하지 않은 결과입니다. 이 내용을 판정으로 읽지 마세요." },
-};
-
-const REVIEW_WAITING_DESCRIPTION: Record<PreSpecOverviewReviewStatus, string> = {
-  awaiting_document: "검토할 문서가 아직 준비되지 않아 개요 입력을 만들지 못했습니다.",
-  awaiting_structure: "문서 구조화가 끝나고 개요 입력 범위가 확정되기를 기다리고 있습니다.",
-  preparing: "서버가 개요 검토용 입력을 고정하고 있습니다.",
-  awaiting_model: "승인된 모델 연결이 없어 아직 실행하지 않았습니다. 승인된 사설 모델 연결이 준비되기 전에는 모델을 부르지 않습니다.",
-  queued: "승인된 모델 실행이 큐에서 차례를 기다리고 있습니다.",
-  running: "승인된 모델 실행이 진행 중이며 검증된 결과를 기다리고 있습니다.",
-  needs_human_review: "입력 범위 또는 실행 결과를 사람이 확인해야 하므로 검증된 권고로 확정할 수 없습니다.",
-  completed: "처리 상태는 완료지만 검증된 결과 payload가 없어 권고를 표시할 수 없습니다.",
-  failed: "모델 실행 또는 결과 검증이 실패했습니다. 실패 결과를 권고로 보정하지 않습니다.",
-  cancelled: "실행이 취소되어 검증된 권고 결과가 없습니다.",
-};
+// 검증 상태 문구와 대기 사유 문장은 `lib/preSpecOverviewStatus`가 소유한다.
+// 사전규격 목록 화면의 개요 탭이 같은 문장을 쓰므로 두 벌로 두지 않는다.
+const VALIDATION_STATUS = PRE_SPEC_OVERVIEW_VALIDATION;
+const REVIEW_WAITING_DESCRIPTION = PRE_SPEC_OVERVIEW_WAITING_DESCRIPTION;
 
 const statusVariant = preSpecOverviewStatusVariant;
 
@@ -138,23 +119,6 @@ function PreSpecQueryError({
       action={apiErrorRecoveryAction(problem, onRetry)}
     />
   );
-}
-
-function hasCanonicalOverviewNoticeId(
-  response: unknown,
-  noticeId: number,
-): response is { notice_id: number; reviews: Array<{ notice_id: number }> } {
-  if (typeof response !== "object" || response === null) return false;
-  if (!("notice_id" in response) || !("reviews" in response)) return false;
-  const candidate = response as { notice_id?: unknown; reviews?: unknown };
-  return candidate.notice_id === noticeId
-    && Array.isArray(candidate.reviews)
-    && candidate.reviews.every((review) => (
-      typeof review === "object"
-      && review !== null
-      && "notice_id" in review
-      && review.notice_id === noticeId
-    ));
 }
 
 /** 자동 준비 진행 한 줄 단계 표시. 네 칸의 값은 모두 서버가 준 것이며 화면이

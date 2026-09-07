@@ -4,11 +4,11 @@ import { Link, useSearchParams } from "react-router-dom";
 import { Badge } from "@astryxdesign/core/Badge";
 import { Banner } from "@astryxdesign/core/Banner";
 import { Button } from "@astryxdesign/core/Button";
-import { Collapsible } from "@astryxdesign/core/Collapsible";
+import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
 import { Heading } from "@astryxdesign/core/Heading";
 import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl";
+import { Selector } from "@astryxdesign/core/Selector";
 import { Stack } from "@astryxdesign/core/Stack";
-import { StatusDot } from "@astryxdesign/core/StatusDot";
 import { Tab, TabList } from "@astryxdesign/core/TabList";
 import { TextArea } from "@astryxdesign/core/TextArea";
 import { TextInput } from "@astryxdesign/core/TextInput";
@@ -25,7 +25,6 @@ import {
   ReviewFilterSegmentedControl,
   ReviewFilterSelector,
   ReviewFilterTextInput,
-  ReviewSecondaryInput,
   ReviewState,
   ReviewStatus,
   ReviewValue,
@@ -34,6 +33,7 @@ import {
 } from "../components/common/ReviewPrimitives";
 import { api } from "../lib/api";
 import { describeApiError } from "../lib/apiErrors";
+import { formatCompactPrice } from "../lib/deadline";
 import type {
   OrderPlanFeedbackPriority,
   OrderPlanListItem,
@@ -51,7 +51,12 @@ import "../styles/order-plans.css";
 const PAGE_SIZE = 500;
 const MIN_LIST_WIDTH = 300;
 const MAX_LIST_WIDTH = 640;
-const DEFAULT_LIST_WIDTH = 380;
+/**
+ * 시안의 목록 폭은 작업 영역의 **38%**다(IMPLEMENTATION-CONTRACT §고정할 기준).
+ * 고정 px 로 비율을 근사하지 않는다 — 폭이 바뀌면 근사값은 어긋나고, 같은 셸을 쓰는
+ * 다른 화면과 기본값이 달라진다. 사람이 손으로 끌면 그때부터 px 로 고정된다.
+ */
+const DEFAULT_LIST_WIDTH = "38%";
 const LIST_WIDTH_STEP = 24;
 const LIST_WIDTH_STORAGE_KEY = "bidops.order-plans.listWidth";
 const SAVED_VIEWS_STORAGE_KEY = "bidops.order-plans.views";
@@ -59,7 +64,10 @@ const SAVED_VIEWS_STORAGE_KEY = "bidops.order-plans.views";
 type RelevanceToken = "relevant" | "uncertain" | "not_relevant" | "null";
 type Stage1Token = "selected" | "filtered_out" | "failed" | "rejected" | "null";
 type FeedbackToken = "has" | "none";
-type DetailTab = "verdict" | "signals" | "telemetry";
+/** 보조 정보 대화상자 안의 두 탭. 기본 상세에서 뺀 신호·실행 기록이 여기 남는다. */
+type SignalTab = "signals" | "telemetry";
+/** 기본 검토 화면 밖으로 옮긴 보조 표시. 한 번에 하나만 연다. */
+type SecondaryDialog = "signals" | "feedback" | "runtime";
 
 const RELEVANCE_TOKENS: readonly RelevanceToken[] = ["relevant", "uncertain", "not_relevant", "null"];
 const STAGE1_TOKENS: readonly Stage1Token[] = ["selected", "filtered_out", "failed", "rejected", "null"];
@@ -82,7 +90,7 @@ interface Preset {
 
 const PRESETS: Preset[] = [
   { key: "review", label: "검토 대상", description: "Qwen relevant 또는 uncertain", axes: { qwen: ["relevant", "uncertain"], stage1: [], feedback: [], issue: false } },
-  { key: "all", label: "전체", description: "최신 성공/부분 성공 결과 전체", axes: { qwen: [], stage1: [], feedback: [], issue: false } },
+  { key: "all", label: "전체", description: "선택한 수집 회차 전체", axes: { qwen: [], stage1: [], feedback: [], issue: false } },
   { key: "bm25-filtered-out", label: "BM25 탈락", description: "BM25 Top 범위 밖", axes: { qwen: [], stage1: ["filtered_out"], feedback: [], issue: false } },
   { key: "failure", label: "실패·거부", description: "BM25 또는 Qwen 단계 실패·거부", axes: { qwen: [], stage1: [], feedback: [], issue: true } },
 ];
@@ -123,11 +131,21 @@ function textOrUnknown(value: string | null | undefined): string {
 
 function plannedTiming(year: string | null, month: string | null): string {
   if (year === null && month === null) return "null (계획 시기 미제공)";
-  return `${year ?? "null"}년 ${month ?? "null"}월`;
+  // 실제 수집 값은 월만("09") 또는 연월("2026-09")이다. 같은 연도를
+  // 두 번 표시하지 않으며, 서로 다른 연도나 누락값은 추정해 고치지 않는다.
+  const monthOnly = year && month && /^\d{4}-\d{2}$/.test(month) && month.startsWith(`${year}-`)
+    ? month.slice(5)
+    : month;
+  return `${year ?? "null"}년 ${monthOnly ?? "null"}월`;
 }
 
 function budgetLabel(value: number | null): string {
-  return value === null ? "예산 null (미제공)" : `예산 ${value.toLocaleString("ko-KR")}`;
+  return value === null ? "예산 null (미제공)" : formatCompactPrice(value);
+}
+
+/** 상세의 사실 표는 라벨이 따로 있으므로 값만 쓴다. null은 그대로 밝힌다. */
+function budgetValue(value: number | null): string {
+  return value === null ? "null (미제공)" : `${value.toLocaleString("ko-KR")}원`;
 }
 
 function stage1RowLabel(value: OrderPlanStage1Status | null): string {
@@ -138,8 +156,14 @@ function stage1RowLabel(value: OrderPlanStage1Status | null): string {
   return "BM25 결과 null";
 }
 
-function stage1BadgeVariant(value: OrderPlanStage1Status | null): "success" | "neutral" | "error" {
-  if (value === "selected") return "success";
+/**
+ * 시안과 같은 색 규칙: 실패·거부만 오류 색이고 나머지는 중립이다.
+ *
+ * 상태를 색으로 구분하지 않는다 — 목록의 거의 모든 행이 `BM25 선정`이라 그 색이 켜져
+ * 있으면 화면이 온통 강조색이 되고, 정작 눈에 띄어야 할 실패가 묻힌다. 구분은 라벨이
+ * 진다(`BM25 선정`·`BM25 탈락`·`BM25 실패`).
+ */
+function stage1BadgeVariant(value: OrderPlanStage1Status | null): "neutral" | "error" {
   if (value === "failed" || value === "rejected") return "error";
   return "neutral";
 }
@@ -159,16 +183,14 @@ function stage2Label(value: OrderPlanStage2Status | null): string {
  * qwen_relevance만 보면 not_attempted·failed·rejected·unknown이 전부 "null"로 뭉개지므로
  * (F1) 행과 신호 세부 탭 양쪽에서 이 함수 하나로 일관되게 표시한다. */
 function qwenRowLabel(item: { qwen_relevance: OrderPlanRelevance | null; stage2_status: OrderPlanStage2Status | null }): string {
-  if (item.qwen_relevance === "relevant") return "relevant";
-  if (item.qwen_relevance === "uncertain") return "uncertain";
-  if (item.qwen_relevance === "not_relevant") return "not_relevant";
+  if (item.qwen_relevance === "relevant") return "모델 관련";
+  if (item.qwen_relevance === "uncertain") return "모델 판단 보류";
+  if (item.qwen_relevance === "not_relevant") return "모델 비관련";
   return stage2Label(item.stage2_status);
 }
 
-function qwenBadgeVariant(item: { qwen_relevance: OrderPlanRelevance | null; stage2_status: OrderPlanStage2Status | null }): "success" | "warning" | "error" | "neutral" {
-  if (item.qwen_relevance === "relevant") return "success";
-  if (item.qwen_relevance === "uncertain") return "warning";
-  if (item.qwen_relevance === "not_relevant") return "neutral";
+/** stage1과 같은 규칙이다. 관련성은 한국어 라벨로 구분하고 원래 값은 신호 세부에서 읽는다. */
+function qwenBadgeVariant(item: { qwen_relevance: OrderPlanRelevance | null; stage2_status: OrderPlanStage2Status | null }): "error" | "neutral" {
   if (item.stage2_status === "failed" || item.stage2_status === "rejected") return "error";
   return "neutral";
 }
@@ -219,14 +241,15 @@ function setEqualsArray<T>(set: Set<T>, values: readonly T[]): boolean {
   return set.size === values.length && values.every((value) => set.has(value));
 }
 
-function loadListWidth(): number {
+/** 저장된 폭이 없으면 `null`이다. `null`은 "아직 비율 기본값"이라는 뜻이다. */
+function loadListWidth(): number | null {
   try {
     const raw = window.localStorage.getItem(LIST_WIDTH_STORAGE_KEY);
     const parsed = raw ? Number(raw) : NaN;
-    if (!Number.isFinite(parsed)) return DEFAULT_LIST_WIDTH;
+    if (!Number.isFinite(parsed)) return null;
     return Math.min(MAX_LIST_WIDTH, Math.max(MIN_LIST_WIDTH, parsed));
   } catch {
-    return DEFAULT_LIST_WIDTH;
+    return null;
   }
 }
 
@@ -321,6 +344,25 @@ function ExecutionMissingBlock({ executions }: { executions: OrderPlanScreeningE
   );
 }
 
+/**
+ * 상단 줄에 놓는 압축 실행 상태. 상태 낱말과 사람이 조치할 표식만 남기고
+ * execution_id·시각·집계는 `실행 상태` 대화상자가 진다 — 기술 문자열이 화면 제목과
+ * 자리를 다투면 제목이 읽히지 않는다.
+ */
+function ExecutionStatusChip({ latest, executions }: { latest: OrderPlanScreeningExecutionSummary | null; executions: OrderPlanScreeningExecutionSummary[] }) {
+  const active = executions.filter((item) => item.status === "대기" || item.status === "실행 중" || item.status === "중지 요청");
+  return (
+    <span className="c2l-status-chip">
+      <ReviewStatus
+        label={latest ? latest.status : "실행 없음"}
+        variant={latest ? statusDotVariant(latest.status) : "neutral"}
+      />
+      {latest && !latest.execution_allowed ? <Badge variant="error" label="모델 연결 비허용" /> : null}
+      {active.length ? <Badge variant="warning" label={`진행 중 ${active.length}`} /> : null}
+    </span>
+  );
+}
+
 function ExecutionSummaryLine({ latest, executions }: { latest: OrderPlanScreeningExecutionSummary | null; executions: OrderPlanScreeningExecutionSummary[] }) {
   const active = executions.filter((item) => item.status === "대기" || item.status === "실행 중" || item.status === "중지 요청");
   if (!latest) {
@@ -351,7 +393,7 @@ function ExecutionSummaryLine({ latest, executions }: { latest: OrderPlanScreeni
 function SignalPanel({ item }: { item: OrderPlanListItem }) {
   return (
     <div className="c2l-verdict">
-      {/* source run·관측 시각은 판정 탭에서 뺐지만(시안 주석) 삭제하지 않고 이 탭에 남긴다(F3). */}
+      {/* source run·관측 시각은 기본 상세에서 뺐지만(시안) 삭제하지 않고 여기 남긴다(F3). */}
       <dl className="c2l-signal-facts">
         <div><dt>source run</dt><dd className="c2l-digest"><ReviewValue value={item.source_run_id} nullLabel="null (미제공)" /></dd></div>
         <div><dt>관측 시각</dt><dd>{formatMoment(item.observed_at)}</dd></div>
@@ -493,29 +535,36 @@ function TelemetryPanel({
 /**
  * 추적 결정(결정 1)의 사유 선택지.
  *
- * 요청안 §8 Q5가 "사유를 자유 문자열로 둘 것인가, 계약이 집합을 고정할 것인가"를 묻고 있다.
- * 계약이 자유 문자열로 확정되면 이 목록은 추천값이 되고, 집합을 고정하면 계약이 정본이 된다.
- * 어느 쪽이든 화면이 사유를 만들어 내지 않도록 한곳에 모아 둔다.
+ * 사용자가 승인한 시안(focus-v2)의 목록이 정본이다. 화면은 사유를 자동으로 고르지
+ * 않고 사람이 고른 값만 계약에 싣는다. `기타 · 직접 입력`은 값이 아니라 자유 입력을
+ * 여는 표식이므로 저장되는 것은 사람이 적은 문장이다.
  */
 const TRACKING_REASONS = [
   "후속 사전규격·공고 확인",
-  "회사 역량과 맞음",
+  "사업 방향이 관심 분야와 맞음",
   "예산·시기 추가 확인 필요",
-  "역량 밖으로 판단",
+  "세부 과업 확인 후 판단",
+  "현재 검토 범위와 맞지 않음",
   "중복·오탐으로 확인",
 ] as const;
+
+/** 자유 입력을 여는 선택지의 값. 사유 문자열이 아니라 표식이므로 계약에 싣지 않는다. */
+const OTHER_REASON = "other";
+
+const TRACKING_REASON_OPTIONS = [
+  ...TRACKING_REASONS.map((value) => ({ label: value, value })),
+  { label: "기타 · 직접 입력", value: OTHER_REASON },
+];
 
 /**
  * 저장되지 않은 입력의 두 묶음. 잃는 조건이 서로 달라 한 값으로 합치지 않는다.
  *
- * - `FeedbackDraft`(사람 판단 수정): 선택한 행이 바뀌면 초기화된다. 그래서 **행을
- *   바꾸는 조작**(행 선택·필터·페이지·넘기기·추적 결정 저장)이 이 값을 묻는다.
- * - `TrackingDraft`(추적 결정 사유·담당자): 행이 바뀌어도 남고 화면을 떠날 때만
- *   사라진다. 그래서 **route 이동**만 이 값을 묻는다.
- *
- * 사람 판단 수정의 담당자 이름(`actorName`)은 어느 쪽에도 넣지 않는다. 감사 표식이라
- * 한 번 적고 여러 건에 다시 쓰는 값이고, dirty에 넣으면 이름을 적은 뒤로는 모든 이동이
- * 확인을 요구해 경고가 뜻을 잃는다.
+ * - `FeedbackDraft`(사람 판단 수정)와 추적 결정 **사유**: 선택한 행이 바뀌면
+ *   초기화된다. 그래서 **행을 바꾸는 조작**(행 선택·필터·페이지·넘기기)이 이 값을
+ *   묻는다. 사유는 건마다 다시 고르는 값이므로 다음 건으로 넘어갈 때 비운다.
+ * - 담당자 이름(`trackingActor`): 행이 바뀌어도 남고 화면을 떠날 때만 사라진다.
+ *   그래서 **route 이동**만 이 값을 묻는다. 감사 표식이라 한 번 적고 여러 건에
+ *   다시 쓰는 값이기 때문이다.
  */
 interface FeedbackDraft {
   relevance: OrderPlanRelevance;
@@ -523,13 +572,7 @@ interface FeedbackDraft {
   memo: string;
 }
 
-interface TrackingDraft {
-  reason: string;
-  actor: string;
-}
-
 const EMPTY_FEEDBACK_DRAFT: FeedbackDraft = { relevance: "uncertain", priority: "", memo: "" };
-const EMPTY_TRACKING_DRAFT: TrackingDraft = { reason: TRACKING_REASONS[0], actor: "" };
 
 /**
  * 추적 결정을 기록할 수 있는지의 세 상태. 서로 바꾸지 않는다.
@@ -543,6 +586,7 @@ const EMPTY_TRACKING_DRAFT: TrackingDraft = { reason: TRACKING_REASONS[0], actor
 type TrackingAvailability = "available" | "contract_missing" | "opportunity_missing";
 
 function trackingAvailability(item: OrderPlanListItem | null): TrackingAvailability {
+  if (item && !("tracking" in item)) return "contract_missing";
   if (!item || item.tracking == null) return "opportunity_missing";
   return "available";
 }
@@ -561,202 +605,72 @@ function trackingStatusLabel(item: OrderPlanListItem | null): string {
 }
 
 /**
- * 상세 pane 본문의 추적 결정 영역.
+ * 상세 pane 바닥의 추적 결정 입력.
  *
- * 결정 버튼 자체는 pane 바닥의 `ReviewDecisionBar`에 있다(ADR-0046 결정 4). 여기에는
- * 현재 상태와, 그 결정이 무엇을 바꾸지 않는지와, 사유·담당자 감사 표식만 둔다.
+ * 시안(focus-v2)의 결정 블록은 늘 보이는 한 덩어리다: 머리줄(추적 선택 · 현재 상태 ·
+ * 위치), 사유 드롭다운과 담당자 감사 표식 한 줄, `기타`일 때만 열리는 자유 입력.
+ * 결정 버튼과 안내 한 줄은 `ReviewDecisionBar`의 action·hint 자리에 있다.
+ *
+ * 상태의 뜻을 길게 설명하는 문장은 여기 두지 않는다. 현재 상태는 badge가, 저장할 수
+ * 없는 이유는 결정 줄 아래 한 문장이, 나머지 구분 규칙은 `실행 상태` 대화상자가 진다.
  */
-function TrackingDecisionPanel({
+function TrackingDecisionFields({
   item,
-  reason,
-  onReasonChange,
+  reasonChoice,
+  onReasonChoiceChange,
+  customReason,
+  onCustomReasonChange,
   actorName,
   onActorNameChange,
+  position,
 }: {
   item: OrderPlanListItem;
-  reason: string;
-  onReasonChange: (value: string) => void;
+  reasonChoice: string;
+  onReasonChoiceChange: (value: string) => void;
+  customReason: string;
+  onCustomReasonChange: (value: string) => void;
   actorName: string;
   onActorNameChange: (value: string) => void;
+  position: string;
 }) {
   const availability = trackingAvailability(item);
   return (
     <section className="c2l-tracking" aria-labelledby={`c2l-tracking-${item.order_plan_pk}`}>
       <header className="c2l-tracking-head">
-        <Text type="label" color="primary" as="p" id={`c2l-tracking-${item.order_plan_pk}`}>추적 결정</Text>
+        <Text type="label" color="primary" as="p" id={`c2l-tracking-${item.order_plan_pk}`}>추적 선택</Text>
         <Badge
           variant={availability === "available" ? "neutral" : "warning"}
           label={trackingStatusLabel(item)}
         />
+        <Text type="supporting" color="secondary" as="p" className="c2l-tracking-position">{position}</Text>
       </header>
-      {/* CLAUDE.md 강제 게이트: 네 결정은 서로를 대신하지 않는다. 밀도를 낮추더라도
-          이 문구를 결정 옆에서 지우지 않는다. */}
-      <Text type="supporting" color="secondary" as="p">
-        미선택은 추적 종료가 아닙니다. 추적 상태만 기록하며 모델 판단·적합성 등급·참여 준비 상태·최종 Go/No-Go를 바꾸지 않습니다.
-      </Text>
-      {availability === "contract_missing" ? (
-        <Text type="supporting" color="secondary" as="p" role="status">
-          추적 결정을 저장할 서버 계약이 아직 구현되지 않았습니다. 현재 추적 상태를 읽을 수 없으므로 미선택으로 표시하지 않습니다.
-        </Text>
-      ) : null}
-      {availability === "opportunity_missing" ? (
-        <Text type="supporting" color="secondary" as="p" role="status">
-          이 발주계획을 소유한 사업기회를 확인하지 못했습니다. 사업기회 연결이 확인되면 이 화면에서 추적 상태를 고를 수 있습니다.
-        </Text>
-      ) : null}
-      {item.tracking?.tracking_selected_by ? (
-        <Text type="supporting" color="secondary" as="p">
-          최근 선택 {item.tracking.tracking_selected_by} · {formatMoment(item.tracking.tracking_selected_at)} · 사유 <ReviewValue value={item.tracking.tracking_reason} nullLabel="null (사유 없음)" />
-        </Text>
-      ) : null}
       <div className="c2l-tracking-fields">
-        <ReviewFilterSelector
-          clearable={false}
-          label="추적 결정 사유"
-          onChange={(value) => onReasonChange(value ?? TRACKING_REASONS[0])}
-          options={TRACKING_REASONS.map((value) => ({ label: value, value }))}
-          value={reason}
+        <Selector
+          label="선택 사유"
+          onChange={(value) => onReasonChoiceChange(value ?? "")}
+          options={TRACKING_REASON_OPTIONS}
+          placeholder="사유를 선택하세요"
+          size="sm"
+          value={reasonChoice || undefined}
         />
         <TextInput
-          label="담당자 이름"
+          label="담당자 이름 · 감사 표식"
+          size="sm"
           value={actorName}
           onChange={onActorNameChange}
-          description="감사 표식이며 로그인·신원 인증·권한 부여가 아닙니다."
+          placeholder="이름 입력"
         />
       </div>
-    </section>
-  );
-}
-
-function VerdictPanel({
-  item,
-  relevance,
-  onRelevanceChange,
-  priority,
-  onPriorityChange,
-  memo,
-  onMemoChange,
-  actorName,
-  onActorNameChange,
-  trackingReason,
-  onTrackingReasonChange,
-  trackingActorName,
-  onTrackingActorNameChange,
-  feedbackDisabledReason,
-  feedbackError,
-  feedbackReady,
-  onSaveFeedback,
-  savedMessage,
-}: {
-  item: OrderPlanListItem;
-  relevance: OrderPlanRelevance;
-  onRelevanceChange: (value: OrderPlanRelevance) => void;
-  priority: OrderPlanFeedbackPriority | "";
-  onPriorityChange: (value: OrderPlanFeedbackPriority | "") => void;
-  memo: string;
-  onMemoChange: (value: string) => void;
-  actorName: string;
-  onActorNameChange: (value: string) => void;
-  trackingReason: string;
-  onTrackingReasonChange: (value: string) => void;
-  trackingActorName: string;
-  onTrackingActorNameChange: (value: string) => void;
-  feedbackDisabledReason?: string;
-  feedbackError: string | null;
-  feedbackReady: boolean;
-  onSaveFeedback: () => void;
-  savedMessage: string | null;
-}) {
-  return (
-    <div className="c2l-verdict">
-      <ul className="c2l-facts">
-        <li><dt>발주계획 번호</dt><dd className="c2l-digest">{item.order_plan_unty_no}</dd></li>
-        <li><dt>기관</dt><dd>{textOrUnknown(item.agency_name)}</dd></li>
-        <li><dt>사업 분야</dt><dd>{textOrUnknown(item.business_division)}</dd></li>
-        <li><dt>예산</dt><dd>{budgetLabel(item.budget_amount)}</dd></li>
-        <li><dt>계획 시기</dt><dd>{plannedTiming(item.planned_order_year, item.planned_order_month)}</dd></li>
-      </ul>
-
-      {item.human_feedback ? (
-        <Banner
-          status="info"
-          title={`최근 사람 피드백: 수정본 ${item.human_feedback.revision}`}
-          description={`${item.human_feedback.relevance} · priority ${item.human_feedback.priority ?? "null"} · ${item.human_feedback.claimed_name} · ${formatMoment(item.human_feedback.created_at)}`}
-          collapsible={false}
+      {reasonChoice === OTHER_REASON ? (
+        <TextInput
+          label="선택 사유 직접 입력"
+          size="sm"
+          value={customReason}
+          onChange={onCustomReasonChange}
+          placeholder="추적·보류·종료를 선택한 이유를 적어주세요"
         />
       ) : null}
-
-      <TrackingDecisionPanel
-        actorName={trackingActorName}
-        item={item}
-        onActorNameChange={onTrackingActorNameChange}
-        onReasonChange={onTrackingReasonChange}
-        reason={trackingReason}
-      />
-
-      {/* 접힌 보조 입력 영역(PLAN 단계 B·C). pane 바닥의 결정은 추적 결정이고 이 입력은
-          선택 사항이므로 기본이 접힘이다(ADR-0046 결정 5). 접어도 현재 사람 판단 값과
-          "무엇을 바꾸지 않는가"는 머리에 남고 입력만 숨는다. 저장은 추적 결정과 공유하지
-          않고 이 영역이 소유한다. */}
-      <ReviewSecondaryInput
-        description="기존 사람 판단을 그대로 둡니다. 추적 결정과는 별도 수정본이며 적합성 등급·참여 준비 상태·심층 추적 승인·최종 Go/No-Go를 채우거나 대신하지 않습니다."
-        summary={(
-          <Badge
-            variant="neutral"
-            label={item.human_feedback
-              ? `${item.human_feedback.relevance} · 우선순위 ${item.human_feedback.priority ?? "미지정"}`
-              : "사람 판단 미입력"}
-          />
-        )}
-        title="사람 판단 수정 (선택)"
-      >
-        <div className="c2l-feedback-field">
-          <Text type="label" color="secondary" as="p" id={`c2l-relevance-label-${item.order_plan_pk}`}>relevance</Text>
-          <SegmentedControl value={relevance} onChange={(value) => onRelevanceChange(value as OrderPlanRelevance)} label="사람 relevance 판단">
-            <SegmentedControlItem value="relevant" label="relevant" />
-            <SegmentedControlItem value="uncertain" label="uncertain" />
-            <SegmentedControlItem value="not_relevant" label="not_relevant" />
-          </SegmentedControl>
-        </div>
-
-        <div className="c2l-feedback-field">
-          <Text type="label" color="secondary" as="p">priority</Text>
-          <SegmentedControl value={priority || "null"} onChange={(value) => onPriorityChange(value === "null" ? "" : (value as OrderPlanFeedbackPriority))} label="사람 priority 판단">
-            <SegmentedControlItem value="high" label="high" />
-            <SegmentedControlItem value="medium" label="medium" />
-            <SegmentedControlItem value="low" label="low" />
-            <SegmentedControlItem value="null" label="null · 미지정" />
-          </SegmentedControl>
-        </div>
-
-        <TextArea
-          label="memo"
-          value={memo}
-          onChange={onMemoChange}
-          rows={3}
-          placeholder="사람 검토 근거 또는 다음 확인 사항"
-        />
-
-        <TextInput
-          label="사람 판단 담당자 이름"
-          value={actorName}
-          onChange={onActorNameChange}
-          description="감사 귀속용 이름이며 로그인·신원 인증·권한 부여가 아닙니다."
-        />
-
-        <div className="c2l-feedback-actions">
-          {feedbackError ? <Text type="body" color="secondary" role="alert">{feedbackError}</Text> : null}
-          {savedMessage ? <Text type="body" color="secondary" role="status">{savedMessage}</Text> : null}
-          <ReviewDecisionAction
-            disabledReason={feedbackDisabledReason}
-            isDisabled={!feedbackReady}
-            label="새 수정본 저장"
-            variant="secondary"
-            onClick={onSaveFeedback}
-          />
-        </div>
-      </ReviewSecondaryInput>
-    </div>
+    </section>
   );
 }
 
@@ -764,39 +678,39 @@ function OrderPlanRow({
   item,
   isSelected,
   onSelect,
-  returnSearch,
 }: {
   item: OrderPlanListItem;
   isSelected: boolean;
   onSelect: () => void;
-  returnSearch: string;
 }) {
   return (
     <DenseListRow
       aria-label={textOrUnknown(item.title)}
       className={`c2l-row-wrap c2l-row${isSelected ? " is-selected" : ""}`.trim()}
       description={
-        <>
+        <span className="c2l-row-desc">
+          {/* 시안의 차례 그대로다: 사업명 아래 상태 배지, 그 아래 metadata 줄. 발주기관은
+              자리를 옮기지 않고 metadata 줄의 첫 항목이며, 보조 글자에서 본문 굵은 글자로
+              키워 목록에서 먼저 눈에 들어오게만 한다(사용자 정정). */}
           <span className="c2l-row-badges">
             <Badge variant={stage1BadgeVariant(item.stage1_status)} label={stage1RowLabel(item.stage1_status)} />
             <Badge variant={qwenBadgeVariant(item)} label={qwenRowLabel(item)} />
-            <Badge variant="neutral" label={item.human_feedback ? `피드백 수정본 ${item.human_feedback.revision}` : "피드백 없음"} />
+            {item.human_feedback ? <Badge variant="neutral" label={`피드백 수정본 ${item.human_feedback.revision}`} /> : null}
           </span>
-          <Text type="supporting" color="secondary" as="span">
-            {textOrUnknown(item.agency_name)} · {budgetLabel(item.budget_amount)} · {plannedTiming(item.planned_order_year, item.planned_order_month)}
-          </Text>
-        </>
-      }
-      endContent={
-        <Link className="c2l-row-detail-link" to={`/order-plans/${item.order_plan_pk}${returnSearch ? `?${returnSearch}` : ""}`}>
-          전체 상세 열기 →
-        </Link>
+          <span className="c2l-row-meta" title={`예산 ${budgetValue(item.budget_amount)}`}>
+            <Text className="c2l-row-agency" type="body" color="primary" weight="semibold" as="span">
+              {textOrUnknown(item.agency_name)}
+            </Text>
+            <Text type="supporting" color="secondary" as="span">
+              · {budgetLabel(item.budget_amount)} · {plannedTiming(item.planned_order_year, item.planned_order_month)}
+            </Text>
+          </span>
+        </span>
       }
       label={
         <span className="c2l-row-line">
-          {/* 긴 한글 제목은 한 줄에 담기지 않는다. 시안 `Opportunities`·`PreSpecs`의
-              목록 행처럼 두 줄까지 보이고 그 뒤를 말줄임한다. */}
-          <Text type="body" color="primary" maxLines={2}>{textOrUnknown(item.title)}</Text>
+          {/* 긴 한글 제목은 한 줄에 담기지 않는다. 두 줄까지 보이고 그 뒤를 말줄임한다. */}
+          <Text className="c2l-row-title" type="body" color="primary" maxLines={2}>{textOrUnknown(item.title)}</Text>
         </span>
       }
       onSelect={onSelect}
@@ -810,15 +724,23 @@ export function OrderPlansPage() {
   const queryClient = useQueryClient();
 
   const [searchText, setSearchText] = useState(searchParams.get("q") ?? "");
-  const [detailTab, setDetailTab] = useState<DetailTab>("verdict");
-  const [listWidth, setListWidth] = useState<number>(() => loadListWidth());
+  const [signalTab, setSignalTab] = useState<SignalTab>("signals");
+  const [dialog, setDialog] = useState<SecondaryDialog | null>(null);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  // `null`이면 시안의 38% 비율을 그대로 쓴다. 사람이 끌거나 화살표를 누르면 px 로 고정된다.
+  const [listWidth, setListWidth] = useState<number | null>(() => loadListWidth());
+  const [measuredListWidth, setMeasuredListWidth] = useState<number | null>(null);
+  const listPaneRef = useRef<HTMLElement | null>(null);
   const [savedViews, setSavedViews] = useState<SavedView[]>(() => loadSavedViews());
   const [newViewName, setNewViewName] = useState("");
   const [isNamingView, setIsNamingView] = useState(false);
-  const [descriptionOpen, setDescriptionOpen] = useState<boolean | null>(null);
 
-  const [trackingReason, setTrackingReason] = useState<string>(TRACKING_REASONS[0]);
+  // 사유는 자동으로 고르지 않는다. 빈 값이 기본이고, `기타`를 골라야 자유 입력이 열린다.
+  // 같은 건에서 선택지를 왕복해도 적어 둔 자유 입력은 남긴다(시안 §3).
+  const [reasonChoice, setReasonChoice] = useState("");
+  const [customReason, setCustomReason] = useState("");
   const [trackingActor, setTrackingActor] = useState("");
+  const [trackingActorBaseline, setTrackingActorBaseline] = useState("");
   // 추적 `종료`만 되돌릴 수 없다. 확인 문구는 사전규격·사업 추적과 같은 자리에서
   // 만들어 세 화면이 다른 말을 하지 않게 한다.
   const [endConfirm, setEndConfirm] = useState<ReturnType<typeof trackingEndConfirmContent> | null>(null);
@@ -834,29 +756,34 @@ export function OrderPlansPage() {
   // 저장 기준점. 저장에 성공하면 그때의 값이 새 기준이 되어 "저장되지 않은 입력"이
   // 풀린다. 값 자체는 그대로 두므로 사람은 방금 저장한 내용을 계속 볼 수 있다.
   const [feedbackBaseline, setFeedbackBaseline] = useState<FeedbackDraft>(EMPTY_FEEDBACK_DRAFT);
-  const [trackingBaseline, setTrackingBaseline] = useState<TrackingDraft>(EMPTY_TRACKING_DRAFT);
   const dragStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
   const feedbackDirty = relevance !== feedbackBaseline.relevance
     || priority !== feedbackBaseline.priority
     || memo !== feedbackBaseline.memo;
-  const trackingDraftDirty = trackingReason !== trackingBaseline.reason
-    || trackingActor !== trackingBaseline.actor;
+  // 사유는 저장하면 다음 건으로 옮겨 가며 비워지므로 기준값은 늘 "빈 값"이다.
+  const reasonDirty = reasonChoice !== "" || customReason.trim() !== "";
+  const actorDirty = trackingActor !== trackingActorBaseline;
+  /** 계약에 실을 사유. `기타`는 사람이 적은 문장 그대로이고 공백만 있으면 사유가 없다. */
+  const trackingReason = reasonChoice === OTHER_REASON ? customReason.trim() : reasonChoice;
 
   const feedbackDraftSummary = [
     { label: "사람 판단 수정", value: `relevance ${relevance} · priority ${priority || "미지정"}` },
     { label: "memo", value: memo.trim() || "값 없음" },
   ];
-  const routeDraftSummary = [
+  const reasonDraftSummary = [{ label: "선택 사유 초안", value: trackingReason || "직접 입력 미완료" }];
+  const rowDraftSummary = [
     ...(feedbackDirty ? feedbackDraftSummary : []),
-    ...(trackingDraftDirty
-      ? [{ label: "추적 결정 초안", value: `사유 ${trackingReason} · 담당자 ${trackingActor.trim() || "값 없음"}` }]
-      : []),
+    ...(reasonDirty ? reasonDraftSummary : []),
+  ];
+  const routeDraftSummary = [
+    ...rowDraftSummary,
+    ...(actorDirty ? [{ label: "담당자 이름", value: trackingActor.trim() || "값 없음" }] : []),
   ];
 
-  // route를 떠나면 두 입력이 모두 사라진다. 화면 안의 이동(행·필터·페이지)은 경로가
+  // route를 떠나면 세 입력이 모두 사라진다. 화면 안의 이동(행·필터·페이지)은 경로가
   // 바뀌지 않으므로 `pathname` 범위로 두고, 그 이동은 아래에서 자기 문구로 묻는다.
-  const guard = useUnsavedGuard(feedbackDirty || trackingDraftDirty, {
+  const guard = useUnsavedGuard(feedbackDirty || reasonDirty || actorDirty, {
     blockSpaNavigation: true,
     scope: "pathname",
     title: "발주계획 검토 화면을 떠납니다",
@@ -865,21 +792,83 @@ export function OrderPlansPage() {
   });
 
   /**
-   * 선택한 행이 바뀌는 조작. 사람 판단 수정 입력만 사라지므로 그 사실만 묻는다.
-   * 추적 결정 사유·담당자는 행이 바뀌어도 남으므로 여기서 잃는다고 말하지 않는다.
+   * 선택한 행이 바뀌는 조작. 사람 판단 수정 입력과 선택 사유가 사라지므로 그 둘만
+   * 묻는다. 담당자 이름은 행이 바뀌어도 남으므로 여기서 잃는다고 말하지 않는다.
    */
   function withRowGuard(run: () => void) {
     guard.confirmDiscard(run, {
+      dirty: feedbackDirty || reasonDirty,
+      title: "다른 발주계획으로 이동합니다",
+      message: "저장하지 않은 사람 판단 수정 입력과 선택 사유는 이 발주계획을 떠나면 사라집니다. 담당자 이름은 그대로 남습니다.",
+      summary: rowDraftSummary,
+    });
+  }
+
+  /**
+   * 추적 결정을 저장하는 자리. 사유는 지금 저장되므로 잃는 것이 아니고, 사람 판단
+   * 수정 입력만 다음 건으로 넘어가며 사라진다.
+   */
+  function withFeedbackGuard(run: () => void) {
+    guard.confirmDiscard(run, {
       dirty: feedbackDirty,
       title: "다른 발주계획으로 이동합니다",
-      message: "저장하지 않은 사람 판단 수정 입력은 이 발주계획을 떠나면 사라집니다. 추적 결정 사유와 담당자 이름은 그대로 남습니다.",
+      message: "저장하지 않은 사람 판단 수정 입력은 이 발주계획을 떠나면 사라집니다. 담당자 이름은 그대로 남습니다.",
       summary: feedbackDraftSummary,
     });
   }
 
   useEffect(() => setSearchText(searchParams.get("q") ?? ""), [searchParams]);
 
-  const isDefaultView = !AXIS_KEYS.some((key) => searchParams.has(key));
+  const runsQuery = useQuery({
+    queryKey: ["runs"],
+    queryFn: () => api.getRuns(),
+    staleTime: 15_000,
+  });
+  const executionsQuery = useQuery({
+    queryKey: ["order-plan-c2", "executions"],
+    queryFn: ({ signal }) => fetchAllExecutions(signal),
+    staleTime: 15_000,
+  });
+  const executions = executionsQuery.data?.items ?? [];
+  const collectionRuns = (runsQuery.data?.items ?? [])
+    .filter((run) => run.kind === "order_plans" || run.kind === "mixed")
+    .sort((a, b) => b.generated_at.localeCompare(a.generated_at));
+  const sourceRunId = searchParams.get("source_run_id")
+    ?? collectionRuns[0]?.run_id
+    ?? latestCompletedExecution(executions)?.source_run_id;
+  const scopedExecutions = sourceRunId ? executions.filter((execution) => execution.source_run_id === sourceRunId) : executions;
+  const latestExecution = latestCompletedExecution(scopedExecutions);
+  const runOptions = Array.from(new Set([
+    ...collectionRuns.map((run) => run.run_id),
+    ...executions.map((execution) => execution.source_run_id),
+    ...(sourceRunId ? [sourceRunId] : []),
+  ])).map((runId) => {
+    const run = collectionRuns.find((item) => item.run_id === runId);
+    // 회차 이름은 서버가 준 metadata에서만 만든다. metadata가 없으면 날짜를 지어내지
+    // 않고 회차 식별자를 줄여 보이고 전체 값은 description으로 남긴다.
+    return {
+      label: run
+        ? (run.window_from && run.window_to
+          ? `${run.window_from}~${run.window_to} 수집`
+          : `${formatMoment(run.generated_at)} 수집`)
+        : `회차 ${runId.slice(0, 8)}…`,
+      description: runId,
+      value: runId,
+    };
+  });
+
+  function changeSourceRun(runId: string | null) {
+    if (!runId) return;
+    withRowGuard(() => {
+      const params = new URLSearchParams();
+      params.set("source_run_id", runId);
+      params.set("qwen", "");
+      setSearchText("");
+      setSearchParams(params);
+    });
+  }
+
+  const isDefaultView = Boolean(latestExecution) && !AXIS_KEYS.some((key) => searchParams.has(key));
   const qwenSet = isDefaultView ? new Set<RelevanceToken>(["relevant", "uncertain"]) : parseTokenSet(searchParams.get("qwen"), RELEVANCE_TOKENS);
   const stage1Set = isDefaultView ? new Set<Stage1Token>() : parseTokenSet(searchParams.get("stage1"), STAGE1_TOKENS);
   const feedbackSet = isDefaultView ? new Set<FeedbackToken>() : parseTokenSet(searchParams.get("feedback"), FEEDBACK_TOKENS);
@@ -1000,18 +989,10 @@ export function OrderPlansPage() {
     });
   }
 
-  const executionsQuery = useQuery({
-    queryKey: ["order-plan-c2", "executions"],
-    queryFn: ({ signal }) => fetchAllExecutions(signal),
-    staleTime: 15_000,
-  });
-  const executions = executionsQuery.data?.items ?? [];
-  const latestExecution = latestCompletedExecution(executions);
-
   const listQuery = useQuery({
-    queryKey: ["order-plan-c2", "list", latestExecution?.source_run_id],
-    queryFn: ({ signal }) => fetchAllOrderPlans(latestExecution?.source_run_id as string, signal),
-    enabled: Boolean(latestExecution?.source_run_id),
+    queryKey: ["order-plan-c2", "list", sourceRunId],
+    queryFn: ({ signal }) => fetchAllOrderPlans(sourceRunId as string, signal),
+    enabled: Boolean(sourceRunId),
     staleTime: 15_000,
   });
 
@@ -1031,7 +1012,8 @@ export function OrderPlansPage() {
     }
     if (issueOn && !isExecutionIssue(item)) return false;
     if (qText) {
-      const haystack = `${item.title ?? ""} ${item.order_plan_unty_no}`.toLocaleLowerCase("ko-KR");
+      // 시안의 검색은 사업명과 발주기관을 함께 본다. 계획번호는 기존 능력이므로 남긴다.
+      const haystack = `${item.title ?? ""} ${item.agency_name ?? ""} ${item.order_plan_unty_no}`.toLocaleLowerCase("ko-KR");
       if (!haystack.includes(qText.toLocaleLowerCase("ko-KR"))) return false;
     }
     return true;
@@ -1056,26 +1038,35 @@ export function OrderPlansPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibleItems.map((item) => item.order_plan_pk).join(","), selectedPk]);
 
-  // 행이 바뀌면 사람 판단 수정 입력을 초기화한다. 입력을 잃는 것을 사람이 확인한 뒤에만
-  // 여기까지 오도록 이동하는 자리마다 `withRowGuard`를 걸었고, 초기화 자체는 그대로 둔다.
+  // 행이 바뀌면 사람 판단 수정 입력과 선택 사유를 초기화한다. 입력을 잃는 것을 사람이
+  // 확인한 뒤에만 여기까지 오도록 이동하는 자리마다 `withRowGuard`를 걸었다.
   useEffect(() => {
     setRelevance(EMPTY_FEEDBACK_DRAFT.relevance);
     setPriority(EMPTY_FEEDBACK_DRAFT.priority);
     setMemo(EMPTY_FEEDBACK_DRAFT.memo);
     setFeedbackBaseline(EMPTY_FEEDBACK_DRAFT);
+    setReasonChoice("");
+    setCustomReason("");
+    setSavedMessage(null);
+    setDialog(null);
   }, [selectedItem?.order_plan_pk]);
 
-  /** 다음 건으로 이동하고 그 건의 PK를 돌려준다. 마지막 건이면 현재 PK를 그대로 돌려준다. */
-  function advanceToNext(): number | null {
+  /**
+   * 다음 건으로 이동한다. 마지막 건이면 **이동하지 않았다**는 사실을 함께 돌려준다.
+   *
+   * 이동 여부를 감추면 마지막 건에서도 "다음 발주계획으로 이동합니다"라는 거짓 안내가
+   * 남고, 행이 바뀌지 않으니 사유를 비우는 효과도 돌지 않는다.
+   */
+  function advanceToNext(): { pk: number; moved: boolean } | null {
     if (!selectedItem) return null;
     const idx = filteredItems.findIndex((item) => item.order_plan_pk === selectedItem.order_plan_pk);
-    if (idx === -1 || idx + 1 >= filteredItems.length) return selectedItem.order_plan_pk;
+    if (idx === -1 || idx + 1 >= filteredItems.length) return { pk: selectedItem.order_plan_pk, moved: false };
     const nextItem = filteredItems[idx + 1];
     const params = new URLSearchParams(searchParams);
     params.set("selected", String(nextItem.order_plan_pk));
     if (idx + 1 >= offset + PAGE_SIZE) params.set("offset", String(offset + PAGE_SIZE));
     setSearchParams(params, { replace: true });
-    return nextItem.order_plan_pk;
+    return { pk: nextItem.order_plan_pk, moved: true };
   }
 
   const expectedRevision = selectedItem?.human_feedback?.revision ?? 0;
@@ -1105,7 +1096,7 @@ export function OrderPlansPage() {
   });
 
   const ready = Boolean(selectedItem) && Boolean(latestExecution) && actorName.trim().length > 0;
-  const decisionDisabledReason = !actorName.trim() ? "담당자 이름을 입력하면 저장할 수 있습니다." : undefined;
+  const decisionDisabledReason = !latestExecution ? "게시된 선별 결과가 있어야 모델 판단에 대한 수정본을 저장할 수 있습니다." : !actorName.trim() ? "담당자 이름을 입력하면 저장할 수 있습니다." : undefined;
 
   // 사람 판단 수정은 저장만 하고 다음 건으로 이동하지 않는다. 이동은 추적 결정이 소유한다.
   function handleSave() {
@@ -1133,13 +1124,22 @@ export function OrderPlansPage() {
       );
     },
     onSuccess: async (saved) => {
-      // 사유·담당자는 다음 건에도 그대로 쓰이므로 비우지 않는다. 저장된 값이 새 기준이
-      // 되어 "저장되지 않은 입력"만 풀린다.
-      setTrackingBaseline({ reason: trackingReason, actor: trackingActor });
+      // 담당자는 다음 건에도 그대로 쓰이므로 비우지 않고 기준값만 옮긴다.
+      setTrackingActorBaseline(trackingActor);
+      // 사유는 건마다 다시 고르는 값이므로 저장에 성공하면 **언제나** 비운다. 다음 건으로
+      // 옮겨 가는 경우는 행 전환 effect도 비우지만, 마지막 건은 행이 바뀌지 않아 여기서
+      // 비우지 않으면 방금 저장한 사유가 남고 "저장되지 않은 입력"으로도 계속 잡힌다.
+      setReasonChoice("");
+      setCustomReason("");
       await queryClient.invalidateQueries({ queryKey: ["order-plan-c2", "list"] });
-      const nextPk = advanceToNext();
-      if (nextPk !== null) {
-        setTrackingMessage({ pk: nextPk, text: `추적 상태를 ${saved.tracking_status}(으)로 기록했습니다. 다음 발주계획으로 이동합니다.` });
+      const next = advanceToNext();
+      if (next) {
+        setTrackingMessage({
+          pk: next.pk,
+          text: next.moved
+            ? `추적 상태를 ${saved.tracking_status}(으)로 기록했습니다. 다음 발주계획으로 이동합니다.`
+            : `추적 상태를 ${saved.tracking_status}(으)로 기록했습니다. 현재 목록의 마지막 발주계획이라 이동하지 않습니다.`,
+        });
       }
     },
   });
@@ -1148,11 +1148,17 @@ export function OrderPlansPage() {
     ? "추적 결정을 저장할 서버 계약이 아직 구현되지 않았습니다."
     : trackingAvailabilityState === "opportunity_missing"
       ? "이 발주계획을 소유한 사업기회를 확인하지 못해 추적 결정을 기록할 수 없습니다."
-      : !trackingActor.trim()
-        ? "담당자 이름을 입력하면 추적 결정을 기록할 수 있습니다."
-        : trackingMutation.isPending
-          ? "추적 결정 저장 요청을 처리하고 있습니다."
-          : undefined;
+      : !trackingReason && !trackingActor.trim()
+        ? "선택 사유와 담당자 이름을 입력하면 추적 결정을 기록할 수 있습니다."
+        : !trackingReason
+          ? (reasonChoice === OTHER_REASON
+            ? "선택 사유를 직접 입력하면 추적 결정을 기록할 수 있습니다."
+            : "선택 사유를 고르면 추적 결정을 기록할 수 있습니다.")
+          : !trackingActor.trim()
+            ? "담당자 이름을 입력하면 추적 결정을 기록할 수 있습니다."
+            : trackingMutation.isPending
+              ? "추적 결정 저장 요청을 처리하고 있습니다."
+              : undefined;
   const trackingReady = Boolean(selectedItem) && trackingDisabledReason === undefined;
 
   function saveTracking(status: Exclude<OpportunityTrackingStatus, "미선택">) {
@@ -1181,7 +1187,7 @@ export function OrderPlansPage() {
       });
       return;
     }
-    withRowGuard(() => saveTracking(status));
+    withFeedbackGuard(() => saveTracking(status));
   }
 
   // 실패 안내도 그 건을 떠나면 사라져야 한다. 다른 건의 결정 바에 남은 오류는 거짓이다.
@@ -1196,18 +1202,37 @@ export function OrderPlansPage() {
   function skipCurrent() {
     withRowGuard(() => {
       trackingMutation.reset();
-      const nextPk = advanceToNext();
-      if (nextPk !== null) {
-        setTrackingMessage({ pk: nextPk, text: "추적 상태를 바꾸지 않고 다음 발주계획으로 이동했습니다. 미선택은 추적 종료가 아닙니다." });
+      const next = advanceToNext();
+      if (next) {
+        setTrackingMessage({
+          pk: next.pk,
+          text: next.moved
+            ? "추적 상태를 바꾸지 않고 다음 발주계획으로 이동했습니다. 미선택은 추적 종료가 아닙니다."
+            : "추적 상태를 바꾸지 않았습니다. 현재 목록의 마지막 발주계획이라 이동하지 않습니다. 미선택은 추적 종료가 아닙니다.",
+        });
       }
     });
   }
 
+  /** 비율 기본값일 때의 실제 px. 화살표 조작과 aria 값이 읽을 현재 폭이다. */
+  const effectiveListWidth = listWidth ?? measuredListWidth;
+
   function updateListWidth(next: number) {
-    const clamped = Math.min(MAX_LIST_WIDTH, Math.max(MIN_LIST_WIDTH, next));
+    const clamped = Math.min(MAX_LIST_WIDTH, Math.max(MIN_LIST_WIDTH, Math.round(next)));
     setListWidth(clamped);
     saveListWidth(clamped);
   }
+
+  // 비율 기본값에서도 aria-valuenow 가 실제 폭을 말해야 한다. 창 크기가 바뀌면 같이 바뀐다.
+  useEffect(() => {
+    const pane = listPaneRef.current;
+    if (!pane || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(([entry]) => {
+      setMeasuredListWidth(Math.round(entry.contentRect.width));
+    });
+    observer.observe(pane);
+    return () => observer.disconnect();
+  }, [Boolean(sourceRunId), listQuery.isPending, listQuery.isError]);
 
   useEffect(() => {
     function onMove(event: MouseEvent) {
@@ -1232,8 +1257,7 @@ export function OrderPlansPage() {
   const listError = describeApiError(listQuery.error, "발주계획 목록을 확인할 수 없습니다.").title;
   const executionError = describeApiError(executionsQuery.error, "C-2 실행 목록을 확인할 수 없습니다.").title;
   const returnSearch = searchParams.toString();
-  const hasProblem = executionsQuery.isPending || executionHasProblem(latestExecution, executions);
-  const descriptionIsOpen = descriptionOpen ?? hasProblem;
+  const hasProblem = executionsQuery.isPending || executionHasProblem(latestExecution, scopedExecutions);
   // 목록 머리글이 "무엇을 보고 있는가"를 문장으로 밝힌다. 축 안은 OR, 축끼리는 AND다.
   const filterMeaning = (() => {
     if (isDefaultView) return "기본 보기 · BM25 선정 AND 모델 판단 관련·불확실";
@@ -1250,37 +1274,38 @@ export function OrderPlansPage() {
     ? 0
     : qwenSet.size + stage1Set.size + feedbackSet.size + (issueOn ? 1 : 0) + (qText.trim() ? 1 : 0);
 
+  const selectedIndex = selectedItem
+    ? filteredItems.findIndex((item) => item.order_plan_pk === selectedItem.order_plan_pk) + 1
+    : 0;
+  const feedbackSummaryLabel = selectedItem?.human_feedback
+    ? `${selectedItem.human_feedback.relevance} · 우선순위 ${selectedItem.human_feedback.priority ?? "미지정"}`
+    : "미입력";
+
   return (
     <section className="c2l-page" data-astryx-theme="bidops" aria-labelledby="order-plans-title">
-      <Heading level={2} id="order-plans-title">발주계획 C-2 검토</Heading>
-
-      {/* 시안 `Main`의 상단 한 줄. 이 화면의 데이터 축과 정책, 회차 선택기가 없다는 사실을
-          한 자리에서 밝힌다(ADR-0046 결정 7, PRD §3.2). */}
-      <div className="c2l-scope-line">
-        <Text type="supporting" color="secondary" as="p">
-          누적 데이터 · C-2 relevance 정책 · 회차 선택기 없음
-        </Text>
-        {latestExecution?.source_run_id ? (
-          <Link className="c2l-scope-link" to={`/run-status?run=${encodeURIComponent(latestExecution.source_run_id)}`}>
-            실행 상세 →
-          </Link>
-        ) : null}
-      </div>
-
-      <Collapsible
-        isOpen={descriptionIsOpen}
-        onOpenChange={setDescriptionOpen}
-        trigger={<ExecutionSummaryLine latest={latestExecution} executions={executions} />}
-      >
-        <div className="c2l-description">
-          <Text type="body" color="secondary" as="p">
-            BM25 후보 신호와 Qwen relevance 신호를 분리해 최신 성공/부분 성공 실행을 검토합니다. 이 relevance는 tracking state, fitness grade, readiness, 최종 Go/No-Go가 아닙니다.
-          </Text>
-          <Text type="supporting" color="secondary" as="p">
-            <code>filtered_out</code>는 BM25 탈락, <code>not_relevant</code>는 Qwen relevance, <code>unknown</code>은 정보 부족, <code>null</code>은 값 없음/미적용이며 서로 바꾸지 않습니다.
-          </Text>
+      {/* 시안(focus-v2) §1: 상단은 제목 한 줄이다. 회차 선택과 실행 상태는 같은 줄
+          오른쪽에 압축해 두고, 표시 규칙 설명은 `실행 상태` 대화상자로 옮겼다. */}
+      <header className="c2l-page-header">
+        <Heading level={2} id="order-plans-title">발주계획</Heading>
+        <div className="c2l-page-header-end">
+          <ReviewFilterSelector className="c2l-run-selector" label="발주계획 수집 회차" clearable={false}
+            options={runOptions} value={sourceRunId ?? null} onChange={changeSourceRun}
+            placeholder="수집 회차 선택" />
+          {/* 실행 상태는 낱말 하나로만 둔다. execution_id·시각·집계는 대화상자가 진다. */}
+          <ExecutionStatusChip latest={latestExecution} executions={scopedExecutions} />
+          <Button
+            label="실행 상태"
+            size="sm"
+            variant="ghost"
+            onClick={() => setDialog("runtime")}
+          />
+          {sourceRunId ? (
+            <Link className="c2l-scope-link" to={`/run-status?run=${encodeURIComponent(sourceRunId)}`}>
+              실행 상세 →
+            </Link>
+          ) : null}
         </div>
-      </Collapsible>
+      </header>
 
       {executionsQuery.isPending ? <Text type="body" color="secondary" as="p" role="status">C-2 실행 목록을 불러오는 중…</Text> : null}
       {executionsQuery.isError ? (
@@ -1288,10 +1313,20 @@ export function OrderPlansPage() {
           endContent={<Button label="다시 시도" size="sm" onClick={() => void executionsQuery.refetch()} />} />
       ) : null}
 
-      {!executionsQuery.isPending && !executionsQuery.isError && !latestExecution ? <ExecutionMissingBlock executions={executions} /> : null}
+      {runsQuery.isError ? <Banner status="error" title="수집 회차 목록을 불러오지 못했습니다."
+        description={describeApiError(runsQuery.error, "수집 회차를 확인할 수 없습니다.").title}
+        collapsible={false} endContent={<Button label="회차 다시 조회" onClick={() => void runsQuery.refetch()} />} /> : null}
+      {runsQuery.isPending ? <Text as="p" role="status">수집 회차를 불러오는 중…</Text> : null}
+      {!executionsQuery.isPending && !executionsQuery.isError && !latestExecution ? (
+        sourceRunId ? <Banner status="info" title="선별 전 · 수집 데이터 조회"
+          description="이 회차에 게시된 선별 결과가 없습니다. 원본 발주계획을 조회하며 모델 판단은 값 없음으로 표시합니다." collapsible={false} />
+          : <ExecutionMissingBlock executions={scopedExecutions} />
+      ) : null}
 
-      {latestExecution ? (
+      {sourceRunId ? (
         <div className="c2l-workspace-shell">
+          {/* 시안의 압축 툴바. 보기(프리셋)와 검색만 늘 보이고, 기술 축은 `상세 필터`
+              뒤에 접어 둔다. 접어도 URL 동기화와 축의 AND/OR 의미는 그대로다. */}
           <ReviewFilterBar
             activeFilterCount={activeFilterCount}
             aria-label="C-2 결과 필터"
@@ -1299,145 +1334,179 @@ export function OrderPlansPage() {
             onReset={resetFilters}
             resetLabel="필터 초기화"
           >
-            {/* 시안 `Main`의 `저장된 뷰` 는 단일 선택이므로 버튼 나열이 아니라 segmented
-                control 이다(PLAN 단계 C 작업 2). 조합 필터의 AND/OR 의미와 URL 동기화는
-                아래 축들이 그대로 소유한다 — 이 컨트롤은 이름 붙은 지름길일 뿐이다. */}
-            <div className="c2l-presets">
-              <Text type="label" color="secondary" as="p" id="c2l-saved-view-label">저장된 뷰</Text>
+            <div className="c2l-toolbar-main">
               <ReviewFilterSegmentedControl
-                label="저장된 뷰"
+                className="c2l-preset-control"
+                label="보기"
                 onChange={applyPreset}
                 options={PRESETS.map((preset) => ({ label: preset.label, value: preset.key }))}
                 value={activePreset ?? ""}
               />
-            </div>
-
-            <div className="c2l-filter-axis">
-              <Text type="label" color="secondary" as="p">Qwen relevance</Text>
-              <ToggleButtonGroup
-                type="multiple"
-                label="Qwen relevance 필터"
-                value={Array.from(qwenSet)}
-                onChange={(value) => changeAxes({ qwen: new Set(value as RelevanceToken[]) })}
-              >
-                <ToggleButton value="relevant" label="relevant" />
-                <ToggleButton value="uncertain" label="uncertain" />
-                <ToggleButton value="not_relevant" label="not_relevant" />
-                <ToggleButton value="null" label="null · 값 없음" />
-              </ToggleButtonGroup>
-            </div>
-
-            <div className="c2l-filter-axis">
-              <Text type="label" color="secondary" as="p">BM25 stage1</Text>
-              <ToggleButtonGroup
-                type="multiple"
-                label="BM25 stage1 필터"
-                value={Array.from(stage1Set)}
-                onChange={(value) => changeAxes({ stage1: new Set(value as Stage1Token[]) })}
-              >
-                <ToggleButton value="selected" label="selected" />
-                <ToggleButton value="filtered_out" label="filtered_out" />
-                <ToggleButton value="failed" label="failed" />
-                <ToggleButton value="rejected" label="rejected" />
-                <ToggleButton value="null" label="null · 값 없음" />
-              </ToggleButtonGroup>
-            </div>
-
-            <div className="c2l-filter-axis">
-              <Text type="label" color="secondary" as="p">사람 피드백</Text>
-              <ToggleButtonGroup
-                type="multiple"
-                label="사람 피드백 필터"
-                value={Array.from(feedbackSet)}
-                onChange={(value) => changeAxes({ feedback: new Set(value as FeedbackToken[]) })}
-              >
-                <ToggleButton value="has" label="있음" />
-                <ToggleButton value="none" label="없음" />
-              </ToggleButtonGroup>
-            </div>
-
-            <div className="c2l-filter-axis">
-              <Text type="label" color="secondary" as="p">실행 결과</Text>
-              <ToggleButton
-                value="issue"
-                label="실패·거부만"
-                isPressed={issueOn}
-                onPressedChange={(pressed) => changeAxes({ issue: pressed })}
-              />
-            </div>
-
-            {/* 검색은 다른 축과 같은 골격(축 이름 → 조작)을 쓰고, 입력과 실행 버튼은
-                한 줄에 같은 높이로 둔다. 둘이 서로 다른 줄에 떠 있으면 어느 버튼이
-                어느 입력을 실행하는지 화면이 말해 주지 못한다. */}
-            <div className="c2l-filter-axis c2l-filter-search">
-              <Text type="label" color="secondary" as="p">제목·계획번호 검색</Text>
-              <div className="c2l-filter-search-row">
+              <div className="c2l-toolbar-end">
                 <ReviewFilterTextInput
-                  label="제목·계획번호 검색"
+                  className="c2l-toolbar-search"
+                  label="사업명·발주기관·계획번호 검색"
                   value={searchText}
                   onChange={setSearchText}
                   onEnter={() => changeAxes({ q: searchText })}
-                  placeholder="검색어"
+                  placeholder="사업명·발주기관 검색"
                 />
                 <Button label="검색" size="sm" onClick={() => changeAxes({ q: searchText })} />
+                <Button
+                  aria-expanded={advancedOpen}
+                  label="상세 필터"
+                  size="sm"
+                  variant={advancedOpen ? "secondary" : "ghost"}
+                  onClick={() => setAdvancedOpen((open) => !open)}
+                />
               </div>
             </div>
 
-            <div className="c2l-filter-axis c2l-saved-views">
-              <ReviewFilterSelector
-                clearable={false}
-                label="저장된 뷰"
-                options={savedViews.map((view) => ({ value: view.id, label: view.name }))}
-                value=""
-                onChange={(id) => {
-                  const view = savedViews.find((item) => item.id === id);
-                  if (view) applySavedViewSearch(view.search);
-                }}
-                placeholder={savedViews.length ? "저장된 뷰 선택" : "저장된 뷰 없음"}
-                isDisabled={savedViews.length === 0}
-              />
-              {isNamingView ? (
-                <>
-                  <ReviewFilterTextInput label="뷰 이름" value={newViewName} onChange={setNewViewName} placeholder="뷰 이름" onEnter={saveCurrentAsView} />
-                  <Button label="뷰 저장" size="sm" onClick={saveCurrentAsView} isDisabled={!newViewName.trim()} />
-                  <Button label="취소" size="sm" variant="ghost" onClick={() => { setIsNamingView(false); setNewViewName(""); }} />
-                </>
-              ) : (
-                <Button label="현재 필터를 뷰로 저장" size="sm" variant="ghost" onClick={() => setIsNamingView(true)} />
-              )}
-              {savedViews.length ? (
-                <ul className="c2l-saved-view-list">
-                  {savedViews.map((view) => (
-                    <li key={view.id}>
-                      <Text type="supporting" color="secondary" as="span">{view.name}</Text>
-                      <Button className="c2l-view-delete" label={`${view.name} 삭제`} isIconOnly icon={<span aria-hidden="true">×</span>} size="sm" variant="ghost" onClick={() => deleteSavedView(view.id)} />
-                    </li>
-                  ))}
-                </ul>
-                ) : null}
-            </div>
+            {advancedOpen ? (
+              <div className="c2l-filter-advanced">
+                <div className="c2l-filter-axis">
+                  <Text type="label" color="secondary" as="p">Qwen relevance</Text>
+                  <ToggleButtonGroup
+                    type="multiple"
+                    label="Qwen relevance 필터"
+                    value={Array.from(qwenSet)}
+                    onChange={(value) => changeAxes({ qwen: new Set(value as RelevanceToken[]) })}
+                  >
+                    <ToggleButton value="relevant" label="relevant" />
+                    <ToggleButton value="uncertain" label="uncertain" />
+                    <ToggleButton value="not_relevant" label="not_relevant" />
+                    <ToggleButton value="null" label="null · 값 없음" />
+                  </ToggleButtonGroup>
+                </div>
+
+                <div className="c2l-filter-axis">
+                  <Text type="label" color="secondary" as="p">BM25 stage1</Text>
+                  <ToggleButtonGroup
+                    type="multiple"
+                    label="BM25 stage1 필터"
+                    value={Array.from(stage1Set)}
+                    onChange={(value) => changeAxes({ stage1: new Set(value as Stage1Token[]) })}
+                  >
+                    <ToggleButton value="selected" label="selected" />
+                    <ToggleButton value="filtered_out" label="filtered_out" />
+                    <ToggleButton value="failed" label="failed" />
+                    <ToggleButton value="rejected" label="rejected" />
+                    <ToggleButton value="null" label="null · 값 없음" />
+                  </ToggleButtonGroup>
+                </div>
+
+                <div className="c2l-filter-axis">
+                  <Text type="label" color="secondary" as="p">사람 피드백</Text>
+                  <ToggleButtonGroup
+                    type="multiple"
+                    label="사람 피드백 필터"
+                    value={Array.from(feedbackSet)}
+                    onChange={(value) => changeAxes({ feedback: new Set(value as FeedbackToken[]) })}
+                  >
+                    <ToggleButton value="has" label="있음" />
+                    <ToggleButton value="none" label="없음" />
+                  </ToggleButtonGroup>
+                </div>
+
+                <div className="c2l-filter-axis">
+                  <Text type="label" color="secondary" as="p">실행 결과</Text>
+                  <ToggleButton
+                    value="issue"
+                    label="실패·거부만"
+                    isPressed={issueOn}
+                    onPressedChange={(pressed) => changeAxes({ issue: pressed })}
+                  />
+                </div>
+
+                <div className="c2l-filter-axis c2l-saved-views">
+                  <Text type="label" color="secondary" as="p">저장된 뷰</Text>
+                  <div className="c2l-saved-views-row">
+                    <ReviewFilterSelector
+                      clearable={false}
+                      label="저장된 뷰"
+                      options={savedViews.map((view) => ({ value: view.id, label: view.name }))}
+                      value=""
+                      onChange={(id) => {
+                        const view = savedViews.find((item) => item.id === id);
+                        if (view) applySavedViewSearch(view.search);
+                      }}
+                      placeholder={savedViews.length ? "저장된 뷰 선택" : "저장된 뷰 없음"}
+                      isDisabled={savedViews.length === 0}
+                    />
+                    {isNamingView ? (
+                      <>
+                        <ReviewFilterTextInput label="뷰 이름" value={newViewName} onChange={setNewViewName} placeholder="뷰 이름" onEnter={saveCurrentAsView} />
+                        <Button label="뷰 저장" size="sm" onClick={saveCurrentAsView} isDisabled={!newViewName.trim()} />
+                        <Button label="취소" size="sm" variant="ghost" onClick={() => { setIsNamingView(false); setNewViewName(""); }} />
+                      </>
+                    ) : (
+                      <Button label="현재 필터를 뷰로 저장" size="sm" variant="ghost" onClick={() => setIsNamingView(true)} />
+                    )}
+                  </div>
+                  {savedViews.length ? (
+                    <ul className="c2l-saved-view-list">
+                      {savedViews.map((view) => (
+                        <li key={view.id}>
+                          <Text type="supporting" color="secondary" as="span">{view.name}</Text>
+                          <Button className="c2l-view-delete" label={`${view.name} 삭제`} isIconOnly icon={<span aria-hidden="true">×</span>} size="sm" variant="ghost" onClick={() => deleteSavedView(view.id)} />
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
           </ReviewFilterBar>
 
-          {listQuery.isPending ? <Text type="body" color="secondary" as="p" role="status">발주계획을 불러오는 중…</Text> : null}
-          {listQuery.isError ? (
-            <Banner status="error" title="발주계획 목록을 불러오지 못했습니다." description={listError} collapsible={false}
-              endContent={<Button label="다시 시도" size="sm" onClick={() => void listQuery.refetch()} />} />
-          ) : null}
-
-          {!listQuery.isPending && !listQuery.isError ? (
-            <SplitWorkspace
+          {/* 목록을 불러오는 중이거나 실패해도 두 pane 골격은 그대로 둔다. 화면이 통째로
+              접혔다 펴지면 사람이 보던 자리를 잃는다(시안의 loading·failure 상태). */}
+          <SplitWorkspace
               aria-label="발주계획 목록과 상세"
               className="c2l-workspace"
-              style={{ "--c2l-list-width": `${listWidth}px` } as React.CSSProperties}
+              style={{ "--c2l-list-width": listWidth === null ? DEFAULT_LIST_WIDTH : `${listWidth}px` } as React.CSSProperties}
             >
-              <aside className="c2l-list-pane">
+              <aside className="c2l-list-pane" ref={listPaneRef}>
                 <header className="c2l-list-head">
-                  <Text type="label" color="primary" as="p">발주계획 목록</Text>
-                  <Text type="supporting" color="secondary" as="p">{filterMeaning} · 현재 필터 결과 {total.toLocaleString("ko-KR")}건 · {visibleItems.length ? offset + 1 : 0}–{Math.min(offset + visibleItems.length, total)} / {total.toLocaleString("ko-KR")}</Text>
+                  <div className="c2l-list-head-row">
+                    {/* 목록을 못 읽었으면 건수는 0이 아니라 확인 불가다. 실패를 0건으로 적지 않는다. */}
+                    <Text type="label" color="primary" as="p">
+                      검토 목록 · {listQuery.isError
+                        ? "현재 필터 결과 확인 불가"
+                        : listQuery.isPending
+                          ? "불러오는 중"
+                          : `현재 필터 결과 ${total.toLocaleString("ko-KR")}건`}
+                    </Text>
+                    {listQuery.isPending || listQuery.isError ? null : (
+                      <Text type="supporting" color="secondary" as="p">{visibleItems.length ? offset + 1 : 0}–{Math.min(offset + visibleItems.length, total)} / {total.toLocaleString("ko-KR")}</Text>
+                    )}
+                  </div>
+                  {/* 무엇을 보고 있는지는 한 줄로 남긴다. 축 안은 OR, 축끼리는 AND다. */}
+                  <p className="c2l-list-scope" title={filterMeaning}>
+                    <Text type="supporting" color="secondary" as="span">{filterMeaning}</Text>
+                  </p>
                 </header>
-                {visibleItems.length === 0 ? (
+                {listQuery.isPending ? (
+                  <div className="c2l-list-empty" role="status">
+                    <Text type="body" color="secondary" as="p">발주계획을 불러오는 중…</Text>
+                  </div>
+                ) : listQuery.isError ? (
                   <div className="c2l-list-empty">
-                    <Text type="body" color="secondary" as="p">현재 필터에 해당하는 결과가 없습니다. 표시되지 않은 값이나 실행 실패를 다른 relevance 상태로 바꾸지 않습니다.</Text>
+                    <ReviewState
+                      kind="failure"
+                      title="발주계획 목록을 불러오지 못했습니다."
+                      description={listError}
+                      action={<Button label="다시 시도" size="sm" onClick={() => void listQuery.refetch()} />}
+                    />
+                  </div>
+                ) : visibleItems.length === 0 ? (
+                  /* 시안의 빈 상태 패턴. 값이 없다는 사실과 되돌리는 방법을 함께 준다. */
+                  <div className="c2l-list-empty">
+                    <ReviewState
+                      kind="empty"
+                      title="조건에 맞는 계획이 없습니다"
+                      description="검색어나 필터를 바꿔보세요. 표시되지 않은 값이나 실행 실패를 다른 relevance 상태로 바꾸지 않습니다."
+                      action={<Button label="필터 초기화" size="sm" onClick={resetFilters} />}
+                    />
                   </div>
                 ) : (
                   <DenseList aria-label="발주계획 검토 목록" className="c2l-list-scroll">
@@ -1447,14 +1516,13 @@ export function OrderPlansPage() {
                         item={item}
                         isSelected={selectedItem?.order_plan_pk === item.order_plan_pk}
                         onSelect={() => selectRow(item.order_plan_pk)}
-                        returnSearch={returnSearch}
                       />
                     ))}
                   </DenseList>
                 )}
                 {/* 기본 보기가 숨기는 것을 목록 바닥에 밝힌다. 숨김을 부재로 표시하지
                     않는다(PRD §3.2). */}
-                {isDefaultView ? (
+                {isDefaultView && !listQuery.isPending && !listQuery.isError ? (
                   <p className="c2l-list-foot">
                     <Text type="supporting" color="secondary" as="span">
                       필터 외 BM25 선정 제외·비관련·실패 건은 기본 보기에서 숨김. 없는 것이 아니라 보이지 않는 것입니다.
@@ -1477,88 +1545,147 @@ export function OrderPlansPage() {
                 aria-label="목록 폭 조절"
                 aria-valuemin={MIN_LIST_WIDTH}
                 aria-valuemax={MAX_LIST_WIDTH}
-                aria-valuenow={listWidth}
+                aria-valuenow={effectiveListWidth ?? undefined}
                 tabIndex={0}
-                onMouseDown={(event) => { dragStateRef.current = { startX: event.clientX, startWidth: listWidth }; }}
+                onMouseDown={(event) => {
+                  if (effectiveListWidth === null) return;
+                  dragStateRef.current = { startX: event.clientX, startWidth: effectiveListWidth };
+                }}
                 onKeyDown={(event) => {
-                  if (event.key === "ArrowLeft") { updateListWidth(listWidth - LIST_WIDTH_STEP); event.preventDefault(); }
-                  else if (event.key === "ArrowRight") { updateListWidth(listWidth + LIST_WIDTH_STEP); event.preventDefault(); }
+                  const current = effectiveListWidth;
+                  if (current === null) return;
+                  if (event.key === "ArrowLeft") { updateListWidth(current - LIST_WIDTH_STEP); event.preventDefault(); }
+                  else if (event.key === "ArrowRight") { updateListWidth(current + LIST_WIDTH_STEP); event.preventDefault(); }
                   else if (event.key === "Home") { updateListWidth(MIN_LIST_WIDTH); event.preventDefault(); }
                   else if (event.key === "End") { updateListWidth(MAX_LIST_WIDTH); event.preventDefault(); }
                 }}
               />
 
               <section className="c2l-detail-pane">
-                {selectedItem ? (
+                {listQuery.isPending || listQuery.isError ? (
+                  <div className="c2l-detail-empty">
+                    <Text type="body" color="secondary" as="p">
+                      {listQuery.isPending ? "목록을 불러온 뒤 상세 정보를 표시합니다." : "목록을 불러오지 못해 상세를 표시할 수 없습니다."}
+                    </Text>
+                  </div>
+                ) : selectedItem ? (
                   <>
+                    {/* 시안 §4: 발주기관을 라벨과 함께 강조 블록으로 먼저 읽히고, 사업명은
+                        그다음이다. 식별자와 추적 상태는 한 줄로 붙인다. */}
                     <StickyDecisionHeader className="c2l-detail-head" label="발주계획 상세 헤더">
-                      <Text type="supporting" color="secondary" as="p">발주계획 {selectedItem.order_plan_unty_no} · 계획 ID {selectedItem.order_plan_pk}</Text>
+                      <div className="c2l-agency-feature">
+                        <Text type="supporting" color="secondary" as="p" className="c2l-agency-label">발주기관</Text>
+                        <Text type="body" color="primary" weight="semibold" as="p" className="c2l-agency-name">{textOrUnknown(selectedItem.agency_name)}</Text>
+                      </div>
                       <Heading level={4}>{textOrUnknown(selectedItem.title)}</Heading>
-                      <TabList value={detailTab} onChange={(value) => setDetailTab(value as DetailTab)} role="tablist" hasDivider>
-                        <Tab value="verdict" label="판정" panelId="c2l-panel-verdict" />
-                        <Tab value="signals" label="신호 세부" panelId="c2l-panel-signals" />
-                        <Tab value="telemetry" label="실행 기록" panelId="c2l-panel-telemetry" />
-                      </TabList>
+                      <div className="c2l-detail-identity">
+                        <Text type="supporting" color="secondary" as="p">발주계획 {selectedItem.order_plan_unty_no} · 계획 ID {selectedItem.order_plan_pk}</Text>
+                        <Badge
+                          variant={trackingAvailabilityState === "available" ? "neutral" : "warning"}
+                          label={trackingStatusLabel(selectedItem)}
+                        />
+                      </div>
                     </StickyDecisionHeader>
                     <div className="c2l-detail-scroll">
-                      <div id="c2l-panel-verdict" role="tabpanel" aria-label="판정" hidden={detailTab !== "verdict"}>
-                        <VerdictPanel
-                          item={selectedItem}
-                          relevance={relevance}
-                          onRelevanceChange={setRelevance}
-                          priority={priority}
-                          onPriorityChange={setPriority}
-                          memo={memo}
-                          onMemoChange={setMemo}
-                          actorName={actorName}
-                          onActorNameChange={setActorName}
-                          trackingReason={trackingReason}
-                          onTrackingReasonChange={setTrackingReason}
-                          trackingActorName={trackingActor}
-                          onTrackingActorNameChange={setTrackingActor}
-                          feedbackDisabledReason={decisionDisabledReason}
-                          feedbackError={mutation.isError ? describeApiError(mutation.error, "사람 피드백을 저장하지 못했습니다.").title : null}
-                          feedbackReady={ready && !mutation.isPending}
-                          onSaveFeedback={handleSave}
-                          savedMessage={savedMessage}
+                      <dl className="c2l-detail-facts">
+                        <div><dt>발주계획 예산</dt><dd>{budgetValue(selectedItem.budget_amount)}</dd></div>
+                        <div><dt>발주 예정</dt><dd>{plannedTiming(selectedItem.planned_order_year, selectedItem.planned_order_month)}</dd></div>
+                        <div><dt>사업 분야</dt><dd>{textOrUnknown(selectedItem.business_division)}</dd></div>
+                      </dl>
+
+                      {/* 기본 상세는 실제로 있는 근거만 싣는다. 제안요청서 본문·확인할 점은
+                          지금 API의 필드가 아니므로 만들어 넣지 않는다. */}
+                      <section className="c2l-evidence" aria-labelledby={`c2l-evidence-${selectedItem.order_plan_pk}`}>
+                        <div className="c2l-evidence-head">
+                          <Heading level={5} id={`c2l-evidence-${selectedItem.order_plan_pk}`}>관련 근거</Heading>
+                          <span className="c2l-row-badges">
+                            <Badge variant={stage1BadgeVariant(selectedItem.stage1_status)} label={stage1RowLabel(selectedItem.stage1_status)} />
+                            <Badge variant={qwenBadgeVariant(selectedItem)} label={qwenRowLabel(selectedItem)} />
+                          </span>
+                        </div>
+                        <p className="c2l-evidence-body">
+                          <ReviewValue value={selectedItem.qwen_reason} nullLabel="null (모델 근거 미제공)" />
+                        </p>
+                        {/* 출처는 서버가 준 값 하나뿐이다. 원문 인용이나 문서 위치를 만들지
+                            않고, 어느 알려진 필드를 읽었는지만 이름으로 적는다. */}
+                        <dl className="c2l-evidence-source">
+                          <dd>{textOrUnknown(selectedItem.title)}</dd>
+                          <dt>근거 위치 · 발주계획 사업명</dt>
+                        </dl>
+                        <p className="c2l-evidence-scope">
+                          <Text type="supporting" color="secondary" as="span">
+                            계획 정보 기반 탐색 신호 · 회사 적합성과 참여 자격은 미확인
+                          </Text>
+                        </p>
+                      </section>
+
+                      {/* 이 건에 이미 기록된 추적 선택이 있으면 한 줄로 남긴다. 값이 없으면
+                          줄 자체를 만들지 않는다. */}
+                      {selectedItem.tracking?.tracking_selected_by ? (
+                        <p className="c2l-detail-note">
+                          <Text type="supporting" color="secondary" as="span">
+                            최근 추적 선택 · {selectedItem.tracking.tracking_selected_by} · {formatMoment(selectedItem.tracking.tracking_selected_at)} · 사유 <ReviewValue value={selectedItem.tracking.tracking_reason} nullLabel="null (사유 없음)" />
+                          </Text>
+                        </p>
+                      ) : null}
+
+                      {/* 보조 정보는 기본 동선에서 빼되 지우지 않는다. 같은 자리에서 연다. */}
+                      <nav className="c2l-supplementary" aria-label="추가 검토 정보">
+                        <Button
+                          aria-label="사람 판단 수정 열기"
+                          label={`사람 판단 수정 · ${feedbackSummaryLabel}`}
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setDialog("feedback")}
                         />
-                      </div>
-                      <div id="c2l-panel-signals" role="tabpanel" aria-label="신호 세부" hidden={detailTab !== "signals"}>
-                        <SignalPanel item={selectedItem} />
-                      </div>
-                      <div id="c2l-panel-telemetry" role="tabpanel" aria-label="실행 기록" hidden={detailTab !== "telemetry"}>
-                        <TelemetryPanel
-                          execution={latestExecution}
-                          detail={executionDetailQuery.data}
-                          detailPending={executionDetailQuery.isPending}
-                          detailError={executionDetailQuery.error}
+                        <Button
+                          aria-label="선별 신호와 실행 기록 열기"
+                          label="선별 신호 · 실행 기록"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => { setSignalTab("signals"); setDialog("signals"); }}
                         />
-                      </div>
+                        <Link className="c2l-row-detail-link" to={`/order-plans/${selectedItem.order_plan_pk}${returnSearch ? `?${returnSearch}` : ""}`}>
+                          전체 상세 열기 →
+                        </Link>
+                      </nav>
                     </div>
                     {/* 분할 화면의 결정 액션은 상세 pane 바닥에 둔다. 단독
                         상세 화면(OrderPlanDetailPage)은 sticky 헤더에 두며, 두
                         배치를 한 화면에서 섞지 않는다(PLAN 단계 B).
                         여기의 결정은 **추적 결정 하나**다(ADR-0046 결정 4). 사람 판단
-                        수정은 접힌 보조 입력 영역이 자기 저장을 소유한다. */}
+                        수정은 별도 대화상자가 자기 저장을 소유한다. */}
                     <ReviewDecisionBar
                       className="c2l-detail-actions"
+                      // 비활성 사유는 세 결정이 함께 읽는 한 문장이다. 버튼 옆이 아니라
+                      // 여기 한 곳에서 그리고, 각 버튼은 같은 id를 `aria-describedby`로 가리킨다.
                       hint={(
                         <>
-                          선택 즉시 이력을 기록하고 다음 발주계획으로 이동합니다 · 별도 저장 없음
-                          <br />
-                          {filteredItems.findIndex((item) => item.order_plan_pk === selectedItem.order_plan_pk) + 1} / {total}
+                          {trackingMutation.isError ? (
+                            <span className="c2l-decision-message" role="alert">
+                              {describeApiError(trackingMutation.error, "추적 결정을 저장하지 못했습니다.").title} 이 발주계획의 추적 상태는 바뀌지 않았습니다.
+                            </span>
+                          ) : null}
+                          {trackingMessage?.pk === selectedItem.order_plan_pk
+                            ? <span className="c2l-decision-message" role="status">{trackingMessage.text}</span>
+                            : null}
+                          <span className="c2l-decision-hint" id="c2l-tracking-decision-reason">
+                            {trackingDisabledReason ?? "선택 후 다음 후보로 이동합니다 · 최종 입찰 참여 결정과 별개"}
+                          </span>
                         </>
                       )}
                       label="발주계획 추적 결정"
                       status={(
-                        <>
-                          {trackingMutation.isError ? (
-                            <Text type="body" color="secondary" role="alert">
-                              {describeApiError(trackingMutation.error, "추적 결정을 저장하지 못했습니다.").title} 이 발주계획의 추적 상태는 바뀌지 않았습니다.
-                            </Text>
-                          ) : null}
-                          {trackingMessage?.pk === selectedItem.order_plan_pk ? <Text type="body" color="secondary" role="status">{trackingMessage.text}</Text> : null}
-                        </>
+                        <TrackingDecisionFields
+                          actorName={trackingActor}
+                          customReason={customReason}
+                          item={selectedItem}
+                          onActorNameChange={setTrackingActor}
+                          onCustomReasonChange={setCustomReason}
+                          onReasonChoiceChange={setReasonChoice}
+                          position={`${selectedIndex} / ${total.toLocaleString("ko-KR")}건`}
+                          reasonChoice={reasonChoice}
+                        />
                       )}
                       actions={(
                         <>
@@ -1566,7 +1693,6 @@ export function OrderPlansPage() {
                               한 번만 그리고 나머지는 같은 id를 가리켜, 화면에 같은
                               문장이 세 번 쌓이지 않으면서 각 버튼이 사유를 읽는다. */}
                           <ReviewDecisionAction
-                            disabledReason={trackingDisabledReason}
                             disabledReasonId="c2l-tracking-decision-reason"
                             isDisabled={!trackingReady}
                             label="추적 시작"
@@ -1599,14 +1725,122 @@ export function OrderPlansPage() {
                   </>
                 ) : (
                   <div className="c2l-detail-empty">
-                    <Text type="body" color="secondary" as="p">표시할 발주계획이 없습니다.</Text>
+                    <ReviewState
+                      kind="empty"
+                      title="조건에 맞는 계획이 없습니다"
+                      description="검색어나 필터를 바꿔보세요. 선택한 회차의 원본은 그대로 남아 있습니다."
+                      action={<Button label="필터 초기화" size="sm" onClick={resetFilters} />}
+                    />
                   </div>
                 )}
               </section>
-            </SplitWorkspace>
-          ) : null}
+          </SplitWorkspace>
         </div>
       ) : null}
+
+      {/* 실행 상태와 표시 규칙. 기본 화면에서 큰 설명 영역을 없앤 대신 여기서 읽는다. */}
+      <Dialog isOpen={dialog === "runtime"} onOpenChange={(open) => { if (!open) setDialog(null); }} purpose="info" width={640}>
+        <DialogHeader title="실행 상태와 표시 규칙" onOpenChange={() => setDialog(null)} />
+        <div className="c2l-dialog-body">
+          <ExecutionSummaryLine latest={latestExecution} executions={scopedExecutions} />
+          <Text type="body" color="secondary" as="p">
+            BM25 후보 신호와 Qwen relevance 신호를 분리해 선택한 회차의 성공/부분 성공 실행을 검토합니다. 이 relevance는 tracking state, fitness grade, readiness, 최종 Go/No-Go가 아닙니다.
+          </Text>
+          <Text type="supporting" color="secondary" as="p">
+            <code>filtered_out</code>는 BM25 탈락, <code>not_relevant</code>는 Qwen relevance, <code>unknown</code>은 정보 부족, <code>null</code>은 값 없음/미적용이며 서로 바꾸지 않습니다.
+          </Text>
+          {/* 기본 화면의 결정 줄에서 뺀 문장. 뜻은 그대로 남기고 자리만 옮겼다. */}
+          <Text type="supporting" color="secondary" as="p">
+            미선택은 추적 종료가 아닙니다. 추적 선택은 추적 상태만 기록하며 모델 판단·적합성 등급·참여 준비 상태·최종 Go/No-Go를 바꾸지 않습니다.
+          </Text>
+          {sourceRunId ? (
+            <Text type="supporting" color="secondary" as="p">수집 회차 <span className="c2l-digest">{sourceRunId}</span></Text>
+          ) : null}
+        </div>
+      </Dialog>
+
+      {/* 신호 세부와 실행 기록. 목록 행과 기본 상세에서 뺀 값이 그대로 남아 있다. */}
+      <Dialog isOpen={dialog === "signals" && selectedItem !== null} onOpenChange={(open) => { if (!open) setDialog(null); }} purpose="info" width={760}>
+        <DialogHeader title="선별 신호와 실행 기록" subtitle={selectedItem ? textOrUnknown(selectedItem.title) : undefined} onOpenChange={() => setDialog(null)} />
+        <div className="c2l-dialog-body">
+          <TabList value={signalTab} onChange={(value) => setSignalTab(value as SignalTab)} role="tablist" hasDivider>
+            <Tab value="signals" label="신호 세부" panelId="c2l-panel-signals" />
+            <Tab value="telemetry" label="실행 기록" panelId="c2l-panel-telemetry" />
+          </TabList>
+          <div id="c2l-panel-signals" role="tabpanel" aria-label="신호 세부" hidden={signalTab !== "signals"}>
+            {selectedItem ? <SignalPanel item={selectedItem} /> : null}
+          </div>
+          <div id="c2l-panel-telemetry" role="tabpanel" aria-label="실행 기록" hidden={signalTab !== "telemetry"}>
+            {latestExecution ? <TelemetryPanel
+              execution={latestExecution}
+              detail={executionDetailQuery.data}
+              detailPending={executionDetailQuery.isPending}
+              detailError={executionDetailQuery.error}
+            /> : <Text as="p">이 회차에 게시된 선별 실행 기록이 없습니다.</Text>}
+          </div>
+        </div>
+      </Dialog>
+
+      {/* 사람 판단 수정. 추적 결정과 다른 요청·다른 저장이며 다음 건으로 이동하지 않는다. */}
+      <Dialog isOpen={dialog === "feedback" && selectedItem !== null} onOpenChange={(open) => { if (!open) setDialog(null); }} purpose="form" width={560}>
+        <DialogHeader
+          title="사람 판단 수정 (선택)"
+          subtitle={selectedItem ? textOrUnknown(selectedItem.title) : undefined}
+          onOpenChange={() => setDialog(null)}
+        />
+        <div className="c2l-dialog-body c2l-feedback-dialog">
+          <Text type="supporting" color="secondary" as="p">
+            기존 사람 판단을 그대로 둡니다. 추적 결정과는 별도 수정본이며 적합성 등급·참여 준비 상태·심층 추적 승인·최종 Go/No-Go를 채우거나 대신하지 않습니다.
+          </Text>
+          <Badge variant="neutral" label={selectedItem?.human_feedback ? feedbackSummaryLabel : "사람 판단 미입력"} />
+
+          <div className="c2l-feedback-field">
+            <Text type="label" color="secondary" as="p">relevance</Text>
+            <SegmentedControl value={relevance} onChange={(value) => setRelevance(value as OrderPlanRelevance)} label="사람 relevance 판단">
+              <SegmentedControlItem value="relevant" label="relevant" />
+              <SegmentedControlItem value="uncertain" label="uncertain" />
+              <SegmentedControlItem value="not_relevant" label="not_relevant" />
+            </SegmentedControl>
+          </div>
+
+          <div className="c2l-feedback-field">
+            <Text type="label" color="secondary" as="p">priority</Text>
+            <SegmentedControl value={priority || "null"} onChange={(value) => setPriority(value === "null" ? "" : (value as OrderPlanFeedbackPriority))} label="사람 priority 판단">
+              <SegmentedControlItem value="high" label="high" />
+              <SegmentedControlItem value="medium" label="medium" />
+              <SegmentedControlItem value="low" label="low" />
+              <SegmentedControlItem value="null" label="null · 미지정" />
+            </SegmentedControl>
+          </div>
+
+          <TextArea
+            label="memo"
+            value={memo}
+            onChange={setMemo}
+            rows={3}
+            placeholder="사람 검토 근거 또는 다음 확인 사항"
+          />
+
+          <TextInput
+            label="사람 판단 담당자 이름"
+            value={actorName}
+            onChange={setActorName}
+            description="감사 귀속용 이름이며 로그인·신원 인증·권한 부여가 아닙니다."
+          />
+
+          <div className="c2l-feedback-actions">
+            {mutation.isError ? <Text type="body" color="secondary" role="alert">{describeApiError(mutation.error, "사람 피드백을 저장하지 못했습니다.").title}</Text> : null}
+            {savedMessage ? <Text type="body" color="secondary" role="status">{savedMessage}</Text> : null}
+            <ReviewDecisionAction
+              disabledReason={decisionDisabledReason}
+              isDisabled={!(ready && !mutation.isPending)}
+              label="새 수정본 저장"
+              variant="secondary"
+              onClick={handleSave}
+            />
+          </div>
+        </div>
+      </Dialog>
 
       {/* 되돌릴 수 없는 `종료`의 확인 단계. 취소하면 초안은 그대로 남고 요청은 나가지
           않으며, 저장에 실패하면 다이얼로그는 닫히고 결정 바의 오류 문구가 남는다.

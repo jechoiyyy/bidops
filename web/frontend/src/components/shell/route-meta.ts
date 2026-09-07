@@ -119,9 +119,11 @@ export const routeMetadata = {
     record: { param: "opportunityId", label: (value) => `#${value}`, placement: "leaf" },
   },
   orderPlans: {
-    title: "발주계획 C-2 검토",
+    // 화면 제목은 `발주계획` 한 낱말이다(승인 시안). 상단 경로도 같은 이름을 쓴다.
+    title: "발주계획",
     dataScope: "cumulative",
-    editScope: "사람 피드백 수정본 저장 가능",
+    // 이 화면의 결정은 추적 선택이고 사람 판단 수정은 보조 저장이다.
+    editScope: "추적 선택·사람 판단 수정 저장 가능",
     runSelectorVisible: false,
     navGroup: "탐색과 추적",
     navPath: "/order-plans",

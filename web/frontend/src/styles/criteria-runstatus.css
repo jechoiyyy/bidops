@@ -125,68 +125,12 @@
   min-width: 280px;
 }
 
-/* ── 최종 Go/No-Go 대기 목록 ─────────────────────────────────────── */
-
-.gng-page {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-4);
-  min-width: 0;
-  padding: var(--spacing-5);
-  background: var(--color-background-body);
-}
-
-.gng-head {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-2);
-}
-
-.gng-list {
-  display: flex;
-  flex-direction: column;
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-container);
-  background: var(--color-background-card);
-  overflow: hidden;
-}
-
-.gng-row {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-1);
-  padding: var(--spacing-3) var(--spacing-4);
-  border-bottom: var(--border-width) solid var(--color-border);
-  text-decoration: none;
-}
-
-.gng-row:last-child {
-  border-bottom: 0;
-}
-
-.gng-row:hover {
-  background: var(--color-overlay-hover);
-}
-
-.gng-row:focus-visible {
-  outline: var(--focus-outline-width) var(--focus-outline-style) var(--focus-outline-color);
-  outline-offset: calc(-1 * var(--focus-outline-width));
-}
-
-.gng-row-line {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--spacing-2);
-  min-width: 0;
-}
-
-.gng-row-badges {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--spacing-1);
-}
+/* ── 실행 상태 화면의 빈 상태 ────────────────────────────────────────
+ *
+ * 최종 Go/No-Go 목록이 쓰던 `.gng-page`·`.gng-head`·`.gng-list`·`.gng-row`·
+ * `.gng-row-line`·`.gng-row-badges`는 승인된 시안 구현으로 옮겨 가면서
+ * `styles/go-no-go.css`가 가져갔다. `.gng-empty`는 `pages/RunStatusPage.tsx`가
+ * 계속 쓰므로 여기 남는다. 판정 기준·실행 상태 선택자는 건드리지 않았다. */
 
 .gng-empty {
   padding: var(--spacing-5);
@@ -304,12 +248,5 @@
   display: inline-flex;
   align-items: center;
   min-height: var(--control-height);
-  font-size: var(--bo-type-caption);
-}
-
-/* 결정 대기 목록의 요약 한 줄. 받은 목록에서 센 값이라는 사실을 함께 적는다. */
-.gng-summary {
-  margin: 0;
-  color: var(--color-text-secondary);
   font-size: var(--bo-type-caption);
 }

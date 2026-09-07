@@ -331,17 +331,17 @@ const AUTO_PREPARATION_LABELS = [
   "자동 준비 중단",
 ];
 
-test("사전규격 목록이 등급 4값과 판정 없음, 자동 준비 8값을 문자로 보여준다", async ({ page }) => {
+test("사전규격 선택 상세가 등급 4값과 판정 없음, 자동 준비 8값을 문자로 보여준다", async ({ page }) => {
   await mockPreSpecMatrix(page);
   await page.goto("/pre-specs");
-
-  const list = page.locator(".pre-specs-list").first();
-  await expect(list).toBeVisible({ timeout: 10_000 });
-  for (const grade of ["우선 검토", "검토 권장", "관찰 대상", "제외", "판정 없음"]) {
-    await expect(list.getByText(grade, { exact: true }).first()).toBeVisible();
-  }
-  for (const label of AUTO_PREPARATION_LABELS) {
-    await expect(list.getByText(label, { exact: true }).first()).toBeVisible();
+  const rows = page.locator(".pre-specs-row");
+  await expect(rows).toHaveCount(8);
+  const grades = ["판정 없음", "우선 검토", "우선 검토", "검토 권장", "검토 권장", "우선 검토", "관찰 대상", "제외"];
+  for (let index = 0; index < AUTO_PREPARATION_LABELS.length; index += 1) {
+    await rows.filter({ hasText: `자동 준비 표본 ${index + 1}` }).click();
+    const detail = page.locator(".pre-specs-detail-pane");
+    await expect(detail.locator(".pre-specs-detail-facts")).toContainText(grades[index]);
+    await expect(detail.locator(".pre-specs-process")).toContainText(AUTO_PREPARATION_LABELS[index]);
   }
 });
 
@@ -350,20 +350,23 @@ test("사전규격 등급 필터는 URL과 동기화되고 적용 범위를 밝�
   await page.goto("/pre-specs");
   await expect(page.locator(".pre-specs-list").first()).toBeVisible({ timeout: 10_000 });
 
-  await page.getByLabel("적합성 등급").selectOption("제외");
+  await page.getByRole("button", { name: "상세 필터", exact: true }).click();
+  await page.getByRole("combobox", { name: /적합성 등급/ }).click();
+  await page.getByRole("option", { name: "제외", exact: true }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("grade")).toBe("제외");
   const note = page.locator(".pre-specs-grade-filter-note");
-  await expect(note).toContainText("현재 불러온 페이지에만 적용됩니다");
-  await expect(note).toContainText("등급 필터 이전");
+  await expect(note).toContainText("불러온 페이지에만 적용됩니다");
+  await expect(note).toContainText("서버 전체 집계");
   const rows = page.locator('.pre-specs-list [data-review-primitive="dense-list-row"]');
   await expect(rows).toHaveCount(1);
-  await expect(rows.first()).toContainText("제외");
+  await expect(page.locator(".pre-specs-detail-facts")).toContainText("제외");
 
   // `판정 없음`은 다섯 번째 등급이 아니라 등급이 null인 건이다.
-  await page.getByLabel("적합성 등급").selectOption("판정 없음");
+  await page.getByRole("combobox", { name: /적합성 등급/ }).click();
+  await page.getByRole("option", { name: "판정 없음", exact: true }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("grade")).toBe("판정 없음");
   await expect(rows).toHaveCount(1);
-  await expect(rows.first()).toContainText("자동 준비 대상 아님");
+  await expect(page.locator(".pre-specs-process")).toContainText("자동 준비 대상 아님");
 
   await page.getByRole("button", { name: "기본값으로" }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("grade")).toBeNull();

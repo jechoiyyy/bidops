@@ -180,7 +180,8 @@ type BreadcrumbCase = { name: string; path: string; crumbs: string[] };
 
 const breadcrumbCases: BreadcrumbCase[] = [
   { name: "dashboard", path: "/", crumbs: ["오늘의 업무", "대시보드"] },
-  { name: "order-plans", path: "/order-plans", crumbs: ["탐색과 추적", "발주계획 C-2 검토"] },
+  // 화면 제목이 `발주계획` 한 낱말로 바뀌었고 상단 경로도 같은 이름을 쓴다.
+  { name: "order-plans", path: "/order-plans", crumbs: ["탐색과 추적", "발주계획"] },
   { name: "order-plan detail", path: "/order-plans/101", crumbs: ["탐색과 추적", "발주계획", "발주계획 C-2 상세", "#101"] },
   { name: "pre-specs", path: "/pre-specs", crumbs: ["탐색과 추적", "사전규격"] },
   { name: "pre-spec detail", path: "/pre-specs/991", crumbs: ["탐색과 추적", "사전규격", "notice 991"] },
