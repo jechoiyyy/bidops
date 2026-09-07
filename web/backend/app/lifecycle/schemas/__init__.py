@@ -297,8 +297,12 @@ class RunCounts(APIModel):
     collection: dict[str, Any] = Field(default_factory=dict)
 
 
+RunKind = Literal["order_plans", "notices", "mixed", "unknown"]
+
+
 class RunSummary(APIModel):
     run_id: str
+    kind: RunKind
     window_from: date | None = None
     window_to: date | None = None
     timezone: str
