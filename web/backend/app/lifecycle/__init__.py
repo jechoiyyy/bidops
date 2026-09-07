@@ -79,6 +79,8 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "reset_extension_registry": (".extensions", "reset_extension_registry"),
     "restore_extension_registry": (".extensions", "restore_extension_registry"),
     # === 형제 모듈이 쓴다 — 추적 관계 판정 =================================
+    "active_opportunity_predicate": (".services.opportunity_integrity", "active_opportunity_predicate"),
+    "authoritative_link_predicate": (".services.opportunity_integrity", "authoritative_link_predicate"),
     "tracked_order_plan_connections": (
         ".services.opportunity_connections",
         "tracked_order_plan_connections",
