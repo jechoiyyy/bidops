@@ -123,9 +123,11 @@ def _opportunity_state(opportunity: Opportunity) -> dict[str, Any]:
 
 
 def _link_options():
+    # 기회 페이지(limit <= 500)를 먼저 자른 뒤 링크를 한 번에 읽는다.
+    # scalar 대상은 같은 조회에 합쳐, 연결 공고 수가 500을 넘어도 조회가 늘지 않는다.
     return (
-        selectinload(Opportunity.links).selectinload(OpportunityLink.notice),
-        selectinload(Opportunity.links).selectinload(OpportunityLink.order_plan),
+        selectinload(Opportunity.links).joinedload(OpportunityLink.notice),
+        selectinload(Opportunity.links).joinedload(OpportunityLink.order_plan),
     )
 
 

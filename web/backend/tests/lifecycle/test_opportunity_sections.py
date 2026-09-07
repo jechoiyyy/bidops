@@ -268,3 +268,49 @@ def test_section_case_grouping_and_limit_execute_on_postgresql(empty_extensions)
         assert response.items[0].open_blocking_item_count == 4
         assert response.section_counts == {'조치 필요': 1, '추적 중': 0, '보류': 1, '추적 종료': 0, '미결정': 0}
         assert held.id != blocked.id
+
+
+def _assert_link_loading_query_count_is_constant(session, registry, engine):
+    """하나의 페이지 안에서도 연결 공고 500개 경계가 조회를 늘리면 안 된다."""
+    from app.lifecycle.services.opportunity_queries import list_opportunities
+
+    opportunity = add_opportunity(session, status='계속 추적')
+    opportunity_id = opportunity.id
+    counts = {}
+    registry.register_judgment_projection(BlockingProjection(counts), owner='test')
+    query_counts = []
+    for link_count in (1, 501):
+        opportunity = session.get(Opportunity, opportunity_id)
+        while len(counts) < link_count:
+            link = add_link(session, opportunity)
+            counts[link.notice_id] = 1
+        session.commit()
+        session.expunge_all()
+        statements = []
+
+        def capture(conn, cursor, statement, parameters, context, executemany):
+            statements.append(statement)
+
+        event.listen(engine, 'before_cursor_execute', capture)
+        try:
+            response = list_opportunities(session, section='조치 필요', limit=1)
+        finally:
+            event.remove(engine, 'before_cursor_execute', capture)
+        assert response.total == 1 and len(response.items) == 1
+        assert response.items[0].id == opportunity_id
+        assert len(response.items[0].links) == link_count
+        assert response.items[0].open_blocking_item_count == link_count
+        assert all(link.title == '합성 사업' for link in response.items[0].links)
+        query_counts.append(len(statements))
+    assert query_counts[0] == query_counts[1], query_counts
+
+
+def test_page_link_loading_is_constant_across_500_notice_boundary(workspace):
+    _, session, registry, engine = workspace
+    _assert_link_loading_query_count_is_constant(session, registry, engine)
+
+
+@requires_postgres
+def test_page_link_loading_is_constant_across_500_notice_boundary_on_postgresql(empty_extensions):
+    with migrated_engine() as engine, Session(engine) as session:
+        _assert_link_loading_query_count_is_constant(session, empty_extensions, engine)
