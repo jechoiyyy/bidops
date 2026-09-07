@@ -277,6 +277,7 @@ export interface PreSpecListResponse {
 export interface PreSpecListQuery {
   notice_pk?: number | null;
   sw_only?: boolean | null;
+  auto_preparation_status?: PreSpecAutoPreparationStatus | null;
   business_division?: string | null;
   origin?: PreSpecOrigin | null;
   q?: string | null;
@@ -467,7 +468,10 @@ export interface RunCounts {
   collection: Record<string, JsonValue>;
 }
 
+export type RunKind = "order_plans" | "notices" | "mixed" | "unknown";
+
 export interface RunSummary {
+  kind: RunKind;
   run_id: string;
   window_from: string | null;
   window_to: string | null;
@@ -1156,7 +1160,13 @@ export interface OpportunityLinkView {
   record_external_id: string | null;
 }
 
+export type OpportunitySection = "조치 필요" | "추적 중" | "보류" | "추적 종료";
+export type OpportunitySectionCounts = Record<OpportunitySection | "미결정", number>;
+
 export interface OpportunityStateView {
+  section: OpportunitySection | null;
+  pending_candidate_link_count: number;
+  open_blocking_item_count: number;
   id: number;
   tracking_status: OpportunityTrackingStatus;
   tracking_reason: string | null;
@@ -1177,6 +1187,7 @@ export interface OpportunityDetailResponse extends OpportunityStateView {
 }
 
 export interface OpportunityListResponse {
+  section_counts: OpportunitySectionCounts;
   items: OpportunityListItem[];
   total: number;
   limit: number;
@@ -1184,6 +1195,7 @@ export interface OpportunityListResponse {
 }
 
 export interface OpportunityListQuery {
+  section?: OpportunitySection | null;
   tracking_status?: OpportunityTrackingStatus | null;
   first_registered_stage?: OpportunityFirstRegisteredStage | null;
   sort?: "created_at" | "tracking_status" | "first_registered_stage" | null;
@@ -1254,69 +1266,13 @@ export interface OrderPlanHumanFeedbackSummary {
   created_at: string;
 }
 
-/**
- * 발주계획 추적 결정 — **제안 계약이며 서버에 아직 없다.**
- * `docs/design/order-plan-tracking-contract-request.md` §2가 정본이고, 그 문서는 채택이 아니라
- * 백엔드 파트에 보낸 요청안이다. 여기의 type은 화면이 그 모양을 한곳에서만 알도록
- * 모아 둔 것이며, 계약이 대안(§2.3)으로 확정되면 이 type과 `lib/api.ts`의 adapter만
- * 바뀐다.
- *
- * 세 상태를 서로 바꾸지 않는다.
- * - `undefined`: 서버 응답에 `tracking`이 없다 = 계약 미구현
- * - `null`: 소유 사업기회를 확인하지 못했다
- * - `{ tracking_status: "미선택" }`: 사람이 아직 결정하지 않았다. 종료가 아니다
- */
+/** Active authoritative order-plan owner. null means no owner, never 미선택. */
 export interface OrderPlanTracking {
   opportunity_id: number;
   tracking_status: OpportunityTrackingStatus;
   tracking_reason: string | null;
   tracking_selected_by: string | null;
   tracking_selected_at: string | null;
-  inherited_from_order_plan: boolean;
-}
-
-export interface OrderPlanTrackingDecisionItem {
-  decided_at: string;
-  tracking_status: OpportunityTrackingStatus;
-  previous_tracking_status: OpportunityTrackingStatus | null;
-  reason: string | null;
-  claimed_name: string;
-  audit_event_id: string;
-}
-
-export interface OrderPlanTrackingHistoryResponse {
-  schema_version: "order-plan-tracking-history.v1";
-  producer: "order-plan-review-api";
-  consumer: "order-plan-review-client";
-  order_plan_pk: number;
-  opportunity_id: number | null;
-  items: OrderPlanTrackingDecisionItem[];
-}
-
-/** `미선택`은 이 요청으로 쓸 수 없다. 화면의 `이번 건 넘기기`는 아무것도 저장하지 않는다. */
-export type OrderPlanTrackingDecisionStatus = Exclude<OpportunityTrackingStatus, "미선택">;
-
-export interface OrderPlanTrackingDecisionCreateRequest {
-  schema_version: "order-plan-tracking-decision-create.v1";
-  producer: "order-plan-review-client";
-  consumer: "order-plan-review-api";
-  request_id: string;
-  tracking_status: OrderPlanTrackingDecisionStatus;
-  reason: string;
-  expected_tracking_status: OpportunityTrackingStatus | null;
-}
-
-export interface OrderPlanTrackingDecisionCreateResponse {
-  schema_version: "order-plan-tracking-decision-response.v1";
-  producer: "order-plan-review-api";
-  consumer: "order-plan-review-client";
-  order_plan_pk: number;
-  opportunity_id: number;
-  tracking_status: OpportunityTrackingStatus;
-  tracking_reason: string | null;
-  tracking_selected_by: string | null;
-  tracking_selected_at: string | null;
-  audit_event_id: string;
 }
 
 export interface OrderPlanListItem {
@@ -1339,12 +1295,12 @@ export interface OrderPlanListItem {
   qwen_score: number | null;
   qwen_reason: string | null;
   human_feedback: OrderPlanHumanFeedbackSummary | null;
-  /** 제안 계약(§2.1). 없으면 계약 미구현이며 `미선택`으로 바꾸지 않는다. */
-  tracking?: OrderPlanTracking | null;
+  tracking: OrderPlanTracking | null;
 }
 
 export interface OrderPlanListResponse {
-  schema_version: "order-plan-list-response.v1";
+  schema_version: "order-plan-list-response.v2";
+  scope: OrderPlanListScope | null;
   producer: "order-plan-review-api";
   consumer: "order-plan-review-client";
   items: OrderPlanListItem[];
@@ -1353,12 +1309,28 @@ export interface OrderPlanListResponse {
   offset: number;
 }
 
+/** Search-only missing is SQL NULL; response enums never contain missing. */
+export type MissingFilter = "missing";
+export type MultiValueFilter<T extends string> = T | readonly T[];
+export type OrderPlanStage1Filter = OrderPlanStage1Status | MissingFilter;
+export type OrderPlanStage2Filter = OrderPlanStage2Status | MissingFilter;
+export type OrderPlanRelevanceFilter = OrderPlanRelevance | MissingFilter;
+
+export interface OrderPlanListScope {
+  execution_id: string;
+  source_run_id: string;
+  status: "성공" | "부분 성공";
+  finished_at: string | null;
+}
+
 export interface OrderPlanListQuery {
   source_run_id?: string | null;
-  stage1_status?: OrderPlanStage1Status | null;
-  stage2_status?: OrderPlanStage2Status | null;
-  qwen_relevance?: OrderPlanRelevance | null;
-  human_relevance?: OrderPlanRelevance | null;
+  stage1_status?: MultiValueFilter<OrderPlanStage1Filter> | null;
+  stage2_status?: MultiValueFilter<OrderPlanStage2Filter> | null;
+  qwen_relevance?: MultiValueFilter<OrderPlanRelevanceFilter> | null;
+  human_relevance?: MultiValueFilter<OrderPlanRelevanceFilter> | null;
+  tracking_status?: MultiValueFilter<OpportunityTrackingStatus> | null;
+  issue?: boolean | null;
   q?: string | null;
   limit?: number | null;
   offset?: number | null;
@@ -1391,7 +1363,7 @@ export interface OrderPlanScreeningHistoryItem {
 }
 
 export interface OrderPlanDetailResponse {
-  schema_version: "order-plan-detail-response.v1";
+  schema_version: "order-plan-detail-response.v2";
   producer: "screening-api";
   consumer: "order-plan-review-client";
   order_plan_pk: number;
@@ -1407,8 +1379,7 @@ export interface OrderPlanDetailResponse {
   observations: OrderPlanObservationView[];
   screening_history: OrderPlanScreeningHistoryItem[];
   latest_human_feedback: OrderPlanHumanFeedbackSummary | null;
-  /** 제안 계약(§2.1). 없으면 계약 미구현이며 `미선택`으로 바꾸지 않는다. */
-  tracking?: OrderPlanTracking | null;
+  tracking: OrderPlanTracking | null;
 }
 
 export interface OrderPlanScreeningHistoryResponse {
@@ -1555,4 +1526,126 @@ export interface OrderPlanScreeningExecutionQuery {
   status?: OrderPlanScreeningStatus | null;
   limit?: number | null;
   offset?: number | null;
+}
+
+
+export interface OpportunityTrackingDecisionItem {
+  decided_at: string;
+  tracking_status: string;
+  previous_tracking_status: string | null;
+  reason: string | null;
+  claimed_name: string | null;
+  audit_event_id: string;
+  cleared_recheck_signal: boolean;
+}
+
+export interface OpportunityTrackingDecisionsResponse {
+  opportunity_id: number;
+  items: OpportunityTrackingDecisionItem[];
+}
+
+export interface OpportunityDeepReviewItem {
+  deep_review_id: string;
+  notice_id: number;
+  notice_title: string | null;
+  status: string;
+  quality_status: string | null;
+  created_at: string;
+  current_attempt_status: string | null;
+  latest_final_opinion: { value: string; decided_at: string } | null;
+}
+
+export interface OpportunityDeepReviewsResponse {
+  opportunity_id: number;
+  items: OpportunityDeepReviewItem[];
+}
+
+export type WorkloadKey = "order_plan_pending" | "pre_spec_deep_review_ready" | "tracking_action_required" | "bid_final_decision_pending";
+export interface WorkloadItem {
+  key: WorkloadKey;
+  count: number | null;
+  unavailable_reason: string | null;
+}
+export interface WorkloadResponse {
+  generated_at: string;
+  items: WorkloadItem[];
+}
+
+export interface BidDeltaDecisionQueueQuery {
+  status?: "pending" | "all" | null;
+  limit?: number | null;
+  offset?: number | null;
+}
+export interface BidDeltaDecisionQueueItem {
+  opportunity_id: number;
+  title: string | null;
+  agency: string | null;
+  tracking_status: string;
+  first_registered_stage: string;
+  recheck_signal: boolean;
+  bid_notice_external_id: string | null;
+  comparison_count: number;
+  latest_final_decision: { decision: "go" | "no_go"; decided_at: string; claimed_name: string } | null;
+  decision_currentness: "current" | "stale" | "unknown";
+}
+export interface BidDeltaDecisionQueueResponse {
+  items: BidDeltaDecisionQueueItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+// Exact server request/response contracts: screening/schemas/order_plans.py.
+// Actor is a required API adapter argument, carried only in the audit header.
+export interface OrderPlanScreeningExecutionCreateRequest {
+  schema_version: "execution-create-request.v1";
+  producer: "human-review-client";
+  consumer: "screening-api";
+  request_id: string;
+  source_run_id: string;
+  policy_version: string;
+}
+export interface OrderPlanScreeningExecutionCreateResponse {
+  schema_version: "execution-create-response.v1";
+  producer: "screening-api";
+  consumer: "human-review-client";
+  execution_id: string;
+  request_id: string;
+  source_run_id: string;
+  policy_version: string;
+  status: "대기";
+  binding_sha256: string;
+  stage1_binding_sha256: string;
+  stage2_binding_sha256: string;
+  execution_allowed: boolean;
+}
+export interface OrderPlanScreeningExecutionStopRequest {
+  schema_version: "execution-stop-request.v1";
+  producer: "human-review-client";
+  consumer: "screening-api";
+  request_id: string;
+  reason: "user_requested";
+}
+export interface OrderPlanScreeningExecutionStopResponse {
+  schema_version: "execution-stop-response.v1";
+  producer: "screening-api";
+  consumer: "human-review-client";
+  execution_id: string;
+  request_id: string;
+  status: "중지 요청" | "중단됨";
+}
+export type OrderPlanScreeningErrorCode =
+  | "actor_name_required" | "actor_name_invalid" | "invalid_request" | "not_found"
+  | "source_run_incomplete" | "policy_not_active" | "binding_mismatch" | "service_unavailable"
+  | "active_execution_exists" | "idempotency_conflict" | "immutable_conflict"
+  | "execution_not_stoppable" | "artifact_kind_invalid" | "artifact_not_ready"
+  | "feedback_conflict" | "processing_failed";
+export interface OrderPlanScreeningErrorResponse {
+  error: { code: OrderPlanScreeningErrorCode; message: string; details: null };
+  request_id: string | null;
+}
+export interface OrderPlanScreeningError {
+  status: number;
+  code: OrderPlanScreeningErrorCode | null;
+  request_id: string | null;
 }

@@ -44,7 +44,7 @@ import type {
   OrderPlanScreeningExecutionSummary,
   OrderPlanStage1Status,
   OrderPlanStage2Status,
-  OrderPlanTrackingDecisionStatus,
+  OpportunityTrackingStatus,
 } from "../lib/types";
 import "../styles/order-plans.css";
 
@@ -543,8 +543,7 @@ const EMPTY_TRACKING_DRAFT: TrackingDraft = { reason: TRACKING_REASONS[0], actor
 type TrackingAvailability = "available" | "contract_missing" | "opportunity_missing";
 
 function trackingAvailability(item: OrderPlanListItem | null): TrackingAvailability {
-  if (!item || item.tracking === undefined) return "contract_missing";
-  if (item.tracking === null) return "opportunity_missing";
+  if (!item || item.tracking == null) return "opportunity_missing";
   return "available";
 }
 
@@ -1120,25 +1119,19 @@ export function OrderPlansPage() {
   // 사람 판단 수정(`mutation`)과 **다른 mutation·다른 경로**다. ADR-0046 결정 5가 둘을
   // 분리하도록 요구하므로 한 요청으로 합치지 않는다.
   //
-  // 서버 계약은 아직 없다(order-plan-tracking-contract-request.md). 그래서 낙관적 갱신을
-  // 하지 않는다 — 성공 응답을 받은 뒤에만 목록을 다시 읽고 다음 건으로 이동한다. 실패하면
-  // 이 건의 추적 상태를 바꾸지 않고 이동하지도 않는다(요청안 §7 규칙 2).
+  // 소유 사업기회의 기존 PATCH 성공 뒤에만 목록을 다시 읽고 다음 건으로 이동한다.
   const trackingAvailabilityState = trackingAvailability(selectedItem);
 
   const trackingMutation = useMutation({
-    mutationFn: (status: OrderPlanTrackingDecisionStatus) => api.createOrderPlanTrackingDecision(
-      (selectedItem as OrderPlanListItem).order_plan_pk,
-      {
-        schema_version: "order-plan-tracking-decision-create.v1",
-        producer: "order-plan-review-client",
-        consumer: "order-plan-review-api",
-        request_id: requestId(),
-        tracking_status: status,
-        reason: trackingReason,
-        expected_tracking_status: selectedItem?.tracking?.tracking_status ?? null,
-      },
-      trackingActor,
-    ),
+    mutationFn: (status: Exclude<OpportunityTrackingStatus, "미선택">) => {
+      const tracking = selectedItem?.tracking;
+      if (!tracking) throw new Error("추적 결정을 기록할 소유 사업기회가 없습니다.");
+      return api.updateOpportunityTrackingStatus(
+        tracking.opportunity_id,
+        { tracking_status: status, reason: trackingReason },
+        trackingActor,
+      );
+    },
     onSuccess: async (saved) => {
       // 사유·담당자는 다음 건에도 그대로 쓰이므로 비우지 않는다. 저장된 값이 새 기준이
       // 되어 "저장되지 않은 입력"만 풀린다.
@@ -1162,7 +1155,7 @@ export function OrderPlansPage() {
           : undefined;
   const trackingReady = Boolean(selectedItem) && trackingDisabledReason === undefined;
 
-  function saveTracking(status: OrderPlanTrackingDecisionStatus) {
+  function saveTracking(status: Exclude<OpportunityTrackingStatus, "미선택">) {
     setTrackingMessage(null);
     trackingMutation.mutate(status);
   }
@@ -1172,7 +1165,7 @@ export function OrderPlansPage() {
    * 잃는다. `종료`는 되돌릴 수 없어 이미 확인 단계를 거치므로 그 사실을 같은
    * 다이얼로그의 요약에 한 줄로 얹고, 되돌릴 수 있는 두 상태만 이탈 확인을 따로 묻는다.
    */
-  function decideTracking(status: OrderPlanTrackingDecisionStatus) {
+  function decideTracking(status: Exclude<OpportunityTrackingStatus, "미선택">) {
     if (!trackingReady) return;
     if (status === "종료") {
       const content = trackingEndConfirmContent({
