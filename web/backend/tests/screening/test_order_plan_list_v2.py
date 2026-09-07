@@ -200,13 +200,17 @@ def test_tracking_only_projects_active_authoritative_owner(listing):
     session, _, _, plans, client = listing
     official = owner(session, plans[0], tracking="계속 추적")
     accepted = owner(session, plans[1], tracking="보류", link_type="candidate", status="사람 확인 완료", decision="accepted")
+    owner(session, plans[0], tracking="종료", link_type="candidate", status="후보 확인 대기")
+    owner(session, plans[0], tracking="보류", link_type="candidate", status="사람 확인 완료", decision="rejected")
     owner(session, plans[2], tracking="종료", link_type="candidate", status="사람 확인 완료", decision="rejected")
     owner(session, plans[3], link_type="candidate", status="후보 확인 대기")
     owner(session, plans[4], merged_into=official.id)
     unselected = owner(session, plans[5])
     owner(session, plans[6], tracking="종료")
     session.commit()
-    rows = client.get("/api/order-plans").json()["items"]
+    body = client.get("/api/order-plans").json()
+    assert body["total"] == 9 and len(body["items"]) == 9
+    rows = body["items"]
     assert rows[0]["tracking"] == {"opportunity_id": official.id, "tracking_status": "계속 추적", "tracking_reason": "사람 선택", "tracking_selected_by": "reviewer", "tracking_selected_at": "2026-09-02T00:00:00Z"}
     assert rows[1]["tracking"]["opportunity_id"] == accepted.id
     assert rows[5]["tracking"]["opportunity_id"] == unselected.id
