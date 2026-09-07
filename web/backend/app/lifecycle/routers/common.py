@@ -16,7 +16,7 @@ from ...core.config import get_settings
 from ..ingest.loader import parse_run_id
 from .. import extension_registry
 from ..models import Notice, NoticeObservation, Run
-from ..schemas import NoticeListItem, RunCounts, RunSummary
+from ..schemas import NoticeListItem, RunCounts, RunKind, RunSummary
 
 
 def get_run(session: Session, run_id: str) -> Run:
@@ -47,9 +47,10 @@ def counts_for_run(run: Run) -> RunCounts:
     )
 
 
-def run_summary(run: Run) -> RunSummary:
+def run_summary(run: Run, *, kind: RunKind) -> RunSummary:
     return RunSummary(
         run_id=run.id,
+        kind=kind,
         window_from=run.window_from,
         window_to=run.window_to,
         timezone=run.timezone,
