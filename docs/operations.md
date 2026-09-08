@@ -52,6 +52,59 @@ test -f web/backend/app/screening/baseline_company_profile.md && test -r web/bac
 
 프로필 baseline은 실행 시 주입된 파일을 기존 SHA-256 검증으로 확인한다. `skills/` 스크립트는 image에 남아 있어 계약상 fallback으로 제공되지만, 위 세 mount 없이 `docker run`만 실행하면 프로필 관련 경로와 수집 subprocess를 사용할 수 없다. 이 경로는 의도된 보안 경계이므로 Compose를 사용한다.
 
+## 설치된 서버의 일상 실행
+
+저장소 루트에서 Makefile을 사용한다. `make` 또는 `make help`로 명령 목록을 볼 수 있다.
+
+```bash
+make up        # 기존 PostgreSQL·MinIO·ClamAV·문서 worker·웹 시작, 최대 60초 준비 대기
+make status    # 위 서비스 상태 확인
+make health    # 실제 웹 port의 API·화면 응답 확인
+make logs      # 웹 로그 실시간 확인, Ctrl+C로 로그 보기 종료
+make restart   # 웹 컨테이너만 재시작
+make stop      # 웹 컨테이너만 중지; DB·저장소·worker 유지
+```
+
+`make start`는 `make up`과 같다. `COMPOSE_PROJECT_NAME` 기본값은 `bidops`이며 다른
+배포를 관리할 때는 `make status COMPOSE_PROJECT_NAME=<전용 프로젝트명>`처럼 지정한다.
+대기 시간은 `WAIT_TIMEOUT=120`, 로그 줄 수는 `LOG_TAIL=200`으로 바꿀 수 있다.
+
+이 명령은 이미 설치된 컨테이너를 사용한다. 현재 컨테이너에 반영된 정적 UI와 배포 설정을
+유지하며, 컨테이너가 빠져 있으면 시작 전에 최초 기동 절차를 안내하고 종료한다.
+DB·MinIO 초기화, migration, 분석·수집 worker 시작, 이미지 빌드·컨테이너 재생성은 포함하지 않는다.
+컨테이너를 재생성하는 배포에서는 사용할 소스를 빌드하고 UI 반영 상태를 다시 검증한다.
+
+### 화면 노출과 edge overlay
+
+`web`은 base stack에서 internal network에만 붙는다. Docker는 internal 전용 컨테이너의
+포트를 publish하지 않고 에러도 내지 않으므로, `docker-compose.edge.yml`을 함께 붙이지 않고
+`web`을 **재생성**하면 `ports:` 선언이 조용히 사라지고 화면에 접근할 수 없게 된다.
+Makefile의 `COMPOSE`는 이 overlay를 이미 포함한다. `make up`·`make restart`는 컨테이너를
+재생성하지 않으므로 안전하지만, 손으로 `up -d`를 돌릴 때는 overlay를 빠뜨리지 않는다.
+
+overlay를 붙이면 inbound publish와 함께 `web`에 아웃바운드 경로도 생긴다. 모델 호출은
+허용 host와 배포 revision 게이트에서 여전히 호출 전에 fail closed하지만, 이 상태를 내부망
+격리와 같다고 기록하지 않는다.
+
+노출 범위는 `BIDOPS_WEB_BIND_HOST`가 정하며 기본값은 `127.0.0.1`이다. 애플리케이션에
+로그인이 없으므로 이 값을 넓히면 그 network 전체가 접근 경계가 된다.
+
+### 다른 기기에서 화면 열기
+
+`BIDOPS_WEB_BIND_HOST`를 넓히는 대신 loopback을 소비하는 tailnet proxy를 쓴다. LAN에는
+열리지 않고 tailnet 노드에서만 보인다.
+
+```bash
+tailscale serve --bg --http=18787 http://127.0.0.1:18787   # 켜기
+tailscale serve --http=18787 off                           # 끄기
+tailscale serve status
+```
+
+이 설정은 tailscaled가 보관하므로 재부팅 후에도 남는다. Funnel(공개 인터넷 노출)은 켜지
+않는다. WSL2 mirrored 네트워킹에서는 Hyper-V 방화벽 기본 inbound가 Block이라 컨테이너
+포트를 tailnet 주소에 직접 bind해도 다른 노드에서 닿지 않는다. 이 proxy 경로가 그 제약을
+받지 않는 이유는 tailscaled가 연결을 받아 host loopback으로 넘기기 때문이다.
+
 ## 최초 기동
 
 ```bash
@@ -62,7 +115,7 @@ docker compose -f docker-compose.yml build
 docker compose -f docker-compose.yml up -d postgres minio clamav
 ./scripts/init-runtime.sh
 docker compose --env-file .env --env-file env/vllm.env \
-  -f docker-compose.yml -f docker-compose.remote-vllm.yml \
+  -f docker-compose.yml -f docker-compose.edge.yml -f docker-compose.remote-vllm.yml \
   up -d web document-worker analysis-worker
 curl --fail "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/health"
 ```
@@ -811,6 +864,37 @@ host에 `mc`·`pg_restore`·`psql`이 없으면 동일한 변수를 주입한 �
 접근할 수 있는 `mc` alias여야 한다. 복구 중 source object, 기존 백업 파일, DB row를
 삭제하지 않으며, target이 비어 있지 않거나 versioning이 꺼져 있으면 검증 실패로 끝난다.
 
+## 승인된 Ollama를 쓰는 경우
+
+`BIDOPS_VLLM_OVERVIEW_API_DIALECT=ollama`를 명시하고 overview 전용 endpoint,
+allowed hosts, 모델 digest와 `BIDOPS_PRESPEC_OVERVIEW_POLICY_PATH`를 함께 고정한다.
+정책은 실제 served model name을 사용한 별도 불변 파일이며 기존 정책을 덮어쓰지 않는다.
+기본 dialect는 기존 vLLM이다. 이 설정은 C-1·C-2·심층 모델 설정을 바꾸지 않는다.
+
+C-1과 심층 검토도 명시적인 실행 승인 뒤 각각
+`BIDOPS_VLLM_SCREENING_API_DIALECT=ollama`,
+`BIDOPS_VLLM_DEEP_REVIEW_API_DIALECT=ollama`로 같은 transport 검증을 사용한다.
+용도별 endpoint·allowed hosts·digest와 실제 served model name을 함께 고정한다.
+심층 검토는 해당 모델명의 별도 불변 정책과 참조 실행 설정을 사용하고 기존 정책의
+측정값을 승계하지 않는다. C-2는 별도 transport와 품질 binding을 유지하므로
+이 설정으로 모델이나 승인 binding을 바꾸지 않는다.
+
+Ollama 호환 요청은 `reasoning_effort=none`을 사용한다. OpenAI 호환 API에서
+top_k를 덮을 수 없으므로 매 completion 전에 `/api/tags`의 digest와 `/api/show`의
+모델 `top_k=20`을 확인한다. 미확인·불일치는 본문 전송 전에 실패한다.
+temperature/top_p/seed/출력 한도와 JSON schema는 기존 고정 generation 계약을 유지한다.
+참고: [Ollama 공식 호환 문서](https://docs.ollama.com/api/openai-compatibility).
+
+개요만 실행할 때는 active profile/policy ID를 비워 자동 심층 시작을 열지 않는다.
+분석은 기존 합성 worker의 `--once`와 동시성 1을 사용한다. 별도 개요 daemon을 만들지 않는다.
+host 방화벽의 목적지 제한과 허용·거부 연결을 확인하고 나서 실제 입력을 전송한다.
+
+첨부 worker에는 source/quarantine 외에 structure 쓰기와 전용 structure 읽기 자격증명이
+필요하다. 실제 변환은 `document-scratch`를 공유하는 네트워크 없는 document-worker가 맡는다.
+runtime privilege 파일의 worker 열별 권한도 적용돼 있어야 한다. `notice.id`의 UPDATE는
+PostgreSQL 행 잠금에 필요한 권한이며 코드에서 ID를 바꾸지 않는다. 첨부의 `extract_status`,
+문서의 `is_current` 외에 원문 metadata를 worker가 수정하도록 권한을 넓히지 않는다.
+
 ## 장애 대응
 
 - 첨부 경로 이탈, 비밀·회사자료 노출, 승인 없는 외부 모델 전송, 기존 회차·리뷰 덮어쓰기, 원문과 다른 근거의 검증 통과가 발견되면 관련 worker와 egress를 즉시 중지하고 상태를 보존한다.
@@ -818,3 +902,28 @@ host에 `mc`·`pg_restore`·`psql`이 없으면 동일한 변수를 주입한 �
 - 부분 산출물은 성공 subset과 failure artifact를 함께 보존한다. 유효 결과가 없으면 성공 run을 발행하지 않는다.
 - 모델 endpoint 장애가 로컬 판정에서 hosted OpenAI 자동 fallback을 일으키면 안 된다. 외부 재분석은 별도 승인 실행으로만 만든다.
 - `document-worker`가 `PermissionError: '/scratch/inbox'`로 즉시 종료하면 image가 `/scratch`를 만들기 전에 생성된 `document-scratch` volume이 root 소유로 남은 것이다. 스택을 중지하고 그 volume만 삭제한 뒤 다시 올린다. 이 volume은 변환 중인 handoff만 담으므로 보존 대상이 아니다.
+
+## PDF 개요 출력 연결
+
+Alembic `0019_prespec_page_overview`는 설명형 참조 요약을 별도 테이블에 추가한다.
+앱 startup은 여전히 migration을 실행하지 않는다. 배포 전 기존 백업 manifest·서비스
+중지·명시적 확인 절차를 따른 뒤 migration과 `scripts/runtime-privileges.sql`을 적용한다.
+새 테이블은 app 읽기, worker 읽기/추가만 허용하고 UPDATE/DELETE trigger로 불변성을
+강제한다. 적재 행이 있으면 downgrade는 거부한다.
+
+서버측 명령(설정된 ops 환경, worker DB 역할, source/structure 객체 쓰기와 ClamAV 필요):
+
+```bash
+python -m app.deep_review.cli import-page-overview \
+  --run-dir /absolute/frozen-run-directory --notice-id 614 --actor jechoi --check-only
+python -m app.deep_review.cli import-page-overview \
+  --run-dir /absolute/frozen-run-directory --notice-id 614 --actor jechoi
+```
+
+입력은 해당 디렉터리의 `<id>-input.json`, `<id>-output.json`, `<id>-outcome.json`,
+`run-manifest.json`, `<id>.hwp`, `<id>.pdf`, `code/policy.json`이다. 원문 확장자는 참조 실행의
+고정 파일명이며 내용은 HWP/HWPX일 수 있다. `pdftotext`로 물리 페이지를 검증한다.
+`--check-only`는 frozen binding·PDF 추출·근거 검사를 확인하되 DB 문서 소속 및 ClamAV
+검사는 적재 시 수행한다. 출력에 원문·프롬프트·경로를 기록하지 않는다.
+추가 Qwen 호출, 기존 리뷰 변경, 정책 활성화는 없다. 후속 모델 실행 결과도 같은 frozen
+파일 계약으로 명시적으로 적재한다. 기존 권고 worker를 새 요약 worker로 교체하지 않는다.

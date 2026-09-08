@@ -119,6 +119,8 @@ services:
       BIDOPS_STRUCTURE_ACCESS_KEY: "${BIDOPS_STRUCTURE_ACCESS_KEY:?set an external structure access key}"
       BIDOPS_STRUCTURE_SECRET_KEY: "${BIDOPS_STRUCTURE_SECRET_KEY:?set an external structure secret key}"
       BIDOPS_QUARANTINE_ACCESS_KEY: "${BIDOPS_QUARANTINE_ACCESS_KEY:?set an external quarantine access key}"
+      BIDOPS_STRUCTURE_READ_ACCESS_KEY: "${BIDOPS_STRUCTURE_READ_ACCESS_KEY:?set an external structure read access key}"
+      BIDOPS_STRUCTURE_READ_SECRET_KEY: "${BIDOPS_STRUCTURE_READ_SECRET_KEY:?set an external structure read secret key}"
       BIDOPS_QUARANTINE_SECRET_KEY: "${BIDOPS_QUARANTINE_SECRET_KEY:?set an external quarantine secret key}"
       BIDOPS_ANALYSIS_WORKER_CONCURRENCY: "1"
       # These deployment references are intentionally optional while an
@@ -128,7 +130,7 @@ services:
       BIDOPS_ACTIVE_PROFILE_VERSION_ID: "${BIDOPS_ACTIVE_PROFILE_VERSION_ID:-}"
       BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID: "${BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID:-}"
     ports:
-      - "${BIDOPS_WEB_PORT:-18787}:8787"
+      - "${BIDOPS_WEB_BIND_HOST:-127.0.0.1}:${BIDOPS_WEB_PORT:-18787}:8787"
     networks: [database, storage, scanning]
     volumes:
       - document-scratch:/scratch

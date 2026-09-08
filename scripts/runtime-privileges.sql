@@ -81,6 +81,7 @@ GRANT SELECT ON TABLE
     bidops.prespec_overview_snapshot,
     bidops.prespec_overview_attempt,
     bidops.prespec_overview_result,
+    bidops.prespec_page_overview,
     bidops.document_segment_manifest,
     bidops.document_segment,
     bidops.requirement_inventory_item,
@@ -314,6 +315,7 @@ GRANT SELECT ON TABLE
     bidops.prespec_overview_snapshot,
     bidops.prespec_overview_attempt,
     bidops.prespec_overview_result,
+    bidops.prespec_page_overview,
     bidops.prespec_overview_attempt_event,
     bidops.document_segment_manifest,
     bidops.document_segment,
@@ -345,6 +347,7 @@ GRANT INSERT ON TABLE
     bidops.prespec_overview_snapshot,
     bidops.prespec_overview_attempt,
     bidops.prespec_overview_result,
+    bidops.prespec_page_overview,
     bidops.prespec_overview_attempt_event,
     bidops.document_segment_manifest,
     bidops.document_segment,
@@ -364,6 +367,11 @@ TO worker;
 GRANT UPDATE (
     current_snapshot_id, status, result, completed_at, updated_at
 ) ON bidops.prespec_overview_review TO worker;
+-- PostgreSQL row locks require UPDATE on at least one column. Notice identity
+-- is only used as the lock target; the worker never rewrites notice metadata.
+GRANT UPDATE (id) ON bidops.notice TO worker;
+GRANT UPDATE (extract_status) ON bidops.attachment TO worker;
+GRANT UPDATE (is_current) ON bidops.document_version TO worker;
 GRANT UPDATE (
     attempt_status, failure_type, failure_code, response_object_ref,
     input_tokens, cached_input_tokens, output_tokens, total_tokens,

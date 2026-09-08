@@ -24,6 +24,7 @@ import {
   updateTrackingProjection,
 } from "../components/pre-specs/TrackingDecisionControl";
 import { api } from "../lib/api";
+import { PageOverviewSection } from "../components/pre-specs/PageOverviewSection";
 import { describeApiError } from "../lib/apiErrors";
 import { describeDeadline, formatCompactPrice, shortDateLabel } from "../lib/deadline";
 import { formatDateTime, formatNumber } from "../lib/format";
@@ -250,8 +251,9 @@ function DeadlineMark({ value }: { value: string | null }) {
 /**
  * 목록 행 — 시안의 두 열 구조다.
  *
- * 왼쪽 열은 발주기관(16px) → 사업명(16px) → 예산·발견 구분(14px) → 개요 상태와
- * 추적 상태(14px)를 그대로 쌓는다. 오른쪽 열은 의견등록 마감뿐이며 D-day와 짧은
+ * 왼쪽 열은 사업명(16px, 굵게) → 발주기관(16px) → 예산·발견 구분(14px) → 개요 상태와
+ * 추적 상태(14px)를 그대로 쌓는다. 행에서 먼저 읽혀야 하는 것은 사업명이므로 시안의
+ * 두 줄 차례를 뒤집었다(사용자 정정). 오른쪽 열은 의견등록 마감뿐이며 D-day와 짧은
  * 날짜만 둔다. 정확한 일시·금액과 등급·자동 준비 같은 나머지 사실은 선택한 건의
  * 상세가 보여 준다 — 목록에서 같은 사실을 강한 배지로 반복하지 않는다.
  *
@@ -279,10 +281,10 @@ function PreSpecRow({
       className="pre-specs-row"
       selected={isSelected}
       onSelect={onSelect}
-      label={<span className="pre-specs-row-agency">{agencyOf(item)}</span>}
+      label={<span className="pre-specs-row-title">{title}</span>}
       description={(
         <>
-          <span className="pre-specs-row-title">{title}</span>
+          <span className="pre-specs-row-agency">{agencyOf(item)}</span>
           <span className="pre-specs-row-meta">
             <span title={exactBudget(item.budget)}>{budgetLabel(item.budget)}</span>
             <span aria-hidden="true">·</span>
@@ -635,6 +637,7 @@ function PreSpecDetail({
               </li>
             </ol>
 
+            <PageOverviewSection key={noticePk} noticeId={noticePk} />
             {overviewQuery.isPending ? (
               <p className="pre-specs-detail-loading" role="status">개요 검토 결과를 불러오는 중입니다.</p>
             ) : null}
@@ -1223,7 +1226,7 @@ export function PreSpecsPage() {
                 <span>{viewOf(view).description}</span>
               </header>
               <div className="pre-specs-list-columns" aria-hidden="true">
-                <span>발주기관 / 사업명</span>
+                <span>사업명 / 발주기관</span>
                 <span>의견 마감</span>
               </div>
               <div className="pre-specs-list-scroll">
