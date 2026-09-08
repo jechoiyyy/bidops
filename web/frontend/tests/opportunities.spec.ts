@@ -24,6 +24,43 @@ test("추적을 선택했지만 사유·기록자가 없으면 미선택으로 �
 // ---------------------------------------------------------------------------
 // 목록
 
+// 탐색과 추적 목록 4화면은 상단바가 제목과 화면 액션을 갖고 페이지는 제목 줄을 두지
+// 않는다(사용자 결정 2026-09-08). 액션은 페이지 상태(대화상자 열림)를 쓰므로 셸로
+// 올리지 않고 `#page-header-actions` portal로 간다.
+test("목록은 상단바 제목 모드로 열리고 데이터 현황이 상단바 안에 있다", async ({ page }) => {
+  await mockOpportunities(page);
+  await page.goto("/opportunities");
+
+  const topbar = page.locator("header.topbar");
+  await expect(topbar).toHaveAttribute("data-topbar-mode", "title");
+  await expect(topbar.locator("h1")).toHaveText("사업 추적");
+  // 같은 이름을 세로로 두 번 쓰지 않는다. 경로와 편집 범위 칩도 제목 모드에는 없다.
+  await expect(page.locator(".opportunity-page-header")).toHaveCount(0);
+  await expect(page.locator(".topbar-breadcrumb")).toHaveCount(0);
+  await expect(page.locator(".topbar-crumb")).toHaveCount(0);
+  await expect(page.locator(".topbar-status")).toHaveCount(0);
+
+  const dataStatus = topbar.getByRole("button", { name: "데이터 현황" });
+  await expect(dataStatus).toBeVisible();
+  await dataStatus.click();
+  await expect(page.getByRole("dialog")).toContainText("구역 건수는 서버가 센");
+});
+
+// 상세는 목록으로 돌아갈 경로가 필요하므로 경로 모드로 남는다.
+test("단독 상세는 목록으로 돌아갈 경로 표시를 그대로 갖는다", async ({ page }) => {
+  await mockOpportunities(page);
+  await page.goto("/opportunities/501");
+
+  const topbar = page.locator("header.topbar");
+  await expect(topbar).toHaveAttribute("data-topbar-mode", "breadcrumb");
+  await expect(topbar.locator(".topbar-breadcrumb .topbar-crumb")).toHaveText([
+    "탐색과 추적",
+    "사업 추적",
+    "#501",
+  ]);
+  await expect(topbar.getByRole("button", { name: "데이터 현황" })).toHaveCount(0);
+});
+
 test("구역 건수는 서버가 센 전체 집합이고 표시 수와 구분된다", async ({ page }) => {
   const trace = await mockOpportunities(page);
   await page.goto("/opportunities");

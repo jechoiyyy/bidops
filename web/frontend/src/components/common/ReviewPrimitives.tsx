@@ -30,12 +30,15 @@ function joinClassNames(...names: Array<string | undefined | false>): string {
  */
 export interface DenseListProps extends Omit<HTMLAttributes<HTMLUListElement>, "children"> {
   children: ReactNode;
+  /** 목록 `<ul>` 자체를 잡는 자리. 행 키보드 이동이 컨테이너에 리스너를 단다. */
+  ref?: Ref<HTMLUListElement>;
 }
 
-export function DenseList({ children, className, ...props }: DenseListProps) {
+export function DenseList({ children, className, ref, ...props }: DenseListProps) {
   return (
     <List
       {...props}
+      ref={ref}
       className={joinClassNames("review-dense-list", className)}
       data-review-primitive="dense-list"
       density="compact"

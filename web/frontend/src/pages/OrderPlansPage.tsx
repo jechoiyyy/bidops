@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent, Ref } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import { Badge } from "@astryxdesign/core/Badge";
@@ -15,14 +16,15 @@ import { TextInput } from "@astryxdesign/core/TextInput";
 import { ToggleButton, ToggleButtonGroup } from "@astryxdesign/core/ToggleButton";
 import { Text } from "@astryxdesign/core/Text";
 import { ConfirmDecisionDialog, trackingEndConfirmContent } from "../components/common/ConfirmDecisionDialog";
+import { PageHeaderActions } from "../components/common/PageHeaderActions";
+import { useRowKeyboardNavigation } from "../components/common/useRowKeyboardNavigation";
+import type { RowKeyboardNavigationRowProps } from "../components/common/useRowKeyboardNavigation";
 import { useUnsavedGuard } from "../components/common/useUnsavedGuard";
 import {
   DenseList,
   DenseListRow,
   ReviewDecisionAction,
   ReviewDecisionBar,
-  ReviewFilterBar,
-  ReviewFilterSegmentedControl,
   ReviewFilterSelector,
   ReviewFilterTextInput,
   ReviewState,
@@ -31,6 +33,16 @@ import {
   SplitWorkspace,
   StickyDecisionHeader,
 } from "../components/common/ReviewPrimitives";
+import {
+  WorkspaceAdvancedToggle,
+  WorkspaceFilterAdvanced,
+  WorkspaceFilterBar,
+  WorkspaceFilterEnd,
+  WorkspaceFilterLine,
+  WorkspaceFrame,
+  WorkspaceSearch,
+  WorkspaceViewTabs,
+} from "../components/common/WorkspaceFilters";
 import { api } from "../lib/api";
 import { describeApiError } from "../lib/apiErrors";
 import { formatCompactPrice } from "../lib/deadline";
@@ -60,6 +72,16 @@ const DEFAULT_LIST_WIDTH = "38%";
 const LIST_WIDTH_STEP = 24;
 const LIST_WIDTH_STORAGE_KEY = "bidops.order-plans.listWidth";
 const SAVED_VIEWS_STORAGE_KEY = "bidops.order-plans.views";
+/**
+ * 두 값만 **탭 세션** 동안 기억한다(localStorage가 아니다).
+ *
+ * - 담당자 이름은 감사 표식이지 인증이 아니다. 한 번 적고 여러 건에 다시 쓰는 값이므로
+ *   화면을 오갈 때마다 다시 치게 하지 않는다. 브라우저를 닫으면 사라진다.
+ * - 직전 사유는 **다시 쓰기 단추의 후보**일 뿐이다. 드롭다운은 여전히 빈 값에서 시작하고
+ *   저장에 성공하면 비워진다(PRD §3.3) — 사람이 누를 때에만 채워진다.
+ */
+const LAST_REASON_STORAGE_KEY = "bidops.order-plans.lastTrackingReason";
+const TRACKING_ACTOR_STORAGE_KEY = "bidops.order-plans.trackingActor";
 
 type RelevanceToken = "relevant" | "uncertain" | "not_relevant" | "null";
 type Stage1Token = "selected" | "filtered_out" | "failed" | "rejected" | "null";
@@ -209,6 +231,39 @@ function isExecutionIssue(item: OrderPlanListItem): boolean {
   return stage1Bad || stage2Bad;
 }
 
+/**
+ * 축(Qwen·BM25·사람 피드백·실행 결과) 매칭만 떼어 낸 부분. 축 안은 OR, 축끼리는 AND다.
+ *
+ * 목록 필터와 보기 탭의 건수가 **같은 규칙 하나**를 읽게 하려고 나눴다. 탭 건수는 검색어를
+ * 뺀 축만으로 세므로(검색은 탭이 아니라 입력이 소유한다) 검색 조건은 여기 없다.
+ */
+interface AxisSelection {
+  qwenSet: Set<RelevanceToken>;
+  stage1Set: Set<Stage1Token>;
+  feedbackSet: Set<FeedbackToken>;
+  issueOn: boolean;
+}
+
+function matchesAxes(item: OrderPlanListItem, axes: AxisSelection): boolean {
+  if (axes.qwenSet.size && !axes.qwenSet.has(relevanceToken(item.qwen_relevance))) return false;
+  if (axes.stage1Set.size && !axes.stage1Set.has(stage1Token(item.stage1_status))) return false;
+  if (axes.feedbackSet.size) {
+    const token: FeedbackToken = item.human_feedback ? "has" : "none";
+    if (!axes.feedbackSet.has(token)) return false;
+  }
+  if (axes.issueOn && !isExecutionIssue(item)) return false;
+  return true;
+}
+
+function presetSelection(preset: Preset): AxisSelection {
+  return {
+    qwenSet: new Set(preset.axes.qwen),
+    stage1Set: new Set(preset.axes.stage1),
+    feedbackSet: new Set(preset.axes.feedback),
+    issueOn: preset.axes.issue,
+  };
+}
+
 function statusTone(status: string | null | undefined): "success" | "warning" | "error" | "info" | "neutral" {
   if (status === "성공" || status === "relevant" || status === "selected") return "success";
   if (status === "부분 성공" || status === "uncertain" || status === "실행 중" || status === "중지 요청") return "warning";
@@ -279,6 +334,24 @@ function persistSavedViews(views: SavedView[]): void {
     window.localStorage.setItem(SAVED_VIEWS_STORAGE_KEY, JSON.stringify(views));
   } catch {
     /* localStorage 접근 불가는 화면 동작을 막지 않는다 */
+  }
+}
+
+/** 값이 없거나 sessionStorage에 닿을 수 없으면 빈 문자열이다(기억한 적 없음). */
+function loadSessionValue(key: string): string {
+  try {
+    return window.sessionStorage.getItem(key) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function saveSessionValue(key: string, value: string): void {
+  try {
+    if (value) window.sessionStorage.setItem(key, value);
+    else window.sessionStorage.removeItem(key);
+  } catch {
+    /* sessionStorage 접근 불가는 화면 동작을 막지 않는다 */
   }
 }
 
@@ -623,6 +696,9 @@ function TrackingDecisionFields({
   actorName,
   onActorNameChange,
   position,
+  lastReason,
+  onReuseLastReason,
+  sectionRef,
 }: {
   item: OrderPlanListItem;
   reasonChoice: string;
@@ -632,10 +708,16 @@ function TrackingDecisionFields({
   actorName: string;
   onActorNameChange: (value: string) => void;
   position: string;
+  /** 이 탭에서 마지막으로 **저장에 성공한** 사유. 없으면 빈 문자열이다. */
+  lastReason: string;
+  onReuseLastReason: () => void;
+  sectionRef: Ref<HTMLElement>;
 }) {
   const availability = trackingAvailability(item);
+  /** 지금 계약에 실릴 사유. 이 값이 이미 있으면 다시 쓰기 단추를 그리지 않는다. */
+  const currentReason = reasonChoice === OTHER_REASON ? customReason.trim() : reasonChoice;
   return (
-    <section className="c2l-tracking" aria-labelledby={`c2l-tracking-${item.order_plan_pk}`}>
+    <section className="c2l-tracking" aria-labelledby={`c2l-tracking-${item.order_plan_pk}`} ref={sectionRef}>
       <header className="c2l-tracking-head">
         <Text type="label" color="primary" as="p" id={`c2l-tracking-${item.order_plan_pk}`}>추적 선택</Text>
         <Badge
@@ -645,14 +727,30 @@ function TrackingDecisionFields({
         <Text type="supporting" color="secondary" as="p" className="c2l-tracking-position">{position}</Text>
       </header>
       <div className="c2l-tracking-fields">
-        <Selector
-          label="선택 사유"
-          onChange={(value) => onReasonChoiceChange(value ?? "")}
-          options={TRACKING_REASON_OPTIONS}
-          placeholder="사유를 선택하세요"
-          size="sm"
-          value={reasonChoice || undefined}
-        />
+        <div className="c2l-reason-field">
+          <Selector
+            label="선택 사유"
+            onChange={(value) => onReasonChoiceChange(value ?? "")}
+            options={TRACKING_REASON_OPTIONS}
+            placeholder="사유를 선택하세요"
+            size="sm"
+            value={reasonChoice || undefined}
+          />
+          {/* 드롭다운을 미리 채우지 않는다(PRD §3.3). 직전 사유는 **사람이 누를 때에만**
+              들어가는 후보이고, 무엇이 들어갈지 단추 이름이 그대로 말한다. */}
+          {lastReason && !currentReason ? (
+            /* 긴 사유는 CSS가 말줄임하므로 전문은 `title`이 진다. Astryx `Button`은
+               `title`을 받지 않아(BaseProps가 뺀다) 감싸는 span이 그 자리다. */
+            <span className="c2l-reason-reuse" title={lastReason}>
+              <Button
+                label={`직전 사유 다시 쓰기 · ${lastReason}`}
+                onClick={onReuseLastReason}
+                size="sm"
+                variant="ghost"
+              />
+            </span>
+          ) : null}
+        </div>
         <TextInput
           label="담당자 이름 · 감사 표식"
           size="sm"
@@ -677,26 +775,45 @@ function TrackingDecisionFields({
 function OrderPlanRow({
   item,
   isSelected,
+  onKeyDown,
   onSelect,
+  rowProps,
 }: {
   item: OrderPlanListItem;
   isSelected: boolean;
+  /** 화면 단축키(Ctrl+Enter). `preventDefault()`하면 행 선택·↑↓ 이동보다 먼저다. */
+  onKeyDown: (event: ReactKeyboardEvent<HTMLElement>) => void;
   onSelect: () => void;
+  /** `useRowKeyboardNavigation`의 roving tabindex와 행 식별자. */
+  rowProps: RowKeyboardNavigationRowProps;
 }) {
+  // BM25 `선정`은 목록의 거의 모든 행에 붙는 값이라 배지로 그리면 아무것도 구분하지
+  // 못한다. 탈락·실패·거부·null만 남긴다 — 숨기는 것은 **기본값 하나**이고, 값이
+  // 없거나 실패한 사실은 그대로 보인다.
+  const stage1Badge = item.stage1_status !== "selected"
+    ? <Badge variant={stage1BadgeVariant(item.stage1_status)} label={stage1RowLabel(item.stage1_status)} />
+    : null;
+  const feedbackBadge = item.human_feedback
+    ? <Badge variant="neutral" label={`피드백 수정본 ${item.human_feedback.revision}`} />
+    : null;
   return (
     <DenseListRow
+      {...rowProps}
       aria-label={textOrUnknown(item.title)}
       className={`c2l-row-wrap c2l-row${isSelected ? " is-selected" : ""}`.trim()}
       description={
         <span className="c2l-row-desc">
           {/* 시안의 차례 그대로다: 사업명 아래 상태 배지, 그 아래 metadata 줄. 발주기관은
               자리를 옮기지 않고 metadata 줄의 첫 항목이며, 굵기를 주지 않는다. 목록에서
-              먼저 읽혀야 하는 것은 사업명이다(사용자 정정). */}
-          <span className="c2l-row-badges">
-            <Badge variant={stage1BadgeVariant(item.stage1_status)} label={stage1RowLabel(item.stage1_status)} />
-            <Badge variant={qwenBadgeVariant(item)} label={qwenRowLabel(item)} />
-            {item.human_feedback ? <Badge variant="neutral" label={`피드백 수정본 ${item.human_feedback.revision}`} /> : null}
-          </span>
+              먼저 읽혀야 하는 것은 사업명이다(사용자 정정).
+              그릴 배지가 하나도 없으면 줄 자체를 만들지 않는다 — 빈 줄이 행마다 다른
+              높이를 만들면 밀집 목록이 흔들린다. */}
+          {stage1Badge || feedbackBadge ? (
+            <span className="c2l-row-badges">
+              {stage1Badge}
+              {feedbackBadge}
+            </span>
+          ) : null}
           <span className="c2l-row-meta" title={`예산 ${budgetValue(item.budget_amount)}`}>
             <Text className="c2l-row-agency" type="body" color="primary" as="span">
               {textOrUnknown(item.agency_name)}
@@ -708,12 +825,16 @@ function OrderPlanRow({
         </span>
       }
       label={
-        <span className="c2l-row-line">
+        <span className="c2l-row-line c2l-row-head">
           {/* 긴 한글 제목은 한 줄에 담기지 않는다. 두 줄까지 보이고 그 뒤를 말줄임한다.
               크기와 굵기는 `.c2l-row-title`이 본문보다 한 단 위로 올린다. */}
           <Text className="c2l-row-title" type="body" color="primary" weight="semibold" maxLines={2}>{textOrUnknown(item.title)}</Text>
+          {/* 모델 판단은 이 목록을 훑는 이유이므로 행마다 같은 자리(우상단)에서 읽힌다.
+              baseline 정렬이라 제목이 두 줄로 잘려도 배지는 첫 줄에 붙어 있다. */}
+          <Badge className="c2l-row-model" variant={qwenBadgeVariant(item)} label={qwenRowLabel(item)} />
         </span>
       }
+      onKeyDown={onKeyDown}
       onSelect={onSelect}
       selected={isSelected}
     />
@@ -732,6 +853,10 @@ export function OrderPlansPage() {
   const [listWidth, setListWidth] = useState<number | null>(() => loadListWidth());
   const [measuredListWidth, setMeasuredListWidth] = useState<number | null>(null);
   const listPaneRef = useRef<HTMLElement | null>(null);
+  // ↑↓ 이동은 목록 `<ul>`에 리스너를 단다(window 전역이 아니다) — 상세 pane 입력과
+  // 리사이즈 손잡이의 방향키가 같은 화면에서 서로 경쟁하지 않는다.
+  const listRef = useRef<HTMLUListElement | null>(null);
+  const trackingSectionRef = useRef<HTMLElement | null>(null);
   const [savedViews, setSavedViews] = useState<SavedView[]>(() => loadSavedViews());
   const [newViewName, setNewViewName] = useState("");
   const [isNamingView, setIsNamingView] = useState(false);
@@ -740,8 +865,10 @@ export function OrderPlansPage() {
   // 같은 건에서 선택지를 왕복해도 적어 둔 자유 입력은 남긴다(시안 §3).
   const [reasonChoice, setReasonChoice] = useState("");
   const [customReason, setCustomReason] = useState("");
-  const [trackingActor, setTrackingActor] = useState("");
-  const [trackingActorBaseline, setTrackingActorBaseline] = useState("");
+  // 담당자는 감사 표식이고 여러 건에 다시 쓰는 값이라 탭 세션 동안 기억한다.
+  const [trackingActor, setTrackingActor] = useState(() => loadSessionValue(TRACKING_ACTOR_STORAGE_KEY));
+  // 저장에 성공한 마지막 사유. 드롭다운을 채우지 않고 `직전 사유 다시 쓰기` 단추만 만든다.
+  const [lastReason, setLastReason] = useState(() => loadSessionValue(LAST_REASON_STORAGE_KEY));
   // 추적 `종료`만 되돌릴 수 없다. 확인 문구는 사전규격·사업 추적과 같은 자리에서
   // 만들어 세 화면이 다른 말을 하지 않게 한다.
   const [endConfirm, setEndConfirm] = useState<ReturnType<typeof trackingEndConfirmContent> | null>(null);
@@ -764,7 +891,6 @@ export function OrderPlansPage() {
     || memo !== feedbackBaseline.memo;
   // 사유는 저장하면 다음 건으로 옮겨 가며 비워지므로 기준값은 늘 "빈 값"이다.
   const reasonDirty = reasonChoice !== "" || customReason.trim() !== "";
-  const actorDirty = trackingActor !== trackingActorBaseline;
   /** 계약에 실을 사유. `기타`는 사람이 적은 문장 그대로이고 공백만 있으면 사유가 없다. */
   const trackingReason = reasonChoice === OTHER_REASON ? customReason.trim() : reasonChoice;
 
@@ -777,19 +903,16 @@ export function OrderPlansPage() {
     ...(feedbackDirty ? feedbackDraftSummary : []),
     ...(reasonDirty ? reasonDraftSummary : []),
   ];
-  const routeDraftSummary = [
-    ...rowDraftSummary,
-    ...(actorDirty ? [{ label: "담당자 이름", value: trackingActor.trim() || "값 없음" }] : []),
-  ];
-
-  // route를 떠나면 세 입력이 모두 사라진다. 화면 안의 이동(행·필터·페이지)은 경로가
-  // 바뀌지 않으므로 `pathname` 범위로 두고, 그 이동은 아래에서 자기 문구로 묻는다.
-  const guard = useUnsavedGuard(feedbackDirty || reasonDirty || actorDirty, {
+  // route를 떠나면 사람 판단 수정 입력과 선택 사유가 사라진다. 담당자 이름은 이제 탭
+  // 세션에 남으므로 잃는 값이 아니고, 그래서 이 확인의 조건에서 뺐다. 화면 안의
+  // 이동(행·필터·페이지)은 경로가 바뀌지 않으므로 `pathname` 범위로 두고, 그 이동은
+  // 아래에서 자기 문구로 묻는다.
+  const guard = useUnsavedGuard(feedbackDirty || reasonDirty, {
     blockSpaNavigation: true,
     scope: "pathname",
     title: "발주계획 검토 화면을 떠납니다",
-    message: "저장하지 않은 입력이 있습니다. 지금 이동하면 사라지며 저장된 사람 피드백·추적 상태는 바뀌지 않습니다.",
-    summary: routeDraftSummary,
+    message: "저장하지 않은 입력이 있습니다. 지금 이동하면 사라지며 저장된 사람 피드백·추적 상태는 바뀌지 않습니다. 담당자 이름은 이 탭에 남습니다.",
+    summary: rowDraftSummary,
   });
 
   /**
@@ -975,6 +1098,9 @@ export function OrderPlansPage() {
   }
 
   function selectRow(pk: number) {
+    // 이미 보고 있는 건을 다시 고르는 것은 이동이 아니다. 여기서 막지 않으면 현재 행에서
+    // Enter를 누르거나 다시 클릭할 때마다 "다른 발주계획으로 이동합니다" 확인이 뜬다.
+    if (pk === selectedItem?.order_plan_pk) return;
     withRowGuard(() => {
       const params = new URLSearchParams(searchParams);
       params.set("selected", String(pk));
@@ -1005,13 +1131,7 @@ export function OrderPlansPage() {
   });
 
   function matchesFilters(item: OrderPlanListItem): boolean {
-    if (qwenSet.size && !qwenSet.has(relevanceToken(item.qwen_relevance))) return false;
-    if (stage1Set.size && !stage1Set.has(stage1Token(item.stage1_status))) return false;
-    if (feedbackSet.size) {
-      const token: FeedbackToken = item.human_feedback ? "has" : "none";
-      if (!feedbackSet.has(token)) return false;
-    }
-    if (issueOn && !isExecutionIssue(item)) return false;
+    if (!matchesAxes(item, { qwenSet, stage1Set, feedbackSet, issueOn })) return false;
     if (qText) {
       // 시안의 검색은 사업명과 발주기관을 함께 본다. 계획번호는 기존 능력이므로 남긴다.
       const haystack = `${item.title ?? ""} ${item.agency_name ?? ""} ${item.order_plan_unty_no}`.toLocaleLowerCase("ko-KR");
@@ -1021,6 +1141,18 @@ export function OrderPlansPage() {
   }
 
   const allItems = listQuery.data?.items ?? [];
+  /**
+   * 보기 탭 옆의 건수. 지금 필터가 아니라 **각 탭을 눌렀을 때 남을 건수**이므로 검색어를
+   * 빼고 그 탭의 축만 적용해 센다. 목록을 아직 못 읽었으면 0이 아니라 `null`(미확인)이다.
+   */
+  const presetCounts = useMemo(() => {
+    const items = listQuery.data?.items;
+    const counts = new Map<string, number | null>();
+    for (const preset of PRESETS) {
+      counts.set(preset.key, items ? items.filter((item) => matchesAxes(item, presetSelection(preset))).length : null);
+    }
+    return counts;
+  }, [listQuery.data]);
   const filteredItems = allItems.filter(matchesFilters);
   const total = filteredItems.length;
   const visibleItems = filteredItems.slice(offset, offset + PAGE_SIZE);
@@ -1068,6 +1200,22 @@ export function OrderPlansPage() {
     if (idx + 1 >= offset + PAGE_SIZE) params.set("offset", String(offset + PAGE_SIZE));
     setSearchParams(params, { replace: true });
     return { pk: nextItem.order_plan_pk, moved: true };
+  }
+
+  /**
+   * `advanceToNext`의 반대 방향. ↑가 페이지 첫 행을 넘어가면 앞 페이지의 마지막 행으로
+   * 간다. 첫 건에서는 이동하지 않았다는 사실을 그대로 돌려준다.
+   */
+  function retreatToPrevious(): { pk: number; moved: boolean } | null {
+    if (!selectedItem) return null;
+    const idx = filteredItems.findIndex((item) => item.order_plan_pk === selectedItem.order_plan_pk);
+    if (idx <= 0) return { pk: selectedItem.order_plan_pk, moved: false };
+    const previousItem = filteredItems[idx - 1];
+    const params = new URLSearchParams(searchParams);
+    params.set("selected", String(previousItem.order_plan_pk));
+    if (idx - 1 < offset) params.set("offset", String(Math.max(0, offset - PAGE_SIZE)));
+    setSearchParams(params, { replace: true });
+    return { pk: previousItem.order_plan_pk, moved: true };
   }
 
   const expectedRevision = selectedItem?.human_feedback?.revision ?? 0;
@@ -1125,8 +1273,12 @@ export function OrderPlansPage() {
       );
     },
     onSuccess: async (saved) => {
-      // 담당자는 다음 건에도 그대로 쓰이므로 비우지 않고 기준값만 옮긴다.
-      setTrackingActorBaseline(trackingActor);
+      // 방금 저장에 성공한 사유를 비우기 **전에** 잡아 둔다. 이것이 다음 건의
+      // `직전 사유 다시 쓰기` 후보이고, 드롭다운을 미리 채우는 것과는 다르다.
+      if (trackingReason) {
+        setLastReason(trackingReason);
+        saveSessionValue(LAST_REASON_STORAGE_KEY, trackingReason);
+      }
       // 사유는 건마다 다시 고르는 값이므로 저장에 성공하면 **언제나** 비운다. 다음 건으로
       // 옮겨 가는 경우는 행 전환 effect도 비우지만, 마지막 건은 행이 바뀌지 않아 여기서
       // 비우지 않으면 방금 저장한 사유가 남고 "저장되지 않은 입력"으로도 계속 잡힌다.
@@ -1215,6 +1367,63 @@ export function OrderPlansPage() {
     });
   }
 
+  /**
+   * ↑↓ 목록 이동. 리스너는 목록 `<ul>`이 진다.
+   *
+   * 경계(현재 페이지의 처음·끝)에서는 hook이 페이지를 모르므로 화면이 맡는다. 두 방향 모두
+   * 행이 바뀌는 이동이라 `withRowGuard`를 거치고, 사람이 확인을 취소하면 선택이 그대로여서
+   * hook도 초점을 옮기지 않는다.
+   */
+  const rowNavigation = useRowKeyboardNavigation<number>({
+    containerRef: listRef,
+    keys: visibleItems.map((item) => item.order_plan_pk),
+    onBoundary: (direction) => {
+      withRowGuard(() => {
+        if (direction === "next") advanceToNext();
+        else retreatToPrevious();
+      });
+    },
+    onSelect: selectRow,
+    selectedKey: selectedItem?.order_plan_pk ?? null,
+  });
+
+  /** 담당자 이름은 감사 표식이므로 이 탭에서만 기억한다(인증도, 계정도 아니다). */
+  function changeTrackingActor(value: string) {
+    setTrackingActor(value);
+    saveSessionValue(TRACKING_ACTOR_STORAGE_KEY, value);
+  }
+
+  /** 직전 사유를 지금 건에 다시 쓴다. preset에 없는 문장은 `기타`의 자유 입력으로 들어간다. */
+  function reuseLastReason() {
+    if (!lastReason) return;
+    if ((TRACKING_REASONS as readonly string[]).includes(lastReason)) {
+      setReasonChoice(lastReason);
+      return;
+    }
+    setReasonChoice(OTHER_REASON);
+    setCustomReason(lastReason);
+  }
+
+  /**
+   * 목록 행에서 Ctrl/Cmd+Enter로 `추적 시작`.
+   *
+   * 준비가 안 됐으면 **아무것도 채우지 않고** 무엇이 필요한지 말한 뒤 사유 드롭다운으로
+   * 초점을 옮긴다. 한 키가 사유를 지어내면 감사 기록이 사람의 판단이 아니게 된다.
+   */
+  function handleRowKeyDown(event: ReactKeyboardEvent<HTMLElement>, pk: number) {
+    if (!(event.ctrlKey || event.metaKey) || event.key !== "Enter") return;
+    // 초점이 있는 행과 결정이 붙어 있는 건이 다르면(이탈 확인을 취소한 직후) 결정하지 않는다.
+    if (pk !== selectedItem?.order_plan_pk) return;
+    // DenseListRow의 Enter→선택보다 먼저다. hook의 ↑↓도 defaultPrevented를 보고 비켜난다.
+    event.preventDefault();
+    if (trackingReady) {
+      decideTracking("계속 추적");
+      return;
+    }
+    setTrackingMessage({ pk, text: "사유와 담당자를 입력하면 Ctrl+Enter로 추적을 시작합니다." });
+    trackingSectionRef.current?.querySelector<HTMLElement>('[role="combobox"]')?.focus();
+  }
+
   /** 비율 기본값일 때의 실제 px. 화살표 조작과 aria 값이 읽을 현재 폭이다. */
   const effectiveListWidth = listWidth ?? measuredListWidth;
 
@@ -1284,11 +1493,14 @@ export function OrderPlansPage() {
 
   return (
     <section className="c2l-page" data-astryx-theme="bidops" aria-labelledby="order-plans-title">
-      {/* 시안(focus-v2) §1: 상단은 제목 한 줄이다. 회차 선택과 실행 상태는 같은 줄
-          오른쪽에 압축해 두고, 표시 규칙 설명은 `실행 상태` 대화상자로 옮겼다. */}
-      <header className="c2l-page-header">
-        <Heading level={2} id="order-plans-title">발주계획</Heading>
-        <div className="c2l-page-header-end">
+      {/* 화면의 시각 제목은 상단바의 `<h1>`이 진다(제목 모드, `route-meta.ts`). 페이지가
+          같은 이름을 한 번 더 그리면 세로 공간을 두 번 쓰므로 여기에는 문서 구조와
+          `aria-labelledby`를 위한 숨긴 제목만 남긴다. */}
+      <h2 className="visually-hidden" id="order-plans-title">발주계획</h2>
+      {/* 회차 선택·실행 상태·`실행 상세` 링크는 **이 화면의 상태**를 쓰므로 셸로 올릴 수
+          없다. 상단바의 액션 슬롯으로 보낸다(`PageHeaderActions`). */}
+      <PageHeaderActions>
+        <div className="c2l-header-actions">
           <ReviewFilterSelector className="c2l-run-selector" label="발주계획 수집 회차" clearable={false}
             options={runOptions} value={sourceRunId ?? null} onChange={changeSourceRun}
             placeholder="수집 회차 선택" />
@@ -1306,7 +1518,7 @@ export function OrderPlansPage() {
             </Link>
           ) : null}
         </div>
-      </header>
+      </PageHeaderActions>
 
       {executionsQuery.isPending ? <Text type="body" color="secondary" as="p" role="status">C-2 실행 목록을 불러오는 중…</Text> : null}
       {executionsQuery.isError ? (
@@ -1325,46 +1537,47 @@ export function OrderPlansPage() {
       ) : null}
 
       {sourceRunId ? (
-        <div className="c2l-workspace-shell">
-          {/* 시안의 압축 툴바. 보기(프리셋)와 검색만 늘 보이고, 기술 축은 `상세 필터`
-              뒤에 접어 둔다. 접어도 URL 동기화와 축의 AND/OR 의미는 그대로다. */}
-          <ReviewFilterBar
+        <WorkspaceFrame>
+          {/* 탐색과 추적 4화면이 같은 필터 골격을 쓴다(`WorkspaceFilters`). 보기 탭과
+              검색만 늘 보이고, 기술 축은 `상세 필터` 뒤에 접어 둔다. 접어도 URL 동기화와
+              축의 AND/OR 의미는 그대로이며, 접힌 채로 걸려 있는 필터 수를 토글이 말한다. */}
+          <WorkspaceFilterBar
             activeFilterCount={activeFilterCount}
             aria-label="C-2 결과 필터"
             className="c2l-filters"
-            onReset={resetFilters}
-            resetLabel="필터 초기화"
           >
-            <div className="c2l-toolbar-main">
-              <ReviewFilterSegmentedControl
-                className="c2l-preset-control"
+            <WorkspaceFilterLine>
+              {/* 건수는 서버가 아니라 이미 불러온 회차 전체에서 센다. 목록 자체가
+                  클라이언트에서 좁혀지므로 같은 규칙(`matchesAxes`)을 두 번 쓰지 않는다. */}
+              <WorkspaceViewTabs
                 label="보기"
                 onChange={applyPreset}
-                options={PRESETS.map((preset) => ({ label: preset.label, value: preset.key }))}
+                tabs={PRESETS.map((preset) => ({
+                  key: preset.key,
+                  label: preset.label,
+                  count: presetCounts.get(preset.key) ?? null,
+                }))}
                 value={activePreset ?? ""}
               />
-              <div className="c2l-toolbar-end">
-                <ReviewFilterTextInput
-                  className="c2l-toolbar-search"
+              <WorkspaceFilterEnd>
+                <WorkspaceSearch
                   label="사업명·발주기관·계획번호 검색"
-                  value={searchText}
                   onChange={setSearchText}
                   onEnter={() => changeAxes({ q: searchText })}
                   placeholder="사업명·발주기관 검색"
+                  value={searchText}
                 />
-                <Button label="검색" size="sm" onClick={() => changeAxes({ q: searchText })} />
-                <Button
-                  aria-expanded={advancedOpen}
-                  label="상세 필터"
-                  size="sm"
-                  variant={advancedOpen ? "secondary" : "ghost"}
-                  onClick={() => setAdvancedOpen((open) => !open)}
+                <WorkspaceAdvancedToggle
+                  activeCount={activeFilterCount}
+                  controlsId="c2l-advanced-filters"
+                  isOpen={advancedOpen}
+                  onToggle={() => setAdvancedOpen((open) => !open)}
                 />
-              </div>
-            </div>
+              </WorkspaceFilterEnd>
+            </WorkspaceFilterLine>
 
             {advancedOpen ? (
-              <div className="c2l-filter-advanced">
+              <WorkspaceFilterAdvanced columns={4} id="c2l-advanced-filters" onReset={resetFilters}>
                 <div className="c2l-filter-axis">
                   <Text type="label" color="secondary" as="p">Qwen relevance</Text>
                   <ToggleButtonGroup
@@ -1455,9 +1668,9 @@ export function OrderPlansPage() {
                     </ul>
                   ) : null}
                 </div>
-              </div>
+              </WorkspaceFilterAdvanced>
             ) : null}
-          </ReviewFilterBar>
+          </WorkspaceFilterBar>
 
           {/* 목록을 불러오는 중이거나 실패해도 두 pane 골격은 그대로 둔다. 화면이 통째로
               접혔다 펴지면 사람이 보던 자리를 잃는다(시안의 loading·failure 상태). */}
@@ -1510,13 +1723,21 @@ export function OrderPlansPage() {
                     />
                   </div>
                 ) : (
-                  <DenseList aria-label="발주계획 검토 목록" className="c2l-list-scroll">
+                  <DenseList
+                    aria-label="발주계획 검토 목록"
+                    className="c2l-list-scroll"
+                    onKeyDown={rowNavigation.onKeyDown}
+                    onPointerDownCapture={rowNavigation.onPointerDownCapture}
+                    ref={listRef}
+                  >
                     {visibleItems.map((item) => (
                       <OrderPlanRow
                         key={item.order_plan_pk}
                         item={item}
                         isSelected={selectedItem?.order_plan_pk === item.order_plan_pk}
+                        onKeyDown={(event) => handleRowKeyDown(event, item.order_plan_pk)}
                         onSelect={() => selectRow(item.order_plan_pk)}
+                        rowProps={rowNavigation.rowProps(item.order_plan_pk)}
                       />
                     ))}
                   </DenseList>
@@ -1671,7 +1892,7 @@ export function OrderPlansPage() {
                             ? <span className="c2l-decision-message" role="status">{trackingMessage.text}</span>
                             : null}
                           <span className="c2l-decision-hint" id="c2l-tracking-decision-reason">
-                            {trackingDisabledReason ?? "선택 후 다음 후보로 이동합니다 · 최종 입찰 참여 결정과 별개"}
+                            {trackingDisabledReason ?? "선택 후 다음 후보로 이동합니다 · 목록에서 ↑↓ 이동, Ctrl+Enter로 추적 시작 · 최종 입찰 참여 결정과 별개"}
                           </span>
                         </>
                       )}
@@ -1681,11 +1902,14 @@ export function OrderPlansPage() {
                           actorName={trackingActor}
                           customReason={customReason}
                           item={selectedItem}
-                          onActorNameChange={setTrackingActor}
+                          lastReason={lastReason}
+                          onActorNameChange={changeTrackingActor}
                           onCustomReasonChange={setCustomReason}
                           onReasonChoiceChange={setReasonChoice}
+                          onReuseLastReason={reuseLastReason}
                           position={`${selectedIndex} / ${total.toLocaleString("ko-KR")}건`}
                           reasonChoice={reasonChoice}
+                          sectionRef={trackingSectionRef}
                         />
                       )}
                       actions={(
@@ -1736,7 +1960,7 @@ export function OrderPlansPage() {
                 )}
               </section>
           </SplitWorkspace>
-        </div>
+        </WorkspaceFrame>
       ) : null}
 
       {/* 실행 상태와 표시 규칙. 기본 화면에서 큰 설명 영역을 없앤 대신 여기서 읽는다. */}
