@@ -1452,6 +1452,11 @@ export async function mockDocumentPreparationVisual(page: Page, state: DocumentP
 export async function mockApi(page: Page): Promise<void> {
   await page.route("**/api/**", async (route) => {
     const pathname = new URL(route.request().url()).pathname;
+    const fitMatch = pathname.match(/^\/api\/pre-specs\/(\d+)\/company-fit$/);
+    if (fitMatch) { await fulfillJson(route, { schema_version: "bidops.prespec-company-fit.v1", notice_id: Number(fitMatch[1]), attempts: [], automation_enabled: false, auto_deep_review_reason: "company_fit_disabled", deep_review_id: null }); return; }
+    const match = pathname.match(/^\/api\/pre-specs\/(\d+)\/overview-pages$/);
+    if (match) { await fulfillJson(route, { schema_version: "bidops.prespec-overview-pages.v1", notice_id: Number(match[1]), reviews: [] }); return; }
+
     if (pathname === "/api/workload") { await fulfillJson(route, workloadResponse(page)); return; }
     // deep-review 합성 응답이 먼저, 그다음 갈무리 fixture, 마지막으로 T15 시각
     // 회귀용 생성 응답을 쓴다. 합성 응답은 deep-review 전용 경로만 처리하므로

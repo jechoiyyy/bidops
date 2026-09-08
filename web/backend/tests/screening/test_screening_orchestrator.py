@@ -148,6 +148,32 @@ def test_collected_notice_without_sample_annotations_is_optional(tmp_path: Path)
     assert source["notices"][0]["sample_role"] is None
 
 
+@pytest.mark.parametrize("invalid", [False, True])
+def test_collected_prespec_linkage_and_sw_flags_preserve_source(tmp_path: Path, invalid: bool):
+    root, _settings, _engine, _factory, _body = _fixture(tmp_path)
+    path = root / "data/runs/run-1/collected-notices.json"
+    value = json.loads(path.read_text())
+    item = value["notices"][0]
+    item["source_type"] = "pre_spec"
+    item["lifecycle"].update(order_plan_no=None, bid_ntice_no_list="R26BN00000001")
+    item["qualification_flags"] = dict.fromkeys((
+        "participation_limited", "industry_limited", "information_business", "general_service",
+        "service_division", "joint_contract_method", "performance_restricted_competition",
+        "pq_evaluation", "technical_evaluation", "technical_evaluation_rate", "successful_bid_method",
+    ))
+    item["qualification_flags"].update(sw_business_status="Y", business_division="일반용역")
+    if invalid:
+        item["lifecycle"]["bid_ntice_no_list"] = {"untrusted": "value"}
+    path.write_text(json.dumps(value, ensure_ascii=False))
+    if invalid:
+        with pytest.raises(ScreeningCreationError):
+            _source_notices(path.parent)
+    else:
+        source, _collection = _source_notices(path.parent)
+        assert source["notices"][0]["lifecycle"] == item["lifecycle"]
+        assert source["notices"][0]["qualification_flags"] == item["qualification_flags"]
+
+
 @pytest.mark.parametrize(
     "mutate",
     [

@@ -62,6 +62,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     # 개요 실행은 합성 analysis worker의 세 번째 슬롯이다. 개요 전용 process
     # 진입점은 만들지 않는다 — 그러면 모델 슬롯 1개 보장이 깨진다 (§6.3).
     "run_prespec_overview_once": (".workers.prespec_overview", "run_once"),
+    "PreSpecCompanyFitRunner": (".services.company_fit_runner", "PreSpecCompanyFitRunner"),
     # 조립 계층이 poll loop **밖에서** 한 번 만들어 들고 있는다. 매 poll 새로
     # 만들면 binding 해석 캐시가 살아남지 못해 idle worker가 poll마다 policy를
     # 다시 읽고 `/models`를 부른다 (§6.3).

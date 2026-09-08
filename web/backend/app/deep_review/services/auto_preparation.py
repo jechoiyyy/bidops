@@ -404,6 +404,7 @@ def auto_start_reason(
     overview_result: str | None,
     overview_document_in_bundle: bool,
     active_versions_available: bool,
+    company_fit_reason: str | None = None,
 ) -> str | None:
     """§6.4의 자동 시작을 막은 사유 코드. ``None``이면 막은 것이 없다.
 
@@ -431,10 +432,12 @@ def auto_start_reason(
     if not active_versions_available:
         # active profile/policy 설정이 없거나 §6.5 조건이 맞지 않는다.
         return REASON_SERVICE_UNAVAILABLE
+    if company_fit_reason is not None:
+        return company_fit_reason
     return None
 
 
-def _auto_start_scope(session: Session, notice_id: int) -> tuple[UUID | None, str | None]:
+def _auto_start_scope(session: Session, notice_id: int, *, require_company_fit: bool = True) -> tuple[UUID | None, str | None]:
     """§6.4의 조건을 검사해 (묶음 id, 사유 코드)를 돌려준다.
 
     사유가 ``None``이면 자동 시작해도 되는 상태다. 조건이 하나라도 어긋나면
@@ -500,6 +503,15 @@ def _auto_start_scope(session: Session, notice_id: int) -> tuple[UUID | None, st
             is not None
         )
 
+    from .company_fit import overview_inputs, gate_reasons
+    source = overview_inputs(session, [notice_id]).get(notice_id) if ready_bundle_auto_confirmed else None
+    if source is not None:
+        overview_status, overview_result = "completed", None
+        document_in_bundle = session.scalar(select(DocumentBundleItem.document_version_id).where(
+            DocumentBundleItem.bundle_id == bundle.id,
+            DocumentBundleItem.document_version_id == source.document_id,
+        ).limit(1)) is not None
+    fit_reason = gate_reasons(session, [notice_id])[notice_id] if require_company_fit else None
     reason = auto_start_reason(
         is_sw_business=is_sw_business,
         ready_bundle_auto_confirmed=ready_bundle_auto_confirmed,
@@ -508,6 +520,7 @@ def _auto_start_scope(session: Session, notice_id: int) -> tuple[UUID | None, st
         overview_document_in_bundle=document_in_bundle,
         # active 설정은 이 함수의 판단 대상이 아니다.
         active_versions_available=True,
+        company_fit_reason=fit_reason,
     )
     return (bundle.id if bundle is not None else None), reason
 
@@ -552,7 +565,9 @@ def maybe_auto_start_deep_review(
     notice_id = int(notice_id)
     try:
         with _work_session(session) as work:
-            bundle_id, reason = _auto_start_scope(work, notice_id)
+            from ...lifecycle import lock_notice
+            lock_notice(work, notice_id)
+            bundle_id, reason = _auto_start_scope(work, notice_id, require_company_fit=False)
             if reason is not None or bundle_id is None:
                 return AutoDeepReviewOutcome(
                     notice_id=notice_id, bundle_id=bundle_id, reason=reason
@@ -584,6 +599,11 @@ def maybe_auto_start_deep_review(
                     deep_review_id=existing,
                     reason=REASON_DEEP_REVIEW_EXISTS,
                 )
+
+            from .company_fit import gate_reasons
+            fit_reason = gate_reasons(work, [notice_id])[notice_id]
+            if fit_reason is not None:
+                return AutoDeepReviewOutcome(notice_id=notice_id, bundle_id=bundle_id, reason=fit_reason)
 
             if service is None:
                 # 지연 import: 모듈 최상위에서 들면 서비스와 서로를 부르는
@@ -918,6 +938,9 @@ def auto_preparation_fields(
         return active_versions
 
     fields: dict[int, Mapping[str, Any]] = {}
+    from .company_fit import overview_inputs, gate_reasons
+    fit_sources = overview_inputs(session, ids)
+    fit_reasons = gate_reasons(session, ids)
     for notice_id in ids:
         grade = grades.get(notice_id)
         deep_review_id = deep_review_by_notice.get(notice_id)
@@ -929,17 +952,21 @@ def auto_preparation_fields(
             else None
         )
         auto_start_reason_code = None
+        fit_source = fit_sources.get(notice_id)
+        if fit_source is not None:
+            snapshot_document = fit_source.document_id
         if kinds.get(notice_id) == "pre_spec" and deep_review_id is None and ready_bundle is not None:
             auto_start_reason_code = auto_start_reason(
                 is_sw_business=sw_business.get(notice_id, False),
                 ready_bundle_auto_confirmed=ready_bundle[4] == AUTO_ACTOR_NAME,
-                overview_status=overview[0] if overview is not None else None,
-                overview_result=overview[1] if overview is not None else None,
+                overview_status="completed" if fit_source is not None else (overview[0] if overview is not None else None),
+                overview_result=None if fit_source is not None else (overview[1] if overview is not None else None),
                 overview_document_in_bundle=(
                     snapshot_document is not None
                     and snapshot_document in bundle_documents.get(ready_bundle[5], ())
                 ),
                 active_versions_available=_active_versions_available(),
+                company_fit_reason=fit_reasons.get(notice_id),
             )
         status, reason = _status_for(
             is_pre_spec=kinds.get(notice_id) == "pre_spec",

@@ -1,29 +1,27 @@
-import { useEffect, useRef, useState, type MouseEvent } from "react";
+import { Button } from "@astryxdesign/core/Button";
+import { Selector } from "@astryxdesign/core/Selector";
+import { Text } from "@astryxdesign/core/Text";
 import type {
-  CompanyProfileSnapshotResponse,
-  PolicyVersionResponse,
-  ProfileSource,
   ScreeningExecutionDetailResponse,
   ScreeningExecutionResponse,
   ScreeningStatus,
 } from "../../lib/types";
-import { formatDateTime, formatNumber, present } from "../../lib/format";
+import { formatDateTime, present } from "../../lib/format";
+import { Caption, DataTable, Facts, Note, Section, StatusToken } from "./RunStatusPrimitives";
+import {
+  countLabel,
+  isScreeningTerminal,
+  progressPercent,
+  remainingCount,
+  stageLabels,
+} from "./runStatusData";
 
 interface ScreeningRunPanelProps {
   runId: string;
-  actor: string;
-  onActorChange: (value: string) => void;
-  policies: PolicyVersionResponse[];
-  policiesLoading: boolean;
-  policiesError: unknown;
-  selectedPolicyVersion: string;
-  onPolicyChange: (value: string) => void;
-  profileSnapshots: CompanyProfileSnapshotResponse[];
-  profilesLoading: boolean;
-  profilesError: unknown;
-  selectedProfileVersion: string;
-  onProfileChange: (value: string) => void;
-  selectedProfileSource: ProfileSource | null;
+  /** 조회 범위 안의 이 회차 전량 판정 실행. 범위 밖은 이 목록에 없다. */
+  executions: ScreeningExecutionResponse[];
+  selectedExecutionId: string | null;
+  onSelectExecution: (executionId: string) => void;
   execution: ScreeningExecutionDetailResponse | null;
   executionSummary: ScreeningExecutionResponse | null;
   executionLoading: boolean;
@@ -32,161 +30,49 @@ interface ScreeningRunPanelProps {
   listError: unknown;
   listReady: boolean;
   listRefreshing: boolean;
-  onRetryConfiguration: () => void;
-  onStart: () => void;
-  startBusy: boolean;
-  actionError: string | null;
-  onStop: () => void;
-  stopBusy: boolean;
+  onRetryList: () => void;
   onOpenPublishedRun: (runId: string) => void;
   publishedRunNavigationBusy: boolean;
   publishedRunNavigationError: string | null;
+  /** 새 실행을 막는 이유. 핵심 건수 아래에 둔다(첫 화면을 밀지 않는다). */
+  blockedReason?: string | null;
+  /** 회차 목록 최신화 실패. 마찬가지로 건수 아래에 둔다. */
+  listRefreshWarning?: string | null;
 }
 
-const statusMeta: Record<ScreeningStatus, { label: string; tone: string }> = {
-  대기: { label: "대기 중", tone: "queued" },
-  "실행 중": { label: "진행 중", tone: "running" },
-  "중지 요청": { label: "중지 요청됨", tone: "stopping" },
-  성공: { label: "성공", tone: "success" },
-  "부분 성공": { label: "부분 성공", tone: "partial" },
-  실패: { label: "실패", tone: "failure" },
-  "중단됨": { label: "중단됨", tone: "interrupted" },
+const statusLabels: Record<ScreeningStatus, string> = {
+  대기: "대기 중",
+  "실행 중": "실행 중",
+  "중지 요청": "중지 요청",
+  성공: "성공",
+  "부분 성공": "부분 성공",
+  실패: "실패",
+  중단됨: "중단됨",
 };
 
-const stageLabels: Record<string, string> = {
-  "기술 적합성": "기술 적합성",
-  "실적 정합성": "실적 정합성",
-  "공공 SI 적합성": "공공 SI 적합성",
-  "사업성·자격 제약": "사업성·자격 제약",
-  "전략 부합": "전략 부합",
-  counterargument: "반론 검토",
-  synthesis: "종합 판정",
-  merge: "병합·검증",
-  publish: "파생 회차 게시",
-};
+export function screeningStatusLabel(status: ScreeningStatus | undefined | null): string {
+  return status ? statusLabels[status] ?? "상태 미확인" : "상태 미확인";
+}
 
-const artifactLabels: Array<{ key: "decisions" | "failures" | "telemetry" | "screening_result"; label: string }> = [
+const artifactLinks: Array<{ key: "decisions" | "failures" | "telemetry" | "screening_result"; label: string }> = [
   { key: "decisions", label: "판정 결과" },
   { key: "failures", label: "실패 목록" },
   { key: "telemetry", label: "실행 관측" },
   { key: "screening_result", label: "통합 결과" },
 ];
 
-function isTerminal(status: ScreeningStatus | undefined): boolean {
-  return status === "성공" || status === "부분 성공" || status === "실패" || status === "중단됨";
-}
-
-function isManualFullRun(execution: ScreeningExecutionResponse): boolean {
-  return execution.trigger === "manual_run" && execution.scope === "full_run";
-}
-
-function statusFor(status: ScreeningStatus | undefined): { label: string; tone: string } {
-  if (status && status in statusMeta) return statusMeta[status];
-  return { label: "상태 미확인", tone: "unknown" };
-}
-
-function profileLabel(snapshot: CompanyProfileSnapshotResponse): string {
-  const source = snapshot.source_kind === "working_tree"
-    ? "현재 프로필"
-    : `Git ${snapshot.source_ref ?? "SHA 미확인"}`;
-  return `${source} · ${snapshot.version}`;
-}
-
-function digestLabel(value: string): string {
-  if (value.length <= 18) return value;
-  return `${value.slice(0, 10)}…${value.slice(-6)}`;
-}
-
-function safeErrorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error && error.message ? `${fallback}` : fallback;
-}
-
-function ScreeningStatusBadge({ status }: { status: ScreeningStatus | undefined }) {
-  const meta = statusFor(status);
-  return (
-    <span className={`runs-screening-status runs-screening-status-${meta.tone}`} aria-label={`판정 실행 상태: ${meta.label}`}>
-      {meta.label}
-    </span>
-  );
-}
-
-function ExecutionProgress({ execution }: { execution: ScreeningExecutionResponse }) {
-  const candidate = Math.max(0, execution.candidate_count);
-  const completed = Math.max(0, execution.completed_count);
-  const failures = Math.max(0, execution.failure_count);
-  const percent = candidate > 0 ? Math.min(100, Math.max(0, Math.round((completed / candidate) * 100))) : null;
-  const currentStage = execution.current_stage ? stageLabels[execution.current_stage] ?? "단계 미확인" : "대기 중";
-  const queuePosition = execution.status === "대기" && execution.queue_position !== null
-    ? execution.queue_position
-    : null;
-
-  return (
-    <div className="runs-screening-progress" aria-live="polite">
-      <div className="runs-screening-progress-heading">
-        <strong>전량 판정 진행</strong>
-        <span>{percent === null ? "진행률 계산 불가" : `${percent}%`}</span>
-      </div>
-      <div className="runs-screening-progress-track" role="progressbar" aria-label="전량 판정 진행률" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent === null ? undefined : percent}>
-        <span style={{ width: `${percent ?? 0}%` }} />
-      </div>
-      <div className="runs-screening-progress-grid">
-        <div><span>대기 순번</span><strong>{queuePosition === null ? "-" : formatNumber(queuePosition)}</strong></div>
-        <div><span>현재 단계</span><strong>{currentStage}</strong></div>
-        <div><span>후보</span><strong>{formatNumber(candidate)}건</strong></div>
-        <div><span>완료</span><strong>{formatNumber(completed)}건</strong></div>
-        <div><span>실패</span><strong>{formatNumber(failures)}건</strong></div>
-        <div><span>현재 공고</span><strong className="mono">{present(execution.current_notice_id, "없음")}</strong></div>
-      </div>
-    </div>
-  );
-}
-
-function ConfigurationState({
-  policies,
-  policiesLoading,
-  policiesError,
-  profileSnapshots,
-  profilesLoading,
-  profilesError,
-  onRetry,
-}: Pick<ScreeningRunPanelProps, "policies" | "policiesLoading" | "policiesError" | "profileSnapshots" | "profilesLoading" | "profilesError"> & { onRetry: () => void }) {
-  if (policiesLoading || profilesLoading) {
-    return <p className="runs-screening-muted" role="status" aria-live="polite">정책과 프로필 사본을 불러오는 중입니다.</p>;
-  }
-  if (policiesError || profilesError) {
-    return (
-      <div className="runs-screening-inline-error" role="alert">
-        <span>{safeErrorMessage(policiesError ?? profilesError, "판정 실행 설정을 불러오지 못했습니다.")}</span>
-        <button className="runs-screening-text-button" type="button" onClick={onRetry}>다시 시도</button>
-      </div>
-    );
-  }
-  if (policies.length === 0 || profileSnapshots.length === 0) {
-    return (
-      <div className="runs-screening-empty" role="status">
-        <strong>실행 가능한 설정이 없습니다.</strong>
-        <p>{policies.length === 0 ? "activation candidate 또는 active 정책이 필요합니다." : "사용할 수 있는 프로필 사본이 필요합니다."}</p>
-      </div>
-    );
-  }
-  return null;
-}
-
+/**
+ * 진행 현황 탭의 판정 실행 구역.
+ *
+ * 회차 상태와 판정 실행 상태를 구분한다. 회차 목록의 상태가 이 구역의 상태를
+ * 대신하지 않으며, 조회 범위 밖 실행은 "미확인"으로 남는다. 진행률의 분모가
+ * 없으면 백분율을 만들지 않는다.
+ */
 export function ScreeningRunPanel({
   runId,
-  actor,
-  onActorChange,
-  policies,
-  policiesLoading,
-  policiesError,
-  selectedPolicyVersion,
-  onPolicyChange,
-  profileSnapshots,
-  profilesLoading,
-  profilesError,
-  selectedProfileVersion,
-  onProfileChange,
-  selectedProfileSource,
+  executions,
+  selectedExecutionId,
+  onSelectExecution,
   execution,
   executionSummary,
   executionLoading,
@@ -195,216 +81,227 @@ export function ScreeningRunPanel({
   listError,
   listReady,
   listRefreshing,
-  onRetryConfiguration,
-  onStart,
-  startBusy,
-  actionError,
-  onStop,
-  stopBusy,
+  onRetryList,
   onOpenPublishedRun,
   publishedRunNavigationBusy,
   publishedRunNavigationError,
+  blockedReason = null,
+  listRefreshWarning = null,
 }: ScreeningRunPanelProps) {
-  const [stopDialogOpen, setStopDialogOpen] = useState(false);
-  const stopDialogRef = useRef<HTMLDialogElement>(null);
-  const stopOpenerRef = useRef<HTMLButtonElement>(null);
-  const stopCancelRef = useRef<HTMLButtonElement>(null);
-  const selectedPolicy = policies.find((policy) => policy.policy_version === selectedPolicyVersion) ?? null;
-  const selectedProfile = profileSnapshots.find((snapshot) => snapshot.version === selectedProfileVersion) ?? null;
-  const detailExecution = execution && isManualFullRun(execution) ? execution : null;
-  const summaryExecution = executionSummary && isManualFullRun(executionSummary) ? executionSummary : null;
-  const currentExecution = detailExecution ?? summaryExecution;
-  const currentStatus = currentExecution?.status;
-  const stopDisabled = !currentExecution || isTerminal(currentStatus) || currentStatus === "중지 요청" || !actor.trim() || stopBusy;
-  const executionBusy = Boolean(currentExecution && !isTerminal(currentStatus));
-  const executionListUnavailable = listLoading || Boolean(listError) || !listReady;
-  const startDisabled = startBusy || executionBusy || executionListUnavailable || !actor.trim() || !selectedPolicy || !selectedProfile || !selectedProfileSource || Boolean(policiesError || profilesError) || policiesLoading || profilesLoading;
-
-  useEffect(() => {
-    const dialog = stopDialogRef.current;
-    if (!dialog) return undefined;
-    if (stopDialogOpen) {
-      if (!dialog.open) dialog.showModal();
-      window.requestAnimationFrame(() => stopCancelRef.current?.focus());
-    } else if (dialog.open) {
-      dialog.close();
-    }
-    return () => {
-      if (dialog.open) dialog.close();
-    };
-  }, [stopDialogOpen]);
-
-  const closeStopDialog = () => {
-    if (stopDialogRef.current?.open) stopDialogRef.current.close();
-    setStopDialogOpen(false);
-    window.requestAnimationFrame(() => stopOpenerRef.current?.focus());
-  };
-
-  const openStopDialog = (event: MouseEvent<HTMLButtonElement>) => {
-    if (stopDisabled) return;
-    stopOpenerRef.current = event.currentTarget;
-    setStopDialogOpen(true);
-  };
-
-  const confirmStop = () => {
-    const latestStatus = detailExecution?.status ?? summaryExecution?.status;
-    if (!currentExecution || !latestStatus || isTerminal(latestStatus) || latestStatus === "중지 요청" || stopBusy || !actor.trim()) {
-      closeStopDialog();
-      return;
-    }
-    closeStopDialog();
-    onStop();
-  };
+  const detailExecution = execution && execution.execution_id === selectedExecutionId ? execution : null;
+  const current = detailExecution ?? executionSummary;
+  const status = current?.status;
+  const percent = progressPercent(current);
+  const remaining = remainingCount(current);
+  const processed = current ? current.completed_count + current.failure_count : null;
 
   return (
-    <section className="runs-screening-panel" aria-labelledby="runs-screening-title">
-      <div className="runs-screening-header">
-        <div>
-          <span className="runs-eyebrow">전량 판정</span>
-          <h3 id="runs-screening-title">전체 후보 판정 실행</h3>
-          <p>선택한 원본 회차의 후보를 고정된 정책·프로필 조합으로 판정하고 새 파생 회차로 게시합니다.</p>
-        </div>
-        {currentExecution ? <ScreeningStatusBadge status={currentStatus} /> : <span className="runs-screening-status runs-screening-status-idle">실행 기록 없음</span>}
-      </div>
-
-      <div className="runs-screening-source-note">
-        <strong>원본 회차</strong>
-        <code>{runId}</code>
-        <span>이 회차의 수집·기존 판정은 덮어쓰지 않습니다.</span>
-      </div>
-
-      <form className="runs-screening-form" onSubmit={(event) => { event.preventDefault(); onStart(); }}>
-        <div className="runs-screening-form-grid">
-          <label className="runs-screening-field">
-            <span>담당자 이름 <em>필수</em></span>
-            <input value={actor} onChange={(event) => onActorChange(event.target.value)} placeholder="예: 홍길동" autoComplete="name" required aria-describedby="runs-screening-actor-help" />
-            <small id="runs-screening-actor-help">실행·중지 감사 기록에 사용됩니다. 인증이나 권한을 대신하지 않습니다.</small>
-          </label>
-          <label className="runs-screening-field">
-            <span>판정 정책 <em>필수</em></span>
-            <select value={selectedPolicyVersion} onChange={(event) => onPolicyChange(event.target.value)} required disabled={!policies.length}>
-              {!policies.length ? <option value="">선택 가능한 정책 없음</option> : null}
-              {policies.map((policy) => <option value={policy.policy_version} key={policy.policy_version}>{policy.policy_version} · {policy.status === "active" ? "active" : "activation candidate"}</option>)}
-            </select>
-          </label>
-          <label className="runs-screening-field">
-            <span>프로필 사본 <em>필수</em></span>
-            <select value={selectedProfileVersion} onChange={(event) => onProfileChange(event.target.value)} required disabled={!profileSnapshots.length}>
-              {!profileSnapshots.length ? <option value="">선택 가능한 사본 없음</option> : null}
-              {profileSnapshots.map((snapshot) => <option value={snapshot.version} key={snapshot.version}>{profileLabel(snapshot)}</option>)}
-            </select>
-          </label>
-        </div>
-
-        <ConfigurationState
-          policies={policies}
-          policiesLoading={policiesLoading}
-          policiesError={policiesError}
-          profileSnapshots={profileSnapshots}
-          profilesLoading={profilesLoading}
-          profilesError={profilesError}
-          onRetry={onRetryConfiguration}
-        />
-
-        {selectedPolicy && selectedProfile ? (
-          <dl className="runs-screening-selection" aria-label="판정 실행에 사용할 고정 입력">
-            <div><dt>정책</dt><dd><strong>{selectedPolicy.policy_version}</strong><span>{selectedPolicy.status === "active" ? "active" : "activation candidate"} · digest {digestLabel(selectedPolicy.content_digest)}</span></dd></div>
-            <div><dt>프로필 출처</dt><dd><strong>{selectedProfile.source_kind === "working_tree" ? "현재 프로필" : "Git blob"}</strong><span>{selectedProfile.source_kind === "git_blob" && selectedProfile.source_ref ? `${selectedProfile.source_ref} · ` : ""}version {selectedProfile.version}</span></dd></div>
-            <div><dt>프로필 digest</dt><dd><code>{digestLabel(selectedProfile.digest)}</code><span>생성 {formatDateTime(selectedProfile.created_at)}</span></dd></div>
-          </dl>
-        ) : null}
-
-        <div className="runs-screening-form-actions">
-          <button className="runs-primary-button runs-screening-start-button" type="submit" disabled={startDisabled}>
-            {startBusy ? "실행 요청 중…" : "전량 판정 대기열에 넣기"}
-          </button>
-          {startDisabled && !startBusy ? <span className="runs-screening-required-note">{executionListUnavailable ? "현재 회차의 판정 실행 목록을 확인할 때까지 실행할 수 없습니다." : executionBusy ? "진행 중인 전량 판정 실행이 있어 새 실행을 시작할 수 없습니다." : "담당자·정책·프로필을 모두 선택해야 실행할 수 있습니다."}</span> : null}
-        </div>
-      </form>
-
-      {actionError ? <p className="runs-screening-error" role="alert">{actionError}</p> : null}
-      {listLoading ? <p className="runs-screening-muted" role="status" aria-live="polite">판정 실행 기록을 불러오는 중입니다. 목록 확인 전에는 새 실행을 시작할 수 없습니다.</p> : null}
+    <Section
+      title="전체 후보 판정 실행"
+      action={current ? <StatusToken label={screeningStatusLabel(status)} /> : <Caption as="span">실행 기록 없음</Caption>}
+    >
+      {listLoading ? (
+        <Caption>이 회차의 판정 실행 목록을 불러오는 중입니다. 목록 확인 전에는 새 실행을 시작할 수 없습니다.</Caption>
+      ) : null}
       {listError ? (
-        <div className="runs-screening-inline-error" role="alert" aria-live="assertive" aria-busy={listRefreshing} tabIndex={-1}>
-          <span>판정 실행 기록을 불러오지 못했습니다. 목록을 다시 확인한 뒤 실행해 주세요.</span>
-          <button className="runs-screening-text-button" type="button" onClick={onRetryConfiguration} disabled={listRefreshing}>
-            {listRefreshing ? "다시 확인 중…" : "다시 시도"}
-          </button>
+        <div className="rs-inline-error" role="alert" aria-live="assertive" aria-busy={listRefreshing}>
+          <Text as="span">판정 실행 기록을 불러오지 못했습니다. 상태는 미확인이며 0건이 아닙니다.</Text>
+          <Button
+            label={listRefreshing ? "다시 확인 중…" : "다시 시도"}
+            size="sm"
+            isDisabled={listRefreshing}
+            onClick={onRetryList}
+          />
         </div>
       ) : null}
-      {executionLoading && currentExecution ? <p className="runs-screening-muted" role="status" aria-live="polite">실행 상세를 갱신하는 중입니다.</p> : null}
-      {executionError && currentExecution ? <p className="runs-screening-error" role="alert">실행 상세를 갱신하지 못했습니다. 자동 갱신을 계속 시도합니다.</p> : null}
 
-      {currentExecution ? (
-        <div className="runs-screening-execution" aria-label="판정 실행 상태">
-          <div className="runs-screening-execution-heading">
-            <div><span>실행 ID</span><code>{currentExecution.execution_id}</code></div>
-            <time dateTime={currentExecution.queued_at}>대기열 등록 {formatDateTime(currentExecution.queued_at)}</time>
+      {!current && listReady && !listError ? (
+        <Note title="이 회차에는 조회 범위 안의 전량 판정 실행이 없습니다">
+          범위 밖에 실행이 있을 수 있습니다. 없음을 실행 0건이나 성공으로 읽지 않습니다.
+        </Note>
+      ) : null}
+      {/* 실행이 없어 아래 본문이 그려지지 않는 상태에서도 안내는 남는다. */}
+      {!current && blockedReason ? (
+        <Note title={blockedReason} tone="warning">
+          회차 상태와 판정 실행 상태, 결과 게시와 품질 표식은 각각 별도입니다.
+        </Note>
+      ) : null}
+      {!current && listRefreshWarning ? <Caption>{listRefreshWarning}</Caption> : null}
+
+      {current ? (
+        <>
+          <div
+            className="rs-progress-track"
+            role="progressbar"
+            aria-label="판정 처리 비율"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={percent ?? undefined}
+            aria-valuetext={percent === null ? "진행률 계산 불가" : `${percent}%`}
+          >
+            {percent === null ? null : <div className="rs-progress-value" style={{ width: `${percent}%` }} />}
           </div>
-          <ExecutionProgress execution={currentExecution} />
-          {currentExecution.status === "중지 요청" ? <p className="runs-screening-stop-note" role="status" aria-live="polite">중지 요청을 기록했습니다. 현재 모델 호출이 끝난 뒤 다음 공고를 시작하지 않고 중단됩니다.</p> : null}
-          {!isTerminal(currentExecution.status) ? (
-            <div className="runs-screening-stop-area">
-              <button className="runs-secondary-button runs-screening-stop-button" type="button" disabled={stopDisabled} onClick={openStopDialog} aria-haspopup="dialog">
-                {stopBusy || currentExecution.status === "중지 요청" ? "중지 요청 처리 중…" : "협력적으로 중지"}
-              </button>
-              {!actor.trim() ? <span>중지를 요청하려면 담당자 이름을 입력하세요.</span> : <span>현재 호출이 끝나는 지점에서 안전하게 멈춥니다.</span>}
-            </div>
-          ) : null}
-          {isTerminal(currentExecution.status) ? <p className="runs-screening-terminal-note">종결된 실행은 다시 중지하거나 상태를 되돌릴 수 없습니다.</p> : null}
+          <div className="rs-row rs-spread">
+            <Caption as="span">
+              {processed === null || typeof current.candidate_count !== "number"
+                ? "처리 건수 미확인"
+                : `${processed.toLocaleString("ko-KR")} / ${current.candidate_count.toLocaleString("ko-KR")}건 처리`}
+            </Caption>
+            <Caption as="span">{percent === null ? "진행률 계산 불가" : `${percent}%`}</Caption>
+          </div>
 
-          {currentExecution.published_run_id ? (
-            <div className="runs-screening-derived-run">
-              <div><strong>게시된 파생 회차</strong><span>원본 회차 <code>{runId}</code>는 유지되며, 아래 회차에 새 판정 결과가 게시되었습니다.</span></div>
-              <button className="runs-screening-text-button" type="button" disabled={publishedRunNavigationBusy} onClick={() => onOpenPublishedRun(currentExecution.published_run_id as string)} aria-busy={publishedRunNavigationBusy}>
-                {publishedRunNavigationBusy ? "파생 회차 확인 중…" : "파생 회차 보기"} <code>{currentExecution.published_run_id}</code>
-              </button>
+          <div className="rs-stat-line">
+            <div>
+              <Caption as="span">판정 대상</Caption>
+              <Text className="rs-stat-value" as="span">{countLabel(current.candidate_count)}</Text>
             </div>
-          ) : null}
-          {publishedRunNavigationError && currentExecution.published_run_id ? (
-            <div className="runs-screening-inline-error" role="alert" aria-live="assertive">
-              <span>{publishedRunNavigationError}</span>
-              <button className="runs-screening-text-button" type="button" onClick={() => onOpenPublishedRun(currentExecution.published_run_id as string)} disabled={publishedRunNavigationBusy}>
-                {publishedRunNavigationBusy ? "다시 확인 중…" : "다시 시도"}
-              </button>
+            <div>
+              <Caption as="span">완료</Caption>
+              <Text className="rs-stat-value" as="span">{countLabel(current.completed_count)}</Text>
             </div>
+            <div>
+              <Caption as="span">실패</Caption>
+              <Text className="rs-stat-value" as="span">{countLabel(current.failure_count)}</Text>
+            </div>
+            <div>
+              <Caption as="span">{isScreeningTerminal(status) ? "미처리" : "남은 대상"}</Caption>
+              <Text className="rs-stat-value" as="span">{countLabel(remaining)}</Text>
+            </div>
+          </div>
+
+          {/* 여기부터는 첫 화면 아래다. 실행 선택기와 안내 문구는 없애지 않고
+            * 핵심 건수 뒤로 옮긴다. */}
+          {blockedReason ? (
+            <Note title={blockedReason} tone="warning">
+              회차 상태와 판정 실행 상태, 결과 게시와 품질 표식은 각각 별도입니다.
+            </Note>
           ) : null}
-          {detailExecution?.result_urls.published_run ? <a className="runs-screening-published-link" href={detailExecution.result_urls.published_run} target="_blank" rel="noreferrer">게시 결과 링크 열기</a> : null}
+          {listRefreshWarning ? <Caption>{listRefreshWarning}</Caption> : null}
+
+          {executions.length > 1 ? (
+            <details className="rs-disclosure">
+              <summary>다른 판정 실행 확인 · 조회 범위 안 {executions.length}건</summary>
+              <Selector
+                label="확인할 판정 실행"
+                size="sm"
+                value={selectedExecutionId ?? undefined}
+                onChange={onSelectExecution}
+                options={executions.map((item) => ({
+                  value: item.execution_id,
+                  label: `#${item.queue_no} · ${screeningStatusLabel(item.status)} · ${formatDateTime(item.queued_at)}`,
+                }))}
+              />
+            </details>
+          ) : null}
+
+          <Facts
+            items={[
+              ["처리 단계", current.current_stage ? stageLabels[current.current_stage] ?? "단계 미확인" : isScreeningTerminal(status) ? "실행 종결" : "대기 중"],
+              ["대기 순번", status === "대기" && current.queue_position !== null ? `${current.queue_position}번` : "해당 없음"],
+              ["현재 공고", <span className="rs-mono" key="notice">{present(current.current_notice_id, "없음")}</span>],
+              ["실행 담당자", present(current.requested_by, "담당자 미확인")],
+              ["대기열 등록", formatDateTime(current.queued_at)],
+              ["종료", current.finished_at ? formatDateTime(current.finished_at) : "종결 전"],
+            ]}
+          />
+
+          {executionLoading ? <Caption>실행 상세를 갱신하는 중입니다.</Caption> : null}
+          {executionError ? (
+            <Caption>실행 상세를 갱신하지 못했습니다. 자동 갱신을 계속 시도하며 표시된 값은 마지막으로 받은 값입니다.</Caption>
+          ) : null}
+
+          {current.status === "중지 요청" ? (
+            <Note title="중지 요청을 기록했습니다" tone="warning" role="status">
+              현재 모델 호출이 끝난 뒤 다음 공고를 시작하지 않고 중단됩니다. 완료된 결과는 삭제되지 않습니다.
+            </Note>
+          ) : null}
+          {current.failure_count > 0 ? (
+            <Note title={`실패 ${current.failure_count.toLocaleString("ko-KR")}건의 확인이 필요합니다`} tone="warning">
+              실패한 항목은 성공 건수와 구분해 기록합니다. 실패 내역 탭에서 확인합니다.
+            </Note>
+          ) : null}
+          {current.status === "실패" ? (
+            <Note title="판정 실행이 실패로 종결됐습니다" tone="error" role="note">
+              {present(current.error_summary, "서버가 실패 사유를 남기지 않았습니다.")}
+            </Note>
+          ) : null}
+          {current.status === "중단됨" ? (
+            <Note title="실행이 중단되어 미처리 항목이 남았습니다">
+              기존 실행 기록을 보존하며 자동으로 다시 시작하지 않습니다.
+              {current.stop_requested_by ? ` 중지 요청 담당자 ${current.stop_requested_by}.` : ""}
+            </Note>
+          ) : null}
+
+          <Section title="원본 회차와 게시 결과">
+            <DataTable
+              caption="원본 회차와 게시된 파생 회차"
+              headings={["구분", "회차", "뜻"]}
+              rows={[
+                {
+                  id: "source",
+                  cells: [
+                    "원본 회차",
+                    <span className="rs-mono" key="source">{runId}</span>,
+                    "수집·기존 판정을 덮어쓰지 않습니다",
+                  ],
+                },
+                {
+                  id: "published",
+                  cells: [
+                    "게시된 파생 회차",
+                    current.published_run_id
+                      ? <span className="rs-mono" key="published">{current.published_run_id}</span>
+                      : "없음",
+                    current.published_run_id ? "새 판정 결과가 이 회차에 게시됐습니다" : "게시 전이거나 게시하지 않았습니다",
+                  ],
+                },
+              ]}
+            />
+            {current.published_run_id ? (
+              <div className="rs-link-row">
+                <Button
+                  label={publishedRunNavigationBusy ? "파생 회차 확인 중…" : "파생 회차로 이동"}
+                  size="sm"
+                  isDisabled={publishedRunNavigationBusy}
+                  onClick={() => onOpenPublishedRun(current.published_run_id as string)}
+                />
+                {detailExecution?.result_urls.published_run ? (
+                  <a href={detailExecution.result_urls.published_run} target="_blank" rel="noreferrer">게시 결과 링크 열기</a>
+                ) : null}
+              </div>
+            ) : null}
+            {publishedRunNavigationError && current.published_run_id ? (
+              <div className="rs-inline-error" role="alert" aria-live="assertive">
+                <Text as="span">{publishedRunNavigationError}</Text>
+                <Button
+                  label={publishedRunNavigationBusy ? "다시 확인 중…" : "다시 시도"}
+                  size="sm"
+                  isDisabled={publishedRunNavigationBusy}
+                  onClick={() => onOpenPublishedRun(current.published_run_id as string)}
+                />
+              </div>
+            ) : null}
+          </Section>
 
           {detailExecution ? (
-            <>
-              <div className="runs-screening-artifacts">
-                <h4>안전한 산출물 링크</h4>
-                <div className="runs-screening-artifact-links">
-                  {artifactLabels.map(({ key, label }) => detailExecution.result_urls[key] ? <a href={detailExecution.result_urls[key] as string} key={key} target="_blank" rel="noreferrer">{label}</a> : null)}
-                  {!artifactLabels.some(({ key }) => Boolean(detailExecution.result_urls[key])) ? <span className="runs-screening-muted">사용 가능한 산출물 링크가 없습니다.</span> : null}
-                </div>
+            <Section title="안전한 산출물 링크" action={<Caption as="span">서버가 준 경로만 엽니다</Caption>}>
+              <div className="rs-link-row">
+                {artifactLinks.map(({ key, label }) => detailExecution.result_urls[key]
+                  ? <a href={detailExecution.result_urls[key] as string} key={key} target="_blank" rel="noreferrer">{label}</a>
+                  : null)}
+                {!artifactLinks.some(({ key }) => Boolean(detailExecution.result_urls[key]))
+                  ? <Caption as="span">사용 가능한 산출물 링크가 없습니다.</Caption>
+                  : null}
               </div>
-              {detailExecution.failure_count > 0 ? (
-                <div className="runs-screening-failures">
-                  <h4>사람 검토 대기 실패 목록 <span>{detailExecution.failure_count}건</span></h4>
-                  {detailExecution.failures.length ? (
-                    <ul>
-                      {detailExecution.failures.map((failure) => <li key={`${failure.notice_id}-${failure.failed_stage}`}><div><code>{failure.notice_id}</code><strong>{failure.failed_stage}</strong><span>{failure.failure_type}</span></div><p>{failure.error_summary}</p></li>)}
-                    </ul>
-                  ) : <p className="runs-screening-muted">실패 건수는 기록되었지만 세부 목록을 아직 불러오지 못했습니다.</p>}
-                </div>
-              ) : null}
-            </>
+            </Section>
           ) : null}
-        </div>
-      ) : null}
 
-      <dialog ref={stopDialogRef} className="runs-screening-stop-dialog" onCancel={(event) => { event.preventDefault(); closeStopDialog(); }} aria-labelledby="runs-screening-stop-title">
-        <div className="runs-screening-dialog-body">
-          <h4 id="runs-screening-stop-title">판정 실행을 중지할까요?</h4>
-          <p>중지는 협력적으로 처리됩니다. 현재 모델 호출이 끝나면 다음 공고를 시작하지 않고 <strong>중단됨</strong>으로 남습니다. 이미 완료된 결과는 삭제되지 않습니다.</p>
-          <form method="dialog" className="runs-screening-dialog-actions" onSubmit={(event) => { event.preventDefault(); confirmStop(); }}>
-            <button ref={stopCancelRef} className="runs-secondary-button" type="button" onClick={closeStopDialog}>계속 실행</button>
-            <button className="runs-primary-button runs-screening-danger-button" type="submit">중지 요청</button>
-          </form>
-        </div>
-      </dialog>
-    </section>
+          <Caption>
+            처리 완료와 품질 검증은 별도입니다. 이 실행 API는 품질 표식(quality_status)을 제공하지
+            않으므로 화면은 측정 통과·참조 실행·mock 참조 어느 쪽도 주장하지 않습니다.
+          </Caption>
+        </>
+      ) : null}
+    </Section>
   );
 }

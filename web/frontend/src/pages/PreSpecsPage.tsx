@@ -24,6 +24,7 @@ import {
   updateTrackingProjection,
 } from "../components/pre-specs/TrackingDecisionControl";
 import { api } from "../lib/api";
+import { CompanyFitSection } from "../components/pre-specs/CompanyFitSection";
 import { PageOverviewSection } from "../components/pre-specs/PageOverviewSection";
 import { describeApiError } from "../lib/apiErrors";
 import { describeDeadline, formatCompactPrice, shortDateLabel } from "../lib/deadline";
@@ -638,6 +639,7 @@ function PreSpecDetail({
             </ol>
 
             <PageOverviewSection key={noticePk} noticeId={noticePk} />
+            <CompanyFitSection key={`fit-${noticePk}`} noticeId={noticePk} />
             {overviewQuery.isPending ? (
               <p className="pre-specs-detail-loading" role="status">개요 검토 결과를 불러오는 중입니다.</p>
             ) : null}

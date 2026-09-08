@@ -134,7 +134,8 @@ class PreSpecOverviewRunner:
     def policy(self) -> OverviewPolicy | None:
         if not self._policy_loaded:
             try:
-                self._policy = load_overview_policy()
+                settings = self.settings or get_settings()
+                self._policy = load_overview_policy(getattr(settings, "prespec_overview_policy_path", None))
             except OverviewPolicyError:
                 self._policy = None
             self._policy_loaded = True
@@ -390,75 +391,8 @@ class PreSpecOverviewRunner:
         return self._raw_response_store
 
     def _store_raw_response(self, session: Session, raw: bytes) -> str:
-        """원응답을 암호화 저장소에 쓰고 DB에는 참조·hash만 남긴다."""
-
-        try:
-            retention_days = int(os.environ.get("BIDOPS_MODEL_RESPONSE_RETENTION_DAYS", "90"))
-        except (TypeError, ValueError):
-            retention_days = 90
-        retention_days = min(max(retention_days, 1), 90)
-        metadata = self.raw_response_store().put_encrypted(
-            raw, retention_days=retention_days, content_type="application/json"
-        )
-        if not isinstance(metadata, Mapping):
-            raise ValueError("raw_response_metadata_invalid")
-        digest = hashlib.sha256(raw).hexdigest()
-        object_key = metadata.get("object_key")
-        key_ref = metadata.get("encryption_key_ref")
-        if (
-            metadata.get("plaintext_sha256") != digest
-            or metadata.get("plaintext_size_bytes") != len(raw)
-            or not isinstance(object_key, str)
-            or not object_key.startswith("model-response/")
-            or ".." in object_key.split("/")
-            or not isinstance(key_ref, str)
-            or not key_ref.strip()
-        ):
-            raise ValueError("raw_response_metadata_invalid")
-        content = session.scalar(
-            select(ContentObject).where(ContentObject.sha256 == digest).limit(1)
-        )
-        if content is None:
-            content = ContentObject(
-                id=uuid4(),
-                sha256=digest,
-                size_bytes=len(raw),
-                detected_mime="application/json",
-                retention_class="model-response-90d",
-            )
-            session.add(content)
-            session.flush()
-        elif content.size_bytes != len(raw):
-            raise ValueError("raw_response_metadata_invalid")
-        existing = session.scalar(
-            select(ContentObjectLocation)
-            .where(
-                ContentObjectLocation.namespace_key == "model-response",
-                ContentObjectLocation.object_key == object_key,
-            )
-            .limit(1)
-        )
-        if existing is None:
-            object_version_id = metadata.get("object_version_id")
-            session.add(
-                ContentObjectLocation(
-                    id=uuid4(),
-                    content_object_id=content.id,
-                    namespace_key="model-response",
-                    object_key=object_key,
-                    object_version_id=(
-                        object_version_id if isinstance(object_version_id, str) else None
-                    ),
-                    status="verified",
-                    etag=str(metadata.get("etag") or digest),
-                    encryption_key_ref=key_ref,
-                    verified_at=self.clock(),
-                )
-            )
-        elif existing.content_object_id != content.id:
-            raise ValueError("raw_response_metadata_invalid")
-        session.flush()
-        return digest
+        from .model_response_storage import store_raw_model_response
+        return store_raw_model_response(session, raw, store=self.raw_response_store(), clock=self.clock)
 
     # -- 실패와 감사 ---------------------------------------------------
     def _fail(

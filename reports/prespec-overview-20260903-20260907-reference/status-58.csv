@@ -1,0 +1,59 @@
+﻿notice_id,notice_key,title,status,reason_code,quality_status,attempt_id
+94,pre:R26BD00270730,2027~2028년도 정보보안시스템 및 네트워크장비 통합유지보수,awaiting_model,prompt_exceeds_24000_chars,,
+95,pre:R26BD00271290,정보보호시스템 운영 및 유지관리 용역 (2027∼2028),needs_human_review,no_end_heading,,
+100,pre:R26BD00271904,생체신호 센서 기반 생활체육 AI 분석 솔루션 개발 용역,needs_human_review,structure_warning,,
+119,pre:R26BD00270995,HyperWorks ENT 61 Units S/W 유지보수,needs_human_review,,,
+103,pre:R26BD00270731,경영정보시스템 유지관리,awaiting_model,prompt_exceeds_24000_chars,,
+107,pre:R26BD00271823,2026년 지능형 통합시스템 고도화 용역,awaiting_model,prompt_exceeds_24000_chars,,
+109,pre:R26BD00270924,한국연구재단 내부통제 관리시스템 구축,completed,,unmeasured_reference,182bfcfa-10ba-48f9-b5b8-e2ec868cb5d9
+110,pre:R26BD00270876,2026년도 모바일 기반 웹크롤링 AI 고도화 및 디지털트윈 프로토타입 구축,needs_human_review,,,
+116,pre:R26BD00271601,군 장병 맞춤형 AI교육 플랫폼 운영 및 환류 체계 구축,awaiting_model,insufficient_body,,
+117,pre:R26BD00271146,페루 이민청 이민행정서비스 개선 및 역량강화 사업 시스템 구축 PC 용역,awaiting_model,prompt_exceeds_24000_chars,,
+120,pre:R26BD00271057,외국인근로자 건강정보 서비스 운영모델(AI기반) 수립 컨설팅,needs_human_review,no_end_heading,,
+132,pre:R26BD00271085,AI·GPR 활용 스마트 지반조사 체계 구축,needs_human_review,no_end_heading,,
+126,pre:R26BD00271511,AI 기반 섬 정보통계플랫폼 구축 용역(1차년도),needs_human_review,no_topic_heading,,
+133,pre:R26BD00271778,과기정통부 민원처리시스템 고도화,needs_human_review,no_end_heading,,
+128,pre:R26BD00270818,강원대학교 AI기반 원격교육 학습역량 시스템 구축,awaiting_document,,,
+129,pre:R26BD00271861,연암대학교·연암공과대학교 종합행정시스템 현대화(AX) 구축,awaiting_document,,,
+130,pre:R26BD00270688,인공지능(AI) Agent 기반의 범정부 『심사·심의·검토』 업무 지원 시스템 개발 위탁감리,needs_human_review,no_end_heading,,
+172,pre:R26BD00271805,망분리시스템 장비 교체 및 증설 사업,awaiting_document,,,
+137,pre:R26BD00271850,국세청 AI 시스템 구축 ISMP 수립,failed,summary_not_exact_evidence,unmeasured_reference,f517faee-0683-4971-b39f-ca0686a85492
+141,pre:R26BD00271020,교육정보시스템 HW통합 유지관리,awaiting_model,prompt_exceeds_24000_chars,,
+142,pre:R26BD00271191,생성형 AI 플랫폼 구축 및 AX 개발 사업 감리용역,completed,,unmeasured_reference,992b2824-3573-4c2f-8c8a-29b02f95cc6b
+143,pre:R26BD00270593,전기통신금융사기 통합대응단 시스템 고도화 감리,failed,quote_not_supported,unmeasured_reference,1547f1af-7b43-4c26-ae4f-e9582d170562
+145,pre:R26BD00271920,국립대학 통합 기록관리시스템 구축 사업,awaiting_model,prompt_exceeds_24000_chars,,
+149,pre:R26BD00271433,DGIST 통합정보시스템 및 포털 유지관리 용역,needs_human_review,no_topic_heading,,
+150,pre:R26BD00271607,인공지능 데이터분석 PBL 콘텐츠 제작,completed,,unmeasured_reference,808af358-a53a-4b97-b7e8-3c658d1eff44
+151,pre:R26BD00271712,2026년 광주아이온(AI-ON) 운영 기능개선 및 유지관리 사업,completed,,unmeasured_reference,e880caa6-8e57-4ce1-826e-7b28eb299328
+153,pre:R26BD00271449,2027년 플랜트 자동운전 시스템 고도화 용역,needs_human_review,no_end_heading,,
+157,pre:R26BD00271147,파라과이 감염병 대응을 위한 국립중앙보건연구소 실험실 정보 시스템(LIS) 구축 PC 용역,awaiting_model,prompt_exceeds_24000_chars,,
+159,pre:R26BD00271220,2026년 HRD4U 정보시스템 고도화 사업 감리용역,failed,evidence_out_of_scope,unmeasured_reference,3d103607-7a14-40ad-8a74-90e42406ddd7
+165,pre:R26BD00270609,빛의 혁명 디지털 아카이브 구축 BPR/ISP 사업,needs_human_review,no_topic_heading,,
+171,pre:R26BD00271724,멀티미디어 방송 통합시스템 유지관리,failed,quote_not_supported,unmeasured_reference,ece445c7-82fa-4512-b14e-427ec343a56c
+179,pre:R26BD00271596,KiRI Note 데이터 안정적 이관  및 기록보존 체계 구축 용역,awaiting_model,insufficient_body,,
+244,pre:R26BD00271216,2026년 한전MCS 정보통신망 사업자 선정,needs_human_review,,,
+248,pre:R26BD00270679,「국립종자원 정보통신망 운영 사업자 선정」 사업(장기계속),needs_human_review,no_topic_heading,,
+269,pre:R26BD00270998,LS-DYNA 64 Cores 유지보수,needs_human_review,no_topic_heading,,
+282,pre:R26BD00270844,금천구시설관리공단 대표 홈페이지 고도화 사업 용역,awaiting_model,filename_not_eligible,,
+295,pre:R26BD00271362,2026~2030년 어업관리단 전용위성망 이중화 서비스 사업자 선정,needs_human_review,no_end_heading,,
+316,pre:R26BD00271581,시험업무 프로세스 개선 시험검증 사업,needs_human_review,no_end_heading,,
+331,pre:R26BD00271678,강원대학교 기초교양 보충 교과목 원격수업 콘텐츠 제작,needs_human_review,no_end_heading,,
+362,pre:R26BD00270986,이차전지 배터리셀 양산공정 프로세스 MR 콘텐츠 제작 용역,needs_human_review,,,
+388,pre:R26BD00270848,책무 및 자점감사시스템 점검자료 관리체계 구축,awaiting_model,filename_not_eligible,,
+405,pre:R26BD00270659,박물관 미술관 학예사 자격증 및 경력인정대상기관 누리집 고도화 사업,needs_human_review,no_topic_heading,,
+451,pre:R26BD00271080,2026년 수요응답형대중교통(DRT)시스템 목표시스템 전환 고도화 용역,needs_human_review,no_end_heading,,
+453,pre:R26BD00270820,(긴급)충남 AX 실무 인재 양성 교육 및 LMS 구축 용역,needs_human_review,no_topic_heading,,
+481,pre:R26BD00271865,우정사업 사이버안전센터 운영 용역(2027∼2028),needs_human_review,no_end_heading,,
+483,pre:R26BD00271276,통합 업무정보관리 시스템(ECM) 구축 사업,needs_human_review,no_topic_heading,,
+507,pre:R26BD00271854,AIOps 서비스 인프라 구축 장비 구매,needs_human_review,no_topic_heading,,
+553,pre:R26BD00271584,경북보건대학교 그룹웨어 구축 용역,awaiting_document,,,
+566,pre:R26BD00271355,방폐물인수관리시스템(WTSRI-UTOPIA) 고도화  및 연계체계 구축 용역,needs_human_review,,,
+570,pre:R26BD00271928,2026년 부산항보안공사 ERP 부분개선 사업,needs_human_review,no_topic_heading,,
+585,pre:R26BD00271552,영상기반 유량예측 알고리즘 연동 소프트웨어 고도화 용역,needs_human_review,structure_warning,,
+610,pre:R26BD00270996,2026년 노후 정보화 인프라 개선,failed,quote_not_supported,unmeasured_reference,877ce919-1934-4f54-9643-5428fa914fd2
+614,pre:R26BD00271507,RCMS 연계모듈 전환 및 통합 Ezbaro 연계모듈 구축,failed,quote_not_supported,unmeasured_reference,971cb99b-d813-448c-a6b5-f78fdd07fad7
+653,pre:R26BD00271180,[앵커사업] 멀티모달 헬스케어 파운데이션 모델 사전학습·미세조정 및 임상데이터 연계·성능 검증 용역,completed,,unmeasured_reference,78f3aa1b-2279-43f5-8905-217ee4f2730d
+721,pre:R26BD00271604,2026년 의약품안전정보관리시스템 인프라 강화,needs_human_review,no_end_heading,,
+722,pre:R26BD00270655,전산센터 이전 기획 컨설팅,needs_human_review,no_end_heading,,
+741,pre:R26BD00270741,공공 마이데이터 아키텍처 및 주차감면 운영체계 수립,completed,,unmeasured_reference,b5faed7e-eed2-4e44-9673-c5e1d6c4d744
+99,pre:R26BD00271523,2026년 AI활용 초기상담정보시스템 업무 편의성 개선,failed,prompt_exceeds_24000_chars,,

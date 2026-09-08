@@ -640,6 +640,25 @@ lease 길이는 환경변수가 아니라 모듈 상수 1,200초다.
 `response_sha256`으로 한다. 명세가 이 표에 두 열만 허용했으므로 이번 범위에서 FK를 만들지
 않았다.
 
+## 8.3 회사 핏 판정 이력 (`0020`, 2026-09-08 추가)
+
+사용자가 요청한 개요 뒤 회사 핏 판정과 상세 사유 표시를 위해
+`prespec_company_fit_attempt`를 추가한다. 기존 개요·심층 검토 결과를 덮어쓰지 않는다.
+세부 JSON/조회 계약은 [회사 핏 계약](contracts.md#사전규격-회사-핏-계약-bidopsprespec-company-fitv1)을 따른다.
+
+- `notice_id`·`document_version_id`를 같은 공고의 문서에 고정한다.
+  `page_overview_id`와 `overview_result_id`는 정확히 하나만 존재하고, 원본 개요가 같은
+  공고·문서를 가리키는지 INSERT trigger에서 확인한다.
+- 승인 프로필·심층 정책 FK, 원본 개요·프로필 hash, 회사 핏 정책 전문·모델 binding과
+  구조화 입력은 실행 전에 고정한다. `input_sha256`은 UNIQUE이며 입력 열은 갱신할 수 없다.
+- `queued → running → completed/failed/needs_human_review`만 허용한다. 오래된 queued
+  입력은 failed로 닫을 수 있다. running에는 lease가 필요하고 종결 상태에는 종료 시각이
+  필요하다. completed에는 결과 JSON·hash가 필요하다. 종결 행 UPDATE와 모든 DELETE를 거부한다.
+- worker는 지정된 상태·결과·lease·사용량 열만 갱신할 수 있다. app은 SELECT만 가능하다.
+  downgrade는 이력이 하나라도 있으면 거부한다.
+- 품질은 `unmeasured_reference` 또는 `mock_reference`만 저장한다. 현재 운영용 측정 정책은
+  없으며 참조 실행 활성화 없이 모델 실행·자동 심층 생성을 허용하지 않는다.
+
 ## 9. FK 삭제와 불변 정책
 
 기본 FK는 `RESTRICT`/`NO ACTION`이다.

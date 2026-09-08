@@ -308,6 +308,54 @@
   white-space: normal;
 }
 
+/* 제목 모드(탐색과 추적 목록 4화면). 경로 대신 화면 이름 하나가 `<h1>`이고
+   페이지는 제목 줄을 두지 않으므로, 여기가 화면의 시각 제목이다 — 그래서
+   페이지 `<h2>`와 같은 20px 위계를 쓴다(판정 기준·실행 상태 화면이 이미 같다).
+   한 낱말 제목이라 줄바꿈하지 않고, 남는 폭은 액션 칸이 가져간다. */
+.app-shell[data-astryx-theme="bidops"] .topbar[data-topbar-mode="title"] h1 {
+  flex: 0 0 auto;
+  color: var(--color-text-primary);
+  font-size: var(--bo-type-page-title);
+  font-weight: var(--bo-type-page-title-weight);
+  line-height: var(--bo-type-page-title-leading);
+  white-space: nowrap;
+}
+
+/* 화면 액션 portal 슬롯. 페이지 root 밖이라 화면별 CSS가 닿지 않으므로 정렬과
+   글자 규칙을 셸이 준다. 액션이 없는 화면에서는 칸 자체가 사라진다. */
+.app-shell[data-astryx-theme="bidops"] .topbar-page-actions {
+  display: flex;
+  flex: 0 1 auto;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--spacing-3);
+  margin-left: auto;
+  flex-wrap: nowrap;
+}
+
+.app-shell[data-astryx-theme="bidops"] .topbar-page-actions:empty {
+  display: none;
+}
+
+/* portal로 들어온 화면 액션은 화면 root 밖이라 화면별 4단 재적용이 닿지 않는다.
+   셸이 한 번 준다(typography.css의 네 단만 쓴다). */
+.app-shell[data-astryx-theme="bidops"] .topbar-page-actions :where(
+  .astryx-button,
+  .astryx-badge,
+  .astryx-field-label,
+  .review-status-label,
+  .review-status-detail,
+  a
+) {
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+
+.app-shell[data-astryx-theme="bidops"] .topbar-page-actions :where(.astryx-selector, .astryx-text-input) :where(span, input) {
+  font-size: var(--bo-type-body);
+}
+
 .app-shell[data-astryx-theme="bidops"] .topbar-context {
   display: flex;
   flex: 0 1 auto;
@@ -396,6 +444,26 @@
   padding: var(--spacing-4) var(--shell-canvas-inline-padding);
   overflow: auto;
   background: var(--color-background-body);
+}
+
+/* 승인된 판정 기준·실행 상태 ERP 시안의 바깥 프레임.
+ * 페이지 본문은 공통 셸이 소유한 여백을 다시 더하지 않는다. 이 두 화면은
+ * 좌우 24px, 하단은 각주 자체의 여백으로 끝난다. 제목은 경로 안의 기존 h1
+ * 하나를 사용하며 시안의 20px 위계를 따른다 (design/PRD.md §3.3).
+ * 현재 DOM에 해당 페이지가 있을 때만 적용해 다른 검토 화면의 골격을 보존한다. */
+.app-shell[data-astryx-theme="bidops"] .page-canvas:has(> :is(.crit-page, .rs-page)) {
+  padding-inline: var(--spacing-6);
+  padding-bottom: 0;
+}
+
+.app-shell[data-astryx-theme="bidops"] .app-content:has(> .page-canvas > :is(.crit-page, .rs-page)) > .topbar {
+  padding-inline: var(--spacing-6);
+}
+
+.app-shell[data-astryx-theme="bidops"] .app-content:has(> .page-canvas > :is(.crit-page, .rs-page)) > .topbar h1 {
+  font-size: var(--bo-type-page-title);
+  font-weight: var(--bo-type-page-title-weight);
+  line-height: var(--bo-type-page-title-leading);
 }
 
 .app-shell[data-astryx-theme="bidops"] .shell-notice {

@@ -290,8 +290,18 @@ def _validate_policy_document(document: Any) -> dict[str, Any]:
     if config["tie_break"] != ["score_desc", "order_plan_unty_no_asc"]:
         _error("policy_binding_mismatch", "BM25 tie-break가 다릅니다")
     stage2 = PHASE0.require_exact_keys(policy["stage2"], STAGE2_KEYS, "policy.stage2")
-    if stage2["provider"] != "approved_private_vllm" or stage2["model_name"] != "qwen3.8-27B":
+    if (stage2["provider"], stage2["model_name"]) not in {("approved_private_vllm", "qwen3.8-27B"), ("approved_private_ollama", "qwen3.8:27b")}:
         _error("policy_binding_mismatch", "Qwen stage2 binding이 다릅니다")
+    if stage2["provider"] == "approved_private_ollama" and (
+        policy["policy_status"] != "activation_candidate"
+        or policy.get("quality_gate", {}).get("status") != "not_measured"
+        or policy.get("quality_gate", {}).get("activation_eligible") is not False
+        or policy.get("activation", {}).get("enabled") is not False
+        or policy.get("activation", {}).get("status") != "blocked"
+        or policy.get("activation", {}).get("approved_by") is not None
+        or policy.get("activation", {}).get("approved_at") is not None
+    ):
+        _error("policy_binding_mismatch", "Ollama 결과는 미측정 참조 정책에만 저장합니다")
     _hash(stage2["model_digest"], "policy.stage2.model_digest")
     generation_config = PHASE0.require_exact_keys(stage2["generation_config"], {"version", "sha256"}, "policy.stage2.generation_config")
     _string(generation_config["version"], "policy.stage2.generation_config.version")
@@ -326,7 +336,7 @@ def _validate_binding_document(document: Any) -> dict[str, Any]:
     if stage1["method"] != "bm25" or stage1["schema_version"] != BM25_SCHEMA or stage1["top_k"] != TOP_K or stage1["tie_break"] != ["score_desc", "order_plan_unty_no_asc"]:
         _error("binding_invalid", "phase0 stage1 binding이 고정값과 다릅니다")
     stage2 = PHASE0.require_exact_keys(binding["stage2_binding"], {"provider", "model_name", "model_digest", "generation_config_version", "generation_config_sha256", "prompt_version", "prompt_sha256", "company_profile_version", "company_profile_sha256", "payload_fields", "company_payload_fields", "batch_size", "max_attempts", "concurrency"}, "binding.stage2_binding")
-    if stage2["provider"] != "approved_private_vllm" or stage2["model_name"] != "qwen3.8-27B":
+    if (stage2["provider"], stage2["model_name"]) not in {("approved_private_vllm", "qwen3.8-27B"), ("approved_private_ollama", "qwen3.8:27b")}:
         _error("binding_invalid", "phase0 stage2 model binding이 다릅니다")
     for field in ("model_digest", "generation_config_sha256", "prompt_sha256", "company_profile_sha256"):
         _hash(stage2[field], f"binding.stage2_binding.{field}")

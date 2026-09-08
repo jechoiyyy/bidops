@@ -335,8 +335,10 @@
 }
 
 /* --- 목록 행 ---
- * 왼쪽 열에 기관·사업명·예산과 구분·상태를 쌓고 오른쪽 열은 의견등록 마감만
- * 갖는다. 좁은 pane에서 커진 글자가 읽히도록 시안이 정한 두 열 구조다. */
+ * 왼쪽 열에 사업명·기관·예산과 구분·상태를 쌓고 오른쪽 열은 의견등록 마감만
+ * 갖는다. 좁은 pane에서 커진 글자가 읽히도록 시안이 정한 두 열 구조다.
+ * 첫 줄은 사업명이며 굵게 두고, 둘째 줄의 발주기관은 같은 크기에 굵기를 주지
+ * 않는다(사용자 정정). */
 .pre-specs-list {
   padding: 0;
 }
@@ -358,7 +360,7 @@
   outline-offset: calc(var(--spacing-0-5) * -1);
 }
 
-.pre-specs-row-agency {
+.pre-specs-row-title {
   display: block;
   min-width: 0;
   color: var(--color-text-primary);
@@ -367,7 +369,7 @@
   line-height: 1.4;
 }
 
-.pre-specs-row-title {
+.pre-specs-row-agency {
   display: block;
   min-width: 0;
   margin-top: var(--spacing-0-5);

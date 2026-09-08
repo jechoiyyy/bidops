@@ -1149,12 +1149,21 @@
   outline-offset: calc(-1 * var(--focus-outline-width));
 }
 
-/* 행의 차례는 사업명 → metadata(발주기관 · 예산 · 시기) → 상태 배지다. 발주기관은
- * 자리를 옮기지 않고 크기만 보조 글자(12px)에서 본문 굵은 글자(14px)로 키운다. 긴 한글
- * 제목은 두 줄까지 보이고 그 뒤를 말줄임한다. */
+/* 행의 차례는 사업명 → 상태 배지 → metadata(발주기관 · 예산 · 시기)다. 사업명이 행의
+ * 제목이므로 본문보다 한 단 큰 15px 굵은 글자로 읽히고, 발주기관은 자리를 옮기지 않고
+ * 본문 14px 보통 굵기로 둔다(사용자 정정). 긴 한글 제목은 두 줄까지 보이고 그 뒤를
+ * 말줄임한다. */
 .c2l-row-line {
   display: block;
   min-width: 0;
+}
+
+/* 위 `:where(dd, li, p, span)` 규칙이 본문 14px를 주므로 `.c2l-page`로 특정도를 올려
+ * 목록 첫 줄만 한 단 키운다(판정 기준 화면의 `--crit-type-list`와 같은 계산). */
+.c2l-page .c2l-row-title {
+  font-size: calc(var(--bo-type-body) + var(--border-width));
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--bo-type-body-leading);
 }
 
 .c2l-row-title {

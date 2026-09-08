@@ -1,0 +1,1001 @@
+/* 실행 상태 (수집 실행 · 첨부 확보 · 상시 운영 · 산출물 감사 로그).
+ *
+ * 승인된 시안 `design-previews/bidops-criteria-runstatus-erp-20260907/`의
+ * `source/style.css` 중 **이 화면이 소유한 부분만** 옮긴 것이다. 시안의 바깥
+ * 셸(preview bar · sidebar · page header)은 제품 공통 셸이 이미 갖고 있으므로
+ * 옮기지 않는다. 비율·글자 크기·여백·정보 순서는 시안의 값을 그대로 쓰고
+ * 선택자 이름만 `rs-` 접두사로 바꿨다. 접두사를 붙였으므로 이 파일은 옛
+ * `runs-*`·`operations-*`·`attachments-*` 규칙이나 다른 화면을 건드리지 않는다.
+ *
+ * 색은 `bidops` 테마 토큰만 읽는다(ADR-0048). `:root`나 이 파일에서 `--color-*`를
+ * 새로 정의하지 않는다. 값은 전부 토큰이며 raw hex·px를 두지 않는다.
+ *
+ * 지원 폭은 1280~1920px 하나뿐이다(ADR-0047). 미디어 쿼리로 다른 배치를
+ * 만들지 않는다.
+ */
+
+.rs-page {
+  /* 시안 §목록 제목 15px. Astryx에 15px 단이 없어 본문에서 계산한다
+     (`go-no-go.css`가 같은 방식을 쓴다). */
+  --rs-list-title: calc(var(--bo-type-body) + var(--border-width));
+  /* 시안의 --spacing-14 · --spacing-16은 Astryx 0.5.2에 없다. 같은 값을
+     있는 토큰으로 계산한다. */
+  --rs-strip-height: calc(var(--spacing-8) + var(--spacing-4) + var(--border-width));
+  --rs-footer-height: calc(var(--spacing-8) + var(--spacing-6) + var(--border-width));
+
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  /* pane 안에서만 스크롤한다. 페이지가 통째로 길어지면 상세 바닥의 고정
+     액션이 화면 밖으로 밀린다. */
+  height: 100%;
+  min-height: calc(var(--spacing-12) * 14);
+  font-size: var(--bo-type-body);
+  line-height: var(--bo-type-body-leading);
+  color: var(--color-text-primary);
+}
+
+.rs-page p {
+  margin: 0;
+}
+
+/* --- 글자 크기 ---
+ * Astryx의 `--font-size-*`는 rem이고 이 앱의 root는 14px다. 컴포넌트가 그
+ * 토큰을 그대로 쓰면 본문이 12.25px, 보조가 10.5px로 계산돼 시안(20/15/14/12)
+ * 보다 작다(`styles/typography.css`). root를 키우면 앱 전체가 커지므로 이
+ * 화면이 쓰는 컴포넌트에만 프로젝트 4단을 되돌린다. */
+:is(.rs-page, .rs-dialog-body, .rs-enable-dialog) :where(.astryx-text, dd, li, span, input, textarea, select, output) {
+  font-size: var(--bo-type-body);
+  line-height: var(--bo-type-body-leading);
+}
+
+:is(.rs-page, .rs-dialog-body, .rs-enable-dialog)
+  :where(.astryx-text.rs-caption, .astryx-token, .astryx-badge, dt, small, caption, code, summary) {
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+
+:is(.rs-page, .rs-dialog-body, .rs-enable-dialog) :where(.astryx-heading.level-3, .astryx-heading.level-4, h3, h4) {
+  margin: 0;
+  font-size: var(--bo-type-section-title);
+  line-height: var(--bo-type-section-title-leading);
+  font-weight: var(--bo-type-section-title-weight);
+}
+
+:is(.rs-page, .rs-dialog-body, .rs-enable-dialog) :where(.astryx-heading.level-2, h2) {
+  margin: 0;
+  font-size: var(--bo-type-page-title);
+  line-height: var(--bo-type-page-title-leading);
+  font-weight: var(--bo-type-page-title-weight);
+}
+
+:is(.rs-page, .rs-dialog-body, .rs-enable-dialog) .astryx-button {
+  min-height: var(--spacing-8);
+  border-radius: var(--radius-inner);
+  white-space: nowrap;
+}
+
+:is(.rs-page, .rs-dialog-body, .rs-enable-dialog) .astryx-token {
+  height: auto;
+  min-height: var(--spacing-6);
+  white-space: nowrap;
+  border-radius: var(--radius-inner);
+}
+
+.rs-caption {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+
+.rs-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.rs-spread {
+  justify-content: space-between;
+}
+
+.rs-mono {
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* --- 탭 줄 ---------------------------------------------------------------
+ * 네 탭은 이 화면의 정식 주소다(/runs · /attachments · /operations · /audit).
+ * 트랙 안의 pill 로 그린다. 값은 `criteria-runstatus.css`가 쓰던 것과 같고
+ * 선택자만 이 화면 것으로 옮겼다. */
+
+.rs-tabs {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.rs-tabs .astryx-tab-list {
+  width: 100%;
+}
+
+.rs-tabs .astryx-tab {
+  font-size: var(--bo-type-body);
+}
+
+/* --- 요약 한 줄 -----------------------------------------------------------
+ * 시안 §콘텐츠: 탭 → 요약 한 줄 → 목록/상세. 항상 켜져 있던 경계 패널의
+ * 사실은 사라지지 않고 이 줄과 각 탭의 맥락 주석으로 옮겼다. 조회 실패는
+ * 꺼짐이 아니라 미확인으로 남는다. */
+
+.rs-summary {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  /* 시안은 사실 셋과 조작 하나를 spacing-5 간격으로 두지만, 이 화면은 조회
+     범위와 운영 조건까지 넷·둘을 담는다. 1280px에서 한 줄에 들어가도록
+     spacing-3으로 좁힌다. 넘치면 잘라내지 않고 줄을 바꾼다 — 사실을 숨기지
+     않는다. */
+  gap: var(--spacing-2) var(--spacing-3);
+  flex-wrap: wrap;
+  /* 시안 실측 49px = 내용 32 + 위아래 패딩 16 + 아래 테두리 1. */
+  min-height: var(--rs-strip-height);
+  min-width: 0;
+  margin-top: var(--spacing-3);
+  padding: var(--spacing-2) var(--spacing-4);
+  border: var(--border-width) solid var(--color-border);
+  border-bottom: 0;
+  border-radius: var(--radius-element) var(--radius-element) 0 0;
+  background: var(--color-background-surface);
+}
+
+.rs-summary-item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.rs-summary-item + .rs-summary-item {
+  padding-left: var(--spacing-3);
+  border-left: var(--border-width) solid var(--color-border);
+}
+
+.rs-summary-value {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.rs-summary-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin-left: auto;
+}
+
+/* --- 목록/상세 ------------------------------------------------------------
+ * 시안 §목록/상세: 콘텐츠 내부 38% / 62%, 각각 독립 스크롤. */
+
+.rs-workspace {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: row;
+  align-items: stretch;
+  min-height: 0;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: 0 0 var(--radius-element) var(--radius-element);
+  background: var(--color-background-surface);
+  overflow: hidden;
+}
+
+.rs-list-pane {
+  display: flex;
+  flex: 0 0 38%;
+  flex-direction: column;
+  width: 38%;
+  min-width: 0;
+  min-height: 0;
+  border-right: var(--border-width) solid var(--color-border);
+}
+
+.rs-list-head {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3) var(--spacing-4);
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.rs-list-title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.rs-list-filters {
+  display: grid;
+  flex: 0 0 auto;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3);
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+/* 목록 pane 안의 입력은 pane 폭을 넘지 않는다. 회차 식별자가 길어도 선택기가
+   상세 pane 위로 뻗지 않도록 폭을 가둔다. */
+.rs-list-filters .rs-field,
+.rs-list-filters .astryx-field,
+.rs-list-filters .astryx-selector,
+.rs-list-filters .astryx-text-input {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* 회차 식별자는 길다. 선택기 안에서 줄이되 값 자체는 목록과 상세에 그대로
+   남는다 — 잘라 보이는 것은 트리거 한 줄뿐이다. */
+.rs-list-filters .astryx-selector > button {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.rs-filter-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+}
+
+.rs-filter-pills .astryx-button {
+  min-height: var(--spacing-7);
+  border-color: transparent;
+  background: transparent;
+  font-size: var(--bo-type-caption);
+}
+
+.rs-filter-pills .astryx-button[aria-pressed="true"] {
+  border-color: var(--color-border);
+  background: var(--color-accent-muted);
+  color: var(--color-text-accent);
+}
+
+.rs-list-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.rs-list-foot,
+.rs-detail-foot {
+  flex: 0 0 auto;
+  padding: var(--spacing-3) var(--spacing-4);
+  border-top: var(--border-width) solid var(--color-border);
+  background: var(--color-background-body);
+}
+
+/* 목록 행. 제목 15px semibold, 보조 14px, 캡션 12px (시안 고정 기준). */
+.rs-record {
+  display: grid;
+  gap: var(--spacing-1);
+  width: 100%;
+  padding: var(--spacing-3) var(--spacing-4);
+  border: 0;
+  border-bottom: var(--border-width) solid var(--color-border);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rs-record:hover {
+  background: var(--color-overlay-hover);
+}
+
+.rs-record:focus-visible {
+  outline: var(--focus-outline-width) var(--focus-outline-style) var(--focus-outline-color);
+  outline-offset: calc(var(--focus-outline-offset) * -1);
+}
+
+.rs-record[aria-pressed="true"] {
+  background: var(--color-accent-muted);
+  box-shadow: inset var(--spacing-1) 0 0 var(--color-accent);
+}
+
+.rs-record-title {
+  font-size: var(--rs-list-title);
+  font-weight: 600;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.rs-record-subtitle {
+  font-size: var(--bo-type-body);
+  overflow-wrap: anywhere;
+}
+
+.rs-record .rs-row {
+  align-items: flex-start;
+}
+
+.rs-record .astryx-token {
+  flex-shrink: 0;
+  margin-top: var(--spacing-0-5);
+}
+
+.rs-list-empty {
+  display: grid;
+  justify-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-8) var(--spacing-4);
+  text-align: center;
+}
+
+.rs-list-empty > svg {
+  width: var(--spacing-8);
+  height: var(--spacing-8);
+  color: var(--color-text-secondary);
+}
+
+/* --- 상세 pane ----------------------------------------------------------- */
+
+.rs-detail-pane {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.rs-detail-head {
+  display: grid;
+  flex: 0 0 auto;
+  gap: var(--spacing-2);
+  padding: var(--spacing-4) var(--spacing-5);
+}
+
+.rs-detail-head h2 {
+  overflow-wrap: anywhere;
+}
+
+/* 머리의 상태·품질 표식은 줄이지 않는다. 줄이면 "품질 표식 미제공"이
+   "품질 표식 ..."으로 잘려 뜻이 사라진다. */
+.rs-detail-head .astryx-token {
+  flex-shrink: 0;
+}
+
+.rs-detail-head .rs-row > .rs-caption {
+  min-width: 0;
+}
+
+.rs-detail-tabs {
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--spacing-3);
+  padding: 0 var(--spacing-5);
+  border-top: var(--border-width) solid var(--color-border);
+  border-bottom: var(--border-width) solid var(--color-border);
+  overflow-x: auto;
+}
+
+.rs-detail-tabs .astryx-button {
+  min-height: var(--spacing-10);
+  padding-inline: var(--spacing-1);
+  border: 0;
+  border-bottom: var(--spacing-0-5) solid transparent;
+  border-radius: 0;
+  background: transparent;
+  font-size: var(--bo-type-body);
+  white-space: nowrap;
+}
+
+.rs-detail-tabs [aria-pressed="true"] {
+  border-bottom-color: var(--color-accent);
+  color: var(--color-text-accent);
+  font-weight: 600;
+}
+
+.rs-detail-scroll {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: var(--spacing-5);
+  min-height: 0;
+  padding: var(--spacing-4) var(--spacing-5);
+  overflow: auto;
+}
+
+.rs-detail-scroll > * {
+  flex-shrink: 0;
+}
+
+.rs-detail-empty {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-8);
+  text-align: center;
+}
+
+/* 바닥 고정 액션. 본문 스크롤과 분리되며 두 지원 폭에서 화면 안에 있다. */
+.rs-detail-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  /* 시안 실측 57px = 내용 32 + 위아래 패딩 24 + 위 테두리 1. 바닥 한 줄이
+     불어나지 않도록 안내 문구는 짧게 두고 긴 설명은 본문에 남긴다. */
+  min-height: var(--rs-footer-height);
+  padding: var(--spacing-3) var(--spacing-4);
+}
+
+.rs-detail-foot > .rs-caption {
+  min-width: 0;
+}
+
+.rs-detail-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--spacing-2);
+  flex-shrink: 0;
+}
+
+/* --- 상세 안의 구성요소 -------------------------------------------------- */
+
+.rs-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  min-width: 0;
+}
+
+.rs-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+}
+
+.rs-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-4);
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.rs-facts > div {
+  display: grid;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+
+.rs-facts dt {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+}
+
+.rs-facts dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+}
+
+.rs-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3);
+  border-left: var(--spacing-1) solid var(--color-accent);
+  background: var(--color-background-body);
+}
+
+.rs-note-copy {
+  display: grid;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+
+.rs-note-copy > strong {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.rs-note.is-warning {
+  border-left-color: var(--color-warning);
+}
+
+.rs-note.is-error {
+  border-left-color: var(--color-error);
+}
+
+.rs-stage-track {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-inner);
+  overflow: hidden;
+}
+
+.rs-stage {
+  display: grid;
+  gap: var(--spacing-2);
+  align-content: start;
+  padding: var(--spacing-3);
+  min-width: 0;
+}
+
+.rs-stage + .rs-stage {
+  border-left: var(--border-width) solid var(--color-border);
+}
+
+.rs-stage.is-current {
+  background: var(--color-accent-muted);
+}
+
+.rs-stage-name {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  min-width: 0;
+  font-weight: 600;
+}
+
+.rs-stage-name > svg {
+  width: var(--spacing-4);
+  height: var(--spacing-4);
+  flex-shrink: 0;
+}
+
+.rs-progress-track {
+  height: var(--spacing-2);
+  border-radius: var(--radius-inner);
+  background: var(--color-background-muted);
+  overflow: hidden;
+}
+
+.rs-progress-value {
+  height: 100%;
+  background: var(--color-accent);
+}
+
+.rs-stat-line {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3) 0;
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.rs-stat-line > div {
+  display: grid;
+  gap: var(--spacing-1);
+  flex: 1 1 0;
+  min-width: 0;
+  /* 환경 변수 이름처럼 띄어쓰기 없는 값이 옆 칸을 침범하지 않게 한다. */
+  overflow-wrap: anywhere;
+}
+
+.rs-stat-line > div + div {
+  padding-left: var(--spacing-3);
+  border-left: var(--border-width) solid var(--color-border);
+}
+
+.rs-stat-value {
+  font-size: var(--rs-list-title);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+/* 표. 시안의 DataTable과 같은 밀도로 그린다. */
+.rs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--bo-type-body);
+}
+
+.rs-table th,
+.rs-table td {
+  padding: var(--spacing-3);
+  border-bottom: var(--border-width) solid var(--color-border);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.rs-table th {
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--color-background-body);
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  font-weight: 600;
+}
+
+.rs-table-scroll {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.rs-row-sub {
+  display: block;
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+}
+
+/* 실패 목록 행 */
+.rs-failure-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  width: 100%;
+  padding: var(--spacing-3) 0;
+  border: 0;
+  border-bottom: var(--border-width) solid var(--color-border);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rs-failure-row:first-child {
+  border-top: var(--border-width) solid var(--color-border);
+}
+
+.rs-failure-row:hover {
+  background: var(--color-background-body);
+}
+
+.rs-failure-row > svg {
+  width: var(--spacing-4);
+  height: var(--spacing-4);
+  flex-shrink: 0;
+}
+
+.rs-cell-stack {
+  display: grid;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+
+.rs-disclosure {
+  border-top: var(--border-width) solid var(--color-border);
+  padding-top: var(--spacing-3);
+}
+
+.rs-disclosure summary {
+  margin-bottom: var(--spacing-2);
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  cursor: pointer;
+}
+
+.rs-disclosure code,
+.rs-page code {
+  font-size: var(--bo-type-caption);
+  overflow-wrap: anywhere;
+}
+
+.rs-link-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-2) var(--spacing-4);
+}
+
+.rs-log-lines {
+  display: grid;
+  gap: var(--spacing-1);
+  max-height: calc(var(--spacing-12) * 6);
+  overflow: auto;
+  padding: var(--spacing-2);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-inner);
+  background: var(--color-background-body);
+  font-size: var(--bo-type-caption);
+}
+
+.rs-log-line {
+  display: flex;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.rs-log-line > time {
+  flex-shrink: 0;
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.rs-log-line > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.rs-log-line-error > span {
+  color: var(--color-error);
+}
+
+.rs-inline-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  border-left: var(--spacing-1) solid var(--color-error);
+  background: var(--color-background-body);
+  color: var(--color-text-primary);
+}
+
+.rs-inline-status {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+}
+
+/* --- 페이지 경계 각주 ---------------------------------------------------- */
+
+.rs-boundary {
+  flex: 0 0 auto;
+  padding: var(--spacing-2) 0;
+  min-height: var(--spacing-9);
+}
+
+/* --- 대화상자 ------------------------------------------------------------
+ * 시안이 줄인 폼과 운영 조작은 전체 양식을 유지해 여기로 들어온다. */
+
+.rs-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  min-width: 0;
+  color: var(--color-text-primary);
+  font-size: var(--bo-type-body);
+  line-height: var(--bo-type-body-leading);
+}
+
+.rs-dialog-body .astryx-dialog-header {
+  margin-bottom: 0;
+}
+
+.rs-dialog-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  min-width: 0;
+  max-height: calc(var(--spacing-12) * 9);
+  overflow: auto;
+}
+
+.rs-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-4);
+}
+
+.rs-field {
+  display: grid;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+
+.rs-field > span {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+}
+
+.rs-field > span em {
+  margin-left: var(--spacing-1);
+  color: var(--color-error);
+  font-style: normal;
+}
+
+.rs-field input,
+.rs-field select,
+.rs-field textarea {
+  min-height: var(--size-element-md);
+  padding: var(--spacing-1) var(--spacing-2);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-inner);
+  background: var(--color-background-surface);
+  color: var(--color-text-primary);
+  font: inherit;
+}
+
+.rs-field input:focus-visible,
+.rs-field select:focus-visible,
+.rs-field textarea:focus-visible {
+  outline: var(--focus-outline-width) var(--focus-outline-style) var(--focus-outline-color);
+  outline-offset: var(--focus-outline-offset);
+}
+
+.rs-field small {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+}
+
+.rs-check-field {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+/* 체크박스 옆의 이름과 설명은 두 줄이다. 한 줄에 붙으면 두 문장이 한 문장처럼
+   읽힌다. */
+.rs-check-field > span {
+  display: grid;
+  gap: var(--spacing-0-5);
+  min-width: 0;
+}
+
+.rs-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--spacing-2);
+  padding-top: var(--spacing-4);
+  border-top: var(--border-width) solid var(--color-border);
+}
+
+.rs-dialog-error {
+  margin: 0;
+  color: var(--color-error);
+}
+
+/* 포털 목록은 대화상자 안에서만 쓴다. */
+.rs-portal-list {
+  display: grid;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.rs-portal-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) var(--spacing-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-inner);
+  min-width: 0;
+}
+
+.rs-portal-row > div {
+  display: grid;
+  gap: var(--spacing-0-5);
+  min-width: 0;
+}
+
+/* 상시 운영 승인 조합 목록 */
+.rs-binding-list {
+  display: grid;
+  gap: var(--spacing-2);
+  margin: 0;
+  min-width: 0;
+}
+
+.rs-binding-list > div {
+  display: grid;
+  grid-template-columns: minmax(0, 12rem) minmax(0, 1fr);
+  gap: var(--spacing-2);
+  padding-bottom: var(--spacing-2);
+  border-bottom: var(--border-width) solid var(--color-border);
+  min-width: 0;
+}
+
+.rs-binding-list dt {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+}
+
+.rs-binding-list dd {
+  display: grid;
+  gap: var(--spacing-0-5);
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.rs-blocker-list {
+  display: grid;
+  gap: var(--spacing-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-width: 0;
+}
+
+.rs-blocker-list li {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  min-width: 0;
+}
+
+.rs-blocker-copy {
+  display: grid;
+  gap: var(--spacing-0-5);
+  min-width: 0;
+}
+
+.rs-blocker-copy small {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  overflow-wrap: anywhere;
+}
+
+/* 상시 운영 확인창은 body 포털에 있으므로 페이지의 테마·옛 별칭을 상속하지
+ * 않는다. 포털에도 bidops 테마와 같은 글자 크기·컨트롤을 명시한다. */
+.operations-alert-dialog.rs-enable-dialog {
+  gap: var(--spacing-4);
+  padding: var(--spacing-6);
+  border-color: var(--color-border);
+  background: var(--color-background-surface);
+  color: var(--color-text-primary);
+  font-size: var(--bo-type-body);
+  line-height: var(--bo-type-body-leading);
+}
+.rs-enable-dialog [data-slot="alert-dialog-title"] {
+  color: var(--color-text-primary);
+  font-size: var(--bo-type-page-title);
+  line-height: var(--bo-type-page-title-leading);
+}
+.rs-enable-dialog :is(.operations-dialog-kicker, [data-slot="alert-dialog-description"], .operations-dialog-binding-row > span, .operations-dialog-binding-row small, .operations-dialog-field small) {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+}
+.rs-enable-dialog :is(.operations-dialog-binding, .operations-dialog-binding-row) {
+  border-color: var(--color-border);
+}
+.rs-enable-dialog .operations-dialog-field {
+  color: var(--color-text-primary);
+  font-size: var(--bo-type-body);
+}
+.rs-enable-dialog .operations-dialog-field input {
+  min-height: var(--spacing-8);
+  padding-inline: var(--spacing-3);
+  border-color: var(--color-border);
+  border-radius: var(--radius-inner);
+  color: var(--color-text-primary);
+  background: var(--color-background-surface);
+  font-size: var(--bo-type-body);
+}
+.rs-enable-dialog .operations-dialog-field input:focus {
+  outline: calc(var(--border-width) * 2) solid var(--color-accent);
+  outline-offset: var(--border-width);
+  box-shadow: none;
+}
+.rs-enable-dialog .operations-alert-dialog-footer {
+  position: sticky;
+  bottom: 0;
+  padding-top: var(--spacing-4);
+  border-top: var(--border-width) solid var(--color-border);
+  background: var(--color-background-surface);
+}
+.rs-enable-dialog :is(.operations-dialog-cancel, .operations-dialog-confirm) {
+  min-height: var(--spacing-8);
+  border-radius: var(--radius-inner);
+  font-size: var(--bo-type-body);
+}
+.rs-enable-dialog .operations-dialog-cancel {
+  border-color: var(--color-border);
+  color: var(--color-text-primary);
+  background: var(--color-background-muted);
+}
+.rs-enable-dialog .operations-dialog-confirm {
+  border-color: var(--color-accent);
+  color: var(--color-on-accent);
+  background: var(--color-accent);
+}
+.rs-enable-dialog :is(.operations-dialog-confirm, .operations-dialog-cancel):disabled {
+  border-color: transparent;
+  color: var(--color-text-disabled);
+  background: var(--color-background-muted);
+}

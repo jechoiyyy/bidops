@@ -165,6 +165,17 @@ def test_control_heavy_stdlib_pdf_text_uses_bounded_poppler_fallback(monkeypatch
     assert "pdf_stdlib_text_fallback" in result["warnings"]
 
 
+def test_prepare_pdf_has_a_separate_bounded_object_budget() -> None:
+    assert ProcessorOptions.from_mapping({"ocr": False}).max_pdf_objects == 4096
+    assert ProcessorOptions.from_mapping({"ocr": False, "prepare_pdf": True}).max_pdf_objects == 10_000
+    assert ProcessorOptions.from_mapping({
+        "ocr": False, "prepare_pdf": True, "max_pdf_objects": 4096,
+    }).max_pdf_objects == 4096
+    with pytest.raises(DocumentProcessingError) as caught:
+        ProcessorOptions.from_mapping({"ocr": False, "prepare_pdf": True, "max_pdf_objects": 10_001})
+    assert caught.value.code == "invalid_options"
+
+
 def test_pdf_decoded_output_limit_rejects_compressed_two_megabyte_payload() -> None:
     with pytest.raises(DocumentProcessingError) as caught:
         process_document(compressed_large_text_pdf(), "application/pdf", {"ocr": False, "max_output_bytes": 1024})
@@ -281,6 +292,23 @@ def test_archive_bomb_and_oversize_input_are_blocked() -> None:
     with pytest.raises(DocumentProcessingError) as caught:
         process_document(b"0" * (MAX_INPUT_BYTES + 1), "application/pdf", {"ocr": False})
     assert caught.value.code == "input_size_limit"
+
+
+def test_prepare_pdf_reuses_hwpx_archive_boundary_before_rhwp(monkeypatch: pytest.MonkeyPatch) -> None:
+    bomb = hwpx_with_member("data.bin", b"A" * 100_000)
+
+    def unexpected_renderer(*args: object, **kwargs: object) -> None:
+        raise AssertionError("rhwp must not receive an archive that failed validation")
+
+    monkeypatch.setattr(DocumentProcessor, "_prepare_pdf_structure", unexpected_renderer)
+    with pytest.raises(DocumentProcessingError) as caught:
+        DocumentProcessor(clamav_checker=lambda data: True).process(
+            bomb,
+            "application/hwp+zip",
+            {"ocr": False, "prepare_pdf": True, "max_archive_uncompressed_bytes": 10_000},
+        )
+    assert caught.value.code in {"archive_size_limit", "archive_member_limit", "archive_ratio_limit"}
+    assert caught.value.source_preserved is True
 
 
 def test_nested_archive_magic_is_blocked_even_with_disguised_name() -> None:

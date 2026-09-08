@@ -71,6 +71,8 @@ def import_page_overview(
     notice_id = record["notice_id"]
     require(type(notice_id) is int and notice_id > 0, "invalid_notice")
     require_notice(session, notice_id)
+    from ...lifecycle import lock_notice
+    lock_notice(session, notice_id)
     require(bool(actor.strip()) and actor.strip().casefold() != "system" and len(actor) <= 200 and not any(ord(c) < 32 or 127 <= ord(c) <= 159 for c in actor), "invalid_actor")
     document = session.scalar(select(DocumentVersion).where(DocumentVersion.id == UUID(record["document_version_id"])).with_for_update())
     require(document is not None and document.notice_id == notice_id and document.safety_status == "safe", "document_scope_mismatch")

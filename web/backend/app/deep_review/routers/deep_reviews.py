@@ -37,6 +37,8 @@ from ..models import (
 )
 from ...core.object_store import object_store
 from ..schemas.page_overview import PageOverviewResponse
+from ..schemas.company_fit import CompanyFitResponse
+from ..services.company_fit import company_fit_view
 from ..services.page_overview import PageOverviewError, list_page_overviews, get_page_pdf
 from ..schemas.deep_reviews import AttemptView, DeepReviewView
 from ..schemas.prespec_overview import (
@@ -335,6 +337,16 @@ def get_overview_pages(notice_id: int = ApiPath(..., ge=1), session: Session = D
         return list_page_overviews(session, notice_id)
     except PageOverviewError as error:
         return _page_error(error)
+    except Exception:
+        return _page_error(PageOverviewError("processing_failed"))
+
+
+@pre_spec_overview_router.get("/{notice_id}/company-fit", response_model=CompanyFitResponse)
+def get_company_fit(notice_id: int = ApiPath(..., ge=1), session: Session = Depends(get_db)):
+    try:
+        return company_fit_view(session, notice_id)
+    except LookupError:
+        return _page_error(PageOverviewError("not_found"))
     except Exception:
         return _page_error(PageOverviewError("processing_failed"))
 

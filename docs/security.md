@@ -58,6 +58,8 @@ PostgreSQL 17의 `bidops` 스키마와 MinIO 목적별 버킷이 운영 정본�
 - source, structure, quarantine 원문은 일상 삭제하지 않는다. 수동 첨부 삭제가 허용되는 기존 API도 서버 생성 경로와 `origin=manual`을 모두 확인한다.
 - 모델에는 근거 연결에 필요한 불변 문서·구조 식별자와 source SHA만 전달한다. object key, 로컬 경로, 자격증명, 원문 저장 위치는 전달하지 않는다.
 - 모델 원응답은 application encryption을 적용해 model-response 버킷에 쓰며 별도 reasoning 필드는 보존하지 않는다. 검증된 구조 결과만 업무 API가 소비한다.
+- 프로필 source 검증은 DB가 고정한 객체 version ID로 bytes와 metadata를 함께 조회한다.
+  같은 해시의 최신 버전이 존재해도 고정 버전을 대체하지 않으며 해당 버전 부재는 검증 실패다.
 
 현재 Lean document-bundle upload와 legacy notice attachment upload는 모두 quarantine에 먼저 저장하고 MIME/구조·ClamAV 검사를 통과한 `safe` 바이트만 수용한다. legacy 경로는 기존 `Attachment` 스키마를 바꾸지 않는 범위에서 source object 승격·hash/size 재검증 뒤 레거시 다운로드 호환 사본도 `attachments_dir`에 저장하며, 차단·검사 불가 파일은 등록하지 않는다. `AttachmentResponse.stored_path`는 wire에서 제거했고, 컨테이너의 호환 사본은 named volume으로 보존한다. legacy object metadata schema 이전은 별도 범위다.
 
@@ -129,8 +131,22 @@ memo는 모델 payload와 별도 append-only revision이며, 적합성 등급·�
 
 감사에는 원문·비밀·프롬프트를 넣지 않고 대상 식별자, 행위, 결과, 안전한 실패 분류, actor kind와 claimed name을 기록한다. 감사 기록이 있다는 이유로 claimed name을 인증된 신원으로 표현하지 않는다.
 
+## 개요 분석 worker의 읽기 경계
+
+개요 입력의 원문 bytes·객체 version 검증은 snapshot을 만드는 문서 준비 단계에서 수행한다.
+분석 worker는 source 자격증명을 갖지 않으며, 고정 snapshot과 현재 clean scan·계보를 대조하고
+structure bytes·hash·객체 version을 다시 검증해 모델 입력을 만든다. 불변 snapshot에는
+쓰기 잠금을 요구하지 않고, 변경 가능한 review·attempt에 잠금을 유지한다.
+
 ## 백업과 복구
 
 목표는 RPO 4시간, RTO 8시간이다. PostgreSQL은 daily full과 continuous WAL, 객체 저장소는 4시간 이내 version-aware copy를 사용한다. 보존은 daily 14, weekly 8, monthly 6이다.
 
 복구 순서는 versioned object 복원, 빈 pre-production PostgreSQL 복원, DB가 가리키는 active object hash 검증이다. 실제 운영 volume을 지우거나 `docker compose down -v`로 복구하지 않는다. 해시 검증이 실패하거나 제공된 snapshot이 없으면 복구 성공으로 기록하지 않는다.
+
+PDF 페이지 개요의 import는 서버 운영 경계에서만 수행한다. 파일명은 고정하며 symlink와
+허용 디렉터리 이탈을 거부한다. PDF 텍스트 추출 subprocess는 정리된 환경·CPU/메모리/
+출력 크기·시간 제한을 사용하고, 원문 안전 상태와 exact PDF bytes의 ClamAV 판정을 확인한
+뒤 버전 관리 source 객체에 보존한다. 입력 snapshot은 structure 객체에 고정한다.
+조회는 공고별 review ID에 결속된 PDF만 제공하며, 최신 객체로 fallback하지 않고 버전·해시·
+크기와 스캔 상태를 확인한다. 페이지 링크는 파일 경로나 객체 key를 브라우저에 노출하지 않는다.

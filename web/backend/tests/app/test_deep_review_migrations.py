@@ -339,12 +339,13 @@ def test_model_has_exact_closed_table_set():
     assert len(LEGACY_TABLES) == 13
     assert len(NEW_TABLES) == 25
     assert "actor" not in LEGACY_TABLES + NEW_TABLES
-    assert len(Base.metadata.tables) == 78
+    assert len(Base.metadata.tables) == 79
     assert set(Base.metadata.tables) == set(
         LEGACY_TABLES + NEW_TABLES + SCREENING_RUNTIME_TABLES + IDENTITY_TABLES
         + ATTACHMENT_FETCH_TABLES + REVISION_TABLES
         + PRESPEC_OVERVIEW_TABLES + BID_DELTA_TABLES + ORDER_PLAN_SCREENING_TABLES
         + DOCUMENT_SEGMENT_TABLES
+        + ("prespec_company_fit_attempt",)
     )
     assert isinstance(Base.metadata.tables["run"].c.screening_basis.type, Text)
     assert "fk_evidence_document_bundle_scope" in {

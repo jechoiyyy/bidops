@@ -2005,3 +2005,63 @@ class PreSpecPageOverview(Base):
 @event.listens_for(PreSpecPageOverview, "before_delete")
 def _immutable_page_overview(*_args: Any) -> None:
     raise ValueError("page overview is append-only")
+
+
+class PreSpecCompanyFitAttempt(Base):
+    """Frozen inputs and a fenced lifecycle; terminal attempts are immutable."""
+    __tablename__ = "prespec_company_fit_attempt"
+    __table_args__ = (
+        UniqueConstraint("input_sha256", name="uq_prespec_company_fit_input"),
+        Index("ix_prespec_company_fit_notice_created", "notice_id", "created_at"),
+        ForeignKeyConstraint(["notice_id", "document_version_id"],
+                             [_table("document_version.notice_id"), _table("document_version.id")],
+                             ondelete="RESTRICT", name="fk_prespec_company_fit_document_scope"),
+        CheckConstraint("status IN ('queued','running','completed','failed','needs_human_review')", name="ck_prespec_company_fit_status"),
+        CheckConstraint("quality_status IN ('unmeasured_reference','mock_reference')", name="ck_prespec_company_fit_quality"),
+        CheckConstraint("(page_overview_id IS NOT NULL AND overview_result_id IS NULL) OR (page_overview_id IS NULL AND overview_result_id IS NOT NULL)", name="ck_prespec_company_fit_source"),
+        CheckConstraint("(status = 'completed' AND result_jsonb IS NOT NULL AND result_sha256 IS NOT NULL) OR (status <> 'completed' AND result_jsonb IS NULL AND result_sha256 IS NULL)", name="ck_prespec_company_fit_result"),
+        CheckConstraint("(status IN ('queued','running') AND completed_at IS NULL) OR (status IN ('completed','failed','needs_human_review') AND completed_at IS NOT NULL)", name="ck_prespec_company_fit_completion"),
+        CheckConstraint("(status = 'running' AND lease_owner IS NOT NULL AND lease_expires_at IS NOT NULL) OR (status <> 'running' AND lease_owner IS NULL AND lease_expires_at IS NULL)", name="ck_prespec_company_fit_lease"),
+        CheckConstraint(dual(" AND ".join(f"length({field}) = 64 AND {field} NOT GLOB '*[^0-9a-f]*'" for field in ("input_sha256", "policy_digest", "model_revision"))), name="ck_prespec_company_fit_hashes"),
+    )
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    notice_id: Mapped[int] = mapped_column(_fk("notice.id", ondelete="RESTRICT"), nullable=False)
+    document_version_id: Mapped[uuid_module.UUID] = mapped_column(nullable=False)
+    page_overview_id: Mapped[uuid_module.UUID | None] = mapped_column(_fk("prespec_page_overview.id", ondelete="RESTRICT"), nullable=True)
+    overview_result_id: Mapped[uuid_module.UUID | None] = mapped_column(_fk("prespec_overview_result.id", ondelete="RESTRICT"), nullable=True)
+    profile_version_id: Mapped[uuid_module.UUID] = mapped_column(_fk("profile_version.id", ondelete="RESTRICT"), nullable=False)
+    deep_policy_version_id: Mapped[uuid_module.UUID] = mapped_column(_fk("analysis_policy_version.id", ondelete="RESTRICT"), nullable=False)
+    input_jsonb: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    input_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    policy_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    model_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    model_revision: Mapped[str] = mapped_column(String(64), nullable=False)
+    quality_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="queued")
+    result_jsonb: Mapped[Any] = mapped_column(JSONB_NULL_COMPAT, nullable=True)
+    result_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    raw_response_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    lease_owner: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    lease_expires_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(AwareDateTime(), default=utc_now, nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
+    prompt_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    output_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+
+@event.listens_for(PreSpecCompanyFitAttempt, "before_delete")
+def _immutable_company_fit_delete(*_args: Any) -> None:
+    raise ValueError("company fit attempts cannot be deleted")
+
+
+@event.listens_for(PreSpecCompanyFitAttempt, "before_update")
+def _immutable_company_fit_input(_mapper: Any, _connection: Any, target: PreSpecCompanyFitAttempt) -> None:
+    state = sa_inspect(target)
+    mutable = {"status", "result_jsonb", "result_sha256", "raw_response_sha256", "error_code", "lease_owner", "lease_expires_at", "completed_at", "prompt_tokens", "output_tokens", "latency_ms"}
+    if any(state.attrs[column.key].history.has_changes() for column in target.__table__.columns if column.key not in mutable):
+        raise ValueError("company fit inputs are immutable")
+    previous = state.attrs.status.history.deleted
+    if (previous[0] if previous else target.status) in {"completed", "failed", "needs_human_review"}:
+        raise ValueError("terminal company fit attempts are immutable")

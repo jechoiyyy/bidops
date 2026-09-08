@@ -16,6 +16,7 @@ from ..core import (
 )
 from ..deep_review import (
     PreSpecOverviewRunner,
+    PreSpecCompanyFitRunner,
     run_deep_review_once,
     run_prespec_overview_once,
 )
@@ -43,6 +44,7 @@ def main() -> None:
     # 새로 만들면 binding 해석 캐시가 매번 비어 있어, 큐가 비었을 때도 policy를
     # 다시 읽고 `/models`를 부르게 된다 (명세 §6.3).
     overview_runner = PreSpecOverviewRunner()
+    company_fit_runner = PreSpecCompanyFitRunner(settings=settings)
     stopping = False
 
     def stop(_signum: int, _frame: object) -> None:
@@ -61,9 +63,9 @@ def main() -> None:
                     # C-2 execution is queued.
                     c2_result = c2_worker.run_once(session)
                     if c2_result is None:
-                        # 개요 실행은 세 번째 슬롯이다. 한 poll은 C-2·심층
-                        # 검토·개요 중 하나만 잡는다 (명세 §6.3).
-                        if not run_deep_review_once(session, worker_id).claimed:
+                        # 한 poll은 C-2·심층 검토·회사 핏·개요 중
+                        # 하나만 잡는다. 회사 핏도 같은 모델 슬롯을 쓴다.
+                        if not run_deep_review_once(session, worker_id).claimed and not company_fit_runner.run_once(session, worker_id):
                             run_prespec_overview_once(
                                 session, worker_id, runner=overview_runner
                             )

@@ -1,5 +1,26 @@
 # 외부 계약
 
+C-2 Ollama 참조 적재는 `skills/bidops-screen/contracts/ollama-reference/`의 별도
+검증 프로필을 사용한다. 기존 Phase 0 catalog·schema hash는 불변이다. 파일/DB의
+C-2 v1 envelope는 유지하되 `qwen3.8:27b` identity는 새 참조 프로필로 검증한다.
+정책은 `activation_candidate`·`not_measured`·활성화 차단이어야 하며, 원 실행의
+`quality_status=unmeasured_reference`와 응답·사후 변환 provenance를 보존한다.
+DB에는 해당 정책의 `quality_gate_status=not_measured`, `active_slot=null`로 남긴다.
+기존 실행 API의 `성공`은 처리 완료만 뜻하며 품질 측정·운영 활성화를 뜻하지 않는다.
+모델 판정 binding은 정책의 고정 binding과 필드별 일치해야 한다.
+
+C-2 ranking은 순위 순서, input/result는 수집 원본 순서다. 전체 ID 집합은 같아야 하고
+모델 batch는 순위 순서로 구성한다. DB 점수는 `Numeric(20,10)`으로 투영하되 원래
+점수 전체 자릿수는 불변 artifact와 `result_sha256`으로 검증한다.
+
+C-1 `candidate_selection`의 기존 `collect-candidate.v2 / candidate_pool_all /
+["candidate_pool"]` 조합은 보존한다. 새 정책 버전은 `rules_version=sw-business-selection.v1`,
+`mode=sw_business_all`, `include_collection_buckets=[]` 조합을 사용할 수 있다.
+이 경우 `full_run`은 수집본의 `qualification_flags.sw_business_status`가 정확히 `Y`인
+공고 전체를 동결한다. `N`·누락·null을 Y로 간주하지 않는다.
+`single_notice`의 사용자 지정 대상과 기존 고정 `quality_sample` 계약은 유지한다.
+기존 정책의 내용·digest를 바꾸거나 새 규칙을 품질 승인으로 취급하지 않는다.
+
 웹 클라이언트, 파이프라인 subprocess, 운영 도구가 의존하는 기본 REST 경로는 `/api`다. 발주계획 중심의 새 수집·기회 API는 아직 구현되지 않았으므로 현재 경로로 추정해 호출하지 않는다.
 
 ## 공통 REST 규칙
@@ -689,3 +710,53 @@ audit/idempotency와 제한된 status mutation만 수행하며, worker는 frozen
 batch/attempt/artifact/result/telemetry를 삽입한다. worker는 사람 feedback을 쓰지 않고
 app은 raw model response object를 읽지 않는다. `ro_backup`은 SELECT만 갖는다. runtime
 privilege allowlist와 실제 PostgreSQL 17 제약·trigger 검증은 Phase 2의 `0016`에서 수행한다.
+
+### 사전규격 개요 입력 문서 선택 (2026-09-07)
+
+현재 문서 중 정규화된 파일명에 `제안요청서`가 포함된 후보 하나를 선택한다. role·업로드 시각으로 후보를 대체하거나 복수 후보의 우선순위를 정하지 않는다. 후보 없음·복수 후보는 기존 `needs_human_review`와 `current_snapshot=null`로 반환한다. 취득 문서가 전혀 없으면 `awaiting_document`를 유지한다. API schema·DB 상태값은 추가하지 않으며 기존 불변 snapshot·attempt·결과 이력은 보존한다. 프론트엔드의 현재 상태 문구는 `사람 검토 필요`다.
+
+## PDF 페이지 기반 사전규격 개요 (2026-09-07)
+
+권고 없는 설명형 출력 `bidops.prespec-overview-page-review.v3`는 기존
+`bidops.prespec-overview-result.v1`과 별개의 계약이다. 프롬프트 v4와 출력 schema v3는
+서로 다른 버전 축이다. 기존 `/overview-reviews` 및 `/overview-reviews/v2`는 변경하지 않는다.
+
+- `GET /api/pre-specs/{notice_id}/overview-pages` → `bidops.prespec-overview-pages.v1`.
+  해당 공고의 최근 적재 기록 최대 20건을 생성시각 내림차순으로 반환한다. 기록 없음은
+  `reviews: []`, 존재하지 않는 사전규격은 404다. 각 기록은 원출력 `payload`, 검증/품질
+  상태, 원문 문서 버전·SHA-256, PDF SHA-256·페이지 수·검토한 페이지를 갖는다.
+- `payload`는 `business_overview`, `main_tasks`, `budget_and_period`,
+  `important_conditions`의 `{text,evidence_pages}` 배열과 `reviewer_analysis`,
+  `unknowns`, `input_limitations` 문자열 배열이다. `recommendation`은 없다.
+- `GET /api/pre-specs/{notice_id}/overview-pages/{review_id}/pdf`는 결속된 불변 객체 버전의
+  스캔된 PDF만 반환한다. 다른 공고의 review ID는 404, 스캔·버전·크기·해시 불일치는
+  실패한다. 내부 경로·객체 키·자격증명을 반환하지 않는다. `#page=N`은 PDF 뷰어 순번이다.
+- `prespec_page_overview`는 별도의 append-only 테이블이다(Alembic 0019).
+  원출력 JSONB, 원문/PDF/프롬프트/정책/모델 해시, 불변 입력 객체·PDF 객체 위치를 보존한다.
+  같은 `(run_id, notice_id)`의 동일 재적재는 기존 ID를 반환하고 내용 변경은 거부한다.
+  기존 권고 결과 테이블의 제약을 완화하거나 리뷰·추적 행을 덮어쓰지 않는다.
+- `validation_status`는 원실행 실패와 새 근거 검사의 실패를 모두 보존한다.
+  `evidence_check_status`는 새 검사만의 결과다. 원실행 실패가 새 검사 통과로 지워지지 않는다.
+  `quality_status`는 참조 표식만 허용하며 운영 완료나 측정 통과를 뜻하지 않는다.
+- `pdf-page-evidence.v2`는 문장 끝의 정확한 `(PDF N페이지 …)` 표기가 별도
+  `evidence_pages`와 같은 경우에만 이를 숫자·영문 사업 사실 검사에서 분리한다.
+  불일치 표기는 실패하고, 사업 내용의 숫자·영문·사업금액 의미 검사는 유지한다.
+  원출력은 수정하지 않는다. 화면의 중복 페이지 문구 제거는 표시 계층에서만 한다.
+
+서버측 `import-page-overview` CLI는 고정 실행 파일 1건을 적재하는 경로다. frozen policy와
+prompt hash, 문서 소속·원문 hash, 실제 PDF 페이지 텍스트 포함 관계를 검증하고 스캔 뒤
+저장한다. 이 명령은 모델을 호출하거나 기존 worker 정책을 활성화하지 않는다.
+
+
+### 사전규격 회사 핏 계약 (`bidops.prespec-company-fit.v1`)
+
+`GET /api/pre-specs/{notice_id}/company-fit`은 해당 공고의 최근 attempt 최대 20개(최신 순), 자동 판정 활성 여부, 서버가 계산한 자동 준비 사유와 실제 최신 `deep_review_id`를 반환한다. 공고 없음/다른 source type은 404, 잘못된 id는 422, 내부 오류는 안전한 `processing_failed` 500이다. GET은 실행을 만들거나 모델을 호출하지 않는다.
+
+- 실행 상태: `queued|running|completed|failed|needs_human_review`. 결과가 없거나 검증에 실패한 실행의 `result`는 null이다.
+- 결과: `bidops.prespec-company-fit-result.v1`, `decision=matched|mismatch|unknown`, `summary`, `reasons[]`, `verification_items[]`. 각 사유는 `kind=scope_match|scope_mismatch|information_gap`, 모델 의견 `explanation`, `notice_refs[]`, `company_refs[]`를 갖는다. 입력에 없는 ref, 중복 ref, 확인되지 않은 회사 근거로 만든 일치/불일치, 인용 근거에 없는 숫자는 검증 실패다. 자동 보정하지 않는다.
+- `notice_facts`는 해당 개요의 문장과 PDF 페이지 또는 HWPX 구조 블록 위치, 공고 제목이다. `company_facts`는 승인 프로필의 fact key/status/value만 반환한다. 회사 원문·quote·filesystem source·객체 경로는 응답하지 않는다.
+- `overview_kind=page|extractive`, `overview_id`, `document_version_id`, 개요 digest, profile id/digest, policy digest, model name/revision, prompt version, 품질 표식, 생성/완료 시각과 입력/출력 토큰·소요시간을 보존한다. 사용량 부재는 null, 실제 0은 0이다.
+- `is_current=false`이면 과거 입력 기준이다. 프로필·활성 심층 정책·개요·문서·핏 정책/모델 변경, 입력 hash 불일치가 현재성을 막는다. 회사 핏 결과와 실제 심층 검토 생성 여부를 서로 추정하지 않는다.
+- 자동 사유는 `company_fit_disabled|pending|queued|running|stale|mismatch|unknown|failed|needs_human_review|validation_failed|reference_only`에서 접두사 `company_fit_`을 각각 붙인 코드다. 기존 자동 준비 사유도 그대로 반환한다.
+
+`prespec_company_fit_attempt`는 입력 JSON (`bidops.prespec-company-fit-input.v1`, 정책 전문 포함)과 SHA-256, 개요/문서/프로필/심층 정책 FK를 동결한다. 입력 digest는 유일하다. 실행 상태·lease·결과·사용량만 전이할 수 있고 종결 후 UPDATE/DELETE는 DB/ORM에서 거부한다. 원응답은 기존 암호화 model-response 저장소에 저장한다. 종결 이력이 있으면 migration downgrade를 거부한다. 앱 역할은 SELECT, 합성 worker만 INSERT 및 제한된 상태 열 UPDATE를 받는다.

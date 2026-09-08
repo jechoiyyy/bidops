@@ -82,6 +82,7 @@ GRANT SELECT ON TABLE
     bidops.prespec_overview_attempt,
     bidops.prespec_overview_result,
     bidops.prespec_page_overview,
+    bidops.prespec_company_fit_attempt,
     bidops.document_segment_manifest,
     bidops.document_segment,
     bidops.requirement_inventory_item,
@@ -316,6 +317,7 @@ GRANT SELECT ON TABLE
     bidops.prespec_overview_attempt,
     bidops.prespec_overview_result,
     bidops.prespec_page_overview,
+    bidops.prespec_company_fit_attempt,
     bidops.prespec_overview_attempt_event,
     bidops.document_segment_manifest,
     bidops.document_segment,
@@ -348,6 +350,7 @@ GRANT INSERT ON TABLE
     bidops.prespec_overview_attempt,
     bidops.prespec_overview_result,
     bidops.prespec_page_overview,
+    bidops.prespec_company_fit_attempt,
     bidops.prespec_overview_attempt_event,
     bidops.document_segment_manifest,
     bidops.document_segment,
@@ -388,6 +391,11 @@ GRANT UPDATE (
     status, started_at, completed_at, result_id, lease_owner, lease_expires_at
 ) ON bidops.prespec_overview_attempt TO worker;
 GRANT UPDATE (is_current) ON bidops.document_version TO worker;
+
+GRANT UPDATE (
+    status, result_jsonb, result_sha256, raw_response_sha256, error_code,
+    lease_owner, lease_expires_at, completed_at, prompt_tokens, output_tokens, latency_ms
+) ON bidops.prespec_company_fit_attempt TO worker;
 
 -- Backup remains read-only for every current and future migrated table.
 GRANT SELECT ON ALL TABLES IN SCHEMA bidops TO ro_backup;

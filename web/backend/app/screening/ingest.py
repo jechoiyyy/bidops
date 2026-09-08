@@ -25,7 +25,7 @@ import json
 import uuid as uuid_module
 from dataclasses import dataclass
 from datetime import datetime
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from pathlib import Path
 from typing import Any
 
@@ -1175,7 +1175,8 @@ def _c2_check_siblings(
     input_ids = [item["plan_id"] for item in input_raw["items"]]
     ranking_ids = [item["plan_id"] for item in ranking_raw["items"]]
     result_ids = [item["plan_id"] for item in result_raw["items"]]
-    if ranking_ids != input_ids or result_ids != input_ids:
+    # Ranking is in score order; the source and merged result retain source order.
+    if len(ranking_ids) != len(input_ids) or set(ranking_ids) != set(input_ids) or result_ids != input_ids:
         raise OrderPlanScreeningContractError("C-2 artifacts do not contain the same full population")
     if ranking_raw["population_count"] != input_raw["population_count"]:
         raise OrderPlanScreeningContractError("C-2 ranking population count differs")
@@ -1186,7 +1187,8 @@ def _c2_check_siblings(
     if len(batches) != len(decisions_raw["batches"]):
         raise OrderPlanScreeningContractError("C-2 decision batch identity is duplicated")
     candidate_ids = [
-        item["plan_id"] for item in ranking_raw["items"] if item["stage1_status"] == "selected"
+        item["plan_id"] for item in sorted(ranking_raw["items"], key=lambda row: row["rank"] if row["rank"] is not None else float("inf"))
+        if item["stage1_status"] == "selected"
     ]
     candidate_set = set(candidate_ids)
     batch_ids: list[str] = []
@@ -1357,6 +1359,20 @@ def _c2_policy_row(
     quality_gate = policy_raw.get("quality_gate")
     if not isinstance(activation, dict) or not isinstance(quality_gate, dict):
         raise OrderPlanScreeningContractError("C-2 policy activation metadata is missing")
+    stage2 = policy_raw.get("stage2", {})
+    if stage2.get("model_name") == "qwen3.8:27b" or stage2.get("provider") == "approved_private_ollama":
+        if (
+            stage2.get("provider") != "approved_private_ollama"
+            or stage2.get("model_name") != "qwen3.8:27b"
+            or policy_model.policy_status != "activation_candidate"
+            or quality_gate.get("status") != "not_measured"
+            or quality_gate.get("activation_eligible") is not False
+            or activation.get("enabled") is not False
+            or activation.get("status") != "blocked"
+            or activation.get("approved_by") is not None
+            or activation.get("approved_at") is not None
+        ):
+            raise OrderPlanScreeningContractError("Ollama artifacts require an unmeasured reference policy")
     activated_by = activation.get("approved_by")
     activated_at = activation.get("approved_at")
     activated_at_value = _c2_timestamp(activated_at, "policy.activation.approved_at") if activated_at is not None else None
@@ -1593,6 +1609,13 @@ def _c2_result_rows(
         if plan is None:
             raise OrderPlanScreeningContractError("C-2 result references an unknown order plan")
         item_payload = item.model_dump(mode="json", exclude_none=False)
+        # Numeric(20, 10) is a DB projection. Compare its rounded representation
+        # on re-import, while result_sha256 still binds every original digit.
+        def score_projection(value: float | None) -> Decimal | None:
+            return None if value is None else Decimal(str(value)).quantize(
+                Decimal("0.0000000001"), rounding=ROUND_HALF_UP
+            )
+
         values = {
             "execution_id": execution_id,
             "source_run_id": source_run_id,
@@ -1606,12 +1629,12 @@ def _c2_result_rows(
             "binding_sha256": binding_digest,
             "result_sha256": _c2_digest_json(item_payload),
             "stage1_rank": item.stage1_rank,
-            "stage1_score": item.stage1_score,
+            "stage1_score": score_projection(item.stage1_score),
             "nearest_capability": item.nearest_capability,
             "stage1_status": item.stage1_status,
             "stage2_status": item.stage2_status,
             "qwen_relevance": item.qwen_relevance,
-            "qwen_score": item.qwen_score,
+            "qwen_score": score_projection(item.qwen_score),
             "qwen_reason": item.qwen_reason,
             "batch_id": item.batch_id,
             "attempt_no": item.attempt_no,
@@ -1742,6 +1765,10 @@ def load_order_plan_screening(
         session, directory, input_model, result_model,
         policy_path=policy_path, binding_path=binding_path,
     )
+    bound_stage2 = policy.binding_payload_jsonb.get("stage2_binding", {})
+    for field, value in decisions_model.binding.model_dump().items():
+        if bound_stage2.get(field) != value:
+            raise OrderPlanScreeningContractError("C-2 decision identity differs from the frozen binding")
     existing_execution = session.get(
         OrderPlanScreeningExecution, uuid_module.UUID(input_model.execution_id)
     )
@@ -1800,11 +1827,18 @@ def _c2_source_run_id(directory: Path) -> str | None:
     screening_input_candidate = _read_optional_json(directory / "screening-input.json")
     screening_raw = _read_optional_json(directory / "screening-results.json")
     decisions_raw = _read_optional_json(directory / "screening-decisions.json")
+    failures_path = directory / "screening-failures.json"
+    failures_raw = _read_optional_json(failures_path)
+    # C-1 and C-2 share this filename. A valid C-1 failure artifact must
+    # reach the C-1 importer, which verifies its complete input binding.
+    c2_failures_present = failures_path.is_file() and not (
+        isinstance(failures_raw, dict)
+        and failures_raw.get("schema_version") == "bidops.screening-failures.v1"
+    )
     c2_specific_sibling_present = any(
         (directory / name).is_file()
         for name in (
             "screening-ranking.json",
-            "screening-failures.json",
             "screening-telemetry.json",
             "screening-feedback.json",
         )
@@ -1823,6 +1857,7 @@ def _c2_source_run_id(directory: Path) -> str | None:
             and screening_raw.get("schema_version") == C2_RESULT_SCHEMA
         )
         or c2_specific_sibling_present
+        or c2_failures_present
         or c2_decisions_present
     )
     if not c2_present:

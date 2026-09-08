@@ -1,7 +1,29 @@
 import { expect, test, type Page } from "@playwright/test";
 import { mockApi, mockDocumentStructurePage } from "./api-mock";
+import { mkdir, writeFile } from "node:fs/promises";
 
 const FIXED_TIME = new Date("2026-08-31T09:00:00+09:00");
+
+async function captureRecord(page: Page, name: string) {
+  const directory = process.env.PS_RECORD_CAPTURE_DIR;
+  if (!directory) return;
+  await mkdir(directory, { recursive: true });
+  await page.evaluate(() => document.fonts.ready);
+  await page.screenshot({ path: `${directory}/${name}.png` });
+  if (name === "normal-1440") {
+    const html = await page.evaluate(async () => {
+      const copy = document.documentElement.cloneNode(true) as HTMLElement;
+      copy.querySelectorAll("script, link[rel=modulepreload]").forEach(node => node.remove());
+      for (const link of copy.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')) {
+        const style = document.createElement("style");
+        style.textContent = await fetch(link.href).then(response => response.text());
+        link.replaceWith(style);
+      }
+      return "<!doctype html>" + copy.outerHTML;
+    });
+    await writeFile(`${directory}/record-preview.html`, html);
+  }
+}
 
 const trackingException = {
   notice_pk: 991,
@@ -263,10 +285,17 @@ interface PreSpecTrace {
 
 interface PreSpecMockOptions {
   emptyDefault?: boolean;
+  trackingSavedActor?: string;
   overviewNoticeId?: number;
   overviewReviewNoticeId?: number;
   overviewStatus?: number;
   overviewBody?: unknown;
+}
+
+async function fillRecordReason(page: Page, text: string) {
+  await page.getByRole("combobox", { name: "선택 사유" }).click();
+  await page.getByRole("option", { name: "기타 · 직접 입력" }).click();
+  await page.getByRole("textbox", { name: "선택 사유 직접 입력 (필수)" }).fill(text);
 }
 
 async function mockPreSpecs(page: Page, options: PreSpecMockOptions = {}): Promise<PreSpecTrace> {
@@ -358,7 +387,7 @@ async function mockPreSpecs(page: Page, options: PreSpecMockOptions = {}): Promi
         id: opportunityId,
         tracking_status: body.tracking_status,
         tracking_reason: body.reason,
-        tracking_selected_by: request.headers()["x-bidops-actor-name"] ?? "테스트 담당자",
+        tracking_selected_by: options.trackingSavedActor ?? decodeURIComponent((request.headers()["x-bidops-actor-name"] ?? "테스트 담당자").replace(/^UTF-8''/, "")),
         tracking_selected_at: "2026-09-01T00:00:00Z",
         recheck_signal: false,
         recheck_signal_at: null,
@@ -448,9 +477,10 @@ test("기본 보기 빈 상태의 전체 사전규격 보기는 sw_only=false를
   await expect(preSpecRow(page, allOnlyPreSpec.title)).toBeVisible();
 });
 
-// 승인 시안의 행 구조: 기관 → 사업명 → 예산·발견 구분 → 개요 상태·추적 상태.
-// 기관·사업명은 16px, 나머지는 14px이고 마감은 오른쪽 열이다.
-test("목록 행은 시안의 순서와 글자 크기로 기관·사업명·예산·상태를 보여준다", async ({ page }) => {
+// 행 구조: 사업명 → 기관 → 예산·발견 구분 → 개요 상태·추적 상태(사용자 정정으로
+// 시안의 첫 두 줄을 맞바꿨다). 사업명·기관은 16px이고 굵은 글자는 사업명 하나뿐이며,
+// 나머지는 14px이고 마감은 오른쪽 열이다.
+test("목록 행은 사업명·기관·예산·상태를 정해진 순서와 글자 크기로 보여준다", async ({ page }) => {
   await mockPreSpecs(page);
   await page.goto("/pre-specs");
 
@@ -464,22 +494,26 @@ test("목록 행은 시안의 순서와 글자 크기로 기관·사업명·예�
     .evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize));
   expect(await fontSize(agency)).toBe(16);
   expect(await fontSize(title)).toBe(16);
+  const fontWeight = (locator: ReturnType<typeof preSpecRow>) => locator
+    .evaluate((element) => Number(getComputedStyle(element).fontWeight));
+  expect(await fontWeight(title)).toBeGreaterThanOrEqual(600);
+  expect(await fontWeight(agency)).toBeLessThan(600);
   expect(await fontSize(row.locator(".pre-specs-row-meta"))).toBe(14);
   expect(await fontSize(row.locator(".pre-specs-row-state"))).toBe(14);
   expect(await fontSize(row.locator(".pre-specs-deadline"))).toBe(14);
 
-  // 기관이 사업명보다 위에 있고, 마감은 행의 오른쪽 절반에 있다.
+  // 사업명이 기관보다 위에 있고, 마감은 행의 오른쪽 절반에 있다.
   const positions = await row.evaluate((element) => {
     const box = element.getBoundingClientRect();
     const agencyBox = element.querySelector(".pre-specs-row-agency")!.getBoundingClientRect();
     const titleBox = element.querySelector(".pre-specs-row-title")!.getBoundingClientRect();
     const deadlineBox = element.querySelector(".pre-specs-deadline")!.getBoundingClientRect();
     return {
-      agencyAboveTitle: agencyBox.top < titleBox.top,
+      titleAboveAgency: titleBox.top < agencyBox.top,
       deadlineOnRight: deadlineBox.left > box.left + box.width / 2,
     };
   });
-  expect(positions).toEqual({ agencyAboveTitle: true, deadlineOnRight: true });
+  expect(positions).toEqual({ titleAboveAgency: true, deadlineOnRight: true });
 
   // 예산은 목록에서 억 단위로 줄이고 정확한 금액은 tooltip과 상세가 갖는다.
   const budget = row.locator(".pre-specs-row-meta span").first();
@@ -761,9 +795,9 @@ test("사전규격 상세는 notice_pk projection의 현재 추적 상태와 첨
   const trace = await mockPreSpecs(page);
   await page.goto("/pre-specs/991");
 
-  await expect(page.getByText("현재 추적 상태", { exact: true })).toBeVisible();
+  await expect(page.locator(".ps-record-saved-decision")).toContainText("현재 추적 상태 · 계속 추적");
   // 991은 발주계획에서 승계한 건이라 상세도 상태만 밝히고 다시 묻지 않는다.
-  await expect(page.locator(".pre-spec-tracking-current").getByText("계속 추적 · 발주계획에서 승계", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "발주계획에서 추적 결정을 이어받았습니다" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "첨부 원문 취득 집계", exact: true })).toBeVisible();
   await expect(page.getByText("완료", { exact: true })).toBeVisible();
   await expect(page.getByText("차단", { exact: true })).toBeVisible();
@@ -777,29 +811,31 @@ test("사유 없이 사전규격 추적 상태를 보낼 수 없다", async ({ p
   await page.goto("/pre-specs/992");
 
   // 저장 액션은 헤더가 소유하고 입력 form은 본문에 있다(PLAN 단계 F 작업 1).
-  await expect(page.getByRole("button", { name: "추적 상태 저장", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "추적 시작", exact: true })).toBeDisabled();
   await expect(page.locator("#pre-spec-detail-tracking-disabled")).toContainText("추적 결정을 저장하려면 사유를 입력하십시오.");
   expect(trace.trackingPatches).toEqual([]);
 });
 
 test("사전규격 추적 선택에 성공하면 사람 결정 상태가 갱신된다", async ({ page }) => {
-  const trace = await mockPreSpecs(page);
+  const trace = await mockPreSpecs(page, { trackingSavedActor: "테스트 담당자" });
   await page.goto("/pre-specs/992");
 
   // 사전규격에서 고를 수 있는 값은 `계속 추적` 하나뿐이다(ADR-0046 결정 6).
   await expect(page.getByRole("button", { name: "보류", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "종료", exact: true })).toHaveCount(0);
-  await page.getByRole("button", { name: "계속 추적", exact: true }).click();
-  await page.getByRole("textbox", { name: "사유 (필수)" }).fill("연계 범위를 확인한 뒤 계속 검토하기로 함");
+  await expect(page.getByRole("button", { name: "계속 추적", exact: true })).toHaveCount(0);
+  await fillRecordReason(page, "연계 범위를 확인한 뒤 계속 검토하기로 함");
   await page.getByRole("textbox", { name: "담당자 이름 (필수)" }).fill("홍길동");
-  await page.getByRole("button", { name: "추적 상태 저장", exact: true }).click();
+  await page.getByRole("button", { name: "추적 시작", exact: true }).click();
 
   await expect.poll(() => trace.trackingPatches).toEqual([{
     opportunityId: 78,
     trackingStatus: "계속 추적",
     reason: "연계 범위를 확인한 뒤 계속 검토하기로 함",
   }]);
-  await expect(page.getByText("심층 검토 추적 상태를 저장했습니다.", { exact: true })).toBeVisible();
+  await expect(page.getByText("추적 시작을 저장했습니다", { exact: true })).toBeVisible();
+  // The mock API returns this audit name; the view must use the response, not the draft.
+  await expect(page.locator(".ps-record-saved-decision")).toContainText("테스트 담당자");
 });
 
 test("사업기회가 없으면 추적 결정을 기록할 수 없는 이유를 보여준다", async ({ page }) => {
@@ -808,8 +844,8 @@ test("사업기회가 없으면 추적 결정을 기록할 수 없는 이유를 
 
   await expect(page.getByText("사업기회 미연결", { exact: true })).toBeVisible();
   await expect(page.locator(".mutation-feedback-warning")).toContainText("아직 사업기회에 연결되지 않아 추적 상태를 결정할 수 없습니다.");
-  await expect(page.getByRole("button", { name: "계속 추적", exact: true })).toBeDisabled();
-  await expect(page.getByRole("button", { name: "추적 상태 저장", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "계속 추적", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "추적 시작", exact: true })).toBeDisabled();
   await expect(page.locator("#pre-spec-detail-tracking-disabled")).toContainText("아직 사업기회에 연결되지 않아");
 });
 
@@ -817,17 +853,20 @@ test("v2 개요 결과는 평가에 필요한 요약·미확인·근거 위치�
   await mockPreSpecs(page, { overviewBody: completedOverview });
   await page.goto("/pre-specs/991");
 
-  await expect(page.getByRole("heading", { name: "요약", exact: true })).toBeVisible();
-  await expect(page.getByText("민원·행정 데이터를 통합해 담당자가 업무 현황을 조회하는 행정 지원 플랫폼 구축 사업입니다.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "사업 핵심", exact: true })).toBeVisible();
+  await expect(page.locator(".pre-spec-overview-summary")).toContainText("민원·행정 데이터를 통합해 담당자가 업무 현황을 조회하는 행정 지원 플랫폼 구축 사업입니다.");
   await expect(page.getByText("기존 시스템 연계 범위", { exact: true })).toBeVisible();
+  await page.locator(".ps-record-check-detail summary").filter({ hasText: "기존 시스템 연계 범위" }).click();
   await expect(page.getByText("개요 입력에는 연계 대상과 제공 API 목록이 없습니다.", { exact: true })).toBeVisible();
   await expect(page.getByText("심층 검토에서 연계 대상별 인터페이스 명세를 확인합니다.", { exact: true })).toBeVisible();
   await expect(page.getByText("개인정보 처리 책임", { exact: true })).toBeVisible();
+  await page.locator(".ps-record-check-detail summary").filter({ hasText: "개인정보 처리 책임" }).click();
   await expect(page.getByText("운영 주체와 개인정보 처리 역할이 확정되지 않았습니다.", { exact: true })).toBeVisible();
   await expect(page.getByText("확인 방법 미지정", { exact: true })).toBeVisible();
   await expect(page.getByText("2쪽", { exact: true })).toBeVisible();
   await expect(page.getByText("overview-intro", { exact: true })).toBeVisible();
   await expect(page.getByText("ordinal 7", { exact: true })).toBeVisible();
+  await page.locator(".ps-record-quality-details > summary").click();
   await expect(page.getByText("검증 통과 · passed", { exact: true })).toBeVisible();
   await expect(page.getByText(/판정으로 읽지 마세요/)).not.toBeVisible();
 });
@@ -971,37 +1010,230 @@ test("사전규격 목록과 상세는 viewport 바깥으로 넘치지 않는다
   }
 });
 
-// docs/design/PLAN.md 단계 F 작업 1·완료 게이트: 결정 **액션**은 요약 헤더에
-// 고정되어 스크롤 위치와 무관하게 첫 화면에서 보이고, 되돌릴 수 없는 입력
-// **form**은 헤더가 아니라 본문 열에 있다.
-test("사전규격 상세는 결정 액션만 헤더에 고정하고 입력 form은 본문에 둔다", async ({ page }) => {
+// 2026-09-08 사용자 정정: 읽는 헤더는 일반 흐름, 입력과 저장은 오른쪽 패널.
+test("사전규격 상세는 오른쪽에서 입력·저장하고 헤더는 본문과 함께 스크롤된다", async ({ page }) => {
   await mockPreSpecs(page);
-  // 결정 액션이 있는 건에서 확인한다. 991은 승계 건이라 결정 form이 없다.
   await page.goto("/pre-specs/992");
-  const header = page.locator('[data-review-primitive="sticky-decision-header"]');
-  await expect(header).toBeVisible();
+  const header = page.locator('header[aria-label="사전규격 상세 정보"]');
+  const decision = page.getByRole('complementary', { name: '추적 결정', exact: true });
+  const saveButton = decision.getByRole('button', { name: '추적 시작', exact: true });
+  await expect(saveButton).toBeInViewport();
+  await expect(decision.getByRole('combobox', { name: '선택 사유' })).toBeInViewport();
+  await expect(decision.getByRole('textbox', { name: '담당자 이름 (필수)' })).toBeInViewport();
+  await expect(header.getByRole('button', { name: /추적/ })).toHaveCount(0);
+  await expect(page.locator('.detail-skeleton-main').getByRole('textbox', { name: '선택 사유 직접 입력 (필수)' })).toHaveCount(0);
+  await page.evaluate(() => document.querySelector('.page-canvas')?.scrollTo(0, 999_999));
+  await expect(header).not.toBeInViewport();
+  await expect(saveButton).toBeInViewport();
   await expect(page.locator('[data-review-primitive="history-link-rail"]')).toHaveCount(1);
-
-  const saveButton = header.getByRole("button", { name: "추적 상태 저장", exact: true });
-  await expect(saveButton).toBeInViewport();
-  await expect(header.getByRole("button", { name: "추적 결정 입력으로 이동", exact: true })).toBeInViewport();
-  // 사유·담당자 입력은 헤더가 아니라 본문 열의 결정 패널 안에 있다.
-  await expect(header.locator("textarea")).toHaveCount(0);
-  await expect(page.locator(".detail-skeleton-main").getByRole("textbox", { name: "사유 (필수)" })).toHaveCount(1);
-
-  await page.evaluate(() => document.querySelector(".page-canvas")?.scrollTo(0, 999_999));
-  await expect(saveButton).toBeInViewport();
 });
 
 // 사업기회에 아직 연결되지 않은 사전규격도 비활성 결정 액션과 그 사유가
-// 스크롤 없이 함께 보여야 한다 — 버튼만 헤더에 보이고 이유는 본문 깊숙이
-// 남기지 않는다.
+// 오른쪽 결정 패널에서 스크롤 없이 함께 보여야 한다.
 test("사업기회 미연결 사전규격은 비활성 추적 결정 액션과 사유가 스크롤 없이 함께 보인다", async ({ page }) => {
   await mockPreSpecs(page);
   await page.goto("/pre-specs/993");
-  const saveButton = page.getByRole("button", { name: "추적 상태 저장", exact: true });
+  const saveButton = page.getByRole("button", { name: "추적 시작", exact: true });
   await expect(saveButton).toBeInViewport();
   await expect(saveButton).toBeDisabled();
   await expect(page.locator("#pre-spec-detail-tracking-disabled")).toBeInViewport();
   await expect(page.locator("#pre-spec-detail-tracking-disabled")).toContainText("아직 사업기회에 연결되지 않아");
+});
+
+for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }]) {
+  test(`사전규격 ERP 상세 ${viewport.width}: 읽기 우선 배치와 긴 제목의 구역 이동`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    const trace = await mockPreSpecs(page, { overviewStatus: 200, overviewBody: { ...completedOverview, notice_id: 992, reviews: completedOverview.reviews.map(review => ({ ...review, notice_id: 992 })) } });
+    await page.goto('/pre-specs/992?sw_only=false&sort=deadline');
+    await expect(page.getByRole('heading', { name: '사업 핵심', exact: true })).toBeInViewport();
+    const geometry = await page.evaluate(() => {
+      const main = document.querySelector('.ps-record .detail-skeleton-main')!;
+      const side = document.querySelector('.ps-record-side')!;
+      const canvas = document.querySelector('.page-canvas')!;
+      return {
+        sideWidth: side.getBoundingClientRect().width,
+        mainWidth: main.getBoundingClientRect().width,
+        agency: getComputedStyle(document.querySelector('.ps-record-agency')!).fontSize,
+        overflow: canvas.scrollWidth - canvas.clientWidth,
+      };
+    });
+    expect(geometry.sideWidth).toBe(400);
+    expect(geometry.mainWidth).toBeGreaterThan(550);
+    expect(geometry.agency).toBe('16px');
+    expect(geometry.overflow).toBe(0);
+    const decision = page.getByRole('complementary', { name: '추적 결정', exact: true });
+    await expect(decision.getByRole('combobox', { name: '선택 사유' })).toBeInViewport();
+    await expect(decision.getByRole('button', { name: '추적 시작', exact: true })).toBeInViewport();
+    await captureRecord(page, `normal-${viewport.width}`);
+    await page.route('**/api/notices/992', route => route.fulfill({ json: {
+      ...notice991, id: 992,
+      title: '공공데이터 통합관리체계 고도화 및 기관 간 연계 시스템 구축을 위한 정보화 사업 사전규격 검토 '.repeat(3),
+      agency: '해솔시청 디지털정책국 공공데이터 통합운영 추진단',
+    } }));
+    await page.reload();
+    await expect(page.locator('.ps-record-agency')).toContainText('해솔시청');
+    await captureRecord(page, `long-${viewport.width}`);
+    const nav = page.getByRole('navigation', { name: '상세 검토 구역' });
+    await nav.getByRole('button', { name: '첨부 문서', exact: true }).click();
+    await expect(page.locator('#ps-record-documents')).toBeFocused();
+    const header = page.locator('.pre-spec-detail-header');
+    await expect(header).not.toBeInViewport();
+    await expect(page.locator('#ps-record-documents')).toBeInViewport();
+    await expect(decision.getByRole('button', { name: '추적 시작', exact: true })).toBeInViewport();
+    await fillRecordReason(page, '세부 과업과 연계 범위를 확인하고 계속 추적');
+    await decision.getByRole('textbox', { name: '담당자 이름 (필수)' }).fill('검토 담당자');
+    await expect(decision.getByRole('button', { name: '추적 시작', exact: true })).toBeEnabled();
+    await captureRecord(page, `documents-${viewport.width}`);
+    await nav.getByRole('button', { name: '검토 요약', exact: true }).click();
+    await expect(page.locator('#ps-record-overview')).toBeFocused();
+    await nav.getByRole('button', { name: '처리 이력', exact: true }).click();
+    await page.getByRole('button', { name: '고정 입력과 식별 정보' }).click();
+    await expect(page.getByText('topic_heading', { exact: true })).toBeVisible();
+    await captureRecord(page, `history-${viewport.width}`);
+    await expect(decision.getByRole('textbox', { name: '선택 사유 직접 입력 (필수)' })).toHaveValue('세부 과업과 연계 범위를 확인하고 계속 추적');
+    expect(trace.trackingPatches).toEqual([]);
+    await decision.getByRole('button', { name: '추적 시작', exact: true }).click();
+    await expect.poll(() => trace.trackingPatches.length).toBe(1);
+    await expect(decision.getByRole('heading', { name: '추적 시작을 저장했습니다' })).toBeVisible();
+    await expect(decision.getByRole('combobox', { name: '선택 사유' })).toHaveCount(0);
+    await nav.getByRole('link', { name: '목록으로 돌아가기' }).click();
+    expect(new URL(page.url()).searchParams.get('sw_only')).toBe('false');
+    expect(new URL(page.url()).searchParams.get('sort')).toBe('deadline');
+  });
+}
+
+test('사전규격 ERP 상세: 요약 조회 실패를 판정 없음·미선택으로 바꾸지 않는다', async ({ page }) => {
+  await mockPreSpecs(page, { overviewBody: completedOverview });
+  await page.route('**/api/pre-specs?notice_pk=991', route => route.fulfill({ status: 503, json: { detail: 'unavailable' } }));
+  await page.goto('/pre-specs/991');
+  await expect(page.locator('.pre-spec-detail-grade-row')).toContainText('등급 미확인', { timeout: 15000 });
+  await expect(page.locator('.ps-record-side')).toContainText('사업기회 연결 정보를 확인할 수 없습니다.');
+  await expect(page.locator('.detail-skeleton-status-row')).not.toContainText('판정 없음');
+  await expect(page.locator('.detail-skeleton-status-row')).not.toContainText('추적 미선택');
+  await expect(page.getByRole('heading', { name: '사업 핵심', exact: true })).toBeVisible();
+  await captureRecord(page, 'partial-1440');
+});
+
+test('사전규격 ERP 상세: 빈 결과와 실제 0건을 구분한다', async ({ page }) => {
+  await mockPreSpecs(page, { overviewStatus: 200, overviewBody: { schema_version: 'bidops.prespec-overview-reviews.v2', notice_id: 993, reviews: [] } });
+  await page.route('**/api/notices/993', route => route.fulfill({ json: { ...notice991, id: 993, budget: null, attachment_count: 0 } }));
+  await page.goto('/pre-specs/993');
+  await expect(page.locator('.ps-record-facts')).toContainText('예산 미확인');
+  await expect(page.locator('.ps-record-secondary-facts')).toContainText('0건');
+  await expect(page.locator('.pre-spec-overview-panel')).toContainText('개요 검토 기록이 없습니다.');
+  await captureRecord(page, 'empty-1440');
+});
+
+test('사전규격 ERP 상세: 실패한 개요를 다시 읽을 수 있다', async ({ page }) => {
+  await mockPreSpecs(page, { overviewStatus: 503, overviewBody: { detail: 'unavailable' } });
+  await page.goto('/pre-specs/991');
+  const panel = page.locator('.pre-spec-overview-panel');
+  await expect(panel.getByRole('button', { name: /다시/ })).toBeVisible({ timeout: 15000 });
+  await captureRecord(page, 'error-1440');
+  await page.route('**/api/pre-specs/991/overview-reviews/v2', route => route.fulfill({ json: completedOverview }));
+  await panel.getByRole('button', { name: /다시/ }).click();
+  await expect(panel.getByRole('heading', { name: '사업 핵심', exact: true })).toBeVisible();
+});
+
+test('사전규격 ERP 상세: 로딩 자리가 본문과 보조 열을 유지한다', async ({ page }) => {
+  await mockPreSpecs(page);
+  let finish: (() => void) | undefined;
+  const pending = new Promise<void>(resolve => { finish = resolve; });
+  await page.route('**/api/notices/991', async route => { await pending; await route.fulfill({ json: notice991 }); });
+  await page.goto('/pre-specs/991');
+  await expect(page.getByRole('status').filter({ hasText: '사전규격 991 상세를 불러오는 중' })).toBeVisible();
+  await captureRecord(page, 'loading-1440');
+  finish?.();
+  await expect(page.locator('#pre-spec-detail-title')).toBeVisible();
+});
+
+for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }]) {
+  test(`승인 시안 대조 ${viewport.width}: 번호·요약·확인 사항·저장 위치`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await page.clock.setFixedTime(new Date('2026-09-08T09:00:00+09:00'));
+    const result = { ...completedOverview.reviews[0].result,
+      summary: '부서별로 분산된 공공데이터를 통합하고, 수집·정제·품질 점검 업무를 하나의 관리체계로 개선하는 사업입니다.',
+      conditions: ['기존 시스템 연계 범위 확인'],
+      verification_due_at: '2026-09-11T18:00:00+09:00',
+      unknowns: [{ topic: '참가 자격·유사 실적 확인', reason: '회사 보유 자격과 인정 가능한 유사 실적은 아직 확인되지 않았습니다.', verification_action: '원문에서 참가 조건과 실적 인정 범위를 확인합니다.' }],
+    };
+    await mockPreSpecs(page, { overviewStatus: 200, overviewBody: { ...completedOverview, notice_id: 992, reviews: [{ ...completedOverview.reviews[0], notice_id: 992, quality_status: 'mock_reference', result }] } });
+    await page.route('**/api/notices/992', route => route.fulfill({ json: { ...notice991, id: 992, title: '공공데이터 통합관리체계 고도화', agency: '해솔시청', deadline_at: '2026-09-11T18:00:00+09:00', published_at: '2026-09-08T09:00:00+09:00', url: null, lifecycle: { pre_spec_no: 'R26BD00270001' } } }));
+    await page.route('**/api/pre-specs?notice_pk=992', route => route.fulfill({ json: { items: [{ ...newPreSpec, pre_spec_no: 'R26BD00270001' }], total: 1, limit: 50, offset: 0 } }));
+    await page.goto('/pre-specs/992');
+    await expect(page.locator('.ps-record-number')).toHaveText('R26BD00270001');
+    await expect(page.locator('.pre-spec-overview-summary')).toBeInViewport({ ratio: 1 });
+    await expect(page.locator('.ps-record-check-list > li').last()).toBeInViewport({ ratio: 1 });
+    await expect(page.locator('.pre-spec-overview-quality')).toContainText('mock 참조');
+    await expect(page.getByRole('button', { name: '추적 시작', exact: true })).toBeInViewport({ ratio: 1 });
+    await expect(page.getByRole('button', { name: '계속 추적', exact: true })).toHaveCount(0);
+    await captureRecord(page, `approved-${viewport.width}`);
+    await page.getByRole('combobox', { name: '선택 사유' }).click();
+    await captureRecord(page, `dropdown-${viewport.width}`);
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('combobox', { name: '선택 사유' })).toBeFocused();
+    await fillRecordReason(page, '세부 과업을 확인하고 후속 공고까지 추적합니다.');
+    await page.getByRole('textbox', { name: '담당자 이름 (필수)' }).fill('김기획');
+    await expect(page.getByRole('button', { name: '추적 시작', exact: true })).toBeEnabled();
+    await expect(page.getByRole('button', { name: '추적 시작', exact: true })).toBeInViewport({ ratio: 1 });
+    await captureRecord(page, `approved-other-${viewport.width}`);
+  });
+}
+
+test('공식 번호는 lifecycle fallback과 복사를 지원하고 내부 PK를 대신 표시하지 않는다', async ({ page }) => {
+  await mockPreSpecs(page);
+  await page.route('**/api/pre-specs?notice_pk=992', route => route.fulfill({ json: { items: [{ ...newPreSpec, pre_spec_no: null }], total: 1 } }));
+  await page.route('**/api/notices/992', route => route.fulfill({ json: { ...notice991, id: 992, lifecycle: { pre_spec_no: 'R26BD00270001' }, url: null } }));
+  // The fallback path is needed on Tailscale HTTP, where Clipboard API is absent.
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', { value: undefined });
+    document.execCommand = (command: string) => {
+      if (command === 'copy') (window as Window & { copiedNumber?: string }).copiedNumber = (document.activeElement as HTMLTextAreaElement).value;
+      return command === 'copy';
+    };
+  });
+  await page.goto('/pre-specs/992');
+  await expect(page.locator('.ps-record-number')).toHaveText('R26BD00270001');
+  await page.getByRole('button', { name: '번호 복사', exact: true }).click();
+  await expect(page.getByText('사전규격번호를 복사했습니다.', { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => (window as Window & { copiedNumber?: string }).copiedNumber)).toBe('R26BD00270001');
+  await expect(page.getByRole('button', { name: '번호 복사', exact: true })).toBeFocused();
+  await page.route('**/api/notices/992', route => route.fulfill({ json: { ...notice991, id: 992, lifecycle: {}, url: null } }));
+  await page.reload();
+  await expect(page.locator('.ps-record-number')).toHaveText('미확인');
+  await expect(page.getByRole('button', { name: '번호 복사', exact: true })).toBeDisabled();
+});
+
+for (const url of [null, 'javascript:alert(1)', '/guessed-detail/992', 'https://user:password@example.invalid/notice']) {
+  test(`원문 주소가 없거나 사용할 수 없으면 추정 링크를 만들지 않는다: ${url?.split(':')[0] ?? 'null'}`, async ({ page }) => {
+    await mockPreSpecs(page);
+    await page.route('**/api/notices/992', route => route.fulfill({ json: { ...notice991, id: 992, url } }));
+    await page.goto('/pre-specs/992');
+    await expect(page.locator('.ps-record-source-unavailable')).toContainText(url ? '원문 URL 확인 불가' : '원문 URL 없음');
+    await expect(page.getByRole('link', { name: '나라장터 원문', exact: true })).toHaveCount(0);
+  });
+}
+
+test('수집된 원문 URL을 새 탭으로 열고 추적 저장 실패 시 입력을 보존한다', async ({ page, context }) => {
+  await mockPreSpecs(page);
+  const sourceUrl = 'https://example.invalid/collected-prespec/992';
+  await page.route('**/api/notices/992', route => route.fulfill({ json: { ...notice991, id: 992, url: sourceUrl } }));
+  await context.route(sourceUrl, route => route.fulfill({ contentType: 'text/html; charset=utf-8', body: '<h1>수집된 원문 URL · 테스트</h1>' }));
+  await page.goto('/pre-specs/992');
+  const link = page.getByRole('link', { name: '나라장터 원문', exact: true });
+  await expect(link).toHaveAttribute('href', sourceUrl);
+  await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+  const popupPromise = context.waitForEvent('page'); await link.click(); const popup = await popupPromise;
+  await expect(popup.getByRole('heading', { name: '수집된 원문 URL · 테스트' })).toBeVisible();
+  expect(await popup.evaluate(() => window.opener === null)).toBe(true); await popup.close();
+  await page.getByRole('combobox', { name: '선택 사유' }).click();
+  await page.getByRole('option', { name: '후속 입찰공고 확인', exact: true }).click();
+  await page.getByRole('textbox', { name: '담당자 이름 (필수)' }).fill('김기획');
+  await page.route('**/api/opportunities/78/tracking-status', route => route.fulfill({ status: 503, json: { detail: 'unavailable' } }));
+  await page.getByRole('button', { name: '추적 시작', exact: true }).click();
+  await expect(page.locator('.ps-record-side .mutation-feedback-error')).toBeVisible();
+  await expect(page.getByRole('combobox', { name: '선택 사유' })).toContainText('후속 입찰공고 확인');
+  await expect(page.getByRole('textbox', { name: '담당자 이름 (필수)' })).toHaveValue('김기획');
+  await expect(page.getByRole('button', { name: '다시 저장', exact: true })).toBeInViewport();
+  await captureRecord(page, 'save-error-1440');
 });

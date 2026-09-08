@@ -13,7 +13,7 @@ type RouteContextCase = {
 };
 
 const routeContexts: RouteContextCase[] = [
-  { name: "dashboard", path: `/?run=${RUN_ID}`, title: "대시보드", dataScope: "run", editScope: null, runSelectorVisible: true },
+  { name: "dashboard", path: `/?run=${RUN_ID}`, title: "대시보드", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
   // ADR-0046 결정 7: 회차 선택기는 대시보드와 공고 판정 이력 두 화면에만 있다.
   // 검토 대기열은 회차 종속(dataScope run)이지만 선택기를 갖지 않는다 — 회차는
   // 같은 화면의 공고 판정 이력 탭에서 고르고 search로 함께 넘어간다.
@@ -21,7 +21,11 @@ const routeContexts: RouteContextCase[] = [
   // 같은 저장 계약은 사업 추적의 예외 작업이 갖는다.
   { name: "queue list", path: `/queue?run=${RUN_ID}`, title: "검토 대기열", dataScope: "run", editScope: null, runSelectorVisible: false },
   { name: "queue detail", path: `/queue/29?run=${RUN_ID}`, title: "검토 대기열", dataScope: "run", editScope: null, runSelectorVisible: false },
-  { name: "opportunities", path: `/opportunities?run=${RUN_ID}`, title: "사업 추적", dataScope: "cumulative", editScope: "추적 상태·예외 작업 저장 가능", runSelectorVisible: false },
+  // 사업 추적·최종 Go/No-Go 목록은 제목 모드다. 편집 범위 칩을 그리지 않으므로
+  // 저장 권한은 목록 안의 결정 UI가 말한다(사용자 결정 2026-09-08). 같은 metadata를
+  // 쓰는 상세(`/opportunities/501`)는 경로 모드라 칩이 그대로 있다.
+  { name: "opportunities", path: `/opportunities?run=${RUN_ID}`, title: "사업 추적", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
+  { name: "opportunity detail", path: `/opportunities/501?run=${RUN_ID}`, title: "사업 추적", dataScope: "cumulative", editScope: "추적 상태·예외 작업 저장 가능", runSelectorVisible: false },
   { name: "bid delta", path: `/opportunities/501/bid-delta?run=${RUN_ID}`, title: "입찰 변경 비교", dataScope: "cumulative", editScope: "최종 Go/No-Go 저장 가능", runSelectorVisible: false },
   { name: "pre-specs", path: `/pre-specs?run=${RUN_ID}`, title: "사전규격", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
   { name: "pre-spec detail", path: `/pre-specs/991?run=${RUN_ID}`, title: "사전규격", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
@@ -32,7 +36,7 @@ const routeContexts: RouteContextCase[] = [
   { name: "judgments detail", path: `/judgments/29?run=${RUN_ID}`, title: "공고 판정 이력", dataScope: "run", editScope: null, runSelectorVisible: true },
   { name: "reviews", path: `/reviews?run=${RUN_ID}`, title: "검토 대기열", dataScope: "run", editScope: null, runSelectorVisible: false },
   // 최종 Go/No-Go는 사이드바 최상위 항목이 됐다(ADR-0041 결정 3).
-  { name: "go-no-go", path: `/go-no-go?run=${RUN_ID}`, title: "최종 Go/No-Go", dataScope: "cumulative", editScope: "최종 Go/No-Go 저장 가능", runSelectorVisible: false },
+  { name: "go-no-go", path: `/go-no-go?run=${RUN_ID}`, title: "최종 Go/No-Go", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
   // 기준 4화면은 판정 기준 한 화면의 탭이다. 넷 다 누적 자료이므로 회차 선택기가
   // 보이지 않고, 그 사실이 1차 분류(기준과 운영)만 보고 예측된다(PRD §2.1).
   { name: "criteria", path: `/criteria?run=${RUN_ID}`, title: "판정 기준", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
@@ -69,6 +73,8 @@ for (const context of routeContexts) {
       await expect(runSelector).toHaveCount(0);
     }
 
+    if (context.name === "dashboard") await expect(page.getByRole("button", { name: "조회할 실행 회차" })).toBeVisible();
+
     const editScope = topbar.locator(".topbar-status");
     if (context.editScope) {
       await expect(editScope).toHaveText(context.editScope);
@@ -80,11 +86,15 @@ for (const context of routeContexts) {
 }
 
 test("직접 진입한 lazy route가 metadata와 실제 화면을 함께 렌더링한다", async ({ page }) => {
-  await page.goto(`/opportunities?run=${RUN_ID}`);
+  // 편집 범위 칩이 있는 쪽은 상세다(목록은 제목 모드라 칩을 그리지 않는다).
+  // 같은 metadata를 route param 하나로 두 모드에 나눠 쓰므로 lazy 진입 검사도
+  // 칩이 남아 있는 상세에서 한다.
+  await page.goto(`/opportunities/501?run=${RUN_ID}`);
 
   const topbar = page.locator("header.topbar");
   await expect(topbar.locator("h1")).toHaveText("사업 추적");
   await expect(topbar).toHaveAttribute("data-route-data-scope", "cumulative");
+  await expect(topbar).toHaveAttribute("data-topbar-mode", "breadcrumb");
   await expect(topbar.locator(".topbar-status")).toHaveText("추적 상태·예외 작업 저장 가능");
   await expect(page.getByLabel("실행 회차", { exact: true })).toHaveCount(0);
   await expect(page.locator(".opportunities-page")).toBeVisible();
@@ -172,20 +182,18 @@ test("누적 화면은 회차 API 실패와 무관하게 열린다", async ({ pa
 });
 
 // ── 상단 경로(현재 위치) ────────────────────────────────────────────────────
-// 상단바는 화면 제목을 다시 쓰지 않는다. 각 화면의 `<h2>`가 시각 제목이고
-// 상단바는 `그룹 › 상위 화면 › 화면 이름 › 상세 식별자`만 보여 준다.
+// 경로 모드의 상단바는 화면 제목을 다시 쓰지 않는다. 각 화면의 `<h2>`가 시각
+// 제목이고 상단바는 `그룹 › 상위 화면 › 화면 이름 › 상세 식별자`만 보여 준다.
 // 화면 이름 칸이 `<h1>`이라 접근성 랜드마크는 그대로 남는다.
+// 탐색과 추적 목록 4화면은 제목 모드로 빠졌다(아래 `titleCases`).
 
 type BreadcrumbCase = { name: string; path: string; crumbs: string[] };
 
 const breadcrumbCases: BreadcrumbCase[] = [
   { name: "dashboard", path: "/", crumbs: ["오늘의 업무", "대시보드"] },
   // 화면 제목이 `발주계획` 한 낱말로 바뀌었고 상단 경로도 같은 이름을 쓴다.
-  { name: "order-plans", path: "/order-plans", crumbs: ["탐색과 추적", "발주계획"] },
   { name: "order-plan detail", path: "/order-plans/101", crumbs: ["탐색과 추적", "발주계획", "발주계획 C-2 상세", "#101"] },
-  { name: "pre-specs", path: "/pre-specs", crumbs: ["탐색과 추적", "사전규격"] },
   { name: "pre-spec detail", path: "/pre-specs/991", crumbs: ["탐색과 추적", "사전규격", "notice 991"] },
-  { name: "opportunities", path: "/opportunities", crumbs: ["탐색과 추적", "사업 추적"] },
   { name: "opportunity detail", path: "/opportunities/501", crumbs: ["탐색과 추적", "사업 추적", "#501"] },
   // 되돌릴 수 없는 결정 화면은 어느 사업기회의 결정인지 경로에 남긴다.
   { name: "bid delta", path: "/opportunities/501/bid-delta", crumbs: ["탐색과 추적", "사업 추적", "#501", "입찰 변경 비교"] },
@@ -206,6 +214,40 @@ for (const context of breadcrumbCases) {
     await expect(page.locator("header.topbar h1")).toHaveCount(1);
   });
 }
+
+// 제목 모드: 탐색과 추적 목록 4화면. 경로와 편집 범위 칩이 없고 화면 이름 하나만
+// `<h1>`으로 남는다. 페이지는 제목 줄을 두지 않으므로 이 글자가 화면의 시각 제목이다.
+const titleCases: Array<{ name: string; path: string; title: string }> = [
+  { name: "order-plans", path: "/order-plans", title: "발주계획" },
+  { name: "pre-specs", path: "/pre-specs", title: "사전규격" },
+  { name: "opportunities", path: "/opportunities", title: "사업 추적" },
+  { name: "go-no-go", path: "/go-no-go", title: "최종 Go/No-Go" },
+];
+
+for (const context of titleCases) {
+  test(`${context.name} 상단 제목 모드`, async ({ page }) => {
+    await page.goto(context.path);
+    const topbar = page.locator("header.topbar");
+    await expect(topbar).toHaveAttribute("data-topbar-mode", "title");
+    await expect(topbar.locator("h1")).toHaveText(context.title);
+    await expect(topbar.locator("h1")).toHaveCount(1);
+    // 경로도 편집 범위 칩도 그리지 않는다. 세로 공간을 제목에 한 번만 쓴다.
+    await expect(topbar.locator(".topbar-breadcrumb")).toHaveCount(0);
+    await expect(topbar.locator(".topbar-crumb")).toHaveCount(0);
+    await expect(topbar.locator(".topbar-status")).toHaveCount(0);
+  });
+}
+
+// 대시보드는 제목 모드가 아니다. 액션 portal은 두 모드가 함께 쓰므로, 경로 모드
+// 화면에서도 슬롯이 그대로 동작하는지 같은 자리에서 확인한다.
+test("대시보드는 경로 모드이면서 상단바 액션 슬롯을 그대로 쓴다", async ({ page }) => {
+  await page.goto("/");
+  const topbar = page.locator("header.topbar");
+  await expect(topbar).toHaveAttribute("data-topbar-mode", "breadcrumb");
+  await expect(topbar.locator(".topbar-breadcrumb")).toHaveCount(1);
+  await expect(topbar.locator("#page-header-actions .dash-header-actions")).toBeVisible();
+  await expect(topbar.getByRole("button", { name: "새로고침" })).toBeVisible();
+});
 
 const DETAIL_BACK_LINKS: Array<{ name: string; path: string; back: string; settles?: RegExp }> = [
   { name: "order-plan detail", path: "/order-plans/101", back: "/order-plans" },

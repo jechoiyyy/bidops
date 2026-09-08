@@ -1686,3 +1686,47 @@ export interface PageOverviewResponse {
   notice_id: number;
   reviews: PageOverviewView[];
 }
+
+export interface CompanyFitResult {
+  schema_version: "bidops.prespec-company-fit-result.v1";
+  decision: "matched" | "mismatch" | "unknown";
+  summary: string;
+  reasons: { kind: "scope_match" | "scope_mismatch" | "information_gap"; explanation: string; notice_refs: string[]; company_refs: string[] }[];
+  verification_items: string[];
+}
+
+export interface CompanyFitAttempt {
+  id: string;
+  notice_id: number;
+  status: "queued" | "running" | "completed" | "failed" | "needs_human_review";
+  result: CompanyFitResult | null;
+  error_code: string | null;
+  is_current: boolean;
+  overview_kind: "page" | "extractive";
+  overview_id: string;
+  document_version_id: string;
+  overview_sha256: string;
+  profile_version_id: string;
+  profile_sha256: string;
+  policy_digest: string;
+  model_name: string;
+  model_revision: string;
+  prompt_version: string;
+  quality_status: "unmeasured_reference" | "mock_reference";
+  notice_facts: { ref: string; text: string; pages: number[]; block_key: string | null }[];
+  company_facts: { ref: string; fact_key: string; status: "confirmed" | "inferred" | "unknown"; value: unknown }[];
+  created_at: string;
+  completed_at: string | null;
+  prompt_tokens: number | null;
+  output_tokens: number | null;
+  latency_ms: number | null;
+}
+
+export interface CompanyFitResponse {
+  schema_version: "bidops.prespec-company-fit.v1";
+  notice_id: number;
+  attempts: CompanyFitAttempt[];
+  automation_enabled: boolean;
+  auto_deep_review_reason: string | null;
+  deep_review_id: string | null;
+}

@@ -70,6 +70,7 @@ ALL_TABLES = frozenset(
     + BID_DELTA_TABLES
     + ORDER_PLAN_SCREENING_TABLES
     + DOCUMENT_SEGMENT_TABLES
+    + ("prespec_company_fit_attempt",)
 )
 
 
