@@ -28,6 +28,7 @@ PROG = "python -m app.deep_review.cli"
 
 #: 하위 명령 이름 → (구현 모듈, 도움말 한 줄).
 _SUBCOMMANDS: dict[str, tuple[str, str]] = {
+    "import-page-overview": (".import_page_overview", "고정된 PDF 개요 1건을 모델 호출 없이 적재한다"),
     "run-bc-e2e": (".run_bc_e2e", "문서 준비(B)에서 심층 검토(C)까지 인수 흐름을 돌린다"),
     "run-prespec-e2e": (
         ".run_prespec_e2e",

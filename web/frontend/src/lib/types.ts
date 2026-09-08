@@ -1649,3 +1649,40 @@ export interface OrderPlanScreeningError {
   code: OrderPlanScreeningErrorCode | null;
   request_id: string | null;
 }
+
+/** Descriptive page summaries do not carry or imply a recommendation. */
+export interface PageOverviewFact { text: string; evidence_pages: number[] }
+export interface PageOverviewPayload {
+  schema_version: "bidops.prespec-overview-page-review.v3";
+  business_overview: PageOverviewFact[];
+  main_tasks: PageOverviewFact[];
+  budget_and_period: PageOverviewFact[];
+  important_conditions: PageOverviewFact[];
+  reviewer_analysis: string[];
+  unknowns: string[];
+  input_limitations: string[];
+}
+export interface PageOverviewView {
+  id: string;
+  notice_id: number;
+  document_version_id: string;
+  source_sha256: string;
+  pdf_sha256: string;
+  pdf_page_count: number;
+  reviewed_pages: number[];
+  payload: PageOverviewPayload;
+  payload_sha256: string;
+  validation_status: "passed" | "failed";
+  validation_errors: string[];
+  evidence_check_status: "passed" | "failed";
+  evidence_check_errors: string[];
+  quality_status: "unmeasured_reference" | "mock_reference";
+  model_name: string;
+  prompt_version: string;
+  created_at: string;
+}
+export interface PageOverviewResponse {
+  schema_version: "bidops.prespec-overview-pages.v1";
+  notice_id: number;
+  reviews: PageOverviewView[];
+}

@@ -1,4 +1,4 @@
-"""deep_review가 소유하는 선언적 모델 (명세 §5.1의 37개 테이블).
+"""deep_review가 소유하는 선언적 모델 (명세 §5.1의 38개 테이블).
 
 문서 준비(content_object → document_version → document_structure →
 document_bundle), 사전규격 개요 검토, 심층 검토와 claim·evidence·보고서·
@@ -1364,6 +1364,7 @@ ATTACHMENT_FETCH_TABLES = ("attachment_fetch",)
 
 
 PRESPEC_OVERVIEW_TABLES = (
+    "prespec_page_overview",
     "prespec_overview_review",
     "prespec_overview_snapshot",
     "prespec_overview_attempt",
@@ -1953,3 +1954,54 @@ DEEP_REVIEW_LEAN_V1_TABLES = (
 DocumentBundle.__table__.append_constraint(
     UniqueConstraint("id", "notice_id", name="uq_document_bundle_notice_scope")
 )
+
+
+class PreSpecPageOverview(Base):
+    """Append-only descriptive reference, independent of recommendation lifecycle."""
+    __tablename__ = "prespec_page_overview"
+    __table_args__ = (
+        UniqueConstraint("run_id", "notice_id", name="uq_prespec_page_overview_run_notice"),
+        Index("ix_prespec_page_overview_notice_created", "notice_id", "created_at"),
+        ForeignKeyConstraint(["notice_id", "document_version_id"],
+                             [_table("document_version.notice_id"), _table("document_version.id")],
+                             ondelete="RESTRICT", name="fk_prespec_page_overview_document_scope"),
+        CheckConstraint("schema_version = 'bidops.prespec-overview-page-review.v3'", name="ck_prespec_page_overview_schema"),
+        CheckConstraint("quality_status IN ('unmeasured_reference','mock_reference')", name="ck_prespec_page_overview_quality"),
+        CheckConstraint("validation_status IN ('passed','failed') AND evidence_check_status IN ('passed','failed')", name="ck_prespec_page_overview_validation"),
+        CheckConstraint("validation_status <> 'passed' OR evidence_check_status = 'passed'", name="ck_prespec_page_overview_passed"),
+        CheckConstraint("pdf_page_count > 0", name="ck_prespec_page_overview_pages"),
+        CheckConstraint(dual(" AND ".join(f"length({field}) = 64 AND {field} NOT GLOB '*[^0-9a-f]*'" for field in ("source_sha256", "pdf_sha256", "payload_sha256", "import_sha256", "input_sha256", "model_digest", "policy_digest"))), name="ck_prespec_page_overview_hashes"),
+        CheckConstraint(dual("json_valid(payload_jsonb) AND json_type(payload_jsonb) = 'object'"), name="ck_prespec_page_overview_payload"),
+    )
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    run_id: Mapped[uuid_module.UUID] = mapped_column(nullable=False)
+    notice_id: Mapped[int] = mapped_column(_fk("notice.id", ondelete="RESTRICT"), nullable=False)
+    document_version_id: Mapped[uuid_module.UUID] = mapped_column(nullable=False)
+    input_location_id: Mapped[uuid_module.UUID] = mapped_column(_fk("content_object_location.id", ondelete="RESTRICT"), nullable=False)
+    pdf_location_id: Mapped[uuid_module.UUID] = mapped_column(_fk("content_object_location.id", ondelete="RESTRICT"), nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    pdf_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    import_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    input_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    model_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    policy_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    model_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    prompt_version: Mapped[str] = mapped_column(String(255), nullable=False)
+    pdf_page_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    reviewed_pages: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    payload_jsonb: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    validation_status: Mapped[str] = mapped_column(String(16), nullable=False)
+    validation_errors: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    evidence_check_status: Mapped[str] = mapped_column(String(16), nullable=False)
+    evidence_check_errors: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    validator_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    quality_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(AwareDateTime(), default=utc_now, nullable=False)
+
+
+@event.listens_for(PreSpecPageOverview, "before_update")
+@event.listens_for(PreSpecPageOverview, "before_delete")
+def _immutable_page_overview(*_args: Any) -> None:
+    raise ValueError("page overview is append-only")
