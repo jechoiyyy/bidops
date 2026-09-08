@@ -625,11 +625,13 @@
 
 /* --- 상세 바닥의 고정 액션 --- */
 
+/* 상세 바닥의 고정 액션. 좌우 여백은 상세 머리·스크롤과 같은 줄에 맞춘다
+   (기준: 발주계획 `.c2l-detail-actions`의 `spacing-3 spacing-4`). */
 .opportunity-action-footer {
   display: grid;
   flex: 0 0 auto;
   gap: var(--spacing-2);
-  padding: var(--spacing-3) var(--spacing-5);
+  padding: var(--spacing-3) var(--spacing-4);
   border-top: var(--border-width) solid var(--color-border);
   background: var(--color-background-body);
 }
