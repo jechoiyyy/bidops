@@ -300,6 +300,8 @@ production build 통과 · `design-shell.spec.ts` 5 passed 1 skipped(laptop 1280
 - 본문 반복 목록과 우측 이력·연결 rail (rail에는 결정 액션을 두지 않는다)
 - 접이식 상태 그룹과 빈 상태·부분 성공·실패 상태
 - 접힌 보조 입력 영역(사람 판단 수정, 추적 상태 변경)과 그 append-only revision 이력
+- 탐색과 추적 목록 4화면이 공유하는 필터 바(`components/common/WorkspaceFilters.tsx`)와
+  목록 ↑↓ 이동 hook(`components/common/useRowKeyboardNavigation.ts`)
 
 Astryx 컴포넌트는 props로 표현하고, 레이아웃만 프로젝트 소유 CSS로 둔다. 화면 한 곳에서
 Tailwind utility와 Astryx styling을 섞지 않는다. 시안의 추출된 atomic class 문자열을 직접
@@ -357,6 +359,12 @@ React 코드에 붙이지 않는다.
   건너뛰던 `review-primitives.spec.ts`의 테스트 1개를 지워 skipped가 4에서 2로 줄었다.
 - `visual.spec.ts` 스냅샷은 단계 A와 같은 이유로 계속 실패하며 승인 없이 덮어쓰지 않는다.
   (**이후 경과**: 2026-09-04 화면 검사를 세 층으로 가르면서 이 상태를 해소했다. §0의 «기준 이미지가 두 종류» 참조.)
+
+**탐색과 추적 4화면 통일 검증 (2026-09-08).** 워크트리 `wp-g`(기준 커밋 `c85a495` = `68d958f` +
+`feat/explore-wp-c·d·e·f`)에서 `npx tsc -b` clean · production build 통과 ·
+`explore-workspace-consistency.spec.ts`(새 교차 검사)와 `admin-workspace-consistency.spec.ts`
+5 passed 0 failed. `--project=pixel`은 7 failed 2 passed이며 픽셀은 게이트가 아니라 기준선
+대조다(§0) — 기준선 이미지는 갱신하지 않았고 달라진 화면은 `docs/tracking/status.md`에 적었다.
 
 ### 단계 C — 발주계획
 

@@ -382,3 +382,14 @@
   `extension_registry().run_ingest_hook_count`를 확인한다. 판정 결과가 없는 상태로
   적재된 메타데이터를 판정 게시 성공으로 간주하지 않는다. 실패 회차는 보존하고
   수정한 실행 진입점은 새 실행에서 검증한다.
+
+## portal로 상단바에 올린 화면 액션은 페이지의 글자 규칙 밖에 있다
+
+- 증상: 목록 화면의 액션(버튼·회차 Selector·상태 칩)을 상단바 제목 모드의 슬롯으로
+  옮기자 같은 컴포넌트가 페이지 안에 있을 때와 다른 크기로 렌더된다.
+- 원인: 슬롯(`.topbar-page-actions#page-header-actions`)은 셸의 DOM이라 페이지 root
+  (`.c2l-page` 등)를 기준으로 쓴 화면 CSS의 4단 재적용이 닿지 않는다. Astryx 컴포넌트는
+  자기 `--font-size-*`(rem)로 되돌아간다.
+- 대응: 셸이 `shell-relaxed.css`의 `.topbar-page-actions` 규칙에서 4단(버튼·배지·라벨은
+  caption, 입력·선택값은 body)을 한 번 준다. 화면은 슬롯 안 글자 크기를 다시 정의하지
+  않고, 필요한 것은 wrapper(`.<접두>-header-actions`)의 배치뿐이다.
