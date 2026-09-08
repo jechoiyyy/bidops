@@ -17,6 +17,7 @@ from ..services import assets
 from ...core.clamav import ClamAVScanner
 from ...core.object_store import ObjectStoreError, assert_object_store_runtime
 from ..services.prespec_attachments import AttachmentFetchClaim, claim_next, fetch_claimed
+from ..services.document_converter import ScratchDocumentProcessor
 
 
 logger = logging.getLogger(__name__)
@@ -40,6 +41,8 @@ def run_once(
     # in that mode: an absent connector is an intentional idle state.
     if not connectors:
         return False
+    if processor is None:
+        processor = ScratchDocumentProcessor(clamav_checker=clamav_checker)
     claim: AttachmentFetchClaim | None = claim_next(
         session,
         worker_id=worker_id,

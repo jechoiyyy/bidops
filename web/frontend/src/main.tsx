@@ -10,6 +10,7 @@ import "./styles/theme.css";
 import "./styles/typography.css";
 import "./styles/shell-relaxed.css";
 import "./styles/review-primitives.css";
+import "./styles/workspace-filters.css";
 import "./styles/run-screening.css";
 import "./styles/quality-policy.css";
 import "./styles/operations.css";

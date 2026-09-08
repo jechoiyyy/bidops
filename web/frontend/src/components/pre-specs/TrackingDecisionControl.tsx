@@ -98,7 +98,10 @@ export interface TrackingDecisionControlProps {
    * 상태값·사유 필수·비활성 사유 같은 업무 규칙은 그대로 이 컴포넌트가
    * 소유한다(CLAUDE.md "같은 업무 규칙을 복제하지 않는다"). */
   compact?: boolean;
-  /** 주어지면 저장 폼에 이 id가 붙어, 상세 화면의 고정 헤더가 `form` 속성으로
+  /** Approved record presentation; the shared mutation and input guard remain here. */
+  presentation?: "default" | "record";
+  noticeNumber?: string | null;
+  /** 주어지면 저장 폼에 이 id가 붙어, 상세 화면의 결정 패널이 `form` 속성으로
    * 같은 submit을 쏠 수 있다. 폼 자체는 본문에 남는다 — 되돌릴 수 없는 입력
    * form을 헤더에 올리지 않는다(PLAN 단계 F 완료 게이트). */
   formId?: string;
@@ -143,8 +146,12 @@ export function TrackingDecisionControl({
   onStartedForDeepReview,
   onDirtyChange,
   reasonPresets,
+  presentation = "default",
+  noticeNumber,
 }: TrackingDecisionControlProps) {
   const Heading = headingLevel;
+  const record = presentation === "record";
+  const [savedDecision, setSavedDecision] = useState<{ reason: string; actor: string } | null>(null);
   const hasPresets = Boolean(reasonPresets && reasonPresets.length > 0);
   // 사전규격에서 고를 수 있는 값은 `계속 추적` 하나뿐이다(ADR-0046 결정 6).
   const [status, setStatus] = useState<OpportunityTrackingStatus>(
@@ -201,6 +208,7 @@ export function TrackingDecisionControl({
       // 저장이 끝났으므로 잃을 입력이 없다. `onStartedForDeepReview`가 곧바로
       // 이동시키는데, 그 시점의 dirty 계산은 아직 이전 렌더 값이라 먼저 푼다.
       guard.release();
+      if (record) setSavedDecision({ reason: saved.tracking_reason ?? "기록된 사유 미확인", actor: saved.tracking_selected_by ?? "담당자 미확인" });
       setStatus(saved.tracking_status);
       setReason("");
       setPresetChoice("");
@@ -219,16 +227,17 @@ export function TrackingDecisionControl({
     },
   });
 
-  // 전제조건은 조기 반환보다 앞에서 계산한다. 상세 화면의 고정 헤더가 같은
+  // 전제조건은 조기 반환보다 앞에서 계산한다. 상세 화면의 결정 패널이 같은
   // 값을 읽어 액션의 비활성 여부와 사유를 이 컴포넌트와 똑같이 유지하기
   // 때문이다(hook 순서를 조건부 반환이 흔들지 않게 하려는 목적도 같다).
   const hasOpportunity = item?.opportunity_id != null;
   const currentStatus = item?.tracking_status ?? null;
   const currentStatusLabel = currentStatus ?? "미확인";
   const currentStatusVariant = currentStatus === null ? "neutral" : trackingVariant(currentStatus);
-  const hasForm = Boolean(item) && !isPending && !isError && !(item && isInheritedTracking(item));
+  const recorded = record && hasOpportunity && ((currentStatus !== null && currentStatus !== "미선택") || savedDecision !== null);
+  const hasForm = Boolean(item) && !isPending && !isError && !(item && isInheritedTracking(item)) && !recorded;
   const ready = hasOpportunity && reason.trim().length > 0 && actorName.trim().length > 0 && !mutation.isPending;
-  const saveLabel = onStartedForDeepReview ? "추적 시작하고 심층 검토" : "추적 상태 저장";
+  const saveLabel = record ? (mutation.isPending ? "저장 중…" : problem ? "다시 저장" : "추적 시작") : onStartedForDeepReview ? "추적 시작하고 심층 검토" : "추적 상태 저장";
   const disabledReason = mutation.isPending
     ? "추적 상태 저장 요청을 처리하고 있습니다."
     : !hasOpportunity
@@ -246,7 +255,7 @@ export function TrackingDecisionControl({
   if (isPending) {
     return (
       <section className="pre-spec-tracking-decision" aria-labelledby="pre-spec-tracking-decision-title">
-        <Heading id="pre-spec-tracking-decision-title">심층 검토 추적 선택</Heading>
+        <Heading id="pre-spec-tracking-decision-title">{record ? "추적 결정" : "심층 검토 추적 선택"}</Heading>
         <p role="status">사업기회 연결과 첨부 취득 집계를 불러오는 중입니다.</p>
       </section>
     );
@@ -255,7 +264,7 @@ export function TrackingDecisionControl({
   if (isError || !item) {
     return (
       <section className="pre-spec-tracking-decision" aria-labelledby="pre-spec-tracking-decision-title">
-        <Heading id="pre-spec-tracking-decision-title">심층 검토 추적 선택</Heading>
+        <Heading id="pre-spec-tracking-decision-title">{record ? "추적 결정" : "심층 검토 추적 선택"}</Heading>
         <EmptyState
           compact
           tone="error"
@@ -265,6 +274,24 @@ export function TrackingDecisionControl({
         />
       </section>
     );
+  }
+
+  const recordHeading = <>
+    <div className="ps-record-tracking-heading"><Heading id="pre-spec-tracking-decision-title">추적 결정</Heading><span aria-label="현재 추적 상태"><Badge label={hasOpportunity ? (currentStatus === "계속 추적" ? "추적 중" : currentStatus === "종료" ? "추적 종료" : currentStatusLabel) : "사업기회 미연결"} variant="neutral" /></span></div>
+    <div className="ps-record-tracking-reference"><span>사전규격번호</span><strong>{noticeNumber ?? "미확인"}</strong></div>
+  </>;
+  const stateManagement = <p className="pre-spec-tracking-elsewhere"><strong>보류·추적 종료</strong>는 사업 추적에서 변경합니다.{hasOpportunity ? <Link to={`/opportunities/${item.opportunity_id}`}>사업 추적으로 이동 ↗</Link> : null}</p>;
+  if (recorded) {
+    return <section className="pre-spec-tracking-decision is-compact is-record is-recorded" aria-labelledby="pre-spec-tracking-decision-title">
+      {recordHeading}
+      <div className="ps-record-saved-decision">
+        <Heading>{savedDecision ? "추적 시작을 저장했습니다" : isInheritedTracking(item) ? "발주계획에서 추적 결정을 이어받았습니다" : "추적 결정이 기록된 사업입니다"}</Heading>
+        <p>현재 추적 상태 · {currentStatusLabel}</p>
+        {savedDecision ? <dl><div><dt>선택 사유</dt><dd>{savedDecision.reason}</dd></div><div><dt>담당자</dt><dd>{savedDecision.actor}</dd></div></dl> : null}
+        <Link to={`/opportunities/${item.opportunity_id}`}>사업 추적에서 상태 관리 ↗</Link>
+      </div>
+      {stateManagement}
+    </section>;
   }
 
   // 발주계획에서 승계한 건은 이 화면이 추적 상태를 **다시 묻지 않는다**(ADR-0046 결정 6).
@@ -300,13 +327,14 @@ export function TrackingDecisionControl({
 
   return (
     <section
-      className={`pre-spec-tracking-decision${compact ? " is-compact" : ""}`}
+      className={`pre-spec-tracking-decision${compact ? " is-compact" : ""}${record ? " is-record" : ""}`}
       aria-labelledby="pre-spec-tracking-decision-title"
     >
+      {record ? recordHeading : (
       <div className="pre-spec-tracking-decision-header">
         <div>
           {!compact ? <span className="pre-spec-tracking-kicker">사람이 고르는 추적 결정</span> : null}
-          <Heading id="pre-spec-tracking-decision-title">심층 검토 추적 선택</Heading>
+          <Heading id="pre-spec-tracking-decision-title">{record ? "추적 결정" : "심층 검토 추적 선택"}</Heading>
           {/* 이 결정이 최종 Go/No-Go가 아니라는 사실은 CLAUDE.md 강제 게이트
               (네 결정은 서로를 대신하지 않는다)라, 밀도를 낮추더라도 액션 옆에서
               지우지 않는다. compact는 설명을 줄일 뿐 이 구분은 남긴다. */}
@@ -323,6 +351,7 @@ export function TrackingDecisionControl({
             : <strong>사업기회 미연결</strong>}
         </div>
       </div>
+      )}
 
       {!compact ? <PreSpecDocumentSummary item={item} /> : null}
 
@@ -349,6 +378,7 @@ export function TrackingDecisionControl({
           mutation.mutate();
         }}
       >
+        {record ? <div className="ps-record-tracking-intent"><span>저장할 결정</span><h4>추적 시작 <span>→ 계속 추적</span></h4><p>새 문서·입찰공고·정정공고를 계속 확인합니다.</p></div> : (
         <fieldset>
           <legend>결정할 추적 상태</legend>
           <div className="pre-spec-tracking-options">
@@ -369,19 +399,21 @@ export function TrackingDecisionControl({
             ))}
           </div>
         </fieldset>
+        )}
 
         {hasOpportunity ? (
           <>
             {hasPresets ? (
               /* 시안의 사유 입력이다. 빈 값으로 시작하는 드롭다운에서 고른 문장이
                  그대로 저장 사유가 되고, `기타 · 직접 입력`을 골랐을 때만 자유
-                 입력이 열린다. 예시를 주지 않은 화면(사전규격 상세)은 아래의
+                 입력이 열린다. 예시를 주지 않은 호출자는 아래의
                  자유 입력 textarea를 그대로 쓴다 — 기존 소비자의 동작은 그대로다. */
               <div className="pre-spec-tracking-reason-preset">
                 <Selector
                   label="선택 사유"
-                  size="sm"
-                  placeholder="사유를 선택하세요"
+                  size={record ? "md" : "sm"}
+                  placeholder={record ? "추적을 시작하는 사유를 선택하세요" : "사유를 선택하세요"}
+                  isRequired={record}
                   isDisabled={mutation.isPending}
                   options={[
                     ...(reasonPresets ?? []).map((preset) => ({ value: preset, label: preset })),
@@ -396,6 +428,7 @@ export function TrackingDecisionControl({
                   }}
                 />
                 {presetChoice === OTHER_REASON_PRESET ? (
+                  record ? <label className="pre-spec-tracking-reason"><span>선택 사유 직접 입력 <em>(필수)</em></span><textarea required rows={3} value={reason} disabled={mutation.isPending} onChange={event => setReason(event.target.value)} placeholder="추가로 확인할 내용과 추적이 필요한 이유" /></label> : (
                   <TextInput
                     label="선택 사유 직접 입력"
                     size="sm"
@@ -403,6 +436,7 @@ export function TrackingDecisionControl({
                     onChange={setReason}
                     placeholder="이 상태를 고른 사유를 남깁니다."
                   />
+                  )
                 ) : null}
               </div>
             ) : (
@@ -424,13 +458,16 @@ export function TrackingDecisionControl({
               onChange={setActorName}
               placeholder="예: 홍길동"
               autoComplete="off"
+              description={record ? "이 이름을 결정 이력에 기록하며 이 브라우저에 기억합니다." : undefined}
+              showRememberNote={!record}
+              disabled={record && mutation.isPending}
             />
           </>
         ) : null}
 
         {feedback ? <MutationFeedback tone={feedback.tone}>{feedback.message}</MutationFeedback> : null}
         {problem ? <MutationFeedback tone="error" problem={problem} /> : null}
-        {/* 상세 화면은 이 폼의 submit을 고정 헤더의 액션이 소유한다(formId).
+        {/* 상세 화면은 이 폼의 submit을 결정 패널의 액션이 소유한다(formId).
             같은 이름의 저장 버튼을 본문에도 두면 한 화면에 같은 결정 조작이
             둘이 되고, 어느 쪽이 정본인지 화면이 답하지 못한다. 목록 화면처럼
             헤더 액션이 없을 때만 이 폼이 자기 버튼을 갖는다. */}
@@ -452,9 +489,9 @@ export function TrackingDecisionControl({
             한 조작이지만 기록은 둘입니다. 추적 시작을 지금 남기고, 심층 검토 실행 승인은 문서 묶음이 준비된 상세에서 이어서 남깁니다.
           </p>
         ) : null}
-        <p className="pre-spec-tracking-elsewhere">
+        {record ? stateManagement : (        <p className="pre-spec-tracking-elsewhere">
           <strong>보류</strong>와 <strong>추적 종료</strong>는 이 화면에 없습니다. 사업 추적에서만 사람이 고릅니다.
-        </p>
+        </p>)}
       </form>
       {/* 확인 단계. 취소하면 초안은 그대로 남고 요청은 나가지 않는다. 저장에
           실패하면 다이얼로그는 닫히고 기존 인라인 오류 표시가 그대로 보인다. */}

@@ -1,3 +1,5 @@
+import { Text } from "@astryxdesign/core/Text";
+import { DataTable, Note, Section, Small, StatLine, StatusToken } from "../criteria/CriteriaPrimitives";
 import type { QualityGateResultStatus, RuntimeJsonObject } from "../../lib/types";
 
 interface MetricEntry {
@@ -141,14 +143,6 @@ function thresholdLabel(key: string): string {
   return "합격 threshold 없음 · 진단 지표";
 }
 
-function metricClass(status: string): string {
-  if (status === "통과") return "quality-metric-passed";
-  if (status === "미달") return "quality-metric-failed";
-  if (status === "보류") return "quality-metric-held";
-  if (status === "미측정") return "quality-metric-unmeasured";
-  return "quality-metric-unavailable";
-}
-
 function metricContext(key: string, metric: Record<string, unknown> | null): string | null {
   if (!metric) return null;
   if (key === "evidence_validity") {
@@ -173,51 +167,59 @@ export function QualityGateMetrics({ metrics, resultStatus }: QualityGateMetrics
   const pairedCount = numberValue(metrics.paired_valid_count);
 
   return (
-    <section className="quality-panel" aria-labelledby="quality-metrics-heading">
-      <div className="quality-panel-heading">
-        <div>
-          <span className="quality-eyebrow">결정적 계산</span>
-          <h2 id="quality-metrics-heading">지표와 제외 근거</h2>
-        </div>
-        <span className="quality-status" aria-live="polite">최종 상태 · {resultStatus}</span>
-      </div>
-      <div className="quality-metric-summary" aria-label="표본 요약">
-        <div><span>고정 표본</span><strong>{sampleCount === null ? "계산 불가" : `${sampleCount}건`}</strong></div>
-        <div><span>A/B 유효 쌍</span><strong>{pairedCount === null ? "계산 불가" : `${pairedCount}건`}</strong></div>
-        <div><span>지표 그룹·상세</span><strong>{entries.length}개</strong></div>
-      </div>
-      <div className="quality-table-wrap">
-        <table className="quality-metric-table">
-          <caption className="quality-sr-only">품질 게이트의 모든 top-level 지표와 중첩 지표별 계산 결과와 명시적 임계값</caption>
-          <thead><tr><th scope="col">지표</th><th scope="col">결과</th><th scope="col">계산 근거</th><th scope="col">상태</th><th scope="col">임계값·진단</th></tr></thead>
-          <tbody>
-            {entries.map(({ key, metric, available, isGroup }) => {
-              if (isGroup) return <tr className="quality-metric-group" key={key}><th scope="row" colSpan={5}><code>{key}</code><small>하위 지표를 아래에서 확인하십시오.</small></th></tr>;
-              const status = metricStatus(metric?.status, available);
-              const numerator = numberValue(metric?.numerator);
-              const denominator = numberValue(metric?.denominator);
-              const context = metricContext(key, metric);
-              return (
-                <tr className={metricClass(status)} key={key}>
-                  <th scope="row"><code>{key}</code></th>
-                  <td><strong>{percentLabel(metric?.percent)}</strong></td>
-                  <td>{numerator === null || denominator === null ? "계산 불가" : <span className="mono">{numerator} / {denominator}</span>}</td>
-                  <td><span className="quality-status">{status}</span></td>
-                  <td><span>{thresholdLabel(key)}</span>{context ? <small>{context}</small> : null}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-      <div className="quality-excluded" aria-labelledby="quality-excluded-heading">
-        <h3 id="quality-excluded-heading">제외된 공고와 사유</h3>
+    <>
+      <StatLine items={[
+        ["고정 표본", sampleCount === null ? "계산 불가" : `${sampleCount}건`],
+        ["A/B 유효 쌍", pairedCount === null ? "계산 불가" : `${pairedCount}건`],
+        ["최종 상태", resultStatus],
+      ]} />
+      <Section title={`지표와 제외 근거 · ${entries.length}개`}>
+        <Small>
+          결정적 계산 결과입니다. 임계값이 없는 항목은 합격/불합격이 아니라 진단 지표이며, 계산하지 못한 값은 0%로 바꾸지 않습니다.
+        </Small>
+        <DataTable
+          caption="품질 게이트의 모든 top-level 지표와 중첩 지표별 계산 결과와 명시적 임계값"
+          headings={["지표", "결과", "계산 근거", "상태", "임계값·진단"]}
+          rows={entries.map(({ key, metric, available, isGroup }) => {
+            if (isGroup) {
+              return [
+                <code key="k">{key}</code>,
+                <Small key="v">하위 지표를 아래에서 확인하십시오.</Small>,
+                <Small key="b">—</Small>,
+                <Small key="s">지표 묶음</Small>,
+                <Small key="t">—</Small>,
+              ];
+            }
+            const status = metricStatus(metric?.status, available);
+            const numerator = numberValue(metric?.numerator);
+            const denominator = numberValue(metric?.denominator);
+            const context = metricContext(key, metric);
+            return [
+              <code key="k">{key}</code>,
+              <Text key="v" weight="semibold">{percentLabel(metric?.percent)}</Text>,
+              <Text key="b">{numerator === null || denominator === null ? "계산 불가" : `${numerator} / ${denominator}`}</Text>,
+              <StatusToken key="s" label={status} />,
+              <span className="crit-cell-stack" key="t">
+                <Text>{thresholdLabel(key)}</Text>
+                {context ? <Small>{context}</Small> : null}
+              </span>,
+            ];
+          })}
+        />
+      </Section>
+      <Section title={`제외된 공고와 사유 · ${excluded.length}건`}>
         {excluded.length > 0 ? (
-          <ul>
-            {excluded.map((item, index) => <li key={`${textValue(item.notice_id) ?? "notice"}-${index}`}><span className="mono">{textValue(item.notice_id) ?? "공고 ID 없음"}</span><span>{textValue(item.pass) ?? "검토"} · {textValue(item.reason) ?? "제외 사유 없음"}</span></li>)}
-          </ul>
-        ) : <p>제외된 공고가 없습니다.</p>}
-      </div>
-    </section>
+          <DataTable
+            caption="지표 계산에서 제외된 공고"
+            headings={["공고", "실행", "제외 사유"]}
+            rows={excluded.map((item) => [
+              <code key="n">{textValue(item.notice_id) ?? "공고 ID 없음"}</code>,
+              <Text key="p">{textValue(item.pass) ?? "검토"}</Text>,
+              <Text key="r">{textValue(item.reason) ?? "제외 사유 없음"}</Text>,
+            ])}
+          />
+        ) : <Note title="제외된 공고가 없습니다">표본에서 빠진 공고가 없다는 뜻이며, 계산 실패와는 다른 상태입니다.</Note>}
+      </Section>
+    </>
   );
 }

@@ -34,6 +34,8 @@ import type {
   PreSpecListResponse,
   PreSpecOverviewReviewsResponse,
   PreSpecOverviewReviewsV2Response,
+  PageOverviewResponse,
+  CompanyFitResponse,
   OpportunityDetailResponse,
   CandidateLinkDecisionRequest,
   OpportunityLinkView,
@@ -599,6 +601,11 @@ export const api = {
 
   getPreSpecOverviewReviews: (noticeId: number, options?: ReadRequestOptions) =>
     request<PreSpecOverviewReviewsResponse>(`/pre-specs/${noticeId}/overview-reviews`, options),
+
+  getPageOverviews: (noticeId: number, options?: ReadRequestOptions) =>
+    request<PageOverviewResponse>(`/pre-specs/${noticeId}/overview-pages`, options),
+  getCompanyFit: (noticeId: number, options?: ReadRequestOptions) =>
+    request<CompanyFitResponse>(`/pre-specs/${noticeId}/company-fit`, options),
 
   getPreSpecOverviewReviewsV2: (noticeId: number, options?: ReadRequestOptions) =>
     request<PreSpecOverviewReviewsV2Response>(`/pre-specs/${noticeId}/overview-reviews/v2`, options),

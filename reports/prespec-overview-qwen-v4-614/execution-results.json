@@ -1,0 +1,20 @@
+{
+  "run_id": "0a6125ea-773e-4951-9ff4-c108b4091dd7",
+  "quality_status": "unmeasured_reference",
+  "results": [
+    {
+      "notice_id": 614,
+      "status": "validation_failed",
+      "validation_errors": [
+        "fact_number_not_on_cited_pages",
+        "latin_term_not_on_cited_pages"
+      ],
+      "response_sha256": "8d87177f4b6be0cf22fafb62702d283a74e89b52d529775e3d7db8d5cfa4e640",
+      "prompt_sha256": "47de553eddf40320d29d73c59a7ac3fe8c4baf823281b489d4f4fed9f0ae7bc9",
+      "input_tokens": 4574,
+      "output_tokens": 964,
+      "duration_seconds": 35.427,
+      "semantic_quality": "unmeasured_reference"
+    }
+  ]
+}

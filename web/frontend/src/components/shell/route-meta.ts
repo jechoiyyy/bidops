@@ -1,5 +1,19 @@
 export type RouteDataScope = "run" | "cumulative";
 
+/** 상단바가 화면 이름을 그리는 방식.
+ *
+ * - `breadcrumb` 기본. `그룹 › 상위 화면 › 화면 이름 › 식별자` 경로를 그리고
+ *   화면 이름 칸이 `<h1>`이 된다. 페이지는 자기 `<h2>` 제목 줄을 갖는다.
+ * - `title`     제목 모드. 경로 대신 화면 이름 하나만 `<h1>`으로 그리고 페이지
+ *   액션(`#page-header-actions`)이 그 오른쪽에 붙는다. 페이지는 제목 줄을 두지
+ *   않으므로 세로 공간을 두 번 쓰지 않는다(사용자 결정 2026-09-08).
+ *
+ * 제목 모드는 **목록 화면에만** 준다. 상세 화면은 목록으로 돌아갈 경로가 필요해
+ * 언제나 경로 모드로 남으며, 그 판단은 `resolveRouteLocation()`이 route param에서
+ * 만든 `record` 칸의 유무로 자동으로 한다.
+ */
+export type RouteTopbarMode = "breadcrumb" | "title";
+
 /** 상단 경로(현재 위치) 한 칸의 성격.
  *
  * - `group`   사이드바 1차 분류. 대응하는 화면이 없으므로 링크가 아니다.
@@ -36,6 +50,8 @@ export interface RouteRecordCrumb {
 export interface RouteMetadata {
   title: string;
   dataScope: RouteDataScope;
+  /** 상단바 표시 방식. 없으면 `breadcrumb`이다(대부분의 화면은 손대지 않는다). */
+  topbar?: RouteTopbarMode;
   editScope: string | null;
   runSelectorVisible: boolean;
   /** 사이드바 1차 분류 라벨. 상단 경로의 첫 칸이다. */
@@ -110,6 +126,9 @@ export const routeMetadata = {
   opportunities: {
     title: "사업 추적",
     dataScope: "cumulative",
+    // 목록은 제목 모드다. 상세(`/opportunities/:opportunityId`)는 같은 metadata를
+    // 쓰지만 record 칸이 생겨 경로 모드로 남는다.
+    topbar: "title",
     editScope: "추적 상태·예외 작업 저장 가능",
     runSelectorVisible: false,
     navGroup: "탐색과 추적",
@@ -119,9 +138,11 @@ export const routeMetadata = {
     record: { param: "opportunityId", label: (value) => `#${value}`, placement: "leaf" },
   },
   orderPlans: {
-    // 화면 제목은 `발주계획` 한 낱말이다(승인 시안). 상단 경로도 같은 이름을 쓴다.
+    // 화면 제목은 `발주계획` 한 낱말이다(승인 시안). 제목 모드의 `<h1>`이 그 이름이다.
     title: "발주계획",
     dataScope: "cumulative",
+    // 목록 전용 metadata다(상세는 `orderPlanDetail`). 언제나 제목 모드다.
+    topbar: "title",
     // 이 화면의 결정은 추적 선택이고 사람 판단 수정은 보조 저장이다.
     editScope: "추적 선택·사람 판단 수정 저장 가능",
     runSelectorVisible: false,
@@ -162,6 +183,8 @@ export const routeMetadata = {
   preSpecs: {
     title: "사전규격",
     dataScope: "cumulative",
+    // 목록은 제목 모드, 상세(`/pre-specs/:noticeId`)는 record 칸 덕분에 경로 모드다.
+    topbar: "title",
     editScope: null,
     runSelectorVisible: false,
     navGroup: "탐색과 추적",
@@ -173,6 +196,7 @@ export const routeMetadata = {
   goNoGo: {
     title: "최종 Go/No-Go",
     dataScope: "cumulative",
+    topbar: "title",
     editScope: "최종 Go/No-Go 저장 가능",
     runSelectorVisible: false,
     navGroup: "탐색과 추적",
@@ -240,8 +264,12 @@ export const routeMetadata = {
 export interface ResolvedRouteLocation {
   /** 사이드바에서 활성이 될 항목의 경로. */
   navPath: string | null;
-  /** 상단바가 그리는 현재 위치. */
+  /** 상단바가 그리는 현재 위치. 제목 모드에서는 그리지 않는다. */
   crumbs: RouteCrumb[];
+  /** 상단바 표시 방식. 목록 화면의 `topbar: "title"`만 제목 모드가 된다. */
+  topbarMode: RouteTopbarMode;
+  /** 제목 모드의 `<h1>` 글자. 경로 모드에서도 화면 이름과 같은 값이다. */
+  title: string;
 }
 
 /**
@@ -251,6 +279,14 @@ export interface ResolvedRouteLocation {
  * 화면 이름은 `<h1>`이 되므로 목록과 상세가 같은 metadata를 쓰는 화면
  * (사전규격·사업 추적·검토 대기열·공고 판정 이력)에서는 상세에서도 같은
  * 문자열이 남고, 그 대신 목록으로 돌아가는 링크가 된다.
+ *
+ * `topbarMode`는 `metadata.topbar`가 `title`이고 **상세 식별자 칸이 없을 때만**
+ * `title`이다. 식별자는 route param에서 만들어지므로, 목록과 상세가 metadata를
+ * 공유하는 화면(사전규격·사업 추적)은 상세에서 자동으로 경로 모드로 돌아간다 —
+ * 상세는 목록으로 돌아갈 링크가 필요하고 그 링크가 경로에 있다.
+ * `crumbs`는 제목 모드에서도 계속 계산한다(사이드바 활성 판단과 같은 metadata에서
+ * 나오고, 모드에 따라 값이 달라지면 두 벌의 진실이 생긴다). 그리지 않는 쪽을
+ * 고르는 것은 `TopBar`다.
  */
 export function resolveRouteLocation(
   metadata: RouteMetadata,
@@ -284,7 +320,8 @@ export function resolveRouteLocation(
     role: "screen",
   });
   if (trailingRecord) crumbs.push({ label: trailingRecord.label, to: trailingRecord.to, role: "record" });
-  return { navPath: origin.navPath, crumbs };
+  const topbarMode: RouteTopbarMode = metadata.topbar === "title" && record === null ? "title" : "breadcrumb";
+  return { navPath: origin.navPath, crumbs, topbarMode, title: metadata.title };
 }
 
 export function routeHandle(metadata: RouteMetadata): RouteMetadataHandle {

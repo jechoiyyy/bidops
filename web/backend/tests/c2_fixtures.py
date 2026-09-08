@@ -93,7 +93,7 @@ def write_c2_fixture(root: Path, *, failed: bool = False) -> tuple[Path, str]:
         "items": [{
             "plan_id": plan_id,
             "rank": 1,
-            "score": 1.0,
+            "score": 1.1234567890123,
             "nearest_capability": "cap-ai",
             "stage1_status": "selected",
         }],
@@ -222,7 +222,7 @@ def write_c2_fixture(root: Path, *, failed: bool = False) -> tuple[Path, str]:
             "plan_id": plan_id,
             "stage1_status": "selected",
             "stage1_rank": 1,
-            "stage1_score": 1.0,
+            "stage1_score": 1.1234567890123,
             "nearest_capability": "cap-ai",
             "stage2_status": "failed" if failed else "success",
             "qwen_relevance": None if failed else "relevant",

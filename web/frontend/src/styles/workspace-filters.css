@@ -1,0 +1,161 @@
+/*
+ * 탐색과 추적 4화면이 공유하는 필터 바 — `components/common/WorkspaceFilters.tsx`.
+ *
+ * 출처: 승인된 사업 추적 시안(`opportunities-relaxed.css`의 `.opportunity-filters`
+ * 계열)의 골격을 이름만 `workspace-*`로 바꿔 옮겼다. 프레임 값(배경 `--color-background-card`,
+ * 아래 테두리 없음, 위 radius만, padding `2 3`)은 발주계획(`order-plans.css`의
+ * `.c2l-filters`)을 기준으로 맞춘다 — 필터 바는 바로 아래 workspace와 한 덩어리로
+ * 이어 붙는 면이므로 아래 테두리와 아래 radius를 두지 않는다.
+ *
+ * 규칙:
+ * - 색·간격·반경은 `bidops` 테마 토큰만 읽는다. `--color-*`를 새로 정의하지 않는다(ADR-0048).
+ * - raw px·raw hex를 쓰지 않는다. 글자는 `typography.css`의 4단(`--bo-type-*`)만 쓴다.
+ * - 레이아웃은 프로젝트가 소유한다(ADR-0040).
+ * - 화면별 값(폭·열 수·특정 자식의 grid 위치)은 화면 CSS가 자기 접두 클래스로 덧쓴다.
+ *   이 파일은 `main.tsx`에서 일찍 실려 화면 CSS(lazy chunk)보다 앞서므로, 같은 특이성이면
+ *   화면 쪽이 이긴다.
+ */
+
+/* 필터 바와 workspace를 잇는 세로 flex. 남은 높이를 전부 차지하고 스크롤은 안쪽
+   pane에서만 일어난다. */
+.workspace-frame {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  min-width: 0;
+  min-height: 0;
+}
+
+.workspace-filters {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  min-width: 0;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: var(--border-width) solid var(--color-border);
+  /* 아래는 workspace가 곧바로 이어 붙는다. 두 면 사이에 선을 두 번 그리지 않는다. */
+  border-bottom: 0;
+  border-radius: var(--radius-element) var(--radius-element) 0 0;
+  background: var(--color-background-card);
+}
+
+.workspace-filter-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  min-width: 0;
+}
+
+/* 보기 탭 — 여섯 개까지 늘어나는 화면(사전규격)이 있어 1280px에서 줄바꿈을 허용한다. */
+.workspace-view-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+
+.workspace-view-tabs .astryx-button {
+  background: transparent;
+  border-color: transparent;
+}
+
+.workspace-view-tabs [aria-pressed="true"] {
+  background: var(--color-accent-muted);
+  border-color: var(--color-border);
+  font-weight: var(--bo-type-section-title-weight);
+}
+
+.workspace-filter-end {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.workspace-filters .workspace-search {
+  width: calc(var(--spacing-12) * 5.5);
+  max-width: 100%;
+}
+
+.workspace-advanced-toggle {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+/* 열려 있는 동안 토글이 눌린 상태임을 보인다(보기 탭의 눌림과 같은 표현). */
+.workspace-advanced-toggle .astryx-button[aria-expanded="true"] {
+  background: var(--color-accent-muted);
+  border-color: var(--color-border);
+}
+
+/* 접힌 상세 필터에 걸린 필터 수. 버튼 이름에 섞지 않으려고 따로 그린다. */
+.workspace-filter-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--spacing-5);
+  padding: 0 var(--spacing-1);
+  border-radius: var(--radius-inner);
+  background: var(--color-accent-muted);
+  color: var(--color-text-primary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 둘째 줄 — 필터가 아니라 지금 보고 있는 범위의 사실을 적는 자리다. */
+.workspace-filter-context {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2) var(--spacing-3);
+  min-width: 0;
+  padding-top: var(--spacing-2);
+  border-top: var(--border-width) solid var(--color-border);
+}
+
+/* 상세 필터: 축 n개 + 오른쪽 끝의 초기화 버튼. 열 수는 화면이 `columns`로 정한다. */
+.workspace-filter-advanced {
+  display: grid;
+  grid-template-columns: repeat(var(--workspace-advanced-columns, 2), minmax(0, 1fr)) auto;
+  align-items: end;
+  gap: var(--spacing-3) var(--spacing-4);
+  min-width: 0;
+  padding-top: var(--spacing-2);
+  border-top: var(--border-width) solid var(--color-border);
+}
+
+.workspace-filter-advanced > * {
+  min-width: 0;
+}
+
+.workspace-filter-reset {
+  justify-self: end;
+}
+
+/* --- 글자 크기 ---
+ *
+ * Astryx의 `--font-size-*`는 rem 이고 이 앱의 root 는 14px 라 컴포넌트가 그 토큰을
+ * 그대로 쓰면 본문이 12px 아래로 내려간다(`docs/engineering-notes.md`). 필터 바는
+ * 화면 root 밖에서도(포털·다른 화면) 같은 크기여야 하므로 이 파일이 자기 안의 Astryx
+ * 컨트롤에 4단을 다시 적용한다.
+ *
+ * 순서가 뜻을 정한다: 값 영역(입력·선택값)을 먼저 본문으로 올린 뒤, 컨트롤과 라벨을
+ * 캡션으로 내린다. 두 규칙의 특이성이 같으므로 뒤에 오는 쪽이 라벨을 가져간다.
+ */
+.workspace-filters :where(.astryx-text-input, .astryx-selector),
+.workspace-filters :where(.astryx-text-input, .astryx-selector) :where(span, input) {
+  font-size: var(--bo-type-body);
+  line-height: var(--bo-type-body-leading);
+}
+
+.workspace-filters :where(.astryx-button, .astryx-field-label, .astryx-badge, .astryx-toggle-button) {
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}

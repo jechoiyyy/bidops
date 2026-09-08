@@ -1,0 +1,87 @@
+{
+  "schema_version": "bidops.prespec-overview-page-report.v1",
+  "quality_status": "unmeasured_reference",
+  "run_id": "0a6125ea-773e-4951-9ff4-c108b4091dd7",
+  "reviews": [
+    {
+      "notice_id": 614,
+      "title": "RCMS 연계모듈 전환 및 통합 Ezbaro 연계모듈 구축",
+      "pdf_sha256": "370ab609961e8cfb377baba69206ab6edd21633c66968181c97265a05fd50b07",
+      "status": "validation_failed",
+      "output": {
+        "schema_version": "bidops.prespec-overview-page-review.v3",
+        "business_overview": [
+          {
+            "text": "부처 연구비 관리 시스템의 연계 방식이 통합 개편되고 기존 RCMS 연계 모듈이 2026년 12월 31일부로 종료될 예정이므로, 진흥원은 연구비 집행·정산 업무의 연속성을 확보하기 위해 RCMS 연계모듈을 전환하고 통합Ezbaro 연계모듈을 신규 구축하는 소프트웨어 개발 용역을 발주한다. (PDF 3페이지)",
+            "evidence_pages": [
+              3
+            ]
+          }
+        ],
+        "main_tasks": [
+          {
+            "text": "기존 RCMS 연계 환경을 분석·설계하고, 연계 모듈을 재구축하여 신규 통합 연계모듈로 전환하며, 데이터 이관과 전송·오류 관리 기능을 개선한다. (PDF 4페이지 · PDF 6페이지)",
+            "evidence_pages": [
+              4,
+              6
+            ]
+          },
+          {
+            "text": "통합Ezbaro 연계모듈을 설치·구축하여 과제·예산·연구비 집행정보 연계 기능을 개발하고, 내부 정보시스템과 비목·과제 매핑 체계를 구축한다. (PDF 4페이지 · PDF 6페이지)",
+            "evidence_pages": [
+              4,
+              6
+            ]
+          },
+          {
+            "text": "두 시스템 연계의 단위·통합 시험과 상호연동 시험을 수행하고, 연계 오류 모니터링·재처리 체계를 구축하여 운영환경에 반영한다. (PDF 4페이지 · PDF 5페이지 · PDF 6페이지)",
+            "evidence_pages": [
+              4,
+              5,
+              6
+            ]
+          }
+        ],
+        "budget_and_period": [
+          {
+            "text": "사업금액은 153,000,000원(VAT 포함)이며, 사업기간은 계약체결일로부터 6개월이다. (PDF 3페이지)",
+            "evidence_pages": [
+              3
+            ]
+          },
+          {
+            "text": "RCMS 연계모듈 전환은 기존 서비스 일몰일인 2026년 12월 31일 이전에 완료해야 하며, 통합Ezbaro 연계모듈 구축은 순차적으로 추진된다. (PDF 3페이지 · PDF 5페이지)",
+            "evidence_pages": [
+              3,
+              5
+            ]
+          }
+        ],
+        "important_conditions": [
+          {
+            "text": "연계 범위는 RCMS 및 통합Ezbaro 운영기관이 배포·공지하는 연계 규격(전문, API 등)에 정의된 범위를 기준으로 한다. (PDF 4페이지)",
+            "evidence_pages": [
+              4
+            ]
+          },
+          {
+            "text": "RCMS 및 통합Ezbaro 운영기관의 연계모듈 배포·개통 일정에 따라 추진 일정이 조정될 수 있다. (PDF 6페이지)",
+            "evidence_pages": [
+              6
+            ]
+          }
+        ],
+        "reviewer_analysis": [
+          "본 사업은 기존 시스템에서 신규 통합 모듈로의 전환과 신규 연계모듈 구축이 동시에 요구되는 개발 용역으로, 연계 규격에 대한 이해와 데이터 정합성 검증 역량이 핵심이다. 기존 RCMS 연계 환경 분석과 신규 모듈 구축 간 업무 공백을 방지하는 전환 계획과, 운영기관 연계 규격에 대한 대응 능력이 수행 적합성을 판단하는 우선 확인 쟁점이다."
+        ],
+        "unknowns": [
+          "세부 추진 일정은 착수 후 발주기관과 협의하여 확정되며, RCMS 및 통합Ezbaro 운영기관의 연계모듈 배포·개통 일정에 따라 조정될 수 있다. (PDF 6페이지)",
+          "회사 역량·참여 요건 대조는 아직 이루어지지 않았다."
+        ],
+        "input_limitations": [
+          "본 요약은 제공된 PDF 3~6페이지의 개요 및 추진체계 본문을 대상으로 하며, 전체 문서의 세부 요구사항이나 제안요청 내용을 검토하지 않았다. (PDF 3~6페이지)"
+        ]
+      }
+    }
+  ]
+}

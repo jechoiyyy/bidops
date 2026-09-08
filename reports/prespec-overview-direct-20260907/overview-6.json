@@ -1,0 +1,656 @@
+{
+  "schema_version": "bidops.prespec-overview-direct-reference.v1",
+  "review_date": "2026-09-07",
+  "review_method": "assistant_direct_read",
+  "quality_status": "unmeasured_reference",
+  "scope": "기존 개요 검토 실패 6건의 구조화 원문 직접 검토",
+  "length_policy": "글자수·줄수 제한 없음. 담당자의 사업 이해에 필요한 사실과 확인 사항을 우선한다.",
+  "additional_ollama_calls": 0,
+  "database_updated": false,
+  "operational_policy_changed": false,
+  "limitation": "회사 역량·참여 자격은 미검증. 전체 첨부에 대한 심층 검토 또는 사람의 최종 판단을 대체하지 않음.",
+  "reviews": [
+    {
+      "notice_id": 137,
+      "notice_key": "pre:R26BD00271850",
+      "title": "국세청 AI 시스템 구축 ISMP 수립",
+      "business_type": "AI 정보화 전략·실행계획 수립 및 PoC",
+      "budget": null,
+      "period": "개요 구조화본에서 확인되지 않음",
+      "overview": "국세청의 AI 기반 납세서비스와 세정업무 전환을 구체적인 시스템 구축계획으로 만드는 ISMP 사업이다. 선행 ISP와 예비타당성조사 결과를 검토·현행화하고, 어떤 업무에 어떤 AI 기술을 적용할지, 필요한 인프라·데이터·조직·예산과 단계별 이행방안을 설계한다. 후속 구축사업의 실행 기준을 만드는 성격이며, 실제 업무 적용 가능성을 확인하는 기술검증(PoC)도 포함한다.",
+      "main_tasks": [
+        "AI 인프라 아키텍처·용량·확장성·재해복구 방안과 기존 시스템 연계 방안을 설계한다. 과제별 LLM 선정 기준과 평가 지표, 목표 모델을 제시한다.",
+        "생성형 AI·RAG·AI Agent 기술검증을 수행하고 업무 프로세스와 서비스 요구사항을 구체화한다. 학습 데이터 정제·라벨링 표준, 성능 평가·재학습 체계도 수립한다.",
+        "국세 데이터의 안전한 학습·활용, 보안과 윤리 가드레일, AI 거버넌스와 운영체계를 다룬다. 하드웨어·소프트웨어·개발비·학습비를 포함한 상세 소요예산과 단계별 이행계획을 산출한다."
+      ],
+      "document_conditions": [
+        "확인한 개요 구조화본의 기본정보 일부가 빈 기호로 추출되어 예산과 사업기간을 확인하지 못했다. 값이 없다는 뜻이 아니며, 원본 문서 또는 공고 메타데이터 대조가 필요하다."
+      ],
+      "reviewer_analysis": "AI 기술에 대한 이해와 공공 정보화 계획 수립 능력을 함께 요구하는 사업으로 판단한다. 단순한 챗봇 개발 실적만으로 수행 적합성을 판단하기 어렵다. 검토를 이어간다면 ISMP 산출물 작성 경험, 세정업무 이해, 데이터 보안 설계와 PoC 수행 역량을 먼저 대조하는 것이 유용하다. 회사의 해당 역량은 이번 검토에서 확인하지 않았다.",
+      "items_to_verify": [
+        "사업 예산·기간과 최종 산출물 및 검수 기준",
+        "선행 ISP·예비타당성조사 자료 접근 범위와 현행화 분량",
+        "PoC 대상 과제·데이터 제공 범위·시험 환경·평가 기준",
+        "컨설팅과 기술검증 인력 구성, 보안 조건, 실제 입찰 참여 요건"
+      ],
+      "company_capability_status": "unknown",
+      "source_file": "/home/jechoi/projects/bidops/.dryforge/pipeline-20260903-20260907/direct-overview-source/137-document.txt",
+      "source_text_sha256": "0d0edca8d84c9aa47e2e66a1b0b73b4110e62b08dd7cc8fe8b0af0813dd307ac",
+      "evidence": [
+        {
+          "ordinal": 163,
+          "block_key": "paragraph-1-110",
+          "text": "○선행 ISP 산출물을 세부검토, 현행화하고 예비타당성조사 결과(각 개선 과제에 대한 구체적 수행방안, 적정성 등)를 반영하여 ISMP 산출물 마련"
+        },
+        {
+          "ordinal": 164,
+          "block_key": "paragraph-1-111",
+          "text": "○단계별 이행계획 수립하여 국세청 AI 시스템 구축에 필요한 하드웨어·소프트웨어 및 개발비·학습비 등 상세 소요예산 산출"
+        },
+        {
+          "ordinal": 168,
+          "block_key": "paragraph-1-115",
+          "text": "○AI 인프라 구조 설계와 인프라 용량 산정을 위한 현황을 분석하고, 안정성 및 확장성을 고려한 AI 인프라(DR 포함) 구축 방안 수립"
+        },
+        {
+          "ordinal": 173,
+          "block_key": "paragraph-1-120",
+          "text": "○국세 데이터의 안전한 학습·활용을 위한 보안 인프라 설계 등 보안 방안, 윤리 문제 대응을 위한 가드레일 마련 등 대응 방안 제시"
+        },
+        {
+          "ordinal": 176,
+          "block_key": "paragraph-1-123",
+          "text": "○과제별 특성에 최적화된 AI 모델 적용을 위해 국내·외 다양한 LLM 선정 기준을 분석하고, 평가 지표를 마련하여 목표 모델 제시"
+        },
+        {
+          "ordinal": 185,
+          "block_key": "paragraph-1-132",
+          "text": "○생성형 AI·RAG·AI Agent 등 적용 기술에 대한 기술검증(PoC)을 수행하여 실제 업무 적용 가능성 검증"
+        },
+        {
+          "ordinal": 191,
+          "block_key": "paragraph-1-138",
+          "text": "○AI 학습 데이터의 정확성 확보를 위한 정제·라벨링 등 표준을 마련하고 모델 성능 유지를 위한 평가·재학습 체계 수립"
+        },
+        {
+          "ordinal": 203,
+          "block_key": "paragraph-1-150",
+          "text": "○AI 추진 조직 구성 방안과 효율적 운영 관리를 위한 최적 방안 등 시스템 구축 및 운영 전과정에 요구되는 AI 거버넌스 체계 마련"
+        }
+      ]
+    },
+    {
+      "notice_id": 614,
+      "notice_key": "pre:R26BD00271507",
+      "title": "RCMS 연계모듈 전환 및 통합 Ezbaro 연계모듈 구축",
+      "business_type": "연구비 관리 시스템 연계 개발",
+      "budget": {
+        "amount_krw": 153000000,
+        "vat_included": true
+      },
+      "period": "계약체결일로부터 6개월",
+      "overview": "한국탄소산업진흥원 내부 시스템과 연구비 관리 시스템 사이의 연계를 전환·신설하는 사업이다. 기존 RCMS 연계 모듈이 2026년 12월 31일 종료될 예정이므로 새 규격으로 전환해 연구비 집행·정산 업무의 연속성을 확보하고, 통합 Ezbaro 연계를 새로 구축해 수작업과 중복 입력을 줄이는 것이 목적이다.",
+      "main_tasks": [
+        "RCMS 연계 모듈을 개편·재구축하고 데이터 모델과 연계 테이블, 데이터 이관 및 테스트를 준비한다. 집행·이체·정산·과제 변경 등 연계 업무를 처리한다.",
+        "통합 Ezbaro 연계 환경을 구성하고 과제·예산·연구자 정보와 집행·증빙 정보의 매핑 및 송수신을 구현한다.",
+        "오류 처리·재처리·모니터링과 연계 검증을 포함한다. RCMS 전환을 우선하고 Ezbaro 구축을 이어가는 추진방안이 제시되어 있다."
+      ],
+      "document_conditions": [
+        "사업비는 153,000,000원(VAT 포함), 전체 사업기간은 계약 후 6개월이다. 기존 RCMS 서비스 종료일은 별도 제약이므로 전체 계약기간과 전환 완료 시점을 구분해야 한다.",
+        "연계 범위는 RCMS·통합 Ezbaro 운영기관이 배포·공지하는 전문 및 API 규격을 기준으로 한다."
+      ],
+      "reviewer_analysis": "업무 데이터와 API 연계를 중심으로 한 소프트웨어 개발 과제로 판단한다. 핵심 검토 쟁점은 새 연계를 만드는 것뿐 아니라 기존 업무를 중단시키지 않고 RCMS 전환을 마치는 데 있다. 계약 후 6개월이라는 기간만 보고 일정 여유가 있다고 판단하면 안 된다. 회사의 연계 개발 실적과 실제 투입 가능 인력은 별도 확인이 필요하다.",
+      "items_to_verify": [
+        "RCMS 선행 전환 완료일과 단계별 검수·운영 전환 계획",
+        "운영기관 규격 공개 일정, 계정·인증키와 테스트 환경 제공 책임",
+        "내부 시스템 기술 구성, 기존 연계 코드 접근, 데이터 이관 규모",
+        "오류·중복 전송 방지, 정합성 확인과 전환 실패 시 복구 절차"
+      ],
+      "company_capability_status": "unknown",
+      "source_file": "/home/jechoi/projects/bidops/.dryforge/pipeline-20260903-20260907/direct-overview-source/614-document.txt",
+      "source_text_sha256": "8ee674aa8d2a0c391eddd76fe2bebc12b3b5242d0b56a5b782c4015d2fadc674",
+      "evidence": [
+        {
+          "ordinal": 66,
+          "block_key": "paragraph-1-26",
+          "text": "○ (사업기간) 계약체결일로부터 6개월"
+        },
+        {
+          "ordinal": 67,
+          "block_key": "paragraph-1-27",
+          "text": "○ (사업금액) 153,000,000원 (VAT 포함)"
+        },
+        {
+          "ordinal": 73,
+          "block_key": "paragraph-1-33",
+          "text": "기존 RCMS 연계 모듈 서비스가 2026년 12월 31일부로 일몰될 예정임"
+        },
+        {
+          "ordinal": 75,
+          "block_key": "paragraph-1-35",
+          "text": "RCMS 연계 환경을 신규 통합 모듈 방식으로 전환하는 것이 시급함"
+        },
+        {
+          "ordinal": 76,
+          "block_key": "paragraph-1-36",
+          "text": "○ 기존 연계 방식으로는 신규 협약 과제의 집행내역 송·수신이 불가하여,"
+        },
+        {
+          "ordinal": 77,
+          "block_key": "paragraph-1-37",
+          "text": "미전환 시 연구비 집행·정산 업무의 전면 중단이 우려됨"
+        },
+        {
+          "ordinal": 78,
+          "block_key": "paragraph-1-38",
+          "text": "○ 한편 진흥원이 수행하는 과학기술정보통신부 소관 국가연구개발사업의"
+        },
+        {
+          "ordinal": 79,
+          "block_key": "paragraph-1-39",
+          "text": "연구비 관리를 위해서는 통합Ezbaro 연계가 필요하나 현재 연계 환경이"
+        },
+        {
+          "ordinal": 80,
+          "block_key": "paragraph-1-40",
+          "text": "구축되어 있지 않아, 해당 과제의 연구비 집행·증빙 업무를 수기로 이중"
+        },
+        {
+          "ordinal": 81,
+          "block_key": "paragraph-1-41",
+          "text": "처리하고 있는 실정임"
+        },
+        {
+          "ordinal": 88,
+          "block_key": "paragraph-1-48",
+          "text": "○ RCMS 신규 통합 연계모듈로의 무중단 전환을 통한 연구비 집행·정산"
+        },
+        {
+          "ordinal": 89,
+          "block_key": "paragraph-1-49",
+          "text": "업무의 연속성 확보"
+        },
+        {
+          "ordinal": 94,
+          "block_key": "paragraph-1-54",
+          "text": "○ 연계 오류에 대한 통합 모니터링·재처리 체계 구축으로 데이터 정합성 및"
+        },
+        {
+          "ordinal": 95,
+          "block_key": "paragraph-1-55",
+          "text": "운영 안정성 확보"
+        },
+        {
+          "ordinal": 98,
+          "block_key": "paragraph-1-58",
+          "text": "가. RCMS 연계모듈 전환 (현 서비스 일몰 전 전환 완료)"
+        },
+        {
+          "ordinal": 99,
+          "block_key": "paragraph-1-59",
+          "text": "○ 내부 정보시스템과 RCMS 간 연계 모듈 개편 및 재구축"
+        },
+        {
+          "ordinal": 100,
+          "block_key": "paragraph-1-60",
+          "text": "○ RCMS 연계용 데이터 모델 정비 및 신규 테이블 구축"
+        },
+        {
+          "ordinal": 101,
+          "block_key": "paragraph-1-61",
+          "text": "○ RCMS 연계 데이터 이관 및 초기 테스트 데이터 구축"
+        },
+        {
+          "ordinal": 102,
+          "block_key": "paragraph-1-62",
+          "text": "○ 연구비 집행·이체·정산·과제변경 등 RCMS 연계 기능 개선"
+        },
+        {
+          "ordinal": 103,
+          "block_key": "paragraph-1-63",
+          "text": "○ RCMS 연계 전송내역 및 오류 관리 기능 개발"
+        },
+        {
+          "ordinal": 104,
+          "block_key": "paragraph-1-64",
+          "text": "○ RCMS 연계 품질검증 및 운영환경 반영"
+        },
+        {
+          "ordinal": 105,
+          "block_key": "paragraph-1-65",
+          "text": "나. 통합Ezbaro 연계모듈 신규 구축"
+        },
+        {
+          "ordinal": 106,
+          "block_key": "paragraph-1-66",
+          "text": "○ 통합Ezbaro 연계모듈 설치 및 연계 운영환경 구성"
+        },
+        {
+          "ordinal": 107,
+          "block_key": "paragraph-1-67",
+          "text": "○ 통합Ezbaro 과제·예산·참여연구원 정보 연계 기능 개발"
+        },
+        {
+          "ordinal": 108,
+          "block_key": "paragraph-1-68",
+          "text": "○ 통합Ezbaro 연구비 집행정보 및 증빙자료 전송 기능 개발"
+        },
+        {
+          "ordinal": 109,
+          "block_key": "paragraph-1-69",
+          "text": "○ 내부 정보시스템 비목·과제 매핑 체계 구축"
+        },
+        {
+          "ordinal": 110,
+          "block_key": "paragraph-1-70",
+          "text": "○ 통합Ezbaro 연계 전송내역 및 오류 관리 기능 개발"
+        },
+        {
+          "ordinal": 111,
+          "block_key": "paragraph-1-71",
+          "text": "○ 통합Ezbaro 연계 품질검증 및 운영환경 반영"
+        },
+        {
+          "ordinal": 113,
+          "block_key": "paragraph-1-73",
+          "text": "※ 본 사업의 연계 범위는 RCMS 및 통합Ezbaro 운영기관이 배포·공지하는"
+        },
+        {
+          "ordinal": 114,
+          "block_key": "paragraph-1-74",
+          "text": "연계 규격(전문, API 등)에 정의된 범위를 기준으로 함"
+        },
+        {
+          "ordinal": 131,
+          "block_key": "paragraph-1-87",
+          "text": "○ 안정적 이행 : RCMS 연계모듈 전환을 기존 모듈 일몰 시점 이전에 우선"
+        },
+        {
+          "ordinal": 132,
+          "block_key": "paragraph-1-88",
+          "text": "완료하고, 통합Ezbaro 연계모듈 구축을 순차 추진하여 업무 공백 없이 이행"
+        }
+      ]
+    },
+    {
+      "notice_id": 171,
+      "notice_key": "pre:R26BD00271724",
+      "title": "멀티미디어 방송 통합시스템 유지관리",
+      "business_type": "방송시설 운영·유지관리 및 콘텐츠 제작",
+      "budget": {
+        "amount_krw": 569000000,
+        "vat_included": true
+      },
+      "period": "2027-01-01~2028-12-31, 24개월",
+      "overview": "우정인재개발원의 교육·행사에 필요한 방송시설을 안정적으로 운영하고, 대면·비대면 교육과 행사 지원, 동영상 콘텐츠 제작 및 라이브 송출을 수행하는 사업이다. 장비의 장애를 예방하고 복구하는 유지보수와 실제 방송·콘텐츠 운영 업무가 함께 포함되어 있어 전문인력 운영이 사업 수행의 중요한 부분이다.",
+      "main_tasks": [
+        "방송 통합시스템의 정기·종합 점검, 설치와 구성 변경, 장애 분석·복구·이력관리 및 타 시스템 연동 등 유지보수를 수행한다.",
+        "교육과 행사에 필요한 음향·영상 및 방송 운영을 지원하고 동영상 기획·제작과 라이브 송출 업무를 담당한다.",
+        "장애 접수·조치, 예비 부품과 제조사 기술지원, 행사 전 점검 및 운영 연속성 확보 등 현장 운영과 장비 관리 조건을 함께 검토해야 한다."
+      ],
+      "document_conditions": [
+        "총 사업 예산은 569,000,000원(부가세 포함), 수행기간은 2027년 1월 1일부터 2028년 12월 31일까지 24개월이다. 예산을 1년치 금액으로 해석하지 않아야 한다."
+      ],
+      "reviewer_analysis": "개요에서 드러나는 중심 과업은 방송설비 유지관리와 교육·행사 운영, 영상 제작이다. SW 관련 분류만으로 일반 시스템 개발 사업과 같은 방식으로 검토하기 어렵다. 실제 참여 검토에서는 방송 전문인력과 현장 대응체계, 장비 지원 역량을 먼저 확인하고 그에 따른 인건비·부품비를 산정해야 한다.",
+      "items_to_verify": [
+        "상주 인력 수·직무·근무시간과 행사·시간외 대응 조건",
+        "유지관리 대상 장비 목록, 노후도, 부품 교체비 부담과 제조사 지원",
+        "콘텐츠 제작 물량·수준·납기와 행사 지원 빈도",
+        "24개월 동안의 인력 확보와 인수인계·장애 대응 비용"
+      ],
+      "company_capability_status": "unknown",
+      "source_file": "/home/jechoi/projects/bidops/.dryforge/pipeline-20260903-20260907/direct-overview-source/171-document.txt",
+      "source_text_sha256": "49b07a292a5b6388aa5d3282004544d25bd1b5cd17f5fbd851c4d52dd6c01298",
+      "evidence": [
+        {
+          "ordinal": 111,
+          "block_key": "paragraph-1-89",
+          "text": "가. 멀티미디어 방송 통합시스템의 효율적 관리·운영을 위해 우수한 기술 능력과 자격을 보유한 제안사를 선정하여 안정적이고 원활한 시스템 운영"
+        },
+        {
+          "ordinal": 113,
+          "block_key": "paragraph-1-91",
+          "text": "나. 대면·비대면 교육, 다양한 행사 지원에 따른 방송시설의 운영·관리, 동영상 콘텐츠 제작 및 라이브 송출 등을 위한 전문인력 필요"
+        },
+        {
+          "ordinal": 264,
+          "block_key": "paragraph-1-132",
+          "text": "2. 용역 수행기간: ′27. 1. 1. ∼ ′28. 12. 31.(24개월)"
+        },
+        {
+          "ordinal": 266,
+          "block_key": "paragraph-1-134",
+          "text": "3. 사업 예산: 569,000천원(부가세 포함)"
+        },
+        {
+          "ordinal": 295,
+          "block_key": "paragraph-1-146",
+          "text": "1) 멀티미디어 방송 통합시스템의 안정 운영을 위한 유지보수 일체(장애예방, 정기점검, 종합점검,  설치, 구성변경, 제거, 분석, 복구, 장애 이력관리, 타 시스템과의 연계/연동 등)"
+        },
+        {
+          "ordinal": 300,
+          "block_key": "paragraph-1-151",
+          "text": "6) 시스템 전체구성에 대한 장비, 업무, 배선, 보안 등 시설파악과 기존 운영 중인 업무와 연속성 유지"
+        },
+        {
+          "ordinal": 301,
+          "block_key": "paragraph-1-152",
+          "text": "7) 시설임대 및 특별교육 진행을 위한 유지보수대상 장비에 대한 사전점검 등의 작업 수행"
+        },
+        {
+          "ordinal": 305,
+          "block_key": "paragraph-1-156",
+          "text": "1) 유지보수 대상 장비에 대한 장애접수 및 처리"
+        },
+        {
+          "ordinal": 306,
+          "block_key": "paragraph-1-157",
+          "text": "① 유지보수 대상 장비의 예비부품(대체품)을 상시 확보 방안을 제시"
+        },
+        {
+          "ordinal": 307,
+          "block_key": "paragraph-1-158",
+          "text": "② 유지보수 대상 장비 장애 발생시 장애 접수, 분석 및 복구에 대한 제조사 또는 기술지원사와 연계 예비부품(대체품)을 활용 신속한 처리방안을 제시"
+        },
+        {
+          "ordinal": 309,
+          "block_key": "paragraph-1-160",
+          "text": "④ 근무시간 이외에 발생하는 장애에 즉시 대응할 수 있도록 비상연락체계 등에 대한 방안을 제시"
+        }
+      ]
+    },
+    {
+      "notice_id": 610,
+      "notice_key": "pre:R26BD00270996",
+      "title": "2026년 노후 정보화 인프라 개선",
+      "business_type": "네트워크·보안 인프라 교체 및 재구성",
+      "budget": {
+        "amount_krw": 545000000,
+        "vat_included": null
+      },
+      "period": "계약일로부터 90일",
+      "overview": "한국소비자원이 2014년 도입해 운영 중인 노후 네트워크·보안장비를 교체하고, 정보화 자원을 재배치하며 통합 모니터링을 도입하는 사업이다. 대국민 서비스와 내부 업무시스템의 안정성·보안성을 높이고 자원 활용과 장애 대응을 개선하는 것이 목적이다.",
+      "main_tasks": [
+        "노후 네트워크·보안장비 교체와 네트워크 재설계를 수행한다.",
+        "서버 자원을 재배치해 운영 효율과 가용 자원을 확보하고 임직원 PC 성능을 개선한다.",
+        "통합 모니터링과 로그 관리체계를 구축하고, 장비·솔루션 설치와 이관·재구성 후 시험 및 안정화를 진행한다."
+      ],
+      "document_conditions": [
+        "사업예산은 545백만원, 기간은 계약일로부터 90일이다. 확인한 개요의 예산 문구에는 VAT 포함 여부가 명시되지 않아 미확인으로 남긴다."
+      ],
+      "reviewer_analysis": "장비·솔루션 공급과 인프라 구축·이관이 중심인 사업으로 판단한다. 기술 구현뿐 아니라 공급사 확보와 납기, 기존 서비스 중단을 통제하는 전환 계획이 중요하다. 예산 규모만으로 사업성을 판단하기보다 장비 원가·라이선스·유지지원 조건을 먼저 확인해야 한다.",
+      "items_to_verify": [
+        "장비별 요구 규격·수량, 라이선스, 제조사 공급 및 기술지원 조건",
+        "90일 내 조달·설치·전환 가능 여부와 허용 중단 시간",
+        "현행 구성도와 자원 현황, 이관 의존관계 및 복구 계획",
+        "검수·안정화 범위와 하자·유지지원 비용, VAT 포함 여부"
+      ],
+      "company_capability_status": "unknown",
+      "source_file": "/home/jechoi/projects/bidops/.dryforge/pipeline-20260903-20260907/direct-overview-source/610-document.txt",
+      "source_text_sha256": "02691b0749dfcd34fe2f7e9d2ac0cb9b599cbbf9d6f4365594f0ae615bbef0b0",
+      "evidence": [
+        {
+          "ordinal": 133,
+          "block_key": "paragraph-1-96",
+          "text": "□ `14년 도입·운영 중인 노후 네트워크 및 보안장비 교체, 정보화 인프라 재배치, 모니터링 솔루션 도입을 통해 대국민 서비스와 내부 업무시스템의 안정적인 운영 기반을 확보하고 운영 문제점을 최소화하기 위함"
+        },
+        {
+          "ordinal": 136,
+          "block_key": "paragraph-1-99",
+          "text": "□ (사업기간) 계약일로부터 90일"
+        },
+        {
+          "ordinal": 139,
+          "block_key": "paragraph-1-102",
+          "text": "□ (사업예산) 545백만원"
+        },
+        {
+          "ordinal": 158,
+          "block_key": "paragraph-1-110",
+          "text": "가. 노후 네트워크 및 보안장비 교체"
+        },
+        {
+          "ordinal": 159,
+          "block_key": "paragraph-1-111",
+          "text": "□ 노후 네트워크·보안장비를 교체하고 네트워크를 재설계하여 대국민 정보서비스의 안정성과 보안성을 향상"
+        },
+        {
+          "ordinal": 160,
+          "block_key": "paragraph-1-112",
+          "text": "나. 서버 자원 재배치 및 효율화"
+        },
+        {
+          "ordinal": 161,
+          "block_key": "paragraph-1-113",
+          "text": "□ 기존 자원의 활용도를 높여 임직원 PC 성능을 개선하고, 서버 운영 효율성과 가용 자원을 확보"
+        },
+        {
+          "ordinal": 162,
+          "block_key": "paragraph-1-114",
+          "text": "다. 통합 모니터링 체계 구축"
+        },
+        {
+          "ordinal": 163,
+          "block_key": "paragraph-1-115",
+          "text": "□ 통합 모니터링과 로그 관리체계를 구축하여 장애를 신속하게 인지하고 대응할 수 있는 운영환경 마련"
+        }
+      ]
+    },
+    {
+      "notice_id": 159,
+      "notice_key": "pre:R26BD00271220",
+      "title": "2026년 HRD4U 정보시스템 고도화 사업 감리용역",
+      "business_type": "정보시스템 구축사업 감리",
+      "budget": {
+        "amount_krw": 109969200,
+        "vat_included": true
+      },
+      "period": "계약체결일~2026-12-24; 대상사업 일정에 따라 조정 가능",
+      "overview": "한국산업인력공단의 HRD4U 고도화 사업을 제3자 관점에서 점검하는 감리용역이다. 구축·운영의 효율성과 안전성을 확보하고 과업 이행 및 설계·완료 산출물의 적합성을 검토해 문제를 예방·개선하는 것이 목적이다. 이번 발주에서 직접 수행하는 업무는 고도화 개발 자체가 아니라 그 개발사업에 대한 독립적인 점검이다.",
+      "main_tasks": [
+        "설계단계와 종료단계의 2단계 감리를 수행해 과업 이행과 산출물을 점검한다. 개요 표의 요구 투입공수는 70MD이다.",
+        "현장감리는 설계·종료 단계 각각 최소 5일 이상 수행하도록 되어 있다.",
+        "데이터베이스 품질관리 또는 품질점검 감리경험이 있는 감리인을 1명 이상 투입해야 한다."
+      ],
+      "document_conditions": [
+        "예산은 109,969,200원(VAT 포함), 기간은 계약체결일부터 2026년 12월 24일까지이다. 대상사업 종료·검사 일정에 따른 기간 조정 가능성을 함께 확인해야 한다."
+      ],
+      "reviewer_analysis": "개발 역량과 감리 수행 역량을 구분해 검토해야 한다. 특히 감리 참여 자격, 대상사업과의 독립성, 단계별 투입 가능한 감리인 및 DB 품질 전문인력 확보 여부가 우선 확인 항목이다. 회사의 해당 요건 충족 여부는 확인되지 않았다.",
+      "items_to_verify": [
+        "감리 참여 자격과 독립성 충족 여부",
+        "설계·종료 감리의 확정 일정과 다른 사업과의 인력 중복",
+        "DB 품질 감리 경력의 인정 범위와 증빙",
+        "기간 변경에 따른 인력 확보·비용 영향과 지적사항 조치 확인 범위"
+      ],
+      "company_capability_status": "unknown",
+      "source_file": "/home/jechoi/projects/bidops/.dryforge/pipeline-20260903-20260907/direct-overview-source/159-document.txt",
+      "source_text_sha256": "4309f316be7f60fe49369738d06222890437b9e659f00115c6ec24d2b74c1681",
+      "evidence": [
+        {
+          "ordinal": 46,
+          "block_key": "paragraph-1-22",
+          "text": "○ ｢2026년 HRD4U 정보시스템 고도화 사업｣의 효율성을 향상하고 안전성을 확보하기 위하여 제3자의 관점에서 정보시스템의 구축 및 운영에 관한 사항을 종합적으로 점검하여 문제점을 개선"
+        },
+        {
+          "ordinal": 47,
+          "block_key": "paragraph-1-23",
+          "text": "○ 과업 이행의 적합 여부 및 설계/완료 산출물을 점검함으로써 사업 추진과정 중 발생할 수 있는 문제점을 사전에 예방"
+        },
+        {
+          "ordinal": 50,
+          "block_key": "paragraph-1-26",
+          "text": "○ 사업기간 : 계약체결일로부터 ‘26. 12. 24.까지*"
+        },
+        {
+          "ordinal": 51,
+          "block_key": "paragraph-1-27",
+          "text": "* 감리 대상사업 검사‧검수완료일까지이며, 사업기간은 감리 대상사업의 계약종료 일정에 따라 조정 가능"
+        },
+        {
+          "ordinal": 52,
+          "block_key": "paragraph-1-28",
+          "text": "○ 사업예산 : 109,969,200원 (VAT 포함, 원 단위 절사)"
+        },
+        {
+          "ordinal": 53,
+          "block_key": "paragraph-1-29",
+          "text": "(단위 : 원)구분사업명발주기관사업자단계감리 실시여부요구투입공수(MD)감리예산규모(VAT 포함)요구정의단계설계단계종료단계12026년 HRD4U 정보시스템 고도화 사업 감리용역한국산업인력공단㈜어댑티브XOO70109,969,200"
+        },
+        {
+          "ordinal": 75,
+          "block_key": "paragraph-1-30",
+          "text": "○ 감리형태 : 2단계 감리(설계단계 감리, 종료단계 감리)"
+        },
+        {
+          "ordinal": 81,
+          "block_key": "paragraph-1-36",
+          "text": "※ 현장감리는 각 사업별 설계 및 종료단계 각각 최소 5일 이상 수행(추가기간 제시 가능)"
+        },
+        {
+          "ordinal": 102,
+          "block_key": "paragraph-1-57",
+          "text": "- 데이터베이스 품질관리 또는 품질점검 감리경험이 있는 감리인을 1명 이상 투입하여야 함"
+        }
+      ]
+    },
+    {
+      "notice_id": 143,
+      "notice_key": "pre:R26BD00270593",
+      "title": "전기통신금융사기 통합대응단 시스템 고도화 감리",
+      "business_type": "두 정보시스템 고도화사업에 대한 감리",
+      "budget": {
+        "amount_krw": 99600000,
+        "vat_included": true
+      },
+      "period": "계약일~감리 대상사업 종료일",
+      "overview": "전기통신금융사기 통합분석대응시스템(C-IRIS)과 상담시스템의 고도화가 계약과 요구사항에 맞게 이행되는지 제3자 관점에서 점검하는 감리사업이다. 대상 시스템에는 금융사기 분석 기능과 AI 기반 상담품질 평가·실시간 상담 지원 등이 포함된다. 이 기능들은 감리할 구축사업의 내용이며, 이번 감리용역의 직접 개발 과업으로 혼동하지 않아야 한다.",
+      "main_tasks": [
+        "C-IRIS는 설계·종료단계, 상담시스템은 종료단계 감리를 수행한다. 두 시스템을 모두 동일한 2단계 감리로 계산하면 안 된다.",
+        "대상사업의 과업 이행 여부와 계약문서상 과업 완료 여부, 구축·운영의 효율성 및 안전성을 점검한다.",
+        "두 사업의 일정과 산출물을 각각 확인하고 감리 수행 및 조치 확인 일정을 조정해야 한다."
+      ],
+      "document_conditions": [
+        "감리 예산은 9,960만원(VAT 포함), 기간은 계약일부터 대상사업 종료일까지이다.",
+        "원문에 함께 나오는 1,688백만원과 489.7백만원은 각각 C-IRIS와 상담시스템 고도화 대상사업의 계약금액으로, 이번 감리 예산이 아니다.",
+        "대상사업의 예상기간은 각각 2026-09-01~2027-04-30 및 2026-08-01~2027-01-31로 제시되어 있다. 확정된 감리 착수·종료일로 해석하지 않는다."
+      ],
+      "reviewer_analysis": "금융사기·AI라는 주제뿐 아니라 감리라는 계약 성격이 적합성 검토의 출발점이다. 두 시스템의 감리 단계와 종료 시점이 달라 단계별 인력 배치와 장기간 일정 대응이 쟁점이다. 감리 자격과 독립성을 먼저 확인한 뒤 데이터 분석·상담 AI 등 대상 기술을 점검할 전문성을 대조하는 것이 적절하다.",
+      "items_to_verify": [
+        "감리 참여 자격·독립성 및 인력 확보",
+        "대상사업별 실제 계약·종료 일정과 단계별 감리 일정",
+        "AI·데이터 분석 기능의 요구사항·평가 기준과 감리 점검 범위",
+        "보안 점검과 시정조치 확인 범위, 일정 지연 시 계약 조건"
+      ],
+      "company_capability_status": "unknown",
+      "source_file": "/home/jechoi/projects/bidops/.dryforge/pipeline-20260903-20260907/direct-overview-source/143-document.txt",
+      "source_text_sha256": "5156276798adac295cb681fd44a40d703ac86cd6328bfb0990748ed782edcf82",
+      "evidence": [
+        {
+          "ordinal": 49,
+          "block_key": "paragraph-1-32",
+          "text": "○  감리대상 사업의 효율성을 향상시키고 안전성을 확보하기 위해 제3자 관점에서 정보시스템 구축 및 운영 등에 관한 사항을 종합적으로 점검하여 문제점을 개선하기 위함"
+        },
+        {
+          "ordinal": 50,
+          "block_key": "paragraph-1-33",
+          "text": "○ ｢전기통신금융사기 통합분석대응시스템(C-IRIS)｣ 및 ｢전기통신금융사기 상담시스템｣ 고도화 사업의 전 과정에 대한 사업자의 과업 이행 여부를 점검하여 계약문서에 기술된 과업의 완료 여부를 확인하기 위함"
+        },
+        {
+          "ordinal": 59,
+          "block_key": "table-1-5-r0-c5",
+          "text": "감리예산규모(VAT 포함)"
+        },
+        {
+          "ordinal": 60,
+          "block_key": "table-1-5-r1-c0",
+          "text": "요구정의단계"
+        },
+        {
+          "ordinal": 61,
+          "block_key": "table-1-5-r1-c1",
+          "text": "설계단계"
+        },
+        {
+          "ordinal": 62,
+          "block_key": "table-1-5-r1-c2",
+          "text": "종료단계"
+        },
+        {
+          "ordinal": 63,
+          "block_key": "table-1-5-r2-c0",
+          "text": "상담"
+        },
+        {
+          "ordinal": 64,
+          "block_key": "table-1-5-r2-c1",
+          "text": "X"
+        },
+        {
+          "ordinal": 65,
+          "block_key": "table-1-5-r2-c2",
+          "text": "X"
+        },
+        {
+          "ordinal": 66,
+          "block_key": "table-1-5-r2-c3",
+          "text": "O"
+        },
+        {
+          "ordinal": 70,
+          "block_key": "table-1-5-r3-c3",
+          "text": "9,960만원"
+        },
+        {
+          "ordinal": 71,
+          "block_key": "table-1-5-r4-c0",
+          "text": "C-IRIS"
+        },
+        {
+          "ordinal": 72,
+          "block_key": "table-1-5-r4-c1",
+          "text": "X"
+        },
+        {
+          "ordinal": 73,
+          "block_key": "table-1-5-r4-c2",
+          "text": "O"
+        },
+        {
+          "ordinal": 74,
+          "block_key": "table-1-5-r4-c3",
+          "text": "O"
+        },
+        {
+          "ordinal": 75,
+          "block_key": "paragraph-1-36",
+          "text": "○ 감리기간 : 계약일로부터 ~ 대상사업 종료일까지"
+        },
+        {
+          "ordinal": 79,
+          "block_key": "paragraph-1-40",
+          "text": "○ 사업 기간 : 계약일로부터 240일(예상기간 ’26. 9. 1. ~ ’27. 4. 30.)"
+        },
+        {
+          "ordinal": 80,
+          "block_key": "paragraph-1-41",
+          "text": "○ 계약 금액 : 1,688백만원"
+        },
+        {
+          "ordinal": 84,
+          "block_key": "paragraph-1-45",
+          "text": "○ 사업 기간 : 계약일로부터 180일(예상기간 ’26. 8. 1. ~ ’27. 1. 31.)"
+        },
+        {
+          "ordinal": 85,
+          "block_key": "paragraph-1-46",
+          "text": "○ 계약 금액 : 489.7백만원"
+        },
+        {
+          "ordinal": 86,
+          "block_key": "paragraph-1-47",
+          "text": "○ 사업 내용 : AI기반 상담품질 평가시스템, 실시간 상담 지원시스템, 기존 상담시스템 기능개선 등"
+        }
+      ]
+    }
+  ]
+}

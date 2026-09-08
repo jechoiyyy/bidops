@@ -38,6 +38,8 @@ test("기본 목록은 밀집 행이고 판정에 필요한 값만 담으며, �
   await expect(page.locator(".c2l-row").first()).not.toContainText("nearest capability");
 
   // 사업명이 행의 첫 줄이고 발주기관은 metadata 줄의 첫 항목이다. 순서를 뒤집지 않는다.
+  // 강조는 사업명 하나만 갖는다: 본문보다 한 단 큰 굵은 글자이고, 발주기관은 같은 본문
+  // 크기의 보통 굵기다(사용자 정정).
   const firstRow = page.locator(".c2l-row").first();
   await expect(firstRow.locator(".c2l-row-title")).toContainText("공공데이터 통합");
   await expect(firstRow.locator(".c2l-row-meta")).toContainText("서울특별시 디지털정책관");
@@ -48,13 +50,17 @@ test("기본 목록은 밀집 행이고 판정에 필요한 값만 담으며, �
     return {
       titleTop: title.getBoundingClientRect().top,
       agencyTop: agency.getBoundingClientRect().top,
+      titleFontSize: Number.parseFloat(getComputedStyle(title).fontSize),
+      titleWeight: Number(getComputedStyle(title).fontWeight),
       agencyFontSize: Number.parseFloat(getComputedStyle(agency).fontSize),
       agencyWeight: Number(getComputedStyle(agency).fontWeight),
     };
   });
   expect(geometry.titleTop).toBeLessThan(geometry.agencyTop);
+  expect(geometry.titleFontSize).toBe(geometry.agencyFontSize + 1);
+  expect(geometry.titleWeight).toBeGreaterThanOrEqual(600);
   expect(geometry.agencyFontSize).toBeGreaterThanOrEqual(14);
-  expect(geometry.agencyWeight).toBeGreaterThanOrEqual(600);
+  expect(geometry.agencyWeight).toBeLessThan(600);
 
   // 상세 pane은 행을 고른 뒤에 채워진다.
   await firstRow.click();

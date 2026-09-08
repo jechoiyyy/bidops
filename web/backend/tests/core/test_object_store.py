@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 import json
+import io
 from pathlib import Path
 
 import pytest
@@ -65,6 +66,38 @@ def test_each_factory_only_constructs_requested_namespace(monkeypatch):
     analysis_store = storage.object_store(namespaces=("structure", "model-response"), read_namespaces=("structure",))
     assert set(analysis_store._clients) == {"structure", "model-response"}  # type: ignore[attr-defined]
     assert {row[1] for row in FakeMinio.clients} == {"structure-read", "model"}
+
+
+@pytest.mark.parametrize("version", ["frozen-version", "missing-version"])
+def test_minio_reads_the_pinned_version_without_latest_fallback(monkeypatch, version):
+    calls = []
+
+    class Response(io.BytesIO):
+        def release_conn(self):
+            pass
+
+    class VersionedMinio(FakeMinio):
+        def get_object(self, bucket, key, *, version_id=None):
+            calls.append(("get", version_id))
+            if version_id == "missing-version":
+                raise RuntimeError("missing")
+            return Response(b"frozen" if version_id else b"newer")
+
+        def stat_object(self, bucket, key, *, version_id=None):
+            calls.append(("stat", version_id))
+            return SimpleNamespace(version_id=version_id or "latest", etag="etag", size=6)
+
+    monkeypatch.setitem(__import__("sys").modules, "minio", SimpleNamespace(Minio=VersionedMinio))
+    store = storage.MinioObjectStore(fake_settings(), ("source",))
+    if version == "missing-version":
+        with pytest.raises(storage.ObjectStoreError):
+            store.get("source", "source/profile.md", version_id=version)
+        assert calls == [("get", version)]
+    else:
+        data, metadata = store.get("source", "source/profile.md", version_id=version)
+        assert data == b"frozen"
+        assert metadata.object_version_id == version
+        assert calls == [("get", version), ("stat", version)]
 
 
 def test_web_runtime_requires_only_document_buckets(monkeypatch):

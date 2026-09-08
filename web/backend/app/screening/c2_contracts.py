@@ -159,7 +159,7 @@ class OrderPlanScreeningRankingArtifact(C2StrictModel):
 
 
 class OrderPlanScreeningDecisionBinding(C2StrictModel):
-    model_name: Literal["qwen3.8-27B"]
+    model_name: Literal["qwen3.8-27B", "qwen3.8:27b"]
     model_digest: str
     prompt_version: str = Field(min_length=1)
     prompt_sha256: str

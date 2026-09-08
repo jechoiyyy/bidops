@@ -177,7 +177,7 @@ def _seed_document(
         source_kind="provider",
         source_system="g2b",
         source_attachment_key=f"T23:{source_suffix}",
-        original_filename=f"{source_suffix}.pdf",
+        original_filename=f"{source_suffix}_제안요청서.pdf",
         role="제안요청서",
         is_current=True,
         safety_status="safe",
@@ -491,7 +491,7 @@ def test_prepare_is_idempotent_and_keeps_new_structure_lineage(tmp_path: Path) -
         }
 
 
-def test_human_rfp_role_remains_selected_when_newer_appendix_arrives(
+def test_rfp_filename_remains_selected_when_newer_appendix_arrives(
     tmp_path: Path,
 ) -> None:
     engine = _engine()
@@ -600,6 +600,47 @@ def test_unclassified_current_documents_clear_previous_snapshot(tmp_path: Path) 
         assert session.query(PreSpecOverviewSnapshot).count() == 1
 
 
+@pytest.mark.parametrize(
+    ("filenames", "roles", "selected_index"),
+    [
+        (["공고_제안요청서.hwp", "과업지시서.hwp"], ["기타", "제안요청서"], 0),
+        (["과업지시서.hwp", "공고_제 안 요 청 서.pdf"], ["제안요청서", "부록"], 1),
+        (["과업지시서.hwp"], ["제안요청서"], None),
+        (["RFP.pdf"], ["제안요청서"], None),
+        (["제안요청.hwp"], ["기타"], None),
+        (["제안요청서.hwp", "제안요청서.pdf"], ["제안요청서", "기타"], None),
+    ],
+)
+def test_overview_requires_unique_rfp_filename(
+    tmp_path: Path, filenames: list[str], roles: list[str], selected_index: int | None,
+) -> None:
+    engine = _engine()
+    with Session(engine) as session:
+        notice = _notice(session, "filename-selection")
+        documents = []
+        for index, (filename, role) in enumerate(zip(filenames, roles, strict=True)):
+            document, *_ = _seed_document(
+                session, tmp_path, notice,
+                [_block("start", "heading", "사업개요"),
+                 _block("body", "paragraph", "사업 내용"),
+                 _block("end", "heading", "과업내용")],
+                source_suffix=f"filename-{index}",
+            )
+            document.original_filename = filename
+            document.role = role
+            documents.append(document)
+        session.commit()
+        review = prepare_overview_review(session, notice.id, root=tmp_path)
+        session.flush()
+        if selected_index is None:
+            assert review.status == "needs_human_review"
+            assert review.current_snapshot_id is None
+        else:
+            assert review.status == "awaiting_model"
+            assert review.current_snapshot.document_version_id == documents[selected_index].id
+        assert session.query(PreSpecOverviewAttempt).count() == 0
+
+
 def test_hash_mismatch_warning_and_no_attempt(tmp_path: Path) -> None:
     engine = _engine()
     with Session(engine) as session:
@@ -695,7 +736,7 @@ def test_missing_document_and_structure_keep_waiting_states() -> None:
             source_kind="provider",
             source_system="g2b",
             source_attachment_key="waiting",
-            original_filename="waiting.pdf",
+            original_filename="waiting_제안요청서.pdf",
             role="제안요청서",
             is_current=True,
             safety_status="safe",

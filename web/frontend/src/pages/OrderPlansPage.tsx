@@ -690,15 +690,15 @@ function OrderPlanRow({
       description={
         <span className="c2l-row-desc">
           {/* 시안의 차례 그대로다: 사업명 아래 상태 배지, 그 아래 metadata 줄. 발주기관은
-              자리를 옮기지 않고 metadata 줄의 첫 항목이며, 보조 글자에서 본문 굵은 글자로
-              키워 목록에서 먼저 눈에 들어오게만 한다(사용자 정정). */}
+              자리를 옮기지 않고 metadata 줄의 첫 항목이며, 굵기를 주지 않는다. 목록에서
+              먼저 읽혀야 하는 것은 사업명이다(사용자 정정). */}
           <span className="c2l-row-badges">
             <Badge variant={stage1BadgeVariant(item.stage1_status)} label={stage1RowLabel(item.stage1_status)} />
             <Badge variant={qwenBadgeVariant(item)} label={qwenRowLabel(item)} />
             {item.human_feedback ? <Badge variant="neutral" label={`피드백 수정본 ${item.human_feedback.revision}`} /> : null}
           </span>
           <span className="c2l-row-meta" title={`예산 ${budgetValue(item.budget_amount)}`}>
-            <Text className="c2l-row-agency" type="body" color="primary" weight="semibold" as="span">
+            <Text className="c2l-row-agency" type="body" color="primary" as="span">
               {textOrUnknown(item.agency_name)}
             </Text>
             <Text type="supporting" color="secondary" as="span">
@@ -709,8 +709,9 @@ function OrderPlanRow({
       }
       label={
         <span className="c2l-row-line">
-          {/* 긴 한글 제목은 한 줄에 담기지 않는다. 두 줄까지 보이고 그 뒤를 말줄임한다. */}
-          <Text className="c2l-row-title" type="body" color="primary" maxLines={2}>{textOrUnknown(item.title)}</Text>
+          {/* 긴 한글 제목은 한 줄에 담기지 않는다. 두 줄까지 보이고 그 뒤를 말줄임한다.
+              크기와 굵기는 `.c2l-row-title`이 본문보다 한 단 위로 올린다. */}
+          <Text className="c2l-row-title" type="body" color="primary" weight="semibold" maxLines={2}>{textOrUnknown(item.title)}</Text>
         </span>
       }
       onSelect={onSelect}

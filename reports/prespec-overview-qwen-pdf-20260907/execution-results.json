@@ -1,0 +1,76 @@
+{
+  "run_id": "2e09ec48-4be4-41aa-983c-ed3c8140a4d0",
+  "quality_status": "unmeasured_reference",
+  "results": [
+    {
+      "notice_id": 137,
+      "status": "evidence_checks_passed",
+      "validation_errors": [],
+      "response_sha256": "34213e0172a79a784f2db2f72f448453585d466d11bee5873d6d1220fc312379",
+      "prompt_sha256": "d1b0e302a13474adcae7871dfff10e19e87c7ed8a50c7561ff1bfce92c44253f",
+      "input_tokens": 2704,
+      "output_tokens": 2066,
+      "duration_seconds": 38.271,
+      "semantic_quality": "unmeasured_reference"
+    },
+    {
+      "notice_id": 614,
+      "status": "evidence_checks_passed",
+      "validation_errors": [],
+      "response_sha256": "04aa476dd97a591c2dca540df74711565cf49a1f5bb63e5dd51eb59c57d0423c",
+      "prompt_sha256": "21db118b6a3a3b71007f5cbc37747c52cee6e4a50f6307bc8e3fcdab69c02812",
+      "input_tokens": 2497,
+      "output_tokens": 2655,
+      "duration_seconds": 50.776,
+      "semantic_quality": "unmeasured_reference"
+    },
+    {
+      "notice_id": 171,
+      "status": "validation_failed",
+      "validation_errors": [
+        "fact_number_not_on_cited_pages"
+      ],
+      "response_sha256": "b3a7ceaa6477ce7273f3fe6f72b40705420e925c727707ce2ab87c128eceaca4",
+      "prompt_sha256": "b19ac9b4a032ed57725765b81e57b9ea14679e892ed53e795a6d3609287f2c5c",
+      "input_tokens": 3660,
+      "output_tokens": 2226,
+      "duration_seconds": 44.038,
+      "semantic_quality": "unmeasured_reference"
+    },
+    {
+      "notice_id": 610,
+      "status": "validation_failed",
+      "validation_errors": [
+        "fact_number_not_on_cited_pages"
+      ],
+      "response_sha256": "da0c596014021b73d6642a0dcf118b6481e1b032a1f76da5196938d21a25ac7e",
+      "prompt_sha256": "0de773c0fa179e19fe97d33293c800a6da65e675bd26c3b760a40f5fa416c363",
+      "input_tokens": 1943,
+      "output_tokens": 1740,
+      "duration_seconds": 38.561,
+      "semantic_quality": "unmeasured_reference"
+    },
+    {
+      "notice_id": 159,
+      "status": "evidence_checks_passed",
+      "validation_errors": [],
+      "response_sha256": "3cca8bafa5a6d6fe07a97b3005272fb317a1ee0e67c6a30640238146f35177ed",
+      "prompt_sha256": "a1fb395fcce2be0ca4c01e1251b2da424a35cd256e7fb0cb34d2e16d15fd4e89",
+      "input_tokens": 2158,
+      "output_tokens": 1864,
+      "duration_seconds": 38.712,
+      "semantic_quality": "unmeasured_reference"
+    },
+    {
+      "notice_id": 143,
+      "status": "evidence_checks_passed",
+      "validation_errors": [],
+      "response_sha256": "0723346f3fc013283ee9a823cff5eecc8629b20f2568a8231be2c3c99b86d8f8",
+      "prompt_sha256": "eda46ff2ab64a766d4820895d20b61e460deab4fe2e4a7cb8f802e22bc5667c7",
+      "input_tokens": 2832,
+      "output_tokens": 1983,
+      "duration_seconds": 36.957,
+      "semantic_quality": "unmeasured_reference"
+    }
+  ]
+}

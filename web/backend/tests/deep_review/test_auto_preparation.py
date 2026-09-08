@@ -406,8 +406,16 @@ def _auto_start_context(
     return notice, bundle
 
 
+@pytest.fixture
+def matched_company_fit_gate(monkeypatch):
+    # This unit suite isolates creation/idempotency; real evidence and stale gates
+    # are exercised in test_company_fit and the PostgreSQL integration test.
+    from app.deep_review.services import company_fit
+    monkeypatch.setattr(company_fit, "gate_reasons", lambda session, ids: {i: None for i in ids})
+
+
 def test_sw_y_with_a_positive_overview_starts_exactly_one_deep_review(
-    db_session: Session, active_versions
+    db_session: Session, active_versions, matched_company_fit_gate
 ):
     """§6.4의 모든 조건이 성립하면 시스템 actor로 한 건만 만든다."""
 
@@ -523,7 +531,7 @@ def test_missing_active_version_ids_fail_closed_with_a_safe_reason(
 
 
 def test_a_service_failure_leaves_only_a_stable_safe_code(
-    db_session: Session, active_versions
+    db_session: Session, active_versions, matched_company_fit_gate
 ):
     """예외 본문·경로·비밀값은 사유에 넣지 않는다. 안정 code만 남는다."""
 
@@ -543,7 +551,7 @@ def test_a_service_failure_leaves_only_a_stable_safe_code(
 
 
 def test_the_automatic_start_never_touches_the_tracking_status(
-    db_session: Session, active_versions
+    db_session: Session, active_versions, matched_company_fit_gate
 ):
     """자동 시작은 사업기회 추적 상태를 바꾸지 않는다 (§6.4)."""
 

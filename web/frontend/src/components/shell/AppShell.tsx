@@ -85,6 +85,8 @@ export function AppShell() {
           runs={runs}
           selectedRun={selectedRun}
           selectedRunId={selectedRunId}
+          title={activeRouteMetadata.title}
+          topbarMode={location.topbarMode}
         />
         {runError ? (
           <div className="shell-notice">

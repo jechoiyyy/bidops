@@ -1,0 +1,22 @@
+{
+  "schema_version": "bidops.prespec-overview-prompt-comparison.v1",
+  "notice_id": 614,
+  "model_calls": 1,
+  "retries": 0,
+  "source_input_identical": true,
+  "old_text_chars": 4535,
+  "new_text_chars": 1198,
+  "old_overview_and_tasks_chars": 1864,
+  "new_overview_and_tasks_chars": 479,
+  "old_overview_items": 3,
+  "new_overview_items": 1,
+  "old_task_items": 4,
+  "new_task_items": 3,
+  "original_validation_errors": [
+    "fact_number_not_on_cited_pages",
+    "latin_term_not_on_cited_pages"
+  ],
+  "diagnostic_only_without_inline_page_label_errors": [],
+  "raw_response_modified": false,
+  "diagnostic_projection_published_as_passed": false
+}

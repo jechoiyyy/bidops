@@ -116,11 +116,11 @@ def test_mappers_configure_without_the_sibling_modules(
 
 
 def test_the_four_modules_together_declare_the_whole_schema(tmp_path: Path) -> None:
-    """네 모듈을 모두 들이면 §5.1의 77개 테이블이 그대로 나온다."""
+    """네 모듈을 모두 들이면 §5.1의 78개 테이블이 그대로 나온다."""
 
     registered = _configure_in_fresh_interpreter(
         (bmap.CORE, bmap.LIFECYCLE, bmap.SCREENING, bmap.DEEP_REVIEW), tmp_path
     )
 
-    assert len(registered) == 77
+    assert len(registered) == 79
     assert set(registered) == set(bmap.TABLE_OWNER)

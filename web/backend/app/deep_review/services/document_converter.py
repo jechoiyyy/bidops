@@ -102,7 +102,12 @@ class ScratchDocumentProcessor:
             if result.get("status") != "succeeded":
                 detail = result.get("error")
                 code = detail.get("code") if isinstance(detail, Mapping) else "processing_failed"
-                safe_code = code if isinstance(code, str) and code in {"timeout", "processing_failed", "conversion_required", "unsupported_media", "malformed_pdf", "malformed_archive", "invalid_options", "mime_mismatch", "output_size_limit"} else "processing_failed"
+                safe_code = code if isinstance(code, str) and code in {
+                    "timeout", "processing_failed", "conversion_required", "unsupported_media",
+                    "malformed_pdf", "malformed_archive", "invalid_options", "mime_mismatch",
+                    "output_size_limit", "pdf_object_limit", "pdf_page_limit", "pdf_page_mismatch",
+                    "pdf_empty_text",
+                } else "processing_failed"
                 raise DocumentProcessingError(safe_code, "문서 처리를 완료할 수 없습니다", source_preserved=True)
             payload = result.get("structure")
             if not isinstance(payload, dict):

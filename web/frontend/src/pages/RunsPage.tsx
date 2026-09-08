@@ -1,26 +1,64 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { EmptyState } from "../components/common/EmptyState";
-import { ArtifactValidation } from "../components/runs/ArtifactValidation";
-import { CollectionScope } from "../components/runs/CollectionScope";
+import { Button } from "@astryxdesign/core/Button";
+import { Text } from "@astryxdesign/core/Text";
+import { TextInput } from "@astryxdesign/core/TextInput";
+import { Pause, Play, Search, SlidersHorizontal } from "lucide-react";
 import { ExecutionLog } from "../components/runs/ExecutionLog";
-import { PipelineStages } from "../components/runs/PipelineStages";
-import { ScreeningRunPanel } from "../components/runs/ScreeningRunPanel";
+import { FailurePanel, TelemetrySummary } from "../components/runs/FailurePanel";
+import { JudgmentStartDialog, JudgmentStopDialog } from "../components/runs/JudgmentDialogs";
+import { PipelineControlsDialog } from "../components/runs/PipelineControlsDialog";
+import { PipelineStageTrack } from "../components/runs/PipelineStages";
+import {
+  Caption,
+  DetailFooter,
+  DetailHeader,
+  Facts,
+  ListRecord,
+  Note,
+  Section,
+  StatusToken,
+} from "../components/runs/RunStatusPrimitives";
+import { ScreeningRunPanel, screeningStatusLabel } from "../components/runs/ScreeningRunPanel";
+import {
+  isScreeningTerminal,
+  latestExecutionByRun,
+  needsAttention,
+  useRecentScreeningExecutions,
+} from "../components/runs/runStatusData";
 import { api } from "../lib/api";
 import { formatDateTime, formatNumber, formatRunRange, present, runStatusLabel } from "../lib/format";
-import "../styles/operations-workflow-relaxed.css";
 import type {
   CompanyProfileSnapshotResponse,
   PolicyVersionResponse,
   ProfileSource,
+  RunSummary,
   ScreeningExecutionDetailResponse,
   ScreeningExecutionResponse,
-  ScreeningStatus,
-  RunSummary,
 } from "../lib/types";
 
+// 수집 실행 탭. 승인된 시안의 목록 38% / 상세 62% 골격을 그대로 쓰고, 상세는
+// 진행 현황 · 실패 내역 · 실행 기록 · 실행 기준 네 탭으로 나눈다. 큰 실행 폼과
+// 파이프라인 조작은 없애지 않고 바닥 액션의 대화상자로 옮겼다.
+
 type RunnableStage = "collect" | "sample" | "report";
+type DetailTab = "summary" | "failures" | "logs" | "binding";
+type ListFilter = "all" | "running" | "issue";
+
+const DETAIL_TABS: Array<{ key: DetailTab; label: string }> = [
+  { key: "summary", label: "진행 현황" },
+  { key: "failures", label: "실패 내역" },
+  { key: "logs", label: "실행 기록" },
+  { key: "binding", label: "실행 기준" },
+];
+
+const RUN_KIND_LABELS: Record<string, string> = {
+  order_plans: "발주계획 회차",
+  notices: "공고 판정 회차",
+  mixed: "혼합 회차",
+  unknown: "회차 종류 미확인",
+};
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "수집 실행을 시작하지 못했습니다.";
@@ -31,24 +69,19 @@ function countFromCollection(run: RunSummary, key: string): number | null {
   return typeof value === "number" ? value : null;
 }
 
-function isScreeningTerminal(status: ScreeningStatus | undefined): boolean {
-  return status === "성공" || status === "부분 성공" || status === "실패" || status === "중단됨";
-}
-
 function profileSourceFor(snapshot: CompanyProfileSnapshotResponse): ProfileSource | null {
   if (snapshot.source_kind === "working_tree") return "current";
   return snapshot.source_ref ? `git:${snapshot.source_ref}` : null;
 }
 
-function screeningActionMessage(error: unknown): string {
-  if (error instanceof Error && error.message) return "판정 실행 요청을 처리하지 못했습니다. 입력과 서버 상태를 확인한 뒤 다시 시도해 주세요.";
-  return "판정 실행 요청을 처리하지 못했습니다. 다시 시도해 주세요.";
+/** 서버 오류 본문을 화면에 옮기지 않는다(docs/security.md). */
+function screeningActionMessage(): string {
+  return "판정 실행 요청을 처리하지 못했습니다. 입력과 실행 상태를 확인한 뒤 다시 시도해 주세요.";
 }
 
 /**
- * Poll a single screening execution with a one-shot timer.  The API wrapper
- * owns transport details; the abort signal prevents a late response from
- * updating an unmounted or replaced run panel.
+ * 선택한 실행 하나만 상세를 조회한다. 목록의 모든 행을 상세로 조회하지 않는다.
+ * 중단 신호는 늦게 도착한 응답이 이미 바뀐 화면을 덮는 것을 막는다.
  */
 function useScreeningExecutionPoll(executionId: string | null) {
   const [data, setData] = useState<ScreeningExecutionDetailResponse | null>(null);
@@ -92,8 +125,8 @@ function useScreeningExecutionPoll(executionId: string | null) {
       } catch (nextError) {
         if (controller.signal.aborted) return;
         setError(nextError);
-        // Keep a failed detail fetch transient and retry while the execution
-        // is still selected; no server error detail is promoted to a status.
+        // 상세 조회 실패는 일시적으로 두고 계속 시도한다. 서버 오류 본문을
+        // 상태로 승격시키지 않는다.
         schedule(3000);
       } finally {
         inFlight = false;
@@ -112,25 +145,15 @@ function useScreeningExecutionPoll(executionId: string | null) {
   return { data, error, loading };
 }
 
-function RunListItem({ run, selected, onSelect }: { run: RunSummary; selected: boolean; onSelect: () => void }) {
-  const collected = countFromCollection(run, "total");
-  const candidate = countFromCollection(run, "candidate_pool");
-  return (
-    <button className={`runs-list-item ${selected ? "is-selected" : ""}`.trim()} type="button" onClick={onSelect}>
-      <span className="runs-list-item-heading"><strong className="mono">{formatRunRange(run.run_id, run.window_from, run.window_to)}</strong><span className={`runs-status runs-status-${run.status}`}>{runStatusLabel(run.status)}</span></span>
-      <span className="runs-list-item-meta">{formatDateTime(run.generated_at)} · <span className="mono">{formatNumber(collected)}</span>건 수집</span>
-      <span className="runs-list-item-counts"><span>후보 {formatNumber(candidate)}</span><span>표본 {formatNumber(run.counts.notices)}</span></span>
-    </button>
-  );
-}
-
-export function RunsPage() {
+export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: string }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
+
   const runsQuery = useQuery({ queryKey: ["runs"], queryFn: api.getRuns, staleTime: 5_000 });
-  const runs = runsQuery.data?.items ?? [];
+  const runs = useMemo(() => runsQuery.data?.items ?? [], [runsQuery.data]);
   const queryRunId = searchParams.get("run");
   const selectedRunId = runs.some((run) => run.run_id === queryRunId) ? queryRunId : runs[0]?.run_id ?? null;
+
   const detailQuery = useQuery({
     queryKey: ["run", selectedRunId],
     queryFn: () => api.getRun(selectedRunId as string),
@@ -148,21 +171,37 @@ export function RunsPage() {
       return data.executions.some((execution) => execution.status === "pending" || execution.status === "running") ? 1000 : false;
     },
   });
+
+  const [detailTab, setDetailTab] = useState<DetailTab>("summary");
+  const [listQuery, setListQuery] = useState("");
+  const [listFilter, setListFilter] = useState<ListFilter>("all");
+  const [startDialogOpen, setStartDialogOpen] = useState(false);
+  const [stopDialogOpen, setStopDialogOpen] = useState(false);
+  const [pipelineDialogOpen, setPipelineDialogOpen] = useState(false);
+  const [stopTarget, setStopTarget] = useState<ScreeningExecutionResponse | null>(null);
+
+  // 정책·프로필은 실행 요청 창을 열 때만 조회한다. 기본 화면이 쓰지 않는다.
   const activationCandidatePoliciesQuery = useQuery({
     queryKey: ["screening-policies", "activation_candidate"],
     queryFn: () => api.getPolicies({ status: "activation_candidate" }),
+    enabled: startDialogOpen,
     staleTime: 30_000,
   });
   const activePoliciesQuery = useQuery({
     queryKey: ["screening-policies", "active"],
     queryFn: () => api.getPolicies({ status: "active" }),
+    enabled: startDialogOpen,
     staleTime: 30_000,
   });
   const profileSnapshotsQuery = useQuery({
     queryKey: ["profile-snapshots"],
     queryFn: api.getProfileSnapshots,
+    enabled: startDialogOpen,
     staleTime: 30_000,
   });
+
+  // 선택한 회차의 판정 실행 목록. 회차마다 조회하지 않고 고른 회차 하나만
+  // 상한을 두고 받는다.
   const screeningExecutionsQuery = useQuery({
     queryKey: ["screening-executions", selectedRunId],
     queryFn: ({ signal }) => api.listScreeningExecutions(
@@ -177,13 +216,25 @@ export function RunsPage() {
       return data.items.some((execution) => execution.trigger === "manual_run" && execution.scope === "full_run" && !isScreeningTerminal(execution.status)) ? 1500 : false;
     },
   });
+
+  // 목록 행의 판정 실행 상태는 요약 한 줄과 같은 조회를 읽는다. 회차마다
+  // 실행을 따로 조회하면 N+1이 된다.
+  const recentExecutionsQuery = useRecentScreeningExecutions();
+  const executionByRun = useMemo(
+    () => latestExecutionByRun(recentExecutionsQuery.data?.items ?? []),
+    [recentExecutionsQuery.data],
+  );
+  const executionScopeKnown = Boolean(recentExecutionsQuery.data) && !recentExecutionsQuery.error;
+
   const [actionError, setActionError] = useState<string | null>(null);
   const [activeExecutionId, setActiveExecutionId] = useState<string | null>(null);
   const [screeningActor, setScreeningActor] = useState("");
+  const [stopActor, setStopActor] = useState("");
   const [selectedPolicyVersion, setSelectedPolicyVersion] = useState("");
   const [selectedProfileVersion, setSelectedProfileVersion] = useState("");
   const [screeningExecutionId, setScreeningExecutionId] = useState<string | null>(null);
   const [screeningActionError, setScreeningActionError] = useState<string | null>(null);
+  const [stopActionError, setStopActionError] = useState<string | null>(null);
   const [screeningStartBusy, setScreeningStartBusy] = useState(false);
   const [screeningStopBusy, setScreeningStopBusy] = useState(false);
   const [publishedRunNavigationBusy, setPublishedRunNavigationBusy] = useState(false);
@@ -243,6 +294,7 @@ export function RunsPage() {
   currentScreeningExecutionRef.current = currentScreeningExecution;
   const selectedPolicy = policies.find((policy) => policy.policy_version === selectedPolicyVersion) ?? null;
   const selectedProfile = profileSnapshots.find((snapshot) => snapshot.version === selectedProfileVersion) ?? null;
+  const screeningDetail = screeningDetailPoll.data?.execution_id === screeningExecutionId ? screeningDetailPoll.data : null;
 
   useEffect(() => {
     if (!selectedRunId || selectedRunId === queryRunId) return;
@@ -267,8 +319,8 @@ export function RunsPage() {
   }, [profileSnapshots, selectedProfileVersion]);
 
   useEffect(() => {
-    // The API returns queue_no-descending order. Prefer the newest active
-    // manual full-run execution; when none is active, show the newest one.
+    // 서버는 queue_no 내림차순으로 준다. 진행 중인 실행이 있으면 그것을,
+    // 없으면 가장 최근 실행을 고른다. 사람이 고른 실행은 덮지 않는다.
     if (screeningExecutionId && !manualFullRunExecutions.some((item) => item.execution_id === screeningExecutionId)) return;
     const preferred = manualFullRunExecutions.find((item) => !isScreeningTerminal(item.status))
       ?? manualFullRunExecutions[0]
@@ -287,8 +339,7 @@ export function RunsPage() {
   }, [queryClient, screeningDetailPoll.data, screeningExecutionId, selectedRunId]);
 
   useEffect(() => {
-    // A run switch should not carry a previous run's execution or transient
-    // error into the newly selected original run.
+    // 회차를 바꾸면 이전 회차의 실행·오류를 새 회차로 들고 오지 않는다.
     screeningStartOperation.current += 1;
     screeningStopOperation.current += 1;
     publishedRunNavigationOperation.current += 1;
@@ -301,6 +352,10 @@ export function RunsPage() {
     setPublishedRunNavigationError(null);
     setScreeningExecutionId(null);
     setScreeningActionError(null);
+    setStopActionError(null);
+    setStopDialogOpen(false);
+    setStopTarget(null);
+    setDetailTab("summary");
   }, [selectedRunId]);
 
   useEffect(() => {
@@ -325,6 +380,8 @@ export function RunsPage() {
     }, { replace: true });
   };
 
+  const pipelineBusy = Boolean(logsQuery.data?.executions.some((item) => item.status === "pending" || item.status === "running"));
+
   const startStage = async (stage: RunnableStage, fromRaw = false) => {
     if (!selectedRunId) return;
     setActionError(null);
@@ -332,6 +389,7 @@ export function RunsPage() {
       const execution = await api.runPipeline(selectedRunId, stage, fromRaw);
       setActiveExecutionId(execution.execution_id);
       await queryClient.invalidateQueries({ queryKey: ["pipeline-logs", selectedRunId] });
+      setPipelineDialogOpen(false);
     } catch (error) {
       setActionError(errorMessage(error));
     }
@@ -370,10 +428,13 @@ export function RunsPage() {
         && execution.source_run_id === capturedRunId;
       if (!responseIsCurrent) return;
       setScreeningExecutionId(execution.execution_id);
+      setStartDialogOpen(false);
       void queryClient.invalidateQueries({ queryKey: ["screening-executions", capturedRunId] });
-    } catch (error) {
+      void queryClient.invalidateQueries({ queryKey: ["screening-executions", "recent"] });
+    } catch {
       if (mountedRef.current && selectedScreeningRunRef.current === capturedRunId && screeningRunGeneration.current === capturedGeneration) {
-        setScreeningActionError(screeningActionMessage(error));
+        // 충돌·거절이면 창을 닫지 않고 입력을 남겨 다시 시도할 수 있게 한다.
+        setScreeningActionError(screeningActionMessage());
       }
     } finally {
       if (mountedRef.current && screeningStartOperation.current === operationToken) {
@@ -386,16 +447,22 @@ export function RunsPage() {
   const stopScreening = async () => {
     const capturedRunId = selectedRunId;
     const capturedGeneration = screeningRunGeneration.current;
-    const capturedExecutionId = selectedScreeningExecutionRef.current;
-    const latestStatus = screeningDetailPoll.data?.status ?? selectedScreeningSummary?.status;
+    // 확인 창이 열릴 때 고정한 대상만 중지한다.
+    const capturedExecutionId = stopTarget?.execution_id ?? null;
+    const latestStatus = screeningDetailPoll.data?.execution_id === capturedExecutionId
+      ? screeningDetailPoll.data.status
+      : manualFullRunExecutions.find((item) => item.execution_id === capturedExecutionId)?.status;
     if (screeningStopInFlight.current) return;
-    if (!capturedRunId || !capturedExecutionId || !screeningActor.trim() || !latestStatus || isScreeningTerminal(latestStatus) || latestStatus === "중지 요청") return;
+    if (!capturedRunId || !capturedExecutionId || !stopActor.trim() || !latestStatus || isScreeningTerminal(latestStatus) || latestStatus === "중지 요청") {
+      setStopActionError("이 실행은 더 이상 중지할 수 없습니다. 상태를 다시 확인해 주세요.");
+      return;
+    }
     screeningStopInFlight.current = true;
     const operationToken = ++screeningStopOperation.current;
-    setScreeningActionError(null);
+    setStopActionError(null);
     setScreeningStopBusy(true);
     try {
-      const stopped = await api.stopScreeningExecution(capturedExecutionId, { requested_by: screeningActor.trim() });
+      const stopped = await api.stopScreeningExecution(capturedExecutionId, { requested_by: stopActor.trim() });
       const responseIsCurrent = mountedRef.current
         && selectedScreeningRunRef.current === capturedRunId
         && screeningRunGeneration.current === capturedGeneration
@@ -403,10 +470,13 @@ export function RunsPage() {
         && stopped.source_run_id === capturedRunId;
       if (!responseIsCurrent) return;
       setScreeningExecutionId(stopped.execution_id);
+      setStopDialogOpen(false);
+      setStopTarget(null);
       void queryClient.invalidateQueries({ queryKey: ["screening-executions", capturedRunId] });
-    } catch (error) {
+      void queryClient.invalidateQueries({ queryKey: ["screening-executions", "recent"] });
+    } catch {
       if (mountedRef.current && selectedScreeningRunRef.current === capturedRunId && screeningRunGeneration.current === capturedGeneration) {
-        setScreeningActionError(screeningActionMessage(error));
+        setStopActionError(screeningActionMessage());
       }
     } finally {
       if (mountedRef.current && screeningStopOperation.current === operationToken) {
@@ -473,39 +543,359 @@ export function RunsPage() {
     }
   };
 
-  if (runsQuery.isLoading && runs.length === 0) return <div className="runs-loading" role="status" aria-live="polite">실행 회차를 불러오는 중입니다.</div>;
-  if (runsQuery.error && runs.length === 0) return <EmptyState title="실행 회차를 불러오지 못했습니다." description={errorMessage(runsQuery.error)} action={{ label: "다시 시도", onClick: () => void runsQuery.refetch() }} />;
-  if (!selectedRunId) return <EmptyState title="실행 회차가 없습니다." description="수집할 회차가 적재되면 이곳에서 파이프라인을 실행할 수 있습니다." />;
-  // 오류일 때도 data가 없으므로, 오류 검사를 로딩 검사보다 먼저 해야 안내가 표시된다.
-  if (detailQuery.error) return <EmptyState title="회차 상세를 불러오지 못했습니다." description={errorMessage(detailQuery.error)} action={{ label: "다시 시도", onClick: () => void detailQuery.refetch() }} />;
-  if (detailQuery.isLoading || !detailQuery.data) return <div className="runs-loading" role="status" aria-live="polite">선택한 회차의 상세 정보를 불러오는 중입니다.</div>;
+  // ── 목록 좁히기 ─────────────────────────────────────────────────────────
+  const term = listQuery.trim();
+  const matchesFilter = (run: RunSummary): boolean => {
+    if (listFilter === "all") return true;
+    const execution = executionByRun.get(run.run_id);
+    if (!execution) return false;
+    if (listFilter === "running") return !isScreeningTerminal(execution.status);
+    return needsAttention(execution.status);
+  };
+  const visibleRuns = runs.filter((run) => matchesFilter(run)
+    && (term === "" || `${run.run_id} ${formatRunRange(run.run_id, run.window_from, run.window_to)} ${run.kind}`.includes(term)));
+  const runningCount = runs.filter((run) => {
+    const execution = executionByRun.get(run.run_id);
+    return execution ? !isScreeningTerminal(execution.status) : false;
+  }).length;
+  const attentionCount = runs.filter((run) => {
+    const execution = executionByRun.get(run.run_id);
+    return execution ? needsAttention(execution.status) : false;
+  }).length;
 
-  const detail = detailQuery.data;
+  const detail = detailQuery.data ?? null;
   const selectedSummary = runs.find((run) => run.run_id === selectedRunId) ?? detail;
+  const currentStatus = currentScreeningExecution?.status;
+  const executionBusy = manualFullRunExecutions.some((item) => !isScreeningTerminal(item.status));
+  const screeningListReady = screeningExecutionsQuery.data !== undefined && !screeningExecutionsQuery.isLoading && !screeningExecutionsQuery.error;
+  const startDisabled = screeningStartBusy || executionBusy || !screeningListReady || !selectedRunId;
+  const startBlockedReason = !screeningListReady
+    ? "현재 회차의 판정 실행 목록을 확인할 때까지 실행할 수 없습니다."
+    : executionBusy
+      ? "진행 중인 전량 판정 실행이 있어 새 실행을 시작할 수 없습니다."
+      : null;
+  const canStop = Boolean(currentScreeningExecution)
+    && !isScreeningTerminal(currentStatus)
+    && currentStatus !== "중지 요청"
+    && !screeningStopBusy;
+
+  const listFooter = `받은 회차 ${runs.length.toLocaleString("ko-KR")}건 · 표시 ${visibleRuns.length.toLocaleString("ko-KR")}건`
+    + (executionScopeKnown
+      ? ` · 판정 실행 상태는 최근 ${(recentExecutionsQuery.data?.items.length ?? 0).toLocaleString("ko-KR")}건 조회 범위 기준이며 범위 밖은 미확인입니다`
+      : " · 판정 실행 상태는 미확인입니다");
+
   return (
-    <div className="runs-page">
-      <header className="runs-page-header">
-        <div><div className="runs-eyebrow">운영 · 파이프라인</div><h2>수집 실행 관리</h2><p>기존 수집 스크립트를 실행하고 산출물 적재 결과를 확인합니다.</p></div>
-        <div className="runs-actions">
-          <button className="runs-secondary-button" type="button" onClick={() => void startStage("collect", true)} disabled={Boolean(logsQuery.data?.executions.some((item) => item.status === "pending" || item.status === "running"))}>
-            원문 재분류 실행 <code>--from-raw</code>
-          </button>
-          <button className="runs-primary-button" type="button" onClick={() => void startStage("collect")} disabled={Boolean(logsQuery.data?.executions.some((item) => item.status === "pending" || item.status === "running"))}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
-            새 회차 수집
-          </button>
+    <div className="rs-workspace" id={panelId} role="tabpanel" aria-label="수집 실행">
+      <section className="rs-list-pane" aria-label="실행 회차 목록">
+        <header className="rs-list-head">
+          <Text className="rs-list-title" as="p">실행 회차 목록</Text>
+          <Caption as="span">{runsQuery.isError ? "미확인" : `${runs.length.toLocaleString("ko-KR")}건`}</Caption>
+        </header>
+        <div className="rs-list-filters">
+          <TextInput
+            label="실행 회차 검색"
+            isLabelHidden
+            placeholder="회차·기간 검색"
+            value={listQuery}
+            onChange={setListQuery}
+            startIcon={Search}
+            hasClear
+            size="sm"
+          />
+          <div className="rs-filter-pills">
+            <Button label={`전체 ${runs.length}`} size="sm" aria-pressed={listFilter === "all"} onClick={() => setListFilter("all")} />
+            <Button
+              label={executionScopeKnown ? `실행 중 ${runningCount}` : "실행 중 미확인"}
+              size="sm"
+              aria-pressed={listFilter === "running"}
+              onClick={() => setListFilter("running")}
+            />
+            <Button
+              label={executionScopeKnown ? `확인 필요 ${attentionCount}` : "확인 필요 미확인"}
+              size="sm"
+              aria-pressed={listFilter === "issue"}
+              onClick={() => setListFilter("issue")}
+            />
+          </div>
         </div>
-      </header>
-      {runsQuery.error ? <p className="runs-error" role="alert">회차 목록을 최신화하지 못했습니다. 기존 회차 목록을 유지하고 있습니다.</p> : null}
-      {actionError ? <p className="runs-error" role="alert">{actionError}</p> : null}
-      <div className="runs-layout">
-        <aside className="runs-list" aria-label="실행 회차 목록">
-          <div className="runs-list-heading"><span>실행 회차</span><span className="mono">{runs.length}건</span></div>
-          {runs.map((run) => <RunListItem key={run.run_id} run={run} selected={run.run_id === selectedRunId} onSelect={() => selectRun(run.run_id)} />)}
-        </aside>
-        <section className="runs-detail">
-          <div className="runs-detail-heading"><div><span className="runs-eyebrow">선택한 회차</span><h3 className="mono">{formatRunRange(detail.run_id, detail.window_from, detail.window_to)}</h3><p>{formatDateTime(detail.generated_at)} · {present(detail.screening_basis, "판정 기준 미기록")}</p></div><span className={`runs-status runs-status-${detail.status}`}>{runStatusLabel(detail.status)}</span></div>
-          <ScreeningRunPanel
+        <div className="rs-list-scroll">
+          {runsQuery.isPending ? <div className="rs-list-empty"><Caption>실행 회차를 불러오는 중입니다.</Caption></div> : null}
+          {runsQuery.error ? (
+            <div className="rs-list-empty" role="alert">
+              <Search aria-hidden="true" />
+              <Text as="p">실행 회차를 불러오지 못했습니다.</Text>
+              <Caption>조회 실패는 회차 0건이 아닙니다.</Caption>
+              <Button label="다시 시도" size="sm" onClick={() => void runsQuery.refetch()} />
+            </div>
+          ) : null}
+          {!runsQuery.isPending && !runsQuery.error && runs.length === 0 ? (
+            <div className="rs-list-empty">
+              <Search aria-hidden="true" />
+              <Text as="p">적재된 실행 회차가 없습니다.</Text>
+              <Caption>회차가 적재되면 이곳에서 파이프라인과 판정 실행을 확인할 수 있습니다.</Caption>
+            </div>
+          ) : null}
+          {!runsQuery.isPending && runs.length > 0 && visibleRuns.length === 0 ? (
+            <div className="rs-list-empty">
+              <Search aria-hidden="true" />
+              <Text as="p">조건에 맞는 회차가 없습니다.</Text>
+              <Caption>받은 목록 안에 없을 뿐, 전체에 없다는 뜻은 아닙니다.</Caption>
+              <Button label="필터 초기화" size="sm" onClick={() => { setListQuery(""); setListFilter("all"); }} />
+            </div>
+          ) : null}
+          {visibleRuns.map((run) => {
+            const execution = executionByRun.get(run.run_id);
+            return (
+              <ListRecord
+                key={run.run_id}
+                selected={run.run_id === selectedRunId}
+                onSelect={() => selectRun(run.run_id)}
+                item={{
+                  // 시안과 같은 정보 순서: 업무 종류가 제목, 기간이 보조줄이다.
+                  // 종류는 서버가 준 `kind`뿐이며 사업명을 지어내지 않는다.
+                  title: RUN_KIND_LABELS[run.kind] ?? "회차 종류 미확인",
+                  id: run.run_id,
+                  subtitle: formatRunRange(run.run_id, run.window_from, run.window_to),
+                  meta: `${formatDateTime(run.generated_at)} · 수집 ${formatNumber(countFromCollection(run, "total"))} · 회차 ${runStatusLabel(run.status)} · 판정 실행 ${executionScopeKnown ? (execution ? screeningStatusLabel(execution.status) : "조회 범위 안 기록 없음") : "미확인"}`,
+                  status: execution ? screeningStatusLabel(execution.status) : executionScopeKnown ? "판정 실행 없음" : "판정 실행 미확인",
+                  statusDescription: "회차 상태가 아니라 이 회차와 연결된 판정 실행 상태입니다.",
+                }}
+              />
+            );
+          })}
+        </div>
+        <footer className="rs-list-foot">
+          <Caption>{listFooter}</Caption>
+        </footer>
+      </section>
+
+      <section className="rs-detail-pane" aria-label="선택한 실행 회차">
+        {detailQuery.isError ? (
+          <div className="rs-detail-empty" role="alert">
+            <Text as="p">회차 상세를 불러오지 못했습니다.</Text>
+            <Caption>조회 실패를 실행 없음으로 읽지 않습니다.</Caption>
+            <Button label="다시 시도" size="sm" onClick={() => void detailQuery.refetch()} />
+          </div>
+        ) : null}
+        {!detailQuery.isError && (!detail || !selectedSummary) ? (
+          <div className="rs-detail-empty">
+            <Text as="p">{selectedRunId ? "선택한 회차의 상세 정보를 불러오는 중입니다." : "확인할 실행 회차를 고르십시오."}</Text>
+          </div>
+        ) : null}
+        {!detailQuery.isError && detail && selectedSummary ? (
+          <>
+            <DetailHeader
+              eyebrow={`선택한 회차 · ${formatRunRange(detail.run_id, detail.window_from, detail.window_to)}`}
+              title={RUN_KIND_LABELS[detail.kind] ?? "회차 종류 미확인"}
+              // 머리의 주 상태는 **지금 고른 판정 실행**의 상태다. 수집 회차가
+              // 끝났다는 사실을 초록 완료로 크게 걸어 두면 진행 중인 판정을
+              // 끝난 것으로 읽는다(시안도 실행 상태를 건다).
+              status={currentScreeningExecution
+                ? screeningStatusLabel(currentStatus)
+                : screeningListReady ? "판정 실행 없음" : "판정 실행 미확인"}
+              statusDescription="이 회차에 연결된 판정 실행의 상태입니다. 수집 회차 자체의 상태와 다릅니다."
+            >
+              <div className="rs-row rs-spread">
+                <Caption as="span">
+                  <span className="rs-mono">{detail.run_id}</span> · 생성 {formatDateTime(detail.generated_at)}
+                  {" · 수집 회차 "}{runStatusLabel(detail.status)}
+                </Caption>
+                {/* 이 API(ScreeningExecutionResponse·RunSummary)에는 quality_status가
+                  * 없다. 측정 통과·참조 실행·mock 참조 중 무엇도 주장하지 않고
+                  * 표식이 제공되지 않는다는 사실만 중립으로 적는다. */}
+                <StatusToken
+                  label="품질 표식 미제공"
+                  description="이 실행 API는 품질 표식을 제공하지 않아 측정 통과·참조 실행·mock 참조 여부를 확인할 수 없습니다."
+                />
+              </div>
+            </DetailHeader>
+
+            <nav className="rs-detail-tabs" aria-label="선택한 회차 상세 보기">
+              {DETAIL_TABS.map((item) => (
+                <Button
+                  key={item.key}
+                  label={item.key === "failures"
+                    ? `${item.label} ${currentScreeningExecution ? currentScreeningExecution.failure_count.toLocaleString("ko-KR") : "미확인"}`
+                    : item.label}
+                  size="sm"
+                  aria-pressed={detailTab === item.key}
+                  onClick={() => setDetailTab(item.key)}
+                />
+              ))}
+            </nav>
+
+            <div className="rs-detail-scroll">
+              {detailTab === "summary" ? (
+                <>
+                  <PipelineStageTrack stages={detail.pipeline} counts={selectedSummary.counts} />
+                  {actionError ? (
+                    <div className="rs-inline-error" role="alert"><Text as="span">{actionError}</Text></div>
+                  ) : null}
+                  {/* 단계 → 진행률 → 핵심 건수가 첫 화면에 오도록 안내 문구는
+                    * 건수 아래로 내린다. 문구를 지우지 않고 자리만 옮긴다. */}
+                  <ScreeningRunPanel
+                    blockedReason={startBlockedReason}
+                    listRefreshWarning={runsQuery.error ? "회차 목록을 최신화하지 못해 기존 목록을 유지하고 있습니다." : null}
+                    runId={detail.run_id}
+                    executions={manualFullRunExecutions}
+                    selectedExecutionId={screeningExecutionId}
+                    onSelectExecution={(executionId) => setScreeningExecutionId(executionId)}
+                    execution={screeningDetail}
+                    executionSummary={selectedScreeningSummary}
+                    executionLoading={screeningDetailPoll.loading}
+                    executionError={screeningDetailPoll.error}
+                    listLoading={screeningExecutionsQuery.isLoading}
+                    listError={screeningExecutionsQuery.error}
+                    listReady={screeningExecutionsQuery.data !== undefined}
+                    listRefreshing={screeningExecutionsQuery.isFetching}
+                    onRetryList={() => { void screeningExecutionsQuery.refetch(); }}
+                    onOpenPublishedRun={(runId) => void selectPublishedRun(runId)}
+                    publishedRunNavigationBusy={publishedRunNavigationBusy}
+                    publishedRunNavigationError={publishedRunNavigationError}
+                  />
+                  <Section title="수집 범위">
+                    <Facts
+                      items={[
+                        ["수집", `${formatNumber(countFromCollection(selectedSummary, "total"))}건`],
+                        ["판정 후보", `${formatNumber(countFromCollection(selectedSummary, "candidate_pool"))}건`],
+                        ["감사 층", `${formatNumber(countFromCollection(selectedSummary, "audit_pool"))}건`],
+                        ["표본", `${formatNumber(selectedSummary.counts.notices)}건`],
+                        ["적재된 판정", `${formatNumber(selectedSummary.counts.judgments)}건`],
+                        ["담당자 리뷰", `${formatNumber(selectedSummary.counts.reviews)}건`],
+                      ]}
+                    />
+                    <Caption>
+                      수집·정규화 건수와 판정 후보·시도 건수는 다른 값입니다. 두 건수를 합치거나 서로
+                      대신하지 않습니다.
+                    </Caption>
+                  </Section>
+                </>
+              ) : null}
+
+              {detailTab === "failures" ? (
+                <FailurePanel
+                  detail={screeningDetail}
+                  summary={selectedScreeningSummary}
+                  loading={screeningDetailPoll.loading}
+                />
+              ) : null}
+
+              {detailTab === "logs" ? (
+                <>
+                  <ExecutionLog data={logsQuery.data} loading={logsQuery.isLoading} error={logsQuery.error} />
+                  <TelemetrySummary detail={screeningDetail} />
+                </>
+              ) : null}
+
+              {detailTab === "binding" ? (
+                <>
+                  <Section title="이 실행에 고정된 기준">
+                    {currentScreeningExecution ? (
+                      <Facts
+                        items={[
+                          ["실행 ID", <span className="rs-mono" key="exec">{currentScreeningExecution.execution_id}</span>],
+                          ["정책", <span className="rs-mono" key="policy">{currentScreeningExecution.policy_version}</span>],
+                          ["프롬프트", <span className="rs-mono" key="prompt">{currentScreeningExecution.prompt_version}</span>],
+                          ["모델", <span className="rs-mono" key="model">{currentScreeningExecution.model_name}</span>],
+                          ["모델 식별 해시", <span className="rs-mono" key="md">{currentScreeningExecution.model_digest}</span>],
+                          ["회사 프로필", <span className="rs-mono" key="profile">{currentScreeningExecution.company_profile_version}</span>],
+                          ["프로필 식별 해시", <span className="rs-mono" key="pd">{currentScreeningExecution.company_profile_digest}</span>],
+                          ["입력 식별 해시", <span className="rs-mono" key="input">{currentScreeningExecution.input_artifact_digest}</span>],
+                        ]}
+                      />
+                    ) : (
+                      <Caption>
+                        {screeningListReady
+                          ? "조회 범위 안에 이 회차의 전량 판정 실행이 없어 고정 입력을 확인할 수 없습니다."
+                          : "판정 실행 목록을 확인하지 못해 고정 입력이 미확인입니다."}
+                      </Caption>
+                    )}
+                  </Section>
+                  <Section title="회차 수집 조건">
+                    <Facts
+                      items={[
+                        ["기간", formatRunRange(detail.run_id, detail.collection_scope.window_from, detail.collection_scope.window_to)],
+                        ["시간대", present(detail.collection_scope.timezone, "시간대 미확인")],
+                        ["업무 구분", present(detail.collection_scope.business_area, "업무 구분 미확인")],
+                        [
+                          "사전규격",
+                          detail.collection_scope.pre_spec_available === true
+                            ? "수집 가능"
+                            : detail.collection_scope.pre_spec_available === false ? "수집되지 않음" : "확인 불가",
+                        ],
+                        ["사전규격 사유", present(detail.collection_scope.pre_spec_reason, "상태 기록 없음")],
+                        [
+                          "역량 축",
+                          detail.collection_scope.focus_axes.length ? detail.collection_scope.focus_axes.join(" · ") : "기록 없음",
+                        ],
+                        [
+                          "실적 레퍼런스",
+                          detail.collection_scope.performance_reference_count === null
+                            ? "기록 없음"
+                            : `${formatNumber(detail.collection_scope.performance_reference_count)}건`,
+                        ],
+                        ["판정 기준", present(detail.screening_basis, "판정 기준 미기록")],
+                      ]}
+                    />
+                  </Section>
+                  <Note title="이 실행의 입력은 고정되어 있습니다">
+                    현재 판정 기준이 바뀌어도 이미 시작한 실행에 소급 적용하지 않습니다. 회차 원본과 기존
+                    판정 기록은 덮어쓰지 않습니다.
+                  </Note>
+                </>
+              ) : null}
+            </div>
+
+            <DetailFooter
+              /* 바닥 한 줄은 짧게 둔다. 실행 상태는 상세 머리와 진행 현황이,
+                 막힌 이유는 진행 현황의 주석이 말한다. */
+              note={`결과 게시 ${currentScreeningExecution?.published_run_id ? "있음" : "전"}`}
+            >
+              <Button
+                label="파이프라인 실행"
+                size="sm"
+                icon={<SlidersHorizontal aria-hidden="true" />}
+                onClick={() => { setActionError(null); setPipelineDialogOpen(true); }}
+              />
+              {canStop ? (
+                <Button
+                  label="실행 중단"
+                  size="sm"
+                  icon={<Pause aria-hidden="true" />}
+                  onClick={() => {
+                    setStopTarget(currentScreeningExecution ?? null);
+                    setStopActionError(null);
+                    setStopDialogOpen(true);
+                  }}
+                />
+              ) : null}
+              <Button
+                label="전량 판정 대기열에 넣기"
+                size="sm"
+                variant="primary"
+                icon={<Play aria-hidden="true" />}
+                isDisabled={startDisabled}
+                onClick={() => { setScreeningActionError(null); setStartDialogOpen(true); }}
+              />
+            </DetailFooter>
+          </>
+        ) : null}
+      </section>
+
+      {detail ? (
+        <>
+          <PipelineControlsDialog
+            open={pipelineDialogOpen}
+            onClose={() => setPipelineDialogOpen(false)}
+            runId={detail.run_id}
+            stages={detail.pipeline}
+            busy={pipelineBusy}
+            actionError={actionError}
+            onRun={(stage, fromRaw) => void startStage(stage, fromRaw)}
+          />
+          <JudgmentStartDialog
+            open={startDialogOpen}
+            onClose={() => setStartDialogOpen(false)}
             runId={detail.run_id}
             actor={screeningActor}
             onActorChange={setScreeningActor}
@@ -520,14 +910,8 @@ export function RunsPage() {
             selectedProfileVersion={selectedProfileVersion}
             onProfileChange={setSelectedProfileVersion}
             selectedProfileSource={selectedProfile ? profileSourceFor(selectedProfile) : null}
-            execution={screeningDetailPoll.data}
-            executionSummary={selectedScreeningSummary}
-            executionLoading={screeningDetailPoll.loading}
-            executionError={screeningDetailPoll.error}
-            listLoading={screeningExecutionsQuery.isLoading}
-            listError={screeningExecutionsQuery.error}
-            listReady={screeningExecutionsQuery.data !== undefined}
-            listRefreshing={screeningExecutionsQuery.isFetching}
+            executionBusy={executionBusy}
+            listReady={screeningListReady}
             onRetryConfiguration={() => {
               void activationCandidatePoliciesQuery.refetch();
               void activePoliciesQuery.refetch();
@@ -537,17 +921,20 @@ export function RunsPage() {
             onStart={() => void startScreening()}
             startBusy={screeningStartBusy}
             actionError={screeningActionError}
-            onStop={() => void stopScreening()}
-            stopBusy={screeningStopBusy}
-            onOpenPublishedRun={selectPublishedRun}
-            publishedRunNavigationBusy={publishedRunNavigationBusy}
-            publishedRunNavigationError={publishedRunNavigationError}
           />
-          <PipelineStages stages={detail.pipeline} counts={selectedSummary.counts} onRun={(stage) => void startStage(stage)} busy={Boolean(logsQuery.data?.executions.some((item) => item.status === "pending" || item.status === "running"))} />
-          <div className="runs-two-column"><ArtifactValidation artifacts={detail.artifacts} warningCounts={detail.warning_counts} /><CollectionScope scope={detail.collection_scope} runId={detail.run_id} /></div>
-          <ExecutionLog data={logsQuery.data} loading={logsQuery.isLoading} error={logsQuery.error} />
-        </section>
-      </div>
+          <JudgmentStopDialog
+            open={stopDialogOpen}
+            onClose={() => { setStopDialogOpen(false); setStopTarget(null); }}
+            runId={detail.run_id}
+            target={stopTarget}
+            actor={stopActor}
+            onActorChange={setStopActor}
+            stopBusy={screeningStopBusy}
+            actionError={stopActionError}
+            onConfirm={() => void stopScreening()}
+          />
+        </>
+      ) : null}
     </div>
   );
 }

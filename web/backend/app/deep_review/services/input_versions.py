@@ -579,7 +579,7 @@ def _verified_profile_source(session: Session, evidence_rows: Sequence[ProfileEv
     if location is None or not isinstance(location.object_key, str) or not location.object_key or location.object_key.startswith(("/", "\\")):
         return None
     try:
-        raw, metadata = assets.read_object("source", location.object_key)
+        raw, metadata = assets.read_object("source", location.object_key, version_id=location.object_version_id)
     except (assets.AssetError, OSError, ValueError):
         return None
     if len(raw) != content.size_bytes or _sha256(raw) != content.sha256 or location.etag != metadata.etag or location.object_version_id != metadata.object_version_id:

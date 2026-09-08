@@ -51,7 +51,7 @@
 ## legacy v3 screening orchestrator가 부분 성공 대신 실패를 게시한다
 
 - 확인: 2026-09-03
-- 상태: **미해결 · 기존 결함**
+- 상태: **2026-09-07 수정 · 관련 회귀 7건 통과**
 - 재현 조건: clean `main`(`6788c4f`)에서 `pytest tests/test_screening_orchestrator.py`를
   (모듈 이주 뒤 `pytest tests/screening/test_screening_orchestrator.py`) 돌리면
   `test_full_run_continues_after_one_notice_failure_and_publishes_partial` 과
@@ -61,6 +61,9 @@
   변경을 stash한 clean tree에서도 같다.
 - 영향: 한 건이 실패한 회차의 부분 게시 경로가 성공으로 마감되지 않는다.
   C-2와 무관한 legacy 판정 경로다.
+- 원인: C-1과 C-2가 모두 쓰는 `screening-failures.json` 파일명만으로 C-2 회차를
+  주장해 C-1 부분 산출물에 없는 `source_run_id`를 요구했다. C-1 failure schema는
+  C-1 적재기의 전체 입력 검증으로 보내고, 다른 C-2 식별자와 손상된 파일의 차단은 유지한다.
 
 ## 감독 작업 transcript에 G2B API key가 노출됐다
 
@@ -899,6 +902,107 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 - 접근 방법: 다음 차수에 attempt에 transport 표식을 더하고 `quality_status` 계산을
   `reference_only`와 transport 두 축으로 가른다.
 
+## 회사 프로필 원문 일부가 심층 모델 fact 입력에서 빠진다
+
+- 확인: 2026-09-07, 미해결.
+- 재현: `docs/reference/company-profile.md`를 `app.core.company_profile.parse_profile`과
+  `app.deep_review.services.input_versions._profile_payload_and_facts`로 읽는다.
+  43 facts(confirmed 24, inferred 4, unknown 15)와 `profile_section_unstructured`가 나온다.
+- 영향: 대표 실적·인증·솔루션 등 일부 서술/표는 원문에 있어도 모델 fact로 들어가지 않는다.
+  파일 보유나 import 성공을 정보 충분성으로 해석할 수 없다.
+- 이번 범위: 사용자가 요청한 프로필 충분성 점검과 실제 첨부·개요 실행이다.
+  원문 보유 사실의 구조화 계약과 미확인 정보의 담당자 확인이 필요하므로
+  추정 보완이나 기존 snapshot 변경으로 해결하지 않았다.
+- 후속: 근거 위치를 보존한 구조화와 새 버전 import, 원문 대비 fact 포함 범위 검사,
+  자격·인력·실적 증빙의 정보 공백 확인.
+- 상세: [실행 범위와 프로필 점검](../validation-runs/20260907-prespec-overview-profile-check.md).
+- 후속 실행: 기존 43 facts를 모두 보존한 별도 구조화 후보 117 facts를 profile version 2로
+  가져왔다. 원문의 명시적 confirmed 항목과 unknown 후보를 구분했고 활성화하지 않았다.
+  실제 자격·실적·가용 인력의 정보 공백은 남아 있다.
+  [실제 실행 기록](../validation-runs/20260907-prespec-overview-live.md) 참고.
+
+## 개요 제목 인식이 공백·번호·표 구조를 놓치고 목차를 본문으로 선택한다
+
+- 확인: 2026-09-07, 미해결. 실제 64건 중 제목 경계 미확정 29건, 완료 공고 52에서 목차 10블록 입력을 확인했다.
+- 재현: `_normalise_heading_text("1. 사업 개요")`는 `사업 개요`를 반환하지만 닫힌 어휘는 `사업개요`다. 마침표 없는 로마숫자는 남고 paragraph 대체 인식은 표 셀과 절 계층을 보존하지 않는다.
+- 영향: 본문이 있어도 검토 대기하거나 다른 절·목차가 개요 입력으로 확정된다. locator 검증 통과를 본문 선택·사실 정확성 검증으로 사용할 수 없다.
+- 현재 범위와 미해결 이유: 원인 조사 및 파싱 비교 실험이며 운영 파서·불변 snapshot을 수정하지 않았다. 어휘만 늘리는 수정으로는 목차와 계층 오류가 남는다.
+- 후속: 동일 원문의 결정적 파서·Qwen·직접 검토를 비교하고 제목 정규화·목차 배제·표 제목·절 계층을 함께 검증한다. 기존 결과는 보존하고 수정 후 새 버전으로 재분석한다.
+- 증거: [미완료 52건 분석](../validation-runs/20260907-prespec-failure-analysis.md).
+- 추가 재현(2026-09-08): `R26BD00271191`(notice 142)의 완료 attempt
+  `992b2824-3573-4c2f-8c8a-29b02f95cc6b`는 감리용역 자체가 아닌 감리대상 사업의
+  개요를 발췌했다. 구조 `22541eb7-4e1b-4a0a-9ec4-e0d329dbc774`의 상위 절
+  `paragraph-1-71`이 입력에서 빠지고 `paragraph-1-72`부터 `paragraph-1-74` 직전까지만
+  선택됐다. 빈 블록 제외 3개로 재구성한 prompt SHA-256은 실행 preflight와 일치했다.
+  인용문·요약의 정확 일치 검사를 통과해도 금액·기간이 어느 사업에 속하는지 보장하지
+  못한다. 요청 범위는 저장 데이터·생성 경로 조회여서 기존 snapshot·완료 결과는
+  보존했다. 후속 검증에는 상위 절 맥락과 발주 대상/감리 대상 구분을 포함해야 한다.
+
+## 개요의 조건부 권고가 확인 기한을 생성하고 위치 검증이 주장 의미를 보장하지 않는다
+
+- 확인: 2026-09-07, 미해결. SW사업대상=Y 10건의 실제 Qwen 개요 테스트에서 재현했다.
+- 재현: 개선된 개요 범위의 원문만 제공하고 기존 결과 schema로 Qwen thinking 꺼짐 호출을 한다. 회사 프로필과 승인된 확인 기한은 제공하지 않는다.
+- 증상: 10건 모두 조건부 권고와 임의 확인 기한을 생성했고, 7건은 실행일보다 과거였다. 최소 5건에서 실제 존재하는 한 문단의 범위보다 넓은 내용을 claim에 묶었다. 1건에서는 이미 수행한 절차를 앞으로 필요한 절차로 summary에서 바꿨다.
+- 원인과 영향: 조건부 권고는 기한을 필수로 요구하지만 입력에는 승인된 기한이 없다. `validate_overview_result`는 schema와 ordinal/block_key를 검사하며 기한의 출처·claim 전체의 의미·summary의 완료 상태까지 검증하지 않는다. 형식·위치 통과를 사실 정확성이나 후속 자동 분석 승인으로 사용할 수 없다.
+- 이번 조치: 별도 실험의 최종 결과 10건을 `needs_human_review`로 분류하고 validation 감사에 사유를 남겼다. 운영 리뷰·정책·snapshot에 반영하지 않았으며 원응답을 수정하지 않았다.
+- 현재 해결하지 않은 이유: 요청 범위는 10건 실제 테스트다. 확인 기한의 소유권과 조건부 권고 계약, 다중 문단 근거 및 의미 검증을 함께 정해야 하므로 기한을 임의 보정하거나 출력 계약을 조용히 변경하지 않았다.
+- 후속: 승인된 확인 기한이 없는 경우의 권고 규칙을 명시하고, claim별 다중 근거·숫자·날짜·완료 상태의 검증과 사람 확인 경계를 보완한다.
+- 증거: [Qwen 10건 개요 검토 실험](../validation-runs/20260907-prespec-overview-qwen-10.md).
+
+## 2026-09-03~09-07 실제 참조 실행의 개요 검증 실패
+
+- 확인: 2026-09-07. 실행 근거: [기간별 실제 실행](../validation-runs/20260907-pipeline-20260903-20260907-live.md).
+- 재현: 문서 범위가 `ready`인 R26BD00271850·R26BD00271607·R26BD00271523을
+  승인 사설 Ollama `qwen3.8:27b`의 고정 digest·개요 정책으로 실행했다.
+- 결과: 앞의 2건은 `validation_failed`, 마지막 1건은 `prompt_rejected`로 종료됐다.
+  개요 완료 결과가 없어 자동 심층 검토의 필수 조건을 만족하지 않는다.
+- 경계: 이번 작업은 기간 수집과 실제 참조 경로 확인이다. 응답 계약을 느슨하게 하거나
+  입력을 임의 절단해 완료 상태로 만들지 않는다. 실패 attempt와 원응답을 보존했다.
+- 후속: 보존된 응답을 대상으로 값이 아닌 검증 경로·오류 유형만 추출하여 정책/출력 계약
+  불일치를 분석하고, 입력 크기·프롬프트 거부 조건을 별도로 재현한다. 정책 변경이 필요하면
+  새 버전과 새 참조 실행으로 검증하며 기존 실패나 품질 상태를 소급 변경하지 않는다.
+
+## lifecycle projection의 Protocol 요구 메서드와 구현 불일치
+
+- 2026-09-08 회사 핏 구현의 전체·집중 회귀에서도 같은 2개가 재현됐다. 이번 변경의
+  회사 핏/설정/슬롯/경계 74개와 PostgreSQL 집중 44개는 통과했으며, 기존 Protocol 공백은
+  별도 수정 대상으로 유지한다([검증 기록](../validation-runs/20260908-prespec-company-fit.md)).
+- 확인: 2026-09-07 전체 백엔드 검사에서 1,528 통과·2 실패·5 skip. 실패 2건만
+  다시 실행해 동일하게 재현했다.
+- 실패: `tests/deep_review/test_prespec_projection.py::test_projection_satisfies_the_lifecycle_protocol`,
+  `tests/screening/test_projection.py::test_projection_and_hook_satisfy_the_lifecycle_protocols`.
+- 원인: 개요 구현에 `notice_ids_for_auto_preparation_status`, 판정 구현에
+  `notice_ids_with_open_blocking_items`·`open_blocking_item_counts`가 없다.
+  Protocol, 두 구현, 두 검사 파일은 작업 전 HEAD와 동일하다.
+- 영향: runtime Protocol 적합성 검사가 실패하며 관련 필터·blocking 집계 제공 계약을
+  완전히 충족한다고 말할 수 없다. 이번 수집·기본 목록 HTTP 검증은 통과했다.
+- 범위: 기간 수집과 참조 실행 중 발견한 기존 기능 계약 공백이다. 빈 값을 반환하는
+  메서드로 감추지 않고, 각 모듈의 정본 조회·필터 동작을 구현하는 별도 변경에서
+  실제 데이터 기반 회귀와 함께 해결한다.
+
+## 실제 C-1 부분 결과의 게시 실패가 남아 있다
+
+- 확인: 2026-09-07. 3건 입력의 실행 `scr-56da935e7aab41a1b976e1b85a295c7b`.
+- 재현: 앱 조립으로 적재 hook 2개를 등록하고, 현재 선택 수집 필드와 C-1 실패 파일
+  식별 수정이 들어간 별도 실행 컨테이너에서 SW Y 3건을 실제 판정한다.
+- 결과: 성공 응답 1건·검증 실패 2건 및 `screening-results.json`이 생성됐지만
+  실행은 `execution_failure`, `published_run_id=null`로 종료됐다.
+- 확인 범위: hook 누락을 보완해도 재현됐다. 관련 부분 게시 회귀는 통과하지만
+  실제 게시의 추가 실패 원인은 확정하지 못했다. 성공 응답을 DB 판정으로 수동 투영하지 않았다.
+- 후속: 이 실행의 고정 입력·결과·실패 파일로 모델 호출 없는 게시 재현을 구성하고
+  게시 검증/적재 경계의 예외 종류·발생 위치를 비밀 없이 좁혀야 한다. 원본 회차·
+  실패 상태·사람 리뷰를 소급 수정하지 않고, 재현 검사와 새 실행으로 해결을 입증한다.
+- 영향: 해당 기간 C-1 게시와 이를 전제로 하는 자동 심층/9단계 완료는 확인되지 않았다.
+
+## HWP/HWPX 구조의 page 값은 실제 PDF 페이지가 아니다
+
+- 확인: 2026-09-07, 사전규격 개요 실패 6건의 직접 검토 및 PDF 페이지 참조 실행.
+- 재현: `document_mcp/hwpx.py::extract_hwpx`는 `section_names`의 순번을 `page_number`로 넣는다. HWP도 `processor.py`에서 HWPX로 변환한 뒤 같은 추출기를 사용한다. 여러 실제 페이지를 가진 단일 구역 문서가 page=1인 블록들로 저장된다.
+- 영향: 이 값을 PDF 실제 쪽수로 표시하면 잘못된 근거 위치를 안내한다. 이번 ID 137의 구조화 개요에서는 예산·기간 문구가 빈 기호로 추출됐지만, 같은 원본의 참조 변환 PDF 4페이지에서는 두 값이 확인됐다. 따라서 입력 범위 수정과 텍스트 추출 품질 검토도 함께 필요하다.
+- 현재 조치: 기존 불변 구조·개요 결과는 변경하지 않았다. 별도 참조 실행은 HWP/HWPX 원본 해시, 변환 PDF 해시, 물리적 PDF 페이지(표지 포함 1부터), 선택 페이지 텍스트 해시를 결속한다. 모델 출력에는 각 사실의 PDF 페이지와 인용문을 직접 연결한다. 기존 page를 PDF 페이지로 승격시키지 않는다.
+- 남은 작업: 운영 문서 구조 계약에 페이지 기준(실제 PDF/구역 등)과 변환본 버전을 명시하고, 변환 PDF의 저장·검증·조회 및 청크별 페이지 범위를 동일한 불변 입력에 결속해야 한다. PDF 변환 품질과 본문 추출 누락도 검증해야 한다. 기존 구조 전체를 재해석하거나 덮어쓰는 방식으로 해결할 수 없어 이번 참조 실행에서 운영 구조 migration은 하지 않았다.
+- 증거: `experiments/prespec-overview-pdf-reference/README.md`, 이번 실행의 비공개 source/PDF/input manifest. 참조 PDF는 고정된 rhwp SVG와 Chromium으로 생성했으며 한컴 렌더링과 동일한 페이지 배치를 보증하지 않는다.
+
 ## 입찰 delta 조회가 runtime 테이블 권한 누락으로 실패한다
 
 - 확인: 2026-09-07, 네 검토 화면 UI 반영 뒤 `http://localhost:18787`의 실제 데이터 확인.
@@ -908,3 +1012,19 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 - 현재 범위에서 해결하지 않은 이유: 이번 변경은 승인 시안의 프론트엔드 구현과 서버 UI 반영이다. 조회 장애는 DB 역할별 테이블·operation 권한 설계, 격리 PostgreSQL 회귀, 운영 권한 적용이 함께 필요한 백엔드 변경이다. UI 반영 과정에서 임의 blanket grant, migration, 실제 결정 쓰기는 수행하지 않았다.
 - 후속: 입찰 delta 조회·비교 생성·attempt 재시도·append-only 최종 결정 경로별 app/worker 권한을 검토해 allowlist와 역할 검사를 추가하고, 기존 결정의 UPDATE/DELETE가 거부되는 것을 확인한 뒤 해당 권한을 적용한다. 실제 API의 정상 조회와 권한 경계를 다시 확인한다.
 - 화면 및 검증 증거: `/home/jechoi/design-previews/bidops-ui-implementation-20260907/live/verification.json`.
+
+## PDF 개요 연결 검증에서 확인한 범위 밖 회귀 실패 (2026-09-07)
+
+- 재현: backend에서 `pytest tests/deep_review/test_prespec_projection.py::test_projection_satisfies_the_lifecycle_protocol tests/screening/test_projection.py::test_projection_and_hook_satisfy_the_lifecycle_protocols`.
+  `OverviewDocumentProjection`과 `JudgmentProjection`의 요구 메서드를 현재 구현체가 모두
+  제공하지 않아 runtime protocol 검사가 실패한다. 해당 protocol/구현 파일은 이번 PDF
+  개요 저장 변경에서 수정하지 않았다. 별도 생애주기 필터·차단 항목 집계 구현과 함께
+  정합성을 맞춰야 하므로 설명형 개요 저장 범위에서 임의의 빈 응답 메서드를 추가하지 않았다.
+- frontend에서 `npm run test:screens`: 337 passed / 11 failed / 4 skipped.
+  실패는 `common-interactions`, `route-context`, `screen-semantics`의 기존 화면 제목
+  (`검토 대기열` 기대 / `공고 판정 이력` 표시), 회차 영역 기대값, 중복 `사람 검토 필요`
+  문구 선택자다. 새 `page-overview.spec.ts`와 사전규격 관련 38개 검사는 통과했다.
+  현재 화면 명칭·회차 구분의 정본에 맞춰 해당 기존 회귀 기대값을 검토해야 한다.
+- 영향: 전체 회귀 게이트를 통과했다고 주장하거나 이 기록만으로 배포 승인 근거로 사용할
+  수 없다. 재현 명령과 이번 변경의 상세 검증은
+  `docs/validation-runs/20260907-prespec-page-overview-integration.md`에 기록한다.

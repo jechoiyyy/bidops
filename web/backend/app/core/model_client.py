@@ -133,6 +133,7 @@ class ModelEndpoint:
     allowed_hosts: tuple[str, ...]
     api_key: SecretStr = field(repr=False)
     model_revision: str
+    api_dialect: str = "vllm"
 
 
 def _endpoint_value(settings: Any, purpose: str, suffix: str) -> Any:
@@ -180,6 +181,7 @@ def resolve_model_endpoint(purpose: str, *, settings: Any | None = None) -> Mode
         allowed_hosts=allowed_hosts,
         api_key=api_key,
         model_revision=revision,
+        api_dialect=getattr(settings, f"vllm_{purpose}_api_dialect", "vllm"),
     )
 
 
@@ -372,6 +374,7 @@ class ModelClient:
         endpoint_ref: str = MODEL_ENDPOINT_REF,
         purpose: str | None = None,
         output_contract: StructuredOutputContract,
+        api_dialect: str = "vllm",
     ) -> None:
         # transport 식별자만 확인한다. 모델명은 여기서 판정하지 않는다 —
         # 어떤 모델이 승인됐는지는 policy와 배포 설정이 정하고, identity는
@@ -381,6 +384,9 @@ class ModelClient:
         if not isinstance(model, str) or not model.strip() or any(character.isspace() for character in model):
             raise ValueError("model name must be a non-empty token")
         self.output_contract = output_contract
+        if api_dialect not in {"vllm", "ollama"}:
+            raise ModelEndpointError("unsupported model API dialect")
+        self.api_dialect = api_dialect
         if allowed_hosts is None:
             allowed_hosts = os.getenv("BIDOPS_VLLM_ALLOWED_HOSTS", "").split(",")
         elif isinstance(allowed_hosts, str):
@@ -389,7 +395,7 @@ class ModelClient:
         self.model = model
         self.model_revision = model_revision
         self.purpose = purpose
-        self.provider_name = "vllm-openai-compatible"
+        self.provider_name = "ollama-openai-compatible" if api_dialect == "ollama" else "vllm-openai-compatible"
         self._http_client: httpx.Client | None = None
         self._sdk: OpenAI | None = None
         self._api_key = api_key
@@ -469,6 +475,7 @@ class ModelClient:
             model_revision=endpoint.model_revision,
             purpose=endpoint.purpose,
             output_contract=output_contract,
+            api_dialect=endpoint.api_dialect,
         )
         if verify_identity:
             client.verify_identity()
@@ -522,7 +529,35 @@ class ModelClient:
             reported = row.get("model_revision", row.get("revision"))
             if reported is not None and reported != self.model_revision:
                 raise ModelIdentityError("model_revision_invalid")
+        if self.api_dialect == "ollama":
+            self._verify_ollama_parameters()
         return ModelIdentity(model=self.model, revision=self.model_revision)
+
+    def _verify_ollama_parameters(self) -> None:
+        # OpenAI compatibility cannot override top_k. Require the immutable
+        # model's parameter and digest to match before transmitting a prompt.
+        if self._http_client is None:
+            raise ModelIdentityError("identity_unavailable")
+        origin = self.base_url.removesuffix("/v1")
+        try:
+            tags = self._http_client.get(f"{origin}/api/tags", timeout=15)
+            show = self._http_client.post(f"{origin}/api/show", json={"model": self.model}, timeout=15)
+            if tags.is_redirect or show.is_redirect:
+                raise ModelIdentityError("identity_unavailable")
+            tags.raise_for_status()
+            show.raise_for_status()
+            models = tags.json().get("models", [])
+            matches = [row for row in models if row.get("name") == self.model]
+            if len(matches) != 1 or matches[0].get("digest") != self.model_revision:
+                raise ModelIdentityError("model_revision_invalid")
+            parameters = show.json().get("parameters", "")
+            values = re.findall(r"^top_k\s+(\d+)\s*$", parameters, re.MULTILINE)
+            if values != [str(APPROVED_GENERATION["top_k"])]:
+                raise ModelIdentityError("generation_config_mismatch")
+        except ModelIdentityError:
+            raise
+        except (httpx.HTTPError, ValueError, TypeError, AttributeError, OSError, ResponseTooLargeError):
+            raise ModelIdentityError("identity_unavailable") from None
 
     def _request(self, prompt: str, *, timeout_seconds: int) -> Mapping[str, Any]:
         return self.complete_structured(prompt, timeout_seconds=timeout_seconds)
@@ -547,6 +582,16 @@ class ModelClient:
         """
 
         selected = contract or self.output_contract
+        if self.api_dialect == "ollama":
+            self.verify_identity()
+        extra_body = (
+            {"reasoning_effort": "none"}
+            if self.api_dialect == "ollama"
+            else {
+                "top_k": APPROVED_GENERATION["top_k"],
+                "chat_template_kwargs": {"enable_thinking": APPROVED_GENERATION["enable_thinking"]},
+            }
+        )
         response = self._completion_create(
             model=self.model,
             messages=[
@@ -568,10 +613,7 @@ class ModelClient:
                     "schema": selected.schema,
                 },
             },
-            extra_body={
-                "top_k": APPROVED_GENERATION["top_k"],
-                "chat_template_kwargs": {"enable_thinking": APPROVED_GENERATION["enable_thinking"]},
-            },
+            extra_body=extra_body,
             timeout=float(timeout_seconds),
         )
         if isinstance(response, Mapping):

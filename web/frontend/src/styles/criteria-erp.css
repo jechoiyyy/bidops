@@ -1,0 +1,720 @@
+/* 판정 기준(회사 프로필 · 판정 정책 · 품질 게이트 · 검증 지표) 화면.
+ *
+ * 이 파일은 승인된 시안(`design-previews/bidops-criteria-runstatus-erp-20260907/`)의
+ * `source/style.css` 중 **이 페이지가 소유하는 부분만** 옮긴 것이다. 시안의 바깥
+ * 셸(preview bar·sidebar·page header)은 제품 공통 셸이 이미 갖고 있으므로 옮기지
+ * 않는다. 비율(38:62)·글자 크기(20/15/14/12)·여백·정보 순서·하단 고정 액션은
+ * 시안의 계산값을 그대로 쓰고 선택자 이름만 `crit-` 접두사로 바꿨다.
+ *
+ * 접두사를 새로 두는 이유: `styles/quality-policy.css`는 `main.tsx`가 전역으로
+ * 읽으므로 옛 `.policy-*`·`.quality-*` 규칙이 계속 살아 있다. 이 화면은 그 이름을
+ * 쓰지 않아 옛 규칙의 영향을 받지 않는다. 전역 파일을 고치지 않고 여기서만
+ * 끝낸다.
+ *
+ * 색은 `bidops` 테마 토큰만 읽는다(ADR-0048). `:root`나 이 파일에서 `--color-*`를
+ * 새로 정의하지 않는다. raw hex·px를 두지 않는다.
+ * 지원 폭은 1280~1920px 하나뿐이므로(ADR-0047) 폭에 따른 레이아웃 분기가 없다.
+ */
+
+.crit-page {
+  /* 목록 첫 줄은 본문보다 한 단 크다(시안 `--bo-type-list: 15px`). 시안과 같은
+     방식으로 본문 토큰에서 계산한다. */
+  --crit-type-list: calc(var(--bo-type-body) + var(--border-width));
+
+  display: flex;
+  flex-direction: column;
+  /* 여기에 gap을 두면 요약 줄과 목록/상세 사이가 벌어진다. 시안은 요약 줄의
+     아래 테두리를 지우고 작업 영역의 위 테두리에 **붙여** 한 덩어리로 그린다.
+     간격은 필요한 자리에만 margin으로 준다. */
+  min-width: 0;
+  /* pane 안에서만 스크롤한다. 페이지가 통째로 길어지면 상세 바닥의 고정 액션이
+     화면 밖으로 밀린다(최종 Go/No-Go 화면과 같은 골격). */
+  height: 100%;
+  min-height: calc(var(--spacing-12) * 14);
+  font-size: var(--bo-type-body);
+  line-height: var(--bo-type-body-leading);
+  color: var(--color-text-primary);
+}
+
+.crit-page p,
+.crit-dialog p {
+  margin: 0;
+}
+
+/* --- 글자 크기 ---
+ * Astryx의 `--font-size-*`는 rem이고 이 앱의 root는 14px다. 컴포넌트가 그 토큰을
+ * 그대로 쓰면 본문이 12.25px, 보조가 10.5px로 계산돼 시안(20/15/14/12px)보다
+ * 작다(`docs/engineering-notes.md`, `styles/typography.css`). root를 키우면 앱
+ * 전체가 커지므로 이 화면이 쓰는 컴포넌트에만 프로젝트 4단을 되돌린다. */
+:is(.crit-page, .crit-dialog)
+  :where(.astryx-text, .astryx-button, .astryx-field-label, .astryx-selector, .astryx-tab, dd, li, span, input, textarea) {
+  font-size: var(--bo-type-body);
+  line-height: var(--bo-type-body-leading);
+}
+
+/* 12px는 보조 문구·표식·기술 문자열과 필터 pill 뿐이다. 시안이 액션 단추와
+ * 입력 라벨을 본문 14px로 그리므로 단추를 12px로 낮추지 않는다. */
+:is(.crit-page, .crit-dialog)
+  :where(.astryx-text.crit-small, .astryx-token, .astryx-badge, dt, small, summary, code, pre) {
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+
+:is(.crit-page, .crit-dialog) :where(.astryx-heading.level-3, .astryx-heading.level-4) {
+  font-size: var(--bo-type-section-title);
+  line-height: var(--bo-type-section-title-leading);
+  font-weight: var(--bo-type-section-title-weight);
+}
+
+:is(.crit-page, .crit-dialog) .astryx-heading.level-2 {
+  font-size: var(--bo-type-page-title);
+  line-height: var(--bo-type-page-title-leading);
+  font-weight: var(--bo-type-page-title-weight);
+}
+
+:is(.crit-page, .crit-dialog) .astryx-token {
+  height: auto;
+  min-height: var(--spacing-6);
+  white-space: nowrap;
+  border-radius: var(--radius-inner);
+}
+
+:is(.crit-page, .crit-dialog) .astryx-button {
+  min-height: var(--spacing-8);
+  border-radius: var(--radius-inner);
+  white-space: nowrap;
+}
+
+.crit-page .astryx-heading,
+.crit-dialog .astryx-heading {
+  margin: 0;
+}
+
+/* --- 탭 --- */
+
+.crit-tabs {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.crit-tabs .astryx-tab-list {
+  width: 100%;
+}
+
+.crit-tabs .astryx-tab {
+  font-size: var(--bo-type-body);
+}
+
+/* --- 요약 한 줄 (시안 `.context-strip`) ---
+ * 탭이 바뀌어도 남는 자리다. 기준 프로필 · 운영 활성 정책 · 미확인 항목 수를
+ * 여기서만 말하고, 탭마다 되풀이하지 않는다. */
+
+.crit-summary {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--spacing-5);
+  flex-wrap: wrap;
+  /* 시안 실측 49px = 내용 32 + 위아래 패딩 16 + 아래 테두리 1. */
+  min-height: calc(var(--spacing-8) + var(--spacing-4) + var(--border-width));
+  min-width: 0;
+  margin-top: var(--spacing-3);
+  padding: var(--spacing-2) var(--spacing-4);
+  border: var(--border-width) solid var(--color-border);
+  border-bottom: 0;
+  border-radius: var(--radius-element) var(--radius-element) 0 0;
+  background: var(--color-background-surface);
+}
+
+.crit-summary-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.crit-summary-item + .crit-summary-item {
+  padding-left: var(--spacing-5);
+  border-left: var(--border-width) solid var(--color-border);
+}
+
+.crit-summary-value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: var(--font-weight-semibold);
+}
+
+.crit-summary-end {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin-left: auto;
+}
+
+/* --- 목록 38% : 상세 62% ---
+ * 발주계획·사전규격·최종 Go/No-Go 화면과 같은 기본 비율이다. 고정 px로 근사하지
+ * 않는다. */
+
+.crit-workspace {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: row;
+  align-items: stretch;
+  min-height: 0;
+  min-width: 0;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: 0 0 var(--radius-element) var(--radius-element);
+  background: var(--color-background-surface);
+  overflow: hidden;
+}
+
+.crit-queue {
+  display: flex;
+  flex: 0 0 38%;
+  flex-direction: column;
+  width: 38%;
+  min-width: 0;
+  min-height: 0;
+  border-right: var(--border-width) solid var(--color-border);
+}
+
+.crit-detail {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.crit-pane-head {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3) var(--spacing-4);
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.crit-queue-tools {
+  display: grid;
+  flex: 0 0 auto;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3);
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.crit-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+}
+
+.crit-filters .astryx-button {
+  font-size: var(--bo-type-caption);
+  min-height: var(--spacing-7);
+  border-color: transparent;
+  background: transparent;
+}
+
+.crit-filters .astryx-button[aria-pressed="true"] {
+  border-color: var(--color-border);
+  background: var(--color-accent-muted);
+  color: var(--color-text-accent);
+  font-weight: var(--font-weight-semibold);
+}
+
+.crit-queue-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.crit-pane-foot {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  flex-wrap: wrap;
+  padding: var(--spacing-3) var(--spacing-4);
+  border-top: var(--border-width) solid var(--color-border);
+  background: var(--color-background-body);
+}
+
+/* 목록 한 줄. 제목 15px semibold · 보조 14px · 메타 12px (시안 `.record`). */
+.crit-record {
+  display: grid;
+  gap: var(--spacing-1);
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.crit-record-line {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.crit-record-line .astryx-token {
+  flex-shrink: 0;
+  margin-top: var(--spacing-0-5);
+}
+
+.crit-page .crit-record-title {
+  font-size: var(--crit-type-list);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--bo-type-body-leading);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.crit-page .crit-record-subtitle {
+  font-size: var(--bo-type-body);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.crit-record:hover .crit-record-title {
+  text-decoration: underline;
+}
+
+.crit-record:focus-visible {
+  outline: var(--focus-outline-width) var(--focus-outline-style) var(--focus-outline-color);
+  outline-offset: var(--focus-outline-offset);
+}
+
+.crit-queue .astryx-table-cell {
+  padding: var(--spacing-4);
+}
+
+.crit-queue-scroll thead {
+  display: none;
+}
+
+.crit-queue .astryx-table-row:has([aria-pressed="true"]) {
+  background: var(--color-accent-muted);
+}
+
+.crit-queue .astryx-table-row:has([aria-pressed="true"]) td {
+  box-shadow: inset var(--spacing-1) 0 0 var(--color-accent);
+}
+
+/* --- 상세 --- */
+
+.crit-detail-head {
+  display: grid;
+  flex: 0 0 auto;
+  gap: var(--spacing-2);
+  padding: var(--spacing-4) var(--spacing-5);
+}
+
+.crit-detail-head .astryx-heading.level-2 {
+  overflow-wrap: anywhere;
+}
+
+.crit-detail-eyebrow-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.crit-detail-tabs {
+  flex: 0 0 auto;
+  padding: 0 var(--spacing-5);
+}
+
+/* 응답 확인 필요 같은 화면 전체 경고는 상세 본문이 비어도 남는다. */
+.crit-detail-alert {
+  flex: 0 0 auto;
+  min-width: 0;
+  padding: var(--spacing-4) var(--spacing-5) 0;
+}
+
+.crit-detail-scroll {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: var(--spacing-5);
+  min-height: 0;
+  padding: var(--spacing-4) var(--spacing-5);
+  overflow: auto;
+}
+
+.crit-detail-scroll > * {
+  flex-shrink: 0;
+}
+
+/* 하단 액션은 본문 스크롤과 분리해 항상 보인다. */
+.crit-detail-foot {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  /* 시안 실측 57px = 내용 32 + 위아래 패딩 24 + 위 테두리 1. */
+  min-height: calc(var(--spacing-8) + var(--spacing-6) + var(--border-width));
+  padding: var(--spacing-3) var(--spacing-4);
+  border-top: var(--border-width) solid var(--color-border);
+  background: var(--color-background-body);
+}
+
+.crit-detail-foot-note {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.crit-detail-foot-note > .crit-small {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.crit-detail-foot-note svg {
+  width: var(--spacing-4);
+  height: var(--spacing-4);
+  flex-shrink: 0;
+}
+
+.crit-detail-foot-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  flex-shrink: 0;
+}
+
+/* --- 본문 조각 --- */
+
+.crit-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  min-width: 0;
+}
+
+.crit-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.crit-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-4);
+  margin: 0;
+  min-width: 0;
+}
+
+.crit-facts > div {
+  display: grid;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+
+.crit-facts dt {
+  color: var(--color-text-secondary);
+}
+
+.crit-facts dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+}
+
+.crit-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  min-width: 0;
+  padding: var(--spacing-3);
+  border-left: var(--spacing-1) solid var(--color-accent);
+  background: var(--color-background-body);
+}
+
+.crit-note-copy {
+  display: grid;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+
+/* 경고는 색만으로 말하지 않는다. 표제 문구가 이유를 직접 적는다. */
+.crit-note .astryx-button {
+  font-size: var(--bo-type-caption);
+}
+
+.crit-note[data-tone="warning"] {
+  border-left-color: var(--color-warning);
+}
+
+.crit-note[data-tone="error"] {
+  border-left-color: var(--color-error);
+}
+
+.crit-stat-line {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  min-width: 0;
+  padding: var(--spacing-3) 0;
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.crit-stat-line > div {
+  display: grid;
+  gap: var(--spacing-1);
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.crit-stat-line > div + div {
+  padding-left: var(--spacing-3);
+  border-left: var(--border-width) solid var(--color-border);
+}
+
+.crit-page .crit-stat-value {
+  font-size: var(--crit-type-list);
+  font-weight: var(--font-weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.crit-cell-stack {
+  display: grid;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+
+.crit-page .astryx-table {
+  width: 100%;
+}
+
+.crit-page .astryx-table-cell {
+  padding: var(--spacing-3);
+  font-size: var(--bo-type-body);
+  overflow-wrap: anywhere;
+  vertical-align: top;
+}
+
+.crit-page .astryx-table-header-cell {
+  padding: var(--spacing-2) var(--spacing-3);
+  font-size: var(--bo-type-caption);
+  background: var(--color-background-body);
+}
+
+/* 기술 키·참조 횟수·원본 JSON은 접어 둔다. 검토에 필요한 사람만 편다. */
+.crit-disclosure {
+  padding-top: var(--spacing-3);
+  border-top: var(--border-width) solid var(--color-border);
+  min-width: 0;
+}
+
+.crit-disclosure > summary {
+  margin-bottom: var(--spacing-2);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.crit-disclosure > summary:focus-visible {
+  outline: var(--focus-outline-width) var(--focus-outline-style) var(--focus-outline-color);
+  outline-offset: var(--focus-outline-offset);
+}
+
+.crit-disclosure-body {
+  display: grid;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.crit-page pre,
+.crit-dialog pre {
+  margin: 0;
+  padding: var(--spacing-3);
+  max-height: calc(var(--spacing-12) * 5);
+  overflow: auto;
+  background: var(--color-background-body);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: var(--bo-type-caption);
+  line-height: 1.6;
+}
+
+.crit-page code,
+.crit-dialog code {
+  overflow-wrap: anywhere;
+  font-size: var(--bo-type-caption);
+}
+
+.crit-tree {
+  display: grid;
+  gap: var(--spacing-4);
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  list-style: none;
+}
+
+.crit-tree-child {
+  display: grid;
+  gap: var(--spacing-3);
+  margin: 0;
+  padding-left: var(--spacing-4);
+  border-left: var(--border-width) solid var(--color-border);
+  min-width: 0;
+  list-style: none;
+}
+
+.crit-tree-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.crit-tree-title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-2);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* --- 상태 화면 --- */
+
+.crit-state {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-4);
+  min-height: 0;
+  padding: var(--spacing-8);
+  text-align: center;
+}
+
+.crit-state > svg {
+  width: var(--spacing-8);
+  height: var(--spacing-8);
+  color: var(--color-text-secondary);
+}
+
+.crit-state-body {
+  max-width: calc(var(--spacing-12) * 12);
+}
+
+.crit-empty-inline {
+  display: grid;
+  justify-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-8) var(--spacing-4);
+  text-align: center;
+}
+
+.crit-empty-inline > svg {
+  width: var(--spacing-5);
+  height: var(--spacing-5);
+  color: var(--color-text-secondary);
+}
+
+/* --- 짧은 경계 안내 ---
+ * 옛 고정 2열 경계 패널을 대신한다. 어느 탭에 있든 같은 자리에 한 줄로 남는다. */
+
+.crit-boundary {
+  flex: 0 0 auto;
+  min-width: 0;
+  /* 시안 실측: 외곽 하단 763/863px, 안쪽 액션 하단 762/862px.
+     각주는 두 폭에서 모두 한 줄이며, 두 줄이 되면 작업 영역이 그만큼 짧아진다.
+     margin이 아니라 min-height로 잡는다 — 위의 `.crit-page p { margin: 0 }`가
+     더 구체적이라 margin은 무시된다. */
+  min-height: calc(var(--spacing-9) + var(--border-width));
+  padding: var(--spacing-2) 0;
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+  overflow-wrap: anywhere;
+}
+
+/* --- 대화상자 ---
+ * 축약한 폼이 아니라 기존 계약의 전체 양식이 들어간다. */
+
+/* 대화상자가 화면보다 길어져도 확인·취소가 화면 밖으로 밀리지 않아야 한다.
+ * 되돌릴 수 없는 조작(정책 활성화)의 확인 창이 여기 살기 때문이다. 본문은
+ * 스크롤하고 액션 줄만 바닥에 붙인다. */
+.crit-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  min-width: 0;
+  max-height: 100%;
+  overflow: auto;
+  color: var(--color-text-primary);
+}
+
+.crit-dialog .astryx-heading.level-2 {
+  font-size: var(--bo-type-page-title);
+  line-height: var(--bo-type-page-title-leading);
+  font-weight: var(--bo-type-page-title-weight);
+}
+
+.crit-dialog-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-4);
+}
+
+.crit-dialog-json {
+  display: grid;
+  gap: var(--spacing-3);
+}
+
+.crit-dialog-scroll {
+  display: grid;
+  gap: var(--spacing-4);
+  max-height: calc(var(--spacing-12) * 8);
+  overflow: auto;
+  padding-right: var(--spacing-1);
+}
+
+.crit-dialog-actions {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-shrink: 0;
+  justify-content: flex-end;
+  gap: var(--spacing-2);
+  padding-top: var(--spacing-4);
+  padding-bottom: var(--spacing-1);
+  border-top: var(--border-width) solid var(--color-border);
+  background: var(--color-background-card);
+}
+
+.crit-dialog > * {
+  flex-shrink: 0;
+}
+
+.crit-error {
+  color: var(--color-error);
+}
+
+.crit-mono {
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
