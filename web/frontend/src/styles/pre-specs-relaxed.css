@@ -719,7 +719,7 @@
   flex: 0 0 auto;
   flex-direction: column;
   gap: var(--spacing-2);
-  padding: var(--spacing-2) var(--spacing-5);
+  padding: var(--spacing-3) var(--spacing-4);
   border-top: var(--border-width) solid var(--color-border);
   background: var(--color-background-body);
 }
