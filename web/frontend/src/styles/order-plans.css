@@ -702,20 +702,20 @@
  * 작다(`docs/engineering-notes.md`, `styles/typography.css`). root 를 키우면 앱
  * 전체가 커지므로 이 화면이 쓰는 컴포넌트에만 프로젝트 4단을 다시 적용한다.
  * 최소 크기는 12px 다. */
-:is(.c2l-page, .c2l-dialog-body) :where(.astryx-text.body, .astryx-text.label),
-:is(.c2l-page, .c2l-dialog-body) :where(input, textarea),
-:is(.c2l-page, .c2l-dialog-body) :where(dd, li, p, span) {
+:is(.c2l-page, .c2l-dialog-body, .c2l-header-actions) :where(.astryx-text.body, .astryx-text.label),
+:is(.c2l-page, .c2l-dialog-body, .c2l-header-actions) :where(input, textarea),
+:is(.c2l-page, .c2l-dialog-body, .c2l-header-actions) :where(dd, li, p, span) {
   font-size: var(--bo-type-body);
   line-height: var(--bo-type-body-leading);
 }
 
-:is(.c2l-page, .c2l-dialog-body) :where(.astryx-text.supporting, .astryx-badge, .astryx-button, .astryx-toggle-button, .astryx-field-label, .astryx-tab),
-:is(.c2l-page, .c2l-dialog-body) :where(dt, code, .c2l-digest) {
+:is(.c2l-page, .c2l-dialog-body, .c2l-header-actions) :where(.astryx-text.supporting, .astryx-badge, .astryx-button, .astryx-toggle-button, .astryx-field-label, .astryx-tab),
+:is(.c2l-page, .c2l-dialog-body, .c2l-header-actions) :where(dt, code, .c2l-digest) {
   font-size: var(--bo-type-caption);
   line-height: var(--bo-type-caption-leading);
 }
 
-:is(.c2l-page, .c2l-dialog-body) .astryx-heading.level-2 {
+:is(.c2l-page, .c2l-dialog-body, .c2l-header-actions) .astryx-heading.level-2 {
   font-size: var(--bo-type-page-title);
   line-height: var(--bo-type-page-title-leading);
   font-weight: var(--bo-type-page-title-weight);
@@ -729,39 +729,32 @@
   font-weight: var(--bo-type-page-title-weight);
 }
 
-:is(.c2l-page, .c2l-dialog-body) :where(.astryx-heading.level-3, .astryx-heading.level-4, .astryx-heading.level-5) {
+:is(.c2l-page, .c2l-dialog-body, .c2l-header-actions) :where(.astryx-heading.level-3, .astryx-heading.level-4, .astryx-heading.level-5) {
   font-size: var(--bo-type-section-title);
   line-height: var(--bo-type-section-title-leading);
   font-weight: var(--bo-type-section-title-weight);
 }
 
 /* Selector·TextInput 의 값 영역은 컴포넌트 내부 span 이라 위 규칙만으로는 닿지 않는다. */
-:is(.c2l-page, .c2l-dialog-body) :where(.astryx-selector, .astryx-text-input),
-:is(.c2l-page, .c2l-dialog-body) :where(.astryx-selector, .astryx-text-input) :where(span, input) {
+:is(.c2l-page, .c2l-dialog-body, .c2l-header-actions) :where(.astryx-selector, .astryx-text-input),
+:is(.c2l-page, .c2l-dialog-body, .c2l-header-actions) :where(.astryx-selector, .astryx-text-input) :where(span, input) {
   font-size: var(--bo-type-body);
 }
 
-/* --- 상단: 제목 한 줄 --- */
-.c2l-page-header {
+/* --- 상단바 액션 ---
+ *
+ * 제목 모드(`route-meta.ts`)에서 이 화면의 액션은 페이지가 아니라 상단바 슬롯
+ * (`#page-header-actions`)에 산다. 슬롯은 이미 오른쪽 끝으로 밀어 주므로
+ * (`shell-relaxed.css`) 여기서는 **한 줄 안에서 넘치지 않게** 하는 일만 한다.
+ *
+ * 줄바꿈을 허용하지 않는다: 상단바 높이는 76px 고정이라(PRD §5) 액션이 두 줄이 되면
+ * 잘린다. 대신 회차 이름이 폭을 양보한다. */
+.c2l-header-actions {
   display: flex;
-  flex: 0 0 auto;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-3) var(--spacing-4);
-  min-width: 0;
-}
-
-.c2l-page-header h2 {
-  margin: 0;
-}
-
-.c2l-page-header-end {
-  display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: var(--spacing-3);
   min-width: 0;
+  flex-wrap: nowrap;
 }
 
 .c2l-status-chip {
@@ -772,13 +765,16 @@
   min-width: 0;
 }
 
-/* 회차 이름은 길다. 상단 줄에서 제목과 자리를 다투지 않도록 폭을 묶는다. */
-.c2l-page-header-end .c2l-run-selector {
+/* 회차 이름은 길다. 1280px에서 제목·상태 칩·버튼·링크와 자리를 다투지 않도록 폭을
+ * 묶고, 좁아지면 이 컨트롤이 먼저 줄어들게 한다(`flex: 0 1 auto`). */
+.c2l-header-actions .c2l-run-selector {
   width: calc(var(--spacing-12) * 5);
+  flex: 0 1 auto;
+  min-width: calc(var(--spacing-12) * 3);
   max-width: 100%;
 }
 
-.c2l-page-header-end .astryx-selector {
+.c2l-header-actions .astryx-selector {
   display: flex;
   align-items: center;
   gap: var(--spacing-1);
@@ -795,78 +791,13 @@
   flex-direction: column;
 }
 
-.c2l-workspace-shell {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  gap: var(--spacing-2);
-  min-height: 0;
-}
-
-/* --- 압축 툴바 ---
+/* --- 필터 바 ---
  *
- * 시안의 toolbar 한 줄: 왼쪽에 보기(프리셋), 오른쪽에 검색과 `상세 필터` 토글이다.
- * 기술 축(Qwen·BM25·사람 피드백·실행 결과·저장된 뷰)은 토글 뒤에 접혀 있고, 접혀
- * 있어도 URL 동기화와 축의 AND/OR 의미는 그대로다. */
-.c2l-filters {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--spacing-2) var(--spacing-3);
-  padding: var(--spacing-2) var(--spacing-3);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-element) var(--radius-element) 0 0;
-  border-bottom: 0;
-  background: var(--color-background-card);
-}
-
-.c2l-toolbar-main {
-  order: 0;
-  display: flex;
-  flex: 1 1 auto;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-2) var(--spacing-3);
-  min-width: 0;
-}
-
-/* 프리셋은 네 칸짜리 지름길이다. `layout="fill"`이 줄 전체를 먹지 않도록 폭을 준다. */
-.c2l-filters .c2l-preset-control {
-  flex: 0 1 auto;
-  width: calc(var(--spacing-12) * 8);
-  max-width: 100%;
-  min-width: 0;
-}
-
-.c2l-toolbar-end {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--spacing-2);
-  min-width: 0;
-}
-
-.c2l-filters .c2l-toolbar-search {
-  width: calc(var(--spacing-12) * 4.5);
-  max-width: 100%;
-}
-
-.c2l-filters .review-filter-reset {
-  order: 1;
-}
-
-.c2l-filter-advanced {
-  order: 2;
-  display: flex;
-  flex: 1 1 100%;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: var(--spacing-3) var(--spacing-4);
-  padding-top: var(--spacing-2);
-  border-top: var(--border-width) solid var(--color-border);
-}
-
+ * 골격·프레임 값은 공용 `workspace-filters.css`가 소유한다(`WorkspaceFilterBar`).
+ * 여기 남는 것은 **이 화면에만 있는 것**뿐이다: 4축 + 저장된 뷰의 자리 배치와,
+ * Astryx 기본 chrome과 시안의 차이를 메우는 칩 스타일.
+ *
+ * 접혀 있어도 URL 동기화와 축의 AND/OR 의미는 그대로다. */
 .c2l-filter-axis {
   display: flex;
   flex-direction: column;
@@ -878,8 +809,17 @@
   margin: 0;
 }
 
+/* 저장된 뷰는 이름 입력·저장 단추·칩 목록까지 한 줄을 통째로 쓴다. 4축 아래 새 행이다. */
 .c2l-saved-views {
   min-width: 0;
+  grid-column: 1 / -1;
+}
+
+/* 상세 필터 grid의 마지막 자리는 초기화 버튼이다(공용). 저장된 뷰가 한 행을 다 쓰므로
+ * 버튼이 세 번째 행으로 밀리지 않게 첫 행 오른쪽 끝에 못 박는다. */
+.c2l-filters .workspace-filter-reset {
+  grid-row: 1;
+  grid-column: -2 / -1;
 }
 
 .c2l-saved-views-row {
@@ -1156,6 +1096,26 @@
 .c2l-row-line {
   display: block;
   min-width: 0;
+}
+
+/* 첫 줄은 사업명과 모델 판단 배지가 나눠 쓴다. baseline 정렬이라 제목이 두 줄로 잘려도
+ * 배지는 첫 줄에 붙어 있고, 배지는 줄어들지 않는다(라벨이 잘리면 뜻이 사라진다). */
+.c2l-row-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.c2l-row-head .c2l-row-title {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.c2l-row-head .c2l-row-model {
+  flex: 0 0 auto;
+  padding-inline: var(--spacing-2);
 }
 
 /* 위 `:where(dd, li, p, span)` 규칙이 본문 14px를 주므로 `.c2l-page`로 특정도를 올려
@@ -1741,6 +1701,30 @@
 
 .c2l-tracking-fields > * {
   min-width: 0;
+}
+
+/* 사유 드롭다운과 `직전 사유 다시 쓰기`는 한 칸을 세로로 나눠 쓴다. */
+.c2l-reason-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+/* 사유 전문은 길다. 단추 이름에 그대로 싣되 화면에서는 한 줄로 줄이고 전문은 title 이 진다. */
+.c2l-reason-reuse {
+  display: flex;
+  min-width: 0;
+}
+
+.c2l-reason-reuse .astryx-button {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* 사람 판단 수정 대화상자가 소유하는 저장 액션. pane 바닥의 결정 액션 바와 다른 자리다. */
