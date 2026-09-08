@@ -89,76 +89,20 @@
   line-height: var(--bo-type-caption-leading);
 }
 
-/* --- 페이지 머리 ---
- * 시안 §1: 상단은 제목 한 줄이다. API·실행 경계에 대한 긴 설명은 기본 화면을
- * 차지하지 않고 `데이터 현황` 대화상자로 간다(IMPLEMENTATION-CONTRACT §고정할 기준). */
+/* --- 상단바 페이지 액션 ---
+ * 시안 §1의 "상단은 제목 한 줄"은 이제 셸 상단바가 맡는다(제목 모드). 화면이 그리던
+ * 제목 줄은 사라지고 `데이터 현황`만 `PageHeaderActions` portal로 상단바 슬롯에
+ * 들어간다. 슬롯은 화면 root 밖이라 위의 4단 글자 규칙이 닿지 않으므로 크기는
+ * 셸(`styles/shell-relaxed.css`)이 준다 — 여기서는 배치만 정한다.
+ *
+ * 필터 바(`.gng-filters` 계열)는 공용 `workspace-*`(styles/workspace-filters.css)가
+ * 대체했다. `.gng-view-tabs`·`.gng-filter-context`는 클래스 이름만 덧붙어 남는다. */
 
-.gng-page-header {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-3);
-  min-height: var(--spacing-12);
-  padding: var(--spacing-3) 0;
-}
-
-.gng-page-header h2 {
-  margin: 0;
-}
-
-/* --- 필터 줄 --- */
-
-.gng-filters {
-  display: flex;
-  flex: 0 0 auto;
-  flex-direction: column;
-  gap: var(--spacing-2);
-  padding: var(--spacing-2) var(--spacing-3);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-element) var(--radius-element) 0 0;
-  background: var(--color-background-surface);
-}
-
-.gng-filter-line {
+.gng-header-actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--spacing-3);
   min-width: 0;
-}
-
-.gng-view-tabs {
-  display: flex;
-  gap: var(--spacing-1);
-  min-width: 0;
-}
-
-.gng-view-tabs .astryx-button {
-  background: transparent;
-  border-color: transparent;
-}
-
-.gng-view-tabs [aria-pressed="true"] {
-  background: var(--color-accent-muted);
-  border-color: var(--color-border);
-  font-weight: 600;
-}
-
-/* 시안의 검색 상자 폭(220px)을 토큰으로 옮긴다. */
-.gng-filters .astryx-text-input {
-  width: calc(var(--spacing-10) * 5.5);
-  max-width: 100%;
-}
-
-.gng-filter-context {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-3);
-  min-width: 0;
-  padding-top: var(--spacing-1);
-  border-top: var(--border-width) solid var(--color-border);
 }
 
 /* --- 목록 38% : 상세 62% ---
@@ -171,9 +115,8 @@
   align-items: stretch;
   min-height: 0;
   border: var(--border-width) solid var(--color-border);
-  border-top: 0;
   border-radius: 0 0 var(--radius-element) var(--radius-element);
-  background: var(--color-background-surface);
+  background: var(--color-background-card);
   overflow: hidden;
 }
 
@@ -193,7 +136,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-2);
-  padding: var(--spacing-3) var(--spacing-4);
+  padding: var(--spacing-2) var(--spacing-4);
   border-bottom: var(--border-width) solid var(--color-border);
 }
 
@@ -215,7 +158,7 @@
   justify-content: space-between;
   gap: var(--spacing-2) var(--spacing-3);
   flex-wrap: wrap;
-  padding: var(--spacing-3) var(--spacing-4);
+  padding: var(--spacing-2) var(--spacing-4);
   border-top: var(--border-width) solid var(--color-border);
   background: var(--color-background-body);
 }
@@ -348,7 +291,7 @@
   display: grid;
   flex: 0 0 auto;
   gap: var(--spacing-1);
-  padding: var(--spacing-3) var(--spacing-5);
+  padding: var(--spacing-3) var(--spacing-4);
 }
 
 .gng-agency {
@@ -388,7 +331,7 @@
   display: flex;
   flex: 0 0 auto;
   gap: var(--spacing-3);
-  padding: 0 var(--spacing-5);
+  padding: 0 var(--spacing-4);
   border-top: var(--border-width) solid var(--color-border);
   border-bottom: var(--border-width) solid var(--color-border);
 }
@@ -413,16 +356,17 @@
   flex: 1 1 0;
   min-height: 0;
   overflow: auto;
-  padding: 0 var(--spacing-5);
+  padding: var(--spacing-3) var(--spacing-4) var(--spacing-2);
 }
 
 /* --- 검토 요약 탭 --- */
 
+/* `margin-top`이 없다: 스크롤 영역이 위 padding(`--spacing-3`)을 직접 갖는다
+   (계획서 §3 프레임 통일). 둘을 함께 두면 첫 요소만 두 배로 내려간다. */
 .gng-review-notice {
   display: flex;
   align-items: flex-start;
   gap: var(--spacing-3);
-  margin-top: var(--spacing-3);
   padding: var(--spacing-3);
   border-left: var(--spacing-1) solid var(--color-accent);
   background: var(--color-accent-muted);
@@ -615,13 +559,16 @@
   overflow-wrap: anywhere;
 }
 
-/* --- 바닥 고정 액션 --- */
+/* --- 바닥 고정 액션 ---
+ * padding은 발주계획 `.c2l-detail-actions`(order-plans.css, `--spacing-3 --spacing-4`)를
+ * 기준으로 네 화면의 상세 바닥 액션을 같은 값으로 맞춘 것이다(계획서 §3 프레임 통일).
+ * 좌우는 바로 위 `.gng-detail-scroll`과 같은 축이어야 액션과 본문이 어긋나지 않는다. */
 
 .gng-action-footer {
   display: grid;
   flex: 0 0 auto;
   gap: var(--spacing-2);
-  padding: var(--spacing-2) var(--spacing-5);
+  padding: var(--spacing-3) var(--spacing-4);
   border-top: var(--border-width) solid var(--color-border);
   background: var(--color-background-body);
 }

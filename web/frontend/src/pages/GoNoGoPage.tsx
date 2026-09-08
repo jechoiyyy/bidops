@@ -7,7 +7,6 @@ import { Heading } from "@astryxdesign/core/Heading";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Table, pixel, proportional } from "@astryxdesign/core/Table";
 import { Text } from "@astryxdesign/core/Text";
-import { TextInput } from "@astryxdesign/core/TextInput";
 import { Token } from "@astryxdesign/core/Token";
 import {
   Activity,
@@ -20,7 +19,17 @@ import {
   Search,
 } from "lucide-react";
 import { EmptyState } from "../components/common/EmptyState";
+import { PageHeaderActions } from "../components/common/PageHeaderActions";
 import { SkeletonPanel } from "../components/common/Skeleton";
+import {
+  WorkspaceFilterBar,
+  WorkspaceFilterContext,
+  WorkspaceFilterEnd,
+  WorkspaceFilterLine,
+  WorkspaceFrame,
+  WorkspaceSearch,
+  WorkspaceViewTabs,
+} from "../components/common/WorkspaceFilters";
 import { getBidDelta, getBidDeltaComparison } from "../components/bid-delta/api";
 import {
   CATEGORY_LABELS,
@@ -405,10 +414,15 @@ export function GoNoGoPage() {
 
   return (
     <section aria-labelledby="go-no-go-title" className="gng-page" data-astryx-theme="bidops">
-      <header className="gng-page-header">
-        <Heading level={2} id="go-no-go-title">최종 Go/No-Go</Heading>
-        <Button label="데이터 현황" variant="ghost" size="sm" icon={<Activity aria-hidden="true" />} onClick={() => setDialog("data")} />
-      </header>
+      {/* 제목은 상단바(`route-meta.ts`의 제목 모드)가 그린다. 화면은 landmark 이름과
+          제목 위계(h1 → h2)를 위해 숨긴 제목만 남기고, 페이지 액션은 상단바 슬롯으로
+          보낸다(계획서 §1). 대화상자를 여는 상태는 계속 이 화면이 소유한다. */}
+      <h2 className="visually-hidden" id="go-no-go-title">최종 Go/No-Go</h2>
+      <PageHeaderActions>
+        <div className="gng-header-actions">
+          <Button label="데이터 현황" variant="ghost" size="sm" icon={<Activity aria-hidden="true" />} onClick={() => setDialog("data")} />
+        </div>
+      </PageHeaderActions>
 
       {opportunitiesQuery.isError ? (
         <EmptyState
@@ -429,399 +443,402 @@ export function GoNoGoPage() {
 
       {!opportunitiesQuery.isPending && !opportunitiesQuery.isError ? (
         <>
-          <section className="gng-filters" aria-label="결정 검토 목록 필터">
-            <div className="gng-filter-line">
-              <div className="gng-view-tabs">
-                {VIEWS.map((item) => (
-                  <Button
-                    key={item.key}
-                    label={`${item.label}  ${scope.filter((row) => matchesView(row, item.key)).length}`}
-                    size="sm"
-                    aria-pressed={view === item.key}
-                    onClick={() => setView(item.key)}
+          <WorkspaceFrame>
+            {/* 필터 골격은 4화면 공용(`components/common/WorkspaceFilters.tsx`)이다.
+                필터 집합·URL 파라미터·검색 적용 시점은 그대로 이 화면이 정한다:
+                목록은 이미 받아 둔 페이지이므로 검색은 Enter가 아니라 입력 즉시
+                좁히고, 상세 필터로 접을 축이 없어 토글을 두지 않는다(계획서 §2). */}
+            <WorkspaceFilterBar aria-label="결정 검토 목록 필터">
+              <WorkspaceFilterLine>
+                <WorkspaceViewTabs
+                  className="gng-view-tabs"
+                  label="결정 검토 보기"
+                  onChange={setView}
+                  tabs={VIEWS.map((item) => ({
+                    key: item.key,
+                    label: item.label,
+                    count: scope.filter((row) => matchesView(row, item.key)).length,
+                  }))}
+                  value={view}
+                />
+                <WorkspaceFilterEnd>
+                  <WorkspaceSearch
+                    label="사업명·발주기관 검색"
+                    onChange={(value) => patchParams({ q: value, selected: null, comparison: null })}
+                    value={query}
                   />
-                ))}
-              </div>
-              <TextInput
-                label="사업명·발주기관 검색"
-                isLabelHidden
-                placeholder="사업명·발주기관 검색"
-                value={query}
-                onChange={(value) => patchParams({ q: value, selected: null, comparison: null })}
-                startIcon={Search}
-                hasClear
-                size="sm"
-              />
-            </div>
-            <div className="gng-filter-context">
-              <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                계속 추적 중인 사업 · 미결정·재검토·조회 미확인 포함
-                {trimmedQuery ? " · 검색은 받은 페이지 안에서만 좁힙니다" : ""}
-              </Text>
-              <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                받은 {rows.length.toLocaleString("ko-KR")}건 기준
-              </Text>
-            </div>
-          </section>
+                </WorkspaceFilterEnd>
+              </WorkspaceFilterLine>
+              <WorkspaceFilterContext className="gng-filter-context">
+                <Text className="gng-caption" type="supporting" color="secondary" as="p">
+                  계속 추적 중인 사업 · 미결정·재검토·조회 미확인 포함
+                  {trimmedQuery ? " · 검색은 받은 페이지 안에서만 좁힙니다" : ""}
+                </Text>
+                <Text className="gng-caption" type="supporting" color="secondary" as="p">
+                  받은 {rows.length.toLocaleString("ko-KR")}건 기준
+                </Text>
+              </WorkspaceFilterContext>
+            </WorkspaceFilterBar>
 
-          <div className="gng-workspace">
-            <section className="gng-list-pane" aria-label="최종 결정 검토 목록">
-              <header className="gng-list-head">
-                <Text className="gng-list-title" as="p">결정 검토 목록 · {visibleRows.length.toLocaleString("ko-KR")}건</Text>
-                <Text className="gng-caption" type="supporting" color="secondary" as="p">사람 결정 기준</Text>
-              </header>
-              <div className="gng-table-scroll">
-                {visibleRows.length > 0 ? (
-                  <Table
-                    data={visibleRows}
-                    columns={columns}
-                    idKey="id"
-                    density="compact"
-                    dividers="rows"
-                    hasHover
-                    verticalAlign="top"
-                  />
-                ) : (
-                  <div className="gng-list-empty">
-                    <Search aria-hidden="true" />
-                    <Heading level={3}>조건에 맞는 사업이 없습니다</Heading>
-                    <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                      받은 페이지 안에 없을 뿐, 전체에 없다는 뜻은 아닙니다.
-                    </Text>
-                    <Button label="필터 초기화" size="sm" onClick={resetFilters} />
-                  </div>
-                )}
-              </div>
-              <footer className="gng-list-foot">
-                {/* 상단 요약은 받은 목록에서 센 값이다. 서버가 결정 상태를 집계하지
-                    않으므로 전체 총계로 읽으면 안 된다(docs/tracking/findings.md). */}
-                <p className="gng-summary">
-                  받은 {rows.length.toLocaleString("ko-KR")}건 기준 · {visibleRows.length.toLocaleString("ko-KR")}건 표시 ·
-                  {" "}전체 총계가 아닙니다
-                </p>
-                {/* 페이저는 이 페이지의 모든 행이 보기 조건에 걸러졌을 때도 남는다.
-                    다음 페이지로 갈 길까지 사라지면 "없다"와 "이 페이지에 없다"가
-                    같아진다. */}
-                {total > PAGE_SIZE ? (
-                  <nav aria-label="사업기회 목록 페이지" className="gng-pager">
-                    <button
-                      className="interaction-control"
-                      type="button"
-                      disabled={offset === 0}
-                      onClick={() => goToOffset(Math.max(0, offset - PAGE_SIZE))}
-                    >
-                      이전
-                    </button>
-                    <Text className="gng-caption" type="supporting" color="secondary" as="span">
-                      {offset + 1}–{Math.min(offset + opportunities.length, total)} / {total}
-                    </Text>
-                    <button
-                      className="interaction-control"
-                      type="button"
-                      disabled={offset + PAGE_SIZE >= total}
-                      onClick={() => goToOffset(offset + PAGE_SIZE)}
-                    >
-                      다음
-                    </button>
-                  </nav>
-                ) : null}
-              </footer>
-            </section>
-
-            <section className="gng-detail-pane" aria-label="선택한 결정 검토 사업">
-              {selectedRow ? (
-                <>
-                  <header className="gng-detail-head">
-                    <div className="gng-agency">
-                      <Building2 aria-hidden="true" />
-                      <Text className="gng-caption" type="supporting" color="secondary" as="span">발주기관</Text>
-                      <Text className="gng-agency-name" as="span">{opportunityAgency(selectedRow.opportunity)}</Text>
-                    </div>
-                    <Heading level={2}>{opportunityTitle(selectedRow.opportunity)}</Heading>
-                    <div className="gng-row-line gng-spread">
+            <div className="gng-workspace">
+              <section className="gng-list-pane" aria-label="최종 결정 검토 목록">
+                <header className="gng-list-head">
+                  <Text className="gng-list-title" as="p">결정 검토 목록 · {visibleRows.length.toLocaleString("ko-KR")}건</Text>
+                  <Text className="gng-caption" type="supporting" color="secondary" as="p">사람 결정 기준</Text>
+                </header>
+                <div className="gng-table-scroll">
+                  {visibleRows.length > 0 ? (
+                    <Table
+                      data={visibleRows}
+                      columns={columns}
+                      idKey="id"
+                      density="compact"
+                      dividers="rows"
+                      hasHover
+                      verticalAlign="top"
+                    />
+                  ) : (
+                    <div className="gng-list-empty">
+                      <Search aria-hidden="true" />
+                      <Heading level={3}>조건에 맞는 사업이 없습니다</Heading>
                       <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                        사업기회 {selectedRow.id} · {selectedRow.opportunity.tracking_status}
-                        {selectedRow.opportunity.recheck_signal ? " · 재확인 신호 있음" : ""}
+                        받은 페이지 안에 없을 뿐, 전체에 없다는 뜻은 아닙니다.
                       </Text>
-                      <Token size="sm" label={decisionStateLabel(selectedRow)} />
+                      <Button label="필터 초기화" size="sm" onClick={resetFilters} />
                     </div>
-                  </header>
+                  )}
+                </div>
+                <footer className="gng-list-foot">
+                  {/* 상단 요약은 받은 목록에서 센 값이다. 서버가 결정 상태를 집계하지
+                      않으므로 전체 총계로 읽으면 안 된다(docs/tracking/findings.md). */}
+                  <p className="gng-summary">
+                    받은 {rows.length.toLocaleString("ko-KR")}건 기준 · {visibleRows.length.toLocaleString("ko-KR")}건 표시 ·
+                    {" "}전체 총계가 아닙니다
+                  </p>
+                  {/* 페이저는 이 페이지의 모든 행이 보기 조건에 걸러졌을 때도 남는다.
+                      다음 페이지로 갈 길까지 사라지면 "없다"와 "이 페이지에 없다"가
+                      같아진다. */}
+                  {total > PAGE_SIZE ? (
+                    <nav aria-label="사업기회 목록 페이지" className="gng-pager">
+                      <button
+                        className="interaction-control"
+                        type="button"
+                        disabled={offset === 0}
+                        onClick={() => goToOffset(Math.max(0, offset - PAGE_SIZE))}
+                      >
+                        이전
+                      </button>
+                      <Text className="gng-caption" type="supporting" color="secondary" as="span">
+                        {offset + 1}–{Math.min(offset + opportunities.length, total)} / {total}
+                      </Text>
+                      <button
+                        className="interaction-control"
+                        type="button"
+                        disabled={offset + PAGE_SIZE >= total}
+                        onClick={() => goToOffset(offset + PAGE_SIZE)}
+                      >
+                        다음
+                      </button>
+                    </nav>
+                  ) : null}
+                </footer>
+              </section>
 
-                  <nav className="gng-detail-tabs" aria-label="선택한 사업 상세 보기">
-                    {DETAIL_TABS.map((item) => (
-                      <Button
-                        key={item.key}
-                        label={item.label}
-                        size="sm"
-                        aria-pressed={tab === item.key}
-                        onClick={() => setTab(item.key)}
-                      />
-                    ))}
-                  </nav>
+              <section className="gng-detail-pane" aria-label="선택한 결정 검토 사업">
+                {selectedRow ? (
+                  <>
+                    <header className="gng-detail-head">
+                      <div className="gng-agency">
+                        <Building2 aria-hidden="true" />
+                        <Text className="gng-caption" type="supporting" color="secondary" as="span">발주기관</Text>
+                        <Text className="gng-agency-name" as="span">{opportunityAgency(selectedRow.opportunity)}</Text>
+                      </div>
+                      <Heading level={2}>{opportunityTitle(selectedRow.opportunity)}</Heading>
+                      <div className="gng-row-line gng-spread">
+                        <Text className="gng-caption" type="supporting" color="secondary" as="p">
+                          사업기회 {selectedRow.id} · {selectedRow.opportunity.tracking_status}
+                          {selectedRow.opportunity.recheck_signal ? " · 재확인 신호 있음" : ""}
+                        </Text>
+                        <Token size="sm" label={decisionStateLabel(selectedRow)} />
+                      </div>
+                    </header>
 
-                  <div className="gng-detail-scroll">
-                    {tab === "summary" ? (
-                      <>
-                        {latestDecision && currentness !== "current" ? (
-                          <div className="gng-review-notice">
-                            <RefreshCw aria-hidden="true" />
-                            <div>
-                              <Text weight="semibold" as="p">
-                                기존 {latestDecision.decision === "go" ? "Go" : "No-Go"} 결정을 다시 검토해야 합니다
-                              </Text>
-                              <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                                {currentness === "stale" ? "결정 이후 비교 입력이 달라졌습니다." : "결정의 현재성을 확인하지 못했습니다."}
-                                {" "}이전 결정 기록은 보존되며 새 결정은 덮어쓰지 않고 추가됩니다.
-                              </Text>
-                            </div>
-                          </div>
-                        ) : null}
+                    <nav className="gng-detail-tabs" aria-label="선택한 사업 상세 보기">
+                      {DETAIL_TABS.map((item) => (
+                        <Button
+                          key={item.key}
+                          label={item.label}
+                          size="sm"
+                          aria-pressed={tab === item.key}
+                          onClick={() => setTab(item.key)}
+                        />
+                      ))}
+                    </nav>
 
-                        {comparisonView && counts ? (
-                          <>
-                            <section className="gng-delta-overview" aria-label="입찰 변경 비교 집계">
-                              <div className="gng-row-line gng-spread">
-                                <Heading level={3}>입찰 변경 비교</Heading>
+                    <div className="gng-detail-scroll">
+                      {tab === "summary" ? (
+                        <>
+                          {latestDecision && currentness !== "current" ? (
+                            <div className="gng-review-notice">
+                              <RefreshCw aria-hidden="true" />
+                              <div>
+                                <Text weight="semibold" as="p">
+                                  기존 {latestDecision.decision === "go" ? "Go" : "No-Go"} 결정을 다시 검토해야 합니다
+                                </Text>
                                 <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                                  비교 #{comparisonView.sequence} · 버전 {comparisonView.version}
+                                  {currentness === "stale" ? "결정 이후 비교 입력이 달라졌습니다." : "결정의 현재성을 확인하지 못했습니다."}
+                                  {" "}이전 결정 기록은 보존되며 새 결정은 덮어쓰지 않고 추가됩니다.
                                 </Text>
                               </div>
-                              <div className="gng-delta-counts">
-                                <div>
-                                  <Text className="gng-caption" type="supporting" color="secondary" as="p">중요 변경</Text>
-                                  <span className="gng-count-value">
-                                    {counts.material}
-                                    <span className="gng-caption">건</span>
-                                  </span>
-                                </div>
-                                <div>
-                                  <Text className="gng-caption" type="supporting" color="secondary" as="p">비중요 변경</Text>
-                                  <span className="gng-count-value">
-                                    {counts.nonMaterial}
-                                    <span className="gng-caption">건</span>
-                                  </span>
-                                </div>
-                                <div>
-                                  <Text className="gng-caption" type="supporting" color="secondary" as="p">확인 필요</Text>
-                                  <span className="gng-count-value">
-                                    {counts.unresolved}
-                                    <span className="gng-caption">건</span>
-                                  </span>
-                                  <Text className="gng-caption" type="supporting" color="secondary" as="p">unknown·분석 실패</Text>
-                                </div>
-                              </div>
-                              <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                                변경 없음 {counts.unchanged}건 · 확인 필요를 변경 없음으로 읽지 않습니다.
-                              </Text>
-                            </section>
+                            </div>
+                          ) : null}
 
-                            <section className="gng-key-changes" aria-label="결정 전에 볼 항목">
-                              <div className="gng-row-line gng-spread">
-                                <Heading level={3}>결정 전에 볼 항목</Heading>
-                                <Text className="gng-caption" type="supporting" color="secondary" as="p">양쪽 문서 비교 결과</Text>
-                              </div>
-                              {relevantItems.length > 0 ? relevantItems.map((item) => {
-                                const page = item.baseline_evidence[0] ?? item.comparison_evidence[0] ?? null;
-                                return (
-                                  <button
-                                    type="button"
-                                    className="gng-delta-row"
-                                    key={item.id}
-                                    onClick={() => { setEvidenceItem(item); setDialog("evidence"); }}
-                                  >
-                                    <span className="gng-row-line gng-spread">
-                                      <Text weight="semibold" as="span">{CATEGORY_LABELS[item.category]}</Text>
-                                      <Text className="gng-caption" type="supporting" color="secondary" as="span">{itemKindLabel(item)}</Text>
-                                    </span>
-                                    <span className="gng-delta-values">
-                                      {item.before_value ?? "기준 원문 미확인"}
-                                      <ArrowRight aria-hidden="true" />
-                                      {item.after_value ?? "비교 원문 미확인"}
-                                    </span>
-                                    <Text className="gng-caption" type="supporting" color="secondary" as="span">
-                                      {page
-                                        ? `근거 ${evidenceLocationLabel(page)} · 원문 비교`
-                                        : "양쪽 근거가 갖춰지지 않아 변경 여부를 확정하지 못했습니다"}
-                                    </Text>
-                                  </button>
-                                );
-                              }) : (
-                                <div className="gng-quiet">
-                                  <Check aria-hidden="true" />
-                                  <Text as="p">양쪽 근거로 확인한 범위에서 결정 전에 볼 변경 항목이 없습니다.</Text>
+                          {comparisonView && counts ? (
+                            <>
+                              <section className="gng-delta-overview" aria-label="입찰 변경 비교 집계">
+                                <div className="gng-row-line gng-spread">
+                                  <Heading level={3}>입찰 변경 비교</Heading>
                                   <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                                    변경 없음은 입찰 참여에 대한 추천이 아닙니다.
+                                    비교 #{comparisonView.sequence} · 버전 {comparisonView.version}
                                   </Text>
                                 </div>
-                              )}
-                            </section>
-                          </>
-                        ) : comparisonView ? (
-                          <div className="gng-availability">
-                            <Clock aria-hidden="true" />
-                            <Heading level={3}>
-                              {comparisonView.calculation_status === "failed"
-                                ? "변경 비교 계산이 실패했습니다"
-                                : "변경 비교 계산을 기다리고 있습니다"}
-                            </Heading>
-                            <Text as="p">
-                              {comparisonView.calculation_status === "failed"
-                                ? "실패를 변경 없음으로 처리하지 않습니다. 최종 결정은 계산된 결과를 확인한 뒤 기록합니다."
-                                : "비교 결과가 나올 때까지 중요 변경과 확인 필요 건수는 미확인으로 남습니다."}
-                            </Text>
-                            {comparisonView.last_error_code ? (
-                              <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                                안전한 오류 코드 {comparisonView.last_error_code}
+                                <div className="gng-delta-counts">
+                                  <div>
+                                    <Text className="gng-caption" type="supporting" color="secondary" as="p">중요 변경</Text>
+                                    <span className="gng-count-value">
+                                      {counts.material}
+                                      <span className="gng-caption">건</span>
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <Text className="gng-caption" type="supporting" color="secondary" as="p">비중요 변경</Text>
+                                    <span className="gng-count-value">
+                                      {counts.nonMaterial}
+                                      <span className="gng-caption">건</span>
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <Text className="gng-caption" type="supporting" color="secondary" as="p">확인 필요</Text>
+                                    <span className="gng-count-value">
+                                      {counts.unresolved}
+                                      <span className="gng-caption">건</span>
+                                    </span>
+                                    <Text className="gng-caption" type="supporting" color="secondary" as="p">unknown·분석 실패</Text>
+                                  </div>
+                                </div>
+                                <Text className="gng-caption" type="supporting" color="secondary" as="p">
+                                  변경 없음 {counts.unchanged}건 · 확인 필요를 변경 없음으로 읽지 않습니다.
+                                </Text>
+                              </section>
+
+                              <section className="gng-key-changes" aria-label="결정 전에 볼 항목">
+                                <div className="gng-row-line gng-spread">
+                                  <Heading level={3}>결정 전에 볼 항목</Heading>
+                                  <Text className="gng-caption" type="supporting" color="secondary" as="p">양쪽 문서 비교 결과</Text>
+                                </div>
+                                {relevantItems.length > 0 ? relevantItems.map((item) => {
+                                  const page = item.baseline_evidence[0] ?? item.comparison_evidence[0] ?? null;
+                                  return (
+                                    <button
+                                      type="button"
+                                      className="gng-delta-row"
+                                      key={item.id}
+                                      onClick={() => { setEvidenceItem(item); setDialog("evidence"); }}
+                                    >
+                                      <span className="gng-row-line gng-spread">
+                                        <Text weight="semibold" as="span">{CATEGORY_LABELS[item.category]}</Text>
+                                        <Text className="gng-caption" type="supporting" color="secondary" as="span">{itemKindLabel(item)}</Text>
+                                      </span>
+                                      <span className="gng-delta-values">
+                                        {item.before_value ?? "기준 원문 미확인"}
+                                        <ArrowRight aria-hidden="true" />
+                                        {item.after_value ?? "비교 원문 미확인"}
+                                      </span>
+                                      <Text className="gng-caption" type="supporting" color="secondary" as="span">
+                                        {page
+                                          ? `근거 ${evidenceLocationLabel(page)} · 원문 비교`
+                                          : "양쪽 근거가 갖춰지지 않아 변경 여부를 확정하지 못했습니다"}
+                                      </Text>
+                                    </button>
+                                  );
+                                }) : (
+                                  <div className="gng-quiet">
+                                    <Check aria-hidden="true" />
+                                    <Text as="p">양쪽 근거로 확인한 범위에서 결정 전에 볼 변경 항목이 없습니다.</Text>
+                                    <Text className="gng-caption" type="supporting" color="secondary" as="p">
+                                      변경 없음은 입찰 참여에 대한 추천이 아닙니다.
+                                    </Text>
+                                  </div>
+                                )}
+                              </section>
+                            </>
+                          ) : comparisonView ? (
+                            <div className="gng-availability">
+                              <Clock aria-hidden="true" />
+                              <Heading level={3}>
+                                {comparisonView.calculation_status === "failed"
+                                  ? "변경 비교 계산이 실패했습니다"
+                                  : "변경 비교 계산을 기다리고 있습니다"}
+                              </Heading>
+                              <Text as="p">
+                                {comparisonView.calculation_status === "failed"
+                                  ? "실패를 변경 없음으로 처리하지 않습니다. 최종 결정은 계산된 결과를 확인한 뒤 기록합니다."
+                                  : "비교 결과가 나올 때까지 중요 변경과 확인 필요 건수는 미확인으로 남습니다."}
                               </Text>
-                            ) : null}
-                            <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                              변경 비교를 계산하는 프로그램은 아직 운영에 없습니다. 재시도는 결정 화면에서 담당자 이름과 함께 실행합니다.
-                            </Text>
-                          </div>
-                        ) : availability}
-                      </>
-                    ) : null}
-
-                    {tab === "documents" ? (
-                      <section className="gng-documents" aria-label="이번 비교의 기준 문서">
-                        <div className="gng-row-line gng-spread">
-                          <Heading level={3}>이번 비교의 기준 문서</Heading>
-                          <Text className="gng-caption" type="supporting" color="secondary" as="p">{comparisons.length}건의 비교</Text>
-                        </div>
-                        {comparisons.length > 1 ? (
-                          <div className="gng-comparison-picker">
-                            <Selector
-                              label="표시할 비교"
-                              size="sm"
-                              value={activeComparison?.id ?? ""}
-                              options={comparisons.map((item) => ({
-                                value: item.id,
-                                label: `비교 #${item.sequence} · 버전 ${item.version}`,
-                              }))}
-                              onChange={(value) => patchParams({ comparison: value })}
-                            />
-                            <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                              기본값은 요청 순서가 가장 늦은 비교입니다. 새 비교의 문서 쌍은 결정 화면에서 사람이 직접 고릅니다.
-                            </Text>
-                          </div>
-                        ) : null}
-                        {comparisonView ? (
-                          <>
-                            <div className="gng-document-pair">
-                              <div>
-                                <Text className="gng-caption" type="supporting" color="secondary" as="p">기준 · 사전규격</Text>
-                                <Text weight="semibold" as="p">{comparisonView.baseline.notice_external_id}</Text>
+                              {comparisonView.last_error_code ? (
                                 <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                                  문서 버전 {comparisonView.baseline.document_version_version} · 문서 역할 {comparisonView.baseline.document_role || "값 없음"}
+                                  안전한 오류 코드 {comparisonView.last_error_code}
                                 </Text>
-                                <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                                  원문 해시 {shortHash(comparisonView.baseline.source_sha256)} · 공개 {formatMoment(comparisonView.baseline.published_at)}
-                                </Text>
-                              </div>
-                              <ArrowRight aria-hidden="true" />
-                              <div>
-                                <Text className="gng-caption" type="supporting" color="secondary" as="p">대상 · 입찰공고</Text>
-                                <Text weight="semibold" as="p">{comparisonView.comparison.notice_external_id}</Text>
-                                <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                                  문서 버전 {comparisonView.comparison.document_version_version} · 차수 {comparisonView.comparison.bid_ordinal ?? "값 없음"}
-                                </Text>
-                                <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                                  원문 해시 {shortHash(comparisonView.comparison.source_sha256)} · 공개 {formatMoment(comparisonView.comparison.published_at)}
-                                </Text>
-                              </div>
-                            </div>
-                            <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                              최종 결정은 여기 있는 양쪽 문서 버전과 비교 결과에 연결됩니다. 문서 쌍은 화면이 고르지 않습니다.
-                            </Text>
-                          </>
-                        ) : (
-                          <div className="gng-quiet">
-                            <Text as="p">아직 선택된 비교 문서가 없습니다.</Text>
-                            <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                              문서가 없다는 뜻은 아닙니다. 비교에 사용할 양쪽 원문을 결정 화면에서 사람이 고릅니다.
-                            </Text>
-                          </div>
-                        )}
-                      </section>
-                    ) : null}
-
-                    {tab === "decision" ? (
-                      <section className="gng-decision-history" aria-label="사람의 최종 결정">
-                        <Heading level={3}>사람의 최종 결정</Heading>
-                        {latestDecision ? (
-                          <>
-                            <div className="gng-history-entry">
-                              <div className="gng-row-line gng-spread">
-                                <Text weight="semibold" as="span">
-                                  {latestDecision.decision === "go" ? "Go · 참여" : "No-Go · 불참"}
-                                </Text>
-                                <Token
-                                  size="sm"
-                                  label={currentness === "stale" ? "재검토 필요" : currentness === "unknown" ? "효력 미확인" : "현재 결정"}
-                                />
-                              </div>
-                              <Text as="p">{latestDecision.reason}</Text>
+                              ) : null}
                               <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                                {latestDecision.claimed_name} · {formatMoment(latestDecision.created_at)} · 결정 기록 {latestDecision.sequence}
+                                변경 비교를 계산하는 프로그램은 아직 운영에 없습니다. 재시도는 결정 화면에서 담당자 이름과 함께 실행합니다.
                               </Text>
                             </div>
-                            {selectedWorkspace && selectedWorkspace.currentness_reasons.length > 0 ? (
-                              <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                                현재성 근거 · {selectedWorkspace.currentness_reasons.join(" · ")}
-                              </Text>
-                            ) : null}
-                            <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                              이 목록은 사업기회의 마지막 결정만 보여 줍니다. 이전 기록을 포함한 전체 이력은 결정 화면에 있습니다.
-                            </Text>
-                          </>
-                        ) : (
-                          <div className="gng-quiet">
-                            <Text as="p">
-                              {isLoaded(selectedRow) ? "아직 기록된 최종 결정이 없습니다." : "결정 상태를 아직 확인하지 못했습니다."}
-                            </Text>
-                            <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                              추적 상태 ‘계속 추적’은 입찰 참여를 결정했다는 뜻이 아닙니다.
-                            </Text>
-                          </div>
-                        )}
-                      </section>
-                    ) : null}
-                  </div>
+                          ) : availability}
+                        </>
+                      ) : null}
 
-                  <footer className="gng-action-footer">
-                    <div className="gng-row-line gng-spread">
-                      <div className="gng-tracking-summary">
-                        <Text className="gng-caption" type="supporting" color="secondary" as="p">현재 사람 결정</Text>
-                        <p className="gng-caption">
-                          {!isLoaded(selectedRow)
-                            ? "미확인"
-                            : latestDecision
-                              ? `${latestDecision.decision === "go" ? "Go" : "No-Go"} · ${currentness === "current" ? "기록 있음" : currentness === "stale" ? "재검토 필요" : "효력 미확인"}`
-                              : "아직 결정하지 않음"}
-                        </p>
-                      </div>
-                      <Button
-                        label={canRecordDecision ? "변경 검토·결정 열기" : "비교 상태 확인"}
-                        variant="primary"
-                        size="sm"
-                        icon={<ChevronRight aria-hidden="true" />}
-                        onClick={openReview}
-                      />
+                      {tab === "documents" ? (
+                        <section className="gng-documents" aria-label="이번 비교의 기준 문서">
+                          <div className="gng-row-line gng-spread">
+                            <Heading level={3}>이번 비교의 기준 문서</Heading>
+                            <Text className="gng-caption" type="supporting" color="secondary" as="p">{comparisons.length}건의 비교</Text>
+                          </div>
+                          {comparisons.length > 1 ? (
+                            <div className="gng-comparison-picker">
+                              <Selector
+                                label="표시할 비교"
+                                size="sm"
+                                value={activeComparison?.id ?? ""}
+                                options={comparisons.map((item) => ({
+                                  value: item.id,
+                                  label: `비교 #${item.sequence} · 버전 ${item.version}`,
+                                }))}
+                                onChange={(value) => patchParams({ comparison: value })}
+                              />
+                              <Text className="gng-caption" type="supporting" color="secondary" as="p">
+                                기본값은 요청 순서가 가장 늦은 비교입니다. 새 비교의 문서 쌍은 결정 화면에서 사람이 직접 고릅니다.
+                              </Text>
+                            </div>
+                          ) : null}
+                          {comparisonView ? (
+                            <>
+                              <div className="gng-document-pair">
+                                <div>
+                                  <Text className="gng-caption" type="supporting" color="secondary" as="p">기준 · 사전규격</Text>
+                                  <Text weight="semibold" as="p">{comparisonView.baseline.notice_external_id}</Text>
+                                  <Text className="gng-caption" type="supporting" color="secondary" as="p">
+                                    문서 버전 {comparisonView.baseline.document_version_version} · 문서 역할 {comparisonView.baseline.document_role || "값 없음"}
+                                  </Text>
+                                  <Text className="gng-caption" type="supporting" color="secondary" as="p">
+                                    원문 해시 {shortHash(comparisonView.baseline.source_sha256)} · 공개 {formatMoment(comparisonView.baseline.published_at)}
+                                  </Text>
+                                </div>
+                                <ArrowRight aria-hidden="true" />
+                                <div>
+                                  <Text className="gng-caption" type="supporting" color="secondary" as="p">대상 · 입찰공고</Text>
+                                  <Text weight="semibold" as="p">{comparisonView.comparison.notice_external_id}</Text>
+                                  <Text className="gng-caption" type="supporting" color="secondary" as="p">
+                                    문서 버전 {comparisonView.comparison.document_version_version} · 차수 {comparisonView.comparison.bid_ordinal ?? "값 없음"}
+                                  </Text>
+                                  <Text className="gng-caption" type="supporting" color="secondary" as="p">
+                                    원문 해시 {shortHash(comparisonView.comparison.source_sha256)} · 공개 {formatMoment(comparisonView.comparison.published_at)}
+                                  </Text>
+                                </div>
+                              </div>
+                              <Text className="gng-caption" type="supporting" color="secondary" as="p">
+                                최종 결정은 여기 있는 양쪽 문서 버전과 비교 결과에 연결됩니다. 문서 쌍은 화면이 고르지 않습니다.
+                              </Text>
+                            </>
+                          ) : (
+                            <div className="gng-quiet">
+                              <Text as="p">아직 선택된 비교 문서가 없습니다.</Text>
+                              <Text className="gng-caption" type="supporting" color="secondary" as="p">
+                                문서가 없다는 뜻은 아닙니다. 비교에 사용할 양쪽 원문을 결정 화면에서 사람이 고릅니다.
+                              </Text>
+                            </div>
+                          )}
+                        </section>
+                      ) : null}
+
+                      {tab === "decision" ? (
+                        <section className="gng-decision-history" aria-label="사람의 최종 결정">
+                          <Heading level={3}>사람의 최종 결정</Heading>
+                          {latestDecision ? (
+                            <>
+                              <div className="gng-history-entry">
+                                <div className="gng-row-line gng-spread">
+                                  <Text weight="semibold" as="span">
+                                    {latestDecision.decision === "go" ? "Go · 참여" : "No-Go · 불참"}
+                                  </Text>
+                                  <Token
+                                    size="sm"
+                                    label={currentness === "stale" ? "재검토 필요" : currentness === "unknown" ? "효력 미확인" : "현재 결정"}
+                                  />
+                                </div>
+                                <Text as="p">{latestDecision.reason}</Text>
+                                <Text className="gng-caption" type="supporting" color="secondary" as="p">
+                                  {latestDecision.claimed_name} · {formatMoment(latestDecision.created_at)} · 결정 기록 {latestDecision.sequence}
+                                </Text>
+                              </div>
+                              {selectedWorkspace && selectedWorkspace.currentness_reasons.length > 0 ? (
+                                <Text className="gng-caption" type="supporting" color="secondary" as="p">
+                                  현재성 근거 · {selectedWorkspace.currentness_reasons.join(" · ")}
+                                </Text>
+                              ) : null}
+                              <Text className="gng-caption" type="supporting" color="secondary" as="p">
+                                이 목록은 사업기회의 마지막 결정만 보여 줍니다. 이전 기록을 포함한 전체 이력은 결정 화면에 있습니다.
+                              </Text>
+                            </>
+                          ) : (
+                            <div className="gng-quiet">
+                              <Text as="p">
+                                {isLoaded(selectedRow) ? "아직 기록된 최종 결정이 없습니다." : "결정 상태를 아직 확인하지 못했습니다."}
+                              </Text>
+                              <Text className="gng-caption" type="supporting" color="secondary" as="p">
+                                추적 상태 ‘계속 추적’은 입찰 참여를 결정했다는 뜻이 아닙니다.
+                              </Text>
+                            </div>
+                          )}
+                        </section>
+                      ) : null}
                     </div>
-                    <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                      {canRecordDecision
-                        ? "검토 결과를 확인한 뒤 사람이 Go 또는 No-Go를 선택합니다. 이 목록에서는 저장하지 않습니다."
-                        : "계산 완료 전에는 최종 결정을 기록할 수 없습니다. 결정 화면에서 비교 상태와 재시도를 확인합니다."}
-                    </Text>
-                  </footer>
-                </>
-              ) : (
-                <div className="gng-detail-empty">
-                  <Text color="secondary" as="p">선택할 사업이 없습니다.</Text>
-                </div>
-              )}
-            </section>
-          </div>
+
+                    <footer className="gng-action-footer">
+                      <div className="gng-row-line gng-spread">
+                        <div className="gng-tracking-summary">
+                          <Text className="gng-caption" type="supporting" color="secondary" as="p">현재 사람 결정</Text>
+                          <p className="gng-caption">
+                            {!isLoaded(selectedRow)
+                              ? "미확인"
+                              : latestDecision
+                                ? `${latestDecision.decision === "go" ? "Go" : "No-Go"} · ${currentness === "current" ? "기록 있음" : currentness === "stale" ? "재검토 필요" : "효력 미확인"}`
+                                : "아직 결정하지 않음"}
+                          </p>
+                        </div>
+                        <Button
+                          label={canRecordDecision ? "변경 검토·결정 열기" : "비교 상태 확인"}
+                          variant="primary"
+                          size="sm"
+                          icon={<ChevronRight aria-hidden="true" />}
+                          onClick={openReview}
+                        />
+                      </div>
+                      <Text className="gng-caption" type="supporting" color="secondary" as="p">
+                        {canRecordDecision
+                          ? "검토 결과를 확인한 뒤 사람이 Go 또는 No-Go를 선택합니다. 이 목록에서는 저장하지 않습니다."
+                          : "계산 완료 전에는 최종 결정을 기록할 수 없습니다. 결정 화면에서 비교 상태와 재시도를 확인합니다."}
+                      </Text>
+                    </footer>
+                  </>
+                ) : (
+                  <div className="gng-detail-empty">
+                    <Text color="secondary" as="p">선택할 사업이 없습니다.</Text>
+                  </div>
+                )}
+              </section>
+            </div>
+          </WorkspaceFrame>
         </>
       ) : null}
 
