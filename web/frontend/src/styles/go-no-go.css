@@ -559,13 +559,16 @@
   overflow-wrap: anywhere;
 }
 
-/* --- 바닥 고정 액션 --- */
+/* --- 바닥 고정 액션 ---
+ * padding은 발주계획 `.c2l-detail-actions`(order-plans.css, `--spacing-3 --spacing-4`)를
+ * 기준으로 네 화면의 상세 바닥 액션을 같은 값으로 맞춘 것이다(계획서 §3 프레임 통일).
+ * 좌우는 바로 위 `.gng-detail-scroll`과 같은 축이어야 액션과 본문이 어긋나지 않는다. */
 
 .gng-action-footer {
   display: grid;
   flex: 0 0 auto;
   gap: var(--spacing-2);
-  padding: var(--spacing-2) var(--spacing-5);
+  padding: var(--spacing-3) var(--spacing-4);
   border-top: var(--border-width) solid var(--color-border);
   background: var(--color-background-body);
 }
