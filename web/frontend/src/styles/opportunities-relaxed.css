@@ -86,7 +86,12 @@
   line-height: var(--bo-type-caption-leading);
 }
 
-/* --- 페이지 머리와 필터 --- */
+/* --- 페이지 머리 ---
+ *
+ * 목록(`/opportunities`)은 상단바가 제목 모드로 제목을 그리고 화면 액션은
+ * `#page-header-actions` portal로 간다. 아래 `.opportunity-page-header` 규칙은
+ * **단독 상세**(`/opportunities/:id`, 경로 모드)가 아직 자기 제목 줄을 그리므로
+ * 남긴다. 필터 바 골격은 공용 `styles/workspace-filters.css`가 소유한다. */
 
 .opportunity-page-header {
   display: flex;
@@ -105,61 +110,13 @@
   font-weight: var(--bo-type-page-title-weight);
 }
 
-.opportunity-filters {
-  display: flex;
-  flex: 0 0 auto;
-  flex-direction: column;
-  gap: var(--spacing-2);
-  padding: var(--spacing-2) var(--spacing-3);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-element) var(--radius-element) 0 0;
-  background: var(--color-background-surface);
-}
-
-.opportunity-filter-line {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-3);
-  min-width: 0;
-}
-
-.opportunity-view-tabs {
-  display: flex;
-  gap: 0;
-  min-width: 0;
-}
-
-.opportunity-view-tabs .astryx-button {
-  background: transparent;
-  border-color: transparent;
-}
-
-.opportunity-view-tabs [aria-pressed="true"] {
-  background: var(--color-accent-muted);
-  border-color: var(--color-border);
-  font-weight: 600;
-}
-
-.opportunity-filter-end {
+/* 상단바 슬롯에 들어가는 목록 화면의 액션. 슬롯 자체가 정렬·간격·4단 글자를 주므로
+   여기서는 액션끼리의 간격만 정한다(`styles/shell-relaxed.css`). */
+.opportunity-header-actions {
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
   min-width: 0;
-}
-
-.opportunity-filters .opportunity-search {
-  width: calc(var(--spacing-12) * 5.5);
-  max-width: 100%;
-}
-
-.opportunity-filter-advanced {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
-  align-items: end;
-  gap: var(--spacing-4);
-  padding-top: var(--spacing-2);
-  border-top: var(--border-width) solid var(--color-border);
 }
 
 /* --- 목록 38% : 상세 62% ---
@@ -172,9 +129,8 @@
   align-items: stretch;
   min-height: 0;
   border: var(--border-width) solid var(--color-border);
-  border-top: 0;
   border-radius: 0 0 var(--radius-element) var(--radius-element);
-  background: var(--color-background-surface);
+  background: var(--color-background-card);
   overflow: hidden;
 }
 
@@ -194,7 +150,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-2);
-  padding: var(--spacing-3) var(--spacing-4);
+  padding: var(--spacing-2) var(--spacing-4);
   border-bottom: var(--border-width) solid var(--color-border);
 }
 
@@ -214,7 +170,7 @@
   flex: 0 0 auto;
   flex-direction: column;
   gap: var(--spacing-0-5);
-  padding: var(--spacing-3) var(--spacing-4);
+  padding: var(--spacing-2) var(--spacing-4);
   border-top: var(--border-width) solid var(--color-border);
   background: var(--color-background-body);
 }
@@ -329,7 +285,7 @@
   display: grid;
   flex: 0 0 auto;
   gap: var(--spacing-2);
-  padding: var(--spacing-3) var(--spacing-5) var(--spacing-3);
+  padding: var(--spacing-3) var(--spacing-4);
 }
 
 .opportunity-agency {
@@ -369,7 +325,7 @@
 
 .opportunity-detail-tabs {
   flex: 0 0 auto;
-  padding: 0 var(--spacing-5);
+  padding: 0 var(--spacing-4);
   border-top: var(--border-width) solid var(--color-border);
   border-bottom: var(--border-width) solid var(--color-border);
 }
@@ -383,7 +339,7 @@
   flex: 1 1 0;
   min-height: 0;
   overflow: auto;
-  padding: 0 var(--spacing-5);
+  padding: var(--spacing-3) var(--spacing-4) var(--spacing-2);
 }
 
 /* --- 사업 흐름 탭 ---
