@@ -460,7 +460,7 @@ test("URL 누락은 sw_only=true, 전체 보기와 기본값 복원은 서로 �
   await expect(defaultView).not.toBeChecked();
   expect(new URL(page.url()).searchParams.get("sw_only")).toBe("false");
 
-  await page.locator(".pre-specs-filter-end").getByRole("button", { name: "상세 필터" }).click();
+  await page.getByRole("button", { name: "상세 필터", exact: true }).click();
   await page.getByRole("button", { name: "기본값으로" }).click();
   await expect(defaultView).toBeChecked();
   await expect.poll(() => trace.listQueries.at(-1)?.get("sw_only")).toBe("true");
@@ -548,23 +548,81 @@ test("상단 보기는 URL과 동기화되고 건수의 기준을 밝힌다", as
   await mockPreSpecs(page);
   await page.goto("/pre-specs");
 
-  const attention = page.locator(".pre-specs-view-button", { hasText: "사람 확인" });
+  const views = page.locator(".pre-specs-views");
+  const attention = views.getByRole("button", { name: /^사람 확인/ });
   await expect(attention).toContainText("1");
   await attention.click();
   await expect.poll(() => new URL(page.url()).searchParams.get("view")).toBe("attention");
   await expect(preSpecRow(page, trackingException.title)).toBeVisible();
   await expect(preSpecRow(page, newPreSpec.title)).toHaveCount(0);
 
-  await page.locator(".pre-specs-view-button", { hasText: "전체" }).click();
+  await views.getByRole("button", { name: /^전체/ }).click();
   await expect.poll(() => new URL(page.url()).searchParams.has("view")).toBe(false);
   await expect(preSpecRow(page, newPreSpec.title)).toBeVisible();
+});
+
+// 나열 순서는 사람이 찾는 차례다(사용자 결정 2026-09-08): 전체 → 끝난 건 →
+// 손이 필요한 건 → 아직 도는 건 → 예외. 건수가 0인 `취소`는 자리만 차지하므로
+// 지금 보고 있지 않으면 그리지 않는다.
+test("보기 탭은 전체·개요 완료·사람 확인·진행·대기·실패 차례로 늘어선다", async ({ page }) => {
+  await mockPreSpecs(page);
+  await page.goto("/pre-specs");
+
+  const tabs = page.locator(".pre-specs-views").getByRole("button");
+  await expect(tabs).toHaveCount(5);
+  // 건수는 접근 이름의 일부라 라벨만 떼어 비교한다(`${라벨}  ${건수}`).
+  await expect.poll(async () => (await tabs.allTextContents()).map((text) => text.replace(/[\s\u00a0]*[\d,–]*$/u, "").trim()))
+    .toEqual(["전체", "개요 완료", "사람 확인", "진행·대기", "실패"]);
+});
+
+// 정렬은 사업 추적과 같은 자리(상세 필터 안 Selector)로 옮겼다. 접히면 보이지
+// 않으므로 지금 어떤 순서인지는 목록 머리가 늘 글자로 밝힌다.
+test("표시 순서 Selector는 sort=deadline을 기록하고 목록 머리가 그 순서를 밝힌다", async ({ page }) => {
+  const trace = await mockPreSpecs(page);
+  await page.goto("/pre-specs");
+
+  const listHead = page.locator(".pre-specs-list-head");
+  await expect(listHead).not.toContainText("마감 임박순");
+
+  await page.getByRole("button", { name: "상세 필터", exact: true }).click();
+  await page.getByRole("combobox", { name: "표시 순서" }).click();
+  await page.getByRole("option", { name: "마감 임박순", exact: true }).click();
+
+  await expect.poll(() => new URL(page.url()).searchParams.get("sort")).toBe("deadline");
+  await expect.poll(() => trace.listQueries.at(-1)?.get("sort")).toBe("deadline");
+  await expect(listHead).toContainText("마감 임박순");
+
+  // 기본값(게시 최신순)으로 되돌리면 URL에서 인자가 사라진다.
+  await page.getByRole("combobox", { name: "표시 순서" }).click();
+  await page.getByRole("option", { name: "게시 최신순", exact: true }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.has("sort")).toBe(false);
+  await expect(listHead).not.toContainText("마감 임박순");
+});
+
+// 제목은 셸 상단바가 그리고 페이지는 같은 이름을 다시 쓰지 않는다. 페이지 상태를
+// 쓰는 액션은 portal로 상단바 슬롯에 들어간다.
+test("화면 제목과 표시 범위 액션은 상단바에 있고 페이지는 제목 줄을 두지 않는다", async ({ page }) => {
+  await mockPreSpecs(page);
+  await page.goto("/pre-specs");
+
+  const topbar = page.locator("header.topbar");
+  await expect(topbar).toHaveAttribute("data-topbar-mode", "title");
+  await expect(topbar.locator("h1")).toHaveText("사전규격");
+  // 페이지에 남는 것은 `aria-labelledby`가 가리킬 숨긴 제목뿐이고, 제목 줄은 없다.
+  await expect(page.locator(".pre-specs-page > h2.visually-hidden#page-title")).toHaveText("사전규격");
+  await expect(page.locator(".pre-specs-page-header")).toHaveCount(0);
+
+  const scope = topbar.getByRole("button", { name: "표시 범위" });
+  await expect(scope).toBeVisible();
+  await scope.click();
+  await expect(page.getByRole("dialog")).toContainText("현재 조건의 서버 전체 건수는");
 });
 
 test("등급 필터는 불러온 페이지에만 적용된다는 사실을 화면이 밝힌다", async ({ page }) => {
   await mockPreSpecs(page);
   await page.goto("/pre-specs");
 
-  await page.locator(".pre-specs-filter-end").getByRole("button", { name: "상세 필터" }).click();
+  await page.getByRole("button", { name: "상세 필터", exact: true }).click();
   await page.getByRole("combobox", { name: "적합성 등급" }).click();
   await page.getByRole("option", { name: "검토 권장", exact: true }).click();
 
