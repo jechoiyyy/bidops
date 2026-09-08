@@ -21,7 +21,8 @@
   height: 100%;
   min-height: calc(var(--spacing-12) * 14);
   flex-direction: column;
-  gap: var(--spacing-2);
+  /* 탐색과 추적 4화면이 같은 값(발주계획 기준)을 쓴다. */
+  gap: var(--spacing-3);
   color: var(--color-text-primary);
   background: var(--color-background-body);
   font-family: var(--font-family-body);
@@ -61,104 +62,21 @@
   font-weight: var(--bo-type-section-title-weight);
 }
 
-.pre-specs-page-header {
+/* 상단바 슬롯(`#page-header-actions`)에 portal한 화면 액션. 페이지 root 밖이라
+ * 이 파일의 4단 재적용이 닿지 않고 셸이 글자 규칙을 준다 — 여기서는 배치만 정한다.
+ * 필터 바(`.workspace-filters`)와 workspace를 잇는 틀은 공용 `WorkspaceFrame`이
+ * 가지므로 화면이 따로 소유하지 않는다. */
+.pre-specs-header-actions {
   display: flex;
-  flex: 0 0 auto;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-3);
-  min-height: var(--spacing-10);
-}
-
-.pre-specs-workspace-shell {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
   gap: var(--spacing-2);
-  min-height: 0;
+  min-width: 0;
 }
 
 /* --- 압축 필터 ---
- * 늘 보이는 것은 상태 보기·검색·SW 기본 보기·정렬이고, 업무구분·발견 구분·등급은
- * `상세 필터` 뒤에 접혀 있다. 접어도 URL 동기화와 각 필터의 적용 범위는 그대로다. */
-.pre-specs-filters {
-  display: flex;
-  flex: 0 0 auto;
-  flex-direction: column;
-  gap: var(--spacing-2);
-  padding: var(--spacing-2) var(--spacing-3);
-  border: var(--border-width) solid var(--color-border);
-  border-bottom: 0;
-  border-radius: var(--radius-element) var(--radius-element) 0 0;
-  background: var(--color-background-card);
-}
-
-.pre-specs-filter-main {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-2) var(--spacing-3);
-}
-
-.pre-specs-views {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--spacing-1);
-}
-
-.pre-specs-view-button {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-1);
-  min-height: var(--spacing-8);
-  padding: 0 var(--spacing-3);
-  border: var(--border-width) solid transparent;
-  border-radius: var(--radius-inner);
-  color: var(--color-text-primary);
-  background: transparent;
-  font-size: var(--bo-type-body);
-  cursor: pointer;
-}
-
-.pre-specs-view-button:hover {
-  background: var(--color-background-body);
-}
-
-.pre-specs-view-button[aria-pressed="true"] {
-  border-color: var(--color-border);
-  background: var(--color-accent-muted);
-  font-weight: 600;
-}
-
-.pre-specs-view-count {
-  color: var(--color-text-secondary);
-}
-
-.pre-specs-view-button[aria-pressed="true"] .pre-specs-view-count {
-  color: var(--color-text-accent);
-}
-
-.pre-specs-filter-end {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-}
-
-.pre-specs-search {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-1);
-}
-
-.pre-specs-search .astryx-text-input,
-.pre-specs-search .astryx-field {
-  width: var(--spacing-12) * 5;
-}
-
-.pre-specs-search input {
-  min-width: calc(var(--spacing-12) * 4);
-}
+ * 골격(바·첫 줄·보기 탭·검색·상세 필터)은 공용 `styles/workspace-filters.css`가
+ * 소유한다. 이 화면이 더 갖는 것은 둘째 줄의 SW 중심 스위치와 범위 안내,
+ * 서버가 거르지 못하는 등급 필터의 사실 문장뿐이다. */
 
 .pre-specs-filter-context {
   display: flex;
@@ -201,39 +119,6 @@
 .pre-specs-filter-help {
   color: var(--color-text-secondary);
   font-size: var(--bo-type-caption);
-}
-
-.pre-specs-sort {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-1);
-  color: var(--color-text-secondary);
-}
-
-.pre-specs-sort-button {
-  min-height: var(--spacing-7);
-  padding: 0 var(--spacing-2);
-  border: var(--border-width) solid transparent;
-  border-radius: var(--radius-inner);
-  color: var(--color-text-primary);
-  background: transparent;
-  font-size: var(--bo-type-caption);
-  cursor: pointer;
-}
-
-.pre-specs-sort-button[aria-pressed="true"] {
-  border-color: var(--color-border);
-  background: var(--color-accent-muted);
-  font-weight: 600;
-}
-
-.pre-specs-advanced {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
-  align-items: end;
-  gap: var(--spacing-3);
-  padding-top: var(--spacing-2);
-  border-top: var(--border-width) solid var(--color-border);
 }
 
 .pre-specs-grade-filter-note,
@@ -463,7 +348,7 @@
   flex: 0 0 auto;
   flex-direction: column;
   gap: var(--spacing-1);
-  padding: var(--spacing-2) var(--spacing-5);
+  padding: var(--spacing-3) var(--spacing-4);
 }
 
 .pre-specs-detail-agency {
@@ -545,7 +430,7 @@
   display: flex;
   flex: 0 0 auto;
   gap: var(--spacing-3);
-  padding: 0 var(--spacing-5);
+  padding: 0 var(--spacing-4);
   border-top: var(--border-width) solid var(--color-border);
   border-bottom: var(--border-width) solid var(--color-border);
 }
@@ -571,7 +456,7 @@
 .pre-specs-detail-scroll {
   flex: 1 1 auto;
   min-height: 0;
-  padding: 0 var(--spacing-5);
+  padding: var(--spacing-3) var(--spacing-4) var(--spacing-2);
   overflow-y: auto;
 }
 
