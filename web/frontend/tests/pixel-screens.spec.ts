@@ -60,8 +60,9 @@ for (const target of setupTargets) {
     await settleFonts(page);
     if (target.name === "opportunities-list") {
       // 세 fixture 모두 미선택·재검토 신호·후보 확인 대기 중 하나를 갖고 있어
-      // 기본 구역인 `조치 필요`에 모인다(ADR-0046 결정 2).
-      await expect(page.locator(".opportunity-list-scroll > .review-dense-list-row")).toHaveCount(3);
+      // 기본 구역인 `조치 필요`에 모인다(ADR-0046 결정 2). 목록은 Astryx `Table`이라
+      // 행은 `tbody tr`이다(옛 밀집 행 선택자 `.review-dense-list-row`는 더 이상 없다).
+      await expect(page.locator(".opportunity-table-scroll tbody tr")).toHaveCount(3);
     }
     await expect(page).toHaveScreenshot(`${target.name}.png`, {
       fullPage: true,
