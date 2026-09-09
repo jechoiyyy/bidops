@@ -505,8 +505,10 @@ export function PreSpecDetailPage() {
             }}
           />
         </InternationalizationProvider>
-        <p className="ps-record-tracking-help">추적을 시작하면 새 문서·입찰공고·정정공고를 계속 확인합니다. 담당자 이름은 결정 이력에 기록되며 이 브라우저에 기억됩니다.</p>
-        <p className="ps-record-decision-note">입찰 참여 여부는 최종 Go/No-Go에서 결정합니다.</p>
+        <footer className="ps-record-tracking-footer">
+          <p className="ps-record-tracking-help">추적을 시작하면 새 문서·입찰공고·정정공고를 계속 확인합니다.</p>
+          <p className="ps-record-decision-note">입찰 참여 여부는 최종 Go/No-Go에서 결정합니다.</p>
+        </footer>
       </aside>
 
       <dl className="ps-card ps-facts ps-record-facts">

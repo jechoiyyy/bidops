@@ -410,10 +410,6 @@ export function TrackingDecisionControl({
         {hasOpportunity ? (
           <>
             {hasPresets ? (
-              /* 시안의 사유 입력이다. 빈 값으로 시작하는 드롭다운에서 고른 문장이
-                 그대로 저장 사유가 되고, `기타 · 직접 입력`을 골랐을 때만 자유
-                 입력이 열린다. 예시를 주지 않은 호출자는 아래의
-                 자유 입력 textarea를 그대로 쓴다 — 기존 소비자의 동작은 그대로다. */
               <div className="pre-spec-tracking-reason-preset">
                 <Selector
                   label="선택 사유"
@@ -429,7 +425,6 @@ export function TrackingDecisionControl({
                   onChange={(next) => {
                     const chosen = next ?? "";
                     setPresetChoice(chosen);
-                    // `기타`는 사람이 적을 자리를 비워 준다. 예시를 고르면 그 문장이 사유다.
                     setReason(chosen === OTHER_REASON_PRESET || chosen === "" ? "" : chosen);
                   }}
                 />
@@ -473,12 +468,8 @@ export function TrackingDecisionControl({
 
         {feedback ? <MutationFeedback tone={feedback.tone}>{feedback.message}</MutationFeedback> : null}
         {problem ? <MutationFeedback tone="error" problem={problem} /> : null}
-        {/* 상세 화면은 이 폼의 submit을 결정 패널의 액션이 소유한다(formId).
-            같은 이름의 저장 버튼을 본문에도 두면 한 화면에 같은 결정 조작이
-            둘이 되고, 어느 쪽이 정본인지 화면이 답하지 못한다. 목록 화면처럼
-            헤더 액션이 없을 때만 이 폼이 자기 버튼을 갖는다. */}
         {formId ? null : (
-          <>
+          <div className="pre-spec-tracking-action">
             <button
               className="pre-spec-tracking-save interaction-control"
               type="submit"
@@ -488,7 +479,7 @@ export function TrackingDecisionControl({
               {mutation.isPending ? "저장 중…" : saveLabel}
             </button>
             {disabledReason ? <DisabledReason id="pre-spec-tracking-save-disabled">{disabledReason}</DisabledReason> : null}
-          </>
+          </div>
         )}
         {onStartedForDeepReview ? (
           <p className="pre-spec-tracking-combined-note">
@@ -499,8 +490,6 @@ export function TrackingDecisionControl({
           <strong>보류</strong>와 <strong>추적 종료</strong>는 이 화면에 없습니다. 사업 추적에서만 사람이 고릅니다.
         </p>)}
       </form>
-      {/* 확인 단계. 취소하면 초안은 그대로 남고 요청은 나가지 않는다. 저장에
-          실패하면 다이얼로그는 닫히고 기존 인라인 오류 표시가 그대로 보인다. */}
       <ConfirmDecisionDialog
         confirmLabel={endConfirm?.confirmLabel ?? "종료 상태로 저장"}
         isPending={mutation.isPending}
