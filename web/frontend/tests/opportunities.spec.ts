@@ -46,6 +46,38 @@ test("목록은 상단바 제목 모드로 열리고 데이터 현황이 상단�
   await expect(page.getByRole("dialog")).toContainText("구역 건수는 서버가 센");
 });
 
+test("목록 workspace는 page canvas의 남은 높이를 채운다", async ({ page }) => {
+  await mockOpportunities(page);
+
+  for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto("/opportunities");
+    await expect(page.locator(".opportunity-workspace")).toBeVisible();
+
+    const metrics = await page.evaluate(() => {
+      const canvas = document.querySelector(".page-canvas") as HTMLElement;
+      const pageRoot = document.querySelector(".opportunities-page") as HTMLElement;
+      const workspace = document.querySelector(".opportunity-workspace") as HTMLElement;
+      const canvasBox = canvas.getBoundingClientRect();
+      const pageBox = pageRoot.getBoundingClientRect();
+      const workspaceBox = workspace.getBoundingClientRect();
+      const canvasStyle = getComputedStyle(canvas);
+      const uiScale = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--bo-ui-scale")) || 1;
+      const contentBottom = canvasBox.bottom - Number.parseFloat(canvasStyle.paddingBottom) * uiScale;
+      return {
+        contentBottom,
+        pageBottom: pageBox.bottom,
+        workspaceBottom: workspaceBox.bottom,
+        workspaceHeight: workspaceBox.height,
+      };
+    });
+
+    expect(metrics.pageBottom, `${viewport.width}px page canvas 남은 높이`).toBeCloseTo(metrics.contentBottom, 0);
+    expect(metrics.workspaceBottom, `${viewport.width}px workspace 하단`).toBeCloseTo(metrics.pageBottom, 0);
+    expect(metrics.workspaceHeight, `${viewport.width}px workspace 높이`).toBeGreaterThan(0);
+  }
+});
+
 // 상세는 목록으로 돌아갈 경로가 필요하므로 경로 모드로 남는다.
 test("단독 상세는 목록으로 돌아갈 경로 표시를 그대로 갖는다", async ({ page }) => {
   await mockOpportunities(page);
@@ -604,10 +636,11 @@ test("두 지원 폭에서 가로로 넘치지 않고 상세 바닥 액션이 �
     const metrics = await page.evaluate(() => {
       const footer = document.querySelector(".opportunity-action-footer") as HTMLElement;
       const pane = document.querySelector(".opportunity-list-pane") as HTMLElement;
+      const parent = pane.parentElement as HTMLElement;
       return {
         overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
         footerVisible: footer.getBoundingClientRect().bottom <= window.innerHeight + 1,
-        ratio: pane.getBoundingClientRect().width / (pane.parentElement as HTMLElement).clientWidth,
+        ratio: pane.getBoundingClientRect().width / parent.getBoundingClientRect().width,
       };
     });
     expect(metrics.overflow, `${viewport.width}px 가로 넘침`).toBeLessThanOrEqual(1);

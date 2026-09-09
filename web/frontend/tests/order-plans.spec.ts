@@ -106,6 +106,27 @@ test("기본 목록은 밀집 행이고 판정에 필요한 값만 담으며, �
   await expect(page.locator("#c2l-panel-telemetry")).toContainText("120,000");
 });
 
+test("발주계획의 기존 머리글 액션은 상단바 슬롯에 한 번씩만 남는다", async ({ page }) => {
+  await mockOrderPlans(page);
+  await page.goto("/order-plans");
+
+  const topbar = page.locator("header.topbar");
+  const actions = topbar.locator("#page-header-actions");
+
+  // 제목은 셸이 하나만 그린다. 페이지 안에는 보조 접근성 제목만 남고, 예전 머리글
+  // 또는 portal wrapper의 복제본이 다시 생기면 안 된다.
+  await expect(topbar.locator("h1")).toHaveText("발주계획");
+  await expect(page.locator(".c2l-page-header")).toHaveCount(0);
+  await expect(page.locator(".c2l-page > .c2l-header-actions")).toHaveCount(0);
+  await expect(actions.locator(".c2l-header-actions")).toHaveCount(1);
+
+  // 기존 머리글이 제공하던 네 가지 동선을 모두 같은 portal 아래에서 확인한다.
+  await expect(actions.getByRole("combobox", { name: "발주계획 수집 회차" })).toBeVisible();
+  await expect(actions.locator(".c2l-status-chip")).toHaveCount(1);
+  await expect(actions.getByRole("button", { name: "실행 상태", exact: true })).toHaveCount(1);
+  await expect(actions.getByRole("link", { name: "실행 상세 →", exact: true })).toHaveCount(1);
+});
+
 // 기본 상세는 실제로 있는 값만 싣는다. 모델 근거는 서버가 준 `qwen_reason` 그대로이고,
 // 출처는 알려진 필드 이름(발주계획 사업명)으로만 적으며 원문 인용을 만들지 않는다.
 test("기본 상세는 실제 모델 근거와 알려진 출처 필드만 보여주고 원문 인용을 만들지 않는다", async ({ page }) => {
@@ -226,19 +247,27 @@ test("검토 목록은 고정 높이 안에서 스크롤되고 상세와 같은 
     const listPane = workspace.querySelector<HTMLElement>(".c2l-list-pane");
     const detailPane = workspace.querySelector<HTMLElement>(".c2l-detail-pane");
     const actions = workspace.querySelector<HTMLElement>(".c2l-detail-actions");
-    if (!listPane || !detailPane || !actions) throw new Error("발주계획 목록·상세 영역을 찾을 수 없습니다.");
+    const pageRoot = workspace.closest<HTMLElement>(".c2l-page");
+    if (!listPane || !detailPane || !actions || !pageRoot) throw new Error("발주계획 목록·상세 영역을 찾을 수 없습니다.");
     const listRect = listPane.getBoundingClientRect();
     const detailRect = detailPane.getBoundingClientRect();
     const actionsRect = actions.getBoundingClientRect();
+    const workspaceRect = workspace.getBoundingClientRect();
+    const pageRect = pageRoot.getBoundingClientRect();
     return {
       listHeight: listRect.height,
       detailHeight: detailRect.height,
       detailBottom: detailRect.bottom,
       actionsBottom: actionsRect.bottom,
+      workspaceBottom: workspaceRect.bottom,
+      pageBottom: pageRect.bottom,
     };
   });
   expect(Math.abs(geometry.listHeight - geometry.detailHeight)).toBeLessThanOrEqual(1);
   expect(geometry.actionsBottom).toBeLessThanOrEqual(geometry.detailBottom + 1);
+  // WorkspaceFrame owns the remaining canvas height; a short workspace would let the
+  // page canvas scroll and hide the decision bar below the first viewport.
+  expect(Math.abs(geometry.workspaceBottom - geometry.pageBottom)).toBeLessThanOrEqual(1);
 
   await page.locator(".c2l-workspace").scrollIntoViewIfNeeded();
   for (const label of ["추적 시작", "보류", "추적 종료", "이번 건 넘기기"]) {
@@ -574,7 +603,6 @@ test("실패·결과 없음·중지/비허용 상태를 성공 결과로 바꾸�
 });
 
 test("크기 조절 가능한 상세 영역: 드래그와 화살표 키로 폭을 조절하고 localStorage에 남긴다", async ({ page }) => {
-
   await mockOrderPlans(page);
   await page.goto("/order-plans");
 
@@ -593,6 +621,45 @@ test("크기 조절 가능한 상세 영역: 드래그와 화살표 키로 폭�
   await page.reload();
   const separatorAfterReload = page.getByRole("separator", { name: "목록 폭 조절" });
   await expect(separatorAfterReload).toHaveAttribute("aria-valuenow", String(after));
+
+  // `clientX`는 화면에 그려진 좌표이고 aria 값·localStorage는 논리 CSS px이다.
+  // 전역 UI zoom이 있어도 두 지원 폭에서 손잡이가 실제 포인터 이동만큼 따라가야 한다.
+  for (const width of [1280, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.evaluate(() => window.localStorage.removeItem("bidops.order-plans.listWidth"));
+    await page.reload();
+
+    const scaledSeparator = page.getByRole("separator", { name: "목록 폭 조절" });
+    const listPane = page.locator(".c2l-list-pane");
+    await expect(scaledSeparator).toBeVisible();
+    const before = Number(await scaledSeparator.getAttribute("aria-valuenow"));
+    const geometry = await Promise.all([
+      scaledSeparator.evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, left: rect.left };
+      }),
+      listPane.evaluate((element) => {
+        const renderedWidth = element.getBoundingClientRect().width;
+        const layoutWidth = element.offsetWidth;
+        return { renderedWidth, layoutWidth, scale: renderedWidth / layoutWidth };
+      }),
+    ]);
+    const [pointer, pane] = geometry;
+    expect(pane.scale).toBeGreaterThan(0);
+    const dragDistance = 36;
+
+    await page.mouse.move(pointer.x, pointer.y);
+    await page.mouse.down();
+    await page.mouse.move(pointer.x + dragDistance, pointer.y);
+    await page.mouse.up();
+
+    const expected = Math.round(before + dragDistance / pane.scale);
+    await expect.poll(async () => Number(await scaledSeparator.getAttribute("aria-valuenow"))).toBe(expected);
+    const afterLeft = await scaledSeparator.evaluate((element) => element.getBoundingClientRect().left);
+    // Layout rounding can move the edge by a fraction of a physical pixel after
+    // converting the logical width back through the rendered scale.
+    expect(Math.abs(afterLeft - pointer.left - dragDistance)).toBeLessThanOrEqual(2);
+  }
 });
 
 test("저장된 뷰: 이름 붙여 저장한 조합만 localStorage에 남고 다시 불러와 복원한다", async ({ page }) => {

@@ -139,7 +139,7 @@
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  max-height: calc(100dvh - var(--spacing-12) * 2 - var(--spacing-6));
+  max-height: calc(var(--bo-ui-viewport-dynamic-height) - var(--spacing-12) * 2 - var(--spacing-6));
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-element);
   background: var(--color-background-surface);
@@ -221,7 +221,7 @@
 .ps-record-secondary-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--spacing-3); margin: 0 0 var(--spacing-4); }
 .ps-record-secondary-facts dt { color: var(--color-text-secondary); font-size: var(--bo-type-caption); }
 .ps-record-secondary-facts dd { margin: var(--spacing-1) 0 0; }
-.ps-record-side { max-height: calc(100dvh - var(--spacing-12) - var(--spacing-7) - var(--spacing-8)); }
+.ps-record-side { max-height: calc(var(--bo-ui-viewport-dynamic-height) - var(--spacing-12) - var(--spacing-7) - var(--spacing-8)); }
 .ps-record .ps-record-side .pre-spec-tracking-decision.is-record { border: 0; display: block; }
 .ps-record-tracking-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-3); }
 .ps-record-tracking-heading h3 { margin: 0; font-size: calc(var(--bo-type-body) + var(--spacing-0-5)); }

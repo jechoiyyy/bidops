@@ -14,13 +14,10 @@ type RouteContextCase = {
 
 const routeContexts: RouteContextCase[] = [
   { name: "dashboard", path: `/?run=${RUN_ID}`, title: "대시보드", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
-  // ADR-0046 결정 7: 회차 선택기는 대시보드와 공고 판정 이력 두 화면에만 있다.
-  // 검토 대기열은 회차 종속(dataScope run)이지만 선택기를 갖지 않는다 — 회차는
-  // 같은 화면의 공고 판정 이력 탭에서 고르고 search로 함께 넘어간다.
-  // ADR-0046 결정 3: 공고 1차 판정은 읽기 전용 이력이므로 편집 범위가 없다.
-  // 같은 저장 계약은 사업 추적의 예외 작업이 갖는다.
-  { name: "queue list", path: `/queue?run=${RUN_ID}`, title: "검토 대기열", dataScope: "run", editScope: null, runSelectorVisible: false },
-  { name: "queue detail", path: `/queue/29?run=${RUN_ID}`, title: "검토 대기열", dataScope: "run", editScope: null, runSelectorVisible: false },
+  // `/queue`와 `/reviews`는 현재 공고 판정 이력 route metadata를 공유한다.
+  // ADR-0046 결정 3의 읽기 전용·회차 선택기·편집 범위 없음 계약을 함께 검증한다.
+  { name: "queue list", path: `/queue?run=${RUN_ID}`, title: "공고 판정 이력", dataScope: "run", editScope: null, runSelectorVisible: true },
+  { name: "queue detail", path: `/queue/29?run=${RUN_ID}`, title: "공고 판정 이력", dataScope: "run", editScope: null, runSelectorVisible: true },
   // 사업 추적·최종 Go/No-Go 목록은 제목 모드다. 편집 범위 칩을 그리지 않으므로
   // 저장 권한은 목록 안의 결정 UI가 말한다(사용자 결정 2026-09-08). 같은 metadata를
   // 쓰는 상세(`/opportunities/501`)는 경로 모드라 칩이 그대로 있다.
@@ -30,11 +27,11 @@ const routeContexts: RouteContextCase[] = [
   { name: "pre-specs", path: `/pre-specs?run=${RUN_ID}`, title: "사전규격", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
   { name: "pre-spec detail", path: `/pre-specs/991?run=${RUN_ID}`, title: "사전규격", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
   // 공고 판정 이력·담당자 리뷰 기록은 검토 대기열의 탭으로 흡수됐다(ADR-0041 결정 2).
-  // 옛 경로가 리다이렉트가 아니라 각 탭의 정식 주소로 남아 있다. 공고 판정 이력만
-  // 자기 화면 맥락을 갖는다 — 회차 축을 갖는 두 화면 중 하나이기 때문이다.
+  // 옛 경로가 리다이렉트가 아니라 각 탭의 정식 주소로 남아 있고, 두 회차 종속
+  // 탭은 공고 판정 이력 route metadata를 공유한다.
   { name: "judgments list", path: `/judgments?run=${RUN_ID}`, title: "공고 판정 이력", dataScope: "run", editScope: null, runSelectorVisible: true },
   { name: "judgments detail", path: `/judgments/29?run=${RUN_ID}`, title: "공고 판정 이력", dataScope: "run", editScope: null, runSelectorVisible: true },
-  { name: "reviews", path: `/reviews?run=${RUN_ID}`, title: "검토 대기열", dataScope: "run", editScope: null, runSelectorVisible: false },
+  { name: "reviews", path: `/reviews?run=${RUN_ID}`, title: "공고 판정 이력", dataScope: "run", editScope: null, runSelectorVisible: true },
   // 최종 Go/No-Go는 사이드바 최상위 항목이 됐다(ADR-0041 결정 3).
   { name: "go-no-go", path: `/go-no-go?run=${RUN_ID}`, title: "최종 Go/No-Go", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
   // 기준 4화면은 판정 기준 한 화면의 탭이다. 넷 다 누적 자료이므로 회차 선택기가
@@ -112,12 +109,11 @@ test("SPA 내부 link click으로 lazy route에 들어가도 metadata와 화면�
   await toQueue.click();
 
   const topbar = page.locator("header.topbar");
-  await expect(topbar.locator("h1")).toHaveText("검토 대기열");
+  await expect(topbar.locator("h1")).toHaveText("공고 판정 이력");
   await expect(topbar).toHaveAttribute("data-route-data-scope", "run");
   await expect(topbar.locator(".topbar-status")).toHaveCount(0);
-  // 회차 선택기는 공고 판정 이력 탭에만 있다(ADR-0046 결정 7). 검토 대기열로
-  // 옮겨도 회차는 주소에 그대로 남아 같은 회차를 계속 본다.
-  await expect(page.getByLabel("실행 회차", { exact: true })).toHaveCount(0);
+  // `/queue` 주소도 같은 route metadata를 사용하므로 선택한 회차가 유지된다.
+  await expect(page.getByLabel("실행 회차", { exact: true })).toHaveValue(RUN_ID);
   await expect(page.locator(".ws-run-note")).toContainText("공고 판정 이력");
   await expect(page.locator(".queue-page")).toBeVisible();
   expect(new URL(page.url()).searchParams.get("run")).toBe(RUN_ID);
@@ -197,7 +193,7 @@ const breadcrumbCases: BreadcrumbCase[] = [
   { name: "opportunity detail", path: "/opportunities/501", crumbs: ["탐색과 추적", "사업 추적", "#501"] },
   // 되돌릴 수 없는 결정 화면은 어느 사업기회의 결정인지 경로에 남긴다.
   { name: "bid delta", path: "/opportunities/501/bid-delta", crumbs: ["탐색과 추적", "사업 추적", "#501", "입찰 변경 비교"] },
-  { name: "queue detail", path: "/queue/29", crumbs: ["탐색과 추적", "사업 추적", "검토 대기열", "공고 29"] },
+  { name: "queue detail", path: "/queue/29", crumbs: ["탐색과 추적", "사업 추적", "공고 판정 이력", "공고 29"] },
   { name: "judgments detail", path: "/judgments/29", crumbs: ["탐색과 추적", "사업 추적", "공고 판정 이력", "공고 29"] },
   // 심층 검토 보고서는 사전규격이 여는 화면이다(ADR-0049의 자동 시작 진입점도 거기다).
   { name: "deep review", path: "/deep-reviews/fixture-review", crumbs: ["탐색과 추적", "사전규격", "심층 검토 보고서", "fixture-…"] },
