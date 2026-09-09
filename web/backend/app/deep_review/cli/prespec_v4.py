@@ -205,7 +205,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
                     options = _read_json(args.options) or {
                         "prepare_pdf": True, "ocr": False, "timeout_seconds": 300,
-                        "max_output_bytes": 20 * 1024 * 1024, "max_pdf_objects": 10000,
+                        "max_output_bytes": 64 * 1024 * 1024, "max_pdf_objects": 10000,
                     }
                     config = _read_json(args.config) or {}
                     scanner = ClamAVScanner(settings.clamav_host, settings.clamav_port, settings.clamav_timeout_seconds)
