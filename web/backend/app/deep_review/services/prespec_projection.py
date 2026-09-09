@@ -16,9 +16,9 @@ from typing import Any
 from sqlalchemy import func, select
 
 from ...core.constants import prespec_overview_status_from_v4
-from ...lifecycle import PreSpecDocumentCounts
+from ...lifecycle import PreSpecDocumentCounts, WorkloadCount
 from ..models import AttachmentFetch, PreSpecOverviewReview
-from ...lifecycle.models import Attachment
+from ...lifecycle.models import Attachment, Notice
 from .auto_preparation import auto_preparation_fields
 from .company_fit import current_v4_projections
 
@@ -129,4 +129,20 @@ class PreSpecOverviewDocumentProjection:
         ]
 
 
-__all__ = ["PreSpecOverviewDocumentProjection"]
+class DeepReviewWorkloadProjection:
+    """deep_review가 소유한 업무 건수. 대상이 없으면 실제 0이다."""
+
+    def workload_counts(self, session: Any) -> Mapping[str, WorkloadCount]:
+        from .decision_queue import decision_queue
+
+        notice_ids = session.scalars(select(Notice.id).where(Notice.source_type == "pre_spec")).all()
+        ready = PreSpecOverviewDocumentProjection().notice_ids_for_auto_preparation_status(
+            session, notice_ids, "deep_review_ready_for_click"
+        )
+        return {
+            "pre_spec_deep_review_ready": WorkloadCount(len(ready)),
+            "bid_final_decision_pending": WorkloadCount(decision_queue(session, limit=1)["total"]),
+        }
+
+
+__all__ = ["DeepReviewWorkloadProjection", "PreSpecOverviewDocumentProjection"]

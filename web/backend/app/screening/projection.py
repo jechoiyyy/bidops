@@ -24,8 +24,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from ..core.constants import GRADE_ORDER, READINESS_ORDER
+from ..lifecycle import WorkloadCount
 from ..lifecycle.models import Notice, NoticeObservation
-from .models import Judgment, JudgmentRevision, Perspective, Review
+from .models import Judgment, JudgmentRevision, Perspective, Review, VerificationAnswer, VerificationItem
 from ..lifecycle.schemas import (
     CounterargumentResponse,
     DistributionItem,
@@ -58,6 +59,49 @@ PERSPECTIVE_SPLIT_THRESHOLD = 0.40
 #: 확인 항목의 근거 문장에서 회사 프로필 절 번호만 잘라낸다. "회사 프로필 5.2의
 #: 조달 자격 항목이" 처럼 절 번호 뒤에 조사가 붙어 나온다.
 _PROFILE_SECTION_RE = re.compile(r"회사 프로필\s+(\d+(?:\.\d+)*)")
+
+
+# 기존 noticeVerificationExceptions의 ECMAScript trim과 같은 문자 집합이다.
+# Python strip은 FEFF를 남기고 U+0085 등을 지워 항목 이름의 대응을 바꾼다.
+_ITEM_NAME_TRIM_CHARACTERS = (
+    "\t\n\v\f\r \u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005"
+    "\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff"
+)
+
+
+def _item_name(value: str | None) -> str:
+    return (value or "").strip(_ITEM_NAME_TRIM_CHARACTERS)
+
+
+def _open_blocking_item_counts(
+    session: Session, notice_ids: Sequence[int] | None = None,
+) -> dict[int, int]:
+    ids = list(dict.fromkeys(int(value) for value in notice_ids)) if notice_ids is not None else None
+    if ids == []:
+        return {}
+    statement = select(Judgment.notice_id, VerificationItem.item).join(
+        VerificationItem, VerificationItem.judgment_id == Judgment.id,
+    ).where(VerificationItem.blocking.is_(True))
+    if ids is not None:
+        statement = statement.where(Judgment.notice_id.in_(ids))
+    items = session.execute(statement).all()
+    answered: dict[int, set[str]] = defaultdict(set)
+    if items:
+        # 관계 eager load를 쓰지 않아 500개 ID를 넘어도 chunk별 조회가 늘지 않는다.
+        answers = session.execute(select(Review.notice_id, VerificationAnswer.item).join(
+            VerificationAnswer, VerificationAnswer.review_id == Review.id,
+        ).where(Review.notice_id.in_({notice_id for notice_id, _ in items}))).all()
+        for notice_id, item in answers:
+            name = _item_name(item)
+            if name:
+                answered[notice_id].add(name)
+    counts: Counter[int] = Counter()
+    for notice_id, item in items:
+        # 답변 본문·현재 item status는 해소 기준이 아니다. 이름 없는 항목과
+        # 중복 항목도 기존 상세 화면의 각 행 그대로 센다.
+        if _item_name(item) not in answered.get(notice_id, set()):
+            counts[notice_id] += 1
+    return {notice_id: counts[notice_id] for notice_id in ids} if ids is not None else dict(counts)
 
 
 # --- deep_review seam (§6.3) --------------------------------------------------
@@ -571,6 +615,14 @@ class ScreeningJudgmentProjection:
         graded = {notice_id: order.get(grade, len(GRADE_ORDER)) for notice_id, grade in rows}
         return {notice_id: graded.get(notice_id, len(GRADE_ORDER)) for notice_id in ids}
 
+    def notice_ids_with_open_blocking_items(self, session: Session) -> Sequence[int]:
+        return sorted(_open_blocking_item_counts(session))
+
+    def open_blocking_item_counts(
+        self, session: Session, notice_ids: Sequence[int],
+    ) -> Mapping[int, int]:
+        return _open_blocking_item_counts(session, notice_ids)
+
     # --- 상세 ---------------------------------------------------------------
     def notice_detail(self, session: Session, notice_id: int) -> Mapping[str, Any]:
         judgment = session.scalar(
@@ -676,11 +728,33 @@ class ScreeningJudgmentProjection:
         }
 
 
+class ScreeningWorkloadProjection:
+    """발주계획 검토 대기를 기존 목록의 실행 범위·선별 조건으로 집계한다."""
+
+    def workload_counts(self, session: Session) -> Mapping[str, WorkloadCount]:
+        from .services.order_plan_screening import OrderPlanScreeningService
+
+        listing = OrderPlanScreeningService().list_order_plans(
+            session,
+            stage1_status="selected",
+            qwen_relevance="relevant,uncertain",
+            tracking_status="미선택",
+            limit=1,
+        )
+        count = (
+            WorkloadCount(None, "no_completed_execution")
+            if listing["scope"] is None
+            else WorkloadCount(listing["total"])
+        )
+        return {"order_plan_pending": count}
+
+
 __all__ = [
     "CorrectedGrade",
     "FOCUS_ORDER",
     "JudgmentSummary",
     "ScreeningJudgmentProjection",
+    "ScreeningWorkloadProjection",
     "current_judgment",
     "current_judgments",
     "latest_corrected_grade",

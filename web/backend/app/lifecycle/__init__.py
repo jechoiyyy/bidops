@@ -58,6 +58,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "portals_router": (".routers.portals", "router"),
     "pre_specs_router": (".routers.pre_specs", "router"),
     "runs_router": (".routers.runs", "router"),
+    "workload_router": (".routers.workload", "router"),
     # === 조립이 쓴다 — in-process runtime (runtime.py) =====================
     # `app/runtime.py`가 `package.build_runtime(...)`로 가져간다. runtime 객체의
     # **형**은 조립이 쓰지 않으므로 공개하지 않는다.

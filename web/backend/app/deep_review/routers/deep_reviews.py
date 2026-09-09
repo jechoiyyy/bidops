@@ -40,7 +40,7 @@ from ..schemas.page_overview import PageOverviewResponse
 from ..schemas.company_fit import CompanyFitResponse
 from ..services.company_fit import company_fit_view
 from ..services.page_overview import PageOverviewError, list_page_overviews, get_page_pdf
-from ..schemas.deep_reviews import AttemptView, DeepReviewView
+from ..schemas.deep_reviews import AttemptView, DeepReviewView, OpportunityDeepReviewsResponse
 from ..schemas.prespec_overview import (
     PreSpecOverviewReviewsResponse,
     PreSpecOverviewReviewsV2Response,
@@ -151,6 +151,18 @@ def _error_response(error: DeepReviewServiceError | InputVersionError, *, reques
         "processing_failed": 500,
     }.get(code, 400)
     return JSONResponse(status_code=getattr(error, "status_code", None) if getattr(error, "status_code", None) is not None and isinstance(error, DeepReviewServiceError) else default_status, content={"error": {"code": code, "message": messages[code], "details": None}, "request_id": str(request_id or getattr(error, "request_id", None)) if (request_id or getattr(error, "request_id", None)) else None})
+
+
+@router.get("/opportunities/{opportunity_id}/deep-reviews", response_model=OpportunityDeepReviewsResponse)
+def get_opportunity_deep_reviews(opportunity_id: int, session: Session = Depends(get_db)) -> dict[str, object] | JSONResponse:
+    try:
+        return service.opportunity_reviews(session, opportunity_id)
+    except DeepReviewServiceError as error:
+        session.rollback()
+        return _error_response(error)
+    except Exception:
+        session.rollback()
+        return _error_response(DeepReviewServiceError("processing_failed", "심층 검토를 조회할 수 없습니다", status_code=500))
 
 
 @router.post("/notices/{notice_id}/deep-reviews", response_model=DeepReviewView, status_code=202)

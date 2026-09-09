@@ -39,6 +39,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "CorrectedGrade": (".projection", "CorrectedGrade"),
     "JudgmentSummary": (".projection", "JudgmentSummary"),
     "ScreeningJudgmentProjection": (".projection", "ScreeningJudgmentProjection"),
+    "ScreeningWorkloadProjection": (".projection", "ScreeningWorkloadProjection"),
     "ScreeningRunIngestHook": (".ingest", "ScreeningRunIngestHook"),
     # === 일회성 SQLite 이전 도구가 쓴다 ====================================
     # legacy 개정 행을 지금의 payload 계약으로 다시 쓸 때 같은 정규화를 복제하지
@@ -87,7 +88,7 @@ def register_lifecycle_extensions(registry=None):
     """
 
     from .ingest import ScreeningRunIngestHook
-    from .projection import ScreeningJudgmentProjection
+    from .projection import ScreeningJudgmentProjection, ScreeningWorkloadProjection
 
     if registry is None:
         from ..lifecycle import extension_registry
@@ -97,6 +98,7 @@ def register_lifecycle_extensions(registry=None):
         ScreeningJudgmentProjection(), owner=EXTENSION_OWNER
     )
     registry.register_run_ingest_hook(ScreeningRunIngestHook(), owner=EXTENSION_OWNER)
+    registry.register_workload_projection(ScreeningWorkloadProjection(), owner=EXTENSION_OWNER)
     return registry
 
 
@@ -124,6 +126,7 @@ if TYPE_CHECKING:  # pragma: no cover - 정적 분석용 이름 노출
         CorrectedGrade,
         JudgmentSummary,
         ScreeningJudgmentProjection,
+        ScreeningWorkloadProjection,
         current_judgment,
         current_judgments,
         latest_corrected_grade,
