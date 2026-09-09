@@ -550,6 +550,17 @@ def test_multi_invocation_raw_aggregate_is_complete_sorted_and_metadata_safe():
     from app.deep_review.services.deep_reviews import _safe_invocation_metadata
     persisted = [_safe_invocation_metadata(item) for item in safe]
     assert all("locator" not in str(item) and "object_key" not in str(item) for item in persisted)
+    # 검증 재시도 관측(seed·보정 digest·사고 블록 길이)은 남고 본문은 남지 않는다.
+    observation = {"slice_index": 0, "attempts": [{
+        "retry_index": 0, "status": "failed", "error_code": "malformed_json", "latency_ms": 1,
+        "seed": 1, "correction_sha256": "c" * 64, "thinking_stripped": True, "thinking_chars": 12,
+        "correction": "must-not-persist", "prompt": "must-not-persist",
+    }]}
+    kept = _safe_invocation_metadata(observation)["attempts"][0]
+    assert kept == {
+        "retry_index": 0, "status": "failed", "error_code": "malformed_json", "latency_ms": 1,
+        "seed": 1, "correction_sha256": "c" * 64, "thinking_stripped": True, "thinking_chars": 12,
+    }
 
 
 def test_lease_budget_and_worker_id_are_bounded():

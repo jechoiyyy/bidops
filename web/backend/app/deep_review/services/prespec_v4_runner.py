@@ -74,6 +74,41 @@ V4_LUNA_REFERENCE_MODEL = "gpt-5.6-luna"
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _UNSET = object()
 
+#: 결정적 검증이 실패했을 때 같은 입력으로 더 부르는 횟수. 정책의
+#: `chunking.retries`(transport 재시도)와는 다른 축이고 정책 digest를 바꾸지
+#: 않는다 — 검증 재시도는 호출 인자이지 정책 변경이 아니다.
+VALIDATION_RETRY_LIMIT = 1
+#: 재시도 호출이 쓰는 기준 seed. 승인 기본값(0)으로 같은 프롬프트를 다시
+#: 보내면 결정적으로 같은 실패가 돌아온다.
+VALIDATION_RETRY_SEED = 1
+#: 같은 입력을 다시 보낼 가치가 있는 모델 실패 코드. timeout·provider·신원·
+#: 프롬프트 상한 실패는 응답 내용의 문제가 아니므로 포함하지 않는다.
+VALIDATION_RETRY_INVOCATION_CODES = frozenset({"malformed_json", "truncated_json"})
+#: 실패한 검사 코드만 채워 넣는 고정 문장. 원문·응답 본문을 담지 않으므로
+#: digest만 감사에 남긴다.
+CORRECTION_TEMPLATE = (
+    "이전 응답은 다음 검증에 실패했다: {codes}. 같은 입력으로 output_contract의 JSON schema에 맞는 객체 하나만 다시 출력한다."
+    " 원문에 없는 숫자·영문 용어·페이지 번호를 추가하지 않고, 사고 과정이나 설명 문장을 JSON 밖에 쓰지 않는다."
+)
+
+
+def build_correction(codes: Sequence[str]) -> str:
+    """실패 코드만 치환한 보정 지시."""
+
+    return CORRECTION_TEMPLATE.format(codes=", ".join(sorted({str(code) for code in codes if code})))
+
+
+def validation_retry_metadata(codes: Sequence[str], correction: str, first_raw_sha256: str | None) -> dict[str, Any]:
+    """감사에 남기는 재시도 사실. 코드·digest·seed뿐이며 본문은 없다."""
+
+    return {
+        "count": VALIDATION_RETRY_LIMIT,
+        "first_error_codes": [str(code) for code in codes],
+        "first_raw_response_sha256": first_raw_sha256,
+        "seed": VALIDATION_RETRY_SEED,
+        "correction_sha256": hashlib.sha256(correction.encode("utf-8")).hexdigest(),
+    }
+
 
 class V4AttemptError(RuntimeError):
     """Stable, non-sensitive v4 runner failure."""
@@ -488,6 +523,14 @@ def _model_input(manifest: Mapping[str, Any], pages: Mapping[int, str]) -> dict[
     return value
 
 
+def _response_parts(response: Any) -> tuple[Mapping[str, Any], bytes]:
+    output = getattr(response, "structured_output", None)
+    raw = getattr(response, "raw_response", None)
+    if not isinstance(output, Mapping) or not isinstance(raw, (bytes, bytearray)):
+        raise V4AttemptError("malformed_json")
+    return output, bytes(raw)
+
+
 class PrespecV4OverviewRunner:
     def __init__(
         self,
@@ -594,32 +637,47 @@ class PrespecV4OverviewRunner:
         attempt_id = attempt.id
         session.commit()
         raw_sha: str | None = None
+        retry: dict[str, Any] | None = None
         try:
             target, snapshot, input_slice, page_text = self._load_input(session, attempt, binding)
-            response = client.invoke(self.policy().stage, input_slice, self.policy().document)
-            output = getattr(response, "structured_output", None)
-            raw = getattr(response, "raw_response", None)
-            if not isinstance(output, Mapping) or not isinstance(raw, (bytes, bytearray)):
-                raise V4AttemptError("malformed_json")
-            raw_sha = self._store_raw(session, bytes(raw))
-            # The encrypted raw object is a durable failure/result audit even
-            # when deterministic result validation below rejects the attempt.
-            session.commit()
-            self._complete(session, attempt, target, snapshot, output, raw_sha, response, worker_id, page_text, binding)
+            stage, policy_document = self.policy().stage, self.policy().document
+            try:
+                response = client.invoke(stage, input_slice, policy_document)
+                output, raw = _response_parts(response)
+                raw_sha = self._store_raw(session, raw)
+                # The encrypted raw object is a durable failure/result audit even
+                # when deterministic result validation below rejects the attempt.
+                session.commit()
+                # 결정적 검증을 `_complete` 앞에서 한 번 본다. `_complete`는
+                # 그대로 최종 관문으로 다시 검사한다.
+                codes = validate_page_overview(output, dict(page_text))
+            except ModelInvocationError as error:
+                code = str(getattr(error, "code", "model_failed"))
+                if code not in VALIDATION_RETRY_INVOCATION_CODES:
+                    raise
+                raw_sha = self._store_error_raw(session, error)
+                response, output, codes = None, None, [code]
+            if codes:
+                correction = build_correction(codes)
+                retry = validation_retry_metadata(codes, correction, raw_sha)
+                response = client.invoke(
+                    stage, input_slice, policy_document, seed=VALIDATION_RETRY_SEED, correction=correction
+                )
+                output, raw = _response_parts(response)
+                raw_sha = self._store_raw(session, raw)
+                session.commit()
+            self._complete(session, attempt, target, snapshot, output, raw_sha, response, worker_id, page_text, binding, retry)
             return V4RunResult(True, attempt_id, "completed")
         except ModelInvocationError as error:
             raw = getattr(error, "raw_response", None)
             if isinstance(raw, (bytes, bytearray)):
-                try:
-                    raw_sha = self._store_raw(session, bytes(raw))
-                    session.commit()
-                except Exception:
-                    raw_sha = None
-            return self._fail(session, attempt_id, worker_id, getattr(error, "code", "model_failed"), raw_sha)
+                stored = self._store_error_raw(session, error)
+                raw_sha = stored if stored is not None else raw_sha
+            return self._fail(session, attempt_id, worker_id, getattr(error, "code", "model_failed"), raw_sha, retry)
         except (V4AttemptError, ValidationError, ObjectStoreError, OSError, ValueError) as error:
-            return self._fail(session, attempt_id, worker_id, getattr(error, "code", "validation_failed"), raw_sha)
+            return self._fail(session, attempt_id, worker_id, getattr(error, "code", "validation_failed"), raw_sha, retry)
         except Exception:
-            return self._fail(session, attempt_id, worker_id, "runner_failed", raw_sha)
+            return self._fail(session, attempt_id, worker_id, "runner_failed", raw_sha, retry)
 
     def _load_input(self, session: Session, attempt: PrespecV4Attempt, binding: V4ModelBinding) -> tuple[PrespecV4Target, PrespecV4PdfSnapshot, dict[str, Any], dict[int, str]]:
         target = session.get(PrespecV4Target, attempt.target_id)
@@ -653,7 +711,20 @@ class PrespecV4OverviewRunner:
             self.raw_response_store = EncryptedModelResponseStore(self.settings or get_settings())
         return store_raw_model_response(session, raw, store=self.raw_response_store, clock=self.clock)
 
-    def _complete(self, session: Session, attempt: PrespecV4Attempt, target: PrespecV4Target, snapshot: PrespecV4PdfSnapshot, output: Mapping[str, Any], raw_sha: str, response: Any, worker_id: str, pages: Mapping[int, str], binding: V4ModelBinding) -> None:
+    def _store_error_raw(self, session: Session, error: ModelInvocationError) -> str | None:
+        """실패 응답 원본도 감사로 남긴다. 저장 실패는 실패 사유를 덮지 않는다."""
+
+        raw = getattr(error, "raw_response", None)
+        if not isinstance(raw, (bytes, bytearray)):
+            return None
+        try:
+            stored = self._store_raw(session, bytes(raw))
+            session.commit()
+            return stored
+        except Exception:
+            return None
+
+    def _complete(self, session: Session, attempt: PrespecV4Attempt, target: PrespecV4Target, snapshot: PrespecV4PdfSnapshot, output: Mapping[str, Any], raw_sha: str, response: Any, worker_id: str, pages: Mapping[int, str], binding: V4ModelBinding, retry: Mapping[str, Any] | None = None) -> None:
         live = session.scalar(select(PrespecV4Attempt).where(PrespecV4Attempt.id == attempt.id).with_for_update())
         if live is None or live.status != "running" or live.lease_owner != worker_id or (live.lease_expires_at and live.lease_expires_at <= self.clock()):
             raise V4AttemptError("stale_attempt")
@@ -700,10 +771,10 @@ class PrespecV4OverviewRunner:
                 job.completed_at = live.completed_at
                 job.lease_owner = None
                 job.lease_expires_at = None
-        session.add(AuditEvent(actor_kind="system", claimed_name=None, action="prespec_v4.attempt_run", aggregate_type="prespec_v4_attempt", aggregate_id=str(live.id), safe_metadata={"notice_id": live.notice_id, "status": "completed", "result_id": str(result.id), "raw_response_sha256": raw_sha}))
+        session.add(AuditEvent(actor_kind="system", claimed_name=None, action="prespec_v4.attempt_run", aggregate_type="prespec_v4_attempt", aggregate_id=str(live.id), safe_metadata={"notice_id": live.notice_id, "status": "completed", "result_id": str(result.id), "raw_response_sha256": raw_sha, "validation_retry": dict(retry) if retry else None}))
         session.commit()
 
-    def _fail(self, session: Session, attempt_id: UUID, worker_id: str, reason_code: str, raw_sha: str | None) -> V4RunResult:
+    def _fail(self, session: Session, attempt_id: UUID, worker_id: str, reason_code: str, raw_sha: str | None, retry: Mapping[str, Any] | None = None) -> V4RunResult:
         session.rollback()
         attempt = session.scalar(select(PrespecV4Attempt).where(PrespecV4Attempt.id == attempt_id).with_for_update())
         code = str(reason_code or "failed")[:64]
@@ -724,7 +795,7 @@ class PrespecV4OverviewRunner:
                 job.completed_at = attempt.completed_at
                 job.lease_owner = None
                 job.lease_expires_at = None
-        session.add(AuditEvent(actor_kind="system", claimed_name=None, action="prespec_v4.attempt_run", aggregate_type="prespec_v4_attempt", aggregate_id=str(attempt.id), safe_metadata={"notice_id": attempt.notice_id, "status": "failed", "reason_code": code, "raw_response_sha256": raw_sha}))
+        session.add(AuditEvent(actor_kind="system", claimed_name=None, action="prespec_v4.attempt_run", aggregate_type="prespec_v4_attempt", aggregate_id=str(attempt.id), safe_metadata={"notice_id": attempt.notice_id, "status": "failed", "reason_code": code, "raw_response_sha256": raw_sha, "validation_retry": dict(retry) if retry else None}))
         session.commit()
         return V4RunResult(True, attempt_id, "failed", code)
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -37,10 +38,14 @@ from .test_prespec_v4_preparation import (
 
 
 class _RawStore:
+    def __init__(self):
+        self.calls: list[bytes] = []
+
     def put_encrypted(self, data: bytes, *, retention_days: int, content_type: str):
         del retention_days, content_type
+        self.calls.append(data)
         return {
-            "object_key": "model-response/v4.raw",
+            "object_key": f"model-response/v4-{len(self.calls)}.raw",
             "object_version_id": "v1",
             "etag": _sha(data),
             "plaintext_sha256": _sha(data),
@@ -50,19 +55,50 @@ class _RawStore:
 
 
 class _Client:
-    def __init__(self, output):
-        self.output = output
-        self.inputs = []
+    """호출별 응답을 순서대로 낸다. 마지막 응답은 이후 호출에서 반복된다.
 
-    def invoke(self, stage, input_slice, policy):
+    응답 자리에 예외를 두면 그 호출이 그 예외를 던진다.
+    """
+
+    def __init__(self, *outputs):
+        self.outputs = list(outputs)
+        self.inputs = []
+        self.calls = []
+
+    def invoke(self, stage, input_slice, policy, *, seed=None, correction=None):
         self.inputs.append((stage, input_slice, policy))
+        self.calls.append({"seed": seed, "correction": correction})
+        output = self.outputs[min(len(self.calls) - 1, len(self.outputs) - 1)]
+        if isinstance(output, Exception):
+            raise output
         return SimpleNamespace(
-            structured_output=self.output,
-            raw_response=json.dumps(self.output, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode(),
+            structured_output=output,
+            raw_response=_raw(output),
             prompt_tokens=2,
             output_tokens=3,
             latency_ms=4,
         )
+
+
+def _raw(output):
+    return json.dumps(output, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+
+
+def _audit_metadata(session, attempt_id):
+    from app.core.models import AuditEvent
+
+    rows = list(session.scalars(
+        select(AuditEvent)
+        .where(AuditEvent.action == "prespec_v4.attempt_run", AuditEvent.aggregate_id == str(attempt_id))
+    ))
+    assert len(rows) == 1
+    return rows[0].safe_metadata
+
+
+def _mislocated(pages):
+    payload = _payload()
+    payload["business_overview"] = [{"text": "목적", "evidence_pages": [page] } for page in pages]
+    return payload
 
 
 @pytest.fixture(autouse=True)
@@ -286,6 +322,93 @@ def test_v4_validation_failure_keeps_encrypted_raw_and_no_result(tmp_path):
     assert session.scalar(select(ContentObject).where(ContentObject.sha256 == row.raw_response_sha256)) is not None
     session.close()
     engine.dispose()
+
+
+def _queued(tmp_path):
+    engine, session, store, target = _ready_target(tmp_path)
+    policy = load_v4_policy()
+    binding = V4ModelBinding(provider="test", model_name=policy.model_name, model_digest="a" * 64,
+                             prompt_version=policy.prompt_version, policy_digest=policy.digest, reference_only=True)
+    _activate_for_target(session, target, binding)
+    attempt = enqueue_v4_attempt(session, target_id=target.id, binding=binding)
+    session.commit()
+    return engine, session, store, target, policy, binding, attempt
+
+
+def _run(session, store, policy, binding, client, raw_store):
+    return PrespecV4OverviewRunner(
+        client=client, binding=binding, policy=policy, raw_response_store=raw_store, object_store=store
+    ).run_once(session, "v4-test-worker")
+
+
+def test_v4_validation_failure_retries_once_with_correction_and_completes(tmp_path):
+    engine, session, store, target, policy, binding, attempt = _queued(tmp_path)
+    first, raw_store = _mislocated([99]), _RawStore()
+    client = _Client(first, _payload())
+
+    result = _run(session, store, policy, binding, client, raw_store)
+
+    assert result.status == "completed"
+    row = session.get(PrespecV4Attempt, attempt.id)
+    assert row is not None and row.status == "completed" and row.result_id is not None
+    # 마지막 응답이 행의 원본이고, 두 응답 모두 암호화 저장을 거쳤다.
+    assert row.raw_response_sha256 == _sha(_raw(_payload()))
+    assert raw_store.calls == [_raw(first), _raw(_payload())]
+    assert len(client.calls) == 2
+    assert client.calls[0] == {"seed": None, "correction": None}
+    assert client.calls[1]["seed"] == 1
+    assert "pdf_locator_mismatch" in client.calls[1]["correction"]
+    # 재시도는 같은 입력을 다시 보낸다.
+    assert client.inputs[0][1] == client.inputs[1][1]
+    retry = _audit_metadata(session, attempt.id)["validation_retry"]
+    assert retry == {
+        "count": 1,
+        "first_error_codes": ["pdf_locator_mismatch"],
+        "first_raw_response_sha256": _sha(_raw(first)),
+        "seed": 1,
+        "correction_sha256": hashlib.sha256(client.calls[1]["correction"].encode("utf-8")).hexdigest(),
+    }
+    session.close()
+    engine.dispose()
+
+
+def test_v4_second_validation_failure_stays_failed_with_the_retry_code(tmp_path):
+    engine, session, store, target, policy, binding, attempt = _queued(tmp_path)
+    first, second, raw_store = _mislocated([99]), _mislocated([98]), _RawStore()
+
+    result = _run(session, store, policy, binding, _Client(first, second), raw_store)
+
+    assert result.status == "failed" and result.reason_code == "pdf_locator_mismatch"
+    row = session.get(PrespecV4Attempt, attempt.id)
+    assert row is not None and row.status == "failed" and row.result_id is None
+    assert row.error_code == "pdf_locator_mismatch"
+    assert row.raw_response_sha256 == _sha(_raw(second))
+    assert raw_store.calls == [_raw(first), _raw(second)]
+    retry = _audit_metadata(session, attempt.id)["validation_retry"]
+    assert retry["count"] == 1 and retry["first_raw_response_sha256"] == _sha(_raw(first))
+    session.close()
+    engine.dispose()
+
+
+def test_v4_prompt_rejection_and_transport_failure_never_retry(tmp_path):
+    from app.core.model_client import ModelInvocationError, PromptTooLargeError
+
+    for failure, code in ((PromptTooLargeError("too large"), "prompt_rejected"),
+                          (ModelInvocationError("timeout", ()), "timeout")):
+        workspace = tmp_path / code
+        workspace.mkdir()
+        engine, session, store, target, policy, binding, attempt = _queued(workspace)
+        client = _Client(failure)
+
+        result = _run(session, store, policy, binding, client, _RawStore())
+
+        assert result.status == "failed" and result.reason_code == code
+        assert len(client.calls) == 1
+        row = session.get(PrespecV4Attempt, attempt.id)
+        assert row is not None and row.error_code == code and row.result_id is None
+        assert _audit_metadata(session, attempt.id)["validation_retry"] is None
+        session.close()
+        engine.dispose()
 
 
 def test_preparation_failure_is_the_current_safe_state(tmp_path):

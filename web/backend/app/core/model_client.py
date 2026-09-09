@@ -387,6 +387,12 @@ def _strip_leading_thinking(content: str) -> tuple[str, int | None]:
     return remainder, len(content) - len(remainder)
 
 
+#: 같은 규칙을 도메인 runner도 쓴다. `<think>`를 흘리는 배치의 응답은 저장된
+#: 원본 bytes와 파싱 대상이 달라지므로, raw와 파싱 결과를 대조하는 쪽이 이
+#: 함수를 거치지 않으면 정상 응답을 불일치로 잘못 판정한다.
+strip_leading_thinking = _strip_leading_thinking
+
+
 def _attempt_observation(
     *,
     retry_index: int,
@@ -902,4 +908,5 @@ __all__ = [
     "build_prompt",
     "resolve_model_endpoint",
     "sanitize_for_prompt",
+    "strip_leading_thinking",
 ]
