@@ -339,7 +339,8 @@ test("사이드바 7항목이 모두 실제 화면으로 연결되고 최종 Go/
   await page.goto("/");
   await page.locator("aside.sidebar").getByRole("link", { name: "최종 Go/No-Go", exact: true }).click();
   await expect(page.locator("header.topbar h1")).toHaveText("최종 Go/No-Go");
-  await expect(page.getByRole("heading", { name: "최종 Go/No-Go", level: 2 })).toBeVisible();
+  // 제목은 상단바 하나뿐이다. 화면은 제목 줄을 그리지 않고 자기 본문만 그린다.
+  await expect(page.locator(".gng-page")).toBeVisible();
 });
 
 // ADR-0046 결정 7: 회차 축은 대시보드와 공고 판정 이력 두 화면뿐이다. 공고 판정

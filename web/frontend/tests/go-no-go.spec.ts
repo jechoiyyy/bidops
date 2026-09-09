@@ -214,6 +214,27 @@ test("추적 상태가 계속 추적인 사업기회만 조회한다", async ({ 
   expect(queries[0]).toMatchObject({ tracking_status: "계속 추적", limit: "25", offset: "0" });
 });
 
+// 목록 4화면은 상단바가 제목을 그리고 페이지는 제목 줄을 두지 않는다(계획서 §1).
+// 화면 안에 제목이 다시 생기면 세로 공간을 두 번 쓰고 h1/h2가 같은 말을 반복한다.
+test("화면 제목과 페이지 액션은 상단바에 있고 경로·편집 범위는 그리지 않는다", async ({ page }) => {
+  await openList(page);
+  const topbar = page.locator("header.topbar");
+
+  await expect(topbar).toHaveAttribute("data-topbar-mode", "title");
+  await expect(topbar.locator("h1")).toHaveText("최종 Go/No-Go");
+  await expect(topbar.locator(".topbar-breadcrumb")).toHaveCount(0);
+  await expect(topbar.locator(".topbar-status")).toHaveCount(0);
+
+  // 페이지에 남는 제목은 landmark 이름과 h1 → h2 위계를 위한 숨긴 제목 하나다.
+  await expect(page.locator("#go-no-go-title")).toHaveClass(/visually-hidden/);
+
+  // `데이터 현황`은 상단바 슬롯으로 올라가지만 대화상자는 여전히 이 화면이 연다.
+  const dataAction = topbar.getByRole("button", { name: "데이터 현황", exact: true });
+  await expect(dataAction).toBeVisible();
+  await dataAction.click();
+  await expect(page.getByRole("dialog")).toContainText("‘계속 추적’인 사업기회만 최종 Go/No-Go 대상입니다");
+});
+
 test("데이터 현황은 API 경계와 집계 범위를 기본 화면 밖에서 설명한다", async ({ page }) => {
   await openList(page);
   await page.getByRole("button", { name: "데이터 현황", exact: true }).click();

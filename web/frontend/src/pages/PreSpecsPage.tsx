@@ -5,13 +5,23 @@ import { Button } from "@astryxdesign/core/Button";
 import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
 import { Heading } from "@astryxdesign/core/Heading";
 import { Selector } from "@astryxdesign/core/Selector";
-import { TextInput } from "@astryxdesign/core/TextInput";
 import { Token } from "@astryxdesign/core/Token";
-import { Search } from "lucide-react";
 import { Badge } from "../components/common/Badge";
 import { EmptyState } from "../components/common/EmptyState";
+import { PageHeaderActions } from "../components/common/PageHeaderActions";
 import { useUnsavedGuard } from "../components/common/useUnsavedGuard";
 import { DenseList, DenseListRow, SplitWorkspace } from "../components/common/ReviewPrimitives";
+import {
+  WorkspaceAdvancedToggle,
+  WorkspaceFilterAdvanced,
+  WorkspaceFilterBar,
+  WorkspaceFilterContext,
+  WorkspaceFilterEnd,
+  WorkspaceFilterLine,
+  WorkspaceFrame,
+  WorkspaceSearch,
+  WorkspaceViewTabs,
+} from "../components/common/WorkspaceFilters";
 import { getDocumentBundles } from "../components/deep-review/api";
 import {
   BUNDLE_STATUS_LABELS,
@@ -102,8 +112,15 @@ interface ViewDefinition {
   description: string;
 }
 
+/**
+ * 나열 순서는 **사람이 찾는 차례**다(사용자 결정 2026-09-08): 먼저 전체를 보고,
+ * 끝난 건(`개요 완료`)을 확인한 뒤, 손이 필요한 건(`사람 확인`)과 아직 도는 건
+ * (`진행·대기`)으로 내려가고, 예외인 `실패`·`취소`가 마지막이다. 묶음의 뜻과 key는
+ * 그대로이므로 `validView`·`viewOf`·`viewCounts`는 영향을 받지 않는다.
+ */
 const VIEWS: readonly ViewDefinition[] = [
   { key: "all", label: "전체", statuses: null, description: "현재 필터에 맞는 사전규격 전체" },
+  { key: "completed", label: "개요 완료", statuses: ["completed"], description: "개요 검토가 완료된 건" },
   { key: "attention", label: "사람 확인", statuses: ["needs_human_review"], description: "개요 입력 범위나 결과를 사람이 확인해야 하는 건" },
   {
     key: "pending",
@@ -111,9 +128,17 @@ const VIEWS: readonly ViewDefinition[] = [
     statuses: [null, "awaiting_document", "awaiting_structure", "preparing", "awaiting_model", "queued", "running"],
     description: "개요 검토를 아직 시작하지 않았거나 준비·실행을 기다리는 건",
   },
-  { key: "completed", label: "개요 완료", statuses: ["completed"], description: "개요 검토가 완료된 건" },
   { key: "failed", label: "실패", statuses: ["failed"], description: "개요 검토가 실패한 건" },
   { key: "cancelled", label: "취소", statuses: ["cancelled"], description: "개요 검토 실행이 취소된 건" },
+];
+
+/**
+ * 표시 순서. 기본값 `published`는 URL에 싣지 않으므로 인자가 없으면 게시 최신순이다.
+ * 정렬은 서버 질의 인자이고 화면이 다시 줄 세우지 않는다.
+ */
+const SORT_OPTIONS: readonly { value: PreSpecSort; label: string }[] = [
+  { value: "published", label: "게시 최신순" },
+  { value: "deadline", label: "마감 임박순" },
 ];
 
 /** 추적 결정 사유로 자주 쓰는 문장. 예시일 뿐이며 저장되는 값은 사람이 적은 사유다. */
@@ -1063,64 +1088,54 @@ export function PreSpecsPage() {
 
   return (
     <section className="pre-specs-page" data-astryx-theme="bidops" aria-labelledby="page-title">
-      <header className="pre-specs-page-header">
-        <Heading level={2} id="page-title">사전규격</Heading>
-        <Button label="표시 범위" size="sm" variant="ghost" onClick={() => setScopeDialogOpen(true)} />
-      </header>
+      {/* 화면 제목은 셸 상단바가 그린다(제목 모드). 페이지는 같은 이름을 세로로 한 번
+          더 쓰지 않고, `aria-labelledby`가 가리킬 숨긴 제목만 남긴다. 페이지 상태를
+          쓰는 액션(`표시 범위`)은 상단바 슬롯으로 portal한다. */}
+      <h2 className="visually-hidden" id="page-title">사전규격</h2>
+      <PageHeaderActions>
+        <div className="pre-specs-header-actions">
+          <Button label="표시 범위" size="sm" variant="ghost" onClick={() => setScopeDialogOpen(true)} />
+        </div>
+      </PageHeaderActions>
 
-      <div className="pre-specs-workspace-shell">
-        <section className="pre-specs-filters" aria-label="사전규격 필터">
-          <div className="pre-specs-filter-main">
-            <div className="pre-specs-views" role="group" aria-label="개요 검토 상태 보기">
-              {VIEWS.filter((definition) => (
+      <WorkspaceFrame>
+        <WorkspaceFilterBar aria-label="사전규격 필터" className="pre-specs-filters">
+          <WorkspaceFilterLine>
+            {/* 건수는 서버 전체 집계다. 아직 못 불러왔으면 0으로 채우지 않고 `–`로
+                남긴다(`null`) — 미로딩과 0건은 서로 다른 사실이다. `취소`는 실패와
+                뜻이 달라 자기 보기를 갖되, 건수가 0이고 지금 보고 있지도 않으면
+                자리만 차지하므로 감춘다. */}
+            <WorkspaceViewTabs
+              className="pre-specs-views"
+              label="개요 검토 상태 보기"
+              onChange={(key) => updateSearchParams({ view: key === "all" ? null : key })}
+              tabs={VIEWS.filter((definition) => (
                 definition.key !== "cancelled" || view === "cancelled" || (viewCounts.get("cancelled") ?? 0) > 0
-              )).map((definition) => (
-                <button
-                  key={definition.key}
-                  type="button"
-                  className="pre-specs-view-button"
-                  aria-pressed={view === definition.key}
-                  onClick={() => updateSearchParams({ view: definition.key === "all" ? null : definition.key })}
-                >
-                  {definition.label}
-                  <span className="pre-specs-view-count mono tabular-nums">
-                    {result.isSuccess ? viewCounts.get(definition.key) ?? 0 : "–"}
-                  </span>
-                </button>
-              ))}
-            </div>
-            <div className="pre-specs-filter-end">
-              <form
-                className="pre-specs-search"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  updateSearchParams({ q: searchText.trim() || null });
-                }}
-              >
-                <TextInput
-                  label="사업명·기관명 검색"
-                  isLabelHidden
-                  placeholder="사업명·기관명 검색"
-                  size="sm"
-                  startIcon={Search}
-                  hasClear
-                  value={searchText}
-                  onChange={setSearchText}
-                  onEnter={() => updateSearchParams({ q: searchText.trim() || null })}
-                />
-                <Button label="검색" size="sm" type="submit" />
-              </form>
-              <Button
-                label="상세 필터"
-                size="sm"
-                aria-expanded={advancedOpen}
-                aria-controls="pre-specs-advanced-filters"
-                onClick={() => setAdvancedOpen((open) => !open)}
+              )).map((definition) => ({
+                key: definition.key,
+                label: definition.label,
+                count: result.isSuccess ? viewCounts.get(definition.key) ?? 0 : null,
+              }))}
+              value={view}
+            />
+            <WorkspaceFilterEnd>
+              {/* `q`는 서버 질의 인자다. 글자를 칠 때마다 목록을 다시 부르지 않고
+                  Enter로 적용한다(적용 시점은 데이터 원천이 정한다). */}
+              <WorkspaceSearch
+                label="사업명·기관명 검색"
+                onChange={setSearchText}
+                onEnter={() => updateSearchParams({ q: searchText.trim() || null })}
+                value={searchText}
               />
-            </div>
-          </div>
+              <WorkspaceAdvancedToggle
+                controlsId="pre-specs-advanced-filters"
+                isOpen={advancedOpen}
+                onToggle={() => setAdvancedOpen((open) => !open)}
+              />
+            </WorkspaceFilterEnd>
+          </WorkspaceFilterLine>
 
-          <div className="pre-specs-filter-context">
+          <WorkspaceFilterContext className="pre-specs-filter-context">
             <div className="pre-specs-filter-context-start">
               <label className="pre-specs-switch">
                 <input
@@ -1136,29 +1151,23 @@ export function PreSpecsPage() {
                   : "SW사업대상과 무관한 사전규격까지 조회"}
               </span>
             </div>
-            <div className="pre-specs-sort" role="group" aria-label="정렬">
-              <span>정렬</span>
-              <button
-                type="button"
-                className="pre-specs-sort-button"
-                aria-pressed={sort === "published"}
-                onClick={() => updateSearchParams({ sort: null })}
-              >
-                게시 최신순
-              </button>
-              <button
-                type="button"
-                className="pre-specs-sort-button"
-                aria-pressed={sort === "deadline"}
-                onClick={() => updateSearchParams({ sort: "deadline" })}
-              >
-                마감 임박순
-              </button>
-            </div>
-          </div>
+            {/* 기본 화면에는 설명 문단을 두지 않는다. 필터의 적용 범위는 목록
+                바닥의 짧은 문구와 `표시 범위` 대화상자가 갖는다. 등급 필터는 서버가
+                거르지 못하는 필터라 켜져 있을 때만 한 줄로 밝힌다. */}
+            {gradeFilter ? (
+              <p className="pre-specs-grade-filter-note" role="status">
+                등급 필터는 불러온 페이지에만 적용됩니다. 보기 건수는 서버 전체 집계입니다.
+              </p>
+            ) : null}
+          </WorkspaceFilterContext>
 
           {advancedOpen ? (
-            <div className="pre-specs-advanced" id="pre-specs-advanced-filters">
+            <WorkspaceFilterAdvanced
+              columns={4}
+              id="pre-specs-advanced-filters"
+              onReset={restoreDefaults}
+              resetLabel="기본값으로"
+            >
               {/* `전체`는 값이 없는 상태이지 다섯 번째 선택지가 아니다. Selector에는
                   빈 문자열을 줄 수 없어 표식값(ALL_OPTION)으로 두고, URL에는 인자를
                   지우는 것으로 옮긴다. */}
@@ -1192,19 +1201,18 @@ export function PreSpecsPage() {
                 value={gradeFilter || ALL_OPTION}
                 onChange={(value) => updateSearchParams({ grade: value === ALL_OPTION ? null : value })}
               />
-              <button className="interaction-control pre-specs-reset" type="button" onClick={restoreDefaults}>기본값으로</button>
-            </div>
+              {/* 정렬은 사업 추적과 같은 자리(상세 필터 안 Selector)로 옮겼다. 접혀
+                  있어도 지금 어떤 순서인지는 목록 머리가 글자로 밝힌다. */}
+              <Selector
+                label="표시 순서"
+                size="sm"
+                options={SORT_OPTIONS.map(({ value, label }) => ({ value, label }))}
+                value={sort}
+                onChange={(value) => updateSearchParams({ sort: value === "published" ? null : value })}
+              />
+            </WorkspaceFilterAdvanced>
           ) : null}
-
-          {/* 기본 화면에는 설명 문단을 두지 않는다. 필터의 적용 범위는 목록
-              바닥의 짧은 문구와 `표시 범위` 대화상자가 갖는다. 등급 필터는 서버가
-              거르지 못하는 필터라 켜져 있을 때만 한 줄로 밝힌다. */}
-          {gradeFilter ? (
-            <p className="pre-specs-grade-filter-note" role="status">
-              등급 필터는 불러온 페이지에만 적용됩니다. 보기 건수는 서버 전체 집계입니다.
-            </p>
-          ) : null}
-        </section>
+        </WorkspaceFilterBar>
 
         {result.isPending ? (
           <div className="pre-specs-loading" role="status" aria-live="polite">사전규격 목록을 불러오는 중입니다.</div>
@@ -1225,7 +1233,10 @@ export function PreSpecsPage() {
                 <strong>
                   사전규격 목록 <span className="mono tabular-nums">{items.length}</span>건
                 </strong>
-                <span>{viewOf(view).description}</span>
+                {/* 정렬은 상세 필터 안에 있어 접히면 보이지 않는다. 지금 어떤
+                    순서로 줄 세웠는지는 목록 머리가 늘 글자로 밝힌다(대시보드가
+                    `/pre-specs?sort=deadline`로 곧장 연결한다). */}
+                <span>{viewOf(view).description}{sort === "deadline" ? " · 마감 임박순" : ""}</span>
               </header>
               <div className="pre-specs-list-columns" aria-hidden="true">
                 <span>사업명 / 발주기관</span>
@@ -1342,7 +1353,7 @@ export function PreSpecsPage() {
             </button>
           </nav>
         ) : null}
-      </div>
+      </WorkspaceFrame>
 
       <Dialog isOpen={scopeDialogOpen} onOpenChange={(open) => { if (!open) setScopeDialogOpen(false); }} purpose="info" width={620}>
         <DialogHeader title="표시 범위" onOpenChange={() => setScopeDialogOpen(false)} />
