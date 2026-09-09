@@ -174,6 +174,16 @@ def _section_expression(session: Session):
     )
 
 
+def count_opportunity_section(session: Session, section: OpportunitySection) -> int:
+    """목록과 같은 첫 일치 규칙으로 활성 사업기회 구역을 집계한다."""
+    return int(session.scalar(
+        select(func.count(Opportunity.id)).where(
+            active_opportunity_predicate(Opportunity),
+            _section_expression(session) == section,
+        )
+    ))
+
+
 def _page_blocking_counts(session: Session, opportunities: list[Opportunity]) -> dict[int, int]:
     # 이 값은 소유권이 아니라 기존 상세의 전체 링크를 통한 확인 항목 범위다.
     # 같은 공고의 연결 이력이 여러 번 있어도 확인 항목은 한 번만 센다.
