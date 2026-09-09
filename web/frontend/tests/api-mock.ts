@@ -1618,6 +1618,7 @@ const c2Items: Omit<OrderPlanListItem, "tracking">[] = [
   {
     order_plan_pk: 101,
     order_plan_unty_no: "OP-2026-00101",
+    source_url: "https://www.g2b.go.kr/link/PRPA015_01/single/?oderPlanNo=OP-2026-00101",
     title: "인공지능 기반 공공데이터 통합·분석 플랫폼 구축 및 운영 지원 사업 발주계획(장기계속계약)",
     agency_name: "서울특별시 디지털정책관",
     business_division: "정보화",
@@ -1646,6 +1647,7 @@ const c2Items: Omit<OrderPlanListItem, "tracking">[] = [
   {
     order_plan_pk: 102,
     order_plan_unty_no: "OP-2026-00102",
+    source_url: "https://www.g2b.go.kr/link/PRPA015_01/single/?oderPlanNo=OP-2026-00102",
     title: "지방공기업 업무혁신 및 데이터 연계 체계 고도화",
     agency_name: "경기도청",
     business_division: "행정",
@@ -1667,6 +1669,7 @@ const c2Items: Omit<OrderPlanListItem, "tracking">[] = [
   {
     order_plan_pk: 103,
     order_plan_unty_no: "OP-2026-00103",
+    source_url: "https://www.g2b.go.kr/link/PRPA015_01/single/?oderPlanNo=OP-2026-00103",
     title: "청사 시설관리 용역 발주계획",
     agency_name: "부산광역시",
     business_division: "시설관리",
@@ -1688,6 +1691,7 @@ const c2Items: Omit<OrderPlanListItem, "tracking">[] = [
   {
     order_plan_pk: 104,
     order_plan_unty_no: "OP-2026-00104",
+    source_url: "https://www.g2b.go.kr/link/PRPA015_01/single/?oderPlanNo=OP-2026-00104",
     title: "복지서비스 운영 지원 발주계획",
     agency_name: "대전광역시",
     business_division: "복지",
@@ -1709,6 +1713,7 @@ const c2Items: Omit<OrderPlanListItem, "tracking">[] = [
   {
     order_plan_pk: 105,
     order_plan_unty_no: "OP-2026-00105",
+    source_url: "https://www.g2b.go.kr/link/PRPA015_01/single/?oderPlanNo=OP-2026-00105",
     title: "공공기관 업무시스템 개선 검토",
     agency_name: "인천광역시",
     business_division: "정보화",
@@ -1730,6 +1735,7 @@ const c2Items: Omit<OrderPlanListItem, "tracking">[] = [
   {
     order_plan_pk: 106,
     order_plan_unty_no: "OP-2026-00106",
+    source_url: "https://www.g2b.go.kr/link/PRPA015_01/single/?oderPlanNo=OP-2026-00106",
     title: "지역 데이터 활용 사업 사전 조사",
     agency_name: "충청북도",
     business_division: "정보화",
@@ -1751,6 +1757,7 @@ const c2Items: Omit<OrderPlanListItem, "tracking">[] = [
   {
     order_plan_pk: 107,
     order_plan_unty_no: "OP-2026-00107",
+    source_url: "https://www.g2b.go.kr/link/PRPA015_01/single/?oderPlanNo=OP-2026-00107",
     title: "노후 전산망 재해복구체계 구축 사전 검토",
     agency_name: "강원특별자치도",
     business_division: "정보화",
@@ -1772,6 +1779,7 @@ const c2Items: Omit<OrderPlanListItem, "tracking">[] = [
   {
     order_plan_pk: 108,
     order_plan_unty_no: "OP-2026-00108",
+    source_url: "https://www.g2b.go.kr/link/PRPA015_01/single/?oderPlanNo=OP-2026-00108",
     title: "행정정보 공동이용 확대 사업 발주계획",
     agency_name: "경상남도",
     business_division: "정보화",
@@ -1839,11 +1847,12 @@ function c2DetailArtifacts(executionId: string) {
 }
 
 const c2Detail = {
-  schema_version: "order-plan-detail-response.v2",
+  schema_version: "order-plan-detail-response.v3",
   producer: "screening-api",
   consumer: "order-plan-review-client",
   order_plan_pk: 101,
   order_plan_unty_no: "OP-2026-00101",
+  source_url: c2Items[0].source_url,
   title: c2Items[0].title,
   agency_name: c2Items[0].agency_name,
   business_division: c2Items[0].business_division,
@@ -1951,7 +1960,7 @@ function c2ExecutionDetail(execution: OrderPlanScreeningExecutionSummary) {
   };
 }
 
-/** C-2 v2 mock server. Queries filter before counting and pagination. */
+/** C-2 v3 mock server. Queries filter before counting and pagination. */
 export async function mockOrderPlans(page: Page, scenario: OrderPlanMockScenario = "default", options: OrderPlanMockOptions = {}): Promise<OrderPlanMockTrace> {
   const trace: OrderPlanMockTrace = { feedbackPosts: [], trackingPatches: [], executionPosts: [], stopPosts: [] };
   const trackingState = new Map<number, OrderPlanTracking>();
@@ -2080,7 +2089,7 @@ export async function mockOrderPlans(page: Page, scenario: OrderPlanMockScenario
     }
     if (pathname === "/api/order-plans" && method === "GET") {
       const items = listItems(search), limit = Number(search.get("limit") ?? 100), offset = Number(search.get("offset") ?? 0);
-      await fulfillJson(route, { schema_version: "order-plan-list-response.v2", producer: "order-plan-review-api", consumer: "order-plan-review-client", scope: scopeFor(search.get("source_run_id")), items: items.slice(offset, offset + limit).map((item) => {
+      await fulfillJson(route, { schema_version: "order-plan-list-response.v3", producer: "order-plan-review-api", consumer: "order-plan-review-client", scope: scopeFor(search.get("source_run_id")), items: items.slice(offset, offset + limit).map((item) => {
         if (!options.omitTracking) return item;
         const { tracking: _tracking, ...legacy } = item;
         return legacy;
@@ -2092,7 +2101,7 @@ export async function mockOrderPlans(page: Page, scenario: OrderPlanMockScenario
       if (!plan) { await error(route, "not_found", null, 404); return; }
       const history = scopeFor(null) && orderPlanPk === 101 ? c2Detail.screening_history : [];
       if (method === "GET" && !planMatch[2]) {
-        await fulfillJson(route, { ...c2Detail, order_plan_pk: orderPlanPk, order_plan_unty_no: plan.order_plan_unty_no, title: plan.title, agency_name: plan.agency_name, budget_amount: plan.budget_amount, business_division: plan.business_division, planned_order_year: plan.planned_order_year, planned_order_month: plan.planned_order_month, screening_history: history, latest_human_feedback: plan.human_feedback, tracking: plan.tracking }); return;
+        await fulfillJson(route, { ...c2Detail, order_plan_pk: orderPlanPk, order_plan_unty_no: plan.order_plan_unty_no, source_url: plan.source_url, title: plan.title, agency_name: plan.agency_name, budget_amount: plan.budget_amount, business_division: plan.business_division, planned_order_year: plan.planned_order_year, planned_order_month: plan.planned_order_month, screening_history: history, latest_human_feedback: plan.human_feedback, tracking: plan.tracking }); return;
       }
       if (method === "GET" && planMatch[2] === "screening-history") { await fulfillJson(route, { schema_version: "order-plan-detail-response.v1", producer: "screening-api", consumer: "order-plan-review-client", order_plan_pk: orderPlanPk, items: history }); return; }
       if (method === "GET" && planMatch[2] === "screening-feedback") { await fulfillJson(route, { schema_version: "feedback-list-response.v1", producer: "screening-api", consumer: "order-plan-review-client", items: feedbackItems.filter((item) => item.order_plan_pk === orderPlanPk && (!search.get("execution_id") || item.execution_id === search.get("execution_id"))).slice().reverse() }); return; }

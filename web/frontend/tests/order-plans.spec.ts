@@ -43,6 +43,7 @@ function testOrderPlanItem(orderPlanPk: number, relevance: "relevant" | "uncerta
   return {
     order_plan_pk: orderPlanPk,
     order_plan_unty_no: `OP-TEST-${String(orderPlanPk).padStart(5, "0")}`,
+    source_url: `https://www.g2b.go.kr/link/PRPA015_01/single/?oderPlanNo=OP-TEST-${String(orderPlanPk).padStart(5, "0")}`,
     title,
     agency_name: `테스트 기관 ${orderPlanPk}`,
     business_division: "정보화",
@@ -89,7 +90,7 @@ async function mockReorderedOrderPlanList(
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        schema_version: "order-plan-list-response.v2",
+        schema_version: "order-plan-list-response.v3",
         producer: "order-plan-review-api",
         consumer: "order-plan-review-client",
         scope: {
@@ -209,6 +210,12 @@ test("기본 상세는 실제 모델 근거와 알려진 출처 필드만 보여
   await expect(evidence.locator(".c2l-evidence-source dt")).toHaveText("근거 위치 · 발주계획 사업명");
   await expect(evidence.locator(".c2l-evidence-source dd")).toContainText("공공데이터 통합");
   await expect(evidence.locator(".c2l-evidence-scope")).toHaveText("계획 정보 기반 탐색 신호 · 회사 적합성과 참여 자격은 미확인");
+
+  const sourceLink = page.locator(".c2l-detail-scroll").getByRole("link", { name: "공고 바로가기", exact: true });
+  await expect(sourceLink).toBeVisible();
+  await expect(sourceLink).toHaveAttribute("href", "https://www.g2b.go.kr/link/PRPA015_01/single/?oderPlanNo=OP-2026-00101");
+  await expect(sourceLink).toHaveAttribute("target", "_blank");
+  await expect(sourceLink).toHaveAttribute("rel", "noopener noreferrer");
 
   // 발주기관은 상세에서 라벨과 함께 강조 영역으로 먼저 읽힌다.
   const head = page.locator(".c2l-detail-head");

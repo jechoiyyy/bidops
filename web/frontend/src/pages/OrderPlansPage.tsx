@@ -178,6 +178,17 @@ function textOrUnknown(value: string | null | undefined): string {
   return value && value.trim() ? value : "미확인";
 }
 
+/** Only a collected absolute HTTP(S) URL can become an external navigation link. */
+function safeExternalUrl(value: string | null | undefined): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return ["https:", "http:"].includes(url.protocol) && !url.username && !url.password ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
 function plannedTiming(year: string | null, month: string | null): string {
   if (year === null && month === null) return "null (계획 시기 미제공)";
   // 실제 수집 값은 월만("09") 또는 연월("2026-09")이다. 같은 연도를
@@ -1286,6 +1297,7 @@ export function OrderPlansPage() {
       ? null
       : filteredItems.find((item) => item.order_plan_pk === selectedPk) ?? null)
     : ((selectedPk !== null ? filteredItems.find((item) => item.order_plan_pk === selectedPk) : undefined) ?? visibleItems[0] ?? null);
+  const selectedSourceUrl = selectedItem ? safeExternalUrl(selectedItem.source_url) : null;
 
   const feedbackHistoryQuery = useQuery({
     queryKey: ["order-plan-c2", "feedback-history", selectedItem?.order_plan_pk, latestExecution?.execution_id],
@@ -2068,7 +2080,22 @@ export function OrderPlansPage() {
                       ) : null}
 
                       {/* 보조 정보는 기본 동선에서 빼되 지우지 않는다. 같은 자리에서 연다. */}
-                      <nav className="c2l-supplementary" aria-label="추가 검토 정보">
+                      <nav className="c2l-supplementary" aria-label="추가 검토 정보 및 공고 원문">
+                        {selectedSourceUrl ? (
+                          <Button
+                            label="공고 바로가기"
+                            size="sm"
+                            variant="ghost"
+                            href={selectedSourceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            tooltip="새 탭에서 발주계획 공고 열기"
+                          />
+                        ) : (
+                          <Text type="supporting" color="secondary" as="span">
+                            {selectedItem.source_url ? "공고 URL 확인 불가" : "공고 URL 없음"}
+                          </Text>
+                        )}
                         <Button
                           aria-label="사람 판단 수정 열기"
                           label={`사람 판단 수정 · ${feedbackSummaryLabel}`}

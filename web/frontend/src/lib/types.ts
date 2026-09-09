@@ -1278,6 +1278,7 @@ export interface OrderPlanTracking {
 export interface OrderPlanListItem {
   order_plan_pk: number;
   order_plan_unty_no: string;
+  source_url: string | null;
   title: string | null;
   agency_name: string | null;
   business_division: string | null;
@@ -1299,7 +1300,7 @@ export interface OrderPlanListItem {
 }
 
 export interface OrderPlanListResponse {
-  schema_version: "order-plan-list-response.v2";
+  schema_version: "order-plan-list-response.v3";
   scope: OrderPlanListScope | null;
   producer: "order-plan-review-api";
   consumer: "order-plan-review-client";
@@ -1363,11 +1364,12 @@ export interface OrderPlanScreeningHistoryItem {
 }
 
 export interface OrderPlanDetailResponse {
-  schema_version: "order-plan-detail-response.v2";
+  schema_version: "order-plan-detail-response.v3";
   producer: "screening-api";
   consumer: "order-plan-review-client";
   order_plan_pk: number;
   order_plan_unty_no: string;
+  source_url: string | null;
   title: string | null;
   agency_name: string | null;
   business_division: string | null;
