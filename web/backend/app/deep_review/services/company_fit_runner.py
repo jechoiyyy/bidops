@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ...core.config import get_settings
-from ...core.model_client import ModelClient
+from ...core.model_client import ModelClient, ModelInvocationError, strip_leading_thinking
 from ...core.models import AuditEvent
 from ...core.object_store import EncryptedModelResponseStore
 from ...lifecycle import lock_notice
@@ -23,17 +23,40 @@ from .company_fit import (CONTRACT, configured_binding, current_flags, digest, f
 from .effective_grade import priority_notice_ids
 from .input_versions import resolve_active_versions
 from .model_response_storage import store_raw_model_response
+from .prespec_v4_runner import (
+    VALIDATION_RETRY_INVOCATION_CODES,
+    VALIDATION_RETRY_SEED,
+    build_correction,
+    validation_retry_metadata,
+)
 
 
 def _now():
     return datetime.now(UTC)
 
 
-def _audit(session: Session, row: PreSpecCompanyFitAttempt):
+def _audit(session: Session, row: PreSpecCompanyFitAttempt, retry: dict | None = None):
     session.add(AuditEvent(actor_kind="system", claimed_name="company-fit", action="prespec_company_fit.attempt",
         aggregate_type="prespec_company_fit_attempt", aggregate_id=str(row.id),
         safe_metadata={"notice_id": row.notice_id, "status": row.status, "reason_code": row.error_code,
-                       "input_sha256": row.input_sha256, "quality_status": row.quality_status}))
+                       "input_sha256": row.input_sha256, "quality_status": row.quality_status,
+                       "validation_retry": dict(retry) if retry else None}))
+
+
+def _metrics(response) -> dict:
+    return {"prompt_tokens": response.prompt_tokens, "output_tokens": response.output_tokens,
+            "latency_ms": response.latency_ms}
+
+
+def _validated(response, inputs):
+    """저장된 원본 bytes와 파싱 결과를 대조한 뒤 결정적 검증을 통과시킨다."""
+
+    # 선행 `<think>` 블록은 파싱 입력에서만 걷어 낸다. 저장·hash 대상인 원본
+    # bytes는 그대로다 — 걷어 내지 않으면 정상 응답이 불일치로 거부된다.
+    parsed, _thinking = strip_leading_thinking(bytes(response.raw_response).decode("utf-8"))
+    if json.loads(parsed) != response.structured_output:
+        raise ValueError("raw_response_mismatch")
+    return validate_result(response.structured_output, inputs)
 
 
 class PreSpecCompanyFitRunner:
@@ -129,6 +152,7 @@ class PreSpecCompanyFitRunner:
         _audit(session, row)
         session.commit()
         result, raw, metrics = None, None, {}
+        first_raw, retry = None, None
         status, error = "completed", None
         try:
             if not any(f["status"] == "confirmed" and f["value"] is not None for f in inputs["company_facts"]):
@@ -145,15 +169,35 @@ class PreSpecCompanyFitRunner:
                 if identity.model != inputs["model_name"] or identity.revision != inputs["model_revision"]:
                     raise ValueError("model_binding_changed")
                 model_inputs = {key: value for key, value in inputs.items() if key != "fit_policy"}
-                response = self.client.invoke("company_fit", model_inputs, inputs["fit_policy"])
-                raw = bytes(response.raw_response)
-                metrics = {"prompt_tokens": response.prompt_tokens, "output_tokens": response.output_tokens, "latency_ms": response.latency_ms}
+                codes: list[str] = []
                 try:
-                    if json.loads(raw) != response.structured_output:
-                        raise ValueError("raw_response_mismatch")
-                    result = validate_result(response.structured_output, inputs)
-                except (ValueError, TypeError):
-                    status, error = "needs_human_review", "company_fit_validation_failed"
+                    response = self.client.invoke("company_fit", model_inputs, inputs["fit_policy"])
+                    raw = bytes(response.raw_response)
+                    metrics = _metrics(response)
+                    try:
+                        result = _validated(response, inputs)
+                    except (ValueError, TypeError) as invalid:
+                        codes = [str(getattr(invalid, "code", None) or "company_fit_validation_failed")]
+                except ModelInvocationError as failure:
+                    code = str(getattr(failure, "code", "") or "")
+                    if code not in VALIDATION_RETRY_INVOCATION_CODES:
+                        raise
+                    error_raw = getattr(failure, "raw_response", None)
+                    raw = bytes(error_raw) if isinstance(error_raw, (bytes, bytearray)) else None
+                    codes = [code]
+                if codes:
+                    # 결정적 검증 실패에 한해 같은 입력으로 한 번만 더 부른다.
+                    first_raw, correction = raw, build_correction(codes)
+                    retry = validation_retry_metadata(codes, correction, None)
+                    response = self.client.invoke("company_fit", model_inputs, inputs["fit_policy"],
+                                                  seed=VALIDATION_RETRY_SEED, correction=correction)
+                    raw = bytes(response.raw_response)
+                    metrics = _metrics(response)
+                    try:
+                        result = _validated(response, inputs)
+                    except (ValueError, TypeError):
+                        result = None
+                        status, error = "needs_human_review", "company_fit_validation_failed"
         except Exception:
             status, error = "failed", "company_fit_execution_failed"
         session.expire_all()
@@ -162,16 +206,24 @@ class PreSpecCompanyFitRunner:
             session.rollback()
             return True
         try:
-            if raw is not None:
+            if raw is not None or first_raw is not None:
                 if self.store is None:
                     self.store = EncryptedModelResponseStore(self.settings)
-                row.raw_response_sha256 = store_raw_model_response(session, raw, store=self.store, clock=self.clock)
+            if first_raw is not None:
+                # 재시도 전 응답도 그대로 암호화 보존한다. 행이 가리키는 것은
+                # 마지막 응답이므로 첫 응답 hash는 감사에만 남는다.
+                retry["first_raw_response_sha256"] = store_raw_model_response(
+                    session, first_raw, store=self.store, clock=self.clock)
+            if raw is not None:
+                row.raw_response_sha256 = (
+                    retry["first_raw_response_sha256"] if raw is first_raw
+                    else store_raw_model_response(session, raw, store=self.store, clock=self.clock))
             for key, value in metrics.items():
                 setattr(row, key, value)
             if status == "completed" and result is not None:
                 row.result_jsonb = result.model_dump(mode="json")
                 row.result_sha256 = digest(row.result_jsonb)
-            self._finish(session, row, status, error)
+            self._finish(session, row, status, error, retry)
             session.commit()
         except Exception:
             session.rollback()
@@ -179,7 +231,7 @@ class PreSpecCompanyFitRunner:
             if row.status == "running" and row.lease_owner == worker_id:
                 row.result_jsonb = None
                 row.result_sha256 = None
-                self._finish(session, row, "failed", "company_fit_storage_failed")
+                self._finish(session, row, "failed", "company_fit_storage_failed", retry)
                 session.commit()
             return True
         # The shared creation service rechecks current input, policy and bundle.
@@ -194,8 +246,8 @@ class PreSpecCompanyFitRunner:
         _, reason = _auto_start_scope(session, row.notice_id, require_company_fit=False)
         return reason is None
 
-    def _finish(self, session: Session, row: PreSpecCompanyFitAttempt, status: str, error: str | None):
+    def _finish(self, session: Session, row: PreSpecCompanyFitAttempt, status: str, error: str | None, retry: dict | None = None):
         row.status, row.error_code = status, error
         row.completed_at = self.clock()
         row.lease_owner, row.lease_expires_at = None, None
-        _audit(session, row)
+        _audit(session, row, retry)
