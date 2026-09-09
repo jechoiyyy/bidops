@@ -70,6 +70,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         ".services.prespec_overview_runner",
         "PreSpecOverviewRunner",
     ),
+    "PrespecV4OverviewRunner": (
+        ".services.prespec_v4_runner",
+        "PrespecV4OverviewRunner",
+    ),
 }
 
 
@@ -132,5 +136,6 @@ if TYPE_CHECKING:  # pragma: no cover - 정적 분석용 이름 노출
     from .workers.deep_review import run_once as run_deep_review_once
     from .workers.prespec_overview import run_once as run_prespec_overview_once
     from .services.prespec_overview_runner import PreSpecOverviewRunner
+    from .services.prespec_v4_runner import PrespecV4OverviewRunner
     from .services.deep_review_hooks import PreSpecAttachmentEligibilityHook
     from .services.prespec_projection import PreSpecOverviewDocumentProjection

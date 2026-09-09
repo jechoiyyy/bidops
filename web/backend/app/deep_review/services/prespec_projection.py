@@ -1,22 +1,26 @@
 """사전규격 개요·문서 projection의 deep_review 구현 (명세 §6.1 둘째 행).
 
 lifecycle의 `GET /api/pre-specs`는 누적 목록이라 회차 상한이 없다. 그래서 세
-메서드 모두 호출부가 넘긴 `notice_ids` 만큼을 **한 번의 조회**로 처리하고,
-공고당 조회를 만들지 않는다. 없는 공고는 빠뜨린다 — `None`/0으로 채우는 것은
-lifecycle의 몫이다.
+메서드 모두 호출부가 넘긴 `notice_ids`를 batch projection으로 처리하고,
+공고 수에 따라 조회를 늘리지 않는다. 개요 상태는 v4 current batch를 먼저 읽고
+current가 없는 공고에만 legacy 상태를 적용한다. 없는 공고는 빠뜨린다 —
+`None`/0으로 채우는 것은 lifecycle의 몫이다.
 """
 
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Mapping, Sequence
 from typing import Any
 
 from sqlalchemy import func, select
 
+from ...core.constants import prespec_overview_status_from_v4
 from ...lifecycle import PreSpecDocumentCounts
 from ..models import AttachmentFetch, PreSpecOverviewReview
 from ...lifecycle.models import Attachment
 from .auto_preparation import auto_preparation_fields
+from .company_fit import current_v4_projections
 
 # attachment_fetch.status 값 → PreSpecDocumentCounts 필드. 응답 별칭(완료·대기·
 # 진행·차단·실패)은 lifecycle의 응답 모델이 붙인다.
@@ -36,31 +40,38 @@ def _distinct_ids(notice_ids: Sequence[int]) -> tuple[int, ...]:
 class PreSpecOverviewDocumentProjection:
     """`OverviewDocumentProjection` 제공자."""
 
-    def overview_status(self, session: Any, notice_ids: Sequence[int]) -> Mapping[int, str]:
+    def _overview_statuses(
+        self, session: Any, notice_ids: Sequence[int]
+    ) -> dict[int, str]:
+        """Return one current status per notice using one batch v4 projection."""
+
         ids = _distinct_ids(notice_ids)
         if not ids:
             return {}
-        # prespec_overview_review는 notice_id가 unique라 공고당 최대 한 행이다.
-        rows = session.execute(
-            select(PreSpecOverviewReview.notice_id, PreSpecOverviewReview.status).where(
-                PreSpecOverviewReview.notice_id.in_(ids)
+        current = current_v4_projections(session, ids)
+        legacy = {
+            int(notice_id): status
+            for notice_id, status in session.execute(
+                select(PreSpecOverviewReview.notice_id, PreSpecOverviewReview.status).where(
+                    PreSpecOverviewReview.notice_id.in_(ids)
+                )
+            ).all()
+        }
+        statuses: dict[int, str] = {}
+        for notice_id in ids:
+            projection = current.get(notice_id)
+            statuses[notice_id] = (
+                prespec_overview_status_from_v4(projection.get("status"))
+                if projection is not None
+                else legacy.get(notice_id)
             )
-        ).all()
-        return {int(notice_id): status for notice_id, status in rows}
+        return {notice_id: status for notice_id, status in statuses.items() if status is not None}
+
+    def overview_status(self, session: Any, notice_ids: Sequence[int]) -> Mapping[int, str]:
+        return self._overview_statuses(session, notice_ids)
 
     def overview_status_counts(self, session: Any, notice_ids: Sequence[int]) -> Mapping[str, int]:
-        ids = _distinct_ids(notice_ids)
-        if not ids:
-            return {}
-        rows = session.execute(
-            select(
-                PreSpecOverviewReview.status,
-                func.count(func.distinct(PreSpecOverviewReview.notice_id)),
-            )
-            .where(PreSpecOverviewReview.notice_id.in_(ids))
-            .group_by(PreSpecOverviewReview.status)
-        ).all()
-        return {status: int(count or 0) for status, count in rows}
+        return dict(Counter(self._overview_statuses(session, notice_ids).values()))
 
     def document_counts(
         self, session: Any, notice_ids: Sequence[int]
@@ -103,6 +114,19 @@ class PreSpecOverviewDocumentProjection:
         if not ids:
             return {}
         return auto_preparation_fields(session, ids)
+
+    def notice_ids_for_auto_preparation_status(
+        self, session: Any, notice_ids: Sequence[int], status: str
+    ) -> Sequence[int]:
+        ids = _distinct_ids(notice_ids)
+        if not ids:
+            return []
+        fields = auto_preparation_fields(session, ids)
+        return [
+            notice_id
+            for notice_id in ids
+            if fields.get(notice_id, {}).get("auto_preparation_status") == status
+        ]
 
 
 __all__ = ["PreSpecOverviewDocumentProjection"]

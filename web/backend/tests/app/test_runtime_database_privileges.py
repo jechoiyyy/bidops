@@ -681,8 +681,10 @@ def test_effective_runtime_role_matrix_and_future_defaults() -> None:
                         assert not _table_privilege(
                             connection, "worker", table, privilege
                         )
-                for table in ("judgment_revision", "review_revision"):
-                    assert not _table_privilege(connection, "worker", table, "SELECT")
+                for table in ("judgment", "judgment_revision", "review", "review_revision"):
+                    assert _table_privilege(connection, "worker", table, "SELECT")
+                assert _table_privilege(connection, "app", "prespec_v4_attempt", "INSERT")
+                assert not _table_privilege(connection, "worker", "prespec_v4_attempt", "INSERT")
                 for table in (
                     "report_revision",
                     "audit_event",
@@ -785,3 +787,19 @@ def test_company_fit_runtime_privileges():
     for role in ("app", "worker"):
         assert "prespec_company_fit_attempt" not in _table_grants(role, "UPDATE")
         assert "prespec_company_fit_attempt" not in _table_grants(role, "DELETE")
+
+
+def test_v4_snapshot_target_and_attempt_runtime_privileges():
+    for table in ("prespec_v4_pdf_snapshot", "prespec_v4_target", "prespec_v4_attempt"):
+        assert table in _table_grants("app", "SELECT")
+        assert table in _table_grants("worker", "SELECT")
+        assert table not in _table_grants("app", "DELETE")
+        assert table not in _table_grants("worker", "DELETE")
+    assert "prespec_v4_pdf_snapshot" in _table_grants("app", "INSERT")
+    assert "prespec_v4_target" in _table_grants("app", "INSERT")
+    assert "prespec_v4_attempt" in _table_grants("app", "INSERT")
+    assert "prespec_v4_attempt" not in _table_grants("worker", "INSERT")
+    assert _column_update_grant("worker", "prespec_v4_attempt") >= {
+        "status", "result_id", "result_sha256", "raw_response_sha256", "error_code",
+        "lease_owner", "lease_expires_at", "started_at", "completed_at",
+    }

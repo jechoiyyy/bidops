@@ -21,6 +21,8 @@ from app.deep_review.document_mcp import (
     process_document,
     validate_structure,
 )
+from app.deep_review.document_mcp import processor as processor_module
+from app.deep_review.document_mcp.processor import _build_canvas_print_html
 
 FIXTURES = Path(__file__).parents[1] / "fixtures" / "documents"
 
@@ -165,15 +167,182 @@ def test_control_heavy_stdlib_pdf_text_uses_bounded_poppler_fallback(monkeypatch
     assert "pdf_stdlib_text_fallback" in result["warnings"]
 
 
-def test_prepare_pdf_has_a_separate_bounded_object_budget() -> None:
+def test_prepare_pdf_uses_poppler_even_when_stdlib_returns_nonempty_glyphs(monkeypatch) -> None:
+    processor = DocumentProcessor()
+    poppler = (
+        [{"number": 1, "width": 612.0, "height": 792.0, "image_content_object_id": None}],
+        [{
+            "block_key": "page-1-text", "parent_block_key": None, "type": "text", "page": 1,
+            "bbox": [0.0, 0.0, 612.0, 792.0], "text": "정본 PDF 본문", "confidence": 1.0,
+            "attributes": {"source": "pdf-poppler-text"},
+        }],
+        [],
+        [],
+    )
+    monkeypatch.setattr(
+        "app.deep_review.document_mcp.processor.extract_pdf",
+        lambda _data, _options: (
+            poppler[0],
+            [{**poppler[1][0], "text": "\ue000\ue001\ue002"}],
+            [],
+            [],
+        ),
+    )
+    monkeypatch.setattr(
+        processor,
+        "_extract_pdf_poppler",
+        lambda _data, _options, *, deadline=None: poppler,
+    )
+
+    result = processor.process(text_pdf(), "application/pdf", {"ocr": False, "prepare_pdf": True})
+
+    assert result["extractor"]["name"] == "pdf-poppler-prepared"
+    assert result["blocks"][0]["text"] == "정본 PDF 본문"
+    assert "pdf_poppler_text_fallback" in result["warnings"]
+
+
+def test_prepare_pdf_keeps_the_existing_object_budget() -> None:
     assert ProcessorOptions.from_mapping({"ocr": False}).max_pdf_objects == 4096
-    assert ProcessorOptions.from_mapping({"ocr": False, "prepare_pdf": True}).max_pdf_objects == 10_000
+    assert ProcessorOptions.from_mapping({"ocr": False, "prepare_pdf": True}).max_pdf_objects == 4096
+    assert ProcessorOptions.from_mapping(ProcessorOptions(prepare_pdf=True)).max_pdf_objects == 4096
     assert ProcessorOptions.from_mapping({
         "ocr": False, "prepare_pdf": True, "max_pdf_objects": 4096,
     }).max_pdf_objects == 4096
+    assert ProcessorOptions.from_mapping({
+        "ocr": False, "prepare_pdf": True, "max_pdf_objects": 10_000,
+    }).max_pdf_objects == 10_000
+    assert ProcessorOptions.from_mapping({
+        "ocr": False, "prepare_pdf": True, "max_pdf_objects": 10_001,
+    }).max_pdf_objects == 10_001
     with pytest.raises(DocumentProcessingError) as caught:
-        ProcessorOptions.from_mapping({"ocr": False, "prepare_pdf": True, "max_pdf_objects": 10_001})
+        ProcessorOptions.from_mapping({"ocr": False, "prepare_pdf": True, "max_pdf_objects": 100_001})
     assert caught.value.code == "invalid_options"
+
+
+def test_canvas_print_html_uses_csp_and_data_text_layer() -> None:
+    source = b"<script>must remain data</script>"
+    html = _build_canvas_print_html(
+        source=source,
+        runtime="export const trustedRuntime = true;",
+        wasm=b"wasm-bytes",
+        pages=[{"number": 1, "width": 793.7, "height": 1122.5}],
+        max_html_bytes=1024 * 1024,
+    )
+
+    assert "default-src 'none'" in html
+    assert "'wasm-unsafe-eval'" in html
+    assert "connect-src 'none'" in html
+    assert "color: transparent" in html
+    assert "opacity: 0" not in html
+    assert "textContent = run.text" in html
+    assert "bidops-hwp-canvas-render-complete-v1" in html
+    assert "<script>must remain data</script>" not in html
+
+
+def test_canvas_receipt_requires_exact_pdfinfo_title(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    pdf = tmp_path / "output.pdf"
+    pdf.write_bytes(b"%PDF-1.4 body mentions bidops-hwp-canvas-render-complete-v1")
+    executable = tmp_path / "pdfinfo"
+    executable.write_text("trusted test seam", encoding="utf-8")
+    monkeypatch.setattr(
+        "app.deep_review.document_mcp.processor.shutil.which",
+        lambda name: str(executable) if name == "pdfinfo" else None,
+    )
+    monkeypatch.setattr(
+        "app.deep_review.document_mcp.processor._run_limited_subprocess",
+        lambda *args, **kwargs: (0, b"Title: wrong-title\nPages: 1\n", b""),
+    )
+
+    with pytest.raises(DocumentProcessingError) as caught:
+        DocumentProcessor()._verify_canvas_print_receipt(pdf, ProcessorOptions(timeout_seconds=1))
+    assert caught.value.code == "conversion_required"
+
+
+def test_worker_provenance_hashes_actual_binary_and_binds_adapter_processor(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    real_binary = tmp_path / "chromium-bin"
+    real_binary.write_bytes(Path("/bin/sh").read_bytes())
+    real_binary.chmod(0o700)
+    launcher = tmp_path / "chromium"
+    launcher.write_text(
+        "#!/bin/sh\nexec /usr/lib/chromium/chromium \"$@\"\n",
+        encoding="utf-8",
+    )
+    launcher.chmod(0o700)
+    monkeypatch.setattr(processor_module, "_DEBIAN_CHROMIUM_BINARY", real_binary)
+    monkeypatch.delenv("BIDOPS_DOCUMENT_WORKER_IMAGE_DIGEST", raising=False)
+    monkeypatch.setattr(processor_module, "_font_manifest_sha256", lambda _options, _deadline: "f" * 64)
+
+    renderer, font = processor_module._worker_provenance(
+        runtime="runtime",
+        wasm=b"wasm",
+        adapter=b"adapter",
+        processor_source=b"processor-css",
+        chromium_executable=str(launcher),
+        options=ProcessorOptions(ocr=False),
+        deadline=None,
+    )
+
+    assert renderer["worker_image_digest"] is None
+    assert renderer["worker_image_digest_source"] == "undeclared"
+    assert renderer["chromium_sha256"] == hashlib.sha256(real_binary.read_bytes()).hexdigest()
+    assert font["worker_image_digest"] is None
+    real_binary.write_bytes(real_binary.read_bytes() + b"changed")
+    chromium_changed, _ = processor_module._worker_provenance(
+        runtime="runtime",
+        wasm=b"wasm",
+        adapter=b"adapter",
+        processor_source=b"processor-css",
+        chromium_executable=str(launcher),
+        options=ProcessorOptions(ocr=False),
+        deadline=None,
+    )
+    assert chromium_changed["runtime_sha256"] != renderer["runtime_sha256"]
+    changed, _ = processor_module._worker_provenance(
+        runtime="runtime",
+        wasm=b"wasm",
+        adapter=b"adapter-changed",
+        processor_source=b"processor-css",
+        chromium_executable=str(launcher),
+        options=ProcessorOptions(ocr=False),
+        deadline=None,
+    )
+    assert changed["runtime_sha256"] != renderer["runtime_sha256"]
+
+
+def test_font_manifest_changes_when_same_path_bytes_change(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    font = tmp_path / "trusted-font.ttf"
+    font.write_bytes(b"font-v1")
+    fc_list = tmp_path / "fc-list"
+    fc_list.write_text(f'#!/bin/sh\nprintf \'%s: Family\\n\' "{font}"\n', encoding="utf-8")
+    fc_list.chmod(0o700)
+    monkeypatch.setattr(processor_module.shutil, "which", lambda name: str(fc_list) if name == "fc-list" else None)
+
+    first = processor_module._font_manifest_sha256(ProcessorOptions(ocr=False), None)
+    font.write_bytes(b"font-v2")
+    second = processor_module._font_manifest_sha256(ProcessorOptions(ocr=False), None)
+    assert first != second
+
+
+def test_pdf_object_limit_does_not_fallback_to_success(monkeypatch: pytest.MonkeyPatch) -> None:
+    processor = DocumentProcessor()
+
+    def object_limited(_data: bytes, _options: ProcessorOptions) -> tuple[object, ...]:
+        raise DocumentProcessingError("pdf_object_limit", "object limit")
+
+    monkeypatch.setattr("app.deep_review.document_mcp.processor.extract_pdf", object_limited)
+    monkeypatch.setattr(
+        processor,
+        "_extract_pdf_poppler",
+        lambda _data, _options: pytest.fail("object limit must not use the fallback"),
+    )
+
+    with pytest.raises(DocumentProcessingError) as caught:
+        processor.process(
+            text_pdf(),
+            "application/pdf",
+            {"ocr": False, "prepare_pdf": True, "max_pdf_objects": 4096},
+        )
+    assert caught.value.code == "pdf_object_limit"
 
 
 def test_pdf_decoded_output_limit_rejects_compressed_two_megabyte_payload() -> None:

@@ -173,6 +173,10 @@ services:
     network_mode: none
     mem_limit: 1g
     pids_limit: 128
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     deploy:
       replicas: 2
 

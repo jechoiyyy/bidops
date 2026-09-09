@@ -83,6 +83,9 @@ GRANT SELECT ON TABLE
     bidops.prespec_overview_result,
     bidops.prespec_page_overview,
     bidops.prespec_company_fit_attempt,
+    bidops.prespec_v4_pdf_snapshot,
+    bidops.prespec_v4_target,
+    bidops.prespec_v4_attempt,
     bidops.document_segment_manifest,
     bidops.document_segment,
     bidops.requirement_inventory_item,
@@ -95,9 +98,9 @@ GRANT SELECT ON TABLE
 TO app;
 
 -- App-owned create paths include ingestion, UI mutations, orchestration, and
--- append-only audit/result/history rows. C-2 import is an app transaction:
--- worker-owned attempt/artifact/result rows are appendable here, while only
--- the worker receives their later mutable attempt-state UPDATE grant below.
+-- append-only audit/result/history rows. v4 preparation/enqueue is an app
+-- transaction: the app creates the WorkJob and attempt, while only the worker
+-- receives the later mutable attempt-state UPDATE grant below.
 -- UPDATE and DELETE are narrower lists below.
 GRANT INSERT ON TABLE
     bidops.run,
@@ -129,6 +132,9 @@ GRANT INSERT ON TABLE
     bidops.document_block,
     bidops.document_bundle,
     bidops.document_bundle_item,
+    bidops.prespec_v4_pdf_snapshot,
+    bidops.prespec_v4_target,
+    bidops.prespec_v4_attempt,
     bidops.profile_version,
     bidops.profile_evidence,
     bidops.analysis_policy_version,
@@ -284,7 +290,12 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA bidops TO app;
 -- phase-2 attempt/result/event rows needed by the lifecycle worker. Legacy
 -- reviews, screening policy controls, and schedules are not in this list.
 GRANT SELECT ON TABLE
+    bidops.alembic_version,
     bidops.notice,
+    bidops.judgment,
+    bidops.judgment_revision,
+    bidops.review,
+    bidops.review_revision,
     bidops.attachment,
     bidops.attachment_fetch,
     bidops.content_object,
@@ -318,7 +329,10 @@ GRANT SELECT ON TABLE
     bidops.prespec_overview_result,
     bidops.prespec_page_overview,
     bidops.prespec_company_fit_attempt,
+    bidops.prespec_v4_attempt,
     bidops.prespec_overview_attempt_event,
+    bidops.prespec_v4_pdf_snapshot,
+    bidops.prespec_v4_target,
     bidops.document_segment_manifest,
     bidops.document_segment,
     bidops.requirement_inventory_item,
@@ -390,6 +404,11 @@ GRANT UPDATE (
 GRANT UPDATE (
     status, started_at, completed_at, result_id, lease_owner, lease_expires_at
 ) ON bidops.prespec_overview_attempt TO worker;
+GRANT UPDATE (
+    status, result_id, result_sha256, raw_response_sha256, error_code,
+    lease_owner, lease_expires_at, started_at, completed_at,
+    prompt_tokens, output_tokens, latency_ms
+) ON bidops.prespec_v4_attempt TO worker;
 GRANT UPDATE (is_current) ON bidops.document_version TO worker;
 
 GRANT UPDATE (

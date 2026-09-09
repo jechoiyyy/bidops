@@ -242,7 +242,7 @@ CLI 진입점은 모듈별로 하나씩이며 웹 없이 실행한다. migration
 
 ```bash
 python -m app.screening.cli --help          # run-one, score-candidate-quality
-python -m app.deep_review.cli --help        # run-bc-e2e, run-prespec-e2e, import-profile-policy
+python -m app.deep_review.cli --help        # run-bc-e2e, run-prespec-e2e, import-profile-policy, prespec-v4
 python -m app.lifecycle.ingest.cli --help   # --run <회차> | --all
 ```
 
@@ -927,6 +927,87 @@ python -m app.deep_review.cli import-page-overview \
 검사는 적재 시 수행한다. 출력에 원문·프롬프트·경로를 기록하지 않는다.
 추가 Qwen 호출, 기존 리뷰 변경, 정책 활성화는 없다. 후속 모델 실행 결과도 같은 frozen
 파일 계약으로 명시적으로 적재한다. 기존 권고 worker를 새 요약 worker로 교체하지 않는다.
+
+### v4 cohort 준비·enqueue ops
+
+v4는 기본 비활성이다. 운영자는 먼저 migration head와 runtime privilege policy를
+백업·검토하고, 승인된 사설 overview endpoint와 64자 model revision을
+`BIDOPS_REFERENCE_WORKFLOW_MODE=true`, `BIDOPS_ANALYSIS_PROVIDER=vllm`로 명시한다.
+활성화는 scheduler/startup에서 일어나지 않으며 아래 명령이 append-only audit 행을
+만든다. 활성화 전에는 어떤 source/PDF도 준비하지 않는다.
+
+```bash
+python -m app.deep_review.cli prespec-v4 --dry-run \
+  --notice-id 142 --mode explicit_sample
+./.venv/bin/python -m app.deep_review.cli prespec-v4 --activate \
+  --actor '<감사표식>' --mode explicit_sample
+python -m app.deep_review.cli prespec-v4 --prepare \
+  --actor '<감사표식>' --notice-id 142 --mode explicit_sample \
+  --renderer /secure/v4/worker-renderer.json \
+  --font /secure/v4/worker-font.json --config /secure/v4/worker-config.json \
+  --options /secure/v4/processor-options.json
+python -m app.deep_review.cli prespec-v4 --enqueue \
+  --actor '<감사표식>' --notice-id 142 --mode explicit_sample \
+  --renderer /secure/v4/worker-renderer.json \
+  --font /secure/v4/worker-font.json --config /secure/v4/worker-config.json \
+  --options /secure/v4/processor-options.json
+python -m app.deep_review.cli prespec-v4 --deactivate \
+  --actor '<감사표식>' --reason '<중단 사유>'
+```
+
+준비 options는 표본별로 고정하고 기록한다. mandatory RFP의 검증 binding 예시는
+`prepare_pdf=true`, `ocr=false`, `timeout_seconds=300`,
+`max_output_bytes=20971520`, `max_pdf_objects=10000`이다. 전역 ProcessorOptions
+기본값을 올리지 않는다. worker가 반환한 실제 renderer/processor/Chromium/font
+fingerprint와 deployment preflight binding이 일치해야 하며, asset hash를 image
+digest로 가장하지 않는다. 원본 PDF는 재렌더하지 않고 Poppler provenance와
+`font_provenance=null`을 기록한다.
+
+`--prepare`/`--enqueue`는 120초 attachment fetch worker와 분리된 준비 role에서
+실행한다. app role은 검증된 source를 읽고 versioned source/structure object와
+snapshot/target/WorkJob/attempt를 append하며, analysis worker는 source/MinIO 원문
+권한 없이 frozen manifest만 읽는다. timeout·모호한 대표문서·PDF/관측 실패는 안전한
+failed/current 또는 사람확인 상태로 남기고 기존 성공/legacy row를 지우지 않는다.
+`--retry`는 failed/cancelled target에 새 attempt만 추가하며, off 상태·active attempt·
+완료 성공에는 동작하지 않는다. 중단 rollback은 `--deactivate`와 worker 중지이며
+snapshot/attempt object/row를 삭제하거나 legacy를 자동 재실행하지 않는다.
+
+### Luna 명시 참조 실행
+
+Luna 참조는 Qwen 운영 endpoint의 대체 경로가 아니다. `/tmp` generation record와
+sample 파일은 root가 만든 immutable evidence로 유지하고, `--sample-key`를 포함해
+정확한 sample을 선택한다. 먼저 app role에서 활성 binding을 만들고 target을 예약한
+뒤, worker role에서 별도 명령으로 실행한다.
+
+```bash
+cd /home/jechoi/projects/bidops/web/backend
+LUNA_RECORD=/tmp/bidops-v4-luna-reference-43qu7brn/generation-record.json
+
+# response record의 policy/input/output/provenance를 검증해 reference-only activation
+python -m app.deep_review.cli prespec-v4 --activate \
+  --actor '<감사표식>' --mode explicit_sample \
+  --artifact /secure/v4/prespec-v4-activation-v1.json \
+  --luna-response "$LUNA_RECORD" --sample-key 142
+
+# app role: 기존에 동결된 142 target UUID를 넣고 WorkJob/attempt와 provenance audit만 생성
+./.venv/bin/python -m app.deep_review.cli prespec-v4 --enqueue-reference \
+  --actor '<app 감사표식>' --target-id '<TARGET_142_UUID>' \
+  --luna-response "$LUNA_RECORD" --sample-key 142
+
+# worker role: 위 queued attempt만 기존 v4 runner로 처리
+./.venv/bin/python -m app.deep_review.cli prespec-v4 --run-reference \
+  --actor '<worker 감사표식>' --target-id '<TARGET_142_UUID>' \
+  --luna-response "$LUNA_RECORD" --sample-key 142
+```
+
+활성화는 record 전체의 공통 digest를 결속하므로 세 sample에 대해 한 번만 수행한다.
+35/59는 이후 enqueue/run 두 명령에서 `--sample-key 35|59`와 각 frozen target UUID를
+사용한다.
+generation record 전체의 SHA가 세 sample의 공통 `model_digest`로 저장되고, sample별
+manifest SHA는 audit metadata로 보존되며 실제 weight revision은 `null`이다.
+결과는 `unmeasured_reference`로 남으며 이 명령은 automatic/new-reference 대상,
+회사 핏 자동화, 심층 검토를 시작하지 않는다. `--run-reference`는 app role의
+enqueue/audit 행과 manifest가 일치하지 않으면 실행하지 않는다.
 
 
 ### 회사 핏 단계의 배포와 참조 검증

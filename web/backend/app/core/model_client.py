@@ -90,9 +90,13 @@ class EncryptedObjectStore(Protocol):
 class ModelInvocationError(RuntimeError):
     """분류된 호출 실패. 원문·프롬프트·비밀값은 담지 않는다."""
 
-    def __init__(self, code: str, attempts: Sequence[Mapping[str, Any]]) -> None:
+    def __init__(self, code: str, attempts: Sequence[Mapping[str, Any]], raw_response: bytes | None = None) -> None:
         self.code = code
         self.attempts = list(attempts)
+        # A bounded provider response may be retained by the owning runner in
+        # the encrypted raw-response store.  Keep it out of repr/log messages;
+        # callers must explicitly persist it and only its digest reaches DB.
+        self.raw_response = raw_response if isinstance(raw_response, bytes) else None
         super().__init__(code)
 
 
@@ -655,6 +659,7 @@ class ModelClient:
         prompt = build_prompt(stage, input_slice, policy, profile=profile, prior_stages=prior_stages)
         input_hash = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
         observations: list[dict[str, Any]] = []
+        last_raw_response: bytes | None = None
         for index in range(retries + 1):
             started = time.monotonic()
             try:
@@ -673,9 +678,14 @@ class ModelClient:
                 if not isinstance(choices, list) or len(choices) != 1 or not isinstance(choices[0], Mapping):
                     raise ValueError("malformed_json")
                 choice = choices[0]
-                if choice.get("finish_reason") == "length":
-                    raise EOFError("truncated_json")
                 if choice.get("finish_reason") != "stop":
+                    message = choice.get("message")
+                    if isinstance(message, Mapping) and isinstance(message.get("content"), str):
+                        candidate_raw = message["content"].encode("utf-8")
+                        if len(candidate_raw) <= MAX_RESPONSE_BYTES:
+                            last_raw_response = candidate_raw
+                    if choice.get("finish_reason") == "length":
+                        raise EOFError("truncated_json")
                     raise ValueError("malformed_json")
                 message = choice.get("message")
                 if not isinstance(message, Mapping) or not isinstance(message.get("content"), str):
@@ -684,6 +694,7 @@ class ModelClient:
                 output_bytes = output.encode("utf-8")
                 if len(output_bytes) > MAX_RESPONSE_BYTES:
                     raise ResponseTooLargeError("response_too_large")
+                last_raw_response = output_bytes
                 structured = json.loads(output)
                 if not isinstance(structured, Mapping):
                     raise ValueError("malformed_json")
@@ -720,7 +731,11 @@ class ModelClient:
                 code = "provider_error"
             elapsed = int((time.monotonic() - started) * 1000)
             observations.append({"retry_index": index, "status": "failed", "error_code": code, "latency_ms": elapsed})
-        raise ModelInvocationError(str(observations[-1].get("error_code", "provider_error")), observations)
+        raise ModelInvocationError(
+            str(observations[-1].get("error_code", "provider_error")),
+            observations,
+            raw_response=last_raw_response,
+        )
 
 __all__ = [
     "APPROVED_GENERATION",

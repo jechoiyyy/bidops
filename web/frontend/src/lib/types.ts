@@ -1681,10 +1681,36 @@ export interface PageOverviewView {
   prompt_version: string;
   created_at: string;
 }
+
+/**
+ * v4 개요 실행의 서버 current projection이다. `reviews[0]`은 현재 결과라는
+ * 의미를 갖지 않으므로, 실행 상태와 result_id를 함께 사용해 현재 결과를
+ * 선택한다. 과거 응답에는 이 필드가 없거나 null일 수 있다.
+ */
+export type PageOverviewCurrentStatus =
+  | "queued"
+  | "running"
+  | "completed"
+  | "failed"
+  | "needs_human_review"
+  | "stale"
+  | "cancelled";
+
+export interface PageOverviewCurrent {
+  attempt_id: string | null;
+  status: PageOverviewCurrentStatus;
+  result_id: string | null;
+  reason_code: string | null;
+  prompt_version: string | null;
+  created_at: string;
+}
+
 export interface PageOverviewResponse {
   schema_version: "bidops.prespec-overview-pages.v1";
   notice_id: number;
   reviews: PageOverviewView[];
+  /** v4 적용 기록이 없으면 생략되거나 null이며 legacy reviews를 호환한다. */
+  current?: PageOverviewCurrent | null;
 }
 
 export interface CompanyFitResult {

@@ -1028,3 +1028,104 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 - 영향: 전체 회귀 게이트를 통과했다고 주장하거나 이 기록만으로 배포 승인 근거로 사용할
   수 없다. 재현 명령과 이번 변경의 상세 검증은
   `docs/validation-runs/20260907-prespec-page-overview-integration.md`에 기록한다.
+
+## [해결됨] 필수 RFP의 rhwp SVG PDF가 표 안의 원문을 보존하지 못한다 (2026-09-08)
+
+- 확인: root 독립 worker 조건 검증에서 실제 RFP HWPX
+  `/tmp/bidops-v4-required-sample.h0vd7q/source.hwpx`를 변환했다. 원본은
+  `840114` bytes, SHA-256은
+  `7cc3b5f3894d984ce641e9462030990cbb4cfc1d6869b18bc9047899a23f4665`이며, 생성 PDF는
+  `10113018` bytes, 85 physical pages, object marker `70080`, SHA-256은
+  `ca77c04344886ca6e4cf57a3b2deed1955fc469d0e36aa5155c51cd88947b4f6`였다.
+- 재현: 생성 PDF p5 `3. 감리대상 사업 > □ 사업개요`의 파란 상자가 시각적으로
+  완전히 비어 있다. 원본 HWPX XML과 `renderPageHtml`/`getPageTextLayout`에는
+  사업명, 사업비 `13,225,835,150원 VAT포함`, 착수일부터 12개월이 존재한다.
+  `renderPageHtml`은 중첩 absolute 좌표 때문에 그대로 인쇄할 수 없고, 같은 vendored
+  WASM의 실제 canvas 경로에서는 해당 내용이 표시되는 별도 비교 결과가 있다.
+- 영향: 위 수치는 구형 SVG adapter의 historical 결과이며 현재 경로의 성공 근거로
+  사용하지 않는다. 원문 XML을 PDF 위에 덧붙이거나 숫자·문장을 추정 보정하지 않았다.
+- 해결: `rhwp_render_pages.mjs`를 제거하고 같은 vendored WASM의
+  `renderPageToCanvas`와 `getPageTextLayout().runs`를 기존 Chromium print HTML에
+  연결했다. 실표본을 같은 non-root/network-none 조건에서 다시 실행해 85 physical
+  pages, p4 `298,735,350원`·`365일`·`189MD`, p5
+  `13,225,835,150원`·`12개월`, p7~8의 감리 절 구분을 text와 p4/p5 PNG로
+  확인했다. Canvas PDF는 SHA-256
+  `77fa66fca472a89f2b6a1608602eb6afb0be802068e62998dfec007f539f0010`, 전체
+  extracted text SHA-256은
+  `e58ab1e90fd216005d283417e11991eab177300e2f0f4ed3afbdd0dc837328ef`다.
+- 남은 범위: v2 scratch sidecar는 통과했지만 실표본 PDF의 DB/MinIO immutable
+  snapshot과 v4 runner/model/UI 연결은 아직 수행하지 않는다. dependency upgrade,
+  OCR/XML 보정, 범용 renderer framework는 추가하지 않았다.
+
+## [해결됨] 준비 PDF의 nonempty font glyph가 정본 text를 가리는 문제 (2026-09-08)
+
+- 재현: 개발 HWP의 Canvas 생성 PDF를 기존 stdlib PDF parser가 `7 blocks/31 chars`
+  의 `ଇ`·`ೇ` 같은 glyph로 반환해 nonempty 결과가 되면서 Poppler fallback을
+  억제했다. 같은 PDF를 bounded `pdfinfo`/`pdftotext -layout -enc UTF-8`로 읽으면
+  `38,581`자의 본문이 확인됐다. 기존 원본 PDF59도 같은 준비 경로에서 `84p/85,515`
+  chars를 반환했다.
+- 해결: `prepare_pdf=True`의 생성·원본 PDF 모두 stdlib parser를 object/page
+  제한 검사용으로만 실행하고, 텍스트 정본은 shared deadline 아래 bounded Poppler로
+  읽는다. `prepare_pdf=False` legacy 경로와 `pdf_object_limit`은 그대로 유지하며
+  limit 초과를 fallback 성공으로 바꾸지 않는다.
+- 검증: `tests/deep_review/test_document_mcp.py`의 nonempty-glyph 회귀와 개발/운영
+  실제 구조 검사가 통과했다. 이 수정은 OCR·언어 휴리스틱·원문 XML 덧붙이기를
+  추가하지 않는다.
+
+## v4 PDF snapshot/input bounded 단계 상태 (2026-09-08)
+
+`prespec_v4_pdf_snapshot`와 `prespec_v4_target`의 최소 계약, full page-text/versioned
+object binding, worker provenance/options 결속, source namespace generated PDF 저장,
+변환 전 snapshot 재사용, canonical explicit-sample identity, heading substring
+selector를 isolated storage에서 검증했다. `PrespecV4Attempt` 선행 스키마는 실제
+runner 소비자가 없어 보류했다. 운영 DB/MinIO 쓰기·migration 적용·model/UI 인수는
+남아 있으며, 기존 `DocumentStructure`·legacy 개요/리뷰는 덮어쓰지 않았다.
+
+## [해결됨] v4 snapshot cache가 최신 scan/object identity를 확인하지 않던 경계 (2026-09-08)
+
+- 원인: 초기 cache hit 경로가 verified location만 확인하고 object version·etag·실제
+  bytes/page-text JSON·최신 ClamAV scan 행을 다시 읽지 않았다. 과거 clean 뒤에
+  `infected`/`unavailable` 행이 생겨도 재사용할 수 있는 구조였다.
+- 해결: cache hit에서 source/PDF/page-text를 기존 ObjectStore의 정확한 version으로
+  bounded read하고 content object의 size/hash/mime, location etag, page metadata를
+  다시 대조한다. 최신 `ContentScan` 하나의 status가 `clean`일 때만 재사용하며 과거
+  clean으로 후퇴하지 않는다. generated PDF는 worker metadata의 실제 runtime·Chromium·
+  font fingerprint와 준비 caller 기대값이 일치할 때만 저장한다.
+- 검증: `test_prespec_v4_preparation.py` 5 passed, 임시 PostgreSQL 17에서
+  `test_prespec_v4_postgres.py` 1 passed 및 migration 제약 focused 5 passed.
+
+운영 DB/MinIO에 0021을 적용하거나 실제 snapshot을 생성한 것은 아니다.
+
+## [해결됨] v4 provenance가 자산 hash를 이미지 digest로 오인하던 경계 (2026-09-08)
+
+- 원인: worker image digest 선언이 없을 때 runtime/Chromium/font 자산을 합친 hash를
+  `worker_image_digest`로 기록했고, `fc-list`의 이름·경로 출력만 hash해 같은 경로의
+  font bytes 교체를 잡지 못했다. Chromium launcher script도 실제 print binary처럼
+  기록할 수 있었다.
+- 해결: 선언된 image digest만 선택적으로 기록하고 미선언은 `null`로 남긴다. runtime
+  fingerprint에는 vendored Canvas adapter와 processor/CSS 및 실제 Chromium ELF hash를
+  포함하고, 정렬한 설치 font 파일의 size·bytes hash로 manifest를 만든다. 원본 PDF v2
+  sidecar는 재렌더하지 않음, 실제 processor hash와 Poppler `pdfinfo`/`pdftotext`
+  binary hash, `font_provenance=null`을 검증한다.
+- 검증: document-mcp provenance/font-byte 회귀, worker protocol 14개, v4 preparation
+  5개와 runtime contract를 포함한 focused 73개가 통과했다. 실제 PDF59 sidecar는
+  84 physical pages로 통과했고, 격리 source-PDF snapshot 재사용에서 converter 1회와
+  동일 snapshot을 확인했다.
+
+운영 DB/MinIO migration·snapshot row와 runner/model/UI 연결은 여전히 수행하지 않았다.
+
+## [미검증] notice 142 표준 PDF 준비가 300초 deadline에서 종료됨 (2026-09-09)
+
+- 재현: `R26BD00271191` 필수 HWPX를 명시 표본 표준 prepare로 실행했다. 첫 시도는
+  `conversion_required`, 두 번째 시도는 `pdf_preparation_failed`였고, 마지막 2GiB
+  worker 시도도 job `9a8ded11-f357-4847-a534-65be6a0810f8`, attempt
+  `954abd8b-e161-457a-9236-464fb47604ba`, `300048ms` timeout으로 실패했다.
+- 영향: notice 142에는 성공 PDF, immutable snapshot, current result를 저장하지
+  않았으며 실제 PDF/UI 인수는 미검증이다. 이미 완료된 35 개발 HWP와 59 운영 PDF
+  current 결과에는 영향을 주지 않는다.
+- 조치: 원인으로 입증되지 않은 Chromium `RLIMIT_FSIZE=256MiB` 임시 변경은
+  원복했다. 2GiB 조건에서도 timeout이 발생했으므로 fsize를 해결책으로 확정하지
+  않는다. 추가 변환 진단·대체 테스트·모델 호출은 수행하지 않았다.
+- 후속: worker 원래 runtime 조건으로 복원하고, 별도 승인된 환경 원인 조사 후에만
+  재시도한다. 실패 attempt는 보존하며 자동 성공·기존 snapshot 재사용으로 우회하지
+  않는다.

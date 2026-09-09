@@ -15,7 +15,12 @@ from ...core.models import AuditEvent
 from ...core.object_store import ObjectStore
 from ...lifecycle.models import Notice
 from ..models import ContentObject, ContentObjectLocation, ContentScan, DocumentVersion, PreSpecPageOverview
-from ..schemas.page_overview import PageOverviewPayload, PageOverviewResponse, PageOverviewView
+from ..schemas.page_overview import (
+    PageOverviewCurrent,
+    PageOverviewPayload,
+    PageOverviewResponse,
+    PageOverviewView,
+)
 from .page_overview_validation import VALIDATOR_VERSION, fold_space, validate_page_overview
 
 
@@ -155,7 +160,14 @@ def list_page_overviews(session: Session, notice_id: int) -> PageOverviewRespons
         require(digest(canonical(row.payload_jsonb)) == row.payload_sha256, "result_integrity_failed")
         fields = {name: getattr(row, name) for name in PageOverviewView.model_fields if name != "payload"}
         views.append(PageOverviewView(**fields, payload=PageOverviewPayload.model_validate(row.payload_jsonb)))
-    return PageOverviewResponse(notice_id=notice_id, reviews=views)
+    # Keep the append-only v3 history exactly as it was.  The current pointer
+    # is a separate server projection so clients never infer current state
+    # from reviews[0], which may contain a legacy/manual row.
+    from .prespec_v4_runner import current_v4_projection
+
+    projected = current_v4_projection(session, notice_id)
+    current = PageOverviewCurrent(**projected) if projected is not None else None
+    return PageOverviewResponse(notice_id=notice_id, reviews=views, current=current)
 
 
 def get_page_pdf(session: Session, notice_id: int, review_id: UUID, store: ObjectStore) -> bytes:

@@ -749,7 +749,11 @@ def test_a_failing_auto_start_does_not_undo_the_completed_overview(
     """hook 실패가 개요 완료를 되돌리면 안 된다."""
 
     from app.deep_review.services import company_fit
-    monkeypatch.setattr(company_fit, "gate_reasons", lambda session, ids: {i: None for i in ids})
+    monkeypatch.setattr(
+        company_fit,
+        "gate_reasons",
+        lambda session, ids, *, current_v4=None: {i: None for i in ids},
+    )
     engine, session, _notice_row, _bundle, review = _auto_start_ready(
         tmp_path, monkeypatch, "autostart-fail"
     )

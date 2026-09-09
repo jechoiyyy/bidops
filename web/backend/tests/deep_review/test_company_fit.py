@@ -15,9 +15,22 @@ from sqlalchemy.pool import StaticPool
 from app.core.config import get_settings
 from app.core.db import Base, get_db
 from app.core.model_client import ModelIdentity
-from app.deep_review.models import ContentObject, ProfileVersion, ProfileEvidence, PreSpecCompanyFitAttempt, DocumentVersion, DocumentBundle, DocumentBundleItem, DocumentStructure, DeepReview
+from app.deep_review.models import (
+    ContentObject,
+    DeepReview,
+    DocumentBundle,
+    DocumentBundleItem,
+    DocumentStructure,
+    DocumentVersion,
+    PreSpecCompanyFitAttempt,
+    PreSpecOverviewReview,
+    PreSpecPageOverview,
+    ProfileEvidence,
+    ProfileVersion,
+)
 from app.lifecycle.models import Notice
 from app.deep_review.services import company_fit as fit, company_fit_runner as worker, effective_grade
+from app.deep_review.services.auto_preparation import auto_preparation_fields
 from app.deep_review.services.input_versions import import_policy_version, PROFILE_SOURCE_FILE
 from app.deep_review.services.page_overview import import_page_overview
 from app.deep_review.routers.deep_reviews import pre_spec_overview_router
@@ -203,6 +216,118 @@ def test_source_replacement_invalidates_previous_assessment(context):
     doc = session.get(DocumentVersion, row.document_version_id)
     doc.is_current = False; session.commit()
     assert not fit.current_flags(session, [row])[row.id]
+
+
+@pytest.mark.parametrize("status", ["running", "failed", "stale"])
+def test_noncompleted_v4_current_blocks_legacy_and_page_fit_input(
+    context, monkeypatch, status
+):
+    session, inputs = context
+    row = enqueue(session, inputs)
+    monkeypatch.setattr(
+        fit,
+        "current_v4_projections",
+        lambda _session, ids: {
+            notice_id: {"status": status, "result_id": None}
+            for notice_id in ids
+        },
+    )
+
+    assert fit.overview_inputs(session, [inputs["notice_id"]]) == {}
+    assert fit.current_flags(session, [row])[row.id] is False
+    assert fit.gate_reasons(session, [inputs["notice_id"]]) == {
+        inputs["notice_id"]: "company_fit_v4_disabled"
+    }
+
+
+def test_v4_current_result_id_selects_its_page_overview_over_newer_history(
+    context, monkeypatch
+):
+    session, inputs = context
+    current = session.get(PreSpecPageOverview, UUID(inputs["overview_id"]))
+    assert current is not None
+    newer_values = {
+        column.key: getattr(current, column.key)
+        for column in PreSpecPageOverview.__table__.columns
+    }
+    newer_values.update(
+        id=uuid4(),
+        run_id=uuid4(),
+        created_at=current.created_at + timedelta(seconds=1),
+    )
+    session.add(PreSpecPageOverview(**newer_values))
+    session.commit()
+    monkeypatch.setattr(
+        fit,
+        "current_v4_projections",
+        lambda _session, ids: {
+            notice_id: {
+                "status": "completed",
+                "result_id": str(current.id),
+            }
+            for notice_id in ids
+        },
+    )
+
+    source = fit.overview_inputs(session, [inputs["notice_id"]])[inputs["notice_id"]]
+
+    assert source.id == current.id
+
+
+def test_grade_less_v4_current_state_is_not_reported_as_legacy_completion(
+    context, monkeypatch
+):
+    session, inputs = context
+    ready_bundle(session, inputs)
+    session.add(
+        PreSpecOverviewReview(
+            notice_id=inputs["notice_id"],
+            status="completed",
+            result="추진 검토",
+            completed_at=datetime.now(UTC),
+        )
+    )
+    session.commit()
+    monkeypatch.setattr(
+        fit,
+        "current_v4_projections",
+        lambda _session, ids: {
+            notice_id: {
+                "status": "failed",
+                "result_id": None,
+            }
+            for notice_id in ids
+        },
+    )
+
+    fields = auto_preparation_fields(session, [inputs["notice_id"]])[inputs["notice_id"]]
+
+    assert fields["grade"] is None
+    assert fields["auto_preparation_status"] == "deep_review_ready_for_click"
+    assert fields["auto_preparation_reason"] == "overview_not_completed"
+
+
+def test_v4_activation_off_prevents_company_fit_enqueue(context, monkeypatch):
+    session, inputs = context
+    ready_bundle(session, inputs)
+    projection = {
+        inputs["notice_id"]: {
+            "status": "completed",
+            "result_id": inputs["overview_id"],
+        }
+    }
+    monkeypatch.setattr(fit, "current_v4_projections", lambda _session, ids: {
+        notice_id: projection.get(notice_id)
+        for notice_id in ids
+    })
+    monkeypatch.setattr(worker, "current_v4_projections", lambda _session, ids: {
+        notice_id: projection.get(notice_id)
+        for notice_id in ids
+    })
+
+    worker.PreSpecCompanyFitRunner()._enqueue_one(session)
+
+    assert session.scalar(select(PreSpecCompanyFitAttempt)) is None
 
 
 def test_disabled_worker_performs_no_model_or_database_work(monkeypatch):

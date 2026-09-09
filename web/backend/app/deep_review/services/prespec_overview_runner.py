@@ -21,7 +21,7 @@ from __future__ import annotations
 import hashlib
 import os
 import re
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -183,7 +183,13 @@ class PreSpecOverviewRunner:
         return self._resolved
 
     # -- 한 poll -------------------------------------------------------
-    def run_once(self, session: Session, worker_id: str) -> OverviewRunResult:
+    def run_once(
+        self,
+        session: Session,
+        worker_id: str,
+        *,
+        excluded_document_version_ids: Collection[UUID] = (),
+    ) -> OverviewRunResult:
         """만료 lease 회수 → 큐 유입 → claim → 실행을 한 번씩 한다.
 
         **싼 일이 먼저다.** 만료 lease 회수와 "이번 poll에 할 일이 있는가"는
@@ -197,8 +203,14 @@ class PreSpecOverviewRunner:
         if expired:
             session.commit()
 
-        candidate = select_overview_enqueue_candidate(session)
-        if candidate is None and not has_claimable_overview_attempt(session):
+        candidate = select_overview_enqueue_candidate(
+            session,
+            excluded_document_version_ids=excluded_document_version_ids,
+        )
+        if candidate is None and not has_claimable_overview_attempt(
+            session,
+            excluded_document_version_ids=excluded_document_version_ids,
+        ):
             # 할 일이 없다. 모델 서버를 부르지 않고 이 poll을 끝낸다.
             return OverviewRunResult(False, expired_leases=len(expired))
 
@@ -229,6 +241,7 @@ class PreSpecOverviewRunner:
             worker_id,
             lease_seconds=self.lease_seconds,
             now=self.clock(),
+            excluded_document_version_ids=excluded_document_version_ids,
         )
         if attempt is None:
             return OverviewRunResult(False, expired_leases=len(expired))
