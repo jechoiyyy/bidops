@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import type { DeadlineNotice, RunStatsResponse, RunSummary, ValidationMetricsResponse } from "../src/lib/types";
+import type { DeadlineNotice, RunStatsResponse, RunSummary, ValidationMetricsResponse, WorkloadResponse } from "../src/lib/types";
 import { mockApi } from "./api-mock";
 
 export const DASH_RUN = "dashboard-preview-20260907";
@@ -35,15 +35,24 @@ export const dashboardMetrics: ValidationMetricsResponse = {
   run_id:DASH_RUN, metrics:[{key:"human_reference",label:"사람 정답 비교",value:null,percentage:null,threshold:null,
     meets_threshold:null,status:"not_measurable",basis:{numerator:0,denominator:0,detail:{}},reason:"평가 기준 미확인"}],
 };
-export const dashboardRuns: RunSummary[] = [DASH_RUN,OTHER_RUN].map((run_id,index)=>({
+export const dashboardWorkload: WorkloadResponse = {
+  generated_at: reference,
+  items: [
+    {key:"order_plan_pending",count:24,unavailable_reason:null},
+    {key:"pre_spec_deep_review_ready",count:7,unavailable_reason:null},
+    {key:"tracking_action_required",count:3,unavailable_reason:null},
+    {key:"bid_final_decision_pending",count:0,unavailable_reason:null},
+  ],
+};
+export const dashboardRuns: RunSummary[] =[DASH_RUN,OTHER_RUN].map((run_id,index)=>({
   run_id,kind:"notices",window_from:index ? "2026-08-31" : "2026-09-03", window_to:index ? "2026-09-04" : "2026-09-07",
   timezone:"Asia/Seoul",generated_at:reference,screening_basis:null,status:"active",superseded_by:null,
   counts:{notices:1240,judgments:180,reviews:index ? 18 : 32,collection:{}},
 }));
 
 export async function mockDashboard(page: Page, options: {
-  stats?: Partial<RunStatsResponse>; metrics?: ValidationMetricsResponse; runs?: RunSummary[];
-  statsError?: boolean; metricsError?: boolean; runsError?: boolean; candidateError?: boolean;
+  stats?: Partial<RunStatsResponse>; metrics?: ValidationMetricsResponse; runs?: RunSummary[]; workload?: WorkloadResponse;
+  statsError?: boolean; metricsError?: boolean; runsError?: boolean; workloadError?: boolean;
 } = {}) {
   await mockApi(page);
   const writes: string[] = [];
@@ -59,7 +68,7 @@ export async function mockDashboard(page: Page, options: {
       body={...structuredClone(dashboardStats),...options.stats,run_id:id,...(id===OTHER_RUN ? {collected_count:840,candidate_count:260} : {})};failure=!!options.statsError;
     }
     else if(url.pathname==="/api/metrics/validation") {body={...(options.metrics ?? dashboardMetrics),run_id:url.searchParams.get("run_id")};failure=!!options.metricsError;}
-    else if(url.pathname==="/api/order-plans" && url.searchParams.has("qwen_relevance")) {body={items:[],total:url.searchParams.get("qwen_relevance")==="relevant" ? 18 : 6};failure=!!options.candidateError;}
+    else if(url.pathname==="/api/workload") {body=options.workload ?? dashboardWorkload;failure=!!options.workloadError;}
     else return route.fallback();
     await route.fulfill({status:failure?503:200,contentType:"application/json",body:JSON.stringify(failure?{error:{code:"fixture_unavailable",message:"합성 조회 실패",details:null}}:body)});
   });

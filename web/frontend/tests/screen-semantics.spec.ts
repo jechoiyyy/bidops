@@ -4,6 +4,7 @@ import {
   mockOpportunity,
   mockPreSpecAutoDetail,
   mockPreSpecMatrix,
+  mockWorkload,
 } from "./api-mock";
 import { installScreenFixtures } from "./screen-fixtures";
 
@@ -67,6 +68,12 @@ test("대시보드 회차 요약이 API 집계와 별도 담당자 리뷰 수를
 });
 
 test("대시보드는 네 업무를 한 줄에 두고 미확인을 작은 주석으로 표시한다", async ({ page }) => {
+  await mockWorkload(page, { generated_at: "2026-09-01T09:00:00Z", items: [
+    { key: "order_plan_pending", count: 24, unavailable_reason: null },
+    { key: "pre_spec_deep_review_ready", count: null, unavailable_reason: "provider_absent" },
+    { key: "tracking_action_required", count: null, unavailable_reason: "no_completed_execution" },
+    { key: "bid_final_decision_pending", count: null, unavailable_reason: null },
+  ] });
   await page.goto(`/?run=${encodeURIComponent(RUN_ID)}`);
   const decisions = page.locator(".dash-journey-item");
   await expect(decisions).toHaveCount(4);
