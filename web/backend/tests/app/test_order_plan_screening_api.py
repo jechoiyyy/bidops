@@ -147,7 +147,7 @@ def test_manual_execution_and_review_api_contract(tmp_path, monkeypatch) -> None
             session.commit()
             plan_list = client.get("/api/order-plans?source_run_id=run-c2&limit=10")
             assert plan_list.status_code == 200
-            assert plan_list.json()["schema_version"] == "order-plan-list-response.v2"
+            assert plan_list.json()["schema_version"] == "order-plan-list-response.v3"
             assert plan_list.json()["scope"]["execution_id"] == execution_id
             assert plan_list.json()["scope"]["status"] == "성공"
             assert plan_list.json()["items"][0]["budget_amount"] == 123456789.0

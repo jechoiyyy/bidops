@@ -122,6 +122,8 @@ def ids(response):
 
 def test_scope_is_one_completed_execution_and_never_borrows_results(listing):
     session, service, policy, plans, client = listing
+    plans[0].source_url = "https://www.g2b.go.kr/link/PRPA015_01/single/?oderPlanNo=P-0"
+    session.commit()
     old = execution(session, service, policy)
     result(session, old, plans[0])
     feedback(session, old, plans[0])
@@ -138,13 +140,14 @@ def test_scope_is_one_completed_execution_and_never_borrows_results(listing):
     feedback(session, stopped, plans[0], relevance="not_relevant", minute=4)
     session.commit()
     body = client.get("/api/order-plans").json()
-    assert body["schema_version"] == "order-plan-list-response.v2"
+    assert body["schema_version"] == "order-plan-list-response.v3"
     assert body["scope"] == {"execution_id": str(latest.execution_id), "source_run_id": "other", "status": "부분 성공", "finished_at": "2026-09-02T00:02:00Z"}
     assert len(body["items"]) == 9
     assert body["items"][0]["stage1_status"] is None
     assert body["items"][0]["stage2_status"] is None
     assert body["items"][0]["qwen_relevance"] is None
     assert body["items"][0]["human_feedback"] is None
+    assert body["items"][0]["source_url"] == "https://www.g2b.go.kr/link/PRPA015_01/single/?oderPlanNo=P-0"
     assert body["items"][1]["qwen_relevance"] == "uncertain"
     scoped = client.get("/api/order-plans", params={"source_run_id": "run-c2"}).json()
     assert scoped["scope"]["execution_id"] == str(old.execution_id)
@@ -227,7 +230,8 @@ def test_tracking_only_projects_active_authoritative_owner(listing):
     for index in range(9):
         detail = client.get(f"/api/order-plans/{plans[index].id}")
         assert detail.status_code == 200
-        assert detail.json()["schema_version"] == "order-plan-detail-response.v2"
+        assert detail.json()["schema_version"] == "order-plan-detail-response.v3"
+        assert detail.json()["source_url"] == plans[index].source_url
         assert detail.json()["tracking"] == rows[index]["tracking"]
         assert "inherited_from_order_plan" not in str(detail.json())
     assert client.get("/api/order-plans/99999").status_code == 404
