@@ -37,6 +37,76 @@ async function resetFilters(page: import("@playwright/test").Page) {
   await page.locator(".c2l-filters").getByRole("button", { name: "필터 초기화", exact: true }).click();
 }
 
+const TEST_ORDER_PLAN_SOURCE_RUN_ID = "91d8c2e4-3f09-4e6a-9bd9-0c2e4e6d0101";
+
+function testOrderPlanItem(orderPlanPk: number, relevance: "relevant" | "uncertain" | "not_relevant" | null, title: string) {
+  return {
+    order_plan_pk: orderPlanPk,
+    order_plan_unty_no: `OP-TEST-${String(orderPlanPk).padStart(5, "0")}`,
+    title,
+    agency_name: `테스트 기관 ${orderPlanPk}`,
+    business_division: "정보화",
+    budget_amount: null,
+    planned_order_year: null,
+    planned_order_month: null,
+    source_run_id: TEST_ORDER_PLAN_SOURCE_RUN_ID,
+    observed_at: "2026-09-01T01:00:00Z",
+    stage1_status: "selected",
+    stage1_rank: orderPlanPk,
+    stage1_score: 0.5,
+    nearest_capability: null,
+    stage2_status: relevance === null ? "unknown" : "success",
+    qwen_relevance: relevance,
+    qwen_score: relevance === null ? null : 0.5,
+    qwen_reason: null,
+    human_feedback: null,
+    tracking: {
+      opportunity_id: 5000 + orderPlanPk,
+      tracking_status: "미선택",
+      tracking_reason: null,
+      tracking_selected_by: null,
+      tracking_selected_at: null,
+    },
+  };
+}
+
+/** The browser fetches all pages, so this keeps API order deliberately different from relevance order. */
+async function mockReorderedOrderPlanList(
+  page: import("@playwright/test").Page,
+  items: ReturnType<typeof testOrderPlanItem>[],
+) {
+  await mockOrderPlans(page);
+  await page.route("**/api/order-plans**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (request.method() !== "GET" || url.pathname !== "/api/order-plans") {
+      await route.fallback();
+      return;
+    }
+    const limit = Number(url.searchParams.get("limit") ?? 100);
+    const offset = Number(url.searchParams.get("offset") ?? 0);
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        schema_version: "order-plan-list-response.v2",
+        producer: "order-plan-review-api",
+        consumer: "order-plan-review-client",
+        scope: {
+          execution_id: "a2f4d7c1-0a61-4a07-8d2e-7f1d1d010101",
+          source_run_id: TEST_ORDER_PLAN_SOURCE_RUN_ID,
+          status: "부분 성공",
+          finished_at: "2026-09-01T02:05:00Z",
+        },
+        items: items.slice(offset, offset + limit),
+        total: items.length,
+        limit,
+        offset,
+      }),
+    });
+  });
+}
+
 // 화면 제목은 `발주계획` 한 낱말이고(승인 시안), 목록 행은 사업명 → 상태 배지 → metadata(발주기관·
 // 예산·시기) 차례를 그대로 지킨다. 발주기관은 자리를 옮기지 않고 크기만
 // 보조 글자에서 본문 굵은 글자로 키운다.
@@ -197,6 +267,80 @@ test("토큰 필터는 축끼리 AND, 축 안에서는 OR로 조합되고 프리
   // 필터 초기화는 검토 대상(기본) 조합으로 되돌린다.
   await resetFilters(page);
   await expect(page.locator(".c2l-row")).toHaveCount(2);
+});
+
+test("검토 목록은 relevance 우선순위로 정렬하고 선택 순서와 같은 relevance의 원래 순서를 보존한다", async ({ page }) => {
+  const items = [
+    testOrderPlanItem(102, "uncertain", "API 순서 불확실 사업"),
+    testOrderPlanItem(101, "relevant", "API 순서 관련 사업"),
+    testOrderPlanItem(104, null, "API 순서 값 없음 첫 번째"),
+    testOrderPlanItem(103, "not_relevant", "API 순서 비관련 사업"),
+    testOrderPlanItem(105, null, "API 순서 값 없음 두 번째"),
+  ];
+  await mockReorderedOrderPlanList(page, items);
+  await page.goto("/order-plans");
+
+  await expect(page.locator(".c2l-list-sort")).toHaveText("정렬 · 관련 → 판단 보류 → 비관련 → 값 없음");
+  await clickPreset(page, "전체");
+
+  const rows = page.locator(".c2l-row");
+  await expect(rows).toHaveCount(5);
+  expect((await rows.locator(".c2l-row-model").allTextContents()).map((label) => label.trim())).toEqual([
+    "모델 관련",
+    "모델 판단 보류",
+    "모델 비관련",
+    "Qwen unknown",
+    "Qwen unknown",
+  ]);
+
+  // null relevance 안에서는 API가 준 104→105 순서가 유지되어 실행 상태를 relevance로
+  // 추정하거나 같은 그룹을 제목·점수로 다시 정렬하지 않는다.
+  const titles = await rows.locator(".c2l-row-title").allTextContents();
+  const stableNullTitles = [
+    "API 순서 값 없음 첫 번째",
+    "API 순서 값 없음 두 번째",
+  ];
+  expect(titles.slice(3).map((title) => title.trim())).toEqual(stableNullTitles);
+
+  // URL의 선택 토큰이 uncertain,relevant 순서여도 사람이 보는 우선순위는 고정된다.
+  await page.goto("/order-plans?qwen=uncertain,relevant");
+  await expect.poll(() => new URL(page.url()).searchParams.get("qwen")).toBe("uncertain,relevant");
+  await expect(rows).toHaveCount(2);
+  expect((await rows.locator(".c2l-row-model").allTextContents()).map((label) => label.trim())).toEqual(["모델 관련", "모델 판단 보류"]);
+  await expect(rows.first()).toContainText("API 순서 관련 사업");
+  await expect(rows.nth(1)).toContainText("API 순서 불확실 사업");
+});
+
+test("relevance 정렬은 500건 페이지를 자르기 전에 적용되고 페이지 끝 키보드 이동도 이어진다", async ({ page }) => {
+  const items = [
+    ...Array.from({ length: 200 }, (_, index) => testOrderPlanItem(102 + index, null, `대량 값 없음 ${index + 1}`)),
+    ...Array.from({ length: 100 }, (_, index) => testOrderPlanItem(302 + index, "not_relevant", `대량 비관련 ${index + 1}`)),
+    ...Array.from({ length: 200 }, (_, index) => testOrderPlanItem(402 + index, "uncertain", `대량 판단 보류 ${index + 1}`)),
+    testOrderPlanItem(101, "relevant", "대량 관련 1"),
+    ...Array.from({ length: 99 }, (_, index) => testOrderPlanItem(602 + index, "relevant", `대량 관련 ${index + 2}`)),
+  ];
+  await mockReorderedOrderPlanList(page, items);
+  await page.goto("/order-plans");
+  await clickPreset(page, "전체");
+
+  await expect(page.locator(".c2l-list-head")).toContainText("현재 필터 결과 600건");
+  await expect(page.locator(".c2l-pager")).toContainText("1–500 / 600");
+  const rows = page.locator(".c2l-row");
+  await expect(rows).toHaveCount(500);
+  await expect(rows.first()).toContainText("대량 관련 1");
+  await expect(rows.nth(99)).toContainText("대량 관련 100");
+  await expect(rows.nth(100)).toContainText("대량 판단 보류 1");
+  await expect(rows.nth(399)).toContainText("대량 비관련 100");
+  await expect(rows.nth(400)).toContainText("대량 값 없음 1");
+
+  await rows.nth(499).click();
+  await expect(rows.nth(499)).toHaveAttribute("aria-current", "true");
+  await rows.nth(499).focus();
+  await page.keyboard.press("ArrowDown");
+  await expect(page.locator(".c2l-pager")).toContainText("501–600 / 600");
+  await expect(rows).toHaveCount(100);
+  await expect(rows.first()).toContainText("대량 값 없음 101");
+  await expect(rows.first().locator(".c2l-row-model")).toHaveText("Qwen unknown");
 });
 
 test("1200건 결과에서 기본 review 필터·실패·거부 필터와 페이지 경계를 전체 모집단 기준으로 계산한다", async ({ page }) => {

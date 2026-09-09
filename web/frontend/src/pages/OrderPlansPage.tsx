@@ -247,6 +247,27 @@ function relevanceToken(value: OrderPlanRelevance | null): RelevanceToken {
   return (value ?? "null") as RelevanceToken;
 }
 
+const RELEVANCE_PRIORITY: Readonly<Record<RelevanceToken, number>> = {
+  relevant: 0,
+  uncertain: 1,
+  not_relevant: 2,
+  null: 3,
+};
+
+/**
+ * 검토 목록은 모델 relevance 신호만으로 우선순위를 정한다. 점수나 다른 상태를
+ * 추론하지 않으며, 같은 relevance 안에서는 API가 준 순서를 보존한다.
+ */
+function sortByRelevance(items: readonly OrderPlanListItem[]): OrderPlanListItem[] {
+  return items
+    .map((item, index) => ({ item, index }))
+    .sort((left, right) =>
+      RELEVANCE_PRIORITY[relevanceToken(left.item.qwen_relevance)] - RELEVANCE_PRIORITY[relevanceToken(right.item.qwen_relevance)]
+      || left.index - right.index,
+    )
+    .map(({ item }) => item);
+}
+
 function stage1Token(value: OrderPlanStage1Status | null): Stage1Token {
   return (value ?? "null") as Stage1Token;
 }
@@ -1179,7 +1200,9 @@ export function OrderPlansPage() {
     }
     return counts;
   }, [listQuery.data]);
-  const filteredItems = allItems.filter(matchesFilters);
+  // 필터 결과 전체를 먼저 relevance 우선순위로 정렬한 뒤 잘라야 페이지와 ↑↓ 이동이
+  // 같은 검토 순서를 공유한다. null은 값 없음으로만 다루고 다른 상태로 보정하지 않는다.
+  const filteredItems = sortByRelevance(allItems.filter(matchesFilters));
   const total = filteredItems.length;
   const visibleItems = filteredItems.slice(offset, offset + PAGE_SIZE);
   const hasPrevious = offset > 0;
@@ -1724,6 +1747,9 @@ export function OrderPlansPage() {
                   {/* 무엇을 보고 있는지는 한 줄로 남긴다. 축 안은 OR, 축끼리는 AND다. */}
                   <p className="c2l-list-scope" title={filterMeaning}>
                     <Text type="supporting" color="secondary" as="span">{filterMeaning}</Text>
+                  </p>
+                  <p className="c2l-list-scope c2l-list-sort" title="관련 → 판단 보류 → 비관련 → 값 없음">
+                    <Text type="supporting" color="secondary" as="span">정렬 · 관련 → 판단 보류 → 비관련 → 값 없음</Text>
                   </p>
                 </header>
                 {listQuery.isPending ? (
