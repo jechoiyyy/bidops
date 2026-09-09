@@ -32,6 +32,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     # `/api/pre-specs`)를 쓰지만 제공 모듈은 deep_review다(§5.3).
     # deep_review를 끄면 그 경로도 404다.
     "attachments_router": (".routers.attachments", "router"),
+    "bid_decision_queue_router": (".routers.bid_delta", "decision_queue_router"),
     "bid_delta_router": (".routers.bid_delta", "router"),
     "deep_reviews_router": (".routers.deep_reviews", "router"),
     "document_bundles_router": (".routers.document_bundles", "router"),
@@ -95,7 +96,7 @@ def register_lifecycle_extensions(registry=None):
     """
 
     from .services.deep_review_hooks import PreSpecAttachmentEligibilityHook
-    from .services.prespec_projection import PreSpecOverviewDocumentProjection
+    from .services.prespec_projection import DeepReviewWorkloadProjection, PreSpecOverviewDocumentProjection
 
     if registry is None:
         from ..lifecycle import extension_registry
@@ -104,6 +105,7 @@ def register_lifecycle_extensions(registry=None):
     registry.register_overview_document_projection(
         PreSpecOverviewDocumentProjection(), owner=EXTENSION_OWNER
     )
+    registry.register_workload_projection(DeepReviewWorkloadProjection(), owner=EXTENSION_OWNER)
     hook = PreSpecAttachmentEligibilityHook()
     registry.register_run_ingest_hook(hook, owner=EXTENSION_OWNER)
     registry.register_tracking_decision_hook(hook, owner=EXTENSION_OWNER)
@@ -138,4 +140,4 @@ if TYPE_CHECKING:  # pragma: no cover - 정적 분석용 이름 노출
     from .services.prespec_overview_runner import PreSpecOverviewRunner
     from .services.prespec_v4_runner import PrespecV4OverviewRunner
     from .services.deep_review_hooks import PreSpecAttachmentEligibilityHook
-    from .services.prespec_projection import PreSpecOverviewDocumentProjection
+    from .services.prespec_projection import DeepReviewWorkloadProjection, PreSpecOverviewDocumentProjection

@@ -75,6 +75,8 @@ app/
 |---|---|---|---|
 | 공고 판정 | 읽기 projection | screening | 필드 `null`, 분포·지표 빈 값. 등급 필터·`sort=grade` 미지원 |
 | 사전규격 개요·문서 준비 상태 | 읽기 projection | deep_review | 개요 상태 `null`, 문서 건수 0 |
+| 미답변 차단 공고·건수 | 읽기 projection | screening | 공고 집합·페이지별 건수 빈 값 |
+| 결정 대기 업무 집계 | 읽기 projection | screening, deep_review | 그 업무의 count `null`·`provider_absent`. lifecycle이 직접 세는 `tracking_action_required`는 그대로다 |
 | 회차 적재됨 | 이벤트 hook | screening, deep_review | no-op, 건수 0 |
 | 추적 결정 변경됨 | 이벤트 hook | deep_review | no-op |
 | effective grade 변경됨 | 이벤트 hook | deep_review | no-op. 첨부 취득 자격 재계산과 자동 문서 준비가 일어나지 않는다 |
@@ -83,6 +85,8 @@ app/
   runtime을 만들지 않는 격리 API 테스트에서 projection이 빈다.
 - `notice_ids_for_filters`의 `None`은 "제한하지 않음", 빈 sequence는 "0건 일치"다. 둘을 섞으면
   제공자 없을 때 전체가 사라지거나 그 반대가 된다.
+- 업무 집계는 등록된 제공자마다 **한 번** 호출하고 그 count·사유를 그대로 보존한다. 제공자 부재
+  (`count=null`)와 실제 0을 섞지 않는다.
 - projection 구현은 호출부가 넘긴 `notice_ids` 만큼을 **상수 회 조회**로 처리한다. 공고당
   조회(N+1)를 만들지 않는다.
 - **hook은 자기 실패를 스스로 가둔다.** 여러 모듈이 같은 hook을 등록하므로, 한 hook의 실패가

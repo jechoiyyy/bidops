@@ -56,10 +56,34 @@ class DeepReviewView(StrictModel):
     quality_status: QualityStatus | None = None
 
 
+class OpportunityReviewFinalOpinion(StrictModel):
+    value: str
+    decided_at: datetime
+
+
+class OpportunityDeepReviewItem(StrictModel):
+    deep_review_id: str
+    notice_id: int
+    notice_title: str | None
+    status: str
+    quality_status: str | None
+    created_at: datetime
+    current_attempt_status: str | None
+    latest_final_opinion: OpportunityReviewFinalOpinion | None
+
+
+class OpportunityDeepReviewsResponse(StrictModel):
+    opportunity_id: int
+    items: list[OpportunityDeepReviewItem]
+
+
 __all__ = [
     "AttemptStatus",
     "AttemptView",
     "DeepReviewView",
+    "OpportunityDeepReviewItem",
+    "OpportunityDeepReviewsResponse",
+    "OpportunityReviewFinalOpinion",
     "QualityStatus",
     "ReviewStatus",
     "StageName",

@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, get_args
+from typing import Annotated, Any, get_args
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, aliased
 
+from ...core.constants import PreSpecAutoPreparationStatus
 from ...core.db import get_db
 from .. import PreSpecDocumentCounts, extension_registry
 from ..models import Attachment, Notice, Opportunity, OpportunityLink
@@ -97,6 +98,7 @@ def list_pre_specs(
     sw_only: bool = Query(default=True),
     business_division: str | None = Query(default=None),
     origin: PreSpecOrigin | None = Query(default=None),
+    auto_preparation_status: Annotated[PreSpecAutoPreparationStatus | None, Query()] = None,
     q: str | None = Query(default=None),
     sort: PreSpecSort = Query(default="published"),
     limit: int = Query(default=50, ge=1, le=500),
@@ -105,7 +107,8 @@ def list_pre_specs(
 ) -> PreSpecListResponse:
     """List all cumulative pre-spec notices with safe attachment summaries."""
 
-    projection = extension_registry().overview_document_projection
+    registry = extension_registry()
+    projection = registry.overview_document_projection
     connected_link = _connected_link_subquery()
     selected_link = aliased(OpportunityLink, name="pre_spec_selected_link")
     selected_opportunity = aliased(Opportunity, name="pre_spec_selected_opportunity")
@@ -160,6 +163,16 @@ def list_pre_specs(
             .order_by(None)
         ).all()
     ]
+    if auto_preparation_status is not None:
+        matching_ids = set(
+            registry.notice_ids_for_auto_preparation_status(
+                session, filtered_ids, auto_preparation_status
+            )
+        )
+        # notice_pk를 포함한 기존 조건에 AND하며, 집계와 페이지가 같은 집합을
+        # 읽는다. 제공자 부재의 빈 목록도 제한 없음으로 바꾸지 않는다.
+        filtered_ids = [notice_id for notice_id in filtered_ids if notice_id in matching_ids]
+        query = query.where(Notice.id.in_(filtered_ids))
     total = len(filtered_ids)
 
     status_counts = projection.overview_status_counts(session, filtered_ids)

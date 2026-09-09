@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends, Header, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from ...core.db import get_db
 from ..schemas.bid_delta import (
+    BidDecisionQueueResponse,
     BidDeltaAttemptCreateRequest,
     BidDeltaComparisonCreateRequest,
     BidDeltaComparisonView,
@@ -22,6 +23,7 @@ from ..services.bid_delta import BidDeltaService, BidDeltaServiceError
 
 
 router = APIRouter(prefix="/api/opportunities", tags=["bid-delta"])
+decision_queue_router = APIRouter(prefix="/api/bid-delta", tags=["bid-delta"])
 service = BidDeltaService()
 
 _MESSAGES = {
@@ -80,6 +82,22 @@ def _unexpected(session: Session, request_id: UUID | None = None) -> JSONRespons
             "request_id": str(request_id) if request_id is not None else None,
         },
     )
+
+
+@decision_queue_router.get("/decision-queue", response_model=BidDecisionQueueResponse)
+def get_bid_decision_queue(
+    status: Literal["pending", "all"] = "pending",
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    session: Session = Depends(get_db),
+) -> dict[str, object] | JSONResponse:
+    try:
+        return service.decision_queue(session, status=status, limit=limit, offset=offset)
+    except BidDeltaServiceError as error:
+        session.rollback()
+        return _error_response(error)
+    except Exception:
+        return _unexpected(session)
 
 
 @router.get("/{opportunity_id}/bid-delta", response_model=BidDeltaWorkspaceView)
@@ -176,4 +194,4 @@ def create_bid_final_decision(
         return _unexpected(session, payload.request_id)
 
 
-__all__ = ["router", "service"]
+__all__ = ["decision_queue_router", "router", "service"]
