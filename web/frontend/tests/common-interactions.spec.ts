@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { mockApi, mockDeepReviewLifecycle } from "./api-mock";
+import { mockApi, mockDeepReviewLifecycle, mockWorkload } from "./api-mock";
 
 const opportunity = {
   id: 501,
@@ -460,21 +460,21 @@ test("대시보드 바로가기에서 네 업무 각각으로 이동할 수 있�
   }
 });
 
-test("사전규격 결정 대기 건수는 미확인으로 표시되고 마감 순으로 이동한다", async ({ page }) => {
+test("사전규격 결정 대기 건수를 서버 집계로 보여 주고 마감 순으로 이동한다", async ({ page }) => {
   await mockApi(page);
   await page.goto("/");
   const item = page.locator(".dash-journey-strip").getByRole("link", { name: /사전규격/ });
-  await expect(item).toContainText("결정 대기 건수 미확인");
+  await expect(item).toContainText("결정 대기 1건");
   await item.click();
   await expect.poll(() => new URL(page.url()).pathname).toBe("/pre-specs");
   expect(new URL(page.url()).searchParams.get("sort")).toBe("deadline");
 });
 
-test("Go/No-Go 대기 건수는 집계가 없어 미확인으로 표시하고 이동을 제공한다", async ({ page }) => {
+test("Go/No-Go 결정 대기 건수를 서버 집계로 보여 주고 이동을 제공한다", async ({ page }) => {
   await mockApi(page);
   await page.goto("/");
   const item = page.locator(".dash-journey-strip").getByRole("link", { name: /최종 Go\/No-Go/ });
-  await expect(item).toContainText("결정 대기 건수 미확인");
+  await expect(item).toContainText("결정 대기 2건");
   await expect(item).toHaveAttribute("href", "/go-no-go");
 });
 
@@ -491,6 +491,13 @@ test("회차가 없어도 누적 업무와 공고 판정 이력으로 이동할 
 
 test("누적 집계 미확인과 회차 자료 읽기 전용을 별도로 표시한다", async ({ page }) => {
   await mockApi(page);
+  // 서버가 건수를 낼 수 없다고 답한 세 칸은 0으로 접히지 않고 미확인으로 남아야 한다.
+  await mockWorkload(page, { generated_at: "2026-09-01T09:00:00Z", items: [
+    { key: "order_plan_pending", count: 24, unavailable_reason: null },
+    { key: "pre_spec_deep_review_ready", count: null, unavailable_reason: "provider_absent" },
+    { key: "tracking_action_required", count: null, unavailable_reason: "provider_absent" },
+    { key: "bid_final_decision_pending", count: null, unavailable_reason: null },
+  ] });
   await page.goto("/");
   const unmeasured = page.locator(".dash-journey-item").filter({ hasText: "미확인" });
   await expect(unmeasured).toHaveCount(3);
