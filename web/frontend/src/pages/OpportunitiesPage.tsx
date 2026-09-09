@@ -5,8 +5,7 @@ import { Button } from "@astryxdesign/core/Button";
 import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Table, pixel, proportional, type TableColumn } from "@astryxdesign/core/Table";
-import { TextInput } from "@astryxdesign/core/TextInput";
-import { Activity, ListFilter, Search } from "lucide-react";
+import { Activity, Search } from "lucide-react";
 import { OpportunityDetail } from "../components/opportunities/OpportunityDetail";
 import {
   latestConfirmedStage,
@@ -15,6 +14,17 @@ import {
   primaryAgency,
   primaryTitle,
 } from "../components/opportunities/trackingFlow";
+import { PageHeaderActions } from "../components/common/PageHeaderActions";
+import {
+  WorkspaceAdvancedToggle,
+  WorkspaceFilterAdvanced,
+  WorkspaceFilterBar,
+  WorkspaceFilterEnd,
+  WorkspaceFilterLine,
+  WorkspaceFrame,
+  WorkspaceSearch,
+  WorkspaceViewTabs,
+} from "../components/common/WorkspaceFilters";
 import { Toast } from "../components/common/Toast";
 import { useToast } from "../components/common/useToast";
 import { useUnsavedGuard } from "../components/common/useUnsavedGuard";
@@ -234,172 +244,174 @@ export function OpportunitiesPage() {
 
   return (
     <section aria-labelledby="page-title" className="opportunities-page">
-      <header className="opportunity-page-header">
-        <h2 id="page-title">사업 추적</h2>
-        <Button
-          icon={<Activity />}
-          label="데이터 현황"
-          onClick={() => setDataDialog(true)}
-          size="sm"
-          variant="ghost"
-        />
-      </header>
-
-      <section aria-label="사업 추적 필터" className="opportunity-filters">
-        <div className="opportunity-filter-line">
-          <div aria-label="추적 구역" className="opportunity-view-tabs" role="group">
-            {VIEWS.map((value) => (
-              <Button
-                aria-pressed={view === value}
-                key={value}
-                label={counts ? `${value}  ${countLabel(value === ALL_VIEW ? allCount : counts[value])}` : value}
-                onClick={() => changeFilter("section", value === "조치 필요" ? null : value)}
-                size="sm"
-              />
-            ))}
-          </div>
-          <div className="opportunity-filter-end">
-            <TextInput
-              className="opportunity-search"
-              hasClear
-              isLabelHidden
-              label="사업명·발주기관 검색"
-              onChange={setSearchText}
-              onEnter={() => changeFilter("q", searchText.trim() || null)}
-              placeholder="사업명·발주기관 검색"
-              size="sm"
-              startIcon={Search}
-              value={searchText}
-            />
-            <Button
-              aria-expanded={advanced}
-              icon={<ListFilter />}
-              isIconOnly
-              label="상세 필터"
-              onClick={() => setAdvanced(!advanced)}
-              size="sm"
-            />
-          </div>
+      {/* 화면 제목은 상단바가 제목 모드로 그린다(route-meta `opportunities.topbar`).
+          페이지에는 `aria-labelledby`가 가리킬 숨긴 제목만 남고, 화면 액션은 상단바
+          슬롯으로 간다 — 같은 이름을 세로로 두 번 쓰지 않기 위해서다. */}
+      <h2 className="visually-hidden" id="page-title">사업 추적</h2>
+      <PageHeaderActions>
+        <div className="opportunity-header-actions">
+          <Button
+            icon={<Activity />}
+            label="데이터 현황"
+            onClick={() => setDataDialog(true)}
+            size="sm"
+            variant="ghost"
+          />
         </div>
-        {advanced ? (
-          <div className="opportunity-filter-advanced">
-            <Selector
-              hasClear
-              label="최초 발견 단계"
-              onChange={(value) => changeFilter("first_registered_stage", value || null)}
-              options={STAGES.map((value) => ({ value, label: originDescription(value) }))}
-              placeholder="전체"
-              size="sm"
-              value={stage ?? ""}
-            />
-            <Selector
-              label="표시 순서"
-              onChange={(value) => changeFilter("sort", value === "created_at" ? null : value)}
-              options={SORTS.map((value) => ({ value, label: SORT_LABELS[value] }))}
-              size="sm"
-              value={sort}
-            />
-            <Button label="필터 초기화" onClick={resetFilters} size="sm" />
-          </div>
-        ) : null}
-      </section>
+      </PageHeaderActions>
 
-      <div aria-label="사업 추적 목록과 상세" className="opportunity-workspace">
-        <section aria-label="사업 추적 목록" className="opportunity-list-pane">
-          <header className="opportunity-list-head">
-            <p className="opportunity-list-title">사업 추적 목록 · {countLabel(rows.length)}건</p>
-            <p className="opportunity-caption">
-              {list.isSuccess ? `${view} 전체 ${countLabel(view === ALL_VIEW ? allCount : total)}건` : "사업 단위"}
-            </p>
-          </header>
-          <div className="opportunity-table-scroll" onClick={selectFromRow} role="presentation">
+      <WorkspaceFrame>
+        <WorkspaceFilterBar aria-label="사업 추적 필터">
+          <WorkspaceFilterLine>
+            {/* 건수는 서버가 센 전체 집합이다. 아직 못 받았으면 0으로 접지 않고
+                아예 표시하지 않는다(`count: undefined`). */}
+            <WorkspaceViewTabs
+              className="opportunity-view-tabs"
+              label="추적 구역"
+              onChange={(value) => changeFilter("section", value === "조치 필요" ? null : value)}
+              tabs={VIEWS.map((value) => ({
+                key: value,
+                label: value,
+                count: counts ? (value === ALL_VIEW ? allCount : counts[value]) : undefined,
+              }))}
+              value={view}
+            />
+            <WorkspaceFilterEnd>
+              {/* 입력은 이미 받은 목록을 바로 좁히고, 주소의 `q`는 Enter로 확정한다.
+                  두 겹은 데이터 원천(서버 질의 인자 없음)이 정한 것이라 그대로 둔다. */}
+              <WorkspaceSearch
+                className="opportunity-search"
+                label="사업명·발주기관 검색"
+                onChange={setSearchText}
+                onEnter={() => changeFilter("q", searchText.trim() || null)}
+                value={searchText}
+              />
+              <WorkspaceAdvancedToggle
+                controlsId="opportunity-filter-advanced"
+                isOpen={advanced}
+                onToggle={() => setAdvanced(!advanced)}
+              />
+            </WorkspaceFilterEnd>
+          </WorkspaceFilterLine>
+          {advanced ? (
+            <WorkspaceFilterAdvanced columns={2} id="opportunity-filter-advanced" onReset={resetFilters}>
+              <Selector
+                hasClear
+                label="최초 발견 단계"
+                onChange={(value) => changeFilter("first_registered_stage", value || null)}
+                options={STAGES.map((value) => ({ value, label: originDescription(value) }))}
+                placeholder="전체"
+                size="sm"
+                value={stage ?? ""}
+              />
+              <Selector
+                label="표시 순서"
+                onChange={(value) => changeFilter("sort", value === "created_at" ? null : value)}
+                options={SORTS.map((value) => ({ value, label: SORT_LABELS[value] }))}
+                size="sm"
+                value={sort}
+              />
+            </WorkspaceFilterAdvanced>
+          ) : null}
+        </WorkspaceFilterBar>
+
+        <div aria-label="사업 추적 목록과 상세" className="opportunity-workspace">
+          <section aria-label="사업 추적 목록" className="opportunity-list-pane">
+            <header className="opportunity-list-head">
+              <p className="opportunity-list-title">사업 추적 목록 · {countLabel(rows.length)}건</p>
+              <p className="opportunity-caption">
+                {list.isSuccess ? `${view} 전체 ${countLabel(view === ALL_VIEW ? allCount : total)}건` : "사업 단위"}
+              </p>
+            </header>
+            <div className="opportunity-table-scroll" onClick={selectFromRow} role="presentation">
+              {list.isPending ? (
+                <div className="opportunity-empty">
+                  <p role="status">사업 목록을 불러오는 중…</p>
+                </div>
+              ) : list.isError ? (
+                <div className="opportunity-empty">
+                  <p role="alert">사업 목록을 불러오지 못했습니다.</p>
+                  <Button label="다시 불러오기" onClick={() => void list.refetch()} />
+                </div>
+              ) : rows.length === 0 ? (
+                <div className="opportunity-empty">
+                  <Search aria-hidden="true" />
+                  <h3>조건에 맞는 사업이 없습니다</h3>
+                  <p className="opportunity-caption">
+                    다른 구역이나 다음 페이지에 있을 수 있으며, 사업이 없다는 뜻은 아닙니다.
+                  </p>
+                  <Button label="필터 초기화" onClick={resetFilters} />
+                </div>
+              ) : (
+                <Table
+                  columns={columns}
+                  data={rows as OpportunityRow[]}
+                  density="compact"
+                  dividers="rows"
+                  hasHover
+                  idKey="id"
+                  verticalAlign="top"
+                />
+              )}
+            </div>
+            <footer className="opportunity-list-foot">
+              <p className="opportunity-caption">
+                불러온 {countLabel(received.length)}건 기준 · {countLabel(rows.length)}건 표시
+                {applied ? ` · 검색어 "${applied}"는 불러온 목록 안에서만 걸립니다` : ""}
+              </p>
+              {undecided > 0 ? (
+                <p className="opportunity-caption">
+                  구역이 정해지지 않은 미결정 {countLabel(undecided)}건은 전체에서만 보입니다.
+                </p>
+              ) : null}
+              {total > offset + received.length ? (
+                <p className="opportunity-caption">
+                  뒤에 {countLabel(total - offset - received.length)}건이 더 있습니다.
+                </p>
+              ) : null}
+              {total > PAGE_SIZE ? (
+                <nav aria-label="목록 페이지" className="opportunity-check-actions">
+                  <Button
+                    isDisabled={offset === 0}
+                    label="이전"
+                    onClick={() => changeOffset(Math.max(0, offset - PAGE_SIZE))}
+                    size="sm"
+                  />
+                  <span className="opportunity-caption">
+                    {offset + 1}–{Math.min(offset + received.length, total)} / {countLabel(total)}
+                  </span>
+                  <Button
+                    isDisabled={offset + PAGE_SIZE >= total}
+                    label="다음"
+                    onClick={() => changeOffset(offset + PAGE_SIZE)}
+                    size="sm"
+                  />
+                </nav>
+              ) : null}
+            </footer>
+          </section>
+
+          <section aria-label="선택한 사업" className="opportunity-detail-pane">
             {list.isPending ? (
               <div className="opportunity-empty">
-                <p role="status">사업 목록을 불러오는 중…</p>
+                <p>목록을 불러온 뒤 사업 상세를 표시합니다.</p>
               </div>
-            ) : list.isError ? (
+            ) : selectedId === null ? (
               <div className="opportunity-empty">
-                <p role="alert">사업 목록을 불러오지 못했습니다.</p>
-                <Button label="다시 불러오기" onClick={() => void list.refetch()} />
-              </div>
-            ) : rows.length === 0 ? (
-              <div className="opportunity-empty">
-                <Search aria-hidden="true" />
-                <h3>조건에 맞는 사업이 없습니다</h3>
-                <p className="opportunity-caption">
-                  다른 구역이나 다음 페이지에 있을 수 있으며, 사업이 없다는 뜻은 아닙니다.
-                </p>
-                <Button label="필터 초기화" onClick={resetFilters} />
+                <h3>선택할 사업이 없습니다</h3>
               </div>
             ) : (
-              <Table
-                columns={columns}
-                data={rows as OpportunityRow[]}
-                density="compact"
-                dividers="rows"
-                hasHover
-                idKey="id"
-                verticalAlign="top"
+              <OpportunityDetail
+                key={selectedId}
+                onDirtyChange={handleDirtyChange}
+                onSaved={showToast}
+                opportunityId={selectedId}
+                returnSearch={returnSearch}
               />
             )}
-          </div>
-          <footer className="opportunity-list-foot">
-            <p className="opportunity-caption">
-              불러온 {countLabel(received.length)}건 기준 · {countLabel(rows.length)}건 표시
-              {applied ? ` · 검색어 "${applied}"는 불러온 목록 안에서만 걸립니다` : ""}
-            </p>
-            {undecided > 0 ? (
-              <p className="opportunity-caption">
-                구역이 정해지지 않은 미결정 {countLabel(undecided)}건은 전체에서만 보입니다.
-              </p>
-            ) : null}
-            {total > offset + received.length ? (
-              <p className="opportunity-caption">
-                뒤에 {countLabel(total - offset - received.length)}건이 더 있습니다.
-              </p>
-            ) : null}
-            {total > PAGE_SIZE ? (
-              <nav aria-label="목록 페이지" className="opportunity-check-actions">
-                <Button
-                  isDisabled={offset === 0}
-                  label="이전"
-                  onClick={() => changeOffset(Math.max(0, offset - PAGE_SIZE))}
-                  size="sm"
-                />
-                <span className="opportunity-caption">
-                  {offset + 1}–{Math.min(offset + received.length, total)} / {countLabel(total)}
-                </span>
-                <Button
-                  isDisabled={offset + PAGE_SIZE >= total}
-                  label="다음"
-                  onClick={() => changeOffset(offset + PAGE_SIZE)}
-                  size="sm"
-                />
-              </nav>
-            ) : null}
-          </footer>
-        </section>
-
-        <section aria-label="선택한 사업" className="opportunity-detail-pane">
-          {list.isPending ? (
-            <div className="opportunity-empty">
-              <p>목록을 불러온 뒤 사업 상세를 표시합니다.</p>
-            </div>
-          ) : selectedId === null ? (
-            <div className="opportunity-empty">
-              <h3>선택할 사업이 없습니다</h3>
-            </div>
-          ) : (
-            <OpportunityDetail
-              key={selectedId}
-              onDirtyChange={handleDirtyChange}
-              onSaved={showToast}
-              opportunityId={selectedId}
-              returnSearch={returnSearch}
-            />
-          )}
-        </section>
-      </div>
+          </section>
+        </div>
+      </WorkspaceFrame>
 
       <Dialog
         isOpen={dataDialog}
