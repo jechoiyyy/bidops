@@ -1,7 +1,7 @@
 import { lazy, type ReactNode } from "react";
 import { InternationalizationProvider } from "@astryxdesign/core/i18n";
 import koKR from "@astryxdesign/core/locales/ko-KR.json";
-import { Navigate, useSearchParams, type RouteObject } from "react-router-dom";
+import { Navigate, useParams, useSearchParams, type RouteObject } from "react-router-dom";
 import { LazyRouteBoundary } from "./components/common/LazyRouteBoundary";
 import { AppShell } from "./components/shell/AppShell";
 import { routeHandle, routeMetadata } from "./components/shell/route-meta";
@@ -14,7 +14,6 @@ const PreSpecDetailPage = lazy(() => import("./pages/PreSpecDetailPage").then(({
 const DeepReviewPage = lazy(() => import("./pages/DeepReviewPage").then(({ DeepReviewPage }) => ({ default: DeepReviewPage })));
 const BidDeltaDecisionPage = lazy(() => import("./pages/BidDeltaDecisionPage").then(({ BidDeltaDecisionPage }) => ({ default: BidDeltaDecisionPage })));
 const OrderPlansPage = lazy(() => import("./pages/OrderPlansPage").then(({ OrderPlansPage }) => ({ default: OrderPlansPage })));
-const OrderPlanDetailPage = lazy(() => import("./pages/OrderPlanDetailPage").then(({ OrderPlanDetailPage }) => ({ default: OrderPlanDetailPage })));
 const CriteriaPage = lazy(() => import("./pages/CriteriaPage").then(({ CriteriaPage }) => ({ default: CriteriaPage })));
 const RunStatusPage = lazy(() => import("./pages/RunStatusPage").then(({ RunStatusPage }) => ({ default: RunStatusPage })));
 
@@ -33,6 +32,16 @@ function RedirectWithSearch({ to, extraParams }: { to: string; extraParams?: Rec
   const next = new URLSearchParams(searchParams);
   for (const [key, value] of Object.entries(extraParams ?? {})) next.set(key, value);
   return <Navigate replace to={{ pathname: to, search: next.toString() }} />;
+}
+
+/**
+ * `/order-plans/:pk` was the old standalone detail screen. Keep old bookmarks
+ * usable by entering the list's right-hand detail pane with the record selected.
+ * The list resolves the record's source run when the legacy URL did not carry it.
+ */
+function LegacyOrderPlanRedirect() {
+  const { orderPlanPk } = useParams();
+  return <RedirectWithSearch to="/order-plans" extraParams={orderPlanPk ? { selected: orderPlanPk } : undefined} />;
 }
 
 export const routes: RouteObject[] = [
@@ -65,7 +74,7 @@ export const routes: RouteObject[] = [
           // 최종 Go/No-Go는 되돌릴 수 없는 결정인데 지금까지 사이드바 진입점이 없었다.
           { path: "go-no-go", element: <GoNoGoPage />, handle: routeHandle(routeMetadata.goNoGo) },
           { path: "order-plans", element: <OrderPlansPage />, handle: routeHandle(routeMetadata.orderPlans) },
-          { path: "order-plans/:orderPlanPk", element: <OrderPlanDetailPage />, handle: routeHandle(routeMetadata.orderPlanDetail) },
+          { path: "order-plans/:orderPlanPk", element: <LegacyOrderPlanRedirect />, handle: routeHandle(routeMetadata.orderPlans) },
           { path: "pre-specs", element: <PreSpecsPage />, handle: routeHandle(routeMetadata.preSpecs) },
           { path: "pre-specs/:noticeId", element: <PreSpecDetailPage />, handle: routeHandle(routeMetadata.preSpecs) },
           // 기준 4화면은 판정 기준 한 화면의 탭이다. 옛 경로가 각 탭의 주소다.

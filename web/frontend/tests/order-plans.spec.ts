@@ -886,65 +886,37 @@ test("사람 피드백 축과 텍스트 검색도 다른 축과 AND로 조합된
   await expect(page.locator(".c2l-row")).toContainText("지방공기업");
 });
 
-// docs/design/PLAN.md 단계 F 작업 1: 발주계획 상세(사람 relevance·priority·memo
-// 저장, 결정 1)도 사전규격 상세·입찰 변경 비교와 같은 골격을 쓴다. 결정 **액션**은
-// 요약 헤더에 고정되어 스크롤 위치와 무관하게 첫 화면에서 보이고, 되돌릴 수 없는
-// 입력 **form**은 헤더에 올라가지 않는다(단계 F 완료 게이트).
-test("발주계획 상세는 결정 액션만 헤더에 고정하고 입력 form은 본문에 둔다", async ({ page }) => {
+test("legacy 발주계획 URL은 회차를 해석한 목록의 선택 행으로 들어간다", async ({ page }) => {
   await mockOrderPlans(page);
   await page.goto("/order-plans/101");
-  await expect(page.getByRole("heading", { level: 2 })).toBeVisible();
 
-  const header = page.locator(".c2-page-header");
-  const saveButton = header.getByRole("button", { name: "새 수정본 저장", exact: true });
-  await expect(saveButton).toBeInViewport();
-  await expect(header.getByRole("button", { name: "사람 판단 입력으로 이동", exact: true })).toBeInViewport();
-
-  // 입력 필드는 헤더가 아니라 본문 열의 패널 안에 있다.
-  await expect(header.locator("textarea")).toHaveCount(0);
-  await expect(header.getByLabel("담당자 이름")).toHaveCount(0);
-  await expect(page.locator(".c2-feedback-panel").getByLabel("담당자 이름")).toHaveCount(1);
-
-  await page.evaluate(() => document.querySelector(".page-canvas")?.scrollTo(0, 999_999));
-  await expect(saveButton).toBeInViewport();
+  await expect(page).toHaveURL(/\/order-plans\?.*selected=101/);
+  await expect.poll(() => new URL(page.url()).searchParams.get("source_run_id")).toBe(TEST_ORDER_PLAN_SOURCE_RUN_ID);
+  await expect(page.locator("header.topbar h1")).toHaveText("발주계획");
+  await expect(page.locator(".c2l-page-header")).toHaveCount(0);
+  await expect(page.locator(".c2l-row-wrap.is-selected")).toContainText("공공데이터 통합");
+  await expect(page.locator(".c2l-detail-pane")).toContainText("공공데이터 통합");
+  await expect(page.getByRole("link", { name: "전체 상세 열기", exact: true })).toHaveCount(0);
 });
 
-// 시안 `OrderPlanDetail`은 사람 피드백 수정본 이력과 새 revision 입력을 본문
-// 열에 함께 둔다. 지금 저장하려는 값과 직전 revision을 한눈에 대조해야 하기
-// 때문이다. 레일은 관측·실행 이력과 연결만 담는다.
-test("발주계획 상세 헤더는 상태를 요약하고, revision 이력은 본문 열, 레일은 관측 이력만 담는다", async ({ page }) => {
+test("legacy URL은 필터에 가려진 not_relevant 대상의 회차·선택을 보존한다", async ({ page }) => {
   await mockOrderPlans(page);
-  await page.goto("/order-plans/101");
+  await page.goto("/order-plans/103?qwen=relevant");
 
-  const header = page.locator(".c2-page-header");
-  await expect(header.getByText("최근 실행 부분 성공", { exact: true })).toBeVisible();
-  await expect(header.getByText("최근 피드백 수정본 1", { exact: true })).toBeVisible();
-
-  const feedbackPanel = page.locator(".c2-feedback-panel");
-  await expect(feedbackPanel.getByRole("heading", { name: "사람 피드백 수정본 이력", exact: true })).toBeVisible();
-  await expect(feedbackPanel).toContainText("append-only");
-
-  const rail = page.locator(".detail-skeleton-rail");
-  await expect(rail).toHaveAttribute("data-review-primitive", "history-link-rail");
-  await expect(rail.getByRole("heading", { name: "관측 history", exact: true })).toBeVisible();
-  await expect(rail.getByRole("link", { name: "발주계획 목록 →", exact: true })).toBeVisible();
-  // 이력은 본문 열이 소유한다. 레일에 복제하지 않는다.
-  await expect(rail.getByRole("heading", { name: "사람 피드백 수정본 이력", exact: true })).toHaveCount(0);
-  // 결정 액션(저장 버튼)도 레일에 복제하지 않는다.
-  await expect(rail.getByRole("button", { name: /revision 저장/ })).toHaveCount(0);
+  await expect(page).toHaveURL(/\/order-plans\?.*selected=103/);
+  await expect.poll(() => new URL(page.url()).searchParams.get("source_run_id")).toBe(TEST_ORDER_PLAN_SOURCE_RUN_ID);
+  await expect.poll(() => new URL(page.url()).searchParams.get("qwen")).toBe("");
+  await expect(page.locator(".c2l-row-wrap.is-selected")).toContainText("시설관리 용역");
+  await expect(page.locator(".c2l-detail-pane")).toContainText("시설관리 용역");
 });
 
-test("발주계획 상세는 viewport 바깥으로 넘치지 않는다", async ({ page }) => {
+test("legacy URL의 알 수 없는 발주계획은 첫 행으로 대체하지 않는다", async ({ page }) => {
   await mockOrderPlans(page);
-  await page.goto("/order-plans/101");
-  await expect(page.locator("header.topbar h1")).toHaveText("발주계획 C-2 상세");
-  await expect.poll(() => page.evaluate(() => ({
-    root: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-    canvas: (() => {
-      const canvas = document.querySelector<HTMLElement>(".page-canvas");
-      return canvas ? canvas.scrollWidth - canvas.clientWidth : 0;
-    })(),
-  }))).toEqual({ root: 0, canvas: 0 });
+  await page.goto("/order-plans/9999");
+
+  await expect(page).toHaveURL(/\/order-plans\?.*selected=9999/);
+  await expect(page.getByText("요청한 발주계획을 찾을 수 없습니다.", { exact: true })).toBeVisible();
+  await expect(page.locator(".c2l-row-wrap.is-selected")).toHaveCount(0);
 });
 
 test("선별 전 수집 회차도 전체 원본을 조회하고 URL의 회차를 새로고침 후 유지한다", async ({ page }) => {

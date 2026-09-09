@@ -187,8 +187,6 @@ type BreadcrumbCase = { name: string; path: string; crumbs: string[] };
 
 const breadcrumbCases: BreadcrumbCase[] = [
   { name: "dashboard", path: "/", crumbs: ["오늘의 업무", "대시보드"] },
-  // 화면 제목이 `발주계획` 한 낱말로 바뀌었고 상단 경로도 같은 이름을 쓴다.
-  { name: "order-plan detail", path: "/order-plans/101", crumbs: ["탐색과 추적", "발주계획", "발주계획 C-2 상세", "#101"] },
   { name: "pre-spec detail", path: "/pre-specs/991", crumbs: ["탐색과 추적", "사전규격", "notice 991"] },
   { name: "opportunity detail", path: "/opportunities/501", crumbs: ["탐색과 추적", "사업 추적", "#501"] },
   // 되돌릴 수 없는 결정 화면은 어느 사업기회의 결정인지 경로에 남긴다.
@@ -246,7 +244,6 @@ test("대시보드는 경로 모드이면서 상단바 액션 슬롯을 그대�
 });
 
 const DETAIL_BACK_LINKS: Array<{ name: string; path: string; back: string; settles?: RegExp }> = [
-  { name: "order-plan detail", path: "/order-plans/101", back: "/order-plans" },
   { name: "pre-spec detail", path: "/pre-specs/991", back: "/pre-specs" },
   { name: "opportunity detail", path: "/opportunities/501", back: "/opportunities" },
   { name: "bid delta", path: "/opportunities/501/bid-delta", back: "/opportunities" },
