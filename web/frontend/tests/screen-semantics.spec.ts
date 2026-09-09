@@ -94,7 +94,9 @@ test("흡수한 마감·감사 경로가 기존 쿼리를 보존한다", async (
   let params = new URL(page.url()).searchParams;
   expect(params.get("run")).toBe(RUN_ID);
   expect(params.get("from")).toBe("dashboard");
-  await expect(page.locator("header.topbar h1")).toHaveText("검토 대기열");
+  // `/deadlines` keeps the queue view but uses its shared route metadata, whose
+  // topbar context is the read-only 공고 판정 이력 screen.
+  await expect(page.locator("header.topbar h1")).toHaveText("공고 판정 이력");
 
   await page.goto(`/audit?run=${encodeURIComponent(RUN_ID)}&from=review`);
   await expect(page.locator("header.topbar h1")).toHaveText("실행 상태");

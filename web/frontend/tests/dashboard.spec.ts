@@ -3,6 +3,8 @@ import { DASH_RUN, OTHER_RUN, dashboardMetrics, dashboardNotices, dashboardStats
 import { settleFonts } from "./screen-fixtures";
 
 const selected = `/?run=${DASH_RUN}`;
+const UI_SCALE = 0.9;
+const physical = (logical: number) => logical * UI_SCALE;
 for (const [width,height] of [[1280,800],[1440,900]]) {
   test(`승인 시안 배치·글자·기본 세 공고가 보인다 ${width}`, async ({page},info)=>{
     const {writes}=await mockDashboard(page);
@@ -22,7 +24,7 @@ for (const [width,height] of [[1280,800],[1440,900]]) {
     expect(measured.overflow).toBe(0);expect(measured.footer).toBeLessThanOrEqual(height);
     expect(measured.third).toBeLessThanOrEqual(measured.body+1);
     expect(measured.font).toBe('15px');expect(measured.agencyFont).toBe('15px');expect(measured.weight).toBe('600');
-    expect(measured.first).toBe(92);expect(measured.left).toBe(272);
+    expect(measured.first).toBeCloseTo(physical(92), 0);expect(measured.left).toBeCloseTo(physical(272), 0);
     expect(measured.widths[0]/(measured.widths[0]+measured.widths[1])).toBeCloseTo(.67,2);
     await page.screenshot({path:info.outputPath(`dashboard-${width}.png`),animations:'disabled'});expect(writes).toEqual([]);
   });

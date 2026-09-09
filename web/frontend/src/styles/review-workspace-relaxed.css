@@ -57,11 +57,11 @@
 }
 
 .queue-page {
-  height: calc(100vh - 82px);
+  height: calc(var(--bo-ui-viewport-height) - 82px);
 }
 
 .judgment-page {
-  height: calc(100vh - 82px);
+  height: calc(var(--bo-ui-viewport-height) - 82px);
 }
 
 .queue-filters {

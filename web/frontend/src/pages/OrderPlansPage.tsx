@@ -72,6 +72,32 @@ const DEFAULT_LIST_WIDTH = "38%";
 const LIST_WIDTH_STEP = 24;
 const LIST_WIDTH_STORAGE_KEY = "bidops.order-plans.listWidth";
 const SAVED_VIEWS_STORAGE_KEY = "bidops.order-plans.views";
+
+/**
+ * 마우스 좌표는 화면에 그려진 배율의 좌표이고 목록 폭은 CSS layout px 이다.
+ * offsetWidth와 bounding rect는 모두 목록 테두리를 포함하므로, 두 값을 나누면
+ * 조상 `zoom`이나 브라우저가 계산한 실제 배율을 선언값 없이 얻을 수 있다.
+ */
+function renderedHorizontalScale(element: HTMLElement): number {
+  const layoutWidth = element.offsetWidth;
+  const renderedWidth = element.getBoundingClientRect().width;
+  if (layoutWidth > 0 && renderedWidth > 0) {
+    const scale = renderedWidth / layoutWidth;
+    if (Number.isFinite(scale) && scale > 0) return scale;
+  }
+
+  // 요소가 아직 layout 되지 않은 순간에는 computed zoom을 따라간다. zoom은
+  // 상속되지 않으므로 조상 값을 곱해 중첩 배율도 보존한다.
+  let scale = 1;
+  let foundZoom = false;
+  for (let ancestor: HTMLElement | null = element; ancestor; ancestor = ancestor.parentElement) {
+    const zoom = Number.parseFloat(getComputedStyle(ancestor).zoom);
+    if (!Number.isFinite(zoom) || zoom <= 0) continue;
+    scale *= zoom;
+    foundZoom = true;
+  }
+  return foundZoom && Number.isFinite(scale) && scale > 0 ? scale : 1;
+}
 /**
  * 두 값만 **탭 세션** 동안 기억한다(localStorage가 아니다).
  *
@@ -884,7 +910,7 @@ export function OrderPlansPage() {
   // 저장 기준점. 저장에 성공하면 그때의 값이 새 기준이 되어 "저장되지 않은 입력"이
   // 풀린다. 값 자체는 그대로 두므로 사람은 방금 저장한 내용을 계속 볼 수 있다.
   const [feedbackBaseline, setFeedbackBaseline] = useState<FeedbackDraft>(EMPTY_FEEDBACK_DRAFT);
-  const dragStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
+  const dragStateRef = useRef<{ startX: number; startWidth: number; renderedScale: number } | null>(null);
 
   const feedbackDirty = relevance !== feedbackBaseline.relevance
     || priority !== feedbackBaseline.priority
@@ -1446,9 +1472,10 @@ export function OrderPlansPage() {
 
   useEffect(() => {
     function onMove(event: MouseEvent) {
-      if (!dragStateRef.current) return;
-      const delta = event.clientX - dragStateRef.current.startX;
-      updateListWidth(dragStateRef.current.startWidth + delta);
+      const dragState = dragStateRef.current;
+      if (!dragState) return;
+      const delta = (event.clientX - dragState.startX) / dragState.renderedScale;
+      updateListWidth(dragState.startWidth + delta);
     }
     function onUp() {
       dragStateRef.current = null;
@@ -1771,7 +1798,12 @@ export function OrderPlansPage() {
                 tabIndex={0}
                 onMouseDown={(event) => {
                   if (effectiveListWidth === null) return;
-                  dragStateRef.current = { startX: event.clientX, startWidth: effectiveListWidth };
+                  const pane = listPaneRef.current;
+                  dragStateRef.current = {
+                    startX: event.clientX,
+                    startWidth: effectiveListWidth,
+                    renderedScale: pane ? renderedHorizontalScale(pane) : 1,
+                  };
                 }}
                 onKeyDown={(event) => {
                   const current = effectiveListWidth;
