@@ -141,7 +141,7 @@ export const routeMetadata = {
     // 화면 제목은 `발주계획` 한 낱말이다(승인 시안). 제목 모드의 `<h1>`이 그 이름이다.
     title: "발주계획",
     dataScope: "cumulative",
-    // 목록 전용 metadata다(상세는 `orderPlanDetail`). 언제나 제목 모드다.
+    // 목록과 legacy 상세 URL redirect가 공유한다. 언제나 제목 모드다.
     topbar: "title",
     // 이 화면의 결정은 추적 선택이고 사람 판단 수정은 보조 저장이다.
     editScope: "추적 선택·사람 판단 수정 저장 가능",
@@ -150,17 +150,6 @@ export const routeMetadata = {
     navPath: "/order-plans",
     ancestors: [],
     listPath: null,
-  },
-  orderPlanDetail: {
-    title: "발주계획 C-2 상세",
-    dataScope: "cumulative",
-    editScope: "사람 피드백 수정본 저장 가능",
-    runSelectorVisible: false,
-    navGroup: "탐색과 추적",
-    navPath: "/order-plans",
-    ancestors: [{ label: "발주계획", path: "/order-plans" }],
-    listPath: null,
-    record: { param: "orderPlanPk", label: (value) => `#${value}`, placement: "leaf" },
   },
   bidDelta: {
     title: "입찰 변경 비교",

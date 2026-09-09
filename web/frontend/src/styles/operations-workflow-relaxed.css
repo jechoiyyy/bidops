@@ -85,7 +85,7 @@
 .runs-page .runs-layout {
   display: grid;
   grid-template-columns: minmax(270px, 304px) minmax(0, 1fr);
-  height: calc(100vh - 210px);
+  height: calc(var(--bo-ui-viewport-height) - 210px);
   min-height: 560px;
   overflow: hidden;
   border-color: var(--border-subtle);
@@ -607,7 +607,7 @@
 }
 
 .runs-page .runs-screening-stop-dialog {
-  max-width: calc(100vw - 32px);
+  max-width: calc(var(--bo-ui-viewport-width) - 32px);
 }
 
 .runs-page .runs-screening-dialog-body {
@@ -633,7 +633,7 @@
 
 .attachments-page {
   display: flex;
-  min-height: calc(100vh - 82px);
+  min-height: calc(var(--bo-ui-viewport-height) - 82px);
   flex-direction: column;
   gap: var(--space-3);
 }

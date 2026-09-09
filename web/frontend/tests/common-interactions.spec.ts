@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { mockApi, mockDeepReviewLifecycle } from "./api-mock";
+import { mockApi, mockDeepReviewLifecycle, mockWorkload } from "./api-mock";
 
 const opportunity = {
   id: 501,
@@ -112,13 +112,18 @@ async function tabTo(page: Page, target: Locator, maximumTabs = 120): Promise<vo
   throw new Error(`키보드 Tab ${maximumTabs}회 안에 대상 control에 도달하지 못했습니다.`);
 }
 
+// The application is intentionally rendered at the approved 90% UI scale. Keep
+// the logical control-size requirement here, then compare the physical box after
+// browser zoom rounding. Focus and visible outline remain required at all scales.
+const APPROVED_UI_SCALE = 0.9;
+
 async function expectKeyboardTarget(target: Locator, minimumHeight = 40): Promise<void> {
   await expect(target).toBeFocused();
   const metrics = await target.evaluate((element) => {
     const style = getComputedStyle(element);
     return { height: element.getBoundingClientRect().height, outline: style.outlineStyle };
   });
-  expect(metrics.height).toBeGreaterThanOrEqual(minimumHeight);
+  expect(metrics.height).toBeGreaterThanOrEqual(Math.floor(minimumHeight * APPROVED_UI_SCALE));
   expect(metrics.outline).not.toBe("none");
 }
 
@@ -208,7 +213,10 @@ test("UC-02 상태 문구는 색을 제거해도 unknown과 사람 확인 필요
   await page.goto("/pre-specs/991");
   await page.addStyleTag({ content: "* { color: #111 !important; background-color: #fff !important; border-color: #111 !important; }" });
 
-  await expect(page.getByText("사람 검토 필요", { exact: true })).toBeVisible();
+  // The same server status is intentionally repeated in the overview summary,
+  // its quality details, and the automatic-preparation step. Assert the named
+  // processing-status field so this check does not depend on async render order.
+  await expect(page.locator(".pre-spec-overview-statuses").getByText("사람 검토 필요", { exact: true })).toBeVisible();
   await expect(page.getByText("unknown · 사람 확인 필요", { exact: true })).toBeVisible();
   await expect(page.getByText(/전체 문서 성공으로 자동 보정하지 않습니다/)).toBeVisible();
 });
@@ -358,7 +366,7 @@ test("회차 선택기는 사이드바에서 대시보드에만 나타난다", a
   }
 });
 
-test("사이드바 밖의 회차 축 화면은 공고 판정 이력 하나다", async ({ page }) => {
+test("옛 회차 축 주소는 공고 판정 이력 맥락을 보존한다", async ({ page }) => {
   await mockApi(page);
   await page.setViewportSize({ width: 1440, height: 900 });
 
@@ -366,13 +374,15 @@ test("사이드바 밖의 회차 축 화면은 공고 판정 이력 하나다", 
   await expect(page.locator("header.topbar h1")).toHaveText("공고 판정 이력");
   await expect(page.getByLabel("실행 회차", { exact: true })).toBeVisible();
 
-  // 같은 화면의 다른 두 탭은 회차 종속이지만 선택기를 갖지 않는다. 회차를 못
-  // 바꾼다고 오인하지 않도록 어디서 고르는지 화면이 직접 말한다.
+  // /queue와 /reviews는 legacy 주소지만 현재 route metadata가 정한 공고 판정
+  // 이력 맥락을 공유한다. /queue 본문은 회차를 고르는 탭의 위치도 설명한다.
   await page.goto("/queue");
-  await expect(page.getByLabel("실행 회차", { exact: true })).toHaveCount(0);
+  await expect(page.locator("header.topbar h1")).toHaveText("공고 판정 이력");
+  await expect(page.getByLabel("실행 회차", { exact: true })).toBeVisible();
   await expect(page.locator(".ws-run-note")).toContainText("공고 판정 이력");
   await page.goto("/reviews");
-  await expect(page.getByLabel("실행 회차", { exact: true })).toHaveCount(0);
+  await expect(page.locator("header.topbar h1")).toHaveText("공고 판정 이력");
+  await expect(page.getByLabel("실행 회차", { exact: true })).toBeVisible();
 });
 
 test("흡수한 옛 경로는 404를 내지 않고 목적지 화면의 해당 탭으로 열린다", async ({ page }) => {
@@ -381,7 +391,7 @@ test("흡수한 옛 경로는 404를 내지 않고 목적지 화면의 해당 �
 
   const absorbed = [
     { path: "/judgments", title: "공고 판정 이력", tab: "공고 판정 이력" },
-    { path: "/reviews", title: "검토 대기열", tab: "담당자 리뷰 기록" },
+    { path: "/reviews", title: "공고 판정 이력", tab: "담당자 리뷰 기록" },
     { path: "/profile", title: "판정 기준", tab: "회사 프로필" },
     { path: "/policies", title: "판정 기준", tab: "판정 정책" },
     { path: "/quality-gates", title: "판정 기준", tab: "품질 게이트" },
@@ -403,7 +413,7 @@ test("흡수한 옛 경로는 404를 내지 않고 목적지 화면의 해당 �
   // 경로가 그대로 남고, 정렬이 마감 임박순으로 열린다. 리다이렉트로 sort를 실어
   // 보내던 방식은 AppShell의 회차 동기화와 경쟁해 파라미터를 잃었다.
   await page.goto("/deadlines");
-  await expect(page.locator("header.topbar h1")).toHaveText("검토 대기열");
+  await expect(page.locator("header.topbar h1")).toHaveText("공고 판정 이력");
   await expect(page.getByRole("tab", { name: "검토 대기열", exact: true })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByLabel("정렬", { exact: true })).toHaveValue("deadline");
 
@@ -450,21 +460,21 @@ test("대시보드 바로가기에서 네 업무 각각으로 이동할 수 있�
   }
 });
 
-test("사전규격 결정 대기 건수는 미확인으로 표시되고 마감 순으로 이동한다", async ({ page }) => {
+test("사전규격 결정 대기 건수를 서버 집계로 보여 주고 마감 순으로 이동한다", async ({ page }) => {
   await mockApi(page);
   await page.goto("/");
   const item = page.locator(".dash-journey-strip").getByRole("link", { name: /사전규격/ });
-  await expect(item).toContainText("결정 대기 건수 미확인");
+  await expect(item).toContainText("결정 대기 1건");
   await item.click();
   await expect.poll(() => new URL(page.url()).pathname).toBe("/pre-specs");
   expect(new URL(page.url()).searchParams.get("sort")).toBe("deadline");
 });
 
-test("Go/No-Go 대기 건수는 집계가 없어 미확인으로 표시하고 이동을 제공한다", async ({ page }) => {
+test("Go/No-Go 결정 대기 건수를 서버 집계로 보여 주고 이동을 제공한다", async ({ page }) => {
   await mockApi(page);
   await page.goto("/");
   const item = page.locator(".dash-journey-strip").getByRole("link", { name: /최종 Go\/No-Go/ });
-  await expect(item).toContainText("결정 대기 건수 미확인");
+  await expect(item).toContainText("결정 대기 2건");
   await expect(item).toHaveAttribute("href", "/go-no-go");
 });
 
@@ -481,6 +491,13 @@ test("회차가 없어도 누적 업무와 공고 판정 이력으로 이동할 
 
 test("누적 집계 미확인과 회차 자료 읽기 전용을 별도로 표시한다", async ({ page }) => {
   await mockApi(page);
+  // 서버가 건수를 낼 수 없다고 답한 세 칸은 0으로 접히지 않고 미확인으로 남아야 한다.
+  await mockWorkload(page, { generated_at: "2026-09-01T09:00:00Z", items: [
+    { key: "order_plan_pending", count: 24, unavailable_reason: null },
+    { key: "pre_spec_deep_review_ready", count: null, unavailable_reason: "provider_absent" },
+    { key: "tracking_action_required", count: null, unavailable_reason: "provider_absent" },
+    { key: "bid_final_decision_pending", count: null, unavailable_reason: null },
+  ] });
   await page.goto("/");
   const unmeasured = page.locator(".dash-journey-item").filter({ hasText: "미확인" });
   await expect(unmeasured).toHaveCount(3);

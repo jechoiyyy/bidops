@@ -3,9 +3,9 @@
 | 항목 | 내용 |
 |---|---|
 | 문서 상태 | 현재 결정 기준선·통합 색인 |
-| 기준일 | 2026-09-05 |
+| 기준일 | 2026-09-09 |
 | 범위 | 수집, 선별, 사전규격 검토, 심층 검토, 입찰공고 추적, 운영·보안 |
-| 상세 결정 정본 | [`docs/tracking/decisions/`](tracking/decisions/)의 ADR-0001~0038·0042~0045·0049~0051, [`docs/design/ADR.md`](design/ADR.md)의 ADR-0039~0041·0046~0048 |
+| 상세 결정 정본 | [`docs/tracking/decisions/`](tracking/decisions/)의 ADR-0001~0038·0042~0045·0049~0051·0053, [`docs/design/ADR.md`](design/ADR.md)의 ADR-0039~0041·0046~0048 |
 | 함께 읽을 문서 | [`PRD.md`](PRD.md), [`ARCHITECTURE.md`](ARCHITECTURE.md), [`contracts.md`](contracts.md) |
 
 이 문서는 여러 시점에 작성된 결정 기록을 현재 관점에서 읽기 위한 통합 ADR이다. 각 결정의
@@ -133,6 +133,7 @@ R-xx/A-xx 작업 지시, 과거 API 경로는 현재 실행 진입점이 아니�
 | [0049](tracking/decisions/0049-prespec-auto-preparation-and-auto-deep-review.md) | 사전규격 문서 준비를 등급으로 자동화하고 `SW사업대상=Y`는 심층 검토까지 자동 시작 | 채택 | FR-DOC-07·ADR-0031·0033의 "사람 승인"을 이 규칙으로 대체; 고비용 전량 분석의 승인 경계는 유지 |
 | [0050](tracking/decisions/0050-unified-openai-compatible-model-client.md) | 모델 호출을 하나의 OpenAI 호환 client와 용도별 설정으로 통일 | 채택 | C-1·개요·심층이 `core/model_client`를 씀; 용도별 endpoint·선언 revision·참조 실행 표식; 이전 로컬 provider 경로 제거 |
 | [0051](tracking/decisions/0051-deep-review-v2-deterministic-subset.md) | deep-review-v2의 결정적 부분만 채택 | 채택 — 부분 채택 | segment manifest·요구사항 inventory·검증 연결만 구현. 역할별 모델 분석과 Luna 평가는 보류 |
+| [0053](tracking/decisions/0053-decision-workload-read-contracts.md) | 결정 대기 조회와 모듈 소유 집계 계약 | 채택 | 신규 GET 세 개(`/api/workload`·기회별 심층 검토 목록·입찰 결정 큐), 업무 집계는 모듈 제공자 소유, DB migration 없음 |
 
 ## 4. 주제별 결정 요약
 

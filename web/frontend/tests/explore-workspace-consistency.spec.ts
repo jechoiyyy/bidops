@@ -30,6 +30,9 @@ interface ScreenSpec {
   mock?: (page: Page) => Promise<unknown>;
 }
 
+const UI_SCALE = 0.9;
+const physical = (logical: number) => logical * UI_SCALE;
+
 // 방문 순서가 곧 route mock의 등록 순서다. 뒤에 등록한 handler가 이기므로
 // 사업 추적 → Go/No-Go 차례로만 두 `**/api/opportunities**` mock이 겹치지 않는다.
 const screens: ScreenSpec[] = [
@@ -112,7 +115,9 @@ function measure(selectors: Selectors) {
 
     filtersBottom: filters.getBoundingClientRect().bottom,
     workspaceTop: workspace.getBoundingClientRect().top,
-    listRatio: listPane.getBoundingClientRect().width / workspace.clientWidth,
+    // getBoundingClientRect() is physical after the root zoom; keep both widths
+    // in that coordinate system when checking the 38% split.
+    listRatio: listPane.getBoundingClientRect().width / workspace.getBoundingClientRect().width,
     listHeadPadding: padding(listHead),
     detailHeadPadding: padding(detailHead),
 
@@ -149,11 +154,11 @@ test("탐색과 추적 목록 4화면은 두 지원 폭에서 같은 상단바·
       // 상단바 오른쪽 가장자리에 붙는다(떨어지는 것은 상단바 padding 만큼뿐이다).
       expect(metrics.titleFont, `${where} 제목 크기`).toBe("20px");
       expect(metrics.titleWeight, `${where} 제목 굵기`).toBe("600");
-      expect(metrics.topbarHeight, `${where} 상단바 높이`).toBeCloseTo(76, 0);
+      expect(metrics.topbarHeight, `${where} 상단바 높이`).toBeCloseTo(physical(76), 0);
       expect(metrics.crumbCount, `${where} 제목 모드에는 경로 칸이 없다`).toBe(0);
       expect(metrics.statusCount, `${where} 제목 모드에는 편집 범위 칩이 없다`).toBe(0);
       expect(metrics.actionsGap, `${where} 액션이 상단바 오른쪽 끝에 붙는다`)
-        .toBeLessThanOrEqual(metrics.topbarPaddingRight + 1);
+        .toBeLessThanOrEqual(physical(metrics.topbarPaddingRight) + 1);
 
       // 필터 바 — 배경이 네 화면에서 같고, 아래 workspace와 선을 두 번 그리지 않으며,
       // 첫 줄은 보기 탭 묶음 + 검색·상세 필터 칸 두 칸이다.
@@ -164,7 +169,7 @@ test("탐색과 추적 목록 4화면은 두 지원 폭에서 같은 상단바·
 
       // 프레임 — 필터 바 아래 8px에서 workspace가 시작하고 목록은 38%다.
       expect(metrics.workspaceTop - metrics.filtersBottom, `${where} 필터 바와 workspace 사이 틈`)
-        .toBeCloseTo(8, 0);
+        .toBeCloseTo(physical(8), 0);
       expect(metrics.listRatio, `${where} 목록 pane 비율`).toBeCloseTo(0.38, 2);
       expect(metrics.listHeadPadding, `${where} 목록 머리 여백`).toBe("8px 16px 8px 16px");
       expect(metrics.detailHeadPadding, `${where} 상세 머리 여백`).toBe("12px 16px 12px 16px");

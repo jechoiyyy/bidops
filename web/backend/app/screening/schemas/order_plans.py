@@ -213,6 +213,7 @@ class OrderPlanExecutionScope(_Strict):
 class OrderPlanListItem(_Strict):
     order_plan_pk: int
     order_plan_unty_no: str
+    source_url: str | None
     title: str | None
     agency_name: str | None
     business_division: str | None
@@ -234,7 +235,7 @@ class OrderPlanListItem(_Strict):
 
 
 class OrderPlanListResponse(_Strict):
-    schema_version: Literal["order-plan-list-response.v2"]
+    schema_version: Literal["order-plan-list-response.v3"]
     producer: Literal["order-plan-review-api"]
     consumer: Literal["order-plan-review-client"]
     scope: OrderPlanExecutionScope | None
@@ -271,11 +272,12 @@ class ScreeningHistoryItem(_Strict):
 
 
 class OrderPlanDetailResponse(_Strict):
-    schema_version: Literal["order-plan-detail-response.v2"]
+    schema_version: Literal["order-plan-detail-response.v3"]
     producer: Literal["screening-api"]
     consumer: Literal["order-plan-review-client"]
     order_plan_pk: int
     order_plan_unty_no: str
+    source_url: str | None
     title: str | None
     agency_name: str | None
     business_division: str | None

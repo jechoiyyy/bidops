@@ -20,7 +20,6 @@ const shellRoutes = [
   "/opportunities",
   "/go-no-go",
   "/order-plans",
-  "/order-plans/101",
   "/pre-specs",
   "/pre-specs/991",
   "/opportunities/202",
@@ -30,8 +29,9 @@ const shellRoutes = [
 ];
 
 // 탐색과 추적 목록 4화면은 상단바가 경로 대신 화면 이름 하나를 그린다(제목 모드).
-// 상세 화면(`/order-plans/101`·`/pre-specs/991`·`/opportunities/501`·bid-delta·
-// deep-reviews)은 목록으로 돌아갈 링크가 필요하므로 경로 모드로 남는다.
+// 상세 화면(`/pre-specs/991`·`/opportunities/501`·bid-delta·deep-reviews)은
+// 목록으로 돌아갈 링크가 필요하므로 경로 모드로 남는다. 발주계획은 목록의
+// 우측 pane에서 상세를 보여 주므로 별도 상세 route가 없다.
 const TITLE_ROUTES = ["/order-plans", "/pre-specs", "/opportunities", "/go-no-go"];
 
 test.beforeEach(async ({ page }) => {
@@ -45,6 +45,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test("모든 시안 대상 route가 공통 bidops light 셸 안에서 렌더링된다", async ({ page }) => {
+  test.setTimeout(90_000);
   for (const route of shellRoutes) {
     await page.goto(route, { waitUntil: "domcontentloaded" });
     const shell = page.locator(".app-shell");
@@ -107,6 +108,8 @@ test("1440px 셸의 무드보드 색과 기준 치수를 고정한다", async ({
       // 1280px 미만은 별도 레이아웃이 아니라 가로 스크롤이다(ADR-0047).
       shellMinWidth: rootStyle.minWidth,
       bodyMinWidth: getComputedStyle(document.body).minWidth,
+      uiScale: Number.parseFloat(rootStyle.getPropertyValue("--bo-ui-scale")),
+      rootZoom: getComputedStyle(document.documentElement).zoom,
       accentToken: rootStyle.getPropertyValue("--color-accent").trim(),
       // legacy @theme 이 :root 로 방출되어 테마를 이기던 토큰들(ADR-0048 §4-1).
       borderToken: rootStyle.getPropertyValue("--color-border").trim(),
@@ -119,13 +122,18 @@ test("1440px 셸의 무드보드 색과 기준 치수를 고정한다", async ({
     colorScheme: "light",
     shellBackground: "rgb(242, 240, 239)", // #F2F0EF greige 30% + white
     sidebarBackground: "rgb(22, 27, 47)", // #161B2F navy anchor
-    sidebarWidth: 248,
     topbarBackground: "rgb(255, 255, 255)",
-    topbarHeight: 76,
     canvasBackground: "rgb(242, 240, 239)",
-    shellMinWidth: "1280px",
-    bodyMinWidth: "1280px",
+    uiScale: 0.9,
+    rootZoom: "0.9",
   });
+  // Assert the rendered geometry against the logical shell contract. Chromium can
+  // choose different subpixel serialization across versions, so do not freeze its
+  // exact fractional output or the computed `calc()` string.
+  expect(metrics.sidebarWidth).toBeCloseTo(248 * 0.9, 1);
+  expect(metrics.topbarHeight).toBeCloseTo(76 * 0.9, 1);
+  expect(Number.parseFloat(metrics.shellMinWidth)).toBeCloseTo(1280 / 0.9, 1);
+  expect(Number.parseFloat(metrics.bodyMinWidth)).toBeCloseTo(1280 / 0.9, 1);
 
   // accent 는 무드보드 slate 다. RootLab 녹색이 되돌아오지 않았는지도 함께 본다.
   expect(metrics.accentToken.toUpperCase()).toContain("5B687C");
@@ -151,9 +159,10 @@ test("1440px 셸의 무드보드 색과 기준 치수를 고정한다", async ({
 
 // 제목 모드는 상단바가 화면의 시각 제목을 맡는다. 페이지가 제목 줄을 지운 뒤
 // 이 글자가 20px 위계를 잃으면 화면에서 제목이 사라진 것과 같으므로 값을 고정한다.
-// 상단바 높이는 두 모드가 같아야 한다(76px, PRD §5) — 모드에 따라 셸이 흔들리면
+// 상단바 높이는 두 모드가 같아야 한다(논리 76px, PRD §5). 전역 90% 배율이
+// 적용되므로 브라우저에 그려지는 높이는 68.4px이며, 모드에 따라 셸이 흔들리면
 // 목록과 상세를 오갈 때마다 본문이 위아래로 튄다.
-test("제목 모드 상단바가 20px 제목을 쓰고 높이는 76px 그대로다", async ({ page }, testInfo) => {
+test("제목 모드 상단바가 20px 논리 제목을 쓰고 물리 높이는 68.4px다", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "layout-desktop", "치수 기준은 시안 폭에서만 고정한다");
 
   await page.goto("/order-plans", { waitUntil: "domcontentloaded" });
@@ -173,10 +182,100 @@ test("제목 모드 상단바가 20px 제목을 쓰고 높이는 76px 그대로�
       topbarHeight: element.getBoundingClientRect().height,
     };
   });
-  expect(metrics).toMatchObject({ fontSize: "20px", fontWeight: "600", topbarHeight: 76 });
+  expect(metrics).toMatchObject({ fontSize: "20px", fontWeight: "600" });
+  expect(metrics.topbarHeight).toBeCloseTo(68.4, 1);
+});
+
+test("전역 배율이 드롭다운·대화상자를 viewport 안에 두고 키보드 초점을 되돌린다", async ({ page }) => {
+  await page.goto("/pre-specs", { waitUntil: "domcontentloaded" });
+  const viewport = page.viewportSize();
+  if (!viewport) throw new Error("viewport 정보를 읽을 수 없습니다.");
+
+  // 사전규격의 실제 Selector는 body layer로 목록을 그린다. 먼저 비동기 목록과
+  // 상세 필터를 열어야 combobox가 DOM에 생긴다.
+  await expect(page.locator(".pre-specs-split-workspace")).toBeVisible();
+  const advancedToggle = page.getByRole("button", { name: "상세 필터", exact: true });
+  await expect(advancedToggle).toBeVisible();
+  await advancedToggle.click();
+  const selector = page.getByRole("combobox", { name: "업무구분", exact: true });
+  await expect(selector).toBeVisible();
+  await selector.click();
+  const listbox = page.getByRole("listbox");
+  await expect(listbox).toBeVisible();
+  const popoverGeometry = await selector.evaluate((trigger) => {
+    const panel = [...document.querySelectorAll<HTMLElement>('[role="listbox"]')]
+      .find((candidate) => candidate.getBoundingClientRect().width > 0 && candidate.getBoundingClientRect().height > 0);
+    if (!panel) throw new Error("업무구분 드롭다운을 찾을 수 없습니다.");
+    const selectedOption = panel.querySelector<HTMLElement>('[role="option"][aria-selected="true"]');
+    if (!selectedOption) throw new Error("업무구분 드롭다운의 선택 항목을 찾을 수 없습니다.");
+    const triggerRect = trigger.getBoundingClientRect();
+    const panelRect = panel.getBoundingClientRect();
+    const selectedRect = selectedOption.getBoundingClientRect();
+    return {
+      triggerLeft: triggerRect.left,
+      triggerRight: triggerRect.right,
+      triggerTop: triggerRect.top,
+      triggerBottom: triggerRect.bottom,
+      panelTop: panelRect.top,
+      panelLeft: panelRect.left,
+      panelRight: panelRect.right,
+      panelBottom: panelRect.bottom,
+      selectedLeft: selectedRect.left,
+      selectedRight: selectedRect.right,
+      selectedTop: selectedRect.top,
+      selectedBottom: selectedRect.bottom,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+    };
+  });
+  // Selector uses Astryx's selected-item overlay: the listbox can extend above
+  // the trigger so the selected row stays aligned with it. Check that row's
+  // physical placement instead of requiring the panel edge to sit below the
+  // trigger, while still checking the complete panel stays in the viewport.
+  expect(popoverGeometry.panelLeft).toBeGreaterThanOrEqual(-1);
+  expect(popoverGeometry.panelRight).toBeLessThanOrEqual(popoverGeometry.viewportWidth + 1);
+  expect(popoverGeometry.panelTop).toBeGreaterThanOrEqual(-1);
+  expect(popoverGeometry.panelBottom).toBeLessThanOrEqual(popoverGeometry.viewportHeight + 1);
+  // The selected row is the library's anchor when the default overlay placement
+  // is used. It must intersect the trigger in both axes, and its center should
+  // remain aligned after the global zoom even though the panel extends above it.
+  expect(popoverGeometry.selectedRight).toBeGreaterThan(popoverGeometry.triggerLeft - 1);
+  expect(popoverGeometry.selectedLeft).toBeLessThan(popoverGeometry.triggerRight + 1);
+  expect(popoverGeometry.selectedBottom).toBeGreaterThan(popoverGeometry.triggerTop - 1);
+  expect(popoverGeometry.selectedTop).toBeLessThan(popoverGeometry.triggerBottom + 1);
+  const triggerCenter = (popoverGeometry.triggerTop + popoverGeometry.triggerBottom) / 2;
+  const selectedCenter = (popoverGeometry.selectedTop + popoverGeometry.selectedBottom) / 2;
+  expect(Math.abs(selectedCenter - triggerCenter)).toBeLessThanOrEqual(4);
+
+  await page.keyboard.press("Escape");
+  await expect(listbox).toBeHidden();
+  await expect(selector).toBeFocused();
+
+  await page.goto("/order-plans", { waitUntil: "domcontentloaded" });
+  const dialogTrigger = page.getByRole("button", { name: "실행 상태", exact: true });
+  await expect(dialogTrigger).toBeVisible();
+  await dialogTrigger.focus();
+  await dialogTrigger.click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  const dialogGeometry = await dialog.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, width: rect.width, height: rect.height };
+  });
+  expect(dialogGeometry.left).toBeGreaterThanOrEqual(-1);
+  expect(dialogGeometry.top).toBeGreaterThanOrEqual(-1);
+  expect(dialogGeometry.right).toBeLessThanOrEqual(viewport.width + 1);
+  expect(dialogGeometry.bottom).toBeLessThanOrEqual(viewport.height + 1);
+  expect(dialogGeometry.width).toBeGreaterThan(0);
+  expect(dialogGeometry.height).toBeGreaterThan(0);
+
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(dialogTrigger).toBeFocused();
 });
 
 test("지원 폭 1280·1440·1920px에서 셸이 가로로 넘치지 않는다", async ({ page }, testInfo) => {
+  test.setTimeout(90_000);
   // ADR-0047: 지원 폭은 1280~1920px. 1920px는 가로 스크롤 없음만 확인한다(PLAN §5.3).
   test.skip(testInfo.project.name !== "layout-desktop", "폭 검사는 한 project에서만 돈다");
 

@@ -308,17 +308,33 @@ def quality_status_for_review(session: Session, review_id: UUID) -> str | None:
     측정으로 바꾸지 않는다 — 필드가 없던 시절의 실행은 표식 없음으로 남는다.
     """
 
-    row = session.scalar(
-        select(AuditEvent)
+    return quality_status_for_reviews(session, [review_id]).get(review_id)
+
+
+def quality_status_for_reviews(session: Session, review_ids: Sequence[UUID]) -> dict[UUID, str | None]:
+    """같은 규칙을 여러 심층 검토에 **상수 회 조회**로 적용한다 (명세 §8).
+
+    목록 화면이 건별로 부르면 N+1이 된다. 단건 함수는 이 배치판을 부른다.
+    """
+
+    ids = {str(review_id): review_id for review_id in review_ids}
+    if not ids:
+        return {}
+    metadata_by_id: dict[str, Any] = {}
+    for aggregate_id, metadata in session.execute(
+        select(AuditEvent.aggregate_id, AuditEvent.safe_metadata)
         .where(
             AuditEvent.action.in_(CREATION_ACTIONS),
             AuditEvent.aggregate_type == "deep_review",
-            AuditEvent.aggregate_id == str(review_id),
+            AuditEvent.aggregate_id.in_(ids),
         )
         .order_by(AuditEvent.created_at.asc(), AuditEvent.id.asc())
-        .limit(1)
-    )
-    metadata = row.safe_metadata if row is not None else None
+    ).all():
+        metadata_by_id.setdefault(aggregate_id, metadata)
+    return {review_id: _quality_status(metadata_by_id.get(key)) for key, review_id in ids.items()}
+
+
+def _quality_status(metadata: Any) -> str | None:
     if not isinstance(metadata, Mapping):
         return None
     if metadata.get("analysis_provider") == MOCK_ANALYSIS_PROVIDER:
@@ -499,6 +515,11 @@ class DeepReviewService:
             "created_at": review.created_at.isoformat(), "completed_at": review.completed_at.isoformat() if review.completed_at else None,
             "quality_status": quality_status_for_review(session, review.id),
         }
+
+    def opportunity_reviews(self, session: Session, opportunity_id: int) -> dict[str, Any]:
+        from .opportunity_reviews import opportunity_reviews
+
+        return opportunity_reviews(session, opportunity_id)
 
     def _seed_attempt(self, session: Session, review: DeepReview, *, sequence: int, actor: str) -> DeepReviewAttempt:
         attempt = DeepReviewAttempt(id=uuid4(), deep_review_id=review.id, sequence=sequence, status="queued", lease_fence=0, requested_by_name=actor)
@@ -1580,4 +1601,5 @@ class DeepReviewService:
 __all__ = [
     "DeepReviewError", "DeepReviewService", "DeepReviewServiceError",
     "JobClaim", "StaleFenceError", "quality_status_for_review",
+    "quality_status_for_reviews",
 ]

@@ -217,9 +217,11 @@ export function formatMoment(value: string | null): string {
   return `${parsed.getFullYear()}.${pad(parsed.getMonth() + 1)}.${pad(parsed.getDate())} ${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`;
 }
 
-/** 연결이 가리키는 실제 상세 route. 없는 화면을 만들어 내지 않는다. */
+/** 연결이 가리키는 실제 원천 화면 route. 없는 화면을 만들어 내지 않는다. */
 export function recordRoute(link: OpportunityLinkView): string | null {
-  if (link.order_plan_id !== null) return `/order-plans/${link.order_plan_id}`;
+  // 발주계획은 별도 상세 route 없이 목록의 우측 pane을 연다. OpportunityLinkView에는
+  // source_run_id가 없으므로, 확인되지 않은 회차를 URL에 덧붙이지 않는다.
+  if (link.order_plan_id !== null) return `/order-plans?selected=${link.order_plan_id}`;
   if (link.notice_id === null) return null;
   if (link.source_type === "pre_spec") return `/pre-specs/${link.notice_id}`;
   return `/judgments/${link.notice_id}`;
@@ -227,7 +229,7 @@ export function recordRoute(link: OpportunityLinkView): string | null {
 
 /** 링크 버튼의 이름. 화면 이름을 그대로 말한다. */
 export function recordRouteLabel(link: OpportunityLinkView): string {
-  if (link.order_plan_id !== null) return "발주계획 상세 열기";
+  if (link.order_plan_id !== null) return "발주계획 검토목록 열기";
   if (link.source_type === "pre_spec") return "사전규격 상세 열기";
   return "공고 판정 이력 열기";
 }

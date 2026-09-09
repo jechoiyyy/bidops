@@ -942,6 +942,7 @@ class OrderPlanScreeningService:
         return {
             "order_plan_pk": plan.id,
             "order_plan_unty_no": plan.order_plan_unty_no,
+            "source_url": plan.source_url,
             "title": plan.title,
             "agency_name": plan.agency_name,
             "business_division": plan.business_division,
@@ -1060,7 +1061,7 @@ class OrderPlanScreeningService:
         total = int(session.scalar(select(func.count()).select_from(statement.subquery())) or 0)
         rows = session.execute(statement.order_by(OrderPlan.id.asc()).limit(limit).offset(offset)).all()
         return {
-            "schema_version": "order-plan-list-response.v2",
+            "schema_version": "order-plan-list-response.v3",
             "producer": "order-plan-review-api",
             "consumer": "order-plan-review-client",
             "scope": {
@@ -1123,11 +1124,12 @@ class OrderPlanScreeningService:
             owners, owners.c.opportunity_id == Opportunity.id,
         ).where(owners.c.order_plan_id == plan.id))
         return {
-            "schema_version": "order-plan-detail-response.v2",
+            "schema_version": "order-plan-detail-response.v3",
             "producer": "screening-api",
             "consumer": "order-plan-review-client",
             "order_plan_pk": plan.id,
             "order_plan_unty_no": plan.order_plan_unty_no,
+            "source_url": plan.source_url,
             "title": plan.title,
             "agency_name": plan.agency_name,
             "business_division": plan.business_division,

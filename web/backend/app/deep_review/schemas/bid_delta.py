@@ -190,7 +190,36 @@ class BidDeltaWorkspaceView(BidDeltaModel):
     generated_at: datetime
 
 
+class BidDecisionQueueLatestDecision(BidDeltaModel):
+    decision: Literal["go", "no_go"]
+    decided_at: datetime
+    claimed_name: str
+
+
+class BidDecisionQueueItem(BidDeltaModel):
+    opportunity_id: int
+    title: str | None
+    agency: str | None
+    tracking_status: str
+    first_registered_stage: str
+    recheck_signal: bool
+    bid_notice_external_id: str | None
+    comparison_count: int
+    latest_final_decision: BidDecisionQueueLatestDecision | None
+    decision_currentness: Currentness
+
+
+class BidDecisionQueueResponse(BidDeltaModel):
+    items: list[BidDecisionQueueItem]
+    total: int
+    limit: int
+    offset: int
+
+
 __all__ = [
+    "BidDecisionQueueItem",
+    "BidDecisionQueueLatestDecision",
+    "BidDecisionQueueResponse",
     "BidDeltaAttemptCreateRequest",
     "BidDeltaAttemptView",
     "BidDeltaCategory",

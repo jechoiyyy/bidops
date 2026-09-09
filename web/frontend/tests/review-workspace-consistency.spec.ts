@@ -14,14 +14,14 @@ test("발주계획과 사전규격은 두 지원 폭에서 같은 38% 목록 폭
     await expect(page.locator(".c2l-row").first()).toBeVisible();
     const order = await page.locator(".c2l-list-pane").evaluate((pane) => ({
       width: pane.getBoundingClientRect().width,
-      workspaceWidth: pane.parentElement!.clientWidth,
+      workspaceWidth: pane.parentElement!.getBoundingClientRect().width,
     }));
 
     await page.goto("/pre-specs");
     await expect(page.locator(".pre-specs-row").first()).toBeVisible();
     const preSpec = await page.locator(".pre-specs-list-pane").evaluate((pane) => ({
       width: pane.getBoundingClientRect().width,
-      workspaceWidth: pane.parentElement!.clientWidth,
+      workspaceWidth: pane.parentElement!.getBoundingClientRect().width,
     }));
 
     expect(Math.abs(order.width - preSpec.width), `${viewport.width}px에서 두 목록 폭`).toBeLessThanOrEqual(1);

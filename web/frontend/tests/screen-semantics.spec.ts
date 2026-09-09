@@ -4,6 +4,7 @@ import {
   mockOpportunity,
   mockPreSpecAutoDetail,
   mockPreSpecMatrix,
+  mockWorkload,
 } from "./api-mock";
 import { installScreenFixtures } from "./screen-fixtures";
 
@@ -67,6 +68,12 @@ test("대시보드 회차 요약이 API 집계와 별도 담당자 리뷰 수를
 });
 
 test("대시보드는 네 업무를 한 줄에 두고 미확인을 작은 주석으로 표시한다", async ({ page }) => {
+  await mockWorkload(page, { generated_at: "2026-09-01T09:00:00Z", items: [
+    { key: "order_plan_pending", count: 24, unavailable_reason: null },
+    { key: "pre_spec_deep_review_ready", count: null, unavailable_reason: "provider_absent" },
+    { key: "tracking_action_required", count: null, unavailable_reason: "no_completed_execution" },
+    { key: "bid_final_decision_pending", count: null, unavailable_reason: null },
+  ] });
   await page.goto(`/?run=${encodeURIComponent(RUN_ID)}`);
   const decisions = page.locator(".dash-journey-item");
   await expect(decisions).toHaveCount(4);
@@ -94,7 +101,9 @@ test("흡수한 마감·감사 경로가 기존 쿼리를 보존한다", async (
   let params = new URL(page.url()).searchParams;
   expect(params.get("run")).toBe(RUN_ID);
   expect(params.get("from")).toBe("dashboard");
-  await expect(page.locator("header.topbar h1")).toHaveText("검토 대기열");
+  // `/deadlines` keeps the queue view but uses its shared route metadata, whose
+  // topbar context is the read-only 공고 판정 이력 screen.
+  await expect(page.locator("header.topbar h1")).toHaveText("공고 판정 이력");
 
   await page.goto(`/audit?run=${encodeURIComponent(RUN_ID)}&from=review`);
   await expect(page.locator("header.topbar h1")).toHaveText("실행 상태");
