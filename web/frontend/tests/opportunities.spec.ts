@@ -293,14 +293,14 @@ test("3단계 연결 현황은 확정·후보·검색 미확인·연결 미확�
   await expect(page.locator(".opportunity-flow-section")).toContainText("단계를 알 수 없는 연결 1건");
 });
 
-test("연결된 공고 행은 실제 상세 route로 이동한다", async ({ page }) => {
+test("연결된 공고 행은 실제 원천 화면 route로 이동한다", async ({ page }) => {
   await mockOpportunities(page);
   await page.goto("/opportunities/202");
 
   const rows = page.locator(".opportunity-linked-row");
   await expect(rows).toHaveCount(2);
   await expect(rows.nth(0)).toContainText("DEMO-OP-002");
-  await expect(rows.nth(0).getByRole("link", { name: "발주계획 상세 열기" })).toHaveAttribute("href", "/order-plans/2001");
+  await expect(rows.nth(0).getByRole("link", { name: "발주계획 검토목록 열기" })).toHaveAttribute("href", "/order-plans?selected=2001");
   await expect(rows.nth(1).getByRole("link", { name: "공고 판정 이력 열기" })).toHaveAttribute("href", "/judgments/2002");
 
   await page.goto("/opportunities/404");
@@ -334,7 +334,7 @@ test("후보 연결은 사유·기록자 없이 저장되지 않고 수용하면
   await expect(dialog).toContainText("이름 검색으로 발견한 후보");
   await expect(dialog).toContainText("자동 확정하지 않습니다");
   // 원천 상세로 가는 길이 대화상자 안에도 있다.
-  await expect(dialog.getByRole("link", { name: "발주계획 상세 열기 →" })).toHaveAttribute("href", "/order-plans/1001");
+  await expect(dialog.getByRole("link", { name: "발주계획 검토목록 열기 →" })).toHaveAttribute("href", "/order-plans?selected=1001");
 
   const save = dialog.getByRole("button", { name: "같은 사업으로 연결" });
   await expect(save).toBeDisabled();

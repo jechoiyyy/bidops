@@ -20,7 +20,6 @@ const shellRoutes = [
   "/opportunities",
   "/go-no-go",
   "/order-plans",
-  "/order-plans/101",
   "/pre-specs",
   "/pre-specs/991",
   "/opportunities/202",
@@ -30,8 +29,9 @@ const shellRoutes = [
 ];
 
 // 탐색과 추적 목록 4화면은 상단바가 경로 대신 화면 이름 하나를 그린다(제목 모드).
-// 상세 화면(`/order-plans/101`·`/pre-specs/991`·`/opportunities/501`·bid-delta·
-// deep-reviews)은 목록으로 돌아갈 링크가 필요하므로 경로 모드로 남는다.
+// 상세 화면(`/pre-specs/991`·`/opportunities/501`·bid-delta·deep-reviews)은
+// 목록으로 돌아갈 링크가 필요하므로 경로 모드로 남는다. 발주계획은 목록의
+// 우측 pane에서 상세를 보여 주므로 별도 상세 route가 없다.
 const TITLE_ROUTES = ["/order-plans", "/pre-specs", "/opportunities", "/go-no-go"];
 
 test.beforeEach(async ({ page }) => {

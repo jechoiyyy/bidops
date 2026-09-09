@@ -27,6 +27,7 @@ import {
   ReviewDecisionBar,
   ReviewFilterSelector,
   ReviewFilterTextInput,
+  ReviewRevisionHistory,
   ReviewState,
   ReviewStatus,
   ReviewValue,
@@ -337,6 +338,12 @@ function parseTokenSet<T extends string>(raw: string | null, allowed: readonly T
 
 function serializeTokens(values: Iterable<string>): string {
   return Array.from(values).join(",");
+}
+
+function parseOrderPlanPk(value: string | null): number | null {
+  if (value === null || !/^\d+$/.test(value)) return null;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
 function setEqualsArray<T>(set: Set<T>, values: readonly T[]): boolean {
@@ -990,6 +997,21 @@ export function OrderPlansPage() {
 
   useEffect(() => setSearchText(searchParams.get("q") ?? ""), [searchParams]);
 
+  const selectedParam = searchParams.get("selected");
+  const selectedPk = parseOrderPlanPk(selectedParam);
+  /**
+   * `selected` is also written for ordinary row navigation. Remember whether it
+   * was present when this page was entered so a deep link can be handled without
+   * changing the normal list selection rules.
+   */
+  const initialSelectedParamRef = useRef<string | null>(selectedParam);
+  const [deepLinkActive, setDeepLinkActive] = useState(() => initialSelectedParamRef.current !== null);
+  const isExplicitDeepLink = deepLinkActive && selectedParam !== null;
+
+  useEffect(() => {
+    if (selectedParam === null && deepLinkActive) setDeepLinkActive(false);
+  }, [deepLinkActive, selectedParam]);
+
   const runsQuery = useQuery({
     queryKey: ["runs"],
     queryFn: () => api.getRuns(),
@@ -1004,9 +1026,34 @@ export function OrderPlansPage() {
   const collectionRuns = (runsQuery.data?.items ?? [])
     .filter((run) => run.kind === "order_plans" || run.kind === "mixed")
     .sort((a, b) => b.generated_at.localeCompare(a.generated_at));
-  const sourceRunId = searchParams.get("source_run_id")
-    ?? collectionRuns[0]?.run_id
+  const requestedSourceRunId = searchParams.get("source_run_id")?.trim() || null;
+  const fallbackSourceRunId = collectionRuns[0]?.run_id
     ?? latestCompletedExecution(executions)?.source_run_id;
+  /**
+   * Opportunity links and old `/order-plans/:pk` bookmarks carry only the plan
+   * PK. Resolve its immutable observation lineage before choosing the list
+   * source. A source explicitly present in the URL always wins, so changing the
+   * run selector or reopening a saved URL cannot silently move to another run.
+   */
+  const deepLinkPlanQuery = useQuery({
+    queryKey: ["order-plan-c2", "deep-link-plan", selectedPk],
+    queryFn: ({ signal }) => api.getOrderPlan(selectedPk as number, { signal }),
+    enabled: isExplicitDeepLink && selectedPk !== null && !requestedSourceRunId,
+    staleTime: 15_000,
+  });
+  const deepLinkSourceRunId = deepLinkPlanQuery.data?.observations[0]?.source_run_id ?? null;
+  // While an explicit PK is being resolved, do not fetch the default run. That
+  // temporary result could show a same-PK row from the wrong observation run.
+  const sourceRunId = requestedSourceRunId
+    ?? (isExplicitDeepLink && selectedPk !== null ? deepLinkSourceRunId : fallbackSourceRunId);
+
+  useEffect(() => {
+    if (!isExplicitDeepLink || selectedPk === null || requestedSourceRunId || deepLinkPlanQuery.isPending || deepLinkPlanQuery.isError || !deepLinkSourceRunId) return;
+    const params = new URLSearchParams(searchParams);
+    params.set("source_run_id", deepLinkSourceRunId);
+    setSearchParams(params, { replace: true });
+  }, [deepLinkPlanQuery.isError, deepLinkPlanQuery.isPending, deepLinkSourceRunId, isExplicitDeepLink, requestedSourceRunId, searchParams, selectedPk, setSearchParams]);
+
   const scopedExecutions = sourceRunId ? executions.filter((execution) => execution.source_run_id === sourceRunId) : executions;
   const latestExecution = latestCompletedExecution(scopedExecutions);
   const runOptions = Array.from(new Set([
@@ -1039,6 +1086,9 @@ export function OrderPlansPage() {
     });
   }
 
+  // Keep the normal review default while resolving a selected row. Once the
+  // target and execution scope are known, the targeted reset effect below
+  // removes only filters that hide that record (for example `not_relevant`).
   const isDefaultView = Boolean(latestExecution) && !AXIS_KEYS.some((key) => searchParams.has(key));
   const qwenSet = isDefaultView ? new Set<RelevanceToken>(["relevant", "uncertain"]) : parseTokenSet(searchParams.get("qwen"), RELEVANCE_TOKENS);
   const stage1Set = isDefaultView ? new Set<Stage1Token>() : parseTokenSet(searchParams.get("stage1"), STAGE1_TOKENS);
@@ -1047,8 +1097,6 @@ export function OrderPlansPage() {
   const qText = searchParams.get("q") ?? "";
   const offsetRaw = Number(searchParams.get("offset") ?? "0");
   const offset = Number.isFinite(offsetRaw) && offsetRaw >= 0 ? Math.floor(offsetRaw / PAGE_SIZE) * PAGE_SIZE : 0;
-  const selectedParam = searchParams.get("selected");
-  const selectedPk = selectedParam ? Number(selectedParam) : null;
 
   const activePreset = (() => {
     if (qText) return null;
@@ -1208,17 +1256,99 @@ export function OrderPlansPage() {
   const hasPrevious = offset > 0;
   const hasNext = offset + visibleItems.length < total;
 
-  const selectedItem = (selectedPk !== null ? filteredItems.find((item) => item.order_plan_pk === selectedPk) : undefined) ?? visibleItems[0] ?? null;
+  const explicitTargetItem = selectedPk !== null
+    ? allItems.find((item) => item.order_plan_pk === selectedPk) ?? null
+    : null;
+  const invalidSelectedParam = selectedParam !== null && selectedPk === null;
+  const explicitTargetInFilteredItems = selectedPk !== null
+    && filteredItems.some((item) => item.order_plan_pk === selectedPk);
+  const deepLinkNeedsSource = isExplicitDeepLink && selectedPk !== null && !requestedSourceRunId;
+  const deepLinkPending = isExplicitDeepLink && selectedPk !== null && (
+    (deepLinkNeedsSource && !deepLinkPlanQuery.data && !deepLinkPlanQuery.isError)
+    || (Boolean(sourceRunId) && listQuery.isPending)
+    // Do not consume the deep-link before the execution scope is known. The
+    // normal default review view is derived from that scope and could hide the
+    // requested row on the next render, allowing the ordinary first-row
+    // fallback to select a different record.
+    || executionsQuery.isPending
+  );
+  const deepLinkFailed = isExplicitDeepLink && (
+    invalidSelectedParam
+    || deepLinkPlanQuery.isError
+    || listQuery.isError
+    || (deepLinkNeedsSource && Boolean(deepLinkPlanQuery.data) && !deepLinkSourceRunId)
+    || (!listQuery.isPending && !deepLinkPending && explicitTargetItem === null)
+  );
+  const selectedItem = invalidSelectedParam
+    ? null
+    : isExplicitDeepLink
+    ? (deepLinkPending || deepLinkFailed || !explicitTargetInFilteredItems
+      ? null
+      : filteredItems.find((item) => item.order_plan_pk === selectedPk) ?? null)
+    : ((selectedPk !== null ? filteredItems.find((item) => item.order_plan_pk === selectedPk) : undefined) ?? visibleItems[0] ?? null);
+
+  const feedbackHistoryQuery = useQuery({
+    queryKey: ["order-plan-c2", "feedback-history", selectedItem?.order_plan_pk, latestExecution?.execution_id],
+    queryFn: ({ signal }) => api.getOrderPlanScreeningFeedback(
+      selectedItem?.order_plan_pk as number,
+      latestExecution?.execution_id,
+      { signal },
+    ),
+    enabled: dialog === "feedback" && Boolean(selectedItem) && Boolean(latestExecution),
+    staleTime: 15_000,
+  });
+
+  /**
+   * A deep link owns its target. If an existing filter hides it, clear that
+   * filter and move to the target's page so the selected row and pane agree.
+   * Once initialized, ordinary filtering resumes and may hide the current row.
+   */
+  useEffect(() => {
+    if (!isExplicitDeepLink || selectedPk === null || deepLinkPending || deepLinkFailed || !explicitTargetItem) return;
+    const defaultViewCandidate = Boolean(latestExecution) && !AXIS_KEYS.some((key) => searchParams.has(key));
+    const defaultAxes: AxisSelection = {
+      qwenSet: new Set<RelevanceToken>(["relevant", "uncertain"]),
+      stage1Set: new Set<Stage1Token>(),
+      feedbackSet: new Set<FeedbackToken>(),
+      issueOn: false,
+    };
+    const hiddenByCurrentFilters = !explicitTargetInFilteredItems;
+    const hiddenByDefaultView = defaultViewCandidate && !matchesAxes(explicitTargetItem, defaultAxes);
+    const targetHidden = hiddenByCurrentFilters || hiddenByDefaultView;
+    // Keep a valid target's current filter context when it is already visible.
+    // Only use the complete collection after deciding that a filter hid it.
+    const targetCollection = targetHidden ? sortByRelevance(allItems) : filteredItems;
+    const targetIndex = targetCollection.findIndex((item) => item.order_plan_pk === selectedPk);
+    const targetOffset = targetIndex < 0 ? 0 : Math.floor(targetIndex / PAGE_SIZE) * PAGE_SIZE;
+    const targetOutsideVisiblePage = targetIndex >= 0 && (targetIndex < offset || targetIndex >= offset + PAGE_SIZE);
+    if (targetHidden || targetOutsideVisiblePage) {
+      const params = new URLSearchParams(searchParams);
+      if (targetHidden) {
+        for (const key of AXIS_KEYS) params.delete(key);
+        // An empty axis is the explicit "all" sentinel. Removing every axis
+        // would reactivate the normal default review view immediately after the
+        // deep-link state is consumed.
+        params.set("qwen", "");
+      }
+      // Keep the deep-link source and selected PK. If the target is beyond the
+      // current page, retain the useful page context by selecting its page.
+      if (targetOffset > 0) params.set("offset", String(targetOffset));
+      else params.delete("offset");
+      setSearchParams(params, { replace: true });
+      return;
+    }
+    setDeepLinkActive(false);
+  }, [allItems, deepLinkFailed, deepLinkPending, explicitTargetInFilteredItems, explicitTargetItem, isExplicitDeepLink, latestExecution, offset, searchParams, selectedPk, setSearchParams]);
 
   useEffect(() => {
-    if (!visibleItems.length) return;
+    if (!visibleItems.length || isExplicitDeepLink || invalidSelectedParam) return;
     const stillValid = selectedPk !== null && filteredItems.some((item) => item.order_plan_pk === selectedPk);
     if (stillValid) return;
     const params = new URLSearchParams(searchParams);
     params.set("selected", String(visibleItems[0].order_plan_pk));
     setSearchParams(params, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibleItems.map((item) => item.order_plan_pk).join(","), selectedPk]);
+  }, [invalidSelectedParam, isExplicitDeepLink, visibleItems.map((item) => item.order_plan_pk).join(","), selectedPk]);
 
   // 행이 바뀌면 사람 판단 수정 입력과 선택 사유를 초기화한다. 입력을 잃는 것을 사람이
   // 확인한 뒤에만 여기까지 오도록 이동하는 자리마다 `withRowGuard`를 걸었다.
@@ -1290,6 +1420,7 @@ export function OrderPlansPage() {
       // 저장한 값이 새 기준이 된다. 화면의 입력은 그대로 두고 "저장되지 않은 입력"만 푼다.
       setFeedbackBaseline({ relevance, priority, memo });
       await queryClient.invalidateQueries({ queryKey: ["order-plan-c2", "list"] });
+      await queryClient.invalidateQueries({ queryKey: ["order-plan-c2", "feedback-history"] });
     },
   });
 
@@ -1516,7 +1647,6 @@ export function OrderPlansPage() {
   // 않고 `describeApiError`가 옮긴 문장만 쓴다.
   const listError = describeApiError(listQuery.error, "발주계획 목록을 확인할 수 없습니다.").title;
   const executionError = describeApiError(executionsQuery.error, "C-2 실행 목록을 확인할 수 없습니다.").title;
-  const returnSearch = searchParams.toString();
   const hasProblem = executionsQuery.isPending || executionHasProblem(latestExecution, scopedExecutions);
   // 목록 머리글이 "무엇을 보고 있는가"를 문장으로 밝힌다. 축 안은 OR, 축끼리는 AND다.
   const filterMeaning = (() => {
@@ -1584,6 +1714,22 @@ export function OrderPlansPage() {
         sourceRunId ? <Banner status="info" title="선별 전 · 수집 데이터 조회"
           description="이 회차에 게시된 선별 결과가 없습니다. 원본 발주계획을 조회하며 모델 판단은 값 없음으로 표시합니다." collapsible={false} />
           : <ExecutionMissingBlock executions={scopedExecutions} />
+      ) : null}
+
+      {isExplicitDeepLink && invalidSelectedParam ? (
+        <Banner status="error" title="발주계획 식별자가 올바르지 않습니다."
+          description="요청한 발주계획을 선택하지 못했습니다. 목록의 행을 직접 선택하십시오." collapsible={false} />
+      ) : null}
+      {isExplicitDeepLink && deepLinkNeedsSource && deepLinkPlanQuery.isPending ? (
+        <Text type="body" color="secondary" as="p" role="status">선택한 발주계획의 수집 회차를 확인하는 중…</Text>
+      ) : null}
+      {isExplicitDeepLink && deepLinkNeedsSource && deepLinkPlanQuery.isError ? (
+        <Banner status="error" title="요청한 발주계획을 찾을 수 없습니다."
+          description={describeApiError(deepLinkPlanQuery.error, "발주계획을 확인할 수 없습니다.").detail} collapsible={false} />
+      ) : null}
+      {isExplicitDeepLink && deepLinkNeedsSource && deepLinkPlanQuery.data && !deepLinkSourceRunId ? (
+        <Banner status="error" title="발주계획의 수집 회차를 확인할 수 없습니다."
+          description="관측 회차가 없어 목록의 다른 발주계획으로 바꾸지 않았습니다." collapsible={false} />
       ) : null}
 
       {sourceRunId ? (
@@ -1848,6 +1994,18 @@ export function OrderPlansPage() {
                       {listQuery.isPending ? "목록을 불러온 뒤 상세 정보를 표시합니다." : "목록을 불러오지 못해 상세를 표시할 수 없습니다."}
                     </Text>
                   </div>
+                ) : isExplicitDeepLink && deepLinkFailed ? (
+                  <div className="c2l-detail-empty">
+                    <ReviewState
+                      kind="failure"
+                      title={invalidSelectedParam ? "발주계획 식별자가 올바르지 않습니다." : "요청한 발주계획을 이 회차에서 찾을 수 없습니다."}
+                      description="요청한 대상을 첫 번째 행으로 바꾸지 않았습니다. 회차와 선택한 식별자를 확인하십시오."
+                    />
+                  </div>
+                ) : isExplicitDeepLink && !explicitTargetInFilteredItems ? (
+                  <div className="c2l-detail-empty">
+                    <Text type="body" color="secondary" as="p">선택한 발주계획을 표시할 수 있도록 필터를 정리하는 중…</Text>
+                  </div>
                 ) : selectedItem ? (
                   <>
                     {/* 시안 §4: 발주기관을 라벨과 함께 강조 블록으로 먼저 읽히고, 사업명은
@@ -1925,16 +2083,11 @@ export function OrderPlansPage() {
                           variant="ghost"
                           onClick={() => { setSignalTab("signals"); setDialog("signals"); }}
                         />
-                        <Link className="c2l-row-detail-link" to={`/order-plans/${selectedItem.order_plan_pk}${returnSearch ? `?${returnSearch}` : ""}`}>
-                          전체 상세 열기 →
-                        </Link>
                       </nav>
                     </div>
-                    {/* 분할 화면의 결정 액션은 상세 pane 바닥에 둔다. 단독
-                        상세 화면(OrderPlanDetailPage)은 sticky 헤더에 두며, 두
-                        배치를 한 화면에서 섞지 않는다(PLAN 단계 B).
-                        여기의 결정은 **추적 결정 하나**다(ADR-0046 결정 4). 사람 판단
-                        수정은 별도 대화상자가 자기 저장을 소유한다. */}
+                    {/* 분할 화면의 결정 액션은 상세 pane 바닥에 둔다. 여기의 결정은
+                        **추적 결정 하나**다(ADR-0046 결정 4). 사람 판단 수정은
+                        별도 대화상자가 자기 저장을 소유한다. */}
                     <ReviewDecisionBar
                       className="c2l-detail-actions"
                       // 비활성 사유는 세 결정이 함께 읽는 한 문장이다. 버튼 옆이 아니라
@@ -2076,6 +2229,37 @@ export function OrderPlansPage() {
             기존 사람 판단을 그대로 둡니다. 추적 결정과는 별도 수정본이며 적합성 등급·참여 준비 상태·심층 추적 승인·최종 Go/No-Go를 채우거나 대신하지 않습니다.
           </Text>
           <Badge variant="neutral" label={selectedItem?.human_feedback ? feedbackSummaryLabel : "사람 판단 미입력"} />
+
+          {latestExecution ? (
+            feedbackHistoryQuery.isPending ? (
+              <Text type="supporting" color="secondary" as="p" role="status">사람 피드백 수정본 이력을 불러오는 중…</Text>
+            ) : feedbackHistoryQuery.isError ? (
+              <Text type="supporting" color="secondary" as="p" role="alert">사람 피드백 이력을 불러오지 못했습니다. 저장 전 현재 수정본을 확인할 수 없습니다.</Text>
+            ) : (
+              <ReviewRevisionHistory
+                className="c2l-feedback-history"
+                empty="사람 피드백이 없습니다. 사람 판단을 새 수정본으로 기록할 수 있습니다."
+                entries={(feedbackHistoryQuery.data?.items ?? []).map((item) => ({
+                  actor: item.claimed_name,
+                  at: formatMoment(item.created_at),
+                  body: (
+                    <dl>
+                      <div><dt>priority</dt><dd>{item.priority ?? "null (미지정)"}</dd></div>
+                      <div><dt>note</dt><dd>{item.memo ?? "null (메모 미제공)"}</dd></div>
+                      <div><dt>execution</dt><dd className="c2l-digest">{item.execution_id}</dd></div>
+                    </dl>
+                  ),
+                  id: item.feedback_id,
+                  revision: item.revision,
+                  tags: <Badge variant="neutral" label={item.relevance} />,
+                }))}
+                headingLevel={5}
+                label="사람 피드백 수정본 이력"
+              />
+            )
+          ) : (
+            <Text type="supporting" color="secondary" as="p">피드백을 기록할 실행 이력이 없습니다. 실행 기록 없이 수정본을 만들지 않습니다.</Text>
+          )}
 
           <div className="c2l-feedback-field">
             <Text type="label" color="secondary" as="p">relevance</Text>

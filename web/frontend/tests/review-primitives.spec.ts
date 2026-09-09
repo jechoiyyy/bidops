@@ -81,8 +81,8 @@ test("사전규격 보기 전환은 0건인 진행·대기도 숨기지 않는�
 });
 
 // ── 단계 B에서 추가한 primitive ────────────────────────────────────────────
-// 결정 액션 배치 두 형태(분할 화면의 pane 바닥 / 단독 상세의 sticky 헤더),
-// 접힌 보조 입력 영역과 그 append-only revision 이력, 등급 4단 스케일.
+// 분할 화면 pane 바닥의 결정 액션, 접힌 보조 입력 영역과 그 append-only revision
+// 이력, 등급 4단 스케일.
 
 test("분할 화면의 결정 액션 바는 상세 pane 바닥에 남아 스크롤 위치와 무관하게 보인다", async ({ page }) => {
   await mockOrderPlans(page, "large");
@@ -91,7 +91,7 @@ test("분할 화면의 결정 액션 바는 상세 pane 바닥에 남아 스크�
   const bar = page.locator('[data-review-primitive="decision-bar"]');
   await expect(bar).toBeVisible();
   await expect(bar).toHaveCSS("position", "sticky");
-  // 단독 상세용 sticky 헤더와 같은 화면에서 두 배치를 섞지 않는다.
+  // 상세 pane의 sticky 헤더에는 결정 action을 복제하지 않는다.
   await expect(page.locator('[data-review-primitive="sticky-decision-header"] [data-review-primitive="decision-action"]')).toHaveCount(0);
 
   const start = page.getByRole("button", { name: "추적 시작", exact: true });
@@ -149,9 +149,12 @@ test("추적 입력 창은 키보드로 열고 닫으며 현재 추적 값과 �
 
 test("append-only revision 이력은 건수와 append-only 표식을 함께 보여주고 revision을 덮어쓰지 않는다", async ({ page }) => {
   await mockOrderPlans(page);
-  await page.goto("/order-plans/101");
+  await page.goto("/order-plans?selected=101");
+  await page.getByRole("button", { name: "사람 판단 수정 열기" }).click();
 
-  const history = page.locator('[data-review-primitive="revision-history"]');
+  const feedbackDialog = page.getByRole("dialog", { name: "사람 판단 수정 (선택)", exact: true });
+  await expect(feedbackDialog).toBeVisible();
+  const history = feedbackDialog.locator('[data-review-primitive="revision-history"]');
   await expect(history).toBeVisible();
   await expect(history).toHaveAttribute("data-revision-count", "1");
   await expect(history).toContainText("append-only · 1건");
