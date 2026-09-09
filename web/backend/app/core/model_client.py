@@ -81,6 +81,19 @@ class ResponseTooLargeError(ValueError):
     """Provider response exceeded the bounded response budget."""
 
 
+class PromptTooLargeError(ValueError):
+    """묶인 프롬프트가 지역 분석 상한을 넘었다.
+
+    `ValueError`를 그대로 상속한다 — 기존 개요 runner는 프롬프트 조립이 내는
+    `ValueError`를 `prompt_rejected`로 옮기고 있어서, 상속을 끊으면 그 경로가
+    분류를 잃는다. 여기에 `code`를 두어 `getattr(error, "code", ...)`로 읽는
+    v4 runner도 같은 분류를 얻는다. 상한을 넘겼다는 사실만 남기고 프롬프트
+    본문은 담지 않는다.
+    """
+
+    code = "prompt_rejected"
+
+
 class EncryptedObjectStore(Protocol):
     """The only storage capability accepted for raw model responses."""
 
@@ -306,7 +319,7 @@ def build_prompt(
         )
     prompt = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     if len(prompt) > 24000:
-        raise ValueError("bounded prompt exceeds the local analysis limit")
+        raise PromptTooLargeError("bounded prompt exceeds the local analysis limit")
     return prompt
 
 
@@ -343,6 +356,68 @@ def _bounded_response(response: httpx.Response) -> None:
                 raise ResponseTooLargeError("response_too_large")
         except ValueError as exc:
             raise ResponseTooLargeError("response_too_large") from exc
+
+
+_THINK_OPEN: Final[str] = "<think>"
+_THINK_CLOSE: Final[str] = "</think>"
+
+
+def _strip_leading_thinking(content: str) -> tuple[str, int | None]:
+    """선행 `<think>…</think>` 블록만 떼어 낸다.
+
+    `enable_thinking=False`(vLLM)와 `reasoning_effort="none"`(Ollama)을 함께
+    보내도 사고 블록을 본문 앞에 흘리는 배치가 있다. 그대로 `json.loads`에
+    넘기면 `malformed_json`이 되고, 같은 프롬프트를 다시 보내는 재시도도 같은
+    결과를 낸다.
+
+    닫는 태그가 없으면 **아무것도 하지 않는다** — 어디까지가 사고인지 알 수
+    없고, 추정해서 자르면 본문을 잘라 먹는다. 그 경우는 기존 `malformed_json`
+    경로가 그대로 처리한다.
+
+    떼어 낸 문자열은 반환하지도 기록하지도 않는다. 길이만 낸다.
+    """
+
+    leading = content.lstrip()
+    if not leading.startswith(_THINK_OPEN):
+        return content, None
+    end = leading.find(_THINK_CLOSE)
+    if end == -1:
+        return content, None
+    remainder = leading[end + len(_THINK_CLOSE):].lstrip()
+    return remainder, len(content) - len(remainder)
+
+
+def _attempt_observation(
+    *,
+    retry_index: int,
+    status: str,
+    latency_ms: int,
+    seed: int,
+    correction_sha256: str | None,
+    thinking_chars: int | None,
+    error_code: str | None = None,
+) -> dict[str, Any]:
+    """한 시도의 관측 row.
+
+    프롬프트·응답 본문과 떼어 낸 사고 문자열은 담지 않는다. 보정 지시는
+    digest로만 남긴다.
+    """
+
+    row: dict[str, Any] = {"retry_index": retry_index, "status": status}
+    if error_code is not None:
+        row["error_code"] = error_code
+    row["latency_ms"] = latency_ms
+    row["seed"] = seed
+    row["correction_sha256"] = correction_sha256
+    row["thinking_stripped"] = thinking_chars is not None
+    if thinking_chars is not None:
+        row["thinking_chars"] = thinking_chars
+    return row
+
+
+#: 보정 지시의 상한. 프롬프트를 다시 쓰는 것이 아니라 한 문단짜리 지시만
+#: 덧붙이는 자리이므로 좁게 묶는다.
+MAX_CORRECTION_CHARS: Final[int] = 2000
 
 
 class ModelClient:
@@ -563,8 +638,17 @@ class ModelClient:
         except (httpx.HTTPError, ValueError, TypeError, AttributeError, OSError, ResponseTooLargeError):
             raise ModelIdentityError("identity_unavailable") from None
 
-    def _request(self, prompt: str, *, timeout_seconds: int) -> Mapping[str, Any]:
-        return self.complete_structured(prompt, timeout_seconds=timeout_seconds)
+    def _request(
+        self,
+        prompt: str,
+        *,
+        timeout_seconds: int,
+        seed: int | None = None,
+        correction: str | None = None,
+    ) -> Mapping[str, Any]:
+        return self.complete_structured(
+            prompt, timeout_seconds=timeout_seconds, seed=seed, correction=correction
+        )
 
     def complete_structured(
         self,
@@ -573,6 +657,8 @@ class ModelClient:
         contract: StructuredOutputContract | None = None,
         max_tokens: int | None = None,
         timeout_seconds: int = APPROVED_TIMEOUT_SECONDS,
+        seed: int | None = None,
+        correction: str | None = None,
     ) -> Mapping[str, Any]:
         """구조화 응답 한 번을 요청하고 provider 응답 원형을 낸다.
 
@@ -580,6 +666,11 @@ class ModelClient:
         위한 것이다. C-1 판정은 stage마다 응답 schema가 다르고 stage별
         `num_predict` 예산을 `max_tokens`로 넘긴다. 생략하면 이 client가 묶인
         계약과 승인 기본값을 쓴다.
+
+        `seed`를 주면 승인 기본값 대신 그 값을 보낸다. `correction`은 기존
+        system·JSON 프롬프트 뒤에 붙는 **마지막 user 메시지 하나**이며 프롬프트
+        자체를 바꾸지 않는다 — 그래야 프롬프트 hash에 묶인 기존 binding이
+        그대로 남는다.
 
         재시도는 하지 않는다 — 재시도 정책은 `invoke`와 도메인 어댑터가
         각자의 계약대로 소유한다.
@@ -596,18 +687,21 @@ class ModelClient:
                 "chat_template_kwargs": {"enable_thinking": APPROVED_GENERATION["enable_thinking"]},
             }
         )
+        messages: list[dict[str, str]] = [
+            {
+                "role": "system",
+                "content": selected.system_prompt,
+            },
+            {"role": "user", "content": prompt},
+        ]
+        if correction is not None:
+            messages.append({"role": "user", "content": correction})
         response = self._completion_create(
             model=self.model,
-            messages=[
-                {
-                    "role": "system",
-                    "content": selected.system_prompt,
-                },
-                {"role": "user", "content": prompt},
-            ],
+            messages=messages,
             temperature=APPROVED_GENERATION["temperature"],
             top_p=APPROVED_GENERATION["top_p"],
-            seed=APPROVED_GENERATION["seed"],
+            seed=int(APPROVED_GENERATION["seed"] if seed is None else seed),
             max_tokens=int(APPROVED_GENERATION["max_completion_tokens"] if max_tokens is None else max_tokens),
             response_format={
                 "type": "json_schema",
@@ -641,7 +735,23 @@ class ModelClient:
         *,
         profile: Mapping[str, Any] | None = None,
         prior_stages: Sequence[Mapping[str, Any]] = (),
+        seed: int | None = None,
+        correction: str | None = None,
     ) -> InvocationResult:
+        """한 stage를 정책 재시도 한도 안에서 부른다.
+
+        `seed`는 이 호출의 기준 seed다(생략하면 승인 기본값). transport 재시도
+        i번째는 `기준 seed + i`로 나간다 — 같은 프롬프트를 같은 seed로 다시
+        보내면 잘린·깨진 JSON에 대한 재시도가 결정적으로 같은 실패를 되풀이한다.
+
+        `correction`은 프롬프트 뒤에 붙는 마지막 user 메시지 하나이며 프롬프트
+        본문을 바꾸지 않는다. 그래서 `input_sha256`은 기준 프롬프트의 digest
+        그대로다.
+
+        seed override는 호출 인자이지 정책 변경이 아니다. policy의 `generation`
+        은 여전히 `APPROVED_GENERATION`과 같아야 한다.
+        """
+
         # policy가 모델을 지정했으면 이 client가 묶인 모델과 같아야 한다.
         # 승인 목록을 코드가 아니라 policy가 갖는다는 뜻이다.
         if policy.get("model_endpoint_ref", MODEL_ENDPOINT_REF) != MODEL_ENDPOINT_REF or policy.get("model_name", self.model) != self.model:
@@ -656,14 +766,25 @@ class ModelClient:
             raise ModelInvocationError("policy_invalid", ())
         if policy.get("generation", APPROVED_GENERATION) != APPROVED_GENERATION:
             raise ModelInvocationError("policy_invalid", ())
+        # 보정 지시는 네트워크에 나가기 전에 묶는다.
+        if correction is not None and (not isinstance(correction, str) or len(correction) > MAX_CORRECTION_CHARS):
+            raise ModelInvocationError("correction_invalid", ())
+        correction_sha256 = (
+            hashlib.sha256(correction.encode("utf-8")).hexdigest() if correction is not None else None
+        )
+        base_seed = int(APPROVED_GENERATION["seed"] if seed is None else seed)
         prompt = build_prompt(stage, input_slice, policy, profile=profile, prior_stages=prior_stages)
         input_hash = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
         observations: list[dict[str, Any]] = []
         last_raw_response: bytes | None = None
         for index in range(retries + 1):
             started = time.monotonic()
+            sent_seed = base_seed + index
+            thinking_chars: int | None = None
             try:
-                response = self._request(prompt, timeout_seconds=timeout_seconds)
+                response = self._request(
+                    prompt, timeout_seconds=timeout_seconds, seed=sent_seed, correction=correction
+                )
                 if response.get("model") != self.model:
                     raise ValueError("model_mismatch")
                 # 응답이 revision을 실어 보내면 배포 선언과 대조한다. stock
@@ -694,13 +815,25 @@ class ModelClient:
                 output_bytes = output.encode("utf-8")
                 if len(output_bytes) > MAX_RESPONSE_BYTES:
                     raise ResponseTooLargeError("response_too_large")
+                # 저장·digest는 손대지 않은 원본 bytes다. 사고 블록 제거는
+                # 파싱 입력에만 적용한다.
                 last_raw_response = output_bytes
-                structured = json.loads(output)
+                parsed_source, thinking_chars = _strip_leading_thinking(output)
+                structured = json.loads(parsed_source)
                 if not isinstance(structured, Mapping):
                     raise ValueError("malformed_json")
                 usage = response.get("usage") if isinstance(response.get("usage"), Mapping) else {}
                 elapsed = int((time.monotonic() - started) * 1000)
-                observations.append({"retry_index": index, "status": "succeeded", "latency_ms": elapsed})
+                observations.append(
+                    _attempt_observation(
+                        retry_index=index,
+                        status="succeeded",
+                        latency_ms=elapsed,
+                        seed=sent_seed,
+                        correction_sha256=correction_sha256,
+                        thinking_chars=thinking_chars,
+                    )
+                )
                 return InvocationResult(
                     structured_output=dict(structured),
                     raw_response=output_bytes,
@@ -730,7 +863,17 @@ class ModelClient:
             except Exception:
                 code = "provider_error"
             elapsed = int((time.monotonic() - started) * 1000)
-            observations.append({"retry_index": index, "status": "failed", "error_code": code, "latency_ms": elapsed})
+            observations.append(
+                _attempt_observation(
+                    retry_index=index,
+                    status="failed",
+                    error_code=code,
+                    latency_ms=elapsed,
+                    seed=sent_seed,
+                    correction_sha256=correction_sha256,
+                    thinking_chars=thinking_chars,
+                )
+            )
         raise ModelInvocationError(
             str(observations[-1].get("error_code", "provider_error")),
             observations,
@@ -742,6 +885,7 @@ __all__ = [
     "APPROVED_RETRIES",
     "APPROVED_TIMEOUT_SECONDS",
     "MAX_COMPLETION_TOKENS",
+    "MAX_CORRECTION_CHARS",
     "MAX_RESPONSE_BYTES",
     "MODEL_PURPOSES",
     "EncryptedObjectStore",
@@ -752,6 +896,7 @@ __all__ = [
     "ModelIdentity",
     "ModelIdentityError",
     "ModelInvocationError",
+    "PromptTooLargeError",
     "ResponseTooLargeError",
     "StructuredOutputContract",
     "build_prompt",
