@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { DASH_RUN, OTHER_RUN, dashboardMetrics, dashboardNotices, dashboardStats, mockDashboard } from "./dashboard-fixtures";
+import { DASH_RUN, OTHER_RUN, dashboardMetrics, dashboardNotices, dashboardStats, dashboardWorkload, mockDashboard } from "./dashboard-fixtures";
 import { settleFonts } from "./screen-fixtures";
 
 const selected = `/?run=${DASH_RUN}`;
@@ -46,7 +46,10 @@ test('회차 미선택을 유지하면서 네 누적 업무로 이동한다',asy
   await expect(page.getByRole('heading',{name:'확인할 회차를 선택해 주세요'})).toBeVisible();
   expect(new URL(page.url()).searchParams.has('run')).toBe(false);
   const links=page.locator('.dash-journey-item');await expect(links).toHaveCount(4);
-  await expect(links.nth(1)).toContainText('결정 대기 건수 미확인');
+  await expect(links.nth(0)).toContainText('검토 후보 24건');
+  await expect(links.nth(1)).toContainText('결정 대기 7건');
+  await expect(links.nth(2)).toContainText('조치 필요 3건');
+  await expect(links.nth(3)).toContainText('결정 대기 0건');
   await expect(links.nth(2)).toHaveAttribute('href','/opportunities?section=조치 필요');
   await expect(links.nth(3)).toHaveAttribute('href','/go-no-go');
 });
@@ -117,10 +120,17 @@ test('검증 지표만 실패해도 다른 회차 자료를 가리지 않는다'
 });
 
 test('회차 목록과 후보 조회 실패를 0으로 표시하지 않는다',async({page})=>{
-  await mockDashboard(page,{runsError:true,candidateError:true});await page.goto(selected);
+  await mockDashboard(page,{runsError:true,workloadError:true});await page.goto(selected);
   await expect(page.getByText('회차 목록을 불러오지 못했습니다.')).toBeVisible();
   await expect(page.locator('.dash-journey-item').first()).toContainText('검토 후보 건수 미확인');
   await expect(page.getByRole('group',{name:'담당자 리뷰',exact:true})).toContainText('미확인');
+});
+
+test('누적 건수를 낼 수 없으면 사유를 남기고 0으로 채우지 않는다',async({page})=>{
+  await mockDashboard(page,{workload:{...dashboardWorkload,items:dashboardWorkload.items.map(item=>item.key==='order_plan_pending' ? {...item,count:null,unavailable_reason:'no_completed_execution'} : item)}});
+  await page.goto(selected);const first=page.locator('.dash-journey-item').first();
+  await expect(first).toContainText('검토 후보 건수 미확인');await expect(first).toContainText('완료된 선별 실행 없음');
+  await expect(first).not.toContainText('건 · 누적');
 });
 
 test('계산 불가 지표를 통과로 바꾸지 않고 미달부터 표시한다',async({page})=>{

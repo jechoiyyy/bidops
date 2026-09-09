@@ -7,12 +7,19 @@ import { InternationalizationProvider } from "@astryxdesign/core/i18n";
 import koKR from "@astryxdesign/core/locales/ko-KR.json";
 import { Activity, ArrowRight, ArrowUpRight, RefreshCw } from "lucide-react";
 import { api } from "../lib/api";
+import type { WorkloadKey } from "../lib/types";
 import { formatNumber } from "../lib/format";
 import { PageHeaderActions } from "../components/common/PageHeaderActions";
 import { DashboardState, LinkButton, Small, Tag } from "../components/dashboard/DashboardPrimitives";
 import { DeadlinePanel, SummaryPanel, ValidationPanel, VerificationPanel } from "../components/dashboard/DashboardPanels";
 import { deadlineFilter, runLink, runOptionLabel, snapshotTime } from "../components/dashboard/dashboardData";
 import "../styles/dashboard-erp.css";
+
+// 서버가 정한 안전 코드다. 문장이 있는 코드만 옮기고 모르는 코드는 그대로 보여 준다.
+const WORKLOAD_UNAVAILABLE_REASON: Record<string, string> = {
+  provider_absent: "집계 모듈 없음",
+  no_completed_execution: "완료된 선별 실행 없음",
+};
 
 // Approved HTML/TSX/CSS is the layout source. Only API data and SPA navigation
 // replace its fixtures. Cumulative tasks do not depend on a selected run.
@@ -27,23 +34,22 @@ function DashboardWorkspace() {
   const runsQuery = useQuery({ queryKey: ["runs"], queryFn: api.getRuns, staleTime: 30_000 });
   const statsQuery = useQuery({ queryKey: ["run-stats", runId], queryFn: () => api.getRunStats(runId!), enabled: Boolean(runId), staleTime: 30_000 });
   const validationQuery = useQuery({ queryKey: ["validation-metrics", runId], queryFn: () => api.getValidationMetrics(runId!), enabled: Boolean(runId), staleTime: 30_000 });
-  const candidatesQuery = useQuery({
-    queryKey: ["dashboard-action", "order-plan-review-candidates"],
-    queryFn: async ({ signal }) => {
-      const [relevant, uncertain] = await Promise.all([
-        api.getOrderPlans({ qwen_relevance: "relevant", limit: 1 }, { signal }),
-        api.getOrderPlans({ qwen_relevance: "uncertain", limit: 1 }, { signal }),
-      ]);
-      return relevant.total + uncertain.total;
-    }, staleTime: 60_000,
-  });
+  // 누적 업무 건수는 서버가 한 번에 준다. 브라우저에서 목록을 다시 세지 않는다.
+  const workloadQuery = useQuery({ queryKey: ["workload"], queryFn: ({ signal }) => api.getWorkload({ signal }), staleTime: 60_000 });
   const runs = runsQuery.data?.items ?? [];
   const selectedRun = runs.find(run => run.run_id === runId);
   const stats = statsQuery.data;
   const reference = statsQuery.isError ? "기준 시각 미확인" : snapshotTime(stats?.generated_at, stats?.timezone);
   const timezone = stats?.timezone === "Asia/Seoul" ? "KST" : stats?.timezone ?? "";
   const noRun = !runId;
-  const candidateNote = candidatesQuery.isError ? "검토 후보 건수 미확인" : candidatesQuery.isPending ? "검토 후보 확인 중" : `검토 후보 ${formatNumber(candidatesQuery.data)}건 · 누적`;
+  // 건수를 못 받으면 0으로 채우지 않고 미확인으로 두며, 서버가 준 사유를 함께 남긴다.
+  const workloadNote = (key: WorkloadKey, label: string) => {
+    if (workloadQuery.isPending) return `${label} 확인 중`;
+    const item = workloadQuery.isSuccess ? workloadQuery.data.items.find(entry => entry.key === key) : undefined;
+    if (!item) return `${label} 건수 미확인`;
+    if (item.count === null) return `${label} 건수 미확인 · ${item.unavailable_reason === null ? "사유 없음" : WORKLOAD_UNAVAILABLE_REASON[item.unavailable_reason] ?? item.unavailable_reason}`;
+    return `${label} ${formatNumber(item.count)}건 · 누적`;
+  };
   const setRun = (value: string) => setParams(current => {
     const next = new URLSearchParams(current);
     if (value) next.set("run", value); else next.delete("run");
@@ -56,19 +62,19 @@ function DashboardWorkspace() {
     return next;
   });
   const refresh = () => {
-    void candidatesQuery.refetch(); void runsQuery.refetch();
+    void workloadQuery.refetch(); void runsQuery.refetch();
     if (runId) { void statsQuery.refetch(); void validationQuery.refetch(); }
   };
-  const isRefreshing = candidatesQuery.isFetching || runsQuery.isFetching || statsQuery.isFetching || validationQuery.isFetching;
+  const isRefreshing = workloadQuery.isFetching || runsQuery.isFetching || statsQuery.isFetching || validationQuery.isFetching;
 
   return <section className="dash-page" aria-label="대시보드" data-astryx-theme="bidops">
     <PageHeaderActions><div className="dash-header-actions"><Button label="새로고침" size="sm" variant="ghost" icon={<RefreshCw aria-hidden="true" />} isDisabled={isRefreshing} onClick={refresh} /><LinkButton label="실행 상태" to={runLink("/run-status", runId)} icon={<Activity aria-hidden="true" />} secondary /></div></PageHeaderActions>
     <nav className="dash-journey-strip" aria-label="업무 바로가기 · 회차와 무관한 누적 업무">
       {[
-        ["01", "발주계획", "추적할 후보 선택", candidateNote, "/order-plans"],
-        ["02", "사전규격", "검토 결과·추적 여부 확인", "결정 대기 건수 미확인", "/pre-specs?sort=deadline"],
-        ["03", "사업 추적", "연결·예외 사항 확인", "조치 필요 건수 미확인", "/opportunities?section=조치 필요"],
-        ["04", "최종 Go/No-Go", "입찰 참여 여부 결정", "결정 대기 건수 미확인", "/go-no-go"],
+        ["01", "발주계획", "추적할 후보 선택", workloadNote("order_plan_pending", "검토 후보"), "/order-plans"],
+        ["02", "사전규격", "검토 결과·추적 여부 확인", workloadNote("pre_spec_deep_review_ready", "결정 대기"), "/pre-specs?sort=deadline"],
+        ["03", "사업 추적", "연결·예외 사항 확인", workloadNote("tracking_action_required", "조치 필요"), "/opportunities?section=조치 필요"],
+        ["04", "최종 Go/No-Go", "입찰 참여 여부 결정", workloadNote("bid_final_decision_pending", "결정 대기"), "/go-no-go"],
       ].map(([step, title, action, note, to]) => <Link key={step} className="dash-journey-item" to={to}>
         <div className="dash-row dash-spread"><div className="dash-row"><Small>{step}</Small><Text weight="semibold" className="dash-journey-title">{title}</Text></div><ArrowUpRight aria-hidden="true" /></div>
         <Text>{action}</Text><Small>{note}</Small>
