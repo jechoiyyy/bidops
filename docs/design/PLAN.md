@@ -34,7 +34,8 @@
 
 ### 승인 ERP 화면의 적용 순서
 
-2026-09-08 사용자 승인 시안 `bidops-prespec-detail-ux-20260908`을 상세 화면에 직접 적용한다.
+2026-09-08 사용자 승인 시안 `bidops-prespec-detail-ux-20260908`을 상세 화면에 직접 적용한다
+(2026-09-09 브리핑형으로 대체, 아래 참조).
 왼쪽 헤더·정보·근거·문서·이력은 일반 스크롤, 오른쪽은 400px 결정 패널이다. 공식 번호 16px와
 복사·유효 원문 URL 새 탭, 사유 드롭다운·기타 입력·담당자·저장을 기존 API에 연결한다.
 권고·품질 표식과 핵심 요약을 우선 표시하고 확인 사항의 설명과 품질 상세를 펼쳐 읽게 한다.
@@ -45,6 +46,27 @@
 승계·로딩·실패·원문 위치 검증을 확인한다. 실제 API 확인은 읽기 전용이며 전체 화면 게이트와 실제
 반영 결과를 [`20260908-prespec-detail-ux-implementation.md`](../validation-runs/20260908-prespec-detail-ux-implementation.md)에 남긴다.
 이 개별 상세는 아래 과거 상세 시안 복원 대기의 적용 대상에서 제외한다.
+
+#### 2026-09-09 브리핑형 재배치
+
+- **결정.** 저장소 밖 Claude 디자인 캔버스 `사전규격 상세 시안`의 첫 페이지
+  (`A · 브리핑형 · 구현 목표판`)를 채택한다. 헤더는 칩·제목·메타·개요 띠만 갖는 읽기 카드가
+  되고, 추적 결정은 헤더 바로 아래 `<header>` 밖 카드 한 줄(사유 · 담당자 · `추적 시작`)로
+  내려온다. `보류` 버튼은 두지 않으며(ADR-0046 결정 6 유지) 운영 정보는 지우지 않고 본문
+  하단의 접힌 `처리 이력과 실행 정보`로 옮긴다. 배치는 [`PRD.md`](PRD.md) 앞머리가 정본이다.
+- **문서 준비를 접지 않는 이유.** Astryx `Collapsible`은 닫힌 내용을 `display:none`으로 감춰
+  심층 검토 실행 동선과 문서 준비 spec의 조작이 막힌다. 그래서 `문서 준비와 심층 검토 실행`만
+  펼친 채로 둔다.
+- **이식 방식.** 시안 HTML의 CSS를 `.ps-record` 범위의 `.ps-*` 클래스로 1:1 옮기고 값만 치환한다.
+  색은 전부 `bidops` 테마 토큰이며, 반지름과 17px 글자는 앱 루트 글꼴 14px 때문에 rem 토큰이
+  px 시안과 어긋나므로 spacing 토큰에서 파생한 `.ps-record` 범위 별칭으로 만든다. raw hex,
+  `@media`, `--color-*` 재정의를 만들지 않는다(ADR-0048).
+- **구현 단위.** P1 컴포넌트 분리(`useCurrentPageOverview`·`useCompanyFit` 훅과 부품 export,
+  `TrackingDecisionControl`에 `showRecordHeading`·`showIntent` 배치 prop) → P2 페이지 재배치와
+  CSS → P3 spec 갱신 → P4 문서.
+- **검증 범위.** 수정한 부분만 본다: `tsc -b`·production build와 상세 화면 관련 spec
+  (`pre-specs` 상세·`page-overview`·`company-fit`). 전체 스위트는 이 변경에서 돌리지 않는다.
+- **게이트 수치.** 2026-09-09 축소 게이트 61 passed · 0 failed — 상세 화면 관련 spec만(pre-specs 상세·page-overview·company-fit·screen-semantics 상세·document-preparation, --project=app, PW_PORT 분리). 전체 test:screens·contrast·pixel은 돌리지 않았다(수정 범위만 검증한다는 2026-09-09 지시).
 
 2026-09-08 대시보드 시안도 사용자 승인으로 직접 구현·반영했다. 원본은
 `design-previews/bidops-dashboard-erp-20260908/`이고 새 소개 문단 없이 네 업무 바로가기,

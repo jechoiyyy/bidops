@@ -1,14 +1,16 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { Token } from "@astryxdesign/core/Token";
 import { Button } from "@astryxdesign/core/Button";
 import { useEffect, useRef } from "react";
 import { api } from "../../lib/api";
 import { formatDateTime } from "../../lib/format";
-import { qualityStatusLabel } from "../../lib/qualityStatus";
+import { Badge } from "../common/Badge";
+import { qualityStatusLabel, qualityStatusVariant } from "../../lib/qualityStatus";
 import type {
   PageOverviewCurrent,
   PageOverviewCurrentStatus,
   PageOverviewFact,
+  PageOverviewResponse,
   PageOverviewView,
 } from "../../lib/types";
 import "../../styles/page-overview.css";
@@ -72,30 +74,80 @@ function displayFact(fact: PageOverviewFact): string {
     ? fact.text.slice(0, match.index) : fact.text;
 }
 
-export function PageOverviewResult({ review }: { review: PageOverviewView }) {
-  const payload = review.payload;
-  const pdfUrl = `/api/pre-specs/${review.notice_id}/overview-pages/${review.id}/pdf`;
-  const facts = (title: string, items: PageOverviewFact[], ordered = false) => (
+export function pageOverviewPdfUrl(review: PageOverviewView): string {
+  return `/api/pre-specs/${review.notice_id}/overview-pages/${review.id}/pdf`;
+}
+
+export function PageOverviewFactLine({ fact, review }: { fact: PageOverviewFact; review: PageOverviewView }) {
+  const pdfUrl = pageOverviewPdfUrl(review);
+  return <>
+    <span className="page-overview-fact-line">{displayFact(fact)}</span>
+    <span className="page-overview-links" aria-label="PDF 페이지 근거">
+      {[...new Set(fact.evidence_pages)].sort((a, b) => a - b).map(page => (
+        review.reviewed_pages.includes(page) && page <= review.pdf_page_count
+          ? <a key={page} href={`${pdfUrl}#page=${page}`} target="_blank" rel="noreferrer">PDF {page}페이지 ↗</a>
+          : <span key={page}>PDF {page}페이지 · 근거 위치 확인 필요</span>
+      ))}
+    </span>
+  </>;
+}
+
+export function PageOverviewFacts({
+  title,
+  items,
+  review,
+  ordered = false,
+}: {
+  title: string;
+  items: PageOverviewFact[];
+  review: PageOverviewView;
+  ordered?: boolean;
+}) {
+  const List = ordered ? "ol" : "ul";
+  return (
     <section className="page-overview-section">
       <h4>{title}</h4>
       {items.length === 0 ? <p className="page-overview-note">이번 입력에서는 확인되지 않았습니다.</p> : (
-        <ol className={ordered ? "page-overview-tasks" : "page-overview-facts"}>
+        <List className={ordered ? "page-overview-tasks" : "page-overview-facts"}>
           {items.map((fact, i) => <li key={i}>
-            <p>{displayFact(fact)}</p>
-            <div className="page-overview-links" aria-label="PDF 페이지 근거">
-              {[...new Set(fact.evidence_pages)].sort((a, b) => a - b).map(page => (
-                review.reviewed_pages.includes(page) && page <= review.pdf_page_count ? <a key={page} href={`${pdfUrl}#page=${page}`} target="_blank" rel="noreferrer">PDF {page}페이지 ↗</a> : <span key={page}>PDF {page}페이지 · 근거 위치 확인 필요</span>
-              ))}
-            </div>
+            <div className="page-overview-fact-content"><PageOverviewFactLine fact={fact} review={review} /></div>
           </li>)}
-        </ol>
+        </List>
       )}
     </section>
   );
+}
+
+export function PageOverviewAnalysis({ items }: { items: string[] }) {
+  return <section className="page-overview-section"><h4>검토 포인트 <span className="page-overview-note">모델 의견</span></h4>
+    {items.map((text, i) => <p key={i}>{text}</p>)}
+  </section>;
+}
+
+export function PageOverviewUnknowns({ items }: { items: string[] }) {
+  return <section className="page-overview-section"><h4>추가 확인 사항</h4>
+    {items.length ? <ul>{items.map((text, i) => <li key={i}>{text}</li>)}</ul> : <p className="page-overview-note">추가 확인 사항이 제시되지 않았습니다.</p>}
+  </section>;
+}
+
+export function PageOverviewExecutionInfo({ review }: { review: PageOverviewView }) {
+  const payload = review.payload;
+  const pdfUrl = pageOverviewPdfUrl(review);
+  return <details className="page-overview-section"><summary>검토 범위와 실행 정보</summary>
+    {payload.input_limitations.map((text, i) => <p key={i}>{text}</p>)}
+    <p>표지를 포함한 변환 PDF 순번 기준 · {review.reviewed_pages.join(", ")} / 총 {review.pdf_page_count}페이지. 원본 한컴 쪽 배치와 다를 수 있습니다.</p>
+    <p>{review.model_name} · {review.prompt_version}</p>
+    {review.validation_errors.length ? <p>검증 사유: {review.validation_errors.join(", ")}</p> : null}
+    <a href={pdfUrl} target="_blank" rel="noreferrer">전체 근거 PDF 열기 ↗</a>
+  </details>;
+}
+
+export function PageOverviewResult({ review }: { review: PageOverviewView }) {
+  const payload = review.payload;
   return <section className="page-overview" aria-label="PDF 기반 개요 검토">
     <header className="page-overview-heading">
       <h3>개요 검토 결과</h3>
-      <Token label={qualityStatusLabel(review.quality_status)} size="sm" />
+      <Badge label={qualityStatusLabel(review.quality_status)} variant={qualityStatusVariant(review.quality_status)} />
     </header>
     <div className="page-overview-validation" role="status">
       <strong>{review.validation_status === "failed" ? "검증 실패 · 사람 확인 필요" : "근거 검사 통과 · 참조 결과"}</strong>
@@ -104,27 +156,17 @@ export function PageOverviewResult({ review }: { review: PageOverviewView }) {
         <p>새 페이지 근거 검사는 통과했으나, 원실행의 검증 실패 기록은 유지합니다.</p>
       ) : null}
     </div>
-    {facts("사업 개요", payload.business_overview)}
-    {facts("주요 과업", payload.main_tasks, true)}
-    {facts("사업 규모와 일정", payload.budget_and_period)}
-    {facts("핵심 조건", payload.important_conditions)}
-    <section className="page-overview-section"><h4>검토 포인트 <span className="page-overview-note">모델 의견</span></h4>
-      {payload.reviewer_analysis.map((text, i) => <p key={i}>{text}</p>)}
-    </section>
-    <section className="page-overview-section"><h4>추가 확인 사항</h4>
-      {payload.unknowns.length ? <ul>{payload.unknowns.map((text, i) => <li key={i}>{text}</li>)}</ul> : <p className="page-overview-note">추가 확인 사항이 제시되지 않았습니다.</p>}
-    </section>
-    <details className="page-overview-section"><summary>검토 범위와 실행 정보</summary>
-      {payload.input_limitations.map((text, i) => <p key={i}>{text}</p>)}
-      <p>표지를 포함한 변환 PDF 순번 기준 · {review.reviewed_pages.join(", ")} / 총 {review.pdf_page_count}페이지. 원본 한컴 쪽 배치와 다를 수 있습니다.</p>
-      <p>{review.model_name} · {review.prompt_version}</p>
-      {review.validation_errors.length ? <p>검증 사유: {review.validation_errors.join(", ")}</p> : null}
-      <a href={pdfUrl} target="_blank" rel="noreferrer">전체 근거 PDF 열기 ↗</a>
-    </details>
+    <PageOverviewFacts title="사업 개요" items={payload.business_overview} review={review} />
+    <PageOverviewFacts title="주요 과업" items={payload.main_tasks} review={review} ordered />
+    <PageOverviewFacts title="사업 규모와 일정" items={payload.budget_and_period} review={review} />
+    <PageOverviewFacts title="핵심 조건" items={payload.important_conditions} review={review} />
+    <PageOverviewAnalysis items={payload.reviewer_analysis} />
+    <PageOverviewUnknowns items={payload.unknowns} />
+    <PageOverviewExecutionInfo review={review} />
   </section>;
 }
 
-function PageOverviewCurrent({
+export function PageOverviewCurrent({
   current,
   currentResult,
 }: {
@@ -158,14 +200,14 @@ function PageOverviewCurrent({
   );
 }
 
-function PageOverviewHistory({ reviews }: { reviews: PageOverviewView[] }) {
+export function PageOverviewHistory({ reviews }: { reviews: PageOverviewView[] }) {
   if (reviews.length === 0) return null;
   return (
     <details className="page-overview-section page-overview-history">
       <summary>이전 개요 결과 {reviews.length}건</summary>
       <ol className="page-overview-history-list">
         {reviews.map((review) => {
-          const pdfUrl = `/api/pre-specs/${review.notice_id}/overview-pages/${review.id}/pdf`;
+          const pdfUrl = pageOverviewPdfUrl(review);
           return (
             <li key={review.id} className="page-overview-history-item">
               <details>
@@ -184,13 +226,24 @@ function PageOverviewHistory({ reviews }: { reviews: PageOverviewView[] }) {
   );
 }
 
-export function PageOverviewSection({ noticeId }: { noticeId: number }) {
+type CurrentPageOverviewState = {
+  query: UseQueryResult<PageOverviewResponse>;
+  isValid: boolean;
+  current: PageOverviewCurrent | null;
+  hasCurrentProjection: boolean;
+  currentResult: PageOverviewView | null;
+  legacyReview: PageOverviewView | null;
+  history: PageOverviewView[];
+};
+
+export function useCurrentPageOverview(noticeId: number | null): CurrentPageOverviewState {
   const queryClient = useQueryClient();
   const terminalSyncKey = useRef<string | null>(null);
   const query = useQuery({
     queryKey: ["pre-spec-overview-pages", noticeId],
-    queryFn: ({ signal }) => api.getPageOverviews(noticeId, { signal }),
+    queryFn: ({ signal }) => api.getPageOverviews(noticeId as number, { signal }),
     retry: false,
+    enabled: noticeId !== null,
     refetchInterval: (currentQuery) => {
       const status = currentQuery.state.data?.current?.status;
       return status === "queued" || status === "running" ? 5000 : false;
@@ -199,7 +252,7 @@ export function PageOverviewSection({ noticeId }: { noticeId: number }) {
 
   const current = query.data?.current ?? null;
   const currentSyncKey = current && TERMINAL_CURRENT_STATUSES.includes(current.status)
-    ? `${current.attempt_id}:${current.status}:${current.result_id ?? ""}:${current.created_at}`
+    ? `${noticeId}:${current.attempt_id}:${current.status}:${current.result_id ?? ""}:${current.created_at}`
     : null;
 
   useEffect(() => {
@@ -220,27 +273,44 @@ export function PageOverviewSection({ noticeId }: { noticeId: number }) {
     ]);
   }, [currentSyncKey, noticeId, queryClient]);
 
+  const data = query.data;
+  const reviews = data?.reviews ?? [];
+  const hasCurrentProjection = data?.current !== null && data?.current !== undefined;
+  const currentResult = currentResultFor(current, reviews);
+  const legacyReview = !hasCurrentProjection ? reviews[0] ?? null : null;
+  const history = hasCurrentProjection
+    ? reviews.filter((review) => review.id !== currentResult?.id)
+    : reviews.slice(1);
+  const isValid = data !== undefined
+    && noticeId !== null
+    && data.schema_version === "bidops.prespec-overview-pages.v1"
+    && data.notice_id === noticeId
+    && !data.reviews.some((review) => review.notice_id !== noticeId || review.payload.schema_version !== "bidops.prespec-overview-page-review.v3")
+    && (data.current === null || data.current === undefined || isValidCurrentStatus(data.current.status));
+
+  return { query, isValid, current, hasCurrentProjection, currentResult, legacyReview, history };
+}
+
+export function PageOverviewSection({ noticeId }: { noticeId: number }) {
+  const { query, isValid, current, hasCurrentProjection, currentResult, legacyReview, history } = useCurrentPageOverview(noticeId);
+
   if (query.isPending) return <p role="status">PDF 기반 개요를 불러오는 중입니다.</p>;
   if (query.isError) return <div role="alert" className="page-overview-validation">
     <p>PDF 기반 개요를 불러오지 못했습니다. 아래 기존 개요 기록과는 별도 조회입니다.</p>
     <Button label="개요 다시 불러오기" size="sm" onClick={() => { void query.refetch(); }} />
   </div>;
-  if (query.data.schema_version !== "bidops.prespec-overview-pages.v1" || query.data.notice_id !== noticeId || query.data.reviews.some(r => r.notice_id !== noticeId || r.payload.schema_version !== "bidops.prespec-overview-page-review.v3") || (query.data.current !== null && query.data.current !== undefined && !isValidCurrentStatus(query.data.current.status))) {
+  if (!isValid) {
     return <p role="alert">개요 응답의 공고 또는 구조가 일치하지 않아 표시하지 않습니다.</p>;
   }
 
-  const hasCurrentProjection = query.data.current !== null && query.data.current !== undefined;
-  const currentResult = currentResultFor(query.data.current, query.data.reviews);
   if (!hasCurrentProjection) {
-    const legacyReview = query.data.reviews[0];
     return legacyReview ? <>
       <PageOverviewResult review={legacyReview} />
       <h3 className="page-overview-legacy">기존 개요 권고·처리 기록</h3>
-      <PageOverviewHistory reviews={query.data.reviews.slice(1)} />
+      <PageOverviewHistory reviews={history} />
     </> : null;
   }
 
-  const history = query.data.reviews.filter((review) => review.id !== currentResult?.id);
   return <>
     {current ? <PageOverviewCurrent current={current} currentResult={currentResult} /> : null}
     {currentResult ? <PageOverviewResult review={currentResult} /> : null}

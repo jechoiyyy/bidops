@@ -27,10 +27,15 @@ for (const width of [1280, 1440]) {
     for (const path of ["/pre-specs?notice_pk=991", "/pre-specs/991"]) {
       await page.goto(path);
       const section = page.getByRole("region", { name: "회사 업무 부합 여부" });
-      await expect(section.getByText("불일치", { exact: true })).toBeVisible();
+      // 상세는 판정 라벨·요약·품질을 `현재 판단` 카드에 두고, 사유·근거는 접힌 자리에 둔다.
+      const isRecord = path === "/pre-specs/991";
+      const verdict = isRecord ? page.locator(".ps-vbox").filter({ hasText: "회사 핏" }) : section;
+      await expect(verdict.getByText("불일치", { exact: true })).toBeVisible();
+      await expect(verdict.getByText("실제 과업과 회사 업무 범위가 다릅니다.")).toBeVisible();
+      await expect(verdict.getByText("참조 실행 · 품질 미측정")).toBeVisible();
+      if (isRecord) await section.getByText("판단 사유 1개와 근거 보기", { exact: true }).click();
       await expect(section.getByText(explanation)).toBeVisible();
       await expect(section.getByText("본 계약의 과업은 정보시스템 감리입니다.")).toBeVisible();
-      await expect(section.getByText("참조 실행 · 품질 미측정")).toBeVisible();
       await expect(section.getByRole("link", { name: "PDF 3페이지 ↗" })).toHaveAttribute("href", /overview-1\/pdf#page=3$/);
       const executionInfo = section.getByText("판정 기준과 실행 정보", { exact: true });
       await executionInfo.focus();
@@ -56,8 +61,11 @@ test("unknown, stale, no result and failed states stay distinct", async ({ page 
   await page.route("**/api/pre-specs/991/company-fit", route => route.fulfill({ json: data }));
   await page.goto("/pre-specs/991");
   const section = page.getByRole("region", { name: "회사 업무 부합 여부" });
-  await expect(section.getByText("판단 보류 · 정보 부족", { exact: true })).toBeVisible();
-  await expect(section.getByText("이전 입력 기준의 판정입니다.", { exact: false })).toBeVisible();
+  // 상세는 판정 라벨·요약·stale 안내를 `현재 판단` 카드에 두고, 사유·근거는 접힌 자리에 둔다.
+  const verdict = page.locator(".ps-vbox").filter({ hasText: "회사 핏" });
+  await expect(verdict.getByText("판단 보류 · 정보 부족", { exact: true })).toBeVisible();
+  await expect(verdict.getByText("이전 입력 기준의 판정입니다.", { exact: false })).toBeVisible();
+  await section.getByText("판단 사유 1개와 근거 보기", { exact: true }).click();
   await expect(section.getByText("인용된 회사 정보가 없습니다. 역량이 없다는 뜻이 아닙니다.")).toBeVisible();
   await expect(section.getByRole("link", { name: "심층 검토 열기" })).toHaveAttribute("href", "/deep-reviews/review-existing");
   data.attempts[0].result!.decision = "matched";
@@ -65,17 +73,18 @@ test("unknown, stale, no result and failed states stay distinct", async ({ page 
   data.attempts[0].result!.reasons = [];
   data.attempts[0].is_current = true;
   await page.reload();
-  await expect(section.getByText("부합", { exact: true })).toBeVisible();
+  await expect(verdict.getByText("부합", { exact: true })).toBeVisible();
+  await section.getByText("판단 사유 0개와 근거 보기", { exact: true }).click();
   await expect(section.getByText("상세 사유가 저장되지 않았습니다.")).toBeVisible();
   data.attempts[0].result = null;
   data.attempts[0].status = "needs_human_review";
   await page.reload();
-  await expect(section.getByText("검증 실패 · 사람 확인 필요", { exact: true })).toBeVisible();
-  await expect(section.getByText("검증을 통과한 판정 근거가 없어 결과를 사용할 수 없습니다.")).toBeVisible();
+  await expect(verdict.getByText("검증 실패 · 사람 확인 필요", { exact: true })).toBeVisible();
+  await expect(verdict.getByText("검증을 통과한 판정 근거가 없어 결과를 사용할 수 없습니다.")).toBeVisible();
   data.attempts[0].status = "failed";
   await page.reload();
-  await expect(section.getByText("실행 실패", { exact: true })).toBeVisible();
-  await expect(section.getByText("판정 결과가 생성되지 않았습니다. 불일치로 처리하지 않습니다.")).toBeVisible();
+  await expect(verdict.getByText("실행 실패", { exact: true })).toBeVisible();
+  await expect(verdict.getByText("판정 결과가 생성되지 않았습니다. 불일치로 처리하지 않습니다.")).toBeVisible();
   data.attempts = [];
   await page.reload();
   await expect(section.getByText("저장된 회사 핏 판정이 없습니다. 불일치로 판단한 상태가 아닙니다.")).toBeVisible();

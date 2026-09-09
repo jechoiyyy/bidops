@@ -19,3 +19,65 @@
 .page-overview-current summary,.page-overview-history summary{cursor:pointer;font-weight:600}
 .page-overview-note{color:var(--color-text-secondary);font-size:var(--bo-type-caption);font-weight:400}
 .page-overview summary{cursor:pointer;font-weight:600}.page-overview-legacy{margin-top:var(--spacing-6);font-size:var(--bo-type-section-title)}
+.page-overview-section>h4{margin:0;font-size:var(--bo-type-section-title);font-weight:600}
+.page-overview-section details>summary{cursor:pointer;color:var(--color-text-primary);font-weight:600}
+.page-overview-section details{min-width:0;overflow-wrap:anywhere}
+
+/* 사전규격 상세(승인 시안): 개요 본문은 시안의 밀집 브리핑 모양을 쓴다.
+ * 값은 bidops 테마 토큰이며 화면이 새 색을 만들지 않는다. */
+.ps-record .page-overview { display: grid; gap: var(--spacing-3); min-width: 0; overflow-wrap: anywhere; }
+.ps-record .page-overview p { margin: 0; font-size: var(--bo-type-body); line-height: 1.5; white-space: pre-wrap; }
+.ps-record .page-overview-validation {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  column-gap: var(--spacing-1);
+  row-gap: 0;
+  padding: var(--spacing-2) var(--spacing-3);
+  border-radius: var(--ps-radius-chip);
+  background: var(--color-background-body);
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+.ps-record .page-overview-validation strong { color: var(--color-text-primary); font-weight: 600; }
+.ps-record .page-overview-validation p { font-size: var(--bo-type-caption); line-height: var(--bo-type-caption-leading); }
+.ps-record .page-overview-fact-line { font-size: var(--bo-type-body); line-height: 1.5; }
+/* 시안 `.refs`: 문장 끝에 이어 붙는 PDF 근거 링크 묶음. */
+.ps-record .page-overview-links {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+  margin-left: var(--spacing-1-5);
+  padding: 0;
+  vertical-align: baseline;
+}
+.ps-record .page-overview-links a, .ps-record .page-overview-links > span {
+  color: var(--color-text-accent);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+  white-space: nowrap;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--color-text-accent) 40%, transparent);
+  text-underline-offset: var(--spacing-0-5);
+}
+.ps-record .page-overview-links > span { color: var(--color-text-disabled); }
+/* 현재 v4 실행 상태는 시안의 `.note` 자리다. */
+.ps-record .page-overview-current {
+  display: grid;
+  gap: var(--spacing-1);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+.ps-record .page-overview-current .page-overview-heading { align-items: baseline; gap: var(--spacing-2); }
+.ps-record .page-overview-current .page-overview-heading h3 { font-size: var(--bo-type-caption); line-height: var(--bo-type-caption-leading); font-weight: 600; }
+.ps-record .page-overview-current .page-overview-validation { display: grid; gap: var(--spacing-1); padding: 0; background: transparent; }
+.ps-record .page-overview-current .page-overview-validation strong,
+.ps-record .page-overview-current .page-overview-validation p { font-size: var(--bo-type-caption); line-height: var(--bo-type-caption-leading); }
+.ps-record .page-overview-execution-details { margin-top: var(--spacing-1); }
+.ps-record .page-overview-execution-details > summary { color: var(--color-text-accent); font-size: var(--bo-type-caption); font-weight: 500; }
+.ps-record .page-overview-history { padding: 0; }
