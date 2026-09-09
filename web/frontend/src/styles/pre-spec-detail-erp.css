@@ -5,6 +5,8 @@
 
 /* ---- 화면 틀 ---------------------------------------------------------- */
 .app-shell[data-astryx-theme="bidops"] .page-canvas:has(> .ps-record) {
+  /* 이 canvas만 루트 배율을 상쇄해 100%로 그린다. 셸·body portal(dialog·toast)은 전역 90%를 유지한다. */
+  zoom: calc(1 / var(--bo-ui-scale));
   padding: var(--spacing-4) var(--spacing-6) var(--spacing-10);
 }
 .ps-record {
@@ -578,42 +580,45 @@
 }
 
 /* ---- 추적 결정 카드 --------------------------------------------------- */
-/* 시안의 `strip2` 한 줄. 컨트롤이 그리는 마크업은 바꾸지 않고 `display: contents`
- * 로 이 카드의 grid 에 직접 참여시킨다. 저장 형식·업무 규칙은 컨트롤이 계속
- * 소유한다. 승계·기록됨·미연결 분기는 grid 밖 일반 흐름으로 둔다. */
+/* 카드는 세로 스택, form은 사유·담당자·액션 3열 grid다. 정렬은 라벨 줄과 컨트롤의
+ * 고정 높이 토큰 두 개로 정하며 글꼴 크기에서 계산하지 않는다. */
 .ps-record-tracking-card {
-  display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) calc(var(--spacing-12) * 4 + var(--spacing-7));
-  column-gap: var(--spacing-4);
-  row-gap: calc(var(--spacing-2) + var(--spacing-0-5));
-  align-items: start;
+  --ps-tracking-label: var(--spacing-6);
+  --ps-tracking-control: var(--spacing-10);
+  --ps-tracking-action: calc(var(--spacing-12) * 4 + var(--spacing-7));
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
   min-width: 0;
   padding: var(--spacing-4) var(--spacing-6);
 }
-.ps-record-tracking-card > .pre-spec-tracking-decision { grid-column: 1 / -1; }
-.ps-record-tracking-card .pre-spec-tracking-decision.is-record:not(.is-recorded),
-.ps-record-tracking-card .pre-spec-tracking-form.is-compact { display: contents; }
-.ps-record-tracking-card .pre-spec-tracking-decision.is-recorded { padding: 0; border: 0; }
-.ps-record-tracking-card :is(.pre-spec-tracking-reason-preset, .actor-field) {
-  grid-row: 1;
-  min-width: 0;
-  width: auto;
-  max-width: none;
+.ps-record-tracking-card .pre-spec-tracking-decision { display: flex; flex-direction: column; gap: var(--spacing-3); min-width: 0; padding: 0; border: 0; }
+.ps-record-tracking-card .pre-spec-tracking-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) var(--ps-tracking-action);
+  column-gap: var(--spacing-4);
+  row-gap: var(--spacing-3);
+  align-items: start;
+  margin: 0;
 }
-.ps-record-tracking-card .pre-spec-tracking-reason-preset { grid-column: 1; display: grid; gap: var(--spacing-3); }
-.ps-record-tracking-card .pre-spec-tracking-reason-preset > .astryx-field { min-width: 0; width: 100%; }
-/* 직접 입력이 열리면 사유 자리가 두 줄이 된다. 셀 안에서 늘어나게 둔다. */
-.ps-record-tracking-card .pre-spec-tracking-reason-preset:has(.pre-spec-tracking-reason) { align-self: start; }
-.ps-record-tracking-card .actor-field { grid-column: 2; }
+.ps-record-tracking-card .pre-spec-tracking-form > :is(.mutation-feedback, .pre-spec-tracking-combined-note, .pre-spec-tracking-elsewhere) { grid-column: 1 / -1; }
+.ps-record-tracking-card :is(.pre-spec-tracking-reason-preset, .actor-field) { min-width: 0; width: auto; max-width: none; }
+.ps-record-tracking-card .pre-spec-tracking-reason-preset { display: grid; gap: var(--spacing-3); }
+.ps-record-tracking-card .pre-spec-tracking-reason-preset > .astryx-field { min-width: 0; width: 100%; gap: 0; }
+.ps-record-tracking-card .actor-field { display: grid; gap: 0; }
 .ps-record-tracking-card .actor-field > label,
 .ps-record-tracking-card .pre-spec-tracking-reason-preset .astryx-field-label,
 .ps-record-tracking-card .pre-spec-tracking-reason > span {
   display: block;
-  margin-bottom: var(--spacing-1-5);
+  box-sizing: border-box;
+  height: var(--ps-tracking-label);
+  margin: 0;
+  padding-bottom: var(--spacing-1-5);
   color: var(--color-text-primary);
   font-size: calc(var(--bo-type-caption) + var(--border-width));
   line-height: 1.5;
   font-weight: 600;
+  white-space: nowrap;
 }
 .ps-record-tracking-card :is(.actor-field > label, .pre-spec-tracking-reason > span) em {
   margin-left: var(--spacing-1);
@@ -624,8 +629,8 @@
 }
 .ps-record-tracking-card :is(.astryx-selector, .actor-field input) {
   width: 100%;
-  height: var(--spacing-10);
-  min-height: var(--spacing-10);
+  height: var(--ps-tracking-control);
+  min-height: var(--ps-tracking-control);
   border-radius: var(--ps-radius-control);
   font-size: var(--bo-type-body);
 }
@@ -642,12 +647,19 @@
   font-size: var(--bo-type-caption);
   line-height: var(--bo-type-caption-leading);
 }
-.ps-record-tracking-card .pre-spec-tracking-save {
+.ps-record-tracking-card .pre-spec-tracking-action {
   grid-column: 3;
-  grid-row: 1;
+  display: grid;
+  gap: var(--spacing-1-5);
+  padding-top: var(--ps-tracking-label);
+  min-width: 0;
+}
+.ps-record-tracking-card .pre-spec-tracking-form:not(:has(.actor-field)) .pre-spec-tracking-action { padding-top: 0; }
+.ps-record-tracking-card .pre-spec-tracking-save {
   width: 100%;
-  height: var(--spacing-10);
-  min-height: var(--spacing-10);
+  height: var(--ps-tracking-control);
+  min-height: var(--ps-tracking-control);
+  margin: 0;
   padding: 0 var(--spacing-4);
   border: var(--border-width) solid var(--color-background-inverted);
   border-radius: var(--ps-radius-control);
@@ -655,24 +667,15 @@
   color: var(--color-on-accent);
   font-size: var(--bo-type-body);
   font-weight: 500;
-  align-self: start;
-  margin-top: calc((var(--bo-type-caption) + var(--border-width)) * 1.5 + var(--spacing-1-5));
 }
 .ps-record-tracking-card .pre-spec-tracking-save:disabled { opacity: 0.55; cursor: not-allowed; }
 .ps-record-tracking-card .disabled-reason {
-  grid-column: 3;
-  grid-row: 2;
-  align-self: start;
   margin: 0;
   color: var(--color-text-secondary);
   font-size: var(--bo-type-caption);
   line-height: var(--bo-type-caption-leading);
 }
-.ps-record-tracking-card :is(.mutation-feedback, .astryx-dialog, .pre-spec-tracking-combined-note) { grid-column: 1 / -1; }
-.ps-record-tracking-card .ps-record-tracking-help { grid-column: 1 / -1; grid-row: 3; margin: 0; }
 .ps-record-tracking-card .pre-spec-tracking-elsewhere {
-  grid-column: 1 / 3;
-  grid-row: 4;
   margin: 0;
   padding: 0;
   border: 0;
@@ -681,23 +684,17 @@
   line-height: var(--bo-type-caption-leading);
 }
 .ps-record-tracking-card .pre-spec-tracking-elsewhere a { margin-left: var(--spacing-1); }
-.ps-record-tracking-card .ps-record-decision-note {
-  grid-column: 3 / -1;
-  grid-row: 4;
-  justify-self: end;
-  width: max-content;
-  max-width: none;
-  margin: 0;
-  text-align: right;
-}
+.ps-record-tracking-footer { display: flex; justify-content: space-between; gap: var(--spacing-4); }
+.ps-record-tracking-footer p,
 .ps-record .ps-record-tracking-help,
 .ps-record .ps-record-decision-note {
+  margin: 0;
   color: var(--color-text-secondary);
   font-size: var(--bo-type-caption);
   line-height: var(--bo-type-caption-leading);
 }
-/* 기록됨·승계 분기는 시안에 없는 자리다. 카드 안에서 읽히게만 둔다. */
-.ps-record-saved-decision { display: grid; gap: var(--spacing-2); padding-top: var(--spacing-2); }
+.ps-record-tracking-footer .ps-record-decision-note { text-align: right; white-space: nowrap; }
+.ps-record-saved-decision { display: grid; gap: var(--spacing-2); }
 .ps-record-saved-decision h3 { margin: 0; font-size: var(--bo-type-body); font-weight: 600; }
 .ps-record-saved-decision p { margin: 0; }
 .ps-record-saved-decision dl { display: grid; gap: var(--spacing-2); margin: 0; padding: var(--spacing-3); border-radius: var(--ps-radius-chip); background: var(--color-background-body); }

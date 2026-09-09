@@ -1162,21 +1162,34 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
       const side = document.querySelector('.ps-record-side')!;
       const canvas = document.querySelector('.page-canvas')!;
       const uiScale = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--bo-ui-scale")) || 1;
+      const canvasZoom = Number.parseFloat(getComputedStyle(canvas).zoom) || 1;
       return {
         sideWidth: side.getBoundingClientRect().width,
         mainWidth: main.getBoundingClientRect().width,
         uiScale,
+        canvasZoom,
         agency: getComputedStyle(document.querySelector('.ps-record-agency')!).fontSize,
         overflow: canvas.scrollWidth - canvas.clientWidth,
       };
     });
-    expect(geometry.sideWidth).toBeCloseTo(400 * geometry.uiScale, 0);
-    expect(geometry.mainWidth).toBeGreaterThan(550 * geometry.uiScale);
+    const effectiveScale = geometry.uiScale * geometry.canvasZoom;
+    expect(effectiveScale).toBeCloseTo(1, 2);
+    expect(geometry.sideWidth).toBeCloseTo(400 * effectiveScale, 0);
+    expect(geometry.mainWidth).toBeGreaterThan(550 * effectiveScale);
     expect(geometry.agency).toBe('14px');
     expect(geometry.overflow).toBe(0);
     const decision = page.getByRole('complementary', { name: '추적 결정', exact: true });
     await expect(decision.getByRole('combobox', { name: '선택 사유' })).toBeInViewport();
     await expect(decision.getByRole('button', { name: '추적 시작', exact: true })).toBeInViewport();
+    const alignment = await page.evaluate(() => {
+      const top = (sel: string) => document.querySelector(sel)!.getBoundingClientRect().top;
+      const save = document.querySelector('.pre-spec-tracking-save')!.getBoundingClientRect();
+      return { selector: top('.ps-record-tracking-card .astryx-selector'), actor: top('.ps-record-tracking-card .actor-field input'), save: save.top, reasonGap: document.querySelector('#pre-spec-tracking-save-disabled')!.getBoundingClientRect().top - save.bottom };
+    });
+    expect(Math.abs(alignment.selector - alignment.actor)).toBeLessThanOrEqual(1);
+    expect(Math.abs(alignment.save - alignment.actor)).toBeLessThanOrEqual(1);
+    expect(alignment.reasonGap).toBeGreaterThanOrEqual(0);
+    expect(alignment.reasonGap).toBeLessThanOrEqual(12);
     await captureRecord(page, `normal-${viewport.width}`);
     await page.route('**/api/notices/992', route => route.fulfill({ json: {
       ...notice991, id: 992,

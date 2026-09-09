@@ -1748,6 +1748,8 @@
   resize: vertical;
 }
 
+.pre-spec-tracking-action { display: grid; gap: var(--spacing-1); justify-items: start; min-width: 0; }
+
 .pre-spec-tracking-save {
   align-self: flex-start;
   padding: 8px 14px;
