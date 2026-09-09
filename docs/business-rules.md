@@ -1,5 +1,13 @@
 # 업무 규칙
 
+## 사전규격 C-1 기본 대상
+
+2026-09-07 사용자 지정 기준으로 새 C-1 정책은 `SW사업대상=Y`를 기본 대상으로 한다.
+키워드 후보군 밖의 Y도 포함하며, N·미확인은 일괄 실행에서 제외한다.
+N은 사용자가 공고를 지정한 단건 요청으로 실행할 수 있다.
+기존 정책과 고정 품질 표본은 소급 변경하지 않는다. 새 규칙은 별도 불변 정책의
+`sw-business-selection.v1`로 묶고 품질 승인 없이 운영 활성화하지 않는다.
+
 ## 용어와 판단 단계
 
 - `사업기회`는 발주계획, 사전규격, 입찰공고가 같은 조달 목적을 가리킨다고 확인된 내부 추적 단위다. 공식 통합번호가 없는 유사 관계는 사람 확인 전까지 같은 사업기회로 확정하지 않는다.
@@ -48,6 +56,8 @@
 
 사전규격에 도달한 건은 개요 검토를 자동으로 수행한다. 발주계획에서 추적하기로 고른 건이 사전규격에 올라오면 바로 검토하고, 발주계획에 없던 건은 **`신규`로 명시하고** 역시 바로 검토한다. 개요 검토는 앞부분만 읽는 저비용 단계이므로 아래 금지의 대상이 아니다.
 
+개요 검토의 입력 문서는 현재 첨부 문서의 파일명에 `제안요청서`가 포함된 경우에만 자동 선택한다(2026-09-07 사용자 결정). 공백·Unicode 표기 차이는 정규화한다. 후보가 하나면 role이나 업로드 순서와 무관하게 선택하고, 없거나 여러 개면 `needs_human_review`로 담당자 확인에 넘긴다. `과업지시서`, 영문 `RFP`, role 지정만으로 대체하지 않는다. 아직 취득된 문서가 없으면 기존 `awaiting_document`를 유지하며, 선택한 문서의 안전성·구조 검증은 별도로 수행한다.
+
 개요 검토의 앞부분은 [ADR-0032](tracking/decisions/0032-prespec-overview-cutting-rule.md)에 따라 정한다. 목차 항목이 본문 소제목과 대응하면 목차를 사용하고, 그렇지 않으면 의미 있는 주제 소제목을 사용한다. 번호 형식만으로 절단하지 않는다. 시작 또는 종료 위치가 모호하면 추측해 자르지 않고 `unknown`으로 남겨 사람 검토로 보낸다. 자동 추출 입력에는 사용 전략(`strategy`), `start_locator`, `end_locator`, `source_sha256`를 보존하며, 고정 block 수나 전체 문서를 개요 검토에 자동 투입하지 않는다.
 
 개요 검토의 결정적 절단 snapshot과 모델 attempt는 분리한다([ADR-0033](tracking/decisions/0033-prespec-overview-review-runtime-contract.md)). 승인된 사설 vLLM binding이 없으면 절단까지만 만들고 `awaiting_model`로 두며 결과와 완료 시각은 `null`로 보존한다. 경계가 모호한 절단은 `needs_human_review`로 보내고 모델을 호출하지 않는다. 결정적 mock은 `reference_only`, `deployable=false`이며 운영 완료로 집계하지 않는다. `completed`는 승인된 binding의 응답이 strict schema, evidence locator, source hash 검증을 모두 통과한 경우에만 허용하고 hosted OpenAI·Codex로 자동 fallback하지 않는다.
@@ -73,6 +83,14 @@
 
 `검색 미확인` 링크와 `미선택`·`종료` opportunity, order-plan 링크가 없는 opportunity는 첨부 취득 자격을 만들지 않는다. 사람이 추적 상태를 나중에 선택할 수 있으므로 이 자격은 배치 한 번으로 고정하지 않고 재평가 큐에서 갱신한다. 이 조건은 수집 필터가 아니며 `SW사업대상` 표시 값의 의미도 바꾸지 않는다.
 
+### 회사 핏 판정 (2026-09-08)
+
+검증된 개요와 승인된 불변 회사 프로필을 대조하여 `matched`(업무 부합), `mismatch`(확인된 업무 범위와 과업의 차이), `unknown`(판단 보류)을 기록한다. 사유마다 공고 과업과 회사 구조화 항목을 연결하며, 역량·자격·실적의 미기재나 inferred/unknown 항목만으로 불일치를 만들 수 없다. 개요의 모델 의견은 회사 사실로 재사용하지 않는다. 실제 계약의 과업과 감리 대상 사업의 과업도 구분한다.
+
+회사 핏은 자동 분석의 추가 조건이다. 기존 등급·참여 준비·추적 선택·최종 Go/No-Go를 변경하지 않는다. 개요 결과, 문서 버전, 활성 회사 프로필/심층 정책, 핏 정책·모델 배포 버전이 바뀌면 이전 핏은 현재 자동 시작에 사용할 수 없다. 새 입력은 새 attempt이고 같은 입력은 중복 호출하지 않는다. 실패/만료된 입력을 자동 재시도하지 않는다.
+
+기본 비활성이며 현재 품질 측정 정책이 없어 명시적인 참조 실행 모드에서만 실행한다. `matched`이더라도 mock 결과나 운영 모드에서는 자동 심층 시작을 허용하지 않는다. 참조 실행의 부합·불일치 결과와 실제 심층 검토 생성 여부는 별도로 표시한다. 근거 ID·숫자 검증 통과는 의미 정확도나 회사 적합성 품질 통과를 뜻하지 않는다.
+
 ### 자동 문서 준비와 자동 심층 시작
 
 effective grade(사람 정정 등급이 있으면 그것, 없으면 판정 등급)가 `우선 검토`인 사전규격은 문서 준비를 자동으로 진행한다([ADR-0049](tracking/decisions/0049-prespec-auto-preparation-and-auto-deep-review.md)). 안전 검사를 통과한 현재 문서로 묶음 초안을 만들고, **자기가 만든 초안만** 확정한다. 사람이 만든 초안은 사람이 확정한다. 등급이 나중에 내려가도 이미 만든 묶음을 되돌리지 않는다. 그 밖의 등급과 등급 없음은 자동 준비 대상이 아니며 사유는 `grade_not_priority`다 — "등급 없음"을 특정 등급으로 접지 않는다.
@@ -81,7 +99,7 @@ effective grade(사람 정정 등급이 있으면 그것, 없으면 판정 등�
 
 자동 준비 상태는 여덟이다. `not_applicable`(자동 준비 대상 아님), `waiting_attachments`(첨부 취득 대기), `bundle_draft`(묶음 초안), `bundle_ready`(묶음 확정), `overview_running`(개요 검토 실행 중), `deep_review_started`(심층 검토 자동 시작됨), `deep_review_ready_for_click`(심층 검토 클릭 대기), `blocked`(자동 준비 중단). `not_applicable`은 "대상이 아님"이며 "알 수 없음"이 아니다.
 
-다음이 모두 성립하면 심층 검토를 시스템이 자동으로 만든다. 사전규격이고 `SW사업대상=Y`, 자동 준비가 확정한 `ready` 묶음이 있고, 그 묶음의 개요 검토가 `completed`이며, 권고가 `검토 종료`가 아니고, 개요가 본 묶음과 지금 묶음이 같으며, 같은 불변 입력의 심층 검토가 아직 없다. 하나라도 어긋나면 각각의 사유 코드(`not_sw_business`, `bundle_not_auto_ready`, `overview_not_completed`, `overview_recommendation_closed`, `overview_bundle_mismatch`, `service_unavailable`, `deep_review_exists`, `processing_failed`)로 남기고 사람 클릭으로 넘긴다. 평가 순서는 이 목록 순서이며 첫 일치가 이긴다 — 앞의 여섯은 쓰기·읽기가 같은 함수로 판정하고, `deep_review_exists`와 `processing_failed`는 실제로 만들어 보는 쓰기 경로에서만 나온다. **읽기 경로는 `deep_review_exists`를 내지 않는다.** 이미 심층 검토가 있으면 사유가 아니라 상태 `deep_review_started`로 답한다.
+다음이 모두 성립하면 심층 검토를 시스템이 자동으로 만든다. 사전규격이고 `SW사업대상=Y`, 자동 준비가 확정한 `ready` 묶음이 있고, 그 묶음의 개요 검토가 `completed`이며, 권고가 `검토 종료`가 아니고, 개요가 본 묶음과 지금 묶음이 같으며, 같은 불변 입력의 심층 검토가 아직 없고, 현재 등급이 우선 검토이며 검증을 통과한 현재 회사 핏이 `matched`여야 한다. 회사 핏은 활성 설정과 참조 실행 경계도 충족해야 한다. 검증 통과한 페이지 기반 개요가 있으면 이를 우선 사용하고, 없으면 기존 검증된 추출형 개요를 사용한다. 최신 페이지 개요 검증 실패 뒤 기존 결과로 자동 우회하지 않는다. 하나라도 어긋나면 각각의 사유 코드(`not_sw_business`, `bundle_not_auto_ready`, `overview_not_completed`, `overview_recommendation_closed`, `overview_bundle_mismatch`, `service_unavailable`, `deep_review_exists`, `processing_failed`, `company_fit_*`)로 남기고 사람 클릭으로 넘긴다. 평가 순서는 이 목록 순서이며 첫 일치가 이긴다 — 앞의 여섯은 쓰기·읽기가 같은 함수로 판정하고, `deep_review_exists`와 `processing_failed`는 실제로 만들어 보는 쓰기 경로에서만 나온다. **읽기 경로는 `deep_review_exists`를 내지 않는다.** 이미 심층 검토가 있으면 사유가 아니라 상태 `deep_review_started`로 답한다.
 
 자동 시작은 추적 상태를 바꾸지 않는다. 사업기회는 `미선택` 그대로이고, 자동 시작이 적합성 등급·참여 준비 상태·추적 선택·최종 입찰 Go/No-Go를 대신하지 않는다. **자동으로 여는 것은 분석의 시작뿐이다.**
 
@@ -247,3 +265,11 @@ manifest는 `partially_human_adjudicated`이며 사람 22건, draft 603건, 잔�
 주기, 승인 gold 기반 quality threshold, execution별 private vLLM 전송 승인이 채워지기
 전에는 policy를 active로 바꾸지 않는다. `계속 추적|보류|종료`와 사람 최종 Go/No-Go는
 여전히 별도 생애주기·입찰 결정 이벤트다.
+
+## 설명형 PDF 개요와 기존 권고의 구분
+
+`prespec_page_overview`의 새 설명형 결과는 사업 이해를 위한 참조 요약이다. 근거 검사
+통과와 원실행 검증 상태를 별도로 보존하며, 원실행 실패는 재적재로 통과시키지 않는다.
+이 결과에는 권고가 없으므로 `prespec_overview_review.status/result`, 자동 준비 집계,
+심층 검토 자동 시작, 사람의 추적 결정과 최종 Go/No-Go를 변경하지 않는다.
+기존 권고 결과가 있으면 화면은 설명형 요약 아래에서 기존 기록임을 구분해 표시한다.

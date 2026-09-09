@@ -18,8 +18,10 @@
       "total": 2546,
       "candidate_pool": 327,
       "audit_pool": 2219
-     }
-    }
+     },
+     "order_plans": 0
+    },
+    "kind": "notices"
    }
   ],
   "total": 1
@@ -41,7 +43,8 @@
     "total": 2546,
     "candidate_pool": 327,
     "audit_pool": 2219
-   }
+   },
+   "order_plans": 0
   },
   "collection_scope": {
    "window_from": "2026-08-17",
@@ -145,7 +148,8 @@
   ],
   "warning_counts": {
    "warning": 18
-  }
+  },
+  "kind": "notices"
  },
  "/api/runs/20260817-20260823--20260824T090927.138116Z/stats": {
   "run_id": "20260817-20260823--20260824T090927.138116Z",

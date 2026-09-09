@@ -21,6 +21,10 @@ services:
       BIDOPS_OBJECT_STORE_SECURE: "false"
       BIDOPS_SOURCE_ACCESS_KEY: "${BIDOPS_SOURCE_ACCESS_KEY:?set an external source access key}"
       BIDOPS_SOURCE_SECRET_KEY: "${BIDOPS_SOURCE_SECRET_KEY:?set an external source secret key}"
+      BIDOPS_STRUCTURE_ACCESS_KEY: "${BIDOPS_STRUCTURE_ACCESS_KEY:?set an external structure access key}"
+      BIDOPS_STRUCTURE_SECRET_KEY: "${BIDOPS_STRUCTURE_SECRET_KEY:?set an external structure secret key}"
+      BIDOPS_STRUCTURE_READ_ACCESS_KEY: "${BIDOPS_STRUCTURE_READ_ACCESS_KEY:?set an external structure read access key}"
+      BIDOPS_STRUCTURE_READ_SECRET_KEY: "${BIDOPS_STRUCTURE_READ_SECRET_KEY:?set an external structure read secret key}"
       BIDOPS_QUARANTINE_ACCESS_KEY: "${BIDOPS_QUARANTINE_ACCESS_KEY:?set an external quarantine access key}"
       BIDOPS_QUARANTINE_SECRET_KEY: "${BIDOPS_QUARANTINE_SECRET_KEY:?set an external quarantine secret key}"
       BIDOPS_CLAMAV_HOST: clamav
@@ -35,6 +39,9 @@ services:
     command: ["python", "-m", "app.deep_review.workers.prespec_attachment"]
     healthcheck: { disable: true }
     restart: unless-stopped
+    volumes:
+      - document-scratch:/scratch
+      - pipeline-data:/app/data
     networks: [database, storage, scanning, prespec-egress]
 
 networks:

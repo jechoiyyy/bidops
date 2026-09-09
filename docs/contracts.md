@@ -1,5 +1,26 @@
 # 외부 계약
 
+C-2 Ollama 참조 적재는 `skills/bidops-screen/contracts/ollama-reference/`의 별도
+검증 프로필을 사용한다. 기존 Phase 0 catalog·schema hash는 불변이다. 파일/DB의
+C-2 v1 envelope는 유지하되 `qwen3.8:27b` identity는 새 참조 프로필로 검증한다.
+정책은 `activation_candidate`·`not_measured`·활성화 차단이어야 하며, 원 실행의
+`quality_status=unmeasured_reference`와 응답·사후 변환 provenance를 보존한다.
+DB에는 해당 정책의 `quality_gate_status=not_measured`, `active_slot=null`로 남긴다.
+기존 실행 API의 `성공`은 처리 완료만 뜻하며 품질 측정·운영 활성화를 뜻하지 않는다.
+모델 판정 binding은 정책의 고정 binding과 필드별 일치해야 한다.
+
+C-2 ranking은 순위 순서, input/result는 수집 원본 순서다. 전체 ID 집합은 같아야 하고
+모델 batch는 순위 순서로 구성한다. DB 점수는 `Numeric(20,10)`으로 투영하되 원래
+점수 전체 자릿수는 불변 artifact와 `result_sha256`으로 검증한다.
+
+C-1 `candidate_selection`의 기존 `collect-candidate.v2 / candidate_pool_all /
+["candidate_pool"]` 조합은 보존한다. 새 정책 버전은 `rules_version=sw-business-selection.v1`,
+`mode=sw_business_all`, `include_collection_buckets=[]` 조합을 사용할 수 있다.
+이 경우 `full_run`은 수집본의 `qualification_flags.sw_business_status`가 정확히 `Y`인
+공고 전체를 동결한다. `N`·누락·null을 Y로 간주하지 않는다.
+`single_notice`의 사용자 지정 대상과 기존 고정 `quality_sample` 계약은 유지한다.
+기존 정책의 내용·digest를 바꾸거나 새 규칙을 품질 승인으로 취급하지 않는다.
+
 웹 클라이언트, 파이프라인 subprocess, 운영 도구가 의존하는 기본 REST 경로는 `/api`다. 발주계획 중심의 새 수집·기회 API는 아직 구현되지 않았으므로 현재 경로로 추정해 호출하지 않는다.
 
 ## 공통 REST 규칙
@@ -428,6 +449,8 @@ snapshot field는 추정 backfill하지 않으며, 같은 과거 회차 재적�
 | `bidops.agent-run.v1` | worker 실행, 입력·출력 hash, 상태와 lineage |
 | `bidops.document-converter-request.v1` | network 없는 변환 worker 요청 |
 | `bidops.document-converter-result.v1` | 변환 결과와 안전한 오류 |
+| `bidops.document-converter-request.v2` | `prepare_pdf=true` 문서 변환 요청과 원문 hash/scan 결속 |
+| `bidops.document-converter-result.v2` | 구조 JSON과 request UUID 결속 PDF sidecar metadata |
 | `bidops.document-structure.v1` | page/block/table 구조와 원문 locator |
 | `bidops.document-bundle.v1` | 확정된 document versions와 structure snapshot |
 | `bidops.deep-review-stage.v1` | 세 단계의 claims, evidence, unknowns, warnings |
@@ -437,6 +460,28 @@ snapshot field는 추정 backfill하지 않으며, 같은 과거 회차 재적�
 | `bidops.company-profile.v1` | 승인된 회사 profile snapshot |
 
 모델 response 원문은 암호화된 객체로 저장하고 DB에는 namespace, version, hash, key reference만 둔다. evidence locator는 document version, structure ID, page·block 또는 표 좌표를 포함하며 report의 사실·숫자와 연결된다.
+
+문서 변환 scratch 계약은 v1 구조 결과와 v2 PDF preparation 결과를 구분한다. v1은
+기존 `request.v1`/`result.v1` envelope와 structure JSON만 사용한다. 요청 options의
+`prepare_pdf=true`는 `bidops.document-converter-request.v2`를 선택하고, 성공 결과는
+`bidops.document-converter-result.v2`의 `pdf_sidecar`를 반드시 포함한다. sidecar는
+JSON/base64로 넣지 않고 request UUID에서 도출한 단일
+`pdf/<request_uuid>.pdf` 파일로 원자적으로 publish한다. 결과 JSON은
+`file`, `byte_count`, `sha256`, 기존 `pdf_metadata`, `source_kind`를 결속하며,
+worker는 PDF sidecar를 먼저 완료한 뒤 결과 JSON을 마지막에 publish한다.
+
+consumer는 고정 namespace와 UUID filename을 다시 계산하고 stat·bounded read,
+regular-file/no-symlink, byte count·SHA-256·`%PDF-` 검사를 통과한 sidecar만
+`ProcessedDocument.converted_pdf_bytes`와 `.pdf_metadata`로 복원한다. 생성 PDF는
+trusted-side ClamAV로 exact bytes를 재검사하며, 원본 PDF 입력은 `.original_bytes`를
+그대로 보존하고 v2 sidecar의 `source_kind=original`로 구분한다. 이 경우 request의
+선언 MIME가 아니라 검증된 structure의 `media_type=application/pdf`를 기준으로 하며,
+sidecar bytes와 원문 hash가 exact match여야 한다. `pdf_metadata`는 빈 object를
+허용하지 않고 `bidops.pdf-snapshot.v1`의 physical `page_count`와 페이지별
+`number`, `width`, `height`, normalized text의 `text_sha256`를 structure와 함께
+검증한다. 성공 소비 뒤 해당 request의 result/sidecar만 삭제하며, timeout 중 claimed
+input과 다른 request 파일은 삭제하지 않는다. scratch는 임시 handoff이고 DB/MinIO
+정본이나 영속 snapshot이 아니다.
 
 ## DB와 migration 계약
 
@@ -689,3 +734,182 @@ audit/idempotency와 제한된 status mutation만 수행하며, worker는 frozen
 batch/attempt/artifact/result/telemetry를 삽입한다. worker는 사람 feedback을 쓰지 않고
 app은 raw model response object를 읽지 않는다. `ro_backup`은 SELECT만 갖는다. runtime
 privilege allowlist와 실제 PostgreSQL 17 제약·trigger 검증은 Phase 2의 `0016`에서 수행한다.
+
+### 사전규격 개요 입력 문서 선택 (2026-09-07)
+
+현재 문서 중 정규화된 파일명에 `제안요청서`가 포함된 후보 하나를 선택한다. role·업로드 시각으로 후보를 대체하거나 복수 후보의 우선순위를 정하지 않는다. 후보 없음·복수 후보는 기존 `needs_human_review`와 `current_snapshot=null`로 반환한다. 취득 문서가 전혀 없으면 `awaiting_document`를 유지한다. API schema·DB 상태값은 추가하지 않으며 기존 불변 snapshot·attempt·결과 이력은 보존한다. 프론트엔드의 현재 상태 문구는 `사람 검토 필요`다.
+
+## PDF 페이지 기반 사전규격 개요 (2026-09-07)
+
+권고 없는 설명형 출력 `bidops.prespec-overview-page-review.v3`는 기존
+`bidops.prespec-overview-result.v1`과 별개의 계약이다. 프롬프트 v4와 출력 schema v3는
+서로 다른 버전 축이다. 기존 `/overview-reviews` 및 `/overview-reviews/v2`는 변경하지 않는다.
+
+- `GET /api/pre-specs/{notice_id}/overview-pages` → `bidops.prespec-overview-pages.v1`.
+  해당 공고의 최근 적재 기록 최대 20건을 생성시각 내림차순으로 반환한다. 기록 없음은
+  `reviews: []`, 존재하지 않는 사전규격은 404다. 각 기록은 원출력 `payload`, 검증/품질
+  상태, 원문 문서 버전·SHA-256, PDF SHA-256·페이지 수·검토한 페이지를 갖는다.
+- `payload`는 `business_overview`, `main_tasks`, `budget_and_period`,
+  `important_conditions`의 `{text,evidence_pages}` 배열과 `reviewer_analysis`,
+  `unknowns`, `input_limitations` 문자열 배열이다. `recommendation`은 없다.
+- `GET /api/pre-specs/{notice_id}/overview-pages/{review_id}/pdf`는 결속된 불변 객체 버전의
+  스캔된 PDF만 반환한다. 다른 공고의 review ID는 404, 스캔·버전·크기·해시 불일치는
+  실패한다. 내부 경로·객체 키·자격증명을 반환하지 않는다. `#page=N`은 PDF 뷰어 순번이다.
+- `prespec_page_overview`는 별도의 append-only 테이블이다(Alembic 0019).
+  원출력 JSONB, 원문/PDF/프롬프트/정책/모델 해시, 불변 입력 객체·PDF 객체 위치를 보존한다.
+  같은 `(run_id, notice_id)`의 동일 재적재는 기존 ID를 반환하고 내용 변경은 거부한다.
+  기존 권고 결과 테이블의 제약을 완화하거나 리뷰·추적 행을 덮어쓰지 않는다.
+- `validation_status`는 원실행 실패와 새 근거 검사의 실패를 모두 보존한다.
+  `evidence_check_status`는 새 검사만의 결과다. 원실행 실패가 새 검사 통과로 지워지지 않는다.
+  `quality_status`는 참조 표식만 허용하며 운영 완료나 측정 통과를 뜻하지 않는다.
+- `pdf-page-evidence.v2`는 문장 끝의 정확한 `(PDF N페이지 …)` 표기가 별도
+  `evidence_pages`와 같은 경우에만 이를 숫자·영문 사업 사실 검사에서 분리한다.
+  불일치 표기는 실패하고, 사업 내용의 숫자·영문·사업금액 의미 검사는 유지한다.
+  원출력은 수정하지 않는다. 화면의 중복 페이지 문구 제거는 표시 계층에서만 한다.
+
+서버측 `import-page-overview` CLI는 고정 실행 파일 1건을 적재하는 경로다. frozen policy와
+prompt hash, 문서 소속·원문 hash, 실제 PDF 페이지 텍스트 포함 관계를 검증하고 스캔 뒤
+저장한다. 이 명령은 모델을 호출하거나 기존 worker 정책을 활성화하지 않는다.
+
+### v4 PDF 준비 snapshot·입력 manifest (2026-09-08)
+
+v4 준비는 기존 `DocumentStructure`·legacy 개요를 갱신하지 않는다. 현재 head 뒤의
+`0021_prespec_v4_pdf_contract`가 `prespec_v4_pdf_snapshot`과
+`prespec_v4_target`을 추가했고, `0022_prespec_v4_attempt`가 그 manifest를 소비하는
+fenced attempt를 추가한다. target은 검증된 PDF에 대해 준비가 끝난 입력 manifest
+(또는 사람 확인 경계)만 표현하며, attempt는 그 target·정책·모델 binding 하나를
+실행한다. 기존 legacy 권고 attempt/result는 같은 문서의 v4 결과로 대체하거나
+덮어쓰지 않는다.
+
+- `prespec_v4_pdf_snapshot`은 current·safe `DocumentVersion`의 정확한 원문
+  `ContentObjectLocation`, PDF `ContentObjectLocation`, full page-text JSON
+  `ContentObjectLocation`, PDF metadata, page count·page text hash, ClamAV clean
+  verdict, worker renderer/font digest와 정규화된 processor options를 묶는다.
+  full page text object는 `bidops.prespec-v4-page-text.v1` JSON의 모든 물리 페이지
+  `{number,text,text_sha256}`를 보존하며 PDF metadata의 페이지별 hash와 일치해야
+  한다. 생성 PDF는 기존 `source` namespace에 저장하고 선택 manifest만
+  `structure` namespace에 둔다. 원본 PDF는 동일 source object/location과 bytes를
+  그대로 재사용한다.
+- 준비 API는 source hash, renderer/font/config digest로 기존 snapshot을 변환 전에
+  조회한다. 같은 source version·worker provenance·options이면 worker를 다시
+  호출하지 않고 같은 PDF/page-text object version을 반환한다. cache hit도 source,
+  PDF, page-text object를 저장된 namespace·object key·version·etag·size·SHA-256으로
+  bounded read하고 최신 `ContentScan.status=clean`을 확인한다. renderer에는
+  `runtime_sha256`와 실제 Chromium binary의 `chromium_sha256`, font에는 실제
+  설치 파일 바이트를 정렬해 만든 `font_manifest_sha256`가 있어야 한다. 배포가
+  선언한 `worker_image_digest`가 있을 때만 선택적으로 함께 결속하며, 선언이 없을
+  때 asset fingerprint를 이미지 digest로 가장하지 않고 `null`로 둔다. generated
+  PDF에서는 이 값이 caller dict가 아니라 실제 document-worker가 PDF metadata에
+  넣은 vendored runtime·Canvas adapter·processor/CSS·Chromium/font fingerprint와
+  일치해야 한다. 원본 PDF는 `rerendered=false`와 실제 bounded Poppler/stdlib
+  text-extractor provenance를 기록하고 `font_provenance=null`로 둔다. config의 `options`는
+  `ProcessorOptions.from_mapping`의 확정 기본값을 포함한 정규화 mapping이어야 한다.
+- `bidops.prespec-v4-input-manifest.v1`은 선택된 장·절의 정확한 page substring,
+  시작/끝 locator, 선택 page hash, 원본 full-page hash, 입력 제한을 담는다. 목차
+  잔여와 다음 장 제목은 substring에 포함하지 않으며, 필요한 첫 `과업내용`
+  subsection만 다음 장에서 이어 붙일 수 있다. 범위 경계가 없거나 문서가
+  ambiguous하면 `needs_human_review`로 남기며 전체 문서 fallback·고정 page 절단·
+  표 배치 추정은 하지 않는다.
+- target identity는 SQL `NULL` unique에 의존하지 않고 snapshot·observation·manifest
+  상태의 canonical SHA-256으로 저장한다. explicit sample도 같은 입력을 중복
+  삽입할 수 없다. observed 대상은 `NoticeObservation`의 명시된 snapshot/source
+  hash와 attachment change 근거가 있을 때만 만들며, 같은 URL의 bytes 교체나
+  `DocumentVersion.created_at`을 신규 관측으로 추정하지 않는다.
+- `prespec_v4_attempt`는 notice별 sequence, target/source/PDF/manifest hash,
+  `bidops.prespec-overview-policy.v4` digest, `prespec-overview-v4`, model name/revision,
+  generation, lease와 result/raw-response digest를 보존한다. 정상 target은
+  `queued|running|completed|failed|cancelled`를 거치며 retry는 새 attempt다. PDF
+  준비 실패는 target 없는 `failed` row로 현재 상태에 보인다. worker는 v4 attempt의
+  lifecycle 열만 갱신하고, terminal row와 target/result 범위는 DB trigger·FK로
+  보호한다. `mock_reference`도 통제 결과로 저장할 수 있지만 운영 품질·자동 심층
+  시작 근거로 승격되지 않는다.
+- v4 정본 policy는 기존 `experiments/prespec-overview-pdf-reference/policy.json`의
+  `system_prompt`, `stages` 지시문, `prompt_output_contract`의 reader format·두
+  synthetic few-shot, output schema, generation, chunking을 그대로 보존한다. 배포
+  식별자만 policy v4·`qwen3.8-27B`·`prespec-overview-v4`로 결속한다. 모델 입력은
+  `{schema_version, blocks: [{pdf_page, text}], input_limitations}`이며 manifest의
+  source/hash/storage 필드는 전송하지 않는다.
+- `GET /api/pre-specs/{notice_id}/overview-pages`는 기존 `reviews` 이력과 별도로
+  서버가 검증한 `current`를 반환한다. `current`는 `attempt_id`,
+  `status=queued|running|completed|failed|needs_human_review|stale|cancelled`,
+  `result_id`, `reason_code`, `prompt_version`, `created_at`를 갖는다. 적용 기록이
+  없으면 `current=null`; 실패·진행이면 과거 성공을 current로 가장하지 않는다.
+  GET은 저장·모델 호출·attempt 생성 없이 문서 current/safe, snapshot/result hash,
+  policy·overview 설정의 model revision, page-v3 validator와 evidence-check
+  `passed` 결속을 다시 확인한다. `DocumentVersion.needs_human_review=true`인
+  입력은 stale로 투영한다. 여러 공고 조회자는 같은 판정의 batch projection을
+  사용하며 공고마다 current를 재조회하지 않는다.
+
+실제 운영 DB/MinIO에 이 migration이나 snapshot/attempt row를 쓰지 않았고 모델
+호출·scheduler 활성화도 하지 않았다. SQLite 격리 roundtrip과 임시 PostgreSQL
+upgrade/constraint 검사는 기존 object-store/scratch contract와 함께 구현 검증에만
+사용한다.
+
+### v4 cohort 활성·준비 ops 계약 (2026-09-09)
+
+v4는 기본 `off`다. 별도 registry/table을 만들지 않고 `audit_event`의
+`action=prespec_v4.activation`, `aggregate_type=prespec_v4_activation` append-only
+행으로 활성·중단 이력을 남긴다. 가장 최근 행이 `active`가 아니거나 schema, policy
+digest, reference-only model binding이 검증되지 않으면 dispatch와 enqueue는
+`v4_disabled`로 fail closed한다. 활성 metadata에는 `explicit_sample` 또는
+`new_reference`, artifact SHA-256, policy/model/prompt/binding digest, 활성 시각,
+표본의 notice/document/source SHA-256·크기, 자동 대상 조건과
+`quality_status=unmeasured_reference`를 저장한다. 고정 표본은 수동 개요 검증용이며
+등급을 만들어 자동 심층 대상처럼 취급하지 않는다.
+
+`prespec-v4` CLI의 `--dry-run`은 읽기만 하고 안전한 id/status/reason만 출력한다.
+`--prepare`는 활성 cohort에서 current/safe·단일 제안요청서 문서·검증된 source
+object를 확인한 별도 준비 경계에서 scratch v2 PDF를 호출하고 snapshot/page-text/
+substring manifest를 동결한다. attachment download의 120초 lease를 재사용하지
+않는다. `--enqueue`는 같은 트랜잭션에서 기존 `WorkJob` aggregate slot과 새 v4
+attempt를 만들고, `--retry`는 terminal failed/cancelled target에 새 sequence
+attempt를 append한다. 기존 attempt/target/result를 수정하거나 legacy overview로
+우회하지 않는다. PDF·관측·범위 실패는 target 없는 `failed` current 또는
+`needs_human_review`로 남기며 model call을 만들지 않는다.
+
+`explicit_sample`은 activation 표본의 notice key/document UUID/source hash/size가
+현재 safe document와 정확히 맞아야 한다. `new_reference`는 활성 시각 뒤의
+`NoticeObservation`에 첨부 name/url/provider key/size와 실제 DocumentVersion source
+hash/size가 함께 결속되어야 한다. 이전 관측이 없으면 최초 관측, 이전 snapshot의
+첨부 metadata fingerprint가 달라지면 attachment change로 인정한다. 동일 hash의
+재수집·재변환, 관측이 없는 문서, `DocumentVersion.created_at`만으로 만든 신규성은
+제외한다. 자동 대상은 `source_type=pre_spec`, `SW사업대상=Y`, effective grade가
+`우선 검토`, `auto-preparation` confirmed ready bundle을 모두 요구한다.
+
+준비/예약은 app role이 source/structure object와 snapshot/target/WorkJob/attempt를
+append하고, analysis worker는 source를 읽지 않고 frozen manifest만 소비하며 attempt
+lifecycle 열만 갱신한다. worker의 model read는 v4 current binding과 기존 page-v3
+validator를 다시 확인한다. 운영 DB/MinIO 쓰기·scheduler·실제 모델 호출은 명시적인
+활성·배포 절차가 끝나기 전 수행하지 않는다.
+
+### Luna 명시 참조 개요 실행 (2026-09-09)
+
+사용자 명시 참조 실행만 `bidops.prespec-v4-luna-reference.v1` generation record의
+고정 input/output 파일을 읽는다. record의 `actualmodel=gpt-5.6-luna`,
+`effort=max`, `opaqueweightsrevision=null`, policy 파일 hash, prompt hash와
+sample input/output hash를 확인한 뒤 generation record 전체의 SHA-256을 세 sample의
+공통 v4 `model_digest`로 사용한다. sample별 입력·출력·prompt manifest SHA는 audit
+metadata에 별도로 보존한다. 이는 weight revision이나 Qwen revision이 아니며, binding은
+`provider=luna-reference`, `reference_only=true`, `deployable=false`,
+`quality_status=unmeasured_reference`로만 저장한다.
+
+`--enqueue-reference`는 app role에서 target과 response provenance를 결속한 queued
+attempt와 audit 행을 만든다. `--run-reference`는 worker role에서 그 queued attempt와
+동일 manifest audit를 확인한 뒤 기존 `PrespecV4OverviewRunner`의 raw 암호화 저장,
+page-v3 validator, result/current projection을 실행한다. 두 명령은 분리되며 worker는
+attempt/WorkJob lifecycle 열만 갱신한다. 이 경로는 automatic/new-reference cohort,
+회사 핏 자동 gate, 심층 검토를 우회하지 않고 수동 참조 current 결과만 제공한다.
+
+
+### 사전규격 회사 핏 계약 (`bidops.prespec-company-fit.v1`)
+
+`GET /api/pre-specs/{notice_id}/company-fit`은 해당 공고의 최근 attempt 최대 20개(최신 순), 자동 판정 활성 여부, 서버가 계산한 자동 준비 사유와 실제 최신 `deep_review_id`를 반환한다. 공고 없음/다른 source type은 404, 잘못된 id는 422, 내부 오류는 안전한 `processing_failed` 500이다. GET은 실행을 만들거나 모델을 호출하지 않는다.
+
+- 실행 상태: `queued|running|completed|failed|needs_human_review`. 결과가 없거나 검증에 실패한 실행의 `result`는 null이다.
+- 결과: `bidops.prespec-company-fit-result.v1`, `decision=matched|mismatch|unknown`, `summary`, `reasons[]`, `verification_items[]`. 각 사유는 `kind=scope_match|scope_mismatch|information_gap`, 모델 의견 `explanation`, `notice_refs[]`, `company_refs[]`를 갖는다. 입력에 없는 ref, 중복 ref, 확인되지 않은 회사 근거로 만든 일치/불일치, 인용 근거에 없는 숫자는 검증 실패다. 자동 보정하지 않는다.
+- `notice_facts`는 해당 개요의 문장과 PDF 페이지 또는 HWPX 구조 블록 위치, 공고 제목이다. `company_facts`는 승인 프로필의 fact key/status/value만 반환한다. 회사 원문·quote·filesystem source·객체 경로는 응답하지 않는다.
+- `overview_kind=page|extractive`, `overview_id`, `document_version_id`, 개요 digest, profile id/digest, policy digest, model name/revision, prompt version, 품질 표식, 생성/완료 시각과 입력/출력 토큰·소요시간을 보존한다. 사용량 부재는 null, 실제 0은 0이다.
+- `is_current=false`이면 과거 입력 기준이다. 프로필·활성 심층 정책·개요·문서·핏 정책/모델 변경, 입력 hash 불일치가 현재성을 막는다. 회사 핏 결과와 실제 심층 검토 생성 여부를 서로 추정하지 않는다.
+- 자동 사유는 `company_fit_disabled|pending|queued|running|stale|mismatch|unknown|failed|needs_human_review|validation_failed|reference_only`에서 접두사 `company_fit_`을 각각 붙인 코드다. 기존 자동 준비 사유도 그대로 반환한다.
+
+`prespec_company_fit_attempt`는 입력 JSON (`bidops.prespec-company-fit-input.v1`, 정책 전문 포함)과 SHA-256, 개요/문서/프로필/심층 정책 FK를 동결한다. 입력 digest는 유일하다. 실행 상태·lease·결과·사용량만 전이할 수 있고 종결 후 UPDATE/DELETE는 DB/ORM에서 거부한다. 원응답은 기존 암호화 model-response 저장소에 저장한다. 종결 이력이 있으면 migration downgrade를 거부한다. 앱 역할은 SELECT, 합성 worker만 INSERT 및 제한된 상태 열 UPDATE를 받는다.

@@ -90,9 +90,13 @@ class EncryptedObjectStore(Protocol):
 class ModelInvocationError(RuntimeError):
     """분류된 호출 실패. 원문·프롬프트·비밀값은 담지 않는다."""
 
-    def __init__(self, code: str, attempts: Sequence[Mapping[str, Any]]) -> None:
+    def __init__(self, code: str, attempts: Sequence[Mapping[str, Any]], raw_response: bytes | None = None) -> None:
         self.code = code
         self.attempts = list(attempts)
+        # A bounded provider response may be retained by the owning runner in
+        # the encrypted raw-response store.  Keep it out of repr/log messages;
+        # callers must explicitly persist it and only its digest reaches DB.
+        self.raw_response = raw_response if isinstance(raw_response, bytes) else None
         super().__init__(code)
 
 
@@ -133,6 +137,7 @@ class ModelEndpoint:
     allowed_hosts: tuple[str, ...]
     api_key: SecretStr = field(repr=False)
     model_revision: str
+    api_dialect: str = "vllm"
 
 
 def _endpoint_value(settings: Any, purpose: str, suffix: str) -> Any:
@@ -180,6 +185,7 @@ def resolve_model_endpoint(purpose: str, *, settings: Any | None = None) -> Mode
         allowed_hosts=allowed_hosts,
         api_key=api_key,
         model_revision=revision,
+        api_dialect=getattr(settings, f"vllm_{purpose}_api_dialect", "vllm"),
     )
 
 
@@ -372,6 +378,7 @@ class ModelClient:
         endpoint_ref: str = MODEL_ENDPOINT_REF,
         purpose: str | None = None,
         output_contract: StructuredOutputContract,
+        api_dialect: str = "vllm",
     ) -> None:
         # transport 식별자만 확인한다. 모델명은 여기서 판정하지 않는다 —
         # 어떤 모델이 승인됐는지는 policy와 배포 설정이 정하고, identity는
@@ -381,6 +388,9 @@ class ModelClient:
         if not isinstance(model, str) or not model.strip() or any(character.isspace() for character in model):
             raise ValueError("model name must be a non-empty token")
         self.output_contract = output_contract
+        if api_dialect not in {"vllm", "ollama"}:
+            raise ModelEndpointError("unsupported model API dialect")
+        self.api_dialect = api_dialect
         if allowed_hosts is None:
             allowed_hosts = os.getenv("BIDOPS_VLLM_ALLOWED_HOSTS", "").split(",")
         elif isinstance(allowed_hosts, str):
@@ -389,7 +399,7 @@ class ModelClient:
         self.model = model
         self.model_revision = model_revision
         self.purpose = purpose
-        self.provider_name = "vllm-openai-compatible"
+        self.provider_name = "ollama-openai-compatible" if api_dialect == "ollama" else "vllm-openai-compatible"
         self._http_client: httpx.Client | None = None
         self._sdk: OpenAI | None = None
         self._api_key = api_key
@@ -469,6 +479,7 @@ class ModelClient:
             model_revision=endpoint.model_revision,
             purpose=endpoint.purpose,
             output_contract=output_contract,
+            api_dialect=endpoint.api_dialect,
         )
         if verify_identity:
             client.verify_identity()
@@ -522,7 +533,35 @@ class ModelClient:
             reported = row.get("model_revision", row.get("revision"))
             if reported is not None and reported != self.model_revision:
                 raise ModelIdentityError("model_revision_invalid")
+        if self.api_dialect == "ollama":
+            self._verify_ollama_parameters()
         return ModelIdentity(model=self.model, revision=self.model_revision)
+
+    def _verify_ollama_parameters(self) -> None:
+        # OpenAI compatibility cannot override top_k. Require the immutable
+        # model's parameter and digest to match before transmitting a prompt.
+        if self._http_client is None:
+            raise ModelIdentityError("identity_unavailable")
+        origin = self.base_url.removesuffix("/v1")
+        try:
+            tags = self._http_client.get(f"{origin}/api/tags", timeout=15)
+            show = self._http_client.post(f"{origin}/api/show", json={"model": self.model}, timeout=15)
+            if tags.is_redirect or show.is_redirect:
+                raise ModelIdentityError("identity_unavailable")
+            tags.raise_for_status()
+            show.raise_for_status()
+            models = tags.json().get("models", [])
+            matches = [row for row in models if row.get("name") == self.model]
+            if len(matches) != 1 or matches[0].get("digest") != self.model_revision:
+                raise ModelIdentityError("model_revision_invalid")
+            parameters = show.json().get("parameters", "")
+            values = re.findall(r"^top_k\s+(\d+)\s*$", parameters, re.MULTILINE)
+            if values != [str(APPROVED_GENERATION["top_k"])]:
+                raise ModelIdentityError("generation_config_mismatch")
+        except ModelIdentityError:
+            raise
+        except (httpx.HTTPError, ValueError, TypeError, AttributeError, OSError, ResponseTooLargeError):
+            raise ModelIdentityError("identity_unavailable") from None
 
     def _request(self, prompt: str, *, timeout_seconds: int) -> Mapping[str, Any]:
         return self.complete_structured(prompt, timeout_seconds=timeout_seconds)
@@ -547,6 +586,16 @@ class ModelClient:
         """
 
         selected = contract or self.output_contract
+        if self.api_dialect == "ollama":
+            self.verify_identity()
+        extra_body = (
+            {"reasoning_effort": "none"}
+            if self.api_dialect == "ollama"
+            else {
+                "top_k": APPROVED_GENERATION["top_k"],
+                "chat_template_kwargs": {"enable_thinking": APPROVED_GENERATION["enable_thinking"]},
+            }
+        )
         response = self._completion_create(
             model=self.model,
             messages=[
@@ -568,10 +617,7 @@ class ModelClient:
                     "schema": selected.schema,
                 },
             },
-            extra_body={
-                "top_k": APPROVED_GENERATION["top_k"],
-                "chat_template_kwargs": {"enable_thinking": APPROVED_GENERATION["enable_thinking"]},
-            },
+            extra_body=extra_body,
             timeout=float(timeout_seconds),
         )
         if isinstance(response, Mapping):
@@ -613,6 +659,7 @@ class ModelClient:
         prompt = build_prompt(stage, input_slice, policy, profile=profile, prior_stages=prior_stages)
         input_hash = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
         observations: list[dict[str, Any]] = []
+        last_raw_response: bytes | None = None
         for index in range(retries + 1):
             started = time.monotonic()
             try:
@@ -631,9 +678,14 @@ class ModelClient:
                 if not isinstance(choices, list) or len(choices) != 1 or not isinstance(choices[0], Mapping):
                     raise ValueError("malformed_json")
                 choice = choices[0]
-                if choice.get("finish_reason") == "length":
-                    raise EOFError("truncated_json")
                 if choice.get("finish_reason") != "stop":
+                    message = choice.get("message")
+                    if isinstance(message, Mapping) and isinstance(message.get("content"), str):
+                        candidate_raw = message["content"].encode("utf-8")
+                        if len(candidate_raw) <= MAX_RESPONSE_BYTES:
+                            last_raw_response = candidate_raw
+                    if choice.get("finish_reason") == "length":
+                        raise EOFError("truncated_json")
                     raise ValueError("malformed_json")
                 message = choice.get("message")
                 if not isinstance(message, Mapping) or not isinstance(message.get("content"), str):
@@ -642,6 +694,7 @@ class ModelClient:
                 output_bytes = output.encode("utf-8")
                 if len(output_bytes) > MAX_RESPONSE_BYTES:
                     raise ResponseTooLargeError("response_too_large")
+                last_raw_response = output_bytes
                 structured = json.loads(output)
                 if not isinstance(structured, Mapping):
                     raise ValueError("malformed_json")
@@ -678,7 +731,11 @@ class ModelClient:
                 code = "provider_error"
             elapsed = int((time.monotonic() - started) * 1000)
             observations.append({"retry_index": index, "status": "failed", "error_code": code, "latency_ms": elapsed})
-        raise ModelInvocationError(str(observations[-1].get("error_code", "provider_error")), observations)
+        raise ModelInvocationError(
+            str(observations[-1].get("error_code", "provider_error")),
+            observations,
+            raw_response=last_raw_response,
+        )
 
 __all__ = [
     "APPROVED_GENERATION",

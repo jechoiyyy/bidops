@@ -45,7 +45,7 @@ class ObjectMetadata:
 class ObjectStore(Protocol):
     def put(self, namespace: str, object_key: str, data: bytes, *, content_type: str) -> ObjectMetadata: ...
 
-    def get(self, namespace: str, object_key: str, *, max_bytes: int = MAX_OBJECT_BYTES) -> tuple[bytes, ObjectMetadata]: ...
+    def get(self, namespace: str, object_key: str, *, max_bytes: int = MAX_OBJECT_BYTES, version_id: str | None = None) -> tuple[bytes, ObjectMetadata]: ...
 
     def head(self, namespace: str, object_key: str) -> ObjectMetadata: ...
 
@@ -97,7 +97,7 @@ class FilesystemObjectStore:
             raise
         return ObjectMetadata(namespace, object_key, _digest(data), _digest(data), len(data))
 
-    def get(self, namespace: str, object_key: str, *, max_bytes: int = MAX_OBJECT_BYTES) -> tuple[bytes, ObjectMetadata]:
+    def get(self, namespace: str, object_key: str, *, max_bytes: int = MAX_OBJECT_BYTES, version_id: str | None = None) -> tuple[bytes, ObjectMetadata]:
         path = self._path(namespace, object_key)
         try:
             size = path.stat().st_size
@@ -109,6 +109,8 @@ class FilesystemObjectStore:
         except OSError as error:
             raise ObjectStoreError("object unavailable") from error
         metadata = ObjectMetadata(namespace, object_key, _digest(data), _digest(data), len(data))
+        if version_id is not None and version_id != metadata.object_version_id:
+            raise ObjectStoreError("object version unavailable")
         return data, metadata
 
     def head(self, namespace: str, object_key: str) -> ObjectMetadata:
@@ -160,11 +162,12 @@ class MinioObjectStore:
         except Exception as error:
             raise ObjectStoreError("object write failed") from error
 
-    def get(self, namespace: str, object_key: str, *, max_bytes: int = MAX_OBJECT_BYTES) -> tuple[bytes, ObjectMetadata]:
+    def get(self, namespace: str, object_key: str, *, max_bytes: int = MAX_OBJECT_BYTES, version_id: str | None = None) -> tuple[bytes, ObjectMetadata]:
         key = _validate_key(namespace, object_key)
         response = None
         try:
-            response = self._client(namespace).get_object(BUCKETS[namespace], self._key(key))
+            version_args = {"version_id": version_id} if version_id is not None else {}
+            response = self._client(namespace).get_object(BUCKETS[namespace], self._key(key), **version_args)
             chunks: list[bytes] = []
             total = 0
             while True:
@@ -176,7 +179,9 @@ class MinioObjectStore:
                     raise ObjectStoreError("object size limit")
                 chunks.append(chunk)
             data = b"".join(chunks)
-            metadata = self._metadata(namespace, key, len(data))
+            metadata = self._metadata(namespace, key, len(data), version_id=version_id)
+            if version_id is not None and metadata.object_version_id != version_id:
+                raise ObjectStoreError("object version mismatch")
             return data, metadata
         except ObjectStoreError:
             raise
@@ -187,9 +192,10 @@ class MinioObjectStore:
                 response.close()
                 response.release_conn()
 
-    def _metadata(self, namespace: str, object_key: str, size: int | None = None) -> ObjectMetadata:
+    def _metadata(self, namespace: str, object_key: str, size: int | None = None, *, version_id: str | None = None) -> ObjectMetadata:
         try:
-            stat = self._client(namespace).stat_object(BUCKETS[namespace], self._key(object_key))
+            version_args = {"version_id": version_id} if version_id is not None else {}
+            stat = self._client(namespace).stat_object(BUCKETS[namespace], self._key(object_key), **version_args)
             return ObjectMetadata(
                 namespace,
                 object_key,

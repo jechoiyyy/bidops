@@ -181,9 +181,11 @@ def _validate_nested_policy(body: Mapping[str, Any]) -> None:
     if not isinstance(candidate, dict) or set(candidate) != _CANDIDATE_SELECTION_KEYS:
         raise PolicyError("candidate selection schema is invalid")
     if (
-        candidate["rules_version"] != _CANDIDATE_SELECTION_LITERAL["rules_version"]
-        or candidate["mode"] != _CANDIDATE_SELECTION_LITERAL["mode"]
-        or candidate["include_collection_buckets"] != ["candidate_pool"]
+        (candidate["rules_version"], candidate["mode"], candidate["include_collection_buckets"])
+        not in (
+            ("collect-candidate.v2", "candidate_pool_all", ["candidate_pool"]),
+            ("sw-business-selection.v1", "sw_business_all", []),
+        )
         or candidate["rejudge_on"] != _CANDIDATE_SELECTION_LITERAL["rejudge_on"]
         or type(candidate["carry_over_if_unchanged"]) is not bool
         or candidate["carry_over_if_unchanged"] is not True

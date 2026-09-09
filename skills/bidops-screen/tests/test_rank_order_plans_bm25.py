@@ -109,6 +109,23 @@ def rank(input_path: Path, output_path: Path, references: dict[str, Any]) -> dic
 
 
 class RankOrderPlansBm25Tests(unittest.TestCase):
+    def test_ollama_reference_cannot_claim_quality_or_activation(self) -> None:
+        policy = json.loads(POLICY_TEMPLATE_PATH.read_bytes())
+        policy["stage2"].update(provider="approved_private_ollama", model_name="qwen3.8:27b")
+        policy["policy_status"] = "activation_candidate"
+        RANKER._validate_policy_document(policy)
+        for section, field, value in [
+            ("quality_gate", "status", "passed"),
+            ("quality_gate", "activation_eligible", True),
+            ("activation", "enabled", True),
+            ("activation", "approved_by", "test"),
+        ]:
+            with self.subTest(section=section, field=field):
+                changed = json.loads(json.dumps(policy))
+                changed[section][field] = value
+                with self.assertRaises(RANKER.ContractError):
+                    RANKER._validate_policy_document(changed)
+
     def test_nfkc_casefold_whitespace_and_character_boundaries(self) -> None:
         self.assertEqual("ai data platform", RANKER.normalize_title(" ＡＩ\t  Data\nPlatform "))
         grams = RANKER.character_ngrams("ＡＩ")

@@ -30,6 +30,7 @@ from app.deep_review.models import (
     DEEP_REVIEW_LEAN_V1_TABLES,
     DOCUMENT_SEGMENT_TABLES,
     PRESPEC_OVERVIEW_TABLES,
+    PRESPEC_V4_TABLES,
 )
 from app.lifecycle.models import (
     IDENTITY_TABLES,
@@ -70,6 +71,8 @@ ALL_TABLES = frozenset(
     + BID_DELTA_TABLES
     + ORDER_PLAN_SCREENING_TABLES
     + DOCUMENT_SEGMENT_TABLES
+    + ("prespec_company_fit_attempt",)
+    + PRESPEC_V4_TABLES
 )
 
 

@@ -11,6 +11,11 @@
 - `rhwp_convert.mjs` is the local, deployment-only adapter around that runtime;
   its relative import is `./rhwp/rhwp.js` because the converter and runtime are
   kept in this vendor directory.
+- `rhwp_render_canvas.mjs` is the local page-geometry adapter for the same
+  runtime. The worker loads the unchanged `rhwp.js` and WASM bytes into a
+  request-local Chromium Canvas print sheet; renderer text runs are assigned
+  with `textContent` as the selectable PDF layer. It does not use the older
+  SVG page adapter.
 - The runtime's MIT notice is retained in `rhwp/LICENSE`. The T2 authority and
   third-party notices are retained in this directory, and exact bytes for every
   vendored file are listed in `SHA256SUMS` (the manifest excludes itself).

@@ -704,6 +704,18 @@ def run_prespec_e2e(
         _run_overviews(session)
     service = DeepReviewService()
     with session_factory() as session:
+        # This fixture has no approved company-fit measurement. Exercise the
+        # explicit human creation path in the isolated acceptance run, without
+        # weakening the production automatic gate or inventing a matched fit.
+        for notice in session.scalars(select(Notice).where(Notice.source_type == "pre_spec")):
+            if (notice.qualification_flags_json or {}).get("sw_business_status") != "Y":
+                continue
+            if session.scalar(select(DeepReview.id).where(DeepReview.notice_id == notice.id)) is not None:
+                continue
+            bundle = session.scalar(select(DocumentBundle).where(DocumentBundle.notice_id == notice.id, DocumentBundle.status == "ready")
+                                    .order_by(DocumentBundle.revision.desc()).limit(1))
+            if bundle is not None:
+                service.create_review(session, notice.id, bundle.id, actor_name, uuid4(), actor_kind="human")
         _run_deep_reviews(session, service)
 
     with session_factory() as session:

@@ -81,9 +81,11 @@ test("사업 추적의 추적 상태 변경은 미저장 입력을 지키라고 
   });
 
   await page.goto("/opportunities/501");
-  await page.getByRole("button", { name: "추적 상태 변경 열기" }).click();
-  await page.getByLabel("이유").fill("검증용 미저장 메모");
-  await expect(page.getByText("저장되지 않은 추적 상태 변경이 있습니다.")).toBeVisible();
+  await page.getByRole("button", { name: "추적 상태 변경", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("combobox", { name: "선택 사유" }).click();
+  await page.getByRole("option", { name: "기타", exact: true }).click();
+  await dialog.getByLabel("선택 사유 직접 입력").fill("검증용 미저장 메모");
 
   const blocked = await page.evaluate(() => {
     const event = new Event("beforeunload", { cancelable: true });
@@ -92,18 +94,24 @@ test("사업 추적의 추적 상태 변경은 미저장 입력을 지키라고 
   });
   expect(blocked).toBe(true);
 
-  // 브라우저 종료·새로고침만 native 경고다. SPA 이동은 화면의 확인 다이얼로그가 받는다.
-  await page.locator('nav[aria-label="현재 위치"]').getByRole("link", { name: "사업 추적", exact: true }).click();
-  const dialog = page.getByRole("alertdialog");
-  await expect(dialog).toBeVisible();
-  await expect(dialog).toContainText("사업 추적 상세를 떠납니다");
+  // 추적 변경은 대화상자 안에서 진행한다. 배경의 이동 링크는 닫기 전까지
+  // 조작할 수 없고, 먼저 입력을 유지할지 버릴지 같은 창 안에서 확인한다.
+  await page.keyboard.press("Escape");
+  await expect(dialog).toContainText("입력한 내용을 버릴까요?");
   await expect(dialog).toContainText("저장된 추적 상태는 바뀌지 않습니다");
-  await dialog.getByRole("button", { name: "계속 편집", exact: true }).click();
-  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  await dialog.getByRole("button", { name: "계속 작성", exact: true }).click();
   await expect.poll(() => new URL(page.url()).pathname).toBe("/opportunities/501");
-  await expect(page.getByLabel("이유")).toHaveValue("검증용 미저장 메모");
+  await expect(dialog.getByLabel("선택 사유 직접 입력")).toHaveValue("검증용 미저장 메모");
 
+  await dialog.getByRole("button", { name: "취소", exact: true }).click();
+  await dialog.getByRole("button", { name: "입력 버리고 닫기", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator(".opportunity-action-footer")).toContainText("계속 추적");
+  expect(await page.evaluate(() => {
+    const event = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(event);
+    return event.defaultPrevented;
+  })).toBe(false);
   await page.locator('nav[aria-label="현재 위치"]').getByRole("link", { name: "사업 추적", exact: true }).click();
-  await page.getByRole("alertdialog").getByRole("button", { name: "저장하지 않고 이동", exact: true }).click();
   await expect.poll(() => new URL(page.url()).pathname).toBe("/opportunities");
 });

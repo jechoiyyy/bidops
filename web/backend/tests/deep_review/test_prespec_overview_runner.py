@@ -13,7 +13,7 @@ from typing import Any
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import event, select
 from sqlalchemy.orm import Session
 
 from app.core.model_client import ModelClient, ModelIdentity
@@ -215,6 +215,62 @@ def test_model_input_carries_only_block_text_page_ordinal_and_key(tmp_path: Path
         assert [item["block_key"] for item in blocks] == ["start", "body"]
         assert [item["ordinal"] for item in blocks] == [0, 1]
         assert all(set(item) == {"block_key", "page", "ordinal", "text"} for item in blocks)
+    finally:
+        session.close()
+        engine.dispose()
+
+
+def test_frozen_overview_input_needs_only_structure_storage(tmp_path: Path, monkeypatch) -> None:
+    from app.deep_review.services import assets
+    engine, session, _, review = _ready_review(tmp_path, "structure-only")
+    original = assets.read_object
+    reads = []
+    def structure_only(namespace, *args, **kwargs):
+        reads.append(namespace)
+        assert namespace == "structure", "analysis worker must not read source bytes"
+        return original(namespace, *args, **kwargs)
+    monkeypatch.setattr(assets, "read_object", structure_only)
+    try:
+        snapshot = session.get(PreSpecOverviewSnapshot, review.current_snapshot_id)
+        assert build_overview_model_input(session, snapshot, root=tmp_path)
+        assert reads == ["structure"]
+    finally:
+        session.close()
+        engine.dispose()
+
+
+def test_immutable_snapshot_reads_do_not_require_update_privileges(tmp_path: Path) -> None:
+    engine, session, _, _ = _ready_review(tmp_path, "snapshot-read-only")
+    checked = []
+    def check_statement(state):
+        if not state.is_select:
+            return
+        if any(d.get('entity') is PreSpecOverviewSnapshot for d in state.statement.column_descriptions):
+            assert state.statement._for_update_arg is None
+            checked.append(True)
+    event.listen(session, 'do_orm_execute', check_statement)
+    try:
+        outcome = _runner(tmp_path, _FakeClient([_result_payload()]), binding=_binding()).run_once(session, WORKER_ID)
+        assert outcome.status == 'completed'
+        assert checked
+    finally:
+        session.close()
+        engine.dispose()
+
+
+def test_failed_reverification_does_not_reuse_ready_snapshot(tmp_path: Path, monkeypatch) -> None:
+    from app.deep_review.services import assets
+    engine, session, notice, review = _ready_review(tmp_path, "reverification")
+    original_snapshot_id = review.current_snapshot_id
+    def unavailable(*args, **kwargs):
+        raise assets.AssetError('service_unavailable', 'unavailable')
+    monkeypatch.setattr(assets, 'read_object', unavailable)
+    try:
+        prepared = prepare_overview_review(session, notice.id, root=tmp_path)
+        assert prepared.status == 'needs_human_review'
+        assert prepared.current_snapshot_id is None
+        assert prepared.current_snapshot is None
+        assert session.get(PreSpecOverviewSnapshot, original_snapshot_id).cut_status == 'ready'
     finally:
         session.close()
         engine.dispose()
@@ -633,10 +689,10 @@ def _auto_start_ready(
     return engine, session, notice, bundle, review
 
 
-def test_a_completed_overview_starts_the_deep_review_for_an_sw_business_pre_spec(
+def test_a_completed_overview_waits_for_company_fit_before_deep_review(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """개요가 `추진 검토`로 끝나면 같은 poll에서 심층 검토가 만들어진다."""
+    """개요 완료만으로는 회사 핏 게이트를 통과하지 않는다."""
 
     engine, session, notice, bundle, review = _auto_start_ready(
         tmp_path, monkeypatch, "autostart"
@@ -653,10 +709,8 @@ def test_a_completed_overview_starts_the_deep_review_for_an_sw_business_pre_spec
         session.commit()
 
         assert outcome.status == "completed"
-        assert deep_reviews.calls == [
-            (notice.id, bundle.id, AUTO_ACTOR_NAME, AUTO_ACTOR_KIND)
-        ]
-        assert len(session.scalars(select(DeepReview)).all()) == 1
+        assert deep_reviews.calls == []
+        assert len(session.scalars(select(DeepReview)).all()) == 0
         session.refresh(review)
         assert review.status == "completed"
     finally:
@@ -694,6 +748,12 @@ def test_a_failing_auto_start_does_not_undo_the_completed_overview(
 ) -> None:
     """hook 실패가 개요 완료를 되돌리면 안 된다."""
 
+    from app.deep_review.services import company_fit
+    monkeypatch.setattr(
+        company_fit,
+        "gate_reasons",
+        lambda session, ids, *, current_v4=None: {i: None for i in ids},
+    )
     engine, session, _notice_row, _bundle, review = _auto_start_ready(
         tmp_path, monkeypatch, "autostart-fail"
     )

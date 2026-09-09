@@ -36,6 +36,8 @@ interface ActorFieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "o
   value: string;
   /** 기억 동작을 끄고 그 화면에서만 쓰는 이름으로 둘 때 false. */
   remember?: boolean;
+  /** A compact decision panel can supply a complete description of remembering. */
+  showRememberNote?: boolean;
 }
 
 /** 담당자가 스스로 적는 이름이며 감사 표식일 뿐 로그인·신원 인증·권한이 아니다. */
@@ -47,6 +49,7 @@ export function ActorField({
   onChange,
   value,
   remember = true,
+  showRememberNote = true,
   ...inputProps
 }: ActorFieldProps) {
   const generatedId = useId();
@@ -80,7 +83,7 @@ export function ActorField({
           onChange(next);
         }}
       />
-      <p id={descriptionId}>{remember ? `${description} ${REMEMBER_NOTE}` : description}</p>
+      <p id={descriptionId}>{remember && showRememberNote ? `${description} ${REMEMBER_NOTE}` : description}</p>
     </div>
   );
 }

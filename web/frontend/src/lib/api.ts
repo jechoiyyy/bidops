@@ -1,4 +1,15 @@
 import type {
+  BidDeltaDecisionQueueQuery,
+  BidDeltaDecisionQueueResponse,
+  OpportunityTrackingDecisionsResponse,
+  OpportunityDeepReviewsResponse,
+  WorkloadResponse,
+  OrderPlanScreeningExecutionCreateRequest,
+  OrderPlanScreeningExecutionCreateResponse,
+  OrderPlanScreeningExecutionStopRequest,
+  OrderPlanScreeningExecutionStopResponse,
+  OrderPlanScreeningError,
+  OrderPlanScreeningErrorCode,
   AgencyPortal,
   AlwaysOnSwitchResponse,
   AlwaysOnSwitchUpdateRequest,
@@ -17,15 +28,14 @@ import type {
   OrderPlanScreeningExecutionQuery,
   OrderPlanScreeningFeedbackCreateRequest,
   OrderPlanScreeningFeedbackCreateResponse,
-  OrderPlanTrackingDecisionCreateRequest,
-  OrderPlanTrackingDecisionCreateResponse,
-  OrderPlanTrackingHistoryResponse,
   OrderPlanScreeningFeedbackListResponse,
   OrderPlanScreeningHistoryResponse,
   PreSpecListQuery,
   PreSpecListResponse,
   PreSpecOverviewReviewsResponse,
   PreSpecOverviewReviewsV2Response,
+  PageOverviewResponse,
+  CompanyFitResponse,
   OpportunityDetailResponse,
   CandidateLinkDecisionRequest,
   OpportunityLinkView,
@@ -80,12 +90,17 @@ type ReadRequestOptions = {
 export class ApiError extends Error {
   readonly status: number;
   readonly detail: unknown;
+  readonly code: string | null;
+  readonly requestId: string | null;
 
-  constructor(status: number, message: string, detail: unknown = null) {
+  constructor(status: number, message: string, detail: unknown = null, requestId: unknown = null) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.detail = detail;
+    const code = typeof detail === "object" && detail !== null && "code" in detail ? detail.code : null;
+    this.code = typeof code === "string" && /^[a-z][a-z0-9_]*$/.test(code) ? code : null;
+    this.requestId = typeof requestId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestId) ? requestId : null;
   }
 }
 
@@ -140,7 +155,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
         && typeof detail.message === "string"
         ? detail.message
         : `API 요청이 실패했습니다 (${response.status}).`;
-    throw new ApiError(response.status, message, detail);
+    throw new ApiError(response.status, message, detail,
+      typeof body === "object" && body !== null && "request_id" in body ? body.request_id : null);
   }
 
   return body as T;
@@ -180,17 +196,19 @@ async function requestBlob(path: string): Promise<Blob> {
         && typeof detail.message === "string"
         ? detail.message
         : `API 요청이 실패했습니다 (${response.status}).`;
-    throw new ApiError(response.status, message, detail);
+    throw new ApiError(response.status, message, detail,
+      typeof body === "object" && body !== null && "request_id" in body ? body.request_id : null);
   }
 
   return response.blob();
 }
 
-function query(params: Record<string, string | number | null | undefined>): string {
+function query(params: Record<string, string | number | boolean | readonly string[] | null | undefined>): string {
   const search = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
     if (value !== null && value !== undefined && value !== "") {
-      search.set(key, String(value));
+      const serializedValue = Array.isArray(value) ? value.join(",") : String(value);
+      if (serializedValue !== "") search.set(key, serializedValue);
     }
   });
   const serialized = search.toString();
@@ -198,6 +216,17 @@ function query(params: Record<string, string | number | null | undefined>): stri
 }
 
 export const api = {
+  getWorkload: (options?: ReadRequestOptions) => request<WorkloadResponse>("/workload", options),
+
+  getBidDeltaDecisionQueue: (params: BidDeltaDecisionQueueQuery = {}, options?: ReadRequestOptions) =>
+    request<BidDeltaDecisionQueueResponse>(`/bid-delta/decision-queue${query({ ...params })}`, options),
+
+  getOpportunityTrackingDecisions: (opportunityId: number, options?: ReadRequestOptions) =>
+    request<OpportunityTrackingDecisionsResponse>(`/opportunities/${opportunityId}/tracking-decisions`, options),
+
+  getOpportunityDeepReviews: (opportunityId: number, options?: ReadRequestOptions) =>
+    request<OpportunityDeepReviewsResponse>(`/opportunities/${opportunityId}/deep-reviews`, options),
+
   getRuns: () => request<RunListResponse>("/runs"),
 
   getRun: (runId: string) => request<RunDetailResponse>(`/runs/${encodeURIComponent(runId)}`),
@@ -324,6 +353,27 @@ export const api = {
       options,
     ),
 
+  createOrderPlanScreeningExecution: (
+    payload: OrderPlanScreeningExecutionCreateRequest,
+    actorName: string,
+  ) => request<OrderPlanScreeningExecutionCreateResponse>("/order-plan-screening/executions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...actorHeaders(actorName) },
+    body: JSON.stringify(payload),
+  }),
+
+  stopOrderPlanScreeningExecution: (
+    executionId: string,
+    payload: OrderPlanScreeningExecutionStopRequest,
+    actorName: string,
+  ) => request<OrderPlanScreeningExecutionStopResponse>(
+    `/order-plan-screening/executions/${encodeURIComponent(executionId)}/stop`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...actorHeaders(actorName) },
+      body: JSON.stringify(payload),
+    },
+  ),
+
   getOrderPlanScreeningFeedback: (
     orderPlanPk: number,
     executionId?: string | null,
@@ -341,36 +391,6 @@ export const api = {
   ) =>
     request<OrderPlanScreeningFeedbackCreateResponse>(
       `/order-plans/${orderPlanPk}/screening-feedback`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...actorHeaders(actorName) },
-        body: JSON.stringify(payload),
-      },
-    ),
-
-  // --- 발주계획 추적 결정 (결정 1) ---
-  //
-  // 이 두 method 는 **아직 서버에 없는 계약**을 부른다.
-  // `docs/design/order-plan-tracking-contract-request.md` 가 정본이며 채택이 아니라 요청안이다.
-  // 화면이 계약 모양을 아는 자리를 여기 하나로 제한한다 — 요청안 §2.3 의 대안(기존
-  // `PATCH /opportunities/{id}/tracking-status`)으로 확정되면 이 두 함수만 바뀐다.
-  //
-  // 사람 판단 수정(`createOrderPlanScreeningFeedback`)과 **다른 경로**다. ADR-0046 결정 5 와
-  // 요청안 §3 에 따라 한 요청으로 합치지 않는다.
-
-  getOrderPlanTrackingDecisions: (orderPlanPk: number, options?: ReadRequestOptions) =>
-    request<OrderPlanTrackingHistoryResponse>(
-      `/order-plans/${orderPlanPk}/tracking-decisions`,
-      options,
-    ),
-
-  createOrderPlanTrackingDecision: (
-    orderPlanPk: number,
-    payload: OrderPlanTrackingDecisionCreateRequest,
-    actorName: string,
-  ) =>
-    request<OrderPlanTrackingDecisionCreateResponse>(
-      `/order-plans/${orderPlanPk}/tracking-decisions`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json", ...actorHeaders(actorName) },
@@ -569,6 +589,7 @@ export const api = {
         notice_pk: params.notice_pk,
         sw_only: params.sw_only === null || params.sw_only === undefined ? undefined : String(params.sw_only),
         business_division: params.business_division,
+        auto_preparation_status: params.auto_preparation_status,
         origin: params.origin,
         q: params.q,
         sort: params.sort,
@@ -580,6 +601,11 @@ export const api = {
 
   getPreSpecOverviewReviews: (noticeId: number, options?: ReadRequestOptions) =>
     request<PreSpecOverviewReviewsResponse>(`/pre-specs/${noticeId}/overview-reviews`, options),
+
+  getPageOverviews: (noticeId: number, options?: ReadRequestOptions) =>
+    request<PageOverviewResponse>(`/pre-specs/${noticeId}/overview-pages`, options),
+  getCompanyFit: (noticeId: number, options?: ReadRequestOptions) =>
+    request<CompanyFitResponse>(`/pre-specs/${noticeId}/company-fit`, options),
 
   getPreSpecOverviewReviewsV2: (noticeId: number, options?: ReadRequestOptions) =>
     request<PreSpecOverviewReviewsV2Response>(`/pre-specs/${noticeId}/overview-reviews/v2`, options),
@@ -643,6 +669,7 @@ export const api = {
   getOpportunities: (params: OpportunityListQuery = {}, options?: ReadRequestOptions) =>
     request<OpportunityListResponse>(
       `/opportunities${query({
+        section: params.section,
         tracking_status: params.tracking_status,
         first_registered_stage: params.first_registered_stage,
         sort: params.sort,
@@ -678,3 +705,19 @@ export const api = {
       body: JSON.stringify(payload),
     }),
 };
+
+
+const ORDER_PLAN_SCREENING_ERROR_CODES: readonly OrderPlanScreeningErrorCode[] = [
+  "actor_name_required", "actor_name_invalid", "invalid_request", "not_found",
+  "source_run_incomplete", "policy_not_active", "binding_mismatch", "service_unavailable",
+  "active_execution_exists", "idempotency_conflict", "immutable_conflict",
+  "execution_not_stoppable", "artifact_kind_invalid", "artifact_not_ready", "feedback_conflict", "processing_failed",
+];
+
+/** Reads only stable codes from the common API parser, never server messages. */
+export function parseOrderPlanScreeningError(error: unknown): OrderPlanScreeningError | null {
+  if (!(error instanceof ApiError)) return null;
+  const code = ORDER_PLAN_SCREENING_ERROR_CODES.find((candidate) => candidate === error.code)
+    ?? (error.status === 422 ? "invalid_request" : error.status === 503 ? "service_unavailable" : null);
+  return { status: error.status, code, request_id: error.requestId };
+}

@@ -1,4 +1,6 @@
-import { lazy } from "react";
+import { lazy, type ReactNode } from "react";
+import { InternationalizationProvider } from "@astryxdesign/core/i18n";
+import koKR from "@astryxdesign/core/locales/ko-KR.json";
 import { Navigate, useSearchParams, type RouteObject } from "react-router-dom";
 import { LazyRouteBoundary } from "./components/common/LazyRouteBoundary";
 import { AppShell } from "./components/shell/AppShell";
@@ -15,6 +17,13 @@ const OrderPlansPage = lazy(() => import("./pages/OrderPlansPage").then(({ Order
 const OrderPlanDetailPage = lazy(() => import("./pages/OrderPlanDetailPage").then(({ OrderPlanDetailPage }) => ({ default: OrderPlanDetailPage })));
 const CriteriaPage = lazy(() => import("./pages/CriteriaPage").then(({ CriteriaPage }) => ({ default: CriteriaPage })));
 const RunStatusPage = lazy(() => import("./pages/RunStatusPage").then(({ RunStatusPage }) => ({ default: RunStatusPage })));
+
+// 승인된 두 관리 화면과 그 대화상자에 시안의 한국어 카탈로그를 적용한다.
+function adminLocale(page: ReactNode) {
+  return <InternationalizationProvider locale="ko-KR" messages={{ "ko-KR": koKR }}>{page}</InternationalizationProvider>;
+}
+const criteriaView = adminLocale(<CriteriaPage />);
+const runStatusView = adminLocale(<RunStatusPage />);
 const ReviewWorkspacePage = lazy(() => import("./pages/ReviewWorkspacePage").then(({ ReviewWorkspacePage }) => ({ default: ReviewWorkspacePage })));
 const GoNoGoPage = lazy(() => import("./pages/GoNoGoPage").then(({ GoNoGoPage }) => ({ default: GoNoGoPage })));
 
@@ -60,17 +69,17 @@ export const routes: RouteObject[] = [
           { path: "pre-specs", element: <PreSpecsPage />, handle: routeHandle(routeMetadata.preSpecs) },
           { path: "pre-specs/:noticeId", element: <PreSpecDetailPage />, handle: routeHandle(routeMetadata.preSpecs) },
           // 기준 4화면은 판정 기준 한 화면의 탭이다. 옛 경로가 각 탭의 주소다.
-          { path: "criteria", element: <CriteriaPage />, handle: routeHandle(routeMetadata.criteria) },
-          { path: "profile", element: <CriteriaPage />, handle: routeHandle(routeMetadata.criteria) },
-          { path: "metrics", element: <CriteriaPage />, handle: routeHandle(routeMetadata.criteria) },
-          { path: "quality-gates", element: <CriteriaPage />, handle: routeHandle(routeMetadata.criteria) },
-          { path: "policies", element: <CriteriaPage />, handle: routeHandle(routeMetadata.criteria) },
+          { path: "criteria", element: criteriaView, handle: routeHandle(routeMetadata.criteria) },
+          { path: "profile", element: criteriaView, handle: routeHandle(routeMetadata.criteria) },
+          { path: "metrics", element: criteriaView, handle: routeHandle(routeMetadata.criteria) },
+          { path: "quality-gates", element: criteriaView, handle: routeHandle(routeMetadata.criteria) },
+          { path: "policies", element: criteriaView, handle: routeHandle(routeMetadata.criteria) },
           // 운영 3화면과 산출물 감사 로그는 실행 상태 한 화면의 탭이다.
-          { path: "run-status", element: <RunStatusPage />, handle: routeHandle(routeMetadata.runStatus) },
-          { path: "runs", element: <RunStatusPage />, handle: routeHandle(routeMetadata.runStatus) },
-          { path: "attachments", element: <RunStatusPage />, handle: routeHandle(routeMetadata.runStatus) },
-          { path: "operations", element: <RunStatusPage />, handle: routeHandle(routeMetadata.runStatus) },
-          { path: "audit", element: <RunStatusPage />, handle: routeHandle(routeMetadata.runStatus) },
+          { path: "run-status", element: runStatusView, handle: routeHandle(routeMetadata.runStatus) },
+          { path: "runs", element: runStatusView, handle: routeHandle(routeMetadata.runStatus) },
+          { path: "attachments", element: runStatusView, handle: routeHandle(routeMetadata.runStatus) },
+          { path: "operations", element: runStatusView, handle: routeHandle(routeMetadata.runStatus) },
+          { path: "audit", element: runStatusView, handle: routeHandle(routeMetadata.runStatus) },
           { path: "deep-reviews/:deepReviewId", element: <DeepReviewPage />, handle: routeHandle(routeMetadata.deepReview) },
         ],
       },

@@ -89,6 +89,8 @@ _TERMINAL_CODES = frozenset(
         "encrypted_pdf",
         "pdf_object_limit",
         "pdf_page_limit",
+        "pdf_page_mismatch",
+        "pdf_empty_text",
         "malformed_image",
         "ocr_failed",
         "ocr_unavailable",

@@ -154,7 +154,7 @@ def test_empty_notice_ids_return_empty_mappings_without_querying(projection_db):
     assert statements == []
 
 
-def test_each_projection_method_issues_exactly_one_query(projection_db):
+def test_each_projection_method_uses_a_bounded_batch_projection(projection_db):
     session, engine, refs = projection_db
     projection = PreSpecOverviewDocumentProjection()
     ids = [refs["reviewed"].id, refs["counted"].id, refs["bare"].id]
@@ -170,4 +170,7 @@ def test_each_projection_method_issues_exactly_one_query(projection_db):
         projection.document_counts(session, ids)
     finally:
         event.remove(engine, "before_cursor_execute", record)
-    assert len(statements) == 3
+    # status and count each read the v4 batch current projection (two relation
+    # queries when the fixture has no v4 rows) plus one legacy compatibility
+    # query; document counts remains one grouped query.
+    assert len(statements) == 7

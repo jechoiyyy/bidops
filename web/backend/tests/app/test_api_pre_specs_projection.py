@@ -21,6 +21,8 @@ from sqlalchemy import event
 
 from app.main import app  # noqa: F401 — 조립 계층이 lifecycle 확장점을 등록한다
 from app.deep_review import PreSpecOverviewReview
+from app.deep_review.services import company_fit
+from app.deep_review.services import prespec_projection
 from app.deep_review.models import (
     ContentObject,
     DocumentBundle,
@@ -130,6 +132,39 @@ def test_pre_specs_overview_review_status_projects_from_review_row(pre_specs_api
     assert items[refs["sw_no"].id]["overview_review_status"] is None
 
 
+def test_pre_specs_list_uses_v4_current_status_for_item_and_counts(
+    pre_specs_api, monkeypatch
+):
+    session, _engine, refs = pre_specs_api
+    session.add(
+        PreSpecOverviewReview(
+            notice_id=refs["sw_yes"].id,
+            status="completed",
+            result="추진 검토",
+            completed_at=datetime(2026, 8, 25, tzinfo=UTC),
+        )
+    )
+    session.commit()
+    current = {
+        refs["sw_yes"].id: {"status": "failed", "result_id": None},
+        refs["sw_no"].id: None,
+    }
+
+    def controlled_current(_session, notice_ids):
+        return {notice_id: current.get(notice_id) for notice_id in notice_ids}
+
+    monkeypatch.setattr(prespec_projection, "current_v4_projections", controlled_current)
+    monkeypatch.setattr(company_fit, "current_v4_projections", controlled_current)
+
+    payload = _payload(session, sw_only=False)
+    items = _items_by_id(payload)
+    counts = {row["status"]: row["count"] for row in payload["overview_status_counts"]}
+
+    assert items[refs["sw_yes"].id]["overview_review_status"] == "failed"
+    assert counts["failed"] == 1
+    assert counts["completed"] == 0
+
+
 def test_pre_specs_overview_status_counts_always_lists_all_ten_values_plus_null(pre_specs_api):
     session, _engine, refs = pre_specs_api
     _add_overview_rows(session, refs)
@@ -180,9 +215,10 @@ def test_pre_specs_list_uses_constant_query_count(pre_specs_api):
 
     # lifecycle 몫(필터된 공고 id 집합, 페이지)과 projection 몫(개요 상태, 상태별
     # 건수, 첨부 취득 건수, 등급·자동 준비 필드)을 합쳐도 상수 회다. 공고당
-    # 조회는 없다. 상한은 실측 회수이며, 공고 수와 무관하다는 사실은 아래
+    # 조회는 없다. v4 current projection이 두 관계 batch 조회를 추가하므로
+    # 상한은 기존보다 늘었지만, 공고 수와 무관하다는 사실은 아래
     # `..._does_not_grow_with_the_number_of_notices`가 본다.
-    assert len(statements) <= 14
+    assert len(statements) <= 18
     assert response["total"] == 9
 
 

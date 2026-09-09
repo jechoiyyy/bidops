@@ -86,6 +86,11 @@ test -f web/backend/app/screening/baseline_company_profile.md && test -r web/bac
 
 `docker-compose.yml`이 기준 배포 파일이다. 항상 전용 `COMPOSE_PROJECT_NAME`을 쓰고, 다른 worktree의 컨테이너·volume을 건드리지 않는다.
 
+이미 설치된 서버는 저장소 루트에서 `make up`으로 켠다. `make status`, `make health`,
+`make logs`, `make restart`, `make stop`을 제공하며 `make help`로 사용법을 확인할 수 있다.
+기존 컨테이너를 사용하는 명령의 범위는 [일상 실행 절차](docs/operations.md#설치된-서버의-일상-실행)를 따른다.
+처음 설치하는 환경에서는 아래 절차를 먼저 진행한다.
+
 ```bash
 cp .env.example .env
 cp env/vllm.env.example env/vllm.env

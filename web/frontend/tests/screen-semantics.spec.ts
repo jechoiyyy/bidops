@@ -15,6 +15,7 @@ import { installScreenFixtures } from "./screen-fixtures";
 
 const RUN_ID = "20260817-20260823--20260824T090927.138116Z";
 const ACTIVE_POLICY = "screening-policy.v1.20260825";
+const CANDIDATE_POLICY = "screening-policy.v1.20260826";
 const ACTIVE_GATE_EVALUATION = "gateeval-11111111111111111111111111111111";
 const CANDIDATE_GATE_EVALUATION = "gateeval-22222222222222222222222222222222";
 
@@ -46,64 +47,40 @@ test("공통 셸이 로컬 글꼴과 기능 아이콘 접근성을 지킨다", a
   expect(unnamedButtons).toEqual([]);
 });
 
-test("대시보드의 마감 링크가 회차와 정렬을 함께 전달한다", async ({ page }) => {
+test("대시보드의 마감 공고 링크가 상세와 회차를 함께 전달한다", async ({ page }) => {
   await page.goto(`/?run=${encodeURIComponent(RUN_ID)}`);
-  await page.getByRole("link", { name: /전체 보기/ }).click();
-  await expect.poll(() => new URL(page.url()).pathname).toMatch(/^\/queue(?:\/\d+)?$/);
-  const params = new URL(page.url()).searchParams;
-  expect(params.get("run")).toBe(RUN_ID);
-  expect(params.get("sort")).toBe("deadline");
+  const link = page.locator(".dash-notice-link").first();
+  await expect(link).toBeVisible();
+  const target = new URL(await link.getAttribute("href") ?? "", page.url());
+  expect(target.pathname).toMatch(/^\/judgments\/\d+$/);
+  expect(target.searchParams.get("run")).toBe(RUN_ID);
+  await link.click();
+  await expect.poll(() => new URL(page.url()).pathname).toBe(target.pathname);
 });
 
-test("대시보드 퍼널은 단계별 건수와 직전 단계 잔존율을 함께 보여준다", async ({ page }) => {
+test("대시보드 회차 요약이 API 집계와 별도 담당자 리뷰 수를 보여준다", async ({ page }) => {
   await page.goto(`/?run=${encodeURIComponent(RUN_ID)}`);
-  const rows = page.locator(".dashboard-funnel-row");
-  await expect(rows).toHaveCount(4);
-  const widths = await rows.locator(".dashboard-funnel-bar").evaluateAll((bars) => bars.map((bar) => Number.parseFloat((bar as HTMLElement).style.width)));
-  expect(widths[0]).toBeCloseTo(100, 3);
-  expect(widths[1]).toBeCloseTo((327 / 2546) * 100, 3);
-  expect(widths[2]).toBeCloseTo((40 / 327) * 100, 3);
-  expect(widths[3]).toBeCloseTo((17 / 40) * 100, 3);
-  expect(widths[3]).toBeGreaterThan(widths[2]);
-  await expect(rows.nth(0)).toContainText("2,546건");
-  await expect(rows.nth(0)).toContainText("기준");
-  await expect(rows.nth(2)).toContainText("12.2%");
-  await expect(rows.nth(2)).toContainText("40건");
-  await expect(rows.nth(3)).toContainText("42.5%");
-  await expect(rows.nth(3)).toContainText("17건");
-  await expect(page.locator(".dashboard-funnel-axis")).toContainText("0%25%50%75%100%");
+  await expect(page.getByRole("group", { name: "수집", exact: true })).toContainText("2,546건");
+  await expect(page.getByRole("group", { name: "후보 풀", exact: true })).toContainText("327건");
+  await expect(page.getByRole("group", { name: "판정 표본", exact: true })).toContainText("40건");
+  await expect(page.getByRole("group", { name: "담당자 리뷰", exact: true })).toContainText("0건");
 });
 
-// 할 일 스트립은 네 결정을 첫 줄에 고정하고, 회차 통계에서만 나오는 보조
-// 항목을 아래 줄에 둔다. 확인하지 못한 건수는 큰 숫자 자리를 차지하지 않는다 —
-// 큰 글자로 두면 0이나 오류처럼 읽힌다(docs/design/PRD.md §4).
-test("할 일 스트립은 네 결정을 한 줄에 두고 확인 불가를 숫자로 키우지 않는다", async ({ page }) => {
+test("대시보드는 네 업무를 한 줄에 두고 미확인을 작은 주석으로 표시한다", async ({ page }) => {
   await page.goto(`/?run=${encodeURIComponent(RUN_ID)}`);
-  const decisions = page.locator(".dashboard-action-decisions .dashboard-action-item");
+  const decisions = page.locator(".dash-journey-item");
   await expect(decisions).toHaveCount(4);
-  await expect(decisions.first().locator("strong")).toHaveText(/확인 불가|확인 중|[0-9]/);
-
-  const rows = await decisions.evaluateAll((items) => items.map((item) => Math.round(item.getBoundingClientRect().top)));
-  expect(new Set(rows).size, `네 결정이 한 줄이 아니다: ${rows.join(",")}`).toBe(1);
-
-  // 제목이 잘리면 어느 결정인지 읽을 수 없다. 두 줄까지 늘어나고 자르지 않는다.
-  const clipped = await decisions.locator(".dashboard-action-item-title").evaluateAll((titles) => titles
-    .filter((title) => title.scrollWidth - title.clientWidth > 1)
-    .map((title) => title.textContent ?? ""));
+  const rows = await decisions.evaluateAll(items => items.map(item => Math.round(item.getBoundingClientRect().top)));
+  expect(new Set(rows).size).toBe(1);
+  const clipped = await decisions.locator(".dash-journey-title").evaluateAll(titles => titles
+    .filter(title => title.scrollWidth - title.clientWidth > 1).map(title => title.textContent));
   expect(clipped).toEqual([]);
-
-  // `확인 불가`는 서버에 집계가 없다는 뜻이고 0이 아니다. 숫자 자리를 비운다.
-  const unavailable = decisions.locator("strong.is-unavailable");
-  expect(await unavailable.count()).toBeGreaterThan(0);
-  const unavailableSizes = await unavailable.evaluateAll((values) => values
-    .map((value) => Number.parseFloat(getComputedStyle(value).fontSize)));
-  for (const size of unavailableSizes) expect(size).toBeLessThanOrEqual(16);
-
-  // 회차 자료에서 나오는 보조 항목은 네 결정 아래 줄이다.
-  const secondary = page.locator(".dashboard-action-secondary .dashboard-action-item").first();
-  await expect(secondary).toBeVisible();
-  const secondaryTop = await secondary.evaluate((item) => Math.round(item.getBoundingClientRect().top));
-  expect(secondaryTop).toBeGreaterThan(rows[0]);
+  const unavailable = decisions.locator(".dash-small").filter({ hasText: "미확인" });
+  await expect(unavailable).toHaveCount(3);
+  const sizes = await unavailable.evaluateAll(values => values.map(value => Number.parseFloat(getComputedStyle(value).fontSize)));
+  for (const size of sizes) expect(size).toBe(12);
+  const context = page.getByRole("region", { name: "회차 자료 범위" });
+  expect(await context.evaluate(item => item.getBoundingClientRect().top)).toBeGreaterThan(rows[0]);
 });
 
 test("흡수한 마감·감사 경로가 기존 쿼리를 보존한다", async ({ page }) => {
@@ -130,29 +107,29 @@ test("흡수한 마감·감사 경로가 기존 쿼리를 보존한다", async (
 test("담당자 확인 요청을 펼치고 접을 수 있다", async ({ page }) => {
   await page.goto(`/?run=${encodeURIComponent(RUN_ID)}`);
   const list = page.locator("#dashboard-verification-list");
-  const toggle = page.getByRole("button", { name: /나머지/ });
+  const toggle = page.locator("[aria-controls=dashboard-verification-list]");
   await expect(list.locator("li")).toHaveCount(3);
   await toggle.click();
   await expect(toggle).toHaveAttribute("aria-expanded", "true");
-  await expect(toggle).toHaveText("나머지 접기");
+  await expect(toggle).toHaveText("접기");
   expect(await list.locator("li").count()).toBeGreaterThan(3);
 });
 
 test("담당자 확인 요청 프로필 링크가 선택한 회차를 보존한다", async ({ page }) => {
   await page.goto(`/?run=${encodeURIComponent(RUN_ID)}`);
-  await page.getByRole("link", { name: /회사 프로필에서 확정하기/ }).click();
+  await page.getByRole("link", { name: "회사 프로필", exact: true }).click();
   await expect.poll(() => new URL(page.url()).pathname).toBe("/profile");
   expect(new URL(page.url()).searchParams.get("run")).toBe(RUN_ID);
 });
 
 test("감사 누락 수는 보존하고 확인할 수 없는 분모를 추정하지 않는다", async ({ page }) => {
   await page.goto(`/?run=${encodeURIComponent(RUN_ID)}`);
-  const candidateKpi = page.getByRole("region", { name: "후보 풀" });
+  const candidateKpi = page.getByRole("group", { name: "후보 풀", exact: true });
   await expect(candidateKpi).toContainText("327");
   await expect(candidateKpi).not.toContainText("감사 풀");
-  const kpi = page.getByRole("region", { name: "1차 필터 누락" });
-  await expect(kpi).toContainText("5 / 표본 미확인");
-  await expect(kpi).toContainText("감사 표본 분모를 확인할 수 없어 누락률을 계산하지 않습니다.");
+  const kpi = page.getByRole("group", { name: "1차 필터 누락" });
+  await expect(kpi).toContainText("5건");
+  await expect(kpi).toContainText("감사 표본 분모 미확인");
 });
 
 test("프로필의 불완전한 응답은 상태와 미확인을 0으로 확정하지 않는다", async ({ page }) => {
@@ -188,9 +165,9 @@ test("프로필의 불완전한 응답은 상태와 미확인을 0으로 확정�
 
   await page.goto("/profile");
   await expect(page.getByRole("alert")).toContainText("프로필 응답 확인 필요");
-  await expect(page.locator(".profile-summary strong")).toHaveText(["미확인", "미확인", "미확인"]);
-  await expect(page.locator(".profile-unknown-panel")).toContainText("미확인 항목을 표시할 수 없습니다.");
-  await expect(page.locator(".profile-unknown-panel")).not.toContainText("0건");
+  await expect(page.locator(".crit-profile-summary strong")).toHaveText(["미확인", "미확인", "미확인"]);
+  // 승인 시안의 요약·목록에서도 파싱 실패가 실제 미확인 0건으로 바뀌지 않는다.
+  await expect(page.locator(".crit-summary")).not.toContainText(/미확인 항목 0(?:\D|$)/);
   await expect(page.getByText("미확인 항목이 없습니다. · 0건", { exact: true })).toHaveCount(0);
 });
 
@@ -205,7 +182,7 @@ test("프로필 읽기 실패는 빈 정상 상태가 아니라 오류 상태로
 
   await page.goto("/profile");
   await expect(page.getByText("회사 프로필을 불러오지 못했습니다.", { exact: true })).toBeVisible();
-  await expect(page.getByText("승인된 프로필 사본과 구조화 상태를 확인할 수 없습니다.", { exact: true })).toBeVisible();
+  await expect(page.getByText(/^승인된 프로필 사본과 구조화 상태를 확인할 수 없습니다\./)).toBeVisible();
 });
 
 test("진행 중인 전량 판정은 중복 실행할 수 없다", async ({ page }) => {
@@ -216,16 +193,19 @@ test("진행 중인 전량 판정은 중복 실행할 수 없다", async ({ page
 });
 
 test("정책 활성화는 최신 운영 게이트와 담당자 없이는 열리지 않는다", async ({ page }) => {
-  await page.goto("/policies");
-  const candidate = page.locator(".policy-version-card.policy-status-activation_candidate");
-  const activate = candidate.getByRole("button", { name: "정책 활성화 확인" });
-  const gateSelect = candidate.getByLabel("통과한 최신 운영 evaluation");
+  await page.goto(`/policies?policy=${CANDIDATE_POLICY}&ptab=approval`);
+  const activate = page.locator(".crit-detail-foot").getByRole("button", { name: "정책 활성화 확인" });
   await expect(activate).toBeDisabled();
-  const options = await gateSelect.locator("option").allTextContents();
-  expect(options.some((option) => option.includes("gate-model-comparison"))).toBe(false);
-  await gateSelect.selectOption(CANDIDATE_GATE_EVALUATION);
-  await candidate.getByLabel("활성화 담당자").fill("검증 담당자");
+  await page.getByLabel("통과한 최신 운영 evaluation").click();
+  await expect(page.getByRole("listbox")).not.toContainText("gate-model-comparison");
+  await page.getByRole("option", { name: new RegExp(CANDIDATE_GATE_EVALUATION) }).click();
   await expect(activate).toBeEnabled();
+  await activate.click();
+  const dialog = page.getByRole("dialog");
+  const confirm = dialog.getByRole("button", { name: "정책 활성화", exact: true });
+  await expect(confirm).toBeDisabled();
+  await dialog.getByLabel("활성화 담당자 · 필수").fill("검증 담당자");
+  await expect(confirm).toBeEnabled();
 });
 
 test("상시 운영은 승인 조합 불일치 상태에서 켤 수 없다", async ({ page }) => {
@@ -294,21 +274,26 @@ test("상시 운영 켜기는 대화상자에서 조합·담당자·결과 ID를
 test("값 없음·미확인·계산 불가·0을 구분해 표시한다", async ({ page }) => {
   await page.goto("/metrics");
   await expect(page.getByText("계산 불가", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText(/repeated_notice_keys 0/)).toBeVisible();
+  await page.getByText("세부 근거", { exact: true }).click();
+  const repeatedKeys = page.getByRole("row").filter({ hasText: "repeated_notice_keys" });
+  await expect(repeatedKeys.getByRole("cell", { name: "0", exact: true })).toBeVisible();
 
   await page.goto("/profile");
   await expect(page.getByText("미확인", { exact: true }).first()).toBeVisible();
 
-  await page.goto("/operations");
+  await page.goto("/operations?pane=history");
   await expect(page.getByText(/후보 값 없음/).first()).toBeVisible();
   await expect(page.getByText(/실패 0/).first()).toBeVisible();
 });
 
 test("평가 수치 누락은 0/10이 아니라 계산 불가로 남는다", async ({ page }) => {
   await page.goto("/quality-gates?gate=gate-model-comparison&state=null-review");
-  const review = page.locator("section[aria-labelledby='quality-review-heading']");
-  await expect(review.getByText("계산 불가/10 유효 리뷰", { exact: true })).toBeVisible();
-  await expect(review.getByText("계산 불가/10 서로 다른 공고", { exact: true })).toBeVisible();
+  await page.getByRole("tab", { name: "담당자 리뷰", exact: true }).click();
+  const review = page.locator(".crit-stat-line");
+  await expect(review).toContainText("유효 리뷰");
+  await expect(review).toContainText("서로 다른 공고");
+  await expect(review.getByText("계산 불가 / 10건", { exact: true })).toHaveCount(2);
+  await expect(review).not.toContainText("0 / 10건");
 });
 
 // docs/design/PLAN.md 3단계: 사전규격 목록에서 심층 추적 승인 패널을 연 상태는
@@ -331,17 +316,17 @@ const AUTO_PREPARATION_LABELS = [
   "자동 준비 중단",
 ];
 
-test("사전규격 목록이 등급 4값과 판정 없음, 자동 준비 8값을 문자로 보여준다", async ({ page }) => {
+test("사전규격 선택 상세가 등급 4값과 판정 없음, 자동 준비 8값을 문자로 보여준다", async ({ page }) => {
   await mockPreSpecMatrix(page);
   await page.goto("/pre-specs");
-
-  const list = page.locator(".pre-specs-list").first();
-  await expect(list).toBeVisible({ timeout: 10_000 });
-  for (const grade of ["우선 검토", "검토 권장", "관찰 대상", "제외", "판정 없음"]) {
-    await expect(list.getByText(grade, { exact: true }).first()).toBeVisible();
-  }
-  for (const label of AUTO_PREPARATION_LABELS) {
-    await expect(list.getByText(label, { exact: true }).first()).toBeVisible();
+  const rows = page.locator(".pre-specs-row");
+  await expect(rows).toHaveCount(8);
+  const grades = ["판정 없음", "우선 검토", "우선 검토", "검토 권장", "검토 권장", "우선 검토", "관찰 대상", "제외"];
+  for (let index = 0; index < AUTO_PREPARATION_LABELS.length; index += 1) {
+    await rows.filter({ hasText: `자동 준비 표본 ${index + 1}` }).click();
+    const detail = page.locator(".pre-specs-detail-pane");
+    await expect(detail.locator(".pre-specs-detail-facts")).toContainText(grades[index]);
+    await expect(detail.locator(".pre-specs-process")).toContainText(AUTO_PREPARATION_LABELS[index]);
   }
 });
 
@@ -350,20 +335,23 @@ test("사전규격 등급 필터는 URL과 동기화되고 적용 범위를 밝�
   await page.goto("/pre-specs");
   await expect(page.locator(".pre-specs-list").first()).toBeVisible({ timeout: 10_000 });
 
-  await page.getByLabel("적합성 등급").selectOption("제외");
+  await page.getByRole("button", { name: "상세 필터", exact: true }).click();
+  await page.getByRole("combobox", { name: /적합성 등급/ }).click();
+  await page.getByRole("option", { name: "제외", exact: true }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("grade")).toBe("제외");
   const note = page.locator(".pre-specs-grade-filter-note");
-  await expect(note).toContainText("현재 불러온 페이지에만 적용됩니다");
-  await expect(note).toContainText("등급 필터 이전");
+  await expect(note).toContainText("불러온 페이지에만 적용됩니다");
+  await expect(note).toContainText("서버 전체 집계");
   const rows = page.locator('.pre-specs-list [data-review-primitive="dense-list-row"]');
   await expect(rows).toHaveCount(1);
-  await expect(rows.first()).toContainText("제외");
+  await expect(page.locator(".pre-specs-detail-facts")).toContainText("제외");
 
   // `판정 없음`은 다섯 번째 등급이 아니라 등급이 null인 건이다.
-  await page.getByLabel("적합성 등급").selectOption("판정 없음");
+  await page.getByRole("combobox", { name: /적합성 등급/ }).click();
+  await page.getByRole("option", { name: "판정 없음", exact: true }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("grade")).toBe("판정 없음");
   await expect(rows).toHaveCount(1);
-  await expect(rows.first()).toContainText("자동 준비 대상 아님");
+  await expect(page.locator(".pre-specs-process")).toContainText("자동 준비 대상 아님");
 
   await page.getByRole("button", { name: "기본값으로" }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("grade")).toBeNull();
@@ -436,7 +424,11 @@ test("개요 카드가 참조 실행 품질 표식을 문자로 보여준다", a
   const quality = page.locator(".pre-spec-overview-quality");
   await expect(quality).toBeVisible({ timeout: 10_000 });
   await expect(quality).toContainText("참조 실행 · 품질 미측정");
-  await expect(quality).toContainText("운영 완료로 읽지 마십시오");
+  await expect(quality.locator(".badge-success, .badge-danger, .badge-evidence-confirmed")).toHaveCount(0);
+  const details = page.locator(".ps-record-quality-details");
+  await expect(details).not.toHaveAttribute("open", "");
+  await details.locator("summary").click();
+  await expect(details).toContainText("운영 완료로 읽지 마십시오");
 });
 
 test("심층 보고서의 품질 표식 3값과 표식 없음이 카드와 의견 저장 위에 함께 나온다", async ({ page }) => {

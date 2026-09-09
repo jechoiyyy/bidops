@@ -1,0 +1,25 @@
+# 관리 화면을 host에 노출하기 위한 edge overlay.
+#
+# base stack의 web은 internal network(database·storage·scanning)에만 붙어 있다.
+# Docker는 internal 전용 컨테이너의 포트를 publish하지 않으며 에러도 내지 않으므로,
+# base 파일만으로 기동하면 `ports:` 선언이 조용히 무시된다. 이 overlay는 외부로
+# 라우팅되는 bridge network 하나를 web에 더 붙여 그 선언이 실제로 동작하게 한다.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.edge.yml up -d web
+#
+# 대가를 분명히 한다: bridge network는 inbound DNAT과 outbound NAT이 한 몸이라
+# 이 overlay를 붙이면 web 컨테이너에 아웃바운드 경로도 함께 생긴다. 모델 호출은
+# 허용 host와 배포 revision 게이트에서 여전히 호출 전에 fail closed하지만
+# (ADR-0050), 이 파일을 붙인 상태를 내부망 격리와 같다고 기록하지 않는다.
+#
+# 노출 범위는 BIDOPS_WEB_BIND_HOST가 정한다. 기본값 127.0.0.1은 host loopback까지만
+# 열며, 원격 접근은 tailnet proxy처럼 loopback을 소비하는 경로로 붙인다. 이 값을
+# 0.0.0.0으로 바꾸면 LAN에 그대로 노출된다. 애플리케이션에 로그인이 없으므로
+# 접근 경계는 전적으로 이 설정과 host 방화벽이다.
+services:
+  web:
+    networks: [edge]
+
+networks:
+  edge:
+    driver: bridge

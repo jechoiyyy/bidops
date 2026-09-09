@@ -43,6 +43,24 @@ PreSpecOverviewReviewStatus = Literal[
     "cancelled",
 ]
 
+# v4 current 상태는 목록·상세·자동 준비가 같은 개요 상태 열을 사용한다.
+# v4에만 있는 `stale`은 검증된 권고가 없다는 뜻으로 사람 확인에 두고, 그 밖의
+# 실행 상태는 목록 계약의 같은 리터럴을 유지한다. 알 수 없는 상태도 fail closed
+# 로 사람 확인에 둔다.
+PRESPEC_V4_STATUS_TO_OVERVIEW_STATUS: dict[str, str] = {
+    "queued": "running",
+    "running": "running",
+    "completed": "completed",
+    "failed": "failed",
+    "cancelled": "cancelled",
+    "needs_human_review": "needs_human_review",
+    "stale": "needs_human_review",
+}
+
+
+def prespec_overview_status_from_v4(status: str | None) -> str:
+    return PRESPEC_V4_STATUS_TO_OVERVIEW_STATUS.get(status or "", "needs_human_review")
+
 
 # 형식 밖 첨부(`unsupported_extension`)로 종결된 취득 행이 남기는
 # `attachment.extract_status` (명세 §6.2).

@@ -44,7 +44,7 @@ RUN python -m pip install --no-cache-dir --no-deps --only-binary=:all: \
 # and delegates all other commands to Git.
 RUN apt-get update \
     && apt-get install --no-install-recommends --yes \
-        git poppler-utils clamav postgresql-client \
+        git poppler-utils clamav postgresql-client chromium chromium-sandbox fonts-noto-cjk \
     && rm -rf /var/lib/apt/lists/*
 
 # Refuse root as a build-time application identity and create a stable runtime

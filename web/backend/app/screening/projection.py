@@ -614,7 +614,9 @@ class ScreeningJudgmentProjection:
             .join(NoticeObservation, NoticeObservation.notice_id == Notice.id)
             .where(NoticeObservation.run_id == run_id)
             .options(selectinload(Judgment.verification_items))
-            .order_by(Notice.id)
+            # JOIN으로 같은 공고 ID다. DISTINCT가 선택한 열로 정렬해야
+            # PostgreSQL에서도 기존 공고 순서를 그대로 돌려줄 수 있다.
+            .order_by(Judgment.notice_id)
             .distinct()
         ).all()
         role_by_notice = {row[0]: row[1] for row in rows}

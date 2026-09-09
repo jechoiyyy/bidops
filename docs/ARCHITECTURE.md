@@ -287,7 +287,10 @@ flowchart LR
 
 적합성 등급이 `우선 검토`인 사전규격은 이 준비를 자동으로 진행한다([ADR-0049](tracking/decisions/0049-prespec-auto-preparation-and-auto-deep-review.md)). 자동 준비는 자기가 만든 초안만 확정하고(`confirmed_by_name == "auto-preparation"`) 사람이 만든 초안은 건드리지 않으며, 등급이 내려가도 이미 만든 묶음을 되돌리지 않는다. 촉발은 회차 적재 hook, effective grade 변경 hook, 첨부 취득 종결 셋이다.
 
-### 5.4 개요·심층 검토
+### 5.4 개요·회사 핏·심층 검토
+
+회사 핏은 검증된 개요 문장과 승인 회사 프로필의 구조화 항목을 짧게 대조한다. `prespec_company_fit_attempt`가 입력/정책 원문·해시·불변 버전과 사유·결과·사용량을 보존한다. 원응답 저장은 개요와 공유하는 암호화 저장 함수를 쓴다. 기존 overview 용도의 모델 설정을 사용하며 회사 핏 모델명은 별도 설정으로 고정한다. 최신 페이지 개요가 있으면 먼저 쓰고 검증 실패는 과거 추출형 개요로 우회하지 않는다. 최신 입력이 없으면 과거 판정을 현재의 자동 시작에 쓰지 않는다. 기본 비활성이며 현재는 명시적인 참조 실행만 지원한다. 자세한 상태·품질 경계는 business-rules와 contracts의 회사 핏 절을 따른다.
+
 
 ~~~mermaid
 flowchart LR
@@ -315,9 +318,9 @@ flowchart LR
 
 개요 검토는 1차 분류와 심층 검토 사이의 별도 단계다. 심층 검토 실행은 bundle, 최소 회사 프로필 projection, 활성 policy, prompt revision, model revision을 binding한다. 모델은 판단을 보조하지만, 모든 claim은 source locator와 연결하고 검증기 실패를 사람 검토로 보낸다.
 
-개요 검토와 심층 검토는 `app/core/model_client.py` 하나를 각각 `overview`·`deep_review` 용도로 묶어 부른다([ADR-0050](tracking/decisions/0050-unified-openai-compatible-model-client.md)). client는 생성 시점이 아니라 **실행 시점**(`run_claim`)에 용도로 묶이므로 생성은 성공하고 설정 실패는 실행에서 fail closed로 난다. 개요 attempt의 lease는 모듈 상수 1,200초이고 환경변수로 열지 않는다. 합성 analysis worker는 세 종류를 C-2 → 심층 → 개요 순서로 하나만 claim한다 — 개요 전용 진입점은 없다.
+개요 검토와 심층 검토는 `app/core/model_client.py` 하나를 각각 `overview`·`deep_review` 용도로 묶어 부른다([ADR-0050](tracking/decisions/0050-unified-openai-compatible-model-client.md)). client는 생성 시점이 아니라 **실행 시점**(`run_claim`)에 용도로 묶이므로 생성은 성공하고 설정 실패는 실행에서 fail closed로 난다. 개요 attempt의 lease는 모듈 상수 1,200초이고 환경변수로 열지 않는다. 합성 analysis worker는 네 종류를 C-2 → 심층 → 회사 핏 → 개요 순서로 하나만 claim한다 — 개요 전용 진입점은 없다.
 
-`SW사업대상=Y`이고 자동 확정된 `ready` 묶음의 개요가 `completed`이며 권고가 `검토 종료`가 아니면, 심층 검토를 시스템 actor로 자동 생성한다(감사 action `deep_review.auto_create`). 생성은 사람 경로와 같은 함수를 쓰고 `actor_kind`만 다르다.
+`SW사업대상=Y`이고 자동 확정된 `ready` 묶음의 개요가 `completed`이며 권고가 `검토 종료`가 아니며 현재 회사 핏 판정이 `matched`이고 활성화/품질 경계를 충족하면, 심층 검토를 시스템 actor로 자동 생성한다(감사 action `deep_review.auto_create`). 생성은 사람 경로와 같은 함수를 쓰고 `actor_kind`만 다르다.
 
 모든 실행은 품질 표식 `quality_status`를 남긴다. `measured`는 측정값이 활성화 게이트를 통과했다는 뜻이고 `unmeasured_reference`·`mock_reference`는 참조 실행이며 표식이 없으면 `null`이다. 참조 실행 결과를 운영 완료·품질 근거·활성화 근거로 집계하지 않는다.
 
@@ -356,11 +359,11 @@ flowchart LR
 
 PostgreSQL 17의 bidops schema가 운영 메타데이터·관계·상태·감사·리뷰의 정본이다. MinIO는 raw, attachment, document, report와 같은 binary/object bytes를 versioning으로 보존한다. DB row가 object hash·namespace·version과 연결되지 않으면 산출물을 완전한 정본으로 취급하지 않는다.
 
-현재 Alembic head는 0018_prespec_auto_preparation_segments이며, SQLite는 격리 테스트와 일회성 이전 입력에만 사용한다. 운영 애플리케이션이 startup에서 SQLite로 fallback하거나 create_all로 스키마를 만들지 않는다.
+현재 코드의 Alembic head는 `0020_prespec_company_fit`이며 운영 DB 적용 여부와 구분한다. SQLite는 격리 테스트와 일회성 이전 입력에만 사용한다. 운영 애플리케이션이 startup에서 SQLite로 fallback하거나 create_all로 스키마를 만들지 않는다.
 
 ### 6.2 도메인 그룹
 
-현재 DB guide 기준 71개 table은 다음 영역으로 묶인다.
+현재 DB guide의 업무 사전 기준 73개 table은 다음 영역으로 묶인다.
 
 | 영역 | 수량 | 주요 책임 |
 |---|---:|---|
@@ -369,13 +372,13 @@ PostgreSQL 17의 bidops schema가 운영 메타데이터·관계·상태·감사
 | attachment | 3 | 첨부 메타데이터·수명·안전 상태 |
 | document | 8 | object·scan·변환·버전·구조·bundle |
 | document segment / inventory | 3 | segment manifest·segment·요구사항 inventory 항목 |
-| overview | 5 | 개요 실행·결과·이벤트 |
+| overview / company fit | 7 | 개요 실행·결과·이벤트, PDF 개요, 회사 핏 이력 |
 | deep review | 17 | claim·evidence·report·validation·opinion |
 | execution / quality / schedule | 12 | job·lease·quality gate·활성화·스케줄 |
 | delta / final | 5 | snapshot pair·delta·최종 결정 |
-| 합계 | 71 | Alembic head 기준 |
+| 합계 | 73 | 업무 사전 기준 |
 
-문서 기준 71개는 ORM `Base.metadata` 기준 77개와 다르다. 후자에는 문서 사전이 별도 영역으로 세지 않는 표가 함께 들어 있다. 모듈 소유 기준은 core 2 + lifecycle 10 + screening 28 + deep_review 37이다.
+업무 사전 기준 73개와 ORM `Base.metadata` 기준 79개는 세는 대상이 다르다. 후자에는 문서 사전이 별도 영역으로 세지 않는 표가 함께 들어 있다. 모듈 소유 기준은 core 2 + lifecycle 10 + screening 28 + deep_review 39이다.
 
 세부 table·column·FK·삭제 정책은 docs/database-guide.md와 docs/deep-review-erd.md의 계약을 사용한다. 이 문서의 그룹화는 탐색용이며 schema 정의를 복제하지 않는다.
 

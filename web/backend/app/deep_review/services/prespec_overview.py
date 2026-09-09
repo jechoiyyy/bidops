@@ -13,7 +13,7 @@ import hashlib
 import json
 import re
 import unicodedata
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -31,6 +31,7 @@ from ...core.model_client import (
     ModelIdentityError,
     StructuredOutputContract,
 )
+from ...core.models import AuditEvent
 from ..document_mcp.contracts import validate_structure
 from ..models import (
     ContentObject,
@@ -150,9 +151,6 @@ _TOPIC_HEADING_VOCABULARY = frozenset(
     }
 )
 _PARAGRAPH_TOC_TITLES = frozenset({"목차", "차례"})
-_RFP_ROLE = "제안요청서"
-_OTHER_ROLE = "기타"
-_RFP_FILENAME_TOKEN = re.compile(r"(?<![a-z0-9])rfp(?![a-z0-9])", re.IGNORECASE)
 _LEADING_HEADING_BULLET = re.compile(
     r"^\s*[·•∙◦○●◉▪▫■□◆◇▶▷]\s*"
 )
@@ -978,6 +976,7 @@ def _load_structure_payload(
     structure: DocumentStructure,
     *,
     root: Path | None,
+    verify_source_bytes: bool = True,
 ) -> Mapping[str, Any]:
     if document.notice_id <= 0 or structure.document_version_id != document.id:
         raise _CutInputError("lineage_mismatch")
@@ -1001,22 +1000,23 @@ def _load_structure_payload(
     source_location = _latest_location(session, source.id, "source")
     if source_location is None:
         raise _CutInputError("source_location_missing")
-    try:
-        source_bytes, source_metadata = assets.read_object(
-            "source", source_location.object_key, root=root
-        )
-    except assets.AssetError as exc:
-        raise _CutInputError("source_unavailable") from exc
-    if (
-        len(source_bytes) != source.size_bytes
-        or hashlib.sha256(source_bytes).hexdigest() != source.sha256
-        or (source_location.etag is not None and source_location.etag != source_metadata.etag)
-        or (
-            source_location.object_version_id is not None
-            and source_location.object_version_id != source_metadata.object_version_id
-        )
-    ):
-        raise _CutInputError("hash_mismatch")
+    if verify_source_bytes:
+        try:
+            source_bytes, source_metadata = assets.read_object(
+                "source", source_location.object_key, root=root
+            )
+        except assets.AssetError as exc:
+            raise _CutInputError("source_unavailable") from exc
+        if (
+            len(source_bytes) != source.size_bytes
+            or hashlib.sha256(source_bytes).hexdigest() != source.sha256
+            or (source_location.etag is not None and source_location.etag != source_metadata.etag)
+            or (
+                source_location.object_version_id is not None
+                and source_location.object_version_id != source_metadata.object_version_id
+            )
+        ):
+            raise _CutInputError("hash_mismatch")
 
     structure_location = _latest_location(session, payload_object.id, "structure")
     if structure_location is None:
@@ -1056,23 +1056,13 @@ def _load_structure_payload(
 
 
 def _filename_document_candidate(original_filename: object) -> bool:
-    """Classify only explicit RFP/proposal-request filename vocabulary.
-
-    ``role=기타`` is a T-20 compatibility value, not evidence that the file
-    is an RFP.  The fallback therefore accepts the exact Korean labels used by
-    the attachment feed or a standalone ``RFP`` token, and never performs
-    fuzzy/title/prose matching.
-    """
+    """Match the Korean RFP filename label, allowing formatting whitespace."""
 
     if not isinstance(original_filename, str):
         return False
     value = unicodedata.normalize("NFKC", original_filename).casefold()
     compact = _WHITESPACE.sub("", value)
-    return (
-        "제안요청서" in compact
-        or "과업지시서" in compact
-        or _RFP_FILENAME_TOKEN.search(value) is not None
-    )
+    return "제안요청서" in compact
 
 
 def _current_document(
@@ -1087,24 +1077,13 @@ def _current_document(
     if not documents:
         return _DocumentSelection(document=None, has_current_documents=False)
 
-    # A human role is authoritative and wins over filename-derived
-    # compatibility candidates.  More than one equally ranked row is unsafe:
-    # selecting by created_at would make an appendix or form an accidental
-    # RFP input.
-    designated = [item for item in documents if item.role == _RFP_ROLE]
-    if len(designated) == 1:
-        return _DocumentSelection(document=designated[0], has_current_documents=True)
-    if len(designated) > 1:
-        return _DocumentSelection(
-            document=None,
-            has_current_documents=True,
-            ambiguous=True,
-        )
-
+    # Filename is the selection criterion regardless of stored role. Never
+    # substitute a task specification or a role-only designation for a missing
+    # Korean RFP filename, or break ties using upload time or extension.
     filename_candidates = [
         item
         for item in documents
-        if item.role == _OTHER_ROLE and _filename_document_candidate(item.original_filename)
+        if _filename_document_candidate(item.original_filename)
     ]
     if len(filename_candidates) == 1:
         return _DocumentSelection(document=filename_candidates[0], has_current_documents=True)
@@ -1114,8 +1093,7 @@ def _current_document(
             has_current_documents=True,
             ambiguous=True,
         )
-    # Current attachments exist but none is an explicitly designated or
-    # conservatively classified RFP candidate.  This is a human-review state,
+    # Current attachments exist but none has the required filename. This is a human-review state,
     # not permission to retain a previous snapshot or guess the newest row.
     return _DocumentSelection(document=None, has_current_documents=True)
 
@@ -1254,6 +1232,27 @@ def prepare_overview_review(
         source_sha256=structure.source_sha256,
         payload_sha256=structure.payload_sha256,
     )
+    if snapshot is not None and (
+        snapshot.cut_status != decision.cut_status
+        or snapshot.strategy != decision.strategy
+        or snapshot.start_locator != decision.start_locator
+        or snapshot.end_locator != decision.end_locator
+        or snapshot.input_block_keys != decision.input_block_keys
+        or snapshot.unknown_reason_code != decision.unknown_reason_code
+    ):
+        # Snapshot identity is unique for these immutable input hashes. Keep
+        # that history, but detach it from the current decision when a fresh
+        # integrity/cut check disagrees; never reopen a model request from it.
+        _set_review_state(review, status="needs_human_review", clear_current_snapshot=True)
+        if previous_snapshot_id is not None or previous_status != "needs_human_review":
+            session.add(AuditEvent(
+                actor_kind="system", claimed_name="prespec-overview",
+                action="prespec_overview.reverification_failed",
+                aggregate_type="prespec_overview_review", aggregate_id=str(review.id),
+                safe_metadata={"reason_code": decision.unknown_reason_code or "cut_decision_changed", "snapshot_id": str(snapshot.id)},
+            ))
+        session.flush()
+        return review
     if snapshot is None:
         snapshot = PreSpecOverviewSnapshot(
             id=uuid4(),
@@ -1536,7 +1535,6 @@ def _overview_scope(
     snapshot = session.scalar(
         select(PreSpecOverviewSnapshot)
         .where(PreSpecOverviewSnapshot.id == attempt.snapshot_id)
-        .with_for_update()
     )
     if review is None or snapshot is None:
         raise OverviewScopeError("scope_mismatch")
@@ -1607,7 +1605,6 @@ def create_overview_attempt(
     snapshot = session.scalar(
         select(PreSpecOverviewSnapshot)
         .where(PreSpecOverviewSnapshot.id == snapshot_id)
-        .with_for_update()
     )
     if (
         notice is None
@@ -1698,7 +1695,10 @@ def build_overview_model_input(
     ):
         raise OverviewAttemptError("input_hash_mismatch")
     try:
-        payload = _load_structure_payload(session, document, structure, root=root)
+        # Preparation already verified source bytes before freezing this
+        # snapshot. The analysis worker owns structure-read credentials only;
+        # recheck its immutable lineage, clean scan and structure bytes here.
+        payload = _load_structure_payload(session, document, structure, root=root, verify_source_bytes=False)
     except _CutInputError as error:
         raise OverviewAttemptError(error.reason_code) from error
     blocks = payload.get("blocks")
@@ -1742,6 +1742,8 @@ def build_overview_model_input(
 
 def select_overview_enqueue_candidate(
     session: Session,
+    *,
+    excluded_document_version_ids: Collection[UUID] = (),
 ) -> tuple[PreSpecOverviewReview, PreSpecOverviewSnapshot] | None:
     """큐에 넣을 수 있는 review·snapshot 한 쌍을 고른다. 모델을 부르지 않는다.
 
@@ -1759,7 +1761,7 @@ def select_overview_enqueue_candidate(
         )
         .exists()
     )
-    row = session.execute(
+    query = (
         select(PreSpecOverviewReview, PreSpecOverviewSnapshot)
         .join(
             PreSpecOverviewSnapshot,
@@ -1773,29 +1775,41 @@ def select_overview_enqueue_candidate(
         )
         .order_by(PreSpecOverviewReview.updated_at.asc(), PreSpecOverviewReview.id.asc())
         .limit(1)
-    ).first()
+    )
+    excluded = tuple(excluded_document_version_ids)
+    if excluded:
+        query = query.where(~PreSpecOverviewSnapshot.document_version_id.in_(excluded))
+    row = session.execute(query).first()
     if row is None:
         return None
     review, snapshot = row
     return review, snapshot
 
 
-def has_claimable_overview_attempt(session: Session) -> bool:
+def has_claimable_overview_attempt(
+    session: Session,
+    *,
+    excluded_document_version_ids: Collection[UUID] = (),
+) -> bool:
     """claim 가능한 queued attempt가 있는지만 본다. 잠그지도 부르지도 않는다."""
 
-    return (
-        session.scalar(
-            select(PreSpecOverviewAttempt.id)
-            .where(
-                PreSpecOverviewAttempt.status == "queued",
-                PreSpecOverviewAttempt.review_id.is_not(None),
-                PreSpecOverviewAttempt.input_sha256.is_not(None),
-                PreSpecOverviewAttempt.binding_digest.is_not(None),
-            )
-            .limit(1)
+    query = (
+        select(PreSpecOverviewAttempt.id)
+        .join(
+            PreSpecOverviewSnapshot,
+            PreSpecOverviewSnapshot.id == PreSpecOverviewAttempt.snapshot_id,
         )
-        is not None
+        .where(
+            PreSpecOverviewAttempt.status == "queued",
+            PreSpecOverviewAttempt.review_id.is_not(None),
+            PreSpecOverviewAttempt.input_sha256.is_not(None),
+            PreSpecOverviewAttempt.binding_digest.is_not(None),
+        )
     )
+    excluded = tuple(excluded_document_version_ids)
+    if excluded:
+        query = query.where(~PreSpecOverviewSnapshot.document_version_id.in_(excluded))
+    return session.scalar(query.limit(1)) is not None
 
 
 def enqueue_overview_attempt(
@@ -1833,6 +1847,7 @@ def claim_overview_attempt(
     *,
     lease_seconds: int,
     now: datetime | None = None,
+    excluded_document_version_ids: Collection[UUID] = (),
 ) -> PreSpecOverviewAttempt | None:
     """FIFO로 queued attempt 하나를 ``running``으로 claim하고 lease를 건다.
 
@@ -1851,8 +1866,12 @@ def claim_overview_attempt(
     if not isinstance(lease_seconds, int) or isinstance(lease_seconds, bool) or lease_seconds <= 0:
         raise OverviewAttemptError("invalid_lease")
     when = now or _now()
-    attempt = session.scalars(
+    query = (
         select(PreSpecOverviewAttempt)
+        .join(
+            PreSpecOverviewSnapshot,
+            PreSpecOverviewSnapshot.id == PreSpecOverviewAttempt.snapshot_id,
+        )
         .where(
             PreSpecOverviewAttempt.status == "queued",
             PreSpecOverviewAttempt.review_id.is_not(None),
@@ -1865,7 +1884,11 @@ def claim_overview_attempt(
         )
         .limit(1)
         .with_for_update(skip_locked=True)
-    ).first()
+    )
+    excluded = tuple(excluded_document_version_ids)
+    if excluded:
+        query = query.where(~PreSpecOverviewSnapshot.document_version_id.in_(excluded))
+    attempt = session.scalars(query).first()
     if attempt is None:
         return None
     claimed = transition_overview_attempt(

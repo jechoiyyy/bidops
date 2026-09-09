@@ -136,7 +136,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         started = [
             notice["notice_key"]
             for notice in evidence["notices"]
-            if notice["auto_preparation_status"] == "deep_review_started"
+            if notice.get("deep_review") and notice["deep_review"].get("created_by_actor_kind") == "system"
         ]
         waiting = [
             notice["notice_key"]
