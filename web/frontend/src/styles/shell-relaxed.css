@@ -7,8 +7,27 @@
  * 재작성하지 않기 위해 legacy 이름은 이 파일의 단일 bridge에서만
  * 테마 의미 토큰으로 연결하고, 셸 골격 자체는 테마 토큰을 읽는다.
  * bridge는 새 색 값을 만들지 않고 legacy 이름을 테마 토큰에 잇기만 한다.
+ * 브라우저 배율 100%에서 화면을 90%로 보이게 하는 전역 `zoom`은 이 파일에서
+ * 한 번만 건다. 셸과 body의 viewport·최소 폭은 배율로 나눠, 시각 셸이
+ * viewport를 끝까지 채우고 1280px 기준 폭을 유지하게 한다.
  * 레이아웃은 ADR-0040에 따라 프로젝트가 소유한다.
  */
+
+:root {
+  --bo-ui-scale: 0.9;
+  --bo-ui-viewport-height: calc(100vh / var(--bo-ui-scale));
+  --bo-ui-viewport-dynamic-height: calc(100dvh / var(--bo-ui-scale));
+  --bo-ui-viewport-width: calc(100vw / var(--bo-ui-scale));
+  zoom: var(--bo-ui-scale);
+}
+
+/* document root에만 zoom을 적용하면 body에 붙는 Radix portal·toast·확인 dialog도
+ * 같은 배율을 정확히 한 번만 상속한다. `transform: scale()`은 fixed 위치와
+ * 포커스 좌표의 기준을 바꾸므로 이 계약에 사용하지 않는다. */
+body {
+  min-width: calc(1280px / var(--bo-ui-scale));
+  min-height: var(--bo-ui-viewport-height);
+}
 
 .app-shell[data-astryx-theme="bidops"] {
   /* Legacy token bridge: descendants that have not moved to neutral yet keep
@@ -81,12 +100,15 @@
   --shell-sidebar-hover: color-mix(in srgb, var(--color-on-dark) 8%, transparent);
   --shell-sidebar-active: color-mix(in srgb, var(--color-on-dark) 14%, transparent);
   --shell-sidebar-muted: color-mix(in srgb, var(--color-on-dark) 68%, transparent);
+  --shell-sidebar-group-label-size: 14px;
+  --shell-sidebar-item-size: 14.25px;
+  --shell-sidebar-icon-size: 18px;
 
   display: flex;
-  height: 100vh;
-  min-height: 100vh;
+  height: var(--bo-ui-viewport-height);
+  min-height: var(--bo-ui-viewport-height);
   /* 지원 폭 아래에서는 별도 레이아웃으로 전환하지 않고 가로 스크롤을 둔다(ADR-0047). */
-  min-width: 1280px;
+  min-width: calc(1280px / var(--bo-ui-scale));
   overflow: hidden;
   color: var(--color-text-primary);
   color-scheme: light;
@@ -101,9 +123,9 @@
   flex: 0 0 248px;
   flex-direction: column;
   width: 248px;
-  height: 100vh;
+  height: var(--bo-ui-viewport-height);
   min-height: 0;
-  max-height: 100vh;
+  max-height: var(--bo-ui-viewport-height);
   overflow-x: hidden;
   overflow-y: auto;
   color: var(--color-on-dark);
@@ -183,7 +205,7 @@
 .app-shell[data-astryx-theme="bidops"] .sidebar-group-label {
   padding: 0 var(--spacing-3) var(--spacing-2);
   color: var(--shell-sidebar-muted);
-  font-size: var(--bo-type-caption);
+  font-size: var(--shell-sidebar-group-label-size);
   font-weight: 500;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -204,14 +226,14 @@
   border: 0;
   border-radius: var(--radius-inner);
   color: var(--color-on-dark);
-  font-size: var(--font-size-base);
+  font-size: var(--shell-sidebar-item-size);
   transition: background-color var(--duration-fast) ease, color var(--duration-fast) ease;
 }
 
 .app-shell[data-astryx-theme="bidops"] .sidebar-item svg {
-  flex: 0 0 var(--spacing-5);
-  width: var(--spacing-5);
-  height: var(--spacing-5);
+  flex: 0 0 var(--shell-sidebar-icon-size);
+  width: var(--shell-sidebar-icon-size);
+  height: var(--shell-sidebar-icon-size);
 }
 
 .app-shell[data-astryx-theme="bidops"] .sidebar-item:hover,
@@ -398,7 +420,7 @@
 
 .app-shell[data-astryx-theme="bidops"] .basis-popover-panel {
   top: calc(100% + var(--spacing-1));
-  width: min(380px, calc(100vw - var(--spacing-8)));
+  width: min(380px, calc(var(--bo-ui-viewport-width) - var(--spacing-8)));
   padding: var(--spacing-2);
   border-color: var(--color-border);
   border-radius: var(--radius-container);
@@ -412,7 +434,7 @@
 
 .app-shell[data-astryx-theme="bidops"] .run-selector {
   flex: 0 1 360px;
-  width: min(360px, 38vw);
+  width: min(360px, calc(var(--bo-ui-viewport-width) * 0.38));
   min-width: 240px;
   height: var(--size-element-lg);
   padding: 0 var(--spacing-3);

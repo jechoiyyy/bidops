@@ -35,6 +35,8 @@ async function open(page: Page, path: string, options: CriteriaMockOptions = {})
 const workspace = (page: Page) => page.locator(".crit-workspace");
 const summary = (page: Page) => page.locator(".crit-summary");
 const detailFooter = (page: Page) => page.locator(".crit-detail-foot");
+const UI_SCALE = 0.9;
+const physical = (logical: number) => logical * UI_SCALE;
 
 // ── 화면 골격과 탭 ────────────────────────────────────────────────────
 
@@ -517,9 +519,9 @@ for (const width of [1280, 1440]) {
       };
     });
     expect(geometry.seam).toBe(0);
-    expect(geometry.strip).toBe(49);
-    expect(geometry.footer).toBe(57);
-    expect(geometry.tabs).toBe(37);
+    expect(geometry.strip).toBeCloseTo(physical(49), 0);
+    expect(geometry.footer).toBeCloseTo(physical(57), 0);
+    expect(geometry.tabs).toBeCloseTo(physical(37), 0);
     expect(geometry.buttonFont).toBe("14px");
     expect(geometry.listTitleFont).toBe("15px");
     expect(geometry.listTitleWeight).toBe("600");
@@ -527,7 +529,10 @@ for (const width of [1280, 1440]) {
     // 각주는 두 폭 모두 한 줄이다. 두 줄이 되면 작업 영역이 그만큼 짧아진다.
     expect(geometry.boundaryLines).toBe(1);
     expect(geometry.boundaryFont).toBe("12px");
-    expect(geometry.workspaceBottom).toBe(width === 1280 ? 763 : 863);
+    // The compensated shell still fills the physical viewport. Preserve the
+    // approved bottom inset (37px logical), whose rendered size is scaled.
+    const viewportHeight = width === 1280 ? 800 : 900;
+    expect(geometry.workspaceBottom).toBeCloseTo(viewportHeight - physical(37), 0);
   });
 
   test(`하단 액션이 ${width}px에서 스크롤 없이 보이고 화면이 가로로 넘치지 않는다`, async ({ page }) => {

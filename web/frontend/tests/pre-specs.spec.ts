@@ -613,9 +613,52 @@ test("화면 제목과 표시 범위 액션은 상단바에 있고 페이지는 
   await expect(page.locator(".pre-specs-page-header")).toHaveCount(0);
 
   const scope = topbar.getByRole("button", { name: "표시 범위" });
+  // 이전 페이지 헤더가 남아 있으면 같은 이름의 버튼이 두 개 보인다. 액션은
+  // 상단바 portal에 하나만 있어야 한다.
+  await expect(page.getByRole("button", { name: "표시 범위", exact: true })).toHaveCount(1);
   await expect(scope).toBeVisible();
   await scope.click();
   await expect(page.getByRole("dialog")).toContainText("현재 조건의 서버 전체 건수는");
+});
+
+test("사전규격 workspace가 canvas 남은 높이를 채우고 pane 안에서 스크롤한다", async ({ page }) => {
+  await mockPreSpecs(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/pre-specs");
+  // React Query와 the workspace mount asynchronously after the document shell. Wait
+  // for the actual split workspace before reading geometry to avoid racing its first
+  // render at a freshly loaded route.
+  await expect(page.locator(".pre-specs-split-workspace")).toBeVisible();
+
+  const metrics = await page.locator(".pre-specs-page").evaluate((pageRoot) => {
+    const frame = pageRoot.querySelector<HTMLElement>(".workspace-frame");
+    const filterBar = pageRoot.querySelector<HTMLElement>(".workspace-filters");
+    const workspace = pageRoot.querySelector<HTMLElement>(".pre-specs-split-workspace");
+    const listScroll = pageRoot.querySelector<HTMLElement>(".pre-specs-list-scroll");
+    const detailScroll = pageRoot.querySelector<HTMLElement>(".pre-specs-detail-scroll");
+    if (!frame || !filterBar || !workspace || !listScroll || !detailScroll) {
+      throw new Error("사전규격 workspace 구조가 없습니다.");
+    }
+    const frameRect = frame.getBoundingClientRect();
+    const workspaceRect = workspace.getBoundingClientRect();
+    return {
+      frameBottom: frameRect.bottom,
+      pageBottom: pageRoot.getBoundingClientRect().bottom,
+      workspaceBottom: workspaceRect.bottom,
+      workspaceHeight: workspaceRect.height,
+      filterHeight: filterBar.getBoundingClientRect().height,
+      frameHeight: frameRect.height,
+      listOverflowY: getComputedStyle(listScroll).overflowY,
+      detailOverflowY: getComputedStyle(detailScroll).overflowY,
+    };
+  });
+
+  expect(metrics.workspaceHeight).toBeGreaterThan(0);
+  expect(metrics.frameHeight).toBeGreaterThan(metrics.filterHeight);
+  expect(Math.abs(metrics.workspaceBottom - metrics.frameBottom)).toBeLessThanOrEqual(1);
+  expect(Math.abs(metrics.frameBottom - metrics.pageBottom)).toBeLessThanOrEqual(1);
+  expect(metrics.listOverflowY).toBe("auto");
+  expect(metrics.detailOverflowY).toBe("auto");
 });
 
 test("등급 필터는 불러온 페이지에만 적용된다는 사실을 화면이 밝힌다", async ({ page }) => {
@@ -1118,15 +1161,17 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
       const main = document.querySelector('.ps-record .detail-skeleton-main')!;
       const side = document.querySelector('.ps-record-side')!;
       const canvas = document.querySelector('.page-canvas')!;
+      const uiScale = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--bo-ui-scale")) || 1;
       return {
         sideWidth: side.getBoundingClientRect().width,
         mainWidth: main.getBoundingClientRect().width,
+        uiScale,
         agency: getComputedStyle(document.querySelector('.ps-record-agency')!).fontSize,
         overflow: canvas.scrollWidth - canvas.clientWidth,
       };
     });
-    expect(geometry.sideWidth).toBe(400);
-    expect(geometry.mainWidth).toBeGreaterThan(550);
+    expect(geometry.sideWidth).toBeCloseTo(400 * geometry.uiScale, 0);
+    expect(geometry.mainWidth).toBeGreaterThan(550 * geometry.uiScale);
     expect(geometry.agency).toBe('14px');
     expect(geometry.overflow).toBe(0);
     const decision = page.getByRole('complementary', { name: '추적 결정', exact: true });

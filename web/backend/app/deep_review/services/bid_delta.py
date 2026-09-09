@@ -755,67 +755,16 @@ class BidDeltaService:
         }
 
     def _currentness(self, session: Session, comparison: BidDeltaComparison) -> tuple[str, list[str]]:
-        comparison_notice = session.get(Notice, comparison.comparison_notice_id)
-        if comparison_notice is None or comparison_notice.published_at is None:
-            return "unknown", ["ordering_unknown"]
-        comparison_published = comparison_notice.published_at
-        if comparison_published.tzinfo is None:
-            comparison_published = comparison_published.replace(tzinfo=UTC)
-        links = session.scalars(
-            select(OpportunityLink).where(
-                OpportunityLink.opportunity_id == comparison.opportunity_id,
-                OpportunityLink.notice_id.is_not(None),
-            )
-        ).all()
-        for link in links:
-            if not _is_authoritative(link) or link.notice_id is None:
-                continue
-            notice = session.get(Notice, link.notice_id)
-            if notice is None or notice.source_type != "bid_notice":
-                continue
-            if notice.published_at is None:
-                return "unknown", ["ordering_unknown"]
-            published = notice.published_at
-            if published.tzinfo is None:
-                published = published.replace(tzinfo=UTC)
-            if notice.id != comparison.comparison_notice_id and published > comparison_published:
-                return "stale", ["newer_bid_notice"]
+        """현재성 규칙은 배치 projection 한 곳이 소유한다 (같은 규칙을 두 번 쓰지 않는다)."""
 
-        if self._has_newer_ready_document(session, comparison, "baseline") or self._has_newer_ready_document(session, comparison, "comparison"):
-            return "stale", ["newer_ready_document_version"]
-        return "current", []
+        from .bid_delta_currentness import comparison_currentness
 
-    @staticmethod
-    def _has_newer_ready_document(session: Session, comparison: BidDeltaComparison, side: str) -> bool:
-        prefix = "baseline" if side == "baseline" else "comparison"
-        notice_id = getattr(comparison, f"{prefix}_notice_id")
-        captured_revision = getattr(comparison, f"{prefix}_bundle_revision")
-        captured_bundle_version = getattr(comparison, f"{prefix}_bundle_version")
-        captured_document_id = getattr(comparison, f"{prefix}_document_version_id")
-        captured_document_version = getattr(comparison, f"{prefix}_document_version_version")
-        roles = BASELINE_DOCUMENT_ROLES if side == "baseline" else COMPARISON_DOCUMENT_ROLES
-        rows = session.execute(
-            select(DocumentBundle, DocumentBundleItem, DocumentVersion, DocumentStructure)
-            .join(DocumentBundleItem, DocumentBundleItem.bundle_id == DocumentBundle.id)
-            .join(DocumentVersion, DocumentVersion.id == DocumentBundleItem.document_version_id)
-            .join(DocumentStructure, DocumentStructure.id == DocumentBundleItem.structure_id_at_confirmation)
-            .where(
-                DocumentBundle.notice_id == notice_id,
-                DocumentBundle.status == "ready",
-                DocumentBundleItem.role_at_confirmation.in_(roles),
-                DocumentBundleItem.safety_status_at_confirmation == "safe",
-                DocumentVersion.safety_status == "safe",
-                DocumentStructure.validation_status == "ready",
-            )
-        ).all()
-        for bundle, item, document, structure in rows:
-            if structure.source_sha256 != item.content_sha256 or structure.payload_sha256 != item.structure_payload_sha256:
-                continue
-            if (bundle.revision, bundle.version) > (captured_revision, captured_bundle_version):
-                return True
-            if document.id != captured_document_id and document.version > captured_document_version:
-                return True
-        return False
+        return comparison_currentness(session, [comparison.opportunity_id], comparisons=[comparison])[comparison.id]
+
+    def decision_queue(self, session: Session, *, status: str = "pending", limit: int = 50, offset: int = 0) -> dict[str, Any]:
+        from .decision_queue import decision_queue
+
+        return decision_queue(session, status=status, limit=limit, offset=offset)
 
     def create_comparison(
         self,

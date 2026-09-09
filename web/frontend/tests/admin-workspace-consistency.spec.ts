@@ -3,7 +3,10 @@ import { mockApi } from "./api-mock";
 import { installRunStatusMock } from "./run-status-fixtures";
 
 // 두 병렬 구현이 각각 통과해도 탭 모양·시작 위치·목록 폭이 서로 달라질 수 있다.
-// 승인 HTML의 실측(탭 37px, 목록 38%, 제목 15px)을 두 페이지의 여덟 탭에 적용한다.
+// 승인 HTML의 논리 실측(탭 37px, 목록 38%, 제목 15px)을 두 페이지의 여덟 탭에
+// 적용한다. 전역 UI 배율은 CSS zoom으로 물리 rect만 90%로 그린다.
+const UI_SCALE = 0.9;
+const physical = (logical: number) => logical * UI_SCALE;
 // 업무 값은 기존 API fixture로 공급하며 운영 API에는 접근하지 않는다.
 const tabs = [
   { path: "/profile", prefix: "crit" },
@@ -51,7 +54,9 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
           y: bounds.y,
           width: bounds.width,
           listWidth: listBounds.width,
-          ratio: listBounds.width / element.clientWidth,
+          // getBoundingClientRect()는 물리 폭, clientWidth는 논리 폭이다. 두
+          // 페이지의 목록 비율은 같은 좌표계의 물리 폭으로 비교한다.
+          ratio: listBounds.width / bounds.width,
           titleFont: getComputedStyle(heading).fontSize,
           titleWeight: getComputedStyle(heading).fontWeight,
           tabsHeight: tabBar.getBoundingClientRect().height,
@@ -71,12 +76,12 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
       expect(metrics.ratio, `${path} 목록 비율`).toBeCloseTo(0.38, 2);
       expect(metrics.titleFont, `${path} 목록 제목 크기`).toBe("15px");
       expect(metrics.titleWeight, `${path} 목록 제목 굵기`).toBe("600");
-      expect(metrics.tabsHeight, `${path} 승인된 밑줄 탭`).toBeCloseTo(37, 0);
-      expect(metrics.summaryHeight, `${path} 요약 한 줄`).toBeCloseTo(49, 0);
-      expect(metrics.y, `${path} 시안 도구 모음 제외 본문 시작`).toBeCloseTo(190, 0);
+      expect(metrics.tabsHeight, `${path} 승인된 밑줄 탭`).toBeCloseTo(physical(37), 0);
+      expect(metrics.summaryHeight, `${path} 요약 한 줄`).toBeCloseTo(physical(49), 0);
+      expect(metrics.y, `${path} 시안 도구 모음 제외 본문 시작`).toBeCloseTo(physical(190), 0);
       expect(Math.abs(metrics.y - metrics.summaryBottom), `${path} 요약과 본문 사이 틈`).toBeLessThanOrEqual(1);
-      expect(metrics.footerHeight, `${path} 하단 액션 높이`).toBeCloseTo(57, 0);
-      expect(metrics.footerBottom, `${path} 하단 버튼 위치`).toBeCloseTo(viewport.height - 38, 0);
+      expect(metrics.footerHeight, `${path} 하단 액션 높이`).toBeCloseTo(physical(57), 0);
+      expect(metrics.footerBottom, `${path} 하단 버튼 위치`).toBeCloseTo(viewport.height - physical(38), 0);
       if (metrics.buttonFont) expect(metrics.buttonFont, `${path} 하단 버튼 크기`).toBe("14px");
       if (metrics.bodyOverflow) expect(metrics.bodyOverflow, path).toBe("auto");
 

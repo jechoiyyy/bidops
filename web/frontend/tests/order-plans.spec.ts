@@ -37,6 +37,77 @@ async function resetFilters(page: import("@playwright/test").Page) {
   await page.locator(".c2l-filters").getByRole("button", { name: "필터 초기화", exact: true }).click();
 }
 
+const TEST_ORDER_PLAN_SOURCE_RUN_ID = "91d8c2e4-3f09-4e6a-9bd9-0c2e4e6d0101";
+
+function testOrderPlanItem(orderPlanPk: number, relevance: "relevant" | "uncertain" | "not_relevant" | null, title: string) {
+  return {
+    order_plan_pk: orderPlanPk,
+    order_plan_unty_no: `OP-TEST-${String(orderPlanPk).padStart(5, "0")}`,
+    source_url: `https://www.g2b.go.kr/link/PRPA015_01/single/?oderPlanNo=OP-TEST-${String(orderPlanPk).padStart(5, "0")}`,
+    title,
+    agency_name: `테스트 기관 ${orderPlanPk}`,
+    business_division: "정보화",
+    budget_amount: null,
+    planned_order_year: null,
+    planned_order_month: null,
+    source_run_id: TEST_ORDER_PLAN_SOURCE_RUN_ID,
+    observed_at: "2026-09-01T01:00:00Z",
+    stage1_status: "selected",
+    stage1_rank: orderPlanPk,
+    stage1_score: 0.5,
+    nearest_capability: null,
+    stage2_status: relevance === null ? "unknown" : "success",
+    qwen_relevance: relevance,
+    qwen_score: relevance === null ? null : 0.5,
+    qwen_reason: null,
+    human_feedback: null,
+    tracking: {
+      opportunity_id: 5000 + orderPlanPk,
+      tracking_status: "미선택",
+      tracking_reason: null,
+      tracking_selected_by: null,
+      tracking_selected_at: null,
+    },
+  };
+}
+
+/** The browser fetches all pages, so this keeps API order deliberately different from relevance order. */
+async function mockReorderedOrderPlanList(
+  page: import("@playwright/test").Page,
+  items: ReturnType<typeof testOrderPlanItem>[],
+) {
+  await mockOrderPlans(page);
+  await page.route("**/api/order-plans**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (request.method() !== "GET" || url.pathname !== "/api/order-plans") {
+      await route.fallback();
+      return;
+    }
+    const limit = Number(url.searchParams.get("limit") ?? 100);
+    const offset = Number(url.searchParams.get("offset") ?? 0);
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        schema_version: "order-plan-list-response.v3",
+        producer: "order-plan-review-api",
+        consumer: "order-plan-review-client",
+        scope: {
+          execution_id: "a2f4d7c1-0a61-4a07-8d2e-7f1d1d010101",
+          source_run_id: TEST_ORDER_PLAN_SOURCE_RUN_ID,
+          status: "부분 성공",
+          finished_at: "2026-09-01T02:05:00Z",
+        },
+        items: items.slice(offset, offset + limit),
+        total: items.length,
+        limit,
+        offset,
+      }),
+    });
+  });
+}
+
 // 화면 제목은 `발주계획` 한 낱말이고(승인 시안), 목록 행은 사업명 → 상태 배지 → metadata(발주기관·
 // 예산·시기) 차례를 그대로 지킨다. 발주기관은 자리를 옮기지 않고 크기만
 // 보조 글자에서 본문 굵은 글자로 키운다.
@@ -106,6 +177,27 @@ test("기본 목록은 밀집 행이고 판정에 필요한 값만 담으며, �
   await expect(page.locator("#c2l-panel-telemetry")).toContainText("120,000");
 });
 
+test("발주계획의 기존 머리글 액션은 상단바 슬롯에 한 번씩만 남는다", async ({ page }) => {
+  await mockOrderPlans(page);
+  await page.goto("/order-plans");
+
+  const topbar = page.locator("header.topbar");
+  const actions = topbar.locator("#page-header-actions");
+
+  // 제목은 셸이 하나만 그린다. 페이지 안에는 보조 접근성 제목만 남고, 예전 머리글
+  // 또는 portal wrapper의 복제본이 다시 생기면 안 된다.
+  await expect(topbar.locator("h1")).toHaveText("발주계획");
+  await expect(page.locator(".c2l-page-header")).toHaveCount(0);
+  await expect(page.locator(".c2l-page > .c2l-header-actions")).toHaveCount(0);
+  await expect(actions.locator(".c2l-header-actions")).toHaveCount(1);
+
+  // 기존 머리글이 제공하던 네 가지 동선을 모두 같은 portal 아래에서 확인한다.
+  await expect(actions.getByRole("combobox", { name: "발주계획 수집 회차" })).toBeVisible();
+  await expect(actions.locator(".c2l-status-chip")).toHaveCount(1);
+  await expect(actions.getByRole("button", { name: "실행 상태", exact: true })).toHaveCount(1);
+  await expect(actions.getByRole("link", { name: "실행 상세 →", exact: true })).toHaveCount(1);
+});
+
 // 기본 상세는 실제로 있는 값만 싣는다. 모델 근거는 서버가 준 `qwen_reason` 그대로이고,
 // 출처는 알려진 필드 이름(발주계획 사업명)으로만 적으며 원문 인용을 만들지 않는다.
 test("기본 상세는 실제 모델 근거와 알려진 출처 필드만 보여주고 원문 인용을 만들지 않는다", async ({ page }) => {
@@ -118,6 +210,12 @@ test("기본 상세는 실제 모델 근거와 알려진 출처 필드만 보여
   await expect(evidence.locator(".c2l-evidence-source dt")).toHaveText("근거 위치 · 발주계획 사업명");
   await expect(evidence.locator(".c2l-evidence-source dd")).toContainText("공공데이터 통합");
   await expect(evidence.locator(".c2l-evidence-scope")).toHaveText("계획 정보 기반 탐색 신호 · 회사 적합성과 참여 자격은 미확인");
+
+  const sourceLink = page.locator(".c2l-detail-scroll").getByRole("link", { name: "공고 바로가기", exact: true });
+  await expect(sourceLink).toBeVisible();
+  await expect(sourceLink).toHaveAttribute("href", "https://www.g2b.go.kr/link/PRPA015_01/single/?oderPlanNo=OP-2026-00101");
+  await expect(sourceLink).toHaveAttribute("target", "_blank");
+  await expect(sourceLink).toHaveAttribute("rel", "noopener noreferrer");
 
   // 발주기관은 상세에서 라벨과 함께 강조 영역으로 먼저 읽힌다.
   const head = page.locator(".c2l-detail-head");
@@ -178,6 +276,80 @@ test("토큰 필터는 축끼리 AND, 축 안에서는 OR로 조합되고 프리
   await expect(page.locator(".c2l-row")).toHaveCount(2);
 });
 
+test("검토 목록은 relevance 우선순위로 정렬하고 선택 순서와 같은 relevance의 원래 순서를 보존한다", async ({ page }) => {
+  const items = [
+    testOrderPlanItem(102, "uncertain", "API 순서 불확실 사업"),
+    testOrderPlanItem(101, "relevant", "API 순서 관련 사업"),
+    testOrderPlanItem(104, null, "API 순서 값 없음 첫 번째"),
+    testOrderPlanItem(103, "not_relevant", "API 순서 비관련 사업"),
+    testOrderPlanItem(105, null, "API 순서 값 없음 두 번째"),
+  ];
+  await mockReorderedOrderPlanList(page, items);
+  await page.goto("/order-plans");
+
+  await expect(page.locator(".c2l-list-sort")).toHaveText("정렬 · 관련 → 판단 보류 → 비관련 → 값 없음");
+  await clickPreset(page, "전체");
+
+  const rows = page.locator(".c2l-row");
+  await expect(rows).toHaveCount(5);
+  expect((await rows.locator(".c2l-row-model").allTextContents()).map((label) => label.trim())).toEqual([
+    "모델 관련",
+    "모델 판단 보류",
+    "모델 비관련",
+    "Qwen unknown",
+    "Qwen unknown",
+  ]);
+
+  // null relevance 안에서는 API가 준 104→105 순서가 유지되어 실행 상태를 relevance로
+  // 추정하거나 같은 그룹을 제목·점수로 다시 정렬하지 않는다.
+  const titles = await rows.locator(".c2l-row-title").allTextContents();
+  const stableNullTitles = [
+    "API 순서 값 없음 첫 번째",
+    "API 순서 값 없음 두 번째",
+  ];
+  expect(titles.slice(3).map((title) => title.trim())).toEqual(stableNullTitles);
+
+  // URL의 선택 토큰이 uncertain,relevant 순서여도 사람이 보는 우선순위는 고정된다.
+  await page.goto("/order-plans?qwen=uncertain,relevant");
+  await expect.poll(() => new URL(page.url()).searchParams.get("qwen")).toBe("uncertain,relevant");
+  await expect(rows).toHaveCount(2);
+  expect((await rows.locator(".c2l-row-model").allTextContents()).map((label) => label.trim())).toEqual(["모델 관련", "모델 판단 보류"]);
+  await expect(rows.first()).toContainText("API 순서 관련 사업");
+  await expect(rows.nth(1)).toContainText("API 순서 불확실 사업");
+});
+
+test("relevance 정렬은 500건 페이지를 자르기 전에 적용되고 페이지 끝 키보드 이동도 이어진다", async ({ page }) => {
+  const items = [
+    ...Array.from({ length: 200 }, (_, index) => testOrderPlanItem(102 + index, null, `대량 값 없음 ${index + 1}`)),
+    ...Array.from({ length: 100 }, (_, index) => testOrderPlanItem(302 + index, "not_relevant", `대량 비관련 ${index + 1}`)),
+    ...Array.from({ length: 200 }, (_, index) => testOrderPlanItem(402 + index, "uncertain", `대량 판단 보류 ${index + 1}`)),
+    testOrderPlanItem(101, "relevant", "대량 관련 1"),
+    ...Array.from({ length: 99 }, (_, index) => testOrderPlanItem(602 + index, "relevant", `대량 관련 ${index + 2}`)),
+  ];
+  await mockReorderedOrderPlanList(page, items);
+  await page.goto("/order-plans");
+  await clickPreset(page, "전체");
+
+  await expect(page.locator(".c2l-list-head")).toContainText("현재 필터 결과 600건");
+  await expect(page.locator(".c2l-pager")).toContainText("1–500 / 600");
+  const rows = page.locator(".c2l-row");
+  await expect(rows).toHaveCount(500);
+  await expect(rows.first()).toContainText("대량 관련 1");
+  await expect(rows.nth(99)).toContainText("대량 관련 100");
+  await expect(rows.nth(100)).toContainText("대량 판단 보류 1");
+  await expect(rows.nth(399)).toContainText("대량 비관련 100");
+  await expect(rows.nth(400)).toContainText("대량 값 없음 1");
+
+  await rows.nth(499).click();
+  await expect(rows.nth(499)).toHaveAttribute("aria-current", "true");
+  await rows.nth(499).focus();
+  await page.keyboard.press("ArrowDown");
+  await expect(page.locator(".c2l-pager")).toContainText("501–600 / 600");
+  await expect(rows).toHaveCount(100);
+  await expect(rows.first()).toContainText("대량 값 없음 101");
+  await expect(rows.first().locator(".c2l-row-model")).toHaveText("Qwen unknown");
+});
+
 test("1200건 결과에서 기본 review 필터·실패·거부 필터와 페이지 경계를 전체 모집단 기준으로 계산한다", async ({ page }) => {
   await mockOrderPlans(page, "large");
   await page.goto("/order-plans");
@@ -226,19 +398,27 @@ test("검토 목록은 고정 높이 안에서 스크롤되고 상세와 같은 
     const listPane = workspace.querySelector<HTMLElement>(".c2l-list-pane");
     const detailPane = workspace.querySelector<HTMLElement>(".c2l-detail-pane");
     const actions = workspace.querySelector<HTMLElement>(".c2l-detail-actions");
-    if (!listPane || !detailPane || !actions) throw new Error("발주계획 목록·상세 영역을 찾을 수 없습니다.");
+    const pageRoot = workspace.closest<HTMLElement>(".c2l-page");
+    if (!listPane || !detailPane || !actions || !pageRoot) throw new Error("발주계획 목록·상세 영역을 찾을 수 없습니다.");
     const listRect = listPane.getBoundingClientRect();
     const detailRect = detailPane.getBoundingClientRect();
     const actionsRect = actions.getBoundingClientRect();
+    const workspaceRect = workspace.getBoundingClientRect();
+    const pageRect = pageRoot.getBoundingClientRect();
     return {
       listHeight: listRect.height,
       detailHeight: detailRect.height,
       detailBottom: detailRect.bottom,
       actionsBottom: actionsRect.bottom,
+      workspaceBottom: workspaceRect.bottom,
+      pageBottom: pageRect.bottom,
     };
   });
   expect(Math.abs(geometry.listHeight - geometry.detailHeight)).toBeLessThanOrEqual(1);
   expect(geometry.actionsBottom).toBeLessThanOrEqual(geometry.detailBottom + 1);
+  // WorkspaceFrame owns the remaining canvas height; a short workspace would let the
+  // page canvas scroll and hide the decision bar below the first viewport.
+  expect(Math.abs(geometry.workspaceBottom - geometry.pageBottom)).toBeLessThanOrEqual(1);
 
   await page.locator(".c2l-workspace").scrollIntoViewIfNeeded();
   for (const label of ["추적 시작", "보류", "추적 종료", "이번 건 넘기기"]) {
@@ -574,7 +754,6 @@ test("실패·결과 없음·중지/비허용 상태를 성공 결과로 바꾸�
 });
 
 test("크기 조절 가능한 상세 영역: 드래그와 화살표 키로 폭을 조절하고 localStorage에 남긴다", async ({ page }) => {
-
   await mockOrderPlans(page);
   await page.goto("/order-plans");
 
@@ -593,6 +772,45 @@ test("크기 조절 가능한 상세 영역: 드래그와 화살표 키로 폭�
   await page.reload();
   const separatorAfterReload = page.getByRole("separator", { name: "목록 폭 조절" });
   await expect(separatorAfterReload).toHaveAttribute("aria-valuenow", String(after));
+
+  // `clientX`는 화면에 그려진 좌표이고 aria 값·localStorage는 논리 CSS px이다.
+  // 전역 UI zoom이 있어도 두 지원 폭에서 손잡이가 실제 포인터 이동만큼 따라가야 한다.
+  for (const width of [1280, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.evaluate(() => window.localStorage.removeItem("bidops.order-plans.listWidth"));
+    await page.reload();
+
+    const scaledSeparator = page.getByRole("separator", { name: "목록 폭 조절" });
+    const listPane = page.locator(".c2l-list-pane");
+    await expect(scaledSeparator).toBeVisible();
+    const before = Number(await scaledSeparator.getAttribute("aria-valuenow"));
+    const geometry = await Promise.all([
+      scaledSeparator.evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, left: rect.left };
+      }),
+      listPane.evaluate((element) => {
+        const renderedWidth = element.getBoundingClientRect().width;
+        const layoutWidth = element.offsetWidth;
+        return { renderedWidth, layoutWidth, scale: renderedWidth / layoutWidth };
+      }),
+    ]);
+    const [pointer, pane] = geometry;
+    expect(pane.scale).toBeGreaterThan(0);
+    const dragDistance = 36;
+
+    await page.mouse.move(pointer.x, pointer.y);
+    await page.mouse.down();
+    await page.mouse.move(pointer.x + dragDistance, pointer.y);
+    await page.mouse.up();
+
+    const expected = Math.round(before + dragDistance / pane.scale);
+    await expect.poll(async () => Number(await scaledSeparator.getAttribute("aria-valuenow"))).toBe(expected);
+    const afterLeft = await scaledSeparator.evaluate((element) => element.getBoundingClientRect().left);
+    // Layout rounding can move the edge by a fraction of a physical pixel after
+    // converting the logical width back through the rendered scale.
+    expect(Math.abs(afterLeft - pointer.left - dragDistance)).toBeLessThanOrEqual(2);
+  }
 });
 
 test("저장된 뷰: 이름 붙여 저장한 조합만 localStorage에 남고 다시 불러와 복원한다", async ({ page }) => {
@@ -675,65 +893,37 @@ test("사람 피드백 축과 텍스트 검색도 다른 축과 AND로 조합된
   await expect(page.locator(".c2l-row")).toContainText("지방공기업");
 });
 
-// docs/design/PLAN.md 단계 F 작업 1: 발주계획 상세(사람 relevance·priority·memo
-// 저장, 결정 1)도 사전규격 상세·입찰 변경 비교와 같은 골격을 쓴다. 결정 **액션**은
-// 요약 헤더에 고정되어 스크롤 위치와 무관하게 첫 화면에서 보이고, 되돌릴 수 없는
-// 입력 **form**은 헤더에 올라가지 않는다(단계 F 완료 게이트).
-test("발주계획 상세는 결정 액션만 헤더에 고정하고 입력 form은 본문에 둔다", async ({ page }) => {
+test("legacy 발주계획 URL은 회차를 해석한 목록의 선택 행으로 들어간다", async ({ page }) => {
   await mockOrderPlans(page);
   await page.goto("/order-plans/101");
-  await expect(page.getByRole("heading", { level: 2 })).toBeVisible();
 
-  const header = page.locator(".c2-page-header");
-  const saveButton = header.getByRole("button", { name: "새 수정본 저장", exact: true });
-  await expect(saveButton).toBeInViewport();
-  await expect(header.getByRole("button", { name: "사람 판단 입력으로 이동", exact: true })).toBeInViewport();
-
-  // 입력 필드는 헤더가 아니라 본문 열의 패널 안에 있다.
-  await expect(header.locator("textarea")).toHaveCount(0);
-  await expect(header.getByLabel("담당자 이름")).toHaveCount(0);
-  await expect(page.locator(".c2-feedback-panel").getByLabel("담당자 이름")).toHaveCount(1);
-
-  await page.evaluate(() => document.querySelector(".page-canvas")?.scrollTo(0, 999_999));
-  await expect(saveButton).toBeInViewport();
+  await expect(page).toHaveURL(/\/order-plans\?.*selected=101/);
+  await expect.poll(() => new URL(page.url()).searchParams.get("source_run_id")).toBe(TEST_ORDER_PLAN_SOURCE_RUN_ID);
+  await expect(page.locator("header.topbar h1")).toHaveText("발주계획");
+  await expect(page.locator(".c2l-page-header")).toHaveCount(0);
+  await expect(page.locator(".c2l-row-wrap.is-selected")).toContainText("공공데이터 통합");
+  await expect(page.locator(".c2l-detail-pane")).toContainText("공공데이터 통합");
+  await expect(page.getByRole("link", { name: "전체 상세 열기", exact: true })).toHaveCount(0);
 });
 
-// 시안 `OrderPlanDetail`은 사람 피드백 수정본 이력과 새 revision 입력을 본문
-// 열에 함께 둔다. 지금 저장하려는 값과 직전 revision을 한눈에 대조해야 하기
-// 때문이다. 레일은 관측·실행 이력과 연결만 담는다.
-test("발주계획 상세 헤더는 상태를 요약하고, revision 이력은 본문 열, 레일은 관측 이력만 담는다", async ({ page }) => {
+test("legacy URL은 필터에 가려진 not_relevant 대상의 회차·선택을 보존한다", async ({ page }) => {
   await mockOrderPlans(page);
-  await page.goto("/order-plans/101");
+  await page.goto("/order-plans/103?qwen=relevant");
 
-  const header = page.locator(".c2-page-header");
-  await expect(header.getByText("최근 실행 부분 성공", { exact: true })).toBeVisible();
-  await expect(header.getByText("최근 피드백 수정본 1", { exact: true })).toBeVisible();
-
-  const feedbackPanel = page.locator(".c2-feedback-panel");
-  await expect(feedbackPanel.getByRole("heading", { name: "사람 피드백 수정본 이력", exact: true })).toBeVisible();
-  await expect(feedbackPanel).toContainText("append-only");
-
-  const rail = page.locator(".detail-skeleton-rail");
-  await expect(rail).toHaveAttribute("data-review-primitive", "history-link-rail");
-  await expect(rail.getByRole("heading", { name: "관측 history", exact: true })).toBeVisible();
-  await expect(rail.getByRole("link", { name: "발주계획 목록 →", exact: true })).toBeVisible();
-  // 이력은 본문 열이 소유한다. 레일에 복제하지 않는다.
-  await expect(rail.getByRole("heading", { name: "사람 피드백 수정본 이력", exact: true })).toHaveCount(0);
-  // 결정 액션(저장 버튼)도 레일에 복제하지 않는다.
-  await expect(rail.getByRole("button", { name: /revision 저장/ })).toHaveCount(0);
+  await expect(page).toHaveURL(/\/order-plans\?.*selected=103/);
+  await expect.poll(() => new URL(page.url()).searchParams.get("source_run_id")).toBe(TEST_ORDER_PLAN_SOURCE_RUN_ID);
+  await expect.poll(() => new URL(page.url()).searchParams.get("qwen")).toBe("");
+  await expect(page.locator(".c2l-row-wrap.is-selected")).toContainText("시설관리 용역");
+  await expect(page.locator(".c2l-detail-pane")).toContainText("시설관리 용역");
 });
 
-test("발주계획 상세는 viewport 바깥으로 넘치지 않는다", async ({ page }) => {
+test("legacy URL의 알 수 없는 발주계획은 첫 행으로 대체하지 않는다", async ({ page }) => {
   await mockOrderPlans(page);
-  await page.goto("/order-plans/101");
-  await expect(page.locator("header.topbar h1")).toHaveText("발주계획 C-2 상세");
-  await expect.poll(() => page.evaluate(() => ({
-    root: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-    canvas: (() => {
-      const canvas = document.querySelector<HTMLElement>(".page-canvas");
-      return canvas ? canvas.scrollWidth - canvas.clientWidth : 0;
-    })(),
-  }))).toEqual({ root: 0, canvas: 0 });
+  await page.goto("/order-plans/9999");
+
+  await expect(page).toHaveURL(/\/order-plans\?.*selected=9999/);
+  await expect(page.getByText("요청한 발주계획을 찾을 수 없습니다.", { exact: true })).toBeVisible();
+  await expect(page.locator(".c2l-row-wrap.is-selected")).toHaveCount(0);
 });
 
 test("선별 전 수집 회차도 전체 원본을 조회하고 URL의 회차를 새로고침 후 유지한다", async ({ page }) => {

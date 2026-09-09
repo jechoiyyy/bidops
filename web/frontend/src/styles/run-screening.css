@@ -535,7 +535,7 @@
 }
 
 .runs-screening-stop-dialog {
-  width: min(420px, calc(100vw - 32px));
+  width: min(420px, calc(var(--bo-ui-viewport-width) - 32px));
   padding: 0;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);

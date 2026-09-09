@@ -235,6 +235,32 @@ test("화면 제목과 페이지 액션은 상단바에 있고 경로·편집 �
   await expect(page.getByRole("dialog")).toContainText("‘계속 추적’인 사업기회만 최종 Go/No-Go 대상입니다");
 });
 
+test("중복 페이지 머리말 없이 workspace가 화면의 남은 높이를 채운다", async ({ page }) => {
+  await openList(page);
+
+  // 제목·데이터 현황은 상단바 하나에만 남고, 예전 페이지 머리말은 다시 생기지 않는다.
+  await expect(page.locator("header.topbar[data-topbar-mode='title'] h1")).toHaveCount(1);
+  await expect(page.locator(".gng-page-header")).toHaveCount(0);
+  await expect(page.locator("#go-no-go-title")).toHaveClass(/visually-hidden/);
+
+  const geometry = await page.locator(".gng-page").evaluate((pageRoot) => {
+    const workspace = pageRoot.querySelector<HTMLElement>(".gng-workspace");
+    if (!workspace) throw new Error("missing Go/No-Go workspace");
+    const pageRect = pageRoot.getBoundingClientRect();
+    const workspaceRect = workspace.getBoundingClientRect();
+    return {
+      pageBottom: pageRect.bottom,
+      workspaceBottom: workspaceRect.bottom,
+      workspaceHeight: workspaceRect.height,
+    };
+  });
+
+  // 필터 아래 workspace의 bottom edge가 page content edge에 붙어야 상세 footer가
+  // 별도 페이지 스크롤 없이 화면 안에 남는다.
+  expect(Math.abs(geometry.workspaceBottom - geometry.pageBottom)).toBeLessThanOrEqual(1);
+  expect(geometry.workspaceHeight).toBeGreaterThan(0);
+});
+
 test("데이터 현황은 API 경계와 집계 범위를 기본 화면 밖에서 설명한다", async ({ page }) => {
   await openList(page);
   await page.getByRole("button", { name: "데이터 현황", exact: true }).click();
