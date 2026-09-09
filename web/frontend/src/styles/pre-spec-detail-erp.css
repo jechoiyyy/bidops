@@ -1,253 +1,968 @@
-/* ERP record view: project layout (ADR-0040), shared bidops palette and type scale.
- * Scope every rule to this record so the list and other detail pages retain their layout. */
+/* 사전규격 상세(ERP record). 승인 시안 HTML의 규칙을 그대로 옮기고 값만 bidops
+ * 테마 토큰으로 바꾼 것이다. 새 색·간격 토큰을 만들지 않고 `:root`도 손대지
+ * 않는다(ADR-0048, web/frontend/AGENTS.md). 선택자는 `.ps-record` 안으로만
+ * 한정해 목록·다른 상세 화면으로 새지 않게 한다. */
+
+/* ---- 화면 틀 ---------------------------------------------------------- */
 .app-shell[data-astryx-theme="bidops"] .page-canvas:has(> .ps-record) {
-  padding: var(--spacing-4) var(--spacing-6) var(--spacing-6);
+  padding: var(--spacing-4) var(--spacing-6) var(--spacing-10);
 }
 .ps-record {
-  --ps-record-reading-size: calc(var(--bo-type-body) + var(--border-width));
-  gap: var(--spacing-3);
-  font-size: var(--bo-type-body);
-  line-height: var(--bo-type-body-leading);
-}
-.ps-record .pre-spec-detail-header {
+  /* 시안 `--ps-line`: 카드 안의 연한 구분선(#ECE8E6). 테두리 색을 흰 표면 쪽으로
+     섞어 만든다. 새 토큰을 정의하지 않는다. */
+  --ps-line: color-mix(in srgb, var(--color-border) 45%, var(--color-background-surface));
+  /* 시안 값은 px 이고 앱의 루트 글꼴은 14px 이라 rem 기반 `--radius-*`·
+     `--font-size-*` 는 시안보다 0.875배로 나온다. 시안과 같은 픽셀을 내기 위해
+     px 단위인 spacing·bo-type 토큰에서 파생한 별칭만 둔다. 새 색·새 척도를
+     만들지 않으며 `:root` 도 손대지 않는다. */
+  --ps-radius-card: var(--spacing-3);                              /* 12px */
+  --ps-radius-control: calc(var(--spacing-2) + var(--spacing-0-5)); /* 10px */
+  --ps-radius-btn-sm: var(--spacing-2);                            /* 8px */
+  --ps-radius-chip: var(--spacing-1-5);                            /* 6px */
+  --ps-radius-box: var(--spacing-1);                               /* 4px */
+  --ps-type-lead: calc(var(--bo-type-caption) + var(--spacing-1) + var(--border-width)); /* 17px */
   display: flex;
   flex-direction: column;
-  align-items: stretch;
-  position: static;
-  gap: var(--spacing-3);
-  padding: var(--spacing-4) var(--spacing-4) 0;
-  border-radius: var(--radius-element);
+  gap: var(--spacing-4);
+  min-width: 0;
+  color: var(--color-text-primary);
+  font-size: var(--bo-type-body);
+  line-height: 1.5;
+}
+.ps-record a { color: var(--color-text-accent); }
+
+/* ---- 시안 원시 요소 --------------------------------------------------- */
+.ps-record .ps-card {
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--ps-radius-card);
+  background: var(--color-background-surface);
   box-shadow: none;
 }
-.ps-record .detail-skeleton-head-top { flex-wrap: nowrap; gap: var(--spacing-4); }
-.ps-record .detail-skeleton-head-top > div:first-child { flex: 1; min-width: 0; }
-.ps-record .pre-spec-detail-header h2 {
+.ps-record .ps-sec {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  min-width: 0;
+  padding: var(--spacing-5) var(--spacing-6);
+}
+.ps-record .ps-sec-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  min-width: 0;
+}
+.ps-record .ps-cnt {
+  color: var(--color-text-disabled);
+  font-size: var(--bo-type-caption);
+  font-weight: var(--font-weight-normal);
+}
+.ps-record .ps-muted { color: var(--color-text-secondary); }
+.ps-record .ps-dim { color: var(--color-text-disabled); }
+.ps-record .ps-cap { font-size: var(--bo-type-caption); line-height: var(--bo-type-caption-leading); }
+.ps-record .ps-h-page {
   margin: 0;
-  font-size: var(--bo-type-page-title);
-  font-weight: var(--font-weight-semibold);
-  line-height: 1.4;
-  overflow-wrap: anywhere;
-}
-.ps-record .pre-spec-detail-subline { margin-top: var(--spacing-1); gap: var(--spacing-3); }
-.ps-record .ps-record-agency {
   color: var(--color-text-primary);
-  font-size: calc(var(--bo-type-body) + var(--spacing-0-5));
-  font-weight: var(--font-weight-semibold);
+  font-size: var(--bo-type-page-title);
+  line-height: 1.35;
+  font-weight: 600;
+  letter-spacing: normal;
+}
+.ps-record .ps-h-sec {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--bo-type-body);
+  line-height: 1.4;
+  font-weight: 600;
   overflow-wrap: anywhere;
 }
-.ps-record-reference { font-size: var(--bo-type-caption); color: var(--color-text-secondary); overflow-wrap: anywhere; }
-.ps-record .pre-spec-detail-actions { flex-shrink: 0; align-items: flex-end; flex-direction: column; gap: var(--spacing-1); }
-.ps-record .pre-spec-detail-actions a { padding: 0; background: none; border: 0; font-size: var(--bo-type-body); }
-.ps-record .pre-spec-detail-grade-row { margin: 0; }
-.ps-record .detail-skeleton-status-row { gap: var(--spacing-3); align-items: flex-start; }
-.ps-record .interaction-control { min-height: var(--spacing-8); font-size: var(--bo-type-body); }
-.ps-record-nav {
+.ps-record .ps-sub {
+  margin: var(--spacing-1) 0 0;
+  color: var(--color-text-secondary);
+  font-size: calc(var(--bo-type-caption) + var(--border-width));
+  line-height: 1.5;
+  font-weight: 600;
+}
+.ps-record .ps-sub:first-child { margin-top: 0; }
+.ps-record .ps-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1-5);
+  padding: var(--spacing-0-5) var(--spacing-2);
+  border: 0;
+  border-radius: var(--ps-radius-chip);
+  font-size: var(--bo-type-caption);
+  font-weight: 500;
+  line-height: var(--bo-type-caption-leading);
+  white-space: nowrap;
+}
+.ps-record .ps-chip-neutral { background: var(--color-background-muted); color: var(--color-text-secondary); }
+.ps-record .ps-chip-accent { background: var(--color-accent-muted); color: var(--color-text-secondary); }
+.ps-record .ps-chip-warn { background: var(--color-warning-muted); color: var(--color-warning); }
+.ps-record .ps-chip-err { background: var(--color-error-muted); color: var(--color-error); }
+.ps-record .ps-chip-ok { background: var(--color-success-muted); color: var(--color-success); }
+.ps-record .ps-chip-dark { background: var(--color-background-inverted); color: var(--color-on-accent); }
+.ps-record .ps-ref {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-accent);
+  font-size: var(--bo-type-caption);
+  font-weight: var(--font-weight-normal);
+  line-height: 1.5;
+  white-space: nowrap;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--color-text-accent) 40%, transparent);
+  text-underline-offset: var(--spacing-0-5);
+  cursor: pointer;
+}
+.ps-record .ps-ref-plain { text-decoration: none; }
+.ps-record .ps-dot {
+  width: var(--spacing-2);
+  height: var(--spacing-2);
+  margin-top: calc(var(--spacing-1-5) + var(--border-width));
+  border-radius: var(--radius-full);
+  flex: 0 0 var(--spacing-2);
+}
+.ps-record .ps-dot-ok { background: var(--color-success); }
+.ps-record .ps-dot-warn { background: var(--color-warning); }
+.ps-record .ps-dot-err { background: var(--color-error); }
+.ps-record .ps-dot-neutral { background: var(--color-data-neutral); }
+.ps-record .ps-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-2);
+  height: var(--spacing-10);
+  min-height: var(--spacing-10);
+  padding: 0 var(--spacing-4);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--ps-radius-control);
+  background: var(--color-background-surface);
+  color: var(--color-text-primary);
+  font-size: var(--bo-type-body);
+  font-weight: 500;
+  line-height: 1.45;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.ps-record .ps-btn-primary {
+  background: var(--color-background-inverted);
+  border-color: var(--color-background-inverted);
+  color: var(--color-on-accent);
+}
+.ps-record .ps-btn-sm {
+  height: var(--spacing-8);
+  min-height: var(--spacing-8);
+  padding: 0 var(--spacing-3);
+  border-radius: var(--ps-radius-btn-sm);
+  font-size: var(--bo-type-caption);
+}
+.ps-record .ps-divider { height: var(--border-width); background: var(--color-border); }
+
+/* 여섯 칸 사실 띠 */
+.ps-record .ps-facts {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  gap: 0;
+}
+.ps-record .ps-fact {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  min-width: 0;
+  padding: calc(var(--spacing-3) + var(--spacing-0-5)) var(--spacing-5);
+  border-right: var(--border-width) solid var(--color-border);
+  overflow-wrap: anywhere;
+}
+.ps-record .ps-fact:last-child { border-right: 0; }
+.ps-record .ps-fact .ps-k {
+  margin: 0;
+  min-height: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+  font-weight: var(--font-weight-normal);
+}
+.ps-record .ps-fact .ps-v {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  font-size: var(--ps-type-lead);
+  font-weight: 600;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.ps-record .ps-fact .ps-s {
+  display: block;
+  margin: 0;
+  color: var(--color-text-disabled);
+  font-size: var(--bo-type-caption);
+  font-weight: var(--font-weight-normal);
+  line-height: var(--bo-type-caption-leading);
+}
+
+/* 본문 두 열 */
+.ps-record .ps-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) calc(var(--spacing-12) * 8 + var(--spacing-4));
+  gap: var(--spacing-4);
+  align-items: start;
+}
+.ps-record .ps-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  min-width: 0;
+}
+
+/* 목록(번호·점) */
+.ps-record .ps-bul {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--spacing-2) + var(--spacing-0-5));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ps-record .ps-bul > li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-3);
+  min-width: 0;
+}
+.ps-record .ps-n {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--spacing-5) + var(--spacing-0-5));
+  height: calc(var(--spacing-5) + var(--spacing-0-5));
+  margin-top: var(--border-width);
+  border-radius: var(--ps-radius-chip);
+  background: var(--color-accent-muted);
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  font-weight: 600;
+  line-height: 1;
+  flex: 0 0 calc(var(--spacing-5) + var(--spacing-0-5));
+}
+.ps-record .ps-t {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--bo-type-body);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.ps-record .ps-refs {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+  margin-left: var(--spacing-1-5);
+  padding: 0;
+  vertical-align: baseline;
+}
+
+/* 이름·값 */
+.ps-record .ps-kv {
+  display: grid;
+  grid-template-columns: calc(var(--spacing-12) * 2 + var(--spacing-6)) minmax(0, 1fr);
+  gap: var(--spacing-2) var(--spacing-4);
+  margin: 0;
+}
+.ps-record .ps-kv > div { display: contents; }
+.ps-record .ps-kv .ps-k {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: calc(var(--bo-type-caption) + var(--border-width));
+  font-weight: var(--font-weight-normal);
+  line-height: 1.45;
+}
+.ps-record .ps-kv dd { margin: 0; font-size: var(--bo-type-body); line-height: 1.5; overflow-wrap: anywhere; }
+
+/* 판단 상자 */
+.ps-record .ps-verdict {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-3);
+  align-items: start;
+}
+.ps-record .ps-vbox {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1-5);
+  min-width: 0;
+  padding: var(--spacing-3) calc(var(--spacing-3) + var(--spacing-0-5));
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--ps-radius-control);
+  background: transparent;
+  overflow-wrap: anywhere;
+}
+.ps-record .ps-vbox .ps-k {
+  display: block;
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+.ps-record .ps-vbox .ps-v {
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
-  border-top: var(--border-width) solid var(--color-border);
-  padding-block: var(--spacing-1);
+  min-width: 0;
+  font-size: var(--ps-type-lead);
+  font-weight: 600;
+  line-height: 1.3;
 }
-.ps-record .ps-record-nav .astryx-button { font-size: var(--bo-type-body); min-height: var(--spacing-8); border-radius: var(--radius-inner); }
-.ps-record-nav > a { margin-left: auto; color: var(--color-text-accent); font-size: var(--bo-type-body); }
-.ps-record :is(a, button, [tabindex="-1"]):focus-visible { outline: var(--focus-outline-width) solid var(--color-accent); outline-offset: var(--spacing-0-5); }
-.ps-record-facts {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.ps-record .ps-vbox .ps-v .ps-dot { margin-top: 0; }
+.ps-record .ps-vbox .ps-why {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+.ps-record .ps-vbox .badge, .ps-record .ps-vbox .astryx-token { align-self: flex-start; }
+
+/* 안내 상자 */
+.ps-record .ps-note {
+  display: block;
+  padding: calc(var(--spacing-2) + var(--spacing-0-5)) var(--spacing-3);
+  border: 0;
+  border-radius: var(--ps-radius-chip);
+  background: var(--color-background-body);
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+.ps-record .ps-note > strong { display: block; margin-bottom: var(--spacing-0-5); color: var(--color-text-primary); }
+
+/* 확인 목록 */
+.ps-record .ps-check {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
   margin: 0;
   padding: 0;
+  list-style: none;
+}
+.ps-record .ps-check > li {
+  display: flex;
+  align-items: flex-start;
+  gap: calc(var(--spacing-2) + var(--spacing-0-5));
+  min-width: 0;
+  padding: calc(var(--spacing-2) + var(--border-width)) 0;
+  border-bottom: var(--border-width) solid var(--ps-line);
+}
+.ps-record .ps-check > li:last-child { border-bottom: 0; }
+.ps-record .ps-box {
+  width: var(--spacing-4);
+  height: var(--spacing-4);
+  margin-top: var(--spacing-0-5);
+  border: calc(var(--border-width) * 1.5) solid var(--color-border-emphasized);
+  border-radius: var(--ps-radius-box);
+  background: transparent;
+  flex: 0 0 var(--spacing-4);
+}
+.ps-record .ps-check .ps-t {
+  font-size: calc(var(--bo-type-caption) + var(--border-width));
+  line-height: var(--bo-type-caption-leading);
+}
+.ps-record .ps-check .ps-t > p { margin: 0; font-size: inherit; line-height: inherit; }
+.ps-record .ps-how {
+  display: block;
+  margin-top: var(--border-width);
+  color: var(--color-text-disabled);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+  overflow-wrap: anywhere;
+}
+.ps-record .ps-how strong {
+  margin-right: var(--spacing-1);
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+/* 근거 목록 */
+.ps-record .ps-ev {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  list-style: none;
+}
+.ps-record .ps-ev > li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-3);
+  min-width: 0;
+  padding: calc(var(--spacing-2) + var(--spacing-0-5)) 0;
+  border: 0;
+  border-bottom: var(--border-width) solid var(--ps-line);
+  border-radius: 0;
+  background: transparent;
+}
+.ps-record .ps-ev > li:last-child { border-bottom: 0; }
+.ps-record .ps-loc {
+  display: block;
+  margin-top: var(--spacing-0-5);
+  color: var(--color-text-disabled);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+  overflow-wrap: anywhere;
+}
+.ps-record .ps-loc code {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-text-disabled);
+  font-family: var(--font-family-code);
+  font-size: calc(var(--bo-type-caption) - var(--border-width));
+  overflow-wrap: anywhere;
+}
+
+/* 자동 준비 단계 */
+.ps-record .ps-steps {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: var(--spacing-6);
+  row-gap: var(--spacing-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ps-record .ps-step {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-1-5);
+  min-width: 0;
+  padding: 0 0 var(--spacing-3);
+  border: 0;
+  border-bottom: var(--border-width) solid var(--ps-line);
+  border-radius: 0;
+  background: transparent;
+  flex: initial;
+}
+.ps-record .ps-step:nth-child(n + 3) { padding-bottom: 0; border-bottom: 0; }
+.ps-record .ps-step .ps-k {
+  color: var(--color-text-primary);
+  font-size: calc(var(--bo-type-caption) + var(--border-width));
+  font-weight: 600;
+  line-height: var(--bo-type-caption-leading);
+}
+.ps-record .ps-step .ps-d {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+
+/* 접힌 이력 줄 */
+.ps-record .ps-collapsed {
+  padding: var(--spacing-3) var(--spacing-1);
+  color: var(--color-text-secondary);
+  font-size: calc(var(--bo-type-caption) + var(--border-width));
+}
+
+/* ---- 헤더 카드 -------------------------------------------------------- */
+.ps-record .pre-spec-detail-header {
+  position: static;
+  z-index: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: calc(var(--spacing-3) + var(--spacing-0-5));
+  padding: var(--spacing-5) var(--spacing-6);
+}
+.ps-record-header-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-6);
+}
+.ps-record-header-main { display: flex; flex-direction: column; gap: var(--spacing-1-5); min-width: 0; flex: 1; }
+.ps-record-header-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--spacing-1-5);
+  flex: 0 0 auto;
+}
+.ps-record-chips { display: flex; align-items: center; flex-wrap: wrap; gap: var(--spacing-2); }
+.ps-record-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+  min-width: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-body);
+  line-height: 1.5;
+}
+.ps-record-meta > [aria-hidden="true"] { color: var(--color-text-disabled); }
+.ps-record .ps-record-agency {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-body);
+  font-weight: var(--font-weight-normal);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.ps-record-identity {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+  min-width: 0;
+  margin: 0;
+}
+.ps-record-number-group { display: flex; align-items: center; flex-wrap: wrap; gap: var(--spacing-1); min-width: 0; }
+.ps-record-number-group > span { color: var(--color-text-disabled); font-size: var(--bo-type-body); }
+.ps-record-number {
+  color: var(--color-text-primary);
+  font-size: var(--bo-type-body);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  user-select: all;
+  overflow-wrap: anywhere;
+}
+/* 시안의 번호 복사·원문은 본문 안의 글자 링크다. 아이콘은 시안에 없다. */
+.ps-record-identity .astryx-button {
+  min-height: 0;
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-accent);
+  font-size: var(--bo-type-caption);
+  font-weight: var(--font-weight-normal);
+  line-height: 1.5;
+}
+.ps-record-identity .astryx-button svg { display: none; }
+.ps-record-identity .astryx-button:disabled { color: var(--color-text-disabled); }
+.ps-record-source-unavailable { color: var(--color-text-disabled); font-size: var(--bo-type-body); line-height: 1.5; }
+.ps-record-identity > :is(.ps-record-source-unavailable, .astryx-button)::before {
+  /* 시안의 가운뎃점 구분자. 대체 문자열을 비워 접근성 이름에는 실리지 않게 한다
+     — 실리면 원문 링크의 이름이 "· 나라장터 원문"이 된다. */
+  content: "·" / "";
+  margin-right: var(--spacing-2);
+  color: var(--color-text-disabled);
+}
+.ps-record-number-group .astryx-button::before { display: none; }
+.ps-record-copy-feedback {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 2;
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--color-background-inverted);
+  color: var(--color-on-dark);
+  border-radius: var(--ps-radius-chip);
+  font-size: var(--bo-type-caption);
+}
+.ps-record-clipboard-helper { position: fixed; left: -100vw; top: 0; }
+.ps-record-summary { display: flex; align-items: flex-start; gap: var(--spacing-3); }
+.ps-record-summary > .ps-chip { margin-top: var(--spacing-0-5); }
+.ps-record-summary > p {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: calc(var(--bo-type-body) + var(--border-width));
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+/* ---- 추적 결정 카드 --------------------------------------------------- */
+/* 시안의 `strip2` 한 줄. 컨트롤이 그리는 마크업은 바꾸지 않고 `display: contents`
+ * 로 이 카드의 grid 에 직접 참여시킨다. 저장 형식·업무 규칙은 컨트롤이 계속
+ * 소유한다. 승계·기록됨·미연결 분기는 grid 밖 일반 흐름으로 둔다. */
+.ps-record-tracking-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) calc(var(--spacing-12) * 4 + var(--spacing-7));
+  column-gap: var(--spacing-4);
+  row-gap: calc(var(--spacing-2) + var(--spacing-0-5));
+  align-items: start;
+  min-width: 0;
+  padding: var(--spacing-4) var(--spacing-6);
+}
+.ps-record-tracking-card > .pre-spec-tracking-decision { grid-column: 1 / -1; }
+.ps-record-tracking-card .pre-spec-tracking-decision.is-record:not(.is-recorded),
+.ps-record-tracking-card .pre-spec-tracking-form.is-compact { display: contents; }
+.ps-record-tracking-card .pre-spec-tracking-decision.is-recorded { padding: 0; border: 0; }
+.ps-record-tracking-card :is(.pre-spec-tracking-reason-preset, .actor-field) {
+  grid-row: 1;
+  min-width: 0;
+  width: auto;
+  max-width: none;
+}
+.ps-record-tracking-card .pre-spec-tracking-reason-preset { grid-column: 1; display: grid; gap: var(--spacing-3); }
+.ps-record-tracking-card .pre-spec-tracking-reason-preset > .astryx-field { min-width: 0; width: 100%; }
+/* 직접 입력이 열리면 사유 자리가 두 줄이 된다. 셀 안에서 늘어나게 둔다. */
+.ps-record-tracking-card .pre-spec-tracking-reason-preset:has(.pre-spec-tracking-reason) { align-self: start; }
+.ps-record-tracking-card .actor-field { grid-column: 2; }
+.ps-record-tracking-card .actor-field > label,
+.ps-record-tracking-card .pre-spec-tracking-reason-preset .astryx-field-label,
+.ps-record-tracking-card .pre-spec-tracking-reason > span {
+  display: block;
+  margin-bottom: var(--spacing-1-5);
+  color: var(--color-text-primary);
+  font-size: calc(var(--bo-type-caption) + var(--border-width));
+  line-height: 1.5;
+  font-weight: 600;
+}
+.ps-record-tracking-card :is(.actor-field > label, .pre-spec-tracking-reason > span) em {
+  margin-left: var(--spacing-1);
+  color: var(--color-text-disabled);
+  font-size: var(--bo-type-caption);
+  font-style: normal;
+  font-weight: var(--font-weight-normal);
+}
+.ps-record-tracking-card :is(.astryx-selector, .actor-field input) {
+  width: 100%;
+  height: var(--spacing-10);
+  min-height: var(--spacing-10);
+  border-radius: var(--ps-radius-control);
+  font-size: var(--bo-type-body);
+}
+.ps-record-tracking-card .actor-field input { padding: 0 var(--spacing-3); }
+.ps-record-tracking-card .pre-spec-tracking-reason textarea {
+  width: 100%;
+  padding: var(--spacing-2) var(--spacing-3);
+  border-radius: var(--ps-radius-control);
+  font-size: var(--bo-type-body);
+}
+.ps-record-tracking-card .actor-field > p {
+  margin: var(--spacing-1-5) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+.ps-record-tracking-card .pre-spec-tracking-save {
+  grid-column: 3;
+  grid-row: 1;
+  width: 100%;
+  height: var(--spacing-10);
+  min-height: var(--spacing-10);
+  padding: 0 var(--spacing-4);
+  border: var(--border-width) solid var(--color-background-inverted);
+  border-radius: var(--ps-radius-control);
+  background: var(--color-background-inverted);
+  color: var(--color-on-accent);
+  font-size: var(--bo-type-body);
+  font-weight: 500;
+  align-self: start;
+  margin-top: calc((var(--bo-type-caption) + var(--border-width)) * 1.5 + var(--spacing-1-5));
+}
+.ps-record-tracking-card .pre-spec-tracking-save:disabled { opacity: 0.55; cursor: not-allowed; }
+.ps-record-tracking-card .disabled-reason {
+  grid-column: 3;
+  grid-row: 2;
+  align-self: start;
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+.ps-record-tracking-card :is(.mutation-feedback, .astryx-dialog, .pre-spec-tracking-combined-note) { grid-column: 1 / -1; }
+.ps-record-tracking-card .ps-record-tracking-help { grid-column: 1 / -1; grid-row: 3; margin: 0; }
+.ps-record-tracking-card .pre-spec-tracking-elsewhere {
+  grid-column: 1 / 3;
+  grid-row: 4;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+.ps-record-tracking-card .pre-spec-tracking-elsewhere a { margin-left: var(--spacing-1); }
+.ps-record-tracking-card .ps-record-decision-note {
+  grid-column: 3 / -1;
+  grid-row: 4;
+  justify-self: end;
+  width: max-content;
+  max-width: none;
+  margin: 0;
+  text-align: right;
+}
+.ps-record .ps-record-tracking-help,
+.ps-record .ps-record-decision-note {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+/* 기록됨·승계 분기는 시안에 없는 자리다. 카드 안에서 읽히게만 둔다. */
+.ps-record-saved-decision { display: grid; gap: var(--spacing-2); padding-top: var(--spacing-2); }
+.ps-record-saved-decision h3 { margin: 0; font-size: var(--bo-type-body); font-weight: 600; }
+.ps-record-saved-decision p { margin: 0; }
+.ps-record-saved-decision dl { display: grid; gap: var(--spacing-2); margin: 0; padding: var(--spacing-3); border-radius: var(--ps-radius-chip); background: var(--color-background-body); }
+.ps-record-saved-decision dl > div { display: grid; grid-template-columns: calc(var(--spacing-12) + var(--spacing-6)) minmax(0, 1fr); gap: var(--spacing-3); }
+.ps-record-saved-decision dt { color: var(--color-text-secondary); font-size: var(--bo-type-caption); }
+.ps-record-saved-decision dd { margin: 0; overflow-wrap: anywhere; }
+.ps-record-tracking-card .pre-spec-tracking-decision-header { display: grid; gap: var(--spacing-2); }
+.ps-record-tracking-card .pre-spec-tracking-decision-header h3 { margin: 0; font-size: var(--bo-type-body); font-weight: 600; }
+.ps-record-tracking-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-3); }
+.ps-record-tracking-reference { display: flex; align-items: baseline; gap: var(--spacing-2); }
+
+/* ---- 사실 띠 (dl 마크업을 시안 6칸에 맞춘다) -------------------------- */
+.ps-record .ps-record-facts .pre-spec-detail-grade-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-1);
+  margin: 0;
+}
+.ps-record .pre-spec-detail-grade-source { color: var(--color-text-disabled); font-size: var(--bo-type-caption); font-weight: var(--font-weight-normal); }
+.ps-record .ps-fact .ps-v .badge { font-size: calc(var(--bo-type-caption) + var(--border-width)); }
+
+/* ---- 배지·토큰을 시안 chip 모양으로 ----------------------------------- */
+.ps-record :is(.badge, .astryx-token) {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1-5);
+  min-height: 0;
+  height: auto;
+  padding: var(--spacing-0-5) var(--spacing-2);
+  border: 0;
+  border-radius: var(--ps-radius-chip);
+  font-size: var(--bo-type-caption);
+  font-weight: 500;
+  line-height: var(--bo-type-caption-leading);
+  white-space: nowrap;
+}
+.ps-record :is(.badge-neutral, .badge-evidence-unknown, .badge-info, .badge-readiness, .badge-evidence-inferred, .badge-focus, .astryx-token) {
+  background: var(--color-background-muted);
+  color: var(--color-text-secondary);
+}
+.ps-record :is(.badge-success, .badge-evidence-confirmed) { background: var(--color-success-muted); color: var(--color-success); }
+.ps-record .badge-alert { background: var(--color-warning-muted); color: var(--color-warning); }
+.ps-record .badge-danger { background: var(--color-error-muted); color: var(--color-error); }
+
+/* ---- 검토 요약·개요 카드 ---------------------------------------------- */
+.ps-record .pre-spec-overview-content { display: grid; gap: var(--spacing-3); }
+.ps-record .pre-spec-overview-section { display: grid; gap: var(--spacing-3); padding: 0; border: 0; min-width: 0; }
+.ps-record .pre-spec-overview-summary {
+  margin: 0;
+  font-size: var(--bo-type-body);
+  line-height: 1.5;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.ps-record .pre-spec-overview-validation-warning {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+  margin: 0;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: 0;
+  border-radius: var(--ps-radius-chip);
+  background: var(--color-background-body);
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+.ps-record .pre-spec-overview-validation-warning p { margin: 0; font-size: inherit; line-height: inherit; }
+.ps-record .pre-spec-overview-waiting {
+  display: grid;
+  gap: var(--spacing-0-5);
+  padding: calc(var(--spacing-2) + var(--spacing-0-5)) var(--spacing-3);
+  border: 0;
+  border-radius: var(--ps-radius-chip);
+  background: var(--color-background-body);
+}
+.ps-record .pre-spec-overview-waiting strong { color: var(--color-text-primary); font-size: var(--bo-type-caption); line-height: var(--bo-type-caption-leading); }
+.ps-record .pre-spec-overview-waiting p { margin: 0; color: var(--color-text-secondary); font-size: var(--bo-type-caption); line-height: var(--bo-type-caption-leading); }
+
+/* ---- 근거 목록 (기존 마크업) ------------------------------------------ */
+.ps-record .pre-spec-overview-evidence-content { flex: 1; min-width: 0; }
+.ps-record .pre-spec-overview-evidence-content > p { margin: 0; font-size: var(--bo-type-body); line-height: 1.5; overflow-wrap: anywhere; }
+.ps-record .pre-spec-overview-evidence-open { flex: 0 0 auto; }
+
+/* ---- 원문 뷰어 (시안에 없는 기능 요소) -------------------------------- */
+.ps-record .pre-spec-overview-source {
+  display: grid;
+  gap: var(--spacing-3);
+  margin-top: var(--spacing-3);
+  padding: var(--spacing-3) var(--spacing-4);
   border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-element);
+  border-radius: var(--ps-radius-control);
+  background: var(--color-background-body);
+  scroll-margin-top: var(--spacing-3);
+}
+.ps-record .pre-spec-overview-source-header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--spacing-3); }
+.ps-record .pre-spec-overview-source-eyebrow { display: block; color: var(--color-text-secondary); font-size: var(--bo-type-caption); }
+.ps-record .pre-spec-overview-source-header h5 { margin: var(--spacing-0-5) 0 0; font-size: calc(var(--bo-type-caption) + var(--border-width)); font-weight: 600; }
+.ps-record .pre-spec-overview-source-close {
+  height: var(--spacing-8);
+  padding: 0 var(--spacing-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--ps-radius-btn-sm);
+  background: var(--color-background-surface);
+  color: var(--color-text-primary);
+  font-size: var(--bo-type-caption);
+  cursor: pointer;
+}
+.ps-record .pre-spec-overview-source-page { color: var(--color-text-secondary); font-size: var(--bo-type-caption); }
+.ps-record .pre-spec-overview-source-mismatch { display: grid; gap: var(--spacing-1); color: var(--color-error); font-size: var(--bo-type-caption); }
+.ps-record .pre-spec-overview-source-mismatch p { margin: 0; font-size: inherit; line-height: var(--bo-type-caption-leading); }
+.ps-record .pre-spec-overview-source-blocks { display: grid; gap: var(--spacing-2); margin: 0; padding: 0; list-style: none; }
+.ps-record .pre-spec-overview-source-block {
+  padding: var(--spacing-2) var(--spacing-3);
+  border: var(--border-width) solid var(--ps-line);
+  border-radius: var(--ps-radius-chip);
   background: var(--color-background-surface);
 }
-.ps-record-facts > div { min-width: 0; padding: var(--spacing-3) var(--spacing-4); }
-.ps-record-facts > div:nth-child(even) { border-left: var(--border-width) solid var(--color-border); }
-.ps-record-facts > div:nth-child(n+3) { border-top: var(--border-width) solid var(--color-border); }
-.ps-record-facts dt { color: var(--color-text-secondary); font-size: var(--bo-type-caption); margin-bottom: var(--spacing-1); }
-.ps-record-facts dd { margin: 0; font-size: var(--bo-type-body); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.ps-record .detail-skeleton-grid { grid-template-columns: minmax(0, 1fr) calc(var(--spacing-12) * 8 + var(--spacing-4)); gap: var(--spacing-4); }
-.ps-record .detail-skeleton-main, .ps-record-documents, .ps-record-history { display: flex; flex-direction: column; min-width: 0; gap: var(--spacing-3); }
-.ps-record .ps-record-section { min-width: 0; scroll-margin-top: var(--spacing-3); }
-.ps-record .panel, .ps-record .document-preparation, .ps-record .detail-skeleton-rail-panel {
-  border-radius: var(--radius-element);
+.ps-record .pre-spec-overview-source-block.is-target { border-color: var(--color-border-emphasized); }
+.ps-record .pre-spec-overview-source-block-header { display: flex; align-items: center; flex-wrap: wrap; gap: var(--spacing-2); color: var(--color-text-disabled); font-size: var(--bo-type-caption); }
+.ps-record .pre-spec-overview-source-block-header code { font-family: var(--font-family-code); font-size: calc(var(--bo-type-caption) - var(--border-width)); }
+.ps-record .pre-spec-overview-source-block > p { margin: var(--spacing-1) 0 0; font-size: var(--bo-type-body); line-height: 1.6; }
+.ps-record .pre-spec-overview-source-highlight-label { color: var(--color-text-secondary); font-weight: 500; }
+
+/* ---- 문서 준비 패널 --------------------------------------------------- */
+.ps-record .ps-record-documents { display: flex; flex-direction: column; min-width: 0; scroll-margin-top: var(--spacing-3); }
+.ps-record .ps-record-documents > .panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  padding: var(--spacing-5) var(--spacing-6);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--ps-radius-card);
+  background: var(--color-background-surface);
+  box-shadow: none;
+}
+.ps-record .ps-record-documents > .panel > .panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  min-height: 0;
+  padding: 0;
+  border: 0;
+}
+.ps-record .ps-record-documents > .panel > .panel-header h3 { margin: 0; font-size: var(--bo-type-body); line-height: 1.4; font-weight: 600; }
+.ps-record .ps-record-documents > .panel > .panel-body { display: grid; gap: var(--spacing-3); padding: 0; }
+.ps-record .pre-spec-auto-preparation { display: grid; gap: var(--spacing-3); margin: 0; }
+.ps-record .pre-spec-auto-preparation-note { margin: 0; color: var(--color-text-secondary); font-size: var(--bo-type-caption); line-height: var(--bo-type-caption-leading); }
+.ps-record .pre-spec-auto-preparation-link { font-size: var(--bo-type-caption); }
+.ps-record .panel, .ps-record .document-preparation {
+  border-radius: var(--ps-radius-control);
   box-shadow: none;
   border: var(--border-width) solid var(--color-border);
   background: var(--color-background-surface);
 }
-.ps-record .panel-header { padding: var(--spacing-3) var(--spacing-4); border-bottom: var(--border-width) solid var(--color-border); min-height: var(--spacing-10); }
-.ps-record .panel-header h3 { font-size: var(--bo-type-section-title); font-weight: var(--font-weight-semibold); }
+.ps-record .document-preparation { padding: calc(var(--spacing-3) + var(--spacing-0-5)) var(--spacing-4); gap: var(--spacing-3); }
+.ps-record .document-preparation-workspace { grid-template-columns: minmax(0, 1fr); }
+.ps-record .document-preparation-bundle-bar, .ps-record .document-preparation-steps { flex-wrap: wrap; }
+.ps-record .document-preparation-metadata { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ps-record .document-preparation :is(input, select, textarea) { min-width: 0; max-width: 100%; }
+.ps-record .panel-header { padding: var(--spacing-3) var(--spacing-4); border-bottom: var(--border-width) solid var(--color-border); }
+.ps-record .panel-header h3 { font-size: calc(var(--bo-type-caption) + var(--border-width)); font-weight: 600; }
 .ps-record .panel-body { padding: var(--spacing-4); }
-.ps-record .pre-spec-overview-content { gap: var(--spacing-4); }
-.ps-record .pre-spec-overview-quality { padding: 0 0 var(--spacing-3); border: 0; border-bottom: var(--border-width) solid var(--color-border); border-radius: 0; }
-.ps-record .pre-spec-overview-quality > p { flex-basis: 100%; }
-.ps-record .pre-spec-overview-decision { padding: var(--spacing-3) var(--spacing-4); border-radius: var(--radius-inner); }
-.ps-record .pre-spec-overview-recommendation strong { font-size: calc(var(--bo-type-body) + var(--spacing-0-5)); font-weight: var(--font-weight-semibold); }
-.ps-record .pre-spec-overview-section { gap: var(--spacing-2); }
-.ps-record .pre-spec-overview-section h4 { font-size: var(--bo-type-section-title); font-weight: var(--font-weight-semibold); }
-.ps-record .pre-spec-overview-summary { font-size: var(--ps-record-reading-size); line-height: 1.7; }
-.ps-record .pre-spec-overview-unknowns, .ps-record .pre-spec-overview-evidence { gap: 0; border-top: var(--border-width) solid var(--color-border); }
-.ps-record :is(.pre-spec-overview-unknowns, .pre-spec-overview-evidence) > li {
-  border: 0;
-  border-bottom: var(--border-width) solid var(--color-border);
-  border-radius: 0;
-  background: transparent;
-  padding: var(--spacing-3) 0;
+.ps-record .pre-spec-detail-document-summary { display: grid; gap: var(--spacing-2); }
+.ps-record .pre-spec-detail-section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--spacing-3); }
+.ps-record .pre-spec-detail-section-heading h4 { margin: 0; font-size: calc(var(--bo-type-caption) + var(--border-width)); font-weight: 600; }
+.ps-record .pre-spec-detail-document-facts { display: flex; flex-wrap: wrap; gap: var(--spacing-3); margin: 0; font-size: var(--bo-type-caption); }
+.ps-record .pre-spec-detail-document-facts > div { display: flex; gap: var(--spacing-1); }
+.ps-record .pre-spec-detail-document-facts dt { color: var(--color-text-secondary); }
+.ps-record .pre-spec-detail-document-facts dd { margin: 0; }
+.ps-record .pre-spec-detail-document-summary > p { margin: 0; color: var(--color-text-secondary); font-size: var(--bo-type-caption); line-height: var(--bo-type-caption-leading); }
+
+/* ---- 처리 이력 (접힌 줄) ---------------------------------------------- */
+.ps-record .ps-record-history { display: flex; flex-direction: column; min-width: 0; scroll-margin-top: var(--spacing-3); }
+.ps-record .ps-record-history > .astryx-collapsible { gap: var(--spacing-3); }
+.ps-record .ps-record-history .astryx-collapsible-trigger {
+  justify-content: space-between;
+  width: 100%;
+  padding: 0;
+  color: var(--color-text-secondary);
+  font-size: calc(var(--bo-type-caption) + var(--border-width));
+  font-weight: 500;
 }
-.ps-record :is(.pre-spec-overview-list li, .pre-spec-overview-unknowns dd, .pre-spec-overview-evidence > li > p, .pre-spec-overview-source-block > p) { font-size: var(--bo-type-body); line-height: 1.65; }
-.ps-record .pre-spec-overview-limitations { padding: var(--spacing-3); border-radius: var(--radius-inner); }
-.ps-record .pre-spec-overview-source { scroll-margin-top: var(--spacing-3); }
-.ps-record .pre-spec-auto-preparation { margin: 0; }
-.ps-record .pre-spec-auto-steps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--spacing-3); }
-.ps-record .pre-spec-auto-step {
-  flex: initial;
-  padding: var(--spacing-3) 0;
-  border: 0;
-  border-bottom: var(--border-width) solid var(--color-border);
-  border-radius: 0;
-  background: transparent;
-  gap: var(--spacing-1);
-  align-items: flex-start;
-}
-.ps-record .pre-spec-auto-step { padding-top: 0; }
-.ps-record .pre-spec-auto-step-label { font-size: var(--bo-type-body); font-weight: var(--font-weight-semibold); }
-.ps-record .pre-spec-auto-preparation-note { margin-top: var(--spacing-3); }
-.ps-record .pre-spec-auto-preparation-link { font-size: var(--bo-type-body); }
-.ps-record .detail-skeleton-rail { gap: var(--spacing-3); }
-.ps-record .detail-skeleton-rail-panel { padding: var(--spacing-4); }
-.ps-record .detail-skeleton-rail-title { font-size: var(--bo-type-section-title); }
-.ps-record .detail-skeleton-rail-links a { font-size: var(--bo-type-body); }
-.ps-record .astryx-collapsible-trigger { font-size: var(--bo-type-caption); }
+.ps-record .ps-record-history .astryx-collapsible-content { min-width: 0; }
+.ps-record .ps-record-history .astryx-collapsible-content > * + * { margin-top: var(--spacing-3); }
+.ps-record .detail-skeleton-rail { display: grid; gap: var(--spacing-3); }
+.ps-record .detail-skeleton-rail-panel { padding: var(--spacing-4); border: var(--border-width) solid var(--color-border); border-radius: var(--ps-radius-control); background: var(--color-background-surface); }
+.ps-record .detail-skeleton-rail-title { font-size: calc(var(--bo-type-caption) + var(--border-width)); }
+.ps-record .detail-skeleton-rail-links a { font-size: var(--bo-type-caption); }
 .ps-record .pre-spec-overview-lineage > div { display: block; }
 .ps-record .pre-spec-overview-lineage dd { margin: var(--spacing-1) 0 0; overflow-wrap: anywhere; }
 .ps-record .pre-spec-overview-digests { margin-top: var(--spacing-3); }
-.ps-record .pre-spec-overview-attempts li { padding: var(--spacing-2) 0; border-radius: 0; background: transparent; border-bottom: var(--border-width) solid var(--color-border); }
-.ps-record .document-preparation { padding: var(--spacing-4); gap: var(--spacing-3); }
-.ps-record .document-preparation-workspace { grid-template-columns: minmax(0, 1fr); }
-.ps-record .document-preparation-bundle-bar { flex-wrap: wrap; }
-.ps-record .document-preparation-steps { flex-wrap: wrap; }
-.ps-record .document-preparation-metadata { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.ps-record .document-preparation :is(input, select, textarea) { min-width: 0; max-width: 100%; }
-.ps-record .pre-spec-tracking-decision { padding: var(--spacing-4); border-radius: var(--radius-element); }
+.ps-record .pre-spec-overview-attempts li { padding: var(--spacing-2) 0; border-radius: 0; background: transparent; border-bottom: var(--border-width) solid var(--ps-line); }
+.ps-record .astryx-collapsible-trigger { font-size: var(--bo-type-caption); }
 
-/* The reference market detail keeps its entry form beside the reading column.
- * The record header belongs to the document; only this bounded form is sticky. */
-.ps-record-side {
-  position: sticky;
-  top: 0;
-  align-self: start;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
-  max-height: calc(100dvh - var(--spacing-12) * 2 - var(--spacing-6));
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-element);
-  background: var(--color-background-surface);
-  overflow: hidden;
-}
-.ps-record-decision-body { min-height: 0; overflow-y: auto; padding: var(--spacing-4); }
-.ps-record-side .pre-spec-tracking-decision.is-compact { margin: 0; padding: 0; }
-.ps-record-side .pre-spec-tracking-decision.is-compact .pre-spec-tracking-decision-header { flex-direction: column; align-items: stretch; gap: var(--spacing-3); }
-.ps-record-side .pre-spec-tracking-decision.is-compact .pre-spec-tracking-decision-header h3 { font-size: calc(var(--bo-type-body) + var(--spacing-0-5)); }
-.ps-record-side .pre-spec-tracking-current { flex-direction: row; justify-content: space-between; align-items: center; text-align: left; padding: var(--spacing-2) var(--spacing-3); background: var(--color-background-body); border-radius: var(--radius-inner); }
-.ps-record-side .pre-spec-tracking-current > span:first-child { font-weight: var(--font-weight-regular); }
-.ps-record-side .pre-spec-tracking-form.is-compact { display: flex; flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: var(--spacing-3); margin-top: var(--spacing-4); }
-.ps-record-side .pre-spec-tracking-form.is-compact :is(fieldset, .pre-spec-tracking-reason, .actor-field) { flex: initial; min-width: 0; width: 100%; max-width: 100%; }
-.ps-record-side .pre-spec-tracking-options { grid-template-columns: minmax(0, 1fr); }
-.ps-record-side .pre-spec-tracking-option { width: 100%; padding: var(--spacing-2) var(--spacing-3); }
-.ps-record-side .pre-spec-tracking-form.is-compact .pre-spec-tracking-option span { display: block; overflow: visible; }
-.ps-record-side .pre-spec-tracking-option strong { font-size: var(--bo-type-body); }
-.ps-record-side .pre-spec-tracking-form.is-compact .pre-spec-tracking-reason textarea { font-size: var(--bo-type-body); min-height: calc(var(--spacing-12) * 2); }
-.ps-record-side .actor-field { width: 100%; }
-.ps-record-side .pre-spec-tracking-elsewhere { margin: 0; }
-.ps-record-decision-footer { flex-shrink: 0; padding: var(--spacing-3) var(--spacing-4); border-top: var(--border-width) solid var(--color-border); }
-.ps-record-decision-footer .review-decision-action { width: 100%; align-items: stretch; }
-.ps-record-decision-footer .interaction-control { width: 100%; min-height: var(--spacing-10); }
-.ps-record-decision-footer .interaction-control:not(:disabled) { background: var(--color-background-inverted); border-color: var(--color-background-inverted); color: var(--color-on-dark); }
-.ps-record-decision-footer .review-decision-action-reason { font-size: var(--bo-type-caption); }
-
-/* Approved 2026-09-08 HTML: identity and essentials first, 400px decision form.
- * The existing document preparation and source viewer retain their controls. */
-.ps-record .pre-spec-detail-header { gap: 0; }
-.ps-record .ps-record-agency { margin: var(--spacing-1) 0 0; line-height: 1.5; }
-.ps-record-identity { position: relative; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--spacing-2); margin-top: var(--spacing-2); }
-.ps-record-number-group { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-2); min-width: 0; }
-.ps-record-number-group > span, .ps-record-source-unavailable { color: var(--color-text-secondary); font-size: var(--bo-type-caption); }
-.ps-record-number { font-size: calc(var(--bo-type-body) + var(--spacing-0-5)); font-weight: var(--font-weight-semibold); font-variant-numeric: tabular-nums; user-select: all; overflow-wrap: anywhere; }
-.ps-record-identity .astryx-button { min-height: var(--spacing-8); font-size: var(--bo-type-body); }
-.ps-record-copy-feedback { position: absolute; top: 100%; left: 0; z-index: 2; padding: var(--spacing-2) var(--spacing-3); background: var(--color-background-inverted); color: var(--color-on-dark); border-radius: var(--radius-inner); font-size: var(--bo-type-caption); }
-.ps-record-clipboard-helper { position: fixed; left: -100vw; top: 0; }
-.ps-record .ps-record-facts { margin-top: var(--spacing-3); padding: var(--spacing-2) 0; gap: var(--spacing-4); border: 0; border-top: var(--border-width) solid var(--color-border); border-bottom: var(--border-width) solid var(--color-border); border-radius: 0; }
-.ps-record .ps-record-facts > div { padding: 0; border: 0; }
-.ps-record .ps-record-facts dt { display: flex; align-items: center; gap: var(--spacing-2); min-height: var(--spacing-6); margin: 0; }
-.ps-record .ps-record-facts dd { margin-top: var(--spacing-1); font-size: calc(var(--bo-type-body) + var(--spacing-0-5)); font-weight: var(--font-weight-semibold); }
-.ps-record .detail-skeleton-status-row { align-items: center; margin: 0; padding: var(--spacing-2) 0; gap: var(--spacing-3); }
-.ps-record .pre-spec-detail-grade-row { gap: var(--spacing-2); }
-.ps-record-sw { font-size: var(--bo-type-caption); padding-left: var(--spacing-3); border-left: var(--border-width) solid var(--color-border); }
-.ps-record .ps-record-nav { margin: 0; }
-.ps-record .pre-spec-overview-content { gap: var(--spacing-4); }
-.ps-record .pre-spec-overview-decision { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--spacing-2); border: 0; border-left: var(--spacing-1) solid var(--color-accent); background: var(--color-background-body); padding: var(--spacing-3); }
-.ps-record .pre-spec-overview-decision.is-unverified { border-left-color: var(--color-warning); }
-.ps-record .pre-spec-overview-recommendation { flex-direction: row; align-items: baseline; gap: var(--spacing-3); }
-.ps-record .pre-spec-overview-quality { padding: 0; margin: 0; border: 0; background: transparent; }
+/* ---- 현재 판단 카드 --------------------------------------------------- */
+.ps-record .pre-spec-overview-quality { display: inline-flex; align-items: center; width: max-content; max-width: 100%; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; }
 .ps-record .pre-spec-overview-quality .badge { white-space: normal; }
-.ps-record .pre-spec-overview-section { padding-top: 0; border: 0; }
-.ps-record .pre-spec-overview-section h4 { margin: 0 0 var(--spacing-2); }
-.ps-record .pre-spec-overview-summary { word-break: keep-all; }
-.ps-record-inline-link { display: inline-flex; color: var(--color-text-accent); font-size: var(--bo-type-caption); border: 0; padding: 0; background: transparent; cursor: pointer; }
-.ps-record .ps-record-checks { border-top: var(--border-width) solid var(--color-border); padding-top: var(--spacing-3); }
-.ps-record-check-heading { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: var(--spacing-2); }
-.ps-record-check-heading h4 > span { margin-left: var(--spacing-1); color: var(--color-text-secondary); font-weight: var(--font-weight-regular); }
-.ps-record .ps-record-check-heading .pre-spec-overview-due { font-size: var(--bo-type-caption); margin: 0; color: var(--color-text-secondary); }
-.ps-record-check-list { margin: 0; padding: 0; list-style: none; }
-.ps-record-check-list > li { display: flex; align-items: baseline; gap: var(--spacing-3); padding: var(--spacing-3) 0; border-bottom: var(--border-width) solid var(--color-border); }
-.ps-record-check-list > li:last-child { border: 0; padding-bottom: 0; }
-.ps-record-check-list > li > span { color: var(--color-text-secondary); font-weight: var(--font-weight-semibold); }
-.ps-record-check-list p { margin: 0; line-height: 1.6; }
-.ps-record-check-detail { min-width: 0; flex: 1; }
-.ps-record-check-detail summary { cursor: pointer; color: var(--color-text-primary); font-weight: var(--font-weight-semibold); }
-.ps-record-check-detail dl, .ps-record-quality-details dl { display: grid; gap: var(--spacing-2); margin: var(--spacing-3) 0; }
-.ps-record-check-detail dl > div { display: grid; grid-template-columns: var(--spacing-12) minmax(0, 1fr); gap: var(--spacing-3); }
-.ps-record-check-detail dt { color: var(--color-text-secondary); font-size: var(--bo-type-caption); }
-.ps-record-check-detail dd { margin: 0; overflow-wrap: anywhere; }
-.ps-record-quality-details { border-top: var(--border-width) solid var(--color-border); padding-top: var(--spacing-3); font-size: var(--bo-type-caption); }
-.ps-record-quality-details summary { cursor: pointer; color: var(--color-text-secondary); }
-.ps-record-quality-details > p { margin: var(--spacing-3) 0 0; }
-.ps-record-quality-details dl > div { display: flex; align-items: center; flex-wrap: wrap; gap: var(--spacing-3); }
-.ps-record-quality-details dd { margin: 0; }
-.ps-record .ps-record-quality-details .pre-spec-overview-limitations { margin-top: var(--spacing-3); }
-.ps-record :is(summary, #ps-record-evidence):focus-visible { outline: var(--focus-outline-width) solid var(--color-accent); outline-offset: var(--spacing-0-5); }
+.ps-record .pre-spec-overview-validation-state { display: flex; align-items: center; flex-wrap: wrap; gap: var(--spacing-2); color: var(--color-text-secondary); font-size: var(--bo-type-caption); }
+.ps-record .page-overview-current, .ps-record .pre-spec-cut-state, .ps-record .ps-record-quality-details { font-size: var(--bo-type-caption); line-height: var(--bo-type-caption-leading); }
+.ps-record .pre-spec-cut-state { display: grid; gap: var(--spacing-1); padding: 0; border: 0; border-radius: 0; background: transparent; }
+.ps-record .pre-spec-cut-state p, .ps-record .ps-record-quality-details > p { margin: 0; color: var(--color-text-secondary); font-size: var(--bo-type-caption); line-height: var(--bo-type-caption-leading); }
+.ps-record .ps-record-quality-details { display: grid; gap: var(--spacing-2); padding: 0; border: 0; }
+.ps-record .ps-record-quality-details > summary { color: var(--color-text-accent); font-size: var(--bo-type-caption); line-height: var(--bo-type-caption-leading); font-weight: 500; cursor: pointer; }
+.ps-record .ps-record-quality-details dl { display: grid; gap: var(--spacing-1); margin: 0; }
+.ps-record .ps-record-quality-details dl > div { display: flex; align-items: center; flex-wrap: wrap; gap: var(--spacing-2); }
+.ps-record .ps-record-quality-details dt { color: var(--color-text-secondary); font-size: var(--bo-type-caption); }
+.ps-record .ps-record-quality-details dd { margin: 0; }
+.ps-record .ps-record-quality-details .pre-spec-overview-limitations { padding: 0; background: transparent; }
+.ps-record .pre-spec-overview-limitations h4 { margin: 0 0 var(--spacing-1); font-size: var(--bo-type-caption); font-weight: 600; }
+.ps-record .pre-spec-overview-list { display: grid; gap: var(--spacing-1); margin: 0; padding-left: var(--spacing-4); }
+.ps-record .pre-spec-overview-limit { margin: 0; color: var(--color-text-secondary); font-size: var(--bo-type-caption); line-height: var(--bo-type-caption-leading); }
+.ps-record .ps-judgment-note { display: grid; gap: var(--spacing-2); }
+
+/* ---- 확인이 필요한 것 -------------------------------------------------- */
+.ps-record .ps-check-groups { display: grid; gap: var(--spacing-3); }
+.ps-record .ps-check-group { display: grid; gap: var(--spacing-2); min-width: 0; }
+.ps-record .ps-check-heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--spacing-2); }
+.ps-record .ps-check-heading .pre-spec-overview-due { margin: 0; color: var(--color-text-disabled); font-size: var(--bo-type-caption); font-weight: var(--font-weight-normal); line-height: var(--bo-type-caption-leading); }
+.ps-record .pre-spec-overview-empty { margin: 0; color: var(--color-text-secondary); font-size: var(--bo-type-caption); }
+.ps-record .pre-spec-overview-unverifiable { color: var(--color-text-disabled); }
+
+/* ---- 지켜야 할 조건 ---------------------------------------------------- */
+.ps-record .ps-record-conditions { display: flex; flex-direction: column; gap: calc(var(--spacing-2) + var(--spacing-0-5)); margin: 0; padding: 0; list-style: none; }
+.ps-record .ps-record-conditions > li { display: flex; align-items: flex-start; gap: var(--spacing-3); min-width: 0; }
+
+/* ---- 로딩·오류 자리 (시안에 없는 기능 요소) --------------------------- */
+.ps-record .detail-skeleton-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) calc(var(--spacing-12) * 8 + var(--spacing-4));
+  gap: var(--spacing-4);
+  align-items: start;
+}
+.ps-record .detail-skeleton-main, .ps-record .ps-record-aside { display: flex; flex-direction: column; gap: var(--spacing-4); min-width: 0; }
+.ps-record .empty-state, .ps-record .mutation-feedback { border-radius: var(--ps-radius-chip); font-size: var(--bo-type-caption); }
+.ps-record .interaction-control { min-height: var(--spacing-8); font-size: var(--bo-type-body); }
+.ps-record :is(a, button, summary, [tabindex="-1"]):focus-visible {
+  outline: var(--focus-outline-width) solid var(--color-accent);
+  outline-offset: var(--spacing-0-5);
+}
 #ps-record-evidence { scroll-margin-top: var(--spacing-3); }
-.ps-record-secondary-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--spacing-3); margin: 0 0 var(--spacing-4); }
-.ps-record-secondary-facts dt { color: var(--color-text-secondary); font-size: var(--bo-type-caption); }
-.ps-record-secondary-facts dd { margin: var(--spacing-1) 0 0; }
-.ps-record-side { max-height: calc(100dvh - var(--spacing-12) - var(--spacing-7) - var(--spacing-8)); }
-.ps-record .ps-record-side .pre-spec-tracking-decision.is-record { border: 0; display: block; }
-.ps-record-tracking-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-3); }
-.ps-record-tracking-heading h3 { margin: 0; font-size: calc(var(--bo-type-body) + var(--spacing-0-5)); }
-.ps-record-tracking-reference { display: flex; align-items: baseline; gap: var(--spacing-2); padding: var(--spacing-2) 0 var(--spacing-3); border-bottom: var(--border-width) solid var(--color-border); }
-.ps-record-tracking-reference > span, .ps-record-tracking-intent > span { font-size: var(--bo-type-caption); color: var(--color-text-secondary); }
-.ps-record-tracking-reference strong { font-size: var(--bo-type-body); font-weight: var(--font-weight-medium); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.ps-record-side .is-record .pre-spec-tracking-form.is-compact { gap: var(--spacing-4); }
-.ps-record-tracking-intent { width: 100%; padding: var(--spacing-3); background: var(--color-background-body); border-radius: var(--radius-inner); }
-.ps-record-tracking-intent h4 { font-size: calc(var(--bo-type-body) + var(--spacing-0-5)); margin: var(--spacing-1) 0; }
-.ps-record-tracking-intent h4 span { color: var(--color-text-secondary); font-size: var(--bo-type-body); font-weight: var(--font-weight-regular); }
-.ps-record-tracking-intent p { margin: 0; line-height: 1.6; }
-.ps-record-side .pre-spec-tracking-reason-preset { display: flex; flex-direction: column; width: 100%; min-width: 0; gap: var(--spacing-4); }
-.ps-record-side .astryx-selector { width: 100%; }
-.ps-record-side :is(.astryx-selector, .astryx-field-label, .actor-field input) { font-size: var(--bo-type-body); }
-.ps-record-side .actor-field input { min-height: var(--spacing-8); padding: var(--spacing-1) var(--spacing-2); }
-.ps-record-side .actor-field p { font-size: var(--bo-type-caption); margin-top: var(--spacing-1); }
-.ps-record-side .pre-spec-tracking-elsewhere { padding-top: var(--spacing-3); border-top: var(--border-width) solid var(--color-border); font-size: var(--bo-type-caption); }
-.ps-record-side .pre-spec-tracking-elsewhere a { display: block; margin-top: var(--spacing-2); }
-.ps-record-decision-footer .review-decision-action { display: flex; flex-direction: column-reverse; gap: var(--spacing-2); }
-.ps-record-decision-note { font-size: var(--bo-type-caption); margin: var(--spacing-2) 0 0; color: var(--color-text-secondary); }
-.ps-record-save-ready { margin: 0 0 var(--spacing-2); font-size: var(--bo-type-caption); }
-.ps-record-saved-decision { display: grid; gap: var(--spacing-3); padding-top: var(--spacing-4); }
-.ps-record-saved-decision h3 { margin: 0; font-size: var(--bo-type-section-title); }
-.ps-record-saved-decision p { margin: 0; }
-.ps-record-saved-decision dl { display: grid; gap: var(--spacing-3); margin: 0; padding: var(--spacing-3); background: var(--color-background-body); }
-.ps-record-saved-decision dl > div { display: grid; grid-template-columns: var(--spacing-12) minmax(0, 1fr); gap: var(--spacing-3); }
-.ps-record-saved-decision dt { color: var(--color-text-secondary); font-size: var(--bo-type-caption); }
-.ps-record-saved-decision dd { margin: 0; overflow-wrap: anywhere; }
-.ps-record-side .is-recorded > .pre-spec-tracking-elsewhere { margin-top: var(--spacing-4); }
+
+/* ---- 회사 업무 부합 여부 카드 안의 판단 요약 --------------------------- */
+/* 판정 한 줄은 점과 문장이 같은 줄이고 품질 표식은 그 아래 칸이다(시안 `.vbox`). */
+.ps-record .ps-vbox .company-fit-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 0 var(--spacing-2); min-width: 0; }
+.ps-record .ps-vbox .company-fit-heading > strong { flex: 1 1 0; }
+.ps-record .ps-vbox .company-fit-heading > .astryx-token { flex: 0 0 100%; width: max-content; margin-top: var(--spacing-1-5); }
+.ps-record .ps-vbox .company-fit-heading::before {
+  content: "";
+  width: var(--spacing-2);
+  height: var(--spacing-2);
+  border-radius: var(--radius-full);
+  background: var(--color-data-neutral);
+  flex: 0 0 var(--spacing-2);
+}
+.ps-record .ps-vbox.is-matched .company-fit-heading::before { background: var(--color-success); }
+.ps-record .ps-vbox.is-mismatch .company-fit-heading::before { background: var(--color-error); }
+.ps-record .ps-vbox .company-fit-heading strong { min-width: 0; font-size: var(--ps-type-lead); font-weight: 600; line-height: 1.3; }
+.ps-record .ps-vbox :is(.company-fit-summary, .company-fit-notice, .ps-vbox > p) {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+.ps-record .ps-vbox .company-fit-notice { padding: 0; background: transparent; }

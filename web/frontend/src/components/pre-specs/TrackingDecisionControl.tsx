@@ -101,6 +101,10 @@ export interface TrackingDecisionControlProps {
   /** Approved record presentation; the shared mutation and input guard remain here. */
   presentation?: "default" | "record";
   noticeNumber?: string | null;
+  /** 헤더가 같은 배지를 이미 그릴 때 중복을 피하기 위한 배치 옵션. 상태 계산은 이 컴포넌트가 계속 소유한다. */
+  showRecordHeading?: boolean;
+  /** 입력 한 줄 배치에서 의도 상자를 생략하는 배치 옵션. 저장되는 결정은 여전히 `계속 추적` 하나다. */
+  showIntent?: boolean;
   /** 주어지면 저장 폼에 이 id가 붙어, 상세 화면의 결정 패널이 `form` 속성으로
    * 같은 submit을 쏠 수 있다. 폼 자체는 본문에 남는다 — 되돌릴 수 없는 입력
    * form을 헤더에 올리지 않는다(PLAN 단계 F 완료 게이트). */
@@ -148,6 +152,8 @@ export function TrackingDecisionControl({
   reasonPresets,
   presentation = "default",
   noticeNumber,
+  showRecordHeading = true,
+  showIntent = true,
 }: TrackingDecisionControlProps) {
   const Heading = headingLevel;
   const record = presentation === "record";
@@ -283,7 +289,7 @@ export function TrackingDecisionControl({
   const stateManagement = <p className="pre-spec-tracking-elsewhere"><strong>보류·추적 종료</strong>는 사업 추적에서 변경합니다.{hasOpportunity ? <Link to={`/opportunities/${item.opportunity_id}`}>사업 추적으로 이동 ↗</Link> : null}</p>;
   if (recorded) {
     return <section className="pre-spec-tracking-decision is-compact is-record is-recorded" aria-labelledby="pre-spec-tracking-decision-title">
-      {recordHeading}
+      {showRecordHeading ? recordHeading : null}
       <div className="ps-record-saved-decision">
         <Heading>{savedDecision ? "추적 시작을 저장했습니다" : isInheritedTracking(item) ? "발주계획에서 추적 결정을 이어받았습니다" : "추적 결정이 기록된 사업입니다"}</Heading>
         <p>현재 추적 상태 · {currentStatusLabel}</p>
@@ -330,7 +336,7 @@ export function TrackingDecisionControl({
       className={`pre-spec-tracking-decision${compact ? " is-compact" : ""}${record ? " is-record" : ""}`}
       aria-labelledby="pre-spec-tracking-decision-title"
     >
-      {record ? recordHeading : (
+      {record ? (showRecordHeading ? recordHeading : null) : (
       <div className="pre-spec-tracking-decision-header">
         <div>
           {!compact ? <span className="pre-spec-tracking-kicker">사람이 고르는 추적 결정</span> : null}
@@ -378,7 +384,7 @@ export function TrackingDecisionControl({
           mutation.mutate();
         }}
       >
-        {record ? <div className="ps-record-tracking-intent"><span>저장할 결정</span><h4>추적 시작 <span>→ 계속 추적</span></h4><p>새 문서·입찰공고·정정공고를 계속 확인합니다.</p></div> : (
+        {record ? (showIntent ? <div className="ps-record-tracking-intent"><span>저장할 결정</span><h4>추적 시작 <span>→ 계속 추적</span></h4><p>새 문서·입찰공고·정정공고를 계속 확인합니다.</p></div> : null) : (
         <fieldset>
           <legend>결정할 추적 상태</legend>
           <div className="pre-spec-tracking-options">

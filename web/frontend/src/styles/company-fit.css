@@ -12,3 +12,27 @@
 .company-fit-evidence dd{display:grid;gap:var(--spacing-2);margin:0}
 .company-fit a{color:var(--color-text-accent);text-decoration:underline}
 .company-fit summary{cursor:pointer;font-weight:600}
+.company-fit-reasons-details{display:grid;gap:var(--spacing-3);min-width:0}
+.company-fit-reasons-details>summary{padding-block:var(--spacing-2);border-bottom:var(--border-width) solid var(--color-border)}
+.company-fit-reasons-details .company-fit-evidence{overflow-wrap:anywhere}
+
+/* 사전규격 상세(승인 시안): 회사 핏 카드는 시안의 `.sec` 카드 모양을 쓰고,
+ * 요약 판정은 옆 `현재 판단` 카드의 `.ps-vbox` 안에서 그린다. */
+.ps-record .company-fit { padding: 0; border: 0; }
+.ps-record .company-fit > .company-fit-note { color: var(--color-text-secondary); font-size: var(--bo-type-caption); line-height: var(--bo-type-caption-leading); }
+.ps-record .company-fit > details { display: grid; gap: var(--spacing-3); min-width: 0; }
+.ps-record .company-fit > details > summary { font-size: var(--bo-type-body); line-height: 1.5; font-weight: 600; }
+.ps-record .company-fit .company-fit-notice {
+  display: grid;
+  gap: var(--spacing-0-5);
+  padding: calc(var(--spacing-2) + var(--spacing-0-5)) var(--spacing-3);
+  border-radius: var(--ps-radius-chip);
+  background: var(--color-background-body);
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+.ps-record .company-fit .company-fit-notice strong { color: var(--color-text-primary); }
+.ps-record .company-fit-reasons > li { border-bottom-color: color-mix(in srgb, var(--color-border) 45%, var(--color-background-surface)); }
+.ps-record .company-fit :is(p, li, dd, dt) { font-size: var(--bo-type-caption); line-height: var(--bo-type-caption-leading); }
+.ps-record .company-fit .company-fit-assessment { display: grid; gap: var(--spacing-3); min-width: 0; }
