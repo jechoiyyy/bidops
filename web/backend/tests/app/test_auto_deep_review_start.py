@@ -61,7 +61,11 @@ def company_fit_creation_prerequisite(monkeypatch):
     # Fit evidence/current-input decisions and queue-to-create wiring have their
     # own company_fit tests; these historical fixtures contain no overview result.
     from app.deep_review.services import company_fit
-    monkeypatch.setattr(company_fit, "gate_reasons", lambda session, ids: {i: None for i in ids})
+    monkeypatch.setattr(
+        company_fit,
+        "gate_reasons",
+        lambda session, ids, *, current_v4=None: {i: None for i in ids},
+    )
 
 
 def _fixture_structure(_session, structure):

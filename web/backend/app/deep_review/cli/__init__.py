@@ -6,6 +6,7 @@
 - ``run-prespec-e2e``: 사전규격 회차 적재부터 보고서·최종 의견까지의 mock
   종단 인수 흐름을 격리 workspace에서 돌린다.
 - ``import-profile-policy``: 불변 회사 프로필·분석 policy 판을 import한다.
+- ``prespec-v4``: opt-in cohort의 동결·준비·enqueue를 운영 경계에서 수행한다.
 
 T8 2단계가 두 스크립트에 패키지 진입점을 만들어 하나의 하위 명령 체계로
 합쳤다. 합친 것은 **진입점뿐**이고, 각 하위 명령의 인자·출력·종료 코드는
@@ -37,6 +38,10 @@ _SUBCOMMANDS: dict[str, tuple[str, str]] = {
     "import-profile-policy": (
         ".import_profile_policy",
         "불변 회사 프로필·분석 policy 판을 import한다",
+    ),
+    "prespec-v4": (
+        ".prespec_v4",
+        "사전규격 v4 cohort를 dry-run/활성화/준비/enqueue한다",
     ),
 }
 

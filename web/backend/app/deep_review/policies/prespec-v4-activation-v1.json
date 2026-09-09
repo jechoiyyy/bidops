@@ -1,0 +1,41 @@
+{
+  "schema": "bidops.prespec-v4-activation.v1",
+  "version": 1,
+  "samples": [
+    {
+      "notice_id": 142,
+      "notice_key": "pre:R26BD00271191",
+      "document_version_id": "59cbc6ef-53f5-421d-84d0-d97c9185ac09",
+      "source_sha256": "7cc3b5f3894d984ce641e9462030990cbb4cfc1d6869b18bc9047899a23f4665",
+      "source_size_bytes": 840114,
+      "original_filename": "별첨.제안요청서.hwpx",
+      "observation_kind": "explicit_sample"
+    },
+    {
+      "notice_id": 35,
+      "notice_key": "pre:R26BD00269457",
+      "document_version_id": "4cebac31-c214-48d9-8f21-fe6b2c269d0a",
+      "source_sha256": "d5736bd6fb1efdfb276548989fc696f19a059fbd7d4245159ee96e31f1d1068e",
+      "source_size_bytes": 657408,
+      "original_filename": "개발사업_제안요청서.hwp",
+      "observation_kind": "explicit_sample"
+    },
+    {
+      "notice_id": 59,
+      "notice_key": "pre:R26BD00269653",
+      "document_version_id": "257af7c1-efef-453b-b8fc-6c0b67741a39",
+      "source_sha256": "fda9d3eb6a7f51cef29962e3aab979e45b55264b4ec5773d5726aecde920496e",
+      "source_size_bytes": 1155772,
+      "original_filename": "운영사업_제안요청서.pdf",
+      "observation_kind": "explicit_sample"
+    }
+  ],
+  "automatic_requirements": {
+    "source_type": "pre_spec",
+    "sw_business_status": "Y",
+    "grade": "우선 검토",
+    "bundle_status": "ready",
+    "bundle_confirmed_by": "auto-preparation",
+    "observation_after_activation": true
+  }
+}

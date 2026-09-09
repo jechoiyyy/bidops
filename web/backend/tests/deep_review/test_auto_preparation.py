@@ -411,7 +411,11 @@ def matched_company_fit_gate(monkeypatch):
     # This unit suite isolates creation/idempotency; real evidence and stale gates
     # are exercised in test_company_fit and the PostgreSQL integration test.
     from app.deep_review.services import company_fit
-    monkeypatch.setattr(company_fit, "gate_reasons", lambda session, ids: {i: None for i in ids})
+    monkeypatch.setattr(
+        company_fit,
+        "gate_reasons",
+        lambda session, ids, *, current_v4=None: {i: None for i in ids},
+    )
 
 
 def test_sw_y_with_a_positive_overview_starts_exactly_one_deep_review(

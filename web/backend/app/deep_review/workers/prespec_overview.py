@@ -7,20 +7,22 @@
 
 from __future__ import annotations
 
+from typing import Any
 from sqlalchemy.orm import Session
 
 from ..services.prespec_overview_runner import OverviewRunResult, PreSpecOverviewRunner
+from ..services.prespec_v4_runner import PrespecV4OverviewRunner, V4RunResult
 
 
 def run_once(
     session: Session,
     worker_id: str,
     *,
-    runner: PreSpecOverviewRunner | None = None,
-) -> OverviewRunResult:
+    runner: Any | None = None,
+) -> OverviewRunResult | V4RunResult:
     """개요 attempt를 최대 하나 진행시킨다."""
 
     return (runner or PreSpecOverviewRunner()).run_once(session, worker_id)
 
 
-__all__ = ["OverviewRunResult", "PreSpecOverviewRunner", "run_once"]
+__all__ = ["OverviewRunResult", "PreSpecOverviewRunner", "PrespecV4OverviewRunner", "V4RunResult", "run_once"]

@@ -36,6 +36,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ...core.api_errors import BundleServiceError
+from ...core.constants import prespec_overview_status_from_v4
 from ...core.models import AuditEvent
 from ...lifecycle.models import Attachment, Notice
 from ..models import (
@@ -437,7 +438,21 @@ def auto_start_reason(
     return None
 
 
-def _auto_start_scope(session: Session, notice_id: int, *, require_company_fit: bool = True) -> tuple[UUID | None, str | None]:
+def _overview_status_from_v4(projection: Mapping[str, Any] | None) -> str | None:
+    """Map the v4 current state onto the shared overview status contract."""
+
+    if projection is None:
+        return None
+    return prespec_overview_status_from_v4(projection.get("status"))
+
+
+def _auto_start_scope(
+    session: Session,
+    notice_id: int,
+    *,
+    require_company_fit: bool = True,
+    current_v4: Mapping[int, Mapping[str, Any] | None] | None = None,
+) -> tuple[UUID | None, str | None]:
     """§6.4의 조건을 검사해 (묶음 id, 사유 코드)를 돌려준다.
 
     사유가 ``None``이면 자동 시작해도 되는 상태다. 조건이 하나라도 어긋나면
@@ -468,50 +483,101 @@ def _auto_start_scope(session: Session, notice_id: int, *, require_company_fit: 
     ready_bundle_auto_confirmed = (
         bundle is not None and bundle.confirmed_by_name == AUTO_ACTOR_NAME
     )
-    review = (
-        session.scalar(
-            select(PreSpecOverviewReview).where(
-                PreSpecOverviewReview.notice_id == notice_id
-            )
-        )
-        if ready_bundle_auto_confirmed
-        else None
+    from .company_fit import (
+        current_v4_projections,
+        gate_reasons,
+        overview_inputs,
+        v4_followup_reason,
     )
-    overview_status = review.status if review is not None else None
-    overview_result = review.result if review is not None else None
 
-    document_in_bundle = False
-    if bundle is not None and overview_status == "completed" and review is not None:
-        document_version_id = (
-            session.scalar(
-                select(PreSpecOverviewSnapshot.document_version_id).where(
-                    PreSpecOverviewSnapshot.id == review.current_snapshot_id
-                )
-            )
-            if review.current_snapshot_id is not None
+    # A non-null v4 projection is authoritative, including failed/stale states.
+    # Only a null projection permits the pre-v4 page/legacy compatibility path.
+    v4_projection = (
+        current_v4.get(notice_id)
+        if current_v4 is not None
+        else (
+            current_v4_projections(session, [notice_id]).get(notice_id)
+            if ready_bundle_auto_confirmed
             else None
         )
-        document_in_bundle = document_version_id is not None and (
-            session.scalar(
-                select(DocumentBundleItem.document_version_id)
-                .where(
-                    DocumentBundleItem.bundle_id == bundle.id,
-                    DocumentBundleItem.document_version_id == document_version_id,
-                )
-                .limit(1)
-            )
-            is not None
+    )
+    projection_map = {notice_id: v4_projection}
+    v4_reason = v4_followup_reason(session, v4_projection)
+    if v4_reason is not None:
+        return (bundle.id if bundle is not None else None), v4_reason
+    if v4_projection is not None:
+        review = None
+        overview_status = _overview_status_from_v4(v4_projection)
+        overview_result = None
+        document_in_bundle = False
+        source = (
+            overview_inputs(
+                session, [notice_id], current_v4=projection_map
+            ).get(notice_id)
+            if overview_status == "completed"
+            else None
         )
-
-    from .company_fit import overview_inputs, gate_reasons
-    source = overview_inputs(session, [notice_id]).get(notice_id) if ready_bundle_auto_confirmed else None
-    if source is not None:
-        overview_status, overview_result = "completed", None
-        document_in_bundle = session.scalar(select(DocumentBundleItem.document_version_id).where(
-            DocumentBundleItem.bundle_id == bundle.id,
-            DocumentBundleItem.document_version_id == source.document_id,
-        ).limit(1)) is not None
-    fit_reason = gate_reasons(session, [notice_id])[notice_id] if require_company_fit else None
+        if source is not None:
+            document_in_bundle = session.scalar(select(DocumentBundleItem.document_version_id).where(
+                DocumentBundleItem.bundle_id == bundle.id,
+                DocumentBundleItem.document_version_id == source.document_id,
+            ).limit(1)) is not None
+    else:
+        review = (
+            session.scalar(
+                select(PreSpecOverviewReview).where(
+                    PreSpecOverviewReview.notice_id == notice_id
+                )
+            )
+            if ready_bundle_auto_confirmed
+            else None
+        )
+        overview_status = review.status if review is not None else None
+        overview_result = review.result if review is not None else None
+        document_in_bundle = False
+        if bundle is not None and overview_status == "completed" and review is not None:
+            document_version_id = (
+                session.scalar(
+                    select(PreSpecOverviewSnapshot.document_version_id).where(
+                        PreSpecOverviewSnapshot.id == review.current_snapshot_id
+                    )
+                )
+                if review.current_snapshot_id is not None
+                else None
+            )
+            document_in_bundle = document_version_id is not None and (
+                session.scalar(
+                    select(DocumentBundleItem.document_version_id)
+                    .where(
+                        DocumentBundleItem.bundle_id == bundle.id,
+                        DocumentBundleItem.document_version_id == document_version_id,
+                    )
+                    .limit(1)
+                )
+                is not None
+            )
+        source = (
+            overview_inputs(
+                session, [notice_id], current_v4=projection_map
+            ).get(notice_id)
+            if ready_bundle_auto_confirmed
+            else None
+        )
+        if source is not None:
+            overview_status, overview_result = "completed", None
+            document_in_bundle = session.scalar(select(DocumentBundleItem.document_version_id).where(
+                DocumentBundleItem.bundle_id == bundle.id,
+                DocumentBundleItem.document_version_id == source.document_id,
+            ).limit(1)) is not None
+    fit_reason = (
+        gate_reasons(
+            session,
+            [notice_id],
+            current_v4=projection_map,
+        )[notice_id]
+        if require_company_fit
+        else None
+    )
     reason = auto_start_reason(
         is_sw_business=is_sw_business,
         ready_bundle_auto_confirmed=ready_bundle_auto_confirmed,
@@ -938,29 +1004,60 @@ def auto_preparation_fields(
         return active_versions
 
     fields: dict[int, Mapping[str, Any]] = {}
-    from .company_fit import overview_inputs, gate_reasons
-    fit_sources = overview_inputs(session, ids)
-    fit_reasons = gate_reasons(session, ids)
+    from .company_fit import current_v4_projections, gate_reasons, overview_inputs
+    # Current-state projection covers the complete page, including notices that
+    # have no grade yet. Only company-fit input/gate work is restricted to the
+    # priority subset; this keeps failed/running v4 rows from being hidden by a
+    # legacy completed row in list state.
+    v4_current = current_v4_projections(session, ids)
+    fit_ids = tuple(
+        notice_id
+        for notice_id in ids
+        if (grade := grades.get(notice_id)) is not None and grade.is_priority
+    )
+    if fit_ids:
+        fit_sources = overview_inputs(
+            session,
+            fit_ids,
+            current_v4={notice_id: v4_current.get(notice_id) for notice_id in fit_ids},
+        )
+    else:
+        fit_sources = {}
+    # Keep reasons such as `grade_not_priority` visible for ready bundles while
+    # reusing the same batch current projection in the built-in gate.
+    fit_reasons = gate_reasons(
+        session,
+        ids,
+        current_v4={notice_id: v4_current.get(notice_id) for notice_id in ids},
+    )
     for notice_id in ids:
         grade = grades.get(notice_id)
         deep_review_id = deep_review_by_notice.get(notice_id)
         overview = overview_by_notice.get(notice_id)
+        v4_projection = v4_current.get(notice_id)
         ready_bundle = ready_bundle_by_notice.get(notice_id)
-        snapshot_document = (
-            snapshot_documents.get(overview[2])
-            if overview is not None and overview[2] is not None
-            else None
-        )
+        snapshot_document = None
+        if v4_projection is None:
+            snapshot_document = (
+                snapshot_documents.get(overview[2])
+                if overview is not None and overview[2] is not None
+                else None
+            )
         auto_start_reason_code = None
         fit_source = fit_sources.get(notice_id)
         if fit_source is not None:
             snapshot_document = fit_source.document_id
+        overview_status = (
+            _overview_status_from_v4(v4_projection)
+            if v4_projection is not None
+            else (overview[0] if overview is not None else None)
+        )
         if kinds.get(notice_id) == "pre_spec" and deep_review_id is None and ready_bundle is not None:
             auto_start_reason_code = auto_start_reason(
                 is_sw_business=sw_business.get(notice_id, False),
                 ready_bundle_auto_confirmed=ready_bundle[4] == AUTO_ACTOR_NAME,
-                overview_status="completed" if fit_source is not None else (overview[0] if overview is not None else None),
-                overview_result=None if fit_source is not None else (overview[1] if overview is not None else None),
+                overview_status="completed" if fit_source is not None else overview_status,
+                overview_result=None if fit_source is not None or v4_projection is not None else (overview[1] if overview is not None else None),
                 overview_document_in_bundle=(
                     snapshot_document is not None
                     and snapshot_document in bundle_documents.get(ready_bundle[5], ())
@@ -973,7 +1070,7 @@ def auto_preparation_fields(
             grade=grade,
             deep_review_id=deep_review_id,
             bundles=bundles_by_notice.get(notice_id, ()),
-            overview_status=overview[0] if overview is not None else None,
+            overview_status=overview_status,
             has_pending_fetch=notice_id in pending_by_notice,
             auto_start_reason_code=auto_start_reason_code,
         )

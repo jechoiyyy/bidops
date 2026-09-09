@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 import hashlib
 import json
 import re
+from collections.abc import Mapping
 from typing import Any, Sequence
 from uuid import UUID
 
@@ -77,16 +78,75 @@ class OverviewInput:
     quality_status: str
 
 
-def overview_inputs(session: Session, notice_ids: Sequence[int]) -> dict[int, OverviewInput]:
-    """Latest page reference wins even when invalid: never fall back past failure."""
-    ids = list(notice_ids)
+def current_v4_projections(
+    session: Session, notice_ids: Sequence[int]
+) -> dict[int, dict[str, Any] | None]:
+    """Return the v4 current projection for a batch of notices.
+
+    The v4 runner owns the currentness rules. This adapter deliberately only
+    delegates to its shared batch helper; it does not inspect attempts/results
+    or reimplement currentness here.
+    """
+
+    ids = tuple(dict.fromkeys(int(value) for value in notice_ids))
+    if not ids:
+        return {}
+    from .prespec_v4_runner import current_v4_projections as project_current_v4
+
+    projected = project_current_v4(session, ids)
+    return {
+        int(notice_id): value
+        for notice_id, value in (projected or {}).items()
+        if int(notice_id) in ids
+    }
+
+
+def v4_followup_enabled(session: Session, *, settings=None) -> bool:
+    """Return whether the v4 activation permits company-fit/deep follow-up."""
+
+    from .prespec_v4_ops import v4_dispatch_enabled
+
+    return v4_dispatch_enabled(session, settings=settings) is not None
+
+
+def v4_followup_reason(
+    session: Session,
+    projection: Mapping[str, Any] | None,
+    *,
+    settings=None,
+) -> str | None:
+    """Block company-fit/deep follow-up for a v4 row while its cohort is off."""
+
+    if projection is None:
+        return None
+    return None if v4_followup_enabled(session, settings=settings) else "v4_disabled"
+
+
+def overview_inputs(
+    session: Session,
+    notice_ids: Sequence[int],
+    *,
+    current_v4: dict[int, dict[str, Any] | None] | None = None,
+) -> dict[int, OverviewInput]:
+    """Build only a current, validated overview input for each notice.
+
+    If the v4 runner has a current projection, that projection is authoritative:
+    queued/running/failed/stale (and any other non-completed state) must not fall
+    back to an older page row or legacy review.  A null projection means the v4
+    path has not been applied, so the existing page/legacy compatibility path is
+    retained.
+    """
+    ids = list(dict.fromkeys(int(value) for value in notice_ids))
     if not ids:
         return {}
     pages = session.scalars(select(PreSpecPageOverview).where(PreSpecPageOverview.notice_id.in_(ids))
                             .order_by(PreSpecPageOverview.created_at.desc(), PreSpecPageOverview.id.desc())).all()
     latest = {}
+    page_by_id = {}
     for row in pages:
+        page_by_id[row.id] = row
         latest.setdefault(row.notice_id, row)
+    v4_current = current_v4 if current_v4 is not None else current_v4_projections(session, ids)
     rows = session.execute(select(PreSpecOverviewReview, PreSpecOverviewResult, PreSpecOverviewSnapshot, PreSpecOverviewAttempt)
         .join(PreSpecOverviewSnapshot, PreSpecOverviewReview.current_snapshot_id == PreSpecOverviewSnapshot.id)
         .join(PreSpecOverviewResult, PreSpecOverviewResult.snapshot_id == PreSpecOverviewSnapshot.id)
@@ -96,13 +156,34 @@ def overview_inputs(session: Session, notice_ids: Sequence[int]) -> dict[int, Ov
     old = {}
     for review, result, snapshot, attempt in rows:
         old.setdefault(review.notice_id, (review, result, snapshot, attempt))
-    doc_ids = {r.document_version_id for r in latest.values()} | {r[2].document_version_id for r in old.values()}
+    # The current v4 result may be an older page row while a newer manual or
+    # legacy row remains in the append-only history. Load documents for every
+    # candidate row; selection itself still follows the current projection.
+    doc_ids = {r.document_version_id for r in page_by_id.values()} | {
+        r[2].document_version_id for r in old.values()
+    }
     docs = {r.id: r for r in session.scalars(select(DocumentVersion).where(DocumentVersion.id.in_(doc_ids))).all()} if doc_ids else {}
     out = {}
     for notice_id in ids:
         try:
-            if notice_id in latest:
+            projected = v4_current.get(notice_id)
+            if projected is not None:
+                # The runner marks invalid completed results stale.  Keep the
+                # local checks as a defense-in-depth boundary for the exact
+                # row consumed here, without reimplementing currentness.
+                if projected.get("status") != "completed" or not projected.get("result_id"):
+                    continue
+                try:
+                    row = page_by_id.get(UUID(str(projected["result_id"])))
+                except (TypeError, ValueError):
+                    row = None
+                if row is None:
+                    continue
+            elif notice_id in latest:
                 row = latest[notice_id]
+            else:
+                row = None
+            if row is not None:
                 if row.validation_status != "passed" or row.evidence_check_status != "passed" or digest(row.payload_jsonb) != row.payload_sha256:
                     continue
                 payload = PageOverviewPayload.model_validate(row.payload_jsonb)
@@ -192,9 +273,19 @@ def latest_attempts(session: Session, notice_ids: Sequence[int]) -> dict[int, Pr
     return result
 
 
-def current_flags(session: Session, attempts: Sequence[PreSpecCompanyFitAttempt], *, settings=None) -> dict[UUID, bool]:
+def current_flags(
+    session: Session,
+    attempts: Sequence[PreSpecCompanyFitAttempt],
+    *,
+    settings=None,
+    current_v4: dict[int, dict[str, Any] | None] | None = None,
+) -> dict[UUID, bool]:
     settings = settings or get_settings()
-    sources = overview_inputs(session, [r.notice_id for r in attempts])
+    sources = overview_inputs(
+        session,
+        [r.notice_id for r in attempts],
+        current_v4=current_v4,
+    )
     try:
         profile_id, deep_policy_id = active_version_ids()
         model, revision, policy_hash = configured_binding(settings)
@@ -207,23 +298,54 @@ def current_flags(session: Session, attempts: Sequence[PreSpecCompanyFitAttempt]
                         and digest(row.input_jsonb) == row.input_sha256) for row in attempts}
 
 
-def gate_reasons(session: Session, notice_ids: Sequence[int], *, settings=None) -> dict[int, str | None]:
+def gate_reasons(
+    session: Session,
+    notice_ids: Sequence[int],
+    *,
+    settings=None,
+    current_v4: dict[int, dict[str, Any] | None] | None = None,
+) -> dict[int, str | None]:
     settings = settings or get_settings()
     if not settings.prespec_company_fit_enabled:
         return {notice_id: "company_fit_disabled" for notice_id in notice_ids}
     if not settings.reference_workflow_mode:
         return {notice_id: "company_fit_reference_only" for notice_id in notice_ids}
+    v4_current = (
+        current_v4
+        if current_v4 is not None
+        else current_v4_projections(session, notice_ids)
+    )
     attempts = latest_attempts(session, notice_ids)
-    flags = current_flags(session, list(attempts.values()), settings=settings) if attempts else {}
+    flags = (
+        current_flags(
+            session,
+            list(attempts.values()),
+            settings=settings,
+            current_v4=v4_current,
+        )
+        if attempts
+        else {}
+    )
     out = {}
     from .effective_grade import priority_notice_ids
     priority = priority_notice_ids(session, notice_ids)
+    v4_followup_allowed = (
+        v4_followup_enabled(session, settings=settings)
+        if any(projection is not None for projection in v4_current.values())
+        else True
+    )
     for notice_id in notice_ids:
         row = attempts.get(notice_id)
-        reason = "company_fit_pending"
-        if notice_id not in priority:
+        has_v4_projection = v4_current.get(notice_id) is not None
+        v4_blocked = has_v4_projection and not v4_followup_allowed
+        reason = (
+            "company_fit_v4_disabled"
+            if v4_blocked
+            else "company_fit_pending"
+        )
+        if not v4_blocked and notice_id not in priority:
             reason = "grade_not_priority"
-        elif row is not None:
+        elif not v4_blocked and row is not None:
             if not flags.get(row.id):
                 reason = "company_fit_stale"
             elif row.status != "completed":

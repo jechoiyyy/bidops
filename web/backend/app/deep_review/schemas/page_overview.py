@@ -47,7 +47,24 @@ class PageOverviewView(RuntimeContractModel):
     created_at: AwareDateTime
 
 
+PageOverviewCurrentStatus = Literal[
+    "queued", "running", "completed", "failed", "needs_human_review", "stale", "cancelled"
+]
+
+
+class PageOverviewCurrent(RuntimeContractModel):
+    """Server-owned v4 pointer; ``reviews`` remains the historical list."""
+
+    attempt_id: UUID | None
+    status: PageOverviewCurrentStatus
+    result_id: UUID | None
+    reason_code: str | None
+    prompt_version: str | None
+    created_at: AwareDateTime
+
+
 class PageOverviewResponse(RuntimeContractModel):
     schema_version: Literal["bidops.prespec-overview-pages.v1"] = "bidops.prespec-overview-pages.v1"
     notice_id: int
     reviews: list[PageOverviewView]
+    current: PageOverviewCurrent | None = None

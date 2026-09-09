@@ -322,6 +322,7 @@ def test_model_has_exact_closed_table_set():
         DEEP_REVIEW_LEAN_V1_TABLES,
         DOCUMENT_SEGMENT_TABLES,
         PRESPEC_OVERVIEW_TABLES,
+        PRESPEC_V4_TABLES,
     )
     from app.lifecycle.models import IDENTITY_TABLES, LIFECYCLE_LEGACY_TABLES
     from app.screening.models import (
@@ -339,13 +340,14 @@ def test_model_has_exact_closed_table_set():
     assert len(LEGACY_TABLES) == 13
     assert len(NEW_TABLES) == 25
     assert "actor" not in LEGACY_TABLES + NEW_TABLES
-    assert len(Base.metadata.tables) == 79
+    assert len(Base.metadata.tables) == 81
     assert set(Base.metadata.tables) == set(
         LEGACY_TABLES + NEW_TABLES + SCREENING_RUNTIME_TABLES + IDENTITY_TABLES
         + ATTACHMENT_FETCH_TABLES + REVISION_TABLES
         + PRESPEC_OVERVIEW_TABLES + BID_DELTA_TABLES + ORDER_PLAN_SCREENING_TABLES
         + DOCUMENT_SEGMENT_TABLES
         + ("prespec_company_fit_attempt",)
+        + PRESPEC_V4_TABLES
     )
     assert isinstance(Base.metadata.tables["run"].c.screening_basis.type, Text)
     assert "fk_evidence_document_bundle_scope" in {

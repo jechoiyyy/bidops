@@ -1,10 +1,19 @@
 # 구현·검증 현황
 
-기준일: 2026-09-08 (ERP 화면 변경과 사전규격 회사 핏 판정 구현)
+기준일: 2026-09-09 (v4 explicit reference 운영 상태와 실제 UI 인수 대기)
 
 사전규격 v4 페이지 개요·PDF 선행·회사 핏 연속 처리의 진행 계획과 단계별 인수/중단 경계는 [prespec-v4-implementation-plan.md](prespec-v4-implementation-plan.md)에 보존한다. 이 계획은 현재 회사 핏 구현·검증과 v4/PDF 후속 구현을 구분하며, 완료·운영 적용 근거를 대신하지 않는다.
 
 `구현됨`은 코드와 계약이 존재한다는 뜻이고, `검증됨`은 기록된 명령이 해당 범위에서 통과했다는 뜻이다. Mock 결과, 과거 브랜치 결과, 현재 worktree 결과, 외부 운영 승인을 서로 대신하지 않는다.
+
+## 사전규격 v4 최신 운영 상태 (2026-09-09)
+
+- 명시 sample activation은 OFF이다. `AuditEvent` `07c1d75a-c36a-48c7-9de5-a7efa1e741c7`가 `reference_samples_complete_with_142_unverified` 사유를 남긴다. 142·35·59 모두 grade는 `None`이며 automatic priority/auto-deep를 우회하거나 강제하지 않았다. 사람 결정은 변경하지 않았다.
+- notice 35 개요는 result `a28a188b-0638-4dbb-b867-ea5a12c6c168`로 completed/current다. 회사 핏은 attempt `bb2d93f4-1915-4e72-a4f5-f647d8860a5e`, `completed/current/unknown`, raw SHA-256 `c147828b4efa9423d7af2ac138705e8d775a5a8c674a543275fb35dfc276d822`이며 API가 Luna reference 첫 응답과 exact 일치한다.
+- notice 59 개요는 result `04d6182f-f073-450a-b8be-30f141db9f02`로 completed/current다. 회사 핏은 attempt `4af5b488-59c2-445e-8cf3-4a33baad44be`, `needs_human_review/current`, result는 `null`, raw SHA-256 `67b292a7ca012a7995f7a98d7be11d972fd97e72b603cf5e17552cb272254f11`이다. `unsupported_number` 사유로 index 0의 선택 근거에 24시간이 없어졌고, 암호화 raw를 보존했으며 보정·재시도하지 않았다.
+- notice 142 PDF는 반복 timeout 뒤 `unverified`다. offline Luna JSON은 참조 입력으로만 보존하며 성공 PDF/current로 승격하지 않았다. 35/59 실제 UI는 사업명 검색·목록/상세·독립 상세·refresh/reentry, 1280×800·1440×900, API 본문·제한사항·prompt/result ID·PDF hash/link까지 통과했다. 35 `unknown` 근거와 59 `needs_human_review` 오류·안전 문구·판정 본문 비노출도 확인했다. 결과는 `.dryforge/prespec-v4-luna-20260909/ui-acceptance-result.json`과 script에 보존한다. 142 PDF와 automatic deep는 미검증이다.
+- `localhost:18887/pre-specs/35`와 `/pre-specs/59`는 배포 확인 경로다. 18787 bind 실패는 기록된 운영 제약이다. `overview-actual`은 중지했고 `prespec-actual`은 원래 `sleep infinity`로 복원했다. document-worker 두 개는 `bidops-v4-luna-reference:20260909-final`, 1 GiB 조건으로 복원됐다.
+- persistent reference artifacts는 `.dryforge/prespec-v4-luna-20260909/{overview-generation,company-fit-input-35-59,company-fit-generation-35-59}`에 두며 credentials를 포함하지 않는다. 실제 UI acceptance 결과는 `ui-acceptance-result.json`과 script에 보존했고, 전체 v4 계획 완료를 주장하지 않는다.
 
 ## 제품 방향
 
@@ -22,7 +31,7 @@
 
 | 영역 | 구현 상태 | 검증 상태 |
 |---|---|---|
-| 사전규격 회사 핏 판정·자동 시작 게이트 | 검증된 최신 개요와 승인 프로필을 고정해 `matched/mismatch/unknown`과 양쪽 근거를 저장한다. 현재 입력의 `matched`만 기존 자동 심층 생성 경로로 연결한다. 목록 선택 상세·개별 상세에서 이유, 미확인 항목, 입력 버전, 실제 심층 생성 여부를 표시한다. **기본 비활성·참조 실행 전용이며 운영 DB 적용·live 모델 호출·활성화는 하지 않았다.** | 관련 backend 74개, PostgreSQL migration·권한 집중 검사, 관련 화면 56개와 대비 9개·build·Compose 이미지 빌드 통과. 전체 회귀의 기존 backend Protocol 2개와 별도 화면 실패 10개가 남아 전체 배포 게이트 통과는 아니다. [검증 기록](../validation-runs/20260908-prespec-company-fit.md) |
+| 사전규격 회사 핏 판정·자동 시작 게이트 | 검증된 최신 개요와 승인 프로필을 고정해 `matched/mismatch/unknown`과 양쪽 근거를 저장한다. 현재 입력의 `matched`만 기존 자동 심층 생성 경로로 연결한다. 목록 선택 상세·개별 상세에서 이유, 미확인 항목, 입력 버전, 실제 심층 생성 여부를 표시한다. **기본 비활성·명시 sample 참조 실행 전용이며 automatic deep는 활성화하지 않았다.** 2026-09-09 explicit 35는 `completed/current/unknown`, 59는 `needs_human_review/current`로 저장했고, 59의 암호화 raw를 보존했다. | [최종 상태](../validation-runs/20260909-prespec-v4-cohort-ops.md) |
 | ERP 사전규격 개별 상세 | 2026-09-08 승인 시안 적용. 왼쪽 일반 스크롤, 오른쪽 400px 결정 패널. 공식 번호 16px·복사·수집 URL 원문 열기, 핵심 요약·확인 사항, 사유 드롭다운·기타·담당자·저장. 서버 18787 반영 | build·대비 9개·신규 8개·최종 집중 4개 통과. 전체 455 passed·11 failed·6 skipped 중 의도한 품질 상세 접기 검사 1개 수정 후 재통과, 기존 실패 10개 남음. 시각 19개·실제 API 반영 전후 각 8개. [검증 기록](../validation-runs/20260908-prespec-detail-ux-implementation.md) |
 | 승인 ERP 대시보드 | 2026-09-08 승인 HTML·TSX/CSS를 직접 적용. 네 누적 업무 → 회차 선택 → 67:33 네 패널, 15px 공고명·기관, URL 필터·실제 API 연결. 기존 서버 18787에 frontend 반영 | build·대비 9개·최종 관련 31개 통과. 전체 443 passed·기존 실패 9·skipped 6. 두 폭 시안 대조 18개와 실제 API 읽기 화면 8개 확인. [검증 기록](../validation-runs/20260908-dashboard-erp-ui.md) |
 | 승인 ERP 판정 기준·실행 상태 | 사용자 승인 HTML·원본 TSX/CSS를 기준으로 두 화면의 8개 탭 구현. 목록 38%·상세 62%, 고정 하단 액션, 기존 정책·리뷰·중단·예약·포털 계약 유지. 기존 서버 18787에 frontend만 반영 | 2026-09-08: TypeScript strict·production build, 대비 9개, 전용·통합 89개 통과. 전체 화면 423 passed·11 failed·6 skipped이며 실패 11개는 기존 항목과 동일. 두 폭 mock 캡처 16개와 실제 API 읽기 화면 16개 확인. [검증 기록](../validation-runs/20260908-admin-erp-ui.md) |

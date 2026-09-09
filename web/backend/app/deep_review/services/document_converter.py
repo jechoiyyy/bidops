@@ -18,8 +18,12 @@ from ..document_mcp.safety import MAX_INPUT_BYTES, ProcessorOptions
 from ...core.clamav import ClamAVScanner
 from ..document_protocol import (
     MAX_RESULT_BYTES,
+    PDF_RESULT_SCHEMA,
     RESULT_SCHEMA,
     ScratchProtocolError,
+    read_bounded_file,
+    read_pdf_sidecar,
+    validate_original_pdf_metadata,
     write_request,
 )
 
@@ -52,7 +56,7 @@ class ScratchDocumentProcessor:
         if not isinstance(content, bytes) or len(content) > MAX_INPUT_BYTES:
             raise DocumentProcessingError("input_size_limit", "문서 입력 크기 제한을 초과했습니다")
         try:
-            safe_options = vars(ProcessorOptions.from_mapping(options if isinstance(options, dict) or options is None else dict(options)))
+            safe_options = vars(ProcessorOptions.from_mapping(options))
         except DocumentProcessingError:
             raise
         try:
@@ -82,22 +86,24 @@ class ScratchDocumentProcessor:
         result_path = self.root / "results" / f"{request_id}.json"
         content_path = request_path.parent / f"{request_id}.bin"
         claimed_path = self.root / "claimed" / request_path.name
+        pdf_directory = self.root / "pdf"
+        sidecar_path = None if pdf_directory.is_symlink() or not pdf_directory.is_dir() else pdf_directory / f"{request_id}.pdf"
         deadline = time.monotonic() + max(0.1, min(self.wait_seconds, safe_options["timeout_seconds"] + 10.0))
+        result_seen = False
         try:
             while not result_path.is_file() and time.monotonic() < deadline:
                 time.sleep(0.05)
             if not result_path.is_file():
                 raise DocumentProcessingError("converter_unavailable", "문서 변환기를 사용할 수 없습니다", source_preserved=True)
+            result_seen = True
             try:
-                if result_path.stat().st_size > MAX_RESULT_BYTES:
-                    raise DocumentProcessingError("output_size_limit", "문서 처리 결과 크기 제한을 초과했습니다", source_preserved=True)
-            except OSError as error:
+                result = json.loads(read_bounded_file(result_path, limit=MAX_RESULT_BYTES).decode("utf-8"))
+            except ScratchProtocolError as error:
+                raise DocumentProcessingError(error.code, "문서 처리 결과를 읽을 수 없습니다", source_preserved=True) from error
+            except (UnicodeError, json.JSONDecodeError) as error:
                 raise DocumentProcessingError("processing_failed", "문서 처리 결과를 읽을 수 없습니다", source_preserved=True) from error
-            try:
-                result = json.loads(result_path.read_text(encoding="utf-8"))
-            except (OSError, UnicodeError, json.JSONDecodeError) as error:
-                raise DocumentProcessingError("processing_failed", "문서 처리 결과를 읽을 수 없습니다", source_preserved=True) from error
-            if not isinstance(result, Mapping) or result.get("schema") != RESULT_SCHEMA or result.get("request_id") != str(request_id):
+            expected_schema = PDF_RESULT_SCHEMA if safe_options["prepare_pdf"] else RESULT_SCHEMA
+            if not isinstance(result, Mapping) or result.get("schema") != expected_schema or result.get("request_id") != str(request_id):
                 raise DocumentProcessingError("processing_failed", "문서 처리 결과가 올바르지 않습니다", source_preserved=True)
             if result.get("status") != "succeeded":
                 detail = result.get("error")
@@ -106,7 +112,8 @@ class ScratchDocumentProcessor:
                     "timeout", "processing_failed", "conversion_required", "unsupported_media",
                     "malformed_pdf", "malformed_archive", "invalid_options", "mime_mismatch",
                     "output_size_limit", "pdf_object_limit", "pdf_page_limit", "pdf_page_mismatch",
-                    "pdf_empty_text",
+                    "pdf_empty_text", "pdf_sidecar_missing", "hash_mismatch",
+                    "pdf_metadata_invalid",
                 } else "processing_failed"
                 raise DocumentProcessingError(safe_code, "문서 처리를 완료할 수 없습니다", source_preserved=True)
             payload = result.get("structure")
@@ -120,9 +127,58 @@ class ScratchDocumentProcessor:
                 max_pages=safe_options["max_pages"],
                 max_blocks=safe_options["max_blocks"],
             )
-            return ProcessedDocument(payload, original_bytes=content)
+            converted_pdf: bytes | None = None
+            pdf_metadata: dict[str, Any] = {}
+            if expected_schema == PDF_RESULT_SCHEMA:
+                descriptor = result.get("pdf_sidecar")
+                if not isinstance(descriptor, Mapping) or sidecar_path is None:
+                    raise DocumentProcessingError("pdf_sidecar_missing", "PDF sidecar를 확인할 수 없습니다", source_preserved=True)
+                try:
+                    converted_pdf, pdf_metadata, source_kind = read_pdf_sidecar(
+                        self.root,
+                        str(request_id),
+                        descriptor,
+                        max_bytes=safe_options["max_output_bytes"],
+                    )
+                except ScratchProtocolError as error:
+                    raise DocumentProcessingError(error.code, "PDF sidecar 무결성을 확인할 수 없습니다", source_preserved=True) from error
+                if source_kind == "original":
+                    if payload.get("media_type") != "application/pdf" or converted_pdf != content:
+                        raise DocumentProcessingError(
+                            "hash_mismatch",
+                            "원본 PDF sidecar가 입력 원문과 일치하지 않습니다",
+                            source_preserved=True,
+                        )
+                    try:
+                        validate_original_pdf_metadata(pdf_metadata, payload)
+                    except ScratchProtocolError as error:
+                        raise DocumentProcessingError(
+                            error.code,
+                            "원본 PDF page metadata를 확인할 수 없습니다",
+                            source_preserved=True,
+                        ) from error
+                elif payload.get("media_type") == "application/pdf":
+                    raise DocumentProcessingError(
+                        "processing_failed",
+                        "PDF source kind이 입력 media type과 일치하지 않습니다",
+                        source_preserved=True,
+                    )
+                try:
+                    pdf_scan = self.clamav_checker(converted_pdf)
+                except Exception as error:
+                    raise DocumentProcessingError("clamav_unavailable", "malware 검사를 완료할 수 없습니다", source_preserved=True) from error
+                if pdf_scan is False:
+                    raise DocumentProcessingError("malware_detected", "malware 검사에서 차단되었습니다", source_preserved=True)
+                if pdf_scan is not True:
+                    raise DocumentProcessingError("clamav_unavailable", "malware 검사를 완료할 수 없습니다", source_preserved=True)
+            return ProcessedDocument(
+                payload,
+                original_bytes=content,
+                converted_pdf_bytes=converted_pdf,
+                pdf_metadata=pdf_metadata,
+            )
         except ScratchProtocolError as error:
-            raise DocumentProcessingError("processing_failed", "문서 처리 요청이 올바르지 않습니다", source_preserved=True) from error
+            raise DocumentProcessingError(error.code, "문서 처리 요청이 올바르지 않습니다", source_preserved=True) from error
         finally:
             # The converter removes its claimed/input files.  Only clean an
             # unclaimed inbox request after timeout; a claimed request's
@@ -134,9 +190,13 @@ class ScratchDocumentProcessor:
                     pass
                 else:
                     content_path.unlink(missing_ok=True)
-            # Only the result owned by this request is removed here, after it
-            # was consumed.
-            result_path.unlink(missing_ok=True)
+            # A result is owned by this request once it was observed.  Keep a
+            # claimed worker input intact during a timeout; the worker may
+            # still be finishing its atomic sidecar/result publish.
+            if result_seen:
+                result_path.unlink(missing_ok=True)
+            if sidecar_path is not None and not claimed_path.exists():
+                sidecar_path.unlink(missing_ok=True)
 
 
 __all__ = ["ScratchDocumentProcessor"]

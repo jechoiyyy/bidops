@@ -13,7 +13,7 @@ import hashlib
 import json
 import re
 import unicodedata
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -1742,6 +1742,8 @@ def build_overview_model_input(
 
 def select_overview_enqueue_candidate(
     session: Session,
+    *,
+    excluded_document_version_ids: Collection[UUID] = (),
 ) -> tuple[PreSpecOverviewReview, PreSpecOverviewSnapshot] | None:
     """큐에 넣을 수 있는 review·snapshot 한 쌍을 고른다. 모델을 부르지 않는다.
 
@@ -1759,7 +1761,7 @@ def select_overview_enqueue_candidate(
         )
         .exists()
     )
-    row = session.execute(
+    query = (
         select(PreSpecOverviewReview, PreSpecOverviewSnapshot)
         .join(
             PreSpecOverviewSnapshot,
@@ -1773,29 +1775,41 @@ def select_overview_enqueue_candidate(
         )
         .order_by(PreSpecOverviewReview.updated_at.asc(), PreSpecOverviewReview.id.asc())
         .limit(1)
-    ).first()
+    )
+    excluded = tuple(excluded_document_version_ids)
+    if excluded:
+        query = query.where(~PreSpecOverviewSnapshot.document_version_id.in_(excluded))
+    row = session.execute(query).first()
     if row is None:
         return None
     review, snapshot = row
     return review, snapshot
 
 
-def has_claimable_overview_attempt(session: Session) -> bool:
+def has_claimable_overview_attempt(
+    session: Session,
+    *,
+    excluded_document_version_ids: Collection[UUID] = (),
+) -> bool:
     """claim 가능한 queued attempt가 있는지만 본다. 잠그지도 부르지도 않는다."""
 
-    return (
-        session.scalar(
-            select(PreSpecOverviewAttempt.id)
-            .where(
-                PreSpecOverviewAttempt.status == "queued",
-                PreSpecOverviewAttempt.review_id.is_not(None),
-                PreSpecOverviewAttempt.input_sha256.is_not(None),
-                PreSpecOverviewAttempt.binding_digest.is_not(None),
-            )
-            .limit(1)
+    query = (
+        select(PreSpecOverviewAttempt.id)
+        .join(
+            PreSpecOverviewSnapshot,
+            PreSpecOverviewSnapshot.id == PreSpecOverviewAttempt.snapshot_id,
         )
-        is not None
+        .where(
+            PreSpecOverviewAttempt.status == "queued",
+            PreSpecOverviewAttempt.review_id.is_not(None),
+            PreSpecOverviewAttempt.input_sha256.is_not(None),
+            PreSpecOverviewAttempt.binding_digest.is_not(None),
+        )
     )
+    excluded = tuple(excluded_document_version_ids)
+    if excluded:
+        query = query.where(~PreSpecOverviewSnapshot.document_version_id.in_(excluded))
+    return session.scalar(query.limit(1)) is not None
 
 
 def enqueue_overview_attempt(
@@ -1833,6 +1847,7 @@ def claim_overview_attempt(
     *,
     lease_seconds: int,
     now: datetime | None = None,
+    excluded_document_version_ids: Collection[UUID] = (),
 ) -> PreSpecOverviewAttempt | None:
     """FIFO로 queued attempt 하나를 ``running``으로 claim하고 lease를 건다.
 
@@ -1851,8 +1866,12 @@ def claim_overview_attempt(
     if not isinstance(lease_seconds, int) or isinstance(lease_seconds, bool) or lease_seconds <= 0:
         raise OverviewAttemptError("invalid_lease")
     when = now or _now()
-    attempt = session.scalars(
+    query = (
         select(PreSpecOverviewAttempt)
+        .join(
+            PreSpecOverviewSnapshot,
+            PreSpecOverviewSnapshot.id == PreSpecOverviewAttempt.snapshot_id,
+        )
         .where(
             PreSpecOverviewAttempt.status == "queued",
             PreSpecOverviewAttempt.review_id.is_not(None),
@@ -1865,7 +1884,11 @@ def claim_overview_attempt(
         )
         .limit(1)
         .with_for_update(skip_locked=True)
-    ).first()
+    )
+    excluded = tuple(excluded_document_version_ids)
+    if excluded:
+        query = query.where(~PreSpecOverviewSnapshot.document_version_id.in_(excluded))
+    attempt = session.scalars(query).first()
     if attempt is None:
         return None
     claimed = transition_overview_attempt(

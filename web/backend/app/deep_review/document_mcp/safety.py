@@ -8,7 +8,6 @@ import os
 import struct
 import zipfile
 from dataclasses import dataclass
-from dataclasses import replace
 from pathlib import PurePosixPath
 from typing import Any
 
@@ -19,7 +18,6 @@ HWP_MAGIC = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
 PDF_MAGIC = b"%PDF-"
 ZIP_MAGIC = b"PK\x03\x04"
 MAX_INPUT_BYTES = 50 * 1024 * 1024
-PDF_PREPARATION_MAX_OBJECTS = 10_000
 
 
 @dataclass(frozen=True)
@@ -56,12 +54,6 @@ class ProcessorOptions:
             result = value
         elif isinstance(value, dict):
             payload = dict(value)
-            # Chromium's bounded print output has more PDF objects than the
-            # legacy portable-text reader's default. Keep the legacy default
-            # unchanged while giving the explicit v4 preparation mode one
-            # recorded, bounded object budget for both generated and PDF input.
-            if payload.get("prepare_pdf") is True and "max_pdf_objects" not in payload:
-                payload["max_pdf_objects"] = PDF_PREPARATION_MAX_OBJECTS
             allowed = {
                 "timeout_seconds", "max_output_bytes", "max_archive_files",
                 "max_archive_depth", "max_archive_uncompressed_bytes", "max_xml_depth",
@@ -109,8 +101,6 @@ class ProcessorOptions:
             raise DocumentProcessingError("invalid_options", "문서 구조 제한이 올바르지 않습니다")
         if not isinstance(result.render_pages, bool) or not isinstance(result.prepare_pdf, bool) or not isinstance(result.ocr, bool):
             raise DocumentProcessingError("invalid_options", "문서 처리 option 형식이 올바르지 않습니다")
-        if result.prepare_pdf and result.max_pdf_objects > PDF_PREPARATION_MAX_OBJECTS:
-            raise DocumentProcessingError("invalid_options", "PDF preparation object 제한이 올바르지 않습니다")
         return result
 
 

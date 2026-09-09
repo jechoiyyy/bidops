@@ -2007,6 +2007,423 @@ def _immutable_page_overview(*_args: Any) -> None:
     raise ValueError("page overview is append-only")
 
 
+class PrespecV4PdfSnapshot(Base):
+    """Immutable PDF/source binding owned by the v4 preparation boundary.
+
+    This is deliberately separate from ``DocumentStructure`` and the legacy
+    overview rows.  A PDF can therefore be prepared more than once for an
+    unchanged document/configuration without replacing the structure consumed
+    by existing reviews.
+    """
+
+    __tablename__ = "prespec_v4_pdf_snapshot"
+    __table_args__ = (
+        UniqueConstraint(
+            "document_version_id",
+            "source_sha256",
+            "config_sha256",
+            "renderer_digest",
+            "font_digest",
+            name="uq_prespec_v4_pdf_snapshot_identity",
+        ),
+        UniqueConstraint(
+            "document_version_id", "id", name="uq_prespec_v4_pdf_snapshot_document_scope"
+        ),
+        ForeignKeyConstraint(
+            ["notice_id", "document_version_id"],
+            [_table("document_version.notice_id"), _table("document_version.id")],
+            ondelete="RESTRICT",
+            name="fk_prespec_v4_pdf_snapshot_document_scope",
+        ),
+        CheckConstraint(
+            "source_kind IN ('original','generated')",
+            name="ck_prespec_v4_pdf_snapshot_source_kind",
+        ),
+        CheckConstraint("source_size_bytes > 0 AND pdf_size_bytes > 0", name="ck_prespec_v4_pdf_snapshot_sizes"),
+        CheckConstraint("pdf_page_count > 0", name="ck_prespec_v4_pdf_snapshot_pages"),
+        CheckConstraint(
+            dual(
+                " AND ".join(
+                    f"length({field}) = 64 AND {field} NOT GLOB '*[^0-9a-f]*'"
+                    for field in (
+                        "source_sha256", "pdf_sha256", "page_text_sha256", "config_sha256",
+                        "renderer_digest", "font_digest", "binding_sha256",
+                    )
+                )
+            ),
+            name="ck_prespec_v4_pdf_snapshot_hashes",
+        ),
+        CheckConstraint(
+            dual(
+                "json_valid(pdf_metadata_jsonb) AND json_type(pdf_metadata_jsonb) = 'object'"
+            ),
+            name="ck_prespec_v4_pdf_snapshot_metadata",
+        ),
+        CheckConstraint(
+            dual(
+                "json_valid(renderer_jsonb) AND json_type(renderer_jsonb) = 'object'"
+            ),
+            name="ck_prespec_v4_pdf_snapshot_renderer",
+        ),
+        CheckConstraint(
+            dual("json_valid(font_jsonb) AND json_type(font_jsonb) = 'object'"),
+            name="ck_prespec_v4_pdf_snapshot_font",
+        ),
+        CheckConstraint(
+            dual("json_valid(config_jsonb) AND json_type(config_jsonb) = 'object'"),
+            name="ck_prespec_v4_pdf_snapshot_config",
+        ),
+        CheckConstraint(
+            dual("json_valid(scan_jsonb) AND json_type(scan_jsonb) = 'object'"),
+            name="ck_prespec_v4_pdf_snapshot_scan",
+        ),
+        CheckConstraint(
+            dual(
+                "length(page_text_sha256) = 64 AND page_text_sha256 NOT GLOB '*[^0-9a-f]*'"
+            ),
+            name="ck_prespec_v4_pdf_snapshot_page_text_hash",
+        ),
+        CheckConstraint(
+            "page_text_size_bytes > 0",
+            name="ck_prespec_v4_pdf_snapshot_page_text_size",
+        ),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    notice_id: Mapped[int] = mapped_column(_fk("notice.id", ondelete="RESTRICT"), nullable=False)
+    document_version_id: Mapped[uuid_module.UUID] = mapped_column(_fk("document_version.id", ondelete="RESTRICT"), nullable=False)
+    source_content_object_id: Mapped[uuid_module.UUID] = mapped_column(_fk("content_object.id", ondelete="RESTRICT"), nullable=False)
+    source_location_id: Mapped[uuid_module.UUID] = mapped_column(_fk("content_object_location.id", ondelete="RESTRICT"), nullable=False)
+    pdf_content_object_id: Mapped[uuid_module.UUID] = mapped_column(_fk("content_object.id", ondelete="RESTRICT"), nullable=False)
+    pdf_location_id: Mapped[uuid_module.UUID] = mapped_column(_fk("content_object_location.id", ondelete="RESTRICT"), nullable=False)
+    page_text_content_object_id: Mapped[uuid_module.UUID] = mapped_column(_fk("content_object.id", ondelete="RESTRICT"), nullable=False)
+    page_text_location_id: Mapped[uuid_module.UUID] = mapped_column(_fk("content_object_location.id", ondelete="RESTRICT"), nullable=False)
+    source_kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    source_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    pdf_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    pdf_size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    pdf_page_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    page_text_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    page_text_size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    pdf_metadata_jsonb: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    renderer_jsonb: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    renderer_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    font_jsonb: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    font_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    config_jsonb: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    config_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    scan_jsonb: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    binding_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(AwareDateTime(), default=utc_now, nullable=False)
+
+
+class PrespecV4Target(Base):
+    """Frozen prepared input for one PDF snapshot.
+
+    This row is deliberately not the later policy/current target.  It exists
+    only after a verified snapshot and records the immutable input manifest
+    (or a deterministic human-review boundary).  Policy eligibility and model
+    attempts belong to a later contract.
+    """
+
+    __tablename__ = "prespec_v4_target"
+    __table_args__ = (
+        UniqueConstraint(
+            "snapshot_id", "identity_sha256",
+            name="uq_prespec_v4_target_identity",
+        ),
+        UniqueConstraint("document_version_id", "id", name="uq_prespec_v4_target_document_scope"),
+        ForeignKeyConstraint(
+            ["notice_id", "document_version_id"],
+            [_table("document_version.notice_id"), _table("document_version.id")],
+            ondelete="RESTRICT",
+            name="fk_prespec_v4_target_document_scope",
+        ),
+        ForeignKeyConstraint(
+            ["document_version_id", "snapshot_id"],
+            [_table("prespec_v4_pdf_snapshot.document_version_id"), _table("prespec_v4_pdf_snapshot.id")],
+            ondelete="RESTRICT",
+            name="fk_prespec_v4_target_snapshot_document_scope",
+        ),
+        CheckConstraint(
+            "selection_status IN ('ready','needs_human_review','excluded')",
+            name="ck_prespec_v4_target_selection_status",
+        ),
+        CheckConstraint(
+            "observation_kind IN ('explicit_sample','first_observation','attachment_change')",
+            name="ck_prespec_v4_target_observation_kind",
+        ),
+        CheckConstraint(
+            "(observation_kind = 'explicit_sample' AND observation_id IS NULL) OR "
+            "(observation_kind <> 'explicit_sample' AND observation_id IS NOT NULL)",
+            name="ck_prespec_v4_target_observation_binding",
+        ),
+        CheckConstraint(
+            "((selection_status = 'ready' AND input_sha256 IS NOT NULL AND input_byte_count > 0 "
+            "AND selection_manifest_sha256 IS NOT NULL AND manifest_content_object_id IS NOT NULL "
+            "AND manifest_location_id IS NOT NULL "
+            "AND start_locator IS NOT NULL AND end_locator IS NOT NULL AND page_numbers_jsonb IS NOT NULL) "
+            "OR (selection_status IN ('needs_human_review','excluded') AND reason_code IS NOT NULL))",
+            name="ck_prespec_v4_target_selection_contract",
+        ),
+        CheckConstraint(
+            dual(
+                "json_valid(observation_jsonb) AND json_type(observation_jsonb) = 'object'"
+            ),
+            name="ck_prespec_v4_target_observation_json",
+        ),
+        CheckConstraint(
+            dual(
+                "start_locator IS NULL OR (json_valid(start_locator) AND json_type(start_locator) = 'object')"
+            ),
+            name="ck_prespec_v4_target_start_locator",
+        ),
+        CheckConstraint(
+            dual(
+                "end_locator IS NULL OR (json_valid(end_locator) AND json_type(end_locator) = 'object')"
+            ),
+            name="ck_prespec_v4_target_end_locator",
+        ),
+        CheckConstraint(
+            dual(
+                "page_numbers_jsonb IS NULL OR (json_valid(page_numbers_jsonb) AND json_type(page_numbers_jsonb) = 'array')"
+            ),
+            name="ck_prespec_v4_target_pages_json",
+        ),
+        CheckConstraint(
+            dual(
+                "input_text_sha256_jsonb IS NULL OR (json_valid(input_text_sha256_jsonb) AND json_type(input_text_sha256_jsonb) = 'array')"
+            ),
+            name="ck_prespec_v4_target_text_hashes_json",
+        ),
+        CheckConstraint(
+            dual(
+                "length(input_sha256) = 64 AND input_sha256 NOT GLOB '*[^0-9a-f]*'"
+            ),
+            name="ck_prespec_v4_target_input_hash",
+        ),
+        CheckConstraint(
+            dual(
+                "length(identity_sha256) = 64 AND identity_sha256 NOT GLOB '*[^0-9a-f]*'"
+            ),
+            name="ck_prespec_v4_target_identity_hash",
+        ),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    notice_id: Mapped[int] = mapped_column(_fk("notice.id", ondelete="RESTRICT"), nullable=False)
+    document_version_id: Mapped[uuid_module.UUID] = mapped_column(_fk("document_version.id", ondelete="RESTRICT"), nullable=False)
+    snapshot_id: Mapped[uuid_module.UUID] = mapped_column(_fk("prespec_v4_pdf_snapshot.id", ondelete="RESTRICT"), nullable=False)
+    observation_kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    observation_id: Mapped[int | None] = mapped_column(_fk("notice_observation.id", ondelete="RESTRICT"), nullable=True)
+    observation_jsonb: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    selection_status: Mapped[str] = mapped_column(String(24), nullable=False)
+    reason_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    selection_strategy: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    start_locator: Mapped[Any] = mapped_column(JSONB_NULL_COMPAT, nullable=True)
+    end_locator: Mapped[Any] = mapped_column(JSONB_NULL_COMPAT, nullable=True)
+    page_numbers_jsonb: Mapped[Any] = mapped_column(JSONB_NULL_COMPAT, nullable=True)
+    input_text_sha256_jsonb: Mapped[Any] = mapped_column(JSONB_NULL_COMPAT, nullable=True)
+    input_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    input_byte_count: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    selection_manifest_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    identity_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    manifest_content_object_id: Mapped[uuid_module.UUID | None] = mapped_column(_fk("content_object.id", ondelete="RESTRICT"), nullable=True)
+    manifest_location_id: Mapped[uuid_module.UUID | None] = mapped_column(_fk("content_object_location.id", ondelete="RESTRICT"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(AwareDateTime(), default=utc_now, nullable=False)
+
+
+class PrespecV4Attempt(Base):
+    """One fenced v4 overview execution for one frozen target.
+
+    The target and all input/model binding columns are immutable.  A failed
+    preparation is represented by a notice-scoped terminal row with no target;
+    this keeps the current API truthful before a PDF input exists without
+    pretending that a policy attempt was eligible.
+    """
+
+    __tablename__ = "prespec_v4_attempt"
+    __table_args__ = (
+        Index("ix_prespec_v4_attempt_notice_created", "notice_id", "created_at"),
+        Index(
+            "uq_prespec_v4_attempt_active_target",
+            "target_id",
+            unique=True,
+            postgresql_where=column("status").in_(["queued", "running"]),
+            sqlite_where=column("status").in_(["queued", "running"]),
+        ),
+        UniqueConstraint("notice_id", "sequence", name="uq_prespec_v4_attempt_notice_sequence"),
+        ForeignKeyConstraint(
+            ["notice_id", "document_version_id"],
+            [_table("document_version.notice_id"), _table("document_version.id")],
+            ondelete="RESTRICT",
+            name="fk_prespec_v4_attempt_document_scope",
+        ),
+        CheckConstraint(
+            "status IN ('queued','running','completed','failed','cancelled')",
+            name="ck_prespec_v4_attempt_status",
+        ),
+        CheckConstraint(
+            "quality_status IN ('unmeasured_reference','mock_reference')",
+            name="ck_prespec_v4_attempt_quality",
+        ),
+        CheckConstraint(
+            "(status IN ('queued','running','completed') AND target_id IS NOT NULL) OR "
+            "(status IN ('failed','cancelled'))",
+            name="ck_prespec_v4_attempt_target_scope",
+        ),
+        CheckConstraint(
+            "((status = 'queued' AND started_at IS NULL AND completed_at IS NULL AND result_id IS NULL) "
+            "OR (status = 'running' AND started_at IS NOT NULL AND completed_at IS NULL AND result_id IS NULL) "
+            "OR (status IN ('failed','cancelled') AND completed_at IS NOT NULL AND result_id IS NULL) "
+            "OR (status = 'completed' AND started_at IS NOT NULL AND completed_at IS NOT NULL AND result_id IS NOT NULL))",
+            name="ck_prespec_v4_attempt_completion",
+        ),
+        CheckConstraint(
+            "(status = 'running' AND lease_owner IS NOT NULL AND lease_expires_at IS NOT NULL) "
+            "OR (status <> 'running' AND lease_owner IS NULL AND lease_expires_at IS NULL)",
+            name="ck_prespec_v4_attempt_lease",
+        ),
+        CheckConstraint(
+            dual(
+                " AND ".join(
+                    f"({field} IS NULL OR (length({field}) = 64 AND {field} NOT GLOB '*[^0-9a-f]*'))"
+                    for field in (
+                        "source_sha256", "pdf_sha256", "input_sha256",
+                        "selection_manifest_sha256", "policy_digest", "model_digest",
+                        "binding_digest", "result_sha256", "raw_response_sha256",
+                    )
+                )
+            ),
+            name="ck_prespec_v4_attempt_hashes",
+        ),
+        CheckConstraint(
+            "result_id IS NULL OR status = 'completed'",
+            name="ck_prespec_v4_attempt_result_status",
+        ),
+        CheckConstraint(
+            "(status = 'completed' AND result_id IS NOT NULL AND result_sha256 IS NOT NULL) "
+            "OR (status <> 'completed' AND result_id IS NULL AND result_sha256 IS NULL)",
+            name="ck_prespec_v4_attempt_result",
+        ),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    notice_id: Mapped[int] = mapped_column(_fk("notice.id", ondelete="RESTRICT"), nullable=False)
+    document_version_id: Mapped[uuid_module.UUID | None] = mapped_column(
+        _fk("document_version.id", ondelete="RESTRICT"), nullable=True
+    )
+    target_id: Mapped[uuid_module.UUID | None] = mapped_column(
+        _fk("prespec_v4_target.id", ondelete="RESTRICT"), nullable=True
+    )
+    work_job_id: Mapped[uuid_module.UUID | None] = mapped_column(
+        _fk("work_job.id", ondelete="RESTRICT"), nullable=True
+    )
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    source_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    pdf_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    input_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    selection_manifest_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    policy_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    model_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    model_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    prompt_version: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    provider: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    binding_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    generation_jsonb: Mapped[Any] = mapped_column(JSONB_NULL_COMPAT, nullable=True)
+    quality_status: Mapped[str] = mapped_column(String(32), nullable=False, default="unmeasured_reference")
+    reference_only: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
+    deployable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="queued", server_default=text("'queued'"))
+    result_id: Mapped[uuid_module.UUID | None] = mapped_column(
+        _fk("prespec_page_overview.id", ondelete="RESTRICT"), nullable=True
+    )
+    result_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    raw_response_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    lease_owner: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    lease_expires_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
+    prompt_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    output_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(AwareDateTime(), default=utc_now, nullable=False)
+
+
+PRESPEC_V4_TABLES = (
+    "prespec_v4_pdf_snapshot",
+    "prespec_v4_target",
+    "prespec_v4_attempt",
+)
+
+
+@event.listens_for(PrespecV4PdfSnapshot, "before_update")
+@event.listens_for(PrespecV4PdfSnapshot, "before_delete")
+@event.listens_for(PrespecV4Target, "before_update")
+@event.listens_for(PrespecV4Target, "before_delete")
+def _reject_prespec_v4_input_mutation(*_args: Any) -> None:
+    raise ValueError("v4 PDF inputs are append-only")
+
+
+@event.listens_for(PrespecV4Attempt, "before_delete")
+def _reject_prespec_v4_attempt_delete(*_args: Any) -> None:
+    raise ValueError("v4 attempts cannot be deleted")
+
+
+@event.listens_for(PrespecV4Attempt, "before_insert")
+def _check_prespec_v4_attempt_scope(_mapper: Any, connection: Any, target: PrespecV4Attempt) -> None:
+    if target.target_id is not None:
+        row = connection.execute(
+            select(PrespecV4Target.notice_id, PrespecV4Target.document_version_id).where(
+                PrespecV4Target.id == target.target_id
+            )
+        ).first()
+        if row is None or row.notice_id != target.notice_id or row.document_version_id != target.document_version_id:
+            raise ValueError("v4 attempt target scope mismatch")
+    if target.result_id is not None:
+        row = connection.execute(
+            select(PreSpecPageOverview.notice_id, PreSpecPageOverview.document_version_id).where(
+                PreSpecPageOverview.id == target.result_id
+            )
+        ).first()
+        if row is None or row.notice_id != target.notice_id or row.document_version_id != target.document_version_id:
+            raise ValueError("v4 attempt result scope mismatch")
+
+
+@event.listens_for(PrespecV4Attempt, "before_update")
+def _guard_prespec_v4_attempt_update(_mapper: Any, connection: Any, target: PrespecV4Attempt) -> None:
+    state = sa_inspect(target)
+    mutable = {
+        "status", "result_id", "result_sha256", "raw_response_sha256", "error_code",
+        "lease_owner", "lease_expires_at", "started_at", "completed_at",
+        "prompt_tokens", "output_tokens", "latency_ms",
+    }
+    if any(state.attrs[column.key].history.has_changes() for column in target.__table__.columns if column.key not in mutable):
+        raise ValueError("v4 attempt inputs are immutable")
+    previous = state.attrs.status.history.deleted
+    old_status = previous[0] if previous else target.status
+    if old_status in {"completed", "failed", "cancelled"}:
+        raise ValueError("terminal v4 attempts are immutable")
+    if target.target_id is not None:
+        row = connection.execute(
+            select(PrespecV4Target.notice_id, PrespecV4Target.document_version_id).where(
+                PrespecV4Target.id == target.target_id
+            )
+        ).first()
+        if row is None or row.notice_id != target.notice_id or row.document_version_id != target.document_version_id:
+            raise ValueError("v4 attempt target scope mismatch")
+    if target.result_id is not None:
+        row = connection.execute(
+            select(PreSpecPageOverview.notice_id, PreSpecPageOverview.document_version_id).where(
+                PreSpecPageOverview.id == target.result_id
+            )
+        ).first()
+        if row is None or row.notice_id != target.notice_id or row.document_version_id != target.document_version_id:
+            raise ValueError("v4 attempt result scope mismatch")
+
+
 class PreSpecCompanyFitAttempt(Base):
     """Frozen inputs and a fenced lifecycle; terminal attempts are immutable."""
     __tablename__ = "prespec_company_fit_attempt"

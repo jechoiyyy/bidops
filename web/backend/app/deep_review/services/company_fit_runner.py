@@ -18,7 +18,8 @@ from ...lifecycle.models import Notice
 from ..models import DeepReview, DocumentBundle, PreSpecCompanyFitAttempt
 from .auto_preparation import _auto_start_scope, maybe_auto_start_deep_review
 from .company_fit import (CONTRACT, configured_binding, current_flags, digest, fit_policy,
-                          frozen_input, overview_inputs, validate_result)
+                          current_v4_projections, frozen_input, overview_inputs,
+                          validate_result)
 from .effective_grade import priority_notice_ids
 from .input_versions import resolve_active_versions
 from .model_response_storage import store_raw_model_response
@@ -51,7 +52,9 @@ class PreSpecCompanyFitRunner:
                    DocumentBundle.confirmed_by_name == "auto-preparation")
             .distinct().order_by(Notice.id)))
         priority = priority_notice_ids(session, ids)
-        sources = overview_inputs(session, [i for i in ids if i in priority])
+        candidate_ids = [i for i in ids if i in priority]
+        current_v4 = current_v4_projections(session, candidate_ids)
+        sources = overview_inputs(session, candidate_ids, current_v4=current_v4)
         existing_inputs = set(session.scalars(select(PreSpecCompanyFitAttempt.input_sha256)))
         existing_deep = set(session.scalars(select(DeepReview.bundle_id).where(
             DeepReview.profile_version_id == profile.id, DeepReview.policy_version_id == policy.id)))
@@ -59,7 +62,12 @@ class PreSpecCompanyFitRunner:
             source = sources.get(notice_id)
             if source is None:
                 continue
-            bundle_id, reason = _auto_start_scope(session, notice_id, require_company_fit=False)
+            bundle_id, reason = _auto_start_scope(
+                session,
+                notice_id,
+                require_company_fit=False,
+                current_v4=current_v4,
+            )
             if reason is not None or bundle_id in existing_deep:
                 continue
             try:
