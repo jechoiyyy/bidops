@@ -172,7 +172,8 @@ services:
       - document-scratch:/scratch
     network_mode: none
     mem_limit: 1g
-    pids_limit: 128
+    # Chromium 페이지 렌더링은 thread를 쓰며 128은 85쪽 RFP에서 고갈됐다 (2026-09-09).
+    pids_limit: 512
     cap_drop:
       - ALL
     security_opt:
