@@ -1,0 +1,21 @@
+.page-overview{display:grid;gap:var(--spacing-3);min-width:0;overflow-wrap:anywhere}
+.page-overview-heading{display:flex;align-items:center;justify-content:space-between;gap:var(--spacing-2);flex-wrap:wrap}
+.page-overview h3,.page-overview h4{margin:0;font-size:var(--bo-type-section-title);font-weight:600}
+.page-overview p{margin:0;line-height:1.65;white-space:pre-wrap}
+.page-overview-section{display:grid;gap:var(--spacing-2);padding-block:var(--spacing-3);border-bottom:var(--border-width) solid var(--color-border)}
+.page-overview-facts,.page-overview-tasks{margin:0;display:grid;gap:var(--spacing-3)}
+.page-overview-facts{list-style:none;padding:0}.page-overview-tasks{list-style:decimal;padding-left:var(--spacing-5)}
+.page-overview-links{display:flex;gap:var(--spacing-3);flex-wrap:wrap;padding-top:var(--spacing-1)}
+.page-overview a{color:var(--color-text-accent);font-size:var(--bo-type-caption);text-decoration:underline;text-underline-offset:var(--spacing-0-5)}
+.page-overview-validation{display:grid;gap:var(--spacing-2);padding:var(--spacing-3);background:var(--color-background-body);border-radius:var(--radius-inner);font-size:var(--bo-type-caption)}
+.page-overview-execution-meta{display:grid;gap:var(--spacing-1);margin:0}
+.page-overview-execution-meta div{display:flex;gap:var(--spacing-2);flex-wrap:wrap}
+.page-overview-execution-meta dt{font-weight:600}.page-overview-execution-meta dd{margin:0;overflow-wrap:anywhere}
+.page-overview-history-list{display:grid;gap:var(--spacing-3);margin:0;padding-left:var(--spacing-5)}
+.page-overview-history-item{display:grid;gap:var(--spacing-1)}
+.page-overview-history-item + .page-overview-history-item{padding-top:var(--spacing-3);border-top:var(--border-width) solid var(--color-border)}
+.page-overview-history-links{display:grid;gap:var(--spacing-1)}
+.page-overview-history-links a{color:var(--color-text-accent);font-size:var(--bo-type-caption);text-decoration:underline;text-underline-offset:var(--spacing-0-5)}
+.page-overview-current summary,.page-overview-history summary{cursor:pointer;font-weight:600}
+.page-overview-note{color:var(--color-text-secondary);font-size:var(--bo-type-caption);font-weight:400}
+.page-overview summary{cursor:pointer;font-weight:600}.page-overview-legacy{margin-top:var(--spacing-6);font-size:var(--bo-type-section-title)}

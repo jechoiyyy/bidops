@@ -7,9 +7,20 @@ from pathlib import Path
 import pytest
 
 from app.deep_review.document_mcp.errors import DocumentProcessingError
+from app.deep_review.document_mcp import process_document
+from app.deep_review.document_mcp.processor import ProcessedDocument
+from app.deep_review.document_mcp.safety import ProcessorOptions
 from app.deep_review.services import document_converter
 from app.deep_review.services.document_converter import ScratchDocumentProcessor
-from app.deep_review.document_protocol import ALLOWED_METADATA, ScratchProtocolError, convert_one, write_request
+from app.deep_review import document_protocol
+from app.deep_review.document_protocol import (
+    ALLOWED_METADATA,
+    PDF_PROTOCOL_SCHEMA,
+    PDF_RESULT_SCHEMA,
+    ScratchProtocolError,
+    convert_one,
+    write_request,
+)
 
 
 FIXTURE = Path(__file__).parents[1] / "fixtures" / "document_bundles" / "safe.pdf"
@@ -118,3 +129,301 @@ def test_result_consumer_rejects_source_hash_tamper(monkeypatch: pytest.MonkeyPa
     with pytest.raises(DocumentProcessingError) as error:
         processor.process(FIXTURE.read_bytes(), "application/pdf", {"ocr": False, "render_pages": False})
     assert error.value.code == "hash_mismatch"
+
+
+def _patch_generated_pdf_processor(monkeypatch: pytest.MonkeyPatch, pdf: bytes) -> None:
+    class FakeProcessor:
+        def __init__(self, **_kwargs):
+            pass
+
+        def process(self, content: bytes, media_type: str, _options: dict[str, object]) -> ProcessedDocument:
+            structure = process_document(content, media_type, {"ocr": False})
+            structure["media_type"] = "application/x-hwp"
+            return ProcessedDocument(
+                dict(structure),
+                original_bytes=content,
+                converted_pdf_bytes=pdf,
+                pdf_metadata={"schema": "mock-pdf-metadata.v1", "page_count": 1},
+            )
+
+    monkeypatch.setattr(document_protocol, "DocumentProcessor", FakeProcessor)
+
+
+def test_pdf_v2_round_trip_publishes_and_consumes_one_bound_sidecar(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    root = tmp_path / "pdf-v2"
+    source = FIXTURE.read_bytes()
+    generated = b"%PDF-1.7\nmock generated PDF\n%%EOF"
+    _patch_generated_pdf_processor(monkeypatch, generated)
+    calls: list[bytes] = []
+    real_write_request = document_converter.write_request
+
+    def write_and_run(*args, **kwargs):  # type: ignore[no-untyped-def]
+        request = real_write_request(*args, **kwargs)
+        envelope = json.loads(request.read_text(encoding="utf-8"))
+        assert envelope["schema"] == PDF_PROTOCOL_SCHEMA
+        assert convert_one(root) is True
+        result = json.loads((root / "results" / f"{request.stem}.json").read_text(encoding="utf-8"))
+        assert result["schema"] == PDF_RESULT_SCHEMA
+        assert result["pdf_sidecar"]["file"] == f"pdf/{request.stem}.pdf"
+        return request
+
+    monkeypatch.setattr(document_converter, "write_request", write_and_run)
+
+    def clean(content: bytes) -> bool:
+        calls.append(content)
+        return True
+
+    processed = ScratchDocumentProcessor(root, wait_seconds=2, clamav_checker=clean).process(
+        source,
+        "application/pdf",
+        {"ocr": False, "prepare_pdf": True, "max_output_bytes": 1024 * 1024},
+    )
+
+    assert processed.original_bytes == source
+    assert processed.converted_pdf_bytes == generated
+    assert processed.pdf_metadata == {"schema": "mock-pdf-metadata.v1", "page_count": 1}
+    assert calls == [source, generated]
+    assert not list((root / "inbox").glob("*"))
+    assert not list((root / "claimed").glob("*"))
+    assert not list((root / "results").glob("*"))
+    assert not list((root / "pdf").glob("*"))
+
+
+def test_pdf_v2_original_pdf_uses_detected_media_and_preserves_metadata(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    root = tmp_path / "original-pdf"
+    source = FIXTURE.read_bytes()
+    real_write_request = document_converter.write_request
+
+    def write_and_run(*args, **kwargs):  # type: ignore[no-untyped-def]
+        request = real_write_request(*args, **kwargs)
+        assert convert_one(root) is True
+        result = json.loads((root / "results" / f"{request.stem}.json").read_text(encoding="utf-8"))
+        assert result["pdf_sidecar"]["source_kind"] == "original"
+        assert result["pdf_sidecar"]["metadata"]["schema"] == "bidops.pdf-snapshot.v1"
+        assert result["pdf_sidecar"]["metadata"]["rerendered"] is False
+        assert result["pdf_sidecar"]["metadata"]["font_provenance"] is None
+        assert result["pdf_sidecar"]["metadata"]["processor_provenance"]["text_extractor"]["name"] in {
+            "pdf-poppler-prepared", "pdf-stdlib-prepared",
+        }
+        return request
+
+    monkeypatch.setattr(document_converter, "write_request", write_and_run)
+    processed = ScratchDocumentProcessor(root, wait_seconds=2, clamav_checker=lambda _content: True).process(
+        source,
+        "application/octet-stream",
+        ProcessorOptions(ocr=False, prepare_pdf=True, render_pages=False, max_pdf_objects=4096),
+    )
+    assert processed.original_bytes == source
+    assert processed.converted_pdf_bytes == source
+    assert processed.pdf_metadata["page_count"] == len(processed["pages"]) == 1
+    assert processed.pdf_metadata["pages"][0]["text_sha256"]
+
+
+def test_pdf_v2_original_source_kind_rejects_generated_bytes(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    root = tmp_path / "original-mismatch"
+    source = FIXTURE.read_bytes()
+    generated = b"%PDF-1.7\nnot the source\n%%EOF"
+    _patch_generated_pdf_processor(monkeypatch, generated)
+    real_write_request = document_converter.write_request
+
+    def write_and_tamper(*args, **kwargs):  # type: ignore[no-untyped-def]
+        request = real_write_request(*args, **kwargs)
+        assert convert_one(root) is True
+        result_path = root / "results" / f"{request.stem}.json"
+        result = json.loads(result_path.read_text(encoding="utf-8"))
+        result["pdf_sidecar"]["source_kind"] = "original"
+        result_path.write_text(json.dumps(result), encoding="utf-8")
+        return request
+
+    monkeypatch.setattr(document_converter, "write_request", write_and_tamper)
+    with pytest.raises(DocumentProcessingError) as error:
+        ScratchDocumentProcessor(root, wait_seconds=2, clamav_checker=lambda _content: True).process(
+            source,
+            "application/pdf",
+            {"ocr": False, "prepare_pdf": True, "max_output_bytes": 1024 * 1024},
+        )
+    assert error.value.code == "hash_mismatch"
+
+
+def test_pdf_v2_original_pdf_requires_physical_page_metadata(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    root = tmp_path / "original-metadata"
+    source = FIXTURE.read_bytes()
+    real_write_request = document_converter.write_request
+
+    def write_and_tamper(*args, **kwargs):  # type: ignore[no-untyped-def]
+        request = real_write_request(*args, **kwargs)
+        assert convert_one(root) is True
+        result_path = root / "results" / f"{request.stem}.json"
+        result = json.loads(result_path.read_text(encoding="utf-8"))
+        result["pdf_sidecar"]["metadata"] = {}
+        result_path.write_text(json.dumps(result), encoding="utf-8")
+        return request
+
+    monkeypatch.setattr(document_converter, "write_request", write_and_tamper)
+    with pytest.raises(DocumentProcessingError) as error:
+        ScratchDocumentProcessor(root, wait_seconds=2, clamav_checker=lambda _content: True).process(
+            source,
+            "application/octet-stream",
+            {"ocr": False, "prepare_pdf": True},
+        )
+    assert error.value.code == "pdf_metadata_invalid"
+
+
+def test_pdf_v2_rejects_symlink_input_and_preserves_other_request(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    root = tmp_path / "symlink"
+    source = FIXTURE.read_bytes()
+    other = tmp_path / "other-request.bin"
+    other.write_bytes(source)
+    request = write_request(
+        root,
+        request_id="55555555-5555-4555-8555-555555555555",
+        content=source,
+        media_type="application/pdf",
+        original_filename="safe.pdf",
+        options={"ocr": False, "prepare_pdf": True},
+        scan=clean_scan(source),
+    )
+    content_path = request.parent / f"{request.stem}.bin"
+    content_path.unlink()
+    content_path.symlink_to(other)
+    assert convert_one(root) is True
+    result = json.loads((root / "results" / f"{request.stem}.json").read_text(encoding="utf-8"))
+    assert result["schema"] == PDF_RESULT_SCHEMA
+    assert result["status"] == "failed"
+    assert result["error"]["code"] == "processing_failed"
+    assert other.read_bytes() == source
+
+
+def test_pdf_v2_rejects_sidecar_hash_tamper_and_cleans_owned_files(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    root = tmp_path / "sidecar-tamper"
+    source = FIXTURE.read_bytes()
+    generated = b"%PDF-1.7\nmock generated PDF\n%%EOF"
+    _patch_generated_pdf_processor(monkeypatch, generated)
+    real_write_request = document_converter.write_request
+
+    def write_and_tamper(*args, **kwargs):  # type: ignore[no-untyped-def]
+        request = real_write_request(*args, **kwargs)
+        assert convert_one(root) is True
+        sidecar = root / "pdf" / f"{request.stem}.pdf"
+        sidecar.write_bytes(generated + b"tamper")
+        return request
+
+    monkeypatch.setattr(document_converter, "write_request", write_and_tamper)
+    with pytest.raises(DocumentProcessingError) as error:
+        ScratchDocumentProcessor(root, wait_seconds=2, clamav_checker=lambda _content: True).process(
+            source,
+            "application/pdf",
+            {"ocr": False, "prepare_pdf": True, "max_output_bytes": 1024 * 1024},
+        )
+    assert error.value.code == "hash_mismatch"
+    assert not list((root / "results").glob("*"))
+    assert not list((root / "pdf").glob("*"))
+
+
+def test_pdf_v2_generated_sidecar_scanner_failure_is_not_success(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    root = tmp_path / "sidecar-scan"
+    source = FIXTURE.read_bytes()
+    generated = b"%PDF-1.7\nmock generated PDF\n%%EOF"
+    _patch_generated_pdf_processor(monkeypatch, generated)
+    real_write_request = document_converter.write_request
+
+    def write_and_run(*args, **kwargs):  # type: ignore[no-untyped-def]
+        request = real_write_request(*args, **kwargs)
+        assert convert_one(root) is True
+        return request
+
+    monkeypatch.setattr(document_converter, "write_request", write_and_run)
+    calls = 0
+
+    def scan(_content: bytes) -> bool:
+        nonlocal calls
+        calls += 1
+        return calls == 1
+
+    with pytest.raises(DocumentProcessingError) as error:
+        ScratchDocumentProcessor(root, wait_seconds=2, clamav_checker=scan).process(
+            source,
+            "application/pdf",
+            {"ocr": False, "prepare_pdf": True, "max_output_bytes": 1024 * 1024},
+        )
+    assert error.value.code == "malware_detected"
+    assert calls == 2
+    assert not list((root / "results").glob("*"))
+    assert not list((root / "pdf").glob("*"))
+
+
+def test_pdf_v2_timeout_cleans_claimed_input_without_success(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    root = tmp_path / "timeout"
+
+    class TimeoutProcessor:
+        def __init__(self, **_kwargs):
+            pass
+
+        def process(self, *_args, **_kwargs):  # type: ignore[no-untyped-def]
+            raise document_protocol._ConversionTimeout
+
+    monkeypatch.setattr(document_protocol, "DocumentProcessor", TimeoutProcessor)
+    source = FIXTURE.read_bytes()
+    request = write_request(
+        root,
+        request_id="66666666-6666-4666-8666-666666666666",
+        content=source,
+        media_type="application/pdf",
+        original_filename="safe.pdf",
+        options={"ocr": False, "prepare_pdf": True},
+        scan=clean_scan(source),
+    )
+    assert convert_one(root) is True
+    result = json.loads((root / "results" / f"{request.stem}.json").read_text(encoding="utf-8"))
+    assert result["status"] == "failed"
+    assert result["error"]["code"] == "timeout"
+    assert not list((root / "inbox").glob("*"))
+    assert not list((root / "claimed").glob("*"))
+    assert not list((root / "pdf").glob("*"))
+
+
+def test_pdf_v2_sidecar_size_limit_fails_before_metadata_success(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    root = tmp_path / "sidecar-size"
+    source = FIXTURE.read_bytes()
+    _patch_generated_pdf_processor(monkeypatch, b"%PDF-1.7\nsidecar too large\n%%EOF")
+    request = write_request(
+        root,
+        request_id="77777777-7777-4777-8777-777777777777",
+        content=source,
+        media_type="application/pdf",
+        original_filename="safe.pdf",
+        options={"ocr": False, "prepare_pdf": True, "max_output_bytes": 1},
+        scan=clean_scan(source),
+    )
+    assert convert_one(root) is True
+    result = json.loads((root / "results" / f"{request.stem}.json").read_text(encoding="utf-8"))
+    assert result["status"] == "failed"
+    assert result["error"]["code"] == "output_size_limit"
+    assert not list((root / "pdf").glob("*"))
+    assert not list((root / "claimed").glob("*"))
+    assert not list((root / "inbox").glob("*"))
+
+
+def test_worker_cleanup_does_not_touch_another_request(tmp_path: Path):
+    root = tmp_path / "two-requests"
+    source = FIXTURE.read_bytes()
+    first = write_request(
+        root,
+        request_id="11111111-1111-4111-8111-111111111111",
+        content=source,
+        media_type="application/pdf",
+        original_filename="first.pdf",
+        scan=clean_scan(source),
+    )
+    second = write_request(
+        root,
+        request_id="99999999-9999-4999-8999-999999999999",
+        content=source,
+        media_type="application/pdf",
+        original_filename="second.pdf",
+        scan=clean_scan(source),
+    )
+    assert convert_one(root) is True
+    assert not first.exists()
+    assert second.exists()
+    assert (root / "inbox" / f"{second.stem}.bin").exists()

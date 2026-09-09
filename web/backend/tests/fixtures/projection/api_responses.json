@@ -6168,6 +6168,7 @@
       "reviews": 2
      },
      "generated_at": "2026-08-24T00:00:00Z",
+     "kind": "notices",
      "run_id": "20260817-20260823--cur",
      "screening_basis": "메타데이터",
      "status": "active",
@@ -6184,6 +6185,7 @@
       "reviews": 0
      },
      "generated_at": "2026-08-17T00:00:00Z",
+     "kind": "notices",
      "run_id": "20260810-20260816--prev",
      "screening_basis": null,
      "status": "active",

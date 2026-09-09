@@ -162,6 +162,10 @@ def test_overview_worker_update_stays_column_scoped_and_snapshot_immutable() -> 
     """Guard the worker grant against a future table-wide UPDATE expansion."""
 
     worker_updates = _table_grants("worker", "UPDATE")
+    assert _column_update_grant("worker", "notice") == {"id"}
+    assert _column_update_grant("worker", "attachment") == {"extract_status"}
+    assert _column_update_grant("worker", "document_version") == {"is_current"}
+    assert not {"notice", "attachment", "document_version"} & worker_updates
     app_updates = _table_grants("app", "UPDATE")
     for broad_updates in (app_updates, worker_updates):
         assert "prespec_overview_review" not in broad_updates
@@ -404,6 +408,11 @@ def test_effective_runtime_role_matrix_and_future_defaults() -> None:
                 assert _column_privilege(
                     connection, "app", "notice", "title", "UPDATE"
                 )
+                for table, column in (("notice", "id"), ("attachment", "extract_status"), ("document_version", "is_current")):
+                    assert _column_privilege(connection, "worker", table, column, "UPDATE")
+                    assert not _table_privilege(connection, "worker", table, "UPDATE")
+                for table, column in (("notice", "title"), ("attachment", "source_url"), ("document_version", "source_url")):
+                    assert not _column_privilege(connection, "worker", table, column, "UPDATE")
                 for table in (
                     "prespec_overview_review",
                     "prespec_overview_snapshot",
@@ -672,8 +681,10 @@ def test_effective_runtime_role_matrix_and_future_defaults() -> None:
                         assert not _table_privilege(
                             connection, "worker", table, privilege
                         )
-                for table in ("judgment_revision", "review_revision"):
-                    assert not _table_privilege(connection, "worker", table, "SELECT")
+                for table in ("judgment", "judgment_revision", "review", "review_revision"):
+                    assert _table_privilege(connection, "worker", table, "SELECT")
+                assert _table_privilege(connection, "app", "prespec_v4_attempt", "INSERT")
+                assert not _table_privilege(connection, "worker", "prespec_v4_attempt", "INSERT")
                 for table in (
                     "report_revision",
                     "audit_event",
@@ -756,3 +767,39 @@ def test_c2_ingest_completes_with_the_app_runtime_role(tmp_path) -> None:
         finally:
             policy_engine.dispose()
             owner_engine.dispose()
+
+
+def test_page_overview_is_read_only_for_app_and_append_only_for_worker() -> None:
+    assert "prespec_page_overview" in _table_grants("app", "SELECT")
+    assert "prespec_page_overview" not in _table_grants("app", "INSERT")
+    assert "prespec_page_overview" in _table_grants("worker", "SELECT")
+    assert "prespec_page_overview" in _table_grants("worker", "INSERT")
+    for role in ("app", "worker"):
+        assert "prespec_page_overview" not in _table_grants(role, "UPDATE")
+        assert "prespec_page_overview" not in _table_grants(role, "DELETE")
+
+
+def test_company_fit_runtime_privileges():
+    assert "prespec_company_fit_attempt" in _table_grants("app", "SELECT")
+    assert "prespec_company_fit_attempt" not in _table_grants("app", "INSERT")
+    assert "prespec_company_fit_attempt" in _table_grants("worker", "SELECT")
+    assert "prespec_company_fit_attempt" in _table_grants("worker", "INSERT")
+    for role in ("app", "worker"):
+        assert "prespec_company_fit_attempt" not in _table_grants(role, "UPDATE")
+        assert "prespec_company_fit_attempt" not in _table_grants(role, "DELETE")
+
+
+def test_v4_snapshot_target_and_attempt_runtime_privileges():
+    for table in ("prespec_v4_pdf_snapshot", "prespec_v4_target", "prespec_v4_attempt"):
+        assert table in _table_grants("app", "SELECT")
+        assert table in _table_grants("worker", "SELECT")
+        assert table not in _table_grants("app", "DELETE")
+        assert table not in _table_grants("worker", "DELETE")
+    assert "prespec_v4_pdf_snapshot" in _table_grants("app", "INSERT")
+    assert "prespec_v4_target" in _table_grants("app", "INSERT")
+    assert "prespec_v4_attempt" in _table_grants("app", "INSERT")
+    assert "prespec_v4_attempt" not in _table_grants("worker", "INSERT")
+    assert _column_update_grant("worker", "prespec_v4_attempt") >= {
+        "status", "result_id", "result_sha256", "raw_response_sha256", "error_code",
+        "lease_owner", "lease_expires_at", "started_at", "completed_at",
+    }

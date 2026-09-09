@@ -75,10 +75,14 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "RunIngestCounts": (".extensions", "RunIngestCounts"),
     "RunIngestHook": (".extensions", "RunIngestHook"),
     "TrackingDecisionHook": (".extensions", "TrackingDecisionHook"),
+    "WorkloadCount": (".extensions", "WorkloadCount"),
+    "WorkloadProjection": (".extensions", "WorkloadProjection"),
     "extension_registry": (".extensions", "extension_registry"),
     "reset_extension_registry": (".extensions", "reset_extension_registry"),
     "restore_extension_registry": (".extensions", "restore_extension_registry"),
     # === 형제 모듈이 쓴다 — 추적 관계 판정 =================================
+    "active_opportunity_predicate": (".services.opportunity_integrity", "active_opportunity_predicate"),
+    "authoritative_link_predicate": (".services.opportunity_integrity", "authoritative_link_predicate"),
     "tracked_order_plan_connections": (
         ".services.opportunity_connections",
         "tracked_order_plan_connections",
@@ -160,6 +164,8 @@ if TYPE_CHECKING:  # pragma: no cover - 정적 분석용 이름 노출
         RunIngestCounts,
         RunIngestHook,
         TrackingDecisionHook,
+        WorkloadCount,
+        WorkloadProjection,
         extension_registry,
         reset_extension_registry,
         restore_extension_registry,

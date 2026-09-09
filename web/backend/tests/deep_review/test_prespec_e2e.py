@@ -166,7 +166,7 @@ def test_the_overview_completes_on_the_mock_transport(evidence: dict) -> None:
         assert overview["quality_status"] == "unmeasured_reference"
 
 
-def test_sw_business_object_auto_starts_the_deep_review(evidence: dict) -> None:
+def test_reference_flow_uses_human_creation_without_a_company_fit(evidence: dict) -> None:
     notice = _notice(evidence, "pre-1")
 
     assert notice["sw_business_status"] == "Y"
@@ -176,7 +176,7 @@ def test_sw_business_object_auto_starts_the_deep_review(evidence: dict) -> None:
     review = notice["deep_review"]
     assert review is not None
     assert review["status"] == "completed"
-    assert review["created_by_actor_kind"] == "system"
+    assert review["created_by_actor_kind"] == "human"
     assert review["analysis_transport"] == "mock"
     assert review["quality_status"] == "mock_reference"
     assert [stage["stage"] for stage in review["stages"]] == [

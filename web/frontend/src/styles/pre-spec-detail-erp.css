@@ -1,0 +1,253 @@
+/* ERP record view: project layout (ADR-0040), shared bidops palette and type scale.
+ * Scope every rule to this record so the list and other detail pages retain their layout. */
+.app-shell[data-astryx-theme="bidops"] .page-canvas:has(> .ps-record) {
+  padding: var(--spacing-4) var(--spacing-6) var(--spacing-6);
+}
+.ps-record {
+  --ps-record-reading-size: calc(var(--bo-type-body) + var(--border-width));
+  gap: var(--spacing-3);
+  font-size: var(--bo-type-body);
+  line-height: var(--bo-type-body-leading);
+}
+.ps-record .pre-spec-detail-header {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  position: static;
+  gap: var(--spacing-3);
+  padding: var(--spacing-4) var(--spacing-4) 0;
+  border-radius: var(--radius-element);
+  box-shadow: none;
+}
+.ps-record .detail-skeleton-head-top { flex-wrap: nowrap; gap: var(--spacing-4); }
+.ps-record .detail-skeleton-head-top > div:first-child { flex: 1; min-width: 0; }
+.ps-record .pre-spec-detail-header h2 {
+  margin: 0;
+  font-size: var(--bo-type-page-title);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.ps-record .pre-spec-detail-subline { margin-top: var(--spacing-1); gap: var(--spacing-3); }
+.ps-record .ps-record-agency {
+  color: var(--color-text-primary);
+  font-size: calc(var(--bo-type-body) + var(--spacing-0-5));
+  font-weight: var(--font-weight-semibold);
+  overflow-wrap: anywhere;
+}
+.ps-record-reference { font-size: var(--bo-type-caption); color: var(--color-text-secondary); overflow-wrap: anywhere; }
+.ps-record .pre-spec-detail-actions { flex-shrink: 0; align-items: flex-end; flex-direction: column; gap: var(--spacing-1); }
+.ps-record .pre-spec-detail-actions a { padding: 0; background: none; border: 0; font-size: var(--bo-type-body); }
+.ps-record .pre-spec-detail-grade-row { margin: 0; }
+.ps-record .detail-skeleton-status-row { gap: var(--spacing-3); align-items: flex-start; }
+.ps-record .interaction-control { min-height: var(--spacing-8); font-size: var(--bo-type-body); }
+.ps-record-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  border-top: var(--border-width) solid var(--color-border);
+  padding-block: var(--spacing-1);
+}
+.ps-record .ps-record-nav .astryx-button { font-size: var(--bo-type-body); min-height: var(--spacing-8); border-radius: var(--radius-inner); }
+.ps-record-nav > a { margin-left: auto; color: var(--color-text-accent); font-size: var(--bo-type-body); }
+.ps-record :is(a, button, [tabindex="-1"]):focus-visible { outline: var(--focus-outline-width) solid var(--color-accent); outline-offset: var(--spacing-0-5); }
+.ps-record-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-element);
+  background: var(--color-background-surface);
+}
+.ps-record-facts > div { min-width: 0; padding: var(--spacing-3) var(--spacing-4); }
+.ps-record-facts > div:nth-child(even) { border-left: var(--border-width) solid var(--color-border); }
+.ps-record-facts > div:nth-child(n+3) { border-top: var(--border-width) solid var(--color-border); }
+.ps-record-facts dt { color: var(--color-text-secondary); font-size: var(--bo-type-caption); margin-bottom: var(--spacing-1); }
+.ps-record-facts dd { margin: 0; font-size: var(--bo-type-body); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.ps-record .detail-skeleton-grid { grid-template-columns: minmax(0, 1fr) calc(var(--spacing-12) * 8 + var(--spacing-4)); gap: var(--spacing-4); }
+.ps-record .detail-skeleton-main, .ps-record-documents, .ps-record-history { display: flex; flex-direction: column; min-width: 0; gap: var(--spacing-3); }
+.ps-record .ps-record-section { min-width: 0; scroll-margin-top: var(--spacing-3); }
+.ps-record .panel, .ps-record .document-preparation, .ps-record .detail-skeleton-rail-panel {
+  border-radius: var(--radius-element);
+  box-shadow: none;
+  border: var(--border-width) solid var(--color-border);
+  background: var(--color-background-surface);
+}
+.ps-record .panel-header { padding: var(--spacing-3) var(--spacing-4); border-bottom: var(--border-width) solid var(--color-border); min-height: var(--spacing-10); }
+.ps-record .panel-header h3 { font-size: var(--bo-type-section-title); font-weight: var(--font-weight-semibold); }
+.ps-record .panel-body { padding: var(--spacing-4); }
+.ps-record .pre-spec-overview-content { gap: var(--spacing-4); }
+.ps-record .pre-spec-overview-quality { padding: 0 0 var(--spacing-3); border: 0; border-bottom: var(--border-width) solid var(--color-border); border-radius: 0; }
+.ps-record .pre-spec-overview-quality > p { flex-basis: 100%; }
+.ps-record .pre-spec-overview-decision { padding: var(--spacing-3) var(--spacing-4); border-radius: var(--radius-inner); }
+.ps-record .pre-spec-overview-recommendation strong { font-size: calc(var(--bo-type-body) + var(--spacing-0-5)); font-weight: var(--font-weight-semibold); }
+.ps-record .pre-spec-overview-section { gap: var(--spacing-2); }
+.ps-record .pre-spec-overview-section h4 { font-size: var(--bo-type-section-title); font-weight: var(--font-weight-semibold); }
+.ps-record .pre-spec-overview-summary { font-size: var(--ps-record-reading-size); line-height: 1.7; }
+.ps-record .pre-spec-overview-unknowns, .ps-record .pre-spec-overview-evidence { gap: 0; border-top: var(--border-width) solid var(--color-border); }
+.ps-record :is(.pre-spec-overview-unknowns, .pre-spec-overview-evidence) > li {
+  border: 0;
+  border-bottom: var(--border-width) solid var(--color-border);
+  border-radius: 0;
+  background: transparent;
+  padding: var(--spacing-3) 0;
+}
+.ps-record :is(.pre-spec-overview-list li, .pre-spec-overview-unknowns dd, .pre-spec-overview-evidence > li > p, .pre-spec-overview-source-block > p) { font-size: var(--bo-type-body); line-height: 1.65; }
+.ps-record .pre-spec-overview-limitations { padding: var(--spacing-3); border-radius: var(--radius-inner); }
+.ps-record .pre-spec-overview-source { scroll-margin-top: var(--spacing-3); }
+.ps-record .pre-spec-auto-preparation { margin: 0; }
+.ps-record .pre-spec-auto-steps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--spacing-3); }
+.ps-record .pre-spec-auto-step {
+  flex: initial;
+  padding: var(--spacing-3) 0;
+  border: 0;
+  border-bottom: var(--border-width) solid var(--color-border);
+  border-radius: 0;
+  background: transparent;
+  gap: var(--spacing-1);
+  align-items: flex-start;
+}
+.ps-record .pre-spec-auto-step { padding-top: 0; }
+.ps-record .pre-spec-auto-step-label { font-size: var(--bo-type-body); font-weight: var(--font-weight-semibold); }
+.ps-record .pre-spec-auto-preparation-note { margin-top: var(--spacing-3); }
+.ps-record .pre-spec-auto-preparation-link { font-size: var(--bo-type-body); }
+.ps-record .detail-skeleton-rail { gap: var(--spacing-3); }
+.ps-record .detail-skeleton-rail-panel { padding: var(--spacing-4); }
+.ps-record .detail-skeleton-rail-title { font-size: var(--bo-type-section-title); }
+.ps-record .detail-skeleton-rail-links a { font-size: var(--bo-type-body); }
+.ps-record .astryx-collapsible-trigger { font-size: var(--bo-type-caption); }
+.ps-record .pre-spec-overview-lineage > div { display: block; }
+.ps-record .pre-spec-overview-lineage dd { margin: var(--spacing-1) 0 0; overflow-wrap: anywhere; }
+.ps-record .pre-spec-overview-digests { margin-top: var(--spacing-3); }
+.ps-record .pre-spec-overview-attempts li { padding: var(--spacing-2) 0; border-radius: 0; background: transparent; border-bottom: var(--border-width) solid var(--color-border); }
+.ps-record .document-preparation { padding: var(--spacing-4); gap: var(--spacing-3); }
+.ps-record .document-preparation-workspace { grid-template-columns: minmax(0, 1fr); }
+.ps-record .document-preparation-bundle-bar { flex-wrap: wrap; }
+.ps-record .document-preparation-steps { flex-wrap: wrap; }
+.ps-record .document-preparation-metadata { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ps-record .document-preparation :is(input, select, textarea) { min-width: 0; max-width: 100%; }
+.ps-record .pre-spec-tracking-decision { padding: var(--spacing-4); border-radius: var(--radius-element); }
+
+/* The reference market detail keeps its entry form beside the reading column.
+ * The record header belongs to the document; only this bounded form is sticky. */
+.ps-record-side {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  max-height: calc(100dvh - var(--spacing-12) * 2 - var(--spacing-6));
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-element);
+  background: var(--color-background-surface);
+  overflow: hidden;
+}
+.ps-record-decision-body { min-height: 0; overflow-y: auto; padding: var(--spacing-4); }
+.ps-record-side .pre-spec-tracking-decision.is-compact { margin: 0; padding: 0; }
+.ps-record-side .pre-spec-tracking-decision.is-compact .pre-spec-tracking-decision-header { flex-direction: column; align-items: stretch; gap: var(--spacing-3); }
+.ps-record-side .pre-spec-tracking-decision.is-compact .pre-spec-tracking-decision-header h3 { font-size: calc(var(--bo-type-body) + var(--spacing-0-5)); }
+.ps-record-side .pre-spec-tracking-current { flex-direction: row; justify-content: space-between; align-items: center; text-align: left; padding: var(--spacing-2) var(--spacing-3); background: var(--color-background-body); border-radius: var(--radius-inner); }
+.ps-record-side .pre-spec-tracking-current > span:first-child { font-weight: var(--font-weight-regular); }
+.ps-record-side .pre-spec-tracking-form.is-compact { display: flex; flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: var(--spacing-3); margin-top: var(--spacing-4); }
+.ps-record-side .pre-spec-tracking-form.is-compact :is(fieldset, .pre-spec-tracking-reason, .actor-field) { flex: initial; min-width: 0; width: 100%; max-width: 100%; }
+.ps-record-side .pre-spec-tracking-options { grid-template-columns: minmax(0, 1fr); }
+.ps-record-side .pre-spec-tracking-option { width: 100%; padding: var(--spacing-2) var(--spacing-3); }
+.ps-record-side .pre-spec-tracking-form.is-compact .pre-spec-tracking-option span { display: block; overflow: visible; }
+.ps-record-side .pre-spec-tracking-option strong { font-size: var(--bo-type-body); }
+.ps-record-side .pre-spec-tracking-form.is-compact .pre-spec-tracking-reason textarea { font-size: var(--bo-type-body); min-height: calc(var(--spacing-12) * 2); }
+.ps-record-side .actor-field { width: 100%; }
+.ps-record-side .pre-spec-tracking-elsewhere { margin: 0; }
+.ps-record-decision-footer { flex-shrink: 0; padding: var(--spacing-3) var(--spacing-4); border-top: var(--border-width) solid var(--color-border); }
+.ps-record-decision-footer .review-decision-action { width: 100%; align-items: stretch; }
+.ps-record-decision-footer .interaction-control { width: 100%; min-height: var(--spacing-10); }
+.ps-record-decision-footer .interaction-control:not(:disabled) { background: var(--color-background-inverted); border-color: var(--color-background-inverted); color: var(--color-on-dark); }
+.ps-record-decision-footer .review-decision-action-reason { font-size: var(--bo-type-caption); }
+
+/* Approved 2026-09-08 HTML: identity and essentials first, 400px decision form.
+ * The existing document preparation and source viewer retain their controls. */
+.ps-record .pre-spec-detail-header { gap: 0; }
+.ps-record .ps-record-agency { margin: var(--spacing-1) 0 0; line-height: 1.5; }
+.ps-record-identity { position: relative; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--spacing-2); margin-top: var(--spacing-2); }
+.ps-record-number-group { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-2); min-width: 0; }
+.ps-record-number-group > span, .ps-record-source-unavailable { color: var(--color-text-secondary); font-size: var(--bo-type-caption); }
+.ps-record-number { font-size: calc(var(--bo-type-body) + var(--spacing-0-5)); font-weight: var(--font-weight-semibold); font-variant-numeric: tabular-nums; user-select: all; overflow-wrap: anywhere; }
+.ps-record-identity .astryx-button { min-height: var(--spacing-8); font-size: var(--bo-type-body); }
+.ps-record-copy-feedback { position: absolute; top: 100%; left: 0; z-index: 2; padding: var(--spacing-2) var(--spacing-3); background: var(--color-background-inverted); color: var(--color-on-dark); border-radius: var(--radius-inner); font-size: var(--bo-type-caption); }
+.ps-record-clipboard-helper { position: fixed; left: -100vw; top: 0; }
+.ps-record .ps-record-facts { margin-top: var(--spacing-3); padding: var(--spacing-2) 0; gap: var(--spacing-4); border: 0; border-top: var(--border-width) solid var(--color-border); border-bottom: var(--border-width) solid var(--color-border); border-radius: 0; }
+.ps-record .ps-record-facts > div { padding: 0; border: 0; }
+.ps-record .ps-record-facts dt { display: flex; align-items: center; gap: var(--spacing-2); min-height: var(--spacing-6); margin: 0; }
+.ps-record .ps-record-facts dd { margin-top: var(--spacing-1); font-size: calc(var(--bo-type-body) + var(--spacing-0-5)); font-weight: var(--font-weight-semibold); }
+.ps-record .detail-skeleton-status-row { align-items: center; margin: 0; padding: var(--spacing-2) 0; gap: var(--spacing-3); }
+.ps-record .pre-spec-detail-grade-row { gap: var(--spacing-2); }
+.ps-record-sw { font-size: var(--bo-type-caption); padding-left: var(--spacing-3); border-left: var(--border-width) solid var(--color-border); }
+.ps-record .ps-record-nav { margin: 0; }
+.ps-record .pre-spec-overview-content { gap: var(--spacing-4); }
+.ps-record .pre-spec-overview-decision { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--spacing-2); border: 0; border-left: var(--spacing-1) solid var(--color-accent); background: var(--color-background-body); padding: var(--spacing-3); }
+.ps-record .pre-spec-overview-decision.is-unverified { border-left-color: var(--color-warning); }
+.ps-record .pre-spec-overview-recommendation { flex-direction: row; align-items: baseline; gap: var(--spacing-3); }
+.ps-record .pre-spec-overview-quality { padding: 0; margin: 0; border: 0; background: transparent; }
+.ps-record .pre-spec-overview-quality .badge { white-space: normal; }
+.ps-record .pre-spec-overview-section { padding-top: 0; border: 0; }
+.ps-record .pre-spec-overview-section h4 { margin: 0 0 var(--spacing-2); }
+.ps-record .pre-spec-overview-summary { word-break: keep-all; }
+.ps-record-inline-link { display: inline-flex; color: var(--color-text-accent); font-size: var(--bo-type-caption); border: 0; padding: 0; background: transparent; cursor: pointer; }
+.ps-record .ps-record-checks { border-top: var(--border-width) solid var(--color-border); padding-top: var(--spacing-3); }
+.ps-record-check-heading { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: var(--spacing-2); }
+.ps-record-check-heading h4 > span { margin-left: var(--spacing-1); color: var(--color-text-secondary); font-weight: var(--font-weight-regular); }
+.ps-record .ps-record-check-heading .pre-spec-overview-due { font-size: var(--bo-type-caption); margin: 0; color: var(--color-text-secondary); }
+.ps-record-check-list { margin: 0; padding: 0; list-style: none; }
+.ps-record-check-list > li { display: flex; align-items: baseline; gap: var(--spacing-3); padding: var(--spacing-3) 0; border-bottom: var(--border-width) solid var(--color-border); }
+.ps-record-check-list > li:last-child { border: 0; padding-bottom: 0; }
+.ps-record-check-list > li > span { color: var(--color-text-secondary); font-weight: var(--font-weight-semibold); }
+.ps-record-check-list p { margin: 0; line-height: 1.6; }
+.ps-record-check-detail { min-width: 0; flex: 1; }
+.ps-record-check-detail summary { cursor: pointer; color: var(--color-text-primary); font-weight: var(--font-weight-semibold); }
+.ps-record-check-detail dl, .ps-record-quality-details dl { display: grid; gap: var(--spacing-2); margin: var(--spacing-3) 0; }
+.ps-record-check-detail dl > div { display: grid; grid-template-columns: var(--spacing-12) minmax(0, 1fr); gap: var(--spacing-3); }
+.ps-record-check-detail dt { color: var(--color-text-secondary); font-size: var(--bo-type-caption); }
+.ps-record-check-detail dd { margin: 0; overflow-wrap: anywhere; }
+.ps-record-quality-details { border-top: var(--border-width) solid var(--color-border); padding-top: var(--spacing-3); font-size: var(--bo-type-caption); }
+.ps-record-quality-details summary { cursor: pointer; color: var(--color-text-secondary); }
+.ps-record-quality-details > p { margin: var(--spacing-3) 0 0; }
+.ps-record-quality-details dl > div { display: flex; align-items: center; flex-wrap: wrap; gap: var(--spacing-3); }
+.ps-record-quality-details dd { margin: 0; }
+.ps-record .ps-record-quality-details .pre-spec-overview-limitations { margin-top: var(--spacing-3); }
+.ps-record :is(summary, #ps-record-evidence):focus-visible { outline: var(--focus-outline-width) solid var(--color-accent); outline-offset: var(--spacing-0-5); }
+#ps-record-evidence { scroll-margin-top: var(--spacing-3); }
+.ps-record-secondary-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--spacing-3); margin: 0 0 var(--spacing-4); }
+.ps-record-secondary-facts dt { color: var(--color-text-secondary); font-size: var(--bo-type-caption); }
+.ps-record-secondary-facts dd { margin: var(--spacing-1) 0 0; }
+.ps-record-side { max-height: calc(100dvh - var(--spacing-12) - var(--spacing-7) - var(--spacing-8)); }
+.ps-record .ps-record-side .pre-spec-tracking-decision.is-record { border: 0; display: block; }
+.ps-record-tracking-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-3); }
+.ps-record-tracking-heading h3 { margin: 0; font-size: calc(var(--bo-type-body) + var(--spacing-0-5)); }
+.ps-record-tracking-reference { display: flex; align-items: baseline; gap: var(--spacing-2); padding: var(--spacing-2) 0 var(--spacing-3); border-bottom: var(--border-width) solid var(--color-border); }
+.ps-record-tracking-reference > span, .ps-record-tracking-intent > span { font-size: var(--bo-type-caption); color: var(--color-text-secondary); }
+.ps-record-tracking-reference strong { font-size: var(--bo-type-body); font-weight: var(--font-weight-medium); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.ps-record-side .is-record .pre-spec-tracking-form.is-compact { gap: var(--spacing-4); }
+.ps-record-tracking-intent { width: 100%; padding: var(--spacing-3); background: var(--color-background-body); border-radius: var(--radius-inner); }
+.ps-record-tracking-intent h4 { font-size: calc(var(--bo-type-body) + var(--spacing-0-5)); margin: var(--spacing-1) 0; }
+.ps-record-tracking-intent h4 span { color: var(--color-text-secondary); font-size: var(--bo-type-body); font-weight: var(--font-weight-regular); }
+.ps-record-tracking-intent p { margin: 0; line-height: 1.6; }
+.ps-record-side .pre-spec-tracking-reason-preset { display: flex; flex-direction: column; width: 100%; min-width: 0; gap: var(--spacing-4); }
+.ps-record-side .astryx-selector { width: 100%; }
+.ps-record-side :is(.astryx-selector, .astryx-field-label, .actor-field input) { font-size: var(--bo-type-body); }
+.ps-record-side .actor-field input { min-height: var(--spacing-8); padding: var(--spacing-1) var(--spacing-2); }
+.ps-record-side .actor-field p { font-size: var(--bo-type-caption); margin-top: var(--spacing-1); }
+.ps-record-side .pre-spec-tracking-elsewhere { padding-top: var(--spacing-3); border-top: var(--border-width) solid var(--color-border); font-size: var(--bo-type-caption); }
+.ps-record-side .pre-spec-tracking-elsewhere a { display: block; margin-top: var(--spacing-2); }
+.ps-record-decision-footer .review-decision-action { display: flex; flex-direction: column-reverse; gap: var(--spacing-2); }
+.ps-record-decision-note { font-size: var(--bo-type-caption); margin: var(--spacing-2) 0 0; color: var(--color-text-secondary); }
+.ps-record-save-ready { margin: 0 0 var(--spacing-2); font-size: var(--bo-type-caption); }
+.ps-record-saved-decision { display: grid; gap: var(--spacing-3); padding-top: var(--spacing-4); }
+.ps-record-saved-decision h3 { margin: 0; font-size: var(--bo-type-section-title); }
+.ps-record-saved-decision p { margin: 0; }
+.ps-record-saved-decision dl { display: grid; gap: var(--spacing-3); margin: 0; padding: var(--spacing-3); background: var(--color-background-body); }
+.ps-record-saved-decision dl > div { display: grid; grid-template-columns: var(--spacing-12) minmax(0, 1fr); gap: var(--spacing-3); }
+.ps-record-saved-decision dt { color: var(--color-text-secondary); font-size: var(--bo-type-caption); }
+.ps-record-saved-decision dd { margin: 0; overflow-wrap: anywhere; }
+.ps-record-side .is-recorded > .pre-spec-tracking-elsewhere { margin-top: var(--spacing-4); }

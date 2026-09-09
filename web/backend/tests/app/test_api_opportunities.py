@@ -104,7 +104,7 @@ def test_opportunity_list_includes_ended_by_default_and_uses_pagination_shape(op
 
     assert response.status_code == 200
     payload = response.json()
-    assert set(payload) == {"items", "total", "limit", "offset"}
+    assert set(payload) == {"items", "total", "limit", "offset", "section_counts"}
     assert payload["total"] == 2
     assert payload["limit"] == 1
     assert payload["offset"] == 0

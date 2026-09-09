@@ -6,7 +6,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Path as ApiPath
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, ConfigDict, ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -35,6 +35,11 @@ from ..models import (
     DocumentBundle,
     DocumentBundleItem,
 )
+from ...core.object_store import object_store
+from ..schemas.page_overview import PageOverviewResponse
+from ..schemas.company_fit import CompanyFitResponse
+from ..services.company_fit import company_fit_view
+from ..services.page_overview import PageOverviewError, list_page_overviews, get_page_pdf
 from ..schemas.deep_reviews import AttemptView, DeepReviewView
 from ..schemas.prespec_overview import (
     PreSpecOverviewReviewsResponse,
@@ -324,3 +329,47 @@ __all__ = [
     "router",
     "service",
 ]
+
+
+@pre_spec_overview_router.get("/{notice_id}/overview-pages", response_model=PageOverviewResponse)
+def get_overview_pages(notice_id: int = ApiPath(..., ge=1), session: Session = Depends(get_db)):
+    try:
+        return list_page_overviews(session, notice_id)
+    except PageOverviewError as error:
+        return _page_error(error)
+    except Exception:
+        return _page_error(PageOverviewError("processing_failed"))
+
+
+@pre_spec_overview_router.get("/{notice_id}/company-fit", response_model=CompanyFitResponse)
+def get_company_fit(notice_id: int = ApiPath(..., ge=1), session: Session = Depends(get_db)):
+    try:
+        return company_fit_view(session, notice_id)
+    except LookupError:
+        return _page_error(PageOverviewError("not_found"))
+    except Exception:
+        return _page_error(PageOverviewError("processing_failed"))
+
+
+@pre_spec_overview_router.get(
+    "/{notice_id}/overview-pages/{review_id}/pdf", response_class=Response,
+    responses={200: {"content": {"application/pdf": {}}}},
+)
+def download_overview_pdf(notice_id: int, review_id: UUID, session: Session = Depends(get_db)):
+    try:
+        data = get_page_pdf(session, notice_id, review_id, object_store(namespaces=("source",), read_namespaces=("source",)))
+        return Response(data, media_type="application/pdf", headers={
+            "Content-Disposition": 'inline; filename="overview-reference.pdf"',
+            "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": "default-src 'none'; sandbox",
+        })
+    except PageOverviewError as error:
+        return _page_error(error)
+    except Exception:
+        return _page_error(PageOverviewError("pdf_unavailable"))
+
+
+def _page_error(error: PageOverviewError) -> JSONResponse:
+    code = str(error)
+    return JSONResponse(status_code=404 if code == "not_found" else 409 if code.endswith("failed") else 503,
+                        content={"error": {"code": code, "message": "개요 또는 PDF 근거를 확인할 수 없습니다", "details": None}, "request_id": None})

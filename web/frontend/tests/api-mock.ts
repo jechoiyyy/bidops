@@ -1,6 +1,39 @@
-import type { Page } from "@playwright/test";
+import type { Route, Page } from "@playwright/test";
 import fixtures from "./fixtures/api.json" with { type: "json" };
 import { getVisualResponse } from "./fixtures/visual-api";
+
+import type {
+  BidDeltaDecisionQueueItem, OpportunityListItem, OpportunitySectionCounts,
+  OpportunityTrackingDecisionItem, OpportunityTrackingStatus, OrderPlanListItem,
+  OrderPlanListScope, OrderPlanScreeningExecutionSummary, OrderPlanScreeningErrorCode,
+  OrderPlanTracking, PreSpecListItem, WorkloadKey, WorkloadResponse,
+} from "../src/lib/types";
+import { clickReadyUnlinkedPreSpec, decisionQueueItems, opportunityDeepReviews, opportunityTrackingHistory } from "./fixtures/lifecycle-v2";
+
+const opportunityFixtures = new WeakMap<Page, OpportunityListItem[]>();
+const workloadProviders = new WeakMap<Page, Map<WorkloadKey, () => { count: number | null; unavailable_reason: string | null }>>();
+function workloadProvider(page: Page, key: WorkloadKey, provider: () => { count: number | null; unavailable_reason: string | null }) {
+  let providers = workloadProviders.get(page);
+  if (!providers) { providers = new Map(); workloadProviders.set(page, providers); }
+  providers.set(key, provider);
+}
+function workloadResponse(page: Page): WorkloadResponse {
+  const keys: WorkloadKey[] = ["order_plan_pending", "pre_spec_deep_review_ready", "tracking_action_required", "bid_final_decision_pending"];
+  return { generated_at: "2026-09-01T09:00:00Z", items: keys.map((key) => ({ key, ...(workloadProviders.get(page)?.get(key)?.() ?? { count: null, unavailable_reason: "provider_absent" }) })) };
+}
+function fixtureActor(headers: Record<string, string>): string {
+  const actor = headers["x-bidops-actor-name"] ?? "";
+  return headers["x-bidops-actor-name-format"] === "utf-8-percent-v1" && actor.startsWith("UTF-8''") ? decodeURIComponent(actor.slice(7)) : actor;
+}
+function matchesValues(value: string | null, query: string | null): boolean {
+  return !query || query.split(",").some((entry) => entry === "missing" ? value === null : value === entry);
+}
+async function fulfillJson(route: Route, body: unknown, status = 200) {
+  await route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
+}
+async function trackingError(route: Route, code: "actor_name_required" | "opportunity_not_found" | "tracking_status_invalid" | "tracking_reason_required") {
+  await fulfillJson(route, { error: { code, message: "합성 추적 오류", details: null }, request_id: null }, code === "actor_name_required" ? 400 : code === "opportunity_not_found" ? 404 : 422);
+}
 
 const responses = fixtures as Record<string, unknown>;
 const PROFILE_PROJECTION_DIGEST = "a".repeat(64);
@@ -651,9 +684,10 @@ const visualOpportunityLinksBase = {
   review_reason: null,
 };
 
-const visualOpportunities = [
+const visualOpportunities: OpportunityListItem[] = [
   {
     id: 101,
+    section: null, pending_candidate_link_count: 0, open_blocking_item_count: 0,
     tracking_status: "미선택",
     tracking_reason: null,
     tracking_selected_by: null,
@@ -681,6 +715,7 @@ const visualOpportunities = [
   },
   {
     id: 202,
+    section: "조치 필요", pending_candidate_link_count: 0, open_blocking_item_count: 0,
     tracking_status: "종료",
     tracking_reason: "현재 범위와 맞지 않아 능동 추적을 종료함",
     tracking_selected_by: "기존 담당자",
@@ -723,6 +758,7 @@ const visualOpportunities = [
   },
   {
     id: 303,
+    section: "조치 필요", pending_candidate_link_count: 1, open_blocking_item_count: 0,
     tracking_status: "계속 추적",
     tracking_reason: "후보 관계를 사람이 확인할 때까지 계속 추적",
     tracking_selected_by: "검토 담당자",
@@ -754,31 +790,91 @@ const visualOpportunities = [
   },
 ] as const;
 
-/** Deterministic opportunity list/detail fixture shared by visual coverage. */
+/** Mock-server transitions only; screens consume the explicit section projection. */
+function mockTrackingSection(item: OpportunityListItem): OpportunityListItem["section"] {
+  if ((item.tracking_status === "미선택" && item.first_registered_stage === "bid_notice") || item.recheck_signal || item.pending_candidate_link_count > 0 || item.open_blocking_item_count > 0) return "조치 필요";
+  return item.tracking_status === "보류" ? "보류" : item.tracking_status === "종료" ? "추적 종료" : item.tracking_status === "계속 추적" ? "추적 중" : null;
+}
+
 export async function mockOpportunity(page: Page): Promise<void> {
+  const items: OpportunityListItem[] = structuredClone(visualOpportunities);
+  items.push(
+    { ...structuredClone(items[0]), id: 304, tracking_status: "보류", section: "보류", links: [] },
+    { ...structuredClone(items[0]), id: 305, tracking_status: "종료", section: "추적 종료", links: [] },
+    { ...structuredClone(items[0]), id: 306, tracking_status: "미선택", first_registered_stage: "bid_notice", section: "조치 필요", links: [] },
+    ...decisionQueueItems.map((item): OpportunityListItem => ({
+      ...structuredClone(visualOpportunities[0]), id: item.opportunity_id,
+      tracking_status: "계속 추적", section: "추적 중", first_registered_stage: "pre_spec",
+      links: item.bid_notice_external_id ? [{
+        ...visualOpportunities[1].links[1], id: item.opportunity_id * 10,
+        notice_id: item.opportunity_id, record_id: item.opportunity_id,
+        title: item.title, agency: item.agency, external_id: item.bid_notice_external_id,
+        record_external_id: item.bid_notice_external_id,
+      }] : [],
+    })),
+  );
+  opportunityFixtures.set(page, items);
+  const histories = new Map<number, OpportunityTrackingDecisionItem[]>([[202, structuredClone(opportunityTrackingHistory.items)]]);
+  workloadProvider(page, "tracking_action_required", () => ({ count: items.filter((item) => item.section === "조치 필요").length, unavailable_reason: null }));
   await page.route("**/api/opportunities**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
-    const match = url.pathname.match(/^\/api\/opportunities\/(\d+)$/);
     if (url.pathname === "/api/opportunities" && request.method() === "GET") {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ items: visualOpportunities, total: visualOpportunities.length, limit: 50, offset: 0 }),
-      });
+      const search = url.searchParams;
+      let filtered = items.filter((item) => (!search.get("tracking_status") || item.tracking_status === search.get("tracking_status")) && (!search.get("first_registered_stage") || item.first_registered_stage === search.get("first_registered_stage")));
+      const section_counts: OpportunitySectionCounts = { "조치 필요": 0, "추적 중": 0, "보류": 0, "추적 종료": 0, "미결정": 0 };
+      for (const item of filtered) section_counts[item.section ?? "미결정"] += 1;
+      if (search.get("section")) filtered = filtered.filter((item) => item.section === search.get("section"));
+      if (search.get("sort") === "tracking_status") filtered.sort((a, b) => a.tracking_status.localeCompare(b.tracking_status));
+      if (search.get("sort") === "first_registered_stage") filtered.sort((a, b) => a.first_registered_stage.localeCompare(b.first_registered_stage));
+      const limit = Number(search.get("limit") ?? 50), offset = Number(search.get("offset") ?? 0);
+      await fulfillJson(route, { items: filtered.slice(offset, offset + limit), total: filtered.length, limit, offset, section_counts });
       return;
     }
-    if (match && request.method() === "GET") {
-      const item = visualOpportunities.find((candidate) => candidate.id === Number(match[1]));
-      await route.fulfill({
-        status: item ? 200 : 404,
-        contentType: "application/json",
-        body: JSON.stringify(item ?? { detail: "사업기회를 찾을 수 없습니다" }),
-      });
+    const match = url.pathname.match(/^\/api\/opportunities\/(\d+)(?:\/(tracking-status|tracking-decisions|deep-reviews))?$/);
+    if (!match) { await route.fallback(); return; }
+    const item = items.find((candidate) => candidate.id === Number(match[1]));
+    if (!item) { await fulfillJson(route, { detail: "사업기회를 찾을 수 없습니다" }, 404); return; }
+    if (request.method() === "GET") {
+      await fulfillJson(route, match[2] === "tracking-decisions" ? { opportunity_id: item.id, items: histories.get(item.id) ?? [] }
+        : match[2] === "deep-reviews" ? { opportunity_id: item.id, items: item.id === 202 ? opportunityDeepReviews.items : [] } : item);
+      return;
+    }
+    if (match[2] === "tracking-status" && request.method() === "PATCH") {
+      const body = fixtureRecord(request.postDataJSON()) ?? {};
+      const actor = fixtureActor(request.headers());
+      if (!actor) { await trackingError(route, "actor_name_required"); return; }
+      if (!["미선택", "계속 추적", "보류", "종료"].includes(String(body.tracking_status))) { await trackingError(route, "tracking_status_invalid"); return; }
+      if (typeof body.reason !== "string" || !body.reason.trim()) { await trackingError(route, "tracking_reason_required"); return; }
+      const decisions = histories.get(item.id) ?? [];
+      decisions.unshift({ decided_at: "2026-09-02T01:00:00Z", tracking_status: String(body.tracking_status), previous_tracking_status: item.tracking_status, reason: body.reason, claimed_name: actor, audit_event_id: `f2000000-0000-4000-8000-${String(decisions.length + 1).padStart(12, "0")}`, cleared_recheck_signal: item.recheck_signal });
+      histories.set(item.id, decisions);
+      item.tracking_status = body.tracking_status as OpportunityTrackingStatus;
+      item.tracking_reason = item.tracking_status === "미선택" ? null : body.reason;
+      item.tracking_selected_by = item.tracking_status === "미선택" ? null : actor;
+      item.tracking_selected_at = item.tracking_status === "미선택" ? null : decisions[0].decided_at;
+      item.recheck_signal = false; item.recheck_signal_at = null; item.recheck_signal_link_id = null;
+      item.section = mockTrackingSection(item);
+      await fulfillJson(route, item);
       return;
     }
     await route.fallback();
   });
+}
+
+export async function mockBidDeltaDecisionQueue(page: Page, items: BidDeltaDecisionQueueItem[] = decisionQueueItems): Promise<void> {
+  const pending = () => items.filter((item) => item.bid_notice_external_id !== null && (item.latest_final_decision === null || item.decision_currentness === "stale"));
+  workloadProvider(page, "bid_final_decision_pending", () => ({ count: pending().length, unavailable_reason: null }));
+  await page.route("**/api/bid-delta/decision-queue**", async (route) => {
+    const search = new URL(route.request().url()).searchParams;
+    const filtered = search.get("status") === "all" ? items : pending();
+    const limit = Number(search.get("limit") ?? 50), offset = Number(search.get("offset") ?? 0);
+    await fulfillJson(route, { items: filtered.slice(offset, offset + limit), total: filtered.length, limit, offset });
+  });
+}
+
+export async function mockWorkload(page: Page, response: WorkloadResponse): Promise<void> {
+  await page.route("**/api/workload", (route) => fulfillJson(route, response));
 }
 
 const visualPreSpecNotice = {
@@ -818,7 +914,7 @@ const visualPreSpecNotice = {
   reviews: [],
 };
 
-const visualPreSpecItems = [
+const visualPreSpecItems: PreSpecListItem[] = [
   {
     notice_pk: 991,
     pre_spec_no: "PRE-991",
@@ -863,7 +959,8 @@ const visualPreSpecItems = [
     auto_preparation_reason: null,
     latest_deep_review_id: null,
   },
-] as const;
+  clickReadyUnlinkedPreSpec,
+];
 
 // 사전규격 개요 검토 상태 10값 + null(개요 검토 미시작) — PLAN.md 3단계
 // 게이트("10값이 모두 그룹으로 표현됨")를 목업에서도 항상 채운다.
@@ -1056,19 +1153,26 @@ export async function mockDocumentStructurePage(page: Page): Promise<DocumentStr
 
 /** Deterministic pre-spec list/detail fixture, including the unknown overview. */
 export async function mockPreSpecs(page: Page, overviewState: "completed" | "unknown" = "completed"): Promise<void> {
-  let currentTrackingStatus: string = visualPreSpecItems[0].tracking_status;
+  let currentTrackingStatus = visualPreSpecItems[0].tracking_status;
+  workloadProvider(page, "pre_spec_deep_review_ready", () => ({ count: visualPreSpecItems.filter((item) => item.auto_preparation_status === "deep_review_ready_for_click").length, unavailable_reason: null }));
   await page.route("**/api/pre-specs**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
     if (url.pathname === "/api/pre-specs" && request.method() === "GET") {
       const requestedNoticePk = Number(url.searchParams.get("notice_pk"));
       const items = visualPreSpecItems
-        .map((item) => item.notice_pk === 991 ? { ...item, tracking_status: currentTrackingStatus } : item)
-        .filter((item) => !url.searchParams.has("notice_pk") || item.notice_pk === requestedNoticePk);
+        .map((item) => item.notice_pk === 991 ? { ...item, tracking_status: opportunityFixtures.get(page)?.find((entry) => entry.id === 202)?.tracking_status ?? currentTrackingStatus } : item)
+        .filter((item) => !url.searchParams.has("notice_pk") || item.notice_pk === requestedNoticePk)
+        .filter((item) => url.searchParams.get("sw_only") === "false" || item.sw_business_status === "Y" || item.kept_by_tracking)
+        .filter((item) => !url.searchParams.get("auto_preparation_status") || item.auto_preparation_status === url.searchParams.get("auto_preparation_status"))
+        .filter((item) => !url.searchParams.get("business_division") || item.business_division === url.searchParams.get("business_division"))
+        .filter((item) => !url.searchParams.get("origin") || item.origin === url.searchParams.get("origin"))
+        .filter((item) => !url.searchParams.get("q") || `${item.title} ${item.agency} ${item.pre_spec_no}`.includes(url.searchParams.get("q")!));
+      const limit = Number(url.searchParams.get("limit") ?? 50), offset = Number(url.searchParams.get("offset") ?? 0);
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ items, total: items.length, limit: 50, offset: 0, overview_status_counts: overviewStatusCounts(items) }),
+        body: JSON.stringify({ items: items.slice(offset, offset + limit), total: items.length, limit, offset, overview_status_counts: overviewStatusCounts(items) }),
       });
       return;
     }
@@ -1080,6 +1184,7 @@ export async function mockPreSpecs(page: Page, overviewState: "completed" | "unk
     await route.fallback();
   });
   await page.route("**/api/opportunities/*/tracking-status", async (route) => {
+    if (opportunityFixtures.has(page)) { await route.fallback(); return; }
     const request = route.request();
     if (request.method() !== "PATCH") {
       await route.fallback();
@@ -1091,12 +1196,14 @@ export async function mockPreSpecs(page: Page, overviewState: "completed" | "unk
       await route.fulfill({ status: 422, contentType: "application/json", body: JSON.stringify({ detail: "tracking_reason_required" }) });
       return;
     }
-    currentTrackingStatus = body.tracking_status;
+    currentTrackingStatus = body.tracking_status as OpportunityTrackingStatus;
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
         id: 202,
+        section: currentTrackingStatus === "계속 추적" ? "추적 중" : currentTrackingStatus === "보류" ? "보류" : currentTrackingStatus === "종료" ? "추적 종료" : null,
+        pending_candidate_link_count: 0, open_blocking_item_count: 0,
         tracking_status: currentTrackingStatus,
         tracking_reason: body.reason,
         tracking_selected_by: request.headers()["x-bidops-actor-name"] ?? "시각 테스트 담당자",
@@ -1340,12 +1447,17 @@ export async function mockDocumentPreparationVisual(page: Page, state: DocumentP
 }
 
 /**
- * 갈무리해 둔 응답을 경로 이름으로 되돌려 준다.
- * 조회 문자열은 무시한다. 시각 회귀 테스트는 기본 필터 상태만 찍기 때문이다.
+ * 기존 시각 응답을 보존하고 v2 경로에는 필터·집계 가능한 합성 서버를 연결한다.
  */
 export async function mockApi(page: Page): Promise<void> {
   await page.route("**/api/**", async (route) => {
     const pathname = new URL(route.request().url()).pathname;
+    const fitMatch = pathname.match(/^\/api\/pre-specs\/(\d+)\/company-fit$/);
+    if (fitMatch) { await fulfillJson(route, { schema_version: "bidops.prespec-company-fit.v1", notice_id: Number(fitMatch[1]), attempts: [], automation_enabled: false, auto_deep_review_reason: "company_fit_disabled", deep_review_id: null }); return; }
+    const match = pathname.match(/^\/api\/pre-specs\/(\d+)\/overview-pages$/);
+    if (match) { await fulfillJson(route, { schema_version: "bidops.prespec-overview-pages.v1", notice_id: Number(match[1]), reviews: [] }); return; }
+
+    if (pathname === "/api/workload") { await fulfillJson(route, workloadResponse(page)); return; }
     // deep-review 합성 응답이 먼저, 그다음 갈무리 fixture, 마지막으로 T15 시각
     // 회귀용 생성 응답을 쓴다. 합성 응답은 deep-review 전용 경로만 처리하므로
     // 기존 fixture 우선순위를 가리지 않는다.
@@ -1368,17 +1480,24 @@ export async function mockApi(page: Page): Promise<void> {
       body: JSON.stringify(body),
     });
   });
+  await mockOpportunity(page);
+  await mockPreSpecs(page);
+  await mockOrderPlans(page);
+  await mockBidDeltaDecisionQueue(page);
 }
 
-// `no-tracking-contract`는 발주계획 추적 결정 계약이 없는 **현재 서버**를 흉내낸다.
-// 응답에 `tracking`이 없고 POST가 404다. 나머지 scenario는 요청안
-// (docs/design/order-plan-tracking-contract-request.md §2)의 wire shape를 그대로 mock한다.
-// 그 fixture는 요청안의 실행 가능한 형태이며 **구현 완료의 근거가 아니다**(요청안 §7 규칙 4).
-export type OrderPlanMockScenario = "default" | "failure" | "no-results" | "live-disabled" | "stopped" | "large" | "no-tracking-contract" | "no-owning-opportunity";
-
+export type OrderPlanMockScenario = "default" | "failure" | "no-results" | "no-completed-execution" | "live-disabled" | "stopped" | "large" | "no-owning-opportunity";
 export interface OrderPlanMockTrace {
   feedbackPosts: Array<{ body: unknown; headers: Record<string, string> }>;
-  trackingPosts: Array<{ orderPlanPk: number; body: unknown; headers: Record<string, string> }>;
+  trackingPatches: Array<{ opportunityId: number; body: unknown; headers: Record<string, string> }>;
+  executionPosts: Array<{ body: unknown; headers: Record<string, string> }>;
+  stopPosts: Array<{ executionId: string; body: unknown; headers: Record<string, string> }>;
+}
+export interface OrderPlanMockOptions {
+  omitTracking?: boolean;
+  createErrorCode?: OrderPlanScreeningErrorCode;
+  stopErrorCode?: OrderPlanScreeningErrorCode;
+  errorStatus?: number;
 }
 
 interface OrderPlanFeedbackFixture {
@@ -1393,9 +1512,9 @@ interface OrderPlanFeedbackFixture {
   created_at: string;
 }
 
-const c2Digest = (letter: string): string => letter.repeat(64);
+const c2Digest = (letter: string): string => (letter.charCodeAt(0) % 16).toString(16).repeat(64);
 
-function c2Execution(overrides: Record<string, unknown> = {}) {
+function c2Execution(overrides: Partial<OrderPlanScreeningExecutionSummary> = {}): OrderPlanScreeningExecutionSummary {
   return {
     execution_id: "a2f4d7c1-0a61-4a07-8d2e-7f1d1d010101",
     request_id: "b2f4d7c1-0a61-4b07-8d2e-7f1d1d010101",
@@ -1495,7 +1614,7 @@ const c2Running = c2Execution({
   partial_artifact: false,
 });
 
-const c2Items = [
+const c2Items: Omit<OrderPlanListItem, "tracking">[] = [
   {
     order_plan_pk: 101,
     order_plan_unty_no: "OP-2026-00101",
@@ -1504,7 +1623,7 @@ const c2Items = [
     business_division: "정보화",
     budget_amount: 125000000,
     planned_order_year: "2026",
-    planned_order_month: "11",
+    planned_order_month: "2026-11",
     source_run_id: "91d8c2e4-3f09-4e6a-9bd9-0c2e4e6d0101",
     observed_at: "2026-09-01T01:00:00Z",
     stage1_status: "selected",
@@ -1673,7 +1792,7 @@ const c2Items = [
   },
 ];
 
-const c2LargeItems = Array.from({ length: 1200 }, (_, index) => {
+const c2LargeItems: Omit<OrderPlanListItem, "tracking">[] = Array.from({ length: 1200 }, (_, index) => {
   const failed = index >= 900;
   return {
     ...c2Items[0],
@@ -1720,7 +1839,7 @@ function c2DetailArtifacts(executionId: string) {
 }
 
 const c2Detail = {
-  schema_version: "order-plan-detail-response.v1",
+  schema_version: "order-plan-detail-response.v2",
   producer: "screening-api",
   consumer: "order-plan-review-client",
   order_plan_pk: 101,
@@ -1748,7 +1867,7 @@ const c2Detail = {
   latest_human_feedback: c2Items[0].human_feedback,
 };
 
-function c2ExecutionDetail(execution: Record<string, unknown>) {
+function c2ExecutionDetail(execution: OrderPlanScreeningExecutionSummary) {
   const executionId = String(execution.execution_id);
   const attempts = executionId === "a2f4d7c1-0a61-4a07-8d2e-7f1d1d010101"
     ? [
@@ -1832,155 +1951,189 @@ function c2ExecutionDetail(execution: Record<string, unknown>) {
   };
 }
 
-/** Stable Phase 4 C-2 responses. Register after mockApi so this route has precedence. */
-export async function mockOrderPlans(page: Page, scenario: OrderPlanMockScenario = "default"): Promise<OrderPlanMockTrace> {
-  const trace: OrderPlanMockTrace = { feedbackPosts: [], trackingPosts: [] };
-
-  // 추적 결정 계약(요청안 §2)의 세 가지 읽기 상태를 fixture 로 구분한다.
-  // `undefined`(계약 없음) · `null`(소유 사업기회 미확인) · 실제 상태. 화면은 이 셋을
-  // 서로 바꾸어 표시하지 않아야 한다.
-  const trackingState = new Map<number, { status: string; reason: string | null; by: string | null; at: string | null }>();
-  const trackingDecisions = new Map<number, Array<Record<string, unknown>>>();
-
-  function trackingProjection(orderPlanPk: number): Record<string, unknown> | null | undefined {
-    if (scenario === "no-tracking-contract") return undefined;
-    if (scenario === "no-owning-opportunity") return null;
-    const current = trackingState.get(orderPlanPk);
-    return {
-      opportunity_id: 5000 + orderPlanPk,
-      tracking_status: current?.status ?? "미선택",
-      tracking_reason: current?.reason ?? null,
-      tracking_selected_by: current?.by ?? null,
-      tracking_selected_at: current?.at ?? null,
-      inherited_from_order_plan: false,
+/** C-2 v2 mock server. Queries filter before counting and pagination. */
+export async function mockOrderPlans(page: Page, scenario: OrderPlanMockScenario = "default", options: OrderPlanMockOptions = {}): Promise<OrderPlanMockTrace> {
+  const trace: OrderPlanMockTrace = { feedbackPosts: [], trackingPatches: [], executionPosts: [], stopPosts: [] };
+  const trackingState = new Map<number, OrderPlanTracking>();
+  const trackingDecisions = new Map<number, OpportunityTrackingDecisionItem[]>();
+  const feedbackItems: OrderPlanFeedbackFixture[] = [{
+    feedback_id: "c2f4d7c1-0a61-4c07-8d2e-000000000001", execution_id: c2Execution().execution_id,
+    order_plan_pk: 101, revision: 1, relevance: "relevant", priority: "high", memo: "합성 검토 메모",
+    claimed_name: "합성 담당자", created_at: "2026-09-01T05:00:00Z",
+  }];
+  const partial = scenario === "live-disabled" ? c2Execution({ execution_allowed: false }) : c2Execution();
+  const executions: OrderPlanScreeningExecutionSummary[] = scenario === "no-results" || scenario === "no-completed-execution" ? []
+    : scenario === "failure" ? [c2Failed]
+      : scenario === "stopped" ? [c2Execution({ execution_id: "a2f4d7c1-0a61-4a07-8d2e-7f1d1d010401", status: "중단됨", finished_at: "2026-09-01T05:00:00Z", error_code: "user_requested" })]
+        : scenario === "large" ? [c2LargeExecution] : [c2Running, c2Failed, partial, c2OlderSuccess];
+  const planItems: Omit<OrderPlanListItem, "tracking">[] = scenario === "no-results" ? [] : scenario === "large" ? c2LargeItems : [...c2Items, {
+    ...c2Items[0], order_plan_pk: 109, order_plan_unty_no: "OP-2026-00109", title: "아직 선별 관측값이 없는 합성 발주계획",
+    stage1_status: null, stage1_rank: null, stage1_score: null, stage2_status: null, qwen_relevance: null,
+    qwen_score: null, qwen_reason: null, human_feedback: null,
+  }];
+  if (scenario !== "large") {
+    partial.population_count = planItems.length || 1;
+    partial.counts = {
+      candidate_count: 6, completed_count: 3, failure_count: 4,
+      stage1_selected_count: 6, stage1_filtered_out_count: 1, stage1_failed_count: 1,
+      stage2_relevant_count: 1, stage2_not_relevant_count: 1, stage2_uncertain_count: 1,
+      stage2_failed_count: 1, stage2_rejected_count: 1, human_review_count: 1,
     };
   }
-
-  function withTracking<T extends { order_plan_pk: number }>(item: T): T {
-    const tracking = trackingProjection(item.order_plan_pk);
-    return tracking === undefined ? item : { ...item, tracking };
+  function scopeFor(sourceRunId: string | null): OrderPlanListScope | null {
+    const eligible = executions.filter((item) => (item.status === "성공" || item.status === "부분 성공") && (!sourceRunId || item.source_run_id === sourceRunId));
+    eligible.sort((a, b) => (b.finished_at ?? "").localeCompare(a.finished_at ?? "") || b.queued_at.localeCompare(a.queued_at) || b.execution_id.localeCompare(a.execution_id));
+    const latest = eligible[0];
+    return latest ? { execution_id: latest.execution_id, source_run_id: latest.source_run_id, status: latest.status as OrderPlanListScope["status"], finished_at: latest.finished_at } : null;
   }
-  const partial = scenario === "live-disabled" ? c2Execution({ execution_allowed: false }) : c2Execution();
-  const executions = scenario === "no-results"
-    ? []
-    : scenario === "failure"
-      ? [c2Failed]
-      : scenario === "stopped"
-        ? [c2Execution({ execution_id: "a2f4d7c1-0a61-4a07-8d2e-7f1d1d010401", request_id: "b2f4d7c1-0a61-4b07-8d2e-7f1d1d010401", status: "중단됨", finished_at: "2026-09-01T05:00:00Z", error_code: "user_requested", partial_artifact: true })]
-        : scenario === "large"
-          ? [c2LargeExecution]
-          : [c2Failed, c2Running, partial, c2OlderSuccess];
-  const planItems = scenario === "large" ? c2LargeItems : c2Items;
-  // `priority`·`memo`는 계약상 null이 될 수 있다. 초기값만 보고 추론하면 배열
-  // 원소가 string으로 좁혀져 POST가 저장한 null을 담지 못한다.
-  const feedbackItems: OrderPlanFeedbackFixture[] = c2Items[0].human_feedback ? [{
-    feedback_id: "c2f4d7c1-0a61-4c07-8d2e-000000000001",
-    execution_id: "a2f4d7c1-0a61-4a07-8d2e-7f1d1d010101",
-    order_plan_pk: 101,
-    revision: 1,
-    relevance: "relevant",
-    priority: "high",
-    memo: "제안요청서 공개 시 범위와 일정 확인",
-    claimed_name: "김검토",
-    created_at: "2026-09-01T05:00:00Z",
-  }] : [];
+  function trackingProjection(orderPlanPk: number): OrderPlanTracking | null {
+    if (scenario === "no-owning-opportunity") return null;
+    return trackingState.get(orderPlanPk) ?? { opportunity_id: 5000 + orderPlanPk, tracking_status: "미선택", tracking_reason: null, tracking_selected_by: null, tracking_selected_at: null };
+  }
+  const sharedOpportunities = opportunityFixtures.get(page);
+  if (sharedOpportunities) {
+    for (let index = sharedOpportunities.length - 1; index >= 0; index -= 1) {
+      if (sharedOpportunities[index].id >= 5000) sharedOpportunities.splice(index, 1);
+    }
+    if (scenario !== "no-owning-opportunity") {
+      sharedOpportunities.push(...planItems.map((plan): OpportunityListItem => ({
+        id: 5000 + plan.order_plan_pk, tracking_status: "미선택", tracking_reason: null,
+        tracking_selected_by: null, tracking_selected_at: null,
+        recheck_signal: false, recheck_signal_at: null, recheck_signal_link_id: null,
+        first_registered_stage: "order_plan", section: null,
+        pending_candidate_link_count: 0, open_blocking_item_count: 0,
+        links: [{ ...visualOpportunities[0].links[0], id: 5000 + plan.order_plan_pk,
+          record_id: plan.order_plan_pk, order_plan_id: plan.order_plan_pk,
+          title: plan.title, agency: plan.agency_name,
+          external_id: plan.order_plan_unty_no, record_external_id: plan.order_plan_unty_no }],
+      })));
+    }
+  }
+  function listItems(search: URLSearchParams): OrderPlanListItem[] {
+    const scope = scopeFor(search.get("source_run_id"));
+    return planItems.map((item): OrderPlanListItem => {
+      const feedback = feedbackItems.filter((entry) => entry.order_plan_pk === item.order_plan_pk && entry.execution_id === scope?.execution_id).at(-1);
+      return {
+        ...item,
+        ...(!scope ? { stage1_status: null, stage1_rank: null, stage1_score: null, stage2_status: null, qwen_relevance: null, qwen_score: null, qwen_reason: null } : {}),
+        human_feedback: feedback ? { revision: feedback.revision, relevance: feedback.relevance as "relevant" | "not_relevant" | "uncertain", priority: feedback.priority as "high" | "medium" | "low" | null, memo: feedback.memo, claimed_name: feedback.claimed_name, created_at: feedback.created_at } : null,
+        tracking: trackingProjection(item.order_plan_pk),
+      };
+    }).filter((item) => (!search.get("source_run_id") || item.source_run_id === search.get("source_run_id"))
+      && matchesValues(item.stage1_status, search.get("stage1_status"))
+      && matchesValues(item.stage2_status, search.get("stage2_status"))
+      && matchesValues(item.qwen_relevance, search.get("qwen_relevance"))
+      && matchesValues(item.human_feedback?.relevance ?? null, search.get("human_relevance"))
+      && (!search.get("tracking_status") || (item.tracking !== null && matchesValues(item.tracking.tracking_status, search.get("tracking_status"))))
+      && (search.get("issue") !== "true" || ["failed", "rejected"].includes(item.stage1_status ?? "") || ["failed", "rejected"].includes(item.stage2_status ?? ""))
+      && (!search.get("q") || `${item.title} ${item.agency_name} ${item.order_plan_unty_no}`.toLocaleLowerCase("ko-KR").includes(search.get("q")!.toLocaleLowerCase("ko-KR"))));
+  }
+  workloadProvider(page, "order_plan_pending", () => scopeFor(null)
+    ? { count: listItems(new URLSearchParams({ stage1_status: "selected", qwen_relevance: "relevant,uncertain", tracking_status: "미선택" })).length, unavailable_reason: null }
+    : { count: null, unavailable_reason: "no_completed_execution" });
 
+  const createdRequests = new Map<string, { payload: string; response: unknown }>();
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  async function error(route: Route, code: OrderPlanScreeningErrorCode, requestId: unknown = null, status = 409) {
+    await fulfillJson(route, { error: { code, message: "합성 안정 오류", details: null }, request_id: typeof requestId === "string" && uuidPattern.test(requestId) ? requestId : null }, status);
+  }
   await page.route("**/api/**", async (route) => {
-    const request = route.request();
-    const pathname = new URL(request.url()).pathname;
-    const method = request.method();
-
+    const request = route.request(), method = request.method();
+    const url = new URL(request.url()), pathname = url.pathname, search = url.searchParams;
     if (pathname === "/api/order-plan-screening/executions" && method === "GET") {
-      const search = new URL(request.url()).searchParams;
-      const sourceRunId = search.get("source_run_id");
-      const filtered = sourceRunId ? executions.filter((item) => item.source_run_id === sourceRunId) : executions;
-      const offset = Number(search.get("offset") ?? 0);
-      const limit = Number(search.get("limit") ?? 500);
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ schema_version: "execution-list-response.v1", producer: "screening-api", consumer: "human-review-client", items: filtered.slice(offset, offset + limit), total: filtered.length, limit, offset }) });
-      return;
+      const filtered = executions.filter((item) => (!search.get("source_run_id") || item.source_run_id === search.get("source_run_id")) && (!search.get("status") || item.status === search.get("status")));
+      const limit = Number(search.get("limit") ?? 100), offset = Number(search.get("offset") ?? 0);
+      await fulfillJson(route, { schema_version: "execution-list-response.v1", producer: "screening-api", consumer: "human-review-client", items: filtered.slice(offset, offset + limit), total: filtered.length, limit, offset }); return;
     }
-
+    if (pathname === "/api/order-plan-screening/executions" && method === "POST") {
+      const body = fixtureRecord(request.postDataJSON()) ?? {};
+      trace.executionPosts.push({ body, headers: request.headers() });
+      if (!fixtureActor(request.headers())) { await error(route, "actor_name_required", body.request_id, 422); return; }
+      if (body.schema_version !== "execution-create-request.v1" || body.producer !== "human-review-client" || body.consumer !== "screening-api" || !uuidPattern.test(String(body.request_id)) || typeof body.source_run_id !== "string" || !body.source_run_id.trim() || typeof body.policy_version !== "string" || !body.policy_version.trim() || Object.keys(body).some((key) => !["schema_version", "producer", "consumer", "request_id", "source_run_id", "policy_version"].includes(key))) { await error(route, "invalid_request", body.request_id, 422); return; }
+      if (options.createErrorCode) { await error(route, options.createErrorCode, body.request_id, options.errorStatus ?? (options.createErrorCode === "service_unavailable" ? 503 : 409)); return; }
+      const previous = createdRequests.get(String(body.request_id));
+      if (previous) { if (previous.payload !== JSON.stringify(body)) await error(route, "idempotency_conflict", body.request_id); else await fulfillJson(route, previous.response, 202); return; }
+      if (executions.some((item) => ["대기", "실행 중", "중지 요청"].includes(item.status))) { await error(route, "active_execution_exists", body.request_id); return; }
+      const execution = c2Execution({ execution_id: "a2000000-0000-4000-8000-000000000001", request_id: String(body.request_id), source_run_id: body.source_run_id, policy_version: body.policy_version, requested_by: fixtureActor(request.headers()), status: "대기", queued_at: "2026-09-02T02:00:00Z", started_at: null, heartbeat_at: null, finished_at: null, error_code: null, partial_artifact: false });
+      executions.unshift(execution);
+      const response = { schema_version: "execution-create-response.v1", producer: "screening-api", consumer: "human-review-client", execution_id: execution.execution_id, request_id: execution.request_id, source_run_id: execution.source_run_id, policy_version: execution.policy_version, status: "대기", binding_sha256: execution.binding_sha256, stage1_binding_sha256: execution.stage1_binding_sha256, stage2_binding_sha256: execution.stage2_binding_sha256, execution_allowed: execution.execution_allowed };
+      createdRequests.set(execution.request_id, { payload: JSON.stringify(body), response });
+      await fulfillJson(route, response, 202); return;
+    }
+    const executionMatch = pathname.match(/^\/api\/order-plan-screening\/executions\/([^/]+)(\/stop)?$/);
+    if (executionMatch) {
+      const executionId = decodeURIComponent(executionMatch[1]);
+      const execution = executions.find((item) => item.execution_id === executionId);
+      if (!execution) { await error(route, "not_found", null, 404); return; }
+      if (method === "GET" && !executionMatch[2]) { await fulfillJson(route, c2ExecutionDetail(execution)); return; }
+      if (method === "POST" && executionMatch[2]) {
+        const body = fixtureRecord(request.postDataJSON()) ?? {};
+        trace.stopPosts.push({ executionId, body, headers: request.headers() });
+        if (!fixtureActor(request.headers())) { await error(route, "actor_name_required", body.request_id, 422); return; }
+        if (body.schema_version !== "execution-stop-request.v1" || body.producer !== "human-review-client" || body.consumer !== "screening-api" || !uuidPattern.test(String(body.request_id)) || body.reason !== "user_requested" || Object.keys(body).some((key) => !["schema_version", "producer", "consumer", "request_id", "reason"].includes(key))) { await error(route, "invalid_request", body.request_id, 422); return; }
+        if (options.stopErrorCode) { await error(route, options.stopErrorCode, body.request_id, options.errorStatus ?? 409); return; }
+        if (!["대기", "실행 중", "중지 요청"].includes(execution.status)) { await error(route, "execution_not_stoppable", body.request_id); return; }
+        execution.status = execution.status === "대기" ? "중단됨" : "중지 요청";
+        if (execution.status === "중단됨") execution.finished_at = "2026-09-02T02:01:00Z";
+        await fulfillJson(route, { schema_version: "execution-stop-response.v1", producer: "screening-api", consumer: "human-review-client", execution_id: executionId, request_id: body.request_id, status: execution.status }, 202); return;
+      }
+    }
     if (pathname === "/api/order-plans" && method === "GET") {
-      const search = new URL(request.url()).searchParams;
-      let items = scenario === "no-results" ? [] : planItems.filter((item) => !search.get("source_run_id") || item.source_run_id === search.get("source_run_id"));
-      if (search.get("stage1_status")) items = items.filter((item) => item.stage1_status === search.get("stage1_status"));
-      if (search.get("qwen_relevance")) items = items.filter((item) => item.qwen_relevance === search.get("qwen_relevance"));
-      const queryText = search.get("q")?.toLocaleLowerCase("ko-KR");
-      if (queryText) items = items.filter((item) => `${item.title} ${item.order_plan_unty_no}`.toLocaleLowerCase("ko-KR").includes(queryText));
-      const offset = Number(search.get("offset") ?? 0);
-      const limit = Number(search.get("limit") ?? 500);
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ schema_version: "order-plan-list-response.v1", producer: "order-plan-review-api", consumer: "order-plan-review-client", items: items.slice(offset, offset + limit).map(withTracking), total: items.length, limit, offset }) });
-      return;
+      const items = listItems(search), limit = Number(search.get("limit") ?? 100), offset = Number(search.get("offset") ?? 0);
+      await fulfillJson(route, { schema_version: "order-plan-list-response.v2", producer: "order-plan-review-api", consumer: "order-plan-review-client", scope: scopeFor(search.get("source_run_id")), items: items.slice(offset, offset + limit).map((item) => {
+        if (!options.omitTracking) return item;
+        const { tracking: _tracking, ...legacy } = item;
+        return legacy;
+      }), total: items.length, limit, offset }); return;
     }
-
-    if (pathname === "/api/order-plans/101" && method === "GET") {
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(withTracking(c2Detail)) });
-      return;
+    const planMatch = pathname.match(/^\/api\/order-plans\/(\d+)(?:\/(screening-history|screening-feedback))?$/);
+    if (planMatch) {
+      const orderPlanPk = Number(planMatch[1]), plan = listItems(new URLSearchParams()).find((item) => item.order_plan_pk === orderPlanPk);
+      if (!plan) { await error(route, "not_found", null, 404); return; }
+      const history = scopeFor(null) && orderPlanPk === 101 ? c2Detail.screening_history : [];
+      if (method === "GET" && !planMatch[2]) {
+        await fulfillJson(route, { ...c2Detail, order_plan_pk: orderPlanPk, order_plan_unty_no: plan.order_plan_unty_no, title: plan.title, agency_name: plan.agency_name, budget_amount: plan.budget_amount, business_division: plan.business_division, planned_order_year: plan.planned_order_year, planned_order_month: plan.planned_order_month, screening_history: history, latest_human_feedback: plan.human_feedback, tracking: plan.tracking }); return;
+      }
+      if (method === "GET" && planMatch[2] === "screening-history") { await fulfillJson(route, { schema_version: "order-plan-detail-response.v1", producer: "screening-api", consumer: "order-plan-review-client", order_plan_pk: orderPlanPk, items: history }); return; }
+      if (method === "GET" && planMatch[2] === "screening-feedback") { await fulfillJson(route, { schema_version: "feedback-list-response.v1", producer: "screening-api", consumer: "order-plan-review-client", items: feedbackItems.filter((item) => item.order_plan_pk === orderPlanPk && (!search.get("execution_id") || item.execution_id === search.get("execution_id"))).slice().reverse() }); return; }
+      if (method === "POST" && planMatch[2] === "screening-feedback") {
+        const body = fixtureRecord(request.postDataJSON()) ?? {};
+        trace.feedbackPosts.push({ body, headers: request.headers() });
+        const revision = Math.max(0, ...feedbackItems.filter((item) => item.order_plan_pk === orderPlanPk).map((item) => item.revision)) + 1;
+        const saved: OrderPlanFeedbackFixture = { feedback_id: `c2f4d7c1-0a61-4c07-8d2e-${String(revision).padStart(12, "0")}`, execution_id: String(body.execution_id ?? ""), order_plan_pk: orderPlanPk, revision, relevance: String(body.relevance ?? ""), priority: typeof body.priority === "string" ? body.priority : null, memo: typeof body.memo === "string" ? body.memo : null, claimed_name: fixtureActor(request.headers()), created_at: "2026-09-02T00:00:00Z" };
+        feedbackItems.push(saved);
+        await fulfillJson(route, { schema_version: "feedback-create-response.v1", producer: "human-review-api", consumer: "postgres-history", ...saved }, 201); return;
+      }
     }
-
-    if (pathname === "/api/order-plans/101/screening-history" && method === "GET") {
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ schema_version: "order-plan-detail-response.v1", producer: "screening-api", consumer: "order-plan-review-client", order_plan_pk: 101, items: c2Detail.screening_history }) });
-      return;
-    }
-
-    if (pathname === "/api/order-plans/101/screening-feedback" && method === "GET") {
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ schema_version: "feedback-list-response.v1", producer: "screening-api", consumer: "order-plan-review-client", items: feedbackItems }) });
-      return;
-    }
-
-    if (pathname === "/api/order-plans/101/screening-feedback" && method === "POST") {
-      const body = request.postDataJSON() as Record<string, unknown>;
-      trace.feedbackPosts.push({ body, headers: request.headers() });
-      const revision = feedbackItems.reduce((highest, item) => Math.max(highest, item.revision), 0) + 1;
-      const saved: OrderPlanFeedbackFixture = { feedback_id: `c2f4d7c1-0a61-4c07-8d2e-${String(revision).padStart(12, "0")}`, execution_id: String(body.execution_id ?? ""), order_plan_pk: 101, revision, relevance: String(body.relevance ?? ""), priority: (body.priority ?? null) as string | null, memo: (body.memo ?? null) as string | null, claimed_name: request.headers()["x-bidops-actor-name"] ?? "시각 테스트 담당자", created_at: "2026-09-02T00:00:00Z" };
-      feedbackItems.push(saved);
-      await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify({ schema_version: "feedback-create-response.v1", producer: "human-review-api", consumer: "postgres-history", ...saved }) });
-      return;
-    }
-
-    // --- 발주계획 추적 결정 (요청안 §2, 서버 미구현) ---
-    const trackingMatch = pathname.match(/^\/api\/order-plans\/(\d+)\/tracking-decisions$/);
+    const trackingMatch = pathname.match(/^\/api\/opportunities\/(\d+)\/(tracking-status|tracking-decisions|deep-reviews)$/);
     if (trackingMatch) {
-      const orderPlanPk = Number(trackingMatch[1]);
-      if (scenario === "no-tracking-contract") {
-        // 계약이 없는 현재 서버. router 에 경로가 없으므로 404 다.
-        await route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ error: { code: "not_found", message: "Not Found" }, request_id: "e2f4d7c1-0a61-4e07-8d2e-000000000001" }) });
-        return;
-      }
-      if (method === "GET") {
-        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ schema_version: "order-plan-tracking-history.v1", producer: "order-plan-review-api", consumer: "order-plan-review-client", order_plan_pk: orderPlanPk, opportunity_id: scenario === "no-owning-opportunity" ? null : 5000 + orderPlanPk, items: trackingDecisions.get(orderPlanPk) ?? [] }) });
-        return;
-      }
-      if (method === "POST") {
-        const body = request.postDataJSON() as Record<string, unknown>;
-        trace.trackingPosts.push({ orderPlanPk, body, headers: request.headers() });
-        if (scenario === "no-owning-opportunity") {
-          await route.fulfill({ status: 409, contentType: "application/json", body: JSON.stringify({ error: { code: "opportunity_not_found", message: "발주계획을 소유한 사업기회를 찾을 수 없습니다" }, request_id: "e2f4d7c1-0a61-4e07-8d2e-000000000002" }) });
-          return;
-        }
-        const previous = trackingState.get(orderPlanPk)?.status ?? "미선택";
-        const claimedName = request.headers()["x-bidops-actor-name"] ?? "";
-        const decidedAt = "2026-09-02T01:00:00Z";
-        trackingState.set(orderPlanPk, { status: String(body.tracking_status), reason: (body.reason as string) ?? null, by: claimedName, at: decidedAt });
+      const opportunityId = Number(trackingMatch[1]), orderPlanPk = opportunityId - 5000;
+      if (!planItems.some((item) => item.order_plan_pk === orderPlanPk)) { await route.fallback(); return; }
+      const projection = trackingProjection(orderPlanPk);
+      if (!projection) { await trackingError(route, "opportunity_not_found"); return; }
+      if (method === "GET" && trackingMatch[2] !== "tracking-status") { await fulfillJson(route, { opportunity_id: opportunityId, items: trackingMatch[2] === "deep-reviews" ? [] : trackingDecisions.get(orderPlanPk) ?? [] }); return; }
+      if (method === "PATCH" && trackingMatch[2] === "tracking-status") {
+        const body = fixtureRecord(request.postDataJSON()) ?? {};
+        trace.trackingPatches.push({ opportunityId, body, headers: request.headers() });
+        if (!fixtureActor(request.headers())) { await trackingError(route, "actor_name_required"); return; }
+        if (!["미선택", "계속 추적", "보류", "종료"].includes(String(body.tracking_status))) { await trackingError(route, "tracking_status_invalid"); return; }
+        if (typeof body.reason !== "string" || !body.reason.trim()) { await trackingError(route, "tracking_reason_required"); return; }
+        const status = body.tracking_status as OpportunityTrackingStatus, claimedName = fixtureActor(request.headers()), decidedAt = "2026-09-02T01:00:00Z";
         const decisions = trackingDecisions.get(orderPlanPk) ?? [];
-        decisions.unshift({ decided_at: decidedAt, tracking_status: body.tracking_status, previous_tracking_status: previous, reason: body.reason ?? null, claimed_name: claimedName, audit_event_id: `f2f4d7c1-0a61-4f07-8d2e-${String(decisions.length + 1).padStart(12, "0")}` });
+        decisions.unshift({ decided_at: decidedAt, tracking_status: status, previous_tracking_status: projection.tracking_status, reason: body.reason, claimed_name: claimedName, audit_event_id: `f2f4d7c1-0a61-4f07-8d2e-${String(decisions.length + 1).padStart(12, "0")}`, cleared_recheck_signal: false });
         trackingDecisions.set(orderPlanPk, decisions);
-        await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify({ schema_version: "order-plan-tracking-decision-response.v1", producer: "order-plan-review-api", consumer: "order-plan-review-client", order_plan_pk: orderPlanPk, opportunity_id: 5000 + orderPlanPk, tracking_status: body.tracking_status, tracking_reason: body.reason ?? null, tracking_selected_by: claimedName, tracking_selected_at: decidedAt, audit_event_id: decisions[0].audit_event_id }) });
-        return;
+        const saved: OrderPlanTracking = { opportunity_id: opportunityId, tracking_status: status, tracking_reason: status === "미선택" ? null : body.reason, tracking_selected_by: status === "미선택" ? null : claimedName, tracking_selected_at: status === "미선택" ? null : decidedAt };
+        trackingState.set(orderPlanPk, saved);
+        const shared = sharedOpportunities?.find((item) => item.id === opportunityId);
+        if (shared) {
+          shared.tracking_status = saved.tracking_status; shared.tracking_reason = saved.tracking_reason;
+          shared.tracking_selected_by = saved.tracking_selected_by; shared.tracking_selected_at = saved.tracking_selected_at;
+          shared.recheck_signal = false; shared.recheck_signal_at = null; shared.recheck_signal_link_id = null;
+          shared.section = mockTrackingSection(shared);
+        }
+        await fulfillJson(route, { id: opportunityId, tracking_status: saved.tracking_status, tracking_reason: saved.tracking_reason, tracking_selected_by: saved.tracking_selected_by, tracking_selected_at: saved.tracking_selected_at, recheck_signal: false, recheck_signal_at: null, recheck_signal_link_id: null, first_registered_stage: "order_plan", section: status === "계속 추적" ? "추적 중" : status === "보류" ? "보류" : status === "종료" ? "추적 종료" : null, pending_candidate_link_count: 0, open_blocking_item_count: 0, links: [] }); return;
       }
     }
-
-    const executionMatch = pathname.match(/^\/api\/order-plan-screening\/executions\/([^/]+)$/);
-    if (executionMatch && method === "GET") {
-      const execution = executions.find((item) => item.execution_id === decodeURIComponent(executionMatch[1]));
-      if (!execution) {
-        await route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ error: { code: "not_found", message: "execution not found" }, request_id: "d2f4d7c1-0a61-4d07-8d2e-000000000001" }) });
-        return;
-      }
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(c2ExecutionDetail(execution)) });
-      return;
-    }
-
     await route.fallback();
   });
   return trace;

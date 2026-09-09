@@ -62,7 +62,7 @@ def _seed_lineage(engine):  # type: ignore[no-untyped-def]
                 "source_attachment_key, original_filename, role, is_current, safety_status, "
                 "needs_human_review, created_at) "
                 "VALUES (:id, :notice_id, :content_id, 1, 'provider', 'g2b', 't23-pg', "
-                "'t23.pdf', '제안요청서', true, 'safe', false, :created_at)"
+                "'t23_제안요청서.pdf', '제안요청서', true, 'safe', false, :created_at)"
             ),
             {
                 "id": document_id,

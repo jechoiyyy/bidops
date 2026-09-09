@@ -1,7 +1,7 @@
 # BidOps 데이터베이스 이해하기
 
-> 기준일: 2026-09-05
-> 기준 소스: PostgreSQL 17 `bidops` 스키마, Alembic head `0018_prespec_auto_preparation_segments`, 현재 업무 계약
+> 기준일: 2026-09-08
+> 기준 소스: PostgreSQL 17 `bidops` 스키마, 코드의 Alembic head `0020_prespec_company_fit`, 현재 업무 계약 (운영 DB 적용 여부와 별개)
 > 대상 독자: 기획·사업개발 담당자, 운영자, 처음 프로젝트를 보는 개발자
 
 ## 한 문장으로 이해하기
@@ -12,9 +12,9 @@ BidOps DB는 공고의 최신값만 모아 둔 목록이 아니라, **어떤 회
 
 ## 먼저 알아둘 현재 기준
 
-현재 Alembic head 기준으로 이 문서가 세는 애플리케이션 테이블은 **71개**다. PostgreSQL 자체의 Alembic 관리 테이블 `alembic_version`은 이 수에 포함하지 않는다.
+현재 코드의 Alembic head 기준으로 아래 업무 사전에서 설명하는 테이블은 **73개**다. PostgreSQL 자체의 Alembic 관리 테이블 `alembic_version`은 이 수에 포함하지 않는다.
 
-이 71은 아래 여덟 영역의 합이며, ORM `Base.metadata`가 등록하는 **77개**와 다르다. 두 수는 세는 대상이 다르다 — 이 문서는 업무 영역으로 묶어 설명하는 표만 세고, ORM은 등록된 모든 표를 센다. 모듈 소유 기준으로는 core 2 + lifecycle 10 + screening 28 + deep_review 37 = 77이다. 어느 쪽 수치도 다른 쪽을 대신하지 않는다.
+기존 업무 사전의 71개에 설명형 PDF 개요와 회사 핏 이력 각 1개를 추가했다. ORM `Base.metadata`는 등록된 모든 표 **79개**를 센다. 모듈 소유 기준으로는 core 2 + lifecycle 10 + screening 28 + deep_review 39 = 79이다. 업무 사전의 수와 전체 등록 수를 구분한다.
 
 | 구분 | 테이블 수 | 담당하는 일 |
 |---|---:|---|
@@ -22,14 +22,14 @@ BidOps DB는 공고의 최신값만 모아 둔 목록이 아니라, **어떤 회
 | 1차 판정·사람 리뷰 | 11 | 모델 판정, 근거, 반론, 확인 항목, 사람 보정과 개정 이력 |
 | 첨부 취득 | 3 | 첨부 메타데이터, 다운로드 큐, 기관 포털 정보 |
 | 문서 준비 | 8 | 파일 객체, 악성코드 검사, 문서 버전·구조·묶음 |
-| 사전규격 개요 검토 | 5 | 앞부분 절단 snapshot, 모델 실행·결과·상태 전이 계보 |
+| 사전규격 개요 검토·회사 핏 | 7 | 앞부분 절단 snapshot, 모델 실행·결과·상태 전이 계보, 설명형 PDF 개요, 회사 핏 이력 |
 | 문서 segment·요구사항 inventory | 3 | 결정적 segment manifest, segment, 요구사항 ID 항목 |
 | 심층 검토 | 17 | 고정 입력, 단계별 분석, 주장·근거, 리포트·검증·사람 의견 |
 | 판정 실행·품질·일정 | 12 | 실행 큐, 재시도, 프로필 snapshot, 품질 게이트, 정책·일정·감사 |
 | 입찰 delta·최종 결정 | 5 | 문서 쌍 고정, 비교 시도, 항목·근거, 사람 Go/No-Go |
-| 합계 | **71** | `alembic_version` 제외 |
+| 합계 | **73** | 업무 사전 기준, `alembic_version` 제외 |
 
-테이블이 있다는 사실과 그 업무가 운영 가능하다는 사실은 다르다. `0014`의 `prespec_overview_result`·`prespec_overview_attempt_event`는 phase 2 저장 기반만 만들었고 실제 모델 호출·검증 결과 API는 아직 없다. `0015`의 입찰 delta 5개 테이블도 endpoint까지는 있지만 비교 계산 worker와 모델 binding이 없어 `pending`·`running`에서 더 진행되지 않는다. **스키마의 존재**와 **워크플로우의 운영 가능 여부**를 같은 뜻으로 해석하면 안 된다.
+테이블이 있다는 사실과 그 업무가 운영 가능하다는 사실은 다르다. 사전규격 개요에는 모델 worker와 검증 결과 API가 있지만 참조 실행을 운영 품질 승인으로 취급하지 않는다. `0020` 회사 핏도 기본 비활성·참조 실행 전용이다. `0015`의 입찰 delta 5개 테이블은 endpoint까지 있지만 비교 계산 worker와 모델 binding이 없어 `pending`·`running`에서 더 진행되지 않는다. **스키마의 존재**와 **워크플로우의 운영 가능 여부**를 같은 뜻으로 해석하면 안 된다.
 
 ## 핵심 개념 6가지
 
@@ -410,7 +410,7 @@ version**으로 다시 등록한다.
 일반 업무 흐름에서 attachment를 물리 삭제하지 않는다. `retired_at`, `retired_reason`,
 `retired_by_name`으로 은퇴 처리한다.
 
-## 전체 71개 테이블 빠른 사전
+## 업무 테이블 73개 빠른 사전
 
 ### A. 수집·사업기회 7개
 
@@ -474,7 +474,7 @@ version**으로 다시 등록한다.
 바뀌면 기존 행을 고치지 않고 새 행이 생긴다. 자세한 계약은
 [심층 검토 ERD](deep-review-erd.md)의 8.1절이다.
 
-### E. 사전규격 개요 검토 5개
+### E. 사전규격 개요 검토·회사 핏 7개
 
 | 테이블 | 쉬운 설명 |
 |---|---|
@@ -483,6 +483,8 @@ version**으로 다시 등록한다.
 | `prespec_overview_attempt` | 개요 모델 실행의 불변 입력·binding과 제한된 lifecycle 상태. worker lease는 `lease_owner`·`lease_expires_at`에 남는다 |
 | `prespec_overview_result` | 검증된 구조화 결과의 immutable payload와 digest |
 | `prespec_overview_attempt_event` | attempt 상태 전이의 append-only event |
+| `prespec_page_overview` | PDF 페이지 근거를 가진 설명형 개요의 불변 출력·검증 기록 |
+| `prespec_company_fit_attempt` | 개요·승인 프로필·정책을 고정한 회사 핏 판정·사유·사용량 이력 |
 
 ### F. 심층 검토 17개
 
@@ -559,3 +561,16 @@ version**으로 다시 등록한다.
 - [Alembic migration](../web/backend/alembic/versions/)
 - [런타임 DB 권한 allowlist](../scripts/runtime-privileges.sql)
 - [심층 검토 ERD 계약](deep-review-erd.md)
+
+### 설명형 PDF 개요 기록 (0019)
+
+`prespec_page_overview`는 권고 없는 새 출력의 불변 저장소다. 기존 `prespec_overview_result`의
+검증 통과·권고 lifecycle 계약을 바꾸지 않는다. `document_version_id`는 공고와 복합 FK로
+묶이며 `pdf_location_id`·`input_location_id`는 버전이 고정된 객체 위치를 가리킨다.
+원출력 JSONB, 근거 검사와 원실행 실패 이력, 모델·정책·프롬프트·원문·PDF digest를
+보존한다. 변경·삭제는 trigger로 거부하고 같은 실행·공고의 내용 변경도 적재기가 거부한다.
+
+
+### 회사 핏 이력: `prespec_company_fit_attempt`
+
+개요 뒤 회사 업무 부합 여부를 판단한 별도 실행 이력이다. migration `0020_prespec_company_fit`에서 추가한다. 페이지 개요 또는 추출형 개요 결과 하나, 그 문서, 승인 프로필, 활성 심층 정책을 FK로 묶고 핏 정책 전문/모델 바인딩/구조화 입력을 불변 JSON과 digest로 저장한다. 같은 입력은 한 번만 실행한다. queued → running → completed/failed/needs_human_review로 전이하고, queued의 오래된 입력은 failed로 닫을 수 있다. lease 만료 후 자동 재개하지 않는다. 종결 행과 입력은 DB trigger/ORM으로 보호한다. 결과·사유·사용량은 이 테이블이 정본이며 자동 준비 표시 상태는 여전히 조회 시 계산한다.

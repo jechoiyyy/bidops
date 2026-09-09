@@ -1,5 +1,28 @@
 # 엔지니어링 노트
 
+## C-2 순위와 수집 순서를 같은 것으로 비교하면 실제 모집단 적재가 실패한다
+
+- ranking은 BM25 순위, input/result는 수집 원본 순서다. 전체 ID 집합을 비교하고
+  batch는 rank 오름차순으로 확인한다. 한 건짜리 fixture로는 순서 오류를 잡지 못한다.
+- BM25 실수 점수는 PostgreSQL `Numeric(20,10)`에서 반올림된다. 재적재 비교는 같은
+  DB 투영 정밀도를 사용하고, 미세한 원본 변경은 `result_sha256`으로 계속 차단한다.
+- 2026-09-07 실제 830건에서 재현했고, 순서 차이·소수점 아래 10자리 초과·그보다 작은
+  원본 변경 거부·PostgreSQL 재적재 0건을 회귀 검증했다.
+
+## 같은 이름의 실패 파일로 서로 다른 파이프라인을 판별하면 부분 성공만 깨진다
+
+- 증상: C-1 전건 성공은 게시되지만 실패가 한 건이라도 있으면 회차 게시가 실패한다.
+- 원인: C-1과 C-2가 공유하는 `screening-failures.json` 파일명만으로 C-2 입력이라고 판단했다.
+- 대응: 공유 파일은 schema로 구분하고 각 소유 적재기가 전체 binding을 검증한다.
+  C-1 부분 성공과 실패 건의 기존 판정 보존 테스트를 함께 확인한다.
+
+## 내용 해시가 같은 새 객체 버전이 생겨도 과거 프로필은 고정 버전으로 읽는다
+
+- 증상: 프로필 원문의 길이·SHA-256·ETag는 일치하지만 version ID가 달라 심층 입력 준비가 막힌다.
+- 원인: DB는 불변 객체 버전을 가리키는데 source 조회는 MinIO의 최신 버전을 읽었다.
+- 대응: 프로필 조회의 GET과 metadata 조회에 DB의 object version ID를 함께 전달한다.
+  지정한 버전이 없으면 최신 버전으로 대체하지 않고 실패한다. 기존 DB 참조는 수정하지 않는다.
+
 ## 발주계획에서 선택된 건만 저장하면 비교 실험을 재현할 수 없다
 
 - 증상: 선별 결과의 정밀도는 보이지만 놓친 사업과 방식별 순위 차이를 다시 계산할 수 없다.
@@ -348,3 +371,25 @@
   `section-title 14px`, `body 14px`, `caption 12px`)만 쓴다. 최소 12px. root 를 16px 로
   올리면 Astryx 컴포넌트 전부가 14% 커지므로 택하지 않았다. `var(--font-size-*)` 를 화면
   CSS 에 새로 쓰지 않는다.
+
+## 일회성 C-1 worker도 조립 계층의 적재 hook이 필요하다
+
+- 증상: 실제 모델 응답과 `screening-results.json`은 생성됐지만 게시 시
+  `execution_failure`가 발생하고 `published_run_id`가 비어 있다.
+- 원인: `ScreeningWorker`만 직접 import한 프로세스에는 lifecycle 적재 hook이
+  등록되지 않는다. `app.main`의 앱 조립에서 screening·deep_review 제공자를 등록한다.
+- 재발 방지: 일회성 실행 진입점도 모델 호출 전에 앱 조립을 수행하고
+  `extension_registry().run_ingest_hook_count`를 확인한다. 판정 결과가 없는 상태로
+  적재된 메타데이터를 판정 게시 성공으로 간주하지 않는다. 실패 회차는 보존하고
+  수정한 실행 진입점은 새 실행에서 검증한다.
+
+## portal로 상단바에 올린 화면 액션은 페이지의 글자 규칙 밖에 있다
+
+- 증상: 목록 화면의 액션(버튼·회차 Selector·상태 칩)을 상단바 제목 모드의 슬롯으로
+  옮기자 같은 컴포넌트가 페이지 안에 있을 때와 다른 크기로 렌더된다.
+- 원인: 슬롯(`.topbar-page-actions#page-header-actions`)은 셸의 DOM이라 페이지 root
+  (`.c2l-page` 등)를 기준으로 쓴 화면 CSS의 4단 재적용이 닿지 않는다. Astryx 컴포넌트는
+  자기 `--font-size-*`(rem)로 되돌아간다.
+- 대응: 셸이 `shell-relaxed.css`의 `.topbar-page-actions` 규칙에서 4단(버튼·배지·라벨은
+  caption, 입력·선택값은 body)을 한 번 준다. 화면은 슬롯 안 글자 크기를 다시 정의하지
+  않고, 필요한 것은 wrapper(`.<접두>-header-actions`)의 배치뿐이다.

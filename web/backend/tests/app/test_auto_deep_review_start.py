@@ -55,6 +55,19 @@ from app.screening.models import Judgment
 WHEN = datetime(2026, 9, 1, tzinfo=UTC)
 
 
+@pytest.fixture(autouse=True)
+def company_fit_creation_prerequisite(monkeypatch):
+    # This suite verifies the real shared deep-review service after the fit gate.
+    # Fit evidence/current-input decisions and queue-to-create wiring have their
+    # own company_fit tests; these historical fixtures contain no overview result.
+    from app.deep_review.services import company_fit
+    monkeypatch.setattr(
+        company_fit,
+        "gate_reasons",
+        lambda session, ids, *, current_v4=None: {i: None for i in ids},
+    )
+
+
 def _fixture_structure(_session, structure):
     return {
         "schema": "bidops.document-structure.v1",

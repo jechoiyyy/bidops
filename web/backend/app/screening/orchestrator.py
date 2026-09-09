@@ -1269,6 +1269,8 @@ def _notice_common(value: Any, *, require_sample_metadata: bool = False) -> dict
 _PROCUREMENT_KEYS = ("large", "middle", "detail", "code")
 _REGION_KEYS = ("basis", "joint_contract_regions", "joint_contract_rate", "regional_joint_contract_limit")
 _LIFECYCLE_KEYS = ("pre_spec_no", "re_notice", "changed_at", "change_reason", "unified_notice_no", "previous_failed_notice_no")
+_OPTIONAL_LIFECYCLE_KEYS = ("order_plan_no", "bid_ntice_no_list")
+_OPTIONAL_QUALIFICATION_KEYS = ("sw_business_status", "business_division")
 _QUALIFICATION_KEYS = ("participation_limited", "industry_limited", "information_business", "general_service", "service_division", "joint_contract_method", "performance_restricted_competition", "pq_evaluation", "technical_evaluation", "technical_evaluation_rate", "successful_bid_method")
 _SAMPLE_ROLES = {"analysis", "audit"}
 _SAMPLE_STRATA = {"AI/데이터", "블록체인·DID", "공공 SI·통합관리", "수행실적 유사", "분류 근접", "실적 유사 근접", "무작위"}
@@ -1312,9 +1314,14 @@ def _validate_collected_notice(item: Mapping[str, Any]) -> None:
     for key in ("budget", "estimated_price"):
         if not _decimal_string(item.get(key)):
             raise ScreeningCreationError("input_error")
-    for key, keys in (("procurement_class", _PROCUREMENT_KEYS), ("region_limit", _REGION_KEYS), ("lifecycle", _LIFECYCLE_KEYS)):
+    for key, keys in (("procurement_class", _PROCUREMENT_KEYS), ("region_limit", _REGION_KEYS)):
         if not _exact_object(item.get(key), keys):
             raise ScreeningCreationError("input_error")
+    lifecycle = item.get("lifecycle")
+    if not isinstance(lifecycle, Mapping) or not set(_LIFECYCLE_KEYS).issubset(lifecycle) or set(lifecycle).difference((*_LIFECYCLE_KEYS, *_OPTIONAL_LIFECYCLE_KEYS)):
+        raise ScreeningCreationError("input_error")
+    if any(not _nullable_string(lifecycle[key]) for key in _OPTIONAL_LIFECYCLE_KEYS if key in lifecycle):
+        raise ScreeningCreationError("input_error")
     procurement = item["procurement_class"]
     if any(not _nullable_string(procurement[key]) for key in _PROCUREMENT_KEYS):
         raise ScreeningCreationError("input_error")
@@ -1329,9 +1336,9 @@ def _validate_collected_notice(item: Mapping[str, Any]) -> None:
     if any(not _nullable_string(lifecycle[key]) for key in ("pre_spec_no", "re_notice", "change_reason", "unified_notice_no", "previous_failed_notice_no")):
         raise ScreeningCreationError("input_error")
     qualification = item["qualification_flags"]
-    if not isinstance(qualification, Mapping) or (qualification and set(qualification) != set(_QUALIFICATION_KEYS)):
+    if not isinstance(qualification, Mapping) or (qualification and (not set(_QUALIFICATION_KEYS).issubset(qualification) or set(qualification).difference((*_QUALIFICATION_KEYS, *_OPTIONAL_QUALIFICATION_KEYS)))):
         raise ScreeningCreationError("input_error")
-    if qualification and any(not _nullable_string(qualification[key]) for key in _QUALIFICATION_KEYS):
+    if any(not _nullable_string(value) for value in qualification.values()):
         raise ScreeningCreationError("input_error")
     for key in ("attachments", "focus_matches", "performance_matches"):
         if not isinstance(item[key], list):
@@ -1431,6 +1438,22 @@ def _quality_source_from_validation(directory: Path) -> dict[str, Any]:
         raise ScreeningCreationError("input_error")
     notices = _validation_notices(directory)
     return {"source_window": source_window, "notices": notices}, value
+
+
+def _full_run_selection(notices: list[dict[str, Any]], body: Mapping[str, Any]) -> list[dict[str, Any]]:
+    selection = body.get("candidate_selection", {})
+    if selection.get("mode") == "sw_business_all":
+        if selection.get("rules_version") != "sw-business-selection.v1" or selection.get("include_collection_buckets") != []:
+            raise ScreeningCreationError("policy_mismatch")
+        return [
+            item for item in notices
+            if isinstance(item.get("qualification_flags"), Mapping)
+            and item["qualification_flags"].get("sw_business_status") == "Y"
+        ]
+    buckets = selection.get("include_collection_buckets", ["candidate_pool"])
+    if not isinstance(buckets, list) or any(not isinstance(bucket, str) for bucket in buckets):
+        raise ScreeningCreationError("policy_mismatch")
+    return [item for item in notices if item.get("collection_bucket") in buckets]
 
 
 def _quality_sample_selection(
@@ -1593,10 +1616,7 @@ class ScreeningOrchestrator:
             # Candidate selection is policy-controlled.  Read and validate the
             # immutable policy body before consulting any source candidates.
             if scope == "full_run":
-                buckets = body.get("candidate_selection", {}).get("include_collection_buckets", ["candidate_pool"])
-                if not isinstance(buckets, list) or any(not isinstance(bucket, str) for bucket in buckets):
-                    raise ScreeningCreationError("policy_mismatch")
-                selected = [item for item in notices if item.get("collection_bucket") in buckets]
+                selected = _full_run_selection(notices, body)
             elif scope == "quality_sample":
                 selected = _quality_sample_selection(notices, _validation_notices(source_dir))
             else:
@@ -1757,10 +1777,7 @@ class ScreeningOrchestrator:
         if policy.status not in ({"activation_candidate", "active"} if trigger != "schedule" else {"active"}):
             raise ScreeningCreationError("input_error")
         if scope == "full_run":
-            buckets = body.get("candidate_selection", {}).get("include_collection_buckets", ["candidate_pool"])
-            if not isinstance(buckets, list) or any(not isinstance(bucket, str) for bucket in buckets):
-                raise ScreeningCreationError("policy_mismatch")
-            selected = [item for item in notices if item.get("collection_bucket") in buckets]
+            selected = _full_run_selection(notices, body)
         elif scope == "quality_sample":
             selected = [{key: _thaw_quality_value(value) for key, value in item.items()} for item in notices]
         else:

@@ -40,6 +40,7 @@ from ..services.pipeline import (
     execution_response,
     log_response,
 )
+from ..services.run_kinds import kinds_for_runs
 from .common import (
     get_run,
     load_json_file,
@@ -243,7 +244,10 @@ def _pipeline(
 @router.get("", response_model=RunListResponse)
 def list_runs(session: Session = Depends(get_db)) -> RunListResponse:
     runs = session.scalars(select(Run).order_by(Run.generated_at.desc(), Run.id.desc())).all()
-    return RunListResponse(items=[run_summary(run) for run in runs], total=len(runs))
+    kinds = kinds_for_runs(session, [run.id for run in runs])
+    return RunListResponse(
+        items=[run_summary(run, kind=kinds[run.id]) for run in runs], total=len(runs)
+    )
 
 
 @router.post("/ingest", response_model=IngestResponse)
@@ -430,8 +434,9 @@ def run_detail(run_id: str, request: Request, session: Session = Depends(get_db)
     run = get_run(session, run_id)
     warnings = _run_warnings(session, run.id)
     artifacts = _artifact_rows(run, warnings)
+    kind = kinds_for_runs(session, [run.id])[run.id]
     return RunDetailResponse(
-        **run_summary(run).model_dump(),
+        **run_summary(run, kind=kind).model_dump(),
         collection_scope=_scope(run),
         pipeline=_pipeline(run, artifacts, _pipeline_service(request)),
         artifacts=artifacts,

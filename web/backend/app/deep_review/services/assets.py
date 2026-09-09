@@ -292,9 +292,10 @@ def store_named(namespace: str, object_key: str, data: bytes, *, root: Path | No
     return _path_for_key(root, object_key), metadata
 
 
-def read_object(namespace: str, object_key: str, *, root: Path | None = None, max_bytes: int = MAX_ASSET_BYTES) -> tuple[bytes, ObjectMetadata]:
+def read_object(namespace: str, object_key: str, *, root: Path | None = None, max_bytes: int = MAX_ASSET_BYTES, version_id: str | None = None) -> tuple[bytes, ObjectMetadata]:
     try:
-        return _store(root, namespace=namespace, read_only=True).get(namespace, object_key, max_bytes=max_bytes)
+        version_args = {"version_id": version_id} if version_id is not None else {}
+        return _store(root, namespace=namespace, read_only=True).get(namespace, object_key, max_bytes=max_bytes, **version_args)
     except ObjectStoreError as error:
         raise AssetError("service_unavailable", "문서 object storage를 읽을 수 없습니다") from error
 

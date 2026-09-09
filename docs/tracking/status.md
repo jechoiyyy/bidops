@@ -1,8 +1,19 @@
 # 구현·검증 현황
 
-기준일: 2026-09-05
+기준일: 2026-09-09 (v4 explicit reference 운영 상태와 실제 UI 인수 대기)
+
+사전규격 v4 페이지 개요·PDF 선행·회사 핏 연속 처리의 진행 계획과 단계별 인수/중단 경계는 [prespec-v4-implementation-plan.md](prespec-v4-implementation-plan.md)에 보존한다. 이 계획은 현재 회사 핏 구현·검증과 v4/PDF 후속 구현을 구분하며, 완료·운영 적용 근거를 대신하지 않는다.
 
 `구현됨`은 코드와 계약이 존재한다는 뜻이고, `검증됨`은 기록된 명령이 해당 범위에서 통과했다는 뜻이다. Mock 결과, 과거 브랜치 결과, 현재 worktree 결과, 외부 운영 승인을 서로 대신하지 않는다.
+
+## 사전규격 v4 최신 운영 상태 (2026-09-09)
+
+- 명시 sample activation은 OFF이다. `AuditEvent` `07c1d75a-c36a-48c7-9de5-a7efa1e741c7`가 `reference_samples_complete_with_142_unverified` 사유를 남긴다. 142·35·59 모두 grade는 `None`이며 automatic priority/auto-deep를 우회하거나 강제하지 않았다. 사람 결정은 변경하지 않았다.
+- notice 35 개요는 result `a28a188b-0638-4dbb-b867-ea5a12c6c168`로 completed/current다. 회사 핏은 attempt `bb2d93f4-1915-4e72-a4f5-f647d8860a5e`, `completed/current/unknown`, raw SHA-256 `c147828b4efa9423d7af2ac138705e8d775a5a8c674a543275fb35dfc276d822`이며 API가 Luna reference 첫 응답과 exact 일치한다.
+- notice 59 개요는 result `04d6182f-f073-450a-b8be-30f141db9f02`로 completed/current다. 회사 핏은 attempt `4af5b488-59c2-445e-8cf3-4a33baad44be`, `needs_human_review/current`, result는 `null`, raw SHA-256 `67b292a7ca012a7995f7a98d7be11d972fd97e72b603cf5e17552cb272254f11`이다. `unsupported_number` 사유로 index 0의 선택 근거에 24시간이 없어졌고, 암호화 raw를 보존했으며 보정·재시도하지 않았다.
+- notice 142 PDF는 반복 timeout 뒤 `unverified`다. offline Luna JSON은 참조 입력으로만 보존하며 성공 PDF/current로 승격하지 않았다. 35/59 실제 UI는 사업명 검색·목록/상세·독립 상세·refresh/reentry, 1280×800·1440×900, API 본문·제한사항·prompt/result ID·PDF hash/link까지 통과했다. 35 `unknown` 근거와 59 `needs_human_review` 오류·안전 문구·판정 본문 비노출도 확인했다. 결과는 `.dryforge/prespec-v4-luna-20260909/ui-acceptance-result.json`과 script에 보존한다. 142 PDF와 automatic deep는 미검증이다.
+- `localhost:18887/pre-specs/35`와 `/pre-specs/59`는 배포 확인 경로다. 18787 bind 실패는 기록된 운영 제약이다. `overview-actual`은 중지했고 `prespec-actual`은 원래 `sleep infinity`로 복원했다. document-worker 두 개는 `bidops-v4-luna-reference:20260909-final`, 1 GiB 조건으로 복원됐다.
+- persistent reference artifacts는 `.dryforge/prespec-v4-luna-20260909/{overview-generation,company-fit-input-35-59,company-fit-generation-35-59}`에 두며 credentials를 포함하지 않는다. 실제 UI acceptance 결과는 `ui-acceptance-result.json`과 script에 보존했고, 전체 v4 계획 완료를 주장하지 않는다.
 
 ## 제품 방향
 
@@ -12,7 +23,7 @@
 - 발주계획은 일반용역·기술용역 전체를 수집하고 SW사업대상을 선필터로 쓰지 않는다.
 - 발주계획 사람 검토는 월요일·목요일에 수행한다.
 - C-2 발주계획 1차 선별은 `BM25 Top 300 + Qwen`으로 확정했다. BM25 탈락은 Qwen 비관련 판정으로 바꾸지 않고 별도 보존한다([ADR-0037](decisions/0037-order-plan-c2-bm25-top300-qwen.md)).
-- 사전규격은 일반용역·기술용역 전체를 수집하고 SW사업대상은 표시 값으로만 남긴다([ADR-0024](decisions/0024-prespec-collect-all-flag-sw.md)). 저비용 선별 뒤 사람 승인을 거쳐 심층 검토한다.
+- 사전규격은 일반용역·기술용역 전체를 수집하고 SW사업대상으로 수집 범위를 줄이지 않는다([ADR-0024](decisions/0024-prespec-collect-all-flag-sw.md)). 자동 심층 분석은 별도 조건과 회사 핏 게이트를 충족할 때 시작하며, 추적 승인과 최종 입찰 결정은 사람이 한다. 회사 핏을 이용한 자동 시작은 현재 참조 실행 전용이다.
 - 심층 검토 뒤 사람은 `계속 추적|보류|종료`를 선택한다. 입찰공고가 올라오면 사전규격 대비 중요 변경을 확인하고 최종 `Go/No-Go`는 다시 사람이 결정한다.
 - 자동 연결 실행과 각 단계의 수동 실행·재시도는 같은 execution, artifact, 상태 전이를 공유한다.
 
@@ -20,6 +31,10 @@
 
 | 영역 | 구현 상태 | 검증 상태 |
 |---|---|---|
+| 사전규격 회사 핏 판정·자동 시작 게이트 | 검증된 최신 개요와 승인 프로필을 고정해 `matched/mismatch/unknown`과 양쪽 근거를 저장한다. 현재 입력의 `matched`만 기존 자동 심층 생성 경로로 연결한다. 목록 선택 상세·개별 상세에서 이유, 미확인 항목, 입력 버전, 실제 심층 생성 여부를 표시한다. **기본 비활성·명시 sample 참조 실행 전용이며 automatic deep는 활성화하지 않았다.** 2026-09-09 explicit 35는 `completed/current/unknown`, 59는 `needs_human_review/current`로 저장했고, 59의 암호화 raw를 보존했다. | [최종 상태](../validation-runs/20260909-prespec-v4-cohort-ops.md) |
+| ERP 사전규격 개별 상세 | 2026-09-08 승인 시안 적용. 왼쪽 일반 스크롤, 오른쪽 400px 결정 패널. 공식 번호 16px·복사·수집 URL 원문 열기, 핵심 요약·확인 사항, 사유 드롭다운·기타·담당자·저장. 서버 18787 반영 | build·대비 9개·신규 8개·최종 집중 4개 통과. 전체 455 passed·11 failed·6 skipped 중 의도한 품질 상세 접기 검사 1개 수정 후 재통과, 기존 실패 10개 남음. 시각 19개·실제 API 반영 전후 각 8개. [검증 기록](../validation-runs/20260908-prespec-detail-ux-implementation.md) |
+| 승인 ERP 대시보드 | 2026-09-08 승인 HTML·TSX/CSS를 직접 적용. 네 누적 업무 → 회차 선택 → 67:33 네 패널, 15px 공고명·기관, URL 필터·실제 API 연결. 기존 서버 18787에 frontend 반영 | build·대비 9개·최종 관련 31개 통과. 전체 443 passed·기존 실패 9·skipped 6. 두 폭 시안 대조 18개와 실제 API 읽기 화면 8개 확인. [검증 기록](../validation-runs/20260908-dashboard-erp-ui.md) |
+| 승인 ERP 판정 기준·실행 상태 | 사용자 승인 HTML·원본 TSX/CSS를 기준으로 두 화면의 8개 탭 구현. 목록 38%·상세 62%, 고정 하단 액션, 기존 정책·리뷰·중단·예약·포털 계약 유지. 기존 서버 18787에 frontend만 반영 | 2026-09-08: TypeScript strict·production build, 대비 9개, 전용·통합 89개 통과. 전체 화면 423 passed·11 failed·6 skipped이며 실패 11개는 기존 항목과 동일. 두 폭 mock 캡처 16개와 실제 API 읽기 화면 16개 확인. [검증 기록](../validation-runs/20260908-admin-erp-ui.md) |
 | 기존 나라장터 공고 수집·정규화·표본 | 구현됨 | 파이프라인 단위·교차 테스트의 과거 64건 통과 기록 있음 |
 | 발주계획 C-2 선별 | 제품 adapter·DB·API·화면·worker까지 구현됨. binding/policy v2에서 모델 payload는 batch-local `item_id`와 `title`만 보내고 승인 generation config를 실제로 읽어 요청을 조립한다([ADR-0044](decisions/0044-c2-stage2-matches-the-measured-method.md)) | 2026-09-03 종단 실행: 수집 1,040건 → 적재(warning 0) → stage1 선정 300/탈락 740 → stage2 **300/300 완료, 실패 0건**(관련 57·비관련 144·불확실 99) → `/order-plans` 표시. 테스트 전용 policy 사본으로만 활성화했고 **품질 근거가 아니다.** validator는 v2에서도 `valid_but_blocked`이며 activation blocker 4건은 그대로 |
 | 다섯 관점·반론·종합 1차 판정 | 구현됨 | fake 테스트와 단일 live Qwen 성공·중단 기록 있음; 40건 운영 품질 승인은 없음 |
@@ -45,11 +60,12 @@
 | 정보구조와 사업 추적 · 단계 E | **완료(2026-09-04).** 사이드바를 7항목으로 줄이고 `검토 대기열`을 `사업 추적`으로 대체했다. 예외 작업 경로를 옮긴 뒤 공고 1차 판정을 읽기 전용으로 잠갔다 ([design/PLAN.md](../design/PLAN.md) 단계 E, ADR-0046) | 커밋을 PLAN §6이 요구한 순서대로 셋으로 나눴다. `e7ed15f`(3-2 예외 작업 경로) → `a21a988`(읽기 전용 전환) → `ab7a53c`(대시보드·Go/No-Go·기준과 운영). 두 커밋 사이에 리뷰 저장 경로가 없던 순간이 없다. **사이드바**는 `오늘의 업무`/`탐색과 추적`/`기준과 운영` 7항목이고 회차 선택기를 갖는 사이드바 항목은 대시보드 하나다(공고 판정 이력은 사이드바 항목이 아니다). **사업 추적**은 분할 화면이 됐고 구역 판정이 `trackingSectionOf` 한 곳에서만 이뤄져 한 사업기회가 구역 넷을 통틀어 한 행으로만 나타난다. **예외 작업**은 실제 저장 경로를 갖는다 — `연결 불확실`은 서버에 이미 있던 `PATCH /opportunities/links/{id}/decision`(진입점이 없어 지금까지 쓸 수 없었다), `검증 실패`는 그 공고의 회차로 `PUT /notices/{pk}/review`에 확인 항목 답변만 실어 보내고, `근거 없음`은 화면이 해소할 수 없다는 사실을 그대로 말한다. **읽기 전용 전환**으로 검토 대기열의 리뷰 초안·localStorage·저장이 사라지고 `ReviewRecord`가 저장된 리뷰를 읽기 전용으로 보여준다. `ReviewBar.tsx`는 삭제했다. 단계 B가 미뤄 둔 `/queue` 1280px 가로 넘침 19.77px도 고쳤다(`.attachment-name`의 ellipsis가 부모의 시각 효과일 뿐 자식 span의 레이아웃 상자는 그대로 넘쳐 있었다). **검증:** 대비 7 passed, `tsc -b`·production build 통과, 전체 Playwright 410 passed·72 failed·2 skipped. 실패 72건은 **전부 팔레트 스냅샷**이며 단계 D까지 함께 실패하던 `/queue` 오버플로 1건과 flake 1건이 사라졌다. **미해결:** 사업기회 추적 이력 읽기 계약과 구역별 집계가 서버에 없어 화면이 그 한계를 표시한다([findings.md](findings.md)) |
 | 상세 3종과 심층 검토 · 단계 F | **완료(2026-09-04).** 세 상세 화면을 한 골격으로 맞추고 되돌릴 수 없는 입력 form을 헤더에서 내렸다 ([design/PLAN.md](../design/PLAN.md) 단계 F) | 커밋 `ec79da7`(상세 3종 골격) → `adae790`(심층 검토 보고서). **헤더에는 액션만** 남고 폼은 본문 열에 있다 — 헤더 저장 버튼이 `form` 속성으로 본문 폼을 submit하므로 전제조건이 한 곳에만 있다. 시안 `OrderPlanDetail`대로 사람 피드백 revision 이력을 레일에서 본문 열로 옮겼다(지금 저장할 값과 직전 revision을 대조해야 한다). 입찰 변경 비교 헤더가 `결정 저장`·`결정 입력으로 이동`·`비교 재계산` 셋을 갖고, 최종 Go/No-Go 폼 바로 위에 저장 조건 셋을, 범주 목록 바로 위에 비교 기준(기준 사전규격·대상 입찰공고·문서 묶음 상태·계산 시각)을 남겼다. 심층 검토 보고서는 상단 카드 4개·결정 카드 요약 표(항목·내용·근거·검증)·Validation 실패 블록(`원문에서 확인`·`새 attempt로 재시도`)·우측 열(보고서 범위·수정본 저장·이력)로 배치했다. 시안의 `참여 준비 상태` 카드는 **이 보고서 계약에 그 축이 없어** 채우지 않고 그 사실을 한 줄로 밝혔다. **검증:** 대비 7 passed, `tsc -b`·production build 통과, 전체 Playwright 420 passed·72 failed·2 skipped. 실패 72건은 전부 팔레트 스냅샷이고 그 밖의 실패는 없다. **미완료:** 완료 게이트의 `시안 기준 캡처`는 v2 기준 이미지가 없어 판정할 수 없다([design/PLAN.md](../design/PLAN.md) §0-3·0-4·0-5, [findings.md](findings.md)) |
 | 화면 검사 층 분리 · 기준선 교체 | **완료(2026-09-04).** `visual.spec.ts` 한 파일이 픽셀 36 + 가로 넘침 36 + 의미 15를 섞어 담고 있어 픽셀이 깨지면 나머지 51개의 초록이 묻혔다. 세 층으로 갈랐다 — `screen-semantics.spec.ts`(의미, 1440px 한 폭) · `overflow.spec.ts`(구조, 1280·1440px) · `pixel-screens.spec.ts`(픽셀, 게이트 밖). 폭에 의존하지 않는 spec을 한 폭에서만 돌려 실행 건수가 494→260으로 줄었다. 픽셀 기준선은 대표 화면 여덟 장으로 교체했다(144장 39MB → 8장 1.1MB, 승인 기록은 [findings.md](findings.md)) | `npm run test:screens` `4 skipped, 247 passed (2.1m)`, 실패 0. `npm run test:pixel` `9 passed`, 재실행에도 동일 |
+| 탐색과 추적 4화면 통일 | **구현 완료, 병합 전(2026-09-08).** 목록 4화면(발주계획·사전규격·사업 추적·최종 Go/No-Go)이 상단바 제목 모드(`h1` + 액션 portal)·공용 필터 바(`WorkspaceFilters`)·같은 프레임 값(목록 38%, 목록 머리 `8px 16px`, 상세 머리 `12px 16px`)을 쓰고, 발주계획에 목록 ↑↓ 이동·Ctrl+Enter 추적 시작·직전 사유 다시 쓰기가 생겼다 ([design/PLAN.md](../design/PLAN.md)) | 1단계(셸·공용 필터)는 메인 트리에 있고 2단계는 워크트리 브랜치 `feat/explore-wp-c`·`-wp-d`·`-wp-e`·`-wp-f`에, 교차 검사·문서는 `feat/explore-wp-g`에 있으며 **어느 것도 병합하지 않았다**(검증용 통합 커밋 `c85a495`). **게이트:** 기준선 `npm run test:screens` 464 passed·9 failed·6 skipped → 1단계 뒤 470 passed·9 failed·5 skipped로 기존 실패 9건 그대로다. **WP-G 검증:** `tsc -b` clean·production build 통과·`explore-workspace-consistency.spec.ts`(새 교차 검사)와 `admin-workspace-consistency.spec.ts` 5 passed 0 failed. `--project=pixel`은 7 failed 2 passed이며 달라진 화면은 dashboard·criteria·order-plans-list·order-plan-detail·pre-specs-list·opportunities-list·bid-delta-changed다. **픽셀 기준선은 갱신하지 않았다** — 교체는 승인 기록을 남긴 뒤에만 한다(`docs/standards.md`) |
 | 통일 모델 클라이언트 | C-1 공고 판정·사전규격 개요·심층 검토가 `app/core/model_client.py` 하나를 `screening`·`overview`·`deep_review` 용도로 부른다. 용도마다 endpoint·허용 host·자격증명·선언 revision을 갖고 허용 host나 revision이 없으면 호출 전에 fail closed한다([ADR-0050](decisions/0050-unified-openai-compatible-model-client.md)). 이전 로컬 provider 설정 7개는 제거됐고 C-1 모델명이 `qwen3.8-27B`가 됐다 | 단위 테스트 범위. **live vLLM 호출은 이 저장소에서 실행하지 않았다.** C-2 발주계획 어댑터는 별도 transport로 남아 있다 |
 | 참조 실행 모드와 품질 표식 | `BIDOPS_REFERENCE_WORKFLOW_MODE`가 결정적 mock과 품질 미측정 실행을 허용하고, 결과에 `quality_status=measured\|unmeasured_reference\|mock_reference\|null` 표식이 붙는다. 개요 attempt는 표식이 필수다 | 단위 테스트 범위. **참조 실행 절차는 아직 실행되지 않았다**(운영 절차의 "사전규격 심층 검토 참조 실행"). 참조 실행 결과는 운영 완료·품질 근거가 아니다 |
 | 사전규격 자동 문서 준비 | effective grade가 `우선 검토`인 사전규격의 묶음 초안 생성·자동 확정, 새 확장점 `effective_grade_changed`, `GET /api/pre-specs`의 등급·자동 준비 필드 다섯([ADR-0049](decisions/0049-prespec-auto-preparation-and-auto-deep-review.md)) | 단위 테스트 범위. 목록 쿼리 수가 건수와 무관하게 12(묶음 없음)/14(자동 확정 묶음 있음)로 일정함을 확장 테스트가 고정한다 |
-| SW=Y 자동 심층 시작 | `SW사업대상=Y`·자동 확정 `ready` 묶음·개요 `completed`·권고가 `검토 종료`가 아닐 때 시스템 actor로 심층 검토 생성(`deep_review.auto_create`) | 단위 테스트 범위. 자동 생성 건을 실행하지 못하던 결함(생성 감사 action 고정)은 2026-09-05에 해결했다 — 생성 감사를 찾는 여덟 자리가 모두 `DEEP_REVIEW_CREATION_ACTIONS`를 본다([findings](findings.md)) |
-| 사전규격 개요 모델 실행 worker | 통일 client를 `overview` 용도로 묶어 실행하고, 검증 실패는 재호출 없이 `failed`, transport 실패만 1+2회 재시도한다. lease는 모듈 상수 1,200초이며 합성 analysis worker가 C-2 → 심층 → 개요 순서로 하나만 claim한다 | 단위 테스트 범위. 실제 모델 호출 기록 없음 |
+| SW=Y 자동 심층 시작 | `우선 검토`·`SW사업대상=Y`·자동 확정 `ready` 묶음·검증된 개요와 현재 회사 핏 `matched`, 활성 입력·실행/품질 조건을 충족하면 시스템 actor로 심층 검토 생성(`deep_review.auto_create`). 추출형 개요의 `검토 종료` 권고는 차단한다 | 참조 실행용 게이트의 단위·연결 검사 범위. 회사 핏은 기본 비활성이므로 이 상태에서는 자동 생성도 대기한다. 자동 생성 감사를 찾는 경로는 `DEEP_REVIEW_CREATION_ACTIONS`를 사용한다([findings](findings.md)) |
+| 사전규격 개요 모델 실행 worker | 통일 client를 `overview` 용도로 묶어 실행하고, 검증 실패는 재호출 없이 `failed`, transport 실패만 1+2회 재시도한다. 개요 lease는 모듈 상수 1,200초이며 합성 analysis worker가 C-2 → 심층 → 회사 핏 → 개요 순서로 하나만 claim한다 | 이번 회사 핏 변경은 fake 모델로 검증했다. 과거 실제 개요 참조 실행과 별개로 이번 작업에서는 live 호출을 하지 않았다 |
 | 결정적 문서 segment·요구사항 inventory | 구조 저장 시점에 manifest·segment·inventory 항목을 append-only로 만들고 `GET /api/document-structures/{id}/segments`로 읽는다. 검증에 `requirement_inventory`·`segment_coverage` check 추가([ADR-0051](decisions/0051-deep-review-v2-deterministic-subset.md)) | 단위 테스트 범위. **이 변경 전 구조에는 manifest가 없고 조회가 404다**(사후 재구성 불가). 역할별 모델 분석과 Luna 평가는 보류 |
 | 문서 준비·실패 attempt 재시작 화면 | typed frontend API·type 변경은 worktree에 있으나 화면과 연결은 미구현 | 화면 검증 없음 |
 | T-23 사전규격 overview phase 2 기반 | immutable result/event, 제한된 attempt lifecycle service, safe v2 projection 구현됨; 실제 model transport·worker는 미구현 | SQLite 46 passed·1 PostgreSQL-only skipped, PostgreSQL 17 집중 9 passed, production build 282 modules |
@@ -67,9 +83,9 @@ T-23 `0014` 검증 경계의 PostgreSQL application schema는 legacy 13개, 심�
 overview 5개로 총 63개 table이다. `0015`가 더한 입찰 delta 5개는 이 수치와 T-23 검증
 증거에 포함하지 않는다. 그 5개를 합친 `0015_bid_delta_final_decision`의 application
 schema는 68개이며, 별도로 빈 PostgreSQL 17 `upgrade head`와 `0014↔0015` 왕복을 검증했다.
-현재 head는 `0018_prespec_auto_preparation_segments`이고 문서 기준 애플리케이션 table은
-**71개**, ORM `Base.metadata` 기준은 **77개**다(모듈 소유 core 2 · lifecycle 10 ·
-screening 28 · deep_review 37). 두 수는 세는 대상이 다르며 어느 쪽도 다른 쪽을 대신하지
+현재 코드의 head는 `0020_prespec_company_fit`이고 문서 업무 사전 기준 table은
+**73개**, ORM `Base.metadata` 기준은 **79개**다(모듈 소유 core 2 · lifecycle 10 ·
+screening 28 · deep_review 39). 운영 DB에 이 head를 적용했다는 뜻은 아니다. 두 수는 세는 대상이 다르며 어느 쪽도 다른 쪽을 대신하지
 않는다.
 입찰 delta는 저장·REST·화면까지 있으나 비교를 실제로 계산하는 worker와 모델 binding 실행이
 없어 운영 활성화 상태가 아니다. SQLite는 격리 테스트와 일회성 이전 입력에만 남아 있다.

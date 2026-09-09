@@ -195,6 +195,21 @@ class HumanFeedbackSummary(_Strict):
     created_at: datetime
 
 
+class OrderPlanTracking(_Strict):
+    opportunity_id: int
+    tracking_status: Literal["미선택", "계속 추적", "보류", "종료"]
+    tracking_reason: str | None
+    tracking_selected_by: str | None
+    tracking_selected_at: datetime | None
+
+
+class OrderPlanExecutionScope(_Strict):
+    execution_id: UUID
+    source_run_id: str
+    status: Literal["성공", "부분 성공"]
+    finished_at: datetime | None
+
+
 class OrderPlanListItem(_Strict):
     order_plan_pk: int
     order_plan_unty_no: str
@@ -215,12 +230,14 @@ class OrderPlanListItem(_Strict):
     qwen_score: float | None
     qwen_reason: str | None
     human_feedback: HumanFeedbackSummary | None
+    tracking: OrderPlanTracking | None
 
 
 class OrderPlanListResponse(_Strict):
-    schema_version: Literal["order-plan-list-response.v1"]
+    schema_version: Literal["order-plan-list-response.v2"]
     producer: Literal["order-plan-review-api"]
     consumer: Literal["order-plan-review-client"]
+    scope: OrderPlanExecutionScope | None
     items: list[OrderPlanListItem]
     total: int = Field(ge=0)
     limit: int = Field(ge=1, le=500)
@@ -254,7 +271,7 @@ class ScreeningHistoryItem(_Strict):
 
 
 class OrderPlanDetailResponse(_Strict):
-    schema_version: Literal["order-plan-detail-response.v1"]
+    schema_version: Literal["order-plan-detail-response.v2"]
     producer: Literal["screening-api"]
     consumer: Literal["order-plan-review-client"]
     order_plan_pk: int
@@ -270,6 +287,7 @@ class OrderPlanDetailResponse(_Strict):
     observations: list[OrderPlanObservationView]
     screening_history: list[ScreeningHistoryItem]
     latest_human_feedback: HumanFeedbackSummary | None
+    tracking: OrderPlanTracking | None
 
 
 class ScreeningHistoryResponse(_Strict):

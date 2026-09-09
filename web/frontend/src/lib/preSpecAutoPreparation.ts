@@ -21,7 +21,22 @@ export const PRE_SPEC_AUTO_PREPARATION_STATUS_LABEL: Record<PreSpecAutoPreparati
 
 /** 서버가 주는 안전한 사유 코드. 계약에 없는 코드는 만들어 내지 않고 코드
  * 그대로 보여 준다 — 모르는 값을 아는 문구로 바꾸지 않는다. */
+export const COMPANY_FIT_REASON_LABEL: Record<string, string> = {
+  company_fit_disabled: "회사 핏 자동 판정이 비활성입니다.",
+  company_fit_pending: "회사 핏 판정이 필요합니다.",
+  company_fit_queued: "회사 핏 판정을 기다리고 있습니다.",
+  company_fit_running: "회사 핏 판정 중입니다.",
+  company_fit_stale: "개요·회사 프로필·정책이 바뀌어 새 판정이 필요합니다.",
+  company_fit_mismatch: "회사 업무 범위와 불일치하여 자동 시작 조건을 충족하지 못했습니다.",
+  company_fit_unknown: "회사 핏 판단에 필요한 정보가 부족하여 사람 확인이 필요합니다.",
+  company_fit_failed: "회사 핏 실행에 실패하여 자동 시작할 수 없습니다.",
+  company_fit_needs_human_review: "회사 핏 근거 검증에 실패하여 사람 확인이 필요합니다.",
+  company_fit_validation_failed: "회사 핏 근거 검증에 실패하여 사람 확인이 필요합니다.",
+  company_fit_reference_only: "참조 판정으로는 운영 자동 시작 조건을 충족할 수 없습니다.",
+};
+
 const REASON_LABEL: Record<string, string> = {
+  ...COMPANY_FIT_REASON_LABEL,
   grade_not_priority: "우선 검토 등급이 아닙니다.",
   awaiting_fetch: "첨부 원문 취득이 끝나지 않았습니다.",
   no_ready_document: "구조화가 끝난 문서가 없습니다.",

@@ -68,6 +68,8 @@ def test_worker_network_and_command_boundaries_are_explicit():
 
     worker = services["document-worker"]
     assert worker["network_mode"] == "none"
+    assert worker["mem_limit"] == "1g"
+    assert worker["pids_limit"] == 128
     assert worker["environment"] == {}
     assert worker["command"] == ["python", "-m", "app.deep_review.workers.document"]
     assert worker["deploy"]["replicas"] == 2
@@ -94,8 +96,13 @@ def test_worker_network_and_command_boundaries_are_explicit():
     assert analysis["environment"]["BIDOPS_MODEL_RESPONSE_ACCESS_KEY"].startswith("${BIDOPS_MODEL_RESPONSE_ACCESS_KEY")
     assert "BIDOPS_SOURCE_ACCESS_KEY" not in analysis["environment"]
     assert "BIDOPS_QUARANTINE_ACCESS_KEY" not in analysis["environment"]
-    assert "BIDOPS_ACTIVE_PROFILE_VERSION_ID" not in analysis["environment"]
-    assert "BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID" not in analysis["environment"]
+    # Company-fit queue construction freezes the active inputs before any call.
+    # Credentials for raw company/source objects remain absent from the worker.
+    assert analysis["environment"]["BIDOPS_ACTIVE_PROFILE_VERSION_ID"] == "${BIDOPS_ACTIVE_PROFILE_VERSION_ID:-}"
+    assert analysis["environment"]["BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID"] == "${BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID:-}"
+    for service in (web, analysis):
+        assert service["environment"]["BIDOPS_PRESPEC_COMPANY_FIT_ENABLED"] == "${BIDOPS_PRESPEC_COMPANY_FIT_ENABLED:-false}"
+        assert service["environment"]["BIDOPS_PRESPEC_COMPANY_FIT_MODEL"] == "${BIDOPS_PRESPEC_COMPANY_FIT_MODEL:-}"
     assert set(analysis["networks"]) == {"database", "analysis"}
     assert "storage" not in analysis["networks"]
     assert "scanning" not in analysis["networks"]
@@ -230,8 +237,14 @@ def test_prespec_attachment_egress_is_an_explicit_override():
     )
     assert worker["command"] == ["python", "-m", "app.deep_review.workers.prespec_attachment"]
     assert worker["healthcheck"] == {"disable": True}
+    assert "document-scratch:/scratch" in worker["volumes"]
+    assert "BIDOPS_STRUCTURE_ACCESS_KEY" in worker["environment"]
+    assert "BIDOPS_STRUCTURE_SECRET_KEY" in worker["environment"]
     assert override["networks"] == {"prespec-egress": None}
     base = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
+    web_environment = base['services']['web']['environment']
+    assert 'BIDOPS_STRUCTURE_READ_ACCESS_KEY' in web_environment
+    assert 'BIDOPS_STRUCTURE_READ_SECRET_KEY' in web_environment
     assert "prespec-egress" not in base["networks"]
     assert all(network.get("internal") is True for network in base["networks"].values())
 

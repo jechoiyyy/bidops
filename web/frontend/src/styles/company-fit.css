@@ -1,0 +1,14 @@
+.company-fit,.company-fit-assessment{display:grid;gap:var(--spacing-3);min-width:0;overflow-wrap:anywhere}
+.company-fit{padding-block:var(--spacing-4);border-top:var(--border-width) solid var(--color-border)}
+.company-fit h3,.company-fit h4{margin:0;font-size:var(--bo-type-section-title)}
+.company-fit p{margin:0;white-space:pre-wrap}
+.company-fit-heading,.company-fit-links{display:flex;align-items:center;flex-wrap:wrap;gap:var(--spacing-3)}
+.company-fit-note{color:var(--color-text-secondary)}
+.company-fit-notice{display:grid;gap:var(--spacing-2);padding:var(--spacing-3);background:var(--color-background-body);border-radius:var(--radius-inner)}
+.company-fit-reasons{margin:0;padding-left:var(--spacing-5)}
+.company-fit-reasons>li{padding-block:var(--spacing-3);border-bottom:var(--border-width) solid var(--color-border)}
+.company-fit-evidence{display:grid;grid-template-columns:calc(var(--spacing-6) * 4) minmax(0,1fr);gap:var(--spacing-2);margin-bottom:0}
+.company-fit-evidence dt{color:var(--color-text-secondary)}
+.company-fit-evidence dd{display:grid;gap:var(--spacing-2);margin:0}
+.company-fit a{color:var(--color-text-accent);text-decoration:underline}
+.company-fit summary{cursor:pointer;font-weight:600}

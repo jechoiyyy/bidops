@@ -1,3 +1,5 @@
+import { Text } from "@astryxdesign/core/Text";
+import { DataTable, Section, Small, StatusToken } from "../criteria/CriteriaPrimitives";
 import type { ScreeningExecutionResponse } from "../../lib/types";
 
 interface QualityGateRunsProps {
@@ -5,76 +7,57 @@ interface QualityGateRunsProps {
   passB: ScreeningExecutionResponse;
 }
 
-const terminalStatuses = new Set(["성공", "부분 성공", "실패", "중단됨"]);
+const TERMINAL_STATUSES = new Set(["성공", "부분 성공", "실패", "중단됨"]);
 
-function runStatus(run: ScreeningExecutionResponse): string {
-  return run.status;
-}
-
-function runStateDescription(run: ScreeningExecutionResponse): string {
+/**
+ * A/B 두 실행의 상태.
+ *
+ * 성공·부분 성공·실패·중단·대기·중지 요청을 서로 구분하고, 실패 요약과 파생 회차를
+ * 숨기지 않는다(`web/frontend/AGENTS.md` "상태 표현"). 진행 문구는 서버가 준 단계·
+ * 공고·건수만 쓰고 분모 없는 백분율이나 예상 시간을 만들지 않는다.
+ */
+function stateDescription(run: ScreeningExecutionResponse): string {
   if (run.status === "대기") return run.queue_position ? `대기 순번 ${run.queue_position}` : "대기 중";
   if (run.status === "중지 요청") {
     return ["중지 요청 처리 중", run.current_stage ?? "단계 확인 중", run.current_notice_id ? `공고 ${run.current_notice_id}` : null]
-      .filter(Boolean)
-      .join(" · ");
+      .filter(Boolean).join(" · ");
   }
   if (run.status === "실행 중") {
     return [run.current_stage ?? "단계 확인 중", run.current_notice_id ? `공고 ${run.current_notice_id}` : null]
-      .filter(Boolean)
-      .join(" · ");
+      .filter(Boolean).join(" · ");
   }
   if (run.status === "부분 성공") return `완료 ${run.completed_count}건 · 실패 ${run.failure_count}건`;
   if (run.status === "성공") return `완료 ${run.completed_count}건`;
   return run.error_summary ?? "결과를 확인할 수 없습니다.";
 }
 
-function stateClass(run: ScreeningExecutionResponse): string {
-  if (run.status === "대기") return "quality-state-queued";
-  if (run.status === "중지 요청") return "quality-state-stopping";
-  if (run.status === "성공") return "quality-state-passed";
-  if (run.status === "부분 성공") return "quality-state-held";
-  if (run.status === "실패") return "quality-state-failed";
-  if (run.status === "중단됨") return "quality-state-interrupted";
-  return "quality-state-running";
-}
-
-function RunRow({ label, run }: { label: string; run: ScreeningExecutionResponse }) {
-  const isTerminal = terminalStatuses.has(run.status);
-  return (
-    <article className={`quality-run-card ${stateClass(run)}`}>
-      <div className="quality-run-card-heading">
-        <div>
-          <span className="quality-run-label">{label}</span>
-          <strong className="mono">{run.execution_id}</strong>
-        </div>
-        <span className="quality-status" aria-label={`${label} 실행 상태 ${runStatus(run)}`}>{runStatus(run)}</span>
-      </div>
-      <p className="quality-run-description" aria-live="polite">{runStateDescription(run)}</p>
-      <dl className="quality-run-facts">
-        <div><dt>표본</dt><dd>{run.candidate_count}건</dd></div>
-        <div><dt>완료</dt><dd>{run.completed_count}건</dd></div>
-        <div><dt>실패</dt><dd>{run.failure_count}건</dd></div>
-        <div><dt>상태 갱신</dt><dd>{run.heartbeat_at ? new Date(run.heartbeat_at).toLocaleString("ko-KR") : "시각 없음"}</dd></div>
-      </dl>
-      {isTerminal && run.published_run_id ? <p className="quality-run-link">파생 회차: <span className="mono">{run.published_run_id}</span></p> : null}
-    </article>
-  );
+function runRow(label: string, run: ScreeningExecutionResponse) {
+  return [
+    <span className="crit-cell-stack" key="run">
+      <Text weight="semibold">{label}</Text>
+      <Small><code>{run.execution_id}</code></Small>
+    </span>,
+    <StatusToken key="status" label={run.status} />,
+    <span className="crit-cell-stack" key="progress">
+      <Text>{stateDescription(run)}</Text>
+      <Small>{`표본 ${run.candidate_count}건 · 완료 ${run.completed_count}건 · 실패 ${run.failure_count}건`}</Small>
+    </span>,
+    <span className="crit-cell-stack" key="meta">
+      <Text>{run.heartbeat_at ? new Date(run.heartbeat_at).toLocaleString("ko-KR") : "상태 갱신 시각 없음"}</Text>
+      {TERMINAL_STATUSES.has(run.status) && run.published_run_id ? <Small>{`파생 회차 ${run.published_run_id}`}</Small> : null}
+    </span>,
+  ];
 }
 
 export function QualityGateRuns({ passA, passB }: QualityGateRunsProps) {
   return (
-    <section className="quality-panel" aria-labelledby="quality-ab-heading">
-      <div className="quality-panel-heading">
-        <div>
-          <span className="quality-eyebrow">실행 상태</span>
-          <h2 id="quality-ab-heading">A/B 독립 실행</h2>
-        </div>
-        <span className="quality-readonly-note">두 실행은 같은 고정 입력을 사용합니다.</span>
-      </div>
-      <div className="quality-run-grid">
-        <RunRow label="Pass A · 기준 실행" run={passA} />
-        <RunRow label="Pass B · 재현 실행" run={passB} />
-      </div>
-    </section>
+    <Section title="A/B 독립 실행">
+      <Small>두 실행은 같은 고정 입력을 사용합니다. 실행 종결이 품질 통과를 뜻하지 않습니다.</Small>
+      <DataTable
+        caption="A/B 실행 상태"
+        headings={["실행", "상태", "진행", "상태 갱신"]}
+        rows={[runRow("Pass A · 기준 실행", passA), runRow("Pass B · 재현 실행", passB)]}
+      />
+    </Section>
   );
 }

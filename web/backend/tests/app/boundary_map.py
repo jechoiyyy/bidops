@@ -286,7 +286,7 @@ TABLE_OWNER: dict[str, str] = {
     "order_plan_screening_result": SCREENING,
     "order_plan_screening_artifact": SCREENING,
     "order_plan_screening_feedback": SCREENING,
-    # deep_review (37)
+    # deep_review (38)
     "attachment_fetch": DEEP_REVIEW,
     "content_object": DEEP_REVIEW,
     "content_object_location": DEEP_REVIEW,
@@ -315,6 +315,10 @@ TABLE_OWNER: dict[str, str] = {
     "prespec_overview_snapshot": DEEP_REVIEW,
     "prespec_overview_attempt": DEEP_REVIEW,
     "prespec_overview_result": DEEP_REVIEW,
+    "prespec_page_overview": DEEP_REVIEW,
+    "prespec_company_fit_attempt": DEEP_REVIEW,
+    "prespec_v4_pdf_snapshot": DEEP_REVIEW,
+    "prespec_v4_target": DEEP_REVIEW,
     "prespec_overview_attempt_event": DEEP_REVIEW,
     "bid_delta_comparison": DEEP_REVIEW,
     "bid_delta_attempt": DEEP_REVIEW,

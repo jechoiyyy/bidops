@@ -26,7 +26,7 @@ app/
 ├── deep_review/   문서 준비, 사전규격 개요 검토, 심층 검토, 입찰 delta·최종 결정
 │                  services/, routers/, workers/, agents/, document_mcp/, contracts/,
 │                  policies/, schemas/, cli/, runtime
-│                  models 37개
+│                  models 39개
 └── main.py, runtime.py, workers/analysis.py, migrations/, alembic/   ← 조립 계층
 ```
 
@@ -118,8 +118,8 @@ deep_review가 형제 모듈을 import하지 않기 위해서다. 제공자가 �
 `screening_provider_missing`으로 fail closed한다.
 
 모델을 쓰는 C-2 선별·심층 검토·사전규격 개요 worker에 단독 진입점을 만들지 않는다. 합성
-worker가 한 바퀴에 C-2 → 심층 → 개요 순서로 **하나만** claim하며, 따로 띄우면 **모델 슬롯
-1개** 보장이 깨진다. 개요 attempt lease는 모듈 상수 `OVERVIEW_LEASE_SECONDS=1200`이고
+worker가 한 바퀴에 C-2 → 심층 → 회사 핏 → 개요 순서로 **하나만** claim하며, 따로 띄우면 **모델 슬롯
+1개** 보장이 깨진다. 회사 핏도 같은 합성 worker의 한 슬롯이며 기본 비활성·참조 실행 전용이다. 회사 핏 실행 입력은 불변이고 종결된 attempt는 덮어쓰지 않는다. 개요 attempt lease는 모듈 상수 `OVERVIEW_LEASE_SECONDS=1200`이고
 환경변수로 열지 않는다.
 
 ## 경계

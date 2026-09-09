@@ -1,0 +1,554 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bidops.internal/schemas/ollama-reference/bidops.order-plan-screening-phase0-binding-ollama-reference.v1.json",
+  "title": "BidOps C-2 Phase 0 immutable binding",
+  "x-bidops-producer": "phase0-contracts",
+  "x-bidops-consumer": "phase1-screening-pipeline",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "producer",
+    "consumer",
+    "binding_version",
+    "status",
+    "created_at",
+    "policy",
+    "selection_decision",
+    "source_input",
+    "selection_evidence_population",
+    "stage1_binding",
+    "stage2_binding",
+    "selection_evidence",
+    "review_inputs",
+    "gold",
+    "external_transport",
+    "compatibility",
+    "activation"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "bidops.order-plan-screening-phase0-binding.v1"
+    },
+    "producer": {
+      "const": "phase0-contracts"
+    },
+    "consumer": {
+      "const": "phase1-screening-pipeline"
+    },
+    "binding_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "const": "blocked"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "policy": {
+      "$ref": "#/$defs/policy_ref"
+    },
+    "selection_decision": {
+      "$ref": "#/$defs/selection_ref"
+    },
+    "source_input": {
+      "$ref": "#/$defs/source_ref"
+    },
+    "selection_evidence_population": {
+      "$ref": "#/$defs/population_ref"
+    },
+    "stage1_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "path",
+        "schema_version",
+        "sha256",
+        "top_k",
+        "tie_break"
+      ],
+      "properties": {
+        "method": {
+          "const": "bm25"
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "schema_version": {
+          "const": "bidops.order-plan-bm25.v1"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "top_k": {
+          "const": 300
+        },
+        "tie_break": {
+          "const": [
+            "score_desc",
+            "order_plan_unty_no_asc"
+          ]
+        }
+      }
+    },
+    "stage2_binding": {
+      "$ref": "#/$defs/ollama_reference_stage2"
+    },
+    "selection_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cascade_path",
+        "cascade_sha256",
+        "qwen_result_path",
+        "qwen_result_sha256",
+        "scoring_path",
+        "scoring_sha256",
+        "accepted_misses_path",
+        "accepted_misses_sha256",
+        "accepted_misses_count"
+      ],
+      "properties": {
+        "cascade_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "cascade_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "qwen_result_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "qwen_result_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "scoring_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scoring_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "accepted_misses_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "accepted_misses_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "accepted_misses_count": {
+          "const": 2
+        }
+      }
+    },
+    "review_inputs": {
+      "$ref": "#/$defs/review_ref"
+    },
+    "gold": {
+      "$ref": "#/$defs/gold_ref"
+    },
+    "external_transport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "execution_allowed",
+        "approval_required_per_execution",
+        "endpoint_source",
+        "redirects",
+        "environment_proxy",
+        "fallback_provider"
+      ],
+      "properties": {
+        "status": {
+          "const": "not_allowed_for_product_runtime"
+        },
+        "execution_allowed": {
+          "const": false
+        },
+        "approval_required_per_execution": {
+          "const": true
+        },
+        "endpoint_source": {
+          "const": "runtime_secret_and_literal_allowlist"
+        },
+        "redirects": {
+          "const": false
+        },
+        "environment_proxy": {
+          "const": false
+        },
+        "fallback_provider": {
+          "const": null
+        }
+      }
+    },
+    "compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "legacy_experiment_artifacts",
+        "legacy_schema_mutation",
+        "new_semantics_require_new_version"
+      ],
+      "properties": {
+        "legacy_experiment_artifacts": {
+          "const": "read_only"
+        },
+        "legacy_schema_mutation": {
+          "const": false
+        },
+        "new_semantics_require_new_version": {
+          "const": true
+        }
+      }
+    },
+    "activation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "enabled",
+        "approved_by",
+        "approved_at",
+        "blockers"
+      ],
+      "properties": {
+        "status": {
+          "const": "blocked"
+        },
+        "enabled": {
+          "const": false
+        },
+        "approved_by": {
+          "const": null
+        },
+        "approved_at": {
+          "const": null
+        },
+        "blockers": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "ollama_reference_stage2": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "model_name",
+        "model_digest",
+        "generation_config_version",
+        "generation_config_sha256",
+        "prompt_version",
+        "prompt_sha256",
+        "company_profile_version",
+        "company_profile_sha256",
+        "payload_fields",
+        "company_payload_fields",
+        "batch_size",
+        "max_attempts",
+        "concurrency"
+      ],
+      "properties": {
+        "provider": {
+          "const": "approved_private_ollama"
+        },
+        "model_name": {
+          "const": "qwen3.8:27b"
+        },
+        "model_digest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "generation_config_version": {
+          "const": "ollama-qwen-order-plan-reference-v1"
+        },
+        "generation_config_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "prompt_version": {
+          "const": "order-plan-batch-relevance-v3"
+        },
+        "prompt_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "company_profile_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "company_profile_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "payload_fields": {
+          "const": [
+            "title"
+          ]
+        },
+        "company_payload_fields": {
+          "const": [
+            "profile_version",
+            "capabilities"
+          ]
+        },
+        "batch_size": {
+          "const": 25
+        },
+        "max_attempts": {
+          "const": 2
+        },
+        "concurrency": {
+          "const": 1
+        }
+      }
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "path": {
+      "type": "string",
+      "pattern": "^[^/\\\\].*",
+      "minLength": 1
+    },
+    "policy_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "schema_version",
+        "policy_version",
+        "sha256",
+        "policy_status"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/path"
+        },
+        "schema_version": {
+          "const": "bidops.order-plan-screening-policy.v1"
+        },
+        "policy_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "policy_status": {
+          "const": "activation_candidate"
+        }
+      }
+    },
+    "selection_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "schema_version",
+        "sha256",
+        "decision_status",
+        "operational_activation"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/path"
+        },
+        "schema_version": {
+          "const": "bidops.order-plan-screening-selection-decision.v1"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "decision_status": {
+          "const": "selected"
+        },
+        "operational_activation": {
+          "const": false
+        }
+      }
+    },
+    "source_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "schema_version",
+        "sha256",
+        "raw_manifest_sha256",
+        "source_run_id",
+        "population_count",
+        "complete",
+        "business_divisions"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/path"
+        },
+        "schema_version": {
+          "const": "bidops.collected-order-plans.v1"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "raw_manifest_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "source_run_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "population_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "complete": {
+          "const": true
+        },
+        "business_divisions": {
+          "const": [
+            "기술용역",
+            "일반용역"
+          ]
+        }
+      }
+    },
+    "population_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "schema_version",
+        "file_sha256",
+        "population_sha256",
+        "population_count"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/path"
+        },
+        "schema_version": {
+          "const": "bidops.order-plan-population.v1"
+        },
+        "file_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "population_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "population_count": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "review_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "manifest_path",
+        "manifest_schema_version",
+        "manifest_sha256",
+        "active_company_capabilities_path",
+        "active_company_capabilities_sha256",
+        "active_prompt_path",
+        "active_prompt_sha256"
+      ],
+      "properties": {
+        "manifest_path": {
+          "$ref": "#/$defs/path"
+        },
+        "manifest_schema_version": {
+          "const": "bidops.order-plan-review-inputs-manifest.v1"
+        },
+        "manifest_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "active_company_capabilities_path": {
+          "$ref": "#/$defs/path"
+        },
+        "active_company_capabilities_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "active_prompt_path": {
+          "$ref": "#/$defs/path"
+        },
+        "active_prompt_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "gold_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "manifest_path",
+        "manifest_schema_version",
+        "manifest_sha256",
+        "status",
+        "full_artifact_path",
+        "full_artifact_sha256",
+        "remaining_queue_path",
+        "remaining_queue_sha256",
+        "population_count",
+        "human_adjudication_count",
+        "draft_label_count",
+        "remaining_confirmation_count",
+        "activation_eligible"
+      ],
+      "properties": {
+        "manifest_path": {
+          "$ref": "#/$defs/path"
+        },
+        "manifest_schema_version": {
+          "const": "bidops.order-plan-gold-adjudication-manifest.v1"
+        },
+        "manifest_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "status": {
+          "const": "partially_human_adjudicated"
+        },
+        "full_artifact_path": {
+          "$ref": "#/$defs/path"
+        },
+        "full_artifact_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "remaining_queue_path": {
+          "$ref": "#/$defs/path"
+        },
+        "remaining_queue_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "population_count": {
+          "const": 625
+        },
+        "human_adjudication_count": {
+          "const": 22
+        },
+        "draft_label_count": {
+          "const": 603
+        },
+        "remaining_confirmation_count": {
+          "const": 87
+        },
+        "activation_eligible": {
+          "const": false
+        }
+      }
+    }
+  },
+  "description": "Unmeasured Ollama reference import validation profile; the original Phase 0 schema and its quality gates remain immutable."
+}

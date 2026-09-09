@@ -40,6 +40,10 @@ class ProcessorOptions:
     max_pdf_objects: int = 4096
     max_blocks: int = DEFAULT_MAX_BLOCKS
     render_pages: bool = False
+    # HWP/HWPX page-PDF preparation is opt-in at the processor boundary.  The
+    # prespec v4 path sets this explicitly after the policy/worker gate; legacy
+    # document inspection keeps its existing structure-only contract.
+    prepare_pdf: bool = False
     ocr: bool = True
 
     @classmethod
@@ -49,15 +53,16 @@ class ProcessorOptions:
         elif isinstance(value, cls):
             result = value
         elif isinstance(value, dict):
+            payload = dict(value)
             allowed = {
                 "timeout_seconds", "max_output_bytes", "max_archive_files",
                 "max_archive_depth", "max_archive_uncompressed_bytes", "max_xml_depth",
-                "max_pages", "max_pdf_pages", "max_pdf_objects", "max_blocks", "render_pages", "ocr",
+                "max_pages", "max_pdf_pages", "max_pdf_objects", "max_blocks", "render_pages", "prepare_pdf", "ocr",
             }
-            if set(value) - allowed:
+            if set(payload) - allowed:
                 raise DocumentProcessingError("invalid_options", "허용되지 않는 문서 처리 option입니다")
             try:
-                result = cls(**value)
+                result = cls(**payload)
             except (TypeError, ValueError) as exc:
                 raise DocumentProcessingError("invalid_options", "문서 처리 options 형식이 올바르지 않습니다") from exc
         else:
@@ -94,7 +99,7 @@ class ProcessorOptions:
             or not 1 <= result.max_blocks <= 1_000_000
         ):
             raise DocumentProcessingError("invalid_options", "문서 구조 제한이 올바르지 않습니다")
-        if not isinstance(result.render_pages, bool) or not isinstance(result.ocr, bool):
+        if not isinstance(result.render_pages, bool) or not isinstance(result.prepare_pdf, bool) or not isinstance(result.ocr, bool):
             raise DocumentProcessingError("invalid_options", "문서 처리 option 형식이 올바르지 않습니다")
         return result
 

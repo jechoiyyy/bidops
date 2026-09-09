@@ -14,6 +14,7 @@ import json
 from typing import Any
 
 import pytest
+import httpx
 
 from app.core.config import Settings
 from app.core.model_client import (
@@ -78,6 +79,37 @@ def _completion(model: str, payload: Mapping[str, Any], **extra: Any) -> dict[st
     }
     document.update(extra)
     return document
+
+
+@pytest.mark.parametrize("top_k,digest,error", [(20, REVISION, None), (40, REVISION, "generation_config_mismatch"), (20, OTHER_REVISION, "model_revision_invalid")])
+@pytest.mark.parametrize("purpose", MODEL_PURPOSES)
+def test_ollama_checks_digest_and_model_top_k_before_completion(top_k, digest, error, purpose):
+    calls = []
+    def transport(request):
+        if request.url.path == "/api/tags":
+            return httpx.Response(200, json={"models": [{"name": "synthetic-model", "digest": digest}]})
+        assert request.url.path == "/api/show"
+        return httpx.Response(200, json={"parameters": f"top_k {top_k}\ntemperature 1"})
+    client = ModelClient.for_purpose(
+        purpose, model="synthetic-model", output_contract=CONTRACT,
+        settings=_settings(**{f"vllm_{purpose}_api_dialect": "ollama"}), verify_identity=False,
+        models_list=lambda: {"data": [{"id": "synthetic-model"}]},
+        completion_create=lambda **kwargs: calls.append(kwargs) or _completion("synthetic-model", {"verdict": "ok"}),
+    )
+    client._http_client = httpx.Client(transport=httpx.MockTransport(transport), trust_env=False)
+    try:
+        if error:
+            with pytest.raises(ModelIdentityError) as caught:
+                client.complete_structured("synthetic input")
+            assert caught.value.code == error
+            assert not calls
+        else:
+            client.complete_structured("synthetic input")
+            assert calls[0]["extra_body"] == {"reasoning_effort": "none"}
+            assert calls[0]["temperature"] == 0.7
+            assert calls[0]["top_p"] == 0.8
+    finally:
+        client.close()
 
 
 # --- 용도별 설정 해석 ------------------------------------------------------

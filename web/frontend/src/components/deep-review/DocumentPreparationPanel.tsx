@@ -40,14 +40,15 @@ export const BUNDLE_STATUS_LABELS: Record<BundleStatus, string> = {
   superseded: "이전 확정본",
 };
 
-const SAFETY_STATUS_LABELS: Record<SafetyStatus, string> = {
+/** 사전규격 목록 화면의 첨부 문서 탭도 같은 문구를 쓴다. */
+export const SAFETY_STATUS_LABELS: Record<SafetyStatus, string> = {
   quarantined: "격리 보관 중",
   scanning: "안전 검사 중",
   safe: "안전 확인",
   blocked: "안전 검사 차단",
 };
 
-const STRUCTURE_STATUS_LABELS: Record<StructureStatus, string> = {
+export const STRUCTURE_STATUS_LABELS: Record<StructureStatus, string> = {
   pending: "변환·구조화 대기",
   processing: "변환·구조화 진행 중",
   ready: "구조화 완료",
