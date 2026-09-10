@@ -1196,3 +1196,19 @@ runner 소비자가 없어 보류했다. 운영 DB/MinIO 쓰기·migration 적�
   재렌더링만으로 업무 문서 버전을 새로 만들지 않는다.
 - 후속: 운영 인수 전에 기존 구조와 비교한다. 충돌이 있는 문서를 지원하려면
   구조 revision과 리뷰의 명시적 구조 참조를 함께 설계·승인한 뒤 이관한다.
+
+## 전체 backend·화면 스위트의 기존 실패 4건이 rhwp 단계와 무관하게 남아 있다 (2026-09-10)
+
+- 재현 조건: main `753d639`(R5 병합)에서 `pytest tests/`와 `npm run test:screens`를 각 1회 실행한다.
+  같은 4건은 `a9ddb99`(R3 직후, P1·R4·R5 이전)와 `bbbbaae`(R4 이전)에서도 같은 방식으로 재현된다.
+- 증상: backend `tests/app/test_alembic_autogenerate.py::test_alembic_check_has_no_default_schema_bidops_mirror_drift`가
+  `alembic check`에서 `prespec_v4_attempt`·`prespec_v4_pdf_snapshot`·`prespec_v4_target`의 FK·check·index 차이를
+  "New upgrade operations detected"로 보고한다. `tests/app/test_deep_review_migrations.py::test_model_has_exact_closed_table_set`과
+  `tests/app/test_mapper_isolation.py::test_the_four_modules_together_declare_the_whole_schema`는 모델 테이블 수 82 ≠ 기대 81로 실패한다.
+  화면 `tests/common-interactions.spec.ts:211`(UC-02 상태 문구)은 `.pre-spec-overview-statuses`에 "사람 검토 필요" 문구가 없어 실패한다.
+- 영향: 0023까지의 migration과 모델 metadata가 autogenerate 기준으로 어긋나 있고, 닫힌 테이블 목록 테스트가 새 테이블 하나를
+  승인하지 않은 상태다. 운영 DB에 적용된 migration이 잘못됐다는 뜻은 아니며 R3 PostgreSQL smoke·roundtrip은 통과했다.
+- 현재 범위에서 해결할 수 없는 이유: rhwp 단계(P1·R4·R5)는 이 테스트가 검사하는 모델·migration·화면을 바꾸지 않았고,
+  R5 게이트는 "기존 실패 목록과 같거나 줄어듦"이다. 원인 확정에는 0021~0023 autogenerate 차이 검토와 82번째 테이블의 승인 여부 결정이 필요하다.
+- 후속: R6 운영 인수 전에 autogenerate 차이를 0024 migration 또는 모델 보정으로 닫고 닫힌 테이블 목록을 갱신한다.
+  화면 1건은 사전규격 개요 상태 fixture와 문구 계약을 대조해 별도 작업으로 닫는다.

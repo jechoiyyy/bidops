@@ -1,6 +1,6 @@
 # rhwp 문서 변환 파이프라인 진행 계획
 
-작업명: rhwp-document-pipeline · 기준일: 2026-09-10 · 상태: P1·R4 main 병합, R5 위임 진행 중
+작업명: rhwp-document-pipeline · 기준일: 2026-09-10 · 상태: P1·R4·R5 main 병합(`753d639`), R6 미착수
 
 이 문서는 새 세션이 다른 맥락 없이 이 작업을 이어갈 수 있도록 순서·담당·게이트·현재 상태·재현 명령을 모아 둔다. 내용이 이미 다른 문서에 있으면 여기 다시 적지 않고 링크한다. 단계가 끝나거나 결정이 바뀌면 §7 진행 기록에 덧붙이고, 결정 자체는 [ADR.md](ADR.md)에 적는다.
 
@@ -162,9 +162,9 @@ git diff --check
 
 ### R5 제거 (담당: 위임, `feat/rdp-r5-remove-chromium`)
 
-- [ ] Canvas HTML builder, receipt 검사, Chromium·Node 지문, `rhwp.js`·`rhwp_bg.wasm`·`rhwp_convert.mjs`·`rhwp_render_canvas.mjs` 삭제([Design §5](Design.md#5-마이그레이션과-호환)). `PROVENANCE.md`·`SHA256SUMS` 정리.
-- [ ] Dockerfile에서 chromium·chromium-sandbox·nodejs 제거, compose Chromium용 완화 제거, `pids_limit`을 R0 실측값으로 재설정, `tests/app/test_runtime_contract.py` 갱신.
-- [ ] 전체 backend 스위트와 화면 스위트 각 1회. 기존 실패는 목록으로 보고.
+- [x] Canvas HTML builder, receipt 검사, Chromium·Node 지문, `rhwp.js`·`rhwp_bg.wasm`·`rhwp_convert.mjs`·`rhwp_render_canvas.mjs` 삭제([Design §5](Design.md#5-마이그레이션과-호환)). `PROVENANCE.md`·`SHA256SUMS` 정리. `processor.py` 1607→905줄, renderer는 `rhwp-svg-pdf` 하나이며 HWP·HWPX는 항상 native 경로다.
+- [x] Dockerfile에서 chromium·chromium-sandbox·nodejs 제거, compose Chromium용 완화 제거(다른 완화는 없었음), `pids_limit` 128(R0 실측 최대 4), `tests/app/test_runtime_contract.py` 갱신. 이미지 `bidops-rdp-r5:20260910` 2.03GB→1.04GB, chromium·node 부재·rhwp v0.8.6·Nanum 폰트 확인.
+- [x] 전체 backend 스위트와 화면 스위트 각 1회. 기존 실패는 아래 §7 R5 행과 [findings.md](../tracking/findings.md)에 목록으로 남김.
 
 - 소유 파일: `document_mcp/processor.py`, vendor 디렉터리, `web/Dockerfile`, `docker-compose.yml`, runtime contract 테스트, `docs/operations.md`·`docs/security.md` 해당 절.
 
@@ -202,7 +202,7 @@ git diff --check
 
 - `docs/design/*.hwp` 실표본 2건과 `Zone.Identifier`: 저장소 보관 여부 결정. 보관하지 않으면 [Requirements §6](Requirements.md#6-표본과-측정-기준선)의 표본 경로를 MinIO 원본으로 바꾼다.
 - 세션 scratchpad에만 있던 실측 스크립트(`probe142*.py`, rhwp 실측 명령)는 R0에서 `docs/validation-runs/`에 재현 명령으로 남긴다.
-- `docs/tracking/findings.md`의 두 신규 항목(`pdf_preparation_failed` 은폐, attempt 없는 ready target 미표시)은 R3·R4에서 닫는다.
+- `docs/tracking/findings.md`의 두 신규 항목 중 `pdf_preparation_failed` 은폐는 R3에서 닫았다. attempt 없는 ready target 미표시(`current` projection)는 R4 범위(Spec §6·Design §2.5)에 들어 있지 않아 **아직 열려 있다**. R6 인수 화면 확인 전에 별도 작업으로 닫는다(2026-09-10).
 
 ## 7. 진행 기록
 
@@ -223,3 +223,4 @@ git diff --check
 | 2026-09-10 | P1 병합·R4 착수 | 관리자가 `feat/p1-wp1-model-client`(87cce3b) → `-wp2-validation-retry`(3f03bca) → `-wp3-citation-normalize`(3a3dfab)를 순서대로 main에 병합했다(`bb1045c`·`39dfaff`·`bbbbaae`, 충돌 없음). 병합 트리에서 닿는 백엔드 테스트 5파일(`test_model_client`·`test_page_overview`·`test_company_fit`·`test_prespec_v4_runner`·`test_deep_reviews`) 171 passed 1회. WP-3 경고를 `validation_warnings`에 저장하는 연결은 `feat/p1-wp4-validation-warnings`, R4는 `feat/rdp-r4-consumers`(백엔드)·`feat/rdp-r4-consumers-ui`(프론트엔드)로 `.worktrees/` 아래에서 Opus 서브에이전트에 병렬 위임했다. R4 결정: segment PDF 링크는 구조 기준 endpoint `GET /api/document-structures/{id}/pdf`(대응표를 가진 최신 native snapshot의 PDF)를 새로 두고 segments 계약 추가는 Spec §6의 `page_range`·`mapping_status` 둘뿐이다. 운영 변경·모델 호출 없음. |
 | 2026-09-10 | P1 WP-4 수락 | 위임 결과 `63b6ef4`(`_complete` 최종 관문을 `validate_page_overview_detailed`로 바꿔 완료 attempt의 `validation_warnings`와 완료 감사에 경고 목록 저장, 경고 없음은 `[]`, 재시도·실패 경로 미변경)를 diff로 검토하고 main에 병합했다. 위임 검증 `test_prespec_v4_runner`·`test_page_overview` 22 passed 1회, `diff --check` clean. 경고 조건은 검토 페이지가 둘 이상이어야 성립하므로 같은 테스트 파일 안에 3쪽 표본 옵션만 추가했다. |
 | 2026-09-10 | R4 수락·병합 | 백엔드 `8725d47`(`feat/rdp-r4-consumers`)과 프론트 `cedcbd1`(`feat/rdp-r4-consumers-ui`)을 diff로 검토하고 main에 병합했다(`4514421`·`506e323`). 대응표 읽기·hash 실패는 조용히 `unavailable`로 낮추지 않고 500 `processing_failed`, 구조 PDF endpoint는 개요 PDF와 같은 무결성 검사 함수(`verified_pdf_bytes`)를 공유한다. 화면 fixture가 사람 확인 segment 1→3건으로 늘어 `screen-semantics.spec.ts` 개수 단언 2줄을 사실대로 고쳤고, 픽셀 층 `deep-review-complete` 기준선은 갱신하지 않았다(승인 뒤 교체). 실제 native snapshot이 있는 응답 확인은 운영 migration이 없어 R6에서 한다. |
+| 2026-09-10 | R5 수락·병합 | 위임 `e4e1b9f`(제거)와 보정 `2c0e19f`(PDF v2 protocol 테스트 fake를 native 형태로)를 diff로 검토하고 main에 병합했다(`753d639`). 게이트: 이미지 빌드 후 chromium·node 없음. 최종 트리 전체 backend 스위트 1회 = 1794 passed·5 skipped·33 failed·21 errors, 이 중 47건은 worktree에 없는 gitignore 파일(`experiments/.../company-capabilities-v1-approved.json`) 때문이며 병합된 main에서 같은 파일들 419 passed·14 skipped로 해소; 4건(`test_document_worker_protocol`)은 R5 회귀로 보정 후 14 passed; 남은 3건(`test_alembic_autogenerate` drift, `test_model_has_exact_closed_table_set` 82≠81, `test_mapper_isolation`)은 `a9ddb99`(R3 직후)에서도 실패하는 기존 결함. 화면 `test:screens` 1회 = 499 passed·5 skipped·3 failed, 이 중 2건은 단독 재실행 통과(부하 flake), `common-interactions.spec.ts:211`은 main과 `bbbbaae`에서도 실패하는 기존 결함. 다음 단계 R6(운영 인수)은 열지 않았고 운영 migration·배포·활성화·모델 호출은 수행하지 않았다. |
