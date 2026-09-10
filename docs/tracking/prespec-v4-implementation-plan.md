@@ -15,6 +15,7 @@
 - 59 overview result `04d6182f-f073-450a-b8be-30f141db9f02`는 completed/current다. company-fit attempt `4af5b488-59c2-445e-8cf3-4a33baad44be`는 `needs_human_review/current`, result는 `null`, raw SHA-256은 `67b292a7ca012a7995f7a98d7be11d972fd97e72b603cf5e17552cb272254f11`이다. `unsupported_number`로 index 0 선택 근거에 24시간이 없어졌고 암호화 raw를 보존했으며 보정·재시도하지 않았다.
 - 142 PDF는 반복 timeout 뒤 `unverified`다. offline Luna JSON은 참조 입력으로만 보존하며 성공 PDF/current로 승격하지 않았다. 실제 UI는 35/59에서 사업명 검색·목록/상세·독립 상세·refresh/reentry와 1280×800·1440×900을 통과했고, API 본문·제한사항·prompt/result ID·PDF hash/link를 확인했다. 35의 `unknown` 근거와 59의 `needs_human_review` 안전 문구·판정 본문 비노출도 확인했다.
 - 운영 경로는 `localhost:18887/pre-specs/{35,59}`이며 18787 bind 실패를 기록한다. `overview-actual`은 중지했고 `prespec-actual`은 원래 `sleep infinity`로 복원했다. document-worker 두 개는 `bidops-v4-luna-reference:20260909-final`, 1 GiB 조건으로 복원됐다. persistent reference artifacts는 `.dryforge/prespec-v4-luna-20260909/{overview-generation,company-fit-input-35-59,company-fit-generation-35-59}`에 두며 credentials를 포함하지 않는다.
+- 142 PDF 실패의 원인은 document-worker `pids_limit` 128과 v4 CLI 기본 출력 예산 20 MiB로 확인됐고 수정(pids 512·기본 64 MiB)은 코드에 반영됐으나 운영 재실행은 아직이다([findings](findings.md#원인-확인-notice-142-표준-pdf-준비가-300초-deadline에서-종료됨-2026-09-09)).
 - UI acceptance 결과는 `.dryforge/prespec-v4-luna-20260909/ui-acceptance-result.json`과 실행 script에 보존한다. 이 상태는 explicit reference 실행과 controlled backend 결과를 기록한 것이며 전체 계획 완료를 뜻하지 않는다. automatic cohort/deep와 142 PDF는 미완료다.
 
 ### 구현·검증 종료 규칙
@@ -256,6 +257,8 @@ manifest→v3 validator→encrypted raw/result/current projection만 검증했�
 | 계획·검증 | `docs/validation-runs/20260908-prespec-pdf-preflight.md` | 실제 명령·safe metadata·Canvas 내용 대조·sidecar·남은 snapshot 경계 기록 | Canvas PDF/content pass와 DB/MinIO snapshot 미완료를 분리 |
 | 계획·검증 | `docs/validation-runs/20260909-prespec-v4-cohort-ops.md`, `docs/contracts.md`, `docs/operations.md` | cohort ops와 Luna 명시 참조 입력·역할 분리·남은 live 인수 기록 | loader/runner focused 결과와 미실행 경계 분리 |
 | 계획·검증 | `docs/tracking/status.md` | 35/59 explicit reference current, 142 미검증, activation/UI 상태를 최신화 | 운영 상태 기록이며 전체 인수 근거가 아님 |
+| 142 PDF 한계 | `docker-compose.yml` | document-worker `pids_limit` 128→512 (Chromium 렌더 thread 고갈) | `test_runtime_contract` + `docker compose config` |
+| 142 PDF 한계 | `web/backend/app/deep_review/cli/prespec_v4.py` | v4 준비 기본 `max_output_bytes` 20→64 MiB | `test_runtime_contract` + `docker compose config` |
 
 기준선 기록: 앞선 bounded 실행의 명령은 `cd web/backend && .venv/bin/python -m pytest tests/deep_review/test_document_mcp.py tests/deep_review/test_document_worker_protocol.py tests/deep_review/test_document_integrity.py tests/deep_review/test_document_segments.py tests/deep_review/test_prespec_attachment_assets.py tests/deep_review/test_prespec_e2e.py tests/app/test_runtime_contract.py -q --tb=short`이며 `116 passed, 5 skipped, 3 warnings`가 보고됐다. 이 단계에서 archive-boundary·Canvas CSP/text-layer/receipt 회귀를 추가해 무관한 전체 반복은 하지 않았다. current focused 명령 `tests/deep_review/test_document_mcp.py tests/deep_review/test_document_worker_protocol.py tests/app/test_runtime_contract.py -q --tb=short`는 `65 passed`였고, 정확한 결과는 검증 기록에 분리했다. root의 독립 `tests/deep_review/test_document_mcp.py -q --tb=short` 기준선은 PDF 추가 회귀 전 `33 passed`다.
 
