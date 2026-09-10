@@ -16,6 +16,15 @@
   request-local Chromium Canvas print sheet; renderer text runs are assigned
   with `textContent` as the selectable PDF layer. It does not use the older
   SVG page adapter.
+- Native CLI runtime: `rhwp/bin/rhwp` is copied unchanged from
+  https://github.com/edwardkim/rhwp at commit
+  `cac9b4f7cc743535cd7c00fe4f286abd67e7145b` (version output `rhwp v0.8.6`,
+  based on tag `v0.8.6`). It was built with `cargo build --release` on Linux
+  6.18.33.2-microsoft-standard-WSL2 x86_64 using rustc 1.98.1
+  (`48a229cea 2026-09-01`) and cargo 1.98.1
+  (`797e8a9bc 2026-08-05`). The copied linux x86_64 ELF has SHA-256
+  `c82684971756d58ba7391cd08c38c93bb4280ab9ebf0e21c0936574a0084fc8c`
+  and dynamically links only the platform loader, libc, libm, and libgcc_s.
 - The runtime's MIT notice is retained in `rhwp/LICENSE`. The T2 authority and
   third-party notices are retained in this directory, and exact bytes for every
   vendored file are listed in `SHA256SUMS` (the manifest excludes itself).

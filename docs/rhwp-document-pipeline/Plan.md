@@ -16,7 +16,7 @@
 
 - 단계(R0~R7)는 [Spec.md §7](Spec.md#7-단계와-게이트)의 정의를 따르고 한 번에 하나만 연다. 게이트를 못 넘으면 다음 단계를 열지 않고 같은 단계를 보정해 다시 위임한다.
 - 판단은 단계 사이에 사람이 내리고 이 문서와 ADR에 적는다. 위임 프롬프트에는 선택지를 남기지 않는다.
-- 구현은 단계마다 별도 브랜치·워크트리(`feat/rdp-r<n>-<이름>`, `.worktrees/` 아래)에 위임하고, 관리자가 diff와 테스트를 직접 확인한 뒤에만 main에 병합한다. 위임 보고를 근거로 쓰지 않는다. 파일 소유가 겹치는 작업은 같은 단계 안에서 순차로 한다.
+- 구현과 실측은 단계마다 별도 브랜치·격리 worktree(`feat/rdp-r<n>-<이름>`)의 stage worker에게 위임하고, 관리자가 diff와 저장된 안전 지표·테스트를 직접 확인한 뒤에만 main에 병합한다. Orca가 관리하는 worktree는 `.worktrees/` 밖의 Orca workspace 경로일 수 있으며 실제 경로를 진행 기록에 남긴다. 위임 보고만을 근거로 쓰지 않는다. 파일 소유가 겹치는 작업은 같은 단계 안에서 순차로 한다.
 - 검증은 변경 파일이 닿는 테스트만 돌린다([CLAUDE.md "검증 범위와 종료 기준"](../../CLAUDE.md)). 전체 backend 스위트와 화면 스위트는 R5 뒤 최종 트리에서 각 1회다. 통과를 얻기 위한 반복 실행·검사 완화·재시도 루프를 넣지 않는다.
 - 운영 상태 변경(migration, worker 재생성, 활성화, 실제 모델 호출)은 R6에서만, 백업 뒤에, 승인 범위 안에서 한다.
 - 기존 강제 게이트(원본 불변, unknown 보존, 자동 보정 금지, 외부 전송 금지, 참조 실행 표식 `unmeasured_reference`)를 그대로 지킨다([CLAUDE.md "강제 게이트"](../../CLAUDE.md)).
@@ -94,14 +94,14 @@ git diff --check
 
 정의(내용·게이트)는 Spec §7이 정본이다. 여기에는 담당·브랜치·소유 파일·체크리스트만 둔다.
 
-### R0 기준선 (담당: 관리자 직접, 실측)
+### R0 기준선 (담당: 격리 stage worker 구현·실측, 관리자 독립 검토·병합)
 
-- [ ] vendor 등록: `web/backend/app/deep_review/document_mcp/vendor/rhwp/bin/rhwp`, `vendor/SHA256SUMS` 갱신, `vendor/PROVENANCE.md`에 upstream·태그·커밋·빌드 host·명령 기록(ADR-RDP-002).
-- [ ] `web/Dockerfile`에 `fonts-nanum` 추가, rhwp COPY와 실행 권한. 검증용 이미지 `bidops-rdp-r0:<날짜>` 빌드(context는 저장소 루트).
-- [ ] 격리 컨테이너(위 명령, pids 128)에서 표본 3건에 rhwp 4호출 실행. 시간·RSS·pids 최대치·페이지 수·바이트 크기 기록.
-- [ ] 같은 입력 2회 실행으로 HWPX·페이지 텍스트·dump-pages JSON·PDF 바이트 동일 여부 기록(ADR 미결 항목).
-- [ ] `dump-pages`의 `paraIndex`가 표 셀 문단을 포함하는지, 구조 블록 순서와 어떻게 대응하는지 확인해 [Spec §4](Spec.md#4-문단페이지-정렬-규칙-para-page-alignv1)를 잠정에서 확정으로 바꾼다.
-- [ ] 결과를 Spec §8과 이 문서 §7에 기록하고 `docs/validation-runs/<날짜>-rhwp-r0-baseline.md`에 재현 명령을 남긴다.
+- [x] vendor 등록: `web/backend/app/deep_review/document_mcp/vendor/rhwp/bin/rhwp`, `vendor/SHA256SUMS` 갱신, `vendor/PROVENANCE.md`에 upstream·태그·커밋·빌드 host·명령 기록(ADR-RDP-002).
+- [x] `web/Dockerfile`에 `fonts-nanum` 추가, rhwp COPY와 실행 권한. 검증용 이미지 `bidops-rdp-r0:<날짜>` 빌드(context는 저장소 루트).
+- [x] 격리 컨테이너(위 명령, pids 128)에서 표본 3건에 해당 rhwp 호출 실행. 시간·RSS·pids 최대치·페이지 수·바이트 크기 기록.
+- [x] 같은 입력 2회 실행으로 HWPX·페이지 텍스트·dump-pages JSON·PDF 바이트 동일 여부 기록(ADR 미결 항목).
+- [x] `dump-pages`의 `paraIndex`가 표 셀 문단을 포함하지 않고 구역별 최상위 본문 문단을 가리킴을 upstream 코드와 실측으로 확정. HWP→HWPX 인덱스 불일치는 [Spec §4](Spec.md#4-문단페이지-정렬-규칙-para-page-alignv1)에 미결로 보존.
+- [x] 결과를 Spec §8과 이 문서 §7에 기록하고 `docs/validation-runs/<날짜>-rhwp-r0-baseline.md`에 재현 명령을 남긴다.
 
 게이트: 표본 3건이 pids 128 이하·60초 안 통과, `paraIndex` 규칙 확정, `test_vendored_sha256_manifest_is_deterministic_and_complete` 통과.
 
@@ -198,3 +198,4 @@ git diff --check
 | 2026-09-09 | 선행 | 142 timeout 원인 확정(pids 128·출력 예산 20 MiB), P0 브랜치, P1 WP-1~3 브랜치(미병합). 근거: [findings 142 항목](../tracking/findings.md) |
 | 2026-09-10 | 선행 | P0 main 병합(`212e5ed`), worker pids 512 재생성, 142 snapshot `e68670e0…`·target `200e9557…` 준비(attempt 없음), 기록 `695e245` |
 | 2026-09-10 | 착수 | rhwp v0.8.6 호스트 실측(표본 3건, [Spec §8](Spec.md#8-실측-기록)), 사용자 결정 4개(ADR-RDP-001~004), 정본 문서 4종 `2f4f6af`, 이 계획 작성. 다음: R0 |
+| 2026-09-10 | R0 | Orca 관리 격리 worktree `/home/jechoi/orca/workspaces/bidops/rdp-r0-baseline`, 브랜치 `feat/rdp-r0-baseline`에서 native binary·Nanum 폰트 이미지와 표본 2회 실측 완료. pids·시간·결정성은 통과했지만 `dump-pages` stdout 256 KiB 초과와 HWP→HWPX paragraph crosswalk 미정 때문에 R0 게이트는 닫힘. 근거: [validation run](../validation-runs/2026-09-10-rhwp-r0-baseline.md) |

@@ -1,0 +1,404 @@
+{
+  "image": "bidops-rdp-r0:20260910",
+  "image_id": "sha256:84f5cd7f2fff935f4d3502c092607ad3a796e494a47041e976369d3ad249655e",
+  "image_platform": "linux/amd64",
+  "image_size_bytes": 595349142,
+  "font_manifest_sha256": "92e5dc4ff6e83ab2008e636169bf0b24df0cb404214af33946a73f010f1650a9",
+  "limits": {
+    "cap_drop": "ALL",
+    "memory_bytes": 1073741824,
+    "network": "none",
+    "no_new_privileges": true,
+    "pids": 128,
+    "uid_gid": "1000:1000"
+  },
+  "samples": [
+    {
+      "determinism": {
+        "dump_pages": true,
+        "export_pdf": true,
+        "export_text": true
+      },
+      "input_bytes": 840114,
+      "input_sha256": "7cc3b5f3894d984ce641e9462030990cbb4cfc1d6869b18bc9047899a23f4665",
+      "runs": [
+        {
+          "commands": {
+            "dump_pages": {
+              "item_count": 1125,
+              "item_kinds": {
+                "fullParagraph": 1044,
+                "partialParagraph": 18,
+                "partialTable": 13,
+                "shape": 1,
+                "table": 49
+              },
+              "max_container_pids": 2,
+              "max_rss_kib": 32212,
+              "max_tree_pids": 1,
+              "page_count": 79,
+              "pages_length": 79,
+              "seconds": 0.14,
+              "stdout_bytes": 747110,
+              "stdout_sha256": "1dfd58ab6ee82bce95f9c2d032a5fc76792110997c97919b8f8c5159d2fea727",
+              "unique_body_para_indexes": 1107
+            },
+            "export_pdf": {
+              "artifact_bytes": 4829134,
+              "artifact_sha256": "aee7e6487c41fce099f209d1695374dc708826131558d8eb2d293cb442db4f6a",
+              "max_container_pids": 4,
+              "max_rss_kib": 162660,
+              "max_tree_pids": 1,
+              "page_count": 79,
+              "pdfinfo_pages": 79,
+              "rendered_count": 79,
+              "seconds": 22.051,
+              "stdout_bytes": 229
+            },
+            "export_text": {
+              "max_container_pids": 2,
+              "max_rss_kib": 23916,
+              "max_tree_pids": 1,
+              "omitted_count": 0,
+              "page_count": 79,
+              "pages_length": 79,
+              "seconds": 0.193,
+              "stdout_bytes": 130792,
+              "stdout_sha256": "73243dc5402298dd3fe6c2768682c67910e2af4dab0b68fe508b0a65b09d14dd",
+              "truncated": false
+            }
+          },
+          "run": 1,
+          "total_seconds": 22.384
+        },
+        {
+          "commands": {
+            "dump_pages": {
+              "item_count": 1125,
+              "item_kinds": {
+                "fullParagraph": 1044,
+                "partialParagraph": 18,
+                "partialTable": 13,
+                "shape": 1,
+                "table": 49
+              },
+              "max_container_pids": 2,
+              "max_rss_kib": 32508,
+              "max_tree_pids": 1,
+              "page_count": 79,
+              "pages_length": 79,
+              "seconds": 0.141,
+              "stdout_bytes": 747110,
+              "stdout_sha256": "1dfd58ab6ee82bce95f9c2d032a5fc76792110997c97919b8f8c5159d2fea727",
+              "unique_body_para_indexes": 1107
+            },
+            "export_pdf": {
+              "artifact_bytes": 4829134,
+              "artifact_sha256": "aee7e6487c41fce099f209d1695374dc708826131558d8eb2d293cb442db4f6a",
+              "max_container_pids": 2,
+              "max_rss_kib": 162840,
+              "max_tree_pids": 1,
+              "page_count": 79,
+              "pdfinfo_pages": 79,
+              "rendered_count": 79,
+              "seconds": 22.129,
+              "stdout_bytes": 229
+            },
+            "export_text": {
+              "max_container_pids": 2,
+              "max_rss_kib": 24092,
+              "max_tree_pids": 1,
+              "omitted_count": 0,
+              "page_count": 79,
+              "pages_length": 79,
+              "seconds": 0.173,
+              "stdout_bytes": 130792,
+              "stdout_sha256": "73243dc5402298dd3fe6c2768682c67910e2af4dab0b68fe508b0a65b09d14dd",
+              "truncated": false
+            }
+          },
+          "run": 2,
+          "total_seconds": 22.443
+        }
+      ],
+      "sample": "notice-142"
+    },
+    {
+      "determinism": {
+        "dump_pages": true,
+        "export_hwpx": true,
+        "export_pdf": true,
+        "export_text": true
+      },
+      "input_bytes": 178176,
+      "input_sha256": "ea1e0a45b659a5c46a24b0638be613d6bd2fb4a53985cb7229bdaf107c37dca4",
+      "runs": [
+        {
+          "commands": {
+            "dump_pages": {
+              "item_count": 672,
+              "item_kinds": {
+                "fullParagraph": 588,
+                "partialParagraph": 2,
+                "partialTable": 10,
+                "shape": 7,
+                "table": 65
+              },
+              "max_container_pids": 2,
+              "max_rss_kib": 24892,
+              "max_tree_pids": 1,
+              "page_count": 53,
+              "pages_length": 53,
+              "seconds": 0.129,
+              "stdout_bytes": 432607,
+              "stdout_sha256": "07c8013e567b79a81a8bc6297afa6ca7a9634f31dab159771c583c9bcc8a819e",
+              "unique_body_para_indexes": 658
+            },
+            "export_hwpx": {
+              "artifact_bytes": 139694,
+              "artifact_sha256": "84a3bf654354fdb05adcf4372ce33c60f2889a593a2f76c790710da60ab56e2b",
+              "max_container_pids": 2,
+              "max_rss_kib": 29412,
+              "max_tree_pids": 1,
+              "seconds": 0.207,
+              "stdout_bytes": 312,
+              "verify_diff_count": 0,
+              "verify_identical": true,
+              "verify_pages_after": 53,
+              "verify_pages_before": 53,
+              "verify_pages_identical": true
+            },
+            "export_pdf": {
+              "artifact_bytes": 2874883,
+              "artifact_sha256": "acd1b40898f31ec5f5bd685dfa4aef54342a7ed54d8dd88bf9ca2b671fc0dc5a",
+              "max_container_pids": 4,
+              "max_rss_kib": 142112,
+              "max_tree_pids": 1,
+              "page_count": 53,
+              "pdfinfo_pages": 53,
+              "rendered_count": 53,
+              "seconds": 18.022,
+              "stdout_bytes": 234
+            },
+            "export_text": {
+              "max_container_pids": 2,
+              "max_rss_kib": 20260,
+              "max_tree_pids": 1,
+              "omitted_count": 0,
+              "page_count": 53,
+              "pages_length": 53,
+              "seconds": 0.173,
+              "stdout_bytes": 98013,
+              "stdout_sha256": "dac3151da819cb9506a492c1e5fcc8ff5ce3ff07ca44b7fb2fc21310953f5225",
+              "truncated": false
+            }
+          },
+          "run": 1,
+          "total_seconds": 18.531
+        },
+        {
+          "commands": {
+            "dump_pages": {
+              "item_count": 672,
+              "item_kinds": {
+                "fullParagraph": 588,
+                "partialParagraph": 2,
+                "partialTable": 10,
+                "shape": 7,
+                "table": 65
+              },
+              "max_container_pids": 2,
+              "max_rss_kib": 24616,
+              "max_tree_pids": 1,
+              "page_count": 53,
+              "pages_length": 53,
+              "seconds": 0.118,
+              "stdout_bytes": 432607,
+              "stdout_sha256": "07c8013e567b79a81a8bc6297afa6ca7a9634f31dab159771c583c9bcc8a819e",
+              "unique_body_para_indexes": 658
+            },
+            "export_hwpx": {
+              "artifact_bytes": 139694,
+              "artifact_sha256": "84a3bf654354fdb05adcf4372ce33c60f2889a593a2f76c790710da60ab56e2b",
+              "max_container_pids": 2,
+              "max_rss_kib": 29792,
+              "max_tree_pids": 1,
+              "seconds": 0.205,
+              "stdout_bytes": 312,
+              "verify_diff_count": 0,
+              "verify_identical": true,
+              "verify_pages_after": 53,
+              "verify_pages_before": 53,
+              "verify_pages_identical": true
+            },
+            "export_pdf": {
+              "artifact_bytes": 2874883,
+              "artifact_sha256": "acd1b40898f31ec5f5bd685dfa4aef54342a7ed54d8dd88bf9ca2b671fc0dc5a",
+              "max_container_pids": 2,
+              "max_rss_kib": 160536,
+              "max_tree_pids": 1,
+              "page_count": 53,
+              "pdfinfo_pages": 53,
+              "rendered_count": 53,
+              "seconds": 17.418,
+              "stdout_bytes": 234
+            },
+            "export_text": {
+              "max_container_pids": 2,
+              "max_rss_kib": 20188,
+              "max_tree_pids": 1,
+              "omitted_count": 0,
+              "page_count": 53,
+              "pages_length": 53,
+              "seconds": 0.164,
+              "stdout_bytes": 98013,
+              "stdout_sha256": "dac3151da819cb9506a492c1e5fcc8ff5ce3ff07ca44b7fb2fc21310953f5225",
+              "truncated": false
+            }
+          },
+          "run": 2,
+          "total_seconds": 17.905
+        }
+      ],
+      "sample": "notice-10-rfp"
+    },
+    {
+      "determinism": {
+        "dump_pages": true,
+        "export_hwpx": true,
+        "export_pdf": true,
+        "export_text": true
+      },
+      "input_bytes": 127488,
+      "input_sha256": "807e47101274d3820a817c0e0ff4b766bc3a2b0cf7ffcb68aff2e034fba62cb5",
+      "runs": [
+        {
+          "commands": {
+            "dump_pages": {
+              "item_count": 344,
+              "item_kinds": {
+                "fullParagraph": 281,
+                "partialTable": 8,
+                "shape": 3,
+                "table": 52
+              },
+              "max_container_pids": 2,
+              "max_rss_kib": 19492,
+              "max_tree_pids": 1,
+              "page_count": 31,
+              "pages_length": 31,
+              "seconds": 0.076,
+              "stdout_bytes": 221095,
+              "stdout_sha256": "b47c4063cd45775ad5fe63691d3e026ffc58b755eec9ae1911b0057b948f14eb",
+              "unique_body_para_indexes": 336
+            },
+            "export_hwpx": {
+              "artifact_bytes": 81250,
+              "artifact_sha256": "b98b257bf6c939c9b5be2840aa07077e54307d64ddd3bb2a4b292a4e06482d4c",
+              "max_container_pids": 2,
+              "max_rss_kib": 22148,
+              "max_tree_pids": 1,
+              "seconds": 0.118,
+              "stdout_bytes": 311,
+              "verify_diff_count": 0,
+              "verify_identical": true,
+              "verify_pages_after": 31,
+              "verify_pages_before": 31,
+              "verify_pages_identical": true
+            },
+            "export_pdf": {
+              "artifact_bytes": 1616896,
+              "artifact_sha256": "ce27bc6d7ecae648fcad0a297497279185fe5962a2711b8f59f460ac3eed8686",
+              "max_container_pids": 4,
+              "max_rss_kib": 128240,
+              "max_tree_pids": 1,
+              "page_count": 31,
+              "pdfinfo_pages": 31,
+              "rendered_count": 31,
+              "seconds": 9.989,
+              "stdout_bytes": 234
+            },
+            "export_text": {
+              "max_container_pids": 2,
+              "max_rss_kib": 16492,
+              "max_tree_pids": 1,
+              "omitted_count": 0,
+              "page_count": 31,
+              "pages_length": 31,
+              "seconds": 0.098,
+              "stdout_bytes": 54840,
+              "stdout_sha256": "1d073f8773bb665977bb5eb8f34d2678a3d7b589edff90b12abf78c05bd09fc1",
+              "truncated": false
+            }
+          },
+          "run": 1,
+          "total_seconds": 10.281
+        },
+        {
+          "commands": {
+            "dump_pages": {
+              "item_count": 344,
+              "item_kinds": {
+                "fullParagraph": 281,
+                "partialTable": 8,
+                "shape": 3,
+                "table": 52
+              },
+              "max_container_pids": 2,
+              "max_rss_kib": 17396,
+              "max_tree_pids": 1,
+              "page_count": 31,
+              "pages_length": 31,
+              "seconds": 0.076,
+              "stdout_bytes": 221095,
+              "stdout_sha256": "b47c4063cd45775ad5fe63691d3e026ffc58b755eec9ae1911b0057b948f14eb",
+              "unique_body_para_indexes": 336
+            },
+            "export_hwpx": {
+              "artifact_bytes": 81250,
+              "artifact_sha256": "b98b257bf6c939c9b5be2840aa07077e54307d64ddd3bb2a4b292a4e06482d4c",
+              "max_container_pids": 2,
+              "max_rss_kib": 22180,
+              "max_tree_pids": 1,
+              "seconds": 0.119,
+              "stdout_bytes": 311,
+              "verify_diff_count": 0,
+              "verify_identical": true,
+              "verify_pages_after": 31,
+              "verify_pages_before": 31,
+              "verify_pages_identical": true
+            },
+            "export_pdf": {
+              "artifact_bytes": 1616896,
+              "artifact_sha256": "ce27bc6d7ecae648fcad0a297497279185fe5962a2711b8f59f460ac3eed8686",
+              "max_container_pids": 2,
+              "max_rss_kib": 127464,
+              "max_tree_pids": 1,
+              "page_count": 31,
+              "pdfinfo_pages": 31,
+              "rendered_count": 31,
+              "seconds": 10.125,
+              "stdout_bytes": 234
+            },
+            "export_text": {
+              "max_container_pids": 2,
+              "max_rss_kib": 16348,
+              "max_tree_pids": 1,
+              "omitted_count": 0,
+              "page_count": 31,
+              "pages_length": 31,
+              "seconds": 0.098,
+              "stdout_bytes": 54840,
+              "stdout_sha256": "1d073f8773bb665977bb5eb8f34d2678a3d7b589edff90b12abf78c05bd09fc1",
+              "truncated": false
+            }
+          },
+          "run": 2,
+          "total_seconds": 10.418
+        }
+      ],
+      "sample": "notice-10-sow"
+    }
+  ],
+  "schema": "bidops.rhwp-r0-baseline-metrics.v1"
+}
