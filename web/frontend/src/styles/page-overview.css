@@ -81,3 +81,15 @@
 .ps-record .page-overview-execution-details { margin-top: var(--spacing-1); }
 .ps-record .page-overview-execution-details > summary { color: var(--color-text-accent); font-size: var(--bo-type-caption); font-weight: 500; }
 .ps-record .page-overview-history { padding: 0; }
+
+/* R7 개요 입력 범위 확인. 새 색 값을 만들지 않고 기존 토큰만 읽는다. */
+.page-overview-range{display:grid;gap:var(--spacing-2);min-width:0;overflow-wrap:anywhere}
+.page-overview-range h3{margin:0;font-size:var(--bo-type-section-title);font-weight:600}
+.page-overview-range p{margin:0;line-height:var(--bo-type-caption-leading)}
+.page-overview-range-assist{display:flex;align-items:center;gap:var(--spacing-2);flex-wrap:wrap;font-size:var(--bo-type-caption)}
+.page-overview-range-pages{display:flex;gap:var(--spacing-3);flex-wrap:wrap}
+/* 지원 폭(1280~1920px) 안에서 표가 좁아질 때만 이 안에서 가로로 스크롤한다. */
+.page-overview-range-table{min-width:0;overflow-x:auto}
+.page-overview-range-form{display:grid;gap:var(--spacing-2);justify-items:start}
+.page-overview-range-invalid,.page-overview-range-reason{font-size:var(--bo-type-caption)}
+.ps-record .page-overview-range,.ps-record .page-overview-range h3{font-size:var(--bo-type-caption);line-height:var(--bo-type-caption-leading)}
