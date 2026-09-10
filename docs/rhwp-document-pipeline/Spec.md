@@ -1,6 +1,6 @@
 # rhwp 문서 변환 파이프라인 명세
 
-작업명: rhwp-document-pipeline · 기준일: 2026-09-10 · 상태: R2 구현·검증 완료, 단계 검토 대기 (현재 진행은 Plan.md 참조)
+작업명: rhwp-document-pipeline · 기준일: 2026-09-10 · 상태: R3 저장 경계 구현·검증 수락·main 병합, 현재 진행은 Plan.md 참조 (현재 진행은 Plan.md 참조)
 이 문서는 구현이 따라야 할 계약과 단계다. 배경은 [ADR.md](ADR.md), 요구는 [Requirements.md](Requirements.md), 구조는 [Design.md](Design.md)에 있다.
 
 ## 1. rhwp 호출 계약
@@ -52,7 +52,21 @@
 
 `para_index`가 있는 모든 항목에는 항상 같은 공간의 `section`을 함께 기록한다. `match="page_text"`인 블록은 원본 블록의 section을 알고 있어도 `para_index`를 `null`로 둘 수 있다. 이는 source paragraph identity를 발명하지 않고 페이지 텍스트에만 연결한다는 뜻이며, source identity가 없는 블록의 `section`은 `null`로 둘 수 있다.
 
-snapshot 행(`prespec_v4_pdf_snapshot`)에는 `renderer='rhwp-svg-pdf'`, `renderer_jsonb={"renderer":"rhwp-svg-pdf","rhwp_version":"0.8.6","rhwp_binary_sha256":...,"backend":"svg","compat":"2022","fallback_fonts":{...},"worker_image_digest":null|...}`, `font_jsonb`(기존 manifest hash), `config_jsonb.options`(정규화 ProcessorOptions), 새 열(Design §2.4)을 채운다. `renderer_digest = sha256(canonical_json(renderer_jsonb))`, `font_digest`, `config_sha256` 세 값이 같고 같은 원본 version이면 재변환 없이 재사용한다(기존 캐시 검증 규칙 그대로).
+snapshot 행(`prespec_v4_pdf_snapshot`)에는 `pdf_metadata_jsonb.renderer='rhwp-svg-pdf'`(별도 renderer 열 없음), `renderer_jsonb={"renderer":"rhwp-svg-pdf","rhwp_version":"0.8.6","rhwp_binary_sha256":...,"backend":"svg","compat":"2022","fallback_fonts":{...},"worker_image_digest":null|...}`, `font_jsonb`(기존 manifest hash), `config_jsonb.options`(정규화 ProcessorOptions), 새 열(Design §2.4)을 채운다. `renderer_digest = sha256(canonical_json(renderer_jsonb))`, `font_digest`, `config_sha256` 세 값이 같고 같은 원본 version이면 재변환 없이 재사용한다(기존 캐시 검증 규칙 그대로).
+
+scratch v2의 native 성공 결과는 `native_sidecars`를 추가한다. 키는 `hwpx`,
+`page_text`, `para_page_map`, `hwpx_verify`이며 앞의 세 항목은
+`{file,byte_count,sha256}` descriptor다. 파일은 각각 `native/<request UUID>.hwpx`,
+`native/<request UUID>.page-text.json`, `native/<request UUID>.para-page-map.json`이다.
+원본 HWPX는 `hwpx=null`, `hwpx_verify=null`이며 원문 bytes를 그대로 쓴다. HWP는
+검증된 변환본과 안전한 `{identical,diff_count,pages:{before,after,identical}}`만 전달한다.
+모든 파일이 원자적으로 쓰인 뒤 결과 JSON을 마지막에 발행하며, 실패·소비 완료 시
+해당 요청의 파일만 정리한다. raw dump-pages·textPreview는 전달·저장하지 않는다.
+
+저장 시와 cache hit 모두 source·PDF·page-text·변환 HWPX·구조·대응표의 고정된
+객체 version·etag·size·SHA-256을 읽어 확인한다. native page text를 구조 블록에서
+재조합하지 않는다. HWP 변환본은 원문·PDF와 함께 exact-byte scan을 거치고 최신
+clean scan이 없으면 재사용을 거부한다. 기존 구조 충돌은 Design §2.4를 따른다.
 
 ## 3. ProcessorOptions
 

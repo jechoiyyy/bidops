@@ -2010,10 +2010,9 @@ def _immutable_page_overview(*_args: Any) -> None:
 class PrespecV4PdfSnapshot(Base):
     """Immutable PDF/source binding owned by the v4 preparation boundary.
 
-    This is deliberately separate from ``DocumentStructure`` and the legacy
-    overview rows.  A PDF can therefore be prepared more than once for an
-    unchanged document/configuration without replacing the structure consumed
-    by existing reviews.
+    Legacy overview rows remain separate. Native snapshots pin a verified
+    ``DocumentStructure`` and its payload location; repeated preparation never
+    replaces the structure consumed by existing reviews.
     """
 
     __tablename__ = "prespec_v4_pdf_snapshot"
@@ -2098,6 +2097,16 @@ class PrespecV4PdfSnapshot(Base):
     pdf_location_id: Mapped[uuid_module.UUID] = mapped_column(_fk("content_object_location.id", ondelete="RESTRICT"), nullable=False)
     page_text_content_object_id: Mapped[uuid_module.UUID] = mapped_column(_fk("content_object.id", ondelete="RESTRICT"), nullable=False)
     page_text_location_id: Mapped[uuid_module.UUID] = mapped_column(_fk("content_object_location.id", ondelete="RESTRICT"), nullable=False)
+    hwpx_content_object_id: Mapped[uuid_module.UUID | None] = mapped_column(_fk("content_object.id", ondelete="RESTRICT"), nullable=True)
+    hwpx_location_id: Mapped[uuid_module.UUID | None] = mapped_column(_fk("content_object_location.id", ondelete="RESTRICT"), nullable=True)
+    structure_id: Mapped[uuid_module.UUID | None] = mapped_column(_fk("document_structure.id", ondelete="RESTRICT"), nullable=True)
+    structure_location_id: Mapped[uuid_module.UUID | None] = mapped_column(_fk("content_object_location.id", ondelete="RESTRICT"), nullable=True)
+    para_page_map_content_object_id: Mapped[uuid_module.UUID | None] = mapped_column(_fk("content_object.id", ondelete="RESTRICT"), nullable=True)
+    para_page_map_location_id: Mapped[uuid_module.UUID | None] = mapped_column(_fk("content_object_location.id", ondelete="RESTRICT"), nullable=True)
+    hwpx_verify_jsonb: Mapped[Any] = mapped_column(JSONB_NULL_COMPAT, nullable=True)
+    para_page_map_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    rhwp_binary_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    rhwp_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
     source_kind: Mapped[str] = mapped_column(String(16), nullable=False)
     source_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     source_size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
@@ -2341,6 +2350,7 @@ class PrespecV4Attempt(Base):
     )
     result_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     raw_response_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    validation_warnings: Mapped[Any] = mapped_column(JSONB_NULL_COMPAT, nullable=True)
     error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     lease_owner: Mapped[str | None] = mapped_column(String(255), nullable=True)
     lease_expires_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
@@ -2398,7 +2408,7 @@ def _guard_prespec_v4_attempt_update(_mapper: Any, connection: Any, target: Pres
     mutable = {
         "status", "result_id", "result_sha256", "raw_response_sha256", "error_code",
         "lease_owner", "lease_expires_at", "started_at", "completed_at",
-        "prompt_tokens", "output_tokens", "latency_ms",
+        "prompt_tokens", "output_tokens", "latency_ms", "validation_warnings",
     }
     if any(state.attrs[column.key].history.has_changes() for column in target.__table__.columns if column.key not in mutable):
         raise ValueError("v4 attempt inputs are immutable")

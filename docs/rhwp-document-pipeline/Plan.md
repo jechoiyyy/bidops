@@ -1,6 +1,6 @@
 # rhwp 문서 변환 파이프라인 진행 계획
 
-작업명: rhwp-document-pipeline · 기준일: 2026-09-10 · 상태: R2 수락·main 병합, 사용자 요청으로 R3 착수
+작업명: rhwp-document-pipeline · 기준일: 2026-09-10 · 상태: R3 수락·main 병합, P1·R4 미착수
 
 이 문서는 새 세션이 다른 맥락 없이 이 작업을 이어갈 수 있도록 순서·담당·게이트·현재 상태·재현 명령을 모아 둔다. 내용이 이미 다른 문서에 있으면 여기 다시 적지 않고 링크한다. 단계가 끝나거나 결정이 바뀌면 §7 진행 기록에 덧붙이고, 결정 자체는 [ADR.md](ADR.md)에 적는다.
 
@@ -28,7 +28,7 @@
 
 | 항목            | 상태                                                                                                                                                                                               | 확인 방법                                                                                                                |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
-| main          | `41eaef5` (R1 병합 기준선) → R2 병합 (현재 SHA는 git log로 확인)                                                                                                            | `git log --oneline -5`                                                                                               |
+| main          | `1db6986` (R2) → R3 병합 (현재 SHA는 git log로 확인)                                                                                                            | `git log --oneline -5`                                                                                               |
 | 미병합 브랜치       | `feat/p1-wp1-model-client`(87cce3b), `feat/p1-wp2-validation-retry`(3f03bca, WP-1 위), `feat/p1-wp3-citation-normalize`(3a3dfab). 내용은 [ADR.md "관련 결정"](ADR.md#관련-결정이-작업-밖-참조)                     | `git worktree list`, `git branch --list 'feat/p1*'`                                                                  |
 | 운영 컨테이너       | Compose 프로젝트 `bidops`. web `bidops-web-1`(이미지 `bidops-prespec-canvas100:20260909`, 127.0.0.1:18887), document-worker 2개(이미지 `bidops-v4-luna-reference:20260909-final`, pids 512로 2026-09-10 재생성) | `docker ps`, `docker inspect <c> --format '{{.HostConfig.PidsLimit}}'`                                               |
 | 배포 설정 보관      | `~/.local/state/bidops/deployments/<이름>-<id>/deploy.compose.json`                                                                                                                                | [operations.md "화면 노출과 edge overlay"](../operations.md)                                                              |
@@ -128,17 +128,19 @@ git diff --check
 
 게이트: 2회 실행 바이트 동일, 표본 매핑률 기록, 미매핑이 문서 실패로 번지지 않음.
 
-### R3 저장·snapshot (담당: 위임, `feat/rdp-r3-snapshot`)
+### R3 저장·snapshot (담당: 사용자 요청에 따라 직접 구현, `feat/rdp-r3-snapshot`)
 
-- [ ] Alembic 0023: [Design §2.4](Design.md#24-데이터-모델) nullable 열, `renderer` 값 확장, worker INSERT 권한(`scripts/runtime-privileges.sql`). 같은 migration에 검증기 경고 열 `validation_warnings` jsonb(WP-3 `pdf_inline_locator_normalized`의 저장 자리, [ADR "관련 결정"](ADR.md#관련-결정이-작업-밖-참조))와 `web/backend/tests/app/test_module_boundaries.py`가 검사하는 §5.1 테이블 소유표에 `prespec_v4_attempt`를 추가(기존 실패 해소).
-- [ ] `prepare_v4_pdf_snapshot`: 산출물 6종 저장·결속, `renderer_digest` 재정의, 캐시 재사용 검증에 HWPX·대응표 포함.
-- [ ] 준비 실패 코드 `pdf_preparation_failed:<code>`와 감사 `converter_code`([findings "pdf_preparation_failed가 실제 오류 코드를 감춘다"](../tracking/findings.md)).
-- [ ] `document_converter.py`·`document_protocol.py` v2 sidecar에 HWPX·페이지 텍스트·대응표 파일(원자 publish, hash 검증).
-- [ ] 테스트: 임시 PostgreSQL 17 migration·trigger·권한, 격리 roundtrip, 캐시 재사용.
+- [x] Alembic 0023: [Design §2.4](Design.md#24-데이터-모델) nullable 열, `renderer` 값 확장, worker INSERT 권한(`scripts/runtime-privileges.sql`). 같은 migration에 검증기 경고 열 `validation_warnings` jsonb(WP-3 `pdf_inline_locator_normalized`의 저장 자리, [ADR "관련 결정"](ADR.md#관련-결정이-작업-밖-참조))와 `web/backend/tests/app/test_module_boundaries.py`가 검사하는 §5.1 테이블 소유표에 `prespec_v4_attempt`를 추가(기존 실패 해소).
+- [x] `prepare_v4_pdf_snapshot`: 산출물 6종 저장·결속, `renderer_digest` 재정의, 캐시 재사용 검증에 HWPX·대응표 포함.
+- [x] 준비 실패 코드 `pdf_preparation_failed:<code>`와 감사 `converter_code`([findings "pdf_preparation_failed가 실제 오류 코드를 감춘다"](../tracking/findings.md)).
+- [x] `document_converter.py`·`document_protocol.py` v2 sidecar에 HWPX·페이지 텍스트·대응표 파일(원자 publish, hash 검증).
+- [x] 테스트: 임시 PostgreSQL 17 migration·trigger·권한, 격리 roundtrip, 캐시 재사용.
 
-- 소유 파일: `models.py`, `alembic/versions/0023_*.py`, `scripts/runtime-privileges.sql`, `services/prespec_v4.py`, `services/document_converter.py`, `document_protocol.py`, `services/prespec_v4_ops.py`, 해당 테스트, `docs/database-guide.md`·`docs/deep-review-erd.md` 해당 절.
+- 소유 파일: `core/db.py`(runtime revision), `models.py`, `alembic/versions/0023_*.py`, `scripts/runtime-privileges.sql`, `services/prespec_v4.py`, `services/document_converter.py`, `document_protocol.py`, `services/prespec_v4_runner.py`(실패 감사), `services/document_structures.py`(공유 materialization), `document_mcp/native_artifacts.py`(공유 검증), 해당 테스트, `docs/database-guide.md`·`docs/deep-review-erd.md` 해당 절.
 
 게이트: PostgreSQL smoke·roundtrip, 기존 행 미변경, `test_module_boundaries` 통과.
+
+검증과 제한: [R3 검증 기록](../validation-runs/2026-09-10-rhwp-r3-snapshot.md). 같은 문서 버전의 기존 구조와 pages·blocks가 다르면 보존 후 실패하며, 구조 revision 재설계는 포함하지 않는다. 실제 MinIO·ClamAV 운영 인수는 R6에 남긴다.
 
 ### P1 병합 (담당: 관리자)
 
@@ -215,3 +217,5 @@ git diff --check
 | 2026-09-10 | R1 수락·중단 | Sol medium의 구현 `5332e6e`와 Luna max의 경계 보정 `666e7a4`를 관리자가 diff·검증 증거로 검토하고 main에 병합했다. 보정 대상 회귀 검사 16건 통과; 세 표본 실측·전체 스위트·이미지 빌드는 반복하지 않았다. 사용자 요청에 따라 이 단계에서 중단한다. R2는 미착수이며 운영 배포·DB 변경·활성화·모델 호출은 수행하지 않았다. 재개 시 R2부터 시작한다. |
 | 2026-09-10 | R2 직접 구현·검증 | 사용자 재개 요청으로 위임 없이 `/home/jechoi/orca/workspaces/bidops/rdp-r2-para-page-map` (`feat/rdp-r2-para-page-map`, 시작점 `41eaef5`)에서 구현했다. source HWPX의 패키지 구역 순서·XML 문단 identity와 dump의 구역별 전체 인덱스 집합을 대조하고, HWP·표 셀은 FULL text 유일 발생만 허용한다. 세 표본 실제 native processor 통과, 대응표 재생성 바이트 동일, 전체 블록 매핑률 36.70%·19.29%·15.45%, 미매핑으로 인한 문서 실패 없음. 근거: [R2 검증](../validation-runs/2026-09-10-rhwp-r2-para-page-map.md)·[안전 지표](../validation-runs/2026-09-10-rhwp-r2-para-page-map.metrics.json). R2 구현 게이트 충족, 단계 검토 전 미커밋·미병합이며 R3는 열지 않았다. 운영 변경·모델 호출 없음. |
 | 2026-09-10 | R2 수락·R3 승인 | 사용자가 R2의 main 병합과 R3 계속 진행을 요청했다. 저장된 R2 diff·검증 지표를 확인해 병합하며, 기존 main 계획서의 기능 구현 우선 원칙을 보존했다. R3는 별도 격리 worktree에서 직접 진행하고 운영 migration·배포는 R6에 남긴다. |
+| 2026-09-10 | R3 직접 구현·검증 | R2를 main `1db6986`에 fast-forward 병합한 뒤 Orca worktree `/home/jechoi/orca/workspaces/bidops/rdp-r3-snapshot`, `feat/rdp-r3-snapshot`에서 직접 구현했다. nullable 0023·runtime head·worker 권한, native scratch sidecar·객체 version/hash 결속과 캐시, 안전 오류·감사 기록을 연결했다. 최종 관련 회귀 107건, PostgreSQL·권한·경계 50건 및 보정 후 대상 검사가 통과했다(중복 합산 금지). 실제 격리 이미지 세 표본 79/53/31쪽의 저장·캐시 재사용·scratch 정리, R2 대응표 해시 일치를 확인했다. 근거: [R3 검증](../validation-runs/2026-09-10-rhwp-r3-snapshot.md)·[지표](../validation-runs/2026-09-10-rhwp-r3-snapshot.metrics.json). R3 게이트 충족, 미커밋·미병합으로 단계 검토 대기. P1·R4와 운영 변경은 시작하지 않았다. |
+| 2026-09-10 | R3 수락·병합 | 사용자가 R3 커밋과 main 병합을 요청했다. 검토한 R3 코드·migration·계약 문서·검증 기록을 함께 커밋하고 main에 fast-forward 병합한다. 검증 뒤 코드 변경이 없어 기존 통과 검사를 반복하지 않고 수락 문서와 staged diff를 확인했다. P1·R4는 아직 시작하지 않았으며 운영 migration·배포·활성화·모델 호출도 수행하지 않았다. |

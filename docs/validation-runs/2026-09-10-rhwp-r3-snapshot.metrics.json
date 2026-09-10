@@ -1,0 +1,86 @@
+{
+  "database": "disposable PostgreSQL 17",
+  "font": {
+    "font_manifest_sha256": "92e5dc4ff6e83ab2008e636169bf0b24df0cb404214af33946a73f010f1650a9"
+  },
+  "image_id": "sha256:84f5cd7f2fff935f4d3502c092607ad3a796e494a47041e976369d3ad249655e",
+  "object_store": "versioned-filesystem-test-double",
+  "renderer": {
+    "backend": "svg",
+    "compat": "2022",
+    "fallback_fonts": {
+      "mono": "NanumGothicCoding",
+      "sans": "NanumGothic",
+      "serif": "NanumMyeongjo"
+    },
+    "renderer": "rhwp-svg-pdf",
+    "rhwp_binary_sha256": "c82684971756d58ba7391cd08c38c93bb4280ab9ebf0e21c0936574a0084fc8c",
+    "rhwp_version": "0.8.6",
+    "worker_image_digest": null
+  },
+  "samples": [
+    {
+      "cache_reused_without_converter": true,
+      "has_hwpx": false,
+      "hwpx_verify": null,
+      "map_sha256": "389587742d928fdb35c14bc8eeb8066cf43d1282d2ab3667942fbce8e2fda023",
+      "page_count": 79,
+      "page_text_sha256": "cfc160444f946eae48f2e18e8314fd9e7c35fedcdc9b72476785dc60602c18ca",
+      "pdf_sha256": "aee7e6487c41fce099f209d1695374dc708826131558d8eb2d293cb442db4f6a",
+      "preparation_seconds": 25.042,
+      "sample": "notice-142",
+      "scratch_cleaned": true,
+      "source_preserved": true,
+      "source_sha256": "7cc3b5f3894d984ce641e9462030990cbb4cfc1d6869b18bc9047899a23f4665",
+      "structure_bound": true
+    },
+    {
+      "cache_reused_without_converter": true,
+      "has_hwpx": true,
+      "hwpx_verify": {
+        "diff_count": 0,
+        "identical": true,
+        "pages": {
+          "after": 53,
+          "before": 53,
+          "identical": true
+        }
+      },
+      "map_sha256": "7136116a1392d59d90eededdc7ec7febf95be58499eb67f7c6f9c95e54e62c22",
+      "page_count": 53,
+      "page_text_sha256": "e3035c4a19a13f9d9623c33bf35867ceb216b00773e54326f7ab6a5afb78c1eb",
+      "pdf_sha256": "acd1b40898f31ec5f5bd685dfa4aef54342a7ed54d8dd88bf9ca2b671fc0dc5a",
+      "preparation_seconds": 19.476,
+      "sample": "notice-10-rfp",
+      "scratch_cleaned": true,
+      "source_preserved": true,
+      "source_sha256": "ea1e0a45b659a5c46a24b0638be613d6bd2fb4a53985cb7229bdaf107c37dca4",
+      "structure_bound": true
+    },
+    {
+      "cache_reused_without_converter": true,
+      "has_hwpx": true,
+      "hwpx_verify": {
+        "diff_count": 0,
+        "identical": true,
+        "pages": {
+          "after": 31,
+          "before": 31,
+          "identical": true
+        }
+      },
+      "map_sha256": "9ce91a0cc8f2cbcb39868915f422759868cf0c002da34957644fd6ba467dc439",
+      "page_count": 31,
+      "page_text_sha256": "89672c49fbc0110d1293bb25036353b6c8841fc12810f4facf69fa6ab1f69df7",
+      "pdf_sha256": "ce27bc6d7ecae648fcad0a297497279185fe5962a2711b8f59f460ac3eed8686",
+      "preparation_seconds": 11.974,
+      "sample": "notice-10-sow",
+      "scratch_cleaned": true,
+      "source_preserved": true,
+      "source_sha256": "807e47101274d3820a817c0e0ff4b766bc3a2b0cf7ffcb68aff2e034fba62cb5",
+      "structure_bound": true
+    }
+  ],
+  "scanner": "test-double",
+  "schema": "bidops.rhwp-r3-roundtrip.v1"
+}

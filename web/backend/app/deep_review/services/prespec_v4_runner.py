@@ -388,6 +388,12 @@ def record_v4_preparation_failure(
         completed_at=_now(), created_at=_now(),
     )
     session.add(attempt)
+    from .document_converter import SAFE_CONVERTER_CODES
+    converter_code = error_code.removeprefix("pdf_preparation_failed:") if error_code.startswith("pdf_preparation_failed:") else None
+    safe_metadata = {"notice_id": notice_id, "status": "failed", "reason_code": attempt.error_code}
+    if converter_code in SAFE_CONVERTER_CODES:
+        safe_metadata["converter_code"] = converter_code
+    session.add(AuditEvent(actor_kind="system", claimed_name=None, action="prespec_v4.preparation_failed", aggregate_type="prespec_v4_attempt", aggregate_id=str(attempt.id), safe_metadata=safe_metadata))
     session.flush()
     return attempt
 

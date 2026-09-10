@@ -59,17 +59,30 @@ attachment fetch ─ quarantine ─ ClamAV ─ DocumentProcessor(rhwp)
 
 ### 2.4 데이터 모델
 
-기존 `prespec_v4_pdf_snapshot`(0021)은 유지하고 새 snapshot 계약을 추가한다. 옛 행은 `renderer='rhwp-canvas-chromium'`으로 이력이 되고, 새 행은 `renderer='rhwp-svg-pdf'`다. 열 추가는 nullable로만 한다.
+기존 `prespec_v4_pdf_snapshot`(0021)은 유지하고 새 snapshot 계약을 추가한다. renderer 값은 별도 DB 열이 아니라 `pdf_metadata_jsonb.renderer`와 `renderer_jsonb`에 있다. Canvas 이력은 그대로 두고 native 신규 행은 `rhwp-svg-pdf`를 기록한다. 열 추가는 nullable로만 한다.
 
 | 열(신규) | 뜻 |
 |---|---|
 | `hwpx_content_object_id`, `hwpx_location_id` | 변환 HWPX 객체(원본이 HWP일 때만) |
 | `hwpx_verify_jsonb` | `export-hwpx --json`의 `verify`·`verifyPages` 결과 |
-| `structure_id` | 이 준비에서 만든 `document_structure` 행 |
-| `para_page_map_content_object_id`, `para_page_map_sha256` | 대응표 객체 |
+| `structure_id`, `structure_location_id` | 같은 원본의 `document_structure` 행과 payload의 정확한 객체 버전 |
+| `para_page_map_content_object_id`, `para_page_map_location_id`, `para_page_map_sha256` | 대응표 객체·정확한 버전·SHA-256 |
 | `rhwp_binary_sha256`, `rhwp_version` | renderer provenance(기존 `renderer_jsonb`에도 기록) |
 
-`renderer_digest`는 (바이너리 sha, 폰트 manifest sha, 옵션 sha)의 결합이라 바이너리·폰트 교체 시 캐시가 무효화된다.
+`renderer_digest = sha256(canonical_json(renderer_jsonb))`다. 기존 identity의
+`font_digest`·`config_sha256`도 함께 비교하므로 바이너리·폰트·옵션 변경은 다른 캐시다.
+HWPX 해시는 참조된 `content_object.sha256`에 있으며 중복 hash 열을 만들지 않는다.
+
+`document_structure.document_version_id`의 UNIQUE는 유지한다. 기존 구조가 있으면
+원본 해시·MIME·pages·blocks가 native 결과와 정확히 같은 경우에만 재사용하고,
+차이는 `structure_binding_mismatch`로 거부한다. ID·생성 시각·extractor 표식 차이만
+비교에서 제외한다. 구조를 새로 만들 때는 기존 materialization과 같은 block·segment
+저장 함수를 쓴다. 이전 리뷰나 구조를 수정하지 않는다.
+
+`0023_rhwp_snapshot`은 위 열과 `prespec_v4_attempt.validation_warnings`(nullable
+JSONB)를 추가한다. 경고 열은 이후 WP-3 결과의 저장 자리이며 현재 모델 검증기를
+변경하지 않는다. attempt의 허용 상태 전이에서만 경고를 쓸 수 있고 terminal 행은
+여전히 불변이다. native 자료나 경고가 하나라도 있으면 downgrade를 거부한다.
 
 ### 2.5 소비자 연결
 

@@ -659,6 +659,36 @@ lease 길이는 환경변수가 아니라 모듈 상수 1,200초다.
 - 품질은 `unmeasured_reference` 또는 `mock_reference`만 저장한다. 현재 운영용 측정 정책은
   없으며 참조 실행 활성화 없이 모델 실행·자동 심층 생성을 허용하지 않는다.
 
+## 8.4 native rhwp snapshot 참조 (`0023`, 2026-09-10 추가)
+
+`0021`의 `prespec_v4_pdf_snapshot`에 다음 nullable 열을 추가한다. 기존 행은
+그대로 보존하며 snapshot의 UPDATE/DELETE 금지 trigger도 유지한다.
+
+| 열 | 참조·계약 |
+|---|---|
+| `hwpx_content_object_id`, `hwpx_location_id` | HWP 변환본의 `content_object`, `content_object_location` FK; 원본 HWPX는 둘 다 null |
+| `hwpx_verify_jsonb` | HWP 변환 검증의 안전한 IR 동일성·차이 개수·전후 페이지 수 |
+| `structure_id`, `structure_location_id` | 같은 문서의 `document_structure` FK와 payload의 정확한 location FK |
+| `para_page_map_content_object_id`, `para_page_map_location_id`, `para_page_map_sha256` | 대응표 객체·location FK와 SHA-256 |
+| `rhwp_binary_sha256`, `rhwp_version` | native renderer provenance |
+
+모든 신규 FK는 `ON DELETE RESTRICT`다. renderer는 기존 JSON 안의 값으로서
+`rhwp-svg-pdf`를 허용하며 별도 renderer 열을 추가하지 않는다. native
+`renderer_digest`는 renderer JSON 전체의 canonical SHA-256이다. 기존
+`(document_version_id,source_sha256,config_sha256,renderer_digest,font_digest)`
+UNIQUE는 유지한다. 서비스가 원본·객체 버전·해시·HWPX 검증·page-text/map 결속을
+검증하고 DB는 FK·UNIQUE·불변 trigger를 담당한다.
+
+`document_structure.document_version_id` UNIQUE도 유지한다. 기존 구조의 원본
+해시·MIME·pages·blocks가 native 결과와 같아야 재사용하고, 차이는
+`structure_binding_mismatch`로 닫는다. 다른 구조를 기존 리뷰 위에 덮지 않는다.
+
+`0022`의 `prespec_v4_attempt`에는 nullable `validation_warnings` JSONB를 추가한다.
+기존 trigger의 허용 결과 열 목록에만 추가하며 입력·범위·상태 전이·terminal 불변
+검증은 유지한다. worker의 snapshot INSERT와 이 열의 column UPDATE를 허용하고,
+snapshot UPDATE/DELETE는 허용하지 않는다. 신규 참조·provenance나 경고가 있으면
+`0022`로의 downgrade를 거부한다.
+
 ## 9. FK 삭제와 불변 정책
 
 기본 FK는 `RESTRICT`/`NO ACTION`이다.

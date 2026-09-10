@@ -467,7 +467,7 @@ snapshot field는 추정 backfill하지 않으며, 같은 과거 회차 재적�
 | `bidops.document-converter-request.v2` | `prepare_pdf=true` 문서 변환 요청과 원문 hash/scan 결속 |
 | `bidops.document-converter-result.v2` | 구조 JSON과 request UUID 결속 PDF sidecar metadata |
 | `bidops.document-structure.v1` | page/block/table 구조와 원문 locator |
-| `bidops.para-page-map.v1` | native rhwp 구조 블록과 물리 PDF 페이지 대응 (R2 생성·검증, R3 저장 연결 전) |
+| `bidops.para-page-map.v1` | native rhwp 구조 블록과 물리 PDF 페이지 대응 (생성·검증·버전 고정 저장) |
 | `bidops.document-bundle.v1` | 확정된 document versions와 structure snapshot |
 | `bidops.deep-review-stage.v1` | 세 단계의 claims, evidence, unknowns, warnings |
 | `bidops.deep-review-report.v1` | 검증된 claim을 이용한 보고서 |
@@ -486,8 +486,9 @@ HWP 변환본·표 셀의 `match=page_text`는 전체 텍스트의 유일 발생
 빈 블록·미확인 연결은 `unmapped_block_keys`에 보존하며 매핑률 0도 유효하다.
 `mapping`의 세 블록 집계는 mapped·unmapped의 중복 없는 전체 분할과 같아야 하고
 `rule=para-page-align.v1`로 고정한다. [상세 계약과 정렬 규칙](rhwp-document-pipeline/Spec.md)을 따른다.
-현재 대응표와 canonical JSON 바이트는 native `ProcessedDocument`의 별도 속성이다.
-기존 구조 JSON·REST·scratch v2 envelope에는 넣지 않으며 R3에서 저장 경계를 연결한다.
+대응표와 canonical JSON 바이트는 native `ProcessedDocument`의 별도 속성이다.
+기존 구조 JSON·REST는 유지하고 scratch v2의 `native_sidecars` descriptor와
+`prespec_v4_pdf_snapshot`의 객체 참조로 저장 경계를 연결한다.
 
 문서 변환 scratch 계약은 v1 구조 결과와 v2 PDF preparation 결과를 구분한다. v1은
 기존 `request.v1`/`result.v1` envelope와 structure JSON만 사용한다. 요청 options의
@@ -511,9 +512,20 @@ sidecar bytes와 원문 hash가 exact match여야 한다. `pdf_metadata`는 빈 
 input과 다른 request 파일은 삭제하지 않는다. scratch는 임시 handoff이고 DB/MinIO
 정본이나 영속 snapshot이 아니다.
 
+native `renderer=rhwp-svg-pdf` 성공 결과는 `native_sidecars`에 `hwpx`, `page_text`,
+`para_page_map`, `hwpx_verify`를 추가한다. 파일 descriptor는 `{file,byte_count,sha256}`이고
+`native/<request_uuid>.hwpx`, `.page-text.json`, `.para-page-map.json`으로만 해소한다.
+원본 HWPX는 `hwpx`·`hwpx_verify`가 `null`이고 원문을 재사용한다. HWP 변환본은
+`hwpx_verify={identical:true,diff_count:0,pages:{before:N,after:N,identical:true}}`를
+반드시 갖는다. 원문·PDF·변환 HWPX를 trusted-side scanner로 검사한다. native
+page-text는 `bidops.rhwp-page-text.v1`의 `page_count`, 물리 페이지의
+`number,display_page,section,text,text_sha256`를 보존한다. 모든 sidecar를 완료한 뒤
+성공 JSON을 publish하며 소비자는 고정 경로·regular file·상한·hash·페이지 수와
+schema를 검사한다. 구조 블록을 합쳐 PDF page text를 대신하지 않는다.
+
 ## DB와 migration 계약
 
-- 현재 Alembic head는 `0018_prespec_auto_preparation_segments`이다. 그 이전 T-23 phase 2
+- 코드의 Alembic head는 `0023_rhwp_snapshot`이다. 운영 적용은 별도 승인 단계다. 그 이전 T-23 phase 2
   migration은 `0014_prespec_overview_attempt_result`이며, 아래 T-23 검증 증거는 `0014`
   경계에 해당한다.
 - `0001_lean_v1_postgresql`은 기존 수집·리뷰와 심층 검토 table, `0002_screening_basis_text`는 긴 판정 설명 보존, `0003_screening_runtime_pg`는 판정 실행·품질·정책·일정·감사와 불변 trigger를 추가한다.
@@ -813,16 +825,16 @@ fenced attempt를 추가한다. target은 검증된 PDF에 대해 준비가 끝�
   `ContentObjectLocation`, PDF `ContentObjectLocation`, full page-text JSON
   `ContentObjectLocation`, PDF metadata, page count·page text hash, ClamAV clean
   verdict, worker renderer/font digest와 정규화된 processor options를 묶는다.
-  full page text object는 `bidops.prespec-v4-page-text.v1` JSON의 모든 물리 페이지
+  기존 Canvas/PDF full page text object는 `bidops.prespec-v4-page-text.v1` JSON의 모든 물리 페이지
   `{number,text,text_sha256}`를 보존하며 PDF metadata의 페이지별 hash와 일치해야
-  한다. 생성 PDF는 기존 `source` namespace에 저장하고 선택 manifest만
+  한다. 생성 PDF는 기존 `source` namespace에 저장하고 page-text·선택 manifest는
   `structure` namespace에 둔다. 원본 PDF는 동일 source object/location과 bytes를
   그대로 재사용한다.
 - 준비 API는 source hash, renderer/font/config digest로 기존 snapshot을 변환 전에
   조회한다. 같은 source version·worker provenance·options이면 worker를 다시
   호출하지 않고 같은 PDF/page-text object version을 반환한다. cache hit도 source,
   PDF, page-text object를 저장된 namespace·object key·version·etag·size·SHA-256으로
-  bounded read하고 최신 `ContentScan.status=clean`을 확인한다. renderer에는
+  bounded read하고 최신 `ContentScan.status=clean`을 확인한다. 기존 Canvas renderer에는
   `runtime_sha256`와 실제 Chromium binary의 `chromium_sha256`, font에는 실제
   설치 파일 바이트를 정렬해 만든 `font_manifest_sha256`가 있어야 한다. 배포가
   선언한 `worker_image_digest`가 있을 때만 선택적으로 함께 결속하며, 선언이 없을
@@ -832,6 +844,23 @@ fenced attempt를 추가한다. target은 검증된 PDF에 대해 준비가 끝�
   일치해야 한다. 원본 PDF는 `rerendered=false`와 실제 bounded Poppler/stdlib
   text-extractor provenance를 기록하고 `font_provenance=null`로 둔다. config의 `options`는
   `ProcessorOptions.from_mapping`의 확정 기본값을 포함한 정규화 mapping이어야 한다.
+- native snapshot은 `hwpx_content_object_id`·`hwpx_location_id`·`hwpx_verify_jsonb`
+  (HWP만), `structure_id`·`structure_location_id`, `para_page_map_content_object_id`·
+  `para_page_map_location_id`·`para_page_map_sha256`, `rhwp_binary_sha256`·`rhwp_version`을
+  추가로 결속한다. 모두 nullable로 추가하며 과거 행을 backfill하지 않는다. 변환
+  HWPX는 `source`, 구조·native page-text·대응표는 `structure` namespace다. renderer
+  값은 `pdf_metadata_jsonb.renderer`와 `renderer_jsonb`에 있고 별도 열은 없다.
+  native renderer digest는 renderer JSON 전체의 canonical SHA-256이고 font/config
+  digest와 함께 캐시 identity를 구성한다. 저장·재사용 때 모든 객체의 정확한
+  version·etag·size·hash를 확인하고 HWPX 검증 결과와 page-text/map 계약을 재검증한다.
+  같은 문서 버전의 기존 구조는 원본·MIME·pages·blocks가 모두 같은 경우에만 재사용하며
+  다르면 `structure_binding_mismatch`로 거부한다. 기존 구조와 리뷰는 덮어쓰지 않는다.
+- `0023`은 `prespec_v4_attempt.validation_warnings` nullable JSONB도 추가한다.
+  worker는 snapshot INSERT와 attempt의 경고 열 UPDATE를 허용받지만 snapshot
+  UPDATE/DELETE와 terminal attempt 수정은 거부된다. 경고의 실제 생산 연결은
+  이후 WP-3에서 한다. converter의 허용된 안전 오류는
+  `pdf_preparation_failed:<code>`와 `AuditEvent.safe_metadata.converter_code`에 남기며
+  미등록 예외는 일반 코드로 닫고 원문·경로·stderr는 넣지 않는다.
 - `bidops.prespec-v4-input-manifest.v1`은 선택된 장·절의 정확한 page substring,
   시작/끝 locator, 선택 page hash, 원본 full-page hash, 입력 제한을 담는다. 목차
   잔여와 다음 장 제목은 substring에 포함하지 않으며, 필요한 첫 `과업내용`
