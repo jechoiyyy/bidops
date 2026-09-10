@@ -32,15 +32,17 @@ RUN python -m pip install --no-cache-dir --no-deps --only-binary=:all: \
         --require-hashes --requirement requirements.lock \
     && python -m pip check
 
-# poppler-utils, clamav, the Nanum/Noto CJK fallback fonts, and
-# postgresql-client are document-pipeline and PostgreSQL operator tools. The
-# native rhwp CLI is copied with the backend below. Git is retained only as an
+# poppler-utils, clamav, the Nanum/Noto CJK fallback fonts, fontconfig
+# (fc-list backs the font manifest fingerprint; it used to arrive only as a
+# Chromium dependency), and postgresql-client are document-pipeline and
+# PostgreSQL operator tools. The native rhwp CLI is copied with the backend
+# below. Git is retained only as an
 # optional source-inspection tool: the image has no repository metadata, and the wrapper
 # below serves the one exact baseline lookup needed by the compatibility test
 # and delegates all other commands to Git.
 RUN apt-get update \
     && apt-get install --no-install-recommends --yes \
-        git poppler-utils clamav postgresql-client fonts-nanum fonts-noto-cjk \
+        git poppler-utils clamav postgresql-client fontconfig fonts-nanum fonts-noto-cjk \
     && rm -rf /var/lib/apt/lists/*
 
 # Refuse root as a build-time application identity and create a stable runtime

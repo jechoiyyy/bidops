@@ -987,6 +987,15 @@ python -m app.deep_review.cli prespec-v4 --deactivate \
 기본값이다. 모델 endpoint가 닿지 않으면 `--activate`에 직전 활성화 감사의 reference-only binding
 JSON을 `--binding`으로 함께 준다. deployable binding을 그 자리에 쓰지 않는다.
 
+2026-09-10 R6 이후 renderer는 native `rhwp-svg-pdf` 하나다. `--renderer`는 `validate_native_renderer`의 7개 키
+(`renderer`·`rhwp_version`·`rhwp_binary_sha256`·`backend=svg`·`compat=2022`·`fallback_fonts`·`worker_image_digest`)만 가지며,
+`--font`는 `{"font_manifest_sha256", "worker_image_digest"}`다. 두 값은 배포 이미지에서 표본 1건을 격리 실행해 얻은
+`pdf_metadata`의 provenance에서 그대로 가져오고 손으로 짓지 않는다. 원본 PDF 표본은 `{"source_pdf": true, "processor_provenance": …}`와
+`{"source_pdf": true, "font_provenance": null}`을 쓴다. `--config`는 `renderer` 필드를 포함한 `ProcessorOptions` 전체다.
+이미지에는 `fontconfig`(`fc-list`)가 있어야 하며 없으면 모든 HWP·HWPX 준비가 `converter_unavailable`이다.
+`docker compose run`에는 `--no-build`가 없으므로 migration은 이미지 고정 overlay와 `--pull never`로 실행한다
+(`run --rm --no-deps --pull never migrate`). 절차와 값은 [R6 기록](validation-runs/2026-09-10-rhwp-pipeline.md)에 있다.
+
 `--prepare`/`--enqueue`는 120초 attachment fetch worker와 분리된 준비 role에서
 실행한다. app role은 검증된 source를 읽고 versioned source/structure object와
 snapshot/target/WorkJob/attempt를 append하며, analysis worker는 source/MinIO 원문

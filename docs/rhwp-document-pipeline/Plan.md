@@ -1,6 +1,6 @@
 # rhwp 문서 변환 파이프라인 진행 계획
 
-작업명: rhwp-document-pipeline · 기준일: 2026-09-10 · 상태: P1·R4·R5 main 병합(`753d639`), R6 미착수
+작업명: rhwp-document-pipeline · 기준일: 2026-09-10 · 상태: R6 운영 인수 완료(2026-09-10, 35 native snapshot은 구조 충돌로 보류), R7 미착수
 
 이 문서는 새 세션이 다른 맥락 없이 이 작업을 이어갈 수 있도록 순서·담당·게이트·현재 상태·재현 명령을 모아 둔다. 내용이 이미 다른 문서에 있으면 여기 다시 적지 않고 링크한다. 단계가 끝나거나 결정이 바뀌면 §7 진행 기록에 덧붙이고, 결정 자체는 [ADR.md](ADR.md)에 적는다.
 
@@ -28,17 +28,17 @@
 
 | 항목            | 상태                                                                                                                                                                                               | 확인 방법                                                                                                                |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
-| main          | `1db6986` (R2) → R3 병합 (현재 SHA는 git log로 확인)                                                                                                            | `git log --oneline -5`                                                                                               |
-| 미병합 브랜치       | `feat/p1-wp1-model-client`(87cce3b), `feat/p1-wp2-validation-retry`(3f03bca, WP-1 위), `feat/p1-wp3-citation-normalize`(3a3dfab). 내용은 [ADR.md "관련 결정"](ADR.md#관련-결정이-작업-밖-참조)                     | `git worktree list`, `git branch --list 'feat/p1*'`                                                                  |
-| 운영 컨테이너       | Compose 프로젝트 `bidops`. web `bidops-web-1`(이미지 `bidops-prespec-canvas100:20260909`, 127.0.0.1:18887), document-worker 2개(이미지 `bidops-v4-luna-reference:20260909-final`, pids 512로 2026-09-10 재생성) | `docker ps`, `docker inspect <c> --format '{{.HostConfig.PidsLimit}}'`                                               |
+| main | `8f863da`(R5 기록) 위에 R6 보정(`web/Dockerfile` `fontconfig`, runtime contract 테스트)과 R6 기록이 올라간다. 현재 SHA는 git log로 확인 | `git log --oneline -5` |
+| 미병합 브랜치 | 없음. P1 WP-1~4·R0~R5는 모두 main에 있다(`git branch --list 'feat/*'`에 남은 이름은 병합 완료 브랜치) | `git branch --merged main` |
+| 운영 컨테이너 | Compose 프로젝트 `bidops`. web `bidops-web-1`(이미지 `bidops-rdp-r6:20260910`, 127.0.0.1:18887), document-worker 2개(같은 이미지, pids 128·1 GiB·network none, 2026-09-10 R6 재생성). DB head `0023_rhwp_snapshot` | `docker ps`, `docker inspect <c> --format '{{.HostConfig.PidsLimit}}'`, `select version_num from bidops.alembic_version` |
 | 배포 설정 보관      | `~/.local/state/bidops/deployments/<이름>-<id>/deploy.compose.json`                                                                                                                                | [operations.md "화면 노출과 edge overlay"](../operations.md)                                                              |
-| v4 activation | OFF (마지막 감사 `31bee035-…`)                                                                                                                                                                        | `select safe_metadata from bidops.audit_event where action='prespec_v4.activation' order by created_at desc limit 1` |
-| notice 142    | snapshot `e68670e0-4bf7-4cd9-baa1-174f19e5e994`(Canvas renderer, 85쪽), target `200e9557-d5d5-4a0f-afa8-896d44b41261` ready, attempt 없음                                                           | [findings.md 142 항목](../tracking/findings.md)                                                                        |
-| notice 35/59  | Canvas renderer snapshot과 Luna 참조 결과 completed/current                                                                                                                                           | [status.md](../tracking/status.md)                                                                                   |
+| v4 activation | OFF (마지막 감사 `5016643f-…`, 사유 `rdp_r6_native_snapshots_prepared_142_59_activation_restored_off`) | `select safe_metadata from bidops.audit_event where action='prespec_v4.activation' order by created_at desc limit 1` |
+| notice 142 | native snapshot `f8a42b74-…`(`rhwp-svg-pdf`, 79쪽, 기존 구조 `22541eb7-…` 결속, 대응표 있음), target `f7c73503-…` ready(4~12쪽), attempt 없음. Canvas snapshot `e68670e0-…`·target `200e9557-…`은 보존. `current`는 여전히 실패 attempt `dbbc7b5f-…` | [R6 기록](../validation-runs/2026-09-10-rhwp-pipeline.md), [findings.md 142 항목](../tracking/findings.md) |
+| notice 35/59 | 59는 native 경로 snapshot `3aa6c47f-…`(원본 PDF, 84쪽)·target `ec040093-…` ready. **35는 native 준비를 보류**: 새 구조 blocks 1,454 ≠ 기존 1,349라 `structure_binding_mismatch`가 나고 실패 attempt가 `current`를 덮으므로 실행하지 않았다. 둘 다 Luna 참조 결과 completed/current 보존 | [R6 기록](../validation-runs/2026-09-10-rhwp-pipeline.md), [status.md](../tracking/status.md) |
 | 모델 endpoint   | overview vLLM `192.168.0.139:58765` 응답 없음(2026-09-09~10). `env/vllm.env`는 TEST-NET 자리표시자                                                                                                         | `curl -m 5 http://192.168.0.139:58765/v1/models`                                                                     |
-| rhwp 호스트 빌드   | `/home/jechoi/projects/rhwp/target/release/rhwp` v0.8.6, 커밋 `cac9b4f7c`, SHA-256 `c82684971756d58ba7391cd08c38c93bb4280ab9ebf0e21c0936574a0084fc8c`. 아직 vendor에 없음                               | `sha256sum`, `git -C /home/jechoi/projects/rhwp describe --tags`                                                     |
+| rhwp 호스트 빌드 | `/home/jechoi/projects/rhwp/target/release/rhwp` v0.8.6, 커밋 `cac9b4f7c`, SHA-256 `c82684971756d58ba7391cd08c38c93bb4280ab9ebf0e21c0936574a0084fc8c`. R0에서 vendor에 등록됐고 R6 이미지에서 같은 hash 확인 | `sha256sum`, `git -C /home/jechoi/projects/rhwp describe --tags` |
 | 표본            | 142 원본은 MinIO `source/7cc3b5f3894d984c-6f70b025586e46bdbe159ca4167a4e86.hwpx`(version `c11572d1-…`). HWP 2건은 `docs/design/(공고 2026-25) 제안요청서.hwp`·`과업지시서.hwp`(untracked, notice 10)              | Requirements §6                                                                                                      |
-| 폰트            | 호스트에 Nanum 3종 있음, worker 이미지에는 Noto CJK만                                                                                                                                                         | `fc-list : family`                                                                                                   |
+| 폰트 | R6 이미지에 Nanum 3종·Noto CJK·DejaVu와 `fontconfig`(`fc-list`). R5 이미지에는 `fc-list`가 없어 native 변환이 전부 `converter_unavailable`이었다(R6에서 보정). 폰트 manifest `92e5dc4f…1650a9` | `docker run --rm --entrypoint fc-list <image> : family` |
 
 
 ## 3. 자주 쓰는 명령
@@ -172,13 +172,13 @@ git diff --check
 
 ### R6 운영 인수 (담당: 관리자, 승인 범위 안)
 
-- [ ] DB·MinIO 백업([operations.md 백업·복구](../operations.md)) → 0023 migration → runtime 권한 재적용.
-- [ ] 새 이미지로 web·document-worker 재생성(배포별 compose json 절차).
-- [ ] explicit_sample 활성화 → 35/59/142 새 snapshot·target 준비 → 비활성화. endpoint가 있으면 attempt까지, 없으면 `ready`까지.
-- [ ] API·UI 확인(page-overview, PDF 링크, segments `page_range`), 기존 행 미변경.
-- [ ] `docs/tracking/status.md`·`findings.md`·`prespec-v4-implementation-plan.md`·`docs/validation-runs/<날짜>-rhwp-pipeline.md` 기록.
+- [x] DB·MinIO 백업(owner dump 22.5 MB + 객체 960 version hash manifest) → 0023 migration(`run --rm --no-deps --pull never migrate`, 이미지 고정 overlay) → runtime 권한 재적용. 기존 행 3·3·7·165 불변.
+- [x] 새 이미지 `bidops-rdp-r6:20260910`로 web·document-worker 재생성. R5 이미지의 `fc-list` 부재(native 변환 전부 `converter_unavailable`)를 `web/Dockerfile` `fontconfig` 추가로 먼저 보정했다.
+- [x] explicit_sample 활성화 → 142·59 native snapshot·target `ready` → 비활성화. endpoint가 없어 attempt는 없다. **35는 보류**: 새 구조 blocks가 기존과 달라 `structure_binding_mismatch`가 나고 실패 attempt가 `current`를 덮으므로 실행하지 않았다.
+- [x] API·UI 확인: `overview-pages` 35/59/142 준비 전후 byte 동일, 142 segments `mapped` 35·`partial` 42, 구조 PDF endpoint 200(4,829,134 B), 두 폭 화면 오버플로·오류 없음. 심층 검토 화면의 segment 링크는 운영 `deep_review` 행이 없어 REST로만 확인.
+- [x] `docs/tracking/status.md`·`findings.md`·`prespec-v4-implementation-plan.md`·[`docs/validation-runs/2026-09-10-rhwp-pipeline.md`](../validation-runs/2026-09-10-rhwp-pipeline.md) 기록.
 
-게이트: 세 표본 새 snapshot과 화면 링크, 기존 결과 보존, 문서 갱신.
+게이트: 세 표본 중 142·59 새 snapshot과 142 화면 링크 경로(REST) 확인, 기존 결과 보존, 문서 갱신. 35는 구조 revision 설계·승인 뒤 별도로 준비한다.
 
 ### R7 범위 선택 보조 (담당: 위임, 별도 승인 뒤)
 
@@ -202,7 +202,7 @@ git diff --check
 
 - `docs/design/*.hwp` 실표본 2건과 `Zone.Identifier`: 저장소 보관 여부 결정. 보관하지 않으면 [Requirements §6](Requirements.md#6-표본과-측정-기준선)의 표본 경로를 MinIO 원본으로 바꾼다.
 - 세션 scratchpad에만 있던 실측 스크립트(`probe142*.py`, rhwp 실측 명령)는 R0에서 `docs/validation-runs/`에 재현 명령으로 남긴다.
-- `docs/tracking/findings.md`의 두 신규 항목 중 `pdf_preparation_failed` 은폐는 R3에서 닫았다. attempt 없는 ready target 미표시(`current` projection)는 R4 범위(Spec §6·Design §2.5)에 들어 있지 않아 **아직 열려 있다**. R6 인수 화면 확인 전에 별도 작업으로 닫는다(2026-09-10).
+- `docs/tracking/findings.md`의 두 신규 항목 중 `pdf_preparation_failed` 은폐는 R3에서 닫았다. attempt 없는 ready target 미표시(`current` projection)는 R4 범위(Spec §6·Design §2.5)에 들어 있지 않아 **아직 열려 있다**. R6는 이를 닫지 않은 채 진행했고, 142의 새 target `f7c73503-…`도 `current`에 드러나지 않는다(2026-09-10).
 
 ## 7. 진행 기록
 
@@ -224,3 +224,4 @@ git diff --check
 | 2026-09-10 | P1 WP-4 수락 | 위임 결과 `63b6ef4`(`_complete` 최종 관문을 `validate_page_overview_detailed`로 바꿔 완료 attempt의 `validation_warnings`와 완료 감사에 경고 목록 저장, 경고 없음은 `[]`, 재시도·실패 경로 미변경)를 diff로 검토하고 main에 병합했다. 위임 검증 `test_prespec_v4_runner`·`test_page_overview` 22 passed 1회, `diff --check` clean. 경고 조건은 검토 페이지가 둘 이상이어야 성립하므로 같은 테스트 파일 안에 3쪽 표본 옵션만 추가했다. |
 | 2026-09-10 | R4 수락·병합 | 백엔드 `8725d47`(`feat/rdp-r4-consumers`)과 프론트 `cedcbd1`(`feat/rdp-r4-consumers-ui`)을 diff로 검토하고 main에 병합했다(`4514421`·`506e323`). 대응표 읽기·hash 실패는 조용히 `unavailable`로 낮추지 않고 500 `processing_failed`, 구조 PDF endpoint는 개요 PDF와 같은 무결성 검사 함수(`verified_pdf_bytes`)를 공유한다. 화면 fixture가 사람 확인 segment 1→3건으로 늘어 `screen-semantics.spec.ts` 개수 단언 2줄을 사실대로 고쳤고, 픽셀 층 `deep-review-complete` 기준선은 갱신하지 않았다(승인 뒤 교체). 실제 native snapshot이 있는 응답 확인은 운영 migration이 없어 R6에서 한다. |
 | 2026-09-10 | R5 수락·병합 | 위임 `e4e1b9f`(제거)와 보정 `2c0e19f`(PDF v2 protocol 테스트 fake를 native 형태로)를 diff로 검토하고 main에 병합했다(`753d639`). 게이트: 이미지 빌드 후 chromium·node 없음. 최종 트리 전체 backend 스위트 1회 = 1794 passed·5 skipped·33 failed·21 errors, 이 중 47건은 worktree에 없는 gitignore 파일(`experiments/.../company-capabilities-v1-approved.json`) 때문이며 병합된 main에서 같은 파일들 419 passed·14 skipped로 해소; 4건(`test_document_worker_protocol`)은 R5 회귀로 보정 후 14 passed; 남은 3건(`test_alembic_autogenerate` drift, `test_model_has_exact_closed_table_set` 82≠81, `test_mapper_isolation`)은 `a9ddb99`(R3 직후)에서도 실패하는 기존 결함. 화면 `test:screens` 1회 = 499 passed·5 skipped·3 failed, 이 중 2건은 단독 재실행 통과(부하 flake), `common-interactions.spec.ts:211`은 main과 `bbbbaae`에서도 실패하는 기존 결함. 다음 단계 R6(운영 인수)은 열지 않았고 운영 migration·배포·활성화·모델 호출은 수행하지 않았다. |
+| 2026-09-10 | R6 운영 인수 | 사용자 요청으로 관리자가 직접 실행했다. 백업(DB dump `481c9974…`, 객체 960 version) 뒤 R5 이미지 격리 실측에서 `fc-list` 부재로 native 변환이 `converter_unavailable`인 R5 회귀를 발견해 `web/Dockerfile`에 `fontconfig`를 추가하고 `bidops-rdp-r6:20260910`을 빌드했다. 0023 migration·권한 적용, web(배포 dir `rdp-r6-20260910-4c9f33ec`)·document-worker(pids 128) 재생성, explicit_sample 활성화 `d73daa62…` → 142 native snapshot `f8a42b74…`(79쪽, 기존 구조 결속, 대응표)·target `f7c73503…`, 59 snapshot `3aa6c47f…`·target `ec040093…` → off `5016643f…`. 35는 새 구조 blocks 1,454 ≠ 기존 1,349로 `structure_binding_mismatch`가 예상돼 준비하지 않았다(실행 시 실패 attempt가 `current`를 덮음). API·두 폭 UI 확인 통과, 기존 결과 불변. 근거: [R6 기록](../validation-runs/2026-09-10-rhwp-pipeline.md). 남은 것: 35 구조 revision, attempt(endpoint), ready target projection, 기존 실패 4건. R7은 열지 않았다. |
