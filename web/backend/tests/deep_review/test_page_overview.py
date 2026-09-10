@@ -12,7 +12,7 @@ from app.core.object_store import FilesystemObjectStore, ObjectStoreError
 from app.deep_review.models import ContentObject, DocumentVersion, PreSpecPageOverview, PreSpecOverviewReview
 from app.lifecycle.models import Notice
 from app.deep_review.services.page_overview import canonical, digest, import_page_overview, list_page_overviews, get_page_pdf, PageOverviewError
-from app.deep_review.services.page_overview_validation import validate_page_overview
+from app.deep_review.services.page_overview_validation import VALIDATOR_VERSION, validate_page_overview, validate_page_overview_detailed
 from app.deep_review.routers import deep_reviews
 
 
@@ -59,15 +59,29 @@ def context(tmp_path):
 
 
 def test_citation_metadata_does_not_weaken_fact_checks():
+    assert VALIDATOR_VERSION == 'pdf-page-evidence.v3'
     original = payload(); before = deepcopy(original)
-    assert validate_page_overview(original, {3: 'RCMS 사업은 6개월 수행한다.'}) == []
+    assert validate_page_overview_detailed(original, {3: 'RCMS 사업은 6개월 수행한다.'}) == ([], [])
     assert original == before
     original['main_tasks'][0]['text'] = 'RCMS 99개월 수행 (PDF 3페이지)'
     assert 'fact_number_not_on_cited_pages' in validate_page_overview(original, {3: 'RCMS 6개월'})
-    original['main_tasks'][0]['text'] = 'RCMS 6개월 수행 (PDF 4페이지)'
-    assert 'pdf_inline_locator_mismatch' in validate_page_overview(original, {3: 'RCMS 6개월'})
     original['main_tasks'][0]['evidence_pages'] = [True]
-    assert validate_page_overview(original, {3: 'RCMS 6개월'}) == ['schema_invalid']
+    assert validate_page_overview_detailed(original, {3: 'RCMS 6개월'}) == (['schema_invalid'], [])
+
+
+def test_inline_citation_outside_declared_pages_is_normalized_not_failed():
+    output = payload()
+    pages = {3: 'RCMS 사업은 6개월 수행한다.', 4: '과업 범위'}
+    # Cited page 4 is reviewed but not declared: metadata difference, never a failure.
+    output['main_tasks'][0] = {'text': 'RCMS 6개월 수행 (PDF 4페이지)', 'evidence_pages': [3]}
+    assert validate_page_overview_detailed(output, pages) == ([], ['pdf_inline_locator_normalized'])
+    # A fact left empty by stripping stays an error even when the citation was normalized.
+    output['main_tasks'][0]['text'] = '(PDF 4페이지)'
+    errors, warnings = validate_page_overview_detailed(output, pages)
+    assert errors == ['fact_empty'] and warnings == ['pdf_inline_locator_normalized']
+    # Citing a page that was never supplied is a real locator error.
+    output['main_tasks'][0] = {'text': 'RCMS 6개월 수행 (PDF 9페이지)', 'evidence_pages': [3]}
+    assert validate_page_overview_detailed(output, pages) == (['pdf_locator_mismatch'], [])
 
 
 def test_import_preserves_failure_and_does_not_create_recommendation(context):
