@@ -201,7 +201,7 @@ const syntheticReview = {
 
 // 심층 보고서 우측 열의 segment manifest. 화면이 조회하는 경로를 고정 fixture에
 // 빠짐없이 넣어야 기존 spec이 정의된 상태에서 돈다(engineering-notes.md).
-const FIXTURE_STRUCTURE_ID = "fixture-structure";
+export const FIXTURE_STRUCTURE_ID = "fixture-structure";
 
 function syntheticSegmentLocator(page: number, blockKey: string, ordinal: number) {
   return { kind: "paragraph", block_key: blockKey, page, ordinal, table_key: null, row: null, column: null };
@@ -235,7 +235,11 @@ function syntheticSegments() {
         classification_source: "deterministic",
         confidence: null,
         status: "classified",
+        page_range: { first: 2, last: 2 },
+        mapping_status: "mapped",
       },
+      // 사람 확인 필요 segment는 대응표의 세 상태를 모두 덮는다. 논리 page와
+      // 물리 PDF 순번(표지 포함)이 다르다는 점도 값이 다르게 유지한다.
       {
         segment_id: "fixture-segment-2",
         ordinal: 2,
@@ -247,10 +251,40 @@ function syntheticSegments() {
         classification_source: "deterministic",
         confidence: null,
         status: "needs_human_review",
+        page_range: { first: 3, last: 3 },
+        mapping_status: "mapped",
+      },
+      {
+        segment_id: "fixture-segment-3",
+        ordinal: 3,
+        taxonomy_labels: ["partnership_governance"],
+        start_locator: syntheticSegmentLocator(4, "fixture-block-partial", 6),
+        end_locator: syntheticSegmentLocator(5, "fixture-block-partial", 7),
+        requirement_ids: ["SFR-5"],
+        source_block_keys: ["fixture-block-partial"],
+        classification_source: "deterministic",
+        confidence: null,
+        status: "needs_human_review",
+        page_range: { first: 5, last: 7 },
+        mapping_status: "partial",
+      },
+      {
+        segment_id: "fixture-segment-4",
+        ordinal: 4,
+        taxonomy_labels: ["quality_security_constraints"],
+        start_locator: syntheticSegmentLocator(6, "fixture-block-unmapped", 8),
+        end_locator: syntheticSegmentLocator(6, "fixture-block-unmapped", 8),
+        requirement_ids: ["SFR-6"],
+        source_block_keys: ["fixture-block-unmapped"],
+        classification_source: "deterministic",
+        confidence: null,
+        status: "needs_human_review",
+        page_range: null,
+        mapping_status: "unavailable",
       },
     ],
     inventory_summary: {
-      expected_ids: ["SFR-1", "SFR-2", "SFR-3"],
+      expected_ids: ["SFR-1", "SFR-2", "SFR-3", "SFR-5", "SFR-6"],
       duplicate_ids: ["SFR-2"],
       ambiguous_items: [{
         reason: "prefix_unconfirmed",
@@ -261,17 +295,17 @@ function syntheticSegments() {
         locator: syntheticSegmentLocator(2, "fixture-block-review", 4),
       }],
       prefixes: ["SFR"],
-      item_count: 4,
+      item_count: 6,
     },
     coverage: {
-      block_count: 6,
-      covered_block_count: 5,
-      segment_count: 2,
+      block_count: 10,
+      covered_block_count: 9,
+      segment_count: 4,
       gap_count: 1,
       overlap_count: 0,
-      gaps: [{ start_ordinal: 5, end_ordinal: 5 }],
+      gaps: [{ start_ordinal: 9, end_ordinal: 9 }],
       overlaps: [],
-      needs_human_review_count: 1,
+      needs_human_review_count: 3,
       toc: { entry_count: 3, matched_heading_count: 2, unmatched_entry_count: 1 },
     },
     warnings: [],
