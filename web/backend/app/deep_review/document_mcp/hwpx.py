@@ -87,7 +87,45 @@ def _parse_xml(raw: bytes, options: ProcessorOptions) -> ET.Element:
         raise DocumentProcessingError("malformed_hwpx", "HWPX XML을 읽을 수 없습니다") from exc
 
 
-def extract_hwpx(data: bytes, options: ProcessorOptions) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
+def _rhwp_section_order(archive: zipfile.ZipFile, options: ProcessorOptions) -> dict[str, int]:
+    """Prove section identity from the pinned rhwp content.hpf/spine contract.
+
+    Missing or ambiguous package metadata provides no ordinal crosswalk. The
+    existing structure extractor still works; callers leave those blocks unmapped.
+    """
+    if "Contents/content.hpf" not in archive.namelist():
+        return {}
+    try:
+        raw = archive.read("Contents/content.hpf")
+    except (OSError, RuntimeError, zipfile.BadZipFile) as exc:
+        raise DocumentProcessingError("malformed_archive", "압축 문서를 읽을 수 없습니다") from exc
+    root = _parse_xml(raw, options)
+    items = [node for node in root.iter() if _local(node.tag) == "item"]
+    ids = [node.get("id") for node in items]
+    id_set = set(ids)
+    if any(not value for value in ids) or len(id_set) != len(ids):
+        return {}
+    sections = {
+        node.get("id"): node.get("href") for node in items
+        if node.get("media-type") == "application/xml" and "section" in node.get("href", "")
+    }
+    refs = [node.get("idref") for node in root.iter() if _local(node.tag) == "itemref"]
+    if any(ref not in id_set for ref in refs):
+        return {}
+    names = [sections[ref] for ref in refs if ref in sections]
+    if not names:
+        names = sorted(sections.values())
+    if len(set(names)) != len(names):
+        return {}
+    return {name: section for section, name in enumerate(names)}
+
+
+def extract_hwpx(
+    data: bytes,
+    options: ProcessorOptions,
+    *,
+    paragraph_identities: dict[str, tuple[int, int]] | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
     archive = validate_zip(data, options)
     try:
         names = [info.filename for info in archive.infolist()]
@@ -106,6 +144,9 @@ def extract_hwpx(data: bytes, options: ProcessorOptions) -> tuple[list[dict[str,
         blocks: list[dict[str, Any]] = []
         warnings: list[str] = []
         text_budget = OutputBudget(options.max_output_bytes)
+        if paragraph_identities is not None:
+            paragraph_identities.clear()
+        section_order = _rhwp_section_order(archive, options) if paragraph_identities is not None else {}
 
         def append_block(block: dict[str, Any]) -> None:
             if len(blocks) >= options.max_blocks:
@@ -119,12 +160,26 @@ def extract_hwpx(data: bytes, options: ProcessorOptions) -> tuple[list[dict[str,
             except (OSError, RuntimeError, zipfile.BadZipFile) as exc:
                 raise DocumentProcessingError("malformed_archive", "압축 문서를 읽을 수 없습니다") from exc
             root = _parse_xml(raw, options)
+            # Identity is captured at the XML element that emits the block, not
+            # reconstructed from the rendered block key/list ordinal. Nested
+            # paragraphs (cells, text boxes, notes) have no body identity here.
+            body_paragraphs = [node for node in root if _local(node.tag) == "p"]
+            body_ordinals = {id(node): index for index, node in enumerate(body_paragraphs)}
+            section = section_order.get(name)
+            if _local(root.tag) != "sec":
+                section = None
             width, height = _page_size(root)
             pages.append({"number": page_number, "width": width, "height": height, "image_content_object_id": None})
             parents: dict[int, ET.Element] = {}
             for parent in root.iter():
                 for child in list(parent):
                     parents[id(child)] = parent
+            if any(
+                _local(node.tag) == "p" and id(node) not in body_ordinals
+                and not _has_ancestor(node, parents, {"p"})
+                for node in root.iter()
+            ):
+                section = None
             table_index = 0
             paragraph_index = 0
             for element in root.iter():
@@ -133,6 +188,11 @@ def extract_hwpx(data: bytes, options: ProcessorOptions) -> tuple[list[dict[str,
                     table_index += 1
                     table_key = f"table-{page_number}-{table_index}"
                     table_key_block = f"{table_key}-block"
+                    owner = parents.get(id(element))
+                    while owner is not None and _local(owner.tag) != "p":
+                        owner = parents.get(id(owner))
+                    if paragraph_identities is not None and section is not None and owner is not None and id(owner) in body_ordinals:
+                        paragraph_identities[table_key_block] = (section, body_ordinals[id(owner)])
                     append_block({
                         "block_key": table_key_block,
                         "parent_block_key": None,
@@ -162,6 +222,8 @@ def extract_hwpx(data: bytes, options: ProcessorOptions) -> tuple[list[dict[str,
                             })
                 elif local == "p" and not _has_ancestor(element, parents, {"tc", "tbl"}):
                     paragraph_index += 1
+                    if paragraph_identities is not None and section is not None and id(element) in body_ordinals:
+                        paragraph_identities[f"paragraph-{page_number}-{paragraph_index}"] = (section, body_ordinals[id(element)])
                     text = _element_text(element)
                     append_block({
                         "block_key": f"paragraph-{page_number}-{paragraph_index}",

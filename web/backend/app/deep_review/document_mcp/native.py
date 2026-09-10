@@ -14,8 +14,10 @@ import time
 from pathlib import Path
 from typing import Any, Mapping
 
+from .contracts import para_page_map_bytes
 from .errors import DocumentProcessingError
 from .hwpx import extract_hwpx
+from .para_page_map import build_para_page_map
 from .pdf import extract_pdf
 from .safety import PDF_MAGIC, ZIP_MAGIC, ProcessorOptions, validate_zip
 
@@ -249,7 +251,11 @@ class NativeRhwpProcessor:
                 structure_source = converted
             else:
                 structure_source = original
-            pages, blocks, warnings = extract_hwpx(structure_source, options)
+            paragraph_identities: dict[str, tuple[int, int]] = {}
+            pages, blocks, warnings = extract_hwpx(
+                structure_source, options,
+                paragraph_identities=paragraph_identities if media_type == "application/hwp+zip" and options.prepare_pdf else None,
+            )
 
             if not options.prepare_pdf:
                 return {
@@ -262,6 +268,8 @@ class NativeRhwpProcessor:
                     "pdf_metadata": {},
                     "page_text": {},
                     "page_dump": {},
+                    "para_page_map": {},
+                    "para_page_map_bytes": None,
                 }
 
             pdf_path = root / "output.pdf"
@@ -284,11 +292,21 @@ class NativeRhwpProcessor:
                 page["display_page"] = dump_page["displayPage"]
                 page["section"] = dump_page["section"]
             self._check_json_artifact(text, options)
+            para_map = build_para_page_map(
+                blocks, dump, text, original_hwpx=media_type == "application/hwp+zip",
+                paragraph_identities=paragraph_identities, deadline=deadline,
+                max_pages=options.max_pages, max_blocks=options.max_blocks,
+            )
+            para_map_bytes = para_page_map_bytes(
+                para_map, max_output_bytes=options.max_output_bytes,
+                max_pages=options.max_pages, max_blocks=options.max_blocks,
+            )
+            self._remaining(deadline, options)
             version = self._version(root, options, deadline)
             font_digest = self._font_manifest(options, deadline)
             renderer_provenance = {"renderer": RHWP_RENDERER, "rhwp_version": version, "rhwp_binary_sha256": binary_sha, "backend": "svg", "compat": "2022", "fallback_fonts": {"serif": "NanumMyeongjo", "sans": "NanumGothic", "mono": "NanumGothicCoding"}, "worker_image_digest": self._image_digest()}
             pdf_metadata = {"schema": "bidops.rhwp-pdf-snapshot.v1", "renderer": RHWP_RENDERER, "renderer_version": "1", "page_count": page_count, "renderer_provenance": renderer_provenance, "font_provenance": {"font_manifest_sha256": font_digest}, "pages": [{"number": item["number"], "display_page": item["display_page"], "section": item["section"], "text_sha256": item["text_sha256"]} for item in text["pages"]]}
-            return {"pages": pages, "blocks": blocks, "warnings": warnings, "converted": converted, "verify": verify, "pdf": pdf, "pdf_metadata": pdf_metadata, "page_text": text, "page_dump": dump}
+            return {"pages": pages, "blocks": blocks, "warnings": warnings, "converted": converted, "verify": verify, "pdf": pdf, "pdf_metadata": pdf_metadata, "page_text": text, "page_dump": dump, "para_page_map": para_map, "para_page_map_bytes": para_map_bytes}
 
     def _call(self, arguments: list[str], root: Path, options: ProcessorOptions, deadline: float, *, verify_exit: bool = False) -> bytes:
         try:

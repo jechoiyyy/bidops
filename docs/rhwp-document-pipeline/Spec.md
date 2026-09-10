@@ -1,6 +1,6 @@
 # rhwp 문서 변환 파이프라인 명세
 
-작업명: rhwp-document-pipeline · 기준일: 2026-09-10 · 상태: 진행 중 (R0 계약 종결, 다음 R1은 coordinator acceptance 대기)
+작업명: rhwp-document-pipeline · 기준일: 2026-09-10 · 상태: R2 구현·검증 완료, 단계 검토 대기 (현재 진행은 Plan.md 참조)
 이 문서는 구현이 따라야 할 계약과 단계다. 배경은 [ADR.md](ADR.md), 요구는 [Requirements.md](Requirements.md), 구조는 [Design.md](Design.md)에 있다.
 
 ## 1. rhwp 호출 계약
@@ -107,6 +107,24 @@ R0 실측과 upstream `dump_page_items_json` 구현으로 다음 의미를 확�
    채우지 않는 기존 게이트를 따른다.
 6. 결과는 canonical JSON으로 직렬화하며 같은 입력에서 두 번 만든 바이트가 같아야 한다.
    매핑률은 F5에 따라 정보성으로만 기록하고 문서 실패 임계로 사용하지 않는다.
+
+R2 구현의 identity 증명은 `extract_hwpx`가 구조 블록을 만드는 같은 XML 순회에서 수행한다.
+`Contents/content.hpf`의 manifest·spine 순서를 pinned rhwp와 대조해 구역을 정하고,
+구역 root의 직접 자식 `p` ordinal만 본문 identity로 기록한다. 중첩 문단은 본문 순번을
+받지 않으며, top-level 표 control은 가장 가까운 소유 문단이 그 직접 자식일 때만 같은
+identity를 받는다. 패키지 구역 순서를 확인할 수 없으면 identity를 만들지 않는다.
+구역별 source ordinal 집합이 연속적이고 dump의 items+extras 집합과 정확히 같아야
+그 구역의 ordinal 대응을 사용한다. 개수·인덱스 불일치는 해당 구역의 exact 대응을 닫되
+문서를 실패시키지 않는다. 기존 구조의 page·block_key·text·순서는 바꾸지 않는다.
+
+`paragraph_count`는 endnote를 제외한 dump의 고유 `(section, paraIndex)` 수다.
+같은 identity에 여러 kind가 있으면 사전순 첫 값을 대표 `kind`로 기록하며 페이지 범위는
+모든 item을 합친다. `paragraphs`는 `(section, para_index)`, `blocks`와
+`unmapped_block_keys`는 block_key 사전순이다. 각 구조 블록은 mapped·unmapped 중 정확히
+한 곳에만 존재하며, 집계 분모에는 빈 블록·빈 table control도 포함한다. validator는
+닫힌 필드 집합·정수 타입·페이지 범위·identity·중복·집계·블록 누락을 검사한다.
+R2는 대응표와 canonical UTF-8 JSON을 `ProcessedDocument.para_page_map`·
+`para_page_map_bytes`로 생성한다. versioned object·snapshot·sidecar 결속은 R3에서 구현한다.
 
 HWP 입력의 ordinal crosswalk에는 확인된 보수적 경계가 있다. 원본 HWP의 `dump-pages`와 변환 HWPX 구조가
 같은 문단 인덱스 공간이라는 기존 가정은 실측에서 깨졌다. 제안요청서는 원본 dump의

@@ -467,6 +467,7 @@ snapshot field는 추정 backfill하지 않으며, 같은 과거 회차 재적�
 | `bidops.document-converter-request.v2` | `prepare_pdf=true` 문서 변환 요청과 원문 hash/scan 결속 |
 | `bidops.document-converter-result.v2` | 구조 JSON과 request UUID 결속 PDF sidecar metadata |
 | `bidops.document-structure.v1` | page/block/table 구조와 원문 locator |
+| `bidops.para-page-map.v1` | native rhwp 구조 블록과 물리 PDF 페이지 대응 (R2 생성·검증, R3 저장 연결 전) |
 | `bidops.document-bundle.v1` | 확정된 document versions와 structure snapshot |
 | `bidops.deep-review-stage.v1` | 세 단계의 claims, evidence, unknowns, warnings |
 | `bidops.deep-review-report.v1` | 검증된 claim을 이용한 보고서 |
@@ -475,6 +476,18 @@ snapshot field는 추정 backfill하지 않으며, 같은 과거 회차 재적�
 | `bidops.company-profile.v1` | 승인된 회사 profile snapshot |
 
 모델 response 원문은 암호화된 객체로 저장하고 DB에는 namespace, version, hash, key reference만 둔다. evidence locator는 document version, structure ID, page·block 또는 표 좌표를 포함하며 report의 사실·숫자와 연결된다.
+
+`bidops.para-page-map.v1`은 `page_count`, `paragraph_count`, `paragraphs[]`,
+`blocks[]`, `unmapped_block_keys[]`, `mapping`을 갖는다. 문단 identity는
+`(section, para_index)`이고 `page_first`·`page_last`는 1 기준 물리 PDF 순번이다.
+구조 블록의 `match=exact`는 검증된 source HWPX 문단 identity에만 사용한다.
+HWP 변환본·표 셀의 `match=page_text`는 전체 텍스트의 유일 발생만 허용하고
+`para_index=null`이며, 확인하지 못한 source section도 `null`로 둔다.
+빈 블록·미확인 연결은 `unmapped_block_keys`에 보존하며 매핑률 0도 유효하다.
+`mapping`의 세 블록 집계는 mapped·unmapped의 중복 없는 전체 분할과 같아야 하고
+`rule=para-page-align.v1`로 고정한다. [상세 계약과 정렬 규칙](rhwp-document-pipeline/Spec.md)을 따른다.
+현재 대응표와 canonical JSON 바이트는 native `ProcessedDocument`의 별도 속성이다.
+기존 구조 JSON·REST·scratch v2 envelope에는 넣지 않으며 R3에서 저장 경계를 연결한다.
 
 문서 변환 scratch 계약은 v1 구조 결과와 v2 PDF preparation 결과를 구분한다. v1은
 기존 `request.v1`/`result.v1` envelope와 structure JSON만 사용한다. 요청 options의
