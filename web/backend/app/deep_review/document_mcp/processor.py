@@ -469,6 +469,8 @@ class ProcessedDocument(dict[str, Any]):
         page_dump: dict[str, Any] | None = None,
         hwpx_verify: dict[str, Any] | None = None,
         hwpx_bytes: bytes | None = None,
+        para_page_map: dict[str, Any] | None = None,
+        para_page_map_bytes: bytes | None = None,
     ) -> None:
         super().__init__(payload)
         self.original_bytes = original_bytes
@@ -484,6 +486,8 @@ class ProcessedDocument(dict[str, Any]):
         self.page_dump = page_dump or {}
         self.hwpx_verify = hwpx_verify
         self.hwpx_bytes = hwpx_bytes
+        self.para_page_map = para_page_map or {}
+        self.para_page_map_bytes = para_page_map_bytes
 
 
 class _ChildTimeout(RuntimeError):
@@ -722,6 +726,8 @@ class DocumentProcessor:
         page_dump: dict[str, Any] = {}
         hwpx_verify: dict[str, Any] | None = None
         canonical_hwpx: bytes | None = None
+        para_page_map: dict[str, Any] = {}
+        para_page_map_bytes: bytes | None = None
         if self.clamav_checker is None:
             # No claim of a clean scan is made when ClamAV is not available.
             # The bundle/quarantine layer must keep this source blocked.
@@ -746,6 +752,8 @@ class DocumentProcessor:
                     pdf_metadata = native["pdf_metadata"]
                     page_text = native["page_text"]
                     page_dump = native["page_dump"]
+                    para_page_map = native["para_page_map"]
+                    para_page_map_bytes = native["para_page_map_bytes"]
                     hwpx_verify = native["verify"]
                     canonical_hwpx = converted
                     extractor = {"name": "hwp-rhwp-native-hwpx", "version": "1", "upstream_commit": UPSTREAM_COMMIT}
@@ -775,6 +783,8 @@ class DocumentProcessor:
                 pdf_metadata = native["pdf_metadata"]
                 page_text = native["page_text"]
                 page_dump = native["page_dump"]
+                para_page_map = native["para_page_map"]
+                para_page_map_bytes = native["para_page_map_bytes"]
                 canonical_hwpx = original
                 extractor = extractor_info()
             elif opts.prepare_pdf:
@@ -957,6 +967,8 @@ class DocumentProcessor:
             page_dump=page_dump,
             hwpx_verify=hwpx_verify,
             hwpx_bytes=canonical_hwpx,
+            para_page_map=para_page_map,
+            para_page_map_bytes=para_page_map_bytes,
         )
 
     def _process_native(

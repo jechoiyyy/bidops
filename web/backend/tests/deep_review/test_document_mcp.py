@@ -339,6 +339,8 @@ def test_native_renderer_requires_explicit_validated_selection(monkeypatch: pyte
     result = legacy.process(source, "application/hwp+zip", {"ocr": False})
     assert result.converted_pdf_bytes is None
     assert result.page_text == {}
+    assert result.para_page_map == {}
+    assert result.para_page_map_bytes is None
 
     native = DocumentProcessor()
     structure = process_document(source, "application/hwp+zip", {"ocr": False})
@@ -348,11 +350,16 @@ def test_native_renderer_requires_explicit_validated_selection(monkeypatch: pyte
         "pdf_metadata": {"renderer": "rhwp-svg-pdf"},
         "page_text": {"schema": "bidops.rhwp-page-text.v1", "page_count": 1, "pages": []},
         "page_dump": {"schemaVersion": "1.0", "pageCount": 1, "pages": []},
+        "para_page_map": {"schema": "bidops.para-page-map.v1"},
+        "para_page_map_bytes": b'{"schema":"bidops.para-page-map.v1"}',
     })
     opted_in = native.process(source, "application/hwp+zip", {"ocr": False, "prepare_pdf": True, "renderer": "rhwp-svg-pdf"})
     assert opted_in["blocks"] == structure["blocks"]
     assert opted_in.converted_pdf_bytes == b"%PDF-safe"
     assert opted_in.hwpx_bytes == source
+    assert opted_in.para_page_map == {"schema": "bidops.para-page-map.v1"}
+    assert opted_in.para_page_map_bytes == b'{"schema":"bidops.para-page-map.v1"}'
+    assert "para_page_map" not in dict(opted_in)
     with pytest.raises(DocumentProcessingError) as invalid:
         ProcessorOptions.from_mapping({"renderer": "native-or-fallback"})
     assert invalid.value.code == "invalid_options"
@@ -401,7 +408,7 @@ def test_native_page_text_budget_is_checked_after_display_metadata_enrichment(mo
     assert artifact_size(enriched) > max(un_enriched_size, artifact_size(dump))
     max_output_bytes = max(un_enriched_size, artifact_size(dump))
 
-    monkeypatch.setattr(native_module, "extract_hwpx", lambda *_args: ([], [], []))
+    monkeypatch.setattr(native_module, "extract_hwpx", lambda *_args, **_kwargs: ([], [], []))
     monkeypatch.setattr(native_module, "extract_pdf", lambda *_args: ([], [], [], []))
     monkeypatch.setattr(native_module, "parse_pdf_manifest", lambda *_args: 1)
     monkeypatch.setattr(native_module, "parse_page_text_manifest", lambda *_args: text)

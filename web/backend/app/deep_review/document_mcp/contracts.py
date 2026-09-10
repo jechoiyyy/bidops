@@ -19,6 +19,12 @@ SCHEMA = "bidops.document-structure.v1"
 UPSTREAM_COMMIT = "96a2633f23a08f707679d7e212ebdc59948260e6"
 DEFAULT_MAX_PAGES = 512
 DEFAULT_MAX_BLOCKS = 100_000
+PARA_PAGE_MAP_SCHEMA = "bidops.para-page-map.v1"
+PARA_PAGE_MAP_RULE = "para-page-align.v1"
+PARA_PAGE_KINDS = frozenset({
+    "fullParagraph", "partialParagraph", "table", "partialTable", "shape",
+    "hiddenEmptyPara", "wrapAroundPara",
+})
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _UUID = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
@@ -187,3 +193,105 @@ def validate_structure(
         if serialized_size > max_output_bytes:
             raise DocumentProcessingError("output_size_limit", "문서 처리 결과 크기 제한을 초과했습니다")
     return dict(payload)
+
+
+def para_page_map_error() -> DocumentProcessingError:
+    return DocumentProcessingError(
+        "para_page_map_invalid", "문단·페이지 대응표 계약이 올바르지 않습니다", source_preserved=True,
+    )
+
+
+def validate_para_page_map(
+    payload: Mapping[str, Any],
+    *,
+    block_keys: set[str] | None = None,
+    max_pages: int = DEFAULT_MAX_PAGES,
+    max_blocks: int = DEFAULT_MAX_BLOCKS,
+) -> dict[str, Any]:
+    """Validate the closed schema, ranges, identities and full block partition.
+
+    Mapping coverage is informational: zero mapped blocks is valid.
+    """
+    def integer(value: Any, minimum: int = 0) -> bool:
+        return type(value) is int and value >= minimum
+
+    def fields(value: Any, expected: set[str]) -> None:
+        if not isinstance(value, Mapping) or set(value) != expected:
+            raise para_page_map_error()
+
+    fields(payload, {"schema", "page_count", "paragraph_count", "paragraphs", "blocks", "unmapped_block_keys", "mapping"})
+    count = payload["page_count"]
+    if payload["schema"] != PARA_PAGE_MAP_SCHEMA or not integer(count, 1) or count > max_pages:
+        raise para_page_map_error()
+    paragraphs, blocks, unmapped = payload["paragraphs"], payload["blocks"], payload["unmapped_block_keys"]
+    if not all(isinstance(items, list) for items in (paragraphs, blocks, unmapped)):
+        raise para_page_map_error()
+    if not integer(payload["paragraph_count"]) or payload["paragraph_count"] != len(paragraphs):
+        raise para_page_map_error()
+    if len(paragraphs) > max_blocks or len(blocks) + len(unmapped) > max_blocks:
+        raise para_page_map_error()
+
+    def page_range(item: Mapping[str, Any]) -> tuple[int, int]:
+        first, last = item["page_first"], item["page_last"]
+        if not integer(first, 1) or not integer(last, 1) or not first <= last <= count:
+            raise para_page_map_error()
+        return first, last
+
+    identities: dict[tuple[int, int], tuple[int, int]] = {}
+    for item in paragraphs:
+        fields(item, {"section", "para_index", "page_first", "page_last", "kind"})
+        if not integer(item["section"]) or not integer(item["para_index"]) or not isinstance(item["kind"], str) or item["kind"] not in PARA_PAGE_KINDS:
+            raise para_page_map_error()
+        key = (item["section"], item["para_index"])
+        if key in identities:
+            raise para_page_map_error()
+        identities[key] = page_range(item)
+
+    keys: set[str] = set()
+    for item in blocks:
+        fields(item, {"block_key", "section", "para_index", "page_first", "page_last", "match"})
+        key = item["block_key"]
+        if not isinstance(key, str) or not key or key in keys:
+            raise para_page_map_error()
+        keys.add(key)
+        bounds = page_range(item)
+        section, para_index = item["section"], item["para_index"]
+        if section is not None and not integer(section):
+            raise para_page_map_error()
+        if item["match"] == "exact":
+            if not integer(section) or not integer(para_index) or identities.get((section, para_index)) != bounds:
+                raise para_page_map_error()
+        elif item["match"] == "page_text":
+            if para_index is not None or bounds[0] != bounds[1]:
+                raise para_page_map_error()
+        else:
+            raise para_page_map_error()
+    for key in unmapped:
+        if not isinstance(key, str) or not key or key in keys:
+            raise para_page_map_error()
+        keys.add(key)
+    if block_keys is not None and keys != block_keys:
+        raise para_page_map_error()
+    mapping = payload["mapping"]
+    fields(mapping, {"blocks_total", "blocks_mapped", "blocks_unmapped", "rule"})
+    if mapping["rule"] != PARA_PAGE_MAP_RULE or any(
+        not integer(mapping[key]) or mapping[key] != value
+        for key, value in (("blocks_total", len(keys)), ("blocks_mapped", len(blocks)), ("blocks_unmapped", len(unmapped)))
+    ):
+        raise para_page_map_error()
+    return dict(payload)
+
+
+def para_page_map_bytes(
+    payload: Mapping[str, Any], *, max_output_bytes: int,
+    max_pages: int = DEFAULT_MAX_PAGES, max_blocks: int = DEFAULT_MAX_BLOCKS,
+) -> bytes:
+    """Serialize an independently validated mapping as canonical UTF-8 JSON."""
+    validate_para_page_map(payload, max_pages=max_pages, max_blocks=max_blocks)
+    try:
+        result = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+    except (ValueError, TypeError, UnicodeError, RecursionError) as exc:
+        raise para_page_map_error() from exc
+    if len(result) > max_output_bytes:
+        raise DocumentProcessingError("output_size_limit", "문단·페이지 대응표 크기 제한을 초과했습니다", source_preserved=True)
+    return result

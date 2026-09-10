@@ -1,6 +1,6 @@
 # rhwp 문서 변환 파이프라인 진행 계획
 
-작업명: rhwp-document-pipeline · 기준일: 2026-09-10 · 상태: R1 검토·병합 완료, 사용자 요청으로 중단 (다음 R2 미착수)
+작업명: rhwp-document-pipeline · 기준일: 2026-09-10 · 상태: R2 수락·main 병합, 사용자 요청으로 R3 착수
 
 이 문서는 새 세션이 다른 맥락 없이 이 작업을 이어갈 수 있도록 순서·담당·게이트·현재 상태·재현 명령을 모아 둔다. 내용이 이미 다른 문서에 있으면 여기 다시 적지 않고 링크한다. 단계가 끝나거나 결정이 바뀌면 §7 진행 기록에 덧붙이고, 결정 자체는 [ADR.md](ADR.md)에 적는다.
 
@@ -16,26 +16,30 @@
 
 - 단계(R0~R7)는 [Spec.md §7](Spec.md#7-단계와-게이트)의 정의를 따르고 한 번에 하나만 연다. 게이트를 못 넘으면 다음 단계를 열지 않고 같은 단계를 보정해 다시 위임한다.
 - 판단은 단계 사이에 사람이 내리고 이 문서와 ADR에 적는다. 위임 프롬프트에는 선택지를 남기지 않는다.
-- 구현과 실측은 단계마다 별도 브랜치·격리 worktree(`feat/rdp-r<n>-<이름>`)의 stage worker에게 위임하고, 관리자가 diff와 저장된 안전 지표·테스트를 직접 확인한 뒤에만 main에 병합한다. Orca가 관리하는 worktree는 `.worktrees/` 밖의 Orca workspace 경로일 수 있으며 실제 경로를 진행 기록에 남긴다. 위임 보고만을 근거로 쓰지 않는다. 파일 소유가 겹치는 작업은 같은 단계 안에서 순차로 한다.
+- 구현은 단계마다 별도 브랜치·워크트리(`feat/rdp-r<n>-<이름>`, `.worktrees/` 아래)에 위임하고, 관리자가 diff와 테스트를 직접 확인한 뒤에만 main에 병합한다. 위임 보고를 근거로 쓰지 않는다. 파일 소유가 겹치는 작업은 같은 단계 안에서 순차로 한다.
 - 검증은 변경 파일이 닿는 테스트만 돌린다([CLAUDE.md "검증 범위와 종료 기준"](../../CLAUDE.md)). 전체 backend 스위트와 화면 스위트는 R5 뒤 최종 트리에서 각 1회다. 통과를 얻기 위한 반복 실행·검사 완화·재시도 루프를 넣지 않는다.
 - 운영 상태 변경(migration, worker 재생성, 활성화, 실제 모델 호출)은 R6에서만, 백업 뒤에, 승인 범위 안에서 한다.
 - 기존 강제 게이트(원본 불변, unknown 보존, 자동 보정 금지, 외부 전송 금지, 참조 실행 표식 `unmeasured_reference`)를 그대로 지킨다([CLAUDE.md "강제 게이트"](../../CLAUDE.md)).
+- 기능 구현을 최우선 목적으로 두고, 오버엔지니어링을 하지 않도록 유의한다.
+- R2·R3는 사용자의 직접 작업 요청에 따라 위임 없이 진행한다. 격리 worktree는 Orca workspace 경로를 사용하고 실제 경로는 §7에 남긴다.
 
 ## 2. 현재 상태 (2026-09-10 기준, 새 세션이 먼저 확인할 것)
 
-| 항목 | 상태 | 확인 방법 |
-|---|---|---|
-| main | `2f4f6af` (정본 문서 4종) ← `695e245`(142 재실행 기록) ← `212e5ed`(P0 병합) ← `eb2ffe5`(docs/ops) | `git log --oneline -5` |
-| 미병합 브랜치 | `feat/p1-wp1-model-client`(87cce3b), `feat/p1-wp2-validation-retry`(3f03bca, WP-1 위), `feat/p1-wp3-citation-normalize`(3a3dfab). 내용은 [ADR.md "관련 결정"](ADR.md#관련-결정이-작업-밖-참조) | `git worktree list`, `git branch --list 'feat/p1*'` |
-| 운영 컨테이너 | Compose 프로젝트 `bidops`. web `bidops-web-1`(이미지 `bidops-prespec-canvas100:20260909`, 127.0.0.1:18887), document-worker 2개(이미지 `bidops-v4-luna-reference:20260909-final`, pids 512로 2026-09-10 재생성) | `docker ps`, `docker inspect <c> --format '{{.HostConfig.PidsLimit}}'` |
-| 배포 설정 보관 | `~/.local/state/bidops/deployments/<이름>-<id>/deploy.compose.json` | [operations.md "화면 노출과 edge overlay"](../operations.md) |
-| v4 activation | OFF (마지막 감사 `31bee035-…`) | `select safe_metadata from bidops.audit_event where action='prespec_v4.activation' order by created_at desc limit 1` |
-| notice 142 | snapshot `e68670e0-4bf7-4cd9-baa1-174f19e5e994`(Canvas renderer, 85쪽), target `200e9557-d5d5-4a0f-afa8-896d44b41261` ready, attempt 없음 | [findings.md 142 항목](../tracking/findings.md) |
-| notice 35/59 | Canvas renderer snapshot과 Luna 참조 결과 completed/current | [status.md](../tracking/status.md) |
-| 모델 endpoint | overview vLLM `192.168.0.139:58765` 응답 없음(2026-09-09~10). `env/vllm.env`는 TEST-NET 자리표시자 | `curl -m 5 http://192.168.0.139:58765/v1/models` |
-| rhwp 호스트 빌드 | `/home/jechoi/projects/rhwp/target/release/rhwp` v0.8.6, 커밋 `cac9b4f7c`, SHA-256 `c82684971756d58ba7391cd08c38c93bb4280ab9ebf0e21c0936574a0084fc8c`. 아직 vendor에 없음 | `sha256sum`, `git -C /home/jechoi/projects/rhwp describe --tags` |
-| 표본 | 142 원본은 MinIO `source/7cc3b5f3894d984c-6f70b025586e46bdbe159ca4167a4e86.hwpx`(version `c11572d1-…`). HWP 2건은 `docs/design/(공고 2026-25) 제안요청서.hwp`·`과업지시서.hwp`(untracked, notice 10) | Requirements §6 |
-| 폰트 | 호스트에 Nanum 3종 있음, worker 이미지에는 Noto CJK만 | `fc-list : family` |
+
+| 항목            | 상태                                                                                                                                                                                               | 확인 방법                                                                                                                |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| main          | `41eaef5` (R1 병합 기준선) → R2 병합 (현재 SHA는 git log로 확인)                                                                                                            | `git log --oneline -5`                                                                                               |
+| 미병합 브랜치       | `feat/p1-wp1-model-client`(87cce3b), `feat/p1-wp2-validation-retry`(3f03bca, WP-1 위), `feat/p1-wp3-citation-normalize`(3a3dfab). 내용은 [ADR.md "관련 결정"](ADR.md#관련-결정이-작업-밖-참조)                     | `git worktree list`, `git branch --list 'feat/p1*'`                                                                  |
+| 운영 컨테이너       | Compose 프로젝트 `bidops`. web `bidops-web-1`(이미지 `bidops-prespec-canvas100:20260909`, 127.0.0.1:18887), document-worker 2개(이미지 `bidops-v4-luna-reference:20260909-final`, pids 512로 2026-09-10 재생성) | `docker ps`, `docker inspect <c> --format '{{.HostConfig.PidsLimit}}'`                                               |
+| 배포 설정 보관      | `~/.local/state/bidops/deployments/<이름>-<id>/deploy.compose.json`                                                                                                                                | [operations.md "화면 노출과 edge overlay"](../operations.md)                                                              |
+| v4 activation | OFF (마지막 감사 `31bee035-…`)                                                                                                                                                                        | `select safe_metadata from bidops.audit_event where action='prespec_v4.activation' order by created_at desc limit 1` |
+| notice 142    | snapshot `e68670e0-4bf7-4cd9-baa1-174f19e5e994`(Canvas renderer, 85쪽), target `200e9557-d5d5-4a0f-afa8-896d44b41261` ready, attempt 없음                                                           | [findings.md 142 항목](../tracking/findings.md)                                                                        |
+| notice 35/59  | Canvas renderer snapshot과 Luna 참조 결과 completed/current                                                                                                                                           | [status.md](../tracking/status.md)                                                                                   |
+| 모델 endpoint   | overview vLLM `192.168.0.139:58765` 응답 없음(2026-09-09~10). `env/vllm.env`는 TEST-NET 자리표시자                                                                                                         | `curl -m 5 http://192.168.0.139:58765/v1/models`                                                                     |
+| rhwp 호스트 빌드   | `/home/jechoi/projects/rhwp/target/release/rhwp` v0.8.6, 커밋 `cac9b4f7c`, SHA-256 `c82684971756d58ba7391cd08c38c93bb4280ab9ebf0e21c0936574a0084fc8c`. 아직 vendor에 없음                               | `sha256sum`, `git -C /home/jechoi/projects/rhwp describe --tags`                                                     |
+| 표본            | 142 원본은 MinIO `source/7cc3b5f3894d984c-6f70b025586e46bdbe159ca4167a4e86.hwpx`(version `c11572d1-…`). HWP 2건은 `docs/design/(공고 2026-25) 제안요청서.hwp`·`과업지시서.hwp`(untracked, notice 10)              | Requirements §6                                                                                                      |
+| 폰트            | 호스트에 Nanum 3종 있음, worker 이미지에는 Noto CJK만                                                                                                                                                         | `fc-list : family`                                                                                                   |
+
 
 ## 3. 자주 쓰는 명령
 
@@ -115,12 +119,12 @@ git diff --check
 
 게이트: focused 테스트, 격리 이미지에서 표본 3건 산출물 5종, 금액·기간·ID 보존([Requirements §6](Requirements.md#6-표본과-측정-기준선)).
 
-### R2 대응표 (담당: 위임, `feat/rdp-r2-para-page-map`)
+### R2 대응표 (담당: 사용자 요청에 따라 직접 구현, `feat/rdp-r2-para-page-map`)
 
-- [ ] 정렬기 `para-page-align.v1`(R0에서 확정한 Spec §4) 구현.
-- [ ] `bidops.para-page-map.v1`([Spec §2](Spec.md#2-산출물과-저장)) 생성·검증(schema, 결정성, 매핑률).
-- [ ] 테스트: 정상·페이지 걸침·빈 문단·표 셀·개수 불일치·미매핑.
-- 소유 파일: `document_mcp/para_page_map.py`(신규), `contracts.py`, 해당 테스트.
+- [x] 정렬기 `para-page-align.v1`(R0에서 확정한 Spec §4) 구현.
+- [x] `bidops.para-page-map.v1`([Spec §2](Spec.md#2-산출물과-저장)) 생성·검증(schema, 결정성, 매핑률).
+- [x] 테스트: 정상·페이지 걸침·빈 문단·표 셀·개수 불일치·미매핑.
+- 소유 파일: `document_mcp/para_page_map.py`(신규), `contracts.py`, 해당 테스트. extractor identity를 같은 XML 순회에서 증명하고 실제 변환 결과로 전달하기 위해 `hwpx.py`·`native.py`·`processor.py`도 연결했다. 구조 JSON 계약은 유지하고 대응표·바이트는 `ProcessedDocument` 속성으로만 제공한다. DB·scratch sidecar 저장은 R3다.
 
 게이트: 2회 실행 바이트 동일, 표본 매핑률 기록, 미매핑이 문서 실패로 번지지 않음.
 
@@ -131,6 +135,7 @@ git diff --check
 - [ ] 준비 실패 코드 `pdf_preparation_failed:<code>`와 감사 `converter_code`([findings "pdf_preparation_failed가 실제 오류 코드를 감춘다"](../tracking/findings.md)).
 - [ ] `document_converter.py`·`document_protocol.py` v2 sidecar에 HWPX·페이지 텍스트·대응표 파일(원자 publish, hash 검증).
 - [ ] 테스트: 임시 PostgreSQL 17 migration·trigger·권한, 격리 roundtrip, 캐시 재사용.
+
 - 소유 파일: `models.py`, `alembic/versions/0023_*.py`, `scripts/runtime-privileges.sql`, `services/prespec_v4.py`, `services/document_converter.py`, `document_protocol.py`, `services/prespec_v4_ops.py`, 해당 테스트, `docs/database-guide.md`·`docs/deep-review-erd.md` 해당 절.
 
 게이트: PostgreSQL smoke·roundtrip, 기존 행 미변경, `test_module_boundaries` 통과.
@@ -138,6 +143,7 @@ git diff --check
 ### P1 병합 (담당: 관리자)
 
 - [ ] `feat/p1-wp1-model-client` → `-wp2-validation-retry` → `-wp3-citation-normalize` 순으로 main 병합. WP-3의 경고를 R3의 `validation_warnings`에 저장하도록 연결.
+
 - 시점: P2 실측을 먼저 볼 수 있으면 그 뒤, 늦어도 R4 전.
 
 ### R4 소비자 (담당: 위임, `feat/rdp-r4-consumers`)
@@ -146,6 +152,7 @@ git diff --check
 - [ ] `document-segments.v1`에 `page_range`·`mapping_status`([Spec §6](Spec.md#6-rest화면-변경)), `docs/contracts.md` 갱신.
 - [ ] 심층 검토 보고서·segment 화면에 PDF 페이지 링크, 없으면 "페이지 미확인".
 - [ ] focused backend와 영향 spec만(Playwright `page-overview`·`company-fit`·`deep-review` 관련), 1280×800·1440×900.
+
 - 소유 파일: `services/page_overview.py`, `services/company_fit.py`, `services/document_segments.py`, `routers/deep_reviews.py`, `contracts/bidops.document-segments.v1.json`, frontend 해당 컴포넌트·spec, `docs/contracts.md`.
 
 게이트: API 계약 테스트, 두 폭 화면, contracts.md 갱신.
@@ -155,6 +162,7 @@ git diff --check
 - [ ] Canvas HTML builder, receipt 검사, Chromium·Node 지문, `rhwp.js`·`rhwp_bg.wasm`·`rhwp_convert.mjs`·`rhwp_render_canvas.mjs` 삭제([Design §5](Design.md#5-마이그레이션과-호환)). `PROVENANCE.md`·`SHA256SUMS` 정리.
 - [ ] Dockerfile에서 chromium·chromium-sandbox·nodejs 제거, compose Chromium용 완화 제거, `pids_limit`을 R0 실측값으로 재설정, `tests/app/test_runtime_contract.py` 갱신.
 - [ ] 전체 backend 스위트와 화면 스위트 각 1회. 기존 실패는 목록으로 보고.
+
 - 소유 파일: `document_mcp/processor.py`, vendor 디렉터리, `web/Dockerfile`, `docker-compose.yml`, runtime contract 테스트, `docs/operations.md`·`docs/security.md` 해당 절.
 
 게이트: 이미지에 chromium·node 없음, 전체 스위트 결과가 기존 실패 목록과 같거나 줄어듦.
@@ -179,11 +187,13 @@ git diff --check
 
 ## 5. 곁줄기 (Qwen 전환 준비)
 
-| 항목 | 선행 조건 | 시점 | 참조 |
-|---|---|---|---|
+
+| 항목                                 | 선행 조건                                                            | 시점             | 참조                                                                                           |
+| ---------------------------------- | ---------------------------------------------------------------- | -------------- | -------------------------------------------------------------------------------------------- |
 | P2 Qwen 검증기 통과율 실측, 142 attempt 실행 | overview endpoint 복구, `max-model-len`·`enable_thinking` kwarg 확인 | endpoint 복구 즉시 | [operations.md "참조 실행"](../operations.md), [model-quality-gate.md](../model-quality-gate.md) |
-| P1 병합 | P2 결과가 있으면 그 뒤, 늦어도 R4 전 | §4 | [ADR "관련 결정"](ADR.md#관련-결정이-작업-밖-참조) |
-| P3 정책 v5 | R4 뒤 | R6 뒤 | 정책 파일 `policies/prespec-overview-policy-v4.json`·`prompt-v4.md`를 v5로 복제 |
+| P1 병합                              | P2 결과가 있으면 그 뒤, 늦어도 R4 전                                         | §4             | [ADR "관련 결정"](ADR.md#관련-결정이-작업-밖-참조)                                                         |
+| P3 정책 v5                           | R4 뒤                                                             | R6 뒤           | 정책 파일 `policies/prespec-overview-policy-v4.json`·`prompt-v4.md`를 v5로 복제                      |
+
 
 ## 6. 작은 정리
 
@@ -203,3 +213,5 @@ git diff --check
 | 2026-09-10 | R0 수락 | coordinator가 R0를 수락하고 main `518a770`에 병합했다. R1은 이 commit에서 시작했다. |
 | 2026-09-10 | R1 | `feat/rdp-r1-converter`에서 명시적 `rhwp-svg-pdf` 선택 seam, 엄격 native JSON/산출물 검증, out-of-band HWPX·PDF·page-text·sanitized dump와 worker 계산 provenance를 구현했다. focused 54건과 변경 후 대상 검사, R0 이미지의 세 표본 실제 `DocumentProcessor` 경로가 통과했다. 근거: [R1 validation](../validation-runs/2026-09-10-rhwp-r1-converter.md), [safe metrics](../validation-runs/2026-09-10-rhwp-r1-converter.metrics.json). 다음 단계는 coordinator가 diff와 증거를 수락한 뒤에만 연다. |
 | 2026-09-10 | R1 수락·중단 | Sol medium의 구현 `5332e6e`와 Luna max의 경계 보정 `666e7a4`를 관리자가 diff·검증 증거로 검토하고 main에 병합했다. 보정 대상 회귀 검사 16건 통과; 세 표본 실측·전체 스위트·이미지 빌드는 반복하지 않았다. 사용자 요청에 따라 이 단계에서 중단한다. R2는 미착수이며 운영 배포·DB 변경·활성화·모델 호출은 수행하지 않았다. 재개 시 R2부터 시작한다. |
+| 2026-09-10 | R2 직접 구현·검증 | 사용자 재개 요청으로 위임 없이 `/home/jechoi/orca/workspaces/bidops/rdp-r2-para-page-map` (`feat/rdp-r2-para-page-map`, 시작점 `41eaef5`)에서 구현했다. source HWPX의 패키지 구역 순서·XML 문단 identity와 dump의 구역별 전체 인덱스 집합을 대조하고, HWP·표 셀은 FULL text 유일 발생만 허용한다. 세 표본 실제 native processor 통과, 대응표 재생성 바이트 동일, 전체 블록 매핑률 36.70%·19.29%·15.45%, 미매핑으로 인한 문서 실패 없음. 근거: [R2 검증](../validation-runs/2026-09-10-rhwp-r2-para-page-map.md)·[안전 지표](../validation-runs/2026-09-10-rhwp-r2-para-page-map.metrics.json). R2 구현 게이트 충족, 단계 검토 전 미커밋·미병합이며 R3는 열지 않았다. 운영 변경·모델 호출 없음. |
+| 2026-09-10 | R2 수락·R3 승인 | 사용자가 R2의 main 병합과 R3 계속 진행을 요청했다. 저장된 R2 diff·검증 지표를 확인해 병합하며, 기존 main 계획서의 기능 구현 우선 원칙을 보존했다. R3는 별도 격리 worktree에서 직접 진행하고 운영 migration·배포는 R6에 남긴다. |
