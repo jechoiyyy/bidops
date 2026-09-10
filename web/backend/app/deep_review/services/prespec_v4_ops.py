@@ -48,9 +48,11 @@ from .prespec_v4 import (
     _canonical,
     _persist_artifact,
     _read_verified_artifact,
+    build_v4_range_review_manifest,
     choose_rfp_document,
     freeze_v4_target,
     prepare_v4_pdf_snapshot,
+    read_snapshot_section_candidates,
     select_v4_input_range,
 )
 from .prespec_v4_runner import (
@@ -675,7 +677,38 @@ def prepare_v4_notice(
             "blocks": page_payload.get("blocks", []),
         })
         if range_selection.status != "ready":
-            raise V4OpsError(range_selection.reason_code or "ambiguous_scope")
+            # 결정적 선택기가 경계를 못 정한 것은 준비 실패가 아니다. 후보 목록을
+            # 가리키는 검토 manifest를 남기고 사람 확정 대기 target을 동결한다.
+            # attempt는 `--enqueue`에서도 만들지 않는다(자동 실행을 열지 않는다).
+            candidates = read_snapshot_section_candidates(session, store, snapshot)
+            _review_manifest, review_bytes = build_v4_range_review_manifest(
+                range_selection,
+                candidates_sha256=snapshot.section_candidates_sha256,
+                candidate_count=int(candidates["section_count"]) if candidates else 0,
+            )
+            _persist_artifact(
+                session,
+                store,
+                namespace="structure",
+                object_key=f"structure/prespec-v4/{document.id}/manifest-{_sha256(review_bytes)}.json",
+                data=review_bytes,
+                detected_mime="application/json",
+                retention_class="prespec-v4-input",
+            )
+            review_target = freeze_v4_target(
+                session,
+                snapshot_id=snapshot.id,
+                observation_kind=observation_kind,
+                observation_id=observation_id,
+                observation_reference=observation_reference,
+                selection=range_selection,
+            )
+            return V4PreparationOutcome(
+                notice_id=notice_id, status="needs_human_review",
+                reason_code=range_selection.reason_code,
+                document_version_id=document.id, snapshot_id=snapshot.id,
+                target_id=review_target.id, attempt_id=None,
+            )
         manifest_content, manifest_location = _persist_artifact(
             session,
             store,
@@ -715,9 +748,11 @@ def prepare_v4_notice_once(session: Session, **kwargs: Any) -> V4PreparationOutc
     """Run one preparation and expose deterministic failures in current state.
 
     Eligibility/off decisions remain read-only failures.  Once an activated
-    notice is eligible, a converter, source, range, or storage failure gets a
-    terminal notice-scoped attempt so the API cannot present an old success as
-    the current run.
+    notice is eligible, a converter, source, or storage failure gets a terminal
+    notice-scoped attempt so the API cannot present an old success as the
+    current run.  An undecidable **range** is not such a failure: the selector
+    freezes a `needs_human_review` target instead and this function passes that
+    outcome through without creating an attempt (R7, ADR-RDP-004).
     """
 
     kwargs["session"] = session

@@ -31,13 +31,16 @@ from app.deep_review.models import (
     PrespecV4Target,
 )
 from app.deep_review.services.prespec_v4 import (
+    V4_MANIFEST_SCHEMA,
     V4PreparationError,
     _NATIVE_REFERENCE_FIELDS,
     _validate_native_references,
+    build_v4_range_review_manifest,
     freeze_v4_target,
     prepare_v4_pdf_snapshot,
     read_snapshot_section_candidates,
     select_v4_input_range,
+    select_v4_page_span,
 )
 from app.lifecycle.models import Notice
 from tests.deep_review.test_document_mcp import hwpx_bytes
@@ -530,3 +533,74 @@ def test_mixed_section_candidate_references_are_rejected(tmp_path: Path) -> None
         with pytest.raises(V4PreparationError) as error:
             read_snapshot_section_candidates(session, store, partial)
         assert error.value.code == "native_artifact_reference_invalid"
+
+
+_SPAN_PAGES = [
+    {"number": 1, "text": "1. 일반 사항\n본문"},
+    {"number": 2, "text": "2. 제출 서류\n본문"},
+]
+_SPAN_EXTRA = {
+    "confirmed_from_target_id": "00000000-0000-0000-0000-0000000007a1",
+    "confirmed_by": "tester",
+    "note": None,
+    "candidate_indices": {"start": 0, "end": 1},
+}
+
+
+def _span(payload: dict[str, Any], first: int, last: int, extra: dict[str, Any] | None = _SPAN_EXTRA):
+    return select_v4_page_span(
+        payload, first, last,
+        start_locator={"kind": "section_candidate", "page": first, "candidate_index": 0},
+        end_locator={"kind": "section_candidate", "page": last, "candidate_index": 1},
+        extra=extra,
+    )
+
+
+def test_human_confirmed_span_takes_whole_pages_and_repeats_byte_identically():
+    payload = {"document_version_id": str(uuid4()), "source_sha256": "a" * 64, "pages": _SPAN_PAGES, "blocks": []}
+    span = _span(payload, 1, 2)
+
+    assert span.status == "ready" and span.strategy == "human_confirmed" and span.reason_code is None
+    assert span.page_numbers == (1, 2)
+    # 사람 확정은 쪽 전체를 고른다. 잘라낸 구간이 아니므로 두 hash가 같다.
+    assert all(page["text_sha256"] == page["source_page_text_sha256"] for page in span.manifest["pages"])
+    assert [page["text"] for page in span.manifest["pages"]] == [page["text"] for page in _SPAN_PAGES]
+    assert span.manifest["block_keys"] == ["page-1-text", "page-2-text"]
+    assert span.manifest["selection_status"] == "ready" and span.manifest["schema_version"] == V4_MANIFEST_SCHEMA
+    assert span.manifest["confirmed_by"] == "tester" and span.manifest["note"] is None
+    assert span.manifest["candidate_indices"] == {"start": 0, "end": 1}
+    assert span.manifest["selected_text_sha256"] == _sha("\n".join(page["text"] for page in _SPAN_PAGES).encode())
+    assert _span(payload, 1, 2).manifest_bytes == span.manifest_bytes
+
+    for first, last in ((0, 1), (2, 1), (1, 3)):
+        with pytest.raises(V4PreparationError) as error:
+            _span(payload, first, last)
+        assert error.value.code == "page_range_invalid"
+
+    # 확정이 manifest의 다른 필드를 덮어쓸 수는 없다.
+    with pytest.raises(V4PreparationError) as error:
+        _span(payload, 1, 1, {"selection_status": "ready"})
+    assert error.value.code == "range_confirmation_invalid"
+
+    oversized = {"pages": [{"number": 1, "text": "가" * 3_000_000}], "blocks": []}
+    with pytest.raises(V4PreparationError) as error:
+        _span(oversized, 1, 1)
+    assert error.value.code == "input_size_limit"
+
+
+def test_range_review_manifest_binds_the_candidate_list_without_titles():
+    selection = select_v4_input_range({"pages": [{"number": 1, "text": "1. 일반 사항\n본문"}], "blocks": []})
+    assert selection.status == "needs_human_review"
+
+    manifest, raw = build_v4_range_review_manifest(selection, candidates_sha256="b" * 64, candidate_count=3)
+    assert manifest["schema_version"] == "bidops.prespec-v4-range-review.v1"
+    assert manifest["reason_code"] == selection.reason_code and manifest["strategy"] == "heading_scope"
+    assert manifest["candidates_sha256"] == "b" * 64 and manifest["candidate_count"] == 3
+    assert raw == json.dumps(manifest, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+    assert "title" not in raw.decode()
+    # 후보가 없는 snapshot은 null·0으로 남는다. 0을 "후보 없음 아님"으로 올리지 않는다.
+    assert build_v4_range_review_manifest(selection)[0]["candidates_sha256"] is None
+
+    with pytest.raises(V4PreparationError) as error:
+        build_v4_range_review_manifest(selection, candidates_sha256="not-a-digest")
+    assert error.value.code == "section_candidates_invalid"

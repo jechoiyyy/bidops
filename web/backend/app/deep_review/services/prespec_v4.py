@@ -46,6 +46,7 @@ from .prespec_overview import _filename_document_candidate
 
 
 V4_MANIFEST_SCHEMA = "bidops.prespec-v4-input-manifest.v1"
+V4_RANGE_REVIEW_SCHEMA = "bidops.prespec-v4-range-review.v1"
 V4_SNAPSHOT_METADATA_SCHEMAS = frozenset({"bidops.hwp-pdf-snapshot.v1", "bidops.pdf-snapshot.v1", NATIVE_SNAPSHOT_SCHEMA})
 MAX_V4_MANIFEST_BYTES = 8 * 1024 * 1024
 MAX_V4_PROVENANCE_BYTES = 128 * 1024
@@ -53,6 +54,8 @@ _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _CHAPTER = re.compile(r"^([ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]+)\s*[.)、:：\-–—]?\s*(.+)$")
 _NUMBERED = re.compile(r"^(\d+(?:\.\d+)*)\s*[.)、:：\-–—]?\s+(.+)$")
 _BULLET = re.compile(r"^[□■◆◇○●〇◦•·]\s*")
+#: The only manifest fields a human confirmation may add (ADR-RDP-004).
+_V4_SPAN_EXTRA_FIELDS = frozenset({"confirmed_from_target_id", "confirmed_by", "note", "candidate_indices"})
 _TARGET_WORDS = frozenset(
     {
         "개요", "목적", "배경", "범위", "주요내용", "주요과업", "사업일반",
@@ -486,34 +489,165 @@ def select_v4_input_range(payload: Mapping[str, Any]) -> V4RangeSelection:
             "text_sha256": selected_hash,
             "source_page_text_sha256": full_hash,
         })
-    page_hashes = tuple(page_hashes_list)
-    block_keys = sorted({line.block_key for line in selected})
-    limitations = ["page_text_only", "table_layout_not_inferred"]
-    selected_text = [item["text"] for item in selected_pages_payload]
+    return _ready_range_selection(
+        document_version_id=payload.get("document_version_id"),
+        source_sha256=payload.get("source_sha256"),
+        page_payloads=selected_pages_payload,
+        page_hashes=page_hashes_list,
+        block_keys=sorted({line.block_key for line in selected}),
+        start_locator=_locator(start, start_ordinal),
+        end_locator=_locator(end, end_ordinal),
+        strategy="heading_scope",
+    )
+
+
+def _ready_range_selection(
+    *,
+    document_version_id: Any,
+    source_sha256: Any,
+    page_payloads: Sequence[Mapping[str, Any]],
+    page_hashes: Sequence[Mapping[str, Any]],
+    block_keys: Sequence[str],
+    start_locator: Mapping[str, Any],
+    end_locator: Mapping[str, Any],
+    strategy: str,
+    extra: Mapping[str, Any] | None = None,
+) -> V4RangeSelection:
+    """Assemble one ready input manifest from an already bounded page selection.
+
+    Both selectors (deterministic heading scope and human-confirmed page span)
+    must emit the exact same manifest shape, so the assembly lives here once.
+    ``extra`` only carries the human-confirmation fields; the input digest is
+    taken before it is merged so the same pages keep the same input identity.
+    """
+
     input_payload = {
         "schema_version": V4_MANIFEST_SCHEMA,
-        "document_version_id": str(payload.get("document_version_id")) if payload.get("document_version_id") is not None else None,
-        "source_sha256": payload.get("source_sha256"),
-        "pages": selected_pages_payload,
-        "block_keys": block_keys,
-        "start_locator": _locator(start, start_ordinal),
-        "end_locator": _locator(end, end_ordinal),
-        "input_limitations": limitations,
+        "document_version_id": str(document_version_id) if document_version_id is not None else None,
+        "source_sha256": source_sha256,
+        "pages": [dict(item) for item in page_payloads],
+        "block_keys": list(block_keys),
+        "start_locator": dict(start_locator),
+        "end_locator": dict(end_locator),
+        "input_limitations": ["page_text_only", "table_layout_not_inferred"],
     }
     input_raw = _canonical(input_payload)
     manifest = {
         **input_payload,
         "selection_status": "ready",
-        "strategy": "heading_scope",
-        "selected_text_sha256": _sha256_bytes("\n".join(selected_text).encode("utf-8")),
+        "strategy": strategy,
+        "selected_text_sha256": _sha256_bytes(
+            "\n".join(str(item["text"]) for item in page_payloads).encode("utf-8")
+        ),
+        **(dict(extra) if extra else {}),
     }
     raw = _canonical(manifest)
     if len(raw) > MAX_V4_MANIFEST_BYTES:
         raise V4PreparationError("input_size_limit")
     return V4RangeSelection(
-        "ready", None, "heading_scope", _locator(start, start_ordinal), _locator(end, end_ordinal),
-        tuple(selected_pages), page_hashes, manifest, raw, _sha256_bytes(input_raw),
+        "ready", None, strategy, dict(start_locator), dict(end_locator),
+        tuple(int(item["number"]) for item in page_payloads),
+        tuple(dict(item) for item in page_hashes),
+        manifest, raw, _sha256_bytes(input_raw),
     )
+
+
+def select_v4_page_span(
+    payload: Mapping[str, Any],
+    first_page: int,
+    last_page: int,
+    *,
+    start_locator: Mapping[str, Any],
+    end_locator: Mapping[str, Any],
+    extra: Mapping[str, Any] | None = None,
+) -> V4RangeSelection:
+    """Freeze a human-confirmed, contiguous **full-page** span.
+
+    The deterministic selector cuts at heading boundaries inside a page; a human
+    confirmation names whole pages, so every selected page carries its complete
+    source text (``text_sha256 == source_page_text_sha256``).  Nothing here
+    re-reads storage or decides eligibility: the caller has already bound the
+    page-text payload and the page numbers, and this function only produces the
+    immutable manifest.  A span that does not fit the manifest budget fails closed.
+    """
+
+    pages = _structure_pages(payload)
+    if len(_canonical(payload)) > MAX_V4_MANIFEST_BYTES:
+        raise V4PreparationError("input_size_limit")
+    if (
+        isinstance(first_page, bool) or isinstance(last_page, bool)
+        or not isinstance(first_page, int) or not isinstance(last_page, int)
+        or first_page < 1 or last_page < first_page or last_page > len(pages)
+    ):
+        raise V4PreparationError("page_range_invalid")
+    safe_extra: dict[str, Any] = {}
+    if extra is not None:
+        safe_extra = _bounded_object(extra, code="range_confirmation_invalid")
+        if set(safe_extra) - _V4_SPAN_EXTRA_FIELDS:
+            raise V4PreparationError("range_confirmation_invalid")
+    page_by_number = {int(page["number"]): page for page in pages}
+    page_payloads: list[dict[str, Any]] = []
+    page_hashes: list[dict[str, Any]] = []
+    for number in range(first_page, last_page + 1):
+        text = str(page_by_number[number]["text"])
+        digest = _sha256_bytes(text.encode("utf-8"))
+        page_payloads.append({
+            "number": number, "text": text,
+            "text_sha256": digest, "source_page_text_sha256": digest,
+        })
+        page_hashes.append({
+            "number": number, "text_sha256": digest, "source_page_text_sha256": digest,
+        })
+    block_keys = sorted({
+        line.block_key for line in _lines(pages) if first_page <= line.page <= last_page
+    })
+    return _ready_range_selection(
+        document_version_id=payload.get("document_version_id"),
+        source_sha256=payload.get("source_sha256"),
+        page_payloads=page_payloads,
+        page_hashes=page_hashes,
+        block_keys=block_keys,
+        start_locator=start_locator,
+        end_locator=end_locator,
+        strategy="human_confirmed",
+        extra=safe_extra,
+    )
+
+
+def build_v4_range_review_manifest(
+    selection: V4RangeSelection,
+    *,
+    candidates_sha256: str | None = None,
+    candidate_count: int = 0,
+) -> tuple[dict[str, Any], bytes]:
+    """Build the human-review manifest for a selection that is not ``ready``.
+
+    It records *why* a person has to choose and *which* candidate list they will
+    see, never any document text.  Candidate titles stay in artifact ⑦; only its
+    digest and count are bound here.
+    """
+
+    if selection.status == "ready":
+        raise V4PreparationError("range_review_status_invalid")
+    if candidates_sha256 is not None and not _SHA256.fullmatch(str(candidates_sha256)):
+        raise V4PreparationError("section_candidates_invalid")
+    if isinstance(candidate_count, bool) or not isinstance(candidate_count, int) or candidate_count < 0:
+        raise V4PreparationError("section_candidates_invalid")
+    manifest = {
+        "schema_version": V4_RANGE_REVIEW_SCHEMA,
+        "document_version_id": selection.manifest.get("document_version_id"),
+        "source_sha256": selection.manifest.get("source_sha256"),
+        "selection_status": selection.status,
+        "reason_code": selection.reason_code,
+        "strategy": selection.strategy,
+        "candidates_sha256": str(candidates_sha256) if candidates_sha256 is not None else None,
+        "candidate_count": int(candidate_count),
+        "input_limitations": list(selection.manifest.get("input_limitations") or []),
+    }
+    raw = _canonical(manifest)
+    if len(raw) > MAX_V4_MANIFEST_BYTES:
+        raise V4PreparationError("input_size_limit")
+    return manifest, raw
 
 
 def _latest_clean_scan(session: Session, content_object_id: UUID) -> ContentScan | None:
@@ -1432,7 +1566,11 @@ def freeze_v4_target(
 
 __all__ = [
     "DocumentCandidateSelection", "V4PreparationError", "V4RangeSelection",
-    "choose_rfp_document", "select_v4_input_range", "prepare_v4_pdf_snapshot",
+    "V4_MANIFEST_SCHEMA", "V4_RANGE_REVIEW_SCHEMA",
+    "build_v4_range_review_manifest",
+    "choose_rfp_document", "select_v4_input_range", "select_v4_page_span",
+    "prepare_v4_pdf_snapshot",
     "freeze_pdf_snapshot",
     "freeze_v4_target",
+    "read_snapshot_section_candidates",
 ]
