@@ -1258,3 +1258,31 @@ runner 소비자가 없어 보류했다. 운영 DB/MinIO 쓰기·migration 적�
 
 - 상황: 35/59/142 모두 heading 선택기가 `ready`라 `needs_human_review` target이 만들어지지 않는다. R7의 확정 REST·화면·CLI 보조는 API 종단 테스트(`test_page_overview`·`test_prespec_v4_ops`)와 Playwright 목 검사로만 확인했다.
 - 후속: 다음 수집 회차에서 heading 선택기가 미결정인 사전규격이 나오면 `docs/validation-runs/2026-09-10-rhwp-r7-range-review.md`의 절차로 운영 확인하고 결과를 이 항목에 덧붙인다.
+
+## 개요 숫자 검증이 기간을 사업예산 근거로 허용한다 (2026-09-10)
+
+- 재현: `page_overview_validation.validate_page_overview_detailed`에 유효한 page-review v3 payload를 넣는다. 근거 페이지는 `사업을 진행한다. 시스템을 구축한다. 계약기간은 6개월이다. 예산은 미정이다.`, `budget_and_period`의 사실은 `사업예산은 6억원이다.`와 `evidence_pages=[1]`이다. 격리 합성 입력에서 결과는 `errors=[]`, `warnings=[]`였다.
+- 원인·영향: 숫자를 정수 문자열 집합으로 비교하므로 `6개월`과 `6억원`을 구분하지 않는다. 사업예산·기간·단위·수치의 관계가 틀려도 v4 runner가 완료 결과로 저장하고 화면이 근거 검사 통과로 표시할 수 있다. 실제 Qwen 응답에서 이 오류가 발생했다는 관측은 아니다.
+- 현재 범위에서 해결하지 않은 이유: 이번 작업은 실사용 전 최종 리뷰이며 검증 계약·코드 수정은 수행하지 않았다. 운영 모델 호출과 결과 게시 없이 합성 입력으로만 재현했다.
+- 후속: 숫자·단위·금액/기간 종류와 해당 원문 구절을 함께 대조하고, 대응을 확정할 수 없는 사실은 사람 확인으로 보낸다. 기간→예산, 단위 변경, 서로 다른 항목 사이 수치 교환을 회귀 검사한다.
+
+## 사전규격 수집기를 같은 회차에 재실행하면 원문을 덮어쓴다 (2026-09-10)
+
+- 재현: 임시 `raw/prespec-page-001.json`에 기존 내용을 만든 뒤 `collect_notices.collect_source`를 같은 경로로 호출한다. HTTP 함수는 빈 정상 응답을 반환하는 fake로 교체한다. 외부 호출 없이 기존 파일이 새 응답으로 교체됨을 확인했다.
+- 원인·영향: `collect_notices.py`는 raw 페이지와 `collected-notices.json`을 모두 `write_text`로 쓰며 기존 회차를 거부하지 않는다. 운영 문서의 날짜 기반 회차 ID를 같은 날 재사용하면 과거 원문·정규화 산출물의 불변성이 깨진다. 발주계획 전용 수집기의 배타적 파일 생성과 다르다.
+- 현재 범위에서 해결하지 않은 이유: 리뷰 범위에서 기존 수집·재분류 CLI 계약을 바꾸지 않았다. 실제 회차 파일은 수정하지 않았다.
+- 후속: 네트워크 호출 전에 기존 산출물 경로를 거부하고 파일을 배타적으로 생성한다. 재수집·재분류는 고유한 새 회차로만 수행하며 기존 raw의 재사용은 읽기 경계로 둔다.
+
+## 최초 모델 확인 실패가 개요 worker 수명 동안 캐시된다 (2026-09-10)
+
+- 재현: `PrespecV4OverviewRunner`에 첫 `verify_identity`만 실패하고 이후 정상인 fake client를 주고 `_resolve()`를 두 번 호출한다. 두 결과 모두 `(None, None)`이고 실제 identity 호출은 1회다. fake client를 직접 다시 확인하면 정상 identity를 반환한다.
+- 원인·영향: 실패도 `_resolved=(None, None)`으로 저장하고 이후 즉시 반환한다. 합성 worker가 runner를 loop 밖에서 한 번 만들기 때문에 사설 vLLM이 복구되어도 큐가 `awaiting_model`에 머문다. 기존 `PreSpecOverviewRunner`도 같은 실패 캐시 패턴이다.
+- 현재 범위에서 해결하지 않은 이유: 리뷰 범위에서 worker의 재확인·연결 수명 정책을 바꾸지 않았다.
+- 후속: 성공 binding과 일시 실패를 구분하고 입력을 전송하지 않는 identity 확인에 제한된 재확인 간격을 둔다. 수정 전에는 endpoint 정상 확인 후 합성 worker를 재기동해야 한다.
+
+## 비활성 v4 대기 작업이 다른 문서의 기존 개요 처리도 막는다 (2026-09-10)
+
+- 재현: 격리 SQLite·filesystem fixture에서 v4 target을 활성화·enqueue한 뒤 비활성화한다. 처리 가능한 legacy runner를 주입하고 합성 개요 `run_once`를 부르면 `status=disabled`, `claimed=false`, legacy 호출 0회다.
+- 원인·영향: `prespec_v4_runner.py`는 queued/running v4 attempt가 하나라도 있고 activation이 OFF이면 legacy 분기와 lease 만료 처리 전에 반환한다. 해당 v4 문서를 제외한 기존 개요까지 진행되지 않으며 만료된 v4 running 상태도 이 경로에서는 닫히지 않는다.
+- 현재 범위에서 해결하지 않은 이유: 리뷰 범위에서 dispatch·중단 상태 전이를 바꾸지 않았다. 운영 큐를 생성하거나 비활성화하지 않았다.
+- 후속: v4 호출 금지는 유지하면서 lease 정리와 무관한 legacy 문서 처리를 분리한다. OFF 상태에서 queued/running v4와 별도 legacy 작업이 함께 있는 경우를 회귀 검사한다.
