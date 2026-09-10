@@ -1,0 +1,189 @@
+{
+  "stage": "R6",
+  "date": "2026-09-10",
+  "main": "8f863da",
+  "image": {
+    "tag": "bidops-rdp-r6:20260910",
+    "id": "sha256:dde4a0b17463c083bf618b8464fb18be71162a9d1feb8cfdbfadc49b7afd7a7b",
+    "fc_list": true,
+    "chromium": false,
+    "nodejs": false
+  },
+  "backup": {
+    "db_dump": "backups/postgres/full/bidops-before-rdp-r6-20260910T054415Z.dump",
+    "db_dump_sha256": "481c997454f90fbc787d1fe6fb86fdf6da76a8911ef262bbfae925dec7958432",
+    "db_revision_before": "0022_prespec_v4_attempt",
+    "object_dir": "backups/objects/20260910T054114Z",
+    "object_versions": 960,
+    "object_manifest_sha256": "4bce1bb4bb2bed0b94f65cb1596fda1ec11edfc5eaa94a7f76182cfff4569736"
+  },
+  "r5_regression": {
+    "image": "bidops-rdp-r5:20260910",
+    "code": "converter_unavailable",
+    "cause": "fc-list missing (fontconfig only came in as a Chromium dependency)",
+    "seconds_to_fail_142": 26.81,
+    "fix": "web/Dockerfile fontconfig + test_runtime_contract assertion"
+  },
+  "renderer": {
+    "renderer": "rhwp-svg-pdf",
+    "rhwp_version": "0.8.6",
+    "rhwp_binary_sha256": "c82684971756d58ba7391cd08c38c93bb4280ab9ebf0e21c0936574a0084fc8c",
+    "backend": "svg",
+    "compat": "2022",
+    "fallback_fonts": {
+      "serif": "NanumMyeongjo",
+      "sans": "NanumGothic",
+      "mono": "NanumGothicCoding"
+    },
+    "worker_image_digest": null
+  },
+  "font": {
+    "font_manifest_sha256": "92e5dc4ff6e83ab2008e636169bf0b24df0cb404214af33946a73f010f1650a9",
+    "worker_image_digest": null
+  },
+  "source_pdf_processor_sha256": "39a8aac53baeae8ebc25f88cd57c406a5c8512d9152d348d150ac580ebf8791f",
+  "isolated_probe": [
+    {
+      "sample": "notice-142",
+      "seconds": 21.332,
+      "pdf_pages": 79,
+      "pdf_sha256": "aee7e6487c41fce099f209d1695374dc708826131558d8eb2d293cb442db4f6a",
+      "pdf_bytes": 4829134,
+      "structure_pages": 1,
+      "structure_blocks": 2561,
+      "existing_structure_equal": true
+    },
+    {
+      "sample": "notice-35",
+      "seconds": 14.388,
+      "pdf_pages": 46,
+      "pdf_sha256": "06dafb8b959bc30f61ba43d26ee8d1e1f7b3db0521b90cf367a5bd07fa8d70a0",
+      "pdf_bytes": 2405488,
+      "structure_pages": 3,
+      "structure_blocks": 1454,
+      "existing_structure_blocks": 1349,
+      "existing_structure_equal": false,
+      "prepared": false
+    },
+    {
+      "sample": "notice-59",
+      "seconds": 9.393,
+      "pdf_pages": 84,
+      "source_pdf": true,
+      "structure_blocks": 84,
+      "existing_structure_equal": true
+    }
+  ],
+  "migration": {
+    "from": "0022_prespec_v4_attempt",
+    "to": "0023_rhwp_snapshot",
+    "rows_unchanged": {
+      "prespec_v4_pdf_snapshot": 3,
+      "prespec_v4_target": 3,
+      "prespec_v4_attempt": 7,
+      "document_structure": 165,
+      "audit_event": 465
+    }
+  },
+  "workers": {
+    "image": "bidops-rdp-r6:20260910",
+    "pids_limit": 128,
+    "memory_bytes": 1073741824,
+    "network_mode": "none"
+  },
+  "web_deployment": "~/.local/state/bidops/deployments/rdp-r6-20260910-4c9f33ec",
+  "activation": {
+    "active": "d73daa62-6e92-4a16-a8a9-864157b7bc49",
+    "off": "5016643f-17fb-4c14-a5cf-3c1ded1f5e19",
+    "binding_digest": "692b50e4b2deb171700668cfb0209a706560ee098563ba4daa3f5f411280248d",
+    "artifact_sha256": "a6fcf503f09532f66d9b43c5c48bd0374441c57fbf0286e14d98b59767914f8d"
+  },
+  "prepared": [
+    {
+      "notice_id": 142,
+      "seconds": 31,
+      "snapshot_id": "f8a42b74-8710-4cc8-90f0-9ca8ae4ed3f1",
+      "pdf_page_count": 79,
+      "pdf_sha256": "aee7e6487c41fce099f209d1695374dc708826131558d8eb2d293cb442db4f6a",
+      "structure_id": "22541eb7-4e1b-4a0a-9ec4-e0d329dbc774",
+      "para_page_map_sha256": "389587742d928fdb35c14bc8eeb8066cf43d1282d2ab3667942fbce8e2fda023",
+      "target_id": "f7c73503-8f70-47d4-a309-c9fbd9cfd122",
+      "pages": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "input_bytes": 18219
+    },
+    {
+      "notice_id": 59,
+      "seconds": 21,
+      "snapshot_id": "3aa6c47f-cd73-49dc-945c-c0c835fd4b98",
+      "pdf_page_count": 84,
+      "source_kind": "original",
+      "target_id": "ec040093-227e-4708-a9ed-b7889cf901d0",
+      "pages": [
+        3,
+        4,
+        5
+      ],
+      "input_bytes": 5814
+    }
+  ],
+  "api": {
+    "overview_pages_unchanged": [
+      35,
+      59,
+      142
+    ],
+    "segments_142": {
+      "total": 77,
+      "mapped": 35,
+      "partial": 42
+    },
+    "segments_35": {
+      "total": 55,
+      "unavailable": 55
+    },
+    "segments_59": {
+      "total": 0
+    },
+    "structure_pdf_142": {
+      "status": 200,
+      "bytes": 4829134
+    },
+    "structure_pdf_35_59": 404
+  },
+  "ui": {
+    "viewports": [
+      "1280x800",
+      "1440x900"
+    ],
+    "paths": [
+      "/pre-specs/35",
+      "/pre-specs/59",
+      "/pre-specs/142",
+      "/deep-reviews"
+    ],
+    "overflow": false,
+    "page_errors": 0,
+    "pdf_links": {
+      "35": 64,
+      "59": 14,
+      "142": 0
+    }
+  },
+  "not_done": [
+    "notice 35 native snapshot (structure_binding_mismatch, 1454 != 1349 blocks)",
+    "attempts (overview endpoint unreachable)",
+    "deep-review segment link UI (no deep_review rows)",
+    "ready-target current projection finding",
+    "pre-existing 4 test failures"
+  ]
+}

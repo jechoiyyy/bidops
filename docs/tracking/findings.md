@@ -1167,6 +1167,12 @@ runner 소비자가 없어 보류했다. 운영 DB/MinIO 쓰기·migration 적�
   `notice_142_prepare_done_activation_restored_off`는 그 시점에 준비된 것이 없어 사실과 다르지만, 감사 행은
   append-only이므로 고치지 않고 부정확함만 기록한다. 새 target에 attempt가 없어 `current`는 여전히 실패 attempt
   `dbbc7b5f…`를 보여 주고 142의 UI/PDF 링크 인수는 Qwen endpoint 복구까지 미완이다.
+- R6 운영 인수(2026-09-10): native 이미지 `bidops-rdp-r6:20260910`과 0023 migration 뒤 같은 source bytes로 native snapshot
+  `f8a42b74-8710-4cc8-90f0-9ca8ae4ed3f1`(`rhwp-svg-pdf` 0.8.6, 79쪽, PDF SHA-256 `aee7e648…` 4,829,134 bytes, 기존 구조
+  `22541eb7…` 결속, 대응표 `38958774…`)과 target `f7c73503-8f70-47d4-a309-c9fbd9cfd122`(`ready`, 4~12쪽)를 31초에 준비했다.
+  Canvas snapshot `e68670e0…`·target `200e9557…`은 보존됐고 attempt는 없다. `GET /api/document-structures/22541eb7…/pdf`가
+  이 PDF를 돌려주고 segments 77건이 `mapped` 35·`partial` 42다. `current`는 여전히 `dbbc7b5f…`이며 아래 projection 항목은 열려 있다
+  ([R6 기록](../validation-runs/2026-09-10-rhwp-pipeline.md)).
 
 ## pdf_preparation_failed가 변환기의 실제 오류 코드를 감춘다 (2026-09-10)
 
@@ -1196,6 +1202,11 @@ runner 소비자가 없어 보류했다. 운영 DB/MinIO 쓰기·migration 적�
   재렌더링만으로 업무 문서 버전을 새로 만들지 않는다.
 - 후속: 운영 인수 전에 기존 구조와 비교한다. 충돌이 있는 문서를 지원하려면
   구조 revision과 리뷰의 명시적 구조 참조를 함께 설계·승인한 뒤 이관한다.
+- 운영 확인(2026-09-10 R6): 세 표본의 기존 구조 payload와 R6 이미지 native 출력을 대조했다. 142(`hwpx-stdlib`, 1쪽·2,561 blocks)와
+  59(`pdf-poppler-fallback`, 84·84)는 pages·blocks가 동일해 준비가 기존 구조에 결속됐다. **35는 다르다** — 기존 `hwp-rhwp-hwpx`
+  구조(WASM rhwp export, 1,349 blocks)와 native rhwp 0.8.6 export 구조(1,454 blocks)가 64개 구간에서 갈린다. 실행하면
+  `structure_binding_mismatch` 실패 attempt가 append돼 35의 `current`(completed Luna reference)를 덮으므로 R6에서 35는 준비하지
+  않았다. 35의 native snapshot은 구조 revision 설계·승인 뒤에만 만든다.
 
 ## 전체 backend·화면 스위트의 기존 실패 4건이 rhwp 단계와 무관하게 남아 있다 (2026-09-10)
 
@@ -1212,3 +1223,20 @@ runner 소비자가 없어 보류했다. 운영 DB/MinIO 쓰기·migration 적�
   R5 게이트는 "기존 실패 목록과 같거나 줄어듦"이다. 원인 확정에는 0021~0023 autogenerate 차이 검토와 82번째 테이블의 승인 여부 결정이 필요하다.
 - 후속: R6 운영 인수 전에 autogenerate 차이를 0024 migration 또는 모델 보정으로 닫고 닫힌 테이블 목록을 갱신한다.
   화면 1건은 사전규격 개요 상태 fixture와 문구 계약을 대조해 별도 작업으로 닫는다.
+- 2026-09-10 R6는 이 4건을 닫지 않은 채 진행했다. 운영에 적용한 0023은 R3의 PostgreSQL 17 smoke·roundtrip과 R6 적용 후
+  열·권한·행 수 확인으로 검증했으며, autogenerate 대조 실패는 여전히 열린 테스트 결함이다.
+
+## R5 런타임 이미지에 `fc-list`가 없어 native 변환이 전부 실패했다 (2026-09-10, 해결)
+
+- 재현: `bidops-rdp-r5:20260910`(R5 게이트를 통과한 이미지)에서 notice 142 HWPX를 격리 조건(pids 128·1 GiB·network none)으로
+  `DocumentProcessor`에 넣으면 rhwp 네 호출이 끝난 뒤 26.8초에 `converter_unavailable`("PDF 글꼴 manifest를 확인할 수 없습니다")로
+  끝난다. `_font_manifest_sha256`이 `shutil.which("fc-list")`를 요구하는데 이미지에 `fontconfig` 패키지가 없다.
+- 원인: R0~R3 이미지의 `fontconfig`는 Chromium(`libpango`)의 의존성으로만 설치돼 있었고, R5가 Chromium을 제거하면서 함께
+  사라졌다. R5 게이트("chromium·node 없음, runtime contract")는 폰트 manifest 실행 경로를 검사하지 않았다.
+- 영향: 그대로 배포했다면 HWP·HWPX 준비가 모두 실패하고 notice 범위 실패 attempt가 `current`를 덮었을 것이다. 운영 배포 전
+  R6 격리 실측에서 발견해 운영 영향은 없다.
+- 조치: `web/Dockerfile` apt 목록에 `fontconfig`를 명시하고 `tests/app/test_runtime_contract.py`의 단언을
+  `fontconfig fonts-nanum fonts-noto-cjk`로 고쳤다. `bidops-rdp-r6:20260910`에서 `fc-list`와 폰트 manifest
+  `92e5dc4f…1650a9`(R3 이미지와 동일)를 확인했다([R6 기록](../validation-runs/2026-09-10-rhwp-pipeline.md)).
+- 남은 것: 이미지 안에서 실제 변환기 실행을 검사하는 게이트가 없다. 다음 이미지 변경부터는 R6 기록의 probe 명령으로 표본 1건을
+  실제 실행해 확인한다.

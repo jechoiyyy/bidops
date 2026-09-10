@@ -13,7 +13,9 @@ def test_runtime_image_installs_native_rhwp_and_pinned_fallback_fonts():
     dockerfile = (ROOT / "web/Dockerfile").read_text(encoding="utf-8")
     binary = "app/deep_review/document_mcp/vendor/rhwp/bin/rhwp"
 
-    assert "fonts-nanum fonts-noto-cjk" in dockerfile
+    # fc-list must be installed explicitly: the font manifest fingerprint
+    # requires it and Chromium no longer pulls fontconfig in transitively.
+    assert "fontconfig fonts-nanum fonts-noto-cjk" in dockerfile
     assert f"/app/web/backend/{binary}" in dockerfile
     assert (ROOT / "web/backend" / binary).is_file()
 
