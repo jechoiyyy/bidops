@@ -1114,7 +1114,7 @@ runner 소비자가 없어 보류했다. 운영 DB/MinIO 쓰기·migration 적�
 
 운영 DB/MinIO migration·snapshot row와 runner/model/UI 연결은 여전히 수행하지 않았다.
 
-## [미검증] notice 142 표준 PDF 준비가 300초 deadline에서 종료됨 (2026-09-09)
+## [원인 확인] notice 142 표준 PDF 준비가 300초 deadline에서 종료됨 (2026-09-09)
 
 - 재현: `R26BD00271191` 필수 HWPX를 명시 표본 표준 prepare로 실행했다. 첫 시도는
   `conversion_required`, 두 번째 시도는 `pdf_preparation_failed`였고, 마지막 2GiB
@@ -1129,3 +1129,27 @@ runner 소비자가 없어 보류했다. 운영 DB/MinIO 쓰기·migration 적�
 - 후속: worker 원래 runtime 조건으로 복원하고, 별도 승인된 환경 원인 조사 후에만
   재시도한다. 실패 attempt는 보존하며 자동 성공·기존 snapshot 재사용으로 우회하지
   않는다.
+
+- 원인 확인(2026-09-09): 운영 worker image `bidops-v4-luna-reference:20260909-final`에서 같은
+  source bytes로 격리 재실행해 두 한계를 분리했다. (1) compose `pids_limit: 128`이 Chromium 렌더
+  thread를 굶겨(`pthread_create: Resource temporarily unavailable (11)`, pids 123/128, 렌더러 CPU
+  1~5% 유휴) deadline까지 진행하지 못했다. (2) v4 CLI 기본 출력 예산 20 MiB(Chromium
+  `RLIMIT_FSIZE`는 그 4배인 80 MiB)가 85쪽 렌더에 부족해 PDF 없이 `conversion_required`로 끝났다.
+  memory 2 GiB와 `RLIMIT_FSIZE=256 MiB` 가설은 원인이 아니다.
+
+  | pids_limit | max_output_bytes | 결과 |
+  |---|---|---|
+  | 128 (당시 compose) | 100 MiB | 300초 timeout, Chromium `pthread_create` 실패 |
+  | 128 | 20 MiB (당시 CLI 기본값) | 21초 `conversion_required` (PDF 미생성) |
+  | 512 | 20 MiB | 18초 `conversion_required` |
+  | 512 | 32 / 48 / 100 MiB | 성공 16.8~20.8초, 85쪽, 11,041,060 bytes |
+
+  ```bash
+  docker run --network none --user 1000:1000 --memory 1g --cap-drop=ALL \
+    --security-opt no-new-privileges --pids-limit <128|512> \
+    bidops-v4-luna-reference:20260909-final python -c \
+    'DocumentProcessor(clamav_checker=lambda _: True).process(bytes, "application/hwp+zip", opts)'
+  ```
+- 조치(2026-09-09): compose document-worker `pids_limit`을 512로, v4 CLI 기본 `max_output_bytes`를
+  64 MiB(`ProcessorOptions` 상한 100 MiB 이내)로 올렸다. **운영 재실행은 하지 않았다** — 컨테이너
+  재생성과 notice 142 새 attempt는 별도 운영 단계이며 그 전까지 142는 `unverified`로 남는다.
