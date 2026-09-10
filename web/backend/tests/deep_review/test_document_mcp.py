@@ -22,6 +22,7 @@ from app.deep_review.document_mcp import (
     validate_structure,
 )
 from app.deep_review.document_mcp import processor as processor_module
+from app.deep_review.document_mcp.para_page_map import build_para_page_map
 from app.deep_review.document_mcp import native as native_module
 from app.deep_review.document_mcp.native import (
     RHWP_SCHEMA_VERSION,
@@ -31,6 +32,11 @@ from app.deep_review.document_mcp.native import (
     parse_page_dump_manifest,
     parse_page_text_manifest,
     parse_pdf_manifest,
+    parse_section_candidates_manifest,
+)
+from app.deep_review.document_mcp.native_artifacts import (
+    validate_native_bundle,
+    validate_section_candidates,
 )
 
 FIXTURES = Path(__file__).parents[1] / "fixtures" / "documents"
@@ -40,7 +46,12 @@ def hwpx_bytes(*, name: str = "Contents/section0.xml") -> bytes:
     stream = (FIXTURES / "section0.xml").read_bytes()
     output = io.BytesIO()
     with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr(name, stream)
+        # A pinned member timestamp keeps repeated calls byte-identical; the
+        # default is the wall clock, whose 2-second ZIP granularity otherwise
+        # makes two fixtures in one test differ.
+        info = zipfile.ZipInfo(name, date_time=(2026, 1, 1, 0, 0, 0))
+        info.compress_type = zipfile.ZIP_DEFLATED
+        archive.writestr(info, stream)
     return output.getvalue()
 
 
@@ -159,6 +170,28 @@ def native_dump_manifest(pages: list[dict[str, object]], *, page_count: int | No
         respectVposReset=True,
         pages=pages,
     )
+
+
+def native_digest_manifest(sections: list[dict[str, object]], *, page_count: int = 1, **fields: object) -> bytes:
+    envelope: dict[str, object] = {
+        "untrustedContent": True,
+        "untrustedFields": ["sections[].excerpt"],
+        "format": "hwpx",
+        "pageCount": page_count,
+        "paraCount": len(sections),
+        "sectionsMode": "clause",
+        "sectionCount": len(sections),
+        # The real envelope reports truncated excerpts; that flag is dropped.
+        "truncated": True,
+        "nextStep": "절 원문은 export-text --json -p <쪽>",
+        "sections": sections,
+    }
+    envelope.update(fields)
+    return rhwp_envelope(**envelope)
+
+
+def digest_section(page: int, title: str = "Ⅰ. 사업 개요", chars: int = 12) -> dict[str, object]:
+    return {"title": title, "page": page, "charCount": chars, "excerpt": "must-drop"}
 
 
 def dump_page(index: int) -> dict[str, object]:
@@ -338,6 +371,8 @@ def test_native_renderer_requires_explicit_validated_selection(monkeypatch: pyte
     assert structure_only.page_text == {}
     assert structure_only.para_page_map == {}
     assert structure_only.para_page_map_bytes is None
+    assert structure_only.section_candidates == {}
+    assert structure_only.section_candidates_bytes is None
 
     native = DocumentProcessor()
     structure = process_document(source, "application/hwp+zip", {"ocr": False})
@@ -349,6 +384,8 @@ def test_native_renderer_requires_explicit_validated_selection(monkeypatch: pyte
         "page_dump": {"schemaVersion": "1.0", "pageCount": 1, "pages": []},
         "para_page_map": {"schema": "bidops.para-page-map.v1"},
         "para_page_map_bytes": b'{"schema":"bidops.para-page-map.v1"}',
+        "section_candidates": {"schema": "bidops.section-candidates.v1"},
+        "section_candidates_bytes": b'{"schema":"bidops.section-candidates.v1"}',
     })
     opted_in = native.process(source, "application/hwp+zip", {"ocr": False, "prepare_pdf": True, "renderer": "rhwp-svg-pdf"})
     assert opted_in["blocks"] == structure["blocks"]
@@ -356,7 +393,8 @@ def test_native_renderer_requires_explicit_validated_selection(monkeypatch: pyte
     assert opted_in.hwpx_bytes == source
     assert opted_in.para_page_map == {"schema": "bidops.para-page-map.v1"}
     assert opted_in.para_page_map_bytes == b'{"schema":"bidops.para-page-map.v1"}'
-    assert "para_page_map" not in dict(opted_in)
+    assert opted_in.section_candidates_bytes == b'{"schema":"bidops.section-candidates.v1"}'
+    assert "para_page_map" not in dict(opted_in) and "section_candidates" not in dict(opted_in)
     with pytest.raises(DocumentProcessingError) as invalid:
         ProcessorOptions.from_mapping({"renderer": "native-or-fallback"})
     assert invalid.value.code == "invalid_options"
@@ -983,3 +1021,139 @@ def test_vendored_sha256_manifest_is_deterministic_and_complete() -> None:
         path = vendor / relative_path
         assert path.is_file(), relative_path
         assert hashlib.sha256(path.read_bytes()).hexdigest() == digest
+
+
+def test_native_section_candidates_rebase_pages_cap_titles_and_drop_untrusted_text() -> None:
+    long_title = "가" * 350
+    candidates = parse_section_candidates_manifest(
+        native_digest_manifest(
+            [digest_section(0), digest_section(24, long_title, 0), digest_section(78, "  제\t3장   범위\n", 7)],
+            page_count=79,
+        ),
+        79,
+    )
+
+    assert candidates["schema"] == "bidops.section-candidates.v1"
+    assert candidates["mode"] == "clause"
+    assert candidates["page_count"] == 79 and candidates["section_count"] == 3
+    assert [(item["index"], item["page"]) for item in candidates["sections"]] == [(0, 1), (1, 25), (2, 79)]
+    assert candidates["sections"][1]["title"] == "가" * 300 and candidates["sections"][1]["truncated"] is True
+    # Whitespace is normalised before the 300-character cap is applied.
+    assert candidates["sections"][2]["title"] == "제 3장 범위" and candidates["sections"][2]["truncated"] is False
+    assert candidates["sections"][0] == {"index": 0, "title": "Ⅰ. 사업 개요", "page": 1, "char_count": 12, "truncated": False}
+    serialized = json.dumps(candidates, ensure_ascii=False)
+    assert "must-drop" not in serialized and "nextStep" not in serialized and "untrusted" not in serialized
+    assert "excerpt" not in serialized and "source" not in serialized
+
+
+def test_native_section_candidates_accept_an_empty_page_mode_result() -> None:
+    candidates = parse_section_candidates_manifest(
+        native_digest_manifest([], sectionsMode="page"), 1,
+    )
+    assert candidates == {
+        "schema": "bidops.section-candidates.v1", "page_count": 1, "mode": "page",
+        "section_count": 0, "sections": [],
+    }
+
+
+@pytest.mark.parametrize(
+    ("manifest", "expected_pages", "expected_code"),
+    [
+        (native_digest_manifest([digest_section(0)], sectionsMode="outline"), 1, "section_candidates_invalid"),
+        (native_digest_manifest([digest_section(0)], sectionsMode=None), 1, "section_candidates_invalid"),
+        (native_digest_manifest([digest_section(i % 79) for i in range(2001)], page_count=79), 79, "section_candidates_invalid"),
+        (native_digest_manifest([digest_section(1)], page_count=1), 1, "section_candidates_invalid"),
+        (native_digest_manifest([{"title": "t", "page": 0}]), 1, "section_candidates_invalid"),
+        (native_digest_manifest([dict(digest_section(0), extra=1)]), 1, "section_candidates_invalid"),
+        (native_digest_manifest([digest_section(0, chars=-1)]), 1, "section_candidates_invalid"),
+        (native_digest_manifest([digest_section(True)]), 1, "section_candidates_invalid"),
+        (native_digest_manifest([digest_section(0, title=7)]), 1, "section_candidates_invalid"),
+        (native_digest_manifest([digest_section(0)], sectionCount=2), 1, "section_candidates_invalid"),
+        (native_digest_manifest([digest_section(0)], untrustedFields=[]), 1, "section_candidates_invalid"),
+        (native_digest_manifest([digest_section(0)], untrustedContent=False), 1, "section_candidates_invalid"),
+        (rhwp_envelope(untrustedContent=True, untrustedFields=["sections[].excerpt"], pageCount=1, sectionsMode="clause", sectionCount=0, sections={}), 1, "section_candidates_invalid"),
+        (native_digest_manifest([digest_section(0)], page_count=2), 1, "pdf_page_mismatch"),
+        (rhwp_envelope(pageCount=1, sectionsMode="clause", sectionCount=0, sections=[]), 1, "section_candidates_invalid"),
+        (b"not json", 1, "rhwp_manifest_invalid"),
+    ],
+)
+def test_native_section_candidates_reject_bad_mode_shape_and_page_range(
+    manifest: bytes,
+    expected_pages: int,
+    expected_code: str,
+) -> None:
+    with pytest.raises(DocumentProcessingError) as caught:
+        parse_section_candidates_manifest(manifest, expected_pages)
+    assert caught.value.code == expected_code
+
+
+def test_section_candidates_validation_accepts_two_thousand_and_rejects_more() -> None:
+    def payload(count: int) -> dict[str, object]:
+        return {
+            "schema": "bidops.section-candidates.v1", "page_count": 2, "mode": "clause",
+            "section_count": count,
+            "sections": [
+                {"index": index, "title": "t", "page": 1 + index % 2, "char_count": 0, "truncated": False}
+                for index in range(count)
+            ],
+        }
+
+    assert validate_section_candidates(payload(2000), page_count=2)["section_count"] == 2000
+    for broken, page_count in (
+        (payload(2001), 2),
+        (payload(3), 1),
+        ({**payload(1), "schema": "bidops.section-candidates.v2"}, 2),
+        ({**payload(1), "section_count": 2}, 2),
+    ):
+        with pytest.raises(DocumentProcessingError) as caught:
+            validate_section_candidates(broken, page_count=page_count)
+        assert caught.value.code == "section_candidates_invalid"
+
+
+def _native_bundle_arguments(source: bytes) -> dict[str, object]:
+    structure = dict(process_document(source, "application/hwp+zip", {"ocr": False}))
+    text = "Ⅰ. 사업 개요"
+    page = {
+        "number": 1, "display_page": 1, "section": 0, "text": text,
+        "text_sha256": hashlib.sha256(text.encode()).hexdigest(),
+    }
+    return {
+        "structure": structure,
+        "source_bytes": source,
+        "hwpx_bytes": source,
+        "hwpx_verify": None,
+        "page_text": {"schema": "bidops.rhwp-page-text.v1", "page_count": 1, "pages": [page]},
+        "para_page_map": build_para_page_map(
+            structure["blocks"],
+            {"schemaVersion": "1.0", "pageCount": 1, "pages": [{"pageIndex": 0, "section": 0, "columns": [], "extras": []}]},
+            {"schema": "bidops.rhwp-page-text.v1", "page_count": 1, "pages": [page]},
+            original_hwpx=True,
+        ),
+        "pdf_metadata": {
+            "schema": "bidops.rhwp-pdf-snapshot.v1", "renderer": "rhwp-svg-pdf", "renderer_version": "1",
+            "page_count": 1,
+            "renderer_provenance": {
+                "renderer": "rhwp-svg-pdf", "rhwp_version": "0.8.6", "rhwp_binary_sha256": "a" * 64,
+                "backend": "svg", "compat": "2022",
+                "fallback_fonts": {"serif": "NanumMyeongjo", "sans": "NanumGothic", "mono": "NanumGothicCoding"},
+                "worker_image_digest": None,
+            },
+            "font_provenance": {"font_manifest_sha256": "b" * 64},
+            "pages": [{key: value for key, value in page.items() if key != "text"}],
+        },
+        "options": ProcessorOptions.from_mapping({"prepare_pdf": True, "renderer": "rhwp-svg-pdf", "ocr": False}),
+    }
+
+
+def test_native_bundle_accepts_a_legacy_null_candidate_set_and_checks_a_present_one() -> None:
+    arguments = _native_bundle_arguments(hwpx_bytes())
+    # A bundle frozen before 0024 carries no candidates and stays valid.
+    assert validate_native_bundle(section_candidates=None, **arguments) is None
+    good = {
+        "schema": "bidops.section-candidates.v1", "page_count": 1, "mode": "clause", "section_count": 1,
+        "sections": [{"index": 0, "title": "Ⅰ. 사업 개요", "page": 1, "char_count": 12, "truncated": False}],
+    }
+    assert validate_native_bundle(section_candidates=good, **arguments) is None
+    with pytest.raises(DocumentProcessingError) as caught:
+        validate_native_bundle(section_candidates={**good, "page_count": 2}, **arguments)
+    assert caught.value.code == "section_candidates_invalid"

@@ -26,7 +26,7 @@ from uuid import UUID
 
 from .document_mcp.errors import DocumentProcessingError
 from .document_mcp.contracts import para_page_map_bytes
-from .document_mcp.native_artifacts import validate_native_bundle
+from .document_mcp.native_artifacts import section_candidates_bytes, validate_native_bundle
 from .document_mcp.processor import DocumentProcessor
 from .document_mcp.safety import MAX_INPUT_BYTES, ProcessorOptions
 
@@ -45,7 +45,7 @@ RESULT_SCHEMA = "bidops.document-converter-result.v1"
 PDF_PROTOCOL_SCHEMA = "bidops.document-converter-request.v2"
 PDF_RESULT_SCHEMA = "bidops.document-converter-result.v2"
 PDF_SIDECAR_NAMESPACE = "pdf"
-NATIVE_SIDECAR_SUFFIXES = {"hwpx": "hwpx", "page_text": "page-text.json", "para_page_map": "para-page-map.json"}
+NATIVE_SIDECAR_SUFFIXES = {"hwpx": "hwpx", "page_text": "page-text.json", "para_page_map": "para-page-map.json", "section_candidates": "section-candidates.json"}
 
 
 class ScratchProtocolError(RuntimeError):
@@ -393,18 +393,30 @@ def native_sidecar_paths(root: Path, request_id: str) -> dict[str, Path]:
 
 
 def _write_native_sidecars(root: Path, request_id: str, processed: Any, source: bytes, options: ProcessorOptions) -> tuple[dict[str, Any], list[Path]]:
+    # A native build always produces section candidates (an empty list is a
+    # valid result), so a missing artifact here is a fail-closed protocol error.
+    if not processed.section_candidates or not processed.section_candidates_bytes:
+        raise ScratchProtocolError("native section candidates missing", code="section_candidates_invalid")
     validate_native_bundle(
         processed, source_bytes=source, hwpx_bytes=processed.hwpx_bytes,
         hwpx_verify=processed.hwpx_verify, page_text=processed.page_text,
-        para_page_map=processed.para_page_map, pdf_metadata=processed.pdf_metadata, options=options,
+        para_page_map=processed.para_page_map, section_candidates=processed.section_candidates,
+        pdf_metadata=processed.pdf_metadata, options=options,
     )
     map_bytes = para_page_map_bytes(processed.para_page_map, max_output_bytes=options.max_output_bytes, max_pages=options.max_pages, max_blocks=options.max_blocks)
     if map_bytes != processed.para_page_map_bytes:
         raise ScratchProtocolError("native map bytes mismatch", code="hash_mismatch")
+    candidate_bytes = section_candidates_bytes(
+        processed.section_candidates, max_output_bytes=options.max_output_bytes,
+        page_count=processed.page_text["page_count"],
+    )
+    if candidate_bytes != processed.section_candidates_bytes:
+        raise ScratchProtocolError("native section candidate bytes mismatch", code="hash_mismatch")
     artifacts = {
         "hwpx": processed.hwpx_bytes if processed["media_type"] == "application/x-hwp" else None,
         "page_text": json.dumps(processed.page_text, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8"),
         "para_page_map": map_bytes,
+        "section_candidates": candidate_bytes,
     }
     paths = native_sidecar_paths(root, request_id)
     written: list[Path] = []
@@ -450,15 +462,23 @@ def read_native_sidecars(
     try:
         page_text = json.loads(contents["page_text"])
         para_map = json.loads(contents["para_page_map"])
+        candidates = json.loads(contents["section_candidates"])
     except (ValueError, UnicodeError, RecursionError) as error:
         raise ScratchProtocolError("native JSON invalid", code="rhwp_manifest_invalid") from error
     validate_native_bundle(
         structure, source_bytes=source, hwpx_bytes=contents["hwpx"], hwpx_verify=descriptors["hwpx_verify"],
-        page_text=page_text, para_page_map=para_map, pdf_metadata=pdf_metadata, options=options,
+        page_text=page_text, para_page_map=para_map, section_candidates=candidates,
+        pdf_metadata=pdf_metadata, options=options,
     )
     if contents["para_page_map"] != para_page_map_bytes(para_map, max_output_bytes=options.max_output_bytes, max_pages=options.max_pages, max_blocks=options.max_blocks):
         raise ScratchProtocolError("native map is not canonical", code="para_page_map_invalid")
-    return {"hwpx_bytes": contents["hwpx"], "hwpx_verify": descriptors["hwpx_verify"], "page_text": page_text, "para_page_map": para_map, "para_page_map_bytes": contents["para_page_map"]}
+    if contents["section_candidates"] != section_candidates_bytes(candidates, max_output_bytes=options.max_output_bytes, page_count=page_text["page_count"]):
+        raise ScratchProtocolError("native section candidates are not canonical", code="section_candidates_invalid")
+    return {
+        "hwpx_bytes": contents["hwpx"], "hwpx_verify": descriptors["hwpx_verify"],
+        "page_text": page_text, "para_page_map": para_map, "para_page_map_bytes": contents["para_page_map"],
+        "section_candidates": candidates, "section_candidates_bytes": contents["section_candidates"],
+    }
 
 
 def write_request(

@@ -14,6 +14,7 @@ from app.core.object_store import FilesystemObjectStore
 from app.deep_review import document_protocol
 from app.deep_review.document_mcp import process_document
 from app.deep_review.document_mcp.contracts import para_page_map_bytes
+from app.deep_review.document_mcp.native_artifacts import section_candidates_bytes
 from app.deep_review.document_mcp.errors import DocumentProcessingError
 from app.deep_review.document_mcp.para_page_map import build_para_page_map
 from app.deep_review.document_mcp.processor import ProcessedDocument
@@ -31,7 +32,7 @@ FONT = {"font_manifest_sha256": "b" * 64}
 OPTIONS = ProcessorOptions.from_mapping({"prepare_pdf": True, "renderer": "rhwp-svg-pdf", "ocr": False})
 
 
-def native_processed(*, hwp=False):
+def native_processed(*, hwp=False, candidates=True):
     hwpx = hwpx_bytes()
     source = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1fake-hwp" if hwp else hwpx
     structure = dict(process_document(hwpx, "application/hwp+zip", {"ocr": False}))
@@ -43,7 +44,12 @@ def native_processed(*, hwp=False):
     page_text = {"schema": "bidops.rhwp-page-text.v1", "page_count": 1, "pages": [page]}
     dump = {"schemaVersion": "1.0", "pageCount": 1, "pages": [{"pageIndex": 0, "section": 0, "columns": [], "extras": []}]}
     mapping = build_para_page_map(structure["blocks"], dump, page_text, original_hwpx=not hwp)
+    # ``candidates=False`` reproduces a snapshot frozen before 0024.
+    sections = {"schema": "bidops.section-candidates.v1", "page_count": 1, "mode": "clause", "section_count": 1,
+        "sections": [{"index": 0, "title": "Ⅰ. 사업 개요", "page": 1, "char_count": 12, "truncated": False}]} if candidates else None
     return ProcessedDocument(structure, original_bytes=source, converted_pdf_bytes=text_pdf(), hwpx_bytes=hwpx,
+        section_candidates=sections,
+        section_candidates_bytes=section_candidates_bytes(sections, max_output_bytes=OPTIONS.max_output_bytes, page_count=1) if candidates else None,
         hwpx_verify={"identical": True, "diff_count": 0, "pages": {"before": 1, "after": 1, "identical": True}} if hwp else None,
         page_text=page_text, para_page_map=mapping, para_page_map_bytes=para_page_map_bytes(mapping, max_output_bytes=OPTIONS.max_output_bytes),
         pdf_metadata={"schema": "bidops.rhwp-pdf-snapshot.v1", "renderer": "rhwp-svg-pdf", "renderer_version": "1", "page_count": 1, "renderer_provenance": copy.deepcopy(RENDERER), "font_provenance": FONT, "pages": [{k: v for k, v in page.items() if k != "text"}]})
@@ -106,6 +112,8 @@ def test_native_scratch_roundtrip_preserves_sidecars_and_cleans_files(monkeypatc
     assert result.page_text == processed.page_text
     assert result.hwpx_bytes == processed.hwpx_bytes
     assert result.para_page_map_bytes == processed.para_page_map_bytes
+    assert result.section_candidates == processed.section_candidates
+    assert result.section_candidates_bytes == processed.section_candidates_bytes
     assert result.hwpx_verify == processed.hwpx_verify
     assert processed.converted_pdf_bytes in scanned
     assert (processed.hwpx_bytes in scanned)

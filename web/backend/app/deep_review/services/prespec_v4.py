@@ -29,7 +29,7 @@ from ..document_mcp.safety import ProcessorOptions
 from ..document_mcp.errors import DocumentProcessingError
 from ..document_mcp.native_artifacts import (
     NATIVE_RENDERER, NATIVE_SNAPSHOT_SCHEMA, validate_native_renderer,
-    validate_native_page_text, validate_native_bundle,
+    validate_native_page_text, validate_native_bundle, validate_section_candidates,
 )
 from .document_structures import persist_structure_rows
 from .document_converter import SAFE_CONVERTER_CODES, ScratchDocumentProcessor
@@ -785,7 +785,12 @@ def _persist_artifact(
 _NATIVE_REFERENCE_FIELDS = (
     "hwpx_content_object_id", "hwpx_location_id", "hwpx_verify_jsonb",
     "structure_id", "structure_location_id", "para_page_map_content_object_id",
-    "para_page_map_location_id", "para_page_map_sha256", "rhwp_binary_sha256", "rhwp_version",
+    "para_page_map_location_id", "para_page_map_sha256",
+    "section_candidates_content_object_id", "section_candidates_location_id",
+    "section_candidates_sha256", "rhwp_binary_sha256", "rhwp_version",
+)
+_SECTION_CANDIDATE_FIELDS = (
+    "section_candidates_content_object_id", "section_candidates_location_id", "section_candidates_sha256",
 )
 
 
@@ -817,10 +822,23 @@ def _validate_native_references(session, store, refs, document, source_bytes, pa
     map_bytes, map_binding = _native_object(session, store, refs["para_page_map_content_object_id"], refs["para_page_map_location_id"], max_bytes=options.max_output_bytes, mime="application/json")
     if map_binding["sha256"] != refs["para_page_map_sha256"]:
         raise V4PreparationError("snapshot_artifact_hash_mismatch")
+    # Snapshots frozen before 0024 carry no candidates.  All three references
+    # are null together and the snapshot stays reusable; a mixed set is a
+    # broken reference, not a legacy row.
+    present = [refs[field] is not None for field in _SECTION_CANDIDATE_FIELDS]
+    if any(present) and not all(present):
+        raise V4PreparationError("native_artifact_reference_invalid")
+    candidates_bytes: bytes | None = None
+    candidates_binding = None
+    if all(present):
+        candidates_bytes, candidates_binding = _native_object(session, store, refs["section_candidates_content_object_id"], refs["section_candidates_location_id"], max_bytes=options.max_output_bytes, mime="application/json")
+        if candidates_binding["sha256"] != refs["section_candidates_sha256"]:
+            raise V4PreparationError("snapshot_artifact_hash_mismatch")
     try:
         payload = json.loads(structure_bytes)
         page_text = json.loads(page_text_bytes)
         mapping = json.loads(map_bytes)
+        candidates = json.loads(candidates_bytes) if candidates_bytes is not None else None
     except (ValueError, UnicodeError):
         raise V4PreparationError("native_artifact_invalid") from None
     if not isinstance(payload, Mapping) or payload.get("structure_id") != str(structure.id) or payload.get("document_version_id") != str(document.id) or payload.get("media_type") != structure.media_type:
@@ -835,22 +853,69 @@ def _validate_native_references(session, store, refs, document, source_bytes, pa
             raise V4PreparationError("native_artifact_reference_invalid")
         hwpx_bytes = source_bytes
     try:
-        validate_native_bundle(payload, source_bytes=source_bytes, hwpx_bytes=hwpx_bytes, hwpx_verify=refs["hwpx_verify_jsonb"], page_text=page_text, para_page_map=mapping, pdf_metadata=metadata, options=options)
+        validate_native_bundle(payload, source_bytes=source_bytes, hwpx_bytes=hwpx_bytes, hwpx_verify=refs["hwpx_verify_jsonb"], page_text=page_text, para_page_map=mapping, section_candidates=candidates, pdf_metadata=metadata, options=options)
     except DocumentProcessingError as error:
         raise V4PreparationError(error.code) from error
     if _canonical(mapping) != map_bytes:
         raise V4PreparationError("para_page_map_invalid")
-    return {"structure": structure_binding, "para_page_map": map_binding, "hwpx": hwpx_binding, "hwpx_verify": refs["hwpx_verify_jsonb"]}
+    if candidates_bytes is not None and _canonical(candidates) != candidates_bytes:
+        raise V4PreparationError("section_candidates_invalid")
+    binding = {"structure": structure_binding, "para_page_map": map_binding, "hwpx": hwpx_binding, "hwpx_verify": refs["hwpx_verify_jsonb"]}
+    # The key is added only when candidates exist so a pre-0024 snapshot keeps
+    # its recorded ``binding_sha256`` and stays cache-reusable.
+    if candidates_binding is not None:
+        binding["section_candidates"] = candidates_binding
+    return binding
+
+
+def read_snapshot_section_candidates(
+    session: Session,
+    store: ObjectStore,
+    snapshot: PrespecV4PdfSnapshot,
+) -> dict[str, Any] | None:
+    """Return the snapshot's validated section candidates, or ``None``.
+
+    Side-effect free: the object is read at its pinned version, checked against
+    the stored hash and the snapshot's own page count, and nothing is written.
+    A snapshot frozen before 0024 has no candidates and is not an error.
+    """
+
+    present = [getattr(snapshot, field) is not None for field in _SECTION_CANDIDATE_FIELDS]
+    if not any(present):
+        return None
+    if not all(present):
+        raise V4PreparationError("native_artifact_reference_invalid")
+    options = ProcessorOptions.from_mapping((snapshot.config_jsonb or {}).get("options"))
+    data, binding = _native_object(
+        session, store, snapshot.section_candidates_content_object_id,
+        snapshot.section_candidates_location_id,
+        max_bytes=min(options.max_output_bytes, MAX_V4_MANIFEST_BYTES), mime="application/json",
+    )
+    if binding["sha256"] != snapshot.section_candidates_sha256:
+        raise V4PreparationError("snapshot_artifact_hash_mismatch")
+    try:
+        payload = json.loads(data)
+    except (ValueError, UnicodeError):
+        raise V4PreparationError("section_candidates_invalid") from None
+    try:
+        candidates = validate_section_candidates(payload, page_count=snapshot.pdf_page_count)
+    except DocumentProcessingError as error:
+        raise V4PreparationError(error.code) from error
+    if _canonical(candidates) != data:
+        raise V4PreparationError("section_candidates_invalid")
+    return candidates
 
 
 def _persist_native_artifacts(session, store, document, processed, source_bytes, metadata, options, scanner):
     """Store native sidecars without replacing any existing document structure."""
     try:
-        validate_native_bundle(processed, source_bytes=source_bytes, hwpx_bytes=processed.hwpx_bytes, hwpx_verify=processed.hwpx_verify, page_text=processed.page_text, para_page_map=processed.para_page_map, pdf_metadata=metadata, options=options)
+        validate_native_bundle(processed, source_bytes=source_bytes, hwpx_bytes=processed.hwpx_bytes, hwpx_verify=processed.hwpx_verify, page_text=processed.page_text, para_page_map=processed.para_page_map, section_candidates=processed.section_candidates or None, pdf_metadata=metadata, options=options)
     except DocumentProcessingError as error:
         raise V4PreparationError(error.code) from error
     if _canonical(processed.para_page_map) != processed.para_page_map_bytes:
         raise V4PreparationError("para_page_map_invalid")
+    if processed.section_candidates and _canonical(processed.section_candidates) != processed.section_candidates_bytes:
+        raise V4PreparationError("section_candidates_invalid")
     source = session.get(ContentObject, document.content_object_id)
     if processed["media_type"] != source.detected_mime:
         raise V4PreparationError("source_media_type_mismatch")
@@ -897,6 +962,13 @@ def _persist_native_artifacts(session, store, document, processed, source_bytes,
     raw = processed.para_page_map_bytes
     content, location = _persist_artifact(session, store, namespace="structure", object_key=f"structure/prespec-v4/{document.id}/para-page-map-{_sha256_bytes(raw)}.json", data=raw, detected_mime="application/json", retention_class="document-structure")
     refs.update(para_page_map_content_object_id=content.id, para_page_map_location_id=location.id, para_page_map_sha256=content.sha256)
+    # A bundle without candidates leaves the three references null together:
+    # the scratch protocol already fails closed when a native build omits the
+    # sidecar, so this only covers artifacts frozen before 0024.
+    if processed.section_candidates:
+        raw = processed.section_candidates_bytes
+        content, location = _persist_artifact(session, store, namespace="structure", object_key=f"structure/prespec-v4/{document.id}/section-candidates-{_sha256_bytes(raw)}.json", data=raw, detected_mime="application/json", retention_class="document-structure")
+        refs.update(section_candidates_content_object_id=content.id, section_candidates_location_id=location.id, section_candidates_sha256=content.sha256)
     session.flush()
     return refs
 

@@ -17,6 +17,13 @@ from typing import Any, Mapping
 from .contracts import para_page_map_bytes
 from .errors import DocumentProcessingError
 from .hwpx import extract_hwpx
+from .native_artifacts import (
+    MAX_SECTION_CANDIDATES,
+    MAX_SECTION_TITLE_CHARS,
+    SECTION_CANDIDATES_MODES,
+    SECTION_CANDIDATES_SCHEMA,
+    section_candidates_bytes,
+)
 from .para_page_map import build_para_page_map
 from .pdf import extract_pdf
 from .safety import PDF_MAGIC, ZIP_MAGIC, ProcessorOptions, validate_zip
@@ -26,6 +33,7 @@ RHWP_STDOUT_LIMIT = 1024 * 1024
 RHWP_RENDERER = "rhwp-svg-pdf"
 RHWP_VERSION = "0.8.6"
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_WHITESPACE = re.compile(r"\s+")
 _VERSION_LINE = re.compile(r"^rhwp v([0-9]+\.[0-9]+\.[0-9]+)$")
 
 
@@ -205,6 +213,64 @@ def _sanitize_dump_item(item: Any, *, extras: bool) -> dict[str, Any] | None:
     return result
 
 
+def _section_candidates_error() -> DocumentProcessingError:
+    return DocumentProcessingError(
+        "section_candidates_invalid", "절 후보 계약이 올바르지 않습니다", source_preserved=True,
+    )
+
+
+def parse_section_candidates_manifest(stdout: bytes, expected_pages: int) -> dict[str, Any]:
+    """Parse ``digest --sections --json`` into ``bidops.section-candidates.v1``.
+
+    Only the whitespace-normalised title, the 1-based page, and the character
+    count survive.  rhwp marks ``sections[].excerpt`` untrusted, so it is
+    dropped here together with ``nextStep``/``source``/``truncated`` and the
+    untrusted markers: none of that document-derived prose may reach storage,
+    a log, an audit row, or a prompt.  The envelope's own ``truncated`` flag
+    describes those dropped excerpts and is therefore not a failure.
+    """
+
+    value = _base_manifest(stdout)
+    if not value["untrustedContent"] or "sections[].excerpt" not in value["untrustedFields"]:
+        raise _section_candidates_error()
+    mode = value.get("sectionsMode")
+    sections = value.get("sections")
+    if mode not in SECTION_CANDIDATES_MODES or not isinstance(sections, list):
+        raise _section_candidates_error()
+    page_count = _integer(value.get("pageCount"), minimum=1)
+    if page_count != expected_pages:
+        raise DocumentProcessingError("pdf_page_mismatch", "절 후보 page 대응을 확인할 수 없습니다", source_preserved=True)
+    declared = value.get("sectionCount")
+    if len(sections) > MAX_SECTION_CANDIDATES or type(declared) is not int or declared != len(sections):
+        raise _section_candidates_error()
+    candidates: list[dict[str, Any]] = []
+    for index, section in enumerate(sections):
+        if not isinstance(section, dict) or not {"title", "page", "charCount"} <= set(section) or set(section) - {"title", "page", "charCount", "excerpt"}:
+            raise _section_candidates_error()
+        title, page, char_count = section["title"], section["page"], section["charCount"]
+        if not isinstance(title, str) or type(page) is not int or type(char_count) is not int or char_count < 0:
+            raise _section_candidates_error()
+        # rhwp pages are 0-based; every stored contract uses the 1-based
+        # physical order of the same run's PDF.
+        if not 0 <= page < page_count:
+            raise _section_candidates_error()
+        normalized = _WHITESPACE.sub(" ", title).strip()
+        candidates.append({
+            "index": index,
+            "title": normalized[:MAX_SECTION_TITLE_CHARS],
+            "page": page + 1,
+            "char_count": char_count,
+            "truncated": len(normalized) > MAX_SECTION_TITLE_CHARS,
+        })
+    return {
+        "schema": SECTION_CANDIDATES_SCHEMA,
+        "page_count": page_count,
+        "mode": mode,
+        "section_count": len(candidates),
+        "sections": candidates,
+    }
+
+
 class NativeRhwpProcessor:
     """Execute native conversion while preserving the existing structure schema."""
 
@@ -270,6 +336,8 @@ class NativeRhwpProcessor:
                     "page_dump": {},
                     "para_page_map": {},
                     "para_page_map_bytes": None,
+                    "section_candidates": {},
+                    "section_candidates_bytes": None,
                 }
 
             pdf_path = root / "output.pdf"
@@ -292,6 +360,14 @@ class NativeRhwpProcessor:
                 page["display_page"] = dump_page["displayPage"]
                 page["section"] = dump_page["section"]
             self._check_json_artifact(text, options)
+            # Fifth native call on the same input file as export-text/dump-pages;
+            # it shares the document deadline, the 1 MiB stdout cap, and the rlimits.
+            candidates = parse_section_candidates_manifest(
+                self._call(["digest", source.name, "--sections", "--json"], root, options, deadline), page_count,
+            )
+            candidates_bytes = section_candidates_bytes(
+                candidates, max_output_bytes=options.max_output_bytes, page_count=page_count,
+            )
             para_map = build_para_page_map(
                 blocks, dump, text, original_hwpx=media_type == "application/hwp+zip",
                 paragraph_identities=paragraph_identities, deadline=deadline,
@@ -306,7 +382,7 @@ class NativeRhwpProcessor:
             font_digest = self._font_manifest(options, deadline)
             renderer_provenance = {"renderer": RHWP_RENDERER, "rhwp_version": version, "rhwp_binary_sha256": binary_sha, "backend": "svg", "compat": "2022", "fallback_fonts": {"serif": "NanumMyeongjo", "sans": "NanumGothic", "mono": "NanumGothicCoding"}, "worker_image_digest": self._image_digest()}
             pdf_metadata = {"schema": "bidops.rhwp-pdf-snapshot.v1", "renderer": RHWP_RENDERER, "renderer_version": "1", "page_count": page_count, "renderer_provenance": renderer_provenance, "font_provenance": {"font_manifest_sha256": font_digest}, "pages": [{"number": item["number"], "display_page": item["display_page"], "section": item["section"], "text_sha256": item["text_sha256"]} for item in text["pages"]]}
-            return {"pages": pages, "blocks": blocks, "warnings": warnings, "converted": converted, "verify": verify, "pdf": pdf, "pdf_metadata": pdf_metadata, "page_text": text, "page_dump": dump, "para_page_map": para_map, "para_page_map_bytes": para_map_bytes}
+            return {"pages": pages, "blocks": blocks, "warnings": warnings, "converted": converted, "verify": verify, "pdf": pdf, "pdf_metadata": pdf_metadata, "page_text": text, "page_dump": dump, "para_page_map": para_map, "para_page_map_bytes": para_map_bytes, "section_candidates": candidates, "section_candidates_bytes": candidates_bytes}
 
     def _call(self, arguments: list[str], root: Path, options: ProcessorOptions, deadline: float, *, verify_exit: bool = False) -> bytes:
         try:
