@@ -1,6 +1,6 @@
 # rhwp 문서 변환 파이프라인 진행 계획
 
-작업명: rhwp-document-pipeline · 기준일: 2026-09-10 · 상태: R6 운영 인수 완료(2026-09-10, 35 native snapshot은 구조 충돌로 보류), R7 미착수
+작업명: rhwp-document-pipeline · 기준일: 2026-09-10 · 상태: R7 완료·운영 반영(2026-09-10, 0024·`bidops-rdp-r7`). 남은 것은 35 구조 revision, attempt(endpoint), ready target projection, 기존 실패 4건
 
 이 문서는 새 세션이 다른 맥락 없이 이 작업을 이어갈 수 있도록 순서·담당·게이트·현재 상태·재현 명령을 모아 둔다. 내용이 이미 다른 문서에 있으면 여기 다시 적지 않고 링크한다. 단계가 끝나거나 결정이 바뀌면 §7 진행 기록에 덧붙이고, 결정 자체는 [ADR.md](ADR.md)에 적는다.
 
@@ -28,9 +28,9 @@
 
 | 항목            | 상태                                                                                                                                                                                               | 확인 방법                                                                                                                |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
-| main | `8f863da`(R5 기록) 위에 R6 보정(`web/Dockerfile` `fontconfig`, runtime contract 테스트)과 R6 기록이 올라간다. 현재 SHA는 git log로 확인 | `git log --oneline -5` |
+| main | `1f66044`(R7 병합: `8b1c077` WP-A, `5a5646d` WP-B, `ae80dae` WP-C) 위에 R7 기록이 올라간다. 현재 SHA는 git log로 확인 | `git log --oneline -5` |
 | 미병합 브랜치 | 없음. P1 WP-1~4·R0~R5는 모두 main에 있다(`git branch --list 'feat/*'`에 남은 이름은 병합 완료 브랜치) | `git branch --merged main` |
-| 운영 컨테이너 | Compose 프로젝트 `bidops`. web `bidops-web-1`(이미지 `bidops-rdp-r6:20260910`, 127.0.0.1:18887), document-worker 2개(같은 이미지, pids 128·1 GiB·network none, 2026-09-10 R6 재생성). DB head `0023_rhwp_snapshot` | `docker ps`, `docker inspect <c> --format '{{.HostConfig.PidsLimit}}'`, `select version_num from bidops.alembic_version` |
+| 운영 컨테이너 | Compose 프로젝트 `bidops`. web `bidops-web-1`(이미지 `bidops-rdp-r7:20260910`, 127.0.0.1:18887), document-worker 2개(같은 이미지, pids 128·1 GiB·network none, 2026-09-10 R7 재생성). DB head `0024_section_candidates` | `docker ps`, `docker inspect <c> --format '{{.HostConfig.PidsLimit}}'`, `select version_num from bidops.alembic_version` |
 | 배포 설정 보관      | `~/.local/state/bidops/deployments/<이름>-<id>/deploy.compose.json`                                                                                                                                | [operations.md "화면 노출과 edge overlay"](../operations.md)                                                              |
 | v4 activation | OFF (마지막 감사 `5016643f-…`, 사유 `rdp_r6_native_snapshots_prepared_142_59_activation_restored_off`) | `select safe_metadata from bidops.audit_event where action='prespec_v4.activation' order by created_at desc limit 1` |
 | notice 142 | native snapshot `f8a42b74-…`(`rhwp-svg-pdf`, 79쪽, 기존 구조 `22541eb7-…` 결속, 대응표 있음), target `f7c73503-…` ready(4~12쪽), attempt 없음. Canvas snapshot `e68670e0-…`·target `200e9557-…`은 보존. `current`는 여전히 실패 attempt `dbbc7b5f-…` | [R6 기록](../validation-runs/2026-09-10-rhwp-pipeline.md), [findings.md 142 항목](../tracking/findings.md) |
@@ -182,11 +182,12 @@ git diff --check
 
 ### R7 범위 선택 보조 (담당: 위임, 별도 승인 뒤)
 
-- [ ] `digest --sections --json` 후보 생성·저장.
-- [ ] 결정적 선택기가 `unknown`일 때만 LLM 보조 선택, 결과는 `needs_human_review`([ADR-RDP-004](ADR.md#adr-rdp-004-변환은-프로그램이-해석범위-선택-보조역할별-분석은-llm이-맡는다)).
-- [ ] 사람이 후보를 확인·확정하는 화면 경로.
+- [x] `digest --sections --json` 후보 생성·저장: 산출물 ⑦ `bidops.section-candidates.v1`, sidecar·객체·0024 nullable 참조(WP-A `8b1c077`). 142 격리 실측 43절 `clause`.
+- [x] 결정적 선택기가 `ready`가 아니면 실패 attempt 대신 `needs_human_review` target을 동결하고, LLM 보조는 CLI `--assist-range`로만 실행해 감사 행(제안)으로 남긴다([ADR-RDP-004](ADR.md#adr-rdp-004-변환은-프로그램이-해석범위-선택-보조역할별-분석은-llm이-맡는다), WP-B `5a5646d`).
+- [x] 사람이 후보를 확인·확정하는 화면 경로: `range_review` 투영 + `POST …/range-confirmations` + 사전규격 상세 `개요 범위 확인` 카드(WP-C `ae80dae`). 확정은 `human_confirmed` ready target만 만들고 attempt를 열지 않는다.
+- [x] 운영 반영: 백업 → 0024 → web·worker `bidops-rdp-r7:20260910` 재생성, 기존 응답 불변([R7 기록](../validation-runs/2026-09-10-rhwp-r7-range-review.md)).
 
-게이트: 자동 실행을 열지 않음, 표본에서 사람 확정 흐름 확인.
+게이트: 자동 실행을 열지 않음(테스트·운영 409/404로 확인). **표본에서의 사람 확정 흐름은 운영에서 재현하지 못했다** — 세 표본 모두 heading 선택기가 `ready`라 확정 대기 target이 없고, 흐름은 API 종단 테스트와 Playwright 목 검사로 확인했다. 실제 확정 대기 문서가 들어오면 운영에서 확인한다.
 
 ## 5. 곁줄기 (Qwen 전환 준비)
 
@@ -225,3 +226,4 @@ git diff --check
 | 2026-09-10 | R4 수락·병합 | 백엔드 `8725d47`(`feat/rdp-r4-consumers`)과 프론트 `cedcbd1`(`feat/rdp-r4-consumers-ui`)을 diff로 검토하고 main에 병합했다(`4514421`·`506e323`). 대응표 읽기·hash 실패는 조용히 `unavailable`로 낮추지 않고 500 `processing_failed`, 구조 PDF endpoint는 개요 PDF와 같은 무결성 검사 함수(`verified_pdf_bytes`)를 공유한다. 화면 fixture가 사람 확인 segment 1→3건으로 늘어 `screen-semantics.spec.ts` 개수 단언 2줄을 사실대로 고쳤고, 픽셀 층 `deep-review-complete` 기준선은 갱신하지 않았다(승인 뒤 교체). 실제 native snapshot이 있는 응답 확인은 운영 migration이 없어 R6에서 한다. |
 | 2026-09-10 | R5 수락·병합 | 위임 `e4e1b9f`(제거)와 보정 `2c0e19f`(PDF v2 protocol 테스트 fake를 native 형태로)를 diff로 검토하고 main에 병합했다(`753d639`). 게이트: 이미지 빌드 후 chromium·node 없음. 최종 트리 전체 backend 스위트 1회 = 1794 passed·5 skipped·33 failed·21 errors, 이 중 47건은 worktree에 없는 gitignore 파일(`experiments/.../company-capabilities-v1-approved.json`) 때문이며 병합된 main에서 같은 파일들 419 passed·14 skipped로 해소; 4건(`test_document_worker_protocol`)은 R5 회귀로 보정 후 14 passed; 남은 3건(`test_alembic_autogenerate` drift, `test_model_has_exact_closed_table_set` 82≠81, `test_mapper_isolation`)은 `a9ddb99`(R3 직후)에서도 실패하는 기존 결함. 화면 `test:screens` 1회 = 499 passed·5 skipped·3 failed, 이 중 2건은 단독 재실행 통과(부하 flake), `common-interactions.spec.ts:211`은 main과 `bbbbaae`에서도 실패하는 기존 결함. 다음 단계 R6(운영 인수)은 열지 않았고 운영 migration·배포·활성화·모델 호출은 수행하지 않았다. |
 | 2026-09-10 | R6 운영 인수 | 사용자 요청으로 관리자가 직접 실행했다. 백업(DB dump `481c9974…`, 객체 960 version) 뒤 R5 이미지 격리 실측에서 `fc-list` 부재로 native 변환이 `converter_unavailable`인 R5 회귀를 발견해 `web/Dockerfile`에 `fontconfig`를 추가하고 `bidops-rdp-r6:20260910`을 빌드했다. 0023 migration·권한 적용, web(배포 dir `rdp-r6-20260910-4c9f33ec`)·document-worker(pids 128) 재생성, explicit_sample 활성화 `d73daa62…` → 142 native snapshot `f8a42b74…`(79쪽, 기존 구조 결속, 대응표)·target `f7c73503…`, 59 snapshot `3aa6c47f…`·target `ec040093…` → off `5016643f…`. 35는 새 구조 blocks 1,454 ≠ 기존 1,349로 `structure_binding_mismatch`가 예상돼 준비하지 않았다(실행 시 실패 attempt가 `current`를 덮음). API·두 폭 UI 확인 통과, 기존 결과 불변. 근거: [R6 기록](../validation-runs/2026-09-10-rhwp-pipeline.md). 남은 것: 35 구조 revision, attempt(endpoint), ready target projection, 기존 실패 4건. R7은 열지 않았다. |
+| 2026-09-10 | R7 | 사용자 승인 뒤 Opus 서브에이전트 3개에 위임(WP-A 산출물 ⑦·0024, WP-B 선택기 연결·확정 REST·`--assist-range`, WP-C 화면), 관리자가 diff·게이트 검수 후 main 병합(`a0a2039`·`1f66044`). 통합 트리 백엔드 319 passed·프론트 page-overview 9 passed, PostgreSQL 0024 5 passed(WP-A 브랜치). 이미지 `bidops-rdp-r7:20260910` 격리 실측 142 후보 43절. 운영: 백업(`bc699ea6…`) → 0024 → web(`rdp-r7-20260910-cf89169f`)·worker 재생성, API·UI 회귀 없음. 하지 못한 것: 실표본 사람 확정 재현(확정 대기 target 없음), 실제 모델 보조 호출, temperature 0(per-call 인자 없음), non-ready target의 manifest 참조 결속. 근거: [R7 기록](../validation-runs/2026-09-10-rhwp-r7-range-review.md). R0~R7 전 단계 종료. |

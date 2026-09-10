@@ -1240,3 +1240,21 @@ runner 소비자가 없어 보류했다. 운영 DB/MinIO 쓰기·migration 적�
   `92e5dc4f…1650a9`(R3 이미지와 동일)를 확인했다([R6 기록](../validation-runs/2026-09-10-rhwp-pipeline.md)).
 - 남은 것: 이미지 안에서 실제 변환기 실행을 검사하는 게이트가 없다. 다음 이미지 변경부터는 R6 기록의 probe 명령으로 표본 1건을
   실제 실행해 확인한다.
+
+## 개요 범위 보조 호출에 temperature 0을 줄 수 없다 (2026-09-10)
+
+- 재현: `app/core/model_client.py`의 `complete_structured`는 승인 generation 상수 `APPROVED_GENERATION["temperature"]=0.7`을 고정 전송하고 per-call 인자가 없다. R7 `--assist-range`는 결정적 제안을 위해 temperature 0을 계약했지만 넣을 자리가 없어 재시도 0·seed 0·strict json_schema로 대신했다.
+- 영향: 같은 후보 목록에 대한 모델 제안이 호출마다 달라질 수 있다. 제안은 사람이 확인하는 참조일 뿐 target을 바꾸지 않으므로 업무 영향은 없다.
+- 현재 범위에서 해결할 수 없는 이유: 승인 generation 값은 용도별 품질 게이트와 묶여 있어 R7 범위에서 core 계약을 바꾸지 않았다.
+- 후속: `complete_structured`에 용도별 per-call generation override(허용 목록 안에서만)를 두거나 range-assist 용도의 승인 generation을 별도로 선언한다.
+
+## 확정 대기 target에 검토 manifest 참조가 결속되지 않는다 (2026-09-10)
+
+- 재현: R7의 `prepare_v4_notice`가 선택기 미결정 시 `bidops.prespec-v4-range-review.v1` manifest를 객체·content row로 저장하지만, `freeze_v4_target`이 ready가 아닌 selection에 manifest 참조를 주면 `manifest_reference_invalid`로 막아 `needs_human_review` target의 `manifest_content_object_id`는 `null`이다.
+- 영향: 검토 manifest는 존재하고 후보 개수·digest를 담지만 target 행에서 FK로 따라갈 수 없다. `range_review` 투영은 후보를 snapshot의 산출물 ⑦에서 읽으므로 화면 기능에는 영향이 없다.
+- 후속: `freeze_v4_target`에 non-ready selection의 review manifest 참조를 허용하는 분기와 그 검증을 추가한다.
+
+## 실표본에서 사람 확정 흐름을 재현할 문서가 없다 (2026-09-10)
+
+- 상황: 35/59/142 모두 heading 선택기가 `ready`라 `needs_human_review` target이 만들어지지 않는다. R7의 확정 REST·화면·CLI 보조는 API 종단 테스트(`test_page_overview`·`test_prespec_v4_ops`)와 Playwright 목 검사로만 확인했다.
+- 후속: 다음 수집 회차에서 heading 선택기가 미결정인 사전규격이 나오면 `docs/validation-runs/2026-09-10-rhwp-r7-range-review.md`의 절차로 운영 확인하고 결과를 이 항목에 덧붙인다.
