@@ -1153,3 +1153,30 @@ runner 소비자가 없어 보류했다. 운영 DB/MinIO 쓰기·migration 적�
 - 조치(2026-09-09): compose document-worker `pids_limit`을 512로, v4 CLI 기본 `max_output_bytes`를
   64 MiB(`ProcessorOptions` 상한 100 MiB 이내)로 올렸다. **운영 재실행은 하지 않았다** — 컨테이너
   재생성과 notice 142 새 attempt는 별도 운영 단계이며 그 전까지 142는 `unverified`로 남는다.
+- 운영 재실행(2026-09-10): `212e5ed`가 main에 들어온 뒤 document-worker 두 개를 base compose와 image 고정
+  overlay(`bidops-v4-luna-reference:20260909-final`)로 재생성해 `PidsLimit=512`·memory 1 GiB·`network_mode none`·
+  `cap_drop ALL`·동일 image·`/scratch` volume을 확인했다. overview endpoint `192.168.0.139:58765`가 닿지 않아
+  `--activate`는 `model_binding_unavailable`로 실패했고, 2026-09-08 감사의 Luna reference-only
+  binding(`692b50e4…`, `gpt-5.6-luna`, `reference_only=true`, `deployable=false`)을 `--binding`으로 재구성해
+  `explicit_sample`로 활성화했다. 첫 `--prepare`는 43초 뒤 attempt `dbbc7b5f-35c5-4f21-8adb-1c2b042dd61e`(sequence 5)
+  `pdf_preparation_failed`였고 3분 뒤 같은 입력의 직접 재현이 22.8초에 성공했으므로 원인은 **미확정**이다. 두 번째 실행은
+  23.1초에 snapshot `e68670e0-4bf7-4cd9-baa1-174f19e5e994`(85쪽, 11,041,060 bytes, PDF SHA-256 `2774fd76…`,
+  `verified`·ClamAV `clean`)와 target `200e9557-d5d5-4a0f-afa8-896d44b41261`(`ready`, `heading_scope`, 3~13쪽)을
+  남겼다. attempt는 enqueue하지 않았고 activation은 즉시 OFF로 되돌렸다(감사 `31bee035-6263-4444-bafe-439b0f16c12a`).
+  첫 시도 중 append된 감사 `176c61bb-2538-459c-a1f3-ec208debed57`의 사유
+  `notice_142_prepare_done_activation_restored_off`는 그 시점에 준비된 것이 없어 사실과 다르지만, 감사 행은
+  append-only이므로 고치지 않고 부정확함만 기록한다. 새 target에 attempt가 없어 `current`는 여전히 실패 attempt
+  `dbbc7b5f…`를 보여 주고 142의 UI/PDF 링크 인수는 Qwen endpoint 복구까지 미완이다.
+
+## pdf_preparation_failed가 변환기의 실제 오류 코드를 감춘다 (2026-09-10)
+
+- 재현: `prespec-v4 --prepare`로 변환을 실패시키면 `prepare_v4_pdf_snapshot`이 converter 예외를 종류와 무관하게
+  `pdf_preparation_failed` 하나로 감싼다(`web/backend/app/deep_review/services/prespec_v4.py:855`).
+- 영향: 2026-09-10 notice 142의 43초 실패 attempt `dbbc7b5f-35c5-4f21-8adb-1c2b042dd61e`에는 그 일반 코드만 남아
+  deadline·출력 예산·렌더 실패를 구분할 수 없었고, 3분 뒤 같은 입력의 직접 재현이 성공해 원인은 미확정으로 남았다.
+- 현재 범위: 코드는 바꾸지 않았다. 실패 attempt를 그대로 보존하고 성공으로 승격하지 않는다.
+- 후속: converter가 돌려준 안전 코드를 attempt `error_code` 접미사나 감사 `safe_metadata`에 함께 보존한다.
+  경로·원문·프롬프트·stderr는 넣지 않는다.
+- `current` projection은 attempt가 없는 `ready` target을 드러내지 않는다. 142의 새 target
+  `200e9557-d5d5-4a0f-afa8-896d44b41261`이 `ready`여도 `GET /api/pre-specs/142/overview-pages`의 `current`는 직전
+  실패 attempt를 계속 보여 준다.

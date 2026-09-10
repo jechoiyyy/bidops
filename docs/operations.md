@@ -983,6 +983,10 @@ fingerprint와 deployment preflight binding이 일치해야 하며, asset hash�
 digest로 가장하지 않는다. 원본 PDF는 재렌더하지 않고 Poppler provenance와
 `font_provenance=null`을 기록한다.
 
+2026-09-10 기준 mandatory RFP 예시의 `max_output_bytes`는 `67108864`이며 `212e5ed` 이후 v4 CLI
+기본값이다. 모델 endpoint가 닿지 않으면 `--activate`에 직전 활성화 감사의 reference-only binding
+JSON을 `--binding`으로 함께 준다. deployable binding을 그 자리에 쓰지 않는다.
+
 `--prepare`/`--enqueue`는 120초 attachment fetch worker와 분리된 준비 role에서
 실행한다. app role은 검증된 source를 읽고 versioned source/structure object와
 snapshot/target/WorkJob/attempt를 append하며, analysis worker는 source/MinIO 원문
