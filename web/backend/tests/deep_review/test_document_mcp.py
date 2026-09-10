@@ -22,6 +22,7 @@ from app.deep_review.document_mcp import (
     validate_structure,
 )
 from app.deep_review.document_mcp import processor as processor_module
+from app.deep_review.document_mcp import native as native_module
 from app.deep_review.document_mcp.processor import _build_canvas_print_html
 from app.deep_review.document_mcp.native import (
     RHWP_SCHEMA_VERSION,
@@ -225,6 +226,31 @@ def test_native_page_text_rejects_empty_duplicate_missing_truncated_and_wrong_ty
     assert caught.value.code == expected_code
 
 
+def test_native_page_text_defaults_missing_top_level_truncated_but_keeps_required_omitted_count() -> None:
+    manifest = json.loads(native_text_manifest([{"page": 0, "text": "safe fixture"}]).decode())
+    manifest.pop("truncated")
+    parsed = parse_page_text_manifest(json.dumps(manifest).encode(), 1)
+    assert parsed["pages"][0]["text"] == "safe fixture"
+
+    malformed_truncated = dict(manifest, truncated=None)
+    with pytest.raises(DocumentProcessingError) as caught:
+        parse_page_text_manifest(json.dumps(malformed_truncated).encode(), 1)
+    assert caught.value.code == "rhwp_manifest_invalid"
+
+    missing_omitted_count = dict(manifest)
+    missing_omitted_count.pop("omittedCount")
+    with pytest.raises(DocumentProcessingError) as caught:
+        parse_page_text_manifest(json.dumps(missing_omitted_count).encode(), 1)
+    assert caught.value.code == "rhwp_manifest_invalid"
+
+
+def test_native_page_text_rejects_lone_unicode_surrogate_safely() -> None:
+    with pytest.raises(DocumentProcessingError) as caught:
+        parse_page_text_manifest(native_text_manifest([{"page": 0, "text": "\ud800"}]), 1)
+    assert caught.value.code == "rhwp_manifest_invalid"
+    assert "surrogate" not in caught.value.message
+
+
 def test_native_verify_and_page_count_fail_closed() -> None:
     hwpx = b"PK\x03\x04verified"
     with pytest.raises(DocumentProcessingError) as verify_error:
@@ -274,6 +300,38 @@ def test_native_manifest_rejects_wrong_schema_size_and_magic() -> None:
     assert artifact_error.value.code == "rhwp_manifest_invalid"
 
 
+@pytest.mark.parametrize("renderer", [[], {}, None, 1])
+def test_native_renderer_rejects_non_string_selection_without_type_error(renderer: object) -> None:
+    with pytest.raises(DocumentProcessingError) as caught:
+        ProcessorOptions.from_mapping({"renderer": renderer})
+    assert caught.value.code == "invalid_options"
+
+
+def test_native_dump_drops_endnote_separator_and_rejects_unknown_or_malformed_items() -> None:
+    page = dump_page(0)
+    page["columns"] = [{"items": [
+        {"kind": "endnoteSeparator", "separatorLength": 1, "marginAbove": 2, "marginBelow": 3, "lineWidth": 4, "color": "#000000"},
+        *({"kind": kind, "paraIndex": index, "isEndnote": False} for index, kind in enumerate((
+            "fullParagraph", "partialParagraph", "table", "partialTable", "shape",
+        ), start=1)),
+    ]}]
+    sanitized = parse_page_dump_manifest(native_dump_manifest([page]), 1)
+    assert [item["kind"] for item in sanitized["pages"][0]["columns"][0]["items"]] == [
+        "fullParagraph", "partialParagraph", "table", "partialTable", "shape",
+    ]
+
+    for malformed in (
+        {"kind": "unknown", "paraIndex": 0, "isEndnote": False},
+        {"kind": "fullParagraph", "isEndnote": False},
+        {"kind": "fullParagraph", "paraIndex": 0},
+    ):
+        bad_page = dump_page(0)
+        bad_page["columns"] = [{"items": [malformed]}]
+        with pytest.raises(DocumentProcessingError) as caught:
+            parse_page_dump_manifest(native_dump_manifest([bad_page]), 1)
+        assert caught.value.code == "rhwp_manifest_invalid"
+
+
 def test_native_renderer_requires_explicit_validated_selection(monkeypatch: pytest.MonkeyPatch) -> None:
     source = hwpx_bytes()
     legacy = DocumentProcessor()
@@ -320,6 +378,57 @@ def test_native_command_uses_one_mib_stdout_and_ordinary_limiter(tmp_path: Path)
     adapter._call(["export-pdf"], tmp_path, ProcessorOptions(timeout_seconds=1), time.monotonic() + 1)
     assert calls[0]["output_limit"] == RHWP_STDOUT_LIMIT
     assert calls[0]["preexec_fn"] == (20 * 1024 * 1024, limiter_result)
+
+
+def test_native_page_text_budget_is_checked_after_display_metadata_enrichment(monkeypatch: pytest.MonkeyPatch) -> None:
+    text = {
+        "schema": "bidops.rhwp-page-text.v1",
+        "page_count": 1,
+        "pages": [{"number": 1, "text": "x" * 2048, "text_sha256": "0" * 64}],
+    }
+    dump = {
+        "schemaVersion": RHWP_SCHEMA_VERSION,
+        "pageCount": 1,
+        "pages": [{"pageIndex": 0, "displayPage": 1, "section": 0, "columns": [], "extras": []}],
+    }
+
+    def artifact_size(value: dict[str, object]) -> int:
+        return len(json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8"))
+
+    un_enriched_size = artifact_size(text)
+    enriched = json.loads(json.dumps(text))
+    enriched["pages"][0].update({"display_page": 1, "section": 0})
+    assert artifact_size(enriched) > max(un_enriched_size, artifact_size(dump))
+    max_output_bytes = max(un_enriched_size, artifact_size(dump))
+
+    monkeypatch.setattr(native_module, "extract_hwpx", lambda *_args: ([], [], []))
+    monkeypatch.setattr(native_module, "extract_pdf", lambda *_args: ([], [], [], []))
+    monkeypatch.setattr(native_module, "parse_pdf_manifest", lambda *_args: 1)
+    monkeypatch.setattr(native_module, "parse_page_text_manifest", lambda *_args: text)
+    monkeypatch.setattr(native_module, "parse_page_dump_manifest", lambda *_args: dump)
+    adapter = NativeRhwpProcessor(
+        "/bin/true",
+        run=lambda *_args, **_kwargs: (0, b"", b""),
+        limiter=lambda _size: None,
+        child_environment=lambda _path: {},
+        timeout_error=processor_module._ChildTimeout,
+        output_error=processor_module._ChildOutputLimit,
+        font_manifest=lambda _options, _deadline: "0" * 64,
+    )
+    monkeypatch.setattr(adapter, "_fingerprint_binary", lambda: "0" * 64)
+    monkeypatch.setattr(adapter, "_call", lambda *_args, **_kwargs: b"")
+    monkeypatch.setattr(adapter, "_read_artifact", lambda *_args, **_kwargs: b"%PDF-safe")
+    monkeypatch.setattr(adapter, "_pdfinfo_pages", lambda *_args, **_kwargs: 1)
+    monkeypatch.setattr(adapter, "_version", lambda *_args, **_kwargs: "0.8.6")
+
+    with pytest.raises(DocumentProcessingError) as caught:
+        adapter.process(
+            hwpx_bytes(),
+            "application/hwp+zip",
+            ProcessorOptions(prepare_pdf=True, max_output_bytes=max_output_bytes),
+            time.monotonic() + 1,
+        )
+    assert caught.value.code == "output_size_limit"
 
 
 @pytest.mark.parametrize(

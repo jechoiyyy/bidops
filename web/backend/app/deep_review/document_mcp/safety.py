@@ -104,7 +104,7 @@ class ProcessorOptions:
             raise DocumentProcessingError("invalid_options", "문서 구조 제한이 올바르지 않습니다")
         if not isinstance(result.render_pages, bool) or not isinstance(result.prepare_pdf, bool) or not isinstance(result.ocr, bool):
             raise DocumentProcessingError("invalid_options", "문서 처리 option 형식이 올바르지 않습니다")
-        if result.renderer not in {"rhwp-canvas-chromium", "rhwp-svg-pdf"}:
+        if not isinstance(result.renderer, str) or result.renderer not in {"rhwp-canvas-chromium", "rhwp-svg-pdf"}:
             raise DocumentProcessingError("invalid_options", "문서 renderer option이 올바르지 않습니다")
         return result
 

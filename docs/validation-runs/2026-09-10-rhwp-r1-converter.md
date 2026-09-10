@@ -60,3 +60,23 @@ HWP 두 건은 verify diff 0과 53=53·31=31을 만족했고 요구사항 ID 50�
 page text/구조 양쪽 보존이 확인됐다. 모든 PDF magic, 구조 schema, sanitized dump의
 `textPreview` 부재가 확인돼 R1 worker 게이트는 통과했다. R2 정렬·R3 저장 연결과
 `displayPage` 화면 병기 결정은 이번 범위 밖이며 coordinator 수락 전에는 다음 단계를 열지 않는다.
+
+## R1 경계 회귀 보강 (2026-09-10)
+
+샘플 재실행·build·서비스 기동은 하지 않고, 이번 리뷰에서 바뀐 parser/options 경계와
+직접 영향받은 native seam만 synthetic fixture로 확인했다.
+
+```text
+cd web/backend && /home/jechoi/projects/bidops/web/backend/.venv/bin/python -m pytest tests/deep_review/test_document_mcp.py::test_native_page_text_defaults_missing_top_level_truncated_but_keeps_required_omitted_count tests/deep_review/test_document_mcp.py::test_native_page_text_rejects_lone_unicode_surrogate_safely tests/deep_review/test_document_mcp.py::test_native_renderer_rejects_non_string_selection_without_type_error tests/deep_review/test_document_mcp.py::test_native_dump_drops_endnote_separator_and_rejects_unknown_or_malformed_items tests/deep_review/test_document_mcp.py::test_native_page_text_budget_is_checked_after_display_metadata_enrichment tests/deep_review/test_document_mcp.py::test_native_manifests_accept_actual_v086_types_and_strip_preview tests/deep_review/test_document_mcp.py::test_native_page_text_rejects_empty_duplicate_missing_truncated_and_wrong_types tests/deep_review/test_document_mcp.py::test_native_renderer_requires_explicit_validated_selection -q --tb=short
+................                                                         [100%]
+16 passed in 0.34s
+
+git diff --check && python3 -m py_compile web/backend/app/deep_review/document_mcp/native.py web/backend/app/deep_review/document_mcp/safety.py web/backend/tests/deep_review/test_document_mcp.py
+(no output; exit 0)
+```
+
+The fixes now classify non-string renderer options as `invalid_options`, default only an absent
+export-text top-level `truncated` to false while requiring `omittedCount`, accept and drop the
+pinned `endnoteSeparator` marker while keeping strict paragraph-kind fields, cap page text after
+`display_page`/`section` enrichment, and classify lone Unicode surrogates as
+`rhwp_manifest_invalid` without exposing encoding details.

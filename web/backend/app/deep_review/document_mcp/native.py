@@ -99,7 +99,7 @@ def parse_page_text_manifest(stdout: bytes, expected_pages: int) -> dict[str, An
         raise DocumentProcessingError("rhwp_manifest_invalid", "rhwp page text 신뢰 표식이 올바르지 않습니다", source_preserved=True)
     page_count = _integer(value.get("pageCount"), minimum=1)
     omitted = _integer(value.get("omittedCount"))
-    truncated = _boolean(value.get("truncated"))
+    truncated = _boolean(value["truncated"]) if "truncated" in value else False
     pages = value.get("pages")
     if page_count != expected_pages:
         raise DocumentProcessingError("pdf_page_mismatch", "변환 page text 대응을 확인할 수 없습니다", source_preserved=True)
@@ -120,8 +120,12 @@ def parse_page_text_manifest(stdout: bytes, expected_pages: int) -> dict[str, An
         page_omitted = _integer(page["omittedCount"]) if "omittedCount" in page else 0
         if page_truncated or page_omitted != 0:
             raise DocumentProcessingError("rhwp_manifest_invalid", "rhwp page text가 생략되었습니다", source_preserved=True)
+        try:
+            text_sha256 = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        except UnicodeError as exc:
+            raise DocumentProcessingError("rhwp_manifest_invalid", "rhwp page text 계약이 올바르지 않습니다", source_preserved=True) from exc
         seen.add(index)
-        result_pages.append({"number": index + 1, "text": text, "text_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest()})
+        result_pages.append({"number": index + 1, "text": text, "text_sha256": text_sha256})
     if seen != set(range(page_count)):
         raise DocumentProcessingError("rhwp_manifest_invalid", "rhwp page text 번호가 연속적이지 않습니다", source_preserved=True)
     result_pages.sort(key=lambda item: item["number"])
@@ -160,9 +164,17 @@ def parse_page_dump_manifest(stdout: bytes, expected_pages: int) -> dict[str, An
         for column in page["columns"]:
             if not isinstance(column, dict) or not isinstance(column.get("items"), list):
                 raise DocumentProcessingError("rhwp_manifest_invalid", "rhwp paragraph 배치 계약이 올바르지 않습니다", source_preserved=True)
-            items = [_sanitize_dump_item(item, extras=False) for item in column["items"]]
+            items = []
+            for item in column["items"]:
+                sanitized_item = _sanitize_dump_item(item, extras=False)
+                if sanitized_item is not None:
+                    items.append(sanitized_item)
             columns.append({"items": items})
-        extras = [_sanitize_dump_item(item, extras=True) for item in page["extras"]]
+        extras = []
+        for item in page["extras"]:
+            sanitized_item = _sanitize_dump_item(item, extras=True)
+            if sanitized_item is not None:
+                extras.append(sanitized_item)
         sanitized.append({"pageIndex": index, "displayPage": display_page, "section": section, "columns": columns, "extras": extras})
     if seen != set(range(page_count)):
         raise DocumentProcessingError("rhwp_manifest_invalid", "rhwp page 배치 번호가 연속적이지 않습니다", source_preserved=True)
@@ -170,11 +182,21 @@ def parse_page_dump_manifest(stdout: bytes, expected_pages: int) -> dict[str, An
     return {"schemaVersion": RHWP_SCHEMA_VERSION, "pageCount": page_count, "pages": sanitized}
 
 
-def _sanitize_dump_item(item: Any, *, extras: bool) -> dict[str, Any]:
+def _sanitize_dump_item(item: Any, *, extras: bool) -> dict[str, Any] | None:
     if not isinstance(item, dict) or not isinstance(item.get("kind"), str) or not item["kind"]:
         raise DocumentProcessingError("rhwp_manifest_invalid", "rhwp paragraph 배치 계약이 올바르지 않습니다", source_preserved=True)
+    kind = item["kind"]
+    if not extras and kind == "endnoteSeparator":
+        # The pinned native renderer emits this non-paragraph marker without a
+        # paragraph identity.  It cannot contribute to para-page mapping.
+        return None
+    allowed_kinds = {"hiddenEmptyPara", "wrapAroundPara"} if extras else {
+        "fullParagraph", "partialParagraph", "table", "partialTable", "shape",
+    }
+    if kind not in allowed_kinds:
+        raise DocumentProcessingError("rhwp_manifest_invalid", "rhwp paragraph 배치 계약이 올바르지 않습니다", source_preserved=True)
     para_index = _integer(item.get("paraIndex"))
-    result: dict[str, Any] = {"kind": item["kind"], "paraIndex": para_index}
+    result: dict[str, Any] = {"kind": kind, "paraIndex": para_index}
     if not extras:
         result["isEndnote"] = _boolean(item.get("isEndnote"))
     # textPreview and every other document-derived field are intentionally dropped.
@@ -257,11 +279,11 @@ class NativeRhwpProcessor:
                 raise DocumentProcessingError("pdf_page_mismatch", "변환 PDF page 대응을 확인할 수 없습니다", source_preserved=True)
             text = parse_page_text_manifest(self._call(["export-text", source.name, "--json"], root, options, deadline), page_count)
             dump = parse_page_dump_manifest(self._call(["dump-pages", source.name, "--json"], root, options, deadline), page_count)
-            self._check_json_artifact(text, options)
             self._check_json_artifact(dump, options)
             for page, dump_page in zip(text["pages"], dump["pages"]):
                 page["display_page"] = dump_page["displayPage"]
                 page["section"] = dump_page["section"]
+            self._check_json_artifact(text, options)
             version = self._version(root, options, deadline)
             font_digest = self._font_manifest(options, deadline)
             renderer_provenance = {"renderer": RHWP_RENDERER, "rhwp_version": version, "rhwp_binary_sha256": binary_sha, "backend": "svg", "compat": "2022", "fallback_fonts": {"serif": "NanumMyeongjo", "sans": "NanumGothic", "mono": "NanumGothicCoding"}, "worker_image_digest": self._image_digest()}
