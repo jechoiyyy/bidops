@@ -15,7 +15,7 @@
 - 59 overview result `04d6182f-f073-450a-b8be-30f141db9f02`는 completed/current다. company-fit attempt `4af5b488-59c2-445e-8cf3-4a33baad44be`는 `needs_human_review/current`, result는 `null`, raw SHA-256은 `67b292a7ca012a7995f7a98d7be11d972fd97e72b603cf5e17552cb272254f11`이다. `unsupported_number`로 index 0 선택 근거에 24시간이 없어졌고 암호화 raw를 보존했으며 보정·재시도하지 않았다.
 - 142 PDF는 반복 timeout 뒤 `unverified`다. offline Luna JSON은 참조 입력으로만 보존하며 성공 PDF/current로 승격하지 않았다. 실제 UI는 35/59에서 사업명 검색·목록/상세·독립 상세·refresh/reentry와 1280×800·1440×900을 통과했고, API 본문·제한사항·prompt/result ID·PDF hash/link를 확인했다. 35의 `unknown` 근거와 59의 `needs_human_review` 안전 문구·판정 본문 비노출도 확인했다.
 - 운영 경로는 `localhost:18887/pre-specs/{35,59}`이며 18787 bind 실패를 기록한다. `overview-actual`은 중지했고 `prespec-actual`은 원래 `sleep infinity`로 복원했다. document-worker 두 개는 `bidops-v4-luna-reference:20260909-final`, 1 GiB 조건으로 복원됐다. persistent reference artifacts는 `.dryforge/prespec-v4-luna-20260909/{overview-generation,company-fit-input-35-59,company-fit-generation-35-59}`에 두며 credentials를 포함하지 않는다.
-- 142 PDF 실패의 원인은 document-worker `pids_limit` 128과 v4 CLI 기본 출력 예산 20 MiB로 확인됐고 수정(pids 512·기본 64 MiB)은 코드에 반영됐으나 운영 재실행은 아직이다([findings](findings.md#원인-확인-notice-142-표준-pdf-준비가-300초-deadline에서-종료됨-2026-09-09)).
+- 142 PDF 실패의 원인은 document-worker `pids_limit` 128과 v4 CLI 기본 출력 예산 20 MiB로 확인돼 수정(pids 512·기본 64 MiB)이 `212e5ed`로 병합됐고, 2026-09-10 worker 두 개를 pids 512로 재생성한 뒤 142의 표준 PDF snapshot `e68670e0-4bf7-4cd9-baa1-174f19e5e994`(85쪽)와 target `200e9557-d5d5-4a0f-afa8-896d44b41261`(3~13쪽)을 준비했다. activation은 즉시 OFF로 되돌렸고, Qwen endpoint가 닿지 않아 attempt·`current`·UI 인수는 여전히 미완이다([findings](findings.md#원인-확인-notice-142-표준-pdf-준비가-300초-deadline에서-종료됨-2026-09-09)).
 - UI acceptance 결과는 `.dryforge/prespec-v4-luna-20260909/ui-acceptance-result.json`과 실행 script에 보존한다. 이 상태는 explicit reference 실행과 controlled backend 결과를 기록한 것이며 전체 계획 완료를 뜻하지 않는다. automatic cohort/deep와 142 PDF는 미완료다.
 
 ### 구현·검증 종료 규칙
@@ -160,7 +160,7 @@ manifest→v3 validator→encrypted raw/result/current projection만 검증했�
 - [x] backend v4 runner/current/권한 및 임시 PostgreSQL migration 계약을 controlled 환경에서 확인했다. `test_prespec_v4_runner.py test_prespec_v4_postgres.py test_page_overview.py test_runtime_database_privileges.py test_analysis_worker_slots.py` 결과는 `34 passed, 8 baseline warnings, skipped 0`이다.
 - [x] current 계약을 소비하는 UI focused 검사는 Playwright `6 passed`와 build·TypeScript·contrast 검사를 통과했다.
 - [x] 실제 API 브라우저/UI acceptance는 35/59에서 사업명 검색·목록/상세·독립 상세·refresh/reentry, 1280×800·1440×900, 본문·제한사항·prompt/result ID·PDF hash/link를 확인했다. 35의 `unknown` 근거와 59의 `needs_human_review` 오류·안전 문구 및 판정 본문 비노출도 확인했다.
-- [ ] automatic company-fit/deep gate 연결과 142의 표준 prepare/current 완료는 남아 있다. 35/59의 explicit Luna reference company-fit 결과는 `unmeasured_reference` 맥락에서만 표시하며 자동 심층·품질 승격의 근거로 사용하지 않는다. 142는 마지막 2GiB·300초 실행도 timeout되어 미검증으로 확정했다.
+- [ ] automatic company-fit/deep gate 연결과 142의 attempt·`current` 완료는 남아 있다. 142의 표준 prepare는 2026-09-10에 마쳤다(snapshot `e68670e0-4bf7-4cd9-baa1-174f19e5e994` 85쪽, target `200e9557-d5d5-4a0f-afa8-896d44b41261` 3~13쪽 `ready`). attempt가 없으므로 `current`는 여전히 직전 실패 attempt `dbbc7b5f-35c5-4f21-8adb-1c2b042dd61e`를 보여 주고 PDF/UI 인수는 Qwen endpoint 복구까지 미완이다. 35/59의 explicit Luna reference company-fit 결과는 `unmeasured_reference` 맥락에서만 표시하며 자동 심층·품질 승격의 근거로 사용하지 않는다.
 
 ### 5. 회사 핏·심층 자동 시작
 
