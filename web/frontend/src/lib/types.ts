@@ -1707,12 +1707,93 @@ export interface PageOverviewCurrent {
   created_at: string;
 }
 
+/**
+ * 결정적 heading 선택기가 범위를 정하지 못해 동결된 절 후보 하나.
+ *
+ * `title`은 서버가 공백 정규화·길이 제한까지 끝낸 값이며 화면은 그대로 보여 준다.
+ * 원문 excerpt는 계약에 없다(rhwp `untrustedContent`는 어디에도 싣지 않는다).
+ */
+export interface PageOverviewRangeCandidate {
+  index: number;
+  title: string;
+  page: number;
+  char_count: number;
+}
+
+/**
+ * 명시 CLI 액션으로만 남는 모델 보조 제안의 감사 기록이다. 제안은 target을
+ * 바꾸지 않으므로 화면에서도 **미리 고르는 것까지만** 하고 저장하지 않는다.
+ * 모델이 적은 사유 문장은 계약에 없어 화면에 실리지 않는다.
+ */
+export interface PageOverviewRangeAssist {
+  start_index: number;
+  end_index: number;
+  model_name: string;
+  quality_status: "unmeasured_reference" | "mock_reference";
+  created_at: string;
+}
+
+/** 사람이 확정한 범위. 쪽으로 직접 확정했으면 두 index가 `null`이다. */
+export interface PageOverviewRangeConfirmation {
+  target_id: string;
+  confirmed_from_target_id: string;
+  start_index: number | null;
+  end_index: number | null;
+  first_page: number;
+  last_page: number;
+  page_numbers: number[];
+  actor: string;
+  note: string | null;
+  created_at: string;
+}
+
+/**
+ * 개요 입력 범위의 사람 확인 상태다. 최신 target이 `needs_human_review`면
+ * 확정 대기(`confirmation`이 `null`), 사람이 확정한 target이면 `ready`이고
+ * `confirmation`이 채워진다. 그 밖(heading_scope ready 등)에는 필드 자체가
+ * `null`이며 화면은 이 자리를 그리지 않는다.
+ */
+export interface PageOverviewRangeReview {
+  target_id: string;
+  snapshot_id: string;
+  selection_status: "needs_human_review" | "ready";
+  reason_code: string | null;
+  pdf_page_count: number;
+  created_at: string;
+  candidates_mode: "clause" | "page" | null;
+  candidates: PageOverviewRangeCandidate[];
+  assisted: PageOverviewRangeAssist | null;
+  confirmation: PageOverviewRangeConfirmation | null;
+}
+
+/** (start_index, end_index) 쌍이나 (first_page, last_page) 쌍 중 정확히 하나를 보낸다. */
+export interface PageOverviewRangeConfirmationRequest {
+  target_id: string;
+  start_index: number | null;
+  end_index: number | null;
+  first_page: number | null;
+  last_page: number | null;
+  note: string | null;
+}
+
+export interface PageOverviewRangeConfirmationResponse {
+  target_id: string;
+  selection_status: "ready";
+  first_page: number;
+  last_page: number;
+  page_numbers: number[];
+  /** 범위 확정은 개요 검토 실행을 열지 않는다. 서버는 항상 false를 보낸다. */
+  attempt_enqueued: boolean;
+}
+
 export interface PageOverviewResponse {
   schema_version: "bidops.prespec-overview-pages.v1";
   notice_id: number;
   reviews: PageOverviewView[];
   /** v4 적용 기록이 없으면 생략되거나 null이며 legacy reviews를 호환한다. */
   current?: PageOverviewCurrent | null;
+  /** 범위 사람 확인 대상이 없으면 생략되거나 null이다. */
+  range_review?: PageOverviewRangeReview | null;
 }
 
 export interface CompanyFitResult {

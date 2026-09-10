@@ -160,3 +160,160 @@ test('current v4 body keeps long text and limitations without client truncation'
   await expect(currentRegion.getByRole('link', { name: 'PDF 4페이지 ↗' }).first()).toHaveAttribute('href', /00000000-0000-0000-0000-000000000617\/pdf#page=4$/);
   await expect(currentRegion).toContainText('선택된 PDF 4페이지를 기준으로 검토했습니다.');
 });
+
+/** R7 범위 확인: 결정적 선택기가 범위를 못 정한 target을 사람이 확정한다. */
+const rangeCandidates = [
+  { index: 0, title: '1. 사업 개요', page: 4, char_count: 120 },
+  { index: 1, title: '2. 사업 범위 및 기간', page: 6, char_count: 340 },
+  { index: 2, title: '3. 제출 서류', page: 12, char_count: 90 },
+];
+const pendingRangeReview: NonNullable<PageOverviewResponse['range_review']> = {
+  target_id: '00000000-0000-0000-0000-000000000801',
+  snapshot_id: '00000000-0000-0000-0000-000000000802',
+  selection_status: 'needs_human_review',
+  reason_code: 'scope_heading_missing',
+  pdf_page_count: 79,
+  created_at: '2026-09-10T01:00:00Z',
+  candidates_mode: 'clause',
+  candidates: rangeCandidates,
+  assisted: { start_index: 1, end_index: 2, model_name: 'test-Qwen', quality_status: 'unmeasured_reference', created_at: '2026-09-10T01:05:00Z' },
+  confirmation: null,
+};
+
+test('pending range review confirms a clause range and refetches the overview', async ({ page }) => {
+  const posts: Array<{ body: unknown; actor: string | undefined; method: string }> = [];
+  let overviewCalls = 0;
+  await mockApi(page);
+  await page.route('**/api/pre-specs/991/overview-pages/range-confirmations', async route => {
+    const request = route.request();
+    posts.push({ body: request.postDataJSON(), actor: request.headers()['x-bidops-actor-name'], method: request.method() });
+    await route.fulfill({
+      status: 201,
+      json: { target_id: '00000000-0000-0000-0000-000000000803', selection_status: 'ready', first_page: 6, last_page: 12, page_numbers: [6, 7, 8, 9, 10, 11, 12], attempt_enqueued: false },
+    });
+  });
+  await page.route('**/api/pre-specs/991/overview-pages', async route => {
+    overviewCalls += 1;
+    await route.fulfill({ json: { ...response, range_review: pendingRangeReview } });
+  });
+
+  await page.goto('/pre-specs?notice_pk=991');
+  const region = page.getByRole('region', { name: '개요 범위 확인' });
+  await expect(region).toContainText('범위 확인 필요');
+  await expect(region).toContainText('범위 제목을 찾지 못함');
+  await expect(region).toContainText('확정해도 개요 검토는 자동 실행되지 않습니다.');
+  // 제안은 미리 고르기만 한다. 모델이 적은 사유 문장은 계약에 없으므로 없다.
+  await expect(region).toContainText('모델 제안 · 참조 실행 · 품질 미측정: 시작 #1 → 끝 #2');
+  const table = region.getByRole('table');
+  for (const candidate of rangeCandidates) await expect(table).toContainText(candidate.title);
+  await expect(table).toContainText('12쪽');
+
+  const confirm = region.getByRole('button', { name: '범위 확정' });
+  await expect(confirm).toBeDisabled();
+  // 끝이 시작보다 앞이면 저장할 수 없다.
+  await region.getByRole('radio', { name: '끝 #0' }).check();
+  await region.getByRole('radio', { name: '시작 #1' }).check();
+  await expect(region.getByText('끝 절은 시작 절과 같거나 뒤여야 합니다')).toBeVisible();
+  await expect(confirm).toBeDisabled();
+
+  await region.getByRole('radio', { name: '끝 #2' }).check();
+  await expect(region.getByText('끝 절은 시작 절과 같거나 뒤여야 합니다')).toHaveCount(0);
+  await expect(confirm).toBeDisabled();
+  await region.getByLabel('담당자 이름 (필수)').fill('최정인');
+  await expect(confirm).toBeEnabled();
+
+  const callsBeforeConfirm = overviewCalls;
+  await confirm.click();
+  await expect(region.getByText('범위가 확정되었습니다 · 개요 검토는 자동 실행되지 않습니다')).toBeVisible();
+  expect(posts).toHaveLength(1);
+  expect(posts[0].method).toBe('POST');
+  expect(posts[0].body).toEqual({
+    target_id: pendingRangeReview.target_id,
+    start_index: 1,
+    end_index: 2,
+    first_page: null,
+    last_page: null,
+    note: null,
+  });
+  // 담당자 이름은 감사 표식이다. 비ASCII는 계약대로 percent 인코딩돼 실린다.
+  const actorHeader = posts[0].actor ?? '';
+  expect(actorHeader.startsWith("UTF-8''")).toBe(true);
+  expect(decodeURIComponent(actorHeader.slice(7))).toBe('최정인');
+  await expect.poll(() => overviewCalls, { timeout: 5_000 }).toBeGreaterThan(callsBeforeConfirm);
+});
+
+test('range review without clause candidates confirms a page range', async ({ page }) => {
+  const posts: unknown[] = [];
+  await mockApi(page);
+  await page.route('**/api/pre-specs/991/overview-pages/range-confirmations', async route => {
+    posts.push(route.request().postDataJSON());
+    await route.fulfill({
+      status: 201,
+      json: { target_id: '00000000-0000-0000-0000-000000000804', selection_status: 'ready', first_page: 4, last_page: 9, page_numbers: [4, 5, 6, 7, 8, 9], attempt_enqueued: false },
+    });
+  });
+  await page.route('**/api/pre-specs/991/overview-pages', route => route.fulfill({
+    json: { ...response, range_review: { ...pendingRangeReview, candidates_mode: null, candidates: [], assisted: null } },
+  }));
+
+  await page.goto('/pre-specs?notice_pk=991');
+  const region = page.getByRole('region', { name: '개요 범위 확인' });
+  await expect(region).toContainText('절 후보가 없어 쪽 범위로 확정합니다.');
+  await expect(region.getByRole('table')).toHaveCount(0);
+
+  const confirm = region.getByRole('button', { name: '범위 확정' });
+  await region.getByLabel('시작 쪽').fill('4');
+  await region.getByLabel('시작 쪽').press('Enter');
+  await region.getByLabel('끝 쪽').fill('9');
+  await region.getByLabel('끝 쪽').press('Enter');
+  await region.getByLabel('담당자 이름 (필수)').fill('hong');
+  await expect(confirm).toBeEnabled();
+  await confirm.click();
+
+  await expect(region.getByText('범위가 확정되었습니다 · 개요 검토는 자동 실행되지 않습니다')).toBeVisible();
+  expect(posts).toEqual([{
+    target_id: pendingRangeReview.target_id,
+    start_index: null,
+    end_index: null,
+    first_page: 4,
+    last_page: 9,
+    note: null,
+  }]);
+});
+
+test('confirmed range review renders the read-only summary on the detail record', async ({ page }) => {
+  await mockApi(page);
+  await page.route('**/api/pre-specs/991/overview-pages', route => route.fulfill({
+    json: {
+      ...response,
+      range_review: {
+        ...pendingRangeReview,
+        selection_status: 'ready',
+        reason_code: null,
+        assisted: null,
+        confirmation: {
+          target_id: '00000000-0000-0000-0000-000000000805',
+          confirmed_from_target_id: pendingRangeReview.target_id,
+          start_index: 1,
+          end_index: 2,
+          first_page: 6,
+          last_page: 12,
+          page_numbers: [6, 7, 8, 9, 10, 11, 12],
+          actor: '최정인',
+          note: null,
+          created_at: '2026-09-10T02:00:00Z',
+        },
+      },
+    },
+  }));
+
+  await page.goto('/pre-specs/991');
+  const region = page.getByRole('region', { name: '개요 범위 확인' });
+  await expect(region).toContainText('범위 확정됨');
+  await expect(region).toContainText('6~12쪽');
+  await expect(region).toContainText('2. 사업 범위 및 기간');
+  await expect(region).toContainText('3. 제출 서류');
+  await expect(region).toContainText('최정인');
+  await expect(region).toContainText('개요 검토(attempt)는 별도 승인으로만 실행됩니다');
+  await expect(region.getByRole('button', { name: '범위 확정' })).toHaveCount(0);
+});

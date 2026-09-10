@@ -28,6 +28,7 @@ import {
   PageOverviewExecutionInfo,
   PageOverviewFactLine,
   PageOverviewHistory,
+  PageOverviewRangeReview,
   pageOverviewPdfUrl,
   useCurrentPageOverview,
 } from "../components/pre-specs/PageOverviewSection";
@@ -404,9 +405,12 @@ export function PreSpecDetailPage() {
     currentResult,
     legacyReview,
     history: pageOverviewHistory,
+    rangeReview,
   } = pageOverviewState;
   const shown = pageOverviewValid ? currentResult ?? legacyReview : null;
   const currentPageOverviewForView = pageOverviewValid ? currentPageOverview : null;
+  // 범위 확인은 실행이 아직 없을 때도(attempt를 만들지 않으므로) 나타난다.
+  const rangeReviewForView = pageOverviewValid ? rangeReview : null;
   const { query: companyFitQuery } = companyFitState;
   const companyFitData = companyFitState.isValid ? companyFitState.data : null;
   const currentCompanyFitAttempt = companyFitState.isValid ? companyFitState.currentAttempt : null;
@@ -906,8 +910,15 @@ export function PreSpecDetailPage() {
               <div><dt className="ps-k">자동 준비</dt><dd>{autoStatus ? `${PRE_SPEC_AUTO_PREPARATION_STATUS_LABEL[autoStatus]}${autoReasonLabel ? ` · ${autoReasonLabel}` : ""}` : "미확인"}</dd></div>
             </dl>
 
-            {currentPageOverviewForView || overview ? (
+            {rangeReviewForView || currentPageOverviewForView || overview ? (
               <div className="ps-note ps-judgment-note">
+                {rangeReviewForView ? (
+                  <PageOverviewRangeReview
+                    noticeId={noticeId}
+                    review={rangeReviewForView}
+                    onConfirmed={() => { void pageOverviewQuery.refetch(); }}
+                  />
+                ) : null}
                 {currentPageOverviewForView ? <PageOverviewCurrent current={currentPageOverviewForView} currentResult={currentResult} /> : null}
                 {overview ? (
                   cut ? (
