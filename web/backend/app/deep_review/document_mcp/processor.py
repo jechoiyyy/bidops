@@ -192,6 +192,8 @@ class ProcessedDocument(dict[str, Any]):
         hwpx_bytes: bytes | None = None,
         para_page_map: dict[str, Any] | None = None,
         para_page_map_bytes: bytes | None = None,
+        section_candidates: dict[str, Any] | None = None,
+        section_candidates_bytes: bytes | None = None,
     ) -> None:
         super().__init__(payload)
         self.original_bytes = original_bytes
@@ -209,6 +211,8 @@ class ProcessedDocument(dict[str, Any]):
         self.hwpx_bytes = hwpx_bytes
         self.para_page_map = para_page_map or {}
         self.para_page_map_bytes = para_page_map_bytes
+        self.section_candidates = section_candidates or {}
+        self.section_candidates_bytes = section_candidates_bytes
 
 
 class _ChildTimeout(RuntimeError):
@@ -429,6 +433,8 @@ class DocumentProcessor:
         canonical_hwpx: bytes | None = None
         para_page_map: dict[str, Any] = {}
         para_page_map_bytes: bytes | None = None
+        section_candidates: dict[str, Any] = {}
+        section_candidates_bytes: bytes | None = None
         if self.clamav_checker is None:
             # No claim of a clean scan is made when ClamAV is not available.
             # The bundle/quarantine layer must keep this source blocked.
@@ -457,6 +463,8 @@ class DocumentProcessor:
             page_dump = native["page_dump"]
             para_page_map = native["para_page_map"]
             para_page_map_bytes = native["para_page_map_bytes"]
+            section_candidates = native["section_candidates"]
+            section_candidates_bytes = native["section_candidates_bytes"]
             hwpx_verify = native["verify"]
             canonical_hwpx = converted
             extractor = {"name": "hwp-rhwp-native-hwpx", "version": "1", "upstream_commit": UPSTREAM_COMMIT}
@@ -477,6 +485,8 @@ class DocumentProcessor:
             page_dump = native["page_dump"]
             para_page_map = native["para_page_map"]
             para_page_map_bytes = native["para_page_map_bytes"]
+            section_candidates = native["section_candidates"]
+            section_candidates_bytes = native["section_candidates_bytes"]
             canonical_hwpx = original
             extractor = extractor_info()
         elif detected == "application/pdf":
@@ -641,6 +651,8 @@ class DocumentProcessor:
             hwpx_bytes=canonical_hwpx,
             para_page_map=para_page_map,
             para_page_map_bytes=para_page_map_bytes,
+            section_candidates=section_candidates,
+            section_candidates_bytes=section_candidates_bytes,
         )
 
     def _process_native(

@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 import hashlib
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from uuid import uuid4
 
@@ -20,6 +21,7 @@ from app.deep_review.document_mcp import process_document
 from app.deep_review.document_mcp.contracts import para_page_map_bytes
 from app.deep_review.document_mcp.para_page_map import build_para_page_map
 from app.deep_review.document_mcp.processor import ProcessedDocument
+from app.deep_review.document_mcp.safety import ProcessorOptions
 from app.deep_review.models import (
     ContentObject,
     ContentObjectLocation,
@@ -30,8 +32,11 @@ from app.deep_review.models import (
 )
 from app.deep_review.services.prespec_v4 import (
     V4PreparationError,
+    _NATIVE_REFERENCE_FIELDS,
+    _validate_native_references,
     freeze_v4_target,
     prepare_v4_pdf_snapshot,
+    read_snapshot_section_candidates,
     select_v4_input_range,
 )
 from app.lifecycle.models import Notice
@@ -436,3 +441,92 @@ def test_generated_pdf_requires_worker_emitted_provenance(tmp_path: Path):
         assert error.value.code == "renderer_binding_invalid"
         assert converter.calls == 1
         assert session.scalar(select(PrespecV4PdfSnapshot)) is None
+
+
+def _native_fixtures():
+    """Import the shared native fixture lazily to avoid a test-module cycle."""
+
+    from tests.deep_review.test_rhwp_snapshot import NativeConverter, native_processed, prepare, seed_native
+
+    return NativeConverter, native_processed, prepare, seed_native
+
+
+def test_native_snapshot_stores_section_candidates_and_rebinds_them_on_reuse(tmp_path: Path) -> None:
+    NativeConverter, native_processed, prepare, seed_native = _native_fixtures()
+    store = FilesystemObjectStore(tmp_path)
+    with Session(_engine()) as session:
+        processed = native_processed()
+        document, location = seed_native(session, store, processed)
+        converter = NativeConverter(processed)
+        snapshot = prepare(session, store, document, location, converter)
+        session.commit()
+
+        digest = _sha(processed.section_candidates_bytes)
+        assert snapshot.section_candidates_sha256 == digest
+        content = session.get(ContentObject, snapshot.section_candidates_content_object_id)
+        candidate_location = session.get(ContentObjectLocation, snapshot.section_candidates_location_id)
+        assert content.detected_mime == "application/json" and content.retention_class == "document-structure"
+        assert candidate_location.namespace_key == "structure"
+        assert candidate_location.object_key == f"structure/prespec-v4/{document.id}/section-candidates-{digest}.json"
+        stored, _metadata = store.get(
+            candidate_location.namespace_key, candidate_location.object_key,
+            version_id=candidate_location.object_version_id,
+        )
+        assert stored == processed.section_candidates_bytes
+        assert read_snapshot_section_candidates(session, store, snapshot) == processed.section_candidates
+        # The cached snapshot is re-read at the pinned version and hash-checked.
+        assert prepare(session, store, document, location, converter).id == snapshot.id
+        assert converter.calls == 1
+
+
+def test_snapshot_without_section_candidates_stays_cache_reusable(tmp_path: Path) -> None:
+    NativeConverter, native_processed, prepare, seed_native = _native_fixtures()
+    store = FilesystemObjectStore(tmp_path)
+    with Session(_engine()) as session:
+        # A bundle frozen before 0024: the three references are null together.
+        processed = native_processed(candidates=False)
+        document, location = seed_native(session, store, processed)
+        converter = NativeConverter(processed)
+        snapshot = prepare(session, store, document, location, converter)
+        session.commit()
+
+        assert snapshot.section_candidates_content_object_id is None
+        assert snapshot.section_candidates_location_id is None
+        assert snapshot.section_candidates_sha256 is None
+        assert read_snapshot_section_candidates(session, store, snapshot) is None
+        assert prepare(session, store, document, location, converter).id == snapshot.id
+        assert converter.calls == 1
+
+
+def test_mixed_section_candidate_references_are_rejected(tmp_path: Path) -> None:
+    NativeConverter, native_processed, prepare, seed_native = _native_fixtures()
+    store = FilesystemObjectStore(tmp_path)
+    with Session(_engine()) as session:
+        processed = native_processed()
+        document, location = seed_native(session, store, processed)
+        snapshot = prepare(session, store, document, location, NativeConverter(processed))
+        session.commit()
+
+        refs = {field: getattr(snapshot, field) for field in _NATIVE_REFERENCE_FIELDS}
+        refs["section_candidates_location_id"] = None
+        page_text_bytes = json.dumps(
+            processed.page_text, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
+        ).encode("utf-8")
+        with pytest.raises(V4PreparationError) as error:
+            _validate_native_references(
+                session, store, refs, document, processed.original_bytes, page_text_bytes,
+                snapshot.pdf_metadata_jsonb,
+                ProcessorOptions.from_mapping(snapshot.config_jsonb.get("options")),
+            )
+        assert error.value.code == "native_artifact_reference_invalid"
+
+        partial = SimpleNamespace(
+            section_candidates_content_object_id=snapshot.section_candidates_content_object_id,
+            section_candidates_location_id=None,
+            section_candidates_sha256=snapshot.section_candidates_sha256,
+            config_jsonb=snapshot.config_jsonb,
+            pdf_page_count=snapshot.pdf_page_count,
+        )
+        with pytest.raises(V4PreparationError) as error:
+            read_snapshot_section_candidates(session, store, partial)
+        assert error.value.code == "native_artifact_reference_invalid"
