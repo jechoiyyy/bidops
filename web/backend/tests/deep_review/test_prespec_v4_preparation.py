@@ -16,6 +16,9 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.db import init_db
 from app.core.object_store import FilesystemObjectStore
+from app.deep_review.document_mcp import process_document
+from app.deep_review.document_mcp.contracts import para_page_map_bytes
+from app.deep_review.document_mcp.para_page_map import build_para_page_map
 from app.deep_review.document_mcp.processor import ProcessedDocument
 from app.deep_review.models import (
     ContentObject,
@@ -32,6 +35,7 @@ from app.deep_review.services.prespec_v4 import (
     select_v4_input_range,
 )
 from app.lifecycle.models import Notice
+from tests.deep_review.test_document_mcp import hwpx_bytes
 
 
 def _sha(data: bytes) -> str:
@@ -46,6 +50,13 @@ _SOURCE_PROCESSOR_PROVENANCE = {
 }
 _SOURCE_RENDERER = {"source_pdf": True, "processor_provenance": _SOURCE_PROCESSOR_PROVENANCE}
 _SOURCE_FONT = {"source_pdf": True, "font_provenance": None}
+_NATIVE_RENDERER = {
+    "renderer": "rhwp-svg-pdf", "rhwp_version": "0.8.6", "rhwp_binary_sha256": "a" * 64,
+    "backend": "svg", "compat": "2022",
+    "fallback_fonts": {"serif": "NanumMyeongjo", "sans": "NanumGothic", "mono": "NanumGothicCoding"},
+    "worker_image_digest": None,
+}
+_NATIVE_FONT = {"font_manifest_sha256": "b" * 64}
 
 
 def _engine():
@@ -141,24 +152,38 @@ class _Converter:
 
 
 class _GeneratedConverter(_Converter):
+    """Return the native rhwp artifact bundle a document worker produces."""
+
     def process(self, content: bytes, media_type: str | None, options: Any) -> ProcessedDocument:
         self.calls += 1
         assert content == self.processed.original_bytes
         assert media_type == "application/octet-stream"
-        payload = dict(self.processed)
+        hwpx = hwpx_bytes()
+        payload = dict(process_document(hwpx, "application/hwp+zip", {"ocr": False}))
+        payload["source_sha256"] = _sha(content)
         payload["media_type"] = "application/x-hwp"
+        text = "Ⅰ. 감리 개요\n감리 예산 123,456,789원"
+        page = {"number": 1, "display_page": 1, "section": 0, "text": text, "text_sha256": _sha(text.encode())}
+        page_text = {"schema": "bidops.rhwp-page-text.v1", "page_count": 1, "pages": [page]}
+        dump = {"schemaVersion": "1.0", "pageCount": 1, "pages": [{"pageIndex": 0, "section": 0, "columns": [], "extras": []}]}
+        mapping = build_para_page_map(payload["blocks"], dump, page_text, original_hwpx=False)
         return ProcessedDocument(
             payload,
             original_bytes=content,
             converted_pdf_bytes=b"%PDF-1.7\ngenerated-pdf",
+            hwpx_bytes=hwpx,
+            hwpx_verify={"identical": True, "diff_count": 0, "pages": {"before": 1, "after": 1, "identical": True}},
+            page_text=page_text,
+            para_page_map=mapping,
+            para_page_map_bytes=para_page_map_bytes(mapping, max_output_bytes=20 * 1024 * 1024),
             pdf_metadata={
-                "schema": "bidops.hwp-pdf-snapshot.v1",
-                "renderer": "rhwp-canvas-chromium",
+                "schema": "bidops.rhwp-pdf-snapshot.v1",
+                "renderer": "rhwp-svg-pdf",
                 "renderer_version": "1",
-                "page_count": 2,
-                "renderer_provenance": {"worker_image_digest": "c" * 64, "runtime_sha256": "a" * 64},
-                "font_provenance": {"worker_image_digest": "c" * 64, "font_manifest_sha256": "b" * 64},
-                "pages": self.processed.pdf_metadata["pages"],
+                "page_count": 1,
+                "renderer_provenance": dict(_NATIVE_RENDERER),
+                "font_provenance": dict(_NATIVE_FONT),
+                "pages": [{key: page[key] for key in ("number", "display_page", "section", "text_sha256")}],
             },
         )
 
@@ -377,8 +402,8 @@ def test_generated_pdf_is_versioned_in_source_namespace(tmp_path: Path):
             converter=converter,
             store=store,
             options={"prepare_pdf": True},
-            renderer={"worker_image_digest": "c" * 64, "runtime_sha256": "a" * 64},
-            font={"worker_image_digest": "c" * 64, "font_manifest_sha256": "b" * 64},
+            renderer=dict(_NATIVE_RENDERER),
+            font=dict(_NATIVE_FONT),
             config={"options": vars(__import__("app.deep_review.document_mcp.safety", fromlist=["ProcessorOptions"]).ProcessorOptions.from_mapping({"prepare_pdf": True}))},
         )
         pdf_location = session.get(ContentObjectLocation, snapshot.pdf_location_id)
@@ -404,8 +429,8 @@ def test_generated_pdf_requires_worker_emitted_provenance(tmp_path: Path):
                 converter=converter,
                 store=store,
                 options={"prepare_pdf": True},
-                renderer={"worker_image_digest": "c" * 64, "runtime_sha256": "9" * 64},
-                font={"worker_image_digest": "c" * 64, "font_manifest_sha256": "b" * 64},
+                renderer={**_NATIVE_RENDERER, "rhwp_binary_sha256": "9" * 64},
+                font=dict(_NATIVE_FONT),
                 config={"options": vars(__import__("app.deep_review.document_mcp.safety", fromlist=["ProcessorOptions"]).ProcessorOptions.from_mapping({"prepare_pdf": True}))},
             )
         assert error.value.code == "renderer_binding_invalid"

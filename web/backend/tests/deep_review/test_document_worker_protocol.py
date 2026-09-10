@@ -7,7 +7,6 @@ from pathlib import Path
 import pytest
 
 from app.deep_review.document_mcp.errors import DocumentProcessingError
-from app.deep_review.document_mcp import process_document
 from app.deep_review.document_mcp.processor import ProcessedDocument
 from app.deep_review.document_mcp.safety import ProcessorOptions
 from app.deep_review.services import document_converter
@@ -21,6 +20,7 @@ from app.deep_review.document_protocol import (
     convert_one,
     write_request,
 )
+from tests.deep_review.test_rhwp_snapshot import native_processed
 
 
 FIXTURE = Path(__file__).parents[1] / "fixtures" / "document_bundles" / "safe.pdf"
@@ -131,20 +131,38 @@ def test_result_consumer_rejects_source_hash_tamper(monkeypatch: pytest.MonkeyPa
     assert error.value.code == "hash_mismatch"
 
 
+def _generated_native_document(content: bytes, pdf: bytes) -> ProcessedDocument:
+    """Return the native HWP artifact bundle a worker publishes for ``content``.
+
+    The shared native fixture is reused so this protocol test binds the same
+    sidecars the persistence tests do; only the source identity and the
+    generated PDF bytes are specific to this request.
+    """
+
+    native = native_processed(hwp=True)
+    structure = dict(native)
+    structure["source_sha256"] = hashlib.sha256(content).hexdigest()
+    return ProcessedDocument(
+        structure,
+        original_bytes=content,
+        converted_pdf_bytes=pdf,
+        hwpx_bytes=native.hwpx_bytes,
+        hwpx_verify=native.hwpx_verify,
+        page_text=native.page_text,
+        page_dump=native.page_dump,
+        para_page_map=native.para_page_map,
+        para_page_map_bytes=native.para_page_map_bytes,
+        pdf_metadata=native.pdf_metadata,
+    )
+
+
 def _patch_generated_pdf_processor(monkeypatch: pytest.MonkeyPatch, pdf: bytes) -> None:
     class FakeProcessor:
         def __init__(self, **_kwargs):
             pass
 
         def process(self, content: bytes, media_type: str, _options: dict[str, object]) -> ProcessedDocument:
-            structure = process_document(content, media_type, {"ocr": False})
-            structure["media_type"] = "application/x-hwp"
-            return ProcessedDocument(
-                dict(structure),
-                original_bytes=content,
-                converted_pdf_bytes=pdf,
-                pdf_metadata={"schema": "mock-pdf-metadata.v1", "page_count": 1},
-            )
+            return _generated_native_document(content, pdf)
 
     monkeypatch.setattr(document_protocol, "DocumentProcessor", FakeProcessor)
 
@@ -179,10 +197,13 @@ def test_pdf_v2_round_trip_publishes_and_consumes_one_bound_sidecar(monkeypatch:
         {"ocr": False, "prepare_pdf": True, "max_output_bytes": 1024 * 1024},
     )
 
+    expected = _generated_native_document(source, generated)
     assert processed.original_bytes == source
     assert processed.converted_pdf_bytes == generated
-    assert processed.pdf_metadata == {"schema": "mock-pdf-metadata.v1", "page_count": 1}
-    assert calls == [source, generated]
+    assert processed.pdf_metadata == expected.pdf_metadata
+    assert processed.pdf_metadata["schema"] == "bidops.rhwp-pdf-snapshot.v1"
+    assert processed.para_page_map_bytes == expected.para_page_map_bytes
+    assert calls == [source, generated, expected.hwpx_bytes]
     assert not list((root / "inbox").glob("*"))
     assert not list((root / "claimed").glob("*"))
     assert not list((root / "results").glob("*"))

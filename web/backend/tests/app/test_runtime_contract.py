@@ -78,7 +78,7 @@ def test_worker_network_and_command_boundaries_are_explicit():
     worker = services["document-worker"]
     assert worker["network_mode"] == "none"
     assert worker["mem_limit"] == "1g"
-    assert worker["pids_limit"] == 512
+    assert worker["pids_limit"] == 128
     assert worker["environment"] == {}
     assert worker["command"] == ["python", "-m", "app.deep_review.workers.document"]
     assert worker["deploy"]["replicas"] == 2

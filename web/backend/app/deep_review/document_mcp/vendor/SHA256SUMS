@@ -1,18 +1,12 @@
 # BidOps T2 vendored-file manifest; UTF-8 text, entries sorted by path.
 # T2 authority: https://github.com/jkf87/hwpx-skill.git
 # T2 authority commit: 96a2633f23a08f707679d7e212ebdc59948260e6
-# HWP rhwp runtime source: https://github.com/DoHyun468/claw-hwp
-# HWP rhwp runtime commit: 583e327a4e1936d27061ba73086e83e538238a8e
+# Native rhwp CLI source: https://github.com/edwardkim/rhwp
+# Native rhwp CLI commit: cac9b4f7cc743535cd7c00fe4f286abd67e7145b
 # rhwp files are not attributed to hwpx-skill; this manifest excludes itself.
-ef22d9505640fc9848cfebcc99545f7679e878f049325912459616624d11f4c0  PROVENANCE.md
+254a0181c84722bf11b78883bc05bd5ca49f81e2154d1c7e2697d4f440c219b3  PROVENANCE.md
 da5687b0d7cf02f1e57057f73dc38b79241e5f2c64ab5a03a9335536aaa145a4  UPSTREAM_THIRD_PARTY_NOTICES.md
-d341b583fe1856f333b730dba76e0c6f47832e57f378db1ebce2151146ba49bb  VENDORED_RUNTIME_NOTICES.md
 903ee4493c6b2c3b2e79ed3304ff58adb95fec8e2353aedfdffcaa1e2bf03a64  k-teacher-skills-LICENSE.txt
 af5f2aced9ce13fa964a5ec9f7ab3271b139f10a1950f5c5408b7b3012369571  kordoc-LICENSE.txt
 1c3a7d5643b163a3ead4965e1bea33b832caee5bfca265efe42afcd7bc696b5b  rhwp/LICENSE
 c82684971756d58ba7391cd08c38c93bb4280ab9ebf0e21c0936574a0084fc8c  rhwp/bin/rhwp
-3ca9d4afd21425087cf31893b8f9f63c81b0b8408db5e343ca76e5f8aa26ab9a  rhwp/package.json
-f77eb48c81ea29670852895ade0f1c35417dbcf70d3247f3da3ee4e856049d6d  rhwp/rhwp.js
-c975610a4767e2e1a7da29f9c907510f85348620cdf8a69587d6e1cfb85b4de6  rhwp/rhwp_bg.wasm
-2a6f73d61805b5ffb762961670836309f60e111266be093fe94cb6c9b9fca85d  rhwp_convert.mjs
-26d9fd4d93721ec44a2cf054fed99de656acc80be0c2349f3af8377c7a44d9ad  rhwp_render_canvas.mjs
