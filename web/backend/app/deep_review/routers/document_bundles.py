@@ -1,4 +1,4 @@
-"""The seven approved document/bundle endpoints (registration is owned by the deep_review module)."""
+"""The seven approved document/bundle endpoints plus the structure PDF reference (registration is owned by the deep_review module)."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, Header, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -31,6 +31,7 @@ from ..agents import (
     bundle_artifact_ref,
 )
 from ...core.db import get_db
+from ...core.object_store import object_store
 from ..models import DocumentBundle, DocumentBundleItem, DocumentVersion
 from ..schemas.document_bundles import (
     BundleListResponse,
@@ -45,6 +46,7 @@ from ..schemas.document_bundles import (
 )
 from ..services import document_segments
 from ..services.document_bundles import BundleServiceError, DocumentBundleService, stable_api_error, validate_actor
+from ..services.page_overview import PageOverviewError, get_structure_pdf
 
 router = APIRouter(prefix="/api", tags=["document-bundles"])
 service = DocumentBundleService()
@@ -313,13 +315,56 @@ def get_document_structure_page(structure_id: UUID, page: str, session: Session 
 
 @router.get("/document-structures/{structure_id}/segments", response_model=DocumentSegmentsView)
 def get_document_structure_segments(structure_id: UUID, session: Session = Depends(get_db)) -> DocumentSegmentsView | JSONResponse:
-    """저장된 결정적 segment manifest를 읽는다 (원문 text 없음)."""
+    """저장된 결정적 segment manifest를 읽는다 (원문 text 없음).
+
+    ``page_range``·``mapping_status``는 native snapshot의 대응표에서 조회 시점에만
+    계산한다. 저장소는 ``structure`` namespace만 읽는다.
+    """
 
     try:
-        return DocumentSegmentsView.model_validate(document_segments.segments_view(session, structure_id))
+        store = object_store(namespaces=("structure",), read_namespaces=("structure",))
+        return DocumentSegmentsView.model_validate(document_segments.segments_view(session, structure_id, store))
     except document_segments.SegmentViewError as error:
         return _error_response(BundleServiceError(error.code, error.message, status_code=error.status_code))
     except BundleServiceError as error:
         return _error_response(error)
     except Exception as error:  # pragma: no cover - defensive API boundary
         return _unexpected(error)
+
+
+#: 근거 PDF 조회의 안정 코드와 상태. 값은 개요 PDF endpoint와 같은 뜻이다.
+_PDF_ERROR_STATUS = {"not_found": 404, "unsafe_document": 403, "pdf_integrity_failed": 409, "pdf_unavailable": 503}
+
+
+def _pdf_error_response(code: str) -> JSONResponse:
+    safe = code if code in _PDF_ERROR_STATUS else "pdf_unavailable"
+    return JSONResponse(
+        status_code=_PDF_ERROR_STATUS[safe],
+        content={
+            "error": {"code": safe, "message": "문서 근거 PDF를 확인할 수 없습니다", "details": None},
+            "request_id": None,
+        },
+    )
+
+
+@router.get(
+    "/document-structures/{structure_id}/pdf", response_class=Response,
+    responses={200: {"content": {"application/pdf": {}}}},
+)
+def download_document_structure_pdf(structure_id: UUID, session: Session = Depends(get_db)):
+    """구조에 결속된 native snapshot의 PDF를 그대로 서빙한다.
+
+    페이지 번호는 대응표·page-text와 같은 물리 PDF 순번(1 기준)이다.
+    """
+
+    try:
+        data = get_structure_pdf(session, structure_id, object_store(namespaces=("source",), read_namespaces=("source",)))
+        return Response(data, media_type="application/pdf", headers={
+            "Content-Disposition": 'inline; filename="document-reference.pdf"',
+            "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": "default-src 'none'; sandbox",
+        })
+    except PageOverviewError as error:
+        return _pdf_error_response(str(error))
+    except Exception:  # pragma: no cover - defensive API boundary
+        return _pdf_error_response("pdf_unavailable")

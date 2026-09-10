@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from uuid import uuid4
@@ -17,13 +18,17 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.core.db import init_db
+from app.core.object_store import FilesystemObjectStore
 from app.deep_review.models import (
     ContentObject,
+    ContentObjectLocation,
+    ContentScan,
     DocumentBundle,
     DocumentSegment,
     DocumentSegmentManifest,
     DocumentStructure,
     DocumentVersion,
+    PrespecV4PdfSnapshot,
     RequirementInventoryItem,
 )
 from app.deep_review.services import document_segments
@@ -489,3 +494,171 @@ def test_wire_payload_satisfies_the_published_contract() -> None:
     wire = document_segments.wire_payload(payload)
     assert validate_document_segments(wire) == dict(wire)
     assert "inventory_items" not in wire and "segment_titles" not in wire
+
+
+# --------------------------------------------------------------------------
+# 대응표 유래 page_range·mapping_status (조회 시 계산, 저장하지 않는다)
+# --------------------------------------------------------------------------
+
+
+def _mapped_structure(stored) -> dict:
+    """네 개의 segment가 나오도록 만든 구조 payload."""
+
+    return _structure(
+        _blocks([
+            {"block_key": "paragraph-1-1", "text": "제1장 입찰참가자격"},
+            {"block_key": "paragraph-1-2", "text": "합성 자격 문단."},
+            {"block_key": "paragraph-1-3", "text": "제2장 기능 요구사항"},
+            *_requirement_table(["SFR-01", "SFR-02"]),
+            {"block_key": "paragraph-1-4", "text": "제3장 품질 및 보안 요구사항"},
+            {"block_key": "paragraph-1-5", "text": "합성 보안 문단."},
+        ]),
+        structure_id=stored["structure_id"],
+        document_version_id=stored["document_id"],
+    )
+
+
+def _para_page_map() -> dict:
+    """``bidops.para-page-map.v1`` 합성 대응표.
+
+    segment 1·2는 전부, segment 3은 일부만, segment 4는 하나도 매핑하지 않는다.
+    """
+
+    mapped = [
+        {"block_key": "paragraph-1-1", "section": 0, "para_index": 0, "page_first": 1, "page_last": 2, "match": "exact"},
+        {"block_key": "paragraph-1-2", "section": 0, "para_index": None, "page_first": 2, "page_last": 2, "match": "page_text"},
+        {"block_key": "paragraph-1-3", "section": 0, "para_index": None, "page_first": 3, "page_last": 3, "match": "page_text"},
+        {"block_key": "table-1-1-block", "section": 0, "para_index": None, "page_first": 4, "page_last": 4, "match": "page_text"},
+        {"block_key": "table-1-1-r0-c0", "section": 0, "para_index": None, "page_first": 4, "page_last": 4, "match": "page_text"},
+        {"block_key": "table-1-1-r1-c0", "section": 0, "para_index": None, "page_first": 5, "page_last": 5, "match": "page_text"},
+    ]
+    unmapped = [
+        "table-1-1-r0-c1", "table-1-1-r1-c1", "table-1-1-r2-c0", "table-1-1-r2-c1",
+        "paragraph-1-4", "paragraph-1-5",
+    ]
+    return {
+        "schema": "bidops.para-page-map.v1",
+        "page_count": 5,
+        "paragraph_count": 1,
+        "paragraphs": [{"section": 0, "para_index": 0, "page_first": 1, "page_last": 2, "kind": "fullParagraph"}],
+        "blocks": mapped,
+        "unmapped_block_keys": unmapped,
+        "mapping": {
+            "blocks_total": len(mapped) + len(unmapped),
+            "blocks_mapped": len(mapped),
+            "blocks_unmapped": len(unmapped),
+            "rule": "para-page-align.v1",
+        },
+    }
+
+
+def _native_snapshot(stored, store: FilesystemObjectStore, payload_bytes: bytes, *, recorded_sha256: str | None = None) -> None:
+    """대응표를 가진 native snapshot 한 행을 만든다.
+
+    ``recorded_sha256``으로 저장된 hash를 실제 바이트와 어긋나게 둘 수 있다.
+    """
+
+    digest = hashlib.sha256(payload_bytes).hexdigest()
+    metadata = store.put("structure", f"structure/para-page-map/{digest}", payload_bytes, content_type="application/json")
+    with Session(stored["engine"]) as session:
+        document = session.get(DocumentVersion, stored["document_id"])
+        assert document is not None
+        pdf_bytes = b"%PDF-1.7\n% synthetic\n"
+        pdf_digest = hashlib.sha256(pdf_bytes).hexdigest()
+        pdf_metadata = store.put("source", f"source/v4/pdf-{pdf_digest}", pdf_bytes, content_type="application/pdf")
+        map_content = ContentObject(sha256=digest, size_bytes=len(payload_bytes), detected_mime="application/json", retention_class="structure")
+        pdf_content = ContentObject(sha256=pdf_digest, size_bytes=len(pdf_bytes), detected_mime="application/pdf", retention_class="document-source")
+        session.add_all([map_content, pdf_content])
+        session.flush()
+        map_location = ContentObjectLocation(
+            content_object_id=map_content.id, namespace_key="structure", object_key=metadata.object_key,
+            object_version_id=metadata.object_version_id, etag=metadata.etag, status="verified",
+        )
+        pdf_location = ContentObjectLocation(
+            content_object_id=pdf_content.id, namespace_key="source", object_key=pdf_metadata.object_key,
+            object_version_id=pdf_metadata.object_version_id, etag=pdf_metadata.etag, status="verified",
+        )
+        session.add_all([map_location, pdf_location])
+        session.add(ContentScan(content_object_id=pdf_content.id, scanner="test", scanner_version="1", status="clean", safe_result={"sha256": pdf_digest}))
+        session.flush()
+        session.add(PrespecV4PdfSnapshot(
+            notice_id=document.notice_id,
+            document_version_id=document.id,
+            source_content_object_id=document.content_object_id,
+            source_location_id=pdf_location.id,
+            pdf_content_object_id=pdf_content.id,
+            pdf_location_id=pdf_location.id,
+            page_text_content_object_id=map_content.id,
+            page_text_location_id=map_location.id,
+            structure_id=stored["structure_id"],
+            para_page_map_content_object_id=map_content.id,
+            para_page_map_location_id=map_location.id,
+            para_page_map_sha256=recorded_sha256 or digest,
+            rhwp_binary_sha256="a" * 64,
+            rhwp_version="0.8.6",
+            source_kind="original",
+            source_sha256=SOURCE_SHA,
+            source_size_bytes=10,
+            pdf_sha256=pdf_digest,
+            pdf_size_bytes=len(pdf_bytes),
+            pdf_page_count=5,
+            page_text_sha256=digest,
+            page_text_size_bytes=len(payload_bytes),
+            pdf_metadata_jsonb={"schema": "bidops.rhwp-pdf-snapshot.v1", "renderer": "rhwp-svg-pdf", "page_count": 5},
+            renderer_jsonb={"renderer": "rhwp-svg-pdf", "rhwp_version": "0.8.6"},
+            renderer_digest="b" * 64,
+            font_jsonb={"font_manifest_sha256": "c" * 64},
+            font_digest="c" * 64,
+            config_jsonb={"options": {}},
+            config_sha256="d" * 64,
+            scan_jsonb={"status": "clean"},
+            binding_sha256="e" * 64,
+        ))
+        session.commit()
+
+
+def _view(stored, store: FilesystemObjectStore | None) -> dict:
+    with Session(stored["engine"]) as session:
+        return document_segments.segments_view(session, stored["structure_id"], store)
+
+
+def test_segments_are_unavailable_without_a_para_page_map(stored, tmp_path) -> None:
+    with Session(stored["engine"]) as session:
+        document_segments.store_manifest(session, _mapped_structure(stored))
+        session.commit()
+    view = _view(stored, FilesystemObjectStore(tmp_path))
+    assert [segment["mapping_status"] for segment in view["segments"]] == ["unavailable"] * 4
+    assert all(segment["page_range"] is None for segment in view["segments"])
+
+
+def test_para_page_map_yields_mapped_partial_and_unavailable_segments(stored, tmp_path) -> None:
+    with Session(stored["engine"]) as session:
+        document_segments.store_manifest(session, _mapped_structure(stored))
+        session.commit()
+    store = FilesystemObjectStore(tmp_path)
+    _native_snapshot(stored, store, json.dumps(_para_page_map(), ensure_ascii=False).encode("utf-8"))
+    view = _view(stored, store)
+    assert [(segment["mapping_status"], segment["page_range"]) for segment in view["segments"]] == [
+        ("mapped", {"first": 1, "last": 2}),
+        ("mapped", {"first": 3, "last": 3}),
+        ("partial", {"first": 4, "last": 5}),
+        ("unavailable", None),
+    ]
+    # 계산값은 저장하지 않는다 — segment 행에는 그런 열이 없다.
+    columns = {column.name for column in DocumentSegment.__table__.columns}
+    assert not columns & {"page_range", "mapping_status"}
+
+
+def test_para_page_map_hash_mismatch_fails_closed(stored, tmp_path) -> None:
+    with Session(stored["engine"]) as session:
+        document_segments.store_manifest(session, _mapped_structure(stored))
+        session.commit()
+    store = FilesystemObjectStore(tmp_path)
+    _native_snapshot(
+        stored, store, json.dumps(_para_page_map(), ensure_ascii=False).encode("utf-8"),
+        recorded_sha256="f" * 64,
+    )
+    with pytest.raises(document_segments.SegmentViewError) as error:
+        _view(stored, store)
+    assert error.value.code == "processing_failed"
+    assert error.value.status_code == 500
