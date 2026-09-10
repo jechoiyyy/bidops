@@ -46,7 +46,7 @@ cgroup은 `memory.max=1073741824`, `pids.max=128`이었고 프로세스의 `CapE
 
 ## 안전 지표 요약
 
-| 표본 | 두 실행 합계 | PDF(쪽·bytes) | 최대 rhwp RSS | 최대 container pids | `dump-pages` stdout | 결정성 |
+| 표본 | 두 실행 합계 | PDF(쪽·bytes) | 최대 rhwp RSS | 최대 container pids | `dump-pages` stdout | 결정성(같은 검증 이미지 내) |
 |---|---:|---:|---:|---:|---:|---|
 | notice 142 HWPX | 22.384 / 22.443초 | 79 · 4,829,134 | 162,840 KiB | 4 | 747,110 B | PDF·text·pages 동일 |
 | notice 10 RFP HWP | 18.531 / 17.905초 | 53 · 2,874,883 | 160,536 KiB | 4 | 432,607 B | HWPX·PDF·text·pages 동일 |
@@ -95,3 +95,26 @@ formal gate는 아직 열지 않는다. `dump-pages` stdout이 설계의 256 KiB
 명시적 stdout 상한(후보 1 MiB) 또는 bounded file-output 계약을 선택해야 하고, R2 전에
 원본 HWP→변환 HWPX의 결정적 paragraph crosswalk를 정의하거나 HWP를 변환 HWPX 기준으로
 page dump할 수 있는지 별도 증거로 결정해야 한다.
+
+## 후속 R0 계약 종결 결정 (2026-09-10)
+
+앞 절의 "formal gate는 아직 열지 않는다"는 문구는 후속 결정을 내리기 전 최초 실측
+시점의 역사 기록이다. 추가 probe·테스트·빌드·측정 없이, 위에 보존된 측정 증거를 근거로
+R0 계약을 다음과 같이 종결한다.
+
+- `export-hwpx`, `export-pdf`, `export-text`, `dump-pages` 네 native 호출 각각의 JSON stdout
+  cap은 1 MiB(1,048,576 B)다. cap 초과는 `output_size_limit`이며, 무제한 stdout이나
+  파일 출력 우회는 허용하지 않는다. per-artifact options cap과 문서당 shared deadline은
+  별도로 유지한다.
+- mapping identity는 extras를 포함해 항상 `(section, paraIndex)`다. extractor identity가
+  증명된 원본 HWPX만 source XML top-level ordinal을 사용하고, HWP에서 변환한 HWPX는
+  비어 있지 않은 paragraph·table-cell FULL text가 `export-text`의 정확히 한 페이지에
+  정확히 한 번 나타날 때만 `match="page_text"`로 매핑한다. 빈 블록과 그 밖의 미확인
+  블록은 `unmapped`이며 prefix/LCS/whitespace correction/fuzzy matching/인접 페이지
+  상속/다중 페이지 추정은 사용하지 않는다.
+- R0에서 관측된 네 native stdout의 실제 최대는 747,110 B다. PDF 바이트 동일성은 이
+  검증 이미지에서 실행한 세 표본의 동일 hash라는 증거에만 한정하고, 보편적 결정성으로
+  확대하지 않는다. 매핑률은 F5의 정보성 지표로만 남긴다.
+
+이에 따라 R0 게이트를 통과로 종결하고, 현재 상태는 다음 R1 시작에 대한 coordinator
+acceptance 대기다. 이 결정은 R1을 시작하거나 운영 상태를 변경하지 않는다.
