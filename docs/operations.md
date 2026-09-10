@@ -996,6 +996,8 @@ JSON을 `--binding`으로 함께 준다. deployable binding을 그 자리에 쓰
 `docker compose run`에는 `--no-build`가 없으므로 migration은 이미지 고정 overlay와 `--pull never`로 실행한다
 (`run --rm --no-deps --pull never migrate`). 절차와 값은 [R6 기록](validation-runs/2026-09-10-rhwp-pipeline.md)에 있다.
 
+2026-09-10 R7 이후 DB head는 `0024_section_candidates`이고 이미지는 `bidops-rdp-r7:20260910`이다. worker는 다섯 번째 rhwp 호출 `digest --sections --json`로 절 후보(`bidops.section-candidates.v1`)를 만들어 snapshot에 결속한다. heading 선택기가 범위를 못 정한 `--prepare`는 `status: needs_human_review`(target 동결, attempt 없음)로 끝나며, 사람이 `POST /api/pre-specs/{id}/overview-pages/range-confirmations`(actor 헤더)로 확정하거나 운영자가 `prespec-v4 --assist-range --target-id <uuid> --actor <표식>`로 모델 제안(감사 행)만 받을 수 있다. 어느 쪽도 attempt·정책 활성화를 열지 않는다. 계약은 [contracts.md](contracts.md)의 "v4 개요 입력 범위의 사람 확인", 절차는 [R7 기록](validation-runs/2026-09-10-rhwp-r7-range-review.md)에 있다.
+
 `--prepare`/`--enqueue`는 120초 attachment fetch worker와 분리된 준비 role에서
 실행한다. app role은 검증된 source를 읽고 versioned source/structure object와
 snapshot/target/WorkJob/attempt를 append하며, analysis worker는 source/MinIO 원문

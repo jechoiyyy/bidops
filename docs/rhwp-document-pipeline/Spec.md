@@ -185,7 +185,7 @@ attempt `error_code`는 `pdf_preparation_failed:<위 코드 또는 기존 proces
 | R4 소비자 | page-overview·회사 핏 renderer 교체, segments `page_range`, 화면 링크 | focused backend·Playwright(영향 spec만), 1280×800·1440×900 |
 | R5 제거 | Chromium·Node·WASM·Canvas 코드와 Dockerfile·compose 완화 제거, `pids_limit` 재조정 | runtime contract, 이미지 크기·의존성 확인 |
 | R6 운영 인수 | 백업 → migration → worker 재생성 → 표본 3건 새 snapshot 준비 → API·UI 확인 → 문서 갱신 | status·findings·validation-run 기록. 기존 행 미변경 확인 |
-| R7 범위 선택 보조 | `digest --sections` 후보 생성, LLM 보조 선택(`needs_human_review`) | 별도 승인 뒤 시작 |
+| R7 범위 선택 보조 | `digest --sections` 후보 생성(산출물 ⑦), 선택기 미결정 시 `needs_human_review` target, CLI 전용 LLM 보조 제안, 사람 확정 REST·화면 | 2026-09-10 완료. 자동 실행 열지 않음, 확정 흐름은 테스트로 확인(실표본 확정 대기 없음) |
 
 각 단계의 검증은 변경 파일이 닿는 테스트만 돌리고, 전체 스위트는 R5 뒤 최종 트리에서 1회 돌린다.
 
