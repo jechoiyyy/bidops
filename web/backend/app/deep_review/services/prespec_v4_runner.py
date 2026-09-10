@@ -51,7 +51,7 @@ from ..models import (
 )
 from ..schemas.page_overview import PageOverviewPayload
 from .model_response_storage import store_raw_model_response
-from .page_overview_validation import VALIDATOR_VERSION, validate_page_overview
+from .page_overview_validation import VALIDATOR_VERSION, validate_page_overview, validate_page_overview_detailed
 from .prespec_v4 import (
     MAX_V4_MANIFEST_BYTES,
     V4_MANIFEST_SCHEMA,
@@ -741,7 +741,8 @@ class PrespecV4OverviewRunner:
         if source is None or live.policy_digest != binding.policy_digest or live.model_name != binding.model_name or live.model_digest != binding.model_digest or live.prompt_version != binding.prompt_version or live.binding_digest != binding.binding_digest or snapshot.source_sha256 != source.sha256:
             raise V4AttemptError("binding_mismatch")
         payload = PageOverviewPayload.model_validate(output)
-        errors = validate_page_overview(output, dict(pages))
+        # 경고는 실패가 아니다. 완료된 attempt에 목록으로 남기고 재시도 사유로 쓰지 않는다.
+        errors, warnings = validate_page_overview_detailed(output, dict(pages))
         if errors:
             raise V4AttemptError(errors[0])
         payload_json = payload.model_dump(mode="json")
@@ -763,6 +764,7 @@ class PrespecV4OverviewRunner:
         live.result_id = result.id
         live.result_sha256 = payload_sha
         live.raw_response_sha256 = raw_sha
+        live.validation_warnings = list(warnings)
         live.status = "completed"
         live.completed_at = self.clock()
         live.lease_owner = None
@@ -777,7 +779,7 @@ class PrespecV4OverviewRunner:
                 job.completed_at = live.completed_at
                 job.lease_owner = None
                 job.lease_expires_at = None
-        session.add(AuditEvent(actor_kind="system", claimed_name=None, action="prespec_v4.attempt_run", aggregate_type="prespec_v4_attempt", aggregate_id=str(live.id), safe_metadata={"notice_id": live.notice_id, "status": "completed", "result_id": str(result.id), "raw_response_sha256": raw_sha, "validation_retry": dict(retry) if retry else None}))
+        session.add(AuditEvent(actor_kind="system", claimed_name=None, action="prespec_v4.attempt_run", aggregate_type="prespec_v4_attempt", aggregate_id=str(live.id), safe_metadata={"notice_id": live.notice_id, "status": "completed", "result_id": str(result.id), "raw_response_sha256": raw_sha, "validation_retry": dict(retry) if retry else None, "validation_warnings": list(warnings)}))
         session.commit()
 
     def _fail(self, session: Session, attempt_id: UUID, worker_id: str, reason_code: str, raw_sha: str | None, retry: Mapping[str, Any] | None = None) -> V4RunResult:

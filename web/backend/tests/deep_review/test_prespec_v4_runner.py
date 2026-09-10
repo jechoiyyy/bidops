@@ -12,9 +12,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.object_store import FilesystemObjectStore
+from app.deep_review.document_mcp.processor import ProcessedDocument
 from app.deep_review.models import ContentObject, DocumentVersion, PreSpecPageOverview, PrespecV4Attempt
 from app.deep_review.services.page_overview import list_page_overviews
-from app.deep_review.services.prespec_v4 import freeze_v4_target, prepare_v4_pdf_snapshot
+from app.deep_review.services.prespec_v4 import freeze_v4_target, prepare_v4_pdf_snapshot, select_v4_input_range
 from app.deep_review.services.prespec_v4_runner import (
     V4ModelBinding,
     enqueue_v4_attempt,
@@ -123,7 +124,52 @@ def _payload():
     }
 
 
-def _ready_target(tmp_path):
+# 개요 범위가 2~3쪽에 걸친 구조. 검토 페이지가 둘 이상이어야 선언 페이지와 문장 끝
+# `(PDF N페이지)` 표기가 갈리는 경고 조건이 성립한다.
+_SPREAD_PAGES = (
+    "목차\nⅠ. 감리 개요\nⅡ. 제안요청 사항",
+    "Ⅰ. 감리 개요\n1. 목적\n본문",
+    "2. 범위\n감리 범위\nⅡ. 제안요청 사항\n다음 장",
+)
+
+
+def _spread_processed(source):
+    base = _processed(source)
+    payload = dict(base)
+    payload["pages"] = [
+        {"number": number, "width": 612.0, "height": 792.0, "image_content_object_id": None}
+        for number, _text in enumerate(_SPREAD_PAGES, 1)
+    ]
+    payload["blocks"] = [
+        {"block_key": f"page-{number}-text", "page": number, "type": "text", "text": text,
+         "bbox": [0, 0, 612, 792], "confidence": 1.0, "attributes": {}}
+        for number, text in enumerate(_SPREAD_PAGES, 1)
+    ]
+    return ProcessedDocument(
+        payload,
+        original_bytes=source,
+        converted_pdf_bytes=None,
+        pdf_metadata={
+            **base.pdf_metadata,
+            "page_count": len(_SPREAD_PAGES),
+            "pages": [
+                {"number": number, "width": 612.0, "height": 792.0, "text_sha256": _sha(text.encode())}
+                for number, text in enumerate(_SPREAD_PAGES, 1)
+            ],
+        },
+    )
+
+
+def _spread_selection(document, source):
+    return select_v4_input_range({
+        "document_version_id": str(document.id),
+        "source_sha256": _sha(source),
+        "pages": [{"number": number, "text": text} for number, text in enumerate(_SPREAD_PAGES, 1)],
+        "blocks": [],
+    })
+
+
+def _ready_target(tmp_path, *, spread=False):
     source = b"%PDF-1.7\nfixture-original"
     engine = _engine()
     store = FilesystemObjectStore(tmp_path)
@@ -138,7 +184,7 @@ def _ready_target(tmp_path):
         source_location_id=source_location.id,
         source_bytes=source,
         media_type="application/pdf",
-        converter=_Converter(_processed(source), lambda _value: True),
+        converter=_Converter(_spread_processed(source) if spread else _processed(source), lambda _value: True),
         store=store,
         options={"prepare_pdf": True},
         renderer=_SOURCE_RENDERER,
@@ -146,7 +192,7 @@ def _ready_target(tmp_path):
         config={"options": vars(__import__("app.deep_review.document_mcp.safety", fromlist=["ProcessorOptions"]).ProcessorOptions.from_mapping({"prepare_pdf": True}))},
         scanner=lambda _value: True,
     )
-    selection = _selection(document, source)
+    selection = _spread_selection(document, source) if spread else _selection(document, source)
     metadata = store.put("structure", "structure/v4/manifest.json", selection.manifest_bytes, content_type="application/json")
     from app.deep_review.models import ContentObject, ContentObjectLocation
 
@@ -324,8 +370,8 @@ def test_v4_validation_failure_keeps_encrypted_raw_and_no_result(tmp_path):
     engine.dispose()
 
 
-def _queued(tmp_path):
-    engine, session, store, target = _ready_target(tmp_path)
+def _queued(tmp_path, *, spread=False):
+    engine, session, store, target = _ready_target(tmp_path, spread=spread)
     policy = load_v4_policy()
     binding = V4ModelBinding(provider="test", model_name=policy.model_name, model_digest="a" * 64,
                              prompt_version=policy.prompt_version, policy_digest=policy.digest, reference_only=True)
@@ -423,5 +469,39 @@ def test_preparation_failure_is_the_current_safe_state(tmp_path):
     current = list_page_overviews(session, document.notice_id).current
     assert current is not None and current.attempt_id == failed.id and current.status == "failed" and current.result_id is None
     assert current.reason_code == "pdf_preparation_failed"
+    session.close()
+    engine.dispose()
+
+
+def test_v4_completed_attempt_keeps_inline_locator_warning(tmp_path):
+    engine, session, store, target, policy, binding, attempt = _queued(tmp_path, spread=True)
+    payload = _payload()
+    # 선언 페이지는 2쪽, 읽기용 표기는 3쪽이다. 둘 다 검토한 페이지 안이므로 실패가 아니라 경고다.
+    payload["business_overview"] = [{"text": "목적 (PDF 3페이지)", "evidence_pages": [2]}]
+    payload["main_tasks"] = [{"text": "범위", "evidence_pages": [3]}]
+    client = _Client(payload)
+
+    result = _run(session, store, policy, binding, client, _RawStore())
+
+    assert result.status == "completed"
+    assert len(client.calls) == 1
+    row = session.get(PrespecV4Attempt, attempt.id)
+    assert row is not None and row.status == "completed" and row.result_id is not None
+    assert row.validation_warnings == ["pdf_inline_locator_normalized"]
+    assert _audit_metadata(session, attempt.id)["validation_warnings"] == ["pdf_inline_locator_normalized"]
+    session.close()
+    engine.dispose()
+
+
+def test_v4_completed_attempt_records_empty_warning_list(tmp_path):
+    engine, session, store, target, policy, binding, attempt = _queued(tmp_path)
+
+    result = _run(session, store, policy, binding, _Client(_payload()), _RawStore())
+
+    assert result.status == "completed"
+    row = session.get(PrespecV4Attempt, attempt.id)
+    assert row is not None and row.status == "completed"
+    assert row.validation_warnings == []
+    assert _audit_metadata(session, attempt.id)["validation_warnings"] == []
     session.close()
     engine.dispose()

@@ -279,3 +279,7 @@ manifest는 `partially_human_adjudicated`이며 사람 22건, draft 603건, 잔�
 - 스키마·페이지 근거 검증이 실패하면 같은 입력으로 seed를 바꾼 1회 재시도를 보내고,
   보정 지시에는 실패한 검사 코드만 담는다. 두 응답을 모두 암호화 보존하고 감사에
   `validation_retry`로 남긴다. 재시도도 실패하면 실패로 남기고 자동 보정하지 않는다.
+- 검증기 v3의 경고(`pdf_inline_locator_normalized`)는 실패가 아니며 재시도 사유도 아니다.
+  완료된 attempt의 `validation_warnings`에 목록으로 남고 감사에도 같은 목록을 적는다.
+  경고가 없으면 빈 목록이며, `0023` migration 이전 행은 `null`(미기록)이고 이를 경고 없음으로
+  승격시키지 않는다.
