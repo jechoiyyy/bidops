@@ -802,9 +802,10 @@ privilege allowlist와 실제 PostgreSQL 17 제약·trigger 검증은 Phase 2의
 - `validation_status`는 원실행 실패와 새 근거 검사의 실패를 모두 보존한다.
   `evidence_check_status`는 새 검사만의 결과다. 원실행 실패가 새 검사 통과로 지워지지 않는다.
   `quality_status`는 참조 표식만 허용하며 운영 완료나 측정 통과를 뜻하지 않는다.
-- `pdf-page-evidence.v2`는 문장 끝의 정확한 `(PDF N페이지 …)` 표기가 별도
-  `evidence_pages`와 같은 경우에만 이를 숫자·영문 사업 사실 검사에서 분리한다.
-  불일치 표기는 실패하고, 사업 내용의 숫자·영문·사업금액 의미 검사는 유지한다.
+- `pdf-page-evidence.v3`는 문장 끝의 정확한 `(PDF N페이지 …)` 표기를 언제나 metadata로
+  분리한다. `evidence_pages`와 표기 페이지는 모두 검토한 페이지 안에 있어야 하며 벗어나면
+  `pdf_locator_mismatch`로 실패한다. 둘이 다른 것은 실패가 아니라 경고
+  `pdf_inline_locator_normalized`이고, 숫자·영문·사업금액 의미 검사는 두 집합의 합집합을 본다.
   원출력은 수정하지 않는다. 화면의 중복 페이지 문구 제거는 표시 계층에서만 한다.
 
 서버측 `import-page-overview` CLI는 고정 실행 파일 1건을 적재하는 경로다. frozen policy와
