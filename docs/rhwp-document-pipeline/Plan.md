@@ -1,6 +1,6 @@
 # rhwp 문서 변환 파이프라인 진행 계획
 
-작업명: rhwp-document-pipeline · 기준일: 2026-09-10 · 상태: 진행 중 (R0 coordinator 수락·병합, R1 구현 게이트 통과·coordinator 검토 대기)
+작업명: rhwp-document-pipeline · 기준일: 2026-09-10 · 상태: R1 검토·병합 완료, 사용자 요청으로 중단 (다음 R2 미착수)
 
 이 문서는 새 세션이 다른 맥락 없이 이 작업을 이어갈 수 있도록 순서·담당·게이트·현재 상태·재현 명령을 모아 둔다. 내용이 이미 다른 문서에 있으면 여기 다시 적지 않고 링크한다. 단계가 끝나거나 결정이 바뀌면 §7 진행 기록에 덧붙이고, 결정 자체는 [ADR.md](ADR.md)에 적는다.
 
@@ -202,3 +202,4 @@ git diff --check
 | 2026-09-10 | R0 계약 종결 | 최초 실측 시점의 닫힌 게이트 기록은 유지한다. 이미 측정한 세 표본의 안전 지표를 근거로 native 네 호출별 stdout cap을 1 MiB(1,048,576 B)로 정하고 실제 최대 747,110 B를 기록했다. identity는 `(section, paraIndex)`로 고정하고, extractor identity가 증명된 원본 HWPX만 source XML ordinal을 쓰며 HWP→HWPX는 exact full-text가 정확히 한 export-text 페이지에 한 번 나타날 때만 매핑한다(그 외·빈 블록은 `unmapped`). PDF 결정성은 같은 이미지의 세 표본 재실행 증거에만 한정한다. R0 게이트를 통과로 종결했으며 현재는 R1 시작에 대한 coordinator acceptance를 기다린다. |
 | 2026-09-10 | R0 수락 | coordinator가 R0를 수락하고 main `518a770`에 병합했다. R1은 이 commit에서 시작했다. |
 | 2026-09-10 | R1 | `feat/rdp-r1-converter`에서 명시적 `rhwp-svg-pdf` 선택 seam, 엄격 native JSON/산출물 검증, out-of-band HWPX·PDF·page-text·sanitized dump와 worker 계산 provenance를 구현했다. focused 54건과 변경 후 대상 검사, R0 이미지의 세 표본 실제 `DocumentProcessor` 경로가 통과했다. 근거: [R1 validation](../validation-runs/2026-09-10-rhwp-r1-converter.md), [safe metrics](../validation-runs/2026-09-10-rhwp-r1-converter.metrics.json). 다음 단계는 coordinator가 diff와 증거를 수락한 뒤에만 연다. |
+| 2026-09-10 | R1 수락·중단 | Sol medium의 구현 `5332e6e`와 Luna max의 경계 보정 `666e7a4`를 관리자가 diff·검증 증거로 검토하고 main에 병합했다. 보정 대상 회귀 검사 16건 통과; 세 표본 실측·전체 스위트·이미지 빌드는 반복하지 않았다. 사용자 요청에 따라 이 단계에서 중단한다. R2는 미착수이며 운영 배포·DB 변경·활성화·모델 호출은 수행하지 않았다. 재개 시 R2부터 시작한다. |
