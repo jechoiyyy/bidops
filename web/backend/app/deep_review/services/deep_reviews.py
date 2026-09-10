@@ -76,7 +76,11 @@ CREATION_ACTIONS = DEEP_REVIEW_CREATION_ACTIONS
 MIN_LEASE_SECONDS = APPROVED_TIMEOUT_SECONDS * (APPROVED_RETRIES + 1) + 60
 WORKER_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 EMPTY_PRIOR_CLAIM_ID = uuid5(NAMESPACE_URL, "bidops.deep-review.empty-prior-claim")
-_SAFE_INVOCATION_ATTEMPT_KEYS = frozenset({"retry_index", "status", "error_code", "latency_ms"})
+_SAFE_INVOCATION_ATTEMPT_KEYS = frozenset({
+    # 정수·bool·hex만 남긴다. 프롬프트·응답 본문과 떼어 낸 사고 문자열은 들어오지 않는다.
+    "retry_index", "status", "error_code", "latency_ms",
+    "seed", "correction_sha256", "thinking_stripped", "thinking_chars",
+})
 _SAFE_INVOCATION_KEYS = frozenset({
     "slice_index", "input_slice_sha256", "prompt_sha256", "response_sha256",
     "model", "policy_sha256", "prompt_tokens", "output_tokens", "latency_ms",
