@@ -23,9 +23,23 @@ from ..document_protocol import (
     ScratchProtocolError,
     read_bounded_file,
     read_pdf_sidecar,
+    read_native_sidecars,
+    native_sidecar_paths,
     validate_original_pdf_metadata,
     write_request,
 )
+
+
+SAFE_CONVERTER_CODES = frozenset({
+    "timeout", "processing_failed", "conversion_required", "unsupported_media",
+    "malformed_pdf", "malformed_archive", "invalid_options", "mime_mismatch",
+    "output_size_limit", "input_size_limit", "pdf_object_limit", "pdf_page_limit", "pdf_page_mismatch",
+    "pdf_empty_text", "pdf_sidecar_missing", "hash_mismatch", "pdf_metadata_invalid",
+    "hwpx_verify_failed", "encrypted_document", "rhwp_manifest_invalid", "para_page_map_invalid",
+    "renderer_binding_invalid", "font_binding_invalid", "converter_unavailable", "malformed_hwpx",
+    "unsafe_xml", "xml_depth_limit", "archive_traversal", "archive_size_limit", "block_limit",
+    "invalid_structure", "page_limit", "malware_detected", "clamav_unavailable", "missing_file",
+})
 
 
 class ScratchDocumentProcessor:
@@ -108,13 +122,7 @@ class ScratchDocumentProcessor:
             if result.get("status") != "succeeded":
                 detail = result.get("error")
                 code = detail.get("code") if isinstance(detail, Mapping) else "processing_failed"
-                safe_code = code if isinstance(code, str) and code in {
-                    "timeout", "processing_failed", "conversion_required", "unsupported_media",
-                    "malformed_pdf", "malformed_archive", "invalid_options", "mime_mismatch",
-                    "output_size_limit", "pdf_object_limit", "pdf_page_limit", "pdf_page_mismatch",
-                    "pdf_empty_text", "pdf_sidecar_missing", "hash_mismatch",
-                    "pdf_metadata_invalid",
-                } else "processing_failed"
+                safe_code = code if isinstance(code, str) and code in SAFE_CONVERTER_CODES else "processing_failed"
                 raise DocumentProcessingError(safe_code, "문서 처리를 완료할 수 없습니다", source_preserved=True)
             payload = result.get("structure")
             if not isinstance(payload, dict):
@@ -129,6 +137,7 @@ class ScratchDocumentProcessor:
             )
             converted_pdf: bytes | None = None
             pdf_metadata: dict[str, Any] = {}
+            native_artifacts: dict[str, Any] = {}
             if expected_schema == PDF_RESULT_SCHEMA:
                 descriptor = result.get("pdf_sidecar")
                 if not isinstance(descriptor, Mapping) or sidecar_path is None:
@@ -163,6 +172,12 @@ class ScratchDocumentProcessor:
                         "PDF source kind이 입력 media type과 일치하지 않습니다",
                         source_preserved=True,
                     )
+                if safe_options["renderer"] == "rhwp-svg-pdf" and payload.get("media_type") != "application/pdf":
+                    native_artifacts = read_native_sidecars(
+                        self.root, str(request_id), result.get("native_sidecars"),
+                        structure=payload, source=content, pdf_metadata=pdf_metadata,
+                        options=ProcessorOptions.from_mapping(safe_options),
+                    )
                 try:
                     pdf_scan = self.clamav_checker(converted_pdf)
                 except Exception as error:
@@ -171,11 +186,21 @@ class ScratchDocumentProcessor:
                     raise DocumentProcessingError("malware_detected", "malware 검사에서 차단되었습니다", source_preserved=True)
                 if pdf_scan is not True:
                     raise DocumentProcessingError("clamav_unavailable", "malware 검사를 완료할 수 없습니다", source_preserved=True)
+                if native_artifacts and payload.get("media_type") == "application/x-hwp":
+                    try:
+                        hwpx_scan = self.clamav_checker(native_artifacts["hwpx_bytes"])
+                    except Exception as error:
+                        raise DocumentProcessingError("clamav_unavailable", "malware 검사를 완료할 수 없습니다", source_preserved=True) from error
+                    if hwpx_scan is not True:
+                        code = "malware_detected" if hwpx_scan is False else "clamav_unavailable"
+                        raise DocumentProcessingError(code, "malware 검사를 완료할 수 없습니다", source_preserved=True)
             return ProcessedDocument(
                 payload,
                 original_bytes=content,
                 converted_pdf_bytes=converted_pdf,
                 pdf_metadata=pdf_metadata,
+                converted_bytes=native_artifacts.get("hwpx_bytes") if payload.get("media_type") == "application/x-hwp" else None,
+                **native_artifacts,
             )
         except ScratchProtocolError as error:
             raise DocumentProcessingError(error.code, "문서 처리 요청이 올바르지 않습니다", source_preserved=True) from error
@@ -197,6 +222,13 @@ class ScratchDocumentProcessor:
                 result_path.unlink(missing_ok=True)
             if sidecar_path is not None and not claimed_path.exists():
                 sidecar_path.unlink(missing_ok=True)
+            if result_seen and not claimed_path.exists():
+                try:
+                    paths = native_sidecar_paths(self.root, str(request_id))
+                except ScratchProtocolError:
+                    paths = {}
+                for path in paths.values():
+                    path.unlink(missing_ok=True)
 
 
-__all__ = ["ScratchDocumentProcessor"]
+__all__ = ["SAFE_CONVERTER_CODES", "ScratchDocumentProcessor"]

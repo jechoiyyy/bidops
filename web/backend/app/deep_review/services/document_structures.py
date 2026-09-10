@@ -196,16 +196,25 @@ def materialize_structure(
     request_paths.append(structure_path)
     structure_object = _ensure_structure_content(session, payload_hash, payload)
     location_writer(session, structure_object.id, "structure", structure_path, payload_hash)
+    return persist_structure_rows(session, document, payload, structure_object)
+
+
+def persist_structure_rows(
+    session: Session, document: DocumentVersion, payload: Mapping[str, Any],
+    structure_object: ContentObject,
+) -> DocumentStructure:
+    """Project an already verified, stored payload through the canonical rows."""
+    validate_structure(payload)
     structure = DocumentStructure(
         id=UUID(str(payload["structure_id"])),
         document_version_id=document.id,
-        source_sha256=asset.sha256,
-        media_type=inspected.detected_mime,
+        source_sha256=payload["source_sha256"],
+        media_type=payload["media_type"],
         extractor_name=str(payload["extractor"]["name"]),
         extractor_version=str(payload["extractor"]["version"]),
         upstream_commit=payload["extractor"].get("upstream_commit"),
         payload_content_object_id=structure_object.id,
-        payload_sha256=payload_hash,
+        payload_sha256=structure_object.sha256,
         page_count=len(payload.get("pages", [])),
         block_count=len(payload.get("blocks", [])),
         validation_status="ready",

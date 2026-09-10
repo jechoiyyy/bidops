@@ -364,6 +364,7 @@ GRANT INSERT ON TABLE
     bidops.prespec_overview_attempt,
     bidops.prespec_overview_result,
     bidops.prespec_page_overview,
+    bidops.prespec_v4_pdf_snapshot,
     bidops.prespec_company_fit_attempt,
     bidops.prespec_overview_attempt_event,
     bidops.document_segment_manifest,
@@ -407,7 +408,7 @@ GRANT UPDATE (
 GRANT UPDATE (
     status, result_id, result_sha256, raw_response_sha256, error_code,
     lease_owner, lease_expires_at, started_at, completed_at,
-    prompt_tokens, output_tokens, latency_ms
+    prompt_tokens, output_tokens, latency_ms, validation_warnings
 ) ON bidops.prespec_v4_attempt TO worker;
 GRANT UPDATE (is_current) ON bidops.document_version TO worker;
 

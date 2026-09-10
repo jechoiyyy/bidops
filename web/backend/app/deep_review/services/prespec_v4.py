@@ -26,12 +26,19 @@ from sqlalchemy.orm import Session
 from ...core.object_store import ObjectStore, ObjectStoreError
 from ...lifecycle.models import NoticeObservation
 from ..document_mcp.safety import ProcessorOptions
-from .document_converter import ScratchDocumentProcessor
+from ..document_mcp.errors import DocumentProcessingError
+from ..document_mcp.native_artifacts import (
+    NATIVE_RENDERER, NATIVE_SNAPSHOT_SCHEMA, validate_native_renderer,
+    validate_native_page_text, validate_native_bundle,
+)
+from .document_structures import persist_structure_rows
+from .document_converter import SAFE_CONVERTER_CODES, ScratchDocumentProcessor
 from ..models import (
     ContentObject,
     ContentObjectLocation,
     ContentScan,
     DocumentVersion,
+    DocumentStructure,
     PrespecV4PdfSnapshot,
     PrespecV4Target,
 )
@@ -39,7 +46,7 @@ from .prespec_overview import _filename_document_candidate
 
 
 V4_MANIFEST_SCHEMA = "bidops.prespec-v4-input-manifest.v1"
-V4_SNAPSHOT_METADATA_SCHEMAS = frozenset({"bidops.hwp-pdf-snapshot.v1", "bidops.pdf-snapshot.v1"})
+V4_SNAPSHOT_METADATA_SCHEMAS = frozenset({"bidops.hwp-pdf-snapshot.v1", "bidops.pdf-snapshot.v1", NATIVE_SNAPSHOT_SCHEMA})
 MAX_V4_MANIFEST_BYTES = 8 * 1024 * 1024
 MAX_V4_PROVENANCE_BYTES = 128 * 1024
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
@@ -86,7 +93,7 @@ class V4RangeSelection:
 def _canonical(value: Any) -> bytes:
     try:
         return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
-    except (TypeError, ValueError, OverflowError, RecursionError) as error:
+    except (TypeError, ValueError, OverflowError, RecursionError, UnicodeError) as error:
         raise V4PreparationError("invalid_json") from error
 
 
@@ -140,6 +147,23 @@ def _worker_identity(value: Mapping[str, Any], *, asset_key: str) -> dict[str, A
         "worker_image_digest": value.get("worker_image_digest"),
         asset_key: str(value[asset_key]),
     }
+
+
+def _native_renderer(value: Any) -> dict[str, Any]:
+    try:
+        return validate_native_renderer(value)
+    except DocumentProcessingError as error:
+        raise V4PreparationError(error.code) from error
+
+
+def _assert_native_provenance(metadata, renderer, font):
+    actual = _native_renderer(metadata.get("renderer_provenance"))
+    actual_font = _worker_binding(metadata.get("font_provenance"), code="font_binding_invalid", asset_key="font_manifest_sha256")
+    if actual != renderer:
+        raise V4PreparationError("renderer_binding_invalid")
+    if _worker_identity(actual_font, asset_key="font_manifest_sha256") != _worker_identity(font, asset_key="font_manifest_sha256"):
+        raise V4PreparationError("font_binding_invalid")
+    return actual, actual_font
 
 
 def _source_pdf_binding(value: Mapping[str, Any], *, code: str, font: bool = False) -> dict[str, Any]:
@@ -565,7 +589,7 @@ def _validate_pdf_metadata(metadata: Mapping[str, Any]) -> tuple[dict[str, Any],
     for expected, page in enumerate(pages, 1):
         if not isinstance(page, Mapping) or page.get("number") != expected:
             raise V4PreparationError("pdf_metadata_invalid")
-        for key in ("width", "height"):
+        for key in (() if safe["schema"] == NATIVE_SNAPSHOT_SCHEMA else ("width", "height")):
             value = page.get(key)
             if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(float(value)) or float(value) <= 0:
                 raise V4PreparationError("pdf_metadata_invalid")
@@ -663,6 +687,20 @@ def _validate_cached_snapshot_artifacts(
     if _sha256_bytes(cached_page_text) != snapshot.page_text_sha256 or len(cached_page_text) != snapshot.page_text_size_bytes:
         raise V4PreparationError("snapshot_artifact_hash_mismatch")
     _validate_page_text_artifact(cached_page_text, page_text, snapshot.pdf_metadata_jsonb)
+    if snapshot.pdf_metadata_jsonb.get("schema") == NATIVE_SNAPSHOT_SCHEMA:
+        document = session.get(DocumentVersion, snapshot.document_version_id)
+        refs = {field: getattr(snapshot, field) for field in _NATIVE_REFERENCE_FIELDS}
+        native_binding = _validate_native_references(
+            session, store, refs, document, source_bytes, cached_page_text,
+            snapshot.pdf_metadata_jsonb, ProcessorOptions.from_mapping(snapshot.config_jsonb.get("options")),
+        )
+        binding = {"source_sha256": source.sha256, "pdf_sha256": pdf.sha256,
+            "page_text_sha256": page_text.sha256, "source_kind": snapshot.source_kind,
+            "pdf_metadata": snapshot.pdf_metadata_jsonb, "renderer": snapshot.renderer_jsonb,
+            "font": snapshot.font_jsonb, "config": snapshot.config_jsonb, "scan": snapshot.scan_jsonb,
+            "native": native_binding}
+        if _sha256_json(binding) != snapshot.binding_sha256:
+            raise V4PreparationError("snapshot_identity_conflict")
     if _latest_clean_scan(session, source.id) is None or _latest_clean_scan(session, pdf.id) is None:
         raise V4PreparationError("scanner_unavailable")
 
@@ -683,6 +721,12 @@ def _validate_page_text_artifact(
         payload = json.loads(data.decode("utf-8"))
     except (UnicodeDecodeError, ValueError) as error:
         raise V4PreparationError("page_text_invalid") from error
+    if metadata.get("schema") == NATIVE_SNAPSHOT_SCHEMA:
+        try:
+            validate_native_page_text(payload, metadata)
+        except DocumentProcessingError as error:
+            raise V4PreparationError(error.code) from error
+        return _sha256_bytes(data), len(data)
     if not isinstance(payload, Mapping) or payload.get("schema") != "bidops.prespec-v4-page-text.v1":
         raise V4PreparationError("page_text_invalid")
     pages = payload.get("pages")
@@ -774,6 +818,125 @@ def _persist_artifact(
     return content, location
 
 
+_NATIVE_REFERENCE_FIELDS = (
+    "hwpx_content_object_id", "hwpx_location_id", "hwpx_verify_jsonb",
+    "structure_id", "structure_location_id", "para_page_map_content_object_id",
+    "para_page_map_location_id", "para_page_map_sha256", "rhwp_binary_sha256", "rhwp_version",
+)
+
+
+def _native_object(session, store, content_id, location_id, *, max_bytes, mime, namespace="structure"):
+    content = session.get(ContentObject, content_id) if content_id is not None else None
+    if content is None or content.detected_mime != mime:
+        raise V4PreparationError("native_artifact_reference_invalid")
+    location = _verified_location(session, location_id, content.id)
+    if location.namespace_key != namespace:
+        raise V4PreparationError("object_namespace_invalid")
+    data = _read_verified_artifact(store, location, content, max_bytes=max_bytes, expected_mime=mime)
+    binding = {"sha256": content.sha256, "size_bytes": content.size_bytes, "location_id": str(location.id), "object_version_id": location.object_version_id}
+    return data, binding
+
+
+def _validate_native_references(session, store, refs, document, source_bytes, page_text_bytes, metadata, options):
+    """Re-read every native artifact at its pinned object version before use."""
+    if set(refs) != set(_NATIVE_REFERENCE_FIELDS):
+        raise V4PreparationError("native_artifact_reference_invalid")
+    renderer = _native_renderer(metadata.get("renderer_provenance"))
+    if refs["rhwp_binary_sha256"] != renderer["rhwp_binary_sha256"] or refs["rhwp_version"] != renderer["rhwp_version"]:
+        raise V4PreparationError("renderer_binding_invalid")
+    structure = session.get(DocumentStructure, refs["structure_id"]) if refs["structure_id"] else None
+    if structure is None or structure.document_version_id != document.id or structure.source_sha256 != _sha256_bytes(source_bytes) or structure.validation_status != "ready":
+        raise V4PreparationError("structure_binding_mismatch")
+    structure_bytes, structure_binding = _native_object(session, store, structure.payload_content_object_id, refs["structure_location_id"], max_bytes=options.max_output_bytes, mime="application/json")
+    if structure_binding["sha256"] != structure.payload_sha256:
+        raise V4PreparationError("structure_binding_mismatch")
+    map_bytes, map_binding = _native_object(session, store, refs["para_page_map_content_object_id"], refs["para_page_map_location_id"], max_bytes=options.max_output_bytes, mime="application/json")
+    if map_binding["sha256"] != refs["para_page_map_sha256"]:
+        raise V4PreparationError("snapshot_artifact_hash_mismatch")
+    try:
+        payload = json.loads(structure_bytes)
+        page_text = json.loads(page_text_bytes)
+        mapping = json.loads(map_bytes)
+    except (ValueError, UnicodeError):
+        raise V4PreparationError("native_artifact_invalid") from None
+    if not isinstance(payload, Mapping) or payload.get("structure_id") != str(structure.id) or payload.get("document_version_id") != str(document.id) or payload.get("media_type") != structure.media_type:
+        raise V4PreparationError("structure_binding_mismatch")
+    hwpx_binding = None
+    if structure.media_type == "application/x-hwp":
+        hwpx_bytes, hwpx_binding = _native_object(session, store, refs["hwpx_content_object_id"], refs["hwpx_location_id"], max_bytes=options.max_output_bytes, mime="application/hwp+zip", namespace="source")
+        if _latest_clean_scan(session, refs["hwpx_content_object_id"]) is None:
+            raise V4PreparationError("scanner_unavailable")
+    else:
+        if refs["hwpx_content_object_id"] is not None or refs["hwpx_location_id"] is not None:
+            raise V4PreparationError("native_artifact_reference_invalid")
+        hwpx_bytes = source_bytes
+    try:
+        validate_native_bundle(payload, source_bytes=source_bytes, hwpx_bytes=hwpx_bytes, hwpx_verify=refs["hwpx_verify_jsonb"], page_text=page_text, para_page_map=mapping, pdf_metadata=metadata, options=options)
+    except DocumentProcessingError as error:
+        raise V4PreparationError(error.code) from error
+    if _canonical(mapping) != map_bytes:
+        raise V4PreparationError("para_page_map_invalid")
+    return {"structure": structure_binding, "para_page_map": map_binding, "hwpx": hwpx_binding, "hwpx_verify": refs["hwpx_verify_jsonb"]}
+
+
+def _persist_native_artifacts(session, store, document, processed, source_bytes, metadata, options, scanner):
+    """Store native sidecars without replacing any existing document structure."""
+    try:
+        validate_native_bundle(processed, source_bytes=source_bytes, hwpx_bytes=processed.hwpx_bytes, hwpx_verify=processed.hwpx_verify, page_text=processed.page_text, para_page_map=processed.para_page_map, pdf_metadata=metadata, options=options)
+    except DocumentProcessingError as error:
+        raise V4PreparationError(error.code) from error
+    if _canonical(processed.para_page_map) != processed.para_page_map_bytes:
+        raise V4PreparationError("para_page_map_invalid")
+    source = session.get(ContentObject, document.content_object_id)
+    if processed["media_type"] != source.detected_mime:
+        raise V4PreparationError("source_media_type_mismatch")
+    refs = dict.fromkeys(_NATIVE_REFERENCE_FIELDS)
+    renderer = _native_renderer(metadata.get("renderer_provenance"))
+    refs.update(rhwp_binary_sha256=renderer["rhwp_binary_sha256"], rhwp_version=renderer["rhwp_version"], hwpx_verify_jsonb=processed.hwpx_verify)
+    structure = session.scalar(select(DocumentStructure).where(DocumentStructure.document_version_id == document.id))
+    if structure is not None:
+        locations = session.scalars(select(ContentObjectLocation).where(
+            ContentObjectLocation.content_object_id == structure.payload_content_object_id,
+            ContentObjectLocation.namespace_key == "structure", ContentObjectLocation.status == "verified",
+            ContentObjectLocation.purged_at.is_(None),
+        ).order_by(ContentObjectLocation.created_at.desc())).all()
+        if not locations:
+            raise V4PreparationError("structure_binding_mismatch")
+        structure_location = locations[0]
+        raw, _binding = _native_object(session, store, structure.payload_content_object_id, structure_location.id, max_bytes=options.max_output_bytes, mime="application/json")
+        try:
+            previous = json.loads(raw)
+        except (ValueError, UnicodeError):
+            raise V4PreparationError("structure_binding_mismatch") from None
+        # Parser-generated IDs/timestamps and extractor labels can differ. All
+        # source identity and consumer-visible page/block contents must agree.
+        if not isinstance(previous, Mapping) or any(previous.get(key) != processed.get(key) for key in ("source_sha256", "media_type", "pages", "blocks")):
+            raise V4PreparationError("structure_binding_mismatch")
+    else:
+        payload = dict(processed)
+        payload.update(structure_id=str(uuid4()), document_version_id=str(document.id))
+        raw = _canonical(payload)
+        content, structure_location = _persist_artifact(session, store, namespace="structure", object_key=f"structure/prespec-v4/{document.id}/structure-{_sha256_bytes(raw)}.json", data=raw, detected_mime="application/json", retention_class="document-structure")
+        structure = persist_structure_rows(session, document, payload, content)
+    refs.update(structure_id=structure.id, structure_location_id=structure_location.id)
+    if processed["media_type"] == "application/x-hwp":
+        try:
+            if scanner(processed.hwpx_bytes) is not True:
+                raise V4PreparationError("scanner_failed")
+        except V4PreparationError:
+            raise
+        except Exception as error:
+            raise V4PreparationError("scanner_unavailable") from error
+        content, location = _persist_artifact(session, store, namespace="source", object_key=f"source/prespec-v4/{document.id}/hwpx-{_sha256_bytes(processed.hwpx_bytes)}.hwpx", data=processed.hwpx_bytes, detected_mime="application/hwp+zip", retention_class="document-structure")
+        session.add(ContentScan(content_object_id=content.id, scanner="clamav", scanner_version="clamd-instream-v1", status="clean", safe_result={"sha256": content.sha256, "verdict": "clean"}))
+        refs.update(hwpx_content_object_id=content.id, hwpx_location_id=location.id)
+    raw = processed.para_page_map_bytes
+    content, location = _persist_artifact(session, store, namespace="structure", object_key=f"structure/prespec-v4/{document.id}/para-page-map-{_sha256_bytes(raw)}.json", data=raw, detected_mime="application/json", retention_class="document-structure")
+    refs.update(para_page_map_content_object_id=content.id, para_page_map_location_id=location.id, para_page_map_sha256=content.sha256)
+    session.flush()
+    return refs
+
+
 def prepare_v4_pdf_snapshot(
     session: Session,
     *,
@@ -811,16 +974,20 @@ def prepare_v4_pdf_snapshot(
     if config_safe.get("options") != safe_options:
         raise V4PreparationError("config_binding_invalid")
     source_pdf_expected = source.detected_mime == "application/pdf"
+    native = not source_pdf_expected and safe_options["renderer"] == NATIVE_RENDERER
     if source_pdf_expected:
         renderer_safe = _source_pdf_binding(renderer, code="renderer_binding_invalid")
         font_safe = _source_pdf_binding(font, code="font_binding_invalid", font=True)
+    elif native:
+        renderer_safe = _native_renderer(renderer)
+        font_safe = _worker_binding(font, code="font_binding_invalid", asset_key="font_manifest_sha256")
     else:
         renderer_safe = _worker_binding(renderer, code="renderer_binding_invalid", asset_key="runtime_sha256")
         font_safe = _worker_binding(font, code="font_binding_invalid", asset_key="font_manifest_sha256")
     source_location = _verified_location(session, source_location_id, source.id, allow_structure=False)
     config_sha = _sha256_json(config_safe)
     renderer_digest = _sha256_json(
-        renderer_safe if source_pdf_expected else _worker_identity(renderer_safe, asset_key="runtime_sha256")
+        renderer_safe if source_pdf_expected or native else _worker_identity(renderer_safe, asset_key="runtime_sha256")
     )
     font_digest = _sha256_json(
         font_safe if source_pdf_expected else _worker_identity(font_safe, asset_key="font_manifest_sha256")
@@ -852,7 +1019,9 @@ def prepare_v4_pdf_snapshot(
     except Exception as error:
         if isinstance(error, V4PreparationError):
             raise
-        raise V4PreparationError("pdf_preparation_failed") from error
+        code = getattr(error, "code", None)
+        suffix = f":{code}" if isinstance(error, DocumentProcessingError) and code in SAFE_CONVERTER_CODES else ""
+        raise V4PreparationError(f"pdf_preparation_failed{suffix}") from error
     exact_scanner = scanner or converter.clamav_checker
     detected_media_type = processed.get("media_type")
     if detected_media_type == "application/pdf":
@@ -867,7 +1036,9 @@ def prepare_v4_pdf_snapshot(
     metadata = processed.pdf_metadata
     if not isinstance(metadata, Mapping):
         raise V4PreparationError("pdf_metadata_invalid")
-    if source_kind == "generated":
+    if native:
+        renderer_safe, font_safe = _assert_native_provenance(metadata, renderer_safe, font_safe)
+    elif source_kind == "generated":
         renderer_safe, font_safe = _assert_worker_provenance(metadata, renderer_safe, font_safe)
     else:
         renderer_safe, font_safe = _assert_source_pdf_provenance(metadata, renderer_safe, font_safe)
@@ -889,7 +1060,13 @@ def prepare_v4_pdf_snapshot(
             retention_class="prespec-v4-pdf",
         )
         pdf_location_id = pdf_location.id
-    page_text_bytes = _page_text_payload(processed)
+    native_refs = None
+    if native:
+        native_refs = _persist_native_artifacts(
+            session, store, document, processed, source_bytes, metadata,
+            ProcessorOptions.from_mapping(options), exact_scanner,
+        )
+    page_text_bytes = _canonical(processed.page_text) if native else _page_text_payload(processed)
     page_text_content, page_text_location = _persist_artifact(
         session,
         store,
@@ -915,6 +1092,8 @@ def prepare_v4_pdf_snapshot(
         pdf_bytes=pdf_bytes,
         page_text_bytes=page_text_bytes,
         scanner=exact_scanner,
+        native_artifacts=native_refs,
+        store=store,
     )
 
 
@@ -936,6 +1115,8 @@ def freeze_pdf_snapshot(
     page_text_bytes: bytes | None = None,
     scanner: Callable[[bytes], bool] | None = None,
     scanner_version: str = "clamd-instream-v1",
+    native_artifacts: Mapping[str, Any] | None = None,
+    store: ObjectStore | None = None,
 ) -> PrespecV4PdfSnapshot:
     """Validate exact object references and append/reuse one PDF snapshot."""
 
@@ -966,21 +1147,27 @@ def freeze_pdf_snapshot(
     if source_kind == "original" and pdf_bytes is not None and source_bytes is not None and pdf_bytes != source_bytes:
         raise V4PreparationError("original_source_binding_mismatch")
     metadata, page_count = _validate_pdf_metadata(pdf_metadata)
+    native = metadata["schema"] == NATIVE_SNAPSHOT_SCHEMA
     page_text_sha256, page_text_size = _validate_page_text_artifact(page_text_bytes, page_text, metadata)
     if source_kind == "original":
         renderer_safe = _source_pdf_binding(renderer, code="renderer_binding_invalid")
         font_safe = _source_pdf_binding(font, code="font_binding_invalid", font=True)
+    elif native:
+        renderer_safe = _native_renderer(renderer)
+        font_safe = _worker_binding(font, code="font_binding_invalid", asset_key="font_manifest_sha256")
     else:
         renderer_safe = _worker_binding(renderer, code="renderer_binding_invalid", asset_key="runtime_sha256")
         font_safe = _worker_binding(font, code="font_binding_invalid", asset_key="font_manifest_sha256")
     config_safe = _bounded_object(config, code="config_binding_invalid")
     config_sha = _sha256_json(config_safe)
-    if source_kind == "generated":
+    if native:
+        renderer_safe, font_safe = _assert_native_provenance(metadata, renderer_safe, font_safe)
+    elif source_kind == "generated":
         renderer_safe, font_safe = _assert_worker_provenance(metadata, renderer_safe, font_safe)
     else:
         renderer_safe, font_safe = _assert_source_pdf_provenance(metadata, renderer_safe, font_safe)
     renderer_digest = _sha256_json(
-        renderer_safe if source_kind == "original" else _worker_identity(renderer_safe, asset_key="runtime_sha256")
+        renderer_safe if source_kind == "original" or native else _worker_identity(renderer_safe, asset_key="runtime_sha256")
     )
     font_digest = _sha256_json(
         font_safe if source_kind == "original" else _worker_identity(font_safe, asset_key="font_manifest_sha256")
@@ -1013,6 +1200,25 @@ def freeze_pdf_snapshot(
         if source_scan is None or pdf_scan is None:
             raise V4PreparationError("scanner_unavailable")
         scan["verdict"] = "clean"
+    native_binding = {}
+    if native:
+        if source_kind != "generated" or store is None or source_bytes is None or page_text_bytes is None or native_artifacts is None:
+            raise V4PreparationError("native_artifacts_required")
+        native_options = ProcessorOptions.from_mapping(config_safe.get("options"))
+        for content, location, data, limit in (
+            (source, source_location, source_bytes, source.size_bytes),
+            (pdf, pdf_location, pdf_bytes, native_options.max_output_bytes),
+            (page_text, page_text_location, page_text_bytes, MAX_V4_MANIFEST_BYTES),
+        ):
+            stored = _read_verified_artifact(store, location, content, max_bytes=limit)
+            if stored != data:
+                raise V4PreparationError("artifact_hash_mismatch")
+        native_binding = _validate_native_references(
+            session, store, native_artifacts, document, source_bytes,
+            page_text_bytes, metadata, native_options,
+        )
+    elif native_artifacts is not None:
+        raise V4PreparationError("native_artifacts_unexpected")
     binding_sha = _sha256_json({
         "source_sha256": source.sha256,
         "pdf_sha256": pdf.sha256,
@@ -1023,6 +1229,7 @@ def freeze_pdf_snapshot(
         "font": font_safe,
         "config": config_safe,
         "scan": scan,
+        **({"native": native_binding} if native else {}),
     })
     existing = session.scalar(
         select(PrespecV4PdfSnapshot).where(
@@ -1052,6 +1259,7 @@ def freeze_pdf_snapshot(
         pdf_metadata_jsonb=metadata, renderer_jsonb=renderer_safe, renderer_digest=renderer_digest,
         font_jsonb=font_safe, font_digest=font_digest, config_jsonb=config_safe, config_sha256=config_sha,
         scan_jsonb=scan, binding_sha256=binding_sha,
+        **(dict(native_artifacts) if native else {}),
     )
     session.add(row)
     session.flush()

@@ -25,6 +25,8 @@ from typing import Any
 from uuid import UUID
 
 from .document_mcp.errors import DocumentProcessingError
+from .document_mcp.contracts import para_page_map_bytes
+from .document_mcp.native_artifacts import validate_native_bundle
 from .document_mcp.processor import DocumentProcessor
 from .document_mcp.safety import MAX_INPUT_BYTES, ProcessorOptions
 
@@ -43,6 +45,7 @@ RESULT_SCHEMA = "bidops.document-converter-result.v1"
 PDF_PROTOCOL_SCHEMA = "bidops.document-converter-request.v2"
 PDF_RESULT_SCHEMA = "bidops.document-converter-result.v2"
 PDF_SIDECAR_NAMESPACE = "pdf"
+NATIVE_SIDECAR_SUFFIXES = {"hwpx": "hwpx", "page_text": "page-text.json", "para_page_map": "para-page-map.json"}
 
 
 class ScratchProtocolError(RuntimeError):
@@ -72,6 +75,12 @@ def scratch_dirs(root: Path) -> tuple[Path, Path, Path]:
         raise ScratchProtocolError("invalid scratch directory")
     pdf_directory.mkdir(parents=True, exist_ok=True)
     if not pdf_directory.is_dir():
+        raise ScratchProtocolError("invalid scratch directory")
+    native_directory = root / "native"
+    if native_directory.is_symlink():
+        raise ScratchProtocolError("invalid scratch directory")
+    native_directory.mkdir(parents=True, exist_ok=True)
+    if not native_directory.is_dir():
         raise ScratchProtocolError("invalid scratch directory")
     return directories
 
@@ -375,6 +384,83 @@ def read_pdf_sidecar(
     return content, metadata, source_kind
 
 
+def native_sidecar_paths(root: Path, request_id: str) -> dict[str, Path]:
+    request = _safe_request_id(request_id)
+    directory = Path(root).resolve() / "native"
+    if directory.is_symlink() or not directory.is_dir():
+        raise ScratchProtocolError("invalid native sidecar directory")
+    return {kind: directory / f"{request}.{suffix}" for kind, suffix in NATIVE_SIDECAR_SUFFIXES.items()}
+
+
+def _write_native_sidecars(root: Path, request_id: str, processed: Any, source: bytes, options: ProcessorOptions) -> tuple[dict[str, Any], list[Path]]:
+    validate_native_bundle(
+        processed, source_bytes=source, hwpx_bytes=processed.hwpx_bytes,
+        hwpx_verify=processed.hwpx_verify, page_text=processed.page_text,
+        para_page_map=processed.para_page_map, pdf_metadata=processed.pdf_metadata, options=options,
+    )
+    map_bytes = para_page_map_bytes(processed.para_page_map, max_output_bytes=options.max_output_bytes, max_pages=options.max_pages, max_blocks=options.max_blocks)
+    if map_bytes != processed.para_page_map_bytes:
+        raise ScratchProtocolError("native map bytes mismatch", code="hash_mismatch")
+    artifacts = {
+        "hwpx": processed.hwpx_bytes if processed["media_type"] == "application/x-hwp" else None,
+        "page_text": json.dumps(processed.page_text, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8"),
+        "para_page_map": map_bytes,
+    }
+    paths = native_sidecar_paths(root, request_id)
+    written: list[Path] = []
+    result = {"hwpx_verify": processed.hwpx_verify}
+    try:
+        for kind, content in artifacts.items():
+            result[kind] = None
+            if content is None:
+                continue
+            _atomic_write(paths[kind], content, limit=options.max_output_bytes)
+            written.append(paths[kind])
+            result[kind] = {"file": f"native/{paths[kind].name}", "byte_count": len(content), "sha256": hashlib.sha256(content).hexdigest()}
+    except Exception:
+        for path in written:
+            path.unlink(missing_ok=True)
+        raise
+    return result, written
+
+
+def read_native_sidecars(
+    root: Path, request_id: str, descriptors: Any, *, structure: Mapping[str, Any],
+    source: bytes, pdf_metadata: Mapping[str, Any], options: ProcessorOptions,
+) -> dict[str, Any]:
+    if not isinstance(descriptors, Mapping) or set(descriptors) != {*NATIVE_SIDECAR_SUFFIXES, "hwpx_verify"}:
+        raise ScratchProtocolError("native sidecar metadata missing", code="rhwp_manifest_invalid")
+    paths = native_sidecar_paths(root, request_id)
+    contents = {}
+    for kind, path in paths.items():
+        descriptor = descriptors[kind]
+        if kind == "hwpx" and structure.get("media_type") == "application/hwp+zip":
+            if descriptor is not None:
+                raise ScratchProtocolError("native source HWPX mismatch", code="hash_mismatch")
+            contents[kind] = source
+            continue
+        if not isinstance(descriptor, Mapping) or set(descriptor) != {"file", "byte_count", "sha256"} or descriptor["file"] != f"native/{path.name}":
+            raise ScratchProtocolError("native sidecar descriptor invalid")
+        if type(descriptor["byte_count"]) is not int or descriptor["byte_count"] < 1 or not isinstance(descriptor["sha256"], str) or not SHA256_RE.fullmatch(descriptor["sha256"]):
+            raise ScratchProtocolError("native sidecar identity invalid")
+        data = read_bounded_file(path, limit=min(options.max_output_bytes, MAX_PDF_SIDECAR_BYTES))
+        if len(data) != descriptor["byte_count"] or hashlib.sha256(data).hexdigest() != descriptor["sha256"]:
+            raise ScratchProtocolError("native sidecar hash mismatch", code="hash_mismatch")
+        contents[kind] = data
+    try:
+        page_text = json.loads(contents["page_text"])
+        para_map = json.loads(contents["para_page_map"])
+    except (ValueError, UnicodeError, RecursionError) as error:
+        raise ScratchProtocolError("native JSON invalid", code="rhwp_manifest_invalid") from error
+    validate_native_bundle(
+        structure, source_bytes=source, hwpx_bytes=contents["hwpx"], hwpx_verify=descriptors["hwpx_verify"],
+        page_text=page_text, para_page_map=para_map, pdf_metadata=pdf_metadata, options=options,
+    )
+    if contents["para_page_map"] != para_page_map_bytes(para_map, max_output_bytes=options.max_output_bytes, max_pages=options.max_pages, max_blocks=options.max_blocks):
+        raise ScratchProtocolError("native map is not canonical", code="para_page_map_invalid")
+    return {"hwpx_bytes": contents["hwpx"], "hwpx_verify": descriptors["hwpx_verify"], "page_text": page_text, "para_page_map": para_map, "para_page_map_bytes": contents["para_page_map"]}
+
+
 def write_request(
     root: Path,
     *,
@@ -494,6 +580,7 @@ def convert_one(root: Path) -> bool:
     request_id = request_path.stem
     result_path = results / f"{request_id}.json"
     sidecar_path: Path | None = None
+    native_paths: list[Path] = []
     # This replica now owns the request, so it is the only process that can
     # report on it.  The identifiers below are protocol metadata; the document
     # bytes, its original filename, and the structure never reach the log.
@@ -562,6 +649,10 @@ def convert_one(root: Path) -> bool:
                     "source_kind": source_kind,
                 },
             }
+            if options["renderer"] == "rhwp-svg-pdf" and detected_media_type != "application/pdf":
+                result["native_sidecars"], native_paths = _write_native_sidecars(
+                    root, request_id, processed, content, ProcessorOptions.from_mapping(options),
+                )
         else:
             result = {"schema": RESULT_SCHEMA, "request_id": request_id, "status": "succeeded", "structure": structure}
         try:
@@ -603,6 +694,9 @@ def convert_one(root: Path) -> bool:
         signal.signal(signal.SIGALRM, old_handler)
         if result.get("status") != "succeeded" and sidecar_path is not None:
             sidecar_path.unlink(missing_ok=True)
+        if result.get("status") != "succeeded":
+            for path in native_paths:
+                path.unlink(missing_ok=True)
     telemetry = {
         "event": "document.converted",
         "job_id": request_id,
@@ -622,6 +716,8 @@ def convert_one(root: Path) -> bool:
     except Exception:
         if sidecar_path is not None:
             sidecar_path.unlink(missing_ok=True)
+        for path in native_paths:
+            path.unlink(missing_ok=True)
         claimed_path.unlink(missing_ok=True)
         (inbox / f"{request_id}.bin").unlink(missing_ok=True)
         raise

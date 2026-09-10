@@ -1174,9 +1174,25 @@ runner 소비자가 없어 보류했다. 운영 DB/MinIO 쓰기·migration 적�
   `pdf_preparation_failed` 하나로 감싼다(`web/backend/app/deep_review/services/prespec_v4.py:855`).
 - 영향: 2026-09-10 notice 142의 43초 실패 attempt `dbbc7b5f-35c5-4f21-8adb-1c2b042dd61e`에는 그 일반 코드만 남아
   deadline·출력 예산·렌더 실패를 구분할 수 없었고, 3분 뒤 같은 입력의 직접 재현이 성공해 원인은 미확정으로 남았다.
-- 현재 범위: 코드는 바꾸지 않았다. 실패 attempt를 그대로 보존하고 성공으로 승격하지 않는다.
-- 후속: converter가 돌려준 안전 코드를 attempt `error_code` 접미사나 감사 `safe_metadata`에 함께 보존한다.
-  경로·원문·프롬프트·stderr는 넣지 않는다.
+- 해결 구현(R3, 운영 미적용): converter의 허용된 안전 코드를
+  `pdf_preparation_failed:<code>`와 감사 `safe_metadata.converter_code`에 함께 보존한다.
+  미등록 예외는 일반 코드로 남기며 경로·원문·프롬프트·stderr는 넣지 않는다.
+  [R3 검증](../validation-runs/2026-09-10-rhwp-r3-snapshot.md)을 참고한다.
+  과거 실패 attempt는 그대로 보존하고 당시 원인도 미확정으로 유지한다.
 - `current` projection은 attempt가 없는 `ready` target을 드러내지 않는다. 142의 새 target
   `200e9557-d5d5-4a0f-afa8-896d44b41261`이 `ready`여도 `GET /api/pre-specs/142/overview-pages`의 `current`는 직전
   실패 attempt를 계속 보여 준다.
+
+
+## 같은 문서 버전의 native 구조가 기존 구조와 다르면 준비를 거부한다 (2026-09-10)
+
+- 재현 조건: `document_structure`가 이미 있는 문서 버전을 다른 native renderer
+  identity로 준비하면서 새 구조의 pages 또는 blocks가 기존 payload와 다르다.
+  R3의 합성 충돌 테스트로 확인했으며 운영 표본에서 발생했다고 단정하지 않는다.
+- 영향: `structure_binding_mismatch`로 준비를 실패시키고 기존 구조·리뷰를 보존한다.
+  원본이 같다는 이유만으로 서로 다른 블록에 기존 structure ID를 붙이지 않는다.
+- 현재 범위에서 구조를 추가할 수 없는 이유: `document_structure.document_version_id`
+  UNIQUE와 기존 소비자의 단일 구조 조회 계약이 있다. R3에서 이 계약을 없애거나
+  재렌더링만으로 업무 문서 버전을 새로 만들지 않는다.
+- 후속: 운영 인수 전에 기존 구조와 비교한다. 충돌이 있는 문서를 지원하려면
+  구조 revision과 리뷰의 명시적 구조 참조를 함께 설계·승인한 뒤 이관한다.
