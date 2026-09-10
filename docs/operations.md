@@ -978,9 +978,9 @@ python -m app.deep_review.cli prespec-v4 --deactivate \
 준비 options는 표본별로 고정하고 기록한다. mandatory RFP의 검증 binding 예시는
 `prepare_pdf=true`, `ocr=false`, `timeout_seconds=300`,
 `max_output_bytes=20971520`, `max_pdf_objects=10000`이다. 전역 ProcessorOptions
-기본값을 올리지 않는다. worker가 반환한 실제 renderer/processor/Chromium/font
-fingerprint와 deployment preflight binding이 일치해야 하며, asset hash를 image
-digest로 가장하지 않는다. 원본 PDF는 재렌더하지 않고 Poppler provenance와
+기본값을 올리지 않는다. worker가 반환한 실제 rhwp renderer(`rhwp_version`·
+`rhwp_binary_sha256`)/font manifest fingerprint와 deployment preflight binding이
+일치해야 하며, asset hash를 image digest로 가장하지 않는다. 원본 PDF는 재렌더하지 않고 Poppler provenance와
 `font_provenance=null`을 기록한다.
 
 2026-09-10 기준 mandatory RFP 예시의 `max_output_bytes`는 `67108864`이며 `212e5ed` 이후 v4 CLI

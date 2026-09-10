@@ -10,11 +10,6 @@ RUN npm ci
 COPY web/frontend/ ./
 RUN npm run build
 
-# The legacy document worker executes its pinned HWP converter with Node. The
-# native rhwp CLI is copied with the backend below; both remain isolated from
-# networks by the document-worker Compose contract.
-FROM node:22-bookworm-slim AS node-runtime
-
 # Build-time UID/GID defaults match .env.example and may be changed to the host
 # account. The image never creates an operating database, .env, API key, or run
 # data.
@@ -37,14 +32,15 @@ RUN python -m pip install --no-cache-dir --no-deps --only-binary=:all: \
         --require-hashes --requirement requirements.lock \
     && python -m pip check
 
-# poppler-utils, clamav, and postgresql-client are document-pipeline and
-# PostgreSQL operator tools. Git is retained only as an optional
-# source-inspection tool: the image has no repository metadata, and the wrapper
+# poppler-utils, clamav, the Nanum/Noto CJK fallback fonts, and
+# postgresql-client are document-pipeline and PostgreSQL operator tools. The
+# native rhwp CLI is copied with the backend below. Git is retained only as an
+# optional source-inspection tool: the image has no repository metadata, and the wrapper
 # below serves the one exact baseline lookup needed by the compatibility test
 # and delegates all other commands to Git.
 RUN apt-get update \
     && apt-get install --no-install-recommends --yes \
-        git poppler-utils clamav postgresql-client chromium chromium-sandbox fonts-nanum fonts-noto-cjk \
+        git poppler-utils clamav postgresql-client fonts-nanum fonts-noto-cjk \
     && rm -rf /var/lib/apt/lists/*
 
 # Refuse root as a build-time application identity and create a stable runtime
@@ -58,7 +54,6 @@ RUN case "$BIDOPS_UID:$BIDOPS_GID" in \
 
 COPY web/backend/ ./
 COPY --from=frontend /build/dist /app/web/frontend/dist
-COPY --from=node-runtime /usr/local/bin/node /usr/local/bin/node
 COPY scripts /app/scripts
 COPY docker-compose.yml /app/docker-compose.yml
 RUN chmod +x /app/scripts/*.sh

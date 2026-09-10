@@ -172,8 +172,8 @@ services:
       - document-scratch:/scratch
     network_mode: none
     mem_limit: 1g
-    # Chromium 페이지 렌더링은 thread를 쓰며 128은 85쪽 RFP에서 고갈됐다 (2026-09-09).
-    pids_limit: 512
+    # rhwp native 변환은 R0 실측에서 컨테이너 pids 최대 4(2026-09-10); 128은 R0 게이트 값.
+    pids_limit: 128
     cap_drop:
       - ALL
     security_opt:
