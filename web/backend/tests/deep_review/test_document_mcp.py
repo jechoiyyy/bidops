@@ -23,7 +23,6 @@ from app.deep_review.document_mcp import (
 )
 from app.deep_review.document_mcp import processor as processor_module
 from app.deep_review.document_mcp import native as native_module
-from app.deep_review.document_mcp.processor import _build_canvas_print_html
 from app.deep_review.document_mcp.native import (
     RHWP_SCHEMA_VERSION,
     RHWP_STDOUT_LIMIT,
@@ -334,13 +333,11 @@ def test_native_dump_drops_endnote_separator_and_rejects_unknown_or_malformed_it
 
 def test_native_renderer_requires_explicit_validated_selection(monkeypatch: pytest.MonkeyPatch) -> None:
     source = hwpx_bytes()
-    legacy = DocumentProcessor()
-    monkeypatch.setattr(legacy, "_prepare_pdf_structure", lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("legacy prepare not requested")))
-    result = legacy.process(source, "application/hwp+zip", {"ocr": False})
-    assert result.converted_pdf_bytes is None
-    assert result.page_text == {}
-    assert result.para_page_map == {}
-    assert result.para_page_map_bytes is None
+    structure_only = DocumentProcessor().process(source, "application/hwp+zip", {"ocr": False})
+    assert structure_only.converted_pdf_bytes is None
+    assert structure_only.page_text == {}
+    assert structure_only.para_page_map == {}
+    assert structure_only.para_page_map_bytes is None
 
     native = DocumentProcessor()
     structure = process_document(source, "application/hwp+zip", {"ocr": False})
@@ -363,6 +360,24 @@ def test_native_renderer_requires_explicit_validated_selection(monkeypatch: pyte
     with pytest.raises(DocumentProcessingError) as invalid:
         ProcessorOptions.from_mapping({"renderer": "native-or-fallback"})
     assert invalid.value.code == "invalid_options"
+
+
+def test_removed_canvas_renderer_option_is_rejected() -> None:
+    with pytest.raises(DocumentProcessingError) as caught:
+        ProcessorOptions.from_mapping({"renderer": "rhwp-canvas-chromium"})
+    assert caught.value.code == "invalid_options"
+
+
+def test_processor_does_not_look_up_node_or_chromium(monkeypatch: pytest.MonkeyPatch) -> None:
+    looked_up: list[str] = []
+    monkeypatch.setattr(processor_module.shutil, "which", lambda name: looked_up.append(name) or None)
+
+    processor = DocumentProcessor()
+
+    assert looked_up == []
+    assert not hasattr(processor, "node_executable")
+    assert not hasattr(processor, "chromium_executable")
+    assert processor.rhwp_executable.endswith("vendor/rhwp/bin/rhwp")
 
 
 def test_native_command_uses_one_mib_stdout_and_ordinary_limiter(tmp_path: Path) -> None:
@@ -593,96 +608,6 @@ def test_prepare_pdf_keeps_the_existing_object_budget() -> None:
     assert caught.value.code == "invalid_options"
 
 
-def test_canvas_print_html_uses_csp_and_data_text_layer() -> None:
-    source = b"<script>must remain data</script>"
-    html = _build_canvas_print_html(
-        source=source,
-        runtime="export const trustedRuntime = true;",
-        wasm=b"wasm-bytes",
-        pages=[{"number": 1, "width": 793.7, "height": 1122.5}],
-        max_html_bytes=1024 * 1024,
-    )
-
-    assert "default-src 'none'" in html
-    assert "'wasm-unsafe-eval'" in html
-    assert "connect-src 'none'" in html
-    assert "color: transparent" in html
-    assert "opacity: 0" not in html
-    assert "textContent = run.text" in html
-    assert "bidops-hwp-canvas-render-complete-v1" in html
-    assert "<script>must remain data</script>" not in html
-
-
-def test_canvas_receipt_requires_exact_pdfinfo_title(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    pdf = tmp_path / "output.pdf"
-    pdf.write_bytes(b"%PDF-1.4 body mentions bidops-hwp-canvas-render-complete-v1")
-    executable = tmp_path / "pdfinfo"
-    executable.write_text("trusted test seam", encoding="utf-8")
-    monkeypatch.setattr(
-        "app.deep_review.document_mcp.processor.shutil.which",
-        lambda name: str(executable) if name == "pdfinfo" else None,
-    )
-    monkeypatch.setattr(
-        "app.deep_review.document_mcp.processor._run_limited_subprocess",
-        lambda *args, **kwargs: (0, b"Title: wrong-title\nPages: 1\n", b""),
-    )
-
-    with pytest.raises(DocumentProcessingError) as caught:
-        DocumentProcessor()._verify_canvas_print_receipt(pdf, ProcessorOptions(timeout_seconds=1))
-    assert caught.value.code == "conversion_required"
-
-
-def test_worker_provenance_hashes_actual_binary_and_binds_adapter_processor(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    real_binary = tmp_path / "chromium-bin"
-    real_binary.write_bytes(Path("/bin/sh").read_bytes())
-    real_binary.chmod(0o700)
-    launcher = tmp_path / "chromium"
-    launcher.write_text(
-        "#!/bin/sh\nexec /usr/lib/chromium/chromium \"$@\"\n",
-        encoding="utf-8",
-    )
-    launcher.chmod(0o700)
-    monkeypatch.setattr(processor_module, "_DEBIAN_CHROMIUM_BINARY", real_binary)
-    monkeypatch.delenv("BIDOPS_DOCUMENT_WORKER_IMAGE_DIGEST", raising=False)
-    monkeypatch.setattr(processor_module, "_font_manifest_sha256", lambda _options, _deadline: "f" * 64)
-
-    renderer, font = processor_module._worker_provenance(
-        runtime="runtime",
-        wasm=b"wasm",
-        adapter=b"adapter",
-        processor_source=b"processor-css",
-        chromium_executable=str(launcher),
-        options=ProcessorOptions(ocr=False),
-        deadline=None,
-    )
-
-    assert renderer["worker_image_digest"] is None
-    assert renderer["worker_image_digest_source"] == "undeclared"
-    assert renderer["chromium_sha256"] == hashlib.sha256(real_binary.read_bytes()).hexdigest()
-    assert font["worker_image_digest"] is None
-    real_binary.write_bytes(real_binary.read_bytes() + b"changed")
-    chromium_changed, _ = processor_module._worker_provenance(
-        runtime="runtime",
-        wasm=b"wasm",
-        adapter=b"adapter",
-        processor_source=b"processor-css",
-        chromium_executable=str(launcher),
-        options=ProcessorOptions(ocr=False),
-        deadline=None,
-    )
-    assert chromium_changed["runtime_sha256"] != renderer["runtime_sha256"]
-    changed, _ = processor_module._worker_provenance(
-        runtime="runtime",
-        wasm=b"wasm",
-        adapter=b"adapter-changed",
-        processor_source=b"processor-css",
-        chromium_executable=str(launcher),
-        options=ProcessorOptions(ocr=False),
-        deadline=None,
-    )
-    assert changed["runtime_sha256"] != renderer["runtime_sha256"]
-
-
 def test_font_manifest_changes_when_same_path_bytes_change(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     font = tmp_path / "trusted-font.ttf"
     font.write_bytes(b"font-v1")
@@ -761,14 +686,14 @@ def test_subprocess_output_limit_is_aggregate_across_stdout_and_stderr() -> None
             encoding="utf-8",
         )
         executable.chmod(0o700)
-        with pytest.raises(DocumentProcessingError) as caught:
-            DocumentProcessor(node_executable=str(executable), clamav_checker=lambda data: True).process(
-                b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1noisy",
-                "application/x-hwp",
-                {"ocr": False, "max_output_bytes": 1024},
+        with pytest.raises(processor_module._ChildOutputLimit):
+            processor_module._run_limited_subprocess(
+                [str(executable)],
+                cwd=temporary,
+                env=processor_module._child_environment(str(executable)),
+                timeout=5.0,
+                output_limit=1024,
             )
-    assert caught.value.code == "output_size_limit"
-    assert caught.value.source_preserved is True
 
 
 def test_mixed_pdf_ocr_targets_only_pages_without_extractable_text() -> None:
@@ -843,7 +768,7 @@ def test_prepare_pdf_reuses_hwpx_archive_boundary_before_rhwp(monkeypatch: pytes
     def unexpected_renderer(*args: object, **kwargs: object) -> None:
         raise AssertionError("rhwp must not receive an archive that failed validation")
 
-    monkeypatch.setattr(DocumentProcessor, "_prepare_pdf_structure", unexpected_renderer)
+    monkeypatch.setattr(native_module.NativeRhwpProcessor, "_call", unexpected_renderer)
     with pytest.raises(DocumentProcessingError) as caught:
         DocumentProcessor(clamav_checker=lambda data: True).process(
             bomb,
@@ -883,51 +808,11 @@ def test_malformed_pdf_and_real_timeout_path() -> None:
         executable.write_text("#!/bin/sh\nsleep 2\n", encoding="utf-8")
         executable.chmod(0o700)
         with pytest.raises(DocumentProcessingError) as caught:
-            DocumentProcessor(node_executable=str(executable), clamav_checker=lambda data: True).process(
+            DocumentProcessor(rhwp_executable=str(executable), clamav_checker=lambda data: True).process(
                 b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1slow", "application/x-hwp", {"ocr": False, "timeout_seconds": 0.1}
             )
         assert caught.value.code == "conversion_required"
         assert caught.value.source_preserved is True
-
-
-def test_converter_stdout_limit_is_enforced_before_completion() -> None:
-    import tempfile
-
-    with tempfile.TemporaryDirectory() as temporary:
-        executable = Path(temporary) / "noisy-converter"
-        executable.write_text(
-            "#!/bin/sh\n"
-            "i=0\n"
-            "while [ $i -lt 4096 ]; do printf x; i=$((i + 1)); done\n",
-            encoding="utf-8",
-        )
-        executable.chmod(0o700)
-        with pytest.raises(DocumentProcessingError) as caught:
-            DocumentProcessor(node_executable=str(executable), clamav_checker=lambda data: True).process(
-                b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1noisy", "application/x-hwp", {"ocr": False, "max_output_bytes": 1024}
-            )
-    assert caught.value.code == "output_size_limit"
-    assert caught.value.source_preserved is True
-
-
-def test_converter_stderr_limit_is_enforced_before_completion() -> None:
-    import tempfile
-
-    with tempfile.TemporaryDirectory() as temporary:
-        executable = Path(temporary) / "noisy-converter"
-        executable.write_text(
-            "#!/bin/sh\n"
-            "i=0\n"
-            "while [ $i -lt 4096 ]; do printf x >&2; i=$((i + 1)); done\n",
-            encoding="utf-8",
-        )
-        executable.chmod(0o700)
-        with pytest.raises(DocumentProcessingError) as caught:
-            DocumentProcessor(node_executable=str(executable), clamav_checker=lambda data: True).process(
-                b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1noisy", "application/x-hwp", {"ocr": False, "max_output_bytes": 1024}
-            )
-    assert caught.value.code == "output_size_limit"
-    assert caught.value.source_preserved is True
 
 
 def test_boolean_bbox_and_confidence_are_not_numbers() -> None:
@@ -1090,7 +975,7 @@ def test_vendored_sha256_manifest_is_deterministic_and_complete() -> None:
     contents = manifest.read_text(encoding="utf-8")
     assert "hwpx-skill.git" in contents
     assert "96a2633f23a08f707679d7e212ebdc59948260e6" in contents
-    assert "DoHyun468/claw-hwp" in contents
+    assert "edwardkim/rhwp" in contents
     entries = [line.split(maxsplit=1) for line in contents.splitlines() if line and not line.startswith("#")]
     assert entries == sorted(entries, key=lambda item: item[1])
     assert all(len(digest) == 64 and path != "SHA256SUMS" for digest, path in entries)

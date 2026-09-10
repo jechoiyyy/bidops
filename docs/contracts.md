@@ -828,7 +828,8 @@ fenced attempt를 추가한다. target은 검증된 PDF에 대해 준비가 끝�
   `ContentObjectLocation`, PDF `ContentObjectLocation`, full page-text JSON
   `ContentObjectLocation`, PDF metadata, page count·page text hash, ClamAV clean
   verdict, worker renderer/font digest와 정규화된 processor options를 묶는다.
-  기존 Canvas/PDF full page text object는 `bidops.prespec-v4-page-text.v1` JSON의 모든 물리 페이지
+  Canvas 이력 행과 새 native/원본 PDF의 full page text object는
+  `bidops.prespec-v4-page-text.v1` JSON의 모든 물리 페이지
   `{number,text,text_sha256}`를 보존하며 PDF metadata의 페이지별 hash와 일치해야
   한다. 생성 PDF는 기존 `source` namespace에 저장하고 page-text·선택 manifest는
   `structure` namespace에 둔다. 원본 PDF는 동일 source object/location과 bytes를
@@ -837,15 +838,14 @@ fenced attempt를 추가한다. target은 검증된 PDF에 대해 준비가 끝�
   조회한다. 같은 source version·worker provenance·options이면 worker를 다시
   호출하지 않고 같은 PDF/page-text object version을 반환한다. cache hit도 source,
   PDF, page-text object를 저장된 namespace·object key·version·etag·size·SHA-256으로
-  bounded read하고 최신 `ContentScan.status=clean`을 확인한다. 기존 Canvas renderer에는
-  `runtime_sha256`와 실제 Chromium binary의 `chromium_sha256`, font에는 실제
-  설치 파일 바이트를 정렬해 만든 `font_manifest_sha256`가 있어야 한다. 배포가
-  선언한 `worker_image_digest`가 있을 때만 선택적으로 함께 결속하며, 선언이 없을
+  bounded read하고 최신 `ContentScan.status=clean`을 확인한다. Canvas renderer로
+  만든 이력 행은 읽기만 하며, 새 snapshot은 native 지문(`rhwp_version`·
+  `rhwp_binary_sha256`)과 실제 설치 파일 바이트를 정렬해 만든 font manifest
+  (`font_manifest_sha256`)만 결속한다. 배포가 선언한 `worker_image_digest`가 있을 때만 선택적으로 함께 결속하며, 선언이 없을
   때 asset fingerprint를 이미지 digest로 가장하지 않고 `null`로 둔다. generated
   PDF에서는 이 값이 caller dict가 아니라 실제 document-worker가 PDF metadata에
-  넣은 vendored runtime·Canvas adapter·processor/CSS·Chromium/font fingerprint와
-  일치해야 한다. 원본 PDF는 `rerendered=false`와 실제 bounded Poppler/stdlib
-  text-extractor provenance를 기록하고 `font_provenance=null`로 둔다. config의 `options`는
+  넣은 native renderer·font fingerprint와 일치해야 한다. 원본 PDF는
+  `rerendered=false`와 실제 bounded Poppler/stdlib text-extractor provenance를 기록하고 `font_provenance=null`로 둔다. config의 `options`는
   `ProcessorOptions.from_mapping`의 확정 기본값을 포함한 정규화 mapping이어야 한다.
 - native snapshot은 `hwpx_content_object_id`·`hwpx_location_id`·`hwpx_verify_jsonb`
   (HWP만), `structure_id`·`structure_location_id`, `para_page_map_content_object_id`·
