@@ -905,6 +905,55 @@ fenced attempt를 추가한다. target은 검증된 PDF에 대해 준비가 끝�
 upgrade/constraint 검사는 기존 object-store/scratch contract와 함께 구현 검증에만
 사용한다.
 
+### v4 개요 입력 범위의 사람 확인 (2026-09-10, R7)
+
+결정적 heading 선택기가 범위를 정하지 못하면 준비는 **실패가 아니다.** 검토 manifest
+`bidops.prespec-v4-range-review.v1`(`{schema_version, document_version_id, source_sha256,
+selection_status, reason_code, strategy, candidates_sha256|null, candidate_count,
+input_limitations}`)을 기존 manifest object 경로(`structure/prespec-v4/{document}/manifest-<sha>.json`,
+retention `prespec-v4-input`)에 저장하고 `selection_status=needs_human_review`,
+`selection_strategy=heading_scope` target을 동결한다. `prepare` 출력 status는
+`needs_human_review`이며 `--enqueue`에서도 attempt를 만들지 않는다. 절 후보 제목은 산출물
+⑦(`bidops.section-candidates.v1`)에만 있고 이 manifest에는 digest·개수만 남는다.
+
+- `GET /api/pre-specs/{notice_id}/overview-pages`에 nullable 필드 `range_review`가 추가된다
+  (`schema_version`은 그대로 `bidops.prespec-overview-pages.v1`). 규칙은 공고의 **최신 target**
+  하나다. 최신이 `needs_human_review`면 확정 대기(`confirmation: null`), 최신이 `ready`이며
+  `selection_strategy=human_confirmed`면 확정 상태(`reason_code: null`), 그 밖
+  (heading_scope `ready` 등)에는 `range_review: null`이다.
+- 필드는 `target_id`, `snapshot_id`, `selection_status`, `reason_code`, `pdf_page_count`,
+  `created_at`, `candidates_mode`(`clause|page|null`), `candidates[]{index,title,page,char_count}`,
+  `assisted`, `confirmation`이다. 후보는 snapshot의 산출물 ⑦에서 읽고 없으면 `[]`·`null`이다.
+  `assisted`는 선택기가 동결한 target의 최신 `prespec_v4.range_assist` 감사(`status=suggested`)를
+  `{start_index,end_index,model_name,quality_status,created_at}`로만 투영한다 — 모델이 적은 사유
+  문장은 계약에 없다. `confirmation`은 확정 target의 불변 manifest와 확정 감사에서
+  `{target_id,confirmed_from_target_id,start_index,end_index,first_page,last_page,page_numbers,
+  actor,note,created_at}`를 만든다. 후보·manifest 읽기 실패는 빈 값으로 낮추지 않고 오류다.
+- `POST /api/pre-specs/{notice_id}/overview-pages/range-confirmations`는 기존 actor 헤더 규약
+  (`X-BidOps-Actor-Name`[`-Format`])을 요구한다. Body는 `{target_id, start_index, end_index,
+  first_page, last_page, note}`이고 (start_index,end_index) 쌍과 (first_page,last_page) 쌍 중
+  **정확히 하나**를 채운다(`note` ≤ 500자). 201 응답은 `{target_id(새 id), selection_status:"ready",
+  first_page, last_page, page_numbers, attempt_enqueued: false}`이며 `attempt_enqueued`는 항상
+  `false`다 — 확정은 입력을 준비할 뿐이고 실행은 별도 승인이다.
+- 후보 index → 쪽: `first_page = candidates[start].page`, `last_page = candidates[end+1].page`
+  (다음 후보가 없으면 `pdf_page_count`), 역순이면 `last_page = first_page`. 확정된 범위는 연속
+  **전체 쪽**이므로 manifest의 `pages[].text_sha256`은 `source_page_text_sha256`과 같다. 새 target은
+  같은 snapshot·observation을 쓰고 `selection_strategy=human_confirmed`, `selection_status=ready`이며
+  manifest에 `confirmed_from_target_id`·`confirmed_by`·`note`·`candidate_indices`가 더해진다.
+- 오류는 기존 envelope이다. 404 `target_not_found`(공고 불일치 포함), 409 `target_not_pending`
+  (최신 target이 아니거나 확정 대기가 아님), 422 `range_invalid`(쌍 규칙·index·쪽 범위 위반),
+  413 `input_size_limit`, 400 `actor_name_required|actor_name_invalid`. 그 밖의 내부 안전 코드는
+  500 `processing_failed`로 닫고 응답에 싣지 않는다.
+- 감사는 두 행뿐이다. 확정은 `prespec_v4.range_confirmed`(aggregate `prespec_v4_target`=새 id,
+  safe_metadata `{from_target_id,start_index,end_index,first_page,last_page,candidate_count}`),
+  모델 보조는 `prespec_v4.range_assist`(aggregate=확정 대기 target, safe_metadata
+  `{status: suggested|invalid|failed, start_index, end_index, model_name, model_revision,
+  prompt_sha256, response_sha256, quality_status, reason_code}`)다. 어느 쪽도 절 제목·원문·모델
+  사유 문장을 담지 않는다. 보조는 `python -m app.deep_review.cli prespec-v4 --assist-range
+  --target-id <uuid> --actor <표식>`로만 돌고 참조 실행 모드·최신 확정 대기 target·후보 2개 이상을
+  요구하며 같은 target에 `suggested`/`invalid` 기록이 있으면 `assist_already_recorded`다. 제안은
+  target·attempt를 만들지 않는다.
+
 ### v4 cohort 활성·준비 ops 계약 (2026-09-09)
 
 v4는 기본 `off`다. 별도 registry/table을 만들지 않고 `audit_event`의
@@ -924,8 +973,9 @@ substring manifest를 동결한다. attachment download의 120초 lease를 재�
 않는다. `--enqueue`는 같은 트랜잭션에서 기존 `WorkJob` aggregate slot과 새 v4
 attempt를 만들고, `--retry`는 terminal failed/cancelled target에 새 sequence
 attempt를 append한다. 기존 attempt/target/result를 수정하거나 legacy overview로
-우회하지 않는다. PDF·관측·범위 실패는 target 없는 `failed` current 또는
-`needs_human_review`로 남기며 model call을 만들지 않는다.
+우회하지 않는다. PDF·관측 실패는 target 없는 `failed` current로 남기며 model call을
+만들지 않는다. **범위를 정하지 못한 것은 실패가 아니다** — 2026-09-10부터 사람 확인
+대기 target(`needs_human_review`)으로 남고 실패 attempt를 만들지 않는다(위 R7 절).
 
 `explicit_sample`은 activation 표본의 notice key/document UUID/source hash/size가
 현재 safe document와 정확히 맞아야 한다. `new_reference`는 활성 시각 뒤의

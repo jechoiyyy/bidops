@@ -184,6 +184,7 @@ v4 PDF 준비는 별도 `prespec_v4_pdf_snapshot` → `prespec_v4_target` →
 `prespec_v4_attempt` 계보다. `0023_rhwp_snapshot`은 native rhwp 준비에 필요한
 변환 HWPX(HWP만)·구조·문단/페이지 대응표의 참조를 nullable 열로 추가한다.
 원문·PDF·변환 HWPX는 `source`, 구조·native page-text·대응표는 `structure` 객체이며,
+`0024_section_candidates`는 같은 `structure` namespace의 절 후보(`bidops.section-candidates.v1`) 참조 세 열을 nullable로 더한다(셋이 함께 null이거나 함께 채워지고, 0024 이전 snapshot은 null로 남아 계속 재사용된다).
 각 location ID가 정확한 MinIO version을 고정한다. 저장과 재사용 모두 객체 해시와
 버전을 확인한다. renderer 전체 JSON의 해시와 font/config 해시가 캐시를 구분한다.
 기존 문서 구조와 pages·blocks가 다르면 덮어쓰지 않고 준비를 실패시킨다.

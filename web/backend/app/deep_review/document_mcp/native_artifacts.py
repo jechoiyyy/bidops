@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 from typing import Any, Mapping
 
@@ -13,6 +14,10 @@ from .safety import ProcessorOptions, validate_zip
 NATIVE_RENDERER = "rhwp-svg-pdf"
 NATIVE_SNAPSHOT_SCHEMA = "bidops.rhwp-pdf-snapshot.v1"
 NATIVE_TEXT_SCHEMA = "bidops.rhwp-page-text.v1"
+SECTION_CANDIDATES_SCHEMA = "bidops.section-candidates.v1"
+SECTION_CANDIDATES_MODES = frozenset({"clause", "page"})
+MAX_SECTION_CANDIDATES = 2000
+MAX_SECTION_TITLE_CHARS = 300
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -74,10 +79,58 @@ def validate_native_page_text(value: Any, metadata: Mapping[str, Any], *, max_pa
     return dict(value)
 
 
+def validate_section_candidates(value: Any, *, page_count: int) -> dict[str, Any]:
+    """Validate the closed section-candidate schema against the PDF page count.
+
+    An empty ``sections`` list is valid: a document without clause structure
+    yields no candidate and must not be turned into a conversion failure.
+    """
+
+    if not isinstance(value, Mapping) or set(value) != {"schema", "page_count", "mode", "section_count", "sections"}:
+        _fail("section_candidates_invalid")
+    if value["schema"] != SECTION_CANDIDATES_SCHEMA or value["mode"] not in SECTION_CANDIDATES_MODES:
+        _fail("section_candidates_invalid")
+    if type(page_count) is not int or page_count < 1 or type(value["page_count"]) is not int or value["page_count"] != page_count:
+        _fail("section_candidates_invalid")
+    sections = value["sections"]
+    if not isinstance(sections, list) or len(sections) > MAX_SECTION_CANDIDATES:
+        _fail("section_candidates_invalid")
+    if type(value["section_count"]) is not int or value["section_count"] != len(sections):
+        _fail("section_candidates_invalid")
+    for index, section in enumerate(sections):
+        if not isinstance(section, Mapping) or set(section) != {"index", "title", "page", "char_count", "truncated"}:
+            _fail("section_candidates_invalid")
+        if type(section["index"]) is not int or section["index"] != index:
+            _fail("section_candidates_invalid")
+        if not isinstance(section["title"], str) or len(section["title"]) > MAX_SECTION_TITLE_CHARS:
+            _fail("section_candidates_invalid")
+        if type(section["page"]) is not int or not 1 <= section["page"] <= page_count:
+            _fail("section_candidates_invalid")
+        if type(section["char_count"]) is not int or section["char_count"] < 0:
+            _fail("section_candidates_invalid")
+        if section["truncated"] is not True and section["truncated"] is not False:
+            _fail("section_candidates_invalid")
+    return dict(value)
+
+
+def section_candidates_bytes(value: Mapping[str, Any], *, max_output_bytes: int, page_count: int) -> bytes:
+    """Serialize independently validated candidates as canonical UTF-8 JSON."""
+
+    validate_section_candidates(value, page_count=page_count)
+    try:
+        result = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+    except (ValueError, TypeError, UnicodeError, RecursionError) as exc:
+        raise DocumentProcessingError("section_candidates_invalid", "절 후보 계약이 올바르지 않습니다", source_preserved=True) from exc
+    if len(result) > max_output_bytes:
+        raise DocumentProcessingError("output_size_limit", "절 후보 크기 제한을 초과했습니다", source_preserved=True)
+    return result
+
+
 def validate_native_bundle(
     structure: Mapping[str, Any], *, source_bytes: bytes, hwpx_bytes: bytes,
     hwpx_verify: Any, page_text: Mapping[str, Any], para_page_map: Mapping[str, Any],
-    pdf_metadata: Mapping[str, Any], options: ProcessorOptions,
+    section_candidates: Mapping[str, Any] | None, pdf_metadata: Mapping[str, Any],
+    options: ProcessorOptions,
 ) -> None:
     validate_structure(structure, max_output_bytes=options.max_output_bytes, max_pages=options.max_pages, max_blocks=options.max_blocks)
     if structure["source_sha256"] != hashlib.sha256(source_bytes).hexdigest():
@@ -104,3 +157,7 @@ def validate_native_bundle(
     validate_para_page_map(para_page_map, block_keys={block["block_key"] for block in structure["blocks"]}, max_pages=options.max_pages, max_blocks=options.max_blocks)
     if para_page_map["page_count"] != page_text["page_count"]:
         _fail("pdf_page_mismatch")
+    # ``None`` is the legacy bundle: snapshots frozen before 0024 carry no
+    # candidates and must stay reusable without being re-prepared.
+    if section_candidates is not None:
+        validate_section_candidates(section_candidates, page_count=page_text["page_count"])

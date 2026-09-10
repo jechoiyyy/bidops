@@ -36,10 +36,16 @@ from ..models import (
     DocumentBundleItem,
 )
 from ...core.object_store import object_store
-from ..schemas.page_overview import PageOverviewResponse
+from ..schemas.page_overview import (
+    PageOverviewRangeConfirmationRequest,
+    PageOverviewRangeConfirmationResponse,
+    PageOverviewResponse,
+)
 from ..schemas.company_fit import CompanyFitResponse
 from ..services.company_fit import company_fit_view
 from ..services.page_overview import PageOverviewError, list_page_overviews, get_page_pdf
+from ..services.prespec_v4_ops import V4OpsError
+from ..services.prespec_v4_range import confirm_v4_range, range_review_projection
 from ..schemas.deep_reviews import AttemptView, DeepReviewView, OpportunityDeepReviewsResponse
 from ..schemas.prespec_overview import (
     PreSpecOverviewReviewsResponse,
@@ -346,11 +352,94 @@ __all__ = [
 @pre_spec_overview_router.get("/{notice_id}/overview-pages", response_model=PageOverviewResponse)
 def get_overview_pages(notice_id: int = ApiPath(..., ge=1), session: Session = Depends(get_db)):
     try:
-        return list_page_overviews(session, notice_id)
+        response = list_page_overviews(session, notice_id)
+        # 범위 사람 확인 자리는 대상이 있을 때만 객체 저장소를 연다. 후보·manifest
+        # 읽기 실패는 빈 값으로 낮추지 않고 오류로 올린다(fail closed).
+        review = range_review_projection(
+            session, notice_id,
+            store_factory=lambda: object_store(namespaces=(), read_namespaces=("structure",)),
+        )
+        return response if review is None else response.model_copy(update={"range_review": review})
     except PageOverviewError as error:
         return _page_error(error)
     except Exception:
         return _page_error(PageOverviewError("processing_failed"))
+
+
+#: 범위 확정의 바깥 오류. 내부 안전 코드는 여기 없는 것은 모두 500으로 닫는다.
+_RANGE_ERRORS: dict[str, tuple[int, str]] = {
+    "actor_name_required": (400, "담당자 이름이 필요합니다"),
+    "actor_name_invalid": (400, "담당자 이름이 올바르지 않습니다"),
+    "target_not_found": (404, "범위 확정 대상을 찾을 수 없습니다"),
+    "target_not_pending": (409, "이 대상은 범위 확정 대기 상태가 아닙니다"),
+    "range_invalid": (422, "선택한 범위가 올바르지 않습니다"),
+    "input_size_limit": (413, "선택한 범위가 입력 크기 한도를 넘습니다"),
+}
+
+
+def _range_error(code: str) -> JSONResponse:
+    status_code, message = _RANGE_ERRORS.get(code, (500, "범위 확정을 완료할 수 없습니다"))
+    safe_code = code if code in _RANGE_ERRORS else "processing_failed"
+    return JSONResponse(
+        status_code=status_code,
+        content={"error": {"code": safe_code, "message": message, "details": None}, "request_id": None},
+    )
+
+
+@pre_spec_overview_router.post(
+    "/{notice_id}/overview-pages/range-confirmations",
+    response_model=PageOverviewRangeConfirmationResponse,
+    status_code=201,
+)
+def confirm_overview_page_range(
+    payload: PageOverviewRangeConfirmationRequest,
+    notice_id: int = ApiPath(..., ge=1),
+    actor: Annotated[str | None, Header(alias="X-BidOps-Actor-Name")] = None,
+    actor_format: Annotated[str | None, Header(alias="X-BidOps-Actor-Name-Format")] = None,
+    session: Session = Depends(get_db),
+):
+    """사람이 확정한 개요 입력 범위로 새 ready target을 동결한다.
+
+    attempt를 만들지 않는다 — `attempt_enqueued`는 언제나 `false`이고 개요 검토
+    실행은 별도 승인 경로다.
+    """
+
+    try:
+        actor_name = validate_actor(actor, actor_format)
+    except BundleServiceError as error:
+        return _range_error(error.code)
+    except ValidationError:
+        return _range_error("actor_name_invalid")
+    try:
+        result = confirm_v4_range(
+            session,
+            object_store(namespaces=("structure",), read_namespaces=("structure",)),
+            notice_id=notice_id,
+            target_id=payload.target_id,
+            actor=actor_name,
+            start_index=payload.start_index,
+            end_index=payload.end_index,
+            first_page=payload.first_page,
+            last_page=payload.last_page,
+            note=payload.note,
+        )
+        if result.selection_status != "ready":
+            raise V4OpsError("range_confirmation_failed")
+        session.commit()
+    except V4OpsError as error:
+        session.rollback()
+        return _range_error(error.code)
+    except Exception:
+        session.rollback()
+        return _range_error("processing_failed")
+    return PageOverviewRangeConfirmationResponse(
+        target_id=result.target_id,
+        selection_status="ready",
+        first_page=result.first_page,
+        last_page=result.last_page,
+        page_numbers=list(result.page_numbers),
+        attempt_enqueued=False,
+    )
 
 
 @pre_spec_overview_router.get("/{notice_id}/company-fit", response_model=CompanyFitResponse)

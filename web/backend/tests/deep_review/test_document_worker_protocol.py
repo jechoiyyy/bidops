@@ -152,6 +152,8 @@ def _generated_native_document(content: bytes, pdf: bytes) -> ProcessedDocument:
         page_dump=native.page_dump,
         para_page_map=native.para_page_map,
         para_page_map_bytes=native.para_page_map_bytes,
+        section_candidates=native.section_candidates,
+        section_candidates_bytes=native.section_candidates_bytes,
         pdf_metadata=native.pdf_metadata,
     )
 
@@ -448,3 +450,84 @@ def test_worker_cleanup_does_not_touch_another_request(tmp_path: Path):
     assert not first.exists()
     assert second.exists()
     assert (root / "inbox" / f"{second.stem}.bin").exists()
+
+
+def test_pdf_v2_publishes_and_rebinds_the_section_candidate_sidecar(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    root = tmp_path / "candidates"
+    source = FIXTURE.read_bytes()
+    generated = b"%PDF-1.7\nmock generated PDF\n%%EOF"
+    _patch_generated_pdf_processor(monkeypatch, generated)
+    expected = _generated_native_document(source, generated)
+    real_write_request = document_converter.write_request
+    published: list[dict[str, object]] = []
+
+    def write_and_run(*args, **kwargs):  # type: ignore[no-untyped-def]
+        request = real_write_request(*args, **kwargs)
+        assert convert_one(root) is True
+        result = json.loads((root / "results" / f"{request.stem}.json").read_text(encoding="utf-8"))
+        descriptor = result["native_sidecars"]["section_candidates"]
+        sidecar = root / "native" / f"{request.stem}.section-candidates.json"
+        data = sidecar.read_bytes()
+        assert descriptor["file"] == f"native/{sidecar.name}"
+        assert descriptor["byte_count"] == len(data) == len(expected.section_candidates_bytes)
+        assert descriptor["sha256"] == hashlib.sha256(data).hexdigest()
+        assert data == expected.section_candidates_bytes
+        published.append(descriptor)
+        return request
+
+    monkeypatch.setattr(document_converter, "write_request", write_and_run)
+    processed = ScratchDocumentProcessor(root, wait_seconds=2, clamav_checker=lambda _content: True).process(
+        source,
+        "application/pdf",
+        {"ocr": False, "prepare_pdf": True, "max_output_bytes": 1024 * 1024},
+    )
+    assert len(published) == 1
+    assert processed.section_candidates == expected.section_candidates
+    assert processed.section_candidates_bytes == expected.section_candidates_bytes
+    assert not list((root / "native").glob("*"))
+
+
+@pytest.mark.parametrize(
+    ("tamper", "expected_code"),
+    [("bytes", "hash_mismatch"), ("descriptor", "section_candidates_invalid"), ("missing", "rhwp_manifest_invalid")],
+)
+def test_pdf_v2_rejects_a_tampered_or_absent_section_candidate_sidecar(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, tamper: str, expected_code: str,
+):
+    root = tmp_path / f"candidate-{tamper}"
+    source = FIXTURE.read_bytes()
+    generated = b"%PDF-1.7\nmock generated PDF\n%%EOF"
+    _patch_generated_pdf_processor(monkeypatch, generated)
+    real_write_request = document_converter.write_request
+
+    def write_and_tamper(*args, **kwargs):  # type: ignore[no-untyped-def]
+        request = real_write_request(*args, **kwargs)
+        assert convert_one(root) is True
+        result_path = root / "results" / f"{request.stem}.json"
+        result = json.loads(result_path.read_text(encoding="utf-8"))
+        sidecar = root / "native" / f"{request.stem}.section-candidates.json"
+        if tamper == "missing":
+            # A new native build that publishes no candidate sidecar fails closed.
+            sidecar.unlink()
+            del result["native_sidecars"]["section_candidates"]
+        else:
+            payload = json.loads(sidecar.read_bytes())
+            payload["sections"][0]["page"] = 99
+            data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+            sidecar.write_bytes(data)
+            if tamper == "descriptor":
+                result["native_sidecars"]["section_candidates"].update(
+                    sha256=hashlib.sha256(data).hexdigest(), byte_count=len(data),
+                )
+        result_path.write_text(json.dumps(result), encoding="utf-8")
+        return request
+
+    monkeypatch.setattr(document_converter, "write_request", write_and_tamper)
+    with pytest.raises(DocumentProcessingError) as error:
+        ScratchDocumentProcessor(root, wait_seconds=2, clamav_checker=lambda _content: True).process(
+            source,
+            "application/pdf",
+            {"ocr": False, "prepare_pdf": True, "max_output_bytes": 1024 * 1024},
+        )
+    assert error.value.code == expected_code
+    assert not list((root / "native").glob("*"))

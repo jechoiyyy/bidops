@@ -78,6 +78,8 @@ C-1 공고 판정, 사전규격 개요 검토, 심층 검토는 `app/core/model_
 - API key는 `SecretStr`로만 다뤄 repr·로그에 값이 실리지 않는다. 오류 메시지에서 URL·경로·비밀 형태 문자열은 저장 전에 redaction한다.
 - 참조 실행 모드(`BIDOPS_REFERENCE_WORKFLOW_MODE=true`)는 결정적 mock provider를 허용하고 policy 모델명 대조를 건너뛰지만 `model_endpoint_ref` 검사는 유지한다. 그 결과에는 `quality_status=unmeasured_reference|mock_reference` 표식이 붙으며 운영 완료·품질 근거·활성화 근거로 쓰지 않는다.
 
+개요 입력 범위 보조(`--assist-range`, overview 용도)의 payload는 절 후보의 `index`·`title`·`page`·`char_count`와 고정 한국어 지시뿐이다. 원문 본문·발췌(rhwp `untrustedContent`)·경로·식별자·자격증명은 보내지 않으며, 감사에는 제목 없이 상태·index·모델명·선언 revision·prompt/응답 hash·`quality_status`만 남기고 원응답 본문은 저장하지 않는다.
+
 발주계획 선별 실험에서 Luna·Sol을 사용할 때는 공개 발주계획 필드와 사람이 승인한 회사 역량 요약만 전송한다. 실행마다 모델·목적·전송 필드·건수·승인자·시각을 미리 보여 주고 승인 뒤 호출한다. 승인되지 않은 추가 필드가 있거나 회사 프로필 원문·제안요청서·첨부·리뷰가 포함되면 전체 실행을 중단한다.
 
 향후 선택형 외부 재분석을 도입하더라도 자동 fallback으로 구현하지 않는다. 조직의 보존 지역·학습 사용·삭제·계약 정책을 먼저 확정하고 공고별 전송 미리보기와 건별 승인을 거쳐야 한다.
