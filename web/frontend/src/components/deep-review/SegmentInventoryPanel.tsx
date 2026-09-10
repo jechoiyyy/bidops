@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { DeepReviewApiError, getDocumentSegments, getDocumentStructurePage } from "./api";
-import type { DocumentSegmentView, TaxonomyLabel } from "./types";
+import type { DocumentSegmentView, SegmentPageRange, TaxonomyLabel } from "./types";
 
 // 심층 보고서 화면 우측 열의 문서별 inventory 요약과 `needs_human_review`
 // segment 목록(명세 §6.8).
@@ -12,7 +12,9 @@ import type { DocumentSegmentView, TaxonomyLabel } from "./types";
 // 다른 endpoint에서 원문을 받아 다시 짓지 않는다.
 //
 // 원문 열기는 기존 page endpoint(`/document-structures/{id}/pages/{page}`)를
-// 그대로 쓴다.
+// 그대로 쓴다. PDF 페이지 링크는 계약이 주는 `page_range`(물리 PDF 순번)만
+// 쓰고, `mapping_status`가 `unavailable`이라 `page_range`가 없으면 페이지를
+// 추정하지 않고 미확인으로 남긴다.
 
 const TAXONOMY_LABEL: Record<TaxonomyLabel, string> = {
   business_eligibility_evaluation: "사업·자격·평가",
@@ -32,6 +34,10 @@ function isNotFound(error: unknown): boolean {
 
 function isUnsafeDocument(error: unknown): boolean {
   return error instanceof DeepReviewApiError && error.status === 403;
+}
+
+function pageRangeText(range: SegmentPageRange): string {
+  return range.first === range.last ? `${range.first}` : `${range.first}~${range.last}`;
 }
 
 function taxonomyText(segment: DocumentSegmentView): string {
@@ -161,6 +167,21 @@ export function SegmentInventoryPanel({ structureId, sourceNote }: SegmentInvent
                     {segment.requirement_ids.length > 0 ? (
                       <span className="mono">{segment.requirement_ids.join(", ")}</span>
                     ) : null}
+                    {segment.page_range === null ? (
+                      <span>페이지 미확인</span>
+                    ) : (
+                      <span>
+                        <a
+                          href={`/api/document-structures/${structureId as string}/pdf#page=${segment.page_range.first}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          aria-label={`segment ${segment.ordinal} · PDF ${pageRangeText(segment.page_range)}페이지 열기`}
+                        >
+                          PDF {pageRangeText(segment.page_range)}페이지 ↗
+                        </a>
+                        {segment.mapping_status === "partial" ? " · 일부 블록만 대응" : null}
+                      </span>
+                    )}
                   </div>
                   <button
                     type="button"
