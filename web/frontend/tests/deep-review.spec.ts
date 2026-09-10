@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { mockApi, mockDeepReviewLifecycle } from "./api-mock";
+import { FIXTURE_STRUCTURE_ID, mockApi, mockDeepReviewLifecycle } from "./api-mock";
 
 test.describe("심층 검토 보고서 접근성·반응형 계약", () => {
   test.beforeEach(async ({ page }) => {
@@ -338,6 +338,36 @@ test("우측 열은 보고서 범위·문서 inventory·수정본 저장·이력
   // 되돌릴 수 없는 결정(사전규격 심층검토 의견)은 본문 열에 남는다.
   await expect(side.getByRole("button", { name: "심층검토 의견 추가", exact: true })).toHaveCount(0);
   await expect(page.locator(".deep-review-report-main").getByRole("button", { name: "심층검토 의견 추가", exact: true })).toHaveCount(1);
+});
+
+// segment의 PDF 페이지 링크는 대응표가 준 물리 순번(`page_range`)만 쓴다.
+// 대응이 일부뿐이면 그 사실을 문구로 밝히고, 대응이 없으면 페이지를 추정하지
+// 않고 미확인으로 남긴다.
+test("사람 확인 segment는 대응된 PDF 페이지만 링크하고 미확인은 미확인으로 남긴다", async ({ page }) => {
+  await mockApi(page);
+  await mockDeepReviewLifecycle(page, "completed");
+  await page.goto("/deep-reviews/fixture-review");
+
+  const items = page.locator(".deep-review-segment-list > li");
+  await expect(items).toHaveCount(3, { timeout: 10_000 });
+
+  // mapped · 단일 페이지 — 링크는 그 구조의 native snapshot PDF를 가리킨다.
+  const mapped = items.filter({ hasText: "segment 2" });
+  const mappedLink = mapped.getByRole("link", { name: "segment 2 · PDF 3페이지 열기" });
+  await expect(mappedLink).toHaveAttribute("href", `/api/document-structures/${FIXTURE_STRUCTURE_ID}/pdf#page=3`);
+  await expect(mappedLink).toHaveText("PDF 3페이지 ↗");
+  await expect(mapped).not.toContainText("일부 블록만 대응");
+
+  // partial · 페이지 범위 — 링크는 첫 페이지로 가고 부분 대응을 밝힌다.
+  const partial = items.filter({ hasText: "segment 3" });
+  const partialLink = partial.getByRole("link", { name: "segment 3 · PDF 5~7페이지 열기" });
+  await expect(partialLink).toHaveAttribute("href", `/api/document-structures/${FIXTURE_STRUCTURE_ID}/pdf#page=5`);
+  await expect(partial).toContainText("일부 블록만 대응");
+
+  // unavailable · 링크 없음. 페이지를 만들어 내지 않는다.
+  const unavailable = items.filter({ hasText: "segment 4" });
+  await expect(unavailable).toContainText("페이지 미확인");
+  await expect(unavailable.getByRole("link")).toHaveCount(0);
 });
 
 // 심층검토 의견은 append-only라 저장 뒤 지울 수 없다. 클릭 한 번에 나가지 않고

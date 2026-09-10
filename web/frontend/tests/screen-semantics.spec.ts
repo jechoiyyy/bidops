@@ -466,13 +466,13 @@ test("심층 보고서 우측 열이 문서 inventory와 사람 확인 필요 se
   await expect(inventory).toContainText("기대 ID 수");
   await expect(inventory).toContainText("중복 ID");
   await expect(inventory).toContainText("모호 항목");
-  await expect(panel.locator(".deep-review-segment-coverage")).toContainText("사람 확인 필요 구간 1건");
+  await expect(panel.locator(".deep-review-segment-coverage")).toContainText("사람 확인 필요 구간 3건");
   await expect(panel).toContainText("접두사 확인 안 됨");
   // 계약에 원문 text가 없으므로 제목을 만들어 내지 않는다.
   await expect(panel).toContainText("segment 제목을 제공하지 않습니다");
 
   const items = panel.locator(".deep-review-segment-list > li");
-  await expect(items).toHaveCount(1);
+  await expect(items).toHaveCount(3);
   await expect(items.first()).toContainText("segment 2");
   await expect(items.first()).toContainText("기술·기능");
   await expect(items.first()).toContainText("SFR-3");
