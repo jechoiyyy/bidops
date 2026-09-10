@@ -25,6 +25,7 @@ from typing import Any
 from .contracts import SCHEMA, UPSTREAM_COMMIT, validate_structure
 from .errors import DocumentProcessingError
 from .hwpx import extract_hwpx, extractor_info
+from .native import NativeRhwpProcessor
 from .pdf import PdfPage, extract_pdf
 from .safety import OutputBudget, ProcessorOptions, detect_media_type, enforce_input_limit, image_dimensions, validate_zip
 
@@ -464,6 +465,10 @@ class ProcessedDocument(dict[str, Any]):
         rendered_pages: dict[int, bytes] | None = None,
         converted_pdf_bytes: bytes | None = None,
         pdf_metadata: dict[str, Any] | None = None,
+        page_text: dict[str, Any] | None = None,
+        page_dump: dict[str, Any] | None = None,
+        hwpx_verify: dict[str, Any] | None = None,
+        hwpx_bytes: bytes | None = None,
     ) -> None:
         super().__init__(payload)
         self.original_bytes = original_bytes
@@ -475,6 +480,10 @@ class ProcessedDocument(dict[str, Any]):
         # ``dict(processed)``.
         self.converted_pdf_bytes = converted_pdf_bytes
         self.pdf_metadata = pdf_metadata or {}
+        self.page_text = page_text or {}
+        self.page_dump = page_dump or {}
+        self.hwpx_verify = hwpx_verify
+        self.hwpx_bytes = hwpx_bytes
 
 
 class _ChildTimeout(RuntimeError):
@@ -674,6 +683,7 @@ class DocumentProcessor:
         node_executable: str | None = None,
         chromium_executable: str | None = None,
         clamav_checker: ClamAVChecker | None = None,
+        rhwp_executable: str | None = None,
     ) -> None:
         self.ocr_engine = ocr_engine
         self.clamav_checker = clamav_checker
@@ -687,6 +697,9 @@ class DocumentProcessor:
                 "chromium", "chromium-browser", "google-chrome", "google-chrome-stable",
             ) if shutil.which(name)),
             None,
+        )
+        self.rhwp_executable = rhwp_executable or str(
+            Path(__file__).with_name("vendor") / "rhwp" / "bin" / "rhwp"
         )
 
     def process(
@@ -705,6 +718,10 @@ class DocumentProcessor:
         pdf_metadata: dict[str, Any] = {}
         rendered: dict[int, bytes] = {}
         warnings: list[str] = []
+        page_text: dict[str, Any] = {}
+        page_dump: dict[str, Any] = {}
+        hwpx_verify: dict[str, Any] | None = None
+        canonical_hwpx: bytes | None = None
         if self.clamav_checker is None:
             # No claim of a clean scan is made when ClamAV is not available.
             # The bundle/quarantine layer must keep this source blocked.
@@ -720,7 +737,19 @@ class DocumentProcessor:
                 warnings.append("clamav_unavailable")
         if detected == "application/x-hwp":
             try:
-                if opts.prepare_pdf:
+                if opts.renderer == "rhwp-svg-pdf":
+                    native = self._process_native(original, detected, opts, deadline)
+                    pages, blocks = native["pages"], native["blocks"]
+                    warnings.extend(native["warnings"])
+                    converted = native["converted"]
+                    converted_pdf = native["pdf"]
+                    pdf_metadata = native["pdf_metadata"]
+                    page_text = native["page_text"]
+                    page_dump = native["page_dump"]
+                    hwpx_verify = native["verify"]
+                    canonical_hwpx = converted
+                    extractor = {"name": "hwp-rhwp-native-hwpx", "version": "1", "upstream_commit": UPSTREAM_COMMIT}
+                elif opts.prepare_pdf:
                     pages, blocks, child_warnings, converted_pdf, pdf_metadata = self._prepare_pdf_structure(
                         original, opts, deadline=deadline,
                     )
@@ -733,12 +762,22 @@ class DocumentProcessor:
                     extractor = {"name": "hwp-rhwp-hwpx", "version": "1", "upstream_commit": UPSTREAM_COMMIT}
             except DocumentProcessingError as exc:
                 exc.source_preserved = True
-                if exc.code in {"timeout", "converter_unavailable", "conversion_required", "malformed_hwpx", "malformed_archive"}:
+                if opts.renderer != "rhwp-svg-pdf" and exc.code in {"timeout", "converter_unavailable", "conversion_required", "malformed_hwpx", "malformed_archive"}:
                     exc.code = "conversion_required"
                     exc.message = "HWP 변환 확인 필요"
                 raise
         elif detected == "application/hwp+zip":
-            if opts.prepare_pdf:
+            if opts.renderer == "rhwp-svg-pdf":
+                native = self._process_native(original, detected, opts, deadline)
+                pages, blocks = native["pages"], native["blocks"]
+                warnings.extend(native["warnings"])
+                converted_pdf = native["pdf"]
+                pdf_metadata = native["pdf_metadata"]
+                page_text = native["page_text"]
+                page_dump = native["page_dump"]
+                canonical_hwpx = original
+                extractor = extractor_info()
+            elif opts.prepare_pdf:
                 # MIME detection only inspects the ZIP central directory. Keep
                 # the existing archive traversal, link, member, ratio, and
                 # decompressed-size boundary in front of the rhwp process even
@@ -914,7 +953,31 @@ class DocumentProcessor:
             rendered_pages=rendered,
             converted_pdf_bytes=converted_pdf,
             pdf_metadata=pdf_metadata,
+            page_text=page_text,
+            page_dump=page_dump,
+            hwpx_verify=hwpx_verify,
+            hwpx_bytes=canonical_hwpx,
         )
+
+    def _process_native(
+        self,
+        original: bytes,
+        media_type: str,
+        options: ProcessorOptions,
+        deadline: float,
+    ) -> dict[str, Any]:
+        """Explicit R3 integration seam; it never falls back to Canvas."""
+
+        adapter = NativeRhwpProcessor(
+            self.rhwp_executable,
+            run=_run_limited_subprocess,
+            limiter=_resource_limiter,
+            child_environment=_child_environment,
+            timeout_error=_ChildTimeout,
+            output_error=_ChildOutputLimit,
+            font_manifest=_font_manifest_sha256,
+        )
+        return adapter.process(original, media_type, options, deadline)
 
     @staticmethod
     def _remaining_timeout(deadline: float | None, options: ProcessorOptions, message: str) -> float:

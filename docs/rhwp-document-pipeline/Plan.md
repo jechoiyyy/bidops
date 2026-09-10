@@ -1,6 +1,6 @@
 # rhwp 문서 변환 파이프라인 진행 계획
 
-작업명: rhwp-document-pipeline · 기준일: 2026-09-10 · 상태: 진행 중 (R0 계약 종결, 다음 R1은 coordinator acceptance 대기)
+작업명: rhwp-document-pipeline · 기준일: 2026-09-10 · 상태: 진행 중 (R0 coordinator 수락·병합, R1 구현 게이트 통과·coordinator 검토 대기)
 
 이 문서는 새 세션이 다른 맥락 없이 이 작업을 이어갈 수 있도록 순서·담당·게이트·현재 상태·재현 명령을 모아 둔다. 내용이 이미 다른 문서에 있으면 여기 다시 적지 않고 링크한다. 단계가 끝나거나 결정이 바뀌면 §7 진행 기록에 덧붙이고, 결정 자체는 [ADR.md](ADR.md)에 적는다.
 
@@ -107,10 +107,10 @@ git diff --check
 
 ### R1 변환기 (담당: 위임, `feat/rdp-r1-converter`)
 
-- [ ] `DocumentProcessor`에 rhwp 경로([Spec §1](Spec.md#1-rhwp-호출-계약) ①~⑤). Canvas 경로는 남기고 `renderer` 값으로 구분.
-- [ ] stdout JSON 파서, `untrustedFields` 처리, 오류 코드([Spec §5](Spec.md#5-오류-코드)), 페이지 번호 0→1 변환. 네 native 호출별 stdout cap은 1 MiB이며 초과는 `output_size_limit`이다.
-- [ ] `_run_limited_subprocess` 아래 공유 deadline·stdout cap·per-artifact output cap·rlimit. stdout을 무제한으로 열거나 파일 출력으로 우회하지 않으며, Chromium 예외(AS/DATA 해제, FSIZE 4배)는 미적용.
-- [ ] `tests/deep_review/test_document_mcp.py`에 rhwp 계약 테스트(고정 JSON으로 파서·오류·페이지 일치. 실제 바이너리 실행은 이미지 안 실측으로만).
+- [x] `DocumentProcessor`에 rhwp 경로([Spec §1](Spec.md#1-rhwp-호출-계약) ①~⑤). Canvas 경로는 남기고 검증된 `renderer` 값으로 명시 선택하며 기본값은 기존 경로다.
+- [x] stdout JSON 파서, `untrustedFields` 처리, 오류 코드([Spec §5](Spec.md#5-오류-코드)), 페이지 번호 0→1 변환. 네 native 호출별 stdout cap은 1 MiB이며 초과는 `output_size_limit`이다.
+- [x] `_run_limited_subprocess` 아래 공유 deadline·stdout cap·per-artifact output cap·일반 rlimit. stdout을 무제한으로 열거나 파일 출력으로 우회하지 않으며, Chromium 예외(AS/DATA 해제, FSIZE 4배)는 미적용.
+- [x] `tests/deep_review/test_document_mcp.py`에 rhwp 계약 테스트(고정 JSON으로 파서·오류·페이지 일치. 실제 바이너리 실행은 이미지 안 실측으로만).
 - 소유 파일: `document_mcp/processor.py`, `contracts.py`, `errors.py`, `safety.py`(옵션), 해당 테스트.
 
 게이트: focused 테스트, 격리 이미지에서 표본 3건 산출물 5종, 금액·기간·ID 보존([Requirements §6](Requirements.md#6-표본과-측정-기준선)).
@@ -200,3 +200,5 @@ git diff --check
 | 2026-09-10 | 착수 | rhwp v0.8.6 호스트 실측(표본 3건, [Spec §8](Spec.md#8-실측-기록)), 사용자 결정 4개(ADR-RDP-001~004), 정본 문서 4종 `2f4f6af`, 이 계획 작성. 다음: R0 |
 | 2026-09-10 | R0 | Orca 관리 격리 worktree `/home/jechoi/orca/workspaces/bidops/rdp-r0-baseline`, 브랜치 `feat/rdp-r0-baseline`에서 native binary·Nanum 폰트 이미지와 표본 2회 실측 완료. pids·시간·결정성은 통과했지만 `dump-pages` stdout 256 KiB 초과와 HWP→HWPX paragraph crosswalk 미정 때문에 R0 게이트는 닫힘. 근거: [validation run](../validation-runs/2026-09-10-rhwp-r0-baseline.md) |
 | 2026-09-10 | R0 계약 종결 | 최초 실측 시점의 닫힌 게이트 기록은 유지한다. 이미 측정한 세 표본의 안전 지표를 근거로 native 네 호출별 stdout cap을 1 MiB(1,048,576 B)로 정하고 실제 최대 747,110 B를 기록했다. identity는 `(section, paraIndex)`로 고정하고, extractor identity가 증명된 원본 HWPX만 source XML ordinal을 쓰며 HWP→HWPX는 exact full-text가 정확히 한 export-text 페이지에 한 번 나타날 때만 매핑한다(그 외·빈 블록은 `unmapped`). PDF 결정성은 같은 이미지의 세 표본 재실행 증거에만 한정한다. R0 게이트를 통과로 종결했으며 현재는 R1 시작에 대한 coordinator acceptance를 기다린다. |
+| 2026-09-10 | R0 수락 | coordinator가 R0를 수락하고 main `518a770`에 병합했다. R1은 이 commit에서 시작했다. |
+| 2026-09-10 | R1 | `feat/rdp-r1-converter`에서 명시적 `rhwp-svg-pdf` 선택 seam, 엄격 native JSON/산출물 검증, out-of-band HWPX·PDF·page-text·sanitized dump와 worker 계산 provenance를 구현했다. focused 54건과 변경 후 대상 검사, R0 이미지의 세 표본 실제 `DocumentProcessor` 경로가 통과했다. 근거: [R1 validation](../validation-runs/2026-09-10-rhwp-r1-converter.md), [safe metrics](../validation-runs/2026-09-10-rhwp-r1-converter.metrics.json). 다음 단계는 coordinator가 diff와 증거를 수락한 뒤에만 연다. |

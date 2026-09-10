@@ -1,0 +1,65 @@
+{
+  "schema": "bidops.rhwp-r1-processor-metrics.v1",
+  "image": "bidops-rdp-r0:20260910",
+  "image_id": "sha256:84f5cd7f2fff935f4d3502c092607ad3a796e494a47041e976369d3ad249655e",
+  "limits": {
+    "network": "none",
+    "uid_gid": "1000:1000",
+    "memory_bytes": 1073741824,
+    "pids": 128,
+    "cap_drop": "ALL",
+    "no_new_privileges": true,
+    "deadline_seconds": 300,
+    "max_output_bytes": 67108864,
+    "max_pdf_objects": 100000
+  },
+  "renderer": {
+    "name": "rhwp-svg-pdf",
+    "version": "0.8.6",
+    "binary_sha256": "c82684971756d58ba7391cd08c38c93bb4280ab9ebf0e21c0936574a0084fc8c",
+    "font_manifest_sha256": "92e5dc4ff6e83ab2008e636169bf0b24df0cb404214af33946a73f010f1650a9"
+  },
+  "samples": [
+    {
+      "sample": "notice-142",
+      "seconds": 22.119,
+      "page_count": 79,
+      "page_counts_agree": true,
+      "hwpx": {"kind": "original-validated-input", "bytes": 840114},
+      "pdf_bytes": 4829134,
+      "structure": {"schema": "bidops.document-structure.v1", "bytes": 627299, "blocks": 2561},
+      "page_text": {"bytes": 139597, "pages": 79},
+      "sanitized_dump": {"bytes": 72773, "pages": 79, "text_preview_absent": true},
+      "known_numeric_period_preserved": true,
+      "known_id_preserved": true
+    },
+    {
+      "sample": "notice-10-rfp",
+      "seconds": 17.233,
+      "page_count": 53,
+      "page_counts_agree": true,
+      "hwpx": {"kind": "converted-verified", "bytes": 139694, "diff_count": 0, "pages_before": 53, "pages_after": 53},
+      "pdf_bytes": 2874883,
+      "structure": {"schema": "bidops.document-structure.v1", "bytes": 614787, "blocks": 2493},
+      "page_text": {"bytes": 103878, "pages": 53},
+      "sanitized_dump": {"bytes": 43801, "pages": 53, "text_preview_absent": true},
+      "known_numeric_period_preserved": true,
+      "known_id_preserved": true,
+      "known_id_count": 50
+    },
+    {
+      "sample": "notice-10-sow",
+      "seconds": 10.737,
+      "page_count": 31,
+      "page_counts_agree": true,
+      "hwpx": {"kind": "converted-verified", "bytes": 81250, "diff_count": 0, "pages_before": 31, "pages_after": 31},
+      "pdf_bytes": 1616896,
+      "structure": {"schema": "bidops.document-structure.v1", "bytes": 341240, "blocks": 1353},
+      "page_text": {"bytes": 58219, "pages": 31},
+      "sanitized_dump": {"bytes": 22777, "pages": 31, "text_preview_absent": true},
+      "known_numeric_period_preserved": true,
+      "known_id_preserved": true,
+      "known_id_count": 50
+    }
+  ]
+}

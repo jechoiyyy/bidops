@@ -23,6 +23,15 @@ from app.deep_review.document_mcp import (
 )
 from app.deep_review.document_mcp import processor as processor_module
 from app.deep_review.document_mcp.processor import _build_canvas_print_html
+from app.deep_review.document_mcp.native import (
+    RHWP_SCHEMA_VERSION,
+    RHWP_STDOUT_LIMIT,
+    NativeRhwpProcessor,
+    parse_hwpx_manifest,
+    parse_page_dump_manifest,
+    parse_page_text_manifest,
+    parse_pdf_manifest,
+)
 
 FIXTURES = Path(__file__).parents[1] / "fixtures" / "documents"
 
@@ -117,6 +126,255 @@ def one_pixel_png() -> bytes:
         import binascii
         return struct.pack(">I", len(value)) + kind + value + struct.pack(">I", binascii.crc32(kind + value) & 0xFFFFFFFF)
     return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", 1, 1, 8, 6, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(b"\x00\x00\x00\x00\xff")) + chunk(b"IEND", b"")
+
+
+def rhwp_envelope(**fields: object) -> bytes:
+    return json.dumps({
+        "schemaVersion": RHWP_SCHEMA_VERSION,
+        "source": "source.hwp",
+        "untrustedContent": False,
+        "untrustedFields": [],
+        **fields,
+    }).encode()
+
+
+def native_text_manifest(pages: list[dict[str, object]], **fields: object) -> bytes:
+    return rhwp_envelope(
+        untrustedContent=True,
+        untrustedFields=["pages[].text"],
+        pageCount=len(pages),
+        omittedCount=0,
+        truncated=False,
+        pages=pages,
+        **fields,
+    )
+
+
+def native_dump_manifest(pages: list[dict[str, object]], *, page_count: int | None = None) -> bytes:
+    return rhwp_envelope(
+        untrustedContent=True,
+        untrustedFields=["pages[].columns[].items[].textPreview"],
+        pageCount=len(pages) if page_count is None else page_count,
+        pageFilter=None,
+        respectVposReset=True,
+        pages=pages,
+    )
+
+
+def dump_page(index: int) -> dict[str, object]:
+    return {
+        "pageIndex": index,
+        "pageNumber": 1,
+        "displayPage": index + 1,
+        "section": 0,
+        "columns": [],
+        "extras": [],
+    }
+
+
+def test_native_manifests_accept_actual_v086_types_and_strip_preview() -> None:
+    hwpx = b"PK\x03\x04verified"
+    verify = parse_hwpx_manifest(rhwp_envelope(
+        format="hwpx", output="converted.hwpx", bytes=len(hwpx), passwordProtected=False,
+        verify={"diffCount": 0, "identical": True},
+        verifyPages={"before": 1, "after": 1, "identical": True},
+    ), hwpx)
+    pdf = b"%PDF-safe"
+    assert verify["pages"]["before"] == 1
+    assert parse_pdf_manifest(rhwp_envelope(
+        format="pdf", backend="svg", output="output.pdf", bytes=len(pdf),
+        pageCount=1, renderedCount=1,
+    ), pdf) == 1
+    page_text = parse_page_text_manifest(native_text_manifest([{"page": 0, "text": "safe fixture"}]), 1)
+    dump = parse_page_dump_manifest(rhwp_envelope(
+        untrustedContent=True,
+        untrustedFields=["pages[].columns[].items[].textPreview"],
+        pageCount=1,
+        pageFilter=None,
+        respectVposReset=True,
+        pages=[{
+            "pageIndex": 0, "pageNumber": 9, "displayPage": 7, "section": 2,
+            "columns": [{"items": [{"kind": "fullParagraph", "paraIndex": 4, "isEndnote": False, "textPreview": "must-drop", "height": {}}]}],
+            "extras": [{"kind": "hiddenEmptyPara", "paraIndex": 5, "textPreview": "must-drop"}],
+        }],
+    ), 1)
+
+    assert page_text["pages"][0]["number"] == 1
+    assert dump["pages"][0]["columns"][0]["items"] == [{"kind": "fullParagraph", "paraIndex": 4, "isEndnote": False}]
+    assert dump["pages"][0]["extras"] == [{"kind": "hiddenEmptyPara", "paraIndex": 5}]
+    assert "textPreview" not in json.dumps(dump)
+
+
+@pytest.mark.parametrize(
+    ("manifest", "expected_code"),
+    [
+        (native_text_manifest([{"page": 0, "text": ""}]), "pdf_empty_text"),
+        (native_text_manifest([{"page": 0, "text": "a"}, {"page": 0, "text": "b"}]), "rhwp_manifest_invalid"),
+        (native_text_manifest([{"page": 1, "text": "a"}]), "rhwp_manifest_invalid"),
+        (native_text_manifest([{"page": 0, "text": "a", "truncated": True, "omittedCount": 1}]), "rhwp_manifest_invalid"),
+        (native_text_manifest([{"page": True, "text": "a"}]), "rhwp_manifest_invalid"),
+        (rhwp_envelope(pageCount=1, omittedCount=0, truncated=False, pages=[{"page": 0, "text": "a"}]), "rhwp_manifest_invalid"),
+    ],
+)
+def test_native_page_text_rejects_empty_duplicate_missing_truncated_and_wrong_types(
+    manifest: bytes,
+    expected_code: str,
+) -> None:
+    with pytest.raises(DocumentProcessingError) as caught:
+        parse_page_text_manifest(manifest, 1 if b'"pageCount": 1' in manifest else 2)
+    assert caught.value.code == expected_code
+
+
+def test_native_verify_and_page_count_fail_closed() -> None:
+    hwpx = b"PK\x03\x04verified"
+    with pytest.raises(DocumentProcessingError) as verify_error:
+        parse_hwpx_manifest(rhwp_envelope(
+            format="hwpx", output="converted.hwpx", bytes=len(hwpx), passwordProtected=False,
+            verify={"diffCount": 1, "identical": False},
+            verifyPages={"before": 1, "after": 1, "identical": True},
+        ), hwpx)
+    assert verify_error.value.code == "hwpx_verify_failed"
+
+    with pytest.raises(DocumentProcessingError) as page_error:
+        parse_pdf_manifest(rhwp_envelope(
+            format="pdf", backend="svg", output="output.pdf", bytes=9,
+            pageCount=2, renderedCount=1,
+        ), b"%PDF-safe")
+    assert page_error.value.code == "pdf_page_mismatch"
+
+
+@pytest.mark.parametrize(
+    "pages",
+    [
+        [dump_page(0), dump_page(0)],
+        [dump_page(0)],
+        [dump_page(0), dump_page(2)],
+    ],
+)
+def test_native_dump_rejects_duplicate_missing_and_out_of_range_page_ids(
+    pages: list[dict[str, object]],
+) -> None:
+    with pytest.raises(DocumentProcessingError) as caught:
+        parse_page_dump_manifest(native_dump_manifest(pages, page_count=2), 2)
+    assert caught.value.code in {"rhwp_manifest_invalid", "pdf_page_mismatch"}
+
+
+def test_native_manifest_rejects_wrong_schema_size_and_magic() -> None:
+    wrong_version = json.loads(rhwp_envelope(format="pdf").decode())
+    wrong_version["schemaVersion"] = 1.0
+    with pytest.raises(DocumentProcessingError) as schema_error:
+        parse_pdf_manifest(json.dumps(wrong_version).encode(), b"%PDF-safe")
+    assert schema_error.value.code == "rhwp_manifest_invalid"
+
+    with pytest.raises(DocumentProcessingError) as artifact_error:
+        parse_pdf_manifest(rhwp_envelope(
+            format="pdf", backend="svg", output="output.pdf", bytes=9,
+            pageCount=1, renderedCount=1,
+        ), b"not-a-pdf")
+    assert artifact_error.value.code == "rhwp_manifest_invalid"
+
+
+def test_native_renderer_requires_explicit_validated_selection(monkeypatch: pytest.MonkeyPatch) -> None:
+    source = hwpx_bytes()
+    legacy = DocumentProcessor()
+    monkeypatch.setattr(legacy, "_prepare_pdf_structure", lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("legacy prepare not requested")))
+    result = legacy.process(source, "application/hwp+zip", {"ocr": False})
+    assert result.converted_pdf_bytes is None
+    assert result.page_text == {}
+
+    native = DocumentProcessor()
+    structure = process_document(source, "application/hwp+zip", {"ocr": False})
+    monkeypatch.setattr(native, "_process_native", lambda *_args, **_kwargs: {
+        "pages": structure["pages"], "blocks": structure["blocks"], "warnings": [],
+        "converted": None, "verify": None, "pdf": b"%PDF-safe",
+        "pdf_metadata": {"renderer": "rhwp-svg-pdf"},
+        "page_text": {"schema": "bidops.rhwp-page-text.v1", "page_count": 1, "pages": []},
+        "page_dump": {"schemaVersion": "1.0", "pageCount": 1, "pages": []},
+    })
+    opted_in = native.process(source, "application/hwp+zip", {"ocr": False, "prepare_pdf": True, "renderer": "rhwp-svg-pdf"})
+    assert opted_in["blocks"] == structure["blocks"]
+    assert opted_in.converted_pdf_bytes == b"%PDF-safe"
+    assert opted_in.hwpx_bytes == source
+    with pytest.raises(DocumentProcessingError) as invalid:
+        ProcessorOptions.from_mapping({"renderer": "native-or-fallback"})
+    assert invalid.value.code == "invalid_options"
+
+
+def test_native_command_uses_one_mib_stdout_and_ordinary_limiter(tmp_path: Path) -> None:
+    calls: list[dict[str, object]] = []
+
+    def run(_command: list[str], **kwargs: object) -> tuple[int, bytes, bytes]:
+        calls.append(kwargs)
+        return 0, rhwp_envelope(format="pdf"), b""
+
+    limiter_result = object()
+    adapter = NativeRhwpProcessor(
+        "/bin/true",
+        run=run,
+        limiter=lambda size: (size, limiter_result),
+        child_environment=lambda _path: {},
+        timeout_error=processor_module._ChildTimeout,
+        output_error=processor_module._ChildOutputLimit,
+        font_manifest=lambda _options, _deadline: "0" * 64,
+    )
+    adapter._call(["export-pdf"], tmp_path, ProcessorOptions(timeout_seconds=1), time.monotonic() + 1)
+    assert calls[0]["output_limit"] == RHWP_STDOUT_LIMIT
+    assert calls[0]["preexec_fn"] == (20 * 1024 * 1024, limiter_result)
+
+
+@pytest.mark.parametrize(
+    ("error_type", "expected_code"),
+    [(processor_module._ChildTimeout, "timeout"), (processor_module._ChildOutputLimit, "output_size_limit")],
+)
+def test_native_command_maps_bounded_failures_to_safe_codes(
+    tmp_path: Path,
+    error_type: type[BaseException],
+    expected_code: str,
+) -> None:
+    def run(*_args: object, **_kwargs: object) -> tuple[int, bytes, bytes]:
+        raise error_type
+
+    adapter = NativeRhwpProcessor(
+        "/bin/true", run=run, limiter=lambda _size: None,
+        child_environment=lambda _path: {},
+        timeout_error=processor_module._ChildTimeout,
+        output_error=processor_module._ChildOutputLimit,
+        font_manifest=lambda _options, _deadline: "0" * 64,
+    )
+    with pytest.raises(DocumentProcessingError) as caught:
+        adapter._call(["export-text"], tmp_path, ProcessorOptions(timeout_seconds=1), time.monotonic() + 1)
+    assert caught.value.code == expected_code
+
+
+def test_native_nonzero_encrypted_error_is_safely_classified(tmp_path: Path) -> None:
+    adapter = NativeRhwpProcessor(
+        "/bin/true", run=lambda *_args, **_kwargs: (1, b"", b"encrypted document"),
+        limiter=lambda _size: None, child_environment=lambda _path: {},
+        timeout_error=processor_module._ChildTimeout,
+        output_error=processor_module._ChildOutputLimit,
+        font_manifest=lambda _options, _deadline: "0" * 64,
+    )
+    with pytest.raises(DocumentProcessingError) as caught:
+        adapter._call(["export-text"], tmp_path, ProcessorOptions(timeout_seconds=1), time.monotonic() + 1)
+    assert caught.value.code == "encrypted_document"
+    assert "encrypted" not in caught.value.message
+
+
+def test_native_artifact_reader_rejects_symlink(tmp_path: Path) -> None:
+    target = tmp_path / "target"
+    target.write_bytes(b"%PDF-safe")
+    link = tmp_path / "output.pdf"
+    link.symlink_to(target)
+    adapter = NativeRhwpProcessor(
+        "/bin/true", run=lambda *_args, **_kwargs: (0, b"", b""),
+        limiter=lambda _size: None, child_environment=lambda _path: {},
+        timeout_error=processor_module._ChildTimeout,
+        output_error=processor_module._ChildOutputLimit,
+        font_manifest=lambda _options, _deadline: "0" * 64,
+    )
+    with pytest.raises(DocumentProcessingError) as caught:
+        adapter._read_artifact(link, ProcessorOptions())
+    assert caught.value.code == "conversion_required"
 
 
 def test_hwpx_paragraph_table_cell_and_provenance() -> None:
