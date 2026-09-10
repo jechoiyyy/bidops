@@ -1,6 +1,6 @@
 # rhwp 문서 변환 파이프라인 진행 계획
 
-작업명: rhwp-document-pipeline · 기준일: 2026-09-10 · 상태: 진행 중 (다음 단계 R0)
+작업명: rhwp-document-pipeline · 기준일: 2026-09-10 · 상태: 진행 중 (R0 계약 종결, 다음 R1은 coordinator acceptance 대기)
 
 이 문서는 새 세션이 다른 맥락 없이 이 작업을 이어갈 수 있도록 순서·담당·게이트·현재 상태·재현 명령을 모아 둔다. 내용이 이미 다른 문서에 있으면 여기 다시 적지 않고 링크한다. 단계가 끝나거나 결정이 바뀌면 §7 진행 기록에 덧붙이고, 결정 자체는 [ADR.md](ADR.md)에 적는다.
 
@@ -99,17 +99,17 @@ git diff --check
 - [x] vendor 등록: `web/backend/app/deep_review/document_mcp/vendor/rhwp/bin/rhwp`, `vendor/SHA256SUMS` 갱신, `vendor/PROVENANCE.md`에 upstream·태그·커밋·빌드 host·명령 기록(ADR-RDP-002).
 - [x] `web/Dockerfile`에 `fonts-nanum` 추가, rhwp COPY와 실행 권한. 검증용 이미지 `bidops-rdp-r0:<날짜>` 빌드(context는 저장소 루트).
 - [x] 격리 컨테이너(위 명령, pids 128)에서 표본 3건에 해당 rhwp 호출 실행. 시간·RSS·pids 최대치·페이지 수·바이트 크기 기록.
-- [x] 같은 입력 2회 실행으로 HWPX·페이지 텍스트·dump-pages JSON·PDF 바이트 동일 여부 기록(ADR 미결 항목).
-- [x] `dump-pages`의 `paraIndex`가 표 셀 문단을 포함하지 않고 구역별 최상위 본문 문단을 가리킴을 upstream 코드와 실측으로 확정. HWP→HWPX 인덱스 불일치는 [Spec §4](Spec.md#4-문단페이지-정렬-규칙-para-page-alignv1)에 미결로 보존.
+- [x] 같은 입력 2회 실행으로 HWPX·페이지 텍스트·dump-pages JSON·PDF 바이트 동일 여부 기록. PDF 결정성은 같은 검증 이미지의 세 표본에서만 확인한 증거로 보존하며 보편적 보증으로 확대하지 않는다.
+- [x] `dump-pages`의 `paraIndex`가 표 셀 문단을 포함하지 않고 구역별 최상위 본문 문단을 가리킴을 upstream 코드와 실측으로 확정. identity는 항상 `(section, paraIndex)`로 하고, 원본 HWPX는 extractor identity가 증명된 경우에만 source XML top-level ordinal을 사용한다. HWP→HWPX ordinal crosswalk 부재는 exact full-text 단일 페이지 매치만 허용하는 보수적 지원 동작으로 확정한다.
 - [x] 결과를 Spec §8과 이 문서 §7에 기록하고 `docs/validation-runs/<날짜>-rhwp-r0-baseline.md`에 재현 명령을 남긴다.
 
-게이트: 표본 3건이 pids 128 이하·60초 안 통과, `paraIndex` 규칙 확정, `test_vendored_sha256_manifest_is_deterministic_and_complete` 통과.
+게이트: 표본 3건이 pids 128 이하·60초 안 통과, 네 native JSON 호출의 호출별 stdout 1 MiB(1,048,576 B) 상한을 수용하고 실제 최대 747,110 B를 기록, `(section, paraIndex)` 규칙과 보수적 HWP 매핑 동작을 확정, `test_vendored_sha256_manifest_is_deterministic_and_complete` 통과. 매핑률은 F5에 따라 정보성 지표이며 게이트가 아니다.
 
 ### R1 변환기 (담당: 위임, `feat/rdp-r1-converter`)
 
 - [ ] `DocumentProcessor`에 rhwp 경로([Spec §1](Spec.md#1-rhwp-호출-계약) ①~⑤). Canvas 경로는 남기고 `renderer` 값으로 구분.
-- [ ] stdout JSON 파서, `untrustedFields` 처리, 오류 코드([Spec §5](Spec.md#5-오류-코드)), 페이지 번호 0→1 변환.
-- [ ] `_run_limited_subprocess` 아래 공유 deadline·output_limit·rlimit. Chromium 예외(AS/DATA 해제, FSIZE 4배) 미적용.
+- [ ] stdout JSON 파서, `untrustedFields` 처리, 오류 코드([Spec §5](Spec.md#5-오류-코드)), 페이지 번호 0→1 변환. 네 native 호출별 stdout cap은 1 MiB이며 초과는 `output_size_limit`이다.
+- [ ] `_run_limited_subprocess` 아래 공유 deadline·stdout cap·per-artifact output cap·rlimit. stdout을 무제한으로 열거나 파일 출력으로 우회하지 않으며, Chromium 예외(AS/DATA 해제, FSIZE 4배)는 미적용.
 - [ ] `tests/deep_review/test_document_mcp.py`에 rhwp 계약 테스트(고정 JSON으로 파서·오류·페이지 일치. 실제 바이너리 실행은 이미지 안 실측으로만).
 - 소유 파일: `document_mcp/processor.py`, `contracts.py`, `errors.py`, `safety.py`(옵션), 해당 테스트.
 
@@ -199,3 +199,4 @@ git diff --check
 | 2026-09-10 | 선행 | P0 main 병합(`212e5ed`), worker pids 512 재생성, 142 snapshot `e68670e0…`·target `200e9557…` 준비(attempt 없음), 기록 `695e245` |
 | 2026-09-10 | 착수 | rhwp v0.8.6 호스트 실측(표본 3건, [Spec §8](Spec.md#8-실측-기록)), 사용자 결정 4개(ADR-RDP-001~004), 정본 문서 4종 `2f4f6af`, 이 계획 작성. 다음: R0 |
 | 2026-09-10 | R0 | Orca 관리 격리 worktree `/home/jechoi/orca/workspaces/bidops/rdp-r0-baseline`, 브랜치 `feat/rdp-r0-baseline`에서 native binary·Nanum 폰트 이미지와 표본 2회 실측 완료. pids·시간·결정성은 통과했지만 `dump-pages` stdout 256 KiB 초과와 HWP→HWPX paragraph crosswalk 미정 때문에 R0 게이트는 닫힘. 근거: [validation run](../validation-runs/2026-09-10-rhwp-r0-baseline.md) |
+| 2026-09-10 | R0 계약 종결 | 최초 실측 시점의 닫힌 게이트 기록은 유지한다. 이미 측정한 세 표본의 안전 지표를 근거로 native 네 호출별 stdout cap을 1 MiB(1,048,576 B)로 정하고 실제 최대 747,110 B를 기록했다. identity는 `(section, paraIndex)`로 고정하고, extractor identity가 증명된 원본 HWPX만 source XML ordinal을 쓰며 HWP→HWPX는 exact full-text가 정확히 한 export-text 페이지에 한 번 나타날 때만 매핑한다(그 외·빈 블록은 `unmapped`). PDF 결정성은 같은 이미지의 세 표본 재실행 증거에만 한정한다. R0 게이트를 통과로 종결했으며 현재는 R1 시작에 대한 coordinator acceptance를 기다린다. |

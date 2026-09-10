@@ -1,6 +1,6 @@
 # rhwp 문서 변환 파이프라인 설계
 
-작업명: rhwp-document-pipeline · 기준일: 2026-09-10 · 상태: 진행 중
+작업명: rhwp-document-pipeline · 기준일: 2026-09-10 · 상태: 진행 중 (R0 계약 종결, 다음 R1은 coordinator acceptance 대기)
 요구는 [Requirements.md](Requirements.md), 결정은 [ADR.md](ADR.md), 세부 계약과 단계는 [Spec.md](Spec.md)에 있다.
 
 ## 1. 현재 구조와 바뀌는 지점
@@ -47,14 +47,14 @@ attachment fetch ─ quarantine ─ ClamAV ─ DocumentProcessor(rhwp)
 | PDF | 기존 Poppler 경로(재렌더 없음) | 구조(페이지 블록), 페이지 텍스트(=구조), 대응표는 항등 |
 | 이미지 | 기존 경로 | 변경 없음 |
 
-③~⑤는 같은 입력 파일(HWP는 원본 HWP, HWPX는 원본 HWPX)에 대해 실행한다. HWP를 변환 HWPX로 다시 렌더하지 않는다. 이유는 페이지네이션이 원본과 같아야 하고 rhwp가 HWP를 직접 읽기 때문이다. 단, ⑥의 정렬은 ②의 블록(변환 HWPX 기준)과 ⑤의 `paraIndex`(원본 HWP 기준)를 맞추므로, HWP→HWPX 변환이 문단 순서를 보존한다는 F1의 `verify` 결과에 의존한다.
+③~⑤는 같은 입력 파일(HWP는 원본 HWP, HWPX는 원본 HWPX)에 대해 실행한다. HWP를 변환 HWPX로 다시 렌더하지 않는다. 이유는 페이지네이션이 원본과 같아야 하고 rhwp가 HWP를 직접 읽기 때문이다. ⑥은 identity가 증명된 원본 HWPX에만 source XML top-level ordinal을 `(section, paraIndex)`로 연결한다. HWP를 변환한 HWPX에는 ordinal crosswalk를 가정하지 않고, 비어 있지 않은 paragraph·table-cell FULL text가 `export-text`의 정확히 한 페이지에 정확히 한 번 나타날 때만 `page_text`로 연결하며 `para_index`는 null로 둔다.
 
-각 rhwp 호출은 기존 `_run_limited_subprocess`로 실행한다. 공유 deadline 하나, `output_limit` 256 KiB(stdout JSON은 작음, 파일 산출물은 경로로), `preexec_fn=_resource_limiter(max_output_bytes)`. rhwp는 단일 프로세스라 Chromium 예외(AS/DATA 해제, FSIZE 4배)가 필요 없다.
+각 rhwp 호출은 기존 `_run_limited_subprocess`로 실행한다. 네 native 호출의 JSON stdout에는 호출별 1 MiB(1,048,576 B) cap을 적용하고 초과는 `output_size_limit`으로 실패한다. 문서당 shared deadline 하나와 `max_output_bytes` per-artifact cap은 별도로 유지하며, stdout을 무제한으로 열거나 파일 출력으로 우회하지 않는다. `preexec_fn=_resource_limiter(max_output_bytes)`를 사용하고, rhwp는 단일 프로세스라 Chromium 예외(AS/DATA 해제, FSIZE 4배)가 필요 없다.
 
 ### 2.3 페이지 텍스트와 대응표
 
 - 페이지 텍스트 정본은 `export-text --json`이다. Poppler `pdftotext`는 원본 PDF 첨부에만 쓴다. 검증으로 `pdfinfo` 페이지 수와 `export-pdf`의 `pageCount`, `export-text`의 `pageCount`, `dump-pages`의 `pageCount`가 모두 같아야 한다.
-- 대응표는 `dump-pages`의 `pages[].columns[].items[]`에서 `kind`, `paraIndex`, `pageIndex`를 읽어 `paraIndex → {page_first, page_last}`를 만든다(문단이 페이지를 넘으면 범위). 그 다음 구조 블록을 `paraIndex`에 정렬한다(Spec §4). `textPreview`는 정렬 검증에만 쓰고 저장하지 않는다.
+- 대응표 identity는 항상 `(section, paraIndex)`이며 `dump-pages`의 `pages[].columns[].items[]`와 `extras[]`에서 `kind`, `paraIndex`, `section`, `pageIndex`를 읽어 `(section, paraIndex) → {page_first, page_last}`를 만든다(문단이 페이지를 넘으면 범위). 원본 HWPX는 extractor identity가 증명된 경우에만 source XML top-level ordinal을 이 identity에 연결하고, rendered block list ordinal을 맹목적으로 쓰지 않는다. HWP 변환 HWPX의 비어 있지 않은 paragraph·table-cell과 원본 HWPX의 table-cell은 FULL text의 exact occurrence가 정확히 한 export-text 페이지에 한 번일 때만 `match="page_text"`로 연결하며, 이 경우 `para_index`는 null이다. 빈 블록·그 밖의 미확인 블록은 `unmapped`다. prefix·LCS·whitespace correction·fuzzy matching·인접 페이지 상속·다중 페이지 추정은 사용하지 않는다. `textPreview`는 정렬 identity를 만들거나 보정하는 데 쓰지 않고 저장하지 않는다.
 - 대응표는 `bidops.para-page-map.v1` JSON으로 `structure` namespace에 저장하고 snapshot 행이 object id·hash로 가리킨다.
 
 ### 2.4 데이터 모델
@@ -79,7 +79,8 @@ attachment fetch ─ quarantine ─ ClamAV ─ DocumentProcessor(rhwp)
 
 ## 3. 격리·자원·감사
 
-- worker: `network_mode none`, non-root UID, `cap_drop ALL`, `no-new-privileges`, `mem_limit 1g`. `pids_limit`은 rhwp 실측 뒤 128으로 되돌리는 것을 기본 후보로 둔다(Chromium 스레드 문제가 사라지므로).
+- worker: `network_mode none`, non-root UID, `cap_drop ALL`, `no-new-privileges`, `mem_limit 1g`. R0 실측은 `pids_limit 128`에서 컨테이너 최대 4 pids였고, 이 경계와 60초 조건을 통과했다.
+- 네 native 호출의 JSON stdout cap은 각 1 MiB이며 R0에서 관측된 최대는 747,110 B다. per-artifact output cap과 문서당 shared deadline은 별도 경계로 유지한다.
 - rhwp stdout JSON의 `untrustedContent=true` 필드는 원문 유래다. 로그·감사·프롬프트에 넣지 않는다. 오류 메시지는 rhwp의 한국어 오류 문자열을 그대로 저장하지 않고 안전 코드로 바꾼다(Spec §5).
 - 준비 실패 코드는 converter가 낸 안전 코드를 attempt `error_code`에 `pdf_preparation_failed:<code>` 형태로 남긴다(64자 한도 안). 감사 `safe_metadata`에도 같은 코드를 둔다.
 
@@ -108,12 +109,12 @@ attachment fetch ─ quarantine ─ ClamAV ─ DocumentProcessor(rhwp)
 | 페이지 수 불일치(pdf·text·pages) | `pdf_page_mismatch` |
 | 전부 빈 페이지 텍스트 | `pdf_empty_text` |
 | 정렬 실패 블록 | 대응표에 `unmapped`, 문서는 성공. 매핑률을 snapshot에 기록 |
-| rhwp 비정상 종료·timeout·출력 한도 | `conversion_required`·`timeout`·`output_size_limit`(기존 코드 유지) |
+| rhwp 비정상 종료·timeout·출력 한도 | `conversion_required`·`timeout`·`output_size_limit`(호출별 JSON stdout 1 MiB cap 또는 per-artifact cap 초과; 기존 코드 유지) |
 | 바이너리 hash·폰트 manifest 불일치 | `renderer_binding_invalid`·`font_binding_invalid`(기존) |
 
 ## 7. 검증 전략
 
 - 단위: rhwp JSON 파서(필드·untrusted 처리), 정렬기(정상·페이지 걸침·빈 문단·표 셀·미매핑), 계약 스키마.
-- 통합(격리 worker 이미지): 세 표본으로 F1~F6, 금액·ID 보존, 페이지 수 일치, 재실행 시 HWPX·텍스트·대응표 바이트 동일.
+- 통합(격리 worker 이미지): 세 표본으로 F1~F6, 금액·ID 보존, 페이지 수 일치, 재실행 시 HWPX·텍스트·대응표 바이트 동일. PDF 바이트 동일성은 같은 검증 이미지에서 실행한 세 표본의 관측에만 한정하고 보편적 보증으로 취급하지 않는다.
 - 운영 인수: 세 표본 새 snapshot 준비, page-overview API·PDF 링크, segments의 `page_range`, 1280×800·1440×900 화면.
 - 검증은 변경 경로에 한정하고 전체 스위트는 최종 트리에서 1회만 돌린다.

@@ -2,7 +2,7 @@
 
 작업명: rhwp-document-pipeline
 기준일: 2026-09-10
-상태: 진행 중. 이 폴더의 네 문서(ADR·Requirements·Design·Spec)가 이 작업의 정본이며, 작업 중 바뀌거나 추가되는 결정은 여기에 덧붙인다.
+상태: 진행 중 (R0 계약 종결, 다음 R1은 coordinator acceptance 대기). 이 폴더의 네 문서(ADR·Requirements·Design·Spec)가 이 작업의 정본이며, 작업 중 바뀌거나 추가되는 결정은 여기에 덧붙인다.
 
 관련 정본: [docs/ARCHITECTURE.md](../ARCHITECTURE.md), [ADR-0010 HWPX 분석 정본](../tracking/decisions/0010-hwpx-canonical-input.md), [ADR-0051 deep-review-v2 결정적 부분](../tracking/decisions/0051-deep-review-v2-deterministic-subset.md), [deep-review-v2 §7 HWPX·PDF 처리 방향](../deep-review-v2/document-analysis-design.md), [사전규격 v4 구현 계획](../tracking/prespec-v4-implementation-plan.md).
 
@@ -55,7 +55,7 @@
 |---|---|---|
 | 모두 저장 (채택) | 재변환 없이 재추출·감사·페이지 링크가 가능. 표 셀·요구사항 ID 구조(HWPX)와 물리 페이지 근거(PDF)를 둘 다 가짐. hash 결속이 저장물에 닫힘 | 문서당 저장이 약 2배(142: 원본 0.8 MB + PDF 4.7 MB + 텍스트·구조 수백 KB). 산출물 6종의 결속 검증이 필요 |
 | PDF만 저장, HWPX는 필요 시 재변환 | 저장 최소, 정본 하나 | 표 평탄화로 셀·ID locator와 segment·inventory가 약해짐. 재변환 결과가 저장 hash와 같다는 보증이 없어 감사가 약함 |
-| HWPX만 저장, PDF는 요청 시 생성 | 구조 보존 | 쪽 번호 근거와 화면 링크가 매번 새로 만든 PDF에 매여 hash 결속이 깨짐. rhwp PDF 바이트는 결정적일 가능성이 높지만 아직 측정하지 않았다 |
+| HWPX만 저장, PDF는 요청 시 생성 | 구조 보존 | 쪽 번호 근거와 화면 링크가 매번 새로 만든 PDF에 매여 hash 결속이 깨짐. rhwp PDF 바이트 동일성은 같은 검증 이미지의 세 표본에서만 관측됐고 보편적 결정성은 보증하지 않는다 |
 
 - 이유: 사용자 결정. 개요는 페이지 근거(A)를 유지하고 심층 검토는 HWPX 구조를 정본으로 쓰되 페이지 대응표를 붙이는 방향(C)이라 둘 다 필요하다.
 - 결과: 저장 용량은 현재 MinIO 규모(문서 165건)에서 문제되지 않는다. ②는 원본이 HWPX·PDF면 생략한다.
@@ -86,6 +86,15 @@
 - 결정: v4 페이지 개요와 회사 핏의 근거 단위는 물리 PDF 페이지로 유지한다. 심층 검토의 segment·요구사항 inventory·`table_cell` locator는 HWPX 구조 블록으로 만들고, 사람 확인·화면 링크에는 대응표로 얻은 페이지를 붙인다. 이 결정은 deep-review-v2 §7.1의 "HWPX는 의미 구조 정본, PDF는 시각·locator 보조"를 그대로 따른다.
 - 이유: 페이지 텍스트만으로는 표 셀과 요구사항 ID가 평탄화돼 심층 검토 검증기(`table_cell`, 정확 부분문자열)가 만족되지 않고, HWPX만으로는 물리 페이지 근거와 화면 링크가 불가능하다.
 
+## ADR-RDP-008 R0 native stdout과 문단-페이지 대응표 계약을 보수적으로 종결한다
+
+- 상태: 채택 (2026-09-10; 다음 R1 진행은 coordinator acceptance 대기)
+- 결정: `export-hwpx`, `export-pdf`, `export-text`, `dump-pages` 네 native 호출 각각에 JSON stdout 1 MiB(1,048,576 B) cap을 적용한다. cap 초과는 `output_size_limit`로 실패하며, 무제한 stdout이나 파일 출력 우회는 허용하지 않는다. `max_output_bytes` per-artifact 상한과 문서당 shared deadline은 별도로 유지한다.
+- 결정: 대응표 identity는 extras를 포함해 항상 `(section, paraIndex)`다. 원본 HWPX는 extractor identity가 증명된 경우에만 source XML top-level ordinal을 사용하고 rendered block list ordinal을 맹목적으로 사용하지 않는다. HWP에서 변환한 HWPX는 ordinal crosswalk를 가정하지 않으며, 비어 있지 않은 paragraph·table-cell FULL text가 `export-text`의 정확히 한 페이지에서 정확히 한 번만 나타날 때 `match="page_text"`로 연결하고 `para_index`는 `null`로 둔다. 빈 블록은 항상 `unmapped`다.
+- 결정: prefix·LCS·whitespace correction·fuzzy matching·인접 페이지 상속·다중 페이지 추정은 사용하지 않는다. exact match가 아니면 `unmapped`로 보존하고, 매핑률은 F5의 정보성 지표로만 기록한다. HWP ordinal crosswalk 부재는 추가 실험을 요구하는 선행조건이 아니라 이 보수적 지원 동작으로 명시한다.
+- 근거와 게이트: 기존 R0 격리 측정만 사용한다. 세 표본의 같은 검증 이미지 실행에서 관측된 JSON stdout 최대는 747,110 B였고, pids·시간·자원·산출물 결정성 기준을 충족했다. 따라서 최초 실측 시점의 닫힌 게이트 기록은 역사로 보존하면서 R0 게이트를 통과로 종결하고, 다음 R1은 coordinator acceptance 뒤에 연다.
+- 결정성 범위: PDF 바이트 동일성은 같은 검증 이미지에서 실행한 세 표본의 동일 hash라는 관측에만 한정한다. 이를 모든 입력·이미지·환경에 대한 보편적 결정성 보증으로 해석하지 않는다.
+
 ## 관련 결정(이 작업 밖, 참조)
 
 - 2026-09-09 Qwen 전환 준비: 검증 실패 1회 재시도(seed 변경, 고정 보정 지시), 선행 `<think>` 제거, `prompt_rejected` 코드 분리, 검증기 v3 인용 정규화. 브랜치 `feat/p1-wp1-model-client`·`-wp2-validation-retry`·`-wp3-citation-normalize`(미병합). 숫자·영문 대조와 hash 결속은 풀지 않는다.
@@ -94,6 +103,6 @@
 
 ## 미결·추적
 
-- rhwp PDF 바이트의 결정성(같은 입력·폰트·바이너리에서 같은 hash가 나오는지) 미측정. 결정적이면 재변환 캐시 검증이 단순해진다.
+- rhwp PDF 바이트는 같은 검증 이미지에서 세 표본의 동일 hash를 관측했지만, 이는 해당 표본·이미지에 한정된 증거다. 모든 입력·이미지·환경에 대한 보편적 결정성은 보증하지 않으며, 캐시 정책은 이 범위를 넘겨 가정하지 않는다.
 - 암호 문서(`passwordProtected`)와 HML 입력은 범위 밖이며 `needs_human_review`로 남긴다.
 - `--backend direct`는 현재 빌드에 없다(native-skia feature 미포함). svg backend만 사용한다.
