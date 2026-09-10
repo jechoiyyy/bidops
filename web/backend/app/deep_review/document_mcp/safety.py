@@ -44,6 +44,9 @@ class ProcessorOptions:
     # prespec v4 path sets this explicitly after the policy/worker gate; legacy
     # document inspection keeps its existing structure-only contract.
     prepare_pdf: bool = False
+    # R3 may opt a snapshot into the native renderer.  The default deliberately
+    # preserves the existing Canvas/Chromium path until that integration lands.
+    renderer: str = "rhwp-canvas-chromium"
     ocr: bool = True
 
     @classmethod
@@ -57,7 +60,7 @@ class ProcessorOptions:
             allowed = {
                 "timeout_seconds", "max_output_bytes", "max_archive_files",
                 "max_archive_depth", "max_archive_uncompressed_bytes", "max_xml_depth",
-                "max_pages", "max_pdf_pages", "max_pdf_objects", "max_blocks", "render_pages", "prepare_pdf", "ocr",
+                "max_pages", "max_pdf_pages", "max_pdf_objects", "max_blocks", "render_pages", "prepare_pdf", "renderer", "ocr",
             }
             if set(payload) - allowed:
                 raise DocumentProcessingError("invalid_options", "허용되지 않는 문서 처리 option입니다")
@@ -101,6 +104,8 @@ class ProcessorOptions:
             raise DocumentProcessingError("invalid_options", "문서 구조 제한이 올바르지 않습니다")
         if not isinstance(result.render_pages, bool) or not isinstance(result.prepare_pdf, bool) or not isinstance(result.ocr, bool):
             raise DocumentProcessingError("invalid_options", "문서 처리 option 형식이 올바르지 않습니다")
+        if result.renderer not in {"rhwp-canvas-chromium", "rhwp-svg-pdf"}:
+            raise DocumentProcessingError("invalid_options", "문서 renderer option이 올바르지 않습니다")
         return result
 
 
