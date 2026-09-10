@@ -44,9 +44,9 @@ class ProcessorOptions:
     # prespec v4 path sets this explicitly after the policy/worker gate; legacy
     # document inspection keeps its existing structure-only contract.
     prepare_pdf: bool = False
-    # R3 may opt a snapshot into the native renderer.  The default deliberately
-    # preserves the existing Canvas/Chromium path until that integration lands.
-    renderer: str = "rhwp-canvas-chromium"
+    # The native rhwp CLI is the only renderer.  The option is kept so a
+    # persisted config binding still names the renderer it was prepared with.
+    renderer: str = "rhwp-svg-pdf"
     ocr: bool = True
 
     @classmethod
@@ -104,7 +104,7 @@ class ProcessorOptions:
             raise DocumentProcessingError("invalid_options", "문서 구조 제한이 올바르지 않습니다")
         if not isinstance(result.render_pages, bool) or not isinstance(result.prepare_pdf, bool) or not isinstance(result.ocr, bool):
             raise DocumentProcessingError("invalid_options", "문서 처리 option 형식이 올바르지 않습니다")
-        if not isinstance(result.renderer, str) or result.renderer not in {"rhwp-canvas-chromium", "rhwp-svg-pdf"}:
+        if not isinstance(result.renderer, str) or result.renderer != "rhwp-svg-pdf":
             raise DocumentProcessingError("invalid_options", "문서 renderer option이 올바르지 않습니다")
         return result
 

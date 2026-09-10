@@ -133,10 +133,6 @@ def _worker_binding(value: Mapping[str, Any], *, code: str, asset_key: str) -> d
         raise V4PreparationError(code)
     if not isinstance(asset_digest, str) or not _SHA256.fullmatch(asset_digest):
         raise V4PreparationError(code)
-    for optional_digest in ("renderer_asset_sha256", "processor_sha256", "chromium_sha256"):
-        value = safe.get(optional_digest)
-        if value is not None and (not isinstance(value, str) or not _SHA256.fullmatch(value)):
-            raise V4PreparationError(code)
     return safe
 
 
@@ -219,38 +215,6 @@ def _assert_source_pdf_provenance(
     if expected_font.get("font_provenance") is not None:
         raise V4PreparationError("font_binding_invalid")
     return dict(expected_renderer), dict(expected_font)
-
-
-def _assert_worker_provenance(
-    metadata: Mapping[str, Any],
-    expected_renderer: Mapping[str, Any],
-    expected_font: Mapping[str, Any],
-) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Bind caller expectations to fingerprints emitted by the worker itself."""
-
-    actual_renderer = _worker_binding(
-        metadata.get("renderer_provenance"),
-        code="renderer_binding_invalid",
-        asset_key="runtime_sha256",
-    )
-    actual_font = _worker_binding(
-        metadata.get("font_provenance"),
-        code="font_binding_invalid",
-        asset_key="font_manifest_sha256",
-    )
-    for key in (
-        "worker_image_digest",
-        "runtime_sha256",
-        "renderer_asset_sha256",
-        "processor_sha256",
-        "chromium_sha256",
-    ):
-        if key in expected_renderer and expected_renderer.get(key) != actual_renderer.get(key):
-            raise V4PreparationError("renderer_binding_invalid")
-    for key in ("worker_image_digest", "font_manifest_sha256", "font_family"):
-        if key in expected_font and expected_font.get(key) != actual_font.get(key):
-            raise V4PreparationError("font_binding_invalid")
-    return actual_renderer, actual_font
 
 
 def choose_rfp_document(documents: Iterable[DocumentVersion]) -> DocumentCandidateSelection:
@@ -982,13 +946,10 @@ def prepare_v4_pdf_snapshot(
         renderer_safe = _native_renderer(renderer)
         font_safe = _worker_binding(font, code="font_binding_invalid", asset_key="font_manifest_sha256")
     else:
-        renderer_safe = _worker_binding(renderer, code="renderer_binding_invalid", asset_key="runtime_sha256")
-        font_safe = _worker_binding(font, code="font_binding_invalid", asset_key="font_manifest_sha256")
+        raise V4PreparationError("renderer_binding_invalid")
     source_location = _verified_location(session, source_location_id, source.id, allow_structure=False)
     config_sha = _sha256_json(config_safe)
-    renderer_digest = _sha256_json(
-        renderer_safe if source_pdf_expected or native else _worker_identity(renderer_safe, asset_key="runtime_sha256")
-    )
+    renderer_digest = _sha256_json(renderer_safe)
     font_digest = _sha256_json(
         font_safe if source_pdf_expected else _worker_identity(font_safe, asset_key="font_manifest_sha256")
     )
@@ -1038,8 +999,6 @@ def prepare_v4_pdf_snapshot(
         raise V4PreparationError("pdf_metadata_invalid")
     if native:
         renderer_safe, font_safe = _assert_native_provenance(metadata, renderer_safe, font_safe)
-    elif source_kind == "generated":
-        renderer_safe, font_safe = _assert_worker_provenance(metadata, renderer_safe, font_safe)
     else:
         renderer_safe, font_safe = _assert_source_pdf_provenance(metadata, renderer_safe, font_safe)
     if source_kind == "generated":
@@ -1156,19 +1115,14 @@ def freeze_pdf_snapshot(
         renderer_safe = _native_renderer(renderer)
         font_safe = _worker_binding(font, code="font_binding_invalid", asset_key="font_manifest_sha256")
     else:
-        renderer_safe = _worker_binding(renderer, code="renderer_binding_invalid", asset_key="runtime_sha256")
-        font_safe = _worker_binding(font, code="font_binding_invalid", asset_key="font_manifest_sha256")
+        raise V4PreparationError("renderer_binding_invalid")
     config_safe = _bounded_object(config, code="config_binding_invalid")
     config_sha = _sha256_json(config_safe)
     if native:
         renderer_safe, font_safe = _assert_native_provenance(metadata, renderer_safe, font_safe)
-    elif source_kind == "generated":
-        renderer_safe, font_safe = _assert_worker_provenance(metadata, renderer_safe, font_safe)
     else:
         renderer_safe, font_safe = _assert_source_pdf_provenance(metadata, renderer_safe, font_safe)
-    renderer_digest = _sha256_json(
-        renderer_safe if source_kind == "original" or native else _worker_identity(renderer_safe, asset_key="runtime_sha256")
-    )
+    renderer_digest = _sha256_json(renderer_safe)
     font_digest = _sha256_json(
         font_safe if source_kind == "original" else _worker_identity(font_safe, asset_key="font_manifest_sha256")
     )
