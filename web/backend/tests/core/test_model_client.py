@@ -10,6 +10,7 @@ fixture는 전부 합성 텍스트다. 실제 endpoint·프롬프트·응답 원
 from __future__ import annotations
 
 from collections.abc import Mapping
+import hashlib
 import json
 from typing import Any
 
@@ -18,6 +19,7 @@ import httpx
 
 from app.core.config import Settings
 from app.core.model_client import (
+    MAX_CORRECTION_CHARS,
     MAX_RESPONSE_BYTES,
     MODEL_PURPOSES,
     ModelClient,
@@ -26,7 +28,9 @@ from app.core.model_client import (
     ModelIdentity,
     ModelIdentityError,
     ModelInvocationError,
+    PromptTooLargeError,
     StructuredOutputContract,
+    build_prompt,
     resolve_model_endpoint,
 )
 
@@ -518,3 +522,165 @@ def test_the_approval_gate_lives_in_resolve_model_endpoint_not_the_constructor()
         "지나야 하고, 주입 transport로 직접 만드는 자리는 허용 host와 선언 "
         "revision을 스스로 책임져야 한다."
     )
+
+
+# --- 선행 사고 블록 --------------------------------------------------------
+
+
+def _raw_completion(content: str) -> dict[str, Any]:
+    """본문을 그대로 싣는 성공 응답 문서."""
+
+    return {
+        "model": "합성-모델-a",
+        "choices": [{"index": 0, "finish_reason": "stop", "message": {"role": "assistant", "content": content}}],
+        "usage": {"prompt_tokens": 11, "completion_tokens": 7},
+    }
+
+
+def test_leading_thinking_block_is_stripped_before_parsing() -> None:
+    """사고 블록이 앞에 붙어 와도 파싱은 성공하고 원문 bytes는 그대로다.
+
+    `enable_thinking=False`를 보내도 사고를 흘리는 배치가 있다. 파싱 입력만
+    떼어 내고, 암호화 저장으로 가는 raw bytes와 그 digest는 손대지 않는다.
+    """
+
+    body = '{"verdict": "ok"}'
+    content = "<think>내부 사고 문장</think>\n" + body
+    client = ModelClient(
+        model="합성-모델-a",
+        output_contract=CONTRACT,
+        completion_create=lambda **_kwargs: _raw_completion(content),
+    )
+    result = client.invoke("s1", {"item": "합성"}, POLICY)
+
+    assert result.structured_output == {"verdict": "ok"}
+    # 저장·digest는 손대지 않은 원본이다.
+    assert result.raw_response == content.encode("utf-8")
+    assert result.output_sha256 == hashlib.sha256(content.encode("utf-8")).hexdigest()
+    # 관측에는 길이만 남고 떼어 낸 문자열은 어디에도 없다.
+    assert result.attempts[0]["thinking_stripped"] is True
+    assert result.attempts[0]["thinking_chars"] == len(content) - len(body)
+    assert "내부 사고 문장" not in str(result.attempts)
+
+
+def test_response_without_a_thinking_block_records_the_absence() -> None:
+    """사고 블록이 없으면 `thinking_stripped`는 False이고 길이 항목은 없다."""
+
+    client = ModelClient(
+        model="합성-모델-a",
+        output_contract=CONTRACT,
+        completion_create=lambda **_kwargs: _completion("합성-모델-a", {"verdict": "ok"}),
+    )
+    result = client.invoke("s1", {"item": "합성"}, POLICY)
+    assert result.attempts[0]["thinking_stripped"] is False
+    assert "thinking_chars" not in result.attempts[0]
+
+
+def test_unclosed_thinking_block_stays_malformed_json() -> None:
+    """닫는 태그가 없으면 자르지 않는다. 어디까지가 사고인지 알 수 없다."""
+
+    content = '<think>닫히지 않은 사고 {"verdict": "ok"}'
+    client = ModelClient(
+        model="합성-모델-a",
+        output_contract=CONTRACT,
+        completion_create=lambda **_kwargs: _raw_completion(content),
+    )
+    with pytest.raises(ModelInvocationError) as error:
+        client.invoke("s1", {"item": "합성"}, {**POLICY, "chunking": {"retries": 0, "timeout_seconds": 300}})
+    assert error.value.code == "malformed_json"
+    assert error.value.attempts[0]["thinking_stripped"] is False
+
+
+# --- 프롬프트 상한 ---------------------------------------------------------
+
+
+def test_oversized_prompt_raises_a_typed_prompt_rejected_error() -> None:
+    """상한 초과는 `prompt_rejected`로 분류된다.
+
+    `ValueError` 상속을 유지해야 프롬프트 조립의 `ValueError`를 옮기는 기존
+    개요 runner가 그대로 동작하고, `code`가 있어야 `getattr(error, "code", ...)`
+    를 읽는 v4 runner가 `validation_failed`로 잘못 적지 않는다.
+    """
+
+    with pytest.raises(PromptTooLargeError) as error:
+        build_prompt(
+            "s1",
+            {"items": [{"text": "가" * 24000}]},
+            {"stages": [{"stage": "s1", "instruction": "합성 지시"}]},
+        )
+    assert error.value.code == "prompt_rejected"
+    assert isinstance(error.value, ValueError)
+    assert PromptTooLargeError.code == "prompt_rejected"
+
+
+# --- 호출별 seed와 보정 지시 ----------------------------------------------
+
+
+@pytest.mark.parametrize("base,expected", [(None, [0, 1, 2]), (100, [100, 101, 102])])
+def test_transport_retries_advance_the_seed(base: int | None, expected: list[int]) -> None:
+    """재시도는 seed를 하나씩 올려 보낸다.
+
+    같은 프롬프트를 같은 seed로 다시 보내면 깨진 JSON에 대한 재시도가 결정적
+    으로 같은 실패를 되풀이한다.
+    """
+
+    calls: list[dict[str, Any]] = []
+
+    def completion_create(**kwargs: Any) -> Mapping[str, Any]:
+        calls.append(kwargs)
+        return _raw_completion("not-json")
+
+    client = ModelClient(model="합성-모델-a", output_contract=CONTRACT, completion_create=completion_create)
+    with pytest.raises(ModelInvocationError) as error:
+        client.invoke(
+            "s1",
+            {"item": "합성"},
+            {**POLICY, "chunking": {"retries": 2, "timeout_seconds": 300}},
+            seed=base,
+        )
+    assert error.value.code == "malformed_json"
+    assert [call["seed"] for call in calls] == expected
+    assert [row["seed"] for row in error.value.attempts] == expected
+    assert [row["retry_index"] for row in error.value.attempts] == [0, 1, 2]
+
+
+def test_correction_is_appended_as_the_last_user_message() -> None:
+    """보정 지시는 마지막 user 메시지 하나이고 프롬프트 hash를 바꾸지 않는다."""
+
+    seen: dict[str, Any] = {}
+
+    def completion_create(**kwargs: Any) -> Mapping[str, Any]:
+        seen.update(kwargs)
+        return _completion("합성-모델-a", {"verdict": "ok"})
+
+    client = ModelClient(model="합성-모델-a", output_contract=CONTRACT, completion_create=completion_create)
+    baseline = client.invoke("s1", {"item": "합성"}, POLICY)
+    correction = "직전 응답의 근거 인용이 원문과 다르다. 원문 문장을 그대로 인용하라."
+    result = client.invoke("s1", {"item": "합성"}, POLICY, correction=correction)
+
+    assert [message["role"] for message in seen["messages"]] == ["system", "user", "user"]
+    assert seen["messages"][-1] == {"role": "user", "content": correction}
+    digest = hashlib.sha256(correction.encode("utf-8")).hexdigest()
+    assert result.attempts[0]["correction_sha256"] == digest
+    assert baseline.attempts[0]["correction_sha256"] is None
+    # 프롬프트 hash는 기준 프롬프트의 digest 그대로다.
+    assert result.input_sha256 == baseline.input_sha256
+
+
+def test_oversized_correction_fails_before_any_request() -> None:
+    """상한을 넘는 보정 지시는 네트워크에 나가기 전에 거부된다."""
+
+    calls: list[dict[str, Any]] = []
+
+    def completion_create(**kwargs: Any) -> Mapping[str, Any]:  # pragma: no cover - 불려서는 안 된다
+        calls.append(kwargs)
+        return _completion("합성-모델-a", {"verdict": "ok"})
+
+    client = ModelClient(model="합성-모델-a", output_contract=CONTRACT, completion_create=completion_create)
+    with pytest.raises(ModelInvocationError) as error:
+        client.invoke("s1", {"item": "합성"}, POLICY, correction="가" * (MAX_CORRECTION_CHARS + 1))
+    assert error.value.code == "correction_invalid"
+    assert error.value.attempts == []
+    assert not calls
+    # 상한 그대로는 통과한다.
+    assert client.invoke("s1", {"item": "합성"}, POLICY, correction="가" * MAX_CORRECTION_CHARS).structured_output == {"verdict": "ok"}
