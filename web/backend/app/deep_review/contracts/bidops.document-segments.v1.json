@@ -37,7 +37,7 @@
     },
     "segment": {
       "type": "object", "additionalProperties": false,
-      "required": ["segment_id", "ordinal", "taxonomy_labels", "start_locator", "end_locator", "requirement_ids", "source_block_keys", "classification_source", "confidence", "status"],
+      "required": ["segment_id", "ordinal", "taxonomy_labels", "start_locator", "end_locator", "requirement_ids", "source_block_keys", "classification_source", "confidence", "status", "page_range", "mapping_status"],
       "properties": {
         "segment_id": {"type": "string", "minLength": 1},
         "ordinal": {"type": "integer", "minimum": 1},
@@ -48,8 +48,15 @@
         "source_block_keys": {"type": "array", "items": {"type": "string", "minLength": 1}},
         "classification_source": {"const": "deterministic"},
         "confidence": {"type": "null"},
-        "status": {"enum": ["classified", "needs_human_review"]}
+        "status": {"enum": ["classified", "needs_human_review"]},
+        "page_range": {"oneOf": [{"$ref": "#/$defs/page_range"}, {"type": "null"}]},
+        "mapping_status": {"enum": ["mapped", "partial", "unavailable"]}
       }
+    },
+    "page_range": {
+      "type": "object", "additionalProperties": false,
+      "required": ["first", "last"],
+      "properties": {"first": {"type": "integer", "minimum": 1}, "last": {"type": "integer", "minimum": 1}}
     },
     "ambiguous_item": {
       "type": "object", "additionalProperties": false,
