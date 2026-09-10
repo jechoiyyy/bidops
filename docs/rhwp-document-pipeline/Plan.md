@@ -1,6 +1,6 @@
 # rhwp 문서 변환 파이프라인 진행 계획
 
-작업명: rhwp-document-pipeline · 기준일: 2026-09-10 · 상태: R3 수락·main 병합, P1·R4 미착수
+작업명: rhwp-document-pipeline · 기준일: 2026-09-10 · 상태: P1·R4 main 병합, R5 위임 진행 중
 
 이 문서는 새 세션이 다른 맥락 없이 이 작업을 이어갈 수 있도록 순서·담당·게이트·현재 상태·재현 명령을 모아 둔다. 내용이 이미 다른 문서에 있으면 여기 다시 적지 않고 링크한다. 단계가 끝나거나 결정이 바뀌면 §7 진행 기록에 덧붙이고, 결정 자체는 [ADR.md](ADR.md)에 적는다.
 
@@ -144,16 +144,17 @@ git diff --check
 
 ### P1 병합 (담당: 관리자)
 
-- [ ] `feat/p1-wp1-model-client` → `-wp2-validation-retry` → `-wp3-citation-normalize` 순으로 main 병합. WP-3의 경고를 R3의 `validation_warnings`에 저장하도록 연결.
+- [x] `feat/p1-wp1-model-client` → `-wp2-validation-retry` → `-wp3-citation-normalize` 순으로 main 병합(`bbbbaae`).
+- [x] WP-3의 경고를 R3의 `validation_warnings`에 저장하도록 연결(`feat/p1-wp4-validation-warnings` 63b6ef4, main 병합).
 
 - 시점: P2 실측을 먼저 볼 수 있으면 그 뒤, 늦어도 R4 전.
 
 ### R4 소비자 (담당: 위임, `feat/rdp-r4-consumers`)
 
-- [ ] page-overview·회사 핏·근거 PDF endpoint의 renderer 이름 교체([Design §2.5](Design.md#25-소비자-연결)).
-- [ ] `document-segments.v1`에 `page_range`·`mapping_status`([Spec §6](Spec.md#6-rest화면-변경)), `docs/contracts.md` 갱신.
-- [ ] 심층 검토 보고서·segment 화면에 PDF 페이지 링크, 없으면 "페이지 미확인".
-- [ ] focused backend와 영향 spec만(Playwright `page-overview`·`company-fit`·`deep-review` 관련), 1280×800·1440×900.
+- [x] page-overview·회사 핏·근거 PDF endpoint의 renderer 이름 교체([Design §2.5](Design.md#25-소비자-연결)). 확인 결과 소비자 계층(`page_overview`·`company_fit*`·`prespec_v4_runner`·REST schema)에 renderer 문자열이 없어 코드 변경 없이 성립한다.
+- [x] `document-segments.v1`에 `page_range`·`mapping_status`([Spec §6](Spec.md#6-rest화면-변경)), `docs/contracts.md` 갱신. 조회 시점에 대응표를 가진 최신 native snapshot에서 계산하며 저장하지 않는다. 링크용 `GET /api/document-structures/{id}/pdf` 추가.
+- [x] 심층 검토 보고서·segment 화면에 PDF 페이지 링크, 없으면 "페이지 미확인". `partial`은 "일부 블록만 대응" 문구.
+- [x] focused backend 147 passed·1 skipped, `deep-review.spec.ts` 17 passed(1440×900), `overflow.spec.ts -g deep-review` 8 passed(1280×800·1440×900).
 
 - 소유 파일: `services/page_overview.py`, `services/company_fit.py`, `services/document_segments.py`, `routers/deep_reviews.py`, `contracts/bidops.document-segments.v1.json`, frontend 해당 컴포넌트·spec, `docs/contracts.md`.
 
@@ -219,3 +220,6 @@ git diff --check
 | 2026-09-10 | R2 수락·R3 승인 | 사용자가 R2의 main 병합과 R3 계속 진행을 요청했다. 저장된 R2 diff·검증 지표를 확인해 병합하며, 기존 main 계획서의 기능 구현 우선 원칙을 보존했다. R3는 별도 격리 worktree에서 직접 진행하고 운영 migration·배포는 R6에 남긴다. |
 | 2026-09-10 | R3 직접 구현·검증 | R2를 main `1db6986`에 fast-forward 병합한 뒤 Orca worktree `/home/jechoi/orca/workspaces/bidops/rdp-r3-snapshot`, `feat/rdp-r3-snapshot`에서 직접 구현했다. nullable 0023·runtime head·worker 권한, native scratch sidecar·객체 version/hash 결속과 캐시, 안전 오류·감사 기록을 연결했다. 최종 관련 회귀 107건, PostgreSQL·권한·경계 50건 및 보정 후 대상 검사가 통과했다(중복 합산 금지). 실제 격리 이미지 세 표본 79/53/31쪽의 저장·캐시 재사용·scratch 정리, R2 대응표 해시 일치를 확인했다. 근거: [R3 검증](../validation-runs/2026-09-10-rhwp-r3-snapshot.md)·[지표](../validation-runs/2026-09-10-rhwp-r3-snapshot.metrics.json). R3 게이트 충족, 미커밋·미병합으로 단계 검토 대기. P1·R4와 운영 변경은 시작하지 않았다. |
 | 2026-09-10 | R3 수락·병합 | 사용자가 R3 커밋과 main 병합을 요청했다. 검토한 R3 코드·migration·계약 문서·검증 기록을 함께 커밋하고 main에 fast-forward 병합한다. 검증 뒤 코드 변경이 없어 기존 통과 검사를 반복하지 않고 수락 문서와 staged diff를 확인했다. P1·R4는 아직 시작하지 않았으며 운영 migration·배포·활성화·모델 호출도 수행하지 않았다. |
+| 2026-09-10 | P1 병합·R4 착수 | 관리자가 `feat/p1-wp1-model-client`(87cce3b) → `-wp2-validation-retry`(3f03bca) → `-wp3-citation-normalize`(3a3dfab)를 순서대로 main에 병합했다(`bb1045c`·`39dfaff`·`bbbbaae`, 충돌 없음). 병합 트리에서 닿는 백엔드 테스트 5파일(`test_model_client`·`test_page_overview`·`test_company_fit`·`test_prespec_v4_runner`·`test_deep_reviews`) 171 passed 1회. WP-3 경고를 `validation_warnings`에 저장하는 연결은 `feat/p1-wp4-validation-warnings`, R4는 `feat/rdp-r4-consumers`(백엔드)·`feat/rdp-r4-consumers-ui`(프론트엔드)로 `.worktrees/` 아래에서 Opus 서브에이전트에 병렬 위임했다. R4 결정: segment PDF 링크는 구조 기준 endpoint `GET /api/document-structures/{id}/pdf`(대응표를 가진 최신 native snapshot의 PDF)를 새로 두고 segments 계약 추가는 Spec §6의 `page_range`·`mapping_status` 둘뿐이다. 운영 변경·모델 호출 없음. |
+| 2026-09-10 | P1 WP-4 수락 | 위임 결과 `63b6ef4`(`_complete` 최종 관문을 `validate_page_overview_detailed`로 바꿔 완료 attempt의 `validation_warnings`와 완료 감사에 경고 목록 저장, 경고 없음은 `[]`, 재시도·실패 경로 미변경)를 diff로 검토하고 main에 병합했다. 위임 검증 `test_prespec_v4_runner`·`test_page_overview` 22 passed 1회, `diff --check` clean. 경고 조건은 검토 페이지가 둘 이상이어야 성립하므로 같은 테스트 파일 안에 3쪽 표본 옵션만 추가했다. |
+| 2026-09-10 | R4 수락·병합 | 백엔드 `8725d47`(`feat/rdp-r4-consumers`)과 프론트 `cedcbd1`(`feat/rdp-r4-consumers-ui`)을 diff로 검토하고 main에 병합했다(`4514421`·`506e323`). 대응표 읽기·hash 실패는 조용히 `unavailable`로 낮추지 않고 500 `processing_failed`, 구조 PDF endpoint는 개요 PDF와 같은 무결성 검사 함수(`verified_pdf_bytes`)를 공유한다. 화면 fixture가 사람 확인 segment 1→3건으로 늘어 `screen-semantics.spec.ts` 개수 단언 2줄을 사실대로 고쳤고, 픽셀 층 `deep-review-complete` 기준선은 갱신하지 않았다(승인 뒤 교체). 실제 native snapshot이 있는 응답 확인은 운영 migration이 없어 R6에서 한다. |
