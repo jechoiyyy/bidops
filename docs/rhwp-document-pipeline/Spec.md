@@ -160,6 +160,7 @@ items+extras가 `(section, paraIndex)` 669개(최대 668)인데 변환 HWPX의 �
 | `rhwp_manifest_invalid` | stdout JSON 파싱 실패·`schemaVersion` 불일치·필수 필드 누락 |
 | `pdf_page_mismatch` | ③·④·⑤·`pdfinfo` 페이지 수 불일치 |
 | `para_page_map_invalid` | 대응표 생성 예외(정렬 실패 블록은 여기 해당하지 않음) |
+| `section_candidates_invalid` | `digest --sections` 봉투·`sectionsMode`·절 형식·쪽 범위 위반, 절 2,000개 초과, 저장 bytes 비정규 (빈 목록은 유효) |
 
 attempt `error_code`는 `pdf_preparation_failed:<위 코드 또는 기존 processor 코드>`로 기록한다(N6). 감사 `safe_metadata.converter_code`에 같은 값을 둔다.
 

@@ -670,6 +670,7 @@ lease 길이는 환경변수가 아니라 모듈 상수 1,200초다.
 | `hwpx_verify_jsonb` | HWP 변환 검증의 안전한 IR 동일성·차이 개수·전후 페이지 수 |
 | `structure_id`, `structure_location_id` | 같은 문서의 `document_structure` FK와 payload의 정확한 location FK |
 | `para_page_map_content_object_id`, `para_page_map_location_id`, `para_page_map_sha256` | 대응표 객체·location FK와 SHA-256 |
+| `section_candidates_content_object_id`, `section_candidates_location_id`, `section_candidates_sha256` | 절 후보(`bidops.section-candidates.v1`) 객체·location FK와 SHA-256 (`0024`, 모두 nullable이며 셋이 함께 null이거나 함께 채워진다. 0024 이전 snapshot은 null로 남고 그대로 재사용된다) |
 | `rhwp_binary_sha256`, `rhwp_version` | native renderer provenance |
 
 모든 신규 FK는 `ON DELETE RESTRICT`다. renderer는 기존 JSON 안의 값으로서
