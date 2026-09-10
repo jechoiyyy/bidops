@@ -145,16 +145,35 @@ def test_number_substrings_and_blank_explanations_are_not_evidence(context):
 
 
 class Client:
-    def __init__(self, result, callback=None):
+    """`retry_result`를 주면 두 번째 호출부터 그 결과를 낸다."""
+
+    def __init__(self, result, callback=None, *, retry_result=None, raw_prefix=""):
         self.result, self.calls, self.callback = result, 0, callback
+        self.retry_result, self.raw_prefix = retry_result, raw_prefix
+        self.seeds, self.corrections = [], []
     def verify_identity(self):
         return ModelIdentity("test-fit", "b" * 64)
-    def invoke(self, stage, inputs, policy):
+    def invoke(self, stage, inputs, policy, *, seed=None, correction=None):
         self.calls += 1
+        self.seeds.append(seed)
+        self.corrections.append(correction)
         if self.callback:
             self.callback()
-        return SimpleNamespace(structured_output=self.result, raw_response=json.dumps(self.result).encode(),
+        result = self.result if self.calls == 1 or self.retry_result is None else self.retry_result
+        return SimpleNamespace(structured_output=result,
+                               raw_response=(self.raw_prefix + json.dumps(result)).encode(),
                                prompt_tokens=400, output_tokens=100, latency_ms=20)
+
+
+def audit_metadata(session, row_id, status):
+    """종결 상태를 기록한 감사 이벤트. id는 UUID라 순서 기준이 아니다."""
+
+    from app.core.models import AuditEvent
+    rows = [row.safe_metadata for row in session.scalars(select(AuditEvent).where(
+        AuditEvent.action == "prespec_company_fit.attempt", AuditEvent.aggregate_id == str(row_id)
+    )) if row.safe_metadata["status"] == status]
+    assert len(rows) == 1
+    return rows[0]
 
 
 @pytest.mark.parametrize("decision,reason", [("matched", None), ("mismatch", "company_fit_mismatch"), ("unknown", "company_fit_unknown")])
@@ -181,19 +200,61 @@ def test_completed_result_is_immutable_and_gate_requires_current_match(context, 
         session.flush()
 
 
-def test_invalid_model_response_never_reaches_decision(context, monkeypatch):
-    session, inputs = context
-    row = enqueue(session, inputs)
-    result = output(); result["reasons"][0]["notice_refs"] = ["fabricated"]
-    store = _FakeStore()
-    runner = worker.PreSpecCompanyFitRunner(client=Client(result), raw_response_store=store)
+def _invalid():
+    result = output()
+    result["reasons"][0]["notice_refs"] = ["fabricated"]
+    return result
+
+
+def _prepared(session, monkeypatch, client, store=None):
+    runner = worker.PreSpecCompanyFitRunner(client=client, raw_response_store=store)
     monkeypatch.setattr(runner, "_enqueue_one", lambda s: None)
     monkeypatch.setattr(runner, "_eligible", lambda s, row: True)
     monkeypatch.setattr(worker, "maybe_auto_start_deep_review", lambda *args: None)
-    assert runner.run_once(session, "test-worker")
+    return runner
+
+
+def test_invalid_model_response_never_reaches_decision(context, monkeypatch):
+    session, inputs = context
+    row = enqueue(session, inputs)
+    store = _FakeStore()
+    client = Client(_invalid())
+    assert _prepared(session, monkeypatch, client, store).run_once(session, "test-worker")
     session.refresh(row)
+    # 재시도까지 실패하면 자동 보정 없이 사람 검토로 남는다.
     assert row.status == "needs_human_review" and row.result_jsonb is None
-    assert len(store.calls) == 1 and row.raw_response_sha256
+    assert client.calls == 2 and client.seeds == [None, 1]
+    assert "company_fit_validation_failed" in client.corrections[1]
+    assert len(store.calls) == 2 and row.raw_response_sha256
+    retry = audit_metadata(session, row.id, "needs_human_review")["validation_retry"]
+    assert retry["count"] == 1 and retry["first_error_codes"] == ["company_fit_validation_failed"]
+    assert retry["first_raw_response_sha256"] and retry["seed"] == 1
+
+
+def test_thinking_prefixed_raw_response_is_not_a_mismatch(context, monkeypatch):
+    session, inputs = context
+    row = enqueue(session, inputs)
+    client = Client(output(), raw_prefix="<think>먼저 과업을 읽는다</think>\n")
+    assert _prepared(session, monkeypatch, client, _FakeStore()).run_once(session, "test-worker")
+    session.refresh(row)
+    assert row.status == "completed" and row.error_code is None and client.calls == 1
+    assert audit_metadata(session, row.id, "completed")["validation_retry"] is None
+
+
+def test_company_fit_validation_retry_completes_on_the_second_response(context, monkeypatch):
+    session, inputs = context
+    row = enqueue(session, inputs)
+    store = _FakeStore()
+    client = Client(_invalid(), retry_result=output())
+    assert _prepared(session, monkeypatch, client, store).run_once(session, "test-worker")
+    session.refresh(row)
+    assert row.status == "completed" and row.error_code is None
+    assert client.calls == 2 and client.seeds == [None, 1]
+    # 마지막 응답이 행의 원본이고 첫 응답은 감사에만 남는다.
+    assert len(store.calls) == 2 and store.calls[1] == json.dumps(output()).encode()
+    retry = audit_metadata(session, row.id, "completed")["validation_retry"]
+    assert retry["count"] == 1
+    assert retry["first_raw_response_sha256"] != row.raw_response_sha256
 
 
 def test_expired_lease_is_terminal_without_retry(context, monkeypatch):
