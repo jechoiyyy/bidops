@@ -57,12 +57,14 @@ test -f web/backend/app/screening/baseline_company_profile.md && test -r web/bac
 저장소 루트에서 Makefile을 사용한다. `make` 또는 `make help`로 명령 목록을 볼 수 있다.
 
 ```bash
+make build     # 모든 buildable Compose image 빌드; 컨테이너 실행·migration 없음
 make up        # 기존 PostgreSQL·MinIO·ClamAV·문서 worker·웹 시작, 최대 60초 준비 대기
 make status    # 위 서비스 상태 확인
 make health    # 실제 웹 port의 API·화면 응답 확인
 make logs      # 웹 로그 실시간 확인, Ctrl+C로 로그 보기 종료
 make restart   # 웹 컨테이너만 재시작
 make stop      # 웹 컨테이너만 중지; DB·저장소·worker 유지
+make down      # 현재 Compose 프로젝트의 모든 서비스 중지; 컨테이너·volume 유지
 ```
 
 `make start`는 `make up`과 같다. `COMPOSE_PROJECT_NAME` 기본값은 `bidops`이며 다른
@@ -70,9 +72,27 @@ make stop      # 웹 컨테이너만 중지; DB·저장소·worker 유지
 대기 시간은 `WAIT_TIMEOUT=120`, 로그 줄 수는 `LOG_TAIL=200`으로 바꿀 수 있다.
 
 이 명령은 이미 설치된 컨테이너를 사용한다. 현재 컨테이너에 반영된 정적 UI와 배포 설정을
-유지하며, 컨테이너가 빠져 있으면 시작 전에 최초 기동 절차를 안내하고 종료한다.
-DB·MinIO 초기화, migration, 분석·수집 worker 시작, 이미지 빌드·컨테이너 재생성은 포함하지 않는다.
-컨테이너를 재생성하는 배포에서는 사용할 소스를 빌드하고 UI 반영 상태를 다시 검증한다.
+유지하며, 컨테이너가 빠져 있으면 시작 전에 최초 기동 절차를 안내하고 종료한다. `make up`은
+Compose service dependency를 따라가지 않고 현재 프로젝트의 정확한 컨테이너 ID만 `docker start`로
+시작한다. PostgreSQL·MinIO health와 ClamAV·문서 worker의 running 상태를 확인한 뒤 웹을 시작하고,
+`WAIT_TIMEOUT` 안에 API와 화면 응답을 확인한다. DB·MinIO 초기화, migration, 분석·수집 worker
+시작, 이미지 빌드·컨테이너 재생성은 포함하지 않으며 분석·수집 worker를 자동으로 재개하지 않는다.
+
+`make stop`은 웹만 중지하고, `make down`은 현재 `COMPOSE_PROJECT_NAME` 프로젝트의 모든 서비스를
+중지한다. 둘 다 컨테이너와 volume을 삭제하지 않는다. `make down`에는 서비스 인수를 주지 않아
+다른 Compose 프로젝트는 건드리지 않는다.
+
+`make build`는 모든 buildable Compose image를 빌드하는 작업이다. 새 image를 만들어도 이미 존재하는
+컨테이너(중지된 컨테이너 포함)가 그 image로 바뀌지는 않는다. 새 image를 반영하는 배포는 명시적으로
+컨테이너를 재생성하고, migration은 준비된 DB에 대해 별도 일회성 컨테이너로 실행한다.
+
+```bash
+COMPOSE_PROJECT_NAME=bidops docker compose -f docker-compose.yml \
+  run --rm --no-deps migrate
+```
+
+위 migration 명령은 DB 역할 초기화와 백업·점검을 마친 뒤 운영자가 명시적으로 실행한다. 평상시
+`make up`에서는 실행하지 않는다.
 
 ### 화면 노출과 edge overlay
 
