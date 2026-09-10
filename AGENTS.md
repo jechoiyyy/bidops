@@ -41,6 +41,7 @@ bidops/
 │   │   ├── order-plan-tracking-contract-request.md  발주계획 추적 결정 계약 요청안(제안, 미채택)
 │   │   └── moodborad.jpg             색 팔레트의 원본 무드보드
 │   ├── deep-review-v2/               첨부문서 분석 설계(결정적 부분만 구현, ADR-0051)와 Luna 시안 검증 계획(보류)
+│   ├── rhwp-document-pipeline/       rhwp 네이티브 변환 파이프라인 작업 정본(ADR·Requirements·Design·Spec, 2026-09-10 시작)
 │   ├── reference/                    회사 프로필·실적 근거자료
 │   ├── validation-runs/              시점별 실행 증거
 │   └── tracking/
