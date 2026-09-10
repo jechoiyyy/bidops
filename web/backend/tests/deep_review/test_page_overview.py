@@ -168,3 +168,52 @@ def test_cli_rejects_symlinks_and_limits_read_size(tmp_path):
         read_file(tmp_path, 'file', 3)
     with pytest.raises(PageOverviewError, match='invalid_path'):
         read_file(tmp_path, '../file')
+
+
+def test_range_review_projection_and_human_confirmation_endpoint(tmp_path, monkeypatch):
+    """R7: 확정 대기 상태 조회 → 사람 확정 → 확정 상태 조회. attempt는 생기지 않는다."""
+
+    from .test_prespec_v4_ops import _native_pending
+
+    engine, session, store, snapshot, target = _native_pending(tmp_path)
+    app = FastAPI()
+    app.include_router(deep_reviews.pre_spec_overview_router)
+    app.dependency_overrides[get_db] = lambda: session
+    monkeypatch.setattr(deep_reviews, 'object_store', lambda **_: store)
+    client = TestClient(app)
+    url = f'/api/pre-specs/{snapshot.notice_id}/overview-pages'
+    actor = {'X-BidOps-Actor-Name': "UTF-8''%EC%B5%9C%EC%A0%95%EC%9D%B8", 'X-BidOps-Actor-Name-Format': 'utf-8-percent-v1'}
+
+    body = client.get(url).json()
+    review = body['range_review']
+    assert body['schema_version'] == 'bidops.prespec-overview-pages.v1' and review['confirmation'] is None
+    assert review['selection_status'] == 'needs_human_review' and review['reason_code'] == 'scope_heading_missing'
+    assert review['candidates_mode'] == 'clause' and [c['index'] for c in review['candidates']] == [0, 1]
+    assert review['assisted'] is None and review['pdf_page_count'] == snapshot.pdf_page_count
+
+    confirmation = {'target_id': review['target_id'], 'start_index': 0, 'end_index': 1, 'first_page': None, 'last_page': None, 'note': None}
+    assert client.post(f'{url}/range-confirmations', json=confirmation).json()['error']['code'] == 'actor_name_required'
+    missing = client.post(f'{url}/range-confirmations', json={**confirmation, 'target_id': str(uuid4())}, headers=actor)
+    assert missing.status_code == 404 and missing.json()['error']['code'] == 'target_not_found'
+    invalid = client.post(f'{url}/range-confirmations', json={**confirmation, 'end_index': 9}, headers=actor)
+    assert invalid.status_code == 422 and invalid.json()['error']['code'] == 'range_invalid'
+
+    created = client.post(f'{url}/range-confirmations', json=confirmation, headers=actor)
+    assert created.status_code == 201
+    payload = created.json()
+    assert payload['selection_status'] == 'ready' and payload['attempt_enqueued'] is False
+    assert payload['page_numbers'] == [1] and payload['first_page'] == 1 and payload['last_page'] == 1
+    assert payload['target_id'] != review['target_id']
+
+    again = client.post(f'{url}/range-confirmations', json=confirmation, headers=actor)
+    assert again.status_code == 409 and again.json()['error']['code'] == 'target_not_pending'
+
+    confirmed = client.get(url).json()['range_review']
+    assert confirmed['selection_status'] == 'ready' and confirmed['reason_code'] is None
+    assert confirmed['target_id'] == payload['target_id']
+    assert confirmed['confirmation']['confirmed_from_target_id'] == review['target_id']
+    assert confirmed['confirmation']['actor'] == '최정인' and confirmed['confirmation']['note'] is None
+    assert confirmed['confirmation']['page_numbers'] == [1]
+    assert 'object_key' not in str(confirmed) and 'structure/' not in str(confirmed)
+    session.close()
+    engine.dispose()

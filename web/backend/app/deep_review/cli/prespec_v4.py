@@ -22,6 +22,7 @@ def build_parser() -> argparse.ArgumentParser:
     actions.add_argument("--enqueue-reference", action="store_true", help="enqueue one Luna reference attempt (app role)")
     actions.add_argument("--retry", action="store_true", help="append a new attempt for a failed target")
     actions.add_argument("--run-reference", action="store_true", help="run an already queued Luna reference attempt (worker role)")
+    actions.add_argument("--assist-range", action="store_true", help="record one model range suggestion for a needs_human_review target")
     parser.add_argument("--notice-id", action="append", type=int, default=[])
     parser.add_argument("--target-id", type=str)
     parser.add_argument("--mode", choices=("explicit_sample", "new_reference"), default="explicit_sample")
@@ -191,6 +192,34 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "model": reference.binding.model_name,
                     "model_digest": reference.binding.model_digest,
                     "quality_status": "unmeasured_reference",
+                }
+            elif args.assist_range:
+                if not args.target_id:
+                    raise V4OpsError("target_id_required")
+                from ...core.object_store import object_store
+                from ..services.prespec_v4_range import assist_v4_range
+
+                assist = assist_v4_range(
+                    session,
+                    object_store(namespaces=("structure",), read_namespaces=("structure",)),
+                    target_id=__import__("uuid").UUID(args.target_id),
+                    actor=args.actor,
+                    settings=settings,
+                )
+                session.commit()
+                # 제안은 감사 행 하나다. target·attempt는 만들지 않는다.
+                result = {
+                    "status": assist.status,
+                    "target_id": str(assist.target_id),
+                    "start_index": assist.start_index,
+                    "end_index": assist.end_index,
+                    "reason_code": assist.reason_code,
+                    "model": assist.model_name,
+                    "model_revision": assist.model_revision,
+                    "prompt_sha256": assist.prompt_sha256,
+                    "response_sha256": assist.response_sha256,
+                    "quality_status": assist.quality_status,
+                    "attempt_id": None,
                 }
             else:
                 if args.prepare or args.enqueue:
