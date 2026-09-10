@@ -32,11 +32,17 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from ...core.object_store import ObjectStore, ObjectStoreError
+from ..document_mcp.contracts import validate_para_page_map
+from ..document_mcp.errors import DocumentProcessingError
 from ..models import (
+    ContentObject,
+    ContentObjectLocation,
     DocumentSegment,
     DocumentSegmentManifest,
     DocumentStructure,
     DocumentVersion,
+    PrespecV4PdfSnapshot,
     RequirementInventoryItem,
 )
 
@@ -625,6 +631,12 @@ def build_manifest_payload(structure_payload: Mapping[str, Any]) -> dict[str, An
     }
     payload["payload_sha256"] = _sha256(payload)
     payload["created_at"] = _iso(datetime.now(UTC))
+    # ``page_range``·``mapping_status``는 대응표에서 조회 시점에만 계산하는 wire
+    # 필드다. 저장 payload의 hash 대상에는 들어가지 않으므로 hash를 계산한 뒤에
+    # 기본값(대응표 없음)을 붙인다. 저장 행에도 넣지 않는다.
+    for segment in segments:
+        segment["page_range"] = None
+        segment["mapping_status"] = "unavailable"
     payload["inventory_items"] = items
     payload["segment_titles"] = titles
     return payload
@@ -789,9 +801,57 @@ def _manifest_for_structure(session: Session, structure_id: UUID) -> DocumentSeg
     )
 
 
-def read_manifest_view(session: Session, structure_id: UUID) -> dict[str, Any] | None:
-    """저장된 manifest를 조회 계약 형태로 읽는다. 원문 text는 넣지 않는다."""
+def _block_page_ranges(page_map: Mapping[str, Any] | None) -> dict[str, tuple[int, int]] | None:
+    """대응표의 매핑된 block만 ``block_key -> (page_first, page_last)``로 편다.
 
+    ``None``은 "대응표 없음"이고 빈 dict는 "대응표는 있으나 매핑 0건"이다. 둘을
+    섞으면 미확인과 실제 0건을 구분할 수 없다.
+    """
+
+    if page_map is None:
+        return None
+    return {
+        str(block["block_key"]): (int(block["page_first"]), int(block["page_last"]))
+        for block in page_map["blocks"]
+    }
+
+
+def _segment_pages(
+    source_block_keys: Sequence[str],
+    block_pages: Mapping[str, tuple[int, int]] | None,
+) -> dict[str, Any]:
+    """segment 하나의 ``page_range``·``mapping_status``를 계산한다.
+
+    매핑된 키가 하나도 없으면 페이지를 만들어 내지 않고 ``unavailable``·``null``로
+    둔다. 일부만 매핑되면 ``partial``이며 범위는 매핑된 키만으로 계산한다.
+    """
+
+    if block_pages is None:
+        return {"page_range": None, "mapping_status": "unavailable"}
+    mapped = [block_pages[key] for key in source_block_keys if key in block_pages]
+    if not mapped:
+        return {"page_range": None, "mapping_status": "unavailable"}
+    status = "mapped" if len(mapped) == len(source_block_keys) else "partial"
+    return {
+        "page_range": {"first": min(first for first, _ in mapped), "last": max(last for _, last in mapped)},
+        "mapping_status": status,
+    }
+
+
+def read_manifest_view(
+    session: Session,
+    structure_id: UUID,
+    *,
+    page_map: Mapping[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    """저장된 manifest를 조회 계약 형태로 읽는다. 원문 text는 넣지 않는다.
+
+    ``page_map``이 있으면 segment마다 ``page_range``·``mapping_status``를 계산해
+    붙인다. 없으면 ``unavailable``·``null``이며, 이 값들은 어느 경우에도 저장하지
+    않는다.
+    """
+
+    block_pages = _block_page_ranges(page_map)
     manifest = _manifest_for_structure(session, structure_id)
     if manifest is None:
         return None
@@ -820,6 +880,7 @@ def read_manifest_view(session: Session, structure_id: UUID) -> dict[str, Any] |
             "classification_source": row.classification_source,
             "confidence": None if row.confidence is None else float(row.confidence),
             "status": row.status,
+            **_segment_pages(list(row.source_block_keys or []), block_pages),
         } for row in segments],
         "inventory_summary": dict(manifest.inventory_summary or {}),
         "coverage": dict(manifest.coverage or {}),
@@ -838,11 +899,96 @@ class SegmentViewError(LookupError):
         super().__init__(code)
 
 
-def segments_view(session: Session, structure_id: UUID) -> dict[str, Any]:
+def _para_page_map_unreadable() -> SegmentViewError:
+    """대응표 읽기·검증 실패는 조용히 ``unavailable``로 낮추지 않는다."""
+
+    return SegmentViewError("processing_failed", "문서 작업을 완료할 수 없습니다", status_code=500)
+
+
+def latest_para_page_map_snapshot(session: Session, structure_id: UUID) -> PrespecV4PdfSnapshot | None:
+    """구조를 가리키면서 대응표를 가진 가장 최근 snapshot 하나.
+
+    대응표는 native(``rhwp-svg-pdf``) snapshot만 만든다. 없으면 ``None``이다.
+    """
+
+    return session.scalar(
+        select(PrespecV4PdfSnapshot)
+        .where(
+            PrespecV4PdfSnapshot.structure_id == structure_id,
+            PrespecV4PdfSnapshot.para_page_map_location_id.is_not(None),
+        )
+        .order_by(PrespecV4PdfSnapshot.created_at.desc(), PrespecV4PdfSnapshot.id.desc())
+        .limit(1)
+    )
+
+
+def _read_para_page_map(
+    session: Session,
+    snapshot: PrespecV4PdfSnapshot,
+    store: ObjectStore,
+) -> dict[str, Any]:
+    """고정된 객체 version에서 대응표를 읽고 sha256·schema를 다시 확인한다."""
+
+    location = session.get(ContentObjectLocation, snapshot.para_page_map_location_id)
+    content = (
+        session.get(ContentObject, snapshot.para_page_map_content_object_id)
+        if snapshot.para_page_map_content_object_id is not None
+        else None
+    )
+    expected = snapshot.para_page_map_sha256
+    if (
+        location is None
+        or content is None
+        or not expected
+        or location.content_object_id != content.id
+        or location.status != "verified"
+        or location.purged_at is not None
+        or location.namespace_key != "structure"
+        or not location.object_version_id
+        or content.sha256 != expected
+    ):
+        raise _para_page_map_unreadable()
+    try:
+        data, metadata = store.get(
+            "structure",
+            location.object_key,
+            max_bytes=max(content.size_bytes, 1),
+            version_id=location.object_version_id,
+        )
+    except (ObjectStoreError, OSError, ValueError) as error:
+        raise _para_page_map_unreadable() from error
+    if (
+        metadata.object_version_id != location.object_version_id
+        or (location.etag is not None and metadata.etag != location.etag)
+        or len(data) != content.size_bytes
+        or hashlib.sha256(data).hexdigest() != expected
+    ):
+        raise _para_page_map_unreadable()
+    try:
+        payload = json.loads(data)
+    except (UnicodeDecodeError, ValueError) as error:
+        raise _para_page_map_unreadable() from error
+    if not isinstance(payload, Mapping):
+        raise _para_page_map_unreadable()
+    try:
+        return validate_para_page_map(payload)
+    except DocumentProcessingError as error:
+        raise _para_page_map_unreadable() from error
+
+
+def segments_view(
+    session: Session,
+    structure_id: UUID,
+    store: ObjectStore | None = None,
+) -> dict[str, Any]:
     """``GET /api/document-structures/{structure_id}/segments``의 본문.
 
     구조가 없으면 404 ``not_found``, 문서가 unsafe면 403 ``unsafe_document``,
     manifest가 없으면 404 ``not_found``다. 응답에 원문 text는 없다.
+
+    ``store``는 ``structure`` namespace를 읽는 객체 저장소다. 대응표를 가진
+    snapshot이 있는데 저장소가 없거나 읽기·검증이 실패하면 500
+    ``processing_failed``이며, 조용히 ``unavailable``로 낮추지 않는다.
     """
 
     structure = session.get(DocumentStructure, structure_id)
@@ -851,7 +997,13 @@ def segments_view(session: Session, structure_id: UUID) -> dict[str, Any]:
     document = session.get(DocumentVersion, structure.document_version_id)
     if document is None or document.safety_status != "safe":
         raise SegmentViewError("unsafe_document", "quarantine 문서는 열람할 수 없습니다", status_code=403)
-    view = read_manifest_view(session, structure_id)
+    snapshot = latest_para_page_map_snapshot(session, structure_id)
+    page_map: dict[str, Any] | None = None
+    if snapshot is not None:
+        if store is None:
+            raise _para_page_map_unreadable()
+        page_map = _read_para_page_map(session, snapshot, store)
+    view = read_manifest_view(session, structure_id, page_map=page_map)
     if view is None:
         raise SegmentViewError("not_found", "document segment manifest를 찾을 수 없습니다", status_code=404)
     return validate_document_segments(view)
@@ -941,6 +1093,7 @@ __all__ = [
     "build_manifest_payload",
     "ensure_manifest",
     "inventory_context",
+    "latest_para_page_map_snapshot",
     "observed_requirement_ids",
     "read_manifest_view",
     "segments_view",

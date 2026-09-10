@@ -142,6 +142,9 @@ TaxonomyLabel = Literal[
 ]
 SegmentStatus = Literal["classified", "needs_human_review"]
 SegmentLocatorKind = Literal["paragraph", "table_cell", "block"]
+# 대응표(``bidops.para-page-map.v1``)는 native snapshot에만 있다. 없으면
+# ``unavailable``·``null``이며 미확인을 페이지로 승격시키지 않는다.
+SegmentMappingStatus = Literal["mapped", "partial", "unavailable"]
 
 
 class SegmentLocator(StrictModel):
@@ -152,6 +155,13 @@ class SegmentLocator(StrictModel):
     table_key: str | None
     row: int | None = Field(default=None, ge=0)
     column: int | None = Field(default=None, ge=0)
+
+
+class SegmentPageRange(StrictModel):
+    """물리 PDF 순번(1 기준)의 닫힌 구간. 대응표가 있을 때만 채운다."""
+
+    first: int = Field(ge=1)
+    last: int = Field(ge=1)
 
 
 class DocumentSegmentView(StrictModel):
@@ -166,6 +176,9 @@ class DocumentSegmentView(StrictModel):
     # 결정적 규칙에는 확률이 없다. 값을 만들어 내지 않고 항상 null로 둔다.
     confidence: None = None
     status: SegmentStatus
+    # 조회 시점에 대응표에서 계산한다. 저장하지 않으며 원문 텍스트도 아니다.
+    page_range: SegmentPageRange | None
+    mapping_status: SegmentMappingStatus
 
 
 class RequirementInventoryAmbiguity(StrictModel):

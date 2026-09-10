@@ -14,7 +14,14 @@ from sqlalchemy.orm import Session
 from ...core.models import AuditEvent
 from ...core.object_store import ObjectStore
 from ...lifecycle.models import Notice
-from ..models import ContentObject, ContentObjectLocation, ContentScan, DocumentVersion, PreSpecPageOverview
+from ..models import (
+    ContentObject,
+    ContentObjectLocation,
+    ContentScan,
+    DocumentStructure,
+    DocumentVersion,
+    PreSpecPageOverview,
+)
 from ..schemas.page_overview import (
     PageOverviewCurrent,
     PageOverviewPayload,
@@ -170,17 +177,49 @@ def list_page_overviews(session: Session, notice_id: int) -> PageOverviewRespons
     return PageOverviewResponse(notice_id=notice_id, reviews=views, current=current)
 
 
-def get_page_pdf(session: Session, notice_id: int, review_id: UUID, store: ObjectStore) -> bytes:
-    require_notice(session, notice_id)
-    row = session.get(PreSpecPageOverview, review_id)
-    require(row is not None and row.notice_id == notice_id, "not_found")
-    location = session.get(ContentObjectLocation, row.pdf_location_id)
+def verified_pdf_bytes(session: Session, location_id: UUID | None, pdf_sha256: str | None, store: ObjectStore) -> bytes:
+    """Serve one pinned PDF object after re-checking its stored binding.
+
+    This is the single integrity gate behind every PDF endpoint: a verified
+    ``source`` location, the exact object version/etag/size/digest, and a
+    latest clean scan.  Callers differ only in which row names the location.
+    """
+
+    location = session.get(ContentObjectLocation, location_id) if location_id is not None else None
     require(location is not None and location.status == "verified" and location.namespace_key == "source" and bool(location.object_version_id), "pdf_unavailable")
     content = session.get(ContentObject, location.content_object_id)
-    require(content is not None and content.sha256 == row.pdf_sha256 and content.detected_mime == "application/pdf", "pdf_integrity_failed")
+    require(content is not None and content.sha256 == pdf_sha256 and content.detected_mime == "application/pdf", "pdf_integrity_failed")
     latest_scan = session.scalar(select(ContentScan).where(ContentScan.content_object_id == content.id)
                                  .order_by(ContentScan.scanned_at.desc(), ContentScan.id.desc()).limit(1))
     require(latest_scan is not None and latest_scan.status == "clean", "pdf_unavailable")
     data, meta = store.get("source", location.object_key, version_id=location.object_version_id)
-    require(meta.object_version_id == location.object_version_id and meta.etag == location.etag and len(data) == content.size_bytes and digest(data) == row.pdf_sha256, "pdf_integrity_failed")
+    require(meta.object_version_id == location.object_version_id and meta.etag == location.etag and len(data) == content.size_bytes and digest(data) == pdf_sha256, "pdf_integrity_failed")
     return data
+
+
+def get_page_pdf(session: Session, notice_id: int, review_id: UUID, store: ObjectStore) -> bytes:
+    require_notice(session, notice_id)
+    row = session.get(PreSpecPageOverview, review_id)
+    require(row is not None and row.notice_id == notice_id, "not_found")
+    return verified_pdf_bytes(session, row.pdf_location_id, row.pdf_sha256, store)
+
+
+def get_structure_pdf(session: Session, structure_id: UUID, store: ObjectStore) -> bytes:
+    """``GET /api/document-structures/{structure_id}/pdf``의 본문.
+
+    대응표를 가진 가장 최근 native snapshot의 PDF를 돌려준다. 페이지 번호는
+    대응표·page-text와 같은 물리 PDF 순번(1 기준)이다.
+    """
+
+    # 함수 안에서 든다. 이 파일의 다른 조회 helper와 같은 규칙이며, 조회 경계가
+    # 서로를 모듈 최상위에서 끌어들이지 않게 한다.
+    from .document_segments import latest_para_page_map_snapshot
+
+    structure = session.get(DocumentStructure, structure_id)
+    require(structure is not None, "not_found")
+    document = session.get(DocumentVersion, structure.document_version_id)
+    require(document is not None, "not_found")
+    require(document.safety_status == "safe", "unsafe_document")
+    snapshot = latest_para_page_map_snapshot(session, structure_id)
+    require(snapshot is not None, "not_found")
+    return verified_pdf_bytes(session, snapshot.pdf_location_id, snapshot.pdf_sha256, store)

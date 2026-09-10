@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import io
+import json
 import os
 import socket
 import time
@@ -26,6 +27,7 @@ from app.core.constants import (
     UNSUPPORTED_ATTACHMENT_ISSUE_CODE,
 )
 from app.core.db import init_db
+from app.core.object_store import FilesystemObjectStore
 from app.deep_review.document_mcp.processor import DocumentProcessor
 from app.core.models import AuditEvent, IdempotencyRecord
 from app.deep_review.models import (
@@ -36,7 +38,9 @@ from app.deep_review.models import (
     DocumentBundleItem,
     DocumentStructure,
     DocumentVersion,
+    PrespecV4PdfSnapshot,
 )
+from app.deep_review.routers import document_bundles as document_bundles_router
 from app.lifecycle.models import Attachment, Notice, Run
 from app.screening.models import Judgment
 from app.deep_review.schemas.document_bundles import ConfirmRequest, PatchDocumentVersionRequest
@@ -2072,3 +2076,128 @@ def test_other_provider_failures_stay_blocking(context: Context) -> None:
                 "담당자",
             )
     assert error.value.code == "bundle_has_blocking_issues"
+
+
+# --------------------------------------------------------------------------
+# 구조 기준 근거 PDF endpoint
+# --------------------------------------------------------------------------
+
+
+def _structure_id(context: Context, document_id: UUID) -> UUID:
+    with Session(context.engine) as session:  # type: ignore[arg-type]
+        structure = session.scalar(select(DocumentStructure).where(DocumentStructure.document_version_id == document_id))
+        assert structure is not None
+        return structure.id
+
+
+def _native_pdf_snapshot(context: Context, document_id: UUID, structure_id: UUID, store) -> bytes:
+    """대응표를 가진 native snapshot 한 행과 그 PDF 객체를 만든다."""
+
+    # 업로드 원본과 다른 바이트여야 content_object.sha256 UNIQUE와 충돌하지 않는다.
+    pdf = fixture_pdf() + b"\n% native snapshot\n"
+    pdf_sha = hashlib.sha256(pdf).hexdigest()
+    pdf_meta = store.put("source", f"source/v4/pdf-{pdf_sha}", pdf, content_type="application/pdf")
+    map_bytes = b'{"schema":"bidops.para-page-map.v1"}'
+    map_sha = hashlib.sha256(map_bytes).hexdigest()
+    map_meta = store.put("structure", f"structure/para-page-map/{map_sha}", map_bytes, content_type="application/json")
+    with Session(context.engine) as session:  # type: ignore[arg-type]
+        document = session.get(DocumentVersion, document_id)
+        assert document is not None
+        pdf_content = ContentObject(sha256=pdf_sha, size_bytes=len(pdf), detected_mime="application/pdf", retention_class="document-source")
+        map_content = ContentObject(sha256=map_sha, size_bytes=len(map_bytes), detected_mime="application/json", retention_class="structure")
+        session.add_all([pdf_content, map_content])
+        session.flush()
+        pdf_location = ContentObjectLocation(
+            content_object_id=pdf_content.id, namespace_key="source", object_key=pdf_meta.object_key,
+            object_version_id=pdf_meta.object_version_id, etag=pdf_meta.etag, status="verified",
+        )
+        map_location = ContentObjectLocation(
+            content_object_id=map_content.id, namespace_key="structure", object_key=map_meta.object_key,
+            object_version_id=map_meta.object_version_id, etag=map_meta.etag, status="verified",
+        )
+        session.add_all([pdf_location, map_location])
+        session.add(ContentScan(content_object_id=pdf_content.id, scanner="test", scanner_version="1", status="clean", safe_result={"sha256": pdf_sha}))
+        session.flush()
+        session.add(PrespecV4PdfSnapshot(
+            notice_id=document.notice_id,
+            document_version_id=document.id,
+            source_content_object_id=document.content_object_id,
+            source_location_id=pdf_location.id,
+            pdf_content_object_id=pdf_content.id,
+            pdf_location_id=pdf_location.id,
+            page_text_content_object_id=map_content.id,
+            page_text_location_id=map_location.id,
+            structure_id=structure_id,
+            para_page_map_content_object_id=map_content.id,
+            para_page_map_location_id=map_location.id,
+            para_page_map_sha256=map_sha,
+            rhwp_binary_sha256="a" * 64,
+            rhwp_version="0.8.6",
+            source_kind="original",
+            source_sha256=pdf_sha,
+            source_size_bytes=len(pdf),
+            pdf_sha256=pdf_sha,
+            pdf_size_bytes=len(pdf),
+            pdf_page_count=1,
+            page_text_sha256=map_sha,
+            page_text_size_bytes=len(map_bytes),
+            pdf_metadata_jsonb={"schema": "bidops.rhwp-pdf-snapshot.v1", "renderer": "rhwp-svg-pdf", "page_count": 1},
+            renderer_jsonb={"renderer": "rhwp-svg-pdf", "rhwp_version": "0.8.6"},
+            renderer_digest="b" * 64,
+            font_jsonb={"font_manifest_sha256": "c" * 64},
+            font_digest="c" * 64,
+            config_jsonb={"options": {}},
+            config_sha256="d" * 64,
+            scan_jsonb={"status": "clean"},
+            binding_sha256="e" * 64,
+        ))
+        session.commit()
+    return pdf
+
+
+def _structure_pdf_response(context: Context, monkeypatch: pytest.MonkeyPatch, store, structure_id: UUID):
+    monkeypatch.setattr(document_bundles_router, "object_store", lambda **_kwargs: store)
+    with Session(context.engine) as session:  # type: ignore[arg-type]
+        return document_bundles_router.download_document_structure_pdf(structure_id, session=session)
+
+
+def test_structure_pdf_serves_the_pinned_snapshot_bytes_inline(context: Context, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    bundle = make_bundle(context)
+    document = upload(context, bundle.id)
+    structure_id = _structure_id(context, document.id)
+    store = FilesystemObjectStore(tmp_path / "objects")
+    pdf = _native_pdf_snapshot(context, document.id, structure_id, store)
+    response = _structure_pdf_response(context, monkeypatch, store, structure_id)
+    assert response.status_code == 200
+    assert response.body == pdf
+    assert response.headers["content-type"] == "application/pdf"
+    assert response.headers["content-disposition"] == 'inline; filename="document-reference.pdf"'
+    assert response.headers["cache-control"] == "private, no-store"
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["content-security-policy"] == "default-src 'none'; sandbox"
+
+
+def test_structure_pdf_is_not_found_without_a_native_snapshot(context: Context, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    bundle = make_bundle(context)
+    document = upload(context, bundle.id)
+    structure_id = _structure_id(context, document.id)
+    store = FilesystemObjectStore(tmp_path / "objects")
+    response = _structure_pdf_response(context, monkeypatch, store, structure_id)
+    assert response.status_code == 404
+    assert json.loads(response.body)["error"]["code"] == "not_found"
+
+
+def test_structure_pdf_is_forbidden_for_an_unsafe_document(context: Context, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    bundle = make_bundle(context)
+    document = upload(context, bundle.id)
+    structure_id = _structure_id(context, document.id)
+    store = FilesystemObjectStore(tmp_path / "objects")
+    _native_pdf_snapshot(context, document.id, structure_id, store)
+    with Session(context.engine) as session:  # type: ignore[arg-type]
+        row = session.get(DocumentVersion, document.id)
+        assert row is not None
+        row.safety_status = "quarantined"
+        session.commit()
+    response = _structure_pdf_response(context, monkeypatch, store, structure_id)
+    assert response.status_code == 403
+    assert json.loads(response.body)["error"]["code"] == "unsafe_document"
