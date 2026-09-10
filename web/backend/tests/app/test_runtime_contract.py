@@ -9,6 +9,15 @@ import yaml
 ROOT = Path(__file__).parents[4]
 
 
+def test_runtime_image_installs_native_rhwp_and_pinned_fallback_fonts():
+    dockerfile = (ROOT / "web/Dockerfile").read_text(encoding="utf-8")
+    binary = "app/deep_review/document_mcp/vendor/rhwp/bin/rhwp"
+
+    assert "fonts-nanum fonts-noto-cjk" in dockerfile
+    assert f"/app/web/backend/{binary}" in dockerfile
+    assert (ROOT / "web/backend" / binary).is_file()
+
+
 def test_runtime_image_copies_only_allowlisted_reference_material():
     dockerfile = (ROOT / "web/Dockerfile").read_text(encoding="utf-8")
     dockerignore_lines = {

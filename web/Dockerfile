@@ -10,9 +10,9 @@ RUN npm ci
 COPY web/frontend/ ./
 RUN npm run build
 
-# The document worker executes the pinned HWP converter with Node.  Keep the
-# runtime binary in the application image while its processing network remains
-# isolated by Compose.
+# The legacy document worker executes its pinned HWP converter with Node. The
+# native rhwp CLI is copied with the backend below; both remain isolated from
+# networks by the document-worker Compose contract.
 FROM node:22-bookworm-slim AS node-runtime
 
 # Build-time UID/GID defaults match .env.example and may be changed to the host
@@ -44,7 +44,7 @@ RUN python -m pip install --no-cache-dir --no-deps --only-binary=:all: \
 # and delegates all other commands to Git.
 RUN apt-get update \
     && apt-get install --no-install-recommends --yes \
-        git poppler-utils clamav postgresql-client chromium chromium-sandbox fonts-noto-cjk \
+        git poppler-utils clamav postgresql-client chromium chromium-sandbox fonts-nanum fonts-noto-cjk \
     && rm -rf /var/lib/apt/lists/*
 
 # Refuse root as a build-time application identity and create a stable runtime
@@ -86,6 +86,7 @@ RUN install -d -o bidops -g bidops -m 0770 \
     && install -d -o root -g root -m 0555 \
         /app/experiments/order-plan-screening/config /run/c2 \
     && chmod 0555 /usr/local/bin/bidops-entrypoint /usr/local/bin/bidops-ops /usr/local/bin/git \
+        /app/web/backend/app/deep_review/document_mcp/vendor/rhwp/bin/rhwp \
     && chown -R root:root /app/skills /app/docs \
     && find /app/skills /app/docs -type d -exec chmod 0555 {} + \
     && find /app/skills /app/docs -type f -exec chmod 0444 {} + \

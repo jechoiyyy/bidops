@@ -63,17 +63,43 @@ snapshot 행(`prespec_v4_pdf_snapshot`)에는 `renderer='rhwp-svg-pdf'`, `render
 
 ## 4. 문단↔페이지 정렬 규칙 (`para-page-align.v1`)
 
-입력: 구조 블록(②의 `paragraph`·`table_cell` 블록, 문서 순서), `dump-pages` items(`paraIndex` 오름차순, `kind`, `pageIndex`), `export-text` 페이지 텍스트.
+R0 실측과 upstream `dump_page_items_json` 구현으로 다음 의미를 확정했다.
 
-1. `dump-pages`에서 `isEndnote==false`인 items를 `paraIndex`별로 모아 `page_first=min(pageIndex)+1`, `page_last=max(pageIndex)+1`을 만든다. `kind`는 첫 item의 값을 쓴다.
-2. 구조의 `paragraph` 블록(표 밖 문단)을 문서 순서대로 나열하고, `paraIndex` 오름차순 문단과 순서 기반으로 1:1 대응한다. 대응이 성립하려면 두 열의 개수가 같아야 한다. 개수가 다르면 3으로 간다.
-3. 개수가 다르면 텍스트 기반 정렬을 쓴다. 각 블록 텍스트(공백 정규화, 앞 60자)를 `textPreview`(공백 정규화)와 같은 순서 안에서 최장 공통 부분수열로 맞춘다. 맞은 쌍은 `match="text"`, 못 맞춘 블록은 `unmapped`.
-4. `table_cell` 블록은 같은 표(`table_key`)의 직전 `paragraph` 블록과 직후 `paragraph` 블록의 페이지 범위 사이로 추정하지 않는다. 대신 셀 텍스트가 어느 페이지의 `export-text` 텍스트에 정확히 포함되는지로 `page_first/page_last`를 정하고(`match="page_text"`), 여러 페이지에 걸치거나 못 찾으면 `unmapped`.
-5. 빈 텍스트 블록은 `match="empty"`로 직전 매핑 블록의 페이지를 물려받되 근거로 쓰지 않는다.
-6. 결과는 결정적이어야 한다. 같은 입력에서 두 번 실행해 대응표 바이트가 같아야 한다.
-7. 매핑률(`blocks_mapped/blocks_total`)은 기록만 하고 임계로 실패시키지 않는다. 표본 3건의 매핑률을 인수 기록에 남긴다.
+- 식별자는 전역 정수가 아니라 `(section, paraIndex)`다. `paraIndex`는 해당 구역의 0 기준
+  최상위 본문 paragraph 배열 인덱스다.
+- `fullParagraph`·`partialParagraph`는 그 본문 문단을 가리키고, `table`·`partialTable`·
+  `shape`는 해당 control을 소유한 **최상위 본문 문단**의 같은 인덱스를 쓴다. 표 셀 안의
+  문단은 별도 `paraIndex`를 받지 않는다.
+- `columns[].items`만으로는 본문 인덱스가 완전하지 않다. `extras[]`의
+  `hiddenEmptyPara`·`wrapAroundPara`도 같은 `(section, paraIndex)` 공간에 속한다.
+  notice 142 HWPX는 items 1,107개 인덱스와 extras 5개를 합쳐 구조의 최상위 문단
+  1,112개를 정확히 덮었다. 셀 문단 1,775개는 이 인덱스 공간에 없었다.
 
-열린 확인(Requirements §7): `paraIndex`가 표 셀 문단을 포함하는지 실측 뒤 2·4의 규칙을 확정한다. 확정 전에는 이 절이 잠정이다.
+확정 규칙은 다음과 같다.
+
+1. `isEndnote==false`인 `columns[].items`와 `extras[]`를 함께 읽고
+   `(section, paraIndex)`별 `page_first=min(pageIndex)+1`,
+   `page_last=max(pageIndex)+1`을 만든다. 한 문단이 여러 item 또는 페이지에 나타나도
+   같은 키로 합친다.
+2. 원본 HWPX의 `paragraph` 블록은 구역별로 표 셀 밖 `p`를 센 0 기준 ordinal을
+   `paraIndex`로 써서 1과 정확히 연결한다. `textPreview`는 이 identity를 만들거나
+   보정하는 데 쓰지 않는다.
+3. `table_cell`은 `paraIndex`로 연결하지 않는다. 셀 텍스트가 정확히 한 물리 페이지의
+   `export-text`에 유일하게 포함될 때만 `match="page_text"`로 연결하고, 빈 값·반복·여러
+   페이지·불일치는 `unmapped`다. 인접 문단 페이지나 표 순번으로 추정하지 않는다.
+4. 빈 paragraph 블록과 확인되지 않은 쌍은 앞 문단 페이지를 물려받지 않고 `unmapped`로
+   남긴다. `unknown`을 추정으로 채우지 않는 기존 게이트를 따른다.
+5. 결과는 canonical JSON으로 직렬화하며 같은 입력에서 두 번 만든 바이트가 같아야 한다.
+   매핑률은 기록만 하고 임계로 문서를 실패시키지 않는다.
+
+HWP 입력에는 아직 확정되지 않은 경계가 있다. 원본 HWP의 `dump-pages`와 변환 HWPX 구조가
+같은 문단 인덱스 공간이라는 기존 가정은 실측에서 깨졌다. 제안요청서는 원본 dump의
+items+extras가 `(section, paraIndex)` 669개(최대 668)인데 변환 HWPX의 최상위 문단은
+709개였고, 과업지시서는 각각 347개(최대 346)와 351개였다. `--verify`의 IR diff 0과
+`--verify-pages`의 같은 페이지 수는 이 crosswalk를 증명하지 않는다. 따라서 R2가 결정적
+crosswalk를 별도로 정의하기 전에는 HWP에서 변환한 HWPX paragraph 블록을 ordinal로 직접
+연결하지 않고 `unmapped`로 둔다. 이 미결정을 숨기기 위해 텍스트 LCS를 자동 보정으로 쓰지
+않는다.
 
 ## 5. 오류 코드
 
@@ -126,8 +152,17 @@ attempt `error_code`는 `pdf_preparation_failed:<위 코드 또는 기존 proces
 | 2026-09-10 | 142.hwpx | `dump-pages --json` | 79쪽, items에 `paraIndex`·`kind`·`textPreview`(untrusted) |
 | 2026-09-10 | 142.hwpx | `digest --sections --json` | 43절, `paraCount` 1112, 절별 `title`·`page`·`charCount` |
 | 2026-09-10 | 142.hwpx | `export-pdf --backend direct` | 실패: native-skia feature 미포함 빌드 |
+| 2026-09-10 | 142.hwpx, 격리 이미지 2회 | R0 3호출 | 합계 22.384/22.443초, PDF 79쪽·4,829,134 B, 최대 rhwp RSS 162,840 KiB, 컨테이너 pids 4, 세 산출물 hash 동일 |
+| 2026-09-10 | 제안요청서 HWP, 격리 이미지 2회 | R0 4호출 | 합계 18.531/17.905초, HWPX verify diff 0·53=53, PDF 53쪽·2,874,883 B, 최대 rhwp RSS 160,536 KiB, pids 4, 네 산출물 hash 동일 |
+| 2026-09-10 | 과업지시서 HWP, 격리 이미지 2회 | R0 4호출 | 합계 10.281/10.418초, HWPX verify diff 0·31=31, PDF 31쪽·1,616,896 B, 최대 rhwp RSS 128,240 KiB, pids 4, 네 산출물 hash 동일 |
 
-실측은 호스트에서 수행했고 격리 worker 이미지 안 실측은 R0에서 다시 한다.
+R0 이미지는 `network none`, non-root 1000:1000, 1 GiB, pids 128, `cap_drop ALL`,
+`no-new-privileges` 조건이었다. PDF·HWPX·`export-text`·`dump-pages`는 같은 입력의 두 실행에서
+각각 byte hash가 같았다. 다만 `dump-pages --json` stdout은 142에서 747,110 B,
+제안요청서에서 432,607 B라 §1과 Design §2.2의 256 KiB 가정을 넘는다(과업지시서는
+221,095 B). 이 계약을 그대로 구현하면 표본 2건이 `output_size_limit`로 실패하므로 R1을
+열기 전에 stdout 상한 또는 rhwp의 bounded-output 방식을 결정해야 한다. 전체 안전 지표는
+[R0 metrics](../validation-runs/2026-09-10-rhwp-r0-baseline.metrics.json)에 있다.
 
 ## 9. 변경 이력
 
