@@ -131,7 +131,7 @@ R-xx/A-xx 작업 지시, 과거 API 경로는 현재 실행 진입점이 아니�
 | [0047](design/ADR.md#adr-0047-데스크톱노트북-전용-지원-폭) | 데스크톱·노트북 전용 지원 폭 | 채택 | 1280~1920px만 지원; 검증 viewport 두 폭 |
 | [0048](design/ADR.md#adr-0048-무드보드-기반-색-팔레트와-테마-소유권) | 무드보드 기반 색 팔레트와 테마 소유권 | 채택 | 무드보드 5색 anchor에서 파생한 `bidops` 테마; 화면은 토큰만 읽고 `--color-*`를 재정의하지 않음; 의미색은 무드보드가 정하지 않음 |
 | [0049](tracking/decisions/0049-prespec-auto-preparation-and-auto-deep-review.md) | 사전규격 문서 준비를 등급으로 자동화하고 `SW사업대상=Y`는 심층 검토까지 자동 시작 | 채택 | FR-DOC-07·ADR-0031·0033의 "사람 승인"을 이 규칙으로 대체; 고비용 전량 분석의 승인 경계는 유지 |
-| [0050](tracking/decisions/0050-unified-openai-compatible-model-client.md) | 모델 호출을 하나의 OpenAI 호환 client와 용도별 설정으로 통일 | 채택 | C-1·개요·심층이 `core/model_client`를 씀; 용도별 endpoint·선언 revision·참조 실행 표식; 이전 로컬 provider 경로 제거 |
+| [0050](tracking/decisions/0050-unified-openai-compatible-model-client.md) | 모델 호출을 하나의 OpenAI 호환 client와 용도별 설정으로 통일 | 채택 | C-1·개요·심층이 `core/model_client`를 씀; 용도별 endpoint·선언 revision·참조 실행 표식; 이전 로컬 provider 경로 제거; MVP 기간에는 §5 "ADR-0050 모델 호출 게이트의 MVP 기간 완화"로 일부 완화됨 |
 | [0051](tracking/decisions/0051-deep-review-v2-deterministic-subset.md) | deep-review-v2의 결정적 부분만 채택 | 채택 — 부분 채택 | segment manifest·요구사항 inventory·검증 연결만 구현. 역할별 모델 분석과 Luna 평가는 보류 |
 | [0053](tracking/decisions/0053-decision-workload-read-contracts.md) | 결정 대기 조회와 모듈 소유 집계 계약 | 채택 | 신규 GET 세 개(`/api/workload`·기회별 심층 검토 목록·입찰 결정 큐), 업무 집계는 모듈 제공자 소유, DB migration 없음 |
 
@@ -196,7 +196,8 @@ report가 된다.
 - 승인된 사설 OpenAI 호환 vLLM만 용도별 binding으로 사용한다. C-1 공고 판정·사전규격 개요
   검토·심층 검토는 `app/core/model_client.py` 하나를 쓰고 용도(`screening`·`overview`·
   `deep_review`)마다 자기 endpoint·자격증명·선언 revision을 가진다([ADR-0050](tracking/decisions/0050-unified-openai-compatible-model-client.md)).
-  허용 host가 비었거나 선언 revision이 64자 hex가 아니면 그 용도는 호출 전에 fail closed한다.
+  허용 host 목록에 없는 host나 64자 hex가 아닌 선언 revision이면 그 용도는 호출 전에 fail
+  closed한다. 두 값이 **비어 있는** 경우는 MVP 기간 동안 통과시킨다(§5의 완화 항목).
 - hosted OpenAI·Codex로 자동 fallback하지 않는다. 외부 실험도 공개 발주계획 metadata와
   승인된 최소 회사 역량 projection만, payload preview·건별 승인을 거쳐 전송한다.
 - 실행 입력에는 source run, policy, profile, prompt, model, generation config와 digest를
@@ -230,6 +231,24 @@ ADR-0002와 초기 계획 문서의 SQLite WAL은 초기 단일 사용자 가정
 
 ADR-0011의 당시 Qwen 우선·OpenAI 보조안은 대체되었다. 현재는 오류가 외부 전송 동의가
 아니며, 승인된 local/private binding이 없으면 `awaiting_model` 또는 안전한 실패로 닫는다.
+
+### ADR-0050 모델 호출 게이트의 MVP 기간 완화(2026-09-11)
+
+결정: 실사용 검증(MVP) 기간 동안 모델 호출 경로의 "값 없음" 게이트를 뺀다.
+(1) 허용 host 목록이 비면 host 제한 없이 통과한다. (2) 선언 revision이 비면 통과하고
+`ModelEndpoint`에 빈 값으로 기록한다. (3) base URL은 http·https 둘 다 받고 host는 임의
+호스트명·IP를, 포트는 scheme 기본값을 허용한다. (4) 선언 revision이 없으면 서버가 보고한
+revision과 대조하지 않고 identity 결과에 기록만 한다. (5) 서버가 `max_model_len`을 내지
+않으면 `context_unverified` 표식만 세우고 문맥 초과 판정을 하지 않는다.
+
+근거: 대상 자료가 공개 발주·사전규격 자료이고, 지금 필요한 것은 배포 증언 절차보다 실사용
+검증이다. 값 없음으로 전 용도가 멈추면 검증 자체가 시작되지 않는다.
+
+결과: 값이 주어지면 기존 검사는 그대로 강제한다 — 허용 host 목록에 없는 host, 64자가 아닌
+선언 revision, `/v1`이 아닌 경로, userinfo·query·fragment는 여전히 호출 전에 실패한다.
+`model_not_served`, 4 MiB 응답 상한, identity backoff, sanitize, 300초 timeout, SDK retries 0은
+바뀌지 않는다. 완화한 게이트의 복원 시점은 MVP 종료 후 별도 결정으로 정한다. ADR-0050 본문은
+그대로 유지하며 이 항목이 그 일부를 완화한다.
 
 ### ADR-0021 실험 arm과 ADR-0037 C-2 선택
 

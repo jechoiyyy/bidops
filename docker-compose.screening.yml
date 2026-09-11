@@ -8,14 +8,17 @@
 #     -f docker-compose.yml -f docker-compose.screening.yml up -d web
 #
 # host 방화벽에서 승인된 IP/port 외 egress를 차단한 뒤에 사용한다.
+#
+# MVP 기간에는 허용 host와 선언 revision을 비워도 호출이 나간다(ADR-0050 완화,
+# 2026-09-11). 값을 주면 검사는 그대로다. endpoint 자체는 여전히 필수다.
 services:
   web:
     networks: [database, storage, scanning, model-egress]
     environment:
       BIDOPS_VLLM_SCREENING_BASE_URL: "${BIDOPS_VLLM_SCREENING_BASE_URL:?set an approved OpenAI-compatible /v1 endpoint in env/screening.env}"
-      BIDOPS_VLLM_SCREENING_ALLOWED_HOSTS: "${BIDOPS_VLLM_SCREENING_ALLOWED_HOSTS:?set the literal allowed host in env/screening.env}"
+      BIDOPS_VLLM_SCREENING_ALLOWED_HOSTS: "${BIDOPS_VLLM_SCREENING_ALLOWED_HOSTS:-}"
       BIDOPS_VLLM_SCREENING_API_KEY: "${BIDOPS_VLLM_SCREENING_API_KEY:-EMPTY}"
-      BIDOPS_VLLM_SCREENING_MODEL_REVISION: "${BIDOPS_VLLM_SCREENING_MODEL_REVISION:?set the operator-attested 64-hex model revision in env/screening.env}"
+      BIDOPS_VLLM_SCREENING_MODEL_REVISION: "${BIDOPS_VLLM_SCREENING_MODEL_REVISION:-}"
       BIDOPS_VLLM_SCREENING_MODEL: "${BIDOPS_VLLM_SCREENING_MODEL:-qwen3.8-27B}"
 
 networks:
