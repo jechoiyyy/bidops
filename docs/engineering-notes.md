@@ -413,3 +413,39 @@
   정상 core가 계속 차단된다. 명시된 unavailable 경고와 null descriptor를 함께 연결하고
   저장·cache 재사용까지 검사한다. 실제 후보 파일의 JSON `null`은 descriptor null과
   다르므로 기존 후보 schema/canonical 검사를 생략하면 안 된다.
+
+## 개요 run이 `runner_failed`로 즉시 끝나면 analysis-worker의 자격·네트워크·볼륨부터 본다
+
+- 증상: `prespec_overview_run`이 몇 초 안에 `failed`/`runner_failed`로 끝나고 개별 pdf
+  준비 코드가 붙지 않는다.
+- 원인: analysis-worker 컨테이너가 MinIO source·structure 쓰기 자격, scanning 네트워크,
+  `document-scratch` 볼륨 중 하나가 빠진 채 떠 있어 개요 runner의 첫 호출에서 죽는다.
+- 대응: 이 순서로 확인한다 — (1) `BIDOPS_SOURCE_ACCESS_KEY`/`SECRET_KEY`,
+  `BIDOPS_STRUCTURE_ACCESS_KEY`/`SECRET_KEY`가 컨테이너 환경에 있는지, (2) `scanning`
+  네트워크가 붙어 있는지, (3) `document-scratch:/scratch` 볼륨이 마운트됐는지.
+
+## `pdf_preparation_failed:clamav_unavailable`은 analysis-worker가 ClamAV에 닿지 못한다는 뜻이다
+
+- 증상: 개요 run이 `pdf_preparation_failed:clamav_unavailable`로 끝난다.
+- 원인: analysis-worker가 `scanning` 네트워크에 붙어 있지 않아 `clamav:3310`에 연결할 수
+  없다.
+- 대응: `docker-compose.yml`의 analysis-worker `networks`에 `scanning`이 있는지 확인한다.
+  `BIDOPS_CLAMAV_HOST`/`BIDOPS_CLAMAV_PORT`가 맞아도 네트워크가 없으면 연결 자체가 안 된다.
+
+## `pdf_preparation_failed:converter_unavailable`이 약 285초 뒤에 나면 `/scratch`가 안 붙은 것이다
+
+- 증상: 개요 run이 바로 죽지 않고 약 285초를 기다린 뒤 `pdf_preparation_failed:converter_unavailable`로 끝난다.
+- 원인: analysis-worker에 `document-scratch:/scratch` 볼륨이 없어 document-worker와의
+  scratch handoff 경로를 찾지 못하고, 재시도·timeout을 다 소진한 뒤에야 실패로 떨어진다.
+- 대응: analysis-worker `volumes`에 `document-scratch:/scratch`가 web·document-worker와
+  같은 형식으로 있는지 확인한다.
+
+## 접미 없는 `pdf_preparation_failed`가 10~30초 안에 나면 structure 저장소가 읽기 전용 자격으로 열린 것이다
+
+- 증상: 개요 run이 clamav나 converter 표식 없이 `pdf_preparation_failed`로 10~30초 안에
+  끝난다.
+- 원인: analysis-worker가 structure 객체 저장소를 `BIDOPS_STRUCTURE_READ_*`(읽기 전용)
+  자격만으로 열어 PDF 스냅샷을 쓰지 못한다.
+- 대응: 개요 runner의 PDF 준비는 `BIDOPS_STRUCTURE_ACCESS_KEY`/`SECRET_KEY`(쓰기 자격)로
+  써야 한다. 커밋 482e040에서 스냅샷 artifact를 structure 쓰기 자격으로 쓰도록 고쳤다 —
+  같은 증상이 재발하면 그 커밋 이후로 회귀했는지부터 본다.

@@ -1360,4 +1360,36 @@ runner 소비자가 없어 보류했다. 운영 DB/MinIO 쓰기·migration 적�
   이 스택을 삭제하고 정책 v6(`max_claims 12`)로 다시 썼으므로, 여기 기록된 8/32주장 비율과
   실패 사유 개수는 새 스택에 그대로 적용되지 않는다. 새 실행 결과는 별도 참조 실행으로
   다시 측정한다. 이 항목은 해당 스택 폐기로 종결한다.
+
+## ingest CLI 경로가 deep_review 첨부 자격 hook을 부르지 않는다 (2026-09-11, 미해결)
+
+- 재현: `python -m app.lifecycle.ingest.cli --run <RUN_ID>`는 `app.deep_review`의
+  등록 함수를 import하지 않는다. `app/lifecycle/ingest/loader.py`는 module-level
+  `extension_registry()` 싱글턴에 등록된 hook만 부르므로(`_run_ingested_hooks`),
+  이 CLI 프로세스에서 그 싱글턴은 비어 있어
+  `PreSpecAttachmentEligibilityHook.run_ingested` → `refresh_fetch_eligibility`가
+  돌지 않는다. web 프로세스(FastAPI 앱 기동 경로)는 `app/deep_review/__init__.py`가
+  이 hook을 등록하므로 API로 적재하면 정상 동작한다.
+- 영향: ingest CLI로 적재한 회차는 사전규격 첨부 취득 자격이 자동으로 재평가되지
+  않는다. `docs/operations.md` 3단계에 web 컨테이너에서 `refresh_fetch_eligibility`를
+  수동으로 1회 부르는 임시 절차를 추가해 이 공백을 메웠다(2026-09-11).
+- 후속: `app/lifecycle/ingest/cli.py`가 `run_prespec_e2e.py`처럼 `--extension-provider
+  모듈:이름` 인자로 `PreSpecAttachmentEligibilityHook` 등록 함수를 주입받게 하거나,
+  CLI가 항상 `app.deep_review`의 등록 함수를 부르도록 고친다. 지금 범위에서는
+  해결하지 않는다.
+
+## 운영 `attachment.name`이 나라장터 자리표시자라 파일명 대조가 무의미하다 (2026-09-11, 경고로 완화됨·미해결)
+
+- 재현: 운영 나라장터 응답의 `attachment.name`은 흔히 "첨부 1"류 자리표시자이고
+  실제 파일명은 취득 응답 header에서만 온다. `document_bundles.py`의 확정 검사가
+  `attachment.name != document.original_filename`이면 `source_name_differs`를
+  내지만, 이 코드는 `blocking=False`(비차단 경고)로 완화돼 있다 — 원문 정체는
+  이름이 아니라 hash·크기로 확인하기 때문이다(`web/backend/app/deep_review/services/document_bundles.py:428`
+  부근 주석 참고).
+  실제 원문이 바뀐 경우는 크기·hash·provider snapshot 검사가 별도로 차단한다.
+- 영향: 나라장터가 원문 이름을 주지 않는 한 이 경고는 정상 케이스에서도 계속
+  남고, 이름 기반 대조 자체는 사실상 정보를 주지 못한다. 확정을 막지는 않는다.
+- 후속: 수집 단계(`skills/bidops-collect`)에서 취득 응답 header의 실제 파일명을
+  더 이른 시점에 확보해 `attachment.name`에 반영할 수 있으면 이 경고를 줄일 수
+  있다. 지금 범위에서는 해결하지 않는다.
 - 영향/다음 판단: 입력 준비·전송·암호화 저장·검증 실패/근거 PDF 조회는 작동하나 검증된 개요를 얻는 실제 성공 경로는 미확인이다. 다음 개선은 초안 section/quantity/unknown 계약과 결정적 규칙의 실원문 적합성을 이 고정 응답/인용으로 좁혀 확인하는 것이 우선이다. 이번 실행 요청에서 새 정책/검증 방식 변경·사실 자동 수정·재호출을 임의로 진행하지 않는다. 원문·기존 결과/사람 리뷰/참조 표식과 실패 응답을 보존했다.
