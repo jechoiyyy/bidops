@@ -32,6 +32,8 @@ from app.deep_review.services.auto_preparation import (
     AUTO_ACTOR_NAME,
     AUTO_CONFIRM_ACTION,
     AUTO_DEEP_REVIEW_ACTION,
+    REASON_ATTACHMENTS_FAILED,
+    REASON_AWAITING_FETCH,
     REASON_BLOCKING_ISSUES,
     REASON_BUNDLE_NOT_AUTO_READY,
     REASON_DEEP_REVIEW_EXISTS,
@@ -194,6 +196,41 @@ def test_a_blocked_draft_reports_a_safe_reason_code():
         has_pending_fetch=False,
     )
     assert (status, reason) == ("blocked", REASON_BLOCKING_ISSUES)
+
+
+def test_terminal_blocked_and_failed_fetches_without_a_document_are_blocked():
+    """취득 행 둘이 각각 `차단`·`실패`로 끝났고 준비된 문서가 없다.
+
+    더 기다려도 문서가 오지 않으므로 "첨부 취득 대기"가 아니라 멈춘 상태다.
+    """
+
+    status, reason = _status_for(
+        is_pre_spec=True,
+        grade=_PRIORITY,
+        deep_review_id=None,
+        bundles=(),
+        overview_status=None,
+        has_pending_fetch=False,
+        attachments_failed=True,
+        has_ready_document=False,
+    )
+    assert (status, reason) == ("blocked", REASON_ATTACHMENTS_FAILED)
+
+
+def test_a_still_running_fetch_keeps_the_waiting_status():
+    """`차단` 한 건이 있어도 다른 한 건이 `대기`면 아직 기다리는 중이다."""
+
+    status, reason = _status_for(
+        is_pre_spec=True,
+        grade=_PRIORITY,
+        deep_review_id=None,
+        bundles=(),
+        overview_status=None,
+        has_pending_fetch=True,
+        attachments_failed=False,
+        has_ready_document=False,
+    )
+    assert (status, reason) == ("waiting_attachments", REASON_AWAITING_FETCH)
 
 
 def test_a_non_priority_grade_reports_a_safe_reason_code():

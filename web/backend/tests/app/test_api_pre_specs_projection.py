@@ -25,6 +25,7 @@ from app.deep_review import PreSpecOverviewReview
 from app.deep_review.services import company_fit
 from app.deep_review.services import prespec_projection
 from app.deep_review.models import (
+    AttachmentFetch,
     ContentObject,
     DocumentBundle,
     DocumentBundleItem,
@@ -32,7 +33,7 @@ from app.deep_review.models import (
     DocumentVersion,
     PreSpecOverviewSnapshot,
 )
-from app.lifecycle.models import Notice
+from app.lifecycle.models import Attachment, Notice
 from app.screening.models import Judgment, Review
 from tests.app.test_api_pre_specs import _items_by_id, _payload, pre_specs_api  # noqa: F401
 
@@ -297,6 +298,40 @@ def test_pre_specs_grade_comes_from_the_screening_seam(pre_specs_api):
     assert item["grade"] == "우선 검토"
     assert item["grade_source"] == "human_review"
     assert item["auto_preparation_status"] == "waiting_attachments"
+
+
+def test_pre_specs_report_blocked_when_every_fetch_ended_in_failure(pre_specs_api):
+    """취득 행이 전부 `차단`·`실패`로 끝나면 "첨부 취득 대기"가 아니라 멈춤이다.
+
+    묶음이 만들어지지 않은 이유가 "아직 오는 중"이 아니라 "올 것이 없음"이므로
+    운영자가 기다리지 않게 `blocked`로 보여 준다.
+    """
+
+    session, _engine, refs = pre_specs_api
+    notice = refs["sw_no"]
+    for name, status in (("blocked.pdf", "차단"), ("failed.pdf", "실패")):
+        attachment = Attachment(notice_id=notice.id, name=name, origin="g2b")
+        session.add(attachment)
+        session.flush()
+        session.add(
+            AttachmentFetch(
+                attachment_id=attachment.id,
+                status=status,
+                eligibility_reason="sw_business_object",
+                attempt_count=3,
+                max_attempts=3,
+                next_attempt_at=datetime(2026, 8, 25, tzinfo=UTC),
+            )
+        )
+    session.add(
+        Review(notice_id=notice.id, corrected_grade="우선 검토", reviewer_snapshot="검토자")
+    )
+    session.commit()
+
+    item = _items_by_id(_payload(session, sw_only=False))[notice.id]
+
+    assert item["auto_preparation_status"] == "blocked"
+    assert item["auto_preparation_reason"] == "attachments_failed"
 
 
 # --- 자동 심층 시작을 막은 사유가 화면까지 온다 (명세 §6.4·§8) ----------------
