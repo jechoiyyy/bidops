@@ -379,6 +379,17 @@ def test_effective_runtime_role_matrix_and_future_defaults() -> None:
                 assert _column_privilege(
                     connection, "app", "notice", "title", "UPDATE"
                 )
+                # bundle confirm의 행 잠금에 필요한 최소 권한. 잠금 대상 한 열만
+                # 열려 있고 구조 상태(`validation_status`)는 여전히 닫혀 있다.
+                assert not _table_privilege(
+                    connection, "app", "document_structure", "UPDATE"
+                )
+                assert _column_privilege(
+                    connection, "app", "document_structure", "id", "UPDATE"
+                )
+                assert not _column_privilege(
+                    connection, "app", "document_structure", "validation_status", "UPDATE"
+                )
                 for table, column in (("notice", "id"), ("attachment", "extract_status"), ("document_version", "is_current")):
                     assert _column_privilege(connection, "worker", table, column, "UPDATE")
                     assert not _table_privilege(connection, "worker", table, "UPDATE")

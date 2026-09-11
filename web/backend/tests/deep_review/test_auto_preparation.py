@@ -18,6 +18,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
+from app.core.api_errors import BundleServiceError
 from app.core.config import get_settings
 from app.core.db import init_db
 from app.deep_review.cli import main as deep_review_cli_main
@@ -705,3 +706,31 @@ def test_the_backfill_cli_dry_run_lists_targets_without_preparing(
         "targets": [notice.id],
     }
     assert db_session.scalar(select(DocumentBundle)) is None
+
+
+def test_a_blocking_issue_on_confirm_ends_with_its_own_reason_code(
+    db_session: Session, overview_flag
+):
+    """확정이 blocking issue로 막히면 `processing_failed`가 아니다.
+
+    묶음 초안은 그대로 남고 사유는 `bundle_has_blocking_issues`다 — 사람이
+    첨부를 제외하거나 수동 업로드한 뒤 확정하라는 뜻이며, 원인을 알 수 없는
+    실패로 접히면 안 된다.
+    """
+
+    overview_flag(True)
+    notice, _document = _sw_business_prespec(db_session)
+
+    class _BlockedBundleService(_RecordingBundleService):
+        def confirm(self, session, bundle_id, request, actor, *, actor_kind="human", trigger_metadata=None):
+            raise BundleServiceError(
+                "bundle_has_blocking_issues", "차단 issue가 남아 있습니다", status_code=409
+            )
+
+    service = _BlockedBundleService()
+
+    outcome = maybe_auto_prepare(db_session, [notice.id], service=service)[0]
+
+    assert service.created == [notice.id]
+    assert (outcome.created, outcome.confirmed) == (True, False)
+    assert outcome.reason == REASON_BLOCKING_ISSUES

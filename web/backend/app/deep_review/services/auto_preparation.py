@@ -25,6 +25,7 @@ SW사업대상=Y 자동 심층 검토 시작(명세 §6.4)도 이 모듈이 갖�
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterable, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -56,6 +57,8 @@ from .effective_grade import (
 )
 from .input_versions import InputVersionError, active_version_ids, resolve_active_versions
 from ...core.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 #: 시스템 actor의 표식 (명세 §6.2). 인증이 아니라 감사 표식이다.
 AUTO_ACTOR_NAME = "auto-preparation"
@@ -732,9 +735,20 @@ def maybe_auto_prepare(
                             review_id=review_id,
                             deep_review_service=deep_review_service,
                         )
-                    except Exception:
+                    except Exception as error:
                         # 예외 본문은 여기서 버린다. 다음 촉발에서 다시 시도된다.
+                        # 다만 아무 흔적도 없으면 운영에서 `processing_failed`의
+                        # 원인을 찾을 수 없으므로, **안전한 식별자만** 남긴다 —
+                        # 예외 클래스명, 서비스가 붙인 안정 code, DB sqlstate다.
+                        # 메시지 본문·SQL·경로·원문은 남기지 않는다.
                         work.rollback()
+                        logger.warning(
+                            "auto preparation failed notice_id=%s error=%s code=%s sqlstate=%s",
+                            notice_id,
+                            type(error).__name__,
+                            getattr(error, "code", None),
+                            getattr(getattr(error, "orig", None), "sqlstate", None),
+                        )
                         outcomes[notice_id] = AutoPreparationOutcome(
                             notice_id=notice_id, reason="processing_failed"
                         )
