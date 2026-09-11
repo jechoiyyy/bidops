@@ -447,7 +447,12 @@ def test_claim_orders_due_rows_and_increments_fence(db_session: Session):
 def test_fetch_fixture_completes_with_provider_filename(
     db_session: Session, tmp_path: Path, filename: str, fixture: Path
 ):
-    _, _, _ = queue_one(db_session, sw_status="Y")
+    # acquire_provider_attachment는 filename 인자로 snapshot.name(DB에 적재된
+    # Attachment.name)을 받아 그것을 최우선으로 쓴다. 이 테스트는 "provider
+    # filename"이 실제로 쓰이는 경로를 보려는 것이므로, DB에 이름이 없을 때
+    # (name=None)로 큐잉해 다음 우선순위인 response.suggested_filename이
+    # 선택되게 한다.
+    _, _, _ = queue_one(db_session, sw_status="Y", name=None)
     claim = claim_next(db_session, worker_id="worker-a", lease_seconds=120)
     assert claim is not None
     result = fetch_claimed(
@@ -700,7 +705,9 @@ def test_safe_fetch_revalidates_locked_attachment_provenance_after_io(
 
 
 def test_unsupported_docx_is_blocked_without_consuming_attempt(db_session: Session, tmp_path: Path):
-    _, _, _ = queue_one(db_session, sw_status="Y")
+    # DB 이름이 없어야(name=None) provider가 알려주는 .docx 파일명으로 확장자
+    # 판정이 이뤄진다(snapshot.name이 있으면 그쪽이 우선한다).
+    _, _, _ = queue_one(db_session, sw_status="Y", name=None)
     claim = claim_next(db_session, worker_id="worker-a", lease_seconds=120)
     assert claim is not None
     result = fetch_claimed(
@@ -765,6 +772,43 @@ def test_max_attempts_exhaustion_is_failed(db_session: Session, tmp_path: Path):
     )
     assert result is not None and result.status == "실패"
     assert result.attempt_count == 1
+
+
+def test_backoff_seconds_schedule():
+    assert prespec_attachments._backoff_seconds(1) == 60
+    assert prespec_attachments._backoff_seconds(2) == 300
+    assert prespec_attachments._backoff_seconds(3) == 900
+    assert prespec_attachments._backoff_seconds(4) == 900
+
+
+def test_converter_unavailable_is_retried_with_backoff(
+    db_session: Session, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    _, _, _ = queue_one(db_session, sw_status="Y")
+    claim = claim_next(db_session, worker_id="worker-a", lease_seconds=120)
+    assert claim is not None
+
+    def fail_materialize(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+        raise DocumentProcessingError("converter_unavailable", "변환기를 사용할 수 없습니다")
+
+    monkeypatch.setattr(prespec_attachments, "materialize_structure", fail_materialize)
+    before = datetime.now(UTC)
+    result = fetch_claimed(
+        db_session,
+        claim,
+        connectors={
+            "g2b": StubConnector(
+                assets.ProviderResponse(SAFE_PDF.read_bytes(), G2B_URL, "converter.pdf")
+            )
+        },
+        processor=DocumentProcessor(clamav_checker=lambda _content: True),
+        root=tmp_path,
+    )
+
+    assert result is not None and result.status == "대기"
+    assert result.last_error_code == "converter_unavailable"
+    assert result.attempt_count == 1
+    assert result.next_attempt_at is not None and result.next_attempt_at > before
 
 
 def test_disabled_worker_is_quiet_and_does_not_claim(db_session: Session):
@@ -931,7 +975,9 @@ def test_unsupported_extension_marks_the_attachment_as_excluded_not_failed(
 ):
     """형식 밖 첨부는 `차단`이지만 묶음 확정을 막지 않는 `extract_status`를 남긴다 (§6.2)."""
 
-    _, attachment, _ = queue_one(db_session, sw_status="Y")
+    # DB 이름이 없어야(name=None) provider가 알려주는 .zip 파일명으로 확장자
+    # 판정이 이뤄진다(snapshot.name이 있으면 그쪽이 우선한다).
+    _, attachment, _ = queue_one(db_session, sw_status="Y", name=None)
     claim = claim_next(db_session, worker_id="worker-a", lease_seconds=120)
     assert claim is not None
 
