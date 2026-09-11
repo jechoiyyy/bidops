@@ -30,6 +30,9 @@ import type {
   OrderPlanScreeningFeedbackCreateResponse,
   OrderPlanScreeningFeedbackListResponse,
   OrderPlanScreeningHistoryResponse,
+  OverviewEnvelope,
+  OverviewRangeConfirmationRequest,
+  OverviewRangeConfirmationResponse,
   PreSpecListQuery,
   PreSpecListResponse,
   CompanyFitResponse,
@@ -598,6 +601,32 @@ export const api = {
 
   getCompanyFit: (noticeId: number, options?: ReadRequestOptions) =>
     request<CompanyFitResponse>(`/pre-specs/${noticeId}/company-fit`, options),
+
+  /** 사전규격 개요 검토 전체(`bidops.prespec-overview.v1`). run이 없으면
+   * `current`가 `null`이며 화면은 그것을 미시작으로 읽는다. */
+  getPreSpecOverview: (noticeId: number, options?: ReadRequestOptions) =>
+    request<OverviewEnvelope>(`/pre-specs/${noticeId}/overview`, options),
+
+  /** 담당자가 읽을 쪽 범위를 확정하고 새 개요 run을 예약한다. 409 `run_active`·
+   * `document_not_current_safe`, 422 `range_invalid`는 서버가 정한 안전 코드로
+   * 돌아오며 화면이 다시 판정하지 않는다. */
+  confirmPreSpecOverviewRange: (
+    noticeId: number,
+    payload: OverviewRangeConfirmationRequest,
+    actorName: string,
+  ) =>
+    request<OverviewRangeConfirmationResponse>(
+      `/pre-specs/${noticeId}/overview/range-confirmations`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...actorHeaders(actorName) },
+        body: JSON.stringify(payload),
+      },
+    ),
+
+  /** run이 고정한 스냅샷 PDF의 안전한 상대 경로. 화면은 이 경로로만 원문을 연다. */
+  preSpecOverviewRunPdfUrl: (noticeId: number, runId: string) =>
+    `${API_PREFIX}/pre-specs/${noticeId}/overview/runs/${encodeURIComponent(runId)}/pdf`,
 
   getNotice: (noticePk: number) => request<NoticeDetailResponse>(`/notices/${noticePk}`),
 
