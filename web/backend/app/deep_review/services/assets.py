@@ -1021,6 +1021,33 @@ def _collect_chunks(chunks: Iterable[bytes] | AsyncIterable[bytes], *, deadline:
     return total, b"".join(result)
 
 
+def _filename_from_response_url(url: str | None) -> str | None:
+    """Fall back to the final response URL's path when no filename is given.
+
+    Attachment.name도 Content-Disposition도 없는 provider 응답이 있다 — G2B
+    링크 중 일부는 파일명을 URL path에만 싣는다. 마지막 path 성분을
+    percent-decode한 뒤 `_safe_filename`으로 정규화하고, 빈 문자열이거나
+    안전한 문서 파일명이 아니면 후보 없음(None)으로 취급해 다음 단계(기존
+    `unsupported_extension`)로 넘어가게 한다.
+    """
+
+    if not url:
+        return None
+    last = urlsplit(url).path.rsplit("/", 1)[-1]
+    if not last:
+        return None
+    try:
+        decoded = unquote_to_bytes(last).decode("utf-8", errors="strict")
+    except (UnicodeDecodeError, UnicodeEncodeError):
+        return None
+    if not decoded:
+        return None
+    try:
+        return _safe_filename(decoded)
+    except AssetError:
+        return None
+
+
 def acquire_provider_attachment(
     *,
     source_system: str,
@@ -1036,7 +1063,12 @@ def acquire_provider_attachment(
     if connector is None or connector.source_system != source_system:
         raise ProviderSecurityError("provider_connector_blocked", "허용된 provider connector가 없습니다")
     response = connector.fetch(source_url)
-    selected_filename = filename if filename is not None else response.suggested_filename
+    if filename is not None:
+        selected_filename = filename
+    elif response.suggested_filename is not None:
+        selected_filename = response.suggested_filename
+    else:
+        selected_filename = _filename_from_response_url(response.final_url)
     if selected_filename is None:
         raise AssetError("unsupported_extension", "첨부 파일명을 확인할 수 없습니다")
     try:
