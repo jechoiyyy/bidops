@@ -1,5 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
-import { mockApi } from "./api-mock";
+import {
+  mockApi,
+  overviewCompletedEnvelope,
+  overviewCompletedRunFixture,
+  overviewEnvelopeFixture,
+  overviewFallbackQueuedRunFixture,
+} from "./api-mock";
 import { mkdir, writeFile } from "node:fs/promises";
 
 const FIXED_TIME = new Date("2026-08-31T09:00:00+09:00");
@@ -174,12 +180,15 @@ const notice991 = {
 interface PreSpecTrace {
   listQueries: URLSearchParams[];
   noticeGets: number[];
+  overviewGets: number[];
   trackingPatches: Array<{ opportunityId: number; trackingStatus: string; reason: string }>;
 }
 
 interface PreSpecMockOptions {
   emptyDefault?: boolean;
   trackingSavedActor?: string;
+  /** 개요 검토 envelope(`bidops.prespec-overview.v1`). 없으면 run이 없는 공고다. */
+  overviewBody?: unknown;
 }
 
 async function fillRecordReason(page: Page, text: string) {
@@ -189,7 +198,7 @@ async function fillRecordReason(page: Page, text: string) {
 }
 
 async function mockPreSpecs(page: Page, options: PreSpecMockOptions = {}): Promise<PreSpecTrace> {
-  const trace: PreSpecTrace = { listQueries: [], noticeGets: [], trackingPatches: [] };
+  const trace: PreSpecTrace = { listQueries: [], noticeGets: [], overviewGets: [], trackingPatches: [] };
   const trackingByOpportunity = new Map<number, string>([
     [trackingException.opportunity_id, trackingException.tracking_status],
     [newPreSpec.opportunity_id, newPreSpec.tracking_status],
@@ -198,6 +207,18 @@ async function mockPreSpecs(page: Page, options: PreSpecMockOptions = {}): Promi
   await page.route("**/api/pre-specs**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
+    const overviewMatch = url.pathname.match(/^\/api\/pre-specs\/(\d+)\/overview$/);
+
+    if (overviewMatch && request.method() === "GET") {
+      const id = Number(overviewMatch[1]);
+      trace.overviewGets.push(id);
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(options.overviewBody ?? overviewEnvelopeFixture(id, null)),
+      });
+      return;
+    }
 
     if (url.pathname === "/api/pre-specs" && request.method() === "GET") {
       trace.listQueries.push(new URLSearchParams(url.search));
@@ -684,6 +705,69 @@ test("추적 결정 입력이 있는 채로 창을 닫으면 확인 없이 버�
   expect(trace.trackingPatches).toEqual([]);
 });
 
+// 선택한 건의 개요 본문은 목록 응답이 아니라 개요 endpoint의 run envelope에서 온다.
+test("선택한 건의 개요 결과·품질 표식·근거 위치를 개요 응답에서 보여준다", async ({ page }) => {
+  // 요약 줄은 첫 주장 다음 문장들이다. fixture에 두 번째 주장을 얹어 확인한다.
+  const completed = overviewCompletedEnvelope();
+  const run = {
+    ...overviewCompletedRunFixture,
+    result: {
+      ...overviewCompletedRunFixture.result!,
+      business_overview: [
+        ...overviewCompletedRunFixture.result!.business_overview,
+        {
+          claim_id: "c1b",
+          text: "민원·행정 데이터를 통합해 담당자가 업무 현황을 조회한다.",
+          evidence: [{ page: 3, quote: "업무 현황 조회" }],
+        },
+      ],
+    },
+  };
+  const trace = await mockPreSpecs(page, {
+    overviewBody: { ...completed, current: run, history: [run] },
+  });
+  await page.goto("/pre-specs");
+
+  const overview = page.locator(".pre-specs-detail-pane .pre-specs-overview");
+  await expect(overview.getByRole("heading", { name: "개요 검토 결과" })).toBeVisible();
+  await expect(overview).toContainText("차세대 통합 데이터 플랫폼을 구축하는 사업이다.");
+  await expect(overview.locator(".pre-specs-overview-summary")).toHaveText("민원·행정 데이터를 통합해 담당자가 업무 현황을 조회한다.");
+  await expect(overview).toContainText("검증 통과 · passed");
+  // 품질 표식은 표식 그대로 남는다 — 참조 실행을 완료로 바꾸지 않는다.
+  await expect(overview.locator(".pre-specs-overview-quality")).toContainText("참조 실행 · 품질 미측정");
+  await expect(overview.getByRole("heading", { name: "확인 조건" })).toBeVisible();
+  await expect(overview.getByRole("heading", { name: "문서 근거" })).toBeVisible();
+  const locator = overview.getByLabel("근거 위치").first();
+  await expect(locator).toContainText("3쪽");
+  await expect(locator.getByRole("link", { name: "3쪽" })).toHaveAttribute(
+    "href",
+    `/api/pre-specs/991/overview/runs/${run.id}/pdf#page=3`,
+  );
+  await expect(overview.getByRole("link", { name: "상세에서 근거 원문 열기 →" })).toBeVisible();
+  expect(trace.overviewGets).toContain(991);
+});
+
+test("개요 결과가 없으면 상태가 무엇을 기다리는지 말하고 결과를 지어내지 않는다", async ({ page }) => {
+  await mockPreSpecs(page, {
+    overviewBody: overviewEnvelopeFixture(991, overviewFallbackQueuedRunFixture, [overviewFallbackQueuedRunFixture]),
+  });
+  await page.goto("/pre-specs");
+
+  const overview = page.locator(".pre-specs-detail-pane .pre-specs-overview");
+  await expect(overview).toContainText("검토 결과 미확정");
+  await expect(overview).toContainText("승인된 모델 실행이 큐에서 차례를 기다리고 있습니다.");
+  await expect(overview.getByRole("heading", { name: "문서 근거" })).toHaveCount(0);
+});
+
+test("개요 응답의 notice ID가 어긋나면 목록 화면도 교차 정본을 그리지 않는다", async ({ page }) => {
+  await mockPreSpecs(page, { overviewBody: { ...overviewCompletedEnvelope(), notice_id: 992 } });
+  await page.goto("/pre-specs");
+
+  const detail = page.locator(".pre-specs-detail-pane");
+  await expect(detail).toContainText("개요 검토 정본을 확인할 수 없습니다.");
+  await expect(detail.locator(".pre-specs-overview")).toHaveCount(0);
+});
+
 test("상세 탭은 첨부 집계와 실행 이력을 각자 자리에서 보여준다", async ({ page }) => {
   await mockPreSpecs(page);
   await page.goto("/pre-specs");
@@ -694,6 +778,7 @@ test("상세 탭은 첨부 집계와 실행 이력을 각자 자리에서 보여
   await expect(detail.locator(".pre-specs-document-counts")).toContainText("차단");
 
   await detail.locator(".pre-specs-detail-tab", { hasText: "처리 이력" }).click();
+  await expect(detail.getByRole("heading", { name: "개요 실행 이력" })).toBeVisible();
   await expect(detail.getByRole("heading", { name: "사람의 선택과 자동 준비" })).toBeVisible();
   await expect(detail.locator(".pre-specs-history-facts").last()).toContainText("첨부 취득 대기");
 });
